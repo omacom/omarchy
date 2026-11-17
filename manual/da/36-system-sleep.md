@@ -1,21 +1,21 @@
-# Systemhvile
+# Systemsøvn
 
-Omarchy aktiverer hviletilstand og dvaletilstand som standard, men hvis du har problemer med en af dem på din maskine, kan du slå dem fra.
+Omarchy har suspension og dvale aktiveret som standard, men hvis du har problemer med en af delene på din maskine, kan du slå dem fra.
 
-På NVIDIA GB10-maskiner, såsom DGX Spark og ASUS Ascent GX10, er hviletilstand og dvaletilstand slået fra, ligesom de er i NVIDIA's DGX OS, fordi hvile endnu ikke har vist sig at virke på den hardware. Kontakten til hviletilstand og opsætningen af dvaletilstand gælder ikke dér. For at slå hvile til igen skal du fjerne `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` med `sudo rm`; derefter vender Hvile tilbage til menuen, og dvaletilstand kan sættes op som på andre maskiner. Kørsel af `sudo omarchy apply hardware --install-user "$USER"` lægger filen tilbage.
+På NVIDIA GB10-maskiner, såsom DGX Spark og ASUS Ascent GX10, er suspension og dvale slået fra, ligesom i NVIDIA's DGX OS, fordi søvn endnu ikke har vist sig at virke på den hardware. Det samme gælder for ASUS Zenbook A16 (UX3607OA), hvor suspension endnu ikke får chippen til at sove helt og kan hænge natten over. Kontakten til suspension og opsætningen af dvale gælder ikke dér. For at slå søvn til igen skal du fjerne `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` med `sudo rm`; Suspension vender derefter tilbage til menuen, og dvale kan sættes op som på andre maskiner. Hvis du kører `sudo omarchy apply hardware --install-user "$USER"`, kommer filen tilbage.
 
 ### Strømprofiler
 
-På en bærbar husker Omarchy din strømprofil separat for tilsluttet strøm og batteridrift og skifter mellem de to, når du sætter stikket i og tager det ud. Fra start betyder det ydeevne på AC og balanceret på batteri.
+På en bærbar husker Omarchy din strømprofil separat for tilsluttet strøm og batteridrift og skifter mellem de to, når du sætter strømmen til og tager den fra. Som standard betyder det performance på AC og balanced på batteri.
 
-Du kan se, hvad din maskine tilbyder, med `omarchy powerprofiles list`, og indstille den, du vil have til den tilstand, du aktuelt er i, med `omarchy powerprofiles set autodetect power-saver`. For at indstille den anden tilstand uden at trække noget ud skal du nævne den direkte: `omarchy powerprofiles set battery power-saver`. Uanset hvad du vælger, er det det, du får tilbage, næste gang du er i den tilstand.
+Du kan se, hvad din maskine tilbyder, med `omarchy powerprofiles list`, og indstille den, du vil have til den tilstand, du er i lige nu, med `omarchy powerprofiles set autodetect power-saver`. Hvis du vil indstille den anden tilstand uden at tage strømmen fra, skal du nævne den direkte: `omarchy powerprofiles set battery power-saver`. Uanset hvad du vælger, er det det, du får tilbage, næste gang du er i den tilstand.
 
-### Slå hviletilstand til/fra
+### Slå suspension til/fra
 
-Du slår hviletilstand til og fra ved at køre `omarchy toggle suspend` fra terminalen. Det viser/skjuler blot valgmuligheden under _System_ (eller `Super + Esc`), og så kan du se, om den virker konsekvent på dit system. Hvis ikke, kan du skjule den igen med samme kommando.
+Du slår suspension til/fra ved at køre `omarchy toggle suspend` fra terminalen. Det viser/skjuler bare valgmuligheden under _System_ (eller `Super + Esc`), og så kan du se, om det virker stabilt på dit system. Hvis ikke, kan du skjule den igen med den samme kommando.
 
-### Slå dvaletilstand til/fra
+### Slå dvale til/fra
 
-Du sætter dvaletilstand op ved at køre `omarchy hibernation setup` fra terminalen. Dvaletilstand opretter en /swap-undervolumen på dit bootdrev på størrelse med din fysiske RAM-allokering, så sørg for at have masser af plads til overs. På en 32GB-maskine skal du altid have 32GB+ ledig plads til denne volumen. Dvaletilstand kræver også standardbootloaderen Limine.
+Du sætter dvale op ved at køre `omarchy hibernation setup` fra terminalen. Dvale opretter et /swap-undervolumen på dit bootdrev på størrelse med din fysiske RAM-allokering, så sørg for, at du har rigeligt med plads til overs. På en 32GB-maskine skal du altid have 32GB+ fri til dette volumen. Dvale kræver også standard-Limine-bootloaderen.
 
-Når den er sat op, ser du dvale-valgmuligheden under _System_ (eller `Super + Esc`), og så kan du se, om den virker konsekvent på dit system. Hvis ikke, kan du fjerne den igen ved at køre `omarchy hibernation remove`.
+Når det er sat op, ser du dvale-valgmuligheden under _System_ (eller `Super + Esc`), og så kan du se, om det virker stabilt på dit system. Hvis ikke, kan du fjerne den igen ved at køre `omarchy hibernation remove`.

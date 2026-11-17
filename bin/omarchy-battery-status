@@ -63,17 +63,27 @@ state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
 native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
 battery_path="$power_supply_path/$native_path"
 
+# A sysfs reading as a number, or nothing. Firmware that doesn't know the
+# present rate leaves current_now in place but fails every read of it (ENODEV),
+# so a readable file is no promise of a value.
+read_sysfs_number() {
+  local value
+  { value=$(<"$1"); } 2>/dev/null || return 1
+  [[ $value =~ ^-?[0-9]+$ ]] || return 1
+  echo "$value"
+}
+
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
-# the instantaneous sysfs reading when available so the open panel stays live.
-# Guards: the read must succeed and be numeric, and the magnitude must be sane.
-# Some ECs report bogus values (e.g. MSI BIF0_9 reports current_now=-65A for a
-# ~7.5W discharge, yielding -1124W), so reject anything above 150W or wildly
-# above UPower's rate and keep the UPower value instead.
+# the instantaneous sysfs reading when there is one so the open panel stays
+# live; without one, UPower's rate, worked out from the falling charge, stands.
+# Guards: the magnitude must be sane. Some ECs report bogus values (e.g. MSI
+# BIF0_9 reports current_now=-65A for a ~7.5W discharge, yielding -1124W), so
+# reject anything above 150W or wildly above UPower's rate and keep the UPower
+# value instead.
 sysfs_rate=""
-if microwatts=$(cat "$battery_path/power_now" 2>/dev/null) && [[ $microwatts =~ ^-?[0-9]+$ ]]; then
+if microwatts=$(read_sysfs_number "$battery_path/power_now"); then
   sysfs_rate=$(awk -v microwatts="$microwatts" 'BEGIN { print microwatts / 1000000 }')
-elif microamps=$(cat "$battery_path/current_now" 2>/dev/null) && [[ $microamps =~ ^-?[0-9]+$ ]] \
-  && microvolts=$(cat "$battery_path/voltage_now" 2>/dev/null) && [[ $microvolts =~ ^[0-9]+$ ]]; then
+elif microamps=$(read_sysfs_number "$battery_path/current_now") && microvolts=$(read_sysfs_number "$battery_path/voltage_now"); then
   sysfs_rate=$(awk \
     -v microamps="$microamps" \
     -v microvolts="$microvolts" \
@@ -301,7 +311,10 @@ battery_full=false
 if [[ $state == "fully-charged" ]]; then
   battery_full=true
 elif [[ $ac_online == "true" ]] && (( percentage >= 100 )); then
-  battery_full=true
+  # A load bigger than the adapter drains a battery that still reads 100%.
+  if [[ $state != "discharging" || $charge_idle == "true" ]]; then
+    battery_full=true
+  fi
 fi
 
 parts=("$(omarchy-i18n battery.statusLabel "$percentage")")

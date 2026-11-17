@@ -1,4 +1,6 @@
 #!/bin/bash
+# omarchy:exclusive
+# A full shell on llvmpipe beside a busy pool can miss its IPC deadline or be the OOM killer's pick.
 
 set -euo pipefail
 
@@ -75,6 +77,24 @@ Item {
   }
 }
 QML
+
+# An ordinary service (no keepLoaded) keeps its instance across a rescan that
+# only finds a new plugin, as on a first login whose setup links Superwhisper's
+# panel; only a full reload may recreate it.
+plain_service_id="acme.plain-service"
+plain_service_dir="$SCRATCH_HOME/.config/omarchy/plugins/$plain_service_id"
+mkdir -p "$plain_service_dir"
+cat >"$plain_service_dir/manifest.json" <<JSON
+{
+  "schemaVersion": 1,
+  "id": "$plain_service_id",
+  "name": "Plain Service",
+  "version": "1.0.0",
+  "kinds": ["service"],
+  "entryPoints": {"service": "Service.qml"}
+}
+JSON
+sed 's/"acme-keep"/"acme-plain"/' "$keep_service_dir/Service.qml" >"$plain_service_dir/Service.qml"
 
 # A replacement bar must not receive a generic factory for another plugin's
 # live service, and its barConfig must be a detached snapshot on both initial
@@ -349,6 +369,23 @@ bar_background() {
   HOME="$SCRATCH_HOME" OMARCHY_PATH="$SCRATCH_ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-bar" background "$@"
 }
 
+# Elsewhen saves its first-run cities once its probe returns, and that save
+# writes the shell's whole config back to shell.json. Landing after an edit
+# from outside the shell, it puts the old config back, so wait for it before
+# editing shell.json. A machine slower than a desktop returns the probe late.
+wait_for_elsewhen_cities() {
+  local saved='any(.bar.layout[][]; .id? == "omarchy.elsewhen" and .cities? != null)'
+  local config="$SCRATCH_HOME/.config/omarchy/shell.json"
+
+  for _ in {1..300}; do
+    jq -e "$saved" "$config" >/dev/null 2>&1 && return 0
+    kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited before Elsewhen saved its cities"
+    sleep 0.1
+  done
+  fail_with_log "Elsewhen saves its first-run cities before shell.json is edited"
+}
+
+wait_for_elsewhen_cities
 bar_background none >/dev/null
 for _ in {1..50}; do
   (( $(text_color_count) > 0 )) && break
@@ -430,12 +467,26 @@ for _ in {1..80}; do
   sleep 0.1
 done
 [[ $keep_marker_set == "ok" ]] || fail_with_log "keepLoaded fixture service IPC responds"
+[[ $(scratch_ipc shell setPluginEnabled "$plain_service_id" true) == "ok" ]] ||
+  fail_with_log "plain fixture service could not be enabled"
+plain_marker_set=""
+for _ in {1..80}; do
+  plain_marker_set=$(scratch_ipc acme-plain set "survived" 2>/dev/null || true)
+  [[ $plain_marker_set == "ok" ]] && break
+  sleep 0.1
+done
+[[ $plain_marker_set == "ok" ]] || fail_with_log "plain fixture service IPC responds"
 [[ $(scratch_ipc image-selector ping) == "ok" ]] || fail_with_log "image selector IPC responds"
 [[ $(scratch_ipc osd ping) == "ok" ]] || fail_with_log "OSD IPC responds"
 [[ $(scratch_ipc osd show '{"message":"Runtime smoke","duration":0}') == "ok" ]] || fail_with_log "OSD IPC opens"
 [[ $(scratch_ipc osd close) == "ok" ]] || fail_with_log "OSD IPC closes"
 pass "plugin IPC contracts respond"
 
+late_plugin_id="acme.late-plugin"
+mkdir -p "$SCRATCH_HOME/.config/omarchy/plugins/$late_plugin_id"
+sed "s/$victim_service_id/$late_plugin_id/; s/Victim Service/Late Plugin/" "$victim_service_dir/manifest.json" \
+  >"$SCRATCH_HOME/.config/omarchy/plugins/$late_plugin_id/manifest.json"
+cp "$victim_service_dir/Service.qml" "$SCRATCH_HOME/.config/omarchy/plugins/$late_plugin_id/"
 scratch_ipc_quiet shell rescanPlugins >/dev/null
 selector_rows_b64=$(printf '%s\t%s' "$SCRATCH_DIR/selector.png" "$SCRATCH_DIR/selector.png" | base64 -w 0)
 selector_selection_file=$(mktemp "$SCRATCH_DIR/selector-selection.XXXXXX")
@@ -466,6 +517,16 @@ lock_event_after=$(jq -r '.lastEvent // empty' <<<"$lock_status_after")
 [[ $(scratch_ipc acme-keep get) == "survived" ]] ||
   fail_with_log "plugin rescan keeps the keepLoaded service instance mounted"
 pass "keepLoaded service instance survives plugin rescan"
+late_listed=""
+for _ in {1..80}; do
+  late_listed=$(scratch_ipc shell listPlugins 2>/dev/null || true)
+  [[ $late_listed == *"$late_plugin_id"* ]] && break
+  sleep 0.1
+done
+[[ $late_listed == *"$late_plugin_id"* ]] || fail_with_log "plugin rescan finds a newly added plugin"
+[[ $(scratch_ipc acme-plain get) == "survived" ]] ||
+  fail_with_log "a rescan that only adds a plugin keeps running services"
+pass "a rescan that only adds a plugin leaves running services alone"
 
 # Dropping the service entry point from the manifest must drop the kept
 # instance instead of leaving a zombie behind.
@@ -632,40 +693,32 @@ pass "bar put leaves a widget already on the bar alone"
 # A hand edit that drops the closing brace puts the shell on the defaults,
 # which have no omarchy.microphone. A bar change then applies for the session
 # only, leaving the file as the user left it until they fix it.
-config="$test_home/.config/omarchy/shell.json"
-# Elsewhen saves its first-run cities once its probe returns. Landing between
-# the edit and the shell's reload, that save would write valid JSON back.
-for _ in {1..80}; do
-  jq -e 'any(.bar.layout[][]; .id? == "omarchy.elsewhen" and .cities? != null)' "$config" >/dev/null 2>&1 && break
-  kill -0 "$QS_PID" 2>/dev/null || fail_with_log "test shell exited before Elsewhen saved its cities"
-  sleep 0.1
-done
-jq -e 'any(.bar.layout[][]; .id? == "omarchy.elsewhen" and .cities? != null)' "$config" >/dev/null ||
-  fail_with_log "Elsewhen saves its first-run cities before shell.json is edited"
+config="$SCRATCH_HOME/.config/omarchy/shell.json"
+wait_for_elsewhen_cities
 sed -i '$ d' "$config"
-cp "$config" "$TMPDIR/broken.json"
+cp "$config" "$SCRATCH_DIR/broken.json"
 for _ in {1..80}; do
   [[ $(center_ids) != *omarchy.microphone* ]] && break
-  kill -0 "$QS_PID" 2>/dev/null || fail_with_log "test shell exited while reading an unreadable shell.json"
+  kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited while reading an unreadable shell.json"
   sleep 0.1
 done
 [[ $(center_ids) != *omarchy.microphone* ]] || fail_with_log "shell falls back to defaults on an unreadable shell.json"
-[[ $(shell_ipc shell setBarWidget omarchy.clock format '"HH:mm"' '{}') == "ok" ]] ||
+[[ $(scratch_ipc shell setBarWidget omarchy.clock format '"HH:mm"' '{}') == "ok" ]] ||
   fail_with_log "bar widget setting is applied while shell.json is unreadable"
 jq -e 'any(.bar.layout[][]; .id? == "omarchy.clock" and .format? == "HH:mm")' \
-  <<<"$(shell_ipc shell listShellConfig)" >/dev/null ||
+  <<<"$(scratch_ipc shell listShellConfig)" >/dev/null ||
   fail_with_log "a bar change still applies in memory while shell.json is unreadable"
 sleep 0.5
-cmp -s "$config" "$TMPDIR/broken.json" || fail "a bar change leaves an unreadable shell.json as the user left it" "$(cat "$config")"
+cmp -s "$config" "$SCRATCH_DIR/broken.json" || fail "a bar change leaves an unreadable shell.json as the user left it" "$(cat "$config")"
 pass "a bar change leaves an unreadable shell.json as the user left it"
 
 printf '}\n' >>"$config"
 for _ in {1..80}; do
   [[ $(center_ids) == *omarchy.microphone* ]] && break
-  kill -0 "$QS_PID" 2>/dev/null || fail_with_log "test shell exited while reading a fixed shell.json"
+  kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited while reading a fixed shell.json"
   sleep 0.1
 done
-[[ $(shell_ipc shell setBarWidget omarchy.clock format '"H:mm"' '{}') == "ok" ]] ||
+[[ $(scratch_ipc shell setBarWidget omarchy.clock format '"H:mm"' '{}') == "ok" ]] ||
   fail_with_log "bar widget setting is applied once shell.json is fixed"
 saved='any(.bar.layout[][]; (.id? // .) == "omarchy.microphone") and any(.bar.layout[][]; .id? == "omarchy.clock" and .format? == "H:mm")'
 for _ in {1..40}; do
