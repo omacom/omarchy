@@ -51,16 +51,23 @@ ShellRoot {
         root.check(Agents.LimitResetNotifier.owner !== owner, "another monitor takes over when its owner is destroyed")
         root.check(Agents.LimitResetNotifier.clients.length === 1, "destroyed widget unregisters itself")
         root.check(Object.keys(Agents.LimitResetNotifier.pendingLimitResets).length === 1, "handover preserves queue")
-        // Force a due deadline; repeated announce calls must send only one toast.
-        var queued = Agents.LimitResetNotifier.pendingLimitResets
-        for (var key in queued) queued[key].deadline = Date.now() - 1
-        Agents.LimitResetNotifier.pendingLimitResets = queued
-        Agents.LimitResetNotifier.announcePassedLimitResets()
-        Agents.LimitResetNotifier.announcePassedLimitResets()
-        root.check(Object.keys(Agents.LimitResetNotifier.pendingLimitResets).length === 0, "announcement drains one shared queue")
-        console.log("RESULT " + JSON.stringify({ ok: root.failures.length === 0, failures: root.failures }))
-        Qt.quit()
+        // The timer must pick up an earlier deadline after ownership changes.
+        root.deadline = Date.now() + 250
+        Agents.LimitResetNotifier.owner.agents = root.records()
+        Agents.LimitResetNotifier.owner.recordsChanged()
+        finish.start()
       })
+    }
+  }
+
+  Timer {
+    id: finish
+    interval: 2000
+    onTriggered: {
+      root.check(Object.keys(Agents.LimitResetNotifier.pendingLimitResets).length === 0, "new deadline fires without a manual refresh")
+      Agents.LimitResetNotifier.announcePassedLimitResets()
+      console.log("RESULT " + JSON.stringify({ ok: root.failures.length === 0, failures: root.failures }))
+      Qt.quit()
     }
   }
 }

@@ -59,11 +59,21 @@ Item {
     }
   }
 
+  onPendingLimitResetsChanged: {
+    deadlineTimer.stop()
+    var earliest = Infinity
+    for (var key in pendingLimitResets)
+      earliest = Math.min(earliest, pendingLimitResets[key].deadline)
+    if (isFinite(earliest)) {
+      // QML intervals are signed 32-bit milliseconds. A distant deadline
+      // re-arms for the remaining time when the first interval expires.
+      deadlineTimer.interval = Math.max(1, Math.min(2147483647, earliest - Date.now()))
+      deadlineTimer.start()
+    }
+  }
+
   Timer {
-    interval: 15000
-    running: root.owner !== null && root.owner.limitResetNotificationsEnabled()
-    repeat: true
+    id: deadlineTimer
     onTriggered: root.announcePassedLimitResets()
-    onRunningChanged: if (root.owner) root.schedule(root.owner)
   }
 }
