@@ -57,7 +57,10 @@ done < <(upower -e 2>/dev/null | grep '/battery_')
 # charging. The bar widget shows Math.round of the same value, so round half-up
 # only for display — truncating made the panel differ from the bar by 1%.
 raw_percentage=$(awk '/percentage/ { print $2 + 0; exit }' <<<"$battery_info")
-percentage=$(awk -v p="$raw_percentage" 'BEGIN { printf "%d", p + 0.5 }')
+percentage=""
+if [[ -n $raw_percentage ]]; then
+  percentage=$(awk -v p="$raw_percentage" 'BEGIN { printf "%d", p + 0.5 }')
+fi
 capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$battery_info")
 energy=$(awk '/^ *energy:/ { print $2; exit }' <<<"$battery_info")
 energy_full=$(awk '/energy-full:/ { print $2; exit }' <<<"$battery_info")
