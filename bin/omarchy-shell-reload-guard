@@ -78,13 +78,17 @@ process_env() {
 }
 
 instances_json() {
-  local runtime_dir="$1"
+  local uid="$1" runtime_dir="$2" home="$3" user="$4"
 
-  XDG_RUNTIME_DIR="$runtime_dir" "$quickshell_bin" list -a -j 2>/dev/null || true
+  # Enumerate as the session owner, like every other call into the session.
+  # Running the Qt binary as root would read root's home and write any cache
+  # or log it creates outside the user's tree.
+  as_user "$uid" "$runtime_dir" "$home" "$user" \
+    "$quickshell_bin" list -a -j 2>/dev/null || true
 }
 
 instances() {
-  local runtime_dir uid json
+  local runtime_dir uid user home json
 
   [[ -d $run_root ]] || return 0
 
@@ -94,7 +98,11 @@ instances() {
     uid="${runtime_dir##*/}"
     [[ $uid =~ ^[0-9]+$ ]] || continue
 
-    json=$(instances_json "$runtime_dir")
+    user=$(user_for_uid "$uid") || continue
+    [[ -n $user ]] || continue
+    home=$(home_for_uid "$uid") || home=/
+
+    json=$(instances_json "$uid" "$runtime_dir" "$home" "$user")
     [[ -n $json ]] || continue
 
     jq -r --arg runtime_dir "$runtime_dir" --arg uid "$uid" '
@@ -133,30 +141,40 @@ wait_for_exit() {
   ! kill -0 "$pid" 2>/dev/null
 }
 
-record_instance() {
+state_key() {
+  local runtime_dir="$1" config_path="$2" display="$3" pid="$4"
+
+  printf '%s\n%s\n%s\n%s\n' "$runtime_dir" "$config_path" "$display" "$pid" |
+    md5sum | cut -d' ' -f1
+}
+
+write_state() {
   local uid="$1" runtime_dir="$2" pid="$3" config_path="$4"
-  local display="$5" signature="$6" action="$7"
-  local key
+  local display="$5" signature="$6" action="$7" key="$8"
 
   if ! mkdir -p "$state_dir"; then
     log "cannot create state directory $state_dir"
-    return 0
+    return 1
   fi
   # The update's failure path probes this directory as the user, so keep the
   # state listable; the records hold no secrets.
   chmod 0755 "$state_dir" 2>/dev/null || true
 
-  key=$(printf '%s\n%s\n%s\n%s\n' "$runtime_dir" "$config_path" "$display" "$pid" | md5sum | cut -d' ' -f1)
   if ! printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
     "$uid" "$runtime_dir" "$pid" "$config_path" "$display" "$signature" "$action" \
     >"$state_dir/$key"; then
     log "cannot record shell $pid in $state_dir"
+    return 1
   fi
+}
+
+remove_state() {
+  rm -f "$state_dir/$1" 2>/dev/null || true
 }
 
 pause_instance() {
   local uid="$1" runtime_dir="$2" pid="$3" config_path="$4"
-  local user home omarchy_path display signature action output env_omarchy_path
+  local user home omarchy_path display signature key output env_omarchy_path
 
   [[ $pid =~ ^[0-9]+$ ]] || return 0
 
@@ -176,6 +194,16 @@ pause_instance() {
   display=$(process_env "$pid" WAYLAND_DISPLAY || true)
   signature=$(process_env "$pid" HYPRLAND_INSTANCE_SIGNATURE || true)
 
+  key=$(state_key "$runtime_dir" "$config_path" "$display" "$pid")
+  # Record the pause before asking for it: a paused shell without a state
+  # record would never be restarted, because PostTransaction has nothing to
+  # resume. If the record cannot be written, leave the shell alone.
+  if ! write_state "$uid" "$runtime_dir" "$pid" "$config_path" \
+    "$display" "$signature" paused "$key"; then
+    log "not pausing shell $pid without a state record"
+    return 0
+  fi
+
   # The shell answers only after it has loaded its own IPC target. A timeout
   # or a missing method is an old shell: it cannot protect itself, so stop it
   # cleanly and let the post-transaction hook start the new one.
@@ -183,45 +211,62 @@ pause_instance() {
     timeout --kill-after=1s 2s "$qs_bin" ipc --pid "$pid" call -- shell pausePlugins 2>/dev/null || true)
 
   if [[ $output == "ok" ]]; then
-    action="paused"
-  else
-    # Stopping a lock client would strand the session behind Hyprland's
-    # failsafe. Leave it running instead; the next restart loads the new tree.
-    if session_locked "$uid" "$runtime_dir" "$home" "$user" "$signature"; then
-      log "leaving locked shell $pid running; it cannot pause plugin loads"
-      return 0
-    fi
-
-    if ! as_user "$uid" "$runtime_dir" "$home" "$user" \
-      "$quickshell_bin" kill --pid "$pid" >/dev/null 2>&1; then
-      log "could not stop shell $pid before the package transaction"
-      return 0
-    fi
-
-    if ! wait_for_exit "$pid" 50; then
-      log "shell $pid did not exit after a clean stop"
-      return 0
-    fi
-
-    action="stopped"
+    return 0
   fi
 
-  record_instance "$uid" "$runtime_dir" "$pid" "$config_path" "$display" "$signature" "$action"
+  # Stopping a lock client would strand the session behind Hyprland's
+  # failsafe. Leave it running instead; the next restart loads the new tree.
+  if session_locked "$uid" "$runtime_dir" "$home" "$user" "$signature"; then
+    remove_state "$key"
+    log "leaving locked shell $pid running; it cannot pause plugin loads"
+    return 0
+  fi
+
+  # Rewrite the record before stopping: resume must restart a stopped shell,
+  # not treat it as a still-running paused one.
+  if ! write_state "$uid" "$runtime_dir" "$pid" "$config_path" \
+    "$display" "$signature" stopped "$key"; then
+    remove_state "$key"
+    return 0
+  fi
+
+  if ! as_user "$uid" "$runtime_dir" "$home" "$user" \
+    "$quickshell_bin" kill --pid "$pid" >/dev/null 2>&1; then
+    remove_state "$key"
+    log "could not stop shell $pid before the package transaction"
+    return 0
+  fi
+
+  if ! wait_for_exit "$pid" 50; then
+    # Keep the record: the shell may still exit after the signal, and a later
+    # resume will either restart it or clear the record once it is running.
+    log "shell $pid did not exit after a clean stop"
+  fi
+}
+
+session_json() {
+  local uid="$1" runtime_dir="$2" user home
+
+  user=$(user_for_uid "$uid") || return 1
+  [[ -n $user ]] || return 1
+  home=$(home_for_uid "$uid") || home=/
+
+  instances_json "$uid" "$runtime_dir" "$home" "$user"
 }
 
 instance_pid_live() {
-  local runtime_dir="$1" pid="$2" json
+  local uid="$1" runtime_dir="$2" pid="$3" json
 
-  json=$(instances_json "$runtime_dir")
+  json=$(session_json "$uid" "$runtime_dir")
   [[ -n $json ]] || return 1
 
   jq -e --argjson pid "$pid" 'any(.[]; .pid == $pid)' <<<"$json" >/dev/null 2>&1
 }
 
 instance_config_live() {
-  local runtime_dir="$1" config_path="$2" json
+  local uid="$1" runtime_dir="$2" config_path="$3" json
 
-  json=$(instances_json "$runtime_dir")
+  json=$(session_json "$uid" "$runtime_dir")
   [[ -n $json ]] || return 1
 
   jq -e --arg path "$config_path" 'any(.[]; .config_path == $path)' <<<"$json" >/dev/null 2>&1
@@ -260,11 +305,11 @@ resume_state() {
   fi
 
   if [[ $action == "paused" ]]; then
-    if ! instance_pid_live "$runtime_dir" "$pid"; then
+    if ! instance_pid_live "$uid" "$runtime_dir" "$pid"; then
       rm -f "$state_file"
       return 0
     fi
-  elif instance_config_live "$runtime_dir" "$config_path"; then
+  elif instance_config_live "$uid" "$runtime_dir" "$config_path"; then
     rm -f "$state_file"
     return 0
   fi
