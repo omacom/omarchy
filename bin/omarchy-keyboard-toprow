@@ -1,7 +1,0 @@
-#!/bin/bash
-
-# omarchy:summary=Choose what the keyboard's top row sends by default (the old name of omarchy-device-keyboard-toprow).
-# omarchy:hidden=true
-
-# Kept for bindings, menus and scripts that still call it by this name.
-exec omarchy-device-keyboard-toprow "$@"

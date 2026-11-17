@@ -77,9 +77,7 @@ else
   fnmode=1 fnlock=0 first="the media keys" second="F1-F12"
 fi
 
-# The header keeps the old name: changing it would make every existing file
-# look stale and owe a boot image rebuild, and migration 1793545066 writes it.
-content="# Written by omarchy-keyboard-toprow: the top row sends $first by default,
+content="# Written by omarchy-device-keyboard-toprow: the top row sends $first by default,
 # and Fn (Fn+Esc to lock it) gives $second.
 options hid_apple fnmode=$fnmode
 options hid_asus fnlock_default=$fnlock
