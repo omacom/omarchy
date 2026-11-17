@@ -16,6 +16,9 @@
 
 set -euo pipefail
 
+# print_failure_logs, which test/shell.d/test-runner-test.sh checks too.
+source "$(dirname -- "${BASH_SOURCE[0]}")/ci-failure-logs"
+
 image=$1 sources=$2 out=$3
 state=$(mktemp -d "${VM_STATE_DIR:-/var/tmp}/ci-vm.XXXXXX") # the socket's path has to stay under 108 bytes
 port=$(( 20000 + RANDOM % 10000 ))
@@ -39,9 +42,7 @@ pull_shell_logs() {
 # the moment it ends: how many are done, and which have failed so far.
 shell_progress() {
   ssh_vm 'total=$(( $(ls ~/src/omarchy/test/shell.d/*-test.sh | wc -l) - 1 ))
-    dir=$(for d in $(find /tmp -maxdepth 1 -name "omarchy-test-shell.*" -newer ~/started); do
-      echo "$(find "$d" -maxdepth 1 -name "*.code" | wc -l) $d"
-    done | sort -rn | head -n 1 | cut -d" " -f2)
+    dir=$(sed -n "/^==> test\/shell\$/,\$ s/^Logging every file to //p" ~/run.log | head -n 1)
     if [[ -n $dir ]]; then
       finished=$(find "$dir" -maxdepth 1 -name "*.code" | wc -l)
       failed=$(grep -Lx 0 "$dir"/*.code 2>/dev/null | xargs -r -n 1 basename | sed "s/\.code$//" | tr "\n" " " | sed "s/ $//")
@@ -133,6 +134,7 @@ until ssh_vm '[[ -s ~/rc ]]' 2>/dev/null; do
     echo "test/ci-vm: the tests did not finish in ${CI_VM_TIMEOUT:-1500} s" >&2
     ssh_vm 'cat ~/run.log' >"$out/run.log" || true
     pull_shell_logs
+    (print_failure_logs "$out") || true
     pull_kernel_log
     exit 1
   else
@@ -152,9 +154,12 @@ echo "test/ci-vm: tests done after $(seconds) s"
 rc=$(ssh_vm 'cat ~/rc')
 ssh_vm 'cat ~/run.log' >"$out/run.log"
 echo "rc=$rc" >>"$out/run.log"
+pull_shell_logs
+if [[ $rc != "0" ]]; then
+  (print_failure_logs "$out") || true
+fi
 ssh_vm 'systemd-analyze; systemd-analyze blame | head -25' >"$out/boot.txt" 2>&1 || true
 ssh_vm 'echo "source tree: $(cd ~/src/omarchy && git status --porcelain | wc -l) changed files"'
-pull_shell_logs
 pull_kernel_log
 
 sed -n '/^Skipped checks in/,$p' "$out/run.log"

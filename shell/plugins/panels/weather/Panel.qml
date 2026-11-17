@@ -26,7 +26,6 @@ Panel {
 
   function open() {
     openedFromHotkey = false
-    setCenterHoverRevealSuppressed(false)
     root.controller.show()
     locationFile.reload()
     root.refresh()
@@ -37,18 +36,9 @@ Panel {
     root.controller.show()
     locationFile.reload()
     root.refresh()
-    // Set after showing, not before: showing hands the popout coordinator
-    // over, which closes whichever panel was open, and that close clears the
-    // shared flag. Deferring means the panel taking over always wins, while
-    // a handoff to a panel that does not manage the flag still leaves it
-    // cleared rather than stuck on.
-    Qt.callLater(function() {
-      if (root.opened) setCenterHoverRevealSuppressed(true)
-    })
   }
 
   function close() {
-    setCenterHoverRevealSuppressed(false)
     if (root.editingLocation) root.cancelEditingLocation()
     root.controller.hide()
   }
@@ -62,13 +52,6 @@ Panel {
     if (root.bar && typeof root.bar.switchPanelFrom === "function")
       return root.bar.switchPanelFrom(root.barIdentity, direction)
     return false
-  }
-
-  function setCenterHoverRevealSuppressed(value) {
-    if (root.bar && typeof root.bar.setCenterHoverRevealSuppressed === "function")
-      root.bar.setCenterHoverRevealSuppressed(value)
-    else if (root.bar && "centerHoverRevealSuppressed" in root.bar)
-      root.bar.centerHoverRevealSuppressed = value
   }
 
   // Parsed wttr.in j1 response. Kept on failure so stale data stays visible.
