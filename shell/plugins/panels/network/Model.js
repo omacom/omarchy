@@ -93,16 +93,21 @@ function mobileIconFor(strength, usable) {
 // (NetworkManager may name the modem by its AT port while a profile names
 // the MBIM one), and the ModemManager object NetworkManager reports for it.
 // Runs in the C locale because nmcli translates words like "disabled", and
-// without nmcli's escaping so names with colons display as typed.
+// without nmcli's escaping so names with colons display as typed. A name can
+// hold any character, so every value has its control characters (tabs,
+// newlines) dropped, and the connection name is read on its own, apart from
+// the fields used to find the profile and modem: one name must not be able
+// to add or replace a field.
 var mobileStatusScript =
   "export LC_ALL=C;" +
+  " kv() { printf '%s\\t%s\\n' \"$1\" \"$(printf '%s' \"$2\" | tr -d '\\000-\\037\\177')\"; };" +
   " dev=$(nmcli -t -f DEVICE,TYPE dev 2>/dev/null | awk -F: '$2 == \"gsm\" || $2 == \"cdma\" { print $1; exit }');" +
   " [[ -n $dev ]] || exit 0;" +
-  " printf 'device\\t%s\\n' \"$dev\";" +
-  " show=$(nmcli -e no -t -f GENERAL.STATE,GENERAL.CONNECTION,GENERAL.CON-UUID,GENERAL.IP-IFACE,GENERAL.UDI dev show \"$dev\" 2>/dev/null);" +
+  " kv device \"$dev\";" +
+  " show=$(nmcli -e no -t -f GENERAL.STATE,GENERAL.CON-UUID,GENERAL.IP-IFACE,GENERAL.UDI dev show \"$dev\" 2>/dev/null);" +
   " field() { printf '%s\\n' \"$show\" | sed -n \"s/^GENERAL\\.$1://p\"; };" +
-  " printf 'state\\t%s\\nconnection\\t%s\\niface\\t%s\\n' \"$(field STATE)\" \"$(field CONNECTION)\" \"$(field IP-IFACE)\";" +
-  " printf 'radio\\t%s\\n' \"$(nmcli -t radio wwan 2>/dev/null)\";" +
+  " kv state \"$(field STATE)\"; kv connection \"$(nmcli -e no -g GENERAL.CONNECTION dev show \"$dev\" 2>/dev/null)\"; kv iface \"$(field IP-IFACE)\";" +
+  " kv radio \"$(nmcli -t radio wwan 2>/dev/null)\";" +
   " modem=$(field UDI); mm=;" +
   " case $modem in /org/freedesktop/ModemManager1/Modem/*) mm=$(mmcli -m \"$modem\" -K 2>/dev/null) ;; esac;" +
   " ports=\" $dev $(field IP-IFACE) $(printf '%s\\n' \"$mm\" | awk -F' *: ' '$1 ~ /^modem\\.generic\\.ports\\.value/ { split($2, p, \" \"); printf \"%s \", p[1] }')\";" +
@@ -114,16 +119,25 @@ var mobileStatusScript =
   "     case $ports in *\" $bound \"*) uuid=$u; break ;; esac;" +
   "   done;" +
   " fi;" +
-  " if [[ -n $uuid ]]; then printf 'profile_uuid\\t%s\\n' \"$uuid\";" +
-  "   printf 'profile\\t%s\\n' \"$(nmcli -e no -g connection.id con show uuid \"$uuid\" 2>/dev/null)\"; fi;" +
-  " printf '%s\\n' \"$mm\" | awk -F' *: ' '" +
+  " if [[ -n $uuid ]]; then kv profile_uuid \"$uuid\";" +
+  "   kv profile \"$(nmcli -e no -g connection.id con show uuid \"$uuid\" 2>/dev/null)\"; fi;" +
+  " printf '%s\\n' \"$mm\" | awk -F' *: ' '{ gsub(/[[:cntrl:]]/, \"\", $2) }" +
   "   $1 == \"modem.3gpp.operator-name\" { print \"operator\\t\" $2 }" +
   "   $1 == \"modem.generic.signal-quality.value\" { print \"signal\\t\" $2 }" +
   "   $1 == \"modem.generic.access-technologies.value[1]\" { print \"tech\\t\" $2 }" +
   "   $1 == \"modem.generic.state\" { print \"modem_state\\t\" $2 }'"
 
+// The first value of each field wins, so nothing printed later can replace
+// the device the row acts on.
 function parseMobileStatus(raw) {
-  var next = parseKeyValue(raw)
+  var next = {}
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var idx = lines[i].indexOf("\t")
+    if (idx <= 0) continue
+    var key = lines[i].substring(0, idx)
+    if (!Object.prototype.hasOwnProperty.call(next, key)) next[key] = lines[i].substring(idx + 1).trim()
+  }
   if (!next.device) return { available: false }
 
   var code = parseInt(next.state, 10)
@@ -156,9 +170,12 @@ function parseMobileStatus(raw) {
 
 // One line of `gdbus monitor` on ModemManager. Only changes to what the
 // modem row shows count; bearer traffic counters change every few seconds
-// while connected and would otherwise re-probe constantly.
+// while connected and would otherwise re-probe constantly. A modem being
+// added or removed, and ModemManager starting or stopping, count too.
 function isMobileStatusEvent(line) {
   var text = String(line || "")
+  if (/ObjectManager\.Interfaces(Added|Removed) \(objectpath '\/org\/freedesktop\/ModemManager1\/Modem\//.test(text)) return true
+  if (/^The name org\.freedesktop\.ModemManager1 (is owned by|does not have an owner)/.test(text)) return true
   if (text.indexOf("org.freedesktop.ModemManager1.Modem.StateChanged") !== -1) return true
   if (text.indexOf("PropertiesChanged ('org.freedesktop.ModemManager1.Modem") === -1) return false
   return /'(State|SignalQuality|AccessTechnologies|OperatorName)'/.test(text)
