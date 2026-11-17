@@ -23,4 +23,17 @@ CONF
   # lacks. Without it the controller runs its ROM firmware and reports the
   # placeholder address AA:AA:AA:AA:AA:AA.
   omarchy-pkg-add raspberry-pi-4-bluetooth-firmware
+
+  # Without access to the HDMI DDC buses, ddcutil fails with EACCES and the
+  # brightness keys leave an external monitor unchanged.
+  sudo install -Dm644 "$OMARCHY_PATH/default/udev/raspberry-pi-4-ddc.rules" \
+    /etc/udev/rules.d/70-raspberry-pi-4-ddc.rules
+
+  # An image's first boot runs this after udev has added the I2C devices, so
+  # the rule would only apply from the next boot. Only there, as in
+  # install/hardware/bluetooth.sh: an install writes it before the first boot.
+  if [[ ${OMARCHY_IMAGE_DEFERRED_HARDWARE:-} == "1" ]]; then
+    sudo udevadm control --reload || true
+    sudo udevadm trigger --action=add --subsystem-match=i2c-dev || true
+  fi
 fi

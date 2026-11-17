@@ -291,6 +291,7 @@ machine() {
     galaxy-book4-edge-14-not-qualcomm) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="samsung,galaxy-book4-edge-14 samsung,galaxy-book4-edge qcom,x1e80100" ;;
     galaxy-book4-edge-16) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="samsung,galaxy-book4-edge-16 samsung,galaxy-book4-edge qcom,x1e80100" ;;
     raspberry-pi-4) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="raspberrypi,4-model-b brcm,bcm2711" ;;
+    raspberry-pi-4-first-boot) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="raspberrypi,4-model-b brcm,bcm2711"; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
     # The Pi 5 has another SoC and is untested.
     raspberry-pi-5) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="raspberrypi,5-model-b brcm,bcm2712" ;;
     zenbook-14-ux3480qa) dmi sys_vendor ASUS; dmi product_name "Zenbook 14 UX3480QA"; dmi product_family "Zenbook 14"; FAKE_PLATFORM=aarch64-qualcomm ;;
@@ -484,7 +485,9 @@ hardware/asus/fix-asus-zenbook-a16-boot.sh|yoga-slim7x|0
 hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-14|0|wrote etc/limine-entry-tool.d/samsung-galaxy-book4-edge-14.conf
 hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-14-not-qualcomm|0
 hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-16|0
-hardware/raspberrypi/raspberry-pi-4.sh|raspberry-pi-4|0|pkg-add raspberry-pi-4-bluetooth-firmware|wrote etc/limine-entry-tool.d/raspberry-pi-4.conf
+hardware/raspberrypi/raspberry-pi-4.sh|raspberry-pi-4|0|pkg-add raspberry-pi-4-bluetooth-firmware|wrote etc/limine-entry-tool.d/raspberry-pi-4.conf|wrote etc/udev/rules.d/70-raspberry-pi-4-ddc.rules
+# An image applies the DDC rule to the I2C devices its first boot already added.
+hardware/raspberrypi/raspberry-pi-4.sh|raspberry-pi-4-first-boot|0|pkg-add raspberry-pi-4-bluetooth-firmware|sudo udevadm control --reload|sudo udevadm trigger --action=add --subsystem-match=i2c-dev|wrote etc/limine-entry-tool.d/raspberry-pi-4.conf|wrote etc/udev/rules.d/70-raspberry-pi-4-ddc.rules
 hardware/raspberrypi/raspberry-pi-4.sh|raspberry-pi-5|0
 hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15|0|wrote etc/mkinitcpio.conf.d/vivobook-s15-initramfs.conf
 hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15+unreadable|0
