@@ -104,10 +104,22 @@ def kimi_login(home: Path) -> dict[str, str]:
   provider = obj(obj(load_config(home).get("providers")).get("managed:kimi-code"))
   oauth = obj(provider.get("oauth"))
   slot = str(oauth.get("key") or "").removeprefix("oauth/")
+  base_url = str(provider.get("base_url") or "")
+  oauth_host = str(oauth.get("oauth_host") or "")
+  env_base = os.environ.get("KIMI_CODE_BASE_URL")
+  env_oauth = os.environ.get("KIMI_CODE_OAUTH_HOST") or os.environ.get("KIMI_OAUTH_HOST")
+  if env_base or env_oauth:
+    base_url = (env_base or base_url or "https://api.kimi.com/coding/v1").rstrip("/")
+    oauth_host = (env_oauth or "https://auth.kimi.com").strip().rstrip("/")
+    slot = "kimi-code"
+    if base_url != "https://api.kimi.com/coding/v1" or oauth_host != "https://auth.kimi.com":
+      # Kimi Code derives the override's slot from the same endpoint pair.
+      identity = json.dumps({"oauthHost": oauth_host, "baseUrl": base_url}, separators=(",", ":"), ensure_ascii=False)
+      slot += "-env-" + hashlib.sha256(identity.encode()).hexdigest()[:16]
   return {
     "slot": slot if re.fullmatch(r"kimi-code(-env-[0-9a-f]+)?", slot) else "kimi-code",
-    "oauth_host": str(oauth.get("oauth_host") or ""),
-    "base_url": str(provider.get("base_url") or ""),
+    "oauth_host": oauth_host,
+    "base_url": base_url,
   }
 
 

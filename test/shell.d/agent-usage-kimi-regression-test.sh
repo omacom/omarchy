@@ -204,17 +204,39 @@ def scoped_selection(root):
   data = run_main(load_collector("kimi"), "--force", "--limits-only")
   expect("the configured slot wins over a leftover default and another scoped sign-in",
          [auth_header(), bool(data["limits"])], ["Bearer " + slot, True], data)
-  (code / "credentials" / "kimi-code.json").unlink()
   (code / "credentials" / (slot + ".json")).unlink()
   for case in ("missing configured slot", "lone unconfigured slot", "ambiguous unconfigured slots"):
     if case != "missing configured slot":
       config.unlink(missing_ok=True)
+      (code / "credentials" / "kimi-code.json").unlink(missing_ok=True)
     if case == "ambiguous unconfigured slots":
       write_json(code / "credentials" / (slot + ".json"), {"access_token": slot, "expires_at": 0})
     reqs.clear()
     data = run_main(load_collector("kimi"), "--force", "--limits-only")
     expect(case + " never borrows a sign-in", [data["usageStatusText"], data["limits"], len(reqs)],
            ["Waiting for auth", [], 0], data)
+
+
+def scoped_overrides(root):
+  code = root / "code home"
+  for name in ("kimi-code", "kimi-code-env-0e4f99c69cc27850"):
+    write_json(code / "credentials" / (name + ".json"), {"access_token": name, "expires_at": 0})
+  (code / "config.toml").write_text('[providers."managed:kimi-code"]\nbase_url = "https://api.kimi.ai/coding/v1"\n'
+                                    '[providers."managed:kimi-code".oauth]\nkey = "oauth/kimi-code-env-0e4f99c69cc27850"\noauth_host = "https://auth.kimi.ai"\n')
+  for overrides, slot, auth in (
+    ({"KIMI_CODE_BASE_URL": "https://api.kimi.com/coding/v1"}, "kimi-code", "https://auth.kimi.com"),
+    ({"KIMI_CODE_BASE_URL": "https://api.kimi.ai/coding/v1", "KIMI_CODE_OAUTH_HOST": "https://auth.kimi.ai"},
+     "kimi-code-env-0e4f99c69cc27850", "https://auth.kimi.ai"),
+    ({"KIMI_OAUTH_HOST": "https://auth.kimi.ai"}, "kimi-code-env-0e4f99c69cc27850", "https://auth.kimi.ai"),
+  ):
+    os.environ.update(overrides)
+    scanner = load_collector("kimi")
+    data = run_main(scanner, "--force", "--limits-only")
+    expect("host overrides select Kimi Code's matching account: " + str(overrides),
+           [scanner.CREDENTIALS_PATH.name, scanner.TOKEN_URL, auth_header(), bool(data["limits"])],
+           [slot + ".json", auth + "/api/oauth/token", "Bearer " + slot, True], data)
+    for name in overrides:
+      del os.environ[name]
 
 
 def home_isolation(root):
@@ -528,7 +550,7 @@ def switched_cache(root):
   expect("an answer is never kept under a token it wasn't asked with", record()["limits"], [])
 
 
-cases = {"contract": contract, "env_key": env_key, "stores": stores, "share_dir": share_dir, "scoped_slot": scoped_slot, "scoped_selection": scoped_selection, "home": home_isolation, "static": static_token,
+cases = {"contract": contract, "env_key": env_key, "stores": stores, "share_dir": share_dir, "scoped_slot": scoped_slot, "scoped_selection": scoped_selection, "scoped_overrides": scoped_overrides, "home": home_isolation, "static": static_token,
          "refresh": refresh, "cli_lock": cli_lock, "stale_lock": stale_lock,"lock_failure": lock_failure, "heartbeat": heartbeat,
          "private_write": private_write, "concurrent_signin": concurrent_signin, "concurrent_logout": concurrent_logout,
          "invalid_grant": invalid_grant, "refused_refresh": refused_refresh, "key_help": key_help, "refused": refused,
