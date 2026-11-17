@@ -6,12 +6,8 @@
 # omarchy:requires-sudo=true
 
 if omarchy-pkg-missing "$@"; then
-  # Only ask pacman for targets nothing installed satisfies yet. A name an
-  # installed package already provides (fcitx5-mozc-ut provides fcitx5-mozc
-  # while declaring Conflicts: mozc) must stay out of the transaction: with
-  # --noconfirm pacman answers the provider-conflict question with N, and the
-  # whole transaction fails to prepare, so migrations that pull in a sibling
-  # of a -ut pair abort the entire update. (#18848)
+  # Pass on only names nothing installed satisfies: fcitx5-mozc requested beside fcitx5-mozc-ut
+  # conflicts with mozc-ut over mozc, and --noconfirm declines the swap, failing the transaction (#18848).
   unsatisfied=$(pacman -T -- "$@") || true
   if [[ -n $unsatisfied ]]; then
     readarray -t unsatisfied <<< "$unsatisfied"
