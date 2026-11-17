@@ -241,9 +241,12 @@ BarWidget {
   // half that reach: in the centered box the widget slides half its growth
   // back the other way as the box re-centers, and a zone that stopped at the
   // widget's edge would lose the pointer that opened it, closing and
-  // reopening in a loop. Above the icons, which a hover handler doesn't block.
+  // reopening in a loop. Under the icons: its hover handler still sees the
+  // pointer there, and on top it kept hover from the icons, so their tooltips
+  // never showed.
   Item {
     objectName: "hiddenBlockZone"
+    z: -1
 
     readonly property real reach: (orientationLoader.item ? orientationLoader.item.inactiveLength : 0) * (root.revealInactiveIndicators ? 0.5 : 1)
     readonly property real alongStart: root.fixedAtStart ? 0 : -reach
