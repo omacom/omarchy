@@ -27,6 +27,12 @@ assert(tray.ownedByOmarchy({ id: 'superwhisper' }, { left: [], center: [], right
 assert(!tray.ownedByOmarchy({ id: 'superwhisper' }, { left: [], center: [], right: [] }), 'tray keeps superwhisper when its panel widget is absent')
 assert(tray.ownedByOmarchy({ id: 'dropbox' }, { left: [], center: [], right: [{ id: 'omarchy.tray' }], tray: [{ id: 'omarchy.dropbox' }] }), 'tray suppresses dropbox when its widget is in the tray section')
 
+// Wine needs a double-click's second activate to see a double-click; a native
+// app that toggles its window on each activate would close again.
+assert(tray.activatesOnDoubleClick({ id: 'wine-0x200d4-0' }), 'a double-click activates a Wine item again')
+assert(!tray.activatesOnDoubleClick({ id: 'qbittorrent' }), 'a double-click activates a native item once')
+assert(!tray.activatesOnDoubleClick({ id: 'wine-0x200d4-0', onlyMenu: true }), 'a double-click on a menu-only Wine item activates nothing more')
+
 // The bar outlines as much of the tray section as the sliding drawer shows,
 // never past the drawer.
 assertDeepEqual(tray.shownSpan(0, 100, 20, 30), { start: 20, length: 30 }, 'a section inside the open drawer shows whole')
@@ -110,6 +116,8 @@ function rightClickItem(item, rows) {
     activeTrayItem: null,
     activeTrayAnchor: null,
     timerRestarted: false,
+    ownMenuFor: null,
+    Util: { execArgv: function(argv) { state.ownMenuFor = argv[0] === 'omarchy-tray-context-menu' ? argv[1] : argv } },
     resetTrayMenu: function() {},
     trayMenuPendingTimer: { restart: function() { state.timerRestarted = true } }
   }
@@ -118,22 +126,23 @@ function rightClickItem(item, rows) {
     pending: state.trayMenuPending,
     open: state.trayMenuOpen,
     active: state.activeTrayItem === item,
-    timer: state.timerRestarted
+    timer: state.timerRestarted,
+    ownMenuFor: state.ownMenuFor
   }
 }
 assertDeepEqual(
-  rightClickItem({ menu: null }, []),
-  { pending: false, open: false, active: false, timer: false },
-  'right-clicking an unready item opens nothing and drops an earlier pending click'
+  rightClickItem({ id: 'wine-0x200d4-0', hasMenu: false, menu: null }, []),
+  { pending: false, open: false, active: false, timer: false, ownMenuFor: 'wine-0x200d4-0' },
+  'right-clicking an item with no D-Bus menu asks it for its own and drops an earlier pending click'
 )
 assertDeepEqual(
-  rightClickItem({ menu: {} }, []),
-  { pending: true, open: false, active: true, timer: true },
+  rightClickItem({ hasMenu: true, menu: {} }, []),
+  { pending: true, open: false, active: true, timer: true, ownMenuFor: null },
   'right-clicking an item whose rows have not arrived waits for them instead of grabbing focus'
 )
 assertDeepEqual(
-  rightClickItem({ menu: {} }, [{ text: 'Open' }]),
-  { pending: false, open: true, active: true, timer: true },
+  rightClickItem({ hasMenu: true, menu: {} }, [{ text: 'Open' }]),
+  { pending: false, open: true, active: true, timer: true, ownMenuFor: null },
   'right-clicking an item whose rows are ready opens its menu at once'
 )
 
@@ -173,7 +182,7 @@ vm.runInNewContext(exitedHandler[1], { root: detachedRoot, trayItemRoot: clicked
 assert(detachedRoot.trayMenuPending,
   'pointer exit during bar teardown does not cancel a pending menu')
 
-const clickedHandler = /onClicked: function\(mouse\) \{\n([\s\S]*?)\n      \}\n      onWheel:/.exec(trayItemSource)
+const clickedHandler = /onClicked: function\(mouse\) \{\n([\s\S]*?)\n      \}\n/.exec(trayItemSource)
 assert(!!clickedHandler, 'tray mouse click handler exists')
 function clickIcon(button) {
   const state = {

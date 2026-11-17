@@ -157,11 +157,24 @@ BarWidget {
   }
 
   function openTrayMenu(item, anchorItem, mouse) {
-    // Unready SNI (Menu/IconName Get still failing) has no menu handle.
-    // Taking the popup grab before QsMenuOpener has children leaves an empty
-    // input owner over the bar, so an unready item is a no-op.
+    // A click on any item, even one that opens no menu here, drops one still
+    // pending from another item so it cannot open over this one.
     trayMenuPending = false
-    if (!item || !item.menu) return
+    if (!item) return
+
+    // Apps that draw their own context menu (Windows apps under Wine) publish
+    // no D-Bus menu, and Quickshell can only show D-Bus menus. Ask the app
+    // for its menu instead.
+    if (!item.hasMenu) {
+      Util.execArgv(["omarchy-tray-context-menu", item.id])
+      return
+    }
+
+    if (!item.menu) {
+      var point = anchorItem.QsWindow.contentItem.mapFromItem(anchorItem, mouse.x, mouse.y)
+      item.display(anchorItem.QsWindow.window, point.x, point.y)
+      return
+    }
 
     // Reset before switching items: trayMenuOpener.menu binds to
     // activeTrayItem.menu, so assigning a new item invalidates the old root's
@@ -974,6 +987,11 @@ BarWidget {
           root.trayMenuPending = false
           trayItemRoot.modelData.activate()
         }
+      }
+      // A double-click's second click lands here, not in onClicked.
+      onDoubleClicked: function(mouse) {
+        if (mouse.button === Qt.LeftButton && TrayModel.activatesOnDoubleClick(trayItemRoot.modelData))
+          trayItemRoot.modelData.activate()
       }
       onWheel: function(wheel) {
         trayItemRoot.modelData.scroll(wheel.angleDelta.y, false)
