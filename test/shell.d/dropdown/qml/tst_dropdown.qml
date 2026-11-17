@@ -34,6 +34,19 @@ Item {
     }
   }
   Component {
+    id: boundSearchableComponent
+    SearchableDropdown {
+      x: 60
+      y: 40
+      width: 320
+      options: ["One", "Two", "Three"]
+      placeholderText: "Search"
+      emptyText: "No matches"
+      value: scene.boundValue
+      onChanged: function(v) { scene.boundValue = v }
+    }
+  }
+  Component {
     id: unboundComponent
     Dropdown {
       x: 60
@@ -48,9 +61,16 @@ Item {
     name: "DropdownValueBinding"
     when: windowShown
 
-    function pickSecond(box) {
+    function pickSecond(box, fromSearch) {
       box.open()
       tryCompare(box, "popupOpen", true)
+      if (fromSearch) {
+        tryVerify(function() {
+          var input = scene.Window.activeFocusItem
+          return input !== null && input.text !== undefined
+        })
+        keyClick(Qt.Key_Down)
+      }
       keyClick(Qt.Key_Down)
       keyClick(Qt.Key_Return)
       tryCompare(box, "popupOpen", false)
@@ -66,6 +86,16 @@ Item {
       compare(box.value, "Two")
       scene.boundValue = "Three"
       compare(box.value, "Three", "the binding survived the pick")
+    }
+
+    function test_searchable_pick_keeps_a_bound_value() {
+      scene.boundValue = "One"
+      var box = createTemporaryObject(boundSearchableComponent, scene)
+      pickSecond(box, true)
+      compare(scene.boundValue, "Two")
+      compare(box.value, "Two")
+      scene.boundValue = "Three"
+      compare(box.value, "Three", "the searchable binding survived the pick")
     }
 
     // Without an owner taking the value, the dropdown still shows the pick.

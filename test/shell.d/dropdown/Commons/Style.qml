@@ -15,6 +15,9 @@ QtObject {
     property int controlHeight: 28
     property int popupRowHeight: 28
     property int dropdownWidth: 240
+    property int searchableDropdownWidth: 260
+    property int searchablePopupMinHeight: 80
+    property int inputPaddingY: 6
     property int huge: 18
     property int labelGap: 4
     property int controlPaddingX: 10
@@ -33,4 +36,6 @@ QtObject {
   function hoverStateColor(foreground, accent) { return accent }
   function hoverFillFor(foreground, accent) { return "#334455" }
   function controlFill(focused, hot, foreground, accent) { return "#222222" }
+  function selectionFillFor(foreground, accent) { return accent }
+  function space(value) { return value }
 }
