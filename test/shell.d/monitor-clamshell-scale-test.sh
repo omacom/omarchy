@@ -267,13 +267,13 @@ OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=HEADLESS-1 \
   expect_sync "clamshell recovery leaves a panel-disabled display off while a headless output is enabled" off - \
   '!hl.monitor(' <<<"$internal_config"
 
-# The lid opening beside an external display is this script's own flag to
-# undo, and the panel still reports as off right after the reload.
+# A panel still off after removing the clamshell flag may be held off by
+# a desc: rule added while the lid was closed.
 mkdir -p "$state_dir"
 printf 'hl.monitor({ output = "eDP-1", disabled = true })\n' >"$state_dir/internal-monitor-clamshell.lua"
 OMARCHY_TEST_EXTERNAL_CONNECTED=true OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=DP-1 \
-  expect_sync "clamshell recovery brings back a panel it turned off itself beside an external display" off - \
-  'scale = 1.25' <<<"$internal_config"
+  expect_sync "clamshell release preserves a panel still disabled beside an external display" off - \
+  '!hl.monitor(' <<<"$internal_config"
 
 # Closing the lid on a panel something else already turned off beside an
 # external display does not make it the script's own, so opening the lid again

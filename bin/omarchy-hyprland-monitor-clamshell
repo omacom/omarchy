@@ -311,9 +311,9 @@ enable_internal() {
 
   [[ -f $MANUAL_DISABLE_FLAG ]] && omarchy-hyprland-monitor-external-active && return 0
 
-  # Only a panel this run released from clamshell is brought back while it
-  # still reports as off; the docked poll reaches this every two seconds.
-  if (( changed )) || ! internal_off_beside_another_output; then
+  # A panel still disabled after reloading may be held off by the user.
+  # Leave its rule intact while another output is enabled.
+  if ! internal_off_beside_another_output; then
     sync_internal_scale
   fi
 
