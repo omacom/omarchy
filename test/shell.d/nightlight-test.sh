@@ -25,6 +25,11 @@ SHELL_LOG="$TMPDIR/omarchy-shell-log"
 cat >"$TMPDIR/bin/hyprctl" <<'SH'
 #!/bin/bash
 
+# A daemon that is only up once pgrep has looked for it twice: launched after the first look
+if [[ -n ${HYPRSUNSET_LOOKS:-} ]] && (( $(wc -l <"$HYPRSUNSET_LOOKS") < 2 )); then
+  exit 1
+fi
+
 if [[ ${1:-} == "hyprsunset" && ${2:-} == "temperature" ]]; then
   if [[ -n ${3:-} ]]; then
     printf '%s\n' "$3" >"$HYPRSUNSET_STATE"
@@ -66,6 +71,7 @@ nightlight_cli() {
   PATH="$TMPDIR/bin:$PATH" \
   HYPRSUNSET_STATE="$STATE" \
   HYPRSUNSET_SLOW="${SLOW:-}" \
+  HYPRSUNSET_LOOKS="${LOOKS:-}" \
   OMARCHY_SHELL_LOG="$SHELL_LOG" \
     "$ROOT/bin/omarchy-toggle-nightlight" "$@"
 }
@@ -166,3 +172,20 @@ chmod +x "$TMPDIR/bin/setsid"
 toggle_from_daylight 100
 [[ $(<"$STATE") == 4000 && ! -e $BOOT_PENDING ]] || fail "a freshly started hyprsunset can't undo the toggle with its default"
 pass "a freshly started hyprsunset can't undo the toggle with its default"
+
+rm -f "$STATE"
+: >"$SHELL_LOG"
+[[ $(nightlight_cli --status | jq -r .enabled) == "false" ]] && ! grep -q '^sleep' "$SHELL_LOG" || \
+  fail "nightlight status reads no daemon as off without waiting"
+pass "nightlight status reads no daemon as off without waiting"
+
+# The click that launches hyprsunset turns night light on, even when the daemon
+# boots into a warm profile and answers by the time the toggle reads it.
+LOOKS="$TMPDIR/looks"
+: >"$LOOKS"
+printf '#!/bin/bash\necho >>"$HYPRSUNSET_LOOKS"\n(( $(wc -l <"$HYPRSUNSET_LOOKS") > 1 ))\n' >"$TMPDIR/bin/pgrep"
+printf '4000\n' >"$STATE"
+nightlight_cli >/dev/null
+unset LOOKS
+[[ $(<"$STATE") == 4000 ]] || fail "launching hyprsunset into a warm profile still turns night light on"
+pass "launching hyprsunset into a warm profile still turns night light on"
