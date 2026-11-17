@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy کو عام طور پر hotkeys اور Omarchy menu (`Super + Space`) کے ذریعے کنٹرول کیا جاتا ہے۔ لیکن آپ اسے `omarchy` CLI کے ذریعے بھی کنٹرول کر سکتے ہیں۔ یہ خاص طور پر اس وقت مددگار ہوتا ہے جب آپ کسی AI agent سے customization یا configuration پر اپنے ساتھ کام کروا رہے ہوں۔
+Omarchy کو عام طور پر ہاٹ کیز اور Omarchy مینیو (`Super + Space`) کے ذریعے کنٹرول کیا جاتا ہے۔ لیکن آپ اسے `omarchy` CLI کے ذریعے بھی کنٹرول کر سکتے ہیں۔ یہ خاص طور پر اس وقت مددگار ہوتا ہے جب آپ کسی AI ایجنٹ سے تخصیص یا ترتیب پر اپنے ساتھ کام کروا رہے ہوں۔
 
-CLI کو ان تمام internal tooling تک رسائی حاصل ہے جو menu کے ذریعے اور اس کے علاوہ بھی استعمال ہوتی ہیں۔ آپ terminal میں `omarchy` چلا کر ہر دستیاب چیز دیکھ سکتے ہیں۔
+CLI کو ان تمام اندرونی اوزاروں تک رسائی حاصل ہے جو مینیو کے ذریعے بھی استعمال ہوتے ہیں اور دیگر طریقوں سے بھی۔ آپ ٹرمینل میں `omarchy` چلا کر سب کچھ دیکھ سکتے ہیں جو دستیاب ہے۔
 
-یہ کچھ اس طرح نظر آتا ہے:
+یہ کچھ اس طرح دکھائی دیتا ہے:
 
 ```
 ~ ❯ omarchy
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,12 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-اور آپ ہر group میں مزید گہرائی تک جا سکتے ہیں:
+تشخیص کے لیے، براہِ راست `omarchy-debug --no-sudo --print` چلائیں۔ یہ تشخیصی معلومات پرنٹ کرتا ہے اور sudo کے لیے پوچھے بغیر `/tmp/omarchy-debug.log` لکھتا ہے، بشمول ان پیکیج تنصیبات پر جہاں `omarchy debug` "Unknown Omarchy command" کے ساتھ ناکام ہو سکتی ہے۔
+
+اور آپ ہر گروپ میں مزید گہرائی تک جا سکتے ہیں:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-ہر command `--help` بھی لیتا ہے، چاہے آپ پورے group سے پوچھیں (`omarchy capture --help`) یا کسی ایک command سے (`omarchy capture screenshot --help`)۔
+ہر کمانڈ `--help` بھی لیتی ہے، چاہے آپ پورے گروپ سے پوچھیں (`omarchy capture --help`) یا کسی ایک کمانڈ سے (`omarchy capture screenshot --help`)۔
 
-### Terminal سے menu کھولنا
+### ٹرمینل سے مینیو کھولنا
 
-Omarchy menu کو script بھی کیا جا سکتا ہے، جو آپ کی اپنی keybindings کے لیے کارآمد ہے۔ `omarchy menu` اسے root پر کھولتا ہے، اور آپ اس کا نام دے کر tree میں سیدھا کسی بھی مقام پر جا سکتے ہیں: `omarchy menu summon appearance.theme` سیدھا theme picker پر جاتا ہے، `omarchy menu toggle system` system menu کھولتا ہے اور اگر وہ پہلے سے کھلا ہو تو اسے پھر سے بند کر دیتا ہے، اور `omarchy menu close` اسے ہٹا دیتا ہے۔
+Omarchy مینیو اسکرپٹ کے قابل بھی ہے، جو آپ کی اپنی کی بائنڈنگز کے لیے کارآمد ہے۔ `omarchy menu` اسے روٹ پر کھولتا ہے، اور آپ اس کا نام بتا کر درخت میں کسی بھی مقام پر براہِ راست چھلانگ لگا سکتے ہیں: `omarchy menu summon appearance.theme` براہِ راست تھیم منتخب کرنے والے تک لے جاتا ہے، `omarchy menu toggle system` سسٹم مینیو کھولتا ہے اور اگر وہ پہلے سے کھلا ہو تو اسے دوبارہ بند کر دیتا ہے، اور `omarchy menu close` اسے ہٹا دیتا ہے۔

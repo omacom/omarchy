@@ -15,11 +15,12 @@
   //   description Optional subtitle and extra search text.
   //   when        Shell condition; hide row when it fails.
   //   checked     Shell condition; append ✓ when it succeeds.
+  //   alt         Id of another action entry shown and run instead while Alt is held.
   //
   // Examples:
   // "personal": {"icon":"","label":"Personal"},
   // "personal.notes": {"icon":"󰎞","label":"Notes","action":"omarchy-launch-editor ~/notes"},
-  // "personal.files": {"icon":"","label":"Files","action":"uwsm-app -- nautilus ~/Documents"},
+  // "personal.files": {"icon":"","label":"Files","action":"uwsm-app -- folio ~/Documents"},
   //
   // provider can only reference row sources the shell already defines (the
   // providers map in Menu.qml). Static submenus only need dotted ids.

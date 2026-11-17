@@ -1,21 +1,21 @@
 # Spanje sistema
 
-Omarchy privzeto omogoča mirovanje in hibernacijo, če pa imaš na svojem računalniku težave s katerim od njiju, ju lahko izklopiš.
+Omarchy privzeto omogoča mirovanje in hibernacijo, če pa imate na svojem računalniku težave s katero od njiju, ju lahko izklopite.
 
-Na računalnikih z NVIDIA GB10, kot sta DGX Spark in ASUS Ascent GX10, sta mirovanje in hibernacija izklopljena, enako kot v NVIDIA DGX OS, ker spanje na tej strojni opremi še ni dokazano delovalo. Preklop mirovanja in nastavitev hibernacije tam ne veljata. Če želiš spanje znova vklopiti, s `sudo rm` odstrani `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf`; možnost Mirovanje se nato vrne v meni, hibernacijo pa lahko nastaviš kot na drugih računalnikih. Z ukazom `sudo omarchy apply hardware --install-user "$USER"` datoteko vrneš nazaj.
+Na računalnikih NVIDIA GB10, kot sta DGX Spark in ASUS Ascent GX10, sta mirovanje in hibernacija izklopljena, tako kot sta v sistemu NVIDIA DGX OS, ker za spanje na tej strojni opremi še ni bilo dokazano, da deluje. Enako velja za ASUS Zenbook A16 (UX3607OA), pri katerem mirovanje čipa še ne uspava v celoti in lahko čez noč zamrzne. Preklop mirovanja in nastavitev hibernacije tam ne veljata. Če želite spanje znova vklopiti, odstranite `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` z `sudo rm`; mirovanje se nato vrne v meni, hibernacijo pa lahko nastavite kot na drugih računalnikih. Zagon `sudo omarchy apply hardware --install-user "$USER"` datoteko vrne nazaj.
 
 ### Profili napajanja
 
-Na prenosniku si Omarchy zapomni tvoj profil napajanja ločeno za delovanje na napajanje iz omrežja in delovanje na baterijo ter med njima preklaplja, ko vklopiš ali izklopiš napajanje. Privzeto to pomeni zmogljivost na izmeničnem napajanju in uravnoteženo delovanje na baterijo.
+Na prenosniku si Omarchy zapomni vaš profil napajanja ločeno za delovanje ob priklopu na napajanje in delovanje na baterijo ter med njima preklaplja, ko napravo priklopite in odklopite. Takoj po namestitvi to pomeni performance na AC in balanced na bateriji.
 
-Kaj tvoj računalnik ponuja, lahko vidiš z `omarchy powerprofiles list`, želeni profil za stanje, v katerem si trenutno, pa nastaviš z `omarchy powerprofiles set autodetect power-saver`. Če želiš nastaviti drugo stanje, ne da bi karkoli izklopil, ga poimenuj neposredno: `omarchy powerprofiles set battery power-saver`. Kar izbereš, dobiš nazaj ob naslednjem prehodu v to stanje.
+Kaj vaš računalnik ponuja, lahko vidite z `omarchy powerprofiles list`, profil, ki ga želite za stanje, v katerem ste trenutno, pa nastavite z `omarchy powerprofiles set autodetect power-saver`. Če želite nastaviti drugo stanje, ne da bi karkoli odklopili, ga neposredno poimenujte: `omarchy powerprofiles set battery power-saver`. Kar koli izberete, boste dobili nazaj ob naslednjem prehodu v to stanje.
 
-### Vklop/izklop mirovanja
+### Preklop mirovanja
 
-Mirovanje vklopiš ali izklopiš z ukazom `omarchy toggle suspend` v terminalu. To samo prikaže/skrije možnost pod _System_ (ali `Super + Esc`), nato pa lahko vidiš, ali na tvojem sistemu deluje zanesljivo. Če ne, jo z istim ukazom znova skriješ.
+Mirovanje preklopite tako, da iz terminala zaženete `omarchy toggle suspend`. To samo razkrije/skrije možnost pod _System_ (ali `Super + Esc`), nato pa lahko preverite, ali na vašem sistemu deluje zanesljivo. Če ne, jo lahko z istim ukazom znova skrijete.
 
-### Vklop/izklop hibernacije
+### Preklop hibernacije
 
-Hibernacijo nastaviš z ukazom `omarchy hibernation setup` v terminalu. Hibernacija na tvojem zagonskem pogonu ustvari podzvezek /swap v velikosti tvojega fizičnega pomnilnika RAM, zato poskrbi, da imaš dovolj prostega prostora. Na računalniku z 32GB boš za ta zvezek vedno potreboval 32GB+ prostega prostora. Hibernacija zahteva tudi privzeti zagonski nalagalnik Limine.
+Hibernacijo nastavite tako, da iz terminala zaženete `omarchy hibernation setup`. Hibernacija na vašem zagonskem pogonu ustvari podzvezek /swap v velikosti dodeljenega fizičnega pomnilnika RAM, zato poskrbite, da imate na voljo dovolj prostora. Na računalniku z 32GB boste za ta zvezek vedno potrebovali 32GB+ prostega prostora. Hibernacija zahteva tudi privzeti zagonski nalagalnik Limine.
 
-Ko je nastavljena, boš pod _System_ (ali `Super + Esc`) videl možnost hibernacije, nato pa lahko vidiš, ali na tvojem sistemu deluje zanesljivo. Če ne, jo lahko znova odstraniš z ukazom `omarchy hibernation remove`.
+Ko bo nastavljena, boste možnost hibernacije videli pod _System_ (ali `Super + Esc`), nato pa lahko preverite, ali na vašem sistemu deluje zanesljivo. Če ne, jo lahko znova odstranite z zagonom `omarchy hibernation remove`.

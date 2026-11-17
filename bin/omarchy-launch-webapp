@@ -6,8 +6,9 @@
 browser=$(omarchy-cmd-default-browser)
 
 case $browser in
-google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
-*) browser="chromium.desktop" ;;
+chromium* | google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) browsers=("$browser") ;;
+# New installs have Chrome; older ones may only have the Chromium they shipped with.
+*) browsers=(google-chrome.desktop chromium.desktop) ;;
 esac
 
 # Parse the .desktop Exec= line into tokens, honouring the desktop-entry quoting
@@ -95,11 +96,13 @@ desktop_exec_tokens() {
 # omarchy-launch-browser does, so a browser it resolved is one this can start.
 IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 exec_tokens=()
-for data_dir in "${data_dirs[@]}"; do
-  entry="$data_dir/applications/$browser"
-  [[ -f $entry ]] || continue
-  desktop_exec_tokens "$(sed -n 's/^Exec=//p' "$entry" | head -1)"
-  break
+for browser in "${browsers[@]}"; do
+  for data_dir in "${data_dirs[@]}"; do
+    entry="$data_dir/applications/$browser"
+    [[ -f $entry ]] || continue
+    desktop_exec_tokens "$(sed -n 's/^Exec=//p' "$entry" | head -1)"
+    break 2
+  done
 done
 
 # Field codes %u/%U/%f/%F/%i/%c/%k never apply here: the web-app URL is passed
