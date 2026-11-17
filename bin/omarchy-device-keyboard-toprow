@@ -77,11 +77,12 @@ else
   fnmode=1 fnlock=0 first="the media keys" second="F1-F12"
 fi
 
-content="# Written by omarchy-device-keyboard-toprow: the top row sends $first by default,
-# and Fn (Fn+Esc to lock it) gives $second.
-options hid_apple fnmode=$fnmode
+options="options hid_apple fnmode=$fnmode
 options hid_asus fnlock_default=$fnlock
 options asus_wmi fnlock_default=$fnlock"
+content="# Written by omarchy-device-keyboard-toprow: the top row sends $first by default,
+# and Fn (Fn+Esc to lock it) gives $second.
+$options"
 
 # Omarchy wrote these before this command existed. An administrator's own
 # versions stay, and this file overrides them.
@@ -103,8 +104,9 @@ if [[ -e $sys_module/hid_apple/parameters/fnmode && $(param hid_apple fnmode) !=
 fi
 
 # A rebuild that failed or was interrupted last time is still owed, even with
-# the file in place.
-if [[ ! -e $rebuild_pending && -f $conf && $(<"$conf") == "$content" ]] && (( ${#legacy[@]} == 0 )); then
+# the file in place. Only the options count: a file whose comment was written
+# by an earlier version, like the migration's, needs no rebuild.
+if [[ ! -e $rebuild_pending && -f $conf && $(grep -v '^#' "$conf") == "$options" ]] && (( ${#legacy[@]} == 0 )); then
   echo "The top row already sends $first by default."
   exit 0
 fi
