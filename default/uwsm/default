@@ -10,6 +10,12 @@ export TERMINAL=xdg-terminal-exec
 # Used by terminal programs to open files with the selected Omarchy default editor
 export EDITOR="omarchy-launch-editor --inline"
 
+# Bitwarden keeps its key in memfd_secret memory, which turns hibernation off while it runs.
+# When every swap a hibernation image can go to is encrypted, let it use locked memory instead.
+if omarchy-hibernation-encrypted; then
+  export SECURE_KEY_CONTAINER_BACKEND=${SECURE_KEY_CONTAINER_BACKEND:-mlock}
+fi
+
 # Use a custom directory for screenshots
 # export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Screenshots"
 
