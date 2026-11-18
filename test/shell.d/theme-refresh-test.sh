@@ -57,6 +57,20 @@ refresh --if-changed
 [[ $(sets) == 5 ]] || fail "a user template does not refresh the theme"
 pass "an edited, added or removed template, Omarchy's or the user's, refreshes the theme"
 
+# Dotfile managers link templates in; the renderer reads what the link points at.
+mkdir -p "$test_tmp/dotfiles"
+echo 'g = "{{ accent }}"' >"$test_tmp/dotfiles/linked.conf.tpl"
+ln -s "$test_tmp/dotfiles/linked.conf.tpl" "$test_home/.config/omarchy/themed/linked.conf.tpl"
+refresh --if-changed
+[[ $(sets) == 6 ]] || fail "a linked user template does not refresh the theme"
+echo 'h = "{{ background }}"' >>"$test_tmp/dotfiles/linked.conf.tpl"
+refresh --if-changed
+[[ $(sets) == 7 ]] || fail "editing a linked template's target does not refresh the theme"
+echo 'not a template' >"$test_home/.config/omarchy/themed/notes.txt"
+refresh --if-changed
+[[ $(sets) == 7 ]] || fail "a file the renderer ignores refreshes the theme"
+pass "a linked template counts by its target, and files the renderer ignores do not count"
+
 echo 'e = "{{ accent }}"' >>"$omarchy_path/default/themed/app.conf.tpl"
 before=$(cat "$stamp")
 if OMARCHY_TEST_SET_FAIL=1 refresh --if-changed; then
@@ -64,21 +78,21 @@ if OMARCHY_TEST_SET_FAIL=1 refresh --if-changed; then
 fi
 [[ $(cat "$stamp") == "$before" ]] || fail "a failed refresh is recorded as rendered"
 refresh --if-changed
-[[ $(sets) == 7 ]] || fail "the next conditional refresh does not retry a failed one"
+[[ $(sets) == 9 ]] || fail "the next conditional refresh does not retry a failed one"
 pass "a failed refresh is not recorded, so the next one retries it"
 
 # Migrations refresh unconditionally; that render counts too.
 echo 'f = "{{ accent }}"' >>"$omarchy_path/default/themed/app.conf.tpl"
 refresh
 refresh --if-changed
-[[ $(sets) == 8 ]] || fail "a migration's refresh is not counted, so the update renders again"
+[[ $(sets) == 10 ]] || fail "a migration's refresh is not counted, so the update renders again"
 pass "an unconditional refresh is recorded, so the update after a migration does not repeat it"
 
 refresh
-[[ $(sets) == 9 ]] || fail "an unconditional refresh is skipped when nothing changed"
+[[ $(sets) == 11 ]] || fail "an unconditional refresh is skipped when nothing changed"
 pass "a plain refresh always sets the theme"
 
 rm "$test_home/.local/state/omarchy/current/theme.name"
 refresh --if-changed || fail "a refresh with no current theme fails"
-[[ $(sets) == 9 ]] || fail "a refresh with no current theme sets one"
+[[ $(sets) == 11 ]] || fail "a refresh with no current theme sets one"
 pass "with no current theme there is nothing to refresh"
