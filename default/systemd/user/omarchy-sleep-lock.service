@@ -11,6 +11,10 @@ ConditionEnvironment=WAYLAND_DISPLAY
 
 [Service]
 Type=simple
+# The monitor finds dbus-monitor and its helpers through PATH. Pin it so a
+# dbus-monitor earlier on the imported session PATH (conda, for one) cannot
+# shadow the system one and turn this unit into a silent restart loop.
+Environment=PATH=/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/usr/bin/omarchy-system-sleep-monitor
 Restart=always
 RestartSec=2
