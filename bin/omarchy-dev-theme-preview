@@ -62,9 +62,22 @@ normalize_theme_name() {
   printf '%s' "$1" | sed -E 's/<[^>]+>//g' | tr '[:upper:]' '[:lower:]' | tr ' ' '-'
 }
 
+colors_from_alacritty() {
+  local theme_dir="$1"
+  local scratch="${TMPDIR:-/tmp}/omarchy-theme-preview-$$"
+
+  rm -rf "$scratch"
+  mkdir -p "$scratch" || return 1
+  cp "$theme_dir/alacritty.toml" "$scratch/alacritty.toml" || return 1
+  omarchy_tool omarchy-theme-colors-from-alacritty "$scratch" >/dev/null || return 1
+  [[ -f $scratch/colors.toml ]] || return 1
+  printf '%s/colors.toml' "$scratch"
+}
+
 resolve_colors_file() {
   local ref="$1"
   local theme_name
+  local generated
 
   if [[ -z $ref ]]; then
     printf '%s/colors.toml' "$CURRENT_THEME_PATH"
@@ -72,6 +85,8 @@ resolve_colors_file() {
     printf '%s' "$ref"
   elif [[ -d $ref && -f $ref/colors.toml ]]; then
     printf '%s/colors.toml' "$ref"
+  elif [[ -d $ref && -f $ref/alacritty.toml ]]; then
+    colors_from_alacritty "$ref"
   else
     for theme_name in "$ref" "$(normalize_theme_name "$ref")"; do
       if [[ -f $USER_THEMES_PATH/$theme_name/colors.toml ]]; then
@@ -80,6 +95,14 @@ resolve_colors_file() {
       elif [[ -f $OMARCHY_THEMES_PATH/$theme_name/colors.toml ]]; then
         printf '%s/colors.toml' "$OMARCHY_THEMES_PATH/$theme_name"
         return
+      fi
+    done
+    for theme_name in "$ref" "$(normalize_theme_name "$ref")"; do
+      if [[ -f $USER_THEMES_PATH/$theme_name/alacritty.toml ]]; then
+        generated=$(colors_from_alacritty "$USER_THEMES_PATH/$theme_name") && { printf '%s' "$generated"; return; }
+      fi
+      if [[ -f $OMARCHY_THEMES_PATH/$theme_name/alacritty.toml ]]; then
+        generated=$(colors_from_alacritty "$OMARCHY_THEMES_PATH/$theme_name") && { printf '%s' "$generated"; return; }
       fi
     done
     return 1
@@ -398,6 +421,8 @@ print_neutral_ramp() {
     print_color_row "$key"
   done
 }
+
+trap 'rm -rf "${TMPDIR:-/tmp}/omarchy-theme-preview-$$"' EXIT
 
 colors_file=$(resolve_colors_file "$THEME_REF") || {
   echo "Theme not found: $THEME_REF" >&2
