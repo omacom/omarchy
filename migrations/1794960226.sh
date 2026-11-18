@@ -16,12 +16,8 @@ fi
 mkdir -p "$HOME/.local/share/applications"
 cp -f "$OMARCHY_PATH/applications/footclient.desktop" "$HOME/.local/share/applications/footclient.desktop"
 
+# Swap only the first entry; keep the user's comments and fallbacks.
 if [[ $first == "foot.desktop" ]]; then
-  cat >"$list" <<EOF
-# Terminal emulator preference order for xdg-terminal-exec
-# The first found and valid terminal will be used
-footclient.desktop
-EOF
+  awk '!done && $0 ~ /^[[:space:]]*foot\.desktop[[:space:]]*$/ { print "footclient.desktop"; done = 1; next } { print }' \
+    "$list" >"$list.tmp" && mv "$list.tmp" "$list"
 fi
-
-systemctl --user enable --now foot-server.socket || true

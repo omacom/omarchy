@@ -35,7 +35,6 @@ if omarchy-pkg-add $package; then
     mkdir -p ~/.local/share/applications
     cp "$OMARCHY_PATH/applications/foot.desktop" ~/.local/share/applications/
     cp "$OMARCHY_PATH/applications/footclient.desktop" ~/.local/share/applications/
-    systemctl --user enable --now foot-server.socket || true
   fi
 
   # Copy default config for optional terminals when missing

@@ -39,6 +39,7 @@ SH
 cat >"$mock_bin/systemctl" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_SYSTEMCTL_LOG"
+[[ $2 == is-active ]] && exit "${OMARCHY_TEST_SOCKET_ACTIVE:-1}"
 exit 0
 SH
 
@@ -70,9 +71,8 @@ omarchy-default-terminal foot >/dev/null
   fail "setting foot installs the Omarchy footclient desktop file"
 [[ $(grep -Ev '^\s*(#|$)' "$test_home/.config/xdg-terminals.list") == "footclient.desktop" ]] ||
   fail "setting foot prefers footclient" "$(cat "$test_home/.config/xdg-terminals.list")"
-grep -Fq 'enable --now foot-server.socket' "$systemctl_log" ||
-  fail "setting foot enables the foot server socket" "$(cat "$systemctl_log")"
-pass "setting foot prefers footclient and starts the server"
+[[ ! -s $systemctl_log ]] || fail "setting foot enables no user unit" "$(cat "$systemctl_log")"
+pass "setting foot prefers footclient and enables nothing"
 
 printf '%s\n' "kitty.desktop" >"$test_home/.config/xdg-terminals.list"
 rm -f "$test_home/.local/share/applications/footclient.desktop"
@@ -83,6 +83,11 @@ omarchy-default-terminal foot >/dev/null
 [[ $(grep -Ev '^\s*(#|$)' "$test_home/.config/xdg-terminals.list") == "footclient.desktop" ]] ||
   fail "switching back to foot prefers footclient"
 pass "switching back to foot from Kitty installs the Omarchy desktop"
+
+: >"$systemctl_log"
+omarchy-default-terminal ghostty >/dev/null
+[[ ! -s $systemctl_log ]] || fail "leaving foot leaves no user unit to clean up" "$(cat "$systemctl_log")"
+pass "leaving foot leaves no user unit to clean up"
 
 data_home="$test_tmp/xdg-data"
 config_home="$test_tmp/xdg-config"
@@ -112,6 +117,7 @@ printf 'foot:%s\n' "$*"
 SH
 chmod +x "$wrapper_bin/footclient" "$wrapper_bin/foot"
 
+: >"$systemctl_log"
 got=$(
   PATH="$wrapper_bin:$mock_bin:$ROOT/bin:$host_path" \
     HOME="$test_tmp/bare-home" \
@@ -121,26 +127,23 @@ got=$(
 )
 [[ $got == "foot:--app-id=org.omarchy.btop -e btop" ]] ||
   fail "wrapper falls back to standalone foot without a server socket" "$got"
-pass "wrapper falls back to standalone foot without a server socket"
+grep -Fxq -- '--user start foot-server.socket' "$systemctl_log" ||
+  fail "wrapper tries to start the server socket for this session" "$(cat "$systemctl_log")"
+pass "wrapper falls back to standalone foot when the server socket cannot start"
 
-socket_runtime="$test_tmp/socket-runtime"
-mkdir -p "$socket_runtime"
-python3 - "$socket_runtime/foot-wayland-test.sock" <<'PY'
-import socket, sys
-s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-s.bind(sys.argv[1])
-s.listen(1)
-PY
+: >"$systemctl_log"
 got=$(
   PATH="$wrapper_bin:$mock_bin:$ROOT/bin:$host_path" \
     HOME="$test_tmp/bare-home" \
-    XDG_RUNTIME_DIR="$socket_runtime" \
+    XDG_RUNTIME_DIR="$test_tmp/empty-runtime" \
     WAYLAND_DISPLAY=wayland-test \
+    OMARCHY_TEST_SOCKET_ACTIVE=0 \
     omarchy-launch-foot --app-id=org.omarchy.btop -e btop
 )
 [[ $got == "footclient:--app-id=org.omarchy.btop -e btop" ]] ||
-  fail "wrapper uses footclient when the server socket exists" "$got"
-pass "wrapper uses footclient when the server socket exists"
+  fail "wrapper uses footclient when the systemd socket is listening" "$got"
+! grep -Fq 'start' "$systemctl_log" || fail "wrapper does not restart a listening socket" "$(cat "$systemctl_log")"
+pass "wrapper uses footclient when the systemd socket is listening"
 
 theme_home="$test_tmp/theme-home"
 mkdir -p "$theme_home/.config/foot" "$theme_home/.local/state/omarchy/current/theme"
@@ -149,15 +152,15 @@ printf '%s\n' "[colors-dark]" "background=000000" >"$theme_home/.local/state/oma
 got=$(
   PATH="$wrapper_bin:$mock_bin:$ROOT/bin:$host_path" \
     HOME="$theme_home" \
-    XDG_RUNTIME_DIR="$socket_runtime" \
     WAYLAND_DISPLAY=wayland-test \
+    OMARCHY_TEST_SOCKET_ACTIVE=0 \
     omarchy-launch-foot --app-id=org.omarchy.btop -e btop
 )
 [[ $got == "footclient:--override=include=$theme_home/.local/state/omarchy/current/theme/foot.ini --override=font=TestFont:size=12 --app-id=org.omarchy.btop -e btop" ]] ||
   fail "wrapper re-applies the live theme include and font" "$got"
 pass "wrapper re-applies the live theme include and font"
 
-migration="$ROOT/migrations/1786966072.sh"
+migration="$ROOT/migrations/1794960226.sh"
 run_migration() {
   HOME="$1" PATH="$mock_bin:$host_path" OMARCHY_PATH="$ROOT" \
     bash -euo pipefail "$migration" >/dev/null
@@ -165,15 +168,14 @@ run_migration() {
 
 mig_home="$test_tmp/mig-home"
 mkdir -p "$mig_home/.config" "$mig_home/.local/share/applications"
-printf '%s\n' "foot.desktop" >"$mig_home/.config/xdg-terminals.list"
+printf '%s\n' "# mine" "foot.desktop" "kitty.desktop" >"$mig_home/.config/xdg-terminals.list"
 : >"$systemctl_log"
 run_migration "$mig_home"
 [[ -f $mig_home/.local/share/applications/footclient.desktop ]] ||
   fail "migration installs the Omarchy footclient desktop file"
-[[ $(grep -Ev '^\s*(#|$)' "$mig_home/.config/xdg-terminals.list") == "footclient.desktop" ]] ||
-  fail "migration rewrites a stock foot list" "$(cat "$mig_home/.config/xdg-terminals.list")"
-grep -Fq 'enable --now foot-server.socket' "$systemctl_log" ||
-  fail "migration enables the foot server socket"
+[[ $(<"$mig_home/.config/xdg-terminals.list") == $'# mine\nfootclient.desktop\nkitty.desktop' ]] ||
+  fail "migration swaps only the foot entry" "$(cat "$mig_home/.config/xdg-terminals.list")"
+[[ ! -s $systemctl_log ]] || fail "migration enables no user unit" "$(cat "$systemctl_log")"
 pass "migration upgrades a stock Foot install"
 
 empty_home="$test_tmp/empty-home"
@@ -182,8 +184,7 @@ mkdir -p "$empty_home/.local/share/applications"
 run_migration "$empty_home"
 [[ ! -e $empty_home/.config/xdg-terminals.list ]] ||
   fail "migration does not create a user terminal list"
-grep -Fq 'enable --now foot-server.socket' "$systemctl_log" ||
-  fail "migration enables the foot server socket when there is no user list"
+[[ ! -s $systemctl_log ]] || fail "migration enables no user unit without a user list" "$(cat "$systemctl_log")"
 pass "migration leaves a missing user list to the packaged default"
 
 kitty_home="$test_tmp/kitty-home"

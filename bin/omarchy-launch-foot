@@ -3,11 +3,19 @@
 # omarchy:summary=Launch Foot via footclient when the server socket is up
 # omarchy:hidden=true
 
-# New clients inherit the server's startup config. Re-apply the live theme
-# include and font so a theme or font change reaches the next Super+Return.
-runtime=${XDG_RUNTIME_DIR:-/run/user/$UID}
+# Ask systemd, not the filesystem: a stopped foot-server.socket leaves its
+# socket file behind. Starting it here, never enabling it, keeps the terminal
+# list the only setting, so nothing outlives a switch away from Foot. When the
+# socket cannot start (no WAYLAND_DISPLAY in the user manager), use plain foot.
+server_up() {
+  systemctl --user is-active --quiet foot-server.socket && return
+  systemctl --user start foot-server.socket >/dev/null 2>&1 &&
+    systemctl --user is-active --quiet foot-server.socket
+}
 
-if [[ -n $WAYLAND_DISPLAY && -S $runtime/foot-$WAYLAND_DISPLAY.sock ]] || [[ -S $runtime/foot.sock ]]; then
+if server_up; then
+  # New clients inherit the server's startup config. Re-apply the live theme
+  # include and font so a theme or font change reaches the next Super+Return.
   overrides=()
   theme_ini=$HOME/.local/state/omarchy/current/theme/foot.ini
   [[ -f $theme_ini ]] && overrides+=(--override=include="$theme_ini")

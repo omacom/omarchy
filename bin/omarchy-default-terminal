@@ -46,7 +46,6 @@ if [[ $terminal == "foot" ]]; then
   mkdir -p ~/.local/share/applications
   cp "$OMARCHY_PATH/applications/foot.desktop" ~/.local/share/applications/
   cp "$OMARCHY_PATH/applications/footclient.desktop" ~/.local/share/applications/
-  systemctl --user enable --now foot-server.socket || true
 fi
 
 cat >~/.config/xdg-terminals.list <<EOF
