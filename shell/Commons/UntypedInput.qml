@@ -124,10 +124,12 @@ Singleton {
   }
 
   // The volume keys, the mute key and other apps change the node too. pactl
-  // translates its events, so they are read in the C locale.
+  // translates its events, so they are read in the C locale. The pdeathsig
+  // takes it down with a shell that crashed or was killed, which would
+  // otherwise leave it subscribed with no one reading.
   Process {
     id: events
-    command: ["pactl", "subscribe"]
+    command: ["setpriv", "--pdeathsig", "TERM", "pactl", "subscribe"]
     environment: ({ LC_ALL: "C" })
     onRunningChanged: if (running) root.subscribedAt = Date.now()
     onExited: {

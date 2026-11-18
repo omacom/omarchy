@@ -15,13 +15,10 @@ require_command inotifywait
 
 stage=$(mktemp -d)
 QS_PID=""
-# Quickshell restarts a watcher killed under it, and leaves one running when it
-# is stopped itself, so stop the shell first and then what it had started.
+# Quickshell restarts a watcher killed under it, so stop the shell itself; the
+# watcher goes with it.
 stop_shell() {
-  local children=()
-
   if [[ -n $QS_PID ]]; then
-    mapfile -t children < <(pgrep -P "$QS_PID" 2>/dev/null || true)
     kill "$QS_PID" 2>/dev/null || true
     for _ in {1..30}; do
       kill -0 "$QS_PID" 2>/dev/null || break
@@ -29,7 +26,6 @@ stop_shell() {
     done
     kill -KILL "$QS_PID" 2>/dev/null || true
     wait "$QS_PID" 2>/dev/null || true
-    (( ${#children[@]} == 0 )) || kill "${children[@]}" 2>/dev/null || true
   fi
   QS_PID=""
 }
@@ -172,6 +168,29 @@ touch "$stage/root/dev/input/event43"
 wait_changes $(( before + 1 )) || fail "the seat is read again once a lost watch is back" "$(cat "$stage/log")"
 (( $(changes) > before )) || fail "the seat is read again once a lost watch is back" "$(cat "$stage/log")"
 pass "the seat is read again once a lost watch is back"
+
+# A shell that crashes or is killed cleans up nothing itself. Its launcher
+# relaunches it with a watch of its own, so the old one has to go with it, or
+# each relaunch leaves an inotifywait holding an inotify instance.
+watch_pid=""
+for _ in {1..50}; do
+  watch_pid=$(pgrep -P "$QS_PID" -f "inotifywait .*$stage/root/dev/input" || true)
+  [[ -n $watch_pid ]] && break
+  sleep 0.1
+done
+[[ -n $watch_pid ]] || fail "the watch is up before the shell is killed" "$(cat "$stage/log")"
+kill -KILL "$QS_PID"
+wait "$QS_PID" 2>/dev/null || true
+QS_PID=""
+for _ in {1..20}; do
+  kill -0 "$watch_pid" 2>/dev/null || break
+  sleep 0.1
+done
+if kill -0 "$watch_pid" 2>/dev/null; then
+  kill "$watch_pid" 2>/dev/null || true
+  fail "a killed shell takes its watch with it" "inotifywait $watch_pid outlived the shell"
+fi
+pass "a killed shell takes its watch with it"
 
 # A watch that cannot be set up at all (no /dev here, an exhausted inotify
 # limit on a real machine) keeps failing at once. Its retries must not each
