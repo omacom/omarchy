@@ -19,7 +19,7 @@ settings="$tmpdir/state/omarchy/monitors/settings"
 cat >"$tmpdir/fake.lua" <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 
-applied, env, handlers, monitors, identities = {}, {}, {}, {}, {}
+applied, env, handlers, monitors, identities, commands = {}, {}, {}, {}, {}, {}
 
 hl = {
   get_monitors = function() return monitors end,
@@ -28,7 +28,10 @@ hl = {
   on = function(name, handler) handlers[name] = handler end,
 }
 
-o = { workspaces = { identities = function() return identities end } }
+o = {
+  workspaces = { identities = function() return identities end },
+  shell_succeeds = function(command) commands[#commands + 1] = command; return true end,
+}
 
 function plug(name, identity, fields)
   fields.name = name
@@ -37,7 +40,7 @@ function plug(name, identity, fields)
 end
 
 function load_module()
-  applied, env = {}, {}
+  applied, env, commands = {}, {}, {}
   package.loaded["default.hypr.monitor-settings"] = nil
   return require("default.hypr.monitor-settings")
 end
@@ -106,10 +109,12 @@ printf '%s\t%s\t%s\t%s\n' "1920x1200@60" "0x0" "1" "LG Display 0x0804" >"$settin
 run_lua '
 plug("eDP-1", "LG Display 0x0804", { width = 2880, height = 1800, refresh_rate = 120, scale = 2, x = 0, y = 0 })
 load_module()
-applied, env = {}, {}
+applied, env, commands = {}, {}, {}
 o.monitor_settings.update_gdk_scale()
 check(#applied == 0, "touches no monitor")
 check(env.GDK_SCALE == "1", "sets GDK_SCALE from the saved scale, got " .. tostring(env.GDK_SCALE))
+check(#commands == 1 and commands[1] == "dbus-update-activation-environment --systemd GDK_SCALE=1",
+  "synchronizes the activation environment after a save")
 ' || fail "monitor settings update GDK_SCALE without touching monitors"
 pass "monitor settings update GDK_SCALE without touching monitors"
 
@@ -134,6 +139,7 @@ omarchy_monitor_panel_settings = false
 load_module()
 handlers["monitor.added"]({ name = "eDP-1" })
 o.monitor_settings.update_gdk_scale()
+check(#commands == 0, "leaves the activation environment alone with panel settings disabled")
 check(#applied == 0 and env.GDK_SCALE == nil, "applies nothing with the panel'"'"'s choices off")
 ' || fail "monitor settings stay out of the way when switched off in monitors.lua"
 pass "monitor settings stay out of the way when switched off in monitors.lua"
