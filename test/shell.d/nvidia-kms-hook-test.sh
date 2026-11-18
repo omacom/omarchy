@@ -11,6 +11,21 @@ baseline_conf="$ROOT/etc/mkinitcpio.conf.d/00-omarchy-hooks.conf"
 hooks_conf="$ROOT/etc/mkinitcpio.conf.d/omarchy_hooks.conf"
 fake_platform "$tmp_dir/generic" x86
 
+# The image can be built for another kernel than the one running, so the
+# detector asks modinfo about that kernel rather than trusting sysfs alone.
+cat >"$tmp_dir/generic/bin/modinfo" <<'SH'
+#!/bin/bash
+[[ $1 == -k && $2 == "$KERNELVERSION" && $3 == -F && $4 == filename ]] || exit 1
+if [[ " ${KERNEL_MODULES-thunderbolt i915 amdgpu} " == *" $5 "* ]]; then
+  printf '/usr/lib/modules/%s/kernel/%s.ko.zst\n' "$KERNELVERSION" "$5"
+elif [[ " ${KERNEL_BUILTINS-} " == *" $5 "* ]]; then
+  printf '(builtin)\n'
+else
+  exit 1
+fi
+SH
+chmod +x "$tmp_dir/generic/bin/modinfo"
+
 # Each argument is a PCI device as "vendor:class[:flags]", vendor and class in
 # sysfs's own format. Flags, comma-separated:
 #   boot_vga     - the firmware's boot display
@@ -60,7 +75,8 @@ resolved_hooks() {
   # The vconsole block sources the host's /etc/vconsole.conf, which may set
   # only KEYMAP; predefine XKBLAYOUT so its expansion survives set -u and the
   # test stays independent of the machine it runs on.
-  OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" OMARCHY_PROC_ROOT="$tmp_dir/generic/proc" \
+  KERNELVERSION=6.99.0-test KERNEL_MODULES="${KERNEL_MODULES-thunderbolt i915 amdgpu}" \
+    OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" OMARCHY_PROC_ROOT="$tmp_dir/generic/proc" \
     OMARCHY_MKINITCPIO_CONF_DIR="${conf%/*}" PATH="$tmp_dir/generic/bin:$ROOT/bin:$PATH" bash -uc "
     FILES=()
     XKBLAYOUT=us
@@ -150,6 +166,14 @@ assert_modules "offload-only NVIDIA trades the nvidia modules for the iGPU drive
 write_pci_devices 0x1002:0x030000:boot_vga,module=amdgpu,output 0x10de:0x030200:drm
 assert_modules "offload-only NVIDIA beside an AMD iGPU early-loads amdgpu" \
   "$nvidia_modules" "amdgpu"
+
+# A kernel other than the running one may lack the iGPU driver. Adding it to
+# MODULES would break that image build, so the offload case is skipped.
+write_pci_devices "${offload_only[@]}"
+KERNEL_MODULES="thunderbolt" assert_hooks "an offload-only hybrid keeps kms when the target kernel has no iGPU driver" \
+  "$nvidia_modules" "$with_kms"
+KERNEL_MODULES="thunderbolt" assert_modules "an offload-only hybrid keeps the nvidia modules without the target iGPU driver" \
+  "$nvidia_modules" "$nvidia_modules"
 
 write_pci_devices 0x8086:0x030000:boot_vga,module=i915,output 0x10de:0x030200:output
 assert_hooks "hybrid with an output on NVIDIA keeps kms" \

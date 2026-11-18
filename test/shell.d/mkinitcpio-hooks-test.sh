@@ -94,7 +94,8 @@ compose() {
 
   local path="$fixture/bin:$ROOT/bin:$PATH"
   [[ $1 != "no-detector" ]] || path="$fixture/bin"
-  KERNELVERSION=6.99.0-test OMARCHY_PROC_ROOT="$fixture/proc" OMARCHY_PCI_DEVICES_PATH="$devices" \
+  KERNELVERSION=6.99.0-test KERNEL_MODULES="${KERNEL_MODULES-thunderbolt}" KERNEL_BUILTINS="${KERNEL_BUILTINS-}" \
+    OMARCHY_PROC_ROOT="$fixture/proc" OMARCHY_PCI_DEVICES_PATH="$devices" \
     OMARCHY_MKINITCPIO_CONF_DIR="$etc/mkinitcpio.conf.d" PATH="$path" "$BASH" -c '
     . "$1" || exit 1
     printf "HOOKS=%s\nMODULES=%s\nFILES=%s\n" "${HOOKS[*]}" "${MODULES[*]}" "${FILES[*]}"
@@ -250,8 +251,16 @@ offload_only_devices() {
 new_etc
 drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 offload_only_devices
-assert_composed "offload-only NVIDIA trades nvidia and kms for the iGPU driver" x86 \
+KERNEL_MODULES="thunderbolt i915" assert_composed "offload-only NVIDIA trades nvidia and kms for the iGPU driver" x86 \
   "$omarchy_hooks_without_kms" "i915 thunderbolt" ""
+
+# The image can be built for a kernel without the running iGPU's driver. Adding
+# it anyway would break the build, so the offload case is skipped.
+new_etc
+drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
+offload_only_devices
+KERNEL_MODULES="thunderbolt" assert_composed "an offload-only hybrid keeps kms when the target kernel has no iGPU driver" x86 \
+  "$omarchy_hooks" "$nvidia_modules thunderbolt" ""
 
 # The Surface drop-in sorts after the hook config and resets MODULES, which
 # would erase i915 once kms is gone.
@@ -259,7 +268,7 @@ new_etc
 drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 drop_in surface_device_modules.conf <<<"MODULES=(pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw)"
 offload_only_devices
-assert_composed "an offload-only Surface Book keeps kms" x86 \
+KERNEL_MODULES="thunderbolt i915" assert_composed "an offload-only Surface Book keeps kms" x86 \
   "$omarchy_hooks" "pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw thunderbolt" ""
 
 
