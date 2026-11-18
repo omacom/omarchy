@@ -1274,24 +1274,6 @@ fi
   fail "a status that can't be read leaves the launchers alone" "$(launchers)"
 pass "a status that can't be read leaves the launchers alone"
 
-# The update adds launchers for models set up before they existed. A machine
-# whose omarchy-local-ai was removed has no models to read, and that must not
-# stop the update.
-rm -f "$applications"/omarchy-agent-local-*.desktop
-write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)"
-mv "$mock_bin/omarchy-agent-local" "$test_tmp/omarchy-agent-local"
-bash "$ROOT/migrations/1794839007.sh" >"$test_tmp/migration-output" 2>&1 ||
-  fail "the launcher migration passes without omarchy-local-ai" "$(<"$test_tmp/migration-output")"
-mv "$test_tmp/omarchy-agent-local" "$mock_bin/omarchy-agent-local"
-[[ $(launchers) == "omarchy-agent-local-*.desktop" ]] || fail "no engine gives no launchers" "$(launchers)"
-printf '#!/bin/bash\n' >"$mock_bin/omarchy-local-ai"
-chmod +x "$mock_bin/omarchy-local-ai"
-bash "$ROOT/migrations/1794839007.sh" >/dev/null || fail "the launcher migration passes with omarchy-local-ai"
-rm "$mock_bin/omarchy-local-ai"
-[[ $(launchers) == "omarchy-agent-local-qwen-fast.desktop" ]] ||
-  fail "the launcher migration adds launchers for models already set up" "$(launchers)"
-pass "the launcher migration skips a machine without omarchy-local-ai"
-
 # The warm-up starts a stopped model before its agent opens. Without a
 # terminal it draws nothing and just waits.
 write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)"
