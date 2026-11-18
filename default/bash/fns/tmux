@@ -7,7 +7,7 @@ tdl() {
   local current_dir="${PWD}"
   local editor_pane ai_pane ai2_pane
   local ai="$1"
-  local ai2="$2"
+  local ai2="${2:-}"
 
   # Use TMUX_PANE for the pane we're running in (stable even if active window changes)
   editor_pane="$TMUX_PANE"
