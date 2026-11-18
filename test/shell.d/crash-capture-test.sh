@@ -321,6 +321,16 @@ pass "the command cannot be talked into writing outside crash-ignore/"
 # A program may be called -h, and the router answers that with its own help
 # before the command runs. A leading -- is the way through, so it has to be
 # consumed rather than taken for the program name.
+for option in --help -h --typo; do
+  ! crash_mute "$option" >/dev/null 2>&1 ||
+    fail "an option is taken as a program name, so asking for help silently creates a mute"
+  [[ ! -e $(mute_flag -- "$option") ]] ||
+    fail "a refused option still writes a mute flag"
+done
+! crash_mute -h off >/dev/null 2>&1 ||
+  fail "an option is accepted as a program name when an action follows it"
+pass "options require an explicit separator before they can name a program"
+
 crash_mute -- -h >/dev/null 2>&1 ||
   fail "a leading -- is refused rather than consumed, so a program named like a flag cannot be muted at all"
 [[ -f $(mute_flag -- -h) ]] ||
