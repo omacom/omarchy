@@ -42,7 +42,17 @@ if [[ ! -d $THEME_PATH ]]; then
   exit 1
 fi
 
+# Removing the theme that is still current would leave theme.name and the
+# staged current theme naming a theme that no longer exists, so switch away
+# to the default theme, as a fresh install seeds, before deleting it. Doing
+# this first also means current never names the deleted theme in between.
+THEME_NAME_PATH="$HOME/.local/state/omarchy/current/theme.name"
+if [[ $(cat "$THEME_NAME_PATH" 2>/dev/null || true) == "$THEME_NAME" ]]; then
+  omarchy-theme-set "Tokyo Night"
+fi
+
 # Now remove the theme directory for THEME_NAME
 rm -rf "$THEME_PATH"
+
 omarchy-notification-send "$(omarchy-i18n theme.removed)" "$THEME_NAME" || true
 echo "Removed $THEME_NAME"
