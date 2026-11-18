@@ -26,11 +26,11 @@
   "update": {
     "label": "Mettre à jour"
   },
-  "about": {
-    "label": "À propos"
-  },
   "system": {
     "label": "Système"
+  },
+  "system.about": {
+    "label": "À propos"
   },
   "system.screensaver": {
     "label": "Écran de veille"

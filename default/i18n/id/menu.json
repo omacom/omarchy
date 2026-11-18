@@ -26,11 +26,11 @@
   "update": {
     "label": "Perbarui"
   },
-  "about": {
-    "label": "Tentang"
-  },
   "system": {
     "label": "Sistem"
+  },
+  "system.about": {
+    "label": "Tentang"
   },
   "system.screensaver": {
     "label": "Penghemat Layar"

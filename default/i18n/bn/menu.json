@@ -26,11 +26,11 @@
   "update": {
     "label": "আপডেট"
   },
-  "about": {
-    "label": "সম্পর্কে"
-  },
   "system": {
     "label": "সিস্টেম"
+  },
+  "system.about": {
+    "label": "সম্পর্কে"
   },
   "system.screensaver": {
     "label": "স্ক্রিনসেভার"

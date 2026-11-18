@@ -26,11 +26,11 @@
   "update": {
     "label": "Actualitza"
   },
-  "about": {
-    "label": "Quant a"
-  },
   "system": {
     "label": "Sistema"
+  },
+  "system.about": {
+    "label": "Quant a"
   },
   "system.screensaver": {
     "label": "Salvapantalles"
