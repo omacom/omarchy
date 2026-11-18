@@ -44,11 +44,6 @@ printf 'sudo:%s\n' "$*" >>"$OMARCHY_TEST_SETUP_LOG"
 [[ ${OMARCHY_TEST_SETUP_FAIL:-} != "sudo" ]]
 SH
 
-cat >"$mock_bin/systemctl" <<'SH'
-#!/bin/bash
-exit 0
-SH
-
 cat >"$mock_bin/xdg-settings" <<'SH'
 #!/bin/bash
 case $1 in
@@ -320,6 +315,17 @@ for entry in "${terminal_cases[@]}"; do
     fail "$selection becomes the default terminal after installation"
 done
 pass "terminal defaults install every missing terminal before selection"
+[[ -f $test_home/.local/share/applications/footclient.desktop ]] ||
+  fail "selecting foot installs the Omarchy footclient desktop, which keeps app-ids"
+read_back_bin="$test_tmp/read-back-bin"
+mkdir -p "$read_back_bin"
+printf '#!/bin/bash\nprintf "%%s\\n" "$OMARCHY_TEST_PRINT_ID"\n' >"$read_back_bin/xdg-terminal-exec"
+chmod +x "$read_back_bin/xdg-terminal-exec"
+for desktop_id in footclient.desktop foot.desktop; do
+  [[ $(PATH="$read_back_bin:$PATH" OMARCHY_TEST_PRINT_ID=$desktop_id omarchy-default-terminal) == "foot" ]] ||
+    fail "$desktop_id reads back as foot"
+done
+pass "foot selects footclient and reads back as foot"
 
 for entry in "${editor_cases[@]}"; do
   read -r selection command installer <<<"$entry"
