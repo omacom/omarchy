@@ -1360,6 +1360,7 @@ Panel {
       PanelActionButton {
         id: copyButton
         iconText: "󰆏"
+        tooltipText: Commons.I18n.t("tailscale.copyMachineDetails")
         foreground: root.foreground
         fontFamily: root.fontFamily
         enabled: peerRow.peerIp !== "" || peerRow.peerName !== "" || peerRow.peerDns !== "" || peerRow.peerIpv6 !== ""
