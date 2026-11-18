@@ -13,18 +13,21 @@ function isVertical(position) {
   return normalized === "left" || normalized === "right"
 }
 
-function normalizeId(value) {
+function normalizeId(value, hasEntry) {
   var id = String(value || "").trim()
-  if (id.slice(-8) === ".desktop") id = id.slice(0, -8)
+  if (id.slice(-8) === ".desktop") {
+    var stripped = id.slice(0, -8)
+    if (!hasEntry || !hasEntry(id) || hasEntry(stripped)) id = stripped
+  }
   return id
 }
 
-function pinnedIds(dockConfig, defaultsConfig) {
+function pinnedIds(dockConfig, defaultsConfig, hasEntry) {
   var source = dockConfig && Array.isArray(dockConfig.pinned) ? dockConfig.pinned
     : (defaultsConfig && Array.isArray(defaultsConfig.pinned) ? defaultsConfig.pinned : [])
   var ids = []
   for (var i = 0; i < source.length; i++) {
-    var id = normalizeId(source[i])
+    var id = normalizeId(source[i], hasEntry)
     if (id && ids.indexOf(id) === -1) ids.push(id)
   }
   return ids
