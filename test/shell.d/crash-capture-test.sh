@@ -331,6 +331,11 @@ done
   fail "an option is accepted as a program name when an action follows it"
 pass "options require an explicit separator before they can name a program"
 
+crash_mute /opt/odd/-dashed >/dev/null
+[[ -f $(mute_flag -- -dashed) ]] ||
+  fail "a path to a dash-leading program is refused even though it cannot be mistaken for an option"
+pass "an executable path can name a dash-leading program without a separator"
+
 crash_mute -- -h >/dev/null 2>&1 ||
   fail "a leading -- is refused rather than consumed, so a program named like a flag cannot be muted at all"
 [[ -f $(mute_flag -- -h) ]] ||
