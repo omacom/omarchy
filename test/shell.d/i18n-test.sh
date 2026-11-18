@@ -183,8 +183,8 @@ for (const file of englishManual) englishTexts[file] = fs.readFileSync(path.join
 const bagOf = (items) => JSON.stringify([...items].sort())
 const fencesOf = (text) => [...text.matchAll(/```[^\n]*\n([\s\S]*?)```/g)].map((m) => m[1])
 // Marked drops trailing ASCII punctuation from a bare URL, not 。 or । or a ](destination)'s;
-// a URL in inline code is compared as written, so misread backticks hide no changed link.
-const destUrlRe = /\]\(\s*<?(https?:\/\/[^\s)]+)/g
+// compare inline-code URLs as written instead of discarding them.
+const destUrlRe = /\]\(\s*<?(https?:\/\/[^\s)]+)(?=\s*\)|\s+["'(])/g
 const urlsOf = (text) => {
   const code = []
   const prose = text.replace(destUrlRe, '').replace(/`([^`\n]+)`/g, (span, inner) => {
@@ -226,6 +226,8 @@ assert(['https://example.org/walls を参照してください。', 'ดูท�
   manualProblems('[x](https://example.org/ab) `https://hidden`', '[x](https://example.org/a`https://hidden`b)').length > 0 &&
   ['``https://example.org/[two]` tail', '\\`https://example.org/[two]` tail', '`a\n\nhttps://example.org/[two]` b', '`a\n# https://example.org/[two]`', '# Guide `draft\nRead https://example.org/[two] `note` now.']
     .every((translated) => manualProblems(translated.replace('[two]', '[one]'), translated).length > 0) &&
+  manualProblems('[x]( https://example.org/walls.)', '[x](https://example.org/walls.').length > 0 &&
+  manualProblems('`[x](https://example.org/`.', '`[x](https://example.org/`。').length === 0 &&
   manualProblems('Run `` git clone https://example.org/a.git ``.', '`` git clone https://example.org/a.git `` を実行します。').length === 0, 'the manual integrity check ignores the full stop the published link drops, not one it keeps')
 for (const code of codes) {
   if (code === 'en') continue
@@ -532,6 +534,8 @@ cases += [
   ("Like `https://example.org/walls.sig`.", "例：`https://example.org/walls.sig`。", False),
   ("Use `https://`.", "`https://` を使います。", False),
   ("[x](https://example.org/ab) `https://hidden`", "[x](https://example.org/a`https://hidden`b)", True),
+  ("[x]( https://example.org/walls.)", "[x](https://example.org/walls.", True),
+  ("`[x](https://example.org/`.", "`[x](https://example.org/`。", False),
   ("Run `` git clone https://example.org/a.git ``.", "`` git clone https://example.org/a.git `` を実行します。", False),
 ]
 def rejected(source, value):

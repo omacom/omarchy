@@ -501,7 +501,7 @@ def validate_catalog_value(source, value, categories=None):
 FENCE_RE = re.compile(r"```[^\n]*\n(.*?)```", re.S)
 INLINE_RE = re.compile(r"`([^`\n]+)`")
 REL_DEST_RE = re.compile(r"\]\((?!<?https?://)([^)\s]+)")
-DEST_URL_RE = re.compile(r"\]\(\s*<?(https?://[^\s)]+)")
+DEST_URL_RE = re.compile(r"\]\(\s*<?(https?://[^\s)]+)(?=\s*\)|\s+[\"'(])")
 
 
 def protected_inline(text):
@@ -521,7 +521,7 @@ def protected_inline(text):
 
 def urls_of(text):
     # Marked drops trailing ASCII punctuation from a bare URL, not 。 or । or a ](destination)'s;
-    # a URL in inline code is compared as written, so misread backticks hide no changed link.
+    # compare inline-code URLs as written instead of discarding them.
     code = []
     def code_span(m):
         if not re.search(r"https?://", m.group(1)):
