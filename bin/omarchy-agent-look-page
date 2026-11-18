@@ -59,7 +59,7 @@ fi
 
 # An image from before Chrome was the default browser has Chromium, which
 # Playwright drives the same way.
-chrome=$(command -v google-chrome-stable || command -v chromium)
+chrome=$(type -P google-chrome-stable || type -P chromium)
 
 log=$(mktemp)
 # Prints "error: <text>" for each console error, uncaught exception and
