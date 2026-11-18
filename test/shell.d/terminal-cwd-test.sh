@@ -105,3 +105,53 @@ done
 cwd=$(PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" HOME="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd" "$files_pid" 2>&1)
 [[ $cwd == "$files_dir" ]] || fail "a terminal opened over Files starts in the folder it shows" "got: $cwd"
 pass "a terminal opened over Files starts in the folder it shows"
+
+# A stand-in Foot server: one process owning two windows, each shell leading its
+# own session on its own pty, tagged the way omarchy-launch-foot tags them. The
+# focused window's shell is the older one, so "newest child" would pick wrong.
+require_command python3
+foot_first_dir="$test_tmp/first window"
+foot_second_dir="$test_tmp/second window"
+mkdir -p "$foot_first_dir" "$foot_second_dir"
+foot_server_py=$(cat <<'PY'
+import os, pty, sys, time
+for i, path in enumerate(sys.argv[1:]):
+    pid, fd = pty.fork()
+    if pid == 0:
+        os.chdir(path)
+        os.environ["OMARCHY_FOOT_WINDOW"] = f"omarchy-foot-{i}"
+        os.execvp("bash", ["bash", "-c", "sleep 30; :"])
+    time.sleep(0.2)
+time.sleep(30)
+PY
+)
+python3 -c "$foot_server_py" "$foot_first_dir" "$foot_second_dir" </dev/null >/dev/null 2>&1 &
+foot_server_pid=$!
+trap 'kill_tree "$foot_server_pid"; kill_tree "$files_pid"; kill_tree "$terminal_pid"; kill_tree "$browser_pid"; kill_tree "$pty_script_pid"; wait 2>/dev/null || true; rm -rf "$test_tmp"' EXIT
+
+for _ in $(seq 100); do
+  ready=0
+  for child in $(cat /proc/"$foot_server_pid"/task/*/children 2>/dev/null); do
+    [[ $(readlink /proc/"$child"/exe 2>/dev/null) == */bash ]] && ready=$((ready + 1))
+  done
+  (( ready == 2 )) && break
+  sleep 0.05
+done
+(( ready == 2 )) || fail "the stand-in Foot server starts both window shells"
+
+cwd=$(PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" HOME="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd" "$foot_server_pid" omarchy-foot-0 2>&1)
+[[ $cwd == "$foot_first_dir" ]] || fail "a tagged footclient window opens the new terminal in its own shell's directory" "got: $cwd"
+pass "a tagged footclient window opens the new terminal in its own shell's directory"
+
+cwd=$(PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" HOME="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd" "$foot_server_pid" 2>&1)
+[[ $cwd == "$foot_second_dir" ]] || fail "an untagged window still uses the newest shell" "got: $cwd"
+pass "an untagged window still uses the newest shell"
+
+cat >"$stub_bin/hyprctl" <<'SH'
+#!/bin/bash
+printf 'Window 1 -> footclient:\n\tpid: %s\n\txdgTag: omarchy-foot-0\n' "$FOOT_SERVER_PID"
+SH
+chmod +x "$stub_bin/hyprctl"
+cwd=$(FOOT_SERVER_PID="$foot_server_pid" PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" HOME="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd" 2>&1)
+[[ $cwd == "$foot_first_dir" ]] || fail "the tag Hyprland reports for the focused window picks its shell" "got: $cwd"
+pass "the tag Hyprland reports for the focused window picks its shell"

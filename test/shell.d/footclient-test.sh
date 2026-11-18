@@ -81,7 +81,11 @@ got=$(
     OMARCHY_TEST_SOCKET_ACTIVE=0 \
     omarchy-launch-foot --app-id=org.omarchy.btop -e btop
 )
-[[ $got == "footclient:--app-id=org.omarchy.btop -e btop" ]] ||
+# Each window gets a fresh tag, set on the window and in its shell's environment.
+tags=$(grep -oE 'omarchy-foot-[0-9a-f-]{36}' <<<"$got" | sort -u)
+(( $(wc -l <<<"$tags") == 1 )) && [[ -n $tags ]] || fail "wrapper tags the window and its shell with one tag" "$got"
+got=${got//$tags/TAG}
+[[ $got == "footclient:--toplevel-tag=TAG --override=environment.OMARCHY_FOOT_WINDOW=TAG --app-id=org.omarchy.btop -e btop" ]] ||
   fail "wrapper uses footclient when the systemd socket is listening" "$got"
 ! grep -Fq 'start' "$systemctl_log" || fail "wrapper does not restart a listening socket" "$(cat "$systemctl_log")"
 pass "wrapper uses footclient when the systemd socket is listening"
@@ -97,6 +101,7 @@ got=$(
     OMARCHY_TEST_SOCKET_ACTIVE=0 \
     omarchy-launch-foot --app-id=org.omarchy.btop -e btop
 )
-[[ $got == "footclient:--override=include=$theme_home/.local/state/omarchy/current/theme/foot.ini --override=font=TestFont:size=12 --app-id=org.omarchy.btop -e btop" ]] ||
+got=$(sed -E 's/omarchy-foot-[0-9a-f-]{36}/TAG/g' <<<"$got")
+[[ $got == "footclient:--override=include=$theme_home/.local/state/omarchy/current/theme/foot.ini --override=font=TestFont:size=12 --toplevel-tag=TAG --override=environment.OMARCHY_FOOT_WINDOW=TAG --app-id=org.omarchy.btop -e btop" ]] ||
   fail "wrapper re-applies the live theme include and font" "$got"
 pass "wrapper re-applies the live theme include and font"

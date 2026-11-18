@@ -1,10 +1,16 @@
 #!/bin/bash
 
 # omarchy:summary=Print the current working directory of the active terminal or Files window
-# omarchy:args=[terminal-pid]
+# omarchy:args=[terminal-pid] [window-tag]
 # omarchy:hidden=true
 
-terminal_pid=${1:-$(hyprctl activewindow | awk '/pid:/ {print $2}')}
+terminal_pid=$1
+window_tag=${2:-}
+if [[ -z $terminal_pid ]]; then
+  active=$(hyprctl activewindow)
+  terminal_pid=$(awk '/^[[:space:]]*pid:/ {print $2}' <<<"$active")
+  window_tag=$(awk '/^[[:space:]]*xdgTag:/ {print $2}' <<<"$active")
+fi
 kitty_socket="$XDG_RUNTIME_DIR/omarchy-kitty-$terminal_pid"
 cwd=""
 
@@ -17,15 +23,24 @@ elif [[ -S $kitty_socket ]]; then
     jq -r '.[].tabs[].windows[].cwd // empty')
 else
   # The newest child, as pgrep -P | tail -n1 found it, read from the kernel's
-  # child lists: pgrep scans all of /proc on every new terminal.
+  # child lists: pgrep scans all of /proc on every new terminal. One Foot server
+  # owns every footclient window, so its newest shell need not be the focused
+  # one: omarchy-launch-foot tags each window and puts the same tag in its
+  # shell's environment, so a tagged window picks the shell that carries it.
   shell_pid=""
+  tagged_pid=""
   for children_file in /proc/"$terminal_pid"/task/*/children; do
     [[ -r $children_file ]] || continue
     read -ra children <"$children_file" || true
     for child in "${children[@]}"; do
       (( child > ${shell_pid:-0} )) && shell_pid=$child
+      if [[ $window_tag == omarchy-foot-* && -z $tagged_pid ]] &&
+        tr '\0' '\n' <"/proc/$child/environ" 2>/dev/null | grep -Fqx "OMARCHY_FOOT_WINDOW=$window_tag"; then
+        tagged_pid=$child
+      fi
     done
   done
+  [[ -n $tagged_pid ]] && shell_pid=$tagged_pid
 
   # A terminal's shell leads its own session on the terminal's pty. A shell any other app
   # spawned, like a browser's download helper, does not, so that app gets a terminal in HOME.

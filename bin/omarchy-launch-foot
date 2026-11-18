@@ -23,6 +23,10 @@ if server_up; then
     font=$(grep -m1 '^font=' "$HOME/.config/foot/foot.ini" || true)
     [[ -n $font ]] && overrides+=(--override=font="${font#font=}")
   fi
+  # Tag the window and its shell alike, so omarchy-cmd-terminal-cwd can tell
+  # which of the server's shells belongs to the focused window.
+  tag="omarchy-foot-$(</proc/sys/kernel/random/uuid)"
+  overrides+=(--toplevel-tag="$tag" --override=environment.OMARCHY_FOOT_WINDOW="$tag")
   exec footclient "${overrides[@]}" "$@"
 else
   exec foot "$@"
