@@ -962,6 +962,19 @@ int lines(const QString &path) {
     return file.open(QIODevice::ReadOnly) ? file.readAll().count('\n') : 0;
 }
 
+// The window's item with this objectName. What a Repeater, ListView or Loader
+// makes isn't a QObject child of the window, so findChild never finds it; walk
+// the items instead. Popups aren't items: find those with findChild.
+QQuickItem *item(QQuickItem *from, const QString &name) {
+    for (auto *child : from->childItems()) {
+        if (child->objectName() == name)
+            return child;
+        if (auto *found = item(child, name))
+            return found;
+    }
+    return nullptr;
+}
+
 // A hyprctl that answers with response.json beside it and counts its calls.
 QString fakeHyprctl(const QString &directory) {
     const QString command = directory + "/hyprctl";
@@ -1307,7 +1320,8 @@ private slots:
         window->requestActivate();
         QVERIFY(QTest::qWaitForWindowActive(window));
 
-        auto *count = window->findChild<QObject *>("count");
+        auto *count = item(window->contentItem(), "count");
+        QVERIFY(count);
         QTest::keyClick(window, Qt::Key_Space);
         QCOMPARE(count->property("text").toString(), QString("1 press"));
         QTest::keyClick(window, Qt::Key_Space);
@@ -1315,7 +1329,8 @@ private slots:
         QCOMPARE(backend.count(), 2);
 
         // The caption reads on the accent: black on the fallback yellow.
-        auto *button = window->findChild<QQuickItem *>("countButton");
+        auto *button = item(window->contentItem(), "countButton");
+        QVERIFY(button);
         QCOMPARE(button->property("contentItem").value<QQuickItem *>()->property("color").value<QColor>(),
                  theme.accentForeground());
 
