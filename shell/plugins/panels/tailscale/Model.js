@@ -82,6 +82,33 @@ function loginPlan(needsLogin, authUrl) {
   return { authUrl: "", command: ["tailscale", "up"] }
 }
 
+function shellQuote(value) {
+  var text = String(value || "")
+  if (/^[A-Za-z0-9_@.,:+-]+$/.test(text)) return text
+  return "'" + text.replace(/'/g, "'\\''") + "'"
+}
+
+// `tailscale set --nickname` only reaches the profile that is currently
+// selected, so renaming any other connection has to switch to it, rename,
+// and switch back to the profile that was active before. The switch back
+// always runs, and the first failure — switch, rename, or the switch back
+// itself — is what the command reports, so a successful restoration never
+// masks a failed rename.
+function renamePlan(accountId, selectedId, nickname) {
+  var id = String(accountId || "").trim()
+  var name = String(nickname || "").trim()
+  if (id === "" || name === "") return null
+  var target = String(selectedId || "").trim()
+  if (id === target) {
+    return { command: ["bash", "-c", "tailscale set --nickname=" + shellQuote(name)] }
+  }
+  if (target === "") return null
+  var script = "r=0; s=0; tailscale switch " + shellQuote(id) + " || r=$?; "
+    + "if (( r == 0 )); then tailscale set --nickname=" + shellQuote(name) + " || r=$?; fi; "
+    + "tailscale switch " + shellQuote(target) + " || s=$?; (( r == 0 )) && r=$s; exit $r"
+  return { command: ["bash", "-c", script] }
+}
+
 // Taildrop is a tailnet feature the admin can turn off, so the button for it
 // only makes sense when this profile actually carries the capability.
 function hasFileSharing(self) {
@@ -322,6 +349,7 @@ if (typeof module !== "undefined") {
     osIcon: osIcon,
     accountLabel: accountLabel,
     loginPlan: loginPlan,
+    renamePlan: renamePlan,
     hasFileSharing: hasFileSharing,
     isTaildropTarget: isTaildropTarget,
     isMullvadPeer: isMullvadPeer,
