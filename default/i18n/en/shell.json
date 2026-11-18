@@ -84,6 +84,7 @@
   "agents.localStart": "Start",
   "agents.localStop": "Stop",
   "agents.localLaunch": "Launch agent",
+  "agents.openFantasi": "Open Fantasi",
   "agents.localLoadingMeter": "Loading",
   "agents.localStoppingMeter": "Stopping",
   "agents.localRemovingMeter": "Removing",
