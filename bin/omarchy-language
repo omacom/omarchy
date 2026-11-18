@@ -54,7 +54,7 @@ list_languages() {
   ' "$locales_json"
 }
 
-source "$OMARCHY_PATH/bin/omarchy-locale-session"
+source omarchy-locale-session
 
 # The session's LANG lives with the user, beside the language choice:
 # uwsm sources this at login and exports it to every app it launches.

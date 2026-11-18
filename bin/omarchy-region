@@ -10,7 +10,7 @@ locales_json=$OMARCHY_PATH/default/i18n/locales.json
 regions_json=$OMARCHY_PATH/default/i18n/regions.json
 samples_json=$OMARCHY_PATH/default/i18n/format-samples.json
 
-source "$OMARCHY_PATH/bin/omarchy-locale-session"
+source omarchy-locale-session
 
 # The categories that say how things are written. LANG and LC_MESSAGES stay
 # with the language, so the interface keeps speaking it.
