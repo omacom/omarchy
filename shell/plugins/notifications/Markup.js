@@ -112,7 +112,7 @@ function oneLine(body) {
 }
 
 // Only a browser's leading anchor names a site; any other app's is just a link.
-var BROWSERS = /^(google chrome|chromium|brave|brave browser|microsoft edge|vivaldi|opera|helium|firefox|zen|librewolf)$/i
+var BROWSERS = /^(google chrome|chromium|brave|brave browser|brave origin|microsoft edge|vivaldi|opera|helium|firefox|zen|librewolf)$/i
 function isBrowser(app) {
   return BROWSERS.test(String(app || "").trim())
 }
@@ -136,10 +136,12 @@ function slug(text) {
 }
 
 // The group key, rebuilt from a row's fields: per site for a browser,
-// otherwise per app.
+// otherwise per app. An unnamed sender is no app, so each of its toasts stands
+// alone: first login's keybindings, git and update toasts are three, not a deck.
 function regroup(row) {
   var app = String(row.app || "")
   var source = String(row.source || "")
+  if (app === "omarchy-action" || app === "notify-send") return "toast:" + String(row.key || "")
   if (isBrowser(app) && source && source !== app && hostname(source)) return "web:" + hostname(source)
   return "app:" + slug(app)
 }

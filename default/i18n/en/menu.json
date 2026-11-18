@@ -26,11 +26,11 @@
   "update": {
     "label": "Update"
   },
-  "about": {
-    "label": "About"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "About"
   },
   "system.screensaver": {
     "label": "Screensaver"
@@ -49,6 +49,10 @@
   },
   "system.reboot": {
     "label": "Reboot"
+  },
+  "system.firmware": {
+    "label": "Reboot to BIOS",
+    "description": "Restart into the UEFI firmware setup"
   },
   "system.shutdown": {
     "label": "Shutdown"
@@ -88,6 +92,9 @@
   },
   "appearance.font": {
     "label": "Font"
+  },
+  "appearance.icons": {
+    "label": "Icons"
   },
   "appearance.top-bar": {
     "label": "Menu Bar"
@@ -447,23 +454,20 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disk Speed Test"
   },
-  "setup.monitors": {
-    "label": "Monitors"
+  "setup.keyboard": {
+    "label": "Keyboard"
   },
-  "setup.keybindings": {
+  "setup.keyboard.keybindings": {
     "label": "Keybindings"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Keyboard Inputs"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Input Methods"
   },
   "setup.input": {
     "label": "Input"
-  },
-  "setup.typing": {
-    "label": "Typing"
-  },
-  "setup.typing.keyboard": {
-    "label": "Keyboard Layouts"
-  },
-  "setup.typing.input": {
-    "label": "Input Methods"
   },
   "setup.language": {
     "label": "Language"
@@ -492,54 +496,84 @@
   "setup.default": {
     "label": "Defaults"
   },
-  "setup.default.agent": {
-    "label": "Agent",
-    "title": "Default Agent"
+  "agent": {
+    "label": "Agent"
   },
-  "setup.default.agent.agy": {
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Default Harness"
+  },
+  "agent.harness.agy": {
     "label": "Antigravity"
   },
-  "setup.default.agent.claude": {
+  "agent.harness.amp": {
+    "label": "Amp"
+  },
+  "agent.harness.claude": {
     "label": "Claude"
   },
-  "setup.default.agent.codex": {
+  "agent.harness.codex": {
     "label": "Codex"
   },
-  "setup.default.agent.copilot": {
+  "agent.harness.commandcode": {
+    "label": "Command Code"
+  },
+  "agent.harness.copilot": {
     "label": "Copilot"
   },
-  "setup.default.agent.crush": {
+  "agent.harness.crush": {
     "label": "Crush"
   },
-  "setup.default.agent.cursor-agent": {
+  "agent.harness.cursor-agent": {
     "label": "Cursor CLI"
   },
-  "setup.default.agent.grok": {
+  "agent.harness.devin": {
+    "label": "Devin CLI"
+  },
+  "agent.harness.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "agent.harness.freebuff": {
+    "label": "Freebuff"
+  },
+  "agent.harness.grok": {
     "label": "Grok"
   },
-  "setup.default.agent.hermes": {
+  "agent.harness.hermes": {
     "label": "Hermes"
   },
-  "setup.default.agent.kimi": {
+  "agent.harness.kilo": {
+    "label": "Kilo"
+  },
+  "agent.harness.kimi": {
     "label": "Kimi"
   },
-  "setup.default.agent.muse": {
+  "agent.harness.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "agent.harness.mcode": {
+    "label": "MiniMax Code"
+  },
+  "agent.harness.muse": {
     "label": "Muse Code"
   },
-  "setup.default.agent.omp": {
+  "agent.harness.omp": {
     "label": "omp"
   },
-  "setup.default.agent.openclaw": {
+  "agent.harness.openclaw": {
     "label": "OpenClaw"
   },
-  "setup.default.agent.opencode": {
+  "agent.harness.opencode": {
     "label": "OpenCode"
   },
-  "setup.default.agent.ori": {
+  "agent.harness.ori": {
     "label": "Ori"
   },
-  "setup.default.agent.pi": {
+  "agent.harness.pi": {
     "label": "Pi"
+  },
+  "agent.harness.qwen": {
+    "label": "Qwen Code"
   },
   "setup.default.browser": {
     "label": "Browser",
@@ -570,6 +604,9 @@
     "label": "Dictation",
     "title": "Default Dictation"
   },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
   "setup.default.dictation.superwhisper": {
     "label": "Superwhisper"
   },
@@ -595,6 +632,9 @@
   "setup.default.editor": {
     "label": "Editor",
     "title": "Default Editor"
+  },
+  "setup.default.editor.plain": {
+    "label": "Plain"
   },
   "setup.default.editor.neovim": {
     "label": "Neovim"
@@ -662,6 +702,9 @@
   "setup.security.passwordless-sudo": {
     "label": "Passwordless Sudo"
   },
+  "setup.config.git": {
+    "label": "Git"
+  },
   "setup.config.hyprland": {
     "label": "Hyprland"
   },
@@ -700,6 +743,9 @@
   },
   "install.style.background": {
     "label": "Background"
+  },
+  "install.style.icons": {
+    "label": "Icons"
   },
   "install.style.font": {
     "label": "Font"
@@ -746,6 +792,9 @@
   "install.preinstalls": {
     "label": "Preinstalls"
   },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
   "install.browser.chrome": {
     "label": "Chrome"
   },
@@ -770,9 +819,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -785,6 +831,9 @@
   "install.service.nordvpn": {
     "label": "NordVPN"
   },
+  "install.service.notion": {
+    "label": "Notion"
+  },
   "install.service.once": {
     "label": "ONCE"
   },
@@ -793,9 +842,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium Account"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -830,6 +876,9 @@
   "install.terminal.kitty": {
     "label": "Kitty"
   },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
   "install.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
@@ -838,6 +887,9 @@
   },
   "install.ai.grok-bot": {
     "label": "Grok Bot"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
   },
   "install.ai.hermes": {
     "label": "Hermes Desktop"
@@ -874,6 +926,9 @@
   },
   "install.gaming.xbox-controllers": {
     "label": "Xbox Controllers"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
   },
   "install.gaming.battlenet": {
     "label": "Battle.net"
@@ -974,6 +1029,9 @@
   "remove.theme": {
     "label": "Theme"
   },
+  "remove.icons": {
+    "label": "Icons"
+  },
   "remove.gaming": {
     "label": "Gaming",
     "title": "Remove"
@@ -1013,6 +1071,9 @@
   "remove.ai.hermes": {
     "label": "Hermes Desktop"
   },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
   "remove.browser.chrome": {
     "label": "Chrome"
   },
@@ -1046,11 +1107,17 @@
   "remove.service.ssh-agent": {
     "label": "SSH Agent"
   },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
   "remove.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
   "remove.ai.claude": {
     "label": "Claude Desktop"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   },
   "remove.dictation.superwhisper": {
     "label": "Superwhisper"
@@ -1093,6 +1160,9 @@
   },
   "remove.gaming.xbox-controllers": {
     "label": "Xbox Controllers (󰂯)"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
   },
   "remove.gaming.battlenet": {
     "label": "Battle.net"
@@ -1185,6 +1255,9 @@
   "update.themes": {
     "label": "Extra Themes"
   },
+  "update.icons": {
+    "label": "Extra Icons"
+  },
   "update.process": {
     "label": "Process",
     "title": "Restart"
@@ -1255,5 +1328,23 @@
   },
   "update.password.user": {
     "label": "User"
+  },
+  "agent.instructions": {
+    "label": "Instructions"
+  },
+  "agent.make": {
+    "label": "Make something"
+  },
+  "agent.make.theme": {
+    "label": "Make a theme"
+  },
+  "agent.make.plugin": {
+    "label": "Make a plugin"
+  },
+  "agent.make.app": {
+    "label": "Make an app"
+  },
+  "agent.make.game": {
+    "label": "Make a game"
   }
 }

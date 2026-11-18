@@ -1,0 +1,9 @@
+# Installs in these timezones get this region. The installer's timezone list
+# includes tzdata's backward-compatible names, so they are listed too.
+Asia/Shanghai
+Asia/Urumqi
+Asia/Chongqing
+Asia/Chungking
+Asia/Harbin
+Asia/Kashgar
+PRC

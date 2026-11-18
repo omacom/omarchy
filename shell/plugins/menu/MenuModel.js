@@ -39,7 +39,8 @@ function normalizeItem(id, raw) {
     searchTerms: normalizeAliases(value.searchTerms),
     when: value.when || "",
     checked: value.checked || "",
-    disabled: value.disabled || ""
+    disabled: value.disabled || "",
+    alt: value.alt || ""
   }
 }
 
@@ -110,7 +111,7 @@ function mergeMenuSources(defaultItems, userItems, rootLabel) {
   }
 
   if (!nextItems.root) {
-    nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: (typeof rootLabel === "string" && rootLabel) ? rootLabel : "Go", title: "", target: "", description: "", aliases: [], searchTerms: [], when: "", checked: "", disabled: "", action: "", provider: "" }
+    nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: (typeof rootLabel === "string" && rootLabel) ? rootLabel : "Go", title: "", target: "", description: "", aliases: [], searchTerms: [], when: "", checked: "", disabled: "", action: "", provider: "", alt: "" }
     nextOrder.unshift("root")
   }
   for (var k3 = 0; k3 < nextOrder.length; k3++) nextItems[nextOrder[k3]].order = k3
@@ -276,6 +277,34 @@ function childCount(items, itemOrder, id) {
     if (entry && entry.parent === id) count += 1
   }
   return count
+}
+
+// `alt:` names another action entry that stands in for this row while
+// Alt is held: Reboot becomes Reboot to BIOS. The stand-in is an ordinary
+// entry, so it translates, searches, and routes like any other; it is only
+// kept out of its submenu's list, where it would duplicate the row it
+// replaces. A stand-in whose `when:` fails, or whose `disabled:` succeeds,
+// leaves the row as it is.
+function altVariant(items, whenResults, disabledResults, entry) {
+  if (!entry || !entry.alt) return null
+  var variant = item(items, entry.alt)
+  if (!variant || variant.kind !== "action") return null
+  if (variant.when && whenResults && whenResults[variant.id] === false) return null
+  if (isDisabled(disabledResults, variant)) return null
+  return variant
+}
+
+// Only an action can stand in, so a reference to anything else (a submenu,
+// a missing id) hides nothing.
+function altVariantIds(items, itemOrder) {
+  var ids = {}
+  var order = Array.isArray(itemOrder) ? itemOrder : []
+  for (var i = 0; i < order.length; i++) {
+    var entry = item(items, order[i])
+    var variant = entry && entry.alt ? item(items, entry.alt) : null
+    if (variant && variant.kind === "action") ids[variant.id] = true
+  }
+  return ids
 }
 
 function isVisible(items, itemOrder, whenResults, entry, depth) {
@@ -706,6 +735,8 @@ if (typeof module !== "undefined") {
     isDescendantOf: isDescendantOf,
     childCount: childCount,
     isVisible: isVisible,
+    altVariant: altVariant,
+    altVariantIds: altVariantIds,
     isDisabled: isDisabled,
     labelFor: labelFor,
     searchableToken: searchableToken,

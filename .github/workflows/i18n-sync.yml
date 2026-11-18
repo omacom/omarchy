@@ -3,18 +3,17 @@ name: Sync translations
 # Keeps the 49 translations converged with English without blocking it.
 # Extraction runs without credentials and ships a patch; a trusted job
 # vets and publishes it to the i18n-sync branch; one credential-less Muse
-# runner per pending language translates; a single collect job lands
-# everything as one auto-merging pull request. Modeled on omarchy-site's
-# translate-news workflow; keep the Muse install pin in step with it.
+# runner per pending language translates; a single collect job validates
+# everything and land merges it as one pull request. Modeled on
+# omarchy-site's translate-news workflow; keep the Muse install pin in step
+# with it.
 #
-# Repository settings this needs: the MUSE_API_KEY Actions secret, and an
-# I18N_SYNC_TOKEN secret (a fine-grained PAT with contents + pull-requests
-# write on this repo) so the bot's pull request triggers checks — PRs
-# created with GITHUB_TOKEN do not. Without it, the PR still opens but a
-# human must nudge it (close/reopen or push) before auto-merge can pass.
-# "Allow auto-merge" must be enabled, with i18n-check as a required status
-# check on quattro. Runs where extraction touched executable code never
-# auto-merge; they wait for a human review instead.
+# Repository settings this needs: the MUSE_API_KEY Actions secret (and an
+# optional MUSE_MODEL variable), and an I18N_SYNC_TOKEN secret (a
+# fine-grained PAT with contents + pull-requests write on this repo) for
+# the bot that opens and merges the pull request. Runs where extraction
+# touched executable code are never merged here; they wait for a human
+# review instead.
 on:
   push:
     branches: [quattro]
@@ -25,6 +24,7 @@ on:
       - 'manual/*.md'
       - 'shell/**'
       - 'bin/**'
+      - 'install/**'
   workflow_dispatch:
   schedule:
     # Retry unfinished translations without delaying English.
@@ -124,9 +124,9 @@ jobs:
       - name: Package extraction as a patch
         run: |
           mkdir -p "$RUNNER_TEMP/extraction"
-          git add -A -- bin shell default/i18n/en default/i18n/extract-allowlist.json
+          git add -A -- bin install shell default/i18n/en default/i18n/extract-allowlist.json
           git diff --cached --binary --no-renames > "$RUNNER_TEMP/extraction/extract.patch"
-          if git diff --cached --name-only | grep -qE '^(bin|shell)/'; then
+          if git diff --cached --name-only | grep -qE '^(bin|install|shell)/'; then
             echo true > "$RUNNER_TEMP/extraction/code-touched.txt"
           else
             echo false > "$RUNNER_TEMP/extraction/code-touched.txt"
@@ -141,7 +141,7 @@ jobs:
           if-no-files-found: error
 
   # Applies the extraction patch and runs every check that loads its code, with
-  # no credentials: an extraction may change bin/ or shell/, and the i18n test
+  # no credentials: an extraction may change bin/, install/ or shell/, and the i18n test
   # require()s shell JavaScript, so nothing that runs here may hold a token.
   validate-extract:
     needs: [prepare, extract]
@@ -169,7 +169,7 @@ jobs:
           fi
           python3 scripts/i18n-sync.py extract-scan --check
           I18N_STRUCTURAL=1 bash test/shell.d/i18n-test.sh
-          for f in $(git diff --cached --name-only -- bin/); do bash -n "$f"; done
+          for f in $(git diff --cached --name-only -- bin/ install/); do bash -n "$f"; done
 
   # Publishes the vetted extraction to the i18n-sync branch. This job holds the
   # write token, so it runs no repository code: only git, and the path check
@@ -211,7 +211,7 @@ jobs:
           from pathlib import Path
           patch = Path(os.environ['RUNNER_TEMP']) / 'extraction/extract.patch'
           out = subprocess.run(['git', 'apply', '--numstat', '-z', str(patch)], check=True, capture_output=True).stdout
-          allowed = ('bin/', 'shell/', 'default/i18n/en/', 'default/i18n/extract-allowlist.json')
+          allowed = ('bin/', 'install/', 'shell/', 'default/i18n/en/', 'default/i18n/extract-allowlist.json')
           code = False
           for record in out.split(b'\0'):
               if not record:
@@ -219,7 +219,7 @@ jobs:
               path = record.decode().split('\t', 2)[2]
               if not path.startswith(allowed) or '..' in Path(path).parts:
                   sys.exit(f'extraction patch contains a disallowed path: {path}')
-              code = code or path.startswith(('bin/', 'shell/'))
+              code = code or path.startswith(('bin/', 'install/', 'shell/'))
           print('true' if code else 'false')
           PY
             )
@@ -250,7 +250,10 @@ jobs:
 
   translate:
     needs: [prepare, publish-extract]
-    if: needs.prepare.outputs.locales != '[]'
+    # Without a status function the implicit success() also fails when an
+    # upstream job was skipped, and extract is skipped whenever there is
+    # nothing to extract, which kept every translation pending.
+    if: ${{ always() && !cancelled() && needs.prepare.result == 'success' && needs.publish-extract.result == 'success' && needs.prepare.outputs.locales != '[]' }}
     strategy:
       fail-fast: false
       matrix:
@@ -390,7 +393,7 @@ jobs:
         with:
           name: collected
           path: ${{ runner.temp }}/collected
-      - name: Commit and open the auto-merging pull request
+      - name: Commit, open and merge the pull request
         env:
           GH_TOKEN: ${{ secrets.I18N_SYNC_TOKEN || github.token }}
           CODE_TOUCHED: ${{ needs.publish-extract.outputs.code_touched }}
@@ -424,7 +427,7 @@ jobs:
           pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls?head=$GITHUB_REPOSITORY_OWNER:i18n-sync&base=quattro&state=open" --jq '.[0].number // empty')
           if [ -z "$pr" ]; then
             if [ "$changed" = true ] || [ "$(git rev-list --count origin/quattro..HEAD)" -gt 0 ]; then
-              pr=$(gh pr create --base quattro --head i18n-sync --title 'Update translations' --body 'Automated translation sync: extracts embedded English into the catalogs and fills pending translations for all 49 languages. Generated by the Sync translations workflow; merges automatically once i18n-check passes.')
+              pr=$(gh pr create --base quattro --head i18n-sync --title 'Update translations' --body 'Automated translation sync: extracts embedded English into the catalogs and fills pending translations for all 49 languages. Generated by the Sync translations workflow, which validated these files and merges this pull request itself.')
               pr=$(basename "$pr")
             fi
           fi
@@ -435,9 +438,16 @@ jobs:
               if [ "$(gh pr view "$pr" --json autoMergeRequest --jq '.autoMergeRequest != null')" = true ]; then
                 gh pr merge --disable-auto "$pr"
               fi
-              gh pr comment "$pr" --body 'This sync includes an automated extraction that changed executable code under `bin/` or `shell/`, so auto-merge is off: please review those hunks before merging.'
+              gh pr comment "$pr" --body 'This sync includes an automated extraction that changed executable code under `bin/`, `install/` or `shell/`, so auto-merge is off: please review those hunks before merging.'
               echo "Extraction touched code; PR #$pr waits for human review."
             else
-              gh pr merge --auto --squash "$pr" || echo "Auto-merge could not be enabled for #$pr (enable 'Allow auto-merge' in repository settings); the PR is left open for a human."
+              # Merged here rather than left to auto-merge: collect has already
+              # run the structural i18n test on these files, and the next run
+              # rebuilds i18n-sync from quattro, so a pull request still open
+              # when it starts loses its translations.
+              if ! gh pr merge --squash "$pr"; then
+                echo "Could not merge #$pr; its translations stay pending and are redone by the next run." >&2
+                exit 1
+              fi
             fi
           fi

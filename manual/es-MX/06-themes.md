@@ -1,10 +1,10 @@
 # Temas
 
-Omarchy incluye veintidós temas hermosos. Puedes elegir entre ellos en _Estilo > Tema_ en el menú de Omarchy (`Super + Space`) o saltar directamente al selector de temas con `Super + Ctrl + Shift + Space`.
+Omarchy viene con veintidós temas hermosos. Puedes elegir entre ellos a través de _Apariencia > Tema_ en el Menú de Omarchy (`Super + Space`) o saltar directamente al selector de temas usando `Super + Ctrl + T`.
 
-Cada tema le da estilo al escritorio, la terminal, neovim, la pantalla de actividad (btop), Chromium y todo el shell de Omarchy: barra superior, menú, notificaciones, OSD y la pantalla de bloqueo. (En Obsidian, debes seleccionar manualmente el tema de Omarchy en _Apariencia > Temas_ dentro de la app).
+Cada tema da estilo al escritorio, la terminal, neovim, la pantalla de actividad (btop), Chromium y a toda la interfaz de Omarchy: barra superior, menú, notificaciones, OSD y la pantalla de bloqueo. (Para Obsidian, debes seleccionar manualmente el tema de Omarchy a través de _Apariencia > Temas_ dentro de la app).
 
-Los temas tienen un conjunto de imágenes de fondo entre las que puedes elegir con `Super + Ctrl + Space`.
+Los temas tienen un conjunto de imágenes de fondo entre las que puedes elegir usando `Super + Ctrl + W`.
 
 Puedes encontrar aún más temas en [la página de temas extra](https://omarchy.org/themes/) o incluso [crear tu propio tema](43-making-your-own-theme.md).
 
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+### Íconos de aplicaciones
+
+Los íconos en el lanzador de aplicaciones y el dock se dibujan con los colores de tu tema, así que cambian junto con él. Provienen de un conjunto de íconos, que eliges por separado del tema en _Apariencia > Íconos_, a partir de vistas previas de cada conjunto, de la misma forma en que eliges un tema:
+
+- _Papercraft_ es el predeterminado: todo lo que viene instalado, dibujado en un solo estilo. Las apps conocidas por su logo, como Chrome, HEY o YouTube, mantienen su forma y adoptan los colores del tema.
+- _Arcade_ dibuja las mismas apps como arte de píxeles de 8 bits, como lo haría una consola de videojuegos antigua.
+- _Original_ muestra cada app con el ícono que le dio su creador.
+
+Puedes instalar un conjunto de íconos que alguien más haya creado con _Instalar > Estilo > Íconos_ (o `omarchy icons install <git url>`), y eliminarlo de nuevo en _Eliminar > Íconos_. _Actualizar > Íconos extra_ obtiene la versión más reciente de los conjuntos que tienes instalados.
+
+Para crear el tuyo, coloca tus íconos en `~/.config/omarchy/icons/<name>/`, un archivo por app, nombrado según la línea `Icon=` del archivo `.desktop` de la app. Un archivo que termina en `.svg` se muestra tal como está. Un archivo que termina en `.svg.tpl` se dibuja con los colores del tema: escribe `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` o `{{ icon_shadow }}` donde va un color. El conjunto predeterminado en `/usr/share/omarchy/icons/papercraft/` es un buen punto de partida. Agrega un `preview.png` para mostrar tu conjunto en el selector; sin uno, Omarchy dibuja una vista previa a partir de tus íconos. Para cambiar un solo ícono del conjunto predeterminado, coloca tu versión en `~/.config/omarchy/icons/papercraft/`.
+
 ### Desbloqueos
 
-Los temas también pueden tener un diseño de desbloqueo personalizado, que se usa en el proceso de descifrado al arrancar. Puedes seleccionar uno en _Estilo > Desbloquear_. Se ven así:
+Los temas también pueden tener un diseño de desbloqueo personalizado, que se usa para el proceso de descifrado durante el arranque. Puedes seleccionar uno de estos en _Apariencia > Desbloqueo_. Se ven así:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +102,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +119,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
