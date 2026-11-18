@@ -140,11 +140,12 @@ _loaded = 0
 
 
 def load_collector(agent_id: str) -> Any:
-  """bin/omarchy-agent-usage-<id> as a fresh module. The shared module stays
+  """shell/plugins/agents/usage/<id>.py, the collector behind
+  bin/omarchy-agent-usage-<id>, as a fresh module. The shared module stays
   imported once, so anything patched on urllib reaches every load."""
   global _loaded
   _loaded += 1
-  path = ROOT / "bin" / f"omarchy-agent-usage-{agent_id}"
+  path = ROOT / "shell" / "plugins" / "agents" / "usage" / f"{agent_id.replace('-', '_')}.py"
   loader = importlib.machinery.SourceFileLoader(f"agent_usage_{agent_id.replace('-', '_')}_{_loaded}", str(path))
   spec = importlib.util.spec_from_loader(loader.name, loader)
   module = importlib.util.module_from_spec(spec)
