@@ -25,7 +25,7 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
-# The level from before the first "off" since the last "restore", so the lock
+# The level the first "off" since the last "restore" found lit, so the lock
 # blanking again after a resume cannot save its own 0 over it.
 saved="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-keyboard-$device"
 
@@ -38,7 +38,10 @@ fi
 if [[ $direction == "off" ]]; then
   if [[ ! -s $saved ]]; then
     level="$(brightnessctl -d "$device" get)"
-    if [[ $level =~ ^[0-9]+$ ]] && ! echo "$level" >"$saved"; then
+    # A backlight that is already dark leaves nothing to restore. Recording its 0
+    # would make the wake write 0 over a level set since, by an ambient light
+    # daemon or the firmware.
+    if [[ $level =~ ^[1-9][0-9]*$ ]] && ! echo "$level" >"$saved"; then
       rm -f "$saved"
     fi
   fi
