@@ -276,11 +276,16 @@ ShellRoot {
     source: shell.activeBarId !== shell.defaultBarId ? shell.activeBarSourceUrl : ""
     asynchronous: true
     onLoaded: shell.configureBar(item, shell.activeBarManifest)
-    onActiveChanged: if (!active) shell.bar = null
+    // The built-in bar can load before this deactivates; leave it registered.
+    onActiveChanged: if (!active && shell.bar !== defaultBarLoader.item) shell.bar = null
     onStatusChanged: {
       if (status === Loader.Error) {
         console.warn("bar option " + shell.activeBarId + " failed to load, falling back to " + shell.defaultBarId)
-        shell.failedBarId = shell.activeBarId
+        // Cached failures arrive inside activeBarId's binding; defer the fallback.
+        var failedId = shell.activeBarId
+        Qt.callLater(function() {
+          if (shell.activeBarId === failedId && pluginBarLoader.status === Loader.Error) shell.failedBarId = failedId
+        })
       }
     }
   }
@@ -1429,21 +1434,14 @@ ShellRoot {
         }
         onStatusChanged: {
           if (status === Loader.Error) {
-            // Loader has no errorString(), so referencing it bare throws a
-            // ReferenceError that aborts this handler: no warning is logged and
-            // hide() below never runs. Probe it defensively and fall back to the
-            // component, so the user sees something actionable instead of a
-            // panel that silently refuses to open.
-            var detail = typeof errorString === "function" && errorString()
-              ? errorString() : ""
-            if (!detail && sourceComponent) detail = sourceComponent.errorString()
+            // Loader has no errorString(); its component carries the load error.
+            var detail = sourceComponent ? sourceComponent.errorString() : ""
             // An object-creation failure (e.g. an unset required property)
             // keeps its errors on the incubator, so name the source at least.
             console.warn("panel plugin " + panelEntry.pluginId + " failed to load:",
               detail || panelEntry.sourceUrl)
-            // Hiding synchronously rewrites openPanelIds while the active
-            // binding is still being written, which Qt reports as a binding
-            // loop and which leaves later summons stuck open. Defer it.
+            // Defer the openPanelIds write beyond the Loader's active binding.
+            // A distinct closure keeps concurrent failures from being coalesced.
             var failedId = panelEntry.pluginId
             Qt.callLater(function() { shell.hide(failedId) })
           }
