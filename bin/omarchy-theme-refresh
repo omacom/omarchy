@@ -38,6 +38,11 @@ if [[ $if_changed == "true" && -f $TEMPLATES_STAMP_PATH && $(<"$TEMPLATES_STAMP_
   exit 0
 fi
 
+# omarchy-theme-set leaves work running behind it, such as the herdr machine
+# sync over SSH. Inheriting omarchy update's lock, that work would hold it after
+# the update exits, so the next update would report one still running.
+[[ -z ${OMARCHY_UPDATE_LOCK_FD:-} ]] || exec {OMARCHY_UPDATE_LOCK_FD}>&-
+
 # Installers and migrations refresh the theme and then read the app configs it
 # writes, so this waits for every retint rather than leaving some running.
 OMARCHY_THEME_WAIT=1 OMARCHY_THEME_SKIP_BACKGROUND=1 omarchy-theme-set "$(<"$THEME_NAME_PATH")"

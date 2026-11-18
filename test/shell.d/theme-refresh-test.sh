@@ -20,6 +20,9 @@ cat >"$mock_bin/omarchy-theme-set" <<'STUB'
 #!/bin/bash
 [[ $OMARCHY_THEME_WAIT == "1" && $OMARCHY_THEME_SKIP_BACKGROUND == "1" ]] || exit 2
 echo "$1" >>"$TEST_TMP/sets"
+if [[ -n ${OMARCHY_UPDATE_LOCK_FD:-} && -e /proc/$$/fd/$OMARCHY_UPDATE_LOCK_FD ]]; then
+  touch "$TEST_TMP/inherited-update-lock"
+fi
 [[ ${OMARCHY_TEST_SET_FAIL:-0} != "1" ]]
 STUB
 chmod +x "$mock_bin/omarchy-theme-set"
@@ -92,7 +95,16 @@ refresh
 [[ $(sets) == 11 ]] || fail "an unconditional refresh is skipped when nothing changed"
 pass "a plain refresh always sets the theme"
 
+# omarchy update holds its lock on an inherited descriptor. Work the theme set
+# leaves running must not keep it, or the next update reports one still running.
+exec {update_lock}>"$test_tmp/update.lock"
+OMARCHY_UPDATE_LOCK_FD=$update_lock refresh
+exec {update_lock}>&-
+[[ $(sets) == 12 ]] || fail "a refresh under the update lock does not set the theme"
+[[ ! -e $test_tmp/inherited-update-lock ]] || fail "the theme set inherits omarchy update's lock"
+pass "the theme set runs without omarchy update's lock"
+
 rm "$test_home/.local/state/omarchy/current/theme.name"
 refresh --if-changed || fail "a refresh with no current theme fails"
-[[ $(sets) == 11 ]] || fail "a refresh with no current theme sets one"
+[[ $(sets) == 12 ]] || fail "a refresh with no current theme sets one"
 pass "with no current theme there is nothing to refresh"
