@@ -212,7 +212,7 @@ Item {
   // the agent before it completes is unsafe.
   Timer {
     id: registerRetry
-    interval: Math.min(60000, root.registerRetryInterval * Math.pow(2, Math.min(root.registerAttempts, 5)))
+    interval: Math.min(60000, root.registerRetryInterval * Math.pow(2, root.registerAttempts))
     repeat: true
     running: !!root.polkitAgent && !root.polkitAgent.isRegistered
     onTriggered: {

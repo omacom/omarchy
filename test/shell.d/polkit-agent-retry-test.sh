@@ -4,11 +4,6 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-# Quickshell gives one polkit listener to the first agent of a shell and none
-# to an agent created while it is held, and registers an agent only once, when
-# it is created. Enabling a clone of omarchy.polkit live creates the clone's
-# agent before the built-in one is destroyed, so the clone's agent has to try
-# again once the listener is free, and again after each attempt that fails.
 require_compositor "polkit agent retry runtime test"
 
 if ! command -v quickshell >/dev/null 2>&1; then
@@ -16,19 +11,14 @@ if ! command -v quickshell >/dev/null 2>&1; then
   exit 0
 fi
 
-TMPDIR=$(mktemp -d)
-cleanup() {
-  if [[ -d $TMPDIR ]]; then
-    rm -rf "$TMPDIR"
-  fi
-}
-trap cleanup EXIT
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
 
-ln -s "$ROOT/shell/Ui" "$TMPDIR/Ui"
-ln -s "$ROOT/shell/Commons" "$TMPDIR/Commons"
-ln -s "$ROOT/shell/plugins/polkit" "$TMPDIR/polkit"
+ln -s "$ROOT/shell/Ui" "$work/Ui"
+ln -s "$ROOT/shell/Commons" "$work/Commons"
+ln -s "$ROOT/shell/plugins/polkit" "$work/polkit"
 
-cat >"$TMPDIR/shell.qml" <<'QML'
+cat >"$work/shell.qml" <<'QML'
 import QtQuick
 import Quickshell
 import Quickshell.Services.Polkit
@@ -70,7 +60,7 @@ ShellRoot {
 }
 QML
 
-output=$(timeout 15 quickshell -p "$TMPDIR" --no-color 2>&1) || {
+output=$(timeout 15 quickshell -p "$work" --no-color 2>&1) || {
   printf '%s\n' "$output" >&2
   fail "polkit agent retry runtime fixture exits cleanly"
 }
