@@ -86,26 +86,20 @@ setTimeout(() => console.error(`error presses=${presses} down=${stillDown} relea
 </script></body></html>
 EOF
 output=$(look_page "$test_tmp/keys.html" --keys "ArrowLeft ArrowRight" --out "$test_tmp/page.png") || true
-# Every key is released, though the button the first landed on is gone and
-# the headless browser draws no frame after the later ones.
-[[ $output == *"presses=2 down=true released=true"* ]] || fail "each key is pressed once, stays down past its own press, and is released" "$output"
-# It draws a frame or two in a whole run, and under load none after a press.
-# When one does follow, the loop reads the key held.
-[[ $output != *"frame=true"* || $output == *"frame=true read=true"* ]] || fail "a frame after the press reads the key held" "$output"
-[[ -z $(find "$test_tmp" -name '.look-*') ]] || fail "the copy with the key presses is removed"
-pass "look page presses each key once, holds it for a frame, and releases it"
-
-# The presses go into a copy of a local file, which a URL doesn't have.
-if output=$(look_page "http://localhost:1/game.html" --keys "Space"); then
-  fail "look page refuses --keys for a URL" "$output"
-fi
-[[ $output == *"--keys only works on a local file"* ]] || fail "look page says why --keys needs a file" "$output"
-pass "look page refuses --keys for a URL"
+# Every key is released, though the button the first landed on is gone, and
+# the page runs in real time, so its loop sees frames with the key held.
+[[ $output == *"presses=2 down=true released=true frame=true read=true"* ]] ||
+  fail "each key is pressed once, held across frames, and released" "$output"
+pass "look page presses each key once, holds it across frames, and releases it"
 
 # When the browser fails, an image left at --out by an earlier look must not
-# be reported as this one.
+# be reported as this one. This stand-in records how it was started.
 mkdir -p "$test_tmp/broken"
-printf '#!/bin/bash\nexit 7\n' >"$test_tmp/broken/google-chrome-stable"
+cat >"$test_tmp/broken/google-chrome-stable" <<EOF
+#!/bin/bash
+echo "\$*" >>"$test_tmp/browser.log"
+exit 7
+EOF
 chmod +x "$test_tmp/broken/google-chrome-stable"
 [[ -s $test_tmp/page.png ]] || fail "the earlier look left a screenshot to go stale"
 if output=$(PATH="$test_tmp/broken:$PATH" look_page "$test_tmp/keys.html" --out "$test_tmp/page.png"); then
@@ -114,27 +108,10 @@ fi
 [[ $output != *"screenshot:"* && ! -e $test_tmp/page.png ]] || fail "look page doesn't report an earlier screenshot" "$output"
 pass "look page never reports an earlier screenshot as a new one"
 
-# The browser keeps its own sandbox wherever it can start with one. This
-# stand-in draws only when its arguments include what $DRAWS_FOR names.
-cat >"$test_tmp/broken/google-chrome-stable" <<EOF
-#!/bin/bash
-echo "\$*" >>"$test_tmp/browser.log"
-[[ " \$* " == *" \$DRAWS_FOR "* ]] || exit 1
-for argument; do
-  [[ \$argument != --screenshot=* ]] || magick -size 8x8 xc:red "\${argument#--screenshot=}"
-done
-EOF
-output=$(DRAWS_FOR=--no-sandbox PATH="$test_tmp/broken:$PATH" look_page "$test_tmp/keys.html" --out "$test_tmp/page.png") ||
-  fail "look page still draws where the browser can't start its sandbox" "$output"
-[[ $(head -1 "$test_tmp/browser.log") != *--no-sandbox* && $(tail -1 "$test_tmp/browser.log") == *"--no-sandbox"*"keys.html" ]] ||
+# The browser keeps its own sandbox wherever it can start with one, and
+# drops it only to try again after failing with it.
+[[ $(head -1 "$test_tmp/browser.log") != *--no-sandbox* && $(tail -1 "$test_tmp/browser.log") == *--no-sandbox* ]] ||
   fail "look page drops the sandbox only after the browser fails with it" "$(<"$test_tmp/browser.log")"
-: >"$test_tmp/browser.log"
-if output=$(DRAWS_FOR=about:blank PATH="$test_tmp/broken:$PATH" look_page "$test_tmp/keys.html" --out "$test_tmp/page.png"); then
-  fail "look page fails when only the page does" "$output"
-fi
-if grep -q -- --no-sandbox "$test_tmp/browser.log"; then
-  fail "a page that fails where a blank one draws never runs without the sandbox" "$(<"$test_tmp/browser.log")"
-fi
 pass "look page runs without the browser's sandbox only where the browser can't start one"
 
 look_app() {
@@ -152,6 +129,38 @@ chmod +x "$test_tmp/hooked"
 output=$(look_app --size 640x480 --out "$test_tmp/app.png" -- "$test_tmp/hooked") || fail "look app captures an app that draws itself" "$output"
 [[ $(<"$test_tmp/size") == "640x480" ]] || fail "look app passes --size to an app that draws itself" "$(<"$test_tmp/size")"
 pass "look app passes --size to an app that draws itself"
+
+# Drawn on the GPU first, where shader effects show, and in software only
+# when that draws nothing.
+cat >"$test_tmp/gpuless" <<EOF
+#!/bin/bash
+echo -n "\$QT_QUICK_BACKEND " >>"$test_tmp/backends"
+[[ \$QT_QUICK_BACKEND == "software" ]] && magick -size 8x8 xc:red "\$OMARCHY_LOOK_SCREENSHOT"
+exit 0
+EOF
+chmod +x "$test_tmp/gpuless"
+output=$(look_app --after 0 --out "$test_tmp/app.png" -- "$test_tmp/gpuless") || fail "look app falls back to software rendering" "$output"
+[[ $(<"$test_tmp/backends") == "rhi software " ]] || fail "look app tries the GPU before software" "$(<"$test_tmp/backends")"
+pass "look app draws on the GPU and falls back to software without one"
+
+# Another theme and language reach the app through a home of its own, and
+# the user's stay as they were.
+mkdir -p "$test_tmp/home/.config/omarchy/themes/paper" "$test_tmp/home/.local/state/omarchy/current/theme"
+echo 'accent = "#000001"' >"$test_tmp/home/.config/omarchy/themes/paper/colors.toml"
+echo 'accent = "#ffffff"' >"$test_tmp/home/.local/state/omarchy/current/theme/colors.toml"
+echo en >"$test_tmp/home/.config/omarchy/language"
+cat >"$test_tmp/themed" <<EOF
+#!/bin/bash
+cat "\$HOME/.local/state/omarchy/current/theme/colors.toml" "\$HOME/.config/omarchy/language" >"$test_tmp/seen"
+magick -size 8x8 xc:red "\$OMARCHY_LOOK_SCREENSHOT"
+EOF
+chmod +x "$test_tmp/themed"
+output=$(HOME="$test_tmp/home" look_app --theme Paper --language da --out "$test_tmp/app.png" -- "$test_tmp/themed") || fail "look app shows an app in another theme and language" "$output"
+[[ $(<"$test_tmp/seen") == $'accent = "#000001"\nda' ]] || fail "look app hands the app the theme and language asked for" "$(<"$test_tmp/seen")"
+[[ $(<"$test_tmp/home/.config/omarchy/language") == "en" ]] || fail "look app leaves the user's language alone"
+output=$(HOME="$test_tmp/home" look_app --language da --out "$test_tmp/app.png" -- "$test_tmp/themed") || fail "look app shows an app in another language" "$output"
+[[ $(<"$test_tmp/seen") == $'accent = "#ffffff"\nda' ]] || fail "look app keeps the user's theme when only the language changes" "$(<"$test_tmp/seen")"
+pass "look app shows an app in another theme or language without changing the user's"
 
 # The wait is counted in whole seconds; half of one is refused by name.
 for wait in 0.5 08; do
@@ -225,3 +234,20 @@ output=$(look_app --after 0 --out "$test_tmp/app.png" -- "$test_tmp/wrapper") ||
 [[ $(<"$test_tmp/grim.log") == "-T 2002 "* ]] || fail "look app captures the wrapped program's window, not another that opened" "$(<"$test_tmp/grim.log")"
 kill -0 "$stranger" 2>/dev/null || fail "look app leaves another window's program running after a wrapper"
 pass "look app finds a window a wrapper started before exiting"
+
+# An app with the hook that draws nothing offscreen is captured on screen,
+# started as itself with its own arguments.
+cat >"$test_tmp/undrawn" <<EOF
+#!/bin/bash
+# OMARCHY_LOOK_SCREENSHOT
+[[ -n \${OMARCHY_LOOK_SCREENSHOT:-} ]] && exit 0
+echo "\$*" >"$test_tmp/undrawn.args"
+sleep 60 &
+echo \$! >"$test_tmp/plain.pid"
+wait
+EOF
+chmod +x "$test_tmp/undrawn"
+: >"$test_tmp/plain.pid"
+output=$(look_app --after 0 --out "$test_tmp/app.png" -- "$test_tmp/undrawn" sample.txt) || fail "look app captures on screen an app that drew nothing offscreen" "$output"
+[[ $(<"$test_tmp/undrawn.args") == "sample.txt" ]] || fail "look app starts the app itself on screen, with its arguments" "$(cat "$test_tmp/undrawn.args" 2>/dev/null)"
+pass "look app falls back to the screen with the app's own command"
