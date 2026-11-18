@@ -6,6 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command mise
 require_command python3
+mise_bin_dir=$(dirname "$(command -v mise)")
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -59,7 +60,7 @@ run_isolated() {
   env -i HOME="$account_test_home" \
     XDG_CONFIG_HOME="$test_tmp/config" XDG_DATA_HOME="$test_tmp/data" XDG_CACHE_HOME="$test_tmp/cache" \
     MISE_DATA_DIR="$mise_data" MISE_SYSTEM_CONFIG_DIR="$mise_system_config" MISE_OFFLINE=1 \
-    OMARCHY_PATH="$ROOT" PATH="$mise_data/command-wrappers/bin:$ROOT/bin:$real_bin:/usr/bin" \
+    OMARCHY_PATH="$ROOT" PATH="$mise_data/command-wrappers/bin:$ROOT/bin:$real_bin:$mise_bin_dir:/usr/bin" \
     "$@"
 }
 
@@ -147,6 +148,20 @@ expected=$(printf '%s\n' "$test_tmp/accounts/claude side" "$test_tmp/accounts/co
 [[ $output == "$expected" ]] || fail "an agent's subprocess still dispatches the other provider's selected account" "$output"
 pass "an agent's subprocess still dispatches the other provider's selected account"
 
+# New sessions reach account dispatch whichever CLI the launcher picks: the
+# user's own install, or a real CLI that comes before mise's wrapper on PATH.
+printf 'claude\n' >"$account_test_home/.config/omarchy/defaults/agent"
+mkdir -p "$account_test_home/.local/bin"
+cp "$real_bin/claude" "$account_test_home/.local/bin/claude"
+output=$(run_isolated omarchy-agent --inline)
+[[ ${output%%$'\n'*} == "$test_tmp/accounts/claude side" ]] || fail "a user-installed Claude starts on the selected account" "$output"
+pass "a user-installed Claude starts on the selected account"
+rm "$account_test_home/.local/bin/claude"
+
+output=$(run_isolated env PATH="$real_bin:$mise_data/command-wrappers/bin:$ROOT/bin:$mise_bin_dir:/usr/bin" omarchy-agent --inline)
+[[ ${output%%$'\n'*} == "$test_tmp/accounts/claude side" ]] || fail "a real Claude ahead of mise's wrapper starts on the selected account" "$output"
+pass "a real Claude ahead of mise's wrapper starts on the selected account"
+
 # Give mise a real installed Claude tool directory, not just a system fallback.
 ln -s "$real_bin/claude" "$test_tmp/real/claude"
 run_isolated mise link claude@1.0.0 "$test_tmp/real" >/dev/null
@@ -157,7 +172,7 @@ run_isolated mise trust "$test_tmp/config/mise/config.toml" >/dev/null 2>&1
 # Existing tool shims used by SSH already dispatch wrappers, including with a
 # relocated mise data directory. No additional stock-only PAM path is needed.
 run_isolated mise reshim
-output=$(run_isolated env PATH="$mise_data/shims:$ROOT/bin:/usr/bin" claude)
+output=$(run_isolated env PATH="$mise_data/shims:$ROOT/bin:$mise_bin_dir:/usr/bin" claude)
 [[ $output == "$test_tmp/accounts/claude side" ]] || fail "SSH-style mise tool shims route through account dispatch in a custom data directory" "$output"
 pass "SSH-style mise tool shims route through account dispatch in a custom data directory"
 
