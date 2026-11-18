@@ -115,6 +115,48 @@ expect("the record says when its limits are kept from an earlier check",
        [record["limitsStale"], record["limitsFetchedAt"], record["limits"][0]["percent"]], [True, hour_ago, 0.42], record)
 PY
 
+# One claude.ai user can belong to two organizations, a personal plan and a
+# team's, each with limits of its own. The probes in one refresh run seconds
+# apart, so the second account answers from its cache: a cache keyed by the
+# user alone would hand it the first account's numbers.
+python3 - <<'PY'
+from agent_usage_fixtures import *
+
+sandbox()
+accounts = state_home() / "omarchy" / "agents" / "accounts"
+
+
+def signed_in(directory, profile, token, organization):
+  write_json(Path(directory) / ".credentials.json", {"claudeAiOauth": {"accessToken": token, "expiresAt": ms_in(3600), "rateLimitTier": "default_claude_max_5x", "subscriptionType": "max"}})
+  write_json(profile, {"oauthAccount": {"accountUuid": "u-shared", "organizationUuid": organization, "emailAddress": "me@example.com"}})
+
+
+signed_in(home() / ".claude", home() / ".claude.json", "token-personal", "org-personal")
+signed_in(accounts / "claude" / "team", accounts / "claude" / "team" / ".claude.json", "token-team", "org-team")
+registry("claude", [
+  {"id": "main", "label": "Main", "home": "", "primary": True},
+  {"id": "team", "label": "Team", "home": str(accounts / "claude" / "team"), "primary": False},
+], active="main")
+
+USAGE = {"token-personal": 2.0, "token-team": 55.0}
+
+
+def per_token(request):
+  return {"five_hour": {"utilization": USAGE[request.get_header("Authorization").split(" ", 1)[1]]}}
+
+
+with FakeHttp({"api.anthropic.com": per_token}):
+  probed = collect("claude", "--force")
+  reused = collect("claude", "--limits-only")
+expect("two organizations of one Claude user are probed each with its own sign-in",
+       [account["limits"][0]["percent"] for account in probed["accounts"]], [0.02, 0.55], probed)
+expect("two organizations of one Claude user keep their own numbers from the cache",
+       [account["limits"][0]["percent"] for account in reused["accounts"]], [0.02, 0.55], reused)
+expect("each organization of one Claude user has a limits cache of its own",
+       [path.name for path in limits_cache_files("claude")],
+       ["claude-limits-u-shared-org-personal.json", "claude-limits-u-shared-org-team.json"])
+PY
+
 # -------------------------------------------------------------------- codex
 
 home=$(new_home codex)
