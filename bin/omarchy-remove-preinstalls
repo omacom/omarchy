@@ -8,6 +8,9 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
   omarchy-webapp-remove-all
   omarchy-tui-remove-all
 
+  # Omarchy ships the Herdr launcher itself, so it goes with the herdr package dropped below.
+  rm -f ~/.local/share/applications/Herdr.desktop
+
   mkdir -p ~/.local/state/omarchy
   touch ~/.local/state/omarchy/preinstalls-removed
   omarchy-restart-hyprctl
@@ -42,6 +45,7 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
   omarchy-pkg-drop \
     aether \
     cliamp \
+    herdr \
     libreoffice-fresh \
     pinta \
     obsidian \

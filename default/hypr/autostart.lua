@@ -15,7 +15,10 @@ hl.on("hyprland.start", function()
   -- it with a tty environment, and agents in its panes can't read the clipboard.
   -- setsid makes it lead its own session, as when herdr starts it itself, so
   -- remote clients don't ask to restart it on every attach.
-  hl.exec_cmd(o.launch("setsid herdr server"))
+  -- Remove Preinstalls can take herdr away.
+  if o.cmd_present("herdr") then
+    hl.exec_cmd(o.launch("setsid herdr server"))
+  end
 
   -- Run post-boot hooks after startup config has loaded.
   hl.exec_cmd("sleep 2 && omarchy-hook post-boot")
