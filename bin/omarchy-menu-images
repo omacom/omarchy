@@ -154,44 +154,16 @@ is_video_path() {
 }
 
 # Smooth dark wallpapers carry fine grain that hides their 8-bit steps. A JPEG
-# downscale smooths that grain away and the steps become visible bands. Keep the
-# resize in float, add half a level of noise before the final uchar rounding,
-# and save losslessly so the dither survives. Videos keep ffmpegthumbnailer.
-generate_image_thumbnail() (
-  local image=$1 output=$2
-  local width height scale left top
-  local work
-
-  work=$(mktemp -d "${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/image-selector/vips.XXXXXX") || return 1
-  trap 'rm -rf "$work"' EXIT
-
-  width=$(vipsheader -f width "$image") || return 1
-  height=$(vipsheader -f height "$image") || return 1
-  [[ $width =~ ^[0-9]+$ && $height =~ ^[0-9]+$ ]] || return 1
-
-  # Cover the target, then crop its middle. The resize stays in float so the
-  # only 8-bit rounding is the final, dithered one.
-  scale=$(awk -v w="$width" -v h="$height" \
-    'BEGIN { printf "%.9f", (1536 / w > 864 / h) ? 1536 / w : 864 / h }')
-
-  local vips_cmd=(env VIPS_CONCURRENCY=1 vips)
-  "${vips_cmd[@]}" cast "$image" "$work/float.v" float || return 1
-  "${vips_cmd[@]}" resize "$work/float.v" "$work/resized.v" "$scale" --kernel lanczos3 || return 1
-
-  # vipsthumbnail's "centre" smartcrop: cover the target, then take its middle.
-  width=$(vipsheader -f width "$work/resized.v") || return 1
-  height=$(vipsheader -f height "$work/resized.v") || return 1
-  left=$(((width - 1536) / 2))
-  top=$(((height - 864) / 2))
-  "${vips_cmd[@]}" crop "$work/resized.v" "$work/cropped.v" "$left" "$top" 1536 864 || return 1
-
-  # +0.5 makes the uchar cast round to the nearest level; sigma 0.29 keeps the
-  # noise within roughly half a level either way.
-  "${vips_cmd[@]}" gaussnoise "$work/noise.v" 1536 864 --sigma 0.29 --mean 0.5 || return 1
-  "${vips_cmd[@]}" add "$work/cropped.v" "$work/noise.v" "$work/dithered.v" || return 1
-  "${vips_cmd[@]}" cast "$work/dithered.v" "$work/bytes.v" uchar || return 1
-  "${vips_cmd[@]}" copy "$work/bytes.v" "$output[lossless,strip]" || return 1
-)
+# downscale smooths that grain away and the steps become visible bands. Resize
+# at ImageMagick's Q16 depth, dither by about half an 8-bit level, then save
+# losslessly so the dither survives. One process, no intermediate images;
+# -auto-orient keeps phone photos the right way up. Videos keep their own path.
+generate_image_thumbnail() {
+  magick "$1" -auto-orient -filter Lanczos -resize '1536x864^' \
+    -gravity center -extent 1536x864 \
+    -attenuate 0.015 +noise Gaussian -strip -depth 8 \
+    -define webp:lossless=true "$2"
+}
 
 generate_thumbnail() {
   local image="$1"

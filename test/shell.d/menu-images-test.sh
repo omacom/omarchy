@@ -42,33 +42,19 @@ images="$tmp/images"
 stub_bin="$tmp/bin"
 mkdir -p "$images" "$stub_bin"
 
-cat >"$stub_bin/vipsheader" <<'EOF'
-#!/bin/bash
-[[ $1 == -f ]] && field=$2 || field=width
-if [[ $field == width ]]; then echo 3072; else echo 1728; fi
-EOF
-cat >"$stub_bin/vips" <<'EOF'
+cat >"$stub_bin/magick" <<'EOF'
 #!/bin/bash
 
-action=$1
-shift
-output=""
-for arg in "$@"; do
-  case $arg in
-    *.v) output=$arg ;;
-    *\[lossless*) output=${arg%%\[*} ;;
-    *) [[ -f ${VIPS_FAIL_FILE:-} ]] && grep -Fxq "${arg%%\[*}" "$VIPS_FAIL_FILE" && exit 1 ;;
-  esac
-done
-
-# One call log per finished thumbnail, not per step of the pipeline.
-if [[ $action == copy ]]; then
-  [[ -z ${VIPS_CALLS_FILE:-} ]] || printf '%s\n' "$action" >>"$VIPS_CALLS_FILE"
-  [[ -z ${VIPS_DELAY:-} ]] || sleep "$VIPS_DELAY"
+image=$1
+output=${@: -1}
+if [[ -f ${MAGICK_FAIL_FILE:-} ]] && grep -Fxq "$image" "$MAGICK_FAIL_FILE"; then
+  exit 1
 fi
-[[ -n $output ]] && printf 'thumbnail' >"$output"
+[[ -z ${MAGICK_CALLS_FILE:-} ]] || printf '%s\n' "$image" >>"$MAGICK_CALLS_FILE"
+[[ -z ${MAGICK_DELAY:-} ]] || sleep "$MAGICK_DELAY"
+printf 'thumbnail' >"$output"
 EOF
-chmod +x "$stub_bin/vipsheader" "$stub_bin/vips"
+chmod +x "$stub_bin/magick"
 
 for name in one two three; do
   printf 'image-%s' "$name" >"$images/$name.png"
@@ -126,7 +112,7 @@ rm -rf "$cache_home"
 mkdir -p "$cache_home"
 printf '%s\n' "$images/two.png" >"$tmp/failures"
 
-PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" VIPS_FAIL_FILE="$tmp/failures" \
+PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" MAGICK_FAIL_FILE="$tmp/failures" \
   "$ROOT/bin/omarchy-menu-images" --cache-only "$images"
 
 cache_dir="$cache_home/omarchy/image-selector"
@@ -154,7 +140,7 @@ mkdir -p "$cache_home"
 pids=()
 for run in 1 2; do
   PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
-    VIPS_CALLS_FILE="$tmp/calls" VIPS_DELAY=0.25 \
+    MAGICK_CALLS_FILE="$tmp/calls" MAGICK_DELAY=0.25 \
     "$ROOT/bin/omarchy-menu-images" --cache-only "$images" &
   pids+=($!)
 done
@@ -162,14 +148,14 @@ for pid in "${pids[@]}"; do
   wait "$pid" || fail "concurrent image menu runs exit cleanly"
 done
 
-(( $(grep -c '^copy$' "$tmp/calls") == 3 )) || fail "image menu serializes concurrent thumbnail generators"
+(( $(wc -l <"$tmp/calls") == 3 )) || fail "image menu serializes concurrent thumbnail generators"
 
 rm -f "$cache_dir"/*.webp
 rm -f "$cache_dir/$cache_key.rows" "$cache_dir/$cache_key.signature" "$cache_dir/$cache_key.fast-signature"
-PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" VIPS_CALLS_FILE="$tmp/calls" \
+PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" MAGICK_CALLS_FILE="$tmp/calls" \
   "$ROOT/bin/omarchy-menu-images" --cache-only "$images"
 
-(( $(grep -c '^copy$' "$tmp/calls") == 6 )) || fail "image menu releases thumbnail locks after generation"
+(( $(wc -l <"$tmp/calls") == 6 )) || fail "image menu releases thumbnail locks after generation"
 pass "image menu owns locks for exactly one generator lifetime"
 
 rm -rf "$cache_home"
@@ -213,24 +199,9 @@ cat >"$stub_bin/nproc" <<'EOF'
 #!/bin/bash
 echo "${FAKE_CORES:-2}"
 EOF
-cat >"$stub_bin/vips" <<'EOF'
+cat >"$stub_bin/magick" <<'EOF'
 #!/bin/bash
-action=$1
-shift
-output=""
-for arg in "$@"; do
-  case $arg in
-    *.v) output=$arg ;;
-    *\[lossless*) output=${arg%%\[*} ;;
-  esac
-done
-
-# Only the final save holds a worker slot; the intermediate steps are instant.
-if [[ $action != copy ]]; then
-  [[ -n $output ]] && printf 'step' >"$output"
-  exit 0
-fi
-
+output=${@: -1}
 exec 9>"$LAZY_STATE/lock"
 priority=$(ps -o ni= -p "$$")
 (( priority >= 10 )) || : >"$LAZY_STATE/priority-failed"
@@ -248,7 +219,7 @@ active=$(<"$LAZY_STATE/active")
 printf '%s\n' "$((active - 1))" >"$LAZY_STATE/active"
 echo done >>"$LAZY_STATE/completed"
 EOF
-chmod +x "$stub_bin/nproc" "$stub_bin/vips"
+chmod +x "$stub_bin/nproc" "$stub_bin/magick"
 
 lazy_rows() {
   setsid env PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$tmp/lazy-cache-$cores" LAZY_STATE="$lazy_state" FAKE_CORES="$cores" \
