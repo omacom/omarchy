@@ -377,6 +377,7 @@ Panel {
   // The KeyboardPanel's focusTarget covers initial popup-open; this handles
   // the inline-editor case where focus was handed off to a child.
   onPasswordSsidChanged: {
+    if (passwordSsid === "") Qt.callLater(rebuildWifiRows)
     if (passwordSsid === "" && opened) {
       passwordText = ""
       Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })

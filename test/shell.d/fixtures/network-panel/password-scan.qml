@@ -84,12 +84,28 @@ ShellRoot {
   function added() {
     check(ssids() === "Alpha,Cafe,Delta,Echo", "held rows keep their order while new networks remain visible (got " + ssids() + ")")
     check(panel.selectedIndex === 1 && panel.passwordSsid === "Cafe", "the prompt keeps its row")
+    closePrompt.start()
+  }
+
+  Timer {
+    id: closePrompt
+    interval: 100
+    onTriggered: {
+      panel.cancelPasswordPrompt()
+      Qt.callLater(test.cancelled)
+    }
+  }
+
+  function cancelled() {
+    check(ssids() === "Delta,Echo,Alpha,Cafe", "cancelling a prompt restores signal order without another scan (got " + ssids() + ")")
+    panel.selectedIndex = panel.wifiIndexForSsid("Cafe")
+    panel.openPasswordPrompt("Cafe")
     scan([alpha, delta, echo])
     Qt.callLater(dropped)
   }
 
   function dropped() {
-    check(ssids() === "Delta,Echo,Alpha", "closing a dropped prompt restores normal signal order (got " + ssids() + ")")
+    check(ssids() === "Delta,Echo,Alpha", "a dropped prompt leaves the remaining networks visible (got " + ssids() + ")")
     check(panel.passwordSsid === "", "a dropped prompt network closes credential entry")
     check(!panel.testContent.blocked, "a dropped prompt network releases panel keyboard input")
     scan([alpha, cafe])
