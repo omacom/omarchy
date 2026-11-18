@@ -33,10 +33,10 @@ A theme is a directory in `~/.config/omarchy/themes/<slug>/` (the slug becomes t
    Use one or two words per query, and change the queries until the results fit. Then look at all the candidates at once, with each file's name under it, and pick by eye. Numbers like brightness can't tell a lantern from a cartoon:
 
    ```bash
-   magick montage -font "$(fc-match -f '%{file}' sans)" -label '%f' /tmp/candidates/* -resize 480x270^ -gravity center -extent 480x270 -geometry +4+4 -tile 4x /tmp/candidates.png
+   magick montage -font "$(fc-match -f '%{file}' sans)" -label '%f' /tmp/candidates/* -resize 480x270^ -gravity center -extent 480x270 -geometry +4+4 -tile 4x -depth 8 -quality 85 /tmp/candidates.jpg
    ```
 
-   Open `/tmp/candidates.png` and look at it. Copy the two to four that fit the theme's mood and colors into `backgrounds/` as `1-<name>.jpg`, `2-<name>.jpg`, and so on.
+   Open `/tmp/candidates.jpg` and look at it (a JPEG, so a sheet of thirty stays small enough to view). Copy the two to four that fit the theme's mood and colors into `backgrounds/` as `1-<name>.jpg`, `2-<name>.jpg`, and so on.
 3. Look at the result before calling it done. `omarchy agent look theme ~/.config/omarchy/themes/<slug>` draws the theme as a desktop (the first background, the bar, a terminal and a window in its colors) without applying it, checks the palette's keys and contrast and the backgrounds' size, and prints the image's path. Open the image, fix every problem it lists and any color that clashes with the background, and run it again until it's clean.
 4. When done with the theme, run `omarchy theme set "Name of new theme"`.
 

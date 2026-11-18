@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Screenshot a desktop program an agent built, then close it
-# omarchy:args=[--keys "Down Return"] [--after seconds] [--size WxH] [--out file.png] -- <command> [args...]
-# omarchy:examples=omarchy agent look app -- ./build/tally | omarchy agent look app --keys "N" -- ./build/tally
+# omarchy:args=[--keys "Down Return"] [--theme <name|dir>] [--language <code>] [--after seconds] [--size WxH] [--out file.png] -- <command> [args...]
+# omarchy:examples=omarchy agent look app -- ./build/tally | omarchy agent look app --keys "N" -- ./build/tally | omarchy agent look app --theme catppuccin-latte --language ar -- ./build/tally
 
 # An Omarchy app started from the omarchy-app scaffold draws itself offscreen
 # when OMARCHY_LOOK_SCREENSHOT names a file: it presses the keys in
@@ -13,13 +13,20 @@
 # display to be on. Either way an agent sees its window without a program
 # blocking its shell forever. Prints the screenshot's path and whatever the
 # program printed.
+#
+# --theme and --language show a scaffolded app in another theme or language
+# without changing the user's: it runs in a throwaway home holding only the
+# theme's colors.toml and the language file, which is all the template's
+# Theme and Translator read from the home.
 
 set -uo pipefail
 
-keys="" after=2 size="" out=""
+keys="" after=2 size="" out="" theme="" language=""
 while (( $# )) && [[ $1 != "--" ]]; do
   case $1 in
     --keys) keys=$2; shift 2 ;;
+    --theme) theme=$2; shift 2 ;;
+    --language) language=$2; shift 2 ;;
     --after) after=$2; shift 2 ;;
     --size) size=$2; shift 2 ;;
     --out) out=$2; shift 2 ;;
@@ -36,7 +43,28 @@ if [[ -n $size && ! $size =~ ^[0-9]+x[0-9]+$ ]]; then
   exit 2
 fi
 if (( $# == 0 )); then
-  echo "Usage: omarchy agent look app [--keys \"Down Return\"] [--after seconds] [--size WxH] [--out file.png] -- <command> [args...]" >&2
+  echo "Usage: omarchy agent look app [--keys \"Down Return\"] [--theme <name|dir>] [--language <code>] [--after seconds] [--size WxH] [--out file.png] -- <command> [args...]" >&2
+  exit 2
+fi
+
+# A theme by directory, or by name among the user's themes and then the stock
+# ones ("Catppuccin Latte" and "catppuccin-latte" both work).
+colors=""
+if [[ -n $theme ]]; then
+  slug=$(tr '[:upper:] ' '[:lower:]-' <<<"$theme")
+  for dir in "$theme" "$HOME/.config/omarchy/themes/$slug" "$OMARCHY_PATH/themes/$slug"; do
+    if [[ -f $dir/colors.toml ]]; then
+      colors=$dir/colors.toml
+      break
+    fi
+  done
+  if [[ -z $colors ]]; then
+    echo "No theme $theme with a colors.toml: pass a theme's name or its directory." >&2
+    exit 2
+  fi
+fi
+if [[ -n $language && ! $language =~ ^[a-z]{2,3}(-[A-Za-z0-9]+)?$ ]]; then
+  echo "--language takes a language code, like da or pt-BR" >&2
   exit 2
 fi
 [[ -n $out ]] || out=$(mktemp --suffix=.png -p "${TMPDIR:-/tmp}" look-XXXXXX)
@@ -58,12 +86,40 @@ finish() {
 # built binary, not a script that starts it. Run this way, any other would
 # open a focused window on the user's desktop.
 if grep -qa OMARCHY_LOOK_SCREENSHOT "$(type -P -- "$1")" 2>/dev/null; then
-  OMARCHY_LOOK_SCREENSHOT=$out OMARCHY_LOOK_KEYS=$keys OMARCHY_LOOK_SIZE=$size OMARCHY_LOOK_DELAY_MS=$(( after * 1000 )) \
-    QT_QPA_PLATFORM=offscreen timeout -k 5 $(( after + 30 )) "$@" >"$log" 2>&1 </dev/null
+  home=$HOME
+  if [[ -n $theme || -n $language ]]; then
+    # What isn't asked for comes from the user's own theme and language.
+    home=$(mktemp -d)
+    mkdir -p "$home/.local/state/omarchy/current/theme" "$home/.config/omarchy"
+    cp "${colors:-$HOME/.local/state/omarchy/current/theme/colors.toml}" "$home/.local/state/omarchy/current/theme/colors.toml" 2>/dev/null
+    if [[ -n $language ]]; then
+      echo "$language" >"$home/.config/omarchy/language"
+    else
+      cp "$HOME/.config/omarchy/language" "$home/.config/omarchy/language" 2>/dev/null
+    fi
+  fi
+  # The program is resolved before HOME changes, so a command found through
+  # the user's PATH still runs.
+  program=$(type -P -- "$1")
+  # Offscreen, Qt Quick picks its software renderer, which draws no shader
+  # effects: Material buttons lose their fill and every shadow disappears,
+  # and an agent "fixes" a window that looks fine on screen. The GPU renderer
+  # draws them; without a GPU, the software one still shows the rest.
+  for backend in rhi software; do
+    HOME=$home QT_QUICK_BACKEND=$backend OMARCHY_LOOK_SCREENSHOT=$out OMARCHY_LOOK_KEYS=$keys OMARCHY_LOOK_SIZE=$size OMARCHY_LOOK_DELAY_MS=$(( after * 1000 )) \
+      QT_QPA_PLATFORM=offscreen timeout -k 5 $(( after + 30 )) "$program" "${@:2}" >"$log" 2>&1 </dev/null
+    [[ -s $out ]] && break
+  done
+  [[ $home != "$HOME" ]] && rm -rf "$home"
   [[ -s $out ]] && finish
 fi
 
 # Not a scaffolded app, or one without the hook: capture its window on screen.
+if [[ -n $theme || -n $language ]]; then
+  echo "This program can't be shown in another theme or language: --theme and --language need the OMARCHY_LOOK_SCREENSHOT handling in the omarchy-app template's main.cpp, and the built binary itself as the command, not a script that starts it." >&2
+  rm -f "$log"
+  exit 2
+fi
 if [[ -n $keys ]]; then
   echo "This program can't press keys for a screenshot: --keys needs the OMARCHY_LOOK_KEYS handling in the omarchy-app template's main.cpp, and the built binary itself as the command, not a script that starts it." >&2
 fi
