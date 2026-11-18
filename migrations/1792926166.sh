@@ -4,9 +4,10 @@ echo "Let power profiles switch on the Xiaomi Mi NoteBook Ultra"
 # sets up new installs the same way.
 omarchy-hw-match "Mi NoteBook Ultra" || exit 0
 
-# The drop-in is machine-wide, so another user's run may already have put it in place.
-cmp -s "$OMARCHY_PATH/default/systemd/system/power-profiles-daemon.service.d/block-platform-profile.conf" \
-  /etc/systemd/system/power-profiles-daemon.service.d/block-platform-profile.conf && exit 0
+# Record machine-wide completion after the service changes, so another user
+# skips the repair but an interrupted run still retries it.
+marker=/var/lib/omarchy/migrations/1792926166
+[[ ! -e $marker ]] || exit 0
 
 source "$OMARCHY_PATH/install/hardware/xiaomi/fix-mi-notebook-ultra-power-profiles.sh"
 sudo systemctl daemon-reload
@@ -20,3 +21,5 @@ if systemctl is-active --quiet power-profiles-daemon.service; then
   # lacks; omarchy-powerprofiles-init applies it at the next login instead.
   omarchy-powerprofiles-set autodetect || echo "The power profile will be applied at the next login"
 fi
+
+sudo install -Dm644 /dev/null "$marker"
