@@ -76,3 +76,12 @@ pass "update with agent arguments only runs the named collectors"
   fail "a failed write keeps the last good record"
 compgen -G "$usage_dir/.good.*" >/dev/null && fail "a failed write leaves no temporary file"
 pass "a failed write keeps the last good record"
+
+rm -rf "$usage_dir"
+if output=$(HOME="$TEST_HOME" OMARCHY_PATH="$FAKE_OMARCHY" XDG_STATE_HOME="" \
+  "$ROOT/bin/omarchy-agent-usage-update" --except '' 2>&1); then
+  fail "update refuses an empty --except"
+fi
+[[ $output == "--except needs an agent" && ! -e $usage_dir/good.json ]] ||
+  fail "update refuses an empty --except before collecting anything" "$output"
+pass "update refuses an empty --except before collecting anything"

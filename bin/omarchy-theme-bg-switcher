@@ -12,3 +12,10 @@ omarchy-menu-images \
   --selected "$current_background" \
   "$HOME/.local/state/omarchy/current/theme/backgrounds" \
   "$HOME/.config/omarchy/backgrounds/$theme_name"
+status=$?
+
+if (( status == 3 )); then
+  omarchy-notification-send "$(omarchy-i18n theme.noBackground)" -t 2000
+fi
+
+exit "$status"

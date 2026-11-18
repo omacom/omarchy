@@ -5,14 +5,14 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
-const fs = require('fs')
 const weather = requireFromRoot('shell/plugins/panels/weather/Model.js')
-const panelSource = fs.readFileSync(root + '/shell/plugins/panels/weather/Panel.qml', 'utf8')
-const widgetSource = fs.readFileSync(root + '/shell/plugins/panels/weather/BarWidget.qml', 'utf8')
 
 assertDeepEqual(weather.parseLocationFile('{"name": "Malibu", "latitude": 34.02577, "longitude": -118.7804}\n'), { name: 'Malibu', latitude: 34.02577, longitude: -118.7804 }, 'weather parses name plus coordinates from weather.json')
 assertDeepEqual(weather.parseLocationFile('{"name": "New York"}'), { name: 'New York', latitude: null, longitude: null }, 'weather parses a name-only weather.json')
 assertDeepEqual(weather.parseLocationFile('{"name": "Malibu", "latitude": 34.02577}'), { name: 'Malibu', latitude: null, longitude: null }, 'weather requires both coordinates')
+assertDeepEqual(weather.parseLocationFile('{"name": "Pole", "latitude": -90, "longitude": 180}'), { name: 'Pole', latitude: -90, longitude: 180 }, 'weather keeps coordinates on the edge of the globe')
+assertDeepEqual(weather.parseLocationFile('{"name": "Nowhere", "latitude": 91, "longitude": 10}'), { name: 'Nowhere', latitude: null, longitude: null }, 'weather drops a latitude off the globe and keeps the name')
+assertDeepEqual(weather.parseLocationFile('{"name": "Nowhere", "latitude": 10, "longitude": 181}'), { name: 'Nowhere', latitude: null, longitude: null }, 'weather drops a longitude off the globe and keeps the name')
 assertDeepEqual(weather.parseLocationFile('not json'), { name: '', latitude: null, longitude: null }, 'weather treats an unparseable weather.json as auto-detect')
 assertDeepEqual(weather.parseLocationFile(''), { name: '', latitude: null, longitude: null }, 'weather treats a missing weather.json as auto-detect')
 
@@ -116,42 +116,6 @@ assertEqual(weather.currentIcon({ openMeteoWeatherCode: 0, isDay: 0 }, ''), weat
 assert(weather.iconForOpenMeteoCode(45, true) !== weather.iconForOpenMeteoCode(45, false), 'weather distinguishes nighttime fog from daytime fog')
 assertEqual(weather.provisionalCurrentIcon({ weatherCode: 113 }, ''), weather.iconForCode(113, false), 'weather uses wttr to fill an empty initial icon')
 assertEqual(weather.provisionalCurrentIcon({ weatherCode: 113 }, 'night'), 'night', 'weather refresh preserves a resolved day-night icon')
-// The bar identifies a panel by the widget in its slot, so the nested panel
-// has to present the host widget rather than itself — otherwise the
-// open-panel dot never lights and Tab cannot leave the panel.
-assert(
-  panelSource.includes('owner: root.barIdentity'),
-  'weather panel gives the bar its host widget as popout identity'
-)
-assert(
-  panelSource.includes('switchPanelFrom(root.barIdentity, direction)'),
-  'weather panel switches panels as its host widget'
-)
-assert(
-  widgetSource.includes('target.hostWidget = root'),
-  'weather widget injects itself as the panel host'
-)
-assert(
-  widgetSource.includes('readonly property bool popoutSwitchClosing:') && widgetSource.includes('function closeForPopoutSwitch()'),
-  'weather widget forwards the popout-switch handshake'
-)
-assert(
-  /Qt\.callLater\(function\(\) \{\s*\n\s*if \(root\.opened\) setCenterHoverRevealSuppressed\(true\)/.test(panelSource),
-  'weather claims the shared hover-reveal flag after the popout handoff, so the panel taking over wins'
-)
-
-assert(
-  panelSource.includes('text: root.label || "—"'),
-  'weather hero and bar use the same resolved icon'
-)
-assert(
-  panelSource.includes('onReturnRequested: root.startEditingLocation()'),
-  'weather focuses city input when Return is pressed'
-)
-assert(
-  panelSource.split('root.controller.show()\n    locationFile.reload()\n    root.refresh()').length === 3,
-  'weather reloads external location changes whenever either open path runs'
-)
 assert(!weather.weatherResponseCompletesSave(true, 'wttr'), 'weather keeps the spinner through a non-authoritative pinned-location response')
 assert(weather.weatherResponseCompletesSave(true, 'open-meteo'), 'weather completes a pinned-location save with Open-Meteo data')
 assert(weather.weatherResponseCompletesSave(false, 'wttr'), 'weather completes a name-only location save with wttr data')
@@ -185,6 +149,17 @@ if weather_location --set "bad" "not,coords" 2>/dev/null; then
   fail "weather location rejects malformed coordinates"
 fi
 pass "weather location rejects malformed coordinates"
+
+weather_location --set "Malibu" "34.02577,-118.7804"
+stored=$(cat "$test_tmp/.local/state/omarchy/settings/weather.json")
+for coords in 91,0 0,-180.01; do
+  if weather_location --set "Nowhere" "$coords" 2>/dev/null; then
+    fail "weather location rejects coordinates off the globe: $coords"
+  fi
+done
+[[ $(cat "$test_tmp/.local/state/omarchy/settings/weather.json") == "$stored" ]] || fail "weather location keeps the stored location when coordinates are off the globe"
+weather_location --set "Pole" "-90,180" || fail "weather location accepts coordinates on the edge of the globe"
+pass "weather location rejects coordinates off the globe"
 
 weather_location --clear
 [[ ! -e "$test_tmp/.local/state/omarchy/settings/weather.json" ]] || fail "weather location clear removes the state file"

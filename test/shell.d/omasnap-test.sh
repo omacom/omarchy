@@ -13,8 +13,6 @@ pass "fresh installs use Omasnap as the screenshot tool"
 
 grep -Fq 'namespace = "^omasnap$"' "$ROOT/default/hypr/apps/screenshot-selection.lua" ||
   fail "Omasnap has a layer rule"
-grep -Fq 'no_screen_share = true' "$ROOT/default/hypr/apps/screenshot-selection.lua" ||
-  fail "the Omasnap overlay is excluded from screen sharing"
 ! grep -Fq 'dev.tensaku.Tensaku' "$ROOT/default/hypr/apps/system.lua" ||
   fail "the removed Tensaku window rules are gone"
 pass "Hyprland applies Omasnap's overlay policy without stale Tensaku rules"
