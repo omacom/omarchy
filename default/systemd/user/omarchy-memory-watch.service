@@ -1,5 +1,5 @@
 [Unit]
-Description=Warn before systemd-oomd kills an app, and say what it killed
+Description=Warn before systemd-oomd kills an app, pause the runaway first, and say what it killed
 # Needs the session bus to notify, and OMARCHY_PATH, which UWSM imports, for
 # the commands it runs.
 After=graphical-session.target wayland-session-waitenv.service
