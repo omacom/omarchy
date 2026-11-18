@@ -566,7 +566,7 @@ reset_bootstrap
 lone_home=${account_homes[0]:-}
 if [[ -z $lone_home && -n $inherited_home && -f $tmpdir/inherited.passwd ]]; then
   use_synthetic_passwd "$tmpdir/inherited.passwd"
-  lone_home=$inherited_home
+  lone_home=$(foreign_account_homes "$tmpdir/inherited.passwd")
 fi
 if [[ -n $lone_home ]]; then
   mapfile -t lone_result < <(source_bootstrap_env bash \
