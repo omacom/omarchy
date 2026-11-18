@@ -127,7 +127,7 @@ New migration format:
 - Use `$OMARCHY_PATH` to reference the Omarchy directory.
 - Be idempotent. Check existing state before changing it.
 - Migrations are strictly ordered and synchronous. A migration that cannot finish must exit non-zero, remain pending, and stop the queue; never mark later migrations complete against state an earlier migration has not established.
-- Any package other than `omarchy` may have been removed, even a default one. A migration that depends on one checks it is installed and exits 0 when it is not. A config file left in the home directory is not proof the package is still installed.
+- A default package may have been removed, and a config file left in the home directory is not proof it is installed. Before a repair that assumes an installed package, check it is present and skip only the work that needs it when it is not; still run independent repairs. This does not apply to work that installs, replaces, removes, or cleans up after a package. An installed package that is too old or missing a required packaged file must leave the repair pending by exiting non-zero.
 - Use helper commands such as `omarchy-cmd-present`, `omarchy-cmd-missing`,
   `omarchy-pkg-add`, `omarchy-pkg-drop`, `omarchy-pkg-present`, and
   `omarchy-pkg-missing` when appropriate.
