@@ -205,6 +205,7 @@ def summarize_activity(items: list[Any], today: datetime) -> dict[str, Any]:
   spend_costs = {day: 0.0 for day in spend_dates}
   today_by_model: dict[str, int] = {}
   model_usage: dict[str, dict[str, int]] = {}
+  history: dict[str, dict[str, int]] = {}
   active_dates: set[str] = set()
 
   for raw in items:
@@ -227,6 +228,8 @@ def summarize_activity(items: list[Any], today: datetime) -> dict[str, Any]:
     bucket["outputTokens"] += output
     if day:
       active_dates.add(day)
+      by_model = history.setdefault(day, {})
+      by_model[model] = by_model.get(model, 0) + total
     if day in recent:
       recent[day] += total
     if day == today_date:
@@ -239,6 +242,7 @@ def summarize_activity(items: list[Any], today: datetime) -> dict[str, Any]:
     "activeDays": len(active_dates),
     "activeDates": sorted(active_dates),
     "modelUsage": model_usage,
+    "history": history,
   }
   # The account's own rated spend for each of the last 30 days.
   days = [round(spend_costs[day], 4) for day in spend_dates]

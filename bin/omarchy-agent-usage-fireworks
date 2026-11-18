@@ -147,7 +147,7 @@ def summarize_usage(payload: dict[str, Any], today: date | None = None) -> dict[
     stats.add(day or None, None, model, uncached, output, cached, 0, prompts=0)
 
   snapshot = stats.snapshot()
-  return {key: snapshot[key] for key in ("todayTotalTokens", "todayTokensByModel", "recentDays", "activeDays", "activeDates", "modelUsage")}
+  return {key: snapshot[key] for key in ("todayTotalTokens", "todayTokensByModel", "recentDays", "activeDays", "activeDates", "modelUsage", "history")}
 
 
 def read_auth_file(path: Path) -> tuple[str, str]:

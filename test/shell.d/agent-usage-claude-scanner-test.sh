@@ -69,6 +69,12 @@ expect("Claude counts each API message once, its token kinds kept apart, and ask
   "today": 58793, "usage": {"cacheCreationInputTokens": 29311, "cacheReadInputTokens": 28857, "inputTokens": 4, "outputTokens": 621}, "status": "Waiting for auth",
 }, record)
 
+expect("Claude keeps each day's tokens by model, adding up to the model totals", {
+  "history": record["history"],
+}, {
+  "history": {record["activeDates"][0]: {"claude-test": 58793}},
+}, record)
+
 # Transcripts only ever grow, so a refresh reads what was appended since the
 # last one and takes the rest from the index.
 transcript(message("message-3", 1, 6, cache_read=200, event="event-4"), mode="a")
@@ -527,6 +533,12 @@ expect("Claude's stats-cache fallback gives seven days of tokens and trusted mod
   [{"date": day, "messageCount": {4: 320, 6: 50}.get(n, 0)} for n, day in enumerate(week)],
   {"claude-opus": {"inputTokens": 10, "outputTokens": 0, "cacheReadInputTokens": 7, "cacheCreationInputTokens": 0}},
 ], record)
+
+expect("Claude's stats-cache fallback keeps every day's tokens by Claude model, not just the week", record["history"], {
+  "2026-01-02": {"claude-opus": 999},
+  week[4]: {"claude-opus": 300, "claude-haiku": 20},
+  week[6]: {"claude-opus": 50},
+}, record)
 
 # history.jsonl as interactive Claude Code 2.1.308 wrote it: two typed
 # prompts, /model and /exit (built-ins that ask the model nothing, with and

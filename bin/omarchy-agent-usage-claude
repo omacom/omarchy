@@ -45,6 +45,7 @@ from collectors import (  # noqa: E402
   claude_code_scan_match,
   emit,
   empty_bucket,
+  merge_history,
   number,
   obj,
   open_json,
@@ -185,6 +186,7 @@ def stats_cache_fallback(claude_dir: Path, base_url: str = "") -> dict[str, Any]
         if number(tokens) > 0 and anthropic_served(model, base_url)
       }
   today_tokens = tokens_by_day.get(today_string(), {})
+  history = {date: models for date, models in tokens_by_day.items() if models}
   recent_days = [{"date": date, "messageCount": sum(tokens_by_day.get(date, {}).values())} for date in recent_dates()]
 
   # The four token kinds of each model, each a count number() trusts; the
@@ -209,6 +211,7 @@ def stats_cache_fallback(claude_dir: Path, base_url: str = "") -> dict[str, Any]
     "todayTokensByModel": today_tokens,
     "recentDays": recent_days,
     "modelUsage": model_usage,
+    "history": history,
     "totalPrompts": number(data.get("totalMessages")) if prompts_here else 0,
     "totalSessions": number(data.get("totalSessions")) if prompts_here else 0,
     "activeDays": len(active_dates),
@@ -349,6 +352,7 @@ def merge_stats(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
       if date:
         by_date[date] = by_date.get(date, 0) + number((day or {}).get("messageCount"))
   merged["recentDays"] = [{"date": date, "messageCount": by_date[date]} for date in sorted(by_date)]
+  merged["history"] = merge_history(base.get("history"), extra.get("history"))
 
   # Sources overlap in time, so union dates rather than summing counts. A
   # fallback that only knows a count still bounds the answer from below.

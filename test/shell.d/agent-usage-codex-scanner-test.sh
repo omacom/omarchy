@@ -426,13 +426,13 @@ codex()
 edit_scan_cache("codex", lambda data: data.update(schemaVersion=1, stats={**data["stats"], "todayTotalTokens": 999}))
 record = codex("--limits-only")
 expect("Codex rescans a scan cached before notifications were deduplicated",
-       [record["todayTotalTokens"], json.loads(scan_cache_files("codex")[0].read_text())["schemaVersion"]], [5, 2], record)
+       [record["todayTotalTokens"], json.loads(scan_cache_files("codex")[0].read_text())["schemaVersion"]], [5, 3], record)
 # A cache file of the wrong shape is a miss, written again.
 for path in scan_cache_files("codex"):
   path.write_text("[]")
 record = codex("--limits-only")
 expect("Codex rescans past a scan cache of the wrong shape, and writes it again",
-       [record["todayTotalTokens"], json.loads(scan_cache_files("codex")[0].read_text()).get("schemaVersion")], [5, 2], record)
+       [record["todayTotalTokens"], json.loads(scan_cache_files("codex")[0].read_text()).get("schemaVersion")], [5, 3], record)
 # A cache that can't be written still leaves a record.
 (home() / "not-a-dir").write_text("")
 record = codex("--limits-only", env={"XDG_CACHE_HOME": home() / "not-a-dir"})
