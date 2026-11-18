@@ -19,8 +19,6 @@ esac
 provider=$1
 shift
 
-# mise removes its wrapper dispatch directories before calling us, so exec
-# finds the real CLI (or its first-run installer) rather than this wrapper.
 # Pin the resolved home for children, including an implicit Main account.
 # Explicit provider homes still take precedence.
 if [[ -z ${!account_env:-} ]]; then
@@ -31,10 +29,8 @@ if [[ -z ${!account_env:-} ]]; then
   fi
 fi
 
-# mise 2026.10.23 and later keep their wrapper directory on PATH, so the lookup
-# below would find this wrapper again rather than the CLI. Run a second time, the
-# wrapper puts the inherited PATH ahead of the project's mise tools, and a system
-# ruby or python shadows the pinned one in everything the agent runs.
+# Skip mise's wrapper during lookup: running it again can put system tools
+# ahead of the project's pinned versions.
 mise_data_dir=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
 PATH=":$PATH:"
 while [[ $PATH == *":$mise_data_dir/command-wrappers/bin:"* ]]; do
@@ -43,8 +39,7 @@ done
 PATH=${PATH#:}
 PATH=${PATH%:}
 
-# Resolve before restoring dispatch on PATH: mise removes the wrapper paths to
-# avoid recursion, but the agent's subprocesses need them for other providers.
+# Resolve the CLI before restoring wrapper dispatch for the agent's children.
 if ! agent_binary=$(type -P "$provider"); then
   # A mise dispatcher can exist before its CLI or first-run installer does.
   # Omarchy declares these agents, so installing one leaves the user's config
@@ -64,4 +59,6 @@ if [[ :$PATH: != *":$mise_data_dir/shims:"* ]]; then
   PATH="$PATH:$mise_data_dir/shims"
 fi
 export PATH
+# The CLI runs directly; its children must be able to enter mise dispatch again.
+unset __MISE_ACTIVE_WRAPPERS
 exec "$agent_binary" "$@"
