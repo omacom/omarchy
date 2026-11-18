@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the Moonlight game streaming client along with its paired hosts and settings.
+# omarchy:requires-sudo=true
+
+set -e
+
+omarchy-pkg-drop moonlight-qt
+
+rm -rf \
+  "$HOME/.config/Moonlight Game Streaming Project" \
+  "$HOME/.cache/Moonlight Game Streaming Project"
+
+echo ""
+echo "Moonlight and its settings have been removed."

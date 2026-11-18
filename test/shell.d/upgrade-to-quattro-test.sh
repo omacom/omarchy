@@ -248,6 +248,10 @@ pass "the upgrade reboots on --reboot only when root= is confirmed in the boot e
 # any other package install, and a failed repair stops the upgrade.
 packages_body=$(function_body install_omarchy_quattro_packages)
 package_calls=$(mktemp)
+repair_bin=$(mktemp -d)
+printf '#!/bin/bash\n' >"$repair_bin/omarchy-realtime-repair"
+chmod +x "$repair_bin/omarchy-realtime-repair"
+package_root_path=$repair_bin
 exercise_package_install() {
   local repair_status=$1
 
@@ -262,7 +266,7 @@ exercise_package_install() {
       [[ $* != *omarchy-realtime-repair* ]] || return "$repair_status"
     }
     use_dev_packages=0
-    root_path=/usr/bin
+    root_path=$package_root_path
     eval "install_omarchy_quattro_packages() { $packages_body
 }"
     install_omarchy_quattro_packages
@@ -281,4 +285,12 @@ fi
 grep -qx fail "$package_calls" && ! grep -qE '(^| )pacman -S ' "$package_calls" ||
   fail "Omarchy 4 upgrade installs nothing more once the realtime repair fails" "$(cat "$package_calls")"
 pass "Omarchy 4 upgrade stops before the base list when the realtime repair fails"
-rm -f "$package_calls"
+
+# A released omarchy package can predate the repair; its base list has no
+# rtkit either, so the upgrade goes on without it.
+package_root_path=$(mktemp -d)
+exercise_package_install 0 || fail "Omarchy 4 upgrade goes on when the omarchy package has no realtime repair"
+! grep -q omarchy-realtime-repair "$package_calls" && grep -q 'pacman -Syu' "$package_calls" ||
+  fail "Omarchy 4 upgrade goes on when the omarchy package has no realtime repair" "$(cat "$package_calls")"
+pass "Omarchy 4 upgrade goes on when the omarchy package has no realtime repair"
+rm -rf "$package_calls" "$repair_bin" "$package_root_path"
