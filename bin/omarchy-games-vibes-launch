@@ -12,9 +12,12 @@
 set -euo pipefail
 
 game=${1:-}
-if [[ -n $game ]] && [[ ! $game =~ ^[a-z0-9][a-z0-9-]*$ || ! -f $HOME/Games/vibes/$game/index.html ]]; then
-  echo "No game at ~/Games/vibes/$game/index.html" >&2
-  exit 1
+if [[ -n $game ]]; then
+  if [[ ! $game =~ ^[a-z0-9][a-z0-9-]*$ ]] ||
+    [[ ! -f $HOME/Games/vibes/$game/index.html && ! -f $OMARCHY_PATH/default/games/vibes/$game/index.html ]]; then
+    echo "No game called $game in Game Vibes" >&2
+    exit 1
+  fi
 fi
 
 omarchy-games-vibes-install >/dev/null

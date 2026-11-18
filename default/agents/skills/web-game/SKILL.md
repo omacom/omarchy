@@ -10,9 +10,19 @@ A game is one file, `~/Games/vibes/<name>/index.html` (unless the user asked for
 
 Every game starts from `template.html` beside this file: a complete, working game (dodge the falling blocks) with what every game needs already done — title screen, pause on Esc and on losing focus, game over, restart, help, sound, a saved best score, a fixed-step loop that survives slow frames, seeded randomness, mouse picking, a camera fit, and lights that show the theme's colours true. You replace the game inside it, not the frame around it. Below, `SKILL_DIR` is the directory you read this file from (such as `~/.agents/skills/web-game`).
 
+## Keeping on with a game in Game Vibes
+
+To change a game already in Game Vibes, including the ones Omarchy ships in `$OMARCHY_PATH/default/games/vibes` (the user's own are in `~/Games/vibes`), copy it first and work on the copy:
+
+```bash
+omarchy-games-vibes-copy <game> [new-name]
+```
+
+Under its own name the copy takes the shipped game's place in Game Vibes; under a new name it sits beside it, and then give it its own `NAME`, `<title>` and title screen so its saved scores and its tile are its own. Then skip to the step the change needs: the game section for a new rule, step 3 for polish, and always step 4 to check it and step 5 to open it. A copy never needs the template; it is already built on it.
+
 ## 1. Settle the game
 
-If the user hasn't said what game they want, ask. Then decide, in one sentence each, before writing code:
+If the user hasn't said what game they want, ask whether it's a new game or one in Game Vibes to keep working on. Then decide, in one sentence each, before writing code:
 
 - **Goal**: what the player is trying to do.
 - **Controls**: which keys, and what each does. Arrow keys and WASD both, Space for the main action. Board and card games move a cursor with the arrows and also take the mouse.
@@ -37,7 +47,9 @@ If `~/Games/vibes/<name>` already holds a game, ask before replacing it. Read th
 3. **The screens** in the HTML: the `<title>`, the title screen's name, one line saying the goal, a line of controls, and the help table. Keep the element ids; add your own elements freely.
 4. **ACTIONS**, if the game needs more keys than move, action, pause, mute and help.
 
-Leave the two parts marked THE FRAME alone apart from ACTIONS, the camera, the lights and the fog: they make pause, restart and theming work. Names starting with `_` are the frame's own.
+Leave the two parts marked THE FRAME alone apart from ACTIONS, the camera, the lights and the fog: they make pause, restart, theming and the way back to Game Vibes work. Names starting with `_` are the frame's own.
+
+**The rule every game keeps: the player can always get back to Game Vibes.** `Esc` on the title and end screens and `Q` on the pause screen go back to the list, and `Esc` (or losing focus) pauses a round, so there's a way out from anywhere, mid-round included. Never take `Esc`, `P` or `Q` for something else, never keep `Esc` from reaching the frame (a game may use it first to drop a held piece, as long as the next press pauses), and keep the pause screen's line that says `Q` goes back. A game copied from before this rule gets the frame's `leave` action and that line.
 
 ## 3. Make it good
 
@@ -63,6 +75,13 @@ omarchy agent look page ~/Games/vibes/<name>/index.html#seed=1 --keys "Space Arr
 ```
 
 `#seed=1` plays the same round every time, so a change you made is what changed. Between the first two shots the score should rise and the world should have moved. If the round is already over, or nothing changed, find out why before adding anything else.
+
+Then check the way back, from the list as a player comes in, mid-round: start a round, pause it, and leave. The shot must show the Game Vibes list, not the game.
+
+```bash
+omarchy-games-vibes-install
+omarchy agent look page ~/Games/vibes/index.html#open=<name> --keys "Space Escape KeyQ" --after 1500
+```
 
 Open every screenshot with your tool for viewing images; reading the path is not looking. For each, write one line answering each of these, then fix every no and look again:
 

@@ -19,7 +19,13 @@ chmod +x "$mock_bin/omarchy-launch-webapp"
 
 # A home with a space and a percent sign, which the file URL has to survive.
 export HOME="$test_tmp/my home 100%"
-export OMARCHY_PATH="$ROOT"
+# An Omarchy that ships two games, one of which the user has a copy of.
+export OMARCHY_PATH="$test_tmp/omarchy"
+shipped="$OMARCHY_PATH/default/games/vibes"
+mkdir -p "$shipped/chess" "$shipped/snake"
+cp "$ROOT/default/games/vibes.html" "$OMARCHY_PATH/default/games/"
+printf '<!doctype html><title>Chess</title>\n' >"$shipped/chess/index.html"
+printf '<!doctype html><title>Shipped Snake</title>\n' >"$shipped/snake/index.html"
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_TEST_ARGV="$test_tmp/argv"
 vibes="$HOME/Games/vibes"
@@ -38,9 +44,10 @@ make_game "Bad Name" "Bad"
 
 omarchy-games-vibes-install >/dev/null || fail "games vibes install lists the games"
 games=$(sed -n 's:^const GAMES = \(.*\);$:\1:p' "$vibes/index.html" | sed 's/\\u003c/</g')
-[[ $(jq -r '[.[].name] | join(" ")' <<<"$games") == "snake tilt-maze" ]] ||
-  fail "the list has each game folder with an index.html, and nothing else" "$games"
-[[ $(jq -r '.[1].title' <<<"$games") == 'Tilt </script><script>alert(1)</script>' ]] || fail "a game is listed by its <title>" "$games"
+[[ $(jq -r '[.[].name] | join(" ")' <<<"$games") == "chess snake tilt-maze" ]] ||
+  fail "the list has each game folder with an index.html, shipped or made here, and nothing else" "$games"
+[[ $(jq -r '.[1].title' <<<"$games") == "Snake" ]] || fail "a game made here replaces the shipped game of its name" "$games"
+[[ $(jq -r '.[2].title' <<<"$games") == 'Tilt </script><script>alert(1)</script>' ]] || fail "a game is listed by its <title>" "$games"
 (( $(grep -c '</script>' "$vibes/index.html") == 1 )) || fail "a title can't end the list's script"
 pass "Game Vibes lists the games in ~/Games/vibes by their titles"
 
@@ -63,3 +70,10 @@ omarchy-games-vibes-launch snake || fail "Game Vibes opens a game it lists"
 ! omarchy-games-vibes-launch notes 2>/dev/null || fail "Game Vibes refuses a folder that isn't a game"
 ! omarchy-games-vibes-launch ../vibes/snake 2>/dev/null || fail "Game Vibes refuses a path for a game"
 pass "Game Vibes opens straight into a game when it's done"
+
+omarchy-games-vibes-copy chess >/dev/null || fail "a shipped game copies into ~/Games/vibes"
+[[ $(<"$vibes/chess/index.html") == *"<title>Chess</title>"* && -w $vibes/chess/index.html ]] || fail "the copy is the game, and can be changed"
+! omarchy-games-vibes-copy chess 2>/dev/null || fail "a copy never replaces a game in ~/Games/vibes"
+omarchy-games-vibes-copy snake snake-2 >/dev/null && [[ $(<"$vibes/snake-2/index.html") == *"<title>Snake</title>"* ]] ||
+  fail "a game made here copies under a new name, from the user's own version"
+pass "a game in Game Vibes copies into ~/Games/vibes to keep working on"

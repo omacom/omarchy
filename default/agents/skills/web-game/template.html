@@ -39,6 +39,7 @@
 <div id="paused" class="screen"><div>
   <h1>PAUSED</h1>
   <p>Press <span class="key">Esc</span> to resume</p>
+  <p class="leave">Press <span class="key">Q</span> to go back to Game Vibes</p>
 </div></div>
 
 <div id="over" class="screen"><div>
@@ -187,7 +188,7 @@ addEventListener('resize', () => {
 // frame for the screens, and once per simulation step inside update(), so a press is never lost or doubled.
 const ACTIONS = {
   left: ['ArrowLeft', 'KeyA'], right: ['ArrowRight', 'KeyD'], up: ['ArrowUp', 'KeyW'], down: ['ArrowDown', 'KeyS'],
-  action: ['Space', 'Enter'], pause: ['Escape', 'KeyP'], mute: ['KeyM'], help: ['Slash'],
+  action: ['Space', 'Enter'], pause: ['Escape', 'KeyP'], leave: ['KeyQ'], mute: ['KeyM'], help: ['Slash'],
 };
 const _held = new Set(), _pressed = new Set(), _stepPressed = new Set();
 let _inStep = false;
@@ -382,6 +383,8 @@ function endRound(won, { title, detail } = {}) {
   show(won ? 'won' : 'over');
 }
 
+for (const line of document.querySelectorAll('.leave')) line.hidden = history.length <= 1;
+
 // The loop: keys → fixed-step simulation → draw → render. Game rules never run in draw.
 const STEP = 1 / 120, _clock = new THREE.Clock();
 let _accumulator = 0;
@@ -402,6 +405,7 @@ function frame() {
     if (!kept && (wasPressed('action') || wasClicked(0))) startRound();
   } else if (state === 'paused') {
     if (wasPressed('pause')) show('playing');
+    else if (wasPressed('leave') && history.length > 1) history.back();   // back to Game Vibes, mid-round
   } else if (wasPressed('pause')) {
     show('paused');
   } else {

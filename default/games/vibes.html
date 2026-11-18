@@ -21,9 +21,10 @@
 <body>
 <main>
   <h1>GAME VIBES</h1>
-  <p class="dim">Arrows and Enter to play · Esc on a game's title screen comes back here</p>
+  <p class="dim">Arrows and Enter to play · Esc on a game's title screen, or Q when it's paused, comes back here</p>
   <div id="games"></div>
-  <p id="empty" hidden>No games yet. Make one from the agents panel: <span style="color: var(--accent)">Make something cool → Game</span>.</p>
+  <p id="empty" hidden>No games yet.</p>
+  <p class="dim">Make a new one, or keep working on one of these, from the agents panel: <span style="color: var(--accent)">Make something cool → Game</span>.</p>
 </main>
 <script>
 const GAMES = /*GAMES*/[];
@@ -47,10 +48,10 @@ const list = document.getElementById('games');
 for (const game of GAMES) {
   const link = document.createElement('a');
   // The fragment goes along, so each game opens in the theme too.
-  link.href = `${encodeURIComponent(game.name)}/index.html${location.hash}`;
+  link.href = `${game.url}/index.html${location.hash}`;
   if (game.icon) {
     const img = document.createElement('img');
-    img.src = `${encodeURIComponent(game.name)}/icon.svg`;
+    img.src = `${game.url}/icon.svg`;
     img.alt = '';
     link.append(img);
   } else {
@@ -65,7 +66,7 @@ for (const game of GAMES) {
 document.getElementById('empty').hidden = GAMES.length > 0;
 list.querySelector('a')?.focus();
 // After load: Chrome makes a navigation started while the page loads replace it, which would leave no list to go back to.
-if (open) addEventListener('load', () => setTimeout(() => { location.href = `${encodeURIComponent(open.name)}/index.html${location.hash}`; }));
+if (open) addEventListener('load', () => setTimeout(() => { location.href = `${open.url}/index.html${location.hash}`; }));
 
 // Arrows move through the grid as it is laid out.
 addEventListener('keydown', event => {
