@@ -139,7 +139,27 @@ run_migration "$home" 'XKBLAYOUT=us' 2>"$tmp_dir/variable-output" || fail "varia
 grep -Fq 'kb_options in' "$tmp_dir/variable-output" || fail "variable settings are named in a warning"
 ! grep -Fq 'kb_options' "$home/.config/hypr/input.lua" || fail "unresolved hyprlang variables do not become Lua settings"
 grep -Fq 'kb_layout = "de"' "$home/.config/hypr/input.lua" || fail "settings beside a variable are still migrated"
-pass "variable settings are left to Quattro with a warning"
+pass "unresolvable variable settings are left to Quattro with a warning"
+
+home="$tmp_dir/resolved-variable"
+mkdir -p "$home/.config/hypr"
+printf '%s\n' '-- Quattro input overrides' >"$home/.config/hypr/input.lua"
+printf 'input {\n  kb_options = $opts,$swap\n}\n' >"$home/.config/hypr/input.conf"
+printf '$compose = compose:ralt\n$opts = $compose # the compose key\n$swap = ctrl:swapcaps\n' >"$home/.config/hypr/hyprland.conf"
+run_migration "$home" 'XKBLAYOUT=us'
+grep -Fq 'kb_options = "compose:ralt,ctrl:swapcaps"' "$home/.config/hypr/input.lua" || fail "variables defined in the legacy configs are resolved, nested ones too"
+pass "variable settings defined in the legacy configs are carried across"
+
+home="$tmp_dir/ambiguous-variable"
+mkdir -p "$home/.config/hypr"
+printf '%s\n' '-- Quattro input overrides' >"$home/.config/hypr/input.lua"
+printf 'input {\n  kb_options = $opts\n}\n' >"$home/.config/hypr/input.conf"
+printf '$opts = ctrl:nocaps\n' >"$home/.config/hypr/hyprland.conf"
+printf '$opts = ctrl:swapcaps\n' >"$home/.config/hypr/envs.conf"
+run_migration "$home" 'XKBLAYOUT=us' 2>"$tmp_dir/ambiguous-output"
+grep -Fq 'kb_options in' "$tmp_dir/ambiguous-output" || fail "a variable defined two ways is named in a warning"
+! grep -Fq 'kb_options' "$home/.config/hypr/input.lua" || fail "a variable defined two ways is not guessed"
+pass "variables defined two different ways are left to Quattro with a warning"
 
 copy_line=$(grep -n '^copy_always_config_defaults$' "$upgrade_script" | cut -d: -f1)
 migrate_line=$(grep -n '^migrate_legacy_hypr_input$' "$upgrade_script" | cut -d: -f1)

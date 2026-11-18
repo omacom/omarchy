@@ -1772,6 +1772,33 @@ legacy_hypr_input_value() {
   ' "$file"
 }
 
+# A hyprlang variable's value, when the legacy configs define it once or always alike.
+legacy_hypr_variable() {
+  awk -v name="$1" '
+    /^[[:space:]]*#/ { next }
+    $0 ~ "^[[:space:]]*[$]" name "[[:space:]]*=" {
+      value = $0
+      sub(/^[^=]*=[[:space:]]*/, "", value)
+      sub(/[[:space:]]*#.*/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      seen[value] = 1
+    }
+    END { for (v in seen) { count++; last = v } if (count == 1) print last; else exit 1 }
+  ' "$HOME"/.config/hypr/*.conf 2>/dev/null
+}
+
+legacy_hypr_expand_variables() {
+  local value="$1" name replacement pass
+
+  for pass in {1..20}; do
+    [[ $value =~ [$]([A-Za-z_][A-Za-z0-9_]*) ]] || { printf '%s\n' "$value"; return 0; }
+    name=${BASH_REMATCH[1]}
+    replacement=$(legacy_hypr_variable "$name") || return 1
+    value=${value/"\$$name"/"$replacement"}
+  done
+  return 1
+}
+
 legacy_vconsole_value() {
   [[ -f /etc/vconsole.conf ]] || return 0
   awk -v key="$1" '
@@ -1825,9 +1852,9 @@ migrate_legacy_hypr_input() {
 
   for key in "${keys[@]}"; do
     if value=$(legacy_hypr_input_value "$key" "$legacy_file"); then
-      # Stopping here would leave a half-upgraded machine, so leave the key to Quattro and say so.
-      if [[ $value == *'$'* ]]; then
-        printf 'Warning: %s in %s uses a variable, which cannot be copied into Lua; set it in %s after the upgrade.\n' "$key" "$legacy_file" "$input_file" >&2
+      # Stopping here would leave a half-upgraded machine, so an unresolvable variable is left to Quattro, said aloud.
+      if [[ $value == *'$'* ]] && ! value=$(legacy_hypr_expand_variables "$value"); then
+        printf 'Warning: %s in %s uses a variable that could not be resolved; set it in %s after the upgrade.\n' "$key" "$legacy_file" "$input_file" >&2
         continue
       fi
       [[ $key == kb_variant ]] && legacy_variant=$value
