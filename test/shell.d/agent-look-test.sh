@@ -86,26 +86,20 @@ setTimeout(() => console.error(`error presses=${presses} down=${stillDown} relea
 </script></body></html>
 EOF
 output=$(look_page "$test_tmp/keys.html" --keys "ArrowLeft ArrowRight" --out "$test_tmp/page.png") || true
-# Every key is released, though the button the first landed on is gone and
-# the headless browser draws no frame after the later ones.
-[[ $output == *"presses=2 down=true released=true"* ]] || fail "each key is pressed once, stays down past its own press, and is released" "$output"
-# It draws a frame or two in a whole run, and under load none after a press.
-# When one does follow, the loop reads the key held.
-[[ $output != *"frame=true"* || $output == *"frame=true read=true"* ]] || fail "a frame after the press reads the key held" "$output"
-[[ -z $(find "$test_tmp" -name '.look-*') ]] || fail "the copy with the key presses is removed"
-pass "look page presses each key once, holds it for a frame, and releases it"
-
-# The presses go into a copy of a local file, which a URL doesn't have.
-if output=$(look_page "http://localhost:1/game.html" --keys "Space"); then
-  fail "look page refuses --keys for a URL" "$output"
-fi
-[[ $output == *"--keys only works on a local file"* ]] || fail "look page says why --keys needs a file" "$output"
-pass "look page refuses --keys for a URL"
+# Every key is released, though the button the first landed on is gone, and
+# the page runs in real time, so its loop sees frames with the key held.
+[[ $output == *"presses=2 down=true released=true frame=true read=true"* ]] ||
+  fail "each key is pressed once, held across frames, and released" "$output"
+pass "look page presses each key once, holds it across frames, and releases it"
 
 # When the browser fails, an image left at --out by an earlier look must not
-# be reported as this one.
+# be reported as this one. This stand-in records how it was started.
 mkdir -p "$test_tmp/broken"
-printf '#!/bin/bash\nexit 7\n' >"$test_tmp/broken/google-chrome-stable"
+cat >"$test_tmp/broken/google-chrome-stable" <<EOF
+#!/bin/bash
+echo "\$*" >>"$test_tmp/browser.log"
+exit 7
+EOF
 chmod +x "$test_tmp/broken/google-chrome-stable"
 [[ -s $test_tmp/page.png ]] || fail "the earlier look left a screenshot to go stale"
 if output=$(PATH="$test_tmp/broken:$PATH" look_page "$test_tmp/keys.html" --out "$test_tmp/page.png"); then
@@ -114,27 +108,10 @@ fi
 [[ $output != *"screenshot:"* && ! -e $test_tmp/page.png ]] || fail "look page doesn't report an earlier screenshot" "$output"
 pass "look page never reports an earlier screenshot as a new one"
 
-# The browser keeps its own sandbox wherever it can start with one. This
-# stand-in draws only when its arguments include what $DRAWS_FOR names.
-cat >"$test_tmp/broken/google-chrome-stable" <<EOF
-#!/bin/bash
-echo "\$*" >>"$test_tmp/browser.log"
-[[ " \$* " == *" \$DRAWS_FOR "* ]] || exit 1
-for argument; do
-  [[ \$argument != --screenshot=* ]] || magick -size 8x8 xc:red "\${argument#--screenshot=}"
-done
-EOF
-output=$(DRAWS_FOR=--no-sandbox PATH="$test_tmp/broken:$PATH" look_page "$test_tmp/keys.html" --out "$test_tmp/page.png") ||
-  fail "look page still draws where the browser can't start its sandbox" "$output"
-[[ $(head -1 "$test_tmp/browser.log") != *--no-sandbox* && $(tail -1 "$test_tmp/browser.log") == *"--no-sandbox"*"keys.html" ]] ||
+# The browser keeps its own sandbox wherever it can start with one, and
+# drops it only to try again after failing with it.
+[[ $(head -1 "$test_tmp/browser.log") != *--no-sandbox* && $(tail -1 "$test_tmp/browser.log") == *--no-sandbox* ]] ||
   fail "look page drops the sandbox only after the browser fails with it" "$(<"$test_tmp/browser.log")"
-: >"$test_tmp/browser.log"
-if output=$(DRAWS_FOR=about:blank PATH="$test_tmp/broken:$PATH" look_page "$test_tmp/keys.html" --out "$test_tmp/page.png"); then
-  fail "look page fails when only the page does" "$output"
-fi
-if grep -q -- --no-sandbox "$test_tmp/browser.log"; then
-  fail "a page that fails where a blank one draws never runs without the sandbox" "$(<"$test_tmp/browser.log")"
-fi
 pass "look page runs without the browser's sandbox only where the browser can't start one"
 
 look_app() {

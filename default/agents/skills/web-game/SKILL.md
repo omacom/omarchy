@@ -90,4 +90,4 @@ omarchy agent look page index.html --keys "Space ArrowLeft ArrowLeft" --after 30
 omarchy agent look page index.html --keys "Space ArrowLeft ArrowLeft" --after 8000
 ```
 
-Between the two shots the score should rise and the world should have moved. If the run is already over, or nothing changed, find out why before adding anything else. The headless browser draws few frames and the loop caps each step, so game time runs far slower there than on a real screen: a score of 5 where a player would have 200 is expected, and only a score that doesn't rise at all is a bug. Never open the page in the user's browser to test it; tell them where it is when it's done.
+The page runs in real time on the GPU, as it would for a player, and `--after` is how long it plays before the shot. Between the two shots the score should rise and the world should have moved about as far as a player would see in five seconds. If the run is already over, or nothing changed, find out why before adding anything else. Never open the page in the user's browser to test it; tell them where it is when it's done.
