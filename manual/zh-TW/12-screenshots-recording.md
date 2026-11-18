@@ -1,83 +1,83 @@
-# 截圖與螢幕錄影
+# 螢幕截圖與錄影
 
-所有能從畫面上擷取的東西，都掛在 Print Screen 鍵上。單獨按這個鍵會拍一張圖片，而搭配修飾鍵則可以錄影、選取顏色，或擷取某個區域內的文字。如果你的鍵盤根本沒有 Print Screen 鍵，`Super + Ctrl + Alt + C` 可以拍出相同的截圖，而 `Super + Ctrl + C` 則會以選單形式開啟整組功能。
+從螢幕上能抓取的一切，全都掛在 Print Screen 鍵上。單獨按這顆鍵就是拍一張圖，搭配修飾鍵則是錄影、取色，或擷取某個區域內的文字。如果你的鍵盤根本沒有 Print Screen 鍵，`Super + Ctrl + Alt + C` 也能拍出同樣的截圖，`Super + Ctrl + C` 則會把整組功能以選單方式打開。
 
-| 熱鍵 | 功能 |
+| 快捷鍵 | 功能 |
 | ------ | -------- |
-| `Print Screen` | 截圖 |
-| `Super + Ctrl + Alt + C` | 截圖 |
+| `Print Screen` | 螢幕截圖 |
+| `Super + Ctrl + Alt + C` | 螢幕截圖 |
 | `Alt + Print Screen` | 螢幕錄影（或停止正在進行的錄影） |
-| `Super + Print Screen` | 選色器 |
+| `Super + Print Screen` | 色彩選取器 |
 | `Super + Ctrl + Print Screen` | 從區域擷取文字 |
 | `Super + Ctrl + C` | 擷取選單 |
 | `Super + Ctrl + .` | 轉碼圖片或影片 |
 
-## 截圖
+## 螢幕截圖
 
-按下 `Print Screen`（或 `Super + Ctrl + Alt + C`），Omasnap 會在其覆蓋層出現之前擷取已聚焦的螢幕，所以你在瞄準時，畫面不會在你底下移位。拖曳選取一個任意形狀的區域、點按某個視窗來擷取它，或點按空白處來擷取整個螢幕。在開始繪製之前先按 `S`，可以擷取捲動區域。改變主意了嗎？再按一次相同的按鍵，即可關閉 Omasnap。
+按下 `Print Screen`（或 `Super + Ctrl + Alt + C`），Omasnap 會在它的覆蓋層出現之前先擷取目前聚焦的螢幕，所以你瞄準時畫面不會在你底下位移。拖出任意形狀的區域、點一下某個視窗來擷取它，或點一下空白處來擷取整個螢幕。在開始拖曳前按 `S`，可以擷取可捲動區域。改變主意了？再按一次同一顆鍵就能關閉 Omasnap。
 
-選取區域之後，Omasnap 會儲存擷取內容、將它複製到剪貼簿，並顯示帶有縮圖的通知，就像已儲存的螢幕錄影一樣。選擇「開啟」可以在你的圖片檢視器中查看已儲存的截圖，或選擇「編輯」來為它加上註解。
+選好區域後，Omasnap 會儲存擷取結果、複製到剪貼簿，並顯示帶有縮圖的通知，和儲存後的螢幕錄影一樣。選擇 Open 在圖片檢視器裡查看已儲存的截圖，或選擇 Edit 來為它加註。
 
-註解編輯器可以繪製箭頭、線條、形狀、醒目提示、編號標記、文字和安全遮蔽；裁剪或挖除圖片的一部分；對其文字進行 OCR；以及加上背景。在編輯器中，按 `Enter` 可以複製並儲存完成的 PNG，按 `Ctrl + C` 可以只複製而不儲存，或按 `Ctrl + S` 可以只儲存而不複製。
+加註編輯器可以畫箭頭、線條、形狀、螢光標示、編號標記、文字，以及安全遮蔽；裁切或挖除部分圖片；對圖片文字進行 OCR；並加上背景襯底。在編輯器中，按 `Enter` 複製並儲存完成的 PNG，按 `Ctrl + C` 只複製不儲存，或按 `Ctrl + S` 只儲存不複製。
 
-已儲存的截圖預設會落在 `~/Pictures/Screenshots`，名稱例如 `screenshot-2026-08-13_14-22-05-firefox.png`。設定 `OMASNAP_SCREENSHOT_DIR` 可以使用其他目錄——請參見[常見問題](46-faq.md)，瞭解工作階段環境變數應該放在何處。Omasnap 會在儲存第一張截圖時建立該目錄。在 `~/.config/omasnap/omasnap.conf` 中設定 `[output] autosave = false` 可以停用自動儲存；此時擷取內容只會被複製，並顯示在一個為期 10 秒的預覽中，你可以用它的釘選按鈕或 `Ctrl + P` 讓它保持在畫面上。
+已儲存的截圖預設會落在 `~/Pictures/Screenshots`，名稱像 `screenshot-2026-08-13_14-22-05-firefox.png`。設定 `OMASNAP_SCREENSHOT_DIR` 可以改用其他目錄 — 要把工作階段環境變數放在哪裡，請看[常見問題](46-faq.md)。Omasnap 會在儲存第一張截圖時建立該目錄。在 `~/.config/omasnap/omasnap.conf` 裡設定 `[output] autosave = false` 可以停用自動儲存；此後擷取結果只會被複製，並在預覽中顯示 10 秒，你可以用它的釘選按鈕或 `Ctrl + P` 把它保留在螢幕上。
 
-從終端機來看，`omarchy screenshot` 會開啟相同的覆蓋層，而且你可以選擇它的起始模式：`omarchy capture screenshot region`、`windows`、`fullscreen` 或 `scroll`。第二個引數使用 `copy` 或 `save`，會把截圖直接送往該目的地。若要在輸出前先編輯，請使用 `omarchy screenshot --editor=overlay` 開啟全螢幕編輯器，或使用 `omarchy screenshot --editor=window` 開啟獨立視窗。
+在終端機裡，`omarchy screenshot` 會打開同一個覆蓋層，你還可以選擇它的起始模式：`omarchy capture screenshot region`、`windows`、`fullscreen` 或 `scroll`。第二個參數給 `copy` 或 `save`，截圖就會直接送往該目的地。要在輸出前先編輯，用 `omarchy screenshot --editor=overlay` 開啟全螢幕編輯器，或用 `omarchy screenshot --editor=window` 開在獨立視窗裡。
 
 ### 用鍵盤操作選取器
 
-選取功能開啟時，你完全不必使用滑鼠：
+選取畫面開啟時，你完全不需要用滑鼠：
 
 | 按鍵 | 功能 |
 | --- | -------- |
-| `S` | 切換捲動區域模式 |
+| `S` | 切換可捲動區域模式 |
 | `Super + Arrow keys` | 在視窗模式中於視窗之間移動 |
 | `Return` | 擷取反白顯示的視窗 |
-| `Ctrl + A` | 擷取完整的已聚焦螢幕 |
-| `R` | 還原本次工作階段中上次繪製的區域 |
+| `Ctrl + A` | 擷取完整的聚焦螢幕 |
+| `R` | 還原本工作階段裡上次拖出的區域 |
 | `Esc` | 關閉 Omasnap |
 
-這些鍵盤綁定只在 Omasnap 開啟時存在，所以它們不會與你自己設定中的任何東西衝突。
+這些綁定只在 Omasnap 開啟時存在，所以不會和你自己設定檔裡的任何東西衝突。
 
 ## 螢幕錄影
 
-`Alt + Print Screen` 會開啟 _Trigger > Capture > Screenrecord_，它會詢問你希望音軌上有什麼：無音訊、桌面音訊、桌面加麥克風，或桌面加麥克風加網路攝影機。最後一項只有在你確實接上攝影機時才會出現。選好一項之後，Omarchy 的錄影選取器會讓你拖曳選取一個區域，或點按某個視窗或螢幕。
+`Alt + Print Screen` 會開啟 _Trigger > Capture > Screenrecord_，它會問你要什麼樣的音軌：無音訊、桌面音訊、桌面加麥克風，或桌面加麥克風加網路攝影機。最後一個選項只有在你真的接了攝影機時才會出現。選好後，Omarchy 的錄影選取器讓你拖出一個區域，或點選某個視窗或螢幕。
 
-錄影以 gpu-screen-recorder 執行，它會在 GPU 上以 60fps 編碼，必要時則退回使用 CPU。成果是位於 `~/Videos` 的一個 MP4，名稱為 `screenrecording-2026-08-13_14-22-05.mp4`。設定 `OMARCHY_SCREENRECORD_DIR` 可以變更這個位置——但請注意，與截圖目錄不同，這個目錄必須已經存在，否則錄影將拒絕開始。
+錄影是靠 gpu-screen-recorder 運作，它以 60fps 在 GPU 上編碼，必要時會退回 CPU。產生的成品是放在 `~/Videos` 裡的 MP4，名稱像 `screenrecording-2026-08-13_14-22-05.mp4`。設定 `OMARCHY_SCREENRECORD_DIR` 可以更換 — 但要注意，和截圖目錄不同，這個目錄必須預先存在，否則錄影會拒絕開始。
 
-錄影期間，狀態列中會出現一個小小的指示器。點按它即可停止。你也可以再次按 `Alt + Print Screen` 來停止，或使用 _Trigger > Capture > Screenrecord_ 底下的 _Stop Screenrecording_ 項目，該項目只會在確實有東西正在錄影時出現。
+錄影時，狀態列上會出現一個小指示器。點它就能停止。你也可以再按一次 `Alt + Print Screen` 停止，或用 _Trigger > Capture > Screenrecord_ 底下的 _Stop Screenrecording_ 項目停止；該項目只在真的有東西正在錄製時才會出現。
 
-停止時，它會先做一點整理再把檔案交給你：第一個畫面會被修剪掉，而如果有音訊，它會被正規化到 -14 LUFS，並將最一開始的 PipeWire 擷取爆音靜音。接著會出現一個帶有錄影縮圖的通知。點按它，就可以在 mpv 中播放該檔案。
+停止時，它在把檔案交給你之前會做一點整理：修剪第一個畫格；如果有音訊，會正規化到 -14 LUFS，並把開頭最前面的 PipeWire 擷取爆音消音。接著會跳出通知，帶著來自錄影的縮圖。點它就在 Omaview 裡播放該檔案。
 
 ### 網路攝影機覆蓋層
 
-當你使用網路攝影機錄影時，攝影機畫面會以一個釘選、裁剪過的直式視窗，出現在你正在錄製之畫面的右下角。如果它正好擋住你需要的東西，可以即時調整它的大小：
+當你搭配網路攝影機錄影時，攝影機畫面會以釘選、裁切為直向的視窗出現在你所錄製畫面的右下角。如果它剛好壓在你需要看的東西上，就即時調整大小：
 
-| 熱鍵 | 功能 |
+| 快捷鍵 | 功能 |
 | ------ | -------- |
-| `Super + Alt + [` | 讓網路攝影機覆蓋層變小 |
-| `Super + Alt + ]` | 讓網路攝影機覆蓋層變大 |
+| `Super + Alt + [` | 把網路攝影機覆蓋層變小 |
+| `Super + Alt + ]` | 把網路攝影機覆蓋層變大 |
 
-共有三種尺寸——小、中、大——而這些熱鍵可以在它們之間逐步切換。中是預設值。它們會與錄影內容成比例，所以無論你錄的是 1080p 螢幕還是 6K 螢幕，攝影機佔據畫面的比例都相同。而且，如果你錄的是一個區域而非整個顯示器，覆蓋層會錨定在該區域的角落而非螢幕的角落，所以它會留在畫面之內。
+一共有三種大小 — 小、中、大 — 快捷鍵會在它們之間逐步切換。預設是中。它們和錄影畫面成比例，所以不論你錄的是 1080p 螢幕還是 6K 螢幕，攝影機在畫面中佔的比例都一樣。而且如果你錄的是某個區域而不是整個顯示器，覆蓋層會錨在那個區域的角落而非螢幕的角落，所以它會留在畫面裡。
 
-你也可以直接用 `omarchy-capture-webcam-resize small` 來呼叫它，或用 `reset` 回到中尺寸。
+你也可以直接用 `omarchy-capture-webcam-resize small` 呼叫，或用 `reset` 回到中。
 
-## 文字、QR 碼與顏色
+## 文字、QR 碼與色彩
 
-`Super + Ctrl + Print Screen` 會選取一個區域，並將它 OCR 後放到剪貼簿。這在[文字擷取與聽寫](11-text-extraction-dictation.md)中有完整的說明。
+`Super + Ctrl + Print Screen` 會選取一個區域並透過 OCR 把文字送到剪貼簿。這部分的完整說明在[文字擷取與聽寫](11-text-extraction-dictation.md)。
 
-_Trigger > Capture > QR Code_ 對 QR 碼使用相同的手法。選取包含該碼的區域，解碼後的值就會進到剪貼簿。它只會尋找 QR 碼——否則密集的螢幕內容很容易被誤判為條碼。有一點值得知道：解碼後的值只會進到剪貼簿，不會去其他任何地方。它不會被印出來，不會出現在通知中，而且會被標記為敏感內容，所以不會留在[剪貼簿記錄](08-unified-clipboard-history.md)裡。QR 碼經常攜帶秘密——例如 2FA 設定碼背後的 `otpauth://` URI——而你不會想讓那種東西出現在記錄檔中。貼上仍然可以正常運作。
+_Trigger > Capture > QR Code_ 對 QR 碼也玩同一招。選取包含該碼的區域，解碼後的值就會進入剪貼簿。它只找 QR 碼 — 否則密集的螢幕內容動不動就會被誤判為條碼。值得知道的是：解碼後的值只會進入剪貼簿，不去任何其他地方。它不會被輸出、不會出現在通知裡，也會被標記為敏感內容，所以不會留在[剪貼簿歷史記錄](08-unified-clipboard-history.md)裡。QR 碼經常藏著祕密 — 例如 2FA 設定碼背後的 `otpauth://` URI — 你不會想讓那種東西留在記錄裡。貼上仍然照常運作。
 
-`Super + Print Screen`（或 _Trigger > Capture > Color_）會把游標變成滴管。點按畫面上的任何東西，該顏色就會落到剪貼簿上。再次按下熱鍵，即可在不選取的情況下退出。
+`Super + Print Screen`（或 _Trigger > Capture > Color_）會把游標變成滴管。點一下螢幕上任何東西，那個色彩就會落在剪貼簿裡。再按一次快捷鍵就能不取色地退出。
 
 ## 分享前先轉碼
 
-一段 4K 螢幕錄影，或一張從你手機出來的原始 HEIC，往往太大而無法直接傳送。`Super + Ctrl + .`（或 _Trigger > Transcode_）可以修正這件事。它會在 `~/Pictures` 和 `~/Videos` 之上提供一個模糊搜尋的檔案選取器，然後詢問你要的格式和尺寸。
+4K 螢幕錄影或手機來的原始 HEIC 往往太大，沒法直接傳。`Super + Ctrl + .`（或 _Trigger > Transcode_）就是來解決這個的。它會提供一個模糊搜尋的檔案選取器，範圍涵蓋 `~/Pictures` 和 `~/Videos`，接著詢問格式和大小。
 
-圖片會轉成 jpg 或 png 的高、中或低品質，其寬度上限分別為 3160、2160 和 1080 像素。影片會轉成 mp4 或動畫 gif，解析度為 4k、1080p 或 720p。轉換後的檔案會寫在原始檔案旁邊，名稱中帶有解析度——`demo-1080p.mp4`——而且該路徑會以檔案 URI 的形式複製到剪貼簿，所以你可以直接把它貼進接受檔案放入的應用程式。
+圖片轉成 jpg 或 png，可選高、中、低，寬度上限分別為 3160、2160 和 1080 像素。影片轉成 mp4 或動態 gif，可選 4k、1080p 或 720p。轉換後的檔案會寫在原始檔案旁邊，檔名帶有解析度 — `demo-1080p.mp4` — 路徑也會以檔案 URI 的形式複製到剪貼簿，所以你可以直接貼進接受檔案拖放的應用程式。
 
-如果你已經知道自己要什麼，它也可以從終端機運作：`omarchy transcode ~/Videos/demo.mov mp4 1080p`。另外還有 `omarchy transcode ascii`，它會把一張圖片變成 ASCII 藝術——那個主要是給[品牌](41-branding.md)用的。
+如果你已經知道自己要什麼，從終端機也能操作：`omarchy transcode ~/Videos/demo.mov mp4 1080p`。還有 `omarchy transcode ascii`，它會把圖片轉成 ASCII 藝術 — 那個主要是給[品牌](41-branding.md)用的。
 
-## 把它傳送到某個地方
+## 把它傳到某個地方
 
-一旦你有了檔案，`Super + Ctrl + S` 會開啟 Share 選單，並透過 LocalSend 把它傳送到你網路上的另一台裝置。相關內容請參見 [GUIs](22-guis.md)。
+有了檔案後，`Super + Ctrl + S` 會開啟 Share 選單，透過 LocalSend 把它傳到你網路上的另一台裝置。詳見[圖形介面](22-guis.md)。

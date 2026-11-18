@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# omarchy:summary=Copy a game in Game Vibes into ~/Games/vibes to keep working on it
+# omarchy:args=<game> [new-name]
+# omarchy:examples=omarchy games vibes copy checkmate | omarchy games vibes copy neon-swarm neon-swarm-2
+
+# A game Omarchy ships is read-only and updates with Omarchy. Copied under its
+# own name, it takes the shipped game's place in Game Vibes and is yours to
+# change; under a new name, it sits beside it. One of your own games copies
+# the same way, to try something without losing what works.
+
+set -euo pipefail
+
+game=${1:-}
+name=${2:-$game}
+if [[ ! $game =~ ^[a-z0-9][a-z0-9-]*$ || ! $name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "Usage: omarchy-games-vibes-copy <game> [new-name], with names of lowercase letters, digits and dashes" >&2
+  exit 1
+fi
+
+vibes="$HOME/Games/vibes"
+if [[ -f $vibes/$game/index.html ]]; then
+  source="$vibes/$game"
+elif [[ -f $OMARCHY_PATH/default/games/vibes/$game/index.html ]]; then
+  source="$OMARCHY_PATH/default/games/vibes/$game"
+else
+  echo "No game called $game in Game Vibes" >&2
+  exit 1
+fi
+
+if [[ -e $vibes/$name ]]; then
+  echo "~/Games/vibes/$name already exists: give the copy another name, like omarchy-games-vibes-copy $game $name-2" >&2
+  exit 1
+fi
+
+mkdir -p "$vibes"
+cp -r "$source" "$vibes/$name"
+chmod -R u+w "$vibes/$name"
+omarchy-games-vibes-install >/dev/null
+echo "Copied $game to ~/Games/vibes/$name"
