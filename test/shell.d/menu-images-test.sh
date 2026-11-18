@@ -46,6 +46,9 @@ cat >"$stub_bin/magick" <<'EOF'
 #!/bin/bash
 
 image=$1
+for arg in "$@"; do
+  [[ $arg == *\[0\] ]] && image=${arg%%\[0\]}
+done
 output=${@: -1}
 if [[ -f ${MAGICK_FAIL_FILE:-} ]] && grep -Fxq "$image" "$MAGICK_FAIL_FILE"; then
   exit 1

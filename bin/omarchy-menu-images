@@ -159,7 +159,9 @@ is_video_path() {
 # losslessly so the dither survives. One process, no intermediate images;
 # -auto-orient keeps phone photos the right way up. Videos keep their own path.
 generate_image_thumbnail() {
-  magick "$1" -auto-orient -filter Lanczos -resize '1536x864^' \
+  # [0] reads only the first frame of an animation; the picker shows a still.
+  # One thread per process keeps the caller's worker fan-out from oversubscribing.
+  magick -limit thread 1 "${1}[0]" -auto-orient -filter Lanczos -resize '1536x864^' \
     -gravity center -extent 1536x864 \
     -attenuate 0.015 +noise Gaussian -strip -depth 8 \
     -define webp:lossless=true "$2"
