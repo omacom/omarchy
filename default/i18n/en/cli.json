@@ -54,8 +54,6 @@
   "agents.wrongAccount": "That's %1, not %2. Try again, and sign in as %2.",
   "animations.disabled": "Animations disabled",
   "animations.enabled": "Animations enabled",
-  "workspaces.perMonitorEnabled": "Per monitor workspaces enabled",
-  "workspaces.globalEnabled": "Global workspace numbering enabled",
   "animations.softwareRendering": "Animations off without a GPU",
   "animations.softwareRenderingBody": "No GPU in use, so animations, blur and shadows are off. Appearance > Animations On brings them back.",
   "audio.micMuted": "Microphone muted",
@@ -477,5 +475,7 @@
   "windowsVm.ramHeader": "How much RAM would you like to allocate to Windows VM?",
   "windowsVm.usernameHeader": "Enter Windows username:",
   "windowsVm.usernamePlaceholder": "Username (Press enter to use default: %1)",
+  "workspaces.perMonitorEnabled": "Per monitor workspaces enabled",
+  "workspaces.globalEnabled": "Global workspace numbering enabled",
   "xbox.rebootNeeded": "Reboot needed to finish setup. Reboot now?"
 }
