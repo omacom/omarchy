@@ -295,9 +295,9 @@
   "reminder.inRemaining": "%1 tra %2 (%3)",
   "reminder.minuteLabel": "Promemoria tra %1 min",
   "reminder.minutesUp": {
-    "many": "I tuoi %1 minuti sono scaduti",
-    "one": "Il tuo %1 minuto è scaduto",
-    "other": "I tuoi %1 minuti sono scaduti"
+    "many": "Tempo scaduto (%1 min)",
+    "one": "Tempo scaduto (%1 min)",
+    "other": "Tempo scaduto (%1 min)"
   },
   "reminder.none": "Nessun promemoria in sospeso",
   "reminder.setForMinutes": {
