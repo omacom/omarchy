@@ -1,9 +1,10 @@
-// Quick math for menu search: typing "25*3" offers "= 75".
+// Quick math for menu search: typing "=25*3" offers "= 75". The leading "="
+// keeps searches that merely contain numbers from turning into sums.
 //
 // A small recursive-descent parser, never eval(), so typed text can't run
 // code. Supports + - * / ^ and **, x or × for times, ÷ for divide,
 // parentheses, unary minus, digit grouping ("1,250"), percentages
-// ("15% of 340", "200 + 10%"), and a leading "=" that forces a bare number.
+// ("15% of 340", "200 + 10%"); "=2024" answers a bare number too.
 //
 // `decimal` is the language's decimal separator; the other of "." and ","
 // is read as digit grouping and dropped. Digits may be typed the way the menu
@@ -135,21 +136,16 @@ function parse(tokens) {
   return result.value
 }
 
-// The answer as a number, or null when the text isn't arithmetic. A bare
-// number ("2024") stays a search unless it starts with "=".
+// The answer as a number, or null unless the text is "=" then arithmetic.
 function evaluate(text, decimal) {
   decimal = decimal === "," ? "," : "."
   var s = normalize(String(text || "").trim(), decimal)
-  var forced = s.charAt(0) === "="
-  if (forced) s = s.slice(1)
+  if (s.charAt(0) !== "=") return null
+  s = s.slice(1)
   if (!/\d/.test(s)) return null
 
   var tokens = tokenize(s, decimal)
   if (!tokens || tokens.length === 0) return null
-  var hasOperator = tokens.some(function(token) {
-    return token.type !== "num" && token.type !== "(" && token.type !== ")"
-  })
-  if (!forced && !hasOperator) return null
 
   try {
     var value = parse(tokens)

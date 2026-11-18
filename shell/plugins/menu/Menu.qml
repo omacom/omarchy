@@ -751,7 +751,7 @@ Item {
       }
       rows = currentRows.concat(drilldownRows)
 
-      // Arithmetic gets its answer on top: "25*3" offers "= 75", and Enter
+      // "=" then arithmetic gets its answer on top: "=25*3" offers "= 75", and Enter
       // copies it.
       var answer = Calc.evaluate(query, Commons.I18n.decimal)
       if (answer !== null) {

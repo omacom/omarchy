@@ -49,7 +49,7 @@ alternate names users already type (`power-menu`, `settings`), kept for
 compatibility — see `AGENTS.md`. Search does not need them: labels, the last
 id segment, and descriptions are all searchable.
 
-Search that reads as arithmetic (`25*3`, `15% of 340`, `=2024`) also gets an answer row on top, computed by `shell/plugins/menu/Calc.js` without `eval`; Enter copies the answer with `wl-copy`.
+Search that starts with `=` and reads as arithmetic (`=25*3`, `=15% of 340`, `=2024`) gets an answer row on top, computed by `shell/plugins/menu/Calc.js` without `eval`; Enter copies the answer with `wl-copy`.
 
 ## Alt variants
 
