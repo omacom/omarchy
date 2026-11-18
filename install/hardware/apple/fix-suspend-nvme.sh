@@ -12,11 +12,11 @@
 # of the combo and was not tested alone; it uses more power while the machine
 # is awake. The udev rule matches 106b:2003, so it does not write D3cold onto
 # the GPU at 0000:01:00.0.
-MACBOOK_MODEL=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
 NVME_PCI="/sys/bus/pci/devices/0000:01:00.0"
+s3x_models='^MacBook9,1$\|^MacBook10,1$\|^MacBookPro13,[12]$\|^MacBookPro14,[12]$'
 
-if [[ $MACBOOK_MODEL =~ MacBook(9,1|10,1)|MacBookPro13,[12]|MacBookPro14,[12] ]]; then
-  echo "Detected MacBook model: $MACBOOK_MODEL"
+if omarchy-hw-match "$s3x_models"; then
+  echo "Detected MacBook model: $(cat /sys/class/dmi/id/product_name 2>/dev/null || true)"
 
   sudo mkdir -p /etc/udev/rules.d
   sudo tee /etc/udev/rules.d/99-omarchy-apple-nvme-d3cold.rules >/dev/null <<'EOF'
@@ -26,7 +26,7 @@ EOF
 
   # MacBookPro14,2 has this same SSD and should stay on deep sleep. The 15-inch
   # models do not have 106b:2003. Widen this only after the same suspend test.
-  if [[ $MACBOOK_MODEL == MacBookPro14,1 ]]; then
+  if omarchy-hw-match '^MacBookPro14,1$'; then
     sudo mkdir -p /etc/limine-entry-tool.d
     sudo tee /etc/limine-entry-tool.d/apple-s3x-suspend.conf >/dev/null <<'EOF'
 # Tested on MacBookPro14,1 only. intel_idle.max_cstate=1 raises idle power use.

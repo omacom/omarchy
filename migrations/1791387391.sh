@@ -1,7 +1,7 @@
 echo "Resume suspend on 2016-2017 MacBooks with Apple S3X NVMe"
 
-product_name=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
-[[ $product_name =~ MacBook(9,1|10,1)|MacBookPro13,[12]|MacBookPro14,[12] ]] || exit 0
+s3x_models='^MacBook9,1$\|^MacBook10,1$\|^MacBookPro13,[12]$\|^MacBookPro14,[12]$'
+omarchy-hw-match "$s3x_models" || exit 0
 
 # Install only the udev rule and, on the MacBookPro14,1, the boot drop-in.
 # Sourcing the leaf would also rewrite and re-enable the older D3cold service.
@@ -18,7 +18,7 @@ fi
 
 # The boot parameters are installed only for the tested MacBookPro14,1.
 # Other models in the installer match keep their current sleep mode.
-[[ $product_name == MacBookPro14,1 ]] || exit 0
+omarchy-hw-match '^MacBookPro14,1$' || exit 0
 
 drop_in=/etc/limine-entry-tool.d/apple-s3x-suspend.conf
 if ! grep -qsF ' mem_sleep_default=s2idle nvme_core.default_ps_max_latency_us=0 intel_idle.max_cstate=1"' "$drop_in"; then
@@ -46,11 +46,19 @@ done
 # not repeat it, while a missing marker still retries a failed rebuild.
 rebuild_marker=/var/lib/omarchy/migrations/1791387391
 
-# omarchy-migrate runs this file with bash -euo pipefail. A failure on the left
-# of && does not abort the script, so a failed rebuild would still be marked done.
 if (( needs_rebuild )) && omarchy-cmd-present limine-mkinitcpio; then
   if [[ ! -e $rebuild_marker ]]; then
-    sudo limine-mkinitcpio
+    rebuild_log=$(mktemp)
+    trap 'rm -f "$rebuild_log"' EXIT
+    sudo limine-mkinitcpio 2>&1 | tee "$rebuild_log"
+
+    # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
+    # That image lacks the suspend parameters, so the migration stays pending.
+    if grep -q 'mkinitcpio failed for kernel' "$rebuild_log"; then
+      echo "A boot image was not rebuilt. Fix the error above, then run omarchy-migrate again before rebooting." >&2
+      exit 1
+    fi
+
     sudo install -Dm644 /dev/null "$rebuild_marker"
   fi
 
