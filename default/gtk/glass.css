@@ -1,0 +1,7 @@
+/* GTK asks the compositor to blur behind a see-through window only where a
+   backdrop-filter blur covers it, so Glassy windows load this into GTK apps,
+   such as Ghostty and Nautilus. The compositor's own blur settings decide
+   how it looks. */
+window {
+  backdrop-filter: blur(20px);
+}

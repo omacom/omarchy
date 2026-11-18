@@ -9,7 +9,9 @@ require_command script
 fns="$ROOT/default/bash/fns/ssh-reconnect"
 
 # The behavior tests patch the 30-second drop threshold down to 2 seconds so
-# they run quickly; make sure the marker they patch still exists.
+# they run quickly; make sure the marker they patch still exists. (Not 1:
+# SECONDS is whole seconds, so a fast failure that crosses a second
+# boundary would read as 1s elapsed and reconnect.)
 grep -q 'SECONDS - started < 30' "$fns" ||
   fail "drop threshold marker exists for test patching"
 pass "drop threshold marker exists for test patching"
@@ -144,11 +146,11 @@ printf '%s\n' "$plan" >"$fake_dir/plan"
 rm -f "$fake_dir/count"
 out=$({
   printf 'ssh host\n'
-  command sleep 4
+  command sleep 2.5
   printf '\003'
-  command sleep 1
+  command sleep 0.5
   printf 'echo DONE rc=$?\n'
-  command sleep 1
+  command sleep 0.5
   printf 'exit\n'
 } | script -qec "bash --rcfile '$fake_dir/rcfile' -i" /dev/null | tr -d '\r')
 [[ $out == *"Connection lost"* ]] && [[ $out == *"DONE rc=130"* ]] && (( $(attempts) < 10 )) ||
