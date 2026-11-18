@@ -257,6 +257,17 @@ mapfile -t same_result < <(source_bootstrap_env bash \
   fail "a session keeps tool paths mise already added" "actual PATH: ${same_result[12]}"
 pass "the same account keeps explicit XDG defaults and its mise session"
 
+same_account_functions=$(env -i HOME="$home" PATH=/usr/bin bash -c '
+  stat() { :; }
+  getent() { :; }
+  . "$1"
+  type -t stat
+  type -t getent
+' sh "$bootstrap")
+[[ $same_account_functions == $'function\nfunction' ]] ||
+  fail "a fresh shell preserves existing stat and getent functions" "$same_account_functions"
+pass "a fresh shell preserves existing stat and getent functions"
+
 # No recorded owner. A directory this user created only looks like another
 # home's default; it is an override and stays. A standard default this user
 # does not own was inherited and is dropped.

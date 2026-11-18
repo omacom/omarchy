@@ -58,7 +58,7 @@ if [ -n "$omarchy_home" ]; then
       esac
       # shellcheck disable=SC3040
       set -o posix
-      unset -f unset shopt command builtin stat getent 2>/dev/null || :
+      unset -f unset shopt command builtin 2>/dev/null || :
       if [ -z "$omarchy_was_posix" ]; then
         # shellcheck disable=SC3040
         set +o posix
