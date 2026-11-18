@@ -173,11 +173,14 @@ toggle_from_daylight 100
 [[ $(<"$STATE") == 4000 && ! -e $BOOT_PENDING ]] || fail "a freshly started hyprsunset can't undo the toggle with its default"
 pass "a freshly started hyprsunset can't undo the toggle with its default"
 
+# A hyprsunset another user is running answers pgrep but owns a socket this
+# session's hyprctl can never reach, so it is no daemon to wait for.
 rm -f "$STATE"
 : >"$SHELL_LOG"
+printf '#!/bin/bash\nfor arg in "$@"; do [[ $arg == "-u" ]] && exit 1; done\nexit 0\n' >"$TMPDIR/bin/pgrep"
 [[ $(nightlight_cli --status | jq -r .enabled) == "false" ]] && ! grep -q '^sleep' "$SHELL_LOG" || \
-  fail "nightlight status reads no daemon as off without waiting"
-pass "nightlight status reads no daemon as off without waiting"
+  fail "nightlight status doesn't wait for another user's hyprsunset"
+pass "nightlight status doesn't wait for another user's hyprsunset"
 
 # The click that launches hyprsunset turns night light on, even when the daemon
 # boots into a warm profile and answers by the time the toggle reads it.
