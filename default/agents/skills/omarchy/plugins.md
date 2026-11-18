@@ -73,7 +73,53 @@ BarWidget {
   curl -s https://raw.githubusercontent.com/ryanoasis/nerd-fonts/master/glyphnames.json \
     | jq -r 'to_entries[] | select(.key | test("^md-.*timer")) | "\(.key) \(.value.char)"'
   ```
-- `$OMARCHY_PATH/shell/plugins/panels/clock/BarWidget.qml` is the reference for anything more: a popup panel, settings from `shell.json`, and IPC.
+- A card that opens on click, for details that don't fit the bar, is a `PopupCard` in the widget, the way the media widget shows the playing track. It grows from the widget and fades, closes when the user clicks anywhere else (by calling the widget's `close()`), and mirrors for right-to-left languages. In the counter above, left click opens it and right click resets:
+
+  ```qml
+  property bool popupOpen: false
+  function close() { popupOpen = false }
+
+  WidgetButton {
+    // ...as above, with:
+    onPressed: function(mouseButton) {
+      if (mouseButton === Qt.RightButton) { root.count = 0 } else { root.popupOpen = !root.popupOpen }
+    }
+  }
+
+  PopupCard {
+    id: popup
+    anchorItem: root
+    bar: root.bar
+    owner: root
+    open: root.popupOpen
+    contentWidth: popup.fittedContentWidth(Style.space(280))
+    contentHeight: popup.fittedContentHeight(column.implicitHeight)
+
+    Column {
+      id: column
+      width: parent.width
+      spacing: Style.space(6)
+
+      Text {
+        textFormat: Text.PlainText
+        text: strings.t("title")
+        color: Commons.Color.popups.text
+        font.family: Style.font.family
+        font.pixelSize: Style.font.subtitle
+        font.bold: true
+      }
+      Text {
+        textFormat: Text.PlainText
+        text: Commons.I18n.formatNumber(root.count)
+        color: Commons.Color.popups.text
+        font.family: Style.font.family
+        font.pixelSize: Style.font.body
+      }
+    }
+  }
+  ```
+
+  This needs `import qs.Commons as Commons` beside `import qs.Commons`. A keyboard-driven panel that a hotkey summons is more: `$OMARCHY_PATH/shell/plugins/panels/clock/` is the reference for that, for settings from `shell.json`, and for IPC.
 
 Then check it, look at it, and put it on the bar. `omarchy agent look plugin <dir>` renders the widget in a bar strip with the current theme, without touching the running bar, and lists the QML errors it logged; open the image it prints and fix what looks wrong. Saving any file under the plugin folder reloads it on the bar:
 
