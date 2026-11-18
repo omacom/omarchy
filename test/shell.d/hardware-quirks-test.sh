@@ -198,6 +198,11 @@ machine() {
   unset OMARCHY_IMAGE_DEFERRED_HARDWARE
 
   dmi() { printf '%s\n' "$2" >"$hw/dmi/$1"; }
+  apple_nvme() {
+    local dev=$root/sys/bus/pci/devices/0000:01:00.0
+    mkdir -p "$dev"
+    printf '%s\n' "$1" >"$dev/vendor"
+  }
   xps13() { dmi sys_vendor "Dell Inc."; dmi product_name "XPS 13 ${1:-DX13260}"; dmi product_sku "${2:-0E53}"; }
   synaptics() { printf '%s\n' 'N: Name="SynPS/2 Synaptics TouchPad"' >"$hw/input-devices"; }
   surface() { dmi sys_vendor "Microsoft Corporation"; dmi product_name "$1"; }
@@ -230,6 +235,11 @@ machine() {
     macbookpro13) dmi product_name "MacBookPro13,2" ;;
     macbook8) dmi product_name "MacBook8,1" ;;
     macbookpro15) dmi product_name "MacBookPro15,1" ;;
+    macbookpro14-1) dmi product_name "MacBookPro14,1"; apple_nvme 0x106b ;;
+    macbookpro14-1-other) dmi product_name "MacBookPro14,1"; apple_nvme 0x144d ;;
+    macbookpro14-2) dmi product_name "MacBookPro14,2"; apple_nvme 0x106b ;;
+    macbookpro14-3) dmi product_name "MacBookPro14,3"; apple_nvme 0x1002 ;;
+    macbookpro14-10) dmi product_name "MacBookPro14,10"; apple_nvme 0x106b ;;
     synaptics) synaptics ;;
     synaptics-chroot) synaptics; FAKE_MODPROBE_RESOLVES=1 ;;
     synaptics-psmouse-loaded) synaptics; FAKE_LSMOD="psmouse 217088 0" ;;
@@ -375,6 +385,7 @@ run_leaf() {
 # standing between it and any other machine.
 leaves=(
   hardware/apple/fix-spi-keyboard.sh
+  hardware/apple/fix-suspend-nvme.sh
   hardware/n1x.sh
   hardware/fix-synaptic-touchpad.sh
   hardware/surface.sh
@@ -428,6 +439,14 @@ hardware/apple/fix-spi-keyboard.sh|macbookpro13|0|pkg-add macbook12-spi-driver-d
 hardware/apple/fix-spi-keyboard.sh|macbook8|0|pkg-add macbook12-spi-driver-dkms|wrote etc/mkinitcpio.conf.d/macbook_spi_modules.conf
 hardware/apple/fix-spi-keyboard.sh|macbookpro13+unreadable|0
 hardware/apple/fix-spi-keyboard.sh|macbookpro15|0
+hardware/apple/fix-suspend-nvme.sh|macbookpro14-1|0|sudo systemctl enable omarchy-nvme-suspend-fix.service|wrote etc/limine-entry-tool.d/apple-s3x-suspend.conf|wrote etc/udev/rules.d/99-omarchy-apple-nvme-d3cold.rules|wrote etc/systemd/system/omarchy-nvme-suspend-fix.service
+hardware/apple/fix-suspend-nvme.sh|macbookpro14-1-other|0|wrote etc/limine-entry-tool.d/apple-s3x-suspend.conf|wrote etc/udev/rules.d/99-omarchy-apple-nvme-d3cold.rules
+hardware/apple/fix-suspend-nvme.sh|macbookpro14-2|0|sudo systemctl enable omarchy-nvme-suspend-fix.service|wrote etc/udev/rules.d/99-omarchy-apple-nvme-d3cold.rules|wrote etc/systemd/system/omarchy-nvme-suspend-fix.service
+hardware/apple/fix-suspend-nvme.sh|macbookpro13|0|wrote etc/udev/rules.d/99-omarchy-apple-nvme-d3cold.rules
+hardware/apple/fix-suspend-nvme.sh|macbookpro14-3|0
+hardware/apple/fix-suspend-nvme.sh|macbookpro14-10|0
+hardware/apple/fix-suspend-nvme.sh|macbook8|0
+hardware/apple/fix-suspend-nvme.sh|macbookpro15|0
 hardware/fix-synaptic-touchpad.sh|synaptics|0|modprobe psmouse synaptics_intertouch=1
 # Under arch-chroot the live kernel's modules are not the ones on disk.
 hardware/fix-synaptic-touchpad.sh|synaptics-chroot|0
@@ -565,6 +584,15 @@ ROWS
 pass "hardware quirks apply on their own hardware and nowhere else"
 
 # --- What the applied quirks leave behind ---
+
+machine macbookpro14-1
+run_leaf hardware/apple/fix-suspend-nvme.sh >/dev/null
+unit=$root/etc/systemd/system/omarchy-nvme-suspend-fix.service
+[[ -f $unit ]] || fail "Apple NVMe suspend service is installed"
+grep -q '\\:' "$unit" && fail "Apple NVMe suspend service names the controller without escaped colons" "$(<"$unit")"
+grep -q '0000:01:00.0/d3cold_allowed' "$unit" ||
+  fail "Apple NVMe suspend service names the controller without escaped colons" "$(<"$unit")"
+pass "Apple NVMe suspend service names the controller without escaped colons"
 
 machine surface-intel
 run_leaf hardware/fix-surface-keyboard.sh >/dev/null

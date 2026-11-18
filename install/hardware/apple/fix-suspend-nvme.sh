@@ -12,7 +12,7 @@
 # of the combo and was not tested alone; it uses more power while the machine
 # is awake. The udev rule matches 106b:2003, so it does not write D3cold onto
 # the GPU at 0000:01:00.0.
-NVME_PCI="/sys/bus/pci/devices/0000:01:00.0"
+NVME_PCI="${OMARCHY_PCI_DEVICES:-/sys/bus/pci/devices}/0000:01:00.0"
 s3x_models='^MacBook9,1$\|^MacBook10,1$\|^MacBookPro13,[12]$\|^MacBookPro14,[12]$'
 
 if omarchy-hw-match "$s3x_models"; then

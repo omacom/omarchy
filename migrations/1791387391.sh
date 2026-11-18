@@ -1,7 +1,9 @@
 echo "Resume suspend on 2016-2017 MacBooks with Apple S3X NVMe"
 
 s3x_models='^MacBook9,1$\|^MacBook10,1$\|^MacBookPro13,[12]$\|^MacBookPro14,[12]$'
-omarchy-hw-match "$s3x_models" || exit 0
+if ! omarchy-hw-match "$s3x_models"; then
+  exit 0
+fi
 
 # Install only the udev rule and, on the MacBookPro14,1, the boot drop-in.
 # Sourcing the leaf would also rewrite and re-enable the older D3cold service.
@@ -18,7 +20,9 @@ fi
 
 # The boot parameters are installed only for the tested MacBookPro14,1.
 # Other models in the installer match keep their current sleep mode.
-omarchy-hw-match '^MacBookPro14,1$' || exit 0
+if ! omarchy-hw-match '^MacBookPro14,1$'; then
+  exit 0
+fi
 
 drop_in=/etc/limine-entry-tool.d/apple-s3x-suspend.conf
 if ! grep -qsF ' mem_sleep_default=s2idle nvme_core.default_ps_max_latency_us=0 intel_idle.max_cstate=1"' "$drop_in"; then
