@@ -565,7 +565,7 @@ function M.reconcile(added, gone)
       local target = home(monitor, block)
       local waiting = hl.get_workspace(home(monitor, block, true))
       local parked = own and monitor.name == added and (active.windows or 0) == 0
-        and waiting and waiting.id ~= active.id and (waiting.windows or 0) > 0
+        and waiting and (waiting.windows or 0) > 0
       if parked then target = waiting.id end
 
       if (not own and not guest) or parked then
