@@ -101,14 +101,13 @@ if grep -qa OMARCHY_LOOK_SCREENSHOT "$(type -P -- "$1")" 2>/dev/null; then
   # The program is resolved before HOME changes, so a command found through
   # the user's PATH still runs.
   program=$(type -P -- "$1")
-  shift
   # Offscreen, Qt Quick picks its software renderer, which draws no shader
   # effects: Material buttons lose their fill and every shadow disappears,
   # and an agent "fixes" a window that looks fine on screen. The GPU renderer
   # draws them; without a GPU, the software one still shows the rest.
   for backend in rhi software; do
     HOME=$home QT_QUICK_BACKEND=$backend OMARCHY_LOOK_SCREENSHOT=$out OMARCHY_LOOK_KEYS=$keys OMARCHY_LOOK_SIZE=$size OMARCHY_LOOK_DELAY_MS=$(( after * 1000 )) \
-      QT_QPA_PLATFORM=offscreen timeout -k 5 $(( after + 30 )) "$program" "$@" >"$log" 2>&1 </dev/null
+      QT_QPA_PLATFORM=offscreen timeout -k 5 $(( after + 30 )) "$program" "${@:2}" >"$log" 2>&1 </dev/null
     [[ -s $out ]] && break
   done
   [[ $home != "$HOME" ]] && rm -rf "$home"
