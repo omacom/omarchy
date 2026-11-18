@@ -59,7 +59,7 @@ if [[ -n $url && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
   # class zen), so prefer the class the desktop entry declares, then the guess.
   guessed_pattern="^$(basename "$browser_exec" -stable).*$"
   if [[ -n $browser_class ]]; then
-    omarchy-hyprland-focus-app "^$(sed 's/[][\.*^$+?(){}|]/\\&/g' <<<"$browser_class")$" ||
+    omarchy-hyprland-focus-app "^$browser_class$" ||
       omarchy-hyprland-focus-app "$guessed_pattern" || true
   else
     omarchy-hyprland-focus-app "$guessed_pattern" || true

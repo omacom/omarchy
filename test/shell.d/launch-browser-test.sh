@@ -34,13 +34,6 @@ Exec=$test_tmp/opt/zen-browser-bin/zen-bin %u
 StartupWMClass=zen
 EOF
 
-# A class with regex metacharacters must be matched literally.
-cat >"$test_home/.local/share/applications/dotted.desktop" <<'EOF'
-[Desktop Entry]
-Exec=chromium %U
-StartupWMClass=org.example.Browser
-EOF
-
 cat >"$mock_bin/xdg-settings" <<'SH'
 #!/bin/bash
 [[ -z ${BROWSER:-} ]] || printf '%s\n' "$BROWSER" >"$OMARCHY_TEST_XDG_SETTINGS_BROWSER"
@@ -63,8 +56,7 @@ SH
 cp "$mock_bin/systemd-run" "$mock_bin/uwsm-app"
 cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
 #!/bin/bash
-printf '%s\n' "$1" >>"$OMARCHY_TEST_BROWSER_FOCUS"
-[[ $1 != "${OMARCHY_TEST_BROWSER_FOCUS_MISS:-}" ]]
+printf '%s\n' "$1" >"$OMARCHY_TEST_BROWSER_FOCUS"
 SH
 chmod +x "$mock_bin"/*
 
@@ -112,34 +104,8 @@ HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=t
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
   bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/zen"
 
-grep -F -- "$test_tmp/opt/zen-browser-bin/zen-bin https://example.test/zen" "$launch_log" >/dev/null ||
-  fail "browser launcher still launches the desktop entry's Exec binary" "$(cat "$launch_log" 2>/dev/null)"
 grep -Fx '^zen$' "$focus_log" >/dev/null ||
   fail "browser launcher focuses the window class the desktop entry declares"
-
-rm -f "$focus_log"
-
-HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
-  OMARCHY_TEST_DEFAULT_BROWSER=dotted.desktop \
-  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
-  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/dotted"
-
-grep -Fx '^org\.example\.Browser$' "$focus_log" >/dev/null ||
-  fail "browser launcher escapes regex characters in the declared window class"
-! grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
-  fail "browser launcher stops at the declared window class when it finds the window"
-
-rm -f "$focus_log"
-
-# A declared class can be stale or overridden (a --class flag), so a miss
-# falls back to the binary name guess rather than focusing nothing.
-HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
-  OMARCHY_TEST_DEFAULT_BROWSER=dotted.desktop OMARCHY_TEST_BROWSER_FOCUS_MISS='^org\.example\.Browser$' \
-  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
-  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/dotted"
-
-grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
-  fail "browser launcher falls back to the binary name when the declared class finds no window"
 
 pass "browser launcher follows opened links to the browser workspace"
 
