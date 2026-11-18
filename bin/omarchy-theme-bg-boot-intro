@@ -11,6 +11,7 @@ current_background_link="$current_dir/background"
 marker="$state_home/omarchy/background-intro.session-id"
 toggle="$state_home/omarchy/toggles/background-intros-off"
 video_extensions=(mp4 m4v mov webm mkv avi)
+theme_intros_path="${OMARCHY_THEME_INTROS_PATH:-/usr/share/omarchy/themes}"
 
 resolve_intro() {
   local background
@@ -39,7 +40,7 @@ resolve_intro() {
 
 # Preparation is speculative: the selected staged clip is compared again by OWE.
 prepare_theme_intro() {
-  local theme="$1" background remembered name source intro
+  local theme="$1" background remembered name source intro stem extension packaged_intro
   local -a names=()
   [[ -n $theme && $theme != .* && $theme != */* ]] || return 0
   [[ ! -f $toggle ]] && ! animations_off || return 0
@@ -75,6 +76,17 @@ prepare_theme_intro() {
   fi
   [[ -n ${background:-} ]] || return 0
   intro=$(resolve_intro "$background" || true)
+  if [[ -z $intro && $background == "$OMARCHY_PATH/themes/$theme/backgrounds/"* ]]; then
+    stem=${background##*/}
+    stem=${stem%.*}
+    for extension in "${video_extensions[@]}"; do
+      packaged_intro="$theme_intros_path/$theme/backgrounds/intros/$stem.$extension"
+      if [[ -f $packaged_intro ]]; then
+        intro=$packaged_intro
+        break
+      fi
+    done
+  fi
   [[ -z $intro ]] || owe intro-prepare "$intro" >/dev/null 2>&1 || true
 }
 
