@@ -3056,8 +3056,8 @@ Panel {
         }
       }
 
-      // Bounded by the actions on the right: the plan shortens first, and the
-      // Sign-in required link keeps its whole width.
+      // Bounded by the actions on the right: the plan shortens first, then the
+      // status, and the Sign-in required link keeps its whole width.
       Row {
         id: detailRow
         visible: !head.editing
@@ -3069,9 +3069,9 @@ Panel {
 
         Text {
           textFormat: Text.PlainText
-          visible: text !== ""
+          visible: text !== "" && width > 0
           width: Math.max(0, Math.min(implicitWidth, detailRow.width
-            - (accountNote.visible ? accountNote.implicitWidth + detailRow.spacing : 0)
+            - (accountNote.visible ? accountNote.width + detailRow.spacing : 0)
             - (signInDot.visible ? signInDot.implicitWidth + detailRow.spacing : 0)
             - (signInLink.visible ? signInLink.implicitWidth + detailRow.spacing : 0)))
           elide: Text.ElideRight
@@ -3087,6 +3087,7 @@ Panel {
         UsageNote {
           id: accountNote
           record: head.account
+          width: Math.min(implicitWidth, detailRow.width)
         }
 
         // The dot is punctuation, not part of the link.
@@ -3195,6 +3196,7 @@ Panel {
     color: label !== "" ? root.urgent : root.dim
     font.family: root.fontFamily
     font.pixelSize: Style.font.caption
+    elide: Text.ElideRight
 
     HoverHandler { id: noteHover }
 
