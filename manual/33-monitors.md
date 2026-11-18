@@ -35,11 +35,11 @@ When you connect an external screen to your laptop, the display is automatically
 
 When you're extending, closing the lid on the laptop will automatically turn off the internal screen. Opening the lid will turn it back on. You can also control this manually using _Trigger > Hardware_ in the Omarchy menu or `Super + Ctrl + Delete`.
 
+Some users have reported Hyprland clients exiting with a Wayland protocol error during monitor changes that remove an output ([Omarchy #7853](https://github.com/omacom/omarchy/issues/7853), [Hyprland #15635](https://github.com/hyprwm/Hyprland/issues/15635)). The exact trigger is still under investigation, so this manual does not prescribe a workaround; follow #7853 for updates.
+
 ### Arranging multiple screens
 
 Hyprland works great with multiple screens. The monitor panel in the top bar draws them where they sit: drag one against the side of another to move it there, and the arrangement is saved with each monitor's other settings. For anything the panel doesn't cover, read more about how to lay them out in [the Hyprland monitor documentation](https://wiki.hypr.land/Configuring/Basics/Monitors/). In Omarchy, these go in `~/.config/hypr/monitors.lua` as `hl.monitor` entries — the file ships with commented examples for keeping a monitor off, modes the panel doesn't offer, 10-bit color, and variable refresh rate.
-
-Avoid disabling the last active output if another monitor can disconnect before it is re-enabled. Hyprland has a known race where removing an output can destroy its `wl_output` global while clients are binding it, causing those clients to exit with a protocol error ([Hyprland #15635](https://github.com/hyprwm/Hyprland/issues/15635), [Omarchy #7853](https://github.com/omacom/omarchy/issues/7853)). Keeping the internal output enabled and blanking its backlight instead avoids the zero-output transition; this is a workaround, not a fix for the compositor bug.
 
 Every monitor has workspaces 1 through 10 of its own, so `Super + 1` always means the first workspace of the monitor you're on. Behind the scenes, Hyprland still numbers workspaces across all monitors: your laptop screen (or first monitor) gets 1–10, the next monitor 11–20, and so on, and each monitor keeps its block every time you plug it in. Use those numbers if you write [workspace rules](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) or window rules for a specific monitor, so workspace 12 is the second workspace of your second monitor. `~/.local/state/omarchy/monitors/workspaces` lists which block each monitor has.
 
