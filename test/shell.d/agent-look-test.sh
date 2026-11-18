@@ -257,3 +257,20 @@ output=$(look_app --after 0 --out "$test_tmp/app.png" -- "$test_tmp/wrapper") ||
 [[ $(<"$test_tmp/grim.log") == "-T 2002 "* ]] || fail "look app captures the wrapped program's window, not another that opened" "$(<"$test_tmp/grim.log")"
 kill -0 "$stranger" 2>/dev/null || fail "look app leaves another window's program running after a wrapper"
 pass "look app finds a window a wrapper started before exiting"
+
+# An app with the hook that draws nothing offscreen is captured on screen,
+# started as itself with its own arguments.
+cat >"$test_tmp/undrawn" <<EOF
+#!/bin/bash
+# OMARCHY_LOOK_SCREENSHOT
+[[ -n \${OMARCHY_LOOK_SCREENSHOT:-} ]] && exit 0
+echo "\$*" >"$test_tmp/undrawn.args"
+sleep 60 &
+echo \$! >"$test_tmp/plain.pid"
+wait
+EOF
+chmod +x "$test_tmp/undrawn"
+: >"$test_tmp/plain.pid"
+output=$(look_app --after 0 --out "$test_tmp/app.png" -- "$test_tmp/undrawn" sample.txt) || fail "look app captures on screen an app that drew nothing offscreen" "$output"
+[[ $(<"$test_tmp/undrawn.args") == "sample.txt" ]] || fail "look app starts the app itself on screen, with its arguments" "$(cat "$test_tmp/undrawn.args" 2>/dev/null)"
+pass "look app falls back to the screen with the app's own command"
