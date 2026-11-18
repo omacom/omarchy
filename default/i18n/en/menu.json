@@ -1343,5 +1343,8 @@
   },
   "agent.make.app": {
     "label": "Make an app"
+  },
+  "agent.make.game": {
+    "label": "Make a game"
   }
 }

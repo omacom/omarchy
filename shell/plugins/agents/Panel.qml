@@ -312,9 +312,11 @@ Panel {
         }
       }
       if (starterShown) {
-        var tiles = []
-        for (var j = 0; j < starterPrompts.length; j++) tiles.push({ kind: "starter", index: j })
-        rows.push(tiles)
+        for (var j = 0; j < starterPrompts.length; j += starterColumns) {
+          var tiles = []
+          for (var k = j; k < Math.min(j + starterColumns, starterPrompts.length); k++) tiles.push({ kind: "starter", index: k })
+          rows.push(tiles)
+        }
       }
     }
     return rows
@@ -810,8 +812,11 @@ Panel {
   readonly property var starterPrompts: [
     { glyph: "󰏘", label: Commons.I18n.t("agents.theme"), kind: "theme" },
     { glyph: "󰐱", label: Commons.I18n.t("agents.plugin"), kind: "plugin" },
-    { glyph: "󰣆", label: Commons.I18n.t("agents.app"), kind: "app" }
+    { glyph: "󰣆", label: Commons.I18n.t("agents.app"), kind: "app" },
+    { glyph: "󰊴", label: Commons.I18n.t("agents.game"), kind: "game" }
   ]
+  // Two across, so a label in a long language still fits its tile.
+  readonly property int starterColumns: 2
 
   // The local model a starter opens on, picked as omarchy-agent --prefer-local
   // picks it: the last one started when it's running, any other running one
@@ -1756,9 +1761,10 @@ Panel {
               fontFamily: root.fontFamily
             }
 
-            Row {
-              id: tileRow
+            Grid {
+              id: tileGrid
               width: parent.width
+              columns: root.starterColumns
               spacing: Style.space(10)
 
               Repeater {
@@ -1769,7 +1775,7 @@ Panel {
                   required property int index
                   hasCursor: root.hasKey("starter", index)
                   onHovered: root.pointAt("starter", index)
-                  width: (tileRow.width - tileRow.spacing * 2) / 3
+                  width: (tileGrid.width - tileGrid.spacing * (tileGrid.columns - 1)) / tileGrid.columns
                   glyph: modelData.glyph
                   title: modelData.label
                   onClicked: function(modifiers) { root.startPrompt(modelData.kind, modifiers) }
