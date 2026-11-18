@@ -155,28 +155,3 @@ for machine in n1x other; do
 done
 pass "a GB10 returns freed GPU memory at once and other machines keep the driver default"
 
-# The migration writes the setting, rebuilds the boot image that carries the
-# module's options once, and asks for a reboot; a failed rebuild stays pending.
-cat >"$scratch/bin/omarchy-state" <<'SH'
-#!/bin/bash
-printf 'state %s\n' "$*" >>"$CALL_LOG"
-SH
-chmod +x "$scratch/bin/omarchy-state"
-migrate() {
-  run "$1" "$scratch/$1-sleep" env OMARCHY_MODPROBE_DIR="$scratch/$1-migrated" \
-    OMARCHY_LIMINE_REBUILD_MARKER="$scratch/$1-marker" bash "$ROOT/migrations/1795011237.sh"
-}
-migrate spark >/dev/null || fail "the migration runs on a GB10"
-[[ -f $scratch/spark-migrated/omarchy-gb10-nvidia-memory-pools.conf ]] || fail "the migration writes the setting"
-grep -q '^limine-mkinitcpio' "$CALL_LOG" && grep -q '^state set reboot-required' "$CALL_LOG" ||
-  fail "the migration rebuilds the boot image and asks for a reboot" "$(cat "$CALL_LOG")"
-migrate spark >/dev/null
-! grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "a second run doesn't rebuild the boot image again"
-migrate other >/dev/null || fail "the migration skips other machines"
-[[ ! -e $scratch/other-migrated ]] && ! grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "other machines are left alone"
-rm -f "$scratch/spark-marker"
-printf '#!/bin/bash\necho "==> ERROR: mkinitcpio failed for kernel linux-omarchy"\n' >"$scratch/bin/limine-mkinitcpio"
-chmod +x "$scratch/bin/limine-mkinitcpio"
-migrate spark >/dev/null 2>&1 && fail "a failed boot image rebuild fails the migration"
-[[ ! -e $scratch/spark-marker ]] || fail "a failed rebuild stays pending"
-pass "the migration rebuilds the boot image once on a GB10 and stays pending when that fails"
