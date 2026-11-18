@@ -87,7 +87,6 @@ echo "add:$*" >>"$TEST_LOG"
 SH
 cat >"$mock_bin/omarchy-pkg-drop" <<'SH'
 #!/bin/bash
-[[ -x $HOME/.local/share/t3code/T3-Code.AppImage ]] || { echo "drop before the app was in place" >>"$TEST_LOG"; exit 1; }
 echo "drop:$*" >>"$TEST_LOG"
 SH
 cat >"$mock_bin/omarchy-hw-aarch64" <<'SH'
@@ -121,8 +120,8 @@ install_app stable || fail "a stable install succeeds" "$(cat "$test_tmp/output"
 cmp -s "$appimage" "$releases/download/v0.2.0/T3-Code-0.2.0-x86_64.AppImage" || fail "the stable AppImage is installed"
 [[ -x $appimage ]] || fail "the AppImage is executable"
 grep -qx 'add:fuse3' "$TEST_LOG" || fail "FUSE is installed for the AppImage runtime"
-grep -qx 'drop:t3code-bin t3code-nightly-bin' "$TEST_LOG" || fail "the T3 Code packages are replaced"
-pass "a stable install puts the latest stable AppImage in place and replaces the packages"
+! grep -q '^drop' "$TEST_LOG" || fail "the packages stay until T3 Code is themed"
+pass "a stable install puts the latest stable AppImage in place and leaves the packages to its installer"
 
 grep -qx "Exec=\"$appimage\" %U" "$desktop" || fail "the launcher runs the AppImage" "$(cat "$desktop")"
 grep -qx "TryExec=$appimage" "$desktop" || fail "the launcher hides once the AppImage is gone"
@@ -160,20 +159,18 @@ if install_app stable; then
 fi
 grep -q 'does not match its release checksum' "$test_tmp/output" || fail "the mismatch is reported"
 [[ $(cat "$appimage") == "previous build" ]] || fail "the installed AppImage is kept"
-! grep -q '^drop' "$TEST_LOG" || fail "the packages stay installed"
 [[ -z $(find "$home/.local/share/t3code" -name '.*download*') ]] || fail "the rejected download is removed"
-pass "a download that fails its checksum leaves the existing install and packages alone"
+pass "a download that fails its checksum leaves the existing install alone"
 publish v0.2.0 0.2.0 latest-linux.yml T3-Code-0.2.0-x86_64.AppImage
 cp "$releases/download/v0.2.0/latest-linux.yml" "$releases/latest/download/"
 
-# The migration and the Install menu read an installed AppImage as a finished
+# The Install menu reads an installed AppImage as a finished
 # install, so a setup that stops partway must not leave one behind.
 fresh_home
 if TEST_FAIL_DESKTOP_DATABASE=1 install_app stable; then
   fail "a failed launcher setup fails the install"
 fi
 [[ ! -e $appimage ]] || fail "the AppImage only lands once the launcher and t3 link are in place"
-! grep -q '^drop' "$TEST_LOG" || fail "the packages stay installed after an unfinished setup"
 [[ -z $(find "$home/.local/share/t3code" -name '.*download*') ]] || fail "the unfinished download is removed"
 install_app stable || fail "a retry after an unfinished setup succeeds" "$(cat "$test_tmp/output")"
 [[ -x $appimage && -f $desktop ]] || fail "a retry finishes the install"

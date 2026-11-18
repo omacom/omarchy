@@ -1,8 +1,8 @@
-# PMF
+# FAQ
 
-### Com canvio entre disposicions de teclat?
+### Com puc canviar entre distribucions de teclat?
 
-Edita el fitxer `~/.config/hypr/input.lua` i afegeix-hi això per canviar entre disposicions amb `Left Alt + Right Alt`:
+Edita el teu fitxer `~/.config/hypr/input.lua` i afegeix-hi això per canviar entre distribucions amb `Left Alt + Right Alt`:
 
 ```
 hl.config({
@@ -14,71 +14,67 @@ hl.config({
 })
 ```
 
-La barra mostrarà automàticament la teva disposició de teclat actual un cop tinguis múltiples disposicions configurades (i també pots clicar-la per canviar).
+La barra mostrarà automàticament la teva distribució de teclat actual tan bon punt en tinguis diverses de configurades (i també hi pots fer clic per canviar-la).
 
-### Com canvio el format del rellotge a 12 hores?
+### Com puc canviar el format del rellotge a 12 hores?
 
-Fes clic amb el botó dret al rellotge de la barra per anar passant pels formats habituals, inclosos els de 12 hores. També pots definir el format directament:
+Fes clic amb el botó dret al rellotge de la barra per anar passant pels formats habituals, inclosos els de 12 hores. També pots configurar el format directament:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-Això mostrarà Sunday 10:55 AM.
+Això mostrarà Diumenge 10:55 AM.
 
-### Com canvio la zona horària?
+### Com puc canviar la meva zona horària?
 
-Executa _Actualitza > Zona horària_ al menú d'Omarchy i tria de la llista. Si la zona horària és correcta però el rellotge mateix s'ha desviat, _Actualitza > Hora_ reinicia la sincronització horària per tu.
+Executa _Actualitza > Zona horària_ al menú d'Omarchy i tria'n una de la llista. Si la zona horària és correcta però el rellotge s'ha desviat, _Actualitza > Hora_ reinicia la sincronització de l'hora per tu.
 
-### Com canvio el DNS, comparteixo la Wi-Fi o comprovo la velocitat de la connexió?
+### Com puc canviar el meu DNS, compartir el meu Wi-Fi o comprovar la velocitat de la meva connexió?
 
-Tot això viu a [xarxa](35-networking.md).
+Tot això ho trobaràs a [xarxes](35-networking.md).
 
-### Com comprovo a quina velocitat va el meu disc?
+### Com puc comprovar com de ràpid és el meu disc?
 
-_Activa > Prova de velocitat > Prova de velocitat de disc_ mesura la velocitat de lectura i escriptura en directe de la teva unitat, o `omarchy disk speedtest` des del terminal.
+_Activa > Prova de velocitat > Prova de velocitat del disc_ mesura en directe la velocitat de lectura i escriptura de la teva unitat, o `omarchy disk speedtest` des del terminal.
 
-### Per què no puc iniciar sessió al meu compte de Google a Chromium?
+### Com puc afegir una impressora?
 
-La versió de codi obert i a pèl de Chromium no ve amb les credencials OAuth que Google requereix per iniciar sessió en un compte. Executa _Instal·la > Servei > Chromium Account_ al menú d'Omarchy per afegir-les, reinicia el navegador i l'inici de sessió funcionarà.
+La impressió ja està configurada i funciona des del primer moment, i cada impressora l'afegeixes tu mateix des de _Configuració d'impressió_ al llançador d'aplicacions (`Super + Space`).
 
-### Com afegeixo una impressora?
+Tria _Afegeix_ i dona-li un moment perquè cerqui: una impressora connectada per USB, i la majoria d'impressores de xarxa, es troben automàticament. Si la teva no apareix a la llista, tria _Impressora de xarxa > Internet Printing Protocol (ipp)_ i introdueix-ne l'adreça — la pantalla de la mateixa impressora o la seva pàgina web et diran quina és, normalment alguna cosa com `192.168.1.50` amb una cua `ipp/print`. Llavors _Endavant_ t'ofereix un controlador, on una impressora moderna funciona millor amb el perfil sense controlador _IPP Everywhere_ i una de més antiga vol el controlador propi del model.
 
-La impressió ja està configurada i en funcionament des del primer moment, i cada impressora l'afegeixes tu mateix des de _Print Settings_ al llançador d'aplicacions (`Super + Space`).
+Fes clic amb el botó dret en una impressora i tria _Estableix com a predeterminada_ per triar quina faran servir primer les teves aplicacions, i _Propietats_ per configurar la mida del paper, la impressió a doble cara i la qualitat.
 
-Tria _Add_ i dona-li un moment per mirar: una impressora connectada per USB, i la majoria d'impressores de xarxa, es troben per tu. Si la teva no és a la llista, tria _Network Printer > Internet Printing Protocol (ipp)_ i introdueix-ne l'adreça: la pantalla de la mateixa impressora o la seva pàgina web et diran quina és, normalment alguna cosa com `192.168.1.50` amb una cua d'`ipp/print`. _Forward_ ofereix aleshores un controlador, on una impressora moderna funciona millor amb el perfil _IPP Everywhere_ sense controladors i una de més antiga vol el controlador propi del model.
+La descoberta automàtica, amb la qual les impressores de la xarxa apareixen sense haver-les d'afegir, està desactivada temporalment mentre es refà, i per això el primer pas anterior l'has de fer tu en lloc de ser automàtic. Imprimir a un fitxer PDF funciona sense cap impressora.
 
-Fes clic amb el botó dret a una impressora i tria _Set as Default_ per triar a quina van a parar primer les teves aplicacions, i _Properties_ per definir la mida del paper, el dúplex i la qualitat.
+### Com puc canviar on es desen les captures de pantalla o els enregistraments de pantalla?
 
-El descobriment automàtic, on les impressores de la xarxa apareixen sense haver-les d'afegir, està temporalment desactivat mentre es reelabora, i per això el primer pas anterior és cosa teva més que no pas automàtic. Imprimir a un fitxer PDF funciona sense cap impressora.
-
-### Com canvio on es desen les captures de pantalla o els enregistraments de pantalla?
-
-Les captures de pantalla desades van a `~/Pictures/Screenshots` per defecte. Per fer servir un altre directori, afegeix això a un fitxer de `~/.config/uwsm/env.d/` (com ara `~/.config/uwsm/env.d/capture`):
+Les captures de pantalla desades van a `~/Pictures/Screenshots` per defecte. Per fer servir un altre directori, afegeix això a un fitxer dins de `~/.config/uwsm/env.d/` (com ara `~/.config/uwsm/env.d/capture`):
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Pots fer el mateix per als enregistraments de pantalla fent servir `OMARCHY_SCREENRECORD_DIR`.
+Pots fer el mateix amb els enregistraments de pantalla fent servir `OMARCHY_SCREENRECORD_DIR`.
 
-Omasnap crea automàticament el seu directori de captures de pantalla. Crea tu mateix el directori d'enregistrament de pantalla i després reinicia Omarchy perquè qualsevol dels dos canvis d'entorn tingui efecte.
+Omasnap crea el seu directori de captures de pantalla automàticament. Crea tu mateix el directori d'enregistraments de pantalla i després reinicia Omarchy perquè qualsevol dels dos canvis d'entorn tingui efecte.
 
-### Com faig funcionar els altaveus i la càmera web de l'Apple Studio Display?
+### Com faig que funcionin els altaveus + la càmera web al meu Apple Studio Display?
 
-Et pensaries que tot hauria de funcionar només connectant l'USB C, però malauradament no és el cas. La solució que he trobat perquè funcioni de manera fiable és fer servir [el cable WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Aleshores els altaveus i la càmera web funcionen com un encant.
+Pensaries que tot hauria de funcionar només connectant l'USB C, però malauradament no és així. La solució que he trobat perquè funcioni de manera fiable és fer servir [the WJESOG DisplayPort + USB-A => USB-C cable](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Llavors els altaveus i la càmera web funcionen de meravella.
 
-Recorda que a Omarchy tens control de brillantor integrat per a les pantalles Apple (tant la Studio com la XDR) fent servir els botons de brillantor habituals del teclat.
+Recorda que tens control de brillantor integrat a Omarchy per als Apple Displays (tant l'Studio com l'XDR) amb els botons normals de brillantor del teclat.
 
 ### Com em desfaig de tot el programari extra?
 
-Si no vols programes com Obsidian o LibreOffice o qualsevol altra cosa preinstal·lada, pots eliminar-la molt fàcilment.
+Si no vols programes com Obsidian o LibreOffice ni cap de la resta de coses preinstal·lades, pots eliminar-ho molt fàcilment.
 
-Executa _Elimina > Paquet_ per veure tots els paquets que hi ha instal·lats. Aleshores pots seleccionar amb el tabulador qualsevol paquet que vulguis eliminar i començar a eliminar tot el que hagis seleccionat amb retorn.
+Executa _Elimina > Paquet_ per veure tots els paquets instal·lats. Llavors pots seleccionar qualsevol paquet que vulguis eliminar amb tab, i començar a eliminar tot el que hagis seleccionat amb return.
 
 I pots fer servir _Elimina > Aplicació web_ des del menú d'Omarchy per eliminar qualsevol de les aplicacions web preinstal·lades que no vulguis.
 
-O bé executa _Elimina > Preinstal·la_ per escombrar totes les extres preinstal·lades —aplicacions web, TUIs i aplicacions opcionals— d'una sola passada. Les dreceres que les engegaven se'n van amb elles, de manera que et quedarà una pissarra neta d'enllaços per omplir amb els teus a `~/.config/hypr/bindings.lua`.
+O executa _Elimina > Preinstal·lats_ per escombrar tots els extres preinstal·lats — aplicacions web, TUIs i aplicacions opcionals — d'una sola vegada. Les tecles d'accés ràpid que les obrien desapareixen amb elles, així que et queda una pissarra neta de dreceres per omplir amb les teves a `~/.config/hypr/bindings.lua`.
 
 ---
 

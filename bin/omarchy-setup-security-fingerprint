@@ -56,6 +56,88 @@ EOF
   fi
 }
 
+# A property of fprintd's default reader, such as its name or scan-type ("press"
+# for a sensor that takes separate touches, "swipe" for one that reads a moving
+# finger). Empty when fprintd can't be asked.
+fingerprint_reader() {
+  local device
+  device=$(busctl --system call net.reactivated.Fprint /net/reactivated/Fprint/Manager \
+    net.reactivated.Fprint.Manager GetDefaultDevice 2>/dev/null) || return 0
+  device=${device#o \"}
+  device=${device%\"}
+  busctl --system get-property net.reactivated.Fprint "$device" net.reactivated.Fprint.Device "$1" 2>/dev/null |
+    sed -n 's/^s "\(.*\)"$/\1/p'
+}
+
+# fprintd's own lines that carry nothing for the owner; anything else it
+# prints that isn't a result, such as why a claim or start failed, is shown.
+fprintd_chatter() {
+  [[ $1 == "Using device "* || $1 == "Enrolling "*" finger." || $1 == "Listing enrolled fingers:" ||
+    $1 == " - #"* || $1 == "Verify started!" || $1 == "Verifying: "* ]]
+}
+
+# fprintd-enroll's results as instructions, AGAIN asking for more. Stages are
+# steps, as one can take several touches. With DUPLICATE_CHECK=1 the first stage
+# is fprintd's duplicate check, not an enrollment step, and isn't shown.
+enroll_progress() {
+  local again=$1 duplicate_check=${2:-0} line stages=0 steps=0
+  while IFS= read -r line; do
+    if [[ $line != "Enroll result: "* ]]; then
+      fprintd_chatter "$line" || echo "  $line"
+      continue
+    fi
+    case ${line#Enroll result: } in
+      enroll-stage-passed)
+        if (( ++stages > duplicate_check )); then
+          echo "  ✓ Step $(( ++steps )) done. $again"
+        fi
+        ;;
+      enroll-retry-scan) echo "  That one didn't read. $again" ;;
+      enroll-swipe-too-short) echo "  Too short. $again" ;;
+      enroll-finger-not-centered) echo "  Not centered: use the middle of the sensor. $again" ;;
+      enroll-remove-and-retry) echo "  Lift your finger off the sensor, then try again." ;;
+      enroll-too-fast) echo "  Too fast. $again" ;;
+      enroll-completed) echo "  ✓ Enrolled." ;;
+      enroll-duplicate) echo "  ✗ That finger is already enrolled." ;;
+      enroll-data-full) echo "  ✗ The reader has no room for another fingerprint." ;;
+      enroll-disconnected) echo "  ✗ The reader was disconnected." ;;
+      enroll-failed | enroll-unknown-error)
+        echo "  ✗ Enrollment stopped. If you stopped before it said Enrolled, run this again and keep going." ;;
+      *) echo "  ${line#Enroll result: }" ;;
+    esac
+  done
+}
+
+# fprintd-verify's results the same way.
+# fprintd-verify suffixes each result with " (done)" or " (not done)"; a
+# result that isn't done is a retry, whatever its name.
+verify_progress() {
+  local again=$1 line
+  while IFS= read -r line; do
+    if [[ $line != "Verify result: "* ]]; then
+      fprintd_chatter "$line" || echo "  $line"
+      continue
+    fi
+    line=${line#Verify result: }
+    if [[ $line == *" (not done)" ]]; then
+      case ${line% (*} in
+        verify-swipe-too-short) echo "  Too short. $again" ;;
+        verify-finger-not-centered) echo "  Not centered: use the middle of the sensor. $again" ;;
+        verify-remove-and-retry) echo "  Lift your finger off the sensor, then try again." ;;
+        verify-too-fast) echo "  Too fast. $again" ;;
+        *) echo "  That one didn't read. $again" ;;
+      esac
+      continue
+    fi
+    case ${line% (*)} in
+      verify-match) echo "  ✓ Matched." ;;
+      verify-no-match) echo "  ✗ No match." ;;
+      verify-disconnected) echo "  ✗ The reader was disconnected." ;;
+      *) echo "  ✗ The check stopped (${line% (*)})." ;;
+    esac
+  done
+}
+
 echo -e "\e[32mSetting up fingerprint scanner for authentication.\n\e[0m"
 
 # Bail before installing anything if there's no reader to talk to.
@@ -74,15 +156,79 @@ if omarchy-pkg-missing libfprint-git fprintd usbutils; then
 fi
 
 # Enroll first fingerprint
-echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"
-echo -e "Keep moving the finger around on sensor until the process completes.\n"
+# Authenticate sudo first, and say so: with fingerprint sudo already set up it
+# asks for a touch of its own, which must not pass for the first sample.
+authenticate() {
+  if ! sudo -n true 2>/dev/null; then
+    echo -e "\n$1 Setup needs administrator rights to enroll."
+    if ! sudo -v; then
+      echo -e "\e[31mSetup needs administrator rights to enroll a fingerprint.\e[0m"
+      exit 1
+    fi
+  fi
+}
+authenticate "First, confirm it's you."
 
-if sudo fprintd-enroll "$USER"; then
+# A reader its platform keeps off until the owner agrees (a Mac's Touch ID)
+# is explained and turned on here, before fprintd is asked about it. Every
+# other platform has no such hook, so this is a no-op there. Resolving as the
+# user first runs nothing as root where there is nothing to run. Setup on a
+# platform that can't be told goes on as on one without a hook: a reader its
+# platform keeps off stays off, so fprintd doesn't find it, and any other
+# reader still enrolls.
+if ! enable_hook=$(omarchy-lifecycle-dispatch --resolve enable-fingerprint); then
+  echo -e "\e[33mThe fingerprint sensor's platform support couldn't be checked, so a reader the platform keeps off stays off.\e[0m"
+  enable_hook=
+fi
+if [[ -n $enable_hook ]]; then
+  if ! sudo omarchy-lifecycle-dispatch enable-fingerprint; then
+    echo -e "\e[31mThe fingerprint sensor was not turned on, so nothing was enrolled.\e[0m"
+    exit 1
+  fi
+  # The owner may have read past sudo's timeout before answering.
+  authenticate "Confirm it's you again."
+fi
+
+echo -e "\e[32m\nLet's set up your right index finger as the first fingerprint.\e[0m"
+# A press sensor needs a touch for each sample; a swipe sensor a moving finger.
+# When fprintd can't say which, the prompts name neither. Each line stays short,
+# since the setup terminal wraps a long one mid-word.
+case $(fingerprint_reader scan-type) in
+  press)
+    start="Touch the sensor." again="Keep lifting your finger and touching the sensor."
+    echo -e "Touch the sensor, lift your finger and touch it again.\nKeep going until it says Enrolled. A step can take a few touches.\n"
+    ;;
+  swipe)
+    start="Swipe your finger across the sensor." again="Swipe it again."
+    echo -e "Keep moving the finger around on sensor until it says Enrolled.\n"
+    ;;
+  *)
+    start="Touch or swipe the sensor." again="Touch or swipe it again."
+    echo -e "Touch or swipe the sensor, and keep going until it says Enrolled.\nA step can take a few tries.\n"
+    ;;
+esac
+
+# fprintd runs a duplicate check before enrolling on a reader that identifies,
+# which D-Bus doesn't say. Touch ID does, and its check needs no touch while
+# nothing is enrolled; any other reader's first stage counts, touched or not.
+# The name is the driver's full_name in libfprint/drivers/aurora/aurora.c, which
+# omarchy-pkgs adds to libfprint-git in pkgbuilds/libfprint-git/aurora-apple-sep.patch.
+# If it changes there, Touch ID shows one step early.
+duplicate_check=0
+if [[ $(fingerprint_reader name) == "Apple secure enclave fingerprint sensor" ]]; then
+  duplicate_check=1
+fi
+# The filters only print; the exit status is fprintd's.
+sudo fprintd-enroll "$USER" | enroll_progress "$again" "$duplicate_check"
+enroll_status=${PIPESTATUS[0]}
+if (( enroll_status == 0 )); then
   echo -e "\e[32m\nFingerprint enrolled successfully!\e[0m"
 
   # Verify
-  echo -e "\nNow let's verify that it's working correctly.\n"
-  if fprintd-verify; then
+  echo -e "\nNow let's verify that it's working correctly. $start\n"
+  fprintd-verify | verify_progress "$again"
+  verify_status=${PIPESTATUS[0]}
+  if (( verify_status == 0 )); then
     # PAM comes last, once a print is enrolled and verified. Detection only
     # proves a reader is there, not that libfprint can drive it — an Elan MOC
     # sensor outside the elanmoc table gets this far and then fails to enroll.
@@ -98,6 +244,7 @@ if sudo fprintd-enroll "$USER"; then
     echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
   else
     echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
+    exit 1
   fi
 else
   echo -e "\e[31m\nEnrollment failed. Please try again.\e[0m"

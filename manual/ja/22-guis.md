@@ -1,108 +1,122 @@
-# GUI
+# GUIs
 
-## ファイル
+## Files
 
-ファイル（Nautilus）はグラフィカルファイルマネージャーです。`Super + Shift + F` で開き、`Super + Shift + Alt + F` でターミナルがいるディレクトリで開くため、クリックの手間を大幅に省けます。`Ctrl + L` でパスを入力でき、任意のファイルで `Space` を押せば、何も開かずにクイックプレビューが得られます。
+Files (Nautilus) はグラフィカルなファイルマネージャーだ。`Super + Shift + F` で開き、`Super + Shift + Alt + F` でターミナルが現在いるディレクトリで開くので、クリックの手間がかなり省ける。`Ctrl + L` でパスを入力でき、任意のファイルで `Space` を押すと、何も開かずにクイックプレビューが表示される。
 
-USB スティックや SD カードを差し込めば自動でマウントされ、サイドバーに表示されます。ドライブのフォーマット、SMART の健康状態の確認、パーティションの作成など、より踏み込んだ作業が必要な場合は、アプリランチャー（`Super + Space`）から _Disks_ を起動してください。
+USB スティックや SD カードを挿すと自動的にマウントされるので、サイドバーにそのまま表示される。ドライブのフォーマット、SMART の状態確認、パーティションの作成など、もっと本格的な作業には、アプリランチャー (`Super + Space`) から _Disks_ を起動しよう。
 
-ダブルクリックは妥当なデフォルトに従います。画像は imv、動画は mpv、PDF は Document Viewer、プレーンテキストは Neovim で開きます。
+ダブルクリックは賢明なデフォルトに従う：画像、動画、音楽は Omaview で、PDF は Document Viewer で、Markdown は Omawrite で、プレーンテキストは _Setup > Default > Editor_ で選択したエディターで開く。
 
 ## Disktree
 
-ドライブがいっぱいになって何が食いつぶしているか分からないときは、アプリランチャー（`Super + Space`）から [Disktree](https://github.com/tobi/disktree) を起動してください。ホームディレクトリのグラフィカルなツリーマップが表示されます。大きなブロックほど多くの容量を占めます。キーボードやマウスでディレクトリをたどり、削除すべきものをマークし、何かを取り除く前に選択内容を確認してください。ディスク全体をスキャンするには `disktree --disk` を実行してください。
+ドライブがいっぱいになって、何が容量を食っているのか見当もつかないときは、アプリランチャー (`Super + Space`) から [Disktree](https://github.com/tobi/disktree) を起動しよう。ホームディレクトリのグラフィカルなツリーマップを表示する。大きなブロックほど多くの容量を占めている。キーボードやマウスでディレクトリを辿り、削除すべきものをマークし、何も削除する前に選択内容を確認しよう。ディスク全体をスキャンするには `disktree --disk` を実行する。
 
 ## Obsidian
 
-[Obsidian](https://obsidian.md/) は無料で高度に拡張可能なノートアプリケーションで、ストレージにシンプルな Markdown ファイルを使います。
+[Obsidian](https://obsidian.md/) は、ストレージにシンプルな Markdown ファイルを使う、無料で拡張性が非常に高いノート作成アプリケーションだ。
 
-Obsidian は個人、商用、非営利を含むすべての用途で無料です。
+Obsidian は、個人、商用、非営利を含む、すべての用途で無料だ。
 
-Obsidian は iOS と Android のモバイルアプリとの同期用の [商用アドオン](https://obsidian.md/sync) も提供しています。(https://obsidian.md/pricing)。
+Obsidian は、iOS と Android のモバイルアプリと同期するための [商用アドオン](https://obsidian.md/sync) も提供している。(https://obsidian.md/pricing)。
 
-Obsidian は `Super + Shift + O` で起動します。テーマ同期を使うには、設定で `Omarchy` テーマを選択しなければなりません。
+Obsidian は `Super + Shift + O` で起動する。テーマの同期を使うには、設定で `Omarchy` テーマを選択しなければならない。
 
 ## Omawrite
 
-[Omawrite](https://github.com/omacom-io/omawrite) は Omarchy 独自の、極めてシンプルな Markdown 執筆アプリです。Vault もプラグインもなく、あなたと文章だけです。
+[Omawrite](https://github.com/omacom-io/omawrite) は、Omarchy 独自の、驚くほどシンプルな Markdown 執筆アプリだ。ボルトもプラグインもなく、あるのは自分と言葉だけだ。
 
-Omawrite は `Super + Shift + W` で起動します。
+Omawrite は `Super + Shift + W` で起動する。
 
 ## Pinta
 
-[Pinta](https://www.pinta-project.com/) は基本的な画像編集ツールで、切り抜き、リサイズ、その他の基本的な操作に最適です。ただし Photoshop の代替を期待しないでください。それでも Magic Wand とレイヤーがあります！
+[Pinta](https://www.pinta-project.com/) は、切り抜き、リサイズ、その他の基本的な操作に最適な基本的な画像編集ツールだ。ただし Photoshop の代替だとは思わないこと。でも Magic Wand とレイヤーはちゃんとある！
 
-Pinta はアプリランチャー（`Super + Space`）から起動します。
+Pinta はアプリランチャー (`Super + Space`) から起動する。
 
 ## Aether
 
-[Aether](https://github.com/bjarneo/aether) はテーマ作成アプリケーションで、背景画像から色を抽出して完成した一貫性のあるテーマに変えられます。[独自のテーマを作る](43-making-your-own-theme.md) 最も簡単な方法です。
+[Aether](https://github.com/bjarneo/aether) は、背景画像から色を抽出して、完全で統一感のあるテーマに変換できるテーマ作成アプリケーションだ。[独自のテーマを作る](43-making-your-own-theme.md) 最も簡単な方法だ。
 
-Aether はアプリランチャー（`Super + Space`）から起動します。
+Aether はアプリランチャー (`Super + Space`) から起動する。
 
 ## LocalSend
 
-[LocalSend](https://localsend.org/) を使えば、Apple の AirDrop のように、同じネットワーク上でそのアプリを実行している他のデバイスへファイルを送信できます。ただしクロスプラットフォームなので、Windows、macOS、Android、iOS、そしてもちろん Linux との間でファイルを送受信できます。
+[LocalSend](https://localsend.org/) を使えば、Apple の AirDrop のように、同じネットワーク上でアプリを実行している他のデバイスにファイルを送信できる。ただしクロスプラットフォームなので、Windows、macOS、Android、iOS、そしてもちろん Linux との間でもファイルの送受信ができる。
 
-共有メニューは `Super + Ctrl + S` で、または Omarchy メニューの _実行 > 共有_ で開けます。4つの選択肢があります：
+共有メニューは `Super + Ctrl + S` で、または Omarchy メニューの _Trigger > Share_ から開ける。4 つのオプションがある：
 
-- **クリップボード** はコピーしたものをテキストファイルとして送信します。リンクやスニペットを自分にメールすることなく電話に送るのに最適です。
-- **ファイル** はファイルピッカーを開き、一度に複数選択できます。
-- **フォルダ** はディレクトリ全体を送信します。
-- **受信する** は LocalSend 本体を開くため、他のデバイスがあなたに何かを送信できます。
+- **Clipboard** は、コピーしたものをテキストファイルとして送信する。自分宛てにメールを送らずに、リンクやスニペットをスマートフォンに渡すのに最適だ。
+- **File** はファイルピッカーを開き、一度に複数選択できる。
+- **Folder** はディレクトリ全体を送信する。
+- **Receive** は LocalSend 本体を開き、他のデバイスから何かを送信してもらえるようにする。
 
-同じことはターミナルから `omarchy share clipboard`、`omarchy share file [path]`、`omarchy share folder [path]` でもできます。パスを省略すればピッカーが表示されます。
+ターミナルからも同じことが `omarchy share clipboard`、`omarchy share file [path]`、`omarchy share folder [path]` でできる。パスを省略するとピッカーが表示される。
 
-ファイルマネージャーから直接送信することもできます。Nautilus で任意の選択範囲を右クリックして _Send via LocalSend_ を選んでください。
+ファイルマネージャーから直接送信することもできる：Nautilus で任意の選択項目を右クリックし、_Send via LocalSend_ を選ぶだけだ。
 
-Omarchy のファイアウォールはデフォルトで LocalSend のポート以外は閉じているため、新規インストールでもこれは最初から動作します。[セキュリティ](48-security.md) を参照してください。
+Omarchy のファイアウォールは、LocalSend のポートを除いてデフォルトで閉じられているので、新規インストールした状態でもそのまま使える。[セキュリティ](48-security.md) を参照。
 
 ## LibreOffice
 
-[LibreOffice](https://www.libreoffice.org/) はワードプロセッサ、スプレッドシート、プレゼンテーション、描画アプリケーションなどを備えた完全なオフィスパッケージです。Microsoft Office のファイルと互換性があるため、それらの Word 文書を開くのに最適な方法です。
+[LibreOffice](https://www.libreoffice.org/) は、ワープロ、スプレッドシート、プレゼンテーション、描画アプリケーションなどを備えた完全なオフィススイートだ。Microsoft Office のファイルと互換性があるので、あの Word 文書を開くのに最適な方法だ。
 
-LibreOffice はアプリランチャー（`Super + Space`）から起動します。
+LibreOffice はアプリランチャー (`Super + Space`) から起動する。
 
 ## Hype
 
-[Hype](https://github.com/omacom/hype) は Omarchy 独自の、極めてシンプルなプレゼンテーションアプリです。あなたのデッキは、画像と動画を隣に置いた単一の Markdown ファイルです。ライブプレビューの下に各スライドを書き、スライドをドラッグして並べ替え、それからフルスクリーンで発表するか、PDF と PowerPoint にエクスポートしてください。あなたの Omarchy テーマも拾います。
+[Hype](https://github.com/omacom/hype) は、Omarchy 独自の、驚くほどシンプルなプレゼンテーションアプリだ。デッキは単一の Markdown ファイルで、その横に画像や動画を置く：ライブプレビューの下で各スライドを書き、スライドをドラッグして順序を入れ替え、全画面でプレゼンするか、PDF や PowerPoint にエクスポートする。Omarchy のテーマまで反映される。
 
-Hype はアプリランチャー（`Super + Space`）から起動します。中で `?` を押すとすべてのショートカットが表示されます。
+Hype はアプリランチャー (`Super + Space`) から起動する。すべてのショートカットを見るには、アプリ内で `?` を押す。
 
 ## Signed
 
-[Signed](https://github.com/omacom/signed) は Omarchy 独自の、極めてシンプルな PDF 署名と記入の方法です。保存済みの署名、テキスト、今日の日付をページ上のどこにでも置き、元のファイルの隣に署名済みコピーを保存してください。方法については [PDF への記入](27-filling-out-pdfs.md) を参照してください。
+[Signed](https://github.com/omacom/signed) は、PDF に署名して記入するための、Omarchy 独自の驚くほどシンプルな方法だ。保存した署名、テキスト、今日の日付をページ上の任意の場所に配置し、署名済みのコピーを元のファイルの横に保存する。方法は [PDF への記入](27-filling-out-pdfs.md) を参照。
 
-Signed はアプリランチャー（`Super + Space`）から起動するか、ファイルマネージャーから PDF をそれで開いてください。
+Signed はアプリランチャー (`Super + Space`) から起動するか、ファイルマネージャーから PDF をこれで開く。
+
+## Checkmate
+
+[Checkmate](https://github.com/omacom/checkmate) は、Omarchy 独自の 3D チェスゲームだ。同じコンピュータで友人と対戦するか、3 段階の内蔵対戦相手と対戦できる。4 種類の彫刻のような駒セットがあり、それぞれ独自の方法で動く：軌道船、彫刻された木と象牙、森の生き物、そしてキャンディだ。ゲームには時計がなく、一手ごとに保存される。
+
+Checkmate はアプリランチャー (`Super + Space`) から起動し、そこでは Chess として表示される。すべてのショートカットを見るには、アプリ内で `?` を押す。
+
+## Cards
+
+[Cards](https://github.com/omacom/cards) は、Omarchy 独自の Klondike ソリティアだ。3 枚引く形式で、パスの回数に制限はなく、4 種類のカードシリーズがある：1 つはテーマの色で描かれ、残りの 3 つはそれぞれ独自の見た目をしている。カードをクリックしてから移動先をクリックするか、ドラッグするか、ダブルクリックして最適な場所へ送る。ゲームは一手ごとに保存される。
+
+Cards はアプリランチャー (`Super + Space`) から起動する。すべてのショートカットを見るには、その名前をクリックするか、`?` を押す。
 
 ## Omacalc
 
-[Omacalc](https://github.com/omacom-io/omacalc) は Omarchy 独自の、極めてシンプルな電卓で、フローティングウィンドウで開きます。
+[Omacalc](https://github.com/omacom-io/omacalc) は、Omarchy 独自の驚くほどシンプルな電卓で、フローティングウィンドウで開く。
 
-Omacalc は `Super + Ctrl + Q` で起動します（またはキーボードにあれば電卓キーで）。
+Omacalc は `Super + Shift + Q` で起動する（キーボードに電卓キーがある場合はそれでもよい）。
 
 ## Signal
 
-[Signal](https://signal.org/) は E2E 暗号化メッセージングのパイオニアであり、大手テックコングロマリットを通したくない人にとって優れた連絡手段です。
+[Signal](https://signal.org/) は E2E 暗号化メッセージングのパイオニアであり、大手テックコングロマリットを経由したくない人にとって最適なコミュニケーションの選択肢だ。
 
-Signal は `Super + Shift + G` で起動します。ベースインストールには含まれていないため、初めて押したときに Omarchy がインストールを提案します（Omarchy メニューの _インストール > Service_ にもあります）。
+Signal は `Super + Shift + G` で起動する。基本インストールには含まれていないので、初めてそのキーを押すと、Omarchy が代わりにインストールを提案する（Omarchy メニューの _Install > Service_ からも利用できる）。
 
-## mpv
+## Omaview
 
-[mpv](https://mpv.io/) はシンプルで高速なメディアプレイヤーで、あらゆるソースからほぼ何でも再生できます。動画を見るのに最適です。
+[Omaview](https://github.com/omacom/omaview) は、Omarchy 独自の驚くほどシンプルな画像ビューアー兼メディアプレイヤーだ：写真、動画、音楽を 1 つのウィンドウで扱える。写真を開くと矢印キーでそのフォルダ内の残りを順に表示でき、`N` と `P` は何に対しても同じことをし、`Ctrl + M` はフォルダ全体をグリッドで表示する。HEIC、AVIF、JPEG XL の写真も表示でき、長いものは中断した場所から再開する。
 
-mpv はアプリランチャー（`Super + Space`）から起動するか、ファイルマネージャーで動画をダブルクリックしてください。
+`F` を押すと全画面表示、`E` で Omasnap で画像を編集するか Omacut で動画をトリミングし、`Ctrl + P` で画像を印刷し、`Delete` でファイルを Trash に移動する（`Ctrl + Z` で戻す）。すべてのショートカットを見るには、アプリ内で `?` を押す。
+
+Omaview はアプリランチャー (`Super + Space`) から _Media Viewer_ として起動するか、ファイルマネージャーで画像、動画、曲をダブルクリックするだけでも開ける。
 
 ## Omacut
 
-[Omacut](https://github.com/omacom-io/omacut) は Omarchy 独自の、極めてシンプルな動画トリマーです。クリップの先頭と末尾を切るだけなら、本格的な動画エディタを起動するより優れています。
+[Omacut](https://github.com/omacom-io/omacut) は、Omarchy 独自の驚くほどシンプルな動画トリマーだ。クリップの冒頭と末尾をカットするだけで十分なときに、本格的な動画エディターを起動するよりもはるかに優れている。
 
-Omacut はアプリランチャー（`Super + Space`）から起動します。
+Omacut はアプリランチャー (`Super + Space`) から起動する。
 
 ## Monologue
 
-[Monologue](https://github.com/omacom/monologue) は Omarchy 独自の、極めてシンプルなウェブカメラレコーダーです。カメラとマイクを一度選んだら、`Space` を押して録画し、もう一度押して同じテイクを一時停止・再開してください。常にカメラの最高解像度で録画し、開始前にレベルを確認できるライブマイクメーターがあります。
+[Monologue](https://github.com/omacom/monologue) は、Omarchy 独自の驚くほどシンプルなウェブカメラレコーダーだ。カメラとマイクを一度選択すれば、あとは `Space` を押して録画し、もう一度押して同じテイクを一時停止したり再開したりする。常にカメラの最高解像度で録画し、ライブのマイクメーターがあるので開始前にレベルを確認できる。
 
-テイクを停止すると、内蔵エディタですぐに開きます。クリップをダブルクリックして分割し、ハンドルをドラッグして各部分をトリミングし、要らない部分を取り除いてください。それから MP4 として保存してください。元の録画は破棄するまで保持されるため、いつでも戻って切り方を変えられます。
+テイクを停止すると、内蔵エディターですぐに開く。クリップをダブルクリックして分割し、ハンドルをドラッグして各部分をトリミングし、不要な部分を削除する。そして MP4 として保存する。元の録画は破棄するまで保持されるので、いつでも戻って別の切り方で編集できる。
 
-Monologue はアプリランチャー（`Super + Space`）から起動します。
+Monologue はアプリランチャー (`Super + Space`) から起動する。

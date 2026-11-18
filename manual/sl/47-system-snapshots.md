@@ -1,25 +1,27 @@
 # Posnetki sistema
 
-Posnetke ustvarimo samodejno ob vsaki posodobitvi Omarchyja, če pa želite ustvariti svojega, lahko uporabite `omarchy-snapshot create`.
+Samodejno ustvarimo posnetek ob vsaki posodobitvi sistema Omarchy, če pa želite ustvariti svojega, lahko uporabite `omarchy-snapshot create`.
 
-Za zagon in obnovitev posnetka ga izberete iz zagonskega nalagalnika Limine. (Če trenutno zaganjate naravnost v zaslon za dešifriranje Omarchyja, boste morali najprej prek BIOS-a izbrati Limine kot zagonsko možnost).
+Če želite posnetek zagnati in obnoviti, ga izberete v zagonskem nalagalniku Limine. (Če se trenutno zaganjate neposredno na zaslon za dešifriranje sistema Omarchy, boste morali najprej prek BIOS-a izbrati Limine kot možnost zagona).
 
-Na tem zaslonu izberite posnetek, v katerega želite zagnati, na podlagi datuma in različice. Različico Omarchyja v času posnetka lahko vidite v spodnjem levem kotu.
+Na tem zaslonu izberite posnetek, v katerega se želite zagnati, glede na datum in različico. Različico sistema Omarchy v času posnetka lahko vidite v spodnjem levem kotu.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Ko prispete noter, se prikaže obvestilo, ki vas obvešča, da ste v zagonskem posnetku, in če ga kliknete, zažene postopek obnovitve. Druga možnost je, da uporabite `omarchy-snapshot restore`.
+Ko pridete noter, se bo pojavilo obvestilo, ki vas bo obvestilo, da ste v zagonskem posnetku, in če ga kliknete, se bo začel postopek obnovitve. Druga možnost je, da uporabite `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-To bo obnovilo vaš korenski datotečni sistem, ne pa vašega `/home`. Deluje torej za povrnitev pokvarjene sistemske posodobitve, ne pa za obnovitev izgubljenih osebnih datotek.
+To bo obnovilo vaš korenski datotečni sistem, ne pa tudi vašega `/home`. Deluje torej za razveljavitev pokvarjene posodobitve sistema, ne pa za obnovitev izgubljenih osebnih datotek.
 
-To tudi pomeni, da vaš imenik `~/.config` ostane tak, kot je. Če torej povračate na starejšo različico knjižnice ali aplikacije, ki shranjuje konfiguracijske datoteke v novi obliki, boste morali to urediti ročno.
+To pomeni tudi, da vaš imenik `~/.config` ostane takšen, kot je. Če se torej vračate na starejšo različico knjižnice ali aplikacije, ki shranjuje konfiguracijske datoteke v novi obliki, boste morali to urediti ročno.
 
-_Opomba: Ta funkcija je na voljo samo na namestitvah, ki uporabljajo zagonski nalagalnik Limine, ki je privzeti od Omarchy 2.0. Ni na voljo, če ste na GRUB ali systemd-boot._
+Enako velja za Omarchyjevo evidenco o tem, katere migracije so se že izvedle: živi v vašem domačem imeniku, zato preživi obnovitev. Migracije, ki so se izvedle po tem, ko je bil posnetek narejen, ostanejo označene kot opravljene, čeprav so bile spremembe, ki so jih naredile v korenskem datotečnem sistemu, razveljavljene, in naslednji `omarchy update` jih ne bo znova zagnal. Če torej po obnovitvi znova posodobite in še vedno manjka nekaj, kar je nastavila prejšnja posodobitev, je to verjeten razlog.
+
+_Opomba: Ta funkcija je na voljo samo pri namestitvah, ki uporabljajo zagonski nalagalnik Limine, ki je privzeti od različice Omarchy 2.0. Ni na voljo, če uporabljate GRUB ali systemd-boot._
 
 ### Preskakovanje zagonskega menija
 
-Če se zagonskega menija nikoli ne dotaknete in želite samo, da računalnik gre naravnost na zaslon za dešifriranje, v meniju Omarchy zaženite _Nastavitve > Direct Boot_. To doda vnos EFI, ki kaže neposredno na Omarchy, tako da ga vdelana programska oprema zažene, ne da bi se ustavila pri Limine.
+Če se zagonskega menija nikoli ne dotaknete in želite le, da gre naprava naravnost na zaslon za dešifriranje, v meniju Omarchy zaženite _Setup > Direct Boot_. To doda vnos EFI, ki kaže neposredno na Omarchy, tako da ga vdelana programska oprema zažene, ne da bi se ustavila pri Limine.
 
-Kompromis je tisti, omenjen na vrhu: z vklopljenim neposrednim zagonom pridobitev posnetka pomeni, da najprej izberete Limine iz zagonskega menija BIOS-a. Znova zaženite _Nastavitve > Direct Boot_, da odstranite vnos in se vrnete na zagon prek Limine. Nekatera vdelana programska oprema ne prenaša rad vnosov EFI po meri, zato namestitev noče delovati na vdelani programski opremi American Megatrends in Apple.
+Kompromis je tisti, ki je omenjen na vrhu: ko je neposredni zagon vklopljen, priti do posnetka pomeni, da morate najprej v zagonskem meniju BIOS-a izbrati Limine. Znova zaženite _Setup > Direct Boot_, da odstranite vnos in se vrnete na zagon prek Limine. Nekatera vdelana programska oprema ne sprejema najbolje vnosov EFI po meri, zato se namestitev noče zagnati na vdelani programski opremi American Megatrends in Apple.

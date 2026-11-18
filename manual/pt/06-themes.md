@@ -1,12 +1,12 @@
 # Temas
 
-O Omarchy vem com vinte e dois temas lindíssimos. Podes escolher entre eles através de _Estilo > Tema_ no menu do Omarchy (`Super + Space`) ou saltar diretamente para o seletor de temas com `Super + Ctrl + Shift + Space`.
+O Omarchy traz vinte e dois temas bonitos. Pode selecionar entre eles através de _Aparência > Tema_ no Menu do Omarchy (`Super + Space`) ou saltar diretamente para o seletor de temas com `Super + Ctrl + T`.
 
-Cada tema dá estilo ao ambiente de trabalho, ao terminal, ao neovim, ao ecrã de atividade (btop), ao Chromium e a toda a shell do Omarchy: barra superior, menu, notificações, OSD e ecrã de bloqueio. (Para o Obsidian, tens de selecionar manualmente o tema do Omarchy através de _Appearance > Themes_ dentro da aplicação).
+Cada tema dá estilo ao ambiente de trabalho, ao terminal, ao neovim, ao ecrã de atividade (btop), ao Chromium e a toda a shell do Omarchy: barra superior, menu, notificações, OSD e ecrã de bloqueio. (No Obsidian, tem de selecionar manualmente o tema do Omarchy através de _Aparência > Temas_ dentro da aplicação).
 
-Os temas têm um conjunto de imagens de fundo entre as quais podes escolher com `Super + Ctrl + Space`.
+Os temas têm um conjunto de imagens de fundo entre as quais pode escolher com `Super + Ctrl + W`.
 
-Podes encontrar ainda mais temas na [página de temas extra](https://omarchy.org/themes/) ou até [criar o teu próprio tema](43-making-your-own-theme.md).
+Pode encontrar ainda mais temas na [página de temas extra](https://omarchy.org/themes/) ou até [criar o seu próprio tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+### Ícones das aplicações
+
+Os ícones no lançador de aplicações e na dock são desenhados com as cores do seu tema, por isso mudam juntamente com ele. Fazem parte de um conjunto de ícones, que escolhe separadamente do tema em _Aparência > Ícones_, a partir de pré-visualizações de cada conjunto, da mesma forma que escolhe um tema:
+
+- _Papercraft_ é o predefinido: tudo o que vem instalado, desenhado num único estilo. As aplicações conhecidas pelo seu logótipo, como o Chrome, o HEY ou o YouTube, mantêm a sua forma e assumem as cores do tema.
+- _Arcade_ desenha as mesmas aplicações como pixel art de 8 bits, como faria uma consola de jogos antiga.
+- _Original_ mostra cada aplicação com o ícone que o seu criador lhe deu.
+
+Pode instalar um conjunto de ícones criado por outra pessoa com _Instalar > Estilo > Ícones_ (ou `omarchy icons install <git url>`), e removê-lo novamente em _Remover > Ícones_. _Atualizar > Ícones Extra_ obtém a versão mais recente dos conjuntos que tem instalados.
+
+Para criar o seu próprio conjunto, coloque os seus ícones em `~/.config/omarchy/icons/<name>/`, um ficheiro por aplicação, com o nome correspondente à linha `Icon=` do ficheiro `.desktop` da aplicação. Um ficheiro que termine em `.svg` é mostrado tal como está. Um ficheiro que termine em `.svg.tpl` é desenhado com as cores do tema: escreva `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` ou `{{ icon_shadow }}` onde deve ir uma cor. O conjunto predefinido em `/usr/share/omarchy/icons/papercraft/` é um bom ponto de partida. Adicione um `preview.png` para mostrar o seu conjunto no seletor; sem ele, o Omarchy desenha uma pré-visualização a partir dos seus ícones. Para alterar um único ícone do conjunto predefinido, coloque a sua versão em `~/.config/omarchy/icons/papercraft/`.
+
 ### Desbloqueios
 
-Os temas também podem ter um design de desbloqueio personalizado, que é utilizado no processo de desencriptação no arranque. Podes selecionar um deles em _Estilo > Desbloqueio_. Têm este aspeto:
+Os temas também podem ter um design de desbloqueio personalizado, que é utilizado no processo de desencriptação no arranque. Pode selecionar um deles em _Aparência > Desbloqueio_. Têm este aspeto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +102,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +119,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
