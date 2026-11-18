@@ -26,6 +26,8 @@ flags, or no arguments at all, refuses a bare word as a mistyped subcommand:
 update with the typo ignored. A parent that legitimately takes an operand
 documents it (`# omarchy:args=<name>`), and its leftovers are passed through.
 
+A flag with a separate value placeholder, such as `[--agent <id>]`, counts as an operand and disables this check; a value in the same token, such as `[--webcam-device=<device>]`, does not.
+
 Prefer explicit metadata for user-facing commands. Keep routes consistent with
 the filename unless there is a deliberate alias or compatibility route.
 

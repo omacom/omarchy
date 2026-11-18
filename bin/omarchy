@@ -482,7 +482,7 @@ report_unknown_subcommand() {
   local route="$1"
 
   echo "Unknown Omarchy command: $route $UNKNOWN_SUBCOMMAND" >&2
-  echo "Run '$route --help' to see its subcommands." >&2
+  echo "Run '$route --help' for usage." >&2
   return 127
 }
 
