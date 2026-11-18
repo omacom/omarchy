@@ -1,8 +1,8 @@
 # Soalan Lazim
 
-### Bagaimana saya bertukar antara susun atur papan kekunci?
+### Bagaimana cara saya bertukar antara susun atur papan kekunci?
 
-Sunting fail `~/.config/hypr/input.lua` anda dan tambah ini untuk bertukar antara susun atur pada `Left Alt + Right Alt`:
+Edit fail `~/.config/hypr/input.lua` anda dan tambahkan ini untuk bertukar antara susun atur pada `Left Alt + Right Alt`:
 
 ```
 hl.config({
@@ -14,47 +14,43 @@ hl.config({
 })
 ```
 
-Bar akan secara automatik menunjukkan susun atur papan kekunci semasa anda sebaik sahaja anda mempunyai berbilang susun atur dikonfigurasikan (dan anda boleh mengkliknya untuk bertukar juga).
+Bar akan memaparkan susun atur papan kekunci semasa anda secara automatik sebaik sahaja anda mengkonfigurasikan berbilang susun atur (dan anda juga boleh mengkliknya untuk bertukar).
 
-### Bagaimana saya menukar format jam kepada 12-jam?
+### Bagaimana cara saya menukar format jam kepada 12 jam?
 
-Klik kanan jam di bar untuk berkitar melalui format biasa, termasuk yang 12-jam. Anda juga boleh menetapkan format secara langsung:
+Klik kanan jam pada bar untuk beralih antara format yang biasa, termasuk format 12 jam. Anda juga boleh menetapkan format secara terus:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-Ini akan memaparkan Sunday 10:55 AM.
+Ini akan memaparkan Ahad 10:55 AM.
 
-### Bagaimana saya menukar zon masa saya?
+### Bagaimana cara saya menukar zon masa saya?
 
-Jalankan _Kemas Kini > Zon Masa_ dalam menu Omarchy dan pilih dari senarai. Jika zon masa betul tetapi jam itu sendiri telah menyimpang, _Kemas Kini > Masa_ memulakan semula penyegerakan masa untuk anda.
+Jalankan _Kemas Kini > Zon Masa_ dalam menu Omarchy dan pilih daripada senarai. Jika zon masa sudah betul tetapi jam itu sendiri telah tersasar, _Kemas Kini > Masa_ memulakan semula penyegerakan masa untuk anda.
 
-### Bagaimana saya menukar DNS saya, berkongsi Wi-Fi saya, atau memeriksa kelajuan sambungan saya?
+### Bagaimana cara saya menukar DNS saya, berkongsi Wi-Fi saya, atau menyemak kelajuan sambungan saya?
 
-Semua itu berada dalam [rangkaian](35-networking.md).
+Semua itu ada dalam [rangkaian](35-networking.md).
 
-### Bagaimana saya memeriksa kelajuan cakera saya?
+### Bagaimana cara saya menyemak kelajuan cakera saya?
 
-_Pencetus > Ujian Kelajuan > Ujian Kelajuan Cakera_ mengukur kelajuan baca dan tulis langsung pada pemacu anda, atau `omarchy disk speedtest` dari terminal.
+_Pencetus > Ujian Kelajuan > Ujian Kelajuan Cakera_ mengukur kelajuan baca dan tulis langsung pada pemacu anda, atau `omarchy disk speedtest` daripada terminal.
 
-### Mengapa saya tidak boleh log masuk ke akaun Google saya dalam Chromium?
+### Bagaimana cara saya menambah pencetak?
 
-Binaan Chromium sumber terbuka biasa tidak disertakan dengan kelayakan OAuth yang diperlukan Google untuk log masuk akaun. Jalankan _Pasang > Perkhidmatan > Akaun Chromium_ dalam menu Omarchy untuk menambahnya, mulakan semula pelayar, dan log masuk akan berjaya.
+Pencetakan telah disediakan dan berjalan terus dari awal, dan anda menambahkan setiap pencetak sendiri daripada _Tetapan Cetakan_ dalam pelancar aplikasi (`Super + Space`).
 
-### Bagaimana saya menambah pencetak?
+Pilih _Tambah_, dan berikannya sedikit masa untuk mencari: pencetak yang dipasang melalui USB, dan kebanyakan pencetak rangkaian, akan ditemui untuk anda. Jika pencetak anda tiada dalam senarai, pilih _Pencetak Rangkaian > Internet Printing Protocol (ipp)_ dan masukkan alamatnya — paparan pencetak itu sendiri atau halaman webnya akan memberitahu anda apa alamat itu, biasanya sesuatu seperti `192.168.1.50` dengan baris gilir `ipp/print`. _Seterusnya_ kemudian menawarkan pemacu, di mana pencetak moden berfungsi paling baik pada profil tanpa pemacu _IPP Everywhere_ dan pencetak yang lebih lama memerlukan pemacu modelnya sendiri.
 
-Pencetakan disediakan dan berjalan terus selepas pemasangan, dan anda menambah setiap pencetak sendiri dari _Tetapan Cetak_ dalam pelancar aplikasi (`Super + Space`).
+Klik kanan pencetak dan pilih _Tetapkan sebagai Lalai_ untuk memilih pencetak yang digunakan dahulu oleh aplikasi anda, dan _Sifat_ untuk menetapkan saiz kertas, dupleks dan kualiti.
 
-Pilih _Tambah_, dan berikan sedikit masa untuk mencari: pencetak yang dicucuk melalui USB, dan kebanyakan pencetak rangkaian, ditemui untuk anda. Jika pencetak anda tiada dalam senarai, pilih _Network Printer > Internet Printing Protocol (ipp)_ dan masukkan alamatnya — paparan pencetak itu sendiri atau halaman webnya akan memberitahu anda apa alamat itu, biasanya sesuatu seperti `192.168.1.50` dengan baris `ipp/print`. _Forward_ kemudian menawarkan pemacu, di mana pencetak moden berfungsi paling baik pada profil tanpa pemacu _IPP Everywhere_ dan yang lebih lama mahukan pemacu modelnya sendiri.
+Penemuan automatik, di mana pencetak pada rangkaian muncul tanpa ditambahkan, dimatikan buat sementara waktu sementara ia diolah semula, itulah sebabnya langkah pertama di atas perlu anda lakukan sendiri dan bukannya automatik. Mencetak ke fail PDF berfungsi tanpa sebarang pencetak langsung.
 
-Klik kanan pencetak dan pilih _Tetapkan sebagai Lalai_ untuk memilih yang mana satu yang dicapai aplikasi anda dahulu, dan _Sifat_ untuk menetapkan saiz kertas, dupleks dan kualiti.
+### Bagaimana cara saya menukar tempat tangkapan skrin atau rakaman skrin disimpan?
 
-Penemuan automatik, di mana pencetak pada rangkaian muncul tanpa ditambah, dimatikan buat sementara semasa ia diolah semula, sebab itulah langkah pertama di atas adalah tanggungjawab anda dan bukannya automatik. Mencetak ke fail PDF berfungsi tanpa sebarang pencetak pun.
-
-### Bagaimana saya menukar tempat tangkap skrin atau rakaman skrin disimpan?
-
-Tangkap skrin yang disimpan pergi ke `~/Pictures/Screenshots` secara lalai. Untuk menggunakan direktori lain, tambahkan ini pada fail di bawah `~/.config/uwsm/env.d/` (seperti `~/.config/uwsm/env.d/capture`):
+Tangkapan skrin yang disimpan pergi ke `~/Pictures/Screenshots` secara lalai. Untuk menggunakan direktori lain, tambahkan ini pada fail di bawah `~/.config/uwsm/env.d/` (seperti `~/.config/uwsm/env.d/capture`):
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
@@ -62,23 +58,23 @@ export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 
 Anda boleh melakukan perkara yang sama untuk rakaman skrin menggunakan `OMARCHY_SCREENRECORD_DIR`.
 
-Omasnap mencipta direktori tangkap skrinnya secara automatik. Cipta direktori rakaman skrin sendiri, kemudian mulakan semula Omarchy untuk mana-mana perubahan persekitaran berkuat kuasa.
+Omasnap mencipta direktori tangkapan skrinnya secara automatik. Cipta direktori rakaman skrin sendiri, kemudian mulakan semula Omarchy supaya mana-mana perubahan persekitaran berkuat kuasa.
 
-### Bagaimana saya membuat pembesar suara + webcam berfungsi pada Apple Studio Display saya?
+### Bagaimana cara saya memastikan pembesar suara + kamera web berfungsi pada Apple Studio Display saya?
 
-Anda menyangka semuanya sepatutnya berfungsi hanya dengan mencucuk USB C, tetapi malangnya itu tidak berlaku. Penyelesaian yang saya dapati untuk membuatnya berfungsi dengan boleh dipercayai ialah menggunakan [kabel WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Kemudian pembesar suara dan webcam berfungsi dengan sempurna.
+Anda mungkin menyangka semuanya sepatutnya berfungsi hanya dengan memasang USB C, tetapi malangnya bukan begitu. Penyelesaian yang saya temui untuk memastikannya berfungsi dengan boleh dipercayai ialah menggunakan [kabel WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Kemudian pembesar suara dan kamera web berfungsi dengan sempurna.
 
-Ingat bahawa anda mempunyai kawalan kecerahan terbina dalam Omarchy untuk Apple Displays (Studio dan XDR kedua-duanya) menggunakan butang kecerahan papan kekunci biasa.
+Ingat bahawa anda mempunyai kawalan kecerahan terbina dalam dalam Omarchy untuk Apple Displays (kedua-dua Studio dan XDR) menggunakan butang kecerahan papan kekunci biasa.
 
-### Bagaimana saya menyingkirkan semua perisian tambahan?
+### Bagaimana cara saya menyingkirkan semua perisian tambahan?
 
-Jika anda tidak mahukan atur cara seperti Obsidian atau LibreOffice atau mana-mana bahan prapasang lain, anda boleh membuangnya dengan sangat mudah.
+Jika anda tidak mahu program seperti Obsidian atau LibreOffice atau mana-mana bahan prapasang yang lain, anda boleh menyingkirkannya dengan sangat mudah.
 
-Jalankan _Buang > Pakej_ untuk melihat setiap pakej yang dipasang. Kemudian anda boleh memilih mana-mana pakej yang anda mahu buang dengan tab, dan mula membuang semua yang telah anda pilih dengan return.
+Jalankan _Buang > Pakej_ untuk melihat setiap pakej yang dipasang. Kemudian anda boleh memilih mana-mana pakej yang ingin anda buang dengan tab, dan mulakan pembuangan semua yang telah anda pilih dengan return.
 
-Dan anda boleh menggunakan _Buang > Aplikasi Web_ dari menu Omarchy untuk membuang mana-mana aplikasi web prapasang yang anda tidak mahu.
+Dan anda boleh menggunakan _Buang > Aplikasi Web_ daripada menu Omarchy untuk membuang mana-mana aplikasi web prapasang yang anda tidak mahu.
 
-Atau jalankan _Buang > Prapasang_ untuk menyapu keluar semua tambahan prapasang — aplikasi web, TUI, dan aplikasi pilihan — sekali gus. Hotkey yang melancarkannya hilang bersamanya, jadi anda ditinggalkan dengan slate ikatan yang bersih untuk diisi dengan milik anda sendiri dalam `~/.config/hypr/bindings.lua`.
+Atau jalankan _Buang > Prapasang_ untuk menyapu keluar semua tambahan prapasang — aplikasi web, TUI, dan aplikasi pilihan — sekali gus. Kekunci pintas yang melancarkannya hilang bersamanya, jadi anda ditinggalkan dengan himpunan pengikatan yang bersih untuk diisi dengan milik anda sendiri dalam `~/.config/hypr/bindings.lua`.
 
 ---
 
