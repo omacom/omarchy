@@ -10,7 +10,7 @@ When new releases are made, a circle arrow icon will appear to the right of your
 
 ### Four channels
 
-Omarchy is updated along four channels: stable, RC, edge, and dev. New installations start on the stable channel, except on Apple Silicon, which starts on edge until the first Mac stable release. Stable tracks the [official releases](https://github.com/omacom/omarchy/releases/), as well as the [stable Omarchy Arch mirror](https://github.com/omacom-io/omarchy-mirror) that's running one month behind the latest, so we can catch any new incompatibilities that require config changes before they cause problems for people.
+Omarchy is updated along four channels: stable, RC, edge, and dev. New installations default to the stable channel, except on Apple Silicon, where the default is edge. Stable tracks the [official releases](https://github.com/omacom/omarchy/releases/), as well as the [stable Omarchy Arch mirror](https://github.com/omacom-io/omarchy-mirror) that's running one month behind the latest, so we can catch any new incompatibilities that require config changes before they cause problems for people.
 
 But if you'd like to help spot those potential issues, you can run on the edge channel. That'll keep your Omarchy packages tracking the latest development builds, and lets you update to the latest Arch packages as soon as they're available. You should only do this if you're experienced with Linux, and know how to recover a system that has problems.
 
@@ -22,7 +22,7 @@ You can switch between channels using _Update > Channel_ from the Omarchy menu (
 
 ### Release candidates on Apple Silicon
 
-Upstream Omarchy offers RC and edge on Apple Silicon. Stable is not available there yet. A release candidate is for testing: keep a working backup and a recovery path before switching.
+A release candidate is for testing: keep a working backup and a recovery path before switching.
 
 On an existing upstream Apple Silicon installation:
 
@@ -32,7 +32,7 @@ On an existing upstream Apple Silicon installation:
 
 If switching reports that Omarchy has no rc channel for `aarch64-apple`, the installed build does not yet include that support. Wait for a package update containing the fix, then repeat the steps. A GitHub release tag alone does not update the packages or channel choices on your machine.
 
-These steps apply to upstream Omarchy. If your installation still uses the separate [Omarchy Mac fork](https://github.com/omacom/omarchy-mac) and its `[omarchy-aarch64]` repository, check that project's migration guidance before switching to upstream repositories. Its older updater uses a different package source.
+These steps apply to upstream Omarchy. If your installation still uses the separate [Omarchy Mac fork](https://github.com/omacom/omarchy-mac) and its `[omarchy-aarch64]` repository, follow that project's [migration guidance](https://github.com/omacom/omarchy-mac#moving-from-this-setup) instead. There is no in-place upgrade from that setup to upstream Omarchy.
 
 ### Switching kernels
 
