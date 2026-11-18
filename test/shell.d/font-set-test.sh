@@ -20,7 +20,7 @@ cat >"$test_dir/bin/fc-list" <<'STUB'
 echo "${FONT_SET_TEST_FAMILY:-Test Mono S}"
 STUB
 
-for stub in omarchy-restart-shell omarchy-notification-send omarchy-hook; do
+for stub in omarchy-restart-shell omarchy-notification-send omarchy-hook pkill; do
   printf '#!/bin/bash\n\nexit 0\n' >"$test_dir/bin/$stub"
 done
 
@@ -141,31 +141,24 @@ pass "migration is idempotent"
 
 rm -rf "$home"
 mkdir -p "$(dirname "$fontconfig_file")"
-cat >"$fontconfig_file" <<'XML'
-<?xml version="1.0"?>
-<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
-<fontconfig>
-  <match target="pattern">
-    <test name="family" qual="any">
-      <string>monospace</string>
-    </test>
-    <edit name="family" mode="prepend_first" binding="strong">
-      <string>Test Mono S</string>
-    </edit>
-  </match>
+custom_rule=$(cat <<'XML'
   <match target="pattern">
     <edit name="rgba" mode="assign">
       <const>none</const>
     </edit>
   </match>
-</fontconfig>
 XML
-customized=$(<"$fontconfig_file")
+)
+customized=$(legacy_override "Test Mono S")
+customized=${customized/<\/fontconfig>/"$custom_rule"$'\n'</fontconfig>}
+printf '%s\n' "$customized" >"$fontconfig_file"
 run_migration
 
-[[ $(<"$fontconfig_file") == "$customized" ]] ||
-  fail "migration leaves a hand-edited override alone" "$(cat "$fontconfig_file")"
-pass "migration leaves a hand-edited override alone"
+expected=$(expected_override "Test Mono S")
+expected=${expected/<\/fontconfig>/"$custom_rule"$'\n'</fontconfig>}
+[[ $(<"$fontconfig_file") == "$expected" ]] ||
+  fail "migration upgrades its generated block and preserves surrounding user rules" "$(cat "$fontconfig_file")"
+pass "migration upgrades its generated block and preserves surrounding user rules"
 
 rm -rf "$home"
 mkdir -p "$home"
@@ -282,5 +275,5 @@ if ((resolvable)); then
     fail "the chosen family follows ui-monospace" "ui-monospace -> $answer, wanted $chosen"
   pass "the chosen family follows ui-monospace"
 else
-  pass "no fontconfig fixture on this machine; skipping resolution checks"
+  skip "no fontconfig fixture on this machine; resolution checks"
 fi
