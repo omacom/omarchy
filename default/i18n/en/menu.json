@@ -566,6 +566,9 @@
   "agent.harness.opencode": {
     "label": "OpenCode"
   },
+  "agent.harness.openzoo": {
+    "label": "openzoo"
+  },
   "agent.harness.ori": {
     "label": "Ori"
   },
