@@ -43,11 +43,14 @@ if (localStorage['enhanced-h264ify-block_vp9'] === undefined) {
 if (localStorage['enhanced-h264ify-block_av1'] === undefined) {
   localStorage['enhanced-h264ify-block_av1'] = true;
 }
+// Omarchy patch: upstream blocks Opus and AAC here until the saved settings
+// load, but its defaults below allow both. Match the defaults so a first visit
+// isn't told neither audio format plays.
 if (localStorage['enhanced-h264ify-block_opus'] === undefined) {
-  localStorage['enhanced-h264ify-block_opus'] = true;
+  localStorage['enhanced-h264ify-block_opus'] = false;
 }
 if (localStorage['enhanced-h264ify-block_mp4a'] === undefined) {
-  localStorage['enhanced-h264ify-block_mp4a'] = true;
+  localStorage['enhanced-h264ify-block_mp4a'] = false;
 }
 if (localStorage['enhanced-h264ify-disable_LN'] === undefined) {
   localStorage['enhanced-h264ify-disable_LN'] = false;

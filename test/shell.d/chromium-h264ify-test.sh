@@ -79,6 +79,28 @@ run_helper "$home"
 grep -Fxq -- "--load-extension=$extension" "$home/.config/chromium-flags.conf" || fail "a commented-out extension doesn't count as loaded" "$(cat "$home/.config/chromium-flags.conf")"
 pass "a commented-out extension doesn't count as loaded"
 
+home=$(new_home earlier-line)
+printf '%s\n' "--load-extension=/a,$extension" '--no-first-run' '--load-extension=/b' >"$home/.config/chromium-flags.conf"
+run_helper "$home"
+run_helper "$home"
+[[ $(cat "$home/.config/chromium-flags.conf") == "--load-extension=/a,$extension"$'\n--no-first-run\n'"--load-extension=/b,$extension" ]] ||
+  fail "an extension only on an earlier --load-extension line is added to the last one, which Chromium uses" "$(cat "$home/.config/chromium-flags.conf")"
+pass "an extension only on an earlier --load-extension line is added to the last one"
+
+home=$(new_home last-line)
+printf '%s\n' '--load-extension=/a' "--load-extension=/b,$extension # mine" >"$home/.config/chromium-flags.conf"
+run_helper "$home"
+[[ $(cat "$home/.config/chromium-flags.conf") == $'--load-extension=/a\n'"--load-extension=/b,$extension # mine" ]] ||
+  fail "an extension already on the last --load-extension line stays as it is" "$(cat "$home/.config/chromium-flags.conf")"
+pass "an extension already on the last --load-extension line stays as it is"
+
+home=$(new_home similar-path)
+printf '%s\n' "--load-extension=/a,$extension-old" >"$home/.config/chromium-flags.conf"
+run_helper "$home"
+[[ $(cat "$home/.config/chromium-flags.conf") == "--load-extension=/a,$extension-old,$extension" ]] ||
+  fail "a longer path that starts with the extension's doesn't count as loaded" "$(cat "$home/.config/chromium-flags.conf")"
+pass "a longer path that starts with the extension's doesn't count as loaded"
+
 home=$(new_home no-file)
 run_helper "$home"
 [[ ! -e $home/.config/chromium-flags.conf ]] || fail "no flags file is created for a browser that isn't installed"
