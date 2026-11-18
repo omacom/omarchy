@@ -19,14 +19,39 @@ local CONSOLE = "special:qconsole"
 -- the workspace itself: Hyprland only tags a spawn with the workspace it came
 -- from while misc.initial_workspace_tracking is on, and looknfeel turns it off.
 -- Omarchy ships without a default agent, so --pick offers the choice instead
--- of an empty console that explains nothing. One that has to be installed
--- first does so in a floating terminal and then moves into the console; see
--- omarchy-default-agent. A console created by moving a window onto it is not
--- empty, and is left alone. --prefer-local opens the agent on the local model
--- when one is running, and on the usual one otherwise.
+-- of an empty console that explains nothing. The picker is a menu overlay,
+-- not a window on the console, so the seed runs in a terminal: that window
+-- holds the console open and takes focus back when the picker is dismissed,
+-- and a launch that opens its own agent window replaces it. One that has to
+-- be installed first does so in a floating terminal and then moves into the
+-- console; see omarchy-default-agent. A console created by moving a window
+-- onto it is not empty, and is left alone. --prefer-local opens the agent on
+-- the local model when one is running, and on the usual one otherwise.
+local seeded = false
+local picker_over_console = false
+local restoring = false
+
+local function default_agent()
+  local home = os.getenv("HOME")
+  if not home then
+    return nil
+  end
+  local file = io.open(home .. "/.config/omarchy/defaults/agent", "r")
+  if not file then
+    return nil
+  end
+  local agent = file:read("*l")
+  file:close()
+  if agent and agent ~= "" then
+    return agent
+  end
+  return nil
+end
+
 hl.on("workspace.created", function(ws)
   if ws and ws.name == CONSOLE and ws.is_empty then
-    hl.exec_cmd("omarchy-agent --pick --prefer-local", { workspace = CONSOLE .. " silent" })
+    seeded = true
+    hl.exec_cmd("omarchy-launch-terminal bash -c 'omarchy-agent --pick --prefer-local; exec bash'", { workspace = CONSOLE .. " silent" })
   end
 end)
 
@@ -162,12 +187,70 @@ end)
 hl.on("workspace.special_active", function(ws, mon)
   if ws and ws.name == CONSOLE then
     refit(mon)
+    -- The seed is only on workspace.created, so reopening a seeded console
+    -- would otherwise show just its shell. Offer the picker again until an
+    -- agent is set, unless an agent window is already on the console. The
+    -- console's own window takes focus as it comes up, and a picker summoned
+    -- at that moment is dismissed with it, so the picker waits for that to
+    -- settle.
+    if seeded and not restoring and not default_agent() then
+      local agent_open = false
+      local windows = hl.get_workspace_windows(CONSOLE)
+      if #windows > 1 then
+        agent_open = true
+      end
+      for _, window in ipairs(windows) do
+        if window.class == "org.omarchy.agent" then
+          agent_open = true
+        end
+      end
+      if not agent_open then
+        hl.exec_cmd("sleep 1 && omarchy-agent --pick --prefer-local")
+      end
+    end
   end
 end)
 
 hl.on("workspace.move_to_monitor", function(ws, mon)
   if ws and ws.name == CONSOLE then
     refit(mon)
+  end
+end)
+
+-- Dismissing the picker returns focus to wherever the pointer is, which can
+-- be the window under the console, and a focus there hides the console. When
+-- the picker that was opened over the console closes, bring the console back
+-- and focus its window, unless a default agent is set by then. Restoring
+-- must not re-offer the picker, so it says so.
+hl.on("layer.opened", function(layer)
+  if layer and layer.namespace == "omarchy-menu" then
+    local ws = hl.get_workspace(CONSOLE)
+    if seeded and ws and ws.visible then
+      picker_over_console = true
+    end
+  end
+end)
+
+hl.on("layer.closed", function(layer)
+  if layer and layer.namespace == "omarchy-menu" and picker_over_console then
+    picker_over_console = false
+    hl.timer(function()
+      if not (seeded and not default_agent()) then
+        return
+      end
+      local ws = hl.get_workspace(CONSOLE)
+      if not ws or ws.visible then
+        return
+      end
+      local windows = hl.get_workspace_windows(CONSOLE)
+      if #windows == 0 or not windows[1].address then
+        return
+      end
+      restoring = true
+      hl.dispatch(hl.dsp.workspace.toggle_special("qconsole"))
+      hl.dispatch(hl.dsp.focus({ window = "address:" .. windows[1].address }))
+      restoring = false
+    end, { type = "oneshot", timeout = 1 })
   end
 end)
 

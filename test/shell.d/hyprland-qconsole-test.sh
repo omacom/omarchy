@@ -21,6 +21,7 @@ hl = {
   workspace_rule = function(rule) table.insert(rules, rule) end,
   on = function(event, callback) handlers[event] = callback end,
   get_active_monitor = function() return monitor end,
+  get_active_window = function() return nil end,
   get_workspace = function() return workspace end,
   -- workspace.windows is the tiled count here and workspace.floats the floating
   -- one, so the fixtures can say which kind of window is on the console.
@@ -31,6 +32,9 @@ hl = {
     return list
   end,
   exec_scheduled_prop_refresh_immediately = function() end,
+  timer = function() end,
+  dispatch = function() end,
+  dsp = {},
   exec_cmd = function(cmd, rules) table.insert(spawned, { cmd = cmd, rules = rules }) end,
 }
 
@@ -57,7 +61,7 @@ handlers["workspace.created"]({ name = "special:qconsole", is_empty = false })
 handlers["workspace.created"]({ name = "special:scratchpad", is_empty = true })
 assert(#spawned == 0, "only an empty console is seeded")
 handlers["workspace.created"]({ name = "special:qconsole", is_empty = true })
-assert(#spawned == 1 and spawned[1].cmd == "omarchy-agent --pick --prefer-local", "console is seeded with the default agent")
+assert(#spawned == 1 and spawned[1].cmd == "omarchy-launch-terminal bash -c 'omarchy-agent --pick --prefer-local; exec bash'", "console is seeded with the default agent")
 assert(spawned[1].rules.workspace == "special:qconsole silent",
   "the seed is pinned to the console rather than trusting the spawn to inherit it")
 
