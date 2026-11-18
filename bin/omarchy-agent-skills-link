@@ -36,6 +36,11 @@ for dir in "${dirs[@]}"; do
   done
   for skill in "$skills"/*/; do
     skill=${skill%/}
-    ln -sfn "$skill" "$dir/${skill##*/}"
+    link="$dir/${skill##*/}"
+    # A folder or a link of the user's own by the same name wins.
+    if [[ -e $link || -L $link ]] && ! [[ -L $link && $(readlink "$link") == */default/agents/skills/* ]]; then
+      continue
+    fi
+    ln -sfn "$skill" "$link"
   done
 done
