@@ -161,6 +161,19 @@ omarchy_dock pinned signal chromium.desktop signal >/dev/null
   fail "dock pin order is set in one go" "$(cat "$home/.config/omarchy/shell.json")"
 pass "dock pin order is set through omarchy-dock pinned"
 
+# An id may itself end in .desktop (org.telegram.desktop names the file
+# org.telegram.desktop.desktop), so such an id must survive pinning instead of
+# being truncated to a desktop entry that does not exist.
+mkdir -p "$home/.local/share/applications"
+printf '[Desktop Entry]\nType=Application\nName=Telegram Desktop\n' >"$home/.local/share/applications/org.telegram.desktop.desktop"
+omarchy_dock pinned signal org.telegram.desktop >/dev/null
+jq -e '.dock.pinned == ["signal", "org.telegram.desktop"]' "$home/.config/omarchy/shell.json" >/dev/null ||
+  fail "dock keeps an id that itself ends in .desktop" "$(cat "$home/.config/omarchy/shell.json")"
+omarchy_dock pinned signal org.telegram.desktop.desktop >/dev/null
+jq -e '.dock.pinned == ["signal", "org.telegram.desktop"]' "$home/.config/omarchy/shell.json" >/dev/null ||
+  fail "dock still strips a real .desktop file-name suffix" "$(cat "$home/.config/omarchy/shell.json")"
+pass "dock keeps a pinned id that itself ends in .desktop"
+
 [[ $(omarchy_dock autohide) == "off" ]] || fail "dock auto-hide starts off"
 omarchy_dock autohide toggle >/dev/null
 jq -e '.dock.autohide == true' "$home/.config/omarchy/shell.json" >/dev/null || fail "dock auto-hide toggles on"
