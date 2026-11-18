@@ -114,6 +114,13 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
     omarchy-restart-shell || true
   fi
   omarchy-migrate
+
+  # A changed template only reaches the staged theme when the theme is set
+  # again, so re-render it once the templates differ from the last render. A
+  # migration that refreshed already counts. A failed refresh is retried by the
+  # next update rather than stopping this one.
+  omarchy-theme-refresh --if-changed ||
+    echo -e "\e[33mCould not refresh the current theme; the next update tries again.\e[0m" >&2
   omarchy-update-orphan-pkgs -y
 
   omarchy-update-analyze-logs
