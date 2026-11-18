@@ -411,6 +411,14 @@ Panel {
   }
 
   onWifiDeviceChanged: {
+    // The station disappearing can leave passwordSsid set after its delegate
+    // has gone, which blocks every keyboard shortcut behind an invisible
+    // prompt. Let the device/model change settle before releasing it.
+    if (!wifiDevice && passwordSsid !== "") {
+      Qt.callLater(function() {
+        if (!root.wifiDevice && root.passwordSsid !== "") root.cancelPasswordPrompt()
+      })
+    }
     setScannerEnabled(true)
     syncWifiNetworks()
     resetActiveApSignal()
@@ -750,12 +758,24 @@ Panel {
       if (row) nets.push(row)
     }
     nets = Model.sortWifiRows(nets, passwordSsid !== "" ? wifiNetworks : null)
+    var promptStillListed = passwordSsid === ""
+    for (var j = 0; !promptStillListed && j < nets.length; j++)
+      promptStillListed = nets[j] && nets[j].ssid === passwordSsid
     // A new model rebuilds every delegate, which takes focus from a passphrase
     // being typed, so identical rows are left in place.
-    if (JSON.stringify(nets) === JSON.stringify(wifiNetworks)) return
-    var selected = wifiNetworks[selectedIndex]
-    cursorSsid = selected ? selected.ssid : null
-    wifiNetworks = nets
+    if (JSON.stringify(nets) !== JSON.stringify(wifiNetworks)) {
+      var selected = wifiNetworks[selectedIndex]
+      cursorSsid = selected ? selected.ssid : null
+      wifiNetworks = nets
+    }
+    // Held ordering keeps an in-range prompt stable, but a dropped network is
+    // deliberately removed. Release the prompt after the delegate disappears
+    // so PanelKeyCatcher cannot remain blocked with no editor on screen.
+    if (!promptStillListed) {
+      Qt.callLater(function() {
+        if (root.passwordSsid !== "" && !root.networkForSsid(root.passwordSsid)) root.cancelPasswordPrompt()
+      })
+    }
   }
 
   function wifiSectionTitle(index) {
@@ -930,14 +950,14 @@ Panel {
     runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connect() })
   }
 
-  function connectWithPassphrase(ssid, passphrase) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connectWithPsk(passphrase) })
+  function connectWithPassphrase(network, passphrase) {
+    runNetworkAction("connect", network, function(liveNetwork) { liveNetwork.connectWithPsk(passphrase) })
   }
 
-  function connectEnterprise(ssid, identity, passphrase) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) {
+  function connectEnterprise(network, identity, passphrase) {
+    runNetworkAction("connect", network, function(liveNetwork) {
       enterpriseConnect.secret = passphrase
-      enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity]
+      enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", liveNetwork.name, identity]
       enterpriseConnect.running = true
     })
   }
@@ -1131,15 +1151,18 @@ Panel {
     repeat: false
     onTriggered: {
       if (!root.actionKind) return
+      var timedOutKind = root.actionKind
       var reason
-      if (root.actionKind === "connect") reason = Commons.I18n.t("network.timedOutConnecting")
-      else if (root.actionKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
+      if (timedOutKind === "connect") reason = Commons.I18n.t("network.timedOutConnecting")
+      else if (timedOutKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
       else reason = Commons.I18n.t("network.timedOutForgetting")
       root.failureSsid = root.actionSsid
       root.failureKind = root.actionKind
       root.failureReason = reason
       root.actionSsid = ""
       root.actionKind = ""
+      if (timedOutKind === "connect" && root.passwordSsid === root.failureSsid && !root.networkForSsid(root.failureSsid))
+        root.cancelPasswordPrompt()
       root.refresh()
     }
   }
@@ -1869,8 +1892,13 @@ Panel {
 
     function submitCredentials() {
       if (!net || root.busy || root.passwordText.length === 0) return
-      if (!isEnterprise) return root.connectWithPassphrase(net.ssid, root.passwordText)
-      if (root.identityText.length > 0) root.connectEnterprise(net.ssid, root.identityText, root.passwordText)
+      var liveNetwork = root.networkForSsid(net.ssid)
+      if (!liveNetwork) {
+        root.cancelPasswordPrompt()
+        return
+      }
+      if (!isEnterprise) return root.connectWithPassphrase(liveNetwork, root.passwordText)
+      if (root.identityText.length > 0) root.connectEnterprise(liveNetwork, root.identityText, root.passwordText)
     }
 
     Connections {
@@ -2045,11 +2073,11 @@ Panel {
           // Signal strength is conveyed by the wifi-bars icon and the
           // right-edge glyph/buttons carry protection or forget affordances,
           // so the second line only carries action status (Connecting…,
-          // Connected, Failed, etc.). Collapses to zero height when empty
-          // so rows without status keep a tight one-line look.
+          // Connected, Failed, etc.). Column excludes an invisible child from
+          // layout, so rows without status keep a tight one-line look without
+          // binding Text.height back to its own implicitHeight.
           text: row.statusText
           visible: row.statusText !== ""
-          height: visible ? implicitHeight : 0
           color: row.statusColor
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.caption
