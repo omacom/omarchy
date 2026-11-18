@@ -23,7 +23,7 @@ EOF
 cat >"$mock_bin/xdg-settings" <<'SH'
 #!/bin/bash
 [[ -z ${BROWSER:-} ]] || printf '%s\n' "$BROWSER" >"$OMARCHY_TEST_XDG_SETTINGS_BROWSER"
-[[ ${OMARCHY_TEST_XDG_SETTINGS_EMPTY:-0} == "1" ]] || echo chromium.desktop
+[[ ${OMARCHY_TEST_XDG_SETTINGS_EMPTY:-0} == "1" ]] || echo "${OMARCHY_TEST_DEFAULT_BROWSER:-chromium.desktop}"
 SH
 cat >"$mock_bin/xdg-mime" <<'SH'
 #!/bin/bash
@@ -91,15 +91,24 @@ grep -F 'https://example.test/fallback' "$launch_log" >/dev/null ||
 grep -Fx '^chromium(?!.*__).*$' "$focus_log" >/dev/null ||
   fail "browser launcher focuses the browser resolved from the HTTPS handler"
 
-# An open Chromium web app (chromium-chat.example.com__-Default) is listed
-# before the real browser window, and must not absorb the follow.
+# Brave's web apps share its browser prefix; Chromium web apps use chrome-.
+cat >"$test_home/.local/share/applications/brave-browser.desktop" <<'EOF'
+[Desktop Entry]
+Exec=brave %U
+EOF
+cp "$mock_bin/chromium" "$mock_bin/brave"
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_DEFAULT_BROWSER=brave-browser.desktop \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/brave"
+
 dispatch_log="$test_tmp/dispatch"
 cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
 if [[ $1 == clients ]]; then
   cat <<'JSON'
-[{"address":"0xweb","class":"chromium-chat.example.com__-Default"},
- {"address":"0xbrowser","class":"chromium"}]
+[{"address":"0xweb","class":"brave-chat.example.com__-Default"},
+ {"address":"0xbrowser","class":"brave-browser"}]
 JSON
 else
   printf '%s\n' "$*" >>"$OMARCHY_TEST_DISPATCH"
@@ -111,7 +120,7 @@ PATH="$mock_bin:$PATH" OMARCHY_TEST_DISPATCH="$dispatch_log" \
   bash "$ROOT/bin/omarchy-hyprland-focus-app" "$(cat "$focus_log")"
 
 grep -F '0xbrowser' "$dispatch_log" >/dev/null ||
-  fail "browser launcher focus pattern skips Chromium web app windows"
+  fail "browser launcher focus pattern skips Brave web app windows"
 
 # With several browser windows open, Chromium puts the tab in the one used last,
 # so the follow has to land there rather than on whichever is listed first.
@@ -120,10 +129,10 @@ cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
 if [[ $1 == clients ]]; then
   cat <<'JSON'
-[{"address":"0xnever","class":"chromium","focusHistoryID":-1},
- {"address":"0xolder","class":"chromium","focusHistoryID":3},
- {"address":"0xweb","class":"chromium-chat.example.com__-Default","focusHistoryID":0},
- {"address":"0xrecent","class":"chromium","focusHistoryID":1}]
+[{"address":"0xnever","class":"brave-browser","focusHistoryID":-1},
+ {"address":"0xolder","class":"brave-browser","focusHistoryID":3},
+ {"address":"0xweb","class":"brave-chat.example.com__-Default","focusHistoryID":0},
+ {"address":"0xrecent","class":"brave-browser","focusHistoryID":1}]
 JSON
 else
   printf '%s\n' "$*" >>"$OMARCHY_TEST_DISPATCH"
