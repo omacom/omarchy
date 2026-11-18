@@ -14,6 +14,8 @@ bluez-utils
 bolt
 brightnessctl
 btop
+cards
+checkmate
 cliamp
 cmake
 crun
@@ -66,7 +68,6 @@ hyprland-preview-share-picker
 hyprpicker
 hyprsunset
 imagemagick
-imv
 inetutils
 inotify-tools
 inxi
@@ -86,8 +87,6 @@ man-db
 mariadb-libs
 mise-bin
 monologue
-mpv
-mpv-mpris
 gnome-disk-utility
 noto-fonts
 noto-fonts-cjk
@@ -97,6 +96,7 @@ nvim
 obsidian
 omacalc
 omacut
+omaview
 omawrite
 omarchy-nvim
 omarchy-hyprland-titlebars

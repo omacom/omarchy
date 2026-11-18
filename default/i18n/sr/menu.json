@@ -26,11 +26,11 @@
   "update": {
     "label": "Ажурирај"
   },
-  "about": {
-    "label": "О програму"
-  },
   "system": {
     "label": "Систем"
+  },
+  "system.about": {
+    "label": "О програму"
   },
   "system.screensaver": {
     "label": "Чувар екрана"
@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Иконе"
+  },
+  "install.style.icons": {
+    "label": "Иконе"
+  },
+  "remove.icons": {
+    "label": "Иконе"
+  },
+  "update.icons": {
+    "label": "Додатне иконе"
+  },
+  "system.firmware": {
+    "label": "Поновно покретање у BIOS",
+    "description": "Поново покрени у подешавања UEFI фирмвера"
   }
 }

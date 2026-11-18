@@ -376,7 +376,12 @@ report_ignored_theme_files() {
   echo "A theme installed from a git repo cannot supply Lua, a terminal config, or vscode.json." >&2
 }
 
-THEME_NAME=$(echo "$1" | sed -E 's/<[^>]+>//g' | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+# A folder of exactly the given name wins, so a hand-made "Walk Handmade Theme" or "Gruvbox" is reachable;
+# otherwise the name omarchy-theme-list shows (Tokyo Night) is turned back into its folder (tokyo-night).
+THEME_NAME=$(echo "$1" | sed -E 's/<[^>]+>//g')
+if [[ ! -d $OMARCHY_THEMES_PATH/$THEME_NAME && ! -d $USER_THEMES_PATH/$THEME_NAME ]]; then
+  THEME_NAME=$(echo "$THEME_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+fi
 THEME_HEADLESS=0
 if [[ ${OMARCHY_THEME_HEADLESS:-} == "1" || ${OMARCHY_THEME_OFFLINE:-} == "1" ]]; then
   THEME_HEADLESS=1
