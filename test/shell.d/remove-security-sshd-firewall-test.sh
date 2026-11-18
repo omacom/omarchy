@@ -79,7 +79,7 @@ run_remove() {
   local failure="${1:-}"
   set +e
   output=$(env -u SUDO_USER -u PKEXEC_UID -u OMARCHY_INSTALL_USER HOME="$home" PATH="$stub_bin:$ROOT/bin:/usr/bin:/bin" \
-    CALL_LOG="$calls" UFW_STATE="$state" UFW_PRESENT="${UFW_PRESENT:-1}" FAIL_UFW="$failure" \
+    CALL_LOG="$calls" UFW_STATE="$state" UFW_PRESENT="${UFW_PRESENT:-1}" FAIL_UFW="$failure" GUM_LOG="${GUM_LOG:-/dev/null}" \
     bash "$remove" 2>&1)
   status=$?
   set -e
@@ -92,10 +92,11 @@ assert_no_success_claim() {
 }
 
 prepare_case standard
-run_remove
+GUM_LOG="$case_dir/prompts" run_remove
 (( status == 0 )) || fail "removal succeeds with standard SSH rules" "$output"
 [[ $(<"$state") == 'allow 443/tcp' ]] || fail "removal deletes only standard SSH rules" "$(cat "$state")"
 [[ -s $home/.ssh/authorized_keys ]] || fail "declined key removal preserves authorized keys"
+grep -Fq "$home/.ssh/authorized_keys" "$case_dir/prompts" || fail "run directly, the user's own keys are offered"
 pass "removal deletes all standard SSH rules"
 
 for failure in delete-limit delete-port delete-service delete-service-limit delete-app-allow delete-app-limit reload; do
@@ -122,13 +123,15 @@ pass "no-UFW removal does not claim firewall success"
 prepare_case escalated
 mkdir -p "$case_dir/alice/.ssh"
 printf 'ssh-ed25519 alice-key alice@example\n' >"$case_dir/alice/.ssh/authorized_keys"
-for invoker in SUDO_USER=alice PKEXEC_UID=1000 SUDO_USER=ghost; do
+for invoker in SUDO_USER=alice PKEXEC_UID=1000 SUDO_USER=ghost PKEXEC_UID=4242; do
   : >"$case_dir/prompts"
+  : >"$calls"
   env -u SUDO_USER -u PKEXEC_UID -u OMARCHY_INSTALL_USER HOME="$home" USER=root PATH="$stub_bin:$ROOT/bin:/usr/bin:/bin" \
     CALL_LOG="$calls" UFW_STATE="$state" UFW_PRESENT=0 GUM_LOG="$case_dir/prompts" ALICE_HOME="$case_dir/alice" "$invoker" \
     bash "$remove" >/dev/null 2>&1 || fail "removal succeeds for $invoker"
-  if [[ $invoker == *ghost ]]; then
-    [[ ! -s $case_dir/prompts ]] || fail "an unresolved invoker is not offered root's keys" "$(cat "$case_dir/prompts")"
+  if [[ $invoker == *ghost || $invoker == *4242 ]]; then
+    [[ ! -s $case_dir/prompts ]] || fail "an unresolved invoker ($invoker) is not offered root's keys" "$(cat "$case_dir/prompts")"
+    grep -q '^systemctl disable --now sshd.service' "$calls" || fail "an unresolved invoker ($invoker) still has the server taken down"
   else
     grep -Fq "$case_dir/alice/.ssh/authorized_keys" "$case_dir/prompts" || fail "$invoker is offered the invoking user's keys" "$(cat "$case_dir/prompts")"
   fi
