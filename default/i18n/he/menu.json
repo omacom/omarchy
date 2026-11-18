@@ -26,11 +26,11 @@
   "update": {
     "label": "עדכון"
   },
-  "about": {
-    "label": "אודות"
-  },
   "system": {
     "label": "מערכת"
+  },
+  "system.about": {
+    "label": "אודות"
   },
   "system.screensaver": {
     "label": "שומר מסך"

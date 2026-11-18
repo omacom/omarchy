@@ -26,11 +26,11 @@
   "update": {
     "label": "更新"
   },
-  "about": {
-    "label": "关于"
-  },
   "system": {
     "label": "系统"
+  },
+  "system.about": {
+    "label": "关于"
   },
   "system.screensaver": {
     "label": "屏保"

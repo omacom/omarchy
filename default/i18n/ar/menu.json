@@ -26,11 +26,11 @@
   "update": {
     "label": "تحديث"
   },
-  "about": {
-    "label": "حول"
-  },
   "system": {
     "label": "النظام"
+  },
+  "system.about": {
+    "label": "حول"
   },
   "system.screensaver": {
     "label": "شاشة التوقف"

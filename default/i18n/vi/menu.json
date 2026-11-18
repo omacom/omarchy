@@ -26,11 +26,11 @@
   "update": {
     "label": "Cập nhật"
   },
-  "about": {
-    "label": "Giới thiệu"
-  },
   "system": {
     "label": "Hệ thống"
+  },
+  "system.about": {
+    "label": "Giới thiệu"
   },
   "system.screensaver": {
     "label": "Bảo vệ màn hình"
