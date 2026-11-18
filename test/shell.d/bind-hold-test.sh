@@ -72,10 +72,11 @@ pass "hold bindings pair each release with its press"
 
 # Hyprland runs the config in a fresh Lua state on every reload, so a press from
 # before the reload is forgotten. Each lua run below stands in for one config load.
-runtime="$(mktemp -d)"
-mkdir -p "$runtime/hypr/test-instance"
+scratch="$(mktemp -d)"
+trap 'rm -rf "$scratch"' EXIT
+mkdir -p "$scratch/home" "$scratch/runtime/hypr/test-instance"
 hold_load() {
-  HOME="$(mktemp -d)" OMARCHY_PATH="$ROOT" XDG_RUNTIME_DIR="$runtime" HYPRLAND_INSTANCE_SIGNATURE=test-instance \
+  HOME="$scratch/home" OMARCHY_PATH="$ROOT" XDG_RUNTIME_DIR="$scratch/runtime" HYPRLAND_INSTANCE_SIGNATURE=test-instance \
     PRESS="${1:-}" lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 local binds = {}
