@@ -1080,14 +1080,14 @@ function build() {
 
   const canvas = renderer.domElement;
   canvas.addEventListener('pointerdown', event => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || state !== 'playing') return;
     canvas.setPointerCapture(event.pointerId);
     mouse.x = event.clientX; mouse.y = event.clientY;
     events.push({ type: 'down', x: event.clientX, y: event.clientY });
   });
   canvas.addEventListener('pointermove', event => { mouse.x = event.clientX; mouse.y = event.clientY; });
-  canvas.addEventListener('pointerup', event => { if (event.button === 0) { mouse.x = event.clientX; mouse.y = event.clientY; events.push({ type: 'up' }); } });
-  canvas.addEventListener('pointercancel', () => events.push({ type: 'cancel' }));
+  canvas.addEventListener('pointerup', event => { if (event.button === 0 && state === 'playing') { mouse.x = event.clientX; mouse.y = event.clientY; events.push({ type: 'up' }); } });
+  canvas.addEventListener('pointercancel', () => { if (state === 'playing') events.push({ type: 'cancel' }); });
   // Escape puts back what is held or hinted at; with nothing held it pauses, as in every game here.
   addEventListener('keydown', event => {
     if (event.code !== 'Escape' || state !== 'playing' || !(dragPile >= 0 || selPile >= 0 || hintFrom >= 0 || stuck)) return;
@@ -1167,6 +1167,11 @@ function update(dt) {
 }
 
 function draw(dt) {
+  if (state !== 'playing') {
+    events.length = 0;
+    if (dragPile >= 0) cancelDrag();
+    press = null;
+  }
   for (const name of clicks.splice(0)) act(name);
   if (resizing && (settle -= dt) <= 0) resizing = false;
   if (paintDue && !resizing) paint();
