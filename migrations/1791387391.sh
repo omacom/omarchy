@@ -1,10 +1,10 @@
 echo "Resume suspend on 2016-2017 MacBooks with Apple S3X NVMe"
 
 product_name=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
-[[ $product_name =~ MacBook(8,1|9,1|10,1)|MacBookPro13,[123]|MacBookPro14,[123] ]] || exit 0
+[[ $product_name =~ MacBook(9,1|10,1)|MacBookPro13,[12]|MacBookPro14,[12] ]] || exit 0
 
-# Install only what install/hardware/apple/fix-suspend-nvme.sh added: sourcing it
-# would re-enable its D3cold service, which on the 15-inch models hits the GPU.
+# Install only the udev rule and, on the MacBookPro14,1, the boot drop-in.
+# Sourcing the leaf would also rewrite and re-enable the older D3cold service.
 # A file that already holds the setting is left alone, so a second user's run
 # changes nothing, while one an interrupted run left empty or cut short is rewritten.
 rule=/etc/udev/rules.d/99-omarchy-apple-nvme-d3cold.rules

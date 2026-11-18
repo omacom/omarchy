@@ -1,5 +1,9 @@
 # Fix suspend on 2016-2017 MacBooks with Apple's S3X NVMe.
 #
+# Apple's own NVMe controller fails to wake from D3cold, so keep it out of that
+# state where it sits at 01:00.0. The MacBook8,1 (Wi-Fi there, its controller at
+# 03:00.0) and the 15-inch 13,3 and 14,3 (the AMD GPU there) must not match.
+#
 # Turning off D3cold is not enough for MacBookPro14,1. Firmware S3 resume does
 # not come back, and on s2idle the 106b:2003 controller is left in a power
 # state it cannot leave. The kernel parameters below resumed that machine from
@@ -7,10 +11,11 @@
 # the one machine where that combo was tested. intel_idle.max_cstate=1 was part
 # of the combo and was not tested alone; it uses more power while the machine
 # is awake. The udev rule matches 106b:2003, so it does not write D3cold onto
-# the GPU at 0000:01:00.0 on the 15-inch MacBookPro13,3 and 14,3.
+# the GPU at 0000:01:00.0.
 MACBOOK_MODEL=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
+NVME_PCI="/sys/bus/pci/devices/0000:01:00.0"
 
-if [[ $MACBOOK_MODEL =~ MacBook(8,1|9,1|10,1)|MacBookPro13,[123]|MacBookPro14,[123] ]]; then
+if [[ $MACBOOK_MODEL =~ MacBook(9,1|10,1)|MacBookPro13,[12]|MacBookPro14,[12] ]]; then
   echo "Detected MacBook model: $MACBOOK_MODEL"
 
   sudo mkdir -p /etc/udev/rules.d
@@ -29,9 +34,7 @@ KERNEL_CMDLINE[default]+=" mem_sleep_default=s2idle nvme_core.default_ps_max_lat
 EOF
   fi
 
-  NVME_DEVICE="/sys/bus/pci/devices/0000:01:00.0/d3cold_allowed"
-
-  if [[ -f $NVME_DEVICE ]]; then
+  if [[ $(cat "$NVME_PCI/vendor" 2>/dev/null || true) == "0x106b" ]]; then
     echo "Applying NVMe suspend fix..."
 
     sudo mkdir -p /etc/systemd/system
@@ -40,7 +43,7 @@ EOF
 Description=Omarchy NVMe Suspend Fix for MacBook
 
 [Service]
-ExecStart=/bin/bash -c 'echo 0 > /sys/bus/pci/devices/0000\:01\:00.0/d3cold_allowed'
+ExecStart=/bin/bash -c 'echo 0 > /sys/bus/pci/devices/0000:01:00.0/d3cold_allowed'
 
 [Install]
 WantedBy=multi-user.target
@@ -48,7 +51,7 @@ EOF
 
     sudo systemctl enable omarchy-nvme-suspend-fix.service
   else
-    echo "Warning: NVMe device not found at expected PCI address (0000:01:00.0)"
+    echo "Warning: Apple NVMe controller not found at expected PCI address (0000:01:00.0)"
     echo "This fix may not be needed for this MacBook model"
   fi
 fi
