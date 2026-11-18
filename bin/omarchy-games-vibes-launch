@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Open Game Vibes, the games made in ~/Games/vibes, in the current theme
+# omarchy:args=[game]
+# omarchy:examples=omarchy games vibes launch | omarchy games vibes launch snake
+
+# A page opened from a file can't read the theme, so the palette rides in the
+# URL fragment, which never leaves the machine. The list passes it on to each
+# game, whose themed() reads it. Given a game, the list opens straight into it,
+# so Esc on its title screen still comes back to the list.
+
+set -euo pipefail
+
+game=${1:-}
+if [[ -n $game ]]; then
+  if [[ ! $game =~ ^[a-z0-9][a-z0-9-]*$ ]] ||
+    [[ ! -f $HOME/Games/vibes/$game/index.html && ! -f $OMARCHY_PATH/default/games/vibes/$game/index.html ]]; then
+    echo "No game called $game in Game Vibes" >&2
+    exit 1
+  fi
+fi
+
+omarchy-games-vibes-install >/dev/null
+
+palette=$(omarchy-theme-color --all | jq -Rrn '[inputs | split("\t") | {(.[0]): .[1]}] | add | tojson | @uri')
+url="file://$(jq -rn --arg path "$HOME/Games/vibes/index.html" '$path | split("/") | map(@uri) | join("/")')#palette=$palette"
+[[ -z $game ]] || url+="&open=$game"
+
+exec omarchy-launch-webapp "$url"

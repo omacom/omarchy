@@ -85,6 +85,7 @@ default/libalpm/hooks/*.hook
 install/**                     ──►  omarchy             /usr/share/omarchy/install/
 migrations/**                  ──►  omarchy             /usr/share/omarchy/migrations/
 themes/**                      ──►  omarchy             /usr/share/omarchy/themes/
+icons/**                       ──►  omarchy             /usr/share/omarchy/icons/    (icon sets, see theming.md "App icons")
 shell/**                       ──►  omarchy             /usr/share/omarchy/shell/
 version                        ──►  omarchy             /usr/share/omarchy/version
                                                         + /etc/skel/.local/state/omarchy/migrations/*
@@ -93,7 +94,6 @@ config/**                      ──►  omarchy-settings    /etc/skel/.config/
                                                         /usr/share/omarchy/config/** (resync source)
 etc/fastfetch/config.jsonc     ──►  omarchy-settings    /etc/fastfetch/config.jsonc
 etc/xdg/kitty/kitty.conf       ──►  omarchy-settings    /etc/xdg/kitty/kitty.conf
-etc/mpv/mpv.conf               ──►  omarchy-settings    /etc/mpv/mpv.conf            (hardware decoding; ~/.config/mpv wins)
 etc/xkb/{rules/evdev,symbols/omarchy}
                                ──►  omarchy-settings    /etc/xkb/                    (Shift + Caps Lock compose option)
 
@@ -220,7 +220,7 @@ upgrade. This is documented in the PKGBUILD.
 
 `default/systemd/system/plocate-updatedb.service.d/10-omarchy.conf` ships through `omarchy-settings` to `/usr/lib/systemd/system/plocate-updatedb.service.d/10-omarchy.conf`. It replaces the existing service's `ExecStart` with `updatedb --prune-bind-mounts=no --add-prunepaths=/.snapshots`, keeping Btrfs subvolume mounts searchable and excluding Snapper snapshots. The upstream service retains its timer, resource limits, and sandbox; Omarchy's existing AC-power condition still applies.
 
-`/etc/updatedb.conf` remains owned by plocate and is never rewritten by Omarchy. The command-line options override bind-mount pruning and add to the administrator's existing path exclusions. Installer and AUR package refreshes pass the same options directly because installation may run without systemd and an explicitly requested refresh should work on battery.
+`/etc/updatedb.conf` remains owned by plocate and is never rewritten by Omarchy. The command-line options override bind-mount pruning and add to the administrator's existing path exclusions. AUR package refreshes pass the same options directly because an explicitly requested refresh should work on battery. A fresh install builds no database: the timer is `Persistent`, so the first run comes soon after first boot, once on AC power.
 
 Arch's systemd package hook reloads units when the vendor drop-in is installed or upgraded. The settings package containing the drop-in must ship alongside the runtime package that removes the old configuration helper and migration. Pacman removes those retired files; no new state migration is needed. A running indexer finishes with its original options, and subsequent service starts use the drop-in. For an immediate local test after installing the packages, restart `plocate-updatedb.service` while connected to AC power.
 
@@ -235,7 +235,7 @@ Single source of truth for `OMARCHY_PATH` and dev-link-aware `PATH`. It:
 - Prepends `$OMARCHY_PATH/bin` to `PATH` **only when** `OMARCHY_PATH` is
   not `/usr/share/omarchy`. On a production install the binaries are
   already on `PATH` as `/usr/bin/omarchy-*` via the `omarchy` package.
-- Prepends mise's `command-wrappers/bin` so subscription account dispatch runs before inherited tool binaries, then appends `~/.local/share/mise/shims` and `~/.local/bin` so login shells and the uwsm session find mise-managed tools. The existing mise tool shims also dispatch these wrappers for SSH commands that run no shell setup; the PAM path needs no additional entry. `etc/mise/conf.d/omarchy-agent-accounts.toml` declares the Claude, Codex, and Grok wrappers; `mise reshim` builds them during user setup and migration. Each invocation resolves the selected account through `omarchy-agent-account-exec`, while an explicit provider home takes precedence. Credentials and running sessions remain in their original account homes.
+- Prepends mise's `command-wrappers/bin` so subscription account dispatch runs before inherited tool binaries, then appends `~/.local/share/mise/shims` and `~/.local/bin` so login shells and the uwsm session find mise-managed tools. The existing mise tool shims also dispatch these wrappers for SSH commands that run no shell setup; the PAM path needs no additional entry. `etc/mise/conf.d/omarchy-agent-accounts.toml` declares the Claude, Codex, and Grok wrappers; `mise reshim` builds them during user setup and migration. Each invocation resolves the selected account through `omarchy-agent-account-exec`, while an explicit provider home takes precedence. Claude sessions all start in `~/.claude`, which holds the active account's login; the others wait in their own homes (Main's in `accounts/claude/.primary`), and switching moves logins between them under Claude Code's own lock directories, so running sessions re-read the new login on their next message. Codex and Grok credentials and running sessions remain in their original account homes.
 
 Sourced by every entry point that needs the env set:
 
@@ -377,7 +377,7 @@ finalization. It sources:
   device-specific kernel modules, udev rules, microcode, wireless regdom,
   ASUS / Framework / Intel / Apple / Lenovo quirks.
 - `install/login/all.sh` — SDDM theme/session config.
-- `install/post-install/all.sh` — final pacman/udev/localdb passes.
+- `install/post-install/all.sh` — final pacman and udev passes; the `plocate-updatedb` timer builds the locate database after first boot.
 
 Logging goes to `/var/log/omarchy-install.log` via
 `install/helpers/logging.sh`.
