@@ -117,10 +117,13 @@ leftover_shell_pids() {
   done < <(quickshell list -a -j 2>/dev/null |
     jq -r '.[] | select(.config_path | endswith("/shell/shell.qml")) | "\(.pid) \(.config_path | rtrimstr("/shell.qml"))"' 2>/dev/null)
 
-  for pid in $(pgrep -x quickshell); do
+  for pid in $(pgrep -u "$UID" -x quickshell); do
     previous=""
     while IFS= read -r -d '' arg; do
-      [[ $previous == "-p" && ${arg%/} == "$CONFIG_DIR" ]] && printf '%s\n' "$pid"
+      if [[ $previous == "-p" || $previous == "--path" ]]; then
+        dir=${arg%/}
+        [[ $dir == */shell && -x ${dir%/shell}/bin/omarchy-launch-shell ]] && printf '%s\n' "$pid"
+      fi
       previous=$arg
     done <"/proc/$pid/cmdline"
   done 2>/dev/null
@@ -129,7 +132,15 @@ leftover_shell_pids() {
 # A full tmpfs leaves a registry record with pid 0, and kill 0 would signal this
 # script's own process group, so only a live quickshell process is signalled.
 shell_pid_alive() {
-  [[ $1 =~ ^[0-9]+$ ]] && (( $1 > 1 )) && [[ $(cat "/proc/$1/comm" 2>/dev/null) == "quickshell" && $(awk '{ print $3 }' "/proc/$1/stat" 2>/dev/null) != "Z" ]]
+  [[ $1 =~ ^[0-9]+$ ]] && (( $1 > 1 )) && [[ -O /proc/$1 && $(cat "/proc/$1/comm" 2>/dev/null) == "quickshell" && $(awk '{ print $3 }' "/proc/$1/stat" 2>/dev/null) != "Z" ]]
+}
+
+shell_launcher_alive() {
+  local -a argv=()
+
+  [[ $1 =~ ^[0-9]+$ ]] && (( $1 > 1 )) && [[ -O /proc/$1 ]] || return 1
+  mapfile -d '' -t argv <"/proc/$1/cmdline" 2>/dev/null || return 1
+  [[ ${argv[0]##*/} == "bash" && ${argv[1]##*/} == "omarchy-launch-shell" ]]
 }
 
 mapfile -t leftover_pids < <(leftover_shell_pids | sort -un)
@@ -140,6 +151,16 @@ done
 
 if (( ${#signalled_pids[@]} > 0 )); then
   echo "Shell did not answer the IPC kill, stopping it with signals." >&2
+  launcher_pids=()
+  for pid in "${signalled_pids[@]}"; do
+    parent=$(awk '/^PPid:/ { print $2 }' "/proc/$pid/status" 2>/dev/null)
+    if shell_launcher_alive "$parent"; then
+      launcher_pids+=("$parent")
+      # TERM sets terminating before the supervisor reaps its signalled child.
+      kill -TERM "$parent" 2>/dev/null
+    fi
+  done
+
   for signal in TERM KILL; do
     kill -"$signal" "${signalled_pids[@]}" 2>/dev/null
     for (( attempt = 0; attempt < 20; attempt++ )); do
@@ -151,6 +172,21 @@ if (( ${#signalled_pids[@]} > 0 )); then
       (( ${#signalled_pids[@]} > 0 )) || break 2
       sleep 0.1
     done
+  done
+
+  if (( ${#signalled_pids[@]} > 0 )); then
+    echo "Omarchy shell did not exit after being signalled; not starting another." >&2
+    exit 1
+  fi
+  for pid in "${launcher_pids[@]}"; do
+    for (( attempt = 0; attempt < 20; attempt++ )); do
+      shell_launcher_alive "$pid" || break
+      sleep 0.1
+    done
+    if shell_launcher_alive "$pid"; then
+      echo "Omarchy shell launcher did not exit; not starting another." >&2
+      exit 1
+    fi
   done
 fi
 
