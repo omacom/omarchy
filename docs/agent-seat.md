@@ -233,7 +233,7 @@ Agent apps share your network namespace, so besides the internet they reach ever
 
 **Can the agent read my clipboard?** No. An app reads it only while your keyboard is in it and you acted last, and sets it only from your own input. Once you click into an agent app, though, a page in it can read what you copied.
 
-**Can I use the agent's browser myself?** Yes. Jump there with `Super + Ctrl + Alt + A` or _Agent > Agent Seat_ and use it with your own mouse and keyboard. The menu row also opens your default browser on the seat when nothing is on it.
+**Can I use the agent's browser myself?** Yes. Jump there with `Super + Ctrl + Alt + X` or _Agent > Agent Seat_ and use it with your own mouse and keyboard. The menu row also opens your default browser on the seat when nothing is on it.
 
 **Why are logins my job?** Agent apps never see your own browser profile, so a site starts logged out until someone signs in to it on the seat, and passwords, captchas and two-factor prompts need your hands. The skill tells agents to hand those to you on the seat. Don't take over an agent app with a secret on your clipboard.
 

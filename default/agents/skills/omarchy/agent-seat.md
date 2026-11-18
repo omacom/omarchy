@@ -34,7 +34,7 @@ omarchy agent seat screenshot "$window"                          # prints a PNG 
 
 ## When you need the user
 
-Logins, captchas, two-factor prompts and anything else that needs the user's own hands: ask them to jump to the seat (`Super + Ctrl + Alt + A`) and do it in the agent window, then wait for them to say they're done. Don't act in the same window while they work in it: an app has one focus, so whoever acts last takes it. Other agent windows are fine.
+Logins, captchas, two-factor prompts and anything else that needs the user's own hands: ask them to jump to the seat (`Super + Ctrl + Alt + X`) and do it in the agent window, then wait for them to say they're done. Don't act in the same window while they work in it: an app has one focus, so whoever acts last takes it. Other agent windows are fine.
 
 ## Your files
 
