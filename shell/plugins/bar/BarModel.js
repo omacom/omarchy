@@ -653,24 +653,6 @@ function barSizeFor(sizes, screenName, fallback) {
   return size > 0 ? size : fallback
 }
 
-// The indicator peek opens over the bar from its start up to where the center
-// box starts, and stays shut past it, over the clock and the panel icons.
-// `position` is the pointer's point on the bar surface.
-function peeksAt(position, edge, vertical) {
-  if (!position) return false
-  return (vertical ? position.y : position.x) < edge
-}
-
-// Revealing the indicators can move the center box's start: beside a display
-// notch the center sections hang off the right section, so indicators in
-// centerEnd or the right section pull it toward the start. An edge that
-// followed would slip out from under a stationary pointer and close the peek,
-// and closing would slide it back and reopen it. So the edge is measured only
-// while the peek is shut and held where it was while it is open.
-function nextPeekEdge(edge, measured, held) {
-  return held ? edge : measured
-}
-
 // Whether a workspace holds a real fullscreen window, which fades the bar out
 // and has to take the clicks along its edge. Hyprland reports a maximized
 // window as fullscreen 1 and a real one with bit 2 set; only the latter hides
@@ -689,8 +671,6 @@ function fullscreenOn(toplevels, workspaceId) {
 if (typeof module !== "undefined") {
   module.exports = {
     barSizeFor: barSizeFor,
-    nextPeekEdge: nextPeekEdge,
-    peeksAt: peeksAt,
     fullscreenOn: fullscreenOn,
     centerBesideRight: centerBesideRight,
     cutoutPending: cutoutPending,
