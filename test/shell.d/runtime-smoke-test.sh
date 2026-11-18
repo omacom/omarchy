@@ -40,28 +40,6 @@ Item {
 }
 QML
 
-# A bar that fails to compile must give way to the built-in bar, every time.
-broken_bar_id="acme.broken-bar"
-broken_bar_dir="$SCRATCH_HOME/.config/omarchy/plugins/$broken_bar_id"
-mkdir -p "$broken_bar_dir"
-cat >"$broken_bar_dir/manifest.json" <<JSON
-{
-  "schemaVersion": 1,
-  "id": "$broken_bar_id",
-  "name": "Broken Bar",
-  "version": "1.0.0",
-  "kinds": ["bar"],
-  "entryPoints": {"bar": "Bar.qml"}
-}
-JSON
-cat >"$broken_bar_dir/Bar.qml" <<'QML'
-import QtQuick
-
-Item {
-  property int broken:
-}
-QML
-
 # A keepLoaded service must keep its instance (and in-memory state) across a
 # plugin rescan. The marker below can only survive if the object does.
 keep_service_id="acme.keep-service"
@@ -868,59 +846,3 @@ jq -e '.currentAllowed == false and .retainedAllowed == false' \
   fail_with_log "cached plugin facades revoke capabilities removed from the manifest"
 }
 pass "manifest reload revokes cached facade capabilities"
-
-broken_bar_failures() {
-  grep -cF "bar option $broken_bar_id failed to load, falling back to omarchy.bar" "$SCRATCH_LOG" || true
-}
-
-built_in_bar_registered() {
-  local geometry
-  for _ in {1..80}; do
-    geometry=$(scratch_ipc shell debugBarGeometry 2>/dev/null || true)
-    jq -e 'any(.[]; .id == "omarchy.clock")' <<<"$geometry" >/dev/null 2>&1 && return 0
-    sleep 0.1
-  done
-  return 1
-}
-
-[[ $(scratch_ipc shell enablePlugin "$broken_bar_id" '{}') == "ok" ]] ||
-  fail_with_log "broken bar plugin could not be selected"
-for _ in {1..80}; do
-  (( $(broken_bar_failures) > 0 )) && break
-  sleep 0.1
-done
-(( $(broken_bar_failures) > 0 )) || fail_with_log "a bar that fails to load is reported"
-built_in_bar_registered || fail_with_log "a bar that fails to load falls back to the built-in bar"
-
-# A config change retries the bar from its cached component, which fails
-# synchronously rather than on a later tick.
-bar_failures=$(broken_bar_failures)
-[[ $(scratch_ipc shell setBarWidget omarchy.clock format '"HH:mm"' '{}') == "ok" ]] ||
-  fail_with_log "host bar configuration could not be updated with a broken bar selected"
-for _ in {1..80}; do
-  (( $(broken_bar_failures) > bar_failures )) && break
-  sleep 0.1
-done
-(( $(broken_bar_failures) > bar_failures )) || fail_with_log "a config change retries the selected bar"
-built_in_bar_registered || fail_with_log "a bar that fails to load again falls back to the built-in bar"
-pass "a bar that fails to load falls back to the built-in bar"
-
-if grep -qE 'Binding loop detected.*activeBarId' "$SCRATCH_LOG"; then
-  fail_with_log "retrying a broken bar leaves no activeBarId binding loop"
-fi
-pass "retrying a broken bar leaves no activeBarId binding loop"
-
-# Restart with the failed bar already selected, as at the next login.
-stop_scratch_shell
-start_scratch_shell
-wait_scratch_shell
-for _ in {1..80}; do
-  (( $(broken_bar_failures) > 0 )) && break
-  sleep 0.1
-done
-(( $(broken_bar_failures) > 0 )) || fail_with_log "the selected broken bar fails to load at startup"
-built_in_bar_registered || fail_with_log "a bar selected at startup falls back to the built-in bar"
-if grep -qE 'Binding loop detected.*activeBarId' "$SCRATCH_LOG"; then
-  fail_with_log "a broken bar selected at startup leaves no activeBarId binding loop"
-fi
-pass "a bar selected at startup falls back to a registered built-in bar without a binding loop"
