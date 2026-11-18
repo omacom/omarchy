@@ -74,6 +74,11 @@ cat >"$mock_bin/omarchy-pkg-missing" <<'STUB'
 
 exit 0
 STUB
+cat >"$mock_bin/omarchy-pkg-require-dbs" <<'STUB'
+#!/bin/bash
+
+exit 0
+STUB
 cat >"$mock_bin/sudo" <<'STUB'
 #!/bin/bash
 
@@ -89,7 +94,7 @@ cat >"$mock_bin/yay" <<'STUB'
   printf '\n'
 } >>"$OMARCHY_TEST_PACKAGE_CALLS"
 STUB
-chmod +x "$mock_bin/omarchy-pkg-missing" "$mock_bin/sudo" "$mock_bin/yay"
+chmod +x "$mock_bin/omarchy-pkg-missing" "$mock_bin/omarchy-pkg-require-dbs" "$mock_bin/sudo" "$mock_bin/yay"
 
 : >"$package_calls"
 PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_PACKAGE_CALLS="$package_calls" \
