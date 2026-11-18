@@ -3,7 +3,19 @@
 # omarchy:summary=Prompt for sudo once and keep the credential alive in the background.
 # omarchy:requires-sudo=true
 
-sudo -v
+# sudo disables Ctrl-C at its own password prompt, so on a terminal take the
+# password here (where Ctrl-C still interrupts) and only then let sudo run,
+# which no longer prompts.
+if [[ -t 0 ]]; then
+  if ! sudo -n true 2>/dev/null; then
+    IFS= read -rsp "[sudo] password for $USER: " sudo_password || exit 130
+    echo
+    printf '%s\n' "$sudo_password" | sudo -S true || exit 1
+    unset sudo_password
+  fi
+else
+  sudo -v
+fi
 while true; do sudo -n true; sleep 60; done 2>/dev/null &
 SUDO_KEEPALIVE_PID=$!
 trap "kill $SUDO_KEEPALIVE_PID 2>/dev/null" EXIT

@@ -5,10 +5,21 @@
 # omarchy:examples=omarchy pkg add jq ripgrep
 # omarchy:requires-sudo=true
 
+trap 'exit 130' INT
+
 if omarchy-pkg-missing "$@"; then
   if (( EUID == 0 )); then
     pacman -S --noconfirm --needed -- "$@" || exit 1
   else
+    # sudo disables Ctrl-C at its own password prompt, so on a terminal take
+    # the password here (where Ctrl-C still interrupts) and only then let
+    # sudo run, which no longer prompts.
+    if [[ -t 0 ]] && ! sudo -n true 2>/dev/null; then
+      IFS= read -rsp "[sudo] password for $USER: " sudo_password || exit 130
+      echo
+      printf '%s\n' "$sudo_password" | sudo -S true || { unset sudo_password; exit 1; }
+      unset sudo_password
+    fi
     sudo pacman -S --noconfirm --needed -- "$@" || exit 1
   fi
 fi
