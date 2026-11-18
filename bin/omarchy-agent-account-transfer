@@ -100,7 +100,7 @@ def export_accounts(providers: list[str]) -> dict[str, Any]:
       home = accounts.account_home(provider, account)
       found = accounts.identity(provider, home)
       files = login_files(provider, home)
-      if found["accountId"] and files:
+      if found.get("accountId") and files:
         entries.append({"id": account["id"], "label": account["label"], "primary": bool(account.get("primary")), "accountId": found["accountId"], "files": files})
     if entries:
       payload["providers"][provider] = {"active": registry["active"] if any(a["id"] == registry["active"] for a in entries) else entries[0]["id"], "switch": registry["switch"], "threshold": registry["threshold"], "accounts": entries}

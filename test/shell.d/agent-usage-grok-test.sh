@@ -239,6 +239,12 @@ expect("every Grok account reports its own plan and credits", {
   "switch": {"mode": "auto", "threshold": 90},
 }, record)
 
+expect("Grok reset alerts follow the subscription in each home", [a["accountId"] for a in record["accounts"]], ["u-main", "u-side"])
+(side / "auth.json").unlink()
+expect("a signed-out Grok home clears its reset identity", grok()["accounts"][1]["accountId"], "")
+signed_in(side, token="token-fresh", user="replacement")
+expect("a replacement Grok login owns its own alerts", grok()["accounts"][1]["accountId"], "replacement")
+
 # ------------------------------------------------------------ odd shapes
 
 # A ledger or settings cache of the wrong shape costs that field, never the

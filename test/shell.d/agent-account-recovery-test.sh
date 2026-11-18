@@ -65,6 +65,15 @@ else:
   raise AssertionError("identity without credentials must not register")
 assert not pending.exists()
 
+# A partially written credential file is an unknown identity, not a recovery error.
+for provider, credential in (("claude", ".credentials.json"), ("codex", "auth.json")):
+  pending = state.begin(provider, "Truncated")
+  (pending / credential).write_text("{")
+  assert state.recover_home(provider, pending) is None
+  state.refresh(provider)
+  assert pending.exists(), "incomplete login remains recoverable"
+  shutil.rmtree(pending)
+
 # A storage error preserves a completed login; a later refresh retries it.
 pending = state.begin("claude", "Storage failure")
 signed_in(pending, "storage", "storage@example.com")
@@ -137,6 +146,42 @@ assert entry["id"] == "conflict-2"
 assert state.recover("claude") == []
 assert not home.exists()
 assert state.find(state.load("claude"), "conflict-2") is not None
+
+# A retry's last known identity still prevents duplicates while its profile
+# is truncated or unreadable. Exercise the moved-home crash path, not pending.
+for failure in ("truncated", "unreadable"):
+  label = "Retry " + failure
+  uuid = "retry-" + failure
+  home = crash_register(label, uuid)
+  pending = state.begin("claude", label)
+  signed_in(pending, uuid, uuid + "@example.com")
+  entry = state.register("claude", label, pending)
+  profile = Path(entry["home"]) / ".claude.json"
+  original_profile = profile.read_text()
+  if failure == "truncated":
+    profile.write_text("{")
+  else:
+    profile.unlink()
+    profile.mkdir()
+  before = state.load("claude")
+  assert state.recover("claude") == [], "unknown identity must retain the registry's duplicate guard"
+  assert not home.exists(), "only the redundant crashed login is removed"
+  assert state.load("claude") == before, "the registered account and its saved identity survive"
+  if profile.is_dir():
+    profile.rmdir()
+  profile.write_text(original_profile)
+  assert state.recover("claude") == [], "recovery stays idempotent after the profile is readable"
+
+# A readable replacement identity takes precedence over the cached identity.
+home = crash_register("Changed retry", "changed-retry")
+pending = state.begin("claude", "Changed retry")
+signed_in(pending, "changed-retry", "changed-retry@example.com")
+entry = state.register("claude", "Changed retry", pending)
+signed_in(Path(entry["home"]), "different", "different@example.com")
+recovered = state.recover("claude")
+assert [a["accountId"] for a in recovered] == ["changed-retry"]
+assert state.find(state.load("claude"), entry["id"])["accountId"] == "different"
+assert home.exists(), "a distinct completed login must remain recoverable"
 
 # A committed account with a leftover receipt can be renamed safely.
 entry = state.find(state.load("claude"), "moved")

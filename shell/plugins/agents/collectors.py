@@ -3806,16 +3806,26 @@ def cursor_token(auth_path: Path | None = None, state_db: Path | None = None) ->
 # ---------------------------------------------------------------- accounts
 
 
-def registered_accounts(agent_id: str) -> list[dict[str, Any]]:
+def account_registry(agent_id: str) -> tuple[str, list[dict[str, Any]]]:
   """The accounts `omarchy agent account` registered for the agent, read
   straight from its registry, each marked `active` and carrying the
   registry's `switch` settings. Only a registry holding a second account
   matters: with one, the record is exactly what it always was."""
   state = Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state"))
-  registry = read_json(state / "omarchy" / "agents" / "accounts" / f"{agent_id}.json")
-  accounts = [a for a in registry.get("accounts") or [] if isinstance(a, dict) and a.get("id")]
+  path = state / "omarchy" / "agents" / "accounts" / f"{agent_id}.json"
+  try:
+    registry = json.loads(path.read_text(encoding="utf-8"))
+  except FileNotFoundError:
+    return "missing", []
+  except (OSError, ValueError):
+    return "unreadable", []
+  entries = registry.get("accounts", []) if isinstance(registry, dict) else None
+  if not isinstance(entries, list):
+    return "unreadable", []
+  accounts = [a for a in entries if isinstance(a, dict) and a.get("id")]
+  status = "available" if len(accounts) == len(entries) else "unreadable"
   if len(accounts) < 2:
-    return []
+    return status, []
   active_id = registry.get("active") or accounts[0]["id"]
   if not any(a["id"] == active_id for a in accounts):
     active_id = accounts[0]["id"]
@@ -3831,7 +3841,11 @@ def registered_accounts(agent_id: str) -> list[dict[str, Any]]:
       "mode": "auto" if registry.get("switch") == "auto" else "manual",
       "threshold": threshold,
     }
-  return accounts
+  return status, accounts
+
+
+def registered_accounts(agent_id: str) -> list[dict[str, Any]]:
+  return account_registry(agent_id)[1]
 
 
 def account_entry(account: dict[str, Any], limits: dict[str, Any], plan: str, **extra: Any) -> dict[str, Any]:

@@ -46,7 +46,7 @@ from collectors import (  # noqa: E402
   obj,
   opencode_db,
   pi_session_roots,
-  registered_accounts,
+  account_registry,
   runtime_env,
   scan_max_age,
   scan_opencode,
@@ -785,7 +785,7 @@ def account_limits(account, force):
   # The primary is ~/.codex by definition, not whatever CODEX_HOME this run
   # happened to inherit — that would report another account's limits as Main's.
   rpc = collect_limits(account.get("home") or (Path.home() / ".codex"), force, primary=bool(account.get("primary")))
-  return account_entry(account, rpc, rpc["tierLabel"], resetCredits=rpc.get("resetCredits"))
+  return account_entry(account, rpc, rpc["tierLabel"], accountId=str(account.get("accountId") or ""), resetCredits=rpc.get("resetCredits"))
 
 
 # Codex is in use here once its CLI or a launcher for it is on PATH, its home
@@ -813,7 +813,9 @@ def main():
   args = parser.parse_args()
 
   stats = cached_local_stats(scan_max_age(args.force, args.limits_only))
-  registered = registered_accounts(AGENT_ID)
+  registry_status, registered = account_registry(AGENT_ID)
+  if registry_status == "unreadable":
+    registered = []
   accounts = [account_limits(account, args.force) for account in registered]
   current = next((a for a in accounts if a["active"]), None)
   if current:
@@ -844,7 +846,10 @@ def main():
     # Requests a typed prompt can't be found for still count as use.
     ready=number(stats.get("totalSessions")) > 0 or bool(rpc["limits"]) or bool(accounts),
     hasLocalStats=True,
+    accountRegistryStatus=registry_status,
   )
+  if registry_status == "unreadable":
+    record["fallbackAccountLabel"] = "Configured home"
   record.update(stats)
   record.update(rpc)
   # Numbers kept past a failed probe, and when they were measured, so the

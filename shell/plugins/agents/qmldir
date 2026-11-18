@@ -1,0 +1,4 @@
+Agent 1.0 Agent.qml
+Main 1.0 Main.qml
+Panel 1.0 Panel.qml
+singleton LimitResetNotifier 1.0 LimitResetNotifier.qml
