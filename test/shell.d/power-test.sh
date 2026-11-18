@@ -52,6 +52,16 @@ const endOnly = { start: NaN, end: 80 }
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.33, state: states.PendingCharge }, false, states, undefined, endOnly), 'power does not flag pending charge as threshold far below an end-only limit')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.33, state: states.PendingCharge }, false, states, undefined, { start: 0, end: 80 }), 'power does not flag pending charge as threshold far below a limit starting at 0')
 assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.PendingCharge }, false, states, undefined, endOnly), 'power detects threshold at an end-only limit')
+// With two batteries the combined level says nothing about either one: each is
+// checked against its own limit, and the pair is held only when neither can
+// still charge.
+const bothHeld = [{ fraction: 0.8, start: 75, end: 80 }, { fraction: 0.6, start: 55, end: 60 }]
+const oneCharging = [{ fraction: 0.8, start: 75, end: 80 }, { fraction: 0.3, start: 75, end: 80 }]
+assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.7, state: states.PendingCharge }, false, states, undefined, bothHeld), 'power detects threshold when every battery is inside its own limit')
+assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.55, state: states.PendingCharge }, false, states, undefined, oneCharging), 'power does not flag threshold while one battery is still below its limit')
+assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.9, state: states.PendingCharge }, false, states, undefined, [{ fraction: 0.8, start: 75, end: 80 }, { fraction: 1, start: 0, end: 100 }]), 'power detects threshold when the other battery is already full')
+assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.6, state: states.PendingCharge }, false, states, undefined, [{ fraction: 0.8, start: 75, end: 80 }, { fraction: 0.4, start: 0, end: 100 }]), 'power does not flag threshold while a battery without a limit can still charge')
+assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.PendingCharge }, false, states, undefined, []), 'power does not flag threshold when no battery limits were read')
 assertEqual(
   power.batteryIcon({ isPresent: true, percentage: 0.33, state: states.Charging, changeRate: 0, timeToFull: 0 }, false, states, undefined, noLimit),
   power.batteryIcon({ isPresent: true, percentage: 0.33, state: states.Charging, changeRate: 40, timeToFull: 3600 }, false, states, undefined, noLimit),

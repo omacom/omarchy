@@ -25,41 +25,73 @@ Panel {
   // icon, so the open-panel mark takes the painted width instead of the
   // icon-sized fraction of the slot the fallback assumes.
   readonly property real openPanelIndicatorWidth: showPercentage && !button.vertical ? button.glyphPaintedWidth : 0
-  // The battery's real charge limits, read from the kernel. UPower's own
-  // ChargeStartThreshold/ChargeEndThreshold report hwdb defaults (75/80) even
-  // when no limit is applied, so they cannot tell whether a hold is possible.
-  // Missing files (no charge-control support) leave both empty: never held.
-  readonly property string batterySysfsPath: {
+  // Each laptop battery's real charge limits, read from the kernel. UPower's
+  // own ChargeStartThreshold/ChargeEndThreshold report hwdb defaults (75/80)
+  // even when no limit is applied, so they cannot tell whether a hold is
+  // possible. Missing files (no charge-control support) mean never held.
+  readonly property var laptopBatteries: {
     var devices = UPower.devices ? UPower.devices.values : []
+    var result = []
     for (var i = 0; i < devices.length; i++) {
       var d = devices[i]
-      if (d && d.isLaptopBattery && d.nativePath) return "/sys/class/power_supply/" + d.nativePath
+      if (d && d.isLaptopBattery && d.isPresent && d.nativePath) result.push(d)
     }
-    return ""
+    return result
   }
-  property string limitStartRaw: ""
-  property string limitEndRaw: ""
-  readonly property var batteryLimits: ({
-    start: parseInt(root.limitStartRaw, 10),
-    end: parseInt(root.limitEndRaw, 10)
-  })
-
-  FileView {
-    id: limitStartFile
-    path: root.batterySysfsPath ? root.batterySysfsPath + "/charge_control_start_threshold" : ""
-    watchChanges: false
-    printErrors: false
-    onLoaded: root.limitStartRaw = text()
-    onLoadFailed: root.limitStartRaw = ""
+  property int limitsRevision: 0
+  readonly property var batteryLimits: {
+    root.limitsRevision
+    var result = []
+    for (var i = 0; i < limitReaders.count; i++) {
+      var reader = limitReaders.objectAt(i)
+      if (!reader || !reader.device) continue
+      result.push({
+        fraction: Model.batteryFraction(reader.device),
+        start: parseInt(reader.startRaw, 10),
+        end: parseInt(reader.endRaw, 10)
+      })
+    }
+    return result
   }
 
-  FileView {
-    id: limitEndFile
-    path: root.batterySysfsPath ? root.batterySysfsPath + "/charge_control_end_threshold" : ""
-    watchChanges: false
-    printErrors: false
-    onLoaded: root.limitEndRaw = text()
-    onLoadFailed: root.limitEndRaw = ""
+  Instantiator {
+    id: limitReaders
+    model: root.laptopBatteries
+
+    delegate: QtObject {
+      id: reader
+      required property var modelData
+      readonly property var device: modelData
+      readonly property string sysfsPath: "/sys/class/power_supply/" + modelData.nativePath
+      property string startRaw: ""
+      property string endRaw: ""
+      onStartRawChanged: root.limitsRevision++
+      onEndRawChanged: root.limitsRevision++
+
+      function reload() {
+        startFile.reload()
+        endFile.reload()
+      }
+
+      property FileView startFile: FileView {
+        path: reader.sysfsPath + "/charge_control_start_threshold"
+        watchChanges: false
+        printErrors: false
+        onLoaded: reader.startRaw = text()
+        onLoadFailed: reader.startRaw = ""
+      }
+
+      property FileView endFile: FileView {
+        path: reader.sysfsPath + "/charge_control_end_threshold"
+        watchChanges: false
+        printErrors: false
+        onLoaded: reader.endRaw = text()
+        onLoadFailed: reader.endRaw = ""
+      }
+    }
+
+    onObjectAdded: root.limitsRevision++
+    onObjectRemoved: root.limitsRevision++
   }
 
   // sysfs attributes do not emit inotify events, so re-read the limits
@@ -67,9 +99,10 @@ Panel {
   // state change (a battery reaching its limit leaves Charging), and on every
   // panel refresh, so a limit changed while plugged in is picked up too.
   function reloadLimits() {
-    if (!root.batterySysfsPath) return
-    limitStartFile.reload()
-    limitEndFile.reload()
+    for (var i = 0; i < limitReaders.count; i++) {
+      var reader = limitReaders.objectAt(i)
+      if (reader) reader.reload()
+    }
   }
   Connections {
     target: UPower

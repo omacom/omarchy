@@ -49,12 +49,13 @@ function batteryFraction(device) {
   return device && device.isPresent ? Math.max(0, Math.min(1, device.percentage)) : 0
 }
 
-// limits: the kernel's charge_control_{start,end}_threshold as { start, end }.
-// A charge can only be held inside a limit the battery actually has: end below
-// 99 and the level at or above start. Outside that band a stalled rate (UPower
-// reports 0 W for ~10 s after plug-in), a pending-charge step or a long
-// time-to-full estimate is not a hold, and the bar must keep showing charging.
-function chargeLimitsInBand(limits, fraction) {
+// limits: the kernel's charge_control_{start,end}_threshold as { start, end },
+// or one { fraction, start, end } per laptop battery. A charge can only be held
+// inside a limit the battery actually has: end below 99 and the level at or
+// above start. Outside that band a stalled rate (UPower reports 0 W for ~10 s
+// after plug-in), a pending-charge step or a long time-to-full estimate is not
+// a hold, and the bar must keep showing charging.
+function limitInBand(limits, fraction) {
   var end = Number(limits && limits.end)
   if (!(end >= 1) || end >= 99) return false
   // Without a start threshold (or with start 0) the battery charges until it
@@ -62,6 +63,20 @@ function chargeLimitsInBand(limits, fraction) {
   var start = Number(limits && limits.start)
   var low = start > 0 && start < end ? start : end - 1
   return fraction * 100 >= low - 0.5
+}
+
+// With several batteries the combined device is held only when none of them
+// can still charge: each one is inside its own limit or already full.
+function chargeLimitsInBand(limits, fraction) {
+  if (!Array.isArray(limits)) return limitInBand(limits, fraction)
+
+  var held = false
+  for (var i = 0; i < limits.length; i++) {
+    var f = Number(limits[i] && limits[i].fraction)
+    if (limitInBand(limits[i], f)) held = true
+    else if (!(f >= 0.99)) return false
+  }
+  return held
 }
 
 // rateFresh is false while the charge rate still dates from before external
