@@ -279,7 +279,7 @@ function availableDevices(candidates, availability, current) {
   var list = []
   for (var i = 0; i < candidates.length; i++) {
     var name = candidates[i] && candidates[i].name
-    if (!name || !availability || availability[String(name)] !== false) list.push(candidates[i])
+    if (!name || availability[String(name)] !== false) list.push(candidates[i])
   }
   if (current && list.indexOf(current) < 0) list.unshift(current)
   return list
