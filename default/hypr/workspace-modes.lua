@@ -494,6 +494,10 @@ local function titlebars()
     },
   })
 
+  -- An app with its own header already has window buttons; the bar would be a
+  -- second header with a duplicate set on top of them.
+  hl.window_rule({ match = { class = o.self_framed_apps }, ["hyprbars:no_bar"] = true })
+
   for _, button in ipairs({
     { icon = "×", action = "hyprctl dispatch 'hl.dsp.window.close({ " .. window .. " })'" },
     { icon = "□", action = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\", " .. window .. " })'" },

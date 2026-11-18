@@ -10,6 +10,17 @@ end
 
 o.shell_quote = shell_quote
 
+-- Chromium-based browsers. Rule classes match the whole name, so their web apps
+-- (chrome-<host>_<path>-<profile>) aren't included.
+o.chromium_browsers = "((google-)?[cC]hrom(e|ium)|[bB]rave-browser|[mM]icrosoft-edge|Vivaldi-stable|helium)"
+
+-- Apps that draw their own header with window controls: browsers, Obsidian,
+-- Ghostty and GNOME's header-bar apps. A compositor titlebar over one of those
+-- on a floating workspace is a second header, with duplicate close, minimize
+-- and maximize buttons. Web apps keep the titlebar, having no tab strip to drag
+-- the window by.
+o.self_framed_apps = "(" .. o.chromium_browsers .. "|org\\.gnome\\.(DiskUtility|Papers)|[oO]bsidian|com\\.mitchellh\\.ghostty)"
+
 local function file_exists(path)
   local file = io.open(path, "r")
   if file then

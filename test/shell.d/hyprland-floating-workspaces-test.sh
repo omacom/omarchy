@@ -700,6 +700,27 @@ assert(bar.col.text == "rgb(ddeeff)", "titlebar text does not follow the theme f
 fi
 pass "titlebars load when a workspace floats and follow the theme"
 
+# Apps that draw their own window controls must not get a compositor bar on top
+# of them: floating workspaces would otherwise show two sets of buttons.
+if ! run_lua '
+window("0x1", 1)
+require("default.hypr.workspace-layouts")
+local s = state()
+local rule
+for _, candidate in ipairs(s.rules) do
+  if candidate["hyprbars:no_bar"] then rule = candidate end
+end
+assert(rule, "self-framed apps were not excluded from the titlebar")
+local class = rule.match.class
+assert(class:find("rave%-browser"), "browsers keep their own header")
+assert(class:find("bsidian"), "Obsidian keeps its own header")
+assert(class:find("ghostty"), "Ghostty keeps its own header")
+assert(class:find("DiskUtility") and class:find("Papers"), "GNOME header-bar apps keep their own header")
+' TITLEBARS_INSTALLED=1 TITLEBARS_LOADED=1; then
+  fail "apps with their own window controls get a duplicate titlebar"
+fi
+pass "apps with their own window controls skip the floating titlebar"
+
 # A workspace that starts floating after the config loaded, with Super + L,
 # gets titlebars at once rather than on the next reload, and only once however
 # many workspaces start floating after it.
