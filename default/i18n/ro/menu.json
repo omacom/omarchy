@@ -26,11 +26,11 @@
   "update": {
     "label": "Actualizează"
   },
-  "about": {
-    "label": "Despre"
-  },
   "system": {
     "label": "Sistem"
+  },
+  "system.about": {
+    "label": "Despre"
   },
   "system.screensaver": {
     "label": "Economizor ecran"

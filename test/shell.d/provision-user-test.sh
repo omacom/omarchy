@@ -43,6 +43,27 @@ done
 
 pass "omarchy-provision-user provisions Antigravity and Hermes skills"
 
+# Linking a checkout (omarchy dev link) moves the links out of the package,
+# drops one to a skill the checkout doesn't have, and keeps the user's own.
+mkdir -p "$test_tmp/relink/.claude/skills" "$test_tmp/package/default/agents/skills/omarchy" "$test_tmp/package/default/agents/skills/retired"
+ln -s "$test_tmp/package/default/agents/skills/omarchy" "$test_tmp/relink/.claude/skills/omarchy"
+ln -s "$test_tmp/package/default/agents/skills/retired" "$test_tmp/relink/.claude/skills/retired"
+ln -s /opt/elsewhere/skill "$test_tmp/relink/.claude/skills/theirs"
+ln -s /opt/elsewhere/game "$test_tmp/relink/.claude/skills/web-game"
+mkdir -p "$test_tmp/relink/.claude/skills/omarchy-app"
+HOME="$test_tmp/relink" "$ROOT/bin/omarchy-agent-skills-link" "$ROOT" || fail "omarchy-agent-skills-link links a checkout"
+[[ $(readlink "$test_tmp/relink/.claude/skills/omarchy") == "$ROOT/default/agents/skills/omarchy" ]] ||
+  fail "a skill linked from the package now links to the checkout" "$(readlink "$test_tmp/relink/.claude/skills/omarchy")"
+[[ ! -L $test_tmp/relink/.claude/skills/retired ]] || fail "a link to a skill the checkout doesn't have is removed"
+[[ $(readlink "$test_tmp/relink/.claude/skills/theirs") == "/opt/elsewhere/skill" ]] || fail "a link to the user's own skill stays"
+[[ $(readlink "$test_tmp/relink/.claude/skills/web-game") == "/opt/elsewhere/game" ]] ||
+  fail "a link of the user's own named like an Omarchy skill stays" "$(readlink "$test_tmp/relink/.claude/skills/web-game")"
+[[ -d $test_tmp/relink/.claude/skills/omarchy-app && ! -L $test_tmp/relink/.claude/skills/omarchy-app && ! -e $test_tmp/relink/.claude/skills/omarchy-app/omarchy-app ]] ||
+  fail "a folder of the user's own named like an Omarchy skill stays, with no link put inside it"
+[[ $(readlink "$test_tmp/relink/.agents/skills/web-game") == "$ROOT/default/agents/skills/web-game" ]] ||
+  fail "every skill in the checkout is linked, including ones the package lacks"
+pass "omarchy-agent-skills-link moves Omarchy's skill links to the tree in use and keeps the user's"
+
 for dir in DOWNLOAD:Downloads PICTURES:Pictures VIDEOS:Videos DOCUMENTS:Documents MUSIC:Music; do
   grep -qxF "xdg-user-dirs-update --set ${dir%%:*} $test_tmp/home/${dir#*:}" "$TEST_COMMAND_LOG" ||
     fail "provisioning names the ${dir%%:*} folder in English" "$(cat "$TEST_COMMAND_LOG")"

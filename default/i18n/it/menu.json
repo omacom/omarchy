@@ -26,11 +26,11 @@
   "update": {
     "label": "Aggiorna"
   },
-  "about": {
-    "label": "Info"
-  },
   "system": {
     "label": "Sistema"
+  },
+  "system.about": {
+    "label": "Info"
   },
   "system.screensaver": {
     "label": "Salvaschermo"

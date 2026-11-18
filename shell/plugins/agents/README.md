@@ -29,9 +29,10 @@ Every subscription on one page, limits first.
   and what to do; each meter's tooltip says how old it is.
 - **Accounts** — an agent with more than one subscription account (see
   `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
-  lines. An _ACTIVE_ label marks the account new sessions start as; the
+  lines. An _ACTIVE_ label marks the account sessions use (running Claude
+  sessions included, new ones only for Codex and Grok); the
   others get a _Use_ link. Hovering the line also reveals Autoswitch, which
-  moves new sessions over on their own once the active account reaches its
+  moves sessions over on their own once the active account reaches its
   threshold; while it's on it stands in for Use, which shows only when you're
   on the line, and clicking it again goes back to notifying. Click a name to
   rename the account in place.

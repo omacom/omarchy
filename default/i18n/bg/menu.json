@@ -26,11 +26,11 @@
   "update": {
     "label": "Обнови"
   },
-  "about": {
-    "label": "За"
-  },
   "system": {
     "label": "Система"
+  },
+  "system.about": {
+    "label": "За"
   },
   "system.screensaver": {
     "label": "Скрийнсейвър"

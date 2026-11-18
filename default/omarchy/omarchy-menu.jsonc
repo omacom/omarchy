@@ -30,7 +30,6 @@
   "remove": {"icon":"󰭌","label":"Remove","aliases":["uninstall"]},
   "update": {"icon":"","label":"Update","aliases":["restart","refresh"]},
   "learn": {"icon":"󰧑","label":"Learn"},
-  "about": {"icon":"","label":"About","action":"omarchy-launch-about"},
   "system": {"icon":"","label":"System","aliases":["power-menu"]},
 
   // Agent
@@ -66,6 +65,7 @@
   "agent.instructions": {"icon":"󰈙","label":"Instructions","action":"omarchy-agent-instructions --edit"},
 
   // System
+  "system.about": {"icon":"","label":"About","aliases":["about"],"action":"omarchy-launch-about"},
   "system.screensaver": {"icon":"󱄄","label":"Screensaver","action":"omarchy-launch-screensaver force"},
   "system.lock": {"icon":"","label":"Lock","action":"omarchy-system-lock"},
   "system.suspend": {"icon":"󰒲","label":"Suspend","when":"! omarchy-toggle-enabled suspend-off && ! omarchy-sleep-disabled","action":"systemctl suspend"},
@@ -194,16 +194,16 @@
   "trigger.hardware.laptop-display-off": {"icon":"󰛧","label":"Laptop Display Off","when":"omarchy-hw-laptop && ! omarchy-hyprland-toggle-enabled internal-monitor-disable","action":"omarchy-hyprland-monitor-internal toggle"},
   "trigger.hardware.mirror-display-on": {"icon":"󰍹","label":"Display Mirroring On","when":"omarchy-hw-laptop && ! omarchy-hyprland-toggle-enabled internal-monitor-mirror","action":"omarchy-hyprland-monitor-internal-mirror toggle"},
   "trigger.hardware.mirror-display-off": {"icon":"󰍹","label":"Display Mirroring Off","when":"omarchy-hw-laptop && omarchy-hyprland-toggle-enabled internal-monitor-mirror","action":"omarchy-hyprland-monitor-internal-mirror toggle"},
-  "trigger.hardware.hybrid-gpu-on": {"icon":"","label":"Switch to Hybrid GPU","when":"omarchy-hw-hybrid-gpu && ! grep -q '\"mode\": \"Hybrid\"' /etc/supergfxd.conf","action":"omarchy-launch-floating-terminal-with-presentation omarchy-toggle-hybrid-gpu"},
-  "trigger.hardware.hybrid-gpu-off": {"icon":"","label":"Switch to Integrated GPU","when":"omarchy-hw-hybrid-gpu && grep -q '\"mode\": \"Hybrid\"' /etc/supergfxd.conf","action":"omarchy-launch-floating-terminal-with-presentation omarchy-toggle-hybrid-gpu"},
-  "trigger.hardware.touchpad-on": {"icon":"󰟸","label":"Enable Touchpad","when":"omarchy-hw-touchpad && [[ -f ~/.local/state/omarchy/toggles/hypr/touchpad-disabled-name ]]","action":"omarchy-toggle-touchpad"},
-  "trigger.hardware.touchpad-off": {"icon":"󰟸","label":"Disable Touchpad","when":"omarchy-hw-touchpad && [[ ! -f ~/.local/state/omarchy/toggles/hypr/touchpad-disabled-name ]]","action":"omarchy-toggle-touchpad"},
+  "trigger.hardware.hybrid-gpu-on": {"icon":"","label":"Switch to Hybrid GPU","when":"omarchy-hw-hybrid-gpu && ! grep -q '\"mode\": \"Hybrid\"' /etc/supergfxd.conf","action":"omarchy-launch-floating-terminal-with-presentation omarchy-device-gpu-hybrid"},
+  "trigger.hardware.hybrid-gpu-off": {"icon":"","label":"Switch to Integrated GPU","when":"omarchy-hw-hybrid-gpu && grep -q '\"mode\": \"Hybrid\"' /etc/supergfxd.conf","action":"omarchy-launch-floating-terminal-with-presentation omarchy-device-gpu-hybrid"},
+  "trigger.hardware.touchpad-on": {"icon":"󰟸","label":"Enable Touchpad","when":"omarchy-hw-touchpad && [[ -f ~/.local/state/omarchy/toggles/hypr/touchpad-disabled-name ]]","action":"omarchy-device-touchpad"},
+  "trigger.hardware.touchpad-off": {"icon":"󰟸","label":"Disable Touchpad","when":"omarchy-hw-touchpad && [[ ! -f ~/.local/state/omarchy/toggles/hypr/touchpad-disabled-name ]]","action":"omarchy-device-touchpad"},
   "trigger.hardware.touchpad-haptics": {"icon":"󰌌","label":"Touchpad Haptics"},
   "trigger.hardware.touchpad-haptics.low": {"icon":"󰌌","label":"low","when":"omarchy-hw-dell-xps-haptic-touchpad && omarchy-cmd-present dell-xps-touchpad-haptics","checked":"[[ \"$(dell-xps-touchpad-haptics get)\" == \"low\" ]]","action":"dell-xps-touchpad-haptics set low"},
   "trigger.hardware.touchpad-haptics.mid": {"icon":"󰌌","label":"mid","when":"omarchy-hw-dell-xps-haptic-touchpad && omarchy-cmd-present dell-xps-touchpad-haptics","checked":"[[ \"$(dell-xps-touchpad-haptics get)\" == \"mid\" ]]","action":"dell-xps-touchpad-haptics set mid"},
   "trigger.hardware.touchpad-haptics.high": {"icon":"󰌌","label":"high","when":"omarchy-hw-dell-xps-haptic-touchpad && omarchy-cmd-present dell-xps-touchpad-haptics","checked":"[[ \"$(dell-xps-touchpad-haptics get)\" == \"high\" ]]","action":"dell-xps-touchpad-haptics set high"},
-  "trigger.hardware.touchscreen-on": {"icon":"󰆽","label":"Enable Touchscreen","when":"omarchy-hw-touchscreen && [[ -f ~/.local/state/omarchy/toggles/hypr/touchscreen-disabled-name ]]","action":"omarchy-toggle-touchscreen"},
-  "trigger.hardware.touchscreen-off": {"icon":"󰆽","label":"Disable Touchscreen","when":"omarchy-hw-touchscreen && [[ ! -f ~/.local/state/omarchy/toggles/hypr/touchscreen-disabled-name ]]","action":"omarchy-toggle-touchscreen"},
+  "trigger.hardware.touchscreen-on": {"icon":"󰆽","label":"Enable Touchscreen","when":"omarchy-hw-touchscreen && [[ -f ~/.local/state/omarchy/toggles/hypr/touchscreen-disabled-name ]]","action":"omarchy-device-touchscreen"},
+  "trigger.hardware.touchscreen-off": {"icon":"󰆽","label":"Disable Touchscreen","when":"omarchy-hw-touchscreen && [[ ! -f ~/.local/state/omarchy/toggles/hypr/touchscreen-disabled-name ]]","action":"omarchy-device-touchscreen"},
   "trigger.reminder.set": {"icon":"󰢌","label":"Set one","aliases":["reminder-set","remind"],"action":"omarchy-reminder -i"},
   "trigger.reminder.show": {"icon":"󰢌","label":"Show all","action":"omarchy-reminder show"},
   "trigger.reminder.clear": {"icon":"󰢌","label":"Clear all","action":"omarchy-reminder clear"},

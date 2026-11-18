@@ -26,11 +26,11 @@
   "update": {
     "label": "Ενημέρωση"
   },
-  "about": {
-    "label": "Σχετικά"
-  },
   "system": {
     "label": "Σύστημα"
+  },
+  "system.about": {
+    "label": "Σχετικά"
   },
   "system.screensaver": {
     "label": "Προφύλαξη οθόνης"
