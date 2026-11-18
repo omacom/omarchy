@@ -30,6 +30,9 @@ credentials(home() / ".claude", "token-main", ms_in(3600), "default_claude_max_2
 credentials(accounts / "claude" / "work", "token-work", ms_in(3600), "default_claude_max_5x")
 credentials(accounts / "claude" / "old", "token-old", 1000, "default_claude_max_5x")
 (home() / ".claude" / "projects").mkdir()
+# Claude Code records its version only in the main profile; a parked
+# account's home never gets it.
+write_json(home() / ".claude.json", {"lastReleaseNotesSeen": "2.1.327"})
 
 # A parked account whose sign-in lapsed still has its last numbers on disk.
 write_json(cache_root() / "claude-limits-old.json", {"fetchedAtMs": 1, "limits": [{"label": "Weekly (7-day)", "percent": 0.4, "resetsAt": iso_in(3 * 3600)}]})
@@ -43,10 +46,12 @@ registry("claude", [
 # Anthropic answers per token, so each account's probe is told apart by the
 # credential it carried.
 USAGE = {"token-main": 97.0, "token-work": 12.0}
+AGENTS = {}
 
 
 def per_token(request):
   token = request.get_header("Authorization").split(" ", 1)[1]
+  AGENTS[token] = request.get_header("User-agent")
   if token not in USAGE:
     return urllib.error.URLError("down")
   return {"five_hour": {"utilization": USAGE[token]}, "seven_day": {"utilization": 5.0}}
@@ -65,6 +70,8 @@ expect("Claude record lists every registered account with its own plan",
         {"id": "old", "active": False, "plan": "Max 5x", "stale": True}], record)
 expect("Claude record probes each account with its own sign-in", [account["limits"][0]["percent"] for account in record["accounts"]], [0.97, 0.12, 0.4], record)
 expect("a lapsed account keeps its last-known limits and says why", record["accounts"][2]["usageStatusText"], "Sign-in expired", record)
+expect("every account asks as the Claude Code installed here, parked ones too",
+       [AGENTS["token-main"], AGENTS["token-work"]], ["claude-cli/2.1.327 (external, cli)"] * 2, AGENTS)
 expect("the record's own limits describe the active account", [record["tierLabel"], record["limits"][0]["percent"]], ["Max 5x", 0.12], record)
 expect("each account keeps its own limits cache, keyed by subscription",
        [(cache_root() / name).is_file() for name in ("claude-limits.json", "claude-limits-u-work.json")], [True, True])
