@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # omarchy:summary=List the games in ~/Games/vibes under the Game Vibes launcher
-# omarchy:examples=omarchy games vibes install
 
 # Each game an agent makes is ~/Games/vibes/<name>/index.html. This writes
 # ~/Games/vibes/index.html, the page that lists them, and the one Game Vibes
