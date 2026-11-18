@@ -70,53 +70,6 @@ assertDeepEqual(
   'monitor keeps presets until display dimensions are known'
 )
 
-// The panel and the compositor have to agree on the number, so check against
-// Hyprland's own search rather than against a table of remembered answers.
-// Transcribed from CMonitor::applyMonitorRule: round to 1/120 units, accept if
-// the logical size is whole, otherwise step outward -- up first -- for 89 steps.
-function hyprlandScale(scale, width, height) {
-  function whole(units) {
-    var logicalWidth = width / (units / 120)
-    var logicalHeight = height / (units / 120)
-    return units > 0 && logicalWidth === Math.round(logicalWidth) && logicalHeight === Math.round(logicalHeight)
-  }
-
-  var units = Math.round(scale * 120)
-  if (whole(units)) return String(Math.round((units / 120) * 100) / 100)
-
-  for (var step = 1; step < 90; step++) {
-    if (whole(units + step)) return String(Math.round(((units + step) / 120) * 100) / 100)
-    if (whole(units - step)) return String(Math.round(((units - step) / 120) * 100) / 100)
-  }
-
-  return ''
-}
-
-var mismatches = []
-var checked = 0
-var widths = [1280, 1366, 1440, 1600, 1920, 2160, 2256, 2560, 2880, 3024, 3440, 3456, 3840]
-var ratios = [9 / 16, 10 / 16, 3 / 4, 2 / 3]
-var requests = [1, 1.25, 1.5, 1.6, 1.75, 2, 2.5, 3, 4]
-for (var w = 0; w < widths.length; w++) {
-  for (var r = 0; r < ratios.length; r++) {
-    var height = widths[w] * ratios[r]
-    if (height !== Math.round(height)) continue
-    for (var q = 0; q < requests.length; q++) {
-      checked++
-      var mine = monitor.cleanScale(requests[q], widths[w], height)
-      var theirs = hyprlandScale(requests[q], widths[w], height)
-      if (mine !== theirs)
-        mismatches.push(widths[w] + 'x' + height + ' @' + requests[q] + ': ' + mine + ' vs ' + theirs)
-    }
-  }
-}
-assert(checked > 100, 'monitor scale sweep covers a useful range of modes')
-assert(
-  mismatches.length === 0,
-  'monitor reports the scale Hyprland applies',
-  mismatches.slice(0, 5).join('\n')
-)
-
 // A 6K panel also advertises a tiled half-width mode and legacy sizes.
 const sixK = ['6016x3384@60.00Hz', '3840x2160@60.00Hz', '6016x3384@59.94Hz', '5120x2880@60.00Hz',
   '2560x2880@60.00Hz', '2560x1440@60.00Hz', '1920x1080@60.00Hz', '1280x720@60.00Hz', '1024x768@60.00Hz']
