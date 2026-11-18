@@ -21,7 +21,8 @@ user_config_file="${HOME}/.config/$config_file"
 default_config_file="$OMARCHY_PATH/config/$config_file"
 backup_config_file="$user_config_file.bak.$(date +%s)"
 
-if [[ ! -e $default_config_file ]]; then
+# A .. component would reach outside both config trees.
+if [[ /$config_file/ == */../* || ! -e $default_config_file ]]; then
   echo "Not a shipped user config: $config_file" >&2
   exit 1
 fi
