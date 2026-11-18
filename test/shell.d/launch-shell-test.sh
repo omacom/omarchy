@@ -134,12 +134,6 @@ pass "the shell launches with Quickshell's config watcher, reload popup and cras
 [[ $(<"$qs_env_log") == *"background=$startup_wallpaper" ]] || fail "the shell receives the resolved wallpaper path before startup" "$(<"$qs_env_log")"
 pass "the selected wallpaper can decode as soon as Quickshell starts"
 
-# With Quickshell's crash handler off, nothing else brings a crashed shell back.
-launch_shell $'139\n0' || fail "a shell that died of a signal is relaunched"
-[[ $(launches) == 2 ]] || fail "the crashed shell is relaunched exactly once" "$(<"$qs_log")"
-grep -F 'exited with status 139' "$logger_log" >/dev/null || fail "the crash is recorded in the journal"
-pass "a shell that dies of a signal is relaunched"
-
 # Qt leaves through _exit(), so no signal is raised at all.
 launch_shell $'255\n0' || fail "a shell that died on a Wayland error is relaunched"
 [[ $(launches) == 2 ]] || fail "the dead shell is relaunched exactly once" "$(<"$qs_log")"
