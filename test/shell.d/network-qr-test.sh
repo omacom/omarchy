@@ -7,6 +7,14 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin"
+export QR_ROUTE_EXIT=0
+
+# Loopback is never wireless, so exercise the connected-Wi-Fi fallback.
+cat >"$tmp/bin/ip" <<'EOF'
+#!/bin/bash
+[[ $QR_ROUTE_EXIT == "0" ]] || exit "$QR_ROUTE_EXIT"
+printf '1.1.1.1 dev lo\n'
+EOF
 
 cat >"$tmp/bin/nmcli" <<'EOF'
 #!/bin/bash
@@ -28,13 +36,13 @@ payload=$(</dev/stdin)
 printf '%s' "$payload" >"$QR_PAYLOAD_FILE"
 printf '##    \n  ##  \n    ##\n'
 EOF
-chmod +x "$tmp/bin/nmcli" "$tmp/bin/qrencode"
+chmod +x "$tmp/bin/ip" "$tmp/bin/nmcli" "$tmp/bin/qrencode"
 
 run_success_case() {
   local description=$1 fields=$2 expected_payload=$3
   shift 3
   local output meta matrix payload arg with_meta=false
-  local expected_matrix expected_security expected_ssid expected_iface="*"
+  local expected_matrix expected_security expected_ssid expected_iface="wlan0"
 
   for arg in "$@"; do
     [[ $arg == "--meta" ]] && with_meta=true || expected_iface=$arg
@@ -49,9 +57,8 @@ run_success_case() {
     meta=$(head -n1 <<<"$output")
     matrix=$(tail -n +2 <<<"$output")
 
-    # The meta line leads with the shared interface, security, and SSID. With
-    # no interface argument the helper detects one from the live host, so that
-    # field is only pinned when the case pinned it.
+    # The metadata reports the requested interface, or the connected Wi-Fi
+    # interface supplied by the nmcli stub when no interface was requested.
     expected_security=${expected_payload#WIFI:T:}
     expected_security=${expected_security%%;*}
     expected_ssid=$(head -n1 <<<"$fields")
@@ -86,6 +93,12 @@ run_success_case \
   "network QR helper detects the Wi-Fi interface" \
   $'Cafe Detected\nwpa-psk\nsecret\nno\n' \
   'WIFI:T:WPA;S:Cafe Detected;P:secret;;' \
+  --meta
+
+QR_ROUTE_EXIT=2 run_success_case \
+  "network QR helper detects Wi-Fi when route lookup fails" \
+  $'Cafe No Route\nwpa-psk\nsecret\nno\n' \
+  'WIFI:T:WPA;S:Cafe No Route;P:secret;;' \
   --meta
 
 run_success_case \

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=OpenCode
+Comment=Start OpenCode in a terminal
+Exec=omarchy-agent --agent opencode --app-id=org.omarchy.opencode
+Icon=omarchy-agent-opencode
+StartupWMClass=org.omarchy.opencode
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new
