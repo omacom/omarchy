@@ -89,11 +89,24 @@ Panel {
     root.close()
   }
 
+  // What a local model makes, in a word.
+  function kindLabel(model) {
+    return model.kind === "image" ? Commons.I18n.t("agents.kindImage")
+      : model.kind === "video" ? Commons.I18n.t("agents.kindVideo")
+      : model.kind === "music" ? Commons.I18n.t("agents.kindMusic")
+      : Commons.I18n.t("agents.kindText")
+  }
+
+  // Image, video and music models are made with in Fantasi rather than an agent.
+  function makesInFantasi(model) {
+    return ["image", "video", "music"].indexOf(model.kind) >= 0
+  }
+
   function runLocalAction(model, action) {
     if (action === "launch") {
       // An image or video model makes pictures or clips in Fantasi rather than running an agent.
       // An open Fantasi takes the model and comes to the front, so this always opens.
-      if (model.kind === "image" || model.kind === "video") Util.execArgv(["uwsm-app", "--", "fantasi", "open", "--model", modelId(model)])
+      if (makesInFantasi(model)) Util.execArgv(["uwsm-app", "--", "fantasi", "open", "--model", modelId(model)])
       else Util.execArgv(["omarchy-agent", "--local-model", modelId(model)])
       root.close()
     } else if (action === "toggle") {
@@ -2313,8 +2326,11 @@ Panel {
         anchors.baseline: sectionName.baseline
         visible: !section.multi && text !== ""
         textFormat: Text.PlainText
-        // A network model names its host where a plan would be.
-        text: section.remote ? section.model.host : section.model || section.offer ? "" : root.planLabel(section.provider)
+        // A local model says what it makes where a plan would be, and a
+        // network one its host as well.
+        text: section.offer && section.offer.link ? ""
+          : section.model || section.offer ? [root.kindLabel(section.model || section.offer)].concat(section.remote ? [section.model.host] : []).join(" · ")
+          : root.planLabel(section.provider)
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -2427,7 +2443,7 @@ Panel {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         readonly property bool download: !!section.offer
-        readonly property bool image: !!section.model && (section.model.kind === "image" || section.model.kind === "video")
+        readonly property bool image: !!section.model && root.makesInFantasi(section.model)
         visible: download || (section.model ? section.running && (!section.remote || (section.paired && !section.offline)) : root.harnessFor(section.provider) !== "")
         iconText: download ? (section.offer.link ? "󰌘" : "󰇚") : image ? "󰋩" : "󰞷"
         tooltipText: download ? (section.offer.link ? Commons.I18n.t("agents.linkSetUp") : Commons.I18n.t("agents.localDownload"))
