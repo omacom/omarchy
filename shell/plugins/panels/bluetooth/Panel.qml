@@ -425,6 +425,8 @@ Panel {
 
   onOpenedChanged: {
     if (opened) {
+      // A radio shown as off may have been unplugged since: re-ask rfkill.
+      if (adapter === null) blockedQuery.running = true
       // Adopt a discovery session that is already running — a popout handoff
       // from another monitor, or one leaked by an instance that could not
       // finish its own stop — so this close settles it either way.
@@ -653,12 +655,23 @@ Panel {
   function toggleBluetooth() {
     if (!radioPresent) return
     Quickshell.execDetached(["omarchy-bluetooth-power", radioEnabled ? "off" : "on"])
+    if (adapter === null) absentRecheck.restart()
+  }
+
+  // Turning on a radio that was unplugged while off brings no adapter back, so
+  // nothing else would ever take the widget down. Ask rfkill again once the
+  // unblock has had time to bring a real adapter up.
+  Timer {
+    id: absentRecheck
+    interval: 5000
+    onTriggered: if (root.adapter === null) blockedQuery.running = true
   }
 
   // Asked only while BlueZ has no adapter: with one present, its own Powered
   // property already carries the state and rfkill can only agree with it.
-  // Nothing polls, because the block cannot be lifted without the adapter
-  // coming back, and that is a change this object already hears about.
+  // Nothing polls: besides the adapter leaving and startup, it is asked only
+  // when the panel opens or its switch is used, the moments a removable radio
+  // unplugged while off would otherwise leave a dead switch on the bar.
   Process {
     id: blockedQuery
     command: ["omarchy-bluetooth-power", "is-blocked"]

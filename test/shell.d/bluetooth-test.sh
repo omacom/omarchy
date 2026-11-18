@@ -301,7 +301,8 @@ cat >"$stage/bin/omarchy-bluetooth-power" <<'SH'
 printf '%s\n' "$1" >>"$BT_TEST_DIR/log"
 case $1 in
   off) echo blocked >"$BT_TEST_DIR/rfkill" ;;
-  on) echo unblocked >"$BT_TEST_DIR/rfkill" ;;
+  on) [[ $(<"$BT_TEST_DIR/rfkill") == none ]] || echo unblocked >"$BT_TEST_DIR/rfkill" ;;
+  unplug) echo none >"$BT_TEST_DIR/rfkill" ;;
   is-blocked) [[ $(<"$BT_TEST_DIR/rfkill") == blocked ]] ;;
 esac
 SH
@@ -315,4 +316,4 @@ if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding l
   fail "bluetooth radio-off fixture has no QML errors" "$output"
 fi
 grep -qx on "$stage/log" || fail "the panel switch turns a blocked radio back on"
-pass "bluetooth keeps the widget through turn-off, turn-on, no hardware and a blocked startup in QML"
+pass "bluetooth keeps the widget through turn-off, turn-on, no hardware, a blocked startup and an unplugged radio in QML"

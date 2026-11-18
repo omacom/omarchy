@@ -103,6 +103,18 @@ ShellRoot {
 
   function startupChecks() {
     check(panel.visible && panel.heroStatusText === "Turned Off", "radio already blocked at startup shows the off widget")
+    // A dongle unplugged while off: its rfkill switch goes with it, and turning
+    // on from the switch brings no adapter back.
+    test.runCli("unplug", function() {
+      panel.toggleBluetooth()
+      unplugWait.start()
+    })
+  }
+
+  Timer { id: unplugWait; interval: 6000; onTriggered: test.unplugChecks() }
+
+  function unplugChecks() {
+    check(!panel.visible, "a radio unplugged while off leaves the bar once its switch finds nothing")
     if (!failed) console.log("RESULT pass")
     Qt.quit()
   }
