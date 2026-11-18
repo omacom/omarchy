@@ -14,10 +14,37 @@ restore_gnome_keyring() {
   exit 1
 }
 
+# This copy, and the login.keyring oo7 leaves behind, still hold the secrets in
+# plain text. Taken before the repair, it's the way back if the repair or the
+# move goes wrong, so a later migration removes them once this has proven itself.
+if [[ -d $keyrings_dir && ! -e $keyrings_backup ]]; then
+  cp -a "$keyrings_dir" "$keyrings_backup"
+  chmod 700 "$keyrings_backup"
+fi
+
 # A multi-line secret written by gnome-keyring (#5105) stops oo7-daemon from
-# starting at all, so repair first. If that fails, nothing has changed yet, and
-# the migration stays pending with the keyring intact.
-omarchy-keyring-repair || restore_gnome_keyring
+# starting at all, so repair first. Without the repair command nothing has
+# changed yet, and the migration stays pending.
+command -v omarchy-keyring-repair >/dev/null || restore_gnome_keyring
+
+# Some keyrings can't be repaired safely, on this run or any later one, so
+# leaving the migration pending would hold back every migration after it. Each
+# keyring is tried on its own copy to find those, and they move into the backup,
+# out of oo7's way. A repair that still fails, from a read or write error, leaves
+# the migration pending.
+if ! omarchy-keyring-repair; then
+  for keyring in "$keyrings_dir"/*.keyring; do
+    [[ -f $keyring ]] || continue
+    probe=$(mktemp -d)
+    if cp "$keyring" "$probe/" && ! OMARCHY_KEYRING_DIR=$probe omarchy-keyring-repair 2>/dev/null; then
+      mv "$keyring" "$keyrings_backup/${keyring##*/}.unrepairable"
+      echo "The keyring ${keyring##*/} can't be repaired safely, so its secrets are no longer available to apps." >&2
+      echo "It was moved to $keyrings_backup/${keyring##*/}.unrepairable." >&2
+    fi
+    rm -rf "$probe"
+  done
+  omarchy-keyring-repair || restore_gnome_keyring
+fi
 
 # oo7 before 0.7 can't read gnome-keyring's plain-text keyrings, so an older one,
 # installed or the only one a mirror has, fails the swap and leaves this pending.
@@ -32,14 +59,6 @@ if ! pacman -T "$oo7_min" gcr >/dev/null; then
 fi
 if omarchy-pkg-present gnome-keyring; then
   sudo pacman -R --noconfirm gnome-keyring || restore_gnome_keyring
-fi
-
-# This copy, and the login.keyring oo7 leaves behind, still hold the secrets in
-# plain text. They're the way back if a repair or the move goes wrong, so a later
-# migration removes them once this has proven itself.
-if [[ -d $keyrings_dir && ! -e $keyrings_backup ]]; then
-  cp -a "$keyrings_dir" "$keyrings_backup"
-  chmod 700 "$keyrings_backup"
 fi
 
 # oo7 only treats the keyring named "login" as the default collection, and doesn't
