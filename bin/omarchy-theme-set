@@ -418,6 +418,12 @@ mkdir -p "$NEXT_THEME_PATH"
 
 # Copy official theme first, then overlay the user's theme on top
 cp -r "$OMARCHY_THEMES_PATH/$THEME_NAME/"* "$NEXT_THEME_PATH/" 2>/dev/null
+# The intros ship from omarchy-themes-intros into the installed tree, never the
+# git checkout, so a dev-linked $OMARCHY_PATH takes them from there.
+packaged_intros="/usr/share/omarchy/themes/$THEME_NAME/backgrounds/intros"
+if [[ -d $packaged_intros && -d $NEXT_THEME_PATH/backgrounds && ! -d $NEXT_THEME_PATH/backgrounds/intros ]]; then
+  cp -r "$packaged_intros" "$NEXT_THEME_PATH/backgrounds/"
+fi
 
 if theme_came_from_a_repo "$USER_THEMES_PATH/$THEME_NAME"; then
   stage_installed_theme "$USER_THEMES_PATH/$THEME_NAME"
