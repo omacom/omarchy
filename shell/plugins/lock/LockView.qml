@@ -273,8 +273,11 @@ Item {
       readonly property bool present: !!(device && device.isPresent)
       readonly property int level: present ? Math.round(Number(device.percentage || 0) * 100) : -1
       readonly property bool charging: present && device.state === UPowerDeviceState.Charging
-      readonly property bool full: present && device.state === UPowerDeviceState.FullyCharged
-      readonly property bool low: present && !charging && !full && level <= 10
+      // A battery held below full by a charge limit reports FullyCharged or
+      // PendingCharge on external power; the power panel reads it the same way.
+      readonly property bool chargeLimited: present && !UPower.onBattery && (device.state === UPowerDeviceState.PendingCharge || (device.state === UPowerDeviceState.FullyCharged && Number(device.percentage || 0) < 0.99))
+      readonly property bool full: present && device.state === UPowerDeviceState.FullyCharged && !chargeLimited
+      readonly property bool low: present && !charging && !full && !chargeLimited && level <= 10
       readonly property var chargingGlyphs: [0xF089C, 0xF0086, 0xF0087, 0xF0088, 0xF089D, 0xF0089, 0xF089E, 0xF008A, 0xF008B, 0xF0085]
       readonly property var dischargingGlyphs: [0xF007A, 0xF007B, 0xF007C, 0xF007D, 0xF007E, 0xF007F, 0xF0080, 0xF0081, 0xF0082, 0xF0079]
       readonly property int step: Math.max(0, Math.min(9, Math.floor(level / 10)))
@@ -284,13 +287,13 @@ Item {
         var minutes = Math.round(seconds / 60)
         if (minutes <= 0) return ""
         return minutes >= 60
-          ? Commons.I18n.t("agents.durationHoursMinutes").arg(Math.floor(minutes / 60)).arg(minutes % 60)
-          : Commons.I18n.t("agents.durationMinutes").arg(minutes)
+          ? Commons.I18n.t("agents.durationHoursMinutes").arg(Commons.I18n.formatNumber(Math.floor(minutes / 60))).arg(Commons.I18n.formatNumber(minutes % 60))
+          : Commons.I18n.t("agents.durationMinutes").arg(Commons.I18n.formatNumber(minutes))
       }
       readonly property string remaining: {
         if (full) return Commons.I18n.t("power.fullyCharged")
         if (span.length === 0) return ""
-        return Commons.I18n.t(charging ? "power.timeToFull" : "power.timeLeft") + " " + span
+        return charging ? Commons.I18n.t("lock.batteryTimeToFull").arg(span) : Commons.I18n.t("lock.batteryTimeLeft").arg(span)
       }
       readonly property color tone: low ? Commons.Color.lock.textError : (charging ? Commons.Color.lock.borderActive : Commons.Color.lock.placeholder)
       readonly property real fraction: present ? Math.max(0, Math.min(1, level / 100)) : 0
@@ -324,7 +327,7 @@ Item {
 
           Text {
             textFormat: Text.PlainText
-            text: batteryBar.level + "%"
+            text: Commons.I18n.formatNumber(batteryBar.level) + "%"
             color: batteryBar.low ? Commons.Color.lock.textError : Commons.Color.lock.text
             font.family: Style.font.family
             font.pixelSize: Style.font.heading
