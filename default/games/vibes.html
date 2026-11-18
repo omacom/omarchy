@@ -4,81 +4,308 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Game Vibes</title>
-<!-- Written to ~/Games/vibes/index.html by omarchy-games-vibes-install, which fills in GAMES. -->
+<!-- Game Vibes as a cracktro: the list of games as a 16-bit demo-scene intro on a CRT. Everything is drawn in fat pixels on
+     one small 2D canvas: copper bars, a wobbling logo, bobs, a checkerboard floor and a sine scroller. -->
 <style>
-  html, body { margin: 0; min-height: 100%; background: var(--background); color: var(--foreground); font-family: ui-monospace, "JetBrainsMono Nerd Font", monospace; }
-  main { max-width: 1100px; margin: 0 auto; padding: 56px 32px; }
-  h1 { margin: 0 0 8px; font-size: 48px; letter-spacing: 4px; color: var(--accent); }
-  .dim { color: color-mix(in srgb, var(--foreground) 55%, var(--background)); }
-  #games { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; margin-top: 40px; }
-  a { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 24px 16px; border-radius: 14px; color: inherit; text-decoration: none; font-size: 18px; text-align: center; background: color-mix(in srgb, var(--foreground) 5%, transparent); outline: none; }
-  a:hover, a:focus { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
-  a img, a .letter { width: 112px; height: 112px; border-radius: 24px; }
-  a .letter { display: grid; place-items: center; font-size: 56px; font-weight: bold; background: var(--accent); color: var(--background); }
-  #empty { margin-top: 40px; font-size: 18px; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--background); font-family: "JetBrainsMono Nerd Font", ui-monospace, monospace; user-select: none; cursor: default; }
+  canvas { position: fixed; left: 0; top: 0; image-rendering: pixelated; }
+  #crt { position: fixed; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(to bottom, transparent 0 calc(var(--px) * .62), rgba(0,0,0,var(--scan)) calc(var(--px) * .62) var(--px)),
+                radial-gradient(ellipse at center, transparent 58%, rgba(0,0,0,var(--vignette)) 100%);
+    box-shadow: inset 0 0 90px rgba(0,0,0,var(--vignette)); }
+  #crt::before { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, rgba(255,255,255,.07) 0%, transparent 28%); }
+  #crt::after { content: ""; position: absolute; left: 0; right: 0; height: 22vh; top: -22vh; background: linear-gradient(to bottom, transparent, rgba(255,255,255,.045), transparent); animation: hum 7s linear infinite; }
+  @keyframes hum { to { transform: translateY(125vh); } }
+  .hint { position: fixed; bottom: 10px; font-size: 11.5px; letter-spacing: .04em; color: var(--soft); max-width: 46vw; line-height: 1.5; background: var(--plate); padding: 3px 8px; border-radius: 4px; }
+  .hint b { color: var(--ink); }
+  #keys { left: 14px; } #make { right: 14px; text-align: right; }
+  @media (prefers-reduced-motion: reduce) { #crt::after { animation: none; } }
 </style>
 </head>
 <body>
-<main>
-  <h1>GAME VIBES</h1>
-  <p class="dim">Arrows and Enter to play · Esc on a game's title screen, or Q when it's paused, comes back here</p>
-  <div id="games"></div>
-  <p id="empty" hidden>No games yet.</p>
-  <p class="dim">Make a new one, or keep working on one of these, from the agents panel: <span style="color: var(--accent)">Make something cool → Game</span>.</p>
-</main>
+<canvas id="screen"></canvas>
+<div id="crt"></div>
+<div class="hint" id="keys"></div>
+<div class="hint" id="make"></div>
 <script>
+// ---- Game Vibes: shared setup -------------------------------------------------------------
+// omarchy-games-vibes-install writes this page to ~/Games/vibes/index.html with the games filled in:
+// { name, title, blurb (the game's <meta name="description">), icon (has icon.svg), url (its folder) }.
 const GAMES = /*GAMES*/[];
-
-// omarchy-games-vibes-launch opens this page with the current theme's palette in the fragment.
-const palette = { background: '#1a1b26', foreground: '#a9b1d6', accent: '#7aa2f7' };
-try {
-  const current = JSON.parse(new URLSearchParams(location.hash.slice(1)).get('palette') ?? '{}');
-  for (const key of Object.keys(palette)) if (/^#[0-9a-f]{6}$/i.test(current[key] ?? '')) palette[key] = current[key];
-} catch {}
-for (const [key, value] of Object.entries(palette)) document.documentElement.style.setProperty(`--${key}`, value);
-
-// omarchy-games-vibes-launch <game> adds open=<game>: go straight to it, and take open out of
-// this page's address first, so coming back with Esc lands on the list rather than the game again.
 const params = new URLSearchParams(location.hash.slice(1));
-const open = GAMES.find(game => game.name === params.get('open'));
-params.delete('open');
-history.replaceState(null, '', `#${params}`);
 
-const list = document.getElementById('games');
-for (const game of GAMES) {
-  const link = document.createElement('a');
-  // The fragment goes along, so each game opens in the theme too.
-  link.href = `${game.url}/index.html${location.hash}`;
-  if (game.icon) {
-    const img = document.createElement('img');
-    img.src = `${game.url}/icon.svg`;
-    img.alt = '';
-    link.append(img);
-  } else {
-    const letter = document.createElement('span');
-    letter.className = 'letter';
-    letter.textContent = game.title.trim().charAt(0).toUpperCase();
-    link.append(letter);
+// The desktop theme rides in the fragment; Tokyo Night stands in without one.
+const P = { mode: 'dark', background: '#1a1b26', foreground: '#a9b1d6', accent: '#7aa2f7', muted: '#414868', red: '#f7768e', green: '#9ece6a', yellow: '#e0af68', blue: '#7aa2f7', magenta: '#bb9af7', cyan: '#7dcfff', orange: '#ff9e64' };
+try {
+  const given = JSON.parse(params.get('palette') ?? '{}');
+  for (const key of Object.keys(P)) if (/^#[0-9a-f]{6}$/i.test(given[key] ?? '')) P[key] = given[key];
+  if (given.mode === 'light' || given.mode === 'dark') P.mode = given.mode;
+  else if (given.background) P.mode = lum(P.background) > 0.5 ? 'light' : 'dark';
+} catch {}
+const LIGHT = P.mode === 'light';
+function rgb(hex) { const n = parseInt(hex.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function lum(hex) { const [r, g, b] = rgb(hex); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; }
+function mix(a, b, t) { const x = rgb(a), y = rgb(b); return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join(''); }
+const shade = (hex, t) => mix(hex, '#000000', t);
+const tint = (hex, t) => mix(hex, '#ffffff', t);
+const alpha = (hex, a) => `rgba(${rgb(hex).join(',')},${a})`;
+for (const [key, value] of Object.entries(P)) document.documentElement.style.setProperty(`--${key}`, value);
+document.documentElement.dataset.mode = P.mode;
+
+// Each game gets a hue of its own from the theme.
+const HUES = [P.cyan, P.magenta, P.yellow, P.green, P.orange, P.red, P.blue];
+const hueOf = i => HUES[((i % HUES.length) + HUES.length) % HUES.length];
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const FONT = '"JetBrainsMono Nerd Font", ui-monospace, monospace';
+const KEYS_HINT = 'Arrows move · Enter plays · Q when paused, or Esc on a title screen, comes back here';
+const MAKE_HINT = 'New games come from the agents panel: Make something cool → Game. It can keep working on one of these too.';
+
+function hash(text) { let h = 2166136261; for (const c of text) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
+
+// A game without an icon gets a little invader grown from its name, in its own hue.
+function invader(game, hue, size = 256) {
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = size;
+  const c = canvas.getContext('2d'), deep = LIGHT ? mix(hue, P.background, 0.72) : mix(hue, shade(P.background, 0.35), 0.8);
+  c.fillStyle = deep; c.beginPath(); c.roundRect(0, 0, size, size, size * 0.22); c.fill();
+  let bits = hash(game.name + game.title); const cell = size / 11;
+  for (let y = 0; y < 7; y++) for (let x = 0; x < 4; x++) {
+    bits = Math.imul(bits ^ (bits >>> 15), 2246822519) >>> 0;
+    const on = (y > 0 && y < 6 && x > 1) || bits % 100 < 52;
+    const eye = y === 2 && x === 2;
+    if (!on && !eye) continue;
+    c.fillStyle = eye ? deep : hue;
+    for (const px of [x, 6 - x]) c.fillRect(Math.round((2 + px) * cell), Math.round((2 + y) * cell), Math.ceil(cell), Math.ceil(cell));
   }
-  link.append(game.title);
-  list.append(link);
+  return canvas;
 }
-document.getElementById('empty').hidden = GAMES.length > 0;
-list.querySelector('a')?.focus();
-// After load: Chrome makes a navigation started while the page loads replace it, which would leave no list to go back to.
-if (open) addEventListener('load', () => setTimeout(() => { location.href = `${open.url}/index.html${location.hash}`; }));
+// Icons can only be shown as images: a page opened from a file may not read their pixels.
+const iconSrc = (game, i) => game.icon ? `${game.url}/icon.svg` : invader(game, hueOf(i)).toDataURL();
 
-// Arrows move through the grid as it is laid out.
-addEventListener('keydown', event => {
-  const links = [...list.querySelectorAll('a')];
-  const at = links.indexOf(document.activeElement);
-  if (at < 0 || !links.length) return;
-  const columns = getComputedStyle(list).gridTemplateColumns.split(' ').length;
-  const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns }[event.key];
-  if (step === undefined) return;
-  event.preventDefault();
-  links[Math.min(links.length - 1, Math.max(0, at + step))].focus();
+// The fragment goes along, so each game opens in the theme too.
+function play(game) {
+  if (!game) return;
+  remember(GAMES.indexOf(game));   // so coming back lands on it, however it was opened
+  location.href = `${game.url}/index.html${location.hash}`;
+}
+// omarchy-games-vibes-launch <game> adds open=<game>: go straight to it, and take open out of this
+// page's address first, so coming back lands on the list rather than in the game again.
+const opening = GAMES.find(game => game.name === params.get('open'));
+if (params.has('open')) { params.delete('open'); history.replaceState(null, '', `#${params}`); }
+if (opening) addEventListener('load', () => setTimeout(() => play(opening)));
+
+// Coming back from a game lands on the game that was played.
+const remembered = () => { try { return Math.min(Math.max(0, GAMES.length - 1), Number(sessionStorage.getItem('vibes-selected')) || 0); } catch { return 0; } };
+const remember = i => { try { sessionStorage.setItem('vibes-selected', i); } catch {} };
+// --------------------------------------------------------------------------------------------
+
+const css = document.documentElement.style;
+const BG = LIGHT ? P.background : shade(P.background, 0.35), INK = LIGHT ? shade(P.foreground, 0.25) : tint(P.foreground, 0.6), DARK = LIGHT ? shade(P.foreground, 0.3) : shade(P.background, 0.7);
+const SOFT = mix(P.foreground, BG, 0.2);
+css.setProperty('--scan', LIGHT ? 0.09 : 0.3); css.setProperty('--vignette', LIGHT ? 0.16 : 0.5);
+css.setProperty('--soft', SOFT); css.setProperty('--plate', alpha(BG, 0.78)); css.setProperty('--ink', LIGHT ? P.accent : tint(P.accent, 0.3));
+document.body.style.background = BG;
+document.getElementById('keys').textContent = KEYS_HINT;
+document.getElementById('make').innerHTML = MAKE_HINT.replace('Make something cool → Game', '<b>Make something cool → Game</b>');
+
+const canvas = document.getElementById('screen'), c = canvas.getContext('2d');
+let SC = 3, W = 480, H = 300;
+function resize() {
+  SC = Math.max(2, Math.round(innerHeight / 290));
+  W = innerWidth / SC; H = innerHeight / SC;
+  canvas.width = Math.ceil(W); canvas.height = Math.ceil(H);
+  canvas.style.width = canvas.width * SC + 'px'; canvas.style.height = canvas.height * SC + 'px';
+  css.setProperty('--px', SC + 'px');
+}
+addEventListener('resize', resize); resize();
+
+// Text is drawn once per string, size and colour, with its soft edges snapped to whole pixels.
+const drawnText = new Map();
+function glyphs(text, size, color, weight = 800) {
+  const key = `${text}|${size}|${color}|${weight}`;
+  let made = drawnText.get(key);
+  if (made) return made;
+  made = document.createElement('canvas');
+  const g = made.getContext('2d', { willReadFrequently: true });
+  g.font = `${weight} ${size}px ${FONT}`;
+  made.width = Math.max(1, Math.ceil(g.measureText(text).width) + 2); made.height = Math.ceil(size * 1.35);
+  g.font = `${weight} ${size}px ${FONT}`; g.textBaseline = 'top'; g.fillStyle = color; g.fillText(text, 1, size * 0.14);
+  const image = g.getImageData(0, 0, made.width, made.height), d = image.data, [r, gr, b] = rgb(color);
+  for (let i = 0; i < d.length; i += 4) { d[i] = r; d[i + 1] = gr; d[i + 2] = b; d[i + 3] = d[i + 3] > (size < 14 ? 96 : 120) ? 255 : 0; }
+  g.putImageData(image, 0, 0);
+  drawnText.set(key, made);
+  return made;
+}
+function write(text, size, color, x, y, shadow, weight) {
+  const made = glyphs(text, size, color, weight), left = Math.round(x - made.width / 2);
+  if (shadow) c.drawImage(glyphs(text, size, shadow, weight), left + Math.max(1, Math.round(size / 11)), Math.round(y) + Math.max(1, Math.round(size / 11)));
+  c.drawImage(made, left, Math.round(y));
+  return made.width;
+}
+
+// A colour wheel through the theme's hues, for everything that cycles.
+const WHEEL = [];
+{ const stops = [P.red, P.orange, P.yellow, P.green, P.cyan, P.blue, P.magenta];
+  stops.forEach((from, k) => { for (let s = 0; s < 8; s++) WHEEL.push(mix(from, stops[(k + 1) % stops.length], s / 8)); }); }
+const wheel = v => WHEEL[((Math.floor(v) % WHEEL.length) + WHEEL.length) % WHEEL.length];
+
+// Icons are rasterised once, small, and scaled up in blocks from there.
+const N = GAMES.length;
+const icons = GAMES.map((game, i) => {
+  const small = document.createElement('canvas'); small.width = small.height = 96;
+  const img = new Image();
+  img.onload = () => small.getContext('2d').drawImage(img, 0, 0, 96, 96);
+  img.src = iconSrc(game, i);
+  return small;
 });
+const logoMask = () => glyphs('GAME VIBES', Math.round(Math.min(46, W / 8.4)), LIGHT ? shade(P.foreground, 0.2) : P.foreground);
+const logo = document.createElement('canvas'), lg = logo.getContext('2d');
+const balls = HUES.map(hue => {
+  const ball = document.createElement('canvas'); ball.width = ball.height = 15;
+  const g = ball.getContext('2d');
+  for (let y = 0; y < 15; y++) for (let x = 0; x < 15; x++) {
+    const dx = x - 7, dy = y - 7, d = Math.hypot(dx, dy);
+    if (d > 7.3) continue;
+    const lit = Math.hypot(dx + 2.5, dy + 2.5);
+    g.fillStyle = lit < 1.8 ? tint(hue, 0.75) : lit < 5 ? hue : lit < 8 ? shade(hue, 0.25) : shade(hue, 0.5);
+    g.fillRect(x, y, 1, 1);
+  }
+  return ball;
+});
+const stars = Array.from({ length: 110 }, () => ({ x: Math.random(), y: Math.random(), depth: Math.random() }));
+const SCROLL = `      WELCOME TO GAME VIBES ... ${N} GAME${N === 1 ? '' : 'S'} ON THE DISK ... ARROWS MOVE - ENTER PLAYS ... Q WHEN PAUSED, OR ESC ON A TITLE SCREEN, COMES BACK HERE ... WANT ANOTHER ONE? OPEN THE AGENTS PANEL AND PICK  MAKE SOMETHING COOL → GAME  ... IT CAN KEEP WORKING ON ONE OF THESE TOO ... GREETINGS TO EVERYONE RUNNING OMARCHY ...      `;
+
+let selected = remembered(), at = selected, kick = 0, hits = [];
+function select(i) {
+  if (!N) return;
+  i = Math.max(0, Math.min(N - 1, i));
+  if (i !== selected) kick = 1;
+  selected = i; remember(i);
+}
+addEventListener('keydown', event => {
+  const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -1, ArrowDown: 1 }[event.key];
+  if (step) { event.preventDefault(); select(selected + step); }
+  else if (event.key === 'Home') select(0);
+  else if (event.key === 'End') select(N - 1);
+  else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); play(GAMES[selected]); }
+});
+const hit = event => hits.find(h => Math.abs(event.clientX / SC - h.x) < h.half && Math.abs(event.clientY / SC - h.y) < h.half);
+addEventListener('mousemove', event => { canvas.style.cursor = hit(event) ? 'pointer' : 'default'; });
+addEventListener('click', event => { const h = hit(event); if (h) h.i === selected ? play(GAMES[selected]) : select(h.i); });
+let wheeled = 0;
+addEventListener('wheel', event => { const now = performance.now(); if (now - wheeled > 160) { wheeled = now; select(selected + Math.sign(event.deltaY || event.deltaX)); } }, { passive: true });
+
+const MOVE = REDUCED ? 0.12 : 1, started = performance.now();
+let last = started, t = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt * MOVE;
+  at += (selected - at) * (1 - Math.exp(-dt * (REDUCED ? 40 : 9))); kick *= Math.exp(-dt * 6);
+  const cx = W / 2, cy = Math.round(H * 0.445), horizon = Math.round(H - 60), hue = N ? hueOf(selected) : P.accent;
+  c.imageSmoothingEnabled = false; c.globalAlpha = 1;
+  c.fillStyle = BG; c.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Turning on: a second of loader stripes before the picture snaps in.
+  const boot = REDUCED ? 9 : (now - started) / 1000;
+  if (boot < 1.1) {
+    for (let y = 0; y < H;) { const tall = 1 + Math.floor(Math.random() * 7); c.fillStyle = Math.random() < 0.5 ? wheel(Math.random() * 56) : BG; c.fillRect(0, y, canvas.width, tall); y += tall; }
+    c.fillStyle = BG; c.fillRect(cx - 120, cy - 34, 240, 68);
+    write('GAME VIBES', 22, INK, cx, cy - 22); write('LOADING' + '.'.repeat(1 + Math.floor(boot * 6) % 4).padEnd(4, ' '), 11, SOFT, cx, cy + 8);
+    return;
+  }
+
+  // Sunburst behind the game that's up.
+  c.save(); c.beginPath(); c.rect(0, 0, canvas.width, horizon); c.clip();
+  c.fillStyle = mix(BG, hue, LIGHT ? 0.2 : 0.14);
+  for (let k = 0; k < 14; k++) { const a = t * 0.25 + kick * 0.6 + k * Math.PI / 7; c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, W, a, a + Math.PI / 14); c.fill(); }
+  c.restore();
+
+  // Stars, three speeds deep.
+  for (const s of stars) {
+    const x = ((s.x * W - t * (8 + s.depth * 55)) % W + W) % W, size = s.depth > 0.8 ? 2 : 1;
+    c.fillStyle = mix(BG, INK, 0.25 + s.depth * 0.75); c.fillRect(Math.floor(x), Math.floor(s.y * (horizon - 4)), size, size);
+  }
+
+  // Copper bars weaving behind the logo.
+  const logoH = Math.round(Math.min(46, W / 8.4) * 1.35), barsMid = 12 + logoH / 2;
+  const bars = [0, 1, 2, 3, 4].map(k => ({ k, y: barsMid + Math.sin(t * 1.5 + k * 0.62) * (logoH * 0.55), z: Math.cos(t * 1.5 + k * 0.62) })).sort((a, b) => a.z - b.z);
+  for (const bar of bars) for (let r = -6; r <= 6; r++) {
+    const color = [P.red, P.yellow, P.green, P.cyan, P.magenta][bar.k], edge = Math.abs(r) / 7;
+    c.fillStyle = r === 0 ? tint(color, 0.45) : mix(color, BG, edge * (LIGHT ? 0.75 : 0.9)); c.fillRect(0, Math.round(bar.y) + r, canvas.width, 1);
+  }
+
+  // The logo: colours run down it, and every row leans on its own sine.
+  const mask = logoMask();
+  if (logo.width !== mask.width || logo.height !== mask.height) { logo.width = mask.width; logo.height = mask.height; }
+  lg.globalCompositeOperation = 'source-over';
+  for (let y = 0; y < logo.height; y++) { lg.fillStyle = LIGHT ? shade(wheel(y * 1.3 + t * 30), 0.12) : tint(wheel(y * 1.3 + t * 30), 0.25); lg.fillRect(0, y, logo.width, 1); }
+  lg.globalCompositeOperation = 'destination-in'; lg.drawImage(mask, 0, 0);
+  const shadowed = glyphs('GAME VIBES', Math.round(Math.min(46, W / 8.4)), DARK), lx = Math.round(cx - mask.width / 2);
+  for (const [source, off] of [[shadowed, 3], [logo, 0]]) for (let y = 0; y < mask.height; y++) {
+    c.drawImage(source, 0, y, mask.width, 1, lx + off + Math.round(Math.sin(t * 2.4 + y * 0.13) * 4 * (REDUCED ? 0 : 1)), 12 + y + off, mask.width, 1);
+  }
+
+  // Checkerboard floor rolling toward the screen.
+  for (let y = horizon; y < H; y++) {
+    const d = y - horizon + 1, tile = d * 2.1, near = Math.min(1, d / 34), row = Math.floor(70 / d + t * 2.2) & 1;
+    const a = mix(BG, LIGHT ? mix(P.accent, P.background, 0.35) : mix(P.accent, P.background, 0.45), near), b = mix(BG, LIGHT ? mix(P.muted, P.background, 0.6) : shade(P.background, 0.2), near);
+    const cam = at * 0.8 + t * 0.35, first = Math.floor(cam - cx / tile) - 1;
+    for (let i = first, x; (x = cx + (i - cam) * tile) < W; i++) { c.fillStyle = (i + row) & 1 ? a : b; c.fillRect(Math.round(x), y, Math.ceil(tile) + 1, 1); }
+  }
+  c.fillStyle = hue; c.fillRect(0, horizon - 1, canvas.width, 1);
+
+  // Bobs on a Lissajous lead.
+  if (!REDUCED || true) for (let k = 0; k < 12; k++) {
+    const p = t * 1.25 - k * 0.19;
+    c.drawImage(balls[k % balls.length], Math.round(cx + Math.sin(p) * W * 0.44 - 7), Math.round(cy + Math.sin(p * 2.1 + 0.6) * 46 - 16));
+  }
+
+  // The games, on a strip that slides under the one in the middle.
+  hits = [];
+  if (!N) {
+    const blink = Math.floor(now / 500) % 2;
+    c.fillStyle = DARK; c.fillRect(cx - 43, cy - 43, 92, 92); c.fillStyle = wheel(t * 20); c.fillRect(cx - 46, cy - 46, 92, 92); c.fillStyle = DARK; c.fillRect(cx - 42, cy - 42, 84, 84);
+    if (blink) write('?', 56, wheel(t * 20), cx, cy - 38);
+    write('NO GAMES YET', 22, INK, cx, cy + 51, DARK);
+    write('Ask for one: Make something cool → Game', 13, SOFT, cx, cy + 78, null, 700);
+  }
+  const order = GAMES.map((_, i) => i).sort((a, b) => Math.abs(b - at) - Math.abs(a - at));
+  for (const i of order) {
+    const off = i - at, near = Math.max(0, 1 - Math.abs(off));
+    const x = cx + Math.sign(off) * (Math.abs(off) * 66 + Math.min(1, Math.abs(off)) * 34);
+    if (x < -60 || x > W + 60) continue;
+    const size = Math.round(44 + 44 * near), half = size / 2, y = cy + Math.round(Math.sin(t * 3.1) * 3 * near) - Math.round(near * 4);
+    const left = Math.round(x - half), top = Math.round(y - half);
+    c.fillStyle = DARK; c.globalAlpha = 0.6; c.fillRect(left + 1, top + 1, size + 6, size + 6); c.globalAlpha = 1;
+    c.fillStyle = i === selected ? wheel(t * 26) : hueOf(i); c.fillRect(left - 3, top - 3, size + 6, size + 6);
+    c.fillStyle = LIGHT ? shade(P.foreground, 0.45) : shade(P.background, 0.55); c.fillRect(left - 1, top - 1, size + 2, size + 2);
+    c.drawImage(icons[i], left, top, size, size);
+    if (near < 0.5) { c.globalAlpha = 0.35; c.fillStyle = BG; c.fillRect(left - 3, top - 3, size + 6, size + 6); c.globalAlpha = 1; }
+    hits.push({ i, x, y, half: half + 3 });
+  }
+  if (N) {
+    const game = GAMES[selected], drop = Math.round(kick * 10), ty = cy + 51;
+    write(game.title.toUpperCase(), game.title.length > 16 ? 16 : 22, INK, cx, ty - drop, LIGHT ? mix(hue, P.background, 0.3) : shade(hue, 0.35));
+    if (game.blurb) write(game.blurb, 13, SOFT, cx, ty + 27, null, 700);
+    const pulse = Math.round(Math.sin(t * 6) * 2);
+    c.fillStyle = INK;
+    for (let r = 0; r < 6; r++) {
+      if (selected > 0) c.fillRect(Math.round(cx - 58 - pulse - (6 - r)), cy - r - 4, 1, r * 2 + 1);
+      if (selected < N - 1) c.fillRect(Math.round(cx + 57 + pulse + (6 - r)), cy - r - 4, 1, r * 2 + 1);
+    }
+    write(`${String(selected + 1).padStart(2, '0')}/${String(N).padStart(2, '0')}`, 13, INK, W - 30, 7, DARK, 700);
+  }
+
+  // The scroller rides a sine over the floor, one letter at a time.
+  const size = 20, step = 13, span = SCROLL.length * step, slide = (t * 62) % span;
+  for (let x = -step - (slide % step), k = Math.floor(slide / step); x < W + step; x += step, k++) {
+    const ch = SCROLL[k % SCROLL.length];
+    if (ch === ' ') continue;
+    const y = H - 52 + Math.sin(t * 3.4 + x * 0.03) * 8;
+    write(ch, size, LIGHT ? shade(wheel(k * 2 + t * 12), 0.15) : tint(wheel(k * 2 + t * 12), 0.3), x + step / 2, y, DARK);
+  }
+  if (kick > 0.02 && !REDUCED) { c.globalAlpha = kick * 0.25; c.fillStyle = INK; c.fillRect(0, 0, canvas.width, canvas.height); c.globalAlpha = 1; }
+}
+requestAnimationFrame(frame);
 </script>
 </body>
 </html>

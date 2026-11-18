@@ -38,6 +38,7 @@ make_game() {
 }
 
 make_game snake "Snake"
+printf '<meta name="description" content="Eat & grow">\n' >>"$vibes/snake/index.html"
 make_game tilt-maze 'Tilt </script><script>alert(1)</script>'
 mkdir -p "$vibes/notes" "$vibes/Bad Name"
 make_game "Bad Name" "Bad"
@@ -47,6 +48,8 @@ games=$(sed -n 's:^const GAMES = \(.*\);$:\1:p' "$vibes/index.html" | sed 's/\\u
 [[ $(jq -r '[.[].name] | join(" ")' <<<"$games") == "chess snake tilt-maze" ]] ||
   fail "the list has each game folder with an index.html, shipped or made here, and nothing else" "$games"
 [[ $(jq -r '.[1].title' <<<"$games") == "Snake" ]] || fail "a game made here replaces the shipped game of its name" "$games"
+[[ $(jq -r '.[1].blurb' <<<"$games") == "Eat & grow" && $(jq -r '.[0].blurb' <<<"$games") == "" ]] ||
+  fail "a game's blurb is its description meta, and empty without one" "$games"
 [[ $(jq -r '.[2].title' <<<"$games") == 'Tilt </script><script>alert(1)</script>' ]] || fail "a game is listed by its <title>" "$games"
 (( $(grep -c '</script>' "$vibes/index.html") == 1 )) || fail "a title can't end the list's script"
 pass "Game Vibes lists the games in ~/Games/vibes by their titles"
