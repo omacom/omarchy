@@ -43,7 +43,7 @@ fi
 
 if [[ -z $AUTHORIZED_KEYS ]]; then
   echo
-  echo "Could not find the home of $target_user, so its authorized SSH keys were left alone."
+  echo "Could not find the home of $target_user, so their authorized SSH keys were left alone."
 elif [[ -s $AUTHORIZED_KEYS ]]; then
   echo
   if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n sshd.removeAuthorizedKeys "$AUTHORIZED_KEYS")"; then

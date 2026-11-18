@@ -71,7 +71,7 @@ prepare_case() {
 run_remove() {
   local failure="${1:-}"
   set +e
-  output=$(env HOME="$home" PATH="$stub_bin:$ROOT/bin:/usr/bin:/bin" \
+  output=$(env -u SUDO_USER -u PKEXEC_UID -u OMARCHY_INSTALL_USER HOME="$home" PATH="$stub_bin:$ROOT/bin:/usr/bin:/bin" \
     CALL_LOG="$calls" UFW_STATE="$state" UFW_PRESENT="${UFW_PRESENT:-1}" FAIL_UFW="$failure" \
     bash "$remove" 2>&1)
   status=$?

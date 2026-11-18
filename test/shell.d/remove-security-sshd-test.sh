@@ -38,6 +38,12 @@ run_remove() {
     bash "$ROOT/bin/omarchy-remove-security-sshd" >/dev/null
 }
 
+: >"$test_tmp/log"
+env -i PATH="$stub_bin:$ROOT/bin:/usr/bin:/bin" OMARCHY_PATH="$ROOT" HOME="$test_tmp/alice" USER=alice TEST_LOG="$test_tmp/log" TEST_ALICE_HOME="$test_tmp/alice" \
+  bash "$ROOT/bin/omarchy-remove-security-sshd" >/dev/null
+grep "^gum" "$test_tmp/log" | grep -Fq "$test_tmp/alice/.ssh/authorized_keys" || fail "run directly, the user's own keys are offered for removal"
+pass "run directly, the user's own keys are offered for removal"
+
 run_remove SUDO_USER=alice
 grep "^gum" "$test_tmp/log" | grep -Fq "$test_tmp/alice/.ssh/authorized_keys" || fail "under sudo, the invoking user's keys are the ones offered for removal"
 pass "under sudo, the invoking user's keys are the ones offered for removal"
