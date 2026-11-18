@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Open Game Vibes, the games made in ~/Games/vibes, in the current theme
+# omarchy:examples=omarchy games vibes launch
+
+# A page opened from a file can't read the theme, so the palette rides in the
+# URL fragment, which never leaves the machine. The list passes it on to each
+# game, whose themed() reads it.
+
+set -euo pipefail
+
+omarchy-games-vibes-install >/dev/null
+
+palette=$(omarchy-theme-color --all | jq -Rrn '[inputs | split("\t") | {(.[0]): .[1]}] | add | tojson | @uri')
+url="file://$(jq -rn --arg path "$HOME/Games/vibes/index.html" '$path | split("/") | map(@uri) | join("/")')"
+
+exec omarchy-launch-webapp "$url#palette=$palette"

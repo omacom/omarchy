@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=List the games in ~/Games/vibes under the Game Vibes launcher
+# omarchy:examples=omarchy games vibes install
+
+# Each game an agent makes is ~/Games/vibes/<name>/index.html. This writes
+# ~/Games/vibes/index.html, the page that lists them, and the one Game Vibes
+# launcher that opens it, so a new game needs no launcher of its own.
+
+set -euo pipefail
+
+vibes="$HOME/Games/vibes"
+mkdir -p "$vibes" "$HOME/.local/share/applications"
+
+# A game is a folder named like a command, holding an index.html. Its title
+# is the page's <title>. The list goes into the page as JSON with every <
+# escaped, so a title can't end the script it sits in.
+for page in "$vibes"/*/index.html; do
+  [[ -f $page ]] || continue
+  dir=${page%/index.html}
+  name=${dir##*/}
+  [[ $name =~ ^[a-z0-9][a-z0-9-]*$ ]] || continue
+  title=$(sed -n 's:.*<title>\(.*\)</title>.*:\1:p' "$page" | head -1 | tr -d '\t')
+  icon=false
+  [[ -f $dir/icon.svg ]] && icon=true
+  printf '%s\t%s\t%s\n' "$name" "${title:-$name}" "$icon"
+done | jq -Rrn --rawfile page "$OMARCHY_PATH/default/games/vibes.html" '
+  [inputs | split("\t") | {name: .[0], title: .[1], icon: (.[2] == "true")}]
+  | tojson | gsub("<"; "\\u003c") as $games
+  | $page | sub("/\\*GAMES\\*/\\[\\]"; $games)' >"$vibes/index.html"
+
+url="file://$(jq -rn --arg path "$vibes/index.html" '$path | split("/") | map(@uri) | join("/")')"
+cat >"$HOME/.local/share/applications/Game Vibes.desktop" <<EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Game Vibes
+Comment=The games you made with an agent
+Exec=omarchy-games-vibes-launch
+Icon=applications-games
+Categories=Game;
+Terminal=false
+StartupNotify=true
+StartupWMClass=$(omarchy-webapp-window-class "$url")
+EOF
+
+count=$(find "$vibes" -mindepth 2 -maxdepth 2 -name index.html | wc -l)
+echo "Game Vibes in the app launcher (Super + Space) has $count game(s), from ~/Games/vibes."

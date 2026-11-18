@@ -53,7 +53,7 @@
   <table>
     <tr><td class="key">← → / A D</td><td>Move</td></tr>
     <tr><td class="key">Space</td><td>Start, play again</td></tr>
-    <tr><td class="key">Esc / P</td><td>Pause, resume</td></tr>
+    <tr><td class="key">Esc / P</td><td>Pause, resume, back to all games</td></tr>
     <tr><td class="key">M</td><td>Sound on or off</td></tr>
     <tr><td class="key">?</td><td>This help</td></tr>
   </table>
@@ -395,6 +395,8 @@ function frame() {
   } else if (wasPressed('help') && state !== 'playing') {
     _helpFrom = state;
     show('help');
+  } else if ((state === 'title' || state === 'over' || state === 'won') && wasPressed('pause') && history.length > 1) {
+    history.back();                                      // back to Game Vibes, which opened the game
   } else if (state === 'title' || state === 'over' || state === 'won') {
     const kept = typeof screenInput === 'function' && [..._pressed].some(code => screenInput(code));
     if (!kept && (wasPressed('action') || wasClicked(0))) startRound();

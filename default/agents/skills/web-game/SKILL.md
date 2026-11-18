@@ -1,12 +1,12 @@
 ---
 name: web-game
 description: >
-  Build a browser game or interactive 3D toy as a single HTML file with three.js, saved in ~/Games/<name>/ and played in its own window from the app launcher: arcade games, endless runners, board and card games, puzzles, visual toys, small simulations. Starts from a working template, and covers what makes a game good (feel, fairness, clarity, polish), the three.js traps older examples walk into, checking it in a headless browser, and adding it to the launcher. Triggers: game, make me a game, three.js, WebGL, HTML game, browser game, canvas, arcade, 3D toy, snake, asteroids, breakout, pinball, platformer, runner, maze, puzzle, chess, solitaire, minesweeper.
+  Build a browser game or interactive 3D toy as a single HTML file with three.js, saved in ~/Games/vibes/<name>/ and played from Game Vibes in the app launcher: arcade games, endless runners, board and card games, puzzles, visual toys, small simulations. Starts from a working template, and covers what makes a game good (feel, fairness, clarity, polish), the three.js traps older examples walk into, checking it in a headless browser, and adding it to Game Vibes. Triggers: game, make me a game, three.js, WebGL, HTML game, browser game, canvas, arcade, 3D toy, snake, asteroids, breakout, pinball, platformer, runner, maze, puzzle, chess, solitaire, minesweeper.
 ---
 
 # Building a Web Game
 
-A game is one file, `~/Games/<name>/index.html` (unless the user asked for it somewhere else): three.js from a pinned CDN, everything else written in the file — shapes from three.js geometry, sound synthesized with Web Audio, text in HTML over the canvas. It opens in its own window from the app launcher in the desktop's current theme, plays from the keyboard (and the mouse, where that's natural), and keeps its best score.
+A game is one file, `~/Games/vibes/<name>/index.html` (unless the user asked for it somewhere else): three.js from a pinned CDN, everything else written in the file — shapes from three.js geometry, sound synthesized with Web Audio, text in HTML over the canvas. It's listed in Game Vibes, one launcher for every game made this way, and opens in the desktop's current theme, plays from the keyboard (and the mouse, where that's natural), and keeps its best score.
 
 Every game starts from `template.html` beside this file: a complete, working game (dodge the falling blocks) with what every game needs already done — title screen, pause on Esc and on losing focus, game over, restart, help, sound, a saved best score, a fixed-step loop that survives slow frames, seeded randomness, mouse picking, a camera fit, and lights that show the theme's colours true. You replace the game inside it, not the frame around it. Below, `SKILL_DIR` is the directory you read this file from (such as `~/.agents/skills/web-game`).
 
@@ -25,12 +25,12 @@ One mechanic done well beats three done badly, but give it enough to play for a 
 ## 2. Start from the template
 
 ```bash
-mkdir -p ~/Games/<name>
-cp "$SKILL_DIR/template.html" ~/Games/<name>/index.html
+mkdir -p ~/Games/vibes/<name>
+cp "$SKILL_DIR/template.html" ~/Games/vibes/<name>/index.html
 omarchy-theme-color --all
 ```
 
-If `~/Games/<name>` already holds a game, ask before replacing it. Read the whole template once, then edit that copy in place, section by section. Never write the file from scratch or rewrite the frame.
+If `~/Games/vibes/<name>` already holds a game, ask before replacing it. Read the whole template once, then edit that copy in place, section by section. Never write the file from scratch or rewrite the frame.
 
 1. **SETTINGS**: set `NAME`, and fill `PALETTE` from `omarchy-theme-color --all` (only `mode`, `background`, `foreground`, `accent`, `muted`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `orange`), keeping `themed(...)` around it. Set `BEST_IS` to `'lower'` for a time or a move count, `formatScore` to show it (`m:ss` for times), and `KEY_REPEAT` to `true` for a cursor game.
 2. **THE GAME**: replace that whole section with your game. `build()` once for everything reused, `resized()` to fit the camera, `reset()` to start a round, `update(dt)` for every rule, `draw(dt)` for animation that changes no rules (it runs on every screen, so effects keep moving after a loss), `screenInput(code)` for choices on the title and end screens, and `endRound(won, { title, detail })` when the round ends — the title and detail are what the end screen says (`'CHECKMATE'`, `'Cleared in 1:42'`). Set `score` as the game goes.
@@ -50,16 +50,16 @@ A plain version that plays comes first; check it (step 4), then add these in one
 - **Glow**: in a dark theme (`PALETTE.mode === 'dark'`), emissive materials on what matters and bloom (`EffectComposer`, `RenderPass` and `UnrealBloomPass` from `three/addons/postprocessing/`) make it come alive. Leave bloom off in a light theme, where it washes everything out.
 - **Polish**: the end screen says what happened and whether it was a new best; a game that can be won or drawn says so in `endRound`'s title.
 
-Done is a playable game with most of these in place, each checked once. Don't tune numbers turn after turn: when they're in and the checks pass, finish the icon and launcher, and tell the user what you built and what could come next.
+Done is a playable game with most of these in place, each checked once. Don't tune numbers turn after turn: when they're in and the checks pass, finish the icon, add it to Game Vibes, and tell the user what you built and what could come next.
 
 ## 4. Check it, then look at it
 
 `omarchy agent look page` renders the page headless in real time on the GPU, presses keys as a player would, and prints a screenshot and the page's console errors. Fix every error first. Then look at a round in progress, pressing keys that exercise the game's main mechanic, and at the same round in a light theme:
 
 ```bash
-omarchy agent look page ~/Games/<name>/index.html#seed=1 --keys "Space ArrowLeft ArrowLeft" --after 3000
-omarchy agent look page ~/Games/<name>/index.html#seed=1 --keys "Space ArrowLeft ArrowLeft" --after 8000
-omarchy agent look page ~/Games/<name>/index.html#seed=1 --keys "Space ArrowLeft" --theme catppuccin-latte
+omarchy agent look page ~/Games/vibes/<name>/index.html#seed=1 --keys "Space ArrowLeft ArrowLeft" --after 3000
+omarchy agent look page ~/Games/vibes/<name>/index.html#seed=1 --keys "Space ArrowLeft ArrowLeft" --after 8000
+omarchy agent look page ~/Games/vibes/<name>/index.html#seed=1 --keys "Space ArrowLeft" --theme catppuccin-latte
 ```
 
 `#seed=1` plays the same round every time, so a change you made is what changed. Between the first two shots the score should rise and the world should have moved. If the round is already over, or nothing changed, find out why before adding anything else.
@@ -73,22 +73,22 @@ Open every screenshot with your tool for viewing images; reading the path is not
 
 Look at your losing and winning moments too: make one happen at once in a scratch copy (a mine under the first reveal, a nearly cleared board) and look at that. Never open the game in the user's browser to test it.
 
-## 5. Give it an icon and put it in the launcher
+## 5. Give it an icon and add it to Game Vibes
 
-Write `~/Games/<name>/icon.svg`: a 256×256 square with a rounded tile filling it (`rx="56"`) in one strong colour, and on it one bold, simple picture of the game in a contrasting colour — a snake's coil, a chess knight, a flag on a mine — from a few flat shapes. No text, no tiny detail, no more than three colours: it has to read at 32 pixels. Render it and look at it, large and small:
+Write `~/Games/vibes/<name>/icon.svg`: a 256×256 square with a rounded tile filling it (`rx="56"`) in one strong colour, and on it one bold, simple picture of the game in a contrasting colour — a snake's coil, a chess knight, a flag on a mine — from a few flat shapes. No text, no tiny detail, no more than three colours: it has to read small in the Game Vibes list. Render it and look at it, large and small:
 
 ```bash
-magick -background none ~/Games/<name>/icon.svg -resize 256x256 /tmp/<name>-icon.png
+magick -background none ~/Games/vibes/<name>/icon.svg -resize 256x256 /tmp/<name>-icon.png
 magick /tmp/<name>-icon.png -resize 32x32 /tmp/<name>-icon-32.png
 ```
 
-Then add it to the app launcher (Super + Space), where it opens in its own window in the desktop's current theme:
+Then add it to Game Vibes, which lists it by its `<title>` and icon:
 
 ```bash
-omarchy-games-install <name> ["Title"]
+omarchy-games-vibes-install
 ```
 
-Run it again after changing the title; edits to the game need no reinstall. Tell the user the game's name in the launcher, where the file is, the controls, and that Remove > Web App takes it out of the launcher and leaves the file in `~/Games`.
+Game Vibes refreshes its list each time it opens, so edits and a changed title need nothing more. Tell the user the game is in Game Vibes in the app launcher (Super + Space), where the file is, and the controls.
 
 ## three.js and the page
 
