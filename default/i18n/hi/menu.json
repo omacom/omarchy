@@ -26,11 +26,11 @@
   "update": {
     "label": "अपडेट करें"
   },
-  "about": {
-    "label": "बारे में"
-  },
   "system": {
     "label": "सिस्टम"
+  },
+  "system.about": {
+    "label": "बारे में"
   },
   "system.screensaver": {
     "label": "स्क्रीनसेवर"

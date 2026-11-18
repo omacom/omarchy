@@ -26,11 +26,11 @@
   "update": {
     "label": "Sasisha"
   },
-  "about": {
-    "label": "Kuhusu"
-  },
   "system": {
     "label": "Mfumo"
+  },
+  "system.about": {
+    "label": "Kuhusu"
   },
   "system.screensaver": {
     "label": "Kiokozi cha skrini"

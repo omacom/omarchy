@@ -26,11 +26,11 @@
   "update": {
     "label": "Atjaunināt"
   },
-  "about": {
-    "label": "Par"
-  },
   "system": {
     "label": "Sistēma"
+  },
+  "system.about": {
+    "label": "Par"
   },
   "system.screensaver": {
     "label": "Ekrānsaudzētājs"

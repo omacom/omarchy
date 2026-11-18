@@ -198,7 +198,7 @@ def slug(label: str) -> str:
 
 
 def empty_registry(provider: str) -> dict[str, Any]:
-  return {"active": "main", "switch": "manual", "threshold": DEFAULT_THRESHOLD, "alert": "", "accounts": []}
+  return {"active": "main", "switch": "manual", "threshold": DEFAULT_THRESHOLD, "alert": "", "held": "", "accounts": []}
 
 
 def primary_entry(provider: str) -> dict[str, Any]:
@@ -516,6 +516,8 @@ def rename(provider: str, target: str, label: str) -> dict[str, Any]:
       account["home"] = str(account_home(provider, account))
     if registry["active"] == account["id"]:
       registry["active"] = new_id
+    if registry["held"] == account["id"]:
+      registry["held"] = new_id
     registry["alert"] = ""
     account["id"] = new_id
     account["label"] = label
@@ -543,6 +545,8 @@ def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any]]:
       raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
     registry["active"] = account["id"]
     registry["alert"] = ""
+    # Every caller is a person choosing, so autoswitch mustn't overrule it.
+    registry["held"] = account["id"]
     if not account.get("primary"):
       link_shared(provider, account_home(provider, account))
     return previous, account
@@ -688,12 +692,19 @@ def duration(delta: dt.timedelta) -> str:
 # checked just now wins, but room comes first. An account within 15 points of
 # the threshold (where the panel starts checking more often) is near its limit
 # however fresh its numbers are.
+#
+# An account chosen by hand is held there however full it is, and nothing is
+# offered or announced about it, until a fresh check sees it under the
+# threshold again; from then on it switches like any other.
 def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, stale: frozenset[str] = frozenset()) -> dict[str, Any] | None:
   threshold = float(registry["threshold"])
   current = active(registry)
   current_peak = peak(usage.get(current["id"]), now)
   if current_peak is None or current_peak < threshold:
-    return {"action": "clear"} if registry.get("alert") else None
+    release = current_peak is not None and current["id"] not in stale and bool(registry.get("held"))
+    return {"action": "clear", "release": release} if registry.get("alert") or release else None
+  if registry.get("held") == current["id"]:
+    return None
 
   candidates = []
   for account in registry["accounts"]:
@@ -775,6 +786,7 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
   name = PROVIDERS[provider]["name"]
   with Locked(provider) as registry:
     if len(registry["accounts"]) < 2:
+      registry["held"] = ""
       return False
     usage, stale = usage_by_account(provider)
     decision = decide(registry, usage, now, stale)
@@ -782,6 +794,8 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
       return False
     if decision["action"] == "clear":
       registry["alert"] = ""
+      if decision["release"]:
+        registry["held"] = ""
       return False
 
     registry["alert"] = decision["alert"]

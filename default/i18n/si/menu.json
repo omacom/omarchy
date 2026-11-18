@@ -26,11 +26,11 @@
   "update": {
     "label": "යාවත්කාලීන"
   },
-  "about": {
-    "label": "ගැන"
-  },
   "system": {
     "label": "පද්ධතිය"
+  },
+  "system.about": {
+    "label": "ගැන"
   },
   "system.screensaver": {
     "label": "තිර ආරක්ෂකය"
