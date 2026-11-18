@@ -26,11 +26,11 @@
   "update": {
     "label": "Ažuriraj"
   },
-  "about": {
-    "label": "O programu"
-  },
   "system": {
     "label": "Sustav"
+  },
+  "system.about": {
+    "label": "O programu"
   },
   "system.screensaver": {
     "label": "Čuvar zaslona"

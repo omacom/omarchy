@@ -26,11 +26,11 @@
   "update": {
     "label": "업데이트"
   },
-  "about": {
-    "label": "정보"
-  },
   "system": {
     "label": "시스템"
+  },
+  "system.about": {
+    "label": "정보"
   },
   "system.screensaver": {
     "label": "화면 보호기"

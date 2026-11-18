@@ -52,4 +52,14 @@ if [[ ${1:-} == "share" && -n ${2:-} && ${2:-} != -* && " $* " != *" --off "* ]]
   fi
 fi
 
-exec "${run[@]}"
+# A model set up here gets a launcher of its own, and loses it when removed.
+# A setup handed to the background isn't done yet: the agents panel adds its
+# launcher once it is.
+if [[ ${1:-} == "use" || ${1:-} == "remove" ]]; then
+  "${run[@]}"
+  status=$?
+  omarchy-agent-local-launchers
+  exit "$status"
+else
+  exec "${run[@]}"
+fi

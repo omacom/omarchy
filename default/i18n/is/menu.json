@@ -26,11 +26,11 @@
   "update": {
     "label": "Uppfæra"
   },
-  "about": {
-    "label": "Um"
-  },
   "system": {
     "label": "Kerfi"
+  },
+  "system.about": {
+    "label": "Um"
   },
   "system.screensaver": {
     "label": "Skjáverji"

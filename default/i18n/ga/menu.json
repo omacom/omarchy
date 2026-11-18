@@ -26,11 +26,11 @@
   "update": {
     "label": "Nuashonraigh"
   },
-  "about": {
-    "label": "Faisnéis"
-  },
   "system": {
     "label": "Córas"
+  },
+  "system.about": {
+    "label": "Faisnéis"
   },
   "system.screensaver": {
     "label": "Coigilteoir scáileáin"
