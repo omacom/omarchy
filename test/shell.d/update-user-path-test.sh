@@ -91,3 +91,11 @@ OMARCHY_UPDATE_LOG="$boundary_tmp/transcript" bash "$ROOT/bin/omarchy-update-ana
 grep -q "Initramfs generation may have failed" "$boundary_tmp/output" ||
   fail "analyzer reads the transcript the update names" "$(<"$boundary_tmp/output")"
 pass "analyzer reads the transcript the update names"
+
+# Run on its own, as `omarchy update analyze-logs`, it finds the transcript the
+# last update left in the caller's runtime dir.
+printf 'Updating linux initcpios\n' >"$boundary_tmp/runtime/omarchy-update.log"
+env -u OMARCHY_UPDATE_LOG XDG_RUNTIME_DIR="$boundary_tmp/runtime" bash "$ROOT/bin/omarchy-update-analyze-logs" >"$boundary_tmp/output" 2>&1
+grep -q "Initramfs generation may have failed" "$boundary_tmp/output" ||
+  fail "analyzer run on its own reads the runtime-dir transcript" "$(<"$boundary_tmp/output")"
+pass "analyzer run on its own reads the runtime-dir transcript"
