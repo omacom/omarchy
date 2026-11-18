@@ -51,7 +51,14 @@ STUB
 
 cat >"$stub_bin/gum" <<'STUB'
 #!/bin/bash
+printf '%s\n' "$*" >>"${GUM_LOG:-/dev/null}"
 exit 1
+STUB
+
+cat >"$stub_bin/getent" <<'STUB'
+#!/bin/bash
+[[ $1 == passwd && ( $2 == alice || $2 == 1000 ) ]] || exit 2
+printf 'alice:x:1000:1000::%s:/bin/bash\n' "$ALICE_HOME"
 STUB
 
 chmod +x "$stub_bin"/*
@@ -109,3 +116,21 @@ UFW_PRESENT=0 run_remove
 assert_no_success_claim
 [[ -s $home/.ssh/authorized_keys ]] || fail "no-UFW removal preserves authorized keys"
 pass "no-UFW removal does not claim firewall success"
+
+# Under sudo or pkexec $HOME is root's: the invoking user's keys are the ones offered,
+# and an invoker whose account cannot be resolved has no one's keys offered.
+prepare_case escalated
+mkdir -p "$case_dir/alice/.ssh"
+printf 'ssh-ed25519 alice-key alice@example\n' >"$case_dir/alice/.ssh/authorized_keys"
+for invoker in SUDO_USER=alice PKEXEC_UID=1000 SUDO_USER=ghost; do
+  : >"$case_dir/prompts"
+  env -u SUDO_USER -u PKEXEC_UID -u OMARCHY_INSTALL_USER HOME="$home" USER=root PATH="$stub_bin:$ROOT/bin:/usr/bin:/bin" \
+    CALL_LOG="$calls" UFW_STATE="$state" UFW_PRESENT=0 GUM_LOG="$case_dir/prompts" ALICE_HOME="$case_dir/alice" "$invoker" \
+    bash "$remove" >/dev/null 2>&1 || fail "removal succeeds for $invoker"
+  if [[ $invoker == *ghost ]]; then
+    [[ ! -s $case_dir/prompts ]] || fail "an unresolved invoker is not offered root's keys" "$(cat "$case_dir/prompts")"
+  else
+    grep -Fq "$case_dir/alice/.ssh/authorized_keys" "$case_dir/prompts" || fail "$invoker is offered the invoking user's keys" "$(cat "$case_dir/prompts")"
+  fi
+done
+pass "escalated removal judges the invoking user's keys, and nobody's when that user is unknown"
