@@ -175,7 +175,7 @@ grep -F "No default browser found" "$notify_log" >/dev/null ||
   fail "browser launcher says no default browser was found" "$(cat "$notify_log" 2>/dev/null)"
 pass "browser launcher fails visibly instead of handing uwsm-app an empty command"
 
-# A web app reaches the same empty command through its chromium.desktop
+# A web app reaches the same empty command through its Chrome or Chromium
 # fallback when the default is not Chromium-based, so it needs its own guard
 # and message.
 cat >"$XDG_DATA_DIRS/applications/firefox.desktop" <<'EOF'
@@ -202,3 +202,29 @@ HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
 grep -F "Web apps need a Chromium-based browser" "$notify_log" >/dev/null ||
   fail "web app launcher asks for a Chromium-based browser" "$(cat "$notify_log" 2>/dev/null)"
 pass "web app launcher fails visibly instead of handing uwsm-app an empty command"
+
+# Installs from before Chrome became the default may only have Chromium, and
+# their web apps have to keep opening there. Chrome wins once both are present.
+launch_webapp() {
+  rm -f "$launch_log"
+  HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+    OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" \
+    bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/app" 2>/dev/null || true
+}
+cat >"$XDG_DATA_DIRS/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=chromium %U
+EOF
+launch_webapp
+grep -F -- '-- chromium --app=https://example.test/app' "$launch_log" >/dev/null ||
+  fail "a web app falls back to Chromium without Chrome" "$(cat "$launch_log" 2>/dev/null)"
+
+cat >"$XDG_DATA_DIRS/applications/google-chrome.desktop" <<'EOF'
+[Desktop Entry]
+Exec=google-chrome-stable %U
+EOF
+cp "$mock_bin/chromium" "$mock_bin/google-chrome-stable"
+launch_webapp
+grep -F -- '-- google-chrome-stable --app=https://example.test/app' "$launch_log" >/dev/null ||
+  fail "a web app falls back to Chrome over Chromium" "$(cat "$launch_log" 2>/dev/null)"
+pass "web app launcher falls back to Chrome, then Chromium, when the default is not Chromium-based"

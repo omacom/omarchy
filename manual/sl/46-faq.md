@@ -1,8 +1,8 @@
 # Pogosta vprašanja
 
-### Kako preklapljam med razporeditvami tipkovnice?
+### Kako preklopim med postavitvami tipkovnice?
 
-Uredite svojo datoteko `~/.config/hypr/input.lua` in dodajte to za preklapljanje med razporeditvami na `Left Alt + Right Alt`:
+Uredite svojo datoteko `~/.config/hypr/input.lua` in dodajte to, da preklapljate med postavitvami z `Left Alt + Right Alt`:
 
 ```
 hl.config({
@@ -14,72 +14,68 @@ hl.config({
 })
 ```
 
-Vrstica bo samodejno prikazala vašo trenutno razporeditev tipkovnice, ko imate konfiguriranih več razporeditev (in nanjo lahko tudi kliknete za preklop).
+Vrstica bo samodejno prikazala vašo trenutno postavitev tipkovnice, ko boste imeli nastavljenih več postavitev (in nanjo lahko tudi kliknete za preklop).
 
-### Kako spremenim obliko ure na 12-urno?
+### Kako spremenim obliko ure v 12-urno?
 
-Z desno tipko miške kliknite uro v vrstici, da preklapljate med pogostimi oblikami, vključno z 12-urnimi. Obliko lahko nastavite tudi neposredno:
+Z desno tipko miške kliknite uro v vrstici, da preklapljate med običajnimi oblikami, vključno z 12-urnimi. Obliko lahko nastavite tudi neposredno:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-To bo prikazalo Sunday 10:55 AM.
+To bo prikazalo nedelja 10:55 AM.
 
-### Kako spremenim časovni pas?
+### Kako spremenim svoj časovni pas?
 
-Zaženite _Posodobi > Timezone_ v meniju Omarchy in izberite s seznama. Če je časovni pas pravi, ura sama pa je zdrsnila, _Posodobi > Time_ za vas znova zažene sinhronizacijo časa.
+Zaženite _Posodobi > Časovni pas_ v meniju Omarchy in izberite s seznama. Če je časovni pas pravilen, a je ura sama zdriftirala, bo _Posodobi > Čas_ namesto vas znova zagnal sinhronizacijo časa.
 
-### Kako spremenim svoj DNS, delim svoj Wi-Fi ali preverim hitrost povezave?
+### Kako spremenim svoj DNS, delim svoj Wi-Fi ali preverim hitrost svoje povezave?
 
-Vse to živi v [omrežje](35-networking.md).
+Vse to najdete v razdelku [omrežje](35-networking.md).
 
 ### Kako preverim, kako hiter je moj disk?
 
-_Sproži > Preizkus hitrosti > Hitrost diska_ izmeri hitrost branja in pisanja v živo na vašem pogonu ali `omarchy disk speedtest` iz terminala.
-
-### Zakaj se ne morem prijaviti v svoj Google račun v Chromiumu?
-
-Navadna odprtokodna zgradba Chromiuma ne prinaša poverilnic OAuth, ki jih Google zahteva za prijavo v račun. V meniju Omarchy zaženite _Namesti > Service > Chromium Account_, da jih dodate, znova zaženite brskalnik in prijava bo uspela.
+_Sprožilec > Preizkus hitrosti > Preizkus hitrosti diska_ meri trenutno hitrost branja in pisanja na vašem pogonu, ali pa `omarchy disk speedtest` iz terminala.
 
 ### Kako dodam tiskalnik?
 
-Tiskanje je nastavljeno in deluje takoj po namestitvi, vsak tiskalnik pa dodate sami iz _Print Settings_ v zaganjalniku aplikacij (`Super + Space`).
+Tiskanje je nastavljeno in deluje takoj po namestitvi, vsak tiskalnik pa dodate sami iz _Nastavitve tiskanja_ v zaganjalniku aplikacij (`Super + Space`).
 
-Izberite _Add_ in pustite mu trenutek, da poišče: tiskalnik, priklopljen prek USB, in večina omrežnih tiskalnikov sta najdena za vas. Če vašega ni na seznamu, izberite _Network Printer > Internet Printing Protocol (ipp)_ in vnesite njegov naslov — zaslon samega tiskalnika ali njegova spletna stran vam bo povedala, kaj to je, običajno nekaj takega, kot je `192.168.1.50` s čakalno vrsto `ipp/print`. _Forward_ nato ponudi gonilnik, pri čemer sodoben tiskalnik najbolje deluje na profilu _IPP Everywhere_ brez gonilnika, starejši pa želi gonilnik svojega modela.
+Izberite _Dodaj_ in mu dajte trenutek za iskanje: tiskalnik, priključen prek USB, in večino omrežnih tiskalnikov bo našel namesto vas. Če vašega ni na seznamu, izberite _Omrežni tiskalnik > Internet Printing Protocol (ipp)_ in vnesite njegov naslov — kaj je ta naslov, vam bo povedal zaslon na samem tiskalniku ali njegova spletna stran, običajno nekaj takega kot `192.168.1.50` s čakalno vrsto `ipp/print`. _Naprej_ nato ponudi gonilnik, pri čemer sodoben tiskalnik najbolje deluje s profilom _IPP Everywhere_ brez gonilnika, starejši pa želi gonilnik samega modela.
 
-Z desno tipko miške kliknite tiskalnik in izberite _Set as Default_, da izberete, katerega vaše aplikacije dosežejo najprej, in _Properties_, da nastavite velikost papirja, obojestransko tiskanje in kakovost.
+Z desno tipko miške kliknite tiskalnik in izberite _Nastavi kot privzeto_, da izberete, katerega bodo vaše aplikacije najprej dosegle, ter _Lastnosti_, da nastavite velikost papirja, obojestransko tiskanje in kakovost.
 
-Samodejno odkrivanje, kjer se tiskalniki v omrežju pojavijo, ne da bi jih dodali, je začasno izklopljeno, medtem ko se predeluje, zato je prvi zgornji korak vaš in ne samodejen. Tiskanje v datoteko PDF deluje brez kakršnega koli tiskalnika.
+Samodejno odkrivanje, pri katerem se tiskalniki v omrežju pojavijo, ne da bi jih dodali, je začasno izklopljeno, medtem ko ga predelujejo, zato je prvi korak zgoraj vaš in ne samodejen. Tiskanje v datoteko PDF deluje brez kakršnegakoli tiskalnika.
 
 ### Kako spremenim, kam se shranjujejo posnetki zaslona ali snemanja zaslona?
 
-Shranjeni posnetki zaslona privzeto gredo v `~/Pictures/Screenshots`. Za uporabo drugega imenika to dodajte v datoteko pod `~/.config/uwsm/env.d/` (kot je `~/.config/uwsm/env.d/capture`):
+Shranjeni posnetki zaslona gredo privzeto v `~/Pictures/Screenshots`. Če želite uporabiti drugo mapo, dodajte to v datoteko pod `~/.config/uwsm/env.d/` (na primer `~/.config/uwsm/env.d/capture`):
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Enako lahko storite za snemanja zaslona z uporabo `OMARCHY_SCREENRECORD_DIR`.
+Enako lahko naredite za snemanja zaslona z uporabo `OMARCHY_SCREENRECORD_DIR`.
 
-Omasnap samodejno ustvari svoj imenik posnetkov zaslona. Imenik snemanja zaslona ustvarite sami, nato znova zaženite Omarchy, da katera koli sprememba okolja začne veljati.
+Omasnap samodejno ustvari svojo mapo za posnetke zaslona. Mapo za snemanja zaslona ustvarite sami, nato znova zaženite Omarchy, da bo katera koli od sprememb okolja začela veljati.
 
-### Kako poskrbim, da zvočniki + spletna kamera delujejo na mojem Apple Studio Display?
+### Kako usposobim zvočnike + spletno kamero na mojem Apple Studio Display?
 
-Mislili bi, da bi moralo vse delovati samo s priklopom USB C, a žal ni tako. Rešitev, ki sem jo našel, da zanesljivo deluje, je uporaba [kabla WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Potem zvočniki in spletna kamera delujejo kot urica.
+Mislili bi si, da bi moralo vse delovati že samo s priklopom USB C, a žal ni tako. Rešitev, za katero sem ugotovil, da zanesljivo deluje, je uporaba [kabla WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Potem zvočniki in spletna kamera delujejo kot po maslu.
 
-Ne pozabite, da imate v Omarchyju vgrajen nadzor svetlosti za zaslone Apple (tako Studio kot XDR) z uporabo običajnih gumbov za svetlost na tipkovnici.
+Ne pozabite, da imate v Omarchy vgrajeno upravljanje svetlosti za zaslone Apple Display (tako Studio kot XDR) z običajnima tipkama za svetlost na tipkovnici.
 
 ### Kako se znebim vse dodatne programske opreme?
 
-Če ne želite programov, kot so Obsidian ali LibreOffice ali kateri koli drugi vnaprej nameščeni zadevi, jih lahko zelo enostavno odstranite.
+Če ne želite programov, kot sta Obsidian ali LibreOffice, ali katere koli druge vnaprej nameščene stvari, jo lahko zelo enostavno odstranite.
 
-Zaženite _Odstrani > Package_, da vidite vsak nameščeni paket. Nato lahko s tab izberete vsak paket, ki ga želite odstraniti, in z return začnete odstranjevati vse, kar ste izbrali.
+Zaženite _Odstrani > Paket_, da si ogledate vsak nameščeni paket. Nato lahko s tab izberete kateri koli paket, ki ga želite odstraniti, in z return začnete odstranjevati vse, kar ste izbrali.
 
-Uporabite lahko tudi _Odstrani > Web App_ v meniju Omarchy, da odstranite katero koli vnaprej nameščeno spletno aplikacijo, ki je ne želite.
+Iz menija Omarchy lahko uporabite tudi _Odstrani > Spletna aplikacija_, da odstranite katero koli vnaprej nameščeno spletno aplikacijo, ki je ne želite.
 
-Ali zaženite _Odstrani > Preinstalls_, da v enem zamahu pometete vse vnaprej nameščene dodatke — spletne aplikacije, TUI-je in izbirne aplikacije — naenkrat. Bližnjice, ki so jih zaganjale, izginejo z njimi, tako da vam ostane čista karta vezav, ki jo zapolnite s svojimi v `~/.config/hypr/bindings.lua`.
+Ali pa zaženite _Odstrani > Vnaprej nameščene dodatke_, da z enim zamahom počistite vse vnaprej nameščene dodatke — spletne aplikacije, TUIs in izbirne aplikacije. Bližnjice, ki so jih zagnale, izginejo z njimi, tako da vam ostane čist list vezav, ki jih lahko zapolnite s svojimi v `~/.config/hypr/bindings.lua`.
 
 ---
 
-Za napake in pokvarjene dele glejte [odsek Odpravljanje težav](45-troubleshooting.md).
+Za napake in pokvarjene dele si oglejte [razdelek Odpravljanje težav](45-troubleshooting.md).

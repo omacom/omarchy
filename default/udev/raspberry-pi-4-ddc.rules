@@ -1,0 +1,6 @@
+# The Raspberry Pi 4's two HDMI DDC buses, for the active desktop user, so the
+# brightness keys can set an external monitor's brightness over DDC/CI.
+# ddcutil's own rule only matches PCI display controllers, and these are the
+# SoC's platform I2C controllers. Only these two buses, no other I2C bus.
+SUBSYSTEM=="i2c-dev", KERNEL=="i2c-*", SUBSYSTEMS=="platform", DRIVERS=="brcmstb-i2c", KERNELS=="fef04500.i2c", TAG+="uaccess"
+SUBSYSTEM=="i2c-dev", KERNEL=="i2c-*", SUBSYSTEMS=="platform", DRIVERS=="brcmstb-i2c", KERNELS=="fef09500.i2c", TAG+="uaccess"
