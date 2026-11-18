@@ -99,15 +99,25 @@ fi
 
 # hid_apple takes the change right away; the others read it only when they load.
 # Applied even when the file already matches, since the live mode can drift.
+live_deferred=0
 if [[ -e $sys_module/hid_apple/parameters/fnmode && $(param hid_apple fnmode) != "$fnmode" ]]; then
-  echo "$fnmode" | sudo tee "$sys_module/hid_apple/parameters/fnmode" >/dev/null
+  # The install chroot mounts sysfs read-only; persist the boot mode below.
+  if findmnt -rn -O ro -T "$sys_module/hid_apple/parameters/fnmode" >/dev/null; then
+    live_deferred=1
+  else
+    echo "$fnmode" | sudo tee "$sys_module/hid_apple/parameters/fnmode" >/dev/null
+  fi
 fi
 
 # A rebuild that failed or was interrupted last time is still owed, even with
 # the file in place. Only the options count: a file whose comment was written
 # by an earlier version, like the migration's, needs no rebuild.
 if [[ ! -e $rebuild_pending && -f $conf && $(grep -v '^#' "$conf") == "$options" ]] && (( ${#legacy[@]} == 0 )); then
-  echo "The top row already sends $first by default."
+  if (( live_deferred )); then
+    echo "The top row sends $first by default from the next boot."
+  else
+    echo "The top row already sends $first by default."
+  fi
   exit 0
 fi
 
@@ -144,7 +154,7 @@ if (( needs_rebuild )); then
   sudo rm -f "$rebuild_pending"
 fi
 
-if [[ -d $sys_module/hid_asus || -d $sys_module/asus_wmi ]]; then
+if (( live_deferred )) || [[ -d $sys_module/hid_asus || -d $sys_module/asus_wmi ]]; then
   echo "The top row sends $first by default from the next boot."
 else
   echo "The top row now sends $first by default."
