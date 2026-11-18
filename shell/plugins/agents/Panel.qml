@@ -91,9 +91,9 @@ Panel {
 
   function runLocalAction(model, action) {
     if (action === "launch") {
-      // An image model makes pictures in Fantasi rather than running an agent.
+      // An image or video model makes pictures or clips in Fantasi rather than running an agent.
       // An open Fantasi takes the model and comes to the front, so this always opens.
-      if (model.kind === "image") Util.execArgv(["uwsm-app", "--", "fantasi", "open", "--model", modelId(model)])
+      if (model.kind === "image" || model.kind === "video") Util.execArgv(["uwsm-app", "--", "fantasi", "open", "--model", modelId(model)])
       else Util.execArgv(["omarchy-agent", "--local-model", modelId(model)])
       root.close()
     } else if (action === "toggle") {
@@ -2427,7 +2427,7 @@ Panel {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         readonly property bool download: !!section.offer
-        readonly property bool image: !!section.model && section.model.kind === "image"
+        readonly property bool image: !!section.model && (section.model.kind === "image" || section.model.kind === "video")
         visible: download || (section.model ? section.running && (!section.remote || (section.paired && !section.offline)) : root.harnessFor(section.provider) !== "")
         iconText: download ? (section.offer.link ? "󰌘" : "󰇚") : image ? "󰋩" : "󰞷"
         tooltipText: download ? (section.offer.link ? Commons.I18n.t("agents.linkSetUp") : Commons.I18n.t("agents.localDownload"))

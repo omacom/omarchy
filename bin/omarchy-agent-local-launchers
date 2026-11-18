@@ -90,7 +90,7 @@ for model in "${models[@]}"; do
     icons[$icon.svg]=1
   fi
 
-  if [[ $kind == "image" ]]; then
+  if [[ $kind == "image" || $kind == "video" ]]; then
     cat >"$APPLICATIONS/$entry.tmp" <<ENTRY
 [Desktop Entry]
 Version=1.0

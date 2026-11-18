@@ -204,12 +204,14 @@ const launched = []
 const launch = runLocalAction({ execArgv: argv => launched.push(argv), shellQuote: value => `'${value}'` }, modelId, { close() {} })
 launch({ recipe: 'pic', kind: 'image', unit: 'active' }, 'launch')
 launch({ host: 'box', recipe: 'pic', kind: 'image', unit: 'active', paired: true, offline: '' }, 'launch')
+launch({ recipe: 'clip', kind: 'video', unit: 'active' }, 'launch')
 launch({ recipe: 'm', unit: 'active' }, 'launch')
 assertDeepEqual(launched, [
   ['uwsm-app', '--', 'fantasi', 'open', '--model', 'pic'],
   ['uwsm-app', '--', 'fantasi', 'open', '--model', 'box/pic'],
+  ['uwsm-app', '--', 'fantasi', 'open', '--model', 'clip'],
   ['omarchy-agent', '--local-model', 'm']
-], 'an image model opens Fantasi on itself, a paired host\'s too, and a text model starts an agent')
+], 'an image or video model opens Fantasi on itself, a paired host\'s too, and a text model starts an agent')
 assertDeepEqual(localActions({ host: 'box', recipe: 'pic', kind: 'image', unit: 'active', paired: true, offline: '' }), ['disconnect', 'launch'], 'a paired host\'s image model can be opened in Fantasi')
 const landing = { landAfterPair: 'box/m', usage: { pairingId: '', pairFailures: {}, canShare: false }, root: { opened: true }, providers: [], localActions, modelId, pointed: null }
 landing.pointAt = (kind, index) => { landing.pointed = [kind, index] }
