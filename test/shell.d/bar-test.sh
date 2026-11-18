@@ -706,6 +706,15 @@ built_in_bar_registered() {
   return 1
 }
 
+plugins=""
+for _ in {1..80}; do
+  plugins=$(scratch_ipc shell listPlugins 2>/dev/null || true)
+  jq -e --arg id "$broken_bar_id" 'any(.[]; .id == $id)' <<<"$plugins" >/dev/null 2>&1 && break
+  sleep 0.1
+done
+jq -e --arg id "$broken_bar_id" 'any(.[]; .id == $id)' <<<"$plugins" >/dev/null 2>&1 ||
+  fail_with_log "the broken bar fixture is discovered before selection"
+
 [[ $(scratch_ipc shell enablePlugin "$broken_bar_id" '{}') == "ok" ]] ||
   fail_with_log "broken bar plugin could not be selected"
 for _ in {1..80}; do
