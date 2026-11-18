@@ -6,10 +6,6 @@
 # legacy fallback also covers an update started before this change.
 update_log="${OMARCHY_UPDATE_LOG_FILE:-/tmp/omarchy-update.log}"
 
-if [[ ! -f $update_log ]]; then
-  exit 0
-fi
-
 # Check for initramfs generation failure
 if grep -q "Updating linux initcpios" "$update_log"; then
   if ! grep -q "Initcpio image generation successful" "$update_log"; then

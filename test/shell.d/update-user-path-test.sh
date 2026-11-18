@@ -75,7 +75,6 @@ output=$(OMARCHY_UPDATE_LOG_FILE="$boundary_tmp/current.log" bash "$analyzer")
 printf 'Initcpio image generation successful\n' >>"$boundary_tmp/current.log"
 output=$(OMARCHY_UPDATE_LOG_FILE="$boundary_tmp/current.log" bash "$analyzer")
 [[ -z $output ]] || fail "analyzer accepts a successful initramfs"
-mv "$boundary_tmp/current.log" "$boundary_tmp/legacy.log"
 printf 'Updating linux initcpios\n' >"$boundary_tmp/legacy.log"
 output=$(env -u OMARCHY_UPDATE_LOG_FILE bash "$analyzer")
 [[ $output == *"Initramfs generation may have failed"* ]] || fail "analyzer supports the updater that installs it"
