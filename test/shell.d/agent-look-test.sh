@@ -153,6 +153,38 @@ output=$(look_app --size 640x480 --out "$test_tmp/app.png" -- "$test_tmp/hooked"
 [[ $(<"$test_tmp/size") == "640x480" ]] || fail "look app passes --size to an app that draws itself" "$(<"$test_tmp/size")"
 pass "look app passes --size to an app that draws itself"
 
+# Drawn on the GPU first, where shader effects show, and in software only
+# when that draws nothing.
+cat >"$test_tmp/gpuless" <<EOF
+#!/bin/bash
+echo -n "\$QT_QUICK_BACKEND " >>"$test_tmp/backends"
+[[ \$QT_QUICK_BACKEND == "software" ]] && magick -size 8x8 xc:red "\$OMARCHY_LOOK_SCREENSHOT"
+exit 0
+EOF
+chmod +x "$test_tmp/gpuless"
+output=$(look_app --after 0 --out "$test_tmp/app.png" -- "$test_tmp/gpuless") || fail "look app falls back to software rendering" "$output"
+[[ $(<"$test_tmp/backends") == "rhi software " ]] || fail "look app tries the GPU before software" "$(<"$test_tmp/backends")"
+pass "look app draws on the GPU and falls back to software without one"
+
+# Another theme and language reach the app through a home of its own, and
+# the user's stay as they were.
+mkdir -p "$test_tmp/home/.config/omarchy/themes/paper" "$test_tmp/home/.local/state/omarchy/current/theme"
+echo 'accent = "#000001"' >"$test_tmp/home/.config/omarchy/themes/paper/colors.toml"
+echo 'accent = "#ffffff"' >"$test_tmp/home/.local/state/omarchy/current/theme/colors.toml"
+echo en >"$test_tmp/home/.config/omarchy/language"
+cat >"$test_tmp/themed" <<EOF
+#!/bin/bash
+cat "\$HOME/.local/state/omarchy/current/theme/colors.toml" "\$HOME/.config/omarchy/language" >"$test_tmp/seen"
+magick -size 8x8 xc:red "\$OMARCHY_LOOK_SCREENSHOT"
+EOF
+chmod +x "$test_tmp/themed"
+output=$(HOME="$test_tmp/home" look_app --theme Paper --language da --out "$test_tmp/app.png" -- "$test_tmp/themed") || fail "look app shows an app in another theme and language" "$output"
+[[ $(<"$test_tmp/seen") == $'accent = "#000001"\nda' ]] || fail "look app hands the app the theme and language asked for" "$(<"$test_tmp/seen")"
+[[ $(<"$test_tmp/home/.config/omarchy/language") == "en" ]] || fail "look app leaves the user's language alone"
+output=$(HOME="$test_tmp/home" look_app --language da --out "$test_tmp/app.png" -- "$test_tmp/themed") || fail "look app shows an app in another language" "$output"
+[[ $(<"$test_tmp/seen") == $'accent = "#ffffff"\nda' ]] || fail "look app keeps the user's theme when only the language changes" "$(<"$test_tmp/seen")"
+pass "look app shows an app in another theme or language without changing the user's"
+
 # The wait is counted in whole seconds; half of one is refused by name.
 for wait in 0.5 08; do
   if output=$(look_app --after "$wait" -- "$test_tmp/hooked"); then
