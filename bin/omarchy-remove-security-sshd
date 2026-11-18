@@ -5,7 +5,7 @@
 
 set -e
 
-# It asks for sudo itself; under sudo, $HOME is root's and the keys judged would be too.
+# It asks for sudo itself; under sudo, $HOME is root's, so it would offer to remove root's keys.
 if (( EUID == 0 )); then
   echo "Error: run omarchy-remove-security-sshd as your user, not under sudo." >&2
   exit 1
