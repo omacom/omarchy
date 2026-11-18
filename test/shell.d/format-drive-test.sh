@@ -39,3 +39,21 @@ pass "format-drive refuses a path that is not a block device"
 
 [[ ! -s $SUDO_LOG ]] || fail "format-drive runs nothing before refusing a non-block device" "$(cat "$SUDO_LOG")"
 pass "format-drive runs nothing before refusing a non-block device"
+
+# The failure paths need a real block device to pass the refusal; only the stub may run against it.
+unset -f sudo
+[[ $(PATH="$work/bin" type -t sudo) == file ]] || fail "format-drive runs the sudo stub"
+device=$(find /dev -maxdepth 1 -type b -print -quit 2>/dev/null) || true
+if [[ -b $device ]]; then
+  : >"$SUDO_LOG"
+  SUDO_FAIL_CMD=wipefs run_format "$device" POC
+  (( rc != 0 )) && grep -q '^wipefs' "$SUDO_LOG" && ! grep -qE '^(dd|parted|mkfs)' "$SUDO_LOG" ||
+    fail "format-drive stops when wipefs fails" "$(cat "$SUDO_LOG")"
+  : >"$SUDO_LOG"
+  SUDO_FAIL_CMD=mkfs run_format "$device" POC
+  (( rc != 0 )) && grep -q '^mkfs.exfat' "$SUDO_LOG" && ! grep -q "formatted" "$work/out" ||
+    fail "format-drive reports a failed format as a failure" "$(cat "$work/out")"
+  pass "format-drive stops when wipefs fails and never reports a failed format as done"
+else
+  skip "format-drive: no block device for the failure paths"
+fi
