@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Unos"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Jezik"
+  },
+  "setup.region.timezone": {
+    "label": "Vremenska zona"
   },
   "setup.network": {
     "label": "Mreža"
@@ -1080,9 +1083,6 @@
   },
   "update.password": {
     "label": "Lozinka"
-  },
-  "update.timezone": {
-    "label": "Vremenska zona"
   },
   "update.time": {
     "label": "Vrijeme"

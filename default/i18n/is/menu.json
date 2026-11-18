@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Inntak"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Tungumál"
+  },
+  "setup.region.timezone": {
+    "label": "Tímabelti"
   },
   "setup.network": {
     "label": "Net"
@@ -1080,9 +1083,6 @@
   },
   "update.password": {
     "label": "Lykilorð"
-  },
-  "update.timezone": {
-    "label": "Tímabelti"
   },
   "update.time": {
     "label": "Tími"

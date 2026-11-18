@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Girdi"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Dil"
+  },
+  "setup.region.timezone": {
+    "label": "Saat Dilimi"
   },
   "setup.network": {
     "label": "Ağ"
@@ -1080,9 +1083,6 @@
   },
   "update.password": {
     "label": "Parola"
-  },
-  "update.timezone": {
-    "label": "Saat Dilimi"
   },
   "update.time": {
     "label": "Zaman"

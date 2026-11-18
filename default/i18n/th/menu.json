@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "อินพุต"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "ภาษา"
+  },
+  "setup.region.timezone": {
+    "label": "เขตเวลา"
   },
   "setup.network": {
     "label": "เครือข่าย"
@@ -1080,9 +1083,6 @@
   },
   "update.password": {
     "label": "รหัสผ่าน"
-  },
-  "update.timezone": {
-    "label": "เขตเวลา"
   },
   "update.time": {
     "label": "เวลา"

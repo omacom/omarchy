@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Ingizo"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Lugha"
+  },
+  "setup.region.timezone": {
+    "label": "Eneo la saa"
   },
   "setup.network": {
     "label": "Mtandao"
@@ -1080,9 +1083,6 @@
   },
   "update.password": {
     "label": "Nenosiri"
-  },
-  "update.timezone": {
-    "label": "Eneo la saa"
   },
   "update.time": {
     "label": "Muda"

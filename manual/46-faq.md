@@ -28,7 +28,7 @@ This will display Sunday 10:55 AM.
 
 ### How do I change my timezone?
 
-Run _Update > Timezone_ in the Omarchy menu and pick from the list. If the timezone is right but the clock itself has drifted, _Update > Time_ restarts the time synchronization for you.
+Run _Setup > Region > Timezone_ in the Omarchy menu and pick from the list. If the timezone is right but the clock itself has drifted, _Update > Time_ restarts the time synchronization for you.
 
 ### How do I change my DNS, share my Wi-Fi, or check my connection speed?
 

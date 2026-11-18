@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Sisend"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Keel"
+  },
+  "setup.region.timezone": {
+    "label": "Ajavöönd"
   },
   "setup.network": {
     "label": "Võrk"
@@ -1080,9 +1083,6 @@
   },
   "update.password": {
     "label": "Parool"
-  },
-  "update.timezone": {
-    "label": "Ajavöönd"
   },
   "update.time": {
     "label": "Aeg"
