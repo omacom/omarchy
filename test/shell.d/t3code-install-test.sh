@@ -91,7 +91,8 @@ cp "$ROOT/themes/tokyo-night/colors.toml" "$state/theme/colors.toml"
 OMARCHY_TEST_GUM_PICK=Nightly run_installer || fail "installing after an update succeeds" "$(cat "$test_tmp/output")"
 [[ $(cat "$test_tmp/channel") == "nightly" ]] || fail "the channel picked at the prompt is installed"
 [[ -f $state/theme/t3code.json && -f $palette ]] || fail "the missing palette is rendered and published"
-cmp -s "$state/theme/t3code.json" "$palette" || fail "T3 receives the current theme's palette"
+[[ $(jq -S . "$state/theme/t3code.json") == "$(jq -S 'del(.css)' "$palette")" ]] || fail "T3 receives the current theme's palette"
+jq -e '.css | startswith(":root { --omarchy-radius: ")' "$palette" >/dev/null || fail "T3 receives the theme's chrome with the live corner radius"
 grep -q 'T3 selected Omarchy' "$test_tmp/output" || fail "the published palette is selected"
 grep -q 'Opening T3 Code' "$test_tmp/output" || fail "the themed app opens"
 [[ $(cat "$test_tmp/dropped") == "t3code-bin t3code-nightly-bin" ]] || fail "the T3 Code packages go once the app is themed"
@@ -107,11 +108,13 @@ OMARCHY_TEST_GUM_PICK=Stable run_installer || fail "installing stable succeeds" 
 [[ $(cat "$test_tmp/channel") == "stable" ]] || fail "Stable at the prompt installs the stable channel"
 pass "the prompt chooses between the stable and nightly channels"
 
-# Preserve an already rendered palette, including a user-supplied color.
-jq '.accent = "#abcdef"' "$state/theme/t3code.json" >"$test_tmp/palette.json"
+# Preserve an already rendered palette, including a user-supplied color and CSS.
+jq '.accent = "#abcdef" | .css = ".theme-own { color: red; }"' "$state/theme/t3code.json" >"$test_tmp/palette.json"
 cp "$test_tmp/palette.json" "$state/theme/t3code.json"
 run_installer stable || fail "installing with an existing palette succeeds" "$(cat "$test_tmp/output")"
-cmp -s "$test_tmp/palette.json" "$palette" || fail "an existing palette is published without re-staging"
+[[ $(jq -S 'del(.css)' "$test_tmp/palette.json") == "$(jq -S 'del(.css)' "$palette")" ]] || fail "an existing palette is published without re-staging"
+jq -e '.css | startswith(":root { --omarchy-radius: ") and endswith("\n.theme-own { color: red; }")' "$palette" >/dev/null ||
+  fail "a theme's own T3 CSS is kept after Omarchy's chrome"
 pass "an existing palette is used without refreshing the current theme"
 
 rm -f "$test_tmp/channel"
