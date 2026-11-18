@@ -55,6 +55,7 @@
   "agents.localHideOfferConfirm": "Dölj %1 från panelen? Lägg till en till › Lokal AI installerar den ändå.",
   "agents.localInstallingMeter": "Installerar",
   "agents.localLaunch": "Starta agent",
+  "agents.openFantasi": "Öppna Fantasi",
   "agents.localLoadingMeter": "Laddar",
   "agents.localMemory": "Minne",
   "agents.localMemoryFact": "%1 GiB minne",

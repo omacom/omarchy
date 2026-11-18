@@ -57,6 +57,7 @@
   "agents.localHideOfferConfirm": "Skrýt %1 z panelu? Přes Přidat další › Lokální AI jej stále nastavíte.",
   "agents.localInstallingMeter": "Instalace",
   "agents.localLaunch": "Spustit agenta",
+  "agents.openFantasi": "Otevřít Fantasi",
   "agents.localLoadingMeter": "Načítání",
   "agents.localMemory": "Paměť",
   "agents.localMemoryFact": "%1 GiB paměti",

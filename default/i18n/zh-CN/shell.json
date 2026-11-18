@@ -53,6 +53,7 @@
   "agents.localHideOfferConfirm": "从面板中隐藏 %1？仍可通过“再添加一个 › 本地 AI”进行设置。",
   "agents.localInstallingMeter": "安装中",
   "agents.localLaunch": "启动智能体",
+  "agents.openFantasi": "打开 Fantasi",
   "agents.localLoadingMeter": "加载中",
   "agents.localMemory": "内存",
   "agents.localMemoryFact": "%1 GiB 内存",

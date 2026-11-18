@@ -55,6 +55,7 @@
   "agents.localHideOfferConfirm": "පැනලයෙන් %1 සඟවන්නද? තවත් එකක් එක් කරන්න › දේශීය AI තවමත් එය සකසයි.",
   "agents.localInstallingMeter": "ස්ථාපනය කරමින්",
   "agents.localLaunch": "ඒජන්තයා දියත් කරන්න",
+  "agents.openFantasi": "Fantasi විවෘත කරන්න",
   "agents.localLoadingMeter": "පූරණය වෙමින්",
   "agents.localMemory": "මතකය",
   "agents.localMemoryFact": "%1 GiB මතකය",

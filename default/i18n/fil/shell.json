@@ -55,6 +55,7 @@
   "agents.localHideOfferConfirm": "Itago ang %1 mula sa panel? Magdagdag pa › Ise-set up pa rin ito ng Lokal na AI.",
   "agents.localInstallingMeter": "Nag-i-install",
   "agents.localLaunch": "Ilunsad ang agent",
+  "agents.openFantasi": "Buksan ang Fantasi",
   "agents.localLoadingMeter": "Naglo-load",
   "agents.localMemory": "Memorya",
   "agents.localMemoryFact": "%1 GiB na Memorya",

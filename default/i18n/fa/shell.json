@@ -55,6 +55,7 @@
   "agents.localHideOfferConfirm": "%1 از پنل پنهان شود؟ «افزودن یکی دیگر › هوش مصنوعی محلی» همچنان آن را راه‌اندازی می‌کند.",
   "agents.localInstallingMeter": "در حال نصب",
   "agents.localLaunch": "راه‌اندازی ایجنت",
+  "agents.openFantasi": "Fantasi را باز کنید",
   "agents.localLoadingMeter": "در حال بارگذاری",
   "agents.localMemory": "حافظه",
   "agents.localMemoryFact": "%1 GiB حافظه",

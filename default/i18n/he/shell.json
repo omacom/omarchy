@@ -57,6 +57,7 @@
   "agents.localHideOfferConfirm": "להסתיר את %1 מהפאנל? אפשר עדיין להגדיר אותו דרך הוספת נוסף › AI מקומי.",
   "agents.localInstallingMeter": "מתקין",
   "agents.localLaunch": "הפעלת סוכן",
+  "agents.openFantasi": "פתיחת Fantasi",
   "agents.localLoadingMeter": "טעינה",
   "agents.localMemory": "זיכרון",
   "agents.localMemoryFact": "%1 GiB זיכרון",

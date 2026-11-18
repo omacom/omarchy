@@ -59,6 +59,7 @@
   "agents.localHideOfferConfirm": "Ukryć %1 z panelu? Dodaj kolejne › Lokalna AI nadal to skonfiguruje.",
   "agents.localInstallingMeter": "Instalowanie",
   "agents.localLaunch": "Uruchom agenta",
+  "agents.openFantasi": "Otwórz Fantasi",
   "agents.localLoadingMeter": "Ładowanie",
   "agents.localMemory": "Pamięć",
   "agents.localMemoryFact": "%1 GiB pamięci",

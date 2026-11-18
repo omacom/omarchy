@@ -55,6 +55,7 @@
   "agents.localHideOfferConfirm": "%1 को पैनल से छिपाएं? और जोड़ें › स्थानीय AI से फिर भी सेट अप हो जाएगा।",
   "agents.localInstallingMeter": "इंस्टॉल हो रहा है",
   "agents.localLaunch": "एजेंट लॉन्च करें",
+  "agents.openFantasi": "Fantasi खोलें",
   "agents.localLoadingMeter": "लोड हो रहा है",
   "agents.localMemory": "मेमोरी",
   "agents.localMemoryFact": "%1 GiB मेमोरी",

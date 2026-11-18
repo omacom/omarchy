@@ -55,6 +55,7 @@
   "agents.localHideOfferConfirm": "Скрий %1 от панела? „Добави още един“ › „Локален ИИ“ пак ще го настрои.",
   "agents.localInstallingMeter": "Инсталиране",
   "agents.localLaunch": "Стартирай агент",
+  "agents.openFantasi": "Отвори Fantasi",
   "agents.localLoadingMeter": "Зареждане",
   "agents.localMemory": "Памет",
   "agents.localMemoryFact": "%1 GiB памет",

@@ -55,6 +55,7 @@
   "agents.localHideOfferConfirm": "Skjule %1 fra panelet? Legg til en til › Lokal AI setter det fortsatt opp.",
   "agents.localInstallingMeter": "Installerer",
   "agents.localLaunch": "Start agent",
+  "agents.openFantasi": "Åpne Fantasi",
   "agents.localLoadingMeter": "Laster",
   "agents.localMemory": "Minne",
   "agents.localMemoryFact": "%1 GiB minne",

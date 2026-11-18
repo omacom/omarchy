@@ -55,6 +55,7 @@
   "agents.localHideOfferConfirm": "Elrejted a(z) %1 elemet a panelről? A Még egy hozzáadása › Helyi AI menüpontból továbbra is beállíthatod.",
   "agents.localInstallingMeter": "Telepítés",
   "agents.localLaunch": "Ügynök indítása",
+  "agents.openFantasi": "Fantasi megnyitása",
   "agents.localLoadingMeter": "Betöltés",
   "agents.localMemory": "Memória",
   "agents.localMemoryFact": "%1 GiB memória",

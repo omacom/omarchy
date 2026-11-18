@@ -55,6 +55,7 @@
   "agents.localHideOfferConfirm": "%1 panelden gizlensin mi? Bir tane daha ekleyin › Yerel AI yine de kurar.",
   "agents.localInstallingMeter": "Kuruluyor",
   "agents.localLaunch": "Ajanı başlat",
+  "agents.openFantasi": "Fantasi'yi aç",
   "agents.localLoadingMeter": "Yükleniyor",
   "agents.localMemory": "Bellek",
   "agents.localMemoryFact": "%1 GiB Bellek",

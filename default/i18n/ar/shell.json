@@ -63,6 +63,7 @@
   "agents.localHideOfferConfirm": "إخفاء %1 من اللوحة؟ يمكنك إعداده أيضًا عبر إضافة آخر › ذكاء اصطناعي محلي.",
   "agents.localInstallingMeter": "جارٍ التثبيت",
   "agents.localLaunch": "تشغيل الوكيل",
+  "agents.openFantasi": "فتح Fantasi",
   "agents.localLoadingMeter": "جارٍ التحميل",
   "agents.localMemory": "الذاكرة",
   "agents.localMemoryFact": "%1 GiB ذاكرة",

@@ -57,6 +57,7 @@
   "agents.localHideOfferConfirm": "Paslēpt %1 no paneļa? Pievienot vēl vienu › Vietējais AI joprojām to iestatīs.",
   "agents.localInstallingMeter": "Instalē",
   "agents.localLaunch": "Palaist aģentu",
+  "agents.openFantasi": "Atvērt Fantasi",
   "agents.localLoadingMeter": "Ielādē",
   "agents.localMemory": "Atmiņa",
   "agents.localMemoryFact": "%1 GiB atmiņa",

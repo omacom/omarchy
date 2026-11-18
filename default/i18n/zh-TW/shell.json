@@ -53,6 +53,7 @@
   "agents.localHideOfferConfirm": "將 %1 從面板隱藏？「再新增一個 › 本機 AI」仍可進行設定。",
   "agents.localInstallingMeter": "安裝中",
   "agents.localLaunch": "啟動代理程式",
+  "agents.openFantasi": "開啟 Fantasi",
   "agents.localLoadingMeter": "載入中",
   "agents.localMemory": "記憶體",
   "agents.localMemoryFact": "%1 GiB 記憶體",

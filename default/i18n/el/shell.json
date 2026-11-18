@@ -55,6 +55,7 @@
   "agents.localHideOfferConfirm": "Απόκρυψη του %1 από το πάνελ; Το «Πρόσθεσε άλλο › Τοπική ΤΝ» εξακολουθεί να το εγκαθιστά.",
   "agents.localInstallingMeter": "Εγκατάσταση",
   "agents.localLaunch": "Εκκίνηση πράκτορα",
+  "agents.openFantasi": "Άνοιξε το Fantasi",
   "agents.localLoadingMeter": "Φόρτωση",
   "agents.localMemory": "Μνήμη",
   "agents.localMemoryFact": "%1 GiB Μνήμη",

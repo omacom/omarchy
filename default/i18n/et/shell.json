@@ -55,6 +55,7 @@
   "agents.localHideOfferConfirm": "Peida %1 paneelilt? Lisa veel üks › Kohalik TI seadistab selle ikka.",
   "agents.localInstallingMeter": "Installimine",
   "agents.localLaunch": "Käivita agent",
+  "agents.openFantasi": "Ava Fantasi",
   "agents.localLoadingMeter": "Laadimine",
   "agents.localMemory": "Mälu",
   "agents.localMemoryFact": "%1 GiB mälu",
