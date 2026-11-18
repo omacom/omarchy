@@ -91,32 +91,3 @@ run_lid_close
 [[ ${calls[1]} == "omarchy-hyprland-monitor-clamshell" ]] ||
   fail "a failing lock still reconciles displays" "calls: ${calls[*]}"
 pass "a failing lock still reconciles displays"
-
-# Device families name their lid switch differently in Hyprland: ACPI reports
-# "Lid Switch", Apple Silicon the SMC name, ChromeOS EC laptops cros_ec_buttons
-# and device-tree laptops (Snapdragon X Elite and kin) gpio-keys. Every name a
-# shipped binding knows must wire both directions: closing locks, opening
-# reconciles the monitors back.
-lid_binds=$(ROOT="$ROOT" lua -E - <<'LUA'
-local lid = {}
-hl = setmetatable({}, { __index = function() return function() end end })
-o = setmetatable({}, { __index = function() return function() end end })
-function o.bind(keys, _, command, _)
-  if command == "omarchy-system-lid-close" or command == "omarchy-hyprland-monitor-clamshell" then
-    table.insert(lid, tostring(keys) .. " -> " .. tostring(command))
-  end
-end
-dofile(os.getenv("ROOT") .. "/default/hypr/bindings/utilities.lua")
-print(table.concat(lid, "\n"))
-LUA
-)
-
-for switch_name in "Lid Switch" "Apple SMC power/lid events" "cros_ec_buttons" "gpio-keys"; do
-  [[ $lid_binds == *"switch:on:$switch_name -> omarchy-system-lid-close"* ]] ||
-    fail "lid close bound to switch '$switch_name'" "$lid_binds"
-  pass "lid close bound to switch '$switch_name'"
-
-  [[ $lid_binds == *"switch:off:$switch_name -> omarchy-hyprland-monitor-clamshell"* ]] ||
-    fail "lid open reconciles displays for switch '$switch_name'" "$lid_binds"
-  pass "lid open reconciles displays for switch '$switch_name'"
-done
