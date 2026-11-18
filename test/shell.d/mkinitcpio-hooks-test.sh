@@ -94,7 +94,8 @@ compose() {
 
   local path="$fixture/bin:$ROOT/bin:$PATH"
   [[ $1 != "no-detector" ]] || path="$fixture/bin"
-  KERNELVERSION=6.99.0-test OMARCHY_PROC_ROOT="$fixture/proc" OMARCHY_PCI_DEVICES_PATH="$devices" PATH="$path" "$BASH" -c '
+  KERNELVERSION=6.99.0-test OMARCHY_PROC_ROOT="$fixture/proc" OMARCHY_PCI_DEVICES_PATH="$devices" \
+    OMARCHY_MKINITCPIO_CONF_DIR="$etc/mkinitcpio.conf.d" PATH="$path" "$BASH" -c '
     . "$1" || exit 1
     printf "HOOKS=%s\nMODULES=%s\nFILES=%s\n" "${HOOKS[*]}" "${MODULES[*]}" "${FILES[*]}"
   ' -- "$config"
@@ -235,6 +236,30 @@ drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 drop_in surface_device_modules.conf <<<"MODULES=(pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw)"
 pci_devices 0x8086:0x030000
 assert_composed "a Surface is unchanged" x86 \
+  "$omarchy_hooks" "pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw thunderbolt" ""
+
+# A hybrid laptop with every output on the Intel iGPU: i915 drives the boot
+# display, and the NVIDIA card's DRM node has no connectors.
+offload_only_devices() {
+  pci_devices 0x8086:0x030000 0x10de:0x030200
+  printf '1\n' >"$devices/0000:00:00.0/boot_vga"
+  mkdir -p "$devices/0000:00:00.0/driver" "$devices/0000:01:00.0/drm/card1"
+  ln -s ../../../module/i915 "$devices/0000:00:00.0/driver/module"
+}
+
+new_etc
+drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
+offload_only_devices
+assert_composed "offload-only NVIDIA trades nvidia and kms for the iGPU driver" x86 \
+  "$omarchy_hooks_without_kms" "i915 thunderbolt" ""
+
+# The Surface drop-in sorts after the hook config and resets MODULES, which
+# would erase i915 once kms is gone.
+new_etc
+drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
+drop_in surface_device_modules.conf <<<"MODULES=(pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw)"
+offload_only_devices
+assert_composed "an offload-only Surface Book keeps kms" x86 \
   "$omarchy_hooks" "pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw thunderbolt" ""
 
 
