@@ -2830,6 +2830,14 @@ function act(name) {
   if (name === 'keys') show('paused');
 }
 
+// N on the title and end screens goes straight to choosing a new match, as the title screen says.
+function screenInput(code) {
+  if (!ACTIONS.deal.includes(code)) return false;
+  startRound();
+  openDialog('newgame');
+  return true;
+}
+
 function navigate(dx, dy) {
   keyboardMode = true;
   const angle = Math.round(board.azimuth / 90) * Math.PI / 2;
