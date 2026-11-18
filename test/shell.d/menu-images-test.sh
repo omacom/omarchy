@@ -42,29 +42,33 @@ images="$tmp/images"
 stub_bin="$tmp/bin"
 mkdir -p "$images" "$stub_bin"
 
-cat >"$stub_bin/vipsthumbnail" <<'EOF'
+cat >"$stub_bin/vipsheader" <<'EOF'
+#!/bin/bash
+[[ $1 == -f ]] && field=$2 || field=width
+if [[ $field == width ]]; then echo 3072; else echo 1728; fi
+EOF
+cat >"$stub_bin/vips" <<'EOF'
 #!/bin/bash
 
-image="$1"
+action=$1
 shift
-
-while (( $# > 0 )); do
-  if [[ $1 == "--path" ]]; then
-    output=${2%%\[*}
-    break
-  fi
-  shift
+output=""
+for arg in "$@"; do
+  case $arg in
+    *.v) output=$arg ;;
+    *\[lossless*) output=${arg%%\[*} ;;
+    *) [[ -f ${VIPS_FAIL_FILE:-} ]] && grep -Fxq "${arg%%\[*}" "$VIPS_FAIL_FILE" && exit 1 ;;
+  esac
 done
 
-if [[ -f ${VIPSTHUMBNAIL_FAIL_FILE:-} ]] && grep -Fxq "$image" "$VIPSTHUMBNAIL_FAIL_FILE"; then
-  exit 1
+# One call log per finished thumbnail, not per step of the pipeline.
+if [[ $action == copy ]]; then
+  [[ -z ${VIPS_CALLS_FILE:-} ]] || printf '%s\n' "$action" >>"$VIPS_CALLS_FILE"
+  [[ -z ${VIPS_DELAY:-} ]] || sleep "$VIPS_DELAY"
 fi
-
-[[ -z ${VIPSTHUMBNAIL_CALLS_FILE:-} ]] || printf '%s\n' "$image" >>"$VIPSTHUMBNAIL_CALLS_FILE"
-[[ -z ${VIPSTHUMBNAIL_DELAY:-} ]] || sleep "$VIPSTHUMBNAIL_DELAY"
-printf 'thumbnail' >"$output"
+[[ -n $output ]] && printf 'thumbnail' >"$output"
 EOF
-chmod +x "$stub_bin/vipsthumbnail"
+chmod +x "$stub_bin/vipsheader" "$stub_bin/vips"
 
 for name in one two three; do
   printf 'image-%s' "$name" >"$images/$name.png"
@@ -78,26 +82,26 @@ live_lock=""
 for image in "$images"/*; do
   signature=$(stat -Lc '%s:%Y' "$image")
   hash=$(printf '%s\t%s' "$image" "$signature" | md5sum | cut -d ' ' -f 1)
-  mkdir "$cache_dir/$hash.jpg.lock"
-  touch -m -d '10 minutes ago' "$cache_dir/$hash.jpg.lock"
-  stale_tmp="$cache_dir/$hash.jpg.4242.jpg"
-  live_lock="$cache_dir/$hash.jpg.lock"
+  mkdir "$cache_dir/$hash.webp.lock"
+  touch -m -d '10 minutes ago' "$cache_dir/$hash.webp.lock"
+  stale_tmp="$cache_dir/$hash.webp.4242.webp"
+  live_lock="$cache_dir/$hash.webp.lock"
 done
 printf 'partial' >"$stale_tmp"
 
 cache_key=$(printf '%s' "$images" | md5sum | cut -d ' ' -f 1)
-printf '%s\t%s' "$images/one.png" "$cache_dir/missing.jpg" >"$cache_dir/$cache_key.rows"
+printf '%s\t%s' "$images/one.png" "$cache_dir/missing.webp" >"$cache_dir/$cache_key.rows"
 printf 'v2\n%s:%s\n' "$images" "$(stat -Lc '%Y' "$images")" >"$cache_dir/$cache_key.signature"
 printf 'v1\n%s:%s\n' "$images" "$(stat -Lc '%Y' "$images")" >"$cache_dir/$cache_key.fast-signature"
 
 PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
   "$ROOT/bin/omarchy-menu-images" --cache-only "$images"
 
-(( $(find "$cache_dir" -maxdepth 1 -name '*.jpg' -type f | wc -l) == 3 )) ||
+(( $(find "$cache_dir" -maxdepth 1 -name '*.webp' -type f | wc -l) == 3 )) ||
   fail "image menu recovers thumbnails from stranded locks"
 (( $(awk 'END { print NR }' "$cache_dir/$cache_key.rows") == 3 )) ||
   fail "image menu rebuilds every row after cache invalidation"
-[[ $(head -n 1 "$cache_dir/$cache_key.signature") == "v4" ]] ||
+[[ $(head -n 1 "$cache_dir/$cache_key.signature") == "v5" ]] ||
   fail "image menu invalidates stale row caches"
 [[ ! -e $stale_tmp ]] ||
   fail "image menu clears partial thumbnails left by killed generators"
@@ -110,7 +114,7 @@ mkdir "$live_lock"
 PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
   "$ROOT/bin/omarchy-menu-images" --cache-only "$images"
 
-(( $(find "$cache_dir" -maxdepth 1 -name '*.jpg' -type f | wc -l) == 2 )) ||
+(( $(find "$cache_dir" -maxdepth 1 -name '*.webp' -type f | wc -l) == 2 )) ||
   fail "image menu skips a thumbnail whose fresh legacy lock may still be owned"
 [[ -d $live_lock ]] ||
   fail "image menu leaves a fresh legacy lock directory alone"
@@ -122,7 +126,7 @@ rm -rf "$cache_home"
 mkdir -p "$cache_home"
 printf '%s\n' "$images/two.png" >"$tmp/failures"
 
-PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" VIPSTHUMBNAIL_FAIL_FILE="$tmp/failures" \
+PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" VIPS_FAIL_FILE="$tmp/failures" \
   "$ROOT/bin/omarchy-menu-images" --cache-only "$images"
 
 cache_dir="$cache_home/omarchy/image-selector"
@@ -135,7 +139,7 @@ rm "$tmp/failures"
 PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
   "$ROOT/bin/omarchy-menu-images" --cache-only "$images"
 
-(( $(find "$cache_dir" -maxdepth 1 -name '*.jpg' -type f | wc -l) == 3 )) ||
+(( $(find "$cache_dir" -maxdepth 1 -name '*.webp' -type f | wc -l) == 3 )) ||
   fail "image menu retries a previously failed thumbnail"
 (( $(awk 'END { print NR }' "$cache_dir/$cache_key.rows") == 3 )) ||
   fail "image menu caches every row after retry"
@@ -150,7 +154,7 @@ mkdir -p "$cache_home"
 pids=()
 for run in 1 2; do
   PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
-    VIPSTHUMBNAIL_CALLS_FILE="$tmp/calls" VIPSTHUMBNAIL_DELAY=0.25 \
+    VIPS_CALLS_FILE="$tmp/calls" VIPS_DELAY=0.25 \
     "$ROOT/bin/omarchy-menu-images" --cache-only "$images" &
   pids+=($!)
 done
@@ -158,14 +162,14 @@ for pid in "${pids[@]}"; do
   wait "$pid" || fail "concurrent image menu runs exit cleanly"
 done
 
-(( $(wc -l <"$tmp/calls") == 3 )) || fail "image menu serializes concurrent thumbnail generators"
+(( $(grep -c '^copy$' "$tmp/calls") == 3 )) || fail "image menu serializes concurrent thumbnail generators"
 
-rm -f "$cache_dir"/*.jpg
+rm -f "$cache_dir"/*.webp
 rm -f "$cache_dir/$cache_key.rows" "$cache_dir/$cache_key.signature" "$cache_dir/$cache_key.fast-signature"
-PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" VIPSTHUMBNAIL_CALLS_FILE="$tmp/calls" \
+PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" VIPS_CALLS_FILE="$tmp/calls" \
   "$ROOT/bin/omarchy-menu-images" --cache-only "$images"
 
-(( $(wc -l <"$tmp/calls") == 6 )) || fail "image menu releases thumbnail locks after generation"
+(( $(grep -c '^copy$' "$tmp/calls") == 6 )) || fail "image menu releases thumbnail locks after generation"
 pass "image menu owns locks for exactly one generator lifetime"
 
 rm -rf "$cache_home"
@@ -191,7 +195,7 @@ hash=$(printf '%s\t%s' "$images/one.png" "$signature" | md5sum | cut -d ' ' -f 1
 rows=$(PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
   "$ROOT/bin/omarchy-menu-images" --print-rows "$images")
 
-grep -Fxq "$images/one.png"$'\t'"$cache_dir/$hash.jpg" <<<"$rows" ||
+grep -Fxq "$images/one.png"$'\t'"$cache_dir/$hash.webp" <<<"$rows" ||
   fail "image menu regenerates the thumbnail of an image overwritten in place"
 pass "image menu notices an image overwritten in place"
 
@@ -209,12 +213,24 @@ cat >"$stub_bin/nproc" <<'EOF'
 #!/bin/bash
 echo "${FAKE_CORES:-2}"
 EOF
-cat >"$stub_bin/vipsthumbnail" <<'EOF'
+cat >"$stub_bin/vips" <<'EOF'
 #!/bin/bash
-while (( $# > 0 )); do
-  if [[ $1 == "--path" ]]; then output=${2%%\[*}; break; fi
-  shift
+action=$1
+shift
+output=""
+for arg in "$@"; do
+  case $arg in
+    *.v) output=$arg ;;
+    *\[lossless*) output=${arg%%\[*} ;;
+  esac
 done
+
+# Only the final save holds a worker slot; the intermediate steps are instant.
+if [[ $action != copy ]]; then
+  [[ -n $output ]] && printf 'step' >"$output"
+  exit 0
+fi
+
 exec 9>"$LAZY_STATE/lock"
 priority=$(ps -o ni= -p "$$")
 (( priority >= 10 )) || : >"$LAZY_STATE/priority-failed"
@@ -232,7 +248,7 @@ active=$(<"$LAZY_STATE/active")
 printf '%s\n' "$((active - 1))" >"$LAZY_STATE/active"
 echo done >>"$LAZY_STATE/completed"
 EOF
-chmod +x "$stub_bin/nproc" "$stub_bin/vipsthumbnail"
+chmod +x "$stub_bin/nproc" "$stub_bin/vips"
 
 lazy_rows() {
   setsid env PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$tmp/lazy-cache-$cores" LAZY_STATE="$lazy_state" FAKE_CORES="$cores" \
@@ -275,7 +291,7 @@ for cores in 1 2 8; do
   for changed in new 0; do
     signature=$(stat -Lc '%s:%Y' "$lazy_images/$changed.png")
     hash=$(printf '%s\t%s' "$lazy_images/$changed.png" "$signature" | md5sum | cut -d ' ' -f 1)
-    [[ ! -e $tmp/lazy-cache-$cores/omarchy/image-selector/$hash.jpg ]] ||
+    [[ ! -e $tmp/lazy-cache-$cores/omarchy/image-selector/$hash.webp ]] ||
       fail "contended refresh does not start another converter pool"
   done
 
@@ -289,7 +305,7 @@ for cores in 1 2 8; do
   for changed in new 0; do
     signature=$(stat -Lc '%s:%Y' "$lazy_images/$changed.png")
     hash=$(printf '%s\t%s' "$lazy_images/$changed.png" "$signature" | md5sum | cut -d ' ' -f 1)
-    [[ -f $tmp/lazy-cache-$cores/omarchy/image-selector/$hash.jpg ]] ||
+    [[ -f $tmp/lazy-cache-$cores/omarchy/image-selector/$hash.webp ]] ||
       fail "lazy image menu retains new and changed jobs while its pool is busy"
   done
   pass "lazy image menu workers finish every queued thumbnail after the caller exits"

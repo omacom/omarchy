@@ -117,8 +117,8 @@ cache_key=$(printf '%s' "$image_dirs_env" | md5sum | cut -d ' ' -f 1)
 rows_cache_file="$cache_dir/$cache_key.rows"
 rows_signature_file="$cache_dir/$cache_key.signature"
 rows_fast_signature_file="$cache_dir/$cache_key.fast-signature"
-rows_signature="v4"$'\n'
-rows_fast_signature="v4"$'\n'
+rows_signature="v5"$'\n'
+rows_fast_signature="v5"$'\n'
 rows_cacheable=true
 rows_cache_hit=false
 image_files=()
@@ -153,12 +153,53 @@ is_video_path() {
   [[ ${1,,} =~ \.(mp4|m4v|mov|webm|mkv|avi)$ ]]
 }
 
+# Smooth dark wallpapers carry fine grain that hides their 8-bit steps. A JPEG
+# downscale smooths that grain away and the steps become visible bands. Keep the
+# resize in float, add half a level of noise before the final uchar rounding,
+# and save losslessly so the dither survives. Videos keep ffmpegthumbnailer.
+generate_image_thumbnail() (
+  local image=$1 output=$2
+  local width height scale left top
+  local work
+
+  work=$(mktemp -d "${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/image-selector/vips.XXXXXX") || return 1
+  trap 'rm -rf "$work"' EXIT
+
+  width=$(vipsheader -f width "$image") || return 1
+  height=$(vipsheader -f height "$image") || return 1
+  [[ $width =~ ^[0-9]+$ && $height =~ ^[0-9]+$ ]] || return 1
+
+  # Cover the target, then crop its middle. The resize stays in float so the
+  # only 8-bit rounding is the final, dithered one.
+  scale=$(awk -v w="$width" -v h="$height" \
+    'BEGIN { printf "%.9f", (1536 / w > 864 / h) ? 1536 / w : 864 / h }')
+
+  local vips_cmd=(env VIPS_CONCURRENCY=1 vips)
+  "${vips_cmd[@]}" cast "$image" "$work/float.v" float || return 1
+  "${vips_cmd[@]}" resize "$work/float.v" "$work/resized.v" "$scale" --kernel lanczos3 || return 1
+
+  # vipsthumbnail's "centre" smartcrop: cover the target, then take its middle.
+  width=$(vipsheader -f width "$work/resized.v") || return 1
+  height=$(vipsheader -f height "$work/resized.v") || return 1
+  left=$(((width - 1536) / 2))
+  top=$(((height - 864) / 2))
+  "${vips_cmd[@]}" crop "$work/resized.v" "$work/cropped.v" "$left" "$top" 1536 864 || return 1
+
+  # +0.5 makes the uchar cast round to the nearest level; sigma 0.29 keeps the
+  # noise within roughly half a level either way.
+  "${vips_cmd[@]}" gaussnoise "$work/noise.v" 1536 864 --sigma 0.29 --mean 0.5 || return 1
+  "${vips_cmd[@]}" add "$work/cropped.v" "$work/noise.v" "$work/dithered.v" || return 1
+  "${vips_cmd[@]}" cast "$work/dithered.v" "$work/bytes.v" uchar || return 1
+  "${vips_cmd[@]}" copy "$work/bytes.v" "$output[lossless,strip]" || return 1
+)
+
 generate_thumbnail() {
   local image="$1"
   local thumbnail="$2"
   local lock="$thumbnail.lock"
   local lock_fd
-  local tmp="$thumbnail.$$.jpg"
+  local extension="${thumbnail##*.}"
+  local tmp="$thumbnail.$$.$extension"
   local thumbnail_command
 
   # Older releases used directories as locks, which could survive a killed
@@ -171,9 +212,10 @@ generate_thumbnail() {
   exec {lock_fd}>"$lock" || return
   flock -w 30 "$lock_fd" || return
 
-  # A generator killed mid-write leaves its partial $thumbnail.<pid>.jpg
-  # behind. Only the lock holder writes these, so any found now are stale.
-  rm -f "$thumbnail".*.jpg
+  # A generator killed mid-write leaves its partial thumbnail behind. Only the
+  # lock holder writes these, so any found now are stale. Both extensions are
+  # cleared because an upgrade can leave partial files from the old generator.
+  rm -f "$thumbnail".*."$extension" "$thumbnail".*.jpg "$thumbnail".*.webp
 
   [[ -f $thumbnail ]] && return
 
@@ -184,7 +226,7 @@ generate_thumbnail() {
     # stalled file must not hold it shut. A failed run drops the row.
     thumbnail_command=(timeout -k 5 10 ffmpegthumbnailer -i "$image" -o "$tmp" -s 1536 -q 8)
   else
-    thumbnail_command=(env VIPS_CONCURRENCY=1 vipsthumbnail "$image" --size 1536x864 --smartcrop=centre --path "$tmp[Q=82,strip]")
+    thumbnail_command=(generate_image_thumbnail "$image" "$tmp")
   fi
 
   # Close the lock fd for the converter: an orphaned or hung child must not
@@ -215,7 +257,13 @@ thumbnail_for() {
     printf '%s\t%s\t%s\n' "$image" "$signature" "$hash" >>"$index_file"
   fi
 
-  thumbnail="$cache_dir/$hash.jpg"
+  # Lossless WebP keeps the dither that hides banding on smooth dark gradients.
+  # Videos still come from ffmpegthumbnailer as JPEG.
+  if is_video_path "$image"; then
+    thumbnail="$cache_dir/$hash.jpg"
+  else
+    thumbnail="$cache_dir/$hash.webp"
+  fi
 
   if [[ ! -f $thumbnail ]]; then
     # A video that already failed to convert has no row to offer. Hand the
@@ -256,7 +304,7 @@ thumbnail_for() {
 drain_pending_thumbnails() {
   local video_jobs image_jobs pending_fd queue_file queue_lock_fd worker_lock_fd
 
-  export -f generate_thumbnail is_video_path
+  export -f generate_thumbnail generate_image_thumbnail is_video_path
 
   if [[ -s $pending_file ]]; then
     if [[ $lazy_thumbnails == true && $cache_only != true ]]; then
