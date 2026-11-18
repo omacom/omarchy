@@ -30,7 +30,7 @@ BarWidget {
     if (!screen) return Hyprland.focusedMonitor
     var own = Hyprland.monitorFor(screen)
     if (own) return own
-    return monitors.length === 1 ? Hyprland.focusedMonitor : null
+    return Quickshell.screens.length === 1 && monitors.length === 1 ? Hyprland.focusedMonitor : null
   }
   readonly property string monitorName: root.monitor ? root.monitor.name : ""
 
