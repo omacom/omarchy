@@ -20,9 +20,15 @@ Finally, there's the dev channel, which links Omarchy directly to a git checkout
 
 You can switch between channels using _Update > Channel_ from the Omarchy menu (or `omarchy-channel-set` in the terminal).
 
+### Switching kernels
+
+Omarchy boots its own `linux-omarchy` kernel, but you can keep others installed next to it, like the stock Arch `linux` kernel or an experimental build you're testing. When there's more than one, _Update > Kernel_ in the Omarchy menu lists them with a check next to the one that boots by default. Pick another, enter your password once, and it'll boot after the next restart. The other kernels stay in the boot menu, so you can still pick one by hand if the new default gives you trouble. In the terminal, it's `omarchy-kernel` to see the current default, `omarchy-kernel list` for what's installed, and `omarchy-kernel set <kernel>` to switch.
+
 ### Firmware updates
 
 Your packages aren't the only thing that goes stale. Many laptops and peripherals ship BIOS, SSD, and dock firmware through the Linux Vendor Firmware Service, and _Update > Firmware_ in the Omarchy menu will fetch and install whatever your hardware has waiting. It installs `fwupd` the first time you run it. Plenty of firmware can only be written during a reboot, so don't be surprised to be asked for one.
+
+When you need to change a setting in the BIOS itself, hold `Alt` in the system menu (`Super + Escape`) and _Reboot_ turns into _Reboot to BIOS_, which restarts straight into the firmware setup without having to catch the right key at boot. From the terminal, it's `omarchy system firmware`.
 
 ### Warning about direct pacman/yay updates
 

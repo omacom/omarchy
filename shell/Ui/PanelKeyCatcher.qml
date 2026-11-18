@@ -37,10 +37,15 @@ Item {
   // Panels that let items be reordered set this, and Ctrl+Up/Down (or
   // Ctrl+k/j) then asks to move the current item instead of the cursor.
   property bool reorderable: false
+  // And Ctrl+Left/Right (or Ctrl+h/l) sideways, for a panel that arranges in
+  // two dimensions, like the display panel's layout map.
+  property bool reorderableSideways: false
 
   signal moveRequested(int dx, int dy)
   signal reorderRequested(int dy)
-  signal activateRequested()
+  signal reorderSidewaysRequested(int dx)
+  // The held modifiers ride along, so Shift+Return can mean something else.
+  signal activateRequested(int modifiers)
   signal returnRequested()
   signal closeRequested()
   signal deleteRequested()
@@ -48,9 +53,19 @@ Item {
   // The held modifiers ride along, so a panel can tell Alt+T from T.
   signal textKey(string text, int modifiers)
 
+  // Whether Shift is down while the panel has the keyboard, so a tooltip can
+  // say what a Shift-click would do while it's held. Dropped with the focus,
+  // since a release elsewhere never arrives here.
+  property bool shiftHeld: false
+  onActiveFocusChanged: if (!activeFocus) shiftHeld = false
+
   focus: true
   Keys.priority: Keys.BeforeItem
+  Keys.onReleased: function(event) {
+    if (event.key === Qt.Key_Shift) shiftHeld = false
+  }
   Keys.onPressed: function(event) {
+    shiftHeld = event.key === Qt.Key_Shift || !!(event.modifiers & Qt.ShiftModifier)
     if (blocked) return
 
     if (event.key === Qt.Key_Escape) {
@@ -68,24 +83,35 @@ Item {
         reorderRequested(down ? 1 : -1); event.accepted = true; return
       }
     }
+    if (reorderableSideways && (event.modifiers & Qt.ControlModifier)) {
+      // In a mirrored (right-to-left) panel, Left moves forward along a row.
+      var forward = event.key === (LayoutMirroring.enabled ? Qt.Key_Left : Qt.Key_Right) || event.key === (LayoutMirroring.enabled ? Qt.Key_H : Qt.Key_L)
+      var back = event.key === (LayoutMirroring.enabled ? Qt.Key_Right : Qt.Key_Left) || event.key === (LayoutMirroring.enabled ? Qt.Key_L : Qt.Key_H)
+      if (forward || back) {
+        reorderSidewaysRequested(forward ? 1 : -1); event.accepted = true; return
+      }
+    }
     if (event.key === Qt.Key_Down || event.text === "j") {
       moveRequested(0, 1); event.accepted = true; return
     }
     if (event.key === Qt.Key_Up || event.text === "k") {
       moveRequested(0, -1); event.accepted = true; return
     }
-    if (event.key === Qt.Key_Right || event.text === "l") {
+    // In a mirrored (right-to-left) panel, Left moves forward along a row.
+    var right = event.key === Qt.Key_Right || event.text === "l"
+    var left = event.key === Qt.Key_Left || event.text === "h"
+    if (LayoutMirroring.enabled ? left : right) {
       moveRequested(1, 0); event.accepted = true; return
     }
-    if (event.key === Qt.Key_Left || event.text === "h") {
+    if (LayoutMirroring.enabled ? right : left) {
       moveRequested(-1, 0); event.accepted = true; return
     }
     if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
       returnRequested()
-      activateRequested(); event.accepted = true; return
+      activateRequested(event.modifiers); event.accepted = true; return
     }
     if (event.key === Qt.Key_Space) {
-      activateRequested(); event.accepted = true; return
+      activateRequested(event.modifiers); event.accepted = true; return
     }
     if (event.key === Qt.Key_Delete || event.text === "x" || event.text === "X") {
       deleteRequested(); event.accepted = true; return

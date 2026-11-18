@@ -1,0 +1,123 @@
+#!/bin/bash
+
+# omarchy:summary=Open a captive portal's sign-in window, pausing any Tailscale exit node until online
+# omarchy:group=network
+# omarchy:args=<url>
+
+set -euo pipefail
+
+url=${1:?Usage: omarchy-network-captive-portal <url>}
+tailscale_socket=/var/run/tailscale/tailscaled.sock
+lock=${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy-network-captive-portal.lock
+paused_exit_node=0
+
+# An exit node routes the portal's sign-in page into a tunnel the portal is
+# still blocking. tailscaled's own toggle (the one Tailscale's apps use) turns
+# it off and remembers the node, so the same one comes back afterwards.
+exit_node_active() {
+  omarchy-cmd-present tailscale && tailscale status --json 2>/dev/null | jq -e '.ExitNodeStatus != null' >/dev/null
+}
+
+set_exit_node_enabled() {
+  curl -fsS --unix-socket "$tailscale_socket" -X POST \
+    "http://local-tailscaled.sock/localapi/v0/set-use-exit-node-enabled?enabled=$1" >/dev/null
+}
+
+restore_exit_node() {
+  if (( paused_exit_node )); then
+    paused_exit_node=0
+    if set_exit_node_enabled true; then
+      omarchy-notification-send -g "" "$(omarchy-i18n tailscale.exitNodeRestored)" 9>&-
+    else
+      omarchy-notification-send -g "" -u critical "$(omarchy-i18n tailscale.exitNodeRestoreFailed)" "$(omarchy-i18n tailscale.exitNodeRestoreHint)" 9>&-
+    fi
+  fi
+}
+
+# The portal signs in inside a floating web app window (see
+# default/hypr/apps/captive-portal.lua), named by Chromium after the URL's
+# host, which closes once the internet is reachable. Launched in the
+# background: with no browser running to take the handoff, the launcher stays
+# in the foreground until the browser exits, and the wait for the sign-in
+# must start right away. Not under setsid: that would make the launcher a
+# session leader, so its own `setsid uwsm-app` would fork the browser off and
+# report success before the browser had even started.
+launcher=0
+
+open_portal_window() {
+  omarchy-launch-webapp "$url" 9>&- >/dev/null 2>&1 &
+  launcher=$!
+}
+
+# A launcher that failed means there is no window to sign in with, so stop
+# (restoring the exit node) instead of waiting for a sign-in that can't come.
+# One that exited cleanly handed the window to a running browser; one still
+# running is that browser.
+portal_window_failed() {
+  if (( launcher )) && ! kill -0 "$launcher" 2>/dev/null; then
+    local status=0
+    wait "$launcher" || status=$?
+    launcher=0
+    (( status != 0 ))
+  else
+    false
+  fi
+}
+
+close_portal_window() {
+  local host=${url#*://}
+  host=${host%%/*}
+  # [.] rather than \. so the pattern survives both jq and the Lua string.
+  local class="^chrome-${host//./[.]}__.*$"
+  local seen=0
+
+  # The browser handoff can return before the window maps, so an online
+  # check that wins the race still waits a moment for it to appear.
+  for (( i = 0; i < 20; i++ )); do
+    if hyprctl clients -j | jq -e --arg class "$class" 'any(.[]; .class | test($class))' >/dev/null; then
+      seen=1
+      hyprctl dispatch "hl.dsp.window.close({ window = \"class:$class\" })" >/dev/null
+    elif (( seen )); then
+      break
+    fi
+    sleep 0.3
+  done
+}
+
+# Nothing on the machine changes when the sign-in completes, so ask
+# NetworkManager to re-check: often while a sign-in is likely, then gently
+# until it is done. Its connectivity state updates as it does, which is what
+# the panel shows. Joining any other working network ends the wait too.
+wait_until_online() {
+  local fast_until=$(( SECONDS + 300 ))
+
+  # nmcli translates its answer, so read it in the C locale.
+  until [[ $(LC_ALL=C timeout 5 nmcli networking connectivity check 2>/dev/null) == "full" ]]; do
+    if portal_window_failed; then
+      exit 1
+    fi
+    if (( SECONDS < fast_until )); then
+      sleep 2
+    else
+      sleep 15
+    fi
+  done
+}
+
+exec 9>"$lock"
+if flock -n 9; then
+  trap restore_exit_node EXIT
+
+  if exit_node_active && set_exit_node_enabled false; then
+    paused_exit_node=1
+    omarchy-notification-send -g "" "$(omarchy-i18n tailscale.exitNodePaused)" "$(omarchy-i18n tailscale.exitNodePausedForSignIn)" 9>&-
+  fi
+
+  open_portal_window
+  wait_until_online
+  close_portal_window
+else
+  # An earlier click is already holding the pause and watching for the
+  # sign-in, so this one only brings the portal back up.
+  open_portal_window
+fi
