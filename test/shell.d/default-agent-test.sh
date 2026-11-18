@@ -1223,6 +1223,15 @@ entry=$(<"$applications/omarchy-agent-local-qwen-fast.desktop")
   fail "the launcher has its vendor's icon and a window class of its own" "$entry"
 pass "each local model that is set up gets a launcher of its own"
 
+# An image model's launcher opens Fantasi on it, since no agent runs on one.
+jq -c '.models += {"klein": {recipe: "klein", name: "FLUX.2 Klein 4B", vendor: "bfl", kind: "image", unit: "active"}}' "$status_file" >"$status_file.new" && mv "$status_file.new" "$status_file"
+omarchy-agent-local-launchers
+entry=$(<"$applications/omarchy-agent-local-klein.desktop")
+[[ $entry == *$'\nExec=fantasi open --model klein\n'* && $entry == *$'\nStartupWMClass=fantasi\n'* ]] ||
+  fail "an image model's launcher opens Fantasi on it" "$entry"
+[[ $entry != *'Exec=omarchy-agent'* ]] || fail "an image model's launcher starts no agent" "$entry"
+pass "an image model's launcher opens Fantasi on it"
+
 # The icon is the vendor's logo on a tile: the logo's paths, scaled to fit,
 # with the fill a logo keeps on its root.
 [[ $(<"$icons/omarchy-agent-local-qwen.svg") == *'fill="#6D44E8"'* ]] || fail "the icon holds the vendor's logo"
