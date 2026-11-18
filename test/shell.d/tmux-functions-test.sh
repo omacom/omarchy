@@ -11,13 +11,25 @@ trap 'rm -rf -- "$test_dir"' EXIT
 first_project="$test_dir/first \"project's\" \$HOME \`true\` files"
 mkdir -p "$first_project" "$test_dir/second project"
 log="$test_dir/tmux.log"
+focus_log="$test_dir/focus.log"
 
+# Every split answers with one fixed pane id, whatever send-keys would type into
+# a pane lands in the log, and select-pane targets go to a log of their own so
+# the focus a layout leaves behind can be asserted.
 tmux() {
-  if [[ $1 == "new-window" ]]; then
-    echo "new-pane"
-  elif [[ $1 == "send-keys" ]]; then
-    printf '%s\n' "$4" >>"$log"
-  fi
+  case $1 in
+    split-window | new-window)
+      if [[ $* == *" -P "* ]]; then
+        echo "new-pane"
+      fi
+      ;;
+    select-pane)
+      printf '%s\n' "${3:-}" >>"$focus_log"
+      ;;
+    send-keys)
+      printf '%s\n' "$4" >>"$log"
+      ;;
+  esac
 }
 
 # Run a queued line the way the pane's shell would, with a tdl that prints where it ran and what it got
@@ -27,6 +39,7 @@ run_queued() {
 
 export TMUX="fake-tmux"
 export TMUX_PANE="current-pane"
+export EDITOR="nvim"
 
 cd "$test_dir"
 tdlm "codex --flag='value with spaces'" "claude --model sonnet"
@@ -48,3 +61,9 @@ mapfile -t commands <"$log"
 
 [[ $(run_queued "${commands[1]}") == "$(printf '%s\n' "$test_dir" 1 "codex --quiet")" ]] || fail "tdlm passes no second agent when none is given" "${commands[1]}"
 pass "tdlm passes no second agent when none is given"
+
+: >"$log"
+tdl "codex --quiet"
+
+[[ $(<"$focus_log") == "$TMUX_PANE" ]] || fail "tdl leaves focus on the editor pane" "$(<"$focus_log")"
+pass "tdl leaves focus on the editor pane"

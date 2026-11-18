@@ -34,7 +34,7 @@ tdl() {
   tmux send-keys -t "$editor_pane" "$EDITOR ." C-m
 
   # Select the nvim pane for focus
-  tmux select-pane -t "$opencode_pane"
+  tmux select-pane -t "$editor_pane"
 }
 
 # Create a Tmux Dev Square layout with editor, diff watch, terminal, and opencode
