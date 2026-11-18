@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# omarchy:summary=Install Llama.cpp with the GPU backend for this machine
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# ggml carries the CPU backend itself, so a machine without a GPU needs only
+# llama-cpp. The probe matches the one the Ollama install uses.
+packages=(llama-cpp)
+if omarchy-cmd-present nvidia-smi; then
+  packages+=(ggml-cuda)
+elif omarchy-cmd-present rocminfo; then
+  packages+=(ggml-hip)
+fi
+
+echo "Installing Llama.cpp..."
+omarchy-pkg-add "${packages[@]}"
+
+echo ""
+echo "Llama.cpp has been installed."
