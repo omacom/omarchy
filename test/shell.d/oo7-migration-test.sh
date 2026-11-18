@@ -27,7 +27,14 @@ esac"
 stub omarchy-pkg-present "[[ \$1 == gnome-keyring && ! -e $test_tmp/gnome-keyring-removed ]]"
 stub pacman "[[ \$1 == -T && \$2 == 'oo7>=0.7.1' && -e $test_tmp/oo7-installed ]] && (( \$(vercmp \$(<$test_tmp/oo7-installed) 0.7.1) >= 0 ))"
 stub systemd-creds "echo \"systemd-creds \$*\" >>\"$calls\"; cat >\"\${@: -1}\""
-stub omarchy-keyring-repair "echo \"omarchy-keyring-repair\" >>\"$calls\"; [[ ! -e $test_tmp/repair-fails ]]"
+# A keyring holding UNREPAIRABLE is refused wherever it's tried; repair-fails stands
+# for a read or write error on the real keyrings, which a copy doesn't hit.
+# MULTILINE is what the repair rewrites.
+stub omarchy-keyring-repair "echo \"omarchy-keyring-repair\" >>\"$calls\"
+dir=\${OMARCHY_KEYRING_DIR:-\$HOME/.local/share/keyrings}
+[[ -n \${OMARCHY_KEYRING_DIR:-} || ! -e $test_tmp/repair-fails ]] || exit 1
+! grep -qs UNREPAIRABLE \"\$dir\"/*.keyring || exit 1
+sed -i 's/MULTILINE/repaired/' \"\$dir\"/*.keyring 2>/dev/null || true"
 cp "$ROOT/bin/omarchy-keyring-seal" "$stubs/"
 
 run_migration() {
@@ -141,7 +148,8 @@ seed_keyring "$home"
 ! grep -q 'start oo7-daemon.service' "$calls" || fail "the Quattro upgrade doesn't start oo7"
 pass "migration leaves oo7 for the reboot after the Quattro upgrade"
 
-# A keyring that can't be repaired stops the migration before anything changes.
+# A repair that fails on the keyrings themselves, not their content, stops the
+# migration before anything changes.
 rm -f "$test_tmp/oo7-installed"
 touch "$test_tmp/repair-fails"
 home=$(new_home failed-repair)
@@ -156,6 +164,20 @@ grep -q 'enable --now gnome-keyring-daemon.socket' "$calls" || fail "a failed re
 rm -f "$test_tmp/repair-fails"
 pass "migration stops before the swap if the repair fails"
 
+# Without the repair command, which comes with the keyring repair change, nothing changes.
+mv "$stubs/omarchy-keyring-repair" "$test_tmp/omarchy-keyring-repair"
+home=$(new_home no-repair)
+seed_keyring "$home"
+: >"$calls"
+if run_migration "$home" >/dev/null 2>&1; then
+  fail "a missing repair command fails the migration"
+fi
+mv "$test_tmp/omarchy-keyring-repair" "$stubs/omarchy-keyring-repair"
+! grep -q 'sudo pacman' "$calls" || fail "a missing repair command doesn't touch packages"
+grep -q 'enable --now gnome-keyring-daemon.socket' "$calls" || fail "a missing repair command restores gnome-keyring"
+[[ -f $home/.local/share/keyrings/Default_keyring.keyring ]] || fail "a missing repair command leaves the keyring alone"
+pass "migration stays pending without the repair command"
+
 # The repair runs before the swap.
 home=$(new_home repair-order)
 seed_keyring "$home"
@@ -165,6 +187,42 @@ repair_line=$(grep -n 'omarchy-keyring-repair' "$calls" | cut -d: -f1)
 swap_line=$(grep -n 'sudo pacman' "$calls" | head -1 | cut -d: -f1)
 (( repair_line < swap_line )) || fail "the repair runs before the package swap"
 pass "migration repairs the keyring before the package swap"
+
+# The backup holds the keyring as it was before the repair.
+home=$(new_home backup-before-repair)
+seed_keyring "$home"
+echo "MULTILINE" >>"$home/.local/share/keyrings/Default_keyring.keyring"
+run_migration "$home" >/dev/null 2>&1 || fail "migration runs with a repairable secret"
+grep -q 'repaired' "$home/.local/share/keyrings/login.keyring" || fail "the keyring is repaired"
+grep -q 'MULTILINE' "$home/.local/share/keyrings.pre-oo7/Default_keyring.keyring" || fail "the backup predates the repair"
+pass "migration backs up the keyring before repairing it"
+
+# A keyring the repair refuses moves into the backup, and the migration finishes
+# without it instead of staying pending and holding back every later migration.
+home=$(new_home unrepairable)
+seed_keyring "$home"
+keyrings=$home/.local/share/keyrings
+printf '[keyring]\nUNREPAIRABLE\n' >"$keyrings/Other.keyring"
+echo "MULTILINE" >>"$keyrings/Default_keyring.keyring"
+: >"$calls"
+output=$(run_migration "$home" 2>&1) || fail "migration finishes despite an unrepairable keyring"
+[[ ! -e $keyrings/Other.keyring ]] || fail "the unrepairable keyring leaves oo7's way"
+grep -q 'UNREPAIRABLE' "$home/.local/share/keyrings.pre-oo7/Other.keyring.unrepairable" || fail "the unrepairable keyring is kept in the backup"
+[[ $output == *"Other.keyring can't be repaired safely"* ]] || fail "the user is told which keyring was moved"
+grep -q 'repaired' "$keyrings/login.keyring" || fail "the other keyrings are still repaired and moved"
+grep -q 'enable oo7-daemon.service' "$calls" || fail "oo7 is enabled"
+! grep -q 'enable --now gnome-keyring-daemon.socket' "$calls" || fail "gnome-keyring isn't restored"
+pass "migration sets an unrepairable keyring aside and finishes"
+
+# If the default keyring is the unrepairable one, oo7 starts with a new login keyring.
+home=$(new_home unrepairable-default)
+seed_keyring "$home"
+echo "UNREPAIRABLE" >>"$home/.local/share/keyrings/Default_keyring.keyring"
+run_migration "$home" >/dev/null 2>&1 || fail "migration finishes despite an unrepairable default keyring"
+[[ ! -e $home/.local/share/keyrings/login.keyring ]] || fail "nothing is renamed to login"
+[[ -f $home/.local/share/keyrings.pre-oo7/Default_keyring.keyring.unrepairable ]] || fail "the default keyring is kept in the backup"
+[[ -s $home/.config/credstore.encrypted/oo7.keyring-encryption-password ]] || fail "the credential is sealed"
+pass "migration sets an unrepairable default keyring aside"
 
 # An oo7 older than 0.7.1 can't read plain-text keyrings, so it's upgraded in the swap.
 echo 0.6.0 >"$test_tmp/oo7-installed"
