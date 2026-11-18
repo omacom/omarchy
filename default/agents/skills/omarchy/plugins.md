@@ -17,6 +17,72 @@ changes. `idle.screensaver` and `idle.lock` are seconds since user idle began.
 
 **Commands:** `omarchy restart shell`, `omarchy refresh shell`
 
+## Making a New Bar Plugin
+
+A bar plugin is a folder `~/.config/omarchy/plugins/<username>.<name>/` (its id, e.g. `alice.counter`) with a manifest, the widget, and its strings:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "alice.counter",
+  "name": "Counter",
+  "version": "1.0.0",
+  "author": "alice",
+  "description": "Counts clicks in the bar",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "BarWidget.qml" },
+  "barWidget": { "displayName": "Counter", "description": "Counts clicks in the bar", "category": "Tools", "allowMultiple": false, "defaultSection": "right" }
+}
+```
+
+`BarWidget.qml` extends `BarWidget` and draws itself with `WidgetButton`, which gives it the bar's font, colors, hover, tooltip, and press feedback. Its `text` is the label (an icon-font glyph or words), `active: true` draws it in the urgent color, and `onPressed` gets the mouse button:
+
+```qml
+import QtQuick
+import qs.Commons
+import qs.Ui
+
+BarWidget {
+  id: root
+  moduleName: "alice.counter"
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
+
+  property int count: 0
+
+  Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
+
+  WidgetButton {
+    id: button
+    anchors.fill: parent
+    bar: root.bar
+    text: String(root.count)
+    tooltipText: strings.t("tooltip")
+    onPressed: function(mouseButton) {
+      if (mouseButton === Qt.RightButton) { root.count = 0 } else { root.count++ }
+    }
+  }
+}
+```
+
+- Keep state in QML properties and drive time with a `Timer` that runs only while something is counting; an idle widget starts no timers or processes. Don't name a property after one every item already has (`state`, `visible`, `enabled`, `width`, `opacity`): `property int state` collides with the item's own `state`, and assigning to it fails.
+- Run commands with `root.bar.run("omarchy-notification-send 'Counter' 'Reached 100'")`.
+- Icons are Nerd Font glyphs written straight into the label text, as the built-in widgets do (`text: "󰐊"`). Find one by name in Nerd Fonts' table rather than by drawing the font, preferring the `md-` (Material Design) set the bar uses, then look at the widget to check it:
+
+  ```bash
+  curl -s https://raw.githubusercontent.com/ryanoasis/nerd-fonts/master/glyphnames.json \
+    | jq -r 'to_entries[] | select(.key | test("^md-.*timer")) | "\(.key) \(.value.char)"'
+  ```
+- `$OMARCHY_PATH/shell/plugins/panels/clock/BarWidget.qml` is the reference for anything more: a popup panel, settings from `shell.json`, and IPC.
+
+Then check it, look at it, and put it on the bar. `omarchy agent look plugin <dir>` renders the widget in a bar strip with the current theme, without touching the running bar, and lists the QML errors it logged; open the image it prints and fix what looks wrong. Saving any file under the plugin folder reloads it on the bar:
+
+```bash
+omarchy plugin validate ~/.config/omarchy/plugins/alice.counter
+omarchy agent look plugin ~/.config/omarchy/plugins/alice.counter
+omarchy bar put alice.counter --section right
+```
+
 ## Plugin UI Safety
 
 Plugins run inside Omarchy's long-lived, unsandboxed shell. Treat text from network responses, files, IPC, settings, environment variables, and command output as untrusted.
@@ -35,6 +101,34 @@ Text {
 - Bound and validate downloaded data before displaying or saving it: limit response and collection sizes, string lengths, identifiers, and timestamps.
 - Keep network access explicit. Use fixed HTTPS sources, timeouts, response-size limits, and validation. For periodic background refreshes, disclose the behavior and let users enable or disable it. Never execute downloaded content or interpolate untrusted values into shell commands.
 - Add regression coverage for markup-shaped input and every shared tooltip or notification sink that receives dynamic text.
+
+## Plugin Motion
+
+Motion in a plugin should feel like the rest of the shell. Most of it comes free from Omarchy's kit in `qs.Ui`: a `KeyboardPanel` grows out of its bar icon and fades, morphs into a neighbouring panel in the same bar section, and grows to fit content that arrives late; a `PopupCard` grows and fades; a `Button` gives a little when pressed. Build on those rather than animating your own open and close.
+
+For anything the plugin animates itself, `import qs.Commons` and:
+
+- Give every duration as `Style.duration(ms)`, never a bare number. It returns 0 when the user has turned animations off with `omarchy toggle animations`.
+- Ease movement and entrances with `Style.easeOut` (`easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut`) or `Easing.OutCubic`. Never an ease-in curve, no bounce, and linear only for constant motion such as a spinner.
+- Keep it under 300ms, with exits shorter than entrances: about 180ms in, 120ms out.
+- Never scale from 0; start at 0.95–0.97 with opacity 0.
+- Don't animate what a single keystroke opens or dismisses many times a day; it should just appear or go.
+- Animate only for a reason: showing where something came from or went, confirming an input, or keeping a change from jumping.
+
+```qml
+import QtQuick
+import qs.Commons
+
+Item {
+  property bool shown: false
+  opacity: shown ? 1 : 0
+  scale: shown ? 1 : 0.97
+  Behavior on opacity { NumberAnimation { duration: Style.duration(180); easing.type: Easing.OutCubic } }
+  Behavior on scale {
+    NumberAnimation { duration: Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+  }
+}
+```
 
 ## Translations
 
@@ -100,7 +194,7 @@ which is yours to edit and survives updates.
 
 Saving a file anywhere under `~/.config/omarchy/plugins/` reloads plugin code
 automatically. If a change somehow fails to apply, force a reload with
-`omarchy-shell shell rescanPlugins`.
+`omarchy-shell shell reloadPlugins`.
 
 ## Idle and Lock
 

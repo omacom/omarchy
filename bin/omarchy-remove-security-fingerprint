@@ -59,11 +59,36 @@ remove_resume_hook() {
 
 echo -e "\e[32mRemoving fingerprint scanner from authentication.\n\e[0m"
 
+# A match-on-chip reader (Touch ID among them) keeps the prints in the device as
+# well, so fprintd deletes them there first, while it still runs. A reader with
+# no prints, or no fprintd, leaves nothing to delete. Authenticating first keeps
+# sudo's own prompt in view, since the delete's output is not.
+if ! sudo -n true 2>/dev/null && ! sudo -v; then
+  echo -e "\e[31mRemoving fingerprint authentication needs administrator rights.\e[0m"
+  exit 1
+fi
+# fprintd finds no reader when it is off or unplugged: then nothing could be
+# deleted from it, which is said plainly rather than as a failure.
+if omarchy-cmd-present fprintd-delete && ! delete_output=$(sudo fprintd-delete "$fingerprint_user" 2>&1); then
+  if [[ $delete_output == *"No devices available"* ]]; then
+    echo -e "\e[33mNo fingerprint reader is available now, so any fingerprints stored on the reader itself stay there.\e[0m"
+  else
+    echo -e "\e[33mThe reader's own copy of $fingerprint_user's fingerprints may not have been deleted: $(tail -n 1 <<<"$delete_output")\e[0m"
+  fi
+fi
+
 remove_pam_config
 remove_lock_fingerprint_pam
 remove_resume_hook
 
 sudo rm -rf -- "/var/lib/fprint/$fingerprint_user"
+
+# A platform that turned its reader on for setup turns it off again. Failing to
+# doesn't stop the removal, but the owner is told the reader may stay on.
+if ! disable_hook=$(omarchy-lifecycle-dispatch --resolve disable-fingerprint) ||
+  { [[ -n $disable_hook ]] && ! sudo omarchy-lifecycle-dispatch disable-fingerprint; }; then
+  echo -e "\e[33mThe fingerprint reader may still be turned on at the next boot.\e[0m"
+fi
 
 echo "Removing fingerprint packages..."
 omarchy-pkg-drop fprintd libfprint libfprint-git

@@ -1,19 +1,21 @@
 # Järjestelmän lepotila
 
-Omarchy ottaa lepotilan ja horrostilan käyttöön oletuksena, mutta jos sinulla on ongelmia jommankumman kanssa koneellasi, voit kytkeä ne pois päältä.
+Omarchy ottaa valmiustilan ja horrostilan käyttöön oletuksena, mutta jos sinulla on ongelmia kumman tahansa kanssa koneellasi, voit kytkeä ne pois päältä.
 
-### Virtaprofiiilit
+NVIDIA GB10 -koneissa, kuten DGX Sparkissa ja ASUS Ascent GX10:ssä, valmiustila ja horrostila on kytketty pois päältä, samoin kuin NVIDIA:n DGX OS:ssä, koska lepotilan ei ole vielä osoitettu toimivan sillä laitteistolla. Sama koskee ASUS Zenbook A16 (UX3607OA) -konetta, jossa valmiustila ei vielä saa sirua täysin lepotilaan ja se voi jumiutua yön aikana. Valmiustilan kytkin ja horrostilan määritys eivät koske niitä. Kytke lepotila takaisin päälle poistamalla `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` komennolla `sudo rm`; Valmiustila palaa tämän jälkeen valikkoon, ja horrostilan voi määrittää kuten muissakin koneissa. Komennon `sudo omarchy apply hardware --install-user "$USER"` suorittaminen palauttaa tiedoston.
 
-Kannettavalla Omarchy muistaa virtaprofiilisi erikseen verkkovirralla ja akulla ja vaihtaa niiden välillä kytkiessäsi ja irrottaessasi virtalähteen. Suoraan paketista se tarkoittaa suorituskykyä verkkovirralla ja tasapainotettua tilaa akulla.
+### Virtaprofiilit
 
-Näet koneesi tarjoamat vaihtoehdot komennolla `omarchy powerprofiles list` ja asetat haluamasi nykyiseen tilaasi komennolla `omarchy powerprofiles set autodetect power-saver`. Jos haluat asettaa toisen tilan irrottamatta mitään, nimeä se suoraan: `omarchy powerprofiles set battery power-saver`. Valitsemasi profiili tulee käyttöön seuraavan kerran, kun olet kyseisessä tilassa.
+Kannettavalla Omarchy muistaa virtaprofiilisi erikseen verkkovirralla käytettäessä ja akulla käytettäessä, ja vaihtaa näiden kahden välillä, kun kytket johdon ja irrotat sen. Suoraan käytössä se tarkoittaa suorituskykyä verkkovirralla ja tasapainotettua akulla.
 
-### Lepotilan kytkeminen
+Näet, mitä koneesi tarjoaa, komennolla `omarchy powerprofiles list`, ja asetat haluamasi nykyiselle tilallesi komennolla `omarchy powerprofiles set autodetect power-saver`. Aseta toinen tila irrottamatta mitään nimeämällä se suoraan: `omarchy powerprofiles set battery power-saver`. Minkä tahansa valitsetkin, saat sen takaisin seuraavalla kerralla, kun olet siinä tilassa.
 
-Kytket lepotilan ajamalla terminaalissa `omarchy toggle suspend`. Se vain näyttää tai piilottaa vaihtoehdon kohdassa _Järjestelmä_ (tai `Super + Esc`), ja voit sen jälkeen katsoa, toimiiko se järjestelmässäsi johdonmukaisesti. Jos ei toimi, voit piilottaa sen uudelleen samalla komennolla.
+### Kytke valmiustila
 
-### Horrostilan kytkeminen
+Kytket valmiustilan suorittamalla `omarchy toggle suspend` terminaalista. Se vain näyttää/piilottaa vaihtoehdon kohdassa _Järjestelmä_ (tai `Super + Esc`), ja sitten näet, toimiiko se luotettavasti järjestelmässäsi. Jos ei, voit piilottaa sen uudelleen samalla komennolla.
 
-Asetat horrostilan ajamalla terminaalissa `omarchy hibernation setup`. Horrostila luo /swap-alitiedostojärjestelmän käynnistysasemallesi fyysisen RAM-muistisi kokoisena, joten varmista, että tilaa on reilusti. 32 Gt:n koneella tarvitset aina yli 32 Gt vapaata tilaa tätä osiota varten. Horrostila vaatii myös oletuksena olevan Limine-käynnistyslataimen.
+### Kytke horrostila
 
-Asetettuasi sen näet horrostila-vaihtoehdon kohdassa _Järjestelmä_ (tai `Super + Esc`), ja voit sen jälkeen katsoa, toimiiko se järjestelmässäsi johdonmukaisesti. Jos ei toimi, voit poistaa sen uudelleen komennolla `omarchy hibernation remove`.
+Määrität horrostilan suorittamalla `omarchy hibernation setup` terminaalista. Horrostila luo käynnistyslevyllesi /swap-alivolyymin, joka on fyysisen RAM-muistisi kokoinen, joten varmista, että sinulla on runsaasti tilaa jäljellä. 32GB:n koneessa tarvitset aina 32GB+ vapaata tilaa tälle volyymille. Horrostila vaatii myös oletusarvoisen Limine-käynnistyslataimen.
+
+Kun se on määritetty, näet horrostilavaihtoehdon kohdassa _Järjestelmä_ (tai `Super + Esc`), ja sitten näet, toimiiko se luotettavasti järjestelmässäsi. Jos ei, voit poistaa sen uudelleen suorittamalla `omarchy hibernation remove`.

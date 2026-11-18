@@ -1,44 +1,44 @@
-# Divkāršas sāknēšanas instalēšana
+# Divkāršās sāknēšanas instalēšana
 
-Omarchy varat instalēt vienā nodalījumā blakus Windows vai citām instalācijām.
+Omarchy var instalēt vienā nodalījumā līdzās Windows vai citām instalācijām.
 
-Šī instalēšanas metode pēc noklusējuma joprojām nāk ar LUKS šifrēšanu nodalījumam, tāpēc tā faktiski neatšķiras no pilna diska un vienkārši prasa, lai diskā būtu pieejama brīva vieta.
+Šī instalēšanas metode nodalījumam pēc noklusējuma joprojām nodrošina LUKS šifrēšanu, tāpēc tā faktiski neatšķiras no instalēšanas visā diskā, un tai vienkārši nepieciešama brīva vieta diskā.
 
-## Vietas atbrīvošana Windows
+## Vietas atbrīvošana Windows sistēmā
 
-Lai instalētu blakus Windows, sākuma izvēlnē ierakstiet `disk management` un atlasiet opciju **Create and format hard disk partitions**.
+Lai instalētu līdzās Windows, sākuma izvēlnē ierakstiet `disk management` un atlasiet opciju **Create and format hard disk partitions**.
 
  ![dual-boot-1](images/dual-boot-1.webp)
 
-Atrodiet atbilstošo nodalījumu, noklikšķiniet ar labo pogu un izvēlieties **Shrink Volume**.
+Atrodiet atbilstošo nodalījumu, noklikšķiniet ar peles labo pogu un izvēlieties **Shrink Volume**.
 
 ![dual-boot-2](images/dual-boot-2.webp)
 
- Ievadiet lielumu, par cik vēlaties sējumu samazināt. Ņemiet vērā, ka tas būs jūsu nākotnes Omarchy instalācijas lielums, ieskaitot sāknēšanas nodalījumu.
+ Ievadiet apjomu, par kādu vēlaties samazināt sējumu. Ņemiet vērā, ka tas būs jūsu nākamās Omarchy instalācijas lielums, ieskaitot sāknēšanas nodalījumu.
 
  ![dual-boot-3](images/dual-boot-3.webp)
 
-Kad esat pabeidzis, jums vajadzētu redzēt kaut ko līdzīgu šim, kur 50GB sadaļa ir vieta, kur šajā piemērā instalēsim Omarchy.
+Kad būsiet pabeidzis, vajadzētu redzēt kaut ko līdzīgu šim, kur 50GB sadaļa šajā piemērā ir vieta, kur instalēsim Omarchy.
 
  ![dual-boot-4](images/dual-boot-4.webp)
 
 ## Omarchy instalēšana
 
-Omarchy instalēšanas process faktiski ir tāds pats kā parasti. Pēc diska atlases jums tiks dota opcija **Free space install**. Atlasiet šo opciju, lai nenotīrītu visu disku.
+Omarchy instalēšanas process faktiski ir tāds pats kā parasti. Pēc diska atlasīšanas jums tiks piedāvāta opcija **Free space install**. Atlasiet šo opciju, lai novērstu visa diska dzēšanu.
 
  ![dual-boot-5](images/dual-boot-5.webp)
 
-Apstipriniet, ka viss izskatās labi, un kā parasti gaidiet, līdz instalēšana beidzas. Šeit jūs arī varētu izvēlēties instalēt nešifrēti (nav ieteicams), tāpat kā pilna diska instalācijā.
+Apstipriniet, ka viss izskatās labi, un gaidiet, līdz instalēšana pabeidzas kā parasti. Šeit varat arī izvēlēties instalēt bez šifrēšanas (nav ieteicams), tāpat kā instalējot visā diskā.
  ![dual-boot-6](images/dual-boot-6.webp)
 
-## Citu instalāciju pievienošana sāknēšanas lādētājam
+## Citu instalāciju pievienošana sāknēšanas ielādētājam
 
-Kad pabeidzat Omarchy instalēšanu, pamanīsiet, ka tagad noklusējuma ir Limine sāknēšanas lādētājs. Ar to Limine varat pievienot arī opcijas savām citām instalācijām, piemēram, Windows.
+Kad pabeigsiet Omarchy instalēšanu, pamanīsiet, ka tagad pēc noklusējuma tiek izmantots Limine sāknēšanas ielādētājs. Ar to varat pievienot Limine arī opcijas citām instalācijām, piemēram, Windows.
 
-Lai to izdarītu, palaidiet `limine-scan` un sekojiet uzvednēm, lai Limine konfigurācijai pievienotu vajadzīgos vienumus. Tad sāknēšanas laikā redzēsiet savas ierastās Omarchy opcijas, kā arī Windows Boot Manager vai citas.
+Lai pievienotu citas operētājsistēmas, palaidiet `limine-scan` un izpildiet norādes, lai pievienotu vajadzīgos ierakstus savai Limine konfigurācijai. Sāknēšanas izvēlne pēc noklusējuma paliek paslēpta un pēc vienas sekundes startē Omarchy. Lai izvēlētos Windows vai citu ierakstu, nospiediet jebkuru taustiņu, tiklīdz startējas Limine; kad parādās izvēlne, izmantojiet bulttaustiņus, lai atlasītu ierakstu, un nospiediet Enter. Ja Omarchy startējas, pirms paspējat nospiest taustiņu, restartējiet un mēģiniet vēlreiz. Ja ieslēdzāt _Setup > Direct Boot_, programmaparatūra pilnībā izlaiž Limine, tāpēc BIOS sāknēšanas izvēlnē izvēlieties Limine vai vēlreiz palaidiet _Setup > Direct Boot_, lai noņemtu ierakstu.
 
 ## Bitlocker
 
-Ir svarīgi ņemt vērā, ka šī instalēšanas metode nav saderīga ar Bitlocker, jo tas šifrē visu disku, ne tikai nodalījumu. Ja saskaraties ar kļūdu, ka Bitlocker ir iespējots, sāknējieties Windows, dodieties uz **Settings -> Privacy & Security -> Device encryption** un izslēdziet Bitlocker. Diska atšifrēšana var aizņemt kādu laiku.
+Svarīgi ņemt vērā, ka šī instalēšanas metode nav saderīga ar Bitlocker, jo tas šifrē visu disku, nevis tikai nodalījumu. Ja rodas kļūda, kas norāda, ka Bitlocker ir iespējots, startējiet Windows, dodieties uz **Settings -> Privacy & Security -> Device encryption** un izslēdziet Bitlocker. Diska atšifrēšana var aizņemt kādu laiku.
 
  ![dual-boot-7](images/dual-boot-7.webp)

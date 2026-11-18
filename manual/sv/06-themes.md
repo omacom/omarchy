@@ -1,10 +1,10 @@
 # Teman
 
-Omarchy levereras med tjugotvå vackra teman. Du kan välja mellan dem via _Style > Theme_ i Omarchy-menyn (`Super + Space`) eller hoppa direkt till temaväljaren med `Super + Ctrl + Shift + Space`.
+Omarchy levereras med tjugotvå vackra teman. Du kan välja mellan dem via _Utseende > Tema_ i Omarchy-menyn (`Super + Space`) eller hoppa direkt till temaväljaren med `Super + Ctrl + T`.
 
-Varje tema stylar skrivbordet, terminalen, neovim, aktivitetsskärmen (btop), Chromium och hela Omarchy-skalet: menyfältet, menyn, aviseringarna, OSD och låsskärmen. (För Obsidian måste du manuellt välja Omarchy-temat via _Appearance > Themes_ inuti appen).
+Varje tema sätter stilen för skrivbordet, terminalen, neovim, aktivitetsskärmen (btop), Chromium och hela Omarchy-skalet: den övre panelen, menyn, aviseringar, OSD och låsskärmen. (För Obsidian måste du manuellt välja Omarchy-temat via _Utseende > Teman_ inne i appen).
 
-Teman har en uppsättning bakgrundsbilder som du kan välja mellan med `Super + Ctrl + Space`.
+Teman har en uppsättning bakgrundsbilder som du kan välja mellan med `Super + Ctrl + W`.
 
 Du kan hitta ännu fler teman på [sidan med extra teman](https://omarchy.org/themes/) eller till och med [göra ditt eget tema](43-making-your-own-theme.md).
 
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+### Appikoner
+
+Ikonerna i appstartaren och dockan ritas i färgerna för ditt tema, så de ändras tillsammans med det. De kommer från en ikonuppsättning, som du väljer separat från temat under _Utseende > Ikoner_, från förhandsgranskningar av varje uppsättning, på samma sätt som du väljer ett tema:
+
+- _Papercraft_ är standard: allt som levereras installerat, ritat i en enda stil. Appar som känns igen på sin logotyp, som Chrome, HEY eller YouTube, behåller sin form och får temats färger.
+- _Arcade_ ritar samma appar som 8-bitars pixelkonst, som en gammal spelkonsol skulle göra.
+- _Original_ visar varje app med ikonen som dess skapare gav den.
+
+Du kan installera en ikonuppsättning som någon annan har gjort med _Installera > Stil > Ikoner_ (eller `omarchy icons install <git url>`), och ta bort den igen under _Ta bort > Ikoner_. _Uppdatera > Extra ikoner_ hämtar den senaste versionen av uppsättningarna du har installerat.
+
+För att göra din egen lägger du dina ikoner i `~/.config/omarchy/icons/<name>/`, en fil per app, namngiven efter `Icon=`-raden i appens `.desktop`-fil. En fil som slutar på `.svg` visas som den är. En fil som slutar på `.svg.tpl` ritas i temats färger: skriv `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` eller `{{ icon_shadow }}` där en färg ska vara. Standarduppsättningen i `/usr/share/omarchy/icons/papercraft/` är ett bra ställe att utgå från. Lägg till en `preview.png` för att visa din uppsättning i väljaren; utan en sådan ritar Omarchy en förhandsgranskning från dina ikoner. För att ändra en enskild ikon i standarduppsättningen lägger du din version i `~/.config/omarchy/icons/papercraft/`.
+
 ### Upplåsningar
 
-Teman kan också ha en anpassad upplåsningsdesign, som används för uppstartsdekrypteringsprocessen. Du kan välja en av dessa under _Style > Unlock_. De ser ut så här:
+Teman kan också ha en anpassad upplåsningsdesign, som används för dekrypteringsprocessen vid uppstart. Du kan välja en av dessa under _Utseende > Lås upp_. De ser ut så här:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +102,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +119,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
