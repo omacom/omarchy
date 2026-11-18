@@ -5,7 +5,6 @@
 
 set -euo pipefail
 
-OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 THEME_NAME_PATH="$HOME/.local/state/omarchy/current/theme.name"
 # What the staged theme was last rendered from, so an update can tell whether a
 # template changed since.
@@ -16,16 +15,19 @@ if [[ ${1:-} == "--if-changed" ]]; then
   if_changed=true
 fi
 
-# Every template omarchy-theme-set-templates renders, by name and content, so an
-# added, removed or edited template all change it.
+# The templates omarchy-theme-set-templates renders, by name and content, so an
+# added, removed or edited template all change it. A linked template counts by
+# what it points at, as the renderer reads it.
 templates_fingerprint() {
-  local source dir
+  local source dir templates
 
   for source in "default:$OMARCHY_PATH/default/themed" "user:$HOME/.config/omarchy/themed"; do
     dir=${source#*:}
     [[ -d $dir ]] || continue
     echo "${source%%:*}"
-    (cd "$dir" && find . -type f -print0 | sort -z | xargs -0r sha256sum)
+    templates=("$dir"/*.tpl)
+    [[ -e ${templates[0]} ]] || continue
+    (cd "$dir" && sha256sum -- "${templates[@]##*/}")
   done | sha256sum | cut -d' ' -f1
 }
 
