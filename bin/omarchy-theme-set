@@ -432,7 +432,7 @@ if [[ ! -f $NEXT_THEME_PATH/colors.toml && -f $NEXT_THEME_PATH/alacritty.toml ]]
 fi
 
 # Without a palette, templates cannot generate the terminal configs.
-# Refuse before replacing the working theme with one that breaks new terminals.
+# Refuse before replacing the working theme with one that has missing includes.
 if [[ ! -f $NEXT_THEME_PATH/colors.toml ]]; then
   echo "Theme '$THEME_NAME' has no colors.toml, so none of its theme files can be generated." >&2
   echo "A theme needs colors.toml, or an alacritty.toml to derive one from." >&2
