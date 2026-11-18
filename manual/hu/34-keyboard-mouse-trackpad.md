@@ -1,6 +1,6 @@
 # Billentyűzet, egér, érintőpad
 
-A Hyprland lehetővé teszi minden bemeneted részletes konfigurálását. A billentyűismétlést szuperszonikusan gyorsra állíthatod, vagy az érintőpadot természetes görgetésre kapcsolhatod. Mindent a `~/.config/hypr/input.lua` fájlban módosítasz, amely az Omarchy menü (`Super + Space`) _Setup > Input_ pontján is elérhető. Bármi, amit ott beállítasz, felülírja az Omarchy alapértelmezéseit.
+A Hyprland lehetővé teszi, hogy minden beviteli eszközödet részletesen beállítsd. Beállíthatod, hogy a billentyűzetismétlés szuperszonikusan gyors legyen, vagy hogy az érintőpad természetes görgetést használjon. Mindezt a `~/.config/hypr/input.lua` fájlban módosíthatod, amelyet az Omarchy menüben (`Super + Space`) a _Setup > Input_ útvonalon is elérhetsz. Amit ott beállítasz, felülírja az Omarchy alapértelmezéseit.
 
 Íme egy példa:
 
@@ -35,9 +35,9 @@ hl.config({
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
-A beviteli beállításokról szóló Hyprland-wikin [az összes beviteli beállítást megtekintheted](https://wiki.hypr.land/Configuring/Basics/Variables/#input).
+A Hyprland wikin [megnézheted az összes beviteli beállítást](https://wiki.hypr.land/Configuring/Basics/Variables/#input).
 
-A CapsLock szokásos Caps Lockként működik, a `Shift + CapsLock` pedig a compose-billentyű a [gyors emojikhoz](07-hotkeys.md#quick-emojis) és [egyéb kiegészítésekhez](07-hotkeys.md#quick-completions). Ha a compose-billentyűt máshová szeretnéd, cseréld ki az `omarchy:shift_caps_compose` értéket a `kb_options`-ben. Például ez a compose-billentyűt a jobb Alt billentyűre mozgatja:
+A CapsLock normál Caps Lockként működik, a `Shift + CapsLock` pedig a compose billentyű a [gyors emojikhoz](07-hotkeys.md#quick-emojis) és a [gyors kiegészítésekhez](07-hotkeys.md#quick-completions). Ha inkább máshová tennéd a compose billentyűt, cseréld le az `omarchy:shift_caps_compose` értéket a `kb_options` beállításban. Ez például a Right Alt billentyűre teszi a compose billentyűt:
 
 ```lua
 hl.config({
@@ -47,33 +47,50 @@ hl.config({
 })
 ```
 
-### Érintőpad-gesztusok
+### Funkcióbillentyűk
 
-Az [érintőpad-gesztusokat](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/) is bekapcsolhatod, például a háromujjas csúsztatást munkaterület-váltáshoz:
+A laptop billentyűzetének felső sora alapértelmezetten a médiabillentyűket (hangerő, fényerő és így tovább) küldi, az `Fn` nyomva tartásával pedig az F1-F12 billentyűket érheted el; az `Fn + Esc` az ellenkező irányba rögzíti ezt, amíg újra meg nem nyomod. A legtöbb billentyűzet maga megjegyzi ezt a zárolást. Az ASUS laptopok és az Apple-stílusú billentyűzetek ezt a Linuxra hagyják, amely minden rendszerindításkor a médiabillentyűkkel indítja őket. Ha azt szeretnéd, hogy ehelyett az F1-F12 billentyűkkel induljanak, futtasd az `omarchy keyboard toprow fnkeys` parancsot (a visszaállításhoz pedig az `omarchy keyboard toprow mediakeys` parancsot); egyes laptopokon ez újraindítás után lép érvénybe. Az Apple Silicon Mac gépek megtartják a saját beállításukat.
+
+### Érintőpados gesztusok
+
+Csúsztasd az ujjad az érintőpadon az asztalon való mozgáshoz:
+
+| Gesztus | Művelet |
+| --- | --- |
+| Három ujj balra / jobbra | Előző / következő munkaterület, az üreseket is beleértve |
+| Három ujj felfelé | Az AI-konzol be-/kikapcsolása |
+| Három ujj lefelé | Az Omarchy menü megnyitása |
+| Négy ujj balra / jobbra | Az aktív ablak áthelyezése az előző / következő munkaterületre |
+| Négy ujj lefelé | Teljes képernyős mód be-/kikapcsolása |
+
+Egy gesztus megváltoztatásához először vedd ki azt a `~/.config/hypr/input.lua` fájlban, mielőtt hozzáadnád a saját [érintőpados gesztusodat](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), mivel a Hyprland nem fogad el két gesztust ugyanazokra az ujjakra és ugyanabba az irányba:
 
 ```lua
-hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+hl.gesture({ fingers = 3, direction = "up", action = "unset" })
+hl.gesture({ fingers = 3, direction = "up", action = "fullscreen" })
 ```
 
-A haptikus érintőpaddal felszerelt Dell XPS laptopokon a kattintási erőt alacsony, közepes vagy magas értékűre állíthatod az _Trigger > Hardware > Touchpad Haptics_ alatt.
+Az Omarchy összes gesztusának kikapcsolásához állítsd be az `omarchy_default_gestures = false` értéket a `~/.config/hypr/hyprland.lua` fájl tetejének közelében, még az Omarchy alapértelmezéseinek betöltése előtt.
 
-### Gépelés kínai, japán és más nyelveken
+A haptikus érintőpaddal szerelt Dell XPS laptopokon a kattintási erősséget alacsonyra, közepesre vagy magasra is állíthatod a _Trigger > Hardware > Touchpad Haptics_ alatt.
 
-Válassz japánt, koreait, kínait (egyszerűsített, Pinyin) vagy kínait (hagyományos, Zhuyin), amikor a telepítő a billentyűzetedről kérdez. Az Omarchy automatikusan konfigurálja a billentyűzetet és a hozzá illő beviteli motort, beleértve az offline első indítási beállítást is. A japán Mozcot használ, a koreai szabványos kétkészletes Hangult, az egyszerűsített kínai Pinyint, a hagyományos kínai pedig a Chewing szabványos Zhuyin-kiosztását. A Japanese (US keyboard) a Mozcot US billentyűzetkiosztással adja.
+### Gépelés kínaiul, japánul és más nyelveken
 
-A gépelés latin módban indul. A `Super + I` kombinációval ciklizálhatsz a konfigurált bevitelimódszerek között, a `Super + Shift + I` kombinációval pedig visszafelé. Érintsd meg a `Shift` billentyűt önmagában, hogy kilépj egy olyan bevitelimódszerről, mint a Pinyin, latin betűkre, és ismét érintsd meg a visszalépéshez, ahogyan a Sogou, a Microsoft Pinyin és a macOS működnek; a `Shift` és egy betű továbbra is nagybetűt ír. Japán billentyűzeteken a 全角/半角 kapcsolja az inputot, a 変換 bekapcsolja, a 無変換 pedig kikapcsolja. Koreai billentyűzetkiosztáson a dedikált 한/영 és 한자 billentyűk kapcsolják a Hangult és alakítanak Hanjára. A `Ctrl + Space` elérhető marad Tmuxhoz és Herdrhez; a `Shift + CapsLock` marad a compose-billentyű.
+Válaszd a japánt, a koreait, a kínait (egyszerűsített, Pinyin), a tajvanit (Zhuyin) vagy a hongkongit (Cangjie), amikor a telepítő a billentyűzetedről kérdez. Az Omarchy automatikusan beállítja a billentyűzetet és a hozzá illő beviteli motort, beleértve az offline első rendszerindítási beállítást is. A japán a Mozc motort használja, a koreai a szabványos kétkészletes Hangult, az egyszerűsített kínai a Pinyint, Tajvan a Chewing szabványos Zhuyin kiosztását, Hongkong pedig a Cangjie-t hongkongi karakterformákkal. A japán (US billentyűzet) US billentyűzetkiosztással biztosítja a Mozc motort. A Hangul, a Zhuyin és a Cangjie billentyűi a szabványos helyükön maradnak akkor is, ha latin betűket Dvorak, Colemak vagy AZERTY kiosztással gépelsz. Ha korábban adtad hozzá a Hangult vagy a Chewingot, a _Setup > Keyboard > Input Methods_ alatt vedd ki, majd válaszd ki újra, hogy a billentyűi oda kerüljenek; azt a motort, amellyel már gépelsz, az Omarchy békén hagyja.
 
-A billentyűzetjelző a sáv jobb oldalán megjelenik, ha több billentyűzetkiosztásod vagy bevitelimódszereid vannak. Kattints rá a beviteli nyelvek váltásához; a japán hiragánánál あ-t mutat. Japán karakterválasztékért válts japánra, írj be egy szót, például `nihongo`, majd nyomd meg kétszer a Space billentyűt. Nyomd meg az Entert a kiválasztás elfogadásához. Ha több billentyűzetkiosztásod is van, kattints jobb gombbal a jelzőre az azokon keresztüli ciklizáláshoz.
+A gépelés latin módban indul. Nyomd meg a `Super + I` billentyűkombinációt a beállított beviteli módok közötti lépegetéshez, a `Super + Shift + I` kombinációt pedig a visszafelé lépegetéshez. Nyomd meg önmagában röviden a `Shift` billentyűt, hogy kilépj egy olyan beviteli módból, mint a Pinyin, a latin betűkhöz, majd nyomd meg újra röviden a visszatéréshez, ahogyan a Sogou, a Microsoft Pinyin és a macOS is működik; a `Shift` és egy betű együtt továbbra is nagybetűt ír. Japán billentyűzeteken a 全角/半角 kapcsolja a bevitelt, a 変換 bekapcsolja, a 無変換 pedig kikapcsolja. Koreai használatakor a 한/영 váltja a Hangult, a 한자 pedig Hanja karakterekre alakít, akár dedikált billentyűi vannak a billentyűzetednek, akár a Right Alt és a Right Ctrl billentyűket küldi értük, ahogyan sok laptop teszi, ezért a Right Alt és a Right Ctrl ott nem sima módosítóbillentyű; ehelyett a diktálás az Alt + Space billentyűkombinációval kapcsolható. A `Ctrl + Space` továbbra is elérhető marad a Tmux és a Herdr számára; a `Shift + CapsLock` továbbra is a compose billentyű marad.
 
-A _Setup > Typing > Keyboard Layouts_ pontban választhatsz olyan kiosztásokat, mint az angol és a francia, ugyanazok közül a lehetőségek közül, amelyek a telepítéskor fel lett kínálva. A _Setup > Typing > Input Methods_ pontban kiválaszthatod, hogy mely beviteli motorok aktívak. Mindkét választó az Omarchy menüben nyílik meg, az aktuális kiválasztásaiddal bejelölve. Kattints vagy nyomj Entert egy lehetőség kapcsológatásához; minden módosítás azonnal alkalmazandó. Egy bevitelimódszer kijelölésének törlése eltávolítja azt a ciklusból, eltávolítás nélkül; a billentyűzet elérhető marad.
+A billentyűzetjelző a sáv jobb oldalán jelenik meg, ha több billentyűzetkiosztásod vagy beviteli módod van. Kattints rá a beviteli nyelvek közötti váltáshoz; a japán あ karaktert jelenít meg a hiraganához. Japán karakterválasztáshoz válts japánra, gépelj be egy szót, például `nihongo`, majd nyomd meg kétszer a Space billentyűt. Nyomd meg az Enter billentyűt a választásod elfogadásához. Ha több billentyűzetkiosztásod is van, kattints jobb gombbal a jelzőre azok közötti lépegetéshez.
 
-Futtasd az `omarchy setup keyboard` vagy az `omarchy setup input` parancsot ugyanazon választók megnyitásához. Egy nyelv hozzáfűzéséhez a parancssorból használd az `omarchy setup input mozc`, `hangul`, `pinyin` vagy `chewing` parancsot. Az egyéni kapcsolóbillentyűid megmaradnak. Alternatív motor-kiosztásokhoz vagy billentyűkhöz telepítsd a `fcitx5-configtool` csomagot az `omarchy pkg add fcitx5-configtool` paranccsal, és indítsd terminálból. Egy beviteli nyelv kiválasztása nem módosítja az asztal nyelvét.
+Használd a _Setup > Keyboard > Keyboard Inputs_ lehetőséget olyan kiosztások kiválasztásához, mint az angol és a francia, ugyanazok közül a lehetőségek közül, amelyeket a telepítés során is felkínál a rendszer. Használd a _Setup > Keyboard > Input Methods_ lehetőséget annak kiválasztásához, mely kompozíciós motorok aktívak. Mindkét választó az Omarchy menüben nyílik meg, az aktuális választásaid bejelölésével. Kattints vagy nyomd meg az Enter billentyűt egy választás be-/kikapcsolásához; minden változtatás azonnal érvénybe lép. Egy beviteli mód kiválasztásának visszavonása eltávolítja azt a ciklusból anélkül, hogy eltávolítaná a rendszerből; a billentyűzet továbbra is elérhető marad.
 
-A `Super + I` kombinációval ciklizálhatsz a bevitelimódszerek vagy billentyűzetkiosztások között, a `Super + Shift + I` kombinációval pedig visszafelé, így három konfigurálttal két szomszéd között mozoghatsz. A beviteli jelző csak akkor jelenik meg a sáv jobb oldalán, ha egynél több bevitelimódszer vagy kiosztás van konfigurálva. Ez az asztali kötés a meglévő Fcitx-kapcsolóbillentyűiddel együtt működik; a `~/.config/hypr/bindings.lua` fájlban felülírhatod. A beviteli motorok és a compose-szekvenciák a minden munkamenetben már futó [Fcitx5](https://fcitx-im.org/) szolgáltatást használják.
+Futtasd az `omarchy setup keyboard` vagy az `omarchy setup input` parancsot ugyanazok a választók megnyitásához. Egy nyelv parancssorból való hozzáfűzéséhez használd az `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing` vagy `cangjie5` parancsot. A Quick, a Boshiamy és az Array ugyanabban a csomagban érkezik, mint a Cangjie, és megjelenik az Input Methods választóban. Az egyéni váltóbillentyűid megmaradnak. Alternatív motorkiosztásokhoz vagy billentyűkhöz telepítsd a `fcitx5-configtool` csomagot az `omarchy pkg add fcitx5-configtool` paranccsal, és indítsd el egy terminálból. Egy beviteli nyelv kiválasztása nem változtatja meg az asztal nyelvét. Ha a _Setup > Language_ alatt japánt, koreait vagy kínait választasz, az hozzáadja annak beviteli módját, ha még egy sincs.
 
-### ALT használata SUPER-ként
+Használd a `Super + I` billentyűkombinációt a beviteli módok vagy billentyűzetkiosztások közötti lépegetéshez, a `Super + Shift + I` kombinációt pedig az ellenkező irányba való lépegetéshez, így három beállított elem esetén két szomszéd között mozoghatsz. A beviteli jelző csak akkor jelenik meg a sáv jobb oldalán, ha egynél több beviteli mód vagy kiosztás van beállítva. Ez az asztali billentyűparancs a meglévő Fcitx váltóbillentyűid mellett működik; felülírhatod a `~/.config/hypr/bindings.lua` fájlban. A beviteli motorok és a compose sorozatok a minden munkamenetben már futó [Fcitx5](https://fcitx-im.org/) szolgáltatást használják.
 
-Néhány billentyűzeten nem kényelmes az elsődleges metagombot (a Windows/cmd-billentyűt) SUPER-ként használni. Helyette az ALT-ra módosíthatod ezzel a beállítással:
+### Az ALT használata SUPER-ként
+
+Egyes billentyűzeteken nem kényelmes az elsődleges meta billentyűt (Windows/cmd billentyű) SUPER-ként használni. Ezzel a módosítással ehelyett az ALT-ra cserélheted:
 
 ```lua
 hl.config({

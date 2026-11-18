@@ -1,36 +1,36 @@
 # 無人值守安裝
 
-Omarchy ISO 可以在無人在鍵盤旁的情況下自行完成安裝。如果安裝程式找到一顆標籤為 `cidata`、攜帶其設定檔的第二磁碟，它就會把設定檔複製出來，完全跳過設定精靈，並自己重新開機進入完成的系統。不需要特殊建置的 ISO，也不需要額外的開機選單項目——沒有接上這類磁碟時，一切照舊，你會得到一般的精靈流程。
+Omarchy ISO 可以在鍵盤前沒有任何人的情況下自行完成安裝。如果安裝程式找到第二個標記為 `cidata`、且帶有其設定檔的磁碟機，它會將這些檔案複製出來、完全跳過設定精靈，並自行重新開機進入已完成的系統。不需要特殊的 ISO 建置，也不需要額外的開機選單項目——如果沒有連接這類磁碟機，一切都不會改變，你看到的仍是一般的精靈。
 
-這讓 Omarchy 非常適合作為拋棄式開發環境的基礎映像：在 Proxmox 中或用 Packer 建立一台 VM，開機，轉身離開，再用 SSH 連進去。`cidata` 是 cloud-init 的 `NoCloud` 標籤，所以所有常見的虛擬化工具都已經知道如何掛接這種磁碟。
+這讓 Omarchy 非常適合作為一次性開發環境的基礎映像：在 Proxmox 或用 Packer 建立一台 VM，開機，走開，然後透過 SSH 連進去。`cidata` 是 cloud-init 的 `NoCloud` 標籤，因此所有常見的虛擬化工具都已經知道如何連接這類磁碟機。
 
-## 設定檔案
+## 設定檔
 
-這些檔案正是安裝程式自己的精靈所寫出的東西，所以取得一套起手檔案最簡單的方法，是做一次互動式安裝（例如在 VM 中），並把所寫出的檔案複製到 `/root`：
+這些檔案正是安裝程式自己的精靈所寫入的檔案，因此取得一組起始檔案最簡單的方法，就是執行一次互動式安裝（例如在 VM 中），然後將它寫入 `/root` 的內容複製出來：
 
 | File | Required | Purpose |
 |------|----------|---------|
-| `user_configuration.json` | Yes | 磁碟、主機名稱、時區、鍵盤 |
-| `user_credentials.json` | Yes | 使用者名稱和密碼雜湊 |
-| `user_full_name.txt` | No | Git 全名 |
-| `user_email_address.txt` | No | Git 電子郵件 |
-| `user_encrypt_installation.txt` | No | 當設定攜帶 `disk_encryption` 區塊時為 `true` |
-| `authorized_keys` | No | SSH 公開金鑰，每行一把 |
-| `tailscale_authkey` | No | 首次開機時加入你的 tailnet 用的 Tailscale auth key |
+| `user_configuration.json` | 是 | 磁碟、主機名稱、時區、鍵盤 |
+| `user_credentials.json` | 是 | 使用者名稱與密碼雜湊 |
+| `user_encrypt_installation.txt` | 否 | 當設定帶有 `disk_encryption` 區塊時為 `true` |
+| `authorized_keys` | 否 | SSH 公鑰，每行一把 |
+| `tailscale_authkey` | 否 | Tailscale 驗證金鑰，用於首次開機時加入你的 tailnet |
 
-用 `openssl passwd -6 "yourpassword"` 為 `user_credentials.json` 產生密碼雜湊。
+使用 `openssl passwd -6 "yourpassword"` 產生 `user_credentials.json` 所需的密碼雜湊。
 
-你也可以放一個名為 `defer-provisioning` 的空檔案來代替 `user_credentials.json`。這會執行和你在互動模式下可觸發的相同[為另一位擁有者準備的安裝](02-getting-started.md)：機器在安裝時不帶任何個人資料，第一次開機的人可以挑選自己的鍵盤並建立自己的使用者。那正是映像製作環境所需要的模式，在那種場合磁碟上根本不該帶任何人的憑證。
+git 提交所用的姓名與電子郵件並不屬於安裝的一部分。等機器啟動後再設定即可，例如透過 SSH 使用 `omarchy setup git --name "Jane Doe" --email jane@example.com`。
+
+你也可以放入一個名為 `defer-provisioning` 的空檔案，來取代 `user_credentials.json`。這會執行與你可透過互動方式觸發的相同[為另一位擁有者做準備的安裝](02-getting-started.md)：機器會在不帶任何個人資料的情況下完成安裝，而第一個開機的人可以選擇自己的鍵盤並建立自己的使用者。這是映像製作設備所用的模式，在這種情況下，磁碟機上完全不應該攜帶任何人的憑證。
 
 ## SSH 存取
 
-當 `authorized_keys` 存在時，安裝會把這些金鑰設定為使用者的 `~/.ssh/authorized_keys`，啟用 `sshd`，並為它開啟防火牆。（原版 Omarchy 安裝置有 openssh，但服務停用、連接埠關閉，所以無人值守的機器否則會連不進來。）安裝只會加入你的金鑰——它不會放寬 SSH 守護程式其他任何驗證設定。
+當 `authorized_keys` 存在時，安裝程式會將這些金鑰設定為使用者的 `~/.ssh/authorized_keys`、啟用 `sshd`，並在防火牆中為其開啟連接埠。（標準的 Omarchy 安裝隨附的 openssh 會停用服務並關閉連接埠，因此無人值守的機器否則將無法連線。）安裝程式只會加入你的金鑰——它不會放寬 SSH 守護程序的任何其他驗證設定。
 
-當 `tailscale_authkey` 存在時，機器改為在首次開機時加入你的 tailnet：Tailscale 會從 ISO 內附的套件安裝，防火牆會允許 tailnet 介面，而一個背景工作會在機器真正連上網路後立刻執行加入動作，並持續重試直到成功。使用一把可重複使用、預先授權的金鑰，這樣一份磁碟映像就能服務許多台機器。
+當 `tailscale_authkey` 存在時，機器會改為在首次開機時加入你的 tailnet：Tailscale 會從 ISO 隨附的套件中安裝，防火牆會允許 tailnet 介面，而背景工作會在機器實際連上網路後立即執行加入動作，並持續重試直到成功為止。請使用可重複使用、預先授權的金鑰，這樣一份磁碟機映像就能供許多台機器使用。
 
-## 建立 cidata 磁碟
+## 建立 cidata 磁碟機
 
-任何帶有正確標籤的檔案系統都行。一份小小的 ISO 就是簡單的方法：
+任何帶有正確標籤的檔案系統都可以。一份小型的 ISO 是最簡單的方法：
 
 ```bash
 mkdir cidata
@@ -38,7 +38,7 @@ cp user_configuration.json user_credentials.json authorized_keys cidata/
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
 
-然後把它連同 Omarchy ISO 一起掛接給 VM。以下是一個完整的 Proxmox 範例：
+然後將它與 Omarchy ISO 一起連接到 VM。以下是一個完整的 Proxmox 範例：
 
 ```bash
 qm create 101 --name my-omarchy \
@@ -54,8 +54,8 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-開機順序故意把磁碟排在第一位：第一次開機時，空的磁碟會自動轉向 ISO，而安裝好的系統之後就會永遠從磁碟開機。
+開機順序刻意將磁碟列在第一位：空磁碟在首次開機時會直接略過並轉而使用 ISO，而安裝好的系統在此後永遠都會從磁碟開機。
 
-## 兩個注意事項
+## 兩點注意事項
 
-加密的無人值守安裝並不是完全無人值守——首次開機時還是得有人輸入 LUKS 密碼。而 `user_configuration.json` 中的 `disk_encryption` 區塊以明文攜帶了那個密碼，所以請把以加密安裝建立的 cidata 磁碟當作機密看待，它本來就如此。
+加密的無人值守安裝並非完全無人值守——首次開機時，仍然需要有人輸入 LUKS 密碼。而且 `user_configuration.json` 中的 `disk_encryption` 區塊會以明文形式攜帶該密碼，因此請將由加密安裝所建立的 cidata 磁碟機，視為它本身所是的機密來對待。

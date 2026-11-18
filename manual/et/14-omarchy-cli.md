@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchyt juhitakse tavaliselt kiirklahvide ja Omarchy menüü kaudu (`Super + Space`). Kuid saad seda juhtida ka `omarchy` CLI kaudu. See on eriti abiks, kui sul on AI agent, kes töötab sinuga kohandamise või seadistamise kallal.
+Omarchy juhtimine käib tavaliselt kiirklahvide ja Omarchy menüü (`Super + Space`) kaudu. Aga seda saab juhtida ka `omarchy` CLI kaudu. See on eriti abiks siis, kui AI agent töötab koos sinuga kohanduste või seadistuste kallal.
 
-CLI-l on juurdepääs kogu sisemisele tööriistakastile, mida kasutatakse nii menüü kui ka muul viisil. Saad näha kõike saadaolevat, käivitades terminalis `omarchy`.
+CLI kaudu on ligipääs kõigile sisemistele tööriistadele, mida kasutatakse nii menüü kaudu kui ka muul viisil. Kõike, mis on saadaval, näed, kui käivitad terminalis `omarchy`.
 
-See näeb välja umbes nii:
+See näeb välja umbes selline:
 
 ```
 ~ ❯ omarchy
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,12 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-Ja saad igasse rühma sügavamale sukelduda:
+Diagnostikaks käivita otse `omarchy-debug --no-sudo --print`. See prindib diagnostika ja kirjutab `/tmp/omarchy-debug.log` ilma sudo parooli küsimata, ka pakettide installide korral, kus `omarchy debug` võib nurjuda veaga "Unknown Omarchy command".
+
+Ja igasse rühma saad süveneda:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Iga käsk võtab ka `--help`, olenemata sellest, kas küsid tervet rühma (`omarchy capture --help`) või ühte käsku (`omarchy capture screenshot --help`).
+Iga käsk toetab ka `--help` valikut, olenemata sellest, kas küsid tervet rühma (`omarchy capture --help`) või ühte käsku (`omarchy capture screenshot --help`).
 
 ### Menüü avamine terminalist
 
-Omarchy menüü on samuti skriptitav, mis on sinu enda klahviseoste jaoks käepärane. `omarchy menu` avab selle juure juures ja saad hüpata otse puu mis tahes punkti, nimetades selle: `omarchy menu summon style.theme` läheb otse teemavalija juurde, `omarchy menu toggle system` avab süsteemi menüü ja sulgeb selle uuesti, kui see juba üleval on, ja `omarchy menu close` paneb selle ära.
+Omarchy menüü on samuti skriptitav, mis on mugav oma klahviseadete jaoks. `omarchy menu` avab selle juurtasemel ja saad hüpata otse ükskõik millisesse kohta puus, kui selle nimetad: `omarchy menu summon appearance.theme` viib otse teemavalijasse, `omarchy menu toggle system` avab süsteemimenüü ja sulgeb selle uuesti, kui see on juba avatud, ning `omarchy menu close` peidab selle.

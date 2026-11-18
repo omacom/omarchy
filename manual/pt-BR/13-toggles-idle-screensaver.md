@@ -1,20 +1,20 @@
-# Alternâncias, Ociosidade e a Proteção de Tela
+# Alternâncias, Ociosidade e o Protetor de Tela
 
-Muito do que você muda no dia a dia não é realmente uma configuração. É um modo que você liga por uma hora e desliga de novo: luz noturna enquanto trabalha até tarde, não perturbe enquanto apresenta, manter acordado enquanto assiste a algo. O Omarchy chama isso de alternâncias, e todas funcionam do mesmo jeito — um atalho, uma entrada de menu e um comando, todos acionando o mesmo interruptor.
+Muito do que você muda no dia a dia não é bem uma configuração. É um modo que você ativa por uma hora e desativa de novo: luz noturna enquanto você trabalha até tarde, não perturbe enquanto você está apresentando, manter acordado enquanto você assiste a alguma coisa. O Omarchy chama isso de alternâncias, e todas funcionam do mesmo jeito — uma tecla de atalho, um item de menu e um comando, tudo acionando o mesmo interruptor.
 
 ### O menu de alternâncias
 
-`Super + Ctrl + O` abre _Acionar > Alternar_ diretamente, ou você pode ir até lá a partir do menu do Omarchy (`Super + Space`). Tudo nessa lista é um interruptor que você pode acionar sem pensar onde o estado mora. Interruptores de como o desktop se parece ficam ao lado, em _Acionar > Aparência_.
+`Super + Ctrl + O` abre _Acionar > Alternar_ diretamente, ou você pode chegar lá pelo menu do Omarchy (`Super + Space`). Tudo nessa lista é um interruptor que você pode alternar sem pensar onde o estado fica guardado. Os interruptores de como a área de trabalho se parece ficam logo ao lado, em _Aparência_.
 
-No terminal, os mesmos interruptores são `omarchy toggle <thing>`. Execute `omarchy toggle` sozinho para ver o grupo inteiro.
+Pelo terminal, os mesmos interruptores são `omarchy toggle <thing>`. Execute `omarchy toggle` sozinho para ver o grupo inteiro.
 
 | Alternância | Atalho | Comando |
 | ------ | ------ | ------- |
-| Luz noturna | `Super + Ctrl + N` | `omarchy toggle nightlight` |
-| Silenciar notificações | `Super + Ctrl + ,` | `omarchy toggle notification silencing` |
+| Luz noturna | — | `omarchy toggle nightlight` |
+| Silenciar notificações | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
 | Manter acordado (sem bloqueio por ociosidade) | `Super + Ctrl + I` | `omarchy toggle idle` |
-| Captura de crashes | — | `omarchy toggle crash-capture` |
-| Proteção de tela | — | `omarchy toggle screensaver` |
+| Captura de falhas | — | `omarchy toggle crash-capture` |
+| Protetor de tela | — | `omarchy toggle screensaver` |
 | Sincronização de tema do [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Barra de menu | `Super + Shift + Space` | `omarchy toggle bar` |
 | Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
@@ -22,29 +22,31 @@ No terminal, os mesmos interruptores são `omarchy toggle <thing>`. Execute `oma
 | Suspender | — | `omarchy toggle suspend` |
 | GPU híbrida | — | `omarchy toggle hybrid gpu` |
 
-Os interruptores de touchpad, tela sensível ao toque e GPU híbrida vivem em _Acionar > Hardware_ (`Super + Ctrl + H`) em vez de em Alternar, já que só aparecem quando você realmente tem aquele hardware. Os de touchpad e tela sensível ao toque sobrevivem a uma recarga do Hyprland — o nome do dispositivo desativado é salvo em um pequeno arquivo de estado que o Hyprland lê na inicialização para desativá-lo novamente.
+Os interruptores de touchpad, tela sensível ao toque e GPU híbrida ficam em _Acionar > Hardware_ (`Super + Ctrl + H`) e não em Alternar, já que só aparecem quando você realmente tem esse hardware. Os de touchpad e tela sensível ao toque sobrevivem a um recarregamento do Hyprland — o nome do dispositivo desativado é salvo em um pequeno arquivo de estado que o Hyprland lê na inicialização para desativá-lo de novo.
 
-_Acionar > Aparência_ guarda a barra de menu e as animações, além de algumas coisas que não são comandos `omarchy toggle`, mas se comportam do mesmo jeito: porcentagem da bateria na barra, o layout padrão da área de trabalho, espaçamentos entre janelas (`Super + Shift + Backspace`) e a proporção quadrada de 1 janela (`Super + Ctrl + Backspace`).
+_Aparência_ guarda a barra de menu e as animações, além de algumas coisas que não são comandos `omarchy toggle`, mas se comportam do mesmo jeito: a porcentagem da bateria na barra, o layout padrão do workspace e, em _Janelas_, os espaçamentos entre janelas (`Super + Shift + Backspace`) e o aspecto quadrado de 1 janela (`Super + Ctrl + Backspace`).
 
-A maioria deles é apenas um arquivo de sinalização em `~/.local/state/omarchy/toggles/`. Se você quer ramificar com base em um deles em um script, `omarchy-toggle-enabled` lhe dá um código de saída em vez de fazer você ir procurar:
+Quando o Hyprland não tem GPU para desenhar e renderiza na CPU (llvmpipe), como em Macs cuja GPU ainda não é suportada, na maioria das máquinas virtuais ou quando um driver gráfico falha ao carregar, o Omarchy desativa animações, desfoque e sombras naquela sessão e avisa você uma vez com uma notificação. _Aparência > Animações Ativadas_ traz tudo de volta, e o Omarchy lembra disso também para sessões posteriores.
+
+A maioria deles é só um arquivo de flag em `~/.local/state/omarchy/toggles/`. Se você quiser fazer um desvio condicional com base em um deles em um script, `omarchy-toggle-enabled` fornece um código de saída em vez de obrigar você a ir procurar:
 
 ```bash
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
 ```
 
-As sinalizações são nomeadas pelo estado desligado — `screensaver-off`, `suspend-off`, `bar-off` — então sua presença significa que o recurso está desativado.
+As flags têm nome referente ao estado desligado — `screensaver-off`, `suspend-off`, `bar-off` — então a presença delas significa que o recurso está desativado.
 
 ### Indicadores na barra
 
-Quando um modo está ligado, você ganha um pequeno glifo no meio da barra superior, ao lado do relógio. Esse é o widget de indicadores, e ele carrega ditado, gravação de tela, lembretes pendentes, luz noturna, não perturbe e manter acordado.
+Quando um modo está ativado, você ganha um pequeno glifo no meio da barra superior, ao lado do relógio. Esse é o widget de indicadores, e ele carrega ditado, gravação de tela, lembretes pendentes, luz noturna, não perturbe e manter acordado.
 
-Indicadores inativos ficam ocultos. Passe o mouse sobre a área ao redor deles e eles surgem esmaecidos, para você clicar em um e ligá-lo sem saber seu atalho. Clicar em um ativo o desliga. Se você prefere ver todos eles o tempo todo, defina `alwaysShow` como `true` na entrada `omarchy.indicators` em `~/.config/omarchy/shell.json` — veja [a barra superior](05-the-top-bar.md) para como os widgets da barra são configurados.
+Os indicadores inativos ficam ocultos. Passe o mouse em qualquer lugar da barra e eles aparecem esmaecidos, para você poder clicar em um para ativá-lo sem saber seu atalho. Clicar em um ativo desativa ele de novo. Se você prefere ver todos o tempo todo, defina `alwaysShow` como `true` na entrada `omarchy.indicators` em `~/.config/omarchy/shell.json` — veja [a barra superior](05-the-top-bar.md) para saber como os widgets da barra são configurados.
 
 ### Luz noturna
 
-`Super + Ctrl + N` esquenta a tela para 4000K, e pressionar de novo a devolve a 6500K. É controlado pelo hyprsunset, que a alternância inicia para você se ele ainda não estiver rodando.
+A luz noturna aquece a tela para 4000K, e alterná-la de novo coloca de volta em 6500K. Alterne pelo menu de alternâncias (`Super + Ctrl + O`) ou com `omarchy toggle nightlight`. Ela é controlada pelo hyprsunset, que a alternância inicia para você se ele ainda não estiver em execução.
 
-Por padrão, o hyprsunset não faz absolutamente nada com a sua tela. `~/.config/hypr/hyprsunset.conf` vem com um perfil de identidade justamente para a tela permanecer intocada até você pedir calor. Se você prefere que ele mude pelo relógio, substitua isso por um perfil de horário:
+Por padrão, o hyprsunset não faz absolutamente nada com a sua tela. `~/.config/hypr/hyprsunset.conf` vem com um perfil de identidade justamente para a tela permanecer intocada até você pedir calor. Se você prefere que ele alterne pelo relógio, substitua isso por um perfil de horário:
 
 ```
 profile {
@@ -57,11 +59,11 @@ Depois inicie o hyprsunset no login adicionando `o.launch_on_start("hyprsunset")
 
 ### Não perturbe
 
-`Super + Ctrl + ,` silencia as notificações. Nenhum toast surge enquanto estiver ligado, e o indicador de sino riscado fica na barra para lembrá-lo de por que o desktop ficou silencioso.
+`Super + Ctrl + Alt + ,` silencia as notificações. Nenhum toast aparece enquanto está ativado, e o indicador de sino riscado fica na barra para lembrar você por que a área de trabalho ficou quieta.
 
-Nada se perde, porém. Uma notificação silenciada é escrita direto no seu histórico de notificações, que é exatamente o registro que você quer quando volta e se pergunta o que perdeu. Abra-o com `Super + Shift + Alt + ,`. Veja [avisos](10-notices.md) para o resto da história das notificações.
+Mas nada se perde. As notificações silenciadas ficam retidas: coloque as últimas de volta na tela com `Super + Shift + Alt + ,`. Veja [avisos](10-notices.md) para o restante.
 
-Dois tipos de mensagem ainda passam: os toasts de confirmação do próprio Omarchy para algo que você acabou de fazer ("Tema alterado", "Captura de tela salva"), e alertas críticos enviados da linha de comando. Aplicativos de chat que marcam tudo como crítico para forçar caminho até você não se qualificam.
+Dois tipos de mensagem ainda passam: os toasts de confirmação do próprio Omarchy para algo que você acabou de fazer ("Theme changed", "Screenshot saved"), e alertas críticos enviados da linha de comando. Aplicativos de chat que marcam tudo como crítico para forçar a entrada na sua frente não se qualificam.
 
 ### Ociosidade
 
@@ -77,26 +79,26 @@ O shell do Omarchy é dono do comportamento de ociosidade, e os tempos são um b
 }
 ```
 
-Ambos os números são segundos contados a partir do momento em que você ficou ocioso — não um a partir do outro. Então, com os padrões, a proteção de tela aparece depois de dois minutos e meio e a tela de bloqueio assume aos cinco minutos, tenha a proteção de tela rodado ou não. Salve o arquivo e o shell capta os novos tempos imediatamente.
+Ambos os números são segundos contados a partir do momento em que você ficou ocioso — não um a partir do outro. Então, com os padrões, o protetor de tela aparece depois de dois minutos e meio e a tela de bloqueio assume aos cinco minutos, tenha o protetor de tela executado ou não. Salve o arquivo e o shell pega os novos tempos na hora.
 
-Se você dispensar a proteção de tela antes do prazo de bloqueio, isso conta como atividade e o bloqueio pendente é cancelado. Você não fica bloqueado por dar uma olhada na sua máquina.
+Se você dispensar o protetor de tela antes do prazo de bloqueio, isso conta como atividade e o bloqueio pendente é cancelado. Você não fica trancado para fora por dar uma olhada na sua máquina.
 
-Para parar de bloquear por ociosidade por completo, `Super + Ctrl + I` — ou `omarchy toggle idle` — liga o manter acordado, e o indicador de xícara de café aparece na barra. É esse que você aciona antes de uma apresentação longa ou de um build que quer assistir. Acione de novo para voltar ao normal. `omarchy toggle idle status` imprime o estado atual como JSON, se você precisar dele em um script.
+Para parar de bloquear por ociosidade de uma vez, `Super + Ctrl + I` — ou `omarchy toggle idle` — ativa o manter acordado, e o indicador de xícara de café aparece na barra. É esse que você aciona antes de uma apresentação longa ou de uma compilação que você quer acompanhar. Acione de novo para voltar ao normal. `omarchy toggle idle status` imprime o estado atual como JSON se você precisar dele em um script.
 
-Isso trata de bloqueio e da proteção de tela, não de energia. Suspensão e hibernação têm sua própria configuração em [suspensão do sistema](36-system-sleep.md).
+Isso é sobre bloqueio e protetor de tela, não sobre energia. Suspensão e hibernação têm sua própria configuração em [repouso do sistema](36-system-sleep.md).
 
-### A proteção de tela
+### O protetor de tela
 
-A proteção de tela do Omarchy é arte ASCII passando por efeitos de texto aleatórios, uma instância por monitor. Qualquer tecla ou movimento do mouse a encerra.
+O protetor de tela do Omarchy é arte ASCII passando por efeitos de texto aleatórios, uma instância por monitor. Qualquer tecla ou movimento do mouse sai dele.
 
-Você pode iniciá-la sob demanda em _Sistema > Proteção de tela_ (`Super + Esc`), o que a força mesmo se você tiver desligado a proteção de tela por ociosidade. Não há atalho vinculado a ela por padrão.
+Você pode iniciá-lo sob demanda em _Sistema > Protetor de Tela_ (`Super + Esc`), o que o força a aparecer mesmo se você tiver desativado o protetor de tela por ociosidade. Não há atalho vinculado a ele por padrão.
 
-`omarchy toggle screensaver` é o que desliga a de ociosidade, se você preferir ir direto do trabalho ao bloqueio. Ele precisa de um terminal que saiba configurar — Alacritty, Foot, Ghostty ou Kitty — e lhe dirá isso se seu terminal padrão for outro.
+`omarchy toggle screensaver` é o que desativa o de ociosidade, se você preferir ir direto do trabalho para bloqueado. Qualquer tecla, clique, rolagem ou movimento do mouse o fecha.
 
-O logotipo que ela desenha é seu para mudar, em _Estilo > Proteção de tela_. Envie um png ou svg e o Omarchy o converte para ASCII. Veja [branding](41-branding.md).
+O logo que ele desenha é seu para mudar, em _Aparência > Identidade Visual > Protetor de Tela_. Envie um png ou svg e o Omarchy converte para ASCII. Veja [identidade visual](41-branding.md).
 
 ### A tela de bloqueio
 
-`Super + Ctrl + L` bloqueia a máquina. Isso executa a tela de bloqueio do shell do Omarchy, apaga a tela, redefine seu layout de teclado para o primeiro, para você não digitar sua senha no alfabeto errado, e — se você o tiver rodando — bloqueia o 1Password ao sair.
+`Super + Ctrl + L` bloqueia a máquina. Isso executa a tela de bloqueio do shell do Omarchy, apaga a tela, redefine seu layout de teclado para o primeiro para você não digitar sua senha no alfabeto errado e — se você o tiver em execução — bloqueia o 1Password na saída.
 
-A tela de bloqueio aceita uma senha, e também aceitará uma impressão digital depois que você configurar uma. Isso, e as outras formas de se autenticar, são tratados em [autenticação de hardware](37-hardware-authentication.md).
+A tela de bloqueio aceita uma senha, e também aceita uma impressão digital depois que você configurar uma. Isso, e as outras formas de autenticação, estão cobertos em [autenticação de hardware](37-hardware-authentication.md).

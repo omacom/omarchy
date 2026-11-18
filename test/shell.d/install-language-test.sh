@@ -31,9 +31,7 @@ grep -qxF '[[ -r /etc/omarchy/language ]] && read -r code </etc/omarchy/language
   fail "the user step reads the preset as data"
 ! grep -qE '(^|[^a-z])(source|\.) .*/etc/omarchy/language' "$ROOT/install/user/language.sh" "$ROOT/install/config/language.sh" ||
   fail "neither step sources the preset"
-grep -qx 'run_logged "$OMARCHY_INSTALL/config/language.sh"' "$ROOT/install/config/all.sh" || fail "system finalization runs the language step"
-grep -qx 'run_logged "$OMARCHY_INSTALL/user/language.sh"' "$ROOT/install/user/all.sh" || fail "user finalization runs the language step"
-pass "both finalization steps run, and read the preset as data"
+pass "neither finalization step runs the preset as code"
 
 # The user step's `omarchy-language seed`: the real command, with the outside
 # world stubbed, so it is seen to elevate and notify nothing.

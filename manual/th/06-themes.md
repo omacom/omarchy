@@ -1,12 +1,12 @@
 # ธีม
 
-Omarchy มาพร้อมธีมที่สวยงามยี่สิบสองธีม คุณสามารถเลือกใช้งานได้ผ่าน _สไตล์ > ธีม_ ในเมนู Omarchy (`Super + Space`) หรือกระโดดตรงไปยังตัวเลือกธีมโดยใช้ `Super + Ctrl + Shift + Space`
+Omarchy มาพร้อมธีมสวย ๆ ถึงยี่สิบสองธีม คุณสามารถเลือกเปลี่ยนระหว่างธีมเหล่านี้ได้ผ่าน _รูปลักษณ์ > ธีม_ ใน Omarchy Menu (`Super + Space`) หรือกระโดดไปยังตัวเลือกธีมได้โดยตรงด้วย `Super + Ctrl + T`
 
-แต่ละธีมจัดสไตล์เดสก์ท็อป เทอร์มินัล neovim หน้าจอกิจกรรม (btop) Chromium และ Omarchy shell ทั้งหมด: แถบบน เมนู การแจ้งเตือน OSD และหน้าจอล็อก (สำหรับ Obsidian คุณต้องเลือกธีม Omarchy ด้วยตนเองผ่าน _Appearance > Themes_ ภายในแอป)
+แต่ละธีมจะจัดสไตล์ให้กับเดสก์ท็อป เทอร์มินัล neovim หน้าจอกิจกรรม (btop) Chromium และ Omarchy shell ทั้งหมด: แถบด้านบน เมนู การแจ้งเตือน OSD และหน้าจอล็อก (สำหรับ Obsidian คุณต้องเลือกธีม Omarchy ด้วยตนเองผ่าน _รูปลักษณ์ > ธีม_ ภายในแอป)
 
-ธีมต่าง ๆ มีชุดภาพพื้นหลังที่คุณเลือกได้โดยใช้ `Super + Ctrl + Space`
+ธีมมีชุดภาพพื้นหลังที่คุณเลือกสลับไปมาได้ด้วย `Super + Ctrl + W`
 
-คุณค้นหาธีมเพิ่มเติมได้ที่ [หน้าธีมเพิ่มเติม](https://omarchy.org/themes/) หรือแม้แต่ [สร้างธีมของคุณเอง](43-making-your-own-theme.md)
+คุณสามารถค้นหาธีมเพิ่มเติมได้อีกที่ [หน้าเพจธีมเพิ่มเติม](https://omarchy.org/themes/) หรือแม้แต่ [สร้างธีมของคุณเอง](43-making-your-own-theme.md)
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+### ไอคอนแอป
+
+ไอคอนในตัวเรียกใช้แอปและ dock จะถูกวาดด้วยสีของธีมของคุณ จึงเปลี่ยนไปพร้อมกับธีม ไอคอนเหล่านี้มาจากชุดไอคอน ซึ่งคุณเลือกแยกจากธีมได้ภายใต้ _รูปลักษณ์ > ไอคอน_ จากภาพตัวอย่างของแต่ละชุด ในแบบเดียวกับที่คุณเลือกธีม:
+
+- _Papercraft_ คือค่าเริ่มต้น: ทุกอย่างที่ติดตั้งมาจะถูกวาดในสไตล์เดียวกัน แอปที่เป็นที่รู้จักจากโลโก้ของมัน อย่าง Chrome, HEY หรือ YouTube จะคงรูปทรงเดิมไว้และรับสีของธีมไปใช้
+- _Arcade_ วาดแอปเดียวกันเหล่านั้นเป็นศิลปะพิกเซลแบบ 8-bit เหมือนที่เครื่องเกมคอนโซลรุ่นเก่าจะทำ
+- _Original_ แสดงทุกแอปด้วยไอคอนที่ผู้สร้างของมันให้มา
+
+คุณสามารถติดตั้งชุดไอคอนที่คนอื่นทำขึ้นได้ด้วย _ติดตั้ง > สไตล์ > ไอคอน_ (หรือ `omarchy icons install <git url>`) และลบออกได้อีกครั้งภายใต้ _ลบ > ไอคอน_ ส่วน _อัปเดต > ไอคอนเสริม_ จะดึงเวอร์ชันล่าสุดของชุดที่คุณติดตั้งไว้
+
+หากต้องการทำของคุณเอง ให้ใส่ไอคอนของคุณไว้ใน `~/.config/omarchy/icons/<name>/` หนึ่งไฟล์ต่อหนึ่งแอป โดยตั้งชื่อตามบรรทัด `Icon=` ของไฟล์ `.desktop` ของแอปนั้น ไฟล์ที่ลงท้ายด้วย `.svg` จะแสดงตามที่เป็นอยู่ ไฟล์ที่ลงท้ายด้วย `.svg.tpl` จะถูกวาดด้วยสีของธีม: ให้เขียน `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` หรือ `{{ icon_shadow }}` ตรงตำแหน่งที่ควรเป็นสี ชุดค่าเริ่มต้นใน `/usr/share/omarchy/icons/papercraft/` เป็นจุดเริ่มต้นที่ดี เพิ่ม `preview.png` เพื่อแสดงชุดของคุณในตัวเลือก หากไม่มี Omarchy จะวาดภาพตัวอย่างจากไอคอนของคุณ หากต้องการเปลี่ยนไอคอนเพียงอันเดียวของชุดค่าเริ่มต้น ให้ใส่เวอร์ชันของคุณไว้ใน `~/.config/omarchy/icons/papercraft/`
+
 ### การปลดล็อก
 
-ธีมยังมีการออกแบบการปลดล็อกแบบกำหนดเองได้ ซึ่งใช้สำหรับกระบวนการถอดรหัสการบูต คุณสามารถเลือกแบบหนึ่งในนี้ภายใต้ _สไตล์ > ปลดล็อก_ พวกมันมีหน้าตาเช่นนี้:
+ธีมยังสามารถมีดีไซน์การปลดล็อกแบบกำหนดเองได้ ซึ่งใช้สำหรับกระบวนการถอดรหัสตอนบูต คุณสามารถเลือกแบบหนึ่งเหล่านี้ได้ภายใต้ _รูปลักษณ์ > ปลดล็อก_ หน้าตาของมันเป็นแบบนี้:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +102,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +119,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

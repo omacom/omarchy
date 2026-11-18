@@ -26,11 +26,11 @@
   "update": {
     "label": "Sasisha"
   },
-  "about": {
-    "label": "Kuhusu"
-  },
   "system": {
     "label": "Mfumo"
+  },
+  "system.about": {
+    "label": "Kuhusu"
   },
   "system.screensaver": {
     "label": "Kiokozi cha skrini"
@@ -357,23 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Jaribio la kasi ya diski"
   },
-  "setup.monitors": {
-    "label": "Skrini"
-  },
-  "setup.keybindings": {
-    "label": "Mikato ya vitufe"
-  },
   "setup.input": {
     "label": "Ingizo"
-  },
-  "setup.typing": {
-    "label": "Kuandika"
-  },
-  "setup.typing.keyboard": {
-    "label": "Miundo ya kibodi"
-  },
-  "setup.typing.input": {
-    "label": "Mbinu za ingizo"
   },
   "setup.language": {
     "label": "Lugha"
@@ -402,53 +387,52 @@
   "setup.default": {
     "label": "Chaguomsingi"
   },
-  "setup.default.agent": {
-    "label": "Ajenti",
-    "title": "Ajenti chaguomsingi"
+  "agent": {
+    "label": "Ajenti"
   },
-  "setup.default.agent.agy": {
+  "agent.harness.agy": {
     "label": "Antigravity"
   },
-  "setup.default.agent.claude": {
+  "agent.harness.claude": {
     "label": "Claude"
   },
-  "setup.default.agent.codex": {
+  "agent.harness.codex": {
     "label": "Codex"
   },
-  "setup.default.agent.copilot": {
+  "agent.harness.copilot": {
     "label": "Copilot"
   },
-  "setup.default.agent.crush": {
+  "agent.harness.crush": {
     "label": "Crush"
   },
-  "setup.default.agent.cursor-agent": {
+  "agent.harness.cursor-agent": {
     "label": "Cursor CLI"
   },
-  "setup.default.agent.grok": {
+  "agent.harness.grok": {
     "label": "Grok"
   },
-  "setup.default.agent.hermes": {
+  "agent.harness.hermes": {
     "label": "Hermes"
   },
-  "setup.default.agent.kimi": {
+  "agent.harness.kimi": {
     "label": "Kimi"
   },
-  "setup.default.agent.muse": {
+  "agent.harness.muse": {
     "label": "Muse Code"
   },
-  "setup.default.agent.omp": {
+  "agent.harness.omp": {
     "label": "omp"
   },
-  "setup.default.agent.openclaw": {
+  "agent.harness.openclaw": {
     "label": "OpenClaw"
   },
-  "setup.default.agent.opencode": {
+  "agent.harness.opencode": {
     "label": "OpenCode"
   },
-  "setup.default.agent.ori": {
+  "agent.harness.ori": {
     "label": "Ori"
   },
-  "setup.default.agent.pi": {
+  "agent.harness.pi": {
     "label": "Pi"
   },
   "setup.default.browser": {
@@ -680,9 +664,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -703,9 +684,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Akaunti ya Chromium"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1160,7 +1138,210 @@
   "update.password.user": {
     "label": "Mtumiaji"
   },
-  "system.reboot-boot-menu": {
-    "label": "Washa upya kwa menyu ya kuwasha"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Onyesha % ya betri"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Ficha % ya betri"
+  },
+  "appearance.windows": {
+    "label": "Madirisha"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Washa nafasi za madirisha"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Zima nafasi za madirisha"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Washa uwiano wa dirisha 1"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Zima uwiano wa dirisha 1"
+  },
+  "appearance.branding": {
+    "label": "Chapa"
+  },
+  "appearance.animations-on": {
+    "label": "Washa uhuishaji"
+  },
+  "appearance.animations-off": {
+    "label": "Zima uhuishaji"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Baki macho"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Ruhusu usingizi"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Washa arifa"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Nyamazisha arifa"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Washa mwanga wa usiku"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Zima mwanga wa usiku"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Washa kiokoa skrini"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Zima kiokoa skrini"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Washa kunasa mivurugiko"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Zima Kunasa Hitilafu"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Washa Skrini ya Laptop"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Zima Skrini ya Laptop"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Washa Kuakisi Skrini"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Zima Kuakisi Skrini"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Badili hadi GPU Mseto"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Badili hadi GPU Jumuishi"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Washa Touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Zima Touchpad"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Washa Skrini ya Mguso"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Zima Skrini ya Mguso"
+  },
+  "agent.harness.amp": {
+    "label": "Amp"
+  },
+  "agent.harness.commandcode": {
+    "label": "Command Code"
+  },
+  "agent.harness.devin": {
+    "label": "Devin CLI"
+  },
+  "agent.harness.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "agent.harness.freebuff": {
+    "label": "Freebuff"
+  },
+  "agent.harness.kilo": {
+    "label": "Kilo"
+  },
+  "agent.harness.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "agent.harness.mcode": {
+    "label": "MiniMax Code"
+  },
+  "agent.harness.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kiini"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Kibodi"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Mikato ya Kibodi"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Maingizo ya Kibodi"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Mbinu za Uingizaji"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Kawaida"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Harness Chaguomsingi"
+  },
+  "agent.instructions": {
+    "label": "Maagizo"
+  },
+  "agent.make": {
+    "label": "Unda kitu"
+  },
+  "agent.make.theme": {
+    "label": "Unda mandhari"
+  },
+  "agent.make.plugin": {
+    "label": "Unda programu-jalizi"
+  },
+  "agent.make.app": {
+    "label": "Unda programu"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikoni"
+  },
+  "install.style.icons": {
+    "label": "Ikoni"
+  },
+  "remove.icons": {
+    "label": "Ikoni"
+  },
+  "update.icons": {
+    "label": "Ikoni za ziada"
+  },
+  "system.firmware": {
+    "label": "Washa upya hadi BIOS",
+    "description": "Washa upya hadi mipangilio ya firmware ya UEFI"
   }
 }

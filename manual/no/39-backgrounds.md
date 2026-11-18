@@ -1,15 +1,15 @@
 # Bakgrunner
 
-Hvert tema leveres med sitt eget sett med bakgrunner, og du kan legge til dine egne ekstrabakgrunner i `~/.config/omarchy/backgrounds/[theme]`. Hvis du vil legge til et ekstra bakgrunnsbilde til for eksempel nord-temaet, legger du bare filen i `~/.config/omarchy/backgrounds/nord`.
+Hvert tema leveres med sitt eget sett med bakgrunner, og du kan legge til ekstra av dine egne i `~/.config/omarchy/backgrounds/[theme]`. Hvis du vil legge til et ekstra bakgrunnsbilde til for eksempel nord-temaet, legger du bare filen i `~/.config/omarchy/backgrounds/nord`.
 
-Du gjør dette enklest ved å gå til _Installer > Stil > Bakgrunn_ i Omarchy-menyen. Det åpner mappen der bakgrunnene for det temaet er lagret. Trykk `Super + Shift + F` for å starte en ny filbehandler, finn bakgrunnen din og kopier den over. Nå blir den inkludert i bakgrunnene du kan velge mellom med `Super + Ctrl + Space`.
+Dette gjør du enklest ved å gå til _Install > Style > Background_ i Omarchy-menyen. Det åpner mappen der bakgrunnene for det temaet er lagret. Trykk `Super + Shift + F` for å starte en annen filbehandler, finn bakgrunnen din og kopier den over. Nå blir den med blant bakgrunnene du kan velge mellom med `Super + Ctrl + W`.
 
-Bakgrunner kan være videoer i tillegg til stillbilder. Slipp en `mp4`-, `m4v`-, `mov`-, `webm`-, `mkv`- eller `avi`-fil i samme mappe, så dukker den opp ved siden av bildene. Videoer spilles av av OWE-bakgrunnsmotoren. Den dekoder videoen én gang for alle skjermer og spiller lyden gjennom standard lydutgang, og den stopper avspillingen når ingenting kan se den. Låseskjermen tegner samme dekoding, dempet, gjennom OWE. En videobakgrunn koster likevel langt mer strøm enn en stillbildebakgrunn.
+Bakgrunner kan være videoer så vel som stillbilder. Legg en `mp4`-, `m4v`-, `mov`-, `webm`-, `mkv`- eller `avi`-fil i den samme mappen, så dukker den opp sammen med bildene. Videoer spilles av av OWE-bakgrunnsmotoren. Den dekoder videoen én gang for alle skjermer og spiller av lyden gjennom standard lydutgang, og den stopper avspillingen når ingenting kan se den. En videobakgrunn bruker likevel langt mer strøm enn en stillbakgrunn.
 
-Temaer kan inkludere en kort intro for en stillbildebakgrunn. For `backgrounds/road.webp` ligger den matchende videoen på `backgrounds/intros/road.mp4`. Den spilles av automatisk ved oppstart og når du bytter til et tema med den bakgrunnen valgt, og går deretter tilbake til stillbildet. Introvideoer holder seg ute av bakgrunnsvelgeren og looper aldri.
+Temaer kan inkludere en kort intro for en stillbakgrunn. For `backgrounds/road.webp` ligger den tilhørende videoen i `backgrounds/intros/road.mp4`. Den spilles av automatisk ved oppstart, når du bytter til et tema med den bakgrunnen valgt, og når du velger den bakgrunnen, og går deretter tilbake til stillbildet. Introvideoer holdes utenfor bakgrunnsvelgeren og looper aldri.
 
-Å slå av _Utløs > Utseende > Animasjoner_ slår også av bakgrunnsintroer. Omarchy gjør dette som standard i en virtuell maskin. Kommandoen `omarchy theme bg intro toggle` kan slå introer av/på separat. Å oppdatere et tema eller velge en annen bakgrunn innenfor samme tema spiller ikke av en intro.
+Å slå av _Appearance > Animations_ slår også av bakgrunnsintroer. Omarchy gjør dette som standard i en virtuell maskin. Kommandoen `omarchy theme bg intro toggle` kan slå introer av og på separat. Å oppdatere et tema spiller ikke av en intro.
 
-Du finner en enorm samling av kule, kuraterte bakgrunner på https://github.com/dharmx/walls.
+Du finner en enorm samling kule, kuraterte bakgrunner i [dharmx/walls](https://github.com/dharmx/walls).
 
-Videobakgrunner beholder et bufret stillbilde på låseskjermen mens avspillingen er satt på pause eller utilgjengelig. Animerte GIF-er spilles av på skrivebordet og viser et stillbilde på låseskjermen.
+Låseskjermen viser et stillbilde av en videobakgrunn, på samme måte som den viser et stillbilde av en animert GIF.

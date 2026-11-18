@@ -1,25 +1,27 @@
-# Picha za mfumo (snapshots)
+# Picha za mfumo
 
-Huunda picha kiotomatiki kwenye kila sasisho la Omarchy, lakini kama unataka kuunda yako mwenyewe, unaweza kutumia `omarchy-snapshot create`.
+Tunatengeneza picha kiotomatiki kila Omarchy inaposasishwa, lakini ukitaka kutengeneza yako mwenyewe, unaweza kutumia `omarchy-snapshot create`.
 
-Kuwasha na kurejesha picha, unaichagua kutoka kipakiaji cha kuwasha cha Limine. (Kama kwa sasa unawasha moja kwa moja kwenye skrini ya usimbuaji wa Omarchy, utahitaji kuchagua Limine kama chaguo la kuwasha kupitia BIOS kwanza).
+Ili kuwasha na kurejesha picha, unaichagua kutoka kwenye kipakiaji cha kuwasha cha Limine. (Ikiwa kwa sasa unawasha moja kwa moja hadi kwenye skrini ya kusimbua ya Omarchy, utahitaji kuchagua Limine kama chaguo la kuwasha kupitia BIOS kwanza).
 
-Kutoka skrini hiyo, chagua picha unayoitaka kuwashia kulingana na tarehe na toleo. Toleo la Omarchy wakati wa picha linaweza kuonekana kona ya chini kushoto.
+Kutoka kwenye skrini hiyo, chagua picha unayotaka kuwashia kulingana na tarehe na toleo. Toleo la Omarchy wakati picha ilipochukuliwa linaonekana kwenye kona ya chini kushoto.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Unapofika ndani, arifa itajitokeza kukujulisha kuwa uko katika picha inayoweza kuwashwa na kama utaibofya, utaanza mchakato wa urejesho. Vinginevyo, unaweza kutumia `omarchy-snapshot restore`.
+Ukifika ndani, arifa itatokea ikikuarifu kuwa uko ndani ya picha inayoweza kuwashwa na ukiibofya, itaanzisha mchakato wa kurejesha. Vinginevyo, unaweza kutumia `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Hii itarejesha mfumo wako wa faili wa mizizi, lakini si `/home` yako. Kwa hivyo hufanya kazi kwa kubatilisha sasisho la mfumo lililovunjika, lakini si kwa kurejesha faili za kibinafsi zilizopotea.
+Hii itarejesha mfumo wako wa faili wa mzizi, lakini si `/home` yako. Kwa hivyo inafaa kurejesha sasisho la mfumo lililoharibika, lakini si kurejesha faili za kibinafsi zilizopotea.
 
-Hii pia inamaanisha kuwa saraka yako ya `~/.config` hutunzwa kama ilivyo. Kwa hivyo kama unarudi kwenye toleo la awali la maktaba au programu ambayo huhifadhi faili za usanidi katika umbizo jipya, itabidi ulitatue hilo mwenyewe.
+Hii pia inamaanisha kuwa saraka yako ya `~/.config` inabaki kama ilivyo. Kwa hivyo ukirejea kwenye toleo la awali la maktaba au programu inayohifadhi faili za usanidi katika umbizo jipya, utalazimika kushughulikia hilo mwenyewe.
 
-_Kumbuka: Kipengele hiki kinapatikana tu kwenye usakinishaji unaotumia kipakiaji cha kuwasha cha Limine, ambacho kimekuwa chaguomsingi tangu Omarchy 2.0. Haikupatikani kama uko kwenye GRUB au systemd-boot._
+Vivyo hivyo kwa rekodi ya Omarchy yenyewe kuhusu uhamishaji ambao tayari umekwishafanyika: inaishi katika saraka yako ya nyumbani, kwa hivyo inanusurika baada ya kurejesha. Uhamishaji uliofanyika baada ya picha kuchukuliwa unabaki umealamishwa kuwa umekamilika, ingawa mabadiliko waliyoyafanya kwenye mfumo wa faili wa mzizi yamerejeshwa nyuma, na `omarchy update` ijayo haitawafanya tena. Kwa hivyo ukisasisha tena baada ya kurejesha na kitu ambacho sasisho la awali lilikuwa limekiweka bado hakipo, hiyo ndiyo sababu inayowezekana zaidi.
+
+_Kumbuka: Kipengele hiki kinapatikana tu kwenye usakinishaji unaotumia kipakiaji cha kuwasha cha Limine, ambacho kimekuwa chaguo-msingi tangu Omarchy 2.0. Hakipatikani ikiwa unatumia GRUB au systemd-boot._
 
 ### Kuruka menyu ya kuwasha
 
-Kama kamwe hugusi menyu ya kuwasha na unataka tu mashine iende moja kwa moja kwenye skrini ya usimbuaji, endesha _Sanidi > Direct Boot_ katika menyu ya Omarchy. Hiyo huongeza ingizo la EFI linaloashiria moja kwa moja kwa Omarchy, kwa hivyo firmware huiwasha bila kusimama kwenye Limine.
+Ikiwa kamwe huigusi menyu ya kuwasha na unataka tu mashine iende moja kwa moja kwenye skrini ya kusimbua, endesha _Setup > Direct Boot_ kwenye menyu ya Omarchy. Hiyo inaongeza ingizo la EFI linaloelekeza moja kwa moja kwenye Omarchy, kwa hivyo programu dhibiti inaiwasha bila kusimama kwenye Limine.
 
-Kubadilishana ni ile iliyotajwa juu: na kuwasha moja kwa moja kumewashwa, kufikia picha kunamaanisha kuchagua Limine kutoka menyu yako ya kuwasha ya BIOS kwanza. Endesha _Sanidi > Direct Boot_ tena kuondoa ingizo na kurudi kwenye kuwasha kupitia Limine. Firmware nyingine haipendi maingizo ya EFI maalum, kwa hivyo usanidi unakataa kuendesha kwenye firmware ya American Megatrends na Apple.
+Hasara yake ni ile iliyotajwa mwanzoni: kuwasha moja kwa moja kukiwa kumewashwa, kufikia picha kunamaanisha kuchagua Limine kutoka kwenye menyu ya kuwasha ya BIOS yako kwanza. Endesha _Setup > Direct Boot_ tena ili kuondoa ingizo hilo na kurudi kuwasha kupitia Limine. Baadhi ya programu dhibiti haikubaliani vyema na maingizo maalum ya EFI, kwa hivyo usanidi unakataa kufanya kazi kwenye programu dhibiti ya American Megatrends na Apple.

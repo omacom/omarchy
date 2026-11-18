@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Devin CLI
+Comment=Start Devin CLI in a terminal
+Exec=omarchy-agent --agent devin --app-id=org.omarchy.devin
+Icon=omarchy-agent-devin
+StartupWMClass=org.omarchy.devin
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new
