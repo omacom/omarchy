@@ -1,4 +1,4 @@
-echo "Stage the newly packaged intros for the active theme"
+echo "Use theme intros from the external package"
 
 theme_name_path="$HOME/.local/state/omarchy/current/theme.name"
 
