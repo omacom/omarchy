@@ -50,6 +50,9 @@ launched_argument() {
 }
 
 make_game tilt-maze
+# Another app's icon by the name the title would give.
+mkdir -p "$icons"
+echo "another app" >"$icons/tilt-maze.png"
 printf '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" rx="12" fill="#7aa2f7"/></svg>\n' >"$HOME/Games/tilt-maze/icon.svg"
 omarchy-games-install tilt-maze >/dev/null || fail "games install adds a game in ~/Games"
 desktop="$applications/Tilt Maze.desktop"
@@ -61,7 +64,7 @@ decoded=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.unquote(sys.a
 accent=$(python3 -c 'import json, sys, urllib.parse; print(json.loads(urllib.parse.unquote(sys.argv[1].split("#palette=")[1]))["accent"])' "$url")
 [[ $accent == "#7aa2f7" ]] || fail "the game is opened with the current theme's palette" "$url"
 grep -qx 'Categories=Game;' "$desktop" || fail "the launcher is filed under games"
-[[ $(magick identify -format '%wx%h' "$icons/tilt-maze.png") == "256x256" ]] || fail "the game's icon.svg becomes a 256 pixel icon"
+[[ $(magick identify -format '%wx%h' "$icons/omarchy-games.tilt-maze.png") == "256x256" ]] || fail "the game's icon.svg becomes a 256 pixel icon"
 pass "games install launches ~/Games/<name>/index.html in the current theme, from a home with a space and a percent sign"
 
 omarchy-games-install tilt-maze >/dev/null || fail "installing a game again replaces its own launcher"
@@ -86,6 +89,7 @@ refuses missing || fail "games install refuses a game that does not exist"
 pass "games install only launches games inside ~/Games"
 
 omarchy-webapp-remove "Tilt Maze" >/dev/null
-[[ ! -e $desktop && ! -e $icons/tilt-maze.png ]] || fail "removing the web app deletes the game's launcher and icon"
+[[ ! -e $desktop && ! -e $icons/omarchy-games.tilt-maze.png ]] || fail "removing the web app deletes the game's launcher and icon"
+[[ $(<"$icons/tilt-maze.png") == "another app" ]] || fail "a game's icon never replaces or removes another app's"
 [[ -f $HOME/Games/tilt-maze/index.html ]] || fail "removing the web app leaves the game itself"
 pass "Remove > Web App takes a game out of the launcher and leaves its file"

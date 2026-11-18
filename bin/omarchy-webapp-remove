@@ -52,6 +52,9 @@ fi
 
 icon_name=$(printf '%s\n' "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//')
 desktop_file=$(path_for_web_app "$APP_NAME")
+# A game's icon is named for the game, not its title.
+game_icon=$(sed -n 's/^Icon=\(omarchy-games\.[a-z0-9-]*\)$/\1/p' "${desktop_file:-/dev/null}" 2>/dev/null)
+[[ -n $game_icon ]] && icon_name=$game_icon
 rm -f "${desktop_file:-$DESKTOP_DIR/$APP_NAME.desktop}"
 rm -f "$ICON_DIR/$icon_name.png" "$ICON_DIR/$APP_NAME.png" "$OLD_ICON_DIR/$APP_NAME.png"
 

@@ -53,7 +53,9 @@ elif [[ -e $desktop ]] && ! grep -qxF "$exec_line" "$desktop"; then
 fi
 
 # The icon is the game's icon.svg or icon.png, or else the generic games icon.
-icon=$(safe_icon_name "$title")
+# It's named for the game, with a dot no title's icon name can have, so it
+# never replaces another launcher's icon.
+icon="omarchy-games.$name"
 mkdir -p "$ICON_DIR" "$DESKTOP_DIR"
 source_image=""
 for candidate in icon.svg icon.png; do
