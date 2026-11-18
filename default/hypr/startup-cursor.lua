@@ -1,3 +1,10 @@
+-- Startup reveal timing. A restore that never gets its hyprctl completion is
+-- retried, then finished from Lua, so a failed exec cannot hide the pointer
+-- for the rest of the session.
+local REVEAL_DELAY_MS = 15000
+local RETRY_DELAY_MS = 3000
+local RETRY_LIMIT = 3
+
 local function cursor_theme(value)
   if value and value ~= "" and value ~= "omarchy-startup" then return value end
 end
@@ -25,19 +32,39 @@ local function normal_path()
   return table.concat(kept, ":")
 end
 
+local function finish_restore(cursor)
+  omarchy_startup_cursor_pending = false
+  hl.env("OMARCHY_STARTUP_CURSOR_SESSION", "")
+  hl.env("OMARCHY_STARTUP_CURSOR_THEME", "")
+  hl.config({ cursor = cursor.config })
+  if cursor.config.enable_hyprcursor and cursor.hyprcursor then
+    hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(cursor.hyprcursor) .. " " .. cursor.size)
+  end
+  hl.exec_cmd("xsetroot -cursor_name left_ptr >/dev/null 2>&1 || true")
+end
+
+-- The acknowledgement runs through hyprctl, which cannot always reach the
+-- compositor during the boot window. Once restoring is set, nothing else
+-- retries: rearm until the limit, then reveal from Lua regardless of exec.
+local function arm_retry(cursor)
+  hl.timer(function()
+    if not omarchy_startup_cursor_pending or not cursor.restoring then return end
+    cursor.attempts = (cursor.attempts or 0) + 1
+    if cursor.attempts >= RETRY_LIMIT then
+      finish_restore(cursor)
+    else
+      cursor.restoring = false
+      omarchy_startup_cursor_restore()
+    end
+  end, { timeout = RETRY_DELAY_MS, type = "oneshot" })
+end
+
 -- Hyprland polls cursor.invisible, so its first frames need a blank cursor too.
 function omarchy_startup_cursor_restore(loaded)
   if not omarchy_startup_cursor_pending then return end
   local cursor = omarchy_startup_cursor
   if loaded then
-    omarchy_startup_cursor_pending = false
-    hl.env("OMARCHY_STARTUP_CURSOR_SESSION", "")
-    hl.env("OMARCHY_STARTUP_CURSOR_THEME", "")
-    hl.config({ cursor = cursor.config })
-    if cursor.config.enable_hyprcursor and cursor.hyprcursor then
-      hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(cursor.hyprcursor) .. " " .. cursor.size)
-    end
-    hl.exec_cmd("xsetroot -cursor_name left_ptr >/dev/null 2>&1 || true")
+    finish_restore(cursor)
   elseif not cursor.restoring then
     -- Reload the normal Xcursor fallback before enabling Hyprcursor or GSettings.
     cursor.restoring = true
@@ -48,6 +75,7 @@ function omarchy_startup_cursor_restore(loaded)
       .. " and omarchy_startup_cursor.size == " .. cursor.size .. " then omarchy_startup_cursor_restore(true) end"
     hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(cursor.xcursor) .. " " .. cursor.size
       .. " && hyprctl eval " .. o.shell_quote(complete))
+    arm_retry(cursor)
   end
 end
 
@@ -72,6 +100,7 @@ hl.on("config.reloaded", function()
         size = tonumber((hyprcursor and os.getenv("HYPRCURSOR_SIZE")) or os.getenv("XCURSOR_SIZE")) or 24,
         path = normal_path(),
         xcursor = normal_theme(interrupted),
+        attempts = 0,
       }
       if omarchy_startup_cursor.size <= 0 then omarchy_startup_cursor.size = 24 end
       -- Compositor environment survives Lua reloads; a session id prevents stale inheritance.
@@ -94,7 +123,7 @@ hl.on("config.reloaded", function()
         omarchy_startup_cursor.restoring = false
         omarchy_startup_cursor_restore()
       end
-    end, { timeout = 15000, type = "oneshot" })
+    end, { timeout = REVEAL_DELAY_MS, type = "oneshot" })
     if recover then omarchy_startup_cursor_restore() end
   end
 end)

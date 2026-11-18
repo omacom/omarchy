@@ -6,7 +6,7 @@ require_command lua
 
 lua - <<'LUA' || fail "the first compositor frame starts blank and the reveal restores user cursor settings"
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
-local events, recovery, command, imported, commands = {}, nil, nil, false, {}
+local events, recovery, command, imported, commands, timers = {}, nil, nil, false, {}, {}
 local config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true }
 local env = { XCURSOR_THEME = "my-xcursor", HYPRCURSOR_THEME = "my-hyprcursor", XCURSOR_PATH = "/my/icons", HYPRLAND_INSTANCE_SIGNATURE = "test-session", OMARCHY_PATH = os.getenv("ROOT") }
 local getenv = os.getenv
@@ -26,8 +26,9 @@ hl = {
     for name, value in pairs(values.cursor) do config[name] = value end
   end,
   timer = function(callback, options)
-    assert(options.timeout == 15000 and options.type == "oneshot")
-    recovery = callback
+    assert(options.type == "oneshot")
+    table.insert(timers, { callback = callback, timeout = options.timeout })
+    if options.timeout == 15000 then recovery = callback end
   end,
   exec_cmd = function(value)
     if value == "dbus-update-activation-environment --systemd XCURSOR_PATH XCURSOR_THEME" then
@@ -42,6 +43,20 @@ hl = {
   end,
 }
 o = { shell_quote = function(value) return "'" .. value .. "'" end, launch = function(value) return value end }
+
+-- Fire the most recently armed restore watchdog. Hyprland's real timers run on
+-- their own; the fake ones are driven explicitly to simulate a dead exec path.
+local function retry_restore()
+  for i = #timers, 1, -1 do
+    if timers[i].timeout == 3000 then
+      local callback = timers[i].callback
+      table.remove(timers, i)
+      callback()
+      return
+    end
+  end
+  error("no restore retry was armed")
+end
 
 require("default.hypr.autostart")
 assert(not config.invisible, "loading the module must wait for user configuration")
@@ -142,6 +157,40 @@ omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
 env.XCURSOR_THEME, env.OMARCHY_STARTUP_CURSOR_SESSION, gsettings = "", "old-session", "'custom-cursor'\n"
 events["config.reloaded"]()
 assert(omarchy_startup_cursor.xcursor == "default", "an ordinary boot without a cursor theme keeps the default alias instead of adopting GSettings")
+
+-- hyprctl can be unreachable during the boot window, so its completion never
+-- acknowledges the restore. The watchdog must retry, then reveal the pointer
+-- from Lua rather than leaving it hidden for the whole session.
+local function cold_start()
+  omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
+  monitors = {}
+  env.XCURSOR_THEME, env.XCURSOR_PATH = "my-xcursor", "/my/icons"
+  env.OMARCHY_STARTUP_CURSOR_SESSION, env.OMARCHY_STARTUP_CURSOR_THEME = nil, nil
+  config.invisible, config.enable_hyprcursor, config.sync_gsettings_theme = false, true, true
+  events["config.reloaded"]()
+  recovery()
+  assert(command:match("hyprctl setcursor 'my%-xcursor'"))
+  return command
+end
+
+local stalled = cold_start()
+assert(omarchy_startup_cursor.restoring, "the restore waits for a completion")
+retry_restore()
+assert(command == stalled, "a missing completion retries the same restore")
+retry_restore()
+assert(command == stalled, "a second missing completion retries again")
+assert(omarchy_startup_cursor_pending, "the cursor is still pending before the retry limit")
+retry_restore()
+assert(not omarchy_startup_cursor_pending, "a dead exec path forces the reveal")
+assert(not config.invisible, "the forced reveal clears cursor invisibility")
+assert(config.enable_hyprcursor and config.sync_gsettings_theme, "the forced reveal restores the saved cursor config")
+
+cold_start()
+local completion = assert(command:match("hyprctl eval '(.*)'$"))
+assert(load(completion))()
+assert(not omarchy_startup_cursor_pending and not config.invisible, "a timely completion reveals the cursor")
+retry_restore()
+assert(not config.invisible and config.enable_hyprcursor, "the watchdog stays inert after a completed restore")
 io.popen = popen
 LUA
 pass "the first compositor frame starts blank and the reveal restores user cursor settings"
