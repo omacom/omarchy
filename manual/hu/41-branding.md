@@ -1,55 +1,55 @@
-# Márkajelzés
+# Arculat
 
-Az Omarchy lehetővé teszi, hogy a céges logódat vagy személyes képedet beállítsd a rendszerindítási feloldáshoz, a képernyővédőhöz és a névjegyképernyőhöz is.
+Az Omarchy lehetővé teszi, hogy vállalati logót vagy személyes képet állíts be a rendszerindítási feloldáshoz, a képernyővédőhöz és a névjegy képernyőhöz is.
 
 ### Rendszerindítási feloldás
 
-Az `omarchy plymouth preview` paranccsal megnézheted, hogyan nézne ki az egyéni logód és színeid. Ez egy háttérszínt, egy szövegszínt, egy logó png-t és az előnézeti kép elérési útját kapja:
+A `omarchy plymouth preview` paranccsal megnézheted, hogyan nézne ki az egyéni logód és színeid. Egy háttérszínt, egy szövegszínt, egy logo png-t és az előnézeti kép elérési útját várja:
 
 ```
 omarchy plymouth preview '#1d2021' '#ebdbb2' logo.png preview.png
 ```
 
-Ezután alkalmazd a beállítást az `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png` paranccsal, amely az SDDM bejelentkezési képernyőnek is ugyanazokat a színeket és logót adja. Ha vissza akarod vonni, használhatod az `omarchy plymouth reset` parancsot.
+Ezután alkalmazd a beállítást a `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png` paranccsal, amely az SDDM bejelentkezési képernyőnek is ugyanazokat a színeket és logót adja. Ha vissza akarod vonni, használd a `omarchy plymouth reset` parancsot.
 
  ![branding-plymouth-shopify](images/branding-plymouth-shopify.webp)
 
 ### Képernyővédő
 
-A képernyővédőhöz használt logót a _Stílus > Képernyővédő_ alatt változtathatod meg. Ez egy ASCII-logó, így a szöveget közvetlenül szerkesztheted, de adhatsz neki png vagy svg képet is, és átkonvertáljuk ASCII-vé. Elég jól néz ki.
+A képernyővédőhöz használt logót a _Megjelenés > Arculat > Képernyővédő_ alatt változtathatod meg. Ez egy ASCII-logó, így a szöveget közvetlenül szerkesztheted, de adhatsz neki png vagy svg képet is, mi pedig átalakítjuk ASCII-vé. Elég menőn néz ki.
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
 Három bejegyzés van abban a menüben:
 
-- A **Szöveg szerkesztése** megnyitja a `~/.config/omarchy/branding/screensaver.txt` fájlt a szerkesztődben. Írj vagy illessz be, amit akarsz — ASCII-művészetet, a neved, egy illetlen szót. Ments és lépj ki, és a képernyővédő azonnal beindul, hogy láthasd.
-- A **Képből beállítás** megnyit egy fájlválasztót egy png-hez vagy svg-hez, átkonvertálja ASCII-vé, és megmutatja az eredményt. A világos sziluettű logók sokkal jobban működnek, mint a fotók.
-- Az **Alap visszaállítása** visszateszi az Omarchy logót.
+- A **Szöveg szerkesztése** megnyitja a `~/.config/omarchy/branding/screensaver.txt` fájlt a szerkesztődben. Írj vagy illessz be, amit csak akarsz — ASCII-művészetet, a nevedet, egy trágár szót. Ments és lépj ki, és a képernyővédő azonnal elindul, hogy megnézhesd.
+- A **Beállítás képből** megnyit egy fájlválasztót egy png vagy svg fájlhoz, átalakítja ASCII-vé, és megmutatja az eredményt. A jól kivehető sziluettel rendelkező logók sokkal jobban működnek, mint a fotók.
+- Az **Alapértelmezett visszaállítása** visszateszi az Omarchy logót.
 
-### Névjegyképernyő
+### Névjegy képernyő
 
-Ugyanez a három lehetőség van a _Stílus > Névjegy_ alatt arra a _Névjegy_ képernyőre, amelyet az Omarchy menüből kapsz, és azonosan működnek — a fájl a `~/.config/omarchy/branding/about.txt`, és a Névjegy ablak minden változtatás után felugrik. A Névjegy grafikát kisebb méretűre konvertáljuk, mint a képernyővédőét, mivel egy ablakba kell beleférnie, nem pedig betöltenie a kijelződ.
+Ugyanez a három lehetőség található a _Megjelenés > Arculat > Névjegy_ alatt az Omarchy menüből elérhető _Névjegy_ képernyőhöz, és azonos módon működnek — a fájl a `~/.config/omarchy/branding/about.txt`, és a Névjegy ablak minden módosítás után felugrik. A névjegy grafikája kisebb méretre van átalakítva, mint a képernyővédőé, mivel egy ablakba kell beleférnie ahelyett, hogy kitöltené a kijelződet.
 
-Amíg az ablak nyitva van, néhány másodpercenként egy zöld fénysuhanás dől végig a grafikán, majd újra mozdulatlanul hagyja. A saját grafikád is megkapja, amennyiben benne minden karakter egy oszlop széles — és minden, amit a _Képből beállítás_ létrehoz, ilyen. Az emojikból vagy dupla szélességű karakterekből felépített grafika ehelyett mozdulatlan marad, és a képernyő is így marad, ha saját fastfetch-konfigurációd van: egy mozdulatlan logó ezekben az esetekben az, hogy az animáció félrehúzódik az útból, nem pedig meghibásodik, mivel egy fénysuhanást végigcsúsztatni rajtuk a sor többi részét rossz helyre tenné.
+Amíg az ablak nyitva van, néhány másodpercenként egy zöld csillanás suhan át a grafikán, majd ismét mozdulatlanul hagyja. A saját grafikád is megkapja ezt, feltéve, hogy minden karaktere egy oszlop széles — minden, amit a _Beállítás képből_ létrehoz, ilyen. Az emojikból vagy dupla szélességű karakterekből épített grafikák ehelyett mozdulatlanok maradnak, és a képernyő is mozdulatlan marad, ha saját fastfetch konfigurációt tartasz meg: a mozdulatlan logó ezekben az esetekben azt jelenti, hogy az animáció félreáll az útból, nem pedig azt, hogy meghibásodott, mivel egy csillanás átcsúsztatása rajtuk a sor többi részét rossz helyre tenné.
 
  ![branding-about](images/branding-about.webp)
 
-### Képek konvertálása saját kézzel
+### Képek átalakítása saját kezűleg
 
-Mindkét _Képből beállítás_ lehetőség csak az `omarchy transcode ascii` parancsot hívja, amelyet közvetlenül is futtathatsz, ha irányítani akarod a konvertálást:
+Mindkét _Beállítás képből_ lehetőség csak a `omarchy transcode ascii` parancsot hívja, amelyet közvetlenül is futtathatsz, ha te akarod irányítani az átalakítást:
 
 ```
 omarchy transcode ascii ~/logo.svg ~/.config/omarchy/branding/screensaver.txt --width 100
 ```
 
-Ez `--width` és `--height` értéket kap termináloszlopokban és -sorokban, egy `--mode` értéket, amely vagy `braille` (az alapértelmezett és sokkal finomabb) vagy `block`, egy `--threshold` százalékot annak eldöntésére, hogy mely pixelek számítanak a logó részének, és `--invert` kapcsolót arra az esetre, ha a logód világos sötét háttéren. Ha egy konvertálás egy nagy foltként jön ki, általában a küszöbérték az a gomb, amelyet tekerni kell.
+Fogad `--width` és `--height` értéket termináloszlopokban és -sorokban, egy `--mode` értéket, amely vagy `braille` (az alapértelmezett, és sokkal finomabb) vagy `block`, egy `--threshold` százalékot annak eldöntésére, hogy mely képpontok számítanak a logó részének, és `--invert` kapcsolót arra az esetre, ha a logód világos egy sötét háttéren. Ha egy átalakítás pacává válik, általában a küszöbérték az a gomb, amelyen tekerni kell.
 
 ### Szavak logó helyett
 
-Az `omarchy ascii` szöveget rajzol Delta Corps Priest 1-ben, abban a FIGlet-betűtípusban, amelyben maga az Omarchy szóvédjegy is rajzolva van, így egy képernyővédő mondhat valamit, ahelyett, hogy képet mutatna:
+A `omarchy ascii` Delta Corps Priest 1 betűtípussal rajzol szöveget, abban a FIGlet betűtípusban, amellyel maga az Omarchy szóvédjegy is készült, így a képernyővédő mondhat valamit ahelyett, hogy képet mutatna:
 
 ```
 omarchy ascii "Back in five" > ~/.config/omarchy/branding/screensaver.txt
 ```
 
-Argumentumként kapja a szöveget, vagy egy csővezetékből olvassa, ha egyet sem adnak neki. A betűtípus csak betűket és szóközöket hordoz — számjegyek és írásjelek nélkül rajzolták —, így minden más kikerül, és a stderr-en megnevezve, ahelyett, hogy csendben elnyelődne.
+A szöveget argumentumként fogadja, vagy egy csővezetékből olvassa, ha nem adsz meg egyet sem. A betűtípus csak betűket és szóközöket tartalmaz — számjegyek és írásjelek nélkül rajzolták — így minden más kimarad, és a stderr felületén megnevezésre kerül ahelyett, hogy csendben lenyelné.

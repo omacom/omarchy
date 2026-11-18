@@ -51,4 +51,4 @@ case $ACTION in
     ;;
 esac
 
-hyprctl reload >/dev/null
+omarchy-restart-hyprctl
