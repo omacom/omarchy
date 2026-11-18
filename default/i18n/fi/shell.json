@@ -55,7 +55,6 @@
   "agents.localHideOfferConfirm": "Piilota %1 paneelista? Lisää toinen › Paikallinen tekoäly asentaa sen silti.",
   "agents.localInstallingMeter": "Asennetaan",
   "agents.localLaunch": "Käynnistä agentti",
-  "agents.openFantasi": "Avaa Fantasi",
   "agents.localLoadingMeter": "Ladataan",
   "agents.localMemory": "Muisti",
   "agents.localMemoryFact": "%1 GiB muistia",

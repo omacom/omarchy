@@ -53,7 +53,6 @@
   "agents.localHideOfferConfirm": "ซ่อน %1 จากแผงหรือไม่? เพิ่มอีก › AI ในเครื่องยังตั้งค่าให้ได้",
   "agents.localInstallingMeter": "กำลังติดตั้ง",
   "agents.localLaunch": "เปิดเอเจนต์",
-  "agents.openFantasi": "เปิด Fantasi",
   "agents.localLoadingMeter": "กำลังโหลด",
   "agents.localMemory": "หน่วยความจำ",
   "agents.localMemoryFact": "หน่วยความจำ %1 GiB",

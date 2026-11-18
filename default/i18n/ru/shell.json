@@ -59,7 +59,6 @@
   "agents.localHideOfferConfirm": "Скрыть %1 из панели? Настроить его по-прежнему можно через «Добавить ещё › Локальный ИИ».",
   "agents.localInstallingMeter": "Установка",
   "agents.localLaunch": "Запустить агента",
-  "agents.openFantasi": "Открыть Fantasi",
   "agents.localLoadingMeter": "Загрузка",
   "agents.localMemory": "Память",
   "agents.localMemoryFact": "%1 GiB памяти",
