@@ -24,6 +24,7 @@ ShellRoot {
   QtObject {
     id: background
     property bool suspended: false
+    property bool suspendedForLoop: false
     property bool ready: true
     property string currentBackground: test.stage + "/old.png"
     property string displayedBackground: test.stage + "/old.png"
@@ -103,11 +104,14 @@ ShellRoot {
       test.check(intro.themeBackground === "" && !intro.revealing, "the cut has finished")
       // A theme switch hands over the clip it prepared while its templates rendered.
       intro.prepareTheme(test.stage + "/other.png", "theme-1", "", "")
+      // OWE had been playing a theme loop when the theme switch began.
+      background.suspendedForLoop = true
       test.check(sw.play("theme-1", test.stage + "/new.png", test.stage + "/intros/new.mp4", "true") === "ok",
                  "a theme switch hands its intro over")
     } },
     { delay: 2000, run: function() {
       test.check(intro.themeToken === "" && !sw.reloadPending, "the theme switch has revealed and reloaded")
+      test.check(!background.suspendedForLoop, "an intro that takes over from a loop hands back as an intro, with no fade")
       // A loop swap made while a change no longer tracked here holds the
       // cover. The test reads whether it ran again from the file of applies.
       sw.token = ""

@@ -178,6 +178,8 @@ Item {
     // background plugin disabled the cover still has to come down.
     if (backgroundService) backgroundService.setBackground(still, true)
     if (clip && coverStatus !== "error") {
+      // OWE plays the intro now, not a loop it may have been playing.
+      if (backgroundService && backgroundService.suspendedForLoop !== undefined) backgroundService.suspendedForLoop = false
       playProc.forToken = token
       playProc.command = prepared
         ? ["owe", "intro", "--start", "first-frame", "--refresh", clip]

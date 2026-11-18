@@ -20,14 +20,22 @@ Item {
 
   property string currentBackground: ""
   property string displayedBackground: ""
-  // Coming back from a video, the layer fades in over OWE's last frames,
-  // which stay up until OWE parks, instead of cutting from wherever the
-  // video had moved to.
+  // Coming back from a theme loop to a different picture, the layer fades in
+  // over OWE's last frames, which stay up until OWE parks, instead of cutting
+  // from wherever the loop had moved to. Intros and videos of the user's own
+  // hand back as they always have.
   property real resumeOpacity: 1
+  // Whether the video OWE plays is a theme loop. OWE stays suspended from one
+  // video to the next, so it follows each one; BackgroundSwitch clears it
+  // when an intro starts.
+  property bool suspendedForLoop: false
   onSuspendedChanged: {
     resumeFade.stop()
-    if (suspended) wasLoop = isLoop(currentBackground)
-    resumeOpacity = suspended || wasLoop ? 1 : 0
+    if (suspended) {
+      wasLoop = isLoop(currentBackground)
+      suspendedForLoop = wasLoop
+    }
+    resumeOpacity = suspended || wasLoop || !suspendedForLoop ? 1 : 0
   }
   // A theme loop starts on its still, so the still and the loop meet on the
   // same picture, and turned off it gives way at once, like any motion with
@@ -39,6 +47,7 @@ Item {
   // Anything else taking a loop's place, a video of the user's own or another
   // still, comes back with the ordinary fade, since it is a different picture.
   onCurrentBackgroundChanged: {
+    if (suspended && isVideo(currentBackground)) suspendedForLoop = isLoop(currentBackground)
     if (isLoop(currentBackground)) {
       wasLoop = true
       lastLoop = currentBackground

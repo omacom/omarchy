@@ -47,3 +47,19 @@ output=$(HOME="$reveal/home" timeout 10 quickshell -p "$reveal" --no-color 2>&1)
 [[ $output == *"RESULT pass"* && $output != *"RESULT fail"* ]] || fail "every screen slides together and keeps its frame until its new background is drawn" "$output"
 pass "every screen joins the reveal, also one that decoded after it started"
 pass "the reveal comes down only after every screen has drawn its new background"
+
+# Only a theme loop giving way to a different picture fades the still layer
+# back in; intros and videos of the user's own come back as they always have.
+resume=$(mktemp -d)
+trap 'rm -rf "$stage" "$reveal" "$resume"' EXIT
+mkdir -p "$resume/home/.local/state/omarchy/current" "$resume/home/backgrounds/loops"
+ln -s "$ROOT/shell/plugins/background" "$resume/background"
+ln -s "$ROOT/shell/Commons" "$resume/Commons"
+ln -s "$ROOT/shell/Ui" "$resume/Ui"
+magick -size 128x128 xc:magenta "$resume/home/backgrounds/1-sky.png"
+magick -size 128x128 xc:cyan "$resume/home/backgrounds/2-sea.png"
+ln -s "$resume/home/backgrounds/1-sky.png" "$resume/home/.local/state/omarchy/current/background"
+cp "$SHELL_TEST_DIR/fixtures/background-loop-resume/shell.qml" "$resume/shell.qml"
+output=$(HOME="$resume/home" timeout 10 quickshell -p "$resume" --no-color 2>&1) || fail "loop resume fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* && $output != *"RESULT fail"* ]] || fail "only a theme loop giving way to a different picture fades back in" "$output"
+pass "intros and videos of the user's own hand back with no fade; a theme loop fades only into a different picture"
