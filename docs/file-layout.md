@@ -54,6 +54,8 @@ behind, which arms `omarchy-provision-owner.service` (shipped from
 `setup-form.sh`). On first boot `bin/omarchy-provision-owner` creates the
 user on tty1 and runs the finalize step itself.
 
+An ISO built for an OEM (`omarchy-iso-make --oem-config`) also leaves `/etc/omarchy/oem/`: `oem.json` (`name`, and optionally `tagline`, `color` and `eula_title`), `logo.txt` and `eula.txt`. `install/provisioning/oem.sh` reads them for `omarchy-provision-owner`, which opens on the OEM's logo, tagline and colour in place of Omarchy's, keeps Omarchy's logo through the steps of the form, and under the OEM's again asks for the agreement as its last question, before it creates anything. A logo in braille dots has them drawn into the console font by `console-font.py` while those two screens are up; whose agreement was accepted, by whom and when goes to `/var/lib/omarchy/oem/eula-accepted.json`. The directory is part of the factory snapshot, so the owner after a factory reset is asked again.
+
 On an encrypted install `omarchy-provision-owner` then re-keys LUKS from the staged install key to the owner's password through `install/provisioning/luks-rekey.sh`, which journals each step (phase and slot numbers, never keys) in `/var/lib/omarchy/provisioning/luks-rekey.state` so an interrupted first boot resumes. Setup finishes only once the staged key opens nothing, and removes the journal with `pending`, so a retry after the staged key is retired must use the password the disk holds. On a platform whose boot package owns the boot chain, the check before the owner form, the boot-time unlock and the record of the kept key slot go through `omarchy-lifecycle-dispatch`. See [lifecycle-dispatch.md](lifecycle-dispatch.md).
 
 `omarchy-drive-password` reuses those journal helpers when the owner changes the password of the disk holding `/`: it changes the LUKS key and confirms the new key opens the disk and the old one no longer does. The login and root passwords are left alone. `~/.local/state/omarchy/drive-password.state` records the disk's UUID, the key slots and the phase (never a password) until the change is confirmed and its slot recorded, and the next run finishes an interrupted change with whichever of the old or new password the disk opens with.
@@ -83,6 +85,7 @@ default/libalpm/hooks/*.hook
 install/**                     ──►  omarchy             /usr/share/omarchy/install/
 migrations/**                  ──►  omarchy             /usr/share/omarchy/migrations/
 themes/**                      ──►  omarchy             /usr/share/omarchy/themes/
+icons/**                       ──►  omarchy             /usr/share/omarchy/icons/    (icon sets, see theming.md "App icons")
 shell/**                       ──►  omarchy             /usr/share/omarchy/shell/
 version                        ──►  omarchy             /usr/share/omarchy/version
                                                         + /etc/skel/.local/state/omarchy/migrations/*
@@ -91,7 +94,6 @@ config/**                      ──►  omarchy-settings    /etc/skel/.config/
                                                         /usr/share/omarchy/config/** (resync source)
 etc/fastfetch/config.jsonc     ──►  omarchy-settings    /etc/fastfetch/config.jsonc
 etc/xdg/kitty/kitty.conf       ──►  omarchy-settings    /etc/xdg/kitty/kitty.conf
-etc/mpv/mpv.conf               ──►  omarchy-settings    /etc/mpv/mpv.conf            (hardware decoding; ~/.config/mpv wins)
 etc/xkb/{rules/evdev,symbols/omarchy}
                                ──►  omarchy-settings    /etc/xkb/                    (Shift + Caps Lock compose option)
 
@@ -103,7 +105,7 @@ default/applications/*.desktop
 applications/icons/*           ──►  omarchy-settings    /usr/share/icons/hicolor/{48,256,scalable}/apps/
 
 etc/**                         ──►  omarchy-settings    /etc/**           (drop-ins we own outright)
-  ├─ mkinitcpio.conf.d/{00-omarchy-hooks,omarchy_hooks,thunderbolt_module}.conf
+  ├─ mkinitcpio.conf.d/{00-omarchy-hooks,omarchy_compression,omarchy_hooks,thunderbolt_module}.conf
   ├─ limine-entry-tool.d/{omarchy-defaults,omarchy-uki}.conf
   ├─ mise/conf.d/{omarchy,omarchy-tools,omarchy-agent-accounts}.toml
   ├─ NetworkManager/, sudoers.d/, sysctl.d/, tmpfiles.d/,
@@ -134,6 +136,7 @@ default/**                     ──►  omarchy-settings    /usr/share/omarchy
   ├─ applications/mimeapps.list                         /usr/share/applications/mimeapps.list
   ├─ systemd/user/*.service                             /usr/lib/systemd/user/
   ├─ systemd/user/app.slice.d/10-oomd.conf              /usr/lib/systemd/user/app.slice.d/
+  ├─ systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf  /usr/lib/systemd/user/wireplumber.service.d/
   ├─ systemd/system-sleep/unmount-fuse                  /usr/lib/systemd/system-sleep/
   ├─ systemd/zram-generator.conf.d/90-omarchy.conf      /usr/lib/systemd/zram-generator.conf.d/
   ├─ systemd/timesyncd.conf.d/10-omarchy.conf          /usr/lib/systemd/timesyncd.conf.d/
@@ -217,7 +220,7 @@ upgrade. This is documented in the PKGBUILD.
 
 `default/systemd/system/plocate-updatedb.service.d/10-omarchy.conf` ships through `omarchy-settings` to `/usr/lib/systemd/system/plocate-updatedb.service.d/10-omarchy.conf`. It replaces the existing service's `ExecStart` with `updatedb --prune-bind-mounts=no --add-prunepaths=/.snapshots`, keeping Btrfs subvolume mounts searchable and excluding Snapper snapshots. The upstream service retains its timer, resource limits, and sandbox; Omarchy's existing AC-power condition still applies.
 
-`/etc/updatedb.conf` remains owned by plocate and is never rewritten by Omarchy. The command-line options override bind-mount pruning and add to the administrator's existing path exclusions. Installer and AUR package refreshes pass the same options directly because installation may run without systemd and an explicitly requested refresh should work on battery.
+`/etc/updatedb.conf` remains owned by plocate and is never rewritten by Omarchy. The command-line options override bind-mount pruning and add to the administrator's existing path exclusions. AUR package refreshes pass the same options directly because an explicitly requested refresh should work on battery. A fresh install builds no database: the timer is `Persistent`, so the first run comes soon after first boot, once on AC power.
 
 Arch's systemd package hook reloads units when the vendor drop-in is installed or upgraded. The settings package containing the drop-in must ship alongside the runtime package that removes the old configuration helper and migration. Pacman removes those retired files; no new state migration is needed. A running indexer finishes with its original options, and subsequent service starts use the drop-in. For an immediate local test after installing the packages, restart `plocate-updatedb.service` while connected to AC power.
 
@@ -329,8 +332,6 @@ first runs `omarchy-provision-user || true` so finalize catches up if it
 never ran, then handles the steps that need a running graphical session
 and/or a working user systemd instance:
 
-- `omarchy-hook-install post-update` for the two shipped hooks
-  (`setup-fingerprint.hook`, `setup-agent.hook`).
 - `install/user/first-run/enable-user-units.sh` — daemon-reload, then
   `systemctl --user enable --now` the shipped user units (`bt-agent`,
   `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`,
@@ -350,8 +351,7 @@ and/or a working user systemd instance:
   first login and opens the cheatsheet when clicked. The caller runs
   `omarchy-notification-wait` once before this and the Wi-Fi step, so both
   toasts land on a live notification server.
-- `install/user/first-run/wifi.sh` — Wi-Fi/update toasts (waits detached on
-  `nm-online` so the update prompt only lands once there is a connection).
+- `install/user/first-run/wifi.sh` — Wi-Fi toast, then (waiting detached on `nm-online` for the first connection, however long that takes) the default-agent and fingerprint invitations (`setup-agent.hook`, `setup-fingerprint.hook`) and the update toast. Each invitation is sent only once.
 
 The entire sequence has one idempotency marker:
 `~/.local/state/omarchy/done/first-run-user`, managed by `omarchy-done`.
@@ -377,7 +377,7 @@ finalization. It sources:
   device-specific kernel modules, udev rules, microcode, wireless regdom,
   ASUS / Framework / Intel / Apple / Lenovo quirks.
 - `install/login/all.sh` — SDDM theme/session config.
-- `install/post-install/all.sh` — final pacman/udev/localdb passes.
+- `install/post-install/all.sh` — final pacman and udev passes; the `plocate-updatedb` timer builds the locate database after first boot.
 
 Logging goes to `/var/log/omarchy-install.log` via
 `install/helpers/logging.sh`.

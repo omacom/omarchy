@@ -56,7 +56,7 @@ chromium)
   ;;
 chrome)
   echo "Installing Chrome..."
-  omarchy-pkg-aur-add google-chrome || exit 1
+  omarchy-pkg-add google-chrome
 
   setup_chromium_policy_directory /etc/opt/chrome/policies/managed
   copy_chromium_flags ~/.config/chrome-flags.conf
