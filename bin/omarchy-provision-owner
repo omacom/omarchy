@@ -403,7 +403,9 @@ render_setup_finish() {
 # the logo (vertically centered like the boot logo) running a looping ColorShift,
 # the Omarchy tagline, and a hint. Return skips ahead into setup at any time.
 greeter_screen() {
-  local anim="" drawn_sig cur_sig resized=0
+  local anim="" drawn_sig cur_sig resized=0 interrupted=0 int_trap
+  int_trap=$(trap -p INT)
+  trap 'interrupted=1' INT
 
   # Paint the whole splash for the console's *current* geometry. Kept in a
   # nested function so the wait loop below can repaint it verbatim if the VT
@@ -522,6 +524,20 @@ greeter_screen() {
   # repaint — so a resize arriving five seconds in looks the same as one that
   # never happened.
   while true; do
+    if ((interrupted)); then
+      interrupted=0
+      _greeter_kill_anim
+      stty sane </dev/tty 2>/dev/null || true
+      printf '%s%s%s' "$RESET" "$CLEAR" "$SHOW_CURSOR"
+      fit_console_font
+      trap : INT
+      confirm_reboot && exec systemctl reboot
+      trap 'interrupted=1' INT
+      brand_console_font
+      _greeter_draw
+      drawn_sig=$(console_signature 2>/dev/null || true)
+      continue
+    fi
     if IFS= read -r -t 0.2 _ </dev/tty; then
       break
     fi
@@ -544,6 +560,8 @@ greeter_screen() {
   done
 
   trap - WINCH
+  trap - INT
+  eval "$int_trap"
   _greeter_kill_anim
   # ttfx leaves the tty in raw/no-echo mode when killed; restore it or the gum
   # prompts in the keyboard step that follows silently die. Then clear the
