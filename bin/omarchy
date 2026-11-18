@@ -1106,6 +1106,8 @@ dispatch_fast_or_help() {
 dispatch_or_help() {
   local args=("$@")
   local remaining=()
+  local prefix_args=()
+  local arg=""
   local key=""
   local binary_path=""
   local suggestion=""
@@ -1152,14 +1154,20 @@ dispatch_or_help() {
     return 0
   fi
 
-  if show_prefix_help "omarchy ${args[*]}"; then
+  for arg in "${args[@]}"; do
+    [[ $arg == "--" ]] && break
+    [[ $arg == "--help" || $arg == "-h" ]] && continue
+    prefix_args+=("$arg")
+  done
+
+  if show_prefix_help "omarchy ${prefix_args[*]}"; then
     return 0
   fi
 
   echo "Unknown Omarchy command: omarchy ${args[*]}" >&2
   suggestion=$(suggest_command "${args[0]}")
   if [[ -n $suggestion ]]; then
-    echo "Did you mean: omarchy $suggestion ?" >&2
+    echo "Did you mean: omarchy $suggestion" >&2
   fi
   echo "Run 'omarchy commands --all' to discover available commands." >&2
   return 127
