@@ -5,10 +5,13 @@
 # omarchy:examples=omarchy pkg add jq ripgrep
 # omarchy:requires-sudo=true
 
+trap 'exit 130' INT
+
 if omarchy-pkg-missing "$@"; then
   if (( EUID == 0 )); then
     pacman -S --noconfirm --needed -- "$@" || exit 1
   else
+    sudo true || exit 130
     sudo pacman -S --noconfirm --needed -- "$@" || exit 1
   fi
 fi

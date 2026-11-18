@@ -3,6 +3,9 @@
 # omarchy:summary=Install and start the Dropbox service. Must then be authenticated via the web.
 # omarchy:requires-sudo=true
 
+set -e
+trap 'exit 130' INT
+
 echo "Installing all dependencies..."
 omarchy-pkg-add dropbox dropbox-cli libappindicator python-gpgme
 
