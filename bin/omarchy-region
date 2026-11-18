@@ -86,14 +86,14 @@ set_region() {
   } >"$session_env"
   apply_session_env "${assignments[@]}"
 
-  omarchy-notification-send -g "$(omarchy-i18n region.changed "$name")" "$(omarchy-i18n language.newApps)"
+  omarchy-notification-send -g 󰃰 "$(omarchy-i18n region.changed "$name")" "$(omarchy-i18n language.newApps)"
 }
 
 follow_language() {
   rm -f "$session_env"
   apply_session_env "${categories[@]/%/=}"
 
-  omarchy-notification-send -g "$(omarchy-i18n region.followsLanguage)" "$(omarchy-i18n language.newApps)"
+  omarchy-notification-send -g 󰃰 "$(omarchy-i18n region.followsLanguage)" "$(omarchy-i18n language.newApps)"
 }
 
 case "${1:-}" in
