@@ -402,6 +402,72 @@ apply env SELECTED="$loop"
   fail "a link behind the shell's loop catches up" "$(<"$command_log") $(readlink "$link")"
 pass "a link behind the shell's loop catches up"
 
+# The other way round: a shell already back on the still while the link still
+# names the loop, as when a swap outlived the call's timeout, gets the link
+# back on the still rather than leaving the loop playing.
+ln -nsf "$loop" "$link"
+apply env SELECTED="$background" ANIMATIONS=off
+[[ $(<"$command_log") == "shell: shell replaceBackground $background $background" && $(readlink "$link") == "$background" ]] ||
+  fail "a link left on the loop catches up with the shell's still" "$(<"$command_log") $(readlink "$link")"
+pass "a link left on the loop catches up with the shell's still"
+
+# A link to a loop whose folder has gone, with its package removed or behind
+# the stills, returns to its still, at login and on any later apply.
+gone="$loop_home/gone/backgrounds"
+mkdir -p "$gone"
+printf 'gone still\n' >"$gone/1-sky.png"
+ln -nsf "$gone/loops/1-sky.mp4" "$link"
+apply env
+[[ $(readlink "$link") == "$gone/1-sky.png" && $(<"$command_log") == "shell: -q background set $gone/1-sky.png" ]] ||
+  fail "a link to a vanished loop returns to its still" "$(readlink "$link") $(<"$command_log")"
+ln -nsf "$gone/loops/1-sky.mp4" "$link"
+still=$(HOME="$loop_home" PATH="$command_bin:$PATH" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-loop-apply" --still-only)
+[[ $still == "$gone/1-sky.png" && $(readlink "$link") == "$gone/1-sky.png" ]] ||
+  fail "a shell starting on a vanished loop starts on its still" "$still $(readlink "$link")"
+ln -nsf "$loop_home/gone-videos/clip.mp4" "$link"
+still=$(HOME="$loop_home" PATH="$command_bin:$PATH" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-loop-apply" --still-only)
+[[ -z $still && $(readlink "$link") == "$loop_home/gone-videos/clip.mp4" ]] ||
+  fail "a vanished video of the user's own is left as it was" "$still $(readlink "$link")"
+pass "a link to a vanished loop returns to its still"
+
+# An OWE that does not answer cannot hold the loop lock, which a shell
+# relaunch waits on.
+cat >"$command_bin/owe" <<'SH'
+#!/bin/bash
+sleep 10
+SH
+ln -nsf "$background" "$link"
+timeout 3 bash -c "$(declare -f apply); command_log='$command_log' loop_home='$loop_home' command_bin='$command_bin' ROOT='$ROOT' apply env" ||
+  fail "a silent OWE does not hold the loop lock"
+# It may be playing an intro, which moving the link would cancel.
+[[ $(readlink "$link") == "$background" && -z $(<"$command_log") ]] || fail "a silent OWE keeps the link" "$(readlink "$link") $(<"$command_log")"
+pass "a silent OWE does not hold the loop lock, and keeps the link"
+
+# One that ignores the request to stop is killed a second later.
+cat >"$command_bin/owe" <<'SH'
+#!/bin/bash
+trap '' TERM
+sleep 10
+SH
+ln -nsf "$background" "$link"
+timeout 4 bash -c "$(declare -f apply); command_log='$command_log' loop_home='$loop_home' command_bin='$command_bin' ROOT='$ROOT' apply env" ||
+  fail "an OWE that ignores the request to stop does not hold the loop lock"
+[[ $(readlink "$link") == "$background" ]] || fail "an OWE killed for hanging keeps the link" "$(readlink "$link")"
+pass "an OWE that ignores the request to stop is killed and keeps the link"
+
+# A stopped OWE answers at once with a failure, and plays nothing to cancel.
+cat >"$command_bin/owe" <<'SH'
+#!/bin/bash
+exit 1
+SH
+ln -nsf "$loop" "$link"
+rm "$loop_home/.local/state/omarchy/toggles/background-loops-on"
+apply env
+[[ $(readlink "$link") == "$background" ]] || fail "a stopped OWE lets a loop return to its still" "$(readlink "$link")"
+touch "$loop_home/.local/state/omarchy/toggles/background-loops-on"
+pass "a stopped OWE lets a loop return to its still"
+stub_owe_status
+
 # Without an answer from the shell, a playing intro keeps the link: moving it
 # would cancel the intro.
 ln -nsf "$background" "$link"
@@ -467,7 +533,10 @@ pass "picking a still with a loop starts it after the shell has the still"
 
 : >"$command_log"
 HOME="$loop_home" PATH="$command_bin:$PATH" COMMAND_LOG="$command_log" SELECTED="$background" ANIMATIONS=off "$ROOT/bin/omarchy-theme-bg-set" "$background"
-[[ $(<"$command_log") == "shell: shell switchBackground $background " ]] || fail "a queued still stays a still with animations off" "$(<"$command_log")"
+# The link still names the loop, so the shell is asked to keep its still and
+# the link catches up; no loop is asked for.
+[[ $(<"$command_log") == "shell: shell switchBackground $background "* && $(<"$command_log") != *"$loop"* && $(readlink "$link") == "$background" ]] ||
+  fail "a queued still stays a still with animations off" "$(<"$command_log")"
 pass "a queued still stays a still with animations off"
 
 ln -nsf "$other" "$link"

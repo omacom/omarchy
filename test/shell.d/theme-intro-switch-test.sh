@@ -87,8 +87,8 @@ if [[ $1 == intro && -n ${TEST_RELEASE:-} ]]; then
   printf '%s\n' "$$" >"$TEST_INTRO_PID"
 fi
 printf 'owe: %s\n' "$*" >>"$TEST_LOG"
-if [[ $1 == status && ${TEST_INTRO_PLAYING:-false} == true ]]; then
-  echo '{"intro":true}'
+if [[ $1 == status ]]; then
+  [[ ${TEST_INTRO_PLAYING:-false} == true ]] && echo '{"intro":true}' || echo '{"intro":false}'
 fi
 [[ ${TEST_OWE_FAIL:-false} != true ]] || exit 1
 if [[ $1 == "render" ]]; then
@@ -247,3 +247,29 @@ OMARCHY_PACKAGED_THEMES_PATH="$packaged" set_theme solitude
 [[ -f $state/theme/backgrounds/intros/1-on-pole.mp4 ]] || fail "a checkout's theme stages the packaged intro"
 [[ -f $state/theme/backgrounds/loops/1-on-pole.mp4 ]] || fail "a checkout's theme stages the packaged loop"
 pass "themes staged from a checkout take their intros and loops from the package"
+
+# A refresh while a loop plays restages the theme, and when the loop is no
+# longer there the background goes back to its still instead of a dead link.
+set_theme alpha
+ln -nsf "$state/theme/backgrounds/loops/1-sky.mp4" "$state/background"
+OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme alpha
+[[ $(readlink "$state/background") == "$state/theme/backgrounds/1-sky.webp" ]] ||
+  fail "a refresh that takes the playing loop away returns to its still" "$(readlink "$state/background")"
+pass "a refresh that takes the playing loop away returns to its still"
+
+# With live backgrounds on, a refresh that brings the still's loop in, as the
+# migration installing omarchy-themes-loops does, starts it. Packaged loops
+# belong to the built-in themes.
+packaged_loops="$test_tmp/packaged-loops"
+mkdir -p "$packaged_loops/solitude/backgrounds" "$home/.local/state/omarchy/toggles"
+OMARCHY_PACKAGED_THEMES_PATH="$packaged_loops" set_theme solitude
+still=$(printf '%s\n' "$state/theme/backgrounds/1-on-pole".* | head -1)
+ln -nsf "$still" "$state/background"
+mkdir -p "$packaged_loops/solitude/backgrounds/loops"
+printf 'loop\n' >"$packaged_loops/solitude/backgrounds/loops/1-on-pole.mp4"
+touch "$home/.local/state/omarchy/toggles/background-loops-on"
+OMARCHY_PACKAGED_THEMES_PATH="$packaged_loops" OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme solitude
+[[ $(readlink "$state/background") == "$state/theme/backgrounds/loops/1-on-pole.mp4" ]] ||
+  fail "a refresh that brings the still's loop in starts it" "$(readlink "$state/background")"
+pass "a refresh that brings the still's loop in starts it"
+rm "$home/.local/state/omarchy/toggles/background-loops-on"

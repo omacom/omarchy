@@ -656,7 +656,10 @@ if [[ $THEME_HEADLESS != "1" ]]; then
 
   # Without an intro, the theme's loop takes over once the still's transition
   # and the Hyprland reload above are done; an intro starts it after playback.
-  if [[ -z $THEME_INTRO_TOKEN && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
+  # A refresh runs it too while live backgrounds are on or a loop plays, since
+  # restaging may have brought the still's loop in or taken it away.
+  if [[ -z $THEME_INTRO_TOKEN ]] &&
+    { [[ $OMARCHY_THEME_SKIP_BACKGROUND != "1" || $(readlink "$CURRENT_BACKGROUND_LINK") == */backgrounds/loops/* ]] || theme_bg_loops_on; }; then
     omarchy-theme-bg-loop-apply 9>&- || true
   fi
 
