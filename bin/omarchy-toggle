@@ -10,6 +10,11 @@ fi
 
 FLAG_NAME="$1"
 ACTION="${2:-toggle}"
+
+if [[ $FLAG_NAME != "flags" && -f $OMARCHY_PATH/default/hypr/toggles/$FLAG_NAME.lua ]]; then
+  exec omarchy-hyprland-toggle "$FLAG_NAME" "$ACTION"
+fi
+
 FLAG="$HOME/.local/state/omarchy/toggles/$FLAG_NAME"
 
 enable() {
