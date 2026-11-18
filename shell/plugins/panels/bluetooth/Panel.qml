@@ -425,8 +425,6 @@ Panel {
 
   onOpenedChanged: {
     if (opened) {
-      // A radio shown as off may have been unplugged since: re-ask rfkill.
-      if (adapter === null) blockedQuery.running = true
       // Adopt a discovery session that is already running — a popout handoff
       // from another monitor, or one leaked by an instance that could not
       // finish its own stop — so this close settles it either way.
@@ -655,27 +653,39 @@ Panel {
   function toggleBluetooth() {
     if (!radioPresent) return
     Quickshell.execDetached(["omarchy-bluetooth-power", radioEnabled ? "off" : "on"])
-    if (adapter === null) absentRecheck.restart()
-  }
-
-  // Turning on a radio that was unplugged while off brings no adapter back, so
-  // nothing else would ever take the widget down. Ask rfkill again once the
-  // unblock has had time to bring a real adapter up.
-  Timer {
-    id: absentRecheck
-    interval: 5000
-    onTriggered: if (root.adapter === null) blockedQuery.running = true
   }
 
   // Asked only while BlueZ has no adapter: with one present, its own Powered
   // property already carries the state and rfkill can only agree with it.
-  // Nothing polls: besides the adapter leaving and startup, it is asked only
-  // when the panel opens or its switch is used, the moments a removable radio
-  // unplugged while off would otherwise leave a dead switch on the bar.
+  // Nothing polls: it is asked when the adapter leaves, at startup, and when a
+  // Bluetooth rfkill switch changes while the widget shows a radio that is off.
   Process {
     id: blockedQuery
+    property bool again: false
     command: ["omarchy-bluetooth-power", "is-blocked"]
-    onExited: function(exitCode) { root.radioPresent = root.adapter !== null || exitCode === 0 }
+    onExited: function(exitCode) {
+      root.radioPresent = root.adapter !== null || exitCode === 0
+      if (again) { again = false; running = true }
+    }
+  }
+
+  function requeryBlocked() {
+    if (blockedQuery.running) blockedQuery.again = true
+    else blockedQuery.running = true
+  }
+
+  // A removable radio unplugged while off takes its rfkill switch with it but
+  // brings no adapter change, since the adapter was already gone. Follow the
+  // switches only in that state, so the widget leaves the bar with the radio
+  // instead of keeping a switch that can bring nothing back.
+  Process {
+    running: root.adapter === null && root.radioPresent
+    command: ["rfkill", "event"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        if (/ type 2 /.test(String(line))) root.requeryBlocked()
+      }
+    }
   }
 
   onAdapterChanged: {

@@ -301,12 +301,21 @@ cat >"$stage/bin/omarchy-bluetooth-power" <<'SH'
 printf '%s\n' "$1" >>"$BT_TEST_DIR/log"
 case $1 in
   off) echo blocked >"$BT_TEST_DIR/rfkill" ;;
-  on) [[ $(<"$BT_TEST_DIR/rfkill") == none ]] || echo unblocked >"$BT_TEST_DIR/rfkill" ;;
-  unplug) echo none >"$BT_TEST_DIR/rfkill" ;;
+  on) echo unblocked >"$BT_TEST_DIR/rfkill" ;;
+  unplug)
+    echo none >"$BT_TEST_DIR/rfkill"
+    echo "idx 9 type 2 op 1 soft 1 hard 0" >>"$BT_TEST_DIR/rfkill-events"
+    ;;
   is-blocked) [[ $(<"$BT_TEST_DIR/rfkill") == blocked ]] ;;
 esac
 SH
-chmod +x "$stage/bin/omarchy-bluetooth-power"
+# rfkill event: the switch changes the panel follows while the radio is off.
+cat >"$stage/bin/rfkill" <<'SH'
+#!/bin/bash
+[[ $1 == event ]] && exec tail -n0 -F "$BT_TEST_DIR/rfkill-events" 2>/dev/null
+SH
+chmod +x "$stage/bin/omarchy-bluetooth-power" "$stage/bin/rfkill"
+: >"$stage/rfkill-events"
 echo unblocked >"$stage/rfkill"
 
 output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" BT_TEST_DIR="$stage" \
