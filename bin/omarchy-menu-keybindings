@@ -502,11 +502,7 @@ BEGIN {
     action = $3;
     dispatcher = $4;
 
-    # Reconstruct the dispatcher arg from the remaining fields
-    arg = "";
-    for (i = 5; i <= NF; i++) {
-        arg = arg $i (i < NF ? "," : "");
-    }
+    arg = $5;
 
     if (action == "") {
         # Reconstruct the command from the remaining fields
