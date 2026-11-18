@@ -78,3 +78,32 @@ backup_shell=$(find "$home/.config/omarchy" -name 'shell.json.bak.*' -print -qui
 mode_bak=$(stat -c '%a' "$backup_shell")
 [[ $mode_bak == "600" ]] || fail "refresh-config ensures shell.json backup has mode 0600" "mode: $mode_bak"
 pass "refresh-config secures updated shell.json and its backup with mode 0600"
+
+# Both sides of a traversal have to exist for the escape to be live: without a
+# mirrored source the pre-existing "Not a shipped user config" check rejects it
+# anyway, and the test passes with the guard deleted.
+escape="$home/escape"
+echo "do not touch" >"$escape"
+echo "-- traversal source" >"$omarchy_path/escape"
+
+refuses() {
+  local config_file="$1"
+
+  if HOME="$home" OMARCHY_PATH="$omarchy_path" "$ROOT/bin/omarchy-refresh-config" "$config_file" >"$tmpdir/out" 2>"$tmpdir/err"; then
+    fail "refresh-config rejects $config_file"
+  fi
+
+  grep -Fq "Invalid config path: $config_file" "$tmpdir/err" ||
+    fail "refresh-config reports $config_file as an invalid config path" "$(cat "$tmpdir/err")"
+
+  [[ $(cat "$escape") == "do not touch" ]] ||
+    fail "refresh-config leaves files outside .config untouched: $config_file"
+}
+
+refuses ../escape
+refuses hypr/../../escape
+refuses ..
+refuses hypr/..
+refuses /etc/passwd
+
+pass "refresh-config rejects paths escaping .config"

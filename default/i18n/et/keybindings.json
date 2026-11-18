@@ -1,6 +1,7 @@
 {
   "Activity": "Tegevus",
   "Agent": "Agent",
+  "Agents": "Agendid",
   "Apps": "Rakendused",
   "Audio": "Heli",
   "Background switcher": "Tausta vahetaja",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "Too aktiivne aken ette",
   "Save window width": "Salvesta akna laius",
   "Screenrecording": "Ekraanisalvestus",
+  "Screenrecording with no audio": "Ekraanisalvestus ilma helita",
   "Screenshot": "Ekraanipilt",
   "Scroll active workspace backward": "Keri aktiivset tööala tagasi",
   "Scroll active workspace forward": "Keri aktiivset tööala edasi",

@@ -1,6 +1,7 @@
 {
   "Activity": "Actividad",
   "Agent": "Agente",
+  "Agents": "Agentes",
   "Apps": "Aplicaciones",
   "Audio": "Audio",
   "Background switcher": "Cambiar fondo",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "Mostrar ventana activa al frente",
   "Save window width": "Guardar ancho de ventana",
   "Screenrecording": "Grabación de pantalla",
+  "Screenrecording with no audio": "Grabar pantalla sin audio",
   "Screenshot": "Captura de pantalla",
   "Scroll active workspace backward": "Desplazar espacio activo atrás",
   "Scroll active workspace forward": "Desplazar espacio activo adelante",
