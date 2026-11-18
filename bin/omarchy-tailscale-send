@@ -23,6 +23,12 @@ shift
 # its short name, so a MagicDNS name does not spill into every message.
 name="${machine%%.*}"
 
+if omarchy-cmd-missing tailscale; then
+  omarchy-notification-send -g "󰒊" -u critical "$(omarchy-i18n tailscale.sendFailed "$name")" \
+    "$(omarchy-i18n tailscale.notInstalled)"
+  exit 1
+fi
+
 files=("$@")
 
 if ((${#files[@]} == 0)); then
