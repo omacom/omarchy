@@ -208,6 +208,10 @@ function provisionalCurrentIcon(current, resolvedIcon) {
   return resolvedIcon || currentIcon(current, "")
 }
 
+function shouldAcceptProvisionalIcon(hasConfiguredCoordinates, currentLabel) {
+  return !hasConfiguredCoordinates || !currentLabel
+}
+
 function weatherResponseCompletesSave(hasConfiguredCoordinates, source) {
   return hasConfiguredCoordinates ? source === "open-meteo" : source === "wttr"
 }
@@ -306,6 +310,7 @@ if (typeof module !== "undefined") {
     openMeteoCurrentCondition: openMeteoCurrentCondition,
     currentIcon: currentIcon,
     provisionalCurrentIcon: provisionalCurrentIcon,
+    shouldAcceptProvisionalIcon: shouldAcceptProvisionalIcon,
     weatherResponseCompletesSave: weatherResponseCompletesSave,
     wttrNextForecastDays: wttrNextForecastDays,
     buildForecastDays: buildForecastDays,

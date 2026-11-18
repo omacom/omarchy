@@ -193,7 +193,7 @@ Panel {
       + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
       + "&forecast_days=4"
       + "&timezone=auto"
-    dailyForecastProc.command = ["curl", "-fsS", "--max-time", "5", url]
+    dailyForecastProc.command = ["curl", "-fsS", "-A", "omarchy-shell", "--max-time", "5", url]
     dailyForecastProc.running = true
   }
 
@@ -293,7 +293,7 @@ Panel {
 
   function startGeocode() {
     geocodeActiveQuery = geocodePendingQuery
-    geocodeProc.command = ["curl", "-fsS", "--max-time", "5",
+    geocodeProc.command = ["curl", "-fsS", "-A", "omarchy-shell", "--max-time", "5",
       "https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(geocodeActiveQuery) + "&count=5&language=en&format=json"]
     geocodeProc.running = true
   }
@@ -364,7 +364,7 @@ Panel {
         try {
           var parsed = JSON.parse(raw)
           root.report = parsed
-          if (!root.hasConfiguredCoordinates)
+          if (Model.shouldAcceptProvisionalIcon(root.hasConfiguredCoordinates, root.label))
             root.label = Model.provisionalCurrentIcon(parsed.current_condition && parsed.current_condition[0], root.label)
           root.forecastRetries = 0
           if (Model.weatherResponseCompletesSave(root.hasConfiguredCoordinates, "wttr"))
