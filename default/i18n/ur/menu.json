@@ -26,11 +26,11 @@
   "update": {
     "label": "اپ ڈیٹ کریں"
   },
-  "about": {
-    "label": "بارے میں"
-  },
   "system": {
     "label": "سسٹم"
+  },
+  "system.about": {
+    "label": "بارے میں"
   },
   "system.screensaver": {
     "label": "اسکرین سیور"
@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "آئیکنز"
+  },
+  "install.style.icons": {
+    "label": "آئیکنز"
+  },
+  "remove.icons": {
+    "label": "آئیکنز"
+  },
+  "update.icons": {
+    "label": "اضافی آئیکنز"
+  },
+  "system.firmware": {
+    "label": "BIOS میں ری بوٹ",
+    "description": "UEFI فرم ویئر سیٹ اپ میں ری اسٹارٹ کریں"
   }
 }

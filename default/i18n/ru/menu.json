@@ -26,11 +26,11 @@
   "update": {
     "label": "Обновление"
   },
-  "about": {
-    "label": "О программе"
-  },
   "system": {
     "label": "Система"
+  },
+  "system.about": {
+    "label": "О программе"
   },
   "system.screensaver": {
     "label": "Заставка"
@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Значки"
+  },
+  "install.style.icons": {
+    "label": "Значки"
+  },
+  "remove.icons": {
+    "label": "Значки"
+  },
+  "update.icons": {
+    "label": "Дополнительные значки"
+  },
+  "system.firmware": {
+    "label": "Перезагрузка в BIOS",
+    "description": "Перезагрузка в настройки прошивки UEFI"
   }
 }

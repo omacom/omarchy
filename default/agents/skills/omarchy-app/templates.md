@@ -140,9 +140,12 @@ jobs:
 
 #include <QGuiApplication>
 #include <QIcon>
+#include <QKeySequence>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
+#include <QQuickWindow>
+#include <QTimer>
 #include <QUrl>
 
 #include "backend.h"
@@ -178,6 +181,35 @@ int main(int argc, char *argv[]) {
     engine.load(QUrl("qrc:/Main.qml"));
     if (engine.rootObjects().isEmpty())
         return 1;
+
+    // `omarchy agent look app` runs the app offscreen with these set, to see
+    // the window without a display: size it to OMARCHY_LOOK_SIZE when given,
+    // press the keys in OMARCHY_LOOK_KEYS through the window's Shortcuts,
+    // save it once it has settled, and quit.
+    if (const QString shot = qEnvironmentVariable("OMARCHY_LOOK_SCREENSHOT"); !shot.isEmpty()) {
+        const QStringList size = qEnvironmentVariable("OMARCHY_LOOK_SIZE").split('x');
+        if (auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst()); window && size.size() == 2)
+            window->resize(size[0].toInt(), size[1].toInt());
+        const QStringList keys = qEnvironmentVariable("OMARCHY_LOOK_KEYS").split(' ', Qt::SkipEmptyParts);
+        for (int i = 0; i < keys.size(); ++i) {
+            QTimer::singleShot(800 + i * 300, &app, [&engine, key = QKeySequence(keys[i])] {
+                for (QObject *shortcut : engine.rootObjects().constFirst()->findChildren<QObject *>()) {
+                    if (qstrcmp(shortcut->metaObject()->className(), "QQuickShortcut") == 0
+                        && shortcut->property("enabled").toBool()
+                        && QKeySequence(shortcut->property("sequence").toString()) == key) {
+                        QMetaObject::invokeMethod(shortcut, "activated");
+                        break;
+                    }
+                }
+            });
+        }
+        const int delay = qEnvironmentVariableIsSet("OMARCHY_LOOK_DELAY_MS") ? qEnvironmentVariableIntValue("OMARCHY_LOOK_DELAY_MS") : 1500;
+        QTimer::singleShot(800 + keys.size() * 300 + delay, &app, [&engine, shot] {
+            if (auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst()))
+                window->grabWindow().save(shot);
+            QCoreApplication::quit();
+        });
+    }
 
     return app.exec();
 }
@@ -930,6 +962,19 @@ int lines(const QString &path) {
     return file.open(QIODevice::ReadOnly) ? file.readAll().count('\n') : 0;
 }
 
+// The window's item with this objectName. What a Repeater, ListView or Loader
+// makes isn't a QObject child of the window, so findChild never finds it; walk
+// the items instead. Popups aren't items: find those with findChild.
+QQuickItem *item(QQuickItem *from, const QString &name) {
+    for (auto *child : from->childItems()) {
+        if (child->objectName() == name)
+            return child;
+        if (auto *found = item(child, name))
+            return found;
+    }
+    return nullptr;
+}
+
 // A hyprctl that answers with response.json beside it and counts its calls.
 QString fakeHyprctl(const QString &directory) {
     const QString command = directory + "/hyprctl";
@@ -1275,7 +1320,8 @@ private slots:
         window->requestActivate();
         QVERIFY(QTest::qWaitForWindowActive(window));
 
-        auto *count = window->findChild<QObject *>("count");
+        auto *count = item(window->contentItem(), "count");
+        QVERIFY(count);
         QTest::keyClick(window, Qt::Key_Space);
         QCOMPARE(count->property("text").toString(), QString("1 press"));
         QTest::keyClick(window, Qt::Key_Space);
@@ -1283,7 +1329,8 @@ private slots:
         QCOMPARE(backend.count(), 2);
 
         // The caption reads on the accent: black on the fallback yellow.
-        auto *button = window->findChild<QQuickItem *>("countButton");
+        auto *button = item(window->contentItem(), "countButton");
+        QVERIFY(button);
         QCOMPARE(button->property("contentItem").value<QQuickItem *>()->property("color").value<QColor>(),
                  theme.accentForeground());
 

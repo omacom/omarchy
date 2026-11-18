@@ -117,6 +117,18 @@ Panel {
   // disable themselves on this so clicks on the other rows don't silently
   // no-op against runNetworkAction's serialized guard.
   readonly property bool busy: actionKind !== ""
+  // Connecting to one network while another is up drops the first before the
+  // second comes in, and in between the panel would fall back to its
+  // disconnected layout: stats, band row and header gone, then back. Through
+  // the switch the hero names where it is going and the sections hold their
+  // place, reading "--" until the new link reports. A failed connect ends
+  // the action, so the panel still settles on the truth.
+  property bool switchingNetwork: false
+  // The hero buttons that were showing when the switch began keep their
+  // place, disabled, so the name beside them doesn't reflow twice.
+  property bool switchHeldQr: false
+  property bool switchHeldSpeed: false
+  onActionKindChanged: if (actionKind !== "connect") switchingNetwork = false
 
   // Index into `wifiNetworks` for keyboard navigation. -1 = no selection.
   property int selectedIndex: -1
@@ -158,7 +170,7 @@ Panel {
   // Worth showing when there is a real choice, or when a pin is in force even
   // though only one band answers right now -- otherwise the Automatic switch
   // vanishes and the pin becomes unclearable from the panel.
-  readonly property bool canSelectBand: (kind === "wifi" || bandBusy)
+  readonly property bool canSelectBand: (kind === "wifi" || bandBusy || switchingNetwork)
     && (bandAvailable.length > 1 || bandPinned)
   // While a change is in flight, show the state that was asked for rather than
   // the one still in force, so the row answers the click immediately instead of
@@ -737,7 +749,7 @@ Panel {
       var row = Model.wifiRow(network)
       if (row) nets.push(row)
     }
-    nets = Model.sortWifiRows(nets)
+    nets = Model.sortWifiRows(nets, passwordSsid !== "" ? wifiNetworks : null)
     // A new model rebuilds every delegate, which takes focus from a passphrase
     // being typed, so identical rows are left in place.
     if (JSON.stringify(nets) === JSON.stringify(wifiNetworks)) return
@@ -765,7 +777,7 @@ Panel {
     // Mid-reconnect there is no connected station, so the command reports
     // nothing. Publishing that would empty the option list and unmount the
     // section on every toggle -- same guard as updateDetails.
-    if (bandBusy && status.available.length === 0) return
+    if ((bandBusy || switchingNetwork) && status.available.length === 0) return
 
     bandCurrent = status.band
     bandSelected = status.selected
@@ -850,6 +862,9 @@ Panel {
     if (actionKind !== "" || !network) return
     var ssid = network.name || ""
     actionSsid = ssid
+    switchingNetwork = kind === "connect" && root.kind !== "disconnected"
+    switchHeldQr = switchingNetwork && canShareWifi
+    switchHeldSpeed = switchingNetwork && canRunSpeedTest
     actionKind = kind
     failureSsid = ""
     failureReason = ""
@@ -1305,7 +1320,8 @@ Panel {
 
           PanelActionButton {
             id: qrAction
-            visible: root.canShareWifi
+            visible: root.canShareWifi || (root.switchingNetwork && root.switchHeldQr)
+            enabled: root.canShareWifi
             iconText: "󰐲"
             tooltipText: Commons.I18n.t("network.showQrCode")
             foreground: root.bar.foreground
@@ -1319,7 +1335,8 @@ Panel {
 
           PanelActionButton {
             id: speedAction
-            visible: root.canRunSpeedTest
+            visible: root.canRunSpeedTest || (root.switchingNetwork && root.switchHeldSpeed)
+            enabled: root.canRunSpeedTest
             iconText: "󰓅"
             tooltipText: Commons.I18n.t("network.runSpeedTest")
             foreground: root.bar.foreground
@@ -1366,6 +1383,7 @@ Panel {
             width: parent.width
 
             readonly property string title: {
+              if (root.switchingNetwork) return root.actionSsid || Commons.I18n.t("network.hidden")
               // The HTTP restriction does not undo association. Show the live
               // SSID even before route/details polling has returned anything.
               if (root.kind === "wifi" && root.connectedWifiNetwork) return root.connectedWifiNetwork.name || "Wi-Fi"
@@ -1373,7 +1391,7 @@ Panel {
               if (root.info.type === "ethernet") return Commons.I18n.t("network.ethernet")
               return root.info.iface || (root.kind === "disconnected" ? Commons.I18n.t("network.disconnected") : Commons.I18n.t("network.noConnection"))
             }
-            readonly property string detail: root.headerDetail()
+            readonly property string detail: root.switchingNetwork ? "" : root.headerDetail()
 
             text: heroSsid.detail !== "" ? heroSsid.title + " (" + heroSsid.detail + ")" : heroSsid.title
             color: root.bar.foreground
@@ -1389,6 +1407,7 @@ Panel {
             width: parent.width
             text: {
               // The sign-in button right below already says what a portal needs.
+              if (root.switchingNetwork) return Commons.I18n.t("network.connecting").toUpperCase()
               if (root.hasCaptivePortal) return ""
               if (root.restricted) return Commons.I18n.t("network.limitedAccessHeader")
               if (root.info.type === "wifi") {
@@ -1435,7 +1454,10 @@ Panel {
 
       // Connection details: transfer metrics first, then IP/Gateway.
       Column {
-        visible: !!root.info.iface
+        // Held while connected but before the details poll has answered
+        // (just opened, or a switch that has just landed) as well as through
+        // a switch, so the grid never drops out for a beat and comes back.
+        visible: !!root.info.iface || root.kind !== "disconnected" || root.switchingNetwork
         width: parent.width
         spacing: Style.spacing.labelGap
 
@@ -1718,6 +1740,13 @@ Panel {
           width: ListView.view.width
           height: delegateColumn.implicitHeight
 
+          // Opening the passphrase prompt grows the row, which can push the
+          // field below the list's clip on the bottom rows; scroll it in.
+          function revealPrompt() {
+            if (row.isPasswordOpen) networkList.positionViewAtIndex(index, ListView.Contain)
+          }
+          onHeightChanged: if (row.isPasswordOpen) Qt.callLater(revealPrompt)
+
           Column {
             id: delegateColumn
             width: parent.width
@@ -1877,6 +1906,13 @@ Panel {
     }
 
     implicitHeight: rowBody.implicitHeight + (isPasswordOpen ? passwordPanel.implicitHeight + Style.spacing.md : 0)
+    // The prompt slides open and shut instead of jumping, cropped meanwhile.
+    // Both ways take the same time: moving the prompt to another row shrinks
+    // one while the other grows, so the list's total height holds still.
+    clip: true
+    Behavior on implicitHeight {
+      NumberAnimation { duration: Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+    }
 
     MouseArea {
       id: rowMouse
@@ -2040,7 +2076,11 @@ Panel {
     // connect; Esc cancels back to the row.
     Item {
       id: passwordPanel
-      visible: row.isPasswordOpen
+      visible: opacity > 0
+      opacity: row.isPasswordOpen ? 1 : 0
+      Behavior on opacity {
+        NumberAnimation { duration: Style.duration(row.isPasswordOpen ? 180 : 90); easing.type: Easing.OutCubic }
+      }
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.top: rowMouse.bottom
@@ -2049,6 +2089,12 @@ Panel {
       anchors.topMargin: Style.space(4)
       implicitHeight: (idField.visible ? idField.implicitHeight + Style.space(4) : 0) + pwField.implicitHeight + Style.spacing.rowGap
       height: implicitHeight
+
+      // Show-password toggle; every prompt opens masked again. Reset on
+      // close, not when the fade-out ends, or reopening mid-fade stays clear.
+      property bool revealed: false
+      readonly property bool open: row.isPasswordOpen
+      onOpenChanged: if (!open) revealed = false
 
       TextField {
         id: idField
@@ -2083,6 +2129,7 @@ Panel {
         anchors.bottomMargin: Style.spacing.rowGap / 2
         anchors.rightMargin: Style.space(6)
         password: true
+        revealed: passwordPanel.revealed
         placeholderText: Commons.I18n.t("network.passphrase")
         font.family: Style.font.family
         font.pixelSize: Style.font.body
@@ -2123,13 +2170,13 @@ Panel {
         }
       }
 
-      // 22×22 right-anchored to line up with lockIndicator above. Esc closes
-      // the prompt (handled by pwField.Keys.onEscapePressed)
+      // Esc closes the prompt (handled by pwField.Keys.onEscapePressed)
       // so there's no separate cancel button.
       PanelActionButton {
         id: connectPwBtn
         visible: !row.isBusy && !row.isFailed
-        anchors.right: parent.right
+        anchors.right: revealPwBtn.left
+        anchors.rightMargin: Style.space(2)
         anchors.verticalCenter: parent.verticalCenter
         enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
         iconText: "󰄬"
@@ -2137,6 +2184,20 @@ Panel {
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
         onClicked: row.submitCredentials()
+      }
+
+      // 22×22 right-anchored to line up with lockIndicator above. Not a
+      // focus target, so typing carries on in pwField after a click.
+      PanelActionButton {
+        id: revealPwBtn
+        visible: connectPwBtn.visible
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        iconText: passwordPanel.revealed ? "󰈉" : "󰈈"
+        tooltipText: passwordPanel.revealed ? Commons.I18n.t("network.hidePassword") : Commons.I18n.t("network.showPassword")
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        onClicked: passwordPanel.revealed = !passwordPanel.revealed
       }
     }
   }
