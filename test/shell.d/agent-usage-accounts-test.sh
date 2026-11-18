@@ -98,6 +98,17 @@ USAGE.pop("token-main")
 record = claude()
 check("a primary home signed in to another subscription doesn't inherit its limits",
       0.55 not in [entry["percent"] for entry in record["accounts"][0]["limits"]], record)
+
+# An account whose sign-in lapsed but that has an API key reads as the key: no
+# plan, whatever the registry kept from before, and nothing to sign in to.
+write_json(accounts / "claude" / "old" / ".claude.json", {"primaryApiKey": "sk-ant-test"})
+registry("claude", [
+  {"id": "main", "label": "Main", "home": "", "primary": True, "email": "me@example.com"},
+  {"id": "old", "label": "Old", "home": str(accounts / "claude" / "old"), "primary": False, "email": "old@example.com", "plan": "Max 5x"},
+], active="old", switch="auto", threshold=95)
+record = claude()
+expect("an account on its API key has no plan and nothing to sign in to",
+       [record["accounts"][1]["plan"], record["accounts"][1]["usageStatusText"], record["tierLabel"], record["ready"]], ["", "", "", True], record)
 (home() / ".claude.json").unlink()
 
 # A registry with one account changes nothing about the record.
