@@ -12,9 +12,14 @@ if cmp -s "$OMARCHY_PATH/default/plymouth/logo.png" "$installed_logo"; then
   exit
 fi
 
-omarchy-plymouth-list | while read -r name; do
+while read -r name; do
   if cmp -s "$(omarchy-theme-dir "$name")/unlock.png" "$installed_logo"; then
     echo "$name"
     exit
   fi
-done
+done < <({
+  find ~/.config/omarchy/themes/ -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n' 2>/dev/null
+  find "$OMARCHY_PATH/themes/" -mindepth 1 -maxdepth 1 -type d -printf '%f\n'
+} | sort -u)
+
+echo custom
