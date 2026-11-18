@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Effects
+import Quickshell.Services.UPower
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -259,6 +260,109 @@ Item {
       font.pixelSize: Style.font.heading
       font.italic: true
       horizontalAlignment: Text.AlignHCenter
+    }
+
+    // Battery level, so a laptop reached over ssh or left on battery can be
+    // checked without typing the password: the icon and percentage, the time
+    // left or to full, and a bar that fills with the charge. Hidden on a
+    // machine with no battery.
+    Item {
+      id: batteryBar
+      objectName: "lockBatteryStatus"
+      readonly property var device: UPower.displayDevice
+      readonly property bool present: !!(device && device.isPresent)
+      readonly property int level: present ? Math.round(Number(device.percentage || 0) * 100) : -1
+      readonly property bool charging: present && device.state === UPowerDeviceState.Charging
+      readonly property bool full: present && device.state === UPowerDeviceState.FullyCharged
+      readonly property bool low: present && !charging && !full && level <= 10
+      readonly property var chargingGlyphs: [0xF089C, 0xF0086, 0xF0087, 0xF0088, 0xF089D, 0xF0089, 0xF089E, 0xF008A, 0xF008B, 0xF0085]
+      readonly property var dischargingGlyphs: [0xF007A, 0xF007B, 0xF007C, 0xF007D, 0xF007E, 0xF007F, 0xF0080, 0xF0081, 0xF0082, 0xF0079]
+      readonly property int step: Math.max(0, Math.min(9, Math.floor(level / 10)))
+      readonly property string icon: !present ? "" : String.fromCodePoint(full ? 0xF0085 : (charging ? chargingGlyphs[step] : dischargingGlyphs[step]))
+      readonly property real seconds: !present ? 0 : Number(charging ? (device.timeToFull || 0) : (device.timeToEmpty || 0))
+      readonly property string span: {
+        var minutes = Math.round(seconds / 60)
+        if (minutes <= 0) return ""
+        return minutes >= 60
+          ? Commons.I18n.t("agents.durationHoursMinutes").arg(Math.floor(minutes / 60)).arg(minutes % 60)
+          : Commons.I18n.t("agents.durationMinutes").arg(minutes)
+      }
+      readonly property string remaining: {
+        if (full) return Commons.I18n.t("power.fullyCharged")
+        if (span.length === 0) return ""
+        return Commons.I18n.t(charging ? "power.timeToFull" : "power.timeLeft") + " " + span
+      }
+      readonly property color tone: low ? Commons.Color.lock.textError : (charging ? Commons.Color.lock.borderActive : Commons.Color.lock.placeholder)
+      readonly property real fraction: present ? Math.max(0, Math.min(1, level / 100)) : 0
+      readonly property int barHeight: 8
+
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: 48
+      anchors.horizontalCenter: parent.horizontalCenter
+      visible: present
+      width: Math.max(240, percentRow.width + 24 + remainingText.implicitWidth)
+      height: infoRow.height + 12 + barHeight
+
+      Item {
+        id: infoRow
+        width: parent.width
+        height: Math.max(percentRow.height, remainingText.height)
+
+        Row {
+          id: percentRow
+          anchors.left: parent.left
+          anchors.verticalCenter: parent.verticalCenter
+          spacing: 8
+
+          Text {
+            textFormat: Text.PlainText
+            text: batteryBar.icon
+            color: batteryBar.tone
+            font.family: Style.font.family
+            font.pixelSize: Math.round(Style.font.heading * 1.3)
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            text: batteryBar.level + "%"
+            color: batteryBar.low ? Commons.Color.lock.textError : Commons.Color.lock.text
+            font.family: Style.font.family
+            font.pixelSize: Style.font.heading
+            font.bold: true
+          }
+        }
+
+        Text {
+          id: remainingText
+          textFormat: Text.PlainText
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          visible: batteryBar.remaining.length > 0
+          text: batteryBar.remaining
+          color: Commons.Color.lock.placeholder
+          font.family: Style.font.family
+          font.pixelSize: Math.round(Style.font.heading * 0.85)
+        }
+      }
+
+      Rectangle {
+        anchors.top: infoRow.bottom
+        anchors.topMargin: 12
+        width: parent.width
+        height: batteryBar.barHeight
+        radius: height / 2
+        color: Commons.Color.lock.background
+        border.width: 1
+        border.color: Qt.alpha(Commons.Color.lock.placeholder, 0.5)
+
+        Rectangle {
+          // Never narrower than the bar is tall, so the rounded ends always show.
+          width: Math.max(parent.height, parent.width * batteryBar.fraction)
+          height: parent.height
+          radius: height / 2
+          color: batteryBar.tone
+        }
+      }
     }
   }
 }
