@@ -27,6 +27,8 @@ assertEqual(monitor.cleanScale(1.25, 1366, 768), '1', 'monitor snaps down when d
 assertEqual(monitor.cleanScale(1.25, 2256, 1504), '1.18', 'monitor matches a Framework display scale')
 assertEqual(monitor.cleanScale(1.6, 3024, 1964), '1.33', 'monitor matches a MacBook display scale')
 assertEqual(monitor.cleanScale(1.75, 1920, 1080), '1.67', 'monitor prefers the nearer scale below 1.75')
+assertEqual(monitor.cleanScale(2.25, 1600, 900), '2.5', 'monitor skips a divisor Hyprland rejects after floating-point division')
+assertEqual(monitor.cleanScale(3, 2944, 1840), '2.88', 'monitor matches the compositor on a 2944x1840 panel')
 
 // Hyprland gives up after 89 steps and falls back to the default scale rather
 // than applying something far away, so there is no effective scale to report.
@@ -74,7 +76,9 @@ assertDeepEqual(
 // the logical size is whole, otherwise step outward -- up first -- for 89 steps.
 function hyprlandScale(scale, width, height) {
   function whole(units) {
-    return units > 0 && (width * 120) % units === 0 && (height * 120) % units === 0
+    var logicalWidth = width / (units / 120)
+    var logicalHeight = height / (units / 120)
+    return units > 0 && logicalWidth === Math.round(logicalWidth) && logicalHeight === Math.round(logicalHeight)
   }
 
   var units = Math.round(scale * 120)

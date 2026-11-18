@@ -57,29 +57,21 @@ audit_scale_change() {
     "$grandparent_cmd" >>"$SCALE_LOG"
 }
 
-# Hyprland only accepts scales where the mode divides into whole logical
-# pixels (in 1/120 steps), so clean scales are divisors of gcd(w*120, h*120).
-#
-# This value is what reaches the compositor -- set_scale sends it rather than
-# the request -- so it has to be the scale Hyprland would have picked itself.
-# Hyprland steps outward from the rounded request, one up and one down at each
-# distance, for 89 steps, and gives up rather than reaching further
-# (CMonitor::applyMonitorRule). Rounding upward only, and without that bound,
-# sent it somewhere else entirely: a 1366x768 panel asked for 1.25 was rewritten
-# to 2 before Hyprland ever saw the request, where Hyprland itself applies 1.
-#
-# Prints nothing and fails when no clean scale is near enough, so a caller
-# cannot apply a scale that has no relation to what was asked for.
+# Match Hyprland's bounded search, including its floating-point whole-pixel check.
+# Integer divisibility can accept a scale the compositor would skip.
 clean_scale() {
   awk -v scale="$1" -v width="$2" -v height="$3" '
-    function gcd(a, b, t) { while (b) { t = a % b; a = b; b = t } return a }
+    function whole(k,    w, h) {
+      if (k <= 0) return 0
+      w = width / (k / 120); h = height / (k / 120)
+      return w == int(w) && h == int(h)
+    }
     BEGIN {
-      g = gcd(width * 120, height * 120)
       k = int(scale * 120 + 0.5)
-      if (k > 0 && g % k == 0) { printf "%g\n", k / 120; exit 0 }
+      if (whole(k)) { printf "%g\n", k / 120; exit 0 }
       for (i = 1; i < 90; i++) {
-        if (g % (k + i) == 0) { printf "%g\n", (k + i) / 120; exit 0 }
-        if (k - i > 0 && g % (k - i) == 0) { printf "%g\n", (k - i) / 120; exit 0 }
+        if (whole(k + i)) { printf "%g\n", (k + i) / 120; exit 0 }
+        if (whole(k - i)) { printf "%g\n", (k - i) / 120; exit 0 }
       }
       exit 1
     }'
@@ -134,17 +126,20 @@ scale_from_current() {
   local height="${3:-}"
 
   awk -v direction="$direction" -v list="${SCALES[*]}" -v width="$width" -v height="$height" '
-    function gcd(a, b, t) { while (b) { t = a % b; a = b; b = t } return a }
+    function whole(k,    w, h) {
+      if (k <= 0) return 0
+      w = width / (k / 120); h = height / (k / 120)
+      return w == int(w) && h == int(h)
+    }
     # Same search as clean_scale above, and for the same reason: a preset that
     # steps to a scale the compositor would not have chosen is not a step the
     # user can see. Returns 0 for a preset this mode cannot reach at all.
-    function clean(scale,    g, k, i) {
-      g = gcd(width * 120, height * 120)
+    function clean(scale,    k, i) {
       k = int(scale * 120 + 0.5)
-      if (k > 0 && g % k == 0) return k / 120
+      if (whole(k)) return k / 120
       for (i = 1; i < 90; i++) {
-        if (g % (k + i) == 0) return (k + i) / 120
-        if (k - i > 0 && g % (k - i) == 0) return (k - i) / 120
+        if (whole(k + i)) return (k + i) / 120
+        if (whole(k - i)) return (k - i) / 120
       }
       return 0
     }

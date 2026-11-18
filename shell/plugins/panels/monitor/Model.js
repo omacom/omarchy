@@ -10,30 +10,8 @@ function normalizeScale(scale) {
   return String(Math.round(n * 100) / 100)
 }
 
-function gcd(a, b) {
-  while (b) {
-    var remainder = a % b
-    a = b
-    b = remainder
-  }
-  return a
-}
-
-// The scale Hyprland will actually apply for a requested one, or "" when it
-// would reject the request outright.
-//
-// Hyprland rounds the request to 1/120 units and, if the logical size is not
-// whole, searches outward from there -- one step up, one step down, up to 89
-// steps -- taking the first scale that divides the mode evenly, and giving up
-// if none does (CMonitor::applyMonitorRule). Searching upward only, and without
-// that bound, put the panel on a different number from the compositor: a
-// 1366x768 panel asked for 1.25 reads as 2 here while Hyprland applies 1, and a
-// 2256x1504 Framework display reads as 1.33 against Hyprland's 1.18.
-//
-// `logicalSize` is whole exactly when the scale in 1/120 units divides both
-// mode dimensions in the same units, which is what gcd tests here -- integer
-// arithmetic rather than Hyprland's float division, so a scale like 1.6 cannot
-// miss by an ulp.
+// Match Hyprland's bounded search and floating-point whole-pixel check.
+// Integer divisibility can accept a scale the compositor would skip.
 function cleanScale(scale, width, height) {
   var requested = Number(scale)
   var modeWidth = Number(width)
@@ -41,14 +19,19 @@ function cleanScale(scale, width, height) {
   if (!isFinite(requested) || !isFinite(modeWidth) || !isFinite(modeHeight)
       || requested <= 0 || modeWidth <= 0 || modeHeight <= 0) return ""
 
-  var divisor = gcd(Math.round(modeWidth * 120), Math.round(modeHeight * 120))
+  function whole(units) {
+    var logicalWidth = modeWidth / (units / 120)
+    var logicalHeight = modeHeight / (units / 120)
+    return units > 0 && logicalWidth === Math.round(logicalWidth) && logicalHeight === Math.round(logicalHeight)
+  }
+
   var scaleUnits = Math.round(requested * 120)
 
-  if (scaleUnits > 0 && divisor % scaleUnits === 0) return normalizeScale(scaleUnits / 120)
+  if (whole(scaleUnits)) return normalizeScale(scaleUnits / 120)
 
   for (var step = 1; step < 90; step++) {
-    if (divisor % (scaleUnits + step) === 0) return normalizeScale((scaleUnits + step) / 120)
-    if (scaleUnits - step > 0 && divisor % (scaleUnits - step) === 0)
+    if (whole(scaleUnits + step)) return normalizeScale((scaleUnits + step) / 120)
+    if (whole(scaleUnits - step))
       return normalizeScale((scaleUnits - step) / 120)
   }
 

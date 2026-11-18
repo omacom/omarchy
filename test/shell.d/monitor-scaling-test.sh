@@ -144,17 +144,22 @@ OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_MONITOR_WIDTH=1280 OMARCHY_TEST_MONITO
 grep -F 'scale = 3.2' "$eval_out" >/dev/null || fail "monitor scaling accepts displayed approximate values"
 pass "monitor scaling accepts displayed approximate values"
 
-# On a mode where both 3x and 4x resolve to 4x, the duplicate is one step.
+# On this mode 3x is unreachable, so stepping down from 4x skips it to 2x.
 fresh
 OMARCHY_TEST_MONITOR_SCALE=4 OMARCHY_TEST_MONITOR_WIDTH=1280 OMARCHY_TEST_MONITOR_HEIGHT=804 run_scaling down
-grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down skips duplicate 4x approximation"
-[[ $(setting eDP-1) == "||2" ]] || fail "monitor scaling down saves 2x after skipping duplicate approximation"
+grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down skips unreachable 3x preset"
+[[ $(setting eDP-1) == "||2" ]] || fail "monitor scaling down saves 2x after skipping unreachable 3x"
 pass "monitor scaling down skips duplicate approximation"
 
 fresh
 OMARCHY_TEST_MONITOR_WIDTH=1366 OMARCHY_TEST_MONITOR_HEIGHT=768 run_scaling 1.25
 [[ $(setting eDP-1) == "||1" ]] || fail "monitor scaling saves the nearest lower scale"
 pass "monitor scaling saves the nearest lower scale with the monitor identity"
+
+fresh
+OMARCHY_TEST_MONITOR_WIDTH=1600 OMARCHY_TEST_MONITOR_HEIGHT=900 run_scaling 2.25
+[[ $(setting eDP-1) == "||2.5" ]] || fail "monitor scaling skips a divisor Hyprland rejects after floating-point division"
+pass "monitor scaling skips a divisor Hyprland rejects after floating-point division"
 
 fresh
 if OMARCHY_TEST_MONITOR_WIDTH=1366 OMARCHY_TEST_MONITOR_HEIGHT=768 run_scaling 3 2>/dev/null; then
