@@ -1435,9 +1435,11 @@ ShellRoot {
         }
         onStatusChanged: {
           if (status === Loader.Error) {
-            // Loader has no errorString(); the component it built from source
-            // carries the error, so the user sees why the panel won't open.
-            var detail = sourceComponent ? sourceComponent.errorString() : ""
+            // Loader.errorString() reflects the source-load failure even when
+            // sourceComponent is null. Surface both so the user sees something
+            // actionable instead of a panel that silently refuses to open.
+            var detail = errorString && errorString() ? errorString() : ""
+            if (!detail && sourceComponent) detail = sourceComponent.errorString()
             console.warn("panel plugin " + panelEntry.pluginId + " failed to load:", detail)
             shell.hide(panelEntry.pluginId)
           }

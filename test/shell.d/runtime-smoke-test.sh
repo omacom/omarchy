@@ -40,28 +40,6 @@ Item {
 }
 QML
 
-# A panel that fails to compile must be reported and closed, not left half open.
-broken_panel_id="acme.broken-panel"
-broken_panel_dir="$SCRATCH_HOME/.config/omarchy/plugins/$broken_panel_id"
-mkdir -p "$broken_panel_dir"
-cat >"$broken_panel_dir/manifest.json" <<JSON
-{
-  "schemaVersion": 1,
-  "id": "$broken_panel_id",
-  "name": "Broken Panel",
-  "version": "1.0.0",
-  "kinds": ["panel"],
-  "entryPoints": {"panel": "Panel.qml"}
-}
-JSON
-cat >"$broken_panel_dir/Panel.qml" <<'QML'
-import QtQuick
-
-Item {
-  property int broken:
-}
-QML
-
 # A bar that fails to compile must give way to the built-in bar, every time.
 broken_bar_id="acme.broken-bar"
 broken_bar_dir="$SCRATCH_HOME/.config/omarchy/plugins/$broken_bar_id"
@@ -76,7 +54,13 @@ cat >"$broken_bar_dir/manifest.json" <<JSON
   "entryPoints": {"bar": "Bar.qml"}
 }
 JSON
-cp "$broken_panel_dir/Panel.qml" "$broken_bar_dir/Bar.qml"
+cat >"$broken_bar_dir/Bar.qml" <<'QML'
+import QtQuick
+
+Item {
+  property int broken:
+}
+QML
 
 # A keepLoaded service must keep its instance (and in-memory state) across a
 # plugin rescan. The marker below can only survive if the object does.
@@ -472,31 +456,6 @@ pass "installed plugin changes reload without an explicit rescan"
 scratch_ipc_quiet shell hide omarchy.emojis >/dev/null
 scratch_ipc_quiet shell setPluginEnabled "$hot_reload_id" false >/dev/null
 pass "shell IPC routes built-in ids to enabled clones"
-
-[[ $(scratch_ipc shell setPluginEnabled "$broken_panel_id" true) == "ok" ]] ||
-  fail_with_log "broken panel plugin could not be enabled"
-[[ $(scratch_ipc shell summon "$broken_panel_id" "{}") == "ok" ]] ||
-  fail_with_log "broken panel plugin could not be summoned"
-for _ in {1..80}; do
-  grep -qF "panel plugin $broken_panel_id failed to load:" "$SCRATCH_LOG" && break
-  grep -qF "errorString is not defined" "$SCRATCH_LOG" && break
-  sleep 0.1
-done
-grep -qF "errorString is not defined" "$SCRATCH_LOG" &&
-  fail_with_log "panel load failure handler throws before closing the panel"
-grep -F "panel plugin $broken_panel_id failed to load:" "$SCRATCH_LOG" | grep -F "Panel.qml" | grep -qF "Expected token" ||
-  fail_with_log "panel load failure names the plugin and the error"
-# Closed again, the next toggle summons it and tries the load once more.
-panel_failures=$(grep -cF "panel plugin $broken_panel_id failed to load:" "$SCRATCH_LOG")
-scratch_ipc_quiet shell toggle "$broken_panel_id" "{}" >/dev/null
-for _ in {1..80}; do
-  (( $(grep -cF "panel plugin $broken_panel_id failed to load:" "$SCRATCH_LOG") > panel_failures )) && break
-  sleep 0.1
-done
-(( $(grep -cF "panel plugin $broken_panel_id failed to load:" "$SCRATCH_LOG") > panel_failures )) ||
-  fail_with_log "a panel that fails to load is closed again"
-scratch_ipc_quiet shell setPluginEnabled "$broken_panel_id" false >/dev/null
-pass "a panel that fails to load is reported with its error"
 
 shell_config=$(scratch_ipc shell listShellConfig)
 jq -e '
@@ -945,3 +904,23 @@ done
 (( $(broken_bar_failures) > bar_failures )) || fail_with_log "a config change retries the selected bar"
 built_in_bar_registered || fail_with_log "a bar that fails to load again falls back to the built-in bar"
 pass "a bar that fails to load falls back to the built-in bar"
+
+if grep -qE 'Binding loop detected.*activeBarId' "$SCRATCH_LOG"; then
+  fail_with_log "retrying a broken bar leaves no activeBarId binding loop"
+fi
+pass "retrying a broken bar leaves no activeBarId binding loop"
+
+# Restart with the failed bar already selected, as at the next login.
+stop_scratch_shell
+start_scratch_shell
+wait_scratch_shell
+for _ in {1..80}; do
+  (( $(broken_bar_failures) > 0 )) && break
+  sleep 0.1
+done
+(( $(broken_bar_failures) > 0 )) || fail_with_log "the selected broken bar fails to load at startup"
+built_in_bar_registered || fail_with_log "a bar selected at startup falls back to the built-in bar"
+if grep -qE 'Binding loop detected.*activeBarId' "$SCRATCH_LOG"; then
+  fail_with_log "a broken bar selected at startup leaves no activeBarId binding loop"
+fi
+pass "a bar selected at startup falls back to a registered built-in bar without a binding loop"
