@@ -4,12 +4,13 @@
 # omarchy:args=<file.html|url> [--keys "Space ArrowLeft"] [--after ms] [--size WxH] [--out file.png]
 # omarchy:examples=omarchy agent look page index.html | omarchy agent look page game.html --keys "Space ArrowLeft" --after 5000
 
-# Renders the page in a throwaway headless Chrome, so an agent can see what it
-# built and read the errors a browser console would show, without opening a
-# window on the user's desktop or leaving a browser running. --keys presses
-# each key in turn after a local file loads, for games and anything else that
-# waits for input. Prints the screenshot's path and exits 1 when the page
-# logged errors.
+# Renders the page in a throwaway headless Chrome driven by Playwright, so an
+# agent can see what it built and read the errors a browser console would
+# show, without opening a window on the user's desktop or leaving a browser
+# running. The page runs in real time on the GPU, so a game plays as it would
+# for a player: --keys presses each key once a page has loaded, and --after
+# waits that long before the screenshot. Prints the screenshot's path and
+# exits 1 when the page logged errors.
 
 set -uo pipefail
 
@@ -20,101 +21,117 @@ if [[ -z $target || $target == -* ]]; then
 fi
 shift
 
-keys="" after=3000 size=1280,720 out=""
+keys="" after=3000 size=1280x720 out=""
 while (( $# )); do
   case $1 in
     --keys) keys=$2; shift 2 ;;
     --after) after=$2; shift 2 ;;
-    --size) size=${2/x/,}; shift 2 ;;
+    --size) size=$2; shift 2 ;;
     --out) out=$2; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
 done
+if [[ ! $after =~ ^(0|[1-9][0-9]*)$ ]] || (( after > 60000 )); then
+  echo "--after takes milliseconds up to 60000, like 3000" >&2
+  exit 2
+fi
+if [[ ! $size =~ ^[0-9]+x[0-9]+$ ]]; then
+  echo "--size takes a width and height, like 1280x720" >&2
+  exit 2
+fi
 [[ -n $out ]] || out=$(mktemp --suffix=.png -p "${TMPDIR:-/tmp}" look-XXXXXX)
 # An image left from an earlier look must never pass for this one.
 rm -f "$out"
 
-if [[ -n $keys && ! -f $target ]]; then
-  echo "--keys only works on a local file, where the presses can be added to a copy of the page: pass the page's .html file instead of $target." >&2
-  exit 2
-fi
-
 url=$target
-injected=""
-if [[ -f $target ]]; then
-  target=$(realpath "$target")
-  url="file://$target"
-  if [[ -n $keys ]]; then
-    # The key presses go in a copy beside the original, so the page's
-    # relative paths still resolve.
-    injected="$(dirname "$target")/.look-$$.html"
-    python3 -I - "$target" "$injected" "$keys" <<'PY'
-import json, sys
-source, copy, keys = sys.argv[1:]
-script = """<script>(() => {
-  const keys = %s;
-  const code = k => k === " " || k === "Space" ? ["Space", " "] : k.length === 1 ? ["Key" + k.toUpperCase(), k] : [k, k];
-  keys.forEach((k, i) => setTimeout(() => {
-    const [c, key] = code(k);
-    // Sent once, where a real press lands, and bubbling from there to the
-    // document and window. Released after the next frame, so a loop reads it
-    // held, or before the next key when no frame comes, to whatever has the
-    // focus by then.
-    const send = type => (document.activeElement || document.body || document)
-      .dispatchEvent(new KeyboardEvent(type, { key, code: c, bubbles: true }));
-    let down = true;
-    const release = () => down && (down = false, send("keyup"));
-    send("keydown");
-    requestAnimationFrame(release);
-    setTimeout(release, 240);
-  }, 800 + i * 250));
-})();</script>""" % json.dumps(keys.split())
-html = open(source, encoding="utf-8", errors="replace").read()
-end = html.lower().rfind("</body>")
-open(copy, "w", encoding="utf-8").write(html[:end] + script + html[end:] if end >= 0 else html + script)
-PY
-    url="file://$injected"
-  fi
+[[ -f $target ]] && url="file://$(realpath "$target")"
+
+# Playwright is a mise tool installed on first use, with Node before it.
+playwright=$(mise where playwright 2>/dev/null)
+if [[ ! -d $playwright/node_modules/playwright ]]; then
+  mise install node playwright >/dev/null 2>&1
+  playwright=$(mise where playwright 2>/dev/null)
+fi
+if [[ ! -d $playwright/node_modules/playwright ]]; then
+  echo "Playwright isn't installed and couldn't be: run mise install node playwright" >&2
+  exit 1
 fi
 
-profile=$(mktemp -d)
+# An image from before Chrome was the default browser has Chromium, which
+# Playwright drives the same way.
+chrome=$(type -P google-chrome-stable || type -P chromium)
+
 log=$(mktemp)
-# Screenshots a URL to a file; anything further goes to Chrome.
-render() {
-  local url=$1 shot=$2
-  shift 2
-  timeout 60 google-chrome-stable --headless=new "$@" --no-first-run --user-data-dir="$profile" \
-    --enable-unsafe-swiftshader --use-angle=swiftshader --window-size="$size" \
-    --enable-logging=stderr --v=0 --virtual-time-budget="$after" --screenshot="$shot" "$url" >/dev/null 2>"$log"
-}
-render "$url" "$out" 2>/dev/null
-status=$?
-# Chrome won't start where it can't set up its sandbox, as inside an agent's
-# own sandbox or as root. A blank page in a profile of its own not drawing
-# either shows it is that, and nothing the page did, and only then does the
-# page run without one.
-if [[ ! -s $out ]]; then
-  blank=$(mktemp -d)
-  log=/dev/null profile=$blank render about:blank "$blank/blank.png" 2>/dev/null
-  if [[ ! -s $blank/blank.png ]]; then
-    render "$url" "$out" --no-sandbox
-    status=$?
-  fi
-  rm -rf "$blank"
-fi
-[[ -n $injected ]] && rm -f "$injected"
-rm -rf "$profile"
+# Prints "error: <text>" for each console error, uncaught exception and
+# failed load, then "saved" once the screenshot is written.
+timeout $(( after / 1000 + 60 )) mise exec node -- node - \
+  "$playwright/node_modules/playwright" "$chrome" "$url" "$keys" "$after" "${size%x*}" "${size#*x}" "$out" >"$log" 2>&1 <<'JS'
+const [, , playwrightDir, chrome, url, keys, after, width, height, out] = process.argv;
+const { chromium } = require(playwrightDir);
 
-# Extensions the browser policy installs log errors of their own; only the
-# page's count.
-errors=$(grep -E 'CONSOLE|Uncaught' "$log" | grep -iE 'error|uncaught|failed|not defined|is not a' \
-  | grep -v -e 'chrome-extension://' -e 'lastError' | sed -E 's/^.*CONSOLE[^]]*\] //' | head -20)
-rm -f "$log"
+async function launch() {
+  const options = { executablePath: chrome, headless: true, args: ["--use-angle=gl-egl"] };
+  // Chrome keeps its own sandbox wherever it can start with one.
+  try {
+    return await chromium.launch({ ...options, chromiumSandbox: true });
+  } catch {
+    return await chromium.launch({ ...options, chromiumSandbox: false });
+  }
+}
+
+(async () => {
+  let browser;
+  try {
+    browser = await launch();
+  } catch (error) {
+    console.log("launch failed: " + String(error.message).split("\n")[0]);
+    process.exit(3);
+  }
+  const page = await browser.newPage({ viewport: { width: Number(width), height: Number(height) } });
+  const report = (text) => {
+    if (!/chrome-extension:\/\/|lastError/.test(text)) console.log("error: " + text.replace(/\s+/g, " ").slice(0, 300));
+  };
+  // A 404 or 500 reaches only the console, as "Failed to load resource",
+  // with the resource's URL in its location rather than its text.
+  page.on("console", (message) => {
+    if (message.type() !== "error") return;
+    const text = message.text();
+    const source = message.location().url;
+    report(text.startsWith("Failed to load resource") && source ? `${text} (${source})` : text);
+  });
+  page.on("pageerror", (error) => report("Uncaught " + error.message));
+  page.on("requestfailed", (request) => report(`failed to load ${request.url()}: ${request.failure()?.errorText}`));
+
+  try {
+    await page.goto(url, { waitUntil: "load", timeout: 30000 });
+  } catch (error) {
+    report("page didn't load: " + String(error.message).split("\n")[0]);
+  }
+  // Real key presses, held across a few frames as a player's are, so a game
+  // reads both the press and the key held down.
+  await page.waitForTimeout(800);
+  for (const key of keys.split(" ").filter(Boolean)) {
+    await page.keyboard.down(key);
+    await page.waitForTimeout(100);
+    await page.keyboard.up(key);
+    await page.waitForTimeout(150);
+  }
+  await page.waitForTimeout(Number(after));
+  await page.screenshot({ path: out });
+  console.log("saved");
+  await browser.close();
+})();
+JS
+status=$?
+errors=$(grep '^error: ' "$log" | sed 's/^error: //' | head -20)
 
 if [[ ! -s $out ]]; then
   echo "Chrome produced no screenshot (exit $status)" >&2
+  grep -v '^error: ' "$log" | head -5 >&2
+  rm -f "$log"
   exit 1
 fi
+rm -f "$log"
 magick "$out" -resize '1280x>' "$out"
 echo "screenshot: $out"
 if [[ -n $errors ]]; then
