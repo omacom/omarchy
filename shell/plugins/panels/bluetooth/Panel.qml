@@ -743,8 +743,15 @@ Panel {
       implicitHeight: column.implicitHeight
       anchors.fill: parent
       onMoveRequested: function(dx, dy) {
-        if (!root.cursorActive) { root.cursorActive = true; return }
-        if (dy !== 0) root.moveCursor(dy)
+        if (!root.cursorActive) {
+          root.cursorActive = true
+          if (dy !== 0) Qt.callLater(deviceListView.keepCurrentVisible)
+          return
+        }
+        if (dy !== 0) {
+          root.moveCursor(dy)
+          Qt.callLater(deviceListView.keepCurrentVisible)
+        }
         else if (dx !== 0) root.moveCursorH(dx)
       }
       onActivateRequested: if (root.cursorActive) root.activateCursor()
@@ -887,9 +894,9 @@ Panel {
 
           model: scrollListModel
           currentIndex: root.scrollRowIndex
-          // Deferred by a turn so currentIndex updates keep the focused row
-          // visible after ListModel insertions/moves settle.
-          onCurrentIndexChanged: if (currentIndex >= 0) Qt.callLater(keepCurrentVisible)
+          // Called explicitly on keyboard navigation (not onCurrentIndexChanged)
+          // so discovery updates that shift reselectFocusedDevice() never pull
+          // the viewport away from a manual scrollbar/wheel position.
           function keepCurrentVisible() {
             if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
           }
