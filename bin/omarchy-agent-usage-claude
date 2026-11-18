@@ -61,7 +61,7 @@ from collectors import (  # noqa: E402
 )
 
 AGENT_ID = "claude"
-AGENT_NAME = "Claude Code"
+AGENT_NAME = "Claude"
 AUTH_HELP = "Run `claude auth login` to restore authoritative usage."
 USAGE_ENDPOINT = "https://api.anthropic.com/api/oauth/usage"
 # Anthropic rate-limits its usage endpoint readily. A refused re-check of

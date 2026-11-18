@@ -31,10 +31,11 @@ Item {
 
   readonly property int iconSize: Math.round(56 * Style.fontScale)
   readonly property int labelHeight: Math.ceil(labelMetrics.height) * 2
+  readonly property int versionHeight: Math.ceil(versionMetrics.height)
   readonly property int cellGutter: Style.spacing.sm
   readonly property int cellPadding: Style.spacing.lg
   readonly property int cellWidth: Math.round(iconSize * 2.2)
-  readonly property int cellHeight: cellPadding * 2 + iconSize + Style.spacing.md + labelHeight
+  readonly property int cellHeight: cellPadding * 2 + iconSize + Style.spacing.md + labelHeight + Style.spacing.xs + versionHeight
   readonly property int maxColumns: 7
   readonly property int visibleRows: 4
   readonly property int borderWidth: Math.max(1, Style.space(2))
@@ -53,7 +54,10 @@ Item {
 
   function open() {
     root.selectedIndex = 0
-    if (root.appLibrary) root.appLibrary.refreshIcons()
+    if (root.appLibrary) {
+      root.appLibrary.refreshIcons()
+      root.appLibrary.refreshVersions()
+    }
     // The cells from last time are reused when nothing changed, so the grid
     // opens with its icons already drawn.
     if (root.appsStale || root.filterText !== "" || root.apps.length === 0) {
@@ -106,7 +110,9 @@ Item {
   function confirmUninstall() {
     var entry = root.uninstallEntry
     root.uninstallEntry = null
-    root.close()
+    // The grid stays open: the app drops out of it once it is gone, and only
+    // an uninstall that needs a terminal closes it.
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
     if (entry && root.appLibrary) root.appLibrary.remove(entry.id, root.appLibrary.entryName(entry))
   }
 
@@ -126,6 +132,14 @@ Item {
     root.apps = rows.map(function(row) { return row.entry })
     root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.apps.length - 1))
     grid.positionViewAtBeginning()
+  }
+
+  // Apps came or went while the grid is open: keep the user where they were.
+  function refresh() {
+    var position = grid.contentY
+    root.rebuild()
+    grid.forceLayout()
+    grid.contentY = Math.max(0, Math.min(position, grid.contentHeight - grid.height))
   }
 
   function setFilter(text) {
@@ -154,6 +168,12 @@ Item {
     font.pixelSize: Style.font.body
   }
 
+  FontMetrics {
+    id: versionMetrics
+    font.family: Style.font.menuFamily
+    font.pixelSize: Style.font.caption
+  }
+
   // Apps installed or removed while the grid is closed are picked up when it
   // next opens.
   property bool appsStale: false
@@ -161,8 +181,11 @@ Item {
   Connections {
     target: root.appLibrary
     function onAppsChanged() {
-      if (root.opened) root.rebuild()
+      if (root.opened) root.refresh()
       else root.appsStale = true
+    }
+    function onRemovalNeedsTerminal() {
+      if (root.opened) root.close()
     }
   }
 
@@ -367,6 +390,23 @@ Item {
                 verticalAlignment: Text.AlignTop
                 wrapMode: Text.Wrap
                 maximumLineCount: 2
+                elide: Text.ElideRight
+              }
+
+              // The focused app reveals its version beneath its name.
+              Text {
+                anchors.top: label.bottom
+                anchors.topMargin: Style.spacing.xs * 2
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: label.width
+                visible: cell.selected
+                textFormat: Text.PlainText
+                text: root.appLibrary ? root.appLibrary.version(cell.modelData) : ""
+                color: Commons.Color.menu.text
+                opacity: 0.58
+                font.family: Style.font.menuFamily
+                font.pixelSize: Style.font.caption
+                horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideRight
               }
 

@@ -1,6 +1,6 @@
 # Keyboard, Mouse, Trackpad
 
-Hinahayaan ka ng Hyprland na i-configure ang lahat ng input mo nang napakadetalyado. Maaari mong gawing napakabilis ng keyboard repeat o gawing natural scrolling ang gamit ng trackpad. Binabago mo ang lahat ng ito sa `~/.config/hypr/input.lua`, na maaabot mo rin sa pamamagitan ng _Setup > Input_ sa Omarchy menu (`Super + Space`). Anumang itakda mo roon ay papalit sa mga default ng Omarchy.
+Pinahihintulutan ka ng Hyprland na i-configure ang lahat ng input mo nang napakadetalyado. Maaari mong gawing napakabilis ng keyboard repeat o ipagamit ang natural scrolling sa trackpad. Binabago mo ang lahat ng ito sa `~/.config/hypr/input.lua`, na maaari mo ring maabot sa pamamagitan ng _Setup > Input_ sa Omarchy menu (`Super + Space`). Anumang itakda mo roon ay papalitan ang mga default ng Omarchy.
 
 Narito ang isang halimbawa:
 
@@ -35,7 +35,7 @@ hl.config({
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
-Makikita mo [ang lahat ng opsyon sa input](https://wiki.hypr.land/Configuring/Basics/Variables/#input) sa wiki ng Hyprland para sa mga input.
+Maaari mong [tingnan ang lahat ng opsyon sa input](https://wiki.hypr.land/Configuring/Basics/Variables/#input) sa wiki ng Hyprland para sa mga input.
 
 Gumagana ang CapsLock bilang normal na Caps Lock, at ang `Shift + CapsLock` ang compose key para sa [mabilisang emoji](07-hotkeys.md#quick-emojis) at [iba pang completion](07-hotkeys.md#quick-completions). Kung mas gusto mong nasa ibang lugar ang compose key, palitan ang `omarchy:shift_caps_compose` sa `kb_options`. Halimbawa, inililipat nito ang compose key sa Right Alt:
 
@@ -47,11 +47,15 @@ hl.config({
 })
 ```
 
-### Mga gesture sa trackpad
+### Mga function key
 
-Mag-swipe sa trackpad para gumalaw sa desktop:
+Nagpapadala ang pinakamataas na hilera ng keyboard ng laptop ng mga media key (volume, brightness, at iba pa) bilang default, at ang pagpindot nang matagal sa `Fn` ay nagbibigay ng F1-F12; ni-lock ito ng `Fn + Esc` sa kabilang paraan hanggang pindutin mo itong muli. Karamihan sa mga keyboard ay sila mismo ang nakakaalala sa lock na iyon. Hinahayaan ng mga ASUS laptop at mga Apple-style na keyboard ang Linux ang bahala rito, na sinisimulan sila sa mga media key sa bawat boot. Para simulan sila sa F1-F12 sa halip, patakbuhin ang `omarchy keyboard toprow fnkeys` (at `omarchy keyboard toprow mediakeys` para bumalik); sa ilang laptop, magkakabisa ito pagkatapos mag-reboot. Pinapanatili ng mga Apple Silicon Mac ang sarili nilang setting.
 
-| Gesture | Aksyon |
+### Mga galaw sa trackpad
+
+I-swipe ang trackpad para gumalaw sa desktop:
+
+| Galaw | Aksyon |
 | --- | --- |
 | Tatlong daliri pakaliwa / pakanan | Nakaraan / susunod na workspace, kasama ang mga walang laman |
 | Tatlong daliri pataas | I-toggle ang AI console |
@@ -59,7 +63,7 @@ Mag-swipe sa trackpad para gumalaw sa desktop:
 | Apat na daliri pakaliwa / pakanan | Ilipat ang aktibong window sa nakaraan / susunod na workspace |
 | Apat na daliri pababa | I-toggle ang fullscreen |
 
-Para palitan ang isa, i-unset ito sa `~/.config/hypr/input.lua` bago idagdag ang sarili mong [touchpad gesture](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), dahil hindi tatanggap ang Hyprland ng dalawang gesture sa parehong mga daliri at direksyon:
+Para baguhin ang isa, i-unset ito sa `~/.config/hypr/input.lua` bago idagdag ang sarili mong [touchpad gesture](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), dahil hindi tatanggap ang Hyprland ng dalawang gesture sa parehong mga daliri at direksyon:
 
 ```lua
 hl.gesture({ fingers = 3, direction = "up", action = "unset" })
@@ -68,25 +72,25 @@ hl.gesture({ fingers = 3, direction = "up", action = "fullscreen" })
 
 Para i-off ang lahat ng gesture ng Omarchy, itakda ang `omarchy_default_gestures = false` malapit sa itaas ng `~/.config/hypr/hyprland.lua`, bago mag-load ang mga default ng Omarchy.
 
-Sa mga Dell XPS laptop na may haptic touchpad, maaari mo ring itakda ang lakas ng pag-click sa low, mid, o high sa ilalim ng _Trigger > Hardware > Touchpad Haptics_.
+Sa mga Dell XPS laptop na may haptic touchpad, maaari mo ring itakda ang lakas ng click sa low, mid, o high sa ilalim ng _Trigger > Hardware > Touchpad Haptics_.
 
 ### Pagta-type sa Chinese, Japanese, at iba pang wika
 
-Piliin ang Japanese, Korean, Chinese (Simplified, Pinyin), Taiwan (Zhuyin), o Hong Kong (Cangjie) kapag tinanong ng installer ang keyboard mo. Awtomatikong iko-configure ng Omarchy ang keyboard at ang katugmang input engine, kasama na sa offline na first-boot setup. Gumagamit ang Japanese ng Mozc, gumagamit ang Korean ng karaniwang two-set Hangul, gumagamit ang Simplified Chinese ng Pinyin, gumagamit ang Taiwan ng karaniwang ayos ng Zhuyin ng Chewing, at gumagamit ang Hong Kong ng Cangjie na may mga anyong karakter ng Hong Kong. Nagbibigay ang Japanese (US keyboard) ng Mozc na may US keyboard layout. Nananatili ang mga key ng Hangul, Zhuyin, at Cangjie sa kanilang karaniwang posisyon kahit nagta-type ka ng mga letrang Latin gamit ang Dvorak, Colemak, o AZERTY. Kung nagdagdag ka ng Hangul o Chewing bago ito, alisin sa pagkakapili at piliin ulit ito sa ilalim ng _Setup > Typing > Input Methods_ para ilipat ang mga key nito roon; hindi gagalawin ng Omarchy ang engine na ginagamit mo na sa pagta-type.
+Piliin ang Japanese, Korean, Chinese (Simplified, Pinyin), Taiwan (Zhuyin), o Hong Kong (Cangjie) kapag nagtanong ang installer tungkol sa keyboard mo. Awtomatikong kino-configure ng Omarchy ang keyboard at ang tumutugmang input engine, kasama na sa offline na first-boot setup. Gumagamit ang Japanese ng Mozc, gumagamit ang Korean ng standard na two-set Hangul, gumagamit ang Simplified Chinese ng Pinyin, gumagamit ang Taiwan ng standard na Zhuyin arrangement ng Chewing, at gumagamit ang Hong Kong ng Cangjie na may mga Hong Kong character form. Nagbibigay ang Japanese (US keyboard) ng Mozc na may US keyboard layout. Nananatili ang mga Hangul, Zhuyin, at Cangjie key sa kanilang standard na posisyon kahit nagta-type ka ng mga Latin letter gamit ang Dvorak, Colemak, o AZERTY. Kung idinagdag mo ang Hangul o Chewing bago ito, alisin ito sa pagkakapili at piliin itong muli sa ilalim ng _Setup > Keyboard > Input Methods_ para ilipat ang mga key nito roon; hindi gagalawin ng Omarchy ang isang engine na ginagamit mo na sa pagta-type.
 
-Nagsisimula ang pagta-type sa Latin mode. Pindutin ang `Super + I` para magpalit-palit sa mga naka-configure na input method, at ang `Super + Shift + I` para bumalik. I-tap ang `Shift` nang mag-isa para lumabas mula sa isang input method tulad ng Pinyin papunta sa mga letrang Latin, at i-tap ulit ito para bumalik, gaya ng ginagawa ng Sogou, Microsoft Pinyin, at macOS; nagta-type pa rin ng malaking letra ang `Shift` kasama ng isang letra. Sa mga Japanese keyboard, ini-toggle ng 全角/半角 ang input, ino-on ito ng 変換, at ino-off ito ng 無変換. Sa Korean, nagpapalit ang 한/영 ng Hangul at nagko-convert ang 한자 papuntang Hanja, may nakalaang key man ang keyboard mo o nagpapadala ito ng Right Alt at Right Ctrl para sa mga iyon, gaya ng ginagawa ng maraming laptop, kaya hindi simpleng modifier ang Right Alt at Right Ctrl roon; sa halip, ini-toggle ang dictation gamit ang Alt + Space. Nananatiling available ang `Ctrl + Space` para sa Tmux at Herdr; nananatiling compose key ang `Shift + CapsLock`.
+Nagsisimula ang pagta-type sa Latin mode. Pindutin ang `Super + I` para umikot sa mga na-configure na input method, at ang `Super + Shift + I` para umikot pabalik. I-tap ang `Shift` nang mag-isa para lumabas mula sa isang input method tulad ng Pinyin papunta sa mga Latin letter, at i-tap itong muli para bumalik, gaya ng paggana ng Sogou, Microsoft Pinyin, at macOS; nagta-type pa rin ng malaking titik ang `Shift` kasama ng isang titik. Sa mga Japanese keyboard, ino-toggle ng 全角/半角 ang input, ino-on ito ng 変換, at ino-off ito ng 無変換. Sa Korean, pinapalitan ng 한/영 ang Hangul at kino-convert ng 한자 papunta sa Hanja, may dedicated na key man ang keyboard mo o nagpapadala ito ng Right Alt at Right Ctrl para sa mga ito, gaya ng ginagawa ng maraming laptop, kaya hindi simpleng modifier ang Right Alt at Right Ctrl roon; ino-toggle naman ang dictation gamit ang Alt + Space sa halip. Nananatiling available ang `Ctrl + Space` para sa Tmux at Herdr; nananatili ang `Shift + CapsLock` bilang compose key.
 
-Lumalabas ang keyboard indicator sa kanan ng bar kapag marami kang keyboard layout o input method. I-click ito para magpalit ng input language; ipinapakita ng Japanese ang あ para sa hiragana. Para sa mga pagpipiliang karakter sa Japanese, lumipat sa Japanese, mag-type ng salitang tulad ng `nihongo`, pagkatapos ay pindutin ang Space nang dalawang beses. Pindutin ang Enter para tanggapin ang pinili mo. Kung marami ka ring keyboard layout, i-right-click ang indicator para magpalit-palit sa mga iyon.
+Lumilitaw ang keyboard indicator sa kanan ng bar kapag marami kang keyboard layout o input method. I-click ito para magpalit ng input language; ipinapakita ng Japanese ang あ para sa hiragana. Para sa mga pagpipiliang character sa Japanese, lumipat sa Japanese, mag-type ng salitang gaya ng `nihongo`, pagkatapos ay pindutin ang Space nang dalawang beses. Pindutin ang Enter para tanggapin ang pinili mo. Kung marami ka ring keyboard layout, i-right-click ang indicator para umikot sa mga iyon.
 
-Gamitin ang _Setup > Typing > Keyboard Layouts_ para pumili ng mga layout tulad ng English at French, mula sa parehong mga pagpipiliang inaalok habang nag-i-install. Gamitin ang _Setup > Typing > Input Methods_ para piliin kung aling mga composition engine ang aktibo. Bumubukas ang dalawang picker sa loob ng Omarchy menu na naka-check ang kasalukuyan mong mga pinili. I-click o pindutin ang Enter para i-toggle ang isang pagpipilian; agad na nalalapat ang bawat pagbabago. Ang pag-alis sa pagkakapili ng isang input method ay nag-aalis nito sa cycle nang hindi ito ina-uninstall; nananatiling available ang keyboard.
+Gamitin ang _Setup > Keyboard > Keyboard Inputs_ para pumili ng mga layout gaya ng English at French, mula sa parehong mga pagpipiliang inaalok habang nag-i-install. Gamitin ang _Setup > Keyboard > Input Methods_ para piliin kung aling mga composition engine ang aktibo. Bumubukas ang dalawang picker sa loob ng Omarchy menu na naka-check ang kasalukuyan mong mga pinili. I-click o pindutin ang Enter para i-toggle ang isang pagpipilian; agad na magkakabisa ang bawat pagbabago. Ang pag-alis sa pagkakapili ng isang input method ay nag-aalis nito sa cycle nang hindi ito ina-uninstall; mananatiling available ang keyboard.
 
-Patakbuhin ang `omarchy setup keyboard` o `omarchy setup input` para buksan ang parehong mga picker. Para magdagdag ng isang wika mula sa command line, gamitin ang `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing`, o `cangjie5`. Kasama ang Quick, Boshiamy, at Array sa parehong package ng Cangjie at lumalabas sa picker ng Input Methods. Pinapanatili ang iyong custom na switching keys. Para sa alternatibong layout o key ng engine, i-install ang `fcitx5-configtool` gamit ang `omarchy pkg add fcitx5-configtool` at ilunsad ito mula sa terminal. Hindi binabago ng pagpili ng input language ang wika ng desktop. Ang pagpili ng Japanese, Korean, o Chinese sa ilalim ng _Setup > Language_ ay nagdaragdag ng input method nito kapag wala ka pa nito.
+Patakbuhin ang `omarchy setup keyboard` o `omarchy setup input` para buksan ang parehong mga picker. Para magdagdag ng isang wika mula sa command line, gamitin ang `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing`, o `cangjie5`. Kasama ang Quick, Boshiamy, at Array sa parehong package ng Cangjie at lumilitaw ang mga ito sa Input Methods picker. Mananatili ang custom mong mga switching key. Para sa mga alternatibong layout o key ng engine, i-install ang `fcitx5-configtool` gamit ang `omarchy pkg add fcitx5-configtool` at ilunsad ito mula sa isang terminal. Hindi binabago ng pagpili ng input language ang wika ng desktop. Ang pagpili ng Japanese, Korean, o Chinese sa ilalim ng _Setup > Language_ ay nagdaragdag ng input method nito kapag wala ka pa nito.
 
-Gamitin ang `Super + I` para magpalit-palit sa mga input method o keyboard layout, at ang `Super + Shift + I` para bumalik sa kabilang direksyon, kaya sa tatlong naka-configure ay makakagalaw ka sa pagitan ng dalawang magkatabi. Lumalabas lang ang input indicator sa kanan ng bar kapag higit sa isa ang naka-configure na input method o layout. Gumagana ang desktop binding na ito kasama ng iyong kasalukuyang Fcitx switching keys; maaari mo itong i-override sa `~/.config/hypr/bindings.lua`. Ginagamit ng mga input engine at ng mga compose sequence ang serbisyong [Fcitx5](https://fcitx-im.org/) na tumatakbo na sa bawat session.
+Gamitin ang `Super + I` para umikot sa mga input method o keyboard layout, at ang `Super + Shift + I` para bumalik sa kabilang direksyon, kaya sa tatlong na-configure, maaari kang gumalaw sa pagitan ng dalawang magkatabi. Lumilitaw lang ang input indicator sa kanan ng bar kapag higit sa isang input method o layout ang na-configure. Gumagana ang desktop binding na ito kasabay ng kasalukuyan mong mga Fcitx switching key; maaari mo itong i-override sa `~/.config/hypr/bindings.lua`. Ginagamit ng mga input engine at ng mga compose sequence ang serbisyong [Fcitx5](https://fcitx-im.org/) na tumatakbo na sa bawat session.
 
 ### Gamitin ang ALT bilang SUPER
 
-Sa ilang keyboard, hindi maginhawang gamitin ang pangunahing meta key (Windows/cmd key) bilang SUPER. Maaari mong palitan ito ng ALT sa halip gamit ang pagbabagong ito:
+Sa ilang keyboard, hindi maginhawang gamitin ang primary meta key (Windows/cmd key) bilang SUPER. Maaari mong baguhin ito para maging ALT sa halip gamit ang pagbabagong ito:
 
 ```lua
 hl.config({

@@ -54,7 +54,16 @@ cleanup_update() {
 }
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
-  script_command=$(printf '%q ' "$0" "$@")
+  # Keep an untrapped shell as the PTY session leader. If script disappears,
+  # its hangup must reach the foreground prompt, not wait on our signal traps.
+  # script uses SHELL to interpret this Bash command; restore the caller's
+  # value inside it so hooks and package builds keep their original environment.
+  if [[ ${SHELL@a} == *x* ]]; then
+    printf -v script_command 'export SHELL=%q; ' "$SHELL"
+  else
+    script_command='unset SHELL; '
+  fi
+  script_command+="$(printf '%q ' "$0" "$@"); exit \$?"
   # The shared /tmp/omarchy-update.log can belong to another user and prevent
   # an update from starting. Use a unique transcript in the system-managed
   # sticky /tmp; never trust a caller-selected TMPDIR for this handoff.
@@ -65,7 +74,7 @@ if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   # Keep the transcript for postmortem diagnosis. exec preserves the original
   # PID and signal behavior while script(1) runs the logged update.
   printf 'Omarchy update log: %s\n' "$update_log" >&2
-  exec env OMARCHY_UPDATE_LOG_FILE="$update_log" OMARCHY_UPDATE_LOGGED=1 \
+  exec env OMARCHY_UPDATE_LOG_FILE="$update_log" OMARCHY_UPDATE_LOGGED=1 SHELL=/usr/bin/bash \
     script -qefc "$script_command" "$update_log"
 fi
 
@@ -81,9 +90,11 @@ trap 'exit 143' TERM
 
 omarchy-update-requires-free-space
 
-# -y suppresses Omarchy confirmation prompts; sudo authorization is still
-# required. Interactive review steps report and move on instead of waiting.
-[[ ${1:-} != "-y" ]] || export OMARCHY_UPDATE_UNATTENDED=1
+# -y skips the start confirmation and, unless the caller set
+# OMARCHY_UPDATE_UNATTENDED itself, suppresses Omarchy confirmation prompts;
+# sudo authorization is still required. Interactive review steps report and
+# move on instead of waiting.
+[[ ${1:-} != "-y" ]] || export OMARCHY_UPDATE_UNATTENDED=${OMARCHY_UPDATE_UNATTENDED:-1}
 
 if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   authorize_update
@@ -109,6 +120,10 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # takes the update with it rather than migrating against what is still on disk.
   omarchy-update-system-pkgs
 
+  # Migrations call the shell over IPC, so give them one running current code.
+  if omarchy-migrate --pending >/dev/null; then
+    omarchy-restart-shell || true
+  fi
   omarchy-migrate
   omarchy-update-orphan-pkgs -y
 
