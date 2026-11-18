@@ -36,6 +36,13 @@ try {
 } catch {}
 for (const [key, value] of Object.entries(palette)) document.documentElement.style.setProperty(`--${key}`, value);
 
+// omarchy-games-vibes-launch <game> adds open=<game>: go straight to it, and take open out of
+// this page's address first, so coming back with Esc lands on the list rather than the game again.
+const params = new URLSearchParams(location.hash.slice(1));
+const open = GAMES.find(game => game.name === params.get('open'));
+params.delete('open');
+history.replaceState(null, '', `#${params}`);
+
 const list = document.getElementById('games');
 for (const game of GAMES) {
   const link = document.createElement('a');
@@ -57,6 +64,8 @@ for (const game of GAMES) {
 }
 document.getElementById('empty').hidden = GAMES.length > 0;
 list.querySelector('a')?.focus();
+// After load: Chrome makes a navigation started while the page loads replace it, which would leave no list to go back to.
+if (open) addEventListener('load', () => setTimeout(() => { location.href = `${encodeURIComponent(open.name)}/index.html${location.hash}`; }));
 
 // Arrows move through the grid as it is laid out.
 addEventListener('keydown', event => {

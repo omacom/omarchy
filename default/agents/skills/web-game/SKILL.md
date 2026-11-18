@@ -50,7 +50,7 @@ A plain version that plays comes first; check it (step 4), then add these in one
 - **Glow**: in a dark theme (`PALETTE.mode === 'dark'`), emissive materials on what matters and bloom (`EffectComposer`, `RenderPass` and `UnrealBloomPass` from `three/addons/postprocessing/`) make it come alive. Leave bloom off in a light theme, where it washes everything out.
 - **Polish**: the end screen says what happened and whether it was a new best; a game that can be won or drawn says so in `endRound`'s title.
 
-Done is a playable game with most of these in place, each checked once. Don't tune numbers turn after turn: when they're in and the checks pass, finish the icon, add it to Game Vibes, and tell the user what you built and what could come next.
+Done is a playable game with most of these in place, each checked once. Don't tune numbers turn after turn: when they're in and the checks pass, finish the icon, open it in Game Vibes, and tell the user what you built and what could come next.
 
 ## 4. Check it, then look at it
 
@@ -71,9 +71,9 @@ Open every screenshot with your tool for viewing images; reading the path is not
 - Does it look like the game you set out to make, with enough in it to be worth playing, not a few shapes on an empty field?
 - In the light theme, is it as readable and as good-looking?
 
-Look at your losing and winning moments too: make one happen at once in a scratch copy (a mine under the first reveal, a nearly cleared board) and look at that. Never open the game in the user's browser to test it.
+Look at your losing and winning moments too: make one happen at once in a scratch copy (a mine under the first reveal, a nearly cleared board) and look at that. Check with `look page` only; the user sees the game once, when it's done (step 5).
 
-## 5. Give it an icon and add it to Game Vibes
+## 5. Give it an icon and open it in Game Vibes
 
 Write `~/Games/vibes/<name>/icon.svg`: a 256×256 square with a rounded tile filling it (`rx="56"`) in one strong colour, and on it one bold, simple picture of the game in a contrasting colour — a snake's coil, a chess knight, a flag on a mine — from a few flat shapes. No text, no tiny detail, no more than three colours: it has to read small in the Game Vibes list. Render it and look at it, large and small:
 
@@ -82,13 +82,13 @@ magick -background none ~/Games/vibes/<name>/icon.svg -resize 256x256 /tmp/<name
 magick /tmp/<name>-icon.png -resize 32x32 /tmp/<name>-icon-32.png
 ```
 
-Then add it to Game Vibes, which lists it by its `<title>` and icon:
+When it's done, open it for the user in Game Vibes, which lists it by its `<title>` and icon and opens straight into it:
 
 ```bash
-omarchy-games-vibes-install
+omarchy-games-vibes-launch <name>
 ```
 
-Game Vibes refreshes its list each time it opens, so edits and a changed title need nothing more. Tell the user the game is in Game Vibes in the app launcher (Super + Space), where the file is, and the controls.
+Do this once, at the end, not while checking. Game Vibes refreshes its list each time it opens, so later edits and a changed title need nothing more. Tell the user the game is open, that it's in Game Vibes in the app launcher (Super + Space), where the file is, and the controls.
 
 ## three.js and the page
 

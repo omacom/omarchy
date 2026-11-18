@@ -56,3 +56,10 @@ opened=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.unquote(sys.ar
 accent=$(python3 -c 'import json, sys, urllib.parse; print(json.loads(urllib.parse.unquote(sys.argv[1].split("#palette=")[1]))["accent"])' "$url")
 [[ $accent == "#7aa2f7" ]] || fail "Game Vibes opens in the current theme's palette" "$url"
 pass "the one Game Vibes launcher opens the list in the current theme"
+
+: >"$OMARCHY_TEST_ARGV"
+omarchy-games-vibes-launch snake || fail "Game Vibes opens a game it lists"
+[[ $(head -1 "$OMARCHY_TEST_ARGV") == *"#palette="*"&open=snake" ]] || fail "a game opens through the list, so Esc comes back to it" "$(head -1 "$OMARCHY_TEST_ARGV")"
+! omarchy-games-vibes-launch notes 2>/dev/null || fail "Game Vibes refuses a folder that isn't a game"
+! omarchy-games-vibes-launch ../vibes/snake 2>/dev/null || fail "Game Vibes refuses a path for a game"
+pass "Game Vibes opens straight into a game when it's done"
