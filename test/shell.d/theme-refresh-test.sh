@@ -74,6 +74,15 @@ refresh --if-changed
 [[ $(sets) == 7 ]] || fail "a file the renderer ignores refreshes the theme"
 pass "a linked template counts by its target, and files the renderer ignores do not count"
 
+# A dangling link sorting first must not hide edits to the templates after it.
+ln -s "$test_tmp/dotfiles/gone.conf.tpl" "$test_home/.config/omarchy/themed/a-broken.conf.tpl"
+refresh --if-changed || fail "a refresh with a broken template link fails"
+[[ $(sets) == 8 ]] || fail "a broken template link does not refresh the theme"
+echo 'i = "{{ accent }}"' >>"$test_tmp/dotfiles/linked.conf.tpl"
+refresh --if-changed
+[[ $(sets) == 9 ]] || fail "a broken link hides an edit to a later template"
+pass "a broken template link neither fails the refresh nor hides later edits"
+
 echo 'e = "{{ accent }}"' >>"$omarchy_path/default/themed/app.conf.tpl"
 before=$(cat "$stamp")
 if OMARCHY_TEST_SET_FAIL=1 refresh --if-changed; then
@@ -81,18 +90,18 @@ if OMARCHY_TEST_SET_FAIL=1 refresh --if-changed; then
 fi
 [[ $(cat "$stamp") == "$before" ]] || fail "a failed refresh is recorded as rendered"
 refresh --if-changed
-[[ $(sets) == 9 ]] || fail "the next conditional refresh does not retry a failed one"
+[[ $(sets) == 11 ]] || fail "the next conditional refresh does not retry a failed one"
 pass "a failed refresh is not recorded, so the next one retries it"
 
 # Migrations refresh unconditionally; that render counts too.
 echo 'f = "{{ accent }}"' >>"$omarchy_path/default/themed/app.conf.tpl"
 refresh
 refresh --if-changed
-[[ $(sets) == 10 ]] || fail "a migration's refresh is not counted, so the update renders again"
+[[ $(sets) == 12 ]] || fail "a migration's refresh is not counted, so the update renders again"
 pass "an unconditional refresh is recorded, so the update after a migration does not repeat it"
 
 refresh
-[[ $(sets) == 11 ]] || fail "an unconditional refresh is skipped when nothing changed"
+[[ $(sets) == 13 ]] || fail "an unconditional refresh is skipped when nothing changed"
 pass "a plain refresh always sets the theme"
 
 # omarchy update holds its lock on an inherited descriptor. Work the theme set
@@ -100,11 +109,11 @@ pass "a plain refresh always sets the theme"
 exec {update_lock}>"$test_tmp/update.lock"
 OMARCHY_UPDATE_LOCK_FD=$update_lock refresh
 exec {update_lock}>&-
-[[ $(sets) == 12 ]] || fail "a refresh under the update lock does not set the theme"
+[[ $(sets) == 14 ]] || fail "a refresh under the update lock does not set the theme"
 [[ ! -e $test_tmp/inherited-update-lock ]] || fail "the theme set inherits omarchy update's lock"
 pass "the theme set runs without omarchy update's lock"
 
 rm "$test_home/.local/state/omarchy/current/theme.name"
 refresh --if-changed || fail "a refresh with no current theme fails"
-[[ $(sets) == 12 ]] || fail "a refresh with no current theme sets one"
+[[ $(sets) == 14 ]] || fail "a refresh with no current theme sets one"
 pass "with no current theme there is nothing to refresh"
