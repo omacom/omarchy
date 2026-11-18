@@ -137,8 +137,8 @@ desktop_exec_arg() {
 }
 
 if (( $# < 3 )); then
-  echo -e "\e[32mLet's create a new web app you can start with the app launcher.\n\e[0m"
-  APP_NAME=$(gum input --prompt "Name> " --placeholder "My favorite web app")
+  echo -e "\e[32m$(omarchy-i18n webapp.intro)\n\e[0m"
+  APP_NAME=$(gum input --prompt "$(omarchy-i18n tui.namePrompt)" --placeholder "$(omarchy-i18n webapp.namePlaceholder)")
   require_plain_name "$APP_NAME"
   APP_URL=$(gum input --prompt "URL> " --placeholder "https://example.com")
   APP_URL=$(normalize_webapp_url "$APP_URL")
@@ -151,7 +151,7 @@ if (( $# < 3 )); then
     gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
     ICON_REF="$ICON_VALUE"
   else
-    ICON_REF=$(gum input --prompt "Icon URL/name> " --placeholder "Could not fetch favicon automatically. Enter PNG icon URL or icon name")
+    ICON_REF=$(gum input --prompt "$(omarchy-i18n tui.iconPrompt)" --placeholder "$(omarchy-i18n webapp.iconPlaceholder)")
   fi
 
   CUSTOM_EXEC=""

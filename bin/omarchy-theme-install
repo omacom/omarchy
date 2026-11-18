@@ -7,7 +7,7 @@
 
 if [[ -z $1 ]]; then
   echo -e "\e[32mSee https://omarchy.org/themes/\n\e[0m"
-  REPO_URL=$(gum input --placeholder="Git repo URL (https or git@host:org/repo.git)" --header="")
+  REPO_URL=$(gum input --placeholder="$(omarchy-i18n theme.repoPlaceholder)" --header="")
 else
   REPO_URL="$1"
 fi
@@ -34,7 +34,7 @@ THEME_PATH="$THEMES_DIR/$THEME_NAME"
 
 # The name comes from the URL, is joined into a path that is about to be
 # removed, and then names a directory the rest of Omarchy passes around by
-# name: Style > Unlock builds a command line out of the one the picker
+# name: Appearance > Unlock builds a command line out of the one the picker
 # returned. So it is held to the characters a theme name needs rather than
 # screened for the harm of the day -- a repo called `..` would take
 # ~/.config/omarchy with it, and one called `a';'id` would carry its own
