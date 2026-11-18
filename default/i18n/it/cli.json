@@ -48,7 +48,7 @@
   "animations.disabled": "Animazioni disattivate",
   "animations.enabled": "Animazioni attivate",
   "animations.softwareRendering": "Animazioni disattivate senza GPU",
-  "animations.softwareRenderingBody": "Nessuna GPU in uso, quindi animazioni, sfocatura e ombre sono disattivate. Aspetto > Animazioni attivate le riattiva.",
+  "animations.softwareRenderingBody": "Nessuna GPU in uso, quindi animazioni, sfocatura e ombre sono disattivate. Aspetto > Attiva animazioni le riattiva.",
   "audio.micMuted": "Microfono silenziato",
   "audio.micOn": "Microfono attivo",
   "audio.noDevices": "Nessun dispositivo audio trovato",
