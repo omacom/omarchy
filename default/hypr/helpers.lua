@@ -46,11 +46,8 @@ local function hypr_instance_file(name)
   return runtime .. "/hypr/" .. signature .. "/" .. name
 end
 
--- Property refreshes can dereference managers before startup completes. A reload
--- gets a fresh Lua state and no start event, so an active monitor or the marker
--- written at hyprland.start says startup already finished. The marker also
--- covers a reload with no active monitor (headless, or every monitor unplugged),
--- where the monitor check alone would defer refreshes for the rest of the session.
+-- Refreshes are unsafe before startup. Record readiness at start or first live
+-- installation, so a fresh Lua state can recognize a monitorless reload too.
 local refresh_guard = _G.omarchy_prop_refresh_guard
 if not refresh_guard and hl and type(hl.on) == "function"
   and type(hl.exec_scheduled_prop_refresh_immediately) == "function" then
@@ -73,20 +70,24 @@ if not refresh_guard and hl and type(hl.on) == "function"
     refresh_guard.pending = true
   end
 
-  if not running then
-    hl.on("hyprland.start", function()
-      if started_path then
-        local marker = io.open(started_path, "w")
-        if marker then
-          marker:close()
-        end
+  local function start_refreshes()
+    if started_path then
+      local marker = io.open(started_path, "w")
+      if marker then
+        marker:close()
       end
-      refresh_guard.started = true
-      if refresh_guard.pending then
-        refresh_guard.pending = false
-        refresh_guard.original()
-      end
-    end)
+    end
+    refresh_guard.started = true
+    if refresh_guard.pending then
+      refresh_guard.pending = false
+      refresh_guard.original()
+    end
+  end
+
+  if running then
+    start_refreshes()
+  else
+    hl.on("hyprland.start", start_refreshes)
   end
 end
 

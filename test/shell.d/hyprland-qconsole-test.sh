@@ -322,15 +322,22 @@ assert(refreshes == 1, "a refresh in a running session runs immediately")
 LUA
 pass "the refresh guard handles a reload into a running session"
 
-# A reload with no active monitor (headless, or every monitor unplugged) must
-# also pass refreshes straight through. The marker left at hyprland.start lives
-# in Hyprland's per-instance runtime dir, which survives the fresh Lua state a
-# reload creates, so it is the signal that startup already finished.
+# Installing through a reload must leave a marker too, so a later monitorless
+# reload can pass refreshes through after the Lua state is rebuilt.
 (
   test_runtime=$(mktemp -d)
   trap 'rm -rf "$test_runtime"' EXIT
   mkdir -p "$test_runtime/hypr/test-signature"
-  : > "$test_runtime/hypr/test-signature/omarchy-prop-refresh-started"
+
+  OMARCHY_PATH="$ROOT" XDG_RUNTIME_DIR="$test_runtime" HYPRLAND_INSTANCE_SIGNATURE=test-signature lua - <<'LUA' || fail "the refresh guard records installation into a running session"
+hl = {
+  on = function() error("startup already finished") end,
+  get_active_monitor = function() return { name = "eDP-1" } end,
+  exec_scheduled_prop_refresh_immediately = function() end,
+}
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
+LUA
 
   OMARCHY_PATH="$ROOT" XDG_RUNTIME_DIR="$test_runtime" HYPRLAND_INSTANCE_SIGNATURE=test-signature lua - <<'LUA' || fail "the refresh guard handles a reload with no active monitor"
 local start_handler = false
