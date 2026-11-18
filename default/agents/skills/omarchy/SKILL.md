@@ -2,12 +2,12 @@
 name: omarchy
 description: >
   REQUIRED for end-user customization of Linux desktop, window manager, or system config.
-  Use when editing ~/.config/hypr/, ~/.config/omarchy/,
+  Use when editing ANY file in ~/.config/, ~/.config/hypr/, ~/.config/omarchy/,
   ~/.config/alacritty/, ~/.config/foot/, ~/.config/kitty/, or ~/.config/ghostty/.
-  Triggers: Hyprland, window rules, animations, keybindings, monitors, gaps, borders,
-  blur, opacity, omarchy-shell, bar, terminal config, themes, background,
-  night light, idle, lock screen, screenshots, reminders, layer rules, workspace
-  settings, display config, and user-facing omarchy commands. Excludes Omarchy
+  Triggers: Hyprland, window rules, window behavior, animations, keybindings, monitors, gaps, borders,
+  blur, opacity, omarchy-shell, bar, widgets, terminal config, themes, fonts, background,
+  night light, idle, lock screen, screenshots, screen recording, reminders, layer rules, workspace
+  settings, display config, appearance changes, and user-facing omarchy commands. Excludes Omarchy
   source development through `omarchy dev link` workflows.
 ---
 
@@ -17,24 +17,6 @@ Manage [Omarchy](https://omarchy.org/) Linux systems - a beautiful, fun, agentic
 
 This skill is for end-user customization on installed systems.
 It is not for contributing to Omarchy source code.
-
-## When This Skill MUST Be Used
-
-**ALWAYS invoke this skill for end-user requests involving ANY of these:**
-
-- Editing ANY file in `~/.config/hypr/` (window rules, animations, keybindings, monitors, etc.)
-- Editing `~/.config/omarchy/shell.json` (status bar layout, widgets)
-- Editing terminal configs (alacritty, foot, kitty, ghostty)
-- Editing ANY file in `~/.config/omarchy/`
-- Window behavior, animations, opacity, blur, gaps, borders
-- Layer rules, workspace settings, display/monitor configuration
-- Themes, backgrounds, fonts, appearance changes
-- User-facing `omarchy` commands (`omarchy theme ...`, `omarchy refresh ...`, `omarchy restart ...`, etc.)
-- Screenshots, screen recording, reminders, night light, idle behavior, lock screen
-
-**If you're about to edit a config file in ~/.config/ on this system, STOP and use this skill first.**
-
-**Do NOT use this skill for Omarchy development tasks** (editing the Omarchy source tree, creating migrations, or running `omarchy dev ...` workflows).
 
 ## Topic Guides
 
@@ -108,7 +90,7 @@ Omarchy is built on:
 
 ## Command Discovery
 
-Omarchy ships a single `omarchy` CLI that dispatches to all `omarchy-*` binaries via `omarchy <group> <action>`. Always prefer this form — it is self-documenting and stable. The underlying `omarchy-*` binaries still exist on `PATH` and remain safe to read for source.
+Omarchy ships a single `omarchy` CLI that dispatches to all `omarchy-*` binaries via `omarchy <group> <action>`. Always prefer this form — it is self-documenting and stable. The underlying `omarchy-*` binaries still exist on `PATH` and remain safe to read for source. The one exception is diagnostics: run `omarchy-debug --no-sudo --print` directly. On a package install it lives outside the directory the `omarchy` router searches, so `omarchy debug` can fail there with "Unknown Omarchy command".
 
 ```bash
 # List every documented command and its summary (--all includes hidden commands)
@@ -219,19 +201,19 @@ omarchy refresh hyprland
 ```bash
 omarchy update                  # Full system update
 omarchy version                 # Show Omarchy version
-omarchy debug --no-sudo --print # Debug info (ALWAYS use these flags)
+omarchy-debug --no-sudo --print # Debug info (ALWAYS use these flags)
 omarchy system lock             # Lock screen
 omarchy system shutdown         # Shutdown
 omarchy system reboot           # Reboot
 ```
 
-**IMPORTANT:** Always run `omarchy debug` with `--no-sudo --print` flags to avoid interactive sudo prompts that will hang the terminal.
+**IMPORTANT:** Always run `omarchy-debug` with `--no-sudo --print` flags to avoid interactive sudo prompts that will hang the terminal.
 
 ## Troubleshooting
 
 ```bash
 # Get debug information (ALWAYS use these flags to avoid interactive prompts)
-omarchy debug --no-sudo --print
+omarchy-debug --no-sudo --print
 
 # Reset specific config to defaults
 omarchy refresh <app>
@@ -279,7 +261,7 @@ This skill intentionally does not cover Omarchy source development. Do not use t
 
 - "Change my theme to catppuccin" -> `omarchy theme set catppuccin`
 - "Add a keybinding for Super+E to open file manager" -> Check existing bindings first, then use `o.rebind` to replace one or `o.bind` to add one in `~/.config/hypr/bindings.lua`
-- "Configure my external monitor" -> Edit `~/.config/hypr/monitors.lua`
+- "Configure my external monitor" -> `omarchy hyprland monitor scaling|resolution --monitor <name> ...` for scale and resolution; edit `~/.config/hypr/monitors.lua` only for rotation and the other extras in hyprland.md
 - "Make the window gaps smaller" -> Edit `~/.config/hypr/looknfeel.lua`
 - "Turn on night light" -> `omarchy toggle nightlight` (for time-based schedules, edit `~/.config/hypr/hyprsunset.conf` profiles, then `omarchy restart hyprsunset`)
 - "Set a reminder to pickup jack in 15 minutes" -> `omarchy reminder 15 "Pickup Jack"`

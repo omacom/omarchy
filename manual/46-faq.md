@@ -9,7 +9,7 @@ hl.config({
   input = {
     -- Use multiple keyboard layouts and switch between them with Left Alt + Right Alt
     kb_layout = "us,fr",
-    kb_options = "compose:caps,shift:both_capslock_cancel,grp:alts_toggle",
+    kb_options = "omarchy:shift_caps_compose,grp:alts_toggle",
   },
 })
 ```
@@ -37,10 +37,6 @@ Those all live in [networking](35-networking.md).
 ### How do I check how fast my disk is?
 
 _Trigger > Speed Test > Disk Speed Test_ measures live read and write speed on your drive, or `omarchy disk speedtest` from the terminal.
-
-### Why can't I sign into my Google account in Chromium?
-
-The plain open source Chromium build doesn't ship with the OAuth credentials that Google requires for account sign-in. Run _Install > Service > Chromium Account_ in the Omarchy menu to add them, restart the browser, and the sign-in will go through.
 
 ### How do I add a printer?
 
