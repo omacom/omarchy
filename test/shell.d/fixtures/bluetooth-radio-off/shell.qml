@@ -82,6 +82,7 @@ ShellRoot {
   }
 
   function adapterReturns() {
+    check(panel.visible, "turning on keeps the widget while the controller boots (hid " + hides + " times)")
     BluetoothMock.defaultAdapter = BluetoothMock.adapter
     check(panel.visible && panel.radioEnabled && panel.icon === "󰂯", "returning adapter shows the on widget")
     // No block this time: bluetoothd stopped or the module unloaded.

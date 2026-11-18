@@ -677,13 +677,16 @@ Panel {
   // A removable radio unplugged while off takes its rfkill switch with it but
   // brings no adapter change, since the adapter was already gone. Follow the
   // switches only in that state, so the widget leaves the bar with the radio
-  // instead of keeping a switch that can bring nothing back.
+  // instead of keeping a switch that can bring nothing back. Only removals
+  // (op 1) count: turning on reports a change on the switch while the
+  // controller is still booting, and asking then would read "not blocked, no
+  // adapter" and hide the widget until BlueZ caught up.
   Process {
     running: root.adapter === null && root.radioPresent
     command: ["rfkill", "event"]
     stdout: SplitParser {
       onRead: function(line) {
-        if (/ type 2 /.test(String(line))) root.requeryBlocked()
+        if (/ type 2 op 1 /.test(String(line))) root.requeryBlocked()
       }
     }
   }

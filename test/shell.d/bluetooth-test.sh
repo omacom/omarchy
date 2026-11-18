@@ -301,7 +301,12 @@ cat >"$stage/bin/omarchy-bluetooth-power" <<'SH'
 printf '%s\n' "$1" >>"$BT_TEST_DIR/log"
 case $1 in
   off) echo blocked >"$BT_TEST_DIR/rfkill" ;;
-  on) echo unblocked >"$BT_TEST_DIR/rfkill" ;;
+  on)
+    echo unblocked >"$BT_TEST_DIR/rfkill"
+    # Unblocking reports a change on the switch while the controller is still
+    # booting, before BlueZ has an adapter again.
+    echo "idx 0 type 2 op 2 soft 0 hard 0" >>"$BT_TEST_DIR/rfkill-events"
+    ;;
   unplug)
     echo none >"$BT_TEST_DIR/rfkill"
     echo "idx 9 type 2 op 1 soft 1 hard 0" >>"$BT_TEST_DIR/rfkill-events"
