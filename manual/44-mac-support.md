@@ -10,6 +10,10 @@ In a simple test, we were able to achieve 36% performance gains on a 2019 MacBoo
 
 ### Installing Omarchy on Mac
 
+On a T1 Mac, back up the entire `EFI/APPLE/` directory from this Mac's Apple EFI partition to another device **before installing Omarchy or changing partitions**. Include `EFI/APPLE/EMBEDDEDOS/FDRData` and `combined.memboot`, and verify that the copied files match the originals. A full-disk install also erases the Apple EFI partition, so a backup left on that disk will be lost.
+
+`FDRData` is specific to this Mac and is required for Touch ID through T1Bridge; another Mac's copy cannot replace it. If it has been lost, [T1Bridge's recovery guidance](https://github.com/standardagents/t1bridge/blob/main/docs/setup.md#import-this-machines-apple-data) says to restore macOS on this Mac and complete its first boot, then verify and back up the regenerated EFI data. Booting Recovery alone is not enough. Back up your Linux data before restoring macOS, which can erase it.
+
 Omarchy only supports being the **only** OS installed at the moment. During the installation, the drive will be wiped and MacOS will no longer be bootable.
 
 You can still restore it later via Internet Recovery if you'd like.
@@ -50,35 +54,38 @@ The Apple T1 chip was introduced in late 2016 and used exclusively in the first-
 
 #### Known Issues
 
-- Touch Bar is dark out of the box. Omarchy's built-in Touch Bar support is T2-only. These machines have no physical Esc/F-row, so brightness, volume, and function keys only exist once the T1 bar is driven. On at least MacBookPro13,2 (2016 13-inch with Touch Bar) the bar, webcam, and (optionally) Touch ID work after restoring this Mac's Apple EFI data and installing [t1bridge](https://github.com/standardagents/t1bridge).
+- Touch Bar is dark out of the box. Omarchy's built-in Touch Bar support is T2-only. These machines have no physical Esc/F-row, so brightness, volume, and function keys only exist once the T1 bar is driven. The author reports working Touch Bar and webcam support on MacBookPro13,2 (2016 13-inch with Touch Bar) after installing [t1bridge](https://github.com/standardagents/t1bridge) with the T1 running. Touch ID additionally requires this Mac's preserved or restored Apple EFI data and the upstream fingerprint setup.
 
-If sysfs shows USB `05ac:1281` (Apple Mobile Device Recovery Mode) or `/boot/EFI/APPLE/EMBEDDEDOS` is missing, the installer wiped the T1 firmware data. Restore it with [t1-revive](https://github.com/niconistal/t1-revive) before t1bridge. That tool talks to Apple's restore protocol; it is irreversible without an `EFI/APPLE` backup. Do not pass `--no-confirm`. After a successful restore the T1 should enumerate as `05ac:8600`.
+  USB `05ac:1281` (Apple Mobile Device Recovery Mode) or a missing `/boot/EFI/APPLE/EMBEDDEDOS` directory does not prove that this Mac's Apple EFI data has been erased. Check the available Apple EFI partitions and verified backups from this Mac first, following [T1Bridge's import and recovery guidance](https://github.com/standardagents/t1bridge/blob/main/docs/setup.md#import-this-machines-apple-data).
 
-Then add the signed t1bridge repo from [the t1bridge README](https://github.com/standardagents/t1bridge#install-official-packages) (fingerprint `35B166F78B063B04DE1E3D913E6C4216EB03D371`) and install. On Omarchy run `omarchy update` first so `pacman -S` is not a partial upgrade. Use `linux-omarchy-headers` for this kernel. Omit the fingerprint packages unless you want Touch ID (they replace distro libfprint/fprintd):
+  [t1-revive](https://github.com/niconistal/t1-revive) is a separate Linux recovery tool, under T1Bridge's source and integration review rather than a supported installer recovery path. Consider it only after usable local EFI data and same-Mac backups have been exhausted. It writes new factory data through Apple's restore protocol; there is no undo without a previous `EFI/APPLE` backup. Follow its preflight and off-disk backup instructions, stay at the machine on mains power, prevent sleep, and do not pass `--no-confirm`. After a successful restore the T1 should enumerate as `05ac:8600`.
 
-```bash
-omarchy update
-sudo pacman -S --needed linux-omarchy-headers t1bridge t1bridge-dkms t1bridge-omarchy
-sudo systemd-sysusers /usr/lib/sysusers.d/t1bridge.conf
-sudo systemd-tmpfiles --create /usr/lib/tmpfiles.d/t1bridge.conf
-sudo usermod -aG t1bridge "$(id -un)"
-sudo systemctl daemon-reload
-sudo systemctl enable t1-touchbar-hw.service
-sudo reboot
-```
+  Then add the signed t1bridge repo from [the t1bridge README](https://github.com/standardagents/t1bridge#install-official-packages) (fingerprint `35B166F78B063B04DE1E3D913E6C4216EB03D371`) and install. On Omarchy run `omarchy update` first so `pacman -S` is not a partial upgrade. Use `linux-omarchy-headers` for this kernel. For Touch Bar and camera only, omit `libfprint-t1bridge` and `fprintd-t1bridge`, which replace the distribution's libfprint/fprintd packages. For Touch ID, follow [T1Bridge's additional setup steps](https://github.com/standardagents/t1bridge#4-set-up-touch-id), including the machine-data import and authentication configuration:
 
-After reboot, in a graphical session:
+  ```bash
+  omarchy update
+  sudo pacman -S --needed linux-omarchy-headers t1bridge t1bridge-dkms t1bridge-omarchy
+  sudo systemd-sysusers /usr/lib/sysusers.d/t1bridge.conf
+  sudo systemd-tmpfiles --create /usr/lib/tmpfiles.d/t1bridge.conf
+  sudo usermod -aG t1bridge "$(id -un)"
+  sudo systemctl daemon-reload
+  sudo systemctl enable t1-touchbar-hw.service
+  ```
 
-```bash
-systemctl --user daemon-reload
-systemctl --user enable --now t1-touchbar.service
-sudo t1bridge status
-```
+  Confirm that DKMS and the initramfs/UKI build for the kernel you will boot completed successfully. Resolve any build, signature or dependency errors before running `sudo reboot`.
 
-Success looks like USB `05ac:8600` configuration 2, `/dev/dri/touchbar` present, `t1-touchbar-hw.service` and user `t1-touchbar.service` active, and `id` listing `t1bridge`. Esc, Fn→F1–F12, brightness, volume, and media should work. A login that started before `usermod` will not have the group until you log out (or reboot). Volume and media need `t1bridge-omarchy` (or another desktop provider) via `T1BRIDGE_DESKTOP_PROVIDER`. Do not run Omarchy's generic fingerprint wizard if you later add Touch ID; it can replace the matched t1bridge fprintd pair.
+  After reboot, in a graphical session:
 
-- After suspend the laptop can wake with Touch Bar taps still working and the strip still dark. appletbdrm parks the panel (HID feature report 3 byte 1 = `0x01`) and t1bridge 0.1.12 does not write the awake value. systemd 262 only runs `/usr/lib/systemd/system-sleep` (not `/etc`). usbfs SET_REPORT is `EBUSY` because t1bridge-cfgselector owns `05ac:8600`. On MacBookPro13,2 (Omarchy 4.0.6, t1bridge 0.1.12), hidraw on iBridge interface 6 with `HIDIOCSFEATURE` `03 02` changed report 3 from `03010000` to `03020000` and relit the strip without a power cycle. Use s2idle, not S3/`deep`. Do not call ACPI `FRST` to "fix" sleep. Installable workaround: [Alkarth2010/t1-touchbar-s2idle](https://github.com/Alkarth2010/t1-touchbar-s2idle).
-- Omarchy's `omarchy-hw-external-monitors` treats the Touch Bar DRM connector (`card*-USB-*`) as an external display, so an undocked lid close can skip the lock. The workaround repo includes a helper that ignores that connector. A real HDMI/DP monitor still counts as docked.
+  ```bash
+  systemctl --user daemon-reload
+  systemctl --user enable --now t1-touchbar.service
+  sudo t1bridge status
+  ```
+
+  Success looks like USB `05ac:8600` configuration 2, `/dev/dri/touchbar` present, `t1-touchbar-hw.service` and user `t1-touchbar.service` active, and `id` listing `t1bridge`. Esc, Fn→F1–F12, brightness, volume, and media should work. A login that started before `usermod` will not have the group until you log out (or reboot). Volume and media need `t1bridge-omarchy` (or another desktop provider) via `T1BRIDGE_DESKTOP_PROVIDER`. Do not run Omarchy's generic fingerprint wizard if you later add Touch ID; it can replace the matched t1bridge fprintd pair.
+
+- On the author's MacBookPro13,2 (Omarchy 4.0.6, t1bridge 0.1.12), the laptop can resume with Touch Bar taps working while the strip stays dark. T1Bridge currently lists system suspend/resume as unsupported; see [the upstream sleep/wake issue](https://github.com/standardagents/t1bridge/issues/18). The author's [s2idle workaround](https://github.com/Alkarth2010/t1-touchbar-s2idle) is specific to that setup.
+- The Touch Bar can be mistaken for an external display, so closing an undocked laptop's lid can skip the immediate lid-close lock. The same workaround includes a helper that ignores the Touch Bar while still treating a real HDMI/DP monitor as docked.
 - Sound is not functioning
 
 #### Devices with T2 Chip
