@@ -26,11 +26,11 @@
   "update": {
     "label": "Yangilash"
   },
-  "about": {
-    "label": "Haqida"
-  },
   "system": {
     "label": "Tizim"
+  },
+  "system.about": {
+    "label": "Haqida"
   },
   "system.screensaver": {
     "label": "Ekran saqlagich"

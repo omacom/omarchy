@@ -26,11 +26,11 @@
   "update": {
     "label": "Opdater"
   },
-  "about": {
-    "label": "Om"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "Om"
   },
   "system.screensaver": {
     "label": "Pauseskærm"
