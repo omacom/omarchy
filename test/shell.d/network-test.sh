@@ -260,3 +260,36 @@ assertDeepEqual(
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
 JS
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+mkdir -p "$tmpdir/bin"
+printf '#!/bin/bash\nexit 0\n' >"$tmpdir/bin/nmcli"
+cat >"$tmpdir/bin/rfkill" <<'SH'
+#!/bin/bash
+if [[ $* == "--raw --noheadings --output HARD list wifi" ]]; then
+  [[ $LC_ALL == "C" ]] || exit 2
+  [[ $HARD_BLOCKS != "query-error" ]] || exit 3
+  printf '%s\n' "$HARD_BLOCKS"
+elif [[ $* == "list wifi" && $HARD_BLOCKS == "list-error" ]]; then
+  exit 4
+fi
+SH
+chmod +x "$tmpdir/bin/"*
+
+for state in unblocked blocked $'unblocked\nblocked' "" query-error list-error; do
+  status=0
+  PATH="$tmpdir/bin:$PATH" HARD_BLOCKS="$state" "$ROOT/bin/omarchy-restart-wifi" >"$tmpdir/output" 2>&1 || status=$?
+  case "$state" in
+    unblocked|"")
+      (( status == 0 )) || fail "Wi-Fi restart accepts radios without a hard block" "$(cat "$tmpdir/output")"
+      ;;
+    blocked|$'unblocked\nblocked')
+      (( status == 1 )) && grep -q "still hardware-blocked" "$tmpdir/output" ||
+        fail "Wi-Fi restart reports a remaining hardware block" "status=$status: $(cat "$tmpdir/output")"
+      ;;
+    query-error) (( status == 3 )) || fail "Wi-Fi restart preserves a failed hardware-state query" "status=$status" ;;
+    list-error) (( status == 4 )) || fail "Wi-Fi restart preserves a failed rfkill listing" "status=$status" ;;
+  esac
+done
+pass "Wi-Fi restart reports hard blocks and preserves rfkill errors"
