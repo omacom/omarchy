@@ -23,7 +23,11 @@ thumbnail_path_for() {
     hash=$(printf '%s\t%s' "$image" "$signature" | md5sum | cut -d ' ' -f 1)
   fi
 
-  printf '%s/%s.jpg' "$cache_dir" "$hash"
+  if is_video_path "$image"; then
+    printf '%s/%s.jpg' "$cache_dir" "$hash"
+  else
+    printf '%s/%s.webp' "$cache_dir" "$hash"
+  fi
 }
 
 generate_video_thumbnail() {
