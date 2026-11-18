@@ -92,7 +92,8 @@ Panel {
   function runLocalAction(model, action) {
     if (action === "launch") {
       // An image model makes pictures in Fantasi rather than running an agent.
-      if (model.kind === "image") Util.execArgv(["omarchy-launch-or-focus", "fantasi", "uwsm-app -- fantasi open --model " + Util.shellQuote(modelId(model))])
+      // Anchored, so another window that merely mentions Fantasi in its title isn't the one focused.
+      if (model.kind === "image") Util.execArgv(["omarchy-launch-or-focus", "^fantasi$", "uwsm-app -- fantasi open --model " + Util.shellQuote(modelId(model))])
       else Util.execArgv(["omarchy-agent", "--local-model", modelId(model)])
       root.close()
     } else if (action === "toggle") {

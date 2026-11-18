@@ -206,8 +206,8 @@ launch({ recipe: 'pic', kind: 'image', unit: 'active' }, 'launch')
 launch({ host: 'box', recipe: 'pic', kind: 'image', unit: 'active', paired: true, offline: '' }, 'launch')
 launch({ recipe: 'm', unit: 'active' }, 'launch')
 assertDeepEqual(launched, [
-  ['omarchy-launch-or-focus', 'fantasi', "uwsm-app -- fantasi open --model 'pic'"],
-  ['omarchy-launch-or-focus', 'fantasi', "uwsm-app -- fantasi open --model 'box/pic'"],
+  ['omarchy-launch-or-focus', '^fantasi$', "uwsm-app -- fantasi open --model 'pic'"],
+  ['omarchy-launch-or-focus', '^fantasi$', "uwsm-app -- fantasi open --model 'box/pic'"],
   ['omarchy-agent', '--local-model', 'm']
 ], 'an image model opens Fantasi on itself, a paired host\'s too, and a text model starts an agent')
 assertDeepEqual(localActions({ host: 'box', recipe: 'pic', kind: 'image', unit: 'active', paired: true, offline: '' }), ['disconnect', 'launch'], 'a paired host\'s image model can be opened in Fantasi')
