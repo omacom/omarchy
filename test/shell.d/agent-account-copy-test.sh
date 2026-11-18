@@ -294,6 +294,19 @@ result = subprocess.run(["/usr/bin/python3", "-I", "-c", transfer.RECEIVER_BOOTS
 assert result.returncode == 0, result.stderr
 assert state.read_json(state.registry_path("claude"))["futureSetting"] == "keep"
 
+# An older destination's installed receiver can't take source names, so the
+# sent receiver runs beside that destination's own backend, which has no
+# seating.
+machine("older-backend")
+backend_root = root / "older-omarchy"
+(backend_root / "bin").mkdir(parents=True)
+older_source = (Path(os.environ["OMARCHY_PATH"]) / "bin/omarchy-agent-account-state").read_text().replace("\nif __name__ ==", "\nSEATED = set()\ndel settle, login_home, prepare_store\nif __name__ ==")
+(backend_root / "bin/omarchy-agent-account-state").write_text(older_source)
+child_env = dict(os.environ, OMARCHY_PATH=str(backend_root), PATH=str(old_receiver) + ":" + str(root / "bin"))
+result = subprocess.run(["/usr/bin/python3", "-I", "-c", transfer.RECEIVER_BOOTSTRAP], input=json.dumps(bundle), text=True, capture_output=True, env=child_env)
+assert result.returncode == 0, result.stderr
+assert {a["label"] for a in state.load("claude")["accounts"]} == {"Personal", "Work", "Third"}
+
 # A missing optional refresh command must not undo a completed import.
 machine("no-updater")
 no_updater_env = dict(os.environ, PATH="")

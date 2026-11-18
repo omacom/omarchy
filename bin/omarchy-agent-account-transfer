@@ -78,6 +78,24 @@ sys.exit(module.main(["import", *sys.argv[1:]]))
 '''.replace("__MAX_BUNDLE__", str(MAX_BUNDLE))
 
 
+# The receiver can run beside a destination's older account backend, which
+# keeps every login in its account's own home and has no seating to put right.
+def login_home(provider: str, registry: dict[str, Any], account: dict[str, Any]) -> Path:
+  if hasattr(accounts, "login_home"):
+    return accounts.login_home(provider, registry, account)
+  return accounts.account_home(provider, account)
+
+
+def settle(provider: str, registry: dict[str, Any]) -> None:
+  if hasattr(accounts, "settle"):
+    accounts.settle(provider, registry)
+
+
+def prepare_store(provider: str, account: dict[str, Any]) -> None:
+  if hasattr(accounts, "prepare_store"):
+    accounts.prepare_store(provider, account)
+
+
 def login_files(provider: str, home: Path) -> dict[str, Any]:
   if provider == "claude":
     identity = (accounts.read_json(accounts.claude_account_file(home)) or {}).get("oauthAccount")
@@ -97,7 +115,7 @@ def export_accounts(providers: list[str]) -> dict[str, Any]:
     registry = accounts.load(provider)
     entries = []
     for account in registry["accounts"]:
-      home = accounts.login_home(provider, registry, account)
+      home = login_home(provider, registry, account)
       found = accounts.identity(provider, home)
       files = login_files(provider, home)
       if found["accountId"] and files:
@@ -258,24 +276,24 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
   copied = []
   try:
     with accounts.Locked(provider) as registry:
-      accounts.settle(provider, registry)
+      settle(provider, registry)
       for a in registry["accounts"]:
         for name in FILES[provider]:
-          cleanup_transfers(file_path(provider, accounts.login_home(provider, registry, a), name).parent)
-      was_empty = not any(accounts.identity(provider, accounts.login_home(provider, registry, a))["accountId"] and login_files(provider, accounts.login_home(provider, registry, a)) for a in registry["accounts"])
+          cleanup_transfers(file_path(provider, login_home(provider, registry, a), name).parent)
+      was_empty = not any(accounts.identity(provider, login_home(provider, registry, a))["accountId"] and login_files(provider, login_home(provider, registry, a)) for a in registry["accounts"])
       for entry in incoming["accounts"]:
-        existing = next((a for a in registry["accounts"] if accounts.identity(provider, accounts.login_home(provider, registry, a))["accountId"] == entry["accountId"]), None)
-        if existing and login_files(provider, accounts.login_home(provider, registry, existing)) and not replace:
+        existing = next((a for a in registry["accounts"] if accounts.identity(provider, login_home(provider, registry, a))["accountId"] == entry["accountId"]), None)
+        if existing and login_files(provider, login_home(provider, registry, existing)) and not replace:
           copied.append((entry, existing))
           results.append(("kept", existing))
           continue
         primary = next(a for a in registry["accounts"] if a.get("primary"))
-        if existing is None and entry.get("primary") and not saved_credentials(provider, accounts.login_home(provider, registry, primary)):
+        if existing is None and entry.get("primary") and not saved_credentials(provider, login_home(provider, registry, primary)):
           existing = primary
         if existing:
-          home = accounts.login_home(provider, registry, existing)
+          home = login_home(provider, registry, existing)
           if not home.exists():
-            accounts.prepare_store(provider, existing)
+            prepare_store(provider, existing)
           if home_in_use(provider, home):
             raise accounts.AccountError(f"Quit the running {accounts.PROVIDERS[provider]['name']} sessions for {existing['label']} before replacing its login")
           account = existing

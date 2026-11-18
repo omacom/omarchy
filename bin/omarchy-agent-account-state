@@ -788,10 +788,7 @@ def settle(provider: str, registry: dict[str, Any]) -> None:
   holder = next((a for a in registry["accounts"] if login and oauth(store_home(provider, a)) == login), None)
   if holder is None:
     return
-  registry["seated"] = holder["id"]
   store = store_home(provider, holder)
-  if not home_in_use(provider, store):
-    (store / ".credentials.json").unlink(missing_ok=True)
   profile = account_config(claude_account_file(store)).get("oauthAccount")
   path = claude_account_file(primary)
   config = account_config(path)
@@ -800,6 +797,13 @@ def settle(provider: str, registry: dict[str, Any]) -> None:
       config = account_config(path)
       config["oauthAccount"] = profile
       write_private(path, json.dumps(config, indent=2))
+  # Saved before the copy goes, since the copy is the only other record of
+  # whose token ~/.claude holds, and the command that called this may fail.
+  if registry["seated"] != holder["id"]:
+    registry["seated"] = holder["id"]
+    save(provider, registry)
+  if not home_in_use(provider, store):
+    (store / ".credentials.json").unlink(missing_ok=True)
 
 
 # A Claude account signed in again in a scratch home, installed where its login

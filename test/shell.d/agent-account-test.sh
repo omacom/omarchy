@@ -395,6 +395,19 @@ omarchy-agent-account-state refresh claude
 [[ ! -e $work/.credentials.json && $(claude_account) == u-work ]] || fail "a half-made move is finished from the token's side"
 pass "a move killed halfway keeps every login"
 
+# Putting a half-made move right is saved before its copy goes, even when the
+# command that noticed it then fails.
+omarchy-agent-account-use claude main >/dev/null
+cp "$HOME/.claude/.credentials.json" "$parked/.credentials.json"
+cp "$work/.credentials.json" "$HOME/.claude/.credentials.json"
+if omarchy-agent-account-use claude nobody >/dev/null 2>&1; then
+  fail "using an unknown account fails"
+fi
+[[ $(jq -r .seated "$accounts/claude.json") == work && ! -e $work/.credentials.json ]] ||
+  fail "a failed command still keeps what settle put right" "$(cat "$accounts/claude.json")"
+omarchy-agent-account-use claude main >/dev/null
+pass "a correction survives the command that made it failing"
+
 # ------------------------------------------------------------ mode and remove
 
 OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent-account-mode auto 90 >/dev/null
