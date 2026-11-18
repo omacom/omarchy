@@ -140,9 +140,12 @@ jobs:
 
 #include <QGuiApplication>
 #include <QIcon>
+#include <QKeySequence>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
+#include <QQuickWindow>
+#include <QTimer>
 #include <QUrl>
 
 #include "backend.h"
@@ -178,6 +181,35 @@ int main(int argc, char *argv[]) {
     engine.load(QUrl("qrc:/Main.qml"));
     if (engine.rootObjects().isEmpty())
         return 1;
+
+    // `omarchy agent look app` runs the app offscreen with these set, to see
+    // the window without a display: size it to OMARCHY_LOOK_SIZE when given,
+    // press the keys in OMARCHY_LOOK_KEYS through the window's Shortcuts,
+    // save it once it has settled, and quit.
+    if (const QString shot = qEnvironmentVariable("OMARCHY_LOOK_SCREENSHOT"); !shot.isEmpty()) {
+        const QStringList size = qEnvironmentVariable("OMARCHY_LOOK_SIZE").split('x');
+        if (auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst()); window && size.size() == 2)
+            window->resize(size[0].toInt(), size[1].toInt());
+        const QStringList keys = qEnvironmentVariable("OMARCHY_LOOK_KEYS").split(' ', Qt::SkipEmptyParts);
+        for (int i = 0; i < keys.size(); ++i) {
+            QTimer::singleShot(800 + i * 300, &app, [&engine, key = QKeySequence(keys[i])] {
+                for (QObject *shortcut : engine.rootObjects().constFirst()->findChildren<QObject *>()) {
+                    if (qstrcmp(shortcut->metaObject()->className(), "QQuickShortcut") == 0
+                        && shortcut->property("enabled").toBool()
+                        && QKeySequence(shortcut->property("sequence").toString()) == key) {
+                        QMetaObject::invokeMethod(shortcut, "activated");
+                        break;
+                    }
+                }
+            });
+        }
+        const int delay = qEnvironmentVariableIsSet("OMARCHY_LOOK_DELAY_MS") ? qEnvironmentVariableIntValue("OMARCHY_LOOK_DELAY_MS") : 1500;
+        QTimer::singleShot(800 + keys.size() * 300 + delay, &app, [&engine, shot] {
+            if (auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst()))
+                window->grabWindow().save(shot);
+            QCoreApplication::quit();
+        });
+    }
 
     return app.exec();
 }
@@ -1318,6 +1350,8 @@ StartupWMClass=<name>
 ```
 
 Add `Name[<code>]=` and `Comment[<code>]=` lines for each language the app ships, so the launcher shows the translated name (`Name[da]=…`, `Comment[pt_BR]=…`; desktop files spell regions with an underscore).
+
+A click on a running app in Omarchy's dock brings its window forward. An app whose windows are each wanted fresh says so with `X-Omarchy-Dock-Click=new`, and the dock opens a new window on every click (Terminal, Agent). `X-Omarchy-Dock-Click=workspace` brings back a window only from the workspace in front of the user and opens a new one otherwise (Files). With either, a minimized window comes back first. Leave it out for the usual behavior.
 
 ## `share/<name>.svg`
 

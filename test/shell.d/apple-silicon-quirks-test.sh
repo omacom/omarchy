@@ -65,9 +65,9 @@ rm -rf "$modprobe_dir"
 : >"$calls"
 run_fkeys 1
 [[ ! -e $modprobe_dir && ! -s $calls ]] || fail "Apple Silicon keeps its own keyboard mode" "$(cat "$calls")"
-output=$(APPLE_SILICON=1 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-keyboard-toprow" fnkeys 2>&1) &&
-  fail "omarchy keyboard toprow refuses Apple Silicon"
-[[ $output == *omarchy-mac* ]] || fail "omarchy keyboard toprow says why it refuses Apple Silicon" "$output"
+output=$(APPLE_SILICON=1 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-device-keyboard-toprow" fnkeys 2>&1) &&
+  fail "omarchy device keyboard toprow refuses Apple Silicon"
+[[ $output == *omarchy-mac* ]] || fail "omarchy device keyboard toprow says why it refuses Apple Silicon" "$output"
 pass "Apple Silicon keeps its own keyboard mode"
 
 # The Windows guest is x86_64, so every other CPU refuses it before it touches

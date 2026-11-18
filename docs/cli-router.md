@@ -78,9 +78,7 @@ with child commands shows the group help.
 
 A group parent whose `args` metadata lists only flag tokens, or nothing, refuses a leftover bare word as a mistyped subcommand and exits 127, so `omarchy update firmwre` reports an unknown command instead of starting an update; a flag with a separate value placeholder such as `[--agent <id>]` counts as an operand and turns the check off, and a `--` before the first bare word passes the words after it through to the command.
 
-Dispatch is `exec`: the router process is replaced, the binary sees only the
-leftover arguments, and the exit code is the binary's own. The router itself
-exits 127 for unknown routes or missing binaries.
+Dispatch is `exec`: the router process is replaced, the binary sees only the leftover arguments, and the exit code is the binary's own. The router itself exits 127 for unknown routes or missing binaries, and 1 for a bare command missing its required arguments, after showing its help. A bare group showing its help, and an explicit `--help`, exit 0.
 
 When nothing resolves, the router tries a prefix listing — `omarchy hw asus`
 prints every command whose usage starts with that prefix — and otherwise

@@ -26,11 +26,11 @@
   "update": {
     "label": "Cập nhật"
   },
-  "about": {
-    "label": "Giới thiệu"
-  },
   "system": {
     "label": "Hệ thống"
+  },
+  "system.about": {
+    "label": "Giới thiệu"
   },
   "system.screensaver": {
     "label": "Bảo vệ màn hình"
@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Biểu tượng"
+  },
+  "install.style.icons": {
+    "label": "Biểu tượng"
+  },
+  "remove.icons": {
+    "label": "Biểu tượng"
+  },
+  "update.icons": {
+    "label": "Biểu tượng thêm"
+  },
+  "system.firmware": {
+    "label": "Khởi động lại vào BIOS",
+    "description": "Khởi động lại vào thiết lập firmware UEFI"
   }
 }
