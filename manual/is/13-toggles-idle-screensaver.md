@@ -1,32 +1,34 @@
-# Rofar, aðgerðaleysi og skjáhvílan
+# Víxlar, aðgerðaleysi og skjávarinn
 
-Margt af því sem þú breytir dag frá degi er í raun ekki stilling. Það er hamur sem þú kveikir á í klukkustund og slekkur svo aftur: næturljós á meðan þú vinnur seint, ekki trufla á meðan þú ert með kynningu, halda vakandi á meðan þú horfir á eitthvað. Omarchy kallar þá rofa og þeir virka allir eins — flýtilykill, valmyndaratriði og skipun, allt að ýta á sama rofann.
+Mikið af því sem þú breytir dag frá degi er í raun ekki stilling. Það er hamur sem þú kveikir á í klukkustund og slekkur svo aftur: náttljós á meðan þú vinnur seint, ekki trufla á meðan þú ert með kynningu, halda vakandi á meðan þú horfir á eitthvað. Omarchy kallar þetta víxla, og þeir virka allir eins — flýtilykill, valmyndaratriði og skipun, allt að ýta á sama rofann.
 
-### Rofavalmyndin
+### Víxlavalmyndin
 
-`Super + Ctrl + O` opnar _Trigger > Toggle_ beint, eða þú getur farið þangað úr Omarchy-valmyndinni (`Super + Space`). Allt á þeim lista er rofi sem þú getur slegið á án þess að hugsa um hvar ástandið býr. Rofar fyrir útlit skjáborðsins sitja við hliðina á honum, undir _Appearance_.
+`Super + Ctrl + O` opnar _Trigger > Toggle_ beint, eða þú getur gengið þangað úr Omarchy-valmyndinni (`Super + Space`). Allt á þeim lista er rofi sem þú getur víxlað án þess að hugsa um hvar ástandið býr. Rofar fyrir útlit skjáborðsins sitja við hliðina á honum, undir _Appearance_.
 
-Í flugstöðinni eru sömu rofar `omarchy toggle <thing>`. Keyrðu `omarchy toggle` eitt og sér til að sjá allan hópinn.
+Frá skipanalínunni eru sömu rofarnir `omarchy toggle <thing>`. Keyrðu `omarchy toggle` eitt og sér til að sjá allan hópinn.
 
-| Rofi | Flýtilykill | Skipun |
+| Víxl | Flýtilykill | Skipun |
 | ------ | ------ | ------- |
-| Næturljós | — | `omarchy toggle nightlight` |
+| Náttljós | — | `omarchy toggle nightlight` |
 | Þagga tilkynningar | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
 | Halda vakandi (engin læsing við aðgerðaleysi) | `Super + Ctrl + I` | `omarchy toggle idle` |
 | Hrunskráning | — | `omarchy toggle crash-capture` |
-| Skjáhvíla | — | `omarchy toggle screensaver` |
+| Skjávarí | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) samstilling þema | — | `omarchy toggle theme sync` |
-| Valmyndarstika | `Super + Shift + Space` | `omarchy toggle bar` |
-| Snertiplatti | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| Valmyndastika | `Super + Shift + Space` | `omarchy toggle bar` |
+| Snertipúði | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
 | Snertiskjár | — | `omarchy toggle touchscreen` |
-| Svæfa | — | `omarchy toggle suspend` |
+| Biðstaða | — | `omarchy toggle suspend` |
 | Blönduð GPU | — | `omarchy toggle hybrid gpu` |
 
-Snertiplatta-, snertiskjá- og blönduðu GPU-rofarnir búa undir _Trigger > Hardware_ (`Super + Ctrl + H`) frekar en undir Toggle, þar sem þeir birtast aðeins þegar þú ert raunverulega með þann vélbúnað. Snertiplatta- og snertiskjárofarnir lifa Hyprland-endurræsingu af — nafn óvirka tækisins er vistað í litla ástandsskrá sem Hyprland les við ræsingu til að gera það óvirkt aftur.
+Víxlarnir fyrir snertipúða, snertiskjá og blandaða GPU búa undir _Trigger > Hardware_ (`Super + Ctrl + H`) frekar en undir Toggle, þar sem þeir birtast aðeins þegar þú ert raunverulega með þann vélbúnað. Víxlarnir fyrir snertipúða og snertiskjá lifa endurræsingu Hyprland af — nafn óvirka tækisins er vistað í litla ástandsskrá sem Hyprland les við ræsingu til að gera það óvirkt aftur.
 
-_Appearance_ geymir valmyndarstikuna og hreyfingar, auk nokkurra hluta sem eru ekki `omarchy toggle` skipanir en hegða sér eins: prósenta rafhlöðu í stikunni, sjálfgefið skipulag vinnusvæða og, undir _Windows_, bil milli glugga (`Super + Shift + Backspace`) og ferkantað hlutfall fyrir 1 glugga (`Super + Ctrl + Backspace`).
+_Appearance_ geymir valmyndastikuna og hreyfimyndir, auk nokkurra hluta sem eru ekki `omarchy toggle` skipanir en hegða sér eins: prósentu rafhlöðu í stikunni, sjálfgefið skipulag vinnusvæða, og undir _Windows_, bil í gluggum (`Super + Shift + Backspace`) og ferningslaga hlutfall fyrir einn glugga (`Super + Ctrl + Backspace`).
 
-Flestir þeirra eru bara fánaskrá undir `~/.local/state/omarchy/toggles/`. Ef þú vilt greina á einn í forskrift, þá gefur `omarchy-toggle-enabled` þér útgöngukóða í stað þess að láta þig fara að leita:
+Þegar Hyprland hefur enga GPU til að teikna með og teiknar í staðinn á CPU (llvmpipe), eins og á Mac-tölvum þar sem GPU er ekki enn studd, í flestum sýndarvélum, eða þegar grafíkreklinn hleðst ekki inn, slekkur Omarchy á hreyfimyndum, þoku og skuggum í þeirri lotu og lætur þig vita einu sinni með tilkynningu. _Appearance > Animations On_ kveikir á þeim aftur, og Omarchy man það líka fyrir síðari lotur.
+
+Flestir þeirra eru bara fánaskrá undir `~/.local/state/omarchy/toggles/`. Ef þú vilt greina á einn í forskrift gefur `omarchy-toggle-enabled` þér útgöngukóða í stað þess að láta þig fara að leita:
 
 ```bash
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
@@ -36,15 +38,15 @@ Fánarnir eru nefndir eftir slökktu ástandinu — `screensaver-off`, `suspend-
 
 ### Vísar í stikunni
 
-Þegar hamur er virkur færðu lítið tákn í miðri efri stikunni við hlið klukkunnar. Það er vísagræjan og hún ber upptöku með rödd, skjáupptöku, áminningar í bið, næturljós, ekki trufla og halda vakandi.
+Þegar hamur er virkur færðu lítið tákn í miðri efstu stikunni við hliðina á klukkunni. Það er vísaforritshlutinn, og hann geymir talinnslátt, skjáupptöku, áminningar í bið, náttljós, ekki trufla og halda vakandi.
 
-Óvirkir vísar eru faldir. Sveimaðu einhvers staðar yfir stikunni og þeir birtast deyfðir, svo þú getur smellt á einn til að kveikja á honum án þess að þekkja flýtilykilinn hans. Að smella á virkan vísi slekkur á honum aftur. Ef þú vilt frekar sjá þá alla alltaf skaltu stilla `alwaysShow` á `true` á `omarchy.indicators` færslunni í `~/.config/omarchy/shell.json` — sjá [efri stikuna](05-the-top-bar.md) um hvernig græjur í stiku eru stilltar.
+Óvirkir vísar eru faldir. Þegar þú sveimar yfir stikuna einhvers staðar birtast þeir dofnaðir inn, svo þú getur smellt á einn til að kveikja á honum án þess að þekkja flýtilykilinn hans. Að smella á virkan einn slekkur á honum aftur. Ef þú vilt frekar sjá þá alla alltaf skaltu stilla `alwaysShow` á `true` á `omarchy.indicators` færslunni í `~/.config/omarchy/shell.json` — sjá [efstu stikuna](05-the-top-bar.md) um hvernig forritshlutar stikunnar eru stilltir.
 
-### Næturljós
+### Náttljós
 
-Næturljós vermir skjáinn í 4000K og að slá á það aftur setur hann aftur í 6500K. Sláðu á það úr rofavalmyndinni (`Super + Ctrl + O`) eða með `omarchy toggle nightlight`. Það er knúið af hyprsunset, sem rofinn ræsir fyrir þig ef það er ekki þegar í gangi.
+Náttljós hitar skjáinn í 4000K, og að víxla því aftur setur hann aftur í 6500K. Víxlaðu því úr víxlavalmyndinni (`Super + Ctrl + O`) eða með `omarchy toggle nightlight`. Það er knúið af hyprsunset, sem víxillinn ræsir fyrir þig ef það er ekki þegar í gangi.
 
-Sjálfgefið gerir hyprsunset alls ekkert við skjáinn þinn. `~/.config/hypr/hyprsunset.conf` fylgir með auðkennisprófíl einmitt til að skjárinn haldist ósnortinn þar til þú biður um hlýju. Ef þú vilt frekar að það skipti eftir klukkunni skaltu skipta því út fyrir tímaprófíl:
+Sjálfgefið gerir hyprsunset alls ekkert við skjáinn þinn. `~/.config/hypr/hyprsunset.conf` fylgir með auðkennissnið nákvæmlega til þess að skjárinn haldist ósnertur þar til þú biður um hlýju. Ef þú vilt frekar að það skipti eftir klukkunni skaltu skipta því út fyrir tímasnið:
 
 ```
 profile {
@@ -53,19 +55,19 @@ profile {
 }
 ```
 
-Ræstu svo hyprsunset við innskráningu með því að bæta `o.launch_on_start("hyprsunset")` við `~/.config/hypr/autostart.lua`. 4000K/6500K parið sem rofinn notar er fast, svo stillingaskráin er staðurinn til að fara á ef þú vilt annað hitastig.
+Ræstu síðan hyprsunset við innskráningu með því að bæta `o.launch_on_start("hyprsunset")` við `~/.config/hypr/autostart.lua`. 4000K/6500K parið sem víxillinn notar er fast, svo stillingaskráin er staðurinn þangað sem þú ferð ef þú vilt annan hita.
 
 ### Ekki trufla
 
-`Super + Ctrl + Alt + ,` þaggar tilkynningar. Engar tilkynningar skjótast upp á meðan það er virkt og yfirstrikaða bjölluvísirinn situr í stikunni til að minna þig á af hverju skjáborðið er orðið hljótt.
+`Super + Ctrl + Alt + ,` þaggar tilkynningar. Engar tilkynningar birtast á meðan það er virkt, og vísirinn með yfirstrikaða bjöllu situr í stikunni til að minna þig á af hverju skjáborðið er orðið hljótt.
 
-Ekkert glatast þó. Þögguðum tilkynningum er haldið eftir: settu síðustu nokkrar aftur á skjáinn með `Super + Shift + Alt + ,`. Sjá [tilkynningar](10-notices.md) fyrir afganginn.
+Ekkert tapast þó. Þaggaðar tilkynningar eru haldnar til baka: settu síðustu nokkrar aftur á skjáinn með `Super + Shift + Alt + ,`. Sjá [tilkynningar](10-notices.md) fyrir restina.
 
-Tvenns konar skilaboð komast samt í gegn: eigin staðfestingartilkynningar Omarchy fyrir eitthvað sem þú varst að gera ("Þema breytt", "Skjámynd vistuð") og mikilvæg viðvörun send af skipanalínunni. Spjallforrit sem merkja allt mikilvægt til að þvinga sig fram fyrir þig eiga það ekki skilið.
+Tvær tegundir skilaboða komast samt í gegn: staðfestingartilkynningar Omarchy sjálfs fyrir eitthvað sem þú varst að gera ("Theme changed", "Screenshot saved"), og mikilvægar viðvaranir sendar frá skipanalínunni. Spjallforrit sem merkja allt mikilvægt til að þvinga sig fram fyrir þig eiga það ekki skilið.
 
 ### Aðgerðaleysi
 
-Omarchy-skelin á hegðun við aðgerðaleysi og tímarnir eru `idle` blokk á efsta stigi í `~/.config/omarchy/shell.json`:
+Omarchy-skelin á aðgerðaleysishegðunina, og tímarnir eru `idle` blokk á efsta stigi í `~/.config/omarchy/shell.json`:
 
 ```json
 {
@@ -77,26 +79,26 @@ Omarchy-skelin á hegðun við aðgerðaleysi og tímarnir eru `idle` blokk á e
 }
 ```
 
-Báðar tölurnar eru sekúndur taldar frá augnablikinu þegar þú varðst aðgerðalaus — ekki hver frá annarri. Svo með sjálfgefnu gildunum kemur skjáhvílan upp eftir tvær og hálfa mínútu og læsingarskjárinn tekur við eftir fimm mínútur, hvort sem skjáhvílan keyrði eða ekki. Vistaðu skrána og skelin tekur upp nýju tímana strax.
+Báðar tölurnar eru sekúndur taldar frá augnablikinu þegar þú varðst aðgerðalaus — ekki hver frá annarri. Svo með sjálfgefnum gildum kemur skjávarinn upp eftir tvær og hálfa mínútu og læsingarskjárinn tekur við eftir fimm mínútur, hvort sem skjávarinn keyrði eða ekki. Vistaðu skrána og skelin tekur upp nýju tímana strax.
 
-Ef þú vísar skjáhvílunni frá fyrir læsingarfrestinn telst það sem virkni og læsingin í bið er aflýst. Þú læsist ekki úti fyrir að líta á vélina þína.
+Ef þú vísar skjávaranum frá áður en læsingarfresturinn rennur út telst það sem virkni og læsingin í bið er aflýst. Þú læsist ekki úti fyrir að kíkja á vélina þína.
 
-Til að hætta alveg að læsa við aðgerðaleysi snýr `Super + Ctrl + I` — eða `omarchy toggle idle` — halda vakandi á, og kaffibollavísirinn birtist í stikunni. Það er sá sem á að ýta á fyrir langa kynningu eða byggingu sem þú vilt fylgjast með. Ýttu á hann aftur til að fara til baka í venjulegt ástand. `omarchy toggle idle status` prentar núverandi ástand sem JSON ef þú þarft það úr forskrift.
+Til að hætta alveg að læsa við aðgerðaleysi kveikir `Super + Ctrl + I` — eða `omarchy toggle idle` — á halda vakandi, og kaffibollavísirinn birtist í stikunni. Það er sá sem á að ýta á fyrir langa kynningu eða byggingu sem þú vilt fylgjast með. Ýttu á hann aftur til að fara aftur í eðlilegt ástand. `omarchy toggle idle status` prentar núverandi ástand sem JSON ef þú þarft það úr forskrift.
 
-Þetta snýst um læsingu og skjáhvíluna, ekki afl. Svæfing og dvali hafa sína eigin uppsetningu í [kerfissvefni](36-system-sleep.md).
+Þetta snýst um læsingu og skjávarann, ekki orku. Biðstaða og dvali hafa sína eigin uppsetningu í [kerfissvefni](36-system-sleep.md).
 
-### Skjáhvílan
+### Skjávarinn
 
-Skjáhvíla Omarchy er ASCII-list sem keyrir í gegnum slembin textaáhrif, eitt tilvik á hvern skjá. Sérhver lykill eða hreyfing músar hættir henni.
+Skjávarí Omarchy er ASCII-list sem keyrir í gegnum handahófskennd textaáhrif, eitt tilvik á hvern skjá. Sérhver lykill eða hreyfing músar fer út úr honum.
 
-Þú getur ræst hana eftir þörfum úr _System > Screensaver_ (`Super + Esc`), sem þvingar hana upp jafnvel þó þú hafir slökkt á skjáhvílu við aðgerðaleysi. Enginn flýtilykill er sjálfgefið bundinn við hana.
+Þú getur ræst hann eftir þörfum úr _System > Screensaver_ (`Super + Esc`), sem þvingar hann upp jafnvel þó þú hafir slökkt á aðgerðaleysis-skjávaranum. Enginn flýtilykill er sjálfgefið bundinn við hann.
 
-`omarchy toggle screensaver` er það sem slekkur á þeirri við aðgerðaleysi, ef þú vilt frekar fara beint úr vinnu í læst ástand. Hún þarf flugstöð sem hún veit hvernig á að stilla — Alacritty, Foot, Ghostty eða Kitty — og lætur þig vita ef sjálfgefna flugstöðin þín er eitthvað annað.
+`omarchy toggle screensaver` er það sem slekkur á aðgerðaleysis-skjávaranum, ef þú vilt frekar fara beint úr vinnu í læst ástand. Sérhver lykill, smellur, skrun eða hreyfing músar lokar honum.
 
-Merkið sem hún teiknar er þitt að breyta, undir _Appearance > Branding > Screensaver_. Hladdu upp png eða svg og Omarchy breytir því í ASCII. Sjá [vörumerki](41-branding.md).
+Merkið sem hann teiknar er þitt að breyta, undir _Appearance > Branding > Screensaver_. Hladdu upp png eða svg og Omarchy breytir því í ASCII. Sjá [vörumerki](41-branding.md).
 
 ### Læsingarskjárinn
 
-`Super + Ctrl + L` læsir vélinni. Það keyrir læsingarskjáinn úr Omarchy-skelinni, slekkur á skjánum, endurstillir lyklaborðsskipulagið þitt á það fyrsta svo þú sért ekki að slá inn lykilorðið þitt á röngu stafrófi og — ef þú ert með hann í gangi — læsir 1Password á leiðinni út.
+`Super + Ctrl + L` læsir vélinni. Það keyrir læsingarskjáinn úr Omarchy-skelinni, slekkur á skjánum, endurstillir lyklaborðsuppsetninguna þína á þá fyrstu svo þú sért ekki að slá inn lykilorðið þitt í röngu stafrófi, og — ef þú ert með það í gangi — læsir 1Password á leiðinni út.
 
-Læsingarskjárinn tekur lykilorð og hann tekur líka fingrafar þegar þú hefur sett eitt upp. Það, og aðrar leiðir til að auðkenna þig, er fjallað um í [auðkenningu með vélbúnaði](37-hardware-authentication.md).
+Læsingarskjárinn tekur lykilorð, og hann tekur líka fingrafar þegar þú hefur sett eitt upp. Það, og hinar leiðirnar til að auðkenna þig, er fjallað um í [auðkenningu með vélbúnaði](37-hardware-authentication.md).
