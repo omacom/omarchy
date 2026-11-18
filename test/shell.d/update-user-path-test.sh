@@ -5,6 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 copy_boundary_file bin/omarchy-update
+sed -i "s#/tmp/omarchy-update-log.XXXXXX#$boundary_tmp/omarchy-update-log.XXXXXX#" "$SUDO_TEST_ROOT/bin/omarchy-update"
 
 # Model the two exec boundaries without a host update log or a real lock.
 # Both child processes inherit the environment exactly as script/lock would.
@@ -63,3 +64,19 @@ for entry in fresh logged locked; do
   fi
   pass "$entry update preserves the original user PATH through logging and locking and shares its authorization"
 done
+
+# The analyzer must read the transcript the update hands it, including when an
+# old updater installs it mid-run and still uses the legacy path.
+analyzer="$boundary_tmp/analyze-logs"
+sed "s#/tmp/omarchy-update\.log#$boundary_tmp/legacy.log#" "$ROOT/bin/omarchy-update-analyze-logs" >"$analyzer"
+printf 'Updating linux initcpios\n' >"$boundary_tmp/current.log"
+output=$(OMARCHY_UPDATE_LOG_FILE="$boundary_tmp/current.log" bash "$analyzer")
+[[ $output == *"Initramfs generation may have failed"* ]] || fail "analyzer reads the current transcript"
+printf 'Initcpio image generation successful\n' >>"$boundary_tmp/current.log"
+output=$(OMARCHY_UPDATE_LOG_FILE="$boundary_tmp/current.log" bash "$analyzer")
+[[ -z $output ]] || fail "analyzer accepts a successful initramfs"
+mv "$boundary_tmp/current.log" "$boundary_tmp/legacy.log"
+printf 'Updating linux initcpios\n' >"$boundary_tmp/legacy.log"
+output=$(env -u OMARCHY_UPDATE_LOG_FILE bash "$analyzer")
+[[ $output == *"Initramfs generation may have failed"* ]] || fail "analyzer supports the updater that installs it"
+pass "analyzer reads the current and legacy update transcripts"

@@ -17,7 +17,10 @@ for command in omarchy-update omarchy-update-lock; do
   rm -f "$SUDO_TEST_ROOT/bin/$command"
   copy_boundary_file "bin/$command"
 done
-sed -i "s#/tmp/omarchy-update\.log#$boundary_tmp/transcript#" "$SUDO_TEST_ROOT/bin/omarchy-update"
+sed -i \
+  -e "s#/tmp/omarchy-update\.log#$boundary_tmp/transcript#" \
+  -e "s#/tmp/omarchy-update-log.XXXXXX#$boundary_tmp/transcript.XXXXXX#" \
+  "$SUDO_TEST_ROOT/bin/omarchy-update"
 rm -f "$SUDO_TEST_ROOT/bin/omarchy-update-confirm"
 cat >"$SUDO_TEST_ROOT/bin/omarchy-update-confirm" <<'STUB'
 #!/bin/bash
