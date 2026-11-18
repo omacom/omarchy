@@ -79,23 +79,15 @@ const BEST_IS = 'higher';                 // 'lower' for times and move counts: 
 const formatScore = value => Math.floor(value).toLocaleString();
 const KEY_REPEAT = false;                 // true: a held move key repeats, for cursors on boards and cards
 
-// The key presses `check` plays after starting a round, as [seconds after start, key code, milliseconds held],
-// and the note() events that must happen while it plays. Make both exercise THIS game's main mechanic.
-const CHECK = {
-  start: 'Space',
-  pause: 'Escape',
-  play: [[0.3, 'ArrowLeft', 700], [1.2, 'ArrowRight', 1400], [3.0, 'ArrowLeft', 900], [4.2, 'KeyD', 600], [5.5, 'KeyA', 800]],
-  expect: ['dodged'],
-};
-
 // =============================================================================
 // THE FRAME, PART ONE: what the game builds on. Keep it; change only ACTIONS, the camera,
 // the lights and the fog. The game may use: renderer, scene, camera, sun, fitCamera, saved,
-// random, isHeld, wasPressed, pointer, wasClicked, pick, pickPlane, sound, noise, note,
+// random, isHeld, wasPressed, pointer, wasClicked, pick, pickPlane, sound, noise,
 // score, best, state, shake, $. Names starting with _ are the frame's alone.
 // =============================================================================
 
-// omarchy-games-launch opens the game as index.html#palette=<the current theme as JSON>; check adds seed=1.
+// omarchy-games-launch opens the game as index.html#palette=<the current theme as JSON>, and
+// `omarchy agent look page --theme` does the same for another theme. #seed=1 replays the same round.
 function launchParam(name) {
   return new URLSearchParams(location.hash.slice(1)).get(name);
 }
@@ -119,7 +111,7 @@ const saved = {
   set(key, value) { try { localStorage.setItem(`omarchy-game:${NAME}:${key}`, JSON.stringify(value)); } catch {} },
 };
 
-// Seeded randomness: `check` passes seed=1 and gets the same round on every run.
+// Seeded randomness, so #seed=1 plays the same round on every run.
 let _seed = Number(launchParam('seed') ?? Date.now()) >>> 0;
 function random() {
   _seed = (_seed + 0x6d2b79f5) >>> 0;
@@ -263,9 +255,7 @@ function noise(seconds = 0.15, volume = 0.2, tone = 2000) {
 
 const $ = id => document.getElementById(id);
 let state = 'title', score = 0, best = saved.get('best', null), shake = 0;
-let _helpFrom = 'title', _ticks = 0, _frames = 0, _ready = false;
-const _events = {};
-const note = name => { _events[name] = (_events[name] ?? 0) + 1; };
+let _helpFrom = 'title';
 
 // =============================================================================
 // THE GAME — replace this whole section with your game, keeping its shape:
@@ -276,8 +266,7 @@ const note = name => { _events[name] = (_events[name] ?? 0) + 1; };
 //   resized()          optional, at load and when the window changes: fit the camera
 //   screenInput(code)  optional, keys on the title and end screens; return true to keep a key from starting
 //   score              what the HUD shows; set it as the game goes
-//   note(name)         call when something worth testing happens (named in CHECK.expect)
-//   random()           use instead of Math.random(), so `check` plays the same round every time
+//   random()           use instead of Math.random(), so #seed=1 plays the same round every time
 //   endRound(won, { title, detail })   call when the round is lost (false) or won (true)
 // =============================================================================
 const ARENA = 8;               // half-width the player can move in
@@ -353,7 +342,6 @@ function update(dt) {
     }
     if (!block.userData.passed && block.position.z > player.position.z + 1.3) {
       block.userData.passed = true;
-      note('dodged');
       sound(880, 0.04, 'triangle', 1200, 0.04);
     }
   }
@@ -399,7 +387,6 @@ const STEP = 1 / 120, _clock = new THREE.Clock();
 let _accumulator = 0;
 
 function frame() {
-  _frames++;
   const dt = Math.min(_clock.getDelta(), 0.1);       // a hidden window must not leap ahead
 
   if (wasPressed('mute')) { _muted = !_muted; saved.set('muted', _muted); }
@@ -423,7 +410,6 @@ function frame() {
       _inStep = false;
       _stepPressed.clear();
       _stepClicks.clear();
-      _ticks++;
       _accumulator -= STEP;
     }
   }
@@ -440,15 +426,7 @@ function frame() {
   renderer.render(scene, camera);
   camera.position.x -= shakeX;
   camera.position.y -= shakeY;
-  _ready = true;
 }
-
-// What `check` reads and drives. Keep it.
-window.omarchyGame = {
-  get ready() { return _ready; }, get state() { return state; }, get score() { return score; },
-  get ticks() { return _ticks; }, get frames() { return _frames; }, events: _events, check: CHECK,
-  end: () => endRound(false),
-};
 
 build();
 if (typeof resized === 'function') resized();

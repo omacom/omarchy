@@ -52,11 +52,11 @@ elif [[ -e $desktop ]] && ! grep -qxF "$exec_line" "$desktop"; then
   fail "There is already a launcher called $title. Pick another title: omarchy-games-install $name \"Another Title\""
 fi
 
-# The icon is the game's icon.svg or icon.png, or else a square from check's screenshot of it in play.
+# The icon is the game's icon.svg or icon.png, or else the generic games icon.
 icon=$(safe_icon_name "$title")
 mkdir -p "$ICON_DIR" "$DESKTOP_DIR"
 source_image=""
-for candidate in icon.svg icon.png check-play.png; do
+for candidate in icon.svg icon.png; do
   if [[ -f $folder/$candidate ]]; then
     source_image="$folder/$candidate"
     break
