@@ -71,14 +71,14 @@ chrome.storage.local.get({
   block_mp4a: false,
   disable_LN: false
  }, function(options) {
-   localStorage['enhanced-h264ify-block_60fps'] = options.block_60fps;
-   localStorage['enhanced-h264ify-block_h264'] = options.block_h264;
-   localStorage['enhanced-h264ify-block_vp8'] = options.block_vp8;
-   localStorage['enhanced-h264ify-block_vp9'] = options.block_vp9;
-   localStorage['enhanced-h264ify-block_av1'] = options.block_av1;
-   localStorage['enhanced-h264ify-block_opus'] = options.block_opus;
-   localStorage['enhanced-h264ify-block_mp4a'] = options.block_mp4a;
-   localStorage['enhanced-h264ify-disable_LN'] = options.disable_LN;
+  localStorage['enhanced-h264ify-block_60fps'] = options.block_60fps;
+  localStorage['enhanced-h264ify-block_h264'] = options.block_h264;
+  localStorage['enhanced-h264ify-block_vp8'] = options.block_vp8;
+  localStorage['enhanced-h264ify-block_vp9'] = options.block_vp9;
+  localStorage['enhanced-h264ify-block_av1'] = options.block_av1;
+  localStorage['enhanced-h264ify-block_opus'] = options.block_opus;
+  localStorage['enhanced-h264ify-block_mp4a'] = options.block_mp4a;
+  localStorage['enhanced-h264ify-disable_LN'] = options.disable_LN;
  }
 );
 
