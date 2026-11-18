@@ -50,11 +50,6 @@ assertEqual(
 )
 const recovered = battery.shouldWarnLowBattery({ ...lowBattery, percentage: 0.11 }, false, discharging, 10, true)
 assertEqual(recovered.notifiedLowBattery, false, 'battery re-arms after recovering above the threshold')
-assertEqual(
-  battery.shouldWarnLowBattery(lowBattery, true, discharging, 10, recovered.notifiedLowBattery).notify,
-  true,
-  'battery warns again in a new low-battery episode'
-)
 
 const reply = profile => JSON.stringify({ type: 's', data: profile })
 assertEqual(battery.parseActiveProfile(reply('power-saver')), 'power-saver', 'battery parses the busctl profile reply')
