@@ -91,7 +91,14 @@ async function launch() {
   const report = (text) => {
     if (!/chrome-extension:\/\/|lastError/.test(text)) console.log("error: " + text.replace(/\s+/g, " ").slice(0, 300));
   };
-  page.on("console", (message) => message.type() === "error" && report(message.text()));
+  // A 404 or 500 reaches only the console, as "Failed to load resource",
+  // with the resource's URL in its location rather than its text.
+  page.on("console", (message) => {
+    if (message.type() !== "error") return;
+    const text = message.text();
+    const source = message.location().url;
+    report(text.startsWith("Failed to load resource") && source ? `${text} (${source})` : text);
+  });
   page.on("pageerror", (error) => report("Uncaught " + error.message));
   page.on("requestfailed", (request) => report(`failed to load ${request.url()}: ${request.failure()?.errorText}`));
 
