@@ -12,9 +12,13 @@ for (const kind of ['wifi', 'ethernet']) {
     ['Unknown', 'unknown'], ['None', 'none'], ['Portal', 'portal'],
     ['Limited', 'limited'], ['Full', 'full']
   ]) {
-    assertEqual(network.connectivityState(kind, states[native], states, true), expected,
+    assertEqual(network.connectivityState(kind, states[native], states, true, true), expected,
       `${kind} maps native ${native} connectivity without confusing an outage with a portal`)
   }
+  assertEqual(network.connectivityState(kind, states.Limited, states, true, false), 'unknown',
+    `${kind} does not call a fresh link's passing Limited state an outage`)
+  assertEqual(network.connectivityState(kind, states.Portal, states, true, false), 'portal',
+    `${kind} reports a portal at once, since only a finished probe finds one`)
   assertEqual(network.connectivityState(kind, 99, states, true), 'unknown', `${kind} handles unknown connectivity`)
   for (const native of Object.values(states)) {
     assertEqual(network.connectivityState(kind, native, states, false), 'unknown', `${kind} ignores stale results with probing disabled (${native})`)

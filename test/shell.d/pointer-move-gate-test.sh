@@ -12,7 +12,8 @@ if ! command -v quickshell >/dev/null 2>&1; then
 fi
 
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+qml_fixture_scratch
+trap 'rm -rf "$test_tmp"; qml_fixture_cleanup' EXIT
 
 cp "$SHELL_TEST_DIR/fixtures/pointer-move-gate/shell.qml" "$test_tmp/shell.qml"
 ln -s "$ROOT/shell/Ui" "$test_tmp/Ui"
@@ -28,3 +29,5 @@ if ! grep -q "RESULT pass" <<<"$output"; then
 fi
 
 pass "pointer movement gate runtime behavior is correct"
+
+run_qml_fixture menu-pointer "a click into a submenu selects the row left under the pointer" Ui Commons
