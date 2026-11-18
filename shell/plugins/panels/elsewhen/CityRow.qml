@@ -1,13 +1,15 @@
 import QtQuick
 import QtQuick.Layouts
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 import "Greetings.js" as Greet
 
-// One city: name, weather, date (or a local greeting on hover) and the time,
-// over its daylight strip. Drag the body to reorder, click it to turn the
-// globe there. Every toggle on the row flips the setting for the whole list.
+// One city: name, weather, the people there, date (or a local greeting on
+// hover) and the time, over its daylight strip. Drag the body to reorder,
+// click it to turn the globe there. Every toggle on the row flips the setting
+// for the whole list.
 Rectangle {
   id: row
 
@@ -27,6 +29,8 @@ Rectangle {
   readonly property var greeting: Greet.greeting(rowData.id, ready ? rowData.hour : 0)
   readonly property bool removable: panel.clockRows.length > 1
   readonly property bool dragged: panel.dragIndex === index
+  readonly property var people: modelData.people || []
+  readonly property bool editingPeople: panel.peopleEditIndex === index
 
   // Lightest at midday, darkest at night, so the list dims into the small hours.
   readonly property real dayFill: 0.10
@@ -52,7 +56,7 @@ Rectangle {
   // arrow keys never reads darker than the daytime rows around it.
   readonly property bool picked: panel.focusIndex === index && !panel.addSelected
   readonly property bool lit: rowHover.hovered || picked
-  color: Model.mix(Color.popups.background, foreground,
+  color: Model.mix(Commons.Color.popups.background, foreground,
     picked ? dayFill + hoverLift : rowHover.hovered ? phaseFill + hoverLift : phaseFill)
 
   // Transforms leave the Column's layout alone: the knock that clears the
@@ -83,7 +87,7 @@ Rectangle {
       }
     }
   ]
-  z: dragged ? 2 : 0
+  z: dragged ? 2 : lit ? 1 : 0
   opacity: dragged ? 0.9 : 1
   Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
 
@@ -186,7 +190,7 @@ Rectangle {
 
       Caption {
         Layout.alignment: Qt.AlignBaseline
-        text: Model.tempLabel(row.panel.facts[Model.factsKey(row.rowData)], row.panel.units)
+        text: Model.tempLabel(row.panel.facts[Model.factsKey(row.rowData)], row.panel.units, row.panel.words)
         visible: text !== ""
         color: tempHover.hovered ? row.foreground : row.dim
 
@@ -203,6 +207,69 @@ Rectangle {
         visible: text !== ""
         font.pixelSize: Style.font.bodySmall
       }
+    }
+
+    // Who is here: faces, then names. City first, people under it.
+    RowLayout {
+      width: parent.width
+      spacing: Style.space(6)
+      visible: row.people.length > 0 && !row.editingPeople
+
+      Row {
+        // Overlapping, the way a group photo stands.
+        spacing: -Math.round(peopleNames.font.pixelSize * 0.3)
+        Layout.alignment: Qt.AlignVCenter
+
+        Repeater {
+          model: row.people.slice(0, 4)
+
+          Avatar {
+            required property var modelData
+            name: Model.personName(modelData, row.panel.profiles)
+            source: {
+              var profile = row.panel.profiles[Model.personHandle(modelData)]
+              return profile ? profile.avatar : ""
+            }
+            stamp: row.panel.profileStamp
+            size: Math.round(peopleNames.font.pixelSize * 1.45)
+            foreground: row.foreground
+            ground: row.color
+            fontFamily: row.fontFamily
+          }
+        }
+      }
+
+      Caption {
+        id: peopleNames
+        Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        Layout.alignment: Qt.AlignVCenter
+        text: row.people.map(function(p) { return Model.personName(p, row.panel.profiles) }).join(", ")
+        color: row.dim
+        elide: Text.ElideRight
+      }
+    }
+
+    // Names, or @handles for a GitHub face; Return keeps them, Escape doesn't.
+    TextField {
+      id: peopleField
+      width: parent.width
+      visible: row.editingPeople
+      verticalPadding: Style.space(3)
+      font.pixelSize: Style.font.caption
+      font.family: row.fontFamily
+      foreground: row.foreground
+      placeholderText: Commons.I18n.t("elsewhen.peoplePlaceholder")
+      // Focused a beat later, as the city search does: in the same pass the
+      // field is not yet shown and the focus does not hold.
+      onVisibleChanged: if (visible) {
+        text = Model.peopleText(row.people)
+        cursorPosition = text.length
+        Qt.callLater(function() { if (peopleField.visible) peopleField.forceActiveFocus() })
+      }
+      // Leaving the field keeps what was typed, the way Return does.
+      onEditingFinished: if (row.editingPeople) row.panel.finishPeopleEdit(row.index, text)
+      Keys.onEscapePressed: row.panel.cancelPeopleEdit()
     }
 
     // The date, and the greeting in its place while hovered. Stacked in one
@@ -277,6 +344,7 @@ Rectangle {
     nowMs: row.panel.effectiveMs
     hovered: rowHover.hovered
     hour24: row.panel.hour24
+    words: row.panel.words
     moonPhase: row.panel.moonPhase
     foreground: row.foreground
     fainter: row.fainter
@@ -291,21 +359,48 @@ Rectangle {
 
   // The last city stays; removing it would leave no way back.
   PanelActionButton {
-    anchors.right: parent.right
-    anchors.top: parent.top
-    anchors.margins: Style.space(1)
+    id: removeButton
+    anchors.horizontalCenter: parent.right
+    anchors.horizontalCenterOffset: -Style.space(22) * 5 / 24
+    anchors.verticalCenter: parent.top
+    size: fontSize + (Style.space(22) - fontSize) * 0.85
+    radius: size / 2
+    color: Model.mix(Commons.Color.popups.background, row.foreground, _hot ? 0.24 : 0.14)
+    borderSpec: Border.flat(Model.mix(Commons.Color.popups.background, row.foreground, _hot ? 0.65 : 0.35), Style.space(1))
     iconText: "\u00d7"
-    tooltipText: "Remove"
-    foreground: row.fainter
+    tooltipText: Commons.I18n.t("elsewhen.remove")
+    foreground: row.dim
     hoverColor: row.foreground
     fontFamily: row.fontFamily
     fontSize: Style.font.bodySmall
     enabled: row.removable
-    // Shown on the keyboard's pick too, so Delete's target is plain.
-    opacity: row.removable && row.lit ? 1 : 0
+    opacity: row.removable && (rowHover.hovered || removeButton._hot) ? 1 : 0
     visible: opacity > 0
     Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
     onClicked: row.panel.removeCityAt(row.index)
+  }
+
+  // Beside the ×, or in its corner on the last row, where there is no ×.
+  PanelActionButton {
+    id: peopleButton
+    anchors.horizontalCenter: parent.right
+    anchors.horizontalCenterOffset: -Style.space(22) * 5 / 24
+      - (row.removable ? removeButton.size + Style.space(5) : 0)
+    anchors.verticalCenter: parent.top
+    size: removeButton.size
+    radius: size / 2
+    color: Model.mix(Commons.Color.popups.background, row.foreground, _hot ? 0.24 : 0.14)
+    borderSpec: Border.flat(Model.mix(Commons.Color.popups.background, row.foreground, _hot ? 0.65 : 0.35), Style.space(1))
+    iconText: "\udb80\udc14"  // account-plus
+    tooltipText: Commons.I18n.t("elsewhen.editPeople")
+    foreground: row.dim
+    hoverColor: row.foreground
+    fontFamily: row.fontFamily
+    fontSize: Style.font.caption
+    opacity: !row.editingPeople && (rowHover.hovered || peopleButton._hot) ? 1 : 0
+    visible: opacity > 0
+    Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
+    onClicked: row.panel.startPeopleEdit(row.index)
   }
 
   Column {

@@ -3,6 +3,8 @@
 # omarchy:summary=Prompt for required reboot or service restarts after updates
 # omarchy:args=[--services-only|--reboot-only]
 
+kernel_modules_path="${OMARCHY_KERNEL_MODULES_PATH:-/usr/lib/modules}"
+
 mode="${1:-all}"
 case "$mode" in
   all|--services-only|--reboot-only) ;;
@@ -12,9 +14,9 @@ esac
 echo
 confirm_reboot() {
   if [[ ${OMARCHY_UPDATE_UNATTENDED:-0} == "1" ]]; then
-    echo "$1 Run omarchy-system-reboot when ready."
-  elif gum confirm "$1"; then
-    omarchy-system-reboot
+    echo "$1 Run omarchy-system reboot when ready."
+  elif gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$1"; then
+    omarchy-system reboot
     exit 0
   fi
 }
@@ -23,7 +25,8 @@ if [[ $mode != "--services-only" ]]; then
   running_kernel=$(uname -r)
   kernel_updated=true
 
-  for kernel in /usr/lib/modules/*/vmlinuz; do
+  # Every kernel package owns modules.builtin; Arch Linux ARM's ships no vmlinuz here (#12440).
+  for kernel in "$kernel_modules_path"/*/modules.builtin; do
     if [[ -f $kernel ]] && pacman -Qo "$kernel" &>/dev/null; then
       installed_kernel=$(basename "$(dirname "$kernel")")
 
@@ -35,14 +38,14 @@ if [[ $mode != "--services-only" ]]; then
   done
 
   if [[ $kernel_updated == "true" ]]; then
-    confirm_reboot "Linux kernel has been updated. Reboot?"
+    confirm_reboot "$(omarchy-i18n update.kernelReboot)"
   elif [[ -f $HOME/.local/state/omarchy/reboot-required ]]; then
-    confirm_reboot "Updates require reboot. Ready?"
+    confirm_reboot "$(omarchy-i18n update.rebootRequired)"
   fi
 
   running_hyprland=$(readlink /proc/$(pgrep -x Hyprland)/exe 2>/dev/null)
   if [[ $running_hyprland == *"(deleted)"* ]]; then
-    confirm_reboot "Hyprland has been updated. Reboot?"
+    confirm_reboot "$(omarchy-i18n update.hyprlandReboot)"
   fi
 fi
 
