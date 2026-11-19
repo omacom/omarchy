@@ -150,6 +150,25 @@ output=$("$CLI" hw asus)
 assert_output_contains "partial hardware prefix renders matching commands" "$output" "omarchy hw asus rog"
 assert_output_contains "partial hardware prefix includes nested match" "$output" "omarchy hw asus zenbook ux5406aa"
 
+status=0
+output=$("$CLI" hyprland workspace layout --help) || status=$?
+(( status == 0 )) || fail "shared prefix with --help exits 0"
+pass "shared prefix with --help exits 0"
+assert_output_contains "shared prefix with --help lists current layout command" "$output" "omarchy hyprland workspace layout current"
+assert_output_contains "shared prefix with --help lists default layout command" "$output" "omarchy hyprland workspace layout default"
+assert_output_contains "shared prefix with --help lists toggle layout command" "$output" "omarchy hyprland workspace layout toggle"
+
+status=0
+output=$("$CLI" hyprland bogus 2>&1) || status=$?
+(( status == 127 )) || fail "unknown command under known group exits 127"
+pass "unknown command under known group exits 127"
+suggested_cmd=$(sed -n 's/^Did you mean: omarchy //p' <<<"$output")
+[[ $suggested_cmd == "hyprland" ]] || fail "unknown command suggests runnable group command"
+pass "unknown command suggests runnable group command"
+read -ra suggested_args <<<"$suggested_cmd"
+output=$("$CLI" "${suggested_args[@]}")
+assert_output_contains "suggested command runs cleanly" "$output" "Hyprland commands"
+
 # omarchy-agent takes only flags, so a word after it names the account
 # commands rather than reaching the agent launcher.
 output=$("$CLI" agent account)
