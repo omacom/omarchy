@@ -192,6 +192,17 @@ Panel {
     return link.host ? Commons.I18n.t("agents.linkOffer").arg(link.host) : Commons.I18n.t("agents.linkOfferUnnamed")
   }
 
+  // What a local model needs at its peak, as the catalog measured it on
+  // this kind of machine; 0 when it hasn't been measured here.
+  function localNeedsGib(model) {
+    if (!model) return 0
+    var recipes = usage.localRecipes || []
+    for (var i = 0; i < recipes.length; i++) {
+      if (recipes[i] && recipes[i].id === model.recipe) return Number(recipes[i].memory_gib) || 0
+    }
+    return 0
+  }
+
   function localStartBlocked(model) {
     return !!model && model.unit !== "active" && model.unit !== "activating" && model.fits === false
   }
@@ -2228,7 +2239,7 @@ Panel {
     readonly property real phaseSeconds: removing ? removeSeconds : stopping ? stopSeconds : loadSeconds
     readonly property real elapsed: model ? Math.max(0, (root.loadNowMs - Number(model.since_ms || root.loadNowMs)) / 1000) : 0
     readonly property real memory: model && model.observed ? Number(model.observed.ram_used_gib || 0) : 0
-    readonly property real ramTotal: Number(usage.localModel.ram_total_gib) || 0
+    readonly property real needsGib: root.localNeedsGib(model)
     readonly property var accounts: root.providerAccounts(provider)
     readonly property bool multi: accounts.length > 1
     readonly property var windows: root.displayWindows(provider)
@@ -2468,12 +2479,12 @@ Panel {
       elide: Text.ElideRight
     }
 
-    // Under a local model: its download while it's set up, memory while it
-    // runs, progress while it loads or stops (against how long that took last
-    // time), or why it couldn't start. A network model shows its stats while
-    // it runs instead: its memory is its host's business.
+    // Under a local model: its download while it's set up, or progress while
+    // it loads or stops (against how long that took last time). A network
+    // model shows its stats while it runs instead: its memory is its host's
+    // business.
     Item {
-      visible: section.preparing || section.downloadShown || (section.running && !section.remote) || section.loadingShown || section.stoppingShown || section.removing
+      visible: section.preparing || section.downloadShown || section.loadingShown || section.stoppingShown || section.removing
       width: parent.width
       implicitHeight: Math.max(localMeterTitle.implicitHeight, localMeterValue.implicitHeight)
 
@@ -2486,8 +2497,7 @@ Panel {
           : section.downloadShown ? Commons.I18n.t("agents.localDownloadingMeter")
           : section.removing ? Commons.I18n.t("agents.localRemovingMeter")
           : section.loadingShown ? Commons.I18n.t("agents.localLoadingMeter")
-          : section.stoppingShown ? Commons.I18n.t("agents.localStoppingMeter")
-          : Commons.I18n.t("agents.localMemory")
+          : Commons.I18n.t("agents.localStoppingMeter")
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -2500,8 +2510,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         value: section.preparing ? root.phaseProgress(section.elapsed, 30)
           : section.downloadShown ? (section.totalBytes > 0 ? section.doneBytes / section.totalBytes : 0)
-          : section.finishing !== "" ? 1 : section.loading || section.stopping || section.removing ? root.phaseProgress(section.elapsed, section.phaseSeconds)
-          : section.ramTotal > 0 ? section.memory / section.ramTotal : 0
+          : section.finishing !== "" ? 1 : root.phaseProgress(section.elapsed, section.phaseSeconds)
       }
       // How much of a download has arrived, over its bar. The bar is a few
       // pixels tall, so the whole height of its row answers the pointer.
@@ -2523,13 +2532,25 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         horizontalAlignment: Text.AlignRight
-        text: section.downloadShown ? root.downloadRate(section.rateBytes)
-          : section.preparing || section.loadingShown || section.stoppingShown || section.removing ? ""
-          : Commons.I18n.t("agents.localMemoryValue").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
+        text: section.downloadShown ? root.downloadRate(section.rateBytes) : ""
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
       }
+    }
+
+    // Under a local model, running or at rest: the memory it takes, which
+    // is what says whether there's room for it. Amber when there isn't now.
+    Text {
+      visible: !!section.model && !section.remote && !section.installing && !section.loadingShown && !section.stoppingShown && !section.removing && text !== ""
+      width: parent.width
+      textFormat: Text.PlainText
+      text: section.running ? Commons.I18n.t("agents.localUsingRam").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
+        : section.needsGib > 0 ? Commons.I18n.t("agents.localNeedsRam").arg(Commons.I18n.formatNumber(Math.round(section.needsGib))) : ""
+      color: !section.running && root.localStartBlocked(section.model) ? Commons.Color.warning : root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      elide: Text.ElideRight
     }
 
     Text {
