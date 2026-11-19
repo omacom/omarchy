@@ -984,8 +984,33 @@ assert(last_command():find("show", 1, true), "and comes back with it")
 dispatched = {}
 handlers["window.active"](); step()
 assert(maximized(dispatched) and last_command():find("hide", 1, true), "dropped there, the window maximizes and the preview goes")
+-- Standing still with the pointer on it, the window may be a drag paused
+-- there: it is read more slowly for a while, then left.
+cursor = { x = 500, y = 40 }
 for _ = 1, 45 do step() end
-assert(#timers == 0, "the pointer is no longer read once the window stands still")
+assert(#timers == 1, "a window standing still under the pointer is still read")
+for _ = 1, 130 do step() end
+assert(#timers == 0, "and left once it has stood still for long enough")
+
+-- A drag paused away from the edges gets its preview back as it carries on.
+local paused = window(300)
+active = paused
+commands = {}
+handlers["window.active"](); step(); step()
+paused.at = { x = 400, y = 200 }; cursor = { x = 500, y = 180 }; step()
+for _ = 1, 60 do step() end
+assert(#commands == 0, "nothing shows while the drag is paused in the clear")
+paused.at = { x = 400, y = 20 }; cursor = { x = 500, y = 10 }; step()
+assert(last_command():find("omarchy.window-snap show", 1, true), "a paused drag that carries on to the bar shows the preview")
+handlers["window.active"](); step()
+
+-- With the pointer off the window, it stops being read once it stands still.
+local left_alone = window(300)
+active = left_alone
+handlers["window.active"](); step(); step()
+cursor = { x = 1800, y = 1000 }
+for _ = 1, 45 do step() end
+assert(#timers == 0, "a window standing still with the pointer elsewhere is no longer read")
 
 -- Dropped with the pointer against the left or right edge, a window fills
 -- that half of what the top bar leaves, its frame inside the half.
@@ -1191,11 +1216,12 @@ assert(first.size.x == 870 and first.size.y == 522 and first.at.x == 400,
 -- clears them and has the dock read its windows again.
 local marks = require("default.hypr.floating-marks")
 local marked = window(300, { address = "0xc", tags = { "omarchy-floating-workspace", marks.behind } })
-workspace_windows = { marked }
+local half = window(300, { address = "0xd", tags = { "omarchy-floating-workspace", marks.snapped } })
+workspace_windows = { marked, half }
 commands = {}
 marks.clear()
-assert(not behind(marked) and commands[#commands] == "omarchy-shell -q omarchy.dock refreshWindows",
-  "clearing the marks takes them off and has the dock read its windows")
+assert(not behind(marked) and #half.tags == 1 and commands[#commands] == "omarchy-shell -q omarchy.dock refreshWindows",
+  "clearing the marks takes them off windows kept behind and snapped ones, and has the dock read its windows")
 commands = {}
 marks.clear()
 assert(#commands == 0, "with nothing marked, the dock is left alone")

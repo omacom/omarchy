@@ -299,6 +299,12 @@ end
 local SNAP_PREVIEW = "omarchy-shell -q omarchy.window-snap "
 local WATCH_EVERY = 30
 local WATCH_IDLE_TICKS = 40
+-- Hyprland does not say whether the button is still held, so a window that
+-- stands still with the pointer on it may be a drag paused over it. It is
+-- read four times a second for up to 30 seconds more, so a drag that carries
+-- on gets its preview back.
+local WATCH_PAUSED_EVERY = 250
+local WATCH_PAUSED_TICKS = 120
 local preview_zone = nil
 local preview_monitor = nil
 local watch = nil
@@ -365,14 +371,18 @@ local function watch_tick(generation)
     hide_preview()
   end
 
+  local every = WATCH_EVERY
   if not wanted and watch.idle >= WATCH_IDLE_TICKS then
-    watch = nil
-    return
+    if watch.idle >= WATCH_IDLE_TICKS + WATCH_PAUSED_TICKS or not pointer_on(window, cursor) then
+      watch = nil
+      return
+    end
+    every = WATCH_PAUSED_EVERY
   end
 
   hl.timer(function()
     watch_tick(generation)
-  end, { timeout = WATCH_EVERY, type = "oneshot" })
+  end, { timeout = every, type = "oneshot" })
 end
 
 -- A drag starts by making the window active, or with the left button going
