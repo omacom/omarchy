@@ -36,6 +36,8 @@ dir=\${OMARCHY_KEYRING_DIR:-\$HOME/.local/share/keyrings}
 ! grep -qs UNREPAIRABLE \"\$dir\"/*.keyring || exit 1
 sed -i 's/MULTILINE/repaired/' \"\$dir\"/*.keyring 2>/dev/null || true"
 cp "$ROOT/bin/omarchy-keyring-seal" "$stubs/"
+# Re-keying asks for passwords in a terminal, so the migration runs here without it.
+stub omarchy-keyring-rekey "echo \"omarchy-keyring-rekey\" >>\"$calls\""
 
 run_migration() {
   (
