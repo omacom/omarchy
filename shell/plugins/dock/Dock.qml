@@ -351,8 +351,17 @@ Item {
       else if (name === "fullscreen") {
         Hyprland.refreshWorkspaces()
         Hyprland.refreshToplevels()
+        lateRefresh.restart()
       }
     }
+  }
+
+  // A window losing its maximized state to another one is tagged just after
+  // the event, as it is kept at full size, so the list is read again then.
+  Timer {
+    id: lateRefresh
+    interval: 150
+    onTriggered: Hyprland.refreshToplevels()
   }
 
   ShellIpc {

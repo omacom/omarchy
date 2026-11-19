@@ -791,10 +791,17 @@ hl = {
     table.insert(dispatched, dispatcher)
     if dispatcher.kind == "move" then dispatcher.window.at = { x = dispatcher.x, y = dispatcher.y } end
     if dispatcher.kind == "resize" then dispatcher.window.size = { x = dispatcher.x, y = dispatcher.y } end
+    if dispatcher.kind == "tag" then
+      local name, kept = dispatcher.tag:sub(2), {}
+      for _, tag in ipairs(dispatcher.window.tags or {}) do if tag ~= name then table.insert(kept, tag) end end
+      if dispatcher.tag:sub(1, 1) == "+" then table.insert(kept, name) end
+      dispatcher.window.tags = kept
+    end
   end,
   dsp = { window = {
     move = function(args) args.kind = "move"; return args end,
     resize = function(args) args.kind = "resize"; return args end,
+    tag = function(args) args.kind = "tag"; return args end,
     fullscreen = function(args) args.kind = "fullscreen"; return args end,
   } },
 }
@@ -949,12 +956,18 @@ terminal.fullscreen = 0; terminal.at = { x = 400, y = 300 }; terminal.size = { x
 settle_fullscreen(mail)
 assert(terminal.size.x == 1896 and terminal.size.y == 1030 - 30 and terminal.at.y == 38 + 30,
   "a window another one is maximized over keeps its full size, titlebar under the top bar")
+local function behind(w)
+  for _, tag in ipairs(w.tags) do if tag == "omarchy-maximized-behind" then return true end end
+  return false
+end
+assert(behind(terminal), "it is marked, so the dock hides for it as for a maximized window")
 
 mail.fullscreen = 0; mail.at = { x = 300, y = 200 }; mail.size = { x = 1100, y = 734 }
 assert(#settle_fullscreen(mail) == 0, "restoring the window in front leaves the one behind as it is")
 
 terminal.fullscreen = 1; terminal.at = { x = 12, y = 38 }; terminal.size = { x = 1896, y = 1030 }
 settle_fullscreen(terminal)
+assert(not behind(terminal), "maximized for real, it is no longer marked")
 terminal.fullscreen = 0; terminal.at = { x = 12, y = 68 }; terminal.size = { x = 1896, y = 1000 }
 settle_fullscreen(terminal)
 assert(terminal.size.x == 870 and terminal.size.y == 522 and terminal.at.x == 400 and terminal.at.y == 300,
@@ -966,6 +979,20 @@ terminal.fullscreen = 1; terminal.at = { x = 12, y = 38 }; terminal.size = { x =
 settle_fullscreen(terminal)
 terminal.fullscreen = 0; terminal.at = { x = 400, y = 300 }; terminal.size = { x = 870, y = 522 }
 assert(#settle_fullscreen(terminal) == 0, "a window un-maximized with nothing in front keeps its own size")
+
+-- Moved by the user, it is an ordinary window again and the dock comes back.
+mail.fullscreen = 1; terminal.fullscreen = 1; terminal.at = { x = 12, y = 38 }; terminal.size = { x = 1896, y = 1030 }
+settle_fullscreen(terminal)
+terminal.fullscreen = 0
+settle_fullscreen(mail)
+assert(behind(terminal), "kept at full size behind again")
+mail.fullscreen = 0
+active = terminal
+handlers["window.active"](); for _, run in ipairs(timers) do run() end; timers = {}
+terminal.at = { x = 200, y = 300 }
+cursor = { x = 300, y = 280 }
+handlers["window.active"](); for _, run in ipairs(timers) do run() end; timers = {}
+assert(not behind(terminal), "dragged away, it is no longer marked")
 
 LUA
 pass "a floating window dropped under the top bar keeps its titlebar in reach"

@@ -20,6 +20,10 @@ local M = { keep_title_bar = false, drop_maximize = false }
 
 local FLOATING_TAG = "omarchy-floating-workspace"
 local SELF_FRAMED_TAG = "omarchy-self-framed"
+-- A window kept at full size behind another one maximized over it, so the
+-- dock hides for it as it would for a maximized one, until it is moved,
+-- resized or maximized itself.
+local BEHIND_TAG = "omarchy-maximized-behind"
 
 -- A tag a window rule adds is reported with a trailing "*".
 local function tagged(window, name)
@@ -30,6 +34,10 @@ local function tagged(window, name)
   end
 
   return false
+end
+
+local function set_behind(window, on)
+  hl.dispatch(hl.dsp.window.tag({ tag = (on and "+" or "-") .. BEHIND_TAG, window = window }))
 end
 
 -- A monitor's box in the layout's logical coordinates, which window positions
@@ -158,6 +166,9 @@ local function check()
 
   local moved = was.x ~= window.at.x or was.y ~= window.at.y
   local resized = was.width ~= window.size.x or was.height ~= window.size.y
+  if (moved or resized) and tagged(window, BEHIND_TAG) then
+    set_behind(window, false)
+  end
   local cursor = hl.get_cursor_pos()
   if not moved or resized or not cursor or not pointer_on(window, cursor) then
     return
@@ -189,6 +200,7 @@ hl.on("window.active", check_soon)
 local maximized_boxes = {}
 local own_sizes = {}
 
+
 local function place(window, box)
   hl.dispatch(hl.dsp.window.resize({ x = math.floor(box.width), y = math.floor(box.height), relative = false, window = window }))
   hl.dispatch(hl.dsp.window.move({ x = math.floor(box.x), y = math.floor(box.y), relative = false, window = window }))
@@ -213,6 +225,9 @@ local function track_maximized(workspace_id)
 
     if fullscreen == 1 and tagged(window, FLOATING_TAG) then
       maximized_boxes[window.address] = box_of(window)
+      if tagged(window, BEHIND_TAG) then
+        set_behind(window, false)
+      end
     elseif fullscreen == 0 and was then
       maximized_boxes[window.address] = nil
 
@@ -222,6 +237,7 @@ local function track_maximized(workspace_id)
         local bar = titlebar_height(window)
         own_sizes[window.address] = box_of(window)
         place(window, { x = was.x, y = was.y + bar, width = was.width, height = was.height - bar })
+        set_behind(window, true)
       elseif own_sizes[window.address] then
         place(window, own_sizes[window.address])
         own_sizes[window.address] = nil
