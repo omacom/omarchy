@@ -239,8 +239,10 @@ pass "a theme switch to a still without an intro while one plays keeps its cover
 # The built-in intros ship only in the omarchy-themes-intros package, so a
 # theme staged from a checkout without them takes them from the installed tree.
 packaged="$test_tmp/packaged"
-mkdir -p "$packaged/solitude/backgrounds/intros"
+mkdir -p "$packaged/solitude/backgrounds/intros" "$packaged/solitude/backgrounds/loops"
 printf 'intro\n' >"$packaged/solitude/backgrounds/intros/1-on-pole.mp4"
-OMARCHY_THEME_INTROS_PATH="$packaged" set_theme solitude
+printf 'loop\n' >"$packaged/solitude/backgrounds/loops/1-on-pole.mp4"
+OMARCHY_PACKAGED_THEMES_PATH="$packaged" set_theme solitude
 [[ -f $state/theme/backgrounds/intros/1-on-pole.mp4 ]] || fail "a checkout's theme stages the packaged intro"
-pass "themes staged from a checkout take their intros from the package"
+[[ -f $state/theme/backgrounds/loops/1-on-pole.mp4 ]] || fail "a checkout's theme stages the packaged loop"
+pass "themes staged from a checkout take their intros and loops from the package"
