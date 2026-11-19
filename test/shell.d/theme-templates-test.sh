@@ -149,3 +149,50 @@ printf 'accent = "nope"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\n' >"$st
 set_icons
 [[ ! -e $state/icons/omawrite.svg && ! -L $apps/omawrite.svg ]] || fail "a theme that can't draw app icons brings the packaged ones back"
 pass "a theme that can't draw app icons brings the packaged ones back"
+
+# A sparse palette with only background and foreground renders every built-in
+# template without bash subscript errors.
+sparse_home="$test_tmp/sparse-home"
+sparse_next="$sparse_home/.local/state/omarchy/current/next-theme"
+mkdir -p "$sparse_next"
+printf 'background = "#111111"\nforeground = "#eeeeee"\n' >"$sparse_next/colors.toml"
+HOME="$sparse_home" XDG_STATE_HOME="$sparse_home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" 2>"$test_tmp/sparse.err"
+[[ ! -s $test_tmp/sparse.err ]] ||
+  fail "a sparse palette renders without errors" "$(cat "$test_tmp/sparse.err")"
+[[ -f $sparse_next/slack.json && -f $sparse_next/hyprland.lua && -f $sparse_next/shell.toml ]] ||
+  fail "a sparse palette finishes rendering built-in templates"
+pass "a sparse palette renders templates without subscript errors"
+
+# Explicitly empty palette keys fall back instead of resolving to empty strings.
+empty_home="$test_tmp/empty-home"
+empty_next="$empty_home/.local/state/omarchy/current/next-theme"
+empty_themed="$empty_home/.config/omarchy/themed"
+mkdir -p "$empty_next" "$empty_themed"
+cat >"$empty_next/colors.toml" <<'EOF'
+background = "#111111"
+foreground = "#eeeeee"
+accent = ""
+blue = "#336699"
+hyprland_active_border = ""
+EOF
+cat >"$empty_themed/empty-fallback.txt.tpl" <<'EOF'
+hypr={{ hypr_gradient hyprland_active_border blue }}
+shell={{ shell_gradient hyprland_active_border blue }}
+start={{ gradient_start hyprland_active_border blue }}
+literal={{ gradient_start hyprland_active_border 0xff112233 }}
+EOF
+HOME="$empty_home" XDG_STATE_HOME="$empty_home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" 2>"$test_tmp/empty.err"
+[[ ! -s $test_tmp/empty.err ]] ||
+  fail "empty theme colors render without errors" "$(cat "$test_tmp/empty.err")"
+expected_empty=$(cat <<'EOF'
+hypr="#336699"
+shell=#336699
+start=#336699
+literal=#112233
+EOF
+)
+[[ $(<"$empty_next/empty-fallback.txt") == "$expected_empty" ]] ||
+  fail "empty theme colors use their gradient fallbacks: $(diff <(printf '%s\n' "$expected_empty") "$empty_next/empty-fallback.txt")"
+pass "empty theme colors fall back cleanly in gradient helpers"
