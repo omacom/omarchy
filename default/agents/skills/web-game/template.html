@@ -67,9 +67,9 @@ import * as THREE from 'three';
 
 // =============================================================================
 // SETTINGS — change these.
-// NAME namespaces saved data. PALETTE is the Omarchy theme the game was made in, from
-// `omarchy-theme-color --all`. Launched from the app launcher, themed() swaps in the
-// desktop's current theme, so take every colour from PALETTE and keep themed() around it.
+// NAME namespaces saved data. PALETTE is the desktop's theme, which Game Vibes hands the game
+// as it opens; the colours written here only stand in without one, so leave them and take
+// every colour in the game from PALETTE.
 // =============================================================================
 const NAME = 'dodge';
 const PALETTE = themed({
@@ -88,7 +88,7 @@ const KEY_REPEAT = false;                 // true: a held move key repeats, for 
 // score, best, state, shake, $. Names starting with _ are the frame's alone.
 // =============================================================================
 
-// omarchy-games-launch opens the game as index.html#palette=<the current theme as JSON>, and
+// omarchy-games-vibes-launch opens the game as index.html#palette=<the current theme as JSON>, and
 // `omarchy agent look page --theme` does the same for another theme. #seed=1 replays the same round.
 function launchParam(name) {
   return new URLSearchParams(location.hash.slice(1)).get(name);
