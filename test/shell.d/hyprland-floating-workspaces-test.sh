@@ -777,6 +777,7 @@ local commands = {}
 local upper = { id = 0, name = "DP-1", x = 0, y = 0, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } }
 local lower = { id = 1, name = "DP-2", x = 0, y = 1080, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } }
 local config = { ["plugin.hyprbars.bar_height"] = 30, ["general.border_size"] = 2 }
+local monitors = { upper, lower }
 
 hl = {
   on = function(event, callback) handlers[event] = callback end,
@@ -795,7 +796,7 @@ hl = {
     return found
   end,
   get_cursor_pos = function() return cursor end,
-  get_monitors = function() return { upper, lower } end,
+  get_monitors = function() return monitors end,
   get_config = function(key) return config[key] end,
   plugin = { hyprbars = {} },
   dispatch = function(dispatcher)
@@ -984,6 +985,52 @@ handlers["window.active"](); step()
 assert(maximized(dispatched) and last_command():find("hide", 1, true), "dropped there, the window maximizes and the preview goes")
 for _ = 1, 45 do step() end
 assert(#timers == 0, "the pointer is no longer read once the window stands still")
+
+-- Dropped with the pointer against the left or right edge, a window fills
+-- that half of what the top bar leaves, its frame inside the half.
+local function drag_to(w, at, pointer)
+  active = w
+  handlers["window.active"](); step(); step()
+  w.at = at
+  cursor = pointer
+  step()
+  local preview = last_command()
+  dispatched = {}
+  handlers["window.active"](); step()
+  for _ = 1, 45 do step() end
+  return preview, dispatched
+end
+local function landed(w) return w.at.x, w.at.y, w.size.x, w.size.y end
+
+local left_drop = window(300)
+local preview = drag_to(left_drop, { x = -100, y = 300 }, { x = 5, y = 280 })
+assert(preview:find('"to":{"x":0,"y":26,"width":960,"height":1054}', 1, true), "the preview shows the left half")
+local x, y, width, height = landed(left_drop)
+assert(x == 2 and y == 26 + 30 + 2 and width == 960 - 4 and height == 1054 - 30 - 4, "a window dropped on the left edge fills the left half")
+
+local right_drop = window(300)
+preview = drag_to(right_drop, { x = 1500, y = 300 }, { x = 1915, y = 280 })
+assert(preview:find('"to":{"x":960,"y":26,"width":960,"height":1054}', 1, true), "the preview shows the right half")
+x, y, width, height = landed(right_drop)
+assert(x == 962 and width == 956 and height == 1020, "a window dropped on the right edge fills the right half")
+
+-- Along an edge another screen continues from, the pointer crosses over.
+monitors = { upper, lower, { id = 2, name = "DP-3", x = 1920, y = 0, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } } }
+local crossing = window(300)
+local _, crossed = drag_to(crossing, { x = 1500, y = 300 }, { x = 1915, y = 280 })
+assert(#crossed == 0 and crossing.size.x == 800, "an edge shared with another screen does not snap")
+monitors = { upper, lower }
+
+-- Moving between zones while still dragging, the preview follows.
+local roaming = window(300)
+active = roaming
+commands = {}
+handlers["window.active"](); step(); step()
+roaming.at = { x = 400, y = 20 }; cursor = { x = 500, y = 10 }; step()
+roaming.at = { x = -100, y = 300 }; cursor = { x = 5, y = 280 }; step()
+assert(#commands == 2 and commands[2]:find('"to":{"x":0,"y":26,"width":960', 1, true), "the preview moves from the whole screen to the left half")
+handlers["window.active"](); step()
+for _ = 1, 45 do step() end
 
 -- Hyprland keeps one maximized window per workspace. A window another one is
 -- maximized over keeps its full size, and gets its own back once it is

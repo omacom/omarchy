@@ -3,7 +3,8 @@
 -- the screen, slides down until all of it shows. The other edges are left
 -- alone, so a window can still sit under the dock or partly off screen. And as
 -- on Windows, one dropped with the pointer on the top bar, or in the top few
--- pixels of a screen without one, maximizes.
+-- pixels of a screen without one, maximizes, and one dropped with the pointer
+-- against the left or right edge of a screen fills that half of it.
 --
 -- Both are off unless chosen: the floating-title-bar-visible and
 -- floating-drop-maximize toggles load this and switch each on, from
@@ -120,25 +121,93 @@ local function keep_title_bar_visible(window)
   return y
 end
 
--- The pointer holds the titlebar, so where it lets go decides, on the screen
--- the window belongs to. A window dropped only partly under the bar, with the
--- pointer below it, keeps its size.
-local function dropped_on_top_bar(window, cursor)
-  local monitor = monitor_at(cursor.x, cursor.y)
-  if not monitor or not window.monitor or monitor.id ~= window.monitor.id then
-    return false
+-- How close to a screen's left or right edge the pointer has to be to snap a
+-- window to that half.
+local SIDE_MARGIN = 12
+
+-- What a window fills in each snap zone, frame included, against its screen:
+-- all that the bars leave of it to maximize, or its left or right half.
+local function snap_frame(monitor, zone)
+  local _, _, width, height = logical_box(monitor)
+  local reserved = monitor.reserved or {}
+  local left, top = reserved.left or 0, reserved.top or 0
+  local box = { x = left, y = top, width = width - left - (reserved.right or 0), height = height - top - (reserved.bottom or 0) }
+  if zone == "left" then
+    box.width = math.floor(box.width / 2)
+  elseif zone == "right" then
+    local half = math.floor(box.width / 2)
+    box.x, box.width = box.x + half, box.width - half
   end
 
-  return cursor.y < math.max(top_edge(monitor), monitor.y + 8)
+  return box
+end
+
+-- Another screen meets this one along the side, where the pointer is, so the
+-- edge is a way across rather than one to snap to.
+local function screen_beyond(monitor, side, y)
+  local mx, _, width = logical_box(monitor)
+  local edge = side == "left" and mx or mx + width
+  for _, other in ipairs(hl.get_monitors()) do
+    if other.id ~= monitor.id and other.scale and other.scale > 0 then
+      local ox, oy, owidth, oheight = logical_box(other)
+      local touching = side == "left" and ox + owidth == edge or side == "right" and ox == edge
+      if touching and y >= oy and y < oy + oheight then
+        return true
+      end
+    end
+  end
+
+  return false
+end
+
+-- The pointer holds the titlebar, so where it lets go decides, on the screen
+-- the window belongs to: "maximize" on the top bar, "left" or "right" against
+-- an outer edge, or nil to keep its size. A window dropped only partly under
+-- the bar, with the pointer below it, keeps its size.
+local function snap_zone(window, cursor)
+  local monitor = monitor_at(cursor.x, cursor.y)
+  if not monitor or not window.monitor or monitor.id ~= window.monitor.id then
+    return nil
+  end
+
+  if cursor.y < math.max(top_edge(monitor), monitor.y + 8) then
+    return "maximize"
+  end
+
+  local mx, _, width = logical_box(monitor)
+  if cursor.x < mx + SIDE_MARGIN and not screen_beyond(monitor, "left", cursor.y) then
+    return "left"
+  end
+  if cursor.x >= mx + width - SIDE_MARGIN and not screen_beyond(monitor, "right", cursor.y) then
+    return "right"
+  end
+
+  return nil
+end
+
+-- Snaps a window to a half: its frame fills the box, titlebar and border
+-- inside it.
+local function snap_to_half(window, monitor, zone)
+  local frame = snap_frame(monitor, zone)
+  local border = hl.get_config("general.border_size") or 0
+  local bar = titlebar_height(window)
+  local x = math.floor(monitor.x + frame.x + border)
+  local y = math.floor(monitor.y + frame.y + bar + border)
+  hl.dispatch(hl.dsp.window.resize({ x = math.floor(frame.width - 2 * border), y = math.floor(frame.height - bar - 2 * border), relative = false, window = window }))
+  hl.dispatch(hl.dsp.window.move({ x = x, y = y, relative = false, window = window }))
+  return y
 end
 
 local function settle(window, cursor)
-  if M.drop_maximize and dropped_on_top_bar(window, cursor) then
+  local zone = M.drop_maximize and snap_zone(window, cursor) or nil
+  if zone == "maximize" then
     -- Brought into reach first, so leaving the maximized state later restores
     -- a window whose titlebar can still be grabbed.
     local y = keep_title_bar_visible(window)
     hl.dispatch(hl.dsp.window.fullscreen({ mode = "maximized", action = "set", window = window }))
     return y
+  elseif zone then
+    return snap_to_half(window, window.monitor, zone)
   end
 
   if M.keep_title_bar then
@@ -162,7 +231,7 @@ end
 local SNAP_PREVIEW = "omarchy-shell -q omarchy.window-snap "
 local WATCH_EVERY = 30
 local WATCH_IDLE_TICKS = 40
-local preview_shown = false
+local preview_zone = nil
 local watch = nil
 local watch_generation = 0
 
@@ -183,24 +252,16 @@ local function frame_box(window, monitor)
   }
 end
 
--- A maximized window's frame fills what the bars leave of its screen.
-local function maximized_frame(monitor)
-  local _, _, width, height = logical_box(monitor)
-  local reserved = monitor.reserved or {}
-  local left, top = reserved.left or 0, reserved.top or 0
-  return { x = left, y = top, width = width - left - (reserved.right or 0), height = height - top - (reserved.bottom or 0) }
-end
-
-local function show_preview(window, monitor)
-  preview_shown = true
+local function show_preview(window, monitor, zone)
+  preview_zone = zone
   local payload = string.format('{"monitor":"%s","from":%s,"to":%s}',
-    tostring(monitor.name), box_json(frame_box(window, monitor)), box_json(maximized_frame(monitor)))
+    tostring(monitor.name), box_json(frame_box(window, monitor)), box_json(snap_frame(monitor, zone)))
   hl.exec_cmd(SNAP_PREVIEW .. "show '" .. payload .. "'")
 end
 
 local function hide_preview()
-  if preview_shown then
-    preview_shown = false
+  if preview_zone then
+    preview_zone = nil
     hl.exec_cmd(SNAP_PREVIEW .. "hide")
   end
 end
@@ -224,9 +285,9 @@ local function watch_tick(generation)
     watch.idle = watch.idle + 1
   end
 
-  local wanted = watch.dragged and pointer_on(window, cursor) and dropped_on_top_bar(window, cursor)
-  if wanted and not preview_shown then
-    show_preview(window, window.monitor)
+  local wanted = watch.dragged and pointer_on(window, cursor) and snap_zone(window, cursor) or nil
+  if wanted and wanted ~= preview_zone then
+    show_preview(window, window.monitor, wanted)
   elseif not wanted then
     hide_preview()
   end

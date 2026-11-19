@@ -232,10 +232,10 @@
     "label": "Titlebar Snap Off"
   },
   "appearance.windows.drag-maximize-on": {
-    "label": "Drag Maximize On"
+    "label": "Drag Snap On"
   },
   "appearance.windows.drag-maximize-off": {
-    "label": "Drag Maximize Off"
+    "label": "Drag Snap Off"
   },
   "appearance.branding": {
     "label": "Branding"
