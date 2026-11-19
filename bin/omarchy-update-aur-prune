@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Prune superseded builds from the AUR build directory
+# omarchy:hidden=true
+
+# yay keeps every package it builds: --cleanafter runs git clean with
+# --exclude '*.pkg.*', so each AUR update leaves one more archive in the build
+# directory and nothing ever removes the old ones. Run after a successful AUR
+# update and keep the two highest versions of each package, normally the build
+# just installed and the one before it, like the pacman cache.
+
+# Root has no yay build directory of its own to tidy, and pruning with root's
+# authority would follow whatever the user's directory holds.
+if (( EUID == 0 )); then
+  exit 0
+fi
+
+# yay's config and AURDEST can both move the build directory, so ask yay.
+build_dir=$(yay -Pg 2>/dev/null | jq -r '.buildDir // empty' 2>/dev/null)
+
+# paccache reads only the top level of a cachedir and keeps versions per
+# cachedir, so each package's clone goes in on its own. Only real directories
+# holding a PKGBUILD that the user owns and can write qualify, so a symlink
+# can't lead the prune outside the build directory.
+cachedirs=()
+if [[ -n $build_dir && -d $build_dir ]]; then
+  for dir in "$build_dir"/*/; do
+    dir=${dir%/}
+    if [[ ! -L $dir && -O $dir && -w $dir && -f $dir/PKGBUILD ]]; then
+      cachedirs+=(-c "$dir")
+    fi
+  done
+fi
+
+# paccache deletes through sudo whenever it finds a cachedir it can't write,
+# and the update's sudo authorization is still warm here. no_new_privs makes
+# that impossible: tidying the user's own cache never runs as root.
+if (( ${#cachedirs[@]} )); then
+  setpriv --no-new-privs paccache -qrk2 "${cachedirs[@]}" ||
+    echo -e "\e[33m$(omarchy-i18n update.aurPruneFailed)\e[0m" >&2
+fi
