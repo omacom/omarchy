@@ -95,6 +95,15 @@ for (let i = 0; i < 1000; i++) {
   assert.equal(real.source, 'app.slack.com')
   assert.equal(id('Chromium', '<a href="https://evil.example/">bank.example</a>hi').source, 'evil.example', 'the href is the origin')
   assert.equal(id('Brave Origin', '<a href="https://app.basecamp.com/">app.basecamp.com</a>\n\nKendall: hi').groupKey, 'web:app.basecamp.com')
+  // A non-default port is part of the origin label the browser prints; the
+  // bare host stays the source, so click-through and grouping are unchanged.
+  const ported = id('Google Chrome', '<a href="https://example.com:8443/">example.com:8443</a>\n\nBody line one\nBody line two')
+  assert.equal(ported.source, 'example.com')
+  assert.equal(ported.bodyLine, 'Body line one Body line two')
+  assert.equal(ported.groupKey, 'web:example.com')
+  // A label naming a different port, or a real in-body link, is not an origin.
+  assert.equal(id('Google Chrome', '<a href="https://example.com:8443/">example.com:9999</a>\n\nBody').source, 'Google Chrome')
+  assert.equal(id('Google Chrome', '<a href="https://example.com:8443/">Read more</a>Body').source, 'Google Chrome')
   // A restored row cannot claim a site either unless it came from a browser.
   assert.equal(Store.restored({ key: 'r', app: 'Chat', source: 'bank.example' }).groupKey, 'app:chat')
   assert.equal(Store.restored({ key: 'r', app: 'Chromium', source: 'app.slack.com' }).groupKey, 'web:app.slack.com')
