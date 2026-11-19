@@ -352,13 +352,18 @@ function describeTimer(seconds, tn) {
 }
 
 // Compact label for a timer with no name of its own: "5m", "1m30s", "1h5m".
-function shortTimerLabel(seconds) {
+// t(key, english) translates one unit's "%1h"-style template; without it the
+// English is used.
+function shortTimerLabel(seconds, t) {
+  if (!t) t = function(key, english) { return english }
   var total = Math.max(0, Math.round(Number(seconds) || 0))
   var h = Math.floor(total / 3600)
   var m = Math.floor((total % 3600) / 60)
   var s = total % 60
-  var label = (h ? h + "h" : "") + (m ? m + "m" : "") + (s ? s + "s" : "")
-  return label || "0s"
+  var label = (h ? t("clock.shortHours", "%1h").replace("%1", h) : "")
+    + (m ? t("clock.shortMinutes", "%1m").replace("%1", m) : "")
+    + (s || !(h || m) ? t("clock.shortSeconds", "%1s").replace("%1", s) : "")
+  return label
 }
 
 // Seconds left on a timer record ({ total, endsAt, pausedRemaining, running })

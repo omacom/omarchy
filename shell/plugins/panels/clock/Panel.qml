@@ -93,7 +93,24 @@ Panel {
   // running }; stopwatches are { kind: "stopwatch", id, name, startedAt,
   // elapsedBefore, running }. Always replaced, never mutated in place, so
   // bindings see every change.
-  property var timers: []
+  //
+  // The bar builds this panel once per monitor, but the timers are one list.
+  // The first instance owns it: it holds the records, ticks, saves the state
+  // file and notifies. Every other instance reads the owner's list and sends
+  // its changes there, so no two copies can drift or overwrite each other.
+  readonly property var timerOwner: {
+    if (!root.bar || typeof root.bar.moduleWidgets !== "function") return root
+    var instances = root.bar.moduleWidgets(root.moduleName)
+    var first = instances.length > 0 ? instances[0] : null
+    return first && first.timerPanel ? first.timerPanel : root
+  }
+  readonly property bool ownsTimers: timerOwner === root
+  // This instance's own copy, used while it is the owner (and, at startup,
+  // before the bar has said who is).
+  property var ownTimers: []
+  property real ownTimerNow: Date.now()
+  property int ownBarTimerId: 0
+  readonly property var timers: ownsTimers ? ownTimers : timerOwner.timers
   property int timerSerial: 0
   // The list is mirrored to a state file so a shell restart (or a reboot)
   // picks every timer back up where it was: the records are timestamps, so
@@ -102,11 +119,9 @@ Panel {
   readonly property string timersStateDir: Quickshell.env("HOME") + "/.local/state/omarchy"
   readonly property string timersStatePath: timersStateDir + "/clock-timers.json"
   property bool timersRestored: false
-  // What the file last held, as far as this instance knows: a reload that
-  // brings back the same list must not write it out again, or the per-screen
-  // instances below would bounce saves off each other forever.
+  // What the file last held, so a save that changes nothing is skipped.
   property string timersStateText: ""
-  property real timerNow: Date.now()
+  readonly property real timerNow: ownsTimers ? ownTimerNow : timerOwner.timerNow
   readonly property bool anyTimerRunning: timers.some(function(t) { return t.running })
   readonly property var soonestTimer: Model.soonestTimer(timers, timerNow)
   // With no countdown to show, the bar falls back to a stopwatch, running
@@ -122,7 +137,7 @@ Panel {
   }
   // Scrolling over the bar label picks which one it shows; 0 means "the
   // most pressing", and a pick that has since finished falls back to it.
-  property int barTimerId: 0
+  readonly property int barTimerId: ownsTimers ? ownBarTimerId : timerOwner.barTimerId
   readonly property var barEntry: {
     for (var i = 0; i < timers.length; i++) if (timers[i].id === barTimerId) return timers[i]
     return soonestTimer ? soonestTimer.timer : barStopwatch
@@ -133,19 +148,33 @@ Panel {
   readonly property string barTimerKind: barEntry ? (barEntry.kind === "stopwatch" ? "stopwatch" : "timer") : ""
   // The time alone, for the vertical bar's narrow stack.
   readonly property string barTimerTime: barEntry
-    ? (barEntry.kind === "stopwatch" ? Model.formatElapsed(Model.stopwatchElapsed(barEntry, timerNow)) : Model.formatTimer(Model.timerRemaining(barEntry, timerNow)))
+    ? localDigits(barEntry.kind === "stopwatch" ? Model.formatElapsed(Model.stopwatchElapsed(barEntry, timerNow)) : Model.formatTimer(Model.timerRemaining(barEntry, timerNow)))
     : ""
   readonly property string barTimerText: barEntry
-    ? Model.barTimerLabel(barEntry, timerNow) + (timers.length > 1 ? " +" + (timers.length - 1) : "")
+    ? localDigits(Model.barTimerLabel(barEntry, timerNow) + (timers.length > 1 ? " +" + (timers.length - 1) : ""))
     : ""
+
+  // Timer read-outs are built from ASCII digits; this shows them in the
+  // interface language's own.
+  function localDigits(text) {
+    return String(text).replace(/[0-9]/g, function(d) { return Commons.I18n.formatNumber(Number(d)) })
+  }
+
+  // "5m", "1h30m" in the interface language, for unnamed timers and presets.
+  function shortTimerLabel(seconds) {
+    return root.localDigits(Model.shortTimerLabel(seconds, function(key, english) {
+      return Commons.I18n.t(key, english)
+    }))
+  }
 
   // Steps the bar label through the timers in panel order, wrapping.
   function cycleBarTimer(step) {
+    if (!root.ownsTimers) return root.timerOwner.cycleBarTimer(step)
     if (timers.length < 2 || !barEntry) return false
     var index = 0
     for (var i = 0; i < timers.length; i++) if (timers[i].id === barEntry.id) index = i
     var next = (index + step + timers.length) % timers.length
-    root.barTimerId = timers[next].id
+    root.ownBarTimerId = timers[next].id
     return true
   }
   // Off unless asked for: a finished timer always notifies, and the sound is
@@ -299,11 +328,13 @@ Panel {
   }
 
   function addTimer(seconds, name) {
+    root.timerNameInput = ""
+    if (!root.ownsTimers) return root.timerOwner.addTimer(seconds, name)
     if (!(seconds > 0) || !root.canAddTimer) return
     var now = Date.now()
     root.timerSerial += 1
-    root.timerNow = now
-    root.timers = root.timers.concat([{
+    root.ownTimerNow = now
+    root.ownTimers = root.ownTimers.concat([{
       kind: "timer",
       id: root.timerSerial,
       name: String(name || "").trim(),
@@ -313,16 +344,17 @@ Panel {
       running: true
     }])
     // What was just started is what the next key should act on.
-    root.barTimerId = root.timerSerial
-    root.timerNameInput = ""
+    root.ownBarTimerId = root.timerSerial
   }
 
   function addStopwatch(name) {
+    root.timerNameInput = ""
+    if (!root.ownsTimers) return root.timerOwner.addStopwatch(name)
     if (!root.canAddTimer) return
     var now = Date.now()
     root.timerSerial += 1
-    root.timerNow = now
-    root.timers = root.timers.concat([{
+    root.ownTimerNow = now
+    root.ownTimers = root.ownTimers.concat([{
       kind: "stopwatch",
       id: root.timerSerial,
       name: String(name || "").trim(),
@@ -331,8 +363,7 @@ Panel {
       running: true
     }])
     // What was just started is what the next key should act on.
-    root.barTimerId = root.timerSerial
-    root.timerNameInput = ""
+    root.ownBarTimerId = root.timerSerial
   }
 
   function addTimerFromFields() {
@@ -340,9 +371,10 @@ Panel {
   }
 
   function updateTimer(id, change) {
+    if (!root.ownsTimers) return root.timerOwner.updateTimer(id, change)
     var now = Date.now()
-    root.timerNow = now
-    root.timers = root.timers.map(function(t) {
+    root.ownTimerNow = now
+    root.ownTimers = root.ownTimers.map(function(t) {
       if (t.id !== id) return t
       var next = {}
       for (var key in t) next[key] = t[key]
@@ -396,7 +428,8 @@ Panel {
   }
 
   function cancelTimer(id) {
-    root.timers = root.timers.filter(function(t) { return t.id !== id })
+    if (!root.ownsTimers) return root.timerOwner.cancelTimer(id)
+    root.ownTimers = root.ownTimers.filter(function(t) { return t.id !== id })
   }
 
   function setTimerSound(enabled) {
@@ -414,9 +447,13 @@ Panel {
       if (now - t.endsAt > 5000)
         duration = Commons.I18n.t("clock.timerEndedAt").arg(duration)
           .arg(new Date(t.endsAt).toLocaleTimeString(root.labelLocale, Locale.ShortFormat))
+      // The name rides in the body, after the duration, never where the
+      // helper still reads options: a timer named "--help" is just text.
+      var body = t.name !== ""
+        ? Commons.I18n.t("clock.namedTimerUp").arg(duration).arg(t.name)
+        : Commons.I18n.t("clock.timerUp").arg(duration)
       Util.execArgv(["omarchy-notification-send", "-g", "󰔟", "-u", "critical",
-        t.name !== "" ? t.name : Commons.I18n.t("clock.timerDone"),
-        Commons.I18n.t("clock.timerUp").arg(duration)])
+        Commons.I18n.t("clock.timerDone"), body])
     }
     if (finished.length > 0 && root.timerSound)
       Util.execArgv(["bash", "-c", '[[ -f $1 ]] && exec pw-play "$1"', "bash", root.timerSoundFile])
@@ -434,42 +471,46 @@ Panel {
     for (var i = 0; i < restored.length; i++) serial = Math.max(serial, restored[i].id)
     root.timerSerial = serial
     root.timersStateText = JSON.stringify(restored) + "\n"
-    root.timers = restored
+    root.ownTimers = restored
     root.timersRestored = true
     // Settles anything that ran out while the shell was down.
     root.tickTimers()
   }
 
   function saveTimers() {
-    if (!root.timersRestored) return
-    var text = JSON.stringify(root.timers) + "\n"
+    if (!root.timersRestored || !root.ownsTimers) return
+    var text = JSON.stringify(root.ownTimers) + "\n"
     if (text === root.timersStateText) return
     root.timersStateText = text
     timersStateFile.setText(text)
   }
 
-  // The bar builds this widget once per monitor, and every instance shares
-  // the state file. Only the first one settles finished timers, so each
-  // notifies once; the others pick the result up from the file.
-  // Until the bar has registered its widgets nobody leads: at startup every
-  // instance reads the file before that, and each would otherwise settle the
-  // same expired timers. The ticker keeps asking, so the leader catches up.
+  // Only the owner settles finished timers, so each notifies once. Until the
+  // bar has registered its widgets nobody does: at startup every instance
+  // reads the file and counts as its own owner, and each would otherwise
+  // settle the same expired timers. The ticker keeps asking, so the owner
+  // catches up once the bar says who it is.
   function isTimerLeader() {
     if (!root.bar || typeof root.bar.moduleWidgets !== "function") return true
     var instances = root.bar.moduleWidgets(root.moduleName)
     return instances.length > 0 && instances[0] === root.barIdentity
   }
 
-  onTimersChanged: saveTimers()
+  // Owner-side code reads ownTimers, never the timers binding: inside this
+  // handler that binding may not have caught up with the change yet.
+  onOwnTimersChanged: saveTimers()
+  // Taking over (the owning monitor went away): pick up what it last saved.
+  onOwnsTimersChanged: if (ownsTimers && timersRestored) timersStateFile.reload()
 
   function tickTimers() {
+    if (!root.ownsTimers) return
     var now = Date.now()
-    root.timerNow = now
+    root.ownTimerNow = now
     if (!root.isTimerLeader()) return
     var done = function(t) { return t.kind !== "stopwatch" && t.running && now >= t.endsAt }
-    var finished = root.timers.filter(done)
+    var finished = root.ownTimers.filter(done)
     if (finished.length === 0) return
-    root.timers = root.timers.filter(function(t) { return !done(t) })
+    root.ownTimers = root.ownTimers.filter(function(t) { return !done(t) })
     root.finishTimers(finished, now)
   }
 
@@ -513,9 +554,6 @@ Panel {
     path: root.timersStatePath
     atomicWrites: true
     printErrors: false
-    // Another monitor's instance (or a restart) changed the list.
-    watchChanges: true
-    onFileChanged: reload()
     onLoaded: root.restoreTimers(text())
     // No file yet is the normal first run: start empty and save from here on.
     onLoadFailed: root.restoreTimers("[]")
@@ -527,7 +565,7 @@ Panel {
     id: timerTicker
     interval: 250
     repeat: true
-    running: root.anyTimerRunning
+    running: root.ownsTimers && root.anyTimerRunning
     triggeredOnStart: true
     onTriggered: root.tickTimers()
   }
@@ -1196,10 +1234,10 @@ Panel {
                       elide: Text.ElideRight
                       text: timerRow.modelData.name !== ""
                         ? timerRow.modelData.name
-                        : (timerRow.stopwatch ? Commons.I18n.t("clock.stopwatch") : Model.shortTimerLabel(timerRow.modelData.total))
+                        : (timerRow.stopwatch ? Commons.I18n.t("clock.stopwatch") : root.shortTimerLabel(timerRow.modelData.total))
                       // The one the bar shows, and so the one the keys act on.
                       color: root.timers.length > 1 && root.barEntry && root.barEntry.id === timerRow.modelData.id
-                        ? Style.selectedStateColor(root.contentForeground, Color.accent)
+                        ? Style.selectedStateColor(root.contentForeground, Commons.Color.accent)
                         : root.contentForeground
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.bodySmall
@@ -1249,7 +1287,7 @@ Panel {
                       anchors.right: timerResetButton.left
                       anchors.rightMargin: Style.space(6)
                       anchors.verticalCenter: parent.verticalCenter
-                      text: timerRow.stopwatch ? Model.formatElapsed(timerRow.elapsed) : Model.formatTimer(timerRow.remaining)
+                      text: root.localDigits(timerRow.stopwatch ? Model.formatElapsed(timerRow.elapsed) : Model.formatTimer(timerRow.remaining))
                       color: timerRow.modelData.running ? root.contentForeground : Qt.darker(root.contentForeground, 1.5)
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.body
@@ -1275,7 +1313,7 @@ Panel {
                           : Math.min(1, 1 - timerRow.remaining / timerRow.modelData.total)))
                         height: parent.height
                         radius: parent.radius
-                        color: Style.selectedStateColor(root.contentForeground, Color.accent)
+                        color: Style.selectedStateColor(root.contentForeground, Commons.Color.accent)
 
                         Behavior on width {
                           enabled: !timerRow.stopwatch || (timerRow.elapsed % 60) > 1
@@ -1297,8 +1335,13 @@ Panel {
                 visible: timerSection.addRowOpen || height > 0
                 clip: true
 
+                // Leaving takes two thirds of the arrival.
                 Behavior on height {
-                  NumberAnimation { duration: Style.duration(200); easing.type: Easing.OutCubic }
+                  NumberAnimation {
+                    duration: Style.duration(timerSection.addRowOpen ? 200 : 130)
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Style.easeOut
+                  }
                 }
 
                 Item {
@@ -1344,7 +1387,7 @@ Panel {
                         height: Style.space(22)
                         radius: Style.cornerRadius
                         color: presetMouse.containsMouse
-                          ? Style.hoverFillFor(root.contentForeground, Color.accent)
+                          ? Style.hoverFillFor(root.contentForeground, Commons.Color.accent)
                           : "transparent"
                         border.width: Style.spacing.hairline
                         border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.15)
@@ -1353,9 +1396,9 @@ Panel {
                           id: presetText
                           anchors.centerIn: parent
                           textFormat: Text.PlainText
-                          text: Model.shortTimerLabel(modelData)
+                          text: root.shortTimerLabel(modelData)
                           color: presetMouse.containsMouse
-                            ? Style.hoverStateColor(root.contentForeground, Color.accent)
+                            ? Style.hoverStateColor(root.contentForeground, Commons.Color.accent)
                             : root.contentForeground
                           font.family: root.contentFontFamily
                           font.pixelSize: Style.font.bodySmall

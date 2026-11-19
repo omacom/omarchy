@@ -36,6 +36,9 @@ BarWidget {
 
   // A running countdown from the calendar panel rides along beside the time,
   // so it can be watched without opening the popup.
+  // The panel this bar built, for the other monitors' clocks to share timers
+  // through (see timerOwner in Panel.qml).
+  readonly property var timerPanel: panelLoader.item
   readonly property string timerText: panelLoader.item && panelLoader.item.barTimerText ? panelLoader.item.barTimerText : ""
   readonly property string timerGlyph: panelLoader.item && panelLoader.item.barTimerKind === "stopwatch" ? "󰔛" : "󰔟"
   readonly property string timerSegment: timerText !== "" ? timerGlyph + " " + timerText : ""
@@ -238,7 +241,7 @@ BarWidget {
         clip: true
 
         Behavior on width {
-          NumberAnimation { duration: Style.duration(180); easing.type: Easing.OutCubic }
+          NumberAnimation { duration: Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
         }
 
         property real progress: 1
@@ -277,7 +280,8 @@ BarWidget {
           from: 0
           to: 1
           duration: Style.duration(220)
-          easing.type: Easing.OutCubic
+          easing.type: Easing.Bezier
+          easing.bezierCurve: Style.easeOut
         }
       }
     }

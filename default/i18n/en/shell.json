@@ -253,6 +253,7 @@
     "other": "%1 minutes"
   },
   "clock.monthYear": "%1 %2",
+  "clock.namedTimerUp": "%1 timer “%2” is up",
   "clock.nextMonth": "Next month",
   "clock.pauseTimer": "Pause",
   "clock.previousMonth": "Previous month",
@@ -263,6 +264,9 @@
     "one": "%1 second",
     "other": "%1 seconds"
   },
+  "clock.shortHours": "%1h",
+  "clock.shortMinutes": "%1m",
+  "clock.shortSeconds": "%1s",
   "clock.startStopwatch": "Start stopwatch",
   "clock.startTimer": "Start timer",
   "clock.startWeeksOn": "Start weeks on %1",

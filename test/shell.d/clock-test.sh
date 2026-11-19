@@ -243,6 +243,11 @@ assertEqual(calendar.formatElapsed(0.9), '0:00', 'stopwatch rounds a partial sec
 assertEqual(calendar.describeTimer(5400), '1 hour 30 minutes', 'timer describes its duration in words')
 assertEqual(calendar.describeTimer(61, (key, n, english) => key + ':' + n), 'clock.minutes:1 clock.seconds:1', 'timer hands each unit to the translator')
 assertEqual(calendar.shortTimerLabel(90), '1m30s', 'timer labels an unnamed duration compactly')
+assertEqual(calendar.shortTimerLabel(3600), '1h', 'timer labels drop empty units')
+assertEqual(calendar.shortTimerLabel(0), '0s', 'timer labels show zero as seconds')
+assertEqual(calendar.shortTimerLabel(3690, function(key, english) {
+  return { 'clock.shortHours': '%1 t', 'clock.shortMinutes': '%1 min', 'clock.shortSeconds': '%1 s' }[key]
+}), '1 t1 min30 s', 'timer labels take each unit from the translator')
 assertEqual(calendar.timerRemaining({ running: true, endsAt: 15000 }, 10000), 5, 'running timer counts down to its end')
 assertEqual(calendar.timerRemaining({ running: false, pausedRemaining: 7 }, 10000), 7, 'paused timer holds its remainder')
 assertEqual(calendar.stopwatchElapsed({ running: true, startedAt: 1000, elapsedBefore: 10 }, 6000), 15, 'running stopwatch adds to its banked time')
