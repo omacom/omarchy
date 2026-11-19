@@ -2550,10 +2550,12 @@ Panel {
     // It reads as part of the name above, so it sits closer to it than the
     // section's rows sit to each other.
     Item {
-      readonly property real pull: Style.space(10)
+      // Never the whole line: a spacing scale that outgrows the text would
+      // leave a zero-height row, which the column drops from its layout.
+      readonly property real pull: Math.max(0, Math.min(Style.space(10), localRam.implicitHeight - 1))
       visible: !!section.model && !section.remote && !section.installing && !section.loadingShown && !section.stoppingShown && !section.removing && localRam.text !== ""
       width: parent.width
-      implicitHeight: Math.max(0, localRam.implicitHeight - pull)
+      implicitHeight: localRam.implicitHeight - pull
 
       Text {
         id: localRam
