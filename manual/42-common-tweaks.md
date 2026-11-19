@@ -10,7 +10,7 @@ By default, tray icons, like Dropbox, 1password, or Steam, are hidden behind the
 
 ### Rounded window corners
 
-Omarchy's default design is one of square corners, but if you like to soften that up a bit, pick _Appearance > Windows > Window Corners > Rounded Corners_ in the Omarchy menu, or run `omarchy hyprland corners rounded`. _Theme Corners_ goes back to whatever the theme uses. To pick your own radius, uncomment rounding in `~/.config/hypr/looknfeel.lua`:
+Omarchy's default design is one of square corners, but if you like to soften that up a bit, pick _Appearance > Windows > Window Corners > Rounded Corners_ in the Omarchy menu, or run `omarchy hyprland corners rounded`. _Theme Corners_ goes back to whatever the theme uses. To pick your own radius, stay on _Theme Corners_ (`omarchy hyprland corners theme`), since Rounded and Sharp load after your config and override it, and uncomment rounding in `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({

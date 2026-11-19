@@ -47,7 +47,7 @@ If you already have a `[settings]` table, add the entry there; extend an existin
 
 ### Removing and restoring defaults
 
-_Remove > Preinstalls_ removes Omarchy's preinstalled web apps, TUIs and apps, and has mise skip Omarchy's tool declarations for your user, by adding them to `ignored_config_paths` in `~/.config/mise/miserc.toml`. _Install > Preinstalls_ brings them back and removes that line again. Tools you declare yourself, in your own config or in a project's `mise.toml`, keep working either way. If you choose a default agent or set up Python after removing the preinstalls, that tool is added to your own config. Both apply only to your user; other users on the machine keep their own choice.
+_Remove > Preinstalls_ removes Omarchy's preinstalled web apps, TUIs and apps, and has mise skip Omarchy's tool declarations for your user, by adding them to `ignored_config_paths` in `~/.config/mise/miserc.toml`. _Install > Preinstalls_ brings them back and removes that line again. Tools you declare yourself, in your own config or in a project's `mise.toml`, keep working either way. If you choose a default agent or set up Python after removing the preinstalls, that tool is added to your own config. The mise setting applies only to your user, and other users keep their own choice; the apps are packages, though, so removing or restoring them changes them for everyone on the machine.
 
 ## Docker
 
