@@ -14,6 +14,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
 fake_platform "$tmp/apple" aarch64-apple
+fake_platform "$tmp/qualcomm" aarch64-qualcomm
 fake_platform "$tmp/x86" x86
 
 # The hooks record what they were called with and which flags files the
@@ -72,6 +73,12 @@ for browser in chromium chrome edge brave brave-origin firefox zen; do
     fail "apple: the $browser hook runs after its package step" "$(cat "$tmp/calls")"
 done
 pass "apple: every browser install runs post-install <browser> after its package and flags"
+
+run qualcomm "$ROOT/bin/omarchy-install-browser" chrome ||
+  fail "qualcomm: Chrome installs" "$(cat "$tmp/output")"
+grep -Eq '^--enable-features=([^[:space:]]*,)?WebRtcPipeWireCamera(,|$)' "$tmp/home/.config/chrome-flags.conf" ||
+  fail "qualcomm: Chrome's flags enable the PipeWire camera"
+pass "qualcomm: Chrome installs with PipeWire camera support"
 
 touch "$tmp/fail"
 for browser in chromium brave; do
