@@ -113,78 +113,249 @@ printf 'accent = "#e06c75"\ncolor0 = "#1e2127"\ncolor7 = "#abb2bf"\n' >"$test_tm
 [[ $(icon_role "$test_tmp/ansi.toml" icon_mark) == "$(icon_role "$test_tmp/bare.toml" icon_mark)" ]] || fail "a theme naming only its neutral ANSI slots gets the same highlight as a bare one"
 pass "app icon colors honor the theme and skip palettes they cannot draw"
 
-# App icons draw from the current theme after the switch, into a dir the links
-# point at. A theme's own icon wins; a user's own icon stays; a theme's icon for
-# an app Omarchy has no template for is not linked; and a theme that can't draw
-# them takes the icons and their links away again.
+# App icons are an icon set, drawn in the current theme's colors after the
+# switch into a dir the links point at. The set is picked apart from the theme,
+# which supplies colors and no icons. A user's set of the same name lies over
+# the built-in one; a user's own icon stays; and a theme that can't draw them
+# takes the icons and their links away again.
 state="$home/.local/state/omarchy/current"
 apps="$home/.local/share/icons/hicolor/scalable/apps"
+sets="$home/.config/omarchy/icons"
 mkdir -p "$state" "$apps"
 mv "$next" "$state/theme"
 mkdir -p "$state/theme/icons"
 printf 'shipped\n' >"$state/theme/icons/hype.svg"
 printf 'spoof\n' >"$state/theme/icons/firefox.svg"
 printf 'mine\n' >"$apps/omacut.svg"
-mkdir -p "$home/.config/omarchy/themed/icons"
-printf '<svg>{{ icon_main }}</svg>\n' >"$home/.config/omarchy/themed/icons/plain.svg.tpl"
+mkdir -p "$sets/papercraft"
+printf '<svg>{{ icon_main }}</svg>\n' >"$sets/papercraft/plain.svg.tpl"
+printf 'drawn\n' >"$sets/papercraft/gliff.svg"
 ln -s "$test_tmp/gone/omacalc.svg" "$apps/omacalc.svg"
-set_icons() { HOME="$home" XDG_DATA_HOME="$home/.local/share" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-set-icons"; }
+mkdir -p "$test_tmp/stubs"
+printf '#!/bin/bash\nexit 0\n' >"$test_tmp/stubs/omarchy-notification-send"
+chmod +x "$test_tmp/stubs/omarchy-notification-send"
+icons() { HOME="$home" XDG_DATA_HOME="$home/.local/share" OMARCHY_PATH="$ROOT" PATH="$test_tmp/stubs:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-$1" "${@:2}"; }
+set_icons() { icons theme-set-icons; }
 set_icons
-for tpl in "$ROOT"/default/themed/icons/*.tpl; do
+for tpl in "$ROOT"/icons/papercraft/*.tpl; do
   name=${tpl##*/}
   name=${name%.tpl}
   [[ -f $state/icons/$name ]] || fail "every app icon template renders ($name)"
   [[ $(<"$state/icons/$name") != *"{{"* ]] || fail "every app icon template resolves all its colors ($name)"
 done
-[[ $(<"$state/icons/hype.svg") == "shipped" ]] || fail "a theme's own app icon wins over the template"
-[[ $(<"$state/icons/plain.svg") == "<svg>#"* && -L $apps/plain.svg ]] || fail "a user's icon template shadows the built-in and stays published"
+[[ $(<"$state/icons/hype.svg") != "shipped" && ! -e $apps/firefox.svg ]] || fail "a theme supplies the icons' colors and no icons of its own"
+[[ $(<"$state/icons/plain.svg") == "<svg>#"* && -L $apps/plain.svg ]] || fail "a user's icon template lies over the built-in set's"
+[[ $(<"$state/icons/gliff.svg") == "drawn" ]] || fail "a user's finished icon replaces the built-in set's template"
 [[ $(readlink "$apps/omawrite.svg") == "$state/icons/omawrite.svg" ]] || fail "app icons link over the packaged ones"
 [[ $(<"$apps/omacut.svg") == "mine" ]] || fail "app icons leave an icon the user put there"
 [[ $(readlink "$apps/omacalc.svg") == "$state/icons/omacalc.svg" ]] || fail "app icons replace a dangling link at their name"
-[[ ! -e $apps/firefox.svg ]] || fail "app icons link only Omarchy's own icons"
 [[ -s $state/icons.revision ]] || fail "app icons tell the shell they changed"
-pass "app icons render after the switch and link into the user's icon theme"
+pass "the icon set renders after the switch and links into the user's icon theme"
+
+# A set of the user's own may draw any app, in the theme's colors or as it is,
+# and draws only what it holds. Switching sets takes the last one's icons away.
+mkdir -p "$sets/mine"
+printf '<svg>{{ icon_mark }}</svg>\n' >"$sets/mine/firefox.svg.tpl"
+printf 'fixed\n' >"$sets/mine/mpv.svg"
+[[ $(icons icons-current) == "Papercraft" ]] || fail "the default icon set is in use until another is picked"
+for listed in Papercraft Mine Original; do
+  icons icons-list | grep -Fxq "$listed" || fail "icon sets list the built-in ones, the user's and Original ($listed)"
+done
+icons icons-set Mine
+[[ $(icons icons-current) == "Mine" && $(icons icons-current --id) == "mine" ]] || fail "an icon set is picked by the name it is listed under"
+[[ $(<"$apps/firefox.svg") == "<svg>#"* && $(<"$apps/mpv.svg") == "fixed" ]] || fail "a user's icon set draws any app, themed or as it is"
+[[ ! -e $state/icons/omawrite.svg && ! -L $apps/omawrite.svg ]] || fail "switching icon sets takes the last set's icons away"
+[[ $(<"$apps/omacut.svg") == "mine" ]] || fail "switching icon sets leaves an icon the user put there"
+pass "an icon set is picked apart from the theme and draws any app"
+
+# A set cloned from a git repo holds whatever its author pushed, so its
+# symlinks are left out; a set the user wrote themselves keeps its own.
+printf 'elsewhere\n' >"$test_tmp/elsewhere.svg"
+ln -s "$test_tmp/elsewhere.svg" "$sets/mine/imv.svg"
+set_icons
+[[ $(<"$apps/imv.svg") == "elsewhere" ]] || fail "a user's own icon set may link to its icons"
+mkdir "$sets/mine/.git"
+set_icons
+[[ ! -e $apps/imv.svg && $(<"$apps/mpv.svg") == "fixed" ]] || fail "a cloned icon set's symlinks are left out"
+rmdir "$sets/mine/.git"
+pass "a cloned icon set contributes only its own icon files"
+
+# Original is the set with nothing in it, so every app shows its own icon.
+icons icons-set Original
+[[ -z $(ls "$state/icons") && ! -e $apps/firefox.svg && ! -e $apps/mpv.svg ]] || fail "the Original icon set brings every app's own icon back"
+[[ $(<"$apps/omacut.svg") == "mine" ]] || fail "the Original icon set leaves an icon the user put there"
+! icons icons-set "No Such Set" >/dev/null 2>&1 || fail "an icon set that isn't there is refused"
+! icons icons-set "../themes" >/dev/null 2>&1 || fail "an icon set name can't climb out of the sets dir"
+[[ $(icons icons-current --id) == "original" ]] || fail "a refused icon set leaves the current one in use"
+pass "the Original icon set shows every app's own icon"
+
+# Every set Omarchy ships draws its own icons with all of their colors resolved.
+for set in "$ROOT"/icons/*/; do
+  set=${set%/}
+  icons icons-set "${set##*/}"
+  for tpl in "$set"/*.tpl; do
+    # Original holds a preview and no icons.
+    [[ -e $tpl ]] || continue
+    name=${tpl##*/}
+    name=${name%.tpl}
+    [[ -f $state/icons/$name && $(<"$state/icons/$name") != *"{{"* ]] || fail "the ${set##*/} icon set resolves all its colors ($name)"
+  done
+done
+pass "every built-in icon set draws its icons with all their colors resolved"
+
+# A draw that waits its turn draws the set that is current when its turn
+# comes, so an older pick never lands after a newer one.
+icons icons-set Papercraft
+exec 8>"$state/.icons.lock"
+flock 8
+set_icons 8>&- &
+waiting=$!
+sleep 0.3
+printf 'arcade\n' >"$state/icons.name"
+exec 8>&-
+wait "$waiting"
+[[ $(<"$state/icons/folio.svg") == *crispEdges* ]] || fail "a waiting draw reads the icon set once it holds the lock"
+pass "a draw that waited its turn draws the icon set that is current"
+
+# Only a set cloned from a git repo is pulled on update: not one the user wrote
+# or a working copy linked in.
+mkdir -p "$sets/cloned/.git" "$test_tmp/working/.git"
+ln -s "$test_tmp/working" "$sets/linked"
+[[ $(icons icons-extras) == "$sets/cloned" ]] || fail "only cloned icon sets are listed as extras"
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"%s"\n' "$test_tmp/git-calls" >"$test_tmp/stubs/git"
+chmod +x "$test_tmp/stubs/git"
+icons icons-update >/dev/null
+[[ $(<"$test_tmp/git-calls") == "-C $sets/cloned pull" ]] || fail "updating icon sets pulls the cloned ones only"
+rm -r "$sets/cloned" "$sets/linked" "$test_tmp/stubs/git"
+pass "updating icon sets pulls only the ones cloned from git"
+
+# Removing the set in use falls back to the default one.
+icons icons-set Mine
+icons icons-remove Mine >/dev/null
+[[ ! -d $sets/mine && $(icons icons-current --id) == "papercraft" && -L $apps/omawrite.svg && ! -e $apps/firefox.svg ]] || fail "removing the icon set in use falls back to the default"
+! icons icons-remove "../themes" >/dev/null 2>&1 || fail "removing an icon set can't climb out of the sets dir"
+pass "removing the icon set in use falls back to the default"
+
+# The icon switcher is the theme switcher's picker over one preview per set: a
+# set's own preview.png, the user's ahead of the built-in set of its name, and
+# for a set that came without one a sheet of its icons drawn in the theme. It
+# opens on the set in use.
+printf '#!/bin/bash\nprintf "%%s\\n" "$@" >"%s"\nls "${@: -1}" >"%s"\necho arcade\n' "$test_tmp/picker-args" "$test_tmp/picker-previews" >"$test_tmp/stubs/omarchy-menu-images"
+chmod +x "$test_tmp/stubs/omarchy-menu-images"
+mkdir -p "$sets/papercraft" "$sets/drawn"
+printf 'mine\n' >"$sets/papercraft/preview.png"
+printf '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8" fill="{{ icon_main }}"/></svg>\n' >"$sets/drawn/mpv.svg.tpl"
+icons icons-set Papercraft
+picked=$(XDG_CACHE_HOME="$test_tmp/cache" icons icons-switcher)
+previews="$test_tmp/cache/omarchy/icons-selector/previews"
+[[ $picked == "arcade" ]] || fail "the icon switcher prints the set that was picked"
+[[ $(readlink "$previews/arcade.png") == "$ROOT/icons/arcade/preview.png" && $(readlink "$previews/original.png") == "$ROOT/icons/original/preview.png" ]] || fail "the icon switcher shows each built-in set's preview"
+[[ $(<"$previews/papercraft.png") == "mine" ]] || fail "a user's preview goes ahead of the built-in set's"
+grep -Fxq -- "$previews/papercraft.png" "$test_tmp/picker-args" && grep -Fxq -- "--print-name" "$test_tmp/picker-args" || fail "the icon switcher opens the picker on the set in use"
+if command -v rsvg-convert >/dev/null && command -v magick >/dev/null; then
+  switcher() { XDG_CACHE_HOME="$test_tmp/cache" icons icons-switcher >/dev/null; }
+  drawn=$(readlink -f "$previews/drawn.png")
+  [[ $(file -b --mime-type "$drawn") == "image/png" ]] || fail "a set without a preview gets one drawn from its icons"
+
+  # The drawn preview is kept while nothing it was made from changes, and drawn
+  # again when an icon is edited in place or the theme's colors change under
+  # the same name.
+  cp "$drawn" "$test_tmp/drawn-first.png"
+  touch -d '2001-01-01' "$drawn"
+  switcher
+  [[ $(stat -c '%Y' "$drawn") == "$(date -d '2001-01-01' +%s)" ]] || fail "a drawn preview is kept while its set and theme are as they were"
+  # Writing over an icon leaves its directory's time as it was.
+  set_time=$(stat -c '%Y' "$sets/drawn")
+  printf '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="{{ icon_main }}"/></svg>\n' >"$sets/drawn/mpv.svg.tpl"
+  [[ $(stat -c '%Y' "$sets/drawn") == "$set_time" ]] || fail "the test edits an icon in place"
+  switcher
+  ! cmp -s "$drawn" "$test_tmp/drawn-first.png" || fail "a drawn preview is drawn again when an icon is edited in place"
+  cp "$drawn" "$test_tmp/drawn-second.png"
+  sed -i 's/^accent = .*/accent = "#00ff00"/' "$state/theme/colors.toml"
+  switcher
+  ! cmp -s "$drawn" "$test_tmp/drawn-second.png" || fail "a drawn preview is drawn again when the theme's colors change"
+  sed -i 's/^accent = .*/accent = "#ff0000"/' "$state/theme/colors.toml"
+
+  # A set the user wrote may link to its icons, as it may when it is drawn.
+  mkdir -p "$sets/linked-icons"
+  printf '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8" fill="#123456"/></svg>\n' >"$test_tmp/linked-target.svg"
+  ln -s "$test_tmp/linked-target.svg" "$sets/linked-icons/mpv.svg"
+  switcher
+  [[ $(file -b --mime-type "$(readlink -f "$previews/linked-icons.png")") == "image/png" ]] || fail "a set of linked icons still gets a preview and shows in the picker"
+  rm -r "$sets/linked-icons"
+  pass "the icon switcher draws a preview for a set that came without one"
+else
+  skip "no rsvg-convert or magick; skipping the drawn icon set preview"
+fi
+rm -r "$sets/drawn" "$sets/papercraft/preview.png"
+pass "the icon switcher shows one preview per set and opens on the set in use"
+
+# A set picked while another is being removed is kept. The stand-in for
+# omarchy-icons-current answers with the set being removed and, as a second
+# command would at that moment, picks Arcade under the lock: at once if the lock
+# is free, or as soon as it is. A removal that holds the lock from its check to
+# its clear makes that pick wait, so it lands after the clear and stands.
+mkdir -p "$sets/going" "$test_tmp/racing"
+printf 'going\n' >"$state/icons.name"
+cat >"$test_tmp/racing/omarchy-icons-current" <<SH
+#!/bin/bash
+# Only the removal's own question is answered this way; the draw after it asks
+# the real command.
+[[ ! -e $test_tmp/racing/asked ]] || exec "$ROOT/bin/omarchy-icons-current" "\$@"
+touch "$test_tmp/racing/asked"
+if flock -n 9; then
+  printf 'arcade\\n' >"$state/icons.name"
+else
+  ( exec 7>&-; flock 9; printf 'arcade\\n' >"$state/icons.name" ) >/dev/null 2>&1 &
+fi 9>"$state/.icons.lock"
+echo going
+SH
+chmod +x "$test_tmp/racing/omarchy-icons-current"
+HOME="$home" XDG_DATA_HOME="$home/.local/share" OMARCHY_PATH="$ROOT" PATH="$test_tmp/racing:$test_tmp/stubs:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-icons-remove" Going >/dev/null
+for _ in {1..40}; do
+  [[ $(cat "$state/icons.name" 2>/dev/null) == "arcade" ]] && break
+  sleep 0.05
+done
+[[ $(cat "$state/icons.name" 2>/dev/null) == "arcade" ]] || fail "a set picked while another is removed is kept"
+[[ ! -d $sets/going ]] || fail "the icon set is still removed when another is picked meanwhile"
+icons icons-set Papercraft
+pass "removing an icon set never wipes one picked at the same moment"
 
 printf 'accent = "nope"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\n' >"$state/theme/colors.toml"
 set_icons
 [[ ! -e $state/icons/omawrite.svg && ! -L $apps/omawrite.svg ]] || fail "a theme that can't draw app icons brings the packaged ones back"
+[[ $(<"$state/icons/gliff.svg") == "drawn" ]] || fail "an icon that needs no colors stays under a theme that can't draw the rest"
 pass "a theme that can't draw app icons brings the packaged ones back"
 
 # A sparse palette with only background and foreground renders without subscript
-# errors and gives Slack a concrete hex accent instead of literal "blue".
+# errors, does not export empty accent/blue aliases, and falls back to a concrete
+# hex color when a gradient helper provides one.
 sparse_home="$test_tmp/sparse-home"
 sparse_next="$sparse_home/.local/state/omarchy/current/next-theme"
-mkdir -p "$sparse_next"
+sparse_themed="$sparse_home/.config/omarchy/themed"
+mkdir -p "$sparse_next" "$sparse_themed"
 printf 'background = "#111111"\nforeground = "#eeeeee"\n' >"$sparse_next/colors.toml"
+cat >"$sparse_themed/sparse-fallback.txt.tpl" <<'EOF'
+fallback={{ gradient_start accent blue #7aa2f7 }}
+hypr={{ hypr_gradient hyprland_active_border accent #7aa2f7 }}
+shell={{ shell_gradient hyprland_active_border accent #7aa2f7 }}
+EOF
+sparse_colors=$("$ROOT/bin/omarchy-theme-color" --file "$sparse_next/colors.toml" --all)
+awk -F '\t' '$1 == "accent" || $1 == "blue" || $1 == "color4" { exit 1 }' <<<"$sparse_colors" ||
+  fail "a sparse palette does not export empty accent or blue aliases" "$sparse_colors"
 HOME="$sparse_home" XDG_STATE_HOME="$sparse_home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
   "$ROOT/bin/omarchy-theme-set-templates" 2>"$test_tmp/sparse.err"
 [[ ! -s $test_tmp/sparse.err ]] ||
   fail "a sparse palette renders without errors" "$(cat "$test_tmp/sparse.err")"
-[[ $(jq -r '.accent' "$sparse_next/slack.json") == "#7aa2f7" ]] ||
-  fail "a sparse theme without accent or blue gives Slack a concrete hex accent" "$(cat "$sparse_next/slack.json")"
-
-# When green and red are present, omarchy-theme-set-slack accepts the fallback accent.
-slack_home="$test_tmp/slack-sparse-home"
-slack_next="$slack_home/.local/state/omarchy/current/next-theme"
-slack_state="$slack_home/.local/state/omarchy/slack"
-mkdir -p "$slack_next" "$slack_state"
-touch "$slack_state/enabled"
-cat >"$slack_next/colors.toml" <<'EOF'
-background = "#111111"
-foreground = "#eeeeee"
-green = "#40a02b"
-red = "#d20f39"
+expected_sparse=$(cat <<'EOF'
+fallback=#7aa2f7
+hypr="#7aa2f7"
+shell=#7aa2f7
 EOF
-HOME="$slack_home" XDG_STATE_HOME="$slack_home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
-  "$ROOT/bin/omarchy-theme-set-templates" 2>"$test_tmp/slack-sparse.err"
-[[ ! -s $test_tmp/slack-sparse.err ]] ||
-  fail "a theme without accent or blue renders without errors" "$(cat "$test_tmp/slack-sparse.err")"
-mv "$slack_next" "$slack_home/.local/state/omarchy/current/theme"
-HOME="$slack_home" XDG_STATE_HOME="$slack_home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
-  "$ROOT/bin/omarchy-theme-set-slack" 2>"$test_tmp/slack-sync.err"
-[[ ! -s $test_tmp/slack-sync.err && $(jq -r '.accent' "$slack_state/theme.json") == "#7aa2f7" ]] ||
-  fail "omarchy-theme-set-slack accepts the sparse theme's fallback accent" "$(cat "$test_tmp/slack-sync.err")"
-pass "a sparse theme without accent or blue produces a valid Slack hex accent"
+)
+[[ $(<"$sparse_next/sparse-fallback.txt") == "$expected_sparse" ]] ||
+  fail "a sparse theme without accent or blue falls back to a concrete hex color: $(diff <(printf '%s\n' "$expected_sparse") "$sparse_next/sparse-fallback.txt")"
+pass "a sparse theme without accent or blue renders without errors and resolves fallback chains"
 
 # Explicitly empty palette keys fall back through the chain to the first usable value.
 empty_home="$test_tmp/empty-home"
@@ -200,6 +371,7 @@ hyprland_active_border = ""
 empty_fallback = ""
 EOF
 cat >"$empty_themed/empty-fallback.txt.tpl" <<'EOF'
+accent={{ accent }}
 hypr={{ hypr_gradient hyprland_active_border blue }}
 shell={{ shell_gradient hyprland_active_border blue }}
 start={{ gradient_start hyprland_active_border blue #7aa2f7 }}
@@ -211,6 +383,7 @@ HOME="$empty_home" XDG_STATE_HOME="$empty_home/.local/state" OMARCHY_PATH="$ROOT
 [[ ! -s $test_tmp/empty.err ]] ||
   fail "empty theme colors render without errors" "$(cat "$test_tmp/empty.err")"
 expected_empty=$(cat <<'EOF'
+accent=#336699
 hypr="#336699"
 shell=#336699
 start=#336699
@@ -220,6 +393,4 @@ EOF
 )
 [[ $(<"$empty_next/empty-fallback.txt") == "$expected_empty" ]] ||
   fail "empty theme colors use their gradient fallbacks: $(diff <(printf '%s\n' "$expected_empty") "$empty_next/empty-fallback.txt")"
-[[ $(jq -r '.accent' "$empty_next/slack.json") == "#336699" ]] ||
-  fail "an empty accent falls back to blue when blue is defined" "$(cat "$empty_next/slack.json")"
 pass "empty theme colors fall back cleanly in gradient helpers"

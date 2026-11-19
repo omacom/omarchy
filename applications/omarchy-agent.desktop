@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Agent
+Comment=Start a coding agent in a terminal
+Exec=omarchy-agent --pick
+Icon=omarchy-agent
+StartupWMClass=org.omarchy.agent
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new
