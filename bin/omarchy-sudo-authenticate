@@ -37,7 +37,7 @@ sudo_uses_device_auth() {
   for file in "${files[@]}"; do
     if grep -Eq '^[[:space:]]*auth[[:space:]].*pam_fprintd\.so([[:space:]]|$)' "$file"; then
       laptop_closed="omarchy-hw-laptop-closed"
-      if ! command -v "$laptop_closed" >/dev/null 2>&1; then
+      if "$helper_dir/omarchy-cmd-missing" "$laptop_closed"; then
         laptop_closed="$helper_dir/omarchy-hw-laptop-closed"
       fi
       if grep -Eq '^[[:space:]]*auth[[:space:]].*omarchy-hw-laptop-closed([[:space:]]|$)' "$file" &&
