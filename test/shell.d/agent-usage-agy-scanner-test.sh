@@ -88,3 +88,91 @@ PY
 record=$(run_collector "$home" agy)
 expect_jq "Antigravity collector counts a subagent's conversation as part of its parent" '{totalPrompts, totalSessions, todaySessions}' \
   '{"totalPrompts":3,"totalSessions":2,"todaySessions":2}' "$record"
+
+# The desktop app keeps its own home, and no history.jsonl: its typed prompts
+# are the USER_INPUT steps. A completed planner turn writes exact token counts
+# into its conversation database, which wins over the transcript's own counts;
+# a database-only turn still counts under the model gen_metadata names.
+desktop="$home/.gemini/antigravity"
+mkdir -p "$desktop/brain/desk/.system_generated/logs" "$desktop/brain/dbonly"
+cat >"$desktop/brain/desk/.system_generated/logs/transcript_full.jsonl" <<'EOF'
+{"step_index":0,"type":"USER_INPUT","content":"desktop prompt","created_at":"2026-10-05T12:00:00Z"}
+{"step_index":1,"type":"PLANNER_RESPONSE","created_at":"2026-10-05T12:00:00Z","model":"Gemini 3.9 Desktop","usage":{"prompt_token_count":999,"candidates_token_count":999}}
+{"step_index":2,"type":"PLANNER_RESPONSE","created_at":"2026-10-05T12:00:00Z","model":"Gemini 3.9 Desktop","usage":{"prompt_token_count":20,"candidates_token_count":5}}
+EOF
+python3 - "$desktop" <<'PY'
+import datetime as dt
+import sqlite3
+import sys
+from pathlib import Path
+
+desktop = Path(sys.argv[1])
+
+
+def varint(value):
+  out = bytearray()
+  while True:
+    byte = value & 0x7f
+    value >>= 7
+    if value:
+      out.append(byte | 0x80)
+    else:
+      out.append(byte)
+      return bytes(out)
+
+
+def field(number, wire, payload):
+  key = varint((number << 3) | wire)
+  if wire == 2:
+    return key + varint(len(payload)) + payload
+  return key + varint(payload)
+
+
+def usage(input_tokens, output_tokens, cache_read, cache_write):
+  return b"".join([
+    field(2, 0, input_tokens), field(3, 0, output_tokens),
+    field(4, 0, cache_write), field(5, 0, cache_read),
+  ])
+
+
+seconds = int(dt.datetime(2026, 10, 5, 12, tzinfo=dt.timezone.utc).timestamp())
+timestamp = field(1, 0, seconds) + field(2, 0, 0)
+metadata = field(1, 2, timestamp) + field(9, 2, usage(11, 7, 3, 1))
+
+
+def conversation(name, rows, model):
+  db = sqlite3.connect(desktop / "conversations" / f"{name}.db")
+  db.execute("CREATE TABLE steps (idx INTEGER PRIMARY KEY, step_type INTEGER, status INTEGER, metadata BLOB)")
+  db.execute("CREATE TABLE gen_metadata (idx INTEGER PRIMARY KEY, data BLOB)")
+  db.executemany("INSERT INTO steps VALUES (?, ?, ?, ?)", rows)
+  db.execute("INSERT INTO gen_metadata VALUES (0, ?)", (model.encode(),))
+  db.commit()
+  db.close()
+
+
+(desktop / "conversations").mkdir()
+conversation("desk", [
+  (1, 15, 3, metadata),
+  # An incomplete turn is not usage yet.
+  (2, 15, 2, field(1, 2, timestamp) + field(9, 2, usage(500, 500, 0, 0))),
+], "gemini-3.9-desktop")
+conversation("dbonly", [(0, 15, 3, field(1, 2, timestamp) + field(9, 2, usage(4, 2, 0, 0)))], "gemini-3.9-db")
+
+summaries = sqlite3.connect(desktop / "conversation_summaries.db")
+summaries.execute("CREATE TABLE conversation_summaries (conversation_id TEXT, last_modified_time TEXT, parent_conversation_id TEXT)")
+summaries.executemany("INSERT INTO conversation_summaries VALUES (?, ?, ?)", [
+  ("desk", "2026-10-05T12:00:00Z", ""), ("dbonly", "2026-10-05T12:00:00Z", "")])
+summaries.commit()
+summaries.close()
+PY
+
+record=$(run_collector "$home" agy)
+expect_jq "Antigravity collector counts the desktop app and lets an exact database turn win over its transcript" \
+  '.modelUsage["gemini-3.9-desktop"]' \
+  '{"inputTokens":31,"outputTokens":12,"cacheReadInputTokens":3,"cacheCreationInputTokens":1}' "$record"
+expect_jq "Antigravity collector counts a database-only turn under the model gen_metadata names" \
+  '.modelUsage["gemini-3.9-db"]' \
+  '{"inputTokens":4,"outputTokens":2,"cacheReadInputTokens":0,"cacheCreationInputTokens":0}' "$record"
+expect_jq "Antigravity collector dates a desktop prompt from its USER_INPUT step and counts it once" \
+  '{totalPrompts, desktopDay: (.activeDates | index("2026-10-05") != null)}' \
+  '{"totalPrompts":4,"desktopDay":true}' "$record"
