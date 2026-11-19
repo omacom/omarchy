@@ -264,3 +264,35 @@ assertEqual(runPlan(tailscale.renamePlan('dd11', 'dd11', 'Fail')).status, 23, 'i
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
 JS
+
+send_dir=$(mktemp -d)
+cleanup_send_dir() { rm -rf "$send_dir"; }
+trap cleanup_send_dir EXIT
+
+mkdir -p "$send_dir/bin"
+ln -s "$(command -v jq)" "$send_dir/bin/jq"
+
+cat >"$send_dir/bin/omarchy-notification-send" <<SH
+#!/bin/bash
+printf '%s\n' "\$@" >"$send_dir/notify.log"
+SH
+
+cat >"$send_dir/bin/omarchy-file-select" <<SH
+#!/bin/bash
+: >"$send_dir/chooser.called"
+SH
+
+chmod +x "$send_dir/bin/omarchy-notification-send" "$send_dir/bin/omarchy-file-select"
+
+send_status=0
+OMARCHY_PATH="$ROOT" HOME="$send_dir" PATH="$send_dir/bin:$ROOT/bin" \
+  "$ROOT/bin/omarchy-tailscale-send" dhh-fd.tailnet.ts.net || send_status=$?
+
+(( send_status == 1 )) || fail "tailscale send exits 1 when tailscale CLI is missing" "exit=$send_status"
+[[ ! -e $send_dir/chooser.called ]] || fail "tailscale send skips the file chooser when tailscale CLI is missing"
+[[ -f $send_dir/notify.log ]] || fail "tailscale send notifies when tailscale CLI is missing"
+mapfile -t notify_args <"$send_dir/notify.log"
+[[ ${notify_args[0]:-} == "-g" && ${notify_args[1]:-} == "󰒊" && ${notify_args[2]:-} == "-u" && ${notify_args[3]:-} == "critical" &&
+  ${notify_args[4]:-} == "Could not send to dhh-fd" && ${notify_args[5]:-} == "Tailscale CLI is not installed or not on PATH." ]] ||
+  fail "tailscale send notifies with the localized missing-CLI message" "${notify_args[*]}"
+pass "tailscale send refuses cleanly when the tailscale CLI is missing"
