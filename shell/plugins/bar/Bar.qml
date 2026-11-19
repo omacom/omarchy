@@ -1492,8 +1492,16 @@ Item {
       colorHex(root.themeContrastForeground)
     ]
     // A capped bar covers only its centered strip of the wallpaper, so the
-    // sample is taken there, not along the whole edge.
-    if (root.maxWidth > 0) command.push("--max-width", String(root.maxWidth))
+    // sample is taken there, not along the whole edge, but only once every
+    // screen's bar is a strip; see BarModel.capSampleScreen.
+    var screens = Quickshell.screens
+    var edges = []
+    for (var i = 0; i < screens.length; i++) edges.push(root.vertical ? screens[i].height : screens[i].width)
+    var sampled = BarModel.capSampleScreen(edges, root.maxWidth)
+    if (sampled >= 0) {
+      var screen = screens[sampled]
+      command.push("--screen", Math.floor(screen.width) + "x" + Math.floor(screen.height), "--max-width", String(root.maxWidth))
+    }
     transparentForegroundProc.command = command
     transparentForegroundProc.running = true
   }
@@ -1503,6 +1511,13 @@ Item {
   onMaxWidthChanged: scheduleTransparentForegroundRefresh()
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
+
+  Connections {
+    target: Quickshell
+    function onScreensChanged() {
+      if (root.maxWidth > 0) root.scheduleTransparentForegroundRefresh()
+    }
+  }
 
   Timer {
     id: transparentForegroundTimer

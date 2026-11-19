@@ -33,6 +33,23 @@ function stripInset(length, maxWidth) {
   return Math.round((available - cap) / 2)
 }
 
+// Which of the screens, by their edge lengths, a transparent bar's wallpaper
+// sample is taken from, or -1 for each whole edge. The one text color serves
+// every screen's bar, so the sample must cover them all: while any bar runs
+// its whole edge it is the whole edge, and once every bar is a capped strip
+// it is the strip covering the largest share of its edge, the shortest edge,
+// which as the strips are all centered covers every other one.
+function capSampleScreen(edges, maxWidth) {
+  var cap = normalizeMaxWidth(maxWidth)
+  if (cap <= 0 || !Array.isArray(edges) || edges.length === 0) return -1
+  var shortest = -1
+  for (var i = 0; i < edges.length; i++) {
+    if (stripInset(edges[i], cap) === 0) return -1
+    if (shortest < 0 || Number(edges[i]) < Number(edges[shortest])) shortest = i
+  }
+  return shortest
+}
+
 function entrySettings(entry) {
   if (!isPlainObject(entry)) return {}
   var copy = {}
@@ -718,6 +735,7 @@ if (typeof module !== "undefined") {
     normalizePosition: normalizePosition,
     normalizeMaxWidth: normalizeMaxWidth,
     stripInset: stripInset,
+    capSampleScreen: capSampleScreen,
     entrySettings: entrySettings,
     entryId: entryId,
     moduleString: moduleString,
