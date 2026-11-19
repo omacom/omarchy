@@ -187,6 +187,9 @@ Item {
 
   // A window the dock brings forward lands on top of the others, focused; a
   // minimized one first comes back to the workspace in front of the user.
+  // One that lands in front of the user leaves the pointer where it is, as on
+  // Windows: focusing would warp it into the window. Warps are off for those
+  // steps and back as they were after, kept once when clicks come quickly.
   function bringForward(window) {
     var address = String(window.address || "")
     if (!address) {
@@ -210,6 +213,17 @@ Item {
     steps.push("hl.dsp.window.alter_zorder({ mode = \"top\", " + target + " })")
     var dispatch = function(step) { return "hyprctl dispatch " + Util.shellQuote(step) }
     var command = steps.map(dispatch).join(" && ")
+    var focused = Hyprland.focusedMonitor
+    var here = focused && focused.activeWorkspace ? focused.activeWorkspace.id : -1
+    if (window.minimized || window.workspaceId === here) {
+      var lua = [
+        "if o.dock_saved_no_warps == nil then o.dock_saved_no_warps = hl.get_config(\"cursor.no_warps\") end",
+        "hl.config({ cursor = { no_warps = true } })"
+      ].concat(steps.map(function(step) { return "hl.dispatch(" + step + ")" })).concat([
+        "hl.timer(function() if o.dock_saved_no_warps ~= nil then hl.config({ cursor = { no_warps = o.dock_saved_no_warps } }); o.dock_saved_no_warps = nil end end, { timeout = 1, type = \"oneshot\" })"
+      ])
+      command = "hyprctl eval " + Util.shellQuote(lua.join("; "))
+    }
     if (after.length > 0) command += "; sleep 0.4; " + after.map(dispatch).join("; ")
     Util.execDetached(command)
   }
