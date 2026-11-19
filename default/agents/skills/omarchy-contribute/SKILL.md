@@ -48,9 +48,9 @@ omarchy-debug --no-sudo --print
 # include in the issue.
 ```
 
-**Capture the problem on screen.** A screenshot or short recording of the bug is often worth more than the description: `omarchy capture screenshot region`, or `omarchy screenrecord --fullscreen` and `omarchy screenrecord --stop-recording`. Keep recordings short and focused on the misbehavior. `gh` cannot attach media, so save the capture and give the user the path to drag into the web form.
+**Capture the problem on screen.** A screenshot or short recording of the bug is often worth more than the description: `omarchy capture screenshot region`, or `omarchy screenrecord --fullscreen` and `omarchy screenrecord --stop-recording`. Keep recordings short and focused on the misbehavior. When the bug or feature is visual, attach the capture with `gh --attach` wherever you file, comment, or open a PR (below).
 
-For screen-recording failures specifically, rerun with `OMARCHY_SCREENRECORD_DEBUG=true` and attach `$XDG_RUNTIME_DIR/omarchy-screenrecord.log` (or `${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/omarchy-screenrecord.log` without a session runtime directory).
+For screen-recording failures specifically, rerun with `OMARCHY_SCREENRECORD_DEBUG=true` and paste the contents of `$XDG_RUNTIME_DIR/omarchy-screenrecord.log` (or `${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/omarchy-screenrecord.log` without a session runtime directory).
 
 ## Search Before Filing
 
@@ -80,7 +80,7 @@ Confirm it is genuinely the same failure. The same program misbehaving is not th
 If it is the same, add to that issue rather than opening a new one — but only when you have something the thread does not already contain: a different reproduction, a symbolized stack where it has none, a narrower trigger, a version where it regressed. A comment that only says the bug happens to you too is noise. If that is all you have, tell the user so and file nothing.
 
 ```bash
-gh issue comment <number> --repo omacom/omarchy --body "..."
+gh issue comment <number> --repo omacom/omarchy --body "..." [--attach './bug.png#What the bug looks like']
 ```
 
 ## Filing a New Issue
@@ -88,10 +88,10 @@ gh issue comment <number> --repo omacom/omarchy --body "..."
 Only when the search turns up nothing that matches:
 
 ```bash
-gh issue create --repo omacom/omarchy --title "..." --body "..."
+gh issue create --repo omacom/omarchy --title "..." --body "..." [--attach './bug.png#What the bug looks like']
 ```
 
-Include what happened, what was expected, steps to reproduce, system details, the debug log URL (or attached log), and the capture.
+Include what happened, what was expected, steps to reproduce, system details, and the debug log URL (or the log itself). For a visual problem, attach the screenshot or recording with `--attach` (repeat it for several files; alt text for an image goes after `#`, and a video has none).
 
 ## Signing
 
@@ -110,4 +110,4 @@ gh repo fork omacom/omarchy --clone
 cd omarchy
 ```
 
-Follow the repository's own `AGENTS.md` for style, testing, and commit conventions — it is the authority on contributions. Keep commits atomic, run `./test/all` before pushing, and open the PR with `gh pr create`. A PR that fixes a visual problem should include before/after captures.
+Follow the repository's own `AGENTS.md` for style, testing, and commit conventions — it is the authority on contributions. Keep commits atomic, run `./test/all` before pushing, and open the PR with `gh pr create`. A PR that fixes a visual problem or adds a visual feature includes screenshots or a screencast of it, before and after when something changed, attached with `gh pr create --attach './before.png#Before' --attach './after.png#After'`.
