@@ -148,6 +148,8 @@
   "appearance.dock": {"icon":"󱂩","label":"Dock","when":"[[ $(omarchy-hyprland-workspace-layout-current) == \"floating\" ]]"},
   "appearance.dock.autohide": {"icon":"󰈉","label":"Auto-hide Dock","when":"[[ $(omarchy-dock autohide) == \"off\" ]]","action":"omarchy-dock autohide on"},
   "appearance.dock.always-on": {"icon":"󰈈","label":"Always-on Dock","when":"[[ $(omarchy-dock autohide) == \"on\" ]]","action":"omarchy-dock autohide off"},
+  "appearance.dock.indicators-on": {"icon":"󱂩","label":"App Indicator On","when":"[[ $(omarchy-dock indicators) == \"off\" ]]","action":"omarchy-dock indicators toggle"},
+  "appearance.dock.indicators-off": {"icon":"󱂩","label":"App Indicator Off","when":"[[ $(omarchy-dock indicators) == \"on\" ]]","action":"omarchy-dock indicators toggle"},
   "appearance.dock.position": {"icon":"","label":"Dock Position"},
   "appearance.dock.position.top": {"icon":"󰁝","label":"Top Dock","checked":"[[ $(omarchy-dock position) == \"top\" ]]","action":"omarchy-dock position top"},
   "appearance.dock.position.bottom": {"icon":"󰁅","label":"Bottom Dock","checked":"[[ $(omarchy-dock position) == \"bottom\" ]]","action":"omarchy-dock position bottom"},

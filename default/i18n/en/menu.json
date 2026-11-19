@@ -261,6 +261,12 @@
   "appearance.dock.always-on": {
     "label": "Always-on Dock"
   },
+  "appearance.dock.indicators-on": {
+    "label": "App Indicator On"
+  },
+  "appearance.dock.indicators-off": {
+    "label": "App Indicator Off"
+  },
   "appearance.dock.position": {
     "label": "Dock Position"
   },
