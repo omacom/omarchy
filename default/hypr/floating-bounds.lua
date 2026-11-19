@@ -91,15 +91,12 @@ local function keep_title_bar_visible(window)
     return nil
   end
 
+  -- With its middle off every screen, above them or pushed out to the side,
+  -- it is measured against the screen it belongs to, so a sideways drag
+  -- with the titlebar in reach leaves it where it is.
   local top = frame_top(window)
-  local monitor = monitor_at(window.at.x + window.size.x / 2, top)
-  if monitor and top >= top_edge(monitor) then
-    return nil
-  end
-
-  -- Above every screen, it comes down on the one it belongs to.
-  monitor = monitor or window.monitor
-  if not monitor or not monitor.y then
+  local monitor = monitor_at(window.at.x + window.size.x / 2, top) or window.monitor
+  if not monitor or not monitor.y or top >= top_edge(monitor) then
     return nil
   end
 
