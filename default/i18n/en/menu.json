@@ -939,6 +939,9 @@
   "install.gaming.retro-launcher": {
     "label": "RetroArch Game Launcher"
   },
+  "install.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
   "install.development.rails": {
     "label": "Ruby on Rails"
   },
@@ -1170,6 +1173,9 @@
   "remove.gaming.heroic": {
     "label": "Heroic (Epic Games)"
   },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
   "remove.development.rails": {
     "label": "Ruby on Rails"
   },
@@ -1254,6 +1260,9 @@
   },
   "update.icons": {
     "label": "Extra Icons"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
   },
   "update.process": {
     "label": "Process",
