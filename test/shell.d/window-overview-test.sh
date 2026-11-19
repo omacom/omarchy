@@ -103,3 +103,92 @@ floating = true; fourUp.action()
 assert(dispatched == "omarchy-hyprland-window-overview", "four-finger up opens floating overview")
 LUA
 pass "middle-click releases on tiling, four-finger up opens floating overview, and three-finger up retains the console"
+qml_runner=/usr/lib/qt6/bin/qmltestrunner
+[[ -x $qml_runner ]] || qml_runner=/usr/lib/qt6/qmltestrunner
+if [[ -x $qml_runner ]]; then
+  cp "$ROOT/shell/plugins/window-overview/OverviewModel.js" "$tmp/"
+  python - "$ROOT" "$tmp" <<'PY'
+from pathlib import Path
+import re, sys
+
+root, tmp = map(Path, sys.argv[1:])
+source = (root / "shell/plugins/window-overview/Overview.qml").read_text()
+binding = re.search(r"  readonly property var matchingWindows:[\s\S]*?\n  onMatchingWindowsChanged:[^\n]+", source)[0]
+refresh = re.search(r"  function refresh\(\) \{[\s\S]*?\n  \}", source)[0]
+events = re.search(r"    function onFocusedMonitorChanged\(\) \{[\s\S]*?\n    function onRawEvent\(event\) \{[\s\S]*?\n    \}", source)[0]
+qml = """import QtQuick
+import QtTest
+import "OverviewModel.js" as OverviewModel
+
+Item {
+  id: root
+  property var windows: []
+  property int selectedIndex: -1
+  property bool opened: true
+  property bool requested: true
+  property string monitorName: "one"
+  property int workspaceId: 2
+  QtObject { id: workspaceTwo; property int number: 2 }
+  QtObject { id: workspaceThree; property int number: 3 }
+  QtObject { id: first; property string address: "a"; property var workspace: workspace2; property var wayland: ({}) }
+  QtObject { id: second; property string address: "b"; property var workspace: workspace2; property var wayland: ({}) }
+  property var workspace2: ({id: workspaceTwo.number})
+  property var otherWorkspace: ({id: workspaceThree.number})
+
+  QtObject {
+    id: fixtures
+    property var toplevels: model
+    property var focusedMonitor: ({name: "one"})
+    signal rawEvent(var event)
+  }
+  QtObject { id: model; property var values: [first, second] }
+  function close() { requested = false; opened = false; windows = [] }
+BINDING
+REFRESH
+  Connections {
+    target: fixtures
+EVENTS
+  }
+  TestCase {
+    name: "OverviewRefresh"
+    function init() {
+      fixtures.focusedMonitor = {name: "one"}
+      first.workspace = workspace2
+      second.workspace = workspace2
+      model.values = [first, second]
+      root.requested = true
+      root.opened = true
+      root.refresh()
+    }
+    function test_move_and_close() {
+      compare(root.windows.length, 2)
+      root.selectedIndex = 1
+      first.workspace = otherWorkspace
+      compare(root.windows.length, 1)
+      compare(root.windows[0], second)
+      compare(root.selectedIndex, 0)
+      first.workspace = workspace2
+      compare(root.windows.length, 2)
+      compare(root.selectedIndex, 1)
+      model.values = [first]
+      compare(root.windows.length, 1)
+      compare(root.windows[0], first)
+      compare(root.selectedIndex, 0)
+    }
+    function test_focus_changes_close() {
+      fixtures.rawEvent({name: "workspacev2"})
+      verify(!root.opened && !root.requested)
+      init()
+      fixtures.focusedMonitor = {name: "two"}
+      verify(!root.opened && !root.requested)
+    }
+  }
+}
+"""
+(tmp / "tst_overview_refresh.qml").write_text(qml.replace("BINDING", binding.replace("Hyprland", "fixtures")).replace("REFRESH", refresh).replace("EVENTS", events.replace("Hyprland", "fixtures")))
+PY
+  QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software \
+    "$qml_runner" -input "$tmp/tst_overview_refresh.qml" -o -,txt
+else
+  skip "Qt6 qmltestrunner not found; skipping overview refresh test"
+fi
