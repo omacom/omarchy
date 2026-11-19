@@ -44,7 +44,7 @@ If `~/Games/vibes/<name>` already holds a game, ask before replacing it. Read th
 
 1. **SETTINGS**: set `NAME`, and fill `PALETTE` from `omarchy-theme-color --all` (only `mode`, `background`, `foreground`, `accent`, `muted`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `orange`), keeping `themed(...)` around it. Set `BEST_IS` to `'lower'` for a time or a move count, `formatScore` to show it (`m:ss` for times), and `KEY_REPEAT` to `true` for a cursor game.
 2. **THE GAME**: replace that whole section with your game. `build()` once for everything reused, `resized()` to fit the camera, `reset()` to start a round, `update(dt)` for every rule, `draw(dt)` for animation that changes no rules (it runs on every screen, so effects keep moving after a loss), `screenInput(code)` for choices on the title and end screens, and `endRound(won, { title, detail })` when the round ends — the title and detail are what the end screen says (`'CHECKMATE'`, `'Cleared in 1:42'`). Set `score` as the game goes.
-3. **The screens** in the HTML: the `<title>`, the title screen's name, one line saying the goal, a line of controls, and the help table. Keep the element ids; add your own elements freely.
+3. **The screens** in the HTML: the `<title>` and the description meta (a few words Game Vibes shows under the name), the title screen's name, one line saying the goal, a line of controls, and the help table. Keep the element ids; add your own elements freely.
 4. **ACTIONS**, if the game needs more keys than move, action, pause, mute and help.
 
 Leave the two parts marked THE FRAME alone apart from ACTIONS, the camera, the lights and the fog: they make pause, restart, theming and the way back to Game Vibes work. Names starting with `_` are the frame's own.
