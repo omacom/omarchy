@@ -216,13 +216,7 @@ Item {
     var focused = Hyprland.focusedMonitor
     var here = focused && focused.activeWorkspace ? focused.activeWorkspace.id : -1
     if (window.minimized || window.workspaceId === here) {
-      var lua = [
-        "if o.dock_saved_no_warps == nil then o.dock_saved_no_warps = hl.get_config(\"cursor.no_warps\") end",
-        "hl.config({ cursor = { no_warps = true } })"
-      ].concat(steps.map(function(step) { return "hl.dispatch(" + step + ")" })).concat([
-        "hl.timer(function() if o.dock_saved_no_warps ~= nil then hl.config({ cursor = { no_warps = o.dock_saved_no_warps } }); o.dock_saved_no_warps = nil end end, { timeout = 1, type = \"oneshot\" })"
-      ])
-      command = "hyprctl eval " + Util.shellQuote(lua.join("; "))
+      command = "hyprctl eval " + Util.shellQuote(DockModel.keepPointerLua(steps))
     }
     if (after.length > 0) command += "; sleep 0.4; " + after.map(dispatch).join("; ")
     Util.execDetached(command)
