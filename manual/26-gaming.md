@@ -10,9 +10,9 @@ All gaming installers live under _Install > Gaming_ in the Omarchy menu (`Super 
 
 Install [Steam](https://store.steampowered.com/) by selecting _Install > Gaming > Steam_ from the Omarchy menu (`Super + Space`).
 
-After you've installed it, you'll be able to launch Steam with `Super + Space`.
+After installation, press `Super + Space` and search for Steam. For the controller-friendly interface, select _Trigger > Steam Big Picture_ from the Omarchy menu. To return to the desktop, choose _Power > Exit Big Picture Mode_ in Steam.
 
-Note that Steam can take 10-20 seconds to start up, and it's not going to provide any visual feedback that it's loading.
+Steam can take 10–20 seconds to open without showing a loading indicator. On first launch, allow extra time for updates and sign-in.
 
  ![gaming-steam](images/gaming-steam.webp)
 
