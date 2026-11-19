@@ -237,11 +237,14 @@ Item {
   // The bar builds this widget once per monitor, and every copy's timers fire
   // together. The records are shared files that every copy watches, so one
   // run serves them all: a timer-driven run takes a lock, and the copies that
-  // lose it wait for the winner to finish instead of collecting again. Runs
-  // the user asks for (opening the panel, a forced refresh) are not shared.
+  // lose it wait for the winner to finish instead of collecting again. The
+  // lock file names the run that last held it, and a copy that waited skips
+  // only when that was its own request: one that waited behind a narrower run
+  // (a limits retry for one provider) still collects once the lock is free.
+  // Runs the user asks for (opening the panel, a forced refresh) are not shared.
   readonly property string updateLockPath: (Quickshell.env("XDG_RUNTIME_DIR") || usageDir) + "/omarchy-agent-usage-update.lock"
   readonly property var sharedRunPrefix: ["sh", "-c",
-    'exec 9>"$0"; if flock -n 9; then "$@"; else flock 9; fi', updateLockPath]
+    'exec 9<>"$0"; flock -n 9 || { flock 9; waited=1; }; if [ -z "$waited" ] || [ "$(cat "$0")" != "$*" ]; then printf %s "$*" >"$0"; "$@"; fi', updateLockPath]
 
   function updateCommand(kind, agentIds, shared) {
     var command = shared === true ? sharedRunPrefix.slice() : []
