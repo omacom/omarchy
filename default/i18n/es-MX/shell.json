@@ -26,6 +26,7 @@
     "one": "%1 reinicio gratuito · el siguiente vence en %2",
     "other": "%1 reinicios gratuitos · el siguiente vence en %2"
   },
+  "agents.game": "Juego",
   "agents.helpFireworksSignIn": "Configura %1, ejecuta %2 o inicia sesión en Fireworks en pi u opencode.",
   "agents.helpNotInPath": "No se encontró %1 en PATH",
   "agents.helpRunToAuthenticate": "Ejecuta %1 para autenticarte.",
@@ -35,6 +36,10 @@
   "agents.helpStartOrRunToSignIn": "Inicia %1 o ejecuta %2 para iniciar sesión.",
   "agents.helpStartToSeeLimits": "Inicia %1 para ver sus límites; no es necesario volver a iniciar sesión.",
   "agents.hideProviderConfirm": "¿Ocultar %1 del panel? Se conservarán las credenciales y la sesión.",
+  "agents.kindImage": "imagen",
+  "agents.kindMusic": "música",
+  "agents.kindText": "texto",
+  "agents.kindVideo": "video",
   "agents.lastUpdatedAgo": "Actualizado hace %1",
   "agents.lastUpdatedJustNow": "Actualizado hace menos de un minuto",
   "agents.lastUpdatedUnknown": "Hora de última actualización no disponible",
@@ -59,6 +64,7 @@
   "agents.localLaunch": "Iniciar agente",
   "agents.localLoadingMeter": "Cargando",
   "agents.localMemoryFact": "%1 GiB de memoria",
+  "agents.localNeedsRam": "Necesita %1 GB de RAM",
   "agents.localNotEnoughMemory": "Memoria insuficiente",
   "agents.localRecommended": "recomendado",
   "agents.localRemoveConfirm": "¿Detener %1 y eliminar sus pesos descargados?",
@@ -69,6 +75,7 @@
   "agents.localStart": "Iniciar",
   "agents.localStop": "Detener",
   "agents.localStoppingMeter": "Deteniendo",
+  "agents.localUsingRam": "Usando %1 GB de RAM",
   "agents.loginBrowser": "Inicia sesión desde tu navegador",
   "agents.makeSomethingCool": "CREA ALGO GENIAL",
   "agents.merged": {
@@ -103,6 +110,7 @@
     "other": "Compartido con %1 usuarios · dejar de compartir"
   },
   "agents.networkStopSharing": "Compartido en tu tailnet · dejar de compartir",
+  "agents.openFantasi": "Abrir Fantasi",
   "agents.outOfCredits": "Sin créditos",
   "agents.pasteCode": "Si la página muestra un código en lugar de terminar, pégalo aquí.",
   "agents.pasteCodeLink": "¿Prefieres una página con código?",

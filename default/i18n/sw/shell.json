@@ -24,6 +24,7 @@
     "one": "%1 mara ya kuweka upya bure · ijayo inaisha baada ya %2",
     "other": "%1 mara ya kuweka upya bure · ijayo inaisha baada ya %2"
   },
+  "agents.game": "Mchezo",
   "agents.helpFireworksSignIn": "Weka %1, endesha %2, au ingia kwenye Fireworks kupitia pi au opencode.",
   "agents.helpNotInPath": "%1 haikupatikana katika PATH",
   "agents.helpRunToAuthenticate": "Endesha %1 ili kuthibitisha utambulisho.",
@@ -33,6 +34,10 @@
   "agents.helpStartOrRunToSignIn": "Anzisha %1, au endesha %2, ili kuingia.",
   "agents.helpStartToSeeLimits": "Anzisha %1 ili kuona vikomo vyake; kuingia tena hakuhitajiki.",
   "agents.hideProviderConfirm": "Ficha %1 kutoka kwenye paneli? Vitambulisho na kuingia vitahifadhiwa.",
+  "agents.kindImage": "picha",
+  "agents.kindMusic": "muziki",
+  "agents.kindText": "maandishi",
+  "agents.kindVideo": "video",
   "agents.lastUpdatedAgo": "Sasisho la mwisho %1 iliyopita",
   "agents.lastUpdatedJustNow": "Sasisho la mwisho chini ya dakika moja iliyopita",
   "agents.lastUpdatedUnknown": "Wakati wa sasisho la mwisho haupatikani",
@@ -57,6 +62,7 @@
   "agents.localLaunch": "Anzisha wakala",
   "agents.localLoadingMeter": "Inapakia",
   "agents.localMemoryFact": "%1 GiB Kumbukumbu",
+  "agents.localNeedsRam": "Inahitaji %1 GB RAM",
   "agents.localNotEnoughMemory": "Kumbukumbu haitoshi",
   "agents.localRecommended": "inayopendekezwa",
   "agents.localRemoveConfirm": "Simamisha %1 na ufute uzito wake uliopakuliwa?",
@@ -67,6 +73,7 @@
   "agents.localStart": "Anzisha",
   "agents.localStop": "Simamisha",
   "agents.localStoppingMeter": "Inasimamisha",
+  "agents.localUsingRam": "Inatumia %1 GB RAM",
   "agents.loginBrowser": "Ingia kupitia kivinjari chako",
   "agents.makeSomethingCool": "UNDA KITU KIZURI",
   "agents.merged": {
@@ -99,6 +106,7 @@
     "other": "Imeshirikiwa na watumiaji %1 · acha kushiriki"
   },
   "agents.networkStopSharing": "Imeshirikishwa kwenye tailnet yako · acha kushirikisha",
+  "agents.openFantasi": "Fungua Fantasi",
   "agents.outOfCredits": "Salio limeisha",
   "agents.pasteCode": "Ikiwa ukurasa unaonyesha msimbo badala ya kukamilisha, ubandike hapa.",
   "agents.pasteCodeLink": "Ukurasa unaonyesha msimbo badala yake?",

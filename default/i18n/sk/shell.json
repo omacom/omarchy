@@ -26,6 +26,7 @@
     "one": "%1 voľný reset · ďalší vyprší o %2",
     "other": "%1 voľných resetov · ďalší vyprší o %2"
   },
+  "agents.game": "Hra",
   "agents.helpFireworksSignIn": "Nastavte %1, spustite %2 alebo sa prihláste do Fireworks v pi alebo opencode.",
   "agents.helpNotInPath": "%1 sa nenašiel v PATH",
   "agents.helpRunToAuthenticate": "Na overenie spustite %1.",
@@ -35,6 +36,10 @@
   "agents.helpStartOrRunToSignIn": "Na prihlásenie spustite %1 alebo spustite %2.",
   "agents.helpStartToSeeLimits": "Spustite %1, ak chcete zobraziť limity; opätovné prihlásenie nie je potrebné.",
   "agents.hideProviderConfirm": "Skryť %1 z panela? Prihlasovacie údaje a prihlásenie sa zachovajú.",
+  "agents.kindImage": "obrázok",
+  "agents.kindMusic": "hudba",
+  "agents.kindText": "text",
+  "agents.kindVideo": "video",
   "agents.lastUpdatedAgo": "Naposledy aktualizované pred %1",
   "agents.lastUpdatedJustNow": "Naposledy aktualizované pred menej ako minútou",
   "agents.lastUpdatedUnknown": "Čas poslednej aktualizácie nedostupný",
@@ -59,6 +64,7 @@
   "agents.localLaunch": "Spustiť agenta",
   "agents.localLoadingMeter": "Načítavanie",
   "agents.localMemoryFact": "%1 GiB pamäte",
+  "agents.localNeedsRam": "Potrebuje %1 GB RAM",
   "agents.localNotEnoughMemory": "Nedostatok pamäte",
   "agents.localRecommended": "odporúčané",
   "agents.localRemoveConfirm": "Zastaviť %1 a odstrániť stiahnuté váhy?",
@@ -69,6 +75,7 @@
   "agents.localStart": "Spustiť",
   "agents.localStop": "Zastaviť",
   "agents.localStoppingMeter": "Zastavovanie",
+  "agents.localUsingRam": "Používa %1 GB RAM",
   "agents.loginBrowser": "Prihlásiť sa cez prehliadač",
   "agents.makeSomethingCool": "VYTVORTE NIEČO SKVELÉ",
   "agents.merged": {
@@ -103,6 +110,7 @@
     "other": "Zdieľané s %1 používateľmi · zastaviť zdieľanie"
   },
   "agents.networkStopSharing": "Zdieľané v tailnete · zastaviť zdieľanie",
+  "agents.openFantasi": "Otvoriť Fantasi",
   "agents.outOfCredits": "Bez kreditov",
   "agents.pasteCode": "Ak stránka namiesto dokončenia zobrazí kód, vložte ho sem.",
   "agents.pasteCodeLink": "Zobrazuje sa namiesto toho kód?",

@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Gép visszaállítása"
+    "label": "Gyári visszaállítás"
   },
   "install.package": {
     "label": "Csomag"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Újraindítás BIOS-ba",
     "description": "Újraindítás az UEFI firmware-beállításba"
+  },
+  "setup.region": {
+    "label": "Régió"
+  },
+  "setup.region.formats": {
+    "label": "Formátumok",
+    "description": "Dátumok, időpontok, számok és mértékegységek megjelenítése"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes játék"
+  },
+  "update.games": {
+    "label": "Game Vibes játékok"
+  },
+  "agent.make.game": {
+    "label": "Játék készítése"
   }
 }

@@ -24,6 +24,7 @@
     "one": "%1 безплатно нулиране · следващото изтича след %2",
     "other": "%1 безплатни нулирания · следващото изтича след %2"
   },
+  "agents.game": "Игра",
   "agents.helpFireworksSignIn": "Задай %1, изпълни %2 или влез във Fireworks през pi или opencode.",
   "agents.helpNotInPath": "%1 не е намерен в PATH",
   "agents.helpRunToAuthenticate": "Изпълни %1 за удостоверяване.",
@@ -33,6 +34,10 @@
   "agents.helpStartOrRunToSignIn": "Стартирай %1 или изпълни %2, за да влезеш.",
   "agents.helpStartToSeeLimits": "Стартирай %1, за да видиш лимитите; не е нужен повторен вход.",
   "agents.hideProviderConfirm": "Скрий %1 от панела? Идентификационните данни и входът ще бъдат запазени.",
+  "agents.kindImage": "изображение",
+  "agents.kindMusic": "музика",
+  "agents.kindText": "текст",
+  "agents.kindVideo": "видео",
   "agents.lastUpdatedAgo": "Последна актуализация преди %1",
   "agents.lastUpdatedJustNow": "Последна актуализация преди по-малко от минута",
   "agents.lastUpdatedUnknown": "Няма данни за последна актуализация",
@@ -57,6 +62,7 @@
   "agents.localLaunch": "Стартирай агент",
   "agents.localLoadingMeter": "Зареждане",
   "agents.localMemoryFact": "%1 GiB памет",
+  "agents.localNeedsRam": "Изисква %1 GB RAM",
   "agents.localNotEnoughMemory": "Недостатъчна памет",
   "agents.localRecommended": "препоръчан",
   "agents.localRemoveConfirm": "Спри %1 и изтрий изтеглените му тегла?",
@@ -67,6 +73,7 @@
   "agents.localStart": "Стартирай",
   "agents.localStop": "Спри",
   "agents.localStoppingMeter": "Спиране",
+  "agents.localUsingRam": "Използва %1 GB RAM",
   "agents.loginBrowser": "Влезте през браузъра",
   "agents.makeSomethingCool": "СЪЗДАЙ НЕЩО ГОТИНО",
   "agents.merged": {
@@ -99,6 +106,7 @@
     "other": "Споделено с %1 потребители · спри споделянето"
   },
   "agents.networkStopSharing": "Споделено в tailnet-а ти · спри споделянето",
+  "agents.openFantasi": "Отвори Fantasi",
   "agents.outOfCredits": "Без кредити",
   "agents.pasteCode": "Ако страницата покаже код вместо да завърши, постави го тук.",
   "agents.pasteCodeLink": "Показва се код вместо това?",

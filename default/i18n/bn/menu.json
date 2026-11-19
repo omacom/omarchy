@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "কম্পিউটার রিসেট"
+    "label": "ফ্যাক্টরি রিসেট"
   },
   "install.package": {
     "label": "প্যাকেজ"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "BIOS-এ রিবুট",
     "description": "UEFI ফার্মওয়্যার সেটআপে রিস্টার্ট করুন"
+  },
+  "setup.region": {
+    "label": "অঞ্চল"
+  },
+  "setup.region.formats": {
+    "label": "বিন্যাস",
+    "description": "তারিখ, সময়, সংখ্যা ও একক কীভাবে লেখা হয়"
+  },
+  "install.gaming.vibes": {
+    "label": "গেমের আমেজ"
+  },
+  "remove.gaming.vibes": {
+    "label": "গেমের আমেজ গেম"
+  },
+  "update.games": {
+    "label": "গেমের আমেজ গেমগুলো"
+  },
+  "agent.make.game": {
+    "label": "গেম বানান"
   }
 }

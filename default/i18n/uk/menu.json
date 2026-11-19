@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Скинути комп'ютер"
+    "label": "Скидання до заводських"
   },
   "install.package": {
     "label": "Пакет"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Перезавантажити в BIOS",
     "description": "Перезапуск у налаштування прошивки UEFI"
+  },
+  "setup.region": {
+    "label": "Регіон"
+  },
+  "setup.region.formats": {
+    "label": "Формати",
+    "description": "Як записуються дати, час, числа й одиниці"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "Створити гру"
   }
 }

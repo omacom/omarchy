@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "コンピュータをリセット"
+    "label": "工場出荷時リセット"
   },
   "install.package": {
     "label": "パッケージ"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "BIOSへ再起動",
     "description": "UEFIファームウェア設定で再起動"
+  },
+  "setup.region": {
+    "label": "地域"
+  },
+  "setup.region.formats": {
+    "label": "書式",
+    "description": "日付、時刻、数値、単位の表記方法"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "ゲームを作る"
   }
 }

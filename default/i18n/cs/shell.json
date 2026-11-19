@@ -26,6 +26,7 @@
     "one": "%1 reset zdarma · další vyprší za %2",
     "other": "%1 resetů zdarma · další vyprší za %2"
   },
+  "agents.game": "Hra",
   "agents.helpFireworksSignIn": "Nastavte %1, spusťte %2 nebo se přihlaste k Fireworks v pi nebo opencode.",
   "agents.helpNotInPath": "%1 nenalezen v PATH",
   "agents.helpRunToAuthenticate": "Spusťte %1 pro ověření.",
@@ -35,6 +36,10 @@
   "agents.helpStartOrRunToSignIn": "Pro přihlášení spusťte %1 nebo %2.",
   "agents.helpStartToSeeLimits": "Spusťte %1 pro zobrazení limitů; opětovné přihlášení není potřeba.",
   "agents.hideProviderConfirm": "Skrýt %1 z panelu? Přihlašovací údaje i přihlášení zůstanou zachovány.",
+  "agents.kindImage": "obrázek",
+  "agents.kindMusic": "hudba",
+  "agents.kindText": "text",
+  "agents.kindVideo": "video",
   "agents.lastUpdatedAgo": "Aktualizováno před %1",
   "agents.lastUpdatedJustNow": "Aktualizováno před méně než minutou",
   "agents.lastUpdatedUnknown": "Čas poslední aktualizace nedostupný",
@@ -59,6 +64,7 @@
   "agents.localLaunch": "Spustit agenta",
   "agents.localLoadingMeter": "Načítání",
   "agents.localMemoryFact": "%1 GiB paměti",
+  "agents.localNeedsRam": "Potřebuje %1 GB RAM",
   "agents.localNotEnoughMemory": "Nedostatek paměti",
   "agents.localRecommended": "doporučeno",
   "agents.localRemoveConfirm": "Zastavit %1 a smazat jeho stažené váhy?",
@@ -69,6 +75,7 @@
   "agents.localStart": "Spustit",
   "agents.localStop": "Zastavit",
   "agents.localStoppingMeter": "Zastavování",
+  "agents.localUsingRam": "Využívá %1 GB RAM",
   "agents.loginBrowser": "Přihlaste se v prohlížeči",
   "agents.makeSomethingCool": "VYTVOŘ NĚCO SKVĚLÉHO",
   "agents.merged": {
@@ -103,6 +110,7 @@
     "other": "Sdíleno s %1 uživateli · zastavit sdílení"
   },
   "agents.networkStopSharing": "Sdíleno v tailnetu · přestat sdílet",
+  "agents.openFantasi": "Otevřít Fantasi",
   "agents.outOfCredits": "Kredity vyčerpány",
   "agents.pasteCode": "Pokud stránka místo dokončení ukáže kód, vložte ho sem.",
   "agents.pasteCodeLink": "Vidíte místo toho stránku s kódem?",

@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Réinitialiser l'ordinateur"
+    "label": "Réinitialisation d'usine"
   },
   "install.package": {
     "label": "Paquet"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Redémarrer vers le BIOS",
     "description": "Redémarrer dans la configuration du firmware UEFI"
+  },
+  "setup.region": {
+    "label": "Région"
+  },
+  "setup.region.formats": {
+    "label": "Formats",
+    "description": "Affichage des dates, heures, nombres et unités"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Jeu Game Vibes"
+  },
+  "update.games": {
+    "label": "Jeux Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Créer un jeu"
   }
 }

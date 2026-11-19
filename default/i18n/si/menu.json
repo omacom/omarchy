@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "පරිගණකය යළි සකසන්න"
+    "label": "කර්මාන්තශාලා යළි පිහිටුවීම"
   },
   "install.package": {
     "label": "පැකේජය"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "BIOS වෙත නැවත අරඹන්න",
     "description": "UEFI ස්ථිරාංග සැකසුම් වෙත නැවත අරඹන්න"
+  },
+  "setup.region": {
+    "label": "කලාපය"
+  },
+  "setup.region.formats": {
+    "label": "ආකෘති",
+    "description": "දින, වේලාව, අංක සහ ඒකක ලියන ආකාරය"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes ක්‍රීඩාව"
+  },
+  "update.games": {
+    "label": "Game Vibes ක්‍රීඩා"
+  },
+  "agent.make.game": {
+    "label": "ක්‍රීඩාවක් හදන්න"
   }
 }

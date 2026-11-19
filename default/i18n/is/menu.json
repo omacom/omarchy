@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Endurstilla tölvu"
+    "label": "Verksmiðjuendurstilling"
   },
   "install.package": {
     "label": "Pakki"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Endurræsa í BIOS",
     "description": "Endurræsa í UEFI-vélbúnaðaruppsetningu"
+  },
+  "setup.region": {
+    "label": "Svæði"
+  },
+  "setup.region.formats": {
+    "label": "Snið",
+    "description": "Hvernig dagsetningar, tímar, tölur og einingar eru skrifaðar"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes-leikur"
+  },
+  "update.games": {
+    "label": "Game Vibes-leikir"
+  },
+  "agent.make.game": {
+    "label": "Búa til leik"
   }
 }

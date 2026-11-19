@@ -22,6 +22,7 @@
   "agents.freeResetsExpires": {
     "other": "รีเซ็ตฟรี %1 ครั้ง · ครั้งถัดไปหมดอายุใน %2"
   },
+  "agents.game": "เกม",
   "agents.helpFireworksSignIn": "ตั้งค่า %1, รัน %2 หรือเข้าสู่ระบบ Fireworks ใน pi หรือ opencode",
   "agents.helpNotInPath": "ไม่พบ %1 ใน PATH",
   "agents.helpRunToAuthenticate": "รัน %1 เพื่อยืนยันตัวตน",
@@ -31,6 +32,10 @@
   "agents.helpStartOrRunToSignIn": "เริ่ม %1 หรือรัน %2 เพื่อเข้าสู่ระบบ",
   "agents.helpStartToSeeLimits": "เริ่ม %1 เพื่อดูขีดจำกัด ไม่ต้องเข้าสู่ระบบอีกครั้ง",
   "agents.hideProviderConfirm": "ซ่อน %1 จากแผงหรือไม่? ข้อมูลรับรองและการเข้าสู่ระบบจะยังคงอยู่",
+  "agents.kindImage": "รูปภาพ",
+  "agents.kindMusic": "เพลง",
+  "agents.kindText": "ข้อความ",
+  "agents.kindVideo": "วิดีโอ",
   "agents.lastUpdatedAgo": "อัปเดตล่าสุดเมื่อ %1 ที่แล้ว",
   "agents.lastUpdatedJustNow": "อัปเดตล่าสุดเมื่อไม่ถึง 1 นาทีที่แล้ว",
   "agents.lastUpdatedUnknown": "ไม่มีข้อมูลเวลาอัปเดตล่าสุด",
@@ -55,6 +60,7 @@
   "agents.localLaunch": "เปิดเอเจนต์",
   "agents.localLoadingMeter": "กำลังโหลด",
   "agents.localMemoryFact": "หน่วยความจำ %1 GiB",
+  "agents.localNeedsRam": "ต้องใช้ %1 GB RAM",
   "agents.localNotEnoughMemory": "หน่วยความจำไม่พอ",
   "agents.localRecommended": "แนะนำ",
   "agents.localRemoveConfirm": "หยุด %1 และลบเวตที่ดาวน์โหลดไว้หรือไม่?",
@@ -65,6 +71,7 @@
   "agents.localStart": "เริ่ม",
   "agents.localStop": "หยุด",
   "agents.localStoppingMeter": "กำลังหยุด",
+  "agents.localUsingRam": "ใช้ %1 GB RAM",
   "agents.loginBrowser": "เข้าสู่ระบบผ่านเบราว์เซอร์",
   "agents.makeSomethingCool": "สร้างสิ่งเจ๋งๆ",
   "agents.merged": {
@@ -95,6 +102,7 @@
     "other": "แชร์กับผู้ใช้ %1 คน · หยุดแชร์"
   },
   "agents.networkStopSharing": "แชร์บน tailnet ของคุณแล้ว · หยุดแชร์",
+  "agents.openFantasi": "เปิด Fantasi",
   "agents.outOfCredits": "เครดิตหมด",
   "agents.pasteCode": "หากหน้าเว็บแสดงรหัสแทนที่จะเสร็จสิ้น ให้วางรหัสที่นี่",
   "agents.pasteCodeLink": "หน้าเว็บแสดงโค้ดแทนใช่ไหม?",

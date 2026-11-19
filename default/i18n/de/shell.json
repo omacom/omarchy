@@ -24,6 +24,7 @@
     "one": "%1 kostenloser Reset · nächster verfällt in %2",
     "other": "%1 kostenlose Resets · nächster verfällt in %2"
   },
+  "agents.game": "Spiel",
   "agents.helpFireworksSignIn": "Setze %1, führe %2 aus oder melde dich bei Fireworks in pi oder opencode an.",
   "agents.helpNotInPath": "%1 nicht in PATH gefunden",
   "agents.helpRunToAuthenticate": "Führe %1 aus, um dich zu authentifizieren.",
@@ -33,6 +34,10 @@
   "agents.helpStartOrRunToSignIn": "Starte %1 oder führe %2 aus, um dich anzumelden.",
   "agents.helpStartToSeeLimits": "Starte %1, um seine Limits zu sehen; eine erneute Anmeldung ist nicht nötig.",
   "agents.hideProviderConfirm": "%1 aus dem Panel ausblenden? Zugangsdaten und Anmeldung bleiben erhalten.",
+  "agents.kindImage": "Bild",
+  "agents.kindMusic": "Musik",
+  "agents.kindText": "Text",
+  "agents.kindVideo": "Video",
   "agents.lastUpdatedAgo": "Zuletzt vor %1 aktualisiert",
   "agents.lastUpdatedJustNow": "Zuletzt vor weniger als einer Minute aktualisiert",
   "agents.lastUpdatedUnknown": "Zeit der letzten Aktualisierung nicht verfügbar",
@@ -57,6 +62,7 @@
   "agents.localLaunch": "Agent starten",
   "agents.localLoadingMeter": "Wird geladen",
   "agents.localMemoryFact": "%1 GiB Speicher",
+  "agents.localNeedsRam": "Benötigt %1 GB RAM",
   "agents.localNotEnoughMemory": "Nicht genügend Speicher",
   "agents.localRecommended": "empfohlen",
   "agents.localRemoveConfirm": "%1 stoppen und die heruntergeladenen Gewichte löschen?",
@@ -67,6 +73,7 @@
   "agents.localStart": "Starten",
   "agents.localStop": "Stoppen",
   "agents.localStoppingMeter": "Wird gestoppt",
+  "agents.localUsingRam": "Verwendet %1 GB RAM",
   "agents.loginBrowser": "Über deinen Browser anmelden",
   "agents.makeSomethingCool": "BAU ETWAS COOLES",
   "agents.merged": {
@@ -99,6 +106,7 @@
     "other": "Mit %1 Nutzern geteilt · Teilen beenden"
   },
   "agents.networkStopSharing": "Im Tailnet freigegeben · Freigabe beenden",
+  "agents.openFantasi": "Fantasi öffnen",
   "agents.outOfCredits": "Keine Credits mehr",
   "agents.pasteCode": "Falls die Seite einen Code zeigt statt abzuschließen, füge ihn hier ein.",
   "agents.pasteCodeLink": "Wird stattdessen ein Code angezeigt?",

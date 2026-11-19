@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "איפוס מחשב"
+    "label": "איפוס להגדרות היצרן"
   },
   "install.package": {
     "label": "חבילה"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "הפעלה מחדש ל-BIOS",
     "description": "הפעלה מחדש להגדרות קושחת UEFI"
+  },
+  "setup.region": {
+    "label": "אזור"
+  },
+  "setup.region.formats": {
+    "label": "תבניות",
+    "description": "איך נכתבים תאריכים, שעות, מספרים ויחידות"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "משחק Game Vibes"
+  },
+  "update.games": {
+    "label": "משחקי Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "צור משחק"
   }
 }

@@ -24,6 +24,7 @@
     "one": "%1 بازنشانی رایگان · بعدی در %2 منقضی می‌شود",
     "other": "%1 بازنشانی رایگان · بعدی در %2 منقضی می‌شود"
   },
+  "agents.game": "بازی",
   "agents.helpFireworksSignIn": "%1 را تنظیم کنید، %2 را اجرا کنید یا در pi یا opencode وارد Fireworks شوید.",
   "agents.helpNotInPath": "%1 در PATH یافت نشد",
   "agents.helpRunToAuthenticate": "برای احراز هویت %1 را اجرا کنید.",
@@ -33,6 +34,10 @@
   "agents.helpStartOrRunToSignIn": "برای ورود، %1 را شروع کنید یا %2 را اجرا کنید.",
   "agents.helpStartToSeeLimits": "برای مشاهدهٔ محدودیت‌ها %1 را شروع کنید؛ نیازی به ورود دوباره نیست.",
   "agents.hideProviderConfirm": "%1 از پنل پنهان شود؟ اعتبارنامه‌ها و ورود حفظ می‌شود.",
+  "agents.kindImage": "تصویر",
+  "agents.kindMusic": "موسیقی",
+  "agents.kindText": "متن",
+  "agents.kindVideo": "ویدئو",
   "agents.lastUpdatedAgo": "آخرین به‌روزرسانی %1 پیش",
   "agents.lastUpdatedJustNow": "آخرین به‌روزرسانی کمتر از یک دقیقه پیش",
   "agents.lastUpdatedUnknown": "زمان آخرین به‌روزرسانی در دسترس نیست",
@@ -57,6 +62,7 @@
   "agents.localLaunch": "راه‌اندازی ایجنت",
   "agents.localLoadingMeter": "در حال بارگذاری",
   "agents.localMemoryFact": "%1 GiB حافظه",
+  "agents.localNeedsRam": "نیازمند %1 GB RAM",
   "agents.localNotEnoughMemory": "حافظه کافی نیست",
   "agents.localRecommended": "پیشنهادی",
   "agents.localRemoveConfirm": "%1 متوقف شود و وزن‌های دانلودشده‌اش حذف شود؟",
@@ -67,6 +73,7 @@
   "agents.localStart": "شروع",
   "agents.localStop": "توقف",
   "agents.localStoppingMeter": "در حال توقف",
+  "agents.localUsingRam": "استفاده از %1 GB RAM",
   "agents.loginBrowser": "ورود با مرورگر",
   "agents.makeSomethingCool": "یه چیز خفن بساز",
   "agents.merged": {
@@ -99,6 +106,7 @@
     "other": "با %1 کاربر به‌اشتراک گذاشته شده · توقف اشتراک‌گذاری"
   },
   "agents.networkStopSharing": "در tailnet به اشتراک گذاشته شده · توقف اشتراک‌گذاری",
+  "agents.openFantasi": "باز کردن Fantasi",
   "agents.outOfCredits": "اعتبار تمام شد",
   "agents.pasteCode": "اگر صفحه به‌جای اتمام کد نشان می‌دهد، آن را اینجا بچسبانید.",
   "agents.pasteCodeLink": "به‌جایش صفحهٔ کد می‌بینید؟",

@@ -24,6 +24,7 @@
     "one": "%1 gratis reset · volgende verloopt over %2",
     "other": "%1 gratis resets · volgende verloopt over %2"
   },
+  "agents.game": "Game",
   "agents.helpFireworksSignIn": "Stel %1 in, voer %2 uit, of meld je aan bij Fireworks in pi of opencode.",
   "agents.helpNotInPath": "%1 niet gevonden in PATH",
   "agents.helpRunToAuthenticate": "Voer %1 uit om te authenticeren.",
@@ -33,6 +34,10 @@
   "agents.helpStartOrRunToSignIn": "Start %1, of voer %2 uit, om je aan te melden.",
   "agents.helpStartToSeeLimits": "Start %1 om de limieten te zien; opnieuw aanmelden is niet nodig.",
   "agents.hideProviderConfirm": "%1 uit het paneel verbergen? Inloggegevens en aanmelding blijven behouden.",
+  "agents.kindImage": "afbeelding",
+  "agents.kindMusic": "muziek",
+  "agents.kindText": "tekst",
+  "agents.kindVideo": "video",
   "agents.lastUpdatedAgo": "Laatst bijgewerkt %1 geleden",
   "agents.lastUpdatedJustNow": "Laatst bijgewerkt minder dan een minuut geleden",
   "agents.lastUpdatedUnknown": "Laatste updatetijd niet beschikbaar",
@@ -57,6 +62,7 @@
   "agents.localLaunch": "Agent starten",
   "agents.localLoadingMeter": "Laden",
   "agents.localMemoryFact": "%1 GiB geheugen",
+  "agents.localNeedsRam": "%1 GB RAM nodig",
   "agents.localNotEnoughMemory": "Onvoldoende geheugen",
   "agents.localRecommended": "aanbevolen",
   "agents.localRemoveConfirm": "%1 stoppen en de gedownloade gewichten verwijderen?",
@@ -67,6 +73,7 @@
   "agents.localStart": "Starten",
   "agents.localStop": "Stoppen",
   "agents.localStoppingMeter": "Stoppen",
+  "agents.localUsingRam": "%1 GB RAM in gebruik",
   "agents.loginBrowser": "Meld je aan via je browser",
   "agents.makeSomethingCool": "MAAK IETS COOLS",
   "agents.merged": {
@@ -99,6 +106,7 @@
     "other": "Gedeeld met %1 gebruikers · stoppen met delen"
   },
   "agents.networkStopSharing": "Gedeeld op je tailnet · stoppen met delen",
+  "agents.openFantasi": "Open Fantasi",
   "agents.outOfCredits": "Tegoed op",
   "agents.pasteCode": "Als de pagina een code toont in plaats van af te ronden, plak die hier.",
   "agents.pasteCodeLink": "Toont de pagina in plaats daarvan een code?",
