@@ -72,12 +72,13 @@ hold_candidate() {
   printf '%s\n' "$candidate" >"$STATE_DIR/candidate"
 }
 
-# Preserve the setter's request for a retry when the network changes.
+# Retry when the setter fails or the network changes while applying a result.
 set_detected() {
-  local status=0
-  omarchy-timezone-set --detected "$1" --expect "$2" --expect-network "$3" "$4" || status=$?
-  ((status == 2)) && return 2
-  return 1
+  if omarchy-timezone-set --detected "$1" --expect "$2" --expect-network "$3" "$4"; then
+    return 1
+  else
+    return 2
+  fi
 }
 
 # Returns 0 when a confirming check is due, 2 when the lookup failed and is

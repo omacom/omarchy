@@ -75,6 +75,7 @@ SH
 cat >"$stubs/sudo" <<'SH'
 #!/bin/bash
 [[ $1 == "-n" && $2 == "timedatectl" && $3 == "set-timezone" ]] || exit 1
+[[ ! -f $STUB/set-fails ]] || exit 1
 printf '%s\n' "$4" >"$STUB/zone"
 SH
 
@@ -250,6 +251,22 @@ run omarchy-timezone-watch --check >/dev/null
 [[ $(cat "$STUB/zone") == "Europe/Copenhagen" ]] || fail "a remembered network moves the clock straight back"
 [[ ! -f $STUB/curl-log ]] || fail "a remembered network is never looked up"
 pass "returning to a remembered network restores its zone without a lookup"
+
+for source in network wifi; do
+  reset_world
+  mkdir -p "$state/networks"
+  if [[ $source == "network" ]]; then
+    echo "America/Chicago" >"$state/networks/001a2b3c4d5e"
+  else
+    run omarchy-timezone-watch --check >/dev/null
+  fi
+  touch "$STUB/set-fails"
+  [[ $(run omarchy-timezone-watch --check) == "retry" ]] || fail "a failed $source timezone change asks for a retry"
+  [[ $(cat "$STUB/zone") == "America/New_York" ]] || fail "a failed timezone change keeps the clock"
+  rm "$STUB/set-fails"
+  [[ $(run omarchy-timezone-watch --check) == "done" && $(cat "$STUB/zone") == "America/Chicago" ]] || fail "the $source timezone change succeeds on retry"
+done
+pass "failed remembered and confirmed timezone changes are retried"
 
 reset_world
 run omarchy-timezone-set Europe/Paris
