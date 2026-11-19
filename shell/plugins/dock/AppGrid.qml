@@ -113,7 +113,7 @@ Item {
     root.uninstallEntry = null
     // The grid stays open: the app drops out of it once it is gone, and only
     // an uninstall that needs a terminal closes it.
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
     if (entry && root.appLibrary) root.appLibrary.remove(entry.id, root.appLibrary.entryName(entry))
   }
 
