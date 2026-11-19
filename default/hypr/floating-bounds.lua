@@ -59,6 +59,43 @@ end
 -- snap itself for the user moving or resizing it.
 local snapped_box = nil
 
+-- A snapped window can also be moved or resized from the keyboard, which no
+-- click or focus change follows, so while any window is snapped its box is
+-- read twice a second, and one that has changed loses the mark. The box is
+-- taken once the snap has landed, so a window that cannot shrink that far
+-- keeps its mark.
+local KEEP_EVERY = 500
+local snapped_frames = {}
+local keeping = false
+
+local function keep_tick()
+  local frames = {}
+  for _, window in ipairs(hl.get_windows({ tag = SNAPPED_TAG }) or {}) do
+    local box = { x = window.at.x, y = window.at.y, width = window.size.x, height = window.size.y }
+    local was = snapped_frames[window.address]
+    if was and (was.x ~= box.x or was.y ~= box.y or was.width ~= box.width or was.height ~= box.height) then
+      set_snapped(window, false)
+    else
+      frames[window.address] = box
+    end
+  end
+  snapped_frames = frames
+  keeping = next(frames) ~= nil
+  if keeping then
+    hl.timer(keep_tick, { timeout = KEEP_EVERY, type = "oneshot" })
+  end
+end
+
+local function keep_snapped(window)
+  if window then
+    snapped_frames[window.address] = nil
+  end
+  if not keeping then
+    keeping = true
+    hl.timer(keep_tick, { timeout = KEEP_EVERY, type = "oneshot" })
+  end
+end
+
 -- A monitor's box in the layout's logical coordinates, which window positions
 -- and the reserved edges share. The odd transforms are the quarter turns.
 local function logical_box(monitor)
@@ -260,6 +297,7 @@ local function snap_to_half(window, monitor, zone)
   if not tagged(window, SNAPPED_TAG) then
     set_snapped(window, true)
   end
+  keep_snapped(window)
   return y
 end
 
@@ -521,6 +559,9 @@ local function track_maximized(workspace_id)
     end
   end
 end
+
+-- Windows snapped before a reload are still watched after it.
+keep_snapped()
 
 hl.on("window.fullscreen", function(window)
   local workspace_id = window and window.workspace and window.workspace.id

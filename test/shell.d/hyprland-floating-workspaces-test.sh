@@ -1057,6 +1057,18 @@ handlers["window.active"](); step()
 for _ = 1, 45 do step() end
 assert(not snapped(left_drop), "dragged away from the half, it is no longer marked")
 
+-- Resized from the keyboard, with no click or focus change after it, a
+-- snapped window still loses the mark; one left alone keeps it.
+local keyed = window(300, { address = "0xkey" })
+table.insert(workspace_windows, keyed)
+drag_to(keyed, { x = -100, y = 300 }, { x = 5, y = 280 })
+assert(snapped(keyed), "the window is snapped to begin with")
+for _ = 1, 5 do step() end
+assert(snapped(keyed), "a snapped window left alone keeps its mark")
+keyed.size = { x = keyed.size.x - 100, y = keyed.size.y }
+for _ = 1, 3 do step() end
+assert(not snapped(keyed), "a snapped window resized from the keyboard is no longer marked")
+
 local right_drop = window(300)
 preview = drag_to(right_drop, { x = 1500, y = 300 }, { x = 1915, y = 280 })
 assert(preview:find('"to":{"x":960,"y":26,"width":960,"height":1054}', 1, true), "the preview shows the right half")
