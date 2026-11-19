@@ -43,29 +43,44 @@ open_interactive() {
   omarchy-shell shell summon omarchy.reminders "{}"
 }
 
+# Cards shown before the rest are summed up in one "3 more reminders" card.
+SHOW_CARDS=5
+
+# One card per reminder, with when it's due as the headline and its message
+# below, so a long message is never cut off by the others. Cards stack newest
+# on top, so the "more" card is sent first and the soonest reminder last.
+# Transient keeps a status check out of notification history.
 show_reminders() {
-  local timer next remaining reminder reminder_minutes body=""
+  local timer next reminder reminder_minutes reminder_message lines=() i
   local reminder_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders"
-  local reminder_message=""
   local now=$(date +%s)
 
   while IFS=$'\t' read -r timer next; do
-    remaining=$((next - now))
     reminder=${timer%.timer}
     reminder=${reminder#omarchy-reminder-}
     reminder_minutes=${reminder%%m-*}
     reminder_message=""
     [[ -f $reminder_dir/${timer%.timer}.message ]] && reminder_message=$(<"$reminder_dir/${timer%.timer}.message")
-
     [[ -n $reminder_message ]] || reminder_message=$(omarchy-i18n reminder.minuteLabel "$reminder_minutes")
-    body+="$(omarchy-i18n reminder.inRemaining "$reminder_message" "$(format_remaining $remaining)" "$(date -d "@$next" +%-H:%M)")"$'\n'
+
+    lines+=("$(omarchy-i18n reminder.dueInAt "$(format_remaining $((next - now)))" "$(date -d "@$next" +%-H:%M)")"$'\t'"$reminder_message")
   done < <(active_reminder_timers "$now")
 
-  if [[ -z $body ]]; then
-    omarchy-notification-send -g 󰢌 "$(omarchy-i18n reminder.upcoming)" "$(omarchy-i18n reminder.none)"
-  else
-    omarchy-notification-send -g 󰢌 "$(omarchy-i18n reminder.upcoming)" "${body%$'\n'}"
+  if ((${#lines[@]} == 0)); then
+    omarchy-notification-send -g 󰢌 --transient "$(omarchy-i18n reminder.upcoming)" "$(omarchy-i18n reminder.none)"
+    return
   fi
+
+  local shown=${#lines[@]} rest
+  if ((shown > SHOW_CARDS)); then
+    rest=$((shown - SHOW_CARDS))
+    omarchy-notification-send -g 󰢌 --transient "$(omarchy-i18n --count "$rest" reminder.andMore "$rest")"
+    shown=$SHOW_CARDS
+  fi
+
+  for ((i = shown - 1; i >= 0; i--)); do
+    omarchy-notification-send -g 󰢌 --transient "${lines[i]%%$'\t'*}" "${lines[i]#*$'\t'}"
+  done
 }
 
 show_json() {
