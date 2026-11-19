@@ -1,8 +1,8 @@
 # Motivy
 
-Omarchy přichází s dvaadvaceti krásnými motivy. Můžete mezi nimi vybírat přes _Vzhled > Motiv_ v nabídce Omarchy (`Super + Space`) nebo přejít přímo do výběru motivu pomocí `Super + Ctrl + T`.
+Omarchy přichází s dvaadvaceti krásnými motivy. Vybírat mezi nimi můžete přes _Vzhled > Motiv_ v nabídce Omarchy (`Super + Space`) nebo přejít rovnou na výběr motivu pomocí `Super + Ctrl + T`.
 
-Každý motiv upravuje vzhled plochy, terminálu, neovim, obrazovky aktivity (btop), Chromium a celého shellu Omarchy: horní lišty, nabídky, oznámení, OSD a zamykací obrazovky. (V Obsidianu musíte motiv Omarchy vybrat ručně přes _Vzhled > Motivy_ uvnitř aplikace).
+Každý motiv upravuje vzhled plochy, terminálu, neovim, obrazovky aktivity (btop), Chromium a celého shellu Omarchy: horní lišty, nabídky, oznámení, OSD a zamykací obrazovky. (U Obsidianu musíte motiv Omarchy vybrat ručně přes _Appearance > Themes_ uvnitř aplikace).
 
 Motivy mají sadu obrázků na pozadí, mezi kterými můžete vybírat pomocí `Super + Ctrl + W`.
 
@@ -67,19 +67,19 @@ _White_
 
 ### Ikony aplikací
 
-Ikony ve spouštěči aplikací a v docku jsou vykresleny v barvách vašeho motivu, takže se mění spolu s ním. Pocházejí ze sady ikon, kterou vybíráte odděleně od motivu v části _Vzhled > Ikony_, z náhledů jednotlivých sad, stejně jako vybíráte motiv:
+Ikony ve spouštěči aplikací a v docku se kreslí v barvách vašeho motivu, takže se mění spolu s ním. Pocházejí ze sady ikon, kterou vybíráte odděleně od motivu pod _Vzhled > Ikony_, z náhledů jednotlivých sad, stejně jako motiv:
 
-- _Papercraft_ je výchozí: vše, co je nainstalováno, vykreslené v jednom stylu. Aplikace známé svým logem, jako Chrome, HEY nebo YouTube, si zachovávají svůj tvar a přebírají barvy motivu.
-- _Arcade_ vykresluje stejné aplikace jako 8bitový pixel art, jak by to udělala stará herní konzole.
-- _Original_ zobrazuje každou aplikaci s ikonou, kterou jí dal její tvůrce.
+- _Papercraft_ je výchozí: všechno, co je nainstalované, nakreslené v jednom stylu. Aplikace, které znáte podle loga, jako Chrome, HEY nebo YouTube, si zachovají jeho tvar a převezmou barvy motivu.
+- _Arcade_ kreslí stejné aplikace jako 8bitový pixel art, jako by to dělala stará herní konzole.
+- _Original_ ukazuje každou aplikaci s ikonou, kterou jí dal její tvůrce.
 
-Sadu ikon, kterou vytvořil někdo jiný, můžete nainstalovat přes _Instalace > Styl > Ikony_ (nebo `omarchy icons install <git url>`) a znovu ji odstranit v části _Odebrat > Ikony_. _Aktualizace > Další ikony_ stáhne nejnovější verzi sad, které máte nainstalované.
+Sadu ikon od někoho jiného nainstalujete přes _Instalovat > Vzhled > Ikony_ (nebo `omarchy icons install <git url>`) a odeberete ji pod _Odebrat > Ikony_. _Aktualizovat > Další ikony_ stáhne nejnovější verzi nainstalovaných sad.
 
-Chcete-li vytvořit vlastní, vložte své ikony do `~/.config/omarchy/icons/<name>/`, jeden soubor pro každou aplikaci, pojmenovaný podle řádku `Icon=` v souboru `.desktop` dané aplikace. Soubor končící na `.svg` se zobrazí tak, jak je. Soubor končící na `.svg.tpl` se vykreslí v barvách motivu: tam, kam patří barva, napište `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` nebo `{{ icon_shadow }}`. Výchozí sada v `/usr/share/omarchy/icons/papercraft/` je dobrým výchozím bodem. Přidejte `preview.png`, aby se vaše sada zobrazovala ve výběru; bez něj Omarchy vykreslí náhled z vašich ikon. Chcete-li změnit jedinou ikonu výchozí sady, vložte svou verzi do `~/.config/omarchy/icons/papercraft/`.
+Chcete-li vytvořit vlastní, uložte své ikony do `~/.config/omarchy/icons/<name>/`, jeden soubor na aplikaci, pojmenovaný podle řádku `Icon=` v souboru `.desktop` dané aplikace. Soubor s koncovkou `.svg` se zobrazí tak, jak je. Soubor s koncovkou `.svg.tpl` se kreslí v barvách motivu: tam, kam patří barva, napište `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` nebo `{{ icon_shadow }}`. Dobrým začátkem je výchozí sada v `/usr/share/omarchy/icons/papercraft/`. Přidejte `preview.png`, aby se vaše sada ukázala ve výběru; bez něj Omarchy nakreslí náhled z vašich ikon. Chcete-li změnit jedinou ikonu výchozí sady, uložte svou verzi do `~/.config/omarchy/icons/papercraft/`.
 
-### Odemykání
+### Obrazovky odemykání
 
-Motivy mohou mít také vlastní design odemykání, který se používá při dešifrování během spouštění systému. Jeden z nich můžete vybrat v části _Vzhled > Odemykání_. Vypadají takto:
+Motivy mohou mít také vlastní vzhled obrazovky odemykání, který se používá pro proces dešifrování při spouštění. Jeden z nich si můžete vybrat pod _Vzhled > Obrazovka odemykání_. Vypadají takto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

@@ -467,6 +467,7 @@ REGIONAL_NOTES = {
     "pt": "European Portuguese as written in Portugal (estar a fazer, equipa, ecrã, ficheiro, utilizador); Brazilian forms are a defect.",
     "pt-BR": "Brazilian Portuguese.",
     "es-MX": "Mexican Spanish.",
+    "cs": "Czech. Use polite plural instructions (vykání) and infinitives for actions. Use natural desktop terms: Vzhled for appearance, motiv for a theme, lišta for the bar (horní lišta only when the top bar as a whole is named), pracovní plocha for a workspace, podokno for a terminal pane, oznamovací oblast for the system tray, jádro for the kernel, výzva terminálu for a terminal prompt. Keep plugin and pull request; AI zadání is an AI prompt and AI skill a named instruction bundle (in manual chapters, explain it on first use). Preserve the playful rotating status phrases. Placeholders are filled with names and labels in the nominative: when the sentence would need another case, put the placeholder after a colon or in parentheses instead of inflecting it. Always translate table headers and menu paths, with menu paths matching the Czech menu labels.",
     "zh-CN": "Simplified Chinese.",
     "zh-TW": "Traditional Chinese in Taiwan usage.",
     "no": "Norwegian Bokmål.",

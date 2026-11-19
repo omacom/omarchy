@@ -4,7 +4,7 @@
 
 [Asahi Alarm](https://asahi-alarm.org/) je verze distribuce Arch pro počítače Apple M1/M2 postavená na projektu [Asahi Linux](https://asahilinux.org/). S trochou snahy na něm můžete rozběhnout i Omarchy. Viz [uživatelský návod](https://github.com/omarchy-mac/omarchy-mac).
 
-### Virtuální počítač Apple
+### Virtuální počítač na Macu
 
 Omarchy můžete nainstalovat také do virtuálního počítače Parallels. Je to docela složitý proces, ale i pro něj existuje [uživatelský návod](https://github.com/omacom/omarchy/discussions/452).
 
@@ -18,7 +18,7 @@ Další oblíbený program pro virtuální počítače v systému Windows. [Omar
 
 ### Steam Deck
 
-Steam Deck běží na distribuci Arch, což znamená, že na svém Steam Decku můžete spustit i Omarchy. Altynbek Orumbayev připravil [úplný skript pro nastavení i vysvětlení, jak na to](https://github.com/aorumbayev/deckarchy). Není to skvělé!
+Steam Deck běží na distribuci Arch, což znamená, že na svém Steam Decku můžete spustit i Omarchy. Altynbek Orumbayev připravil [úplný skript pro nastavení i vysvětlení, jak na to](https://github.com/aorumbayev/deckarchy). To je paráda!
 
 ### NixOS
 
