@@ -2547,16 +2547,26 @@ Panel {
 
     // Under a local model, running or at rest: the memory it takes, which
     // is what says whether there's room for it. Amber when there isn't now.
-    Text {
-      visible: !!section.model && !section.remote && !section.installing && !section.loadingShown && !section.stoppingShown && !section.removing && text !== ""
+    // It reads as part of the name above, so it sits closer to it than the
+    // section's rows sit to each other.
+    Item {
+      readonly property real pull: Style.space(10)
+      visible: !!section.model && !section.remote && !section.installing && !section.loadingShown && !section.stoppingShown && !section.removing && localRam.text !== ""
       width: parent.width
-      textFormat: Text.PlainText
-      text: section.running ? Commons.I18n.t("agents.localUsingRam").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
-        : section.needsGib > 0 ? Commons.I18n.t("agents.localNeedsRam").arg(Commons.I18n.formatNumber(Math.round(section.needsGib))) : ""
-      color: !section.running && root.localStartBlocked(section.model) ? Commons.Color.warning : root.dim
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
-      elide: Text.ElideRight
+      implicitHeight: Math.max(0, localRam.implicitHeight - pull)
+
+      Text {
+        id: localRam
+        y: -parent.pull
+        width: parent.width
+        textFormat: Text.PlainText
+        text: section.running ? Commons.I18n.t("agents.localUsingRam").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
+          : section.needsGib > 0 ? Commons.I18n.t("agents.localNeedsRam").arg(Commons.I18n.formatNumber(Math.round(section.needsGib))) : ""
+        color: !section.running && root.localStartBlocked(section.model) ? Commons.Color.warning : root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        elide: Text.ElideRight
+      }
     }
 
     Text {
