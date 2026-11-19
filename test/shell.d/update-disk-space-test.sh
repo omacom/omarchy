@@ -157,10 +157,10 @@ output=$(TEST_DF_INVALID=1 run_update -y)
 pass "failed disk-space detection silently continues"
 
 rm -f "$snapshot_marker" "$AUTO_MARKER"
-TEST_AVAILABLE_BYTES=$((10 * 1024 * 1024 * 1024)) TEST_AUTO_STATUS=1 GUM_CHOICE="Update Automatically" run_update >/dev/null
-[[ -f $snapshot_marker ]] || fail "choosing Update Automatically starts the update"
-[[ -f $AUTO_MARKER ]] || fail "choosing Update Automatically turns automatic updates on"
-pass "Update Automatically updates and turns automatic updates on"
+TEST_AVAILABLE_BYTES=$((10 * 1024 * 1024 * 1024)) TEST_AUTO_STATUS=1 GUM_CHOICE="Set Up Automatic Updates" run_update >/dev/null
+[[ -f $snapshot_marker ]] || fail "choosing Set Up Automatic Updates starts the update"
+[[ -f $AUTO_MARKER ]] || fail "choosing Set Up Automatic Updates turns automatic updates on"
+pass "Set Up Automatic Updates updates and turns automatic updates on"
 
 rm -f "$snapshot_marker" "$AUTO_MARKER"
 TEST_AVAILABLE_BYTES=$((10 * 1024 * 1024 * 1024)) TEST_AUTO_STATUS=1 GUM_CHOICE="Yes" run_update >/dev/null
