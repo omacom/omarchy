@@ -73,5 +73,7 @@ fi
 refuse_another_game
 rm -rf "$GAME_PATH"
 mv "$FRESH/game" "$GAME_PATH"
+# The game is in place: let the next install go ahead while this one is played.
+exec 9>&-
 
 omarchy-games-vibes-launch "$GAME_NAME"
