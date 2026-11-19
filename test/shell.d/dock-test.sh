@@ -253,3 +253,106 @@ STUB
 minimize
 [[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows on a tiled workspace alone" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize leaves windows on a tiled workspace alone"
+external_drag_runner=/usr/lib/qt6/bin/qmltestrunner
+[[ -x $external_drag_runner ]] || external_drag_runner=/usr/lib/qt6/qmltestrunner
+if [[ -x $external_drag_runner ]]; then
+  python - "$ROOT" "$TMPDIR" <<'PY'
+from pathlib import Path
+import re, sys
+
+root, tmp = map(Path, sys.argv[1:])
+source = (root / "shell/plugins/dock/DockWindow.qml").read_text()
+binding = re.search(r"  property point externalDragPoint\n[\s\S]*?\n  readonly property int insertIndex:[^\n]+", source)[0]
+methods = [re.search(r"  function " + name + r"\([^\n]*\) \{[\s\S]*?\n  \}", source)[0]
+           for name in ("moveExternalDrag", "dropExternalDrag", "endExternalDrag", "externalIndexAt")]
+qml = """import QtQuick
+import QtTest
+
+Item {
+  id: window
+  width: vertical ? slotSize : 600
+  height: vertical ? 600 : slotSize
+  property bool vertical: false
+  property bool shown: true
+  property bool autohide: false
+  property bool revealed: false
+  property string position: vertical ? "left" : "top"
+  property real gap: 0
+  property real slotSize: 48
+  property real progress: 0
+  property var externalDropArea: null
+  property int pinnedIndex: -1
+  property var dock: QtObject {
+    function pinAt(key, index) { window.pinnedIndex = index }
+  }
+  Timer { id: collapseTimer }
+  Timer { id: hideTimer }
+  function settleShifts() {}
+  function origin() { return Qt.point(17, 29) }
+BINDING
+METHODS
+  Item {
+    id: body
+    width: vertical ? slotSize : slots.implicitWidth
+    height: vertical ? slots.implicitHeight : slotSize
+    x: (window.width - width) / 2
+    y: (window.height - height) / 2
+    Grid {
+      id: slots
+      columns: vertical ? 1 : 4
+      Item { width: slotSize; height: slotSize }
+      Repeater {
+        id: appRepeater
+        model: 3
+        delegate: Item {
+          required property int index
+          readonly property real reveal: index === 2 ? 1 : progress
+          property real sectionGap: 0
+          visible: reveal > 0
+          width: slotSize * (vertical ? 1 : reveal)
+          height: slotSize * (vertical ? reveal : 1)
+        }
+      }
+    }
+  }
+  TestCase {
+    name: "DockExternalDrag"
+    when: windowShown
+    function test_stationary_drop_data() {
+      return [
+        {tag: "horizontal normal", vertical: false, size: 48},
+        {tag: "vertical scaled", vertical: true, size: 72},
+        {tag: "horizontal fractional", vertical: false, size: 55.5},
+        {tag: "vertical normal", vertical: true, size: 48}
+      ]
+    }
+    function test_stationary_drop(data) {
+      window.vertical = data.vertical
+      window.slotSize = data.size
+      window.progress = 0
+      window.pinnedIndex = -1
+      slots.forceLayout()
+      const x = 17 + (vertical ? slotSize / 2 : 300 - slotSize / 5)
+      const y = 29 + (vertical ? 300 - slotSize / 5 : slotSize / 2)
+      window.moveExternalDrag(x, y)
+      compare(window.insertIndex, 2)
+      window.progress = 0.55
+      slots.forceLayout()
+      compare(window.insertIndex, 2)
+      window.progress = 1
+      slots.forceLayout()
+      compare(window.insertIndex, 1)
+      window.dropExternalDrag(x, y, "app")
+      compare(window.pinnedIndex, 1)
+      compare(window.insertIndex, -1)
+    }
+  }
+}
+"""
+(tmp / "tst_external_drag.qml").write_text(qml.replace("BINDING", binding).replace("METHODS", "\n".join(methods)))
+PY
+  QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software \
+    "$external_drag_runner" -input "$TMPDIR/tst_external_drag.qml" -o -,txt
+else
+  skip "Qt6 qmltestrunner not found; skipping external drag test"
+fi
