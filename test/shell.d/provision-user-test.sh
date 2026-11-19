@@ -58,7 +58,7 @@ HOME="$test_tmp/relink" "$ROOT/bin/omarchy-agent-skills-link" "$ROOT" || fail "o
 [[ $(readlink "$test_tmp/relink/.claude/skills/theirs") == "/opt/elsewhere/skill" ]] || fail "a link to the user's own skill stays"
 [[ $(readlink "$test_tmp/relink/.claude/skills/omarchy-make-game") == "/opt/elsewhere/game" ]] ||
   fail "a link of the user's own named like an Omarchy skill stays" "$(readlink "$test_tmp/relink/.claude/skills/omarchy-make-game")"
-[[ -d $test_tmp/relink/.claude/skills/omarchy-make-app && ! -L $test_tmp/relink/.claude/skills/omarchy-make-app && ! -e $test_tmp/relink/.claude/skills/omarchy-make-app/omarchy-app ]] ||
+[[ -d $test_tmp/relink/.claude/skills/omarchy-make-app && ! -L $test_tmp/relink/.claude/skills/omarchy-make-app && ! -e $test_tmp/relink/.claude/skills/omarchy-make-app/omarchy-make-app ]] ||
   fail "a folder of the user's own named like an Omarchy skill stays, with no link put inside it"
 [[ $(readlink "$test_tmp/relink/.agents/skills/omarchy-make-game") == "$ROOT/default/agents/skills/omarchy-make-game" ]] ||
   fail "every skill in the checkout is linked, including ones the package lacks"
