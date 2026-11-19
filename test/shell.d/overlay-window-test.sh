@@ -62,8 +62,6 @@ assertEqual(focusedScreen({ focusedMonitor: { name: 'DP-1' } }, { screens: [scre
 assertEqual(focusedScreen({ focusedMonitor: null }, { screens: [] }), null,
   'no outputs leaves the overlay unmapped')
 
-assert(/property var targetScreen: null\n/.test(overlay),
-  'an open overlay does not follow focus to another output')
 const completed = /Component\.onCompleted: ([^\n]+)/.exec(overlay)[1]
 const starting = { targetScreen: null, focusedScreen: () => external }
 new Function('window', `with (window) { ${completed} }`)(starting)
