@@ -223,6 +223,28 @@ ShellRoot {
       check(retry.running && retry.interval === 250, "a wake after a sleep while blank recovers at once")
       check(service.fingerprintUnreachedStreak === 0, "a sleep while blank opens the resume grace")
       retry.stop()
+
+      // runBlank starts the listen window instead of pausing at once; the
+      // window is started directly because runBlank drives the real displays.
+      var listen = timer(service, 120000, false)
+      listen.start()
+      service.fingerprintAuthenticating = true
+      service.fingerprintAttemptReachedDevice = true
+      service.settleFingerprintAttempt()
+      check(retry.running && !service.fingerprintPaused, "a dark lock keeps retrying while the listen window runs")
+      listen.stop()
+      listen.triggered()
+      check(service.fingerprintPaused && !retry.running, "the listen window ends in the usual pause")
+      service.resumeFingerprint()
+      retry.stop()
+      listen.start()
+      service.noteSleepRequested()
+      check(resumeTimer.running, "a lock request during the listen window watches for a sleep")
+      resumeTimer.lastTickMs = Date.now() - 60000
+      resumeTimer.triggered()
+      check(!resumeTimer.running && !listen.running, "a sleep during the listen window ends the window")
+      check(blankTimer.running && blankTimer.interval === 15000, "a sleep during the listen window blanks the resumed panel again")
+      blankTimer.stop()
       service.pauseFingerprint()
       service.noteSleepRequested()
       service.resetAuthenticationState()

@@ -293,7 +293,7 @@ Item {
   // countdown then pauses it again if nothing else happens. The idle service
   // repeats the same request without sleeping, so the sleep has to be seen.
   function noteSleepRequested() {
-    if (!lockRequested || !fingerprintPaused) return
+    if (!lockRequested || !(fingerprintPaused || fingerprintBlankPauseTimer.running)) return
     // logind holds a suspend for its inhibitor delay, at most 15 seconds here.
     fingerprintResumeTimer.ticksLeft = 20
     fingerprintResumeTimer.lastTickMs = Date.now()
@@ -676,12 +676,16 @@ Item {
       var now = Date.now()
       var slept = FingerprintModel.spannedSleep(now - lastTickMs, interval)
       lastTickMs = now
-      if (slept && root.lockRequested && root.fingerprintPaused) {
+      // Blank also while the reader still listens after blanking, so the panel
+      // a resume lights goes dark again; the sleep watch restarts that attempt.
+      var blanked = root.fingerprintPaused || fingerprintBlankPauseTimer.running
+      if (slept && root.lockRequested && blanked) {
         stop()
-        root.fingerprintSleptWhilePaused = true
+        fingerprintBlankPauseTimer.stop()
+        if (root.fingerprintPaused) root.fingerprintSleptWhilePaused = true
         root.resumeFingerprint()
         root.armBlankTimer(idleBlankTimer.resumeMs)
-      } else if (slept || !root.fingerprintPaused || --ticksLeft <= 0) {
+      } else if (slept || !blanked || --ticksLeft <= 0) {
         stop()
       }
     }
@@ -837,6 +841,7 @@ Item {
     function onScreensChanged() {
       var screens = root.realScreenCount()
       if (screens > root.knownScreenCount) {
+        fingerprintBlankPauseTimer.stop()
         root.resumeFingerprint()
         if (root.lockRequested) root.armBlankTimer()
       }

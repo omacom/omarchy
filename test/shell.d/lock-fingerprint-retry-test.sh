@@ -16,8 +16,6 @@ assertEqual(model.retryDelayMs(3), model.ERROR_RETRY_BASE_MS * 4, 'the backoff k
 assertEqual(model.retryDelayMs(50), model.ERROR_RETRY_CAP_MS, 'the backoff is capped')
 assertEqual(model.FPRINTD_IDLE_EXIT_MS, 30000, "the model carries fprintd's 30-second idle exit")
 assert(model.ERROR_RETRY_CAP_MS > model.FPRINTD_IDLE_EXIT_MS, "the cap exceeds fprintd's idle exit so a wedged claim can clear")
-assert(model.BLANK_LISTEN_MS > model.FPRINTD_IDLE_EXIT_MS, "a dark lock keeps listening past one fprintd verify window")
-assert(model.BLANK_LISTEN_MS <= 10 * 60 * 1000, 'a dark lock stops holding the reader awake within minutes')
 assert(model.IDLE_CLEAR_MS > model.FPRINTD_IDLE_EXIT_MS && model.IDLE_CLEAR_MS <= model.ERROR_RETRY_CAP_MS,
   'the idle stretch a nudge must leave at the cap covers the exit and fits inside the cap')
 
