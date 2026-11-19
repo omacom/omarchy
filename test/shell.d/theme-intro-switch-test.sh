@@ -166,7 +166,7 @@ pass "older OWE keeps the ordinary intro startup path"
 
 printf '%s\n' "$road" >"$home/.local/state/omarchy/theme-backgrounds/beta"
 TEST_LIVE_FRAME=true set_theme beta
-cover=$(awk '/^shell: shell prepareThemeIntro / { print $4; exit }' "$log")
+cover=$(awk '/^shell: shell prepareThemeIntroCover / { print $4; exit }' "$log")
 [[ -f $cover && $(<"$cover") == "live video frame" ]] || fail "an interrupted video supplies the outgoing cover instead of its final still"
 pass "interrupted playback uses its current frame as the outgoing cover"
 

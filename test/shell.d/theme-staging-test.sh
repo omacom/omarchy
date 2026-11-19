@@ -10,7 +10,8 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+# The activation cases below make files unreadable on purpose.
+trap 'chmod -R u+rwX "$test_tmp"; rm -rf "$test_tmp"' EXIT
 
 home="$test_tmp/home"
 state="$home/.local/state/omarchy/current"
@@ -238,3 +239,269 @@ for tpl in "$ROOT"/default/themed/*.tpl; do
 done
 
 pass "every file Omarchy generates is classified as code or colour"
+
+# Activation stages a theme completely before it replaces the active one, so a
+# failure anywhere along the way leaves the working theme, its name and its
+# files as they were. These cases run against a shipped tree of their own, with
+# stubs that fail each step in turn.
+scratch="$test_tmp/activation"
+
+test_home="$scratch/home"
+state="$test_home/.local/state/omarchy/current"
+shipped="$scratch/omarchy"
+stub_bin="$scratch/bin"
+real_awk=$(type -P awk)
+mkdir -p "$stub_bin" "$scratch/runtime" "$scratch/temporary"
+
+cat >"$stub_bin/omarchy-theme-set-templates" <<'STUB'
+#!/bin/bash
+[[ ${TEST_FAILURE:-} != "renderer" ]] || exit 42
+exec "$ROOT/bin/omarchy-theme-set-templates" "$@"
+STUB
+
+cat >"$stub_bin/omarchy-theme-color" <<'STUB'
+#!/bin/bash
+[[ ${TEST_FAILURE:-} != "palette" ]] || exit 42
+exec "$ROOT/bin/omarchy-theme-color" "$@"
+STUB
+
+cat >"$stub_bin/omarchy-theme-colors-from-alacritty" <<'STUB'
+#!/bin/bash
+[[ ${TEST_FAILURE:-} != "legacy-palette" ]] || exit 42
+exec "$ROOT/bin/omarchy-theme-colors-from-alacritty" "$@"
+STUB
+
+cat >"$stub_bin/cp" <<'STUB'
+#!/bin/bash
+for arg in "$@"; do
+  case ${TEST_FAILURE:-}:$arg in
+    packaged-copy:"$OMARCHY_PACKAGED_THEMES_PATH/"* | builtin-copy:"$OMARCHY_PATH/themes/new/"* | user-copy:"$HOME/.config/omarchy/themes/new/"* | nested-copy:*/nested/keep.txt)
+      exit 42
+      ;;
+  esac
+done
+exec /usr/bin/cp "$@"
+STUB
+
+cat >"$stub_bin/awk" <<'STUB'
+#!/bin/bash
+if [[ ${TEST_FAILURE:-} == "template" && $* == *"value_table="* ]]; then exit 42; fi
+exec "$TEST_AWK" "$@"
+STUB
+
+cat >"$stub_bin/omarchy-shell" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"$TEST_IPC"
+case $2 in
+  prepareThemeIntroCover)
+    printf '%s\n' "$3" >"$TEST_STATE/prepared-cover"
+    printf '%s\n' "$4" >"$TEST_STATE/prepared-token"
+    ;;
+  cancelThemeIntro)
+    [[ $3 == "$(cat "$TEST_STATE/prepared-token")" ]] || exit 42
+    [[ -f $(cat "$TEST_STATE/prepared-cover") ]] || exit 42
+    touch "$TEST_STATE/canceled-before-removal"
+    ;;
+  themeIntroCoverStatus | themeIntroStatus) echo ready ;;
+esac
+STUB
+
+cat >"$stub_bin/hyprctl" <<'STUB'
+#!/bin/bash
+printf '{"bool":true}\n'
+STUB
+cat >"$stub_bin/owe" <<'STUB'
+#!/bin/bash
+[[ $1 != render ]] || exit 1
+STUB
+# Keep successful desktop retries inside the fixture: every retint runs directly
+# and would otherwise restyle the terminals and apps of whoever runs the test.
+mapfile -t retints < <(sed -n '/^\(visible\|other\)_theme_commands=(/,/^)/s/^ *\(omarchy-[a-z0-9-]*\) *$/\1/p' "$ROOT/bin/omarchy-theme-set")
+(( ${#retints[@]} > 0 )) || fail "theme retint commands are found to stub"
+for command in "${retints[@]}" omarchy-hook omarchy-theme-set-herdr-machines omarchy-theme-bg-cache omarchy-restart-hyprctl; do
+  printf '#!/bin/bash\nexit 0\n' >"$stub_bin/$command"
+done
+chmod +x "$stub_bin/"*
+
+reset_fixture() {
+  chmod -R u+rwX "$scratch"
+  rm -rf "$test_home" "$shipped" "$scratch/expected"
+  mkdir -p "$state/theme" "$shipped/themes/new" "$shipped/default/themed" "$scratch/expected"
+  printf 'previous working configuration\n' >"$state/theme/working.conf"
+  printf 'previous image\n' >"$state/theme/background.png"
+  printf 'old-theme\n' >"$state/theme.name"
+  ln -s "$state/theme/background.png" "$state/background"
+  cp "$ROOT/themes/tokyo-night/colors.toml" "$state/theme/colors.toml"
+  printf '[bar]\nbackground = "#123456"\n' >"$state/theme/shell.toml"
+  cp -a "$state/." "$scratch/expected/"
+  cp "$ROOT/themes/tokyo-night/colors.toml" "$shipped/themes/new/colors.toml"
+  printf 'accent={{ accent }}\n' >"$shipped/default/themed/example.conf.tpl"
+  printf '[bar]\nbackground = "{{ background }}"\n' >"$shipped/default/themed/shell.toml.tpl"
+  : >"$scratch/ipc"
+}
+
+run_theme() {
+  HOME="$test_home" OMARCHY_PATH="$shipped" PATH="$stub_bin:$ROOT/bin:$PATH" \
+    XDG_RUNTIME_DIR="$scratch/runtime" TMPDIR="$scratch/temporary" \
+    TEST_AWK="$real_awk" TEST_STATE="$state" TEST_IPC="$scratch/ipc" TEST_FAILURE="${1:-}" \
+    OMARCHY_THEME_HEADLESS="${2:-1}" OMARCHY_THEME_SKIP_BACKGROUND="${2:-1}" \
+    bash "$ROOT/bin/omarchy-theme-set" new >"$scratch/output" 2>&1
+}
+
+assert_previous() {
+  diff -r "$scratch/expected/theme" "$state/theme" || fail "previous theme files survive"
+  cmp "$scratch/expected/theme.name" "$state/theme.name" || fail "previous theme name survives"
+  [[ $(readlink "$state/background") == "$(readlink "$scratch/expected/background")" ]] || fail "previous background link survives"
+  [[ ! -e $state/next-theme && ! -L $state/next-theme ]] || fail "failed staging is cleaned up"
+  [[ ! -s $scratch/ipc ]] || fail "failed activation does not notify the shell"
+  [[ -z $(find "$scratch/temporary" -mindepth 1 -print -quit) ]] || fail "renderer scratch files are cleaned up"
+}
+
+expect_failure() {
+  local failure="$1" description="$2"
+  if run_theme "$failure"; then
+    fail "$description returns failure" "$(cat "$scratch/output")"
+  fi
+  assert_previous
+  pass "$description preserves the working theme, name, and background"
+}
+
+for failure in renderer builtin-copy palette template; do
+  reset_fixture
+  expect_failure "$failure" "$failure failure"
+done
+
+reset_fixture
+mkdir -p "$shipped/themes/new/backgrounds" "$shipped/packaged/new/backgrounds/intros"
+printf 'intro\n' >"$shipped/packaged/new/backgrounds/intros/1.mp4"
+OMARCHY_PACKAGED_THEMES_PATH="$shipped/packaged" expect_failure packaged-copy "packaged intro copy failure"
+
+reset_fixture
+mkdir -p "$test_home/.config/omarchy/themes/new"
+printf 'user customization\n' >"$test_home/.config/omarchy/themes/new/custom.conf"
+expect_failure user-copy "user overlay copy failure"
+
+reset_fixture
+mkdir -p "$test_home/.config/omarchy/themes/new/.git" "$test_home/.config/omarchy/themes/new/nested"
+printf 'nested customization\n' >"$test_home/.config/omarchy/themes/new/nested/keep.txt"
+expect_failure nested-copy "nested installed-theme copy failure"
+
+for kind in local installed; do
+  reset_fixture
+  rm -rf "$shipped/themes/new"
+  mkdir -p "$test_home/.config/omarchy/themes/new"
+  if [[ $kind == "installed" ]]; then mkdir "$test_home/.config/omarchy/themes/new/.git"; fi
+  printf '[colors.normal]\nblack = "#000000"\n' >"$test_home/.config/omarchy/themes/new/alacritty.toml"
+  expect_failure legacy-palette "$kind legacy palette conversion failure"
+done
+
+# A failed glob must not turn an unreadable source into an empty theme.
+for source in builtin templates; do
+  reset_fixture
+  case "$source" in
+    builtin) unreadable="$shipped/themes/new" ;;
+    templates)
+      unreadable="$test_home/.config/omarchy/themed"
+      mkdir -p "$unreadable"
+      ;;
+  esac
+  chmod 000 "$unreadable"
+  if [[ -r $unreadable ]]; then
+    chmod u+rwX "$unreadable"
+    skip "$source permission failure requires an unprivileged user"
+    continue
+  fi
+  expect_failure "" "unreadable $source"
+  chmod u+rwX "$unreadable"
+done
+
+reset_fixture
+run_theme || fail "a built-in theme works without a user overlay" "$(cat "$scratch/output")"
+[[ $(cat "$state/theme.name") == "new" ]] || fail "successful activation publishes the name"
+grep -Fx 'accent=#7aa2f7' "$state/theme/example.conf" >/dev/null || fail "successful activation publishes rendered templates"
+[[ ! -e $state/theme/working.conf && ! -e $state/next-theme ]] || fail "successful activation replaces and cleans the previous theme"
+run_theme || fail "an already applied theme can be refreshed" "$(cat "$scratch/output")"
+pass "successful activation renders, replaces, and can be repeated without a user overlay"
+
+reset_fixture
+mkdir -p "$test_home/.config/omarchy/themes"
+mv "$shipped/themes/new" "$test_home/.config/omarchy/themes/new"
+run_theme || fail "a user-only theme works without a built-in theme" "$(cat "$scratch/output")"
+grep -Fx 'accent=#7aa2f7' "$state/theme/example.conf" >/dev/null || fail "user-only theme renders"
+pass "a missing built-in theme does not prevent a user-only theme from activating"
+
+# The renderer now stops on errors, so the cases it skips on purpose must still
+# succeed.
+reset_fixture
+printf 'custom\n' >"$shipped/themes/new/example.conf"
+printf '[bar]\nbackground = "#123456"\n' >"$shipped/themes/new/shell.toml"
+run_theme || fail "all template outputs already supplied is a successful no-op" "$(cat "$scratch/output")"
+grep -Fx custom "$state/theme/example.conf" >/dev/null || fail "supplied files remain unchanged"
+pass "a theme supplying every template output activates successfully"
+
+reset_fixture
+rm "$shipped/default/themed/"*
+run_theme || fail "an empty template directory is a successful no-op" "$(cat "$scratch/output")"
+pass "a theme with no templates activates successfully"
+
+reset_fixture
+rm "$shipped/default/themed/shell.toml.tpl"
+printf 'background = "#123456"\n' >"$shipped/themes/new/shell.bar.toml"
+run_theme || fail "an override without shell.toml is optional" "$(cat "$scratch/output")"
+pass "an override without a shell config is a successful no-op"
+
+reset_fixture
+printf 'empty_gradient = ""\n' >>"$shipped/themes/new/colors.toml"
+printf '{{ hypr_gradient empty_gradient }}|{{ gradient_start empty_gradient }}|{{ shell_gradient empty_gradient }}\n' >"$shipped/default/themed/empty.conf.tpl"
+run_theme || fail "empty optional gradients render successfully" "$(cat "$scratch/output")"
+[[ $(cat "$state/theme/empty.conf") == '""||' ]] || fail "empty gradients retain their empty values"
+pass "empty optional gradients render successfully"
+
+reset_fixture
+printf 'padded_rgb = "rgb(08,16,24)"\n' >>"$shipped/themes/new/colors.toml"
+printf '{{ gradient_start padded_rgb }}\n' >"$shipped/default/themed/padded.conf.tpl"
+run_theme || fail "decimal colors with leading zeros render successfully" "$(cat "$scratch/output")"
+[[ $(cat "$state/theme/padded.conf") == "#081018" ]] || fail "leading zeros are read as decimal"
+pass "decimal colors with leading zeros render successfully"
+
+# Early decoding may prepare snapshots, but failure must never start a transition.
+reset_fixture
+mkdir -p "$shipped/themes/new/backgrounds" "$test_home/.cache/omarchy/background-transitions"
+printf 'next image\n' >"$shipped/themes/new/backgrounds/next.png"
+printf 'another activation\n' >"$test_home/.cache/omarchy/background-transitions/unrelated.png"
+if run_theme renderer 0; then fail "renderer failure with prepared backgrounds returns failure"; fi
+# The preparation IPC is asynchronous and may finish after activation exits.
+for attempt in {1..100}; do
+  grep -q '^background prepare ' "$scratch/ipc" && break
+  sleep 0.02
+done
+grep -q '^background prepare ' "$scratch/ipc" || fail "background was prepared before the renderer failed"
+if grep -qE 'themeTransition|applyTheme' "$scratch/ipc"; then fail "failed activation does not apply the theme"; fi
+: >"$scratch/ipc"
+assert_previous
+[[ $(find "$test_home/.cache/omarchy/background-transitions" -type f | wc -l) == 1 ]] || fail "failed activation removes its snapshots"
+grep -Fx 'another activation' "$test_home/.cache/omarchy/background-transitions/unrelated.png" >/dev/null || fail "unrelated snapshots survive"
+pass "a failed render cleans prepared snapshots and preserves unrelated snapshots"
+
+# Intro preparation owns a token before rendering; a failure must cancel it
+# while its snapshot still exists, and a retry must still play the intro.
+reset_fixture
+mkdir -p "$shipped/themes/new/backgrounds/intros" "$test_home/.cache/omarchy/background-transitions"
+printf 'next image\n' >"$shipped/themes/new/backgrounds/next.png"
+printf 'intro\n' >"$shipped/themes/new/backgrounds/intros/next.mp4"
+printf 'another activation\n' >"$test_home/.cache/omarchy/background-transitions/unrelated.png"
+if run_theme renderer 0; then fail "renderer failure with a prepared intro returns failure"; fi
+[[ -s $state/prepared-token && -f $state/canceled-before-removal ]] || fail "a failed render cancels its token before deleting its cover"
+[[ ! -e $(cat "$state/prepared-cover") ]] || fail "a failed render removes the canceled cover"
+if grep -qE 'finishThemeIntro|themeTransition|applyTheme' "$scratch/ipc"; then fail "a failed render never applies a palette"; fi
+[[ $(find "$test_home/.cache/omarchy/background-transitions" -type f | wc -l) == 1 ]] || fail "a failed render preserves only unrelated snapshots"
+: >"$scratch/ipc"
+assert_previous
+run_theme "" 0 || fail "intro activation can retry after a failed render" "$(cat "$scratch/output")"
+[[ $(cat "$state/theme.name") == new && -f $state/theme/example.conf ]] || fail "retry publishes the rendered theme"
+prepared_token=$(cat "$state/prepared-token")
+[[ $prepared_token == "$(stat -Lc '%d:%i' "$state/theme")" ]] || fail "publication preserves the prepared intro token"
+awk '$2 == "prepareThemeIntro" && NF == 6 { found = 1 } END { exit !found }' "$scratch/ipc" || fail "retry supplies both palette payloads"
+! grep -q 'cancelThemeIntro' "$scratch/ipc" || fail "successful publication keeps the intro"
+grep -q "^shell playThemeIntro $prepared_token " "$scratch/ipc" || fail "retry hands the published intro to the shell"
+pass "a failed render cancels the prepared intro before snapshot removal and permits a successful retry"
