@@ -1,26 +1,35 @@
-# Microsoft Surface Pro 11 (Snapdragon X Elite, OLED) board-specific setup.
+# Microsoft Surface Pro 11 board-specific setup: the OLED model (Snapdragon
+# X Elite) and the LCD model (Snapdragon X Plus X1P-64-100).
 
 mkinitcpio_dir=${OMARCHY_SURFACE_PRO11_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}
 uki_config=${OMARCHY_SURFACE_PRO11_UKI_CONFIG:-/etc/kernel/uki.conf}
 dtb_root=${OMARCHY_QUALCOMM_DTB_ROOT:-/boot/dtbs}
 
-# Only the X Elite OLED model has been tested. The LCD and X Plus models share
-# the DMI product name but use other device trees and panels.
-if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree microsoft,denali-oled; then
+# The models share the DMI product name and systemd's hardware IDs, so
+# systemd-stub boots the OLED tree on both and the SoC tells them apart: the
+# X1P-64-100 reports socinfo ID 615. An X Elite with the LCD panel has no tree
+# of its own yet and keeps the OLED one, as before.
+if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree microsoft,denali; then
   echo "Detected Microsoft Surface Pro 11, applying board-specific support..."
+
+  surface_pro11_soc_id=${OMARCHY_SURFACE_PRO11_SOC_ID:-/sys/devices/soc0/soc_id}
+  surface_pro11_tree=x1e80100-microsoft-denali-oled
+  if [[ -r $surface_pro11_soc_id && $(<"$surface_pro11_soc_id") == "615" ]]; then
+    surface_pro11_tree=x1p64100-microsoft-denali
+  fi
 
   # Installs made before the Intel Surface fixes were limited to x86 carry
   # their keyboard module file. It sorts after this script's drop-in and
   # resets MODULES to Intel modules, leaving no panel or keyboard to unlock with.
   rm -f "$mkinitcpio_dir/surface_device_modules.conf"
 
-  # Embed the OLED model's device tree instead of the list dtb-uki.sh writes.
+  # Embed the model's device tree instead of the list dtb-uki.sh writes.
   # systemd-stub picks from that list by SMBIOS identity, which the OLED, LCD
   # and X Plus models share. Omarchy's kernel carries the tree, found the way
   # dtb-uki.sh finds it; without it the list stays and an earlier pin goes.
   surface_pro11_dtb=""
-  for dtb in "$dtb_root"/linux-omarchy/qcom/x1e80100-microsoft-denali-oled.dtb \
-    "$dtb_root"/linux-omarchy*/qcom/x1e80100-microsoft-denali-oled.dtb; do
+  for dtb in "$dtb_root"/linux-omarchy/qcom/$surface_pro11_tree.dtb \
+    "$dtb_root"/linux-omarchy*/qcom/$surface_pro11_tree.dtb; do
     if [[ -f $dtb ]]; then
       surface_pro11_dtb=$dtb
       break
@@ -68,13 +77,15 @@ if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree microsoft,denali-
   # with the IPC router and PD mapper pmic_glink needs to initialize. As in
   # qualcomm/initramfs.sh, the ? skips a module a kernel does not have, so its
   # image still builds.
+  # The LCD panel waits for its PWM backlight, so the generic eDP panel driver,
+  # pwm-backlight and the PMIC's LPG load early too.
   # The DSP driver stays out: listing it here would bypass the USB-root guard.
   mkdir -p "$mkinitcpio_dir"
   cat >"$mkinitcpio_dir/surface-pro-11-initramfs.conf" <<'CONF'
 MODULES+=(msm? dispcc_x1e80100? gpucc_x1e80100? videocc_sm8550? phy_qcom_edp?
   panel_samsung_atna33xc20? phy_qcom_qmp_combo? ps883x? qrtr? qcom_pd_mapper? pmic_glink?
   pmic_glink_altmode? i2c_qcom_geni? surface_aggregator? surface_aggregator_registry?
-  surface_aggregator_hub? surface_hid_core? surface_hid?)
+  surface_aggregator_hub? surface_hid_core? surface_hid? panel_edp? pwm_bl? leds_qcom_lpg?)
 
 # The board-signed zap shader is included by qcom-firmware-extract. Wi-Fi board
 # data and the audio topology are requested once if their drivers load early.

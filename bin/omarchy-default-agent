@@ -5,9 +5,16 @@
 # omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
 
 installing=false
+checking=false
 if [[ ${1:-} == "--install" ]]; then
   installing=true
   shift
+elif [[ ${1:-} == "--installed" ]]; then
+  # --installed <agent> only answers whether that harness is installed, with
+  # its exit status, and selects nothing.
+  checking=true
+  shift
+  (($# == 1)) || exit 1
 fi
 
 agent_file="$HOME/.config/omarchy/defaults/agent"
@@ -132,6 +139,11 @@ else
   }
 fi
 
+if [[ $checking == "true" ]]; then
+  agent_present
+  exit
+fi
+
 if [[ $installing == "false" ]] && ! agent_present; then
   exec omarchy-launch-floating-terminal-with-presentation omarchy-default-agent --install "$agent"
 fi
@@ -153,6 +165,13 @@ fi
 
 mkdir -p "$(dirname "$agent_file")"
 printf '%s\n' "$agent" >"$agent_file"
+
+# An installed harness gets a launcher of its own beside Agent, as signing in
+# to a subscription adds one.
+omarchy-agent-launcher "$agent" || true
+
+# The harness reads the shared ~/.agents/AGENTS.md from its first session.
+omarchy-agent-instructions "$agent" >/dev/null || true
 
 if [[ $installing == "true" ]]; then
   # The installer's own window: the nearest ancestor Hyprland knows as a client.

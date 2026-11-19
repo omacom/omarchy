@@ -1,39 +1,39 @@
 # Brabhsálaithe
 
-Tagann Omarchy le [Chromium](https://www.chromium.org/) mar an brabhsálaí réamhshocraithe. Is é an leagan foinse oscailte glan é, téamaithe chun meaitseáil leis an gcuid eile de do chóras, agus is é a osclaíonn `Super + Shift + Return` agus a ritheann gach [aip gréasáin](25-web-apps.md) taobh istigh de.
+Tagann [Google Chrome](https://www.google.com/chrome/) le hOmarchy mar an brabhsálaí réamhshocraithe. Tá téama air a mheaitseálann an chuid eile de do chóras, agus is é a osclaíonn `Super + Shift + Return` é agus an ceann a ritheann gach [aip ghréasáin](25-web-apps.md) ann. Osclaíonn sé díreach chuig fuinneog bhrabhsálaí: níl aon scáileán fáilte ná leid síniú isteach ann, ní sheoltar staitisticí úsáide ná tuairiscí tuairteála chuig Google, agus tá na leideanna príobháideachais fógraí múchta. Is féidir leat síniú isteach i do chuntas Google ón gcnaipe próifíle fós aon uair is mian leat sioncronú.
 
-Mura dtaitníonn Chromium leat, níl tú sáite leis. Faoi _Suiteáil > Brabhsálaí_ sa roghchlár Omarchy gheobhaidh tú Chrome, Edge, Brave, Brave Origin, Firefox, agus [Zen](https://zen-browser.app/). Pioc ceann agus suiteálann Omarchy é, socraíonn sé a eolaire beartais, agus cuireann sé do théama reatha i bhfeidhm air.
+Mura bhfuil Chrome de réir do bhlais, níl tú sáite leis. Faoi _Install > Browser_ i roghchlár Omarchy gheobhaidh tú [Chromium](https://www.chromium.org/) (an leagan glan foinse oscailte a ndéantar Chrome as), Edge, Brave, Brave Origin, Firefox, agus [Zen](https://zen-browser.app/). Roghnaigh ceann agus suiteálfaidh Omarchy é, socróidh sé a eolaire polasaí, agus cuirfidh sé do théama reatha i bhfeidhm air.
 
-## Ceann a dhéanamh réamhshocraithe
+## Ceann a dhéanamh mar an réamhshocrú
 
-Ní ardaíonn suiteáil brabhsálaí é. Nuair atá sé ar an meaisín, téigh chuig _Socrú > Réamhshocruithe > Brabhsálaí_ agus pioc é — ní liostálann an roghchlár ach brabhsálaithe atá suiteáilte agat i ndáiríre, agus marcálann sé an réamhshocrú reatha le tic.
+Ní chuireann suiteáil brabhsálaí chun cinn mar réamhshocrú é. Nuair a bhíonn sé ar an meaisín, téigh chuig _Setup > Defaults > Browser_ agus roghnaigh é — ní liostaíonn an roghchlár ach brabhsálaithe atá suiteáilte agat i ndáiríre, agus marcálann sé an réamhshocrú reatha le tic.
 
-Ón teirminéal is é:
+Ón teirminéal is é seo é:
 
 ```bash
 omarchy default browser firefox
 ```
 
-Rith é gan argóint agus inseoidh sé duit an réamhshocrú reatha. Socraíonn sé seo láimhseálaí XDG, mar sin ní hé amháin méarchláir Omarchy a leanann — téann aon rud a osclaíonn nasc, ó aip comhrá go ordú teirminéil, chuig an brabhsálaí a phioc tú.
+Rith gan argóint é agus inseoidh sé an réamhshocrú reatha duit. Socraíonn sé seo an láimhseálaí XDG, mar sin ní hiad hotkeys Omarchy amháin a leanann é — téann aon rud a osclaíonn nasc, ó aip comhrá go hordú teirminéil, chuig an mbrabhsálaí a roghnaigh tú.
 
-## Cóipeáil URL agus Íoslódáil Físeáin
+## Copy URL agus Download Video
 
-Tagann brabhsálaithe theaghlach Chromium (Chromium féin, Chrome, Edge, agus Brave) le dhá shíneadh Omarchy a shroicheann amach as an mbrabhsálaí agus isteach sa chuid eile de do chóras.
+Tagann dhá shíneadh Omarchy leis na brabhsálaithe de theaghlach Chromium (Chromium féin, Chrome, Edge, agus Brave) a shíneann amach as an mbrabhsálaí agus isteach sa chuid eile de do chóras.
 
-Cuireann **Cóipeáil URL** seoladh an chlibe reatha ar do ghearrthaisce le `Alt + Shift + L`. Tá sé sin níos tapúla ná cliceáil isteach sa bharra seoltaí agus cóipeáil, agus toisc go dtéann sé tríd an ngearrthaisce córais seachas gearrthaisce an bhrabhsálaí, faigheann tú fógra Omarchy á dhearbhú agus tá an URL ar fáil láithreach i [stair na gearrthaisce](08-unified-clipboard-history.md) agus i ngach aip eile. Tá cnaipe barra uirlisí ann freisin, más fhearr leat cliceáil.
+**Copy URL** cuireann sé seoladh an chluaisín reatha ar do ghearrthaisce le `Alt + Shift + L`. Tá sin níos tapúla ná cliceáil isteach sa bharra seoltaí agus cóipeáil, agus toisc go dtéann sé tríd an ngearrthaisce córais seachas gearrthaisce an bhrabhsálaí, faigheann tú fógra Omarchy á dheimhniú agus bíonn an URL ar fáil láithreach i [stair na gearrthaisce](08-unified-clipboard-history.md) agus i ngach aip eile. Tá cnaipe ar an mbarra uirlisí ann freisin, más fearr leat cliceáil.
 
-Gabhann **Íoslódáil Físeáin** an físeán atá á sheinm ar an leathanach a bhfuil tú ag féachaint air le `Alt + Shift + D`. Cuireann sé an URL ar aghaidh chuig [yt-dlp](https://github.com/yt-dlp/yt-dlp), mar sin oibríonn sé ar i bhfad níos mó ná YouTube, agus tuirlingíonn an íoslódáil in `~/Videos`. Taispeántar an dul chun cinn sa taispeántas ar an scáileán céanna a úsáideann toirt agus gile, á nuashonrú san áit seachas fógraí a chruachadh. Socraigh `OMARCHY_YTDLP_DIR` más fhearr leat go rachadh na comhaid áit éigin eile — féach na [CC](46-faq.md) le haghaidh áit le hathróga timpeallachta a chur.
+**Download Video** a ghabhann an físeán atá á sheinm ar an leathanach a bhfuil tú ag féachaint air le `Alt + Shift + D`. Tugann sé an URL do [yt-dlp](https://github.com/yt-dlp/yt-dlp), mar sin oibríonn sé ar i bhfad níos mó ná YouTube, agus tuirlingíonn an íoslódáil i `~/Videos`. Taispeántar an dul chun cinn sa taispeáint ar an scáileán chéanna a úsáideann toirt agus gile, á nuashonrú ina áit féin seachas fógraí a chruachadh. Socraigh `OMARCHY_YTDLP_DIR` más fearr leat go rachadh na comhaid áit éigin eile — féach an [FAQ](46-faq.md) le fáil amach cá gcuirtear athróga timpeallachta.
 
-Labhraíonn an dá shíneadh le Omarchy trí óstach beag teachtaireachtaí dúchasach, a shuiteáiltear duit mar aon leis an mbrabhsálaí. Is é sin an píosa a ligeann d'fhíseán leathanaigh ghréasáin teacht i do eolaire baile agus do URL teacht i do bhainisteoir gearrthaisce, rud nach féidir le síneadh gnáth a dhéanamh leis féin.
+Labhraíonn an dá shíneadh le hOmarchy trí óstach beag teachtaireachtaí dúchasach, a shuiteáiltear duit in éineacht leis an mbrabhsálaí. Sin é an píosa a ligeann d'fhíseán ar leathanach gréasáin críochnú i d'eolaire baile agus do URL críochnú i do bhainisteoir gearrthaisce, rud nach féidir le síneadh gnáth a dhéanamh leis féin.
 
 Is do theaghlach Chromium amháin iad seo. Ní fhaigheann Firefox agus Zen iad.
 
 ## Firefox agus Zen
 
-Is teaghlach difriúil iad Firefox agus Zen, mar sin faigheann siad cóireáil dhifriúil: suiteálann Omarchy comhad beartas do réamhshocruithe ciallmhara agus aistríonn sé iad isteach i mód dúchasach Wayland, rud atá uait le haghaidh scálú codáin agus scrollú réidh ar an eochaircheap.
+Is teaghlach difriúil iad Firefox agus Zen, mar sin faigheann siad cóireáil dhifriúil: suiteálann Omarchy comhad polasaithe dóibh le haghaidh réamhshocruithe ciallmhara agus aistríonn sé iad go mód dúchasach Wayland, rud a theastaíonn uait le haghaidh scálú codánach agus scrollú réidh ar an gceap tadhaill.
 
-Ní fhaigheann siad na síntí Chromium thuas, agus ní dhéanann Omarchy téama orthu, mar sin is leatsa na codanna sin den eispéireas a chur ar bun.
+Ní fhaigheann siad na síntí Chromium thuas, agus ní chuireann Omarchy téama orthu, mar sin is fútsa na codanna sin den eispéireas a shocrú.
 
 ## Ceann a bhaint arís
 
-Is féidir aon rud a shuiteáil tú anseo a thógáil as arís faoi _Bain > Brabhsálaí_. Níl Chromium ar an liosta sin — is cuid den bhunchóras é.
+Is féidir aon cheann de na brabhsálaithe seo, Chrome san áireamh, a bhaint arís faoi _Remove > Browser_. Téann naisc ansin chuig Chrome nó Chromium má tá an ceann eile fós suiteáilte.
