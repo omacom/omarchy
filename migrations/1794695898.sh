@@ -65,9 +65,22 @@ fi
 # read gnome-keyring's "default" pointer file. Left under Omarchy's name, the keyring
 # would load beside a new empty default, and the Secret portal, which only looks in
 # the default collection, would hand sandboxed apps a new key they can't decrypt with.
-if [[ -f $keyrings_dir/default && ! -e $keyrings_dir/login.keyring ]]; then
+# A login keyring next to another chosen default, left by a password login through
+# pam_gnome_keyring, would take the default's place, so it moves to a free name and
+# stays available as a collection of its own.
+if [[ -f $keyrings_dir/default ]]; then
   default_keyring=$(<"$keyrings_dir/default")
-  if [[ -n $default_keyring && $default_keyring != */* && -f $keyrings_dir/$default_keyring.keyring ]]; then
+  if [[ -n $default_keyring && $default_keyring != */* && $default_keyring != "login" &&
+    -f $keyrings_dir/$default_keyring.keyring ]]; then
+    if [[ -e $keyrings_dir/login.keyring ]]; then
+      previous_login="previous_login"
+      n=1
+      while [[ -e $keyrings_dir/$previous_login.keyring ]]; do
+        previous_login="previous_login_$((++n))"
+      done
+      mv "$keyrings_dir/login.keyring" "$keyrings_dir/$previous_login.keyring"
+      echo "The keyring login.keyring was renamed to $previous_login.keyring, so $default_keyring stays the default." >&2
+    fi
     mv "$keyrings_dir/$default_keyring.keyring" "$keyrings_dir/login.keyring"
   fi
 fi

@@ -101,14 +101,29 @@ run_migration "$home" >/dev/null 2>&1 || fail "migration runs for a second user"
 [[ -f $home/.local/share/keyrings/login.keyring ]] || fail "a second user's keyring is renamed"
 pass "migration handles a second user"
 
-# A user who already has a login keyring keeps it.
+# A login keyring next to another chosen default doesn't take its place: the chosen
+# one becomes login, and the old login keyring moves to a free name.
 home=$(new_home has-login)
 seed_keyring "$home"
-echo "existing" >"$home/.local/share/keyrings/login.keyring"
+keyrings="$home/.local/share/keyrings"
+echo "chosen" >>"$keyrings/Default_keyring.keyring"
+echo "pam" >"$keyrings/login.keyring"
+echo "taken" >"$keyrings/previous_login.keyring"
 run_migration "$home" >/dev/null 2>&1 || fail "migration runs with a login keyring"
-[[ $(<"$home/.local/share/keyrings/login.keyring") == "existing" ]] || fail "an existing login keyring isn't replaced"
-[[ -f $home/.local/share/keyrings/Default_keyring.keyring ]] || fail "the other keyring stays"
-pass "migration keeps an existing login keyring"
+grep -q 'chosen' "$keyrings/login.keyring" || fail "the chosen default becomes login"
+[[ $(<"$keyrings/previous_login_2.keyring") == "pam" ]] || fail "the old login keyring moves to a free name"
+[[ $(<"$keyrings/previous_login.keyring") == "taken" ]] || fail "an existing keyring isn't overwritten"
+pass "migration keeps the chosen default ahead of an existing login keyring"
+
+# A user whose chosen default is already login keeps it as it is.
+home=$(new_home login-default)
+mkdir -p "$home/.local/share/keyrings"
+echo "login" >"$home/.local/share/keyrings/default"
+echo "existing" >"$home/.local/share/keyrings/login.keyring"
+run_migration "$home" >/dev/null 2>&1 || fail "migration runs with login as the default"
+[[ $(<"$home/.local/share/keyrings/login.keyring") == "existing" ]] || fail "a login default stays in place"
+[[ -z $(compgen -G "$home/.local/share/keyrings/previous_login*") ]] || fail "a login default isn't moved aside"
+pass "migration keeps a login keyring that is already the default"
 
 # A user with no keyring still gets the daemon and the credential.
 home=$(new_home no-keyring)
