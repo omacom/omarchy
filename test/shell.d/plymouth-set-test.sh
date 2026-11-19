@@ -966,3 +966,71 @@ status=$?
 assert_no_temporary_files "$fake_root"
 
 pass "a reset refusal cannot fall through to an unhardened SDDM copy"
+
+# omarchy-plymouth-current compares the installed Plymouth logo against the
+# default logo and every packaged or user theme's unlock.png (including themes
+# without preview-unlock.png), falling back to `custom` when nothing matches.
+current_dir=$(mktemp -d "$test_tmp/current.XXXXXXXX")
+current_home="$current_dir/home"
+current_omarchy="$current_dir/omarchy"
+current_installed_logo="$current_dir/installed-logo.png"
+plymouth_current="$current_dir/omarchy-plymouth-current"
+
+mkdir -p \
+  "$current_home/.config/omarchy/themes/user-theme" \
+  "$current_omarchy/default/plymouth" \
+  "$current_omarchy/themes/with-preview" \
+  "$current_omarchy/themes/without-preview"
+
+printf 'default-logo\n' >"$current_omarchy/default/plymouth/logo.png"
+printf 'preview\n' >"$current_omarchy/themes/with-preview/preview-unlock.png"
+printf 'with-preview-logo\n' >"$current_omarchy/themes/with-preview/unlock.png"
+printf 'without-preview-logo\n' >"$current_omarchy/themes/without-preview/unlock.png"
+printf 'user-theme-logo\n' >"$current_home/.config/omarchy/themes/user-theme/unlock.png"
+
+sed "s|/usr/share/plymouth/themes/omarchy/logo.png|$current_installed_logo|" \
+  "$ROOT/bin/omarchy-plymouth-current" >"$plymouth_current" &&
+  chmod +x "$plymouth_current" ||
+  fail "copy omarchy-plymouth-current for a fixture installed logo"
+grep -Fq -- "$current_installed_logo" "$plymouth_current" &&
+  ! grep -Fq '/usr/share/plymouth/themes/omarchy/logo.png' "$plymouth_current" ||
+  fail "omarchy-plymouth-current test copy points at the fixture installed logo"
+
+run_current() {
+  HOME="$current_home" OMARCHY_PATH="$current_omarchy" PATH="$ROOT/bin:$PATH" "$plymouth_current"
+}
+
+cp "$current_omarchy/default/plymouth/logo.png" "$current_installed_logo"
+output=$(run_current 2>&1)
+status=$?
+(( status == 0 )) && [[ $output == "default" ]] ||
+  fail "omarchy-plymouth-current prints default for the default logo" "status: $status, actual: $output"
+pass "omarchy-plymouth-current prints default for the default logo"
+
+cp "$current_omarchy/themes/with-preview/unlock.png" "$current_installed_logo"
+output=$(run_current 2>&1)
+status=$?
+(( status == 0 )) && [[ $output == "with-preview" ]] ||
+  fail "omarchy-plymouth-current prints only the matched theme name" "status: $status, actual: $output"
+pass "omarchy-plymouth-current prints only the matched theme name"
+
+cp "$current_omarchy/themes/without-preview/unlock.png" "$current_installed_logo"
+output=$(run_current 2>&1)
+status=$?
+(( status == 0 )) && [[ $output == "without-preview" ]] ||
+  fail "omarchy-plymouth-current matches a theme without preview-unlock.png" "status: $status, actual: $output"
+pass "omarchy-plymouth-current matches a theme without preview-unlock.png"
+
+cp "$current_home/.config/omarchy/themes/user-theme/unlock.png" "$current_installed_logo"
+output=$(run_current 2>&1)
+status=$?
+(( status == 0 )) && [[ $output == "user-theme" ]] ||
+  fail "omarchy-plymouth-current matches a user theme without preview-unlock.png" "status: $status, actual: $output"
+pass "omarchy-plymouth-current matches a user theme without preview-unlock.png"
+
+printf 'unmatched-logo\n' >"$current_installed_logo"
+output=$(run_current 2>&1)
+status=$?
+(( status == 0 )) && [[ $output == "custom" ]] ||
+  fail "omarchy-plymouth-current prints custom for an unmatched logo" "status: $status, actual: $output"
+pass "omarchy-plymouth-current prints custom for an unmatched logo"
