@@ -119,6 +119,8 @@ helium)
   echo "Installing Helium..."
   omarchy-pkg-add helium-browser-bin || exit 1
 
+  copy_chromium_flags ~/.config/helium-browser-flags.conf
+  omarchy-lifecycle-dispatch post-install helium
   announce_browser_installed "Helium"
   ;;
 *)
