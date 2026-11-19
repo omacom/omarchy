@@ -60,13 +60,14 @@ else
     drive=$(jq -rn --arg value "$drive" '$value | @uri')
     id=$(jq -rn --arg value "$id" '$value | @uri')
 
-    # rclone refreshes the token during upload/stat. Pass it through stdin so
-    # it never appears in curl's argv. Fetch the private webUrl, not a share link.
-    url=$(jq -er '.office.token | fromjson | .access_token | select(type == "string" and test("^[A-Za-z0-9._~-]+$")) | "Authorization: Bearer " + .' <<<"$credentials" |
+    # rclone refreshes the token during upload/stat. Validate the opaque bearer
+    # token before starting curl, then pass it on stdin rather than in argv.
+    authorization=$(jq -er '.office.token | fromjson | .access_token | select(type == "string" and test("^[A-Za-z0-9._~+/-]+=*\\z")) | "Authorization: Bearer " + .' <<<"$credentials")
+    url=$(printf '%s\n' "$authorization" |
       curl --fail --silent --show-error --max-time 30 --proto '=https' --header @- \
         "https://graph.microsoft.com/v1.0/drives/$drive/items/$id?\$select=webUrl" |
       jq -er '.webUrl | select(type == "string" and startswith("https://") and (test("\\s") | not))')
-    unset credentials
+    unset credentials authorization
     omarchy-launch-webapp "$url"
   done
 fi
