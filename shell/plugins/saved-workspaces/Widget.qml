@@ -36,7 +36,7 @@ Panel {
   property string action: ""
   property string feedback: ""
   property bool failed: false
-  readonly property bool busy: operation.running
+  readonly property bool busy: operation.running || actionReply.pending
   readonly property color foreground: Commons.Color.popups.text
 
   implicitWidth: icon.implicitWidth
@@ -93,6 +93,8 @@ Panel {
     if (extra !== undefined) operation.command = operation.command.concat([String(extra)])
     // Release the panel's keyboard grab before newly opened apps take focus.
     if (command === "restore") root.close()
+    operation.didStart = false
+    actionReply.begin()
     operation.running = true
   }
 
@@ -144,34 +146,34 @@ Panel {
 
   Process {
     id: operation
-    property bool succeeded: false
-    property int otherWorkspace: 0
-    onRunningChanged: if (running) { succeeded = false; otherWorkspace = 0 }
-    stdout: StdioCollector {
-      onStreamFinished: {
-        try {
-          var result = JSON.parse(text)
-          operation.succeeded = result.ok === true
-          operation.otherWorkspace = Number(result.otherWorkspace) || 0
-          if (!operation.succeeded) {
-            root.failed = true
-            root.feedback = String(result.error || Commons.I18n.t("scenes.failure"))
-          }
-        } catch (error) {
-          root.failed = true
-          root.feedback = Commons.I18n.t("scenes.failure")
-        }
+    property bool didStart: false
+    onStarted: didStart = true
+    onRunningChanged: {
+      // FailedToStart emits runningChanged without either completion signal.
+      if (!running && !didStart && actionReply.pending) {
+        actionReply.receive("")
+        actionReply.exited(-1)
       }
     }
-    onExited: {
+    stdout: StdioCollector {
+      onStreamFinished: actionReply.receive(text)
+    }
+    onExited: function(exitCode) { actionReply.exited(exitCode) }
+  }
+
+  ActionReply {
+    id: actionReply
+    onCompleted: function(result) {
       stateFile.reload()
-      if (!succeeded) {
+      if (!result.ok) {
+        root.failed = true
+        root.feedback = String(result.error || Commons.I18n.t("scenes.failure"))
         if (root.action === "restore") root.controller.show()
         return
       }
       if (root.action === "restore") {
         root.close()
-        if (otherWorkspace > 0) Util.execArgv(["omarchy-notification-send", Commons.I18n.t("scenes.title"), Commons.I18n.t("scenes.otherWindows").arg(Commons.I18n.formatNumber(otherWorkspace))])
+        if (result.otherWorkspace > 0) Util.execArgv(["omarchy-notification-send", Commons.I18n.t("scenes.title"), Commons.I18n.t("scenes.otherWindows").arg(Commons.I18n.formatNumber(result.otherWorkspace))])
         return
       }
       root.feedback = root.action === "delete" ? Commons.I18n.t("scenes.deleted") : root.action === "update" ? Commons.I18n.t("scenes.updated") : root.action === "rename" ? Commons.I18n.t("scenes.renamed") : Commons.I18n.t("scenes.saved")
