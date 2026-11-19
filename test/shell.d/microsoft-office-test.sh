@@ -30,7 +30,7 @@ if name == 'rclone':
     if command[:2] == ['config', 'create']:
         pathlib.Path(config).write_text('connected')
     elif command[:2] == ['config', 'dump']:
-        print(json.dumps({'office': {'type': 'onedrive', 'region': os.environ.get('OFFICE_TEST_REGION', 'global'), 'drive_id': 'fallback-drive', 'token': json.dumps({'access_token': 'test-token'})}}))
+        print(json.dumps({'office': {'type': 'onedrive', 'region': os.environ.get('OFFICE_TEST_REGION', 'global'), 'drive_id': 'fallback-drive', 'token': json.dumps({'access_token': os.environ.get('OFFICE_TEST_TOKEN', 'test-token')})}}))
     elif command[0] == 'copyto':
         if os.environ.get('OFFICE_TEST_UPLOAD_FAIL') == '1':
             sys.exit(1)
@@ -42,8 +42,9 @@ if name == 'rclone':
         if command[0] not in ['lsd']:
             sys.exit('unexpected rclone operation')
 if name == 'curl':
-    assert sys.stdin.read() == 'Authorization: Bearer test-token\n'
-    assert 'test-token' not in ' '.join(args)
+    token = os.environ.get('OFFICE_TEST_TOKEN', 'test-token')
+    assert sys.stdin.read() == 'Authorization: Bearer ' + token + '\n'
+    assert token not in ' '.join(args)
     print(json.dumps({'webUrl': os.environ.get('OFFICE_TEST_URL', 'https://onedrive.live.com/edit-document')}))
 PY
 chmod +x "$scratch/bin/stub"
@@ -102,6 +103,18 @@ reset_calls
 OFFICE_TEST_ID='item only' "$handler" word "$file"
 assert_calls "any(name == 'curl' and '/drives/fallback-drive/items/item%20only?' in args[-1] for name, args in calls)"
 pass "plain item IDs use the configured drive and URI encoding"
+
+reset_calls
+OFFICE_TEST_TOKEN='opaque+/==' "$handler" word "$file"
+assert_calls "any(name == 'omarchy-launch-webapp' for name, args in calls)"
+pass "opaque bearer tokens preserve plus, slash, and padding through stdin"
+
+for token in 'bad token' $'bad\r\nInjected: header' $'test-token\n'; do
+  reset_calls
+  if OFFICE_TEST_TOKEN="$token" "$handler" word "$file" >/dev/null 2>&1; then fail "malformed bearer token fails"; fi
+  assert_calls "all(name not in ['curl', 'omarchy-launch-webapp'] for name, args in calls)"
+done
+pass "malformed bearer tokens are rejected before the Graph request"
 
 for failure in upload url region; do
   reset_calls
