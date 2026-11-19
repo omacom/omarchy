@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Inndata"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Språk"
+  },
+  "setup.region.timezone": {
+    "label": "Tidssone"
   },
   "setup.network": {
     "label": "Nettverk"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Passord"
-  },
-  "update.timezone": {
-    "label": "Tidssone"
   },
   "update.time": {
     "label": "Tid"

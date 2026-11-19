@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "입력"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "언어"
+  },
+  "setup.region.timezone": {
+    "label": "시간대"
   },
   "setup.network": {
     "label": "네트워크"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "비밀번호"
-  },
-  "update.timezone": {
-    "label": "시간대"
   },
   "update.time": {
     "label": "시간"

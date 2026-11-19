@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "ආදානය"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "භාෂාව"
+  },
+  "setup.region.timezone": {
+    "label": "වේලා කලාපය"
   },
   "setup.network": {
     "label": "ජාලය"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "මුරපදය"
-  },
-  "update.timezone": {
-    "label": "වේලා කලාපය"
   },
   "update.time": {
     "label": "වේලාව"

@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Vstup"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Jazyk"
+  },
+  "setup.region.timezone": {
+    "label": "Časové pásmo"
   },
   "setup.network": {
     "label": "Sieť"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Heslo"
-  },
-  "update.timezone": {
-    "label": "Časové pásmo"
   },
   "update.time": {
     "label": "Čas"

@@ -283,6 +283,10 @@
   "plugin.replacedByClone": "Original plugin has been replace by clone.",
   "preinstalls.confirmRemove": "Are you sure you want to remove all preinstalled web apps, TUI wrappers, and desktop applications?",
   "preinstalls.confirmRestore": "Are you sure you want to restore all preinstalled web apps, TUI wrappers, and desktop applications?",
+  "region.changed": "Dates and numbers are now written as in %1",
+  "region.followsLanguage": "Dates and numbers are now written as in your language",
+  "region.formatsTitle": "Formats",
+  "region.sameAsLanguage": "Same as language",
   "reminder.cleared": "All reminders have been cleared",
   "reminder.count": {
     "one": "%1 reminder",

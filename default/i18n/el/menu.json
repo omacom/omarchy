@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Είσοδος"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Γλώσσα"
+  },
+  "setup.region.timezone": {
+    "label": "Ζώνη ώρας"
   },
   "setup.network": {
     "label": "Δίκτυο"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Κωδικός"
-  },
-  "update.timezone": {
-    "label": "Ζώνη ώρας"
   },
   "update.time": {
     "label": "Ώρα"

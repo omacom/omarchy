@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Input"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Wika"
+  },
+  "setup.region.timezone": {
+    "label": "Sona ng Oras"
   },
   "setup.network": {
     "label": "Network"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Password"
-  },
-  "update.timezone": {
-    "label": "Sona ng Oras"
   },
   "update.time": {
     "label": "Oras"

@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Entrada"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Idioma"
+  },
+  "setup.region.timezone": {
+    "label": "Zona horària"
   },
   "setup.network": {
     "label": "Xarxa"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Contrasenya"
-  },
-  "update.timezone": {
-    "label": "Zona horària"
   },
   "update.time": {
     "label": "Hora"

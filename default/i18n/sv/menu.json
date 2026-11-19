@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Inmatning"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Språk"
+  },
+  "setup.region.timezone": {
+    "label": "Tidszon"
   },
   "setup.network": {
     "label": "Nätverk"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Lösenord"
-  },
-  "update.timezone": {
-    "label": "Tidszon"
   },
   "update.time": {
     "label": "Tid"

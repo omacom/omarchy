@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Đầu vào"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Ngôn ngữ"
+  },
+  "setup.region.timezone": {
+    "label": "Múi giờ"
   },
   "setup.network": {
     "label": "Mạng"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Mật khẩu"
-  },
-  "update.timezone": {
-    "label": "Múi giờ"
   },
   "update.time": {
     "label": "Thời gian"

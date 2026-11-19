@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "输入"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "语言"
+  },
+  "setup.region.timezone": {
+    "label": "时区"
   },
   "setup.network": {
     "label": "网络"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "密码"
-  },
-  "update.timezone": {
-    "label": "时区"
   },
   "update.time": {
     "label": "时间"

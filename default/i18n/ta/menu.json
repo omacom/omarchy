@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "உள்ளீடு"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "மொழி"
+  },
+  "setup.region.timezone": {
+    "label": "நேர மண்டலம்"
   },
   "setup.network": {
     "label": "வலையமைப்பு"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "கடவுச்சொல்"
-  },
-  "update.timezone": {
-    "label": "நேர மண்டலம்"
   },
   "update.time": {
     "label": "நேரம்"

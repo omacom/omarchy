@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Invoer"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Taal"
+  },
+  "setup.region.timezone": {
+    "label": "Tijdzone"
   },
   "setup.network": {
     "label": "Netwerk"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Wachtwoord"
-  },
-  "update.timezone": {
-    "label": "Tijdzone"
   },
   "update.time": {
     "label": "Tijd"

@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Syöttö"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Kieli"
+  },
+  "setup.region.timezone": {
+    "label": "Aikavyöhyke"
   },
   "setup.network": {
     "label": "Verkko"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Salasana"
-  },
-  "update.timezone": {
-    "label": "Aikavyöhyke"
   },
   "update.time": {
     "label": "Aika"

@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "ইনপুট"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "ভাষা"
+  },
+  "setup.region.timezone": {
+    "label": "সময় অঞ্চল"
   },
   "setup.network": {
     "label": "নেটওয়ার্ক"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "পাসওয়ার্ড"
-  },
-  "update.timezone": {
-    "label": "সময় অঞ্চল"
   },
   "update.time": {
     "label": "সময়"

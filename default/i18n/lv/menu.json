@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Ievade"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Valoda"
+  },
+  "setup.region.timezone": {
+    "label": "Laika josla"
   },
   "setup.network": {
     "label": "Tīkls"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Parole"
-  },
-  "update.timezone": {
-    "label": "Laika josla"
   },
   "update.time": {
     "label": "Laiks"

@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Entrées"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Langue"
+  },
+  "setup.region.timezone": {
+    "label": "Fuseau horaire"
   },
   "setup.network": {
     "label": "Réseau"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Mot de passe"
-  },
-  "update.timezone": {
-    "label": "Fuseau horaire"
   },
   "update.time": {
     "label": "Heure"
