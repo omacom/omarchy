@@ -638,7 +638,7 @@ def exact_step(metadata):
         for nested_field, nested_wire, nested_value in protobuf_fields(value):
           if nested_wire == 0:
             counts[nested_field] = int(nested_value)
-        candidate = (counts.get(2, 0), counts.get(3, 0), counts.get(5, 0), counts.get(4, 0))
+        candidate = tuple(number(counts.get(field, 0)) for field in (2, 3, 5, 4))
         if any(candidate):
           usage = candidate
   except (TypeError, ValueError):
@@ -648,9 +648,10 @@ def exact_step(metadata):
 
 # The exact usage of every completed planner turn in a conversation database,
 # keyed by step index, and the model its gen_metadata names when the user
-# never switched. A missing or unreadable database is no exact usage, not a
-# failed scan.
-def read_conversation_db(conversation_db):
+# never switched. A missing database is no exact usage, not a failed scan; one
+# that exists but can't be read is reported, so its missing turns are not
+# cached as a complete scan.
+def read_conversation_db(conversation_db, problems):
   exact = {}
   model = ""
   if not conversation_db.is_file():
@@ -694,6 +695,7 @@ def read_conversation_db(conversation_db):
     finally:
       connection.close()
   except (OSError, sqlite3.Error, ValueError):
+    problems.append(str(conversation_db))
     return {}, ""
   return exact, model
 
@@ -873,7 +875,7 @@ def local_stats(root, problems=None):
     # with an exact row uses that row; a database-only turn keeps its own.
     exact_by_conversation = {}
     for conversation_db in sorted((one / "conversations").glob("*.db")):
-      exact_by_conversation[conversation_db.stem] = read_conversation_db(conversation_db)
+      exact_by_conversation[conversation_db.stem] = read_conversation_db(conversation_db, problems)
 
     seen = {}
     unindexed = set()
@@ -921,7 +923,7 @@ def local_stats(root, problems=None):
           tokens = exact_turn["usage"] if exact_turn else step_tokens(step)
           day = (local_day(exact_turn.get("createdAt")) if exact_turn else "") or local_day(step.get("created_at") or step.get("timestamp"))
           if tokens and any(tokens):
-            stats.add(day or None, None, current or "unknown", *tokens, prompts=0)
+            stats.add(day or None, None, current or fallback or "unknown", *tokens, prompts=0)
             if index is not None:
               seen_steps.add(index)
           # The desktop app keeps no history log: its typed prompts are the
