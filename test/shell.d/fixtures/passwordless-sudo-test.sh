@@ -74,6 +74,10 @@ case "$name" in
   sudo)
     if [[ ${1:-} == -n && ${2:-} == -l ]]; then
       [[ ${TEST_POLICY_FAILURE:-0} != 1 ]] || exit 1
+      if (( $# == 3 )) && [[ -n ${TEST_UNFILTERED_POLICY:-} ]]; then
+        printf '%s\n' "$TEST_UNFILTERED_POLICY"
+        exit 0
+      fi
       default_policy='    Options: authenticate'
       [[ ${TEST_STATUS:-3} == 3 ]] || default_policy='    Options: !authenticate'
       printf '%s\n' "${TEST_POLICY:-$default_policy}"

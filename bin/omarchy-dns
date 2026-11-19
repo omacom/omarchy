@@ -45,6 +45,48 @@ provider_from_arg() {
 # where $OMARCHY_PATH points at a checkout.
 PACKAGED_PATH=/usr/bin/omarchy-dns
 
+# True when an unfiltered `sudo -l -l` listing grants <command> to root under
+# an !authenticate entry. Classic sudo puts those tags in a command-filtered
+# listing too; sudo-rs prints them only unfiltered, so the filtered check
+# falls through to this. A rule's bare path permits any arguments, ALL permits
+# any command, and otherwise the rule line is a glob over the whole command.
+sudoers_listing_grants() {
+  local command=$2 line runas root=0 passwordless=0 commands=0
+  while IFS= read -r line; do
+    if [[ $line == "Sudoers entry:"* ]]; then
+      root=0 passwordless=0 commands=0
+      continue
+    fi
+    line=${line#"${line%%[![:space:]]*}"}
+    line=${line%,}
+    case $line in
+      RunAsUsers:*)
+        runas=",${line#RunAsUsers:},"
+        runas=${runas//[[:space:]]/}
+        if [[ $runas == *",root,"* || $runas == *",ALL,"* ]]; then
+          root=1
+        fi
+        ;;
+      Options:*)
+        if [[ $line == *'!authenticate'* ]]; then
+          passwordless=1
+        fi
+        ;;
+      Commands:)
+        commands=1
+        ;;
+      *)
+        # shellcheck disable=SC2053 # the rule line is a sudoers glob
+        if (( commands && root && passwordless )) &&
+          [[ $line == "ALL" || $line == "${command%% *}" || $command == $line ]]; then
+          return 0
+        fi
+        ;;
+    esac
+  done <<<"$1"
+  return 1
+}
+
 # True when sudo would run this exact command without stopping for a password.
 # `sudo -l` on its own reports whether a command is permitted, which the blanket
 # %wheel rule answers yes to for everything; the long listing prints the matched
@@ -52,25 +94,13 @@ PACKAGED_PATH=/usr/bin/omarchy-dns
 # nothing else. Listing runs nothing and, under -n, prompts for nothing, so a
 # machine whose omarchy-settings predates that file falls through to polkit
 # instead of dying on a password prompt it has no terminal to show.
-# Classic sudo includes those tags in a command-filtered listing. sudo-rs prints
-# them only for an unfiltered listing, so a filtered check has to fall through
-# to the full list and match this exact command under an !authenticate entry.
 sudo_grants_passwordless() {
   local listing
-  if listing=$(sudo -n -l -l "$PACKAGED_PATH" "$@" 2>/dev/null) && grep -q '!authenticate' <<<"$listing"; then
+  if listing=$(sudo -n -l -l "$PACKAGED_PATH" "$@" 2>/dev/null) && [[ $listing == *'!authenticate'* ]]; then
     return 0
   fi
   listing=$(sudo -n -l -l 2>/dev/null) || return 1
-  awk -v cmd="$PACKAGED_PATH $*" '
-    /^Sudoers entry:/ { granted = 0 }
-    /Options:.*!authenticate/ { granted = 1 }
-    granted {
-      line = $0
-      sub(/^[[:space:]]+/, "", line)
-      if (line == cmd) found = 1
-    }
-    END { exit !found }
-  ' <<<"$listing"
+  sudoers_listing_grants "$listing" "$PACKAGED_PATH $*"
 }
 
 require_root() {
