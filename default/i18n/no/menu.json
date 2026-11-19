@@ -26,11 +26,11 @@
   "update": {
     "label": "Oppdater"
   },
-  "about": {
-    "label": "Om"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "Om"
   },
   "system.screensaver": {
     "label": "Skjermsparer"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Inndata"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Språk"
+  },
+  "setup.region.timezone": {
+    "label": "Tidssone"
   },
   "setup.network": {
     "label": "Nettverk"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direkte oppstart"
-  },
-  "setup.reset": {
-    "label": "Nullstill datamaskin"
+  "remove.factory-reset": {
+    "label": "Fabrikkinnstillinger"
   },
   "install.package": {
     "label": "Pakke"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Passord"
   },
-  "update.timezone": {
-    "label": "Tidssone"
-  },
   "update.time": {
     "label": "Tid"
   },
@@ -1195,7 +1192,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Krasjopptak på"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,40 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikoner"
+  },
+  "install.style.icons": {
+    "label": "Ikoner"
+  },
+  "remove.icons": {
+    "label": "Ikoner"
+  },
+  "update.icons": {
+    "label": "Ekstra ikoner"
+  },
+  "system.firmware": {
+    "label": "Omstart til BIOS",
+    "description": "Start på nytt til UEFI-fastvareoppsettet"
+  },
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.formats": {
+    "label": "Formater",
+    "description": "Hvordan datoer, klokkeslett, tall og enheter skrives"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes-spill"
+  },
+  "update.games": {
+    "label": "Game Vibes-spill"
+  },
+  "agent.make.game": {
+    "label": "Lag et spill"
   }
 }

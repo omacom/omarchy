@@ -26,11 +26,11 @@
   "update": {
     "label": "Sasisha"
   },
-  "about": {
-    "label": "Kuhusu"
-  },
   "system": {
     "label": "Mfumo"
+  },
+  "system.about": {
+    "label": "Kuhusu"
   },
   "system.screensaver": {
     "label": "Kiokozi cha skrini"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Ingizo"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Lugha"
+  },
+  "setup.region.timezone": {
+    "label": "Eneo la saa"
   },
   "setup.network": {
     "label": "Mtandao"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Anza moja kwa moja"
-  },
-  "setup.reset": {
-    "label": "Weka upya kompyuta"
+  "remove.factory-reset": {
+    "label": "Rejesha Kiwandani"
   },
   "install.package": {
     "label": "Kifurushi"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Nenosiri"
   },
-  "update.timezone": {
-    "label": "Eneo la saa"
-  },
   "update.time": {
     "label": "Muda"
   },
@@ -1255,7 +1252,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,40 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikoni"
+  },
+  "install.style.icons": {
+    "label": "Ikoni"
+  },
+  "remove.icons": {
+    "label": "Ikoni"
+  },
+  "update.icons": {
+    "label": "Ikoni za ziada"
+  },
+  "system.firmware": {
+    "label": "Washa upya hadi BIOS",
+    "description": "Washa upya hadi mipangilio ya firmware ya UEFI"
+  },
+  "setup.region": {
+    "label": "Eneo"
+  },
+  "setup.region.formats": {
+    "label": "Miundo",
+    "description": "Jinsi tarehe, nyakati, nambari na vipimo vinavyoandikwa"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Mchezo wa Game Vibes"
+  },
+  "update.games": {
+    "label": "Michezo ya Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Tengeneza Mchezo"
   }
 }

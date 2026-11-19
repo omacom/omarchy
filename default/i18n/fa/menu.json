@@ -26,11 +26,11 @@
   "update": {
     "label": "به‌روزرسانی"
   },
-  "about": {
-    "label": "درباره"
-  },
   "system": {
     "label": "سیستم"
+  },
+  "system.about": {
+    "label": "درباره"
   },
   "system.screensaver": {
     "label": "محافظ صفحه"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "ورودی"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "زبان"
+  },
+  "setup.region.timezone": {
+    "label": "منطقه زمانی"
   },
   "setup.network": {
     "label": "شبکه"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "بوت مستقیم"
-  },
-  "setup.reset": {
-    "label": "بازنشانی رایانه"
+  "remove.factory-reset": {
+    "label": "بازنشانی کارخانه"
   },
   "install.package": {
     "label": "بسته"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "گذرواژه"
   },
-  "update.timezone": {
-    "label": "منطقه زمانی"
-  },
   "update.time": {
     "label": "زمان"
   },
@@ -1255,7 +1252,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,40 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "آیکون‌ها"
+  },
+  "install.style.icons": {
+    "label": "آیکون‌ها"
+  },
+  "remove.icons": {
+    "label": "آیکون‌ها"
+  },
+  "update.icons": {
+    "label": "آیکون‌های اضافی"
+  },
+  "system.firmware": {
+    "label": "راه‌اندازی مجدد به BIOS",
+    "description": "راه‌اندازی مجدد به تنظیمات میان‌افزار UEFI"
+  },
+  "setup.region": {
+    "label": "منطقه"
+  },
+  "setup.region.formats": {
+    "label": "قالب‌ها",
+    "description": "نحوهٔ نوشتن تاریخ‌ها، ساعت‌ها، اعداد و واحدها"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "بازی Game Vibes"
+  },
+  "update.games": {
+    "label": "بازی‌های Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "ساخت بازی"
   }
 }

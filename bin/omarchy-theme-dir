@@ -11,11 +11,17 @@ if [[ -z $theme ]]; then
   exit 1
 fi
 
-theme=$(echo "$theme" | sed -E 's/<[^>]+>//g' | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+theme=$(sed -E 's/<[^>]+>//g' <<< "$theme")
 
 if [[ -z $theme || $theme == .* || $theme == */* ]]; then
   echo "Invalid theme name: $1" >&2
   exit 1
+fi
+
+# A folder of exactly the given name wins, so a hand-made "My Theme" or "Gruvbox" is reachable;
+# otherwise the name omarchy-theme-list shows (Tokyo Night) is turned back into its folder (tokyo-night).
+if [[ ! -d $HOME/.config/omarchy/themes/$theme && ! -d $OMARCHY_PATH/themes/$theme ]]; then
+  theme=$(tr '[:upper:]' '[:lower:]' <<< "$theme" | tr ' ' '-')
 fi
 
 if [[ -d $HOME/.config/omarchy/themes/$theme ]]; then
