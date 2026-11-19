@@ -30,17 +30,17 @@ matching guide before starting:
 - [`capture.md`](capture.md) - screenshots, screen recordings, OCR text capture, and file sharing
 - [`contributing.md`](contributing.md) - reporting Omarchy bugs and submitting fixes upstream
 
-## Critical Safety Rules
+## Safety Rules
 
 For privileged commands, follow the Privilege Escalation rules below: `sudo` when a terminal is available for the password prompt, `pkexec` when it is not. Do not wrap commands that already manage privilege elevation themselves.
 
-**For end-user customization tasks, NEVER modify anything in `/usr/share/omarchy/`** - but READING is safe and encouraged.
+For end-user customization, don't modify anything in `/usr/share/omarchy/`. Reading it is safe and useful.
 
 This directory is owned by the omarchy package. Any local changes will be
 overwritten on the next `omarchy update`.
 
 ```
-/usr/share/omarchy/     # READ-ONLY - NEVER EDIT (reading is OK)
+/usr/share/omarchy/     # read-only: packaged, overwritten on update
 ├── bin/                    # Command source (packaged binaries are on PATH)
 ├── config/                 # Default config templates
 ├── themes/                 # Stock themes
@@ -50,7 +50,7 @@ overwritten on the next `omarchy update`.
 └── install/                # Installation scripts
 ```
 
-**Reading `/usr/share/omarchy/` is SAFE and useful** - do it freely to:
+Read `/usr/share/omarchy/` freely to:
 - Understand how omarchy commands work: `omarchy theme set --help` or `cat $(which omarchy-theme-set)`
 - See default configs before customizing: `cat "$OMARCHY_PATH/config/omarchy/shell.json"`
 - Check stock theme files to copy for customization
@@ -175,13 +175,13 @@ cp ~/.config/hypr/bindings.lua ~/.config/hypr/bindings.lua.bak.$(date +%s)
 # 3. Make changes with Edit tool
 
 # 4. Apply changes
-# - Hyprland: auto-reloads on save, but MUST validate with `hyprctl reload` and `hyprctl configerrors`
+# - Hyprland: auto-reloads on save; still run `hyprctl reload` and `hyprctl configerrors` to catch errors
 # - Omarchy shell: shell.json and user plugin code under ~/.config/omarchy/plugins/ hot-reload on save
 # - Menus/launcher: ~/.config/omarchy/extensions/omarchy-menu.jsonc hot-reloads on save
 # - Terminals: apply with `omarchy restart terminal` (reloads running terminals; foot picks changes up in new windows)
 ```
 
-### Reset to Defaults -- ALWAYS SEEK USER CONFIRMATION BEFORE RUNNING
+### Reset to Defaults (confirm with the user first: this replaces their config)
 
 When customizations go wrong:
 
@@ -201,18 +201,18 @@ omarchy refresh hyprland
 ```bash
 omarchy update                  # Full system update
 omarchy version                 # Show Omarchy version
-omarchy-debug --no-sudo --print # Debug info (ALWAYS use these flags)
+omarchy-debug --no-sudo --print # Debug info
 omarchy system lock             # Lock screen
 omarchy system shutdown         # Shutdown
 omarchy system reboot           # Reboot
 ```
 
-**IMPORTANT:** Always run `omarchy-debug` with `--no-sudo --print` flags to avoid interactive sudo prompts that will hang the terminal.
+Run `omarchy-debug --no-sudo --print` for diagnostics: `--no-sudo` avoids an interactive sudo prompt by skipping privileged kernel-log collection, and `--print` writes the report to the terminal instead of opening an interactive menu.
 
 ## Troubleshooting
 
 ```bash
-# Get debug information (ALWAYS use these flags to avoid interactive prompts)
+# Get debug information
 omarchy-debug --no-sudo --print
 
 # Reset specific config to defaults

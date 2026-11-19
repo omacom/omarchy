@@ -44,7 +44,7 @@ Prefer `{ menu = ... }` and `{ panel = ... }` over running `omarchy-menu toggle 
 
 View current bindings: `omarchy menu keybindings --print`
 
-**IMPORTANT: When re-binding an existing key:**
+**Re-binding an existing key:**
 
 1. First check existing bindings: `omarchy menu keybindings --print`
 2. If the key is already bound, use `o.rebind(...)` to remove the existing binding and add its replacement. It takes the same arguments as `o.bind(...)`.
@@ -56,7 +56,7 @@ Example - rebinding SUPER+F (which is bound to fullscreen by default):
 o.rebind("SUPER + F", "File manager", { launch = "nautilus" })
 ```
 
-Tell the user which action was replaced. Use `hl.unbind(...)` to remove a binding without replacing it.
+Use `hl.unbind(...)` to remove a binding without replacing it.
 
 ## Display/Monitors
 
@@ -76,11 +76,9 @@ List monitors and supported modes: `hyprctl monitors all`
 
 ## Window Rules
 
-**CRITICAL: Hyprland window rules syntax changes frequently between versions.**
+Hyprland's window rule syntax changes between versions, so fetch the current documentation before writing window rules:
+- https://wiki.hypr.land/configuring/core/rules/window-rules/
 
-Before writing ANY window rules, you MUST fetch the current documentation from the official Hyprland wiki:
-- https://wiki.hypr.land/Configuring/Basics/Window-Rules/
-
-DO NOT rely on cached or memorized window rule syntax. The format has changed multiple times and using outdated syntax will cause errors or unexpected behavior.
+Syntax remembered from earlier versions causes errors or unexpected behavior.
 
 Window rules go in `~/.config/hypr/hyprland.lua` or a required Lua module. Prefer Omarchy's `o.window(match, rules)` helper — see examples in `$OMARCHY_PATH/default/hypr/windows.lua`.
