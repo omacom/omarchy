@@ -7,6 +7,7 @@
 //                              the smaller the margin, the harder the level, so it should shrink down the list
 //   node solve.js --replay     the bot's winning inputs, to watch in the real game:
 //                              index.html#replay=<what this prints>
+//   node solve.js --replay 6   just room 6, to watch with index.html#from=6&replay=<what this prints>
 const fs = require('fs'), path = require('path');
 const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const code = src.slice(src.indexOf('// <PHYSICS>'), src.indexOf('// </PHYSICS>'));
@@ -62,7 +63,7 @@ LEVELS.forEach((def, index) => {
     process.exitCode = 1;
     console.log(`${label} NOT BEATEN`);
     def.map.forEach((row, r) => console.log([...row].map((ch, c) => ch === '.' && result.reached.has(c + ',' + r) ? '+' : ch).join('')));
-  } else if (mode === '--replay') replay.push(result.path);
+  } else if (mode === '--replay') replay[index] = result.path;
   else console.log(`${label} beaten in ${result.time.toFixed(1).padStart(4)}s`);
 });
-if (mode === '--replay') console.log(replay.join('.'));
+if (mode === '--replay') console.log(LEVELS.map((_, index) => replay[index] ?? '').join('.'));   // a room left out keeps its place, empty

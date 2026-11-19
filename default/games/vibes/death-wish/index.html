@@ -1104,6 +1104,10 @@ function update(dt) {
   score += dt;
   levelT += dt;
   let dir = (isHeld('right') ? 1 : 0) - (isHeld('left') ? 1 : 0), jump = isHeld('jump');
+  if (wasPressed('jump')) {            // a tap shorter than a frame is already released: it still jumps, as a short hop
+    p.jumpHeld = false;
+    jump = true;
+  }
   if (REPLAY) {                        // one digit every tenth of a second: 0-5 is left, none or right, odd with jump
     const action = Number(REPLAY[cur]?.[Math.floor(replayStep++ / 12)] ?? 2);
     dir = Math.floor(action / 2) - 1; jump = action % 2 === 1;
