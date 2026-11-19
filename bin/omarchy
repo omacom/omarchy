@@ -335,6 +335,8 @@ reset_commands() {
   COMMAND_SUMMARY=() COMMAND_USAGE=() COMMAND_ARGS=() COMMAND_EXAMPLES=() COMMAND_REQUIRES_SUDO=()
   COMMAND_HIDDEN=() COMMAND_ALIASES=() COMMAND_HAS_SUMMARY=() COMMAND_METADATA_ERRORS=()
   ROUTE_TO_KEY=() ROUTE_IS_ALIAS=() BINARY_TO_KEY=()
+  # A cleared table is no longer loaded: an expanded abbreviation re-enters dispatch after the candidates filled it.
+  COMMANDS_LOADED="false"
 }
 
 load_commands() {

@@ -1049,6 +1049,20 @@ assert_output_contains "root command with children and an alias is a single abbr
 output=$("$TMPDIR/omarchy" abbrro ch)
 assert_output_contains "abbreviated child of a root command dispatches" "$output" "abbrroot-child-ran"
 
+# A route that only metadata defines, like `omarchy share` from omarchy-menu-share, has no filename
+# for the fast path to find, so its expanded abbreviation goes through a reloaded command table.
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Abbreviation test metadata route\n'
+  printf '# omarchy:group=abbrmeta\n'
+  printf '# omarchy:name=\n'
+  printf 'echo "abbrmeta-ran args=[$*]"\n'
+} >"$TMPDIR/omarchy-menu-abbrmeta"
+chmod +x "$TMPDIR/omarchy-menu-abbrmeta"
+
+output=$("$TMPDIR/omarchy" abbrm --help 2>&1)
+assert_output_contains "abbreviated metadata-only route renders its help" "$output" "omarchy-menu-abbrmeta"
+
 # Command help shows the canonical route first and the shortest abbreviation after it, only when one exists.
 output=$("$TMPDIR/omarchy" abbrone update --help)
 assert_output_contains "command help lists the short form" "$output" "Short form:"$'\n'"  omarchy a upd"
