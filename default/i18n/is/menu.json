@@ -26,11 +26,11 @@
   "update": {
     "label": "Uppfæra"
   },
-  "about": {
-    "label": "Um"
-  },
   "system": {
     "label": "Kerfi"
+  },
+  "system.about": {
+    "label": "Um"
   },
   "system.screensaver": {
     "label": "Skjáverji"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Inntak"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Tungumál"
+  },
+  "setup.region.timezone": {
+    "label": "Tímabelti"
   },
   "setup.network": {
     "label": "Net"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Bein ræsing"
-  },
-  "setup.reset": {
-    "label": "Endurstilla tölvu"
+  "remove.factory-reset": {
+    "label": "Verksmiðjuendurstilling"
   },
   "install.package": {
     "label": "Pakki"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Lykilorð"
   },
-  "update.timezone": {
-    "label": "Tímabelti"
-  },
   "update.time": {
     "label": "Tími"
   },
@@ -1195,7 +1192,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Hrunupptaka á"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,40 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Tákn"
+  },
+  "install.style.icons": {
+    "label": "Tákn"
+  },
+  "remove.icons": {
+    "label": "Tákn"
+  },
+  "update.icons": {
+    "label": "Aukatákn"
+  },
+  "system.firmware": {
+    "label": "Endurræsa í BIOS",
+    "description": "Endurræsa í UEFI-vélbúnaðaruppsetningu"
+  },
+  "setup.region": {
+    "label": "Svæði"
+  },
+  "setup.region.formats": {
+    "label": "Snið",
+    "description": "Hvernig dagsetningar, tímar, tölur og einingar eru skrifaðar"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes-leikur"
+  },
+  "update.games": {
+    "label": "Game Vibes-leikir"
+  },
+  "agent.make.game": {
+    "label": "Búa til leik"
   }
 }

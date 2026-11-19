@@ -68,6 +68,27 @@ if HOME=$home bash "$ROOT/bin/omarchy-chromium-add-feature" 'Foo/Bar' 2>/dev/nul
 fi
 pass "the feature helper refuses a name that isn't a Chromium feature"
 
+# Whatever writes a fresh flags file has to put the camera back, as it does the
+# video decoding settings.
+for command in omarchy-refresh-config omarchy-install-chromium-copy-url omarchy-install-chromium-ytdlp; do
+  printf '#!/bin/bash\nexit 0\n' >"$test_tmp/bin/$command"
+done
+cat >"$test_tmp/bin/omarchy-refresh-config" <<STUB
+#!/bin/bash
+cp "$shipped" "\$HOME/.config/\$1"
+STUB
+chmod +x "$test_tmp/bin"/*
+
+home=$(new_home refreshed)
+cp "$shipped" "$home/.config/chromium-flags.conf"
+HOME=$home bash "$helper"
+HOME=$home bash "$ROOT/bin/omarchy-refresh-chromium" || fail "a Snapdragon laptop refreshes Chromium's flags"
+grep -Eq -- '^--enable-features=([^[:space:]]*,)?WebRtcPipeWireCamera(,|$)' "$home/.config/chromium-flags.conf" ||
+  fail "refreshing Chromium's flags keeps the PipeWire camera" "$(cat "$home/.config/chromium-flags.conf")"
+grep -Eq -- '^--enable-features=([^[:space:]]*,)?AcceleratedVideoDecoder(,|$)' "$home/.config/chromium-flags.conf" ||
+  fail "refreshing Chromium's flags keeps video decoding" "$(cat "$home/.config/chromium-flags.conf")"
+pass "refreshing Chromium's flags keeps the PipeWire camera and video decoding"
+
 rm "$OMARCHY_TEST_QUALCOMM"
 home=$(new_home other)
 cp "$shipped" "$home/.config/chromium-flags.conf"
