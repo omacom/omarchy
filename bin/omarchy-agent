@@ -123,16 +123,14 @@ fi
 
 # Omarchy ships without a default, so there is nothing to launch until one is
 # picked. --pick offers the choice instead of the error, which is what the
-# keybinding wants: a keypress that opens nothing explains nothing. It returns
-# after summoning rather than exec-ing the menu, so a caller running in a
-# terminal (the Quake console seed) stays open behind the picker.
+# keybinding wants: a keypress that opens nothing explains nothing.
 if [[ -z $agent ]]; then
   if [[ $pick == "true" ]]; then
-    omarchy-menu summon agent.harness
-    exit 0
+    exec omarchy-menu summon agent.harness
+  else
+    echo "Choose default agent with: omarchy default agent <name>" >&2
+    exit 1
   fi
-  echo "Choose default agent with: omarchy default agent <name>" >&2
-  exit 1
 fi
 
 # OpenClaw's launcher sets OpenClaw up when the package became the seed before

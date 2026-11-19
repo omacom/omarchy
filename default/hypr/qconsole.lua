@@ -24,15 +24,17 @@ local PICKER_PENDING_TIMEOUT_MS = 3000
 -- from while misc.initial_workspace_tracking is on, and looknfeel turns it off.
 -- Omarchy ships without a default agent, so --pick offers the choice instead
 -- of an empty console that explains nothing. The picker is a menu overlay,
--- not a window on the console, so when no default agent is set the seed runs
--- inline in a marked terminal: that window holds the console open and takes
--- focus back when the picker is dismissed, survives Hyprland reloads, runs a
--- running local model inline without spawning an extra shell, and is closed
--- once a real agent window arrives. One that has to be installed first does so
--- in a floating terminal and then moves into the console; see
--- omarchy-default-agent. A console created by moving a window onto it is not
--- empty, and is left alone. --prefer-local opens the agent on the local model
--- when one is running, and on the usual one otherwise.
+-- not a window on the console, so when no default agent is set the seed first
+-- tries a running local model in a normal agent window, and only falls back to
+-- a marked placeholder terminal behind the picker when no agent can launch:
+-- that placeholder holds the console open and takes focus back when the picker
+-- is dismissed, survives Hyprland reloads, and is closed once a real agent
+-- window arrives without ever colliding with a running local agent session.
+-- One that has to be installed first does so in a floating terminal and then
+-- moves into the console; see omarchy-default-agent. A console created by
+-- moving a window onto it is not empty, and is left alone. --prefer-local
+-- opens the agent on the local model when one is running, and on the usual one
+-- otherwise.
 local picker_timer = nil
 local picker_pending = false
 local picker_pending_timer = nil
@@ -109,10 +111,11 @@ local function close_seed_if_agent_present()
     end
   end
 
-  if has_agent and #seeds > 0 then
+  if has_agent then
     cancel_picker_timer()
     clear_picker_pending()
     picker_over_console = false
+    restore_timer = cancel_timer(restore_timer)
     for _, seed in ipairs(seeds) do
       if seed.address then
         hl.dispatch(hl.dsp.window.close({ window = "address:" .. seed.address }))
@@ -128,7 +131,9 @@ hl.on("workspace.created", function(ws)
     else
       mark_picker_pending()
       hl.exec_cmd(
-        "omarchy-launch-tui --app-id=" .. SEED_CLASS .. " bash -c 'omarchy-agent --inline --pick --prefer-local && exec bash'",
+        "omarchy-agent --prefer-local 2>/dev/null || omarchy-launch-tui --app-id="
+          .. SEED_CLASS
+          .. " bash -c 'omarchy-menu summon agent.harness; exec bash'",
         { workspace = CONSOLE .. " silent" }
       )
     end

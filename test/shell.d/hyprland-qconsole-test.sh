@@ -68,8 +68,12 @@ handlers["workspace.created"]({ name = "special:qconsole", is_empty = false })
 handlers["workspace.created"]({ name = "special:scratchpad", is_empty = true })
 assert(#spawned == 0, "only an empty console is seeded")
 handlers["workspace.created"]({ name = "special:qconsole", is_empty = true })
-assert(#spawned == 1 and spawned[1].cmd == "omarchy-launch-tui --app-id=org.omarchy.qconsole-seed bash -c 'omarchy-agent --inline --pick --prefer-local && exec bash'",
-  "console without a default agent seeds with a marked inline seed terminal")
+assert(
+  #spawned == 1
+    and spawned[1].cmd
+      == "omarchy-agent --prefer-local 2>/dev/null || omarchy-launch-tui --app-id=org.omarchy.qconsole-seed bash -c 'omarchy-menu summon agent.harness; exec bash'",
+  "console without a default agent tries a running local model before falling back to a marked seed terminal"
+)
 assert(spawned[1].rules.workspace == "special:qconsole silent",
   "the seed is pinned to the console rather than trusting the spawn to inherit it")
 
@@ -463,5 +467,32 @@ env.handlers["layer.closed"]({ namespace = "omarchy-menu" })
 env.set_workspace({ name = "special:qconsole", visible = false })
 env.run_timers(1)
 assert(#env.dispatches == 0, "unrelated omarchy-menu overlays do not trigger console recovery")
+
+-- 7. Without a default agent, a running local agent launches as org.omarchy.agent
+-- rather than inside the seed placeholder: it clears picker_pending, is never
+-- closed when another agent window joins the console, and reopening never pops
+-- the picker over it.
+env = load_qconsole({ name = "special:qconsole", visible = true }, {})
+env.handlers["workspace.created"]({ name = "special:qconsole", is_empty = true })
+env.set_windows({ { address = "0xlocal", class = "org.omarchy.agent", floating = false } })
+env.handlers["window.open"]()
+-- An unrelated menu after the local agent maps must not trigger recovery.
+env.handlers["layer.opened"]({ namespace = "omarchy-menu" })
+env.handlers["layer.closed"]({ namespace = "omarchy-menu" })
+env.set_workspace({ name = "special:qconsole", visible = false })
+env.run_timers(1)
+assert(#env.dispatches == 0, "a local agent opening clears picker_pending and closes nothing")
+-- Reopening the console with a running local agent must not summon the picker.
+env.set_workspace({ name = "special:qconsole", visible = true })
+env.handlers["workspace.special_active"]({ name = "special:qconsole" }, env.monitor)
+env.run_timers(1000)
+assert(#env.spawned == 1, "reopening a console with a running local agent does not summon the picker")
+-- Moving another agent window onto the console must leave the local agent open.
+env.set_windows({
+  { address = "0xlocal", class = "org.omarchy.agent", floating = false },
+  { address = "0xother", class = "org.omarchy.agent", floating = false },
+})
+env.handlers["window.move_to_workspace"]()
+assert(#env.dispatches == 0, "moving another agent onto the console does not close a running local agent")
 LUA
 pass "console picker lifecycle and seed cleanup work across reloads"
