@@ -27,7 +27,7 @@ dir_matches_mode_mask() {
 
   [[ -d $dir && ! -L $dir ]] || return 1
   read -r owner mode type < <(LC_ALL=C stat -c '%u %a %F' -- "$dir" 2>/dev/null) || return 1
-  [[ $type == "directory" && $owner == "$EUID" && $mode =~ ^[0-7]+$ ]] || return 1
+  [[ $type == "directory" && $owner == $EUID && $mode =~ ^[0-7]+$ ]] || return 1
   (( (8#$mode & 8#$forbidden_mask) == 0 ))
 }
 
@@ -117,7 +117,7 @@ if [[ $pinned == "true" ]]; then
         target_x=$((cur_x + offset_x))
         target_y=$((cur_y + offset_y))
 
-        if [[ -z $saved_monitor || $monitor_id != "$saved_monitor" ]]; then
+        if [[ -z $saved_monitor || $monitor_id != $saved_monitor ]]; then
           area_x=$((cur_x + res_l))
           area_y=$((cur_y + res_t))
           area_w=$((cur_w - res_l - res_r))

@@ -175,9 +175,9 @@ unset_sig="omarchy-pop-test-$$"
 run_pop '{"address":"0x333","pinned":false,"floating":true,"monitor":0,"size":[720,540],"at":[140,180]}' "" "$unset_sig"
 grep -Fq 'hl.dsp.window.tag({ window = "address:0x333", tag = "+pop" })' "$test_tmp/dispatch.log" ||
   fail "popping still succeeds when XDG_RUNTIME_DIR is unset" "$(<"$test_tmp/dispatch.log")"
-[[ ! -e "/tmp/omarchy/windows/$unset_sig/pop-0x333-geometry" ]] ||
+[[ ! -e /tmp/omarchy/windows/$unset_sig/pop-0x333-geometry ]] ||
   fail "unset XDG_RUNTIME_DIR must not fall back to shared /tmp/omarchy"
-[[ ! -e "$test_tmp/state/omarchy/windows/pop-0x333-geometry" ]] ||
+[[ ! -e $test_tmp/state/omarchy/windows/pop-0x333-geometry ]] ||
   fail "unset XDG_RUNTIME_DIR must not write under persistent XDG_STATE_HOME"
 pass "unset XDG_RUNTIME_DIR skips geometry storage without touching /tmp"
 
@@ -189,12 +189,12 @@ ln -s "$test_tmp/victim" "$test_tmp/shared-run/omarchy/windows/test-sig/pop-0x44
 run_pop '{"address":"0x444","pinned":false,"floating":true,"monitor":0,"size":[720,540],"at":[140,180]}' "$test_tmp/shared-run"
 [[ $(<"$test_tmp/victim") == "do-not-overwrite" ]] ||
   fail "permissive XDG_RUNTIME_DIR must not follow or overwrite a symlink target"
-[[ -L "$test_tmp/shared-run/omarchy/windows/test-sig/pop-0x444-geometry" ]] ||
+[[ -L $test_tmp/shared-run/omarchy/windows/test-sig/pop-0x444-geometry ]] ||
   fail "permissive XDG_RUNTIME_DIR must be ignored completely"
 
 ln -s "$test_tmp/run" "$test_tmp/symlink-run"
 run_pop '{"address":"0x555","pinned":false,"floating":true,"monitor":0,"size":[720,540],"at":[140,180]}' "$test_tmp/symlink-run"
-[[ ! -e "$test_tmp/run/omarchy/windows/test-sig/pop-0x555-geometry" ]] ||
+[[ ! -e $test_tmp/run/omarchy/windows/test-sig/pop-0x555-geometry ]] ||
   fail "symlink XDG_RUNTIME_DIR must be rejected"
 
 printf 'do-not-overwrite\n' >"$test_tmp/victim-private"
@@ -202,6 +202,6 @@ ln -s "$test_tmp/victim-private" "$test_tmp/run/omarchy/windows/test-sig/pop-0x6
 run_pop '{"address":"0x666","pinned":false,"floating":true,"monitor":0,"size":[720,540],"at":[140,180]}' "$test_tmp/run"
 [[ $(<"$test_tmp/victim-private") == "do-not-overwrite" ]] ||
   fail "atomic geometry write must never follow a symlink target"
-[[ ! -L "$test_tmp/run/omarchy/windows/test-sig/pop-0x666-geometry" && -f "$test_tmp/run/omarchy/windows/test-sig/pop-0x666-geometry" ]] ||
+[[ ! -L $test_tmp/run/omarchy/windows/test-sig/pop-0x666-geometry && -f $test_tmp/run/omarchy/windows/test-sig/pop-0x666-geometry ]] ||
   fail "atomic geometry write replaces a symlink with a regular file"
 pass "unsafe runtime dirs and symlink targets are rejected and never overwritten"
