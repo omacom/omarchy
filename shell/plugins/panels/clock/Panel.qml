@@ -99,7 +99,7 @@ Panel {
   // picks every timer back up where it was: the records are timestamps, so
   // nothing drifts while the shell is down. Nothing is written until the
   // file has been read, or an early save would wipe what it held.
-  readonly property string timersStateDir: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy"
+  readonly property string timersStateDir: Quickshell.env("HOME") + "/.local/state/omarchy"
   readonly property string timersStatePath: timersStateDir + "/clock-timers.json"
   property bool timersRestored: false
   // What the file last held, as far as this instance knows: a reload that
@@ -451,10 +451,13 @@ Panel {
   // The bar builds this widget once per monitor, and every instance shares
   // the state file. Only the first one settles finished timers, so each
   // notifies once; the others pick the result up from the file.
+  // Until the bar has registered its widgets nobody leads: at startup every
+  // instance reads the file before that, and each would otherwise settle the
+  // same expired timers. The ticker keeps asking, so the leader catches up.
   function isTimerLeader() {
     if (!root.bar || typeof root.bar.moduleWidgets !== "function") return true
     var instances = root.bar.moduleWidgets(root.moduleName)
-    return instances.length === 0 || instances[0] === root.barIdentity
+    return instances.length > 0 && instances[0] === root.barIdentity
   }
 
   onTimersChanged: saveTimers()
@@ -1225,10 +1228,12 @@ Panel {
                       onClicked: root.toggleTimerPause(timerRow.modelData.id)
                     }
 
+                    // Countdowns keep the reset slot empty, so every row's
+                    // time and rail line up.
                     PanelActionButton {
                       id: timerResetButton
-                      visible: timerRow.stopwatch
-                      width: visible ? implicitWidth : 0
+                      opacity: timerRow.stopwatch ? 1 : 0
+                      enabled: timerRow.stopwatch
                       anchors.right: timerPauseButton.left
                       anchors.verticalCenter: parent.verticalCenter
                       iconText: "󰑐"
