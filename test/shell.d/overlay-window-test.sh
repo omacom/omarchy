@@ -65,21 +65,23 @@ assertEqual(focusedScreen({ focusedMonitor: null }, { screens: [] }), null,
 const shownHandler = /onShownChanged: \{([\s\S]*?)\n  \}/.exec(overlay)[1]
 let refreshed = 0
 const Hyprland = { refreshMonitors() { refreshed++ } }
-const changeShown = new Function('shown', 'focusedScreen', 'Hyprland', `let targetScreen = null; ${shownHandler}; return targetScreen`)
-assertEqual(changeShown(false, () => external, Hyprland), null, 'closing drops the previous screen reference')
+const changeShown = new Function('shown', 'targetScreen', 'focusedScreen', 'Hyprland', `${shownHandler}; return targetScreen`)
+assertEqual(changeShown(false, screen, () => external, Hyprland), screen, 'closing keeps the parked surface on its current screen')
 assertEqual(refreshed, 0, 'closing does not refresh monitor data')
-assertEqual(changeShown(true, () => screen, Hyprland), screen, 'reopening selects a current screen')
+assertEqual(changeShown(true, screen, () => screen, Hyprland), screen, 'reopening on the same screen keeps the parked screen')
 assertEqual(refreshed, 1, 'opening refreshes monitor scales after a live change while closed')
+assertEqual(changeShown(true, screen, () => external, Hyprland), external, 'opening on another focused screen moves the overlay there')
+assertEqual(refreshed, 2, 'opening on another screen refreshes monitor scales')
 const scaleHandler = /onDevicePixelRatioChanged: ([^\n]+)/.exec(overlay)[1]
 const changeScale = new Function('shown', 'Hyprland', scaleHandler)
 changeScale(false, Hyprland)
-assertEqual(refreshed, 1, 'scale changes on hidden windows do not refresh monitor data')
+assertEqual(refreshed, 2, 'scale changes on hidden windows do not refresh monitor data')
 const changedScreen = { name: 'eDP-1', width: 960, height: 600 }
 assert(!ready(true, true, 960, 600, changedScreen, monitor, 2),
   'a stale monitor scale keeps content transparent after a live scale change')
 Hyprland.refreshMonitors = () => { refreshed++; monitor.scale = 2 }
 changeScale(true, Hyprland)
-assertEqual(refreshed, 2, 'a showing window refreshes monitor scales when Qt receives a live change')
+assertEqual(refreshed, 3, 'a showing window refreshes monitor scales when Qt receives a live change')
 assert(ready(true, true, 960, 600, changedScreen, monitor, 2),
   'fresh monitor data lets content reveal at the new scale')
 
@@ -99,13 +101,19 @@ assertEqual(window.targetScreen, screen, 'connecting another screen does not mov
 window.shown = false
 window.targetScreen = null
 screensChanged(window, { screens: [screen, external] }, Qt)
-assertEqual(window.targetScreen, null, 'screen changes leave a closed overlay unmapped')
+assertEqual(window.targetScreen, external, 'screen changes park an unattached closed overlay on the focused screen')
+window.targetScreen = external
+window.focusedScreen = () => screen
+screensChanged(window, { screens: [screen] }, Qt)
+assertEqual(window.targetScreen, null, 'removing a closed overlay screen unmaps before teardown')
+pending.shift()()
+assertEqual(window.targetScreen, screen, 'a closed overlay re-parks on a remaining screen after disconnect')
 window.shown = true
 window.targetScreen = external
 screensChanged(window, { screens: [screen] }, Qt)
 window.shown = false
 pending.shift()()
-assertEqual(window.targetScreen, null, 'closing before a deferred remap prevents a stale reopen')
+assertEqual(window.targetScreen, screen, 'closing before a deferred remap re-parks on a remaining screen')
 window.shown = true
 window.targetScreen = external
 screensChanged(window, { screens: [screen] }, Qt)

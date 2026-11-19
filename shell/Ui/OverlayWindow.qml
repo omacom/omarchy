@@ -73,19 +73,22 @@ PanelWindow {
   Connections {
     target: Quickshell
     function onScreensChanged() {
-      if (!window.targetScreen) window.targetScreen = window.focusedScreen()
-      if (window.shown && Quickshell.screens.indexOf(window.targetScreen) < 0) {
+      if (!window.targetScreen) {
+        window.targetScreen = window.focusedScreen()
+        return
+      }
+      if (Quickshell.screens.indexOf(window.targetScreen) < 0) {
         window.targetScreen = null
         // Let the removed output finish closing its old window before mapping
         // a replacement, rather than recreating it during Qt's teardown.
         Qt.callLater(function() {
-          if (window.shown && !window.targetScreen) window.targetScreen = window.focusedScreen()
+          if (!window.targetScreen) window.targetScreen = window.focusedScreen()
         })
       }
     }
   }
 
-  visible: true
+  visible: !!targetScreen && !!targetMonitor
   screen: targetScreen
   anchors { top: true; left: true; bottom: shown; right: shown }
   implicitWidth: 1
