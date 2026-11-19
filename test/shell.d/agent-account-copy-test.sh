@@ -178,6 +178,16 @@ try:
   assert child.stdout.readline().strip() == "ready"
   os.chdir(Path.home())
   assert not transfer.home_in_use("claude", state.primary_home("claude")), "a process without HOME is not matched against the checker's directory"
+  os.chdir(previous_cwd)
+  # And it is still found when its owner's home is the one being replaced.
+  class Owner:
+    pw_dir = str(Path.home())
+  real_getpwuid = transfer.pwd.getpwuid
+  transfer.pwd.getpwuid = lambda uid: Owner
+  try:
+    assert transfer.home_in_use("claude", state.primary_home("claude")), "a process without HOME is found in its owner's home"
+  finally:
+    transfer.pwd.getpwuid = real_getpwuid
 finally:
   os.chdir(previous_cwd)
   child.terminate()
