@@ -7,6 +7,6 @@
 # directory, so ask the toggle that owns them.
 if [[ -f $OMARCHY_PATH/default/hypr/toggles/$1.lua ]]; then
   exec omarchy-hyprland-toggle-enabled "$1"
+else
+  [[ -f "$HOME/.local/state/omarchy/toggles/$1" ]]
 fi
-
-[[ -f "$HOME/.local/state/omarchy/toggles/$1" ]]
