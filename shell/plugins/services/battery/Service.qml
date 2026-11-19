@@ -67,7 +67,7 @@ Item {
     if (clearWarningProcess.running) return
     clearWarningProcess.command = [
       "omarchy-notification-dismiss",
-      "Time to recharge!"
+      I18n.t("battery.lowTitle")
     ]
     clearWarningProcess.running = true
   }

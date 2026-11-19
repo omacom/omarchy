@@ -10,7 +10,14 @@ const persisted = { notifiedLowBattery: false }
 const dismissal = { running: false, command: [] }
 let next = { notifiedLowBattery: false, notify: false }
 let warnings = 0
-const context = vm.createContext({ root: state, persisted, clearWarningProcess: dismissal, UPower: {}, UPowerDeviceState: {}, batteryThreshold: 10, BatteryModel: { shouldWarnLowBattery: () => next }, sendLowBatteryWarning: () => warnings++ })
+const localizedTitle = 'Il faut recharger !'
+const I18n = {
+  t(key) {
+    assertEqual(key, 'battery.lowTitle', 'dismissal uses the same key as the low-battery notification')
+    return localizedTitle
+  }
+}
+const context = vm.createContext({ I18n, root: state, persisted, clearWarningProcess: dismissal, UPower: {}, UPowerDeviceState: {}, batteryThreshold: 10, BatteryModel: { shouldWarnLowBattery: () => next }, sendLowBatteryWarning: () => warnings++ })
 for (const name of ['checkBattery', 'clearLowBatteryWarning']) {
   const match = qml.match(new RegExp('function ' + name + '\\(([^)]*)\\) \\{([\\s\\S]*?)\\n  \\}'))
   assert(match, name + ' exists')
@@ -24,7 +31,7 @@ state.checkBattery()
 assertEqual(warnings, 1, 'low battery sends warning')
 next = { notifiedLowBattery: false, notify: false }
 state.checkBattery()
-assertDeepEqual(dismissal.command, ['omarchy-notification-dismiss', 'Time to recharge!'], 'leaving low battery invokes dismissal from checkBattery')
+assertDeepEqual(dismissal.command, ['omarchy-notification-dismiss', localizedTitle], 'leaving low battery invokes dismissal from checkBattery')
 assertEqual(state.lowBatteryClearPending, true, 'notification insertion race retains dismissal intent')
 dismissal.command = []
 state.checkBattery()
