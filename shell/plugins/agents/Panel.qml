@@ -2563,6 +2563,8 @@ Panel {
         text: section.running ? Commons.I18n.t("agents.localUsingRam").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
           : section.needsGib > 0 ? Commons.I18n.t("agents.localNeedsRam").arg(Commons.I18n.formatNumber(Math.round(section.needsGib))) : ""
         color: !section.running && root.localStartBlocked(section.model) ? Commons.Color.warning : root.dim
+        // Steps back with the name, except as a warning that it won't fit.
+        opacity: section.resting && !root.localStartBlocked(section.model) ? 0.45 : 1
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
         elide: Text.ElideRight
