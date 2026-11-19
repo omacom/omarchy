@@ -140,8 +140,6 @@
   "firstRun.agentTitle": "Nastavit výchozího agenta",
   "firstRun.fingerprintBody": "Povolte sudo a odemykání otiskem prstu.",
   "firstRun.fingerprintTitle": "Nastavení čtečky otisků prstů",
-  "firstRun.gitBody": "Identita pro commity kódu.",
-  "firstRun.gitTitle": "Nastavte Git",
   "firstRun.keybindingsBody": "Super + K pro přehled zkratek.\nSuper + Space pro Omarchy Menu.",
   "firstRun.keybindingsTitle": "Poznejte klávesové zkratky",
   "firstRun.updateBody": "Kliknutím aktualizujete systém.",

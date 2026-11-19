@@ -1195,7 +1195,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Strigčių fiksavimas įjungtas"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {

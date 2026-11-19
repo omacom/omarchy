@@ -1255,7 +1255,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Zajem sesutij vklopljen"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {

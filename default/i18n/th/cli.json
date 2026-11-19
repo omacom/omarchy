@@ -138,8 +138,6 @@
   "firstRun.agentTitle": "ตั้งเอเจนต์เริ่มต้น",
   "firstRun.fingerprintBody": "เปิดใช้ sudo และปลดล็อกด้วยลายนิ้วมือ",
   "firstRun.fingerprintTitle": "ตั้งค่าเครื่องอ่านลายนิ้วมือ",
-  "firstRun.gitBody": "ข้อมูลระบุตัวตนสำหรับคอมมิตโค้ด",
-  "firstRun.gitTitle": "ตั้งค่า Git",
   "firstRun.keybindingsBody": "Super + K เปิดชีทสรุป\nSuper + Space เปิดเมนู Omarchy",
   "firstRun.keybindingsTitle": "เรียนรู้ปุ่มลัด",
   "firstRun.updateBody": "คลิกเพื่ออัปเดตระบบ",

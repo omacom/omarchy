@@ -138,8 +138,6 @@
   "firstRun.agentTitle": "デフォルトのエージェントを設定",
   "firstRun.fingerprintBody": "指紋でsudoとロック解除を有効にします。",
   "firstRun.fingerprintTitle": "指紋リーダーを設定",
-  "firstRun.gitBody": "コードのコミットに使う識別情報です。",
-  "firstRun.gitTitle": "Git の設定",
   "firstRun.keybindingsBody": "チートシートは Super + K。\nOmarchy Menu は Super + Space。",
   "firstRun.keybindingsTitle": "キーバインドを学ぶ",
   "firstRun.updateBody": "クリックしてシステムを更新してください。",

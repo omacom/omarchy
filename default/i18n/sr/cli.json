@@ -140,8 +140,6 @@
   "firstRun.agentTitle": "Подесите подразумеваног агента",
   "firstRun.fingerprintBody": "Омогућите sudo и откључавање отиском прста.",
   "firstRun.fingerprintTitle": "Подешавање читача отиска прста",
-  "firstRun.gitBody": "Идентификација за комитовање кода.",
-  "firstRun.gitTitle": "Подешавање Git-а",
   "firstRun.keybindingsBody": "Super + K за пречице.\nSuper + Space за Omarchy мени.",
   "firstRun.keybindingsTitle": "Научите пречице",
   "firstRun.updateBody": "Кликните да ажурирате систем.",
