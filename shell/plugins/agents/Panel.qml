@@ -2446,6 +2446,8 @@ Panel {
         readonly property bool image: !!section.model && root.makesInFantasi(section.model)
         visible: download || (section.model ? section.running && (!section.remote || (section.paired && !section.offline)) : root.harnessFor(section.provider) !== "")
         iconText: download ? (section.offer.link ? "󰌘" : "󰇚") : image ? "󰋩" : "󰞷"
+        // Fantasi's own launcher icon, as the icon set draws it, on a model made with in it.
+        iconSource: !download && image ? Quickshell.iconPath("fantasi", true) : ""
         tooltipText: download ? (section.offer.link ? Commons.I18n.t("agents.linkSetUp") : Commons.I18n.t("agents.localDownload"))
           : image ? Commons.I18n.t("agents.openFantasi") : section.model ? Commons.I18n.t("agents.localLaunch") : Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
         foreground: root.foreground
