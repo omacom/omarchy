@@ -20,6 +20,8 @@ Item {
   readonly property string position: DockModel.normalizePosition(dockConfig.position)
   readonly property bool vertical: DockModel.isVertical(position)
   readonly property bool autohide: dockConfig.autohide === true
+  // Off unless chosen: a click on the app in focus minimizes it.
+  readonly property bool clickMinimize: dockConfig.clickMinimize === true
 
   // The dock's order for the session, as desktop ids, set when the user moves
   // an app: a drag moves it, and keeping it in the dock puts it at the end. An
@@ -170,19 +172,29 @@ Item {
     if (entry && root.appLibrary) root.appLibrary.launch(entry.id, entry.name)
   }
 
-  function activate(item) {
+  // The workspace is the one in front of the user on the dock's own screen:
+  // the dock takes no keyboard focus, so the focused monitor can be another.
+  function activate(item, workspaceId) {
     if (!item) return
-    var monitor = Hyprland.focusedMonitor
-    var workspaceId = monitor && monitor.activeWorkspace ? monitor.activeWorkspace.id : -1
-    var mode = root.appLibrary ? root.appLibrary.dockClickMode(item.key) : ""
-    var index = DockModel.pickClickWindow(mode, item.windows.map(function(window) {
-      return { workspaceId: window.workspaceId, minimized: window.minimized, activated: window.toplevel.activated }
-    }), workspaceId)
-    if (index < 0) {
-      root.launch(item)
-      return
+    if (workspaceId === undefined) {
+      var monitor = Hyprland.focusedMonitor
+      workspaceId = monitor && monitor.activeWorkspace ? monitor.activeWorkspace.id : -1
     }
-    root.bringForward(item.windows[index])
+    var mode = root.appLibrary ? root.appLibrary.dockClickMode(item.key) : ""
+    var click = DockModel.clickAction(mode, item.windows.map(function(window) {
+      return { workspaceId: window.workspaceId, minimized: window.minimized, activated: window.toplevel.activated }
+    }), workspaceId, root.clickMinimize)
+    if (click.action === "launch") root.launch(item)
+    else if (click.action === "minimize") root.minimize(item.windows[click.index])
+    else root.bringForward(item.windows[click.index])
+  }
+
+  // Minimizing sends a window to the dock, which brings it back.
+  function minimize(window) {
+    var address = String(window.address || "")
+    if (!address) return
+    if (address.indexOf("0x") !== 0) address = "0x" + address
+    Util.execDetached("omarchy-hyprland-window-minimize " + Util.shellQuote(address))
   }
 
   // A window the dock brings forward lands on top of the others, focused; a

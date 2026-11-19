@@ -487,7 +487,7 @@ PanelWindow {
       }
       window.closeMenu()
       if (event.button === Qt.MiddleButton) window.dock.launch(appSlot.modelData)
-      else window.dock.activate(appSlot.modelData)
+      else window.dock.activate(appSlot.modelData, window.workspaceId)
     }
 
     // Apps are drawn in full, running or not, and one that is starting pulses.
