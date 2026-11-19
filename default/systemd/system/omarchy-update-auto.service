@@ -1,0 +1,12 @@
+[Unit]
+Description=Install Omarchy system updates unattended
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Only the root-owned installed copy runs as root, never a development checkout.
+Environment=OMARCHY_PATH=/usr/share/omarchy
+ExecStart=/usr/bin/omarchy-update-auto-run
+Nice=19
+IOSchedulingClass=idle

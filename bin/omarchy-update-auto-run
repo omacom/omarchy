@@ -1,0 +1,97 @@
+#!/bin/bash -p
+
+# omarchy:summary=Install pending system updates unattended, run by the automatic update timer
+# omarchy:hidden=true
+
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup." >&2
+  exit 126
+fi
+
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+set -euo pipefail
+omarchy_security_sanitize_bash_environment "$0" "$@"
+omarchy_security_require_source_root "$0"
+omarchy_security_install_signal_exit_traps
+
+# Only root-owned installed commands run from here on.
+export PATH=/usr/bin
+export OMARCHY_UPDATE_UNATTENDED=1
+
+power_supply_path="${OMARCHY_POWER_SUPPLY_PATH:-/sys/class/power_supply}"
+lock_path=/run/omarchy-update-auto.lock
+
+on_battery() {
+  local bat
+  for bat in "$power_supply_path"/*; do
+    [[ -r $bat/type && $(<"$bat/type") == "Battery" ]] || continue
+    # A wireless mouse or keyboard registers a Battery too, scoped Device.
+    [[ -r $bat/scope && $(<"$bat/scope") == "Device" ]] && continue
+    [[ -r $bat/status && $(<"$bat/status") == "Discharging" ]] && return 0
+  done
+  return 1
+}
+
+# An interactive omarchy update holds this lock in its user's runtime directory.
+update_running() {
+  local lock
+  for lock in /run/user/*/omarchy-update.lock; do
+    [[ -f $lock ]] || continue
+    flock -n "$lock" true 2>/dev/null || return 0
+  done
+  return 1
+}
+
+# Starting the login notifier by hand reaches sessions that never log in again,
+# so the pending-migration toast appears without waiting for the next login.
+notify_sessions() {
+  local uid name
+  while read -r uid name; do
+    [[ -n $name ]] || continue
+    systemctl --user --machine="$name@.host" --no-block start omarchy-migrate-notify.service 2>/dev/null || true
+  done < <(loginctl list-users --no-legend)
+}
+
+exec {lock_fd}>"$lock_path"
+if ! flock -n "$lock_fd"; then
+  echo "Another automatic update is running."
+  exit 0
+fi
+
+if on_battery; then
+  echo "On battery power, skipping."
+  exit 0
+fi
+
+if update_running; then
+  echo "An Omarchy update is running, skipping."
+  exit 0
+fi
+
+# checkupdates leaves the real sync databases alone: 0 means updates, 2 none.
+updates=0
+checkupdates >/dev/null 2>&1 || updates=$?
+if (( updates == 2 )); then
+  echo "Already up to date."
+  exit 0
+elif (( updates != 0 )); then
+  echo "Could not check for updates." >&2
+  exit 1
+fi
+
+omarchy-update-requires-free-space
+
+# 127 means Snapper is deliberately absent; any other failure already said why
+# and is not worth blocking the update over.
+snapshot_status=0
+omarchy-snapshot create || snapshot_status=$?
+if (( snapshot_status != 0 && snapshot_status != 127 )); then
+  echo "Continuing the update without a snapshot." >&2
+fi
+
+omarchy-update-keyring
+omarchy-update-system-pkgs
+
+notify_sessions

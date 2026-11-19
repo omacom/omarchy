@@ -1,0 +1,12 @@
+[Unit]
+Description=Install Omarchy system updates overnight
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+RandomizedDelaySec=1h
+# A machine that was off or asleep at 03:00 catches up when it next runs.
+Persistent=true
+WakeSystem=true
+
+[Install]
+WantedBy=timers.target
