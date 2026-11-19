@@ -341,6 +341,7 @@ def configure_inner(args, config_home, running):
   if running and changed:
     try:
       run(CONTROLLER + ["ReloadConfig"])
+      run(CONTROLLER + ["ReloadAddonConfig", "s", "classicui"])
     except (OSError, subprocess.CalledProcessError) as error:
       print(f"Input defaults reload deferred until login: {error}", file=sys.stderr)
 

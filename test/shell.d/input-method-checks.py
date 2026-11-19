@@ -30,6 +30,31 @@ class InputMethodTest(unittest.TestCase):
     setup.defaults(self.config)
     self.assertEqual(pinyin.read_text(), "FirstRun=False\nCloudPinyinEnabled=True\nPageSize=7\n")
 
+  def test_classicui_defaults_hide_input_method_label(self):
+    setup.defaults(self.config, fresh=True)
+    classicui = self.config / "fcitx5/conf/classicui.conf"
+    text = classicui.read_text()
+    self.assertEqual(setup.values(text)["ShowInputMethodInformation"], "False")
+    self.assertEqual(setup.sections(text)["Interface"]["ShowInputMethodInformation"], "False")
+
+  def test_classicui_defaults_preserve_existing_settings_and_are_idempotent(self):
+    classicui = self.config / "fcitx5/conf/classicui.conf"
+    classicui.parent.mkdir(parents=True)
+    classicui.write_text("Theme=omarchy\nDarkTheme=omarchy\nFont=\"Noto Sans 12\"\n")
+    self.assertTrue(setup.defaults(self.config))
+    text = classicui.read_text()
+    self.assertIn("Theme=omarchy", text)
+    self.assertIn("DarkTheme=omarchy", text)
+    self.assertIn('Font="Noto Sans 12"', text)
+    self.assertEqual(setup.values(text)["ShowInputMethodInformation"], "False")
+    self.assertEqual(setup.sections(text)["Interface"]["ShowInputMethodInformation"], "False")
+    self.assertFalse(setup.defaults(self.config))
+
+    classicui.write_text("Theme=omarchy\nShowInputMethodInformation=True\n")
+    self.assertTrue(setup.defaults(self.config))
+    self.assertEqual(classicui.read_text(), "Theme=omarchy\nShowInputMethodInformation=False\n")
+    self.assertFalse(setup.defaults(self.config))
+
   def setUp(self):
     self.temporary = tempfile.TemporaryDirectory()
     self.addCleanup(self.temporary.cleanup)
