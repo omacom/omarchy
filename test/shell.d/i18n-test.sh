@@ -26,7 +26,7 @@ assert(badRegistry.length === 0, 'every registry entry is complete with a UTF-8 
 const enMenu = readJson('en/menu.json')
 const menuItems = MenuModel.parseMenuJsonc(fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8'))
 assertEqual(enMenu.root.label, 'Go', 'English menu catalog carries the injected root label')
-assert(menuItems.some((item) => item.id === 'setup.language' && item.provider === 'languages'), 'Setup > Language row uses the languages provider')
+assert(menuItems.some((item) => item.id === 'setup.region.language' && item.provider === 'languages'), 'Setup > Region > Language row uses the languages provider')
 const staleMenu = menuItems.filter((item) => !enMenu[item.id] || enMenu[item.id].label !== item.label || (item.title && enMenu[item.id].title !== item.title) || (item.description && enMenu[item.id].description !== item.description))
 assert(staleMenu.length === 0, 'English menu catalog mirrors the menu definition', JSON.stringify(staleMenu.map((i) => i.id)))
 const orphanMenu = Object.keys(enMenu).filter((id) => id !== 'root' && !menuItems.some((item) => item.id === id))
@@ -122,7 +122,9 @@ const cliKeys = collectKeys(path.join(root, 'bin'), [''], cliKeyPattern)
 for (const key of collectKeys(path.join(root, 'install'), ['.sh', '.hook'], cliKeyPattern)) cliKeys.add(key)
 for (const key of collectKeys(path.join(root, 'default'), ['.py'], cliKeyPattern)) cliKeys.add(key)
 for (const key of collectKeys(path.join(root, 'etc'), ['.jsonc'], cliKeyPattern)) cliKeys.add(key)
-for (const key of collectKeys(path.join(root, 'install/provisioning'), ['setup-form.sh'], /omarchy_form_text ([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g)) cliKeys.add(key)
+const formKeyPattern = /omarchy_form_text ([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g
+for (const key of collectKeys(path.join(root, 'install/provisioning'), ['setup-form.sh', 'oem.sh'], formKeyPattern)) cliKeys.add(key)
+for (const key of collectKeys(path.join(root, 'bin'), ['omarchy-provision-owner'], formKeyPattern)) cliKeys.add(key)
 const unreferencedCli = Object.keys(enCli).filter((key) => !cliKeys.has(key))
 assert(unreferencedCli.length === 0, 'every cli catalog key is referenced', JSON.stringify(unreferencedCli))
 const unknownCli = [...cliKeys].filter((key) => !Object.hasOwn(enCli, key))
@@ -286,6 +288,7 @@ export PATH="$ROOT/bin:$PATH"
 export OMARCHY_LANGUAGE_FILE=$work/language
 export OMARCHY_LOCALE_GEN=$work/locale.gen
 export OMARCHY_LOCALE_REGISTRY=$ROOT/default/i18n/locales.json
+export OMARCHY_REGION_REGISTRY=$ROOT/default/i18n/regions.json
 export XDG_CONFIG_HOME=$work/config
 session_env=$XDG_CONFIG_HOME/uwsm/env.d/50-omarchy-language
 printf '#da_DK.UTF-8 UTF-8\n' >"$OMARCHY_LOCALE_GEN"
@@ -468,6 +471,29 @@ grep -q 'Noto Sans CJK JP' "$cjk_font" && pass "Japanese seeds Japanese glyph fo
 TEST_SUDO_GRANT=1 omarchy-language ko </dev/null 2>/dev/null
 grep -q 'Noto Sans CJK JP' "$cjk_font" && pass "a second CJK language keeps the glyph forms already chosen" || fail "a second CJK language keeps the glyph forms already chosen"
 rm -f "$work/stubs/busctl" "$work/stubs/fcitx5-remote" "$cjk_font"
+
+# Formats set the categories that say how things are written, never the
+# language, from a region the passwordless helper generates; following the
+# language again takes them out of the session.
+region_env=$XDG_CONFIG_HOME/uwsm/env.d/51-omarchy-region
+formats="LC_TIME LC_NUMERIC LC_MONETARY LC_MEASUREMENT LC_PAPER"
+: >"$LOCALE_GEN_LOG"; : >"$ELEVATE_LOG"; : >"$SESSION_ENV_LOG"
+TEST_SUDO_GRANT=1 omarchy-region en-DK </dev/null
+assert_bash_equal "$(cat "$ELEVATE_LOG") $(cat "$LOCALE_GEN_LOG")" "sudo -n omarchy-locale-generate en-DK en_DK.UTF-8" "a region generates its locale through the passwordless helper"
+assert_bash_equal "$(grep '^export' "$region_env" | tr '\n' ' ')" "$(printf 'export %s=en_DK.UTF-8 ' $formats)" "a region sets only the format categories for the next login"
+assert_bash_equal "$(grep -c 'hl.env("LC_[A-Z]*", "en_DK.UTF-8", true)' "$SESSION_ENV_LOG") $(tail -n 1 "$SESSION_ENV_LOG")" "5 restart" "a region hands the format categories to the running session"
+assert_bash_equal "$(omarchy-region)" "en-DK" "omarchy-region reads the region back"
+: >"$SESSION_ENV_LOG"
+omarchy-region default </dev/null
+[[ ! -e $region_env ]] && pass "following the language removes the formats" || fail "following the language removes the formats"
+assert_bash_equal "$(grep -c 'hl.env("LC_[A-Z]*", "", true)' "$SESSION_ENV_LOG")" "5" "following the language clears the formats in the running session"
+assert_bash_equal "$(omarchy-region)" "default" "omarchy-region reports formats that follow the language"
+if omarchy-region en-ZZ </dev/null 2>/dev/null; then
+  fail "omarchy-region rejects unknown codes"
+else
+  pass "omarchy-region rejects unknown codes"
+fi
+[[ ! -e $region_env ]] && pass "an unknown region writes nothing" || fail "an unknown region writes nothing"
 
 # A cancelled polkit prompt must not persist the choice, or the interface
 # would switch with LANG left behind.
