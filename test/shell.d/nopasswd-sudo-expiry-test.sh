@@ -361,6 +361,15 @@ assert_status 1 env TEST_POLICY_FAILURE=1 TEST_STATUS=2 /usr/bin/bash -p "$test_
 ! grep -q '^gum\|__enable ' "$test_tmp/commands" || fail "unsafe grant was offered enablement"
 pass "password-required listings do not block enabling, disabling, or active detection"
 
+# sudo-rs prints the matched entry's tags only on an unfiltered listing.
+rs_entry=$'Sudoers entry:\n    RunAsUsers: ALL\n    RunAsGroups: ALL\n    Commands:\n\tALL'
+rs_grant=$'\nSudoers entry:\n    RunAsUsers: ALL\n    Options: !authenticate\n    Commands:\n\tALL'
+TEST_POLICY=/usr/bin/omarchy-sudo-passwordless TEST_UNFILTERED_POLICY="$rs_entry$rs_grant" \
+  /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active || fail "sudo-rs grant not detected as active"
+assert_status 1 env TEST_POLICY=/usr/bin/omarchy-sudo-passwordless TEST_UNFILTERED_POLICY="$rs_entry" \
+  /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
+pass "active detection reads a sudo-rs grant from the unfiltered listing"
+
 : >"$test_tmp/commands"
 TEST_POLICY_FAILURE=1 TEST_STATUS=2 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
 grep -q '^sudo -kn -- .* __status ' "$test_tmp/commands" || fail "fallback probe must ignore cached credentials"

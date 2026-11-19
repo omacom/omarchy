@@ -334,7 +334,13 @@ STUB_SUDO_RS_LISTING="$rs_listing" ELEVATION_LOG="$test_tmp/elevation" PATH="$rs
   bash "$ROOT/bin/omarchy-dns" Custom </dev/null >/dev/null 2>&1 || true
 [[ $(<"$test_tmp/elevation") == "pkexec /usr/bin/omarchy-dns Custom" ]] ||
   fail "omarchy-dns keeps Custom on polkit when sudo-rs lists only the stock providers" "got: $(<"$test_tmp/elevation")"
-pass "omarchy-dns reads a sudo-rs passwordless grant from the unfiltered listing"
+rs_listing+=$'\nSudoers entry:\n    RunAsUsers: root\n    Options: !authenticate\n    Commands:\n\t/usr/bin/omarchy-theme-set-browser-policy [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]\n'
+: >"$test_tmp/elevation"
+STUB_SUDO_RS_LISTING="$rs_listing" ELEVATION_LOG="$test_tmp/elevation" PATH="$rs_bin:$PATH" \
+  bash "$ROOT/bin/omarchy-theme-set-browser-policy" 1c2027 </dev/null >/dev/null 2>&1 || true
+[[ $(<"$test_tmp/elevation") == "sudo /usr/bin/omarchy-theme-set-browser-policy 1c2027" ]] ||
+  fail "omarchy-theme-set-browser-policy matches a sudo-rs glob grant" "got: $(<"$test_tmp/elevation")"
+pass "helpers read a sudo-rs passwordless grant from the unfiltered listing"
 
 # expect_rejected <drop-in> <command> [args...]
 expect_rejected() {
