@@ -114,28 +114,48 @@ def find_command(name: str) -> str | None:
 # Asking a locked Secret Service for a secret puts the keyring daemon's unlock
 # prompt on screen. A collector runs in the background, often in the seconds
 # after an autologin and before the lock screen whose password unlocks the
-# keyring, so it reads Locked first, which never prompts, and leaves the
-# keyring alone until the next run. Anything short of a clear answer (no
-# busctl, no session bus, no Secret Service) reads as unlocked, as before.
-def secret_service_locked() -> bool:
+# keyring, so it asks first in ways that never prompt, and leaves the keyring
+# alone until the next run. Anything short of a clear answer (no busctl, no
+# session bus, no Secret Service) reads as unlocked, as before.
+def secret_bus(*args: str) -> str:
   busctl = find_command("busctl")
   if not busctl:
-    return False
+    return ""
   try:
     result = subprocess.run(
-      [
-        busctl, "--user", "--timeout=2", "get-property",
-        "org.freedesktop.secrets", "/org/freedesktop/secrets/aliases/default",
-        "org.freedesktop.Secret.Collection", "Locked",
-      ],
+      [busctl, "--user", "--timeout=2", *args],
       capture_output=True,
       text=True,
       timeout=3,
       check=False,
     )
   except (OSError, subprocess.SubprocessError):
+    return ""
+  return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def secret_service_locked() -> bool:
+  """Whether the default collection is locked."""
+  return secret_bus(
+    "get-property", "org.freedesktop.secrets", "/org/freedesktop/secrets/aliases/default",
+    "org.freedesktop.Secret.Collection", "Locked",
+  ) == "b true"
+
+
+def secret_locked(**attributes: str) -> bool:
+  """Whether the secrets matching these attributes all sit in a locked
+  collection: the case where a lookup would prompt, since one in an unlocked
+  collection is simply read. SearchItems lists them without unlocking."""
+  pairs = [part for item in attributes.items() for part in item]
+  answer = secret_bus(
+    "--json=short", "--", "call", "org.freedesktop.secrets", "/org/freedesktop/secrets",
+    "org.freedesktop.Secret.Service", "SearchItems", "a{ss}", str(len(attributes)), *pairs,
+  )
+  try:
+    unlocked, locked = json.loads(answer)["data"]
+  except (ValueError, KeyError, TypeError):
     return False
-  return result.returncode == 0 and result.stdout.strip() == "b true"
+  return bool(locked) and not unlocked
 
 
 # --------------------------------------------------------- untrusted values

@@ -574,12 +574,21 @@ def env_token() -> str:
   return ""
 
 
-def gh_token() -> str:
+def gh_keyring_locked() -> bool:
+  """Whether `gh auth token` would prompt to unlock the keyring. gh asks the
+  keyring to unlock before it looks, whether or not a token is there, unless
+  it signed in with --insecure-storage, which keeps the token in hosts.yml."""
+  return not gh_host_setting("oauth_token") and secret_service_locked()
+
+
+def gh_token() -> str | None:
+  """gh's github.com token; "" when gh has none to give, and None when it
+  wasn't asked because the keyring holding it is locked."""
   exe = find_command("gh")
-  # gh keeps the token in the keyring unless it signed in with
-  # --insecure-storage, which writes it into hosts.yml instead.
-  if not exe or (not gh_host_setting("oauth_token") and secret_service_locked()):
+  if not exe:
     return ""
+  if gh_keyring_locked():
+    return None
   try:
     result = subprocess.run(
       # gh follows GH_HOST without --hostname, and an Enterprise token must
@@ -768,7 +777,7 @@ def fetch_remote_quota(force: bool = False) -> dict[str, Any]:
   # stands, stale, like any other failed check.
   token = token or gh_token()
   if not token:
-    quota = {"available": False, "reason": "keyring-locked" if secret_service_locked() else "no-token"}
+    quota = {"available": False, "reason": "keyring-locked" if token is None else "no-token"}
   else:
     if not cached:
       cached = adopt_legacy_cache(cache.path, token)
