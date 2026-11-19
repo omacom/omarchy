@@ -57,7 +57,7 @@ const HUES = [P.cyan, P.magenta, P.yellow, P.green, P.orange, P.red, P.blue];
 const hueOf = i => HUES[((i % HUES.length) + HUES.length) % HUES.length];
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const FONT = '"JetBrainsMono Nerd Font", ui-monospace, monospace';
-const KEYS_HINT = 'Arrows move · Enter plays · Q when paused, or Esc on a title screen, comes back here · Super + W closes · Super + F makes it a window';
+const KEYS_HINT = 'Arrows move · Enter plays · Q when paused, or Esc on a title screen, comes back here · Super\u00a0+\u00a0W closes · Super\u00a0+\u00a0F makes it a window';
 const MAKE_HINT = 'New games come from the agents panel: Make something cool → Game. It can keep working on one of these too.';
 
 function hash(text) { let h = 2166136261; for (const c of text) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
