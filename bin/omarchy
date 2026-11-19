@@ -606,7 +606,7 @@ load_one_word_routes() {
   local alias_route=""
   local old_ifs="$IFS"
 
-  [[ ${#ONE_WORD_ROUTES[@]} -eq 0 ]] || return
+  (( ${#ONE_WORD_ROUTES[@]} == 0 )) || return
 
   for file in "$OMARCHY_BIN_DIR"/omarchy-*; do
     [[ -f $file && -x $file ]] || continue
