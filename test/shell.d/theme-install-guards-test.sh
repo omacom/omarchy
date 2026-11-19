@@ -225,3 +225,76 @@ grep -Fq "comes with Omarchy" "$test_tmp/out" || fail "omarchy-theme-remove says
 [[ -d $ROOT/themes/tokyo-night ]] || fail "omarchy-theme-remove leaves the bundled theme alone"
 
 pass "a theme is removed by the name omarchy-theme-list shows"
+
+# Removing an active user theme deletes it first and switches away to bundled
+# tokyo-night, even when the removed folder is named "Tokyo Night" or overlays
+# "tokyo-night". Removing an inactive theme leaves the current theme untouched.
+active_home="$test_tmp/active-home"
+active_themes="$active_home/.config/omarchy/themes"
+active_state="$active_home/.local/state/omarchy/current"
+mkdir -p "$active_themes/other-theme" "$active_themes/my-theme" "$active_state"
+printf 'my-theme\n' >"$active_state/theme.name"
+: >"$theme_calls"
+HOME="$active_home" OMARCHY_PATH="$ROOT" PATH="$mock_bin:$PATH" OMARCHY_TEST_THEME_CALLS="$theme_calls" \
+  bash "$ROOT/bin/omarchy-theme-remove" "Other Theme" >"$test_tmp/out" 2>&1 ||
+  fail "omarchy-theme-remove removes an inactive user theme" "$(cat "$test_tmp/out")"
+[[ ! -e $active_themes/other-theme && $(cat "$active_state/theme.name") == "my-theme" ]] ||
+  fail "removing an inactive theme leaves current theme untouched"
+! grep -Fq "tokyo-night" "$theme_calls" ||
+  fail "removing an inactive theme does not switch themes" "$(cat "$theme_calls")"
+
+# End-to-end with real omarchy-theme-set: removing an active user theme, a
+# hand-made "Tokyo Night" folder, or a "tokyo-night" overlay always lands on the
+# clean bundled tokyo-night theme.
+notify_stub="$test_tmp/notify-bin"
+mkdir -p "$notify_stub"
+for command in omarchy-notification-send omarchy-theme-set-icons; do
+  printf '#!/bin/bash\nexit 0\n' >"$notify_stub/$command"
+  chmod +x "$notify_stub/$command"
+done
+
+run_real_remove() {
+  HOME="$active_home" XDG_STATE_HOME="$active_home/.local/state" XDG_CACHE_HOME="$active_home/.cache" \
+    XDG_DATA_HOME="$active_home/.local/share" XDG_RUNTIME_DIR="$test_tmp" \
+    OMARCHY_PATH="$ROOT" OMARCHY_THEME_HEADLESS=1 OMARCHY_THEME_SKIP_BACKGROUND=1 \
+    PATH="$notify_stub:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-remove" "$1" >"$test_tmp/out" 2>&1
+}
+
+run_real_set() {
+  HOME="$active_home" XDG_STATE_HOME="$active_home/.local/state" XDG_CACHE_HOME="$active_home/.cache" \
+    XDG_DATA_HOME="$active_home/.local/share" XDG_RUNTIME_DIR="$test_tmp" \
+    OMARCHY_PATH="$ROOT" OMARCHY_THEME_HEADLESS=1 OMARCHY_THEME_SKIP_BACKGROUND=1 \
+    PATH="$notify_stub:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-set" "$1" >"$test_tmp/out" 2>&1
+}
+
+printf 'background = "#111111"\nforeground = "#eeeeee"\naccent = "#123456"\n' >"$active_themes/my-theme/colors.toml"
+run_real_set "My Theme" || fail "omarchy-theme-set activates my-theme" "$(cat "$test_tmp/out")"
+run_real_remove "My Theme" || fail "omarchy-theme-remove removes active my-theme" "$(cat "$test_tmp/out")"
+[[ ! -e $active_themes/my-theme && $(cat "$active_state/theme.name") == "tokyo-night" ]] ||
+  fail "removing the active user theme switches away to tokyo-night" "$(cat "$active_state/theme.name" 2>/dev/null || true)"
+cmp -s "$ROOT/themes/tokyo-night/colors.toml" "$active_state/theme/colors.toml" ||
+  fail "removing the active user theme stages bundled tokyo-night"
+
+mkdir -p "$active_themes/Tokyo Night"
+printf 'background = "#222222"\nforeground = "#dddddd"\naccent = "#abcdef"\n' >"$active_themes/Tokyo Night/colors.toml"
+run_real_set "Tokyo Night" || fail "omarchy-theme-set activates hand-made Tokyo Night folder" "$(cat "$test_tmp/out")"
+[[ $(cat "$active_state/theme.name") == "Tokyo Night" ]] ||
+  fail "hand-made Tokyo Night folder becomes active by its exact name" "$(cat "$active_state/theme.name")"
+run_real_remove "Tokyo Night" || fail "omarchy-theme-remove removes active hand-made Tokyo Night folder" "$(cat "$test_tmp/out")"
+[[ ! -e "$active_themes/Tokyo Night" && $(cat "$active_state/theme.name") == "tokyo-night" ]] ||
+  fail "removing an active hand-made Tokyo Night folder switches to bundled tokyo-night instead of reselecting it" "$(cat "$active_state/theme.name" 2>/dev/null || true)"
+cmp -s "$ROOT/themes/tokyo-night/colors.toml" "$active_state/theme/colors.toml" ||
+  fail "removing an active hand-made Tokyo Night folder replaces its staged colors with bundled tokyo-night"
+
+mkdir -p "$active_themes/tokyo-night"
+printf 'background = "#333333"\nforeground = "#cccccc"\naccent = "#654321"\n' >"$active_themes/tokyo-night/colors.toml"
+run_real_set "tokyo-night" || fail "omarchy-theme-set activates user tokyo-night overlay" "$(cat "$test_tmp/out")"
+grep -Fq "#654321" "$active_state/theme/colors.toml" ||
+  fail "user tokyo-night overlay customizes the staged theme"
+run_real_remove "tokyo-night" || fail "omarchy-theme-remove removes active user tokyo-night overlay" "$(cat "$test_tmp/out")"
+[[ ! -e $active_themes/tokyo-night && $(cat "$active_state/theme.name") == "tokyo-night" ]] ||
+  fail "removing an active user tokyo-night overlay deletes the overlay and keeps bundled tokyo-night active"
+cmp -s "$ROOT/themes/tokyo-night/colors.toml" "$active_state/theme/colors.toml" ||
+  fail "removing an active user tokyo-night overlay drops its customizations from the active theme"
+
+pass "removing the active theme switches to bundled tokyo-night without reselecting the removed folder"
