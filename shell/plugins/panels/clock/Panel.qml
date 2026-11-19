@@ -327,10 +327,23 @@ Panel {
     setWeekStart(Model.toggledWeekStart(root.weekStart))
   }
 
+  // The add functions report whether anything started, so only the panel the
+  // name was typed in clears it, and only once it was used.
   function addTimer(seconds, name) {
+    if (!root.startTimer(seconds, name)) return false
     root.timerNameInput = ""
-    if (!root.ownsTimers) return root.timerOwner.addTimer(seconds, name)
-    if (!(seconds > 0) || !root.canAddTimer) return
+    return true
+  }
+
+  function addStopwatch(name) {
+    if (!root.startStopwatch(name)) return false
+    root.timerNameInput = ""
+    return true
+  }
+
+  function startTimer(seconds, name) {
+    if (!root.ownsTimers) return root.timerOwner.startTimer(seconds, name)
+    if (!(seconds > 0) || !root.canAddTimer || !root.timersRestored) return false
     var now = Date.now()
     root.timerSerial += 1
     root.ownTimerNow = now
@@ -345,12 +358,12 @@ Panel {
     }])
     // What was just started is what the next key should act on.
     root.ownBarTimerId = root.timerSerial
+    return true
   }
 
-  function addStopwatch(name) {
-    root.timerNameInput = ""
-    if (!root.ownsTimers) return root.timerOwner.addStopwatch(name)
-    if (!root.canAddTimer) return
+  function startStopwatch(name) {
+    if (!root.ownsTimers) return root.timerOwner.startStopwatch(name)
+    if (!root.canAddTimer || !root.timersRestored) return false
     var now = Date.now()
     root.timerSerial += 1
     root.ownTimerNow = now
@@ -364,6 +377,7 @@ Panel {
     }])
     // What was just started is what the next key should act on.
     root.ownBarTimerId = root.timerSerial
+    return true
   }
 
   function addTimerFromFields() {
@@ -500,10 +514,16 @@ Panel {
   // handler that binding may not have caught up with the change yet.
   onOwnTimersChanged: saveTimers()
   // Taking over (the owning monitor went away): pick up what it last saved.
-  onOwnsTimersChanged: if (ownsTimers && timersRestored) timersStateFile.reload()
+  // The list held here is the one read at startup, so ticking, saving and
+  // adding stay off until the reload has restored the current one.
+  onOwnsTimersChanged: {
+    if (!ownsTimers || !timersRestored) return
+    timersRestored = false
+    timersStateFile.reload()
+  }
 
   function tickTimers() {
-    if (!root.ownsTimers) return
+    if (!root.ownsTimers || !root.timersRestored) return
     var now = Date.now()
     root.ownTimerNow = now
     if (!root.isTimerLeader()) return
@@ -565,7 +585,7 @@ Panel {
     id: timerTicker
     interval: 250
     repeat: true
-    running: root.ownsTimers && root.anyTimerRunning
+    running: root.ownsTimers && root.timersRestored && root.anyTimerRunning
     triggeredOnStart: true
     onTriggered: root.tickTimers()
   }
