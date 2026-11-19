@@ -35,9 +35,6 @@ Item {
   // A selection made while an earlier change is still covered or revealing
   // waits for it, since its outgoing frame would miss that change's cover.
   property string queuedPath: ""
-  // A loop swap that arrived while something else was changing, or a change
-  // whose still may have a theme loop to start once it settles.
-  property bool replaceWaiting: false
   // A theme switch reloads Hyprland once no intro plays: a reload pauses
   // video presentation.
   property bool reloadPending: false
@@ -82,24 +79,6 @@ Item {
     return "ok"
   }
 
-  // omarchy-theme-bg-loop-apply's swap of a still for its theme loop, or of
-  // a loop back for its still. It holds only while what it read is still
-  // what the shell shows and nothing else is changing, its own link writes
-  // included; a swap that has to wait runs again once that change settles.
-  function replace(from, to) {
-    if (!intro || !backgroundService) return "unavailable"
-    // Moving the link cancels a playing intro.
-    if (busy || queuedPath || playProc.running || linkProc.running || pendingLink || intro.startupRunning ||
-        backgroundService.revealing) {
-      replaceWaiting = true
-      return "stale"
-    }
-    if (backgroundService.currentBackground !== from) return "stale"
-    // The caller writes the link under its lock once this says ok.
-    backgroundService.setBackground(to, false)
-    return "ok"
-  }
-
   function link(target) {
     pendingLink = target
     if (!linkProc.running) startLink()
@@ -115,7 +94,6 @@ Item {
   function begin(path, clipPath) {
     serial += 1
     token = "background-" + serial
-    replaceWaiting = true
     still = path
     clip = clipPath
     prepared = false
@@ -144,7 +122,6 @@ Item {
     reloadPending = true
     if (!intro || tok !== intro.themeToken) return "superseded"
     token = tok
-    replaceWaiting = true
     still = stillPath
     clip = clipPath
     prepared = preparedFlag === "true"
@@ -202,11 +179,6 @@ Item {
     if (queuedPath) {
       Quickshell.execDetached(["omarchy-theme-bg-set", queuedPath])
       queuedPath = ""
-    } else if (replaceWaiting && !playProc.running && !intro.startupRunning) {
-      // The cover comes down while the clip still plays; the change ends on
-      // its still once the clip is over, which is where its theme loop begins.
-      replaceWaiting = false
-      Quickshell.execDetached(["omarchy-theme-bg-loop-apply"])
     }
   }
 
@@ -220,14 +192,6 @@ Item {
       if (root.intro.themeToken && root.intro.themeToken !== root.token) root.queuedPath = ""
       Qt.callLater(root.settle)
     }
-    function onRevealingChanged() { Qt.callLater(root.settle) }
-    function onStartupRunningChanged() { Qt.callLater(root.settle) }
-  }
-
-  // A loop waits out the ordinary reveal, which would otherwise jump to OWE's
-  // first frame halfway across.
-  Connections {
-    target: root.backgroundService
     function onRevealingChanged() { Qt.callLater(root.settle) }
   }
 
@@ -271,7 +235,6 @@ Item {
       if (root.pendingLink) root.startLink()
       else if (root.token && target === root.still) root.linked = true
       root.advance()
-      if (!root.pendingLink) Qt.callLater(root.settle)
     }
   }
 

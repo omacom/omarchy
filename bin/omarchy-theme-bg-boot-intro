@@ -10,11 +10,31 @@ current_dir="$state_home/omarchy/current"
 current_background_link="$current_dir/background"
 marker="$state_home/omarchy/background-intro.session-id"
 toggle="$state_home/omarchy/toggles/background-intros-off"
-
-source omarchy-theme-bg-companions
+video_extensions=(mp4 m4v mov webm mkv avi)
 
 resolve_intro() {
-  theme_bg_companion intros "${1:-$current_background_link}"
+  local background
+  local stem
+  local extension
+  local intro
+
+  background=$(readlink -f "${1:-$current_background_link}" 2>/dev/null) || return 1
+  [[ -f $background ]] || return 1
+  case ${background,,} in
+  *.jpg | *.jpeg | *.png | *.bmp | *.webp) ;;
+  *) return 1 ;;
+  esac
+
+  stem=${background##*/}
+  stem=${stem%.*}
+  for extension in "${video_extensions[@]}"; do
+    intro="${background%/*}/intros/$stem.$extension"
+    if [[ -f $intro ]]; then
+      printf '%s\n' "$intro"
+      return 0
+    fi
+  done
+  return 1
 }
 
 # Preparation is speculative: the selected staged clip is compared again by OWE.
@@ -59,13 +79,7 @@ prepare_theme_intro() {
 }
 
 animations_off() {
-  theme_bg_animations_off
-}
-
-# The login's still starts its theme loop once any intro has handed it back,
-# however this run ends.
-start_loop() {
-  omarchy-theme-bg-loop-apply 9>&- || true
+  [[ $(hyprctl -j getoption animations:enabled 2>/dev/null | jq -r '.bool' 2>/dev/null) == "false" ]]
 }
 
 
@@ -93,7 +107,6 @@ case ${1:-} in
     ;;
 esac
 
-trap start_loop EXIT
 mkdir -p "$(dirname "$marker")"
 exec 9>"$state_home/omarchy/background-intro.lock"
 flock 9
