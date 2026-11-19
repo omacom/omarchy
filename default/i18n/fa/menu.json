@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "بازنشانی رایانه"
+    "label": "بازنشانی کارخانه"
   },
   "install.package": {
     "label": "بسته"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "راه‌اندازی مجدد به BIOS",
     "description": "راه‌اندازی مجدد به تنظیمات میان‌افزار UEFI"
+  },
+  "setup.region": {
+    "label": "منطقه"
+  },
+  "setup.region.formats": {
+    "label": "قالب‌ها",
+    "description": "نحوهٔ نوشتن تاریخ‌ها، ساعت‌ها، اعداد و واحدها"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "بازی Game Vibes"
+  },
+  "update.games": {
+    "label": "بازی‌های Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "ساخت بازی"
   }
 }

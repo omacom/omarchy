@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Bilgisayarı Sıfırla"
+    "label": "Fabrika Sıfırlaması"
   },
   "install.package": {
     "label": "Paket"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "BIOS'a Yeniden Başlat",
     "description": "UEFI aygıt yazılımı ayarlarına yeniden başlat"
+  },
+  "setup.region": {
+    "label": "Bölge"
+  },
+  "setup.region.formats": {
+    "label": "Biçimler",
+    "description": "Tarih, saat, sayı ve birimlerin yazılış biçimi"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Oyunu"
+  },
+  "update.games": {
+    "label": "Game Vibes Oyunları"
+  },
+  "agent.make.game": {
+    "label": "Oyun Yap"
   }
 }

@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Ресетуј рачунар"
+    "label": "Фабричко ресетовање"
   },
   "install.package": {
     "label": "Пакет"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Поновно покретање у BIOS",
     "description": "Поново покрени у подешавања UEFI фирмвера"
+  },
+  "setup.region": {
+    "label": "Регион"
+  },
+  "setup.region.formats": {
+    "label": "Формати",
+    "description": "Како се пишу датуми, време, бројеви и јединице"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "Направи игру"
   }
 }

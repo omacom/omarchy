@@ -24,6 +24,7 @@
     "one": "%1 gratis återställning · nästa går ut om %2",
     "other": "%1 gratis återställningar · nästa går ut om %2"
   },
+  "agents.game": "Spel",
   "agents.helpFireworksSignIn": "Ange %1, kör %2 eller logga in på Fireworks i pi eller opencode.",
   "agents.helpNotInPath": "%1 hittades inte i PATH",
   "agents.helpRunToAuthenticate": "Kör %1 för att autentisera.",
@@ -33,6 +34,10 @@
   "agents.helpStartOrRunToSignIn": "Starta %1 eller kör %2 för att logga in.",
   "agents.helpStartToSeeLimits": "Starta %1 för att se dess gränser; du behöver inte logga in igen.",
   "agents.hideProviderConfirm": "Dölj %1 från panelen? Inloggningsuppgifter och inloggning sparas.",
+  "agents.kindImage": "bild",
+  "agents.kindMusic": "musik",
+  "agents.kindText": "text",
+  "agents.kindVideo": "video",
   "agents.lastUpdatedAgo": "Senast uppdaterad för %1 sedan",
   "agents.lastUpdatedJustNow": "Senast uppdaterad för mindre än en minut sedan",
   "agents.lastUpdatedUnknown": "Tid för senaste uppdatering otillgänglig",
@@ -57,6 +62,7 @@
   "agents.localLaunch": "Starta agent",
   "agents.localLoadingMeter": "Laddar",
   "agents.localMemoryFact": "%1 GiB minne",
+  "agents.localNeedsRam": "Kräver %1 GB RAM",
   "agents.localNotEnoughMemory": "Inte tillräckligt med minne",
   "agents.localRecommended": "rekommenderad",
   "agents.localRemoveConfirm": "Stoppa %1 och ta bort dess nedladdade vikter?",
@@ -67,6 +73,7 @@
   "agents.localStart": "Starta",
   "agents.localStop": "Stoppa",
   "agents.localStoppingMeter": "Stoppar",
+  "agents.localUsingRam": "Använder %1 GB RAM",
   "agents.loginBrowser": "Logga in via webbläsaren",
   "agents.makeSomethingCool": "SKAPA NÅGOT COOLT",
   "agents.merged": {
@@ -99,6 +106,7 @@
     "other": "Delad med %1 användare · sluta dela"
   },
   "agents.networkStopSharing": "Delad på ditt tailnet · sluta dela",
+  "agents.openFantasi": "Öppna Fantasi",
   "agents.outOfCredits": "Slut på krediter",
   "agents.pasteCode": "Om sidan visar en kod i stället för att slutföra, klistra in den här.",
   "agents.pasteCodeLink": "Visar sidan en kod istället?",

@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Resetovať počítač"
+    "label": "Obnovenie výrobných nastavení"
   },
   "install.package": {
     "label": "Balíček"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Reštart do BIOS",
     "description": "Reštart do nastavenia firmvéru UEFI"
+  },
+  "setup.region": {
+    "label": "Región"
+  },
+  "setup.region.formats": {
+    "label": "Formáty",
+    "description": "Ako sa píšu dátumy, časy, čísla a jednotky"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Hra Game Vibes"
+  },
+  "update.games": {
+    "label": "Hry Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Vytvoriť hru"
   }
 }

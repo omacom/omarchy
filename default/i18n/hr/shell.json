@@ -26,6 +26,7 @@
     "one": "%1 besplatno resetiranje · sljedeće istječe za %2",
     "other": "%1 besplatnih resetiranja · sljedeće istječe za %2"
   },
+  "agents.game": "Igra",
   "agents.helpFireworksSignIn": "Postavite %1, pokrenite %2 ili se prijavite u Fireworks u pi ili opencode.",
   "agents.helpNotInPath": "%1 nije pronađen u PATH",
   "agents.helpRunToAuthenticate": "Pokrenite %1 za autentifikaciju.",
@@ -35,6 +36,10 @@
   "agents.helpStartOrRunToSignIn": "Pokrenite %1 ili pokrenite %2 za prijavu.",
   "agents.helpStartToSeeLimits": "Pokrenite %1 za prikaz ograničenja; ponovna prijava nije potrebna.",
   "agents.hideProviderConfirm": "Sakriti %1 s ploče? Vjerodajnice i prijava bit će zadržani.",
+  "agents.kindImage": "slika",
+  "agents.kindMusic": "glazba",
+  "agents.kindText": "tekst",
+  "agents.kindVideo": "video",
   "agents.lastUpdatedAgo": "Posljednje ažurirano prije %1",
   "agents.lastUpdatedJustNow": "Posljednje ažurirano prije manje od minute",
   "agents.lastUpdatedUnknown": "Vrijeme posljednjeg ažuriranja nije dostupno",
@@ -59,6 +64,7 @@
   "agents.localLaunch": "Pokrenite agenta",
   "agents.localLoadingMeter": "Učitavanje",
   "agents.localMemoryFact": "%1 GiB memorije",
+  "agents.localNeedsRam": "Treba %1 GB RAM",
   "agents.localNotEnoughMemory": "Nedovoljno memorije",
   "agents.localRecommended": "preporučeno",
   "agents.localRemoveConfirm": "Zaustaviti %1 i izbrisati preuzete težine?",
@@ -69,6 +75,7 @@
   "agents.localStart": "Pokrenite",
   "agents.localStop": "Zaustavite",
   "agents.localStoppingMeter": "Zaustavljanje",
+  "agents.localUsingRam": "Koristi %1 GB RAM",
   "agents.loginBrowser": "Prijavi se putem preglednika",
   "agents.makeSomethingCool": "NAPRAVITE NEŠTO SJAJNO",
   "agents.merged": {
@@ -103,6 +110,7 @@
     "other": "Dijeljeno s %1 korisnika · prestanite dijeliti"
   },
   "agents.networkStopSharing": "Dijeljeno na tailnetu · prestani dijeliti",
+  "agents.openFantasi": "Otvori Fantasi",
   "agents.outOfCredits": "Nema kredita",
   "agents.pasteCode": "Ako stranica prikaže kod umjesto da završi, zalijepite ga ovdje.",
   "agents.pasteCodeLink": "Stranica umjesto toga prikazuje kod?",

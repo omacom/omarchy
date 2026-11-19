@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Нулирай компютъра"
+    "label": "Фабрично нулиране"
   },
   "install.package": {
     "label": "Пакет"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Рестартиране в BIOS",
     "description": "Рестартиране в настройките на UEFI фърмуера"
+  },
+  "setup.region": {
+    "label": "Регион"
+  },
+  "setup.region.formats": {
+    "label": "Формати",
+    "description": "Как се изписват датите, часовете, числата и мерните единици"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Игра Game Vibes"
+  },
+  "update.games": {
+    "label": "Игри Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Направи игра"
   }
 }

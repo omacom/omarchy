@@ -28,6 +28,7 @@
     "one": "%1 darmowy reset · następny wygasa za %2",
     "other": "%1 darmowego resetu · następny wygasa za %2"
   },
+  "agents.game": "Gra",
   "agents.helpFireworksSignIn": "Ustaw %1, uruchom %2 lub zaloguj się do Fireworks w pi lub opencode.",
   "agents.helpNotInPath": "Nie znaleziono %1 w PATH",
   "agents.helpRunToAuthenticate": "Uruchom %1, aby się uwierzytelnić.",
@@ -37,6 +38,10 @@
   "agents.helpStartOrRunToSignIn": "Uruchom %1 lub %2, aby się zalogować.",
   "agents.helpStartToSeeLimits": "Uruchom %1, aby zobaczyć jego limity; ponowne logowanie nie jest potrzebne.",
   "agents.hideProviderConfirm": "Ukryć %1 z panelu? Dane logowania i sesja zostaną zachowane.",
+  "agents.kindImage": "obraz",
+  "agents.kindMusic": "muzyka",
+  "agents.kindText": "tekst",
+  "agents.kindVideo": "wideo",
   "agents.lastUpdatedAgo": "Zaktualizowano %1 temu",
   "agents.lastUpdatedJustNow": "Zaktualizowano mniej niż minutę temu",
   "agents.lastUpdatedUnknown": "Czas ostatniej aktualizacji niedostępny",
@@ -61,6 +66,7 @@
   "agents.localLaunch": "Uruchom agenta",
   "agents.localLoadingMeter": "Ładowanie",
   "agents.localMemoryFact": "%1 GiB pamięci",
+  "agents.localNeedsRam": "Wymaga %1 GB RAM",
   "agents.localNotEnoughMemory": "Za mało pamięci",
   "agents.localRecommended": "zalecany",
   "agents.localRemoveConfirm": "Zatrzymać %1 i usunąć pobrane wagi?",
@@ -71,6 +77,7 @@
   "agents.localStart": "Uruchom",
   "agents.localStop": "Zatrzymaj",
   "agents.localStoppingMeter": "Zatrzymywanie",
+  "agents.localUsingRam": "Używa %1 GB RAM",
   "agents.loginBrowser": "Zaloguj się w przeglądarce",
   "agents.makeSomethingCool": "ZRÓB COŚ FAJNEGO",
   "agents.merged": {
@@ -107,6 +114,7 @@
     "other": "Udostępnione: %1 użytkownika · przestań udostępniać"
   },
   "agents.networkStopSharing": "Udostępnione w twoim tailnecie · przestań udostępniać",
+  "agents.openFantasi": "Otwórz Fantasi",
   "agents.outOfCredits": "Brak kredytów",
   "agents.pasteCode": "Jeśli strona pokazuje kod zamiast zakończyć, wklej go tutaj.",
   "agents.pasteCodeLink": "Strona pokazuje kod?",

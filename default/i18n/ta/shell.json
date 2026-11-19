@@ -24,6 +24,7 @@
     "one": "%1 இலவச மீட்டமைப்பு · அடுத்தது %2 இல் காலாவதியாகும்",
     "other": "%1 இலவச மீட்டமைப்புகள் · அடுத்தது %2 இல் காலாவதியாகும்"
   },
+  "agents.game": "விளையாட்டு",
   "agents.helpFireworksSignIn": "%1 ஐ அமைக்கவும், %2 ஐ இயக்கவும், அல்லது pi அல்லது opencode இல் Fireworks இல் உள்நுழையவும்.",
   "agents.helpNotInPath": "%1 PATH இல் காணப்படவில்லை",
   "agents.helpRunToAuthenticate": "அங்கீகரிக்க %1 ஐ இயக்கவும்.",
@@ -33,6 +34,10 @@
   "agents.helpStartOrRunToSignIn": "உள்நுழைய %1 ஐத் தொடங்கவும், அல்லது %2 ஐ இயக்கவும்.",
   "agents.helpStartToSeeLimits": "அதன் வரம்புகளைக் காண %1 ஐத் தொடங்கவும்; மீண்டும் உள்நுழையத் தேவையில்லை.",
   "agents.hideProviderConfirm": "%1 ஐப் பேனலிலிருந்து மறைக்கவா? சான்றுகளும் உள்நுழைவும் தக்கவைக்கப்படும்.",
+  "agents.kindImage": "படம்",
+  "agents.kindMusic": "இசை",
+  "agents.kindText": "உரை",
+  "agents.kindVideo": "வீடியோ",
   "agents.lastUpdatedAgo": "கடைசியாக %1 முன் புதுப்பிக்கப்பட்டது",
   "agents.lastUpdatedJustNow": "கடைசியாக ஒரு நிமிடத்திற்கும் குறைவான நேரத்திற்கு முன் புதுப்பிக்கப்பட்டது",
   "agents.lastUpdatedUnknown": "கடைசியாகப் புதுப்பிக்கப்பட்ட நேரம் கிடைக்கவில்லை",
@@ -57,6 +62,7 @@
   "agents.localLaunch": "ஏஜென்ட்டை இயக்கு",
   "agents.localLoadingMeter": "ஏற்றுகிறது",
   "agents.localMemoryFact": "%1 GiB நினைவகம்",
+  "agents.localNeedsRam": "%1 GB RAM தேவை",
   "agents.localNotEnoughMemory": "போதிய நினைவகம் இல்லை",
   "agents.localRecommended": "பரிந்துரைக்கப்பட்டது",
   "agents.localRemoveConfirm": "%1 ஐ நிறுத்தி அதன் பதிவிறக்கிய வெயிட்களை நீக்கவா?",
@@ -67,6 +73,7 @@
   "agents.localStart": "தொடங்கு",
   "agents.localStop": "நிறுத்து",
   "agents.localStoppingMeter": "நிறுத்துகிறது",
+  "agents.localUsingRam": "%1 GB RAM பயன்படுத்துகிறது",
   "agents.loginBrowser": "உங்கள் உலாவி மூலம் உள்நுழையவும்",
   "agents.makeSomethingCool": "அருமையானதை உருவாக்குங்கள்",
   "agents.merged": {
@@ -99,6 +106,7 @@
     "other": "%1 பயனர்களுடன் பகிரப்பட்டது · பகிர்வதை நிறுத்து"
   },
   "agents.networkStopSharing": "உங்கள் tailnet இல் பகிரப்பட்டது · பகிர்வை நிறுத்து",
+  "agents.openFantasi": "Fantasi திறக்கவும்",
   "agents.outOfCredits": "கிரெடிட் தீர்ந்தது",
   "agents.pasteCode": "பக்கம் முடிவதற்குப் பதிலாகக் குறியீட்டைக் காட்டினால், அதை இங்கே ஒட்டவும்.",
   "agents.pasteCodeLink": "அதற்குப் பதிலாகக் குறியீட்டைக் காட்டும் பக்கமா?",

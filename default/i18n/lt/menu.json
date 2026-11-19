@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Atstatyti kompiuterį"
+    "label": "Gamyklinis atstatymas"
   },
   "install.package": {
     "label": "Paketas"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Perkrauti į BIOS",
     "description": "Paleisti iš naujo į UEFI programinės įrangos nustatymus"
+  },
+  "setup.region": {
+    "label": "Regionas"
+  },
+  "setup.region.formats": {
+    "label": "Formatai",
+    "description": "Kaip rašomos datos, laikas, skaičiai ir vienetai"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "Sukurti žaidimą"
   }
 }

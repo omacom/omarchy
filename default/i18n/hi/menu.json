@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "कंप्यूटर रीसेट करें"
+    "label": "फ़ैक्टरी रीसेट"
   },
   "install.package": {
     "label": "पैकेज"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "BIOS में रीबूट",
     "description": "UEFI फ़र्मवेयर सेटअप में रीस्टार्ट करें"
+  },
+  "setup.region": {
+    "label": "क्षेत्र"
+  },
+  "setup.region.formats": {
+    "label": "प्रारूप",
+    "description": "तारीख, समय, संख्याएँ और इकाइयाँ कैसे लिखी जाती हैं"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes गेम"
+  },
+  "update.games": {
+    "label": "Game Vibes गेम्स"
+  },
+  "agent.make.game": {
+    "label": "गेम बनाएँ"
   }
 }

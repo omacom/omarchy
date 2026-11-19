@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Restableix l'ordinador"
+    "label": "Restabliment de fàbrica"
   },
   "install.package": {
     "label": "Paquet"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Reiniciar a la BIOS",
     "description": "Reiniciar a la configuració del microprogramari UEFI"
+  },
+  "setup.region": {
+    "label": "Regió"
+  },
+  "setup.region.formats": {
+    "label": "Formats",
+    "description": "Com s'escriuen les dates, les hores, els números i les unitats"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Joc Game Vibes"
+  },
+  "update.games": {
+    "label": "Jocs Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Crea un joc"
   }
 }

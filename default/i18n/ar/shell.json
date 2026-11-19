@@ -32,6 +32,7 @@
     "two": "إعادتا تعيين مجانيتان · تنتهي التالية بعد %2",
     "zero": "لا إعادة تعيين مجانية · تنتهي التالية بعد %2"
   },
+  "agents.game": "لعبة",
   "agents.helpFireworksSignIn": "عيّن %1، أو شغّل %2، أو سجّل الدخول إلى Fireworks في pi أو opencode.",
   "agents.helpNotInPath": "%1 غير موجود في PATH",
   "agents.helpRunToAuthenticate": "شغّل %1 للمصادقة.",
@@ -41,6 +42,10 @@
   "agents.helpStartOrRunToSignIn": "شغّل %1، أو نفّذ %2، لتسجيل الدخول.",
   "agents.helpStartToSeeLimits": "شغّل %1 لعرض حدوده؛ لا حاجة لتسجيل الدخول مجددًا.",
   "agents.hideProviderConfirm": "إخفاء %1 من اللوحة؟ ستُحفظ بيانات الاعتماد وتسجيل الدخول.",
+  "agents.kindImage": "صورة",
+  "agents.kindMusic": "موسيقى",
+  "agents.kindText": "نص",
+  "agents.kindVideo": "فيديو",
   "agents.lastUpdatedAgo": "آخر تحديث قبل %1",
   "agents.lastUpdatedJustNow": "آخر تحديث قبل أقل من دقيقة",
   "agents.lastUpdatedUnknown": "وقت آخر تحديث غير متاح",
@@ -65,6 +70,7 @@
   "agents.localLaunch": "تشغيل الوكيل",
   "agents.localLoadingMeter": "جارٍ التحميل",
   "agents.localMemoryFact": "%1 GiB ذاكرة",
+  "agents.localNeedsRam": "يحتاج إلى %1 GB RAM",
   "agents.localNotEnoughMemory": "الذاكرة غير كافية",
   "agents.localRecommended": "موصى به",
   "agents.localRemoveConfirm": "إيقاف %1 وحذف أوزانه المنزّلة؟",
@@ -75,6 +81,7 @@
   "agents.localStart": "تشغيل",
   "agents.localStop": "إيقاف",
   "agents.localStoppingMeter": "جارٍ الإيقاف",
+  "agents.localUsingRam": "يستخدم %1 GB RAM",
   "agents.loginBrowser": "سجّل الدخول عبر متصفحك",
   "agents.makeSomethingCool": "اصنع شيئًا رائعًا",
   "agents.merged": {
@@ -115,6 +122,7 @@
     "zero": "غير مُشارَك مع أي مستخدم · إيقاف المشاركة"
   },
   "agents.networkStopSharing": "مُشارك على tailnet · إيقاف المشاركة",
+  "agents.openFantasi": "افتح Fantasi",
   "agents.outOfCredits": "نفد الرصيد",
   "agents.pasteCode": "إذا أظهرت الصفحة رمزًا بدلًا من الإنهاء، الصقه هنا.",
   "agents.pasteCodeLink": "تعرض الصفحة رمزًا بدلًا من ذلك؟",

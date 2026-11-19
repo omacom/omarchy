@@ -16,10 +16,10 @@ if [[ ${1:-} == "--default" ]]; then
 fi
 
 case "${1:-}" in
-theme) prompt="Make me a new Omarchy theme. Ask me what look or inspiration I have in mind, then build it following the Omarchy skill's theming guide and switch to it." ;;
-plugin) prompt="Make me a new Omarchy shell plugin. Ask me what I'd like it to do, then build it following the Omarchy skill's plugin guide and enable it." ;;
-app) prompt="Make me a new app for my Omarchy desktop. Ask me what it should do, then build it following the omarchy-app skill and install it so it shows up in the app launcher." ;;
-game) prompt="Make me a new game for my Omarchy desktop. Ask me what kind of game I'd like, or which game in Game Vibes to keep working on, then build it following the web-game skill and open it in Game Vibes." ;;
+theme) prompt="Make me a new Omarchy theme. Ask me what look or inspiration I have in mind, then build it following the omarchy-make-theme skill and switch to it." ;;
+plugin) prompt="Make me a new Omarchy shell plugin. Ask me what I'd like it to do, then build it following the omarchy-make-plugin skill and enable it." ;;
+app) prompt="Make me a new app for my Omarchy desktop. Ask me what it should do, then build it following the omarchy-make-app skill and install it so it shows up in the app launcher." ;;
+game) prompt="Make me a new game for my Omarchy desktop. Ask me what kind of game I'd like, or which game in Game Vibes to keep working on, then build it following the omarchy-make-game skill and open it in Game Vibes." ;;
 *)
   echo "Usage: omarchy-agent-make [--default] <theme|plugin|app|game>" >&2
   exit 1

@@ -24,6 +24,7 @@
     "one": "%1 gratis tilbakestilling · neste utløper om %2",
     "other": "%1 gratis tilbakestillinger · neste utløper om %2"
   },
+  "agents.game": "Spill",
   "agents.helpFireworksSignIn": "Sett %1, kjør %2, eller logg inn på Fireworks i pi eller opencode.",
   "agents.helpNotInPath": "%1 ikke funnet i PATH",
   "agents.helpRunToAuthenticate": "Kjør %1 for å autentisere.",
@@ -33,6 +34,10 @@
   "agents.helpStartOrRunToSignIn": "Start %1, eller kjør %2, for å logge inn.",
   "agents.helpStartToSeeLimits": "Start %1 for å se grensene; innlogging på nytt er ikke nødvendig.",
   "agents.hideProviderConfirm": "Skjule %1 fra panelet? Påloggingsinformasjon og innlogging blir beholdt.",
+  "agents.kindImage": "bilde",
+  "agents.kindMusic": "musikk",
+  "agents.kindText": "tekst",
+  "agents.kindVideo": "video",
   "agents.lastUpdatedAgo": "Sist oppdatert for %1 siden",
   "agents.lastUpdatedJustNow": "Sist oppdatert for under et minutt siden",
   "agents.lastUpdatedUnknown": "Siste oppdateringstid utilgjengelig",
@@ -57,6 +62,7 @@
   "agents.localLaunch": "Start agent",
   "agents.localLoadingMeter": "Laster",
   "agents.localMemoryFact": "%1 GiB minne",
+  "agents.localNeedsRam": "Trenger %1 GB RAM",
   "agents.localNotEnoughMemory": "Ikke nok minne",
   "agents.localRecommended": "anbefalt",
   "agents.localRemoveConfirm": "Stoppe %1 og slette de nedlastede vektene?",
@@ -67,6 +73,7 @@
   "agents.localStart": "Start",
   "agents.localStop": "Stopp",
   "agents.localStoppingMeter": "Stopper",
+  "agents.localUsingRam": "Bruker %1 GB RAM",
   "agents.loginBrowser": "Logg inn via nettleseren",
   "agents.makeSomethingCool": "LAG NOE KULT",
   "agents.merged": {
@@ -99,6 +106,7 @@
     "other": "Delt med %1 brukere · slutt å dele"
   },
   "agents.networkStopSharing": "Delt på tailnettet ditt · stopp deling",
+  "agents.openFantasi": "Åpne Fantasi",
   "agents.outOfCredits": "Tom for kreditt",
   "agents.pasteCode": "Hvis siden viser en kode i stedet for å fullføre, lim den inn her.",
   "agents.pasteCodeLink": "Viser siden en kode i stedet?",

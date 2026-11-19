@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "컴퓨터 초기화"
+    "label": "공장 초기화"
   },
   "install.package": {
     "label": "패키지"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "BIOS로 재시작",
     "description": "UEFI 펌웨어 설정으로 재시작"
+  },
+  "setup.region": {
+    "label": "지역"
+  },
+  "setup.region.formats": {
+    "label": "형식",
+    "description": "날짜, 시간, 숫자, 단위 표시 방식"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes 게임"
+  },
+  "update.games": {
+    "label": "Game Vibes 게임"
+  },
+  "agent.make.game": {
+    "label": "게임 만들기"
   }
 }

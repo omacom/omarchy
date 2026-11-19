@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "کمپیوٹر ری سیٹ کریں"
+    "label": "فیکٹری ری سیٹ"
   },
   "install.package": {
     "label": "پیکیج"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "BIOS میں ری بوٹ",
     "description": "UEFI فرم ویئر سیٹ اپ میں ری اسٹارٹ کریں"
+  },
+  "setup.region": {
+    "label": "علاقہ"
+  },
+  "setup.region.formats": {
+    "label": "فارمیٹس",
+    "description": "تاریخ، وقت، نمبر اور اکائیاں کیسے لکھی جاتی ہیں"
+  },
+  "install.gaming.vibes": {
+    "label": "گیم وائبز"
+  },
+  "remove.gaming.vibes": {
+    "label": "گیم وائبز گیم"
+  },
+  "update.games": {
+    "label": "گیم وائبز گیمز"
+  },
+  "agent.make.game": {
+    "label": "گیم بنائیں"
   }
 }

@@ -24,6 +24,7 @@
     "one": "%1 δωρεάν επαναφορά · η επόμενη λήγει σε %2",
     "other": "%1 δωρεάν επαναφορές · η επόμενη λήγει σε %2"
   },
+  "agents.game": "Παιχνίδι",
   "agents.helpFireworksSignIn": "Όρισε το %1, εκτέλεσε το %2 ή συνδέσου στο Fireworks στο pi ή στο opencode.",
   "agents.helpNotInPath": "Το %1 δεν βρέθηκε στο PATH",
   "agents.helpRunToAuthenticate": "Εκτέλεσε το %1 για έλεγχο ταυτότητας.",
@@ -33,6 +34,10 @@
   "agents.helpStartOrRunToSignIn": "Ξεκίνα το %1 ή εκτέλεσε το %2 για να συνδεθείς.",
   "agents.helpStartToSeeLimits": "Ξεκίνα το %1 για να δεις τα όριά του· δεν χρειάζεται να συνδεθείς ξανά.",
   "agents.hideProviderConfirm": "Απόκρυψη του %1 από το πάνελ; Τα διαπιστευτήρια και η σύνδεση θα διατηρηθούν.",
+  "agents.kindImage": "εικόνα",
+  "agents.kindMusic": "μουσική",
+  "agents.kindText": "κείμενο",
+  "agents.kindVideo": "βίντεο",
   "agents.lastUpdatedAgo": "Τελευταία ενημέρωση πριν από %1",
   "agents.lastUpdatedJustNow": "Τελευταία ενημέρωση πριν από λιγότερο από ένα λεπτό",
   "agents.lastUpdatedUnknown": "Η ώρα τελευταίας ενημέρωσης δεν είναι διαθέσιμη",
@@ -57,6 +62,7 @@
   "agents.localLaunch": "Εκκίνηση πράκτορα",
   "agents.localLoadingMeter": "Φόρτωση",
   "agents.localMemoryFact": "%1 GiB Μνήμη",
+  "agents.localNeedsRam": "Χρειάζεται %1 GB RAM",
   "agents.localNotEnoughMemory": "Ανεπαρκής μνήμη",
   "agents.localRecommended": "προτεινόμενο",
   "agents.localRemoveConfirm": "Διακοπή του %1 και διαγραφή των βαρών που κατεβάστηκαν;",
@@ -67,6 +73,7 @@
   "agents.localStart": "Έναρξη",
   "agents.localStop": "Διακοπή",
   "agents.localStoppingMeter": "Τερματισμός",
+  "agents.localUsingRam": "Χρησιμοποιεί %1 GB RAM",
   "agents.loginBrowser": "Συνδέσου μέσω του προγράμματος περιήγησης",
   "agents.makeSomethingCool": "ΦΤΙΑΞΕ ΚΑΤΙ ΩΡΑΙΟ",
   "agents.merged": {
@@ -99,6 +106,7 @@
     "other": "Κοινή χρήση με %1 χρήστες · διακοπή κοινής χρήσης"
   },
   "agents.networkStopSharing": "Κοινόχρηστο στο tailnet σου · σταμάτα την κοινή χρήση",
+  "agents.openFantasi": "Άνοιγμα Fantasi",
   "agents.outOfCredits": "Εξαντλήθηκαν οι πιστώσεις",
   "agents.pasteCode": "Αν η σελίδα δείχνει κωδικό αντί να ολοκληρώσει, επικόλλησέ τον εδώ.",
   "agents.pasteCodeLink": "Η σελίδα εμφανίζει κωδικό;",

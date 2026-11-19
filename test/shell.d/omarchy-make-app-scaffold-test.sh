@@ -9,7 +9,7 @@ require_command python3
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
-scaffold=$ROOT/default/agents/skills/omarchy-app/scaffold
+scaffold=$ROOT/default/agents/skills/omarchy-make-app/scaffold
 
 # The scaffold reads its files out of templates.md by heading, so a template
 # heading or fence written differently would drop a file without an error.

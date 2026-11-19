@@ -24,6 +24,7 @@
     "one": "%1 ilmainen nollaus · seuraava vanhenee %2 kuluttua",
     "other": "%1 ilmaista nollausta · seuraava vanhenee %2 kuluttua"
   },
+  "agents.game": "Peli",
   "agents.helpFireworksSignIn": "Aseta %1, suorita %2 tai kirjaudu Fireworksiin pi:ssä tai opencodessa.",
   "agents.helpNotInPath": "%1 ei löydy PATH:sta",
   "agents.helpRunToAuthenticate": "Suorita %1 tunnistautuaksesi.",
@@ -33,6 +34,10 @@
   "agents.helpStartOrRunToSignIn": "Kirjaudu käynnistämällä %1 tai suorittamalla %2.",
   "agents.helpStartToSeeLimits": "Käynnistä %1 nähdäksesi sen käyttörajat; uudelleenkirjautumista ei tarvita.",
   "agents.hideProviderConfirm": "Piilota %1 paneelista? Tunnistetiedot ja kirjautuminen säilytetään.",
+  "agents.kindImage": "kuva",
+  "agents.kindMusic": "musiikki",
+  "agents.kindText": "teksti",
+  "agents.kindVideo": "video",
   "agents.lastUpdatedAgo": "Päivitetty viimeksi %1 sitten",
   "agents.lastUpdatedJustNow": "Päivitetty viimeksi alle minuutti sitten",
   "agents.lastUpdatedUnknown": "Viimeisin päivitysaika ei saatavilla",
@@ -57,6 +62,7 @@
   "agents.localLaunch": "Käynnistä agentti",
   "agents.localLoadingMeter": "Ladataan",
   "agents.localMemoryFact": "%1 GiB muistia",
+  "agents.localNeedsRam": "Vaatii %1 Gt RAM-muistia",
   "agents.localNotEnoughMemory": "Muisti ei riitä",
   "agents.localRecommended": "suositeltu",
   "agents.localRemoveConfirm": "Pysäytä %1 ja poista sen ladatut painot?",
@@ -67,6 +73,7 @@
   "agents.localStart": "Käynnistä",
   "agents.localStop": "Pysäytä",
   "agents.localStoppingMeter": "Pysäytetään",
+  "agents.localUsingRam": "Käyttää %1 Gt RAM-muistia",
   "agents.loginBrowser": "Kirjaudu selaimella",
   "agents.makeSomethingCool": "TEE JOTAIN SIISTIÄ",
   "agents.merged": {
@@ -99,6 +106,7 @@
     "other": "Jaettu %1 käyttäjälle · lopeta jakaminen"
   },
   "agents.networkStopSharing": "Jaettu tailnetissäsi · lopeta jakaminen",
+  "agents.openFantasi": "Avaa Fantasi",
   "agents.outOfCredits": "Krediitit loppu",
   "agents.pasteCode": "Jos sivu näyttää koodin valmistumisen sijaan, liitä se tähän.",
   "agents.pasteCodeLink": "Näkyykö sivulla sen sijaan koodi?",
