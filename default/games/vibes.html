@@ -57,7 +57,7 @@ const HUES = [P.cyan, P.magenta, P.yellow, P.green, P.orange, P.red, P.blue];
 const hueOf = i => HUES[((i % HUES.length) + HUES.length) % HUES.length];
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const FONT = '"JetBrainsMono Nerd Font", ui-monospace, monospace';
-const KEYS_HINT = 'Arrows move · Enter plays · Q when paused, or Esc on a title screen, comes back here';
+const KEYS_HINT = 'Arrows move · Enter plays · Q when paused, or Esc on a title screen, comes back here · Super + W closes · Super + F makes it a window';
 const MAKE_HINT = 'New games come from the agents panel: Make something cool → Game. It can keep working on one of these too.';
 
 function hash(text) { let h = 2166136261; for (const c of text) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
@@ -172,7 +172,7 @@ const balls = HUES.map(hue => {
   return ball;
 });
 const stars = Array.from({ length: 110 }, () => ({ x: Math.random(), y: Math.random(), depth: Math.random() }));
-const SCROLL = `      WELCOME TO GAME VIBES ... ${N} GAME${N === 1 ? '' : 'S'} ON THE DISK ... ARROWS MOVE - ENTER PLAYS ... Q WHEN PAUSED, OR ESC ON A TITLE SCREEN, COMES BACK HERE ... WANT ANOTHER ONE? OPEN THE AGENTS PANEL AND PICK  MAKE SOMETHING COOL → GAME  ... IT CAN KEEP WORKING ON ONE OF THESE TOO ... GREETINGS TO EVERYONE RUNNING OMARCHY ...      `;
+const SCROLL = `      WELCOME TO GAME VIBES ... ${N} GAME${N === 1 ? '' : 'S'} ON THE DISK ... ARROWS MOVE - ENTER PLAYS ... Q WHEN PAUSED, OR ESC ON A TITLE SCREEN, COMES BACK HERE ... SUPER + W CLOSES - SUPER + F MAKES IT A WINDOW ... WANT ANOTHER ONE? OPEN THE AGENTS PANEL AND PICK  MAKE SOMETHING COOL → GAME  ... IT CAN KEEP WORKING ON ONE OF THESE TOO ... GREETINGS TO EVERYONE RUNNING OMARCHY ...      `;
 
 let selected = remembered(), at = selected, kick = 0, hits = [];
 function select(i) {
