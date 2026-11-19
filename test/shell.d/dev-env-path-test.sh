@@ -102,3 +102,19 @@ mapfile -t reordered_result < <(run_bootstrap bash "$bootstrap" "$home" "$inheri
 [[ ${reordered_result[1]} == "$home/.local/share/mise/command-wrappers/bin:$tmpdir/active/bin:$tmpdir/managed/bin:/usr/bin:$home/.local/share/mise/shims:$home/.local/bin" ]] ||
   fail "bootstrap moves existing wrappers ahead of inherited managed tool paths without duplication" "${reordered_result[1]}"
 pass "bootstrap moves existing wrappers ahead of inherited managed tool paths without duplication"
+
+printf 'export OMARCHY_PATH="%s"\n' "$tmpdir/deleted-checkout" >"$tmpdir/omarchy.conf"
+stale_err="$tmpdir/stale.err"
+mapfile -t stale_result < <(run_bootstrap bash "$bootstrap" "$home" "$tmpdir/unrelated/bin:/usr/bin" 2>"$stale_err")
+stale_path=${stale_result[1]}
+
+[[ ${stale_result[0]} == "/usr/share/omarchy" ]] ||
+  fail "env-bootstrap falls back to /usr/share/omarchy when the linked checkout is gone" "actual: ${stale_result[0]}"
+grep -F "Warning: OMARCHY_PATH=$tmpdir/deleted-checkout does not exist; using /usr/share/omarchy" "$stale_err" >/dev/null ||
+  fail "env-bootstrap warns when falling back from a missing checkout" "$(cat "$stale_err")"
+case ":$stale_path:" in
+  *":$tmpdir/deleted-checkout/bin:"*)
+    fail "env-bootstrap does not prepend a missing checkout bin to PATH" "actual PATH: $stale_path"
+    ;;
+esac
+pass "env-bootstrap falls back to /usr/share/omarchy when the linked checkout is gone"
