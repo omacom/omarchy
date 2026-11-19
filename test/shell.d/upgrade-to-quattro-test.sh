@@ -253,6 +253,9 @@ assert_stuck "luks.name= does not unlock an encrypt-hook initramfs" "luks.name=a
 assert_stuck "the last root= is the one that counts" "root=UUID=abc root=/dev/mapper/root rw" 1
 assert_boots "an overridden mapper root= is not held against it" "root=/dev/mapper/root root=UUID=abc rw" 1
 assert_stuck "a bare root= names nothing" "root= rw" 0
+assert_stuck "an empty final root= overrides an earlier value" "root=UUID=abc root= rw" 0
+assert_stuck "a selector cannot rescue an empty final root=" "cryptdevice=x:root root=/dev/mapper/root root=" 1
+assert_boots "a later root= can replace an empty value" "root= root=UUID=abc rw" 0
 
 # The encrypt hook opens root= itself when cryptdevice= is absent, so a root=
 # naming the container rather than a mapper node still boots.
