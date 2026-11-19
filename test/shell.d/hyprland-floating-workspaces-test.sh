@@ -771,6 +771,7 @@ OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "a floating window dropped under the 
 local handlers, binds, timers, dispatched = {}, {}, {}, {}
 local active, cursor = nil, { x = 0, y = 0 }
 local workspace_windows = {}
+local commands = {}
 
 -- Two screens stacked: the top bar reserves 26 at the top of each.
 local upper = { id = 0, x = 0, y = 0, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } }
@@ -783,6 +784,16 @@ hl = {
   timer = function(callback) table.insert(timers, callback) end,
   get_active_window = function() return active end,
   get_workspace_windows = function() return workspace_windows end,
+  exec_cmd = function(command) table.insert(commands, command) end,
+  get_windows = function(filter)
+    local found = {}
+    for _, w in ipairs(workspace_windows) do
+      for _, tag in ipairs(w.tags or {}) do
+        if tag == filter.tag then table.insert(found, w) end
+      end
+    end
+    return found
+  end,
   get_cursor_pos = function() return cursor end,
   get_monitors = function() return { upper, lower } end,
   get_config = function(key) return config[key] end,
@@ -993,6 +1004,48 @@ terminal.at = { x = 200, y = 300 }
 cursor = { x = 300, y = 280 }
 handlers["window.active"](); for _, run in ipairs(timers) do run() end; timers = {}
 assert(not behind(terminal), "dragged away, it is no longer marked")
+
+-- Its earlier size goes with the mark: maximized and restored after the user
+-- moved it, it keeps the box Hyprland restores rather than the old one.
+mail.fullscreen = 0
+settle_fullscreen(mail)
+terminal.fullscreen = 1; terminal.at = { x = 12, y = 58 }; terminal.size = { x = 1896, y = 1030 }
+settle_fullscreen(terminal)
+terminal.fullscreen = 0; terminal.at = { x = 200, y = 300 }; terminal.size = { x = 1896, y = 1030 }
+settle_fullscreen(terminal)
+assert(terminal.at.x == 200 and terminal.size.x == 1896, "a window moved after being kept behind is restored where the user put it")
+
+-- Handed over twice, a window still gets back the size it had before the first.
+local first, second = window(300, { address = "0xa" }), window(500, { address = "0xb" })
+workspace_windows = { first, second }
+local function maximize(w) w.fullscreen = 1; w.at = { x = 12, y = 58 }; w.size = { x = 1896, y = 1030 } end
+first.at = { x = 400, y = 300 }; first.size = { x = 870, y = 522 }
+maximize(first); settle_fullscreen(first)
+maximize(second); first.fullscreen = 0; first.at = { x = 400, y = 300 }; first.size = { x = 870, y = 522 }
+settle_fullscreen(second)
+maximize(first); second.fullscreen = 0; second.at = { x = 300, y = 200 }; second.size = { x = 1100, y = 734 }
+settle_fullscreen(first)
+maximize(second); first.fullscreen = 0; first.at = { x = 12, y = 58 }; first.size = { x = 1896, y = 1030 }
+settle_fullscreen(second)
+second.fullscreen = 0; settle_fullscreen(second)
+maximize(first); settle_fullscreen(first)
+first.fullscreen = 0; settle_fullscreen(first)
+assert(first.size.x == 870 and first.size.y == 522 and first.at.x == 400,
+  "a window maximized over twice gets back the size it had before the first time")
+
+-- With Drag Maximize off, nothing would clear the marks, so a load without it
+-- clears them and has the dock read its windows again.
+local marks = require("default.hypr.floating-marks")
+local marked = window(300, { address = "0xc", tags = { "omarchy-floating-workspace", marks.behind } })
+workspace_windows = { marked }
+commands = {}
+marks.clear()
+assert(not behind(marked) and commands[#commands] == "omarchy-shell -q omarchy.dock refreshWindows",
+  "clearing the marks takes them off and has the dock read its windows")
+commands = {}
+marks.clear()
+assert(#commands == 0, "with nothing marked, the dock is left alone")
+workspace_windows = {}
 
 LUA
 pass "a floating window dropped under the top bar keeps its titlebar in reach"

@@ -23,7 +23,11 @@ local SELF_FRAMED_TAG = "omarchy-self-framed"
 -- A window kept at full size behind another one maximized over it, so the
 -- dock hides for it as it would for a maximized one, until it is moved,
 -- resized or maximized itself.
-local BEHIND_TAG = "omarchy-maximized-behind"
+local BEHIND_TAG = require("default.hypr.floating-marks").behind
+
+-- The size a window kept at full size behind a maximized one had before, by
+-- address, for when it is maximized and restored itself.
+local own_sizes = {}
 
 -- A tag a window rule adds is reported with a trailing "*".
 local function tagged(window, name)
@@ -166,8 +170,11 @@ local function check()
 
   local moved = was.x ~= window.at.x or was.y ~= window.at.y
   local resized = was.width ~= window.size.x or was.height ~= window.size.y
+  -- Moved or resized, it is an ordinary window again, and the size it had
+  -- before is no longer the one to go back to.
   if (moved or resized) and tagged(window, BEHIND_TAG) then
     set_behind(window, false)
+    own_sizes[window.address] = nil
   end
   local cursor = hl.get_cursor_pos()
   if not moved or resized or not cursor or not pointer_on(window, cursor) then
@@ -198,7 +205,6 @@ hl.on("window.active", check_soon)
 -- A window un-maximized by Omarchy because another one opened is not covered,
 -- as nothing is maximized over it then.
 local maximized_boxes = {}
-local own_sizes = {}
 
 
 local function place(window, box)
@@ -239,7 +245,9 @@ local function track_maximized(workspace_id)
         local lowest = monitor and monitor.y
           and top_edge(monitor) + titlebar_height(window) + (hl.get_config("general.border_size") or 0)
         local drop = lowest and math.max(0, lowest - was.y) or 0
-        own_sizes[window.address] = box_of(window)
+        -- Handed over again, it is at the full size it was given last time:
+        -- the size from before the first hand-over is still the one to keep.
+        own_sizes[window.address] = own_sizes[window.address] or box_of(window)
         place(window, { x = was.x, y = was.y + drop, width = was.width, height = was.height - drop })
         set_behind(window, true)
       elseif own_sizes[window.address] then
