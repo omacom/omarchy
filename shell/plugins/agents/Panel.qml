@@ -686,6 +686,15 @@ Panel {
     return total > 0 ? Commons.I18n.t("agents.localDownloadValue").arg(Commons.I18n.formatNumber(done / 1e9, 1)).arg(Commons.I18n.formatNumber(total / 1e9, 1)) : ""
   }
 
+  // What pressing update means: how much it downloads, once the engine has
+  // sized it, and that the model restarts.
+  function updateTip(model) {
+    var bytes = Number(model && model.update && model.update.download_bytes) || 0
+    if (bytes >= 1e8) return Commons.I18n.t("agents.localUpdateDownloadGb").arg(Commons.I18n.formatNumber(bytes / 1e9, 1))
+    if (bytes > 0) return Commons.I18n.t("agents.localUpdateDownloadMb").arg(Commons.I18n.formatNumber(Math.max(1, Math.round(bytes / 1e6)), 0))
+    return Commons.I18n.t("agents.localUpdate")
+  }
+
   function setUpLocal(recipe) {
     if (!recipe) return
     usage.setUp(recipe)
@@ -2434,8 +2443,11 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         readonly property bool updating: !!section.model && section.model.updating === true
         visible: !!section.model && !section.remote && !section.removing && !section.installing && (updating || (!!section.model.update && !section.loading && !section.stopping))
-        iconText: "󰚰"
-        tooltipText: updating ? Commons.I18n.t("agents.localUpdating") : Commons.I18n.t("agents.localUpdate")
+        // The arrows the bar's system update shows, drawn to the play's size:
+        // this glyph fills more of its box than the play and pause do.
+        iconText: "\uf021"
+        fontSize: Math.round(Style.font.icon * 0.8)
+        tooltipText: updating ? Commons.I18n.t("agents.localUpdating") : root.updateTip(section.model)
         foreground: updating ? root.dim : root.foreground
         opacity: updating ? 0.5 : 1
         fontFamily: root.fontFamily
