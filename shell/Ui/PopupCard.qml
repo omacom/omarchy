@@ -34,11 +34,14 @@ PopupWindow {
   // about the bar.
   readonly property real barThickness: !bar ? 0
     : (typeof bar.barSizeFor === "function" && popupScreen ? bar.barSizeFor(popupScreen.name) : bar.barSize)
+  // A floating bar hangs its edge margin off the screen edge, so the strip's
+  // inner edge is that much further in.
+  readonly property real barReach: barThickness + (bar && bar.barMargins ? (bar.barMargins[bar.position] || 0) : 0)
   readonly property real availableCardWidth: screenW > 0
-    ? Math.max(120, screenW - ((bar && (bar.position === "left" || bar.position === "right")) ? barThickness : 0) - root.margin * 2)
+    ? Math.max(120, screenW - ((bar && (bar.position === "left" || bar.position === "right")) ? barReach : 0) - root.margin * 2)
     : 0
   readonly property real availableCardHeight: screenH > 0
-    ? Math.max(120, screenH - ((bar && (bar.position === "top" || bar.position === "bottom")) ? barThickness : 0) - root.margin * 2)
+    ? Math.max(120, screenH - ((bar && (bar.position === "top" || bar.position === "bottom")) ? barReach : 0) - root.margin * 2)
     : 0
   readonly property real verticalContentInset: padding * 2 + Border.top(borderSpec) + Border.bottom(borderSpec)
 
@@ -130,13 +133,13 @@ PopupWindow {
         if (root.bar.position === "top" || root.bar.position === "bottom") {
           cx = window.width / 2 - popupWidth / 2
           cy = root.bar.position === "bottom"
-            ? window.height - root.barThickness - popupHeight - root.margin
-            : root.barThickness + root.margin
+            ? window.height - root.barReach - popupHeight - root.margin
+            : root.barReach + root.margin
           cx = Math.max(root.margin, Math.min(cx, window.width - popupWidth - root.margin))
         } else {
           cx = root.bar.position === "left"
-            ? root.barThickness + root.margin
-            : window.width - root.barThickness - popupWidth - root.margin
+            ? root.barReach + root.margin
+            : window.width - root.barReach - popupWidth - root.margin
           cy = window.height / 2 - popupHeight / 2
           cy = Math.max(root.margin, Math.min(cy, window.height - popupHeight - root.margin))
         }
