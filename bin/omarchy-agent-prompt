@@ -30,7 +30,7 @@ while (($#)); do
   esac
 done
 
-if (($# == 0)); then
+if [[ -z $* ]]; then
   echo "Usage: omarchy agent prompt [--inline] [--pick] [--local] [--local-model <recipe>] [--prefer-local] [--agent <id>] <prompt...>" >&2
   exit 1
 fi

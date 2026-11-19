@@ -26,11 +26,11 @@
   "update": {
     "label": "Ažuriraj"
   },
-  "about": {
-    "label": "O programu"
-  },
   "system": {
     "label": "Sustav"
+  },
+  "system.about": {
+    "label": "O programu"
   },
   "system.screensaver": {
     "label": "Čuvar zaslona"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Unos"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Jezik"
+  },
+  "setup.region.timezone": {
+    "label": "Vremenska zona"
   },
   "setup.network": {
     "label": "Mreža"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Izravno pokretanje"
-  },
-  "setup.reset": {
-    "label": "Resetiraj računalo"
+  "remove.factory-reset": {
+    "label": "Tvorničko vraćanje"
   },
   "install.package": {
     "label": "Paket"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Lozinka"
   },
-  "update.timezone": {
-    "label": "Vremenska zona"
-  },
   "update.time": {
     "label": "Vrijeme"
   },
@@ -1195,7 +1192,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Snimanje rušenja uključeno"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,40 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikone"
+  },
+  "install.style.icons": {
+    "label": "Ikone"
+  },
+  "remove.icons": {
+    "label": "Ikone"
+  },
+  "update.icons": {
+    "label": "Dodatne ikone"
+  },
+  "system.firmware": {
+    "label": "Ponovno pokretanje u BIOS",
+    "description": "Ponovno pokretanje u postavke UEFI firmvera"
+  },
+  "setup.region": {
+    "label": "Regija"
+  },
+  "setup.region.formats": {
+    "label": "Formati",
+    "description": "Kako se pišu datumi, vremena, brojevi i jedinice"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes igra"
+  },
+  "update.games": {
+    "label": "Game Vibes igre"
+  },
+  "agent.make.game": {
+    "label": "Napravi igru"
   }
 }

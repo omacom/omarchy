@@ -125,12 +125,26 @@ for installer in \
   omarchy-install-editor-emacs; do
   ln -s omarchy-test-installer "$mock_bin/$installer"
 done
+# omarchy-install-video-decode and omarchy-install-camera add flags on
+# Snapdragon hardware, so the real ones would make the copied flags file
+# depend on the machine running the test.
 for setup_command in \
   omarchy-install-chromium-copy-url \
   omarchy-install-chromium-ytdlp \
+  omarchy-install-video-decode \
+  omarchy-install-camera \
   omarchy-theme-set-browser; do
   ln -s omarchy-test-setup-call "$mock_bin/$setup_command"
 done
+
+cat >"$mock_bin/omarchy-install-browser-extensions" <<'SH'
+#!/bin/bash
+if [[ ${1:-} == "--check" ]]; then
+  [[ ${OMARCHY_TEST_BROWSER_EXTENSIONS_STALE:-false} != "true" ]]
+else
+  printf 'omarchy-install-browser-extensions:%s\n' "$*" >>"$OMARCHY_TEST_SETUP_LOG"
+fi
+SH
 
 # The real browser installer below calls the platform's post-install hook; on a
 # Mac with the platform package installed that would run, so answer it here.
@@ -322,11 +336,38 @@ omarchy-default-editor nvim
 [[ ! -s $install_log && ! -s $terminal_log ]] || fail "installed defaults skip installation"
 pass "installed defaults are selected immediately"
 
+# The bundled extensions reach each browser through copies taken at setup that
+# go stale when an extension or its id changes. Picking an installed Chrome
+# repairs its root-owned policy in a terminal where sudo can prompt; the other
+# browsers repair their own files on the spot; current ones are left alone.
+touch "$installed_dir/google-chrome-stable" "$installed_dir/chromium"
+: >"$terminal_log"
+: >"$setup_log"
+OMARCHY_TEST_BROWSER_EXTENSIONS_STALE=true omarchy-default-browser chrome
+mapfile -d '' -t terminal_args <"$terminal_log"
+[[ ${terminal_args[*]} == "omarchy-default-browser --install chrome" ]] ||
+  fail "an installed Chrome with stale extensions opens its repair in a terminal"
+OMARCHY_TEST_BROWSER_EXTENSIONS_STALE=true omarchy-default-browser --install chrome
+grep -Fxq 'omarchy-install-browser-extensions:chrome' "$setup_log" ||
+  fail "an installed Chrome with stale extensions reinstalls them"
+[[ $(omarchy-default-browser) == "chrome" ]] || fail "Chrome becomes the default after its extensions are repaired"
+: >"$terminal_log"
+: >"$setup_log"
+OMARCHY_TEST_BROWSER_EXTENSIONS_STALE=true omarchy-default-browser chromium
+[[ ! -s $terminal_log ]] || fail "an installed Chromium with stale extensions repairs them without a terminal"
+grep -Fxq 'omarchy-install-browser-extensions:chromium' "$setup_log" ||
+  fail "an installed Chromium with stale extensions reinstalls them"
+[[ $(omarchy-default-browser) == "chromium" ]] || fail "Chromium becomes the default after its extensions are repaired"
+: >"$setup_log"
+omarchy-default-browser chrome
+[[ ! -s $terminal_log && ! -s $setup_log ]] || fail "an installed browser with current extensions is selected immediately"
+pass "picking a Chromium-based browser repairs its bundled extensions when they are stale"
+
 # Picking an editor points every text type at the editor handler in the
 # user's mimeapps.list, replacing what was there and keeping everything else.
 mimeapps="$test_home/.config/mimeapps.list"
 dotfiles_list="$test_tmp/dotfiles-mimeapps.list"
-printf '[Added Associations]\ntext/plain=nvim.desktop;\n\n[Default Applications]\nimage/png=imv.desktop\ntext/plain=nvim.desktop\ntext/x-tex=code.desktop\n' >"$dotfiles_list"
+printf '[Added Associations]\ntext/plain=nvim.desktop;\n\n[Default Applications]\nimage/png=omaview.desktop\ntext/plain=nvim.desktop\ntext/x-tex=code.desktop\n' >"$dotfiles_list"
 ln -sf "$dotfiles_list" "$mimeapps"
 omarchy-default-editor vim
 handler_types=$(sed -n 's/^MimeType=//p' "$ROOT/applications/omarchy-launch-editor.desktop" | tr ';' '\n' | sed '/^$/d')
@@ -335,7 +376,7 @@ while read -r type; do
 done <<<"$handler_types"
 ! grep -qxF "text/plain=nvim.desktop" "$mimeapps" || fail "picking an editor replaces the old text/plain default"
 ! grep -qxF "text/x-tex=code.desktop" "$mimeapps" || fail "picking an editor replaces an app chosen for a text type"
-grep -qxF "image/png=imv.desktop" "$mimeapps" || fail "picking an editor keeps other types' defaults"
+grep -qxF "image/png=omaview.desktop" "$mimeapps" || fail "picking an editor keeps other types' defaults"
 grep -qxF "text/plain=nvim.desktop;" "$mimeapps" || fail "picking an editor leaves added associations alone"
 [[ -L $mimeapps ]] || fail "picking an editor keeps a symlinked mimeapps.list a symlink"
 [[ -f $test_home/.local/share/applications/omarchy-launch-editor.desktop ]] || fail "picking an editor installs the editor handler"

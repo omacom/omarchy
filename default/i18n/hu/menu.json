@@ -26,11 +26,11 @@
   "update": {
     "label": "Frissítés"
   },
-  "about": {
-    "label": "Névjegy"
-  },
   "system": {
     "label": "Rendszer"
+  },
+  "system.about": {
+    "label": "Névjegy"
   },
   "system.screensaver": {
     "label": "Képernyővédő"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Bevitel"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Nyelv"
+  },
+  "setup.region.timezone": {
+    "label": "Időzóna"
   },
   "setup.network": {
     "label": "Hálózat"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Közvetlen indítás"
-  },
-  "setup.reset": {
-    "label": "Gép visszaállítása"
+  "remove.factory-reset": {
+    "label": "Gyári visszaállítás"
   },
   "install.package": {
     "label": "Csomag"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Jelszó"
   },
-  "update.timezone": {
-    "label": "Időzóna"
-  },
   "update.time": {
     "label": "Idő"
   },
@@ -1255,7 +1252,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Összeomlásrögzítés be"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,40 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikonok"
+  },
+  "install.style.icons": {
+    "label": "Ikonok"
+  },
+  "remove.icons": {
+    "label": "Ikonok"
+  },
+  "update.icons": {
+    "label": "Extra ikonok"
+  },
+  "system.firmware": {
+    "label": "Újraindítás BIOS-ba",
+    "description": "Újraindítás az UEFI firmware-beállításba"
+  },
+  "setup.region": {
+    "label": "Régió"
+  },
+  "setup.region.formats": {
+    "label": "Formátumok",
+    "description": "Dátumok, időpontok, számok és mértékegységek megjelenítése"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes játék"
+  },
+  "update.games": {
+    "label": "Game Vibes játékok"
+  },
+  "agent.make.game": {
+    "label": "Játék készítése"
   }
 }
