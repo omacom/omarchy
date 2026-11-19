@@ -26,6 +26,15 @@ local LAST_WORKSPACE = 2147483647
 local TITLEBARS = "/usr/lib/omarchy-hyprland-titlebars/titlebars.so"
 
 local M = {}
+local mode_listeners = {}
+
+function M.on_change(listener)
+  table.insert(mode_listeners, listener)
+end
+
+local function notify_mode_change()
+  for _, listener in ipairs(mode_listeners) do listener() end
+end
 
 local modes = {}
 local default_mode = nil
@@ -388,6 +397,7 @@ function o.workspace_mode(spec)
     if anything_floats() then
       set_up_floating()
     end
+    notify_mode_change()
     return
   end
 
@@ -408,6 +418,7 @@ function o.workspace_mode(spec)
   arrange(hl.get_workspace_windows(workspace))
   sync_open_rules()
   update_input()
+  notify_mode_change()
 end
 
 local function theme_colors()
@@ -578,5 +589,7 @@ set_up_floating = function()
 
   titlebars()
 end
+
+M.is_floating = floating_workspace
 
 return M

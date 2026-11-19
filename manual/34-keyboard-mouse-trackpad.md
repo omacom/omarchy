@@ -61,6 +61,7 @@ Swipe on the trackpad to move around the desktop:
 | Three fingers up | Toggle the AI console |
 | Three fingers down | Open the Omarchy menu |
 | Four fingers left / right | Move the active window to the previous / next workspace |
+| Four fingers up | Workspace Overview on floating workspaces |
 | Four fingers down | Toggle fullscreen |
 
 To change one, unset it in `~/.config/hypr/input.lua` before adding your own [touchpad gesture](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), since Hyprland won't take two gestures on the same fingers and direction:
