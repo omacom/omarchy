@@ -101,13 +101,9 @@
   const ours = new WeakSet();
   const scopes = new Map();
   const entries = new WeakMap();
-  // Fetched cross-origin sheets by URL. A long-lived page that keeps swapping stylesheets
-  // would otherwise keep every one it ever used; past the budget, sheets no render has
-  // touched for a minute are dropped (and fetched again if a page brings them back).
+  // Fetched cross-origin sheets by URL, retained only while a live source uses them.
+  // Reachability includes imports and shadow roots, even when their overrides are cached.
   const remote = new Map();
-  const REMOTE_BUDGET = 16 * 1024 * 1024;
-  const REMOTE_IDLE_MS = 60000;
-  let remoteBytes = 0;
   const remoteText = new WeakMap();
   const rawIndex = new WeakMap();
   const ordinals = new WeakMap();
@@ -285,8 +281,9 @@
     seen.add(href);
     const entry = remote.get(href);
     if (!entry) {
-      remote.set(href, { state: 'pending' });
-      fetchRemote(href);
+      const pending = { state: 'pending' };
+      remote.set(href, pending);
+      fetchRemote(href, pending);
       renderHadPending = true;
       return '';
     }
@@ -295,7 +292,6 @@
       return '';
     }
     if (entry.state !== 'done') return '';
-    entry.used = performance.now();
     let out = '';
     for (const imp of entry.imports) {
       let inner = renderRemote(imp.url, seen);
@@ -350,35 +346,58 @@
     return { imports, body: src.slice(i) };
   }
 
-  async function fetchRemote(href) {
+  async function fetchRemote(href, pending) {
     try {
       const res = await chrome.runtime.sendMessage({ type: 'fetch-css', url: href });
+      if (!running || remote.get(href) !== pending) return;
       if (!res || !res.ok) throw new Error(res ? res.error : 'no response');
       const { imports, body } = splitImports(res.text, res.url || href);
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(body);
       remoteText.set(sheet, body);
-      remote.set(href, { state: 'done', sheet, imports, base: res.url || href, size: body.length, used: performance.now() });
-      remoteBytes += body.length;
+      remote.set(href, { state: 'done', sheet, imports, base: res.url || href });
       pruneRemote();
     } catch {
+      if (!running || remote.get(href) !== pending) return;
       remote.set(href, { state: 'failed' });
     }
     remoteVersion++;
     scheduleScan();
   }
 
-  // Only idle sheets go, so a page whose live sheets alone exceed the budget keeps them
-  // instead of refetching in a loop.
+  // Walk the sources, not the render timestamps: an unchanged live override may never
+  // render again. Imports are leading rules (possibly after @layer statements), so
+  // ordinary readable sheets cost just one rule lookup, not a walk over their CSS.
   function pruneRemote() {
-    if (remoteBytes <= REMOTE_BUDGET) return;
-    const cutoff = performance.now() - REMOTE_IDLE_MS;
-    const idle = [...remote].filter(([, e]) => e.state === 'done' && e.used < cutoff).sort((a, b) => a[1].used - b[1].used);
-    for (const [href, e] of idle) {
-      if (remoteBytes <= REMOTE_BUDGET) break;
-      remote.delete(href);
-      remoteBytes -= e.size;
+    if (!remote.size) return;
+    const live = new Set();
+    const seen = new Set();
+    function keepUrl(href) {
+      if (!href || live.has(href)) return;
+      live.add(href);
+      for (const imp of remote.get(href)?.imports || []) keepUrl(imp.url);
     }
+    function keepSheet(sheet) {
+      if (!sheet || sheet.disabled || isOurs(sheet) || seen.has(sheet)) return;
+      seen.add(sheet);
+      const rules = readRules(sheet);
+      if (rules === null) {
+        keepUrl(sheet.href);
+        return;
+      }
+      for (const rule of rules) {
+        if (rule instanceof CSSImportRule) {
+          if (rule.styleSheet) keepSheet(rule.styleSheet);
+          else keepUrl(rule.href);
+        } else if (!globalThis.CSSLayerStatementRule || !(rule instanceof CSSLayerStatementRule)) break;
+      }
+    }
+    for (const [root] of scopes) {
+      if (root !== doc && !root.host.isConnected) continue;
+      for (const sheet of root.styleSheets) keepSheet(sheet);
+      for (const sheet of root.adoptedStyleSheets) keepSheet(sheet);
+    }
+    for (const href of remote.keys()) if (!live.has(href)) remote.delete(href);
   }
 
   // Override sheets apply on screen only: printing keeps the page's own colors.
@@ -750,6 +769,7 @@
       }
       scope.scan(deep);
     }
+    pruneRemote();
   }
 
   const isStyleNode = (n) => n.localName === 'style' || (n.localName === 'link' && /\bstylesheet\b/i.test(n.rel));
@@ -795,7 +815,10 @@
       }
     }
     for (const t of styled) if (processInline(t)) detect = true;
-    if (scan) scope.scan();
+    if (scan) {
+      scope.scan();
+      pruneRemote();
+    }
     if (detect) scheduleDetect();
   }
 
@@ -1533,6 +1556,7 @@ mark{background-color:${s.mark};color:${s.fg}}
     restoreAllAnon();
     for (const scope of scopes.values()) scope.destroy();
     scopes.clear();
+    remote.clear();
     if (baseEl) baseEl.remove();
     baseEl = null;
     if (rampEl) rampEl.remove();

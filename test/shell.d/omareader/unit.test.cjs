@@ -7,6 +7,92 @@ const C = globalThis.OmareaderColor;
 const T = globalThis.OmareaderTheme;
 const X = globalThis.OmareaderTransform;
 
+// Run the cache's real lifecycle code with CSSOM-shaped sources. No DOM paint
+// stubs are involved: these checks concern which fetched resources stay owned.
+function remoteCacheHarness() {
+  const fs = require('node:fs');
+  const vm = require('node:vm');
+  const source = fs.readFileSync(path.join(__dirname, '../../../default/chromium/extensions/omareader/src/content.js'), 'utf8');
+  const names = ['readRules', 'splitImports', 'fetchRemote', 'pruneRemote'];
+  const functions = names.map((name) => {
+    const match = source.match(new RegExp(`  (?:async )?function ${name}\\([^]*?\\n  \\}`));
+    assert.ok(match, `${name} is available for the cache lifecycle check`);
+    return match[0];
+  });
+  class CSSImportRule {
+    constructor(styleSheet) { this.styleSheet = styleSheet; this.href = styleSheet.href; }
+  }
+  class CSSLayerStatementRule {}
+  class CSSStyleSheet {
+    replaceSync(text) { this.text = text; this.cssRules = []; }
+  }
+  const doc = { styleSheets: [], adoptedStyleSheets: [] };
+  const context = vm.createContext({
+    doc, scopes: new Map([[doc, {}]]), remote: new Map(), remoteText: new WeakMap(),
+    CSSImportRule, CSSLayerStatementRule, CSSStyleSheet, URL,
+    isOurs: (sheet) => !!sheet.ours,
+    running: true, remoteVersion: 0, scans: 0,
+    scheduleScan() { context.scans++; },
+    // Also let the old budget-only implementation run: small leaks must be freed too.
+    remoteBytes: 0, REMOTE_BUDGET: 16 * 1024 * 1024, REMOTE_IDLE_MS: 60000,
+    performance: { now: () => 0 },
+    chrome: { runtime: {} },
+  });
+  vm.runInContext(functions.join('\n') + '\nObject.assign(globalThis, { fetchRemote, pruneRemote });', context);
+  context.crossOrigin = (href) => ({ href, get cssRules() { throw new Error('SecurityError'); } });
+  return context;
+}
+
+test('remote sheets are released when no live document, import or shadow root uses them', () => {
+  const c = remoteCacheHarness();
+  const main = c.crossOrigin('https://cdn.test/main.css');
+  const shared = c.crossOrigin('https://cdn.test/shared.css');
+  const pending = c.crossOrigin('https://cdn.test/pending.css');
+  const shadow = { host: { isConnected: true }, styleSheets: [shared], adoptedStyleSheets: [] };
+  c.scopes.set(shadow, {});
+  c.doc.styleSheets = [main];
+  c.doc.adoptedStyleSheets = [{ cssRules: [new c.CSSLayerStatementRule(), new c.CSSImportRule(pending)] }];
+  c.remote.set(main.href, { state: 'done', imports: [{ url: shared.href }, { url: main.href }] });
+  c.remote.set(shared.href, { state: 'done', imports: [] });
+  c.remote.set(pending.href, { state: 'pending' });
+  for (const state of ['done', 'pending', 'failed']) c.remote.set(`https://cdn.test/removed-${state}.css`, { state, imports: [] });
+  c.pruneRemote();
+  assert.deepEqual([...c.remote.keys()].sort(), [main.href, shared.href, pending.href].sort());
+  c.doc.styleSheets = [];
+  c.doc.adoptedStyleSheets = [];
+  c.pruneRemote();
+  assert.deepEqual([...c.remote.keys()], [shared.href], 'a shared sheet survives while a connected shadow root uses it');
+  shadow.host.isConnected = false;
+  c.pruneRemote();
+  assert.equal(c.remote.size, 0, 'detached shadow roots do not keep fetched sheets alive');
+});
+
+test('late stylesheet fetches cannot restore removed entries or replace a newer fetch', async () => {
+  const c = remoteCacheHarness();
+  const href = 'https://cdn.test/slow.css';
+  c.doc.styleSheets = [c.crossOrigin(href)];
+  for (const fail of [false, true]) {
+    let resolve, reject;
+    c.chrome.runtime.sendMessage = () => new Promise((yes, no) => { resolve = yes; reject = no; });
+    const pending = { state: 'pending' };
+    c.remote.set(href, pending);
+    const fetch = c.fetchRemote(href, pending);
+    c.remote.delete(href);
+    const replacement = { state: 'pending' };
+    c.remote.set(href, replacement);
+    if (fail) reject(new Error('old request failed'));
+    else resolve({ ok: true, text: 'body{color:white}' });
+    await fetch;
+    assert.equal(c.remote.get(href), replacement, 'an obsolete response leaves the replacement request alone');
+  }
+  assert.equal(c.scans, 0, 'obsolete requests do not trigger renders');
+  c.chrome.runtime.sendMessage = async () => ({ ok: true, text: 'body{color:white}' });
+  const pending = c.remote.get(href);
+  await c.fetchRemote(href, pending);
+  assert.equal(c.remote.get(href).state, 'done', 'a current request still populates the cache');
+  assert.equal(c.scans, 1);
+});
+
 // Every theme Omarchy ships, read by the native host itself so the tests see what the
 // extension gets. An empty HOME keeps the user's own themes out.
 function shippedThemes() {
