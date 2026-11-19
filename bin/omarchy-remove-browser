@@ -76,7 +76,7 @@ zen)
 helium)
   echo "Removing Helium..."
   set_fallback_default_browser helium.desktop
-  omarchy-pkg-drop helium-browser-bin
+  omarchy-pkg-drop helium-browser-bin || exit 1
   rm -f ~/.config/helium-browser-flags.conf
   ;;
 *)
