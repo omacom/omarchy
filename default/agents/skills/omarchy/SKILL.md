@@ -8,7 +8,9 @@ description: >
   blur, opacity, omarchy-shell, bar, widgets, terminal config, themes, fonts, background,
   night light, idle, lock screen, screenshots, screen recording, reminders, layer rules, workspace
   settings, display config, appearance changes, and user-facing omarchy commands. Excludes Omarchy
-  source development through `omarchy dev link` workflows.
+  source development through `omarchy dev link` workflows. Making a new theme, shell plugin, app,
+  or game follows the omarchy-make-theme, omarchy-make-plugin, omarchy-make-app, or
+  omarchy-make-game skill instead.
 ---
 
 # Omarchy Skill
@@ -24,11 +26,13 @@ Deeper instructions for common areas live next to this file. Read the
 matching guide before starting:
 
 - [`hyprland.md`](hyprland.md) - keybindings, monitors, window rules, and other Hyprland config
-- [`plugins.md`](plugins.md) - the Omarchy shell: bar layout, widgets, plugins, idle behavior
-- [`theming.md`](theming.md) - themes, backgrounds, and fonts
+- [`shell.md`](shell.md) - the Omarchy shell: bar layout, built-in widgets, idle behavior
+- [`theming.md`](theming.md) - switching and tweaking themes, backgrounds, and fonts
 - [`hooks.md`](hooks.md) - automation hooks that run on system events
 - [`capture.md`](capture.md) - screenshots, screen recordings, OCR text capture, and file sharing
 - [`contributing.md`](contributing.md) - reporting Omarchy bugs and submitting fixes upstream
+
+Making something new has a skill of its own: `omarchy-make-theme`, `omarchy-make-plugin`, `omarchy-make-app`, and `omarchy-make-game`.
 
 ## Critical Safety Rules
 
@@ -136,7 +140,7 @@ Run `omarchy --help` for the full list. The most common groups:
 
 Hyprland config lives in `~/.config/hypr/` — see [`hyprland.md`](hyprland.md).
 The Omarchy shell (bar, notifications, plugins, idle) is configured in
-`~/.config/omarchy/shell.json` — see [`plugins.md`](plugins.md).
+`~/.config/omarchy/shell.json` — see [`shell.md`](shell.md).
 
 ### Terminals
 
@@ -233,10 +237,10 @@ When user requests system changes:
 
 1. **Is it a stock omarchy command?** Use it directly
 2. **Is it a config edit?** Edit in `~/.config/`, never `/usr/share/omarchy/`
-3. **Is it a theme customization?** Follow [`theming.md`](theming.md); create a NEW custom theme directory
+3. **Is it a theme customization?** Follow [`theming.md`](theming.md); overlay or fork into `~/.config/omarchy/themes/`, never edit a stock theme
 4. **Is it automation?** Follow [`hooks.md`](hooks.md); use `omarchy hook install` and the hook `.d` directories
 5. **Is it a package install?** Use `omarchy pkg add <pkgs...>` (or `omarchy pkg aur add <pkgs...>` for AUR-only packages)
-6. **Is it built-in shell/plugin code?** Follow [`plugins.md`](plugins.md); clone it with `omarchy plugin clone`, never edit the packaged copy
+6. **Is it built-in shell/plugin code?** Follow [`shell.md`](shell.md); clone it with `omarchy plugin clone`, never edit the packaged copy
 7. **Unsure if command exists?** Run `omarchy commands` (or `omarchy <group> --help` for one group)
 
 ### Reminder Requests

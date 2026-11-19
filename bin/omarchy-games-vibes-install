@@ -5,7 +5,7 @@
 # omarchy:examples=omarchy games vibes install https://github.com/example/omarchy-snake-game.git
 
 # A game someone shares is a git repository with the game's index.html at its
-# root, as the web-game skill makes them. It's cloned into ~/Games/vibes, named
+# root, as the omarchy-make-game skill makes them. It's cloned into ~/Games/vibes, named
 # after the repository, and opened in Game Vibes.
 
 if [[ -z $1 ]]; then
