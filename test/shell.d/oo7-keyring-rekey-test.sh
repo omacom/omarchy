@@ -23,22 +23,37 @@ file=\$4 name=\${4##*/}; name=\${name%.keyring}
 [[ \$2 == \"\$(<$test_tmp/passwords/\$name)\" ]] || exit 1
 mkdir -p \"\${file%/*}/v1\"
 echo \"key=\$2\" >\"\${file%/*}/v1/\$name.keyring\""
-# The daemon: a collection is locked while its file isn't keyed to the credential,
-# and ChangeWithMasterPassword re-keys it when given its current secret.
-stub python3 "v1=\$HOME/.local/share/keyrings/v1
-case \$3 in
-locked)
-  for f in \"\$v1\"/*.keyring; do
-    [[ -f \$f && \$(<\"\$f\") != key=SEALED ]] && echo \"/org/freedesktop/secrets/collection/\$(basename \"\$f\" .keyring)\"
+# The daemon. A converted keyring opens with the secret its file is keyed to, and
+# ChangeWithMasterPassword re-keys it given that secret. A gnome-keyring file it hasn't
+# converted is an empty placeholder, which any secret opens and any change empties, as
+# in oo7 0.7.1.
+cat >"$stubs/python3" <<'STUB'
+#!/bin/bash
+dir=$HOME/.local/share/keyrings v1=$HOME/.local/share/keyrings/v1
+case $3 in
+collections)
+  for f in "$v1"/*.keyring; do
+    [[ -f $f ]] && echo "/org/freedesktop/secrets/collection/$(basename "$f" .keyring)"
   done
+  for f in "$dir"/*.keyring; do
+    [[ -f $f && ! -e $f.migrated && ! -e $v1/${f##*/} && $(head -c 12 "$f") == GnomeKeyring ]] &&
+      echo "/org/freedesktop/secrets/collection/$(basename "$f" .keyring)"
+  done
+  ;;
+opens)
+  f="$v1/${4##*/}.keyring"
+  [[ ! -e $f || $(<"$f") == "key=$(cat)" ]]
   ;;
 change)
   IFS= read -rd '' old || true; IFS= read -rd '' new || true
-  f=\"\$v1/\${4##*/}.keyring\"
-  [[ \$(<\"\$f\") == \"key=\$old\" ]] || exit 1
-  echo \"key=\$new\" >\"\$f\"
+  f="$v1/${4##*/}.keyring"
+  if [[ ! -e $f ]]; then mkdir -p "$v1"; echo "key=$new" >"$f"; exit 0; fi
+  [[ $(<"$f") == "key=$old" ]] || exit 1
+  echo "key=$new" >"$f"
   ;;
-esac"
+esac
+STUB
+chmod +x "$stubs/python3"
 
 new_home() {
   local home="$test_tmp/$1"
@@ -89,13 +104,24 @@ run_rekey "$home" typed >/dev/null || fail "rekey succeeds on a converted keyrin
 keyed "$home" login || fail "a keyring converted by a prompt is keyed to the credential"
 pass "rekey re-keys a keyring converted with its own password"
 
-# An empty answer skips the keyring: it isn't converted or stamped, and the user is told.
+# A keyring already keyed to the credential isn't asked about.
+home=$(new_home sealed)
+mkdir -p "$home/.local/share/keyrings/v1"
+echo "key=SEALED" >"$home/.local/share/keyrings/v1/login.keyring"
+output=$(run_rekey "$home") || fail "rekey succeeds when there's nothing to re-key"
+! grep -q 'Password' <<<"$output" || fail "no password is asked for a keyring that opens with the credential: $output"
+pass "rekey leaves keyrings keyed to the credential alone"
+
+# An empty answer skips the keyring: it isn't converted, stamped or re-keyed, even with
+# a password typed for another keyring, and the user is told.
 home=$(new_home skip)
 encrypted_keyring "$home" login secret-a
-output=$(run_rekey "$home" "") || fail "rekey succeeds when a keyring is skipped"
-[[ ! -e $home/.local/share/keyrings/v1/login.keyring ]] || fail "a skipped keyring isn't converted"
-[[ ! -e $home/.local/share/keyrings/login.keyring.migrated ]] || fail "a skipped keyring isn't stamped"
-grep -q 'Skipped.*login' <<<"$output" || fail "the skip is reported: $output"
+encrypted_keyring "$home" other secret-b
+output=$(run_rekey "$home" secret-a "") || fail "rekey succeeds when a keyring is skipped"
+keyed "$home" login || fail "the keyring that wasn't skipped is keyed to the credential"
+[[ ! -e $home/.local/share/keyrings/v1/other.keyring ]] || fail "a skipped keyring isn't converted or replaced by an empty one"
+[[ ! -e $home/.local/share/keyrings/other.keyring.migrated ]] || fail "a skipped keyring isn't stamped"
+grep -q 'Skipped.*other' <<<"$output" || fail "the skip is reported: $output"
 pass "rekey skips a keyring on an empty answer"
 
 # Without a desktop session nothing is converted: it names the keyrings and fails, so

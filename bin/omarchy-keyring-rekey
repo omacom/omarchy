@@ -87,18 +87,29 @@ def call(path, iface, method, args, ret=None):
 def prop(path, iface, name):
     return call(path, "org.freedesktop.DBus.Properties", "Get", GLib.Variant("(ss)", (iface, name)), "(v)")[0]
 
-if sys.argv[1] == "locked":
+internal = "org.gnome.keyring.InternalUnsupportedGuiltRiddenInterface"
+
+def session():
+    return call(root, "org.freedesktop.Secret.Service", "OpenSession",
+                GLib.Variant("(sv)", ("plain", GLib.Variant("s", ""))), "(vo)")[1]
+
+# The secrets come on stdin, never in the arguments, which other users can read.
+if sys.argv[1] == "collections":
     for path in prop(root, "org.freedesktop.Secret.Service", "Collections"):
-        if prop(path, "org.freedesktop.Secret.Collection", "Locked"):
-            print(path)
+        print(path)
+elif sys.argv[1] == "opens":
+    # oo7 doesn't say which secret a keyring is encrypted with, and an unlocked one
+    # takes any. So it's locked, and unlocked again with the secret if that opens it.
+    secret = sys.stdin.buffer.read()
+    call(root, "org.freedesktop.Secret.Service", "Lock", GLib.Variant("(ao)", ([sys.argv[2]],)), "(aoo)")
+    call(root, internal, "UnlockWithMasterPassword",
+         GLib.Variant("(o(oayays))", (sys.argv[2], (session(), b"", secret, "text/plain"))))
 else:
-    # The secrets come on stdin, never in the arguments, which other users can read.
     old, new = sys.stdin.buffer.read().split(b"\0", 1)
-    _, session = call(root, "org.freedesktop.Secret.Service", "OpenSession",
-                      GLib.Variant("(sv)", ("plain", GLib.Variant("s", ""))), "(vo)")
-    call(root, "org.gnome.keyring.InternalUnsupportedGuiltRiddenInterface", "ChangeWithMasterPassword",
-         GLib.Variant("(o(oayays)(oayays))", (sys.argv[2], (session, b"", old, "text/plain"),
-                                                (session, b"", new, "text/plain"))))
+    s = session()
+    call(root, internal, "ChangeWithMasterPassword",
+         GLib.Variant("(o(oayays)(oayays))", (sys.argv[2], (s, b"", old, "text/plain"),
+                                                (s, b"", new, "text/plain"))))
 PY
 )
 
@@ -128,12 +139,17 @@ change_to_sealed() {
   printf '%s\0%s' "$2" "$sealed" | secret_service change "/org/freedesktop/secrets/collection/$1" >/dev/null 2>&1
 }
 
+# Every keyring oo7 has converted, locked or not: one unlocked at a prompt keeps the
+# password typed there. A skipped one still waits as an empty placeholder, and
+# re-keying that would leave an empty keyring in its place.
 while read -r collection; do
   name=${collection##*/}
+  [[ -f $keyrings_dir/v1/$name.keyring ]] || continue
+  printf '%s' "$sealed" | secret_service opens "$collection" >/dev/null 2>&1 && continue
   if open_with_password "$name" change_to_sealed; then
     echo "The keyring \"$name\" now unlocks at login."
   fi
-done < <(secret_service locked)
+done < <(secret_service collections)
 
 if (( ${#skipped[@]} )); then
   echo "Skipped, so these keep their own password and ask for it when an app needs them: ${skipped[*]}." >&2
