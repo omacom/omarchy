@@ -60,6 +60,8 @@ function category(code, count) {
   case "ga":
     if (n <= 2) return n === 0 ? "other" : n === 1 ? "one" : "two"
     return within(n, 3, 6) ? "few" : within(n, 7, 10) ? "many" : "other"
+  case "zgh":
+    return (n <= 1 || within(n, 11, 99)) ? "one" : "other"
   default:
     return n === 1 ? "one" : "other"
   }

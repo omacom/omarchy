@@ -395,6 +395,14 @@
     "decimal": ",",
     "zeroDigit": "0"
   },
+  "zgh": {
+    "name": "ⵜⴰⵎⴰⵣⵉⵖⵜ",
+    "englishName": "Standard Moroccan Tamazight",
+    "formatLocale": "zgh-MA",
+    "locale": "zgh_MA.UTF-8",
+    "decimal": ",",
+    "zeroDigit": "0"
+  },
   "pt-BR": {
     "name": "Português (Brasil)",
     "englishName": "Portuguese (Brazil)",
