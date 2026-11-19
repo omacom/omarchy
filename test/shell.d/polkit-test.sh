@@ -29,6 +29,11 @@ assertEqual(
   'polkit names the target user for pkexec --user'
 )
 assertEqual(
+  request('Run this?\nIn: /home/me\n\n\n'),
+  JSON.stringify({ title: 'Run this?\nIn: /home/me', program: '', args: '' }),
+  'polkit drops trailing blank lines from a custom message, which would only pad the card'
+)
+assertEqual(
   request("Authentication is needed to run `/usr/bin/sh -c true\n\n\n\nrm -rf /etc' as the super user"),
   JSON.stringify({ title: 'Run as root', program: '/usr/bin/sh', args: '-c true\\n\\n\\n\\nrm -rf /etc' }),
   'polkit shows line breaks in the pkexec command as escapes'

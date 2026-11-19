@@ -32,7 +32,7 @@ function visibleText(text) {
 
 function authorizationRequest(message, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
-  var text = String(message || "")
+  var text = String(message || "").replace(/\s+$/, "")
   if (!text) return { title: t("polkit.authenticationNeeded", "Authentication is needed..."), program: "", args: "" }
   // pkexec's message: "Authentication is needed to run `CMD' as the super user"
   // (or "... as user NAME"). CMD is pkexec's cmdline_short, which keeps any
