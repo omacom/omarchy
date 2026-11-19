@@ -11,14 +11,34 @@ local function popped(window)
   return false
 end
 
+local function safe_path_component(value)
+  return type(value) == "string"
+    and value ~= ""
+    and value ~= "."
+    and value ~= ".."
+    and value:match("^[%w._-]+$") ~= nil
+end
+
 local function geometry_file(address)
+  if not safe_path_component(address) then
+    return nil
+  end
+
   local runtime_dir = os.getenv("XDG_RUNTIME_DIR")
-  if not runtime_dir or runtime_dir == "" then
-    runtime_dir = "/tmp"
+  if not runtime_dir or runtime_dir == "" or runtime_dir:sub(1, 1) ~= "/" then
+    return nil
+  end
+
+  runtime_dir = runtime_dir:gsub("/+$", "")
+  if runtime_dir == "" then
+    return nil
   end
 
   local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
   if signature and signature ~= "" then
+    if not safe_path_component(signature) then
+      return nil
+    end
     return runtime_dir .. "/omarchy/windows/" .. signature .. "/pop-" .. address .. "-geometry"
   end
 
@@ -41,6 +61,9 @@ end)
 -- directory. Remove that file when the window closes without being unpopped.
 hl.on("window.destroy", function(window)
   if window and window.address then
-    os.remove(geometry_file(window.address))
+    local path = geometry_file(window.address)
+    if path then
+      os.remove(path)
+    end
   end
 end)
