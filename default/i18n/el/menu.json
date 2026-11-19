@@ -565,9 +565,6 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Απευθείας εκκίνηση"
-  },
   "setup.reset": {
     "label": "Επαναφορά υπολογιστή"
   },

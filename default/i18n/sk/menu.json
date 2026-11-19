@@ -565,9 +565,6 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Priame spustenie"
-  },
   "setup.reset": {
     "label": "Resetovať počítač"
   },

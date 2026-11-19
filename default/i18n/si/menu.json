@@ -565,9 +565,6 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "සෘජු ආරම්භය"
-  },
   "setup.reset": {
     "label": "පරිගණකය යළි සකසන්න"
   },

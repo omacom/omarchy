@@ -565,9 +565,6 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direktang Boot"
-  },
   "setup.reset": {
     "label": "I-reset ang Computer"
   },

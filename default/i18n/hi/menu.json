@@ -565,9 +565,6 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "सीधा बूट"
-  },
   "setup.reset": {
     "label": "कंप्यूटर रीसेट करें"
   },

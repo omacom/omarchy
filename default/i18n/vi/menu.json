@@ -565,9 +565,6 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Khởi động trực tiếp"
-  },
   "setup.reset": {
     "label": "Đặt lại máy"
   },

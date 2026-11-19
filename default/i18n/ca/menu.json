@@ -565,9 +565,6 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Arrencada directa"
-  },
   "setup.reset": {
     "label": "Restableix l'ordinador"
   },

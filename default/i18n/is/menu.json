@@ -565,9 +565,6 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Bein ræsing"
-  },
   "setup.reset": {
     "label": "Endurstilla tölvu"
   },

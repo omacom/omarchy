@@ -565,9 +565,6 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "براہ راست بوٹ"
-  },
   "setup.reset": {
     "label": "کمپیوٹر ری سیٹ کریں"
   },
