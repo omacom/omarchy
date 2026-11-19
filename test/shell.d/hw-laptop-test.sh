@@ -139,3 +139,24 @@ for answer in '' 'not-a-property' 'fail'; do
   fi
 done
 pass "a logind that does not answer leaves the lid open"
+
+# Some firmware takes seconds to answer the ACPI lid, and every wake asks
+# whether the laptop is in clamshell. Undocked, the lid is not the question.
+drm="$test_tmp/drm"
+mkdir -p "$drm/card1-eDP-1" "$drm/card1-HDMI-A-1"
+printf 'connected\n' >"$drm/card1-eDP-1/status"
+printf 'disconnected\n' >"$drm/card1-HDMI-A-1/status"
+lid_log="$test_tmp/lid.log"
+printf '#!/bin/bash\necho asked >>"%s"\n' "$lid_log" >"$stub_bin/omarchy-hw-laptop-closed"
+chmod +x "$stub_bin/omarchy-hw-laptop-closed"
+run_clamshell() { OMARCHY_DRM_PATH="$drm" PATH="$stub_bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hw-clamshell"; }
+
+if run_clamshell || [[ -e $lid_log ]]; then
+  fail "an undocked laptop is not in clamshell, and the lid is not read" "$(cat "$lid_log" 2>/dev/null)"
+fi
+pass "an undocked laptop is not in clamshell, and the lid is not read"
+
+printf 'connected\n' >"$drm/card1-HDMI-A-1/status"
+run_clamshell && [[ -e $lid_log ]] ||
+  fail "a docked laptop with the lid closed is in clamshell"
+pass "a docked laptop with the lid closed is in clamshell"
