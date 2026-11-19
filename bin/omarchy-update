@@ -8,6 +8,14 @@
 
 set -e
 
+# omarchy-update-stay-awake refuses an OMARCHY_PATH that does not name the
+# install it runs from, as in a shell that never loaded the session environment.
+# Ask the same question of this command before pruning the package cache and
+# taking a snapshot, rather than abort with that work already done.
+update_entrypoint=$(readlink -e -- "${BASH_SOURCE[0]}")
+source "${update_entrypoint%/*}/omarchy-security-functions"
+omarchy_security_require_source_root "$0" || exit 1
+
 update_stay_awake_stopped=0
 sudo_keepalive_pid=""
 
