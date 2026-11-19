@@ -143,6 +143,30 @@ output=$("$CLI" hw asus)
 assert_output_contains "partial hardware prefix renders matching commands" "$output" "omarchy hw asus rog"
 assert_output_contains "partial hardware prefix includes nested match" "$output" "omarchy hw asus zenbook ux5406aa"
 
+status=0
+output=$("$CLI" theme bg --help) || status=$?
+(( status == 0 )) || fail "nested prefix with --help exits 0"
+pass "nested prefix with --help exits 0"
+assert_output_contains "nested prefix with --help renders matching commands" "$output" "omarchy theme bg current"
+assert_output_contains "nested prefix with --help includes sibling command" "$output" "omarchy theme bg next"
+
+status=0
+output=$("$CLI" theme "?") || status=$?
+(( status == 0 )) || fail "group prefix with ? exits 0"
+pass "group prefix with ? exits 0"
+assert_output_contains "group prefix with ? renders matching commands" "$output" "omarchy theme list"
+
+status=0
+output=$("$CLI" them 2>&1) || status=$?
+(( status == 127 )) || fail "unknown command exits 127"
+pass "unknown command exits 127"
+suggested_cmd=$(sed -n 's/^Did you mean: omarchy //p' <<<"$output")
+[[ $suggested_cmd == "theme --help" ]] || fail "unknown command suggests a runnable help command"
+pass "unknown command suggests a runnable help command"
+read -ra suggested_args <<<"$suggested_cmd"
+output=$("$CLI" "${suggested_args[@]}")
+assert_output_contains "suggested command runs cleanly" "$output" "Theme commands"
+
 # omarchy-agent takes only flags, so a word after it names the account
 # commands rather than reaching the agent launcher.
 output=$("$CLI" agent account)
