@@ -18,6 +18,6 @@
 # as a crash re-execs the shell in place.
 omarchy-hyprland-session-locked || exit
 
-if pgrep -u "$UID" -f '(^|/)(quickshell|qs) .*-p .*/shell|(^|/)hyprlock' | grep -qvxF "$1"; then
+if pgrep -u "$UID" -f '^([^ ]*/)?(quickshell|qs) .*-p .*/shell|^([^ ]*/)?hyprlock( |$)' | grep -qvxF "$1"; then
   exit 2
 fi

@@ -150,6 +150,10 @@ assert_processes 0 "100 quickshell -n -p /usr/share/omarchy/shell
 200 qs -p /usr/share/voxtype/quickshell" \
   "an unrelated Quickshell instance does not keep the lock from being recovered"
 
+assert_processes 0 "100 quickshell -n -p /usr/share/omarchy/shell
+200 nvim /home/alice/.config/hypr/hyprlock.conf" \
+  "an editor holding hyprlock.conf open does not count as a live locker"
+
 assert_processes 2 "100 quickshell -n -p /usr/share/omarchy/shell
 200 quickshell -n -p /usr/share/omarchy/shell" \
   "another Omarchy shell may own the lock, so it is left undetermined"
