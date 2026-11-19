@@ -14,7 +14,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 # command in the window would see.
 mkdir -p "$test_tmp/bin"
 for command in setsid uwsm-app; do
-  printf '#!/bin/bash\n[[ $1 == -- ]] && shift\nexec "$@"\n' >"$test_tmp/bin/$command"
+  printf '#!/bin/bash\n[[ $1 == "--" ]] && shift\nexec "$@"\n' >"$test_tmp/bin/$command"
 done
 cat >"$test_tmp/bin/xdg-terminal-exec" <<STUB
 #!/bin/bash
