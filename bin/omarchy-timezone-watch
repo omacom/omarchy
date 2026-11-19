@@ -59,11 +59,14 @@ locked() {
 # Both only write while the clock still shows what the check started from.
 learn_network() {
   local network=$1 zone=$2
-  local connected
-  connected=$(omarchy-timezone-detect --network) || connected=
+  local connected key
+  connected=$(omarchy-timezone-detect --network-id) || connected=
   [[ $connected == "$network" ]] || return 2
   [[ $(timedatectl show --property=Timezone --value 2>/dev/null) == "$zone" ]] || return 0
-  [[ -f $STATE_DIR/networks/$network ]] || printf '%s\n' "$zone" >"$STATE_DIR/networks/$network"
+  # A hotspot can identify a connection without identifying a fixed location.
+  key=$(omarchy-timezone-detect --network) || return 0
+  [[ $key == "$network" ]] || return 2
+  [[ -f $STATE_DIR/networks/$key ]] || printf '%s\n' "$zone" >"$STATE_DIR/networks/$key"
 }
 
 hold_candidate() {
@@ -89,7 +92,8 @@ check() {
   mkdir -p "$STATE_DIR/networks"
   current=$(timedatectl show --property=Timezone --value 2>/dev/null)
 
-  if network=$(omarchy-timezone-detect --network); then
+  # Include traveling access points in guards and candidates, not zone memory.
+  if network=$(omarchy-timezone-detect --network-id); then
     known=$(read_state "networks/$network")
     if [[ -n $known ]]; then
       rm -f "$STATE_DIR/candidate"
@@ -110,7 +114,7 @@ check() {
   fi
   read -r zone source accuracy <<<"$detected"
 
-  connected=$(omarchy-timezone-detect --network) || connected=
+  connected=$(omarchy-timezone-detect --network-id) || connected=
   [[ $connected == "$network" ]] || return 2
 
   if [[ $zone == "$current" ]]; then

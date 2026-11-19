@@ -287,6 +287,37 @@ rm "$STUB/beacon-status"
 pass "a failed lookup is retried and still counts toward confirmation"
 
 reset_world
+echo '*:F2\:11\:22\:33\:44\:55' >"$STUB/in-use"
+run omarchy-timezone-watch --check >/dev/null
+echo '*:F2\:11\:22\:33\:44\:66' >"$STUB/roam-during-lookup"
+[[ $(run omarchy-timezone-watch --check) == "retry" ]] || fail "switching hotspots during confirmation schedules another check"
+[[ $(cat "$STUB/zone") == "America/New_York" ]] || fail "a stale hotspot lookup leaves the clock alone"
+pass "hotspot changes during a lookup reject the stale result"
+
+reset_world
+echo '*:F2\:11\:22\:33\:44\:55' >"$STUB/in-use"
+run omarchy-timezone-watch --check >/dev/null
+echo '*:F2\:11\:22\:33\:44\:66' >"$STUB/in-use"
+[[ $(run omarchy-timezone-watch --check) == "confirm" ]] || fail "a different hotspot needs its own two readings"
+[[ $(cat "$STUB/zone") == "America/New_York" ]] || fail "different hotspots cannot confirm each other's readings"
+status=0
+run omarchy-timezone-set --detected wifi --expect America/New_York --expect-network f21122334455 America/Chicago || status=$?
+((status == 2)) || fail "the setter rejects a late hotspot change"
+[[ $(run omarchy-timezone-watch --check) == "done" && $(cat "$STUB/zone") == "America/Chicago" ]] || fail "two readings on the same hotspot can move the clock"
+run omarchy-timezone-watch --check >/dev/null
+[[ -z $(find "$state/networks" -type f -print -quit) ]] || fail "neither changing nor agreeing with the clock remembers a hotspot's zone"
+jq -e 'all(.wifiAccessPoints[]; .macAddress != "f2:11:22:33:44:55" and .macAddress != "f2:11:22:33:44:66")' "$STUB/request" >/dev/null || fail "hotspot identities never enter geolocation requests"
+pass "hotspot confirmations and writes use identity without remembering or geolocating it"
+
+reset_world
+: >"$STUB/in-use"
+few_networks
+[[ $(run omarchy-timezone-watch --check) == "confirm" ]] || fail "Ethernet can hold an IP-based candidate without an access point"
+[[ $(run omarchy-timezone-watch --check) == "done" && $(cat "$STUB/zone") == "Europe/Copenhagen" ]] || fail "Ethernet can confirm the IP-based candidate"
+[[ -z $(find "$state/networks" -type f -print -quit) ]] || fail "Ethernet does not invent an access point to remember"
+pass "Ethernet still confirms IP fallback without a Wi-Fi identity"
+
+reset_world
 run omarchy-timezone-watch --check >/dev/null
 echo '*:A4\:2B\:B0\:11\:22\:33' >"$STUB/roam-during-lookup"
 [[ $(run omarchy-timezone-watch --check) == "retry" ]] || fail "roaming during confirmation schedules another check"
@@ -328,6 +359,10 @@ race_manual_pick wifi
 reset_world
 : >"$STUB/in-use"
 race_manual_pick ethernet
+reset_world
+echo '*:F2\:11\:22\:33\:44\:55' >"$STUB/in-use"
+race_manual_pick hotspot
+[[ -z $(find "$state/networks" -type f -print -quit) ]] || fail "a manual hotspot pick is not remembered as a stable location"
 pass "a manual pick made during a detected change wins over the stale detection"
 
 # --- toggle -------------------------------------------------------------------

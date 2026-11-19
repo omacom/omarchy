@@ -70,7 +70,10 @@ network=$(omarchy-timezone-detect --network) || network=
 
 if [[ -n $detected ]]; then
   # A newer choice, by hand or by Undo, won while the lookup was in flight.
-  [[ $network == "$expect_network" ]] || exit 2
+  # Even an access point whose zone cannot be remembered has an identity.
+  connected=$(omarchy-timezone-detect --network-id) || connected=
+  [[ $connected == "$expect_network" ]] || exit 2
+  [[ -z $network || $network == "$connected" ]] || exit 2
   [[ $previous == "$expect" ]] || exit 0
   if [[ -n $network && -f $STATE_DIR/networks/$network ]]; then
     [[ $(head -n 1 "$STATE_DIR/networks/$network") == "$zone" ]] || exit 0

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Detect the local timezone from nearby Wi-Fi networks
-# omarchy:args=[--no-ip|--network]
+# omarchy:args=[--no-ip|--network|--network-id]
 
 # Prints "<zone> <source> <accuracy-in-meters>" and exits 0. Exits 1 when
 # there is nothing to tell the location from (too few networks, no fix, only a
@@ -9,7 +9,9 @@
 # service error), which is worth trying again. Never changes the clock;
 # omarchy-timezone-set does that. --network instead prints a key for the access point Wi-Fi is
 # connected to, which the watcher remembers zones by, or exits 1 when there is
-# no such access point worth remembering.
+# no such access point worth remembering. --network-id also includes traveling
+# access points, only to detect connection changes locally, never to remember
+# their zones or send their addresses to a location service.
 #
 # A VPN moves the address traffic leaves from, not the radio around the
 # machine, so the location comes from the access points in range: their BSSIDs
@@ -40,10 +42,10 @@ use_ip=1
 network_only=0
 case ${1:-} in
   --no-ip) use_ip=0 ;;
-  --network) network_only=1 ;;
+  --network | --network-id) network_only=1 ;;
   "") ;;
   *)
-    echo "Usage: omarchy-timezone-detect [--no-ip|--network]" >&2
+    echo "Usage: omarchy-timezone-detect [--no-ip|--network|--network-id]" >&2
     exit 1
     ;;
 esac
@@ -175,7 +177,9 @@ connected_network() {
     [[ $in_use == "*" ]] || continue
     bssid=${bssid//$'\x01'/:}
     [[ $bssid =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] || return 1
-    travels_with_owner "$bssid" && return 1
+    if [[ $1 == "--network" ]] && travels_with_owner "$bssid"; then
+      return 1
+    fi
     bssid=${bssid//:/}
     echo "${bssid,,}"
     return 0
@@ -184,7 +188,7 @@ connected_network() {
 }
 
 if ((network_only)); then
-  connected_network
+  connected_network "$1"
 else
   detect_from_wifi
   wifi=$?
