@@ -42,7 +42,7 @@ wait_menu_overlay() {
   local want="$1"
 
   for _ in {1..300}; do
-    [[ $(menu_overlay_state) == "$want" ]] && return 0
+    [[ $(menu_overlay_state) == $want ]] && return 0
     kill -0 "$SCRATCH_PID" 2>/dev/null || return 1
     sleep 0.01
   done
