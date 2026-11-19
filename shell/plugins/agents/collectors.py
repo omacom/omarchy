@@ -111,6 +111,33 @@ def find_command(name: str) -> str | None:
   return shutil.which(name, path=runtime_env().get("PATH"))
 
 
+# Asking a locked Secret Service for a secret puts the keyring daemon's unlock
+# prompt on screen. A collector runs in the background, often in the seconds
+# after an autologin and before the lock screen whose password unlocks the
+# keyring, so it reads Locked first, which never prompts, and leaves the
+# keyring alone until the next run. Anything short of a clear answer (no
+# busctl, no session bus, no Secret Service) reads as unlocked, as before.
+def secret_service_locked() -> bool:
+  busctl = find_command("busctl")
+  if not busctl:
+    return False
+  try:
+    result = subprocess.run(
+      [
+        busctl, "--user", "--timeout=2", "get-property",
+        "org.freedesktop.secrets", "/org/freedesktop/secrets/aliases/default",
+        "org.freedesktop.Secret.Collection", "Locked",
+      ],
+      capture_output=True,
+      text=True,
+      timeout=3,
+      check=False,
+    )
+  except (OSError, subprocess.SubprocessError):
+    return False
+  return result.returncode == 0 and result.stdout.strip() == "b true"
+
+
 # --------------------------------------------------------- untrusted values
 
 

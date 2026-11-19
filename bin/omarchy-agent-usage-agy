@@ -54,11 +54,13 @@ from collectors import (  # noqa: E402
   scan_max_age,
   scan_opencode,
   scan_pi_sessions,
+  secret_service_locked,
 )
 
 AGENT_ID = "agy"
 AGENT_NAME = "Antigravity"
 AUTH_HELP = "Run `agy` to sign in, or sign in to Antigravity in omp, pi, or opencode."
+KEYRING_HELP = "The keyring holding agy's sign-in is locked. Retrying once it's unlocked."
 # How each source of a sign-in is named when it needs attention.
 SOURCE_NAMES = {"agy": "`agy`", "omp": "omp", "pi": "pi", "opencode": "opencode"}
 DEFAULT_CLOUD_CODE_URL = "https://daily-cloudcode-pa.googleapis.com"
@@ -107,15 +109,18 @@ def local_day(value):
 # The sign-in agy keeps in the keyring: its access token, when that lapses,
 # whether a refresh token stands behind it, and which kind of account it is.
 # Without a Secret Service, agy keeps the same sign-in in a file of its own.
+# A locked keyring is left alone rather than prompted open.
 def login():
-  try:
-    raw = subprocess.check_output(
-      ["secret-tool", "lookup", "service", "gemini", "username", "antigravity"],
-      text=True, stderr=subprocess.DEVNULL, timeout=3,
-    )
-    data = json.loads(raw) if raw.strip() else None
-  except Exception:
-    data = None
+  data = None
+  if not secret_service_locked():
+    try:
+      raw = subprocess.check_output(
+        ["secret-tool", "lookup", "service", "gemini", "username", "antigravity"],
+        text=True, stderr=subprocess.DEVNULL, timeout=3,
+      )
+      data = json.loads(raw) if raw.strip() else None
+    except Exception:
+      data = None
   if not isinstance(data, dict):
     data = read_json(app_root() / "antigravity-oauth-token") or None
   if not isinstance(data, dict):
@@ -403,7 +408,10 @@ def collect_limits(entries, force):
 
   keep(lead)
   if not lead or not lead["accessToken"]:
-    result.update(usageStatusText="Waiting for auth", authHelpText=AUTH_HELP)
+    if secret_service_locked():
+      result.update(usageStatusText="Antigravity limits unavailable", authHelpText=KEYRING_HELP, retryAdvised=True)
+    else:
+      result.update(usageStatusText="Waiting for auth", authHelpText=AUTH_HELP)
     return result
 
   # A panel that is opened and shut repeatedly must not turn into a request

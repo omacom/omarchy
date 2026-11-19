@@ -340,6 +340,31 @@ record = copilot(routes=GH_ROUTES)
 expect("no GitHub token anywhere waits for a sign-in", [record["usageStatusText"], "gh auth login" in record["authHelpText"]], ["Waiting for auth", True], record)
 os.environ["PATH"] = real_path
 
+# A locked keyring is left alone, since `gh auth token` would put its unlock
+# prompt on screen: the last allowance stands, stale, and the panel retries
+# until it is unlocked. A token gh keeps in hosts.yml needs no keyring.
+locked = home() / "locked"
+locked.mkdir()
+(locked / "busctl").write_text('#!/bin/bash\necho "b true"\n')
+(locked / "busctl").chmod(0o755)
+os.environ["PATH"] = f"{locked}:{real_path}"
+runs = gh_runs()
+record = copilot(routes=GH_ROUTES)
+expect("a locked keyring keeps the last allowance, stale, and runs no gh",
+       [meter(record), "keyring" in record["authHelpText"], gh_runs() - runs, copilot.asked],
+       [{"limits": [["Monthly allowance", 0.1, True]], "stale": True, "status": "", "retry": True, "tier": "Pro"}, True, 0, []], record)
+hosts.write_text("github.com:\n    user: someone-else\n")
+record = copilot(routes=GH_ROUTES)
+expect("with nothing kept, a locked keyring is a failed check that retries",
+       [record["usageStatusText"], record.get("retryAdvised", False), "keyring" in record["authHelpText"], gh_runs() - runs],
+       ["Copilot limits unavailable", True, True, 0], record)
+hosts.write_text("github.com:\n    oauth_token: gh-token\n    user: tester\n")
+record = copilot(routes=GH_ROUTES)
+expect("a token kept in hosts.yml is still read while the keyring is locked",
+       [gh_runs() - runs, copilot.asked], [1, ["Bearer gh-token"]], record)
+hosts.write_text("github.com:\n    user: tester\n")
+os.environ["PATH"] = real_path
+
 # An answer under the old copilot-quota-* name is adopted once.
 os.environ["COPILOT_QUOTA_TOKEN"] = "legacy-token"
 digest = hashlib.sha256(b"legacy-token").hexdigest()[:16]

@@ -221,4 +221,25 @@ for path in limits_cache_files("agy"):
 record, _ = agy("down")
 expect("Antigravity collector invents no limits when it has never reached Google",
        [record["limits"], record["usageStatusText"], record["retryAdvised"]], [[], "Antigravity limits unavailable", True], record)
+
+# A locked keyring is left alone, since secret-tool would put its unlock
+# prompt on screen: no sign-in is read from it, Google isn't asked, and the
+# panel retries until the keyring is unlocked.
+machine()
+(home() / "agy").mkdir()
+add_prompt()
+sign_in()
+secret_tool_log = home() / "secret-tool.log"
+(home() / "bin" / "secret-tool").write_text(f'#!/bin/bash\necho run >>{secret_tool_log}\ncat "$HOME/keyring.json" 2>/dev/null\n')
+busctl = home() / "bin" / "busctl"
+busctl.write_text('#!/bin/bash\necho "b true"\n')
+busctl.chmod(0o755)
+record, http = agy()
+expect("Antigravity collector leaves a locked keyring alone and waits for it",
+       [http.count, secret_tool_log.exists(), record["usageStatusText"], record["retryAdvised"], "keyring" in record["authHelpText"]],
+       [0, False, "Antigravity limits unavailable", True, True], record)
+busctl.unlink()
+record, _ = agy()
+expect("Antigravity collector reads the keyring once it is unlocked",
+       [secret_tool_log.exists(), [entry["percent"] for entry in record["limits"]], record["retryAdvised"]], [True, [0.25], False], record)
 PY

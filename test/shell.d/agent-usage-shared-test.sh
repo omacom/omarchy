@@ -114,6 +114,32 @@ check(
   (collectors.scan_max_age(False, False), collectors.scan_max_age(False, True), collectors.scan_max_age(True, True)) == (20, 900, 0),
 )
 
+# ---------------------------------------------------------------- keyring
+
+# The keyring reads as locked only when the Secret Service says the default
+# collection's Locked property is true: the stub answers "b true" for that
+# object and property alone. Unlocked, an error or no busctl leaves the
+# collectors reading the keyring as before.
+stub_dir = work / "busctl"
+stub_dir.mkdir()
+busctl = stub_dir / "busctl"
+real_path = os.environ["PATH"]
+os.environ["PATH"] = f"{stub_dir}:{real_path}"
+answers = []
+for body in (
+  '[[ $* == *"/org/freedesktop/secrets/aliases/default "* && $* == *"org.freedesktop.Secret.Collection Locked"* ]] && echo "b true" || echo "b false"',
+  'echo "b false"',
+  'echo "Failed to connect" >&2; exit 1',
+):
+  busctl.write_text(f"#!/bin/bash\n{body}\n")
+  busctl.chmod(0o755)
+  answers.append(collectors.secret_service_locked())
+busctl.unlink()
+os.environ["PATH"] = str(work / "no-busctl")
+answers.append(collectors.secret_service_locked())
+os.environ["PATH"] = real_path
+check("the keyring reads as locked only when the default collection's Locked property says so", answers == [True, False, False, False], answers)
+
 # ------------------------------------------------------------------- files
 
 # Collectors overlap in practice: the update command backgrounds one per agent
