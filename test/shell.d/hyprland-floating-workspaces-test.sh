@@ -947,15 +947,15 @@ end
 local terminal = window(300, { address = "0x1" })
 local mail = window(500, { address = "0x2" })
 workspace_windows = { terminal, mail }
-terminal.fullscreen = 1; terminal.at = { x = 12, y = 38 }; terminal.size = { x = 1896, y = 1030 }
+terminal.fullscreen = 1; terminal.at = { x = 12, y = 58 }; terminal.size = { x = 1896, y = 1030 }
 assert(#settle_fullscreen(terminal) == 0, "a window being maximized is only noted")
 
 -- Hyprland hands the state over: the terminal falls back to its own size.
-mail.fullscreen = 1; mail.at = { x = 12, y = 38 }; mail.size = { x = 1896, y = 1030 }
+mail.fullscreen = 1; mail.at = { x = 12, y = 58 }; mail.size = { x = 1896, y = 1030 }
 terminal.fullscreen = 0; terminal.at = { x = 400, y = 300 }; terminal.size = { x = 870, y = 522 }
 settle_fullscreen(mail)
-assert(terminal.size.x == 1896 and terminal.size.y == 1030 - 30 and terminal.at.y == 38 + 30,
-  "a window another one is maximized over keeps its full size, titlebar under the top bar")
+assert(terminal.size.x == 1896 and terminal.size.y == 1030 and terminal.at.x == 12 and terminal.at.y == 58,
+  "a window another one is maximized over keeps exactly its maximized box")
 local function behind(w)
   for _, tag in ipairs(w.tags) do if tag == "omarchy-maximized-behind" then return true end end
   return false
@@ -965,23 +965,23 @@ assert(behind(terminal), "it is marked, so the dock hides for it as for a maximi
 mail.fullscreen = 0; mail.at = { x = 300, y = 200 }; mail.size = { x = 1100, y = 734 }
 assert(#settle_fullscreen(mail) == 0, "restoring the window in front leaves the one behind as it is")
 
-terminal.fullscreen = 1; terminal.at = { x = 12, y = 38 }; terminal.size = { x = 1896, y = 1030 }
+terminal.fullscreen = 1; terminal.at = { x = 12, y = 58 }; terminal.size = { x = 1896, y = 1030 }
 settle_fullscreen(terminal)
 assert(not behind(terminal), "maximized for real, it is no longer marked")
-terminal.fullscreen = 0; terminal.at = { x = 12, y = 68 }; terminal.size = { x = 1896, y = 1000 }
+terminal.fullscreen = 0; terminal.at = { x = 12, y = 58 }; terminal.size = { x = 1896, y = 1000 }
 settle_fullscreen(terminal)
 assert(terminal.size.x == 870 and terminal.size.y == 522 and terminal.at.x == 400 and terminal.at.y == 300,
   "maximized and restored again, it gets back the size it had before")
 
 -- Omarchy un-maximizes a window when another one opens next to it, so the two
 -- share the workspace; with nothing maximized in front, that is left alone.
-terminal.fullscreen = 1; terminal.at = { x = 12, y = 38 }; terminal.size = { x = 1896, y = 1030 }
+terminal.fullscreen = 1; terminal.at = { x = 12, y = 58 }; terminal.size = { x = 1896, y = 1030 }
 settle_fullscreen(terminal)
 terminal.fullscreen = 0; terminal.at = { x = 400, y = 300 }; terminal.size = { x = 870, y = 522 }
 assert(#settle_fullscreen(terminal) == 0, "a window un-maximized with nothing in front keeps its own size")
 
 -- Moved by the user, it is an ordinary window again and the dock comes back.
-mail.fullscreen = 1; terminal.fullscreen = 1; terminal.at = { x = 12, y = 38 }; terminal.size = { x = 1896, y = 1030 }
+mail.fullscreen = 1; terminal.fullscreen = 1; terminal.at = { x = 12, y = 58 }; terminal.size = { x = 1896, y = 1030 }
 settle_fullscreen(terminal)
 terminal.fullscreen = 0
 settle_fullscreen(mail)

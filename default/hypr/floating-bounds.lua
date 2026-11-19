@@ -232,11 +232,15 @@ local function track_maximized(workspace_id)
       maximized_boxes[window.address] = nil
 
       if M.drop_maximize and holder and holder.address ~= window.address then
-        -- Its titlebar comes back as it leaves the maximized state, so the
-        -- window itself starts that much lower to keep it under the top bar.
-        local bar = titlebar_height(window)
+        -- A maximized window on a floating workspace keeps its titlebar, so
+        -- its box already clears the top bar. Only a box that would put the
+        -- titlebar under the bar is brought down, losing that much height.
+        local monitor = window.monitor
+        local lowest = monitor and monitor.y
+          and top_edge(monitor) + titlebar_height(window) + (hl.get_config("general.border_size") or 0)
+        local drop = lowest and math.max(0, lowest - was.y) or 0
         own_sizes[window.address] = box_of(window)
-        place(window, { x = was.x, y = was.y + bar, width = was.width, height = was.height - bar })
+        place(window, { x = was.x, y = was.y + drop, width = was.width, height = was.height - drop })
         set_behind(window, true)
       elseif own_sizes[window.address] then
         place(window, own_sizes[window.address])
