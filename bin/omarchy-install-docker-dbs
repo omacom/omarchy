@@ -6,7 +6,7 @@
 options=("MySQL" "PostgreSQL" "Redis" "MongoDB" "MariaDB" "MSSQL")
 
 if (( $# == 0 )); then
-  choices=$(printf "%s\n" "${options[@]}" | gum choose --header "$(omarchy-i18n docker.selectDatabase)") || main_menu
+  choices=$(printf "%s\n" "${options[@]}" | gum choose --header "$(omarchy-i18n docker.selectDatabase)") || exit 130
 else
   choices="$@"
 fi

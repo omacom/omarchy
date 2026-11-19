@@ -6,7 +6,7 @@ description: >
   why an application crashed or disappeared, or when a "Process crashed:" desktop
   notification is acted on. Triggers: crash, segfault, SIGSEGV, SIGABRT, core dump,
   coredumpctl, "why did X crash", "X keeps crashing", backtrace symbolization.
-  Covers reporting a confirmed Omarchy bug upstream — see reporting.md.
+  Reporting a confirmed Omarchy bug upstream follows the omarchy-contribute skill.
 ---
 
 # Diagnosing a Crash
@@ -124,5 +124,6 @@ _Trigger > Toggle > Crash Capture_.
 
 Most application crashes are upstream bugs in those applications, not Omarchy's
 doing. In the minority of cases where the cause really does sit within Omarchy's
-sphere of control, read [`reporting.md`](reporting.md) before offering to file
-anything.
+sphere of control, follow the omarchy-contribute skill
+(`$OMARCHY_PATH/default/agents/skills/omarchy-contribute/SKILL.md`) before
+offering to file anything.

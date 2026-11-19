@@ -1,6 +1,7 @@
 {
   "Activity": "Aktivitāte",
   "Agent": "Aģents",
+  "Agents": "Aģenti",
   "Apps": "Lietotnes",
   "Audio": "Audio",
   "Background switcher": "Fona pārslēdzējs",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "Rādīt aktīvo logu priekšplānā",
   "Save window width": "Saglabāt loga platumu",
   "Screenrecording": "Ekrāna ierakstīšana",
+  "Screenrecording with no audio": "Ekrāna ierakstīšana bez audio",
   "Screenshot": "Ekrānuzņēmums",
   "Scroll active workspace backward": "Ritināt aktīvo darbvietu atpakaļ",
   "Scroll active workspace forward": "Ritināt aktīvo darbvietu uz priekšu",

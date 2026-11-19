@@ -141,3 +141,32 @@ TEST_SUSPEND_OFF=1 run other "$scratch/none" bash -c "$(guard system.suspend)" &
 TEST_HIBERNATION_OFF=1 run other "$scratch/none" bash -c "$(guard system.hibernate)" &&
   fail "Hibernate stays hidden until hibernation is set up"
 pass "the menu hides Suspend and Hibernate only while sleep is disabled"
+
+# A GB10 turns off the NVIDIA driver's system memory pools, so a stopped model's
+# memory goes back to the system; other machines keep the driver default.
+for machine in spark n1x other; do
+  run "$machine" "$scratch/$machine-sleep" env OMARCHY_MODPROBE_DIR="$scratch/$machine-modprobe" \
+    bash "$ROOT/install/hardware/gb10/nvidia-memory-pools.sh"
+done
+grep -Fxq "options nvidia NVreg_EnableSystemMemoryPools=0" "$scratch/spark-modprobe/omarchy-gb10-nvidia-memory-pools.conf" ||
+  fail "a GB10 turns off the driver's memory pools"
+for machine in n1x other; do
+  [[ ! -e $scratch/$machine-modprobe ]] || fail "the $machine machine keeps the driver's memory pools"
+done
+pass "a GB10 returns freed GPU memory at once and other machines keep the driver default"
+
+
+# A GB10 keeps the kernel's default free-memory watermark, overriding Omarchy's
+# 1.25% after it; other machines keep Omarchy's.
+for machine in spark n1x other; do
+  run "$machine" "$scratch/$machine-sleep" env OMARCHY_SYSCTL_DIR="$scratch/$machine-sysctl" \
+    bash "$ROOT/install/hardware/gb10/memory-watermark.sh"
+done
+grep -Fxq "vm.watermark_scale_factor=10" "$scratch/spark-sysctl/zz-omarchy-gb10-memory.conf" ||
+  fail "a GB10 keeps the kernel's default watermark"
+[[ $(printf '%s\n' zz-omarchy-gb10-memory.conf 99-omarchy-sysctl.conf | LC_ALL=C sort | tail -1) == zz-omarchy-gb10-memory.conf ]] ||
+  fail "the GB10 setting sorts after Omarchy's sysctl file"
+for machine in n1x other; do
+  [[ ! -e $scratch/$machine-sysctl ]] || fail "the $machine machine keeps Omarchy's watermark"
+done
+pass "a GB10 keeps the kernel's default free-memory watermark and other machines keep Omarchy's"
