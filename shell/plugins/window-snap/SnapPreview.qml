@@ -78,10 +78,10 @@ Item {
       border.width: Math.max(2, Style.space(2))
       radius: Style.cornerRadius
 
-      Behavior on x { enabled: frame.animated; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-      Behavior on y { enabled: frame.animated; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-      Behavior on width { enabled: frame.animated; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-      Behavior on height { enabled: frame.animated; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+      Behavior on x { enabled: frame.animated; NumberAnimation { duration: Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
+      Behavior on y { enabled: frame.animated; NumberAnimation { duration: Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
+      Behavior on width { enabled: frame.animated; NumberAnimation { duration: Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
+      Behavior on height { enabled: frame.animated; NumberAnimation { duration: Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
     }
   }
 
