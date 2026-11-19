@@ -66,8 +66,8 @@ Item {
   function clearLowBatteryWarning() {
     if (clearWarningProcess.running) return
     clearWarningProcess.command = [
-      "omarchy-notification-dismiss",
-      I18n.t("battery.lowTitle")
+      "omarchy-battery-low",
+      "--dismiss"
     ]
     clearWarningProcess.running = true
   }

@@ -10,14 +10,7 @@ const persisted = { notifiedLowBattery: false }
 const dismissal = { running: false, command: [] }
 let next = { notifiedLowBattery: false, notify: false }
 let warnings = 0
-const localizedTitle = 'Il faut recharger !'
-const I18n = {
-  t(key) {
-    assertEqual(key, 'battery.lowTitle', 'dismissal uses the same key as the low-battery notification')
-    return localizedTitle
-  }
-}
-const context = vm.createContext({ I18n, root: state, persisted, clearWarningProcess: dismissal, UPower: {}, UPowerDeviceState: {}, batteryThreshold: 10, BatteryModel: { shouldWarnLowBattery: () => next }, sendLowBatteryWarning: () => warnings++ })
+const context = vm.createContext({ root: state, persisted, clearWarningProcess: dismissal, UPower: {}, UPowerDeviceState: {}, batteryThreshold: 10, BatteryModel: { shouldWarnLowBattery: () => next }, sendLowBatteryWarning: () => warnings++ })
 for (const name of ['checkBattery', 'clearLowBatteryWarning']) {
   const match = qml.match(new RegExp('function ' + name + '\\(([^)]*)\\) \\{([\\s\\S]*?)\\n  \\}'))
   assert(match, name + ' exists')
@@ -31,7 +24,7 @@ state.checkBattery()
 assertEqual(warnings, 1, 'low battery sends warning')
 next = { notifiedLowBattery: false, notify: false }
 state.checkBattery()
-assertDeepEqual(dismissal.command, ['omarchy-notification-dismiss', localizedTitle], 'leaving low battery invokes dismissal from checkBattery')
+assertDeepEqual(dismissal.command, ['omarchy-battery-low', '--dismiss'], 'leaving low battery invokes dismissal from checkBattery')
 assertEqual(state.lowBatteryClearPending, true, 'notification insertion race retains dismissal intent')
 dismissal.command = []
 state.checkBattery()
@@ -49,3 +42,18 @@ state.checkBattery()
 assertEqual(warnings, 2, 'new warning is sent after dismissal finishes')
 assert(qml.includes('onExited: if (!root.lowBatteryClearPending) root.checkBattery()'), 'dismissal completion rechecks a deferred warning without a retry loop')
 JS
+
+tmp_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir"' EXIT
+cat >"$tmp_dir/omarchy-notification-dismiss" <<'SH'
+#!/bin/bash
+printf '%s\n' "$@"
+SH
+chmod +x "$tmp_dir/omarchy-notification-dismiss"
+printf '%s\n' da >"$tmp_dir/language"
+title=$(jq -r '."battery.lowTitle"' "$ROOT/default/i18n/da/cli.json")
+dismissed=$(PATH="$tmp_dir:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  OMARCHY_LANGUAGE_FILE="$tmp_dir/language" bash "$ROOT/bin/omarchy-battery-low" --dismiss)
+[[ $dismissed == "$title" ]] ||
+  fail "battery warning dismisses the translated CLI title" "expected [$title], got [$dismissed]"
+pass "battery warning dismisses the translated CLI title"
