@@ -14,15 +14,16 @@
 # drop-in is the only way to ship a quirk without editing the one override
 # file users hand-edit themselves.
 #
-# The pad's event node is tagged ID_INPUT_MOUSE rather than ID_INPUT_TOUCHPAD,
-# so a MatchUdevType=touchpad constraint would skip the section. Bus, vendor,
-# product and DMI already pin the device exactly.
+# The device exposes separate mouse and touchpad event nodes. Match the
+# touchpad node, which is tagged ID_INPUT_TOUCHPAD; bus, vendor, product
+# and DMI restrict the quirk to this model.
 
 if omarchy-hw-asus-expertbook-b9406; then
   mkdir -p /usr/share/libinput
   cat > /usr/share/libinput/99-omarchy-asus-b9406-touchpad.quirks <<'EOF'
 [ASUS ExpertBook B9406 Touchpad]
 MatchBus=i2c
+MatchUdevType=touchpad
 MatchVendor=0x093A
 MatchProduct=0x4F05
 MatchDMIModalias=dmi:*svnASUS*:pn*B9406*
