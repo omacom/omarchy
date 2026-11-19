@@ -26,11 +26,11 @@
   "update": {
     "label": "Nuashonraigh"
   },
-  "about": {
-    "label": "Faisnéis"
-  },
   "system": {
     "label": "Córas"
+  },
+  "system.about": {
+    "label": "Faisnéis"
   },
   "system.screensaver": {
     "label": "Coigilteoir scáileáin"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Ionchur"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Teanga"
+  },
+  "setup.region.timezone": {
+    "label": "Crios ama"
   },
   "setup.network": {
     "label": "Líonra"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Tosaithe díreach"
-  },
-  "setup.reset": {
-    "label": "Athshocraigh ríomhaire"
+  "remove.factory-reset": {
+    "label": "Athshocrú Monarchan"
   },
   "install.package": {
     "label": "Pacáiste"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Pasfhocal"
   },
-  "update.timezone": {
-    "label": "Crios ama"
-  },
   "update.time": {
     "label": "Am"
   },
@@ -1255,7 +1252,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,40 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Deilbhíní"
+  },
+  "install.style.icons": {
+    "label": "Deilbhíní"
+  },
+  "remove.icons": {
+    "label": "Deilbhíní"
+  },
+  "update.icons": {
+    "label": "Deilbhíní Breise"
+  },
+  "system.firmware": {
+    "label": "Atosaigh go BIOS",
+    "description": "Atosaigh isteach sa socrú firmware UEFI"
+  },
+  "setup.region": {
+    "label": "Réigiún"
+  },
+  "setup.region.formats": {
+    "label": "Formáidí",
+    "description": "Mar a scríobhtar dátaí, amanna, uimhreacha agus aonaid"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Cluiche Game Vibes"
+  },
+  "update.games": {
+    "label": "Cluichí Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Déan cluiche"
   }
 }

@@ -26,11 +26,11 @@
   "update": {
     "label": "Aggiorna"
   },
-  "about": {
-    "label": "Info"
-  },
   "system": {
     "label": "Sistema"
+  },
+  "system.about": {
+    "label": "Info"
   },
   "system.screensaver": {
     "label": "Salvaschermo"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Input"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Lingua"
+  },
+  "setup.region.timezone": {
+    "label": "Fuso orario"
   },
   "setup.network": {
     "label": "Rete"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Avvio diretto"
-  },
-  "setup.reset": {
-    "label": "Reimposta computer"
+  "remove.factory-reset": {
+    "label": "Ripristino di fabbrica"
   },
   "install.package": {
     "label": "Pacchetto"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Password"
   },
-  "update.timezone": {
-    "label": "Fuso orario"
-  },
   "update.time": {
     "label": "Ora"
   },
@@ -1198,7 +1195,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,40 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Icone"
+  },
+  "install.style.icons": {
+    "label": "Icone"
+  },
+  "remove.icons": {
+    "label": "Icone"
+  },
+  "update.icons": {
+    "label": "Icone aggiuntive"
+  },
+  "system.firmware": {
+    "label": "Riavvia nel BIOS",
+    "description": "Riavvia nelle impostazioni del firmware UEFI"
+  },
+  "setup.region": {
+    "label": "Regione"
+  },
+  "setup.region.formats": {
+    "label": "Formati",
+    "description": "Come vengono scritti date, orari, numeri e unità"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Gioco Game Vibes"
+  },
+  "update.games": {
+    "label": "Giochi Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Crea un gioco"
   }
 }

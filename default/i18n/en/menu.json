@@ -26,11 +26,11 @@
   "update": {
     "label": "Update"
   },
-  "about": {
-    "label": "About"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "About"
   },
   "system.screensaver": {
     "label": "Screensaver"
@@ -49,6 +49,10 @@
   },
   "system.reboot": {
     "label": "Reboot"
+  },
+  "system.firmware": {
+    "label": "Reboot to BIOS",
+    "description": "Restart into the UEFI firmware setup"
   },
   "system.shutdown": {
     "label": "Shutdown"
@@ -88,6 +92,9 @@
   },
   "appearance.font": {
     "label": "Font"
+  },
+  "appearance.icons": {
+    "label": "Icons"
   },
   "appearance.top-bar": {
     "label": "Menu Bar"
@@ -462,8 +469,18 @@
   "setup.input": {
     "label": "Input"
   },
-  "setup.language": {
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.language": {
     "label": "Language"
+  },
+  "setup.region.formats": {
+    "label": "Formats",
+    "description": "How dates, times, numbers and units are written"
+  },
+  "setup.region.timezone": {
+    "label": "Timezone"
   },
   "setup.network": {
     "label": "Network"
@@ -695,7 +712,7 @@
   "setup.security.passwordless-sudo": {
     "label": "Passwordless Sudo"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "setup.config.hyprland": {
@@ -707,11 +724,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direct Boot"
-  },
-  "setup.reset": {
-    "label": "Reset Computer"
+  "remove.factory-reset": {
+    "label": "Factory Reset"
   },
   "install.package": {
     "label": "Package"
@@ -736,6 +750,9 @@
   },
   "install.style.background": {
     "label": "Background"
+  },
+  "install.style.icons": {
+    "label": "Icons"
   },
   "install.style.font": {
     "label": "Font"
@@ -908,6 +925,9 @@
   "install.gaming.minecraft": {
     "label": "Minecraft"
   },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
   "install.gaming.geforce-now": {
     "label": "NVIDIA GeForce NOW"
   },
@@ -1018,6 +1038,9 @@
   },
   "remove.theme": {
     "label": "Theme"
+  },
+  "remove.icons": {
+    "label": "Icons"
   },
   "remove.gaming": {
     "label": "Gaming",
@@ -1160,6 +1183,9 @@
   "remove.gaming.heroic": {
     "label": "Heroic (Epic Games)"
   },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
   "remove.development.rails": {
     "label": "Ruby on Rails"
   },
@@ -1242,6 +1268,12 @@
   "update.themes": {
     "label": "Extra Themes"
   },
+  "update.icons": {
+    "label": "Extra Icons"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
   "update.process": {
     "label": "Process",
     "title": "Restart"
@@ -1255,9 +1287,6 @@
   },
   "update.password": {
     "label": "Password"
-  },
-  "update.timezone": {
-    "label": "Timezone"
   },
   "update.time": {
     "label": "Time"
@@ -1327,5 +1356,8 @@
   },
   "agent.make.app": {
     "label": "Make an app"
+  },
+  "agent.make.game": {
+    "label": "Make a game"
   }
 }

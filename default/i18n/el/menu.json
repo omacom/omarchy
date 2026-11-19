@@ -26,11 +26,11 @@
   "update": {
     "label": "Ενημέρωση"
   },
-  "about": {
-    "label": "Σχετικά"
-  },
   "system": {
     "label": "Σύστημα"
+  },
+  "system.about": {
+    "label": "Σχετικά"
   },
   "system.screensaver": {
     "label": "Προφύλαξη οθόνης"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Είσοδος"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Γλώσσα"
+  },
+  "setup.region.timezone": {
+    "label": "Ζώνη ώρας"
   },
   "setup.network": {
     "label": "Δίκτυο"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Απευθείας εκκίνηση"
-  },
-  "setup.reset": {
-    "label": "Επαναφορά υπολογιστή"
+  "remove.factory-reset": {
+    "label": "Εργοστασιακή επαναφορά"
   },
   "install.package": {
     "label": "Πακέτο"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Κωδικός"
   },
-  "update.timezone": {
-    "label": "Ζώνη ώρας"
-  },
   "update.time": {
     "label": "Ώρα"
   },
@@ -1198,7 +1195,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,40 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Εικονίδια"
+  },
+  "install.style.icons": {
+    "label": "Εικονίδια"
+  },
+  "remove.icons": {
+    "label": "Εικονίδια"
+  },
+  "update.icons": {
+    "label": "Πρόσθετα εικονίδια"
+  },
+  "system.firmware": {
+    "label": "Επανεκκίνηση στο BIOS",
+    "description": "Επανεκκίνηση στις ρυθμίσεις υλικολογισμικού UEFI"
+  },
+  "setup.region": {
+    "label": "Περιοχή"
+  },
+  "setup.region.formats": {
+    "label": "Μορφές",
+    "description": "Πώς γράφονται ημερομηνίες, ώρες, αριθμοί και μονάδες"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Παιχνίδι Game Vibes"
+  },
+  "update.games": {
+    "label": "Παιχνίδια Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Δημιουργία παιχνιδιού"
   }
 }
