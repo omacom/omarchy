@@ -24,6 +24,10 @@ export OMARCHY_PATH="$test_tmp/omarchy"
 shipped="$OMARCHY_PATH/default/games/vibes"
 mkdir -p "$shipped/chess" "$shipped/snake"
 cp "$ROOT/default/games/vibes.html" "$OMARCHY_PATH/default/games/"
+# Its launcher, as a fresh install and omarchy-refresh-applications put it.
+mkdir -p "$OMARCHY_PATH/applications" "$HOME/.local/share/applications"
+cp "$ROOT/applications/Game Vibes.desktop" "$OMARCHY_PATH/applications/"
+cp "$ROOT/applications/Game Vibes.desktop" "$HOME/.local/share/applications/"
 printf '<!doctype html><title>Chess</title>\n' >"$shipped/chess/index.html"
 printf '<!doctype html><title>Shipped Snake</title>\n' >"$shipped/snake/index.html"
 export PATH="$mock_bin:$ROOT/bin:$PATH"
@@ -43,7 +47,8 @@ make_game tilt-maze 'Tilt </script><script>alert(1)</script>'
 mkdir -p "$vibes/notes" "$vibes/Bad Name"
 make_game "Bad Name" "Bad"
 
-omarchy-games-vibes-install >/dev/null || fail "games vibes install lists the games"
+url=$(omarchy-games-vibes-launch --url) || fail "Game Vibes lists the games"
+[[ $url == file://*"#palette="* && ! -s $OMARCHY_TEST_ARGV ]] || fail "--url prints the list's address and opens nothing" "$url"
 games=$(sed -n 's:^const GAMES = \(.*\);$:\1:p' "$vibes/index.html" | sed 's/\\u003c/</g')
 [[ $(jq -r '[.[].name] | join(" ")' <<<"$games") == "chess snake tilt-maze" ]] ||
   fail "the list has each game folder with an index.html, shipped or made here, and nothing else" "$games"
@@ -65,6 +70,8 @@ opened=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.unquote(sys.ar
 [[ $opened == "$vibes/index.html" ]] || fail "Game Vibes opens the list of games" "$url"
 accent=$(python3 -c 'import json, sys, urllib.parse; print(json.loads(urllib.parse.unquote(sys.argv[1].split("#palette=")[1]))["accent"])' "$url")
 [[ $accent == "#7aa2f7" ]] || fail "Game Vibes opens in the current theme's palette" "$url"
+grep -q '^StartupWMClass=chrome-' "$HOME/.local/share/applications/Game Vibes.desktop" ||
+  fail "opening Game Vibes gives its launcher this home's window class, for the dock"
 pass "the one Game Vibes launcher opens the list in the current theme"
 
 : >"$OMARCHY_TEST_ARGV"
