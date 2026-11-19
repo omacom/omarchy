@@ -318,9 +318,9 @@ Item {
             opacity: 0.6
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
+            // Not capped: a custom message is what the person approves, and the
+            // header scrolls (Page Up / Page Down) when the card is clamped.
             wrapMode: Text.Wrap
-            maximumLineCount: 3
-            elide: Text.ElideRight
           }
 
           Rectangle {
