@@ -32,8 +32,8 @@ Item {
   property double fingerprintLastSettleMs: 0
   property double fingerprintResumedAtMs: 0
   property int fingerprintProbeStreak: 0
-  // While the lock has the displays off no new attempt starts, so the reader
-  // isn't held awake all night; any wake starts it again.
+  // Once the lock has had the displays off for BLANK_LISTEN_MS no new attempt
+  // starts, so the reader isn't held awake all night; any wake starts it again.
   property bool fingerprintPaused: false
   // The sleep watch is stopped while paused, so a sleep seen after the
   // pre-suspend lock request is marked here instead.
@@ -210,6 +210,7 @@ Item {
     fingerprintRetryTimer.stop()
     fingerprintReachTimer.stop()
     fingerprintResumeTimer.stop()
+    fingerprintBlankPauseTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
   }
@@ -257,6 +258,7 @@ Item {
   function runWake() {
     if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
+    fingerprintBlankPauseTimer.stop()
     resumeFingerprint()
     nudgeFingerprint()
   }
@@ -349,7 +351,7 @@ Item {
   }
 
   function runBlank() {
-    pauseFingerprint()
+    if (!fingerprintPaused && !fingerprintBlankPauseTimer.running) fingerprintBlankPauseTimer.restart()
     if (!blankProcess.running) blankProcess.running = true
   }
 
@@ -628,6 +630,14 @@ Item {
       asynchronous: true
       cache: true
     }
+  }
+
+  // A touch on a dark lock screen still unlocks for a while after it blanks.
+  Timer {
+    id: fingerprintBlankPauseTimer
+    interval: FingerprintModel.BLANK_LISTEN_MS
+    repeat: false
+    onTriggered: if (root.lockRequested) root.pauseFingerprint()
   }
 
   Timer {
