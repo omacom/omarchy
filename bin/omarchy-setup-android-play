@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# omarchy:summary=Register this Android install with Google, so the Play Store lets you sign in
+# omarchy:requires-sudo=true
+
+set -e
+
+GSERVICES_DB=/data/data/com.google.android.gsf/databases/gservices.db
+REGISTRATION_URL="https://www.google.com/android/uncertified"
+
+wait_for_android() {
+  local i
+
+  for ((i = 0; i < 90; i++)); do
+    if [[ $(sudo waydroid shell getprop sys.boot_completed 2>/dev/null) == "1" ]]; then
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo "Android did not finish starting. Run 'waydroid log' to see why." >&2
+  return 1
+}
+
+# Google Play services writes the ID once it has checked in with Google, which
+# can take a minute or two after the first boot.
+read_android_id() {
+  local i id
+
+  for ((i = 0; i < 90; i++)); do
+    id=$(sudo waydroid shell -- sqlite3 "$GSERVICES_DB" "select value from main where name = 'android_id'" 2>/dev/null) || true
+    if [[ $id =~ ^[0-9]+$ ]]; then
+      echo "$id"
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo "Google Play services never checked in. Check that Android has a network connection." >&2
+  return 1
+}
+
+if omarchy-pkg-missing waydroid || [[ ! -f /var/lib/waydroid/waydroid.cfg ]]; then
+  echo "Android is not installed. Run omarchy-install-android first." >&2
+  exit 1
+fi
+
+if ! waydroid status | grep -q "Session:.*RUNNING"; then
+  setsid waydroid session start >/dev/null 2>&1 &
+fi
+wait_for_android
+
+echo -e "\nWaiting for Google Play services to check in..."
+android_id=$(read_android_id)
+printf '%s' "$android_id" | wl-copy
+
+# Waydroid is not a certified Android device, so Google refuses Play Store
+# sign-in until its ID is registered by hand. A reset makes a new ID, which is
+# why this is a command of its own rather than a step only the installer takes.
+echo ""
+echo "Your Android device ID is $android_id, and it is on the clipboard."
+echo "In the page that opens, sign in with the Google account you'll use on Android, paste the ID, and press Register."
+setsid omarchy-launch-browser "$REGISTRATION_URL" >/dev/null 2>&1 &
+
+echo ""
+read -rp "Press Enter once Google has registered the device... "
+
+echo -e "\nRestarting Android so the Play Store sees the registration..."
+waydroid session stop
+
+echo ""
+echo "Google can take a few minutes to accept a new registration. If the Play Store still says the device isn't certified, wait a bit and open it again."
