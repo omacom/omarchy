@@ -36,6 +36,7 @@ copy_chromium_flags() {
   omarchy-install-chromium-copy-url
   omarchy-install-chromium-ytdlp
   omarchy-install-video-decode
+  omarchy-install-camera
 }
 
 setup_firefox_wayland() {
@@ -60,7 +61,6 @@ chrome)
 
   setup_chromium_policy_directory /etc/opt/chrome/policies/managed
   copy_chromium_flags ~/.config/chrome-flags.conf
-  omarchy-install-camera
   omarchy-theme-set-browser
   omarchy-lifecycle-dispatch post-install chrome
   announce_browser_installed "Chrome"

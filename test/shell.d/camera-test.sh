@@ -68,7 +68,50 @@ if HOME=$home bash "$ROOT/bin/omarchy-chromium-add-feature" 'Foo/Bar' 2>/dev/nul
 fi
 pass "the feature helper refuses a name that isn't a Chromium feature"
 
+# Whatever writes a fresh flags file has to put the camera back, as it does the
+# video decoding settings: a refresh, and the migration for installs that lost it.
+for command in omarchy-refresh-config omarchy-install-chromium-copy-url omarchy-install-chromium-ytdlp; do
+  printf '#!/bin/bash\nexit 0\n' >"$test_tmp/bin/$command"
+done
+cat >"$test_tmp/bin/omarchy-refresh-config" <<STUB
+#!/bin/bash
+cp "$shipped" "\$HOME/.config/\$1"
+STUB
+chmod +x "$test_tmp/bin"/*
+
+home=$(new_home refreshed)
+cp "$shipped" "$home/.config/chromium-flags.conf"
+HOME=$home bash "$helper"
+HOME=$home bash "$ROOT/bin/omarchy-refresh-chromium" || fail "a Snapdragon laptop refreshes Chromium's flags"
+grep -Eq -- '^--enable-features=([^[:space:]]*,)?WebRtcPipeWireCamera(,|$)' "$home/.config/chromium-flags.conf" ||
+  fail "refreshing Chromium's flags keeps the PipeWire camera" "$(cat "$home/.config/chromium-flags.conf")"
+grep -Eq -- '^--enable-features=([^[:space:]]*,)?AcceleratedVideoDecoder(,|$)' "$home/.config/chromium-flags.conf" ||
+  fail "refreshing Chromium's flags keeps video decoding" "$(cat "$home/.config/chromium-flags.conf")"
+pass "refreshing Chromium's flags keeps the PipeWire camera and video decoding"
+
+for command in "$ROOT"/bin/*; do
+  if grep -q '^[[:space:]]*omarchy-install-video-decode\b' "$command" && ! grep -q '^[[:space:]]*omarchy-install-camera\b' "$command"; then
+    fail "$(basename "$command") puts the video decoding settings back and the camera too"
+  fi
+done
+pass "every command that puts the video decoding settings back puts the camera back too"
+
+migration=$(grep -l 'omarchy-install-camera' "$ROOT"/migrations/*.sh | sort | tail -1)
+home=$(new_home lost)
+cp "$shipped" "$home/.config/chromium-flags.conf"
+cp "$shipped" "$home/.config/chrome-flags.conf"
+HOME=$home bash "$migration" >/dev/null || fail "the migration runs on a Snapdragon laptop"
+for conf in chromium-flags.conf chrome-flags.conf; do
+  grep -Fxq -- "$features,WebRtcPipeWireCamera,AcceleratedVideoDecoder" "$home/.config/$conf" ||
+    fail "the migration puts the camera and video decoding back into $conf" "$(cat "$home/.config/$conf")"
+done
+pass "an install whose flags lost the camera gets it back in Chromium and Chrome"
+
 rm "$OMARCHY_TEST_QUALCOMM"
+home=$(new_home unchanged)
+cp "$shipped" "$home/.config/chrome-flags.conf"
+HOME=$home bash "$migration" >/dev/null
+cmp -s "$shipped" "$home/.config/chrome-flags.conf" || fail "the migration leaves other machines' flags alone" "$(cat "$home/.config/chrome-flags.conf")"
 home=$(new_home other)
 cp "$shipped" "$home/.config/chromium-flags.conf"
 HOME=$home bash "$helper"

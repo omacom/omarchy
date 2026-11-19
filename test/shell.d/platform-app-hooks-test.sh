@@ -74,11 +74,18 @@ for browser in chromium chrome edge brave brave-origin firefox zen; do
 done
 pass "apple: every browser install runs post-install <browser> after its package and flags"
 
-run qualcomm "$ROOT/bin/omarchy-install-browser" chrome ||
-  fail "qualcomm: Chrome installs" "$(cat "$tmp/output")"
-grep -Eq '^--enable-features=([^[:space:]]*,)?WebRtcPipeWireCamera(,|$)' "$tmp/home/.config/chrome-flags.conf" ||
-  fail "qualcomm: Chrome's flags enable the PipeWire camera"
-pass "qualcomm: Chrome installs with PipeWire camera support"
+# Both write a fresh flags file, which starts without the Snapdragon settings.
+for browser in chromium chrome; do
+  run qualcomm "$ROOT/bin/omarchy-install-browser" "$browser" ||
+    fail "qualcomm: $browser installs" "$(cat "$tmp/output")"
+  grep -Eq '^--enable-features=([^[:space:]]*,)?WebRtcPipeWireCamera(,|$)' "$tmp/home/.config/${flags[$browser]}" ||
+    fail "qualcomm: $browser's flags enable the PipeWire camera" "$(cat "$tmp/home/.config/${flags[$browser]}")"
+  run x86 "$ROOT/bin/omarchy-install-browser" "$browser" ||
+    fail "x86: $browser installs" "$(cat "$tmp/output")"
+  cmp -s "$ROOT/config/chromium-flags.conf" "$tmp/home/.config/${flags[$browser]}" ||
+    fail "x86: $browser keeps the shipped flags" "$(cat "$tmp/home/.config/${flags[$browser]}")"
+done
+pass "qualcomm: Chromium and Chrome install with PipeWire camera support, and x86 keeps the shipped flags"
 
 touch "$tmp/fail"
 for browser in chromium brave; do
