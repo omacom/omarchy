@@ -153,6 +153,112 @@ local function pointer_on(window, cursor)
     and cursor.y >= frame_top(window) and cursor.y <= window.at.y + window.size.y
 end
 
+-- While a window is dragged with the pointer on the top bar, the shell shows
+-- the box it will fill if dropped there (shell/plugins/window-snap), growing
+-- out of the window's own frame, as Windows does when snapping. Hyprland has
+-- no event for a drag going on, so from the moment a window is taken up the
+-- pointer is read every 30ms, until the window has stood still for a while.
+-- The shell is told only when the answer changes.
+local SNAP_PREVIEW = "omarchy-shell -q omarchy.window-snap "
+local WATCH_EVERY = 30
+local WATCH_IDLE_TICKS = 40
+local preview_shown = false
+local watch = nil
+local watch_generation = 0
+
+local function box_json(box)
+  return string.format('{"x":%d,"y":%d,"width":%d,"height":%d}',
+    math.floor(box.x), math.floor(box.y), math.floor(box.width), math.floor(box.height))
+end
+
+-- The window's frame, titlebar and border included, against its screen.
+local function frame_box(window, monitor)
+  local border = hl.get_config("general.border_size") or 0
+  local top = frame_top(window)
+  return {
+    x = window.at.x - border - monitor.x,
+    y = top - monitor.y,
+    width = window.size.x + 2 * border,
+    height = window.at.y + window.size.y + border - top,
+  }
+end
+
+-- A maximized window's frame fills what the bars leave of its screen.
+local function maximized_frame(monitor)
+  local _, _, width, height = logical_box(monitor)
+  local reserved = monitor.reserved or {}
+  local left, top = reserved.left or 0, reserved.top or 0
+  return { x = left, y = top, width = width - left - (reserved.right or 0), height = height - top - (reserved.bottom or 0) }
+end
+
+local function show_preview(window, monitor)
+  preview_shown = true
+  local payload = string.format('{"monitor":"%s","from":%s,"to":%s}',
+    tostring(monitor.name), box_json(frame_box(window, monitor)), box_json(maximized_frame(monitor)))
+  hl.exec_cmd(SNAP_PREVIEW .. "show '" .. payload .. "'")
+end
+
+local function hide_preview()
+  if preview_shown then
+    preview_shown = false
+    hl.exec_cmd(SNAP_PREVIEW .. "hide")
+  end
+end
+
+local function watch_tick(generation)
+  if generation ~= watch_generation then
+    return
+  end
+
+  local window = hl.get_active_window()
+  local cursor = hl.get_cursor_pos()
+  if not (M.drop_maximize and watch and managed(window) and window.address == watch.address and cursor) then
+    hide_preview()
+    watch = nil
+    return
+  end
+
+  if window.at.x ~= watch.x or window.at.y ~= watch.y then
+    watch.x, watch.y, watch.idle, watch.dragged = window.at.x, window.at.y, 0, true
+  else
+    watch.idle = watch.idle + 1
+  end
+
+  local wanted = watch.dragged and pointer_on(window, cursor) and dropped_on_top_bar(window, cursor)
+  if wanted and not preview_shown then
+    show_preview(window, window.monitor)
+  elseif not wanted then
+    hide_preview()
+  end
+
+  if not wanted and watch.idle >= WATCH_IDLE_TICKS then
+    watch = nil
+    return
+  end
+
+  hl.timer(function()
+    watch_tick(generation)
+  end, { timeout = WATCH_EVERY, type = "oneshot" })
+end
+
+-- A drag starts by making the window active, or with the left button going
+-- down on it; either starts the watch over, which also ends any before it.
+local function start_watch()
+  watch_generation = watch_generation + 1
+  local window = hl.get_active_window()
+  if not (M.drop_maximize and managed(window)) then
+    hide_preview()
+    watch = nil
+    return
+  end
+
+  watch = { address = window.address, x = window.at.x, y = window.at.y, idle = 0, dragged = false }
+  local generation = watch_generation
+  hl.timer(function()
+    watch_tick(generation)
+  end, { timeout = WATCH_EVERY, type = "oneshot" })
+end
+
 local last = nil
 
 local function check()
@@ -181,6 +287,9 @@ local function check()
     return
   end
 
+  -- Dropped: whatever the preview showed has happened now, or will not.
+  hide_preview()
+
   -- Remember where the window was put, so the next check does not take the
   -- correction itself for another drop.
   local y = settle(window, cursor)
@@ -192,7 +301,10 @@ end
 -- Read once Hyprland has finished with the event, so the window is where it
 -- landed and the click has focused it.
 local function check_soon()
-  hl.timer(check, { timeout = 1, type = "oneshot" })
+  hl.timer(function()
+    check()
+    start_watch()
+  end, { timeout = 1, type = "oneshot" })
 end
 
 hl.on("window.active", check_soon)

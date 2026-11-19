@@ -774,8 +774,8 @@ local workspace_windows = {}
 local commands = {}
 
 -- Two screens stacked: the top bar reserves 26 at the top of each.
-local upper = { id = 0, x = 0, y = 0, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } }
-local lower = { id = 1, x = 0, y = 1080, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } }
+local upper = { id = 0, name = "DP-1", x = 0, y = 0, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } }
+local lower = { id = 1, name = "DP-2", x = 0, y = 1080, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } }
 local config = { ["plugin.hyprbars.bar_height"] = 30, ["general.border_size"] = 2 }
 
 hl = {
@@ -943,6 +943,47 @@ cursor = { x = 500, y = 10 }
 dispatched = {}
 release(); for _, run in ipairs(timers) do run() end; timers = {}
 assert(maximized(dispatched), "a window released over the top bar maximizes without another focus event")
+
+-- While the window is dragged with the pointer on the top bar, the shell shows
+-- the box it will fill, growing from its frame, and takes it down as the
+-- pointer leaves the bar or the window is dropped.
+local function step()
+  local queued = timers
+  timers = {}
+  for _, run in ipairs(queued) do run() end
+end
+local function last_command() return commands[#commands] or "" end
+
+local dragged = window(300)
+active = dragged
+commands = {}
+handlers["window.active"](); step(); step()
+assert(#commands == 0, "a window taken up shows nothing until it moves")
+dragged.at = { x = 400, y = 20 }
+cursor = { x = 500, y = 10 }
+step()
+assert(last_command():find("omarchy.window-snap show", 1, true), "the preview shows while the pointer is on the top bar")
+assert(last_command():find('"monitor":"DP-1"', 1, true)
+  and last_command():find('"from":{"x":398,"y":-12,"width":804,"height":634}', 1, true)
+  and last_command():find('"to":{"x":0,"y":26,"width":1920,"height":1054}', 1, true),
+  "it grows from the window's frame to what the top bar leaves of the screen")
+local shown = #commands
+dragged.at = { x = 410, y = 22 }
+step()
+assert(#commands == shown, "the shell is told only when the answer changes")
+dragged.at = { x = 400, y = 310 }
+cursor = { x = 500, y = 300 }
+step()
+assert(last_command() == "omarchy-shell -q omarchy.window-snap hide", "it goes as the pointer leaves the bar")
+dragged.at = { x = 400, y = 20 }
+cursor = { x = 500, y = 10 }
+step()
+assert(last_command():find("show", 1, true), "and comes back with it")
+dispatched = {}
+handlers["window.active"](); step()
+assert(maximized(dispatched) and last_command():find("hide", 1, true), "dropped there, the window maximizes and the preview goes")
+for _ = 1, 45 do step() end
+assert(#timers == 0, "the pointer is no longer read once the window stands still")
 
 -- Hyprland keeps one maximized window per workspace. A window another one is
 -- maximized over keeps its full size, and gets its own back once it is
