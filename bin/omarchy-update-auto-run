@@ -50,7 +50,10 @@ notify_sessions() {
   local uid name
   while read -r uid name; do
     [[ -n $name ]] || continue
-    systemctl --user --machine="$name@.host" --no-block start omarchy-migrate-notify.service 2>/dev/null || true
+    # A failed hand-off must not fail the update, but it should reach the journal.
+    if ! systemctl --user --machine="$name@.host" --no-block start omarchy-migrate-notify.service; then
+      echo "Could not start the migration notifier for $name." >&2
+    fi
   done < <(loginctl list-users --no-legend)
 }
 
