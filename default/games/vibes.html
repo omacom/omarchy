@@ -99,13 +99,14 @@ document.body.style.background = BG;
 
 const canvas = document.getElementById('screen'), c = canvas.getContext('2d');
 let SC = 3, W = 480, H = 300;
-function resize() {
-  SC = Math.max(2, Math.min(Math.round(innerHeight / 290), Math.floor(innerWidth / 420)));   // wide enough for the deck
+function scale(to) {
+  SC = to;
   W = innerWidth / SC; H = innerHeight / SC;
   canvas.width = Math.ceil(W); canvas.height = Math.ceil(H);
   canvas.style.width = canvas.width * SC + 'px'; canvas.style.height = canvas.height * SC + 'px';
   css.setProperty('--px', SC + 'px');
 }
+function resize() { scale(Math.max(2, Math.min(Math.round(innerHeight / 290), Math.floor(innerWidth / 420)))); }   // wide enough for the deck
 addEventListener('resize', resize); resize();
 
 // Text is drawn once per string, size and colour, with its soft edges snapped to whole pixels.
@@ -280,7 +281,11 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt * MOVE;
   at += (selected - at) * (1 - Math.exp(-dt * (REDUCED ? 40 : 9))); kick *= Math.exp(-dt * 6);
-  if (deck.W !== W) deck = arrange();
+  // A window too short for the picture above the deck gets smaller pixels until it fits.
+  while (deck.W !== W) {
+    deck = arrange();
+    if (H - deck.height < 250 && SC > 1) scale(SC - 0.5);
+  }
   const cx = W / 2, cy = Math.round((H + 27 - deck.height) * 0.445), horizon = Math.round(H - 34 - deck.height), hue = N ? hueOf(selected) : P.accent;
   c.imageSmoothingEnabled = false; c.globalAlpha = 1;
   c.fillStyle = BG; c.fillRect(0, 0, canvas.width, canvas.height);
