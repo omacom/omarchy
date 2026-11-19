@@ -16,7 +16,7 @@
   #crt::before { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, rgba(255,255,255,.07) 0%, transparent 28%); }
   #crt::after { content: ""; position: absolute; left: 0; right: 0; height: 22vh; top: -22vh; background: linear-gradient(to bottom, transparent, rgba(255,255,255,.045), transparent); animation: hum 7s linear infinite; }
   @keyframes hum { to { transform: translateY(125vh); } }
-  .hint { position: fixed; bottom: 10px; font-size: 11.5px; letter-spacing: .04em; color: var(--soft); max-width: 46vw; line-height: 1.5; background: var(--plate); padding: 3px 8px; border-radius: 4px; }
+  .hint { position: fixed; bottom: 10px; font-size: max(11.5px, .75vw); letter-spacing: .04em; color: var(--soft); max-width: 46vw; line-height: 1.5; background: var(--plate); padding: 3px 8px; border-radius: 4px; }
   .hint b { color: var(--ink); }
   #keys { left: 14px; } #make { right: 14px; text-align: right; }
   @media (prefers-reduced-motion: reduce) { #crt::after { animation: none; } }
