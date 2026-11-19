@@ -26,6 +26,13 @@ theme_bg_companion() {
 
   stem=${background##*/}
   stem=${stem%.*}
+  # A loop shared by two stills of the same name could not map back to the one
+  # that started it, so neither takes it.
+  if [[ $kind == "loops" ]]; then
+    local -a stills
+    mapfile -t stills < <(theme_bg_stills_named "${background%/*}" "$stem")
+    (( ${#stills[@]} == 1 )) || return 1
+  fi
   for extension in "${theme_bg_video_extensions[@]}"; do
     companion="${background%/*}/$kind/$stem.$extension"
     if [[ -f $companion ]]; then
@@ -43,25 +50,36 @@ theme_bg_animations_off() {
     [[ $(hyprctl -j getoption animations:enabled 2>/dev/null | jq -r '.bool' 2>/dev/null) == "false" ]]
 }
 
+# Print each still in a folder named <stem>.<ext>, in any case, as
+# theme_bg_companion accepts it.
+theme_bg_stills_named() {
+  local folder="$1" stem="$2" still
+
+  for still in "$folder/$stem".*; do
+    case ${still,,} in
+      *.jpg | *.jpeg | *.png | *.bmp | *.webp)
+        if [[ ${still%.*} == "$folder/$stem" && -f $still ]]; then
+          printf '%s\n' "$still"
+        fi
+        ;;
+    esac
+  done
+}
+
 # A playing theme loop stands for its still. Print the still for a path under
 # backgrounds/loops/, or the path itself for anything else.
 theme_bg_still_for() {
-  local background="$1" stem still
+  local background="$1" stem
+  local -a stills
 
   if [[ $background == */backgrounds/loops/* ]]; then
     stem=${background##*/}
     stem=${stem%.*}
-    # Any case, as theme_bg_companion accepts it.
-    for still in "${background%/loops/*}/$stem".*; do
-      case ${still,,} in
-        *.jpg | *.jpeg | *.png | *.bmp | *.webp)
-          if [[ ${still%.*} == "${background%/loops/*}/$stem" && -f $still ]]; then
-            printf '%s\n' "$still"
-            return
-          fi
-          ;;
-      esac
-    done
+    mapfile -t stills < <(theme_bg_stills_named "${background%/loops/*}" "$stem")
+    if (( ${#stills[@]} == 1 )); then
+      printf '%s\n' "${stills[0]}"
+      return
+    fi
   fi
   printf '%s\n' "$background"
 }

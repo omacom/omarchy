@@ -298,6 +298,14 @@ still=$("$ROOT/bin/omarchy-theme-bg-loop-apply" --still "$backgrounds/loops/4-mo
 [[ $resolved == "$backgrounds/loops/4-moon.mp4" && $still == "$backgrounds/4-moon.JPG" ]] || fail "an uppercase still and its loop map both ways" "$resolved / $still"
 pass "an uppercase still and its loop map both ways"
 
+# Two stills of one name cannot both own a loop, or turning it off would land on
+# whichever the glob lists first rather than the one that was selected.
+printf 'jpg still\n' >"$backgrounds/5-road.jpg"
+printf 'webp still\n' >"$backgrounds/5-road.webp"
+printf 'road loop\n' >"$backgrounds/loops/5-road.mp4"
+[[ -z $(resolve_loop "$backgrounds/5-road.webp") && -z $(resolve_loop "$backgrounds/5-road.jpg") ]] || fail "stills sharing a name take no loop"
+pass "stills sharing a name take no loop"
+
 printf 'longer still\n' >"$backgrounds/4-moon.old.png"
 still=$("$ROOT/bin/omarchy-theme-bg-loop-apply" --still "$backgrounds/loops/4-moon.mp4")
 [[ $still == "$backgrounds/4-moon.JPG" ]] || fail "a loop maps back only to the still of its own name" "$still"
