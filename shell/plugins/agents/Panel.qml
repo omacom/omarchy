@@ -40,7 +40,9 @@ Panel {
   // This machine's own models offer sharing only while running: where
   // Tailscale can serve them, or where one is shared already, so it can
   // always be stopped. A stopped model stays shared and is served again when
-  // it starts, but says nothing about it until then.
+  // it starts, but says nothing about it until then. One the catalog has
+  // moved on from offers its update, running or stopped, but not while it
+  // loads, stops or is being updated already.
   function localActions(model, canShare) {
     var actions = []
     if (model.unit === "removing" || model.unit === "installing") return actions
@@ -48,15 +50,16 @@ Panel {
       if (model.offline) return actions
       if (!model.paired) return ["pair"]
       return model.unit === "active" ? ["disconnect", "launch"] : []
-    } else if (model.unit === "active" && (canShare || model.shared === true)) {
-      actions.push("share")
+    } else {
+      if (model.update && model.updating !== true && ["active", "inactive", "failed"].indexOf(model.unit) >= 0) actions.push("update")
+      if (model.unit === "active" && (canShare || model.shared === true)) actions.push("share")
     }
     if (model.unit !== "deactivating") actions.push("toggle")
     if (model.unit === "active") actions.push("launch")
     return actions
   }
 
-  readonly property var actionKinds: ({ toggle: "modelToggle", launch: "modelLaunch", pair: "modelPair", disconnect: "modelDisconnect", share: "modelShare" })
+  readonly property var actionKinds: ({ toggle: "modelToggle", launch: "modelLaunch", pair: "modelPair", disconnect: "modelDisconnect", share: "modelShare", update: "modelUpdate" })
 
   function modelId(model) {
     return model.host ? model.host + "/" + model.recipe : model.recipe
@@ -144,6 +147,10 @@ Panel {
       Util.execArgv(["omarchy-agent-local", running ? "stop" : "start", model.recipe])
     } else if (action === "share") {
       Util.execArgv(["omarchy-agent-local", "share", model.recipe].concat(model.shared ? ["--off"] : []))
+    } else if (action === "update") {
+      // In the background, like a setup: the model's line says it's updating
+      // until its new runtime or weights are in place.
+      Util.execArgv(["omarchy-agent-local", "update", "--detach", model.recipe])
     } else if (action === "pair") {
       // Pairs in the background while the panel stays open; a failure shows
       // on the model's line.
@@ -257,7 +264,7 @@ Panel {
   property var deleteTarget: null
   function deleteSelected() {
     var target = keyTarget
-    if (!target || ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelHeader", "localDownload"].indexOf(target.kind) < 0) return
+    if (!target || ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelUpdate", "modelHeader", "localDownload"].indexOf(target.kind) < 0) return
     var model = providers[target.index].localModel
     // A setup the panel still owns has nothing on disk to delete, so it asks
     // nothing: a failure is forgotten and one waiting its turn is dropped. The
@@ -432,7 +439,7 @@ Panel {
       var row = keyRows[keyRow]
       var use = -1
       for (var c = 0; c < row.length; c++) if (row[c].kind === "account") use = c
-      var line = ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelHeader", "localDownload"].indexOf(row[0].kind) >= 0
+      var line = ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelUpdate", "modelHeader", "localDownload"].indexOf(row[0].kind) >= 0
       keyColumn = use >= 0 ? use : line ? row.length - 1 : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
       // A row can go while the cursor is on it, like the starters when the
@@ -446,7 +453,7 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelHeader", "modelLogs", "localDownload"].indexOf(target.kind) >= 0) return target.index
+    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelUpdate", "modelHeader", "modelLogs", "localDownload"].indexOf(target.kind) >= 0) return target.index
     if (["account", "autoswitch", "signin"].indexOf(target.kind) < 0) return -1
     var entry = accountEntries[target.index]
     return entry ? providers.indexOf(entry.provider) : -1
@@ -938,8 +945,8 @@ Panel {
     else if (target.kind === "localAdd") chooseAddRow(target.index)
     else if (target.kind === "pasteCode") openPasteField()
     else if (target.kind === "reopenSignIn") reopenSignIn()
-    else if (["modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare"].indexOf(target.kind) >= 0)
-      runLocalAction(providers[target.index].localModel, { modelToggle: "toggle", modelLaunch: "launch", modelPair: "pair", modelDisconnect: "disconnect", modelShare: "share" }[target.kind])
+    else if (["modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelUpdate"].indexOf(target.kind) >= 0)
+      runLocalAction(providers[target.index].localModel, { modelToggle: "toggle", modelLaunch: "launch", modelPair: "pair", modelDisconnect: "disconnect", modelShare: "share", modelUpdate: "update" }[target.kind])
     else if (target.kind === "localDownload") downloadLocal(providers[target.index].localOffer)
     else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind, modifiers)
@@ -2342,7 +2349,7 @@ Panel {
         anchors.leftMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        width: section.model || section.offer ? Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionPlan.implicitWidth - (localShare.visible ? localShare.width : 0) - (remotePair.visible ? remotePair.width : 0) - (remoteDisconnect.visible ? remoteDisconnect.width : 0) - (localToggle.visible ? localToggle.width : 0) - (sectionLaunch.visible ? sectionLaunch.width : 0) - Style.space(44))) : implicitWidth
+        width: section.model || section.offer ? Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionPlan.implicitWidth - (localUpdate.visible ? localUpdate.width : 0) - (localShare.visible ? localShare.width : 0) - (remotePair.visible ? remotePair.width : 0) - (remoteDisconnect.visible ? remoteDisconnect.width : 0) - (localToggle.visible ? localToggle.width : 0) - (sectionLaunch.visible ? sectionLaunch.width : 0) - Style.space(44))) : implicitWidth
         elide: Text.ElideRight
         text: section.model ? (section.model.name || section.model.recipe)
           : section.offer ? (section.offer.link ? root.linkTitle(section.offer.link) : (section.offer.name || section.offer.id))
@@ -2415,6 +2422,26 @@ Panel {
           iconSize: Math.round(Style.font.icon * 0.7)
           color: localShare.shared || localShare._hot ? root.foreground : root.dim
         }
+      }
+
+      // The catalog has a newer runtime, weights or settings for this model
+      // than it was set up with. Updating restarts it, so it's offered, never
+      // done on its own; while it runs the button stays, dimmed, to say so.
+      PanelActionButton {
+        id: localUpdate
+        anchors.right: localShare.visible ? localShare.left : localToggle.visible ? localToggle.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
+        anchors.rightMargin: localShare.visible || localToggle.visible || sectionLaunch.visible ? Style.space(4) : 0
+        anchors.verticalCenter: parent.verticalCenter
+        readonly property bool updating: !!section.model && section.model.updating === true
+        visible: !!section.model && !section.remote && !section.removing && !section.installing && (updating || (!!section.model.update && !section.loading && !section.stopping))
+        iconText: "󰚰"
+        tooltipText: updating ? Commons.I18n.t("agents.localUpdating") : Commons.I18n.t("agents.localUpdate")
+        foreground: updating ? root.dim : root.foreground
+        opacity: updating ? 0.5 : 1
+        fontFamily: root.fontFamily
+        hasCursor: root.hasKey("modelUpdate", section.providerIndex)
+        onHasCursorChanged: if (hasCursor) root.revealItem(localUpdate)
+        onClicked: if (!updating) root.runLocalAction(section.model, "update")
       }
 
       // A network model this machine isn't paired with yet: the play a local

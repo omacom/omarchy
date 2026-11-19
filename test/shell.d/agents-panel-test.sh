@@ -190,6 +190,12 @@ assertDeepEqual(localActions({ recipe: 'm', unit: 'active', shared: true }, fals
 assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', shared: true }, true), ['toggle'], 'a stopped shared model does not say it is shared')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive' }, true), ['toggle'], 'a local model that has not been started is not offered for sharing')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'installing' }, true), [], 'a model being set up offers nothing yet')
+const stale = { image: true, weights: false, settings: false }
+assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', update: stale }, true), ['update', 'toggle'], 'a stopped model the catalog has moved on from offers its update')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'active', update: stale }, true), ['update', 'share', 'toggle', 'launch'], 'a running model offers its update before its other actions')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'activating', update: stale }, true), ['toggle'], 'a model that is loading does not offer its update')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', update: stale, updating: true }, true), ['toggle'], 'a model being updated does not offer its update again')
+assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '', update: stale }), ['disconnect', 'launch'], 'another machine\'s model is never updated from here')
 assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '' }), ['disconnect', 'launch'], 'a paired network model launches or disconnects, never stops its host\'s model')
 assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'inactive', paired: true, offline: '' }), [], 'a paired network model that is not running offers nothing, not even disconnecting')
 assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: false, offline: '' }), ['pair'], 'an unpaired network model offers pairing only')
