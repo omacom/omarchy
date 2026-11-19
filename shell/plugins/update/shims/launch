@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# setsid, uwsm-app and gtk-launch link here. What an installer launches through
+# them is an app for the user, not part of the install, so the window's stand-ins
+# stop here: an editor's terminal must put sudo and gum questions on screen, and
+# omarchy-launch-install from it must open a window. The shims leave PATH, the
+# markers go, and TERM is unset as it is in the session that started the window.
+PATH=${PATH#"$(dirname "$(realpath "$0")"):"}
+unset OMARCHY_UPDATE_WINDOW SUDO_PROMPT TERM
+exec "/usr/bin/${0##*/}" "$@"

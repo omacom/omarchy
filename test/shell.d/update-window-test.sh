@@ -116,6 +116,17 @@ rm -rf "$probe"
   fail 'the tools the window reads run in English' 'sudo, pacman and yay should link to shims/english'
 pass 'the tools the window reads run in English'
 
+# An app the installer launches gets the caller's environment back, so its
+# terminals ask sudo and gum questions on screen and open a window for a nested install.
+probe=$(mktemp -d)
+ln -s "$ROOT/shell/plugins/update/shims/launch" "$probe/env"
+output=$(PATH="$ROOT/shell/plugins/update/shims:$PATH" OMARCHY_UPDATE_WINDOW=1 SUDO_PROMPT=marker TERM=dumb "$probe/env" | grep -E '^(PATH|OMARCHY_UPDATE_WINDOW|SUDO_PROMPT|TERM)=')
+rm -rf "$probe"
+[[ $output == "PATH=$PATH" ]] || fail 'a launched app gets the environment back' "$output"
+[[ $(readlink "$ROOT/shell/plugins/update/shims/setsid") == "launch" && $(readlink "$ROOT/shell/plugins/update/shims/uwsm-app") == "launch" && $(readlink "$ROOT/shell/plugins/update/shims/gtk-launch") == "launch" ]] ||
+  fail 'a launched app gets the environment back' 'setsid, uwsm-app and gtk-launch should link to shims/launch'
+pass 'a launched app gets the environment back'
+
 # Inside the window, an installer handing over to another one runs in place.
 output=$(OMARCHY_UPDATE_WINDOW=1 "$ROOT/bin/omarchy-launch-install" 'echo inline')
 [[ $output == "inline" ]] || fail 'a nested install runs inside the window' "$output"
