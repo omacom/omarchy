@@ -1,29 +1,75 @@
 #!/bin/bash
 
-# omarchy:summary=Open Game Vibes, the games made in ~/Games/vibes, in the current theme
-# omarchy:args=[game]
-# omarchy:examples=omarchy games vibes launch | omarchy games vibes launch snake
+# omarchy:summary=Open Game Vibes, Omarchy's games and the ones made in ~/Games/vibes, in the current theme
+# omarchy:args=[--url] [game]
+# omarchy:examples=omarchy games vibes launch | omarchy games vibes launch snake | omarchy games vibes launch --url snake
 
-# A page opened from a file can't read the theme, so the palette rides in the
-# URL fragment, which never leaves the machine. The list passes it on to each
-# game, whose themed() reads it. Given a game, the list opens straight into it,
-# so Esc on its title screen still comes back to the list.
+# Game Vibes lists the games Omarchy ships, in default/games/vibes, and the
+# ones made here, in ~/Games/vibes/<name>/index.html. Each launch writes the
+# list again, to ~/Games/vibes/index.html, so a new game is in it the next
+# time it opens. Given a game, the list opens straight into it, so Esc on its
+# title screen still comes back to the list. --url prints the address rather
+# than opening it, for an agent to look at with omarchy agent look page.
 
 set -euo pipefail
 
-game=${1:-}
-if [[ -n $game ]]; then
-  if [[ ! $game =~ ^[a-z0-9][a-z0-9-]*$ ]] ||
-    [[ ! -f $HOME/Games/vibes/$game/index.html && ! -f $OMARCHY_PATH/default/games/vibes/$game/index.html ]]; then
-    echo "No game called $game in Game Vibes" >&2
-    exit 1
-  fi
+print_url=""
+if [[ ${1:-} == "--url" ]]; then
+  print_url=1
+  shift
 fi
 
-omarchy-games-vibes-install >/dev/null
+vibes="$HOME/Games/vibes"
+mkdir -p "$vibes"
 
-palette=$(omarchy-theme-color --all | jq -Rrn '[inputs | split("\t") | {(.[0]): .[1]}] | add | tojson | @uri')
-url="file://$(jq -rn --arg path "$HOME/Games/vibes/index.html" '$path | split("/") | map(@uri) | join("/")')#palette=$palette"
+# A game is a folder named like a command, holding an index.html. One made
+# here replaces the shipped game of its name, as a copy to keep working on
+# does. Its title is the page's <title>, and its blurb its description meta.
+declare -A games=()
+for page in "$OMARCHY_PATH/default/games/vibes"/*/index.html "$vibes"/*/index.html; do
+  [[ -f $page ]] || continue
+  dir=${page%/index.html}
+  name=${dir##*/}
+  [[ $name =~ ^[a-z0-9][a-z0-9-]*$ ]] && games[$name]=$dir
+done
+
+game=${1:-}
+if [[ -n $game && -z ${games[$game]:-} ]]; then
+  echo "No game called $game in Game Vibes" >&2
+  exit 1
+fi
+
+# The list goes into the page as JSON with every < escaped, so a title can't
+# end the script it sits in. Each game is linked by its folder's file URL.
+for name in "${!games[@]}"; do
+  dir=${games[$name]}
+  title=$(sed -n 's:.*<title>\(.*\)</title>.*:\1:p' "$dir/index.html" | head -1 | tr -d '\t')
+  blurb=$(sed -n 's:.*<meta name="description" content="\([^"]*\)".*:\1:p' "$dir/index.html" | head -1 | tr -d '\t')
+  icon=false
+  [[ -f $dir/icon.svg ]] && icon=true
+  printf '%s\t%s\t%s\t%s\t%s\n' "$name" "${title:-$name}" "$icon" "$dir" "$blurb"
+done | sort | jq -Rrn --rawfile page "$OMARCHY_PATH/default/games/vibes.html" '
+  [inputs | split("\t") | {name: .[0], title: .[1], blurb: .[4], icon: (.[2] == "true"),
+    url: ("file://" + (.[3] | split("/") | map(@uri) | join("/")))}]
+  | tojson | gsub("<"; "\\u003c") as $games
+  | $page | sub("/\\*GAMES\\*/\\[\\]"; $games)' >"$vibes/index.html"
+
+# A page opened from a file can't read the theme, so the palette rides in the
+# URL fragment, which never leaves the machine. The list passes it on to each
+# game, whose themed() reads it.
+page="file://$(jq -rn --arg path "$vibes/index.html" '$path | split("/") | map(@uri) | join("/")')"
+url="$page#palette=$(omarchy-theme-color --all | jq -Rrn '[inputs | split("\t") | {(.[0]): .[1]}] | add | tojson | @uri')"
 [[ -z $game ]] || url+="&open=$game"
 
-exec omarchy-launch-webapp "$url"
+if [[ -n $print_url ]]; then
+  printf '%s\n' "$url"
+else
+  # The dock finds a window's launcher by its class, which holds this home's
+  # path, so the shipped launcher gets it here.
+  launcher="$HOME/.local/share/applications/Game Vibes.desktop"
+  if ! grep -qs '^StartupWMClass=' "$launcher"; then
+    mkdir -p "${launcher%/*}"
+    { cat "$OMARCHY_PATH/applications/Game Vibes.desktop"; echo "StartupWMClass=$(omarchy-webapp-window-class "$page")"; } >"$launcher"
+  fi
+  exec omarchy-launch-webapp "$url"
+fi

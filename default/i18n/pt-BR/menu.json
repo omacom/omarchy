@@ -568,10 +568,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Inicialização direta"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Redefinir computador"
   },
   "install.package": {
@@ -1255,7 +1252,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Captura de falhas ativada"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {

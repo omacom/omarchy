@@ -568,10 +568,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Bein ræsing"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Endurstilla tölvu"
   },
   "install.package": {
@@ -1195,7 +1192,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Hrunupptaka á"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {

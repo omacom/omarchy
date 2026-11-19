@@ -36,5 +36,4 @@ fi
 mkdir -p "$vibes"
 cp -r "$source" "$vibes/$name"
 chmod -R u+w "$vibes/$name"
-omarchy-games-vibes-install >/dev/null
 echo "Copied $game to ~/Games/vibes/$name"

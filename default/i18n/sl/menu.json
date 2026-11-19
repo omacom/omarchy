@@ -568,10 +568,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Neposredni zagon"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Ponastavi računalnik"
   },
   "install.package": {
@@ -1255,7 +1252,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Zajem sesutij vklopljen"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {

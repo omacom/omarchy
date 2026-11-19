@@ -89,10 +89,50 @@ Panel {
     root.close()
   }
 
+  // What a local model makes, in a word.
+  function kindLabel(model) {
+    return model.kind === "image" ? Commons.I18n.t("agents.kindImage")
+      : model.kind === "video" ? Commons.I18n.t("agents.kindVideo")
+      : model.kind === "music" ? Commons.I18n.t("agents.kindMusic")
+      : Commons.I18n.t("agents.kindText")
+  }
+
+  // Image, video and music models are made with in Fantasi rather than an agent.
+  function makesInFantasi(model) {
+    return ["image", "video", "music"].indexOf(model.kind) >= 0
+  }
+
+  // Fantasi's launcher icon. The icon set's drawing is redrawn in place on a
+  // theme or set switch, so its URL carries the set's revision to reload it,
+  // as the app library's icons do; without one, the packaged icon.
+  readonly property string fantasiSetIcon: (Quickshell.env("XDG_DATA_HOME") || Quickshell.env("HOME") + "/.local/share") + "/icons/hicolor/scalable/apps/fantasi.svg"
+  property int iconRevision: 0
+  property bool fantasiDrawn: false
+  readonly property string fantasiIcon: fantasiDrawn ? Util.fileUrl(fantasiSetIcon) + "?theme=" + iconRevision : Quickshell.iconPath("fantasi", true)
+
+  FileView {
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/current/icons.revision"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: {
+      root.iconRevision++
+      fantasiSetIconFile.reload()
+    }
+  }
+
+  FileView {
+    id: fantasiSetIconFile
+    path: root.fantasiSetIcon
+    printErrors: false
+    onLoaded: root.fantasiDrawn = true
+    onLoadFailed: root.fantasiDrawn = false
+  }
+
   function runLocalAction(model, action) {
     if (action === "launch") {
-      // An image model makes pictures in Fantasi rather than running an agent.
-      if (model.kind === "image") Util.execArgv(["omarchy-launch-or-focus", "fantasi", "uwsm-app -- fantasi open --model " + Util.shellQuote(modelId(model))])
+      // An image or video model makes pictures or clips in Fantasi rather than running an agent.
+      // An open Fantasi takes the model and comes to the front, so this always opens.
+      if (makesInFantasi(model)) Util.execArgv(["uwsm-app", "--", "fantasi", "open", "--model", modelId(model)])
       else Util.execArgv(["omarchy-agent", "--local-model", modelId(model)])
       root.close()
     } else if (action === "toggle") {
@@ -176,6 +216,17 @@ Panel {
 
   function linkTitle(link) {
     return link.host ? Commons.I18n.t("agents.linkOffer").arg(link.host) : Commons.I18n.t("agents.linkOfferUnnamed")
+  }
+
+  // What a local model needs at its peak, as the catalog measured it on
+  // this kind of machine; 0 when it hasn't been measured here.
+  function localNeedsGib(model) {
+    if (!model) return 0
+    var recipes = usage.localRecipes || []
+    for (var i = 0; i < recipes.length; i++) {
+      if (recipes[i] && recipes[i].id === model.recipe) return Number(recipes[i].memory_gib) || 0
+    }
+    return 0
   }
 
   function localStartBlocked(model) {
@@ -2193,6 +2244,9 @@ Panel {
     readonly property real rateBytes: Number(install.rate_bytes_s) || 0
     readonly property bool loading: !!model && model.unit === "activating"
     readonly property bool running: !!model && model.unit === "active"
+    // A local model that's set up and stopped steps back, so the one running
+    // stands out; its play button stays bright.
+    readonly property bool resting: !!model && !remote && !running && !loading && !installing
     readonly property bool stopping: !!model && model.unit === "deactivating"
     // Removing stops it first, then deletes its weights; one bar covers both.
     readonly property bool removing: !!model && model.unit === "removing"
@@ -2214,7 +2268,7 @@ Panel {
     readonly property real phaseSeconds: removing ? removeSeconds : stopping ? stopSeconds : loadSeconds
     readonly property real elapsed: model ? Math.max(0, (root.loadNowMs - Number(model.since_ms || root.loadNowMs)) / 1000) : 0
     readonly property real memory: model && model.observed ? Number(model.observed.ram_used_gib || 0) : 0
-    readonly property real ramTotal: Number(usage.localModel.ram_total_gib) || 0
+    readonly property real needsGib: root.localNeedsGib(model)
     readonly property var accounts: root.providerAccounts(provider)
     readonly property bool multi: accounts.length > 1
     readonly property var windows: root.displayWindows(provider)
@@ -2260,6 +2314,7 @@ Panel {
         id: sectionMark
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
+        opacity: section.resting ? 0.45 : 1
         provider: section.model ? ({ providerId: section.model.vendor || "ollama" })
           : section.offer ? ({ providerId: section.offer.vendor || "ollama" }) : section.provider
 
@@ -2299,6 +2354,7 @@ Panel {
           text: section.model ? Commons.I18n.t("agents.localEndpoint").arg(section.model.endpoint || "").arg(section.model.recipe) : ""
         }
         color: root.foreground
+        opacity: section.resting ? 0.45 : 1
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: true
@@ -2312,9 +2368,13 @@ Panel {
         anchors.baseline: sectionName.baseline
         visible: !section.multi && text !== ""
         textFormat: Text.PlainText
-        // A network model names its host where a plan would be.
-        text: section.remote ? section.model.host : section.model || section.offer ? "" : root.planLabel(section.provider)
+        // A local model says what it makes where a plan would be, and a
+        // network one its host as well.
+        text: section.offer && section.offer.link ? ""
+          : section.model || section.offer ? [root.kindLabel(section.model || section.offer)].concat(section.remote ? [section.model.host] : []).join(" · ")
+          : root.planLabel(section.provider)
         color: root.dim
+        opacity: section.resting ? 0.6 : 1
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
       }
@@ -2426,9 +2486,11 @@ Panel {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         readonly property bool download: !!section.offer
-        readonly property bool image: !!section.model && section.model.kind === "image"
+        readonly property bool image: !!section.model && root.makesInFantasi(section.model)
         visible: download || (section.model ? section.running && (!section.remote || (section.paired && !section.offline)) : root.harnessFor(section.provider) !== "")
         iconText: download ? (section.offer.link ? "󰌘" : "󰇚") : image ? "󰋩" : "󰞷"
+        // Fantasi's own launcher icon, as the icon set draws it, on a model made with in it.
+        iconSource: !download && image ? root.fantasiIcon : ""
         tooltipText: download ? (section.offer.link ? Commons.I18n.t("agents.linkSetUp") : Commons.I18n.t("agents.localDownload"))
           : image ? Commons.I18n.t("agents.openFantasi") : section.model ? Commons.I18n.t("agents.localLaunch") : Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
         foreground: root.foreground
@@ -2451,12 +2513,12 @@ Panel {
       elide: Text.ElideRight
     }
 
-    // Under a local model: its download while it's set up, memory while it
-    // runs, progress while it loads or stops (against how long that took last
-    // time), or why it couldn't start. A network model shows its stats while
-    // it runs instead: its memory is its host's business.
+    // Under a local model: its download while it's set up, or progress while
+    // it loads or stops (against how long that took last time). A network
+    // model shows its stats while it runs instead: its memory is its host's
+    // business.
     Item {
-      visible: section.preparing || section.downloadShown || (section.running && !section.remote) || section.loadingShown || section.stoppingShown || section.removing
+      visible: section.preparing || section.downloadShown || section.loadingShown || section.stoppingShown || section.removing
       width: parent.width
       implicitHeight: Math.max(localMeterTitle.implicitHeight, localMeterValue.implicitHeight)
 
@@ -2469,8 +2531,7 @@ Panel {
           : section.downloadShown ? Commons.I18n.t("agents.localDownloadingMeter")
           : section.removing ? Commons.I18n.t("agents.localRemovingMeter")
           : section.loadingShown ? Commons.I18n.t("agents.localLoadingMeter")
-          : section.stoppingShown ? Commons.I18n.t("agents.localStoppingMeter")
-          : Commons.I18n.t("agents.localMemory")
+          : Commons.I18n.t("agents.localStoppingMeter")
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -2483,8 +2544,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         value: section.preparing ? root.phaseProgress(section.elapsed, 30)
           : section.downloadShown ? (section.totalBytes > 0 ? section.doneBytes / section.totalBytes : 0)
-          : section.finishing !== "" ? 1 : section.loading || section.stopping || section.removing ? root.phaseProgress(section.elapsed, section.phaseSeconds)
-          : section.ramTotal > 0 ? section.memory / section.ramTotal : 0
+          : section.finishing !== "" ? 1 : root.phaseProgress(section.elapsed, section.phaseSeconds)
       }
       // How much of a download has arrived, over its bar. The bar is a few
       // pixels tall, so the whole height of its row answers the pointer.
@@ -2506,12 +2566,38 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         horizontalAlignment: Text.AlignRight
-        text: section.downloadShown ? root.downloadRate(section.rateBytes)
-          : section.preparing || section.loadingShown || section.stoppingShown || section.removing ? ""
-          : Commons.I18n.t("agents.localMemoryValue").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
+        text: section.downloadShown ? root.downloadRate(section.rateBytes) : ""
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
+      }
+    }
+
+    // Under a local model, running or at rest: the memory it takes, which
+    // is what says whether there's room for it. Amber when there isn't now.
+    // It reads as part of the name above, so it sits closer to it than the
+    // section's rows sit to each other.
+    Item {
+      // Never the whole line: a spacing scale that outgrows the text would
+      // leave a zero-height row, which the column drops from its layout.
+      readonly property real pull: Math.max(0, Math.min(Style.space(10), localRam.implicitHeight - 1))
+      visible: !!section.model && !section.remote && !section.installing && !section.loadingShown && !section.stoppingShown && !section.removing && localRam.text !== ""
+      width: parent.width
+      implicitHeight: localRam.implicitHeight - pull
+
+      Text {
+        id: localRam
+        y: -parent.pull
+        width: parent.width
+        textFormat: Text.PlainText
+        text: section.running ? Commons.I18n.t("agents.localUsingRam").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
+          : section.needsGib > 0 ? Commons.I18n.t("agents.localNeedsRam").arg(Commons.I18n.formatNumber(Math.round(section.needsGib))) : ""
+        color: !section.running && root.localStartBlocked(section.model) ? Commons.Color.warning : root.dim
+        // Steps back with the name, except as a warning that it won't fit.
+        opacity: section.resting && !root.localStartBlocked(section.model) ? 0.45 : 1
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        elide: Text.ElideRight
       }
     }
 

@@ -77,9 +77,9 @@ You start Signed via the application launcher (`Super + Space`), or open a PDF w
 
 ## Game Vibes
 
-Game Vibes, in the application launcher (`Super + Space`), is where Omarchy's little games live: Checkmate, a 3D chess game against a friend or the built-in opponent; Cards, Klondike solitaire; and Neon Swarm, an arcade shooter. Each is a single web page that follows your theme. Pick one with the arrows and `Enter`, and come back to the list with `Esc` from a game's title screen or `Q` while it's paused.
+Game Vibes, in the application launcher (`Super + Space`), is where Omarchy's little games live: Checkmate, a 3D chess game against a friend or the built-in opponent; Cards, Klondike solitaire; and Neon Swarm, an arcade shooter. Each is a single web page that follows your theme. Pick one with the arrows and `Enter`, and come back to the list with `Esc` from a game's title screen or `Q` while it's paused. It opens full screen: `Super + F` makes it a window, and `Super + W` closes it.
 
-The games you make with an agent show up here too: choose _Make something cool → Game_ in the agents panel and describe one, or name a game already in Game Vibes to keep working on it. The agent copies it into `~/Games/vibes`, where it's yours to change, and opens it when it's done. You can make that copy yourself with `omarchy games vibes copy <game>`. Games load three.js from the web, so they need a connection to start.
+The games you make with an agent show up here too: choose _Make something cool → Game_ in the agents panel and describe one, or name a game already in Game Vibes to keep working on it. The agent copies it into `~/Games/vibes`, where it's yours to change, and opens it when it's done. You can make that copy yourself with `omarchy games vibes copy <game>`. A game someone else shares installs like a theme: choose _Install > Gaming > Game Vibes_ and paste its git address, or run `omarchy games vibes install <git-repo-url>`. _Remove > Gaming_ takes one out again, and _Update > Game Vibes Games_ fetches new versions. Games load three.js from the web, so they need a connection to start.
 
 ## Omacalc
 

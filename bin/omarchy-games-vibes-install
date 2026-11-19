@@ -1,55 +1,79 @@
 #!/bin/bash
 
-# omarchy:summary=List the games in ~/Games/vibes under the Game Vibes launcher
+# omarchy:summary=Install a game into Game Vibes from a git repository
+# omarchy:args=[git-repo-url]
+# omarchy:examples=omarchy games vibes install https://github.com/example/omarchy-snake-game.git
 
-# Game Vibes lists the games Omarchy ships, in default/games/vibes, and the
-# ones made here, in ~/Games/vibes/<name>/index.html. This writes
-# ~/Games/vibes/index.html, the page that lists them, and the one Game Vibes
-# launcher that opens it, so a new game needs no launcher of its own.
+# A game someone shares is a git repository with the game's index.html at its
+# root, as the web-game skill makes them. It's cloned into ~/Games/vibes, named
+# after the repository, and opened in Game Vibes.
 
-set -euo pipefail
+if [[ -z $1 ]]; then
+  REPO_URL=$(gum input --placeholder="$(omarchy-i18n games.vibesRepoPlaceholder)" --header="")
+else
+  REPO_URL="$1"
+fi
 
-vibes="$HOME/Games/vibes"
-mkdir -p "$vibes" "$HOME/.local/share/applications"
+if [[ -z $REPO_URL ]]; then
+  exit 1
+fi
 
-# A game is a folder named like a command, holding an index.html. One made
-# here replaces the shipped game of its name, as a copy to keep working on
-# does. Its title is the page's <title>.
-declare -A games=()
-for page in "$OMARCHY_PATH/default/games/vibes"/*/index.html "$vibes"/*/index.html; do
-  [[ -f $page ]] || continue
-  dir=${page%/index.html}
-  name=${dir##*/}
-  [[ $name =~ ^[a-z0-9][a-z0-9-]*$ ]] && games[$name]=$dir
-done
+# Refuse a URL that names a git option or a transport helper before cloning.
+omarchy-git-url-check "$REPO_URL" || exit 1
 
-# The list goes into the page as JSON with every < escaped, so a title can't
-# end the script it sits in. Each game is linked by its folder's file URL.
-for name in "${!games[@]}"; do
-  dir=${games[$name]}
-  title=$(sed -n 's:.*<title>\(.*\)</title>.*:\1:p' "$dir/index.html" | head -1 | tr -d '\t')
-  icon=false
-  [[ -f $dir/icon.svg ]] && icon=true
-  printf '%s\t%s\t%s\t%s\n' "$name" "${title:-$name}" "$icon" "$dir"
-done | sort | jq -Rrn --rawfile page "$OMARCHY_PATH/default/games/vibes.html" '
-  [inputs | split("\t") | {name: .[0], title: .[1], icon: (.[2] == "true"),
-    url: ("file://" + (.[3] | split("/") | map(@uri) | join("/")))}]
-  | tojson | gsub("<"; "\\u003c") as $games
-  | $page | sub("/\\*GAMES\\*/\\[\\]"; $games)' >"$vibes/index.html"
+# Named as omarchy-theme-install names a theme: the repository's own name,
+# without the scp-style host, an omarchy- prefix or a -game suffix. It becomes
+# a folder and a name passed around, so it is held to what a game's name is.
+REPO_PATH="$REPO_URL"
+[[ $REPO_PATH != *"://"* && $REPO_PATH == *:* && ${REPO_PATH%%:*} != */* ]] && REPO_PATH="${REPO_PATH#*:}"
+GAME_NAME=$(basename -- "$REPO_PATH" .git | sed -E 's/^omarchy-//; s/-game$//' | tr '[:upper:]_.' '[:lower:]--')
+if ! (LC_ALL=C; [[ $GAME_NAME =~ ^[a-z0-9][a-z0-9-]*$ ]]); then
+  echo "Error: '$REPO_URL' does not give a usable game name."
+  exit 1
+fi
 
-url="file://$(jq -rn --arg path "$vibes/index.html" '$path | split("/") | map(@uri) | join("/")')"
-cat >"$HOME/.local/share/applications/Game Vibes.desktop" <<EOF
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Game Vibes
-Comment=Little games to play, and to keep making with an agent
-Exec=omarchy-games-vibes-launch
-Icon=omarchy-game-vibes
-Categories=Game;
-Terminal=false
-StartupNotify=true
-StartupWMClass=$(omarchy-webapp-window-class "$url")
-EOF
+GAME_PATH="$HOME/Games/vibes/$GAME_NAME"
 
-echo "Game Vibes in the app launcher (Super + Space) has ${#games[@]} games."
+# Installing again replaces the copy that came from the same repository. A
+# game made here, or one from somewhere else, is never written over. The
+# quotes keep the URL from being read as a pattern.
+refuse_another_game() {
+  if [[ -e $GAME_PATH && $(git -C "$GAME_PATH" config --get remote.origin.url 2>/dev/null) != "$REPO_URL" ]]; then
+    echo "Error: ~/Games/vibes/$GAME_NAME is already a game of yours. Rename or remove it first."
+    exit 1
+  fi
+}
+
+# One install at a time, so two can't take the same name from each other.
+mkdir -p "$HOME/Games/vibes"
+exec 9>"$HOME/Games/vibes/.install.lock"
+flock 9
+refuse_another_game
+
+# The clone is made and checked beside the games before it takes its place,
+# so a failed reinstall leaves the game that was there.
+FRESH=$(mktemp -d "$HOME/Games/vibes/.install.XXXXXX")
+trap 'rm -rf "$FRESH"' EXIT
+
+if ! git clone --depth 1 -- "$REPO_URL" "$FRESH/game"; then
+  echo "Error: Failed to clone game repo."
+  exit 1
+fi
+
+# A repository holds whatever its author pushed, so its symlinks, which point
+# wherever they chose, are left out.
+find "$FRESH/game" -type l -delete
+
+if [[ ! -f $FRESH/game/index.html ]]; then
+  echo "Error: '$REPO_URL' has no index.html at its root, so it isn't a Game Vibes game."
+  exit 1
+fi
+
+# Asked again, for a game made or copied there while this one downloaded.
+refuse_another_game
+rm -rf "$GAME_PATH"
+mv "$FRESH/game" "$GAME_PATH"
+# The game is in place: let the next install go ahead while this one is played.
+exec 9>&-
+
+omarchy-games-vibes-launch "$GAME_NAME"
