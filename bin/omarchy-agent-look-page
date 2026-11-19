@@ -58,7 +58,7 @@ if [[ -n $theme ]]; then
   fi
   # In place of a palette the address already has, which the page would read first.
   fragment=""
-  [[ $url == *"#"* ]] && fragment=$(sed -E 's/(^|&)palette=[^&]*//; s/^&//' <<<"${url#*#}")
+  [[ $url == *"#"* ]] && fragment=$(sed -E 's/(^|&)palette=[^&]*//g; s/^&//' <<<"${url#*#}")
   url="${url%%#*}#${fragment:+$fragment&}palette=$(omarchy-theme-color --file "$colors" --all | jq -Rrn '[inputs | split("\t") | {(.[0]): .[1]}] | add | tojson | @uri')"
 fi
 
