@@ -13,6 +13,125 @@ run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
 
+// Run the real [bar] parser rather than matching its text, so an allowlist
+// that drops a key, or a parser that no longer stores it, fails here.
+const vm = require('vm')
+const styleSource = fs.readFileSync(root + '/shell/Commons/Style.qml', 'utf8')
+function qmlFunction(source, name) {
+  const start = source.indexOf(`function ${name}(`)
+  let depth = 0
+  for (let i = source.indexOf('{', start); start >= 0 && i < source.length; i++) {
+    if (source[i] === '{') depth++
+    else if (source[i] === '}' && --depth === 0) return source.slice(start, i + 1)
+  }
+  throw new Error(`Style.qml has no function ${name}`)
+}
+const style = vm.createContext({})
+vm.runInContext(
+  ['barToken', 'boolToken', 'applyShellValues'].map(name => qmlFunction(styleSource, name)).join('\n') +
+  '\nvar fontScale = 1, barScaleWithFont = true, barOverrides = {}',
+  style
+)
+
+// Floating: bar.floating wins when set; unset, a theme margin on an edge the
+// bar touches floats it. With no theme margin a floating bar takes
+// Hyprland's gaps_out, and a flush bar has no margin at all.
+const themeMargin = { top: 4, right: 8, bottom: 4, left: 8 }
+const noMargin = { top: 0, right: 0, bottom: 0, left: 0 }
+assert(Object.isFrozen(bar.NO_MARGINS) && bar.barMargins(false, noMargin, noMargin, 'top') === bar.NO_MARGINS, 'a flush bar shares one frozen margin object, which a plugin cannot change')
+const gaps = { top: 12, right: 12, bottom: 12, left: 12 }
+assertEqual(bar.barFloating(undefined, noMargin, 'top'), false, 'a bar with no theme margin and no setting is flush')
+assertEqual(bar.barFloating(undefined, themeMargin, 'top'), true, 'a theme margin floats the bar when shell.json says nothing')
+assertEqual(bar.barFloating(false, themeMargin, 'top'), false, 'bar.floating false keeps the bar flush over a theme margin')
+assertEqual(bar.barFloating(true, noMargin, 'top'), true, 'bar.floating true floats the bar without a theme margin')
+assertDeepEqual(bar.barMargins(false, themeMargin, gaps, 'top'), noMargin, 'a flush bar has no margin')
+assertDeepEqual(bar.barMargins(true, themeMargin, gaps, 'top'), themeMargin, 'a floating bar takes the theme margin as given')
+assertDeepEqual(bar.barMargins(true, noMargin, gaps, 'top'), { top: 6, right: 12, bottom: 12, left: 12 }, 'a default floating top bar sits half of gaps_out from the edge, full gaps_out at its ends')
+assertDeepEqual(bar.barMargins(true, noMargin, gaps, 'left'), { top: 12, right: 12, bottom: 12, left: 6 }, 'a default floating left bar halves the left gap')
+assertDeepEqual(bar.barMargins(true, noMargin, noMargin, 'top'), noMargin, 'zero gaps give a floating bar no margin')
+// Uneven gaps and margins, every edge: the anchored edge takes half its own
+// gap, the others keep theirs, and a theme margin is used as given.
+const unevenGaps = { top: 10, right: 14, bottom: 18, left: 22 }
+const unevenTheme = { top: 3, right: 7, bottom: 11, left: 13 }
+for (const edge of ['top', 'right', 'bottom', 'left']) {
+  const expected = Object.assign({}, unevenGaps, { [edge]: Math.round(unevenGaps[edge] / 2) })
+  assertDeepEqual(bar.barMargins(true, noMargin, unevenGaps, edge), expected, `a default floating ${edge} bar halves only its own gap`)
+  assertDeepEqual(bar.barMargins(true, unevenTheme, unevenGaps, edge), unevenTheme, `a floating ${edge} bar takes an uneven theme margin as given`)
+}
+assertEqual(bar.barRadius(false, 8, 12, 26), 0, 'a flush bar stays square whatever the theme radius')
+assertEqual(bar.barRadius(true, undefined, 12, 26), 12, 'a floating bar follows Hyprland rounding when the theme sets none')
+assertEqual(bar.barRadius(true, 4, 12, 26), 4, 'a theme radius overrides Hyprland rounding on a floating bar')
+assertEqual(bar.barRadius(true, 0, 12, 26), 0, 'a theme radius of 0 keeps a floating bar square')
+assertEqual(bar.barRadius(true, 40, 12, 26), 13, 'the radius is capped at half the bar thickness')
+assertEqual(bar.floatsInGap(true, noMargin, 'top'), true, 'the default floating bar keeps the windows where they are')
+assertEqual(bar.floatsInGap(true, themeMargin, 'top'), false, 'a theme margin is reserved on top of the bar')
+assertEqual(bar.floatsInGap(false, noMargin, 'top'), false, 'a flush bar reserves only its own size')
+// Only the edges a bar touches take a margin, so a theme margin on the far
+// side alone neither floats the bar nor stops it floating in the gap.
+const farOnly = { top: 0, right: 0, bottom: 10, left: 0 }
+assertEqual(bar.barFloating(undefined, farOnly, 'top'), false, 'a margin only on the far side leaves a top bar flush')
+assertEqual(bar.barFloating(undefined, farOnly, 'bottom'), true, 'the same margin floats a bottom bar, whose edge it is')
+assertEqual(bar.barFloating(undefined, farOnly, 'left'), true, 'the same margin floats a side bar, which spans that edge')
+assertEqual(bar.floatsInGap(true, farOnly, 'top'), true, 'a top bar switched to floating over a far-side margin floats in the gap')
+assertDeepEqual(bar.barMargins(true, farOnly, gaps, 'top'), { top: 6, right: 12, bottom: 12, left: 12 }, 'and takes the gap margins, not the far-side theme margin')
+
+// The strip hangs from its edge inside the margins of the edges it touches,
+// not at its far face; a flush strip is the whole edge.
+const inGapTop = { top: 6, right: 12, bottom: 12, left: 12 }
+assertDeepEqual(bar.stripRect('top', noMargin, 26, 2000, 1250), { x: 0, y: 0, width: 2000, height: 26 }, 'a flush top strip spans the top edge')
+assertDeepEqual(bar.stripRect('bottom', noMargin, 26, 2000, 1250), { x: 0, y: 1224, width: 2000, height: 26 }, 'a flush bottom strip spans the bottom edge')
+assertDeepEqual(bar.stripRect('right', noMargin, 28, 2000, 1250), { x: 1972, y: 0, width: 28, height: 1250 }, 'a flush right strip spans the right edge')
+assertDeepEqual(bar.stripRect('top', inGapTop, 26, 2000, 1250), { x: 12, y: 6, width: 1976, height: 26 }, 'a floating top strip is inset at its edge and both ends')
+const unevenStrip = {
+  top: { x: 13, y: 3, width: 1980, height: 26 },
+  bottom: { x: 13, y: 1213, width: 1980, height: 26 },
+  left: { x: 13, y: 3, width: 26, height: 1236 },
+  right: { x: 1967, y: 3, width: 26, height: 1236 }
+}
+for (const edge of ['top', 'bottom', 'left', 'right']) {
+  assertDeepEqual(bar.stripRect(edge, unevenTheme, 26, 2000, 1250), unevenStrip[edge], `a floating ${edge} strip takes each touching edge's own margin`)
+}
+
+// The bar window sits on the screen edge, so the zone counts from there: a
+// theme margin is reserved on top of the bar, and a bar floating in the gap
+// reserves what a flush bar does, so the windows stay put.
+assertEqual(bar.reservedMargin(false, noMargin, 'top'), 0, 'a flush bar reserves only its size')
+assertEqual(bar.reservedMargin(true, inGapTop, 'top'), 0, 'a bar floating in the gap reserves what a flush bar reserves')
+for (const edge of ['top', 'right', 'bottom', 'left']) {
+  assertEqual(bar.reservedMargin(false, unevenTheme, edge), unevenTheme[edge], `a theme margin is reserved on top of a ${edge} bar`)
+  assertEqual(bar.reservedMargin(true, unevenTheme, edge), 0, `a ${edge} bar floating in the gap reserves what a flush bar reserves`)
+}
+
+// gaps_out comes from hyprctl as a CSS-style list; each side is kept. Runs
+// the real Style.qml function, in a block so its helpers stay local.
+{
+  const vm = require('vm')
+  const styleFunction = name => qmlFunction(styleSource, name)
+  const geometrySource = fs.readFileSync(root + '/shell/Commons/BorderGeometry.js', 'utf8').replace(/^\.pragma library\n/, '')
+  const geometry = vm.createContext({})
+  vm.runInContext(geometrySource, geometry)
+  const gapsStyle = vm.createContext({ Geometry: geometry })
+  vm.runInContext(styleFunction('applyGapsOutJson') + '\nvar gapsOut = 5, gapsOutEdges = null', gapsStyle)
+  const edges = () => JSON.parse(JSON.stringify(gapsStyle.gapsOutEdges))
+  gapsStyle.applyGapsOutJson('{"option":"general:gaps_out","css":"10 20 30 40"}')
+  assertDeepEqual(edges(), { top: 10, right: 20, bottom: 30, left: 40 }, 'per-side gaps_out reaches the floating bar')
+  gapsStyle.applyGapsOutJson('{"option":"general:gaps_out","css":"12"}')
+  assertDeepEqual(edges(), { top: 12, right: 12, bottom: 12, left: 12 }, 'a single gaps_out value applies to every side')
+  // [bar] radius is a number like the sizes; margin stays a raw list.
+  const parseStyle = vm.createContext({})
+  vm.runInContext(['barToken', 'barInsetToken', 'boolToken', 'applyShellValues'].map(styleFunction).join('\n') + '\nvar fontScale = 1, barScaleWithFont = true, barOverrides = {}', parseStyle)
+  parseStyle.applyShellValues({ 'bar.radius': '9', 'bar.margin': '4 8' })
+  assertEqual(parseStyle.barInsetToken('radius', 0), 9, '[bar] radius in shell.toml reaches the bar')
+  assertEqual(parseStyle.barOverrides.margin, '4 8', '[bar] margin reaches the bar as the list it was written as')
+  gapsStyle.applyGapsOutJson('not json')
+  assertDeepEqual(edges(), { top: 12, right: 12, bottom: 12, left: 12 }, 'unreadable hyprctl output keeps the last gaps')
+}
+
+// [bar] margin and radius reach the bar through the same parser.
+style.applyShellValues({ 'bar.margin': '4 8', 'bar.radius': '8' })
+assertEqual(style.barOverrides.margin, '4 8', '[bar] margin in shell.toml reaches the bar as the list it was written as')
+assertEqual(style.barOverrides.radius, 8, '[bar] radius in shell.toml reaches the bar')
+
 // A widget's slot can be on the bar without being drawn (hidden by the
 // widget, or folded away by a drag), so panel routing has to pick the one
 // that is actually on screen, whichever registered first.

@@ -15,6 +15,20 @@ active           = "{{ red }}"
 scale-with-font  = true
 size-horizontal  = 26
 size-vertical    = 28
+# Floating bar: gap between the bar and the screen edges it touches, as one
+# CSS-style scalar/list (N, "Y X", "T X B", "T R B L"), and corner rounding.
+# A margin on an edge the bar touches floats it unless shell.json sets
+# bar.floating to false. Unset, a floating bar floats inside Hyprland's gaps_out and
+# takes its rounding.
+# radius applies only while the bar floats, capped at half its thickness.
+#   margin = 10
+#   radius = 12
+# Widget sizes at base-size 12, scaled the same way. Uncomment to change.
+#   icon-slot   = 27   # length of one icon slot along the bar
+#   icon-canvas = 16   # the square an icon is drawn in
+#   icon-size   = 12   # the icon itself, at most icon-canvas
+#   icon-font   = 13   # font size of an icon button's glyph and label; the glyph still fits icon-size
+#   status-slot = 21   # length of a status indicator slot along the bar
 
 [hyprland]
 # Shared Hyprland-derived border tokens. Surface sections reference these so
