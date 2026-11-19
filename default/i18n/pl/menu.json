@@ -26,11 +26,11 @@
   "update": {
     "label": "Aktualizuj"
   },
-  "about": {
-    "label": "Informacje"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "Informacje"
   },
   "system.screensaver": {
     "label": "Wygaszacz"
@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Bezpośredni rozruch"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Resetuj komputer"
   },
   "install.package": {
@@ -1255,7 +1252,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Włącz przechwytywanie awarii"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikony"
+  },
+  "install.style.icons": {
+    "label": "Ikony"
+  },
+  "remove.icons": {
+    "label": "Ikony"
+  },
+  "update.icons": {
+    "label": "Dodatkowe ikony"
+  },
+  "system.firmware": {
+    "label": "Uruchom ponownie do BIOS",
+    "description": "Uruchom ponownie w ustawieniach oprogramowania układowego UEFI"
   }
 }

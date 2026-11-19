@@ -26,11 +26,11 @@
   "update": {
     "label": "Uuenda"
   },
-  "about": {
-    "label": "Teave"
-  },
   "system": {
     "label": "Süsteem"
+  },
+  "system.about": {
+    "label": "Teave"
   },
   "system.screensaver": {
     "label": "Ekraanisäästja"
@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Otsekäivitus"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Lähtesta arvuti"
   },
   "install.package": {
@@ -1255,7 +1252,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikoonid"
+  },
+  "install.style.icons": {
+    "label": "Ikoonid"
+  },
+  "remove.icons": {
+    "label": "Ikoonid"
+  },
+  "update.icons": {
+    "label": "Lisaikoonid"
+  },
+  "system.firmware": {
+    "label": "BIOS-i taaskäivitus",
+    "description": "Taaskäivita UEFI püsivara seadistusse"
   }
 }

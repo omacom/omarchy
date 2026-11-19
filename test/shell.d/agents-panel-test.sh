@@ -8,11 +8,11 @@ run_node_test <<'JS'
 const fs = require('fs')
 const panelSource = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
 
-const signInFunctions = ['supportsSignIn', 'needsSignIn', 'usageNote'].map(name => {
+const signInFunctions = ['supportsSignIn', 'signedOut', 'needsSignIn', 'usageNote'].map(name => {
   const match = panelSource.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))
   return match ? match[0] : ''
 }).join('\n')
-const signIn = new Function('addProviders', 'helpDisplayText', 'statusDisplayText', signInFunctions + '\nreturn {needsSignIn, usageNote}')(
+const signIn = new Function('addProviders', 'helpDisplayText', 'statusDisplayText', signInFunctions + '\nreturn {needsSignIn, signedOut, usageNote}')(
   [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'grok'}], text => text, status => status
 )
 for (const id of ['claude', 'codex', 'grok']) {
@@ -22,6 +22,7 @@ for (const id of ['claude', 'codex', 'grok']) {
 assert(signIn.needsSignIn({usageStatusText: 'Sign-in expired'}), 'account rows keep their sign-in link')
 for (const status of ['Sign-in expired', 'Waiting for auth']) {
   assert(!signIn.needsSignIn({providerId: 'agy', usageStatusText: status}), 'an agent the panel cannot sign in gets no link for ' + status)
+  assert(signIn.signedOut({providerId: 'agy', usageStatusText: status}), 'an agent the panel cannot sign in still counts as signed out for ' + status)
   assertEqual(signIn.usageNote({providerId: 'agy', usageStatusText: status}), status, 'an agent the panel cannot sign in still notes ' + status)
 }
 assertEqual(signIn.usageNote({providerId: 'grok', usageStatusText: 'Limits paused', authHelpText: 'Start Grok to refresh it.'}),
@@ -109,7 +110,7 @@ JS
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const state = { localModel: {} }
+const state = { localModel: {}, noteReadyModels: () => {}, noteLaunchableModels: () => {} }
 const parse = new Function('root', source.match(/function parseLocalModel\([^]*?\n  \}/)[0] + '\nreturn parseLocalModel')(state)
 const running = { models: { 'model-a': { recipe: 'model-a', unit: 'active', endpoint: 'http://127.0.0.1:11435/v1' }, 'model-b': { recipe: 'model-b', unit: 'activating' } }, ram_total_gib: 125.1 }
 parse(JSON.stringify(running))
@@ -197,6 +198,24 @@ assertDeepEqual(localActions({ host: 'away', recipe: 'm', unit: 'inactive', pair
 // A model paired from the panel that is still starting on its host has no
 // terminal yet: the cursor waits for one rather than giving up.
 const modelId = new Function(panel.match(/function modelId\([^]*?\n  \}/)[0] + '\nreturn modelId')()
+// An image model's launch opens Fantasi on it, here or on a paired host; a text model's starts an agent.
+const makesInFantasi = new Function(panel.match(/function makesInFantasi\([^]*?\n  \}/)[0] + '\nreturn makesInFantasi')()
+const runLocalAction = new Function('Util', 'modelId', 'root', 'makesInFantasi', panel.match(/function runLocalAction\([^]*?\n  \}/)[0] + '\nreturn runLocalAction')
+const launched = []
+const launch = runLocalAction({ execArgv: argv => launched.push(argv), shellQuote: value => `'${value}'` }, modelId, { close() {} }, makesInFantasi)
+launch({ recipe: 'pic', kind: 'image', unit: 'active' }, 'launch')
+launch({ host: 'box', recipe: 'pic', kind: 'image', unit: 'active', paired: true, offline: '' }, 'launch')
+launch({ recipe: 'clip', kind: 'video', unit: 'active' }, 'launch')
+launch({ recipe: 'song', kind: 'music', unit: 'active' }, 'launch')
+launch({ recipe: 'm', unit: 'active' }, 'launch')
+assertDeepEqual(launched, [
+  ['uwsm-app', '--', 'fantasi', 'open', '--model', 'pic'],
+  ['uwsm-app', '--', 'fantasi', 'open', '--model', 'box/pic'],
+  ['uwsm-app', '--', 'fantasi', 'open', '--model', 'clip'],
+  ['uwsm-app', '--', 'fantasi', 'open', '--model', 'song'],
+  ['omarchy-agent', '--local-model', 'm']
+], 'an image, video or music model opens Fantasi on itself, a paired host\'s too, and a text model starts an agent')
+assertDeepEqual(localActions({ host: 'box', recipe: 'pic', kind: 'image', unit: 'active', paired: true, offline: '' }), ['disconnect', 'launch'], 'a paired host\'s image model can be opened in Fantasi')
 const landing = { landAfterPair: 'box/m', usage: { pairingId: '', pairFailures: {}, canShare: false }, root: { opened: true }, providers: [], localActions, modelId, pointed: null }
 landing.pointAt = (kind, index) => { landing.pointed = [kind, index] }
 const landOnPaired = new Function('scope', 'with (scope) { ' + panel.match(/function landOnPaired\([^]*?\n  \}/)[0] + '\nreturn landOnPaired }')(landing)
@@ -219,31 +238,50 @@ assertEqual(remoteStats({}), '', 'a host that reports nothing gives no stats lin
 JS
 
 # The panel has no terminal for sudo: a detached setup missing its packages
-# installs them in one first, and otherwise starts at once.
+# installs them through polkit first, and otherwise starts at once.
 wrapper_dir=$(mktemp -d)
 trap 'rm -rf "$wrapper_dir"' EXIT
-for stub in omarchy-hw-nvidia omarchy-pkg-add omarchy-local-ai omarchy-launch-floating-terminal-with-presentation; do
+for stub in omarchy-hw-nvidia omarchy-pkg-add omarchy-local-ai omarchy-agent-local-launchers omarchy-launch-floating-terminal-with-presentation; do
   printf '#!/bin/bash\nprintf "%%s\\n" "%s $*" >>"%s/calls"\n' "$stub" "$wrapper_dir" >"$wrapper_dir/$stub"
 done
 printf '#!/bin/bash\nexit 1\n' >"$wrapper_dir/omarchy-hw-nvidia"
-chmod +x "$wrapper_dir"/omarchy-*
+# pkexec installs the packages unless its dialog is dismissed (126).
+printf '#!/bin/bash\nprintf "%%s\\n" "pkexec $*" >>"%s/calls"\nstatus=$(cat "%s/pkexec-status")\n(( status == 0 )) && touch "%s/installed"\nexit $status\n' "$wrapper_dir" "$wrapper_dir" "$wrapper_dir" >"$wrapper_dir/pkexec"
+chmod +x "$wrapper_dir"/omarchy-* "$wrapper_dir/pkexec"
 run_wrapper() {
-  rm -f "$wrapper_dir/calls"
-  printf '#!/bin/bash\nexit %s\n' "$1" >"$wrapper_dir/omarchy-pkg-missing"
+  rm -f "$wrapper_dir/calls" "$wrapper_dir/installed"
+  printf '#!/bin/bash\n[[ -e "%s/installed" ]] && exit 1\nexit %s\n' "$wrapper_dir" "$1" >"$wrapper_dir/omarchy-pkg-missing"
   chmod +x "$wrapper_dir/omarchy-pkg-missing"
   shift
-  PATH="$wrapper_dir:$PATH" "$ROOT/bin/omarchy-agent-local" "$@"
+  PATH="$wrapper_dir:$PATH" "$ROOT/bin/omarchy-agent-local" "$@" >/dev/null || printf 'exit %s\n' "$?" >>"$wrapper_dir/calls"
   cat "$wrapper_dir/calls"
 }
+echo 0 >"$wrapper_dir/pkexec-status"
 calls=$(run_wrapper 0 use --detach nemotron-3.5-bolt-tensorfold)
-[[ $calls == "omarchy-launch-floating-terminal-with-presentation omarchy-pkg-add podman crun && omarchy-local-ai 'use' '--detach' 'nemotron-3.5-bolt-tensorfold'" ]] || fail "a detached setup missing its packages installs them in a terminal first" "$calls"
-pass "a detached setup missing its packages installs them in a terminal first"
+[[ $calls == $'pkexec /usr/bin/pacman -S --noconfirm --needed -- podman crun\nomarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "a detached setup missing its packages installs them through polkit first" "$calls"
+pass "a detached setup missing its packages installs them through polkit first"
+echo 126 >"$wrapper_dir/pkexec-status"
+calls=$(run_wrapper 0 use --detach nemotron-3.5-bolt-tensorfold)
+[[ $calls == $'pkexec /usr/bin/pacman -S --noconfirm --needed -- podman crun\nexit 126' ]] || fail "a dismissed password dialog stops the setup as cancelled" "$calls"
+pass "a dismissed password dialog stops the setup as cancelled"
 calls=$(run_wrapper 1 use --detach nemotron-3.5-bolt-tensorfold)
-[[ $calls == "omarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold" ]] || fail "a detached setup with its packages starts without a terminal" "$calls"
+[[ $calls == $'omarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "a detached setup with its packages starts without a terminal" "$calls"
 pass "a detached setup with its packages starts without a terminal"
 calls=$(run_wrapper 1 use nemotron-3.5-bolt-tensorfold)
-[[ $calls == $'omarchy-pkg-add podman crun\nomarchy-local-ai use nemotron-3.5-bolt-tensorfold' ]] || fail "a setup in a terminal installs its packages there" "$calls"
+[[ $calls == $'omarchy-pkg-add podman crun\nomarchy-local-ai use nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "a setup in a terminal installs its packages there" "$calls"
 pass "a setup in a terminal installs its packages there"
+
+# A model set up gets a launcher of its own and one removed loses it, so the
+# launchers are brought up to date after either; the other commands leave them.
+calls=$(run_wrapper 1 remove nemotron-3.5-bolt-tensorfold)
+[[ $calls == $'omarchy-local-ai remove nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "removing a model brings the launchers up to date" "$calls"
+calls=$(run_wrapper 1 stop nemotron-3.5-bolt-tensorfold)
+[[ $calls == "omarchy-local-ai stop nemotron-3.5-bolt-tensorfold" ]] || fail "stopping a model leaves the launchers alone" "$calls"
+printf '#!/bin/bash\nexit 7\n' >"$wrapper_dir/omarchy-local-ai"
+calls=$(run_wrapper 1 remove nemotron-3.5-bolt-tensorfold)
+[[ $calls == $'omarchy-agent-local-launchers \nexit 7' ]] || fail "a removal that fails still reports its own exit status" "$calls"
+printf '#!/bin/bash\nprintf "%%s\\n" "omarchy-local-ai $*" >>"%s/calls"\n' "$wrapper_dir" >"$wrapper_dir/omarchy-local-ai"
+pass "setting up or removing a model brings its launcher up to date"
 
 # Sharing needs the SSH server other machines pair over: the panel's Share
 # sets it up in a terminal first, until it runs.
@@ -259,6 +297,109 @@ printf '#!/bin/bash\nexit 0\n' >"$wrapper_dir/systemctl"
 calls=$(run_wrapper 1 share nemotron-3.5-bolt-tensorfold </dev/null)
 [[ $calls == "omarchy-local-ai share nemotron-3.5-bolt-tensorfold" ]] || fail "sharing with the SSH server running shares at once" "$calls"
 pass "sharing with the SSH server running shares at once"
+
+# A setup from the panel has its line before status.json lists it: starting,
+# then installing Podman once the command says so, and a failure stays with
+# its reason, while a dismissed password dialog just brings the offer back.
+# One chosen while another starts waits its turn instead of being dropped.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const names = ['setUp', 'startSetup', 'unqueueSetup', 'setupLine', 'finishSetup', 'setupRows', 'pairFailureMessage']
+const scope = { I18n: { t: key => key }, setupProcess: {} }
+for (const name of names)
+  scope[name] = new Function('scope', 'with (scope) { return ' + source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0] + ' }')(scope)
+const start = id => {
+  Object.assign(scope, { settingUp: null, setupFailure: null, setupQueue: [], setupOutput: '' })
+  scope.setUp({ id, name: id.toUpperCase(), vendor: 'v' })
+}
+const phases = () => scope.setupRows().map(row => row.recipe + ':' + row.install.phase)
+
+start('m')
+assertDeepEqual(phases(), ['m:starting'], 'a setup starts out as starting, never claiming an install it may not need')
+scope.setupLine('Installing podman crun')
+assertDeepEqual(phases(), ['m:dependencies'], 'it shows the install once the command announces it')
+assertEqual(scope.finishSetup(126), null, 'a dismissed password dialog starts nothing')
+assertDeepEqual(phases(), [], 'and leaves no line, so the offer comes back')
+
+start('m')
+scope.setupLine('Installing podman crun')
+scope.setupLine("Error: Couldn't install podman crun")
+scope.finishSetup(1)
+const failed = scope.setupRows()[0]
+assertEqual(failed.install.phase, 'failed', 'a failed install keeps its line')
+assertEqual(failed.error, "Couldn't install podman crun", 'with the reason the command gave')
+
+start('m')
+assertEqual(scope.finishSetup(0), null, 'a setup handed to the background starts nothing more')
+assertDeepEqual(phases(), [], 'and leaves its line to status.json')
+
+start('m')
+scope.setUp({ id: 'n' })
+scope.setUp({ id: 'n' })
+scope.setUp({ id: 'o' })
+assertDeepEqual(phases(), ['m:starting', 'n:waiting', 'o:waiting'], 'setups chosen meanwhile wait their turn, once each')
+scope.unqueueSetup('o')
+assertDeepEqual(phases(), ['m:starting', 'n:waiting'], 'one waiting can be dropped')
+assertEqual(scope.finishSetup(0).recipe, 'n', 'the next one starts once the first hands off')
+scope.setUp({ id: 'o' })
+scope.finishSetup(126)
+assertDeepEqual(phases(), [], 'a declined password drops those waiting, which would stop there too')
+JS
+
+# A model set up here announces itself once it has loaded, and only then:
+# starting one already set up is quiet, and one left stopped isn't ready.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const ready = []
+const scope = { installingModels: {}, notifyModelReady: model => ready.push(model.recipe) }
+scope.noteReadyModels = new Function('scope', 'with (scope) { return ' + source.match(/function noteReadyModels\([^]*?\n  \}/)[0] + ' }')(scope)
+const model = (recipe, unit, sub_state) => ({ [recipe]: { recipe, unit, sub_state } })
+scope.noteReadyModels(model('m', 'installing'))
+scope.noteReadyModels(model('m', 'activating', 'start'))
+assertDeepEqual(ready, [], 'a model still loading is not ready yet')
+scope.noteReadyModels(model('m', 'active', 'running'))
+assertDeepEqual(ready, ['m'], 'a model set up here is ready once it runs')
+scope.noteReadyModels(model('m', 'inactive', 'dead'))
+scope.noteReadyModels(model('m', 'active', 'running'))
+assertDeepEqual(ready, ['m'], 'starting it again later says nothing')
+scope.noteReadyModels(model('n', 'installing'))
+scope.noteReadyModels(model('n', 'inactive', 'dead'))
+scope.noteReadyModels(model('n', 'active', 'running'))
+assertDeepEqual(ready, ['m'], 'one installed but left stopped is not announced when started by hand')
+JS
+
+# A setup the panel started finishes in the background, so the panel has the
+# launchers redrawn when the models that can be opened change: one done
+# installing, or one gone. A setup that finished while the shell wasn't
+# watching is caught by the first reading; no models at startup syncs nothing.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+let syncs = 0
+const fresh = () => {
+  const scope = { launchableModels: '', syncLaunchers: () => syncs++ }
+  scope.noteLaunchableModels = new Function('scope', 'with (scope) { return ' + source.match(/function noteLaunchableModels\([^]*?\n  \}/)[0] + ' }')(scope)
+  return scope
+}
+const models = units => Object.fromEntries(Object.entries(units).map(([recipe, unit]) => [recipe, { recipe, unit }]))
+fresh().noteLaunchableModels(models({}))
+assertEqual(syncs, 0, 'a shell starting with no models has no launchers to sync')
+const scope = fresh()
+scope.noteLaunchableModels(models({ m: 'inactive' }))
+assertEqual(syncs, 1, 'a model set up while the shell was away gets its launcher at startup')
+syncs = 0
+scope.noteLaunchableModels(models({ m: 'active' }))
+scope.noteLaunchableModels(models({ m: 'active', n: 'installing' }))
+assertEqual(syncs, 0, 'starting a model, or one still installing, changes no launcher')
+scope.noteLaunchableModels(models({ m: 'active', n: 'activating' }))
+assertEqual(syncs, 1, 'a model done installing gets its launcher')
+scope.noteLaunchableModels(models({ m: 'removing', n: 'active' }))
+assertEqual(syncs, 2, 'a model being removed loses its launcher')
+scope.noteLaunchableModels(models({ n: 'active' }))
+assertEqual(syncs, 2, 'and nothing more once it is gone')
+JS
 
 # Hosted and local rows share ordering, including positions saved while hidden.
 run_node_test <<'JS'
