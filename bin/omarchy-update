@@ -85,7 +85,13 @@ omarchy-update-requires-free-space
 # move on instead of waiting.
 [[ ${1:-} != "-y" ]] || export OMARCHY_UPDATE_UNATTENDED=${OMARCHY_UPDATE_UNATTENDED:-1}
 
-if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
+# omarchy-update-confirm exits 2 when the person also chose Update Automatically.
+confirm_status=0
+if [[ ${1:-} != "-y" ]]; then
+  omarchy-update-confirm || confirm_status=$?
+fi
+
+if (( confirm_status == 0 || confirm_status == 2 )); then
   authorize_update
 
   # Before the snapshot: the cache is on the snapshotted subvolume, so pruning
@@ -114,6 +120,13 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
     omarchy-restart-shell || true
   fi
   omarchy-migrate
+
+  # After the package step, which is what installs the timer's worker.
+  if (( confirm_status == 2 )); then
+    omarchy-update-auto on ||
+      echo -e "\e[33mCould not turn on automatic updates. Run omarchy update auto on to retry.\e[0m" >&2
+  fi
+
   omarchy-update-orphan-pkgs -y
 
   omarchy-update-analyze-logs

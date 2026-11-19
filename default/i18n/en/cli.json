@@ -441,6 +441,7 @@
   "tui.selectRemove": "Select TUI to remove",
   "tui.windowStyle": "Window style",
   "update.cannotStop": "You cannot stop the update once you start!",
+  "update.automatically": "Update Automatically",
   "update.connectPower": "Make sure you're connected to power or have a full battery",
   "update.continue": "Continue with update?",
   "update.hyprlandReboot": "Hyprland has been updated. Reboot?",
