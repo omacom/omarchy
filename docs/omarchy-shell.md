@@ -131,9 +131,7 @@ or `omarchy.power`. There is no `bar` target.
 | `listShellConfig`                     | effective shell.json as JSON    |
 | `debugBarGeometry`                    | bar geometry dump for debugging |
 
-`setPluginEnabled` takes a string; only literal `"true"` enables. Methods
-answer on stdout with exit 0 — `ok` on success, `unknown` or an error
-string on a miss.
+`setPluginEnabled` takes a string; only literal `"true"` enables. Most methods answer on stdout with exit 0 — `ok` on success, `unknown` or an error string on a miss. Through `omarchy-shell`, `shell summon` and `shell toggle` treat an `unknown` reply (an unknown or disabled plugin) as a failure: they write `unknown plugin: <id>` to stderr with nothing on stdout and exit 1, unless `-q` is passed, which suppresses output and exits 0.
 
 ## shell.json
 

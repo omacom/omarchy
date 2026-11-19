@@ -1259,6 +1259,12 @@ ShellRoot {
 
   function toggle(pluginId, payloadJson) {
     var id = shell.pluginRegistry.resolveEnabledId(pluginId)
+    if (!id) return false
+    var plugins = shell.pluginRegistry.installedPlugins
+    if (!plugins[id] || !shell.pluginRegistry.isEnabled(id)) {
+      console.warn("toggle: unknown or disabled plugin:", id)
+      return false
+    }
     return isPluginOpen(id) ? hide(id) : summon(id, payloadJson)
   }
 
@@ -1351,6 +1357,8 @@ ShellRoot {
       order.push(entry.id)
     }
 
+    var droppedIds = ({})
+    var hasDropped = false
     // Keep an entry whose plugin still loads the same way; drop the rest.
     for (var j = panelEntryModel.count - 1; j >= 0; j--) {
       var row = panelEntryModel.get(j)
@@ -1358,8 +1366,20 @@ ShellRoot {
       if (next && next.kind === row.entryKind && next.keepLoaded === row.keepLoaded && next.sourceUrl === row.sourceUrl) {
         delete wanted[row.pluginId]
       } else {
+        if (!next) {
+          droppedIds[row.pluginId] = true
+          hasDropped = true
+        }
         panelEntryModel.remove(j)
       }
+    }
+    if (hasDropped) {
+      var nextOpen = ({})
+      for (var o in openPanelIds) if (!droppedIds[o]) nextOpen[o] = openPanelIds[o]
+      openPanelIds = nextOpen
+      var nextPending = ({})
+      for (var p in pendingPayloads) if (!droppedIds[p]) nextPending[p] = pendingPayloads[p]
+      pendingPayloads = nextPending
     }
 
     for (var k = 0; k < order.length; k++) {
