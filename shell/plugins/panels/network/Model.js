@@ -335,6 +335,11 @@ function formatPingLatency(ms, hasSamples, tr, fmt) {
   return f(value, value > 0 && value < 10 ? 1 : 0) + " ms"
 }
 
+function singleLinkedPort(devices, wiredType) {
+  var ports = devices.filter(d => d && d.type === wiredType && d.name && d.nmManaged && d.hasLink)
+  return ports.length === 1 ? ports[0] : null
+}
+
 function wifiRow(network) {
   if (!network) return null
   // Primitives only: rows become list-model data, so a WifiNetwork here puts a
@@ -459,6 +464,7 @@ function shouldRepromptPassphrase(reason, needsCredentials, reasons) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    singleLinkedPort,
     parseNetworkStatus: parseNetworkStatus,
     wifiIconFor: wifiIconFor,
     connectionIcon: connectionIcon,
