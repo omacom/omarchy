@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Intrare"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Limbă"
+  },
+  "setup.region.timezone": {
+    "label": "Fus orar"
   },
   "setup.network": {
     "label": "Rețea"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Pornire directă"
-  },
-  "setup.reset": {
-    "label": "Resetează computerul"
+  "remove.factory-reset": {
+    "label": "Resetare din fabrică"
   },
   "install.package": {
     "label": "Pachet"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Parolă"
   },
-  "update.timezone": {
-    "label": "Fus orar"
-  },
   "update.time": {
     "label": "Ora"
   },
@@ -1255,7 +1252,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Captură blocări pornită"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1343,5 +1340,24 @@
   "system.firmware": {
     "label": "Repornire în BIOS",
     "description": "Repornește în configurarea firmware UEFI"
+  },
+  "setup.region": {
+    "label": "Regiune"
+  },
+  "setup.region.formats": {
+    "label": "Formate",
+    "description": "Cum sunt scrise datele, orele, numerele și unitățile"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Joc Game Vibes"
+  },
+  "update.games": {
+    "label": "Jocuri Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Creează un joc"
   }
 }

@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Input"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Bahasa"
+  },
+  "setup.region.timezone": {
+    "label": "Zon Masa"
   },
   "setup.network": {
     "label": "Rangkaian"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "But Terus"
-  },
-  "setup.reset": {
-    "label": "Set Semula Komputer"
+  "remove.factory-reset": {
+    "label": "Tetapan Semula Kilang"
   },
   "install.package": {
     "label": "Pakej"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Kata Laluan"
   },
-  "update.timezone": {
-    "label": "Zon Masa"
-  },
   "update.time": {
     "label": "Masa"
   },
@@ -1255,7 +1252,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1343,5 +1340,24 @@
   "system.firmware": {
     "label": "Mulakan semula ke BIOS",
     "description": "Mulakan semula ke tetapan firmware UEFI"
+  },
+  "setup.region": {
+    "label": "Wilayah"
+  },
+  "setup.region.formats": {
+    "label": "Format",
+    "description": "Cara tarikh, masa, nombor dan unit ditulis"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "Buat permainan"
   }
 }

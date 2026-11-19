@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Въвеждане"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Език"
+  },
+  "setup.region.timezone": {
+    "label": "Часова зона"
   },
   "setup.network": {
     "label": "Мрежа"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Директно стартиране"
-  },
-  "setup.reset": {
-    "label": "Нулирай компютъра"
+  "remove.factory-reset": {
+    "label": "Фабрично нулиране"
   },
   "install.package": {
     "label": "Пакет"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Парола"
   },
-  "update.timezone": {
-    "label": "Часова зона"
-  },
   "update.time": {
     "label": "Време"
   },
@@ -1195,7 +1192,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Заснемане при срив Вкл."
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1343,5 +1340,24 @@
   "system.firmware": {
     "label": "Рестартиране в BIOS",
     "description": "Рестартиране в настройките на UEFI фърмуера"
+  },
+  "setup.region": {
+    "label": "Регион"
+  },
+  "setup.region.formats": {
+    "label": "Формати",
+    "description": "Как се изписват датите, часовете, числата и мерните единици"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Игра Game Vibes"
+  },
+  "update.games": {
+    "label": "Игри Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Направи игра"
   }
 }

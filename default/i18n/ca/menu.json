@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Entrada"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Idioma"
+  },
+  "setup.region.timezone": {
+    "label": "Zona horària"
   },
   "setup.network": {
     "label": "Xarxa"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Arrencada directa"
-  },
-  "setup.reset": {
-    "label": "Restableix l'ordinador"
+  "remove.factory-reset": {
+    "label": "Restabliment de fàbrica"
   },
   "install.package": {
     "label": "Paquet"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Contrasenya"
   },
-  "update.timezone": {
-    "label": "Zona horària"
-  },
   "update.time": {
     "label": "Hora"
   },
@@ -1255,7 +1252,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Captura de fallades activada"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1343,5 +1340,24 @@
   "system.firmware": {
     "label": "Reiniciar a la BIOS",
     "description": "Reiniciar a la configuració del microprogramari UEFI"
+  },
+  "setup.region": {
+    "label": "Regió"
+  },
+  "setup.region.formats": {
+    "label": "Formats",
+    "description": "Com s'escriuen les dates, les hores, els números i les unitats"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Joc Game Vibes"
+  },
+  "update.games": {
+    "label": "Jocs Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Crea un joc"
   }
 }

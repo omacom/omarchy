@@ -248,3 +248,21 @@ jq '.accounts[1].id = "office"' "$usage/claude.json" >"$test_tmp/record.json"
 mv "$test_tmp/record.json" "$usage/claude.json"
 [[ -z $(autoswitch) && $(active) == "office" ]] || fail "renaming the held account keeps it held" "$(active)"
 pass "renaming the held account keeps it held"
+
+# ------------------------------------------------------ running sessions follow
+
+# With both accounts signed in, switching moves Work's login into ~/.claude,
+# where every session runs, so running sessions follow it.
+signed_in() {
+  echo "{\"claudeAiOauth\":{\"accessToken\":\"token-$3\"}}" >"$1/.credentials.json"
+  echo "{\"oauthAccount\":{\"accountUuid\":\"$3\"}}" >"$2"
+}
+signed_in "$HOME/.claude" "$HOME/.claude.json" u-main
+signed_in "$accounts/claude/work" "$accounts/claude/work/.claude.json" u-work
+registry main auto
+record 0.96 "$soon" 0.12 "$later"
+[[ $(autoswitch) == "claude" && $(jq -r .seated "$accounts/claude.json") == work ]] || fail "an auto switch seats the account it switched to"
+[[ $(jq -r .claudeAiOauth.accessToken "$HOME/.claude/.credentials.json") == token-u-work && $(jq -r .claudeAiOauth.accessToken "$accounts/claude/.primary/.credentials.json") == token-u-main ]] ||
+  fail "an auto switch moves Work's login into ~/.claude and Main's to its own home"
+grep -q "Claude sessions now use Work (12%), running ones included." "$notifications" || fail "an auto switch says running sessions moved" "$(cat "$notifications")"
+pass "an auto switch moves running sessions too"

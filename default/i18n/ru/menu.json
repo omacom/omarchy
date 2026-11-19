@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Ввод"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Язык"
+  },
+  "setup.region.timezone": {
+    "label": "Часовой пояс"
   },
   "setup.network": {
     "label": "Сеть"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Прямая загрузка"
-  },
-  "setup.reset": {
-    "label": "Сбросить компьютер"
+  "remove.factory-reset": {
+    "label": "Сброс к заводским"
   },
   "install.package": {
     "label": "Пакет"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Пароль"
   },
-  "update.timezone": {
-    "label": "Часовой пояс"
-  },
   "update.time": {
     "label": "Время"
   },
@@ -1255,7 +1252,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1343,5 +1340,24 @@
   "system.firmware": {
     "label": "Перезагрузка в BIOS",
     "description": "Перезагрузка в настройки прошивки UEFI"
+  },
+  "setup.region": {
+    "label": "Регион"
+  },
+  "setup.region.formats": {
+    "label": "Форматы",
+    "description": "Как отображаются даты, время, числа и единицы измерения"
+  },
+  "install.gaming.vibes": {
+    "label": "Игровой вайб"
+  },
+  "remove.gaming.vibes": {
+    "label": "Игра «Игровой вайб»"
+  },
+  "update.games": {
+    "label": "Игры «Игровой вайб»"
+  },
+  "agent.make.game": {
+    "label": "Создать игру"
   }
 }

@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Invoer"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Taal"
+  },
+  "setup.region.timezone": {
+    "label": "Tijdzone"
   },
   "setup.network": {
     "label": "Netwerk"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direct opstarten"
-  },
-  "setup.reset": {
-    "label": "Computer resetten"
+  "remove.factory-reset": {
+    "label": "Fabrieksreset"
   },
   "install.package": {
     "label": "Pakket"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Wachtwoord"
   },
-  "update.timezone": {
-    "label": "Tijdzone"
-  },
   "update.time": {
     "label": "Tijd"
   },
@@ -1255,7 +1252,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1343,5 +1340,24 @@
   "system.firmware": {
     "label": "Herstart naar BIOS",
     "description": "Herstart in de UEFI-firmware-instellingen"
+  },
+  "setup.region": {
+    "label": "Regio"
+  },
+  "setup.region.formats": {
+    "label": "Opmaak",
+    "description": "Hoe datums, tijden, getallen en eenheden worden geschreven"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "Maak een spel"
   }
 }

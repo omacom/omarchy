@@ -29,6 +29,7 @@ fi
 
 # /etc/skel holds the shared defaults, so put the video decoding settings back:
 # the YouTube H.264 extension on Intel GPUs without AV1 decoding, and
-# Snapdragon's.
+# Snapdragon's camera and video decoding settings.
 omarchy-install-chromium-h264ify
+omarchy-install-camera
 omarchy-install-video-decode

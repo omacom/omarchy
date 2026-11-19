@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "입력"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "언어"
+  },
+  "setup.region.timezone": {
+    "label": "시간대"
   },
   "setup.network": {
     "label": "네트워크"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "직접 부팅"
-  },
-  "setup.reset": {
-    "label": "컴퓨터 초기화"
+  "remove.factory-reset": {
+    "label": "공장 초기화"
   },
   "install.package": {
     "label": "패키지"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "비밀번호"
   },
-  "update.timezone": {
-    "label": "시간대"
-  },
   "update.time": {
     "label": "시간"
   },
@@ -1255,7 +1252,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1343,5 +1340,24 @@
   "system.firmware": {
     "label": "BIOS로 재시작",
     "description": "UEFI 펌웨어 설정으로 재시작"
+  },
+  "setup.region": {
+    "label": "지역"
+  },
+  "setup.region.formats": {
+    "label": "형식",
+    "description": "날짜, 시간, 숫자, 단위 표시 방식"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes 게임"
+  },
+  "update.games": {
+    "label": "Game Vibes 게임"
+  },
+  "agent.make.game": {
+    "label": "게임 만들기"
   }
 }

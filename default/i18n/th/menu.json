@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "อินพุต"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "ภาษา"
+  },
+  "setup.region.timezone": {
+    "label": "เขตเวลา"
   },
   "setup.network": {
     "label": "เครือข่าย"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "บูตตรง"
-  },
-  "setup.reset": {
-    "label": "รีเซ็ตเครื่อง"
+  "remove.factory-reset": {
+    "label": "รีเซ็ตค่าโรงงาน"
   },
   "install.package": {
     "label": "แพ็กเกจ"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "รหัสผ่าน"
   },
-  "update.timezone": {
-    "label": "เขตเวลา"
-  },
   "update.time": {
     "label": "เวลา"
   },
@@ -1255,7 +1252,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1343,5 +1340,24 @@
   "system.firmware": {
     "label": "รีบูตเข้า BIOS",
     "description": "รีสตาร์ทเข้าการตั้งค่าเฟิร์มแวร์ UEFI"
+  },
+  "setup.region": {
+    "label": "ภูมิภาค"
+  },
+  "setup.region.formats": {
+    "label": "รูปแบบ",
+    "description": "วิธีแสดงวันที่ เวลา ตัวเลข และหน่วย"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "เกม Game Vibes"
+  },
+  "update.games": {
+    "label": "เกม Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "สร้างเกม"
   }
 }

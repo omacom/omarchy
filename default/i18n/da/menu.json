@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Input"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Sprog"
+  },
+  "setup.region.timezone": {
+    "label": "Tidszone"
   },
   "setup.network": {
     "label": "Netværk"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direkte opstart"
-  },
-  "setup.reset": {
-    "label": "Nulstil computer"
+  "remove.factory-reset": {
+    "label": "Fabriksnulstilling"
   },
   "install.package": {
     "label": "Pakke"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Adgangskode"
   },
-  "update.timezone": {
-    "label": "Tidszone"
-  },
   "update.time": {
     "label": "Tid"
   },
@@ -1255,7 +1252,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Nedbrudsopsamling til"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1343,5 +1340,24 @@
   "system.firmware": {
     "label": "Genstart til BIOS",
     "description": "Genstart til UEFI-firmwareopsætningen"
+  },
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.formats": {
+    "label": "Formater",
+    "description": "Hvordan datoer, tidspunkter, tal og enheder skrives"
+  },
+  "install.gaming.vibes": {
+    "label": "Spilvibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Spilvibes-spil"
+  },
+  "update.games": {
+    "label": "Spilvibes-spil"
+  },
+  "agent.make.game": {
+    "label": "Lav et spil"
   }
 }

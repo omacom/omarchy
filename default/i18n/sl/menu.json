@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Vnos"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Jezik"
+  },
+  "setup.region.timezone": {
+    "label": "Časovni pas"
   },
   "setup.network": {
     "label": "Omrežje"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Neposredni zagon"
-  },
-  "setup.reset": {
-    "label": "Ponastavi računalnik"
+  "remove.factory-reset": {
+    "label": "Tovarniška ponastavitev"
   },
   "install.package": {
     "label": "Paket"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Geslo"
   },
-  "update.timezone": {
-    "label": "Časovni pas"
-  },
   "update.time": {
     "label": "Čas"
   },
@@ -1255,7 +1252,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Zajem sesutij vklopljen"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1343,5 +1340,24 @@
   "system.firmware": {
     "label": "Ponovni zagon v BIOS",
     "description": "Ponovni zagon v nastavitve vdelane programske opreme UEFI"
+  },
+  "setup.region": {
+    "label": "Regija"
+  },
+  "setup.region.formats": {
+    "label": "Formati",
+    "description": "Kako se zapisujejo datumi, časi, številke in enote"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "Naredi igro"
   }
 }
