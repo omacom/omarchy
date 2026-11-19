@@ -26,11 +26,11 @@
   "update": {
     "label": "Posodobi"
   },
-  "about": {
-    "label": "Vizitka"
-  },
   "system": {
     "label": "Sistem"
+  },
+  "system.about": {
+    "label": "Vizitka"
   },
   "system.screensaver": {
     "label": "Ohranjevalnik"
@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Neposredni zagon"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Ponastavi računalnik"
   },
   "install.package": {
@@ -1255,7 +1252,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Zajem sesutij vklopljen"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikone"
+  },
+  "install.style.icons": {
+    "label": "Ikone"
+  },
+  "remove.icons": {
+    "label": "Ikone"
+  },
+  "update.icons": {
+    "label": "Dodatne ikone"
+  },
+  "system.firmware": {
+    "label": "Ponovni zagon v BIOS",
+    "description": "Ponovni zagon v nastavitve vdelane programske opreme UEFI"
   }
 }

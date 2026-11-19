@@ -26,11 +26,11 @@
   "update": {
     "label": "আপডেট"
   },
-  "about": {
-    "label": "সম্পর্কে"
-  },
   "system": {
     "label": "সিস্টেম"
+  },
+  "system.about": {
+    "label": "সম্পর্কে"
   },
   "system.screensaver": {
     "label": "স্ক্রিনসেভার"
@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "সরাসরি বুট"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "কম্পিউটার রিসেট"
   },
   "install.package": {
@@ -1255,7 +1252,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "আইকন"
+  },
+  "install.style.icons": {
+    "label": "আইকন"
+  },
+  "remove.icons": {
+    "label": "আইকন"
+  },
+  "update.icons": {
+    "label": "অতিরিক্ত আইকন"
+  },
+  "system.firmware": {
+    "label": "BIOS-এ রিবুট",
+    "description": "UEFI ফার্মওয়্যার সেটআপে রিস্টার্ট করুন"
   }
 }

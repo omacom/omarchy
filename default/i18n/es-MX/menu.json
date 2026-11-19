@@ -26,11 +26,11 @@
   "update": {
     "label": "Actualizar"
   },
-  "about": {
-    "label": "Acerca de"
-  },
   "system": {
     "label": "Sistema"
+  },
+  "system.about": {
+    "label": "Acerca de"
   },
   "system.screensaver": {
     "label": "Protector de pantalla"
@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Arranque directo"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Restablecer computadora"
   },
   "install.package": {
@@ -1255,7 +1252,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Activar captura de fallos"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Íconos"
+  },
+  "install.style.icons": {
+    "label": "Íconos"
+  },
+  "remove.icons": {
+    "label": "Íconos"
+  },
+  "update.icons": {
+    "label": "Íconos extra"
+  },
+  "system.firmware": {
+    "label": "Reiniciar a BIOS",
+    "description": "Reiniciar en la configuración de firmware UEFI"
   }
 }

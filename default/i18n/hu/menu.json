@@ -26,11 +26,11 @@
   "update": {
     "label": "Frissítés"
   },
-  "about": {
-    "label": "Névjegy"
-  },
   "system": {
     "label": "Rendszer"
+  },
+  "system.about": {
+    "label": "Névjegy"
   },
   "system.screensaver": {
     "label": "Képernyővédő"
@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Közvetlen indítás"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Gép visszaállítása"
   },
   "install.package": {
@@ -1255,7 +1252,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Összeomlásrögzítés be"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikonok"
+  },
+  "install.style.icons": {
+    "label": "Ikonok"
+  },
+  "remove.icons": {
+    "label": "Ikonok"
+  },
+  "update.icons": {
+    "label": "Extra ikonok"
+  },
+  "system.firmware": {
+    "label": "Újraindítás BIOS-ba",
+    "description": "Újraindítás az UEFI firmware-beállításba"
   }
 }

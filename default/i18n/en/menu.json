@@ -26,11 +26,11 @@
   "update": {
     "label": "Update"
   },
-  "about": {
-    "label": "About"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "About"
   },
   "system.screensaver": {
     "label": "Screensaver"
@@ -49,6 +49,10 @@
   },
   "system.reboot": {
     "label": "Reboot"
+  },
+  "system.firmware": {
+    "label": "Reboot to BIOS",
+    "description": "Restart into the UEFI firmware setup"
   },
   "system.shutdown": {
     "label": "Shutdown"
@@ -88,6 +92,9 @@
   },
   "appearance.font": {
     "label": "Font"
+  },
+  "appearance.icons": {
+    "label": "Icons"
   },
   "appearance.top-bar": {
     "label": "Menu Bar"
@@ -695,7 +702,7 @@
   "setup.security.passwordless-sudo": {
     "label": "Passwordless Sudo"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "setup.config.hyprland": {
@@ -707,11 +714,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direct Boot"
-  },
-  "setup.reset": {
-    "label": "Reset Computer"
+  "remove.factory-reset": {
+    "label": "Factory Reset"
   },
   "install.package": {
     "label": "Package"
@@ -736,6 +740,9 @@
   },
   "install.style.background": {
     "label": "Background"
+  },
+  "install.style.icons": {
+    "label": "Icons"
   },
   "install.style.font": {
     "label": "Font"
@@ -1019,6 +1026,9 @@
   "remove.theme": {
     "label": "Theme"
   },
+  "remove.icons": {
+    "label": "Icons"
+  },
   "remove.gaming": {
     "label": "Gaming",
     "title": "Remove"
@@ -1242,6 +1252,9 @@
   "update.themes": {
     "label": "Extra Themes"
   },
+  "update.icons": {
+    "label": "Extra Icons"
+  },
   "update.process": {
     "label": "Process",
     "title": "Restart"
@@ -1327,5 +1340,8 @@
   },
   "agent.make.app": {
     "label": "Make an app"
+  },
+  "agent.make.game": {
+    "label": "Make a game"
   }
 }

@@ -26,11 +26,11 @@
   "update": {
     "label": "Atjaunināt"
   },
-  "about": {
-    "label": "Par"
-  },
   "system": {
     "label": "Sistēma"
+  },
+  "system.about": {
+    "label": "Par"
   },
   "system.screensaver": {
     "label": "Ekrānsaudzētājs"
@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Tiešā palaišana"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Atiestatīt datoru"
   },
   "install.package": {
@@ -1195,7 +1192,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Avāriju fiksēšana ieslēgta"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikonas"
+  },
+  "install.style.icons": {
+    "label": "Ikonas"
+  },
+  "remove.icons": {
+    "label": "Ikonas"
+  },
+  "update.icons": {
+    "label": "Papildu ikonas"
+  },
+  "system.firmware": {
+    "label": "Restartēt uz BIOS",
+    "description": "Restartēt UEFI aparātprogrammatūras iestatījumos"
   }
 }
