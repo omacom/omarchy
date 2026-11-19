@@ -307,6 +307,9 @@
   "trigger.toggle.idle-lock-off": {
     "label": "Allow Sleep"
   },
+  "trigger.toggle.presentation": {
+    "label": "Presentation"
+  },
   "trigger.toggle.notifications-on": {
     "label": "Notifications On"
   },

@@ -13,6 +13,7 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Night light | — | `omarchy toggle nightlight` |
 | Silence notifications | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
 | Stay awake (no idle lock) | `Super + Ctrl + I` | `omarchy toggle idle` |
+| Presentation | — | `omarchy toggle presentation` |
 | Crash capture | — | `omarchy toggle crash-capture` |
 | Screensaver | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) theme sync | — | `omarchy toggle theme sync` |
@@ -34,7 +35,7 @@ Most of these are just a flag file under `~/.local/state/omarchy/toggles/`. If y
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
 ```
 
-The flags are named for the off state — `screensaver-off`, `suspend-off`, `bar-off` — so their presence means the feature is disabled.
+The flags are named for the off state — `screensaver-off`, `suspend-off`, `bar-off` — so their presence means the feature is disabled. Presentation mode is the exception: its `presentation` flag means the mode is active.
 
 ### Indicators in the bar
 
