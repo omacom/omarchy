@@ -134,6 +134,7 @@ if [[ $check == "true" ]]; then
 else
   omarchy-install-chromium-copy-url
   omarchy-install-chromium-ytdlp
+  omarchy-install-chromium-omareader
 
   if [[ $browser == "chrome" ]]; then
     if ! chrome_policy_current; then
