@@ -63,6 +63,13 @@ Item {
   // A locked bar stays as it is laid out: no widget is dragged about or off
   // it, and the bar isn't dragged to another edge (omarchy bar lock).
   property bool locked: false
+  // A drag under way as the bar locks is let go of, so releasing it changes
+  // nothing either.
+  onLockedChanged: {
+    if (!locked) return
+    clearBarDrag()
+    clearBarMove()
+  }
   property int barConfigSerial: 0
   property string position: "top"
   // Resolves through fontconfig at paint time (Style.font.family defaults
