@@ -109,9 +109,9 @@ function fileExtension(name) {
 
 function fileKind(name) {
   var ext = fileExtension(name)
-  if (IMAGE_EXTENSIONS[ext]) return "image"
-  if (VIDEO_EXTENSIONS[ext]) return "video"
-  if (DOCUMENT_EXTENSIONS[ext]) return "document"
+  if (Object.prototype.hasOwnProperty.call(IMAGE_EXTENSIONS, ext)) return "image"
+  if (Object.prototype.hasOwnProperty.call(VIDEO_EXTENSIONS, ext)) return "video"
+  if (Object.prototype.hasOwnProperty.call(DOCUMENT_EXTENSIONS, ext)) return "document"
   return "misc"
 }
 

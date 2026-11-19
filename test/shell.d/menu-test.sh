@@ -443,3 +443,21 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
+
+# An id is chosen by outside files, so an id naming an Object.prototype member
+# is just an id. A plain map answers for those members, so the merge reads the
+# inherited constructor as an already-claimed id and never lists the row.
+run_node_test <<'JS'
+const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
+const user = menu.parseMenuJsonc('{ "constructor": { "label": "Constructor", "action": "true" }, "notes": { "label": "Notes", "action": "true" } }')
+const merged = menu.mergeMenuSources([], user)
+assert(merged.itemOrder.indexOf('constructor') >= 0, 'menu lists a row whose id is "constructor"')
+assert(!!merged.items.constructor, 'menu keeps the constructor row behind its id')
+
+const appRow = { id: 'constructor', kind: 'app', order: 0 }
+const appMerge = menu.mergeAppRows(merged.items, merged.itemOrder, [appRow])
+assert(appMerge.itemOrder.indexOf('constructor') >= 0, 'menu merge lists an app row whose id is "constructor"')
+
+const providerMerge = menu.swapProviderRows(appMerge.items, appMerge.itemOrder, 'test.provider', [])
+assert(providerMerge.itemOrder.indexOf('constructor') >= 0, 'menu provider swap keeps a row whose id is "constructor"')
+JS

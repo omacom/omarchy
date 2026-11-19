@@ -133,3 +133,15 @@ status=$(dropbox_status)
 jq -e '.usedBytes == 5 and ([.files[].name] | sort) == [".notes", "document.txt"]' <<<"$status" >/dev/null ||
   fail "dropbox excludes internal metadata and cache while retaining ordinary hidden files" "$status"
 pass "dropbox excludes internal metadata and cache while retaining ordinary hidden files"
+
+# An extension comes from the file's name, so an extension naming an
+# Object.prototype member is just an extension. A plain map answers for those
+# members, and the truthy constructor then reads as a known image kind.
+run_node_test <<'JS'
+const dropbox = requireFromRoot('shell/plugins/panels/dropbox/Model.js')
+assertEqual(dropbox.fileKind('notes.constructor'), 'misc', 'dropbox classes a file whose extension is "constructor" as misc')
+assertEqual(dropbox.fileKind('notes.toString'), 'misc', 'dropbox classes a file whose extension is "toString" as misc')
+assertEqual(dropbox.fileKind('photo.png'), 'image', 'dropbox still classes a png as an image')
+assertEqual(dropbox.fileKind('clip.mp4'), 'video', 'dropbox still classes an mp4 as a video')
+assertEqual(dropbox.fileKind('doc.pdf'), 'document', 'dropbox still classes a pdf as a document')
+JS

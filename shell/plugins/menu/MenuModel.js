@@ -91,7 +91,9 @@ function keepMenuRows(previous, raw, required) {
 // of "Go") apply. A root row from either source keeps its own label, so a
 // user-supplied heading is never overwritten by the catalog.
 function mergeMenuSources(defaultItems, userItems, rootLabel) {
-  var nextItems = ({})
+  // Maps keyed by id have no prototype, so an id like "constructor" is just an
+  // id.
+  var nextItems = Object.create(null)
   var nextOrder = []
   var sources = [defaultItems || [], userItems || []]
 
@@ -136,7 +138,7 @@ function mergeAppRows(items, itemOrder, appRows) {
   var source = items || ({})
   var order = Array.isArray(itemOrder) ? itemOrder : []
   var rows = Array.isArray(appRows) ? appRows : []
-  var nextItems = ({})
+  var nextItems = Object.create(null)
   var nextOrder = []
 
   for (var i = 0; i < order.length; i++) {
@@ -168,7 +170,7 @@ function swapProviderRows(items, itemOrder, menuId, rows) {
   var source = items || ({})
   var order = Array.isArray(itemOrder) ? itemOrder : []
   var incoming = Array.isArray(rows) ? rows : []
-  var nextItems = ({})
+  var nextItems = Object.create(null)
   var nextOrder = []
 
   for (var i = 0; i < order.length; i++) {
