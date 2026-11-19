@@ -1,0 +1,547 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set terminal font size on this machine
+# omarchy:args=[size]
+# omarchy:examples=omarchy font size | omarchy font size 11
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: omarchy-font-size [size]"
+}
+
+# Migrations also call this with --read, --only, --includes-only, and --query.
+# Those are not part of the user-facing command.
+
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+ghostty_local="$config_home/ghostty/local"
+kitty_local="$config_home/kitty/local.conf"
+foot_local="$config_home/foot/local.ini"
+alacritty_local="$config_home/alacritty/local.toml"
+ghostty_shared="$config_home/ghostty/config"
+kitty_shared="$config_home/kitty/kitty.conf"
+foot_shared="$config_home/foot/foot.ini"
+alacritty_shared="$config_home/alacritty/alacritty.toml"
+
+expand_tilde() {
+  local path="$1"
+  case $path in
+    "~/"*) printf '%s/%s\n' "$HOME" "${path:2}" ;;
+    "~") printf '%s\n' "$HOME" ;;
+    *) printf '%s\n' "$path" ;;
+  esac
+}
+
+# A path under $HOME is stored with ~ so a shared config does not carry this
+# machine's home directory. A path outside $HOME is written as given.
+portable_path() {
+  local path="$1"
+  case $path in
+    "$HOME"/*) printf '~/%s\n' "${path#"$HOME"/}" ;;
+    *) printf '%s\n' "$path" ;;
+  esac
+}
+
+# First capture of a sed substitution, with a trailing # comment and surrounding
+# whitespace removed. Empty when the file or the key is absent. A value that is
+# still not a number becomes 9 so a bad line cannot stop a migration.
+size_from_file() {
+  local file="$1" subst="$2" raw size
+  [[ -f $file ]] || return 0
+  raw=$(sed -n "${subst}; t q; b; :q q" "$file" || true)
+  [[ -n $raw ]] || return 0
+  size=$(printf '%s\n' "$raw" | sed -E 's/[[:space:]]*#.*$//; s/^[[:space:]]+//; s/[[:space:]]+$//')
+  size=${size%.0}
+  if [[ $size =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    printf '%s\n' "$size"
+  else
+    printf '9\n'
+  fi
+}
+
+size_from_terminal() {
+  local term="$1" size=""
+  case $term in
+    ghostty)
+      size=$(size_from_file "$ghostty_local" 's/^[[:space:]]*font-size[[:space:]]*=[[:space:]]*//p')
+      [[ -n $size ]] || size=$(size_from_file "$ghostty_shared" 's/^[[:space:]]*font-size[[:space:]]*=[[:space:]]*//p')
+      ;;
+    kitty)
+      size=$(size_from_file "$kitty_local" 's/^[[:space:]]*font_size[[:space:]]*//p')
+      [[ -n $size ]] || size=$(size_from_file "$kitty_shared" 's/^[[:space:]]*font_size[[:space:]]*//p')
+      ;;
+    foot)
+      size=$(size_from_file "$foot_local" 's/^[[:space:]]*font[[:space:]]*=.*:size=\([0-9.][0-9.]*\).*/\1/p')
+      [[ -n $size ]] || size=$(size_from_file "$foot_shared" 's/^[[:space:]]*font[[:space:]]*=.*:size=\([0-9.][0-9.]*\).*/\1/p')
+      ;;
+    alacritty)
+      size=$(size_from_file "$alacritty_local" 's/^[[:space:]]*size[[:space:]]*=[[:space:]]*//p')
+      [[ -n $size ]] || size=$(size_from_file "$alacritty_shared" 's/^[[:space:]]*size[[:space:]]*=[[:space:]]*//p')
+      ;;
+    *)
+      echo "Unknown terminal: $term" >&2
+      exit 1
+      ;;
+  esac
+  printf '%s' "$size"
+}
+
+read_size() {
+  local size=""
+  # Locals first, then shared files. Alacritty's shared size is preferred over
+  # Kitty and Foot, matching the order this command has always reported.
+  size=$(size_from_file "$ghostty_local" 's/^[[:space:]]*font-size[[:space:]]*=[[:space:]]*//p')
+  [[ -n $size ]] || size=$(size_from_file "$kitty_local" 's/^[[:space:]]*font_size[[:space:]]*//p')
+  [[ -n $size ]] || size=$(size_from_file "$foot_local" 's/^[[:space:]]*font[[:space:]]*=.*:size=\([0-9.][0-9.]*\).*/\1/p')
+  [[ -n $size ]] || size=$(size_from_file "$alacritty_local" 's/^[[:space:]]*size[[:space:]]*=[[:space:]]*//p')
+  [[ -n $size ]] || size=$(size_from_file "$ghostty_shared" 's/^[[:space:]]*font-size[[:space:]]*=[[:space:]]*//p')
+  [[ -n $size ]] || size=$(size_from_file "$alacritty_shared" 's/^[[:space:]]*size[[:space:]]*=[[:space:]]*//p')
+  [[ -n $size ]] || size=$(size_from_file "$kitty_shared" 's/^[[:space:]]*font_size[[:space:]]*//p')
+  [[ -n $size ]] || size=$(size_from_file "$foot_shared" 's/^[[:space:]]*font[[:space:]]*=.*:size=\([0-9.][0-9.]*\).*/\1/p')
+  printf '%s\n' "${size:-9}"
+}
+
+# Foot has one font= key. A later font= replaces the whole list, so the overlay
+# has to repeat the shared family. Never ask omarchy-font-current: that is this
+# machine's fontconfig match, not the family in the shared config.
+foot_family() {
+  local line=""
+  if [[ -f $foot_shared ]]; then
+    line=$(grep -E '^[[:space:]]*font[[:space:]]*=' "$foot_shared" | head -1 || true)
+  fi
+  if [[ -z $line && -f $foot_local ]]; then
+    line=$(grep -E '^[[:space:]]*font[[:space:]]*=' "$foot_local" | head -1 || true)
+  fi
+  line=${line#*=}
+  line=$(printf '%s\n' "$line" | sed -E 's/:size=[0-9.]+//g; s/^[[:space:]]+//; s/[[:space:]]+$//')
+  if [[ -z $line ]]; then
+    line="JetBrainsMono Nerd Font"
+  fi
+  printf '%s\n' "$line"
+}
+
+# Replace the first matching line and drop duplicates. Other lines stay.
+# cat follows a stow symlink; mv would replace it.
+upsert_line() {
+  local file="$1" pattern="$2" newline="$3" tmp
+  mkdir -p "$(dirname "$file")"
+  if [[ ! -e $file ]]; then
+    printf '%s\n' "$newline" >"$file"
+    return
+  fi
+  if grep -qE "$pattern" "$file"; then
+    tmp=$(mktemp)
+    awk -v pat="$pattern" -v line="$newline" '
+      $0 ~ pat { if (!done) print line; done = 1; next }
+      { print }
+    ' "$file" >"$tmp"
+    cat "$tmp" >"$file"
+    rm -f "$tmp"
+  else
+    printf '\n%s\n' "$newline" >>"$file"
+  fi
+}
+
+write_new_overlay() {
+  local file="$1"
+  shift
+  mkdir -p "$(dirname "$file")"
+  printf '%s\n' "$@" >"$file"
+}
+
+write_terminal() {
+  local term="$1" size="$2" kitty_size family
+  case $term in
+    ghostty)
+      if [[ -e $ghostty_local ]]; then
+        upsert_line "$ghostty_local" '^[[:space:]]*font-size[[:space:]]*=' "font-size = $size"
+      else
+        write_new_overlay "$ghostty_local" \
+          "# Machine-local Ghostty overrides. Not part of the shared desktop config." \
+          '# `omarchy font size` updates the size in this file.' \
+          "font-size = $size"
+      fi
+      ;;
+    kitty)
+      kitty_size=$size
+      [[ $kitty_size == *.* ]] || kitty_size="${kitty_size}.0"
+      if [[ -e $kitty_local ]]; then
+        upsert_line "$kitty_local" '^[[:space:]]*font_size[[:space:]]' "font_size $kitty_size"
+      else
+        write_new_overlay "$kitty_local" \
+          "# Machine-local Kitty overrides. Not part of the shared desktop config." \
+          '# `omarchy font size` updates the size in this file.' \
+          "font_size $kitty_size"
+      fi
+      ;;
+    foot)
+      family=$(foot_family)
+      if [[ -e $foot_local ]]; then
+        upsert_line "$foot_local" '^[[:space:]]*font[[:space:]]*=' "font=$family:size=$size"
+      else
+        write_new_overlay "$foot_local" \
+          "# Machine-local Foot overrides. Not part of the shared desktop config." \
+          "font=$family:size=$size"
+      fi
+      ;;
+    alacritty)
+      if [[ ! -e $alacritty_local ]]; then
+        write_new_overlay "$alacritty_local" \
+          "# Machine-local Alacritty overrides. Not part of the shared desktop config." \
+          "[font]" \
+          "size = $size"
+      elif grep -qE '^[[:space:]]*size[[:space:]]*=' "$alacritty_local"; then
+        upsert_line "$alacritty_local" '^[[:space:]]*size[[:space:]]*=' "size = $size"
+      elif grep -qE '^\[font\][[:space:]]*$' "$alacritty_local"; then
+        local tmp
+        tmp=$(mktemp)
+        awk -v line="size = $size" '
+          { print }
+          /^\[font\][[:space:]]*$/ && !done { print line; done = 1 }
+        ' "$alacritty_local" >"$tmp"
+        cat "$tmp" >"$alacritty_local"
+        rm -f "$tmp"
+      else
+        printf '\n[font]\nsize = %s\n' "$size" >>"$alacritty_local"
+      fi
+      ;;
+    *)
+      echo "Unknown terminal: $term" >&2
+      exit 1
+      ;;
+  esac
+}
+
+ensure_ghostty_include() {
+  [[ -f $ghostty_shared ]] || return 0
+  local portable desired line target token correct=0 stale=""
+  portable=$(portable_path "$ghostty_local")
+  desired="config-file = ?\"${portable}\""
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ $line == *"ghostty/local"* ]] || continue
+    [[ $line =~ ^[[:space:]]*config-file[[:space:]]*=[[:space:]]*\?\"([^\"]+)\" ]] || continue
+    token=${BASH_REMATCH[1]}
+    target=$(expand_tilde "$token")
+    if [[ $target == "$ghostty_local" && $token == "$portable" ]]; then
+      correct=1
+    else
+      stale=$line
+    fi
+  done <"$ghostty_shared"
+  if ((correct)) && [[ -z $stale ]]; then
+    return 0
+  fi
+  if [[ -n $stale ]]; then
+    local tmp
+    tmp=$(mktemp)
+    awk -v old="$stale" -v new="$desired" '$0 == old { print new; next } { print }' "$ghostty_shared" >"$tmp"
+    cat "$tmp" >"$ghostty_shared"
+    rm -f "$tmp"
+  else
+    printf '\n%s\n' "$desired" >>"$ghostty_shared"
+  fi
+}
+
+ensure_kitty_include() {
+  local good='^[[:space:]]*(globinclude|include)[[:space:]]+local\.conf([[:space:]]|$)'
+  mkdir -p "$(dirname "$kitty_shared")"
+  if [[ ! -f $kitty_shared ]]; then
+    printf 'globinclude local.conf\n' >"$kitty_shared"
+    return 0
+  fi
+  if grep -qE "$good" "$kitty_shared"; then
+    return 0
+  fi
+  # An absolute globinclude is rejected by Kitty. Replace it; don't treat a
+  # comment that merely mentions local.conf as the include already being there.
+  if grep -qE '^[[:space:]]*(globinclude|include)[[:space:]]+.*local\.conf([[:space:]]|$)' "$kitty_shared"; then
+    local tmp
+    tmp=$(mktemp)
+    awk '
+      /^[[:space:]]*(globinclude|include)[[:space:]]+.*local\.conf([[:space:]]|$)/ && !done {
+        print "globinclude local.conf"
+        done = 1
+        next
+      }
+      { print }
+    ' "$kitty_shared" >"$tmp"
+    cat "$tmp" >"$kitty_shared"
+    rm -f "$tmp"
+    return 0
+  fi
+  printf '\nglobinclude local.conf\n' >>"$kitty_shared"
+}
+
+# Foot only honors include= in [main]. A line under [text-bindings] is an XKB
+# binding, so foot -C fails and the font falls back to 8 pt.
+ensure_foot_include() {
+  [[ -f $foot_shared ]] || return 0
+  python3 - "$foot_shared" "$foot_local" "$HOME" "$(portable_path "$foot_local")" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path, overlay, home, written = sys.argv[1:5]
+file = Path(path)
+text = file.read_text()
+lines = text.splitlines()
+
+def resolve(token):
+    token = token.strip().strip('"').strip("'")
+    if token.startswith("~/"):
+        return home + "/" + token[2:]
+    if token == "~":
+        return home
+    if token.startswith("~"):
+        return home + token[1:]
+    return token
+
+include_re = re.compile(r"\s*include\s*=\s*(.*?)\s*$")
+
+def include_value(line):
+    match = include_re.match(line)
+    return match.group(1) if match else None
+
+def is_local(line):
+    value = include_value(line)
+    if value is None:
+        return False
+    raw = value.strip().strip('"').strip("'")
+    return resolve(value) == overlay or raw.endswith("foot/local.ini") or "foot/local.ini" in raw
+
+def section_end(start):
+    for index in range(start + 1, len(lines)):
+        stripped = lines[index].strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            return index
+    return len(lines)
+
+desired = f"include={written}"
+changed = False
+main = next((i for i, line in enumerate(lines) if line.strip() == "[main]"), None)
+
+# Foot applies a later font= over an earlier include, so the overlay include
+# has to come after the shared font line or the saved size never wins.
+if main is not None:
+    end = section_end(main)
+    font_at = [i for i in range(main + 1, end) if re.match(r"\s*font\s*=", lines[i])]
+    threshold = font_at[-1] if font_at else main
+    inside = [i for i in range(main + 1, end) if is_local(lines[i])]
+    outside = [i for i, line in enumerate(lines) if is_local(line) and not (main < i < end)]
+    if (
+        not outside
+        and len(inside) == 1
+        and inside[0] > threshold
+        and lines[inside[0]].strip() == desired
+    ):
+        raise SystemExit(0)
+
+kept = [line for line in lines if not is_local(line)]
+if len(kept) != len(lines):
+    changed = True
+lines = kept
+
+main = next((i for i, line in enumerate(lines) if line.strip() == "[main]"), None)
+if main is None:
+    if lines and lines[-1] != "":
+        lines.append("")
+    lines.extend(["[main]", desired])
+    changed = True
+else:
+    lines.insert(section_end(main), desired)
+    changed = True
+
+if not changed:
+    raise SystemExit(0)
+file.write_text("\n".join(lines) + "\n")
+PY
+}
+
+# Exit 0 when an import resolves to the overlay. Exit 1 on --query when it does
+# not, including when there is no import array to edit. Apply is best-effort:
+# the migration then keeps the shared size line.
+alacritty_import() {
+  local mode="$1"
+  [[ -f $alacritty_shared ]] || return 1
+  python3 - "$alacritty_shared" "$alacritty_local" "$HOME" "$mode" "$(portable_path "$alacritty_local")" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path, overlay, home, mode, written = sys.argv[1:6]
+file = Path(path)
+text = file.read_text()
+needle = f'"{written}"'
+
+def resolve(token):
+    token = token.strip()
+    if len(token) >= 2 and token[0] == token[-1] and token[0] in "\"'":
+        token = token[1:-1]
+    if token.startswith("~/"):
+        return home + "/" + token[2:]
+    if token == "~":
+        return home
+    if token.startswith("~"):
+        return home + token[1:]
+    return token
+
+def tokens(inner):
+    return [part.strip() for part in inner.split(",") if part.strip()]
+
+def already(parts):
+    return any(resolve(part) == overlay for part in parts)
+
+def with_overlay(parts):
+    kept = [
+        part
+        for part in parts
+        if "alacritty/local.toml" not in part or resolve(part) == overlay
+    ]
+    if not already(kept):
+        kept.append(needle)
+    return ", ".join(kept)
+
+def finish(parts, span_start, span_end):
+    if already(parts):
+        raise SystemExit(0)
+    if mode == "check":
+        raise SystemExit(1)
+    file.write_text(text[:span_start] + with_overlay(parts) + text[span_end:])
+    raise SystemExit(0)
+
+dotted = re.search(r"general\.import\s*=\s*\[(.*?)\]", text, re.S)
+if dotted:
+    finish(tokens(dotted.group(1)), dotted.start(1), dotted.end(1))
+
+header = re.search(r"(?m)^\[general\][^\n]*\n", text)
+if header:
+    start = header.end()
+    nxt = re.search(r"(?m)^\[", text[start:])
+    end = start + nxt.start() if nxt else len(text)
+    body = text[start:end]
+    imported = re.search(r"import\s*=\s*\[(.*?)\]", body, re.S)
+    if imported:
+        abs_start = start + imported.start(1)
+        abs_end = start + imported.end(1)
+        finish(tokens(imported.group(1)), abs_start, abs_end)
+
+raise SystemExit(0 if mode == "apply" else 1)
+PY
+}
+
+ensure_includes() {
+  ensure_ghostty_include
+  ensure_kitty_include
+  ensure_foot_include
+  if [[ -f $alacritty_shared ]]; then
+    alacritty_import apply || true
+  fi
+}
+
+write_all() {
+  local size="$1"
+  write_terminal ghostty "$size"
+  write_terminal kitty "$size"
+  write_terminal foot "$size"
+  write_terminal alacritty "$size"
+  ensure_includes
+}
+
+quiet=0
+only=""
+mode=""
+query_what=""
+read_term=""
+size=""
+
+while (($#)); do
+  case $1 in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --quiet)
+      quiet=1
+      shift
+      ;;
+    --includes-only)
+      mode=includes
+      shift
+      ;;
+    --query)
+      mode=query
+      query_what=${2:-}
+      shift 2
+      ;;
+    --read)
+      mode=read
+      read_term=${2:-}
+      shift 2
+      ;;
+    --only)
+      only=${2:-}
+      shift 2
+      ;;
+    *)
+      size=$1
+      shift
+      ;;
+  esac
+done
+
+if [[ $mode == "includes" ]]; then
+  ensure_includes
+  exit 0
+fi
+
+if [[ $mode == "query" ]]; then
+  case $query_what in
+    alacritty-import)
+      if alacritty_import check; then
+        exit 0
+      fi
+      exit 1
+      ;;
+    *)
+      echo "Unknown query: ${query_what:-}" >&2
+      exit 1
+      ;;
+  esac
+fi
+
+if [[ $mode == "read" ]]; then
+  size=$(size_from_terminal "$read_term")
+  if [[ -n $size ]]; then
+    printf '%s\n' "$size"
+  fi
+  exit 0
+fi
+
+if [[ -z $size ]]; then
+  read_size
+  exit 0
+fi
+
+if [[ ! $size =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+  echo "Font size must be a number, got: $size" >&2
+  exit 1
+fi
+
+if [[ -n $only ]]; then
+  write_terminal "$only" "$size"
+else
+  write_all "$size"
+fi
+
+if pgrep -x kitty >/dev/null 2>&1; then
+  pkill -USR1 kitty 2>/dev/null || true
+fi
+if pgrep -x ghostty >/dev/null 2>&1; then
+  pkill -SIGUSR2 ghostty 2>/dev/null || true
+  if (( ! quiet )); then
+    omarchy-notification-send -g "$(omarchy-i18n font.restartToSeeChange Ghostty)" || true
+  fi
+fi
+if (( ! quiet )) && pgrep -x foot >/dev/null 2>&1; then
+  omarchy-notification-send -g "$(omarchy-i18n font.restartToSeeChange Foot)" || true
+fi
