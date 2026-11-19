@@ -4,8 +4,9 @@ Read this before changing the status bar layout, notifications, built-in
 widgets, or idle/lock behavior. Writing a new plugin or widget, or the QML of
 a cloned one, follows the omarchy-make-plugin skill.
 
-The bar, notification daemon, settings panel, and assorted overlays all run
-inside a single long-running Quickshell process (`omarchy-shell`).
+The bar, dock, notification daemon, settings panel, and assorted overlays all
+run inside a single long-running Quickshell process (logged in the journal as
+`omarchy-shell`). The `omarchy-shell` command is its IPC client.
 
 ```
 ~/.config/omarchy/shell.json             # User overrides: bar, plugins, idle
@@ -23,7 +24,14 @@ changes. `idle.screensaver` and `idle.lock` are seconds since user idle began.
 Use the `omarchy bar` group to move and manage widgets:
 
 ```bash
+omarchy bar position [top|bottom|left|right]
+omarchy bar background [opaque|glassy|none|cycle]
 omarchy bar move omarchy.clock --section right
+omarchy bar put omarchy.keyboard-layout --after omarchy.clock   # Add a widget
+omarchy bar set omarchy.clock format "dddd h:mm AP"             # A widget's own option (here a 12-hour clock)
+omarchy bar get omarchy.clock format
+omarchy bar reset                                               # Back to the built-in bar
+omarchy toggle bar [on|off]                                     # Hide or show it (on hides)
 ```
 
 For layout edits beyond what the commands cover, edit the bar configuration
@@ -35,6 +43,17 @@ the tray's drawer. `center` is a box in the middle of the bar whose widgets
 are centered as one group; `centerBegin` and `centerEnd` hang off its two
 edges. Put a widget beside the clock in `centerBegin` or `centerEnd`, not in
 `center`, or the clock moves off center.
+
+## Dock
+
+The dock shows on floating workspaces. Its pinned apps are desktop ids (`dock.pinned` in `shell.json`):
+
+```bash
+omarchy dock position [top|bottom|left|right]
+omarchy dock autohide [on|off|toggle]
+omarchy dock pin folio
+omarchy dock unpin folio
+```
 
 ## Customizing Built-In Plugins and Widgets
 
