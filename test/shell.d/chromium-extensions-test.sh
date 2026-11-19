@@ -177,6 +177,12 @@ repair brave-origin || fail "a commented-out --load-extension switch can be repa
   fail "the repair adds a live --load-extension switch" "$(<"$flags_file")"
 pass "switching to a browser repairs the bundled extensions it lacks and keeps the user's own"
 
+# Helium keeps its profile and flags file under its own names, and switching to
+# it fails unless the repair reaches both.
+repair helium || fail "Helium's bundled extensions can be repaired"
+repair --check helium || fail "a repaired Helium's bundled extensions are reported current"
+pass "switching to Helium sets up its bundled extensions"
+
 # --- WhatsApp Slim ---
 
 # The content script switches WhatsApp Web to its system theme mode, which it
