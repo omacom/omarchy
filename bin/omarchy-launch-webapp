@@ -34,14 +34,17 @@ fi
 # running app window, so a mailto compose lands there instead of opening yet
 # another --app shortcut window. Origin-only launches use the app's start_url;
 # deep links go through Chromium's shortcut-menu URL flag.
-app_id=$(omarchy-webapp-pwa-id "$1" "$browser_exec" || true)
+app_id=$(omarchy-webapp-pwa-id "$1" "$browser_exec" "${@:2}" || true)
 if [[ -n $app_id ]]; then
   rest=${1#*://}
+  deep=false
+  [[ $rest == *[?#]* ]] && deep=true
   rest=${rest%%\?*}
   rest=${rest%%#*}
   rest=${rest%/}
   host=${rest%%/*}
-  if (( ${#rest} > ${#host} )); then
+  (( ${#rest} > ${#host} )) && deep=true
+  if [[ $deep == true ]]; then
     args=(--app-id="$app_id" "--app-launch-url-for-shortcuts-menu-item=$1" "${@:2}")
   else
     args=(--app-id="$app_id" "${@:2}")

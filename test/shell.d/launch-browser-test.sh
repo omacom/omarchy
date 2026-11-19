@@ -202,3 +202,80 @@ HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
 grep -F "Web apps need a Chromium-based browser" "$notify_log" >/dev/null ||
   fail "web app launcher asks for a Chromium-based browser" "$(cat "$notify_log" 2>/dev/null)"
 pass "web app launcher fails visibly instead of handing uwsm-app an empty command"
+
+# -- Installed PWA routing -------------------------------------------------
+# The browser handoff records the arguments the launcher would send, and the
+# fake profile holds an installed web app with matching origin.
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=chromium %U
+EOF
+printf '[Default Applications]\nx-scheme-handler/http=chromium.desktop\n' >"$XDG_CONFIG_HOME/mimeapps.list"
+pwa_id=abcdefghijklmnopabcdefghijklmnop
+manifest_dir="$XDG_CONFIG_HOME/chromium/Default/Web Applications/$pwa_id"
+mkdir -p "$manifest_dir"
+printf '{"name":"HEY","start_url":"https://app.hey.com/"}\n' >"$manifest_dir/manifest.json"
+
+pwa_log="$test_tmp/pwa"
+cat >"$mock_bin/omarchy-cmd-browser-handoff" <<SH
+#!/bin/bash
+printf '%s\n' "\$@" >"$pwa_log"
+SH
+chmod +x "$mock_bin/omarchy-cmd-browser-handoff"
+
+launch_webapp() {
+  HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" \
+    OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+    bash "$ROOT/bin/omarchy-launch-webapp" "$@"
+}
+
+# A path is a deep link and must reach the running app, not a new --app window.
+launch_webapp "https://app.hey.com/messages/new?to=someone@example.com"
+grep -Fxq -- "--app-id=$pwa_id" "$pwa_log" ||
+  fail "web app deep link uses the installed PWA app id" "$(cat "$pwa_log")"
+grep -Fxq -- '--app-launch-url-for-shortcuts-menu-item=https://app.hey.com/messages/new?to=someone@example.com' "$pwa_log" ||
+  fail "web app deep link carries the compose URL" "$(cat "$pwa_log")"
+! grep -q -- '--app=' "$pwa_log" ||
+  fail "web app deep link does not open a second shortcut window" "$(cat "$pwa_log")"
+pass "web app deep links route into the installed PWA window"
+
+# A query or fragment on the root page is still a destination, not the app's
+# stored start_url.
+for url in "https://app.hey.com/?compose=1" "https://app.hey.com/#/messages/new"; do
+  launch_webapp "$url"
+  grep -Fxq -- "--app-launch-url-for-shortcuts-menu-item=$url" "$pwa_log" ||
+    fail "web app root link $url keeps its destination" "$(cat "$pwa_log")"
+done
+pass "web app root links with a query or fragment keep their destination"
+
+# Origin matching stops at ? and #, so https://host?query finds the app too.
+id=$(HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" XDG_CONFIG_HOME="$XDG_CONFIG_HOME" \
+  "$ROOT/bin/omarchy-webapp-pwa-id" "https://app.hey.com?compose=1")
+[[ $id == "$pwa_id" ]] ||
+  fail "web app lookup matches an origin followed by a query" "$id"
+pass "web app lookup matches an origin followed by a query"
+
+# Origin-only launches use the app's own start_url.
+launch_webapp "https://app.hey.com/"
+! grep -q -- '--app-launch-url-for-shortcuts-menu-item=' "$pwa_log" ||
+  fail "web app origin-only launch uses the PWA start_url" "$(cat "$pwa_log")"
+pass "web app origin-only launches use the PWA start_url"
+
+# A launcher's explicit work profile decides which installation is visible:
+# an app in the personal profile must not be used with a work data directory.
+launch_webapp "https://app.hey.com/mail/u/0/" --user-data-dir="$test_tmp/work"
+! grep -q -- '--app-id=' "$pwa_log" ||
+  fail "web app lookup respects an explicit work profile" "$(cat "$pwa_log")"
+mkdir -p "$test_tmp/work/Default/Web Applications/$pwa_id"
+cp "$manifest_dir/manifest.json" "$test_tmp/work/Default/Web Applications/$pwa_id/manifest.json"
+launch_webapp "https://app.hey.com/mail/u/0/" --user-data-dir="$test_tmp/work"
+grep -Fxq -- "--app-id=$pwa_id" "$pwa_log" ||
+  fail "web app lookup finds an app in the work profile" "$(cat "$pwa_log")"
+pass "web app lookup stays inside the launching profile"
+
+# Without a matching PWA the original --app shortcut path is unchanged.
+mv "$manifest_dir/manifest.json" "$test_tmp/manifest.saved"
+launch_webapp "https://app.hey.com/messages/new?to=x@y.com"
+grep -Fxq -- '--app=https://app.hey.com/messages/new?to=x@y.com' "$pwa_log" ||
+  fail "web app without a PWA keeps the --app shortcut" "$(cat "$pwa_log")"
+pass "web apps without an installed PWA keep the existing launch path"

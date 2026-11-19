@@ -9,6 +9,19 @@ set -euo pipefail
 url=${1:-}
 browser=${2:-}
 [[ -n $url ]] || exit 0
+shift $(( $# > 2 ? 2 : $# ))
+
+# A launcher's own profile flags decide which installation of a web app is in
+# use. Looking in another profile could pair its app id with a browser that
+# does not have it installed.
+user_data_dir=""
+profile=""
+for arg in "$@"; do
+  case $arg in
+  --user-data-dir=*) user_data_dir=${arg#*=} ;;
+  --profile-directory=*) profile=${arg#*=} ;;
+  esac
+done
 
 # The browser whose profile holds installed web apps. Only the executable name
 # is needed; a wrapper would have its own profile layout and is not a browser
@@ -35,11 +48,23 @@ helium) config=helium ;;
 *) exit 0 ;;
 esac
 
-origin=$(printf '%s' "$url" | sed -E 's#^(https?://[^/]+)([/?#].*)?$#\1#')
+origin=$(printf '%s' "$url" | sed -E 's#^(https?://[^/?#]+)([/?#].*)?$#\1#')
 [[ $origin == http://* || $origin == https://* ]] || exit 0
 
 config_home=${XDG_CONFIG_HOME:-$HOME/.config}
-for manifest in "$config_home/$config"/*/"Web Applications"/*/manifest.json; do
+if [[ -n $user_data_dir ]]; then
+  if [[ -n $profile ]]; then
+    patterns=("$user_data_dir/$profile/Web Applications"/*/manifest.json)
+  else
+    patterns=("$user_data_dir"/*/"Web Applications"/*/manifest.json)
+  fi
+elif [[ -n $profile ]]; then
+  patterns=("$config_home/$config/$profile/Web Applications"/*/manifest.json)
+else
+  patterns=("$config_home/$config"/*/"Web Applications"/*/manifest.json)
+fi
+
+for manifest in "${patterns[@]}"; do
   [[ -f $manifest ]] || continue
   start_url=$(jq -r '.start_url // .id // empty' "$manifest" 2>/dev/null) || continue
   [[ -n $start_url ]] || continue
@@ -48,7 +73,7 @@ for manifest in "$config_home/$config"/*/"Web Applications"/*/manifest.json; do
   /*) start_url="$origin$start_url" ;;
   *) continue ;;
   esac
-  manifest_origin=$(printf '%s' "$start_url" | sed -E 's#^(https?://[^/]+)([/?#].*)?$#\1#')
+  manifest_origin=$(printf '%s' "$start_url" | sed -E 's#^(https?://[^/?#]+)([/?#].*)?$#\1#')
   [[ $manifest_origin == "$origin" ]] || continue
   basename "$(dirname "$manifest")"
   exit 0
