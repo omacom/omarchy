@@ -109,6 +109,14 @@ omarchy-games-vibes-launch <name>
 
 Do this once, at the end, not while checking. Game Vibes refreshes its list each time it opens, so later edits and a changed title need nothing more. Tell the user the game is open, that it's in Game Vibes in the app launcher (Super + Space), where the file is, and the controls.
 
+## Sharing a game
+
+A game is shared as a git repository with its `index.html` and `icon.svg` at the root, named `omarchy-<name>-game` so it installs as `<name>`. When the user asks to share one, run `git init` in `~/Games/vibes/<name>`, commit those files, and push to the remote they give. Anyone on Omarchy then installs it from the menu (Install > Gaming > Game Vibes) or with:
+
+```bash
+omarchy games vibes install <git-repo-url>
+```
+
 ## three.js and the page
 
 The template pins three.js 0.180. Much of what you remember is for older versions:
