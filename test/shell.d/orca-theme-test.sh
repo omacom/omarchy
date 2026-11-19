@@ -79,3 +79,15 @@ OMARCHY_TEST_ORCA_INSTALLED_FROM="$plugin" run_hook
 grep -qx 'plugin update local.omarchy-theme' "$calls" || fail "later runs update the installed plugin" "$(cat "$calls")"
 grep -q 'plugin install' "$calls" && fail "an installed plugin is not installed again"
 pass "a running Orca updates the plugin it already has"
+
+: >"$calls"
+OMARCHY_TEST_ORCA_INSTALLED_FROM="$test_tmp/another-folder" run_hook 2>"$test_tmp/stderr" || fail "a plugin from another folder does not fail the theme switch"
+grep -Eq 'plugin (install|update)' "$calls" && fail "a plugin installed from another folder is left to the user" "$(cat "$calls")"
+grep -q 'uninstall it in Orca' "$test_tmp/stderr" || fail "the log says how to hand the plugin over"
+pass "a plugin installed from another folder is left alone, with the fix in the log"
+
+reset_home dark
+echo 'not json' >"$theme/orca-terminal.json"
+run_hook 2>/dev/null
+[[ ! -e $plugin ]] || fail "a broken generated file never replaces a working palette"
+pass "invalid JSON keeps the previous palette"

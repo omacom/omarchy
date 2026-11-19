@@ -26,6 +26,22 @@ if grep -q '{{' "$ORCA_THEME_SOURCE" "$ORCA_TERMINAL_SOURCE"; then
   exit 0
 fi
 
+# An installed theme may ship its own files; a broken one must not replace a
+# working palette.
+if ! jq -e . "$ORCA_THEME_SOURCE" "$ORCA_TERMINAL_SOURCE" >/dev/null 2>&1; then
+  echo "Skipping Orca theme: generated files are not valid JSON." >&2
+  exit 0
+fi
+
+# Orca re-reads the folder on update, so every file is replaced whole rather
+# than written in place.
+publish() {
+  local tmp
+  tmp=$(mktemp "$1.XXXXXX")
+  cat >"$tmp"
+  mv "$tmp" "$1"
+}
+
 mode=$(jq -r '.base' "$ORCA_THEME_SOURCE")
 if [[ $mode == "light" ]]; then
   other="dark"
@@ -37,20 +53,20 @@ else
 fi
 
 mkdir -p "$ORCA_PLUGIN_PATH/themes" "$ORCA_PLUGIN_PATH/terminal"
-cp "$ORCA_THEME_SOURCE" "$ORCA_PLUGIN_PATH/themes/$mode.json"
-cp "$ORCA_TERMINAL_SOURCE" "$ORCA_PLUGIN_PATH/terminal/$mode.json"
+publish "$ORCA_PLUGIN_PATH/themes/$mode.json" <"$ORCA_THEME_SOURCE"
+publish "$ORCA_PLUGIN_PATH/terminal/$mode.json" <"$ORCA_TERMINAL_SOURCE"
 
 # Orca keeps a dark and a light theme and follows the desktop's color scheme,
 # so the plugin offers both. Until a theme of the other mode is applied, that
 # one is this palette relabelled.
 if [[ ! -f $ORCA_PLUGIN_PATH/themes/$other.json ]]; then
-  jq --arg mode "$other" '.base = $mode' "$ORCA_THEME_SOURCE" >"$ORCA_PLUGIN_PATH/themes/$other.json"
+  jq --arg mode "$other" '.base = $mode' "$ORCA_THEME_SOURCE" | publish "$ORCA_PLUGIN_PATH/themes/$other.json"
 fi
 if [[ ! -f $ORCA_PLUGIN_PATH/terminal/$other.json ]]; then
-  jq --arg mode "$other" '.mode = $mode' "$ORCA_TERMINAL_SOURCE" >"$ORCA_PLUGIN_PATH/terminal/$other.json"
+  jq --arg mode "$other" '.mode = $mode' "$ORCA_TERMINAL_SOURCE" | publish "$ORCA_PLUGIN_PATH/terminal/$other.json"
 fi
 
-cat >"$ORCA_PLUGIN_PATH/orca-plugin.json" <<'JSON'
+publish "$ORCA_PLUGIN_PATH/orca-plugin.json" <<'JSON'
 {
   "manifestVersion": 2,
   "id": "omarchy-theme",
@@ -82,8 +98,12 @@ reachable=$(timeout 5 "$ORCA_CLI" status --json 2>/dev/null | jq -r '.result.run
 installed_from=$(timeout 10 "$ORCA_CLI" plugin list --json 2>/dev/null |
   jq -r --arg key "$ORCA_PLUGIN_KEY" '.result.plugins[]? | select(.pluginKey == $key) | .source.reference') || true
 
-if [[ $installed_from == "$ORCA_PLUGIN_PATH" ]]; then
+if [[ -z $installed_from ]]; then
+  timeout 30 "$ORCA_CLI" plugin install "$ORCA_PLUGIN_PATH" >/dev/null
+elif [[ $installed_from == "$ORCA_PLUGIN_PATH" ]]; then
   timeout 30 "$ORCA_CLI" plugin update "$ORCA_PLUGIN_KEY" >/dev/null
 else
-  timeout 30 "$ORCA_CLI" plugin install "$ORCA_PLUGIN_PATH" >/dev/null
+  # Orca refuses to move a plugin to another folder without the user's
+  # approval, which is theirs to give, so leave the one they have.
+  echo "Leaving Orca's $ORCA_PLUGIN_KEY, installed from $installed_from; uninstall it in Orca to follow Omarchy." >&2
 fi
