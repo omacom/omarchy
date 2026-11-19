@@ -1063,6 +1063,20 @@ chmod +x "$TMPDIR/omarchy-menu-abbrmeta"
 output=$("$TMPDIR/omarchy" abbrm --help 2>&1)
 assert_output_contains "abbreviated metadata-only route renders its help" "$output" "omarchy-menu-abbrmeta"
 
+# main sends `omarchy reboot` to `omarchy system reboot`; an expanded abbreviation must take the same path.
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Abbreviation test system stub\n'
+  printf '# omarchy:args=<logout|reboot|shutdown>\n'
+  printf '# omarchy:aliases=omarchy logout | omarchy reboot | omarchy shutdown\n'
+  printf 'echo "system-ran args=[$*]"\n'
+} >"$TMPDIR/omarchy-system"
+chmod +x "$TMPDIR/omarchy-system"
+
+output=$("$TMPDIR/omarchy" rebo 2>&1)
+assert_output_contains "abbreviated power shortcut runs its action" "$output" "system-ran args=[reboot]"
+rm "$TMPDIR/omarchy-system"
+
 # Command help shows the canonical route first and the shortest abbreviation after it, only when one exists.
 output=$("$TMPDIR/omarchy" abbrone update --help)
 assert_output_contains "command help lists the short form" "$output" "Short form:"$'\n'"  omarchy a upd"

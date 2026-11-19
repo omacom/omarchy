@@ -1473,9 +1473,10 @@ dispatch_or_help() {
     expand_abbreviated_route "$#" "${args[@]}"
     case $? in
     0)
-      # The expanded words re-enter where the full spelling would, so a short form behaves exactly like the long one.
+      # The expanded words re-enter through main, where the full spelling would, so a short form behaves exactly like
+      # the long one, including the logout/reboot/shutdown shortcuts main sends to `omarchy system`.
       ABBREVIATION_EXPANDED="true"
-      dispatch_fast_or_help "${EXPANDED_ARGS[@]}"
+      main "${EXPANDED_ARGS[@]}"
       return $?
       ;;
     2)
