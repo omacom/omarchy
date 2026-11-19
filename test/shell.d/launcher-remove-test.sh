@@ -84,8 +84,8 @@ export XDG_DATA_DIRS="$tmp_dir/system"
 
 "$ROOT/bin/omarchy-remove-launcher-entry" Basecamp.desktop Basecamp
 "$ROOT/bin/omarchy-remove-launcher-entry" Docker.desktop Docker
-"$ROOT/bin/omarchy-remove-launcher-entry" native.desktop Native
-"$ROOT/bin/omarchy-remove-launcher-entry" aliens.desktop Aliens
+native_output="$("$ROOT/bin/omarchy-remove-launcher-entry" native.desktop Native)"
+aliens_output="$("$ROOT/bin/omarchy-remove-launcher-entry" aliens.desktop Aliens)"
 
 mapfile -t lines <"$TEST_LOG"
 
@@ -110,18 +110,14 @@ failure_log=$(tail -n +"$((before_failure + 1))" "$TEST_LOG")
 [[ $failure_log != *"notify::Uninstalled"* ]] || fail "launcher remove does not report success for a failed uninstall" "$failure_log"
 pass "launcher remove reports a failed uninstall and why"
 
+[[ -z $native_output ]] || fail "launcher remove keeps the launcher open for a pkexec uninstall" "$native_output"
+pass "launcher remove keeps the launcher open for a pkexec uninstall"
+
+[[ -z $aliens_output ]] || fail "launcher remove deletes user-owned desktop files without a terminal" "$aliens_output"
+pass "launcher remove deletes user-owned desktop files without a terminal"
+
 [[ ! -e $tmp_dir/data/applications/aliens.desktop ]] || fail "launcher remove deletes user-owned desktop files"
 pass "launcher remove deletes user-owned desktop files"
 
 (( ${#lines[@]} == 4 )) || fail "launcher remove does not notify for user-owned desktop files" "$(printf '%s\n' "${lines[@]}")"
 pass "launcher remove does not notify for user-owned desktop files"
-
-cat >"$tmp_dir/data/applications/slack.desktop" <<'DESKTOP'
-[Desktop Entry]
-Name=Slack
-Exec=omarchy-launch-slack --ozone-platform=wayland %U
-DESKTOP
-"$ROOT/bin/omarchy-remove-launcher-entry" slack.desktop Slack
-[[ $(tail -1 "$TEST_LOG") == "terminal::omarchy-remove-service-slack" ]] || fail "the themed Slack launcher opens its package removal flow"
-[[ -f $tmp_dir/data/applications/slack.desktop ]] || fail "the override remains until package removal succeeds"
-pass "the themed Slack override routes to package removal before any cleanup"

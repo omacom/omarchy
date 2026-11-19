@@ -46,10 +46,6 @@ Item {
   readonly property bool backgroundActive: !!backgroundService && !backgroundService.suspended
   readonly property bool backgroundReady: backgroundActive && backgroundService.ready !== false
 
-  function restoreStartupCursor() {
-    Quickshell.execDetached(["hyprctl", "eval", "if omarchy_startup_cursor_restore then omarchy_startup_cursor_restore() end"])
-  }
-
   function finishStartup() {
     if (!cover || !startupSettled) return
     var registry = host ? host.pluginRegistry : null
@@ -171,7 +167,6 @@ Item {
     to: 0
     duration: Style.duration(420)
     easing.type: Easing.OutCubic
-    onStarted: root.restoreStartupCursor()
     onFinished: root.startupPending = false
   }
 
@@ -280,12 +275,9 @@ Item {
 
   Component.onCompleted: {
     checked = true
-    if (sessionConsumed) restoreStartupCursor()
     if (!startupBackgroundPath && !startupPending) startupBackground.running = true
     introProc.running = true
   }
-
-  Component.onDestruction: if (startupPending) restoreStartupCursor()
 
   onBackgroundActiveChanged: {
     if (!backgroundActive && checked) {

@@ -43,6 +43,45 @@ for manifest in "$ROOT"/default/chromium/extensions/*/manifest.json; do
 done
 pass "each bundled Chromium extension pins its id and ships the files its manifest loads"
 
+# --- Google Chrome CRXs ---
+
+# Chrome ignores --load-extension, so policy installs each extension from a
+# signed CRX under its own id. A CRX left behind its source would give Chrome
+# users the old extension, and one whose version didn't move would never update.
+require_command bsdtar
+crx_dir=$ROOT/default/chromium/crx
+crx_policy=$ROOT/default/chromium/policies/chrome-extensions.json
+for extension_dir in "$ROOT"/default/chromium/extensions/*/; do
+  name=$(basename "$extension_dir")
+  crx=$crx_dir/$name.crx
+  [[ -f $crx ]] || fail "the $name extension ships a CRX for Chrome" "run omarchy-dev-pack-chrome-extensions"
+
+  expected=$test_tmp/crx-expected/$name
+  shipped=$test_tmp/crx-shipped/$name
+  mkdir -p "$(dirname "$expected")" "$shipped"
+  cp -rL "$extension_dir" "$expected"
+  jq 'del(.key)' "$extension_dir/manifest.json" >"$expected/manifest.json"
+  # A CRX is a signed header and then a zip, which bsdtar finds from the
+  # central directory at its end. Streamed through a pipe, libarchive 3.8.10
+  # fails on the zip instead.
+  bsdtar -xf "$crx" -C "$shipped"
+  diff -r "$expected" "$shipped" >/dev/null ||
+    fail "$name.crx matches its source" "run omarchy-dev-pack-chrome-extensions after bumping the version in $name/manifest.json"
+
+  app=$(grep -F "/$name.crx'" "$crx_dir/updates.xml") || fail "updates.xml offers $name.crx"
+  [[ $app =~ appid=\'([a-p]{32})\'.*codebase=\'file:///usr/share/omarchy/default/chromium/crx/$name\.crx\'\ version=\'([^\']+)\' ]] ||
+    fail "updates.xml offers $name.crx from the installed Omarchy tree" "$app"
+  id=${BASH_REMATCH[1]}
+  [[ ${BASH_REMATCH[2]} == "$(jq -r .version "$expected/manifest.json")" ]] ||
+    fail "updates.xml offers $name at its manifest version"
+  jq -e --arg id "$id" '.ExtensionSettings[$id] | .installation_mode == "force_installed" and .update_url == "file:///usr/share/omarchy/default/chromium/crx/updates.xml"' "$crx_policy" >/dev/null ||
+    fail "Chrome's policy installs $name from updates.xml"
+  extension_manifest[$id]=$extension_dir/manifest.json
+done
+[[ $(jq '.ExtensionSettings | length' "$crx_policy") == "$(ls "$ROOT"/default/chromium/extensions | wc -l)" ]] ||
+  fail "Chrome's policy installs only the bundled extensions"
+pass "each bundled extension ships as a current CRX that Chrome's policy installs"
+
 # --- Native messaging hosts ---
 
 # Each host admits exactly the bundled extensions whose scripts message it, and
@@ -99,6 +138,44 @@ for template in "$ROOT"/default/chromium/native-messaging-hosts/*.json; do
   done
 done
 pass "a fresh install registers every native messaging host for Chromium and Brave Origin"
+
+# Switching to a browser repairs its copies of the bundled extensions: the
+# flags file gains the extensions it lacks without losing the user's own flags
+# and extensions, and its native hosts admit the current ids.
+home="$test_tmp/repair-home"
+flags_file=$home/.config/brave-origin-flags.conf
+mkdir -p "$home/.config"
+printf -- '--force-dark-mode\n--load-extension=/home/me/my-extension,/usr/share/omarchy/default/chromium/extensions/copy-url --ozone-platform=wayland' >"$flags_file"
+repair() {
+  HOME="$home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-install-browser-extensions" "$@"
+}
+if repair --check brave-origin; then
+  fail "a browser missing bundled extensions is reported stale"
+fi
+repair brave-origin || fail "a browser's bundled extensions can be repaired without root"
+repair --check brave-origin || fail "a repaired browser's bundled extensions are reported current"
+grep -Fxq -- '--force-dark-mode' "$flags_file" || fail "the repair keeps the user's own flags"
+[[ $(grep -c -- '--load-extension=' "$flags_file") == 1 ]] || fail "the repair keeps a single --load-extension switch"
+[[ $(grep -o -- '--ozone-platform=[^[:space:]]*' "$flags_file") == "--ozone-platform=wayland" ]] ||
+  fail "the repair leaves other switches on the --load-extension line alone" "$(<"$flags_file")"
+loaded=$(grep -o -- '--load-extension=[^[:space:]]*' "$flags_file" | sed 's/^--load-extension=//' | tr ',' '\n')
+grep -Fxq /home/me/my-extension <<<"$loaded" || fail "the repair keeps the user's own extensions"
+while read -r extension; do
+  [[ $(grep -cFx -- "$extension" <<<"$loaded") == 1 ]] || fail "the repair loads $extension exactly once"
+done < <(sed -n 's/^--load-extension=//p' "$ROOT/config/chromium-flags.conf" | tr ',' '\n')
+
+# A switch inside a trailing comment loads nothing, so it is stale and the
+# repair adds a live switch rather than extending the comment.
+printf -- '--force-dark-mode # --load-extension=/old\n' >"$flags_file"
+if repair --check brave-origin; then
+  fail "a --load-extension switch inside a comment is reported stale"
+fi
+repair brave-origin || fail "a commented-out --load-extension switch can be repaired"
+[[ $(head -n1 "$flags_file") == "--force-dark-mode # --load-extension=/old" ]] ||
+  fail "the repair leaves the comment alone" "$(<"$flags_file")"
+[[ $(sed -n 2p "$flags_file") == "--load-extension=$(sed -n 's/^--load-extension=//p' "$ROOT/config/chromium-flags.conf")" ]] ||
+  fail "the repair adds a live --load-extension switch" "$(<"$flags_file")"
+pass "switching to a browser repairs the bundled extensions it lacks and keeps the user's own"
 
 # --- WhatsApp Slim ---
 

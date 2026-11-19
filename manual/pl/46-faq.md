@@ -1,8 +1,8 @@
-# Często zadawane pytania
+# FAQ
 
 ### Jak przełączać się między układami klawiatury?
 
-Wyedytuj plik `~/.config/hypr/input.lua` i dodaj to, aby przełączać się między układami skrótem `Left Alt + Right Alt`:
+Edytuj plik `~/.config/hypr/input.lua` i dodaj to, aby przełączać się między układami za pomocą `Left Alt + Right Alt`:
 
 ```
 hl.config({
@@ -14,72 +14,68 @@ hl.config({
 })
 ```
 
-Pasek będzie automatycznie pokazywał twój bieżący układ klawiatury, gdy tylko skonfigurujesz wiele układów (i możesz też go kliknąć, aby się przełączyć).
+Pasek automatycznie pokaże Twój bieżący układ klawiatury, gdy tylko skonfigurujesz wiele układów (i możesz też kliknąć go, aby się przełączyć).
 
 ### Jak zmienić format zegara na 12-godzinny?
 
-Kliknij zegar na pasku prawym przyciskiem myszy, aby przełączać się między typowymi formatami, w tym 12-godzinnymi. Możesz też ustawić format wprost:
+Kliknij zegar na pasku prawym przyciskiem myszy, aby przechodzić między popularnymi formatami, w tym 12-godzinnymi. Możesz też ustawić format bezpośrednio:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-Wyświetli to Sunday 10:55 AM.
+Wyświetli to Niedziela 10:55 AM.
 
-### Jak zmienić strefę czasową?
+### Jak zmienić moją strefę czasową?
 
-Uruchom _Aktualizuj > Strefa czasowa_ w menu Omarchy i wybierz z listy. Jeśli strefa czasowa jest dobra, ale sam zegar się rozregulował, _Aktualizuj > Czas_ zrestartuje za ciebie synchronizację czasu.
+Uruchom _Aktualizacja > Strefa czasowa_ w menu Omarchy i wybierz z listy. Jeśli strefa czasowa jest prawidłowa, ale sam zegar się rozjechał, _Aktualizacja > Czas_ uruchomi dla Ciebie ponownie synchronizację czasu.
 
-### Jak zmienić DNS, udostępnić Wi-Fi albo sprawdzić prędkość połączenia?
+### Jak zmienić mój DNS, udostępnić moje Wi-Fi lub sprawdzić prędkość mojego połączenia?
 
-Wszystko to mieszka w rozdziale [o sieci](35-networking.md).
+To wszystko znajduje się w [sieci](35-networking.md).
 
 ### Jak sprawdzić, jak szybki jest mój dysk?
 
-_Akcje > Test prędkości > Test prędkości dysku_ mierzy bieżącą prędkość odczytu i zapisu na twoim dysku, albo `omarchy disk speedtest` z terminala.
-
-### Dlaczego nie mogę zalogować się na konto Google w Chromium?
-
-Zwykła, otwarta kompilacja Chromium nie dostarcza danych uwierzytelniających OAuth, których Google wymaga do logowania na konto. Uruchom _Instaluj > Usługa > Konto Chromium_ w menu Omarchy, aby je dodać, zrestartuj przeglądarkę i logowanie przejdzie.
+_Wyzwalacz > Test prędkości > Test prędkości dysku_ mierzy na żywo prędkość odczytu i zapisu na Twoim dysku, albo `omarchy disk speedtest` z terminala.
 
 ### Jak dodać drukarkę?
 
-Drukowanie jest skonfigurowane i działa od razu po zainstalowaniu, a każdą drukarkę dodajesz sam w _Print Settings_ w programie uruchamiającym aplikacje (`Super + Space`).
+Drukowanie jest skonfigurowane i działa od razu po instalacji, a każdą drukarkę dodajesz samodzielnie z _Ustawienia drukowania_ w programie uruchamiającym aplikacje (`Super + Space`).
 
-Wybierz _Add_ i daj mu chwilę na szukanie: drukarka podłączona przez USB oraz większość drukarek sieciowych zostanie znaleziona za ciebie. Jeśli twojej nie ma na liście, wybierz _Network Printer > Internet Printing Protocol (ipp)_ i wprowadź jej adres — wyświetlacz samej drukarki albo jej strona webowa powie ci, jaki to jest, zwykle coś w rodzaju `192.168.1.50` z kolejką `ipp/print`. _Forward_ zaproponuje potem sterownik; nowoczesna drukarka działa najlepiej na bezsterownikowym profilu _IPP Everywhere_, a starsza chce własnego sterownika modelu.
+Wybierz _Dodaj_ i daj mu chwilę na wyszukanie: drukarka podłączona przez USB oraz większość drukarek sieciowych zostaną znalezione za Ciebie. Jeśli Twojej nie ma na liście, wybierz _Drukarka sieciowa > Internet Printing Protocol (ipp)_ i wpisz jej adres — własny wyświetlacz drukarki lub jej strona internetowa powie Ci, jaki to adres, zwykle coś w rodzaju `192.168.1.50` z kolejką `ipp/print`. _Dalej_ zaproponuje następnie sterownik, przy czym nowoczesna drukarka działa najlepiej na bezsterownikowym profilu _IPP Everywhere_, a starsza chce własnego sterownika modelu.
 
-Kliknij drukarkę prawym przyciskiem myszy i wybierz _Set as Default_, aby wybrać, po którą aplikacje sięgają najpierw, oraz _Properties_, aby ustawić rozmiar papieru, druk dwustronny i jakość.
+Kliknij drukarkę prawym przyciskiem myszy i wybierz _Ustaw jako domyślną_, aby wybrać, po którą Twoje aplikacje sięgają najpierw, oraz _Właściwości_, aby ustawić rozmiar papieru, druk dwustronny i jakość.
 
-Automatyczne wykrywanie, w którym drukarki w sieci pojawiają się bez dodawania, jest tymczasowo wyłączone na czas jego przebudowy, dlatego pierwszy krok powyżej należy do ciebie, a nie dzieje się automatycznie. Drukowanie do pliku PDF działa bez żadnej drukarki.
+Automatyczne wykrywanie, w którym drukarki w sieci pojawiają się bez dodawania, jest tymczasowo wyłączone na czas jego przebudowy, dlatego pierwszy krok powyżej należy do Ciebie, a nie dzieje się automatycznie. Drukowanie do pliku PDF działa w ogóle bez żadnej drukarki.
 
-### Jak zmienić miejsce zapisywania zrzutów ekranu albo nagrań ekranu?
+### Jak zmienić miejsce zapisywania zrzutów ekranu lub nagrań ekranu?
 
-Zapisywane zrzuty ekranu trafiają domyślnie do `~/Pictures/Screenshots`. Aby użyć innego katalogu, dodaj to do pliku w `~/.config/uwsm/env.d/` (np. `~/.config/uwsm/env.d/capture`):
+Zapisane zrzuty ekranu trafiają domyślnie do `~/Pictures/Screenshots`. Aby użyć innego katalogu, dodaj to do pliku w `~/.config/uwsm/env.d/` (na przykład `~/.config/uwsm/env.d/capture`):
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-To samo możesz zrobić dla nagrań ekranu, używając `OMARCHY_SCREENRECORD_DIR`.
+Możesz zrobić to samo dla nagrań ekranu, używając `OMARCHY_SCREENRECORD_DIR`.
 
-Omasnap tworzy swój katalog zrzutów ekranu automatycznie. Katalog nagrań ekranu utwórz sam, a potem zrestartuj Omarchy, aby którakolwiek zmiana środowiska zaczęła obowiązywać.
+Omasnap tworzy swój katalog zrzutów ekranu automatycznie. Katalog nagrań ekranu utwórz samodzielnie, a następnie uruchom ponownie Omarchy, aby dowolna zmiana środowiska weszła w życie.
 
-### Jak sprawić, by głośniki i kamera internetowa działały na moim Apple Studio Display?
+### Jak sprawić, by głośniki + kamera internetowa działały na moim Apple Studio Display?
 
-Można by pomyśleć, że wszystko powinno działać po samym podłączeniu USB C, ale niestety tak nie jest. Rozwiązaniem, które u mnie działa niezawodnie, jest użycie [kabla WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Wtedy głośniki i kamera internetowa działają jak marzenie.
+Można by pomyśleć, że wszystko powinno działać po prostu po podłączeniu USB C, ale niestety tak nie jest. Rozwiązaniem, które znalazłem, aby działało to niezawodnie, jest użycie [kabla WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Wtedy głośniki i kamera internetowa działają jak marzenie.
 
-Pamiętaj, że masz wbudowaną w Omarchy regulację jasności dla wyświetlaczy Apple (zarówno Studio, jak i XDR) zwykłymi klawiszami jasności na klawiaturze.
+Pamiętaj, że w Omarchy masz wbudowaną regulację jasności dla monitorów Apple (zarówno Studio, jak i XDR) za pomocą zwykłych klawiszy jasności na klawiaturze.
 
 ### Jak pozbyć się całego dodatkowego oprogramowania?
 
-Jeśli nie chcesz programów takich jak Obsidian, LibreOffice ani żadnej innej preinstalowanej rzeczy, możesz je bardzo łatwo usunąć.
+Jeśli nie chcesz programów takich jak Obsidian czy LibreOffice ani żadnego innego preinstalowanego oprogramowania, możesz je bardzo łatwo usunąć.
 
-Uruchom _Usuń > Pakiet_, aby zobaczyć każdy zainstalowany pakiet. Potem możesz klawiszem Tab zaznaczać pakiety, które chcesz usunąć, i rozpocząć usuwanie wszystkiego, co zaznaczyłeś, klawiszem Return.
+Uruchom _Usuń > Pakiet_, aby zobaczyć każdy zainstalowany pakiet. Następnie możesz wybrać za pomocą tab dowolny pakiet, który chcesz usunąć, i rozpocząć usuwanie wszystkiego, co wybrałeś, za pomocą return.
 
-Możesz też użyć _Usuń > Aplikacja webowa_ z menu Omarchy, aby usunąć preinstalowane aplikacje webowe, których nie chcesz.
+A możesz użyć _Usuń > Aplikacja internetowa_ z menu Omarchy, aby usunąć dowolne preinstalowane aplikacje internetowe, których nie chcesz.
 
-Albo uruchom _Usuń > Preinstalowane_, aby jednym ruchem wymieść wszystkie preinstalowane dodatki — aplikacje webowe, aplikacje TUI i aplikacje opcjonalne. Skróty, które je uruchamiały, znikają razem z nimi, więc zostaje ci czysta karta skrótów, które możesz wypełnić własnymi w `~/.config/hypr/bindings.lua`.
+Albo uruchom _Usuń > Preinstalowane_, aby za jednym razem wymieść wszystkie preinstalowane dodatki — aplikacje internetowe, TUI i opcjonalne aplikacje. Skróty klawiszowe, które je uruchamiały, znikają wraz z nimi, więc zostaje Ci czysta karta powiązań do wypełnienia własnymi w `~/.config/hypr/bindings.lua`.
 
 ---
 
-W przypadku błędów i zepsutych rzeczy zobacz [sekcję Rozwiązywanie problemów](45-troubleshooting.md).
+W sprawie błędów i zepsutych rzeczy zobacz [sekcję Rozwiązywanie problemów](45-troubleshooting.md).

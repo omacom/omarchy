@@ -1,6 +1,7 @@
 {
   "Activity": "Activitat",
   "Agent": "Agent",
+  "Agents": "Agents",
   "Apps": "Aplicacions",
   "Audio": "Àudio",
   "Background switcher": "Selector de fons",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "Posa la finestra activa al davant",
   "Save window width": "Desa l'amplada de la finestra",
   "Screenrecording": "Enregistrament de pantalla",
+  "Screenrecording with no audio": "Gravació de pantalla sense àudio",
   "Screenshot": "Captura de pantalla",
   "Scroll active workspace backward": "Desplaçar espai de treball actiu enrere",
   "Scroll active workspace forward": "Desplaçar espai de treball actiu endavant",
