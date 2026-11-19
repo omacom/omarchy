@@ -714,8 +714,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.reset": {
-    "label": "Reset Computer"
+  "remove.factory-reset": {
+    "label": "Factory Reset"
   },
   "install.package": {
     "label": "Package"

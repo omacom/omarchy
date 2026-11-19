@@ -565,7 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Endurstilla tölvu"
   },
   "install.package": {
