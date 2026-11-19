@@ -198,6 +198,15 @@ assertDeepEqual(localActions({ host: 'away', recipe: 'm', unit: 'inactive', pair
 // A model paired from the panel that is still starting on its host has no
 // terminal yet: the cursor waits for one rather than giving up.
 const modelId = new Function(panel.match(/function modelId\([^]*?\n  \}/)[0] + '\nreturn modelId')()
+// Opening an error's logs dismisses it: the engine forgets a model's failure after printing it, and a failed pairing, which lives in the panel, is forgotten there.
+const showLocalLogs = new Function('Util', 'usage', 'root', 'pairFailure', 'modelId', panel.match(/function showLocalLogs\([^]*?\n  \}/)[0] + '\nreturn showLocalLogs')
+const logRuns = [], dismissedPairs = []
+const logsOf = (failure) => showLocalLogs({ shellQuote: (text) => "'" + text + "'", execArgv: (argv) => logRuns.push(argv[1]) }, { dismissPairFailure: (id) => dismissedPairs.push(id) }, { close() {} }, () => failure, modelId)
+logsOf(null)({ recipe: 'm', unit: 'failed', error: 'Stopped unexpectedly' })
+assertEqual(logRuns[0], "omarchy-agent-local logs 'm'; logs=$?; omarchy-agent-local dismiss 'm' >/dev/null 2>&1; (exit $logs)", 'a model\'s logs print its failure before it is dismissed, and keep their own status')
+assertDeepEqual(dismissedPairs, [], 'a model\'s failure is the engine\'s to forget')
+logsOf({ output: 'refused' })({ host: 'box', recipe: 'm', unit: 'inactive' })
+assertDeepEqual(dismissedPairs, ['box/m'], 'a failed pairing is forgotten once its output has been opened')
 // An image model's launch opens Fantasi on it, here or on a paired host; a text model's starts an agent.
 const makesInFantasi = new Function(panel.match(/function makesInFantasi\([^]*?\n  \}/)[0] + '\nreturn makesInFantasi')()
 const runLocalAction = new Function('Util', 'modelId', 'root', 'makesInFantasi', panel.match(/function runLocalAction\([^]*?\n  \}/)[0] + '\nreturn runLocalAction')

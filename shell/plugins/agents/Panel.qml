@@ -83,9 +83,15 @@ Panel {
     // A pairing's output is all there is of it, and so is that of a setup
     // that failed before its download began, so the terminal shows that
     // again and closes as failed, the way a pairing in a terminal ended.
+    // An error that has been read leaves the model's line. The engine forgets
+    // a model's failure after its logs have printed it, keeping their status
+    // for the terminal's last line; an engine without dismiss changes nothing.
+    var recipe = Util.shellQuote(String(model.recipe))
     var command = failure ? "printf %s " + Util.shellQuote(String(failure.output)) + "; false"
-      : "omarchy-agent-local logs " + Util.shellQuote(String(model.recipe))
+      : "omarchy-agent-local logs " + recipe + "; logs=$?; omarchy-agent-local dismiss " + recipe + " >/dev/null 2>&1; (exit $logs)"
     Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", command])
+    // A failed pairing lives only here.
+    if (failure && !model.panelSetup) usage.dismissPairFailure(modelId(model))
     root.close()
   }
 
