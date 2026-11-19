@@ -123,6 +123,7 @@ assertDeepEqual(dock.clickAction('', focusAt(pair, 1), 4, true), { action: 'mini
 assertDeepEqual(dock.clickAction('new', focusAt([foot[2]], 0), 4, true), { action: 'launch', index: -1 }, 'a click on an app that asks for new windows opens another rather than minimizing')
 assertDeepEqual(dock.clickAction('', foot, 4, true), { action: 'focus', index: 2 }, 'a click on an app out of focus brings it forward')
 assertDeepEqual(dock.clickAction('', [], 4, true), { action: 'launch', index: -1 }, 'a click on an app that is not running starts it')
+assertDeepEqual(dock.clickAction('', focusAt(foot, 0), 4, true), { action: 'focus', index: 2 }, 'a click from another screen brings the window there forward rather than minimizing the one in focus elsewhere')
 assertDeepEqual(dock.clickAction('', focusAt([foot[2]], 0), 4, false), { action: 'focus', index: 0 }, 'without click to minimize, a click on the app in focus leaves it up')
 assertEqual(dock.pickClickWindow('', foot, 3), 1, 'a click on a running app brings a window forward')
 assertEqual(dock.pickClickWindow('new', foot, 4), 1, 'a click on an app that asks for new windows restores a minimized one first')

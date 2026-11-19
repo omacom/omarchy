@@ -222,10 +222,12 @@ function clickAction(mode, windows, workspaceId, minimizes) {
     if (list[i].activated && !list[i].minimized) focused = i
   }
 
-  if (minimizes && focused >= 0 && mode !== "new") {
+  // Only a window on the dock's own workspace is put away: the dock takes no
+  // keyboard focus, so the app can be in focus on another screen's workspace.
+  if (minimizes && focused >= 0 && mode !== "new" && list[focused].workspaceId === workspaceId) {
     var last = -1
     for (var j = 0; j < list.length; j++) {
-      if (!list[j].minimized && list[j].workspaceId === list[focused].workspaceId) last = j
+      if (!list[j].minimized && list[j].workspaceId === workspaceId) last = j
     }
     if (last === focused) return { action: "minimize", index: focused }
   }
