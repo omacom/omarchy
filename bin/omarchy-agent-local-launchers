@@ -6,7 +6,7 @@
 # A model set up on this machine gets a launcher beside Agent, as signing in to
 # Claude, Codex or Grok adds one: its name, its vendor's logo, and an agent
 # opened on it, in the default agent where that can take a local model and in
-# pi or OpenCode where it can't. An image model's opens Fantasi on it instead,
+# pi or OpenCode where it can't. An image, video or music model's opens Fantasi on it instead,
 # since no agent runs on one. Removing the model takes the launcher away.
 #
 # This makes the launchers match the models set up right now, so it is safe to
@@ -90,12 +90,17 @@ for model in "${models[@]}"; do
     icons[$icon.svg]=1
   fi
 
-  if [[ $kind == "image" ]]; then
+  if [[ $kind == "image" || $kind == "video" || $kind == "music" ]]; then
+    case $kind in
+      video) made="videos" ;;
+      music) made="music" ;;
+      *) made="images" ;;
+    esac
     cat >"$APPLICATIONS/$entry.tmp" <<ENTRY
 [Desktop Entry]
 Version=1.0
 Name=$name
-Comment=Make images with $name in Fantasi, running on this machine
+Comment=Make $made with $name in Fantasi, running on this machine
 Exec=fantasi open --model $recipe
 Icon=$icon
 StartupWMClass=fantasi

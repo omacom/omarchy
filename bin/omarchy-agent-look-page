@@ -10,7 +10,7 @@
 # running. The page runs in real time on the GPU, so a game plays as it would
 # for a player: --keys presses each key once a page has loaded, and --after
 # waits that long before the screenshot. --theme passes a theme's palette in
-# the URL fragment, as omarchy-games-launch does, so a game from the web-game
+# the URL fragment, as omarchy-games-vibes-launch does, so a game from the web-game
 # template shows in that theme. Prints the screenshot's path and exits 1 when
 # the page logged errors.
 
@@ -56,12 +56,10 @@ if [[ -n $theme ]]; then
     echo "No theme $theme with a colors.toml" >&2
     exit 2
   fi
-  if [[ $url == *"#"* ]]; then
-    url+="&"
-  else
-    url+="#"
-  fi
-  url+="palette=$(omarchy-theme-color --file "$colors" --all | jq -Rrn '[inputs | split("\t") | {(.[0]): .[1]}] | add | tojson | @uri')"
+  # In place of a palette the address already has, which the page would read first.
+  fragment=""
+  [[ $url == *"#"* ]] && fragment=$(sed -E 's/(^|&)palette=[^&]*//g; s/^&//' <<<"${url#*#}")
+  url="${url%%#*}#${fragment:+$fragment&}palette=$(omarchy-theme-color --file "$colors" --all | jq -Rrn '[inputs | split("\t") | {(.[0]): .[1]}] | add | tojson | @uri')"
 fi
 
 # Playwright is a mise tool installed on first use, with Node before it.
