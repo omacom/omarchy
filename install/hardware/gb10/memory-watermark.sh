@@ -13,4 +13,11 @@ if omarchy-hw-aarch64-gb10; then
 # install/hardware/gb10/memory-watermark.sh.
 vm.watermark_scale_factor=10
 CONF
+
+  # An image's first boot runs this after systemd-sysctl has applied Omarchy's
+  # setting, and its migration is already marked done, so apply it now. Only
+  # there, as in install/hardware/qualcomm/powerprofiles-floor.sh.
+  if [[ ${OMARCHY_IMAGE_DEFERRED_HARDWARE:-} == "1" ]]; then
+    sysctl -q -p "$sysctl_dir/zz-omarchy-gb10-memory.conf" || true
+  fi
 fi
