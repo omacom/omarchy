@@ -114,6 +114,7 @@ Use these instead of raw shell commands:
 - `omarchy-pkg-drop` - remove packages; use this instead of raw `pacman -R*`
 - `omarchy-notification-send` - send desktop notifications; do not call `notify-send` directly
 - `omarchy-hw-asus-rog` - detect ASUS ROG hardware (and similar `hw-*` commands)
+- `omarchy dev pr audit` - audit open pull requests for mergeability, test status, and Greptile AI review scores (supports `--json`, `--conflicts-only`, `--failing-only`, `--missing-tests-only`)
 
 Commands installed by Omarchy's default package set are runtime invariants. Invoke them directly; do not add defensive `omarchy-cmd-present` / `omarchy-cmd-missing` checks around them. Use command-presence helpers only for genuinely optional dependencies or code that can run before the default package set is installed.
 
