@@ -21,11 +21,10 @@ done)
 
 if [[ -n $current ]]; then
   echo "$current"
-  exit
+else
+  # The installed logo may come from a custom file or a theme with no
+  # preview-unlock.png, so no comparison above matches. The installed
+  # splash is still the Plymouth theme named in plymouthd.conf.
+  theme=$(sed -n 's/^Theme=//p' /etc/plymouth/plymouthd.conf 2>/dev/null)
+  echo "${theme:-omarchy}"
 fi
-
-# The installed logo may come from a custom file or a theme with no
-# preview-unlock.png, so no comparison above matches. The installed
-# splash is still the Plymouth theme named in plymouthd.conf.
-theme=$(sed -n 's/^Theme=//p' /etc/plymouth/plymouthd.conf 2>/dev/null)
-echo "${theme:-omarchy}"
