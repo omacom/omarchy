@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Masukan"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Bahasa"
+  },
+  "setup.region.timezone": {
+    "label": "Zona Waktu"
   },
   "setup.network": {
     "label": "Jaringan"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Kata Sandi"
-  },
-  "update.timezone": {
-    "label": "Zona Waktu"
   },
   "update.time": {
     "label": "Waktu"

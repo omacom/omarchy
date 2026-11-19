@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Input"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Sprog"
+  },
+  "setup.region.timezone": {
+    "label": "Tidszone"
   },
   "setup.network": {
     "label": "Netværk"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Adgangskode"
-  },
-  "update.timezone": {
-    "label": "Tidszone"
   },
   "update.time": {
     "label": "Tid"

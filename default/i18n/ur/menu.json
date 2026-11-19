@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "ان پٹ"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "زبان"
+  },
+  "setup.region.timezone": {
+    "label": "ٹائم زون"
   },
   "setup.network": {
     "label": "نیٹ ورک"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "پاس ورڈ"
-  },
-  "update.timezone": {
-    "label": "ٹائم زون"
   },
   "update.time": {
     "label": "وقت"

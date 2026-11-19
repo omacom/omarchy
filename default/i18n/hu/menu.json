@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Bevitel"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Nyelv"
+  },
+  "setup.region.timezone": {
+    "label": "Időzóna"
   },
   "setup.network": {
     "label": "Hálózat"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Jelszó"
-  },
-  "update.timezone": {
-    "label": "Időzóna"
   },
   "update.time": {
     "label": "Idő"

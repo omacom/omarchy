@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Введення"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Мова"
+  },
+  "setup.region.timezone": {
+    "label": "Часовий пояс"
   },
   "setup.network": {
     "label": "Мережа"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Пароль"
-  },
-  "update.timezone": {
-    "label": "Часовий пояс"
   },
   "update.time": {
     "label": "Час"

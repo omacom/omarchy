@@ -469,8 +469,18 @@
   "setup.input": {
     "label": "Input"
   },
-  "setup.language": {
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.language": {
     "label": "Language"
+  },
+  "setup.region.formats": {
+    "label": "Formats",
+    "description": "How dates, times, numbers and units are written"
+  },
+  "setup.region.timezone": {
+    "label": "Timezone"
   },
   "setup.network": {
     "label": "Network"
@@ -1277,9 +1287,6 @@
   },
   "update.password": {
     "label": "Password"
-  },
-  "update.timezone": {
-    "label": "Timezone"
   },
   "update.time": {
     "label": "Time"

@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Input"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Bahasa"
+  },
+  "setup.region.timezone": {
+    "label": "Zon Masa"
   },
   "setup.network": {
     "label": "Rangkaian"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Kata Laluan"
-  },
-  "update.timezone": {
-    "label": "Zon Masa"
   },
   "update.time": {
     "label": "Masa"

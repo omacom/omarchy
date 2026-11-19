@@ -140,12 +140,18 @@ Item {
   // Kept until the model is paired again or the shell restarts.
   property var pairFailures: ({})
 
-  function pair(model) {
-    if (pairProcess.running) return
-    var id = model.host + "/" + model.recipe
+  // Forgotten once its output has been read, or when pairing is tried again.
+  function dismissPairFailure(id) {
+    if (!pairFailures[id]) return
     var failures = Object.assign({}, pairFailures)
     delete failures[id]
     pairFailures = failures
+  }
+
+  function pair(model) {
+    if (pairProcess.running) return
+    var id = model.host + "/" + model.recipe
+    dismissPairFailure(id)
     pairingId = id
     // A host already paired for another model is found by its tailnet name
     // too, and connects this one with no SSH.

@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Eingabe"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Sprache"
+  },
+  "setup.region.timezone": {
+    "label": "Zeitzone"
   },
   "setup.network": {
     "label": "Netzwerk"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Passwort"
-  },
-  "update.timezone": {
-    "label": "Zeitzone"
   },
   "update.time": {
     "label": "Zeit"

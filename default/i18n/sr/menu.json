@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Унос"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Језик"
+  },
+  "setup.region.timezone": {
+    "label": "Временска зона"
   },
   "setup.network": {
     "label": "Мрежа"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Лозинка"
-  },
-  "update.timezone": {
-    "label": "Временска зона"
   },
   "update.time": {
     "label": "Време"

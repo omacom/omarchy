@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Įvestis"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Kalba"
+  },
+  "setup.region.timezone": {
+    "label": "Laiko juosta"
   },
   "setup.network": {
     "label": "Tinklas"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Slaptažodis"
-  },
-  "update.timezone": {
-    "label": "Laiko juosta"
   },
   "update.time": {
     "label": "Laikas"

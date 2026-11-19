@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Kiritish"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Til"
+  },
+  "setup.region.timezone": {
+    "label": "Vaqt mintaqasi"
   },
   "setup.network": {
     "label": "Tarmoq"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Parol"
-  },
-  "update.timezone": {
-    "label": "Vaqt mintaqasi"
   },
   "update.time": {
     "label": "Vaqt"

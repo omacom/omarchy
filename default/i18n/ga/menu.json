@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Ionchur"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Teanga"
+  },
+  "setup.region.timezone": {
+    "label": "Crios ama"
   },
   "setup.network": {
     "label": "Líonra"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Pasfhocal"
-  },
-  "update.timezone": {
-    "label": "Crios ama"
   },
   "update.time": {
     "label": "Am"

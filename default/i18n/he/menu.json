@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "קלט"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "שפה"
+  },
+  "setup.region.timezone": {
+    "label": "אזור זמן"
   },
   "setup.network": {
     "label": "רשת"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "סיסמה"
-  },
-  "update.timezone": {
-    "label": "אזור זמן"
   },
   "update.time": {
     "label": "שעה"

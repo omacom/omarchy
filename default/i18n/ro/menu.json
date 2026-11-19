@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Intrare"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Limbă"
+  },
+  "setup.region.timezone": {
+    "label": "Fus orar"
   },
   "setup.network": {
     "label": "Rețea"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "Parolă"
-  },
-  "update.timezone": {
-    "label": "Fus orar"
   },
   "update.time": {
     "label": "Ora"

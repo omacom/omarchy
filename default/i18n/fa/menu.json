@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "ورودی"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "زبان"
+  },
+  "setup.region.timezone": {
+    "label": "منطقه زمانی"
   },
   "setup.network": {
     "label": "شبکه"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "گذرواژه"
-  },
-  "update.timezone": {
-    "label": "منطقه زمانی"
   },
   "update.time": {
     "label": "زمان"

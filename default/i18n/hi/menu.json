@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "इनपुट"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "भाषा"
+  },
+  "setup.region.timezone": {
+    "label": "समय क्षेत्र"
   },
   "setup.network": {
     "label": "नेटवर्क"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "पासवर्ड"
-  },
-  "update.timezone": {
-    "label": "समय क्षेत्र"
   },
   "update.time": {
     "label": "समय"

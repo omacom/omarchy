@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "الإدخال"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "اللغة"
+  },
+  "setup.region.timezone": {
+    "label": "المنطقة الزمنية"
   },
   "setup.network": {
     "label": "الشبكة"
@@ -1077,9 +1080,6 @@
   },
   "update.password": {
     "label": "كلمة المرور"
-  },
-  "update.timezone": {
-    "label": "المنطقة الزمنية"
   },
   "update.time": {
     "label": "الوقت"
