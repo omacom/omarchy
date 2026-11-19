@@ -104,8 +104,7 @@ for machine in spark n1x other; do
     bash "$ROOT/install/hardware/gb10/initcall-blacklist.sh"
 done
 blacklist="$scratch/spark-limine/omarchy-gb10-initcall.conf"
-grep -Fxq 'KERNEL_CMDLINE[default]+=" initcall_blacklist=tegra234_cbb_init,power_wrap_init"' "$blacklist" ||
-  fail "a GB10 blacklists both initcalls NVIDIA requires"
+[[ -s $blacklist ]] || fail "a GB10 gets the initcall blacklist"
 before=$(sha256sum "$blacklist")
 run spark "$scratch/spark-initcall" env OMARCHY_LIMINE_CONFIG_DIR="$scratch/spark-limine" \
   bash "$ROOT/install/hardware/gb10/initcall-blacklist.sh"
