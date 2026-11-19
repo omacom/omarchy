@@ -10,7 +10,7 @@ def plural_category($code; $count):
   | if ["ja", "ko", "zh-CN", "zh-TW", "th", "vi", "id", "ms"] | index([$code]) then "other"
     elif ["hi", "bn", "fa", "si"] | index([$code]) then (if $n <= 1 then "one" else "other" end)
     elif ["fr", "pt-BR"] | index([$code]) then (if $n <= 1 then "one" elif $millions then "many" else "other" end)
-    elif ["ca", "es-MX", "it", "pt"] | index([$code]) then (if $n == 1 then "one" elif $millions then "many" else "other" end)
+    elif ["ca", "es-ES", "es-MX", "it", "pt"] | index([$code]) then (if $n == 1 then "one" elif $millions then "many" else "other" end)
     elif $code == "fil" then (if $n10 == 4 or $n10 == 6 or $n10 == 9 then "other" else "one" end)
     elif $code == "is" then (if $n10 == 1 and $n100 != 11 then "one" else "other" end)
     elif ["cs", "sk"] | index([$code]) then (if $n == 1 then "one" elif $n >= 2 and $n <= 4 then "few" else "other" end)
