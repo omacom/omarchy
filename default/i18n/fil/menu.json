@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "I-reset ang Computer"
+    "label": "Ibalik sa Orihinal"
   },
   "install.package": {
     "label": "Pakete"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "I-reboot sa BIOS",
     "description": "Mag-restart sa UEFI firmware setup"
+  },
+  "setup.region": {
+    "label": "Rehiyon"
+  },
+  "setup.region.formats": {
+    "label": "Mga Format",
+    "description": "Paano isinusulat ang mga petsa, oras, numero, at yunit"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "Gumawa ng laro"
   }
 }

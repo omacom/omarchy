@@ -22,6 +22,7 @@
   "agents.freeResetsExpires": {
     "other": "%1 tetapan semula percuma · seterusnya luput dalam %2"
   },
+  "agents.game": "Permainan",
   "agents.helpFireworksSignIn": "Tetapkan %1, jalankan %2, atau log masuk ke Fireworks dalam pi atau opencode.",
   "agents.helpNotInPath": "%1 tidak ditemui dalam PATH",
   "agents.helpRunToAuthenticate": "Jalankan %1 untuk pengesahan.",
@@ -31,6 +32,10 @@
   "agents.helpStartOrRunToSignIn": "Mulakan %1, atau jalankan %2, untuk log masuk.",
   "agents.helpStartToSeeLimits": "Mulakan %1 untuk melihat hadnya; tidak perlu log masuk semula.",
   "agents.hideProviderConfirm": "Sembunyikan %1 daripada panel? Kelayakan dan log masuk akan dikekalkan.",
+  "agents.kindImage": "imej",
+  "agents.kindMusic": "muzik",
+  "agents.kindText": "teks",
+  "agents.kindVideo": "video",
   "agents.lastUpdatedAgo": "Terakhir dikemas kini %1 lalu",
   "agents.lastUpdatedJustNow": "Terakhir dikemas kini kurang daripada seminit lalu",
   "agents.lastUpdatedUnknown": "Masa kemas kini terakhir tidak tersedia",
@@ -55,6 +60,7 @@
   "agents.localLaunch": "Lancarkan ejen",
   "agents.localLoadingMeter": "Memuatkan",
   "agents.localMemoryFact": "%1 GiB Memori",
+  "agents.localNeedsRam": "Memerlukan %1 GB RAM",
   "agents.localNotEnoughMemory": "Memori tidak mencukupi",
   "agents.localRecommended": "disyorkan",
   "agents.localRemoveConfirm": "Hentikan %1 dan padam pemberat yang dimuat turun?",
@@ -65,6 +71,7 @@
   "agents.localStart": "Mulakan",
   "agents.localStop": "Hentikan",
   "agents.localStoppingMeter": "Menghentikan",
+  "agents.localUsingRam": "Menggunakan %1 GB RAM",
   "agents.loginBrowser": "Log masuk melalui penyemak imbas anda",
   "agents.makeSomethingCool": "BUAT SESUATU YANG HEBAT",
   "agents.merged": {
@@ -95,6 +102,7 @@
     "other": "Dikongsi dengan %1 pengguna · hentikan perkongsian"
   },
   "agents.networkStopSharing": "Dikongsi pada tailnet anda · berhenti berkongsi",
+  "agents.openFantasi": "Buka Fantasi",
   "agents.outOfCredits": "Kehabisan kredit",
   "agents.pasteCode": "Jika halaman menunjukkan kod dan bukannya selesai, tampalkannya di sini.",
   "agents.pasteCodeLink": "Halaman memaparkan kod pula?",

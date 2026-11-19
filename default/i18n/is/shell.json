@@ -24,6 +24,7 @@
     "one": "%1 ókeypis endurstilling · næsta rennur út eftir %2",
     "other": "%1 ókeypis endurstillingar · næsta rennur út eftir %2"
   },
+  "agents.game": "Leikur",
   "agents.helpFireworksSignIn": "Stilltu %1, keyrðu %2 eða skráðu þig inn hjá Fireworks í pi eða opencode.",
   "agents.helpNotInPath": "%1 fannst ekki í PATH",
   "agents.helpRunToAuthenticate": "Keyrðu %1 til að auðkenna þig.",
@@ -33,6 +34,10 @@
   "agents.helpStartOrRunToSignIn": "Ræstu %1, eða keyrðu %2, til að skrá þig inn.",
   "agents.helpStartToSeeLimits": "Ræstu %1 til að sjá takmarkanir þess; ekki þarf að skrá sig inn aftur.",
   "agents.hideProviderConfirm": "Fela %1 á spjaldinu? Auðkenni og innskráning verða varðveitt.",
+  "agents.kindImage": "mynd",
+  "agents.kindMusic": "tónlist",
+  "agents.kindText": "texti",
+  "agents.kindVideo": "myndband",
   "agents.lastUpdatedAgo": "Síðast uppfært %1 síðan",
   "agents.lastUpdatedJustNow": "Síðast uppfært fyrir minna en mínútu síðan",
   "agents.lastUpdatedUnknown": "Síðasti uppfærslutími ekki tiltækur",
@@ -57,6 +62,7 @@
   "agents.localLaunch": "Ræsa umboðsmann",
   "agents.localLoadingMeter": "Hleður",
   "agents.localMemoryFact": "%1 GiB minni",
+  "agents.localNeedsRam": "Þarf %1 GB RAM",
   "agents.localNotEnoughMemory": "Ekki nægt minni",
   "agents.localRecommended": "mælt með",
   "agents.localRemoveConfirm": "Stöðva %1 og eyða niðurhöluðum þyngdum þess?",
@@ -67,6 +73,7 @@
   "agents.localStart": "Ræsa",
   "agents.localStop": "Stöðva",
   "agents.localStoppingMeter": "Stöðvar",
+  "agents.localUsingRam": "Notar %1 GB RAM",
   "agents.loginBrowser": "Skráðu þig inn í vafranum",
   "agents.makeSomethingCool": "GERÐU EITTHVAÐ FLOTT",
   "agents.merged": {
@@ -99,6 +106,7 @@
     "other": "Deilt með %1 notendum · hætta að deila"
   },
   "agents.networkStopSharing": "Deilt á tailnetinu þínu · hætta að deila",
+  "agents.openFantasi": "Opna Fantasi",
   "agents.outOfCredits": "Inneign búin",
   "agents.pasteCode": "Ef síðan sýnir kóða í stað þess að ljúka, límdu hann hér.",
   "agents.pasteCodeLink": "Sýnir síðan kóða í staðinn?",

@@ -24,6 +24,7 @@
     "one": "%1 libreng reset · mag-e-expire ang susunod sa %2",
     "other": "%1 libreng reset · mag-e-expire ang susunod sa %2"
   },
+  "agents.game": "Laro",
   "agents.helpFireworksSignIn": "Itakda ang %1, patakbuhin ang %2, o mag-sign in sa Fireworks sa pi o opencode.",
   "agents.helpNotInPath": "Hindi nahanap ang %1 sa PATH",
   "agents.helpRunToAuthenticate": "Patakbuhin ang %1 upang mag-authenticate.",
@@ -33,6 +34,10 @@
   "agents.helpStartOrRunToSignIn": "Simulan ang %1, o patakbuhin ang %2, upang mag-sign in.",
   "agents.helpStartToSeeLimits": "Simulan ang %1 upang makita ang mga limitasyon nito; hindi na kailangang mag-sign in muli.",
   "agents.hideProviderConfirm": "Itago ang %1 mula sa panel? Pananatilihin ang credentials at sign-in.",
+  "agents.kindImage": "larawan",
+  "agents.kindMusic": "musika",
+  "agents.kindText": "teksto",
+  "agents.kindVideo": "video",
   "agents.lastUpdatedAgo": "Huling na-update %1 ang nakalipas",
   "agents.lastUpdatedJustNow": "Huling na-update wala pang isang minuto ang nakalipas",
   "agents.lastUpdatedUnknown": "Hindi available ang oras ng huling update",
@@ -57,6 +62,7 @@
   "agents.localLaunch": "Ilunsad ang agent",
   "agents.localLoadingMeter": "Naglo-load",
   "agents.localMemoryFact": "%1 GiB na Memorya",
+  "agents.localNeedsRam": "Kailangan ng %1 GB RAM",
   "agents.localNotEnoughMemory": "Hindi sapat ang memorya",
   "agents.localRecommended": "inirerekomenda",
   "agents.localRemoveConfirm": "Itigil ang %1 at burahin ang na-download nitong weights?",
@@ -67,6 +73,7 @@
   "agents.localStart": "Simulan",
   "agents.localStop": "Itigil",
   "agents.localStoppingMeter": "Itinitigil",
+  "agents.localUsingRam": "Gumagamit ng %1 GB RAM",
   "agents.loginBrowser": "Mag-sign in sa browser mo",
   "agents.makeSomethingCool": "GUMAWA NG ASTIG",
   "agents.merged": {
@@ -99,6 +106,7 @@
     "other": "Ibinahagi sa %1 user · itigil ang pagbabahagi"
   },
   "agents.networkStopSharing": "Naibahagi sa iyong tailnet · itigil ang pagbabahagi",
+  "agents.openFantasi": "Buksan ang Fantasi",
   "agents.outOfCredits": "Wala nang credits",
   "agents.pasteCode": "Kung may ipapakitang code ang page sa halip na matapos, i-paste ito rito.",
   "agents.pasteCodeLink": "May ipinapakitang code ang page?",

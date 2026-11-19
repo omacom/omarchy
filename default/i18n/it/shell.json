@@ -26,6 +26,7 @@
     "one": "%1 reset gratuito · il prossimo scade tra %2",
     "other": "%1 reset gratuiti · il prossimo scade tra %2"
   },
+  "agents.game": "Gioco",
   "agents.helpFireworksSignIn": "Imposta %1, esegui %2, oppure accedi a Fireworks in pi o opencode.",
   "agents.helpNotInPath": "%1 non trovato in PATH",
   "agents.helpRunToAuthenticate": "Esegui %1 per autenticarti.",
@@ -35,6 +36,10 @@
   "agents.helpStartOrRunToSignIn": "Avvia %1, oppure esegui %2, per accedere.",
   "agents.helpStartToSeeLimits": "Avvia %1 per vederne i limiti; non serve accedere di nuovo.",
   "agents.hideProviderConfirm": "Nascondere %1 dal pannello? Credenziali e accesso verranno conservati.",
+  "agents.kindImage": "immagine",
+  "agents.kindMusic": "musica",
+  "agents.kindText": "testo",
+  "agents.kindVideo": "video",
   "agents.lastUpdatedAgo": "Aggiornato %1 fa",
   "agents.lastUpdatedJustNow": "Aggiornato meno di un minuto fa",
   "agents.lastUpdatedUnknown": "Orario ultimo aggiornamento non disponibile",
@@ -59,6 +64,7 @@
   "agents.localLaunch": "Avvia agente",
   "agents.localLoadingMeter": "Caricamento",
   "agents.localMemoryFact": "%1 GiB di memoria",
+  "agents.localNeedsRam": "Richiede %1 GB di RAM",
   "agents.localNotEnoughMemory": "Memoria insufficiente",
   "agents.localRecommended": "consigliato",
   "agents.localRemoveConfirm": "Fermare %1 ed eliminare i pesi scaricati?",
@@ -69,6 +75,7 @@
   "agents.localStart": "Avvia",
   "agents.localStop": "Ferma",
   "agents.localStoppingMeter": "Arresto",
+  "agents.localUsingRam": "Usa %1 GB di RAM",
   "agents.loginBrowser": "Accedi tramite il browser",
   "agents.makeSomethingCool": "CREA QUALCOSA DI BELLO",
   "agents.merged": {
@@ -103,6 +110,7 @@
     "other": "Condiviso con %1 utenti · interrompi condivisione"
   },
   "agents.networkStopSharing": "Condiviso sulla tua tailnet · interrompi condivisione",
+  "agents.openFantasi": "Apri Fantasi",
   "agents.outOfCredits": "Crediti esauriti",
   "agents.pasteCode": "Se la pagina mostra un codice invece di finire, incollalo qui.",
   "agents.pasteCodeLink": "La pagina mostra invece un codice?",

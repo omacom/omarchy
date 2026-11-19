@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Nulstil computer"
+    "label": "Fabriksnulstilling"
   },
   "install.package": {
     "label": "Pakke"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Genstart til BIOS",
     "description": "Genstart til UEFI-firmwareopsætningen"
+  },
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.formats": {
+    "label": "Formater",
+    "description": "Hvordan datoer, tidspunkter, tal og enheder skrives"
+  },
+  "install.gaming.vibes": {
+    "label": "Spilvibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Spilvibes-spil"
+  },
+  "update.games": {
+    "label": "Spilvibes-spil"
+  },
+  "agent.make.game": {
+    "label": "Lav et spil"
   }
 }

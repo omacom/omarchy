@@ -24,6 +24,7 @@
     "one": "%1 ingyenes visszaállítás · a következő %2 múlva jár le",
     "other": "%1 ingyenes visszaállítás · a következő %2 múlva jár le"
   },
+  "agents.game": "Játék",
   "agents.helpFireworksSignIn": "Állítsd be ezt: %1, futtasd ezt: %2, vagy jelentkezz be a Fireworksbe a pi-ben vagy az opencode-ban.",
   "agents.helpNotInPath": "%1 nem található a PATH-ban",
   "agents.helpRunToAuthenticate": "Futtasd ezt a hitelesítéshez: %1.",
@@ -33,6 +34,10 @@
   "agents.helpStartOrRunToSignIn": "Indítsd el ezt: %1, vagy futtasd ezt: %2 a bejelentkezéshez.",
   "agents.helpStartToSeeLimits": "Indítsd el ezt: %1 a korlátok megtekintéséhez; nem kell újra bejelentkezned.",
   "agents.hideProviderConfirm": "Elrejted a(z) %1 szolgáltatót a panelről? A hitelesítő adatok és a bejelentkezés megmaradnak.",
+  "agents.kindImage": "kép",
+  "agents.kindMusic": "zene",
+  "agents.kindText": "szöveg",
+  "agents.kindVideo": "videó",
   "agents.lastUpdatedAgo": "Utolsó frissítés %1 ezelőtt",
   "agents.lastUpdatedJustNow": "Utolsó frissítés kevesebb mint egy perce",
   "agents.lastUpdatedUnknown": "Utolsó frissítés ideje nem elérhető",
@@ -57,6 +62,7 @@
   "agents.localLaunch": "Ügynök indítása",
   "agents.localLoadingMeter": "Betöltés",
   "agents.localMemoryFact": "%1 GiB memória",
+  "agents.localNeedsRam": "%1 GB RAM szükséges",
   "agents.localNotEnoughMemory": "Nincs elég memória",
   "agents.localRecommended": "ajánlott",
   "agents.localRemoveConfirm": "Leállítod a(z) %1 modellt, és törlöd a letöltött súlyait?",
@@ -67,6 +73,7 @@
   "agents.localStart": "Indítás",
   "agents.localStop": "Leállítás",
   "agents.localStoppingMeter": "Leállítás",
+  "agents.localUsingRam": "%1 GB RAM használatban",
   "agents.loginBrowser": "Jelentkezz be a böngészőben",
   "agents.makeSomethingCool": "ALKOSS VALAMI MENŐT",
   "agents.merged": {
@@ -99,6 +106,7 @@
     "other": "Megosztva %1 felhasználóval · megosztás leállítása"
   },
   "agents.networkStopSharing": "Megosztva a tailneteden · megosztás leállítása",
+  "agents.openFantasi": "Fantasi megnyitása",
   "agents.outOfCredits": "Elfogyott a kredit",
   "agents.pasteCode": "Ha az oldal befejezés helyett kódot mutat, illeszd be ide.",
   "agents.pasteCodeLink": "Kódot mutat helyette az oldal?",

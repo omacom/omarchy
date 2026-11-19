@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Weka upya kompyuta"
+    "label": "Rejesha Kiwandani"
   },
   "install.package": {
     "label": "Kifurushi"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Washa upya hadi BIOS",
     "description": "Washa upya hadi mipangilio ya firmware ya UEFI"
+  },
+  "setup.region": {
+    "label": "Eneo"
+  },
+  "setup.region.formats": {
+    "label": "Miundo",
+    "description": "Jinsi tarehe, nyakati, nambari na vipimo vinavyoandikwa"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Mchezo wa Game Vibes"
+  },
+  "update.games": {
+    "label": "Michezo ya Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Tengeneza Mchezo"
   }
 }

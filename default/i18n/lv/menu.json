@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Atiestatīt datoru"
+    "label": "Rūpnīcas atiestatīšana"
   },
   "install.package": {
     "label": "Pakotne"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Restartēt uz BIOS",
     "description": "Restartēt UEFI aparātprogrammatūras iestatījumos"
+  },
+  "setup.region": {
+    "label": "Reģions"
+  },
+  "setup.region.formats": {
+    "label": "Formāti",
+    "description": "Kā tiek rakstīti datumi, laiki, skaitļi un mērvienības"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "Izveidot spēli"
   }
 }

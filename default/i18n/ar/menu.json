@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "إعادة تعيين الحاسوب"
+    "label": "إعادة ضبط المصنع"
   },
   "install.package": {
     "label": "الحزمة"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "إعادة التشغيل إلى BIOS",
     "description": "إعادة التشغيل إلى إعدادات برنامج UEFI الثابت"
+  },
+  "setup.region": {
+    "label": "المنطقة"
+  },
+  "setup.region.formats": {
+    "label": "التنسيقات",
+    "description": "طريقة كتابة التواريخ والأوقات والأرقام والوحدات"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "لعبة Game Vibes"
+  },
+  "update.games": {
+    "label": "ألعاب Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "اصنع لعبة"
   }
 }

@@ -28,6 +28,7 @@
     "other": "%1 brezplačnih ponastavitev · naslednja poteče čez %2",
     "two": "%1 brezplačni ponastavitvi · naslednja poteče čez %2"
   },
+  "agents.game": "Igra",
   "agents.helpFireworksSignIn": "Nastavite %1, zaženite %2 ali se prijavite v Fireworks v pi ali opencode.",
   "agents.helpNotInPath": "%1 ni najden v PATH",
   "agents.helpRunToAuthenticate": "Zaženite %1 za avtentikacijo.",
@@ -37,6 +38,10 @@
   "agents.helpStartOrRunToSignIn": "Za prijavo zaženite %1 ali izvedite %2.",
   "agents.helpStartToSeeLimits": "Zaženite %1 za ogled omejitev; ponovna prijava ni potrebna.",
   "agents.hideProviderConfirm": "Skriti %1 s plošče? Poverilnice in prijava bodo ohranjene.",
+  "agents.kindImage": "slika",
+  "agents.kindMusic": "glasba",
+  "agents.kindText": "besedilo",
+  "agents.kindVideo": "video",
   "agents.lastUpdatedAgo": "Nazadnje posodobljeno pred %1",
   "agents.lastUpdatedJustNow": "Nazadnje posodobljeno pred manj kot minuto",
   "agents.lastUpdatedUnknown": "Čas zadnje posodobitve ni na voljo",
@@ -61,6 +66,7 @@
   "agents.localLaunch": "Zaženi agenta",
   "agents.localLoadingMeter": "Nalaganje",
   "agents.localMemoryFact": "%1 GiB pomnilnika",
+  "agents.localNeedsRam": "Potrebuje %1 GB RAM",
   "agents.localNotEnoughMemory": "Ni dovolj pomnilnika",
   "agents.localRecommended": "priporočeno",
   "agents.localRemoveConfirm": "Ustaviti %1 in izbrisati prenesene uteži?",
@@ -71,6 +77,7 @@
   "agents.localStart": "Zaženi",
   "agents.localStop": "Ustavi",
   "agents.localStoppingMeter": "Ustavljanje",
+  "agents.localUsingRam": "Uporablja %1 GB RAM",
   "agents.loginBrowser": "Prijavite se prek brskalnika",
   "agents.makeSomethingCool": "USTVARI NEKAJ KUL",
   "agents.merged": {
@@ -107,6 +114,7 @@
     "two": "Deljeno z %1 uporabnikoma · prenehaj deliti"
   },
   "agents.networkStopSharing": "Deljeno v tailnetu · prekini deljenje",
+  "agents.openFantasi": "Odpri Fantasi",
   "agents.outOfCredits": "Zmanjkalo kreditov",
   "agents.pasteCode": "Če stran pokaže kodo, namesto da bi končala, jo prilepite tukaj.",
   "agents.pasteCodeLink": "Namesto tega se prikaže koda?",

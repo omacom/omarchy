@@ -26,6 +26,7 @@
     "one": "%1 restabliment gratuït · el proper caduca d'aquí a %2",
     "other": "%1 restabliments gratuïts · el proper caduca d'aquí a %2"
   },
+  "agents.game": "Joc",
   "agents.helpFireworksSignIn": "Defineix %1, executa %2 o inicia sessió a Fireworks des de pi o opencode.",
   "agents.helpNotInPath": "%1 no s'ha trobat al PATH",
   "agents.helpRunToAuthenticate": "Executa %1 per autenticar-te.",
@@ -35,6 +36,10 @@
   "agents.helpStartOrRunToSignIn": "Inicia %1 o executa %2 per iniciar sessió.",
   "agents.helpStartToSeeLimits": "Inicia %1 per veure'n els límits; no cal tornar a iniciar sessió.",
   "agents.hideProviderConfirm": "Amaga %1 del panell? Es conservaran les credencials i l'inici de sessió.",
+  "agents.kindImage": "imatge",
+  "agents.kindMusic": "música",
+  "agents.kindText": "text",
+  "agents.kindVideo": "vídeo",
   "agents.lastUpdatedAgo": "Actualitzat fa %1",
   "agents.lastUpdatedJustNow": "Actualitzat fa menys d'un minut",
   "agents.lastUpdatedUnknown": "Hora d'última actualització no disponible",
@@ -59,6 +64,7 @@
   "agents.localLaunch": "Inicia l'agent",
   "agents.localLoadingMeter": "Carregant",
   "agents.localMemoryFact": "%1 GiB de memòria",
+  "agents.localNeedsRam": "Necessita %1 GB de RAM",
   "agents.localNotEnoughMemory": "Memòria insuficient",
   "agents.localRecommended": "recomanat",
   "agents.localRemoveConfirm": "Atura %1 i elimina els pesos descarregats?",
@@ -69,6 +75,7 @@
   "agents.localStart": "Inicia",
   "agents.localStop": "Atura",
   "agents.localStoppingMeter": "Aturant",
+  "agents.localUsingRam": "Fa servir %1 GB de RAM",
   "agents.loginBrowser": "Inicia la sessió amb el navegador",
   "agents.makeSomethingCool": "CREA ALGUNA COSA GENIAL",
   "agents.merged": {
@@ -103,6 +110,7 @@
     "other": "Compartit amb %1 usuaris · deixa de compartir"
   },
   "agents.networkStopSharing": "Compartit a la teva tailnet · deixa de compartir",
+  "agents.openFantasi": "Obre Fantasi",
   "agents.outOfCredits": "Sense crèdits",
   "agents.pasteCode": "Si la pàgina mostra un codi en comptes d'acabar, enganxa'l aquí.",
   "agents.pasteCodeLink": "La pàgina mostra un codi?",

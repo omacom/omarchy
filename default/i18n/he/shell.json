@@ -26,6 +26,7 @@
     "other": "%1 איפוסים חינמיים · הבא יפוג בעוד %2",
     "two": "שני איפוסים חינמיים · הבא יפוג בעוד %2"
   },
+  "agents.game": "משחק",
   "agents.helpFireworksSignIn": "הגדירו את %1, הריצו את %2, או התחברו ל-Fireworks ב-pi או ב-opencode.",
   "agents.helpNotInPath": "%1 לא נמצא ב-PATH",
   "agents.helpRunToAuthenticate": "הריצו את %1 כדי לבצע אימות.",
@@ -35,6 +36,10 @@
   "agents.helpStartOrRunToSignIn": "הפעילו את %1, או הריצו את %2, כדי להתחבר.",
   "agents.helpStartToSeeLimits": "הפעילו את %1 כדי לראות את מגבלותיו; אין צורך להתחבר שוב.",
   "agents.hideProviderConfirm": "להסתיר את %1 מהפאנל? האישורים וההתחברות יישמרו.",
+  "agents.kindImage": "תמונה",
+  "agents.kindMusic": "מוזיקה",
+  "agents.kindText": "טקסט",
+  "agents.kindVideo": "וידאו",
   "agents.lastUpdatedAgo": "עודכן לאחרונה לפני %1",
   "agents.lastUpdatedJustNow": "עודכן לאחרונה לפני פחות מדקה",
   "agents.lastUpdatedUnknown": "שעת העדכון האחרון אינה זמינה",
@@ -59,6 +64,7 @@
   "agents.localLaunch": "הפעלת סוכן",
   "agents.localLoadingMeter": "טעינה",
   "agents.localMemoryFact": "%1 GiB זיכרון",
+  "agents.localNeedsRam": "דורש %1 GB RAM",
   "agents.localNotEnoughMemory": "אין מספיק זיכרון",
   "agents.localRecommended": "מומלץ",
   "agents.localRemoveConfirm": "לעצור את %1 ולמחוק את המשקולות שהורדו?",
@@ -69,6 +75,7 @@
   "agents.localStart": "הפעלה",
   "agents.localStop": "עצירה",
   "agents.localStoppingMeter": "עצירה",
+  "agents.localUsingRam": "משתמש ב-%1 GB RAM",
   "agents.loginBrowser": "התחברו דרך הדפדפן",
   "agents.makeSomethingCool": "צרו משהו מגניב",
   "agents.merged": {
@@ -103,6 +110,7 @@
     "two": "משותף עם שני משתמשים · הפסקת שיתוף"
   },
   "agents.networkStopSharing": "משותף ב-tailnet שלך · הפסקת שיתוף",
+  "agents.openFantasi": "פתחו את Fantasi",
   "agents.outOfCredits": "אזלו הקרדיטים",
   "agents.pasteCode": "אם הדף מציג קוד במקום לסיים, הדביקו אותו כאן.",
   "agents.pasteCodeLink": "הדף מציג קוד במקום?",

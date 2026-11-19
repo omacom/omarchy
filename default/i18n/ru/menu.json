@@ -569,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Сбросить компьютер"
+    "label": "Сброс к заводским"
   },
   "install.package": {
     "label": "Пакет"
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Перезагрузка в BIOS",
     "description": "Перезагрузка в настройки прошивки UEFI"
+  },
+  "setup.region": {
+    "label": "Регион"
+  },
+  "setup.region.formats": {
+    "label": "Форматы",
+    "description": "Как отображаются даты, время, числа и единицы измерения"
+  },
+  "install.gaming.vibes": {
+    "label": "Игровой вайб"
+  },
+  "remove.gaming.vibes": {
+    "label": "Игра «Игровой вайб»"
+  },
+  "update.games": {
+    "label": "Игры «Игровой вайб»"
+  },
+  "agent.make.game": {
+    "label": "Создать игру"
   }
 }

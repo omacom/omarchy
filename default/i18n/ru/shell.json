@@ -28,6 +28,7 @@
     "one": "%1 бесплатный сброс · следующий истекает через %2",
     "other": "%1 бесплатных сброса · следующий истекает через %2"
   },
+  "agents.game": "Игра",
   "agents.helpFireworksSignIn": "Задайте %1, выполните %2 или войдите в Fireworks в pi или opencode.",
   "agents.helpNotInPath": "%1 не найден в PATH",
   "agents.helpRunToAuthenticate": "Выполните %1 для аутентификации.",
@@ -37,6 +38,10 @@
   "agents.helpStartOrRunToSignIn": "Запустите %1 или выполните %2, чтобы войти.",
   "agents.helpStartToSeeLimits": "Запустите %1, чтобы увидеть его лимиты; входить заново не нужно.",
   "agents.hideProviderConfirm": "Скрыть %1 из панели? Учётные данные и вход будут сохранены.",
+  "agents.kindImage": "изображение",
+  "agents.kindMusic": "музыка",
+  "agents.kindText": "текст",
+  "agents.kindVideo": "видео",
   "agents.lastUpdatedAgo": "Обновлено %1 назад",
   "agents.lastUpdatedJustNow": "Обновлено менее минуты назад",
   "agents.lastUpdatedUnknown": "Время обновления недоступно",
@@ -61,6 +66,7 @@
   "agents.localLaunch": "Запустить агента",
   "agents.localLoadingMeter": "Загрузка",
   "agents.localMemoryFact": "%1 GiB памяти",
+  "agents.localNeedsRam": "Требуется %1 ГБ RAM",
   "agents.localNotEnoughMemory": "Недостаточно памяти",
   "agents.localRecommended": "рекомендуется",
   "agents.localRemoveConfirm": "Остановить %1 и удалить его загруженные веса?",
@@ -71,6 +77,7 @@
   "agents.localStart": "Запустить",
   "agents.localStop": "Остановить",
   "agents.localStoppingMeter": "Остановка",
+  "agents.localUsingRam": "Используется %1 ГБ RAM",
   "agents.loginBrowser": "Войти через браузер",
   "agents.makeSomethingCool": "СДЕЛАЙ ЧТО-ТО КРУТОЕ",
   "agents.merged": {
@@ -107,6 +114,7 @@
     "other": "Общий доступ: %1 пользователя · прекратить доступ"
   },
   "agents.networkStopSharing": "Доступ открыт в вашем tailnet · закрыть доступ",
+  "agents.openFantasi": "Открыть Fantasi",
   "agents.outOfCredits": "Кредиты закончились",
   "agents.pasteCode": "Если страница показывает код вместо завершения, вставьте его сюда.",
   "agents.pasteCodeLink": "Вместо этого страница с кодом?",
