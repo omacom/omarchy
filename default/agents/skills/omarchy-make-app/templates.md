@@ -1,6 +1,6 @@
 # Omarchy App Templates
 
-Read this when starting an app from the omarchy-app skill. Replace `<name>` with the app's name and `<Name>` with its display name. These come from Omacut, Monologue, and the other Omarchy apps (MIT, David Heinemeier Hansson); keep that attribution in the LICENSE of any app that copies them.
+Read this when starting an app from the omarchy-make-app skill. Replace `<name>` with the app's name and `<Name>` with its display name. These come from Omacut, Monologue, and the other Omarchy apps (MIT, David Heinemeier Hansson); keep that attribution in the LICENSE of any app that copies them.
 
 The files marked **shared** are identical in every Omarchy app, byte for byte: copy them as they are, with nothing to replace, and put what is particular to the app in `CMakeLists.txt` and its recipe in omarchy-pkgs instead. A fix to one goes here first, then to every app.
 

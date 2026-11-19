@@ -1,5 +1,5 @@
 ---
-name: omarchy-app
+name: omarchy-make-app
 description: >
   Build a new desktop app for Omarchy the way Omarchy's own apps are built (Omacut, Monologue, Hype, Signed, Folio, Plain, Omawrite, Omacalc): C++ and Qt Quick, built with CMake into a single binary, following the Omarchy theme and language live, tested offscreen on every push, and packaged in omarchy-pkgs so it shows up in the app launcher. Use when asked to make, build, or scaffold an app, tool, utility, or GUI program for the desktop. Triggers: new app, make me an app, desktop app, GUI, Qt, QML, Qt Quick, C++ app, CMake, app launcher entry, PKGBUILD for my app.
 ---
