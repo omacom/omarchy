@@ -297,7 +297,7 @@ This skill intentionally does not cover Omarchy source development. Do not use t
 - "Make the window gaps smaller" -> Edit `~/.config/hypr/looknfeel.lua` (`omarchy hyprland window gaps toggle` turns them off entirely)
 - "Make windows square" -> `omarchy hyprland corners sharp`
 - "Turn on night light" -> `omarchy toggle nightlight` (for a schedule, see `system.md`: hyprsunset must also be started from `autostart.lua`)
-- "Make Firefox my default browser" -> `omarchy default browser firefox` (`omarchy install browser firefox` if it isn't installed)
+- "Make Firefox my default browser" -> `omarchy default browser firefox` (installs it first if it's missing)
 - "Use Ghostty instead of foot" -> `omarchy install terminal ghostty` (installs it and makes it the default)
 - "Open PDFs in another app" -> `xdg-mime default <app>.desktop application/pdf`
 - "Add YouTube as an app" -> `omarchy webapp install "YouTube" https://youtube.com <icon-url>`

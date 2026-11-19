@@ -44,7 +44,7 @@ o.bind("SUPER + M", "Theme menu", { menu = "theme" })              -- toggle an 
 o.bind("SUPER + N", "Network", { panel = "omarchy.network" })      -- toggle a shell panel
 ```
 
-Launch the user's chosen defaults through `{ omarchy = "browser" }`, `{ omarchy = "files" }`, `{ omarchy = "editor" }` and `o.launch_terminal()` rather than naming an app, so the binding follows `omarchy default ...` (see [`apps.md`](apps.md)).
+Launch the user's chosen defaults through `{ omarchy = "browser" }`, `{ omarchy = "editor" }` and `o.launch_terminal()` rather than naming an app, so the binding follows `omarchy default ...` (see [`apps.md`](apps.md)). `{ omarchy = "files" }` always opens Folio, whatever `inode/directory` is set to; to bind another file manager, name it with `{ launch = ... }`.
 
 Prefer `{ menu = ... }` and `{ panel = ... }` over running `omarchy-menu toggle ...` or `omarchy-shell shell toggle ...` as a command. Routes and panels listed in `$OMARCHY_PATH/default/omarchy/shortcuts` go straight to the running shell as Hyprland global shortcuts, with no process started on each press; any other route or panel still works, through the command.
 

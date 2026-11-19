@@ -11,13 +11,13 @@ Read this before changing which app opens something, adding a web app or TUI lau
 | Editor (GUI and `$EDITOR`) | Plain | `omarchy default editor <plain\|code\|cursor\|zed\|sublime_text\|helix\|vim\|emacs\|nvim>` |
 | Dictation | Superwhisper | `omarchy default dictation <superwhisper\|voxtype\|hex>` |
 | Coding agent | chosen at first use | `omarchy default agent <claude\|codex\|opencode\|pi\|...>` |
-| Files | Folio | `xdg-mime default <app>.desktop inode/directory` |
+| Files | Folio | `xdg-mime default <app>.desktop inode/directory`, and rebind Super+Shift+F, which always opens Folio |
 | Images, video, music | Omaview | `xdg-mime default <app>.desktop <mimetype>` |
 | PDF | Papers | `xdg-mime default <app>.desktop application/pdf` |
 | Markdown | Omawrite | `xdg-mime default <app>.desktop text/markdown` |
 | Email links | HEY web app | `xdg-mime default <app>.desktop x-scheme-handler/mailto` |
 
-Each `omarchy default` command prints the current choice when run without an argument, and the same choices are in the menu under Setup > Defaults. `omarchy install terminal <name>` and `omarchy install browser <name>` install one and switch to it. The terminal is reached through `xdg-terminal-exec` (`$TERMINAL`), and every editor through `omarchy-launch-editor` (`$EDITOR`), so bindings and scripts that use those follow the choice.
+Each `omarchy default` command prints the current choice when run without an argument, and the same choices are in the menu under Setup > Defaults. `omarchy install terminal <name>` installs a terminal and switches to it; `omarchy install browser <name>` only installs, so change the browser with `omarchy default browser <name>`, which installs a missing one first. The terminal is reached through `xdg-terminal-exec` (`$TERMINAL`), and every editor through `omarchy-launch-editor` (`$EDITOR`), so bindings and scripts that use those follow the choice.
 
 `xdg-mime default` writes `~/.config/mimeapps.list`, which overrides Omarchy's defaults in `/usr/share/applications/mimeapps.list`. Leave `~/.config/hyprland-mimeapps.list` alone: it routes web links through `omarchy-browser.desktop`, which opens them in whichever browser is the default.
 
