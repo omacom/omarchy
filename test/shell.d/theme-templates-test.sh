@@ -151,17 +151,24 @@ set_icons
 pass "a theme that can't draw app icons brings the packaged ones back"
 
 # A sparse palette with only background and foreground renders every built-in
-# template without bash subscript errors.
+# template and unresolved gradient helpers without bash subscript errors.
 sparse_home="$test_tmp/sparse-home"
 sparse_next="$sparse_home/.local/state/omarchy/current/next-theme"
-mkdir -p "$sparse_next"
+sparse_themed="$sparse_home/.config/omarchy/themed"
+mkdir -p "$sparse_next" "$sparse_themed"
 printf 'background = "#111111"\nforeground = "#eeeeee"\n' >"$sparse_next/colors.toml"
+printf '{{ gradient_start accent blue }}\n' >"$sparse_themed/sparse-gradient.txt.tpl"
 HOME="$sparse_home" XDG_STATE_HOME="$sparse_home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
   "$ROOT/bin/omarchy-theme-set-templates" 2>"$test_tmp/sparse.err"
 [[ ! -s $test_tmp/sparse.err ]] ||
   fail "a sparse palette renders without errors" "$(cat "$test_tmp/sparse.err")"
-[[ -f $sparse_next/slack.json && -f $sparse_next/hyprland.lua && -f $sparse_next/shell.toml ]] ||
-  fail "a sparse palette finishes rendering built-in templates"
+for tpl in "$ROOT"/default/themed/*.tpl; do
+  name=${tpl##*/}
+  name=${name%.tpl}
+  [[ -f $sparse_next/$name ]] || fail "a sparse palette finishes rendering built-in templates ($name)"
+done
+[[ $(<"$sparse_next/sparse-gradient.txt") == "blue" ]] ||
+  fail "a sparse palette falls back cleanly when gradient_start refs are missing"
 pass "a sparse palette renders templates without subscript errors"
 
 # Explicitly empty palette keys fall back instead of resolving to empty strings.
