@@ -28,8 +28,8 @@ fi
 
 # An installed theme may ship its own files; a broken one must not replace a
 # working palette.
-if ! jq -e . "$ORCA_THEME_SOURCE" "$ORCA_TERMINAL_SOURCE" >/dev/null 2>&1; then
-  echo "Skipping Orca theme: generated files are not valid JSON." >&2
+if ! jq -s -e 'all(type == "object")' "$ORCA_THEME_SOURCE" "$ORCA_TERMINAL_SOURCE" >/dev/null 2>&1; then
+  echo "Skipping Orca theme: generated files are not JSON objects." >&2
   exit 0
 fi
 

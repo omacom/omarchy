@@ -90,4 +90,7 @@ reset_home dark
 echo 'not json' >"$theme/orca-terminal.json"
 run_hook 2>/dev/null
 [[ ! -e $plugin ]] || fail "a broken generated file never replaces a working palette"
+echo '[]' >"$theme/orca-terminal.json"
+run_hook 2>/dev/null
+[[ ! -e $plugin ]] || fail "JSON that isn't an object never replaces a working palette"
 pass "invalid JSON keeps the previous palette"
