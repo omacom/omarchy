@@ -770,6 +770,7 @@ pass "titlebars follow the theme when XDG_STATE_HOME points elsewhere"
 OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "a floating window dropped under the top bar keeps its titlebar in reach"
 local handlers, binds, timers, dispatched = {}, {}, {}, {}
 local active, cursor = nil, { x = 0, y = 0 }
+local workspace_windows = {}
 
 -- Two screens stacked: the top bar reserves 26 at the top of each.
 local upper = { id = 0, x = 0, y = 0, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } }
@@ -781,6 +782,7 @@ hl = {
   bind = function(keys, callback, opts) table.insert(binds, { callback = callback, opts = opts or {} }) end,
   timer = function(callback) table.insert(timers, callback) end,
   get_active_window = function() return active end,
+  get_workspace_windows = function() return workspace_windows end,
   get_cursor_pos = function() return cursor end,
   get_monitors = function() return { upper, lower } end,
   get_config = function(key) return config[key] end,
@@ -788,9 +790,11 @@ hl = {
   dispatch = function(dispatcher)
     table.insert(dispatched, dispatcher)
     if dispatcher.kind == "move" then dispatcher.window.at = { x = dispatcher.x, y = dispatcher.y } end
+    if dispatcher.kind == "resize" then dispatcher.window.size = { x = dispatcher.x, y = dispatcher.y } end
   end,
   dsp = { window = {
     move = function(args) args.kind = "move"; return args end,
+    resize = function(args) args.kind = "resize"; return args end,
     fullscreen = function(args) args.kind = "fullscreen"; return args end,
   } },
 }
@@ -921,6 +925,47 @@ cursor = { x = 500, y = 10 }
 dispatched = {}
 release(); for _, run in ipairs(timers) do run() end; timers = {}
 assert(maximized(dispatched), "a window released over the top bar maximizes without another focus event")
+
+-- Hyprland keeps one maximized window per workspace. A window another one is
+-- maximized over keeps its full size, and gets its own back once it is
+-- maximized and restored itself.
+local function settle_fullscreen(w)
+  dispatched = {}
+  handlers["window.fullscreen"](w)
+  for _, run in ipairs(timers) do run() end
+  timers = {}
+  return dispatched
+end
+
+local terminal = window(300, { address = "0x1" })
+local mail = window(500, { address = "0x2" })
+workspace_windows = { terminal, mail }
+terminal.fullscreen = 1; terminal.at = { x = 12, y = 38 }; terminal.size = { x = 1896, y = 1030 }
+assert(#settle_fullscreen(terminal) == 0, "a window being maximized is only noted")
+
+-- Hyprland hands the state over: the terminal falls back to its own size.
+mail.fullscreen = 1; mail.at = { x = 12, y = 38 }; mail.size = { x = 1896, y = 1030 }
+terminal.fullscreen = 0; terminal.at = { x = 400, y = 300 }; terminal.size = { x = 870, y = 522 }
+settle_fullscreen(mail)
+assert(terminal.size.x == 1896 and terminal.size.y == 1030 - 30 and terminal.at.y == 38 + 30,
+  "a window another one is maximized over keeps its full size, titlebar under the top bar")
+
+mail.fullscreen = 0; mail.at = { x = 300, y = 200 }; mail.size = { x = 1100, y = 734 }
+assert(#settle_fullscreen(mail) == 0, "restoring the window in front leaves the one behind as it is")
+
+terminal.fullscreen = 1; terminal.at = { x = 12, y = 38 }; terminal.size = { x = 1896, y = 1030 }
+settle_fullscreen(terminal)
+terminal.fullscreen = 0; terminal.at = { x = 12, y = 68 }; terminal.size = { x = 1896, y = 1000 }
+settle_fullscreen(terminal)
+assert(terminal.size.x == 870 and terminal.size.y == 522 and terminal.at.x == 400 and terminal.at.y == 300,
+  "maximized and restored again, it gets back the size it had before")
+
+-- Omarchy un-maximizes a window when another one opens next to it, so the two
+-- share the workspace; with nothing maximized in front, that is left alone.
+terminal.fullscreen = 1; terminal.at = { x = 12, y = 38 }; terminal.size = { x = 1896, y = 1030 }
+settle_fullscreen(terminal)
+terminal.fullscreen = 0; terminal.at = { x = 400, y = 300 }; terminal.size = { x = 870, y = 522 }
+assert(#settle_fullscreen(terminal) == 0, "a window un-maximized with nothing in front keeps its own size")
 
 LUA
 pass "a floating window dropped under the top bar keeps its titlebar in reach"

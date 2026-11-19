@@ -179,6 +179,68 @@ end
 
 hl.on("window.active", check_soon)
 
+-- Hyprland keeps one maximized window per workspace, and maximizing a second
+-- one takes the state from the first, which drops back to its own size behind
+-- it. As on Windows, a window another one is maximized over keeps its full
+-- size instead: it is given the maximized box as a plain floating window, and
+-- the size it had before is kept for when it is maximized and restored again.
+-- A window un-maximized by Omarchy because another one opened is not covered,
+-- as nothing is maximized over it then.
+local maximized_boxes = {}
+local own_sizes = {}
+
+local function place(window, box)
+  hl.dispatch(hl.dsp.window.resize({ x = math.floor(box.width), y = math.floor(box.height), relative = false, window = window }))
+  hl.dispatch(hl.dsp.window.move({ x = math.floor(box.x), y = math.floor(box.y), relative = false, window = window }))
+end
+
+local function box_of(window)
+  return { x = window.at.x, y = window.at.y, width = window.size.x, height = window.size.y }
+end
+
+local function track_maximized(workspace_id)
+  local windows = hl.get_workspace_windows(tostring(workspace_id)) or {}
+  local holder = nil
+  for _, window in ipairs(windows) do
+    if (window.fullscreen or 0) >= 1 then
+      holder = window
+    end
+  end
+
+  for _, window in ipairs(windows) do
+    local fullscreen = window.fullscreen or 0
+    local was = maximized_boxes[window.address]
+
+    if fullscreen == 1 and tagged(window, FLOATING_TAG) then
+      maximized_boxes[window.address] = box_of(window)
+    elseif fullscreen == 0 and was then
+      maximized_boxes[window.address] = nil
+
+      if M.drop_maximize and holder and holder.address ~= window.address then
+        -- Its titlebar comes back as it leaves the maximized state, so the
+        -- window itself starts that much lower to keep it under the top bar.
+        local bar = titlebar_height(window)
+        own_sizes[window.address] = box_of(window)
+        place(window, { x = was.x, y = was.y + bar, width = was.width, height = was.height - bar })
+      elseif own_sizes[window.address] then
+        place(window, own_sizes[window.address])
+        own_sizes[window.address] = nil
+      end
+    end
+  end
+end
+
+hl.on("window.fullscreen", function(window)
+  local workspace_id = window and window.workspace and window.workspace.id
+  if not workspace_id or workspace_id < 1 then
+    return
+  end
+
+  hl.timer(function()
+    track_maximized(workspace_id)
+  end, { timeout = 1, type = "oneshot" })
+end)
+
 -- Transparent and non-consuming, so the click still reaches the window.
 local passthrough = { transparent = true, non_consuming = true, ignore_mods = true }
 
