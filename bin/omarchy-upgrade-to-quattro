@@ -519,9 +519,9 @@ normalize_limine_config() {
 
 # Captures the value of the *last* root=, which is the one that counts:
 # getarg reads the cmdline with tail -1, so a later root= overrides an earlier
-# one. The greedy prefix walks to the final occurrence. A value is required,
-# since a bare root= names nothing.
-root_param_regex='.*(^|[[:space:]])root=([^[:space:]]+)'
+# one. Capture even an empty final value so it cannot fall back to an earlier
+# root= that the initramfs will ignore.
+root_param_regex='.*(^|[[:space:]])root=([^[:space:]]*)'
 
 # Naming an encrypted volume is what tells the initramfs to unlock it, so only
 # these prove a cmdline can reach an encrypted root. Keyfiles, ciphers and
@@ -556,6 +556,7 @@ cmdline_boots() {
 
   [[ $text =~ $root_param_regex ]] || return 1
   root_value=${BASH_REMATCH[2]}
+  [[ -n $root_value ]] || return 1
   ((encrypted)) || return 0
 
   # Matched first: the selector test overwrites BASH_REMATCH.
