@@ -1,0 +1,141 @@
+#!/bin/bash
+
+# omarchy:summary=Re-key password-protected keyrings to oo7's sealed credential, so they unlock at login
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# oo7-daemon unlocks every keyring with the credential omarchy-keyring-seal sealed.
+# A keyring with a password of its own, from gnome-keyring or from an earlier
+# unlock prompt, stays locked at every login instead, and until it's unlocked apps'
+# searches don't find its items: a browser then asks to write a new Safe Storage key.
+# This asks for each such keyring's password once and re-keys it to the credential.
+# An empty answer skips that keyring, which keeps its own password.
+
+keyrings_dir="${XDG_DATA_HOME:-$HOME/.local/share}/keyrings"
+credential="${XDG_CONFIG_HOME:-$HOME/.config}/credstore.encrypted/oo7.keyring-encryption-password"
+
+if [[ ! -s $credential ]]; then
+  echo "There's no sealed oo7 credential yet: run omarchy-keyring-seal first." >&2
+  exit 1
+fi
+# gnome-keyring files with a password, which oo7 hasn't converted yet. Plain ones
+# have no binary header, and oo7 converts them with the credential by itself.
+legacy=()
+for keyring in "$keyrings_dir"/*.keyring; do
+  [[ -f $keyring && ! -e $keyring.migrated && ! -e $keyrings_dir/v1/${keyring##*/} ]] || continue
+  [[ $(head -c 12 "$keyring") == "GnomeKeyring" ]] || continue
+  name=${keyring##*/}
+  legacy+=("${name%.keyring}")
+done
+
+# Without a session, as on a TTY update, only the files say whether anything waits.
+if ! systemctl --user is-active --quiet default.target 2>/dev/null || ! { : </dev/tty; } 2>/dev/null; then
+  if (( ${#legacy[@]} )); then
+    echo "These keyrings have a password of their own: ${legacy[*]}." >&2
+    echo "Run omarchy-keyring-rekey in a terminal after logging in, so they unlock at login." >&2
+    exit 1
+  fi
+  exit 0
+fi
+
+sealed=$(systemd-creds decrypt --user --name=oo7.keyring-encryption-password "$credential" -)
+declare -A typed=()
+skipped=()
+
+# Runs `$opens <name> <password>` until it succeeds, with the passwords typed so far
+# first and then asking, and remembers the one that worked. Fails when the user skips.
+open_with_password() {
+  local name=$1 opens=$2 password
+  for password in "${typed[@]}"; do
+    if "$opens" "$name" "$password"; then
+      typed[$name]=$password
+      return 0
+    fi
+  done
+  for _ in 1 2 3; do
+    read -rsp "Password for the keyring \"$name\" (empty to skip): " password </dev/tty
+    echo >&2
+    [[ -n $password ]] || break
+    if "$opens" "$name" "$password"; then
+      typed[$name]=$password
+      return 0
+    fi
+    echo "That password doesn't open \"$name\"." >&2
+  done
+  skipped+=("$name")
+  return 1
+}
+
+# The script goes in -c, so stdin stays free for the secrets.
+secret_service() {
+  python3 -c "$secret_service_py" "$@"
+}
+
+secret_service_py=$(cat <<'PY'
+import sys
+from gi.repository import Gio, GLib
+
+bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+root = "/org/freedesktop/secrets"
+
+def call(path, iface, method, args, ret=None):
+    reply = bus.call_sync("org.freedesktop.secrets", path, iface, method, args,
+                          GLib.VariantType(ret) if ret else None, Gio.DBusCallFlags.NONE, -1)
+    return reply.unpack() if reply else None
+
+def prop(path, iface, name):
+    return call(path, "org.freedesktop.DBus.Properties", "Get", GLib.Variant("(ss)", (iface, name)), "(v)")[0]
+
+if sys.argv[1] == "locked":
+    for path in prop(root, "org.freedesktop.Secret.Service", "Collections"):
+        if prop(path, "org.freedesktop.Secret.Collection", "Locked"):
+            print(path)
+else:
+    # The secrets come on stdin, never in the arguments, which other users can read.
+    old, new = sys.stdin.buffer.read().split(b"\0", 1)
+    _, session = call(root, "org.freedesktop.Secret.Service", "OpenSession",
+                      GLib.Variant("(sv)", ("plain", GLib.Variant("s", ""))), "(vo)")
+    call(root, "org.gnome.keyring.InternalUnsupportedGuiltRiddenInterface", "ChangeWithMasterPassword",
+         GLib.Variant("(o(oayays)(oayays))", (sys.argv[2], (session, b"", old, "text/plain"),
+                                                (session, b"", new, "text/plain"))))
+PY
+)
+
+# oo7 0.7.1 only converts a gnome-keyring file through an unlock prompt: unlocking
+# or re-keying it over D-Bus reaches an empty placeholder instead. So it's converted
+# here, with the daemon stopped, and stamped the way the daemon stamps the files it
+# converts, so that it isn't loaded a second time. The converted keyring keeps the
+# typed password until the daemon re-keys it below. oo7-cli only takes the secret
+# as an argument, so for the moment it runs, other local users could read it there.
+convert_legacy() {
+  oo7-cli --secret "$2" migrate "$keyrings_dir/$1.keyring" >/dev/null 2>&1
+}
+
+if (( ${#legacy[@]} )); then
+  systemctl --user stop oo7-daemon.service
+  for name in "${legacy[@]}"; do
+    if open_with_password "$name" convert_legacy; then
+      touch "$keyrings_dir/$name.keyring.migrated"
+      echo "Converted the keyring \"$name\"."
+    fi
+  done
+fi
+
+systemctl --user start oo7-daemon.service
+
+change_to_sealed() {
+  printf '%s\0%s' "$2" "$sealed" | secret_service change "/org/freedesktop/secrets/collection/$1" >/dev/null 2>&1
+}
+
+while read -r collection; do
+  name=${collection##*/}
+  if open_with_password "$name" change_to_sealed; then
+    echo "The keyring \"$name\" now unlocks at login."
+  fi
+done < <(secret_service locked)
+
+if (( ${#skipped[@]} )); then
+  echo "Skipped, so these keep their own password and ask for it when an app needs them: ${skipped[*]}." >&2
+  echo "Run omarchy-keyring-rekey again to re-key them." >&2
+fi

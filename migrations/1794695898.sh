@@ -103,6 +103,12 @@ if [[ ${OMARCHY_UPGRADE_TO_QUATTRO_LIVE:-0} != 1 ]] && systemctl --user is-activ
   systemctl --user start oo7-daemon.service
 fi
 
+# A keyring with a password of its own doesn't open with the sealed credential, so
+# it would stay locked at every login, its items hidden from apps' searches until
+# then. Its secrets are safe either way, so a skip or a failure here doesn't hold
+# the migration back; the command says how to finish later.
+omarchy-keyring-rekey || true
+
 if [[ -f $portal_config ]]; then
   sed -i 's/^org\.freedesktop\.impl\.portal\.Secret=gnome-keyring$/org.freedesktop.impl.portal.Secret=oo7-portal/' "$portal_config"
 fi
