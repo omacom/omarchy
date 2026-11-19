@@ -149,3 +149,77 @@ printf 'accent = "nope"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\n' >"$st
 set_icons
 [[ ! -e $state/icons/omawrite.svg && ! -L $apps/omawrite.svg ]] || fail "a theme that can't draw app icons brings the packaged ones back"
 pass "a theme that can't draw app icons brings the packaged ones back"
+
+# A sparse palette with only background and foreground renders without subscript
+# errors and gives Slack a concrete hex accent instead of literal "blue".
+sparse_home="$test_tmp/sparse-home"
+sparse_next="$sparse_home/.local/state/omarchy/current/next-theme"
+mkdir -p "$sparse_next"
+printf 'background = "#111111"\nforeground = "#eeeeee"\n' >"$sparse_next/colors.toml"
+HOME="$sparse_home" XDG_STATE_HOME="$sparse_home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" 2>"$test_tmp/sparse.err"
+[[ ! -s $test_tmp/sparse.err ]] ||
+  fail "a sparse palette renders without errors" "$(cat "$test_tmp/sparse.err")"
+[[ $(jq -r '.accent' "$sparse_next/slack.json") == "#7aa2f7" ]] ||
+  fail "a sparse theme without accent or blue gives Slack a concrete hex accent" "$(cat "$sparse_next/slack.json")"
+
+# When green and red are present, omarchy-theme-set-slack accepts the fallback accent.
+slack_home="$test_tmp/slack-sparse-home"
+slack_next="$slack_home/.local/state/omarchy/current/next-theme"
+slack_state="$slack_home/.local/state/omarchy/slack"
+mkdir -p "$slack_next" "$slack_state"
+touch "$slack_state/enabled"
+cat >"$slack_next/colors.toml" <<'EOF'
+background = "#111111"
+foreground = "#eeeeee"
+green = "#40a02b"
+red = "#d20f39"
+EOF
+HOME="$slack_home" XDG_STATE_HOME="$slack_home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" 2>"$test_tmp/slack-sparse.err"
+[[ ! -s $test_tmp/slack-sparse.err ]] ||
+  fail "a theme without accent or blue renders without errors" "$(cat "$test_tmp/slack-sparse.err")"
+mv "$slack_next" "$slack_home/.local/state/omarchy/current/theme"
+HOME="$slack_home" XDG_STATE_HOME="$slack_home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-slack" 2>"$test_tmp/slack-sync.err"
+[[ ! -s $test_tmp/slack-sync.err && $(jq -r '.accent' "$slack_state/theme.json") == "#7aa2f7" ]] ||
+  fail "omarchy-theme-set-slack accepts the sparse theme's fallback accent" "$(cat "$test_tmp/slack-sync.err")"
+pass "a sparse theme without accent or blue produces a valid Slack hex accent"
+
+# Explicitly empty palette keys fall back through the chain to the first usable value.
+empty_home="$test_tmp/empty-home"
+empty_next="$empty_home/.local/state/omarchy/current/next-theme"
+empty_themed="$empty_home/.config/omarchy/themed"
+mkdir -p "$empty_next" "$empty_themed"
+cat >"$empty_next/colors.toml" <<'EOF'
+background = "#111111"
+foreground = "#eeeeee"
+accent = ""
+blue = "#336699"
+hyprland_active_border = ""
+empty_fallback = ""
+EOF
+cat >"$empty_themed/empty-fallback.txt.tpl" <<'EOF'
+hypr={{ hypr_gradient hyprland_active_border blue }}
+shell={{ shell_gradient hyprland_active_border blue }}
+start={{ gradient_start hyprland_active_border blue #7aa2f7 }}
+chain={{ gradient_start hyprland_active_border empty_fallback #7aa2f7 }}
+multi={{ hypr_gradient missing_border rgba(112233ff) rgba(445566ff) 45deg }}
+EOF
+HOME="$empty_home" XDG_STATE_HOME="$empty_home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" 2>"$test_tmp/empty.err"
+[[ ! -s $test_tmp/empty.err ]] ||
+  fail "empty theme colors render without errors" "$(cat "$test_tmp/empty.err")"
+expected_empty=$(cat <<'EOF'
+hypr="#336699"
+shell=#336699
+start=#336699
+chain=#7aa2f7
+multi={ colors = { "rgba(112233ff)", "rgba(445566ff)" }, angle = 45 }
+EOF
+)
+[[ $(<"$empty_next/empty-fallback.txt") == "$expected_empty" ]] ||
+  fail "empty theme colors use their gradient fallbacks: $(diff <(printf '%s\n' "$expected_empty") "$empty_next/empty-fallback.txt")"
+[[ $(jq -r '.accent' "$empty_next/slack.json") == "#336699" ]] ||
+  fail "an empty accent falls back to blue when blue is defined" "$(cat "$empty_next/slack.json")"
+pass "empty theme colors fall back cleanly in gradient helpers"

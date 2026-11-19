@@ -114,7 +114,9 @@ alias_theme_color() {
   local key="$1"
   local fallback="$2"
 
-  [[ -n "${THEME_COLORS[$key]:-}" || -z "${THEME_COLORS[$fallback]:-}" ]] || THEME_COLORS[$key]="${THEME_COLORS[$fallback]}"
+  if [[ -z ${THEME_COLORS[$key]:-} && -n ${THEME_COLORS[$fallback]:-} ]]; then
+    THEME_COLORS[$key]="${THEME_COLORS[$fallback]}"
+  fi
 }
 
 resolve_theme_mode() {
