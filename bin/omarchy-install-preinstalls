@@ -27,7 +27,8 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
     omacalc \
     omawrite \
     hype \
-    signed; then
+    signed \
+    fantasi; then
     echo -e "\nPreinstalls are still marked as removed. Fix the errors above and try again."
     exit 1
   fi

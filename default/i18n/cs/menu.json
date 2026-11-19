@@ -26,11 +26,11 @@
   "update": {
     "label": "Aktualizovat"
   },
-  "about": {
-    "label": "O aplikaci"
-  },
   "system": {
     "label": "Systém"
+  },
+  "system.about": {
+    "label": "O aplikaci"
   },
   "system.screensaver": {
     "label": "Spořič obrazovky"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Vstup"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Jazyk"
+  },
+  "setup.region.timezone": {
+    "label": "Časové pásmo"
   },
   "setup.network": {
     "label": "Síť"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Přímé spuštění"
-  },
-  "setup.reset": {
-    "label": "Reset počítače"
+  "remove.factory-reset": {
+    "label": "Tovární reset"
   },
   "install.package": {
     "label": "Balíček"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Heslo"
   },
-  "update.timezone": {
-    "label": "Časové pásmo"
-  },
   "update.time": {
     "label": "Čas"
   },
@@ -1255,7 +1252,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,40 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikony"
+  },
+  "install.style.icons": {
+    "label": "Ikony"
+  },
+  "remove.icons": {
+    "label": "Ikony"
+  },
+  "update.icons": {
+    "label": "Ikony navíc"
+  },
+  "system.firmware": {
+    "label": "Restart do BIOSu",
+    "description": "Restartovat do nastavení firmwaru UEFI"
+  },
+  "setup.region": {
+    "label": "Oblast"
+  },
+  "setup.region.formats": {
+    "label": "Formáty",
+    "description": "Jak se píší data, časy, čísla a jednotky"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Hra Game Vibes"
+  },
+  "update.games": {
+    "label": "Hry Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Vytvořit hru"
   }
 }

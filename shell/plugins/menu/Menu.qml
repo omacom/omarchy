@@ -93,6 +93,8 @@ Item {
   onFilterTextChanged: if (filterInput.text !== filterText) filterInput.text = filterText
   property int selectedIndex: 0
   property bool cursorActive: false
+  // Rows with a `alt:` stand-in show and run it while this holds.
+  property bool altHeld: false
   property int requestSerial: 0
   property int applySerial: 0
   property var items: ({})
@@ -748,9 +750,12 @@ Item {
       }
       rows = currentRows.concat(drilldownRows)
     } else {
+      // A Alt stand-in shows in place of its row, never beside it.
+      var altVariants = MenuModel.altVariantIds(root.items, root.itemOrder)
       for (var j = 0; j < root.itemOrder.length; j++) {
         var child = root.item(root.itemOrder[j])
         if (!child || child.parent !== active) continue
+        if (altVariants[child.id]) continue
         if (!root.isVisible(child)) continue
         rows.push(root.displayRow(child, child.description, child.order))
       }
@@ -838,6 +843,9 @@ Item {
     if (fromPointer) pointerGate.allowInitialSample()
     else root.disarmPointer()
     root.rebuildDisplay()
+    // A pointer that jumps onto a row and clicks in one event gets no hover on
+    // the new row under it, so select that row from the click's own point.
+    if (fromPointer && fromPointer.x !== undefined) root.selectUnderPointer(fromPointer)
     root.invalidateVolatileProvider(id)
     root.loadProviderForMenu(id)
   }
@@ -898,8 +906,14 @@ Item {
       filterText = ""
       if (root.appLibrary) root.appLibrary.launch(appId, label)
     } else {
-      root.applySelected(row.itemId, row.action)
+      var variant = root.altHeld ? root.altVariantFor(row.itemId) : null
+      if (variant) root.applySelected(variant.id, variant.action)
+      else root.applySelected(row.itemId, row.action)
     }
+  }
+
+  function altVariantFor(id) {
+    return MenuModel.altVariant(root.items, root.whenResults, root.disabledResults, root.item(id))
   }
 
   function requestDeleteSelected() {
@@ -924,7 +938,11 @@ Item {
     root.deleteConfirmOpen = false
     root.deleteTarget = null
     if (!target) return
-    root.cancel()
+    // The menu stays open: the app drops out of the list once it is gone, and
+    // only an uninstall that needs a terminal closes it.
+    deleteConfirm.selectedIndex = 1
+    root.disarmPointer()
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
     if (root.appLibrary) root.appLibrary.remove(target.appId, target.label)
   }
 
@@ -948,9 +966,11 @@ Item {
     if (root.dmenuActive) root.finishRequest(null)
     opened = false
     filterText = ""
+    altHeld = false
   }
 
   function openExistingMenu(initialMenu) {
+    altHeld = false
     requestSerial += 1
     mode = "menu"
     requestActive = false
@@ -1036,6 +1056,14 @@ Item {
 
   function disarmPointer() {
     pointerGate.reset()
+  }
+
+  function selectUnderPointer(point) {
+    resultList.forceLayout()
+    var at = resultList.contentItem.mapFromItem(null, point.x, point.y)
+    var index = resultList.indexAt(at.x, at.y)
+    var item = resultList.itemAtIndex(index)
+    if (item) root.selectFromPointer(index, item, item.mapFromItem(null, point.x, point.y))
   }
 
   function selectFromPointer(index, item, mouse) {
@@ -1140,6 +1168,9 @@ Item {
     target: root.appLibrary
     function onAppsChanged() {
       if (root.providersLoaded["apps"]) root.mergeAppRows()
+    }
+    function onRemovalNeedsTerminal() {
+      if (root.opened) root.cancel()
     }
   }
 
@@ -1323,7 +1354,13 @@ Item {
         z: root.deleteConfirmOpen ? 20 : 0
 
         // Focus is on filterInput, which forwards every key here first.
+        Keys.onReleased: function(event) {
+          if (event.key === Qt.Key_Alt) root.altHeld = false
+        }
+
         Keys.onPressed: function(event) {
+          root.altHeld = event.key === Qt.Key_Alt || (event.modifiers & Qt.AltModifier) !== 0
+
           if (root.deleteConfirmOpen) {
             // Swallow the rest too, or it would type into the search line behind the dialog.
             deleteConfirm.handleKey(event)
@@ -1497,6 +1534,8 @@ Item {
               // Faded: the row is here to say the software is already
               // installed, not to be picked.
               opacity: row.disabled ? 0.4 : 1
+              // The entry standing in for this row while Alt is held.
+              readonly property var altVariant: root.altHeld && row.kind === "action" ? root.altVariantFor(row.itemId) : null
               radius: root.cornerRadius
               color: row.hasCursor ? root.selectedBackground : "transparent"
               borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
@@ -1516,9 +1555,10 @@ Item {
                 id: iconText
                 textFormat: Text.PlainText
                 visible: row.hasIcon && !row.isApp
-                text: row.icon
+                readonly property string glyphFont: row.altVariant ? row.altVariant.iconFont : row.iconFont
+                text: row.altVariant ? row.altVariant.icon : row.icon
                 color: row.hasCursor ? root.selectedText : root.foreground
-                font.family: row.iconFont.length > 0 ? row.iconFont : root.fontFamily
+                font.family: glyphFont.length > 0 ? glyphFont : root.fontFamily
                 font.pixelSize: Style.font.iconLarge
                 width: Style.space(36)
                 horizontalAlignment: Text.AlignHCenter
@@ -1558,7 +1598,7 @@ Item {
                   id: labelText
                   textFormat: Text.PlainText
                   width: parent.width
-                  text: row.label
+                  text: row.altVariant ? root.labelFor(row.altVariant) : row.label
                   color: row.hasCursor ? root.selectedText : root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.heading
@@ -1623,11 +1663,12 @@ Item {
                 onPositionChanged: function(mouse) {
                   root.selectFromPointer(row.index, row, mouse)
                 }
-                onClicked: {
+                onClicked: function(mouse) {
                   if (row.disabled) return
+                  root.altHeld = (mouse.modifiers & Qt.AltModifier) !== 0
                   root.cursorActive = true
                   root.selectedIndex = row.index
-                  root.activateIndex(row.index, true)
+                  root.activateIndex(row.index, mouseArea.mapToItem(null, mouse.x, mouse.y))
                 }
               }
             }

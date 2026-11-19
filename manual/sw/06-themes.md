@@ -1,12 +1,12 @@
 # Mandhari
 
-Omarchy inakuja na mandhari ishirini na mbili nzuri. Unaweza kuchagua kati yazo kupitia _Muonekano > Mandhari_ katika Menyu ya Omarchy (`Super + Space`) au kwenda moja kwa moja hadi kwenye kichagua mandhari kwa kutumia `Super + Ctrl + T`.
+Omarchy huja na mandhari ishirini na mbili nzuri. Unaweza kuchagua kati yake kupitia _Mwonekano > Mandhari_ kwenye Menyu ya Omarchy (`Super + Space`) au ruka moja kwa moja hadi kwenye kichagua mandhari kwa kutumia `Super + Ctrl + T`.
 
-Kila mandhari huweka mtindo kwenye eneo-kazi, terminali, neovim, skrini ya shughuli (btop), Chromium, na ganda zima la Omarchy: upau wa juu, menyu, arifa, OSD, na skrini ya kufunga. (Kwa Obsidian, lazima uchague mwenyewe mandhari ya Omarchy kupitia _Muonekano > Mandhari_ ndani ya programu).
+Kila mandhari huweka mtindo kwenye eneo-kazi, terminali, neovim, skrini ya shughuli (btop), Chromium, na ganda lote la Omarchy: upau wa juu, menyu, arifa, OSD, na skrini ya kufunga. (Kwa Obsidian, lazima uchague mwenyewe mandhari ya Omarchy kupitia _Mwonekano > Mandhari_ ndani ya programu).
 
-Mandhari zina seti ya picha za usuli ambazo unaweza kuchagua kati yazo kwa kutumia `Super + Ctrl + W`.
+Mandhari zina seti ya picha za usuli ambazo unaweza kuchagua kati yake kwa kutumia `Super + Ctrl + W`.
 
-Unaweza kupata mandhari zaidi zaidi kwenye [ukurasa wa mandhari za ziada](https://omarchy.org/themes/) au hata [kutengeneza mandhari yako mwenyewe](43-making-your-own-theme.md).
+Unaweza kupata mandhari zaidi hata kwenye [ukurasa wa mandhari za ziada](https://omarchy.org/themes/) au hata [tengeneza mandhari yako mwenyewe](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Miundo ya Kufungua
+### Aikoni za programu
 
-Mandhari zinaweza pia kuwa na muundo maalum wa kufungua, ambao hutumika kwa mchakato wa kusimbua wakati wa kuwasha. Unaweza kuchagua mojawapo ya hizi chini ya _Muonekano > Kufungua_. Zinaonekana kama hivi:
+Aikoni katika kizindua programu na doki huchorwa kwa rangi za mandhari yako, hivyo hubadilika pamoja nayo. Hutoka kwenye seti ya aikoni, ambayo unaichagua kando na mandhari chini ya _Mwonekano > Aikoni_, kutoka kwenye hakiki za kila seti, kwa njia ileile unavyochagua mandhari:
+
+- _Papercraft_ ndiyo chaguo-msingi: kila kitu kinachokuja kikiwa kimesakinishwa, kimechorwa kwa mtindo mmoja. Programu zinazojulikana kwa nembo yake, kama Chrome, HEY, au YouTube, hubaki na umbo lake na kuchukua rangi za mandhari.
+- _Arcade_ huchora programu zilezile kama sanaa ya pikseli ya biti-8, kama koni ya zamani ya michezo ingefanya.
+- _Original_ huonyesha kila programu ikiwa na aikoni ambayo mtengenezaji wake aliipa.
+
+Unaweza kusakinisha seti ya aikoni ambayo mtu mwingine ametengeneza kwa _Sakinisha > Mtindo > Aikoni_ (au `omarchy icons install <git url>`), na kuiondoa tena chini ya _Ondoa > Aikoni_. _Sasisha > Aikoni za Ziada_ huleta toleo jipya zaidi la seti ulizosakinisha.
+
+Ili kutengeneza yako mwenyewe, weka aikoni zako katika `~/.config/omarchy/icons/<name>/`, faili moja kwa kila programu, iliyopewa jina kulingana na mstari wa `Icon=` wa faili ya `.desktop` ya programu. Faili inayoishia na `.svg` huonyeshwa kama ilivyo. Faili inayoishia na `.svg.tpl` huchorwa kwa rangi za mandhari: andika `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` au `{{ icon_shadow }}` pale rangi inapoenda. Seti chaguo-msingi katika `/usr/share/omarchy/icons/papercraft/` ni mahali pazuri pa kuanzia. Ongeza `preview.png` ili kuonyesha seti yako kwenye kichaguzi; bila moja, Omarchy huchora hakiki kutoka kwenye aikoni zako. Ili kubadilisha aikoni moja ya seti chaguo-msingi, weka toleo lako katika `~/.config/omarchy/icons/papercraft/`.
+
+### Miundo ya kufungua
+
+Mandhari pia zinaweza kuwa na muundo maalum wa kufungua, ambao hutumika kwa mchakato wa usimbuaji wakati wa kuwasha. Unaweza kuchagua mojawapo kati ya hizi chini ya _Mwonekano > Fungua_. Zinaonekana hivi:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
