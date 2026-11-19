@@ -801,7 +801,8 @@ hl = {
   plugin = { hyprbars = {} },
   dispatch = function(dispatcher)
     table.insert(dispatched, dispatcher)
-    if dispatcher.kind == "move" then dispatcher.window.at = { x = dispatcher.x, y = dispatcher.y } end
+    if dispatcher.kind == "move" and dispatcher.x then dispatcher.window.at = { x = dispatcher.x, y = dispatcher.y } end
+    if dispatcher.kind == "move" and dispatcher.workspace then dispatcher.window.moved_to = dispatcher.workspace end
     if dispatcher.kind == "resize" then dispatcher.window.size = { x = dispatcher.x, y = dispatcher.y } end
     if dispatcher.kind == "tag" then
       local name, kept = dispatcher.tag:sub(2), {}
@@ -1020,6 +1021,47 @@ local beside = window(300)
 drag_to(beside, { x = 1500, y = 300 }, { x = 1915, y = 280 })
 x, y, width, height = landed(beside)
 assert(x == 962 and width == 956, "an edge shared with another screen snaps too")
+monitors = { upper, lower }
+
+-- Two screens side by side, a small one on the left. A window on the big one
+-- held by the far end of its titlebar and pulled to that screen's left edge
+-- hangs mostly over the small screen, which Hyprland then counts it on, and
+-- the pointer overshoots the edge into the small screen's own margin. It
+-- still snaps to the left half of the screen it came from.
+local small = { id = 3, name = "DP-2", x = 0, y = 0, width = 1360, height = 768, scale = 1, transform = 0, reserved = { top = 26 }, active_workspace = { id = 11 } }
+local big = { id = 4, name = "DP-1", x = 1360, y = 0, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 }, active_workspace = { id = 1 } }
+monitors = { small, big }
+local pulled = window(300, { monitor = big })
+pulled.at = { x = 2000, y = 300 }
+active = pulled
+commands = {}
+cursor = { x = 2750, y = 280 }
+handlers["window.active"](); step(); step()
+pulled.at = { x = 700, y = 300 }; pulled.monitor = small
+cursor = { x = 1355, y = 280 }
+step()
+assert(last_command():find('"monitor":"DP-1"', 1, true) and last_command():find('"to":{"x":0,"y":26,"width":960,"height":1054}', 1, true),
+  "overshooting the shared edge still previews the left half of the screen the pointer came from")
+dispatched = {}
+handlers["window.active"](); step()
+for _ = 1, 45 do step() end
+assert(pulled.moved_to == "1" and pulled.at.x == 1360 + 2 and pulled.size.x == 960 - 4,
+  "dropped there, it goes to that screen's workspace and fills its left half")
+
+-- Coming the other way, from the small screen, the same edge is the small
+-- screen's right side.
+local pushed = window(300, { monitor = small })
+pushed.at = { x = 200, y = 300 }
+active = pushed
+cursor = { x = 400, y = 280 }
+handlers["window.active"](); step(); step()
+pushed.at = { x = 1000, y = 300 }
+cursor = { x = 1365, y = 280 }
+step()
+assert(last_command():find('"monitor":"DP-2"', 1, true) and last_command():find('"to":{"x":680,"y":26,"width":680,"height":742}', 1, true),
+  "from the small screen, the shared edge snaps to the small screen's right half")
+handlers["window.active"](); step()
+for _ = 1, 45 do step() end
 monitors = { upper, lower }
 
 -- Moving between zones while still dragging, the preview follows.
