@@ -12,36 +12,36 @@ FLAG_NAME="$1"
 ACTION="${2:-toggle}"
 
 if [[ $FLAG_NAME != "flags" && -f $OMARCHY_PATH/default/hypr/toggles/$FLAG_NAME.lua ]]; then
-  exec omarchy-hyprland-toggle "$FLAG_NAME" "$ACTION"
-fi
+  omarchy-hyprland-toggle "$FLAG_NAME" "$ACTION"
+else
+  FLAG="$HOME/.local/state/omarchy/toggles/$FLAG_NAME"
 
-FLAG="$HOME/.local/state/omarchy/toggles/$FLAG_NAME"
+  enable() {
+    mkdir -p "$(dirname "$FLAG")"
+    touch "$FLAG"
+  }
 
-enable() {
-  mkdir -p "$(dirname "$FLAG")"
-  touch "$FLAG"
-}
+  disable() {
+    rm -f "$FLAG"
+  }
 
-disable() {
-  rm -f "$FLAG"
-}
-
-case "$ACTION" in
-  toggle|"")
-    if [[ -f $FLAG ]]; then
-      disable
-    else
+  case "$ACTION" in
+    toggle|"")
+      if [[ -f $FLAG ]]; then
+        disable
+      else
+        enable
+      fi
+      ;;
+    on)
       enable
-    fi
-    ;;
-  on)
-    enable
-    ;;
-  off)
-    disable
-    ;;
-  *)
-    echo "Usage: omarchy-toggle <flag-name> [toggle|on|off]" >&2
-    exit 1
-    ;;
-esac
+      ;;
+    off)
+      disable
+      ;;
+    *)
+      echo "Usage: omarchy-toggle <flag-name> [toggle|on|off]" >&2
+      exit 1
+      ;;
+  esac
+fi
