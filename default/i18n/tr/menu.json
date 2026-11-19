@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Girdi"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Dil"
+  },
+  "setup.region.timezone": {
+    "label": "Saat Dilimi"
   },
   "setup.network": {
     "label": "Ağ"
@@ -565,10 +568,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Doğrudan Başlatma"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Bilgisayarı Sıfırla"
   },
   "install.package": {
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Parola"
   },
-  "update.timezone": {
-    "label": "Saat Dilimi"
-  },
   "update.time": {
     "label": "Zaman"
   },
@@ -1255,7 +1252,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {

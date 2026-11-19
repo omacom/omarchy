@@ -505,7 +505,7 @@ void Theme::reload() {
 
 ## `src/translator.h` and `src/translator.cpp`
 
-Shared. Follows the language picked under Omarchy's Setup > Language, live. QML writes `qsTr("Save")` and C++ writes `tr("Save")`; the English text is the key, so an untranslated string simply shows in English. A counted string is `qsTr("%Ln clips", "", count)`, its forms picked by the plural rules of the catalog that supplied it, so an English fallback in Russian takes English's forms. It also sets the default locale and layout direction, so numbers, dates, and right-to-left mirroring follow the language. Apps translate on worker threads too, so a lock guards the catalog; it unregisters itself before it goes, since a worker can still be translating while the app shuts down; and it watches the nearest directory that exists, so a first pick that creates `~/.config/omarchy` is still seen. Tests construct it with a temp language file and catalog directory.
+Shared. Follows the language picked under Omarchy's Setup > Region > Language, live. QML writes `qsTr("Save")` and C++ writes `tr("Save")`; the English text is the key, so an untranslated string simply shows in English. A counted string is `qsTr("%Ln clips", "", count)`, its forms picked by the plural rules of the catalog that supplied it, so an English fallback in Russian takes English's forms. It also sets the default locale and layout direction, so numbers, dates, and right-to-left mirroring follow the language. Apps translate on worker threads too, so a lock guards the catalog; it unregisters itself before it goes, since a worker can still be translating while the app shuts down; and it watches the nearest directory that exists, so a first pick that creates `~/.config/omarchy` is still seen. Tests construct it with a temp language file and catalog directory.
 
 ```cpp
 #pragma once
@@ -518,7 +518,7 @@ Shared. Follows the language picked under Omarchy's Setup > Language, live. QML 
 #include <QTimer>
 #include <QTranslator>
 
-// Follows the language picked under Omarchy's Setup > Language. Catalogs are
+// Follows the language picked under Omarchy's Setup > Region > Language. Catalogs are
 // flat JSON objects from English source text to translation, one per Omarchy
 // language code (i18n/da.json, i18n/pt-BR.json), so QML keeps plain
 // qsTr("Save") and C++ keeps tr("Save"). A counted string,

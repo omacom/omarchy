@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Inndata"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Språk"
+  },
+  "setup.region.timezone": {
+    "label": "Tidssone"
   },
   "setup.network": {
     "label": "Nettverk"
@@ -565,10 +568,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direkte oppstart"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Nullstill datamaskin"
   },
   "install.package": {
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Passord"
   },
-  "update.timezone": {
-    "label": "Tidssone"
-  },
   "update.time": {
     "label": "Tid"
   },
@@ -1195,7 +1192,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Krasjopptak på"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {

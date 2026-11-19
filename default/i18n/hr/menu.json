@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Unos"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Jezik"
+  },
+  "setup.region.timezone": {
+    "label": "Vremenska zona"
   },
   "setup.network": {
     "label": "Mreža"
@@ -565,10 +568,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Izravno pokretanje"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Resetiraj računalo"
   },
   "install.package": {
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Lozinka"
   },
-  "update.timezone": {
-    "label": "Vremenska zona"
-  },
   "update.time": {
     "label": "Vrijeme"
   },
@@ -1195,7 +1192,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Snimanje rušenja uključeno"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {

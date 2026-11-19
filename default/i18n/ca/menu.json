@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Entrada"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Idioma"
+  },
+  "setup.region.timezone": {
+    "label": "Zona horària"
   },
   "setup.network": {
     "label": "Xarxa"
@@ -565,10 +568,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Arrencada directa"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Restableix l'ordinador"
   },
   "install.package": {
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Contrasenya"
   },
-  "update.timezone": {
-    "label": "Zona horària"
-  },
   "update.time": {
     "label": "Hora"
   },
@@ -1255,7 +1252,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Captura de fallades activada"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {

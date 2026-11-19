@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Inntak"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Tungumál"
+  },
+  "setup.region.timezone": {
+    "label": "Tímabelti"
   },
   "setup.network": {
     "label": "Net"
@@ -565,10 +568,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Bein ræsing"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Endurstilla tölvu"
   },
   "install.package": {
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Lykilorð"
   },
-  "update.timezone": {
-    "label": "Tímabelti"
-  },
   "update.time": {
     "label": "Tími"
   },
@@ -1195,7 +1192,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Hrunupptaka á"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {

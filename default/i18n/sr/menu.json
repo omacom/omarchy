@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Унос"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Језик"
+  },
+  "setup.region.timezone": {
+    "label": "Временска зона"
   },
   "setup.network": {
     "label": "Мрежа"
@@ -565,10 +568,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Директно покретање"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Ресетуј рачунар"
   },
   "install.package": {
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Лозинка"
   },
-  "update.timezone": {
-    "label": "Временска зона"
-  },
   "update.time": {
     "label": "Време"
   },
@@ -1255,7 +1252,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {

@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Įvestis"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Kalba"
+  },
+  "setup.region.timezone": {
+    "label": "Laiko juosta"
   },
   "setup.network": {
     "label": "Tinklas"
@@ -565,10 +568,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Tiesioginė įkrova"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Atstatyti kompiuterį"
   },
   "install.package": {
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Slaptažodis"
   },
-  "update.timezone": {
-    "label": "Laiko juosta"
-  },
   "update.time": {
     "label": "Laikas"
   },
@@ -1195,7 +1192,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Strigčių fiksavimas įjungtas"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {

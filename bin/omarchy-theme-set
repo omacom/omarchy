@@ -21,6 +21,7 @@ THEME_RETINT_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-retint.lock"
 THEME_GENERATION_PATH="$HOME/.local/state/omarchy/current/theme.generation"
 USER_THEMES_PATH="$HOME/.config/omarchy/themes"
 OMARCHY_THEMES_PATH="$OMARCHY_PATH/themes"
+OMARCHY_THEME_INTROS_PATH="${OMARCHY_THEME_INTROS_PATH:-/usr/share/omarchy/themes}"
 
 # What a theme installed from a git repo may not ship, because these run code.
 # Hyprland requires a theme's hyprland.lua and gum_env.lua at login and Neovim
@@ -418,6 +419,12 @@ mkdir -p "$NEXT_THEME_PATH"
 
 # Copy official theme first, then overlay the user's theme on top
 cp -r "$OMARCHY_THEMES_PATH/$THEME_NAME/"* "$NEXT_THEME_PATH/" 2>/dev/null
+# The intros ship from omarchy-themes-intros into the installed tree, never the
+# git checkout, so a dev-linked $OMARCHY_PATH takes them from there.
+packaged_intros="$OMARCHY_THEME_INTROS_PATH/$THEME_NAME/backgrounds/intros"
+if [[ -d $packaged_intros && -d $NEXT_THEME_PATH/backgrounds && ! -d $NEXT_THEME_PATH/backgrounds/intros ]]; then
+  cp -r "$packaged_intros" "$NEXT_THEME_PATH/backgrounds/"
+fi
 
 if theme_came_from_a_repo "$USER_THEMES_PATH/$THEME_NAME"; then
   stage_installed_theme "$USER_THEMES_PATH/$THEME_NAME"
