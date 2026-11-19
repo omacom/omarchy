@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Screenshot a web page an agent built and report its console errors
-# omarchy:args=<file.html|url> [--keys "Space ArrowLeft"] [--after ms] [--size WxH] [--out file.png]
+# omarchy:args=<file.html|url> [--keys "Space ArrowLeft"] [--after ms] [--theme <name>] [--size WxH] [--out file.png]
 # omarchy:examples=omarchy agent look page index.html | omarchy agent look page game.html --keys "Space ArrowLeft" --after 5000
 
 # Renders the page in a throwaway headless Chrome driven by Playwright, so an
@@ -9,23 +9,26 @@
 # show, without opening a window on the user's desktop or leaving a browser
 # running. The page runs in real time on the GPU, so a game plays as it would
 # for a player: --keys presses each key once a page has loaded, and --after
-# waits that long before the screenshot. Prints the screenshot's path and
-# exits 1 when the page logged errors.
+# waits that long before the screenshot. --theme passes a theme's palette in
+# the URL fragment, as omarchy-games-launch does, so a game from the web-game
+# template shows in that theme. Prints the screenshot's path and exits 1 when
+# the page logged errors.
 
 set -uo pipefail
 
 target=${1:-}
 if [[ -z $target || $target == -* ]]; then
-  echo "Usage: omarchy agent look page <file.html|url> [--keys \"Space ArrowLeft\"] [--after ms] [--size WxH] [--out file.png]" >&2
+  echo "Usage: omarchy agent look page <file.html|url> [--keys \"Space ArrowLeft\"] [--after ms] [--theme <name>] [--size WxH] [--out file.png]" >&2
   exit 2
 fi
 shift
 
-keys="" after=3000 size=1280x720 out=""
+keys="" after=3000 size=1280x720 out="" theme=""
 while (( $# )); do
   case $1 in
     --keys) keys=$2; shift 2 ;;
     --after) after=$2; shift 2 ;;
+    --theme) theme=$2; shift 2 ;;
     --size) size=$2; shift 2 ;;
     --out) out=$2; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
@@ -43,8 +46,23 @@ fi
 # An image left from an earlier look must never pass for this one.
 rm -f "$out"
 
+# A file may carry a fragment, like game.html#seed=1.
 url=$target
-[[ -f $target ]] && url="file://$(realpath "$target")"
+file=${target%%#*}
+[[ -f $file ]] && url="file://$(realpath "$file")${target:${#file}}"
+if [[ -n $theme ]]; then
+  colors="$(omarchy-theme-dir "$theme")/colors.toml"
+  if [[ ! -f $colors ]]; then
+    echo "No theme $theme with a colors.toml" >&2
+    exit 2
+  fi
+  if [[ $url == *"#"* ]]; then
+    url+="&"
+  else
+    url+="#"
+  fi
+  url+="palette=$(omarchy-theme-color --file "$colors" --all | jq -Rrn '[inputs | split("\t") | {(.[0]): .[1]}] | add | tojson | @uri')"
+fi
 
 # Playwright is a mise tool installed on first use, with Node before it.
 playwright=$(mise where playwright 2>/dev/null)

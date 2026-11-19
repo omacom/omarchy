@@ -75,17 +75,11 @@ You start Hype via the application launcher (`Super + Space`). Press `?` inside 
 
 You start Signed via the application launcher (`Super + Space`), or open a PDF with it from the file manager.
 
-## Checkmate
+## Game Vibes
 
-[Checkmate](https://github.com/omacom/checkmate) is Omarchy's own 3D chess game. Play a friend on the same computer or the built-in opponent at three levels, on four sculpted sets that each move in their own manner: orbital craft, carved wood and ivory, woodland creatures, and candy. Games have no clock and save after every move.
+Game Vibes, in the application launcher (`Super + Space`), is where Omarchy's little games live: Checkmate, a 3D chess game against a friend or the built-in opponent; Cards, Klondike solitaire; and Neon Swarm, an arcade shooter. Each is a single web page that follows your theme. Pick one with the arrows and `Enter`, and come back to the list with `Esc` from a game's title screen or `Q` while it's paused.
 
-You start Checkmate via the application launcher (`Super + Space`), where it is listed as Chess. Press `?` inside it to see every shortcut.
-
-## Cards
-
-[Cards](https://github.com/omacom/cards) is Omarchy's own Klondike solitaire. Draw three, with no limit on passes, in four card series: one drawn in your theme's colors, and three with a look of their own. Click a card and then where it goes, drag it, or double-click to send it to the best place. Games save after every move.
-
-You start Cards via the application launcher (`Super + Space`). Click its name, or press `?`, to see every shortcut.
+The games you make with an agent show up here too: choose _Make something cool → Game_ in the agents panel and describe one, or name a game already in Game Vibes to keep working on it. The agent copies it into `~/Games/vibes`, where it's yours to change, and opens it when it's done. You can make that copy yourself with `omarchy games vibes copy <game>`. Games load three.js from the web, so they need a connection to start.
 
 ## Omacalc
 

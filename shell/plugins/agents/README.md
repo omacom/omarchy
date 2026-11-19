@@ -45,8 +45,8 @@ Every subscription on one page, limits first.
   report the account's own figures; DeepSeek, Kimchi, Ollama Cloud, and
   OpenRouter without a management key add up the costs pi and opencode wrote
   beside each reply on this machine, and mark the amount ≈ as an estimate.
-- **Make something cool** — starter prompts (a new theme, plugin, or app) that
-  start the default agent on the task through `omarchy agent prompt`.
+- **Make something cool** — starter prompts (a new theme, plugin, app, or game),
+  two across, that start the agent on the task through `omarchy agent make`.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
   Claude Code, Codex, and Grok as large marks, three across, with the first
   one focused, and the hero's line reads Add an account. The + becomes the

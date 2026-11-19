@@ -6,7 +6,8 @@
 # A model set up on this machine gets a launcher beside Agent, as signing in to
 # Claude, Codex or Grok adds one: its name, its vendor's logo, and an agent
 # opened on it, in the default agent where that can take a local model and in
-# pi or OpenCode where it can't. Removing the model takes the launcher away.
+# pi or OpenCode where it can't. An image model's opens Fantasi on it instead,
+# since no agent runs on one. Removing the model takes the launcher away.
 #
 # This makes the launchers match the models set up right now, so it is safe to
 # run at any time: omarchy-agent-local runs it after a setup or a removal, and
@@ -68,12 +69,12 @@ fi
 mapfile -t models < <(jq -r '
   .models | to_entries[]
   | select(.value.unit != "installing" and .value.unit != "removing")
-  | [.key, (.value.name // .key | gsub("[[:cntrl:]]"; " ")), (.value.vendor // "local")] | @tsv' <<<"$status")
+  | [.key, (.value.name // .key | gsub("[[:cntrl:]]"; " ")), (.value.vendor // "local"), (.value.kind // "text")] | @tsv' <<<"$status")
 
 declare -A entries=() icons=()
 
 for model in "${models[@]}"; do
-  IFS=$'\t' read -r recipe name vendor <<<"$model"
+  IFS=$'\t' read -r recipe name vendor kind <<<"$model"
   # The recipe goes on a command line and the vendor into a file name.
   [[ $recipe =~ ^[a-z0-9][a-z0-9._-]*$ ]] || continue
   [[ $vendor =~ ^[a-z0-9-]+$ ]] || vendor="local"
@@ -89,7 +90,21 @@ for model in "${models[@]}"; do
     icons[$icon.svg]=1
   fi
 
-  cat >"$APPLICATIONS/$entry.tmp" <<ENTRY
+  if [[ $kind == "image" ]]; then
+    cat >"$APPLICATIONS/$entry.tmp" <<ENTRY
+[Desktop Entry]
+Version=1.0
+Name=$name
+Comment=Make images with $name in Fantasi, running on this machine
+Exec=fantasi open --model $recipe
+Icon=$icon
+StartupWMClass=fantasi
+Terminal=false
+Type=Application
+Categories=Graphics;
+ENTRY
+  else
+    cat >"$APPLICATIONS/$entry.tmp" <<ENTRY
 [Desktop Entry]
 Version=1.0
 Name=$name
@@ -102,6 +117,7 @@ Type=Application
 Categories=Development;
 X-Omarchy-Dock-Click=new
 ENTRY
+  fi
   chmod 644 "$APPLICATIONS/$entry.tmp"
   mv -f "$APPLICATIONS/$entry.tmp" "$APPLICATIONS/$entry"
 done
