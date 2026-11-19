@@ -42,7 +42,11 @@ A duplicate issue costs a maintainer more time than no report at all.
 ```bash
 gh search issues --repo omacom/omarchy "<program> crash"
 gh issue list --repo omacom/omarchy --state all --search "<signal> <program>"
+gh pr list --repo omacom/omarchy --state all --search "<signal> <program>"
 ```
+
+Search pull requests too. An open PR means you point the user at it. A merged
+PR means the fix is on the default branch and ships in a coming release.
 
 Search on the crashing program, the signal, and distinctive symbols from the
 backtrace — not on the wording of the title you were about to write.
