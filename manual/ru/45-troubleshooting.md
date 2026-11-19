@@ -59,6 +59,6 @@ UWSM пропускает файл с синтаксической ошибко�
 
 Чтобы появлялся расширенный запрос подтверждения, в Settings > Advanced > Use Hardware Acceleration должно быть включено. _Примечание: Для начала работы требуется перезагрузка._
 
- ![troubleshooting-1password](images/troubleshooting-1password.webp)
+ ![troubleshooting-1password](../images/troubleshooting-1password.webp)
 
 Или если вы не запускали 1Password с момента загрузки, запрос не появится.
