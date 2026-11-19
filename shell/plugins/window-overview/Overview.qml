@@ -18,6 +18,11 @@ Item {
   property int workspaceId: -1
   property int selectedIndex: -1
   property var windows: []
+  // A window can change workspace without changing the global toplevel list.
+  // Keep the filter bound to each window's workspace while the overview is requested.
+  readonly property var matchingWindows: requested
+    ? OverviewModel.windowsOnWorkspace(Hyprland.toplevels.values, workspaceId) : []
+  onMatchingWindowsChanged: if (opened) refresh()
 
   function open(payloadJson) {
     var monitor = Hyprland.focusedMonitor
@@ -35,13 +40,13 @@ Item {
     windows = []
   }
   function refresh() {
-    var next = OverviewModel.windowsOnWorkspace(Hyprland.toplevels.values, workspaceId)
+    var next = matchingWindows
     selectedIndex = OverviewModel.selectionAfterChange(windows, selectedIndex, next)
     windows = next
   }
   function choose(index) {
     var window = windows[index]
-    if (!window || !window.wayland) return
+    if (!window || !window.wayland || !matchingWindows.includes(window)) return
     close()
     Qt.callLater(function() { if (window.wayland) window.wayland.activate() })
   }
@@ -59,10 +64,6 @@ Item {
         Qt.callLater(function() { keyCatcher.forceActiveFocus() })
       }
     }
-  }
-  Connections {
-    target: Hyprland.toplevels
-    function onValuesChanged() { if (root.opened) root.refresh() }
   }
   Connections {
     target: Hyprland
