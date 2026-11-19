@@ -14,10 +14,18 @@ fi
 MODE="$1"
 shift
 
+notify_failure() {
+  echo "$1" >&2
+  omarchy-notification-send -g "" -u critical "$(omarchy-i18n share.couldNot)" "$1"
+}
+
 if [[ $MODE == "clipboard" ]]; then
   TEMP_FILE=$(mktemp --suffix=.txt)
-  wl-paste --no-newline >"$TEMP_FILE" || exit 1
-  [[ -s $TEMP_FILE ]] || exit 1
+  if ! wl-paste --no-newline >"$TEMP_FILE" || [[ ! -s $TEMP_FILE ]]; then
+    rm -f "$TEMP_FILE"
+    notify_failure "$(omarchy-i18n share.clipboardEmpty)"
+    exit 1
+  fi
   FILE_ARRAY=("$TEMP_FILE")
 elif (($# > 0)); then
   FILE_ARRAY=("$@")
@@ -34,7 +42,7 @@ else
   picked=$(omarchy-file-select "${select_args[@]}") || status=$?
 
   if ((${status:-0} > 1)); then
-    omarchy-notification-send -g "" -u critical "$(omarchy-i18n share.couldNot)" "$(omarchy-i18n share.chooserClosed)"
+    notify_failure "$(omarchy-i18n share.chooserClosed)"
     exit 1
   fi
 
@@ -43,10 +51,15 @@ else
 fi
 
 for path in "${FILE_ARRAY[@]}"; do
-  [[ -e $path ]] || exit 1
+  if [[ ! -e $path ]]; then
+    notify_failure "$(omarchy-i18n share.pathMissing "$path")"
+    exit 1
+  fi
 done
 
 if pgrep -x localsend >/dev/null; then
+  [[ -z ${TEMP_FILE:-} ]] || rm -f "$TEMP_FILE"
+  notify_failure "$(omarchy-i18n share.alreadyRunning)"
   exit 1
 fi
 
