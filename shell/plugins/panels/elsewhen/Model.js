@@ -927,6 +927,11 @@ function factsKey(zone) {
 
 var WEATHER_TTL_MS = 20 * 60 * 1000
 
+// Open-Meteo answers curl's default User-Agent with 403 Forbidden on some
+// networks, which leaves places unfound and every card without weather. Identify
+// the caller the way the weather panel does.
+var OPEN_METEO_USER_AGENT = "omarchy-shell (+https://github.com/omacom/omarchy)"
+
 function geocodeUrl(label) {
   return "https://geocoding-api.open-meteo.com/v1/search?count=" + GEOCODE_COUNT + "&language=en&format=json&name="
     + encodeURIComponent(label)
