@@ -10,7 +10,7 @@ description: >
   settings, display config, appearance changes, and user-facing omarchy commands. Excludes Omarchy
   source development through `omarchy dev link` workflows. Making a new theme, shell plugin, app,
   or game follows the omarchy-make-theme, omarchy-make-plugin, omarchy-make-app, or
-  omarchy-make-game skill instead.
+  omarchy-make-game skill instead, and reporting a bug or contributing upstream follows omarchy-contribute.
 ---
 
 # Omarchy Skill
@@ -30,9 +30,8 @@ matching guide before starting:
 - [`theming.md`](theming.md) - switching and tweaking themes, backgrounds, and fonts
 - [`hooks.md`](hooks.md) - automation hooks that run on system events
 - [`capture.md`](capture.md) - screenshots, screen recordings, OCR text capture, and file sharing
-- [`contributing.md`](contributing.md) - reporting Omarchy bugs and submitting fixes upstream
 
-Making something new has a skill of its own: `omarchy-make-theme`, `omarchy-make-plugin`, `omarchy-make-app`, and `omarchy-make-game`.
+Making something new has a skill of its own: `omarchy-make-theme`, `omarchy-make-plugin`, `omarchy-make-app`, and `omarchy-make-game`. Reporting a bug or contributing a fix upstream follows `omarchy-contribute`.
 
 ## Critical Safety Rules
 
@@ -277,4 +276,4 @@ This skill intentionally does not cover Omarchy source development. Do not use t
 - "Lock after ten minutes" -> Set `idle.lock` to `600` in `~/.config/omarchy/shell.json`
 - "Reset shell/bar to defaults" -> `omarchy refresh shell`
 - "Record my screen" -> `omarchy screenrecord --fullscreen`, then `omarchy screenrecord --stop-recording` (see `capture.md`)
-- "Report this bug to Omarchy" -> Gather diagnostics and a capture of the problem, then file it (see `contributing.md`)
+- "Report this bug to Omarchy" -> Follow the omarchy-contribute skill
