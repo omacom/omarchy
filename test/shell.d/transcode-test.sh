@@ -76,12 +76,13 @@ for case_spec in "mp4 4k" "mp4 1080p" "gif 720p"; do
   : >"$tmp/notify.log"
 
   timeout 5 bash -c '
+    set -euo pipefail
     PATH="$1" HOME="$2" OMARCHY_PATH="$3" \
       FFMPEG_LOG="$4" NOTIFY_LOG="$5" WL_COPY_PIDS="$6" \
-      "$3/bin/omarchy-transcode" "$7" "$8" "$9" 2>&1
+      "$3/bin/omarchy-transcode" "$7" "$8" "$9" 2>&1 | cat >/dev/null
   ' _ "$stub_bin:$ROOT/bin:$PATH" "$home" "$ROOT" \
     "$tmp/ffmpeg.log" "$tmp/notify.log" "$tmp/wl-copy.pids" \
-    "$input" "$fmt" "$res" | cat >/dev/null ||
+    "$input" "$fmt" "$res" ||
     fail "transcoding $fmt $res overwrites existing output without hanging piped callers"
 
   [[ $(<"$existing") == "transcoded" ]] ||
