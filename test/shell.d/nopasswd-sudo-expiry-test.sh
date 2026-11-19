@@ -277,7 +277,8 @@ for policy in '    Options: !authenticate' '    Options: authenticate'; do
   expected=1
   [[ $policy != *'!authenticate'* ]] || expected=0
   assert_status "$expected" env TEST_POLICY="$policy" /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
-  [[ $(wc -l <"$test_tmp/commands") == 1 ]]
+  # A filtered listing without the tags is followed by the full one (sudo-rs).
+  ! grep -qv '^sudo -n -l -l' "$test_tmp/commands" || fail "menu probe ran more than a policy listing"
   grep -q '^sudo -n -l -l -- .* __status ' "$test_tmp/commands"
 done
 assert_status 1 env TEST_POLICY_FAILURE=1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
