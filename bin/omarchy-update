@@ -73,6 +73,10 @@ fi
 
 trap 'echo ""; echo -e "\033[0;31m$(omarchy-i18n update.failed)\n\n$(omarchy-i18n update.failedReview)\n\n$(omarchy-i18n update.failedHelp https://omarchy.org/discord)\033[0m"' ERR
 trap cleanup_update EXIT
+# Deferred until the foreground command returns. A prompt that keeps running
+# after SIGHUP has to wait in the background and exit on its own; otherwise
+# this never runs and the update lock stays held. The lock is taken before
+# that prompt so a second update cannot start while it is on screen.
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM

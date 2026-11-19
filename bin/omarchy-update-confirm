@@ -12,7 +12,40 @@ gum style --border normal --padding "1 2" \
 
 echo
 
-if ! gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n update.continue)"; then
+# gum catches SIGHUP and keeps reading the terminal. Bash will not run a HUP
+# trap while that foreground child is still going, so closing the update
+# window leaves omarchy-update, this prompt, and the update lock behind.
+# wait on a background child returns as soon as HUP, INT, or TERM arrives.
+# The explicit stdin redirect keeps the keyboard: without job control, bash
+# would point that background command at /dev/null. Kill gum on the way out
+# so a lock descriptor it inherited cannot outlive the prompt. Hangup has
+# already dropped the terminal, so KILL is what makes a handler that also
+# ignores TERM let go of the lock.
+confirm_pid=""
+
+stop_confirm() {
+  local signal="$1"
+
+  if [[ -n $confirm_pid ]]; then
+    kill "-$signal" "$confirm_pid" 2>/dev/null || true
+    confirm_pid=""
+  fi
+}
+
+trap 'stop_confirm KILL; exit 129' HUP
+trap 'stop_confirm TERM; exit 130' INT
+trap 'stop_confirm TERM; exit 143' TERM
+
+gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n update.continue)" <&0 &
+confirm_pid=$!
+# A failing wait is the prompt's own status. Reading $? inside the then-branch
+# of `if ! wait` sees the inverted test instead, which would treat No as Yes.
+confirm_status=0
+wait "$confirm_pid" || confirm_status=$?
+confirm_pid=""
+trap - HUP INT TERM
+
+if (( confirm_status != 0 )); then
   echo "$(omarchy-i18n update.cancelled)"
-  exit 1
+  exit "$confirm_status"
 fi
