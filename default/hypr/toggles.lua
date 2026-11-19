@@ -16,7 +16,7 @@ require_all.files(toggles_dir, nil, {
   },
 })
 
--- Windows Drag Maximize marked for the dock keep their marks across a reload
+-- Windows Drag Snap marked for the dock keep their marks across a reload
 -- that leaves it off, with nothing left to clear them.
 local floating_bounds = package.loaded["default.hypr.floating-bounds"]
 if not (floating_bounds and floating_bounds.drop_maximize) then

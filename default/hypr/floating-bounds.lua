@@ -45,6 +45,20 @@ local function set_behind(window, on)
   hl.dispatch(hl.dsp.window.tag({ tag = (on and "+" or "-") .. BEHIND_TAG, window = window }))
 end
 
+-- A window snapped to a half is marked too, so the dock hides for it as for a
+-- maximized one, until it is moved or resized. No Hyprland event follows a
+-- tag, so the dock is asked to read its windows again.
+local SNAPPED_TAG = require("default.hypr.floating-marks").snapped
+
+local function set_snapped(window, on)
+  hl.dispatch(hl.dsp.window.tag({ tag = (on and "+" or "-") .. SNAPPED_TAG, window = window }))
+  hl.exec_cmd("omarchy-shell -q omarchy.dock refreshWindows")
+end
+
+-- Where the last snap put its window, so the next check does not take the
+-- snap itself for the user moving or resizing it.
+local snapped_box = nil
+
 -- A monitor's box in the layout's logical coordinates, which window positions
 -- and the reserved edges share. The odd transforms are the quarter turns.
 local function logical_box(monitor)
@@ -242,6 +256,10 @@ local function snap_to_half(window, monitor, zone)
   local y = math.floor(monitor.y + frame.y + bar + border)
   hl.dispatch(hl.dsp.window.resize({ x = math.floor(frame.width - 2 * border), y = math.floor(frame.height - bar - 2 * border), relative = false, window = window }))
   hl.dispatch(hl.dsp.window.move({ x = x, y = y, relative = false, window = window }))
+  snapped_box = { x = x, y = y, width = math.floor(frame.width - 2 * border), height = math.floor(frame.height - bar - 2 * border) }
+  if not tagged(window, SNAPPED_TAG) then
+    set_snapped(window, true)
+  end
   return y
 end
 
@@ -400,6 +418,9 @@ local function check()
     set_behind(window, false)
     own_sizes[window.address] = nil
   end
+  if (moved or resized) and tagged(window, SNAPPED_TAG) then
+    set_snapped(window, false)
+  end
   local cursor = hl.get_cursor_pos()
   if not moved or resized or not cursor or not pointer_on(window, cursor) then
     return
@@ -410,8 +431,11 @@ local function check()
 
   -- Remember where the window was put, so the next check does not take the
   -- correction itself for another drop.
+  snapped_box = nil
   local y = settle(window, cursor, watch and watch.address == window.address and watch.home or nil)
-  if y then
+  if snapped_box then
+    last.x, last.y, last.width, last.height = snapped_box.x, snapped_box.y, snapped_box.width, snapped_box.height
+  elseif y then
     last.y = y
   end
 end

@@ -35,8 +35,9 @@ PanelWindow {
       var ipc = toplevel.lastIpcObject
       mode = Math.max(mode, ipc && ipc.fullscreen ? ipc.fullscreen : 0)
       // Kept at full size behind a window maximized over it, which Hyprland
-      // allows only one of per workspace (see floating-bounds.lua).
-      if (ipc && ipc.tags && ipc.tags.indexOf("omarchy-maximized-behind") !== -1) mode = Math.max(mode, 1)
+      // allows only one of per workspace, or snapped to half the screen (see
+      // floating-bounds.lua): either counts as maximized.
+      if (ipc && ipc.tags && (ipc.tags.indexOf("omarchy-maximized-behind") !== -1 || ipc.tags.indexOf("omarchy-snapped") !== -1)) mode = Math.max(mode, 1)
     }
     return mode
   }

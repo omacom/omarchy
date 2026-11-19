@@ -1,15 +1,17 @@
 -- Tags floating-bounds.lua puts on floating windows for the dock, which hides
 -- for a window carrying one as it would for a maximized window. Only
 -- floating-bounds takes them off again, as the window is moved or resized, so
--- with Drag Maximize off nothing would: toggles.lua clears them on every load
+-- with Drag Snap off nothing would: toggles.lua clears them on every load
 -- that leaves it off.
 
 local M = {
   -- Kept at full size behind a window maximized over it.
   behind = "omarchy-maximized-behind",
+  -- Snapped to half the screen.
+  snapped = "omarchy-snapped",
 }
 
-M.all = { M.behind }
+M.all = { M.behind, M.snapped }
 
 function M.clear()
   local cleared = false

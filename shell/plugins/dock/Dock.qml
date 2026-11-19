@@ -370,7 +370,8 @@ Item {
     // The layout commands call this after changing a workspace's mode.
     function refresh(): void { root.refresh() }
     // A window tagged for the dock to hide gives no Hyprland event, so
-    // floating-marks.lua asks for a fresh read after clearing the tags.
+    // floating-bounds.lua and floating-marks.lua ask for a fresh read after
+    // changing the tags.
     function refreshWindows(): void { Hyprland.refreshToplevels() }
     function apps(): void { appGrid.toggle() }
   }

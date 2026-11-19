@@ -1009,6 +1009,29 @@ assert(preview:find('"to":{"x":0,"y":26,"width":960,"height":1054}', 1, true), "
 local x, y, width, height = landed(left_drop)
 assert(x == 2 and y == 26 + 30 + 2 and width == 960 - 4 and height == 1054 - 30 - 4, "a window dropped on the left edge fills the left half")
 
+-- Snapped to a half, the window is marked so the dock hides for it, and the
+-- dock is asked to read its windows again; it stays marked through a click,
+-- and loses the mark once it is dragged away.
+local function snapped(w)
+  for _, tag in ipairs(w.tags) do if tag == "omarchy-snapped" then return true end end
+  return false
+end
+local asked = false
+for _, command in ipairs(commands) do
+  if command == "omarchy-shell -q omarchy.dock refreshWindows" then asked = true end
+end
+assert(snapped(left_drop) and asked, "a window snapped to a half is marked for the dock, which reads its windows again")
+active = left_drop
+handlers["window.active"](); step()
+for _ = 1, 45 do step() end
+assert(snapped(left_drop), "a click on a snapped window leaves it marked")
+handlers["window.active"](); step(); step()
+left_drop.at = { x = 600, y = 400 }
+cursor = { x = 700, y = 380 }
+handlers["window.active"](); step()
+for _ = 1, 45 do step() end
+assert(not snapped(left_drop), "dragged away from the half, it is no longer marked")
+
 local right_drop = window(300)
 preview = drag_to(right_drop, { x = 1500, y = 300 }, { x = 1915, y = 280 })
 assert(preview:find('"to":{"x":960,"y":26,"width":960,"height":1054}', 1, true), "the preview shows the right half")
