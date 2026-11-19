@@ -194,11 +194,7 @@ definition already being applied a step away. It checks again after waiting for
 the notification server, since that wait is long enough for an update to start
 underneath it.
 
-The notifier reads only its own user's runtime directory, never the `/tmp` path
-`omarchy-update` falls back to when `XDG_RUNTIME_DIR` is unset. A shared lock
-file belongs to whoever created it first, so honouring it would let one user
-silence another user's notification. Missing an update and showing a redundant
-toast is the better failure.
+The notifier reads only its own user's runtime directory. When `XDG_RUNTIME_DIR` is unset, `omarchy-update-lock` falls back to `${XDG_STATE_HOME:-~/.local/state}/omarchy/omarchy-update.lock` in a mode-0700 directory; the notifier does not probe that fallback. An update started without a runtime directory can therefore leave a redundant migration toast, but no shared `/tmp` lock can silence another user's notification.
 
 Suppression is why `omarchy-update-stay-awake` starts its sleep inhibitor with
 the lock descriptor closed. That inhibitor outlives the step that starts it, so
