@@ -56,9 +56,21 @@ sleep 0.4
 # networks in other locations or on other adapters that share the same SSID are
 # never overwritten or erased.
 target_uuid=$(uuidgen)
+connected=0
+cleanup_target_profile() {
+  if (( !connected )) && [[ -n ${target_uuid:-} ]]; then
+    local uuid="$target_uuid"
+    target_uuid=""
+    nmcli connection delete uuid "$uuid" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup_target_profile EXIT
+trap 'exit 130' INT TERM HUP
+
 if ! nmcli connection add type wifi con-name "$ssid" ssid "$ssid" \
   connection.uuid "$target_uuid" ifname "$iface" autoconnect no \
   802-11-wireless.hidden "$hidden" >/dev/null 2>&1; then
+  target_uuid=""
   echo "Could not create connection profile for $ssid" >&2
   exit 1
 fi
@@ -92,7 +104,6 @@ try_mode() {
   nmcli --wait 25 connection up uuid "$target_uuid" ifname "$iface" >/dev/null 2>&1
 }
 
-connected=0
 if [[ $security == "OWE" ]]; then
   try_mode "owe" && connected=1
 elif [[ $security == "nopass" ]]; then
@@ -114,6 +125,5 @@ if (( connected )); then
   exit 0
 fi
 
-nmcli connection delete uuid "$target_uuid" >/dev/null 2>&1 || true
 echo "Could not connect to $ssid" >&2
 exit 1
