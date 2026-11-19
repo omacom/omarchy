@@ -1,0 +1,51 @@
+{
+  "extensionDescription": {
+    "message": "Choose what video and audio codecs YouTube should play for you",
+    "description": "Extension description"
+  },
+
+  "optionsTitle": {
+    "message": "Možnosti enhanced-h264ify"
+  },
+
+  "optionsBlock60fps": {
+    "message": "Blokovat 60fps videa"
+  },
+
+  "optionsBlockH264": {
+    "message": "Blokovat h264 (AVC)"
+  },
+
+  "optionsBlockVP8": {
+    "message": "Blokovat VP8"
+  },
+
+  "optionsBlockVP9": {
+    "message": "Blokovat VP9"
+  },
+
+  "optionsBlockAV1": {
+    "message": "Blokovat AV1"
+  },
+
+  "optionsBlockOpus": {
+    "message": "Blokovat Opus"
+  },
+
+  "optionsBlockMP4A": {
+    "message": "Blokovat AAC (MP4A)"
+  },
+
+  "optionsDisableLN": {
+    "message": "Zakázat normalizaci hlasitosti"
+  },
+
+  "optionsTitleVideo": {
+    "message": "Video"
+  },
+
+  "optionsTitleAudio": {
+    "message": "Zvuk"
+  }
+
+}

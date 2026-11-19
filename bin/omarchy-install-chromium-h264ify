@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# omarchy:summary=Keep YouTube on H.264 in Chromium on computers whose GPU can't decode AV1
+
+set -euo pipefail
+
+# YouTube serves AV1 when the browser says it can play it, and a GPU without AV1
+# decoding then plays it on the CPU. The enhanced-h264ify extension hides AV1,
+# VP9 and VP8 from YouTube, so it sends H.264, which those GPUs decode in hardware.
+# Other machines keep YouTube's choice.
+extension="$OMARCHY_PATH/default/chromium/hardware-extensions/enhanced-h264ify"
+conf=~/.config/chromium-flags.conf
+
+# Chromium honors only the last --load-extension switch outside a comment, which
+# may share its line with other switches. A comment starts at a # that begins a
+# line or follows whitespace.
+last_load_extension() {
+  awk '{ sub(/(^|[[:space:]])#.*$/, ""); for (i = 1; i <= NF; i++) if ($i ~ /^--load-extension=/) { last = substr($i, 18); line = NR } } END { print line ":" last }' "$conf"
+}
+
+# Google Chrome ignores --load-extension, so it isn't set up here.
+setup_chromium() {
+  local last line
+
+  [[ -f $conf ]] || return 0
+
+  last=$(last_load_extension)
+  line=${last%%:*}
+  last=${last#*:}
+
+  if [[ -z $line ]]; then
+    # Start a new line first if the file doesn't end in a newline.
+    if [[ -n $(tail -c1 "$conf") ]]; then
+      echo >>"$conf"
+    fi
+    printf '%s\n' "--load-extension=$extension" >>"$conf"
+  elif ! tr ',' '\n' <<<"$last" | grep -Fxq -- "$extension"; then
+    # Extend the last list itself, ahead of any neighbouring switch or comment.
+    sed -i --follow-symlinks -E \
+      -e "${line}s|^(([^#]*[[:space:]])?--load-extension=[^[:space:]#]*)|\1,$extension|" \
+      -e "${line}s|--load-extension=,$extension|--load-extension=$extension|" "$conf"
+  fi
+}
+
+if omarchy-hw-intel-no-av1-decode; then
+  setup_chromium
+fi
