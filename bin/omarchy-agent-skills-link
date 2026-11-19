@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# omarchy:summary=Link Omarchy's agent skills into every agent harness
+# omarchy:args=[omarchy-root]
+# omarchy:hidden=true
+
+# Each harness reads skills from a directory of its own, so every skill
+# Omarchy ships is linked into each of them, from one Omarchy tree: the
+# package, or the checkout `omarchy dev link` points at, so agents read the
+# skills of the code they run. A link into another Omarchy tree is moved to
+# this one, or removed when this tree has no such skill. Links to skills from
+# anywhere else are the user's, and stay.
+
+set -euo pipefail
+
+root=${1:-$OMARCHY_PATH}
+skills="$root/default/agents/skills"
+if [[ ! -d $skills ]]; then
+  echo "No agent skills in $root" >&2
+  exit 1
+fi
+
+dirs=(~/.agents/skills ~/.claude/skills ~/.codex/skills ~/.pi/agent/skills ~/.gemini/config/skills ~/.hermes/skills)
+for profile in ~/.hermes/profiles/*/; do
+  [[ -d $profile ]] && dirs+=("${profile%/}/skills")
+done
+
+for dir in "${dirs[@]}"; do
+  mkdir -p "$dir"
+  for link in "$dir"/*; do
+    [[ -L $link ]] || continue
+    target=$(readlink "$link")
+    if [[ $target == */default/agents/skills/* && ! -d $skills/${link##*/} ]]; then
+      rm "$link"
+    fi
+  done
+  for skill in "$skills"/*/; do
+    skill=${skill%/}
+    link="$dir/${skill##*/}"
+    # A folder or a link of the user's own by the same name wins.
+    if [[ -e $link || -L $link ]] && ! [[ -L $link && $(readlink "$link") == */default/agents/skills/* ]]; then
+      continue
+    fi
+    ln -sfn "$skill" "$link"
+  done
+done

@@ -94,8 +94,13 @@ parse_omarchy_option() {
   return 0
 }
 
+# Help is only asked for before the headline: after it, --help is description
+# text, such as a reminder whose message is "--help".
 while (($# > 0)); do
-  if parse_omarchy_option "$@"; then
+  if [[ $1 == "-h" || $1 == "--help" ]]; then
+    usage 2>&1
+    exit 0
+  elif parse_omarchy_option "$@"; then
     shift "$parsed_option_args"
   else
     break

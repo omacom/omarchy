@@ -26,11 +26,11 @@
   "update": {
     "label": "Atjaunināt"
   },
-  "about": {
-    "label": "Par"
-  },
   "system": {
     "label": "Sistēma"
+  },
+  "system.about": {
+    "label": "Par"
   },
   "system.screensaver": {
     "label": "Ekrānsaudzētājs"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Ievade"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Valoda"
+  },
+  "setup.region.timezone": {
+    "label": "Laika josla"
   },
   "setup.network": {
     "label": "Tīkls"
@@ -565,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Tiešā palaišana"
-  },
-  "setup.reset": {
-    "label": "Atiestatīt datoru"
+  "remove.factory-reset": {
+    "label": "Rūpnīcas atiestatīšana"
   },
   "install.package": {
     "label": "Pakotne"
@@ -1081,9 +1081,6 @@
   "update.password": {
     "label": "Parole"
   },
-  "update.timezone": {
-    "label": "Laika josla"
-  },
   "update.time": {
     "label": "Laiks"
   },
@@ -1195,7 +1192,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Avāriju fiksēšana ieslēgta"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1327,5 +1324,40 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikonas"
+  },
+  "install.style.icons": {
+    "label": "Ikonas"
+  },
+  "remove.icons": {
+    "label": "Ikonas"
+  },
+  "update.icons": {
+    "label": "Papildu ikonas"
+  },
+  "system.firmware": {
+    "label": "Restartēt uz BIOS",
+    "description": "Restartēt UEFI aparātprogrammatūras iestatījumos"
+  },
+  "setup.region": {
+    "label": "Reģions"
+  },
+  "setup.region.formats": {
+    "label": "Formāti",
+    "description": "Kā tiek rakstīti datumi, laiki, skaitļi un mērvienības"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "Izveidot spēli"
   }
 }
