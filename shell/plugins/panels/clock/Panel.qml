@@ -276,6 +276,7 @@ Panel {
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         interactive: contentHeight > height || contentWidth > width
+        WheelScroll { flickable: calendarScroll }
 
         Column {
           id: calendarColumn

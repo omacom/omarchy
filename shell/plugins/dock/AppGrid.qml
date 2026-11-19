@@ -336,6 +336,7 @@ Item {
             cellWidth: root.cellWidth
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
+            WheelScroll { flickable: grid }
 
             delegate: Item {
               id: cell

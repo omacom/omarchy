@@ -874,6 +874,11 @@ Panel {
           property: "interactive"
           value: panelColumn.implicitHeight > scrollArea.height
         }
+        // WheelScroll joins the content, and ScrollView only measures content
+        // that is a single item, so the size is stated.
+        contentWidth: availableWidth
+        contentHeight: panelColumn.implicitHeight
+        WheelScroll { flickable: scrollArea.contentItem }
 
         Column {
           id: panelColumn

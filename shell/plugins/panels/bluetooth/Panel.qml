@@ -817,6 +817,7 @@ Panel {
           interactive: contentHeight > height
 
           ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+          WheelScroll { flickable: deviceListView }
 
           model: root.scrollRows
           currentIndex: root.scrollRowIndex

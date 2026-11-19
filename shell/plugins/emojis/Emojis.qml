@@ -268,6 +268,7 @@ Item {
             cellWidth: root.cellWidth
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
+            WheelScroll { flickable: resultGrid }
 
             delegate: Rectangle {
               required property int index
