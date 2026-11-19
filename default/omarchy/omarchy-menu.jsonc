@@ -460,7 +460,7 @@
   "update.config": {"icon":"","label":"Config","title":"Reset to default"},
   "update.themes": {"icon":"󰸌","label":"Extra Themes","when":"omarchy-theme-extras","action":"omarchy-launch-floating-terminal-with-presentation omarchy-theme-update"},
   "update.icons": {"icon":"󰠱","label":"Extra Icons","when":"omarchy-icons-extras","action":"omarchy-launch-floating-terminal-with-presentation omarchy-icons-update"},
-  "update.games": {"icon":"󰊴","label":"Game Vibes Games","when":"compgen -G \"$HOME/Games/vibes/*/.git\" >/dev/null","action":"omarchy-launch-floating-terminal-with-presentation omarchy-games-vibes-update"},
+  "update.games": {"icon":"󰊴","label":"Game Vibes Games","when":"find \"$HOME/Games/vibes\" -mindepth 2 -maxdepth 2 -name .git -type d 2>/dev/null | grep -q .","action":"omarchy-launch-floating-terminal-with-presentation omarchy-games-vibes-update"},
   "update.process": {"icon":"","label":"Process","title":"Restart"},
   "update.hardware": {"icon":"󰇅","label":"Hardware","title":"Restart"},
   "update.firmware": {"icon":"","label":"Firmware","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update-firmware"},

@@ -4,9 +4,16 @@
 
 # Only the games that came from a clone. A symlinked game is someone's working
 # copy, and a game made here has no repository to pull from.
+status=0
+
 for game in ~/Games/vibes/*; do
   [[ ! -L $game && -d $game/.git ]] || continue
   echo "Updating: $(basename "$game")"
-  git -C "$game" pull
-  find "$game" -type l -delete
+  if git -C "$game" pull; then
+    find "$game" -type l -delete
+  else
+    status=1
+  fi
 done
+
+exit $status
