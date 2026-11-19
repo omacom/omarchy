@@ -1,15 +1,25 @@
 #!/bin/bash
 
 # omarchy:summary=Launch Amp with its first message piped in
-# omarchy:args=<amp> <prompt>
+# omarchy:args=[--wait] <amp> <prompt>
 # omarchy:hidden=true
 
 # Amp takes its first interactive message from piped input; a positional
 # message is for --execute, which exits after one turn. The binary rides in
-# as $1 so a user install can replace it, and the prompt as $2, so this
-# launch needs no bash -c through xdg-terminal-exec -e. The prompt is
-# consumed from the pipe, so the window would close as soon as Amp's
-# first turn is done; wait for the terminal afterwards, as a presentation
-# terminal does, so the window stays up for the session.
+# as an argument so a user install can replace it, and this launch needs no
+# bash -c through xdg-terminal-exec -e. When launched in its own terminal
+# window (--wait), hold the window open after Amp finishes its piped turn.
+wait=false
+if [[ ${1:-} == "--wait" ]]; then
+  wait=true
+  shift
+fi
+
 printf "%s\n" "$2" | "$1" --dangerously-allow-all
-read -r </dev/tty || true
+status=$?
+
+if [[ $wait == "true" ]]; then
+  read -r </dev/tty || true
+fi
+
+exit "$status"
