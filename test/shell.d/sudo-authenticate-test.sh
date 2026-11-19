@@ -83,6 +83,7 @@ run_pty() {
 import os
 import pty
 import select
+import signal
 import sys
 import time
 
@@ -94,7 +95,7 @@ if pid == 0:
     os.execvpe(cmd[0], cmd, os.environ)
 
 buf = bytearray()
-deadline = time.monotonic() + 10.0
+deadline = time.monotonic() + 30.0
 
 def wait_for(needle):
     while time.monotonic() < deadline:
@@ -161,26 +162,31 @@ try:
     elif action == "none":
         pass
 
-    while time.monotonic() < deadline:
+    # Reap the child before closing the master: closing it first hangs up the
+    # terminal, and the SIGHUP races the Ctrl-C under test.
+    deadline = time.monotonic() + 30.0
+    while True:
+        if time.monotonic() >= deadline:
+            os.kill(pid, signal.SIGKILL)
+            os.waitpid(pid, 0)
+            sys.stderr.write("timed out waiting for exit; output=%r\n" % bytes(buf))
+            sys.exit(98)
         r, _, _ = select.select([master], [], [], 0.05)
         if r:
             try:
                 chunk = os.read(master, 4096)
             except OSError:
-                break
+                chunk = b""
             if not chunk:
+                _, status = os.waitpid(pid, 0)
                 break
             buf.extend(chunk)
         else:
             wpid, status = os.waitpid(pid, os.WNOHANG)
             if wpid == pid:
-                pid = 0
                 break
 finally:
     os.close(master)
-
-if pid:
-    _, status = os.waitpid(pid, 0)
 
 sys.stdout.buffer.write(buf)
 if os.WIFEXITED(status):
