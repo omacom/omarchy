@@ -13,11 +13,13 @@ for boot_num in $(sed -nE 's/^Boot([0-9A-Fa-f]+)\*?[[:space:]]+Omarchy[[:space:]
   sudo efibootmgr --bootnum "$boot_num" --delete-bootnum >/dev/null
 done
 
-# A DGX Spark that kept Direct Boot through 1790517230 also kept its UKI, which
-# Limine now loads with a 20-second firmware delay. Boot it without one.
-limine_config_dir=/etc/limine-entry-tool.d
+# A DGX Spark that kept Direct Boot left 1790517230 before its rebuild and
+# marker, keeping a UKI that Limine now loads with a 20-second firmware delay.
+# Finish that rebuild; the marker comes last, so an interrupted one retries.
+spark_marker=/var/lib/omarchy/migrations/1790517230
 if omarchy-hw-aarch64-gb10 && omarchy-hw-match "NVIDIA_DGX_Spark" && omarchy-cmd-present limine-mkinitcpio &&
-  ! grep -Fxqs 'ENABLE_UKI=no' "$limine_config_dir/zz-omarchy-dgx-spark.conf"; then
+  [[ ! -e $spark_marker ]]; then
   sudo bash "$OMARCHY_PATH/install/hardware/nvidia/dgx-spark-boot.sh"
   sudo limine-mkinitcpio
+  sudo install -Dm644 /dev/null "$spark_marker"
 fi
