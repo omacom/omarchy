@@ -565,9 +565,6 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "But Terus"
-  },
   "setup.reset": {
     "label": "Set Semula Komputer"
   },

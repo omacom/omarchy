@@ -565,9 +565,6 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Pornire directă"
-  },
   "setup.reset": {
     "label": "Resetează computerul"
   },

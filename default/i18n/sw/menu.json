@@ -565,9 +565,6 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Anza moja kwa moja"
-  },
   "setup.reset": {
     "label": "Weka upya kompyuta"
   },

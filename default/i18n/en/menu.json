@@ -714,9 +714,6 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direct Boot"
-  },
   "setup.reset": {
     "label": "Reset Computer"
   },

@@ -565,9 +565,6 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direkte oppstart"
-  },
   "setup.reset": {
     "label": "Nullstill datamaskin"
   },

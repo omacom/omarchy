@@ -565,9 +565,6 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "אתחול ישיר"
-  },
   "setup.reset": {
     "label": "איפוס מחשב"
   },
