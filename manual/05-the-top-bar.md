@@ -95,6 +95,7 @@ The same things have commands, which is what you want for a [dotfiles](31-dotfil
 ```bash
 omarchy bar position bottom
 omarchy bar background glassy  # opaque, glassy, none, or cycle
+omarchy bar lock on            # ignore drags, so nothing gets moved or thrown off by accident; off or toggle undo it
 omarchy bar move omarchy.weather --section centerBegin --index 0
 omarchy bar move omarchy.bluetooth --section tray  # into the tray's drawer
 omarchy bar set omarchy.clock format "HH:mm"

@@ -330,6 +330,17 @@ bar_background opaque >/dev/null
 [[ ! -s $TMPDIR/hyprctl.log ]] || fail "Hyprland reloads only when the bar's glass changes"
 pass "the bar background cycles through its looks and refuses unknown ones"
 
+bar_lock() { HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar lock "$@"; }
+[[ $(bar_lock) == "off" ]] || fail "a bar is unlocked until it is locked"
+bar_lock on >/dev/null
+jq -e '.bar.locked == true' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null || fail "shell config locks the bar"
+bar_lock toggle >/dev/null
+[[ $(bar_lock) == "off" ]] || fail "toggling a locked bar unlocks it"
+if bar_lock maybe 2>/dev/null; then
+  fail "an unknown bar lock is refused"
+fi
+pass "shell config locks and unlocks the bar"
+
 # transparent stays for scripts written against it: true is none, false opaque.
 bar_background glassy >/dev/null
 HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar transparent true >/dev/null

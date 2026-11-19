@@ -24,6 +24,7 @@ ShellRoot {
   // The slot the pointer is holding.
   property var held: null
   property string counts: ""
+  property string lockedLayout: ""
   property var steps: []
   property int step: 0
 
@@ -254,6 +255,17 @@ ShellRoot {
       [function() {
         var inner = root.slotsOf("test.inner")[0]
         root.check(inner && inner.activeItem.fixedEdge === "start", "moved to the left section, the tray has them grow from its start: " + (inner ? inner.activeItem.fixedEdge : "none shown"))
+        // A locked bar ignores drags.
+        host.mutateShellConfig(function(config) { config.bar.locked = true })
+      }, 400],
+      [function() {
+        root.lockedLayout = JSON.stringify(host.config.bar.layout)
+        root.lift(root.slotOf("test.c", "right"))
+      }, 300],
+      [function() { root.pointAt(root.slotOf("test.a", "left"), 0.8) }, 300],
+      [function() { root.letGo(root.slotOf("test.a", "left"), 0.8) }, 600],
+      [function() {
+        root.check(JSON.stringify(host.config.bar.layout) === root.lockedLayout, "a widget dragged on a locked bar stays where it was: " + JSON.stringify(root.ids("left")) + " " + JSON.stringify(root.ids("right")))
       }, 100]
     ]
     stepper.start()
