@@ -1477,6 +1477,7 @@ Panel {
         spacing: Style.space(8)
 
         Toggle {
+          id: ethernetSwitch
           Layout.fillWidth: true
           Layout.preferredWidth: 1
           implicitHeight: Style.space(38)
