@@ -23,7 +23,10 @@ PanelWindow {
   // Park on the focused screen from the start, so the first open does not
   // move (and remap) the surface: a screen change on open would let the
   // first keys typed at once reach the window behind the overlay again.
-  property var targetScreen: focusedScreen()
+  // Assigned once rather than bound, so an open overlay stays put when focus
+  // moves to another output.
+  property var targetScreen: null
+  Component.onCompleted: targetScreen = focusedScreen()
   property Region emptyRegion: Region {}
   readonly property var targetMonitor: {
     var monitors = Hyprland.monitors.values
