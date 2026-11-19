@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the generated Omarchy theme to Orca
+# omarchy:hidden=true
+
+set -euo pipefail
+
+CURRENT_THEME_PATH="$HOME/.local/state/omarchy/current/theme"
+ORCA_THEME_SOURCE="$CURRENT_THEME_PATH/orca-theme.json"
+ORCA_TERMINAL_SOURCE="$CURRENT_THEME_PATH/orca-terminal.json"
+# Orca installs a local plugin from a folder and reads that folder again on
+# every update, so it lives outside current/theme, which each switch replaces.
+ORCA_PLUGIN_PATH="$HOME/.local/state/omarchy/orca-theme"
+ORCA_PLUGIN_KEY="local.omarchy-theme"
+# The CLI the orca-ide package ships. A bare `orca` is the GNOME screen reader
+# on Arch, so it is never assumed to be Orca's.
+ORCA_CLI="${OMARCHY_ORCA_CLI:-/usr/lib/orca-ide/bin/orca-ide}"
+
+[[ -x $ORCA_CLI ]] || exit 0
+[[ -f $ORCA_THEME_SOURCE && -f $ORCA_TERMINAL_SOURCE ]] || exit 0
+
+# A theme without one of the colors leaves its placeholder unresolved, which
+# Orca would reject; keep the previous palette instead.
+if grep -q '{{' "$ORCA_THEME_SOURCE" "$ORCA_TERMINAL_SOURCE"; then
+  echo "Skipping Orca theme: generated files have unresolved colors." >&2
+  exit 0
+fi
+
+mode=$(jq -r '.base' "$ORCA_THEME_SOURCE")
+if [[ $mode == "light" ]]; then
+  other="dark"
+elif [[ $mode == "dark" ]]; then
+  other="light"
+else
+  echo "Skipping Orca theme: unknown mode '$mode'." >&2
+  exit 0
+fi
+
+mkdir -p "$ORCA_PLUGIN_PATH/themes" "$ORCA_PLUGIN_PATH/terminal"
+cp "$ORCA_THEME_SOURCE" "$ORCA_PLUGIN_PATH/themes/$mode.json"
+cp "$ORCA_TERMINAL_SOURCE" "$ORCA_PLUGIN_PATH/terminal/$mode.json"
+
+# Orca keeps a dark and a light theme and follows the desktop's color scheme,
+# so the plugin offers both. Until a theme of the other mode is applied, that
+# one is this palette relabelled.
+if [[ ! -f $ORCA_PLUGIN_PATH/themes/$other.json ]]; then
+  jq --arg mode "$other" '.base = $mode' "$ORCA_THEME_SOURCE" >"$ORCA_PLUGIN_PATH/themes/$other.json"
+fi
+if [[ ! -f $ORCA_PLUGIN_PATH/terminal/$other.json ]]; then
+  jq --arg mode "$other" '.mode = $mode' "$ORCA_TERMINAL_SOURCE" >"$ORCA_PLUGIN_PATH/terminal/$other.json"
+fi
+
+cat >"$ORCA_PLUGIN_PATH/orca-plugin.json" <<'JSON'
+{
+  "manifestVersion": 2,
+  "id": "omarchy-theme",
+  "name": "Omarchy",
+  "version": "1.0.0",
+  "execution": "data",
+  "description": "The current Omarchy theme, regenerated on every theme change.",
+  "license": "MIT",
+  "engines": { "orca": ">=1.4.246" },
+  "contributes": {
+    "themes": [
+      { "id": "omarchy-dark", "title": "Omarchy Dark", "path": "themes/dark.json" },
+      { "id": "omarchy-light", "title": "Omarchy Light", "path": "themes/light.json" }
+    ],
+    "terminalThemes": [
+      { "id": "omarchy-dark", "title": "Omarchy Dark", "path": "terminal/dark.json" },
+      { "id": "omarchy-light", "title": "Omarchy Light", "path": "terminal/light.json" }
+    ]
+  },
+  "capabilities": []
+}
+JSON
+
+# Orca copies the folder only when told to, and only while it runs; a closed
+# Orca picks the palette up on the next theme change it is open for.
+reachable=$(timeout 5 "$ORCA_CLI" status --json 2>/dev/null | jq -r '.result.runtime.reachable // false') || exit 0
+[[ $reachable == "true" ]] || exit 0
+
+installed_from=$(timeout 10 "$ORCA_CLI" plugin list --json 2>/dev/null |
+  jq -r --arg key "$ORCA_PLUGIN_KEY" '.result.plugins[]? | select(.pluginKey == $key) | .source.reference') || true
+
+if [[ $installed_from == "$ORCA_PLUGIN_PATH" ]]; then
+  timeout 30 "$ORCA_CLI" plugin update "$ORCA_PLUGIN_KEY" >/dev/null
+else
+  timeout 30 "$ORCA_CLI" plugin install "$ORCA_PLUGIN_PATH" >/dev/null
+fi
