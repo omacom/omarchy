@@ -24,6 +24,10 @@ elif lspci | grep -qi 'nvidia'; then
     exit 0
   fi
 
+  # Local models run in Podman, which reaches the GPU through the CDI spec the
+  # container toolkit writes.
+  PACKAGES+=(nvidia-container-toolkit)
+
   omarchy-pkg-add "${PACKAGES[@]}"
 
   # Per-session Hyprland NVIDIA env vars are handled by default/hypr/nvidia.lua.
