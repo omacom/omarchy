@@ -1195,7 +1195,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Hrunupptaka á"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {

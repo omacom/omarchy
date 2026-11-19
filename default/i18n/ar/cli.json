@@ -143,8 +143,6 @@
   "firstRun.agentTitle": "تعيين الوكيل الافتراضي",
   "firstRun.fingerprintBody": "فعّل sudo وإلغاء القفل ببصمتك.",
   "firstRun.fingerprintTitle": "إعداد قارئ البصمة",
-  "firstRun.gitBody": "بيانات التعريف الخاصة بإيداعات الكود.",
-  "firstRun.gitTitle": "إعداد Git",
   "firstRun.keybindingsBody": "Super + K لورقة الاختصارات.\nSuper + Space لقائمة Omarchy.",
   "firstRun.keybindingsTitle": "تعلّم الاختصارات",
   "firstRun.updateBody": "انقر لتحديث النظام.",

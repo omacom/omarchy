@@ -141,8 +141,6 @@
   "firstRun.agentTitle": "Выберите агента по умолчанию",
   "firstRun.fingerprintBody": "Включите sudo и разблокировку по отпечатку пальца.",
   "firstRun.fingerprintTitle": "Настройка сканера отпечатков",
-  "firstRun.gitBody": "Идентификация для коммитов кода.",
-  "firstRun.gitTitle": "Настройка Git",
   "firstRun.keybindingsBody": "Super + K — шпаргалка.\nSuper + Space — меню Omarchy.",
   "firstRun.keybindingsTitle": "Изучите горячие клавиши",
   "firstRun.updateBody": "Нажмите, чтобы обновить систему.",

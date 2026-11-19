@@ -147,8 +147,6 @@
   "firstRun.agentTitle": "Set your default agent",
   "firstRun.fingerprintBody": "Enable sudo and unlocking with your fingerprint.",
   "firstRun.fingerprintTitle": "Setup Fingerprint Reader",
-  "firstRun.gitBody": "Identification for code commits.",
-  "firstRun.gitTitle": "Setup Git",
   "firstRun.keybindingsBody": "Super + K for cheatsheet.\nSuper + Space for Omarchy Menu.",
   "firstRun.keybindingsTitle": "Learn Keybindings",
   "firstRun.updateBody": "Click to update the system.",

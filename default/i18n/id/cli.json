@@ -138,8 +138,6 @@
   "firstRun.agentTitle": "Atur agen default",
   "firstRun.fingerprintBody": "Aktifkan sudo dan buka kunci dengan sidik jari Anda.",
   "firstRun.fingerprintTitle": "Atur Pembaca Sidik Jari",
-  "firstRun.gitBody": "Identitas untuk commit kode.",
-  "firstRun.gitTitle": "Siapkan Git",
   "firstRun.keybindingsBody": "Super + K untuk lembar contekan.\nSuper + Space untuk Menu Omarchy.",
   "firstRun.keybindingsTitle": "Pelajari Pintasan Keyboard",
   "firstRun.updateBody": "Klik untuk memperbarui sistem.",

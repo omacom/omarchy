@@ -139,8 +139,6 @@
   "firstRun.agentTitle": "Määra vaikeagent",
   "firstRun.fingerprintBody": "Luba sudo ja avamine sõrmejäljega.",
   "firstRun.fingerprintTitle": "Seadista sõrmejäljelugeja",
-  "firstRun.gitBody": "Identiteet koodikinnistuste jaoks.",
-  "firstRun.gitTitle": "Seadista Git",
   "firstRun.keybindingsBody": "Super + K näitab spikrit.\nSuper + Space avab Omarchy menüü.",
   "firstRun.keybindingsTitle": "Õpi kiirklahve",
   "firstRun.updateBody": "Klõpsa süsteemi uuendamiseks.",
