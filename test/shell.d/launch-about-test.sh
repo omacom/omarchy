@@ -255,7 +255,7 @@ pass "the logo is found wherever fastfetch drew it"
 # ASCII art is full of backslashes, and awk's -v unescapes them.
 printf '%s\n' ' __ ' '/##\ ##\"#' ' \/ ' >"$LOGO_FILE"
 eval "fastfetch() { render_with_padding 1 3; }"
-LAYOUT_ROWS=""
+LAYOUT_ROWS="" LOGO_ROW="" LOGO_COLUMN=""
 measure_layout && [[ $LOGO_ROW == "2" && $LOGO_COLUMN == "4" ]] ||
   fail "a logo with backslashes in it is still found" "measured ${LOGO_ROW:-}/${LOGO_COLUMN:-}"
 pass "a logo with backslashes in it is still found"
