@@ -277,11 +277,19 @@ for policy in '    Options: !authenticate' '    Options: authenticate'; do
   expected=1
   [[ $policy != *'!authenticate'* ]] || expected=0
   assert_status "$expected" env TEST_POLICY="$policy" /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
-  [[ $(wc -l <"$test_tmp/commands") == 1 ]]
   grep -q '^sudo -n -l -l -- .* __status ' "$test_tmp/commands"
+  ! grep -q '^sudo -kn \|^sudo -n -- ' "$test_tmp/commands" || fail "menu probe executed a privileged action"
 done
-assert_status 1 env TEST_POLICY_FAILURE=1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
+assert_status 1 env TEST_POLICY_FAILURE=1 TEST_STATUS_KN=1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
 pass "menu probe reads policy tags without executing a privileged action"
+
+# A Default can turn authentication off without tagging the matched rule.
+assert_status 0 env TEST_DEFAULTS='!authenticate' /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
+# A later PASSWD tag overrides the Default, so only running status can tell.
+assert_status 1 env TEST_DEFAULTS='!authenticate' TEST_STATUS_KN=1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
+# Under listpw=always, status that runs at all ran without a password.
+assert_status 0 env TEST_POLICY_FAILURE=1 TEST_STATUS=3 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
+pass "menu probe shows passwordless access a Default or an unlisted rule leaves open"
 
 for status in 0 3; do
   : >"$test_tmp/commands"
@@ -343,6 +351,31 @@ TEST_POLICY_FAILURE=1 TEST_STATUS=0 TEST_STATUS_AFTER_DISABLE=3 /usr/bin/bash -p
 TEST_POLICY_FAILURE=1 TEST_STATUS=3 TEST_STATUS_KN=1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --disable >"$test_tmp/public.log" 2>&1
 grep -q 'already DISABLED' "$test_tmp/public.log" || fail "a cached timestamp was reported as another rule" "$(cat "$test_tmp/public.log")"
 pass "an unlisted passwordless rule is found by running status without the timestamp"
+
+# `Defaults:<user> !authenticate` with a plain `<user> ALL=(ALL:ALL) ALL` rule:
+# the command's listing omits the inherited Default.
+for args in --disable ''; do
+  : >"$test_tmp/commands"
+  rc=0
+  TEST_STATUS=3 TEST_DEFAULTS='!authenticate' /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" ${args:+"$args"} >"$test_tmp/public.log" 2>&1 || rc=$?
+  (( rc == 1 )) && grep -q 'still enabled by a Defaults !authenticate setting' "$test_tmp/public.log" &&
+    ! grep -q 'DISABLED\|^gum\|__enable \|__disable ' "$test_tmp/public.log" "$test_tmp/commands" ||
+    fail "${args:-the toggle} must report a Default that turns authentication off" "$(cat "$test_tmp/public.log")"
+done
+: >"$test_tmp/commands"
+rc=0
+TEST_STATUS=0 TEST_DEFAULTS='!authenticate' TEST_STATUS_AFTER_DISABLE=3 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --disable >"$test_tmp/public.log" 2>&1 || rc=$?
+(( rc == 1 )) && grep -q '__disable ' "$test_tmp/commands" && grep -q 'still enabled by a Defaults !authenticate setting' "$test_tmp/public.log" ||
+  fail "revoking our grant must report a Default that outlives it" "$(cat "$test_tmp/public.log")"
+# A PASSWD tag on the matched rule wins over the Default.
+TEST_STATUS=3 TEST_DEFAULTS='!authenticate' TEST_STATUS_KN=1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --disable >"$test_tmp/public.log" 2>&1
+grep -q 'already DISABLED' "$test_tmp/public.log" || fail "a Default overridden by PASSWD was reported" "$(cat "$test_tmp/public.log")"
+# Omarchy's own narrow NOPASSWD rules sit below the Defaults and are not one.
+: >"$test_tmp/commands"
+TEST_STATUS=3 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --disable >"$test_tmp/public.log" 2>&1
+grep -q 'already DISABLED' "$test_tmp/public.log" && ! grep -q '^sudo -kn ' "$test_tmp/commands" ||
+  fail "a narrow NOPASSWD rule below the Defaults triggered the probe" "$(cat "$test_tmp/public.log")"
+pass "a Default that turns authentication off is reported, not reported disabled"
 
 : >"$test_tmp/commands"
 TEST_STATUS=3 TEST_CHOICE='15 minutes' TEST_CONFIRM_STATUS=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" >"$test_tmp/public.log" 2>&1

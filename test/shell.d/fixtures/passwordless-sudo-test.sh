@@ -72,6 +72,13 @@ case "$name" in
   omarchy-shell) ;;
   getent) printf '%s:x:1000:1000:Test:/nonexistent:/bin/bash\n' "${TEST_ACCOUNT:-audituser}" ;;
   sudo)
+    # The full listing shows Defaults above the rules, where Omarchy's own
+    # narrow NOPASSWD rules already carry !authenticate.
+    if [[ $* == '-n -l -l' ]]; then
+      [[ ${TEST_POLICY_FAILURE:-0} != 1 ]] || exit 1
+      printf 'Matching Defaults entries for audituser on test:\n    env_reset%s\n\nUser audituser may run the following commands on test:\n\nSudoers entry: /etc/sudoers.d/omarchy-dns\n    Options: !authenticate\n' "${TEST_DEFAULTS:+, $TEST_DEFAULTS}"
+      exit 0
+    fi
     if [[ ${1:-} == -n && ${2:-} == -l ]]; then
       [[ ${TEST_POLICY_FAILURE:-0} != 1 ]] || exit 1
       # Once our grant is revoked, the listing shows whatever policy is left.
