@@ -44,7 +44,7 @@ PanelWindow {
   readonly property bool autohide: !!dock && (dock.autohide || fullscreenMode === 1)
   property bool revealed: false
   readonly property bool menuOpen: menuItem !== null || settingsMenu
-  readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || insertIndex >= 0)
+  readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || externalDropActive)
   readonly property bool contentShown: shown && !tucked
 
   // Preserve the model and all window delegates; only launcher slots fold away.
@@ -65,7 +65,7 @@ PanelWindow {
     releaseLauncherHover(point)
     return launcherHoverLocked
   }
-  readonly property bool pinsHeldOpen: pinsExpanded || dragging || insertIndex >= 0
+  readonly property bool pinsHeldOpen: pinsExpanded || dragging || externalDropActive
   property bool pinPressActive: false
   property real pressedPinsProgress: 0
   property real pinsProgress: pinPressActive ? pressedPinsProgress : (!collapsePins || pinsHeldOpen ? 1 : 0)
@@ -120,8 +120,11 @@ PanelWindow {
   // they think is hovered is stale until it moves again.
   property bool hoverStale: false
   property point dropPoint
-  // Where an app dragged in from the app grid would land, or -1.
-  property int insertIndex: -1
+  // Retain screen coordinates so a stationary pointer follows changes in the
+  // dock's centered origin and slot geometry as the pins expand.
+  property point externalDragPoint
+  property bool externalDropActive: false
+  readonly property int insertIndex: shown && externalDropActive ? externalIndexAt(externalDragPoint) : -1
 
   // Where this window sits on its screen, which a point from the app grid's
   // fullscreen surface is given in: against its edge, clear of the space
@@ -147,26 +150,29 @@ PanelWindow {
     var depth = window.vertical ? body.width : body.height
     var near = along >= -window.slotSize && along <= length + window.slotSize && across >= -reach && across <= depth + reach
     if (window.shown && window.autohide && near) window.revealed = true
-    window.insertIndex = window.shown && near ? window.slotIndexAt(point) : -1
+    window.externalDragPoint = Qt.point(screenX, screenY)
+    window.externalDropActive = window.shown && near
   }
 
   function dropExternalDrag(screenX, screenY, key) {
     window.moveExternalDrag(screenX, screenY)
+    var index = window.insertIndex
     window.settleShifts()
-    if (window.insertIndex >= 0 && key && window.dock) window.dock.pinAt(key, window.insertIndex)
+    if (index >= 0 && key && window.dock) window.dock.pinAt(key, index)
     window.endExternalDrag()
   }
 
   function endExternalDrag() {
-    window.insertIndex = -1
+    window.externalDropActive = false
     collapseTimer.restart()
     if (window.autohide) hideTimer.restart()
   }
 
   // The slot a point along the dock falls before, counting from the first app.
-  function slotIndexAt(point) {
-    var at = body.mapToItem(slots, point.x, point.y)
-    var along = window.vertical ? at.y : at.x
+  function externalIndexAt(point) {
+    var at = window.origin()
+    // Read these positions directly so the preview binding tracks layout changes.
+    var along = window.vertical ? point.y - at.y - body.y - slots.y : point.x - at.x - body.x - slots.x
     for (var i = 0; i < appRepeater.count; i++) {
       var slot = appRepeater.itemAt(i)
       if (slot && slot.reveal > 0.95) {
@@ -197,6 +203,7 @@ PanelWindow {
   onWorkspaceIdChanged: if (dock) dock.readMode(workspaceId)
   onShownChanged: {
     if (shown) return
+    endExternalDrag()
     closeMenu()
     window.revealed = false
   }
