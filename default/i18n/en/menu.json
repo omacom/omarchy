@@ -231,6 +231,12 @@
   "appearance.windows.title-bars-visible-off": {
     "label": "Titlebar Snap Off"
   },
+  "appearance.windows.drag-maximize-on": {
+    "label": "Drag Maximize On"
+  },
+  "appearance.windows.drag-maximize-off": {
+    "label": "Drag Maximize Off"
+  },
   "appearance.branding": {
     "label": "Branding"
   },

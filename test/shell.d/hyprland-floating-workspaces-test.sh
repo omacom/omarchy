@@ -772,8 +772,8 @@ local handlers, binds, timers, dispatched = {}, {}, {}, {}
 local active, cursor = nil, { x = 0, y = 0 }
 
 -- Two screens stacked: the top bar reserves 26 at the top of each.
-local upper = { x = 0, y = 0, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } }
-local lower = { x = 0, y = 1080, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } }
+local upper = { id = 0, x = 0, y = 0, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } }
+local lower = { id = 1, x = 0, y = 1080, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } }
 local config = { ["plugin.hyprbars.bar_height"] = 30, ["general.border_size"] = 2 }
 
 hl = {
@@ -879,6 +879,29 @@ handlers["window.active"](); for _, run in ipairs(timers) do run() end; timers =
 assert(#dispatched == 0, "a resize from the top edge is not taken for a drop")
 
 assert(#drop(window(300), 40, { x = 50, y = 900 }) == 0, "a window moved while the pointer is elsewhere is not taken for a drop")
+
+local function maximized(list)
+  for _, dispatcher in ipairs(list) do
+    if dispatcher.kind == "fullscreen" and dispatcher.mode == "maximized" and dispatcher.action == "set" then
+      return true
+    end
+  end
+  return false
+end
+
+assert(not maximized(drop(window(300), 20, { x = 500, y = 10 })), "nothing maximizes until the toggle switches it on")
+bounds.drop_maximize = true
+
+local dropped = drop(window(300), 20, { x = 500, y = 10 })
+assert(maximized(dropped), "a window dropped with the pointer on the top bar maximizes")
+assert(dropped[1].kind == "move", "its titlebar is brought into reach first, for when it is restored")
+
+assert(not maximized(drop(window(300), 40)), "a window dropped partly under the bar keeps its size")
+assert(not maximized(click({ x = 900, y = 10 })), "a click on the bar after a correction maximizes nothing")
+
+-- Hyprland still counts the window on the screen below as it crosses over.
+local below = window(1400, { monitor = lower })
+assert(not maximized(drop(below, 20, { x = 500, y = 10 })), "the pointer on another screen's bar does not maximize")
 
 LUA
 pass "a floating window dropped under the top bar keeps its titlebar in reach"

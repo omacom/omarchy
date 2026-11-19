@@ -1,10 +1,13 @@
 -- A floating window's titlebar stays where it can be grabbed, as on Windows:
 -- a window dropped with its titlebar under the top bar, or above the top of
 -- the screen, slides down until all of it shows. The other edges are left
--- alone, so a window can still sit under the dock or partly off screen.
+-- alone, so a window can still sit under the dock or partly off screen. And as
+-- on Windows, one dropped with the pointer on the top bar, or in the top few
+-- pixels of a screen without one, maximizes.
 --
--- Off unless chosen: the floating-title-bar-visible toggle loads this and
--- switches it on, from Appearance > Windows.
+-- Both are off unless chosen: the floating-title-bar-visible and
+-- floating-drop-maximize toggles load this and switch each on, from
+-- Appearance > Windows.
 --
 -- Hyprland reports no end to a drag. A drag by the titlebar, which the client
 -- runs itself, never reaches the mouse binds, but both kinds of drag make the
@@ -13,7 +16,7 @@
 -- at the same size and with the pointer still on it, was just dropped there.
 -- Keyboard moves, resizes and windows that place themselves do not count.
 
-local M = { keep_title_bar = false }
+local M = { keep_title_bar = false, drop_maximize = false }
 
 local FLOATING_TAG = "omarchy-floating-workspace"
 local SELF_FRAMED_TAG = "omarchy-self-framed"
@@ -105,7 +108,27 @@ local function keep_title_bar_visible(window)
   return y
 end
 
-local function settle(window)
+-- The pointer holds the titlebar, so where it lets go decides, on the screen
+-- the window belongs to. A window dropped only partly under the bar, with the
+-- pointer below it, keeps its size.
+local function dropped_on_top_bar(window, cursor)
+  local monitor = monitor_at(cursor.x, cursor.y)
+  if not monitor or not window.monitor or monitor.id ~= window.monitor.id then
+    return false
+  end
+
+  return cursor.y < math.max(top_edge(monitor), monitor.y + 8)
+end
+
+local function settle(window, cursor)
+  if M.drop_maximize and dropped_on_top_bar(window, cursor) then
+    -- Brought into reach first, so leaving the maximized state later restores
+    -- a window whose titlebar can still be grabbed.
+    local y = keep_title_bar_visible(window)
+    hl.dispatch(hl.dsp.window.fullscreen({ mode = "maximized", action = "set", window = window }))
+    return y
+  end
+
   if M.keep_title_bar then
     return keep_title_bar_visible(window)
   end
@@ -142,7 +165,7 @@ local function check()
 
   -- Remember where the window was put, so the next check does not take the
   -- correction itself for another drop.
-  local y = settle(window)
+  local y = settle(window, cursor)
   if y then
     last.y = y
   end
