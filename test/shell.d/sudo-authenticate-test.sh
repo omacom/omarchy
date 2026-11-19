@@ -191,77 +191,82 @@ sys.exit(1)
 PY
 }
 
-# 1. Ctrl-C at the password prompt cancels omarchy-pkg-add with 130 and starts no package command.
-calls="$test_tmp/calls-ctrlc"
-cached="$test_tmp/cached-ctrlc"
-: >"$calls"
-rm -f "$cached"
-status=0
-out=$(PATH="$mock_bin:$ROOT/bin:$PATH" TEST_CALLS="$calls" TEST_SUDO_CACHED="$cached" \
-  OMARCHY_SUDO_PAM_FILE="$pam_dir/sudo-password" \
-  run_pty ctrl-c "$ROOT/bin/omarchy-pkg-add" demo-pkg 2>&1) || status=$?
-(( status == 130 )) || fail "Ctrl-C at the password prompt exits 130" "status=$status out=$out"
-[[ ! -s $calls ]] || fail "Ctrl-C at the password prompt starts no package command" "$(<"$calls")"
-pass "Ctrl-C at the password prompt cancels omarchy-pkg-add with 130 and starts no package command"
-
-# 2. A password typo retries and completes once the right password is entered.
-calls="$test_tmp/calls-retry"
-cached="$test_tmp/cached-retry"
-: >"$calls"
-rm -f "$cached"
-status=0
-out=$(PATH="$mock_bin:$ROOT/bin:$PATH" TEST_CALLS="$calls" TEST_SUDO_CACHED="$cached" \
-  OMARCHY_SUDO_PAM_FILE="$pam_dir/sudo-password" \
-  run_pty typo-then-ok "$ROOT/bin/omarchy-pkg-add" demo-pkg 2>&1) || status=$?
-(( status == 0 )) || fail "a password typo retries and succeeds on the next attempt" "status=$status out=$out"
-grep -Fx 'pacman -S --noconfirm --needed -- demo-pkg' "$calls" >/dev/null ||
-  fail "pacman runs after password retry succeeds" "$(<"$calls")"
-pass "a password typo retries and installs after the right password"
-
-# 3. Exhausting password tries exits 1 without starting pacman.
-calls="$test_tmp/calls-exhaust"
-cached="$test_tmp/cached-exhaust"
-: >"$calls"
-rm -f "$cached"
-status=0
-out=$(PATH="$mock_bin:$ROOT/bin:$PATH" TEST_CALLS="$calls" TEST_SUDO_CACHED="$cached" \
-  OMARCHY_SUDO_PAM_FILE="$pam_dir/sudo-password" OMARCHY_SUDO_PASSWD_TRIES=2 \
-  run_pty exhaust-tries "$ROOT/bin/omarchy-pkg-add" demo-pkg 2>&1) || status=$?
-(( status == 1 )) || fail "exhausting password tries exits 1" "status=$status out=$out"
-[[ $out == *"2 incorrect password attempts"* ]] || fail "exhausting tries reports the limit" "$out"
-[[ ! -s $calls ]] || fail "exhausting password tries starts no package command" "$(<"$calls")"
-pass "exhausting password tries exits 1 without starting pacman"
-
-# 4. Fingerprint and FIDO2 PAM configs delegate straight to sudo -v without a password prompt.
-for kind in fprintd fido2; do
-  calls="$test_tmp/calls-$kind"
-  cached="$test_tmp/cached-$kind"
+# omarchy-pkg-add runs pacman directly without sudo authentication when EUID == 0.
+if (( EUID == 0 )); then
+  skip "omarchy-pkg-add skips sudo authentication when running as root"
+else
+  # 1. Ctrl-C at the password prompt cancels omarchy-pkg-add with 130 and starts no package command.
+  calls="$test_tmp/calls-ctrlc"
+  cached="$test_tmp/cached-ctrlc"
   : >"$calls"
   rm -f "$cached"
   status=0
   out=$(PATH="$mock_bin:$ROOT/bin:$PATH" TEST_CALLS="$calls" TEST_SUDO_CACHED="$cached" \
-    OMARCHY_SUDO_PAM_FILE="$pam_dir/sudo-$kind" TEST_LID_CLOSED_STATUS=1 \
-    run_pty none "$ROOT/bin/omarchy-pkg-add" demo-pkg 2>&1) || status=$?
-  (( status == 0 )) || fail "$kind PAM config succeeds via sudo -v" "status=$status out=$out"
-  [[ $out != *"[sudo] password for "* ]] || fail "$kind PAM config must not show shell password prompt" "$out"
-  grep -Fx 'sudo -v' "$calls" >/dev/null || fail "$kind PAM config delegates to sudo -v" "$(<"$calls")"
-  grep -Fx 'pacman -S --noconfirm --needed -- demo-pkg' "$calls" >/dev/null ||
-    fail "$kind PAM config installs after sudo -v" "$(<"$calls")"
-done
-pass "fingerprint and FIDO2 PAM configs reach device auth without a password prompt"
+    OMARCHY_SUDO_PAM_FILE="$pam_dir/sudo-password" \
+    run_pty ctrl-c "$ROOT/bin/omarchy-pkg-add" demo-pkg 2>&1) || status=$?
+  (( status == 130 )) || fail "Ctrl-C at the password prompt exits 130" "status=$status out=$out"
+  [[ ! -s $calls ]] || fail "Ctrl-C at the password prompt starts no package command" "$(<"$calls")"
+  pass "Ctrl-C at the password prompt cancels omarchy-pkg-add with 130 and starts no package command"
 
-# 5. Fingerprint with closed lid (clamshell gate) falls back to the shell password prompt.
-calls="$test_tmp/calls-closed"
-cached="$test_tmp/cached-closed"
-: >"$calls"
-rm -f "$cached"
-status=0
-out=$(PATH="$mock_bin:$ROOT/bin:$PATH" TEST_CALLS="$calls" TEST_SUDO_CACHED="$cached" \
-  OMARCHY_SUDO_PAM_FILE="$pam_dir/sudo-fprintd" TEST_LID_CLOSED_STATUS=0 \
-  run_pty ctrl-c "$ROOT/bin/omarchy-pkg-add" demo-pkg 2>&1) || status=$?
-(( status == 130 )) || fail "clamshell-gated fingerprint uses the Ctrl-C-able password prompt" "status=$status out=$out"
-[[ ! -s $calls ]] || fail "clamshell-gated cancel runs neither sudo -v nor pacman" "$(<"$calls")"
-pass "clamshell-gated fingerprint falls back to the shell password prompt"
+  # 2. A password typo retries and completes once the right password is entered.
+  calls="$test_tmp/calls-retry"
+  cached="$test_tmp/cached-retry"
+  : >"$calls"
+  rm -f "$cached"
+  status=0
+  out=$(PATH="$mock_bin:$ROOT/bin:$PATH" TEST_CALLS="$calls" TEST_SUDO_CACHED="$cached" \
+    OMARCHY_SUDO_PAM_FILE="$pam_dir/sudo-password" \
+    run_pty typo-then-ok "$ROOT/bin/omarchy-pkg-add" demo-pkg 2>&1) || status=$?
+  (( status == 0 )) || fail "a password typo retries and succeeds on the next attempt" "status=$status out=$out"
+  grep -Fx 'pacman -S --noconfirm --needed -- demo-pkg' "$calls" >/dev/null ||
+    fail "pacman runs after password retry succeeds" "$(<"$calls")"
+  pass "a password typo retries and installs after the right password"
+
+  # 3. Exhausting password tries exits 1 without starting pacman.
+  calls="$test_tmp/calls-exhaust"
+  cached="$test_tmp/cached-exhaust"
+  : >"$calls"
+  rm -f "$cached"
+  status=0
+  out=$(PATH="$mock_bin:$ROOT/bin:$PATH" TEST_CALLS="$calls" TEST_SUDO_CACHED="$cached" \
+    OMARCHY_SUDO_PAM_FILE="$pam_dir/sudo-password" OMARCHY_SUDO_PASSWD_TRIES=2 \
+    run_pty exhaust-tries "$ROOT/bin/omarchy-pkg-add" demo-pkg 2>&1) || status=$?
+  (( status == 1 )) || fail "exhausting password tries exits 1" "status=$status out=$out"
+  [[ $out == *"2 incorrect password attempts"* ]] || fail "exhausting tries reports the limit" "$out"
+  [[ ! -s $calls ]] || fail "exhausting password tries starts no package command" "$(<"$calls")"
+  pass "exhausting password tries exits 1 without starting pacman"
+
+  # 4. Fingerprint and FIDO2 PAM configs delegate straight to sudo -v without a password prompt.
+  for kind in fprintd fido2; do
+    calls="$test_tmp/calls-$kind"
+    cached="$test_tmp/cached-$kind"
+    : >"$calls"
+    rm -f "$cached"
+    status=0
+    out=$(PATH="$mock_bin:$ROOT/bin:$PATH" TEST_CALLS="$calls" TEST_SUDO_CACHED="$cached" \
+      OMARCHY_SUDO_PAM_FILE="$pam_dir/sudo-$kind" TEST_LID_CLOSED_STATUS=1 \
+      run_pty none "$ROOT/bin/omarchy-pkg-add" demo-pkg 2>&1) || status=$?
+    (( status == 0 )) || fail "$kind PAM config succeeds via sudo -v" "status=$status out=$out"
+    [[ $out != *"[sudo] password for "* ]] || fail "$kind PAM config must not show shell password prompt" "$out"
+    grep -Fx 'sudo -v' "$calls" >/dev/null || fail "$kind PAM config delegates to sudo -v" "$(<"$calls")"
+    grep -Fx 'pacman -S --noconfirm --needed -- demo-pkg' "$calls" >/dev/null ||
+      fail "$kind PAM config installs after sudo -v" "$(<"$calls")"
+  done
+  pass "fingerprint and FIDO2 PAM configs reach device auth without a password prompt"
+
+  # 5. Fingerprint with closed lid (clamshell gate) falls back to the shell password prompt.
+  calls="$test_tmp/calls-closed"
+  cached="$test_tmp/cached-closed"
+  : >"$calls"
+  rm -f "$cached"
+  status=0
+  out=$(PATH="$mock_bin:$ROOT/bin:$PATH" TEST_CALLS="$calls" TEST_SUDO_CACHED="$cached" \
+    OMARCHY_SUDO_PAM_FILE="$pam_dir/sudo-fprintd" TEST_LID_CLOSED_STATUS=0 \
+    run_pty ctrl-c "$ROOT/bin/omarchy-pkg-add" demo-pkg 2>&1) || status=$?
+  (( status == 130 )) || fail "clamshell-gated fingerprint uses the Ctrl-C-able password prompt" "status=$status out=$out"
+  [[ ! -s $calls ]] || fail "clamshell-gated cancel runs neither sudo -v nor pacman" "$(<"$calls")"
+  pass "clamshell-gated fingerprint falls back to the shell password prompt"
+fi
 
 # 6. Sourcing omarchy-sudo-keepalive cancels cleanly on Ctrl-C without running later steps.
 calls="$test_tmp/calls-keepalive"
