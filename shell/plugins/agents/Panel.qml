@@ -102,6 +102,32 @@ Panel {
     return ["image", "video", "music"].indexOf(model.kind) >= 0
   }
 
+  // Fantasi's launcher icon. The icon set's drawing is redrawn in place on a
+  // theme or set switch, so its URL carries the set's revision to reload it,
+  // as the app library's icons do; without one, the packaged icon.
+  readonly property string fantasiSetIcon: (Quickshell.env("XDG_DATA_HOME") || Quickshell.env("HOME") + "/.local/share") + "/icons/hicolor/scalable/apps/fantasi.svg"
+  property int iconRevision: 0
+  property bool fantasiDrawn: false
+  readonly property string fantasiIcon: fantasiDrawn ? Util.fileUrl(fantasiSetIcon) + "?theme=" + iconRevision : Quickshell.iconPath("fantasi", true)
+
+  FileView {
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/current/icons.revision"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: {
+      root.iconRevision++
+      fantasiSetIconFile.reload()
+    }
+  }
+
+  FileView {
+    id: fantasiSetIconFile
+    path: root.fantasiSetIcon
+    printErrors: false
+    onLoaded: root.fantasiDrawn = true
+    onLoadFailed: root.fantasiDrawn = false
+  }
+
   function runLocalAction(model, action) {
     if (action === "launch") {
       // An image or video model makes pictures or clips in Fantasi rather than running an agent.
@@ -2447,7 +2473,7 @@ Panel {
         visible: download || (section.model ? section.running && (!section.remote || (section.paired && !section.offline)) : root.harnessFor(section.provider) !== "")
         iconText: download ? (section.offer.link ? "󰌘" : "󰇚") : image ? "󰋩" : "󰞷"
         // Fantasi's own launcher icon, as the icon set draws it, on a model made with in it.
-        iconSource: !download && image ? Quickshell.iconPath("fantasi", true) : ""
+        iconSource: !download && image ? root.fantasiIcon : ""
         tooltipText: download ? (section.offer.link ? Commons.I18n.t("agents.linkSetUp") : Commons.I18n.t("agents.localDownload"))
           : image ? Commons.I18n.t("agents.openFantasi") : section.model ? Commons.I18n.t("agents.localLaunch") : Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
         foreground: root.foreground
