@@ -6,7 +6,9 @@ echo "Drop the redundant Codex and Pi skill symlinks"
 skills_source="$OMARCHY_PATH/default/agents/skills"
 
 for skills_dir in ~/.codex/skills ~/.pi/agent/skills; do
-  [[ -d $skills_dir ]] || continue
+  # A user-linked directory can be the generic skills directory itself,
+  # even when the symlink is in a parent directory.
+  [[ -d $skills_dir && ! -L $skills_dir && ! $skills_dir -ef ~/.agents/skills ]] || continue
 
   for link in "$skills_dir"/*; do
     [[ -L $link ]] || continue
@@ -16,6 +18,9 @@ for skills_dir in ~/.codex/skills ~/.pi/agent/skills; do
   done
 done
 
-# Pi's directory only ever held these links, so clear it out when it is empty.
+# Pi's directory only ever held these links, so clear it out when it is empty,
+# unless a parent alias leads back to the shared directory we kept above.
 # Codex keeps its own .system directory there, so leave that one alone.
-rmdir ~/.pi/agent/skills 2>/dev/null || true
+if [[ ! ~/.pi/agent/skills -ef ~/.agents/skills ]]; then
+  rmdir ~/.pi/agent/skills 2>/dev/null || true
+fi
