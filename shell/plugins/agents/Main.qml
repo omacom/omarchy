@@ -189,6 +189,7 @@ Item {
 
   property int refreshIntervalSec: Math.max(30, Number(setting("refreshIntervalSec", 900)))
   property string pendingUpdateKind: ""
+  property bool pendingUpdateShared: false
 
   // A fifteen-minute interval can't catch an account crossing its switch
   // threshold, so while any provider with several accounts has its active one
@@ -224,11 +225,7 @@ Item {
     onExited: {
       root.rescanAgents()
       root.reloadRecords()
-      if (root.pendingUpdateKind !== "") {
-        var kind = root.pendingUpdateKind
-        root.pendingUpdateKind = ""
-        root.runUpdate(kind)
-      }
+      root.runPendingUpdate()
     }
 
     stderr: StdioCollector {
@@ -264,12 +261,27 @@ Item {
   function runUpdate(kind, agentIds, shared) {
     if (updateProcess.running) {
       // Collapse queued requests to one full rerun; a forced refresh outranks
-      // the cheaper kinds it might have been queued behind.
-      if (kind === "force" || root.pendingUpdateKind === "") root.pendingUpdateKind = kind
+      // the cheaper kinds it might have been queued behind. The rerun stays
+      // shared only while every request behind it came from a timer, so a
+      // slow run does not send each copy off collecting on its own afterwards.
+      if (root.pendingUpdateKind === "") {
+        root.pendingUpdateKind = kind
+        root.pendingUpdateShared = shared === true
+      } else {
+        if (kind === "force") root.pendingUpdateKind = kind
+        if (shared !== true) root.pendingUpdateShared = false
+      }
       return
     }
     updateProcess.command = updateCommand(kind, agentIds, shared)
     updateProcess.running = true
+  }
+
+  function runPendingUpdate() {
+    if (root.pendingUpdateKind === "") return
+    var kind = root.pendingUpdateKind
+    root.pendingUpdateKind = ""
+    root.runUpdate(kind, null, root.pendingUpdateShared)
   }
 
   function refresh() { refreshAll(true) }

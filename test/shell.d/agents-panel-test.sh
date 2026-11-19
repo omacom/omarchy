@@ -204,3 +204,26 @@ shared_log=$(tr '\n' ' ' <"$lock_tmp/log")
 rm -rf "$lock_tmp"
 [[ $shared_log == "run done exit exit exit " ]] || fail "copies refreshing together did not share one update run: $shared_log"
 pass "copies refreshing together share one update run"
+
+# A timer that fires during a slow run queues a rerun. It has to stay shared,
+# or every copy collects on its own once the run ends; one the user asked for
+# while it was queued must not wait behind another copy's lock.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const functions = ['runUpdate', 'runPendingUpdate'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+const updateProcess = { running: true, command: null }
+const state = { pendingUpdateKind: '', pendingUpdateShared: false }
+const updateCommand = (kind, agentIds, shared) => [kind, shared === true]
+const { runUpdate, runPendingUpdate } = new Function('root', 'updateProcess', 'updateCommand', functions + '\nroot.runUpdate = runUpdate\nreturn { runUpdate, runPendingUpdate }')(state, updateProcess, updateCommand)
+const rerunAfter = requests => {
+  updateProcess.running = true
+  requests.forEach(request => runUpdate(...request))
+  updateProcess.running = false
+  runPendingUpdate()
+  return updateProcess.command
+}
+assertDeepEqual(rerunAfter([['limits', null, true]]), ['limits', true], 'a timer queued behind a slow run still shares its rerun')
+assertDeepEqual(rerunAfter([['normal', null, true], ['force']]), ['force', false], 'a forced refresh queued after a timer runs unshared')
+assertDeepEqual(rerunAfter([['limits'], ['normal', null, true]]), ['limits', false], 'a timer queued after a user refresh leaves it unshared')
+JS
