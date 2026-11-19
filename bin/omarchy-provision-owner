@@ -32,10 +32,12 @@ install passphrase to the user's password, and hands off to SDDM.
 USAGE
 }
 
+attempt=false
 while (($#)); do
   case "$1" in
     --attempt)
-      break
+      attempt=true
+      shift
       ;;
     -h|--help)
       usage
@@ -1331,7 +1333,7 @@ run_setup() {
 # screen. Each attempt runs as its own process — bash ignores errexit inside
 # `while !` conditions, but a child process keeps its own set -e — and failure
 # offers a retry; create_user and friends are idempotent, so retrying is safe.
-if [[ ${1:-} == "--attempt" ]]; then
+if [[ $attempt == "true" ]]; then
   run_setup
   exit 0
 fi

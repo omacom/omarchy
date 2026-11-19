@@ -547,6 +547,26 @@ pass "setup is translated only on a console set in the font that draws the trans
 )
 pass "setup asks language, keyboard, account, review and preserves its keyboard failure gate"
 
+# Help and unknown options are handled before root/pending gates, even after --attempt.
+for args in "--help" "-h" "--attempt --help" "--attempt -h"; do
+  read -ra argv <<<"$args"
+  status=0
+  output=$("$ROOT/bin/omarchy-provision-owner" "${argv[@]}" 2>&1) || status=$?
+  (( status == 0 )) || fail "omarchy-provision-owner $args exits 0" "status $status: $output"
+  grep -Fq "Usage: omarchy-provision-owner" <<<"$output" ||
+    fail "omarchy-provision-owner $args prints usage" "$output"
+done
+
+for args in "--bogus" "--attempt --bogus"; do
+  read -ra argv <<<"$args"
+  status=0
+  output=$("$ROOT/bin/omarchy-provision-owner" "${argv[@]}" 2>&1) || status=$?
+  (( status == 1 )) || fail "omarchy-provision-owner $args exits 1" "status $status: $output"
+  grep -Fq "Unknown option: --bogus" <<<"$output" ||
+    fail "omarchy-provision-owner $args reports the unknown option" "$output"
+done
+pass "omarchy-provision-owner prints usage for help flags and rejects unknown options, including after --attempt"
+
 source "$ROOT/install/provisioning/console-font.sh"
 status=0
 omarchy_console_font /dev/pts/3 || status=$?
