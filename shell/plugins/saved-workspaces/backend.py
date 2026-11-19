@@ -27,6 +27,7 @@ CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "omarchy/sh
 WIDGET = "omarchy.saved-workspaces"
 MODES = {"dwindle", "floating", "scrolling"}
 MAX_WINDOWS = 100
+MAX_DATABASE_BYTES = 8 * 1024 * 1024
 CHROMIUM_WINDOW_CLASSES = {"chromium", "google-chrome", "chrome", "brave", "brave-browser"}
 
 
@@ -34,15 +35,17 @@ class WorkspaceError(Exception):
   pass
 
 
-def atomic_json(path, value):
+def atomic_json(path, value, max_bytes=None):
   path.parent.mkdir(parents=True, exist_ok=True)
   fd, temporary = tempfile.mkstemp(prefix=".saved-workspaces-", dir=path.parent)
   try:
-    with os.fdopen(fd, "w") as stream:
+    with os.fdopen(fd, "w", encoding="utf-8") as stream:
       os.fchmod(stream.fileno(), 0o600)
       json.dump(value, stream, ensure_ascii=False, indent=2, allow_nan=False)
       stream.write("\n")
       stream.flush()
+      if max_bytes is not None and os.fstat(stream.fileno()).st_size > max_bytes:
+        raise WorkspaceError("The scenes file would be too large. Remove a scene or save fewer tabs.")
       os.fsync(stream.fileno())
     os.replace(temporary, path)
   finally:
@@ -50,13 +53,19 @@ def atomic_json(path, value):
       os.unlink(temporary)
 
 
+def write_database(data):
+  atomic_json(STATE / "workspaces.json", data, max_bytes=MAX_DATABASE_BYTES)
+
+
 def database():
-  path = STATE / "workspaces.json"
-  if not path.exists():
+  try:
+    with (STATE / "workspaces.json").open("rb") as stream:
+      raw = stream.read(MAX_DATABASE_BYTES + 1)
+  except FileNotFoundError:
     return {"version": 1, "items": [], "active": {}}
-  if path.stat().st_size > 8 * 1024 * 1024:
+  if len(raw) > MAX_DATABASE_BYTES:
     raise WorkspaceError("The scenes file is too large.")
-  value = json.loads(path.read_text())
+  value = json.loads(raw.decode("utf-8"))
   if value.get("version") != 1 or not isinstance(value.get("items"), list):
     raise WorkspaceError("The scenes file could not be read.")
   return value
@@ -682,7 +691,32 @@ def argument_value(argv, flag, default=None):
   return default
 
 
-def capture_app_state(window, info, cache):
+def chromium_window_matches(live, records):
+  # Count alone cannot tell a stale title from another window's current
+  # title. Require every live window to claim a distinct session record,
+  # including windows outside the workspace being saved.
+  if len(live) != len(records):
+    raise WorkspaceError("This browser's current windows aren't all available in its session data. Wait a moment and save again. Private windows aren't supported.")
+  assignments = {}
+  claimed = set()
+  for window in live:
+    title = window["title"]
+    matches = [i for i, record in enumerate(records)
+         if title in (record["title"], record.get("activeUrl"))]
+    if not matches:
+      title = re.sub(r" - (Chromium|Google Chrome|Brave)$", "", title)
+      matches = [i for i, record in enumerate(records)
+           if title in (record["title"], record.get("activeUrl"))]
+    if not matches and len(live) == 1 and not re.search(r"incognito|private", window["title"], re.I):
+      matches = [0]
+    if len(matches) != 1 or matches[0] in claimed:
+      raise WorkspaceError("This browser window's tabs aren't available yet. Try saving again after a moment. Private windows aren't supported.")
+    claimed.add(matches[0])
+    assignments[window["address"]] = records[matches[0]]
+  return assignments
+
+
+def capture_app_state(window, info, cache, clients=None):
   argv = chromium_window_argv(window, info["argv"])
   app = Path(argv[0]).name.lower() if argv else ""
   if app in CHROMIUM_WINDOW_CLASSES and (any(a in {"--incognito", "--guest"} for a in argv)):
@@ -718,25 +752,12 @@ def capture_app_state(window, info, cache):
         path = paths[0] if paths else None
         cache[str(location)] = chromium_sessions(path.read_bytes()) if path and path.stat().st_size <= 32 * 1024 * 1024 else []
       records += [{**record, "profile": name} for record in cache[str(location)]]
-    live = [w for w in query("clients") if w["pid"] == window["pid"] and w.get("mapped", True)
+    if clients is None:
+      clients = query("clients")
+    live = [w for w in clients if w["pid"] == window["pid"] and w.get("mapped", True)
         and not chromium_webapp_class(w)]
-    # Forwarded private windows can share normal process flags and titles.
-    # They have no session record. Do not borrow a normal window's tabs when
-    # the live windows and persisted session have not caught up with each other.
-    if len(live) != len(records):
-      raise WorkspaceError("This browser's current windows aren't all available in its session data. Wait a moment and save again. Private windows aren't supported.")
-    # Named windows may themselves end in a browser suffix: exact titles win.
-    title = window["title"]
-    matches = [record for record in records if record["title"] == title or record.get("activeUrl") == title]
-    if not matches:
-      title = re.sub(r" - (Chromium|Google Chrome|Brave)$", "", title)
-      matches = [record for record in records if record["title"] == title or record.get("activeUrl") == title]
-    if not matches and len(records) == 1 and not any(a in {"--incognito", "--guest"} for a in argv) and not re.search(r"incognito|private", window["title"], re.I):
-      if len(live) == 1:
-        matches = records
-    if len(matches) != 1:
-      raise WorkspaceError("This browser window's tabs aren't available yet. Try saving again after a moment. Private windows aren't supported.")
-    return {"kind": "browser", "urls": matches[0]["urls"][:200], "profile": matches[0]["profile"], "userDataDir": str(directory)}
+    matched = chromium_window_matches(live, records)[window["address"]]
+    return {"kind": "browser", "urls": matched["urls"][:200], "profile": matched["profile"], "userDataDir": str(directory)}
   if app in {"firefox", "firefox-bin"}:
     return capture_firefox_state(window, info, cache)
   if app == "spotify" or window["class"].lower() == "spotify":
@@ -807,7 +828,8 @@ def capture():
   if mode not in MODES:
     raise WorkspaceError("Scenes supports tiling, floating and scrolling layouts.")
   origin_tag = "omarchy-minimized-from-" + str(workspace["id"])
-  clients = [w for w in query("clients") if w.get("mapped", True) and
+  all_clients = query("clients")
+  clients = [w for w in all_clients if w.get("mapped", True) and
        (w["workspace"]["id"] == workspace["id"] or
         (w["workspace"].get("name", "").startswith("special:minimized") and origin_tag in w.get("tags", [])))]
   if len(clients) > MAX_WINDOWS:
@@ -819,7 +841,7 @@ def capture():
     info = process_info(w["pid"])
     windows.append({"key": uuid.uuid4().hex, "address": w["address"], "pid": w["pid"], "birth": info["birth"],
             "stable_id": metadata.get(w["address"], {}).get("stable_id"), "class": w["class"], "title": w["title"], "initialTitle": w.get("initialTitle", ""),
-            "appState": capture_app_state(w, info, state_cache), "argv": command_for(w, info), "cwd": info["cwd"], "at": w["at"], "size": w["size"],
+            "appState": capture_app_state(w, info, state_cache, all_clients), "argv": command_for(w, info), "cwd": info["cwd"], "at": w["at"], "size": w["size"],
             "floating": w["floating"], "minimized": w["workspace"]["id"] != workspace["id"], "fullscreen": w.get("fullscreen", 0),
             "layout": metadata.get(w["address"], {})})
   area = workarea(monitor)
@@ -1190,7 +1212,7 @@ def configure(value):
     config["version"] = 1
     atomic_json(CONFIG, config)
   if not (STATE / "workspaces.json").exists():
-    atomic_json(STATE / "workspaces.json", database())
+    write_database(database())
 
 
 def main(argv):
@@ -1208,24 +1230,24 @@ def main(argv):
     elif command in {"save", "update"}:
       if len(argv) != 2:
         raise WorkspaceError("Enter a name for this scene.")
-      profile = put_profile(data, capture(), name=argv[1] if command == "save" else None,
+      put_profile(data, capture(), name=argv[1] if command == "save" else None,
                  identifier=argv[1] if command == "update" else None)
-      atomic_json(STATE / "workspaces.json", data)
+      write_database(data)
     elif command == "rename":
       if len(argv) != 3:
         raise WorkspaceError("Enter a new scene name.")
       rename_profile(data, argv[1], argv[2])
-      atomic_json(STATE / "workspaces.json", data)
+      write_database(data)
     elif command == "restore":
       result = restore(find_profile(data, argv[1]), data)
-      atomic_json(STATE / "workspaces.json", data)
+      write_database(data)
     elif command == "delete":
       profile = find_profile(data, argv[1])
       data["items"].remove(profile)
       data["opened"] = {key: value for key, value in data.get("opened", {}).items() if value.get("id") != profile["id"]}
       if data.get("active", {}).get("id") == profile["id"]:
         data["active"] = {}
-      atomic_json(STATE / "workspaces.json", data)
+      write_database(data)
     elif command != "list":
       raise WorkspaceError("Unknown workspace action.")
     print(json.dumps(result))

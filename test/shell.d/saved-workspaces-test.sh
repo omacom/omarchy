@@ -109,8 +109,9 @@ check(named[0]['title'] == 'Focused work' and named[0]['urls'] == records[0]['ur
 for ending in [' - Chromium', ' - Google Chrome', ' - Brave']:
   title = 'Focused work' + ending
   cache = {'/unused/Default/Sessions': [{'title': title, 'urls': ['https://example.org/exact']}, {'title': 'Focused work', 'urls': ['https://example.org/other']}]}
-  with patch.object(m, 'query', return_value=[{'pid': 42, 'class': 'chromium'}, {'pid': 42, 'class': 'chromium'}]):
-    state = m.capture_app_state({'title': title, 'class': 'chromium', 'pid': 42}, {'argv': ['chromium', '--user-data-dir=/unused']}, cache)
+  exact = {'address': '0xexact', 'title': title, 'class': 'chromium', 'pid': 42}
+  other = {**exact, 'address': '0xother', 'title': 'Focused work'}
+  state = m.capture_app_state(exact, {'argv': ['chromium', '--user-data-dir=/unused']}, cache, [exact, other])
   check(state['urls'] == ['https://example.org/exact'], 'an exact saved window name wins over a browser-suffix fallback: ' + ending)
 
 # Forwarded Omarchy web apps share Chromium's normal browser process.
@@ -150,7 +151,7 @@ with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'XDG_DA
 # A web app can also be the first window, so the process itself has --app.
 for flags in [['--app=https://x.com/'], ['--app', 'https://x.com/'], ['--app-id=installed-x']]:
   process = {'argv': ['chromium', '--user-data-dir=/unused', *flags]}
-  window = {'class': 'chromium', 'title': 'Browser work - Chromium', 'pid': 42}
+  window = {'address': '0xbrowser', 'class': 'chromium', 'title': 'Browser work - Chromium', 'pid': 42}
   cache = {'/unused/Default/Sessions': [{'title': 'Browser work', 'urls': ['https://omarchy.org/']}]}
   with patch.object(m, 'query', return_value=[window]):
     state = m.capture_app_state(window, process, cache)
@@ -171,13 +172,28 @@ with tempfile.TemporaryDirectory() as directory:
   for name in ['Default', 'Profile 1']:
     (Path(directory) / name / 'Sessions').mkdir(parents=True)
   process = {'argv': ['chromium', '--user-data-dir=' + directory]}
-  first = {'class': 'chromium', 'title': 'Personal - Chromium', 'pid': 42}
-  second = {'class': 'chromium', 'title': 'Work - Chromium', 'pid': 42}
+  first = {'address': '0xpersonal', 'class': 'chromium', 'title': 'Personal - Chromium', 'pid': 42}
+  second = {'address': '0xwork', 'class': 'chromium', 'title': 'Work - Chromium', 'pid': 42}
   cache = {directory + '/Default/Sessions': [{'title': 'Personal', 'urls': ['https://personal.example/']}], directory + '/Profile 1/Sessions': [{'title': 'Work', 'urls': ['https://work.example/']}]}
   with patch.object(m, 'query', return_value=[first, second]):
     personal = m.capture_app_state(first, process, cache)
     work = m.capture_app_state(second, process, cache)
   check(personal['profile'] == 'Default' and work['profile'] == 'Profile 1' and work['urls'] == ['https://work.example/'], 'normal browser windows from different profiles save independently while sharing a process')
+  stale = {**first, 'title': second['title']}
+  for target in (stale, second):
+    try:
+      m.capture_app_state(target, process, cache, [stale, second])
+    except m.WorkspaceError:
+      print('ok - two live windows cannot borrow the same persisted tabs, even when only one is being saved')
+    else:
+      raise AssertionError('two live windows were matched to the same session record')
+  unmatched = {**first, 'title': 'New navigation - Chromium'}
+  try:
+    m.capture_app_state(second, process, cache, [unmatched, second])
+  except m.WorkspaceError:
+    print('ok - an unmatched window prevents a partial browser assignment')
+  else:
+    raise AssertionError('incomplete browser assignment accepted')
   argv = m.state_command({'class': 'chromium', 'appState': work}, ['chromium', '--profile-directory=Default', '--user-data-dir=/old', '--new-window'])
   check('--profile-directory=Profile 1' in argv and '--user-data-dir=' + directory in argv and argv[-1] == 'https://work.example/', 'restoring a browser window uses its own profile and data directory instead of the first process profile')
   with patch.object(m, 'query', return_value=[first, second, {**second, 'address': 'private'}]):
@@ -437,4 +453,49 @@ with tempfile.TemporaryDirectory() as directory:
   check(loaded == data and stat.S_IMODE(path.stat().st_mode) == 0o600, 'saved launch commands and workspace data are stored privately and atomically')
   m.atomic_json(path, {'version': 1, 'items': [], 'active': {}})
   check(json.loads(path.read_text())['items'] == [] and len(list(Path(directory).iterdir())) == 1, 'updating saved data leaves no partial files behind')
+
+# Exercise save/update through the locked command paths. Multibyte URLs
+# exceed the byte limit while remaining below it by character count.
+with tempfile.TemporaryDirectory() as directory, patch.object(m, 'STATE', Path(directory)):
+  from contextlib import redirect_stdout
+  from io import StringIO
+
+  with redirect_stdout(StringIO()), patch.object(m, 'capture', return_value=snapshot):
+    m.main(['save', 'Kept scene'])
+  path = m.STATE / 'workspaces.json'
+  original = path.read_bytes()
+  kept = m.database()['items'][0]
+  large = {**snapshot, 'windows': [{'address': '0xabc', 'appState': {
+    'urls': ['https://example.org/' + 'é' * (8 * 1024 * 1024 // 2)]
+  }}]}
+  for args in (['save', 'Too large'], ['update', kept['id']]):
+    with patch.object(m, 'capture', return_value=large):
+      try:
+        m.main(args)
+      except m.WorkspaceError as error:
+        check('too large' in str(error), args[0] + ' rejects an oversized UTF-8 database')
+      else:
+        raise AssertionError('oversized ' + args[0] + ' accepted')
+    check(path.read_bytes() == original and m.database()['items'] == [kept]
+          and not list(m.STATE.glob('.saved-workspaces-*')),
+          'rejected ' + args[0] + ' leaves the prior database readable and untouched')
+  with redirect_stdout(StringIO()):
+    m.main(['list'])
+    m.main(['delete', kept['id']])
+  check(not m.database()['items'], 'the preserved scene can still be deleted after a rejected write')
 PY
+
+qml_test_runner=""
+for candidate in /usr/lib/qt6/bin/qmltestrunner /usr/lib/qt6/qmltestrunner; do
+  if [[ -x $candidate ]]; then
+    qml_test_runner=$candidate
+    break
+  fi
+done
+if [[ -z $qml_test_runner ]]; then
+  skip "Qt6 qmltestrunner not found; skipping Scenes reply tests"
+  exit 0
+fi
+
+QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software \
+  "$qml_test_runner" -input "$SHELL_TEST_DIR/saved-workspaces" -o -,txt
