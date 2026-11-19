@@ -6,7 +6,10 @@ o.bind("SUPER + CTRL + O", "Toggle menu", { menu = "toggle" })
 o.bind("SUPER + CTRL + H", "Hardware menu", { menu = "hardware" })
 o.bind("SUPER + SHIFT + code:201", "Omarchy menu", { menu = "root" })
 o.bind("SUPER + ESCAPE", "System menu", { menu = "system" })
-o.bind("XF86PowerOff", "Power menu", { menu = "system" }, { locked = true })
+-- Not locked: a locked session hides the menu until unlock, and the key
+-- doubles as the fingerprint reader on Macs and some laptops, so a press
+-- to wake the lock and unlock with a finger left the menu open behind it.
+o.bind("XF86PowerOff", "Power menu", { menu = "system" })
 o.bind("SUPER + K", "Keybindings", "omarchy-menu-keybindings")
 o.bind("SUPER + ALT + K", "Tmux keybindings", "omarchy-menu-tmux-keybindings")
 o.bind("SUPER + CTRL + K", "Herdr keybindings", "omarchy-menu-herdr-keybindings")
