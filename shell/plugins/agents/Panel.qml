@@ -31,7 +31,10 @@ Panel {
 
   // Every subscription on one page, limits first: the question this panel
   // answers is how much room is left, and where.
-  readonly property var providers: dragProviders !== null ? dragProviders : usage.panelProviders
+  // One usage service per shell, not one per monitor: each bar builds its own
+  // panel, and a Main inside every panel polled the providers once per screen.
+  readonly property var usage: bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.agents") : null
+  readonly property var providers: dragProviders !== null ? dragProviders : usage ? usage.panelProviders : []
 
   // A model on another machine of the tailnet carries its host. Away, it
   // offers nothing; unpaired, only pairing, which is what fetches its key.
@@ -75,7 +78,7 @@ Panel {
   function pairFailure(model) {
     if (!model || !model.host || model.paired === true || String(model.offline || "") !== "") return null
     var id = modelId(model)
-    return usage.pairingId === id ? null : (usage.pairFailures[id] || null)
+    return !usage || usage.pairingId === id ? null : (usage.pairFailures[id] || null)
   }
 
   function showLocalLogs(model) {
@@ -108,8 +111,10 @@ Panel {
     } else if (action === "pair") {
       // Pairs in the background while the panel stays open; a failure shows
       // on the model's line.
-      usage.pair(model)
-      if (usage.pairingId === modelId(model)) landAfterPair = modelId(model)
+      if (usage) {
+        usage.pair(model)
+        if (usage.pairingId === modelId(model)) landAfterPair = modelId(model)
+      }
     } else if (action === "disconnect") {
       Util.execArgv(["omarchy-agent-local", "forget", modelId(model)])
     }
@@ -122,7 +127,7 @@ Panel {
   // terminal rather than for the pairing to end, while the panel stays open.
   property string landAfterPair: ""
   function landOnPaired() {
-    if (landAfterPair === "" || usage.pairingId !== "") return
+    if (landAfterPair === "" || !usage || usage.pairingId !== "") return
     if (!root.opened || usage.pairFailures[landAfterPair]) {
       landAfterPair = ""
       return
@@ -158,7 +163,7 @@ Panel {
     interval: 2000
     running: root.opened
     repeat: true
-    onTriggered: usage.refreshNetwork()
+    onTriggered: if (usage) usage.refreshNetwork()
   }
 
   // The setup runs on in the background and reports to status.json, where it
@@ -172,7 +177,7 @@ Panel {
       root.close()
       return
     }
-    usage.setUp(recipe)
+    if (usage) usage.setUp(recipe)
   }
 
   function linkTitle(link) {
@@ -213,8 +218,8 @@ Panel {
     // nothing: a failure is forgotten and one waiting its turn is dropped. The
     // one starting can't be stopped midway through installing packages.
     if (model && model.panelSetup) {
-      if (model.install.phase === "failed") usage.dismissSetupFailure()
-      else if (model.install.phase === "waiting") usage.unqueueSetup(model.recipe)
+      if (usage && model.install.phase === "failed") usage.dismissSetupFailure()
+      else if (usage && model.install.phase === "waiting") usage.unqueueSetup(model.recipe)
       return
     }
     deleteTarget = providers[target.index]
@@ -291,7 +296,7 @@ Panel {
           continue
         }
         if (providers[p].localModel) {
-          var actions = localActions(providers[p].localModel, usage.canShare)
+          var actions = localActions(providers[p].localModel, usage ? usage.canShare : false)
           rows.push(actions.length > 0 ? actions.map(function(action) { return { kind: actionKinds[action], index: p } }) : [{ kind: "modelHeader", index: p }])
           if (localFailed(providers[p].localModel)) rows.push([{ kind: "modelLogs", index: p }])
           continue
@@ -358,7 +363,7 @@ Panel {
     if (!provider) return "provider"
     if (provider.localOffer) return "localDownload"
     if (provider.localModel) {
-      var actions = localActions(provider.localModel, usage.canShare)
+      var actions = localActions(provider.localModel, usage ? usage.canShare : false)
       if (actions.indexOf("launch") >= 0) return "modelLaunch"
       if (actions.indexOf("pair") >= 0) return "modelPair"
       if (actions.indexOf("disconnect") >= 0) return "modelDisconnect"
@@ -410,7 +415,7 @@ Panel {
     if (from < 0) return
     var to = clamp(from + dy, 0, providers.length - 1)
     if (to === from) return
-    usage.moveProvider(providers[from].providerId, to)
+    if (usage) usage.moveProvider(providers[from].providerId, to)
     Qt.callLater(function() { pointAt(lineStop(to), to) })
   }
 
@@ -463,7 +468,7 @@ Panel {
     var moved = dragIndex >= 0 && to !== dragIndex
     // Disable slot motion before replacing the model: it already matches the preview.
     dragIndex = -1
-    if (moved) usage.moveProvider(id, to)
+    if (moved && usage) usage.moveProvider(id, to)
     resetProviderDrag()
     if (moved) Qt.callLater(function() { pointAt(lineStop(to), to) })
   }
@@ -533,7 +538,7 @@ Panel {
   readonly property bool localBlocked: providers.some(function(p) { return p.localModel && p.localModel.fits === false })
 
   function refreshNow() {
-    usage.refreshAll(true)
+    if (usage) usage.refreshAll(true)
   }
 
   // ------------------------------------------------------------ adding
@@ -555,7 +560,7 @@ Panel {
   // Add another › Network models brings back the tailnet's models hidden
   // from the page, wherever their hosts are now.
   readonly property var networkAddModels: {
-    var network = usage.networkModels || {}
+    var network = (usage && usage.networkModels) || {}
     var hidden = []
     for (var id in network)
       if (!usage.providerEnabled("net:" + id)) hidden.push(network[id])
@@ -599,10 +604,10 @@ Panel {
   // Local AI offers the catalog's recipes that fit this machine and aren't
   // set up yet, recommended first. Each downloads tens of GB in the
   // background, its line here showing how far along it is.
-  readonly property bool localFits: (usage.localRecipes || []).some(function(recipe) { return recipe && recipe.available })
+  readonly property bool localFits: ((usage && usage.localRecipes) || []).some(function(recipe) { return recipe && recipe.available })
   readonly property var localAddRecipes: {
-    var models = usage.localModel && usage.localModel.models ? usage.localModel.models : {}
-    var recipes = (usage.localRecipes || []).filter(function(recipe) {
+    var models = usage && usage.localModel && usage.localModel.models ? usage.localModel.models : {}
+    var recipes = ((usage && usage.localRecipes) || []).filter(function(recipe) {
       return recipe && recipe.available && !models[recipe.id]
     })
     recipes.sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
@@ -631,7 +636,7 @@ Panel {
 
   function setUpLocal(recipe) {
     if (!recipe) return
-    usage.setUp(recipe)
+    if (usage) usage.setUp(recipe)
     cancelAdd()
   }
   property string addStage: ""
@@ -780,10 +785,10 @@ Panel {
         // account shows once its limits arrive.
         addStage = tagged[1] === "done" ? "" : tagged[1]
         if (tagged[1] === "done") {
-          usage.refreshLimits()
+          if (usage) usage.refreshLimits()
           root.focusKeys()
           // Nothing to show yet means the sign-in is what counts as set up.
-          if (usage.enabledProviders.length === 0 && !checkProcess.running) {
+          if ((!usage || usage.enabledProviders.length === 0) && !checkProcess.running) {
             addChecks = ({})
             checkProcess.running = true
           }
@@ -825,7 +830,7 @@ Panel {
   // picks it: the last one started when it's running, any other running one
   // otherwise.
   readonly property var starterLocalModel: {
-    var local = usage.localModel || {}
+    var local = (usage && usage.localModel) || {}
     var models = local.models || {}
     var up = Object.keys(models).filter(function(id) {
       var m = models[id]
@@ -1285,14 +1290,14 @@ Panel {
   // every agent, now that they no longer get charts of their own.
 
   readonly property var summaryPhrases: {
-    var rev = usage.dataRevision
+    var rev = usage ? usage.dataRevision : 0
     var week = 0
     var today = 0
     var prompts = 0
     var sessions = 0
     var byDay = {}
     var byModel = {}
-    var providers = usage.enabledProviders
+    var providers = usage ? usage.enabledProviders : []
     for (var i = 0; i < providers.length; i++) {
       var p = providers[i]
       var days = p.recentDays || []
@@ -1360,8 +1365,8 @@ Panel {
 
   // Only speaks up when the numbers cover more than this machine.
   function footerText() {
-    if (usage.syncStatusText !== "") return usage.syncStatusText
-    var providers = usage.enabledProviders
+    if (usage && usage.syncStatusText !== "") return usage.syncStatusText
+    var providers = usage ? usage.enabledProviders : []
     for (var i = 0; i < providers.length; i++) {
       var count = Number(providers[i].syncDeviceCount || 0)
       if (providers[i].syncEnabled && count > 0)
@@ -1406,7 +1411,7 @@ Panel {
   }
   // Local history counts as set up, so a machine with no subscription still
   // gets its summary rather than the picker.
-  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn && !providers.some(function(p) { return !!p.localModel })
+  readonly property bool blankSlate: (!usage || usage.enabledProviders.length === 0) && !anySignedIn && !providers.some(function(p) { return !!p.localModel })
   // Choosing a provider: asked for with the +, or simply what the panel is
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
@@ -1438,7 +1443,7 @@ Panel {
   // offers from is rewritten whenever the picker shows, from + or as a blank
   // slate, including one the panel opens on.
   function refreshLocalListing() {
-    usage.refreshLocal()
+    if (usage) usage.refreshLocal()
   }
   property bool localListed: false
 
@@ -1465,14 +1470,14 @@ Panel {
     deleteTarget = null
     if (addStage !== "running") addStage = ""
     resetKeys()
-    if (usage.enabledProviders.length === 0 && !checkProcess.running) checkProcess.running = true
+    if ((!usage || usage.enabledProviders.length === 0) && !checkProcess.running) checkProcess.running = true
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
-    usage.refreshLimits()
+    if (usage) usage.refreshLimits()
     // "Doesn't fit" was true when a model last started or stopped; memory an
     // app has since let go of only shows after a fresh look, once per open.
     if (localBlocked) Util.execArgv(["omarchy-agent-local", "status", "--write"])
-    usage.refreshNetwork()
+    if (usage) usage.refreshNetwork()
     // The first page offers the recommended model from the same listing, so a
     // machine with no local model reads it fresh once per shell run too; an
     // update restarts the shell.
@@ -1483,10 +1488,20 @@ Panel {
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
 
-  Main {
-    id: usage
-    settings: root.settings
+  // A Binding to the service's settings would outlive this panel: Qt leaves
+  // the last value behind, and the shared poll kept running with no widget.
+  property var attachedUsage: null
+
+  function attachUsage(next) {
+    if (attachedUsage === next) return
+    if (attachedUsage) attachedUsage.detachPanel(root)
+    attachedUsage = next
+    if (next) next.attachPanel(root)
   }
+
+  onUsageChanged: attachUsage(usage)
+  Component.onCompleted: attachUsage(usage)
+  Component.onDestruction: attachUsage(null)
 
   Process {
     id: checkProcess
@@ -1582,7 +1597,7 @@ Panel {
     // Pairing may bring up the SSH agent's prompt to approve a key, such as
     // 1Password's, which has to take focus and clicks while the panel shows
     // how the pairing goes.
-    yielding: usage.pairingId !== ""
+    yielding: !!usage && usage.pairingId !== ""
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(860))
@@ -2215,7 +2230,7 @@ Panel {
     readonly property real phaseSeconds: removing ? removeSeconds : stopping ? stopSeconds : loadSeconds
     readonly property real elapsed: model ? Math.max(0, (root.loadNowMs - Number(model.since_ms || root.loadNowMs)) / 1000) : 0
     readonly property real memory: model && model.observed ? Number(model.observed.ram_used_gib || 0) : 0
-    readonly property real ramTotal: Number(usage.localModel.ram_total_gib) || 0
+    readonly property real ramTotal: usage ? Number(usage.localModel.ram_total_gib) || 0 : 0
     readonly property var accounts: root.providerAccounts(provider)
     readonly property bool multi: accounts.length > 1
     readonly property var windows: root.displayWindows(provider)
@@ -2339,8 +2354,8 @@ Panel {
         anchors.rightMargin: localToggle.visible || sectionLaunch.visible ? Style.space(4) : 0
         anchors.verticalCenter: parent.verticalCenter
         readonly property bool shared: !!section.model && section.model.shared === true
-        visible: !!section.model && !section.remote && !section.removing && !section.installing && section.running && (shared || usage.canShare)
-        readonly property int users: shared ? (usage.shareClients[section.model.recipe] || 0) : 0
+        visible: !!section.model && !section.remote && !section.removing && !section.installing && section.running && (shared || (!!usage && usage.canShare))
+        readonly property int users: shared && usage ? (usage.shareClients[section.model.recipe] || 0) : 0
         tooltipText: users > 0 ? Commons.I18n.tn("agents.networkSharedUsers", users).arg(Commons.I18n.formatNumber(users))
           : shared ? Commons.I18n.t("agents.networkStopSharing") : Commons.I18n.t("agents.networkShare")
         foreground: root.foreground
@@ -2368,8 +2383,8 @@ Panel {
         visible: section.remote && !section.offline && !section.paired
         iconText: "󰐊"
         tooltipText: section.remote ? Commons.I18n.t("agents.networkPair").arg(section.model.host) : ""
-        foreground: usage.pairingId !== "" ? root.dim : root.foreground
-        opacity: usage.pairingId !== "" ? 0.5 : 1
+        foreground: usage && usage.pairingId !== "" ? root.dim : root.foreground
+        opacity: usage && usage.pairingId !== "" ? 0.5 : 1
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("modelPair", section.providerIndex)
         onHasCursorChanged: if (hasCursor) root.revealItem(remotePair)
@@ -2543,7 +2558,7 @@ Panel {
 
     // A network model being paired, until it is or fails to be.
     Text {
-      visible: section.remote && usage.pairingId === root.modelId(section.model)
+      visible: section.remote && !!usage && usage.pairingId === root.modelId(section.model)
       width: parent.width
       textFormat: Text.PlainText
       text: section.remote ? Commons.I18n.t("agents.networkPairing").arg(section.model.host) : ""
@@ -2571,10 +2586,10 @@ Panel {
 
     // Sharing that Tailscale refused, with the way to fix it.
     Text {
-      visible: !!section.model && !section.remote && section.model.shared === true && String(usage.localModel.share_error || "") !== ""
+      visible: !!section.model && !section.remote && section.model.shared === true && !!usage && String(usage.localModel.share_error || "") !== ""
       width: parent.width
       textFormat: Text.PlainText
-      text: String(usage.localModel.share_error || "")
+      text: usage ? String(usage.localModel.share_error || "") : ""
       color: root.urgent
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
