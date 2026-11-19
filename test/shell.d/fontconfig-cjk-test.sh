@@ -36,6 +36,15 @@ export FONTCONFIG_FILE="$test_tmp/fonts.conf"
 export XDG_CONFIG_HOME="$test_tmp/config"
 fc-cache >/dev/null
 
+# Qt supplies the process name when resolving the shell's missing glyphs.
+actual=$(fc-match -f '%{family[0]}' 'monospace:prgname=quickshell:charset=5d0')
+[[ $actual == "Liberation Sans" ]] || fail "Quickshell uses Liberation Sans for Hebrew" "$actual"
+if [[ $(fc-list -f '%{family[0]}\n' 'Courier New:charset=5d0') == *'Courier New'* ]]; then
+  actual=$(fc-match -f '%{family[0]}' 'monospace:prgname=foot:charset=5d0')
+  [[ $actual == "Courier New" ]] || fail "Foot keeps its Hebrew fallback when Courier New is installed" "$actual"
+fi
+pass "Hebrew shell text gets a fallback without changing the terminal fallback"
+
 # Pango, Qt and Skia add lang as a string, which fc-match never does.
 cat >"$test_tmp/string-lang.py" <<'PY'
 import ctypes, sys
