@@ -778,7 +778,7 @@ local config = { ["plugin.hyprbars.bar_height"] = 30, ["general.border_size"] = 
 
 hl = {
   on = function(event, callback) handlers[event] = callback end,
-  bind = function(keys, callback) table.insert(binds, callback) end,
+  bind = function(keys, callback, opts) table.insert(binds, { callback = callback, opts = opts or {} }) end,
   timer = function(callback) table.insert(timers, callback) end,
   get_active_window = function() return active end,
   get_cursor_pos = function() return cursor end,
@@ -825,7 +825,7 @@ end
 local function click(pointer)
   dispatched = {}
   cursor = pointer
-  binds[1]()
+  binds[1].callback()
   for _, run in ipairs(timers) do run() end
   timers = {}
   return dispatched
@@ -902,6 +902,25 @@ assert(not maximized(click({ x = 900, y = 10 })), "a click on the bar after a co
 -- Hyprland still counts the window on the screen below as it crosses over.
 local below = window(1400, { monitor = lower })
 assert(not maximized(drop(below, 20, { x = 500, y = 10 })), "the pointer on another screen's bar does not maximize")
+
+-- A drag the mouse binds see ends on the button's release, with no focus
+-- event after it: the window was already active when the press landed.
+local press, release
+for _, bind in ipairs(binds) do
+  if bind.opts.release then release = bind.callback else press = bind.callback end
+end
+assert(press and release, "the left button is watched as it goes down and as it comes up")
+assert(binds[1].opts.non_consuming and binds[2].opts.non_consuming, "the click still reaches the window")
+
+local held = window(300)
+active = held
+handlers["window.active"](); for _, run in ipairs(timers) do run() end; timers = {}
+press(); for _, run in ipairs(timers) do run() end; timers = {}
+held.at = { x = 400, y = 20 }
+cursor = { x = 500, y = 10 }
+dispatched = {}
+release(); for _, run in ipairs(timers) do run() end; timers = {}
+assert(maximized(dispatched), "a window released over the top bar maximizes without another focus event")
 
 LUA
 pass "a floating window dropped under the top bar keeps its titlebar in reach"
