@@ -20,6 +20,7 @@ local paths = require("default.hypr.paths")
 
 local FLOATED_TAG = "omarchy-mode-floated"
 local WORKSPACE_TAG = "omarchy-floating-workspace"
+local SOLID_TAG = "omarchy-floating-solid"
 local OPENED_TAG = "omarchy-mode-opened"
 local OPEN_RULE = "omarchy-floating-open-"
 local LAST_WORKSPACE = 2147483647
@@ -55,8 +56,41 @@ local function set_claimed(window, claimed)
   hl.dispatch(hl.dsp.window.tag({ tag = (claimed and "+" or "-") .. FLOATED_TAG, window = window }))
 end
 
+-- Windows that stay solid under Glassy on tiled workspaces stay solid on a
+-- floating one too. Hyprland can't match two tags in one rule, so they carry a
+-- tag of their own while on a floating workspace. A rule's tags are listed with
+-- a trailing "*".
+local SOLID_APPS = { terminal = true, ["chromium-based-browser"] = true, ["firefox-based-browser"] = true, pip = true }
+
+local function window_tags(window)
+  local tags = {}
+
+  for _, tag in ipairs(window.tags or {}) do
+    tags[(tag:gsub("%*$", ""))] = true
+  end
+
+  return tags
+end
+
+local function stays_solid(tags)
+  for tag in pairs(SOLID_APPS) do
+    if tags[tag] then
+      return true
+    end
+  end
+
+  return false
+end
+
 local function set_on_floating_workspace(window, on)
   hl.dispatch(hl.dsp.window.tag({ tag = (on and "+" or "-") .. WORKSPACE_TAG, window = window }))
+
+  local tags = window_tags(window)
+  if on and stays_solid(tags) then
+    hl.dispatch(hl.dsp.window.tag({ tag = "+" .. SOLID_TAG, window = window }))
+  elseif not on and tags[SOLID_TAG] then
+    hl.dispatch(hl.dsp.window.tag({ tag = "-" .. SOLID_TAG, window = window }))
+  end
 end
 
 local function claimed()
@@ -593,16 +627,14 @@ set_up_floating = function()
   -- Glassy asks for see-through windows, so on a floating workspace every window
   -- fades as a whole, as Glassy fades Nautilus, and its titlebar turns to frosted
   -- glass with it. Video and pictures stay solid. Terminals paint their own glass
-  -- already, and browsers stay solid as they do on tiled workspaces; a floating
-  -- workspace floats everything, so the float match keeps tiled windows out.
+  -- already, and browsers stay solid as they do on tiled workspaces, whether
+  -- they float, tile or go fullscreen there.
   if glassy() then
     o.window({ tag = WORKSPACE_TAG, class = "negative:^(mpv|imv)$" }, {
       opacity = "0.86 override 0.8 override",
       tag = "+transparent-window",
     })
-    for _, tag in ipairs({ "terminal", "chromium-based-browser", "firefox-based-browser", "pip" }) do
-      o.window({ tag = tag, float = true }, { opacity = "1.0 override 1.0 override" })
-    end
+    o.window({ tag = SOLID_TAG }, { opacity = "1.0 override 1.0 override" })
   end
 
   titlebars()

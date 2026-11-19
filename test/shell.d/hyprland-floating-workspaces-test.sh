@@ -458,25 +458,23 @@ glassy_lua='
 local glassy = os.getenv("GLASSY") == "1"
 local window = window("0x1", 1)
 require("default.hypr.workspace-layouts")
-local opaque, faded, solid = 0, 0, {}
+local opaque, faded, solid = 0, 0, 0
 for index, rule in ipairs(state().rules) do
   if rule.match.tag == "omarchy-floating-workspace" and rule.opacity == "1.0 override 1.0 override" then
     opaque = index
   elseif rule.match.tag == "omarchy-floating-workspace" and rule.opacity then
     faded = index
     assert(rule.tag == "+transparent-window", "a faded window did not get the glass titlebar")
-  elseif rule.match.float and rule.opacity == "1.0 override 1.0 override" then
-    solid[rule.match.tag] = index
+  elseif rule.match.tag == "omarchy-floating-solid" and rule.opacity == "1.0 override 1.0 override" then
+    solid = index
   end
 end
 assert(opaque > 0, "floating windows were not made opaque")
 if glassy then
   assert(faded > opaque, "Glassy did not fade floating windows after the opaque rule")
-  for _, tag in ipairs({ "terminal", "chromium-based-browser", "firefox-based-browser", "pip" }) do
-    assert((solid[tag] or 0) > faded, tag .. " windows did not stay solid under Glassy")
-  end
+  assert(solid > faded, "windows that stay solid under Glassy faded on a floating workspace")
 else
-  assert(faded == 0 and next(solid) == nil, "floating windows faded without Glassy")
+  assert(faded == 0 and solid == 0, "floating windows faded without Glassy")
 end
 '
 mkdir -p "$state_home/omarchy/toggles/hypr"
@@ -485,6 +483,24 @@ run_lua "$glassy_lua" || fail "floating windows stay opaque without Glassy"
 run_lua "$glassy_lua" GLASSY=1 || fail "Glassy fades floating windows"
 rm -f "$state_home/omarchy/toggles/hypr/window-glassy.lua"
 pass "Glassy fades floating windows, and only Glassy"
+
+# Terminals, browsers and picture-in-picture stay solid on a floating workspace
+# however they sit there -- floating, tiled or fullscreen -- and only there.
+run_lua '
+local terminal = window("0x1", 1, { tags = { "terminal*" } })
+local browser = window("0x2", 1, { fullscreen = 1, tags = { "chromium-based-browser*" } })
+local editor = window("0x3", 1)
+local floated = window("0x4", 2, { floating = true, tags = { "terminal*" } })
+require("default.hypr.workspace-layouts")
+o.workspace_mode({ workspace = "1", mode = "floating" })
+assert(has_tag(terminal, "omarchy-floating-solid"), "a terminal on a floating workspace was not kept solid")
+assert(has_tag(browser, "omarchy-floating-solid"), "a fullscreen browser on a floating workspace was not kept solid")
+assert(not has_tag(editor, "omarchy-floating-solid"), "a window that fades under Glassy was kept solid")
+assert(not has_tag(floated, "omarchy-floating-solid"), "a terminal floated on a tiled workspace was kept solid")
+o.workspace_mode({ workspace = "1", mode = "dwindle" })
+assert(not has_tag(terminal, "omarchy-floating-solid"), "a terminal kept the solid tag once its workspace tiled")
+' || fail "solid apps stay solid on floating workspaces"
+pass "terminals, browsers and picture-in-picture stay solid on floating workspaces only"
 
 # A tiled default is Hyprland's own layout for workspaces without a rule.
 rm -f "$modes_dir"/*.lua
