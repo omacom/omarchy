@@ -1,0 +1,136 @@
+#!/bin/bash
+
+# omarchy:summary=Screenshot a shell plugin's bar widget and report its QML errors
+# omarchy:args=<plugin-dir> [--out file.png]
+# omarchy:examples=omarchy agent look plugin ~/.config/omarchy/plugins/alice.counter
+
+# Renders the plugin's bar widget in a bar-sized window with the current theme
+# and saves it as an image, so an agent sees its widget without reloading the
+# user's bar. The window floats without taking the focus and closes once
+# captured; the running shell is untouched. (Offscreen rendering can't load
+# widgets with a popup panel, which need layer shell.) Prints the QML errors
+# and warnings the plugin produced while loading.
+
+set -uo pipefail
+
+if [[ -z ${1:-} || $1 == -* ]]; then
+  echo "Usage: omarchy agent look plugin <plugin-dir> [--out file.png]" >&2
+  exit 2
+fi
+plugin=$(realpath "$1")
+out=""
+[[ ${2:-} == "--out" ]] && out=$3
+[[ -n $out ]] || out=$(mktemp --suffix=.png -p "${TMPDIR:-/tmp}" look-XXXXXX)
+entry=$(jq -r '.entryPoints.barWidget // empty' "$plugin/manifest.json" 2>/dev/null)
+if [[ -z $entry ]]; then
+  echo "$plugin/manifest.json has no entryPoints.barWidget" >&2
+  exit 1
+fi
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/config"
+for item in "$OMARCHY_PATH"/shell/*; do
+  [[ $(basename "$item") == "shell.qml" ]] || ln -s "$item" "$work/config/$(basename "$item")"
+done
+
+cat > "$work/config/shell.qml" <<EOF
+import QtQuick
+import Quickshell
+import qs.Commons
+
+ShellRoot {
+  id: root
+  property var widget
+  property int step: 0
+
+  FloatingWindow {
+    id: win
+    implicitWidth: 640
+    implicitHeight: Style.bar.sizeHorizontal + 16
+    color: Color.background
+    // Only this bar-sized strip is captured, whatever size the compositor
+    // gives the window.
+    Rectangle {
+      id: frame
+      anchors.centerIn: parent
+      width: 600
+      height: Style.bar.sizeHorizontal + 8
+      color: (Color.bar && Color.bar.background) ? Color.bar.background : "#16161e"
+      Item { id: host; anchors.centerIn: parent; width: 584; height: Style.bar.sizeHorizontal }
+    }
+  }
+
+  Timer {
+    interval: 700
+    repeat: true
+    running: true
+    onTriggered: {
+      if (root.step === 0) {
+        var component = Qt.createComponent("file://$plugin/$entry")
+        if (component.status !== Component.Ready) {
+          console.log("PREVIEW_ERROR " + component.errorString())
+          Qt.quit()
+          return
+        }
+        root.widget = component.createObject(host, { moduleName: "preview", height: Style.bar.sizeHorizontal })
+        if (!root.widget) {
+          console.log("PREVIEW_ERROR could not create the widget: " + component.errorString())
+          Qt.quit()
+          return
+        }
+        root.widget.anchors.verticalCenter = host.verticalCenter
+        root.widget.anchors.right = host.right
+      } else if (root.step === 2) {
+        frame.grabToImage(function(result) {
+          result.saveToFile("$work/shot.png")
+          console.log("PREVIEW_SAVED " + Math.round(root.widget.width) + "x" + Math.round(root.widget.height))
+          Qt.quit()
+        })
+      }
+      root.step++
+    }
+  }
+}
+EOF
+
+# Hyprland starts the window with the session's environment, so pass on the
+# caller's home: an agent working in another home sees its own plugin and
+# theme. While the display is off nothing on screen draws, so render
+# offscreen instead, which works for any widget without a popup panel.
+offscreen=false
+hyprctl monitors -j | jq -e 'any(.[]; .dpmsStatus)' >/dev/null || offscreen=true
+if [[ $offscreen == "true" ]]; then
+  QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QPA_PLATFORMTHEME= QT_STYLE_OVERRIDE= \
+    timeout 20 quickshell -p "$work/config" --no-color >"$work/log" 2>&1 </dev/null &
+else
+  command="export HOME=${HOME@Q} OMARCHY_PATH=${OMARCHY_PATH@Q} QT_QPA_PLATFORMTHEME= QT_STYLE_OVERRIDE=; exec timeout 20 quickshell -p ${work@Q}/config --no-color >${work@Q}/log 2>&1"
+  hyprctl dispatch "hl.dsp.exec_cmd($(jq -Rn --arg c "bash -c ${command@Q}" '$c'), { float = true, no_initial_focus = true })" >/dev/null
+fi
+for _ in {1..50}; do
+  grep -qE "PREVIEW_SAVED|PREVIEW_ERROR" "$work/log" 2>/dev/null && break
+  sleep 0.5
+done
+sleep 0.5
+# The preview's own quickshell, found by its unique scratch path.
+pgrep -f -- "quickshell -p $work/config" | xargs -r kill 2>/dev/null
+
+problems=$( (grep -E "WARN|ERROR" "$work/log" | grep -F "$plugin"; grep "PREVIEW_ERROR" "$work/log" | sed 's/^.*PREVIEW_ERROR //') \
+  | sed -E 's/^ *(WARN|ERROR)[^:]*: //' | sort -u | head -20)
+if [[ ! -s $work/shot.png ]]; then
+  echo "The widget didn't render." >&2
+  if [[ $offscreen == "true" ]] && grep -q "No PanelWindow backend" "$work/log"; then
+    echo "The display is off, and a widget with a popup panel can only be drawn on screen; the errors below other than the panel's are real." >&2
+    echo "Don't turn the display on or start a shell of your own to get around this: the user is away or the screen is locked. Fix the other errors, and tell the user the panel is still to be looked at." >&2
+  fi
+  [[ -n $problems ]] && echo "$problems" >&2
+  exit 1
+fi
+magick "$work/shot.png" -resize '200%' "$out"
+echo "screenshot: $out"
+echo "widget: $(grep -oE 'PREVIEW_SAVED [0-9]+x[0-9]+' "$work/log" | cut -d' ' -f2), shown at 2x, right-aligned in a bar-sized strip"
+if [[ -n $problems ]]; then
+  echo "problems from the plugin's QML:"
+  echo "$problems"
+  exit 1
+fi

@@ -1,6 +1,7 @@
 {
   "Activity": "กิจกรรม",
   "Agent": "เอเจนต์",
+  "Agents": "เอเจนต์",
   "Apps": "แอป",
   "Audio": "เสียง",
   "Background switcher": "ตัวสลับพื้นหลัง",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "นำหน้าต่างปัจจุบันขึ้นด้านบน",
   "Save window width": "บันทึกความกว้างหน้าต่าง",
   "Screenrecording": "บันทึกหน้าจอ",
+  "Screenrecording with no audio": "บันทึกหน้าจอ (ไม่มีเสียง)",
   "Screenshot": "จับภาพหน้าจอ",
   "Scroll active workspace backward": "เลื่อนพื้นที่ทำงานย้อนกลับ",
   "Scroll active workspace forward": "เลื่อนพื้นที่ทำงานไปข้างหน้า",

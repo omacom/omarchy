@@ -6,7 +6,7 @@
 set -e
 
 echo "Installing all dependencies..."
-omarchy-pkg-add dropbox dropbox-cli libappindicator python-gpgme nautilus-dropbox
+omarchy-pkg-add dropbox dropbox-cli libappindicator python-gpgme
 
 echo "Adding Dropbox to the bar..."
 omarchy-plugin-enable omarchy.dropbox || true
