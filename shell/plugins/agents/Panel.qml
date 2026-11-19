@@ -2218,6 +2218,9 @@ Panel {
     readonly property real rateBytes: Number(install.rate_bytes_s) || 0
     readonly property bool loading: !!model && model.unit === "activating"
     readonly property bool running: !!model && model.unit === "active"
+    // A local model that's set up and stopped steps back, so the one running
+    // stands out; its play button stays bright.
+    readonly property bool resting: !!model && !remote && !running && !loading && !installing
     readonly property bool stopping: !!model && model.unit === "deactivating"
     // Removing stops it first, then deletes its weights; one bar covers both.
     readonly property bool removing: !!model && model.unit === "removing"
@@ -2285,6 +2288,7 @@ Panel {
         id: sectionMark
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
+        opacity: section.resting ? 0.45 : 1
         provider: section.model ? ({ providerId: section.model.vendor || "ollama" })
           : section.offer ? ({ providerId: section.offer.vendor || "ollama" }) : section.provider
 
@@ -2324,6 +2328,7 @@ Panel {
           text: section.model ? Commons.I18n.t("agents.localEndpoint").arg(section.model.endpoint || "").arg(section.model.recipe) : ""
         }
         color: root.foreground
+        opacity: section.resting ? 0.45 : 1
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: true
@@ -2343,6 +2348,7 @@ Panel {
           : section.model || section.offer ? [root.kindLabel(section.model || section.offer)].concat(section.remote ? [section.model.host] : []).join(" · ")
           : root.planLabel(section.provider)
         color: root.dim
+        opacity: section.resting ? 0.6 : 1
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
       }
