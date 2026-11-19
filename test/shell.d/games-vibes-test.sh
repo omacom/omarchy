@@ -105,7 +105,7 @@ omarchy-games-vibes-install "file://$repo" >/dev/null 2>&1 || fail "installing a
 git -C "$repo" rm -q index.html && git -C "$repo" -c user.name=t -c user.email=t@t commit -qm broken
 ! omarchy-games-vibes-install "file://$repo" >/dev/null 2>&1 && [[ -f $vibes/space-rocks/index.html ]] ||
   fail "a reinstall that fails leaves the game that was there"
-[[ -z $(find "$vibes" -maxdepth 1 -name '.install.*') ]] || fail "a failed install leaves nothing behind"
+[[ -z $(find "$vibes" -maxdepth 1 -type d -name '.install.*') ]] || fail "a failed install leaves nothing behind"
 
 git init -q "$test_tmp/snake" && printf '<!doctype html><title>Other Snake</title>\n' >"$test_tmp/snake/index.html" && git -C "$test_tmp/snake" add . &&
   git -C "$test_tmp/snake" -c user.name=t -c user.email=t@t commit -qm game

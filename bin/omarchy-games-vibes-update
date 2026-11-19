@@ -9,11 +9,9 @@ status=0
 for game in ~/Games/vibes/*; do
   [[ ! -L $game && -d $game/.git ]] || continue
   echo "Updating: $(basename "$game")"
-  if git -C "$game" pull; then
-    find "$game" -type l -delete
-  else
-    status=1
-  fi
+  git -C "$game" pull || status=1
+  # Even a pull that fails can bring in the repository's symlinks.
+  find "$game" -type l -delete
 done
 
 exit $status
