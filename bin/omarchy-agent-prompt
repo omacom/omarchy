@@ -24,6 +24,10 @@ while (($#)); do
       flags+=(--agent "${2:?--agent needs an agent id}")
       shift 2
       ;;
+    --)
+      shift
+      break
+      ;;
     *)
       break
       ;;

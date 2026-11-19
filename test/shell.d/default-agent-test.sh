@@ -1058,6 +1058,11 @@ grep -Fq 'To pass a prompt: omarchy agent prompt --agent "codex" "Review this pr
 omarchy agent prompt --agent codex "Review this project"
 assert_launched codex "routes a flagged prompt to the requested agent instead of the default" \
   env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me -- "Review this project"
+
+: >"$launch_log"
+omarchy agent prompt -- '--agent'
+assert_launched opencode "passes an option-shaped prompt through after --" \
+  opencode --auto --prompt "--agent"
 pass "omarchy agent keeps prompts on the prompt route"
 
 printf '%s\n' "missing" >"$agent_file"
