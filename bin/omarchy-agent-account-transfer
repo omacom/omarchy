@@ -78,6 +78,24 @@ sys.exit(module.main(["import", *sys.argv[1:]]))
 '''.replace("__MAX_BUNDLE__", str(MAX_BUNDLE))
 
 
+# The receiver can run beside a destination's older account backend, which
+# keeps every login in its account's own home and has no seating to put right.
+def login_home(provider: str, registry: dict[str, Any], account: dict[str, Any]) -> Path:
+  if hasattr(accounts, "login_home"):
+    return accounts.login_home(provider, registry, account)
+  return accounts.account_home(provider, account)
+
+
+def settle(provider: str, registry: dict[str, Any]) -> None:
+  if hasattr(accounts, "settle"):
+    accounts.settle(provider, registry)
+
+
+def prepare_store(provider: str, account: dict[str, Any]) -> None:
+  if hasattr(accounts, "prepare_store"):
+    accounts.prepare_store(provider, account)
+
+
 def login_files(provider: str, home: Path) -> dict[str, Any]:
   if provider == "claude":
     identity = (accounts.read_json(accounts.claude_account_file(home)) or {}).get("oauthAccount")
@@ -97,7 +115,7 @@ def export_accounts(providers: list[str]) -> dict[str, Any]:
     registry = accounts.load(provider)
     entries = []
     for account in registry["accounts"]:
-      home = accounts.account_home(provider, account)
+      home = login_home(provider, registry, account)
       found = accounts.identity(provider, home)
       files = login_files(provider, home)
       if found["accountId"] and files:
@@ -219,6 +237,7 @@ def unique_label(registry: dict[str, Any], label: str) -> str:
 
 def match_source_names(provider: str, registry: dict[str, Any], copied: list[tuple[dict[str, Any], dict[str, Any]]]) -> None:
   active = accounts.active(registry)
+  seated = accounts.find(registry, registry["seated"]) if "seated" in registry else None
   copied_objects = {id(account) for _, account in copied}
   source_ids = {entry["id"] for entry, _ in copied}
   source_labels = {entry["label"] for entry, _ in copied}
@@ -241,8 +260,11 @@ def match_source_names(provider: str, registry: dict[str, Any], copied: list[tup
       account["id"] = candidate
   for entry, account in copied:
     account["id"] = entry["id"]
-  # The selected account stays selected, even when its id changes.
+  # The selected account stays selected, and the seated one seated, even when
+  # its id changes.
   registry["active"] = active["id"]
+  if seated is not None:
+    registry["seated"] = seated["id"]
 
 
 def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> list[str]:
@@ -254,21 +276,24 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
   copied = []
   try:
     with accounts.Locked(provider) as registry:
+      settle(provider, registry)
       for a in registry["accounts"]:
         for name in FILES[provider]:
-          cleanup_transfers(file_path(provider, accounts.account_home(provider, a), name).parent)
-      was_empty = not any(accounts.identity(provider, accounts.account_home(provider, a))["accountId"] and login_files(provider, accounts.account_home(provider, a)) for a in registry["accounts"])
+          cleanup_transfers(file_path(provider, login_home(provider, registry, a), name).parent)
+      was_empty = not any(accounts.identity(provider, login_home(provider, registry, a))["accountId"] and login_files(provider, login_home(provider, registry, a)) for a in registry["accounts"])
       for entry in incoming["accounts"]:
-        existing = next((a for a in registry["accounts"] if accounts.identity(provider, accounts.account_home(provider, a))["accountId"] == entry["accountId"]), None)
-        if existing and login_files(provider, accounts.account_home(provider, existing)) and not replace:
+        existing = next((a for a in registry["accounts"] if accounts.identity(provider, login_home(provider, registry, a))["accountId"] == entry["accountId"]), None)
+        if existing and login_files(provider, login_home(provider, registry, existing)) and not replace:
           copied.append((entry, existing))
           results.append(("kept", existing))
           continue
         primary = next(a for a in registry["accounts"] if a.get("primary"))
-        if existing is None and entry.get("primary") and not saved_credentials(provider, accounts.primary_home(provider)):
+        if existing is None and entry.get("primary") and not saved_credentials(provider, login_home(provider, registry, primary)):
           existing = primary
         if existing:
-          home = accounts.account_home(provider, existing)
+          home = login_home(provider, registry, existing)
+          if not home.exists():
+            prepare_store(provider, existing)
           if home_in_use(provider, home):
             raise accounts.AccountError(f"Quit the running {accounts.PROVIDERS[provider]['name']} sessions for {existing['label']} before replacing its login")
           account = existing
@@ -308,7 +333,9 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
         found = accounts.identity(provider, home)
         if found["accountId"] != entry["accountId"] or not login_files(provider, home):
           raise accounts.AccountError("Transferred credentials do not match their account identity")
-        if not account.get("primary"):
+        # ~/.claude can hold an added account's login, and links into itself
+        # would loop.
+        if not account.get("primary") and home != accounts.primary_home(provider):
           accounts.link_shared(provider, home)
           accounts.carry_settings(provider, home)
         account.update(found)

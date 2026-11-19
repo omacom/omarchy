@@ -56,6 +56,14 @@ assertEqual(
   'Fully charged',
   'power labels a worn pack reporting full early as fully charged'
 )
+
+assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0 }, false, states, '75-80%', false), 'power ignores stale charge rate after plugging in at the threshold')
+assertEqual(
+  power.batteryIcon({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0 }, false, states, '75-80%', false),
+  power.batteryIcon({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 1 }, false, states, '75-80%', true),
+  'power shows charging icon while the charge rate is not fresh yet'
+)
+assertEqual(power.modeLabel({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0 }, false, states, '75-80%', undefined, false), 'Charging', 'power labels charging while the charge rate is not fresh yet')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states), 'power does not flag discharging as threshold')
 assertEqual(power.modeLabel({ isPresent: true, percentage: 1, state: states.FullyCharged }, false, states), 'Fully charged', 'power labels full battery')
 assertEqual(power.localizeReading('13.1W'), '13.1W', 'power keeps battery readings in English digits by default')

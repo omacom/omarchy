@@ -70,7 +70,8 @@ function chargeHoldFloor(threshold) {
   return band ? band.floor : -1
 }
 
-function chargeThresholdActive(device, onBattery, states, threshold) {
+// Before the first fresh rate on AC, a stale 0 W reading cannot prove a hold.
+function chargeThresholdActive(device, onBattery, states, threshold, rateFresh) {
   var d = device || {}
   var s = states || {}
   if (!(d && d.isPresent && !onBattery)) return false
@@ -95,6 +96,7 @@ function chargeThresholdActive(device, onBattery, states, threshold) {
   if (d.state === s.FullyCharged) return fraction < 0.99
 
   if (d.state !== s.Charging || fraction >= 0.99) return false
+  if (rateFresh === false) return false
 
   // A charge that crawls below the limit is a slow charge, not a hold.
   if (fraction < band.end) return false
@@ -102,14 +104,14 @@ function chargeThresholdActive(device, onBattery, states, threshold) {
   return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
 }
 
-function batteryIcon(device, onBattery, states, threshold) {
+function batteryIcon(device, onBattery, states, threshold, rateFresh) {
   var d = device || {}
   if (!d.isPresent) return ""
 
   var chargingIcons = ["󰢜", "󰂆", "󰂇", "󰂈", "󰢝", "󰂉", "󰢞", "󰂊", "󰂋", "󰂅"]
   var defaultIcons = ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
   var index = Math.max(0, Math.min(9, Math.floor(d.percentage * 10)))
-  var holding = chargeThresholdActive(d, onBattery, states, threshold)
+  var holding = chargeThresholdActive(d, onBattery, states, threshold, rateFresh)
 
   if (holding || (!onBattery && d.state === states.PendingCharge)) return defaultIcons[index]
   if (d.state === states.FullyCharged) return "󰂅"
@@ -117,14 +119,14 @@ function batteryIcon(device, onBattery, states, threshold) {
   return defaultIcons[index]
 }
 
-function modeLabel(device, onBattery, states, threshold, tr) {
+function modeLabel(device, onBattery, states, threshold, tr, rateFresh) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var d = device || {}
   var s = states || {}
   if (!d.isPresent) return ""
 
   var percentage = d.isPresent ? d.percentage : 0
-  if (chargeThresholdActive(d, onBattery, states, threshold)) return t("power.threshold", "Threshold")
+  if (chargeThresholdActive(d, onBattery, states, threshold, rateFresh)) return t("power.threshold", "Threshold")
   if (onBattery) return t("power.onBattery", "On battery")
   if (d.state === s.FullyCharged || percentage >= 1) return t("power.fullyCharged", "Fully charged")
   if (d.state === s.PendingCharge) return t("power.notCharging", "Not charging")
