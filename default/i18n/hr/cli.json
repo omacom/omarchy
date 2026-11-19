@@ -140,8 +140,6 @@
   "firstRun.agentTitle": "Postavi zadanog agenta",
   "firstRun.fingerprintBody": "Omogući sudo i otključavanje otiskom prsta.",
   "firstRun.fingerprintTitle": "Postavi čitač otiska prsta",
-  "firstRun.gitBody": "Identifikacija za commitove koda.",
-  "firstRun.gitTitle": "Postavi Git",
   "firstRun.keybindingsBody": "Super + K za podsjetnik.\nSuper + Space za Omarchy izbornik.",
   "firstRun.keybindingsTitle": "Nauči tipkovničke prečace",
   "firstRun.updateBody": "Klikni za ažuriranje sustava.",

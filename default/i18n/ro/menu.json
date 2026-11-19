@@ -1255,7 +1255,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Captură blocări pornită"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {

@@ -14,7 +14,7 @@ mkdir -p "$vibes" "$HOME/.local/share/applications"
 
 # A game is a folder named like a command, holding an index.html. One made
 # here replaces the shipped game of its name, as a copy to keep working on
-# does. Its title is the page's <title>.
+# does. Its title is the page's <title>, and its blurb its description meta.
 declare -A games=()
 for page in "$OMARCHY_PATH/default/games/vibes"/*/index.html "$vibes"/*/index.html; do
   [[ -f $page ]] || continue
@@ -28,11 +28,12 @@ done
 for name in "${!games[@]}"; do
   dir=${games[$name]}
   title=$(sed -n 's:.*<title>\(.*\)</title>.*:\1:p' "$dir/index.html" | head -1 | tr -d '\t')
+  blurb=$(sed -n 's:.*<meta name="description" content="\([^"]*\)".*:\1:p' "$dir/index.html" | head -1 | tr -d '\t')
   icon=false
   [[ -f $dir/icon.svg ]] && icon=true
-  printf '%s\t%s\t%s\t%s\n' "$name" "${title:-$name}" "$icon" "$dir"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$name" "${title:-$name}" "$icon" "$dir" "$blurb"
 done | sort | jq -Rrn --rawfile page "$OMARCHY_PATH/default/games/vibes.html" '
-  [inputs | split("\t") | {name: .[0], title: .[1], icon: (.[2] == "true"),
+  [inputs | split("\t") | {name: .[0], title: .[1], blurb: .[4], icon: (.[2] == "true"),
     url: ("file://" + (.[3] | split("/") | map(@uri) | join("/")))}]
   | tojson | gsub("<"; "\\u003c") as $games
   | $page | sub("/\\*GAMES\\*/\\[\\]"; $games)' >"$vibes/index.html"

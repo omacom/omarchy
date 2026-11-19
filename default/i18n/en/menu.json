@@ -705,7 +705,7 @@
   "setup.security.passwordless-sudo": {
     "label": "Passwordless Sudo"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "setup.config.hyprland": {

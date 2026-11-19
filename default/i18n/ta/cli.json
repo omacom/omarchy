@@ -139,8 +139,6 @@
   "firstRun.agentTitle": "இயல்புநிலை ஏஜென்ட்டை அமைக்கவும்",
   "firstRun.fingerprintBody": "உங்கள் கைரேகை மூலம் sudo மற்றும் திறப்பை இயக்கவும்.",
   "firstRun.fingerprintTitle": "கைரேகை ரீடர் அமைப்பு",
-  "firstRun.gitBody": "குறியீடு கமிட்களுக்கான அடையாளத் தகவல்.",
-  "firstRun.gitTitle": "Git அமைப்பு",
   "firstRun.keybindingsBody": "குறிப்புத்தாளுக்கு Super + K.\nOmarchy மெனுவுக்கு Super + Space.",
   "firstRun.keybindingsTitle": "விசைக் குறுக்குவழிகளை அறியவும்",
   "firstRun.updateBody": "கணினியைப் புதுப்பிக்க கிளிக் செய்யவும்.",

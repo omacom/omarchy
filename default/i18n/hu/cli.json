@@ -139,8 +139,6 @@
   "firstRun.agentTitle": "Alapértelmezett ágens beállítása",
   "firstRun.fingerprintBody": "A sudo és a feloldás engedélyezése ujjlenyomattal.",
   "firstRun.fingerprintTitle": "Ujjlenyomat-olvasó beállítása",
-  "firstRun.gitBody": "Azonosító adatok a kódcommitokhoz.",
-  "firstRun.gitTitle": "Git beállítása",
   "firstRun.keybindingsBody": "Super + K a billentyűsúgóhoz.\nSuper + Space az Omarchy menühöz.",
   "firstRun.keybindingsTitle": "Billentyűkombinációk megismerése",
   "firstRun.updateBody": "Kattints a rendszer frissítéséhez.",

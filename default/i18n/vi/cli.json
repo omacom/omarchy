@@ -138,8 +138,6 @@
   "firstRun.agentTitle": "Đặt agent mặc định",
   "firstRun.fingerprintBody": "Bật sudo và mở khóa bằng vân tay.",
   "firstRun.fingerprintTitle": "Thiết lập đầu đọc vân tay",
-  "firstRun.gitBody": "Danh tính dùng cho các commit mã.",
-  "firstRun.gitTitle": "Thiết lập Git",
   "firstRun.keybindingsBody": "Super + K để xem bảng phím tắt.\nSuper + Space để mở Menu Omarchy.",
   "firstRun.keybindingsTitle": "Học phím tắt",
   "firstRun.updateBody": "Nhấn để cập nhật hệ thống.",
