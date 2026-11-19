@@ -73,3 +73,33 @@ run_migration
 [[ -d $home/.pi/agent/skills/keep-me ]] ||
   fail "migration leaves a Pi directory that still holds something"
 pass "migration leaves a Pi directory that still holds something"
+
+# Users may share the generic directory with a harness through a directory
+# symlink. Trimming through it would remove the skills we intend to retain.
+rm -rf "$home"
+mkdir -p "$home/.agents/skills" "$home/.codex" "$home/.pi/agent"
+ln -s "$skills_source/omarchy" "$home/.agents/skills/omarchy"
+ln -s "$home/.agents/skills" "$home/.codex/skills"
+ln -s "$home/.agents/skills" "$home/.pi/agent/skills"
+run_migration
+
+[[ -L $home/.agents/skills/omarchy && -d $home/.agents/skills/omarchy ]] ||
+  fail "migration preserves generic skills shared through directory symlinks"
+[[ -L $home/.codex/skills && -L $home/.pi/agent/skills ]] ||
+  fail "migration preserves user-created skill directory symlinks"
+pass "migration preserves generic skills shared through directory symlinks"
+
+rm "$home/.codex/skills"
+rmdir "$home/.codex"
+ln -s "$home/.agents" "$home/.codex"
+run_migration
+[[ -L $home/.agents/skills/omarchy && -L $home/.codex ]] ||
+  fail "migration preserves generic skills reached through a parent symlink"
+pass "migration preserves generic skills reached through a parent symlink"
+
+rm "$home/.pi/agent/skills" "$home/.agents/skills/omarchy"
+rmdir "$home/.pi/agent"
+ln -s "$home/.agents" "$home/.pi/agent"
+run_migration
+[[ -d $home/.agents/skills ]] || fail "migration does not prune an empty generic skills directory through a parent symlink"
+pass "migration does not prune an empty generic skills directory through a parent symlink"
