@@ -7,7 +7,9 @@ description: >
   Triggers: Hyprland, window rules, window behavior, animations, keybindings, monitors, gaps, borders,
   blur, opacity, omarchy-shell, bar, widgets, terminal config, themes, fonts, background,
   night light, idle, lock screen, screenshots, screen recording, reminders, layer rules, workspace
-  settings, display config, appearance changes, and user-facing omarchy commands. Excludes Omarchy
+  settings, display config, appearance changes, default apps (browser, terminal, editor), web apps,
+  installing software, environment variables, keyboard layouts, language, power profiles, dock,
+  and user-facing omarchy commands. Excludes Omarchy
   source development through `omarchy dev link` workflows. Making a new theme, shell plugin, app,
   or game follows the omarchy-make-theme, omarchy-make-plugin, omarchy-make-app, or
   omarchy-make-game skill instead, and reporting a bug or contributing upstream follows omarchy-contribute.
@@ -25,11 +27,13 @@ It is not for contributing to Omarchy source code.
 Deeper instructions for common areas live next to this file. Read the
 matching guide before starting:
 
-- [`hyprland.md`](hyprland.md) - keybindings, monitors, window rules, and other Hyprland config
-- [`shell.md`](shell.md) - the Omarchy shell: bar layout, built-in widgets, idle behavior
-- [`theming.md`](theming.md) - switching and tweaking themes, backgrounds, and fonts
+- [`hyprland.md`](hyprland.md) - keybindings, monitors, window look and feel, keyboard and touchpad, window rules
+- [`shell.md`](shell.md) - the Omarchy shell: bar layout, dock, built-in widgets, idle behavior
+- [`theming.md`](theming.md) - switching and tweaking themes, backgrounds, fonts, icons, and the boot screen
+- [`apps.md`](apps.md) - default apps, web app and TUI launchers, installing and removing software
+- [`system.md`](system.md) - environment variables, toggles, language, power, network, audio, security, updates
 - [`hooks.md`](hooks.md) - automation hooks that run on system events
-- [`capture.md`](capture.md) - screenshots, screen recordings, OCR text capture, and file sharing
+- [`capture.md`](capture.md) - screenshots, screen recordings, OCR and QR capture, and file sharing
 
 Making something new has a skill of its own: `omarchy-make-theme`, `omarchy-make-plugin`, `omarchy-make-app`, and `omarchy-make-game`. Reporting a bug or contributing a fix upstream follows `omarchy-contribute`.
 
@@ -86,10 +90,12 @@ Omarchy is built on:
 |-----------|---------|-----------------|
 | **Arch Linux** | Base OS | `/etc/`, `~/.config/` |
 | **Hyprland** | Wayland compositor/WM | `~/.config/hypr/` |
-| **Omarchy shell** | Status bar + notifications (Quickshell) | `~/.config/omarchy/shell.json` |
+| **Omarchy shell** | Bar, dock, notifications, panels, OSD (Quickshell) | `~/.config/omarchy/shell.json` |
 | **Launcher/menus** | Quickshell menu | `~/.config/omarchy/extensions/omarchy-menu.jsonc` |
-| **Alacritty/Foot/Kitty/Ghostty** | Terminals | `~/.config/<terminal>/` |
-| **Omarchy OSD** | On-screen display | Quickshell plugin |
+| **foot** (default), Alacritty, Kitty, Ghostty | Terminals | `~/.config/<terminal>/` |
+| **UWSM** | Session and its environment | `~/.config/uwsm/env.d/` |
+
+The default apps are foot, Google Chrome, Plain (editor), Folio (files), and Omaview (images, video, music); [`apps.md`](apps.md) has the full list and how to change each.
 
 ## Command Discovery
 
@@ -120,20 +126,29 @@ Run `omarchy --help` for the full list. The most common groups:
 
 | Group | Purpose | Example |
 |-------|---------|---------|
+| `omarchy default` | Default browser, terminal, editor, dictation, agent | `omarchy default browser firefox` |
 | `omarchy refresh` | Reset config to defaults (backs up first) | `omarchy refresh shell` |
 | `omarchy restart` | Restart a service/app | `omarchy restart shell` |
-| `omarchy toggle` | Toggle feature on/off | `omarchy toggle nightlight` |
-| `omarchy theme` | Theme management | `omarchy theme set <name>` |
-| `omarchy bar` | Bar layout and widgets | `omarchy bar move omarchy.clock --section right` |
+| `omarchy toggle` | Toggle feature on/off | `omarchy toggle idle` |
+| `omarchy theme` | Theme and background | `omarchy theme set <name>` |
+| `omarchy font` / `icons` | Monospace font, app icon set | `omarchy font set <name>` |
+| `omarchy bar` / `dock` | Bar and dock layout | `omarchy bar position bottom` |
+| `omarchy hyprland` | Windows, monitors, layouts | `omarchy hyprland monitor scaling --monitor DP-1 1.5` |
+| `omarchy display` | Text scaling everywhere | `omarchy display text size 14` |
+| `omarchy device` | Touchpad, touchscreen, keyboard top row | `omarchy device touchpad off` |
 | `omarchy plugin` | Manage/clone shell plugins | `omarchy plugin clone omarchy.clock` |
 | `omarchy hook` | Install automation hooks | `omarchy hook install theme-set <script>` |
-| `omarchy install` | Install optional software / packages | `omarchy install docker dbs` |
-| `omarchy launch` | Launch apps | `omarchy launch browser` |
-| `omarchy capture` | Screenshots and recordings | `omarchy capture screenshot` |
-| `omarchy reminder` | Desktop notification reminders | `omarchy reminder 15 "Pickup Jack"` |
+| `omarchy install` / `remove` | Curated software installers | `omarchy install browser firefox` |
 | `omarchy pkg` | Package management | `omarchy pkg add <pkg>` |
+| `omarchy webapp` / `tui` | Launchers for web apps and terminal apps | `omarchy webapp install` |
+| `omarchy launch` | Launch apps | `omarchy launch browser` |
+| `omarchy capture` | Screenshots, recordings, OCR, QR | `omarchy capture screenshot` |
+| `omarchy language` / `region` | Display language, date and number formats | `omarchy language da` |
+| `omarchy powerprofiles` | Power profile per power source | `omarchy powerprofiles set battery power-saver` |
 | `omarchy setup` | Interactive setup wizards | `omarchy setup security fingerprint` |
-| `omarchy update` | System updates | `omarchy update` |
+| `omarchy agent` | Coding agents, accounts, local models | `omarchy agent account list` |
+| `omarchy reminder` | Desktop notification reminders | `omarchy reminder 15 "Pickup Jack"` |
+| `omarchy update` / `snapshot` | System updates and snapshots | `omarchy update` |
 
 ## Configuration Locations
 
@@ -160,7 +175,11 @@ The Omarchy shell (bar, notifications, plugins, idle) is configured in
 | fastfetch | `/etc/fastfetch/config.jsonc` default; `~/.config/fastfetch/config.jsonc` user override |
 | lazygit | `~/.config/lazygit/config.yml` |
 | starship | `~/.config/starship.toml` |
-| git | `~/.config/git/config` |
+| git | `~/.config/git/config` (name and email: `omarchy setup git`) |
+| tmux | `~/.config/tmux/tmux.conf` (`omarchy restart tmux`) |
+| Shell aliases and exports | `~/.bashrc` |
+| Desktop environment variables | `~/.config/uwsm/env.d/` (see [`system.md`](system.md)) |
+| Which app opens a file type | `~/.config/mimeapps.list` (see [`apps.md`](apps.md)) |
 
 ## Safe Customization Patterns
 
@@ -208,6 +227,8 @@ omarchy-debug --no-sudo --print # Debug info (ALWAYS use these flags)
 omarchy system lock             # Lock screen
 omarchy system shutdown         # Shutdown
 omarchy system reboot           # Reboot
+omarchy system logout           # Log out
+omarchy system firmware         # Reboot into the BIOS/UEFI setup
 ```
 
 **IMPORTANT:** Always run `omarchy-debug` with `--no-sudo --print` flags to avoid interactive sudo prompts that will hang the terminal.
@@ -226,9 +247,15 @@ omarchy refresh <app>
 # eg. `omarchy refresh config hypr/hyprland.lua` will refresh ~/.config/hypr/hyprland.lua
 omarchy refresh config <config-file>
 
-# Full reinstall of configs (nuclear option)
+# Reset every Omarchy config in $HOME to defaults (destructive)
+omarchy reinstall configs
+
+# Reinstall all Omarchy packages and reset every config (nuclear option;
+# interactive, needs sudo and a visible terminal, offers a reboot)
 omarchy reinstall
 ```
+
+Both reinstalls wipe customizations: confirm with the user before running either.
 
 ## Decision Framework
 
@@ -238,9 +265,11 @@ When user requests system changes:
 2. **Is it a config edit?** Edit in `~/.config/`, never `/usr/share/omarchy/`
 3. **Is it a theme customization?** Follow [`theming.md`](theming.md); overlay or fork into `~/.config/omarchy/themes/`, never edit a stock theme
 4. **Is it automation?** Follow [`hooks.md`](hooks.md); use `omarchy hook install` and the hook `.d` directories
-5. **Is it a package install?** Use `omarchy pkg add <pkgs...>` (or `omarchy pkg aur add <pkgs...>` for AUR-only packages)
-6. **Is it built-in shell/plugin code?** Follow [`shell.md`](shell.md); clone it with `omarchy plugin clone`, never edit the packaged copy
-7. **Unsure if command exists?** Run `omarchy commands` (or `omarchy <group> --help` for one group)
+5. **Is it a package install?** Prefer a curated `omarchy install ...` when one exists, else `omarchy pkg add <pkgs...>` (or `omarchy pkg aur add <pkgs...>` for AUR-only packages); see [`apps.md`](apps.md)
+6. **Is it which app opens something?** Use `omarchy default ...` or `xdg-mime`; see [`apps.md`](apps.md)
+7. **Is it an environment variable?** `~/.bashrc` for terminals, `~/.config/uwsm/env.d/` for the desktop; see [`system.md`](system.md)
+8. **Is it built-in shell/plugin code?** Follow [`shell.md`](shell.md); clone it with `omarchy plugin clone`, never edit the packaged copy
+9. **Unsure if command exists?** Run `omarchy commands` (or `omarchy <group> --help` for one group)
 
 ### Reminder Requests
 
@@ -264,9 +293,20 @@ This skill intentionally does not cover Omarchy source development. Do not use t
 
 - "Change my theme to catppuccin" -> `omarchy theme set catppuccin`
 - "Add a keybinding for Super+E to open file manager" -> Check existing bindings first, then use `o.rebind` to replace one or `o.bind` to add one in `~/.config/hypr/bindings.lua`
-- "Configure my external monitor" -> `omarchy hyprland monitor scaling|resolution --monitor <name> ...` for scale and resolution; edit `~/.config/hypr/monitors.lua` only for rotation and the other extras in hyprland.md
-- "Make the window gaps smaller" -> Edit `~/.config/hypr/looknfeel.lua`
-- "Turn on night light" -> `omarchy toggle nightlight` (for time-based schedules, edit `~/.config/hypr/hyprsunset.conf` profiles, then `omarchy restart hyprsunset`)
+- "Configure my external monitor" -> `omarchy hyprland monitor scaling|resolution|rotate --monitor <name> ...`; edit `~/.config/hypr/monitors.lua` only for the extras in hyprland.md (disabled outputs, 10-bit, VRR, unlisted modes)
+- "Make the window gaps smaller" -> Edit `~/.config/hypr/looknfeel.lua` (`omarchy hyprland window gaps toggle` turns them off entirely)
+- "Make windows square" -> `omarchy hyprland corners sharp`
+- "Turn on night light" -> `omarchy toggle nightlight` (for a schedule, see `system.md`: hyprsunset must also be started from `autostart.lua`)
+- "Make Firefox my default browser" -> `omarchy default browser firefox` (installs it first if it's missing)
+- "Use Ghostty instead of foot" -> `omarchy install terminal ghostty` (installs it and makes it the default)
+- "Open PDFs in another app" -> `xdg-mime default <app>.desktop application/pdf`
+- "Add YouTube as an app" -> `omarchy webapp install "YouTube" https://youtube.com <icon-url>`
+- "Show a 12-hour clock" -> `omarchy bar set omarchy.clock format "h:mm AP"`
+- "Move the bar to the bottom" -> `omarchy bar position bottom`
+- "Keep my laptop awake" -> `omarchy toggle idle stay-awake`
+- "Add a Danish keyboard layout" -> `kb_layout = "us,dk"` in `~/.config/hypr/input.lua` (or `omarchy setup keyboard`)
+- "Set an environment variable for all apps" -> A file in `~/.config/uwsm/env.d/`, applied at next login
+- "Make text bigger everywhere" -> `omarchy display text size <9-20>`
 - "Set a reminder to pickup jack in 15 minutes" -> `omarchy reminder 15 "Pickup Jack"`
 - "Show my reminders" -> `omarchy reminder show`
 - "Clear all reminders" -> `omarchy reminder clear`
