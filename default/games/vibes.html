@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Game Vibes</title>
 <!-- Game Vibes as a cracktro: the list of games as a 16-bit demo-scene intro on a CRT. Everything is drawn in fat pixels on
-     one small 2D canvas: copper bars, a wobbling logo, bobs, a checkerboard floor and a sine scroller. -->
+     one small 2D canvas: copper bars, a wobbling logo, bobs, a checkerboard floor, a sine scroller and a deck of keycaps. -->
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: var(--background); font-family: "JetBrainsMono Nerd Font", ui-monospace, monospace; user-select: none; cursor: default; }
   canvas { position: fixed; left: 0; top: 0; image-rendering: pixelated; }
@@ -16,17 +16,12 @@
   #crt::before { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, rgba(255,255,255,.07) 0%, transparent 28%); }
   #crt::after { content: ""; position: absolute; left: 0; right: 0; height: 22vh; top: -22vh; background: linear-gradient(to bottom, transparent, rgba(255,255,255,.045), transparent); animation: hum 7s linear infinite; }
   @keyframes hum { to { transform: translateY(125vh); } }
-  .hint { position: fixed; bottom: 10px; font-size: 11.5px; letter-spacing: .04em; color: var(--soft); max-width: 46vw; line-height: 1.5; background: var(--plate); padding: 3px 8px; border-radius: 4px; }
-  .hint b { color: var(--ink); }
-  #keys { left: 14px; } #make { right: 14px; text-align: right; }
   @media (prefers-reduced-motion: reduce) { #crt::after { animation: none; } }
 </style>
 </head>
 <body>
 <canvas id="screen"></canvas>
 <div id="crt"></div>
-<div class="hint" id="keys"></div>
-<div class="hint" id="make"></div>
 <script>
 // ---- Game Vibes: shared setup -------------------------------------------------------------
 // omarchy-games-vibes-launch writes this page to ~/Games/vibes/index.html with the games filled in:
@@ -57,8 +52,6 @@ const HUES = [P.cyan, P.magenta, P.yellow, P.green, P.orange, P.red, P.blue];
 const hueOf = i => HUES[((i % HUES.length) + HUES.length) % HUES.length];
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const FONT = '"JetBrainsMono Nerd Font", ui-monospace, monospace';
-const KEYS_HINT = 'Arrows move · Enter plays · Q when paused, or Esc on a title screen, comes back here';
-const MAKE_HINT = 'New games come from the agents panel: Make something cool → Game. It can keep working on one of these too.';
 
 function hash(text) { let h = 2166136261; for (const c of text) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
 
@@ -102,20 +95,18 @@ const css = document.documentElement.style;
 const BG = LIGHT ? P.background : shade(P.background, 0.35), INK = LIGHT ? shade(P.foreground, 0.25) : tint(P.foreground, 0.6), DARK = LIGHT ? shade(P.foreground, 0.3) : shade(P.background, 0.7);
 const SOFT = mix(P.foreground, BG, 0.2);
 css.setProperty('--scan', LIGHT ? 0.09 : 0.3); css.setProperty('--vignette', LIGHT ? 0.16 : 0.5);
-css.setProperty('--soft', SOFT); css.setProperty('--plate', alpha(BG, 0.78)); css.setProperty('--ink', LIGHT ? P.accent : tint(P.accent, 0.3));
 document.body.style.background = BG;
-document.getElementById('keys').textContent = KEYS_HINT;
-document.getElementById('make').innerHTML = MAKE_HINT.replace('Make something cool → Game', '<b>Make something cool → Game</b>');
 
 const canvas = document.getElementById('screen'), c = canvas.getContext('2d');
 let SC = 3, W = 480, H = 300;
-function resize() {
-  SC = Math.max(2, Math.round(innerHeight / 290));
+function scale(to) {
+  SC = to;
   W = innerWidth / SC; H = innerHeight / SC;
   canvas.width = Math.ceil(W); canvas.height = Math.ceil(H);
   canvas.style.width = canvas.width * SC + 'px'; canvas.style.height = canvas.height * SC + 'px';
   css.setProperty('--px', SC + 'px');
 }
+function resize() { scale(Math.max(2, Math.min(Math.round(innerHeight / 290), Math.floor(innerWidth / 420)))); }   // wide enough for the deck
 addEventListener('resize', resize); resize();
 
 // Text is drawn once per string, size and colour, with its soft edges snapped to whole pixels.
@@ -140,6 +131,95 @@ function write(text, size, color, x, y, shadow, weight) {
   if (shadow) c.drawImage(glyphs(text, size, shadow, weight), left + Math.max(1, Math.round(size / 11)), Math.round(y) + Math.max(1, Math.round(size / 11)));
   c.drawImage(made, left, Math.round(y));
   return made.width;
+}
+
+// The deck's letters are five pixels tall: a base-32 digit for each row, as wide as their widest row.
+const TINY = {};
+for (const g of 'A25755 B65656 C34443 D65556 E74647 F74644 G34553 H55755 I72227 K55655 L44447 Mhrlhh N9db99 O75557 P65644 Q699b7 R65655 S34216 T72222 U55557 V55552 Whhlrh Y55222 +02720 ?61202 :01010 ,00012 →42v24 ←48v84'.split(' ')) {
+  const rows = [...g.slice(1)].map(digit => parseInt(digit, 32));
+  TINY[g[0]] = { rows, w: 32 - Math.clz32(rows.reduce((a, b) => a | b)) };
+}
+const tinyWidth = text => [...text].reduce((w, ch) => w + (TINY[ch]?.w ?? 2) + 1, -1);
+function tiny(text, x, y, color) {
+  c.fillStyle = color;
+  for (const ch of text) {
+    const glyph = TINY[ch];
+    glyph?.rows.forEach((row, r) => { for (let b = 0; b < glyph.w; b++) if (row >> (glyph.w - 1 - b) & 1) c.fillRect(x + b, y + r, 1, 1); });
+    x += (glyph?.w ?? 2) + 1;
+  }
+}
+
+// The control deck along the bottom: what the keys do, as keycaps that go down with the real ones.
+// A row is words and [keycaps]; [words, true] is something to pick in a menu instead.
+const DECK = [
+  { hue: P.cyan, rows: [[['←'], ['→'], 'MOVE'], [['ENTER'], 'PLAY']] },
+  { hue: P.yellow, rows: [[['Q'], 'IN A PAUSED GAME'], [['ESC'], 'ON A TITLE SCREEN']], then: ['BACK', 'HERE'] },
+  { hue: P.magenta, rows: [[['SUPER'], '+', ['W'], 'CLOSE'], [['SUPER'], '+', ['F'], 'WINDOWED']] },
+  { hue: P.green, rows: [['NEW GAME? REWORK ONE? AGENTS PANEL:'], [['MAKE SOMETHING COOL → GAME', true]]] },
+];
+const PLATE = LIGHT ? mix(P.background, P.foreground, 0.14) : shade(P.background, 0.5);
+const itemWidth = item => typeof item === 'string' ? tinyWidth(item) : tinyWidth(item[0]) + (item[1] ? 8 : 4);
+// Sections sit side by side, and wrap onto another band when the window is too narrow for them.
+let deck = { W: 0 };
+function arrange() {
+  const bands = [[]];
+  for (const part of DECK) {
+    part.w = Math.max(...part.rows.map(row => row.reduce((w, item) => w + itemWidth(item) + 3, -3))) + (part.then ? 30 : 0);
+    if (bands.at(-1).reduce((w, other) => w + other.w + 9, part.w + 8) > W && bands.at(-1).length) bands.push([]);
+    bands.at(-1).push(part);
+  }
+  return { W, bands, height: 3 + bands.length * 24 };
+}
+const KEYCAP = { ARROWLEFT: '←', ARROWUP: '←', ARROWRIGHT: '→', ARROWDOWN: '→', ' ': 'ENTER', ESCAPE: 'ESC', META: 'SUPER', OS: 'SUPER' };
+const capOf = event => KEYCAP[event.key.toUpperCase()] ?? event.key.toUpperCase();
+const held = new Map();   // keycap → when it comes back up
+addEventListener('keyup', event => held.set(capOf(event), performance.now() + 140));
+addEventListener('blur', () => held.clear());
+
+function drawDeck(now, t) {
+  const top = Math.floor(H) - deck.height;
+  c.fillStyle = PLATE; c.fillRect(0, top, canvas.width, canvas.height - top);
+  for (let x = 0; x < W; x += 2) { c.fillStyle = wheel(x * 0.35 - t * 24); c.fillRect(x, top, 2, 1); }
+  c.fillStyle = LIGHT ? shade(PLATE, 0.25) : tint(PLATE, 0.14); c.fillRect(0, top + 1, canvas.width, 1);
+  const glint = (t * 110) % (W * 2.4) - 30;
+  deck.bands.forEach((band, n) => {
+    const used = band.reduce((w, part) => w + part.w, 0), gap = Math.min(44, (W - used) / (band.length + 1));
+    let px = (W - used - gap * (band.length - 1)) / 2;
+    for (const part of band) {
+      const left = Math.round(px), first = top + 5 + n * 24, ink = LIGHT ? shade(part.hue, 0.72) : tint(part.hue, 0.8);
+      part.rows.forEach((row, r) => {
+        let x = left; const y = first + r * 11;
+        for (const item of row) {
+          const w = itemWidth(item);
+          if (typeof item === 'string') tiny(item, x, y + 1, LIGHT ? INK : mix(INK, PLATE, 0.12));
+          else if (item[1]) {   // a menu entry: framed like the game that's up
+            c.fillStyle = REDUCED ? part.hue : wheel(t * 26); c.fillRect(x, y - 1, w, 9);
+            c.fillStyle = LIGHT ? tint(PLATE, 0.6) : shade(PLATE, 0.45); c.fillRect(x + 1, y, w - 2, 7);
+            tiny(item[0], x + 4, y + 1, LIGHT ? shade(part.hue, 0.5) : tint(part.hue, 0.45));
+          } else {
+            const down = held.get(item[0]) > now, off = down ? 1 : 0, lit = Math.abs(x + w / 2 - glint) < 9;
+            const face = LIGHT ? part.hue : tint(part.hue, 0.4);
+            const dim = item[0] === 'ENTER' ? !N : item[0] === '←' ? selected <= 0 : item[0] === '→' && selected >= N - 1;
+            c.globalAlpha = dim ? 0.4 : 1;
+            c.fillStyle = shade(part.hue, LIGHT ? 0.45 : 0.6); c.fillRect(x + 1, y + 1, w - 2, 8); c.fillRect(x, y + 2, w, 6);
+            c.fillStyle = down ? tint(face, 0.75) : lit ? tint(face, 0.35) : face; c.fillRect(x + 1, y - 1 + off, w - 2, 8); c.fillRect(x, y + off, w, 6);
+            c.fillStyle = tint(face, down ? 0.9 : 0.5); c.fillRect(x + 1, y - 1 + off, w - 2, 1);
+            tiny(item[0], x + 2, y + 1 + off, down || lum(face) > 0.45 ? shade(part.hue, 0.86) : tint(part.hue, 0.92));
+            c.globalAlpha = 1;
+          }
+          x += w + 3;
+        }
+      });
+      if (part.then) {   // both rows lead to the same place
+        const x = left + part.w - 25, y = first + 3;
+        c.fillStyle = ink; c.fillRect(x, y, 3, 1); c.fillRect(x, y + 11, 3, 1); c.fillRect(x + 2, y, 1, 12);
+        tiny('→', x + 3, y + 4, ink);
+        part.then.forEach((word, r) => tiny(word, x + 10, y + 1 + r * 6, ink));
+      }
+      px += part.w + gap;
+      if (part !== band.at(-1)) { c.fillStyle = LIGHT ? shade(PLATE, 0.3) : tint(PLATE, 0.22); for (let y = first; y < first + 19; y += 2) c.fillRect(Math.round(px - gap / 2), y, 1, 1); }
+    }
+  });
 }
 
 // A colour wheel through the theme's hues, for everything that cycles.
@@ -172,13 +252,13 @@ const balls = HUES.map(hue => {
   return ball;
 });
 const stars = Array.from({ length: 110 }, () => ({ x: Math.random(), y: Math.random(), depth: Math.random() }));
-const SCROLL = `      WELCOME TO GAME VIBES ... ${N} GAME${N === 1 ? '' : 'S'} ON THE DISK ... ARROWS MOVE - ENTER PLAYS ... Q WHEN PAUSED, OR ESC ON A TITLE SCREEN, COMES BACK HERE ... WANT ANOTHER ONE? OPEN THE AGENTS PANEL AND PICK  MAKE SOMETHING COOL → GAME  ... IT CAN KEEP WORKING ON ONE OF THESE TOO ... GREETINGS TO EVERYONE RUNNING OMARCHY ...      `;
+const SCROLL = `      WELCOME TO GAME VIBES ... ${N} GAME${N === 1 ? '' : 'S'} ON THE DISK ... PICK ONE AND PRESS ENTER ... WANT ANOTHER ONE? OPEN THE AGENTS PANEL AND PICK  MAKE SOMETHING COOL → GAME  ... IT CAN KEEP WORKING ON ONE OF THESE TOO ... GREETINGS TO EVERYONE RUNNING OMARCHY ...      `;
 
 let selected = remembered(), at = selected, kick = 0, hits = [];
 function select(i) {
   if (!N) return;
   i = Math.max(0, Math.min(N - 1, i));
-  if (i !== selected) kick = 1;
+  if (i !== selected) { kick = 1; held.set(i > selected ? '→' : '←', performance.now() + 140); }
   selected = i; remember(i);
 }
 addEventListener('keydown', event => {
@@ -187,6 +267,7 @@ addEventListener('keydown', event => {
   else if (event.key === 'Home') select(0);
   else if (event.key === 'End') select(N - 1);
   else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); play(GAMES[selected]); }
+  held.set(capOf(event), Infinity);
 });
 const hit = event => hits.find(h => Math.abs(event.clientX / SC - h.x) < h.half && Math.abs(event.clientY / SC - h.y) < h.half);
 addEventListener('mousemove', event => { canvas.style.cursor = hit(event) ? 'pointer' : 'default'; });
@@ -200,7 +281,12 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt * MOVE;
   at += (selected - at) * (1 - Math.exp(-dt * (REDUCED ? 40 : 9))); kick *= Math.exp(-dt * 6);
-  const cx = W / 2, cy = Math.round(H * 0.445), horizon = Math.round(H - 60), hue = N ? hueOf(selected) : P.accent;
+  // A window too short for the picture above the deck gets smaller pixels until it fits.
+  while (deck.W !== W) {
+    deck = arrange();
+    if (H - deck.height < 250 && SC > 1) scale(SC - 0.5);
+  }
+  const cx = W / 2, cy = Math.round((H + 27 - deck.height) * 0.445), horizon = Math.round(H - 34 - deck.height), hue = N ? hueOf(selected) : P.accent;
   c.imageSmoothingEnabled = false; c.globalAlpha = 1;
   c.fillStyle = BG; c.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -300,9 +386,10 @@ function frame(now) {
   for (let x = -step - (slide % step), k = Math.floor(slide / step); x < W + step; x += step, k++) {
     const ch = SCROLL[k % SCROLL.length];
     if (ch === ' ') continue;
-    const y = H - 52 + Math.sin(t * 3.4 + x * 0.03) * 8;
+    const y = horizon + 3 + Math.sin(t * 3.4 + x * 0.03) * 8;
     write(ch, size, LIGHT ? shade(wheel(k * 2 + t * 12), 0.15) : tint(wheel(k * 2 + t * 12), 0.3), x + step / 2, y, DARK);
   }
+  drawDeck(now, t);
   if (kick > 0.02 && !REDUCED) { c.globalAlpha = kick * 0.25; c.fillStyle = INK; c.fillRect(0, 0, canvas.width, canvas.height); c.globalAlpha = 1; }
 }
 requestAnimationFrame(frame);
