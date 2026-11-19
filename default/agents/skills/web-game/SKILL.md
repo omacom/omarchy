@@ -111,7 +111,7 @@ Do this once, at the end, not while checking. Game Vibes refreshes its list each
 
 ## Sharing a game
 
-A game is shared as a git repository with its `index.html` and `icon.svg` at the root, named `omarchy-<name>-game` so it installs as `<name>`. When the user asks to share one, run `git init` in `~/Games/vibes/<name>`, commit those files, and push to the remote they give. Anyone on Omarchy then installs it from the menu (Install > Gaming > Game Vibes Game) or with:
+A game is shared as a git repository with its `index.html` and `icon.svg` at the root, named `omarchy-<name>-game` so it installs as `<name>`. When the user asks to share one, run `git init` in `~/Games/vibes/<name>`, commit those files, and push to the remote they give. Anyone on Omarchy then installs it from the menu (Install > Gaming > Game Vibes) or with:
 
 ```bash
 omarchy games vibes install <git-repo-url>
