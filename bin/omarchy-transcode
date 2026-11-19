@@ -122,10 +122,24 @@ transcode_video() {
 
 copy_to_clipboard() {
   local output="$1"
-  local uri
+  local uri err_file
 
   uri="file://$(realpath -- "$output")"
-  printf '%s\n' "$uri" | wl-copy --type text/uri-list >/dev/null 2>&1
+  err_file=$(mktemp)
+
+  # Redirect stdout/stderr away from any caller pipe so wl-copy's background
+  # clipboard daemon does not hold pipes open, while still surfacing errors.
+  if ! printf '%s\n' "$uri" | wl-copy --type text/uri-list >/dev/null 2>"$err_file"; then
+    if [[ -s $err_file ]]; then
+      cat "$err_file" >&2
+    else
+      echo "Failed to copy $output to clipboard" >&2
+    fi
+    rm -f "$err_file"
+    return 1
+  fi
+
+  rm -f "$err_file"
 }
 
 main() {
