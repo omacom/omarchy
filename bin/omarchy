@@ -896,13 +896,16 @@ show_group_help() {
 
 show_prefix_help() {
   local prefix="$1"
+  local raw_words=()
   local word=""
   local prefix_words=()
 
-  for word in $prefix; do
+  IFS=' ' read -r -a raw_words <<<"$prefix"
+  for word in "${raw_words[@]}"; do
     [[ $word == "--help" || $word == "-h" || $word == "?" ]] && continue
     prefix_words+=("$word")
   done
+  (( ${#prefix_words[@]} >= 2 )) || return 1
   prefix=$(join_words " " "${prefix_words[@]}")
 
   local prefix_with_space="$prefix "
