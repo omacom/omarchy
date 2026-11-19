@@ -110,7 +110,9 @@ local function set_gdk_scale(settings, identities)
   end
 
   if chosen and lowest then
-    hl.env("GDK_SCALE", tostring(math.max(1, math.floor(lowest + 0.5))))
+    local scale = tostring(math.max(1, math.floor(lowest + 0.5)))
+    hl.env("GDK_SCALE", scale)
+    o.shell_succeeds("dbus-update-activation-environment --systemd GDK_SCALE=" .. scale)
   end
 end
 

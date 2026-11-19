@@ -120,11 +120,9 @@ Item {
       Util.execDetached("omarchy-launch-tui " + command.map(function(word) { return Util.shellQuote(word) }).join(" "))
       return
     }
-    // Start gtk-launch inside a scope under app-graphical.slice so apps do not
-    // inherit wayland-wm@.service. Keeping gtk-launch as the desktop-entry
-    // resolver supports IDs with spaces and entries that UWSM rejects.
+    // A service inherits the manager's updated environment; gtk-launch resolves IDs UWSM rejects.
     // Keep the .desktop suffix or ids like org.telegram.desktop won't resolve.
-    Util.execDetached("uwsm-app -- gtk-launch " + Util.shellQuote(id + ".desktop"))
+    Util.execDetached("uwsm-app -t service -- gtk-launch " + Util.shellQuote(id + ".desktop"))
   }
 
   // The command a terminal entry runs, without the field codes it leaves for a

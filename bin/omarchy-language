@@ -101,12 +101,8 @@ generate_locale() {
   fi
 }
 
-# Sets LANG for the next login, and for the apps opened from now on. uwsm-app
-# runs apps in a scope, which keeps the environment of whatever launched it:
-# Hyprland for bindings, the shell for the launcher. So Hyprland takes the new
-# value, its third argument passing it on to the systemd and D-Bus activation
-# environments services start from, and the shell is respawned from Hyprland
-# to inherit it. Apps already running keep the language they started with.
+# Update Hyprland and the activation environment that Apps-menu services use.
+# Restart the shell so its scope launches, including terminal entries, inherit LANG too.
 apply_session_locale() {
   local locale=$1
   mkdir -p "$(dirname "$session_env")"
