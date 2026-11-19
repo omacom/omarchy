@@ -31,6 +31,7 @@ exfatprogs
 expac
 eza
 fakeroot
+fantasi
 fastfetch
 fcitx5
 fcitx5-chewing
@@ -47,6 +48,7 @@ folio
 fontconfig
 foot
 fzf
+ghostscript
 git
 gliff
 gnome-keyring
@@ -104,6 +106,8 @@ omarchy-local-ai
 # on ARM laptops. Back to stock once upstream merges MR !236 and !239.
 omarchy-power-profiles-daemon
 omarchy-screensaver
+omarchy-themes-intros
+omarchy-themes-loops
 omasnap
 # OWE owns desktop video backgrounds and feeds the lock screen its frames.
 owe

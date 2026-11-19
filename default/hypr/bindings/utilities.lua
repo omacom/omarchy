@@ -42,6 +42,7 @@ o.bind("switch:off:cros_ec_buttons", nil, "omarchy-hyprland-monitor-clamshell", 
 
 o.bind("PRINT", "Screenshot", "omarchy-capture-screenshot")
 o.bind("SUPER + CTRL + ALT + C", "Screenshot", "omarchy-capture-screenshot")
+o.bind("SUPER + SHIFT + CTRL + ALT + C", "Screenrecording with no audio", "omarchy-capture-screenrecording")
 o.bind("ALT + PRINT", "Screenrecording", "omarchy-capture-screenrecording --stop-recording || omarchy-menu toggle trigger.capture.screenrecord")
 o.bind("SUPER + ALT + code:34", "Make webcam overlay smaller", "omarchy-capture-webcam-resize smaller")
 o.bind("SUPER + ALT + code:35", "Make webcam overlay larger", "omarchy-capture-webcam-resize larger")

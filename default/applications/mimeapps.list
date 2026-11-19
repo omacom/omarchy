@@ -55,6 +55,9 @@ audio/opus=omaview.desktop
 audio/x-vorbis+ogg=omaview.desktop
 audio/x-matroska=omaview.desktop
 
+text/markdown=omawrite.desktop
+text/x-markdown=omawrite.desktop
+
 text/plain=omarchy-launch-editor.desktop
 text/english=omarchy-launch-editor.desktop
 text/x-makefile=omarchy-launch-editor.desktop
