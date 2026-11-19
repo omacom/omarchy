@@ -3,6 +3,7 @@
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
 
 helper="$ROOT/bin/omarchy-install-camera"
 leaf="$ROOT/install/hardware/qualcomm/camera.sh"
@@ -67,6 +68,21 @@ if HOME=$home bash "$ROOT/bin/omarchy-chromium-add-feature" 'Foo/Bar' 2>/dev/nul
   fail "the feature helper refuses a name that isn't a Chromium feature"
 fi
 pass "the feature helper refuses a name that isn't a Chromium feature"
+
+# The feature check is a bracket range, which follows the locale's collation, so
+# it is pinned to C: under tr_TR.UTF-8 an unpinned `[A-Za-z]` misses every ASCII
+# letter and every feature name is refused.
+if turkish_locale "$test_tmp/locales"; then
+  home=$(new_home turkish)
+  printf '%s\n' '--enable-features=Foo' >"$home/.config/chromium-flags.conf"
+  HOME=$home in_turkish bash "$ROOT/bin/omarchy-chromium-add-feature" VaapiVideoDecoder ||
+    fail "the feature helper accepts a Chromium feature under tr_TR.UTF-8"
+  [[ $(cat "$home/.config/chromium-flags.conf") == '--enable-features=Foo,VaapiVideoDecoder' ]] ||
+    fail "the feature joins the list under tr_TR.UTF-8" "$(cat "$home/.config/chromium-flags.conf")"
+  pass "the feature helper reads a feature name the same under tr_TR.UTF-8"
+else
+  skip "no tr_TR.UTF-8 locale that misses i in [a-z] can be built here; skipping the locale-pinning check"
+fi
 
 rm "$OMARCHY_TEST_QUALCOMM"
 home=$(new_home other)
