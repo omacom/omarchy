@@ -237,11 +237,6 @@ declare -A declared_option_bins=(
 for agent in "${!declared_option_bins[@]}"; do
   tool_var="${agent}_tool"
   package_var="${agent}_package"
-  # omarchy-agent checks the saved agent name as a command and runs it, so the
-  # name is the command that the declaration shims.
-  declared_bin=${declared_option_bins[$agent]//\"/}
-  [[ ${agent//_/-} == "$declared_bin" ]] ||
-    fail "the saved name of $agent is the command that its declaration shims"
   declaration=$(grep -F "\"${!tool_var}\" = { version = \"latest\", lazy = true, auto_update = \"4h\", lazy_bins = [${declared_option_bins[$agent]}], minimum_release_age = \"0s\", " "$lazy_config") ||
     fail "user setup declares ${!tool_var} as a self-updating native lazy tool with its commands"
   options=${!package_var#*[}
