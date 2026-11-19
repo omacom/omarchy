@@ -1209,10 +1209,23 @@ ShellRoot {
       if (!summoned) console.warn("summon: no live bar widget for:", id)
       return summoned === true
     }
+    var isMenu = !!(plugins[id].kinds && plugins[id].kinds.indexOf("menu") !== -1)
+    var wasOpen = openPanelIds[id] === true
     var next = ({})
     for (var k in openPanelIds) next[k] = openPanelIds[k]
     next[id] = true
     openPanelIds = next
+
+    // Menu plugins validate their route inside open(). Do not report success
+    // until the component is mounted and has checked the request.
+    if (isMenu && !ensurePanelLoaded(id)) {
+      if (!wasOpen) {
+        var unloaded = ({})
+        for (var u in openPanelIds) if (u !== id) unloaded[u] = openPanelIds[u]
+        openPanelIds = unloaded
+      }
+      return false
+    }
 
     // Stash payload so the Loader.onLoaded handler can hand it to open().
     var pending = ({})
@@ -1226,9 +1239,11 @@ ShellRoot {
     // A plugin that refuses the payload (a string starting with "error")
     // was not summoned, so undo the open state it was just given.
     if (!deliverIfLoaded(id)) {
-      var closed = ({})
-      for (var c in openPanelIds) if (c !== id) closed[c] = openPanelIds[c]
-      openPanelIds = closed
+      if (!wasOpen) {
+        var closed = ({})
+        for (var c in openPanelIds) if (c !== id) closed[c] = openPanelIds[c]
+        openPanelIds = closed
+      }
       return false
     }
     return true
@@ -1271,6 +1286,26 @@ ShellRoot {
 
   // Map of pluginId -> Loader, populated by the Instantiator delegate below.
   property var panelLoaders: ({})
+
+  function findPanelLoader(pluginId) {
+    for (var i = 0; i < panelEntryModel.count; i++) {
+      if (panelEntryModel.get(i).pluginId === pluginId) {
+        var entry = panelInstantiator.objectAt(i)
+        return entry ? entry.panelLoader : null
+      }
+    }
+    return null
+  }
+
+  function ensurePanelLoaded(pluginId) {
+    if (panelLoaders[pluginId] && panelLoaders[pluginId].item) return true
+    var loader = findPanelLoader(pluginId)
+    if (!loader) return false
+    // Finish loading synchronously so summon() can deliver the payload and
+    // inspect open()'s return value before replying to the caller.
+    loader.asynchronous = false
+    return !!(panelLoaders[pluginId] && panelLoaders[pluginId].item)
+  }
 
   function registerPanelLoader(pluginId, loader) {
     var next = ({})
@@ -1410,6 +1445,7 @@ ShellRoot {
   }
 
   Instantiator {
+    id: panelInstantiator
     model: panelEntryModel
     active: true
 

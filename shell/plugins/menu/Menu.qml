@@ -24,11 +24,10 @@ Item {
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = ({}) }
 
     if (payload.fontFamily) root.fontFamily = payload.fontFamily
-    // A shell that started mid-update may never have read the shipped menu
-    // whole; reading it again here keeps the menu from opening empty.
-    if (root.defaultMenuItems.length === 0) defaultMenuFile.reload()
-
     if (payload.mode === "select" || payload.mode === "input") {
+      // A shell that started mid-update may never have read the shipped menu
+      // whole; reading it again here keeps the menu from opening empty.
+      if (root.defaultMenuItems.length === 0) defaultMenuFile.reload()
       root.openDmenu(payload)
       return "ok"
     } else {
@@ -1030,7 +1029,30 @@ Item {
     return MenuModel.resolveRoute(root.items, root.itemOrder, input)
   }
 
+  function ensureMenuSourcesLoaded() {
+    var changed = false
+    if (!root.defaultMenuSettled || root.defaultMenuItems.length === 0) {
+      if (root.defaultMenuSettled) defaultMenuFile.reload()
+      defaultMenuFile.waitForJob()
+      if (!root.defaultMenuSettled || root.defaultMenuItems.length === 0) {
+        root.defaultMenuItems = MenuModel.keepMenuRows(root.defaultMenuItems, defaultMenuFile.text(), true)
+        root.defaultMenuSettled = true
+        changed = true
+      }
+    }
+    if (!root.userMenuSettled) {
+      userMenuFile.waitForJob()
+      if (!root.userMenuSettled) {
+        root.userMenuItems = MenuModel.keepMenuRows(root.userMenuItems, userMenuFile.text(), false)
+        root.userMenuSettled = true
+        changed = true
+      }
+    }
+    if (changed || !root.rowsLoaded) root.rebuildItemsFromSources()
+  }
+
   function openRoute(initialMenu) {
+    root.ensureMenuSourcesLoaded()
     var id = root.resolveRoute(initialMenu)
     if (!id || !root.items[id]) {
       console.warn("openRoute: unknown menu route:", initialMenu)
@@ -1173,6 +1195,7 @@ Item {
   FileView {
     id: defaultMenuFile
     path: root.defaultMenuPath
+    blockLoading: true
     watchChanges: true
     printErrors: false
     onLoaded: { root.defaultMenuItems = MenuModel.keepMenuRows(root.defaultMenuItems, text(), true); root.defaultMenuSettled = true; root.rebuildItemsFromSources() }
@@ -1184,6 +1207,7 @@ Item {
   FileView {
     id: userMenuFile
     path: root.userMenuPath
+    blockLoading: true
     watchChanges: true
     printErrors: false
     onLoaded: { root.userMenuItems = MenuModel.keepMenuRows(root.userMenuItems, text(), false); root.userMenuSettled = true; root.rebuildItemsFromSources() }
