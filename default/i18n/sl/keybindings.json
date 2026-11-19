@@ -1,6 +1,7 @@
 {
   "Activity": "Aktivnost",
   "Agent": "Agent",
+  "Agents": "Agenti",
   "Apps": "Aplikacije",
   "Audio": "Zvok",
   "Background switcher": "Preklopnik ozadja",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "Prikaži aktivno okno na vrhu",
   "Save window width": "Shrani širino okna",
   "Screenrecording": "Snemanje zaslona",
+  "Screenrecording with no audio": "Snemanje zaslona brez zvoka",
   "Screenshot": "Posnetek zaslona",
   "Scroll active workspace backward": "Pomakni aktivni delovni prostor nazaj",
   "Scroll active workspace forward": "Pomakni aktivni delovni prostor naprej",

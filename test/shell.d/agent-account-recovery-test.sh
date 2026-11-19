@@ -202,6 +202,8 @@ chmod +x "$test_tmp/bin"/*
 
 output=$(omarchy-agent-account-add --events claude Retry </dev/null)
 [[ $output == "@@omarchy done Added Retry (retry@example.com)." ]] || fail "retry adds the saved sign-in without another browser login" "$output"
+[[ -z $(omarchy-agent-account-home claude) && $(jq -r .oauthAccount.emailAddress "$HOME/.claude.json") == retry@example.com ]] ||
+  fail "a recovered account becomes the one sessions use, its login in ~/.claude" "$(omarchy-agent-account-home claude)"
 pass "retry adds the saved sign-in without another browser login"
 
 # Kill the actual add process after the CLI saves credentials, while the
