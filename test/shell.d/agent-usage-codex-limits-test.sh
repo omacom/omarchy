@@ -67,6 +67,12 @@ fresh = check_limits_contract(Adapter("codex", serve=serve, count=starts, refuse
 expect("fresh Codex limits read both windows and the plan",
        [[entry["percent"] for entry in fresh["limits"]], fresh["tierLabel"]], [[0.4, 0.7], "Pro 200"], fresh)
 
+args_file = home() / "codex-args"
+args_file.unlink(missing_ok=True)
+codex("ok", "--force", CODEX_ARGS_FILE=str(args_file))
+expect("Codex starts its app-server with plugins disabled",
+       args_file.read_text().split("\0"), ["--disable", "plugins", "-s", "read-only", "-a", "on-request", "app-server"])
+
 # ------------------------------------------------------- a failed probe
 
 # However the app-server fails, the last limits stand, stale, and the help
