@@ -77,9 +77,11 @@ function liftSource(body) {
   var host = Security.hostOf(m[1])
   if (!host) return { source: "", body: text }
   // Only when the label is that host or a bare domain; a real in-body link
-  // stays where the sender put it.
+  // stays where the sender put it. Chrome appends a non-default port to the
+  // label, so host:port counts too, with the port read from the href.
   var label = String(m[2]).trim()
-  var looksLikeSource = label === host || /^[\w.-]+\.[a-z]{2,}$/i.test(label)
+  var port = Security.safeHttpUrl(m[1]).match(/^https?:\/\/[^/:?#]+:(\d+)/)
+  var looksLikeSource = label === host || (port && label === host + ":" + port[1]) || /^[\w.-]+\.[a-z]{2,}$/i.test(label)
   if (!looksLikeSource) return { source: "", body: text }
   return { source: host, body: text.slice(m[0].length) }
 }

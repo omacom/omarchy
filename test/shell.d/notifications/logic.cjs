@@ -95,6 +95,18 @@ for (let i = 0; i < 1000; i++) {
   assert.equal(real.source, 'app.slack.com')
   assert.equal(id('Chromium', '<a href="https://evil.example/">bank.example</a>hi').source, 'evil.example', 'the href is the origin')
   assert.equal(id('Brave Origin', '<a href="https://app.basecamp.com/">app.basecamp.com</a>\n\nKendall: hi').groupKey, 'web:app.basecamp.com')
+  { // Chrome labels a non-default port origin host:port; the port comes from the href.
+    const lift = (href, label) => M.liftSource('<a href="' + href + '">' + label + '</a>\n\nbody')
+    const ported = lift('https://example.com:8443/', 'example.com:8443')
+    assert.equal(ported.source, 'example.com')
+    assert.equal(ported.body, 'body')
+    assert.equal(lift('https://example.com:8443/', 'example.com:9999').source, '')
+    assert.equal(lift('https://example.com:8443/', 'example.com').source, 'example.com')
+    assert.equal(lift('https://example.com/', 'example.com:8443').source, '')
+    assert.equal(lift('https://example.com:8443/', 'Read more').source, '')
+    assert.equal(lift('https://example.com/', 'example.com').source, 'example.com')
+    assert.equal(lift('http://localhost:4780/', 'localhost:4780').source, '')
+  }
   // A restored row cannot claim a site either unless it came from a browser.
   assert.equal(Store.restored({ key: 'r', app: 'Chat', source: 'bank.example' }).groupKey, 'app:chat')
   assert.equal(Store.restored({ key: 'r', app: 'Chromium', source: 'app.slack.com' }).groupKey, 'web:app.slack.com')
