@@ -387,6 +387,14 @@
     "decimal": ",",
     "zeroDigit": "0"
   },
+  "eo": {
+    "name": "Esperanto",
+    "englishName": "Esperanto",
+    "formatLocale": "eo",
+    "locale": "eo.UTF-8",
+    "decimal": ",",
+    "zeroDigit": "0"
+  },
   "lv": {
     "name": "Latviešu",
     "englishName": "Latvian",
