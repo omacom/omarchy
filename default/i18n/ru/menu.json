@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Прямая загрузка"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Сбросить компьютер"
   },
   "install.package": {

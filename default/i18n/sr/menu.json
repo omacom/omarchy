@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Директно покретање"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Ресетуј рачунар"
   },
   "install.package": {

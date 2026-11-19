@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Boot Langsung"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Atur Ulang Komputer"
   },
   "install.package": {

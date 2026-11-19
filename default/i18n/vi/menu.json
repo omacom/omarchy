@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Khởi động trực tiếp"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Đặt lại máy"
   },
   "install.package": {

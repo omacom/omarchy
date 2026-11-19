@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Otsekäivitus"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Lähtesta arvuti"
   },
   "install.package": {

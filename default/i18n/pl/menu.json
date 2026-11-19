@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Bezpośredni rozruch"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Resetuj komputer"
   },
   "install.package": {

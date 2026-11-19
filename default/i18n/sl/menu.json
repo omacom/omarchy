@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Neposredni zagon"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Ponastavi računalnik"
   },
   "install.package": {

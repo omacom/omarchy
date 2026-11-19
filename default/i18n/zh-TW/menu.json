@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "直接開機"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "重設電腦"
   },
   "install.package": {

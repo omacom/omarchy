@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "நேரடி தொடக்கம்"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "கணினியை மீட்டமை"
   },
   "install.package": {

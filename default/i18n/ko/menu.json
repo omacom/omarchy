@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "직접 부팅"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "컴퓨터 초기화"
   },
   "install.package": {

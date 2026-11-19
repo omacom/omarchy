@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "بوت مستقیم"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "بازنشانی رایانه"
   },
   "install.package": {

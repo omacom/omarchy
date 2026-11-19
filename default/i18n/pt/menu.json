@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Arranque direto"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "Repor computador"
   },
   "install.package": {

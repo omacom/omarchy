@@ -565,10 +565,7 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "الإقلاع المباشر"
-  },
-  "setup.reset": {
+  "remove.factory-reset": {
     "label": "إعادة تعيين الحاسوب"
   },
   "install.package": {
