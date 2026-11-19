@@ -1,6 +1,7 @@
 # Themes, Backgrounds, and Fonts
 
-Read this before changing themes, backgrounds, fonts, or theme colors.
+Read this before changing themes, backgrounds, fonts, theme colors, app icons, or the boot screen.
+Making a new theme follows the omarchy-make-theme skill.
 
 ## Theme Commands
 
@@ -9,34 +10,17 @@ omarchy theme list              # Show available themes
 omarchy theme current           # Show current theme
 omarchy theme set <name>        # Apply theme ("Tokyo Night" and "tokyo-night" both work)
 omarchy theme bg next           # Cycle background
+omarchy theme bg set <path>     # Use any image or video as the background
+omarchy theme bg intro <enable|disable>  # Background intros
 omarchy theme install <url>     # Install from git repo
 ```
-
-## Making a New Theme
-
-1. Create a directory under `~/.config/omarchy/themes`.
-2. See how an existing theme is done via `/usr/share/omarchy/themes/catppuccin`.
-3. Download a matching background (or several) from the internet and put them in `~/.config/omarchy/themes/<name-of-new-theme>/backgrounds/`.
-4. When done with the theme, run `omarchy theme set "Name of new theme"`.
 
 Additional user backgrounds for any theme (stock or custom) go in
 `~/.config/omarchy/backgrounds/<theme-slug>/`.
 
-## What a Theme Installed From a Repo May Not Contain
-
-A theme the user wrote by hand in `~/.config/omarchy/themes` is unrestricted, as
-are Omarchy's own themes. From a theme cloned by `omarchy theme install`, Omarchy
-drops only what runs code: any `*.lua` (Hyprland requires a theme's
-`hyprland.lua` and `gum_env.lua` at login, Neovim loads `neovim.lua` at startup),
-the terminal configs `alacritty.toml`, `foot.ini`, `ghostty.conf` and
-`kitty.conf` (each names the program the terminal launches), and `vscode.json`
-(names a VS Code extension to install). Those are regenerated from `colors.toml`
-through `$OMARCHY_PATH/default/themed/*.tpl`, and named on stderr.
-
-Everything else a cloned theme ships is kept, including `btop.theme`,
-`chromium.theme`, `helix.toml`, `keyboard.rgb` and `shell.toml`.
-Omarchy tells a cloned theme from the user's own by the `.git` directory a clone
-leaves behind.
+A theme installed from a git repo keeps everything but what runs code: its
+`*.lua`, terminal configs, and `vscode.json` are regenerated from its
+`colors.toml` instead, and named on stderr.
 
 To change how Omarchy themes an app for every theme, write the template rather
 than the theme: `~/.config/omarchy/themed/<config-name>.tpl` overrides the
@@ -46,9 +30,6 @@ built-in one. See `docs/theming.md` in the Omarchy repo.
 
 Never edit stock themes under `/usr/share/omarchy/themes/` — changes are lost
 on update. Two safe options:
-
-Both write into `~/.config/omarchy/themes`, where a theme the user wrote is
-unrestricted — the list above applies only to a theme cloned from a repo.
 
 **Overlay (preferred for small tweaks):** create a user theme directory with
 the SAME slug containing only the files you want to change. When the theme is
@@ -75,5 +56,27 @@ omarchy theme set catppuccin-custom
 ```bash
 omarchy font list               # Available fonts
 omarchy font current            # Current font
-omarchy font set <name>         # Change font
+omarchy font set <name>         # Change the monospace font used everywhere
+omarchy font cjk [jp|kr|sc|tc|hk|default]  # Glyph forms for Chinese, Japanese, and Korean text
+```
+
+`omarchy font list` shows installed Nerd Fonts; a new one comes from the menu's Install > Style > Font, or `omarchy install font <display-name> <package> <family>`.
+
+## App Icons
+
+Icon sets are chosen apart from themes:
+
+```bash
+omarchy icons list
+omarchy icons set <name>
+omarchy icons install <git-repo-url>
+```
+
+## Boot Screen and Branding
+
+```bash
+omarchy plymouth set by theme <theme>     # Style the boot and disk-unlock screen from a theme
+omarchy plymouth reset                    # Back to Omarchy's own
+omarchy branding about <image|text|reset> # The logo shown by About (omarchy launch about)
+omarchy branding screensaver <image|text|reset>
 ```
