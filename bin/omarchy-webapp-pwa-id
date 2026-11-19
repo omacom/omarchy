@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# omarchy:summary=Print the app id of an installed PWA matching a URL's origin
+# omarchy:hidden=true
+# omarchy:args=<url> [browser-exec]
+
+set -euo pipefail
+
+url=${1:-}
+browser=${2:-}
+[[ -n $url ]] || exit 0
+
+# The browser whose profile holds installed web apps. Only the executable name
+# is needed; a wrapper would have its own profile layout and is not a browser
+# Omarchy can introspect.
+if [[ -z $browser ]]; then
+  browser=$(omarchy-cmd-default-browser) || exit 0
+  IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  for data_dir in "${data_dirs[@]}"; do
+    entry="$data_dir/applications/$browser"
+    [[ -f $entry ]] || continue
+    browser=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
+    break
+  done
+fi
+
+case ${browser##*/} in
+chromium | chromium-browser) config=chromium ;;
+google-chrome | google-chrome-stable | chrome) config=google-chrome ;;
+brave | brave-browser | brave-origin) config=BraveSoftware/Brave-Browser ;;
+microsoft-edge | microsoft-edge-stable) config=microsoft-edge ;;
+vivaldi | vivaldi-stable) config=vivaldi ;;
+opera) config=opera ;;
+helium) config=helium ;;
+*) exit 0 ;;
+esac
+
+origin=$(printf '%s' "$url" | sed -E 's#^(https?://[^/]+)([/?#].*)?$#\1#')
+[[ $origin == http://* || $origin == https://* ]] || exit 0
+
+config_home=${XDG_CONFIG_HOME:-$HOME/.config}
+for manifest in "$config_home/$config"/*/"Web Applications"/*/manifest.json; do
+  [[ -f $manifest ]] || continue
+  start_url=$(jq -r '.start_url // .id // empty' "$manifest" 2>/dev/null) || continue
+  [[ -n $start_url ]] || continue
+  case $start_url in
+  http://* | https://*) ;;
+  /*) start_url="$origin$start_url" ;;
+  *) continue ;;
+  esac
+  manifest_origin=$(printf '%s' "$start_url" | sed -E 's#^(https?://[^/]+)([/?#].*)?$#\1#')
+  [[ $manifest_origin == "$origin" ]] || continue
+  basename "$(dirname "$manifest")"
+  exit 0
+done

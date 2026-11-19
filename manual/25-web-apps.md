@@ -4,6 +4,8 @@ You can add your own web apps using _Install > Web App_ in the Omarchy menu (`Su
 
 They'll then be accessible through the app launcher (`Super + Space`), and use the beautiful frameless web-app window.
 
+A basic web-app shortcut cannot receive links that belong to it: a `mailto:` link from HEY, for example, opens a second compose window. To have those links open in the app's existing window, install the site as a real web app from your Chromium browser's menu (*Install page as app*), then open it from its own launcher. Omarchy detects installed web apps by their origin and routes their links into the running window.
+
 If you wish to remove a web app, just go to _Remove > Web App_ in the Omarchy menu.
 
 It's best if you log into all your accounts using a regular browser before using the web app shortcuts. The thin wrapper frame doesn't work well with 1password, so just easier to be logged in directly first.
