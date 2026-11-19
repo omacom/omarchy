@@ -1,6 +1,7 @@
 {
   "Activity": "活动",
   "Agent": "智能体",
+  "Agents": "智能体",
   "Apps": "应用",
   "Audio": "音频",
   "Background switcher": "背景切换器",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "置顶显示活动窗口",
   "Save window width": "保存窗口宽度",
   "Screenrecording": "屏幕录制",
+  "Screenrecording with no audio": "无音频录屏",
   "Screenshot": "截图",
   "Scroll active workspace backward": "向后滚动当前工作区",
   "Scroll active workspace forward": "向前滚动当前工作区",

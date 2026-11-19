@@ -26,11 +26,11 @@
   "update": {
     "label": "යාවත්කාලීන"
   },
-  "about": {
-    "label": "ගැන"
-  },
   "system": {
     "label": "පද්ධතිය"
+  },
+  "system.about": {
+    "label": "ගැන"
   },
   "system.screensaver": {
     "label": "තිර ආරක්ෂකය"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "ආදානය"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "භාෂාව"
+  },
+  "setup.region.timezone": {
+    "label": "වේලා කලාපය"
   },
   "setup.network": {
     "label": "ජාලය"
@@ -387,53 +390,52 @@
   "setup.default": {
     "label": "පෙරනිමි"
   },
-  "setup.default.agent": {
-    "label": "ඒජන්ට්",
-    "title": "පෙරනිමි Agent"
+  "agent": {
+    "label": "ඒජන්ට්"
   },
-  "setup.default.agent.agy": {
+  "agent.harness.agy": {
     "label": "Antigravity"
   },
-  "setup.default.agent.claude": {
+  "agent.harness.claude": {
     "label": "Claude"
   },
-  "setup.default.agent.codex": {
+  "agent.harness.codex": {
     "label": "Codex"
   },
-  "setup.default.agent.copilot": {
+  "agent.harness.copilot": {
     "label": "Copilot"
   },
-  "setup.default.agent.crush": {
+  "agent.harness.crush": {
     "label": "Crush"
   },
-  "setup.default.agent.cursor-agent": {
+  "agent.harness.cursor-agent": {
     "label": "Cursor CLI"
   },
-  "setup.default.agent.grok": {
+  "agent.harness.grok": {
     "label": "Grok"
   },
-  "setup.default.agent.hermes": {
+  "agent.harness.hermes": {
     "label": "Hermes"
   },
-  "setup.default.agent.kimi": {
+  "agent.harness.kimi": {
     "label": "Kimi"
   },
-  "setup.default.agent.muse": {
+  "agent.harness.muse": {
     "label": "Muse Code"
   },
-  "setup.default.agent.omp": {
+  "agent.harness.omp": {
     "label": "omp"
   },
-  "setup.default.agent.openclaw": {
+  "agent.harness.openclaw": {
     "label": "OpenClaw"
   },
-  "setup.default.agent.opencode": {
+  "agent.harness.opencode": {
     "label": "OpenCode"
   },
-  "setup.default.agent.ori": {
+  "agent.harness.ori": {
     "label": "Ori"
   },
-  "setup.default.agent.pi": {
+  "agent.harness.pi": {
     "label": "Pi"
   },
   "setup.default.browser": {
@@ -566,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "සෘජු ආරම්භය"
-  },
-  "setup.reset": {
-    "label": "පරිගණකය යළි සකසන්න"
+  "remove.factory-reset": {
+    "label": "කර්මාන්තශාලා යළි පිහිටුවීම"
   },
   "install.package": {
     "label": "පැකේජය"
@@ -665,9 +664,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -688,9 +684,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium ගිණුම"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1088,9 +1081,6 @@
   "update.password": {
     "label": "මුරපදය"
   },
-  "update.timezone": {
-    "label": "වේලා කලාපය"
-  },
   "update.time": {
     "label": "වේලාව"
   },
@@ -1235,34 +1225,34 @@
   "trigger.hardware.touchscreen-off": {
     "label": "ස්පර්ශ තිරය අක්‍රිය කරන්න"
   },
-  "setup.default.agent.amp": {
+  "agent.harness.amp": {
     "label": "Amp"
   },
-  "setup.default.agent.commandcode": {
+  "agent.harness.commandcode": {
     "label": "Command Code"
   },
-  "setup.default.agent.devin": {
+  "agent.harness.devin": {
     "label": "Devin CLI"
   },
-  "setup.default.agent.dsh": {
+  "agent.harness.dsh": {
     "label": "DeepSeek Harness"
   },
-  "setup.default.agent.freebuff": {
+  "agent.harness.freebuff": {
     "label": "Freebuff"
   },
-  "setup.default.agent.kilo": {
+  "agent.harness.kilo": {
     "label": "Kilo"
   },
-  "setup.default.agent.kiro-cli": {
+  "agent.harness.kiro-cli": {
     "label": "Kiro CLI"
   },
-  "setup.default.agent.mcode": {
+  "agent.harness.mcode": {
     "label": "MiniMax Code"
   },
-  "setup.default.agent.qwen": {
+  "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1300,5 +1290,74 @@
   },
   "install.service.notion": {
     "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "සරල"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "පෙරනිමි Harness"
+  },
+  "agent.instructions": {
+    "label": "උපදෙස්"
+  },
+  "agent.make": {
+    "label": "යමක් හදන්න"
+  },
+  "agent.make.theme": {
+    "label": "තේමාවක් හදන්න"
+  },
+  "agent.make.plugin": {
+    "label": "ප්ලගිනයක් හදන්න"
+  },
+  "agent.make.app": {
+    "label": "යෙදුමක් හදන්න"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "අයිකන"
+  },
+  "install.style.icons": {
+    "label": "අයිකන"
+  },
+  "remove.icons": {
+    "label": "අයිකන"
+  },
+  "update.icons": {
+    "label": "අමතර අයිකන"
+  },
+  "system.firmware": {
+    "label": "BIOS වෙත නැවත අරඹන්න",
+    "description": "UEFI ස්ථිරාංග සැකසුම් වෙත නැවත අරඹන්න"
+  },
+  "setup.region": {
+    "label": "කලාපය"
+  },
+  "setup.region.formats": {
+    "label": "ආකෘති",
+    "description": "දින, වේලාව, අංක සහ ඒකක ලියන ආකාරය"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes ක්‍රීඩාව"
+  },
+  "update.games": {
+    "label": "Game Vibes ක්‍රීඩා"
+  },
+  "agent.make.game": {
+    "label": "ක්‍රීඩාවක් හදන්න"
   }
 }

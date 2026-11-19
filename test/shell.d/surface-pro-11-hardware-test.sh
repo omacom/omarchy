@@ -30,6 +30,7 @@ run_setup() (
   systemctl() { printf 'systemctl %s\n' "$*" >>"$dir/packages.log"; }
 
   OMARCHY_PROC_ROOT="$dir/proc" \
+    OMARCHY_SURFACE_PRO11_SOC_ID="$dir/soc_id" \
     OMARCHY_SURFACE_PRO11_MKINITCPIO_DIR="$dir/mkinitcpio.conf.d" \
     OMARCHY_SURFACE_PRO11_UKI_CONFIG="$dir/kernel/uki.conf" \
     OMARCHY_QUALCOMM_DTB_ROOT="$dir/dtbs" \
@@ -40,7 +41,9 @@ surface_pro11() {
   local dir=$1
   mkdir -p "$dir/proc/device-tree" "$dir/dtbs/linux-omarchy/qcom"
   printf 'microsoft,denali-oled\0microsoft,denali\0qcom,x1e80100\0' >"$dir/proc/device-tree/compatible"
+  printf '555\n' >"$dir/soc_id"
   : >"$dir/dtbs/linux-omarchy/qcom/x1e80100-microsoft-denali-oled.dtb"
+  : >"$dir/dtbs/linux-omarchy/qcom/x1p64100-microsoft-denali.dtb"
 }
 
 matching="$scratch/matching"
@@ -93,7 +96,7 @@ printf '# BEGIN OMARCHY QUALCOMM DEVICE TREES\n[UKI]\nDeviceTreeAuto=/boot/dtbs/
   OMARCHY_SURFACE_PRO11_FIRMWARE_ROOT="$firmware_root" \
     source "$matching/mkinitcpio.conf.d/surface-pro-11-initramfs.conf"
 
-  for module in msm dispcc_x1e80100 phy_qcom_edp panel_samsung_atna33xc20 ps883x qrtr qcom_pd_mapper pmic_glink_altmode surface_aggregator surface_hid; do
+  for module in msm dispcc_x1e80100 phy_qcom_edp panel_samsung_atna33xc20 panel_edp pwm_bl leds_qcom_lpg ps883x qrtr qcom_pd_mapper pmic_glink_altmode surface_aggregator surface_hid; do
     [[ " ${MODULES[*]%\?} " == *" $module "* ]] ||
       fail "the Surface Pro 11 initramfs loads $module before disk unlock"
   done
@@ -167,14 +170,35 @@ run_setup "$second" >/dev/null
 grep -Fxq "DeviceTree=$second/dtbs/linux-omarchy/qcom/x1e80100-microsoft-denali-oled.dtb" "$second/kernel/uki.conf" ||
   fail "linux-omarchy's device tree comes before another linux-omarchy kernel's"
 
-for model in 'microsoft,denali\0qcom,x1p64100' 'lenovo,yoga-slim7x\0qcom,x1e80100'; do
-  other="$scratch/other"
-  rm -rf "$other"
-  surface_pro11 "$other"
-  printf '%b\0' "$model" >"$other/proc/device-tree/compatible"
-  run_setup "$other" >/dev/null
-  [[ ! -e $other/packages.log && ! -e $other/mkinitcpio.conf.d && ! -e $other/kernel ]] ||
-    fail "untested Denali variants and other boards are left unchanged"
+# The X Plus (socinfo ID 615) is the LCD model. systemd-stub boots it on the
+# OLED tree, since the models share their hardware IDs, and once pinned it
+# runs the LCD tree; either way it gets the LCD tree and the same support.
+for booted in 'microsoft,denali-oled\0microsoft,denali\0qcom,x1e80100' \
+  'microsoft,denali-lcd\0microsoft,denali\0qcom,x1p64100\0qcom,x1e80100'; do
+  lcd="$scratch/lcd"
+  rm -rf "$lcd"
+  surface_pro11 "$lcd"
+  printf '%b\0' "$booted" >"$lcd/proc/device-tree/compatible"
+  printf '615\n' >"$lcd/soc_id"
+  run_setup "$lcd" >/dev/null
+  grep -Fxq "DeviceTree=$lcd/dtbs/linux-omarchy/qcom/x1p64100-microsoft-denali.dtb" "$lcd/kernel/uki.conf" ||
+    fail "the X Plus model gets the LCD model's device tree"
+  grep -Fxq 'add microsoft-surface-pro-11-support iptsd microsoft-surface-pro-11-sensors' "$lcd/packages.log" ||
+    fail "the X Plus model gets the same hardware support"
 done
 
-pass "Surface Pro 11 setup configures only the tested OLED model"
+unknown_soc="$scratch/unknown-soc"
+surface_pro11 "$unknown_soc"
+rm "$unknown_soc/soc_id"
+run_setup "$unknown_soc" >/dev/null
+grep -Fxq "DeviceTree=$unknown_soc/dtbs/linux-omarchy/qcom/x1e80100-microsoft-denali-oled.dtb" "$unknown_soc/kernel/uki.conf" ||
+  fail "without socinfo the OLED model's device tree stays, as before"
+
+other="$scratch/other"
+surface_pro11 "$other"
+printf 'lenovo,yoga-slim7x\0qcom,x1e80100\0' >"$other/proc/device-tree/compatible"
+run_setup "$other" >/dev/null
+[[ ! -e $other/packages.log && ! -e $other/mkinitcpio.conf.d && ! -e $other/kernel ]] ||
+  fail "other boards are left unchanged"
+
+pass "Surface Pro 11 setup configures the OLED and LCD models"
