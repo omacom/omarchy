@@ -66,11 +66,13 @@ function unescapeAllowed(text) {
 
 function hostname(value) { return Security.canonicalHostname(value) }
 
+function leadingAnchor(text) { return text.match(/^\s*<a\s+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>\s*/i) }
+
 // A browser body that opens with a link to the site's own origin is the site
 // labelling itself. Lift it out as the source.
 function liftSource(body) {
   var text = Security.bounded(body, Security.MAX_BODY)
-  var m = text.match(/^\s*<a\s+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>\s*/i)
+  var m = leadingAnchor(text)
   if (!m) return { source: "", body: text }
   // The origin is the href's host, which must pass the URL policy; the label
   // is the sender's text and never stands in for it.
@@ -84,6 +86,16 @@ function liftSource(body) {
   var looksLikeSource = label === host || (port && label === host + ":" + port[1]) || /^[\w.-]+\.[a-z]{2,}$/i.test(label)
   if (!looksLikeSource) return { source: "", body: text }
   return { source: host, body: text.slice(m[0].length) }
+}
+
+// Where a click on a site's toast goes: the origin the sender's own anchor
+// named, port included, when it is still that site; else the host's https root.
+function sourceUrl(row) {
+  var host = hostname(row.source)
+  if (!host) return ""
+  var m = leadingAnchor(Security.bounded(row.rawBody, Security.MAX_BODY))
+  var o = m && Security.safeHttpUrl(m[1]).match(/^(https?:\/\/([^/:?#]+)(?::\d+)?)/)
+  return o && o[2] === host ? o[1] + "/" : "https://" + host + "/"
 }
 
 function linkify(escaped) {
