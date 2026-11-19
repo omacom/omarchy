@@ -77,6 +77,7 @@ helium)
   echo "Removing Helium..."
   set_fallback_default_browser helium.desktop
   omarchy-pkg-drop helium-browser-bin
+  rm -f ~/.config/helium-browser-flags.conf
   ;;
 *)
   echo "Usage: omarchy-remove-browser <chrome|chromium|brave|brave-origin|edge|firefox|zen|helium>"
