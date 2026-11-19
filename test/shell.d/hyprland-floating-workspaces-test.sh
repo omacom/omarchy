@@ -1014,11 +1014,12 @@ assert(preview:find('"to":{"x":960,"y":26,"width":960,"height":1054}', 1, true),
 x, y, width, height = landed(right_drop)
 assert(x == 962 and width == 956 and height == 1020, "a window dropped on the right edge fills the right half")
 
--- Along an edge another screen continues from, the pointer crosses over.
+-- An edge snaps just the same where another screen continues from it.
 monitors = { upper, lower, { id = 2, name = "DP-3", x = 1920, y = 0, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } } }
-local crossing = window(300)
-local _, crossed = drag_to(crossing, { x = 1500, y = 300 }, { x = 1915, y = 280 })
-assert(#crossed == 0 and crossing.size.x == 800, "an edge shared with another screen does not snap")
+local beside = window(300)
+drag_to(beside, { x = 1500, y = 300 }, { x = 1915, y = 280 })
+x, y, width, height = landed(beside)
+assert(x == 962 and width == 956, "an edge shared with another screen snaps too")
 monitors = { upper, lower }
 
 -- Moving between zones while still dragging, the preview follows.

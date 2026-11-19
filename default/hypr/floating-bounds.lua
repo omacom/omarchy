@@ -142,28 +142,11 @@ local function snap_frame(monitor, zone)
   return box
 end
 
--- Another screen meets this one along the side, where the pointer is, so the
--- edge is a way across rather than one to snap to.
-local function screen_beyond(monitor, side, y)
-  local mx, _, width = logical_box(monitor)
-  local edge = side == "left" and mx or mx + width
-  for _, other in ipairs(hl.get_monitors()) do
-    if other.id ~= monitor.id and other.scale and other.scale > 0 then
-      local ox, oy, owidth, oheight = logical_box(other)
-      local touching = side == "left" and ox + owidth == edge or side == "right" and ox == edge
-      if touching and y >= oy and y < oy + oheight then
-        return true
-      end
-    end
-  end
-
-  return false
-end
-
 -- The pointer holds the titlebar, so where it lets go decides, on the screen
 -- the window belongs to: "maximize" on the top bar, "left" or "right" against
--- an outer edge, or nil to keep its size. A window dropped only partly under
--- the bar, with the pointer below it, keeps its size.
+-- an edge, or nil to keep its size. A window dropped only partly under
+-- the bar, with the pointer below it, keeps its size. An edge snaps whether
+-- or not another screen continues from it, as the pointer stops there first.
 local function snap_zone(window, cursor)
   local monitor = monitor_at(cursor.x, cursor.y)
   if not monitor or not window.monitor or monitor.id ~= window.monitor.id then
@@ -175,10 +158,10 @@ local function snap_zone(window, cursor)
   end
 
   local mx, _, width = logical_box(monitor)
-  if cursor.x < mx + SIDE_MARGIN and not screen_beyond(monitor, "left", cursor.y) then
+  if cursor.x < mx + SIDE_MARGIN then
     return "left"
   end
-  if cursor.x >= mx + width - SIDE_MARGIN and not screen_beyond(monitor, "right", cursor.y) then
+  if cursor.x >= mx + width - SIDE_MARGIN then
     return "right"
   end
 
