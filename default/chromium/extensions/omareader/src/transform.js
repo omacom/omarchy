@@ -25,6 +25,17 @@
   ];
   const COLOR_FNS = new Set(['rgb', 'rgba', 'hsl', 'hsla', 'hwb', 'lab', 'lch', 'oklab', 'oklch', 'color']);
   const VAR_KEYWORDS = new Set(['transparent', 'currentcolor', 'inherit', 'initial', 'unset', 'revert', 'revert-layer', 'none']);
+  // Every box-shadow is also kept as the element's own shadow for the picture scrim, which
+  // paints its veil over it (content.js). Registered non-inherited, so an element never
+  // sees an ancestor's. `none` and the other keywords become an empty shadow, which keeps
+  // the scrim's shadow list valid; `inherit` takes the parent's, as box-shadow does.
+  const OWN_SHADOW = '--omareader-own-shadow';
+  const OWN_SHADOW_PROPERTY = `@property ${OWN_SHADOW}{syntax:"*";inherits:false}`;
+  function ownShadow(value) {
+    const v = value.trim().toLowerCase();
+    if (v === 'inherit') return v;
+    return VAR_KEYWORDS.has(v) ? '0 0 #0000' : value;
+  }
   const KEEP = new Set(['transparent', 'currentcolor', 'inherit', 'initial', 'unset', 'revert', 'revert-layer', 'none']);
 
   function roleOf(prop) {
@@ -389,6 +400,7 @@
       const important = style.getPropertyPriority(prop) === 'important';
       if (prop === 'all' && !all) {
         for (const p of RESET_PROPS) out += `${p}:${v}${important ? '!important' : ''};`;
+        out += `${OWN_SHADOW}:${ownShadow(v)}${important ? '!important' : ''};`;
         continue;
       }
       if (prop.startsWith('--')) {
@@ -402,7 +414,9 @@
         if (all || resetByShorthand(prop)) out += `${prop}:${v}${important ? '!important' : ''};`;
         continue;
       }
-      out += `${prop}:${transformValue(v, role, ctx)}${important ? '!important' : ''};`;
+      const mapped = transformValue(v, role, ctx);
+      out += `${prop}:${mapped}${important ? '!important' : ''};`;
+      if (prop === 'box-shadow') out += `${OWN_SHADOW}:${ownShadow(mapped)}${important ? '!important' : ''};`;
     }
     return out;
   }
@@ -600,6 +614,9 @@
   }
 
   root.OmareaderTransform = {
+    OWN_SHADOW,
+    OWN_SHADOW_PROPERTY,
+    ownShadow,
     ROLES,
     VAR_SHORTHANDS,
     roleOf,

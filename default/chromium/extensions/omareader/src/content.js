@@ -628,7 +628,7 @@
       // pictures otherwise disappear into a recolored black background.
       const media = mapper.mode === 'dark' ? 'img,picture,video,canvas{mix-blend-mode:normal !important;}' : '';
       presSheet.replaceSync(`${MARK}@layer omareader-base{${media}${siteCss()}${scrimCss()}${[...presRules].map(([sel, css]) => `${sel}{${css}}`).join('')}}`);
-      propSheet.replaceSync(MARK + [...propRules.values()].join(''));
+      propSheet.replaceSync(MARK + X.OWN_SHADOW_PROPERTY + [...propRules.values()].join(''));
     });
   }
 
@@ -897,6 +897,8 @@
       state.set(prop, { orig: v, mapped: style.getPropertyValue(prop), prio });
     }
     for (const prop of [...state.keys()]) if (!seen.has(prop)) state.delete(prop);
+    const shadow = style.getPropertyValue('box-shadow');
+    if (shadow) vars.set(X.OWN_SHADOW, [X.ownShadow(shadow), style.getPropertyPriority('box-shadow')]);
 
     const stale = [];
     for (let i = 0; i < style.length; i++) {
@@ -1391,9 +1393,11 @@
     const rec = scrims.get(el);
     if (on && !rec) {
       const id = String(++scrimNext);
-      // The element's own (themed) shadow is kept after the scrim.
+      // The element's own (themed) shadow stays under the scrim through OWN_SHADOW, which
+      // follows :hover, class changes and palette rebuilds. The shadow it has now only
+      // covers sources that are not mirrored (a stylesheet that could not be read).
       const shadow = getComputedStyle(el).boxShadow;
-      scrims.set(el, { id, shadow: shadow === 'none' ? '' : shadow });
+      scrims.set(el, { id, shadow: shadow === 'none' ? '0 0 #0000' : shadow });
       el.setAttribute(SCRIM_ATTR, id);
       queueSheetWrite();
     } else if (!on && rec) {
@@ -1413,7 +1417,7 @@
     const veil = `rgba(${Math.round(bg.r)}, ${Math.round(bg.g)}, ${Math.round(bg.b)}, ${SCRIM_ALPHA})`;
     let css = '';
     for (const { id, shadow } of scrims.values()) {
-      css += `[${SCRIM_ATTR}="${id}"]{box-shadow:inset 0 0 0 100vmax ${veil}${shadow ? `,${shadow}` : ''} !important}`;
+      css += `[${SCRIM_ATTR}="${id}"]{box-shadow:inset 0 0 0 100vmax ${veil},var(${X.OWN_SHADOW},${shadow}) !important}`;
     }
     return css;
   }
@@ -1815,7 +1819,7 @@ mark{background-color:${s.mark};color:${s.fg}}
     presSheet = newSheet('screen');
     presSheet.replaceSync(MARK);
     propSheet = newSheet();
-    propSheet.replaceSync(MARK);
+    propSheet.replaceSync(MARK + X.OWN_SHADOW_PROPERTY);
     varsSheet = newSheet('screen');
     varsSheet.replaceSync(MARK);
     insertBase();
