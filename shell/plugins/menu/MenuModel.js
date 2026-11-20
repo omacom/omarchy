@@ -33,7 +33,27 @@ function stripJsonc(raw) {
     }
     if (ch === ",") {
       var k = i + 1
-      while (k < n && /\s/.test(text[k])) k++
+      var blank = false
+      while (k < n) {
+        if (text[k] === "\n") {
+          blank = true
+          k++
+          continue
+        }
+        if (blank && text[k] === "/" && text[k + 1] === "/") {
+          while (k < n && text[k] !== "\n") k++
+          if (k < n) {
+            k++
+            blank = true
+          }
+          continue
+        }
+        if (/\s/.test(text[k])) {
+          k++
+          continue
+        }
+        break
+      }
       if (k < n && (text[k] === "}" || text[k] === "]")) {
         i++
         continue
@@ -767,6 +787,7 @@ if (typeof module !== "undefined") {
     normalizeAliases: normalizeAliases,
     normalizeItem: normalizeItem,
     parseMenuJsonc: parseMenuJsonc,
+    readMenuJsonc: readMenuJsonc,
     keepMenuRows: keepMenuRows,
     mergeMenuSources: mergeMenuSources,
     mergeAppRows: mergeAppRows,
