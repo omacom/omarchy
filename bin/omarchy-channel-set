@@ -147,7 +147,7 @@ fi
 
 if [[ -n $dev_checkout ]]; then
   link_dev_checkout "$dev_checkout"
-  export OMARCHY_PATH="$dev_checkout"
+  export OMARCHY_PATH="$dev_checkout" OMARCHY_PATH_TYPE=dev
   export PATH="$OMARCHY_PATH/bin:$PATH"
   omarchy-state set reboot-required
 fi

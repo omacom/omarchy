@@ -60,6 +60,7 @@ for arg in "$@"; do printf "\t%s" "$arg" >>"$OMARCHY_CHANNEL_TEST_LOG"; done
 printf "\tOMARCHY_PATH=%s" "$OMARCHY_PATH" >>"$OMARCHY_CHANNEL_TEST_LOG"
 printf "\n" >>"$OMARCHY_CHANNEL_TEST_LOG"
 printf "path-at-update\t%s\n" "$PATH" >>"$OMARCHY_CHANNEL_TEST_LOG"
+printf "type-at-update\t%s\n" "${OMARCHY_PATH_TYPE:-}" >>"$OMARCHY_CHANNEL_TEST_LOG"
 '
 
 write_stub gum '#!/bin/bash
@@ -199,6 +200,10 @@ if grep -q $'^git\tclone\t' "$log_file"; then
 fi
 assert_log_line $'link\t'"$checkout"$'\t--no-reboot' "switching back to dev links ~/omarchy"
 pass "switching back to dev reuses the existing ~/omarchy checkout"
+
+# The update after the switch must pull the checkout, not skip it as a flavor.
+OMARCHY_PATH_TYPE=flavor OMARCHY_TEST_PATH="$flavor_tree" run_channel dev
+assert_log_line $'type-at-update\tdev' "switching from a flavor to dev updates the checkout as dev"
 
 printf 'cn\n' >"$test_tmp/region"
 if OMARCHY_TEST_REGION_FILE="$test_tmp/region" run_channel dev >"$test_tmp/region.out" 2>"$test_tmp/region.err"; then
