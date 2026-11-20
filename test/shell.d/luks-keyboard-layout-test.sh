@@ -222,5 +222,5 @@ grep -q '^sudo ' "$scratch/sudo-calls" ||
   fail "protected vconsole.conf write must use sudo" "$(cat "$scratch/sudo-calls")"
 pass "omarchy_vconsole_set elevates writes to a protected vconsole.conf"
 else
-  pass "skipping protected vconsole.conf as root"
+  skip "skipping protected vconsole.conf as root"
 fi

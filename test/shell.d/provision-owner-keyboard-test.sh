@@ -26,7 +26,8 @@ cat >"$stub_bin/next-mode" <<'SH'
 queue=$1
 [[ -s $queue ]] || { echo normal; exit 0; }
 head -n1 "$queue"
-sed -i 1d "$queue"
+tail -n +2 "$queue" >"$queue.next"
+mv "$queue.next" "$queue"
 SH
 cat >"$stub_bin/tty" <<SH
 #!/bin/bash
@@ -67,6 +68,14 @@ case \$("$stub_bin/next-mode" "$tmp/firstboot-modes") in
   fail) echo "Failed to write vconsole.conf" >&2; exit 1 ;;
 esac
 SH
+cat >"$stub_bin/limine-mkinitcpio" <<'SH'
+#!/bin/bash
+exit 0
+SH
+cat >"$stub_bin/limine-update" <<'SH'
+#!/bin/bash
+exit 0
+SH
 chmod +x "$stub_bin"/*
 export PATH="$stub_bin:$PATH"
 
@@ -83,6 +92,8 @@ cat >"$tmp/form.sh" <<SH
 set -euo pipefail
 source "$tmp/keyboard.sh"
 LOG_FILE=$tmp/log
+OMARCHY_PATH=$ROOT
+OMARCHY_VCONSOLE_CONF=$conf
 OMARCHY_FORM_BACK=2
 step() { echo "prompt" >>"$tmp/screen"; }
 notice() { echo "notice: \$1" >>"$tmp/screen"; }
@@ -222,15 +233,22 @@ assert_asked_again "firstboot writes nothing" "does not read back as keymap dk"
 assert_layout dk "after firstboot wrote nothing once"
 pass "a systemd-firstboot that writes nothing is asked for again"
 
-for mode in mismatch no-xkb; do
-  fresh_root
-  answers 'Danish|dk' 'Danish|dk'
-  echo "$mode" >"$tmp/firstboot-modes"
-  form || fail "readback $mode, then the retry" "$(cat "$tmp/screen" "$tmp/log")"
-  assert_asked_again "readback $mode" "does not read back as keymap dk"
-  assert_layout dk "after readback $mode"
-done
-pass "a vconsole.conf that reads back another keymap, or no XKB layout, is asked for again"
+fresh_root
+answers 'Danish|dk'
+echo no-xkb >"$tmp/firstboot-modes"
+form || fail "a keymap with no XKBLAYOUT line is filled" "$(cat "$tmp/screen" "$tmp/log")"
+[[ $(prompts) == 1 ]] || fail "a filled XKBLAYOUT is not asked for again" "$(cat "$tmp/screen")"
+grep -qx 'KEYMAP=dk' "$conf" && grep -qx 'XKBLAYOUT=dk' "$conf" ||
+  fail "a missing XKBLAYOUT is filled before readback" "$(cat "$conf")"
+pass "a missing XKBLAYOUT is filled before readback"
+
+fresh_root
+answers 'Danish|dk' 'Danish|dk'
+echo mismatch >"$tmp/firstboot-modes"
+form || fail "readback mismatch, then the retry" "$(cat "$tmp/screen" "$tmp/log")"
+assert_asked_again "readback mismatch" "does not read back as keymap dk"
+assert_layout dk "after readback mismatch"
+pass "a vconsole.conf that reads back another keymap is asked for again"
 
 # The readback runs in a clean shell: values this process exports never stand
 # in for the file.
