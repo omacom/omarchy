@@ -50,8 +50,27 @@ excluded_class() {
   esac
 }
 
-sanitize_field() {
-  printf '%s' "$1" | tr ',\t ' '___'
+# Comma, @, space and tab are the record separators. Percent-encoding keeps a
+# workspace name reversible; replacing them with "_" made "my project" and
+# "my_project" the same destination.
+encode_field() {
+  local s=$1
+  s=${s//%/%25}
+  s=${s//@/%40}
+  s=${s//,/%2C}
+  s=${s// /%20}
+  s=${s//$'\t'/%09}
+  printf '%s' "$s"
+}
+
+decode_field() {
+  local s=$1
+  s=${s//%09/$'\t'}
+  s=${s//%20/ }
+  s=${s//%2C/,}
+  s=${s//%40/@}
+  s=${s//%25/%}
+  printf '%s' "$s"
 }
 
 current_items() {
@@ -59,7 +78,7 @@ current_items() {
     [ .[]
       | select((.class // "") != "")
       | select(.class != "org.omarchy.screensaver" and .class != "hyprlock" and (.class | startswith("org.omarchy.lock") | not))
-      | "\( (.class | gsub("[, \t]"; "_")) )@\( ((.workspace.name // "1") | tostring | gsub("[, \t]"; "_")) )"
+      | "\( (.class | gsub("%"; "%25") | gsub("@"; "%40") | gsub(","; "%2C") | gsub(" "; "%20") | gsub("\t"; "%09")) )@\( ((.workspace.name // "1") | tostring | gsub("%"; "%25") | gsub("@"; "%40") | gsub(","; "%2C") | gsub(" "; "%20") | gsub("\t"; "%09")) )"
     ]
     | unique
     | join(",")
@@ -87,14 +106,14 @@ record_event() {
     last_epoch=$(tail -n 1 "$EVENTS_FILE" | cut -f1)
     last_class=$(tail -n 1 "$EVENTS_FILE" | cut -f2)
     # A refocus of the same class seconds later is not a switch.
-    if [[ $last_class == "$class" ]] && (( epoch - ${last_epoch:-0} < 5 )); then
+    if [[ $last_class == $class ]] && (( epoch - ${last_epoch:-0} < 5 )); then
       return 0
     fi
-    [[ $last_class == "$class" && $class == "__away__" ]] && return 0
+    [[ $last_class == $class && $class == "__away__" ]] && return 0
   fi
 
   mkdir -p "$SENSE_DIR"
-  printf '%s\t%s\n' "$epoch" "$(sanitize_field "$class")" >>"$EVENTS_FILE"
+  printf '%s\t%s\n' "$epoch" "$(encode_field "$class")" >>"$EVENTS_FILE"
 }
 
 record_snapshot() {
@@ -111,7 +130,7 @@ record_snapshot() {
     last_epoch=$(tail -n 1 "$SNAPSHOTS_FILE" | cut -f1)
     last_items=$(tail -n 1 "$SNAPSHOTS_FILE" | cut -f4)
     # Open/close bursts describe the same moment; sample it once.
-    if [[ $last_items == "$items" ]] && (( epoch - ${last_epoch:-0} < 600 )); then
+    if [[ $last_items == $items ]] && (( epoch - ${last_epoch:-0} < 600 )); then
       return 0
     fi
   fi
@@ -256,12 +275,10 @@ flow_report() {
       if (last_class == "") last_class = "-"
       if (top_class == "") top_class = "-"
 
-      # Idle means away, not merely quiet: an hour with no focus event at
-      # all, or the screensaver/lock marker as the latest event. A long
-      # unbroken stretch in one app stays flow; it does not decay into idle
-      # just for lasting.
+      # Idle is the screensaver or lock marker, not time since the last
+      # switch. A long stretch in one app is still work.
       if (total < 8) state = "learning"
-      else if (last_class == "__away__" || dwell > 3600) state = "idle"
+      else if (last_class == "__away__") state = "idle"
       else if (switches >= 12 && distinct_count >= 4) state = "scattered"
       else if (longest >= 300 && switches <= 8) state = "flow"
       else state = "settling"
@@ -293,10 +310,44 @@ dnd_state() {
   esac
 }
 
+quiet_file() {
+  printf '%s/omarchy/notifications/quiet.json\n' "${XDG_STATE_HOME:-$HOME/.local/state}"
+}
+
+quiet_mtime() {
+  local file
+  file=$(quiet_file)
+  [[ -f $file ]] || return 0
+  stat -c %Y "$file" 2>/dev/null || stat -f %m "$file" 2>/dev/null || true
+}
+
+# The marker is epoch, the dnd value to put back, and the quiet-file mtime
+# from just after we silenced. A later mtime means the user wrote DND
+# themselves (off, then on again still looks "on"). Leave that alone.
+user_owns_dnd() {
+  local saved_mtime now_mtime
+  [[ -f $GUARDIAN_FILE ]] || return 1
+  saved_mtime=$(cut -f3 "$GUARDIAN_FILE")
+  [[ -n $saved_mtime ]] || return 1
+  now_mtime=$(quiet_mtime)
+  [[ -n $now_mtime && $now_mtime != $saved_mtime ]]
+}
+
 restore_guardian_dnd() {
   [[ -f $GUARDIAN_FILE ]] || return 0
-  local previous
+  local previous current
+  if user_owns_dnd; then
+    rm -f "$GUARDIAN_FILE"
+    return 0
+  fi
   previous=$(cut -f2 "$GUARDIAN_FILE")
+  current=$(dnd_state)
+  # They already resumed notifications. Putting the saved value back is a
+  # no-op when that value is off, and it must not run if the shell is down.
+  if [[ $current == "off" && $previous == "off" ]]; then
+    rm -f "$GUARDIAN_FILE"
+    return 0
+  fi
   # Keep the marker when the restore does not land (the shell may be
   # restarting); the next guard pass retries instead of forgetting that
   # notifications are silenced because of sense.
@@ -311,23 +362,38 @@ guardian_guard() {
   IFS="$(printf '\t')" read -r state switches distinct last_class dwell top_class longest <<<"$(flow_report)"
 
   if [[ $state == "flow" ]]; then
+    [[ -f $SENSE_DIR/stopping ]] && return 0
     current_dnd=$(dnd_state)
     if [[ -z $current_dnd ]]; then
       printf 'flow, but the shell is not answering; leaving notifications alone\n'
       return 0
     fi
     if [[ -f $GUARDIAN_FILE ]]; then
-      printf 'in flow; notifications already silenced by sense\n'
-      return 0
+      if user_owns_dnd || [[ $current_dnd == "off" ]]; then
+        rm -f "$GUARDIAN_FILE"
+        printf 'in flow; leaving the notification setting you chose\n'
+        return 0
+      fi
+      if [[ $current_dnd == "on" ]]; then
+        printf 'in flow; notifications already silenced by sense\n'
+        return 0
+      fi
     fi
     if [[ $current_dnd == "on" ]]; then
       printf 'in flow; notifications were already silenced\n'
       return 0
     fi
+    sense_enabled || return 0
+    [[ -f $SENSE_DIR/stopping ]] && return 0
+    if ! omarchy-shell notifications setDnd on >/dev/null 2>&1; then
+      printf 'in flow; silencing did not stick, will retry\n'
+      return 0
+    fi
+    # The marker is written only after silencing lands, so a failed call
+    # is retried instead of looking like sense already owns DND.
     mkdir -p "$SENSE_DIR"
-    printf '%s\t%s\n' "$(now_epoch)" "$current_dnd" >"$GUARDIAN_FILE"
+    printf '%s\t%s\t%s\n' "$(now_epoch)" "$current_dnd" "$(quiet_mtime)" >"$GUARDIAN_FILE"
     omarchy-notification-send "$(omarchy-i18n sense.inFlow)" "$(omarchy-i18n sense.silencing)" || true
-    omarchy-shell notifications setDnd on >/dev/null 2>&1 || true
     printf 'in flow; notifications silenced\n'
   else
     if [[ -f $GUARDIAN_FILE ]]; then
@@ -347,7 +413,7 @@ scene_apply() {
   while IFS="$(printf '\t')" read -r name count days hour core best; do
     [[ -n $name ]] || continue
     index=$(( index + 1 ))
-    if [[ $wanted == "$name" || $wanted == "$index" ]]; then
+    if [[ $wanted == $name || $wanted == $index ]]; then
       found="$name"
       break
     fi
@@ -367,8 +433,8 @@ scene_apply() {
   local -a core_items
   IFS=',' read -ra core_items <<<"$core"
   for item in "${core_items[@]}"; do
-    class=${item%@*}
-    workspace=${item##*@}
+    class=$(decode_field "${item%@*}")
+    workspace=$(decode_field "${item##*@}")
     address=$(jq -r --arg c "$class" --argjson used "$used_json" \
       '[.[] | select(.class == $c) | select(.address as $a | $used | index($a) | not)][0].address // ""' <<<"$clients")
     [[ -n $address ]] && used_json=$(jq -c --arg a "$address" '. + [$a]' <<<"$used_json")
@@ -377,9 +443,9 @@ scene_apply() {
       continue
     fi
     [[ -z $fallback_ws ]] && fallback_ws="$workspace"
-    if [[ $item == "$best" ]]; then main_ws="$workspace"; fi
+    if [[ $item == $best ]]; then main_ws="$workspace"; fi
     current_ws=$(jq -r --arg a "$address" '[.[] | select(.address == $a)][0].workspace.name // "" | tostring' <<<"$clients")
-    if [[ $current_ws != "$workspace" ]]; then
+    if [[ $current_ws != $workspace ]]; then
       hyprctl dispatch movetoworkspacesilent "$workspace,address:$address" >/dev/null 2>&1 || true
       moved=$(( moved + 1 ))
     fi
@@ -405,18 +471,33 @@ watch_events() {
   exec 9>"$lock"
   flock -n 9 || return 0
 
+  mkdir -p "$SENSE_DIR"
+  printf '%s\n' "$$" >"$SENSE_DIR/watcher.pid"
+  # A crash or disable ends the open stretch here, so the gap until the next
+  # watcher is not counted as focused work in the last app.
+  trap 'record_event "__away__"; rm -f "$SENSE_DIR/watcher.pid"' EXIT
+
   record_snapshot
-  local last_class="" event class rc
+  local last_class="" event class rc now remain last_check
+  last_check=$(now_epoch)
   exec 3< <(socat -U - "UNIX-CONNECT:$socket" 2>/dev/null || true)
   while true; do
-    event=""
-    read -r -t 60 event <&3
-    rc=$?
-    # A timeout is the guardian's heartbeat: flow is a state you settle into
-    # without generating events, so it can only be noticed by checking the
-    # local log once in a while. This never queries the compositor.
-    if (( rc > 128 )); then
+    [[ -f $SENSE_DIR/stopping ]] && break
+    sense_enabled || break
+    now=$(now_epoch)
+    # Events can arrive more often than once a minute. The flow check and
+    # the layout sample follow the clock, not the gaps in the socket.
+    if (( now - last_check >= 60 )); then
+      last_check=$now
+      record_snapshot
       guardian_guard >/dev/null 2>&1 || true
+    fi
+    remain=$(( 60 - (now - last_check) ))
+    (( remain < 1 )) && remain=1
+    event=""
+    read -r -t "$remain" event <&3
+    rc=$?
+    if (( rc > 128 )); then
       continue
     fi
     (( rc == 0 )) || break
@@ -425,8 +506,8 @@ watch_events() {
       activewindow\>\>*)
         class=${event#activewindow>>}
         class=${class%%,*}
-        if [[ $class != "$last_class" ]]; then
-          last_class="$class"
+        if [[ $class != $last_class ]]; then
+          last_class=$class
           record_event "$class"
           guardian_guard >/dev/null 2>&1 || true
         fi
@@ -468,14 +549,33 @@ case "${1:-status}" in
     [[ -n $class ]] && record_event "$class"
     # The session watcher exited at login while sense was off, so enabling
     # has to start one. It flock-guards itself, and exits at once when no
-    # compositor socket exists.
-    setsid "${BASH_SOURCE[0]}" watch >/dev/null 2>&1 </dev/null &
+    # compositor socket exists. OMARCHY_SENSE_NOW is the test clock; those
+    # runs must not attach a watcher to the live session.
+    if [[ -z ${OMARCHY_SENSE_NOW:-} ]]; then
+      setsid "${BASH_SOURCE[0]}" watch >/dev/null 2>&1 </dev/null &
+    fi
     printf 'sense is learning. it only records window classes and workspaces, locally in %s\n' "${SENSE_DIR/#$HOME/~}"
     printf 'give it a few days, then run: omarchy sense scenes\n'
     ;;
   disable)
-    restore_guardian_dnd
+    # Stop the watcher before restoring. Otherwise it can pass the enabled
+    # check, then silence notifications again after this restore returns.
+    mkdir -p "$SENSE_DIR"
+    touch "$SENSE_DIR/stopping"
+    record_event "__away__"
     rm -f "$ENABLED_FILE"
+    if [[ -f $SENSE_DIR/watcher.pid ]]; then
+      watcher_pid=$(cut -d ' ' -f1 "$SENSE_DIR/watcher.pid" 2>/dev/null || true)
+      if [[ -n $watcher_pid ]]; then
+        kill "$watcher_pid" 2>/dev/null || true
+        for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+          kill -0 "$watcher_pid" 2>/dev/null || break
+          sleep 0.05
+        done
+      fi
+    fi
+    restore_guardian_dnd
+    rm -f "$SENSE_DIR/stopping" "$SENSE_DIR/watcher.pid"
     printf 'sense is off; learned history is kept. omarchy sense forget deletes it\n'
     ;;
   status)
@@ -495,7 +595,10 @@ case "${1:-status}" in
         json=$(jq -c --arg name "$name" --argjson seen "$count" --argjson days "$days" \
           --argjson hour "$hour" --arg core "$core" \
           '. + [{name: $name, seen: $seen, days: $days, usual_hour: $hour,
-                 windows: ($core | split(",") | map(split("@") | {class: .[0], workspace: .[1]}))}]' <<<"$json")
+                 windows: ($core | split(",") | map(split("@") | {
+                   class: ((.[0] // "") | gsub("%09"; "\t") | gsub("%20"; " ") | gsub("%2C"; ",") | gsub("%40"; "@") | gsub("%25"; "%")),
+                   workspace: ((.[1] // "") | gsub("%09"; "\t") | gsub("%20"; " ") | gsub("%2C"; ",") | gsub("%40"; "@") | gsub("%25"; "%"))
+                 }))}]' <<<"$json")
       done <<<"$(discover_scenes)"
       printf '%s\n' "$json"
     else
@@ -506,7 +609,7 @@ case "${1:-status}" in
         printf '%s  (seen %sx over %s days, usually around %02d:00)\n' "$name" "$count" "$days" "$hour"
         IFS=',' read -ra items <<<"$core"
         while read -r item; do
-          printf '  %s -> workspace %s\n' "${item%@*}" "${item##*@}"
+          printf '  %s -> workspace %s\n' "$(decode_field "${item%@*}")" "$(decode_field "${item##*@}")"
         done <<<"$(printf '%s\n' "${items[@]}" | sort)"
       done <<<"$(discover_scenes)"
       (( found )) || printf 'no scenes yet. sense needs the same layout on at least %s different days\n' "$MIN_SCENE_DAYS"
