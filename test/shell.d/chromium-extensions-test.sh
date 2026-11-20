@@ -227,19 +227,20 @@ mkdir -p "$omareader_home/.local/state/omarchy/current/theme" "$omareader_home/.
 cp "$ROOT/themes/catppuccin-latte/colors.toml" "$omareader_home/.local/state/omarchy/current/theme/"
 echo "catppuccin-latte" >"$omareader_home/.local/state/omarchy/current/theme.name"
 printf 'background = "#123456"\nforeground = "#abcdef"\n' >"$omareader_home/.config/omarchy/themes/catppuccin/colors.toml"
-dump=$(env -i HOME="$omareader_home" PATH=/usr/bin "$ROOT/bin/omarchy-chromium-omareader-host" --dump) ||
+dump=$(env -i HOME="$omareader_home" OMARCHY_PATH="$ROOT" PATH=/usr/bin "$ROOT/bin/omarchy-chromium-omareader-host" --dump) ||
   fail "Omareader host dumps the palette"
 [[ $(jq -r '.current.name + " " + .current.colors.mode' <<<"$dump") == "catppuccin-latte light" ]] ||
   fail "Omareader host reads the current theme from the state dir" "$(jq -c .current <<<"$dump")"
 [[ $(jq -r '.themes["catppuccin"].background' <<<"$dump") == "#123456" ]] ||
   fail "Omareader host lets a user theme override the shipped one"
 [[ $(jq -r '.themes["tokyo-night"].background' <<<"$dump") != null ]] ||
-  fail "Omareader host finds the shipped themes without OMARCHY_PATH"
+  fail "Omareader host finds the shipped themes"
 pass "Omareader host streams the current Omarchy palette"
 
 # A theme switch reaches the extension without polling: the host watches the
 # state dir and pushes a new palette once omarchy-theme-set has moved the new
-# theme in and written its name.
+# theme in and written its name. The stream needs only the state dir, so it
+# also runs without Omarchy's environment.
 if command -v inotifywait >/dev/null; then
   mkfifo "$test_tmp/omareader-in"
   env -i HOME="$omareader_home" PATH=/usr/bin "$ROOT/bin/omarchy-chromium-omareader-host" \

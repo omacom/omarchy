@@ -48,7 +48,7 @@ function connect() {
   }
   port.onMessage.addListener((msg) => {
     if (!msg || msg.type !== 'state') return;
-    chrome.storage.local.set({ omarchy: msg.current, themes: msg.themes, host: { connected: true, error: null } });
+    chrome.storage.local.set({ omarchy: msg.current, host: { connected: true, error: null } });
   });
   port.onDisconnect.addListener(() => {
     const err = chrome.runtime.lastError && chrome.runtime.lastError.message;
@@ -197,7 +197,7 @@ async function injectIntoOpenTabs() {
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && (changes.settings || changes.omarchy || changes.themes)) queueRecompute();
+  if (area === 'local' && (changes.settings || changes.omarchy)) queueRecompute();
 });
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
