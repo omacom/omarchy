@@ -1,22 +1,22 @@
 # Windows VM
 
-Omarchy menawarkan cara mudah untuk menjalankan Windows melalui VM Docker. Kamu dapat memasangnya menggunakan _Pasang > Windows_ dari menu Omarchy (`Super + Space`).
+Omarchy menawarkan cara mudah untuk menjalankan Windows melalui Docker VM di mesin x86_64. Kamu bisa memasangnya menggunakan _Instal > Windows_ dari menu Omarchy (`Super + Space`).
 
-Mesinmu membutuhkan virtualisasi KVM untuk ini, yang sebagian besar memilikinya — tetapi kadang-kadang dimatikan di BIOS, dan pemasang akan memberitahumu jika itu masalahnya. Kamu juga akan menginginkan ruang disk: apa pun yang kamu berikan ke Windows, ditambah sekitar 10GB untuk image itu sendiri.
+Mesinmu membutuhkan virtualisasi KVM untuk ini, yang memang dimiliki kebanyakan mesin — tetapi fitur ini kadang dimatikan di BIOS, dan pemasang akan memberitahumu jika memang begitu. Kamu juga akan membutuhkan ruang disk: berapa pun yang kamu berikan untuk Windows, ditambah sekitar 10GB untuk image itu sendiri.
 
-Pemasang menanyakan berapa banyak RAM, berapa banyak core CPU, dan berapa banyak disk yang akan diserahkan (64GB atau lebih adalah lantai yang masuk akal), kemudian untuk nama pengguna dan kata sandi Windows. Biarkan itu kosong dan kamu mendapatkan `docker` / `admin`. Unduhan memakan waktu cukup lama — 10-15 menit adalah normal — dan kamu dapat mengikuti kemajuannya di browser pada `http://127.0.0.1:8006`. Browser meminta nama pengguna dan kata sandi yang sama sebelum membuka konsol.
+Pemasang akan menanyakan berapa banyak RAM, berapa banyak core CPU, dan berapa banyak disk yang akan diserahkan (64GB atau lebih adalah batas bawah yang masuk akal), lalu nama pengguna dan kata sandi Windows. Biarkan keduanya kosong dan kamu akan mendapatkan `docker` / `admin`. Pengunduhannya memakan waktu lama — 10-15 menit adalah waktu yang normal — dan kamu bisa mengikuti kemajuannya di browser di `http://127.0.0.1:8006`. Browser akan meminta nama pengguna dan kata sandi yang sama sebelum membuka konsol.
 
  ![windows-vm](images/windows-vm.webp)
 
 ## Menggunakannya
 
-Setelah terpasang, luncurkan _Windows_ dari peluncur aplikasi. Itu memulai VM jika belum berjalan dan menghubungkan kamu melalui RDP, layar penuh. Beri waktu 15-30 detik pada cold start.
+Setelah terpasang, luncurkan _Windows_ dari peluncur aplikasi. Itu akan memulai VM jika belum berjalan dan menghubungkanmu melalui RDP, dalam layar penuh. Beri waktu 15-30 detik saat memulainya dari keadaan mati.
 
-Sesi RDP membawa suara, mikrofonmu, dan papan klip bersama, jadi menyalin teks antara Linux dan Windows langsung bekerja. Resolusi mengikuti jendelamu, dan Omarchy meneruskan penskalaan tampilanmu, jadi itu bukan kekacauan buram di layar HiDPI.
+Sesi RDP membawa suara, mikrofonmu, dan clipboard bersama, jadi menyalin teks antara Linux dan Windows langsung berfungsi. Resolusinya mengikuti jendelamu, dan Omarchy meneruskan penskalaan layar yang kamu gunakan, jadi tampilannya tidak buram berantakan di layar HiDPI.
 
-Saat kamu menutup jendela RDP, VM mati secara otomatis. Jika kamu lebih suka membiarkannya berjalan — misalnya kamu punya sesuatu yang sedang bekerja di sana — luncurkan dengan `omarchy windows vm launch --keep-alive` sebagai gantinya.
+Saat kamu menutup jendela RDP, VM akan mati secara otomatis. Jika kamu lebih suka membiarkannya tetap berjalan — misalnya ada sesuatu yang sedang bekerja di dalamnya — luncurkan saja dengan `omarchy windows vm launch --keep-alive`.
 
-Kontrol sisanya ada pada perintah yang sama:
+Kontrol selebihnya ada pada perintah yang sama:
 
 ```bash
 omarchy windows vm status    # is it running?
@@ -24,26 +24,26 @@ omarchy windows vm stop      # shut it down
 omarchy windows vm launch    # start and connect
 ```
 
-## Berbagi berkas
+## Berbagi file
 
-Direktori `~/Windows` di direktori rumahmu secara otomatis dibagikan dengan VM. Taruh berkas di sana jika kamu menginginkannya dapat diakses oleh Windows. VM tidak memiliki akses ke bagian lain dari sistem berkasmu, jadi kamu aman dari apa pun yang jahat di sisi Windows. Disk virtualnya sendiri tersedia di `~/.windows`.
+Direktori `~/Windows` di direktori home milikmu dibagikan secara otomatis dengan VM. Letakkan file di sana jika kamu ingin file tersebut dapat diakses oleh Windows. VM tidak memiliki akses ke bagian lain mana pun dari sistem file milikmu, jadi kamu aman dari apa pun yang berbahaya di sisi Windows. Disk virtual miliknya sendiri tersedia di `~/.windows`.
 
-Jalur rumah yang familier tersebut tetap berada di sistem berkasnya sendiri. Itu juga dapat berupa symlink ke direktori yang kamu miliki, yang berguna saat disk virtual berada di drive yang lebih besar. Pemasang mengukur ruang kosong pada sistem berkas yang benar-benar berisi `~/.windows`, belum tentu sistem berkas yang berisi direktori rumahmu.
+Path home yang sudah familiar itu tetap berada di sistem file mereka sendiri. Path tersebut juga dapat berupa symlink ke direktori milikmu, yang berguna saat disk virtual berada di drive yang lebih besar. Pemasang mengukur ruang kosong pada sistem file yang benar-benar berisi `~/.windows`, belum tentu sistem file yang berisi direktori home milikmu.
 
-Jaga jalur disk dan jalur bersama sebagai direktori terpisah yang tidak tumpang tindih. Penghapusan dengan sengaja mengosongkan direktori disk tetapi mempertahankan direktori bersama. Segera sebelum penghapusan, Omarchy melakukan pemeriksaan penahanan terbatas dan menolak menghapus apa pun jika pemeriksaan tersebut kehabisan waktu atau tidak dapat membuktikan kedua pohon terpisah.
+Jaga agar path disk dan path bersama tetap menjadi direktori yang terpisah dan tidak tumpang tindih. Penghapusan secara sengaja mengosongkan direktori disk tetapi mempertahankan direktori bersama. Tepat sebelum penghapusan, Omarchy melakukan pemeriksaan containment terbatas dan menolak menghapus apa pun jika pemeriksaan tersebut kehabisan waktu atau tidak dapat membuktikan bahwa kedua pohon tersebut terpisah.
 
-Sebelum VM dimulai, Omarchy membuka dan menyematkan kedua direktori tersebut, kemudian bind-mount inode direktori yang tepat ke jangkar privat per pengguna di bawah `/var/lib/omarchy/windows/mounts`. Docker hanya melihat jangkar yang dilindungi root tersebut. Ini mempertahankan lokasi disk kustom sambil mencegah proses lain yang berjalan sebagai dirimu menukar jalur yang diperiksa sebelum kontainer yang memiliki hak istimewa menggunakannya. Direktori disk dan bersama yang ada diperketat ke mode `0700` selama migrasi sehingga akun lokal lain tidak dapat menelusuri isinya.
+Sebelum VM dimulai, Omarchy membuka dan menyematkan kedua direktori tersebut, lalu melakukan bind-mount inode direktori yang persis sama ke anchor privat per pengguna di bawah `/var/lib/omarchy/windows/mounts`. Docker hanya melihat anchor yang dilindungi root tersebut. Cara ini mempertahankan lokasi disk kustom sekaligus mencegah proses lain yang berjalan sebagai kamu menukar path yang sudah diperiksa sebelum container berhak istimewa tersebut menggunakannya. Direktori disk dan direktori bersama yang sudah ada diperketat ke mode `0700` selama migrasi agar akun lokal lain tidak dapat menelusuri isinya.
 
-Port VM terikat ke localhost saja, jadi tidak ada apa pun di jaringanmu yang dapat mencapai mesin Windows. Konsol web juga memerlukan nama pengguna dan kata sandi Windows yang dikonfigurasi, mencegah akun lokal lain mengendalikan VM melalui port 8006.
+Port VM hanya terikat ke localhost, jadi tidak ada apa pun di jaringanmu yang dapat menjangkau mesin Windows tersebut. Konsol web juga memerlukan nama pengguna dan kata sandi Windows yang telah dikonfigurasi, sehingga akun lokal lain tidak dapat mengendalikan VM melalui port 8006.
 
-## Batas dan lisensi
+## Batasan dan lisensi
 
-Tidak ada GPU passthrough dengan penyiapan ini, jadi tidak cocok untuk gaming atau pengeditan video. Ini adalah cara bagus untuk menjalankan Microsoft Office atau apa pun yang benar-benar harus kamu miliki.
+Tidak ada GPU passthrough pada pengaturan ini, jadi pengaturan ini tidak cocok untuk gaming atau pengeditan video. Ini adalah cara yang bagus untuk menjalankan Microsoft Office atau apa pun lainnya yang benar-benar harus kamu miliki.
 
-Versi yang dipasang adalah Windows 11 Pro, belum diaktifkan. Kamu akan memerlukan kunci lisensimu sendiri untuk menggunakan fitur yang dibatasi.
+Versi yang dipasang adalah Windows 11 Pro, belum diaktifkan. Kamu akan memerlukan kunci lisensi milikmu sendiri untuk menggunakan fitur-fitur yang terkunci.
 
-Jika komputer ini dikirim dengan Windows, kunci OEM masih ada di firmware bahkan setelah memasang Omarchy. Cetak dengan `omarchy windows key`. Kunci tersebut terikat ke mesin ini — itu akan mengaktifkan Windows yang dipasang ulang di perangkat keras ini, tetapi biasanya tidak akan mengaktifkan VM.
+Jika komputer ini dikirim bersama Windows, kunci OEM masih tersimpan di firmware bahkan setelah Omarchy dipasang. Tampilkan kunci tersebut dengan `omarchy windows key`. Kunci itu terikat ke mesin ini — kunci itu akan mengaktifkan Windows yang dipasang ulang pada perangkat keras ini, tetapi biasanya tidak akan mengaktifkan VM.
 
-Kamu dapat mengubah alokasi sumber daya nanti dengan menjalankan ulang `omarchy-windows-vm install`, yang menulis ulang konfigurasi VM dari jawabanmu. Berkas compose itu sendiri sekarang berada di `/var/lib/omarchy/windows/docker-compose.yml` dan dimiliki oleh root — itu disengaja, jadi proses yang berjalan sebagai dirimu tidak dapat menulis ulangnya dan membuat bring-up yang memiliki hak istimewa me-mount seluruh diskmu ke dalam kontainer. Jika kamu perlu mengeditnya secara manual (misalnya untuk me-mount perangkat USB), edit dengan `sudo` dan lihat semua pilihan di [proyek Dockur Windows](https://github.com/dockur/windows).
+Kamu dapat mengubah alokasi sumber daya nanti dengan menjalankan `omarchy windows vm install` di terminal, yang akan menulis ulang konfigurasi VM berdasarkan jawabanmu. File compose itu sendiri sekarang berada di `/var/lib/omarchy/windows/docker-compose.yml` dan dimiliki oleh root — hal itu disengaja, agar proses yang berjalan sebagai kamu tidak dapat menulis ulang file tersebut lalu membuat proses bring-up berhak istimewa memasang seluruh disk milikmu ke dalam container. Jika kamu perlu mengeditnya secara manual (misalnya untuk memasang perangkat USB), editlah dengan `sudo` dan lihat semua opsinya di [proyek Dockur Windows](https://github.com/dockur/windows).
 
-Untuk membuang semuanya, gunakan _Hapus > Windows_ dari menu Omarchy. Itu menghapus disk VM dan semua datanya, jadi pastikan apa pun yang kamu pedulikan sudah keluar dari `~/Windows` terlebih dahulu.
+Untuk menyingkirkan semuanya, gunakan _Hapus > Windows_ dari menu Omarchy. Itu akan menghapus disk VM di `~/.windows` dan semua yang terpasang di dalam Windows, jadi salin terlebih dahulu apa pun yang kamu butuhkan keluar dari VM. Folder bersama milikmu, `~/Windows`, akan dibiarkan apa adanya.
