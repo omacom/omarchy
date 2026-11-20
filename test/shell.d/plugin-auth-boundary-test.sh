@@ -139,6 +139,83 @@ qml_matches "$shell_qml" 'allowOwnService *&& *shell\.pluginOwnsTarget\( *key, *
   fail "cloned widgets cannot use a source id to reach their own service"
 pass "service facades resolve enabled clones without widening replacement-bar access"
 
+# Run the real facade factories so dock clone access and cache revocation are
+# checked together; QObject allocation alone is replaced by plain test objects.
+run_node_test <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+const source = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
+const clone = {id: 'tester.dock', kinds: ['service'], omarchy: {clonedFrom: 'omarchy.dock'}}
+const entries = [{entry: {id: 'terminal'}}, {entry: {id: 'browser'}}]
+const calls = []
+const scope = {
+  Util: {isPlainObject: value => !!value && typeof value === 'object' && !Array.isArray(value)},
+  pluginRegistry: {installedPlugins: {[clone.id]: clone}, isEnabled: () => true},
+  pluginOwnsTarget: () => false,
+  appLibrary: {
+    sortedEntries: query => entries.filter(row => row.entry.id.includes(query)),
+    entryName: entry => entry.id, entrySubtext: () => '', iconSource: icon => icon,
+    refreshIcons: () => calls.push('refresh'), refreshVersions: () => calls.push('versions'),
+    version: entry => entry.id === 'terminal' ? '1.0' : '', dockClickMode: () => 'launch',
+    launch: id => calls.push('launch:' + id), remove: id => calls.push('remove:' + id)
+  },
+  pluginBarStateFor: () => ({}), publicBarConfig: () => ({}), publicIdleConfigFor: () => ({}),
+  pluginShellApiComponent: {createObject: (parent, props) => ({...props, destroy() { this.destroyed = true }})},
+  pluginAppLibraryApiComponent: {createObject(parent, props) {
+    assertEqual(parent, null, 'application-library proxies have no host parent')
+    return {...props, destroy() { this.destroyed = true }}
+  }}
+}
+scope.shell = scope
+for (const cache of ['Shell', 'Registry', 'BarWidgetRegistry', 'AppLibrary', 'BarState', 'FirstPartyService', 'BarEntryShell']) {
+  scope['_plugin' + cache + 'Apis'] = {}
+}
+scope._pluginShellApiDescriptors = {}
+vm.createContext(scope)
+for (const name of ['manifestHasKind', 'pluginHasBarCapabilities', 'pluginHasAppLibrary', 'pluginAppLibraryFor',
+  'pluginShellCapabilityProfile', 'createScopedPluginShell', 'cacheWithoutKey', 'cacheWithoutPrefix', 'revokePluginShellApi', 'pluginApiActive', 'prunePluginApis']) {
+  const fn = source.match(new RegExp('  function ' + name + String.raw`\([^]*?\n  \}`))
+  if (fn) vm.runInContext(fn[0], scope)
+}
+const api = scope.createScopedPluginShell(clone, clone.id, true, false)
+const library = api.appLibrary
+assert(library && library !== scope.appLibrary, 'dock clones receive the detached application-library facade')
+const librarySource = fs.readFileSync(path.join(root, 'shell/services/PluginAppLibraryApi.qml'), 'utf8')
+vm.createContext(library)
+for (const name of ['sortedEntries', 'launch', 'remove', 'refreshIcons', 'refreshVersions', 'version', 'dockClickMode']) {
+  const fn = librarySource.match(new RegExp('  function ' + name + String.raw`\([^]*?\n  \}`))
+  assert(fn, 'the public application-library method exists: ' + name)
+  vm.runInContext(fn[0], library)
+}
+assertEqual(library.sortedEntries('').length, 2, 'the dock clone can list installed applications')
+assertEqual(library.sortedEntries('term')[0].entry.id, 'terminal', 'the dock clone can search applications')
+library.launch('terminal', 'Terminal')
+library.remove('browser', 'Browser')
+library.refreshIcons()
+library.refreshVersions()
+assertEqual(library.version(entries[0].entry), '1.0', 'dock clone version labels use the app library')
+assertEqual(library.dockClickMode('terminal'), 'launch', 'dock clones retain the app click mode')
+assertEqual(calls.join(','), 'launch:terminal,remove:browser,refresh,versions', 'the existing app operations forward through the facade')
+assertEqual(api._firstPartyServiceLookup('omarchy.lock'), null, 'dock clones do not gain authentication service access')
+assertEqual(api._mutateBarConfig(() => {}), false, 'dock clones do not gain replacement-bar control')
+assertEqual(api, scope.createScopedPluginShell(clone, clone.id, true, false), 'the app-library facade profile is reused')
+scope.prunePluginApis()
+assert(!api.destroyed && !library.destroyed, 'normal pruning keeps the dock clone facade')
+scope.pluginRegistry.installedPlugins[clone.id] = {...clone, omarchy: undefined}
+scope.prunePluginApis()
+assert(api.destroyed && library.destroyed, 'withdrawing dock clone metadata revokes both cached facades')
+for (const manifest of [
+  {id: clone.id, kinds: ['service']},
+  {id: clone.id, kinds: ['service'], omarchy: {clonedFrom: 'omarchy.media'}},
+  {id: clone.id, kinds: ['bar-widget'], omarchy: {clonedFrom: 'omarchy.dock'}}
+]) {
+  assertEqual(scope.createScopedPluginShell(manifest, 'denied', true, false).appLibrary, null,
+    'unrelated plugins and wrong-kind dock claims do not receive the app library')
+}
+const menu = {id: 'tester.menu', kinds: ['menu']}
+assert(scope.createScopedPluginShell(menu, menu.id, true, false).appLibrary, 'menus retain their existing app-library access')
+JS
+
 require_quickshell "plugin authentication boundary runtime test"
 
 run_qml_fixture plugin-auth-boundary "plugin authentication boundary runtime behavior" services

@@ -378,6 +378,13 @@ ShellRoot {
     return shell.manifestHasKind(manifest, "bar")
   }
 
+  function pluginHasAppLibrary(manifest) {
+    if (shell.manifestHasKind(manifest, "menu")) return true
+    var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
+    return shell.manifestHasKind(manifest, "service")
+      && !!metadata && metadata.clonedFrom === "omarchy.dock"
+  }
+
   function publicIdleConfigFor(manifest) {
     var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
     if (!metadata || String(metadata.clonedFrom || "") !== "omarchy.idle") return ({})
@@ -446,6 +453,9 @@ ShellRoot {
       _sortedEntries: function(query) { return shell.appLibrary.sortedEntries(query) },
       _iconSource: function(icon) { return shell.appLibrary.iconSource(icon) },
       _refreshIcons: function() { shell.appLibrary.refreshIcons() },
+      _refreshVersions: function() { shell.appLibrary.refreshVersions() },
+      _version: function(entry) { return shell.appLibrary.version(entry) },
+      _dockClickMode: function(desktopId) { return shell.appLibrary.dockClickMode(desktopId) },
       _launch: function(desktopId, name) { shell.appLibrary.launch(desktopId, name) },
       _remove: function(desktopId, name) { shell.appLibrary.remove(desktopId, name) }
     })
@@ -568,7 +578,7 @@ ShellRoot {
     return [
       allowOwnService ? "own-service" : "no-own-service",
       barCapabilities ? "bar" : "no-bar",
-      shell.manifestHasKind(manifest, "menu") ? "menu" : "no-menu"
+      shell.pluginHasAppLibrary(manifest) ? "app-library" : "no-app-library"
     ].join("|")
   }
 
@@ -641,7 +651,7 @@ ShellRoot {
 
     var api = pluginShellApiComponent.createObject(null, {
       pluginId: key,
-      appLibrary: shell.manifestHasKind(manifest, "menu")
+      appLibrary: shell.pluginHasAppLibrary(manifest)
         ? shell.pluginAppLibraryFor(cacheKey, key) : null,
       bar: shell.pluginBarStateFor(cacheKey, key),
       barConfig: shell.publicBarConfig(),
