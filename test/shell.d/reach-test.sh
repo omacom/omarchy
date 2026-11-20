@@ -103,4 +103,16 @@ assertDeepEqual(reach.nudge(['a', 'desk', 'b'], 'desk', 'desk', 0), ['a', 'desk'
 assertDeepEqual(reach.place(['laptop', 'desk'], 'desk', 'mini', 'beside'), ['laptop', 'desk'], 'reach ignores a side that is not an end of the row')
 assertDeepEqual(reach.place(['laptop', 'desk'], 'desk', '', 'left'), ['laptop', 'desk'], 'reach ignores a blank machine name')
 assertDeepEqual(reach.place(['laptop', 'desk'], 'desk', '   ', 'right'), ['laptop', 'desk'], 'reach ignores a machine name that is only spaces')
+
+assertDeepEqual(
+  reach.addable(['desk'], 'desk', [
+    { name: 'laptop', online: true, nearby: true },
+    { name: 'laptop.lan', online: true, nearby: false },
+    { name: ' spark', online: true, nearby: true },
+  ]).map((p) => p.name),
+  ['laptop', 'spark'],
+  'reach offers a machine once, without the padding Circle left on its name'
+)
+const padded = reach.parseStatus(JSON.stringify({ me: 'desk', screens: [' desk '], circle: { up: true, peers: [] } }))
+assertDeepEqual(padded.screens, ['desk'], 'reach trims the name of a machine in the row')
 JS
