@@ -9,7 +9,20 @@ source "$OMARCHY_PATH/install/helpers/keyboard-vconsole.sh"
 
 [[ -f $(omarchy_vconsole_conf) ]] || exit 0
 
+pending_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+pending="$pending_dir/vconsole-xkb-pending-rebuild"
+had_layout=$(omarchy_vconsole_get XKBLAYOUT)
+# Record the rebuild before the file changes. A retry that sees XKBLAYOUT
+# already filled would otherwise skip the UKI and mark the migration done.
+if [[ -z $had_layout ]]; then
+  mkdir -p "$pending_dir"
+  : >"$pending"
+fi
+
 omarchy_ensure_vconsole_xkb
+if [[ -z $had_layout && -z $(omarchy_vconsole_get XKBLAYOUT) ]]; then
+  rm -f "$pending"
+fi
 
 layout=$(omarchy_vconsole_get XKBLAYOUT)
 variant=$(omarchy_vconsole_get XKBVARIANT)
@@ -20,9 +33,6 @@ variant=${variant%%,*}
 # Non-Latin layouts must stay out of the initramfs (#6229); hooks already skip
 # them. Only rebuild when a Latin layout (or Latin variant of rs) applies.
 omarchy_layout_is_non_latin "$layout" "$variant" && exit 0
-
-pending_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
-pending="$pending_dir/vconsole-xkb-pending-rebuild"
 
 # A failed limine/mkinitcpio run must not mark this migration complete on retry
 # when XKBLAYOUT is already set and CHANGED stays 0.

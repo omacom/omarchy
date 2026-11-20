@@ -39,7 +39,11 @@ local kb_options = ""
 
 -- A greeter that can't type Latin letters can't take a password either, so a
 -- non-Latin layout gets us in front, reachable back with Left Alt + Right Alt.
-if non_latin_layouts:find(" " .. kb_layout:match("^[^,]*") .. " ", 1, true) then
+-- A Latin variant (sr-latin → rs/latin) already types Latin letters.
+local first_layout = kb_layout:match("^[^,]*") or kb_layout
+local first_variant = kb_variant:match("^[^,]*") or ""
+local is_latin_variant = first_variant == "latin" or first_variant:match("^latin") ~= nil
+if not is_latin_variant and non_latin_layouts:find(" " .. first_layout .. " ", 1, true) then
   -- Variants pair with layouts by position. Move an existing us entry and its
   -- variant to the front instead of adding a duplicate toggle stop.
   local layouts, variants = {}, {}

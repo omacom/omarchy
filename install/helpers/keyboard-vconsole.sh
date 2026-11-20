@@ -121,6 +121,12 @@ omarchy_keymap_to_xkb() {
     fi
   fi
 
+  # Console cz is QWERTY. XKB's default cz is not, so the variant has to travel with it.
+  if [[ $keymap == cz ]]; then
+    printf 'cz qwerty\n'
+    return 0
+  fi
+
   # Bare two-letter console names (fr, de, es) are usually valid XKB layouts.
   if [[ $keymap =~ ^[a-z]{2}$ ]]; then
     printf '%s \n' "$keymap"
@@ -162,7 +168,7 @@ omarchy_ensure_vconsole_xkb() {
   # is left alone.
   case "$keymap" in
     colemak | dvorak)
-      if [[ $current_layout != "$layout" || $current_variant != "$variant" ]]; then
+      if [[ $current_layout != $layout || $current_variant != $variant ]]; then
         omarchy_vconsole_set XKBLAYOUT "$layout"
         omarchy_vconsole_set XKBVARIANT "$variant"
         OMARCHY_VCONSOLE_XKB_CHANGED=1
@@ -191,9 +197,9 @@ omarchy_rebuild_boot_keyboard() {
   # No layout means nothing for Plymouth to learn; skip the expensive rebuild.
   [[ -n $layout ]] || return 0
 
-  if command -v limine-mkinitcpio >/dev/null 2>&1; then
+  if omarchy-cmd-present limine-mkinitcpio; then
     limine-mkinitcpio "$@"
-  elif command -v limine-update >/dev/null 2>&1; then
+  elif omarchy-cmd-present limine-update; then
     limine-update "$@"
   else
     return 0

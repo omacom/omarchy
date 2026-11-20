@@ -68,6 +68,12 @@ run_helper "$fr_conf" omarchy_ensure_vconsole_xkb
 assert_xkb "$fr_conf" fr
 pass "French KEYMAP gains XKBLAYOUT=fr"
 
+cz_conf="$scratch/cz.conf"
+printf 'KEYMAP=cz\n' >"$cz_conf"
+run_helper "$cz_conf" omarchy_ensure_vconsole_xkb
+assert_xkb "$cz_conf" cz qwerty
+pass "cz KEYMAP gains XKBLAYOUT=cz XKBVARIANT=qwerty"
+
 # Belgian console keymap maps to XKB be.
 be_conf="$scratch/be.conf"
 printf 'KEYMAP=be-latin1\n' >"$be_conf"
@@ -91,8 +97,8 @@ grep -Fx 'XKBVARIANT=nodeadkeys' "$keep_conf" >/dev/null ||
 pass "existing XKBLAYOUT is not overwritten for ordinary keymaps"
 
 # apply_keyboard rebuilds the UKI after persisting a Latin layout.
-apply=$(sed -n '/^apply_keyboard() {/,/^}/p' "$script")
-[[ -n $apply ]] || fail "apply_keyboard is defined"
+apply=$(sed -n '/^keyboard_xkb_settings() {/,/^}/p; /^apply_keyboard() {/,/^}/p' "$script")
+[[ $apply == *keyboard_xkb_settings* && $apply == *apply_keyboard* ]] || fail "apply_keyboard is defined"
 
 cat >"$scratch/bin/tty" <<'STUB'
 #!/bin/bash
@@ -121,7 +127,7 @@ apply_conf="$scratch/apply.conf"
 : >"$scratch/calls"
 : >"$scratch/log"
 OMARCHY_PATH="$ROOT" OMARCHY_VCONSOLE_CONF="$apply_conf" OMARCHY_KBD_MODEL_MAP="$scratch/kbd-model-map" \
-  LOG_FILE="$scratch/log" CALL_LOG="$scratch/calls" PATH="$scratch/bin:$PATH" \
+  LOG_FILE="$scratch/log" CALL_LOG="$scratch/calls" PATH="$scratch/bin:$ROOT/bin:$PATH" \
   bash -c "
     source '$helpers'
     log_step() { :; }
@@ -143,6 +149,7 @@ mig_conf="$scratch/mig.conf"
 printf 'KEYMAP=fr\n' >"$mig_conf"
 : >"$scratch/calls"
 OMARCHY_PATH="$ROOT" OMARCHY_VCONSOLE_CONF="$mig_conf" OMARCHY_KBD_MODEL_MAP="$scratch/kbd-model-map" \
+  HOME="$scratch/home" XDG_STATE_HOME="$scratch/state" \
   CALL_LOG="$scratch/calls" PATH="$scratch/bin:$ROOT/bin:$PATH" \
   bash -euo pipefail "$migration" >/dev/null
 
@@ -155,6 +162,7 @@ pass "migration fills XKBLAYOUT and rebuilds for Latin keymaps"
 printf 'KEYMAP=fr\nXKBLAYOUT=fr\n' >"$mig_conf"
 : >"$scratch/calls"
 OMARCHY_PATH="$ROOT" OMARCHY_VCONSOLE_CONF="$mig_conf" OMARCHY_KBD_MODEL_MAP="$scratch/kbd-model-map" \
+  HOME="$scratch/home" XDG_STATE_HOME="$scratch/state" \
   CALL_LOG="$scratch/calls" PATH="$scratch/bin:$ROOT/bin:$PATH" \
   bash -euo pipefail "$migration" >/dev/null
 
@@ -188,7 +196,8 @@ OMARCHY_PATH="$ROOT" OMARCHY_VCONSOLE_CONF="$sr_conf" OMARCHY_KBD_MODEL_MAP="$sc
   fail "rs/latin must not be treated as non-Latin" "$(cat "$scratch/non-latin.out")"
 pass "sr-latin KEYMAP gains XKBLAYOUT=rs XKBVARIANT=latin and stays Latin"
 
-# Protected vconsole.conf: setter elevates with sudo.
+# Protected vconsole.conf: setter elevates with sudo. Root ignores a-w.
+if [[ $(id -u) != 0 ]]; then
 prot_dir="$scratch/prot"
 mkdir -p "$prot_dir"
 prot_conf="$prot_dir/vconsole.conf"
@@ -211,3 +220,6 @@ assert_xkb "$prot_conf" fr
 grep -q '^sudo ' "$scratch/sudo-calls" ||
   fail "protected vconsole.conf write must use sudo" "$(cat "$scratch/sudo-calls")"
 pass "omarchy_vconsole_set elevates writes to a protected vconsole.conf"
+else
+  pass "skipping protected vconsole.conf as root"
+fi

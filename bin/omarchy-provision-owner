@@ -683,23 +683,25 @@ apply_keyboard() {
 
   # systemd-firstboot writes an XKB layout only for keymaps in kbd-model-map,
   # and several the form offers are not, so Hyprland would come up in US.
-  if ! grep -q '^XKBLAYOUT=.' /etc/vconsole.conf 2>/dev/null; then
-    keyboard_xkb_settings "$keymap" >>/etc/vconsole.conf 2>>"$LOG_FILE" ||
+  source "$OMARCHY_PATH/install/helpers/keyboard-vconsole.sh"
+  local conf
+  conf=$(omarchy_vconsole_conf)
+  if ! grep -q '^XKBLAYOUT=.' "$conf" 2>/dev/null; then
+    keyboard_xkb_settings "$keymap" >>"$conf" 2>>"$LOG_FILE" ||
       log_step "no XKB layout known for keymap $keymap"
   fi
 
+  # firstboot can leave XKBLAYOUT empty for keymaps with no kbd-model-map row.
+  # Fill it (and force colemak/dvorak variants) before the readback and UKI rebuild.
+  omarchy_ensure_vconsole_xkb
+
   # A clean shell, so nothing this process exported stands in for the file.
-  saved=$(env -i /bin/bash --noprofile --norc -c \
-    '. /etc/vconsole.conf && [[ -n ${XKBLAYOUT:-} ]] && printf %s "${KEYMAP:-}"' 2>>"$LOG_FILE") || saved=""
-  if [[ $saved != "$keymap" ]]; then
-    log_step "/etc/vconsole.conf does not read back as keymap $keymap with an XKB layout"
+  saved=$(env -i OMARCHY_VCONSOLE_CONF="$conf" /bin/bash --noprofile --norc -c \
+    '. "$OMARCHY_VCONSOLE_CONF" && [[ -n ${XKBLAYOUT:-} ]] && printf %s "${KEYMAP:-}"' 2>>"$LOG_FILE") || saved=""
+  if [[ $saved != $keymap ]]; then
+    log_step "$conf does not read back as keymap $keymap with an XKB layout"
     return 1
   fi
-
-  # firstboot can leave XKBLAYOUT empty for keymaps with no kbd-model-map row.
-  # Fill it (and force colemak/dvorak variants) before the UKI rebuild.
-  source "$OMARCHY_PATH/install/helpers/keyboard-vconsole.sh"
-  omarchy_ensure_vconsole_xkb
 
   if ! omarchy_rebuild_boot_keyboard >>"$LOG_FILE" 2>&1; then
     log_step "could not rebuild the UKI after applying keymap $keymap"
