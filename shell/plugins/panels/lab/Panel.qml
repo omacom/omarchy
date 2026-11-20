@@ -315,6 +315,12 @@ Item {
     }
   }
 
+  function chooseFiles() {
+    if (busy || actionProc.running) return
+    close()
+    runCommand("omarchy-lab-transfer", ["pick-to"], "Send files") // i18n: ignore — action label
+  }
+
   function recordViewer() {
     if (busy || actionProc.running) return
     close()
@@ -901,7 +907,7 @@ Item {
                     rowSpacing: Style.space(8)
                     ActionButton { text: I18n.t("lab.hostClipboardGuest"); onClicked: root.runCommand("omarchy-lab-transfer", ["clipboard-to", "--host"], "Send clipboard") } // i18n: ignore — event labels and comparisons are internal English state; display text uses t()
                     ActionButton { text: I18n.t("lab.guestClipboardHost"); onClicked: root.runCommand("omarchy-lab-transfer", ["clipboard-from", "--copy"], "Receive clipboard") } // i18n: ignore — event labels and comparisons are internal English state; display text uses t()
-                    ActionButton { text: I18n.t("lab.chooseFilesGuest"); onClicked: root.runCommand("omarchy-lab-transfer", ["pick-to"], "Send files") } // i18n: ignore — event labels and comparisons are internal English state; display text uses t()
+                    ActionButton { text: I18n.t("lab.chooseFilesGuest"); onClicked: root.chooseFiles() } // i18n: ignore — event labels and comparisons are internal English state; display text uses t()
                     ActionButton { text: I18n.t("lab.guestDownloadsHost"); onClicked: root.runCommand("omarchy-lab-transfer", ["pull-downloads"], "Pull Downloads") } // i18n: ignore — event labels and comparisons are internal English state; display text uses t()
                   }
                 }

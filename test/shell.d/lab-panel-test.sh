@@ -17,6 +17,24 @@ vm.runInContext(workbenchClick, commandContext)
 assertEqual(commandContext.root.command, 'omarchy-lab-vm', 'workbench uses the guest command-string interface')
 assertDeepEqual(Array.from(commandContext.root.args), ['session',commandText], 'workbench preserves its complete shell command as one session argument')
 
+const pickerCalls = []
+const pickerContext = vm.createContext({
+  busy: false,
+  actionProc: { running: false },
+  close() { pickerCalls.push('close') },
+  runCommand(command, args) { pickerCalls.push(command, ...args) }
+})
+const chooseFiles = panel.match(/function chooseFiles\(\) \{[\s\S]*?\n  \}/)[0]
+vm.runInContext(chooseFiles, pickerContext)
+pickerContext.root = pickerContext
+const pickerClick = panel.match(/ActionButton[^\n]*lab.chooseFilesGuest[^\n]*onClicked: ([^\n]+) }/)[1]
+vm.runInContext(pickerClick, pickerContext)
+assertDeepEqual(pickerCalls, ['close', 'omarchy-lab-transfer', 'pick-to'], 'Lab releases panel focus before launching the file picker')
+pickerCalls.length = 0
+pickerContext.busy = true
+vm.runInContext(pickerClick, pickerContext)
+assertDeepEqual(pickerCalls, [], 'Lab keeps the panel open while another action runs')
+
 
 assertDeepEqual(
   Model.parseStatus(''),
