@@ -20,4 +20,7 @@ o.window({ class = "^WebcamOverlay-(small|medium|large)$", title = "^WebcamOverl
   pin = true,
   no_initial_focus = true,
   no_dim = true,
+  -- No compositor border, or it is recorded around the camera. ffplay is
+  -- launched without -noborder so the window stays resizable anyway.
+  border_size = 0,
 })
