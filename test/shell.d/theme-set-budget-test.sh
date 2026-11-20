@@ -127,6 +127,7 @@ run_theme_set() {
     OMARCHY_THEME_SKIP_BACKGROUND=1 \
     OMARCHY_BROWSER_POLICY_DIRS="$sandbox/policy" \
     HUNK_GATE="${HUNK_GATE:-}" \
+    OMARCHY_ORCA_CLI="$sandbox/no-orca-ide" \
     "$ROOT/bin/omarchy-theme-set" "$1" >"$sandbox/theme-set.log" 2>&1
 }
 
