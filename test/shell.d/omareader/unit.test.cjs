@@ -103,7 +103,7 @@ function shippedThemes() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'omareader-test-'));
   try {
     const out = execFileSync(path.join(root, 'bin/omarchy-chromium-omareader-host'), ['--dump'], {
-      env: { ...process.env, HOME: home, OMARCHY_PATH: root, OMAREADER_STATE_DIR: path.join(home, 'state') },
+      env: { ...process.env, HOME: home, OMARCHY_PATH: root },
     });
     const themes = JSON.parse(out).themes;
     const dirs = fs.readdirSync(path.join(root, 'themes')).filter((d) => fs.existsSync(path.join(root, 'themes', d, 'colors.toml')));

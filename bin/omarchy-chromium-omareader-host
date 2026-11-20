@@ -19,8 +19,7 @@ import tomllib
 from pathlib import Path
 
 HOME = Path.home()
-STATE = Path(os.environ.get("OMAREADER_STATE_DIR", HOME / ".local/state/omarchy"))
-CURRENT = STATE / "current"
+CURRENT = HOME / ".local/state/omarchy/current"
 HEX = re.compile(r"^#[0-9a-fA-F]{3,8}$")
 LINE = re.compile(r'^\s*([A-Za-z0-9_]+)\s*=\s*"([^"]*)"')
 
