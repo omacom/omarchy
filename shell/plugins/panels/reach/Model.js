@@ -12,7 +12,7 @@ function text(value) {
 }
 
 function shortName(name) {
-  return String(name || "").split(".")[0].toLowerCase()
+  return String(name || "").trim().split(".")[0].toLowerCase()
 }
 
 function sameHost(a, b) {
@@ -71,8 +71,17 @@ function findPeer(peers, name) {
 }
 
 // The row this machine sees: the arrangement if it's in it, otherwise just itself.
+// One entry per machine. A domain name for this machine is written as `me`,
+// so the row Reach is given matches the name in the status file.
 function ownRow(screens, me) {
-  return indexOf(screens, me) === -1 ? [me] : screens.slice()
+  var source = indexOf(screens, me) === -1 ? [me] : screens
+  var out = []
+  for (var i = 0; i < source.length; i++) {
+    var name = sameHost(source[i], me) ? me : source[i]
+    if (shortName(name) === "") continue
+    if (indexOf(out, name) === -1) out.push(name)
+  }
+  return out
 }
 
 // One tile per machine in the row, left to right. `online` is unknown (null)
