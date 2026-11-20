@@ -2,7 +2,7 @@
 
 ### Chip Apple M1/M2
 
-[Asahi Alarm](https://asahi-alarm.org/) è una versione di Arch per computer Apple M1/M2 costruita sopra [Asahi Linux](https://asahilinux.org/). Con un po' di impegno puoi far funzionare Omarchy sopra di essa. Vedi [la guida creata dagli utenti](https://github.com/omarchy-mac/omarchy-mac).
+[Asahi Alarm](https://asahi-alarm.org/) è una versione di Arch per computer Apple M1/M2 basata su [Asahi Linux](https://asahilinux.org/). Con un po' di impegno puoi farci girare Omarchy. Vedi [la guida creata dagli utenti](https://github.com/omarchy-mac/omarchy-mac).
 
 ### Macchina virtuale Apple
 
@@ -10,11 +10,11 @@ Puoi anche installare Omarchy dentro una VM Parallels. È un procedimento piutto
 
 ### VirtualBox
 
-VirtualBox è un popolare esecutore di VM. [Puoi eseguire Omarchy anche lì dentro](https://github.com/omacom/omarchy/discussions/176). Ma le prestazioni probabilmente non saranno granché.
+VirtualBox è un diffuso programma per macchine virtuali. [Puoi eseguire Omarchy anche lì dentro](https://github.com/omacom/omarchy/discussions/176). Ma le prestazioni probabilmente non saranno granché.
 
 ### VMware Workstation su Windows 11
 
-Un altro popolare esecutore di VM per Windows. [Omarchy è stato configurato anche lì dentro](https://github.com/omacom/omarchy/discussions/572).
+Un altro diffuso programma per macchine virtuali su Windows. [Anche lì dentro qualcuno ha configurato Omarchy](https://github.com/omacom/omarchy/discussions/572).
 
 ### Steam Deck
 

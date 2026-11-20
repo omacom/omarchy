@@ -1,8 +1,8 @@
 # Neovim
 
-[Neovim](https://neovim.io/) è una moderna implementazione [dell'editor vi](<https://en.wikipedia.org/wiki/Vi_(text_editor)>) creato da Bill Joy addirittura nel 1976. È un editor modale dove modalità inserimento e modalità comando sono separate, ed è un po' un superpotere una volta imparato anche solo un sottoinsieme dell'incredibilmente profondo insieme di comandi da tastiera. Ma è anche una bella curva di apprendimento!
+[Neovim](https://neovim.io/) è una moderna implementazione [dell'editor vi](<https://en.wikipedia.org/wiki/Vi_(text_editor)>) creato da Bill Joy addirittura nel 1976. È un editor modale dove modalità inserimento e modalità comando sono separate, e una volta imparata anche solo una parte del suo vastissimo repertorio di comandi da tastiera diventa una specie di superpotere. Ma è anche una bella curva di apprendimento!
 
-Se sei totalmente nuovo alla modifica in stile vim, ti consiglio di guardare [la serie Vim As Your Editor di ThePrimeagen](https://www.youtube.com/watch?v=X6AR2RMB5tE&list=PLm323Lc7iSW_wuxqmKx_xxNtJC_hJbQ7R) su YouTube. Ti insegnerà le basi. Sappi solo che a differenza di editor mainstream più simili tra loro, ti ci vorrà più tempo per raggiungere una competenza di base con vim. Ma una volta fatto, il ritorno è anche maggiore.
+Se non hai mai usato un editor in stile vim, ti consiglio di guardare [la serie Vim As Your Editor di ThePrimeagen](https://www.youtube.com/watch?v=X6AR2RMB5tE&list=PLm323Lc7iSW_wuxqmKx_xxNtJC_hJbQ7R) su YouTube. Ti insegnerà le basi. Sappi solo che a differenza di editor mainstream più simili tra loro, ti ci vorrà più tempo per raggiungere una competenza di base con vim. Ma una volta lì, la ricompensa è ancora più grande.
 
 Ora, Neovim è praticamente infinitamente configurabile. Se vuoi davvero esagerare, puoi creare la tua configurazione Neovim da zero. C'è un ottimo corso di [Typecraft su come impostare Neovim da zero](https://www.youtube.com/watch?v=zHTeCSVAFNY). E [anche ThePrimeagen ne ha uno](https://www.youtube.com/watch?v=w7i4amO_zaE).
 
@@ -12,7 +12,7 @@ Ma Omarchy viene fornito con una configurazione Neovim completa — il pacchetto
 
 Come detto, non ho intenzione di insegnarti vim in questa breve introduzione, ma posso mostrarti alcune basi di LazyVim, e come muoverti.
 
-Per prima cosa, Neovim ha l'idea del tasto leader. È fondamentalmente la porta a tutti i comandi. LazyVim l'ha impostato su `Space`. Quindi premilo semplicemente, aspetta un secondo, e vedrai un sacco di opzioni spiegate in linea in questo modo:
+Per prima cosa, Neovim ha l'idea del tasto leader. È fondamentalmente la porta a tutti i comandi. LazyVim l'ha impostato su `Space`. Premilo, aspetta un secondo e vedrai un sacco di opzioni spiegate in linea in questo modo:
 
 Ecco alcuni comandi di base che uso in continuazione:
 
@@ -24,7 +24,7 @@ Ecco alcuni comandi di base che uso in continuazione:
 - `Shift + L` - Spostati a destra tra le schede aperte.
 - `Space B D` - Chiudi una scheda.
 - `Space B O` - Chiudi tutte le altre schede tranne la corrente.
-- `Space G G` - Avvia LazyGit in un pannello flottante dalla cartella corrente.
+- `Space G G` - Avvia LazyGit in un pannello fluttuante dalla cartella corrente.
 - `Space U W` - Attiva/disattiva ritorno a capo morbido.
 
 Mentre sei nell'albero file (`Space E` per mostrarlo, `Ctrl + W W` per saltarci), puoi aggiungere un nuovo file con `a` o una nuova cartella con `A`. Premi `?` mentre sei nell'albero per vedere tutti i comandi.
@@ -35,7 +35,7 @@ Puoi vedere tutti i comandi possibili sulla [pagina Keymaps di LazyVim](https://
 
 ## Avviare Neovim
 
-Puoi avviare Neovim usando `Super + Shift + N` (la combinazione avvia il tuo editor predefinito, che è Neovim di serie), ma di solito è più facile guidarlo da terminale navigando nella cartella in cui desideri lavorare e digitando `n`. `n` è l'alias di `nvim`, che userà la cartella presente per aprirsi per impostazione predefinita. Puoi aprire un singolo file con `n myfile.txt`.
+Puoi avviare Neovim usando `Super + Shift + N` (la combinazione avvia il tuo editor predefinito, che è Neovim di serie), ma di solito è più comodo avviarlo dal terminale: vai nella cartella in cui vuoi lavorare e digita `n`. `n` è l'alias di `nvim` e, per impostazione predefinita, apre la cartella in cui ti trovi. Puoi aprire un singolo file con `n myfile.txt`.
 
 ## Usare Neovim per modifiche sudo
 

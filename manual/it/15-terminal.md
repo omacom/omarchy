@@ -4,7 +4,7 @@
 
 Se usi Tmux, potrebbe non importarti, ma in caso contrario supportiamo completamente anche _Alacritty_, _Ghostty_ e _Kitty_ come opzioni. Scegli la tua preferenza sotto _Installa > Terminale_ nel menu Omarchy.
 
-Avvii un nuovo terminale usando `Super + Return`. (Questa combinazione punterà automaticamente a qualsiasi Terminale tu abbia installato tramite _Installa > Terminale_, e puoi passare tra i terminali installati sotto _Impostazioni > Predefiniti > Terminale_.)
+Avvii un nuovo terminale usando `Super + Return`. (Questa combinazione punterà automaticamente a qualsiasi terminale tu abbia installato tramite _Installa > Terminale_, e puoi passare tra i terminali installati sotto _Impostazioni > Predefiniti > Terminale_.)
 
 ## Tmux
 
@@ -28,7 +28,7 @@ Puoi anche avviare un secondo agente con `tdl c cx` (opencode + claude) (o sempl
 
  ![tmux-tdl2](images/tmux-tdl2.webp)
 
-C'è anche `tds`, che avvia un quadrato a quattro con l'editor in alto a sinistra, un osservatore diff in diretta in alto a destra, un terminale in basso a sinistra e opencode in basso a destra.
+C'è anche `tds`, che avvia un quadrato a quattro con l'editor in alto a sinistra, un visualizzatore delle differenze in tempo reale in alto a destra, un terminale in basso a sinistra e opencode in basso a destra.
 
 Puoi anche avviare questa configurazione di layout per ogni sottocartella nella cartella corrente usando `tdlm [agent]`, poi navigare usando `alt + 1/2/3/4/5/...`:
 

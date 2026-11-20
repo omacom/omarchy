@@ -4,9 +4,9 @@ Oltre agli strumenti Linux standard, Omarchy include anche una serie di strument
 
 ## fzf
 
-[fzf](https://junegunn.github.io/fzf/) ti offre la ricerca fuzzy dei file tramite l'alias `ff`. Vai in una directory qualsiasi, digita `ff` e potrai trovare in modo fuzzy qualsiasi file in quell'albero, vedendo un'anteprima dei file che stai restringendo sul lato destro.
+[fzf](https://junegunn.github.io/fzf/) ti offre la ricerca fuzzy dei file tramite l'alias `ff`. Vai in una directory qualsiasi, digita `ff` e potrai trovare in modo fuzzy qualsiasi file in quell'albero, con l'anteprima dei risultati sul lato destro.
 
-Puoi usare `Ctrl + R` per usare fzf per cercare in modo fuzzy nella cronologia dei comandi.
+Con `Ctrl + R` puoi usare fzf per cercare in modo fuzzy nella cronologia dei comandi.
 
 Questo strumento è usato anche da Neovim quando digiti `Space Space`.
 
@@ -40,7 +40,7 @@ Il manuale completo è disponibile con `man fd`.
 
 ## bat
 
-[bat](https://github.com/sharkdp/bat) è `cat` con evidenziazione della sintassi, numeri di riga e impaginazione. Esegui `bat somefile.rb` e capirai perché è difficile tornare indietro. Lavora anche silenziosamente per te altrove: è ciò che colora le pagine man e ciò che rende le anteprime in `ff`.
+[bat](https://github.com/sharkdp/bat) è `cat` con evidenziazione della sintassi, numeri di riga e impaginazione. Esegui `bat somefile.rb` e capirai perché è difficile tornare indietro. Lavora anche dietro le quinte: è ciò che colora le pagine man e ciò che rende le anteprime in `ff`.
 
 Il manuale completo è disponibile con `man bat`.
 
@@ -56,6 +56,6 @@ Il manuale completo è disponibile con `man yt-dlp`.
 
 ## try
 
-[try](https://github.com/tobi/try) semplifica la gestione di esperimenti di programmazione con directory contrassegnate dalla data. Tutti gli esperimenti vivono in `~/Work/tries` e puoi accedervi tramite `try`.
+[try](https://github.com/tobi/try) semplifica la gestione di esperimenti di programmazione con directory contrassegnate dalla data. Tutti gli esperimenti stanno in `~/Work/tries` e puoi accedervi tramite `try`.
 
 Omarchy non aggiunge automaticamente la directory `bin/` di un progetto a `PATH`. Esegui gli strumenti locali al progetto di cui ti fidi con un percorso relativo esplicito, come `bin/rails` o `./bin/dev`.
