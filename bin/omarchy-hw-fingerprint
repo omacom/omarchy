@@ -50,8 +50,12 @@ has_kernel_driver() {
 for dev in "$usb_devices_path"/*; do
   # The device's own product descriptor usually names it, e.g. "Goodix
   # Fingerprint USB Device" — driver-independent and vendor-agnostic.
+  # Reading it takes the USB device lock, and a wedged device can hold that
+  # lock forever (fprintd stuck mid-ioctl on a reader that never woke from
+  # suspend). A plain read would then hang every caller, the post-update hook
+  # included, so give up on the name and let the vendor check decide.
   if [[ -r $dev/product ]]; then
-    product=$(<"$dev/product")
+    product=$(timeout --kill-after=1s 1s cat "$dev/product")
     product=${product,,}
     # Elan's match-on-chip readers report "ELAN:ARM-M4" and Fingerprint Cards'
     # report "FPC Sensor Controller" or "FPC L:0000 FW:1425046" — the family or
