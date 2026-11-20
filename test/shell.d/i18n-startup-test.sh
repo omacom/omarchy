@@ -66,7 +66,7 @@ def write_json(path, data):
 
 
 class Probe:
-    def __init__(self, language=None, malformed=False, malformed_english=False):
+    def __init__(self, language=None, malformed=False, malformed_english=False, session_locale='C.UTF-8'):
         self.tmp = tempfile.TemporaryDirectory(prefix='omarchy-i18n-startup-')
         self.path = Path(self.tmp.name)
         self.config = self.path / 'config'
@@ -98,7 +98,7 @@ class Probe:
         self.log_path = self.path / 'quickshell.log'
         self.log = self.log_path.open('w')
         env = os.environ.copy()
-        for key in ('WAYLAND_DISPLAY', 'HYPRLAND_INSTANCE_SIGNATURE', 'DISPLAY'):
+        for key in ('WAYLAND_DISPLAY', 'HYPRLAND_INSTANCE_SIGNATURE', 'DISPLAY', 'LC_ALL', 'LC_TIME', 'LC_MEASUREMENT'):
             env.pop(key, None)
         env.update({
             'OMARCHY_PATH': str(self.path / 'install'), 'OMARCHY_LANGUAGE_FILE': str(self.language),
@@ -107,6 +107,8 @@ class Probe:
             'XDG_CONFIG_HOME': str(self.path / 'home/.config'), 'XDG_CACHE_HOME': str(self.path / 'cache'),
             'XDG_STATE_HOME': str(self.path / 'state'), 'QT_QPA_PLATFORM': 'offscreen',
             'QT_QPA_PLATFORMTHEME': '', 'QT_STYLE_OVERRIDE': 'Fusion', 'QT_QUICK_BACKEND': 'software',
+            # The session's region refines formatLocale, so pin it.
+            'LANG': session_locale,
         })
         self.process = subprocess.Popen(['quickshell', '--no-color', '-p', str(self.config)],
                                         env=env, stdout=self.log, stderr=subprocess.STDOUT)
@@ -158,6 +160,8 @@ try:
     startup('regional plugin catalogs fall back through the base language and English', portuguese, language='pt-BR\n')
     startup('RTL direction and localized digits are ready on the first binding', persian, language='fa\n')
     startup('invalid language selection falls back to English', english, language='not a language\n')
+    startup('an English session in another region formats for that region', dict(english, locale='en-AU'), session_locale='en_AU.UTF-8')
+    startup('a session region of another language leaves the registry locale', danish, language='da\n', session_locale='en_AU.UTF-8')
     startup('missing selected catalogs fall back to English', french_fallback, language='fr\n')
     startup('malformed selected catalogs fall back to English', french_fallback, language='fr\n', malformed=True)
     startup('a malformed English catalog does not hide valid selected translations',
