@@ -72,6 +72,32 @@ store.destroyAll()
 store.put('my.polkit', { dialogVisible: true })
 assert(store.holdsEngineReload(), 'a prompt in an authentication clone also holds an engine reload')
 store.destroyAll()
+
+// A held reload resumes on the services' own change signals instead of a timer.
+function changeSignal() {
+  const handlers = []
+  return { connect: handler => handlers.push(handler), emit: () => handlers.forEach(handler => handler()) }
+}
+let notifications = 0
+let listenerArguments = 0
+store.setStateListener(function() {
+  notifications++
+  listenerArguments += arguments.length
+})
+const lock = { locked: false, lockedChanged: changeSignal(), lockRequestedChanged: changeSignal() }
+const watchedPrompt = { dialogVisible: false, dialogVisibleChanged: changeSignal() }
+store.put('omarchy.lock', lock)
+store.put('omarchy.polkit', watchedPrompt)
+watchedPrompt.dialogVisibleChanged.emit()
+assert(notifications === 1, 'a prompt opening or closing reports a state change')
+lock.lockRequestedChanged.emit()
+lock.lockedChanged.emit()
+assert(notifications === 3, 'a lock request and a lock change each report a state change')
+store.destroy('omarchy.polkit')
+assert(notifications === 4, 'removing an authentication service reports a state change')
+assert(listenerArguments === 0, 'the state listener receives no authentication object')
+store.setStateListener(null)
+store.destroyAll()
 JS
 
 qml_matches "$shell_qml" 'inst\.shell *= *shell\.pluginShellFor\( *manifest *\)' ||

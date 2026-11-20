@@ -17,6 +17,7 @@ function put(id, service) {
   if (services[key] && services[key] !== service && typeof services[key].destroy === "function")
     services[key].destroy()
   services[key] = service
+  watchState(service)
 }
 
 function isTrusted(id) {
@@ -37,6 +38,7 @@ function destroy(id) {
   var service = services[key]
   if (service && typeof service.destroy === "function") service.destroy()
   delete services[key]
+  if (service) notifyStateChanged()
 }
 
 function destroyAll() {
@@ -44,8 +46,27 @@ function destroyAll() {
   for (var i = 0; i < keys.length; i++) destroy(keys[i])
 }
 
-// A scalar query keeps authentication QObjects private to this import.
-// currentlyLocked() reads the lock afresh; its bound `locked` once missed a change.
+// Scalar queries and a no-argument callback keep authentication QObjects
+// private to this import. currentlyLocked() reads the lock afresh; its bound
+// `locked` once missed a change.
+var stateListener = null
+
+function setStateListener(listener) {
+  stateListener = typeof listener === "function" ? listener : null
+}
+
+function notifyStateChanged() {
+  if (stateListener) stateListener()
+}
+
+function watchState(service) {
+  var signals = ["lockedChanged", "lockRequestedChanged", "dialogVisibleChanged"]
+  for (var i = 0; i < signals.length; i++) {
+    var changed = service[signals[i]]
+    if (changed && typeof changed.connect === "function") changed.connect(notifyStateChanged)
+  }
+}
+
 function hasActiveLock() {
   var keys = ids()
   for (var i = 0; i < keys.length; i++) {
