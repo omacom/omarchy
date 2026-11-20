@@ -42,7 +42,9 @@ plugins=$(jq -c --argjson installed "$installed" --arg preview_base_url "$previe
              | if type == "array" then . else [] end
              | map(if type == "string" then . elif type == "object" then (.url // .src // .path // "") else "" end)))
          | map(select(type == "string" and length > 0) | preview_url)
-         | unique
+         # Deduplicated without sorting: the order the listing supplies is the
+         # order the previews page through, and its main image comes first.
+         | reduce .[] as $url ([]; if index($url) then . else . + [$url] end)
        )
      }]
 ' <<<"$catalog")

@@ -629,7 +629,10 @@
   "marketplace.close": "Close",
   "marketplace.by": "by %1",
   "marketplace.version": "v%1",
-  "marketplace.stars": "%1 stars",
+  "marketplace.stars": {
+    "one": "%1 star",
+    "other": "%1 stars"
+  },
   "marketplace.badgeInstalled": "Installed",
   "marketplace.badgeInstallable": "Installable",
   "marketplace.badgeManualSetup": "Manual setup",
