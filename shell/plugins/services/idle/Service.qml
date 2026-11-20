@@ -252,6 +252,12 @@ Item {
 
   function attemptSuspend() {
     if (!suspendStillPending(root.suspendGeneration)) return
+    // Like the lock deadline, suspend must resolve activity held during the
+    // screensaver launch grace before it can act on a returned user.
+    if (root.screensaverStartedThisCycle && screensaverLaunchGraceTimer.running && !idleMonitor.isIdle) {
+      root.userReturned()
+      return
+    }
     if (suspendInhibitorCheck.running || suspendProcess.running) {
       deferSuspend("previous-attempt-running")
       return
@@ -267,6 +273,10 @@ Item {
 
   function handleInhibitorCheck(generation, exitCode, exitStatus) {
     if (!suspendStillPending(generation)) return
+    if (root.screensaverStartedThisCycle && screensaverLaunchGraceTimer.running && !idleMonitor.isIdle) {
+      root.userReturned()
+      return
+    }
     if (exitCode !== 0 || exitStatus !== 0 || !root.sleepEventsAvailable || !suspendInhibitorMonitor.isIdle || suspendProcess.running) {
       deferSuspend("inhibitor-or-check-failed")
       return

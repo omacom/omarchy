@@ -56,6 +56,7 @@ const state = vm.createContext({
   suspendInhibitorMonitor: { isIdle: true },
   suspendInhibitorCheck: { running: false },
   suspendProcess: { running: false },
+  screensaverStopProcess: { running: false },
   wakeProcess: { running: false },
   idleEnabled: true,
   idleTimersEnabled: true,
@@ -99,6 +100,29 @@ state.handleIdleChanged()
 assert(!state.suspendTimer.running && !state.suspendPending, 'activity cancels suspend after the lock timer finishes')
 
 state.handleSleepEvent('The name org.freedesktop.login1 is owned by :1.6')
+state.startIdleCycle()
+state.screensaverStartedThisCycle = true
+state.screensaverLaunchGraceTimer.restart()
+state.handleActiveSignal()
+assert(state.suspendPending, 'activity inside screensaver launch grace leaves the decision pending')
+state.attemptSuspend()
+assert(!state.suspendPending && !state.suspendInhibitorCheck.running && !state.suspendProcess.running,
+  'suspend deadline cancels for a returned user inside screensaver launch grace')
+
+state.startIdleCycle()
+state.screensaverStartedThisCycle = true
+state.screensaverLaunchGraceTimer.restart()
+state.idleMonitor.isIdle = true
+state.attemptSuspend()
+const graceGeneration = state.suspendInhibitorCheck.generation
+assert(state.suspendInhibitorCheck.running, 'idle user inside launch grace can start an inhibitor check')
+state.idleMonitor.isIdle = false
+state.handleActiveSignal()
+state.suspendInhibitorCheck.running = false
+state.handleInhibitorCheck(graceGeneration, 0, 0)
+assert(!state.suspendPending && !state.suspendProcess.running,
+  'activity during the inhibitor query cancels suspend inside launch grace')
+
 state.startIdleCycle()
 state.attemptSuspend()
 const staleGeneration = state.suspendInhibitorCheck.generation
