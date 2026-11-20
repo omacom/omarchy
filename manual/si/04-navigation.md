@@ -1,48 +1,48 @@
-# සංචලනය
+# සංචාලනය
 
-Omarchy තුළ සෑම දෙයක්ම සිදුවන්නේ යතුරුපුවරුව හරහායි — _සෑම දෙයක්ම!_ පද්ධතිය මුලින්ම ආරම්භ වන විට, මූසිකය පමණක් භාවිතයෙන් ඔබට වචනාර්ථයෙන්ම කිසිවක් කළ නොහැකිය. නමුත් ඔබට `Super + Space` එබීමෙන් Omarchy Menu එක දිස් කරවාගත හැකි අතර මෙතැනින් සිට ඔබට බොහෝමයක් සෑම දෙයක්ම පාහේ කළ හැකිය.
+Omarchy එකේ හැම දෙයක්ම වෙන්නේ keyboard එක හරහා — _හැම දෙයක්ම!_ පද්ධතිය මුලින්ම පටන් ගන්නකොට, mouse එකෙන් විතරක් ඔබට ඇත්තටම කිසිම දෙයක් කරන්න බැහැ. හැබැයි ඔබට `Super + Space` ඔබලා Omarchy Menu එක පෙන්නගන්න පුළුවන්, මෙතන ඉඳන් ඔබට ඕනෑම දෙයක් වගේ කරන්න පුළුවන්.
 
-නමුත් Omarchy menu එක බොහෝ වේලාවට පද්ධතිය ක්‍රියාත්මක කරන ප්‍රධාන ක්‍රමය වීමට පවා අදහස් කර නැත. අපට ඊට වඩා වේගවත් විය හැකිය! වඩාත්ම වැදගත් යෙදුම් සියල්ලම තනි hotkeys වලට කෙලින්ම බැඳී ඇත. ඔබ `Super + Return` සමඟ terminal එකත් `Super + Shift + Return` සමඟ browser එකත් ආරම්භ කරයි. එකක් පිටුපස එකක් ලෙස උත්සාහ කර බලන්න, එවිට Hyprland's tiling හි මැජික් එක ක්‍රියාවෙන් දැකගත හැකිය:
+හැබැයි Omarchy menu එක වැඩි වෙලාවක් පද්ධතිය ක්‍රියාත්මක කරන ප්‍රධාන ක්‍රමය වෙන්න අදහස් කරලාවත් නැහැ. අපිට ඊට වඩා වේගවත් වෙන්න පුළුවන්! වැදගත්ම applications ඔක්කොම කෙලින්ම තනි hotkeys වලට සම්බන්ධ කරලා තියෙනවා. ඔබ terminal එක පටන් ගන්නේ `Super + Return` වලින්, browser එකක් `Super + Shift + Return` වලින්. එක පිට එක කරලා බලන්න, එතකොට Hyprland tiling එකේ මැජික් එක ක්‍රියාත්මක වෙන හැටි ඔබට පෙනෙයි:
 
  ![navigation-browser-terminal](images/navigation-browser-terminal.webp)
 
-ඉන්පසු ඔබට `Super + J` එබීමෙන් ඒවා එක ළඟ එක වෙනුවට එක මත එක තැබිය හැකිය:
+ඊළඟට ඔබට `Super + J` ඔබලා ඒවා පැත්තෙන් පැත්ත තියෙනවා වෙනුවට එක උඩ එක තියන්න පුළුවන්:
 
  ![navigation-stacked](images/navigation-stacked.webp)
 
-ඒවා නැවත එක ළඟ එක ඇති ස්ථානවලට ගෙන ඒමට `Super + J` නැවත ඔබන්න. ඉන්පසු browser එක මත සිටියදී `Super + Shift + Arrow Right` උත්සාහ කර කවුළු මාරු කර බලන්න.
+`Super + J` ආයෙත් ඔබලා ඒවා පැත්තෙන් පැත්ත තියෙන තැනටම ගේන්න. ඊළඟට browser එකේ ඉන්න ගමන් `Super + Shift + Arrow Right` ඔබලා windows මාරු කරලා බලන්න.
 
-දැන් Activity monitor එක ආරම්භ කිරීමට `Super + Shift + T` උත්සාහ කරන්න. එය පාවෙන කවුළුවක් ලෙස දිස් වේ. ඔබට `Super + T` භාවිතයෙන් එය tile කළ හැකිය (එය නැවත ඔබා එය නැවත පාවෙන ලෙස සකසන්න). දැන් files manager එක විවෘත කිරීමට `Super + Shift + F` ඔබන්න. ඔබට පිළිවෙළකට ඇති හතර-අත සැකසුමක් ලැබෙනු ඇත:
+දැන් `Super + Shift + T` ඔබලා Activity monitor එක පටන් ගන්න. ඒක floating window එකක් විදියට පෙනෙයි. ඔබට `Super + T` පාවිච්චි කරලා ඒක tile කරන්න පුළුවන් (ඒක ආයෙත් floating කරන්න ඒකම ආයෙත් ඔබන්න). දැන් `Super + Shift + F` ඔබලා file manager එක අරින්න. ඔබට ලස්සන four-way setup එකක් ලැබෙයි:
 
  ![navigation-fourway-tiling](images/navigation-fourway-tiling.webp)
 
-ඔබට සක්‍රිය වීමට අවශ්‍ය කවුළුව අතර සංචලනය කරන්නේ `Super + Arrow` සමඟිනි. මෙය focus එක මාරු කර cursor එක නව යෙදුමේ මැදට ගෙන යයි. තිරයක කෙළවරේදී, එය එම පැත්තේ ඇති monitor එකට ඉදිරියට යයි.
+ඔබට active කරන්න ඕන window එක අතර සංචාලනය කරන්නේ `Super + Arrow` වලින්. මේකෙන් focus එක මාරු වෙනවා වගේම cursor එක අලුත් application එකේ මැදට යනවා. තිරයක අද්දරදී, ඒක ඒ පැත්තේ තියෙන monitor එකටම දිගටම යනවා.
 
-ඔබ `Super + Shift + 2` එබුවහොත්, දැනට focused යෙදුම දෙවන workspace එකට ගෙන යනු ඇත. `Super + Shift + 1` එය ආපසු ගෙන එයි. (ඒ වගේම `Super + Shift + Alt + 2` මඟින් දැනට focused යෙදුම එයට මාරු නොවී දෙවන workspace එකට ගෙන යනු ඇත).
+ඔබ `Super + Shift + 2` එබුවොත්, දැන් focus වෙලා තියෙන application එක දෙවෙනි workspace එකට යනවා. `Super + Shift + 1` ඒක ආපහු ගේනවා. (සහ `Super + Shift + Alt + 2` දැන් focus වෙලා තියෙන application එක ඒකට මාරු නොවී දෙවෙනි workspace එකට යවනවා).
 
-monitor එකකට වැඩිය ඇති විට, සෑම monitor එකකටම තමාගේම workspaces 1 සිට 10 දක්වා ඇත. `Super + 2` ඔබ සිටින monitor එකේ දෙවන workspace එකට යයි, සහ සෑම monitor එකකම ඉහළ තීරුව එහිම workspaces සහ එය පෙන්වමින් සිටින එක පෙන්වයි. `Super + Tab` ඔබ සිටින monitor එකේ workspaces හරහා චක්‍රීයව යයි. `Super + Shift + Ctrl + Arrows` ඔබ සිටින කවුළුව එම දිශාවේ ඇති monitor එකට, එය පෙන්වමින් සිටින workspace එකට ගෙන යයි, සහ `Super + Shift + Alt + Arrows` ඔබ සිටින workspace එක එම දිශාවේ ඇති monitor එකට ගෙන යයි, එහිදී එය නිදහස් නම් එම අංකයම ගනියි. ඔබ monitor එකක් ගලවන විට එය එහි workspaces රඳවා ගනියි: ඒවා වෙනත් තිරයක ඒවාට එකතු වේ, එහි දැනටමත් ඇති ඒවාගෙන් පසු අංකනය වේ, සහ monitor එක ආපසු එන විට ඒවායේ පැරණි අංක යටතට ආපසු යයි.
+Monitor එකකට වඩා තියෙනවා නම්, හැම monitor එකකටම තමන්ගේම 1 ඉඳන් 10 දක්වා workspaces තියෙනවා. `Super + 2` ඔබ ඉන්න monitor එකේ දෙවෙනි workspace එකට යනවා, හැම monitor එකකම top bar එක ඒකේම workspaces සහ ඒක පෙන්නන workspace එක පෙන්නනවා. `Super + Tab` ඔබ ඉන්න monitor එකේ workspaces අතර cycle වෙනවා. `Super + Shift + Ctrl + Arrows` ඔබ ඉන්න window එක ඒ දිශාවේ තියෙන monitor එකට, ඒක පෙන්නන workspace එකටම යවනවා, සහ `Super + Shift + Alt + Arrows` ඔබ ඉන්න workspace එක ඒ දිශාවේ තියෙන monitor එකට ගෙනියනවා, එතන ඒක නිදහස් නම් ඒකම අංකය ගන්නවා. Monitor එකක් unplug කළාම ඒක තමන්ගේ workspaces තියාගන්නවා: ඒවා වෙනත් තිරයක ඒවාට එකතු වෙනවා, ඒකේ දැනටමත් තියෙන ඒවාට පස්සේ අංක ලැබිලා, සහ monitor එක ආපහු ආවාම ඒවා තමන්ගේ පරණ අංක යටටම ආපහු යනවා.
 
-ඔබ `Super` අල්ලාගෙන මූසිකය භාවිතයෙන් කවුළුවක් click කළහොත්, එය පිහිටන ස්ථානය නැවත සකස් කිරීමට ඔබට හැකි වේ. ඔබ `Super` අල්ලාගෙන මූසිකයේ දකුණු බොත්තම භාවිතා කළහොත්, ඔබට කවුළුව නිදහසේ resize කළ හැකිය.
+ඔබ `Super` ඔබාගෙන ඉඳලා mouse එකෙන් window එකක් click කළොත්, ඒක තියෙන තැන වෙනස් කරන්න පුළුවන් වෙයි. ඔබ `Super` ඔබාගෙන mouse එකේ right button එක පාවිච්චි කළොත්, ඔබට window එක නිදහසේ resize කරන්න පුළුවන්.
 
-ඔබ කවුළුවක් වසන්නේ `Super + W` හෝ `Super + Q` මතයි (සහ සියලුම කවුළු වසන්නේ `Ctrl + Alt + Delete` මතයි).
+ඔබ window එකක් වහන්නේ `Super + W` හෝ `Super + Q` වලින් (සහ windows ඔක්කොම වහන්නේ `Ctrl + Alt + Delete` වලින්).
 
-ඔබට `Super + F` සමඟ full screen යා හැකිය හෝ `Super + Alt + F` සමඟ පවා සම්පූර්ණ-පළලට (ඉහළ තීරුව තබාගෙන) යා හැකිය හෝ `Super + Ctrl + F` සමඟ කවුළුවක් තුළ full-screen යා හැකිය (YouTube සඳහා හොඳයි!).
+ඔබට `Super + F` වලින් full screen යන්නත් පුළුවන්, නැත්නම් `Super + Alt + F` වලින් (top bar එක තියාගෙන) full-width විතරක් වෙන්නත්, නැත්නම් `Super + Ctrl + F` වලින් window එකක් ඇතුළේ full-screen වෙන්නත් පුළුවන් (YouTube වලට හොඳයි!).
 
 ### Dwindle එදිරිව scrolling layout
 
-Omarchy හි default layout එක dwindle ලෙස හැඳින්වේ. එය ඔබ තනි workspace එකක විවෘත කරන සියලුම කවුළු සෑම විටම දෘශ්‍යමානව තබයි, ඒවා හැකිලීමට සිදු වුවද.
+Omarchy එකේ default layout එකට කියන්නේ dwindle කියලා. ඒක workspace එකක් උඩ ඔබ අරින windows ඔක්කොම හැම වෙලාවෙම පේන විදියට තියනවා, ඒවා පොඩි කරන්න සිද්ධ වුණත් එහෙමයි.
 
  ![navigation-dwindle-layout](images/navigation-dwindle-layout.webp)
 
-නමුත් ඔබට workspace එකක් scrolling layout එකක් බවට හැරවීමටද තෝරාගත හැකිය, එහිදී කවුළු display එකේ දෘශ්‍යමාන කෙළවරෙන් ඔබ්බට එක ළඟ එක පෙළ ගැසී ඇත. ඔබ තනි workspace එකක් `Super + L` හරහා මෙම layout එක බවට හරවයි.
+හැබැයි ඔබට workspace එකක් scrolling layout එකකට හරවන්නත් තෝරගන්න පුළුවන්, එතන windows පැත්තෙන් පැත්ත පෙළගැහිලා තියෙන්නේ display එකේ පේන අද්දරින් එහාටත් යන විදියට. ඔබ තනි workspace එකක් මේ layout එකට හරවන්නේ `Super + L` හරහා.
 
-`Super + L` නැවත එබීමෙන් workspace එක පාවෙන බවට හරවයි, එහිදී කවුළු නිදහසේ එක මත එක වැටෙන අතර ඔබ ඒවා ඔබම ස්ථානගත කරයි, සහ තෙවැනි වර එබීමෙන් එය dwindle වෙත ආපසු ගෙන එයි. `Super + Alt + L` අනෙක් අතට ඒවා හරහා යයි. කොහොමත් පාවෙන කවුළුවක් — ඔබ `Super + T` සමඟ පිටතට ගත් එකක්, හෝ සෑම විටම පාවෙන ලෙස විවෘත වන app එකක් — workspace එක නැවත tiling වෙත යන විට දිගටම පාවෙයි. ඉහළ තීරුව ඔබ සිටින workspace එක එහි layout එක සමඟ සලකුණු කරයි: dwindle සඳහා හතරැස්, scrolling සඳහා රවුමක්, සහ floating සඳහා ත්‍රිකෝණයක්. එම සලකුණ click කිරීමෙන්ද layout එක චක්‍රීයව වෙනස් වේ.
+`Super + L` ආයෙත් එබුවොත් workspace එක floating වෙනවා, එතන windows නිදහසේ එක උඩ එක වැටිලා තියෙනවා, ඔබම ඒවා තියන්න ඕන, තුන්වෙනි සැරේට එබුවොත් ඒක ආපහු dwindle එකට එනවා. `Super + Alt + L` අනිත් අතට ඒවා හරහා යනවා. කොහොමත් floating වෙන window එකක් — ඔබ `Super + T` වලින් pop out කරපු එකක්, නැත්නම් හැම වෙලාවෙම floating විදියට අරින app එකක් — workspace එක ආපහු tiling වලට ගියාමත් floating වෙලම ඉන්නවා. Top bar එක ඔබ ඉන්න workspace එක ඒකේ layout එකෙන් සලකුණු කරනවා: dwindle වලට හතරැස් කොටුවක්, scrolling වලට රවුමක්, සහ floating වලට ත්‍රිකෝණයක්. ඒ සලකුණ click කළාමත් layout එක cycle වෙනවා.
 
  ![navigation-scrolling-layout](images/navigation-scrolling-layout.webp)
 
-තේරීම workspace එකකට එකක් වන අතර, එය රැඳෙයි. එබැවින් ඔබට browsing සඳහා workspace 1 dwindle මතත් code සඳහා workspace 2 scrolling මතත් තබාගත හැකි අතර, restart එකකින් පසුවද ඒවා එම ආකාරයටම ආපසු එනු ඇත.
+තේරීම workspace එකෙන් එකට වෙනස්, ඒක ඒ විදියටම ඉතිරි වෙනවා. ඒ නිසා ඔබට workspace 1 browsing වලට dwindle උඩත්, workspace 2 code වලට scrolling උඩත් තියාගන්න පුළුවන්, restart එකකට පස්සෙත් ඒවා ඒ විදියටම ආපහු එයි.
 
-ඔබට scrolling layout එක default එක ලෙස භාවිතා කිරීමට අවශ්‍ය නම්, ඔබට එය `~/.config/hypr/looknfeel.lua` හි සැකසිය හැකිය:
+Scrolling layout එක default එක විදියට පාවිච්චි කරන්න ඕන නම්, ඔබට ඒක `~/.config/hypr/looknfeel.lua` එකේ set කරන්න පුළුවන්:
 
 ```lua
 hl.config({
@@ -52,40 +52,40 @@ hl.config({
 })
 ```
 
-### පාවෙන workspaces
+### Floating workspaces
 
-පාවෙන workspace එකක් සාම්ප්‍රදායික desktop එකක් මෙන් ක්‍රියා කරයි: කවුළු එක මත එක වැටෙන අතර, ඔබ ඒවාම ගෙන ගොස් size කරයි. සෑම කවුළුවකටම ඔබේ theme එකේ වර්ණවලින් titlebar එකක් ලැබෙන අතර, minimize, maximize, සහ close කිරීමට බොත්තම් ඇත. `Super + M` focused කවුළුවද minimize කරයි. minimize කළ කවුළුවක් dock එකේ බලා සිටියි; එය ආපසු ගෙන ඒමට එහි app එක click කරන්න. කවුළුවක් ඉදිරියට ගෙන ඒමට එය click කරන්න. ඕනෑම කෙළවරකින් හෝ කොනකින් එය resize කරන්න. ඉහළ තීරුව දෘශ්‍යමානව තබාගෙන කවුළුව maximize කිරීමට titlebar එකක් double-click කරන්න, සහ එහි පැරණි size එක ආපසු ලබා ගැනීමට නැවත එසේ කරන්න.
+Floating workspace එකක් සාම්ප්‍රදායික desktop එකක් වගේ වැඩ කරනවා: windows එක උඩ එක වැටෙනවා, ඔබම ඒවා move කරලා size එක හදනවා. හැම window එකකටම ඔබේ theme එකේ පාටින් titlebar එකක් ලැබෙනවා, minimize, maximize, සහ close කරන්න buttons එක්ක. `Super + M` focus වෙලා තියෙන window එකත් minimize කරනවා. Minimize වුණ window එකක් dock එකේ ඉන්නවා; ඒක ආපහු ගේන්න ඒකේ app එක click කරන්න. Window එකක් ඉස්සරහට ගේන්න ඒක click කරන්න. ඕනෑම අද්දරකින් හරි කොනකින් හරි ඒක resize කරන්න. Top bar එක පේන ගමන් window එක maximize කරන්න titlebar එක double-click කරන්න, ඒකේ පරණ size එක ආපහු ගන්න ආයෙත් එහෙම කරන්න. Chrome සහ අනිත් Chromium-based browsers, Disks සහ Document Viewer titlebar එක අතහැරලා ඒ වෙනුවට තමන්ගේම header එක පාවිච්චි කරනවා; `Super + Alt + F` ඒවා maximize කරනවා, සහ `Super + M` ඒවා minimize කරනවා.
 
-පාවෙන workspace එකක් dock එකක්ද පෙන්වයි, ඔබේ pinned apps, ක්‍රියාත්මක වන සියල්ල, සහ apps button එක පිටුපස ඇති සෑම app එකකම grid එකක් සමඟ, එය `Super + Alt + Space` සහ Omarchy menu එකේ _Apps_ ද විවෘත කරයි. grid එකේ app එකක් right-click කරන්න, හෝ `Delete` ඔබන්න, එය uninstall කිරීමට. app එකක් විවෘත කිරීමට, හෝ එහි කවුළුව ඉදිරියට ගෙන ඒමට එය click කරන්න; එහි කවුළු හරහා චක්‍රීයව යාමට නැවත click කරන්න. Middle-click නව කවුළුවක් විවෘත කරයි. icon එකක් dock එක දිගේ ගෙන ගොස් එය ගෙන යන්න; ක්‍රියාත්මක වන app එකක් අනෙක් ඒවා අතරට ඇදගෙන යාමෙන් එය එහි රඳවා ගනියි. app එකක් dock එකේ තබා ගැනීමට, එය ඉවත් කිරීමට, හෝ එය quit කිරීමට right-click කරන්න. dock එක fullscreen කවුළුවකට ඉඩ දී පසෙකට වේ. dock එක වෙනත් කෙළවරකට ගෙන යාමට හෝ pointer එක එහි කෙළවරට ළඟා වන තුරු එය සැඟවී තිබීමට apps button එක right-click කරන්න. ස්ථානය _Appearance > Dock > Dock Position_ යටතේද ඇති අතර, `omarchy dock position left` සහ `omarchy dock autohide on` දෙකම terminal එකකින් සකසයි. ඔබ dock එකේ තබා ගන්නා Apps ඒවා ක්‍රියාත්මක නොවන විට මැකී ගොස් ඇත.
+Floating workspace එකක් dock එකකුත් පෙන්නනවා, ඔබේ pinned apps, run වෙන හැම දෙයක්ම, සහ apps button එක පිටිපස්සේ හැම app එකකම grid එකක් එක්ක, ඒක `Super + Alt + Space` වලිනුත් Omarchy menu එකේ _Apps_ වලිනුත් අරිනවා. Grid එක උඩ app එකක් uninstall කරන්න ඒක right-click කරන්න, නැත්නම් `Delete` ඔබන්න. App එකක් අරින්න, නැත්නම් ඒකේ window එක ඉස්සරහට ගේන්න ඒක click කරන්න; ඒකේ windows අතර cycle වෙන්න ආයෙත් click කරන්න. Files ඔබ ඉන්න workspace එකෙන් window එකක් විතරක් ආපහු ගේනවා, නැත්නම් අලුත් එකක් අරිනවා, සහ Terminal සහ Agent හැම වෙලාවෙම තවත් එකක් පටන් ගන්නවා, හැබැයි minimize වෙච්ච window එකක් මුලින්ම ආපහු එනවා. Middle-click අලුත් window එකක් අරිනවා. Icon එකක් dock එක දිගේ drag කරලා ඒක move කරන්න; run වෙන app එකක් අනිත් ඒවා අතරට drag කළොත් ඒක එතනම ඉතිරි වෙනවා. App එකක් dock එකේ තියාගන්න, ඒකෙන් අයින් කරන්න, නැත්නම් ඒක quit කරන්න right-click කරන්න. Dock එක fullscreen window එකකට ඉඩ දීලා අයින් වෙනවා. Dock එක වෙනත් අද්දරකට ගෙනියන්න, නැත්නම් pointer එක ඒකේ අද්දරට එනකන් ඒක හංගන්න apps button එක right-click කරන්න. ඒ position එක _Appearance > Dock > Dock Position_ යටතෙත් තියෙනවා, සහ `omarchy dock position left` සහ `omarchy dock autohide on` terminal එකකින් දෙකම set කරනවා. ඔබ dock එකේ තියාගන්න apps run නොවෙන වෙලාවට faded වෙලා තියෙනවා.
 
-නව workspaces, සහ `Super + L` සමඟ ඔබ තමාගේම layout එකක් දී නැති ඕනෑම එකක්, default layout එක භාවිතා කරයි. default එක වෙනස් කිරීමෙන් කවුළු නැති සෑම workspace එකක්ම එයට reset වන අතර, කවුළු ඇති එකක් එහි ඇති layout එක තබා ගනියි. dock එකට minimize කළ කවුළුවක් තවමත් එය හැර ගිය workspace එකේ කවුළුවක් ලෙස ගණන් ගනු ලැබේ. එය _Appearance > Workspace Layout_ යටතේ තෝරන්න: Tiling, Scrolling, හෝ Floating. `omarchy-hyprland-workspace-layout-default scrolling` එය terminal එකකින් සකසයි.
+අලුත් workspaces, සහ ඔබ `Super + L` වලින් තමන්ගේම layout එකක් දීලා නැති ඕනෑම එකක්, default layout එක පාවිච්චි කරනවා. Default එක වෙනස් කළොත් windows නැති හැම workspace එකක්ම ඒකට reset වෙනවා, windows තියෙන එකක් තමන්ගේ තියෙන layout එකම තියාගන්නවා. Dock එකට minimize වෙච්ච window එකක් ඒක අතහැරපු workspace එක උඩ window එකක් විදියට තාමත් ගණන් ගන්නවා. ඒක _Appearance > Workspace Layout_ යටතේ තෝරන්න: Tiling, Scrolling, නැත්නම් Floating. `omarchy-hyprland-workspace-layout-default scrolling` terminal එකකින් ඒක set කරනවා.
 
-### කවුළු කාණ්ඩ කිරීම
+### Windows කාණ්ඩ කිරීම
 
-`Super + G` භාවිතයෙන් කවුළු කාණ්ඩ කළ හැකිය. ඔබ කාණ්ඩයකට ඇතුළු වූ පසු, එය සක්‍රියව තිබියදී ඔබ ආරම්භ කරන සෑම කවුළුවක්ම එම කාණ්ඩයට අයත් වේ. ඔබට `Super + Ctrl + Arrow Left/Right` භාවිතයෙන් හෝ අනුපිළිවෙලින් කාණ්ඩ කළ කවුළුවට කෙලින්ම යාමට `Super + Alt + 1/2/3/4` භාවිතයෙන් මෙම කාණ්ඩ කළ කවුළු අතර ගමන් කළ හැකිය.
+Windows `Super + G` පාවිච්චි කරලා group කරන්න පුළුවන්. ඔබ group එකකට ඇතුළු වුණාට පස්සේ, ඒක active වෙලා තියෙන ගමන් ඔබ පටන් ගන්න හැම window එකක්ම ඒ group එකට අයිති වෙනවා. ඔබට මේ group කරපු windows අතර `Super + Ctrl + Arrow Left/Right` පාවිච්චි කරලා, නැත්නම් පිළිවෙළට group කරපු windows වලට කෙලින්ම යන්න `Super + Alt + 1/2/3/4` පාවිච්චි කරලා යන්න පුළුවන්.
 
-ඔබට `Super + Alt + G` සමඟ කවුළුවක් කාණ්ඩයෙන් පිටතට ගෙන යා හැකිය හෝ `Super + G` නැවත එබීමෙන් සම්පූර්ණ කාණ්ඩයම විසුරුවා හැරිය හැකිය. අවසාන වශයෙන්, ඔබට `Super + Alt + Arrows` සමඟ කාණ්ඩයෙන් පිටත ඇති කවුළු එය තුළට ගෙන යා හැකිය.
+ඔබට window එකක් grouping එකෙන් එළියට ගෙනියන්න `Super + Alt + G` වලින් පුළුවන්, නැත්නම් `Super + G` ආයෙත් ඔබලා මුළු group එකම disassemble කරන්න පුළුවන්. අන්තිමට, ඔබට group එකෙන් එළියේ තියෙන windows ඒක ඇතුළට ගෙනියන්න `Super + Alt + Arrows` වලින් පුළුවන්.
 
-### කවුළු පිටතට ගැනීම
+### Windows pop කිරීම
 
-ඔබට `Super + O` සමඟ කවුළුවක් එහි workspace වෙන් කිරීමෙන් පිටතට ගත හැකිය. එය ඔබ යන ඕනෑම workspace එකක ඔබ සමඟ යන පාවෙන කවුළුවක් ලෙස එය pin කරනු ඇත. video players සහ එවැනි දේ සඳහා විශිෂ්ටයි.
+ඔබට window එකක් ඒකේ workspace allocation එකෙන් `Super + O` වලින් pop out කරන්න පුළුවන්. ඒක ඔබ යන ඕනෑම workspace එකකට ඔබ පස්සෙන් එන floating window එකක් විදියට pin වෙනවා. Video players වගේ දේවල් වලට නියමයි.
 
  ![navigation-popped-window](images/navigation-popped-window.webp)
 
-### Scratchpad workspace එක
+### Scratchpad workspace
 
-ඔබ දැනට සිටින ඕනෑම workspace එකක් මත වැටෙන විශේෂ සම්පූර්ණ-ප්‍රමාණයේ scratchpad workspace එකක් ඇත. ඔබ එහි ඇති දේට ප්‍රවේශ වන්නේ `Super + S` භාවිතයෙන් වන අතර, ඔබ `Super + Alt + S` භාවිතයෙන් කවුළු එහි තබයි.
+ඔබ දැන් ඉන්න workspace එක උඩින් වැටෙන විශේෂ full-size scratchpad workspace එකක් තියෙනවා. ඒකේ තියෙන දේට ඔබ access කරන්නේ `Super + S` වලින්, සහ ඔබ windows එතන තියන්නේ `Super + Alt + S` වලින්.
 
-එය වත්මන් workspace එක හැර නොගොස් ඔබට ඉක්මනින් අන්තර් ක්‍රියා කිරීමට අවශ්‍ය controls හෝ terminal එකක් සඳහා හොඳින් ක්‍රියා කරයි.
+දැනට ඉන්න workspace එක අතහරින්නේ නැතුව ඉක්මනට interact කරන්න ඕන controls වලට හරි terminal එකකට හරි ඒක හොඳට වැඩ කරනවා.
 
-### Quake console එක
+### Quake console
 
-අවසාන වශයෙන්, ඔබ දැනට සිටින ඕනෑම workspace එකක් මත පහළට වැටෙන අර්ධ-උස Quake console එකක් ඇත. එය `Super + Grave` සමඟ toggle කරන්න, සහ `Super + Shift + Grave` භාවිතයෙන් එහි කවුළුවක් තබන්න.
+අන්තිමට, ඔබ දැන් ඉන්න workspace එක උඩින් පහළට වැටෙන half-height Quake console එකක් තියෙනවා. ඒක `Super + Grave` වලින් toggle කරන්න, සහ window එකක් එතන තියන්න `Super + Shift + Grave` පාවිච්චි කරන්න.
 
-එය විවෘත වන්නේ ඔබේ default agent එක සූදානම්වය. console එක තනි කවුළුවක් තබාගෙන සිටින අතර, එය තිරය පුරා විහිදෙනවා වෙනුවට මැදට වූ panel එකක් ලෙස පහළට වැටේ. එයට දෙවන app එකක් තබන්න, එවිට එය සම්පූර්ණ පළලට ආපසු යයි, එවිට දෙකට එක ළඟ එක සිටීමට ඉඩ ලැබේ.
+ඒක ඔබේ default agent එක ready වෙලා අරිනවා. Console එකේ තනි window එකක් තියෙන අතරේ, ඒක තිරය පුරා පැතිරෙනවා වෙනුවට මැදට වෙච්ච panel එකක් විදියට පහළට වැටෙනවා. දෙවෙනි app එකක් ඒක උඩ තියන්න, ඒක ආපහු full width එකට යනවා, එතකොට දෙකට පැත්තෙන් පැත්ත ඉන්න ඉඩ තියෙනවා.
 
-කවුළුවක් scratchpad එකෙන් හෝ console එකෙන් ඉවතට ගෙන යාමට, `Super + Shift + 1` වැනි දෙයක් සමඟ එය කෙලින්ම වෙනත් workspace එකකට යවන්න.
+Window එකක් scratchpad එකෙන් හරි console එකෙන් හරි අයින් කරන්න, ඒක `Super + Shift + 1` වගේ දෙයක් වලින් කෙලින්ම වෙනත් workspace එකකට යවන්න.
 
-### පුරුදු වීමට ටිකක් කල් ගත වේ!
+### ටිකක් පුරුදු වෙන්න ඕන!
 
-ඔබේ desktop එකේ මේ ආකාරයට සංචලනය කිරීමට පුරුදු වීමට ටික වේලාවක් ගත වේ, නමුත් ඔබ එය කළ පසු, සාම්ප්‍රදායික mouse-driven desktop අත්දැකීමකට ආපසු යාම අමාරු වනු ඇත!
+මේ විදියට ඔබේ desktop එකේ සංචාලනය කරන්න පුරුදු වෙන්න ටික කාලයක් යනවා, හැබැයි පුරුදු වුණාට පස්සේ, සාම්ප්‍රදායික mouse-driven desktop experience එකකට ආපහු යන්න අමාරු වෙයි!

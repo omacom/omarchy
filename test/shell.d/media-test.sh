@@ -11,6 +11,21 @@ assert(media.isProxyPlayer({ dbusName: 'org.mpris.MediaPlayer2.playerctld' }), '
 assert(media.isProxyPlayer({ desktopEntry: 'playerctld' }), 'media detects playerctld proxy by desktop entry')
 assert(media.hasMetadata({ identity: 'Spotify' }), 'media detects identity metadata')
 assert(media.hasTrackMetadata({ trackTitle: 'Track' }), 'media detects track metadata')
+
+// An idle browser keeps an MPRIS session with only art and length; the bar hides it, so it must not hide a paused track.
+const idleBrowser = { identity: 'Chrome', trackArtUrl: 'file:///tmp/art' }
+const pausedTrack = { identity: 'Cider', trackTitle: 'Song', trackArtist: 'Artist', canPlay: true }
+const withStreams = (...players) => (p) => players.includes(p)
+assert(!media.hasShownTrack(idleBrowser), 'media does not show an art-only player')
+assertEqual(media.idlePlayer([idleBrowser, pausedTrack], null, withStreams(idleBrowser, pausedTrack)), pausedTrack, 'media shows a paused track over an idle browser when both hold streams')
+assertEqual(media.idlePlayer([idleBrowser, pausedTrack], pausedTrack, withStreams(idleBrowser)), pausedTrack, 'media shows the paused track after its player closes its stream')
+assertEqual(media.idlePlayer([idleBrowser, pausedTrack], null, withStreams(idleBrowser)), pausedTrack, 'media shows a paused track over a hidden stream holder')
+assertEqual(media.idlePlayer([idleBrowser, pausedTrack], idleBrowser, withStreams()), idleBrowser, 'media keeps a hidden player the user chose')
+assertEqual(media.idlePlayer([idleBrowser], null, withStreams(idleBrowser)), idleBrowser, 'media falls back to a hidden player when none is shown')
+const otherTrack = { identity: 'Spotify', trackTitle: 'Other', canPlay: true }
+assertEqual(media.idlePlayer([otherTrack, pausedTrack], null, withStreams(otherTrack, pausedTrack)), otherTrack, 'media keeps the first shown stream holder')
+assertEqual(media.idlePlayer([otherTrack, pausedTrack], pausedTrack, withStreams(otherTrack)), otherTrack, 'media still ranks a stream holder above the preference')
+assertEqual(media.idlePlayer([], null, withStreams()), null, 'media selects nothing without players')
 assert(media.playerCanControl({ canGoNext: true }), 'media detects controllable players')
 assert(media.canHandleAction({ canTogglePlaying: true }, 'playPause'), 'media maps playPause capability')
 assert(media.canCycleSource({ identity: 'Spotify', canPlay: true }), 'media detects cycleable sources')

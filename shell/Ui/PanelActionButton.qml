@@ -29,6 +29,8 @@ BorderSurface {
   id: root
 
   property string iconText: ""
+  // An app's own icon in place of the glyph, when it has one.
+  property string iconSource: ""
   // Labels are translated by their English source string (I18n.tr), so
   // a plugin's text follows the picked language without code changes. Set
   // false for user or machine text (a device or host name, an email), or
@@ -76,7 +78,20 @@ BorderSurface {
 
   Behavior on color { ColorAnimation { duration: Style.duration(60) } }
 
+  Image {
+    visible: root.iconSource !== ""
+    anchors.centerIn: parent
+    width: Math.round(root.fontSize * 1.15)
+    height: width
+    sourceSize: Qt.size(width * 2, height * 2)
+    source: root.iconSource
+    fillMode: Image.PreserveAspectFit
+    smooth: true
+    opacity: root.enabled ? 1 : 0.5
+  }
+
   Text {
+    visible: root.iconSource === ""
     textFormat: Text.PlainText
     // Snap to whole pixels so the glyph doesn't round away from the fill's center.
     x: Math.round((root.width - width) / 2)

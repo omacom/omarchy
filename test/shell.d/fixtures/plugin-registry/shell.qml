@@ -499,6 +499,14 @@ ShellRoot {
     root.assertEqual(registry.localPluginIdForPath(registry.pluginsDir + "/acme.clock/BarWidget.qml"), "acme.clock", "installed plugin changes are watched")
     root.assertEqual(registry.localPluginIdForPath(cloneBase + "/.git/index"), "", "plugin git metadata is ignored")
     root.assertEqual(registry.localPluginIdForPath(registry.pluginsDir + "/.clone.abc123/manifest.json"), "", "hidden staging and backup dirs are ignored")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/helper/clock.py"), "dhh.clock", "plugin helper source changes are watched")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/helper/__pycache__/clock.cpython-314.pyc"), "", "python bytecode caches are ignored")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/helper/__pycache__"), "", "creating a bytecode cache dir is ignored")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/helper/__pycache__/clock.cpython-314.pyc.140213"), "", "bytecode written to a temp name before its rename is ignored")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/__pycache__/clock.cpython-314.opt-1.pyc"), "", "a bytecode cache at the plugin root is ignored")
+    root.assertEqual(registry.localPluginIdForPath(registry.pluginsDir + "/acme.pyc"), "acme.pyc", "a plugin dir named like bytecode is still watched")
+    root.assertEqual(registry.localPluginIdForPath(registry.pluginsDir + "/__pycache__"), "__pycache__", "a plugin dir named __pycache__ is still watched")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/.components/Main.qml"), "dhh.clock", "hidden files inside a plugin are still watched")
 
     // A widget that is also a panel keeps a plugins[] record after its bar
     // entry is disabled. Re-enabling must restore the bar entry even though

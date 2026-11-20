@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# On the Lenovo Yoga Slim 7x the lid line glitches whenever the firmware leaves
+# its deepest sleep state. With the lid open that reads as the lid opening and
+# wakes deep suspend within seconds. An open lid has no opening to wait for, so
+# the lid wakes nothing until resume. A closed lid keeps its wakeup.
+
+wakeup=${OMARCHY_YOGA_LID_WAKEUP:-/sys/devices/platform/gpio-keys/power/wakeup}
+marker=${OMARCHY_YOGA_LID_WAKE_MARKER:-/run/omarchy-yoga-slim7x-lid-wake-off}
+
+if [[ $1 == "pre" && ${SYSTEMD_SLEEP_ACTION:-$2} == "suspend" ]]; then
+  lid_closed=$(busctl --timeout=5 get-property org.freedesktop.login1 /org/freedesktop/login1 \
+    org.freedesktop.login1.Manager LidClosed 2>/dev/null || true)
+  if [[ $lid_closed == "b false" && $(cat "$wakeup" 2>/dev/null) == "enabled" ]]; then
+    echo disabled >"$wakeup"
+    touch "$marker"
+  fi
+elif [[ $1 == "post" && -e $marker ]]; then
+  echo enabled >"$wakeup"
+  rm -f "$marker"
+fi
