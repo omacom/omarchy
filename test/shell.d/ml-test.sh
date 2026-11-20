@@ -200,19 +200,55 @@ rocm_plan=$("$ROOT/bin/omarchy-install-ml-gpu" --print-plan rocm)
   fail "rocm install names the userland and the check" "$rocm_plan"
 pass "gpu install refuses to claim success before the card answers"
 
-"$ROOT/bin/omarchy-ml-models" >/dev/null
+ollama_bin="$test_tmp/ollama-bin"
+ollama_dropin="$test_tmp/ollama.conf"
+ollama_service_log="$test_tmp/ollama-service"
+mkdir -p "$ollama_bin"
+cat > "$ollama_bin/systemctl" <<'SH'
+#!/bin/bash
+[[ $1 == "cat" && $2 == "ollama.service" ]]
+SH
+cat > "$ollama_bin/sudo" <<'SH'
+#!/bin/bash
+case "$*" in
+  "mkdir -p /etc/systemd/system/ollama.service.d" | "chgrp ollama "* | "chmod 755 "*)
+    ;;
+  "tee /etc/systemd/system/ollama.service.d/omarchy-models.conf")
+    cat > "$OMARCHY_TEST_OLLAMA_DROPIN"
+    ;;
+  "systemctl try-reload-or-restart ollama.service")
+    printf '%s\n' "$*" >> "$OMARCHY_TEST_OLLAMA_SERVICE_LOG"
+    ;;
+  *)
+    printf 'Unexpected sudo call: %s\n' "$*" >&2
+    exit 1
+    ;;
+esac
+SH
+chmod +x "$ollama_bin/systemctl" "$ollama_bin/sudo"
+
+run_ollama_helper() {
+  OMARCHY_TEST_OLLAMA_DROPIN="$ollama_dropin" OMARCHY_TEST_OLLAMA_SERVICE_LOG="$ollama_service_log" \
+    PATH="$ollama_bin:$ROOT/bin:$PATH" "$ROOT/bin/$1" "${@:2}"
+}
+
+run_ollama_helper omarchy-ml-models >/dev/null
 [[ -d $HOME/models ]] || fail "models directory is created"
 mkdir -p "$HOME/.cache/huggingface"
-if "$ROOT/bin/omarchy-ml-models" --link >"$test_tmp/link.err" 2>&1; then
+if run_ollama_helper omarchy-ml-models --link >"$test_tmp/link.err" 2>&1; then
   fail "linking refuses to hide a cache that already has a directory"
 fi
 grep -q "mv $HOME/.cache/huggingface" "$test_tmp/link.err" ||
   fail "the refusal tells you how to move the cache"
 [[ -L $HOME/.ollama/models ]] || fail "an empty ollama cache becomes a link into models"
+grep -Fxq "Environment=OLLAMA_MODELS=$HOME/models/ollama" "$ollama_dropin" ||
+  fail "the Ollama service uses the linked models directory"
+[[ $(<"$ollama_service_log") == "systemctl try-reload-or-restart ollama.service" ]] ||
+  fail "linking models requests one Ollama service reload"
 pass "models stay out of the root disk when you ask"
 
 export OMARCHY_ML_DATA_ROOT="$test_tmp/missing-data"
-if "$ROOT/bin/omarchy-ml-data-disk" --print >"$test_tmp/data-missing" 2>&1; then
+if run_ollama_helper omarchy-ml-data-disk --print >"$test_tmp/data-missing" 2>&1; then
   fail "a missing dataset disk is not treated as ready"
 fi
 grep -q "HF_HOME=$test_tmp/missing-data/huggingface" "$test_tmp/data-missing" ||
@@ -221,9 +257,13 @@ grep -q "Mount a second drive" "$test_tmp/data-missing" ||
   fail "the dataset plan says how to mount the drive"
 export OMARCHY_ML_DATA_ROOT="$test_tmp/data"
 mkdir -p "$OMARCHY_ML_DATA_ROOT"
-"$ROOT/bin/omarchy-ml-data-disk" >/dev/null
+run_ollama_helper omarchy-ml-data-disk >/dev/null
 grep -q "OLLAMA_MODELS=$test_tmp/data/models/ollama" "$XDG_CONFIG_HOME/environment.d/omarchy-ml-data.conf" ||
   fail "dataset caches are written for the next login"
+grep -Fxq "Environment=OLLAMA_MODELS=$test_tmp/data/models/ollama" "$ollama_dropin" ||
+  fail "the Ollama service uses the dataset disk"
+[[ $(wc -l < "$ollama_service_log") -eq 2 ]] ||
+  fail "configuring the dataset disk requests another Ollama service reload"
 pass "dataset disk layout points caches at the second drive"
 
 [[ $(OMARCHY_ML_GPU_BUSY=1 "$ROOT/bin/omarchy-ml-long-job" once) == inhibit ]] ||
