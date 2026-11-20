@@ -49,9 +49,11 @@ blobs=()
 repos=()
 while IFS= read -r -d '' file; do
   ggufs+=("$file")
-  blob=$(readlink -f -- "$file") && [[ -f $blob ]] && blobs+=("$blob")
   repo=${file#"$hub"/}
   repo=$hub/${repo%%/*}
+  # Only a blob of the repo's own cache goes: a link the user pointed at a
+  # model kept elsewhere loses the link, never the model.
+  blob=$(readlink -f -- "$file") && [[ -f $blob && $blob == "$(readlink -f -- "$repo/blobs")"/* ]] && blobs+=("$blob")
   [[ " ${repos[*]-} " == *" $repo "* ]] || repos+=("$repo")
 done < <(find "$hub"/models--*/snapshots -name '*.gguf' -print0 2>/dev/null)
 
