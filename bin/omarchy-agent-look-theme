@@ -78,45 +78,47 @@ if mode == "dark" and luminance(bg) > 0.2:
 
 bgdir = os.path.join(theme, "backgrounds")
 images = sorted(
-    name for name in os.listdir(bgdir)
-    if name != "backgrounds.toml" and not name.startswith(("omarchy.", "omarchy@"))
-    and os.path.isfile(os.path.join(bgdir, name))
+  name for name in os.listdir(bgdir)
+  if name != "backgrounds.toml" and not name.startswith(("omarchy.", "omarchy@"))
+  and os.path.isfile(os.path.join(bgdir, name))
 ) if os.path.isdir(bgdir) else []
 if not images:
-    problems.append("no backgrounds (besides omarchy.*) in backgrounds/")
+  problems.append("no backgrounds (besides omarchy.*) in backgrounds/")
 
 render_directory = tempfile.TemporaryDirectory(prefix="look-backgrounds-")
 preview_image = None
 for name in images:
-    image = os.path.abspath(os.path.join(bgdir, name))
-    try:
-        # Resolve SVG image references relative to the background file.
-        if name.lower().endswith(".svg"):
-            rendered = os.path.join(render_directory.name, name + ".png")
-            subprocess.run(["rsvg-convert", "-o", rendered, image], capture_output=True, check=True, timeout=30)
-            image = rendered
-        info = subprocess.run(["magick", image, "-format", "%w %h %[fx:mean] %[fx:standard_deviation]", "info:"],
-                              capture_output=True, text=True, check=True, timeout=30).stdout.split()
-        w, h, mean, sd = int(info[0]), int(info[1]), float(info[2]), float(info[3])
-    except (OSError, subprocess.SubprocessError, ValueError, IndexError):
-        problems.append(f"backgrounds/{name} can't be read as an image")
-        continue
-    if preview_image is None:
-        preview_image = image
-    if w < 1920 or h < 1080:
-        problems.append(f"backgrounds/{name} is {w}x{h}, under 1920x1080, so it will look blurry")
-    if mode == "dark" and mean > 0.65:
-        problems.append(f"backgrounds/{name} is bright (mean {mean:.2f}) for a dark theme; light text on it will be hard to read")
-    if sd < 0.02:
-        problems.append(f"backgrounds/{name} is nearly flat (std dev {sd:.3f}); it looks empty")
+  image = os.path.abspath(os.path.join(bgdir, name))
+  try:
+    # Resolve SVG image references relative to the background file.
+    if name.lower().endswith(".svg"):
+      rendered = os.path.join(render_directory.name, name + ".png")
+      subprocess.run(["rsvg-convert", "-o", rendered, image], capture_output=True, check=True, timeout=30)
+      image = rendered
+    info = subprocess.run(
+      ["magick", image, "-format", "%w %h %[fx:mean] %[fx:standard_deviation]", "info:"],
+      capture_output=True, text=True, check=True, timeout=30
+    ).stdout.split()
+    w, h, mean, sd = int(info[0]), int(info[1]), float(info[2]), float(info[3])
+  except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+    problems.append(f"backgrounds/{name} can't be read as an image")
+    continue
+  if preview_image is None:
+    preview_image = image
+  if w < 1920 or h < 1080:
+    problems.append(f"backgrounds/{name} is {w}x{h}, under 1920x1080, so it will look blurry")
+  if mode == "dark" and mean > 0.65:
+    problems.append(f"backgrounds/{name} is bright (mean {mean:.2f}) for a dark theme; light text on it will be hard to read")
+  if sd < 0.02:
+    problems.append(f"backgrounds/{name} is nearly flat (std dev {sd:.3f}); it looks empty")
 
 W, H = 1280, 720
 mono = subprocess.run(["fc-match", "-f", "%{file}", "monospace"], capture_output=True, text=True).stdout or "DejaVu-Sans-Mono"
 args = ["magick"]
 if preview_image is not None:
-    args += [preview_image, "-resize", f"{W}x{H}^", "-gravity", "center", "-extent", f"{W}x{H}", "-gravity", "NorthWest"]
+  args += [preview_image, "-resize", f"{W}x{H}^", "-gravity", "center", "-extent", f"{W}x{H}", "-gravity", "NorthWest"]
 else:
-    args += ["-size", f"{W}x{H}", f"xc:{c('darker_background', bg)}"]
+  args += ["-size", f"{W}x{H}", f"xc:{c('darker_background', bg)}"]
 
 draw = []
 def rect(x0, y0, x1, y1, fill, stroke=None, width=0):
