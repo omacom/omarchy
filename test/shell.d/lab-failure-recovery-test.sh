@@ -410,7 +410,12 @@ pass "Lab reconciles forwarding after an uplink change and preserves custom rule
   sleep() { :; }
   wl-paste() { cat "$task_tmp/clipboard-${side:-host}"; }
   wl-copy() { cat >"$task_tmp/clipboard-host"; }
-  session_lab() { ( side=guest; eval "$1" ); }
+  session_lab() (
+    side=guest
+    export WAYLAND_DISPLAY=wayland-test
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+    eval "$1"
+  )
   printf 'a multibyte é\n\n' >"$task_tmp/clipboard-expected"
   cp "$task_tmp/clipboard-expected" "$task_tmp/clipboard-host"
   clipboard_to_guest --host --json >"$task_tmp/to-guest"
