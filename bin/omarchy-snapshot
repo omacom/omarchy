@@ -19,6 +19,23 @@ fi
 
 case "$COMMAND" in
 create)
+  # Dual-boot with Windows often leaves the hardware clock in local time, so
+  # Linux boots with a system clock ahead by the UTC offset until NTP corrects
+  # it. A snapshot taken in that window carries a future timestamp;
+  # limine-snapper-sync then hides later snapshots from the Limine menu until
+  # real time catches up (#13367). Wait briefly for NTP before creating.
+  wait_for_clock_sync() {
+    local deadline=$((SECONDS + 15))
+    while ((SECONDS < deadline)); do
+      [[ $(timedatectl show -p NTPSynchronized --value 2>/dev/null) == "yes" ]] && return 0
+      sleep 0.5
+    done
+    return 1
+  }
+  if ! wait_for_clock_sync; then
+    echo -e "\e[33mSystem clock is not NTP-synchronised yet; snapshot times may be wrong until it is.\e[0m" >&2
+  fi
+
   # The description is just a label, so never let it abort the snapshot.
   DESC="$(omarchy-version 2>/dev/null || echo unknown)"
 
