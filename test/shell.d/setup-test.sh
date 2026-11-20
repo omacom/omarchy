@@ -341,6 +341,36 @@ fi
 [[ -z $(ls -A "$work/run") ]] || fail "--wait leaves nothing behind" "$(ls -A "$work/run")"
 pass "--wait answers for its own request: closed, never shown, gone, replaced or refused"
 
+# --- First run shows the tour once, and never fails over it ---
+
+cat >"$stubs/omarchy-launch-setup" <<'SH'
+#!/bin/bash
+echo "omarchy-launch-setup $*" >>"$OMARCHY_TEST_CALLS"
+[[ -z ${OMARCHY_TEST_TOUR_PICKED:-} ]] || printf '%s\n' $OMARCHY_TEST_TOUR_PICKED
+exit ${OMARCHY_TEST_TOUR_STATUS:-0}
+SH
+chmod +x "$stubs/omarchy-launch-setup"
+rm -f "$stubs/omarchy-done"
+marker="$work/home/.local/state/omarchy/done"
+
+tour() {
+  essentials "$@" bash "$ROOT/install/user/first-run/welcome-tour.sh"
+}
+
+tour env OMARCHY_TEST_TOUR_STATUS=1 OMARCHY_TEST_TOUR_PICKED=agent || fail "a tour that could not be shown does not fail first run" "$(<"$work/output")"
+[[ ! -e $marker/agent-setup-invitation ]] || fail "a tour that could not be shown answers nothing"
+tour env OMARCHY_TEST_TOUR_PICKED="layout agent" || fail "first run shows the tour"
+grep -Fxq 'omarchy-launch-setup welcome --wait' "$calls" || fail "a tour that could not be shown is not counted as taken" "$(<"$calls")"
+[[ -e $marker/agent-setup-invitation ]] || fail "an agent picked in the tour answers first run's invitation before it is sent"
+tour env || fail "a tour already taken passes its step"
+[[ ! -s $calls ]] || fail "first run shows the tour once" "$(<"$calls")"
+pass "first run shows the tour once it has been closed, and never fails over one it could not show"
+
+rm -rf "$work/home"
+tour env OMARCHY_TEST_TOUR_PICKED=layout || fail "first run shows the tour"
+[[ ! -e $marker/agent-setup-invitation ]] || fail "a tour that picked no agent leaves first run's invitation to be sent"
+pass "an agent picked in the tour answers first run's invitation, and nothing else does"
+
 # --- Setup opens in a running shell ---
 
 require_quickshell "Setup opening in a running shell"
