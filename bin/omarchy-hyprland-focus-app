@@ -21,10 +21,11 @@ address=$(
   hyprctl clients -j 2>/dev/null |
     jq -r --arg pattern "$app" \
       'def matches($value): ($value // "") | test($pattern; "i");
-       sort_by(.focusHistoryID) |
+       # Windows absent from the focus history report -1; they rank last.
+       sort_by((.focusHistoryID // 0) | if . < 0 then infinite else . end) as $clients |
        first(
-         (.[] | select(matches(.class))),
-         (.[] | select(.initialClass == "org.omarchy.agent" and matches(.initialTitle)))
+         ($clients[] | select(matches(.class))),
+         ($clients[] | select(.initialClass == "org.omarchy.agent" and matches(.initialTitle)))
        ).address // empty'
 )
 
