@@ -25,16 +25,29 @@
 
   // Ops are reported in order as {k: 'd'|'a'|'x', s: sheet index, t, i: top-level rule
   // index}: t 'e' is an in-place edit, 'i'/'r' a top-level insert/delete. A burst beyond
-  // MAX_OPS drops the list ops and falls back to a rescan.
+  // MAX_OPS drops the list ops and falls back to a rescan. Until the flush an op holds its
+  // sheet, not an index: a sheet inserted before it in the same task would shift the index.
   const MAX_OPS = 256;
   let ops = [];
   let overflow = false;
-  const seen = new Set();
+  const seen = new Map(); // sheet → top-level indices with an edit queued
+  let unlocated = false;
   const flushOps = later(() => {
-    const list = overflow ? ops.filter((op) => op.t === 'e' || op.k === 'x') : ops;
+    const list = [];
+    for (const op of ops) {
+      if (!op.sheet) {
+        list.push({ k: 'x' });
+        continue;
+      }
+      if (overflow && op.t !== 'e') continue;
+      // A sheet removed since needs no edit: the scan sees it go.
+      const loc = locate(op.sheet);
+      if (loc) list.push({ k: loc.k, s: loc.s, t: op.t, i: op.i });
+    }
     ops = [];
     overflow = false;
     seen.clear();
+    unlocated = false;
     if (list.length) document.dispatchEvent(new CustomEvent('omareader:edit', { detail: JSON.stringify(list) }));
   });
 
@@ -59,12 +72,18 @@
     while (top && top.parentRule) top = top.parentRule;
     const sheet = top && top.parentStyleSheet;
     if (!sheet) return;
-    const loc = locate(sheet);
-    const op = loc ? { k: loc.k, s: loc.s, t: 'e', i: indexOf.call(sheet.cssRules, top) } : { k: 'x' };
-    const key = `${op.k}|${op.s}|${op.i}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    ops.push(op);
+    if (!locate(sheet)) {
+      if (unlocated) return;
+      unlocated = true;
+      ops.push({ k: 'x' });
+    } else {
+      const i = indexOf.call(sheet.cssRules, top);
+      let queued = seen.get(sheet);
+      if (!queued) seen.set(sheet, (queued = new Set()));
+      if (queued.has(i)) return;
+      queued.add(i);
+      ops.push({ sheet, t: 'e', i });
+    }
     flushOps();
   }
 
@@ -77,7 +96,7 @@
     }
     // Edit indices recorded before this op no longer line up with later ones.
     seen.clear();
-    ops.push({ k: loc.k, s: loc.s, t, i });
+    ops.push({ sheet, t, i });
     flushOps();
   }
 
