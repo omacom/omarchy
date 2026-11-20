@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,9 +38,10 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
+
+За диагностика изпълнете директно `omarchy-debug --no-sudo --print`. Той отпечатва диагностика и записва `/tmp/omarchy-debug.log`, без да изисква sudo, включително при инсталации на пакети, при които `omarchy debug` може да се провали с "Unknown Omarchy command".
 
 И можете да навлезете по-дълбоко във всяка група:
 
@@ -59,4 +60,4 @@ Capture commands — Screenshots and screen recording:
 
 ### Отваряне на менюто от терминала
 
-Менюто на Omarchy също може да се скриптира, което е удобно за вашите собствени клавишни комбинации. `omarchy menu` го отваря в основата, а можете да прескочите директно до всяка точка от дървото, като я назовете: `omarchy menu summon appearance.theme` отива директно до избора на тема, `omarchy menu toggle system` отваря системното меню и го затваря отново, ако вече е отворено, а `omarchy menu close` го прибира.
+Менюто на Omarchy също може да се скриптира, което е удобно за вашите собствени клавишни комбинации. `omarchy menu` го отваря в корена, а можете да прескочите директно до всяка точка в дървото, като я назовете: `omarchy menu summon appearance.theme` отива направо към избора на тема, `omarchy menu toggle system` отваря системното меню и го затваря отново, ако вече е отворено, а `omarchy menu close` го прибира.

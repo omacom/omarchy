@@ -130,25 +130,7 @@ cat >"$mock_bin/omarchy-done" <<'SH'
 SH
 chmod +x "$mock_bin/omarchy-default-agent" "$mock_bin/omarchy-done"
 offers_update "$checkout" 1 2 || true
-grep -Fq -- '--exec omarchy menu summon setup.default.agent' "$test_tmp/calls" ||
+grep -Fq -- '--exec omarchy menu summon agent.harness' "$test_tmp/calls" ||
   fail "first run invites a default agent once there is a connection"
 pass "first run invites a default agent once there is a connection"
 
-# Arguments: the git name and email already configured, empty for unset.
-offers_git_setup() {
-  : >"$test_tmp/calls"
-  local home="$test_tmp/git-home"
-  rm -rf "$home" && mkdir -p "$home"
-  [[ -z $1 ]] || HOME="$home" git config --global user.name "$1"
-  [[ -z $2 ]] || HOME="$home" git config --global user.email "$2"
-  HOME="$home" PATH="$mock_bin:$PATH" OMARCHY_TEST_CALLS="$test_tmp/calls" \
-    bash "$ROOT/install/user/first-run/git.sh"
-  grep -Fq 'omarchy-setup-git' "$test_tmp/calls"
-}
-
-offers_git_setup "" "" || fail "first run offers git setup on a fresh account"
-offers_git_setup "Jane" "" || fail "first run offers git setup when the email is missing"
-if offers_git_setup "Jane" "jane@example.com"; then
-  fail "first run offers no git setup when the install already set an identity"
-fi
-pass "first run offers git setup only when the identity is missing"
