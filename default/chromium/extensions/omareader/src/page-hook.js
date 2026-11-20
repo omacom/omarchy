@@ -188,7 +188,16 @@
     '-webkit-text-stroke', '-webkit-text-stroke-color', 'outline', 'outline-color', 'column-rule', 'column-rule-color',
     ...SIDES.flatMap((side) => [`border${side}`, `border${side}-color`]),
   ];
+  // A mirrored var() shorthand also carries the geometry it resets (background-size,
+  // border widths), so the longhands of these shorthands report as well.
+  const watchedProps = new Set(COLOR_PROPS);
   for (const prop of COLOR_PROPS) {
+    if (prop === 'all') continue;
+    const probe = document.createElementNS('http://www.w3.org/1999/xhtml', 'div').style;
+    setProperty.call(probe, prop, 'initial');
+    for (let i = 0; i < probe.length; i++) watchedProps.add(probe[i]);
+  }
+  for (const prop of watchedProps) {
     if (!CSS.supports(prop, 'inherit')) continue;
     const camel = prop.replace(/^-webkit-/, 'webkit-').replace(/-([a-z])/g, (_, c) => c.toUpperCase());
     const names = [prop, camel];
