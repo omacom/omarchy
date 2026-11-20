@@ -134,11 +134,34 @@
   for (const name of ['addRule', 'removeRule', 'replaceSync']) wrap(CSSStyleSheet.prototype, name, notify);
   wrap(CSSStyleSheet.prototype, 'replace', (_, promise) => promise.then(notify, () => {}));
 
-  // Switching a sheet off or changing its media through the CSSOM touches no attribute.
+  // Switching a sheet off or changing media through the CSSOM touches no attribute.
   wrapSetter(StyleSheet.prototype, 'disabled', notify);
   wrapSetter(window.HTMLStyleElement && HTMLStyleElement.prototype, 'disabled', notify);
-  wrapSetter(window.MediaList && MediaList.prototype, 'mediaText', notify);
-  for (const name of ['appendMedium', 'deleteMedium']) wrap(window.MediaList && MediaList.prototype, name, notify);
+  // A media list does not know its owner, so the page's reads record it: a rule whose
+  // conditions changed is re-rendered, while a sheet's media needs only a rescan.
+  const mediaOwners = new WeakMap();
+  const mediaChanged = (owner) => (window.CSSRule && owner instanceof CSSRule ? edited(owner) : notify());
+  for (const proto of [StyleSheet.prototype, window.CSSMediaRule && CSSMediaRule.prototype, window.CSSImportRule && CSSImportRule.prototype]) {
+    const desc = proto && Object.getOwnPropertyDescriptor(proto, 'media');
+    if (!desc || !desc.get) continue;
+    Object.defineProperty(proto, 'media', {
+      configurable: true,
+      enumerable: desc.enumerable,
+      get() {
+        const list = desc.get.call(this);
+        if (list) mediaOwners.set(list, this);
+        return list;
+      },
+      // `rule.media = '…'` forwards to mediaText.
+      set: desc.set && function (value) {
+        desc.set.call(this, value);
+        mediaChanged(this);
+      },
+    });
+  }
+  const listChanged = (list) => mediaChanged(mediaOwners.get(list));
+  wrapSetter(window.MediaList && MediaList.prototype, 'mediaText', listChanged);
+  for (const name of ['appendMedium', 'deleteMedium']) wrap(window.MediaList && MediaList.prototype, name, listChanged);
 
   // In-place edits of existing rules (inline element styles have no parentRule and are
   // left alone; the isolated script sees those through attribute mutations).
