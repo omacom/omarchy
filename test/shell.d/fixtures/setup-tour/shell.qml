@@ -10,8 +10,8 @@ import "plugins/setup/SetupModel.js" as SetupModel
 // and holds each step to one pick: the card that is marked, the option the
 // picture is of and what Finish would set up. The pointer may light a card,
 // and moves none of those until it clicks. Then what must stay put: the list
-// under a pointer that has just clicked, and the list when the card it was on
-// its way to has lost its mark.
+// under a pointer that has just clicked, the list when the card it was on its
+// way to has lost its mark, and a page's cursor under a pointer at rest.
 ShellRoot {
   id: root
 
@@ -217,6 +217,26 @@ ShellRoot {
 
       [function() {
         root.check(root.list().contentY === 0, "a card that has lost its mark is not scrolled to: the list went to " + root.list().contentY)
+
+        // The pages from their first, which the pointer has not been on yet.
+        card.start("app", "")
+      }, root.settle],
+
+      // A page as Setup opens it, growing in under a pointer at rest on a
+      // row that is not the cursor's.
+      [function() {
+        var over = root.cardFor(root.floating)
+        var spot = root.middle(over)
+        var before = card.cursor
+        card.scale = 0.97
+        pointer.mouseMove(card.parent, spot.x, spot.y)
+        card.scale = 0.985
+        pointer.mouseMove(card.parent, spot.x, spot.y)
+        card.scale = 1
+        pointer.mouseMove(card.parent, spot.x, spot.y)
+        root.check(card.cursor === before && before !== over.flat, "a page growing in under a pointer at rest keeps its cursor: " + card.cursor)
+        pointer.mouseMove(card.parent, spot.x + 6, spot.y)
+        root.check(card.cursor === over.flat, "the cursor goes to the pointer once it moves: " + card.cursor)
       }, 1]
     ]
   }
