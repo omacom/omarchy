@@ -1223,11 +1223,12 @@ entry=$(<"$applications/omarchy-agent-local-qwen-fast.desktop")
   fail "the launcher has its vendor's icon and a window class of its own" "$entry"
 pass "each local model that is set up gets a launcher of its own"
 
-# An image model's launcher opens Fantasi on it, since no agent runs on one.
+# An image model's launcher opens Fantasi on it, since no agent runs on one,
+# and leaves Fantasi's window to Fantasi's own launcher, so it keeps its name.
 jq -c '.models += {"klein": {recipe: "klein", name: "FLUX.2 Klein 4B", vendor: "bfl", kind: "image", unit: "active"}}' "$status_file" >"$status_file.new" && mv "$status_file.new" "$status_file"
 omarchy-agent-local-launchers
 entry=$(<"$applications/omarchy-agent-local-klein.desktop")
-[[ $entry == *$'\nExec=fantasi open --model klein\n'* && $entry == *$'\nStartupWMClass=fantasi\n'* ]] ||
+[[ $entry == *$'\nExec=fantasi open --model klein\n'* && $entry != *'StartupWMClass='* ]] ||
   fail "an image model's launcher opens Fantasi on it" "$entry"
 [[ $entry != *'Exec=omarchy-agent'* ]] || fail "an image model's launcher starts no agent" "$entry"
 pass "an image model's launcher opens Fantasi on it"
