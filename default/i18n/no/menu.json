@@ -1359,5 +1359,11 @@
   },
   "agent.make.game": {
     "label": "Lag et spill"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
   }
 }
