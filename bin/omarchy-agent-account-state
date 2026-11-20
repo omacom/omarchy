@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # omarchy:summary=Read and change the registry of Claude, Codex, and Grok subscription accounts
-# omarchy:args=<registry|home|homes|list|refresh|begin|register|recover|use|rename|remove|mode|link|autoswitch> [provider] [args...]
+# omarchy:args=<registry|home|homes|list|refresh|begin|register|relogin|recover|use|rename|remove|mode|link|autoswitch> [provider] [args...]
 # omarchy:hidden=true
 """The account registry behind `omarchy agent account`.
 
@@ -15,6 +15,10 @@ conversation history, settings and skills stay one set across accounts.
 Each provider's registry is one JSON file beside those homes. It records which
 account is active — the one new sessions start as — how switching happens, and
 display-safe identity. Tokens never enter it and never leave this process.
+
+Claude sessions all start in ~/.claude, which holds the login of the seated
+account; every other Claude login waits in its own home. Switching moves the
+chosen login into ~/.claude, and running sessions follow on their next message.
 """
 
 from __future__ import annotations
@@ -29,6 +33,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +73,10 @@ DEFAULT_THRESHOLD = 95
 RESERVED_IDS = {"next", "add", "claude", "codex", "grok", "primary"}
 SWITCH_MODES = ("manual", "auto")
 LOGIN_RECEIPT = ".omarchy-login.json"
+
+# Providers whose running sessions follow a switch: Claude Code re-reads its
+# credentials when the file changes, while Codex keeps the account it started as.
+SEATED = {"claude"}
 
 
 class AccountError(Exception):
@@ -113,6 +122,21 @@ def claude_account_file(home: Path) -> Path:
   if home == primary_home("claude"):
     return Path.home() / ".claude.json"
   return home / ".claude.json"
+
+
+# Where an account's login waits while another account is seated. The
+# primary's login gets a home of its own the first time it's moved out.
+def store_home(provider: str, account: dict[str, Any]) -> Path:
+  if provider in SEATED and account.get("primary"):
+    return accounts_root() / provider / ".primary"
+  return account_home(provider, account)
+
+
+# Where an account's login is right now.
+def login_home(provider: str, registry: dict[str, Any], account: dict[str, Any]) -> Path:
+  if provider in SEATED:
+    return primary_home(provider) if account["id"] == registry["seated"] else store_home(provider, account)
+  return account_home(provider, account)
 
 
 # --------------------------------------------------------------- identity
@@ -198,7 +222,8 @@ def slug(label: str) -> str:
 
 
 def empty_registry(provider: str) -> dict[str, Any]:
-  return {"active": "main", "switch": "manual", "threshold": DEFAULT_THRESHOLD, "alert": "", "accounts": []}
+  seated = {"seated": ""} if provider in SEATED else {}
+  return {"active": "main", "switch": "manual", "threshold": DEFAULT_THRESHOLD, "alert": "", "held": "", "accounts": []} | seated
 
 
 def primary_entry(provider: str) -> dict[str, Any]:
@@ -223,6 +248,9 @@ def normalized(provider: str, data: Any) -> dict[str, Any]:
     registry["threshold"] = DEFAULT_THRESHOLD
   if not find(registry, registry["active"]):
     registry["active"] = accounts[0]["id"]
+  # A registry from before seating has the primary's login in ~/.claude.
+  if provider in SEATED and not any(a["id"] == registry["seated"] for a in accounts):
+    registry["seated"] = next(a for a in accounts if a.get("primary"))["id"]
   return registry
 
 
@@ -231,6 +259,11 @@ def load(provider: str) -> dict[str, Any]:
 
 
 def save(provider: str, registry: dict[str, Any]) -> None:
+  # The usage collectors read the registry file directly, and need to know
+  # where each login is to read its token.
+  if provider in SEATED:
+    for account in registry["accounts"]:
+      account["login"] = str(login_home(provider, registry, account))
   path = registry_path(provider)
   path.parent.mkdir(parents=True, exist_ok=True)
   os.chmod(path.parent, 0o700)
@@ -379,10 +412,11 @@ def register(provider: str, label: str, pending: Path) -> dict[str, Any]:
     raise AccountError(tr("omarchy-i18n agents.loginUnfinished", "The login didn't finish, so no account was added."))
 
   with Locked(provider, save_on_exit=False) as registry:
+    settle(provider, registry)
     # Each home is asked who it is now, not trusted from when it was added: a
     # `claude auth login` run by hand in ~/.claude changes the primary.
     for account in registry["accounts"]:
-      account.update(identity(provider, account_home(provider, account)))
+      account.update(identity(provider, login_home(provider, registry, account)))
     for account in registry["accounts"]:
       if account.get("accountId") == found["accountId"]:
         shutil.rmtree(pending, ignore_errors=True)
@@ -457,7 +491,7 @@ def recover_home(provider: str, home: Path) -> dict[str, Any] | None:
     entry = receipt.get("entry")
     if not isinstance(entry, dict) or entry.get("home") != str(home) or entry.get("id") != home.name:
       return None
-    if any(identity(provider, account_home(provider, a))["accountId"] == found["accountId"] for a in registry["accounts"]):
+    if any(identity(provider, login_home(provider, registry, a))["accountId"] == found["accountId"] for a in registry["accounts"]):
       # A retry may already have registered this login under another home.
       shutil.rmtree(home)
       return None
@@ -516,6 +550,10 @@ def rename(provider: str, target: str, label: str) -> dict[str, Any]:
       account["home"] = str(account_home(provider, account))
     if registry["active"] == account["id"]:
       registry["active"] = new_id
+    if registry["held"] == account["id"]:
+      registry["held"] = new_id
+    if registry.get("seated") == account["id"]:
+      registry["seated"] = new_id
     registry["alert"] = ""
     account["id"] = new_id
     account["label"] = label
@@ -528,12 +566,16 @@ def rename(provider: str, target: str, label: str) -> dict[str, Any]:
 def refresh(provider: str) -> None:
   recover(provider)
   with Locked(provider) as registry:
+    settle(provider, registry)
     for account in registry["accounts"]:
-      account.update(identity(provider, account_home(provider, account)))
+      account.update(identity(provider, login_home(provider, registry, account)))
 
 
-def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any]]:
+# Makes an account active and, for Claude, moves its login into ~/.claude so
+# running sessions follow; says whether they did, and what held them back.
+def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
   with Locked(provider) as registry:
+    settle(provider, registry)
     previous = active(registry)
     if target == "next":
       ids = [a["id"] for a in registry["accounts"]]
@@ -543,34 +585,274 @@ def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any]]:
       raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
     registry["active"] = account["id"]
     registry["alert"] = ""
-    if not account.get("primary"):
+    # Every caller is a person choosing, so autoswitch mustn't overrule it.
+    registry["held"] = account["id"]
+    followed = follow(provider, registry, account)
+    if provider in SEATED:
+      if not followed["seated"]:
+        prepare_store(provider, account)
+    elif not account.get("primary"):
       link_shared(provider, account_home(provider, account))
-    return previous, account
+    return previous, account, followed
 
 
-# Whether a running session was started in this home. Removing it would pull
-# the login out from under that session, which must never be touched.
-def home_in_use(provider: str, home: Path) -> bool:
+# The processes started in this home, other than this one. Moving or removing
+# its login would pull it out from under them, which must never happen.
+def home_users(provider: str, home: Path) -> list[int]:
   wanted = f"{PROVIDERS[provider]['home_env']}=".encode()
   resolved = home.resolve()
+  users = []
   for environ in Path("/proc").glob("[0-9]*/environ"):
+    pid = int(environ.parent.name)
+    if pid == os.getpid():
+      continue
     try:
       entries = environ.read_bytes().split(b"\0")
     except OSError:
       continue
     for entry in entries:
       if entry.startswith(wanted) and Path(entry[len(wanted):].decode(errors="replace")).resolve() == resolved:
-        return True
-  return False
+        users.append(pid)
+        break
+  return users
+
+
+def home_in_use(provider: str, home: Path) -> bool:
+  return bool(home_users(provider, home))
+
+
+# ----------------------------------------------------------------- seating
+
+
+def label_of(account: dict[str, Any]) -> str:
+  return str(account.get("label") or account["id"])
+
+
+def oauth(home: Path) -> dict[str, Any]:
+  login = (read_json(home / ".credentials.json") or {}).get("claudeAiOauth")
+  return login if isinstance(login, dict) else {}
+
+
+def has_login(home: Path) -> bool:
+  return bool(oauth(home))
+
+
+# An account's own home, ready to hold its login or start a session in. The
+# primary's is made the first time it's needed, with the primary's settings.
+def prepare_store(provider: str, account: dict[str, Any]) -> Path:
+  home = store_home(provider, account)
+  fresh = not home.exists()
+  link_shared(provider, home)
+  if fresh:
+    carry_settings(provider, home)
+  return home
+
+
+# Claude Code's own lock directories, each stale once its mtime is that old: a
+# refresh holds <home>/.oauth_refresh.lock and <home>.lock, a config write ~/.claude.json.lock.
+def claude_locks(homes: list[Path]) -> list[tuple[Path, float]]:
+  locks = []
+  for home in dict.fromkeys(homes):
+    locks += [(home / ".oauth_refresh.lock", 60), (Path(f"{home.resolve()}.lock"), 60)]
+  return locks + [(Path(f"{claude_account_file(primary_home('claude'))}.lock"), 10)]
+
+
+class LockDirs:
+  def __init__(self, locks: list[tuple[Path, float]], wait: float = 15):
+    self.locks = locks
+    self.wait = wait
+    self.held: list[Path] = []
+
+  def __enter__(self) -> None:
+    deadline = time.monotonic() + self.wait
+    try:
+      for path, stale in self.locks:
+        while True:
+          try:
+            path.mkdir()
+            self.held.append(path)
+            break
+          except FileExistsError:
+            pass
+          try:
+            if time.time() - path.stat().st_mtime > stale:
+              path.rmdir()
+              continue
+          except FileNotFoundError:
+            continue
+          except OSError:
+            pass
+          if time.monotonic() > deadline:
+            raise AccountError("A Claude session is renewing its sign-in. Try again in a moment.")
+          time.sleep(0.2)
+    except BaseException:
+      self.__exit__(None, None, None)
+      raise
+
+  def __exit__(self, kind, value, traceback) -> None:
+    for path in reversed(self.held):
+      try:
+        path.rmdir()
+      except OSError:
+        pass
+    self.held = []
+
+
+def write_private(path: Path, text: str) -> None:
+  # A dotfiles symlink stays a symlink; its target is what's replaced.
+  path = path.resolve()
+  fd, tmp = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
+  try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+      handle.write(text)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+  except BaseException:
+    Path(tmp).unlink(missing_ok=True)
+    raise
+
+
+# Refuses an account file that exists but doesn't parse: ~/.claude.json holds
+# far more than the login, and rewriting it from empty would lose the rest.
+def account_config(path: Path) -> dict[str, Any]:
+  if not path.exists():
+    return {}
+  data = read_json(path)
+  if not isinstance(data, dict):
+    raise AccountError(f"{path} can't be read, so no login was moved.")
+  return data
+
+
+def put_login(home: Path, credentials: str, profile: Any) -> None:
+  path = claude_account_file(home)
+  config = account_config(path)
+  if profile is None:
+    config.pop("oauthAccount", None)
+  else:
+    config["oauthAccount"] = profile
+  write_private(home / ".credentials.json", credentials)
+  write_private(path, json.dumps(config, indent=2))
+
+
+# Swaps the target's login into ~/.claude under Claude's locks, so no session
+# refreshes mid-move. Returns the processes holding the target's home, which block it.
+def seat(provider: str, registry: dict[str, Any], target: dict[str, Any]) -> list[int]:
+  if provider not in SEATED or registry["seated"] == target["id"]:
+    return []
+  source = store_home(provider, target)
+  primary = primary_home(provider)
+  users = home_users(provider, source)
+  if users or not has_login(source):
+    return users
+  current = find(registry, registry["seated"])
+  park = prepare_store(provider, current)
+  with LockDirs(claude_locks([primary, source, park])):
+    # A session may have started there while the locks were awaited.
+    users = home_users(provider, source)
+    if users:
+      return users
+    seated_credentials = (primary / ".credentials.json").read_text(encoding="utf-8") if has_login(primary) else ""
+    seated_profile = account_config(claude_account_file(primary)).get("oauthAccount")
+    credentials = (source / ".credentials.json").read_text(encoding="utf-8")
+    profile = account_config(claude_account_file(source)).get("oauthAccount")
+    if seated_credentials:
+      put_login(park, seated_credentials, seated_profile)
+    try:
+      put_login(primary, credentials, profile)
+    except BaseException:
+      # Half a move would leave ~/.claude's token and profile naming two
+      # different accounts. The parked copy is cleared by the next settle.
+      if seated_credentials:
+        put_login(primary, seated_credentials, seated_profile)
+      raise
+    users = home_users(provider, source)
+    if users:
+      if seated_credentials:
+        put_login(primary, seated_credentials, seated_profile)
+      return users
+    registry["seated"] = target["id"]
+    save(provider, registry)
+    # Only now that ~/.claude has it: a login is kept in one place, since a
+    # refresh token works once and a copy left here would die at the next one.
+    (source / ".credentials.json").unlink(missing_ok=True)
+  return []
+
+
+# A move cut short leaves ~/.claude's very token in some home as well: that
+# account is seated, the copy goes, and ~/.claude takes its profile again.
+def settle(provider: str, registry: dict[str, Any]) -> None:
+  if provider not in SEATED:
+    return
+  primary = primary_home(provider)
+  login = oauth(primary)
+  holder = next((a for a in registry["accounts"] if login and oauth(store_home(provider, a)) == login), None)
+  if holder is None:
+    return
+  store = store_home(provider, holder)
+  profile = account_config(claude_account_file(store)).get("oauthAccount")
+  path = claude_account_file(primary)
+  config = account_config(path)
+  if isinstance(profile, dict) and (config.get("oauthAccount") or {}).get("accountUuid") != profile.get("accountUuid"):
+    with LockDirs(claude_locks([])):
+      config = account_config(path)
+      config["oauthAccount"] = profile
+      write_private(path, json.dumps(config, indent=2))
+  # Saved before the copy goes, since the copy is the only other record of
+  # whose token ~/.claude holds, and the command that called this may fail.
+  if registry["seated"] != holder["id"]:
+    registry["seated"] = holder["id"]
+    save(provider, registry)
+  if not home_in_use(provider, store):
+    (store / ".credentials.json").unlink(missing_ok=True)
+
+
+# A Claude account signed in again in a scratch home, installed where its login
+# lives under the same locks as a move, and only if it's the same account.
+def relogin(provider: str, target: str, pending: Path) -> dict[str, Any]:
+  pending = pending.resolve()
+  if provider not in SEATED or pending.parent != (accounts_root() / provider / ".pending").resolve():
+    raise AccountError(f"{pending} is not a pending {PROVIDERS[provider]['name']} login")
+  try:
+    found = identity(provider, pending)
+    if not found["accountId"] or not has_login(pending):
+      raise AccountError(tr("omarchy-i18n agents.signInFailed", "The %1 sign-in didn't finish.", PROVIDERS[provider]["name"]))
+    with Locked(provider) as registry:
+      settle(provider, registry)
+      account = find(registry, target)
+      if not account:
+        raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
+      if account.get("accountId") and account["accountId"] != found["accountId"]:
+        raise AccountError(tr("omarchy-i18n agents.wrongAccount", "That's %1, not %2. Try again, and sign in as %2.", found["email"] or found["accountId"], label_of(account)))
+      home = login_home(provider, registry, account)
+      if home != primary_home(provider):
+        prepare_store(provider, account)
+      with LockDirs(claude_locks([home])):
+        put_login(home, (pending / ".credentials.json").read_text(encoding="utf-8"), account_config(claude_account_file(pending)).get("oauthAccount"))
+      account.update(identity(provider, home))
+      return dict(account)
+  finally:
+    shutil.rmtree(pending, ignore_errors=True)
+
+
+def follow(provider: str, registry: dict[str, Any], account: dict[str, Any]) -> dict[str, Any]:
+  if provider not in SEATED:
+    return {"seated": False, "moved": False, "holders": []}
+  before = registry["seated"]
+  holders = seat(provider, registry, account)
+  running = label_of(find(registry, registry["seated"]))
+  return {"seated": registry["seated"] == account["id"], "moved": registry["seated"] != before, "holders": holders, "running": running}
 
 
 def remove(provider: str, target: str) -> dict[str, Any]:
   with Locked(provider) as registry:
+    settle(provider, registry)
     account = find(registry, target)
     if not account:
       raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
     if account.get("primary"):
-      raise AccountError(f"{account['label']} is the login in {primary_home(provider)}; it can't be removed here.")
+      raise AccountError(f"{account['label']} is the login this machine started with; it can't be removed here.")
+    if provider in SEATED and registry["seated"] == account["id"]:
+      raise AccountError(f"Running {PROVIDERS[provider]['name']} sessions use {account['label']}. Switch to another account first, then remove it.")
     home = account_home(provider, account)
     if home_in_use(provider, home):
       raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses {account['label']}. Quit it first, then remove the account.")
@@ -688,12 +970,19 @@ def duration(delta: dt.timedelta) -> str:
 # checked just now wins, but room comes first. An account within 15 points of
 # the threshold (where the panel starts checking more often) is near its limit
 # however fresh its numbers are.
+#
+# An account chosen by hand is held there however full it is, and nothing is
+# offered or announced about it, until a fresh check sees it under the
+# threshold again; from then on it switches like any other.
 def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, stale: frozenset[str] = frozenset()) -> dict[str, Any] | None:
   threshold = float(registry["threshold"])
   current = active(registry)
   current_peak = peak(usage.get(current["id"]), now)
   if current_peak is None or current_peak < threshold:
-    return {"action": "clear"} if registry.get("alert") else None
+    release = current_peak is not None and current["id"] not in stale and bool(registry.get("held"))
+    return {"action": "clear", "release": release} if registry.get("alert") or release else None
+  if registry.get("held") == current["id"]:
+    return None
 
   candidates = []
   for account in registry["accounts"]:
@@ -769,19 +1058,44 @@ def notify(title: str, body: str, action: list[str] | None = None) -> None:
   subprocess.run(command, check=False)
 
 
+# A switch held back by sessions running in the account's own home completes
+# once they've gone, so running sessions in ~/.claude move to the chosen account.
+def catch_up(provider: str, registry: dict[str, Any]) -> None:
+  if provider not in SEATED:
+    return
+  settle(provider, registry)
+  target = active(registry)
+  if registry["seated"] == target["id"]:
+    return
+  previous = find(registry, registry["seated"])
+  try:
+    moved = follow(provider, registry, target)["moved"]
+  except AccountError:
+    return
+  if moved:
+    notify(
+      tr("omarchy-i18n agents.sessionsUse", "%1 sessions now use %2", PROVIDERS[provider]["name"], label_of(target)),
+      tr("omarchy-i18n agents.runningCaughtUp", "Running sessions on %1 moved over too.", label_of(previous)),
+    )
+
+
 # Returns True when the active account changed.
 def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
   now = now or dt.datetime.now(dt.timezone.utc)
   name = PROVIDERS[provider]["name"]
   with Locked(provider) as registry:
     if len(registry["accounts"]) < 2:
+      registry["held"] = ""
       return False
+    catch_up(provider, registry)
     usage, stale = usage_by_account(provider)
     decision = decide(registry, usage, now, stale)
     if decision is None:
       return False
     if decision["action"] == "clear":
       registry["alert"] = ""
+      if decision["release"]:
+        registry["held"] = ""
       return False
 
     registry["alert"] = decision["alert"]
@@ -800,9 +1114,20 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
     headline = tr("omarchy-i18n agents.atLimit", "%1 is at %2% of a %3 limit", source["label"], round(decision["fromPeak"]), name)
     if decision["action"] == "switch":
       registry["active"] = target["id"]
-      if not target.get("primary"):
+      try:
+        followed = follow(provider, registry, target)
+      except AccountError:
+        followed = {"seated": False}
+      if provider in SEATED:
+        if not followed["seated"]:
+          prepare_store(provider, target)
+      elif not target.get("primary"):
         link_shared(provider, account_home(provider, target))
-      notify(headline, tr("omarchy-i18n agents.switchedBody", "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.", name, target["label"], round(decision["toPeak"]), source["label"]))
+      if followed["seated"]:
+        notify(headline, tr("omarchy-i18n agents.switchedAllBody", "%1 sessions now use %2 (%3%), running ones included.", name, target["label"], round(decision["toPeak"])))
+      else:
+        running = label_of(find(registry, registry["seated"])) if provider in SEATED else source["label"]
+        notify(headline, tr("omarchy-i18n agents.switchedBody", "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.", name, target["label"], round(decision["toPeak"]), running))
       return True
     notify(
       headline,
@@ -825,7 +1150,7 @@ def summary(provider: str, registry: dict[str, Any]) -> dict[str, Any]:
   # Identity is re-read from each home rather than trusted from the registry:
   # a `claude auth login` run by hand in a home changes who it is.
   for account in registry["accounts"]:
-    account.update(identity(provider, account_home(provider, account)))
+    account.update(identity(provider, login_home(provider, registry, account)))
   return {
     "provider": provider,
     "name": PROVIDERS[provider]["name"],
@@ -835,7 +1160,7 @@ def summary(provider: str, registry: dict[str, Any]) -> dict[str, Any]:
     "accounts": [
       {key: account.get(key, "") for key in ("id", "label", "email", "org", "plan", "primary")}
       | {
-        "home": str(account_home(provider, account)),
+        "home": str(login_home(provider, registry, account)),
         "active": account["id"] == registry["active"],
         "signedIn": bool(account.get("accountId")),
       }
@@ -857,18 +1182,25 @@ def main(argv: list[str]) -> int:
       providers = [provider_arg(args)] if args else list(PROVIDERS)
       print(json.dumps([summary(p, load(p)) for p in providers]))
     elif command == "home":
-      # Empty for the primary, so launching it needs no environment at all.
+      # Empty for the primary home, so launching there needs no environment
+      # at all. A Claude account starts in its own home only while its login
+      # couldn't move into ~/.claude.
       provider = provider_arg(args)
       registry = read_json(registry_path(provider))
       if registry:
-        account = active(normalized(provider, registry))
-        if not account.get("primary"):
+        registry = normalized(provider, registry)
+        account = active(registry)
+        if provider in SEATED:
+          if account["id"] != registry["seated"]:
+            print(store_home(provider, account))
+        elif not account.get("primary"):
           print(account_home(provider, account))
     elif command == "homes":
+      # Where each account's login is now, for signing it in again there.
       provider = provider_arg(args)
       registry = load(provider)
       for account in registry["accounts"]:
-        print("\t".join([account["id"], str(account_home(provider, account)), "1" if account["id"] == registry["active"] else "0"]))
+        print("\t".join([account["id"], str(login_home(provider, registry, account)), "1" if account["id"] == registry["active"] else "0", "1" if account.get("primary") else "0"]))
     elif command == "refresh":
       for provider in ([provider_arg(args)] if args else list(PROVIDERS)):
         if registry_path(provider).exists() or (accounts_root() / provider).is_dir():
@@ -884,8 +1216,13 @@ def main(argv: list[str]) -> int:
       print(json.dumps(register(provider, args[1], Path(args[2]))))
     elif command == "use":
       provider = provider_arg(args)
-      previous, account = use(provider, args[1] if len(args) > 1 else "next")
-      print(json.dumps({"previous": previous, "active": account}))
+      previous, account, followed = use(provider, args[1] if len(args) > 1 else "next")
+      print(json.dumps({"previous": previous, "active": account} | followed))
+    elif command == "relogin":
+      provider = provider_arg(args)
+      if len(args) < 3:
+        raise AccountError("relogin <provider> <account> <pending-home>")
+      print(json.dumps(relogin(provider, args[1], Path(args[2]))))
     elif command == "remove":
       provider = provider_arg(args)
       if len(args) < 2:

@@ -140,12 +140,18 @@ Item {
   // Kept until the model is paired again or the shell restarts.
   property var pairFailures: ({})
 
-  function pair(model) {
-    if (pairProcess.running) return
-    var id = model.host + "/" + model.recipe
+  // Forgotten once its output has been read, or when pairing is tried again.
+  function dismissPairFailure(id) {
+    if (!pairFailures[id]) return
     var failures = Object.assign({}, pairFailures)
     delete failures[id]
     pairFailures = failures
+  }
+
+  function pair(model) {
+    if (pairProcess.running) return
+    var id = model.host + "/" + model.recipe
+    dismissPairFailure(id)
     pairingId = id
     // A host already paired for another model is found by its tailnet name
     // too, and connects this one with no SSH.
@@ -299,6 +305,7 @@ Item {
         if (["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
       }
       root.noteReadyModels(parsed.models)
+      root.noteLaunchableModels(parsed.models)
       root.localModel = parsed
     } catch (e) {
       // A missing or partially written file leaves the last good state intact.
@@ -322,6 +329,28 @@ Item {
     for (var next in models)
       if (models[next].unit === "installing") installing[next] = true
     installingModels = installing
+  }
+
+  // A model that is set up has a launcher of its own, which
+  // omarchy-agent-local-launchers draws. omarchy-agent-local runs that after
+  // a setup or a removal it waited for, but a setup started here carries on
+  // in the background, so the launcher is added when the model stops
+  // installing. A setup that finished while the shell wasn't watching gets
+  // its launcher from the first reading; with no models there is nothing to
+  // sync.
+  property string launchableModels: ""
+
+  function noteLaunchableModels(models) {
+    var ids = []
+    for (var id in models)
+      if (models[id].unit !== "installing" && models[id].unit !== "removing") ids.push(id)
+    var key = ids.sort().join("\n")
+    if (key !== launchableModels) syncLaunchers()
+    launchableModels = key
+  }
+
+  function syncLaunchers() {
+    Util.execArgv(["omarchy-agent-local-launchers"])
   }
 
   function notifyModelReady(model) {
