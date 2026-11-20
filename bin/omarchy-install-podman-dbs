@@ -8,7 +8,7 @@ set -euo pipefail
 options=("MySQL" "PostgreSQL" "Redis" "MongoDB" "MariaDB" "MSSQL")
 
 if (( $# == 0 )); then
-  choice=$(printf "%s\n" "${options[@]}" | gum choose --header "$(omarchy-i18n docker.selectDatabase)") || exit 0
+  choice=$(printf "%s\n" "${options[@]}" | gum choose --header "$(omarchy-i18n docker.selectDatabase)") || exit 130
   choices=("$choice")
 else
   choices=("$@")

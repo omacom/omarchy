@@ -26,6 +26,11 @@ fi
 
 # Ensure this platform's default packages are installed
 default_packages=$(omarchy-pkg-defaults)
+# pipewire-jack conflicts with jack and jack2, and --ask 4 below would remove
+# them for it, so a machine that kept either keeps it.
+if omarchy-pkg-present jack2 || omarchy-pkg-present jack; then
+  default_packages=$(grep -vx pipewire-jack <<<"$default_packages")
+fi
 mapfile -t packages <<<"$default_packages"
 # A pending workload migration must keep the real Docker engine and CLI.
 # Its migration installs the compatibility package after transferring data.

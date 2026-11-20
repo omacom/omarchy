@@ -10,6 +10,9 @@ const weather = requireFromRoot('shell/plugins/panels/weather/Model.js')
 assertDeepEqual(weather.parseLocationFile('{"name": "Malibu", "latitude": 34.02577, "longitude": -118.7804}\n'), { name: 'Malibu', latitude: 34.02577, longitude: -118.7804 }, 'weather parses name plus coordinates from weather.json')
 assertDeepEqual(weather.parseLocationFile('{"name": "New York"}'), { name: 'New York', latitude: null, longitude: null }, 'weather parses a name-only weather.json')
 assertDeepEqual(weather.parseLocationFile('{"name": "Malibu", "latitude": 34.02577}'), { name: 'Malibu', latitude: null, longitude: null }, 'weather requires both coordinates')
+assertDeepEqual(weather.parseLocationFile('{"name": "Pole", "latitude": -90, "longitude": 180}'), { name: 'Pole', latitude: -90, longitude: 180 }, 'weather keeps coordinates on the edge of the globe')
+assertDeepEqual(weather.parseLocationFile('{"name": "Nowhere", "latitude": 91, "longitude": 10}'), { name: 'Nowhere', latitude: null, longitude: null }, 'weather drops a latitude off the globe and keeps the name')
+assertDeepEqual(weather.parseLocationFile('{"name": "Nowhere", "latitude": 10, "longitude": 181}'), { name: 'Nowhere', latitude: null, longitude: null }, 'weather drops a longitude off the globe and keeps the name')
 assertDeepEqual(weather.parseLocationFile('not json'), { name: '', latitude: null, longitude: null }, 'weather treats an unparseable weather.json as auto-detect')
 assertDeepEqual(weather.parseLocationFile(''), { name: '', latitude: null, longitude: null }, 'weather treats a missing weather.json as auto-detect')
 
@@ -146,6 +149,17 @@ if weather_location --set "bad" "not,coords" 2>/dev/null; then
   fail "weather location rejects malformed coordinates"
 fi
 pass "weather location rejects malformed coordinates"
+
+weather_location --set "Malibu" "34.02577,-118.7804"
+stored=$(cat "$test_tmp/.local/state/omarchy/settings/weather.json")
+for coords in 91,0 0,-180.01; do
+  if weather_location --set "Nowhere" "$coords" 2>/dev/null; then
+    fail "weather location rejects coordinates off the globe: $coords"
+  fi
+done
+[[ $(cat "$test_tmp/.local/state/omarchy/settings/weather.json") == "$stored" ]] || fail "weather location keeps the stored location when coordinates are off the globe"
+weather_location --set "Pole" "-90,180" || fail "weather location accepts coordinates on the edge of the globe"
+pass "weather location rejects coordinates off the globe"
 
 weather_location --clear
 [[ ! -e "$test_tmp/.local/state/omarchy/settings/weather.json" ]] || fail "weather location clear removes the state file"

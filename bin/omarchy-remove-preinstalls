@@ -54,7 +54,6 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
     libreoffice-fresh \
     pinta \
     obsidian \
-    moonlight-qt \
     podman-desktop \
     podman-tui \
     omacut \
@@ -62,5 +61,6 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
     omacalc \
     omawrite \
     hype \
-    signed
+    signed \
+    fantasi
 fi
