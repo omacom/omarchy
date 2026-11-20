@@ -744,14 +744,21 @@ function autohideEngaged(config, hidden) {
   return isPlainObject(config) && config.autohide === true && hidden !== true
 }
 
+// Whether a reveal slide-in or a closing popout's fade-out is still running,
+// during which the grace timer must not park the bar.
+function autohideTransitionHold(slidingIn, popoutFading) {
+  return slidingIn === true || popoutFading === true
+}
+
 // Whether something still needs the bar out: the pointer on the bar, the
 // pointer on its edge strip, a panel, popup or menu open from a widget on it,
-// or a widget or bar-position drag in flight. Anything else lets the grace
-// timer park it. `dragging` is that drag: the pointer has left the bar looking
-// for a place to drop, so the bar and its drop targets have to stay, and the
-// timer takes over again from whatever the drag leaves behind.
-function autohideHolds(barHovered, edgeHovered, keepOpen, dragging) {
-  return barHovered === true || edgeHovered === true || keepOpen === true || dragging === true
+// a widget or bar-position drag in flight, or an active reveal/popout-fade
+// transition hold. Anything else lets the grace timer park it. `dragging` is
+// that drag: the pointer has left the bar looking for a place to drop, so the
+// bar and its drop targets have to stay, and the timer takes over again from
+// whatever the drag leaves behind.
+function autohideHolds(barHovered, edgeHovered, keepOpen, dragging, transitionHold) {
+  return barHovered === true || edgeHovered === true || keepOpen === true || dragging === true || transitionHold === true
 }
 
 // Whether a panel, popup or menu open from a widget on one screen's bar still
@@ -823,6 +830,7 @@ if (typeof module !== "undefined") {
     withoutClosedWindow: withoutClosedWindow,
     fullscreenOn: fullscreenOn,
     autohideEngaged: autohideEngaged,
+    autohideTransitionHold: autohideTransitionHold,
     autohideHolds: autohideHolds,
     autohidePanelOpenOn: autohidePanelOpenOn,
     autohideCallsOut: autohideCallsOut,

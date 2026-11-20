@@ -1987,18 +1987,41 @@ Item {
     // that into a park instead of leaving the bar out for good.
     readonly property bool keepOpen: root.autohideKeepOpen(screen)
 
+    // Holds the bar out while it slides in (180 ms) or while a closed popout's
+    // full-screen overlay fades out (120 ms), so autohideGrace (150 ms) cannot
+    // park the bar mid-transition. Both intervals go through Style.duration so
+    // reduced-motion mode adds no dead hold.
+    readonly property bool transitionHold: BarModel.autohideTransitionHold(
+      autohideSlideHold.running, autohidePopoutFadeHold.running)
+
     // Whether autohide has this screen's bar out. Hide Bar still wins through
     // autohideEngaged, a real fullscreen window parks it, a drag in flight
-    // holds it, and a panel the user opened holds it: one rule, read here by
-    // the tuck and by the grace timer.
+    // holds it, a transition hold keeps it out while sliding in or while a
+    // closed popout fades, and a panel the user opened holds it: one rule,
+    // read here by the tuck and by the grace timer.
     readonly property bool revealed: BarModel.autohideShows(root.autohideEngaged,
-      BarModel.screenFlag(root.autohideRevealed, screen ? screen.name : "") || barWindow.keepOpen || barWindow.dragActive,
+      BarModel.screenFlag(root.autohideRevealed, screen ? screen.name : "") || barWindow.keepOpen || barWindow.dragActive || barWindow.transitionHold,
       barWindow.underFullscreen)
+
+    onRevealedChanged: {
+      if (barWindow.revealed && root.autohideEngaged) {
+        if (Style.duration(180) > 0) autohideSlideHold.restart()
+      } else {
+        autohideSlideHold.stop()
+        autohidePopoutFadeHold.stop()
+      }
+    }
 
     // A fullscreen window takes the bar away with the flag: the pointer cannot
     // reach the parked bar to leave it, so nothing would clear the flag, and the
     // bar would come back out on its own the moment fullscreen ended.
-    onUnderFullscreenChanged: if (barWindow.underFullscreen) root.setAutohideRevealed(barWindow.screen, false)
+    onUnderFullscreenChanged: {
+      if (barWindow.underFullscreen) {
+        autohideSlideHold.stop()
+        autohidePopoutFadeHold.stop()
+        root.setAutohideRevealed(barWindow.screen, false)
+      }
+    }
 
     // A drag keeps the bar out for as long as it lasts, so its end is what
     // hands the bar back to the grace timer: the pointer may have left it, and
@@ -2008,14 +2031,35 @@ Item {
     // A panel closing while the pointer is elsewhere is the one that would
     // otherwise leave this bar out for good. Read on this window, not through
     // the root: the hold is this screen's, and another screen's panel closing
-    // has nothing to restart here.
-    onKeepOpenChanged: if (barWindow.revealed) autohideGrace.restart()
+    // has nothing to restart here. While a closed popout's full-screen overlay
+    // fades out (120 ms in KeyboardPanel), hold the bar first so the grace
+    // timer runs only after the overlay unmaps.
+    onKeepOpenChanged: {
+      if (!barWindow.keepOpen && root.autohideEngaged && !barWindow.underFullscreen && Style.duration(120) > 0) {
+        autohidePopoutFadeHold.restart()
+      } else if (barWindow.revealed) {
+        autohideGrace.restart()
+      }
+    }
+
+    Timer {
+      id: autohideSlideHold
+      interval: Math.max(1, Style.duration(180))
+      onTriggered: if (barWindow.revealed) autohideGrace.restart()
+    }
+
+    Timer {
+      id: autohidePopoutFadeHold
+      interval: Math.max(1, Style.duration(120))
+      onTriggered: if (barWindow.revealed) autohideGrace.restart()
+    }
 
     // Hides the bar a moment after the pointer leaves both the bar and its edge
-    // strip, unless a panel or a drag still needs it. Single-shot and restarted
-    // by the pointer, not polled: the dock's grace, and nothing runs while the
-    // bar is out and still. The strip is a window of its own and cannot reach
-    // this timer, so its leave arrives through the Connections below.
+    // strip, unless a panel, a drag, or a transition hold still needs it.
+    // Single-shot and restarted by the pointer, not polled: the dock's grace,
+    // and nothing runs while the bar is out and still. The strip is a window of
+    // its own and cannot reach this timer, so its leave arrives through the
+    // Connections below.
     Timer {
       id: autohideGrace
       // Long enough to cross the gap between the bar and its edge strip, no
@@ -2024,7 +2068,7 @@ Item {
       onTriggered: {
         var holds = BarModel.autohideHolds(autohideBarHover.hovered,
           BarModel.screenFlag(root.autohideEdgeHovered, screen ? screen.name : ""), barWindow.keepOpen,
-          barWindow.dragActive)
+          barWindow.dragActive, barWindow.transitionHold)
         if (BarModel.autohideShows(root.autohideEngaged, holds, barWindow.underFullscreen)) return
         root.setAutohideRevealed(barWindow.screen, false)
       }

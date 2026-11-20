@@ -576,6 +576,18 @@ assertEqual(bar.autohideShows(true, bar.autohideHolds(false, false, false, true)
 assertEqual(bar.autohideHolds(false, false, false, false), false, 'the end of the drag lets the bar go')
 assertEqual(bar.autohideShows(true, bar.autohideHolds(false, false, false, true), true), false, 'a fullscreen window still parks the bar under a drag')
 
+// A slide-in or a closing popout's fade holds the bar out so the grace timer
+// cannot park it before the bar finishes arriving or before the popout's
+// full-screen overlay unmaps.
+assertEqual(bar.autohideTransitionHold(true, false), true, 'a slide-in holds the bar out')
+assertEqual(bar.autohideTransitionHold(false, true), true, 'a closing popout fade holds the bar out')
+assertEqual(bar.autohideTransitionHold(true, true), true, 'overlapping slide-in and popout fade hold the bar out')
+assertEqual(bar.autohideTransitionHold(false, false), false, 'no active transition releases the hold')
+assertEqual(bar.autohideHolds(false, false, false, false, true), true, 'a transition hold keeps the bar out')
+assertEqual(bar.autohideHolds(false, false, false, false, false), false, 'ending a transition hold lets the bar go')
+assertEqual(bar.autohideShows(true, bar.autohideHolds(false, false, false, false, true), false), true, 'a transition hold keeps the grace timer from parking the bar')
+assertEqual(bar.autohideShows(true, bar.autohideHolds(false, false, false, false, true), true), false, 'a fullscreen window still parks the bar during a transition hold')
+
 // A panel or menu opened from a widget on the bar holds it out, found by the
 // widget ids the layout shows. A panel is a live item in a slot on one screen's
 // bar, so it holds that bar and no other: the bar answers for its own screen
