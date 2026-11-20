@@ -10,13 +10,13 @@ Your Spotlight or Raycast or Start-menu reflex becomes `Super + Space`. That ope
 
 ### There's no dock and no desktop icons
 
-Nothing to click to launch things, no icons to arrange on the desktop. Apps start from a hotkey (`Super + Return` for the terminal, `Super + Shift + Return` for the browser, and `Super + K` for a list of everything that's mapped) or from the menu. The one persistent piece of UI is [the top bar](05-the-top-bar.md), which covers what the menu bar, system tray, and Notification Center did for you before — and nearly every widget on it does something on left, right, and middle click.
+There's nothing to click to launch things out of the box and no icons to arrange on the desktop. Apps start from a hotkey (`Super + Return` for the terminal, `Super + Shift + Return` for the browser, and `Super + K` for a list of everything that's mapped) or from the menu. The one persistent piece of UI is [the top bar](05-the-top-bar.md), which covers what the menu bar, system tray, and Notification Center did for you before — and nearly every widget on it does something on left, right, and middle click.
 
 ### Windows place themselves
 
 The biggest mindset shift: you don't drag windows around or snap them to screen halves. Open a window and it takes the whole screen. Open a second and they split it. You never fish a window out from under another one, because windows don't overlap.
 
-When you genuinely need a floating window, `Super + T` toggles the active one out of the tiling (and back). But give the tiling a real chance first — it's the heart of the whole thing. [Navigation](04-navigation.md) walks you through it.
+When you genuinely need a floating window, `Super + T` toggles the active one out of the tiling (and back). But give the tiling a real chance first — it's the heart of the whole thing. [Navigation](04-navigation.md) walks you through it. If you'd rather ease into tiling, press `Super + L` twice to turn the workspace layout to floating. Most windows get a traditional titlebar and a dock appears, much like macOS or Windows. Press `Super + L` a third time to go back to tiling.
 
 Workspaces will feel familiar: they're macOS Spaces or Windows virtual desktops, except you'll actually use them, because `Super + 1/2/3/4` jumps straight to one and `Super + Shift + 1/2/3/4` sends the active window there. No animation delay, just instant jumps. This means that you might not even need multiple monitors, if you were used to that before.
 
