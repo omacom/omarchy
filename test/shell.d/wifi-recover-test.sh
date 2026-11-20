@@ -457,3 +457,10 @@ run_loop 2
 grep -qx 'sudo -n /usr/bin/omarchy-restart-wifi --interface wlan0' "$tmp_dir/calls" || fail "wrong adapter confirmed"
 ! grep -q -- '--interface wlan1' "$tmp_dir/calls" || fail "a newly failed sibling borrowed confirmation"
 pass "each adapter must fail its own consecutive confirmation polls"
+
+CONFIRM_CASE=joined
+printf 0 >"$POLL_FILE"
+MAX_RELOADS=1 run_loop 4
+[[ $(grep -c -- '--interface wlan0$' "$tmp_dir/calls") == 1 ]] || fail "the first adapter did not respect its retry limit"
+[[ $(grep -c -- '--interface wlan1$' "$tmp_dir/calls") == 1 ]] || fail "the first adapter exhausted the second adapter's retry budget"
+pass "a later wedge on a second adapter gets its own reload budget"

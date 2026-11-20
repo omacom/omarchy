@@ -26,12 +26,9 @@ MAX_RELOADS=${OMARCHY_WIFI_RECOVER_MAX_RELOADS:-3}
 # nf-md-wifi-sync, escaped so this file reads without a Nerd Font.
 readonly WIFI_GLYPH=$'\U000f16b5'
 
-last_reload=0
-declare -A wedge_streaks=()
+declare -A wedge_streaks=() last_reload=() reloads_this_wedge=()
+declare -A notified_this_wedge=() gave_up_this_wedge=()
 grant_warned=0
-notified_this_wedge=0
-reloads_this_wedge=0
-gave_up_this_wedge=0
 polls=0
 wedged_devices=()
 
@@ -186,76 +183,71 @@ wifi_wedged() {
   local -A next_streaks=()
   if looks_wedged; then
     for dev in "${wedged_devices[@]}"; do
-      count=$((${wedge_streaks[$dev]:-0} + 1))
+      count=${wedge_streaks[$dev]:-0}
+      ((++count))
       next_streaks[$dev]=$count
       if (( count >= CONFIRM_POLLS )); then confirmed+=("$dev"); fi
     done
-    wedge_streaks=()
-    for dev in "${!next_streaks[@]}"; do wedge_streaks[$dev]=${next_streaks[$dev]}; done
-    wedged_devices=("${confirmed[@]}")
-    (( ${#wedged_devices[@]} > 0 ))
-    return
   fi
 
+  # A healthy poll ends only this adapter's episode.
+  for dev in "${!wedge_streaks[@]}"; do
+    if [[ ! -v 'next_streaks[$dev]' ]]; then
+      unset 'last_reload[$dev]' 'reloads_this_wedge[$dev]' 'notified_this_wedge[$dev]' 'gave_up_this_wedge[$dev]'
+    fi
+  done
   wedge_streaks=()
-  notified_this_wedge=0
-  reloads_this_wedge=0
-  gave_up_this_wedge=0
-  return 1
+  for dev in "${!next_streaks[@]}"; do wedge_streaks[$dev]=${next_streaks[$dev]}; done
+  wedged_devices=("${confirmed[@]}")
+  (( ${#wedged_devices[@]} > 0 ))
 }
 
 try_reload() {
-  local now=$EPOCHSECONDS
+  local dev count now recovered=1
 
-  # A reload that did not bring the phy back will not start working on the
-  # twentieth attempt, and unloading a PCI driver every two minutes for the
-  # rest of the session is its own fault. Stop, and say so once -- a red
-  # light nobody is shown is worse than no light at all.
-  if ((MAX_RELOADS > 0 && reloads_this_wedge >= MAX_RELOADS)); then
-    if ((gave_up_this_wedge == 0)); then
-      gave_up_this_wedge=1
-      echo "omarchy-wifi-recover: gave up after $reloads_this_wedge reloads; the radio did not come back" >&2
-      omarchy-notification-send -u critical -g "$WIFI_GLYPH" "$(omarchy-i18n wifiRecovery.failedTitle)" \
-        "$(omarchy-i18n --count "$reloads_this_wedge" wifiRecovery.failedBody "$reloads_this_wedge")" || true
-    fi
-    return 1
-  fi
-
-  if ((now - last_reload < COOLDOWN_SECONDS)); then
-    return 1
-  fi
-
-  if ! sudo_grants_passwordless; then
-    if ((grant_warned == 0)); then
-      echo "omarchy-wifi-recover: passwordless sudo is required for $PACKAGED_RESTART" >&2
-      grant_warned=1
-    fi
-    return 1
-  fi
-
-  # Cool down even on a failed reload so we do not hammer modprobe -r.
-  last_reload=$now
-  reloads_this_wedge=$((reloads_this_wedge + 1))
-
-  local dev recovered=0
   for dev in "${wedged_devices[@]}"; do
-    if timeout "$RESTART_TIMEOUT" sudo -n "$PACKAGED_RESTART" --interface "$dev"; then
-      recovered=1
-    else
+    count=${reloads_this_wedge[$dev]:-0}
+    if (( MAX_RELOADS > 0 && count >= MAX_RELOADS )); then
+      if [[ ! -v 'gave_up_this_wedge[$dev]' ]]; then
+        gave_up_this_wedge[$dev]=1
+        echo "omarchy-wifi-recover: gave up after $count reloads; $dev did not come back" >&2
+        omarchy-notification-send -u critical -g "$WIFI_GLYPH" "$(omarchy-i18n wifiRecovery.failedTitle)" \
+          "$(omarchy-i18n --count "$count" wifiRecovery.failedBody "$count")" || true
+      fi
+      continue
+    fi
+
+    now=$EPOCHSECONDS
+    if (( now - ${last_reload[$dev]:-0} < COOLDOWN_SECONDS )); then
+      continue
+    fi
+
+    if ! sudo_grants_passwordless; then
+      if (( grant_warned == 0 )); then
+        echo "omarchy-wifi-recover: passwordless sudo is required for $PACKAGED_RESTART" >&2
+        grant_warned=1
+      fi
+      return "$recovered"
+    fi
+    grant_warned=0
+
+    # Cool down even if the module reload fails.
+    last_reload[$dev]=$now
+    reloads_this_wedge[$dev]=$((count + 1))
+    if ! timeout "$RESTART_TIMEOUT" sudo -n "$PACKAGED_RESTART" --interface "$dev"; then
       echo "omarchy-wifi-recover: $PACKAGED_RESTART failed for $dev" >&2
+      continue
+    fi
+
+    recovered=0
+    # Reload is not proof the phy came back. One toast per adapter episode.
+    if [[ ! -v 'notified_this_wedge[$dev]' ]]; then
+      omarchy-notification-send -g "$WIFI_GLYPH" "$(omarchy-i18n wifiRecovery.reloadedTitle)" \
+        "$(omarchy-i18n wifiRecovery.reloadedBody)" || true
+      notified_this_wedge[$dev]=1
     fi
   done
-  (( recovered == 1 )) || return 1
-
-  grant_warned=0
-
-  # Reload is not proof the phy came back. One toast per wedge episode.
-  if ((notified_this_wedge == 0)); then
-    omarchy-notification-send -g "$WIFI_GLYPH" "$(omarchy-i18n wifiRecovery.reloadedTitle)" \
-      "$(omarchy-i18n wifiRecovery.reloadedBody)" || true
-    notified_this_wedge=1
-  fi
-  return 0
+  return "$recovered"
 }
 
 if [[ ${1:-} == "--check" ]]; then
