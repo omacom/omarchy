@@ -30,6 +30,7 @@ def override_range(data):
   depth = 0
   replacements = []
   test_string = None
+  test_string_end = None
 
   def declaration(version, encoding, standalone):
     if encoding and encoding.lower() not in ('utf-8', 'utf8', 'ascii', 'us-ascii'):
@@ -50,8 +51,10 @@ def override_range(data):
     depth += 1
 
   def closed(name):
-    nonlocal depth
+    nonlocal depth, test_string_end
     depth -= 1
+    if name == "string" and depth == 3 and test_string_end is None:
+      test_string_end = parser.CurrentByteIndex
     if depth >= 1:
       index = parser.CurrentByteIndex
       replacement = {'match': b'</alias>', 'test': b'',
@@ -98,7 +101,7 @@ def override_range(data):
   if any((item.tail or '').strip() for item in [*node, *test, *edit]):
     return None
   # The first string is the generic tested by the exact legacy rule above.
-  replacements.append((test_string, data.index(b"<", test_string), b"Omarchy Fixed Pitch"))
+  replacements.append((test_string, test_string_end, b"Omarchy Fixed Pitch"))
   # Change only the element wrappers. Text, comments and processing
   # instructions stay in their original order and position within the rule.
   for start, end, replacement in sorted(replacements, reverse=True):
