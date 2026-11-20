@@ -20,6 +20,12 @@ fi
 state="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/ml"
 mkdir -p "$state"
 chmod 700 "$state"
+if [[ -s $state/jupyter.url ]] && timeout 1 bash -c 'echo >/dev/tcp/127.0.0.1/8888' 2>/dev/null; then
+  url=$(<"$state/jupyter.url")
+  omarchy-notification-send "$(omarchy-i18n ml.jupyterTitle)" "$(omarchy-i18n ml.jupyterOpen)"
+  xdg-open "$url"
+  exit 0
+fi
 token=$(openssl rand -hex 8)
 url="http://127.0.0.1:8888/lab?token=$token"
 printf '%s\n' "$url" > "$state/jupyter.url"

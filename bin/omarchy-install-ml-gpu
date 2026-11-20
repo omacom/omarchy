@@ -17,7 +17,7 @@ choice="${1:-${OMARCHY_ML_GPU:-}}"
 if [[ -z $choice ]]; then
   if omarchy-cmd-present nvidia-smi || omarchy-hw-nvidia; then
     choice=nvidia
-  elif omarchy-cmd-present rocminfo || omarchy-cmd-present rocm-smi; then
+  elif omarchy-cmd-present rocminfo || omarchy-cmd-present rocm-smi || omarchy-hw-amd-gpu; then
     choice=rocm
   else
     echo "No NVIDIA or AMD GPU found." >&2
@@ -43,7 +43,7 @@ if ((print_plan)); then
 fi
 
 if [[ $choice == nvidia ]]; then
-  bash "$OMARCHY_PATH/install/hardware/nvidia.sh"
+  sudo bash "$OMARCHY_PATH/install/hardware/nvidia.sh"
   omarchy-pkg-add cuda nvidia-container-toolkit
   if ! nvidia-smi; then
     echo "nvidia-smi did not answer. The driver is not ready." >&2

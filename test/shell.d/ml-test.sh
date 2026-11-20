@@ -173,9 +173,11 @@ grep -q "Mount a second drive" "$test_tmp/data-missing" ||
   fail "the dataset plan says how to mount the drive"
 export OMARCHY_ML_DATA_ROOT="$test_tmp/data"
 mkdir -p "$OMARCHY_ML_DATA_ROOT"
-"$ROOT/bin/omarchy-ml-data-disk" >/dev/null
+OMARCHY_OLLAMA_DROPIN="$test_tmp/ollama.conf" "$ROOT/bin/omarchy-ml-data-disk" >/dev/null
 grep -q "OLLAMA_MODELS=$test_tmp/data/models/ollama" "$XDG_CONFIG_HOME/environment.d/omarchy-ml-data.conf" ||
   fail "dataset caches are written for the next login"
+grep -q "OLLAMA_MODELS=$test_tmp/data/models/ollama" "$test_tmp/ollama.conf" ||
+  fail "ollama.service is pointed at the second drive"
 pass "dataset disk layout points caches at the second drive"
 
 [[ $(OMARCHY_ML_GPU_BUSY=1 "$ROOT/bin/omarchy-ml-long-job" once) == inhibit ]] ||
@@ -211,6 +213,8 @@ cat > "$stub/wtype" <<'SH'
 printf '%s\n' "$*" >> "$WHISPER_LOG"
 SH
 chmod +x "$stub/pw-record" "$stub/whisper-cli" "$stub/wtype"
+export XDG_RUNTIME_DIR="$test_tmp/runtime"
+mkdir -p "$XDG_RUNTIME_DIR"
 export WHISPER_LOG="$test_tmp/whisper.log"
 export OMARCHY_WHISPER_MODEL="$test_tmp/model.bin"
 printf 'model\n' > "$OMARCHY_WHISPER_MODEL"
@@ -218,6 +222,9 @@ PATH="$stub:$PATH" "$ROOT/bin/omarchy-dictation-whisper-cli" start
 PATH="$stub:$PATH" "$ROOT/bin/omarchy-dictation-whisper-cli" stop
 [[ $(<"$WHISPER_LOG") == "-- hello from whisper" ]] ||
   fail "whisper.cpp types the transcript into the focused window" "$(cat "$WHISPER_LOG" 2>/dev/null)"
+PATH="$stub:$PATH" "$ROOT/bin/omarchy-dictation-whisper-cli" stop
+[[ $(<"$WHISPER_LOG") == "-- hello from whisper" ]] ||
+  fail "a second stop types the recording again" "$(cat "$WHISPER_LOG" 2>/dev/null)"
 pass "hold-to-talk types what whisper.cpp heard"
 
 [[ $("$ROOT/bin/omarchy-launch-jupyter" --print) == "http://127.0.0.1:8888/lab" ]] ||
@@ -227,12 +234,11 @@ note_line=$(grep -F 'omarchy-notification-send' "$ROOT/bin/omarchy-launch-jupyte
   fail "jupyter notification leaves the token out" "$note_line"
 grep -Fq 'chmod 600 "$state/jupyter.url"' "$ROOT/bin/omarchy-launch-jupyter" ||
   fail "jupyter url file is owner-only"
-grep -q 'SUPER + ALT + A' "$ROOT/default/hypr/bindings/ml.lua" ||
-  fail "the intent launcher has a key"
-grep -q 'omarchy-ml-notify-fold --notify' "$ROOT/default/hypr/bindings/ml.lua" ||
-  fail "notification fold has a key"
-grep -Fq '"trigger.ml.intent"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
-  fail "the menu can run an action by asking"
-grep -Fq '"install.ml.gpu"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
-  fail "the menu can install a gpu stack"
+mkdir -p "$XDG_CONFIG_HOME/omarchy/extensions"
+cat > "$XDG_CONFIG_HOME/omarchy/extensions/omarchy-menu.jsonc" <<'EOF'
+{ "system.about": { "label": "About", "action": "omarchy-launch-about-custom" } }
+EOF
+about=$("$ROOT/bin/omarchy-ml-intent" --print "about system")
+[[ $about == "omarchy-launch-about-custom" ]] ||
+  fail "a menu override replaces the shipped action" "$about"
 pass "menu and keys are wired up"

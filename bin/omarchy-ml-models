@@ -36,4 +36,21 @@ link_cache() {
 failed=0
 link_cache "${XDG_CACHE_HOME:-$HOME/.cache}/huggingface" "$models/huggingface" || failed=1
 link_cache "$HOME/.ollama/models" "$models/ollama" || failed=1
+if [[ -L $HOME/.ollama/models || -d $models/ollama ]]; then
+  dropin="${OMARCHY_OLLAMA_DROPIN:-/etc/systemd/system/ollama.service.d/omarchy-models.conf}"
+  if [[ -n ${OMARCHY_OLLAMA_DROPIN:-} ]]; then
+    mkdir -p "$(dirname "$dropin")"
+    printf '%s\n' "[Service]" "Environment=OLLAMA_MODELS=$models/ollama" > "$dropin"
+  elif [[ $(id -u) -eq 0 ]]; then
+    mkdir -p "$(dirname "$dropin")"
+    printf '%s\n' "[Service]" "Environment=OLLAMA_MODELS=$models/ollama" > "$dropin"
+    systemctl daemon-reload
+    systemctl try-restart ollama || true
+  elif sudo -n true 2>/dev/null; then
+    sudo mkdir -p "$(dirname "$dropin")"
+    printf '%s\n' "[Service]" "Environment=OLLAMA_MODELS=$models/ollama" | sudo tee "$dropin" >/dev/null
+    sudo systemctl daemon-reload
+    sudo systemctl try-restart ollama || true
+  fi
+fi
 exit "$failed"

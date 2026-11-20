@@ -5,11 +5,24 @@
 
 set -euo pipefail
 
-runtime="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/omarchy-whisper"
+if [[ -n ${XDG_RUNTIME_DIR:-} && -d $XDG_RUNTIME_DIR && -O $XDG_RUNTIME_DIR ]]; then
+  runtime="$XDG_RUNTIME_DIR/omarchy-whisper"
+else
+  runtime="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/whisper"
+fi
 model="${OMARCHY_WHISPER_MODEL:-${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/whisper/ggml-base.en.bin}"
 
-start_recording() {
+prepare_runtime() {
   mkdir -p "$runtime"
+  chmod 700 "$runtime"
+  if [[ ! -O $runtime ]]; then
+    echo "Dictation needs a private runtime directory." >&2
+    exit 1
+  fi
+}
+
+start_recording() {
+  prepare_runtime
   if [[ -f $runtime/record.pid ]] && kill -0 "$(<"$runtime/record.pid")" 2>/dev/null; then
     exit 0
   fi
@@ -25,13 +38,19 @@ start_recording() {
 }
 
 stop_recording() {
-  if [[ -f $runtime/record.pid ]]; then
-    local pid
-    pid=$(<"$runtime/record.pid")
-    kill "$pid" 2>/dev/null || true
-    wait "$pid" 2>/dev/null || true
-    rm -f "$runtime/record.pid"
+  prepare_runtime
+  if [[ ! -f $runtime/record.pid ]]; then
+    exit 0
   fi
+  local pid
+  pid=$(<"$runtime/record.pid")
+  if ! kill -0 "$pid" 2>/dev/null; then
+    rm -f "$runtime/record.pid"
+    exit 0
+  fi
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  rm -f "$runtime/record.pid"
   if [[ ! -f $runtime/dictate.wav ]]; then
     exit 0
   fi
@@ -41,11 +60,13 @@ stop_recording() {
   fi
   whisper-cli -m "$model" -f "$runtime/dictate.wav" -nt -np -otxt >/dev/null
   if [[ ! -s $runtime/dictate.wav.txt ]]; then
+    rm -f "$runtime/dictate.wav" "$runtime/dictate.wav.txt"
     exit 0
   fi
   local text
   text=$(tr '\n' ' ' < "$runtime/dictate.wav.txt")
   text=${text%" "}
+  rm -f "$runtime/dictate.wav" "$runtime/dictate.wav.txt"
   [[ -n $text ]] || exit 0
   wtype -- "$text"
 }

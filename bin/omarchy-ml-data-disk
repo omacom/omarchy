@@ -50,4 +50,39 @@ UV_CACHE_DIR=$root/uv
 OLLAMA_MODELS=$root/models/ollama
 EOF
 
-echo "Caches will use $root after you log in again."
+chmod 755 "$root/models" "$root/models/ollama"
+if id ollama >/dev/null 2>&1; then
+  chown ollama:ollama "$root/models/ollama" 2>/dev/null || sudo chown ollama:ollama "$root/models/ollama"
+fi
+
+dropin="${OMARCHY_OLLAMA_DROPIN:-/etc/systemd/system/ollama.service.d/omarchy-models.conf}"
+write_dropin() {
+  mkdir -p "$(dirname "$dropin")"
+  cat > "$dropin" <<EOF
+[Service]
+Environment=OLLAMA_MODELS=$root/models/ollama
+EOF
+}
+if [[ -n ${OMARCHY_OLLAMA_DROPIN:-} || -w $(dirname "$dropin") || $(id -u) -eq 0 ]]; then
+  write_dropin
+elif sudo -n true 2>/dev/null; then
+  sudo mkdir -p "$(dirname "$dropin")"
+  sudo tee "$dropin" >/dev/null <<EOF
+[Service]
+Environment=OLLAMA_MODELS=$root/models/ollama
+EOF
+else
+  echo "Run this with sudo so ollama.service uses $root/models/ollama." >&2
+  exit 1
+fi
+if [[ -z ${OMARCHY_OLLAMA_DROPIN:-} ]]; then
+  if [[ $(id -u) -eq 0 ]]; then
+    systemctl daemon-reload
+    systemctl try-restart ollama || true
+  else
+    sudo systemctl daemon-reload
+    sudo systemctl try-restart ollama || true
+  fi
+fi
+
+echo "Caches will use $root. Ollama reads $root/models/ollama after its service restarts."

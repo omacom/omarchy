@@ -45,14 +45,13 @@ if [[ $index == *cu132* ]]; then
 fi
 echo "A CPU wheel from PyPI will not see this GPU."
 
-mise use --global python@3.12
 if omarchy-cmd-missing uv; then
   curl -fsSL https://astral.sh/uv/install.sh | sh
   export PATH="$HOME/.local/bin:$PATH"
 fi
 
 venv="${OMARCHY_ML_PYTORCH:-$HOME/.local/share/omarchy/ml/pytorch}"
-uv venv "$venv"
+uv venv --python 3.12 "$venv"
 uv pip install --python "$venv/bin/python" torch --index-url "$index"
 printf '%s\n' "$index" > "$venv/WHEEL_INDEX"
 
