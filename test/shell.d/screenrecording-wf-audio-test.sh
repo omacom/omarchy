@@ -18,13 +18,13 @@ awk '
 
 mkdir -p "$tmp/bin"
 # Modules number from 10 up; a load fails when its arguments name a source
-# listed in $tmp/refuse.
+# listed in $tmp/refuse. With no default source pactl names its placeholder.
 cat >"$tmp/bin/pactl" <<'SH'
 #!/bin/bash
 echo "pactl $*" >>"$TMP/calls"
 case $1 in
   get-default-sink) [[ -e $TMP/no-sink ]] || echo speakers ;;
-  get-default-source) [[ -e $TMP/no-source ]] || echo mic ;;
+  get-default-source) if [[ -e $TMP/no-source ]]; then echo @DEFAULT_SOURCE@; else echo mic; fi ;;
   load-module)
     for refused in $(cat "$TMP/refuse" 2>/dev/null); do
       [[ " $* " != *" $refused "* ]] || exit 1

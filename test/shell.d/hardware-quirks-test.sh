@@ -74,6 +74,17 @@ cat >"$stub_bin/omarchy-hw-aarch64-qualcomm" <<'SH'
 [[ $FAKE_PLATFORM == "aarch64-qualcomm" ]]
 SH
 
+# The device tree's compatible strings come from the fake machine.
+cat >"$stub_bin/omarchy-hw-match-device-tree" <<'SH'
+#!/bin/bash
+for wanted in "$@"; do
+  for entry in $FAKE_COMPATIBLE; do
+    [[ ${entry,,} == "${wanted,,}" ]] && exit 0
+  done
+done
+exit 1
+SH
+
 cat >"$stub_bin/omarchy-hw-aarch64-n1x" <<'SH'
 #!/bin/bash
 [[ $FAKE_PLATFORM == "aarch64-n1x" ]]
@@ -109,6 +120,47 @@ cat >"$stub_bin/omarchy-pkg-drop" <<'SH'
 printf 'pkg-drop %s\n' "$*" >>"$CALLS"
 SH
 
+# The firmware the device tree names that is not installed yet.
+cat >"$stub_bin/qcom-firmware-extract" <<'SH'
+#!/bin/bash
+if [[ $1 == "--list-missing" && -n $FAKE_MISSING_FIRMWARE ]]; then
+  printf '%b\n' "$FAKE_MISSING_FIRMWARE"
+fi
+SH
+
+# What qualcomm/oem-firmware.sh asks pacman: whether an installed package
+# provides a name (-T), and which repository package does (-Sp). Like pacman,
+# -Sp takes the first of several providers. A package counts as installed once
+# pkg-add was called with it.
+cat >"$stub_bin/pacman" <<'SH'
+#!/bin/bash
+name=${!#}
+providers=$(awk -v name="$name" '$1 == name { print $2 }' "$FAKE_PROVIDERS")
+case $1 in
+  -T)
+    for package in $providers; do
+      grep -qx "pkg-add $package" "$CALLS" && exit 0
+    done
+    echo "$name"
+    exit 127
+    ;;
+  -Sp)
+    [[ -n $providers ]] || exit 1
+    head -1 <<<"$providers"
+    ;;
+esac
+SH
+
+# Firmware folder names and the OEM firmware packages that provide them, the
+# folder the two Surfaces share listing the Laptop 7 first.
+cat >"$test_tmp/providers" <<'TXT'
+qcom-firmware-x1e80100-microsoft microsoft-surface-laptop-7-firmware
+qcom-firmware-x1e80100-microsoft microsoft-surface-pro-11-firmware
+qcom-firmware-x1e80100-microsoft-romulus microsoft-surface-laptop-7-firmware
+qcom-firmware-x1e80100-microsoft-denali microsoft-surface-pro-11-firmware
+qcom-firmware-x1e80100-lenovo-91b6 lenovo-ideacentre-mini-x-firmware
+TXT
+
 cat >"$stub_bin/dell-xps13-sidecar-amps-apply" <<'SH'
 #!/bin/bash
 exit "$FAKE_APPLY_STATUS"
@@ -142,12 +194,35 @@ machine() {
   printf '%s\n' '-- User look and feel' >"$root/home/.config/hypr/looknfeel.lua"
   : >"$hw/input-devices"
   FAKE_PLATFORM=x86 FAKE_LSMOD="" FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Alder Lake\n\tKernel driver in use: i915"
-  FAKE_MODPROBE_RESOLVES=0 FAKE_MODPROBE_STATUS=0 FAKE_PKG_ADD_STATUS=0 FAKE_APPLY_STATUS=0
+  FAKE_MODPROBE_RESOLVES=0 FAKE_MODPROBE_STATUS=0 FAKE_PKG_ADD_STATUS=0 FAKE_APPLY_STATUS=0 FAKE_MISSING_FIRMWARE="" FAKE_COMPATIBLE=""
+  unset OMARCHY_IMAGE_DEFERRED_HARDWARE
 
   dmi() { printf '%s\n' "$2" >"$hw/dmi/$1"; }
   xps13() { dmi sys_vendor "Dell Inc."; dmi product_name "XPS 13 ${1:-DX13260}"; dmi product_sku "${2:-0E53}"; }
   synaptics() { printf '%s\n' 'N: Name="SynPS/2 Synaptics TouchPad"' >"$hw/input-devices"; }
   surface() { dmi sys_vendor "Microsoft Corporation"; dmi product_name "$1"; }
+  vivobook_s15() { dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_family "ASUS Vivobook S 15"; dmi product_name "ASUS Vivobook S 15 S5507QA_$1"; }
+  vivobook_s16() { dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_family "ASUS Vivobook S 16"; dmi product_name "ASUS Vivobook S 16 S3607QA_S3607QA"; }
+  # A Qualcomm Wi-Fi card bound to ath12k, or to ath11k for the WCN6855 (1103); with "board-data",
+  # the board data the package installed for it.
+  ath12k() {
+    local name=ath12k_wifi7_pci
+    [[ $1 == 1103 ]] && name=ath11k_pci
+    local device=$root/sys/bus/pci/devices/0004:01:00.0 driver=$root/sys/bus/pci/drivers/$name
+    FAKE_LSPCI="0004:01:00.0 Network controller [0280]: Qualcomm Technologies, Inc Device [17cb:$1]"
+    mkdir -p "$device" "$driver"
+    printf '0x17cb\n' >"$device/vendor"
+    printf '0x%s\n' "$1" >"$device/device"
+    : >"$driver/bind"
+    : >"$driver/unbind"
+    ln -s "../../drivers/$name" "$device/driver"
+    if [[ ${2:-} == "board-data" ]]; then
+      mkdir -p "$root/var/lib/ath12k-board-fallback"
+      local copy=ath12k/QCC2072/hw1.0/board.bin
+      [[ $1 == 1103 ]] && copy=ath11k/WCN6855/hw2.1/board.bin
+      printf '%s 0\n' "$copy" >"$root/var/lib/ath12k-board-fallback/installed"
+    fi
+  }
 
   case $name in
     plain) dmi sys_vendor LENOVO; dmi product_name 21HM0000US; dmi product_family "ThinkPad X1 Carbon Gen 11" ;;
@@ -163,13 +238,69 @@ machine() {
     surface-intel-no-pinctrl) surface "Surface Laptop 3" ;;
     # What lsmod reports on a Surface Pro 11, where the Intel module list would break mkinitcpio.
     surface-snapdragon) surface "Surface Pro, 11th Edition"; FAKE_PLATFORM=aarch64-qualcomm FAKE_LSMOD="pinctrl_sm8550_lpass_lpi 12288 1" ;;
+    surface-pro-11-no-firmware)
+      surface "Surface Pro, 11th Edition"; FAKE_PLATFORM=aarch64-qualcomm
+      FAKE_MISSING_FIRMWARE="qcom/x1e80100/microsoft/Denali/qcadsp8380.mbn\nqcom/x1e80100/microsoft/Denali/adsp_dtb.mbn\nqcom/x1e80100/microsoft/qcdxkmsuc8380.mbn"
+      ;;
+    surface-laptop-7-no-firmware)
+      surface "Surface Laptop, 7th Edition"; FAKE_PLATFORM=aarch64-qualcomm
+      FAKE_MISSING_FIRMWARE="qcom/x1e80100/microsoft/Romulus/qcadsp8380.mbn\nqcom/x1e80100/microsoft/qcdxkmsuc8380.mbn"
+      ;;
+    # Copied from Windows: the manifest qcom-firmware-extract keeps, nothing missing.
+    surface-pro-11-from-windows)
+      surface "Surface Pro, 11th Edition"; FAKE_PLATFORM=aarch64-qualcomm
+      printf '%s 0 /windows 2026-01-01T00:00:00Z\n' qcom/x1e80100/microsoft/Denali/qcadsp8380.mbn \
+        qcom/x1e80100/microsoft/qcdxkmsuc8380.mbn >"$hw/qcom-firmware-manifest"
+      ;;
+    ideacentre-mini-x-no-firmware) dmi product_name 91B6; FAKE_PLATFORM=aarch64-qualcomm FAKE_MISSING_FIRMWARE="qcom/x1e80100/LENOVO/91B6/qcadsp8380.mbn" ;;
+    snapdragon-unpackaged) dmi product_name "Aspire A14-11M"; FAKE_PLATFORM=aarch64-qualcomm FAKE_MISSING_FIRMWARE="qcom/x1e80100/ACER/AL14-31P/qcadsp8380.mbn" ;;
     t14s-21n1) dmi product_name 21N10000US; FAKE_PLATFORM=aarch64-qualcomm ;;
     t14s-21n2) dmi product_name 21N20000US; FAKE_PLATFORM=aarch64-qualcomm ;;
     t14s-21n1-not-qualcomm) dmi product_name 21N10000US; FAKE_PLATFORM=aarch64 ;;
     t14-gen4) dmi product_name 21F60000US ;;
-    yoga-slim7x) dmi product_name 83ED; FAKE_PLATFORM=aarch64-qualcomm ;;
+    yoga-slim7x) dmi product_name 83ED; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="lenovo,yoga-slim7x qcom,x1e80100" ;;
     zenbook-a16) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64-qualcomm ;;
     zenbook-a16-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64 ;;
+    vivobook-s15) vivobook_s15 S5507QAD; FAKE_PLATFORM=aarch64-qualcomm ;;
+    # The X Plus model shares the family name but has another device tree and is untested.
+    vivobook-s15-x-plus) vivobook_s15 S5507QA; FAKE_PLATFORM=aarch64-qualcomm ;;
+    vivobook-s15-not-qualcomm) vivobook_s15 S5507QAD; FAKE_PLATFORM=aarch64 ;;
+    vivobook-s16) vivobook_s16; FAKE_PLATFORM=aarch64-qualcomm ;;
+    vivobook-s16-not-qualcomm) vivobook_s16; FAKE_PLATFORM=aarch64 ;;
+    omnibook-x14) dmi sys_vendor HP; dmi product_name "HP OmniBook X Laptop 14-fe0xxx"; FAKE_PLATFORM=aarch64-qualcomm ;;
+    omnibook-x14-not-qualcomm) dmi sys_vendor HP; dmi product_name "HP OmniBook X Laptop 14-fe0xxx"; FAKE_PLATFORM=aarch64 ;;
+    zbook-ultra-g3a) dmi sys_vendor HP; dmi product_name "HP ZBook Ultra G3a 16 inch Mobile Workstation PC"; dmi product_family "103C_5336AN HP ZBook" ;;
+    # The Strix Halo ZBook before it shares the product family and is untested.
+    zbook-ultra-g1a) dmi sys_vendor HP; dmi product_name "HP ZBook Ultra G1a 14 inch Mobile Workstation PC"; dmi product_family "103C_5336AN HP ZBook" ;;
+    ideacentre-mini) dmi sys_vendor LENOVO; dmi product_name 91B6001CUK; dmi product_family "IdeaCentre Mini 01Q8X10"; FAKE_PLATFORM=aarch64-qualcomm ;;
+    ideacentre-mini-not-qualcomm) dmi sys_vendor LENOVO; dmi product_name 91B6001CUK; dmi product_family "IdeaCentre Mini 01Q8X10"; FAKE_PLATFORM=aarch64 ;;
+    proart-pz13) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ProArt PZ13 HT5306QA_HT5306QA"; dmi product_family "ProArt PZ13"; FAKE_PLATFORM=aarch64-qualcomm ;;
+    proart-pz13-not-qualcomm) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ProArt PZ13 HT5306QA_HT5306QA"; FAKE_PLATFORM=aarch64 ;;
+    aspire-16-ai) dmi sys_vendor Acer; dmi product_name "Aspire A16-11M"; dmi product_family "Aspire 16 AI"; FAKE_PLATFORM=aarch64-qualcomm ;;
+    aspire-16-ai-not-qualcomm) dmi sys_vendor Acer; dmi product_name "Aspire A16-11M"; FAKE_PLATFORM=aarch64 ;;
+    omnibook-3-14) dmi sys_vendor HP; dmi product_name "HP OmniBook 3 Laptop 14-hz0xxx"; dmi product_family "103C_5335KV HP OmniBook 3"; FAKE_PLATFORM=aarch64-qualcomm ;;
+    omnibook-3-14-not-qualcomm) dmi sys_vendor HP; dmi product_name "HP OmniBook 3 Laptop 14-hz0xxx"; FAKE_PLATFORM=aarch64 ;;
+    omnibook-ultra-14) dmi sys_vendor HP; dmi product_name "HP OmniBook Ultra Laptop 14-kg0xxx"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="hp,omnibook-ultra-kg0xxx qcom,glymur" ;;
+    anduril-bluechip) dmi sys_vendor Anduril; dmi product_name "Qualcomm Glymur"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
+    glymur-not-qualcomm) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
+    # A Mahua tree's root names qcom,mahua and never qcom,glymur.
+    t14s-gen7) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="lenovo,thinkpad-t14s-gen7-lcd lenovo,thinkpad-t14s-gen7 qcom,mahua" ;;
+    # Kalambo is Mahua with fewer cores, and its trees name only qcom,kalambo.
+    thinkbook-14-gen9) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="lenovo,thinkbook-14-gen9 qcom,kalambo" ;;
+    galaxy-book4-edge-14) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="samsung,galaxy-book4-edge-14 samsung,galaxy-book4-edge qcom,x1e80100" ;;
+    galaxy-book4-edge-14-not-qualcomm) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="samsung,galaxy-book4-edge-14 samsung,galaxy-book4-edge qcom,x1e80100" ;;
+    galaxy-book4-edge-16) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="samsung,galaxy-book4-edge-16 samsung,galaxy-book4-edge qcom,x1e80100" ;;
+    raspberry-pi-4) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="raspberrypi,4-model-b brcm,bcm2711" ;;
+    raspberry-pi-4-first-boot) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="raspberrypi,4-model-b brcm,bcm2711"; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
+    # The Pi 5 has another SoC and is untested.
+    raspberry-pi-5) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="raspberrypi,5-model-b brcm,bcm2712" ;;
+    zenbook-14-ux3480qa) dmi sys_vendor ASUS; dmi product_name "Zenbook 14 UX3480QA"; dmi product_family "Zenbook 14"; FAKE_PLATFORM=aarch64-qualcomm ;;
+    zenbook-14-ux3480qa-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook 14 UX3480QA"; FAKE_PLATFORM=aarch64 ;;
+    zenbook-a14-qa) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ASUS Zenbook A14 UX3407QA_UX3407QA"; dmi product_family "ASUS Zenbook A14"; FAKE_PLATFORM=aarch64-qualcomm ;;
+    zenbook-a14-ra) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ASUS Zenbook A14 UX3407RA_UX3407RA"; dmi product_family "ASUS Zenbook A14"; FAKE_PLATFORM=aarch64-qualcomm ;;
+    zenbook-a14-not-qualcomm) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ASUS Zenbook A14 UX3407QA_UX3407QA"; FAKE_PLATFORM=aarch64 ;;
+    # The Snapdragon X2 model runs a Glymur tree and is left out.
+    zenbook-a14-x2) dmi sys_vendor ASUS; dmi product_name "Zenbook A14 UX3407NA"; dmi product_family "Zenbook A14"; FAKE_PLATFORM=aarch64-qualcomm ;;
     xps13-ptl) xps13; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Panther Lake [Intel Graphics]" ;;
     xps13-wcl) xps13; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Wildcat Lake [Intel Graphics]" ;;
     xps13-dx13261) xps13 DX13261; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Panther Lake [Intel Graphics]" ;;
@@ -179,6 +310,13 @@ machine() {
     xps13-no-sku) xps13; rm "$hw/dmi/product_sku" ;;
     xps13-apply-fails) xps13; FAKE_APPLY_STATUS=1 ;;
     xps13-pkg-add-fails) xps13; FAKE_PKG_ADD_STATUS=1 ;;
+    wcn7850-card) ath12k 1107 ;;
+    wcn7850-card-first-boot) ath12k 1107; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
+    qcc2072-card) ath12k 1112 board-data ;;
+    qcc2072-card-first-boot) ath12k 1112 board-data; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
+    wcn6855-card) ath12k 1103 ;;
+    wcn6855-card-first-boot) ath12k 1103 board-data; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
+    qualcomm-no-wifi) FAKE_LSPCI="0004:00:00.0 PCI bridge [0604]: Qualcomm Technologies, Inc SC8380XP PCIe Root Complex [17cb:0111]" ;;
     nouveau) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau" ;;
     nouveau-proprietary) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau"; : >"$hw/nvidia.conf" ;;
     *) fail "hardware-quirks-test knows the machine '$name'" ;;
@@ -187,7 +325,7 @@ machine() {
   if [[ $1 == *+unreadable ]]; then
     chmod 000 "$hw/dmi"/*
   fi
-  export FAKE_PLATFORM FAKE_LSMOD FAKE_LSPCI FAKE_MODPROBE_RESOLVES FAKE_MODPROBE_STATUS FAKE_PKG_ADD_STATUS FAKE_APPLY_STATUS
+  export FAKE_PLATFORM FAKE_LSMOD FAKE_LSPCI FAKE_MODPROBE_RESOLVES FAKE_MODPROBE_STATUS FAKE_PKG_ADD_STATUS FAKE_APPLY_STATUS FAKE_MISSING_FIRMWARE FAKE_COMPATIBLE
 }
 
 snapshot() {
@@ -202,14 +340,29 @@ run_leaf() {
   : >"$calls"
   before=$(snapshot)
   HOME="$root/home" OMARCHY_PATH="$ROOT" PATH="$stub_bin:$ROOT/bin:$PATH" STUB_BIN="$stub_bin" CALLS="$calls" \
-    FAKE_HW="$hw" FAKE_ROOT="$root" \
+    FAKE_HW="$hw" FAKE_ROOT="$root" FAKE_PROVIDERS="$test_tmp/providers" \
+    OMARCHY_QCOM_FIRMWARE_MANIFEST="$hw/qcom-firmware-manifest" \
     OMARCHY_DMI_PRODUCT_SKU="$hw/dmi/product_sku" \
     OMARCHY_SYNAPTIC_INPUT_DEVICES="$hw/input-devices" \
     OMARCHY_SURFACE_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_ASPIRE_16_AI_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_A16_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_ZENBOOK_A14_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
+    OMARCHY_GALAXY_BOOK4_EDGE_14_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
+    OMARCHY_RASPBERRY_PI_4_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
+    OMARCHY_VIVOBOOK_S15_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_VIVOBOOK_S16_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_OMNIBOOK_X14_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_ZBOOK_ULTRA_G3A_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
+    OMARCHY_IDEACENTRE_MINI_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_QUALCOMM_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_ZENBOOK_UX3480QA_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_ZENBOOK_UX3480QA_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
     OMARCHY_NVIDIA_MODPROBE_CONFIG="$hw/nvidia.conf" \
+    OMARCHY_PCI_DEVICES="$root/sys/bus/pci/devices" \
+    OMARCHY_ATH12K_BOARD_STATE="$root/var/lib/ath12k-board-fallback/installed" \
     bash -eE -c 'source "$1"' bash "$ROOT/install/$1" </dev/null >/dev/null 2>&1 || status=$?
   {
     printf '%s\n' "$status"
@@ -228,9 +381,26 @@ leaves=(
   hardware/fix-surface-keyboard.sh
   hardware/lenovo/thinkpad-t14s-camera.sh
   hardware/asus/fix-asus-zenbook-a16-speakers.sh
+  hardware/asus/fix-asus-proart-pz13-speakers.sh
+  hardware/acer/fix-acer-aspire-16-ai-speakers.sh
+  hardware/acer/fix-acer-aspire-16-ai-boot.sh
+  hardware/hp/fix-hp-omnibook-3-speakers.sh
   hardware/asus/fix-asus-zenbook-a16-firmware.sh
   hardware/asus/fix-asus-zenbook-a16-boot.sh
+  hardware/asus/fix-asus-vivobook-s15-boot.sh
+  hardware/asus/fix-asus-vivobook-s16-boot.sh
+  hardware/hp/fix-hp-omnibook-x14-boot.sh
+  hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh
+  hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh
+  hardware/samsung/galaxy-book4-edge-14.sh
+  hardware/raspberrypi/raspberry-pi-4.sh
+  hardware/qualcomm/glymur-display.sh
+  hardware/qualcomm/oem-firmware.sh
+  hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh
+  hardware/asus/fix-asus-zenbook-a14-boot.sh
+  hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh
   hardware/dell-xps13-ptl-speaker-firmware.sh
+  hardware/fix-ath12k-board-data.sh
   hardware/dell-xps13-sidecar-amps.sh
   user/hardware/fix-nouveau-cursor.sh
 )
@@ -280,14 +450,87 @@ hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16|0|pkg-add asus-zenboo
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16-not-qualcomm|0
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|yoga-slim7x|0
+hardware/asus/fix-asus-proart-pz13-speakers.sh|proart-pz13|0|pkg-add asus-proart-pz13-audio
+hardware/asus/fix-asus-proart-pz13-speakers.sh|proart-pz13+unreadable|0
+hardware/asus/fix-asus-proart-pz13-speakers.sh|proart-pz13-not-qualcomm|0
+hardware/asus/fix-asus-proart-pz13-speakers.sh|yoga-slim7x|0
+hardware/acer/fix-acer-aspire-16-ai-speakers.sh|aspire-16-ai|0|pkg-add acer-aspire-16-ai-audio
+hardware/acer/fix-acer-aspire-16-ai-speakers.sh|aspire-16-ai+unreadable|0
+hardware/acer/fix-acer-aspire-16-ai-speakers.sh|aspire-16-ai-not-qualcomm|0
+hardware/acer/fix-acer-aspire-16-ai-speakers.sh|yoga-slim7x|0
+hardware/acer/fix-acer-aspire-16-ai-boot.sh|aspire-16-ai|0|wrote etc/mkinitcpio.conf.d/aspire-16-ai-initramfs.conf
+hardware/acer/fix-acer-aspire-16-ai-boot.sh|aspire-16-ai+unreadable|0
+hardware/acer/fix-acer-aspire-16-ai-boot.sh|aspire-16-ai-not-qualcomm|0
+# The Aspire 14 AI shares the tree's display outputs and is untested.
+hardware/acer/fix-acer-aspire-16-ai-boot.sh|snapdragon-unpackaged|0
+hardware/hp/fix-hp-omnibook-3-speakers.sh|omnibook-3-14|0|pkg-add hp-omnibook-3-audio
+hardware/hp/fix-hp-omnibook-3-speakers.sh|omnibook-3-14+unreadable|0
+hardware/hp/fix-hp-omnibook-3-speakers.sh|omnibook-3-14-not-qualcomm|0
+hardware/hp/fix-hp-omnibook-3-speakers.sh|omnibook-x14|0
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16|0|pkg-add asus-zenbook-a16-firmware
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16-not-qualcomm|0
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|yoga-slim7x|0
-hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16|0|wrote etc/systemd/sleep.conf.d/zenbook-a16.conf|wrote etc/limine-entry-tool.d/zenbook-a16.conf|wrote etc/mkinitcpio.conf.d/zenbook-a16-initramfs.conf
+# A machine's own folder picks its package before the folder the Surfaces share.
+hardware/qualcomm/oem-firmware.sh|surface-pro-11-no-firmware|0|pkg-add microsoft-surface-pro-11-firmware
+hardware/qualcomm/oem-firmware.sh|surface-laptop-7-no-firmware|0|pkg-add microsoft-surface-laptop-7-firmware
+hardware/qualcomm/oem-firmware.sh|surface-pro-11-from-windows|0|pkg-add microsoft-surface-pro-11-firmware
+hardware/qualcomm/oem-firmware.sh|ideacentre-mini-x-no-firmware|0|pkg-add lenovo-ideacentre-mini-x-firmware
+hardware/qualcomm/oem-firmware.sh|snapdragon-unpackaged|0
+hardware/qualcomm/oem-firmware.sh|yoga-slim7x|0
+hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16|0|wrote etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf|wrote etc/limine-entry-tool.d/zenbook-a16.conf|wrote etc/mkinitcpio.conf.d/zenbook-a16-initramfs.conf
 hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16-not-qualcomm|0
 hardware/asus/fix-asus-zenbook-a16-boot.sh|yoga-slim7x|0
+hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-14|0|wrote etc/limine-entry-tool.d/samsung-galaxy-book4-edge-14.conf
+hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-14-not-qualcomm|0
+hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-16|0
+hardware/raspberrypi/raspberry-pi-4.sh|raspberry-pi-4|0|pkg-add raspberry-pi-4-bluetooth-firmware|wrote etc/limine-entry-tool.d/raspberry-pi-4.conf|wrote etc/udev/rules.d/70-raspberry-pi-4-ddc.rules
+# An image applies the DDC rule to the I2C devices its first boot already added.
+hardware/raspberrypi/raspberry-pi-4.sh|raspberry-pi-4-first-boot|0|pkg-add raspberry-pi-4-bluetooth-firmware|sudo udevadm control --reload|sudo udevadm trigger --action=add --subsystem-match=i2c-dev|wrote etc/limine-entry-tool.d/raspberry-pi-4.conf|wrote etc/udev/rules.d/70-raspberry-pi-4-ddc.rules
+hardware/raspberrypi/raspberry-pi-4.sh|raspberry-pi-5|0
+hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15|0|wrote etc/mkinitcpio.conf.d/vivobook-s15-initramfs.conf
+hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15+unreadable|0
+hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15-x-plus|0
+hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15-not-qualcomm|0
+hardware/asus/fix-asus-vivobook-s15-boot.sh|zenbook-a16|0
+hardware/asus/fix-asus-vivobook-s16-boot.sh|vivobook-s16|0|wrote etc/mkinitcpio.conf.d/vivobook-s16-initramfs.conf
+hardware/asus/fix-asus-vivobook-s16-boot.sh|vivobook-s16+unreadable|0
+hardware/asus/fix-asus-vivobook-s16-boot.sh|vivobook-s16-not-qualcomm|0
+hardware/asus/fix-asus-vivobook-s16-boot.sh|vivobook-s15|0
+hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14|0|wrote etc/mkinitcpio.conf.d/omnibook-x14-initramfs.conf
+hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14+unreadable|0
+hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14-not-qualcomm|0
+hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-ultra-14|0
+hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh|zbook-ultra-g3a|0|wrote etc/limine-entry-tool.d/hp-zbook-ultra-g3a.conf
+hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh|zbook-ultra-g3a+unreadable|0
+hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh|zbook-ultra-g1a|0
+hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh|ideacentre-mini|0|wrote etc/mkinitcpio.conf.d/ideacentre-mini-initramfs.conf
+hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh|ideacentre-mini+unreadable|0
+hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh|ideacentre-mini-not-qualcomm|0
+hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh|omnibook-x14|0
+hardware/qualcomm/glymur-display.sh|omnibook-ultra-14|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
+# The device tree names the chip, so unreadable DMI does not matter.
+hardware/qualcomm/glymur-display.sh|omnibook-ultra-14+unreadable|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
+hardware/qualcomm/glymur-display.sh|anduril-bluechip|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
+hardware/qualcomm/glymur-display.sh|t14s-gen7|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
+hardware/qualcomm/glymur-display.sh|thinkbook-14-gen9|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
+hardware/qualcomm/glymur-display.sh|glymur-not-qualcomm|0
+hardware/qualcomm/glymur-display.sh|yoga-slim7x|0
+hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-14-ux3480qa|0|wrote etc/systemd/sleep.conf.d/zenbook-14-ux3480qa.conf|wrote etc/mkinitcpio.conf.d/zenbook-14-ux3480qa-initramfs.conf
+hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-14-ux3480qa+unreadable|0
+hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-14-ux3480qa-not-qualcomm|0
+hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-a16|0
+hardware/asus/fix-asus-zenbook-a14-boot.sh|zenbook-a14-qa|0|wrote etc/mkinitcpio.conf.d/zenbook-a14-initramfs.conf
+hardware/asus/fix-asus-zenbook-a14-boot.sh|zenbook-a14-ra|0|wrote etc/mkinitcpio.conf.d/zenbook-a14-initramfs.conf
+hardware/asus/fix-asus-zenbook-a14-boot.sh|zenbook-a14-qa+unreadable|0
+hardware/asus/fix-asus-zenbook-a14-boot.sh|zenbook-a14-not-qualcomm|0
+hardware/asus/fix-asus-zenbook-a14-boot.sh|zenbook-a14-x2|0
+hardware/asus/fix-asus-zenbook-a14-boot.sh|zenbook-14-ux3480qa|0
+hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh|zenbook-14-ux3480qa|0|pkg-add asus-zenbook-14-ux3480qa-audio
+hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh|zenbook-14-ux3480qa+unreadable|0
+hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh|zenbook-14-ux3480qa-not-qualcomm|0
+hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh|zenbook-a16|0
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-ptl|0|pkg-add linux-firmware-cirrus-dx13260
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-ptl+unreadable|0
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-wcl|0
@@ -302,6 +545,16 @@ hardware/dell-xps13-sidecar-amps.sh|xps13-ptl+unreadable|0
 # has to surface rather than be swallowed by a successful install.
 hardware/dell-xps13-sidecar-amps.sh|xps13-apply-fails|1|pkg-add dell-xps13-sidecar-amps|sudo dell-xps13-sidecar-amps-apply
 hardware/dell-xps13-sidecar-amps.sh|xps13-pkg-add-fails|1|pkg-add dell-xps13-sidecar-amps
+# The package itself decides whether the card needs board data.
+hardware/fix-ath12k-board-data.sh|wcn7850-card|0|pkg-add ath12k-board-fallback
+hardware/fix-ath12k-board-data.sh|qcc2072-card|0|pkg-add ath12k-board-fallback
+hardware/fix-ath12k-board-data.sh|wcn6855-card|0|pkg-add ath12k-board-fallback
+hardware/fix-ath12k-board-data.sh|qualcomm-no-wifi|0
+# ath12k probed the card before an image's first boot gave it board data, so
+# that boot rebinds it, but not for a card that needed none.
+hardware/fix-ath12k-board-data.sh|qcc2072-card-first-boot|0|pkg-add ath12k-board-fallback|wrote sys/bus/pci/drivers/ath12k_wifi7_pci/bind|wrote sys/bus/pci/drivers/ath12k_wifi7_pci/unbind
+hardware/fix-ath12k-board-data.sh|wcn7850-card-first-boot|0|pkg-add ath12k-board-fallback
+hardware/fix-ath12k-board-data.sh|wcn6855-card-first-boot|0|pkg-add ath12k-board-fallback|wrote sys/bus/pci/drivers/ath11k_pci/bind|wrote sys/bus/pci/drivers/ath11k_pci/unbind
 # Wildcat Lake's GPU is named only "[Intel Graphics]".
 hardware/intel/video-acceleration.sh|xps13-wcl|0|pkg-add intel-media-driver libvpl vpl-gpu-rt
 hardware/intel/video-acceleration.sh|nouveau|0
@@ -337,3 +590,19 @@ run_leaf user/hardware/fix-nouveau-cursor.sh >/dev/null
 (( $(grep -c 'no_hardware_cursors = true' "$root/home/.config/hypr/looknfeel.lua") == 1 )) ||
   fail "nouveau cursor setup enables software cursors once however often it runs"
 pass "nouveau cursor setup is idempotent"
+
+# The N1x firmware filter wraps mkinitcpio's add_firmware: Turing's GSP
+# firmware stays out, everything else goes through, and the status of what it
+# did add still reaches add_module, which warns about missing firmware with it.
+n1x_firmware_conf=$(sed -n "/omarchy-n1x-nvidia-firmware.conf <<'CONF'/,/^CONF\$/p" "$ROOT/install/hardware/n1x.sh" | sed '1d;$d')
+filtered=$(bash -c '
+  add_firmware() { printf "%s\n" "$@"; [[ $* != *missing* ]]; }
+  eval "$1"
+  eval "$1"
+  add_firmware nvidia/615/gsp_tu10x.bin nvidia/615/ucodes_tu10x.bin; echo "status $?"
+  add_firmware nvidia/615/gsp_ga10x.bin nvidia/615/ucodes_tu10x.bin nvidia/615/ucodes_ga10x.bin; echo "status $?"
+  add_firmware renesas_missing.mem; echo "status $?"
+' bash "$n1x_firmware_conf" | paste -sd ' ')
+[[ $filtered == "status 0 nvidia/615/gsp_ga10x.bin nvidia/615/ucodes_ga10x.bin status 0 renesas_missing.mem status 1" ]] ||
+  fail "N1x initramfs leaves out only Turing's NVIDIA firmware" "$filtered"
+pass "N1x initramfs leaves out only Turing's NVIDIA firmware"
