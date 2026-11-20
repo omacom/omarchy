@@ -1,6 +1,7 @@
 {
   "Activity": "Активность",
   "Agent": "Агент",
+  "Agents": "Агенты",
   "Apps": "Приложения",
   "Audio": "Звук",
   "Background switcher": "Смена фона",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "Показать активное окно поверх",
   "Save window width": "Сохранить ширину окна",
   "Screenrecording": "Запись экрана",
+  "Screenrecording with no audio": "Запись экрана без звука",
   "Screenshot": "Снимок экрана",
   "Scroll active workspace backward": "Прокрутить активное рабочее пространство назад",
   "Scroll active workspace forward": "Прокрутить активное рабочее пространство вперёд",

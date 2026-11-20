@@ -44,7 +44,8 @@ Item {
   signal moveRequested(int dx, int dy)
   signal reorderRequested(int dy)
   signal reorderSidewaysRequested(int dx)
-  signal activateRequested()
+  // The held modifiers ride along, so Shift+Return can mean something else.
+  signal activateRequested(int modifiers)
   signal returnRequested()
   signal closeRequested()
   signal deleteRequested()
@@ -52,9 +53,19 @@ Item {
   // The held modifiers ride along, so a panel can tell Alt+T from T.
   signal textKey(string text, int modifiers)
 
+  // Whether Shift is down while the panel has the keyboard, so a tooltip can
+  // say what a Shift-click would do while it's held. Dropped with the focus,
+  // since a release elsewhere never arrives here.
+  property bool shiftHeld: false
+  onActiveFocusChanged: if (!activeFocus) shiftHeld = false
+
   focus: true
   Keys.priority: Keys.BeforeItem
+  Keys.onReleased: function(event) {
+    if (event.key === Qt.Key_Shift) shiftHeld = false
+  }
   Keys.onPressed: function(event) {
+    shiftHeld = event.key === Qt.Key_Shift || !!(event.modifiers & Qt.ShiftModifier)
     if (blocked) return
 
     if (event.key === Qt.Key_Escape) {
@@ -97,10 +108,10 @@ Item {
     }
     if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
       returnRequested()
-      activateRequested(); event.accepted = true; return
+      activateRequested(event.modifiers); event.accepted = true; return
     }
     if (event.key === Qt.Key_Space) {
-      activateRequested(); event.accepted = true; return
+      activateRequested(event.modifiers); event.accepted = true; return
     }
     if (event.key === Qt.Key_Delete || event.text === "x" || event.text === "X") {
       deleteRequested(); event.accepted = true; return

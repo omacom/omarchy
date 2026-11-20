@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# omarchy:summary=Install the Herdr desktop app from its official installer
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+# Herdr's own installer puts the app in ~/.local/share/herdr-app with a
+# launcher entry, and adds herdr-core in ~/.local/bin when there is none yet.
+# The app updates itself and its core from then on. Downloaded whole before it
+# runs, so a dropped connection can never run half a script.
+installer=$(mktemp)
+trap 'rm -f "$installer"' EXIT
+curl -fsSL --retry 3 https://releases.herdr.dev/app/install.sh -o "$installer"
+sh "$installer"
+
+# An updated user's current theme may have been staged before this template existed.
+if [[ ! -f $HOME/.local/state/omarchy/current/theme/herdr-app.json ]]; then
+  omarchy-theme-refresh
+fi
+
+# Give the app the same keys as the terminal herdr before it first opens.
+omarchy-refresh-herdr-app
+
+echo "Opening Herdr..."
+setsid uwsm-app -- "$HOME/.local/bin/herdr-app" >/dev/null 2>&1 &
+
+# Herdr picks a theme only through its running window, which creates Herdr's
+# home on first launch. Wait for it to answer, then select Omarchy's palette.
+echo "Matching Herdr to the current theme..."
+themed=0
+for (( attempt = 0; attempt < 60; attempt++ )); do
+  if omarchy-theme-set-herdr-app --activate 2>/dev/null; then
+    themed=1
+    break
+  fi
+  sleep 0.5
+done
+
+if (( themed == 0 )); then
+  echo "Herdr didn't answer in time. Pick Omarchy in its theme picker to match your theme."
+fi
+
+echo ""
+echo "Herdr has been installed. It updates itself."
