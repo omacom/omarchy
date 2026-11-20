@@ -9,7 +9,7 @@ set -euo pipefail
 source "$OMARCHY_PATH/bin/omarchy-lab-common"
 
 clipboard_to_guest() {
-  local json=false use_host=false payload encoded expected actual
+  local json=false use_host=false encoded expected actual bytes
   local -a text=()
   while (($#)); do
     case $1 in
@@ -23,17 +23,17 @@ clipboard_to_guest() {
 
   require_running_lab
   if $use_host; then
-    payload=$(timeout 2 wl-paste --no-newline 2>/dev/null || true)
+    encoded=$(timeout 2 wl-paste --no-newline 2>/dev/null | base64 -w0) || return 1
   elif ((${#text[@]})); then
-    payload=${text[*]}
+    encoded=$(printf '%s' "${text[*]}" | base64 -w0)
   elif [[ ! -t 0 ]]; then
-    payload=$(</dev/stdin)
+    encoded=$(base64 -w0) || return 1
   else
-    payload=$(wl-paste --no-newline)
+    encoded=$(wl-paste --no-newline | base64 -w0) || return 1
   fi
 
-  encoded=$(printf '%s' "$payload" | base64 -w 0)
-  expected=$(printf '%s' "$payload" | sha256sum | awk '{print $1}')
+  expected=$(printf '%s' "$encoded" | base64 -d | sha256sum | awk '{print $1}')
+  bytes=$(printf '%s' "$encoded" | base64 -d | wc -c)
   actual=$(session_lab "
     clipboard_file=\"\$XDG_RUNTIME_DIR/omarchy-lab-clipboard\"
     printf '%s' '$encoded' | base64 -d >\"\$clipboard_file\"
@@ -54,9 +54,9 @@ clipboard_to_guest() {
   [[ $actual == "$expected" ]] || lab_fail "guest clipboard did not retain the transferred text"
 
   if $json; then
-    jq -cn --arg sha256 "$expected" --argjson bytes "${#payload}" '{direction:"to-guest", bytes:$bytes, sha256:$sha256}'
+    jq -cn --arg sha256 "$expected" --argjson bytes "$bytes" '{direction:"to-guest", bytes:$bytes, sha256:$sha256}'
   else
-    printf 'Copied %s bytes to the guest clipboard.\n' "${#payload}"
+    printf 'Copied %s bytes to the guest clipboard.\n' "$bytes"
   fi
 }
 
@@ -97,7 +97,7 @@ pull_downloads() {
 }
 
 clipboard_from_guest() {
-  local copy=false json=false payload expected actual
+  local copy=false json=false encoded expected actual
   while (($#)); do
     case $1 in
     --copy) copy=true ;;
@@ -108,19 +108,20 @@ clipboard_from_guest() {
   done
 
   require_running_lab
-  payload=$(session_lab 'timeout 2 wl-paste --no-newline 2>/dev/null || true')
-  expected=$(printf '%s' "$payload" | sha256sum | awk '{print $1}')
+  encoded=$(session_lab 'timeout 2 wl-paste --no-newline 2>/dev/null' | base64 -w0) || return 1
+  expected=$(printf '%s' "$encoded" | base64 -d | sha256sum | awk '{print $1}')
   if $copy; then
-    printf '%s' "$payload" | wl-copy
+    printf '%s' "$encoded" | base64 -d | wl-copy
     sleep 0.2
     actual=$(timeout 2 wl-paste --no-newline | sha256sum | awk '{print $1}')
     [[ $actual == "$expected" ]] || lab_fail "host clipboard did not retain the transferred text"
   fi
 
   if $json; then
-    jq -cn --arg text "$payload" --arg sha256 "$expected" --argjson copied "$copy" '{direction:"from-guest", copiedToHost:$copied, bytes:($text | utf8bytelength), sha256:$sha256, text:$text}'
+    printf '%s' "$encoded" | jq -cRs --arg sha256 "$expected" --argjson copied "$copy" \
+      '(@base64d) as $text | {direction:"from-guest", copiedToHost:$copied, bytes:($text | utf8bytelength), sha256:$sha256, text:$text}'
   else
-    printf '%s' "$payload"
+    printf '%s' "$encoded" | base64 -d
   fi
 }
 
