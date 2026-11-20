@@ -882,7 +882,8 @@ printf 'systemctl %s\n' "$*" >>"$GREETER_DIR/events"
 SH
 chmod +x "$greeter/bin/"*
 
-greeter_status=0
+# Not under ||, which would switch off the set -e the greeter runs under.
+set +e
 (
   set -euo pipefail
   PATH="$greeter/bin:$PATH"
@@ -892,7 +893,15 @@ greeter_status=0
   term_cols() { echo 120; }
   left_padding() { printf ''; }
   wait_console_stable() { return 0; }
-  console_signature() { echo "40 120||"; }
+  # The console sends Ctrl+C to everything on it, so the greeter's own $(...)
+  # dies with it: delivered once the animation is up, from inside the one running.
+  console_signature() {
+    if [[ -s $greeter/ttfx-pids && ! -e $greeter/interrupted ]]; then
+      : >"$greeter/interrupted"
+      kill -INT "$target" "$BASHPID"
+    fi
+    echo "40 120||"
+  }
   fit_console_font() { echo "fit_console_font" >>"$greeter/events"; }
   brand_console_font() { echo "brand_console_font" >>"$greeter/events"; }
   confirm_reboot() {
@@ -907,12 +916,6 @@ greeter_status=0
   target=$BASHPID
   (
     for _ in {1..100}; do
-      [[ -f $greeter/ttfx-pids ]] && (( $(wc -l <"$greeter/ttfx-pids") >= 1 )) && break
-      sleep 0.02
-    done
-    sleep 0.05
-    kill -INT "$target" 2>/dev/null || true
-    for _ in {1..100}; do
       [[ -f $greeter/ttfx-pids ]] && (( $(wc -l <"$greeter/ttfx-pids") >= 2 )) && break
       sleep 0.02
     done
@@ -923,7 +926,9 @@ greeter_status=0
   printf 'after_trap=%s\n' "$(trap -p INT)" >>"$greeter/events"
   wait "$driver" 2>/dev/null || true
   exec 8>&-
-) || greeter_status=$?
+)
+greeter_status=$?
+set -e
 
 if [[ -f $greeter/ttfx-pids ]]; then
   while IFS= read -r pid; do
