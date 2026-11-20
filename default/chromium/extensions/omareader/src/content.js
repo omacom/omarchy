@@ -1280,10 +1280,27 @@
 
   // First node in the document: declares the lowest cascade layer. Its normal declarations
   // stand in for UA defaults. Screen only.
+  // A top-level page without a background shows the browser's white canvas, which the
+  // base layer replaces. A frame without one is transparent instead: overlays (Braze
+  // in-app messages, chat widgets) draw a translucent scrim in a full-screen iframe, so
+  // painting that frame's canvas would hide the page under an opaque slab.
+  const topFrame = (() => {
+    try {
+      return self === top;
+    } catch {
+      return false;
+    }
+  })();
+
   function baseCss() {
     const s = mapper.swatch;
+    const canvas = topFrame ? `background-color:${s.bg};` : '';
+    // Chrome paints an opaque canvas behind a frame whose root color-scheme differs from
+    // its <iframe> element's (Braze sets color-scheme:normal there). Every themed frame
+    // document gets this scheme, so the elements embedding them get it too.
     return `@layer omareader-base{
-:root{color-scheme:${mapper.mode} !important;background-color:${s.bg};color:${s.fg};scrollbar-color:${s.thumb} ${s.bg};accent-color:${s.accent}}
+:root{color-scheme:${mapper.mode} !important;${canvas}color:${s.fg};scrollbar-color:${s.thumb} ${s.bg};accent-color:${s.accent}}
+iframe,frame{color-scheme:${mapper.mode} !important}
 input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file],[type=image],[type=button],[type=submit],[type=reset]),textarea,select{background-color:${s.field};color:${s.fg};border-color:${s.border}}
 button,input[type=button],input[type=submit],input[type=reset]{background-color:${s.button};color:${s.fg};border-color:${s.border}}
 ::placeholder{color:${s.muted};opacity:1}
