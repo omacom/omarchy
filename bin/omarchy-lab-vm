@@ -665,9 +665,10 @@ ensure_libvirt_conf() {
 }
 
 ensure_ufw() {
-  local wan
+  local wan rules line old_wan
+  local prefix="ufw route allow in on virbr0 out on " suffix=" comment 'libvirt nat'"
   wan=$(default_wan)
-  [[ -n $wan ]] || {
+  [[ $wan =~ ^[[:alnum:]_.:-]+$ ]] || {
     echo "No default route; cannot install libvirt NAT forwarding." >&2
     return 1
   }
@@ -680,9 +681,19 @@ ensure_ufw() {
     sudo ufw allow in on virbr0 to "$LIBVIRT_NET" port 53 proto udp comment 'libvirt dns' || return 1
     sudo ufw allow in on virbr0 to "$LIBVIRT_NET" port 53 proto tcp comment 'libvirt dns' || return 1
   fi
-  if ! sudo ufw status | grep -q "libvirt nat"; then
+  # Check the actual configured command, even when the firewall is inactive.
+  # Install the new forwarding rule before removing an old managed uplink.
+  rules=$(sudo ufw show added) || return 1
+  if ! grep -Fxq "$prefix$wan$suffix" <<<"$rules"; then
     sudo ufw route allow in on virbr0 out on "$wan" comment 'libvirt nat' || return 1
   fi
+  while IFS= read -r line; do
+    [[ $line == "$prefix"*"$suffix" ]] || continue
+    old_wan=${line#"$prefix"}
+    old_wan=${old_wan%"$suffix"}
+    [[ $old_wan =~ ^[[:alnum:]_.:-]+$ && $old_wan != "$wan" ]] || continue
+    sudo ufw --force route delete allow in on virbr0 out on "$old_wan" comment 'libvirt nat' || return 1
+  done <<<"$rules"
 }
 
 nat_gateway() {
