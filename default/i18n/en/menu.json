@@ -910,6 +910,9 @@
   "install.ai.openclaw": {
     "label": "OpenClaw"
   },
+  "install.ai.orca": {
+    "label": "Orca"
+  },
   "install.ai.perplexity": {
     "label": "Perplexity"
   },
@@ -1146,6 +1149,9 @@
   },
   "remove.ai.openclaw": {
     "label": "OpenClaw"
+  },
+  "remove.ai.orca": {
+    "label": "Orca"
   },
   "remove.ai.perplexity": {
     "label": "Perplexity"

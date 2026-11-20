@@ -147,6 +147,22 @@ echo "#!/bin/sh" >"$HOME/.local/bin/t3"
 [[ -f $HOME/.local/bin/t3 ]] || fail "T3 Code removal keeps a t3 the user put there"
 pass "T3 Code removal keeps a t3 the user put there"
 
+# Orca's CLI link points at the app's shim; any other orca-ide is someone else's.
+fresh_home
+mkdir -p "$HOME/.local/bin" "$HOME/.config/orca"
+ln -s /opt/Orca/resources/bin/orca-ide "$HOME/.local/bin/orca-ide"
+"$ROOT/bin/omarchy-remove-ai-orca" >/dev/null
+[[ ! -L $HOME/.local/bin/orca-ide ]] || fail "Orca removal deletes the app's CLI link"
+[[ -d $HOME/.config/orca ]] || fail "Orca removal keeps the settings the CLI and runtime share"
+pass "Orca removal deletes the app's CLI link and keeps ~/.config/orca"
+
+fresh_home
+mkdir -p "$HOME/.local/share/orca/current/resources/bin" "$HOME/.local/bin"
+ln -s "$HOME/.local/share/orca/current/resources/bin/orca-ide" "$HOME/.local/bin/orca-ide"
+"$ROOT/bin/omarchy-remove-ai-orca" >/dev/null
+[[ -L $HOME/.local/bin/orca-ide ]] || fail "Orca removal keeps an orca-ide link to a standalone runtime"
+pass "Orca removal keeps an orca-ide link to a standalone runtime"
+
 # Perplexity's other products (the CLI, Comet) share the perplexity-* prefix;
 # the desktop app owns only its rpc-server runtime and Electron caches. The
 # logins, vault, and flags are the user's and only go when a terminal said so.
