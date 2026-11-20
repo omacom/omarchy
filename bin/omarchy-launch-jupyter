@@ -20,11 +20,16 @@ fi
 state="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/ml"
 mkdir -p "$state"
 chmod 700 "$state"
-token=$(openssl rand -hex 8)
-url="http://127.0.0.1:8888/lab?token=$token"
-printf '%s\n' "$url" > "$state/jupyter.url"
-chmod 600 "$state/jupyter.url"
 
+if [[ -s $state/jupyter.url ]] && curl -fsS -o /dev/null --max-time 2 "http://127.0.0.1:8888/api"; then
+  url=$(<"$state/jupyter.url")
+  omarchy-notification-send "$(omarchy-i18n ml.jupyterTitle)" "$(omarchy-i18n ml.jupyterOpen)"
+  xdg-open "$url"
+  exit 0
+fi
+
+token=$(openssl rand -hex 8)
+: > "$state/jupyter.log"
 nohup "$python" -m jupyter lab \
   --no-browser \
   --ip=127.0.0.1 \
@@ -32,6 +37,20 @@ nohup "$python" -m jupyter lab \
   --ServerApp.token="$token" \
   --ServerApp.password='' \
   > "$state/jupyter.log" 2>&1 &
+
+url=""
+for _try in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  url=$(grep -oE 'http://127\.0\.0\.1:[0-9]+/lab\?token=[A-Za-z0-9]+' "$state/jupyter.log" | head -n 1 || true)
+  if [[ -n $url ]]; then
+    break
+  fi
+  sleep 0.25
+done
+if [[ -z $url ]]; then
+  url="http://127.0.0.1:8888/lab?token=$token"
+fi
+printf '%s\n' "$url" > "$state/jupyter.url"
+chmod 600 "$state/jupyter.url"
 
 omarchy-notification-send "$(omarchy-i18n ml.jupyterTitle)" "$(omarchy-i18n ml.jupyterOpen)"
 xdg-open "$url"

@@ -7,6 +7,18 @@
 
 set -euo pipefail
 
+amd_gpu() {
+  local vendor
+  if omarchy-cmd-present rocminfo || omarchy-cmd-present rocm-smi; then
+    return 0
+  fi
+  for vendor in /sys/class/drm/card*/device/vendor; do
+    [[ -r $vendor ]] || continue
+    [[ $(<"$vendor") == "0x1002" ]] && return 0
+  done
+  return 1
+}
+
 print_plan=0
 if [[ ${1:-} == "--print-plan" ]]; then
   print_plan=1
@@ -17,7 +29,7 @@ choice="${1:-${OMARCHY_ML_GPU:-}}"
 if [[ -z $choice ]]; then
   if omarchy-cmd-present nvidia-smi || omarchy-hw-nvidia; then
     choice=nvidia
-  elif omarchy-cmd-present rocminfo || omarchy-cmd-present rocm-smi; then
+  elif amd_gpu; then
     choice=rocm
   else
     echo "No NVIDIA or AMD GPU found." >&2
@@ -42,8 +54,8 @@ if ((print_plan)); then
   exit 0
 fi
 
-if [[ $choice == nvidia ]]; then
-  bash "$OMARCHY_PATH/install/hardware/nvidia.sh"
+if [[ $choice == "nvidia" ]]; then
+  sudo bash "$OMARCHY_PATH/install/hardware/nvidia.sh"
   omarchy-pkg-add cuda nvidia-container-toolkit
   if ! nvidia-smi; then
     echo "nvidia-smi did not answer. The driver is not ready." >&2
@@ -59,4 +71,4 @@ else
   echo "ROCm is answering."
 fi
 
-omarchy-plugin-enable omarchy.gpu --section center --before omarchy.system-update || true
+omarchy-plugin-enable omarchy.gpu --section centerEnd --before omarchy.system-update || true

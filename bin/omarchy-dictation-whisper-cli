@@ -6,10 +6,47 @@
 
 set -euo pipefail
 
-runtime="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/omarchy-whisper"
+runtime=""
 model="${OMARCHY_WHISPER_MODEL:-${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/whisper/ggml-base.en.bin}"
 language=""
 prompt=""
+
+prepare_runtime() {
+  local root
+  if [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
+    root=$XDG_RUNTIME_DIR
+  else
+    root="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+  fi
+  runtime="$root/omarchy-whisper"
+  mkdir -p -m 700 "$root"
+  mkdir -p -m 700 "$runtime"
+  chmod 700 "$root" "$runtime"
+  python3 - "$runtime" <<'PY'
+import os
+import stat
+import sys
+
+path = sys.argv[1]
+info = os.lstat(path)
+if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+    raise SystemExit("Dictation runtime must be a private directory.")
+if info.st_uid != os.getuid() or info.st_mode & 0o077:
+    raise SystemExit("Dictation runtime must be owned by you and closed to other users.")
+PY
+}
+
+write_pid() {
+  python3 - "$runtime/record.pid" "$1" <<'PY'
+import os
+import sys
+
+path, pid = sys.argv[1], sys.argv[2]
+fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+os.write(fd, (pid + "\n").encode())
+os.close(fd)
+PY
+}
 
 dictation_file() {
   printf '%s/omarchy/ml/dictation.json' "${XDG_CONFIG_HOME:-$HOME/.config}"
@@ -18,7 +55,7 @@ dictation_file() {
 prompt_line() {
   local placeholder=$1
   local value=""
-  if [[ -t 0 ]] && omarchy-cmd-present gum; then
+  if [[ -t 0 ]]; then
     value=$(gum input --placeholder "$placeholder")
   elif [[ ! -t 0 ]]; then
     IFS= read -r value || true
@@ -67,14 +104,22 @@ PY
   fi
 }
 
+recording_pid() {
+  [[ -f $runtime/record.pid && ! -L $runtime/record.pid ]] || return 1
+  local pid
+  pid=$(<"$runtime/record.pid")
+  kill -0 "$pid" 2>/dev/null || return 1
+  printf '%s\n' "$pid"
+}
+
 start_recording() {
-  mkdir -p "$runtime"
-  if [[ -f $runtime/record.pid ]] && kill -0 "$(<"$runtime/record.pid")" 2>/dev/null; then
+  prepare_runtime
+  if recording_pid >/dev/null; then
     exit 0
   fi
   rm -f "$runtime/dictate.wav" "$runtime/dictate.wav.txt"
   nohup pw-record --rate 16000 --channels 1 --format s16 "$runtime/dictate.wav" >/dev/null 2>&1 &
-  echo $! > "$runtime/record.pid"
+  write_pid "$!"
   disown || true
   local _try
   for _try in 1 2 3 4 5 6 7 8 9 10; do
@@ -84,14 +129,15 @@ start_recording() {
 }
 
 stop_recording() {
-  if [[ -f $runtime/record.pid ]]; then
-    local pid
-    pid=$(<"$runtime/record.pid")
+  prepare_runtime
+  local pid=""
+  if pid=$(recording_pid); then
     kill "$pid" 2>/dev/null || true
     wait "$pid" 2>/dev/null || true
-    rm -f "$runtime/record.pid"
   fi
-  if [[ ! -f $runtime/dictate.wav ]]; then
+  rm -f "$runtime/record.pid"
+  if [[ -z $pid || ! -f $runtime/dictate.wav ]]; then
+    rm -f "$runtime/dictate.wav" "$runtime/dictate.wav.txt"
     exit 0
   fi
   load_dictation
@@ -112,6 +158,7 @@ stop_recording() {
   fi
   local text
   text=$(tr '\n' ' ' < "$runtime/dictate.wav.txt")
+  rm -f "$runtime/dictate.wav" "$runtime/dictate.wav.txt"
   text=${text%" "}
   [[ -n $text ]] || exit 0
   wtype -- "$text"
@@ -209,7 +256,8 @@ case "${1:-}" in
     update_dictation word "$drop" "$app" "$value"
     ;;
   toggle)
-    if [[ -f $runtime/record.pid ]] && kill -0 "$(<"$runtime/record.pid")" 2>/dev/null; then
+    prepare_runtime
+    if recording_pid >/dev/null; then
       stop_recording
     else
       start_recording

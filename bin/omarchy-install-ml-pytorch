@@ -73,3 +73,4 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 tensor = torch.ones(2, device=device)
 print(f"ok {torch.__version__} {tensor.device} index {index}")
 PY
+touch "$venv/READY"

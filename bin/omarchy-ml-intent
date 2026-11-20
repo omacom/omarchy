@@ -36,6 +36,7 @@ import json
 import os
 import re
 import shlex
+import subprocess
 import sys
 
 STOP = {"the", "a", "an", "to", "on", "of", "my", "me", "for", "and", "please", "that", "this", "from"}
@@ -52,6 +53,20 @@ def load_menu(path):
     text = re.sub(r",(\s*[}\]])", r"\1", "".join(lines))
     return json.loads(text)
 
+def shell_ok(script):
+    if not script:
+        return False
+    try:
+        result = subprocess.run(
+            ["bash", "-c", script],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+        )
+    except subprocess.TimeoutExpired:
+        return False
+    return result.returncode == 0
+
 def menu_actions():
     root = os.environ.get("OMARCHY_PATH", "")
     menus = []
@@ -59,11 +74,23 @@ def menu_actions():
     menus.append(load_menu(shipped))
     home = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
     menus.append(load_menu(os.path.join(home, "omarchy/extensions/omarchy-menu.jsonc")))
-    actions = []
+    merged = {}
+    order = []
     for menu in menus:
         for key, value in menu.items():
-            if isinstance(value, dict) and value.get("action"):
-                actions.append((key, value.get("label") or key, value["action"]))
+            if not isinstance(value, dict) or not value.get("action"):
+                continue
+            if key in merged:
+                combined = dict(merged[key])
+                combined.update(value)
+                value = combined
+            else:
+                order.append(key)
+            merged[key] = value
+    actions = []
+    for key in order:
+        value = merged[key]
+        actions.append((key, value.get("label") or key, value["action"], value.get("when") or "", value.get("disabled") or ""))
     return actions
 
 def tokens(text):
@@ -120,17 +147,20 @@ def phrase_command(query):
 
 def best_action(query):
     wanted = tokens(query)
-    best = None
-    best_score = 0
-    for key, label, action in menu_actions():
+    ranked = []
+    for key, label, action, when, disabled in menu_actions():
         hay = tokens(label + " " + key.replace(".", " "))
         score = sum(1 for word in wanted if word in hay)
-        if score > best_score:
-            best_score = score
-            best = action
-    if best_score < 1:
-        return None
-    return best
+        if score > 0:
+            ranked.append((score, len(ranked), action, when, disabled))
+    ranked.sort(key=lambda row: (-row[0], row[1]))
+    for score, _, action, when, disabled in ranked:
+        if when and not shell_ok(when):
+            continue
+        if disabled and shell_ok(disabled):
+            continue
+        return action
+    return None
 
 args = sys.argv[1:]
 print_only = False

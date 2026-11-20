@@ -240,6 +240,9 @@ def newest_png():
                     mtime = os.path.getmtime(path)
                 except OSError:
                     continue
+                since = os.environ.get("OMARCHY_ML_SHOT_SINCE")
+                if since and mtime < float(since):
+                    continue
                 if mtime > newest_mtime:
                     newest = path
                     newest_mtime = mtime

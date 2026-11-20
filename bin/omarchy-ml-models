@@ -36,4 +36,14 @@ link_cache() {
 failed=0
 link_cache "${XDG_CACHE_HOME:-$HOME/.cache}/huggingface" "$models/huggingface" || failed=1
 link_cache "$HOME/.ollama/models" "$models/ollama" || failed=1
+if command -v systemctl >/dev/null && systemctl cat ollama.service >/dev/null 2>&1; then
+  sudo mkdir -p /etc/systemd/system/ollama.service.d
+  printf '[Service]\nEnvironment=OLLAMA_MODELS=%s\n' "$models/ollama" |
+    sudo tee /etc/systemd/system/ollama.service.d/omarchy-models.conf >/dev/null
+  if id ollama >/dev/null 2>&1; then
+    sudo chgrp ollama "$models" "$models/ollama"
+    sudo chmod 755 "$models" "$models/ollama"
+  fi
+  sudo systemctl try-reload-or-restart ollama.service || true
+fi
 exit "$failed"

@@ -5,6 +5,16 @@
 
 set -euo pipefail
 
+if [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
+  runtime="$XDG_RUNTIME_DIR/omarchy-whisper"
+else
+  runtime="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/omarchy-whisper"
+fi
+if [[ -f $runtime/record.pid && ! -L $runtime/record.pid ]]; then
+  kill "$(<"$runtime/record.pid")" 2>/dev/null || true
+fi
+rm -f "$runtime/record.pid" "$runtime/dictate.wav" "$runtime/dictate.wav.txt"
+
 if omarchy-cmd-present whisper-cli || omarchy-pkg-present whisper-cpp; then
   omarchy-pkg-drop whisper-cpp
   rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/whisper"

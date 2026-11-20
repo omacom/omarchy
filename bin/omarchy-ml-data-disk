@@ -38,6 +38,18 @@ mkdir -p \
   "$root/pip" \
   "$root/uv" \
   "$root/models/ollama"
+chmod 755 "$root/models" "$root/models/ollama"
+
+if command -v systemctl >/dev/null && systemctl cat ollama.service >/dev/null 2>&1; then
+  sudo mkdir -p /etc/systemd/system/ollama.service.d
+  printf '[Service]\nEnvironment=OLLAMA_MODELS=%s\n' "$root/models/ollama" |
+    sudo tee /etc/systemd/system/ollama.service.d/omarchy-models.conf >/dev/null
+  if id ollama >/dev/null 2>&1; then
+    sudo chgrp ollama "$root/models" "$root/models/ollama"
+    sudo chmod 755 "$root/models" "$root/models/ollama"
+  fi
+  sudo systemctl try-reload-or-restart ollama.service || true
+fi
 
 config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/environment.d"
 mkdir -p "$config_dir"

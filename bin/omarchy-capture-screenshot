@@ -24,9 +24,11 @@ for arg in "$@"; do
   esac
 done
 
+started=$(date +%s)
 omasnap "${omasnap_args[@]}"
 status=$?
-if [[ -n ${OMARCHY_PATH:-} && -x $OMARCHY_PATH/bin/omarchy-ml-shot ]]; then
-  "$OMARCHY_PATH/bin/omarchy-ml-shot" index-latest || true
+if ((status == 0)) && [[ -n ${OMARCHY_PATH:-} && -x $OMARCHY_PATH/bin/omarchy-ml-shot ]]; then
+  OMARCHY_ML_SHOT_SINCE="$started" "$OMARCHY_PATH/bin/omarchy-ml-shot" index-latest >/dev/null 2>&1 &
+  disown || true
 fi
 exit "$status"

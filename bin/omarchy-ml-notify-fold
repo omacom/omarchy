@@ -61,6 +61,8 @@ rows = [row for row in rows if isinstance(row, dict)]
 
 groups = {"ci": [], "mail": [], "chat": []}
 for row in rows:
+    if str(row.get("app") or "") == "omarchy-ml-digest":
+        continue
     kind = classify(text_of(row))
     if kind in groups:
         groups[kind].append(row)
@@ -89,7 +91,7 @@ PY
 )
 
 if ((notify)); then
-  omarchy-notification-send "$(omarchy-i18n ml.notifications)" "$line"
+  omarchy-notification-send --transient --app-name omarchy-ml-digest "$(omarchy-i18n ml.notifications)" "$line"
 else
   printf '%s\n' "$line"
 fi

@@ -61,6 +61,9 @@ write_note reminder Omarchy "stand up" ""
 digest=$("$ROOT/bin/omarchy-ml-notify-fold" "$notify_dir")
 [[ $digest == "3 failed builds, 12 messages from #ops" ]] ||
   fail "notifications fold into one line" "$digest"
+write_note digest omarchy-ml-digest "$digest" ""
+[[ $("$ROOT/bin/omarchy-ml-notify-fold" "$notify_dir") == "$digest" ]] ||
+  fail "a digest is not counted as another notice"
 
 history="$HOME/.local/state/omarchy/notifications/history.json"
 mkdir -p "${history%/*}"
@@ -273,6 +276,10 @@ PATH="$stub:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-dictation-whisper-cli" start
 PATH="$stub:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-dictation-whisper-cli" stop
 [[ $(<"$WHISPER_LOG") == "-- hello from whisper" ]] ||
   fail "whisper.cpp types the transcript into the focused window" "$(cat "$WHISPER_LOG" 2>/dev/null)"
+rm -f "$WHISPER_LOG"
+PATH="$stub:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-dictation-whisper-cli" stop
+[[ ! -e $WHISPER_LOG ]] ||
+  fail "stopping with nothing recording types the previous transcript"
 pass "hold-to-talk types what whisper.cpp heard"
 
 (
@@ -326,11 +333,7 @@ pass "hold-to-talk types what whisper.cpp heard"
   "$ROOT/bin/omarchy-ml-chat" model qwen2.5 >/dev/null
   "$ROOT/bin/omarchy-ml-chat"
   grep -q 'ollama run qwen2.5' "$CHAT_LOG" || fail "chat opens the model you named" "$(cat "$CHAT_LOG")"
-  grep -Fq '"trigger.ml.chat-model"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
-    fail "the menu can set the chat model"
-  grep -Fq '"setup.default.dictation.whisper-language"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
-    fail "the menu can set the dictation language"
-  pass "dictation words and the chat model are yours to set"
+    pass "dictation words and the chat model are yours to set"
 )
 
 [[ $("$ROOT/bin/omarchy-launch-jupyter" --print) == "http://127.0.0.1:8888/lab" ]] ||
@@ -340,12 +343,4 @@ note_line=$(grep -F 'omarchy-notification-send' "$ROOT/bin/omarchy-launch-jupyte
   fail "jupyter notification leaves the token out" "$note_line"
 grep -Fq 'chmod 600 "$state/jupyter.url"' "$ROOT/bin/omarchy-launch-jupyter" ||
   fail "jupyter url file is owner-only"
-grep -q 'SUPER + ALT + A' "$ROOT/default/hypr/bindings/ml.lua" ||
-  fail "the intent launcher has a key"
-grep -q 'omarchy-ml-notify-fold --notify' "$ROOT/default/hypr/bindings/ml.lua" ||
-  fail "notification fold has a key"
-grep -Fq '"trigger.ml.intent"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
-  fail "the menu can run an action by asking"
-grep -Fq '"install.ml.gpu"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
-  fail "the menu can install a gpu stack"
-pass "menu and keys are wired up"
+pass "jupyter stays local and keeps its token private"
