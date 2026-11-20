@@ -1,39 +1,43 @@
 # Kereskedelmi alkalmazások/szolgáltatások
 
-Az Omarchy többnyire az ingyenes, nyílt forráskódú szoftverekre összpontosít, de nem kezeli ezt vallásként. Néha a legjobb megoldás egy kereskedelmi termék, és ez teljesen rendben van. Íme néhány azok közül a lehetőségek közül, amelyekhez egyszerű telepítést kínálunk.
+Az Omarchy többnyire ingyenes, nyílt forráskódú szoftverek biztosítására összpontosít, de ezt nem kezeli vallási kérdésként. Néha a legjobb megoldás egy kereskedelmi ajánlat, és ez teljesen rendben van. Íme néhány azok közül a lehetőségek közül, amelyekhez egyszerű telepítést biztosítunk.
 
 ## 1Password
 
-A jelszavaidat jelszókezelőben tartani bevált gyakorlat. Kétszeresen is igaz ez, ha csapatban dolgozol. A [1password](https://1password.com/) pedig nagyszerű megoldás, amelyhez parancssori eszköz is jár, amellyel a kulcsok keresése szkriptekbe integrálható.
+Bevált gyakorlat, ha a jelszavaidat jelszókezelőben tartod. Kétszeresen is igaz ez, ha csapatban dolgozol. Az [1password](https://1password.com/) pedig remek megoldás, amely parancssori eszközt is ad a kulcsok kikeresésének szkriptekbe való beépítéséhez.
 
-A 1Password a `Super + Shift + /` billentyűkombinációval indul. Ha még nincs telepítve, ez a gyorsbillentyű először elindítja a telepítést (használhatod az Omarchy menü _Install > Service > 1Password_ pontját is). A telepítő a Chromiumhoz készült 1Password bővítményt is beállítja.
+A 1Passwordot a `Super + Shift + /` billentyűkombinációval indítod el. Ha még nincs telepítve, ez a gyorsbillentyű először elindítja a telepítést (az Omarchy menüből az _Install > Service > 1Password_ pontot is használhatod). A telepítő a 1Password parancssori eszközét is feltelepíti, és beállítja a 1Password bővítményt a Chrome és a Chromium böngészőhöz; indítsd újra a böngésződet a betöltéséhez.
 
 ## Bitwarden
 
-A [Bitwarden](https://bitwarden.com/) a jelszókezelők világának nyílt forráskódú alternatívája, ingyenes csomaggal, amely a legtöbb személyes felhasználást lefedi. Telepítsd az Omarchy menü _Install > Service > Bitwarden_ pontjával, amely a Bitwarden parancssori eszközét is magával hozza.
+A [Bitwarden](https://bitwarden.com/) a nyílt forráskódú alternatíva a jelszókezelők terén, olyan ingyenes csomaggal, amely a legtöbb személyes felhasználási esetet lefedi. Az Omarchy menüből telepítheted az _Install > Service > Bitwarden_ ponttal, amely a Bitwarden parancssori eszközét is magával hozza.
 
 ## Spotify
 
-A [Spotify](https://spotify.com/) a világ legnépszerűbb zenei streaming szolgáltatása. Az Omarchy webalkalmazásként szállítja, így megkapod a teljes lejátszót, a médiabillentyűket és a Spotify Connectet, az offline letöltéseket viszont nem. A `Super + Shift + M` billentyűkombinációval indíthatod.
+A [Spotify](https://spotify.com/) a világ legnépszerűbb zenestreaming-szolgáltatása. Az Omarchy webalkalmazásként kínálja, így megkapod a teljes lejátszót, a médiabillentyűket és a Spotify Connectet, az offline letöltéseket azonban nem. A `Super + Shift + M` billentyűkombinációval indíthatod el.
 
 ## Slack
 
-A [Slack](https://slack.com/) az a hely, ahol sok csapat cseveg, cégen belül és külső közreműködőkkel egyaránt. Telepítsd az Omarchy menü _Install > Service > Slack_ pontjával, és amint elkészült, meg is nyílik.
+A [Slack](https://slack.com/) az a felület, ahol sok csapat cseveg, cégen belül és külső együttműködő partnerekkel egyaránt. Az Omarchy menüből telepítheted az _Install > Service > Slack_ ponttal, és amint elkészül, meg is nyílik.
+
+## Notion
+
+A [Notion](https://www.notion.com/) jegyzetek, dokumentumok és projektek számára készült munkaterület. Az asztali alkalmazását az Omarchy menüből telepítheted az _Install > Service > Notion_ ponttal.
 
 ## Dropbox
 
-A [Dropbox](https://www.dropbox.com/) nagyszerű módja a fájlok gépek közötti szinkronizálásának, miközben biztonsági másolatot tartasz a felhőben. A beállításához válaszd az Omarchy menü _Install > Service > Dropbox_ pontját. Amint fut, vidd a kurzort a sáv jobb felső részén lévő tálca fölé, és kattints jobb gombbal a Dropbox ikonra a beállítás befejezéséhez.
+A [Dropbox](https://www.dropbox.com/) remek módja annak, hogy szinkronizáld a fájlokat a gépek között, miközben biztonsági másolatot tartasz róluk a felhőben. A beállításához válaszd az Omarchy menüben az _Install > Service > Dropbox_ pontot. Ez elhelyez egy Dropbox ikont a sávon: kattints rá a bejelentkezéshez, majd ugyanazon a panelen ellenőrizheted a tárhelyedet, és megnyithatod a nemrég szinkronizált fájlokat.
 
 ## Tailscale
 
-A [Tailscale](https://tailscale.com/) egy mesh VPN, amely rendkívül egyszerűvé teszi, hogy az interneten keresztül biztonságosan hozzáférj az összes számítógépedhez és szerveredhez. A beállításához válaszd az Omarchy menü _Install > Service > Tailscale_ pontját.
+A [Tailscale](https://tailscale.com/) egy mesh VPN, amely rendkívül egyszerűvé teszi, hogy az interneten keresztül biztonságosan hozzáférj az összes számítógépedhez és szerveredhez. A beállításához válaszd az Omarchy menüben az _Install > Service > Tailscale_ pontot.
 
-Kap egy panelt a sávban, egy webalkalmazást az adminisztrációs konzolhoz, és a Taildropot a fájlok gépeid közötti küldéséhez — lásd: [hálózatkezelés](35-networking.md).
+Kap egy panelt a sávon, egy webalkalmazást az adminisztrációs konzolhoz, valamint a Taildropot a fájlok gépeid közötti küldéséhez — lásd: [hálózatkezelés](35-networking.md).
 
 ## ONCE
 
-Az [ONCE](https://once.com/) a 37signals olyan szoftvercsaládja, amelyet egyszer vásárolsz meg, és a saját szervereden futtatsz, mint például a Campfire csevegőrendszer. A telepítéshez válaszd az Omarchy menü _Install > Service > ONCE_ pontját, amely engedélyezi a háttérszolgáltatását, és az ONCE terminálfelületére visz, ahonnan folytathatod.
+A [ONCE](https://once.com/) a 37signals olyan szoftvercsaládja, amelyet egyszer megvásárolsz, és a saját szervereden futtatsz, mint például a Campfire csevegőrendszer. A telepítéséhez válaszd az Omarchy menüben az _Install > Service > ONCE_ pontot, amely engedélyezi a háttérszolgáltatását, és az ONCE terminálos felületére visz, hogy onnan folytathasd.
 
 ## NordVPN
 
-A [NordVPN](https://nordvpn.com/) egy szokványos VPN-szolgáltatás, amely lehetővé teszi, hogy a forgalmad a világ legtöbb régióján keresztül lépjen ki. A beállításához válaszd az Omarchy menü _Install > Service > NordVPN_ pontját. Az általa kért újraindítás után futtasd a `nordvpn login` parancsot a hitelesítéshez.
+A [NordVPN](https://nordvpn.com/) egy szokványos VPN-szolgáltatás, amellyel a világ legtöbb régiójából kiléptetheted a forgalmadat. A beállításához válaszd az Omarchy menüben az _Install > Service > NordVPN_ pontot. Az általa kért újraindítás után futtasd a `nordvpn login` parancsot a hitelesítéshez.
