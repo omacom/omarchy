@@ -1,6 +1,7 @@
 {
   "Activity": "Aktiviti",
   "Agent": "Ejen",
+  "Agents": "Ejen",
   "Apps": "Aplikasi",
   "Audio": "Audio",
   "Background switcher": "Penukar latar belakang",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "Papar tetingkap aktif di atas",
   "Save window width": "Simpan lebar tetingkap",
   "Screenrecording": "Rakaman skrin",
+  "Screenrecording with no audio": "Rakaman skrin tanpa audio",
   "Screenshot": "Tangkapan skrin",
   "Scroll active workspace backward": "Tatal ruang kerja aktif ke belakang",
   "Scroll active workspace forward": "Tatal ruang kerja aktif ke hadapan",
