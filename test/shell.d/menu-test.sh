@@ -64,6 +64,38 @@ assertDeepEqual(
   'menu normalizes parsed items'
 )
 
+// Stripping comments and trailing commas must not rewrite string values: a
+// user extension action keeps every comma the user wrote.
+const stringCommas = menu.parseMenuJsonc(`
+{
+  // ~/.config/omarchy/extensions/omarchy-menu.jsonc
+  "dirs": { "label": "Make dirs", "action": "mkdir -p ~/work/{src,docs,}" },
+  "pick": { "label": "Pick", "action": "omarchy-menu-pick '[\\\"a\\\", \\\"b\\\", ]'", "description": "one, two, ]" },
+}
+`)
+assertEqual(stringCommas.length, 2, 'menu parses a string-heavy extension')
+assertEqual(
+  stringCommas.find(item => item.id === 'dirs').action,
+  'mkdir -p ~/work/{src,docs,}',
+  'menu keeps a trailing comma inside an action string'
+)
+assertEqual(
+  stringCommas.find(item => item.id === 'pick').action,
+  `omarchy-menu-pick '["a", "b", ]'`,
+  'menu keeps a comma before a bracket inside an action string'
+)
+assertEqual(
+  stringCommas.find(item => item.id === 'pick').description,
+  'one, two, ]',
+  'menu keeps commas and brackets inside a description string'
+)
+const urlRow = menu.parseMenuJsonc(`{ "docs": { "label": "Docs", "action": "omarchy-launch-webapp https://example.com/docs, all" } }`)
+assertEqual(
+  urlRow.find(item => item.id === 'docs').action,
+  'omarchy-launch-webapp https://example.com/docs, all',
+  'menu keeps // inside an action string'
+)
+
 // A watched file read mid-write must keep the rows already there, never
 // replace them with nothing, or the menu opens empty until the shell restarts.
 const shippedMenu = fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8')
