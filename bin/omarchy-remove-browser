@@ -80,6 +80,7 @@ chrome)
   sudo rm -f /etc/opt/chrome/policies/managed/color.json /etc/opt/chrome/policies/managed/omarchy.json /etc/opt/chrome/policies/managed/omarchy-extensions.json
   ;;
 chromium)
+  close_browser Chromium chromium
   echo "Removing Chromium..."
   set_fallback_default_browser chromium.desktop
   omarchy-pkg-drop chromium
