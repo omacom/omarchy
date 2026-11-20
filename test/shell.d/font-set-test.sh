@@ -72,7 +72,28 @@ resolves_to() {
 
 resolves_to monospace "$packaged_family" "with no font chosen, monospace resolves to the packaged family"
 
+# User rules survive byte for byte; only the exact legacy generated block goes.
+mkdir -p "$test_dir/home/.config/fontconfig"
+cat >"$test_dir/custom.conf" <<'XML'
+<?xml version="1.0"?>
+<fontconfig>
+  <!-- Keep my rendering rule. -->
+  <match target="font"><edit name="rgba" mode="assign"><const>rgb</const></edit></match>
+</fontconfig>
+XML
+sed 's#</fontconfig>#<match target="pattern"><test name="family" qual="any"><string>monospace</string></test><edit name="family" mode="prepend_first" binding="strong"><string>Old Mono</string></edit></match></fontconfig>#' \
+  "$test_dir/custom.conf" >"$test_dir/home/.config/fontconfig/fonts.conf"
+
 HOME="$test_dir/home" PATH="$test_dir/bin:$PATH" bash "$ROOT/bin/omarchy-font-set" "$chosen" >/dev/null
+cmp -s "$test_dir/custom.conf" "$test_dir/home/.config/fontconfig/fonts.conf" || fail "choosing a font preserves custom fontconfig bytes"
+pass "choosing a font preserves custom fontconfig bytes"
+
+# The prerequisite migration may already have converted the legacy edit.
+sed 's#</fontconfig>#<alias binding="strong"><family>Omarchy Fixed Pitch</family><prefer><family>Old Mono</family></prefer></alias></fontconfig>#' \
+  "$test_dir/custom.conf" >"$test_dir/home/.config/fontconfig/fonts.conf"
+HOME="$test_dir/home" PATH="$test_dir/bin:$PATH" bash "$ROOT/bin/omarchy-font-set" "$chosen" >/dev/null
+cmp -s "$test_dir/custom.conf" "$test_dir/home/.config/fontconfig/fonts.conf" || fail "choosing a font retires the prerequisite alias without changing custom rules"
+pass "choosing a font retires the prerequisite alias without changing custom rules"
 
 resolves_to monospace "$chosen" "the chosen family follows the monospace generic"
 resolves_to "$named" "$named" "a named mono family still resolves to itself after a font is chosen"
