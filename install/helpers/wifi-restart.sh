@@ -57,16 +57,17 @@ wifi_restart() {
     fi
     unload+=("$driver")
 
+    # The root entry point sets PATH. Nested sudo would restore secure_path.
     echo "Reloading ${unload[*]}..."
-    if ! sudo modprobe -r -- "${unload[@]}"; then
+    if ! modprobe -r -- "${unload[@]}"; then
       reload_failed=1
       continue
     fi
-    if ! sudo modprobe -- "$driver"; then
+    if ! modprobe -- "$driver"; then
       # A PCI device that has just been torn down needs a moment before it
       # will take firmware again; an instant retry asks the same question.
       sleep 1
-      if sudo modprobe -- "$driver"; then
+      if modprobe -- "$driver"; then
         : # retry recovered the radio
       else
         reload_failed=1

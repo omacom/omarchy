@@ -30,7 +30,7 @@ EOF
 cat >"$tmp_dir/bin/sudo" <<'EOF'
 #!/bin/bash
 printf 'sudo %s\n' "$*" >>"$CALLS"
-exec "$@"
+exit 1
 EOF
 
 cat >"$tmp_dir/bin/modprobe" <<'EOF'
@@ -72,9 +72,9 @@ run_restart
 
 grep -qx 'rfkill unblock wifi' "$tmp_dir/calls" ||
   fail "wifi still lifts the rfkill block" "$(cat "$tmp_dir/calls")"
-grep -qx 'sudo modprobe -r -- iwlmvm iwlwifi' "$tmp_dir/calls" ||
+grep -qx 'modprobe -r -- iwlmvm iwlwifi' "$tmp_dir/calls" ||
   fail "wifi unloads iwlmvm before iwlwifi" "$(cat "$tmp_dir/calls")"
-grep -qx 'sudo modprobe -- iwlwifi' "$tmp_dir/calls" ||
+grep -qx 'modprobe -- iwlwifi' "$tmp_dir/calls" ||
   fail "wifi reloads iwlwifi" "$(cat "$tmp_dir/calls")"
 grep -qx 'nmcli radio wifi on' "$tmp_dir/calls" ||
   fail "wifi turns the radio back on after the reload" "$(cat "$tmp_dir/calls")"
@@ -91,7 +91,7 @@ mkdir -p "$tmp_dir/net"
 add_iface wlan0 iwlwifi
 run_restart
 
-grep -qx 'sudo modprobe -r -- iwlmld iwlwifi' "$tmp_dir/calls" ||
+grep -qx 'modprobe -r -- iwlmld iwlwifi' "$tmp_dir/calls" ||
   fail "wifi unloads iwlmld before iwlwifi" "$(cat "$tmp_dir/calls")"
 pass "wifi reloads a wedged iwlwifi/iwlmld radio"
 
@@ -103,7 +103,7 @@ mkdir -p "$tmp_dir/net"
 add_iface wlan0 iwlwifi
 run_restart
 
-grep -qx 'sudo modprobe -r -- iwldvm iwlwifi' "$tmp_dir/calls" ||
+grep -qx 'modprobe -r -- iwldvm iwlwifi' "$tmp_dir/calls" ||
   fail "wifi unloads iwldvm before iwlwifi" "$(cat "$tmp_dir/calls")"
 pass "wifi reloads a wedged iwlwifi/iwldvm radio"
 
@@ -116,9 +116,9 @@ mkdir -p "$tmp_dir/net"
 add_iface wlp2s0 rtw89_8852be
 run_restart
 
-grep -qx 'sudo modprobe -r -- rtw89_8852be' "$tmp_dir/calls" ||
+grep -qx 'modprobe -r -- rtw89_8852be' "$tmp_dir/calls" ||
   fail "wifi unloads the Realtek PCI driver" "$(cat "$tmp_dir/calls")"
-grep -qx 'sudo modprobe -- rtw89_8852be' "$tmp_dir/calls" ||
+grep -qx 'modprobe -- rtw89_8852be' "$tmp_dir/calls" ||
   fail "wifi reloads the Realtek PCI driver" "$(cat "$tmp_dir/calls")"
 grep -q iwlwifi "$tmp_dir/calls" &&
   fail "wifi does not touch iwlwifi on a Realtek radio" "$(cat "$tmp_dir/calls")"
@@ -132,7 +132,7 @@ add_iface wlp9s0 iwlwifi
 add_iface p2p-dev-wlp9s0 iwlwifi
 run_restart
 
-unload_count=$(grep -c 'sudo modprobe -r -- iwlmvm iwlwifi' "$tmp_dir/calls" || true)
+unload_count=$(grep -c 'modprobe -r -- iwlmvm iwlwifi' "$tmp_dir/calls" || true)
 (( unload_count == 1 )) ||
   fail "wifi reloads a shared driver once" "$(cat "$tmp_dir/calls")"
 pass "wifi reloads a shared driver once"
@@ -169,7 +169,7 @@ add_iface wlp9s0 iwlwifi
 run_restart
 [[ $(<"$tmp_dir/rc") == "1" ]] ||
   fail "wifi reports a failed driver unload" "$(cat "$tmp_dir/rc"; cat "$tmp_dir/calls")"
-grep -qx 'sudo modprobe -- iwlwifi' "$tmp_dir/calls" &&
+grep -qx 'modprobe -- iwlwifi' "$tmp_dir/calls" &&
   fail "wifi does not reload after a failed unload" "$(cat "$tmp_dir/calls")"
 pass "wifi reports a failed driver unload"
 
@@ -188,7 +188,7 @@ add_iface wlp9s0 iwlwifi
 run_restart
 [[ $(<"$tmp_dir/rc") == "1" ]] ||
   fail "wifi reports a failed driver insert" "$(cat "$tmp_dir/rc"; cat "$tmp_dir/calls")"
-(( $(grep -c 'sudo modprobe -- iwlwifi' "$tmp_dir/calls" || true) >= 2 )) ||
+(( $(grep -c 'modprobe -- iwlwifi' "$tmp_dir/calls" || true) >= 2 )) ||
   fail "wifi retries a failed insert" "$(cat "$tmp_dir/calls")"
 pass "wifi reports a failed driver insert"
 
@@ -205,7 +205,7 @@ mkdir -p "$tmp_dir/net"
 add_iface wlp9s0 iwlwifi
 run_restart
 
-grep -qx 'sudo modprobe -r -- iwlmei iwlwifi' "$tmp_dir/calls" ||
+grep -qx 'modprobe -r -- iwlmei iwlwifi' "$tmp_dir/calls" ||
   fail "wifi unloads iwlmei before iwlwifi" "$(cat "$tmp_dir/calls")"
 pass "wifi unloads iwlmei before iwlwifi"
 
@@ -225,7 +225,7 @@ add_iface wlp9s0 iwlwifi
 add_iface wlp2s0 rtw89_8852be
 run_restart
 
-grep -qx 'sudo modprobe -- iwlwifi' "$tmp_dir/calls" ||
+grep -qx 'modprobe -- iwlwifi' "$tmp_dir/calls" ||
   fail "wifi reloads the driver that can be reloaded" "$(cat "$tmp_dir/calls")"
 grep -qx 'nmcli radio wifi on' "$tmp_dir/calls" ||
   fail "wifi turns the radio back on for the adapter that did reload" "$(cat "$tmp_dir/calls")"
