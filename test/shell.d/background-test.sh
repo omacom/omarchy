@@ -473,3 +473,19 @@ STUB
   [[ $(<"$task_tmp/selected") == "$task_tmp/home/.cache/omarchy/theme-selector/previews/zeta.svg" ]] || fail "the picker loses its current SVG theme selection"
   pass "the theme picker selects the current SVG preview"
 )
+
+# A source theme with an SVG template and no finished image is selectable.
+(
+  task_tmp=$(mktemp -d)
+  trap 'rm -rf "$task_tmp"' EXIT
+  theme="$task_tmp/home/.config/omarchy/themes/template-only"
+  mkdir -p "$theme/backgrounds" "$task_tmp/source/themes"
+  printf 'background = "#123456"\naccent = "#abcdef"\n' >"$theme/colors.toml"
+  printf '<svg xmlns="http://www.w3.org/2000/svg"><rect fill="{{ accent }}"/></svg>\n' >"$theme/backgrounds/art.svg.tpl"
+  rows=$(HOME="$task_tmp/home" XDG_CACHE_HOME="$task_tmp/cache" OMARCHY_PATH="$task_tmp/source" \
+    PATH="$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-switcher" --print-rows)
+  preview="$task_tmp/cache/omarchy/theme-selector/previews/template-only.svg"
+  grep -q 'template-only.svg' <<<"$rows" || fail "a template-only theme cannot be picked"
+  grep -q 'fill="#123456"' "$preview" && grep -q 'fill="#abcdef"' "$preview" || fail "the fallback preview uses the theme palette"
+  pass "a template-only theme has a selectable preview before activation"
+)
