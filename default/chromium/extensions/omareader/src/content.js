@@ -1512,8 +1512,10 @@
     // Chrome paints an opaque canvas behind a frame whose root color-scheme differs from
     // its <iframe> element's (Braze sets color-scheme:normal there). Every themed frame
     // document gets this scheme, so the elements embedding them get it too.
+    // fill: SVG's initial fill is black and no page rule states it (Boozt's <svg><use>
+    // logo), so like `color` it starts from the foreground; fills a page sets still win.
     return `@layer omareader-base{
-:root{color-scheme:${mapper.mode} !important;${canvas}color:${s.fg};scrollbar-color:${s.thumb} ${s.bg};accent-color:${s.accent}}
+:root{color-scheme:${mapper.mode} !important;${canvas}color:${s.fg};fill:${s.fg};scrollbar-color:${s.thumb} ${s.bg};accent-color:${s.accent}}
 iframe,frame{color-scheme:${mapper.mode} !important}
 input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file],[type=image],[type=button],[type=submit],[type=reset]),textarea,select{background-color:${s.field};color:${s.fg};border-color:${s.border}}
 button,input[type=button],input[type=submit],input[type=reset]{background-color:${s.button};color:${s.fg};border-color:${s.border}}
