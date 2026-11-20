@@ -17,7 +17,7 @@ import tempfile
 import time
 
 HELPER = (Path(sys.argv[1]) if len(sys.argv) > 1 else
-          Path(__file__).resolve().parents[1] / 'source/bin/omarchy-toggle-desktop-keyboard')
+          Path(__file__).resolve().parents[2] / 'bin/omarchy-toggle-desktop-keyboard')
 
 # The sink records signal receipt; it intentionally implements no keyboard logic.
 FIXTURE = r'''

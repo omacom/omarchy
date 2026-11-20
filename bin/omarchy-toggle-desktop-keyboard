@@ -50,7 +50,7 @@ identity() {
   stat=$(cat "/proc/$pid/stat") || return 1
   stat=${stat##*) }
   read -ra fields <<< "$stat"
-  [[ ${fields[0]} != Z && ${fields[19]} == "$started" ]] || return 1
+  [[ ${fields[0]} != "Z" && ${fields[19]} == "$started" ]] || return 1
   executable=$(readlink "/proc/$pid/exe") || return 1
   # Linux retains the old executable inode across package replacement.
   [[ ${executable%" (deleted)"} == "$binary" ]]
@@ -98,7 +98,7 @@ if $alive; then
       rm -f "$state/process"
       ;;
   esac
-elif [[ $action == hide || $action == stop ]]; then
+elif [[ $action == "hide" || $action == "stop" ]]; then
   exit 0
 else
   omarchy-cmd-present wvkbd-mobintl || fail 'wvkbd-mobintl is missing; install wvkbd from the Omarchy package repository.'
