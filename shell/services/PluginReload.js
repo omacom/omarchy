@@ -3,9 +3,11 @@ function sourceChangedForPath(filePath) {
 }
 
 // Quiet period after the last watcher event. An engine reload resets every
-// panel, so a source edit waits until an `omarchy plugin update` has finished
-// its fast-forward, validation and (on a failed validation) reset, then reloads
-// once. Edits that only need a registry rescan stay quick.
+// panel, so source edits wait for a burst of writes (a save, a checkout, a
+// fast-forward) to settle and then reload once. It cannot tell when an
+// `omarchy plugin update` has finished validating: a validation slower than
+// this reloads onto the new code first, and a rollback reloads again. Edits
+// that only need a registry rescan stay quick.
 function quietInterval(sourcePending) {
   return sourcePending ? 500 : 150
 }
