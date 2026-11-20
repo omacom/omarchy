@@ -656,8 +656,6 @@ Panel {
     return candidates
   }
 
-  property bool localListed: false
-
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -676,12 +674,6 @@ Panel {
     // app has since let go of only shows after a fresh look, once per open.
     if (localBlocked) Util.execArgv(["omarchy-agent-local", "status", "--write"])
     engine.refreshNetwork()
-    // The listing the + and the offer read is refreshed once per shell run;
-    // an update restarts the shell.
-    if (!localListed) {
-      localListed = true
-      engine.refreshLocal()
-    }
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
 
@@ -866,6 +858,19 @@ Panel {
       return root.memory.total > 0 ? gib / root.memory.total : 0
     }
 
+    function sliceWidth(gib) {
+      return Math.max(minSlice, room * share(gib))
+    }
+
+    // The row's width less its gaps, split between the slices; free takes
+    // what the others leave, which holds whichever way the row runs.
+    readonly property real room: Math.max(0, width - gap * (root.memory.slices.length + 1))
+    readonly property real freeWidth: {
+      var used = sliceWidth(root.memory.apps)
+      for (var i = 0; i < root.memory.slices.length; i++) used += sliceWidth(root.memory.slices[i].gib)
+      return Math.max(0, room - used)
+    }
+
     PanelSeparator { foreground: root.foreground }
 
     Item {
@@ -877,12 +882,11 @@ Panel {
         id: slices
         anchors.fill: parent
         spacing: memoryBar.gap
-        readonly property real room: Math.max(0, width - spacing * (root.memory.slices.length + 1))
 
         // What apps hold, in the track's own color.
         Rectangle {
           height: parent.height
-          width: Math.max(memoryBar.minSlice, slices.room * memoryBar.share(root.memory.apps))
+          width: memoryBar.sliceWidth(root.memory.apps)
           radius: Math.min(height / 2, Style.cornerRadius)
           color: root.alpha(root.foreground, 0.28)
         }
@@ -894,10 +898,16 @@ Panel {
             required property var modelData
             readonly property bool lit: !!memoryBar.p && memoryBar.p.held && memoryBar.p.index === modelData.index
             height: parent.height
-            width: Math.max(memoryBar.minSlice, slices.room * memoryBar.share(modelData.gib))
+            width: memoryBar.sliceWidth(modelData.gib)
             radius: Math.min(height / 2, Style.cornerRadius)
             color: lit ? Commons.Color.accent : root.foreground
-            Behavior on width { NumberAnimation { duration: Style.duration(160); easing.type: Easing.OutCubic } }
+            Behavior on width {
+              NumberAnimation {
+                duration: Style.duration(160)
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Style.easeOut
+              }
+            }
             Behavior on color { ColorAnimation { duration: Style.duration(120) } }
           }
         }
@@ -906,7 +916,7 @@ Panel {
         Rectangle {
           id: freeSlice
           height: parent.height
-          width: Math.max(0, slices.width - x)
+          width: memoryBar.freeWidth
           radius: Math.min(height / 2, Style.cornerRadius)
           color: "transparent"
           border.width: Math.max(1, Style.hoverBorderWidth)

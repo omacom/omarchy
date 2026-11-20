@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Networking
 import qs.Commons
 
 // Everything the panel shows, followed from the files omarchy-agent-local
@@ -52,14 +53,7 @@ Item {
         // A half-written listing keeps the last good one.
       }
     }
-    // A fresh account has no listing until the engine first writes one, and
-    // without it the bar can't tell whether any model fits here.
-    onLoadFailed: if (!root.listingRequested) {
-      root.listingRequested = true
-      root.refreshLocal()
-    }
   }
-  property bool listingRequested: false
 
   // Rewrites the listing and status, which a package upgrade may have
   // changed. On a fresh account neither file exists until this first run, and
@@ -426,6 +420,18 @@ Item {
   readonly property bool relevant: lines.length > 0
     || Object.keys(networkModels || {}).length > 0
     || localRecipes.some(function(recipe) { return recipe && recipe.available })
+
+  // With the icon hidden, nothing else would look, so the shell does once as
+  // it starts: the listing, which a fresh account doesn't have yet and an
+  // upgrade may have changed, and the tailnet. The tailnet is surveyed again
+  // whenever the network comes up while there's still nothing to show.
+  Component.onCompleted: {
+    refreshLocal()
+    refreshNetwork()
+  }
+
+  readonly property bool online: Networking.connectivity === NetworkConnectivity.Full
+  onOnlineChanged: if (online && !relevant) refreshNetwork()
 
   // ----------------------------------------------------------------- memory
   //

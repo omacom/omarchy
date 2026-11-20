@@ -1106,7 +1106,8 @@ Panel {
   }
   // Local history counts as set up, so a machine with no subscription still
   // gets its summary rather than the picker.
-  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn
+  // So does a running local model, which the starters can hand their task to.
+  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn && starterLocalModel === null
   // Choosing a provider: asked for with the +, or simply what the panel is
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
