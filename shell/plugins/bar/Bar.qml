@@ -1850,7 +1850,7 @@ Item {
         fontFamily: root.fontFamily
         maximumWidth: Math.min(Style.space(360), Math.max(1, barWindow.screen.width - Style.spacing.sm * 2))
         opacity: tooltipWindow.revealed ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
+        Behavior on opacity { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
       }
 
     }

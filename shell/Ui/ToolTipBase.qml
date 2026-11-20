@@ -36,9 +36,9 @@ T.ToolTip {
     maximumWidth: root.maximumWidth
   }
   enter: Transition {
-    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Style.duration(120) }
+    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Style.duration(120); easing.type: Easing.OutCubic }
   }
   exit: Transition {
-    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Style.duration(80) }
+    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Style.duration(80); easing.type: Easing.OutCubic }
   }
 }
