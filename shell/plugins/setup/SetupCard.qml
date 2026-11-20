@@ -175,12 +175,13 @@ BorderSurface {
     pendingStart = false
   }
   // Options that move under a resting pointer, as a page changes or scrolls
-  // to follow the keyboard, must not take the cursor from it.
+  // to follow the keyboard, must not take the cursor from it. Nor must the
+  // card growing in as it opens, so the pointer is placed in the window.
   onCursorChanged: pointerGate.reset()
 
   PointerMoveGate {
     id: pointerGate
-    referenceItem: root
+    referenceItem: root.Window.contentItem
   }
 
   // The tour's own gate, for waking the pointer. It is fed from all of the

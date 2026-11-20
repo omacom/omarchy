@@ -182,7 +182,7 @@ if command -v quickshell >/dev/null 2>&1; then
     qml_fixture_scratch
     mkdir -m 700 "$QML_FIXTURE_TMP/runtime"
     XDG_RUNTIME_DIR="$QML_FIXTURE_TMP/runtime" QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QPA_PLATFORMTHEME= \
-      run_qml_fixture setup-tour "a step of the tour marks, draws and sets up one pick; no scroll follows a click or a lost mark, and a pointer at rest lights no card" Ui Commons plugins
+      run_qml_fixture setup-tour "a step of the tour marks, draws and sets up one pick; no scroll follows a click or a lost mark, and a pointer at rest lights no card and takes no cursor" Ui Commons plugins
   )
 else
   skip "quickshell not installed; skipping the tour's card"
