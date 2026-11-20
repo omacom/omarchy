@@ -1,41 +1,43 @@
-# 商用アプリ／サービス
+# 商用アプリ/サービス
 
-Omarchy は主に無料のオープンソースソフトウェアの提供に焦点を当てていますが、それについて宗教的ではありません。場合によっては最良の解決策が商用提供であることもあり、それでまったく構いません。こちらは簡単にインストールできるように用意している選択肢の一部です。
+Omarchy は主に無料のオープンソースソフトウェアの提供に注力しているが、そこに教条的にこだわっているわけではない。最適な解決策が商用製品であることもあるし、それでまったく問題ない。ここでは、簡単にインストールできるようにしている選択肢の一部を紹介する。
 
 ## 1Password
 
-パスワードをパスワードマネージャーに保管するのはベストプラクティスです。チームで働いているならなおさらです。そして [1password](https://1password.com/) は優れた解決策であり、スクリプトでのキー検索を統合するためのコマンドラインツールも付属しています。
+パスワードをパスワードマネージャーに保管するのはベストプラクティスだ。チームで作業しているなら、なおさらだ。そして [1password](https://1password.com/) は優れたソリューションで、スクリプトにキー検索を組み込むためのコマンドラインツールも付属している。
 
-1Password は `Super + Shift + /` で起動します。まだインストールされていなければ、そのホットキーがまずインストールを開始します（Omarchy メニューの _インストール > Service > 1Password_ も使えます）。インストーラーは Chromium 用の 1Password 拡張機能もセットアップします。
+1Password は `Super + Shift + /` で起動する。まだインストールされていなければ、そのホットキーがまずインストールを開始する（Omarchy メニューから _Install > Service > 1Password_ を使うこともできる）。インストーラーでは 1Password コマンドラインツールも導入され、Chrome と Chromium 向けの 1Password 拡張機能もセットアップされる。読み込むにはブラウザーを再起動すること。
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/) はパスワードマネージャー領域におけるオープンソースの代替で、ほとんどの個人利用をカバーする無料ティアがあります。Omarchy メニューの _インストール > Service > Bitwarden_ でインストールしてください。Bitwarden のコマンドラインツールも一緒に付いてきます。
+[Bitwarden](https://bitwarden.com/) はパスワードマネージャー分野におけるオープンソースの代替選択肢で、個人利用のほとんどをカバーする無料プランがある。Omarchy メニューから _Install > Service > Bitwarden_ でインストールすると、Bitwarden コマンドラインツールも一緒に導入される。
 
 ## Spotify
 
-[Spotify](https://spotify.com/) は世界で最も人気のある音楽ストリーミングサービスです。そして Linux アプリケーションは、オフライン再生を含む、期待するすべてを提供します。
-
-Spotify は `Super + Shift + M` で起動します。1Password と同様、Spotify がまだインストールされていなければ、そのホットキーがまずインストールを開始します（または Omarchy メニューの _インストール > Service > Spotify_ を使ってください）。
+[Spotify](https://spotify.com/) は世界で最も人気のある音楽ストリーミングサービスだ。Omarchy には Web アプリとして搭載されており、完全なプレイヤー、メディアキー、Spotify Connect が使えるが、オフライン再生のためのダウンロードはできない。`Super + Shift + M` で起動する。
 
 ## Slack
 
-[Slack](https://slack.com/) は、社内でも外部の協力者とも、多くのチームがチャットをしている場所です。Omarchy メニューの _インストール > Service > Slack_ でインストールすれば、準備ができ次第開きます。
+[Slack](https://slack.com/) は、社内でも外部の共同作業者とも、多くのチームがチャットに使っている場所だ。Omarchy メニューから _Install > Service > Slack_ でインストールすると、準備ができ次第開く。
+
+## Notion
+
+[Notion](https://www.notion.com/) はメモ、ドキュメント、プロジェクトのためのワークスペースだ。Omarchy メニューから _Install > Service > Notion_ でデスクトップアプリをインストールできる。
 
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/) はマシン間でファイルを同期しつつクラウドにバックアップを保持する優れた方法です。セットアップするには、Omarchy メニューの _インストール > Service > Dropbox_ を選んでください。実行されたら、バーの右上にあるトレイにホバーし、Dropbox アイコンを右クリックしてセットアップを完了してください。
+[Dropbox](https://www.dropbox.com/) は、クラウドにバックアップを保持しながらマシン間でファイルを同期する優れた方法だ。セットアップするには、Omarchy メニューから _Install > Service > Dropbox_ を選択する。バーに Dropbox アイコンが追加される。それをクリックしてログインし、同じパネルでストレージの使用状況を確認したり、最近同期したファイルを開いたりできる。
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) はメッシュ VPN で、すべてのコンピュータとサーバーへのインターネット経由の安全なアクセスを非常に簡単にします。セットアップするには、Omarchy メニューの _インストール > Service > Tailscale_ を選んでください。
+[Tailscale](https://tailscale.com/) はメッシュ VPN で、インターネット経由で自分のすべてのコンピューターとサーバーに安全にアクセスすることを非常に簡単にしてくれる。セットアップするには、Omarchy メニューから _Install > Service > Tailscale_ を選択する。
 
-バーにパネルが追加され、管理コンソール用の Web アプリと、マシン間でファイルを送る Taildrop が得られます — [ネットワーク](35-networking.md) を参照してください。
+バーにパネルが追加され、管理コンソール用の Web アプリと、マシン間でファイルを送るための Taildrop が使えるようになる。[ネットワーク](35-networking.md) を参照すること。
 
 ## ONCE
 
-[ONCE](https://once.com/) は 37signals の、一度買って自分のサーバーで動かすソフトウェアのラインナップで、Campfire チャットシステムなどがあります。Omarchy メニューの _インストール > Service > ONCE_ を選んでインストールしてください。バックグラウンドサービスが有効になり、ONCE のターミナルインターフェースに入ってそこから引き継げます。
+[ONCE](https://once.com/) は 37signals のソフトウェアラインで、Campfire チャットシステムのように、一度買って自分のサーバーで動かすものだ。Omarchy メニューから _Install > Service > ONCE_ を選択してインストールすると、そのバックグラウンドサービスが有効化され、ONCE ターミナルインターフェースが開くので、そこから先へ進められる。
 
 ## NordVPN
 
-[NordVPN](https://nordvpn.com/) は標準的な VPN サービスで、世界中のほとんどの地域からトラフィックを出せます。セットアップするには、Omarchy メニューの _インストール > Service > NordVPN_ を選んでください。求められる再起動の後、`nordvpn login` を実行して認証してください。
+[NordVPN](https://nordvpn.com/) は標準的な VPN サービスで、世界中のほとんどの地域からトラフィックを出口に出せる。セットアップするには、Omarchy メニューから _Install > Service > NordVPN_ を選択する。求められる再起動の後、`nordvpn login` を実行して認証すること。

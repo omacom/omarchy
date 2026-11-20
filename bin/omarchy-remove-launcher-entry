@@ -15,6 +15,14 @@ if [[ -z $desktop_id ]]; then
   exit 1
 fi
 
+# Uninstalling a package asks for a password in a terminal. Say so on stdout
+# first, so the launcher knows to get out of the way, and leave the terminal
+# running on its own rather than as a child the shell would take down with it.
+uninstall_in_terminal() {
+  echo "terminal"
+  omarchy-launch-floating-terminal-with-presentation "$1" &>/dev/null &
+}
+
 source "$OMARCHY_PATH/default/launchers/entries.sh"
 user_desktop_dirs=("$launcher_user_dir")
 if ! desktop_file=$(launcher_find_entry "$desktop_id" true); then
@@ -51,10 +59,6 @@ if [[ $exec_line =~ (^|[[:space:]])(\$TERMINAL|xdg-terminal-exec)[[:space:]].*-e
   exit 0
 fi
 
-if [[ $desktop_file_name == "slack.desktop" && $exec_line =~ ^omarchy-launch-slack($|[[:space:]]) ]]; then
-  exec omarchy-launch-floating-terminal-with-presentation omarchy-remove-service-slack
-fi
-
 if is_user_desktop_file; then
   display_name="${entry_name:-$desktop_name}"
   rm -f "$desktop_file"
@@ -67,16 +71,15 @@ if package_name="$(pacman -Qqo "$desktop_file" 2>/dev/null | head -1)" && [[ -n 
   display_name="${entry_name:-$desktop_name}"
   quoted_package="$(printf '%q' "$package_name")"
   quoted_display="$(printf '%q' "$display_name")"
-  command="echo Uninstalling $quoted_display...; omarchy-pkg-drop $quoted_package"
-  exec omarchy-launch-floating-terminal-with-presentation "$command"
+  uninstall_in_terminal "echo Uninstalling $quoted_display...; omarchy-pkg-drop $quoted_package"
+  exit 0
 fi
 
 if omarchy-cmd-present flatpak && flatpak info "${desktop_file_name%.desktop}" >/dev/null 2>&1; then
   flatpak_id="${desktop_file_name%.desktop}"
   quoted_flatpak="$(printf '%q' "$flatpak_id")"
-  command="flatpak uninstall $quoted_flatpak"
-  command+=" && omarchy-refresh-launcher-renames"
-  exec omarchy-launch-floating-terminal-with-presentation "$command"
+  uninstall_in_terminal "flatpak uninstall $quoted_flatpak && omarchy-refresh-launcher-renames"
+  exit 0
 fi
 
 echo "Don't know how to uninstall $desktop_file_name" >&2

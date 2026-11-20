@@ -61,12 +61,21 @@ fi
 exec /usr/bin/flock "$@"
 SH
 # The recorder-exit polls (0.1s TERM grace, 0.2s ready wait) run shorter;
-# the test's own shorter sleeps pass through untouched.
+# the test's own shorter sleeps pass through untouched. A start whose recorder
+# never gets ready stays pending until it is cancelled: under load, its ready
+# timeout could otherwise run out first and leave the toggle a free lock.
 cat >"$tmp/bin/sleep" <<'SH'
 #!/bin/bash
 case "${1:-}" in
   0.1) exec /usr/bin/sleep 0.02 ;;
-  0.2) exec /usr/bin/sleep 0.05 ;;
+  0.2)
+    if [[ -n ${TEST_NEVER_READY:-} ]]; then
+      until [[ -e $XDG_RUNTIME_DIR/omarchy-screenrecord-cancel ]] || ! kill -0 "$PPID" 2>/dev/null; do
+        /usr/bin/sleep 0.01
+      done
+    fi
+    exec /usr/bin/sleep 0.05
+    ;;
   *) exec /usr/bin/sleep "$@" ;;
 esac
 SH
