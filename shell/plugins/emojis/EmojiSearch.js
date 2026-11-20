@@ -36,11 +36,3 @@ function filterEmojis(emojis, query, limit) {
 
   return out
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    parseEmojis: parseEmojis,
-    normalizedQuery: normalizedQuery,
-    filterEmojis: filterEmojis
-  }
-}

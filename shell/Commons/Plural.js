@@ -85,7 +85,3 @@ function pick(entry, code, count) {
   if (typeof form === "string" && form.length > 0) return form
   return typeof entry.other === "string" ? entry.other : undefined
 }
-
-if (typeof module !== "undefined") {
-  module.exports = { category: category, categories: categories, pick: pick }
-}

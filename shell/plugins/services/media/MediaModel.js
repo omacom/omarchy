@@ -173,29 +173,3 @@ function volumeKeyStep(action, percent, muted) {
 function volumeOsdIcon(percent, muted) {
   return muted || percent === 0 ? "volume-muted" : "volume-high"
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    isProxyPlayer: isProxyPlayer,
-    hasMetadata: hasMetadata,
-    hasTrackMetadata: hasTrackMetadata,
-    hasShownTrack: hasShownTrack,
-    idlePlayer: idlePlayer,
-    playerCanControl: playerCanControl,
-    canHandleAction: canHandleAction,
-    canCycleSource: canCycleSource,
-    nodeProps: nodeProps,
-    isPlaybackStream: isPlaybackStream,
-    streamLabelKey: streamLabelKey,
-    rawStreamLabel: rawStreamLabel,
-    playerAppLabel: playerAppLabel,
-    playerHasPlaybackStream: playerHasPlaybackStream,
-    playerKey: playerKey,
-    trackSignature: trackSignature,
-    trackChanged: trackChanged,
-    labelFor: labelFor,
-    osdMessage: osdMessage,
-    volumeKeyStep: volumeKeyStep,
-    volumeOsdIcon: volumeOsdIcon
-  }
-}

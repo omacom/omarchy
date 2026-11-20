@@ -22,10 +22,3 @@ function stateFromOutput(text) {
   }
   return { active: active, peers: peers }
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    isCaptureEvent: isCaptureEvent,
-    stateFromOutput: stateFromOutput
-  }
-}

@@ -189,7 +189,6 @@ function pickWindow(windows, workspaceId) {
   return order[0]
 }
 
-
 // The window a click on the app brings forward, or -1 to launch it instead.
 // The mode is the app's X-Omarchy-Dock-Click: "new" launches, since each
 // window is wanted fresh, and "workspace" brings back a window only from the
@@ -206,24 +205,4 @@ function pickClickWindow(mode, windows, workspaceId) {
   }
   var picked = pickWindow(candidates.map(function(index) { return list[index] }), workspaceId)
   return picked < 0 ? -1 : candidates[picked]
-}
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    normalizePosition: normalizePosition,
-    isVertical: isVertical,
-    normalizeId: normalizeId,
-    pinnedIds: pinnedIds,
-    isDockWindow: isDockWindow,
-    isMinimizedWorkspace: isMinimizedWorkspace,
-    claimingEntryId: claimingEntryId,
-    standInKey: standInKey,
-    buildItems: buildItems,
-    orderItems: orderItems,
-    orderWithKeyAt: orderWithKeyAt,
-    dropIndex: dropIndex,
-    pinsInOrder: pinsInOrder,
-    pickWindow: pickWindow,
-    pickClickWindow: pickClickWindow
-  }
 }

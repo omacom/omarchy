@@ -153,25 +153,3 @@ function sectionDevices(lists, section) {
   if (section === "discovered") return lists.discovered || []
   return []
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    deviceLabel: deviceLabel,
-    toArray: toArray,
-    isUuidLike: isUuidLike,
-    isAddressLike: isAddressLike,
-    normalizedAddress: normalizedAddress,
-    hasHumanName: hasHumanName,
-    nodeProps: nodeProps,
-    nodeText: nodeText,
-    bluetoothSinkMatchesDevice: bluetoothSinkMatchesDevice,
-    sortedByLabel: sortedByLabel,
-    deviceRow: deviceRow,
-    deviceLists: deviceLists,
-    cloneMap: cloneMap,
-    pendingAction: pendingAction,
-    withPendingAction: withPendingAction,
-    visibleSections: visibleSections,
-    sectionDevices: sectionDevices
-  }
-}

@@ -23,11 +23,3 @@ function authorizationLabel(message, tr) {
   var match = text.match(/^Authentication is (?:needed|required) to run [`']([^`']+)[`'] as /i)
   return match ? t("polkit.authorizeRunning", "Authorize running '%1'").replace("%1", match[1]) : text
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    promptLooksFingerprint: promptLooksFingerprint,
-    fingerprintConfiguredFromPamConfig: fingerprintConfiguredFromPamConfig,
-    authorizationLabel: authorizationLabel
-  }
-}

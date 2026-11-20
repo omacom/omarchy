@@ -13,7 +13,3 @@ function format(value, decimals, decimal, zeroDigit) {
   }
   return text
 }
-
-if (typeof module !== "undefined") {
-  module.exports = { format: format }
-}

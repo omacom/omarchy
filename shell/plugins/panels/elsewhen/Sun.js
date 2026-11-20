@@ -97,14 +97,3 @@ function litAt(times, minutes) {
       return true
   return false
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    solarNoonMs: solarNoonMs,
-    localMidnightMs: localMidnightMs,
-    sunTimes: sunTimes,
-    litSpans: litSpans,
-    eventMark: eventMark,
-    litAt: litAt
-  }
-}

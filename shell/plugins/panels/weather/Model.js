@@ -284,34 +284,3 @@ function iconForCode(code, night) {
     default: return ""
   }
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    parseLocationFile: parseLocationFile,
-    isAutoLocation: isAutoLocation,
-    effectiveLocation: effectiveLocation,
-    wttrLocationQuery: wttrLocationQuery,
-    parseGeocodingResults: parseGeocodingResults,
-    locationCommit: locationCommit,
-    isFutureForecastDate: isFutureForecastDate,
-    roundedTemp: roundedTemp,
-    celsiusToFahrenheit: celsiusToFahrenheit,
-    formatTemp: formatTemp,
-    normalizedUnit: normalizedUnit,
-    localeUsesImperial: localeUsesImperial,
-    countryUsesImperial: countryUsesImperial,
-    shouldUseImperial: shouldUseImperial,
-    dayName: dayName,
-    openMeteoForecastDays: openMeteoForecastDays,
-    openMeteoCurrentCondition: openMeteoCurrentCondition,
-    currentIcon: currentIcon,
-    provisionalCurrentIcon: provisionalCurrentIcon,
-    weatherResponseCompletesSave: weatherResponseCompletesSave,
-    wttrNextForecastDays: wttrNextForecastDays,
-    buildForecastDays: buildForecastDays,
-    bareTempForDay: bareTempForDay,
-    dayIcon: dayIcon,
-    iconForOpenMeteoCode: iconForOpenMeteoCode,
-    iconForCode: iconForCode
-  }
-}

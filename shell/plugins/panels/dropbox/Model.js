@@ -178,20 +178,3 @@ function fileMeta(file, nowMs, tr, fmt) {
   if (folder !== "") parts.push(folder)
   return parts.join(" · ")
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    parseStatus: parseStatus,
-    isSyncing: isSyncing,
-    syncDetails: syncDetails,
-    defaultStatus: defaultStatus,
-    fileExtension: fileExtension,
-    fileKind: fileKind,
-    fileGlyph: fileGlyph,
-    formatBytes: formatBytes,
-    formatPercent: formatPercent,
-    usageText: usageText,
-    relativeTime: relativeTime,
-    fileMeta: fileMeta
-  }
-}

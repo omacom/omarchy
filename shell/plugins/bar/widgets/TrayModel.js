@@ -72,14 +72,3 @@ function shownSpan(clipStart, clipLength, start, length) {
   }
   return { start: from, length: to - from }
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    shownSpan: shownSpan,
-    itemNamed: itemNamed,
-    entryId: entryId,
-    layoutHasWidget: layoutHasWidget,
-    ownedByOmarchy: ownedByOmarchy,
-    activatesOnDoubleClick: activatesOnDoubleClick
-  }
-}
