@@ -65,7 +65,9 @@ elif (($# == 1)) && [[ $1 == "-" ]]; then
   fi
 elif (($# > 0)); then
   prompt="$*"
-else
+fi
+
+if [[ -z $prompt ]]; then
   echo "Usage: omarchy agent prompt [--inline] [--clipboard] [<prompt...>|-]" >&2
   exit 1
 fi
