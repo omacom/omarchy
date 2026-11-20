@@ -16,7 +16,14 @@ state_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy/crash-diagnosis"
 # releases the lock when the session's processes exit.
 if mkdir -p "$state_dir" 2>/dev/null && { exec 9>"$state_dir/$name"; } 2>/dev/null; then
   status=0
-  flock -n -E 200 9 || status=$?
+  # The watcher probes this same lock and drops it at once. A single refusal
+  # would treat that probe as a running diagnosis and skip the agent.
+  for _try in 1 2 3 4 5; do
+    status=0
+    flock -n -E 200 9 || status=$?
+    (( status != 200 )) && break
+    sleep 0.05
+  done
   if (( status == 200 )); then
     echo "A crash diagnosis for $name is already running."
     exit 0
