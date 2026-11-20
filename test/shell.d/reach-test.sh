@@ -98,4 +98,9 @@ const withSelf = reach.parseStatus(JSON.stringify({
 assertDeepEqual(withSelf.peers.map((p) => p.name), ['spark'], 'reach does not list this machine as one of the others')
 assertEqual(reach.nearbyCount(withSelf.peers, 'desk'), 1, 'reach does not count this machine as close by')
 assertEqual(reach.nearbyCount([{ name: 'desk', nearby: true }, { name: 'spark', nearby: true }], 'desk'), 1, 'reach skips this machine in a raw peer list')
+
+assertDeepEqual(reach.nudge(['a', 'desk', 'b'], 'desk', 'desk', 0), ['a', 'desk', 'b'], 'reach leaves a tile that was not moved')
+assertDeepEqual(reach.place(['laptop', 'desk'], 'desk', 'mini', 'beside'), ['laptop', 'desk'], 'reach ignores a side that is not an end of the row')
+assertDeepEqual(reach.place(['laptop', 'desk'], 'desk', '', 'left'), ['laptop', 'desk'], 'reach ignores a blank machine name')
+assertDeepEqual(reach.place(['laptop', 'desk'], 'desk', '   ', 'right'), ['laptop', 'desk'], 'reach ignores a machine name that is only spaces')
 JS
