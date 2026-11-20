@@ -77,14 +77,17 @@ STUB
 cat >"$mock_bin/sudo" <<'STUB'
 #!/bin/bash
 
-if [[ ${1:-} == "true" ]]; then
-  if [[ -n ${OMARCHY_TEST_SUDO_SLEEP:-} ]]; then
-    : >"$OMARCHY_TEST_SUDO_READY"
-    sleep "$OMARCHY_TEST_SUDO_SLEEP"
-  fi
-  exit "${OMARCHY_TEST_SUDO_TRUE_STATUS:-0}"
+# Like sudo, outlive a Ctrl-C at the password prompt and exit 1 rather than die of the signal.
+if [[ -n ${OMARCHY_TEST_SUDO_SLEEP:-} ]]; then
+  trap : INT
+  : >"$OMARCHY_TEST_SUDO_READY"
+  sleep "$OMARCHY_TEST_SUDO_SLEEP"
+  exit 1
+elif [[ -n ${OMARCHY_TEST_SUDO_STATUS:-} ]]; then
+  exit "$OMARCHY_TEST_SUDO_STATUS"
+else
+  exec "$@"
 fi
-exec "$@"
 STUB
 cat >"$mock_bin/yay" <<'STUB'
 #!/bin/bash
@@ -126,22 +129,22 @@ STUB
   : >"$package_calls"
   status=0
   PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_PACKAGE_CALLS="$package_calls" \
-    OMARCHY_TEST_SUDO_TRUE_STATUS=1 \
+    OMARCHY_TEST_SUDO_STATUS=1 \
     "$ROOT/bin/omarchy-pkg-add" demo-pkg >/dev/null 2>&1 || status=$?
-  (( status == 130 )) || fail "cancelled sudo in omarchy-pkg-add exits 130" "status=$status"
-  [[ ! -s $package_calls ]] || fail "cancelled sudo in omarchy-pkg-add must not start pacman" "$(<"$package_calls")"
-  pass "cancelling sudo in omarchy-pkg-add exits 130 without running pacman"
+  (( status == 1 )) || fail "a sudo failure nobody cancelled in omarchy-pkg-add exits 1" "status=$status"
+  [[ ! -s $package_calls ]] || fail "a sudo failure in omarchy-pkg-add must not start pacman" "$(<"$package_calls")"
+  pass "a sudo failure nobody cancelled in omarchy-pkg-add exits 1, so it is reported as failed"
 
   for installer in omarchy-install-service-dropbox omarchy-install-service-tailscale; do
     : >"$package_calls"
     status=0
     PATH="$service_mock_bin:$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_PACKAGE_CALLS="$package_calls" \
-      OMARCHY_TEST_SUDO_TRUE_STATUS=1 \
+      OMARCHY_TEST_SUDO_STATUS=1 \
       "$ROOT/bin/$installer" >/dev/null 2>&1 || status=$?
-    (( status == 130 )) || fail "cancelled sudo in $installer exits 130" "status=$status"
-    [[ ! -s $package_calls ]] || fail "cancelled sudo in $installer must not run package install or later service steps" "$(<"$package_calls")"
+    (( status == 1 )) || fail "$installer stops with the package install's status" "status=$status"
+    [[ ! -s $package_calls ]] || fail "$installer must not run later service steps after a failed package install" "$(<"$package_calls")"
   done
-  pass "cancelling sudo in service installers exits 130 without running pacman or later service steps"
+  pass "service installers stop at a failed package install without running later service steps"
 
   require_command python3
   ready="$test_tmp/sudo-ready"
@@ -152,7 +155,6 @@ STUB
     OMARCHY_TEST_PACKAGE_CALLS="$package_calls" \
     OMARCHY_TEST_SUDO_SLEEP=3 \
     OMARCHY_TEST_SUDO_READY="$ready" \
-    OMARCHY_TEST_SUDO_TRUE_STATUS=0 \
     python3 - "$ROOT/bin/omarchy-pkg-add" "$ready" 2>&1 <<'PY'
 import os
 from pathlib import Path
