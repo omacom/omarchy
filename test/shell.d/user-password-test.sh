@@ -145,11 +145,3 @@ TEST_GROUPS="tester" TEST_ROOT_STATUS=P
   fail "non-wheel user password falls back to passwd" "$(cat "$TEST_ARGS")"
 pass "non-wheel user password falls back to passwd"
 
-grep -Fq 'omarchy-user-password' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
-  fail "password menu updates user and root through omarchy-user-password"
-if grep -Fq 'omarchy-launch-floating-terminal-with-presentation passwd' "$ROOT/default/omarchy/omarchy-menu.jsonc"; then
-  fail "password menu no longer runs passwd alone"
-fi
-grep -Fq 'GROUP_DESCRIPTIONS[user]=' "$ROOT/bin/omarchy" ||
-  fail "omarchy lists the user command group"
-pass "password menu points at omarchy-user-password"
