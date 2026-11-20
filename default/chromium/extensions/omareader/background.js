@@ -2,15 +2,6 @@
 // into storage for the content scripts and fetches cross-origin CSS.
 importScripts('src/color.js', 'src/theme.js', 'src/net.js');
 
-async function setToolbarIcon() {
-  try {
-    await chrome.action.setIcon({ path: { 16: 'icons/omarchy-16.png', 32: 'icons/omarchy-32.png' } });
-    await chrome.action.setTitle({ title: 'Omareader' });
-  } catch (error) {
-    console.warn('Omareader could not load its toolbar icon:', error);
-  }
-}
-
 let port = null;
 
 async function recompute() {
@@ -248,11 +239,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 chrome.runtime.onInstalled.addListener((details) => {
-  setToolbarIcon();
   if (details.reason === 'install' || details.reason === 'update') injectIntoOpenTabs();
 });
 
-// Replace an old runtime crescent immediately; native-host and palette work can follow.
-setToolbarIcon();
 connect();
 queueRecompute();

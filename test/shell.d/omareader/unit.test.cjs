@@ -408,20 +408,13 @@ test('private-network classification covers canonical bypass forms', () => {
     assert.ok(!N.isPrivateOrigin(o), `${o || '(empty)'} should not count as a private origin`);
 });
 
-test('mode setting migrates from the old on/off flag', () => {
-  assert.equal(T.modeOf(undefined), 'normal');
-  assert.equal(T.modeOf({ enabled: false }), 'normal');
-  assert.equal(T.modeOf({ enabled: true }), 'omarchy');
-  assert.equal(T.modeOf({ mode: 'dark', enabled: false }), 'dark');
-  assert.equal(T.modeOf({ mode: 'bogus' }), 'normal');
-});
-
-test('per-site modes override the default and migrate the old disabled list', () => {
-  const s = T.normalizeSettings({ mode: 'normal', theme: 'old', disabledSites: ['www.x.com'], sites: { 'YouTube.com': 'dark', 'a.com': 'bogus' } });
+test('per-site modes override the default', () => {
+  // A fresh install, or stored settings it cannot read, leaves pages alone.
+  assert.deepEqual(T.normalizeSettings(undefined), { mode: 'normal', sites: {} });
+  const s = T.normalizeSettings({ mode: 'normal', theme: 'old', sites: { 'www.x.com': 'normal', 'YouTube.com': 'dark', 'a.com': 'bogus' } });
   assert.deepEqual(s, { mode: 'normal', sites: { 'x.com': 'normal', 'youtube.com': 'dark' } });
   assert.equal(T.siteModeOf(s, 'www.youtube.com'), 'dark');
   assert.equal(T.siteModeOf(s, 'm.youtube.com'), 'normal');
-  assert.equal(T.siteModeOf({ mode: 'omarchy', disabledSites: ['a.com'] }, 'a.com'), 'normal');
   assert.equal(T.siteModeOf({ mode: 'dark' }, ''), 'dark');
   const om = T.withSiteMode(s, 'github.com', 'omarchy');
   assert.equal(T.siteModeOf(om, 'github.com'), 'omarchy');

@@ -141,8 +141,7 @@
   const isMarked = (s) => {
     try {
       const r = s.cssRules[0];
-      return (r instanceof CSSNamespaceRule && r.prefix === 'omareader-sheet' && r.namespaceURI === 'urn:omareader:sheet') ||
-        (r instanceof CSSPropertyRule && r.name === '--omareader-sheet'); // Older extension instances.
+      return r instanceof CSSNamespaceRule && r.prefix === 'omareader-sheet' && r.namespaceURI === 'urn:omareader:sheet';
     } catch {
       return false;
     }

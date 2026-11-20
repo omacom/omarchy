@@ -273,13 +273,11 @@
   }
 
   // Settings carry mode: 'normal' (pages untouched) | 'dark' | 'omarchy', the default for
-  // every site, and sites: {host: mode} overrides. Older settings had enabled: true/false
-  // and a disabledSites list.
+  // every site, and sites: {host: mode} overrides.
   const MODES = ['normal', 'dark', 'omarchy'];
   function modeOf(settings) {
-    const s = settings || {};
-    if (MODES.includes(s.mode)) return s.mode;
-    return s.enabled === true ? 'omarchy' : 'normal';
+    const mode = settings && settings.mode;
+    return MODES.includes(mode) ? mode : 'normal';
   }
 
   // www.example.com and example.com share one override; other subdomains have their own.
@@ -288,15 +286,12 @@
   function siteModeOf(settings, hostname) {
     const s = settings || {};
     const own = s.sites && s.sites[siteKey(hostname)];
-    if (MODES.includes(own)) return own;
-    if (Array.isArray(s.disabledSites) && s.disabledSites.includes(hostname)) return 'normal';
-    return modeOf(s);
+    return MODES.includes(own) ? own : modeOf(s);
   }
 
   function normalizeSettings(stored) {
     const s = stored || {};
     const sites = {};
-    for (const h of Array.isArray(s.disabledSites) ? s.disabledSites : []) if (siteKey(h)) sites[siteKey(h)] = 'normal';
     for (const [h, m] of Object.entries(s.sites || {})) if (siteKey(h) && MODES.includes(m)) sites[siteKey(h)] = m;
     return { mode: modeOf(s), sites: Object.fromEntries(Object.entries(sites).sort(([a], [b]) => (a < b ? -1 : 1))) };
   }
