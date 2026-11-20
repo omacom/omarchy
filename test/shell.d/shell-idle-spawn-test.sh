@@ -193,14 +193,10 @@ done
 (( ready )) || fail_with_log "test shell answers IPC within 15 seconds"
 
 # Startup runs its one-off probes (hardware, packages, config) for a few seconds
-# after IPC answers, and ends by restoring the cursor once the startup cover has
-# faded, which waits on the wallpaper. Idle starts once that has happened and
-# everything has been quiet for a few seconds. A shell that never goes quiet
-# fails below with the commands it kept running.
-startup_done() {
-  grep -q 'omarchy_startup_cursor_restore' "$exec_log" 2>/dev/null
-}
-
+# after IPC answers, and its cover waits up to ten seconds on the wallpaper.
+# Idle starts once that is over and everything has been quiet for a few
+# seconds. A shell that never goes quiet fails below with the commands it kept
+# running.
 settle_start=$SECONDS
 quiet_since=$SECONDS
 last=$(exec_count)
@@ -210,7 +206,7 @@ while (( SECONDS - settle_start < 40 )); do
   if (( now != last )); then
     last=$now
     quiet_since=$SECONDS
-  elif (( SECONDS - quiet_since >= 4 )) && { startup_done || (( SECONDS - settle_start >= 20 )); }; then
+  elif (( SECONDS - quiet_since >= 4 && SECONDS - settle_start >= 20 )); then
     break
   fi
 done
