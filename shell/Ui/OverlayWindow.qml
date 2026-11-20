@@ -26,10 +26,12 @@ PanelWindow {
 
   // Wait for fullscreen geometry as well as scale so no smaller opening frame
   // is stretched across the output. Fractional scale uses units of 1/120;
-  // compare in those units to tolerate floating point rounding.
+  // compare in those units to tolerate floating point rounding. Qt clamps an
+  // output scaled below 1.0 to a whole 1x surface, so the monitor's fractional
+  // scale can never arrive there; 1x is already the sharpest surface it offers.
   readonly property bool contentReady: shown && backingWindowVisible && !!targetScreen
     && width === targetScreen.width && height === targetScreen.height
-    && !!targetMonitor && Math.round(devicePixelRatio * 120) === Math.round(targetMonitor.scale * 120)
+    && !!targetMonitor && Math.round(devicePixelRatio * 120) === Math.round(Math.max(1, targetMonitor.scale) * 120)
   property bool contentRevealed: false
 
   onContentReadyChanged: {
