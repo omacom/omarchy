@@ -26,6 +26,15 @@ for unit in \
   omarchy-migrate-notify.service \
   omarchy-fcitx5.service \
   omarchy-crash-watch.service; do
+  if ! unit_state=$(systemctl --user show "$unit" -p LoadState --value); then
+    echo "Could not inspect user unit: $unit" >&2
+    failed=1
+    continue
+  fi
+  if [[ $unit_state == "masked" ]]; then
+    echo "Preserving explicitly masked user unit: $unit"
+    continue
+  fi
   systemctl --user enable --now "$unit" || failed=1
 done
 
