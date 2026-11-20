@@ -35,10 +35,16 @@ omarchy-webapp-install Llama.cpp "http://127.0.0.1:9931" \
   "https://cdn.jsdelivr.net/gh/ggml-org/llama.brand/logo/png/app/web/pwa-512x512.png"
 
 # Opening before the server answers would show a connection error.
+ready=false
 for _ in {1..30}; do
-  curl -fs --max-time 1 http://127.0.0.1:9931/health >/dev/null && break
+  curl -fs --max-time 1 http://127.0.0.1:9931/health >/dev/null && ready=true && break
   sleep 1
 done
+
+if [[ $ready != true ]]; then
+  echo "The Llama.cpp server did not start. See: journalctl --user -u llama-server" >&2
+  exit 1
+fi
 
 echo "Opening Llama.cpp..."
 setsid uwsm-app -- gtk-launch Llama.cpp >/dev/null 2>&1 &
