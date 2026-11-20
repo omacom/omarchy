@@ -239,6 +239,7 @@ cat >"$memory_bin/brightnessctl" <<'SH'
 printf '%s\n' "$*" >>"$MEMORY_CALLS"
 if [[ $* == *" -m"* ]]; then printf 'panel,backlight,%s,%s%%\n' "${MEMORY_CURRENT:-40}" "${MEMORY_CURRENT:-40}"; fi
 SH
+printf '#!/bin/bash\nprintf "[]\\n"\n' >"$memory_bin/hyprctl"
 chmod +x "$memory_bin"/*
 source_file="$test_tmp/power-source"
 printf false >"$source_file"
@@ -310,7 +311,7 @@ NO_DISPLAY=1 run_memory set 51%
 pass "brightness memory blocks on lock and handles desktop or no display"
 
 # Exercise the public CLI, not only its helper: relative arguments must finish
-# while the helper owns the shared lock and retain their brightnessctl meaning.
+# while the helper owns the shared lock and be translated to an absolute target.
 for argument in +5% 10%- +10% 10%- +1; do
   timeout 3 env POWER_SOURCE="$source_file" MEMORY_CALLS="$test_tmp/memory-calls" XDG_STATE_HOME="$test_tmp/state" XDG_RUNTIME_DIR="$test_tmp/memory-runtime" PATH="$memory_bin:$ROOT/bin:$PATH" "$brightness_display" --no-osd --monitor eDP-1 "$argument" || fail "CLI relative brightness argument completes: $argument"
 done
