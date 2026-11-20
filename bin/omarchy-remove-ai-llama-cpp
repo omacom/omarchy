@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Remove Llama.cpp along with the GGUF models it downloaded.
+# omarchy:summary=Remove Llama.cpp along with its server, its web app, and the GGUF models it downloaded.
 # omarchy:requires-sudo=true
 
 # -u so an unset HOME is an error rather than a cache path rooted at /.
@@ -10,6 +10,11 @@ set -euo pipefail
 # same package and may have been enabled by hand. Both hold a model open.
 systemctl --user disable --now llama-server.service 2>/dev/null || true
 sudo systemctl disable --now llama-server.service 2>/dev/null || true
+
+# The web app launcher and icon omarchy-install-ai-llama-cpp created.
+rm -f "$HOME/.local/share/applications/Llama.cpp.desktop"
+rm -f "$HOME/.local/share/icons/hicolor/256x256/apps/llama-cpp.png"
+gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
 
 # The GPU backends are separate packages the installer picks by hardware, so
 # they go with llama-cpp, and omarchy-pkg-drop ignores the ones not present.
@@ -63,7 +68,7 @@ if (( ${#ggufs[@]} )) && [[ -t 0 && -t 2 ]]; then
     rm -f -- "${ggufs[@]}" "${blobs[@]}"
     for repo in "${repos[@]}"; do
       if [[ -z $(find "$repo/snapshots" \( -type f -o -type l \) -print -quit) ]]; then
-        rm -rf -- "$repo"
+        rm -rf -- "$repo" "$hub/.locks/${repo##*/}"
       else
         find "$repo/snapshots" -mindepth 1 -depth -type d -empty -delete
       fi
@@ -71,6 +76,21 @@ if (( ${#ggufs[@]} )) && [[ -t 0 && -t 2 ]]; then
     models_removed=true
   fi
 fi
+
+# The router records the downloads it has not finished next to the cache, and
+# that record is the only way back to their partial files. An empty one goes.
+record=$hub/unfinished-downloads.json
+if [[ -f $record && $(tr -d "[:space:]" <"$record") == "{\"downloads\":[]}" ]]; then
+  rm -f -- "$record"
+fi
+
+# systemd creates the user service's configuration and cache directories when it
+# starts and never removes them. They go only while empty: the Hugging Face
+# cache is shared with every huggingface_hub user, and a configuration the user
+# wrote stays.
+config=${XDG_CONFIG_HOME:-$HOME/.config}
+cache=${XDG_CACHE_HOME:-$HOME/.cache}
+rmdir "$config/llama/server" "$config/llama" "$hub/.locks" "$cache/huggingface/hub" "$cache/huggingface" 2>/dev/null || true
 
 echo ""
 echo "Llama.cpp has been removed."
