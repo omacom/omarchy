@@ -19,16 +19,18 @@ if [[ -d $claude_dir && ! -f $current_theme/claude.json ]] ||
 fi
 
 # Activate once; later theme switches preserve explicit application choices.
-if [[ -d $codex_dir || -f ${CODEX_CONFIG_PATH:-$codex_dir/config.toml} ]]; then
+if [[ -d $codex_dir || -f ${CODEX_CONFIG_PATH:-$codex_dir/config.toml} ]] && ! omarchy-done check theme-activate-codex; then
   omarchy-theme-set-codex --activate
 fi
-if [[ -d $grok_dir || -f ${GROK_CONFIG_PATH:-$grok_dir/config.toml} ]]; then
+if [[ -d $grok_dir || -f ${GROK_CONFIG_PATH:-$grok_dir/config.toml} ]] && ! omarchy-done check theme-activate-grok; then
   omarchy-theme-set-grok --activate
 fi
-if [[ -d $claude_dir ]]; then
+if [[ -d $claude_dir ]] && ! omarchy-done check theme-activate-claude; then
   omarchy-theme-set-claude --activate
 fi
 if [[ -d $pi_dir ]]; then
-  omarchy-theme-set-pi --activate
+  if ! omarchy-done check theme-activate-pi; then
+    omarchy-theme-set-pi --activate
+  fi
   rm -f "$pi_dir/extensions/omarchy-system-theme.ts"
 fi
