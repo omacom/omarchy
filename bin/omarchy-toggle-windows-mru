@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# omarchy:summary=Switch Super+Tab and Alt+Tab between fixed order and Windows-style recent order
+# omarchy:args=[toggle|on|off]
+# omarchy:examples=omarchy toggle windows mru | omarchy toggle windows mru on | omarchy toggle windows mru off
+
+case ${1:-toggle} in
+toggle) omarchy-hyprland-toggle windows-mru toggle ;;
+on) omarchy-hyprland-toggle windows-mru on ;;
+off) omarchy-hyprland-toggle windows-mru off ;;
+*)
+  echo "Usage: omarchy-toggle-windows-mru [toggle|on|off]" >&2
+  exit 1
+  ;;
+esac
+
+if omarchy-hyprland-toggle-enabled windows-mru; then
+  omarchy-notification-send -g "󰖲" "$(omarchy-i18n windowsMru.enabled)"
+else
+  omarchy-notification-send -g "󰖲" "$(omarchy-i18n windowsMru.disabled)"
+fi

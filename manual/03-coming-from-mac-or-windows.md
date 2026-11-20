@@ -20,6 +20,8 @@ When you genuinely need a floating window, `Super + T` toggles the active one ou
 
 Workspaces will feel familiar: they're macOS Spaces or Windows virtual desktops, except you'll actually use them, because `Super + 1/2/3/4` jumps straight to one and `Super + Shift + 1/2/3/4` sends the active window there. No animation delay, just instant jumps. This means that you might not even need multiple monitors, if you were used to that before.
 
+`Alt + Tab` and `Super + Tab` walk windows and workspaces in a fixed order. If you want the Windows habit instead — a tap flips the last two, holding the modifier and tapping Tab walks further back, and letting go keeps that one — turn on _Trigger > Toggle > Windows Tab On_, or run `omarchy toggle windows mru`. See [toggles](13-toggles-idle-screensaver.md).
+
 ### Copy and paste just work
 
 On the Mac you had Cmd + C everywhere. On Windows you had Ctrl + C everywhere — except the terminal, where it kills your program. Omarchy gives you `Super + C`, `Super + X`, and `Super + V`, and they work everywhere, including the terminal. No separate reflex to learn for the shell.
