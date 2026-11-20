@@ -69,7 +69,7 @@ async function render() {
   } else if (st.host && st.host.connected) {
     status.textContent = `Live sync · ${pretty(current && current.name)}`;
   } else {
-    status.textContent = 'Native host offline · run install.sh ';
+    status.textContent = 'Theme sync offline · run omarchy-install-chromium-omareader ';
     const retry = document.createElement('button');
     retry.textContent = 'retry';
     retry.onclick = () => chrome.runtime.sendMessage({ type: 'reconnect' });
