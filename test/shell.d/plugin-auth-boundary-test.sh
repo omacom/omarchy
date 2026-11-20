@@ -48,6 +48,20 @@ assert(
   !store.has('omarchy.lock') && store.isTrusted('omarchy.lock'),
   'authentication classification survives service teardown'
 )
+
+// An engine reload tears down every authentication service, so the shell asks
+// the store whether one is busy, and the store answers with a boolean.
+store.put('omarchy.lock', { locked: true })
+assert(store.hasActiveLock(), 'the session lock holds an engine reload')
+store.destroyAll()
+store.put('my.lock', { locked: true })
+assert(store.hasActiveLock(), 'a lock clone also holds an engine reload')
+// The lock service's bound `locked` can miss a change; its currentlyLocked() is the truth.
+store.put('my.lock', { locked: false, currentlyLocked: () => true })
+assert(store.hasActiveLock(), 'a lock whose bound property went stale still holds an engine reload')
+store.put('my.lock', { locked: true, currentlyLocked: () => false })
+assert(!store.hasActiveLock(), 'a stale locked property does not hold an engine reload after unlock')
+store.destroyAll()
 JS
 
 qml_matches "$shell_qml" 'inst\.shell *= *shell\.pluginShellFor\( *manifest *\)' ||

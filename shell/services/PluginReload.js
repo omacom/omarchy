@@ -18,3 +18,11 @@ function flush(sourcePending, locked, reloadShell, reloadPlugins) {
   else reloadPlugins()
   return false
 }
+
+if (typeof module !== "undefined") {
+  module.exports = {
+    sourceChangedForPath: sourceChangedForPath,
+    quietInterval: quietInterval,
+    flush: flush
+  }
+}
