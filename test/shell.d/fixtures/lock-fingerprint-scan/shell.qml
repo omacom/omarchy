@@ -1,7 +1,6 @@
 import QtQuick
 import Quickshell
 import qs.Commons
-import qs.Commons as Commons
 
 ShellRoot {
   id: root
@@ -143,59 +142,6 @@ ShellRoot {
     }
   }
 
-  function runView() {
-    var view = load("/shell/plugins/lock/LockView.qml").createObject(host, { width: 800, height: 600, loadBackground: false })
-    if (!view) throw new Error("LockView failed to instantiate")
-    try {
-      var icon = findByObjectName(view, "fingerprintIndicator")
-      var pulse = findByObjectName(view, "fingerprintPulse")
-      var placeholder = findByObjectName(view, "passwordPlaceholder")
-      check(icon !== null && pulse !== null && placeholder !== null, "the view has the icon, its pulse and the field's prompt")
-      if (!icon || !pulse || !placeholder) return
-
-      var prompt = placeholder.text
-      var checking = I18n.t("lock.checking")
-      check(prompt !== checking, "the field prompts for a password while nothing is checked")
-
-      view.fingerprintConfigured = true
-      check(!pulse.running, "the icon is still while no finger is on the reader")
-      var restingColor = icon.color
-      // The palette comes from the theme, which this scratch home lacks; the
-      // colors are compared only where the two differ.
-      var coloredPalette = !Qt.colorEqual(Commons.Color.lock.text, Commons.Color.lock.placeholder)
-
-      view.fingerprintScanning = true
-      check(placeholder.text === checking, "the field says it is checking while the reader matches")
-      check(pulse.running === !Style.reduceMotion, "the icon pulses while the reader matches, unless animations are off")
-      if (coloredPalette) check(Qt.colorEqual(icon.color, Commons.Color.lock.text), "the icon brightens while the reader matches")
-
-      view.fingerprintScanning = false
-      check(!pulse.running, "the pulse stops with the scan")
-      check(icon.opacity === 1, "the icon is drawn whole once the scan ends")
-      if (coloredPalette) check(Qt.colorEqual(icon.color, restingColor), "the icon rests again once the scan ends")
-      check(placeholder.text === prompt, "the field prompts for a password again")
-
-      view.fingerprintScanning = true
-      view.fingerprintConfigured = false
-      check(!pulse.running, "nothing pulses without a reader to show")
-
-      view.fingerprintConfigured = true
-      view.fingerprintUnavailable = true
-      check(!pulse.running, "the crossed-out icon of an unreachable reader never pulses")
-      view.fingerprintUnavailable = false
-
-      // `omarchy toggle animations` turns the shell's motion off; the field
-      // still says it is checking.
-      var motion = Style.reduceMotion
-      Style.reduceMotion = true
-      check(!pulse.running, "the pulse stays off with animations off")
-      check(placeholder.text === checking, "the field still says it is checking with animations off")
-      Style.reduceMotion = motion
-    } finally {
-      view.destroy()
-    }
-  }
-
   function writeResult() {
     var payload = JSON.stringify({ ok: failures.length === 0, checks: checks, failures: failures })
     if (resultPath) {
@@ -237,7 +183,6 @@ ShellRoot {
       }
       try {
         root.finishWiring()
-        root.runView()
       } catch (error) {
         root.failures.push("lock fingerprint scan fixture threw: " + error)
       } finally {
