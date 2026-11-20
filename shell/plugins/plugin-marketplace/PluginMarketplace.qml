@@ -45,7 +45,7 @@ Item {
       selectedPlugin.category,
       selectedPlugin.author ? Commons.I18n.t("marketplace.by").arg(selectedPlugin.author) : "",
       selectedPlugin.version ? Commons.I18n.t("marketplace.version").arg(selectedPlugin.version) : "",
-      selectedPlugin.stars != null ? Commons.I18n.t("marketplace.stars").arg(Commons.I18n.formatNumber(selectedPlugin.stars, 0)) : ""
+      selectedPlugin.stars != null ? Commons.I18n.tn("marketplace.stars", selectedPlugin.stars).arg(Commons.I18n.formatNumber(selectedPlugin.stars, 0)) : ""
     ].filter(Boolean).join(" · ")
   }
   // The model returns catalog keys, since it has no translator; this is where

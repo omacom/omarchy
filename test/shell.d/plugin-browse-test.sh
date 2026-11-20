@@ -197,6 +197,15 @@ jq -e '.[0] | .id == "bad.preview" and .previewPath == "" and .previewImages == 
 [[ ! -s $notification_log ]] || fail "plugin marketplace treats malformed optional previews as a catalog failure"
 pass "plugin marketplace handles malformed preview fields"
 
+# The listing's own order is the order the previews page through, so the main
+# image stays first even when a later screenshot sorts ahead of it.
+printf '{"plugins":[{"id":"acme.gallery","sourceType":"community","previewImage":"https://plugins.omarchy.org/previews/z-main.png","previewImages":["https://plugins.omarchy.org/previews/z-main.png","https://plugins.omarchy.org/previews/a-second.png"]}]}\n' >"$catalog_file"
+export OMARCHY_TEST_SELECTED_ID="acme.gallery"
+omarchy-plugin-browse
+jq -e '.[0].previewImages == ["https://plugins.omarchy.org/previews/z-main.png", "https://plugins.omarchy.org/previews/a-second.png"]' "$catalog_payload_file" >/dev/null ||
+  fail "plugin marketplace keeps the listing's preview order" "$(jq -c '.[0].previewImages' "$catalog_payload_file")"
+pass "plugin marketplace keeps the listing's preview order"
+
 # A shell that cannot open the overlay answers "unknown" and exits successfully.
 # Waiting on the done file afterwards would hang a command that has nothing to
 # wait for.
