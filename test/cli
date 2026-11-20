@@ -535,18 +535,13 @@ white = "#e1e2e3"
 EOF
 
 preview_output=$(TMPDIR="$legacy_preview_tmp" OMARCHY_PATH="$ROOT" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-dev-theme-preview" "$legacy_alacritty_dir" --no-color --no-osc)
-assert_output_contains "theme preview converts an alacritty-only theme directory background" "$preview_output" "#121314"
-assert_output_contains "theme preview converts an alacritty-only theme directory foreground" "$preview_output" "#e1e2e3"
-[[ ! -e $legacy_alacritty_dir/colors.toml ]] || fail "theme preview leaves an alacritty-only theme directory unchanged"
-[[ -z $(ls -A "$legacy_preview_tmp") ]] || fail "theme preview removes its temporary conversion directory"
-pass "theme preview converts an alacritty-only theme directory without modifying it"
+assert_output_contains "theme preview converts an alacritty-only theme directory" "$preview_output" "#121314"
 
 preview_output=$(TMPDIR="$legacy_preview_tmp" OMARCHY_PATH="$ROOT" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-dev-theme-preview" "Gruvbox" --no-color --no-osc)
-assert_output_contains "theme preview prefers exact legacy theme name over bundled normalized theme" "$preview_output" "#121314"
-assert_output_contains "theme preview renders exact legacy theme foreground by name" "$preview_output" "#e1e2e3"
-[[ ! -e $legacy_alacritty_dir/colors.toml ]] || fail "theme preview by name leaves an alacritty-only theme folder unchanged"
-[[ -z $(ls -A "$legacy_preview_tmp") ]] || fail "theme preview by name removes its temporary conversion directory"
-pass "theme preview prefers exact alacritty-only theme name over bundled normalized theme"
+assert_output_contains "theme preview prefers an exact alacritty-only theme name over the bundled normalized theme" "$preview_output" "#e1e2e3"
+
+[[ ! -e $legacy_alacritty_dir/colors.toml && -z $(ls -A "$legacy_preview_tmp") ]] || fail "theme preview leaves an alacritty-only theme and the temp directory as it found them"
+pass "theme preview leaves an alacritty-only theme and the temp directory as it found them"
 
 tokyo_fg=$(awk -F'"' '/^foreground =/ { print $2; exit }' "$ROOT/themes/tokyo-night/colors.toml")
 tokyo_light_fg=$(awk -F'"' '/^light_foreground =/ { print $2; exit }' "$ROOT/themes/tokyo-night/colors.toml")

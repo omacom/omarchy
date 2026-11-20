@@ -62,61 +62,36 @@ normalize_theme_name() {
   printf '%s' "$1" | sed -E 's/<[^>]+>//g' | tr '[:upper:]' '[:lower:]' | tr ' ' '-'
 }
 
-SCRATCH_DIR=""
-
-cleanup_scratch() {
-  if [[ -n $SCRATCH_DIR ]]; then
-    rm -rf "$SCRATCH_DIR"
-    SCRATCH_DIR=""
-  fi
-}
-
+# A theme from before colors.toml is previewed with the palette omarchy-theme-set would generate for it.
 colors_from_alacritty() {
-  local theme_dir="$1"
-
-  cleanup_scratch
-  SCRATCH_DIR=$(mktemp -d) || return 1
-  cp "$theme_dir/alacritty.toml" "$SCRATCH_DIR/alacritty.toml" || return 1
-  omarchy_tool omarchy-theme-colors-from-alacritty "$SCRATCH_DIR" >/dev/null || return 1
-  [[ -f $SCRATCH_DIR/colors.toml ]] || return 1
-  colors_file="$SCRATCH_DIR/colors.toml"
+  cp "$1/alacritty.toml" "$SCRATCH_DIR/" || return 1
+  omarchy_tool omarchy-theme-colors-from-alacritty "$SCRATCH_DIR" >/dev/null
+  [[ -f $SCRATCH_DIR/colors.toml ]] && printf '%s/colors.toml' "$SCRATCH_DIR"
 }
 
 resolve_colors_file() {
   local ref="$1"
-  local normalized theme_name
-  local -a candidates
+  local theme_name
 
   if [[ -z $ref ]]; then
-    colors_file="$CURRENT_THEME_PATH/colors.toml"
-    return 0
+    printf '%s/colors.toml' "$CURRENT_THEME_PATH"
   elif [[ -f $ref ]]; then
-    colors_file="$ref"
-    return 0
+    printf '%s' "$ref"
   elif [[ -d $ref && -f $ref/colors.toml ]]; then
-    colors_file="$ref/colors.toml"
-    return 0
+    printf '%s/colors.toml' "$ref"
   elif [[ -d $ref && -f $ref/alacritty.toml ]]; then
     colors_from_alacritty "$ref"
-    return
   else
-    candidates=("$ref")
-    normalized=$(normalize_theme_name "$ref")
-    if [[ $normalized != "$ref" ]]; then
-      candidates+=("$normalized")
-    fi
-
-    for theme_name in "${candidates[@]}"; do
+    for theme_name in "$ref" "$(normalize_theme_name "$ref")"; do
       if [[ -f $USER_THEMES_PATH/$theme_name/colors.toml ]]; then
-        colors_file="$USER_THEMES_PATH/$theme_name/colors.toml"
-        return 0
+        printf '%s/colors.toml' "$USER_THEMES_PATH/$theme_name"
+        return
       elif [[ -f $OMARCHY_THEMES_PATH/$theme_name/colors.toml ]]; then
-        colors_file="$OMARCHY_THEMES_PATH/$theme_name/colors.toml"
-        return 0
-      elif [[ -f $USER_THEMES_PATH/$theme_name/alacritty.toml ]] && colors_from_alacritty "$USER_THEMES_PATH/$theme_name"; then
-        return 0
-      elif [[ -f $OMARCHY_THEMES_PATH/$theme_name/alacritty.toml ]] && colors_from_alacritty "$OMARCHY_THEMES_PATH/$theme_name"; then
-        return 0
+        printf '%s/colors.toml' "$OMARCHY_THEMES_PATH/$theme_name"
+        return
+      elif [[ -f $USER_THEMES_PATH/$theme_name/alacritty.toml ]]; then
+        colors_from_alacritty "$USER_THEMES_PATH/$theme_name"
+        return
       fi
     done
     return 1
@@ -436,10 +411,10 @@ print_neutral_ramp() {
   done
 }
 
-trap cleanup_scratch EXIT
+SCRATCH_DIR=$(mktemp -d) || exit 1
+trap 'rm -rf "$SCRATCH_DIR"' EXIT
 
-colors_file=""
-resolve_colors_file "$THEME_REF" || {
+colors_file=$(resolve_colors_file "$THEME_REF") || {
   echo "Theme not found: $THEME_REF" >&2
   exit 1
 }
@@ -465,7 +440,11 @@ fi
 apply_terminal_osc
 
 printf 'Theme: %s\n' "$theme_label"
-printf 'File:  %s\n' "$colors_file"
+if [[ $colors_file == "$SCRATCH_DIR"/* ]]; then
+  printf 'File:  generated from alacritty.toml\n'
+else
+  printf 'File:  %s\n' "$colors_file"
+fi
 printf 'Mode:  %s\n' "$mode"
 if [[ ${COLORS[foreground]} =~ ^#[0-9A-Fa-f]{6}$ && ${COLORS[background]} =~ ^#[0-9A-Fa-f]{6}$ ]]; then
   printf 'foreground/background contrast: %s:1\n' "$(contrast_ratio "${COLORS[foreground]}" "${COLORS[background]}")"
