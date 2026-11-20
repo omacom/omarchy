@@ -1,6 +1,6 @@
 # Omarchy CLI
 
-Omarchyjem se obično upravlja putem tipkovničkih prečaca i Omarchy izbornika (`Super + Space`). Ali njime možete upravljati i putem `omarchy` CLI-ja. To je osobito korisno kada AI agent radi s vama na prilagodbi ili konfiguraciji.
+Omarchyjem se obično upravlja putem tipkovničkih prečaca i izbornika Omarchy (`Super + Space`). No njime možete upravljati i putem `omarchy` CLI-ja. To je posebno korisno kada AI agent radi s vama na prilagođavanju ili konfiguraciji.
 
 CLI ima pristup svim internim alatima koji se koriste i putem izbornika i na druge načine. Sve što je dostupno možete vidjeti pokretanjem naredbe `omarchy` u terminalu.
 
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,12 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-A možete i dublje zaroniti u svaku skupinu:
+Za dijagnostiku izravno pokrenite `omarchy-debug --no-sudo --print`. Ispisuje dijagnostiku i zapisuje u `/tmp/omarchy-debug.log` bez traženja sudo ovlaštenja, uključujući instalacije paketa u kojima `omarchy debug` može zakazati s porukom "Unknown Omarchy command".
+
+A možete i dublje zaroniti u svaku grupu:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Svaka naredba također prihvaća `--help`, bilo da pitate cijelu skupinu (`omarchy capture --help`) ili jednu naredbu (`omarchy capture screenshot --help`).
+Svaka naredba prihvaća i `--help`, bilo da tražite cijelu grupu (`omarchy capture --help`) ili pojedinačnu naredbu (`omarchy capture screenshot --help`).
 
 ### Otvaranje izbornika iz terminala
 
-Omarchy izbornik također se može skriptirati, što je zgodno za vlastite tipkovničke prečace. `omarchy menu` otvara ga na korijenu, a možete skočiti izravno na bilo koju točku u stablu navodeći je: `omarchy menu summon appearance.theme` vodi ravno na birač tema, `omarchy menu toggle system` otvara izbornik sustava i ponovno ga zatvara ako je već otvoren, a `omarchy menu close` ga uklanja.
+Izbornik Omarchy također je moguće skriptirati, što je praktično za vlastite tipkovničke prečace. `omarchy menu` otvara ga u korijenu, a na bilo koju točku u stablu možete skočiti izravno tako da je navedete: `omarchy menu summon appearance.theme` vodi izravno do birača tema, `omarchy menu toggle system` otvara izbornik sustava i zatvara ga ponovno ako je već otvoren, a `omarchy menu close` ga sklanja.

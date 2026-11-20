@@ -1,6 +1,7 @@
 {
   "Activity": "Aktivitas",
   "Agent": "Agen",
+  "Agents": "Agen",
   "Apps": "Aplikasi",
   "Audio": "Audio",
   "Background switcher": "Ganti latar",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "Tampilkan jendela aktif di atas",
   "Save window width": "Simpan lebar jendela",
   "Screenrecording": "Perekaman layar",
+  "Screenrecording with no audio": "Rekam layar tanpa audio",
   "Screenshot": "Tangkapan layar",
   "Scroll active workspace backward": "Gulir ruang kerja mundur",
   "Scroll active workspace forward": "Gulir ruang kerja maju",
