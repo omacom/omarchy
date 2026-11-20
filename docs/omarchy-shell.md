@@ -131,10 +131,7 @@ or `omarchy.power`. There is no `bar` target.
 | `listShellConfig`                     | effective shell.json as JSON    |
 | `debugBarGeometry`                    | bar geometry dump for debugging |
 
-`setPluginEnabled` takes a string; only literal `"true"` enables. Methods
-answer on stdout with exit 0 — `ok` on success, `unknown` or an error
-string on a miss. `summon` and `toggle` answer `unknown` for an unknown or
-disabled plugin and `refused` when the plugin declined the payload.
+`setPluginEnabled` takes a string; only literal `"true"` enables. Methods answer on stdout with exit 0 — `ok` on success, `unknown` or an error string on a miss. `summon` and `toggle` answer `unknown` for an unknown or disabled plugin and `refused` when the plugin declined the payload.
 
 ## shell.json
 
