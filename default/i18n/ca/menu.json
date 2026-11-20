@@ -26,11 +26,11 @@
   "update": {
     "label": "Actualitza"
   },
-  "about": {
-    "label": "Quant a"
-  },
   "system": {
     "label": "Sistema"
+  },
+  "system.about": {
+    "label": "Quant a"
   },
   "system.screensaver": {
     "label": "Salvapantalles"
@@ -357,26 +357,14 @@
   "trigger.tests.disk-speedtest": {
     "label": "Prova de velocitat de disc"
   },
-  "setup.monitors": {
-    "label": "Monitors"
-  },
-  "setup.keybindings": {
-    "label": "Dreceres de teclat"
-  },
   "setup.input": {
     "label": "Entrada"
   },
-  "setup.typing": {
-    "label": "Escriptura"
-  },
-  "setup.typing.keyboard": {
-    "label": "Disposicions de teclat"
-  },
-  "setup.typing.input": {
-    "label": "Mètodes d'entrada"
-  },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Idioma"
+  },
+  "setup.region.timezone": {
+    "label": "Zona horària"
   },
   "setup.network": {
     "label": "Xarxa"
@@ -402,53 +390,52 @@
   "setup.default": {
     "label": "Per defecte"
   },
-  "setup.default.agent": {
-    "label": "Agent",
-    "title": "Agent per defecte"
+  "agent": {
+    "label": "Agent"
   },
-  "setup.default.agent.agy": {
+  "agent.harness.agy": {
     "label": "Antigravity"
   },
-  "setup.default.agent.claude": {
+  "agent.harness.claude": {
     "label": "Claude"
   },
-  "setup.default.agent.codex": {
+  "agent.harness.codex": {
     "label": "Codex"
   },
-  "setup.default.agent.copilot": {
+  "agent.harness.copilot": {
     "label": "Copilot"
   },
-  "setup.default.agent.crush": {
+  "agent.harness.crush": {
     "label": "Crush"
   },
-  "setup.default.agent.cursor-agent": {
+  "agent.harness.cursor-agent": {
     "label": "Cursor CLI"
   },
-  "setup.default.agent.grok": {
+  "agent.harness.grok": {
     "label": "Grok"
   },
-  "setup.default.agent.hermes": {
+  "agent.harness.hermes": {
     "label": "Hermes"
   },
-  "setup.default.agent.kimi": {
+  "agent.harness.kimi": {
     "label": "Kimi"
   },
-  "setup.default.agent.muse": {
+  "agent.harness.muse": {
     "label": "Muse Code"
   },
-  "setup.default.agent.omp": {
+  "agent.harness.omp": {
     "label": "omp"
   },
-  "setup.default.agent.openclaw": {
+  "agent.harness.openclaw": {
     "label": "OpenClaw"
   },
-  "setup.default.agent.opencode": {
+  "agent.harness.opencode": {
     "label": "OpenCode"
   },
-  "setup.default.agent.ori": {
+  "agent.harness.ori": {
     "label": "Ori"
   },
-  "setup.default.agent.pi": {
+  "agent.harness.pi": {
     "label": "Pi"
   },
   "setup.default.browser": {
@@ -581,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Arrencada directa"
-  },
-  "setup.reset": {
-    "label": "Restableix l'ordinador"
+  "remove.factory-reset": {
+    "label": "Restabliment de fàbrica"
   },
   "install.package": {
     "label": "Paquet"
@@ -680,9 +664,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -703,9 +684,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Compte de Chromium"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1103,9 +1081,6 @@
   "update.password": {
     "label": "Contrasenya"
   },
-  "update.timezone": {
-    "label": "Zona horària"
-  },
   "update.time": {
     "label": "Hora"
   },
@@ -1160,7 +1135,235 @@
   "update.password.user": {
     "label": "Usuari"
   },
-  "system.reboot-boot-menu": {
-    "label": "Reinicia al menú d'arrencada"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Desactiva la captura d'errors"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Activa la pantalla del portàtil"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Desactiva la pantalla del portàtil"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Activa la duplicació de pantalla"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Desactiva la duplicació de pantalla"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Canvia a la GPU híbrida"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Canvia a la GPU integrada"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Activa el touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Desactiva el touchpad"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Activa la pantalla tàctil"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Desactiva la pantalla tàctil"
+  },
+  "agent.harness.amp": {
+    "label": "Amp"
+  },
+  "agent.harness.commandcode": {
+    "label": "Command Code"
+  },
+  "agent.harness.devin": {
+    "label": "Devin CLI"
+  },
+  "agent.harness.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "agent.harness.freebuff": {
+    "label": "Freebuff"
+  },
+  "agent.harness.kilo": {
+    "label": "Kilo"
+  },
+  "agent.harness.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "agent.harness.mcode": {
+    "label": "MiniMax Code"
+  },
+  "agent.harness.qwen": {
+    "label": "Qwen Code"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Mostra el % de bateria"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Amaga el % de bateria"
+  },
+  "appearance.windows": {
+    "label": "Finestres"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Espais entre finestres activats"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Espais entre finestres desactivats"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Proporció d'1 finestra activada"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Proporció d'1 finestra desactivada"
+  },
+  "appearance.branding": {
+    "label": "Marca"
+  },
+  "appearance.animations-on": {
+    "label": "Animacions activades"
+  },
+  "appearance.animations-off": {
+    "label": "Animacions desactivades"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Mantén despert"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Permet la suspensió"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Notificacions activades"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Silencia les notificacions"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Llum nocturna activada"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Llum nocturna desactivada"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Estalvi de pantalla activat"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Estalvi de pantalla desactivat"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Captura de fallades activada"
+  },
+  "setup.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Nucli"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Teclat"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Dreceres de teclat"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Entrades del teclat"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Mètodes d'entrada"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Text pla"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Harness per defecte"
+  },
+  "agent.instructions": {
+    "label": "Instruccions"
+  },
+  "agent.make": {
+    "label": "Crea alguna cosa"
+  },
+  "agent.make.theme": {
+    "label": "Crea un tema"
+  },
+  "agent.make.plugin": {
+    "label": "Crea un complement"
+  },
+  "agent.make.app": {
+    "label": "Crea una app"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Icones"
+  },
+  "install.style.icons": {
+    "label": "Icones"
+  },
+  "remove.icons": {
+    "label": "Icones"
+  },
+  "update.icons": {
+    "label": "Icones extra"
+  },
+  "system.firmware": {
+    "label": "Reiniciar a la BIOS",
+    "description": "Reiniciar a la configuració del microprogramari UEFI"
+  },
+  "setup.region": {
+    "label": "Regió"
+  },
+  "setup.region.formats": {
+    "label": "Formats",
+    "description": "Com s'escriuen les dates, les hores, els números i les unitats"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Joc Game Vibes"
+  },
+  "update.games": {
+    "label": "Jocs Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Crea un joc"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
   }
 }

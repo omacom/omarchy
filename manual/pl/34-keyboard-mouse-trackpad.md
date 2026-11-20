@@ -1,6 +1,6 @@
 # Klawiatura, mysz, gładzik
 
-Hyprland pozwala konfigurować wszystkie wejścia z dużą szczegółowością. Możesz zmienić powtarzanie klawiatury na naddźwiękowo szybkie lub sprawić, by gładzik używał naturalnego przewijania. Zmieniasz to wszystko w `~/.config/hypr/input.lua`, do którego możesz także dotrzeć przez _Ustawienia > Wejście_ w menu Omarchy (`Super + Space`). Wszystko, co tam ustawisz, zastępuje domyślne ustawienia Omarchy.
+Hyprland pozwala szczegółowo skonfigurować wszystkie urządzenia wejściowe. Możesz ustawić powtarzanie klawiszy na naddźwiękowo szybkie albo sprawić, by gładzik używał przewijania naturalnego. Wszystko to zmieniasz w `~/.config/hypr/input.lua`, do którego możesz też dotrzeć przez _Setup > Input_ w menu Omarchy (`Super + Space`). Wszystko, co tam ustawisz, zastępuje domyślne ustawienia Omarchy.
 
 Oto przykład:
 
@@ -35,9 +35,9 @@ hl.config({
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
-Możesz [zobaczyć wszystkie opcje wejścia](https://wiki.hypr.land/Configuring/Basics/Variables/#input) na wiki Hyprland dla wejść.
+Możesz [zobaczyć wszystkie opcje wejścia](https://wiki.hypr.land/Configuring/Basics/Variables/#input) na wiki Hyprland poświęconej wejściom.
 
-CapsLock działa jak normalny Caps Lock, a `Shift + CapsLock` jest klawiszem Compose dla [szybkich emoji](07-hotkeys.md#quick-emojis) i [innych uzupełnień](07-hotkeys.md#quick-completions). Jeśli wolisz mieć klawisz Compose w innym miejscu, zastąp `omarchy:shift_caps_compose` w `kb_options`. Na przykład przenosi to klawisz Compose na Right Alt:
+CapsLock działa jak zwykły Caps Lock, a `Shift + CapsLock` to klawisz compose do [szybkich emoji](07-hotkeys.md#quick-emojis) i [innych uzupełnień](07-hotkeys.md#quick-completions). Jeśli wolisz mieć klawisz compose gdzie indziej, zamień `omarchy:shift_caps_compose` w `kb_options`. Ten przykład przenosi na przykład klawisz compose na Right Alt:
 
 ```lua
 hl.config({
@@ -47,33 +47,50 @@ hl.config({
 })
 ```
 
+### Klawisze funkcyjne
+
+Górny rząd klawiatury laptopa domyślnie wysyła klawisze multimedialne (głośność, jasność itd.), a przytrzymanie `Fn` daje F1-F12; `Fn + Esc` blokuje to odwrotnie, dopóki nie naciśniesz go ponownie. Większość klawiatur sama pamięta tę blokadę. Laptopy ASUS i klawiatury w stylu Apple zostawiają to Linuksowi, który przy każdym uruchomieniu startuje je na klawiszach multimedialnych. Aby zamiast tego startowały na F1-F12, uruchom `omarchy device keyboard toprow fnkeys` (a `omarchy device keyboard toprow mediakeys`, aby wrócić); na niektórych laptopach zmiana wchodzi w życie po ponownym uruchomieniu. Komputery Mac z Apple Silicon zachowują własne ustawienie.
+
 ### Gesty gładzika
 
-Możesz również włączyć [gesty panelu dotykowego](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), takie jak przesuwanie trzema palcami, aby zmieniać obszary robocze:
+Przeciągnij po gładziku, aby poruszać się po pulpicie:
+
+| Gest | Akcja |
+| --- | --- |
+| Trzy palce w lewo / w prawo | Poprzedni / następny obszar roboczy, w tym puste |
+| Trzy palce w górę | Przełącz konsolę AI |
+| Trzy palce w dół | Otwórz menu Omarchy |
+| Cztery palce w lewo / w prawo | Przenieś aktywne okno na poprzedni / następny obszar roboczy |
+| Cztery palce w dół | Przełącz pełny ekran |
+
+Aby zmienić jeden z nich, wyłącz go w `~/.config/hypr/input.lua`, zanim dodasz własny [gest gładzika](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), ponieważ Hyprland nie przyjmie dwóch gestów na tej samej liczbie palców i kierunku:
 
 ```lua
-hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+hl.gesture({ fingers = 3, direction = "up", action = "unset" })
+hl.gesture({ fingers = 3, direction = "up", action = "fullscreen" })
 ```
 
-Na laptopach Dell XPS z haptycznym panelem dotykowym możesz również ustawić siłę kliknięcia na niską, średnią lub wysoką w _Akcje > Sprzęt > Haptyka gładzika_.
+Aby wyłączyć wszystkie gesty Omarchy, ustaw `omarchy_default_gestures = false` blisko początku `~/.config/hypr/hyprland.lua`, zanim załadują się domyślne ustawienia Omarchy.
+
+Na laptopach Dell XPS z haptycznym gładzikiem możesz też ustawić siłę kliknięcia na niską, średnią lub wysoką w _Trigger > Hardware > Touchpad Haptics_.
 
 ### Pisanie po chińsku, japońsku i w innych językach
 
-Wybierz japoński, koreański, chiński (uproszczony, Pinyin) lub chiński (tradycyjny, Zhuyin), gdy instalator zapyta o twoją klawiaturę. Omarchy konfiguruje klawiaturę i dopasowany silnik wprowadzania automatycznie, w tym podczas konfiguracji pierwszego uruchomienia offline. Japoński używa Mozc, koreański używa standardowego hangula dwuzestawowego, chiński uproszczony używa Pinyin, a chiński tradycyjny używa standardowego układu Zhuyin Chewing. Japoński (klawiatura US) zapewnia Mozc z układem klawiatury US.
+Wybierz japoński, koreański, chiński (uproszczony, Pinyin), tajwański (Zhuyin) lub hongkoński (Cangjie), gdy instalator zapyta o Twoją klawiaturę. Omarchy konfiguruje klawiaturę i pasujący silnik wprowadzania automatycznie, także podczas konfiguracji przy pierwszym uruchomieniu w trybie offline. Japoński używa Mozc, koreański używa standardowego dwuzestawowego Hangul, chiński uproszczony używa Pinyin, tajwański używa standardowego układu Zhuyin silnika Chewing, a hongkoński używa Cangjie z hongkońskimi formami znaków. Japoński (klawiatura US) zapewnia Mozc z amerykańskim układem klawiatury. Klawisze Hangul, Zhuyin i Cangjie pozostają w standardowych pozycjach, nawet gdy piszesz litery łacińskie w układach Dvorak, Colemak lub AZERTY. Jeśli dodałeś Hangul lub Chewing wcześniej, odznacz je i zaznacz ponownie w _Setup > Keyboard > Input Methods_, aby przenieść ich klawisze w to miejsce; Omarchy zostawia w spokoju silnik, na którym już piszesz.
 
-Pisanie rozpoczyna się w trybie łacińskim. Naciśnij `Super + I`, aby przełączać się między skonfigurowanymi metodami wprowadzania, i `Super + Shift + I`, aby przełączać się wstecz. Dotknij samego `Shift`, aby wyjść z metody wprowadzania, takiej jak Pinyin, na litery łacińskie, i dotknij go ponownie, aby wrócić, tak jak działają Sogou, Microsoft Pinyin i macOS; `Shift` plus litera nadal pisze wielką literę. Na klawiaturach japońskich 全角/半角 przełącza wprowadzanie, 変換 włącza je, a 無変換 wyłącza je. Na układzie klawiatury koreańskiej dedykowane klawisze 한/영 i 한자 przełączają hangul i konwertują na hanja. `Ctrl + Space` pozostaje dostępne dla Tmux i Herdr; `Shift + CapsLock` pozostaje klawiszem Compose.
+Pisanie zaczyna się w trybie łacińskim. Naciśnij `Super + I`, aby przechodzić między skonfigurowanymi metodami wprowadzania, a `Super + Shift + I`, aby przechodzić wstecz. Dotknij samego `Shift`, aby wyjść z metody wprowadzania takiej jak Pinyin do liter łacińskich, i dotknij go ponownie, aby wrócić, tak jak działają Sogou, Microsoft Pinyin i macOS; `Shift` plus litera nadal wpisuje wielką literę. Na klawiaturach japońskich 全角/半角 przełącza wprowadzanie, 変換 je włącza, a 無変換 je wyłącza. W koreańskim 한/영 przełącza Hangul, a 한자 konwertuje na Hanja, niezależnie od tego, czy klawiatura ma dedykowane klawisze, czy wysyła dla nich Right Alt i Right Ctrl, jak robi to wiele laptopów, więc Right Alt i Right Ctrl nie są tam zwykłymi modyfikatorami; zamiast tego dyktowanie przełącza się za pomocą Alt + Space. `Ctrl + Space` pozostaje dostępne dla Tmux i Herdr; `Shift + CapsLock` pozostaje klawiszem compose.
 
-Wskaźnik klawiatury pojawia się po prawej stronie paska, gdy masz wiele układów klawiatury lub metod wprowadzania. Kliknij go, aby przełączać języki wprowadzania; japoński wyświetla あ dla hiragany. W przypadku wyborów znaków japońskich przełącz się na japoński, wpisz słowo, takie jak `nihongo`, a następnie naciśnij Space dwukrotnie. Naciśnij Enter, aby zaakceptować swój wybór. Jeśli masz również wiele układów klawiatury, kliknij wskaźnik prawym przyciskiem myszy, aby przełączać je.
+Wskaźnik klawiatury pojawia się po prawej stronie paska, gdy masz wiele układów klawiatury lub metod wprowadzania. Kliknij go, aby przełączać języki wprowadzania; japoński wyświetla あ dla hiragany. Aby wybrać znaki japońskie, przełącz na japoński, wpisz słowo takie jak `nihongo`, a następnie naciśnij dwukrotnie Space. Naciśnij Enter, aby zaakceptować wybór. Jeśli masz też wiele układów klawiatury, kliknij wskaźnik prawym przyciskiem myszy, aby przechodzić między nimi.
 
-Użyj _Ustawienia > Pisanie > Układy klawiatury_, aby wybrać układy, takie jak angielski i francuski, spośród tych samych wyborów oferowanych podczas instalacji. Użyj _Ustawienia > Pisanie > Metody wprowadzania_, aby wybrać, które silniki składania są aktywne. Oba selektory otwierają się wewnątrz menu Omarchy z zaznaczonymi bieżącymi wyborami. Kliknij lub naciśnij Enter, aby przełączyć wybór; każda zmiana obowiązuje natychmiast. Odznaczenie metody wprowadzania usuwa ją z cyklu bez odinstalowywania jej; klawiatura pozostaje dostępna.
+Użyj _Setup > Keyboard > Keyboard Inputs_, aby wybrać układy takie jak angielski i francuski, spośród tych samych opcji oferowanych podczas instalacji. Użyj _Setup > Keyboard > Input Methods_, aby wybrać, które silniki składania są aktywne. Oba selektory otwierają się wewnątrz menu Omarchy z zaznaczonymi bieżącymi wyborami. Kliknij lub naciśnij Enter, aby przełączyć wybór; każda zmiana obowiązuje natychmiast. Odznaczenie metody wprowadzania usuwa ją z cyklu bez jej odinstalowywania; klawiatura pozostaje dostępna.
 
-Uruchom `omarchy setup keyboard` lub `omarchy setup input`, aby otworzyć te same selektory. Aby dodać jeden język z wiersza poleceń, użyj `omarchy setup input mozc`, `hangul`, `pinyin` lub `chewing`. Twoje niestandardowe klawisze przełączania są zachowywane. W przypadku alternatywnych układów lub klawiszy silników zainstaluj `fcitx5-configtool` za pomocą `omarchy pkg add fcitx5-configtool` i uruchom go z terminala. Wybranie języka wprowadzania nie zmienia języka pulpitu.
+Uruchom `omarchy setup keyboard` lub `omarchy setup input`, aby otworzyć te same selektory. Aby dodać jeden język z wiersza poleceń, użyj `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing` lub `cangjie5`. Quick, Boshiamy i Array są w tym samym pakiecie co Cangjie i pojawiają się w selektorze Input Methods. Twoje niestandardowe klawisze przełączania są zachowywane. Aby uzyskać alternatywne układy lub klawisze silników, zainstaluj `fcitx5-configtool` za pomocą `omarchy pkg add fcitx5-configtool` i uruchom go z terminala. Wybranie języka wprowadzania nie zmienia języka pulpitu. Wybranie japońskiego, koreańskiego lub chińskiego w _Setup > Language_ dodaje jego metodę wprowadzania, gdy nie masz jeszcze żadnej.
 
-Użyj `Super + I`, aby przełączać się między metodami wprowadzania lub układami klawiatury, i `Super + Shift + I`, aby wrócić w drugą stronę, więc przy trzech skonfigurowanych możesz poruszać się między dwoma sąsiadami. Wskaźnik wprowadzania pojawia się po prawej stronie paska tylko wtedy, gdy skonfigurowana jest więcej niż jedna metoda wprowadzania lub układ. To powiązanie pulpitu działa obok istniejących klawiszy przełączania Fcitx; możesz nadpisać je w `~/.config/hypr/bindings.lua`. Silniki wprowadzania i sekwencje Compose używają usługi [Fcitx5](https://fcitx-im.org/) już działającej w każdej sesji.
+Używaj `Super + I`, aby przechodzić między metodami wprowadzania lub układami klawiatury, a `Super + Shift + I`, aby wracać w drugą stronę, więc przy trzech skonfigurowanych możesz poruszać się między dwoma sąsiadami. Wskaźnik wprowadzania pojawia się po prawej stronie paska tylko wtedy, gdy skonfigurowano więcej niż jedną metodę wprowadzania lub układ. To powiązanie pulpitu działa obok istniejących klawiszy przełączania Fcitx; możesz je nadpisać w `~/.config/hypr/bindings.lua`. Silniki wprowadzania i sekwencje compose używają usługi [Fcitx5](https://fcitx-im.org/), która już działa w każdej sesji.
 
 ### Używaj ALT jako SUPER
 
-Na niektórych klawiaturach używanie głównego klawisza Meta (klawisza Windows/cmd) jako SUPER nie jest wygodne. Możesz zmienić to na ALT, używając tej zmiany:
+Na niektórych klawiaturach używanie głównego klawisza meta (klawisza Windows/cmd) jako SUPER nie jest wygodne. Możesz zamiast tego zmienić go na ALT, wprowadzając tę zmianę:
 
 ```lua
 hl.config({

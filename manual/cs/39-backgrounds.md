@@ -1,15 +1,17 @@
 # Pozadí
 
-Každý motiv se dodává s vlastní sadou pozadí a další si můžete přidat do složky `~/.config/omarchy/backgrounds/[theme]`. Pokud chcete přidat další obrázek pozadí například k motivu nord, stačí umístit soubor do složky `~/.config/omarchy/backgrounds/nord`.
+Každé téma se dodává s vlastní sadou pozadí a další vlastní si můžete přidat do `~/.config/omarchy/backgrounds/[theme]`. Pokud chcete přidat další obrázek na pozadí třeba k tématu nord, prostě soubor vložíte do `~/.config/omarchy/backgrounds/nord`.
 
-Nejsnadněji to uděláte v nabídce Omarchy v části _Instalovat > Styl > Pozadí_. Otevře se složka, v níž jsou pozadí daného motivu uložena. Stiskem `Super + Shift + F` spustíte další správce souborů, najdete svoje pozadí a překopírujete ho. Nyní bude zahrnuto mezi pozadími, mezi nimiž si můžete vybírat zkratkou `Super + Ctrl + Space`.
+Nejjednodušeji to uděláte tak, že v nabídce Omarchy Menu přejdete do _Instalace > Styl > Pozadí_. Otevře se složka, kde jsou uložena pozadí pro dané téma. Stisknutím `Super + Shift + F` spustíte další správce souborů, najdete své pozadí a zkopírujete ho tam. Nyní bude zahrnuto mezi pozadími, mezi kterými můžete přepínat pomocí `Super + Ctrl + W`.
 
-Pozadím mohou být vedle statických obrázků také videa. Vložte do stejné složky soubor `mp4`, `m4v`, `mov`, `webm`, `mkv` nebo `avi` a objeví se vedle obrázků. Videa přehrává jádro tapet OWE. Dekóduje video jednou pro všechny monitory a jeho zvuk přehrává přes výchozí zvukový výstup a přehrávání zastaví, kdykoli není vidět. Zamykací obrazovka vykresluje stejné dekódování, ztlumené, přes OWE. Videotapeta přitom stále spotřebovává mnohem více energie než statická tapeta.
+Pozadí mohou být videa stejně jako statické obrázky. Vložte soubor `mp4`, `m4v`, `mov`, `webm`, `mkv` nebo `avi` do stejné složky a objeví se vedle obrázků. Videa přehrává engine pro tapety OWE. Dekóduje video jednou pro všechny monitory, přehrává jeho zvuk přes výchozí zvukový výstup a zastaví přehrávání, kdykoli ho nic nevidí. Video pozadí pořád spotřebuje mnohem více energie než statické.
 
-Motivy mohou obsahovat krátký úvod ke statickému pozadí. Pro `backgrounds/road.webp` se odpovídající video nachází v `backgrounds/intros/road.mp4`. Přehraje se automaticky při spouštění a při přepnutí na motiv s vybraným pozadím, a poté se vrátí ke statickému obrázku. Úvodní videa se nezobrazují ve výběru pozadí a nikdy se neopakují ve smyčce.
+Témata mohou obsahovat krátké intro pro statické pozadí. Pro `backgrounds/road.webp` se odpovídající video nachází v `backgrounds/intros/road.mp4`. Přehrává se automaticky při spuštění, při přepnutí na téma s vybraným daným pozadím a při výběru daného pozadí, poté se vrátí ke statickému obrázku. Úvodní videa se nezobrazují ve výběru pozadí a nikdy se neopakují ve smyčce.
 
-Vypnutí volby _Akce > Vzhled > Animace_ vypne také úvody pozadí. Omarchy to ve výchozím nastavení dělá ve virtuálním počítači. Příkaz `omarchy theme bg intro toggle` může úvody přepínat samostatně. Obnovení motivu ani volba jiného pozadí v rámci téhož motivu úvod nepřehraje.
+Vypnutí _Vzhled > Animace_ také vypne intra pozadí. Omarchy to ve virtuálním počítači dělá ve výchozím nastavení. Příkaz `omarchy theme bg intro toggle` může intra přepínat samostatně. Obnovení tématu intro nepřehrává.
 
-Obrovskou sbírku krásných vybraných pozadí najdete na adrese https://github.com/dharmx/walls.
+Statický obrázek může mít také smyčku, klidnou verzi téhož obrázku, která se stále pohybuje, v `backgrounds/loops/road.mp4`. Přehrává se místo statického obrázku, po jeho intru, pokud ho má, a zastaví se, když jsou animace vypnuté. Na baterii se místo ní zobrazuje statický obrázek a smyčka se vrátí, jakmile zařízení připojíte k napájení. Smyčky se nezobrazují ve výběru pozadí.
 
-Videopozadí si na zamykací obrazovce zachovávají uložený statický obrázek, pokud je přehrávání pozastaveno nebo není k dispozici. Animované obrázky GIF se přehrávají na ploše a na zamykací obrazovce zobrazují statický snímek.
+Obrovskou sbírku skvělých pečlivě vybraných pozadí najdete v [dharmx/walls](https://github.com/dharmx/walls).
+
+Zamykací obrazovka zobrazuje statický snímek video pozadí, stejně jako zobrazuje statický snímek animovaného GIFu.

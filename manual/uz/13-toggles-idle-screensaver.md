@@ -1,50 +1,52 @@
-# Almashtirishlar, boʻsh vaqt va ekran saqlagich
+# Toggle'lar, Bekor turish va Ekran saqlovchi
 
-Kundan kunga oʻzgartiradigan koʻp narsa aslida sozlama emas. Bu bir soatga yoqib, yana oʻchiradigan rejim: kech ishlayotganingizda tungi yorugʻlik, taqdimot qilayotganingizda bezovta qilmang, nimadir koʻrayotganingizda uygʻoq qolish. Omarchy ularni almashtirishlar deb ataydi va ularning hammasi bir xil ishlaydi — hotkey, menyu yozuvi va buyruq, hammasi bir xil kalitga uradi.
+Kundan kunga o'zgartirib turadigan narsalaringizning aksariyati aslida sozlama emas. Bu bir soatga yoqib, keyin yana o'chirib qo'yadigan rejim: kech ishlayotganingizda tungi yorug'lik, taqdimot qilayotganingizda bezovta qilmaslik, biror narsa tomosha qilayotganingizda uyg'oq qolish. Omarchy ularni toggle deb ataydi va ularning barchasi bir xil ishlaydi — tezkor tugma, menyu bandi va buyruq, barchasi bitta kalitga tegadi.
 
-### Almashtirish menyusi
+### Toggle menyusi
 
-`Super + Ctrl + O` _Ishga tushirish > Almashtirish_ ni bevosita ochadi yoki u yerga Omarchy menyusidan (`Super + Space`) yurishingiz mumkin. Oʻsha roʻyxatdagi hamma narsa holat qayerda yashashini oʻylamasdan almashtirishingiz mumkin boʻlgan kalitdir. Ish stoli qanday koʻrinishi uchun kalitlar uning yonida, _Ishga tushirish > Koʻrinish_ ostida oʻtiradi.
+`Super + Ctrl + O` to'g'ridan-to'g'ri _Trigger > Toggle_ ni ochadi, yoki u yerga Omarchy menyusidan (`Super + Space`) ham borishingiz mumkin. U ro'yxatdagi hamma narsa holat qayerda saqlanayotganini o'ylamasdan o'zgartirishingiz mumkin bo'lgan kalitdir. Ish stoli qanday ko'rinishini belgilaydigan kalitlar uning yonida, _Appearance_ ostida joylashgan.
 
-Terminaldan xuddi shu kalitlar `omarchy toggle <thing>` dir. Butun guruhni koʻrish uchun `omarchy toggle` ni oʻzicha ishga tushiring.
+Terminaldan o'sha kalitlar `omarchy toggle <thing>` dir. Butun guruhni ko'rish uchun `omarchy toggle` ni o'zini ishga tushiring.
 
-| Almashtirish | Hotkey | Buyruq |
+| Toggle | Tezkor tugma | Buyruq |
 | ------ | ------ | ------- |
-| Tungi yorugʻlik | `Super + Ctrl + N` | `omarchy toggle nightlight` |
-| Bildirishnomalarni ovozsiz qilish | `Super + Ctrl + ,` | `omarchy toggle notification silencing` |
-| Uygʻoq qolish (boʻsh qulf yoʻq) | `Super + Ctrl + I` | `omarchy toggle idle` |
-| Buzilish qaydi | — | `omarchy toggle crash-capture` |
-| Ekran saqlagich | — | `omarchy toggle screensaver` |
-| [Herdr](https://herdr.dev) mavzu sinxronlash | — | `omarchy toggle theme sync` |
+| Tungi yorug'lik | — | `omarchy toggle nightlight` |
+| Bildirishnomalarni jim qilish | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
+| Uyg'oq qolish (bekor holatda qulflanmaslik) | `Super + Ctrl + I` | `omarchy toggle idle` |
+| Qulashni yozib olish | — | `omarchy toggle crash-capture` |
+| Ekran saqlovchi | — | `omarchy toggle screensaver` |
+| [Herdr](https://herdr.dev) mavzusini sinxronlash | — | `omarchy toggle theme sync` |
 | Menyu paneli | `Super + Shift + Space` | `omarchy toggle bar` |
-| Sensor panel | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Sensor ekran | — | `omarchy toggle touchscreen` |
-| Kutish | — | `omarchy toggle suspend` |
-| Hybrid GPU | — | `omarchy toggle hybrid gpu` |
+| Sensor panel | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Sensorli ekran | — | `omarchy device touchscreen` |
+| Kutish rejimi | — | `omarchy toggle suspend` |
+| Gibrid GPU | — | `omarchy toggle hybrid gpu` |
 
-Sensor panel, sensor ekran va hybrid GPU kalitlari Almashtirish ostida emas, _Ishga tushirish > Qurilmalar_ (`Super + Ctrl + H`) ostida yashaydi, chunki ular faqat sizda oʻsha apparatura haqiqatan boʻlganda paydo boʻladi. Sensor panel va sensor ekran Hyprland qayta yuklanishidan omon qoladi — oʻchirilgan qurilmaning nomi Hyprland ishga tushganda uni yana oʻchirish uchun oʻqiydigan kichik holat fayliga saqlanadi.
+Sensor panel, sensorli ekran va gibrid GPU kalitlari Toggle ostida emas, _Trigger > Hardware_ (`Super + Ctrl + H`) ostida joylashgan, chunki ular faqat sizda o'sha uskuna haqiqatan bo'lganda paydo bo'ladi. Sensor panel va sensorli ekran kalitlari Hyprland qayta yuklangandan keyin ham saqlanib qoladi — o'chirilgan qurilmaning nomi kichik holat fayliga saqlanadi, Hyprland ishga tushganda uni o'qib, qurilmani yana o'chiradi.
 
-_Ishga tushirish > Koʻrinish_ menyu paneli va animatsiyalarni, plyus `omarchy toggle` buyruqlari boʻlmagan, lekin bir xil harakat qiladigan bir necha narsani saqlaydi: paneldagi batareya foizi, standart ish maydoni tartibi, oyna oraliqlari (`Super + Shift + Backspace`) va 1-oyna kvadrat nisbati (`Super + Ctrl + Backspace`).
+_Appearance_ da menyu paneli va animatsiyalar, shuningdek `omarchy toggle` buyruqlari bo'lmasa ham xuddi shunday ishlaydigan bir nechta narsa bor: paneldagi batareya foizi, standart ish maydoni tartibi va _Windows_ ostida oyna bo'shliqlari (`Super + Shift + Backspace`) hamda 1 oynalik kvadrat nisbat (`Super + Ctrl + Backspace`).
 
-Bulardan koʻpi shunchaki `~/.local/state/omarchy/toggles/` ostidagi bayroq faylidir. Agar skriptda bittasiga tarmoqlanmoqchi boʻlsangiz, `omarchy-toggle-enabled` sizni qidirishga majbur qilish oʻrniga chiqish kodi beradi:
+Hyprland da chizish uchun GPU bo'lmasa va uning o'rniga CPU da render qilsa (llvmpipe), masalan GPU si hali qo'llab-quvvatlanmaydigan Mac larda, aksariyat virtual mashinalarda yoki grafik drayver yuklana olmaganda, Omarchy o'sha sessiya uchun animatsiyalar, xiralashtirish va soyalarni o'chiradi va bu haqda sizga bir marta bildirishnoma bilan xabar beradi. _Appearance > Animations On_ ularni qaytaradi va Omarchy buni keyingi sessiyalar uchun ham eslab qoladi.
+
+Ularning aksariyati shunchaki `~/.local/state/omarchy/toggles/` ostidagi bayroq faylidir. Agar skriptda ulardan biriga qarab shart qo'ymoqchi bo'lsangiz, `omarchy-toggle-enabled` sizni izlab yurishingizdan qutqarib, chiqish kodini beradi:
 
 ```bash
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
 ```
 
-Bayroqlar oʻchiq holat uchun nomlangan — `screensaver-off`, `suspend-off`, `bar-off` — demak ularning mavjudligi xususiyat oʻchirilganini anglatadi.
+Bayroqlar o'chirilgan holat nomi bilan atalgan — `screensaver-off`, `suspend-off`, `bar-off` — shuning uchun ularning mavjudligi funksiya o'chirilganini anglatadi.
 
-### Paneldagi koʻrsatkichlar
+### Paneldagi indikatorlar
 
-Rejim yoqiq boʻlganda, soat yonidagi yuqori panelning oʻrtasida kichik glif olasiz. Bu koʻrsatkichlar vidjeti boʻlib, u diktovka, ekran yozuvi, kutilayotgan eslatmalar, tungi yorugʻlik, bezovta qilmang va uygʻoq qolishni tashiydi.
+Rejim yoqilganda, yuqori panelning o'rtasida soat yonida kichik belgi paydo bo'ladi. Bu indikatorlar vidjeti bo'lib, u diktovka, ekranni yozib olish, kutilayotgan eslatmalar, tungi yorug'lik, bezovta qilmaslik va uyg'oq qolishni ko'rsatadi.
 
-Faol boʻlmagan koʻrsatkichlar yashirilgan. Ular atrofidagi maydonni ustiga olib boring va ular xiralashib paydo boʻladi, shuning uchun uning hotkeyini bilmasdan uni yoqish uchun birini bosishingiz mumkin. Faol birini bosish uni orqaga oʻchiradi. Agar ularning hammasini har doim koʻrishni afzal koʻrsangiz, `~/.config/omarchy/shell.json` dagi `omarchy.indicators` yozuvida `alwaysShow` ni `true` ga oʻrnating — panel vidjetlari qanday sozlanishi haqida [yuqori panel](05-the-top-bar.md) ga qarang.
+Nofaol indikatorlar yashirin bo'ladi. Kursorni panelning istalgan joyiga olib boring va ular xira ko'rinishda paydo bo'ladi, shunda tezkor tugmasini bilmasdan ham birini bosib yoqishingiz mumkin. Faolini bosish uni yana o'chiradi. Agar ularning barchasini doim ko'rib turishni afzal ko'rsangiz, `~/.config/omarchy/shell.json` dagi `omarchy.indicators` yozuvida `alwaysShow` ni `true` qilib qo'ying — panel vidjetlari qanday sozlanishini [yuqori panel](05-the-top-bar.md) dan ko'ring.
 
-### Tungi yorugʻlik
+### Tungi yorug'lik
 
-`Super + Ctrl + N` ekranni 4000K ga isitadi va uni yana bosish 6500K ga qaytaradi. U hyprsunset tomonidan boshqariladi, almashtirish agar u allaqachon ishlamayotgan boʻlsa siz uchun boshlaydi.
+Tungi yorug'lik ekranni 4000K gacha ilitadi, uni yana almashtirish esa 6500K ga qaytaradi. Uni toggle menyusidan (`Super + Ctrl + O`) yoki `omarchy toggle nightlight` bilan o'zgartiring. Uni hyprsunset boshqaradi, agar u allaqachon ishlamayotgan bo'lsa, toggle uni siz uchun ishga tushiradi.
 
-Standartda hyprsunset ekraningizga umuman hech narsa qilmaydi. `~/.config/hypr/hyprsunset.conf` displey iliq soʻramaguningizcha tegilmagan qolishi uchun identity profili bilan keladi. Agar uning soat boʻyicha almashishini afzal koʻrsangiz, uni vaqt profili bilan almashtiring:
+Sukut bo'yicha hyprsunset ekraningizga umuman hech narsa qilmaydi. `~/.config/hypr/hyprsunset.conf` aynan displey siz iliqlik so'ramaguningizcha tegilmasdan qolishi uchun identitet profili bilan yetkaziladi. Agar uning o'rniga soat bo'yicha almashishini xohlasangiz, uni vaqt profili bilan almashtiring:
 
 ```
 profile {
@@ -53,19 +55,19 @@ profile {
 }
 ```
 
-Keyin `o.launch_on_start("hyprsunset")` ni `~/.config/hypr/autostart.lua` ga qoʻshib, kirishda hyprsunsetni boshlang. Almashtirish ishlatadigan 4000K/6500K juftligi qatʼiy belgilangan, shuning uchun boshqa harorat xohlasangiz konfiguratsiya fayli siz boradigan joydir.
+Keyin `~/.config/hypr/autostart.lua` ga `o.launch_on_start("hyprsunset")` ni qo'shib, hyprsunset ni tizimga kirishda ishga tushiring. Toggle ishlatadigan 4000K/6500K juftligi qat'iy belgilangan, shuning uchun boshqa harorat xohlasangiz, konfiguratsiya fayliga murojaat qilasiz.
 
-### Bezovta qilmang
+### Bezovta qilmaslik
 
-`Super + Ctrl + ,` bildirishnomalarni ovozsiz qiladi. U yoqiq paytda hech qanday tost paydo boʻlmaydi va ish stoli nima uchun jim boʻlib qolganini eslatish uchun chizilgan qoʻngʻiroq koʻrsatkichi panelda oʻtiradi.
+`Super + Ctrl + Alt + ,` bildirishnomalarni jim qiladi. U yoqilganda hech qanday tostlar chiqmaydi va ustidan chizilgan qo'ng'iroq indikatori ish stoli nima uchun jim bo'lib qolganini eslatish uchun panelda turadi.
 
-Ammo hech narsa yoʻqolmaydi. Ovozsiz qilingan bildirishnoma toʻgʻridan-toʻgʻri bildirishnoma tarixingizga yoziladi, bu qaytib kelganingizda va nimani oʻtkazib yuborganingizni qiziqtirganingizda siz xohlagan yozuvdir. Uni `Super + Shift + Alt + ,` bilan oching. Bildirishnoma hikoyasining qolgan qismi uchun [maʼlumotlar](10-notices.md) ga qarang.
+Biroq hech narsa yo'qolmaydi. Jim qilingan bildirishnomalar ushlab turiladi: oxirgi bir nechtasini `Super + Shift + Alt + ,` bilan ekranga qaytaring. Qolganini [bildirishnomalar](10-notices.md) dan ko'ring.
 
-Ikki turdagi xabar baribir oʻtadi: siz hozirgina qilgan narsa uchun Omarchyning oʻz tasdiq tostlari ("Mavzu oʻzgardi", "Skrinshot saqlandi") va buyruq qatoridan yuborilgan muhim ogohlantirishlar. Hamma narsani sizning oldingizda majburlash uchun muhim deb belgilaydigan chat ilovalari bunga loyiq emas.
+Ikki turdagi xabar baribir o'tadi: siz hozirgina qilgan ishingiz uchun Omarchy ning o'z tasdiqlash tostlari ("Theme changed", "Screenshot saved") va buyruq satridan yuborilgan kritik ogohlantirishlar. O'zini sizning oldingizga majburan chiqarish uchun hamma narsani kritik deb belgilaydigan chat ilovalari bu qatorga kirmaydi.
 
-### Boʻsh vaqt
+### Bekor turish
 
-Omarchy shelli boʻsh xulq-atvoriga egalik qiladi va vaqtlar `~/.config/omarchy/shell.json` dagi yuqori darajali `idle` blokidir:
+Omarchy qobig'i bekor turish xatti-harakatini boshqaradi va vaqtlar `~/.config/omarchy/shell.json` dagi yuqori darajali `idle` blokidir:
 
 ```json
 {
@@ -77,26 +79,26 @@ Omarchy shelli boʻsh xulq-atvoriga egalik qiladi va vaqtlar `~/.config/omarchy/
 }
 ```
 
-Har ikkala raqam siz boʻsh qolgan paytingizdan sanaladigan soniya — bir-biridan emas. Demak standartlar bilan ekran saqlagich ikki yarim daqiqadan keyin keladi va qulf ekran besh daqiqada egallaydi, ekran saqlagich ishlaganmi yoki yoʻqmi. Faylni saqlang va shell yangi vaqtlarni darhol oladi.
+Har ikkala raqam ham siz bekor holatga o'tgan paytdan boshlab sanaladigan soniyalar — bir-biridan emas. Shunday qilib, sukut bo'yicha ekran saqlovchi ikki yarim daqiqadan keyin chiqadi va qulflash ekrani ekran saqlovchi ishlagan-ishlamaganidan qat'i nazar, besh daqiqada o'rnini egallaydi. Faylni saqlang va qobiq yangi vaqtlarni darhol qabul qiladi.
 
-Ekran saqlagichni qulf muddatidan oldin yopsangiz, bu faoliyat hisoblanadi va kutilayotgan qulf bekor qilinadi. Mashinangizga koʻz tashlaganingiz uchun qulflanib qolmaysiz.
+Agar qulflash muddati kelmasidan ekran saqlovchini yopib yuborsangiz, bu faollik deb hisoblanadi va kutilayotgan qulflash bekor qilinadi. Mashinangizga bir qarab qo'yganingiz uchun qulflanib qolmaysiz.
 
-Boʻsh vaqtda qulflashni butunlay toʻxtatish uchun `Super + Ctrl + I` — yoki `omarchy toggle idle` — uygʻoq qolishni yoqadi va panelda kofe chashka koʻrsatkichi paydo boʻladi. Bu uzun taqdimotdan yoki kuzatmoqchi boʻlgan yigʻilishdan oldin bosiladigan tugma. Normalga qaytish uchun uni yana bosing. Agar skriptdan kerak boʻlsa, `omarchy toggle idle status` joriy holatni JSON sifatida chop etadi.
+Bekor holatda qulflashni butunlay to'xtatish uchun `Super + Ctrl + I` — yoki `omarchy toggle idle` — uyg'oq qolishni yoqadi va panelda qahva chashkasi indikatori paydo bo'ladi. Uzoq taqdimotdan yoki kuzatmoqchi bo'lgan yig'ilishdan oldin bosiladigan tugma shu. Normal holatga qaytish uchun uni yana bosing. Agar skriptdan kerak bo'lsa, `omarchy toggle idle status` joriy holatni JSON sifatida chop etadi.
 
-Bu quvvat haqida emas, qulflash va ekran saqlagich haqida. Kutish va uyquning oʻz sozlamasi [tizim uyqusi](36-system-sleep.md) da bor.
+Bu qulflash va ekran saqlovchi haqida, quvvat haqida emas. Kutish va gibernatsiyaning o'z sozlamalari [tizim uyqusi](36-system-sleep.md) da bor.
 
-### Ekran saqlagich
+### Ekran saqlovchi
 
-Omarchyning ekran saqlagichi tasodifiy matn effektlarida ishlaydigan ASCII sanʼatidir, har bir monitor uchun bitta namuna. Har qanday tugma yoki sichqoncha harakati undan chiqadi.
+Omarchy ning ekran saqlovchisi tasodifiy matn effektlari orqali o'tadigan ASCII art bo'lib, har bir monitor uchun bitta nusxadan ishlaydi. Har qanday tugma yoki sichqoncha harakati undan chiqadi.
 
-Uni _Tizim > Ekran saqlagich_ (`Super + Esc`) dan talab boʻyicha boshlashingiz mumkin, u boʻsh ekran saqlagichni oʻchirgan boʻlsangiz ham uni majbur qiladi. Standartda unga bogʻlangan hotkey yoʻq.
+Uni talab bo'yicha _System > Screensaver_ (`Super + Esc`) dan ishga tushirishingiz mumkin, bu bekor holatdagi ekran saqlovchini o'chirib qo'ygan bo'lsangiz ham uni majburan chiqaradi. Sukut bo'yicha unga hech qanday tezkor tugma biriktirilmagan.
 
-`omarchy toggle screensaver` boʻsh ekran saqlagichni oʻchiradi, agar siz ishlashdan toʻgʻridan-toʻgʻri qulflangan holatga oʻtishni afzal koʻrsangiz. Unga qanday sozlashni biladigan terminal kerak — Alacritty, Foot, Ghostty yoki Kitty — va agar standart terminalingiz boshqa narsa boʻlsa sizga aytadi.
+Agar ishlashdan to'g'ridan-to'g'ri qulflangan holatga o'tishni afzal ko'rsangiz, bekor holatdagisini o'chiradigan narsa `omarchy toggle screensaver` dir. Har qanday tugma, bosish, aylantirish yoki sichqoncha harakati uni yopadi.
 
-U chizadigan logotipni _Uslub > Ekran saqlagich_ ostida oʻzgartirishingiz mumkin. png yoki svg yuklang va Omarchy uni ASCII ga aylantiradi. [Brending](41-branding.md) ga qarang.
+U chizadigan logotipni _Appearance > Branding > Screensaver_ ostida o'zingiz o'zgartirishingiz mumkin. png yoki svg yuklang va Omarchy uni ASCII ga aylantiradi. [brending](41-branding.md) ga qarang.
 
-### Qulf ekran
+### Qulflash ekrani
 
-`Super + Ctrl + L` mashinani qulflaydi. Bu Omarchy shellidan qulf ekranni ishga tushiradi, displeyni qorayadi, parolingizni notoʻgʻri alifboda yozmasligingiz uchun klaviatura tartibingizni birinchisiga qaytaradi va — agar ishlatayotgan boʻlsangiz — chiqishda 1Passwordni qulflaydi.
+`Super + Ctrl + L` mashinani qulflaydi. Bu Omarchy qobig'idagi qulflash ekranini ishga tushiradi, displeyni qoraytiradi, parolingizni noto'g'ri alifboda yozmasligingiz uchun klaviatura tartibingizni birinchisiga qaytaradi va — agar u ishlayotgan bo'lsa — chiqishda 1Password ni qulflaydi.
 
-Qulf ekran parol oladi va bir marta oʻrnatganingizdan keyin barmoq izini ham oladi. Bu va autentifikatsiyaning boshqa usullari [apparat autentifikatsiyasi](37-hardware-authentication.md) da yoritilgan.
+Qulflash ekrani parolni qabul qiladi va siz barmoq izini sozlab olganingizdan keyin uni ham qabul qiladi. Bu va autentifikatsiyaning boshqa usullari [uskuna autentifikatsiyasi](37-hardware-authentication.md) da yoritilgan.

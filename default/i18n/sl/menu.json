@@ -26,11 +26,11 @@
   "update": {
     "label": "Posodobi"
   },
-  "about": {
-    "label": "Vizitka"
-  },
   "system": {
     "label": "Sistem"
+  },
+  "system.about": {
+    "label": "Vizitka"
   },
   "system.screensaver": {
     "label": "Ohranjevalnik"
@@ -357,26 +357,14 @@
   "trigger.tests.disk-speedtest": {
     "label": "Hitrost diska"
   },
-  "setup.monitors": {
-    "label": "Zasloni"
-  },
-  "setup.keybindings": {
-    "label": "Bližnjice"
-  },
   "setup.input": {
     "label": "Vnos"
   },
-  "setup.typing": {
-    "label": "Tipkanje"
-  },
-  "setup.typing.keyboard": {
-    "label": "Razporedi tipkovnic"
-  },
-  "setup.typing.input": {
-    "label": "Načini vnosa"
-  },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Jezik"
+  },
+  "setup.region.timezone": {
+    "label": "Časovni pas"
   },
   "setup.network": {
     "label": "Omrežje"
@@ -402,53 +390,52 @@
   "setup.default": {
     "label": "Privzeto"
   },
-  "setup.default.agent": {
-    "label": "Agent",
-    "title": "Privzeti agent"
+  "agent": {
+    "label": "Agent"
   },
-  "setup.default.agent.agy": {
+  "agent.harness.agy": {
     "label": "Antigravity"
   },
-  "setup.default.agent.claude": {
+  "agent.harness.claude": {
     "label": "Claude"
   },
-  "setup.default.agent.codex": {
+  "agent.harness.codex": {
     "label": "Codex"
   },
-  "setup.default.agent.copilot": {
+  "agent.harness.copilot": {
     "label": "Copilot"
   },
-  "setup.default.agent.crush": {
+  "agent.harness.crush": {
     "label": "Crush"
   },
-  "setup.default.agent.cursor-agent": {
+  "agent.harness.cursor-agent": {
     "label": "Cursor CLI"
   },
-  "setup.default.agent.grok": {
+  "agent.harness.grok": {
     "label": "Grok"
   },
-  "setup.default.agent.hermes": {
+  "agent.harness.hermes": {
     "label": "Hermes"
   },
-  "setup.default.agent.kimi": {
+  "agent.harness.kimi": {
     "label": "Kimi"
   },
-  "setup.default.agent.muse": {
+  "agent.harness.muse": {
     "label": "Muse Code"
   },
-  "setup.default.agent.omp": {
+  "agent.harness.omp": {
     "label": "omp"
   },
-  "setup.default.agent.openclaw": {
+  "agent.harness.openclaw": {
     "label": "OpenClaw"
   },
-  "setup.default.agent.opencode": {
+  "agent.harness.opencode": {
     "label": "OpenCode"
   },
-  "setup.default.agent.ori": {
+  "agent.harness.ori": {
     "label": "Ori"
   },
-  "setup.default.agent.pi": {
+  "agent.harness.pi": {
     "label": "Pi"
   },
   "setup.default.browser": {
@@ -581,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Neposredni zagon"
-  },
-  "setup.reset": {
-    "label": "Ponastavi računalnik"
+  "remove.factory-reset": {
+    "label": "Tovarniška ponastavitev"
   },
   "install.package": {
     "label": "Paket"
@@ -680,9 +664,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -703,9 +684,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Račun Chromium"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1103,9 +1081,6 @@
   "update.password": {
     "label": "Geslo"
   },
-  "update.timezone": {
-    "label": "Časovni pas"
-  },
   "update.time": {
     "label": "Čas"
   },
@@ -1160,7 +1135,235 @@
   "update.password.user": {
     "label": "Uporabnik"
   },
-  "system.reboot-boot-menu": {
-    "label": "Znova zaženi v zagonski meni"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Izklopi zajem zrušitev"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Vklopi zaslon prenosnika"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Izklopi zaslon prenosnika"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Vklopi zrcaljenje zaslona"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Izklopi zrcaljenje zaslona"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Preklopi na hibridni GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Preklopi na integrirani GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Omogoči sledilno ploščico"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Onemogoči sledilno ploščico"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Omogoči zaslon na dotik"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Onemogoči zaslon na dotik"
+  },
+  "agent.harness.amp": {
+    "label": "Amp"
+  },
+  "agent.harness.commandcode": {
+    "label": "Command Code"
+  },
+  "agent.harness.devin": {
+    "label": "Devin CLI"
+  },
+  "agent.harness.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "agent.harness.freebuff": {
+    "label": "Freebuff"
+  },
+  "agent.harness.kilo": {
+    "label": "Kilo"
+  },
+  "agent.harness.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "agent.harness.mcode": {
+    "label": "MiniMax Code"
+  },
+  "agent.harness.qwen": {
+    "label": "Qwen Code"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Prikaži % baterije"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Skrij % baterije"
+  },
+  "appearance.windows": {
+    "label": "Okna"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Razmiki oken vklopljeni"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Razmiki oken izklopljeni"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Razmerje enega okna vklopljeno"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Razmerje enega okna izklopljeno"
+  },
+  "appearance.branding": {
+    "label": "Blagovna znamka"
+  },
+  "appearance.animations-on": {
+    "label": "Animacije vklopljene"
+  },
+  "appearance.animations-off": {
+    "label": "Animacije izklopljene"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Prepreči spanje"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Dovoli spanje"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Obvestila vklopljena"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Utišaj obvestila"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Nočna svetloba vklopljena"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Nočna svetloba izklopljena"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Ohranjevalnik zaslona vklopljen"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Ohranjevalnik zaslona izklopljen"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Zajem sesutij vklopljen"
+  },
+  "setup.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Jedro"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Tipkovnica"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Bližnjice"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Vnosi tipkovnice"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Metode vnosa"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Navadno"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Privzeti Harness"
+  },
+  "agent.instructions": {
+    "label": "Navodila"
+  },
+  "agent.make": {
+    "label": "Ustvari nekaj"
+  },
+  "agent.make.theme": {
+    "label": "Ustvari temo"
+  },
+  "agent.make.plugin": {
+    "label": "Ustvari vtičnik"
+  },
+  "agent.make.app": {
+    "label": "Ustvari aplikacijo"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikone"
+  },
+  "install.style.icons": {
+    "label": "Ikone"
+  },
+  "remove.icons": {
+    "label": "Ikone"
+  },
+  "update.icons": {
+    "label": "Dodatne ikone"
+  },
+  "system.firmware": {
+    "label": "Ponovni zagon v BIOS",
+    "description": "Ponovni zagon v nastavitve vdelane programske opreme UEFI"
+  },
+  "setup.region": {
+    "label": "Regija"
+  },
+  "setup.region.formats": {
+    "label": "Formati",
+    "description": "Kako se zapisujejo datumi, časi, številke in enote"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "Naredi igro"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
   }
 }

@@ -1,9 +1,13 @@
 # 글꼴
 
-Omarchy는 기본으로 JetBrainsMono Nerd Font를 터미널 글꼴과 시스템 글꼴 양쪽으로 사용합니다.
+Omarchy는 기본적으로 JetBrainsMono Nerd Font를 터미널 글꼴이자 시스템 글꼴로 사용한다.
 
  ![fonts-jetbrainsmono](images/fonts-jetbrainsmono.webp)
 
-Omarchy 메뉴(`Super + Space`)의 _스타일 > 글꼴_ 메뉴를 통해 이를 바꿀 수 있습니다. 그러면 터미널, 막대, 그리고 고정폭 글꼴을 요구하는 모든 곳의 글꼴이 설정됩니다.
+이것은 Omarchy 메뉴(`Super + Space`)의 _Appearance > Font_ 메뉴에서 변경할 수 있다. 그렇게 하면 터미널, 바, 그리고 그 글꼴을 요청하는 모든 곳에서 사용하는 고정폭 글꼴이 설정된다.
 
-Omarchy 메뉴의 _설치 > 스타일 > 글꼴_을 통해 다른 인기 프로그래밍 글꼴도 설치할 수 있습니다: Cascadia Mono, Meslo LG Mono, Fira Code, Victor Code, Bitstream Vera Mono, Iosevka를 모두 클릭 한 번으로 설치할 수 있으며, 막대와 터미널의 글리프가 계속 작동하도록 Nerd Font 버전으로 제공됩니다. 하나를 설치한 뒤 _스타일 > 글꼴_에서 골라 주세요.
+Omarchy 메뉴의 _Install > Style > Font_를 통해 다른 인기 있는 프로그래밍 글꼴을 설치할 수 있다: Cascadia Mono, Meslo LG Mono, Fira Code, Victor Code, Bitstream Vera Mono, Iosevka가 모두 한 번의 클릭으로 설치되며, 바와 터미널의 글리프가 계속 작동하도록 Nerd Font 버전으로 제공된다. 하나를 설치한 뒤에는 _Appearance > Font_에서 선택한다.
+
+## 중국어, 일본어, 한국어
+
+중국어, 일본어, 한국어는 많은 문자를 공유하지만 그중 일부는 다르게 그리기 때문에, 같은 문자라도 한 독자에게는 올바르게 보이고 다른 독자에게는 낯설게 보인다. _Setup > Region > Language_에서 이 언어들 중 하나를 선택하거나 그 입력 방식을 선택하면 그에 맞는 형태가 설정된다. 직접 선택하려면 터미널에서 `omarchy font cjk jp`, `kr`, `sc`, `tc` (Taiwan), 또는 `hk` (Hong Kong)를 실행한다; `omarchy font cjk default`를 실행하면 시스템의 선택으로 돌아가는데, 이는 일본어 형태이다. 웹 페이지나 문서가 자체 언어로 표시한 텍스트와, 데스크톱 전체가 이 언어들 중 하나를 사용하는 동안에는 그 언어의 형태를 유지한다.

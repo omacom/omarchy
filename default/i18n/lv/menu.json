@@ -26,11 +26,11 @@
   "update": {
     "label": "Atjaunināt"
   },
-  "about": {
-    "label": "Par"
-  },
   "system": {
     "label": "Sistēma"
+  },
+  "system.about": {
+    "label": "Par"
   },
   "system.screensaver": {
     "label": "Ekrānsaudzētājs"
@@ -357,26 +357,14 @@
   "trigger.tests.disk-speedtest": {
     "label": "Diska ātruma tests"
   },
-  "setup.monitors": {
-    "label": "Monitori"
-  },
-  "setup.keybindings": {
-    "label": "Taustiņu saīsnes"
-  },
   "setup.input": {
     "label": "Ievade"
   },
-  "setup.typing": {
-    "label": "Rakstīšana"
-  },
-  "setup.typing.keyboard": {
-    "label": "Tastatūras izkārtojumi"
-  },
-  "setup.typing.input": {
-    "label": "Ievades metodes"
-  },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Valoda"
+  },
+  "setup.region.timezone": {
+    "label": "Laika josla"
   },
   "setup.network": {
     "label": "Tīkls"
@@ -402,53 +390,52 @@
   "setup.default": {
     "label": "Noklusējumi"
   },
-  "setup.default.agent": {
-    "label": "Aģents",
-    "title": "Noklusējuma aģents"
+  "agent": {
+    "label": "Aģents"
   },
-  "setup.default.agent.agy": {
+  "agent.harness.agy": {
     "label": "Antigravity"
   },
-  "setup.default.agent.claude": {
+  "agent.harness.claude": {
     "label": "Claude"
   },
-  "setup.default.agent.codex": {
+  "agent.harness.codex": {
     "label": "Codex"
   },
-  "setup.default.agent.copilot": {
+  "agent.harness.copilot": {
     "label": "Copilot"
   },
-  "setup.default.agent.crush": {
+  "agent.harness.crush": {
     "label": "Crush"
   },
-  "setup.default.agent.cursor-agent": {
+  "agent.harness.cursor-agent": {
     "label": "Cursor CLI"
   },
-  "setup.default.agent.grok": {
+  "agent.harness.grok": {
     "label": "Grok"
   },
-  "setup.default.agent.hermes": {
+  "agent.harness.hermes": {
     "label": "Hermes"
   },
-  "setup.default.agent.kimi": {
+  "agent.harness.kimi": {
     "label": "Kimi"
   },
-  "setup.default.agent.muse": {
+  "agent.harness.muse": {
     "label": "Muse Code"
   },
-  "setup.default.agent.omp": {
+  "agent.harness.omp": {
     "label": "omp"
   },
-  "setup.default.agent.openclaw": {
+  "agent.harness.openclaw": {
     "label": "OpenClaw"
   },
-  "setup.default.agent.opencode": {
+  "agent.harness.opencode": {
     "label": "OpenCode"
   },
-  "setup.default.agent.ori": {
+  "agent.harness.ori": {
     "label": "Ori"
   },
-  "setup.default.agent.pi": {
+  "agent.harness.pi": {
     "label": "Pi"
   },
   "setup.default.browser": {
@@ -581,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Tiešā palaišana"
-  },
-  "setup.reset": {
-    "label": "Atiestatīt datoru"
+  "remove.factory-reset": {
+    "label": "Rūpnīcas atiestatīšana"
   },
   "install.package": {
     "label": "Pakotne"
@@ -680,9 +664,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -703,9 +684,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium konts"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1103,9 +1081,6 @@
   "update.password": {
     "label": "Parole"
   },
-  "update.timezone": {
-    "label": "Laika josla"
-  },
   "update.time": {
     "label": "Laiks"
   },
@@ -1160,7 +1135,235 @@
   "update.password.user": {
     "label": "Lietotājs"
   },
-  "system.reboot-boot-menu": {
-    "label": "Restartēt uz sāknēšanas izvēlni"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Rādīt akumulatora %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Slēpt akumulatora %"
+  },
+  "appearance.windows": {
+    "label": "Logi"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Logu atstarpes ieslēgtas"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Logu atstarpes izslēgtas"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1 loga proporcija ieslēgta"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1 loga proporcija izslēgta"
+  },
+  "appearance.branding": {
+    "label": "Zīmols"
+  },
+  "appearance.animations-on": {
+    "label": "Animācijas ieslēgtas"
+  },
+  "appearance.animations-off": {
+    "label": "Animācijas izslēgtas"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Palikt nomodā"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Atļaut miegu"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Paziņojumi ieslēgti"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Apklusināt paziņojumus"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Nakts gaisma ieslēgta"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Nakts gaisma izslēgta"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Ekrānsaudzētājs ieslēgts"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Ekrānsaudzētājs izslēgts"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Avāriju fiksēšana ieslēgta"
+  },
+  "setup.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kodols"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Avārijas ieraksts izslēgts"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Klēpjdatora ekrāns ieslēgts"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Klēpjdatora ekrāns izslēgts"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Ekrāna spoguļošana ieslēgta"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Ekrāna spoguļošana izslēgta"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Pārslēgt uz hibrīdo GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Pārslēgt uz integrēto GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Ieslēgt skārienpaliktni"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Izslēgt skārienpaliktni"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Ieslēgt skārienekrānu"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Izslēgt skārienekrānu"
+  },
+  "agent.harness.amp": {
+    "label": "Amp"
+  },
+  "agent.harness.commandcode": {
+    "label": "Command Code"
+  },
+  "agent.harness.devin": {
+    "label": "Devin CLI"
+  },
+  "agent.harness.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "agent.harness.freebuff": {
+    "label": "Freebuff"
+  },
+  "agent.harness.kilo": {
+    "label": "Kilo"
+  },
+  "agent.harness.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "agent.harness.mcode": {
+    "label": "MiniMax Code"
+  },
+  "agent.harness.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Tastatūra"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Taustiņu saistījumi"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Tastatūras ievade"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Ievades metodes"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Vienkāršs"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Noklusējuma Harness"
+  },
+  "agent.instructions": {
+    "label": "Instrukcijas"
+  },
+  "agent.make": {
+    "label": "Izveidot kaut ko"
+  },
+  "agent.make.theme": {
+    "label": "Izveidot motīvu"
+  },
+  "agent.make.plugin": {
+    "label": "Izveidot spraudni"
+  },
+  "agent.make.app": {
+    "label": "Izveidot lietotni"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikonas"
+  },
+  "install.style.icons": {
+    "label": "Ikonas"
+  },
+  "remove.icons": {
+    "label": "Ikonas"
+  },
+  "update.icons": {
+    "label": "Papildu ikonas"
+  },
+  "system.firmware": {
+    "label": "Restartēt uz BIOS",
+    "description": "Restartēt UEFI aparātprogrammatūras iestatījumos"
+  },
+  "setup.region": {
+    "label": "Reģions"
+  },
+  "setup.region.formats": {
+    "label": "Formāti",
+    "description": "Kā tiek rakstīti datumi, laiki, skaitļi un mērvienības"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "Izveidot spēli"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
   }
 }

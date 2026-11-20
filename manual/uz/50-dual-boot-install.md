@@ -1,44 +1,44 @@
-# Ikki tomonlama yuklash oʻrnatish
+# Dual Boot usulida o‘rnatish
 
-Siz Omarchy ni Windows yoki boshqa oʻrnatishlar yonida bitta boʻlimga oʻrnatishingiz mumkin.
+Omarchy ni Windows yoki boshqa o‘rnatilgan tizimlar yoniga bitta bo‘limga o‘rnatishingiz mumkin.
 
-Ushbu oʻrnatish usuli hali ham boʻlim uchun standart bilan LUKS shifrlashi bilan keladi, shuning uchun toʻliq drayvdan farqi yoʻq va shunchaki diskda boʻsh joy boʻlishini talab qiladi.
+Bu o‘rnatish usuli ham bo‘lim uchun sukut bo‘yicha LUKS shifrlash bilan keladi, shuning uchun u amalda butun diskka o‘rnatishdan farq qilmaydi va shunchaki diskda bo‘sh joy mavjud bo‘lishini talab qiladi.
 
-## Windows-da joy yaratish
+## Windows da joy ajratish
 
-Windows yonida oʻrnatish uchun boshlash menyusida `disk management` ni yozing va **Create and format hard disk partitions** variantini tanlang.
+Windows yoniga o‘rnatish uchun boshlash menyusida `disk management` deb yozing va **Qattiq disk bo‘limlarini yaratish va formatlash** variantini tanlang.
 
  ![dual-boot-1](images/dual-boot-1.webp)
 
-Tegishli boʻlimni toping, oʻng tugmani bosing va **Shrink Volume** ni tanlang.
+Kerakli bo‘limni toping, sichqonchaning o‘ng tugmasini bosing va **Hajmni qisqartirish** ni tanlang.
 
 ![dual-boot-2](images/dual-boot-2.webp)
 
- Hajmni kichiklashtirmoqchi boʻlgan miqdorni kiriting. Bu sizning kelajakdagi Omarchy oʻrnatishingizning oʻlchami boʻladi, yuklash boʻlimini oʻz ichiga oladi.
+ Hajmni qanchaga qisqartirmoqchi ekanligingizni kiriting. Eslatma: bu sizning kelajakdagi Omarchy o‘rnatishingizning hajmi bo‘ladi, yuklash bo‘limi ham shunga kiradi.
 
  ![dual-boot-3](images/dual-boot-3.webp)
 
-Tugatganingizda, siz shunga oʻxshash narsani koʻrishingiz kerak, u yerda 50GB boʻlim biz ushbu misolda Omarchy ni oʻrnatadigan joy.
+Tugatganingizda, shunga o‘xshash ko‘rinishni ko‘rishingiz kerak, bu yerda 50GB bo‘lim ushbu misolda Omarchy ni o‘rnatadigan joyimiz hisoblanadi.
 
  ![dual-boot-4](images/dual-boot-4.webp)
 
-## Omarchy ni oʻrnatish
+## Omarchy ni o‘rnatish
 
-Omarchy uchun oʻrnatish jarayoni oddiyga amalda bir xil. Diskingizni tanlaganingizdan soʻng, sizga **Free space install** varianti beriladi. Butun diskni tozalashning oldini olish uchun shu variantni tanlang.
+Omarchy ni o‘rnatish jarayoni amalda odatdagisi bilan bir xil. Diskingizni tanlaganingizdan so‘ng, sizga **Bo‘sh joyga o‘rnatish** varianti beriladi. Butun diskni tozalab tashlamaslik uchun shu variantni tanlang.
 
  ![dual-boot-5](images/dual-boot-5.webp)
 
-Hammasi yaxshi koʻrinishini tasdiqlang va oʻrnatish odatdagidek tugashini kuding. Bu shuningdek shifrlanmagan oʻrnatishni tanlashingiz mumkin boʻlgan joy (tavsiya etilmaydi), xuddi toʻliq drayv oʻrnatishidagi kabi.
+Hammasi yaxshi ekanligini tasdiqlang va o‘rnatish odatdagidek tugashini kuting. Bu yerda siz butun diskka o‘rnatishdagi kabi shifrlanmagan holda o‘rnatishni ham tanlashingiz mumkin (tavsiya etilmaydi).
  ![dual-boot-6](images/dual-boot-6.webp)
 
-## Bootloaderga boshqa oʻrnatishlarni qoʻshish
+## Boshqa o‘rnatilgan tizimlarni yuklagichga qo‘shish
 
-Omarchy oʻrnatishingizni tugatganingizda, Limine bootloaderi hozir standart ekanini sezasiz. Bunga Windows kabi boshqa oʻrnatishlaringiz uchun Limine ga variantlarni ham qoʻsha olasiz.
+Omarchy ni o‘rnatib bo‘lganingizda, endi Limine yuklagichi sukut bo‘yicha ekanligini sezasiz. Buning bilan siz Limine ga Windows kabi boshqa o‘rnatilgan tizimlaringiz uchun variantlarni ham qo‘shishingiz mumkin.
 
-Buni qilish uchun `limine-scan` ni ishga tushiring va limine konfiguratsiyangizga qoʻshishni istagan elementlarni qoʻshish uchun koʻrsatmalarga amal qiling. Keyin yuklaganda, Omarchy uchun odatdagi variantlaringizni, shuningdek Windows Boot Manager yoki boshqalarni koʻrasiz.
+Boshqa operatsion tizimlarni qo‘shish uchun `limine-scan` ni ishga tushiring va kerakli yozuvlarni Limine konfiguratsiyangizga qo‘shish uchun ko‘rsatmalarga amal qiling. Yuklash menyusi sukut bo‘yicha yashirin bo‘ladi va bir soniyadan so‘ng Omarchy ni ishga tushiradi. Windows ni yoki boshqa yozuvni tanlash uchun Limine ishga tushishi bilanoq istalgan tugmani bosing; menyu paydo bo‘lganda, yozuvni tanlash uchun strelka tugmalaridan foydalaning va Enter ni bosing. Agar tugmani bosishingizdan oldin Omarchy ishga tushib ketsa, qayta ishga tushiring va yana urinib ko‘ring.
 
 ## Bitlocker
 
-Shunisi muhimki, ushbu oʻrnatish usuli Bitlocker bilan mos kelmaydi, chunki u butun drayvni shifrlaydi, shunchaki boʻlimni emas. Agar Bitlocker yoqilganligi aytilgan xatoga duch kelsangiz, Windows ga yuklang, **Settings -> Privacy & Security -> Device encryption** ga oʻting va Bitlocker ni oʻchiring. Drayvni shifrlashni yechish biroz vaqt olishi mumkin.
+Shuni ta’kidlash muhimki, bu o‘rnatish usuli Bitlocker bilan mos kelmaydi, chunki u butun diskni shifrlaydi, faqat bo‘limni emas. Agar Bitlocker yoqilganligi aytilgan xatoga duch kelsangiz, Windows ga yuklaning, **Sozlamalar -> Maxfiylik va xavfsizlik -> Qurilmani shifrlash** bo‘limiga o‘ting va Bitlocker ni o‘chiring. Diskni deshifrlash biroz vaqt olishi mumkin.
 
  ![dual-boot-7](images/dual-boot-7.webp)

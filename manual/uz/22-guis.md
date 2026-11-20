@@ -2,107 +2,115 @@
 
 ## Files
 
-Files (Nautilus) grafik fayl boshqaruvchisidir. `Super + Shift + F` uni ochadi va `Super + Shift + Alt + F` uni terminalingiz turgan katalogda ochadi, bu koʻp bosishdan qutqaradi. `Ctrl + L` yoʻl yozish imkonini beradi va istalgan faylda `Space` ni bosish hech narsa ochmasdan tezkor koʻrinish beradi.
+Files (Folio) — grafik fayl menejeri. `Super + Shift + F` uni ochadi, `Super + Shift + Alt + F` esa uni terminalingiz turgan katalogda ochadi, bu esa ko'p bosishlardan qutqaradi. `Ctrl + L` yo'lni yozish imkonini beradi, istalgan faylda `Space` ni bosish esa uni ochmasdan to'liq o'lchamda oldindan ko'rsatadi.
 
-USB fleshka yoki SD kartani ulang va u avtomatik ulanadi, shuning uchun u shunchaki yon panelda paydo boʻladi. Murakkabroq har qanday narsa uchun — diskni formatlash, SMART sogʻligʻini tekshirish, boʻlimlar yaratish — ilova ishga tushirgichidan (`Super + Space`) _Disks_ ni ishga tushiring.
+USB fleshka yoki SD kartani ulang va u avtomatik ulanadi, shuning uchun u shunchaki yon panelda paydo bo'ladi. Murakkabroq ishlar — diskni formatlash, SMART holatini tekshirish, bo'limlar yaratish — uchun ilovalarni ishga tushirgichdan (`Super + Space`) _Disks_ ni ishga tushiring.
 
-Ikki marta bosish oqilona standartlarga amal qiladi: rasmlar imv da, video mpv da, PDFlar Document Viewer da va oddiy matn Neovim da ochiladi.
+Ikki marta bosish oqilona standartlarga amal qiladi: rasmlar, videolar va musiqa Omaview da, PDFlar Document Viewer da, Markdown Omawrite da, oddiy matn esa _Setup > Default > Editor_ ostida tanlangan muharrirda ochiladi.
 
 ## Disktree
 
-Disk toʻlib qolganda va nima uni yeyotganini bilmasangiz, ilova ishga tushirgichidan (`Super + Space`) [Disktree](https://github.com/tobi/disktree) ni ishga tushiring. U uy kataloggingizning grafik treemapini koʻrsatadi. Kattaroq bloklar koʻproq joy egallaydi; kataloglar ichiga klaviatura yoki sichqoncha bilan kiring, ketishi kerak boʻlganini belgilang va biror narsani olib tashlashdan oldin tanlovlaringizni koʻrib chiqing. Butun diskni skanerlash uchun `disktree --disk` ni ishga tushiring.
+Disk to'lib ketganda va uni nima yeb qo'yayotganini bilmasangiz, ilovalarni ishga tushirgichdan (`Super + Space`) [Disktree](https://github.com/tobi/disktree) ni ishga tushiring. U uy katalogingizning grafik treemap xaritasini ko'rsatadi. Kattaroq bloklar ko'proq joy egallaydi; klaviatura yoki sichqoncha bilan kataloglar ichiga kiring, ketishi kerak bo'lgan narsalarni belgilang va biror narsani o'chirishdan oldin tanlovingizni ko'rib chiqing. Butun diskni skanerlash uchun `disktree --disk` ni ishga tushiring.
 
 ## Obsidian
 
-[Obsidian](https://obsidian.md/) saqlash uchun oddiy Markdown fayllaridan foydalanuvchi bepul va juda kengaytiriladigan qaydlar ilovasidir.
+[Obsidian](https://obsidian.md/) — saqlash uchun oddiy Markdown fayllaridan foydalanadigan bepul va juda kengaytiriladigan qaydlar olish ilovasi.
 
-Obsidian barcha maqsadlar, jumladan shaxsiy, tijorat va notijorat foydalanish uchun bepuldir.
+Obsidian barcha maqsadlar uchun bepul, jumladan shaxsiy, tijorat va notijorat foydalanish uchun.
 
-Obsidian iOS va Android dagi mobil ilovalar bilan [sinxronlash uchun tijorat qoʻshimchasini](https://obsidian.md/sync) ham taklif etadi. (https://obsidian.md/pricing).
+Obsidian shuningdek iOS va Android dagi mobil ilovalar bilan [sinxronlash uchun tijorat qo'shimchasini](https://obsidian.md/sync) taklif qiladi. (https://obsidian.md/pricing).
 
-Obsidian ni `Super + Shift + O` bilan boshlaysiz. Mavzu sinxronlashdan foydalanish uchun sozlamalar ostida `Omarchy` mavzusini tanlashingiz kerak.
+Obsidian ni `Super + Shift + O` bilan ishga tushirasiz. Mavzularni sinxronlashdan foydalanish uchun sozlamalarda `Omarchy` mavzusini tanlashingiz kerak.
 
 ## Omawrite
 
-[Omawrite](https://github.com/omacom-io/omawrite) Omarchy ning oʻzining juda oddiy Markdown yozish ilovasidir. Vaultlar yoʻq, plaginlar yoʻq, faqat siz va soʻzlar.
+[Omawrite](https://github.com/omacom-io/omawrite) — Omarchy ning o'zining o'ta sodda Markdown yozish ilovasi. Vaultlar yo'q, plaginlar yo'q, faqat siz va so'zlar.
 
-Omawrite ni `Super + Shift + W` bilan boshlaysiz.
+Omawrite ni `Super + Shift + W` bilan ishga tushirasiz.
 
 ## Pinta
 
-[Pinta](https://www.pinta-project.com/) kesish, oʻlchamini oʻzgartirish va boshqa asosiy manipulyatsiyalar uchun ajoyib boʻlgan asosiy rasm tahrirlash vositasidir. Shunchaki Photoshop muqobilini kutmang. Lekin unda Magic Wand va qatlamlar ham bor!
+[Pinta](https://www.pinta-project.com/) — kesish, o'lchamini o'zgartirish va boshqa oddiy manipulyatsiyalar uchun ajoyib bo'lgan oddiy rasm tahrirlash vositasi. Faqat Photoshop ga muqobil bo'lishini kutmang. Lekin unda baribir Magic Wand va qatlamlar bor!
 
-Pinta ni ilova ishga tushirgichi (`Super + Space`) orqali boshlaysiz.
+Pinta ni ilovalarni ishga tushirgich orqali ishga tushirasiz (`Super + Space`).
 
 ## Aether
 
-[Aether](https://github.com/bjarneo/aether) fon rasmidan ranglarni chiqarib, ularni toʻliq, yaxlit mavzuga aylantira oladigan mavzulashtirish ilovasidir. Bu [oʻz mavzungizni yaratish](43-making-your-own-theme.md) ning eng oson yoʻlidir.
+[Aether](https://github.com/bjarneo/aether) — fon rasmdan ranglarni ajratib olib, ularni to'liq, yaxlit mavzuga aylantira oladigan mavzulashtirish ilovasi. Bu [o'zingizning mavzungizni yaratishning](43-making-your-own-theme.md) eng oson yo'li.
 
-Aether ni ilova ishga tushirgichi (`Super + Space`) orqali boshlaysiz.
+Aether ni ilovalarni ishga tushirgich orqali ishga tushirasiz (`Super + Space`).
 
 ## LocalSend
 
-[LocalSend](https://localsend.org/) sizga Apple ning AirDrop kabi ilovani ishlatuvchi bir xil tarmoqdagi boshqa qurilmalarga fayllar yuborish imkonini beradi. Biroq u kross-platforma, shuning uchun Windows, macOS, Android, iOS va albatta Linux ga va ulardan fayllar yuborishingiz mumkin.
+[LocalSend](https://localsend.org/) sizga ilova ishlayotgan, xuddi shu tarmoqdagi boshqa qurilmalarga fayllar yuborish imkonini beradi, xuddi Apple ning AirDrop i kabi. Biroq u kross-platforma, shuning uchun fayllarni Windows, macOS, Android, iOS va albatta Linux bilan o'zaro yuborishingiz mumkin.
 
-Ulashish menyusini `Super + Ctrl + S` da yoki Omarchy menyusidagi _Ishga tushirish > Share_ ostida ochishingiz mumkin. U sizga toʻrtta variant beradi:
+Share menyusini `Super + Ctrl + S` da yoki Omarchy menyusida _Trigger > Share_ ostida ochishingiz mumkin. U sizga to'rtta variantni beradi:
 
-- **Clipboard** nusxa olgan narsangizni matn fayli sifatida yuboradi. Oʻzingizga elektron pochta yubormasdan havola yoki parchani telefoningizga olish uchun ajoyib.
-- **File** bir vaqtning oʻzida bir nechtasini tanlashingiz mumkin boʻlgan fayl tanlagichni ochadi.
+- **Clipboard** nusxa olgan narsangizni matn fayli sifatida yuboradi. O'zingizga elektron pochta yubormasdan havola yoki parchani telefoningizga o'tkazish uchun ajoyib.
+- **File** bir vaqtning o'zida bir nechtasini tanlashingiz mumkin bo'lgan fayl tanlagichni ochadi.
 - **Folder** butun katalogni yuboradi.
-- **Receive** boshqa qurilma sizga biror narsa yuborishi uchun LocalSend ning oʻzini ochadi.
+- **Receive** boshqa qurilma sizga biror narsa yuborishi uchun LocalSend ning o'zini ochadi.
 
-Xuddi shu narsa terminaldan `omarchy share clipboard`, `omarchy share file [path]` va `omarchy share folder [path]` bilan ham ishlaydi. Yoʻlni qoldirib keting va tanlagichni olasiz.
+Xuddi shu narsa terminaldan `omarchy share clipboard`, `omarchy share file [path]` va `omarchy share folder [path]` bilan ishlaydi. Yo'lni yozmasangiz, tanlagich ochiladi.
 
-Fayl boshqaruvchisidan toʻgʻridan-toʻgʻri ham yuborishingiz mumkin: Nautilus da istalgan tanlovni oʻng tugma bilan bosing va _Send via LocalSend_ ni tanlang.
+Siz shuningdek to'g'ridan-to'g'ri fayl menejeridan yuborishingiz mumkin: Files da istalgan tanlovni sichqonchaning o'ng tugmasi bilan bosing va uni LocalSend bilan ulashing.
 
-Omarchy ning xavfsizlik devori LocalSend portidan tashqari standart tarzda yopiq, shuning uchun bu yangi oʻrnatishda qutidan chiqqanidayoq ishlaydi. [security](48-security.md) ga qarang.
+Omarchy ning firewall i standart holatda LocalSend portidan tashqari yopiq, shuning uchun bu yangi o'rnatishda qutidan chiqqan holda ishlaydi. Qarang: [xavfsizlik](48-security.md).
 
 ## LibreOffice
 
-[LibreOffice](https://www.libreoffice.org/) soʻz protsessori, jadval, taqdimotlar, chizish ilovasi va boshqalar bilan toʻliq ofis paketidir. U Microsoft Office fayllari bilan mos keladi, shuning uchun bu oʻsha Word hujjatlarini ocha olishning ajoyib yoʻlidir.
+[LibreOffice](https://www.libreoffice.org/) — matn protsessori, elektron jadval, taqdimotlar, chizish ilovasi va boshqalarni o'z ichiga olgan to'liq ofis paketi. U Microsoft Office fayllari bilan mos keladi, shuning uchun bu o'sha Word hujjatlarini ochishning ajoyib usuli.
 
-LibreOffice ni ilova ishga tushirgichi (`Super + Space`) orqali boshlaysiz.
+LibreOffice ni ilovalarni ishga tushirgich orqali ishga tushirasiz (`Super + Space`).
 
 ## Hype
 
-[Hype](https://github.com/omacom/hype) Omarchy ning oʻzining juda oddiy taqdimot ilovasidir. Sizning toʻplamingiz rasmlari va videolari yonida boʻlgan bitta Markdown faylidir: har bir slaydni jonli koʻrinish ostida yozing, slaydlarni tartibga sudrab oʻtkazing, keyin toʻliq ekran taqdim eting yoki PDF va PowerPoint ga eksport qiling. U hatto Omarchy mavzungizni ham oladi.
+[Hype](https://github.com/omacom/hype) — Omarchy ning o'zining o'ta sodda taqdimot ilovasi. Taqdimotingiz — rasmlari va videolari yonida joylashgan bitta Markdown fayli: har bir slaydni jonli oldindan ko'rish ostida yozing, slaydlarni tartib bo'yicha sudrab joylashtiring, so'ng to'liq ekranda taqdim eting yoki PDF va PowerPoint ga eksport qiling. U hatto Omarchy mavzungizni ham qabul qiladi.
 
-Hype ni ilova ishga tushirgichi (`Super + Space`) orqali boshlaysiz. Har bir yorliqni koʻrish uchun uning ichida `?` ni bosing.
+Hype ni ilovalarni ishga tushirgich orqali ishga tushirasiz (`Super + Space`). Har bir klaviatura yorlig'ini ko'rish uchun uning ichida `?` ni bosing.
 
 ## Signed
 
-[Signed](https://github.com/omacom/signed) Omarchy ning PDFlarni imzolash va toʻldirishning oʻzining juda oddiy usulidir. Saqlangan imzongizni, matnni va bugungi sanani sahifaning istalgan joyiga qoʻying, keyin asl nusxa yonida imzolangan nusxani saqlang. Qanday qilish uchun [Filling out PDFs](27-filling-out-pdfs.md) ga qarang.
+[Signed](https://github.com/omacom/signed) — Omarchy ning PDFlarni imzolash va ularni to'ldirishning o'zining o'ta sodda usuli. Saqlangan imzoingiz, matningiz va bugungi sanani sahifaning istalgan joyiga qo'ying, so'ng imzolangan nusxani asl nusxa yoniga saqlang. Qanday qilishni [PDFlarni to'ldirish](27-filling-out-pdfs.md) bo'limida ko'ring.
 
-Signed ni ilova ishga tushirgichi (`Super + Space`) orqali boshlaysiz yoki fayl boshqaruvchisidan u bilan PDF ochasiz.
+Signed ni ilovalarni ishga tushirgich orqali ishga tushirasiz (`Super + Space`) yoki fayl menejeridan u bilan PDF ochasiz.
+
+## Game Vibes
+
+Game Vibes, ilovalarni ishga tushirgichda (`Super + Space`), — Omarchy ning kichik o'yinlari joylashgan joy: Checkmate, do'stingizga yoki o'rnatilgan raqibga qarshi 3D shaxmat o'yini; Cards, Klondike solitaire; va Neon Swarm, arkada otishma o'yini. Har biri sizning mavzungizga amal qiladigan bitta veb-sahifa. Strelkalar va `Enter` bilan birini tanlang, o'yinning sarlavha ekranidan `Esc` bilan yoki u pauza qilinganda `Q` bilan ro'yxatga qayting. U to'liq ekranda ochiladi: `Super + F` uni oynaga aylantiradi, `Super + W` esa uni yopadi.
+
+Agent bilan qilgan o'yinlaringiz ham shu yerda chiqadi: agentlar panelida _Make something cool → Game_ ni tanlang va birini tasvirlab bering, yoki ustida ishlashni davom ettirish uchun Game Vibes da allaqachon bor bo'lgan o'yinni nomlang. Agent uni `~/Games/vibes` ga nusxalaydi, u yerda u o'zgartirishingiz uchun sizniki bo'ladi va tayyor bo'lganda uni ochadi. O'sha nusxani o'zingiz `omarchy games vibes copy <game>` bilan qilishingiz mumkin. Boshqa birov ulashgan o'yin xuddi mavzu kabi o'rnatiladi: _Install > Gaming > Game Vibes_ ni tanlang va uning git manzilini qo'ying, yoki `omarchy games vibes install <git-repo-url>` ni ishga tushiring. _Remove > Gaming_ birini yana olib tashlaydi, _Update > Game Vibes Games_ esa yangi versiyalarni olib keladi. O'yinlar three.js ni internetdan yuklaydi, shuning uchun boshlash uchun ularga ulanish kerak.
 
 ## Omacalc
 
-[Omacalc](https://github.com/omacom-io/omacalc) suzuvchi oynada ochiladigan Omarchy ning oʻzining juda oddiy kalkulyatoridir.
+[Omacalc](https://github.com/omacom-io/omacalc) — suzuvchi oynada ochiladigan Omarchy ning o'zining o'ta sodda kalkulyatori.
 
-Omacalc ni `Super + Ctrl + Q` bilan boshlaysiz (yoki klaviaturangizda boʻlsa, kalkulyator tugmasi bilan).
+Omacalc ni `Super + Shift + Q` bilan (yoki klaviaturangizda bo'lsa, kalkulyator tugmasi bilan) ishga tushirasiz.
 
 ## Signal
 
-[Signal](https://signal.org/) E2E shifrlangan xabar almashishning kashshofidir va yirik texnologik konglomeratlardan biri orqali oʻtishni istamaydigan har bir kishi uchun ajoyib aloqa variantidir.
+[Signal](https://signal.org/) — E2E shifrlangan xabar almashinuvining kashshofi va katta texnologiya konglomeratlaridan biri orqali o'tishni istamaydigan har bir kishi uchun ajoyib aloqa varianti.
 
-Signal ni `Super + Shift + G` bilan boshlaysiz. U asosiy oʻrnatishning bir qismi emas, shuning uchun birinchi marta uni bossangiz, Omarchy uni siz uchun oʻrnatishni taklif qiladi (u Omarchy menyusidagi _Oʻrnatish > Service_ ostida ham bor).
+Signal ni `Super + Shift + G` bilan ishga tushirasiz. U asosiy o'rnatishga kirmaydi, shuning uchun buni birinchi marta bosganingizda, Omarchy uni siz uchun o'rnatishni taklif qiladi (u shuningdek Omarchy menyusida _Install > Service_ ostida ham bor).
 
-## mpv
+## Omaview
 
-[mpv](https://mpv.io/) deyarli istalgan manbadan deyarli istalgan narsani ijro etuvchi oddiy, tez media pleyerdir. Videolarni koʻrish uchun ajoyib.
+[Omaview](https://github.com/omacom/omaview) — Omarchy ning o'zining o'ta sodda rasm ko'ruvchisi va media pleyeri: fotosuratlaringiz, videolaringiz va musiqangiz uchun bitta oyna. Fotosuratni oching va strelka tugmalari uning papkasidagi qolgani bo'ylab harakatlanadi, `N` va `P` buni hamma narsa uchun qiladi, `Ctrl + M` esa butun papkani panjara sifatida ko'rsatadi. U HEIC, AVIF va JPEG XL fotosuratlarini ham ko'rsatadi va uzun narsalarda to'xtagan joyingizdan davom etadi.
 
-mpv ni ilova ishga tushirgichi (`Super + Space`) orqali boshlaysiz yoki fayl boshqaruvchisida videoga shunchaki ikki marta bosasiz.
+`F` ni to'liq ekran uchun, `E` ni rasmni Omasnap da tahrirlash yoki videoni Omacut da kesish uchun, `Ctrl + P` ni rasmni chop etish uchun va `Delete` ni faylni Trash ga ko'chirish uchun bosing (`Ctrl + Z` uni qaytaradi). Har bir klaviatura yorlig'ini ko'rish uchun uning ichida `?` ni bosing.
+
+Omaview ni ilovalarni ishga tushirgich orqali _Media Viewer_ sifatida ishga tushirasiz (`Super + Space`) yoki fayl menejerida rasm, video yoki qo'shiqni shunchaki ikki marta bosasiz.
 
 ## Omacut
 
-[Omacut](https://github.com/omacom-io/omacut) Omarchy ning oʻzining juda oddiy video qirqish vositasidir. Sizga kerak boʻlgan narsa faqat klipning boshi va oxirini kesish boʻlsa, u toʻliq video muharririni ishga tushirishdan yaxshiroqdir.
+[Omacut](https://github.com/omacom-io/omacut) — Omarchy ning o'zining o'ta sodda video kesuvchisi. Sizga kerak bo'lgan narsa faqat klipning boshi va oxirini kesish bo'lsa, u to'liq video muharririni ishga tushirishdan ustun turadi.
 
-Omacut ni ilova ishga tushirgichi (`Super + Space`) orqali boshlaysiz.
+Omacut ni ilovalarni ishga tushirgich orqali ishga tushirasiz (`Super + Space`).
 
 ## Monologue
 
-[Monologue](https://github.com/omacom/monologue) Omarchy ning oʻzining juda oddiy veb-kamera yozuvchisidir. Kamera va mikrofoningizni bir marta tanlang, keyin yozish uchun `Space` ni bosing va xuddi shu kadrni pauza qilish va davom ettirish uchun yana bosing. U har doim kamerangizning eng yuqori aniqligida yozadi, boshlashdan oldin darajangizni tekshirishingiz uchun jonli mikrofon oʻlchagichi bilan.
+[Monologue](https://github.com/omacom/monologue) — Omarchy ning o'zining o'ta sodda veb-kamera yozuvchisi. Kamera va mikrofoningizni bir marta tanlang, so'ng yozish uchun `Space` ni bosing, xuddi shu yozuvni pauza qilish va davom ettirish uchun yana bosing. U har doim kamerangizning eng yuqori aniqligida yozadi, boshlashdan oldin darajangizni tekshirishingiz uchun jonli mikrofon o'lchagichi bilan.
 
-Kadrni toʻxtating va u darhol oʻrnatilgan muharrirda ochiladi. Klipni boʻlish uchun ikki marta bosing, har bir qismni qirqish uchun tutqichlarni sudrab oʻtkazing va istamagan qismlarni olib tashlang. Keyin uni MP4 sifatida saqlang. Asl yozuvingiz uni tashlab yuborishingizgacha saqlanadi, shuning uchun har doim qaytib kelib uni boshqacha kesishingiz mumkin.
+Yozuvni to'xtating va u darhol o'rnatilgan muharrirda ochiladi. Klipni bo'lish uchun uni ikki marta bosing, har bir bo'lakni kesish uchun tutqichlarni sudrang va xohlamagan qismlaringizni olib tashlang. So'ng uni MP4 sifatida saqlang. Asl yozuvingiz uni tashlab yubormaguningizcha saqlanadi, shuning uchun har doim qaytib kelib uni boshqacha kesishingiz mumkin.
 
-Monologue ni ilova ishga tushirgichi (`Super + Space`) orqali boshlaysiz.
+Monologue ni ilovalarni ishga tushirgich orqali ishga tushirasiz (`Super + Space`).

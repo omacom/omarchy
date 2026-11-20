@@ -1,15 +1,17 @@
 # Pozadine
 
-Svaka tema dolazi s vlastitim skupom pozadina, a možete dodati i vlastite dodatke u `~/.config/omarchy/backgrounds/[theme]`. Ako želite dodati dodatnu sliku pozadine, recimo, temi nord, samo stavite datoteku u `~/.config/omarchy/backgrounds/nord`.
+Svaka tema dolazi s vlastitim skupom pozadina, a u `~/.config/omarchy/backgrounds/[theme]` možete dodati i vlastite dodatke. Ako, recimo, temi nord želite dodati dodatnu sliku pozadine, datoteku samo stavite u `~/.config/omarchy/backgrounds/nord`.
 
-To najlakše možete učiniti odlaskom na _Instaliraj > Style > Background_ u Omarchy izborniku. Time se otvara mapa u kojoj su pohranjene pozadine za tu temu. Pritisnite `Super + Shift + F` za pokretanje drugog upravitelja datoteka, pronađite svoju pozadinu i kopirajte je. Sada će biti uključena u izbor pozadina između kojih možete birati pomoću `Super + Ctrl + Space`.
+To najlakše možete učiniti tako da u izborniku Omarchy odete na _Install > Style > Background_. Time ćete otvoriti mapu u kojoj su pohranjene pozadine za tu temu. Pritisnite `Super + Shift + F` za pokretanje drugog upravitelja datoteka, pronađite svoju pozadinu i kopirajte je preko. Sada će biti uključena među pozadine koje možete birati pomoću `Super + Ctrl + W`.
 
-Pozadine mogu biti videozapisi kao i nepomične slike. Stavite datoteku `mp4`, `m4v`, `mov`, `webm`, `mkv` ili `avi` u istu mapu i pojavit će se uz slike. Videozapise reproducira OWE mehanizam za pozadine. Dekodira videozapis jednom za sve monitore i reproducira njegov zvuk kroz zadani audio izlaz te zaustavlja reprodukciju kad god ga ništa ne može vidjeti. Zaslon za zaključavanje prikazuje isto dekodiranje, bez zvuka, kroz OWE. Video pozadina i dalje troši daleko više energije od nepomične.
+Pozadine mogu biti i videozapisi, a ne samo statične slike. Ubacite datoteku `mp4`, `m4v`, `mov`, `webm`, `mkv` ili `avi` u istu mapu i pojavit će se uz slike. Videozapise reproducira pogon za pozadine OWE. Dekodira videozapis jednom za sve monitore i reproducira njegov zvuk preko zadanog audio izlaza, a zaustavlja reprodukciju kad god ga ništa ne može vidjeti. Videopozadina i dalje troši daleko više energije od statične pozadine.
 
-Teme mogu uključivati kratki uvod za nepomičnu pozadinu. Za `backgrounds/road.webp` odgovarajući videozapis živi na `backgrounds/intros/road.mp4`. Automatski se reproducira pri pokretanju i pri prebacivanju na temu s odabranom tom pozadinom, a zatim se vraća na nepomičnu sliku. Uvodni videozapisi ostaju izvan birača pozadina i nikada se ne ponavljaju u petlji.
+Teme mogu sadržavati kratki uvod za statičnu pozadinu. Za `backgrounds/road.webp` odgovarajući videozapis nalazi se na `backgrounds/intros/road.mp4`. Reproducira se automatski pri pokretanju sustava, pri prelasku na temu s odabranom tom pozadinom i pri odabiru te pozadine, a zatim se vraća na statičnu sliku. Uvodni videozapisi ne prikazuju se u biraču pozadina i nikada se ne ponavljaju u petlji.
 
-Isključivanje _Pokreni > Appearance > Animations_ također isključuje uvode pozadina. Omarchy to prema zadanim postavkama čini u virtualnom stroju. Naredba `omarchy theme bg intro toggle` može uvode prebacivati odvojeno. Osvježavanje teme ili odabir druge pozadine unutar iste teme ne reproducira uvod.
+Isključivanje opcije _Appearance > Animations_ isključuje i uvode pozadina. Omarchy to prema zadanim postavkama čini u virtualnom stroju. Naredba `omarchy theme bg intro toggle` može zasebno uključiti ili isključiti uvode. Osvježavanje teme ne reproducira uvod.
 
-Ogromnu zbirku sjajnih uređenih pozadina možete pronaći na https://github.com/dharmx/walls.
+Statična slika može imati i petlju, mirnu verziju iste slike koja se neprestano kreće, na `backgrounds/loops/road.mp4`. Reproducira se umjesto statične slike, nakon njezina uvoda ako ga ima, i zaustavlja se kada se animacije isključe. Na bateriji se umjesto nje prikazuje statična slika, a petlja se vraća čim priključite napajanje. Petlje se ne prikazuju u biraču pozadina.
 
-Video pozadine zadržavaju predmemoriranu nepomičnu sliku na zaslonu za zaključavanje dok je reprodukcija pauzirana ili nedostupna. Animirani GIF-ovi reproduciraju se na radnoj površini i prikazuju nepomični kadar na zaslonu za zaključavanje.
+Veliku zbirku sjajnih odabranih pozadina možete pronaći u [dharmx/walls](https://github.com/dharmx/walls).
+
+Zaključani zaslon prikazuje statični kadar videopozadine, na isti način na koji prikazuje statični kadar animiranog GIF-a.

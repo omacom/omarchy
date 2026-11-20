@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# omarchy:summary=Open the Omarchy icon set switcher
+
+# The picker the theme switcher uses, over one large preview per icon set, and
+# it prints the set that was picked. A set brings its own preview.png; the
+# user's goes ahead of the built-in set of its name. A set without one gets a
+# sheet of its icons drawn in the current theme, kept until an icon of the set
+# or a color of the theme changes.
+
+USER_SETS_PATH="$HOME/.config/omarchy/icons"
+OMARCHY_SETS_PATH="$OMARCHY_PATH/icons"
+CURRENT="$HOME/.local/state/omarchy/current"
+CACHE_PATH="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/icons-selector"
+preview_dir="$CACHE_PATH/previews"
+drawn_dir="$CACHE_PATH/drawn"
+
+rm -rf "$preview_dir"
+mkdir -p "$preview_dir" "$drawn_dir"
+
+find_preview() {
+  local set_path="$1"
+  local preview_name
+
+  for preview_name in preview.png preview.jpg preview.jpeg preview.webp; do
+    if [[ -f $set_path/$preview_name ]]; then
+      printf '%s\n' "$set_path/$preview_name"
+      return
+    fi
+  done
+}
+
+shopt -s nullglob
+
+# What a drawn preview was made from: the theme's colors and every icon of the
+# set, by name, size and time, so an icon edited in place or a theme whose
+# colors changed under the same name draws it again.
+drawn_stamp() {
+  local set_path="$1"
+
+  {
+    cat "$CURRENT/theme/colors.toml" 2>/dev/null
+    for icon in "$set_path"/*.svg "$set_path"/*.svg.tpl; do
+      stat -Lc '%n %s %Y' "$icon" 2>/dev/null
+    done
+    [[ -e $set_path/.git ]] && echo cloned
+  } | sha256sum | cut -d' ' -f1
+}
+
+while read -r set_name; do
+  preview=$(find_preview "$USER_SETS_PATH/$set_name")
+  [[ -n $preview ]] || preview=$(find_preview "$OMARCHY_SETS_PATH/$set_name")
+
+  if [[ -z $preview && -d $USER_SETS_PATH/$set_name ]]; then
+    drawn="$drawn_dir/$set_name.png"
+    stamp=$(drawn_stamp "$USER_SETS_PATH/$set_name")
+
+    if [[ ! -f $drawn || $(cat "$drawn.stamp" 2>/dev/null) != "$stamp" ]]; then
+      rm -f "$drawn" "$drawn.stamp"
+      if omarchy-icons-preview "$USER_SETS_PATH/$set_name" "$drawn"; then
+        printf '%s\n' "$stamp" >"$drawn.stamp"
+      fi
+    fi
+
+    [[ -f $drawn ]] && preview="$drawn"
+  fi
+
+  [[ -n $preview ]] || continue
+  ln -s "$preview" "$preview_dir/$set_name.${preview##*.}"
+done < <(omarchy-icons-list | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+
+current=$(omarchy-icons-current --id)
+selected=""
+for preview in "$preview_dir/$current".*; do
+  selected="$preview"
+done
+
+exec omarchy-menu-images --print-name --show-labels --filterable --selected "$selected" "$preview_dir"

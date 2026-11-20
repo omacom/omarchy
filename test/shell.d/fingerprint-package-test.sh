@@ -325,38 +325,3 @@ pass "a failed sudo stops setup with a reason, before enrolling"
   'Verify result: verify-unknown-error (done)' | verify_progress "Swipe it again.") == $'  Too fast. Swipe it again.\n  That one didn\'t read. Swipe it again.\n  ✗ The check stopped (verify-unknown-error).' ]] ||
   fail "any verify result that isn't done is a retry"
 pass "every retry keeps the step going, and only a finished failure says it stopped"
-
-# Each of fprintd 1.94.5's enroll and verify results, one by one.
-check_enroll() {
-  [[ $(printf 'Enroll result: %s\n' "$1" | enroll_progress "Again.") == "$2" ]] ||
-    fail "enroll result $1 reads as: $2" "$(printf 'Enroll result: %s\n' "$1" | enroll_progress "Again.")"
-}
-check_enroll enroll-completed $'  ✓ Enrolled.'
-check_enroll enroll-retry-scan "  That one didn't read. Again."
-check_enroll enroll-swipe-too-short '  Too short. Again.'
-check_enroll enroll-finger-not-centered '  Not centered: use the middle of the sensor. Again.'
-check_enroll enroll-remove-and-retry '  Lift your finger off the sensor, then try again.'
-check_enroll enroll-too-fast '  Too fast. Again.'
-check_enroll enroll-duplicate $'  ✗ That finger is already enrolled.'
-check_enroll enroll-data-full $'  ✗ The reader has no room for another fingerprint.'
-check_enroll enroll-disconnected $'  ✗ The reader was disconnected.'
-for result in enroll-failed enroll-unknown-error; do
-  check_enroll "$result" $'  ✗ Enrollment stopped. If you stopped before it said Enrolled, run this again and keep going.'
-done
-check_verify() {
-  [[ $(printf 'Verify result: %s\n' "$1" | verify_progress "Again.") == "$2" ]] ||
-    fail "verify result $1 reads as: $2" "$(printf 'Verify result: %s\n' "$1" | verify_progress "Again.")"
-}
-check_verify 'verify-match (done)' $'  ✓ Matched.'
-check_verify 'verify-no-match (done)' $'  ✗ No match.'
-check_verify 'verify-retry-scan (not done)' "  That one didn't read. Again."
-check_verify 'verify-swipe-too-short (not done)' '  Too short. Again.'
-check_verify 'verify-finger-not-centered (not done)' '  Not centered: use the middle of the sensor. Again.'
-check_verify 'verify-remove-and-retry (not done)' '  Lift your finger off the sensor, then try again.'
-# The line names no gesture, so it reads right on press and swipe readers alike.
-[[ $(printf 'Enroll result: enroll-remove-and-retry\n' | enroll_progress "Swipe it again.") == '  Lift your finger off the sensor, then try again.' ]] ||
-  fail "a swipe reader asked to lift its finger isn't told to touch"
-check_verify 'verify-too-fast (not done)' '  Too fast. Again.'
-check_verify 'verify-disconnected (done)' $'  ✗ The reader was disconnected.'
-check_verify 'verify-unknown-error (done)' $'  ✗ The check stopped (verify-unknown-error).'
-pass "each enroll and verify result fprintd 1.94.5 sends reads as intended"

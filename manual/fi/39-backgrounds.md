@@ -1,15 +1,17 @@
-# Taustat
+# Taustakuvat
 
-Jokaiseen teemaan kuuluu oma taustakokoelmansa, ja voit lisätä omia lisätiedostojasi kansioon `~/.config/omarchy/backgrounds/[theme]`. Jos haluat lisätä lisätä taustakuvan esimerkiksi nord-teemaan, laitat tiedoston vain kansioon `~/.config/omarchy/backgrounds/nord`.
+Jokaisen teeman mukana tulee oma joukkonsa taustakuvia, ja voit lisätä omia lisukkeita kansioon `~/.config/omarchy/backgrounds/[theme]`. Jos haluat lisätä ylimääräisen taustakuvan vaikka nord-teemaan, laita tiedosto vain kansioon `~/.config/omarchy/backgrounds/nord`.
 
-Helpoiten teet sen valitsemalla Omarchy-valikosta _Asenna > Tyyli > Tausta_. Se avaa kansion, jossa kyseisen teeman taustoja säilytetään. Paina `Super + Shift + F` käynnistääksesi toisen tiedostonhallinnan, etsi taustasi ja kopioi se sinne.  Nyt se on mukana taustoissa, joista voit valita näppäimillä `Super + Ctrl + Space`.
+Helpoiten teet tämän siirtymällä Omarchy Menu -valikossa kohtaan _Install > Style > Background_. Se avaa kansion, johon kyseisen teeman taustakuvat on tallennettu. Käynnistä toinen tiedostoselain painamalla `Super + Shift + F`, etsi taustakuvasi ja kopioi se sinne. Nyt se on mukana taustakuvissa, joiden välillä voit valita näppäinyhdistelmällä `Super + Ctrl + W`.
 
-Taustat voivat olla videoita yhtä hyvin kuin still-kuvia. Pudota `mp4`-, `m4v`-, `mov`-, `webm`-, `mkv`- tai `avi`-tiedosto samaan kansioon, niin se ilmestyy kuvien rinnalle. Videoita toistaa OWE-taustakuvamoottori. Se purkaa videon kerran kaikille näytöille ja toistaa sen äänen oletusäänilähdön kautta, ja se pysäyttää toiston aina, kun mikään ei voi nähdä sitä. Lukitusruutu piirtää saman purun mykistettynä OWE:n kautta. Videotausta kuluttaa silti paljon enemmän virtaa kuin still-tausta.
+Taustakuvat voivat olla myös videoita, eivät vain liikkumattomia kuvia. Pudota `mp4`-, `m4v`-, `mov`-, `webm`-, `mkv`- tai `avi`-tiedosto samaan kansioon, niin se ilmestyy kuvien rinnalle. Videoita toistaa OWE-taustakuvamoottori. Se purkaa videon kerran kaikkia näyttöjä varten, toistaa sen äänen oletusäänilähdön kautta ja pysäyttää toiston aina, kun mikään ei voi nähdä sitä. Videotaustakuva kuluttaa silti paljon enemmän virtaa kuin liikkumaton.
 
-Teemoihin voi sisältyä lyhyt intro still-taustalle. Tiedostolle `backgrounds/road.webp` vastaava video sijaitsee polussa `backgrounds/intros/road.mp4`. Se toistuu automaattisesti käynnistyksen yhteydessä ja vaihdettaessa teemaan, jossa kyseinen tausta on valittuna, ja palaa sitten still-kuvaan. Introvideot pysyvät poissa taustavalitsimesta eivätkä koskaan silmukoidu.
+Teemat voivat sisältää lyhyen intron liikkumatonta taustakuvaa varten. Tiedostolle `backgrounds/road.webp` sopiva video on polussa `backgrounds/intros/road.mp4`. Se toistuu automaattisesti käynnistyksen yhteydessä, kun vaihdat teemaan, jossa kyseinen taustakuva on valittuna, ja kun valitset kyseisen taustakuvan, ja palaa sen jälkeen liikkumattomaan kuvaan. Introvideot eivät näy taustakuvan valitsimessa eivätkä koskaan toistu silmukassa.
 
-_Käynnistä > Ulkoasu > Animaatiot_ -valinnan poistaminen käytöstä poistaa käytöstä myös taustaintrot. Omarchy tekee näin oletuksena virtuaalikoneessa. Komento `omarchy theme bg intro toggle` voi kytkeä introt erikseen. Teeman päivittäminen tai toisen taustan valitseminen samassa teemassa ei toista introa.
+Kohdan _Appearance > Animations_ poistaminen käytöstä poistaa käytöstä myös taustakuvien introt. Omarchy tekee tämän oletuksena virtuaalikoneessa. Komennolla `omarchy theme bg intro toggle` voit kytkeä introt erikseen. Teeman päivittäminen ei toista introa.
 
-Löydät valtavan kokoelman hienosti kuratoituja taustoja osoitteesta https://github.com/dharmx/walls.
+Liikkumattomalla kuvalla voi olla myös silmukka, saman kuvan hiljainen versio, joka liikkuu jatkuvasti, polussa `backgrounds/loops/road.mp4`. Se toistuu liikkumattoman kuvan tilalla, sen intron jälkeen, jos sillä on sellainen, ja pysähtyy, kun animaatiot poistetaan käytöstä. Akkuvirralla sen sijaan näkyy liikkumaton kuva, ja silmukka palaa, kun kytket virran takaisin. Silmukat eivät näy taustakuvan valitsimessa.
 
-Videotaustat säilyttävät välimuistissa olevan still-kuvan lukitusruudulla, kun toisto on keskeytetty tai ei käytettävissä. Animoidut GIFit toistuvat työpöydällä ja näyttävät still-ruudun lukitusruudulla.
+Löydät valtavan kokoelman hienoja kuratoituja taustakuvia kokoelmasta [dharmx/walls](https://github.com/dharmx/walls).
+
+Lukitusnäyttö näyttää videotaustakuvasta pysäytetyn ruudun samalla tavalla kuin se näyttää animoidusta GIF-tiedostosta pysäytetyn ruudun.

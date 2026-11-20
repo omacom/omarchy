@@ -1,15 +1,17 @@
-# Arka planlar
+# Arka Planlar
 
-Her tema kendi arka plan setiyle birlikte gelir ve `~/.config/omarchy/backgrounds/[theme]` içine kendinizden ekstralar ekleyebilirsiniz. Diyelim ki nord temasına ek bir arka plan görüntüsü eklemek istiyorsunuz; dosyayı `~/.config/omarchy/backgrounds/nord` içine koymanız yeterlidir.
+Her tema kendi arka plan setiyle gelir ve `~/.config/omarchy/backgrounds/[theme]` içine kendinize ait ek arka planlar ekleyebilirsiniz. Örneğin nord temasına ekstra bir arka plan görseli eklemek isterseniz, dosyayı `~/.config/omarchy/backgrounds/nord` içine koymanız yeterli.
 
-Bunu en kolay şekilde Omarchy Menüsünde _Kur > Stil > Arka Plan_ yoluna giderek yapabilirsiniz. Bu, o temanın arka planlarının saklandığı klasörü açacaktır. Başka bir dosya yöneticisi başlatmak için `Super + Shift + F` tuşlarına basın, arka planınızı bulun, kopyalayın. Artık `Super + Ctrl + Space` kullanarak aralarından seçim yapabileceğiniz arka plan seçeneklerine dahil edilecektir.
+Bunu yapmanın en kolay yolu, Omarchy Menu'de _Yükle > Stil > Arka Plan_ bölümüne gitmektir. Bu, o temaya ait arka planların saklandığı klasörü açar. Başka bir dosya yöneticisi başlatmak için `Super + Shift + F` tuşuna basın, arka planınızı bulun ve buraya kopyalayın. Artık `Super + Ctrl + W` ile aralarında seçim yapabileceğiniz arka plan seçeneklerine dahil edilecektir.
 
-Arka planlar durağan görüntüler olabileceği gibi videolar da olabilir. Aynı klasöre bir `mp4`, `m4v`, `mov`, `webm`, `mkv` veya `avi` dosyası bırakın; görüntülerin yanında görünecektir. Videolar OWE duvar kâğıdı motoru tarafından oynatılır. Videoyu tüm monitörler için bir kez çözer ve sesini varsayılan ses çıkışı üzerinden oynatır, hiçbir şey onu göremediğinde de oynatmayı durdurur. Kilit ekranı aynı çözmeyi sesi kapalı olarak OWE üzerinden çizer. Bir video duvar kâğıdı, durağan bir tanesinden çok daha fazla güce mal olur.
+Arka planlar, durağan görsellerin yanı sıra videolar da olabilir. Aynı klasöre bir `mp4`, `m4v`, `mov`, `webm`, `mkv` veya `avi` dosyası bırakın; görsellerin yanında görünür. Videolar, OWE duvar kağıdı motoru tarafından oynatılır. Videoyu tüm monitörler için bir kez çözer, sesini varsayılan ses çıkışından oynatır ve hiçbir şey onu göremediğinde oynatmayı durdurur. Bir video duvar kağıdı yine de durağan bir duvar kağıdından çok daha fazla güç harcar.
 
-Temalar, durağan bir arka plan için kısa bir giriş içerebilir. `backgrounds/road.webp` için eşleşen video `backgrounds/intros/road.mp4` konumunda bulunur. Önyüklemede ve o arka planın seçili olduğu bir temaya geçerken otomatik olarak oynatılır, ardından durağan görüntüye döner. Giriş videoları arka plan seçicisinin dışında kalır ve asla döngüye girmez.
+Temalar, durağan bir arka plan için kısa bir giriş içerebilir. `backgrounds/road.webp` için eşleşen video, `backgrounds/intros/road.mp4` konumunda bulunur. Başlangıçta, o arka planın seçili olduğu bir temaya geçtiğinizde ve o arka planı seçtiğinizde otomatik olarak oynatılır, ardından durağan görsele döner. Giriş videoları arka plan seçicisinde yer almaz ve asla döngüye girmez.
 
-_Tetikle > Görünüm > Animasyonlar_ seçeneğini kapatmak arka plan girişlerini de kapatır. Omarchy bunu bir sanal makinede varsayılan olarak yapar. `omarchy theme bg intro toggle` komutu girişleri ayrıca açıp kapatabilir. Bir temayı yenilemek veya aynı tema içinde başka bir arka plan seçmek giriş oynatmaz.
+_Görünüm > Animasyonlar_ seçeneğini kapatmak, arka plan girişlerini de kapatır. Omarchy bunu bir sanal makinede varsayılan olarak yapar. `omarchy theme bg intro toggle` komutu, girişleri ayrı olarak açıp kapatabilir. Bir temayı yenilemek bir giriş oynatmaz.
 
-Harika derlenmiş arka planlardan oluşan devasa bir koleksiyonu şurada bulabilirsiniz: https://github.com/dharmx/walls.
+Bir durağan görselin, aynı resmin hareket etmeye devam eden sakin bir sürümü olan bir döngüsü de olabilir; bu, `backgrounds/loops/road.mp4` konumunda bulunur. Durağan görselin yerine, varsa girişinden sonra oynar ve animasyonlar kapatıldığında durur. Pille çalışırken onun yerine durağan görsel görünür ve fişe taktığınızda döngü geri gelir. Döngüler arka plan seçicisinde yer almaz.
 
-Video arka planları, oynatma duraklatıldığında veya kullanılamadığında kilit ekranında önbelleğe alınmış bir durağan görüntüyü tutar. Hareketli GIF'ler masaüstünde oynatılır ve kilit ekranında durağan bir kare gösterir.
+Özenle seçilmiş, harika arka planlardan oluşan devasa bir koleksiyonu [dharmx/walls](https://github.com/dharmx/walls) içinde bulabilirsiniz.
+
+Kilit ekranı, bir video arka planının durağan bir karesini gösterir; animasyonlu bir GIF'in durağan bir karesini göstermesiyle aynı şekilde.
