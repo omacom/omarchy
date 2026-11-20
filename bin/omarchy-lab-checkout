@@ -350,8 +350,8 @@ main() {
   list) list_worktrees "$@" ;;
   branches) list_branches "$@" ;;
   status) show_deployment_status "$@" ;;
-  deploy) deploy_source "$@" ;;
-  sync) sync_checkout "$@" ;;
+  deploy) lab_with_operation_lock deploy_source "$@" ;;
+  sync) lab_with_operation_lock sync_checkout "$@" ;;
   help | --help | -h) show_usage ;;
   *)
     echo "Unknown command: $command" >&2

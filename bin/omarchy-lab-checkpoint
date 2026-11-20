@@ -195,7 +195,7 @@ restore_checkpoint() (
   fi
 )
 
-rename_checkpoint() {
+rename_checkpoint() (
   local old=${1:-} new=${2:-} json=false old_image old_metadata new_image new_metadata value
   [[ -n $old && -n $new ]] || lab_fail "usage: omarchy lab checkpoint rename OLD NEW [--json]"
   shift 2
@@ -204,20 +204,24 @@ rename_checkpoint() {
     shift
   done
   safe_name "$old" && safe_name "$new" || lab_fail "invalid checkpoint name"
+  lab_operation_lock || return 1
   old_image=$(checkpoint_image "$old")
   old_metadata=$(checkpoint_metadata "$old")
   new_image=$(checkpoint_image "$new")
   new_metadata=$(checkpoint_metadata "$new")
-  [[ -f $old_image && -f $old_metadata ]] || lab_fail "checkpoint does not exist: $old"
-  [[ ! -e $new_image && ! -e $new_metadata ]] || lab_fail "checkpoint already exists: $new"
-  mv "$old_image" "$new_image"
-  value=$(jq -c --arg name "$new" '.name = $name' "$old_metadata")
-  write_private_json "$new_metadata" "$value"
-  rm -f "$old_metadata"
+  [[ -f $old_image && -f $old_metadata ]] || { lab_fail "checkpoint does not exist: $old"; return 1; }
+  [[ ! -e $new_image && ! -L $new_image && ! -e $new_metadata && ! -L $new_metadata ]] || { lab_fail "checkpoint already exists: $new"; return 1; }
+  value=$(jq -c --arg name "$new" '.name = $name' "$old_metadata") || return 1
+  write_private_json "$new_metadata" "$value" || return 1
+  if ! mv -T -- "$old_image" "$new_image"; then
+    rm -f -- "$new_metadata"
+    return 1
+  fi
+  rm -f -- "$old_metadata"
   if $json; then checkpoint_json "$new"; else printf 'Renamed %s to %s.\n' "$old" "$new"; fi
-}
+)
 
-delete_checkpoint() {
+delete_checkpoint() (
   local name=${1:-} yes=0 json=false image metadata bytes=0
   [[ -n $name ]] || lab_fail "usage: omarchy lab checkpoint delete NAME [--yes] [--json]"
   shift || true
@@ -232,8 +236,9 @@ delete_checkpoint() {
   safe_name "$name" || lab_fail "invalid checkpoint name: $name"
   image=$(checkpoint_image "$name")
   metadata=$(checkpoint_metadata "$name")
-  [[ -f $image && -f $metadata ]] || lab_fail "checkpoint does not exist: $name"
   confirm_destructive "$yes" "Delete checkpoint $name?" || return 0
+  lab_operation_lock || return 1
+  [[ -f $image && -f $metadata ]] || lab_fail "checkpoint does not exist: $name"
   bytes=$(( $(stat -c %b "$image") * 512 ))
   rm -f "$image" "$metadata"
   if $json; then
@@ -241,7 +246,7 @@ delete_checkpoint() {
   else
     printf 'Deleted checkpoint %s and freed %s.\n' "$name" "$(human_bytes "$bytes")"
   fi
-}
+)
 
 show_usage() {
   cat <<'EOF'
