@@ -29,6 +29,25 @@ different than a single failure does.
 Check resource exhaustion before blaming the program: `free -h`, and the journal
 for OOM kills. A process killed by the OOM killer is not a bug in that process.
 
+A **SIGBUS** whose recorded binary no longer exists on disk ran off a
+filesystem that vanished under it. In practice that is an AppImage: its
+squashfs is a FUSE mount at `/tmp/.mount_<name>.<random>/` owned by the
+launcher process, and core dumps record the exe with the mount already gone
+(`/app`, not `/tmp/.mount_app.Qz7Xb2/app`). Confirm the mechanism in the
+journal before concluding anything else: the mount unit deactivates the same
+second as the crash —
+
+```
+tmp-.mount_app.Qz7Xb2.mount: Deactivated successfully
+```
+
+— with no kernel I/O errors and no OOM around it. That failure is the mount's,
+not the program's: do not send the diagnosis into the app's own code, and note
+that other apps mounting AppImages the same way die the same way in the same
+minute. What tore the mount down is usually not determinable from the logs;
+say so rather than guessing. Running the app extracted (`--appimage-extract`)
+or with `--appimage-extract-and-run` removes the whole crash class.
+
 ## Correlate against the timeline
 
 The crash timestamp is the most underused piece of evidence. Compare it against:

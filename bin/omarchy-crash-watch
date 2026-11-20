@@ -24,7 +24,7 @@ readonly ignore_pattern=${OMARCHY_CRASH_IGNORE:-}
 declare -A last_notified
 
 announce() {
-  local comm=$1 pid=$2 exe=$3 signal=$4
+  local comm=$1 pid=$2 exe=$3 signal=$4 body=$5
 
   # The shell owns org.freedesktop.Notifications, so a shell crash takes the
   # notification server down with it and a toast sent into that gap is lost.
@@ -41,7 +41,7 @@ announce() {
     --urgency critical \
     --glyph "$CRASH_GLYPH" \
     "$(omarchy-i18n crash.processCrashed "$comm")" \
-    "$(omarchy-i18n crash.diagnose)" \
+    "$body" \
     --exec omarchy-agent-crash "$pid" "$comm" "$exe" "$signal"
 }
 
@@ -99,11 +99,21 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # lift one without reading, rewriting and re-parsing the rest.
     omarchy-toggle-enabled "crash-ignore/$name" && continue
 
+    # A SIGBUS from a binary whose file is gone was running off a filesystem
+    # that vanished under it -- an AppImage's /tmp/.mount_* fuse mount dying
+    # while the app is live, in practice. That is not the program's fault, and
+    # a diagnosis that starts in the app's own code is sent down the wrong
+    # path, so the toast says what happened before the agent is asked.
+    body=$(omarchy-i18n crash.diagnose)
+    if [[ $signal == "SIGBUS" && $exe == /* && ! -e $exe ]]; then
+      body=$(omarchy-i18n crash.fsVanished)
+    fi
+
     now=$EPOCHSECONDS
     (((now - ${last_notified[$name]:-0}) < dedupe_seconds)) && continue
 
     # Only a delivered toast starts the dedupe window. A failed send that
     # counted would suppress the rest of a crash loop for a minute, and
     # `journalctl -n 0` never replays what was missed.
-    announce "$name" "$pid" "$exe" "$signal" && last_notified[$name]=$now
+    announce "$name" "$pid" "$exe" "$signal" "$body" && last_notified[$name]=$now
   done
