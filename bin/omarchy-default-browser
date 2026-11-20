@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set the default browser for Omarchy and XDG handlers
-# omarchy:args=[chromium|chrome|brave|brave-origin|edge|firefox|zen]
+# omarchy:args=[chromium|chrome|brave|brave-origin|edge|firefox|zen|<installed desktop id>]
 # omarchy:examples=omarchy default browser firefox | omarchy default browser brave
 
 installing=false
@@ -33,19 +33,33 @@ brave-origin) browser="brave-origin"; command="brave-origin"; desktop_id="brave-
 edge) browser="edge"; command="microsoft-edge-stable"; desktop_id="microsoft-edge.desktop"; name="Edge"; glyph=󰇩 ;;
 firefox) browser="firefox"; command="firefox"; desktop_id="firefox.desktop"; name="Firefox"; glyph=󰈹 ;;
 zen) browser="zen"; command="zen-browser"; desktop_id="zen.desktop"; name="Zen"; glyph=󰖟 ;;
+*.desktop)
+  # Installed browsers Omarchy does not ship are selected by desktop id. The
+  # menu offers exactly the ids omarchy-browser-list finds, so anything else
+  # is a usage error rather than a silently broken handler.
+  browser=$1
+  command=""
+  desktop_id=$1
+  name=$(omarchy-browser-list | awk -F '\t' -v id="$1" '$2 == id { print $1; exit }')
+  glyph=
+  [[ -n $name ]] || {
+    echo "Usage: omarchy-default-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen|<installed desktop id>>" >&2
+    exit 1
+  }
+  ;;
 *)
-  echo "Usage: omarchy-default-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen>"
+  echo "Usage: omarchy-default-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen|<installed desktop id>>" >&2
   exit 1
   ;;
 esac
 
-if omarchy-cmd-missing "$command"; then
+if [[ -n $command ]] && omarchy-cmd-missing "$command"; then
   if [[ $installing == "false" ]]; then
     exec omarchy-launch-floating-terminal-with-presentation omarchy-default-browser --install "$browser"
   else
     omarchy-install-browser "$browser" || exit 1
   fi
-elif [[ $browser != "firefox" && $browser != "zen" ]] && ! omarchy-install-browser-extensions --check "$browser"; then
+elif [[ -n $command && $browser != "firefox" && $browser != "zen" ]] && ! omarchy-install-browser-extensions --check "$browser"; then
   # The bundled extensions reach each browser through copies taken at setup,
   # which go stale when an extension or its id changes. Chrome's copy is a
   # root-owned policy, so repair it where a sudo prompt can be answered.

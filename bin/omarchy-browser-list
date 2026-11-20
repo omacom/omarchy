@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# omarchy:summary=List installed web browsers as Name and desktop id
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# The menu's browser provider needs the browsers that are actually here,
+# whatever their name: Omarchy's own ships are only part of the story. A
+# desktop entry counts when both HTTP schemes are registered and its Exec
+# command resolves, the same test omarchy-cmd-default-browser applies to a
+# handler. Omarchy's routing entry and chat apps that only claim https are
+# deliberately left out.
+IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+
+declare -A seen=()
+for data_dir in "${data_dirs[@]}"; do
+  [[ -d $data_dir/applications ]] || continue
+
+  for entry in "$data_dir"/applications/*.desktop; do
+    [[ -r $entry ]] || continue
+    id=${entry##*/}
+    [[ $id != "omarchy-browser.desktop" ]] || continue
+    [[ -z ${seen[$id]:-} ]] || continue
+
+    mime=$(sed -n 's/^MimeType=//p' "$entry" | head -1)
+    [[ -n $mime ]] || continue
+    mime=${mime// /;}
+    [[ ";$mime" == *";x-scheme-handler/http;"* && ";$mime" == *";x-scheme-handler/https;"* ]] || continue
+
+    # Chat apps also claim both schemes. An entry that declares categories but
+    # not WebBrowser is not a browser; one that declares none is left to the
+    # handler test above.
+    categories=$(sed -n 's/^Categories=//p' "$entry" | head -1)
+    categories=${categories%;}
+    [[ -z $categories || ";$categories;" == *";WebBrowser;"* ]] || continue
+
+    command=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
+    [[ -n $command ]] && omarchy-cmd-present "$command" || continue
+
+    name=$(sed -n 's/^Name=\(.*\)/\1/p' "$entry" | head -1)
+    [[ -n $name ]] || continue
+
+    seen[$id]=1
+    printf '%s\t%s\n' "$name" "$id"
+  done
+done | LC_ALL=C sort -t $'\t' -k2,2

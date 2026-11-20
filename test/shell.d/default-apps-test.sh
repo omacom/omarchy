@@ -227,6 +227,26 @@ for entry in "${browser_cases[@]}"; do
 done
 pass "browser defaults install every missing browser before selection"
 
+# A browser Omarchy does not ship is still selectable by its desktop id, which
+# is what the menu's browser provider passes from the installed-handler list.
+cat >"$XDG_DATA_HOME/applications/vivaldi-stable.desktop" <<'EOF'
+[Desktop Entry]
+Name=Vivaldi
+Exec=true %U
+MimeType=x-scheme-handler/http;x-scheme-handler/https;
+EOF
+
+omarchy-default-browser vivaldi-stable.desktop
+[[ $(<"$browser_file") == "vivaldi-stable.desktop" ]] ||
+  fail "an installed browser is set as the default by desktop id"
+[[ $(omarchy-default-browser) == "vivaldi-stable.desktop" ]] ||
+  fail "an external default is reported by its desktop id"
+
+if omarchy-default-browser absent.desktop >/dev/null 2>&1; then
+  fail "a desktop id that is not installed is refused"
+fi
+pass "a browser outside Omarchy's list can be made the default by desktop id"
+
 : >"$install_log"
 : >"$setup_log"
 rm -f "$installed_dir/chromium"
