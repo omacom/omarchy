@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # omarchy:summary=Cycle to the next installed theme
-# omarchy:examples=omarchy theme next
 
 # Display name mapping matches omarchy-theme-list / omarchy-theme-current:
 # tokyo-night → Tokyo Night. omarchy-theme-set accepts either form.
@@ -21,6 +20,12 @@ theme_display_name() {
   printf '%s\n' "$name"
 }
 
+# Hold the same per-user lock while choosing and applying the theme.
+state_dir="$HOME/.local/state/omarchy"
+mkdir -p "$state_dir" || exit $?
+exec 7>"$state_dir/theme-cycle.lock" || exit $?
+flock 7 || exit $?
+
 # Same union as omarchy-theme-list: user dirs/links plus stock dirs.
 mapfile -t slugs < <(
   {
@@ -38,7 +43,7 @@ mapfile -t slugs < <(
 total=${#slugs[@]}
 
 if (( total > 0 )); then
-  current=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null || true)
+  current=$(cat "$state_dir/current/theme.name" 2>/dev/null || true)
   index=-1
   for i in "${!slugs[@]}"; do
     if [[ ${slugs[$i]} == "$current" ]]; then
@@ -56,8 +61,9 @@ if (( total > 0 )); then
   next=$(theme_display_name "$next_slug")
 
   if [[ $next_slug != "$current" ]]; then
-    omarchy-theme-set "$next_slug" || exit $?
+    omarchy-theme-set "$next_slug" 7>&- || exit $?
   fi
 
+  exec 7>&-
   omarchy-notification-send "$next" -t 2000
 fi
