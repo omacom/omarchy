@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# omarchy:summary=Switch all numbered workspaces and their default between dwindle and scrolling
+
+set -euo pipefail
+
+if (( $# != 0 )); then
+  echo "Usage: omarchy-hyprland-workspace-layout-toggle-global" >&2
+  exit 1
+fi
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+MODES_DIR="$STATE_DIR/workspace-layouts"
+mkdir -p "$STATE_DIR"
+exec 9>"$STATE_DIR/workspace-layout-global.lock"
+flock 9
+
+# Read before saving anything. Never mistake a broken compositor query for an
+# empty workspace list and overwrite the user's choices.
+workspaces=$(hyprctl workspaces -j)
+ids=$(jq -r 'if type == "array" and all(.[]; type == "object" and (.id | type == "number" and floor == .)) then .[] | select(.id >= 1) | .id else error("not a workspace list") end' <<<"$workspaces")
+current=$(omarchy-hyprland-workspace-layout-current)
+case "$current" in
+  dwindle | scrolling | floating) ;;
+  *) echo "Could not read the current workspace layout; nothing was changed" >&2; exit 1 ;;
+esac
+if [[ $current == "scrolling" ]]; then
+  mode=dwindle
+else
+  mode=scrolling
+fi
+
+stage=$(mktemp -d "$STATE_DIR/.workspace-layouts.XXXXXX")
+snapshot=""
+swapped=0
+committed=0
+cleanup() {
+  if (( swapped && ! committed )) && [[ -d $snapshot/layouts ]]; then
+    trap "" INT TERM HUP
+    if [[ -d $MODES_DIR ]]; then
+      mv "$MODES_DIR" "$snapshot/failed"
+    fi
+    mv "$snapshot/layouts" "$MODES_DIR"
+    hyprctl reload >/dev/null 2>&1 || true
+  fi
+  [[ ! -d $stage ]] || rm -rf "$stage"
+}
+trap cleanup EXIT
+trap 'exit 1' INT TERM HUP
+
+if [[ -d $MODES_DIR ]]; then
+  cp -a "$MODES_DIR/." "$stage/"
+fi
+
+# Include saved workspaces that are not open yet. Special and named workspaces
+# are outside Omarchy's numbered workspace mode system and keep their choices.
+for file in "$stage"/*.lua; do
+  name=${file##*/}
+  if [[ $name =~ ^([0-9]+)\.lua$ ]]; then
+    ids+=$'\n'"${BASH_REMATCH[1]}"
+  fi
+done
+
+while read -r id; do
+  [[ $id =~ ^[0-9]+$ ]] || continue
+  # Replace a saved file rather than following a symlink copied into the stage.
+  rm -f "$stage/$id.lua"
+  printf 'o.workspace_mode({ workspace = "%s", mode = "%s" })\n' "$id" "$mode" >"$stage/$id.lua"
+done < <(sort -nu <<<"$ids")
+rm -f "$stage/default.lua"
+printf 'o.workspace_mode({ default = "%s" })\n' "$mode" >"$stage/default.lua"
+
+mkdir -p "$STATE_DIR/workspace-layout-backups" "$MODES_DIR"
+snapshot=$(mktemp -d "$STATE_DIR/workspace-layout-backups/global.XXXXXX")
+swapped=1
+mv "$MODES_DIR" "$snapshot/layouts"
+mv "$stage" "$MODES_DIR"
+
+# Reload clears previous mode rules and loads the new default and overrides.
+# Keep the old state if applying the new files fails.
+if ! hyprctl reload >/dev/null || ! errors=$(hyprctl configerrors) || [[ -n $errors ]]; then
+  echo "Global layout could not be applied; restoring previous workspace layouts" >&2
+  exit 1
+fi
+committed=1
+
+omarchy-shell -q omarchy.workspaces refresh
+omarchy-shell -q omarchy.dock refresh
+omarchy-notification-send -g 󱂬 "All workspaces set to $mode"
