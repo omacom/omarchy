@@ -11,28 +11,21 @@ chromium* | google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | heli
 *) browsers=(google-chrome.desktop chromium.desktop) ;;
 esac
 
-# Read Exec= from the same data dirs omarchy-cmd-default-browser searched, as
-# omarchy-launch-browser does, so a browser it resolved is one this can start.
-IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-browser_exec=""
+source "$OMARCHY_PATH/bin/omarchy-cmd-browser-exec"
+
 for browser in "${browsers[@]}"; do
-  for data_dir in "${data_dirs[@]}"; do
-    entry="$data_dir/applications/$browser"
-    [[ -f $entry ]] || continue
-    browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
-    break 2
-  done
+  desktop_exec_argv "$browser" && break
 done
 
 # Handing an empty command to uwsm-app surfaces as "Command not found: \"\"",
 # which fails a keybinding silently. A web app runs in a Chromium-based
 # browser, so say that rather than claiming no browser is set.
-if [[ -z $browser_exec ]]; then
+if (( ${#desktop_exec_argv[@]} == 0 )); then
   echo "omarchy-launch-webapp: web apps need a Chromium-based browser; install Chromium with 'omarchy install browser chromium'" >&2
   omarchy-notification-send -u critical -g 󰖟 "$(omarchy-i18n browser.webappNeedsChromium)" "$(omarchy-i18n browser.webappNeedsChromiumHint)"
   exit 1
 fi
 
-if ! omarchy-cmd-browser-handoff "$browser_exec" --app="$1" "${@:2}"; then
-  exec setsid uwsm-app -- $browser_exec --app="$1" "${@:2}"
+if ! omarchy-cmd-browser-handoff "${desktop_exec_argv[@]}" --app="$1" "${@:2}"; then
+  exec setsid uwsm-app -- "${desktop_exec_argv[@]}" --app="$1" "${@:2}"
 fi
