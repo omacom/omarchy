@@ -1,12 +1,12 @@
 # Motivy
 
-Omarchy přichází s dvaadvaceti krásnými motivy. Můžete si mezi nimi vybírat přes _Styl > Motiv_ v nabídce Omarchy (`Super + Space`) nebo skočit přímo do výběru motivu pomocí `Super + Ctrl + Shift + Space`.
+Omarchy přichází s dvaadvaceti krásnými motivy. Můžete mezi nimi vybírat přes _Vzhled > Motiv_ v nabídce Omarchy (`Super + Space`) nebo přejít přímo do výběru motivu pomocí `Super + Ctrl + T`.
 
-Každý motiv stylizuje plochu, terminál, neovim, obrazovku aktivity (btop), Chromium a celý shell Omarchy: horní panel, nabídku, oznámení, OSD a zamykací obrazovku. (Pro Obsidian musíte motiv Omarchy vybrat ručně přes _Appearance > Themes_ uvnitř aplikace).
+Každý motiv upravuje vzhled plochy, terminálu, neovim, obrazovky aktivity (btop), Chromium a celého shellu Omarchy: horní lišty, nabídky, oznámení, OSD a zamykací obrazovky. (V Obsidianu musíte motiv Omarchy vybrat ručně přes _Vzhled > Motivy_ uvnitř aplikace).
 
-Motivy mají sadu obrázků na pozadí, mezi kterými si můžete vybírat pomocí `Super + Ctrl + Space`.
+Motivy mají sadu obrázků na pozadí, mezi kterými můžete vybírat pomocí `Super + Ctrl + W`.
 
-Ještě více motivů najdete na [stránce s dalšími motivy](https://omarchy.org/themes/) nebo si dokonce [vytvořte vlastní motiv](43-making-your-own-theme.md).
+Ještě více motivů najdete na [stránce s dalšími motivy](https://omarchy.org/themes/) nebo si dokonce můžete [vytvořit vlastní motiv](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+### Ikony aplikací
+
+Ikony ve spouštěči aplikací a v docku jsou vykresleny v barvách vašeho motivu, takže se mění spolu s ním. Pocházejí ze sady ikon, kterou vybíráte odděleně od motivu v části _Vzhled > Ikony_, z náhledů jednotlivých sad, stejně jako vybíráte motiv:
+
+- _Papercraft_ je výchozí: vše, co je nainstalováno, vykreslené v jednom stylu. Aplikace známé svým logem, jako Chrome, HEY nebo YouTube, si zachovávají svůj tvar a přebírají barvy motivu.
+- _Arcade_ vykresluje stejné aplikace jako 8bitový pixel art, jak by to udělala stará herní konzole.
+- _Original_ zobrazuje každou aplikaci s ikonou, kterou jí dal její tvůrce.
+
+Sadu ikon, kterou vytvořil někdo jiný, můžete nainstalovat přes _Instalace > Styl > Ikony_ (nebo `omarchy icons install <git url>`) a znovu ji odstranit v části _Odebrat > Ikony_. _Aktualizace > Další ikony_ stáhne nejnovější verzi sad, které máte nainstalované.
+
+Chcete-li vytvořit vlastní, vložte své ikony do `~/.config/omarchy/icons/<name>/`, jeden soubor pro každou aplikaci, pojmenovaný podle řádku `Icon=` v souboru `.desktop` dané aplikace. Soubor končící na `.svg` se zobrazí tak, jak je. Soubor končící na `.svg.tpl` se vykreslí v barvách motivu: tam, kam patří barva, napište `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` nebo `{{ icon_shadow }}`. Výchozí sada v `/usr/share/omarchy/icons/papercraft/` je dobrým výchozím bodem. Přidejte `preview.png`, aby se vaše sada zobrazovala ve výběru; bez něj Omarchy vykreslí náhled z vašich ikon. Chcete-li změnit jedinou ikonu výchozí sady, vložte svou verzi do `~/.config/omarchy/icons/papercraft/`.
+
 ### Odemykání
 
-Motivy mohou mít také vlastní návrh odemykání, který se používá pro dešifrovací proces při spuštění. Jeden z nich můžete vybrat v _Styl > Odemknout_. Vypadají takto:
+Motivy mohou mít také vlastní design odemykání, který se používá při dešifrování během spouštění systému. Jeden z nich můžete vybrat v části _Vzhled > Odemykání_. Vypadají takto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +102,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +119,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

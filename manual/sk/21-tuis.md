@@ -1,39 +1,39 @@
-# TUI
+# TUIs
 
 ## Lazygit
 
-[Lazygit](https://github.com/jesseduffield/lazygit) je príjemná alternatíva k niečomu ako aplikácii GitHub Desktop a beží vnútri terminálu.
+[Lazygit](https://github.com/jesseduffield/lazygit) je príjemná alternatíva k niečomu, ako je aplikácia GitHub Desktop, a beží vnútri terminálu.
 
-Môžeš ho spustiť priamo tak, že prejdeš do ľubovoľného adresára spravovaného gitom a spustíš `lazygit`. Alebo ho môžeš spustiť vnútri editora Neovim, kde sa dá spustiť pomocou `Space G G`.
+Spustiť ho môžeš priamo tak, že prejdeš do akéhokoľvek adresára spravovaného gitom a spustíš `lazygit`. Alebo ho môžeš spustiť vnútri Neovimu, kde sa dá spustiť pomocou `Space G G`.
 
-Medzi rôznymi panelmi preskakuješ pomocou `Tab`. V paneli Files vyberieš súbory na staging pomocou `Space` a potom môžeš vytvoriť nový commit pomocou `c`. Všetky dostupné príkazy uvidíš pomocou `?`.
+Medzi rôznymi panelmi preskakuješ pomocou `Tab`. V paneli Files vyberáš súbory na prípravu na commit pomocou `Space` a potom môžeš vytvoriť nový commit pomocou `c`. Všetky dostupné príkazy si môžeš pozrieť pomocou `?`.
 
 ## Btop
 
-[Btop](https://github.com/aristocratos/btop) je krásny správca prostriedkov, ktorý zobrazuje využitie pamäte, procesora, disku a siete. Vypisuje tiež všetky aktívne procesy a umožňuje ti ich spravovať.
+[Btop](https://github.com/aristocratos/btop) je krásny správca zdrojov, ktorý zobrazuje využitie pamäte, CPU, disku a siete. Uvádza aj všetky aktívne procesy a umožňuje ti ich spravovať.
 
-Omarchy ho nazýva Activity a spúšťaš ho stlačením `Super + Ctrl + T`. Otvorí sa ako plávajúce okno, ktoré môžeš vydláždiť pomocou `Super + T`.
+Omarchy ho nazýva Activity Monitor a spustíš ho zo spúšťača aplikácií alebo stlačením `Super + Shift + T`. Otvorí sa ako plávajúce okno, ktoré môžeš prepnúť na dlaždicové pomocou `Super + T`.
 
 ## Herdr
 
-[Herdr](https://github.com/omacom-io/herdr) je správca terminálových pracovných priestorov, ktorý ti poskytuje pracovné priestory, karty a panely a udržuje ich všetky spustené v trvalej relácii, od ktorej sa môžeš odpojiť a vrátiť sa k nej neskôr.
+[Herdr](https://github.com/omacom-io/herdr) je správca pracovných priestorov pre terminál, ktorý ti dáva pracovné priestory, karty a panely a necháva ich všetky bežať v trvalej relácii, od ktorej sa môžeš odpojiť a neskôr sa k nej vrátiť.
 
-Spúšťaš ho (alebo sa znova pripájaš k svojej existujúcej relácii) pomocou `Super + Ctrl + Return`. Omarchy sa dodáva s konfiguráciou Herdr, ktorá zrkadlí jeho konfiguráciu Tmux, takže aj tu je prefixový kláves `Ctrl + Space`. Všetky klávesové skratky si môžeš prezrieť pomocou `Super + Ctrl + K`.
+Spustíš ho (alebo sa znova pripojíš k existujúcej relácii) zo spúšťača aplikácií alebo pomocou `Super + Ctrl + Return`. Omarchy dodáva konfiguráciu Herdr, ktorá zrkadlí jej konfiguráciu Tmux, takže kláves prefixu je aj tu `Ctrl + Space`. Všetky klávesové skratky si môžeš prezrieť pomocou `Super + Ctrl + K`.
 
 ## Fastfetch
 
-[Fastfetch](https://github.com/fastfetch-cli/fastfetch) zobrazuje systémové informácie, ako sú verzia jadra, doba prevádzky, téma, procesor, pamäť a ďalšie. Je to nástupca populárneho nástroja neofetch.
+[Fastfetch](https://github.com/fastfetch-cli/fastfetch) zobrazuje systémové informácie, ako sú verzia jadra, čas prevádzky, téma, CPU, pamäť a ďalšie. Je nástupcom obľúbeného nástroja neofetch.
 
-Omarchy to zabalil ako _Informácie_ v menu Omarchy (`Super + Space`).
+Omarchy ho zabalila ako _System > About_ v menu Omarchy (`Super + Space`).
 
 ## Cliamp
 
-[Cliamp](https://www.cliamp.stream/) je retro terminálový hudobný prehrávač inšpirovaný prehrávačom Winamp 2.x vrátane zabudovaných rozhlasových staníc s lo-fi beatmi. Spusti ho pomocou `Super + Shift + Alt + M` alebo z menu Omarchy v časti _Aplikácie_. Stlačením `?` zobrazíš úplný zoznam klávesových skratiek.
+[Cliamp](https://www.cliamp.stream/) je retro hudobný prehrávač do terminálu inšpirovaný Winamp 2.x, doplnený o zabudované rozhlasové stanice s lo-fi beatmi. Spustíš ho pomocou `Super + Shift + Alt + M` alebo z menu Omarchy v časti _Apps_. Stlačením `?` zobrazíš úplný zoznam klávesových skratiek.
 
 ## A čo Wi-Fi a Bluetooth?
 
-Pre Wi-Fi a Bluetooth nenájdeš žiadne TUI — tieto úlohy patria shellu Omarchy. Klikni na ikonu Wi-Fi v hornej lište (alebo stlač `Super + Ctrl + W`) a pozri si siete a pripoj sa, a klikni na ikonu Bluetooth (alebo stlač `Super + Ctrl + B`) a spáruj a pripoj zariadenia. Celý príbeh nájdeš v časti [sieťovanie](35-networking.md).
+TUIs pre Wi-Fi a Bluetooth nenájdeš — tie úlohy patria shellu Omarchy. Klikni na ikonu Wi-Fi v hornom paneli (alebo stlač `Super + Ctrl + N`), ak chceš vidieť siete a pripojiť sa, a klikni na ikonu Bluetooth (alebo stlač `Super + Ctrl + B`), ak chceš párovať a pripájať zariadenia. Celý príbeh nájdeš v [networkingu](35-networking.md).
 
 ## Pridanie vlastných
 
-Každý terminálový program môže dostať plnohodnotné zaobchádzanie ako aplikácia. Prejdi do časti _Inštalovať > TUI_ v menu Omarchy (`Super + Space`), zadaj mu názov, príkaz na spustenie, štýl okna a ikonu a objaví sa v spúšťači aplikácií ako každá iná aplikácia. Znova ho môžeš odstrániť v časti _Odstrániť > TUI_.
+Plnohodnotné zaobchádzanie ako s aplikáciou môže dostať akýkoľvek terminálový program. Choď na _Install > TUI_ v menu Omarchy (`Super + Space`), daj mu názov, príkaz na spustenie, štýl okna a ikonu a objaví sa v spúšťači aplikácií ako akákoľvek iná aplikácia. Znova ho môžeš odstrániť v časti _Remove > TUI_.

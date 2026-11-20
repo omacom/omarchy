@@ -35,7 +35,11 @@ if [[ ${1:-} == "auth" && ${2:-} == "login" ]]; then
   [[ -z ${CLAUDE_CONFIG_DIR:-} ]] && account_file="$HOME/.claude.json"
   printf '{"oauthAccount":{"accountUuid":"%s","emailAddress":"%s","organizationName":"Work"}}\n' \
     "$OMARCHY_TEST_LOGIN_UUID" "$OMARCHY_TEST_LOGIN_EMAIL" >"$account_file"
-  echo '{"claudeAiOauth":{"rateLimitTier":"default_claude_max_5x","subscriptionType":"max"}}' >"$home/.credentials.json"
+  printf '{"claudeAiOauth":{"refreshToken":"%s","rateLimitTier":"default_claude_max_5x","subscriptionType":"max"}}\n' "$OMARCHY_TEST_LOGIN_UUID-$$-$RANDOM" >"$home/.credentials.json"
+  exit 0
+fi
+if [[ -n ${OMARCHY_TEST_SHOW_PATH:-} ]]; then
+  echo "$PATH"
   exit 0
 fi
 echo "claude home=${CLAUDE_CONFIG_DIR:-default} args=$*"
@@ -119,8 +123,14 @@ pass "the existing login is listed as the primary account"
 
 # ------------------------------------------------------------------------- add
 
+# A shared folder can be the person's own symlink that points nowhere yet, such
+# as a dotfiles link whose target hasn't synced. Adding an account must leave it
+# alone rather than fail on it.
+ln -s "$test_tmp/dotfiles/claude-skills" "$HOME/.claude/skills"
+
 OMARCHY_TEST_LOGIN_UUID=u-work OMARCHY_TEST_LOGIN_EMAIL=work@example.com \
-  omarchy-agent-account-add claude Work </dev/null >"$test_tmp/add-output"
+  omarchy-agent-account-add claude Work </dev/null >"$test_tmp/add-output" 2>&1 ||
+  fail "adding an account works when a shared folder is a dangling symlink" "$(cat "$test_tmp/add-output")"
 grep -q "Added Work (work@example.com)" "$test_tmp/add-output" || fail "adding an account reports who signed in" "$(cat "$test_tmp/add-output")"
 grep -q "private window that opens" "$test_tmp/add-output" || fail "adding an account says to sign in within the private window"
 [[ $(head -1 "$OMARCHY_TEST_BROWSER_LOG") == "--private https://claude.com/oauth/authorize" ]] ||
@@ -128,14 +138,45 @@ grep -q "private window that opens" "$test_tmp/add-output" || fail "adding an ac
 pass "adding an account signs in through the CLI's own login"
 
 work="$accounts/claude/work"
-[[ -f $work/.credentials.json && ! -L $work/.credentials.json ]] || fail "an added account keeps its own credentials"
+parked="$accounts/claude/.primary"
+# Adding an account switches to it, and every Claude session runs in
+# ~/.claude, so its login moved there and Main's waits in a home of its own.
+[[ $(jq -r .oauthAccount.accountUuid "$HOME/.claude.json") == u-work && $(jq -r .claudeAiOauth.rateLimitTier "$HOME/.claude/.credentials.json") == default_claude_max_5x ]] ||
+  fail "an added account's login moves into ~/.claude" "$(cat "$HOME/.claude.json")"
+[[ ! -e $work/.credentials.json ]] || fail "a moved login leaves no copy behind, since a refresh token works once"
+[[ $(jq -r .claudeAiOauth.rateLimitTier "$parked/.credentials.json") == default_claude_max_20x && $(jq -r .oauthAccount.accountUuid "$parked/.claude.json") == u-main ]] ||
+  fail "Main's login waits in its own home"
+[[ $(jq -c .mcpServers "$HOME/.claude.json") == '{"docs":{"command":"docs-mcp"}}' && $(jq -c .mcpServers "$parked/.claude.json") == '{"docs":{"command":"docs-mcp"}}' ]] ||
+  fail "moving logins keeps the rest of ~/.claude.json, and Main's home carries its settings"
+[[ $(stat -c %a "$HOME/.claude/.credentials.json") == 600 && $(stat -c %a "$parked/.credentials.json") == 600 ]] || fail "moved logins stay private"
 [[ $(readlink "$work/projects") == "$HOME/.claude/projects" ]] || fail "an added account shares conversation history with the primary"
 [[ $(readlink "$work/settings.json") == "$HOME/.claude/settings.json" ]] || fail "an added account shares settings with the primary"
 [[ $(readlink "$work/CLAUDE.md") == "$HOME/.claude/CLAUDE.md" && ! -e $HOME/.claude/CLAUDE.md ]] ||
   fail "a shared file the primary doesn't have yet is linked, so it's written there when it is"
 [[ $(jq -c .mcpServers "$work/.claude.json") == '{"docs":{"command":"docs-mcp"}}' ]] || fail "an added account carries the primary's MCP servers"
 [[ $(stat -c %a "$work") == 700 && $(stat -c %a "$accounts/claude.json") == 600 ]] || fail "account homes and the registry are private"
+[[ $(readlink "$HOME/.claude/skills") == "$test_tmp/dotfiles/claude-skills" && $(readlink "$work/skills") == "$HOME/.claude/skills" ]] ||
+  fail "a dangling shared symlink is left alone and still shared"
+[[ -z $(find "$accounts/claude/.pending" -mindepth 1 -print -quit 2>/dev/null) ]] || fail "adding an account leaves no pending login behind"
 pass "an added account shares everything but its login with the primary"
+
+# A shared folder that isn't a folder at all (here a regular file) is still an
+# error, and the half-made login home is cleaned up rather than left behind.
+mv "$HOME/.claude/commands" "$test_tmp/commands-dir" 2>/dev/null || true
+touch "$HOME/.claude/commands"
+if OMARCHY_TEST_LOGIN_UUID=u-broken OMARCHY_TEST_LOGIN_EMAIL=broken@example.com \
+  omarchy-agent-account-add claude Broken </dev/null >"$test_tmp/broken-output" 2>&1; then
+  fail "a shared folder that is a file stops the add"
+fi
+grep -Fq "Couldn't set up a home for the new account." "$test_tmp/broken-output" ||
+  fail "the failed add reports the shared-folder setup error" "$(cat "$test_tmp/broken-output")"
+[[ -z $(find "$accounts/claude/.pending" -mindepth 1 -print -quit 2>/dev/null) ]] ||
+  fail "a failed account setup leaves no pending login behind" "$(ls -A "$accounts/claude/.pending")"
+rm "$HOME/.claude/commands"
+if [[ -d $test_tmp/commands-dir ]]; then
+  mv "$test_tmp/commands-dir" "$HOME/.claude/commands"
+fi
+pass "a failed account setup is refused and cleans up after itself"
 
 if OMARCHY_TEST_LOGIN_UUID=u-work OMARCHY_TEST_LOGIN_EMAIL=work@example.com \
   omarchy-agent-account-add claude Again </dev/null >"$test_tmp/dup-output" 2>&1; then
@@ -145,16 +186,16 @@ grep -q "That's Work" "$test_tmp/dup-output" || fail "a duplicate login names th
 [[ -z $(ls -A "$accounts/claude/.pending") ]] || fail "a duplicate login leaves no scratch home behind"
 pass "adding an account that's already there is refused"
 
-# Main was signed in to another account by hand since the registry was made;
-# adding that login again is still the same subscription.
+# ~/.claude was signed in to another account by hand since the registry was
+# made; adding that login again is still the account seated there.
 jq '.oauthAccount.accountUuid = "u-relogged"' "$HOME/.claude.json" >"$test_tmp/relogged.json"
 cp "$HOME/.claude.json" "$test_tmp/original.json"
 mv "$test_tmp/relogged.json" "$HOME/.claude.json"
 if OMARCHY_TEST_LOGIN_UUID=u-relogged OMARCHY_TEST_LOGIN_EMAIL=me@example.com \
   omarchy-agent-account-add claude Twin </dev/null >"$test_tmp/twin-output" 2>&1; then
-  fail "a login matching Main's current sign-in is refused"
+  fail "a login matching ~/.claude's current sign-in is refused"
 fi
-grep -q "That's Main" "$test_tmp/twin-output" || fail "a login matching Main's current sign-in names Main" "$(cat "$test_tmp/twin-output")"
+grep -q "That's Work" "$test_tmp/twin-output" || fail "a login matching ~/.claude's current sign-in names the account seated there" "$(cat "$test_tmp/twin-output")"
 mv "$test_tmp/original.json" "$HOME/.claude.json"
 pass "duplicates are judged by who each home is signed in as now"
 
@@ -168,6 +209,13 @@ OMARCHY_TEST_LOGIN_UUID=u-next OMARCHY_TEST_LOGIN_EMAIL=next@example.com \
   omarchy-agent-account-add claude Next </dev/null >/dev/null
 [[ $(omarchy-agent-account-list claude --json | jq -r '.[0].accounts[] | select(.label == "Next") | .id') == "next-2" ]] ||
   fail "an account label can't take an id that routing already answers to"
+# Its login is the one in ~/.claude now, so removing it would sign every
+# session out.
+if omarchy-agent-account-remove claude next-2 </dev/null >/dev/null 2>"$test_tmp/seated-remove"; then
+  fail "the account running sessions use can't be removed"
+fi
+grep -q "Switch to another account first" "$test_tmp/seated-remove" || fail "removing the seated account says what to do" "$(cat "$test_tmp/seated-remove")"
+omarchy-agent-account-use claude work >/dev/null
 omarchy-agent-account-remove claude next-2 </dev/null >/dev/null
 pass "account ids stay clear of routing keywords"
 
@@ -186,6 +234,9 @@ OMARCHY_TEST_LOGIN_UUID=acct-2 OMARCHY_TEST_LOGIN_EMAIL=side@example.com \
 [[ $(readlink "$accounts/codex/side/sessions") == "$HOME/.codex/sessions" ]] || fail "a Codex account shares sessions with the primary"
 grep -qx -- "--private https://auth.openai.com/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG" ||
   fail "a Codex login opens in a private window" "$(cat "$OMARCHY_TEST_BROWSER_LOG")"
+[[ $(omarchy-agent-account-exec codex) == "codex home=$accounts/codex/side args=" ]] ||
+  fail "an added account becomes the one new sessions use" "$(omarchy-agent-account-exec codex)"
+omarchy-agent-account-use codex main >/dev/null
 pass "Codex accounts are added the same way"
 
 OMARCHY_TEST_DEFAULT_AGENT="" omarchy-agent-account-add grok </dev/null >/dev/null
@@ -210,32 +261,42 @@ pass "Grok accounts are added and used like the others"
 
 # ---------------------------------------------------------------------- routing
 
-omarchy-agent-account-use claude work >/dev/null
-[[ $(omarchy-agent-account-home claude) == "$work" ]] || fail "the active account's home is what launches use"
-grep -q "New Claude sessions now use Work Running sessions stay on" "$notifications" || fail "switching says where new sessions go"
-pass "use makes an account active and says so"
+claude_account() { jq -r .oauthAccount.accountUuid "$HOME/.claude.json"; }
 
-[[ $(omarchy-agent-account-exec claude --version) == "claude home=$work args=--version" ]] || fail "claude at a prompt starts as the active account"
+omarchy-agent-account-use claude main >/dev/null
+[[ $(claude_account) == u-main && $(jq -r .claudeAiOauth.rateLimitTier "$work/.credentials.json") == default_claude_max_5x && ! -e $parked/.credentials.json ]] ||
+  fail "switching back puts Main's login in ~/.claude and Work's back in its own home"
+use_output=$(omarchy-agent-account-use claude work)
+[[ -z $(omarchy-agent-account-home claude) && $(claude_account) == u-work ]] || fail "Claude sessions start in ~/.claude, signed in as the account chosen"
+[[ $use_output == "Claude sessions now use Work (Max 5x), running ones included." ]] || fail "use says running sessions follow" "$use_output"
+grep -q "Claude sessions now use Work Running sessions use it too." "$notifications" || fail "switching says running sessions follow" "$(cat "$notifications")"
+pass "use moves the chosen login into ~/.claude, so running sessions follow"
+
+[[ $(omarchy-agent-account-exec claude --version) == "claude home=default args=--version" ]] || fail "claude at a prompt starts in ~/.claude"
 [[ $(CLAUDE_CONFIG_DIR=/elsewhere omarchy-agent-account-exec claude) == "claude home=/elsewhere args=" ]] || fail "an explicit CLAUDE_CONFIG_DIR wins over the active account"
 [[ $(omarchy-agent-account-exec codex) == "codex home=default args=" ]] || fail "codex stays on its primary until switched"
+# mise strips its shims before running a wrapper, so the agent would only see
+# tools installed before it started.
+[[ :$(MISE_DATA_DIR="$test_tmp/mise" OMARCHY_TEST_SHOW_PATH=1 omarchy-agent-account-exec claude): == *":$test_tmp/mise/shims:"* ]] ||
+  fail "an agent finds mise tools installed after it started"
 pass "account dispatch follows the active account"
 
-[[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=$work args=--permission-mode auto" ]] ||
-  fail "omarchy-agent starts Claude as the active account"
+[[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=default args=--permission-mode auto" ]] ||
+  fail "omarchy-agent starts Claude in ~/.claude"
 omarchy-agent-account-use codex side >/dev/null
 [[ $(OMARCHY_TEST_DEFAULT_AGENT=codex omarchy-agent --inline) == "codex home=$accounts/codex/side args=--approve-for-me" ]] ||
   fail "omarchy-agent starts Codex as the active account"
 pass "omarchy-agent follows the active account"
 
 omarchy-agent-account-use claude next >/dev/null
-[[ -z $(omarchy-agent-account-home claude) ]] || fail "next cycles back to the primary"
+[[ $(claude_account) == u-main ]] || fail "next cycles back to the primary"
 pass "next cycles through accounts"
 
 # With Claude as the default agent, the provider can be left out.
 OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent-account-use work >/dev/null
-[[ $(omarchy-agent-account-home claude) == "$work" ]] || fail "use without a provider picks the default agent's account"
+[[ $(claude_account) == u-work ]] || fail "use without a provider picks the default agent's account"
 OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent-account-use main >/dev/null
-[[ -z $(omarchy-agent-account-home claude) ]] || fail "use without a provider switches back to Main"
+[[ $(claude_account) == u-main ]] || fail "use without a provider switches back to Main"
 OMARCHY_TEST_DEFAULT_AGENT=codex omarchy-agent-account-use main >/dev/null
 [[ -z $(omarchy-agent-account-home codex) ]] || fail "the default agent decides which provider a short use means"
 if OMARCHY_TEST_DEFAULT_AGENT=pi omarchy-agent-account-use work >/dev/null 2>&1; then
@@ -246,15 +307,19 @@ pass "the provider defaults to your default agent"
 # ----------------------------------------------------------------------- rename
 
 omarchy-agent-account-use claude work >/dev/null
-omarchy-agent-account-rename claude work Day job >/dev/null
+rename_output=$(omarchy-agent-account-rename claude work Day job)
+# The suggested command names the provider, so it works whatever the default agent is.
+[[ $rename_output == *"Switch to it with: omarchy agent account use claude day-job" ]] ||
+  fail "rename suggests a use command that names the provider" "$rename_output"
 [[ $(omarchy-agent-account-list claude --json | jq -c '.[0] | {active, renamed: (.accounts[] | select(.id == "day-job") | .label)}') == '{"active":"day-job","renamed":"Day job"}' ]] ||
   fail "renaming changes the label and the id it answers to, and the active account follows"
-[[ $(omarchy-agent-account-home claude) == "$work" ]] || fail "renaming leaves the account's home where running sessions expect it"
+[[ $(jq -r .seated "$accounts/claude.json") == day-job && $(claude_account) == u-work && -d $work ]] ||
+  fail "renaming leaves the account's login and home where they are"
 OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent-account-rename day-job Work >/dev/null
-[[ $(omarchy-agent-account-home claude) == "$work" ]] || fail "a renamed account can be renamed back"
+[[ $(jq -r .seated "$accounts/claude.json") == work ]] || fail "a renamed account can be renamed back"
 omarchy-agent-account-rename claude main Personal >/dev/null
-[[ $(omarchy-agent-account-list claude --json | jq -r '.[0].accounts[] | select(.primary) | "\(.id) \(.home)"') == "personal $HOME/.claude" ]] ||
-  fail "the primary account can be renamed and keeps ~/.claude"
+[[ $(omarchy-agent-account-list claude --json | jq -r '.[0].accounts[] | select(.primary) | "\(.id) \(.home)"') == "personal $parked" ]] ||
+  fail "the primary account can be renamed and keeps its login where it is"
 omarchy-agent-account-rename claude personal Main >/dev/null
 # `primary` reaches the first login whatever it's called, as the manual says.
 omarchy-agent-account-rename claude primary Hey >/dev/null ||
@@ -266,6 +331,82 @@ if omarchy-agent-account-rename claude work "" >/dev/null 2>&1; then
   fail "an account can't be renamed to nothing"
 fi
 pass "rename relabels an account without moving it"
+
+# ------------------------------------------------------ running sessions follow
+
+[[ $(jq -r '.accounts[] | select(.id == "work") | .login' "$accounts/claude.json") == "$HOME/.claude" && $(jq -r '.accounts[] | select(.primary) | .login' "$accounts/claude.json") == "$parked" ]] ||
+  fail "the registry says where each login is, for the usage collector" "$(cat "$accounts/claude.json")"
+
+# A session started in Work's own home before logins moved still holds its
+# token there, so the login stays put until that session quits.
+omarchy-agent-account-use claude main >/dev/null
+CLAUDE_CONFIG_DIR="$work" sleep 30 &
+legacy=$!
+use_output=$(omarchy-agent-account-use claude work)
+[[ $(omarchy-agent-account-home claude) == "$work" && $(claude_account) == u-main && -f $work/.credentials.json ]] ||
+  fail "a login a running session holds stays put, and new sessions start beside it"
+[[ $use_output == *"Running sessions stay on Main."* && $use_output == *"(pid $legacy)"* ]] || fail "use names the sessions holding the login" "$use_output"
+kill "$legacy"
+wait "$legacy" 2>/dev/null || true
+: >"$notifications"
+omarchy-agent-account-state autoswitch claude >/dev/null
+[[ -z $(omarchy-agent-account-home claude) && $(claude_account) == u-work && ! -e $work/.credentials.json ]] ||
+  fail "once those sessions quit, the next check moves the login into ~/.claude"
+grep -q "Running sessions on Main moved over too." "$notifications" || fail "catching up says running sessions moved" "$(cat "$notifications")"
+pass "a switch waits for sessions holding the login, then catches up"
+
+# Claude's own refresh lock: one a crashed session left is taken over, and a
+# live one is waited out, so a session never refreshes mid-move.
+mkdir "$HOME/.claude/.oauth_refresh.lock"
+touch -d '2 minutes ago' "$HOME/.claude/.oauth_refresh.lock"
+omarchy-agent-account-use claude main >/dev/null
+[[ $(claude_account) == u-main && ! -e $HOME/.claude/.oauth_refresh.lock ]] || fail "a stale refresh lock is taken over and released"
+mkdir "$HOME/.claude/.oauth_refresh.lock"
+(
+  sleep 1
+  claude_account >"$test_tmp/during-refresh"
+  rmdir "$HOME/.claude/.oauth_refresh.lock"
+) &
+omarchy-agent-account-use claude work >/dev/null
+wait
+[[ $(cat "$test_tmp/during-refresh") == u-main && $(claude_account) == u-work ]] || fail "a move waits for a session renewing its sign-in"
+pass "logins move under Claude's own locks"
+
+# A move cut short can leave a copy behind, or the registry naming the wrong
+# account; the next refresh puts both right from who ~/.claude is.
+cp "$HOME/.claude/.credentials.json" "$work/.credentials.json"
+jq '.seated = "main"' "$accounts/claude.json" >"$test_tmp/registry" && mv "$test_tmp/registry" "$accounts/claude.json"
+omarchy-agent-account-state refresh claude
+[[ $(jq -r .seated "$accounts/claude.json") == work && ! -e $work/.credentials.json && -f $parked/.credentials.json ]] ||
+  fail "refresh seats whoever ~/.claude is signed in as and drops the copy" "$(cat "$accounts/claude.json")"
+pass "an interrupted move is put right"
+
+# Killed between writing Work's token into ~/.claude and its profile, the
+# move leaves Main's profile beside Work's token. Only the token says who it
+# is, so Main's parked login is kept and ~/.claude takes Work's profile.
+omarchy-agent-account-use claude main >/dev/null
+echo '{"claudeAiOauth":{"refreshToken":"main-token"}}' >"$HOME/.claude/.credentials.json"
+echo '{"claudeAiOauth":{"refreshToken":"work-token"}}' >"$work/.credentials.json"
+cp "$HOME/.claude/.credentials.json" "$parked/.credentials.json"
+cp "$work/.credentials.json" "$HOME/.claude/.credentials.json"
+omarchy-agent-account-state refresh claude
+[[ $(jq -r .claudeAiOauth.refreshToken "$parked/.credentials.json") == main-token && $(jq -r .seated "$accounts/claude.json") == work ]] ||
+  fail "a half-made move never costs the parked login" "$(cat "$accounts/claude.json")"
+[[ ! -e $work/.credentials.json && $(claude_account) == u-work ]] || fail "a half-made move is finished from the token's side"
+pass "a move killed halfway keeps every login"
+
+# Putting a half-made move right is saved before its copy goes, even when the
+# command that noticed it then fails.
+omarchy-agent-account-use claude main >/dev/null
+cp "$HOME/.claude/.credentials.json" "$parked/.credentials.json"
+cp "$work/.credentials.json" "$HOME/.claude/.credentials.json"
+if omarchy-agent-account-use claude nobody >/dev/null 2>&1; then
+  fail "using an unknown account fails"
+fi
+[[ $(jq -r .seated "$accounts/claude.json") == work && ! -e $work/.credentials.json ]] ||
+  fail "a failed command still keeps what settle put right" "$(cat "$accounts/claude.json")"
+omarchy-agent-account-use claude main >/dev/null
+pass "a correction survives the command that made it failing"
 
 # ------------------------------------------------------------ mode and remove
 
@@ -279,7 +420,7 @@ pass "mode sets how switching happens"
 if omarchy-agent-account-remove claude main </dev/null >/dev/null 2>&1; then
   fail "the primary account can't be removed"
 fi
-omarchy-agent-account-use claude work >/dev/null
+omarchy-agent-account-use claude main >/dev/null
 # A session still running in the account keeps its login until it quits.
 CLAUDE_CONFIG_DIR="$work" sleep 30 &
 session=$!
@@ -290,7 +431,7 @@ fi
 kill "$session"; wait "$session" 2>/dev/null || true
 omarchy-agent-account-remove claude work </dev/null >/dev/null
 [[ ! -e $work && -d $HOME/.claude/projects && -f $HOME/.claude/settings.json ]] || fail "removing an account deletes its home and nothing it links to"
-[[ -z $(omarchy-agent-account-home claude) ]] || fail "removing the active account falls back to the primary"
+[[ -z $(omarchy-agent-account-home claude) && $(claude_account) == u-main ]] || fail "removing an account leaves ~/.claude as it was"
 pass "remove forgets an added account without touching shared files"
 
 # A registry that can't be saved leaves the new login pending for recovery,
@@ -324,6 +465,23 @@ shutil.rmtree(pending)
 PY
 pass "a failed registration rolls the new home back to pending"
 
+# A settings cache whose settings aren't an object costs only the plan.
+STATE="$ROOT/bin/omarchy-agent-account-state" python3 - <<'PY' || fail "a Grok settings cache of the wrong shape reads as no plan"
+import importlib.machinery, importlib.util, json, os, tempfile
+from pathlib import Path
+loader = importlib.machinery.SourceFileLoader("state", os.environ["STATE"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+state = importlib.util.module_from_spec(spec)
+loader.exec_module(state)
+
+home = Path(tempfile.mkdtemp(dir=os.environ["HOME"]))
+(home / "auth.json").write_text(json.dumps({"https://auth.x.ai::client": {"user_id": "u-odd", "email": "odd@example.com"}}))
+(home / "settings_cache.json").write_text(json.dumps({"payload": json.dumps({"settings": "x"})}))
+found = state.grok_identity(home)
+assert found["plan"] == "" and found["email"] == "odd@example.com", found
+PY
+pass "a Grok settings cache of the wrong shape reads as no plan"
+
 # ------------------------------------------------------------ panel add flow
 
 [[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional' ]] ||
@@ -337,7 +495,8 @@ grep -qx "@@omarchy status Sign in as the account you're adding in the private w
   fail "--events reports progress as tagged lines" "$(cat "$test_tmp/events-output")"
 grep -qx "@@omarchy done Added Events (events@example.com)." "$test_tmp/events-output" ||
   fail "--events reports the result as a tagged line" "$(cat "$test_tmp/events-output")"
-grep -q "Added Events (events@example.com)." "$notifications" || fail "--events also notifies, in case the panel closed"
+grep -q "Claude Code is ready for more Tokens now flowing from Events account" "$notifications" ||
+  fail "--events also notifies, in case the panel closed" "$(cat "$notifications")"
 if OMARCHY_TEST_LOGIN_UUID=u-events OMARCHY_TEST_LOGIN_EMAIL=events@example.com \
   omarchy-agent-account-add --events claude Again </dev/null >"$test_tmp/events-dup" 2>&1; then
   fail "--events fails a duplicate"
@@ -345,10 +504,121 @@ fi
 grep -q "^@@omarchy error That's Events" "$test_tmp/events-dup" || fail "--events reports a failure as a tagged line" "$(cat "$test_tmp/events-dup")"
 pass "--events reports progress and results for the panel"
 
+# An account that's added but can't be made active says so, rather than
+# claiming tokens now flow from it.
+: >"$notifications"
+cat >"$mock_bin/omarchy-agent-account-state" <<SH
+#!/bin/bash
+[[ \$1 == use ]] && exit 1
+exec "$ROOT/bin/omarchy-agent-account-state" "\$@"
+SH
+chmod +x "$mock_bin/omarchy-agent-account-state"
+OMARCHY_TEST_LOGIN_UUID=u-stuck OMARCHY_TEST_LOGIN_EMAIL=stuck@example.com \
+  omarchy-agent-account-add --events claude Stuck </dev/null >"$test_tmp/stuck-output"
+rm "$mock_bin/omarchy-agent-account-state"
+grep -qx "@@omarchy done Added Stuck (stuck@example.com), but couldn't switch new sessions to it." "$test_tmp/stuck-output" ||
+  fail "an added account that can't be selected says so" "$(cat "$test_tmp/stuck-output")"
+! grep -q "ready for more" "$notifications" || fail "an added account that can't be selected isn't announced as ready" "$(cat "$notifications")"
+pass "an added account that can't be selected says so"
+
+# A lazy mise tool's command is on PATH before its CLI is: mise's account
+# wrapper and its shim. The download happens before the login, with its
+# progress reported, rather than silently inside it. Only the mocks the add
+# needs are on this PATH, not the mock Codex itself.
+lazy_data="$test_tmp/lazy-mise"
+lazy_bin="$test_tmp/lazy-bin"
+lazy_path="$lazy_data/command-wrappers/bin:$lazy_bin:$ROOT/bin:/usr/bin"
+mkdir -p "$lazy_data/command-wrappers/bin" "$lazy_data/shims" "$lazy_bin"
+for helper in omarchy-notification-send omarchy-agent-usage-update omarchy-default-agent omarchy-launch-browser; do
+  ln -s "$mock_bin/$helper" "$lazy_bin/$helper"
+done
+cat >"$lazy_bin/mise" <<SH
+#!/bin/bash
+if [[ \$(basename "\$0") == "codex" ]]; then
+  echo "run codex \$1" >>"$test_tmp/lazy-log"
+  exec "$mock_bin/codex" "\$@"
+fi
+case "\$1" in
+where) [[ -e $test_tmp/lazy-installed ]] ;;
+install)
+  echo "install \$2" >>"$test_tmp/lazy-log"
+  printf '  codex@1.0.0  downloading  3.0s  512.0 kB/194.4 MB · 3.1 MB/s\r' >&2
+  if [[ -n \${OMARCHY_TEST_MISE_INSTALL_HANGS:-} ]]; then
+    echo \$\$ >"\$OMARCHY_TEST_MISE_INSTALL_HANGS"
+    exec sleep 30
+  fi
+  printf '  codex@1.0.0  downloading  6.0s  157.1/194.4 MB · 52.4 MB/s\n' >&2
+  [[ -z \${OMARCHY_TEST_MISE_INSTALL_FAILS:-} ]] || exit 1
+  touch "$test_tmp/lazy-installed"
+  ;;
+*) exit 2 ;;
+esac
+SH
+chmod +x "$lazy_bin/mise"
+ln -s "$lazy_bin/mise" "$lazy_data/command-wrappers/bin/codex"
+ln -s "$lazy_bin/mise" "$lazy_data/shims/codex"
+printf '[tools]\ncodex = { version = "latest", lazy = true }\n' >"$test_tmp/omarchy-tools.toml"
+export OMARCHY_MISE_CONFIG_PATH="$test_tmp/omarchy-tools.toml"
+
+add_lazy() {
+  PATH="$lazy_path:$lazy_data/shims" MISE_DATA_DIR="$lazy_data" omarchy-agent-account-add --events codex "$@" </dev/null
+}
+
+if OMARCHY_TEST_MISE_INSTALL_FAILS=1 add_lazy Lazy >"$test_tmp/lazy-failed" 2>&1; then
+  fail "a CLI download that fails stops the add"
+fi
+grep -qx "@@omarchy error Installing the Codex CLI didn't finish." "$test_tmp/lazy-failed" ||
+  fail "a failed CLI download is reported as a tagged error" "$(cat "$test_tmp/lazy-failed")"
+grep -q "^run codex" "$test_tmp/lazy-log" && fail "a failed CLI download never starts the login" "$(cat "$test_tmp/lazy-log")"
+
+OMARCHY_TEST_MISE_INSTALL_HANGS="$test_tmp/install.pid" PATH="$lazy_path:$lazy_data/shims" MISE_DATA_DIR="$lazy_data" \
+  omarchy-agent-account-add --events codex Slow </dev/null >/dev/null 2>&1 &
+adding=$!
+for _ in {1..30}; do
+  [[ -s $test_tmp/install.pid ]] && break
+  sleep 0.1
+done
+kill -TERM "$adding"
+wait "$adding" || true
+install_pid=$(cat "$test_tmp/install.pid")
+for _ in {1..20}; do
+  kill -0 "$install_pid" 2>/dev/null || break
+  sleep 0.1
+done
+if kill -0 "$install_pid" 2>/dev/null; then
+  # Left running, the add would outlive the test and reach the real notifier.
+  kill "$install_pid" "$adding" 2>/dev/null
+  fail "cancelling stops a CLI download"
+fi
+
+: >"$test_tmp/lazy-log"
+OMARCHY_TEST_LOGIN_UUID=u-lazy OMARCHY_TEST_LOGIN_EMAIL=lazy@example.com add_lazy Lazy >"$test_tmp/lazy-output" 2>&1 ||
+  fail "adding an account installs a lazy CLI first" "$(cat "$test_tmp/lazy-output")"
+[[ $(grep '^@@omarchy \(status\|progress\)' "$test_tmp/lazy-output" | head -5) == $'@@omarchy status Installing the Codex CLI…\n@@omarchy progress 0 0 0\n@@omarchy progress 512000 194400000 3100000\n@@omarchy progress 157100000 194400000 52400000\n@@omarchy status Sign in as the account you\'re adding in the private window that opens.' ]] ||
+  fail "a lazy CLI's download is reported as progress and speed in bytes, before the sign-in" "$(cat "$test_tmp/lazy-output")"
+[[ $(cat "$test_tmp/lazy-log") == $'install codex\nrun codex login' ]] ||
+  fail "a lazy CLI is installed before its login runs" "$(cat "$test_tmp/lazy-log")"
+grep -qx "@@omarchy done Added Lazy (lazy@example.com)." "$test_tmp/lazy-output" ||
+  fail "a sign-in after a lazy install finishes as usual" "$(cat "$test_tmp/lazy-output")"
+
+# Installed by mise, or some other way: either way it signs in directly.
+: >"$test_tmp/lazy-log"
+OMARCHY_TEST_LOGIN_UUID=u-lazy-2 OMARCHY_TEST_LOGIN_EMAIL=lazy2@example.com add_lazy Lazier >"$test_tmp/lazy-again" 2>&1 ||
+  fail "an installed CLI signs in directly" "$(cat "$test_tmp/lazy-again")"
+rm "$test_tmp/lazy-installed"
+ln -s "$mock_bin/codex" "$lazy_bin/codex"
+OMARCHY_TEST_LOGIN_UUID=u-lazy-3 OMARCHY_TEST_LOGIN_EMAIL=lazy3@example.com add_lazy Own >>"$test_tmp/lazy-again" 2>&1 ||
+  fail "a CLI installed outside mise signs in directly" "$(cat "$test_tmp/lazy-again")"
+rm "$lazy_bin/codex"
+grep -q "^@@omarchy progress" "$test_tmp/lazy-again" && fail "an installed CLI isn't downloaded again" "$(cat "$test_tmp/lazy-again")"
+grep -q "^install" "$test_tmp/lazy-log" && fail "an installed CLI isn't installed again" "$(cat "$test_tmp/lazy-log")"
+pass "a lazy CLI is downloaded, with progress and a way to cancel, before its sign-in"
+
 # ------------------------------------------------------------------- reauth
 
 : >"$OMARCHY_TEST_BROWSER_LOG"
 before=$(omarchy-agent-account-list claude --json | jq '.[0].accounts | length')
+omarchy-agent-account-use claude main >/dev/null
 rm -f "$accounts/claude/events/.credentials.json"
 OMARCHY_TEST_LOGIN_UUID=u-events OMARCHY_TEST_LOGIN_EMAIL=events@example.com \
   omarchy-agent-account-add --events --reauth events claude </dev/null >"$test_tmp/reauth-output"
@@ -357,10 +627,47 @@ grep -qx "@@omarchy done Signed in to Claude again." "$test_tmp/reauth-output" |
 [[ $(omarchy-agent-account-list claude --json | jq '.[0].accounts | length') == "$before" ]] || fail "--reauth adds no account"
 grep -qx -- "--private https://claude.com/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG" || fail "--reauth of an added account uses a private window"
 
+# The account sessions use signs in again in ~/.claude, where its login is,
+# and still in a private window: the normal browser is the primary's.
+omarchy-agent-account-use claude events >/dev/null
+: >"$OMARCHY_TEST_BROWSER_LOG"
+rm -f "$HOME/.claude/.credentials.json"
+OMARCHY_TEST_LOGIN_UUID=u-events OMARCHY_TEST_LOGIN_EMAIL=events@example.com \
+  omarchy-agent-account-add --reauth events claude </dev/null >/dev/null
+[[ -s $HOME/.claude/.credentials.json && $(claude_account) == u-events && $(jq -c .mcpServers "$HOME/.claude.json") != null && ! -e $HOME/.claude/.claude.json && ! -e $accounts/claude/events/.credentials.json ]] ||
+  fail "--reauth of the seated account signs in to ~/.claude itself"
+grep -qx -- "--private https://claude.com/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG" || fail "--reauth of a seated added account still uses a private window"
+[[ -z $(ls -A "$accounts/claude/.pending") ]] || fail "--reauth leaves no scratch home behind"
+
+# Whoever signs in in the private window would become every running session's
+# account, so it has to be the account being signed in again.
+if OMARCHY_TEST_LOGIN_UUID=u-stranger OMARCHY_TEST_LOGIN_EMAIL=stranger@example.com \
+  omarchy-agent-account-add --reauth events claude </dev/null >"$test_tmp/wrong-reauth" 2>&1; then
+  fail "--reauth as another account is refused"
+fi
+grep -q "That's stranger@example.com, not Events" "$test_tmp/wrong-reauth" && [[ $(claude_account) == u-events ]] ||
+  fail "--reauth as another account says so and leaves ~/.claude alone" "$(cat "$test_tmp/wrong-reauth")"
+
+# --reauth without an account is a mistake, not a request to add one.
+: >"$OMARCHY_TEST_BROWSER_LOG"
+before=$(omarchy-agent-account-list claude --json | jq '.[0].accounts | length')
+for args in "--reauth" "--reauth --events"; do
+  # shellcheck disable=SC2086
+  if OMARCHY_TEST_LOGIN_UUID=u-stray OMARCHY_TEST_LOGIN_EMAIL=stray@example.com \
+    omarchy-agent-account-add $args </dev/null >/dev/null 2>&1; then
+    fail "--reauth needs an account: $args"
+  fi
+done
+[[ $(omarchy-agent-account-list claude --json | jq '.[0].accounts | length') == "$before" && ! -s $OMARCHY_TEST_BROWSER_LOG ]] ||
+  fail "--reauth without an account adds nothing and opens no sign-in"
+pass "--reauth without an account is refused"
+
 : >"$OMARCHY_TEST_BROWSER_LOG"
 OMARCHY_TEST_LOGIN_UUID=u-main OMARCHY_TEST_LOGIN_EMAIL=me@example.com \
   omarchy-agent-account-add --reauth main claude </dev/null >/dev/null
 grep -qx "default https://claude.com/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG" || fail "--reauth of the primary uses the normal browser"
+[[ $(jq -r .oauthAccount.accountUuid "$parked/.claude.json") == u-main && $(claude_account) == u-events ]] ||
+  fail "--reauth of the primary signs in where its login waits, leaving ~/.claude alone"
 
 if omarchy-agent-account-add --reauth nobody claude </dev/null >/dev/null 2>&1; then
   fail "--reauth of an unknown account fails"
@@ -413,6 +720,7 @@ pass "a signed-out account no longer counts as signed in"
 
 # A home signed in to someone else since it was added is saved as who it is
 # now, which is what the usage records name it by.
+omarchy-agent-account-use claude main >/dev/null
 jq '.oauthAccount.emailAddress = "switched@example.com"' "$accounts/claude/events/.claude.json" >"$test_tmp/switched.json"
 mv "$test_tmp/switched.json" "$accounts/claude/events/.claude.json"
 omarchy-agent-account-state refresh claude

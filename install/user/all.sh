@@ -1,7 +1,7 @@
 run_logged "$OMARCHY_INSTALL/user/theme.sh"
 run_logged "$OMARCHY_INSTALL/user/chromium.sh"
-run_logged "$OMARCHY_INSTALL/user/git.sh"
 run_logged "$OMARCHY_INSTALL/user/xcompose.sh"
+run_logged "$OMARCHY_INSTALL/user/language.sh"
 run_logged "$OMARCHY_INSTALL/user/input-method.sh"
 run_logged "$OMARCHY_INSTALL/user/mise-work.sh"
 
@@ -10,6 +10,7 @@ run_logged "$OMARCHY_INSTALL/user/hardware/asus/fix-mic.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/framework/fix-f13-amd-audio-input.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/dell/xps13-text-scaling.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/qualcomm/video-decode.sh"
+run_logged "$OMARCHY_INSTALL/user/hardware/qualcomm/camera.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/fix-nouveau-cursor.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/vm-no-animations.sh"
 

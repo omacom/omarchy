@@ -1,45 +1,41 @@
 # Izdelava lastne teme
 
-Lastne teme lahko dodate v `~/.config/omarchy/themes`. Preprosto kopirajte eno od obstoječih kot osnovo (poglejte v `/usr/share/omarchy/themes`), nato jo prilagodite do svojega veselja. Dokler je vaša tema znotraj te mape, bo vključena v meni za izbiro teme.
+Svoje teme lahko dodate v `~/.config/omarchy/themes`. Preprosto kopirajte eno od obstoječih tem kot osnovo (poiščite jih v `/usr/share/omarchy/themes`), nato pa jo prilagodite po svojih željah. Dokler je vaša tema v tej mapi, bo vključena v meni za izbiro teme.
 
-Glavna datoteka, ki jo morate prilagoditi, je `colors.toml`. Ta določa nabor barv, ki se nato uporabi za ustvarjanje konfiguracij za terminal (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian in celotno lupino Omarchy (vrstico, meni, obvestila, OSD in zaklepanje zaslona).
+Glavna datoteka, ki jo morate prilagoditi, je `colors.toml`. Ta določa nabor barv, ki se nato uporabi za ustvarjanje konfiguracij za terminal (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian in celotno lupino Omarchy (zgornja vrstica, meni, obvestila, OSD in zaklenjeni zaslon).
 
-Uporabite lahko tudi vključeno aplikacijo Aether, da ustvarite novo temo prek ljubkega grafičnega vmesnika za igranje z barvami in iskanje ozadij. Preprosto jo zaženite iz mreže aplikacij na `Super + Alt + Space`.
+Novo temo lahko ustvarite tudi s priloženo aplikacijo Aether, ki ponuja prijeten grafični vmesnik za igranje z barvami in iskanje ozadij. Preprosto jo zaženite iz mreže aplikacij s `Super + Alt + Space`.
 
 ### Kaj lahko vsebuje nameščena tema
 
-Tema, ki jo napišete sami v `~/.config/omarchy/themes`, lahko vsebuje kar koli želite — to je vaš računalnik in vaša datoteka, Omarchy pa uporabi vse.
+Tema, ki jo napišete sami v `~/.config/omarchy/themes`, lahko vsebuje, kar koli želite — to je vaš računalnik in vaša datoteka, Omarchy pa uporabi vse.
 
-Tema, ki jo namestite iz repozitorija nekoga drugega z `omarchy theme install`, obdrži vse, kar je barva, izgubi pa peščico datotek, ki bi na vašem računalniku zagnale kodo: vsako datoteko `.lua`, konfiguracije terminala (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`) in `vscode.json`. Temina `hyprland.lua` je Lua, ki jo vaš sestavljalnik zažene ob prijavi, konfiguracija terminala poimenuje program, ki ga vaš terminal zažene, `vscode.json` pa poimenuje razširitev VSCode za namestitev. Namestitev teme nekoga drugega naj spremeni videz vašega namizja, nikoli pa ne, kaj ta izvaja.
+Tema, ki jo namestite iz tujega repozitorija z `omarchy theme install`, obdrži vse, kar je barva, in izgubi peščico datotek, ki bi na vašem računalniku zagnale kodo: katero koli datoteko `.lua`, konfiguracije terminala (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`) in `vscode.json`. `hyprland.lua` teme je Lua, ki jo vaš sestavljalnik oken zažene ob prijavi, konfiguracija terminala imenuje program, ki ga vaš terminal zažene, `vscode.json` pa imenuje razširitev za VSCode, ki naj se namesti. Namestitev tuje teme naj spremeni videz vašega namizja, nikoli pa tega, kaj se na njem izvaja.
 
-Vse drugo še vedno deluje natanko tako, kot je napisal avtor teme — `btop.theme`, `chromium.theme`, `helix.toml`, `icons.theme`, `shell.toml`, ozadja in predogledi so vsi ohranjeni. Samo tisto, kar je bilo izpuščeno, se na vašem računalniku znova ustvari iz `colors.toml`.
+Vse drugo še vedno deluje točno tako, kot je zapisal avtor teme — `btop.theme`, `chromium.theme`, `helix.toml`, `shell.toml`, ozadja in predogledi se vsi ohranijo. Samo to, kar je bilo opuščeno, se na vašem računalniku znova ustvari iz `colors.toml`.
 
-Omarchy loči obojega po tem, ali ima tema v sebi svoj lastni git repo, kar `omarchy theme install` pusti za sabo, ko klonira. Tako tema, ki ste jo napisali, ostane vaša, tema, ki ste jo potegnili z interneta, pa ostane barve.
+Omarchy ju razlikuje po tem, ali ima tema v sebi svoj repozitorij git, kar `omarchy theme install` pusti za seboj, ko klonira. Tako tema, ki ste jo napisali, ostane vaša, tista, ki ste jo potegnili z interneta, pa ostane samo pri barvah.
 
 ### Svetli način
 
-Če izdelujete temo za svetli način, nastavite `mode = "light"` na vrhu vaše `colors.toml`. Nato bo samodejno združena s svetlim načinom za vse aplikacije. (Deluje tudi stari način spuščanja prazne datoteke z imenom `light.mode` v koren vaše teme.)
-
-### Barve ikon
-
-Če želite barvno uskladiti ikone upravitelja datotek z vašo temo, dodajte datoteko z imenom `icons.theme` z imenom nabora ikon, ki ga želite uporabiti. Privzeto so možnosti: `Yaru Yaru-blue Yaru-dark Yaru-magenta Yaru-olive Yaru-prussiangreen Yaru-purple Yaru-red Yaru-sage Yaru-wartybrown Yaru-yellow`.
+Če izdelujete temo s svetlim načinom, na vrh svoje datoteke `colors.toml` nastavite `mode = "light"`. Nato bo samodejno povezana s svetlim načinom za vse aplikacije. (Stari način, pri katerem v koren teme odložite prazno datoteko z imenom `light.mode`, še vedno deluje.)
 
 ### Slika za odklepanje
 
-Teme, dobavljene s slikama `unlock.png` in `preview-unlock.png`, bodo navedene pod _Slog > Odkleni_. Vaša `unlock.png` naj bo po možnosti prosojna png. Sliko predogleda lahko ustvarite z `omarchy plymouth preview`.
+Teme, ki vsebujejo sliki `unlock.png` in `preview-unlock.png`, bodo navedene pod _Videz > Odklepanje_. Vaša `unlock.png` naj bo po možnosti prozoren png. Predogledno sliko pa lahko ustvarite z `omarchy plymouth preview`.
 
-### Tematiziranje aplikacij, ki jih Omarchy ne pokriva
+### Teme za aplikacije, ki jih Omarchy ne pokriva
 
-Če uporabljate aplikacijo, ki je ni na tem seznamu, lahko Omarchy sami naučite, da jo tematizira, s predlogo. V `~/.config/omarchy/themed/` spustite datoteko, poimenovano po konfiguraciji, ki jo ustvari, plus pripono `.tpl`, in konfiguracijo napišite z `{{ background }}`, `{{ foreground }}`, `{{ accent }}`, `{{ red }}`, `{{ color0 }}` do `{{ color15 }}` in preostankom palete kot nadomestnimi oznakami. Vsakič, ko preklopite temo, se datoteka znova ustvari z barvami te teme.
+Če uporabljate aplikacijo, ki je ni na tem seznamu, lahko Omarchy sami naučite, kako zanjo uporabiti temo, s predlogo. V `~/.config/omarchy/themed/` odložite datoteko, poimenovano po konfiguraciji, ki jo ustvari, s pripono `.tpl`, in konfiguracijo zapišite z ogradami `{{ background }}`, `{{ foreground }}`, `{{ accent }}`, `{{ red }}`, `{{ color0 }}` do `{{ color15 }}` in preostalo paleto. Ob vsaki zamenjavi teme se datoteka znova ustvari z barvami te teme.
 
-V tej mapi je popolnoma zakomentirana `alacritty.toml.tpl.sample`, iz katere lahko kopirate — navaja vsako spremenljivko, ki jo lahko uporabite, plus modifikatorja `_strip` in `_rgb` za aplikacije, ki svoje barve želijo brez `#` ali kot decimalni RGB. Vaše predloge imajo prednost pred predlogami Omarchyja, tako da lahko to uporabite tudi za preglasitev načina, kako se tematizira vgrajena aplikacija.
+V tej mapi je v celoti komentirana datoteka `alacritty.toml.tpl.sample`, ki jo lahko kopirate — navaja vse spremenljivke, ki jih lahko uporabite, ter modifikatorja `_strip` in `_rgb` za aplikacije, ki želijo svoje barve brez `#` ali kot decimalne RGB. Vaše predloge imajo prednost pred Omarchyjevimi, zato lahko s tem tudi prepišete, kako se tema uporabi za vgrajeno aplikacijo.
 
-### Distribucija vaše teme
+### Deljenje vaše teme
 
-Če želite distribuirati svojo temo, da jo lahko drugi uporabijo, jo morate postaviti na javni git strežnik, kot je GitHub. Nato jo ljudje lahko namestijo prek _Namesti > Slog > Tema_ v meniju Omarchy z uporabo tega URL-ja. Priporočljivo je, da sledite dogovoru o poimenovanju `omarchy-[themename]-theme`, saj se bo tema po namestitvi pravilno prikazala kot samo `[themename]` v meniju za izbiro teme.
+Če želite svojo temo deliti, da jo lahko uporabljajo tudi drugi, jo morate objaviti na javnem strežniku git, kot je GitHub. Nato jo lahko ljudje namestijo z _Namesti > Slog > Tema_ v meniju Omarchy z uporabo tega URL-ja. Priporočljivo je, da upoštevate dogovor o poimenovanju `omarchy-[themename]-theme`, saj se bo tema po namestitvi v meniju za izbiro teme pravilno prikazala samo kot `[themename]`.
 
-Ta preostali `[themename]` postane ime imenika teme, zato mora biti tak, da ga Omarchy lahko varno prenaša: začeti se mora s črko, števko ali podčrtajem, preostanek pa lahko vsebuje črke, števke, `.`, `_`, `+` in `-`. Velike črke se za vas pretvorijo v male, vse drugo — presledek, narekovaj, neangleški znak — pa se ob namestitvi zavrne, namesto da bi postalo ime imenika. Tako se `omarchy-tokyo-night-theme`, `omarchy-flexoki_light-theme` in `omarchy-c++-theme` vse namestijo brez težav.
+Ta preostali `[themename]` postane ime imenika teme, zato mora biti takšno, ki ga lahko Omarchy varno posreduje naprej: začeti se mora s črko, števko ali podčrtajem, preostanek pa lahko vsebuje črke, števke, `.`, `_`, `+` in `-`. Velike črke se namesto vas pretvorijo v male, vse drugo — presledek, narekovaj, neangleški znak — pa se ob namestitvi zavrne, namesto da bi se pretvorilo v ime imenika. Tako se `omarchy-tokyo-night-theme`, `omarchy-flexoki_light-theme` in `omarchy-c++-theme` vse namestijo brez težav.
 
-Ne pozabite, da je po namestitvi iz repozitorija vsaka `.lua`, konfiguracija terminala ali `vscode.json`, ki jo prinaša, izpuščena, zato teme ne gradite okoli teh.
+Ne pozabite, da se ob namestitvi iz repozitorija vse datoteke `.lua`, konfiguracije terminala ali `vscode.json`, ki jih vsebuje, opustijo, zato teme ne gradite okoli njih.
 
-Svojo temo lahko dodate na [stran z dodatnimi temami](https://omarchy.org/themes/) tako, da pošljete zahtevek za vlečenje v [repozitorij omarchy-site](https://github.com/omacom-io/omarchy-site).
+Svojo temo lahko dodate na [stran z dodatnimi temami](https://omarchy.org/themes/) tako, da pošljete pull request v [repozitorij omarchy-site](https://github.com/omacom-io/omarchy-site).
