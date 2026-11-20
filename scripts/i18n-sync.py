@@ -219,6 +219,15 @@ def cmd_manifest(args):
 def cmd_pending(args):
     root = root_path(args)
     result = compute_pending(root, args.locale)
+    if args.backfill_manual:
+        english = english_units(root)
+        codes = [args.locale] if args.locale else sorted(locales(root))
+        for code in codes:
+            units = manual_backfill_units(root, code, english)
+            if not units:
+                continue
+            entry = result.setdefault(code, {"pending": [], "prune": []})
+            entry["pending"] = sorted(set(entry["pending"]) | set(units))
     payload = {
         "locales": sorted(result),
         "jobs": {
@@ -385,6 +394,78 @@ def keybinding_descriptions(root):
                 if text:
                     found.add(text)
     return {text: text for text in sorted(found)}
+
+
+MANUAL_PATH_RE = re.compile(r"_([^_\n]+(?: > [^_\n]+)+)_")
+
+
+def menu_children(menu, parent):
+    depth = parent.count(".") + 1 if parent else 0
+    prefix = f"{parent}." if parent else ""
+    return {mid: entry for mid, entry in menu.items()
+            if mid.count(".") == depth and mid.startswith(prefix)}
+
+
+def menu_id_for_path(path, menu):
+    """The menu key a written path such as "Appearance > Dock > Dock Position" names."""
+    parent = None
+    for label in path.split(" > "):
+        matches = [mid for mid, entry in menu_children(menu, parent).items()
+                   if entry.get("label") == label]
+        if len(matches) != 1:
+            return None
+        parent = matches[0]
+    return parent
+
+
+def manual_menu_glossary(root, code, source):
+    """Menu paths in a chapter, paired with the labels the localized menu shows."""
+    english = read_json(root / "default/i18n/en/menu.json", {})
+    localized = read_json(root / "default/i18n" / code / "menu.json", {})
+    glossary = {}
+    for path in sorted(set(MANUAL_PATH_RE.findall(source))):
+        mid = menu_id_for_path(path, english)
+        if mid is None:
+            continue
+        labels, parts = [], mid.split(".")
+        for i in range(len(parts)):
+            label = localized.get(".".join(parts[:i + 1]), {}).get("label")
+            if not label:
+                break
+            labels.append(label)
+        else:
+            glossary[path] = " > ".join(labels)
+    return glossary
+
+
+MENU_PATH_SPACING = re.compile(r"\s*>\s*")
+
+
+def normalize_menu_path(text):
+    return MENU_PATH_SPACING.sub(" > ", text)
+
+
+def glossary_misses(text, glossary):
+    """Glossary paths a translation does not reproduce, for a warning."""
+    normalized = normalize_menu_path(text)
+    return [f"{english} -> {localized}" for english, localized in sorted(glossary.items())
+            if normalize_menu_path(localized) not in normalized]
+
+
+def manual_backfill_units(root, code, english):
+    """Current manual translations that miss a menu path in their glossary."""
+    translated = translated_units(root, code)
+    units = []
+    for unit, source in english.items():
+        if not unit.startswith("manual:"):
+            continue
+        text = translated.get(unit)
+        if text is None:
+            continue
+        glossary = manual_menu_glossary(root, code, source)
+        if glossary and glossary_misses(text, glossary):
+            units.append(unit)
+    return sorted(units)
 
 
 def menu_catalog_stale(root):
@@ -610,14 +691,20 @@ Short, natural UI language; menu labels one or two words where the language allo
     return {unit: validate_catalog_value(batch[unit], result[unit], categories) for unit in batch}
 
 
-def translate_manual(source, code, name, model):
+def translate_manual(source, code, name, model, glossary=None):
     note = REGIONAL_NOTES.get(code, "")
+    glossary_block = f"""
+Menu paths in the chapter name entries in the Omarchy menu. Each one is given as the English chapter writes it and as the localized menu shows it: render the former with the latter, keeping the italics and the " > " separators, rather than translating the labels yourself:
+<menu_paths>
+{json.dumps(glossary, ensure_ascii=False)}
+</menu_paths>
+""" if glossary else ""
     prompt = f"""Translate this complete Omarchy manual chapter from English into {name} ({code}).{(" " + note) if note else ""}
 Return ONLY a JSON object with exactly one string field: "markdown".
 Translate everything; never summarize. Keep the author's direct, opinionated voice.
 Preserve Markdown structure and heading levels, link URLs (translate link text only), relative .md links, image references, code blocks and inline code verbatim. Full lines, no hard wrapping.
 {BRIEF}
-<chapter>
+{glossary_block}<chapter>
 {json.dumps({"markdown": source}, ensure_ascii=False)}
 </chapter>
 """
@@ -694,9 +781,10 @@ def cmd_translate(args):
     if prune:
         apply_prune(root, code, prune)
     catalog_pending = {u: english[u] for u in pending if not u.startswith("manual:")}
-    manual_pending = [u for u in pending if u.startswith("manual:")]
+    manual_pending = sorted(u for u in pending if u.startswith("manual:"))
     done = list(prune)
     failures = []
+    warnings = []
 
     batches = batch_catalog(catalog_pending)
     with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
@@ -710,25 +798,44 @@ def cmd_translate(args):
             apply_catalog_translations(root, code, translated)
             done.extend(translated)
 
+    # The glossary reads menu labels off disk, so a backfill waits until the
+    # catalog translations above are applied. A label this run just filled
+    # then counts, and a chapter that names its path is still retranslated.
+    if args.backfill_manual:
+        manual_pending = sorted(set(manual_pending) | set(manual_backfill_units(root, code, english)))
+
     def one_manual(unit):
         filename = split_unit(unit)[1]
-        text = translate_manual(english[unit], code, name, args.model)
+        source = english[unit]
+        glossary = manual_menu_glossary(root, code, source)
+        text = translate_manual(source, code, name, args.model, glossary)
+        misses = glossary_misses(text, glossary)
         atomic_write(root / "manual" / code / filename, text)
-        return unit
+        return unit, misses
 
     with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
         futures = {pool.submit(one_manual, unit): unit for unit in manual_pending}
         for future in as_completed(futures):
             try:
-                done.append(future.result())
+                unit, misses = future.result()
             except SyncError as exc:
                 failures.append(f"{futures[future]}: {exc}")
+                continue
+            done.append(unit)
+            warnings.extend(f"{unit}: {miss}" for miss in misses)
 
     if args.done_file:
         existing = read_json(args.done_file, {})
         existing[code] = sorted(set(existing.get(code, [])) | set(done))
         write_json(args.done_file, existing)
-    print(f"{code}: {len(done)} units done, {len(failures)} failures")
+    for warning in sorted(warnings):
+        print(f"warning: {warning}", file=sys.stderr)
+    if warnings and os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as out:
+            out.write(f"{code}: {len(warnings)} manual menu-path warnings\n")
+            for warning in sorted(warnings):
+                out.write(f"- {warning}\n")
+    print(f"{code}: {len(done)} units done, {len(failures)} failures, {len(warnings)} glossary warnings")
     for failure in failures:
         print(f"  failed: {failure}", file=sys.stderr)
     return 1 if failures else 0
@@ -840,6 +947,26 @@ def cmd_collect(args):
             out.write(summary)
 
 
+def cmd_glossary_report(args):
+    """Manual chapters that still miss a menu path, for a backfill's summary."""
+    root = root_path(args)
+    english = english_units(root)
+    codes = [args.locale] if args.locale else sorted(locales(root))
+    remaining = {}
+    for code in codes:
+        units = manual_backfill_units(root, code, english)
+        if units:
+            remaining[code] = units
+    total = sum(len(units) for units in remaining.values())
+    report = f"Manual chapters still missing a menu path: {total}.\n"
+    for code, units in sorted(remaining.items()):
+        report += f"- {code}: {len(units)} ({', '.join(units)})\n"
+    print(report, end="")
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as out:
+            out.write(report)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=None, help="repository root (default: this script's repo)")
@@ -847,6 +974,7 @@ def main():
 
     p = sub.add_parser("pending")
     p.add_argument("--locale", default=None)
+    p.add_argument("--backfill-manual", action="store_true", help="treat manual chapters with a menu-path miss as pending")
     p.set_defaults(fn=cmd_pending)
 
     p = sub.add_parser("manifest")
@@ -867,6 +995,7 @@ def main():
     p.add_argument("--concurrency", type=int, default=2)
     p.add_argument("--model", default=MODEL)
     p.add_argument("--done-file", default=None)
+    p.add_argument("--backfill-manual", action="store_true", help="retranslate manual chapters with a menu-path miss")
     p.set_defaults(fn=cmd_translate)
 
     p = sub.add_parser("pack")
@@ -879,6 +1008,10 @@ def main():
     p.add_argument("directory")
     p.add_argument("--expected", required=True, help="comma-separated locales")
     p.set_defaults(fn=cmd_collect)
+
+    p = sub.add_parser("glossary-report")
+    p.add_argument("--locale", default=None)
+    p.set_defaults(fn=cmd_glossary_report)
 
     args = parser.parse_args()
     try:
