@@ -7,7 +7,7 @@ var MAX_ITEMS = 64
 var MAX_TEXT = 255
 
 function text(value) {
-  var s = typeof value === "string" ? value : ""
+  var s = typeof value === "string" ? value.trim() : ""
   return s.length > MAX_TEXT ? s.substring(0, MAX_TEXT) : s
 }
 
@@ -109,8 +109,17 @@ function tiles(screens, me, peers, connected) {
 // The Circle machines not in the row yet: close by first, then online, then by name.
 function addable(screens, me, peers) {
   var row = ownRow(screens, me)
+  var seen = []
+  peers = (peers || []).map(function(p) {
+    return { name: text(p.name), online: p.online === true, nearby: p.nearby === true }
+  }).filter(function(p) { return p.name !== "" })
   return peers
-    .filter(function(p) { return indexOf(row, p.name) === -1 && !sameHost(p.name, me) })
+    .filter(function(p) {
+      if (indexOf(row, p.name) !== -1 || sameHost(p.name, me)) return false
+      if (indexOf(seen, p.name) !== -1) return false
+      seen.push(p.name)
+      return true
+    })
     .sort(function(a, b) {
       if (!!a.nearby !== !!b.nearby) return a.nearby ? -1 : 1
       if (a.online !== b.online) return a.online ? -1 : 1
