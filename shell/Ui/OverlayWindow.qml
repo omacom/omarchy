@@ -7,9 +7,12 @@ import qs.Commons as Commons
 // A fullscreen overlay whose surface outlives each open. Closed, the surface
 // parks as a 1x1, input-less, content-less layer below windows: small enough
 // to cost nothing, off the overlay layer so it never blocks direct scanout for
-// fullscreen apps. Opening only resizes and raises it, so the compositor can
-// grant it exclusive keyboard focus immediately rather than after a fresh
-// surface maps — keys typed straight after summoning reach the overlay.
+// fullscreen apps. Opening again on that screen only resizes and raises it, so
+// the compositor can grant it exclusive keyboard focus immediately rather than
+// after a fresh surface maps — keys typed straight after summoning reach the
+// overlay. Hyprland ignores a layer change made before a surface's first
+// frame, so a surface is only created by an open, directly on the overlay
+// layer, and only one that has shown is parked and raised again.
 // Keep its first frames transparent until Qt receives the output's scale, so
 // it opens sharp.
 PanelWindow {
@@ -20,13 +23,11 @@ PanelWindow {
   property int shownLayer: WlrLayer.Overlay
   property int shownKeyboardFocus: WlrKeyboardFocus.Exclusive
 
-  // Park on the focused screen from the start, so the first open does not
-  // move (and remap) the surface: a screen change on open would let the
-  // first keys typed at once reach the window behind the overlay again.
-  // Assigned once rather than bound, so an open overlay stays put when focus
-  // moves to another output.
+  // Set only while shown, once the open's layer is in place, and kept on close
+  // so the parked surface is raised in place by the next open on that screen.
+  // Assigned rather than bound, so an open overlay stays put when focus moves
+  // to another output.
   property var targetScreen: null
-  Component.onCompleted: targetScreen = focusedScreen()
   property Region emptyRegion: Region {}
   readonly property var targetMonitor: {
     var monitors = Hyprland.monitors.values
@@ -64,29 +65,32 @@ PanelWindow {
 
   // Live monitor scaling does not emit a Hyprland monitor event, so its cached
   // scale can lag behind Qt. Refresh on opening and on scale changes while open.
+  // Opening anywhere but the parked screen drops the parked surface now and
+  // creates the new one on the next turn, after the layer, size and focus
+  // bindings have followed shown: Qt creates the surface from their values.
   onShownChanged: {
     if (shown) {
-      var screen = focusedScreen()
-      if (screen && screen !== targetScreen) targetScreen = screen
+      if (focusedScreen() !== targetScreen) {
+        targetScreen = null
+        Qt.callLater(window.attach)
+      }
       Hyprland.refreshMonitors()
     }
   }
   onDevicePixelRatioChanged: if (shown) Hyprland.refreshMonitors()
 
+  function attach() {
+    if (shown && !targetScreen) targetScreen = focusedScreen()
+  }
+
   Connections {
     target: Quickshell
     function onScreensChanged() {
-      if (!window.targetScreen) {
-        window.targetScreen = window.focusedScreen()
-        return
-      }
       if (Quickshell.screens.indexOf(window.targetScreen) < 0) {
         window.targetScreen = null
         // Let the removed output finish closing its old window before mapping
         // a replacement, rather than recreating it during Qt's teardown.
-        Qt.callLater(function() {
-          if (!window.targetScreen) window.targetScreen = window.focusedScreen()
-        })
+        Qt.callLater(window.attach)
       }
     }
   }
