@@ -42,10 +42,23 @@
 
   const youtube = ['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(location.hostname);
   const gmail = location.hostname === 'mail.google.com';
-  // Excel for the web draws the grid (cells, fills, gridlines, text) on canvases inside
-  // its *-excel.officeapps.live.com frame; excel.cloud.microsoft is the standalone app.
-  const excel = location.hostname === 'excel.cloud.microsoft' ||
-    (location.hostname.endsWith('.officeapps.live.com') && location.hostname.includes('excel'));
+  // Apps that draw the document itself (cells, fills, gridlines, text) as pixels, out of
+  // reach of CSS colors: Excel for the web in its *-excel.officeapps.live.com frame or as
+  // excel.cloud.microsoft, the Google Sheets grid, Google Docs page tiles and Word viewer
+  // page images. `surface` is the swatch white paper becomes: document pages sit one step
+  // above the app around them.
+  const canvasApp = (() => {
+    const host = location.hostname;
+    if (host === 'excel.cloud.microsoft' || (host.endsWith('.officeapps.live.com') && host.includes('excel'))) {
+      return { sel: 'canvas', surface: 'bg' };
+    }
+    // The read-only Word viewer (Office Online view.aspx) ships each page as an image.
+    if (host.endsWith('-word-view.officeapps.live.com')) return { sel: 'img.WACPageImg', surface: 'field' };
+    if (host !== 'docs.google.com') return null;
+    if (/^\/spreadsheets\//.test(location.pathname)) return { sel: '#waffle-grid-container canvas', surface: 'bg' };
+    if (/^\/document\//.test(location.pathname)) return { sel: 'canvas.kix-canvas-tile-content', surface: 'field' };
+    return null;
+  })();
   const RAMP_ID = 'omareader-ramp';
   const YOUTUBE_CANVAS = 'html,body,ytd-app,#page-manager,ytd-watch-flexy,ytd-watch-grid,#full-bleed-container';
 
@@ -1196,30 +1209,39 @@
   // Canvas pixels are out of reach of CSS colors, so the grid goes through one sRGB color
   // matrix: invert + hue-rotate(180deg) (light cells dark, hues kept), then black→bg and
   // white→fg. All three steps are affine, so they fold into out = fg − (fg−bg)·H·in.
+  // A light palette needs no inversion (white→bg is already light), and without the
+  // inversion a hue rotation would turn blue cells orange, so H is the identity there.
   const HUE_180 = [[-0.574, 1.43, 0.144], [0.426, 0.43, 0.144], [0.426, 1.43, -0.856]];
-  function placeRamp() {
-    const bg = C.parse(mapper.swatch.bg);
+  const SAME_HUE = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  function placeRamp(surface) {
+    const bg = C.parse(surface);
     const fg = C.parse(mapper.swatch.fg);
     if (!bg || !fg) return;
+    const H = C.toOklab(fg).L > C.toOklab(bg).L ? HUE_180 : SAME_HUE;
     const values = ['r', 'g', 'b'].map((k, i) => {
       const d = (fg[k] - bg[k]) / 255;
-      return [...HUE_180[i].map((h) => +(-d * h).toFixed(4)), 0, +(fg[k] / 255).toFixed(4)].join(' ');
+      return [...H[i].map((h) => +(-d * h).toFixed(4)), 0, +(fg[k] / 255).toFixed(4)].join(' ');
     }).join(' ') + ' 0 0 0 1 0';
     if (!rampEl) {
+      // Built node by node: Trusted Types pages (Google Docs) refuse innerHTML strings.
       rampEl = doc.createElementNS(SVG_NS, 'svg');
       rampEl.setAttribute('data-omareader', 'ramp');
       rampEl.setAttribute('aria-hidden', 'true');
       rampEl.setAttribute('style', 'position:absolute;width:0;height:0;overflow:hidden');
-      rampEl.innerHTML = `<filter id="${RAMP_ID}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix"/></filter>`;
+      const filter = doc.createElementNS(SVG_NS, 'filter');
+      filter.setAttribute('id', RAMP_ID);
+      filter.setAttribute('color-interpolation-filters', 'sRGB');
+      filter.appendChild(doc.createElementNS(SVG_NS, 'feColorMatrix')).setAttribute('type', 'matrix');
+      rampEl.appendChild(filter);
     }
     rampEl.querySelector('feColorMatrix').setAttribute('values', values);
     if (!rampEl.isConnected && doc.documentElement) doc.documentElement.appendChild(rampEl);
   }
 
   function siteCss() {
-    if (excel) {
-      placeRamp();
-      return `canvas{filter:url(#${RAMP_ID}) !important;}`;
+    if (canvasApp) {
+      placeRamp(mapper.swatch[canvasApp.surface] || mapper.swatch.bg);
+      return `${canvasApp.sel}{filter:url(#${RAMP_ID}) !important;}`;
     }
     if (gmail) {
       const s = mapper.swatch;
