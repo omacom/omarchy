@@ -50,8 +50,11 @@ ShellRoot {
   // Each step runs a set delay after the one before it ran, always in order.
   // Separate timers counted from the start fire together when the event loop
   // stalls past several of them, and not always in interval order: a step
-  // then checks state that a later step has already changed.
+  // then checks state that a later step has already changed. A step with
+  // `until` then waits, up to 3 s, for the state it checks, since a process the
+  // switch runs can take longer than the delay on a busy machine.
   property int step: 0
+  property double stepDeadline: 0
   readonly property var steps: [
     { delay: 100, run: function() {
       test.services = ({ "omarchy.background": background })
@@ -82,7 +85,7 @@ ShellRoot {
       background.suspended = true
       sw.switchTo(test.stage + "/other.png", "")
     } },
-    { delay: 600, run: function() {
+    { delay: 600, until: function() { return background.sets.length > 0 }, run: function() {
       test.check(intro.themeToken !== "" && intro.themeBackground.indexOf("/background-transitions/") !== -1,
                  "a change during an intro covers the desktop with the playing frame: " + intro.themeBackground)
       test.check(background.sets.length === 1 && background.sets[0] === test.stage + "/other.png instant",
@@ -113,10 +116,17 @@ ShellRoot {
     interval: test.steps[0].delay
     running: true
     onTriggered: {
-      test.steps[test.step].run()
+      var current = test.steps[test.step]
+      if (current.until && !current.until() && Date.now() < test.stepDeadline) {
+        interval = 16
+        start()
+        return
+      }
+      current.run()
       test.step++
       if (test.step < test.steps.length) {
         interval = test.steps[test.step].delay
+        test.stepDeadline = Date.now() + interval + 3000
         start()
       }
     }

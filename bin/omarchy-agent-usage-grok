@@ -209,14 +209,16 @@ def amount(value):
 # leaves out a field holding zero, so a period with nothing used yet has no
 # percentage at all. A unified-billing account leaves it out too, its usage
 # counted against the monthly quota instead, so it has no window here (None);
-# and a period already over without one says nothing about this one.
-def credits_limit(data):
+# and a period already over without one says nothing about this one. A
+# unified-billing account with no monthly quota yet has only this window,
+# read as 0% used (unified=False).
+def credits_limit(data, unified=True):
   config = data["config"]
   period = config["currentPeriod"]
   ends = parse_time(period["end"])
   used = config.get("creditUsagePercent")
   if used is None:
-    if config.get("isUnifiedBillingUser") is True:
+    if unified and config.get("isUnifiedBillingUser") is True:
       return None
     if ends.timestamp() <= time.time():
       raise ValueError("an ended period without a percentage")
@@ -287,7 +289,14 @@ def collect_limits(home, key, force):
     credits = open_json(urllib.request.Request(CREDITS_URL, headers=headers), timeout=8)
     weekly = credits_limit(credits)
     if weekly is None:
-      limits = [monthly_limit(open_json(urllib.request.Request(MONTHLY_URL, headers=headers), timeout=8))]
+      monthly = open_json(urllib.request.Request(MONTHLY_URL, headers=headers), timeout=8)
+      # A new unified-billing account answers a monthly quota of zero; its
+      # weekly window, with nothing used yet, is the limit it has. Any other
+      # answer that can't be read is no answer, keeping the last as stale.
+      if amount(monthly["config"]["monthlyLimit"]) <= 0:
+        limits = [credits_limit(credits, unified=False)]
+      else:
+        limits = [monthly_limit(monthly)]
     else:
       limits = [weekly]
       # A unified-billing account can carry both: the weekly credits and the
