@@ -15,7 +15,7 @@ fi
 if [[ -f $default_editor ]]; then
   read -r editor <"$default_editor"
 else
-  editor="nvim"
+  editor="plain"
 fi
 
 # sublime-text-4 ships `subl` on PATH, not `sublime_text`.
@@ -23,8 +23,21 @@ fi
 
 omarchy-cmd-present "$editor" || editor="nvim"
 
+# Plain is a window, so a session without a display (SSH, a TTY) edits in vi
+# instead, which every install has.
+[[ ${editor##*/} == plain && -z ${WAYLAND_DISPLAY:-} ]] && editor="vi"
+
 case "${editor##*/}" in
-nvim | vim | nano | micro | hx | helix | fresh)
+plain)
+  # Plain runs until its window closes, so $EDITOR (git commit, sudoedit)
+  # waits for it inline.
+  if [[ $inline == "true" ]]; then
+    exec "$editor" -- "$@"
+  else
+    exec setsid uwsm-app -- "$editor" -- "$@"
+  fi
+  ;;
+nvim | vim | vi | nano | micro | hx | helix | fresh)
   if [[ $inline == "true" ]]; then
     exec "$editor" -- "$@"
   else
