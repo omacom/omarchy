@@ -1,39 +1,43 @@
-# Viðskiptaforrit/þjónustur
+# Viðskiptaforrit/-þjónustur
 
-Omarchy leggur að mestu áherslu á að bjóða upp á ókeypis, opinn hugbúnað, en það er ekki trúarbrögð. Stundum er besta lausnin greidd þjónusta, og það er alveg í lagi. Hér eru nokkrir af þeim valkostum sem við bjóðum upp á einfalda uppsetningu fyrir.
+Omarchy einbeitir sér að mestu að því að bjóða upp á ókeypis, opinn hugbúnað, en er ekki trúarlegt í þeim efnum. Stundum er besta lausnin viðskiptatilboð, og það er alveg í lagi. Hér eru nokkrir af þeim valkostum sem við bjóðum upp á einfalda uppsetningu fyrir.
 
 ## 1Password
 
-Að geyma lykilorðin þín í lykilorðastjóra er góð venja. Tvöfalt svo ef þú vinnur með teymi. Og [1password](https://1password.com/) er frábær lausn, sem fylgir líka skipanalínutól til að samþætta uppflettingar á lyklum í forskriftum.
+Að geyma lykilorðin þín í lykilorðastjóra er góð venja. Tvöfalt svo ef þú vinnur með teymi. Og [1password](https://1password.com/) er frábær lausn, sem fylgir einnig skipanalínutól til að samþætta lykiluppflettingar í forskriftum.
 
-Þú ræsir 1Password með `Super + Shift + /`. Ef það er ekki þegar uppsett setur sá flýtilykill uppsetninguna fyrst í gang (þú getur líka notað _Install > Service > 1Password_ í Omarchy-valmyndinni). Uppsetningarforritið setur einnig upp 1Password-viðbótina fyrir Chromium.
+Þú ræsir 1Password með `Super + Shift + /`. Ef það er ekki þegar uppsett byrjar þessi flýtilykill uppsetninguna fyrst (þú getur líka notað _Install > Service > 1Password_ úr Omarchy-valmyndinni). Uppsetningarforritið sækir einnig 1Password skipanalínutólið og setur upp 1Password viðbótina fyrir Chrome og Chromium; endurræstu vafrann þinn til að hlaða henni inn.
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/) er opni valkosturinn á sviði lykilorðastjóra, með ókeypis áskriftarstigi sem dugar fyrir flesta persónulega notkun. Settu það upp með _Install > Service > Bitwarden_ í Omarchy-valmyndinni, sem setur einnig upp Bitwarden-skipanalínutólið.
+[Bitwarden](https://bitwarden.com/) er opni valkosturinn á sviði lykilorðastjóra, með ókeypis áskriftarstigi sem nær yfir flesta persónulega notkun. Settu það upp með _Install > Service > Bitwarden_ úr Omarchy-valmyndinni, sem sækir einnig Bitwarden skipanalínutólið.
 
 ## Spotify
 
-[Spotify](https://spotify.com/) er vinsælasta tónlistarstreymisþjónusta heims. Omarchy fylgir með henni sem vefforriti, sem gefur þér fullan spilara, miðlunarlykla og Spotify Connect, en ekki niðurhal án nettengingar. Ræstu hana með `Super + Shift + M`.
+[Spotify](https://spotify.com/) er vinsælasta tónlistarstreymisþjónusta heims. Omarchy fylgir með því sem vefforriti, sem gefur þér fullan spilara, fjölmiðlalykla og Spotify Connect, en ekki niðurhal án nettengingar. Ræstu það með `Super + Shift + M`.
 
 ## Slack
 
-[Slack](https://slack.com/) er þar sem mörg teymi spjalla, bæði innan fyrirtækisins og við utanaðkomandi samstarfsaðila. Settu það upp með _Install > Service > Slack_ í Omarchy-valmyndinni, og það opnast um leið og það er tilbúið.
+[Slack](https://slack.com/) er þar sem mörg teymi spjalla, bæði innan fyrirtækisins og við utanaðkomandi samstarfsaðila. Settu það upp með _Install > Service > Slack_ úr Omarchy-valmyndinni, og það opnast um leið og það er tilbúið.
+
+## Notion
+
+[Notion](https://www.notion.com/) er vinnusvæði fyrir glósur, skjöl og verkefni. Settu upp skjáborðsforrit þess með _Install > Service > Notion_ úr Omarchy-valmyndinni.
 
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/) er frábær leið til að samstilla skrár á milli véla um leið og þú geymir afrit í skýinu. Til að setja það upp skaltu velja _Install > Service > Dropbox_ í Omarchy-valmyndinni. Þegar það er komið í gang skaltu halda bendlinum yfir bakkann efst til hægri á stikunni og hægrismella á Dropbox-táknið til að ljúka uppsetningunni.
+[Dropbox](https://www.dropbox.com/) er frábær leið til að samstilla skrár á milli véla um leið og þú geymir öryggisafrit í skýinu. Til að setja það upp skaltu velja _Install > Service > Dropbox_ úr Omarchy-valmyndinni. Það bætir Dropbox-tákni við stikuna: smelltu á það til að skrá þig inn, notaðu síðan sama spjaldið til að athuga geymslurýmið þitt og opna nýlega samstilltar skrár.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) er möskva-VPN sem gerir það afar einfalt að fá öruggan aðgang að öllum tölvunum þínum og netþjónum í gegnum internetið. Til að setja það upp skaltu velja _Install > Service > Tailscale_ í Omarchy-valmyndinni.
+[Tailscale](https://tailscale.com/) er möskva-VPN sem gerir það ofureinfalt að fá öruggan aðgang að öllum tölvum þínum og netþjónum yfir internetið. Til að setja það upp skaltu velja _Install > Service > Tailscale_ úr Omarchy-valmyndinni.
 
-Það fær spjald á stikuna, vefforrit fyrir stjórnborðið og Taildrop til að senda skrár á milli vélanna þinna — sjá [netkerfi](35-networking.md).
+Það fær spjald á stikunni, vefforrit fyrir stjórnborðið og Taildrop til að senda skrár á milli véla þinna — sjá [netkerfi](35-networking.md).
 
 ## ONCE
 
-[ONCE](https://once.com/) er hugbúnaðarlína frá 37signals sem þú kaupir einu sinni og keyrir á þínum eigin netþjóni, eins og Campfire-spjallkerfið. Veldu _Install > Service > ONCE_ í Omarchy-valmyndinni til að setja það upp, sem virkjar bakgrunnsþjónustu þess og setur þig inn í ONCE-útstöðvarviðmótið til að halda áfram þaðan.
+[ONCE](https://once.com/) er hugbúnaðarlína 37signals sem þú kaupir einu sinni og keyrir á eigin netþjóni, eins og Campfire-spjallkerfið. Veldu _Install > Service > ONCE_ úr Omarchy-valmyndinni til að setja það upp, sem virkjar bakgrunnsþjónustu þess og fer með þig inn í ONCE-skjáviðmótið til að halda áfram þaðan.
 
 ## NordVPN
 
-[NordVPN](https://nordvpn.com/) er hefðbundin VPN-þjónusta sem gerir þér kleift að beina umferðinni þinni út frá flestum svæðum um allan heim. Til að setja hana upp skaltu velja _Install > Service > NordVPN_ í Omarchy-valmyndinni. Eftir endurræsinguna sem hún biður um skaltu keyra `nordvpn login` til að auðkenna þig.
+[NordVPN](https://nordvpn.com/) er venjuleg VPN-þjónusta sem gerir þér kleift að láta umferðina þína fara út frá flestum svæðum um allan heim. Til að setja hana upp skaltu velja _Install > Service > NordVPN_ úr Omarchy-valmyndinni. Eftir endurræsinguna sem hún biður um skaltu keyra `nordvpn login` til að auðkenna þig.

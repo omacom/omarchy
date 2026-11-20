@@ -93,7 +93,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/muse-bin"
           curl --fail --silent --show-error --location https://api.meta.ai/muse-launcher.sh --output "$RUNNER_TEMP/muse-bin/muse"
-          echo "c6db294799a190ca380da274beb3b9c0e160e0da9681a3d364ce8b0e5fa3a4bc  $RUNNER_TEMP/muse-bin/muse" | sha256sum --check
+          echo "ffb95b823e2a71f49ce98f9ddcb7cd7c731b77615aae9f5f253819c69453079f  $RUNNER_TEMP/muse-bin/muse" | sha256sum --check
           chmod +x "$RUNNER_TEMP/muse-bin/muse"
           MUSE_LAUNCHER_INSTALL=1 "$RUNNER_TEMP/muse-bin/muse"
           echo "MUSE_NO_AUTO_UPDATE=1" >> "$GITHUB_ENV"
@@ -269,7 +269,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/muse-bin"
           curl --fail --silent --show-error --location https://api.meta.ai/muse-launcher.sh --output "$RUNNER_TEMP/muse-bin/muse"
-          echo "c6db294799a190ca380da274beb3b9c0e160e0da9681a3d364ce8b0e5fa3a4bc  $RUNNER_TEMP/muse-bin/muse" | sha256sum --check
+          echo "ffb95b823e2a71f49ce98f9ddcb7cd7c731b77615aae9f5f253819c69453079f  $RUNNER_TEMP/muse-bin/muse" | sha256sum --check
           chmod +x "$RUNNER_TEMP/muse-bin/muse"
           MUSE_LAUNCHER_INSTALL=1 "$RUNNER_TEMP/muse-bin/muse"
           echo "MUSE_NO_AUTO_UPDATE=1" >> "$GITHUB_ENV"

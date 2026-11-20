@@ -269,6 +269,9 @@ machine() {
     vivobook-s16-not-qualcomm) vivobook_s16; FAKE_PLATFORM=aarch64 ;;
     omnibook-x14) dmi sys_vendor HP; dmi product_name "HP OmniBook X Laptop 14-fe0xxx"; FAKE_PLATFORM=aarch64-qualcomm ;;
     omnibook-x14-not-qualcomm) dmi sys_vendor HP; dmi product_name "HP OmniBook X Laptop 14-fe0xxx"; FAKE_PLATFORM=aarch64 ;;
+    zbook-ultra-g3a) dmi sys_vendor HP; dmi product_name "HP ZBook Ultra G3a 16 inch Mobile Workstation PC"; dmi product_family "103C_5336AN HP ZBook" ;;
+    # The Strix Halo ZBook before it shares the product family and is untested.
+    zbook-ultra-g1a) dmi sys_vendor HP; dmi product_name "HP ZBook Ultra G1a 14 inch Mobile Workstation PC"; dmi product_family "103C_5336AN HP ZBook" ;;
     ideacentre-mini) dmi sys_vendor LENOVO; dmi product_name 91B6001CUK; dmi product_family "IdeaCentre Mini 01Q8X10"; FAKE_PLATFORM=aarch64-qualcomm ;;
     ideacentre-mini-not-qualcomm) dmi sys_vendor LENOVO; dmi product_name 91B6001CUK; dmi product_family "IdeaCentre Mini 01Q8X10"; FAKE_PLATFORM=aarch64 ;;
     proart-pz13) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ProArt PZ13 HT5306QA_HT5306QA"; dmi product_family "ProArt PZ13"; FAKE_PLATFORM=aarch64-qualcomm ;;
@@ -287,6 +290,10 @@ machine() {
     galaxy-book4-edge-14) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="samsung,galaxy-book4-edge-14 samsung,galaxy-book4-edge qcom,x1e80100" ;;
     galaxy-book4-edge-14-not-qualcomm) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="samsung,galaxy-book4-edge-14 samsung,galaxy-book4-edge qcom,x1e80100" ;;
     galaxy-book4-edge-16) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="samsung,galaxy-book4-edge-16 samsung,galaxy-book4-edge qcom,x1e80100" ;;
+    raspberry-pi-4) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="raspberrypi,4-model-b brcm,bcm2711" ;;
+    raspberry-pi-4-first-boot) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="raspberrypi,4-model-b brcm,bcm2711"; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
+    # The Pi 5 has another SoC and is untested.
+    raspberry-pi-5) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="raspberrypi,5-model-b brcm,bcm2712" ;;
     zenbook-14-ux3480qa) dmi sys_vendor ASUS; dmi product_name "Zenbook 14 UX3480QA"; dmi product_family "Zenbook 14"; FAKE_PLATFORM=aarch64-qualcomm ;;
     zenbook-14-ux3480qa-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook 14 UX3480QA"; FAKE_PLATFORM=aarch64 ;;
     zenbook-a14-qa) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ASUS Zenbook A14 UX3407QA_UX3407QA"; dmi product_family "ASUS Zenbook A14"; FAKE_PLATFORM=aarch64-qualcomm ;;
@@ -345,10 +352,12 @@ run_leaf() {
     OMARCHY_GALAXY_BOOK4_EDGE_14_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_GALAXY_BOOK4_EDGE_14_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_GALAXY_BOOK4_EDGE_14_INITCPIO_INSTALL_DIR="$root/etc/initcpio/install" \
+    OMARCHY_RASPBERRY_PI_4_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
     OMARCHY_VIVOBOOK_S15_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_VIVOBOOK_S16_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_OMNIBOOK_X14_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_ZBOOK_ULTRA_G3A_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_IDEACENTRE_MINI_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_QUALCOMM_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_UX3480QA_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
@@ -383,8 +392,10 @@ leaves=(
   hardware/asus/fix-asus-vivobook-s15-boot.sh
   hardware/asus/fix-asus-vivobook-s16-boot.sh
   hardware/hp/fix-hp-omnibook-x14-boot.sh
+  hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh
   hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh
   hardware/samsung/galaxy-book4-edge-14.sh
+  hardware/raspberrypi/raspberry-pi-4.sh
   hardware/qualcomm/glymur-display.sh
   hardware/qualcomm/oem-firmware.sh
   hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh
@@ -476,6 +487,10 @@ hardware/asus/fix-asus-zenbook-a16-boot.sh|yoga-slim7x|0
 hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-14|0|pkg-add samsung-galaxy-book4-edge-14-support|wrote etc/mkinitcpio.conf.d/samsung-galaxy-book4-edge-14.conf|wrote etc/initcpio/install/samsung-galaxy-book4-edge-14|wrote etc/limine-entry-tool.d/samsung-galaxy-book4-edge-14.conf
 hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-14-not-qualcomm|0
 hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-16|0
+hardware/raspberrypi/raspberry-pi-4.sh|raspberry-pi-4|0|pkg-add raspberry-pi-4-bluetooth-firmware|wrote etc/limine-entry-tool.d/raspberry-pi-4.conf|wrote etc/udev/rules.d/70-raspberry-pi-4-ddc.rules
+# An image applies the DDC rule to the I2C devices its first boot already added.
+hardware/raspberrypi/raspberry-pi-4.sh|raspberry-pi-4-first-boot|0|pkg-add raspberry-pi-4-bluetooth-firmware|sudo udevadm control --reload|sudo udevadm trigger --action=add --subsystem-match=i2c-dev|wrote etc/limine-entry-tool.d/raspberry-pi-4.conf|wrote etc/udev/rules.d/70-raspberry-pi-4-ddc.rules
+hardware/raspberrypi/raspberry-pi-4.sh|raspberry-pi-5|0
 hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15|0|wrote etc/mkinitcpio.conf.d/vivobook-s15-initramfs.conf
 hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15+unreadable|0
 hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15-x-plus|0
@@ -489,6 +504,9 @@ hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14|0|wrote etc/mkinitcpio.conf
 hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14+unreadable|0
 hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14-not-qualcomm|0
 hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-ultra-14|0
+hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh|zbook-ultra-g3a|0|wrote etc/limine-entry-tool.d/hp-zbook-ultra-g3a.conf
+hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh|zbook-ultra-g3a+unreadable|0
+hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh|zbook-ultra-g1a|0
 hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh|ideacentre-mini|0|wrote etc/mkinitcpio.conf.d/ideacentre-mini-initramfs.conf
 hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh|ideacentre-mini+unreadable|0
 hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh|ideacentre-mini-not-qualcomm|0
