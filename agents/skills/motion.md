@@ -24,6 +24,7 @@ Every animation needs a reason: it shows where something came from or went, it c
 - Whatever leaves goes faster than it came, about two thirds of the time: panels open in 180ms and close in 120ms, notifications arrive in 250ms and leave in 200ms.
 - Text fading out under something fading in takes half the time of the fade in, or the two texts show at once.
 - Press feedback is 160ms.
+- An illustration is not UI motion. The welcome tour's wordmark (`shell/plugins/setup/Splash.qml`) and the scenes under `shell/plugins/setup/scenes/` are pictures someone has stopped to watch, so they run longer and loop. Their animations still take every duration from `Style.duration()`, the timers that step a scene stop under reduced motion so each rests on a finished frame, and nothing a key or a click does waits on them. Anything the user operates inside them (an option, a button, the card itself) follows the limits above.
 
 ## Patterns already in the shell
 

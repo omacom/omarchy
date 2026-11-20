@@ -18,6 +18,8 @@ removed, so an inline trailing comment breaks the parse. A file that fails to
 parse contributes no entries — a broken user extension silently drops every
 user entry while the shipped menu keeps working.
 
+Setup, the plugin behind _Setup > Welcome_, reads the same two files: its pages are the rows of the Setup menu and a few others, so a row added here appears there too. [`setup.md`](setup.md) covers which rows and how.
+
 ## Entry schema
 
 Entries are object keys. The dotted id is the tree: `trigger.share.file` is a
