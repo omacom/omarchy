@@ -449,8 +449,8 @@ pass "shell IPC returns effective shell config"
 
 [[ $(scratch_ipc shell summon omarchy.menu '{"menu":"apps"}') == "ok" ]] || fail_with_log "shell IPC summons menu apps overlay"
 scratch_ipc_quiet shell hide omarchy.menu >/dev/null
-[[ $(scratch_ipc shell summon omarchy.menu '{"menu":"no-such-route"}') == "unknown" ]] || fail_with_log "shell IPC rejects unknown menu route on summon"
-[[ $(scratch_ipc shell toggle omarchy.menu '{"menu":"no-such-route"}') == "unknown" ]] || fail_with_log "shell IPC rejects unknown menu route on toggle"
+[[ $(scratch_ipc shell summon omarchy.menu '{"menu":"no-such-route"}') == "refused" ]] || fail_with_log "shell IPC refuses unknown menu route on summon"
+[[ $(scratch_ipc shell toggle omarchy.menu '{"menu":"no-such-route"}') == "refused" ]] || fail_with_log "shell IPC refuses unknown menu route on toggle"
 menu_rc=0
 menu_err=$(HOME="$SCRATCH_HOME" OMARCHY_PATH="$SCRATCH_ROOT" PATH="$SCRATCH_ROOT/bin:$PATH" \
   "$SCRATCH_ROOT/bin/omarchy-menu" summon no-such-route 2>&1 >/dev/null) || menu_rc=$?
@@ -854,18 +854,18 @@ jq -e '.currentAllowed == false and .retainedAllowed == false' \
 }
 pass "manifest reload revokes cached facade capabilities"
 
-# Unknown routes must never report ok while the menu is reloading or before its
-# component finishes mounting, and valid routes must succeed once reloaded.
+# A summon straight after a plugin reload is queued until the menu mounts
+# again, and an unknown route is still refused once it has.
 scratch_ipc_quiet shell reloadPlugins >/dev/null
-[[ $(scratch_ipc shell summon omarchy.menu '{"menu":"no-such-route"}' 2>/dev/null || true) != "ok" ]] ||
-  fail_with_log "unknown menu route reported ok while menu was reloading"
-reloaded_system=""
+[[ $(scratch_ipc shell summon omarchy.menu '{"menu":"system"}') == "ok" ]] ||
+  fail_with_log "valid menu route summoned straight after plugin reload"
+menu_mounted=""
 for _ in {1..80}; do
-  [[ $(scratch_ipc shell summon omarchy.menu '{"menu":"system"}' 2>/dev/null || true) == "ok" ]] && { reloaded_system=1; break; }
+  [[ $(scratch_ipc shell call omarchy.menu ping "{}" 2>/dev/null || true) == "ok" ]] && { menu_mounted=1; break; }
   sleep 0.1
 done
-[[ -n $reloaded_system ]] || fail_with_log "valid menu route opens after plugin reload"
+[[ -n $menu_mounted ]] || fail_with_log "menu mounts after plugin reload"
 scratch_ipc_quiet shell hide omarchy.menu >/dev/null
-[[ $(scratch_ipc shell summon omarchy.menu '{"menu":"no-such-route"}') == "unknown" ]] ||
-  fail_with_log "unknown menu route stays rejected after plugin reload"
+[[ $(scratch_ipc shell summon omarchy.menu '{"menu":"no-such-route"}') == "refused" ]] ||
+  fail_with_log "unknown menu route stays refused after plugin reload"
 pass "menu route validation holds across plugin reload"

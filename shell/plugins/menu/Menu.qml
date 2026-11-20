@@ -1056,11 +1056,11 @@ Item {
     var id = root.resolveRoute(initialMenu)
     if (!id || !root.items[id]) {
       console.warn("openRoute: unknown menu route:", initialMenu)
-      return "error: unknown menu route '" + initialMenu + "'"
+      return "refused"
     }
     var entry = root.items[id]
     // If the resolved id is an action (i.e. the user invoked an alias for
-    // a leaf, e.g. `omarchy menu summon screenrecord-stop`), run it directly
+    // a leaf, e.g. `omarchy menu summon reminder-set`), run it directly
     // instead of opening an action with no children.
     if (entry.kind === "action" && entry.action) {
       root.cancel()
@@ -1072,7 +1072,7 @@ Item {
       id = entry.target
       if (!root.items[id]) {
         console.warn("openRoute: unknown menu route:", initialMenu)
-        return "error: unknown menu route '" + initialMenu + "'"
+        return "refused"
       }
     }
     root.pendingInitialMenu = id

@@ -17,21 +17,13 @@ menu_payload() {
 }
 
 case "$verb" in
-  toggle)
-    output=$(omarchy-shell shell toggle omarchy.menu "$(menu_payload "$route")") || exit $?
-    if [[ -n $output ]]; then echo "$output"; fi
-    if [[ $output == "unknown" ]]; then
+  toggle | summon)
+    output=$(omarchy-shell shell "$verb" omarchy.menu "$(menu_payload "$route")") || exit $?
+    if [[ $output == "refused" ]]; then
       echo "omarchy-menu: unknown menu route '$route'." >&2
       exit 2
     fi
-    ;;
-  summon)
-    output=$(omarchy-shell shell summon omarchy.menu "$(menu_payload "$route")") || exit $?
     if [[ -n $output ]]; then echo "$output"; fi
-    if [[ $output == "unknown" ]]; then
-      echo "omarchy-menu: unknown menu route '$route'." >&2
-      exit 2
-    fi
     ;;
   close)
     exec omarchy-shell shell hide omarchy.menu

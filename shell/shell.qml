@@ -1188,44 +1188,43 @@ ShellRoot {
   }
 
   function summon(pluginId, payloadJson) {
+    return summonStatus(pluginId, payloadJson) === "ok"
+  }
+
+  // "ok", "unknown" for an unknown, disabled or unavailable plugin, or
+  // "refused" when the plugin's open() returned "refused" for the payload.
+  function summonStatus(pluginId, payloadJson) {
     var id = shell.pluginRegistry.resolveEnabledId(pluginId)
-    if (!id) return false
+    if (!id) return "unknown"
     var plugins = shell.pluginRegistry.installedPlugins
     if (!plugins[id]) {
       console.warn("summon: unknown plugin", id)
-      return false
+      return "unknown"
     }
     // A disabled plugin has no Loader, so setting openPanelIds would only
     // produce an invisible "open" state that toggle() then has to unwind.
     // Tell the caller plainly instead of silently no-op'ing.
     if (!shell.pluginRegistry.isEnabled(id)) {
       console.warn("summon: plugin not enabled, not summoning:", id)
-      return false
+      return "unknown"
     }
     // Bar widgets take no payload; payloadJson is dropped on this path.
     if (shell.isBarWidgetPanelPlugin(id)) {
       var summoned = shell.bar && typeof shell.bar.summonBarWidget === "function"
         && shell.bar.summonBarWidget(id)
       if (!summoned) console.warn("summon: no live bar widget for:", id)
-      return summoned === true
+      return summoned === true ? "ok" : "unknown"
     }
-    var isMenu = !!(plugins[id].kinds && plugins[id].kinds.indexOf("menu") !== -1)
     var wasOpen = openPanelIds[id] === true
     var next = ({})
     for (var k in openPanelIds) next[k] = openPanelIds[k]
     next[id] = true
     openPanelIds = next
 
-    // Menu plugins validate their route inside open(). Do not report success
-    // until the component is mounted and has checked the request.
-    if (isMenu && !ensurePanelLoaded(id)) {
-      if (!wasOpen) {
-        var unloaded = ({})
-        for (var u in openPanelIds) if (u !== id) unloaded[u] = openPanelIds[u]
-        openPanelIds = unloaded
-      }
-      return false
-    }
+    // Menu plugins validate their route inside open(), so mount the menu now
+    // to answer with its verdict. While plugins reload there is no Loader yet;
+    // the payload is queued and delivered once it registers.
+    if (plugins[id].kinds && plugins[id].kinds.indexOf("menu") !== -1) ensurePanelLoaded(id)
 
     // Stash payload so the Loader.onLoaded handler can hand it to open().
     var pending = ({})
@@ -1235,18 +1234,18 @@ ShellRoot {
     pending[id] = queue
     pendingPayloads = pending
 
-    // If the plugin is keepLoaded and already mounted, deliver immediately.
-    // A plugin that refuses the payload (a string starting with "error")
-    // was not summoned, so undo the open state it was just given.
+    // If the plugin is already mounted, deliver immediately. A plugin that
+    // refused the payload was not summoned, so undo the open state it was
+    // just given.
     if (!deliverIfLoaded(id)) {
       if (!wasOpen) {
         var closed = ({})
         for (var c in openPanelIds) if (c !== id) closed[c] = openPanelIds[c]
         openPanelIds = closed
       }
-      return false
+      return "refused"
     }
-    return true
+    return "ok"
   }
 
   function hide(pluginId) {
@@ -1280,8 +1279,13 @@ ShellRoot {
   }
 
   function toggle(pluginId, payloadJson) {
+    return toggleStatus(pluginId, payloadJson) === "ok"
+  }
+
+  function toggleStatus(pluginId, payloadJson) {
     var id = shell.pluginRegistry.resolveEnabledId(pluginId)
-    return isPluginOpen(id) ? hide(id) : summon(id, payloadJson)
+    if (isPluginOpen(id)) return hide(id) ? "ok" : "unknown"
+    return summonStatus(id, payloadJson)
   }
 
   // Map of pluginId -> Loader, populated by the Instantiator delegate below.
@@ -1298,13 +1302,11 @@ ShellRoot {
   }
 
   function ensurePanelLoaded(pluginId) {
-    if (panelLoaders[pluginId] && panelLoaders[pluginId].item) return true
+    if (panelLoaders[pluginId] && panelLoaders[pluginId].item) return
     var loader = findPanelLoader(pluginId)
-    if (!loader) return false
     // Finish loading synchronously so summon() can deliver the payload and
     // inspect open()'s return value before replying to the caller.
-    loader.asynchronous = false
-    return !!(panelLoaders[pluginId] && panelLoaders[pluginId].item)
+    if (loader) loader.asynchronous = false
   }
 
   function registerPanelLoader(pluginId, loader) {
@@ -1334,6 +1336,7 @@ ShellRoot {
     openPanelIds = ({})
   }
 
+  // False when the plugin's open() returned "refused" for a queued payload.
   function deliverIfLoaded(pluginId) {
     var loader = panelLoaders[pluginId]
     if (!loader || !loader.item) return true
@@ -1343,8 +1346,7 @@ ShellRoot {
     if (typeof loader.item.open === "function") {
       for (var i = 0; i < queue.length; i++) {
         try {
-          var result = loader.item.open(queue[i])
-          if (typeof result === "string" && result.indexOf("error") === 0) delivered = false
+          if (loader.item.open(queue[i]) === "refused") delivered = false
         } catch (e) {
           console.warn("plugin " + pluginId + " open() threw:", e)
         }
@@ -2031,7 +2033,7 @@ ShellRoot {
     }
 
     function summon(id: string, payloadJson: string): string {
-      return shell.summon(id, payloadJson) ? "ok" : "unknown"
+      return shell.summonStatus(id, payloadJson)
     }
 
     function hide(id: string): void {
@@ -2039,7 +2041,7 @@ ShellRoot {
     }
 
     function toggle(id: string, payloadJson: string): string {
-      return shell.toggle(id, payloadJson) ? "ok" : "unknown"
+      return shell.toggleStatus(id, payloadJson)
     }
 
     // A bar section's panels answer to their position as well as their id, so a
