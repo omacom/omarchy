@@ -2,11 +2,11 @@
 
 ## Files
 
-Files (Nautilus) is the graphical file manager. `Super + Shift + F` opens it, and `Super + Shift + Alt + F` opens it in the directory your terminal is sitting in, which saves a lot of clicking. `Ctrl + L` lets you type a path, and hitting `Space` on any file gives you a quick preview without opening anything.
+Files (Folio) is the graphical file manager. `Super + Shift + F` opens it, and `Super + Shift + Alt + F` opens it in the directory your terminal is sitting in, which saves a lot of clicking. `Ctrl + L` lets you type a path, and hitting `Space` on any file previews it at full size without opening it.
 
 Plug in a USB stick or an SD card and it's mounted automatically, so it just shows up in the sidebar. For anything more involved — formatting a drive, checking SMART health, creating partitions — launch _Disks_ from the app launcher (`Super + Space`).
 
-Double-clicking follows sensible defaults: images open in imv, video in mpv, PDFs in Document Viewer, and plain text in Neovim.
+Double-clicking follows sensible defaults: pictures, videos, and music open in Omaview, PDFs in Document Viewer, Markdown in Omawrite, and plain text in your editor, Plain unless you pick another under _Setup > Defaults > Editor_.
 
 ## Disktree
 
@@ -53,7 +53,7 @@ You can open the Share menu on `Super + Ctrl + S` or under _Trigger > Share_ in 
 
 The same thing works from the terminal with `omarchy share clipboard`, `omarchy share file [path]`, and `omarchy share folder [path]`. Leave the path off and you get the picker.
 
-You can also send straight from the file manager: right-click any selection in Nautilus and pick _Send via LocalSend_.
+You can also send straight from the file manager: right-click any selection in Files and share it with LocalSend.
 
 Omarchy's firewall is closed by default except for LocalSend's port, so this works out of the box on a fresh install. See [security](48-security.md).
 
@@ -75,6 +75,12 @@ You start Hype via the application launcher (`Super + Space`). Press `?` inside 
 
 You start Signed via the application launcher (`Super + Space`), or open a PDF with it from the file manager.
 
+## Game Vibes
+
+Game Vibes, in the application launcher (`Super + Space`), is where Omarchy's little games live: Checkmate, a 3D chess game against a friend or the built-in opponent; Cards, Klondike solitaire; Death Wish, a pixel-precise platformer of ten rooms full of spikes and saws; and Neon Swarm, an arcade shooter. Each is a single web page that follows your theme. Pick one with the arrows and `Enter`, and come back to the list with `Esc` from a game's title screen or `Q` while it's paused. It opens full screen: `Super + F` makes it a window, and `Super + W` closes it.
+
+The games you make with an agent show up here too: choose _Make something cool → Game_ in the agents panel and describe one, or name a game already in Game Vibes to keep working on it. The agent copies it into `~/Games/vibes`, where it's yours to change, and opens it when it's done. You can make that copy yourself with `omarchy games vibes copy <game>`. A game someone else shares installs like a theme: choose _Install > Gaming > Game Vibes_ and paste its git address, or run `omarchy games vibes install <git-repo-url>`. _Remove > Gaming_ takes one out again, and _Update > Game Vibes Games_ fetches new versions. Games load three.js from the web, so they need a connection to start.
+
 ## Omacalc
 
 [Omacalc](https://github.com/omacom-io/omacalc) is Omarchy's own dead-simple calculator, which opens in a floating window.
@@ -87,11 +93,13 @@ You start Omacalc with `Super + Shift + Q` (or the calculator key, if your keybo
 
 You start Signal with `Super + Shift + G`. It's not part of the base install, so the first time you hit that, Omarchy will offer to install it for you (it's also under _Install > Service_ in the Omarchy menu).
 
-## mpv
+## Omaview
 
-[mpv](https://mpv.io/) is a simple, fast media player that'll play almost anything from any source. Great for watching videos.
+[Omaview](https://github.com/omacom/omaview) is Omarchy's own dead-simple picture viewer and media player: one window for your photos, videos, and music. Open a photo and the arrow keys step through the rest of its folder, `N` and `P` do it for anything, and `Ctrl + M` shows the whole folder as a grid. It shows HEIC, AVIF, and JPEG XL photos too, and picks up where you left off in anything long.
 
-You start mpv via the application launcher (`Super + Space`) or just double-click on a video in the file manager.
+Press `F` for fullscreen, `E` to edit a picture in Omasnap or trim a video in Omacut, `Ctrl + P` to print a picture, and `Delete` to move a file to the Trash (`Ctrl + Z` brings it back). Press `?` inside it to see every shortcut.
+
+You start Omaview as _Media Viewer_ via the application launcher (`Super + Space`), or just double-click a picture, video, or song in the file manager.
 
 ## Omacut
 
