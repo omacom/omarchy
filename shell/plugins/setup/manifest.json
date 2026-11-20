@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.setup",
+  "name": "Setup",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "The welcome tour, and pages that show what each row of the Setup menu does",
+  "kinds": [
+    "overlay"
+  ],
+  "entryPoints": {
+    "overlay": "Setup.qml"
+  }
+}
