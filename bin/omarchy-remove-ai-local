@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Local AI's models, containers, engine images, weights and settings
+# omarchy:requires-sudo=true
+
+set -e
+
+echo "Removing Local AI's models, containers, engine images and weights..."
+omarchy-local-ai remove
+echo "Done. The mark stays in the bar until you take it off; clicking it starts over."
