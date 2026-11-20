@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy wird normalerweise über die Tastenkürzel und das Omarchy-Menü (`Super + Space`) gesteuert. Aber du kannst es auch über die `omarchy`-CLI steuern. Das ist besonders hilfreich, wenn ein KI-Agent mit dir an Anpassung oder Konfiguration arbeitet.
+Omarchy wird üblicherweise über die Hotkeys und das Omarchy-Menü (`Super + Space`) gesteuert. Du kannst es aber auch über die `omarchy` CLI steuern. Das ist besonders hilfreich, wenn ein KI-Agent mit dir an Anpassungen oder an der Konfiguration arbeitet.
 
-Die CLI hat Zugriff auf alle internen Werkzeuge, die sowohl über das Menü als auch anderweitig verwendet werden. Du kannst alles sehen, was verfügbar ist, indem du `omarchy` im Terminal ausführst.
+Die CLI hat Zugriff auf alle internen Tools, die sowohl über das Menü als auch anderweitig verwendet werden. Du kannst alles sehen, was verfügbar ist, indem du `omarchy` im Terminal ausführst.
 
-Es sieht ungefähr so aus:
+Das sieht ungefähr so aus:
 
 ```
 ~ ❯ omarchy
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,12 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-Und du kannst bei jeder Gruppe tiefer eintauchen:
+Für die Diagnose führst du `omarchy-debug --no-sudo --print` direkt aus. Er gibt Diagnosedaten aus und schreibt `/tmp/omarchy-debug.log`, ohne nach sudo zu fragen, auch bei Paketinstallationen, bei denen `omarchy debug` mit "Unknown Omarchy command" fehlschlagen kann.
+
+Und in jede Gruppe kannst du tiefer eintauchen:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Jeder Befehl akzeptiert auch `--help`, egal ob du eine ganze Gruppe fragst (`omarchy capture --help`) oder einen einzelnen Befehl (`omarchy capture screenshot --help`).
+Jeder Befehl akzeptiert auch `--help`, egal ob du eine ganze Gruppe abfragst (`omarchy capture --help`) oder einen einzelnen Befehl (`omarchy capture screenshot --help`).
 
-### Das Menü vom Terminal aus öffnen
+### Das Menü über das Terminal öffnen
 
-Das Omarchy-Menü ist ebenfalls skriptbar, was für deine eigenen Tastenzuordnungen praktisch ist. `omarchy menu` öffnet es an der Wurzel, und du kannst direkt zu jedem Punkt im Baum springen, indem du ihn benennst: `omarchy menu summon style.theme` geht direkt zur Design-Auswahl, `omarchy menu toggle system` öffnet das Systemmenü und schließt es wieder, wenn es bereits offen ist, und `omarchy menu close` räumt es weg.
+Das Omarchy-Menü ist ebenfalls skriptbar, was für deine eigenen Tastenkombinationen praktisch ist. `omarchy menu` öffnet es auf der obersten Ebene, und du kannst direkt zu jeder Stelle im Baum springen, indem du sie benennst: `omarchy menu summon appearance.theme` führt direkt zur Theme-Auswahl, `omarchy menu toggle system` öffnet das Systemmenü und schließt es wieder, wenn es bereits geöffnet ist, und `omarchy menu close` schließt es.

@@ -175,12 +175,10 @@ touch "$seed/openclaw.tgz"
 # Scratch copies of the actual scripts, with only the package's path and
 # /usr/local/bin swapped.
 mkdir -p "$test_tmp/usr-local-bin"
-for script in bin/omarchy-install-openclaw-cli migrations/1792334754.sh migrations/1790397381.sh; do
+for script in bin/omarchy-install-openclaw-cli; do
   sed -e "s|/usr/share/openclaw|$seed|g" -e "s|/usr/local/bin|$test_tmp/usr-local-bin|g" -e "s|/usr/bin/openclaw|$test_tmp/usr-bin/openclaw|g" \
     "$ROOT/$script" >"$mock_bin/${script##*/}"
 done
-mv "$mock_bin/1792334754.sh" "$test_tmp/migration.sh"
-mv "$mock_bin/1790397381.sh" "$test_tmp/retired-migration.sh"
 chmod +x "$mock_bin/omarchy-install-openclaw-cli"
 
 new_home() {
@@ -768,88 +766,3 @@ run omarchy-install-openclaw-cli --now || fail "--now leaves a script of the use
 ! grep -q "install --force\|^systemctl" "$events" && cmp -s "$test_tmp/own-unit" "$test_home/.config/systemd/user/openclaw-gateway.service" ||
   fail "--now leaves a script of the user's alone" "$(cat "$events")"
 pass "a gateway the user runs on Bun, or a script of their own on /usr/bin/node, is left alone"
-
-# The migration moves only machines that have the package, once it is the seed.
-new_home migration-none
-run bash -euo pipefail "$test_tmp/migration.sh" || fail "a machine without OpenClaw has nothing to move" "$(cat "$test_tmp/output")"
-[[ ! -s $events && ! -e $test_home/.openclaw ]] || fail "a machine without OpenClaw is untouched" "$(cat "$events")"
-
-new_home migration-old
-touch "$test_tmp/package-installed"
-mv "$seed" "$seed.old"
-run bash -euo pipefail "$test_tmp/migration.sh" || fail "an old package does not stop the update" "$(cat "$test_tmp/output")"
-[[ ! -s $events && ! -e $test_home/.openclaw ]] || fail "an old package leaves the home untouched" "$(cat "$events")"
-mv "$seed.old" "$seed"
-
-new_home migration
-touch "$test_tmp/package-installed"
-mkdir -p "$test_home/.config/systemd/user"
-printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$test_home/.config/systemd/user/openclaw-gateway.service"
-run bash -euo pipefail "$test_tmp/migration.sh" || fail "the migration moves OpenClaw" "$(cat "$test_tmp/output")"
-grep -q "^install-cli " "$events" && grep -Fxq "runtime gateway install --force" "$events" ||
-  fail "the migration seeds the runtime and moves the gateway to it" "$(cat "$events")"
-[[ $(readlink -- "$command") == "$runtime" ]] || fail "the migration points the command at the runtime"
-sed -n 's/^ExecStart=\([^ ]*\).*/\1/p' "$test_home/.config/systemd/user/openclaw-gateway.service" | grep -qx "$test_home/.openclaw/tools/node-v24.19.0/bin/node" ||
-  fail "the migration leaves the gateway on the runtime's own Node, not the old package's system Node" "$(cat "$test_home/.config/systemd/user/openclaw-gateway.service")"
-
-new_home migration-broken
-touch "$test_tmp/package-installed"
-OMARCHY_TEST_INSTALL_BROKEN=1 run bash -euo pipefail "$test_tmp/migration.sh" && fail "a migration whose setup failed stays pending"
-pass "the migration moves a packaged OpenClaw to its runtime once the package is the seed"
-
-# An OpenClaw of the user's own in the way is theirs to move aside. The
-# migration changes nothing and finishes, so it does not stop every update.
-for case in command path gateway; do
-  new_home "migration-own-$case"
-  touch "$test_tmp/package-installed"
-  case $case in
-  command)
-    printf '#!/bin/bash\necho mine\n' >"$command"
-    chmod +x "$command"
-    ;;
-  path)
-    printf '#!/bin/bash\n' >"$test_tmp/usr-bin/openclaw"
-    chmod +x "$test_tmp/usr-bin/openclaw"
-    ;;
-  gateway)
-    mkdir -p "$test_home/.config/systemd/user"
-    printf 'ExecStart=/opt/node %s/openclaw/dist/index.js gateway\n' "$test_home" >"$test_home/.config/systemd/user/openclaw-gateway.service"
-    ;;
-  esac
-  run bash -euo pipefail "$test_tmp/migration.sh" ||
-    fail "an OpenClaw of the user's own does not stop the update ($case)" "$(cat "$test_tmp/output")"
-  grep -q "Leaving OpenClaw as it is" "$test_tmp/output" || fail "the migration says it left OpenClaw alone ($case)" "$(cat "$test_tmp/output")"
-  ! grep -q '^install-cli' "$events" && [[ ! -e $test_home/.openclaw ]] ||
-    fail "the migration sets nothing up beside an OpenClaw of the user's own ($case)" "$(cat "$events")"
-  rm -f "$test_tmp/usr-bin/openclaw"
-done
-grep -q mine "$test_home/../migration-own-command/.local/bin/openclaw" || fail "the user's own command is kept"
-pass "an OpenClaw of the user's own leaves the migration finished and changes nothing"
-
-new_home migration-update
-touch "$test_tmp/package-installed"
-mkdir -p "$test_home/.config/systemd/user"
-printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$test_home/.config/systemd/user/openclaw-gateway.service"
-run_update bash -euo pipefail "$test_tmp/migration.sh" || fail "the migration finishes under omarchy update" "$(cat "$test_tmp/output")"
-grep -q "^install-cli " "$events" && [[ $(readlink -- "$command") == "$runtime" ]] ||
-  fail "the migration under omarchy update seeds the runtime and links the command" "$(cat "$events")"
-pass "the migration finishes under omarchy update, whose PATH has no ~/.local/bin"
-
-# 4.0.5 shipped the move as 1790397381 before the seed package and it stopped
-# every update (#15804), so that one now finishes everywhere and changes nothing.
-# The move is a migration of its own, which a machine that marked the old one
-# done still runs.
-for case in none old seeded; do
-  new_home "retired-$case"
-  [[ $case == none ]] || touch "$test_tmp/package-installed"
-  [[ $case != old ]] || mv "$seed" "$seed.old"
-  mkdir -p "$test_home/.config/systemd/user"
-  printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$test_home/.config/systemd/user/openclaw-gateway.service"
-  cp "$test_home/.config/systemd/user/openclaw-gateway.service" "$test_tmp/packaged-unit"
-  run bash -euo pipefail "$test_tmp/retired-migration.sh" || fail "the retired migration finishes ($case)" "$(cat "$test_tmp/output")"
-  [[ ! -s $events && ! -e $test_home/.openclaw ]] || fail "the retired migration changes nothing ($case)" "$(cat "$events")"
-  cmp -s "$test_tmp/packaged-unit" "$test_home/.config/systemd/user/openclaw-gateway.service" ||
-    fail "the retired migration leaves the packaged gateway alone ($case)"
-  [[ $case != old ]] || mv "$seed.old" "$seed"
-done
-pass "the retired migration finishes without moving OpenClaw, with or without the seed package"

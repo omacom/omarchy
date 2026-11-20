@@ -1,39 +1,39 @@
-# TUI-ји
+# TUIs
 
 ## Lazygit
 
-[Lazygit](https://github.com/jesseduffield/lazygit) је дивна алтернатива нечему попут GitHub Desktop апликације, а ради унутар терминала.
+[Lazygit](https://github.com/jesseduffield/lazygit) je divna alternativa nečemu poput aplikacije GitHub Desktop, i radi unutar terminala.
 
-Можете га покренути директно, одласком у било који директоријум којим управља git и покретањем `lazygit`. Или га можете покренути унутар Neovim-а где се покреће помоћу `Space G G`.
+Možete je pokrenuti direktno, tako što ćete otići u bilo koji direktorijum kojim upravlja git i pokrenuti `lazygit`. Ili je možete pokrenuti unutar Neovim-a gde se može pokrenuti pomoću `Space G G`.
 
-Између различитих панела скачете помоћу `Tab`. У панелу Files бирате датотеке за staging помоћу `Space`, а затим можете направити нови commit помоћу `c`. Све доступне команде можете видети помоћу `?`.
+Preskačete između različitih panela pomoću `Tab`. U panelu Files, birate datoteke za pripremu korišćenjem `Space`, a zatim možete kreirati novi commit pomoću `c`. Sve dostupne komande možete videti pomoću `?`.
 
 ## Btop
 
-[Btop](https://github.com/aristocratos/btop) је леп менаџер ресурса који приказује меморију, CPU, диск и коришћење мреже. Такође листа све активне процесе и омогућава вам да управљате њима.
+[Btop](https://github.com/aristocratos/btop) je prelep menadžer resursa koji prikazuje korišćenje memorije, CPU-a, diska i mreže. Takođe navodi sve aktivne procese i omogućava vam da njima upravljate.
 
-Omarchy га назива Activity, а покрећете га притиском на `Super + Ctrl + T`. Отвара се као плутајући прозор, који можете поплочити помоћу `Super + T`.
+Omarchy ga naziva Activity Monitor, i pokrećete ga iz pokretača aplikacija ili pritiskom na `Super + Shift + T`. Otvara se kao plutajući prozor, koji možete postaviti u pločice pomoću `Super + T`.
 
 ## Herdr
 
-[Herdr](https://github.com/omacom-io/herdr) је менаџер терминалског радног простора који вам даје радне просторе, картице и панеле и држи их све у трајној сесији од које се можете одвојити и вратити касније.
+[Herdr](https://github.com/omacom-io/herdr) je menadžer radnog prostora za terminal koji vam daje radne prostore, kartice i panele, i održava ih sve aktivnim u trajnoj sesiji iz koje se možete odvojiti i kojoj se kasnije možete vratiti.
 
-Покрећете га (или се поново повезујете на постојећу сесију) помоћу `Super + Ctrl + Return`. Omarchy долази са Herdr конфигурацијом која одражава његову Tmux конфигурацију, па је префикс тастер и овде `Ctrl + Space`. Све пречице можете прегледати помоћу `Super + Ctrl + K`.
+Pokrećete ga (ili se ponovo povezujete na postojeću sesiju) iz pokretača aplikacija ili pomoću `Super + Ctrl + Return`. Omarchy isporučuje Herdr konfiguraciju koja odražava njegovu Tmux konfiguraciju, tako da je ovde prefiksni taster takođe `Ctrl + Space`. Sve prečice na tastaturi možete pregledati pomoću `Super + Ctrl + K`.
 
 ## Fastfetch
 
-[Fastfetch](https://github.com/fastfetch-cli/fastfetch) приказује информације о систему, попут верзије кернела, времена рада, теме, CPU-а, меморије и још много тога. Наследник је популарног алата neofetch.
+[Fastfetch](https://github.com/fastfetch-cli/fastfetch) prikazuje sistemske informacije, kao što su verzija kernela, vreme rada, tema, CPU, memorija i još mnogo toga. Naslednik je popularnog alata neofetch.
 
-Omarchy је ово упаковао као _О програму_ у Omarchy менију (`Super + Space`).
+Omarchy je ovo upakovao kao _System > About_ u Omarchy meniju (`Super + Space`).
 
 ## Cliamp
 
-[Cliamp](https://www.cliamp.stream/) је ретро терминалски музички плејер инспирисан Winamp-ом 2.x, заједно са уграђеним радио станицама за lo-fi битове. Покрените га помоћу `Super + Shift + Alt + M` или из Omarchy менија под _Апликације_. Притисните `?` за пун списак пречица.
+[Cliamp](https://www.cliamp.stream/) je retro muzički plejer za terminal inspirisan Winamp-om 2.x, kompletan sa ugrađenim radio stanicama za lo-fi bitove. Pokrenite ga pomoću `Super + Shift + Alt + M`, ili iz Omarchy menija pod _Apps_. Pritisnite `?` za potpunu listu prečica na tastaturi.
 
-## Шта је са Wi-Fi-јем и Bluetooth-ом?
+## Šta je sa Wi-Fi-jem i Bluetooth-om?
 
-Нећете наћи TUI-је за Wi-Fi и Bluetooth — ти послови припадају Omarchy љусци. Кликните на Wi-Fi икону у горњој траци (или притисните `Super + Ctrl + W`) да видите мреже и повежете се, а кликните на Bluetooth икону (или притисните `Super + Ctrl + B`) да упарите и повежете уређаје. Погледајте [мреже](35-networking.md) за целу причу.
+Nećete naći TUI-je za Wi-Fi i Bluetooth — ti poslovi pripadaju Omarchy ljusci. Kliknite na ikonu Wi-Fi-ja u gornjoj traci (ili pritisnite `Super + Ctrl + N`) da vidite mreže i povežete se, i kliknite na ikonu Bluetooth-a (ili pritisnite `Super + Ctrl + B`) da uparite i povežete uređaje. Pogledajte [mrežno povezivanje](35-networking.md) za celu priču.
 
-## Додавање сопствених
+## Dodavanje sopstvenih
 
-Било који терминалски програм може добити пун третман апликације. Идите на _Инсталирај > TUI_ у Omarchy менију (`Super + Space`), дајте му име, команду за покретање, стил прозора и икону и појавиће се у покретачу апликација као и свака друга апликација. Можете га поново уклонити под _Уклони > TUI_.
+Bilo koji terminalski program može dobiti pun tretman aplikacije. Idite na _Install > TUI_ u Omarchy meniju (`Super + Space`), dajte mu ime, komandu za pokretanje, stil prozora i ikonu, i pojaviće se u pokretaču aplikacija kao i svaka druga aplikacija. Možete ga ponovo ukloniti pod _Remove > TUI_.

@@ -1,24 +1,27 @@
 # Ühtne lõikelaud ja ajalugu
 
-Tavaliselt on Linuxil vaja `Ctrl + Shift + C/V`, et terminalis kopeerida ja kleepida, ja `Ctrl + C/V`, et teha seda kõikjal mujal. Sellega on raske harjuda igaühel, kes pole Linuxil sündinud ja kasvanud! Nii on ka üleminek superilt ctrl-ile, kui tuled Macilt.
+Tavaliselt pead Linuxis terminalis kopeerimiseks ja kleepimiseks kasutama `Ctrl + Shift + C/V` ning kõikjal mujal `Ctrl + C/V`. Sellega on raske harjuda kõigil, kes ei ole Linuxi peal sündinud ja üles kasvanud! Sama raske on ka üleminek Super-klahvilt Ctrl-klahvile, kui tuled Maci pealt.
 
-Omarchy lahendab mõlemad probleemid ühtsete lõikelaua kiirklahvidega, mis toimivad (peaaegu) kõikjal. Need on:
+Omarchy lahendab mõlemad probleemid ühtsete lõikelaua kiirklahvidega, mis töötavad (peaaegu) kõikjal. Need on:
 
 | Kiirklahv | Käsk |
 | ------- | ----------- |
+| Super + A | Vali kõik |
 | Super + C | Kopeeri |
 | Super + X | Lõika |
 | Super + V | Kleebi |
 | Super + Ctrl + V | Lõikelaua ajalugu |
 
-_Pane tähele, et enamik agentide raamistikku kasutab `Ctrl + V` piltide kleepimiseks, kuid `Super + V` teksti kleepimiseks._
+_Pane tähele, et enamik agendiharness'e kasutab piltide kleepimiseks `Ctrl + V`, kuid teksti kleepimiseks `Super + V`._
+
+Kopeerimaks kõike fokuseeritud tekstiväljal või muus rakenduses, mis toetab `Ctrl + A`, kasuta `Super + A` ja seejärel `Super + C`. Terminalis viib `Ctrl + A` teksti valimise asemel käsurea algusesse.
 
 ### Lõikelaua ajalugu
 
-Lõikelaua ajalugu pakub Omarchy kest ja see toimib nii teksti kui ka piltide puhul. Käivitad selle `Super + Ctrl + V` abil, valid kirje sisestusklahviga ja see pannakse lõikelauale, valmis `Super + V` abil kleepimiseks.
+Lõikelaua ajalugu pakub Omarchy kest ning see töötab nii teksti kui ka piltidega. Avad selle `Super + Ctrl + V` abil, valid kirje Return-klahviga ning seejärel asetatakse see lõikelauale, valmis kleepimiseks `Super + V` abil.
 
  ![clipboard-history](images/clipboard-history.webp)
 
-Saad ka ajalugu otsida lihtsalt trükkima hakates:
+Otsida saad ajaloost ka lihtsalt tippima hakates:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)

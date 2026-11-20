@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy sa zvyčajne ovláda cez klávesové skratky a menu Omarchy (`Super + Space`). Ale môžete ho ovládať aj cez `omarchy` CLI. To je obzvlášť užitočné, keď s vami AI agent pracuje na prispôsobení alebo konfigurácii.
+Omarchy sa zvyčajne ovláda pomocou klávesových skratiek a menu Omarchy (`Super + Space`). Môžete ho však ovládať aj cez `omarchy` CLI. Toto je obzvlášť užitočné, keď s vami na prispôsobení alebo konfigurácii pracuje AI agent.
 
 CLI má prístup ku všetkým interným nástrojom, ktoré sa používajú cez menu aj inak. Všetko, čo je k dispozícii, uvidíte spustením `omarchy` v termináli.
 
-Vyzerá to asi takto:
+Vyzerá to približne takto:
 
 ```
 ~ ❯ omarchy
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,12 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-A môžete sa ponoriť hlbšie do každej skupiny:
+Na diagnostiku spustite priamo `omarchy-debug --no-sudo --print`. Vypíše diagnostiku a zapíše `/tmp/omarchy-debug.log` bez vyžiadania sudo, a to aj pri inštaláciách balíčkov, kde `omarchy debug` môže zlyhať s hlásením "Unknown Omarchy command".
+
+A do každej skupiny sa môžete ponoriť hlbšie:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Každý príkaz tiež prijíma `--help`, či už sa pýtate celej skupiny (`omarchy capture --help`) alebo jedného príkazu (`omarchy capture screenshot --help`).
+Každý príkaz podporuje aj `--help`, či už sa pýtate na celú skupinu (`omarchy capture --help`), alebo na jeden príkaz (`omarchy capture screenshot --help`).
 
 ### Otvorenie menu z terminálu
 
-Menu Omarchy je tiež skriptovateľné, čo je šikovné pre vaše vlastné klávesové väzby. `omarchy menu` ho otvára v koreni a môžete skočiť priamo do ktoréhokoľvek bodu v strome tým, že ho pomenujete: `omarchy menu summon style.theme` ide priamo na výber tém, `omarchy menu toggle system` otvára systémové menu a znova ho zatvorí, ak je už otvorené, a `omarchy menu close` ho odloží.
+Menu Omarchy sa dá ovládať aj skriptami, čo sa hodí pre vaše vlastné klávesové skratky. `omarchy menu` ho otvorí v koreňovom menu a pomenovaním môžete preskočiť priamo na ľubovoľné miesto v strome: `omarchy menu summon appearance.theme` prejde priamo na výber témy, `omarchy menu toggle system` otvorí systémové menu a znova ho zatvorí, ak už je otvorené, a `omarchy menu close` ho skryje.

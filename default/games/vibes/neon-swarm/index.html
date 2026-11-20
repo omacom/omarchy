@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neon Swarm</title>
+<meta name="description" content="Arcade shooter in a neon grid">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--background); color: var(--foreground); font-family: ui-monospace, "JetBrainsMono Nerd Font", monospace; }
+  canvas { display: block; }
+  #hud { position: fixed; inset: 16px 20px auto 20px; display: flex; justify-content: space-between; font-size: 20px; pointer-events: none; }
+  .screen { position: fixed; inset: 0; display: none; place-items: center; text-align: center; pointer-events: none; background: color-mix(in srgb, var(--background) 45%, transparent); }
+  .screen.show { display: grid; }
+  .screen > div { padding: 28px 44px; border-radius: 14px; background: color-mix(in srgb, var(--background) 88%, transparent); border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent); }
+  .screen button, .screen [data-click] { pointer-events: auto; }
+  .screen h1 { margin: 0 0 16px; font-size: 64px; letter-spacing: 4px; color: var(--accent); }
+  .screen p { margin: 8px 0; font-size: 18px; }
+  .key { color: var(--accent); }
+  .dim { color: color-mix(in srgb, var(--foreground) 55%, var(--background)); }
+  .screen h1 { text-shadow: 0 0 26px color-mix(in srgb, var(--accent) 65%, transparent); }
+  canvas { cursor: crosshair; }
+  #hud > span { flex: 1; }
+  #hud > span:nth-child(2) { text-align: center; }
+  #hud > span:nth-child(3) { text-align: right; }
+  #score { display: inline-block; transform-origin: left center; font-size: 24px; }
+  #mult { margin-left: 12px; }
+  #shields i { display: inline-block; width: 13px; height: 13px; margin-right: 9px; transform: rotate(45deg); background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+  #shields i.off { background: var(--muted); box-shadow: none; }
+  #banner { position: fixed; top: 20%; left: 0; right: 0; text-align: center; font-size: 46px; letter-spacing: 10px; color: var(--accent); text-shadow: 0 0 22px var(--accent); opacity: 0; transition: opacity .3s; pointer-events: none; }
+  #banner.show { opacity: 1; }
+  #help table { margin: 12px auto; border-spacing: 20px 6px; font-size: 18px; text-align: left; }
+</style>
+<!-- One pinned three.js version. Addons, if any, come from the same version. -->
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.min.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="hud"><span><span id="score">0</span><span id="mult" class="key">×1</span></span><span id="wave" class="dim"></span><span><span id="shields"><i></i><i></i><i></i></span> <span class="dim">BEST <span id="best">—</span></span></span></div>
+<div id="banner"></div>
+
+<div id="title" class="screen show"><div>
+  <h1>NEON SWARM</h1>
+  <p>Blast the swarm, grab the shards they drop, and survive as many waves as you can.</p>
+  <p><span class="key">Arrows</span> or <span class="key">WASD</span> to move · <span class="key">Space</span> to dash · the ship fires by itself</p>
+  <p class="dim">Move the mouse to aim by hand · Space to start</p>
+  <p class="dim">? for all controls</p>
+</div></div>
+
+<div id="paused" class="screen"><div>
+  <h1>PAUSED</h1>
+  <p>Press <span class="key">Esc</span> to resume</p>
+  <p class="leave">Press <span class="key">Q</span> to go back to Game Vibes</p>
+</div></div>
+
+<div id="over" class="screen"><div>
+  <h1 id="over-title">GAME OVER</h1>
+  <p id="over-detail"></p>
+  <p id="over-best" class="key"></p>
+  <p>Press <span class="key">Space</span> to play again</p>
+</div></div>
+
+<div id="help" class="screen"><div>
+  <h1>CONTROLS</h1>
+  <table>
+    <tr><td class="key">Arrows / W A S D</td><td>Move</td></tr>
+    <tr><td class="key">Space / Click</td><td>Dash through danger, start, play again</td></tr>
+    <tr><td class="key">Mouse</td><td>Aim by hand (arrow keys return to auto-aim)</td></tr>
+    <tr><td class="key">Shards</td><td>Raise the multiplier: twin shot at ×5, triple at ×15</td></tr>
+    <tr><td class="key">Esc / P</td><td>Pause, resume, back to all games</td></tr>
+    <tr><td class="key">M</td><td>Sound on or off</td></tr>
+    <tr><td class="key">?</td><td>This help</td></tr>
+  </table>
+  <p class="dim">Press any key to close</p>
+</div></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+// =============================================================================
+// SETTINGS — change these.
+// NAME namespaces saved data. PALETTE is the Omarchy theme the game was made in, from
+// `omarchy-theme-color --all`. Launched from the app launcher, themed() swaps in the
+// desktop's current theme, so take every colour from PALETTE and keep themed() around it.
+// =============================================================================
+const NAME = 'neon-swarm';
+const PALETTE = themed({
+  mode: 'dark',
+  background: '#16242d', foreground: '#d6e2ee', accent: '#8bc9eb', muted: '#304860',
+  red: '#4d86b0', green: '#5e95bc', yellow: '#6fa4c9', blue: '#6fb8e3', magenta: '#8bc9eb', cyan: '#b4e4f6', orange: '#8bc9eb',
+});
+const BEST_IS = 'higher';                 // 'lower' for times and move counts: then only a won round can set it
+const formatScore = value => Math.floor(value).toLocaleString();
+const KEY_REPEAT = false;                 // true: a held move key repeats, for cursors on boards and cards
+
+// =============================================================================
+// THE FRAME, PART ONE: what the game builds on. Keep it; change only ACTIONS, the camera,
+// the lights and the fog. The game may use: renderer, scene, camera, sun, fitCamera, saved,
+// random, isHeld, wasPressed, pointer, wasClicked, pick, pickPlane, sound, noise,
+// score, best, state, shake, $. Names starting with _ are the frame's alone.
+// =============================================================================
+
+// omarchy-games-vibes-launch opens the game as index.html#palette=<the current theme as JSON>, and
+// `omarchy agent look page --theme` does the same for another theme. #seed=1 replays the same round.
+function launchParam(name) {
+  return new URLSearchParams(location.hash.slice(1)).get(name);
+}
+
+function themed(fallback) {
+  let current = {};
+  try { current = JSON.parse(launchParam('palette') ?? '{}'); } catch {}
+  const palette = { ...fallback };
+  for (const key of Object.keys(fallback)) {
+    const value = current[key];
+    if (key === 'mode' ? value === 'light' || value === 'dark' : /^#[0-9a-f]{6}$/i.test(value ?? '')) palette[key] = value;
+  }
+  return palette;
+}
+
+for (const [key, value] of Object.entries(PALETTE)) document.documentElement.style.setProperty(`--${key}`, value);
+
+// Saved data. Storage can fail or hold junk; the game must still run.
+const saved = {
+  get(key, fallback) { try { const v = JSON.parse(localStorage.getItem(`omarchy-game:${NAME}:${key}`)); return v ?? fallback; } catch { return fallback; } },
+  set(key, value) { try { localStorage.setItem(`omarchy-game:${NAME}:${key}`, JSON.stringify(value)); } catch {} },
+};
+
+// Seeded randomness, so #seed=1 plays the same round on every run.
+let _seed = Number(launchParam('seed') ?? Date.now()) >>> 0;
+function random() {
+  _seed = (_seed + 0x6d2b79f5) >>> 0;
+  let t = Math.imul(_seed ^ (_seed >>> 15), _seed | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+// Without WebGL nothing can draw, so say so in the window rather than show a title screen that never starts.
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+} catch (error) {
+  for (const screen of document.querySelectorAll('.screen, #hud')) screen.remove();
+  document.body.insertAdjacentHTML('beforeend', '<div class="screen show"><div><h1>NO 3D</h1><p>This game needs WebGL, and the browser could not start it on this computer.</p><p class="dim"></p></div></div>');
+  document.querySelector('.screen .dim').textContent = error.message;
+  throw error;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(PALETTE.background);
+scene.fog = new THREE.Fog(PALETTE.background, 30, 70);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 200);
+
+// Lit this way, a MeshStandardMaterial shows close to its PALETTE colour in dark and light themes alike.
+const _light = PALETTE.mode === 'light';
+scene.add(new THREE.HemisphereLight('#ffffff', PALETTE.background, _light ? 0.7 : 0.9));
+const sun = new THREE.DirectionalLight('#ffffff', _light ? 1.2 : 1.5);
+sun.position.set(6, 15, 8);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 50 });
+scene.add(sun);
+
+// Aim the camera down at a width × depth area around target, tilted from the horizontal, and back it
+// off until all four corners of the area are inside the window with a margin. Call it from resized().
+function fitCamera(width, depth, { tilt = 0.9, target = [0, 0, 0], margin = 0.9 } = {}) {
+  const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([x, z]) => new THREE.Vector3(target[0] + x * width / 2, target[1], target[2] + z * depth / 2));
+  const place = distance => {
+    camera.position.set(target[0], target[1] + distance * Math.sin(tilt), target[2] + distance * Math.cos(tilt));
+    camera.lookAt(...target);
+    camera.updateMatrixWorld();
+  };
+  const fits = () => corners.every(corner => {
+    if (corner.clone().applyMatrix4(camera.matrixWorldInverse).z >= 0) return false;   // behind the camera
+    const p = corner.clone().project(camera);
+    return Math.abs(p.x) <= margin && Math.abs(p.y) <= margin;
+  });
+  let near = 0.5, far = 1000;
+  for (let i = 0; i < 40; i++) {
+    const distance = (near + far) / 2;
+    place(distance);
+    if (fits()) far = distance; else near = distance;
+  }
+  place(far);
+}
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  if (typeof resized === 'function') resized();
+});
+
+// Keys. isHeld() is what is down now. wasPressed() is what went down since it was last asked: once per
+// frame for the screens, and once per simulation step inside update(), so a press is never lost or doubled.
+const ACTIONS = {
+  left: ['ArrowLeft', 'KeyA'], right: ['ArrowRight', 'KeyD'], up: ['ArrowUp', 'KeyW'], down: ['ArrowDown', 'KeyS'],
+  action: ['Space', 'Enter'], pause: ['Escape', 'KeyP'], leave: ['KeyQ'], mute: ['KeyM'], help: ['Slash'],
+};
+const _held = new Set(), _pressed = new Set(), _stepPressed = new Set();
+let _inStep = false;
+const isHeld = action => ACTIONS[action].some(code => _held.has(code));
+const wasPressed = action => ACTIONS[action].some(code => (_inStep ? _stepPressed : _pressed).has(code));
+addEventListener('keydown', event => {
+  if (Object.values(ACTIONS).flat().includes(event.code)) event.preventDefault();
+  const moving = ['left', 'right', 'up', 'down'].some(action => ACTIONS[action].includes(event.code));
+  if (!event.repeat || (KEY_REPEAT && moving)) { _pressed.add(event.code); _stepPressed.add(event.code); }
+  _held.add(event.code);
+  _unlockSound();
+});
+addEventListener('keyup', event => _held.delete(event.code));
+addEventListener('blur', () => { _held.clear(); if (state === 'playing') show('paused'); });
+
+// The mouse, for games that want it. pointer.x/y run -1..1 across the window; wasClicked(button) works
+// like wasPressed (0 left, 1 middle, 2 right); pick(objects) is the nearest hit under the pointer, or null.
+const pointer = new THREE.Vector2(), _clicks = new Set(), _stepClicks = new Set(), _raycaster = new THREE.Raycaster();
+const wasClicked = (button = 0) => (_inStep ? _stepClicks : _clicks).has(button);
+renderer.domElement.addEventListener('pointermove', event => pointer.set(event.clientX / innerWidth * 2 - 1, -(event.clientY / innerHeight) * 2 + 1));
+renderer.domElement.addEventListener('pointerdown', event => { _clicks.add(event.button); _stepClicks.add(event.button); _unlockSound(); });
+renderer.domElement.addEventListener('contextmenu', event => event.preventDefault());
+document.addEventListener('mousedown', event => { if (event.target.closest('button')) event.preventDefault(); });  // a clicked button must not keep focus for Space
+function pick(objects) {
+  _raycaster.setFromCamera(pointer, camera);
+  return _raycaster.intersectObjects(objects, true)[0] ?? null;
+}
+function pickPlane(y = 0) {
+  _raycaster.setFromCamera(pointer, camera);
+  return _raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), new THREE.Vector3());
+}
+
+// Sound, synthesized so the game stays one file. Browsers allow it only after a key press or click.
+let _audio = null, _muted = saved.get('muted', false);
+function _unlockSound() {
+  try { _audio ??= new AudioContext(); _audio.resume(); } catch {}
+}
+function sound(freq = 440, seconds = 0.1, type = 'square', slideTo = freq, volume = 0.15) {
+  if (_muted || _audio?.state !== 'running') return;
+  const t = _audio.currentTime, osc = _audio.createOscillator(), gain = _audio.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(1, slideTo), t + seconds);
+  gain.gain.setValueAtTime(volume, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
+  osc.connect(gain).connect(_audio.destination);
+  osc.start(t);
+  osc.stop(t + seconds);
+}
+// Noise for knocks, thuds, explosions and mechanical clicks: lower `tone` sounds duller.
+function noise(seconds = 0.15, volume = 0.2, tone = 2000) {
+  if (_muted || _audio?.state !== 'running') return;
+  const t = _audio.currentTime, buffer = _audio.createBuffer(1, Math.ceil(_audio.sampleRate * seconds), _audio.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  const source = _audio.createBufferSource(), filter = _audio.createBiquadFilter(), gain = _audio.createGain();
+  source.buffer = buffer;
+  filter.type = 'lowpass';
+  filter.frequency.value = tone;
+  gain.gain.setValueAtTime(volume, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
+  source.connect(filter).connect(gain).connect(_audio.destination);
+  source.start(t);
+}
+
+const $ = id => document.getElementById(id);
+let state = 'title', score = 0, best = saved.get('best', null), shake = 0;
+let _helpFrom = 'title';
+
+// =============================================================================
+// THE GAME — replace this whole section with your game, keeping its shape:
+//   build()            once, at load: meshes, materials, lights, anything reused
+//   reset()            before every round: put everything back to the start
+//   update(dt)         every fixed step while playing: input, movement, rules
+//   draw(dt, alpha)    optional, every frame in every state: animation and effects that change no rules
+//   resized()          optional, at load and when the window changes: fit the camera
+//   screenInput(code)  optional, keys on the title and end screens; return true to keep a key from starting
+//   score              what the HUD shows; set it as the game goes
+//   random()           use instead of Math.random(), so #seed=1 plays the same round every time
+//   endRound(won, { title, detail })   call when the round is lost (false) or won (true)
+// =============================================================================
+const HALF_W = 16, HALF_D = 10;           // the arena, from its centre to its walls
+const DARK = PALETTE.mode === 'dark';
+const TAU = Math.PI * 2;
+const mix = (a, b, t) => new THREE.Color(a).lerp(new THREE.Color(b), t);
+const neon = (color, glow = 0.6) => new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: DARK ? glow : 0.1, roughness: 0.35, flatShading: true });
+const SHIP_COLOR = mix(PALETTE.foreground, PALETTE.accent, 0.3);
+
+let composer = null, TYPES, baseCamera = new THREE.Vector3();
+let ship, shipBody, dashRing, ringReady, ringSpent, shock, shockTime = 9;
+let flashMaterial, markerGeometry, markerMaterial, lineGeometry, lineMaterial, shardGeometry, shardMaterial;
+let px, pz, pvx, pvz, facing, lastX, lastZ, dashTime, dashCool, dashX, dashZ, invuln, fireTimer, shields, mult, mouseAim = false;
+let enemies = [], shards = [], pending = [], bullets = [], freeBullets = [], born = [];
+let wave, waveGap, waveTime, bannerTime = 0, musicTime = 0, musicStep = 0, trailTime = 0, scorePop = 0, hud = '';
+
+// Particles: one Points cloud used as a ring buffer. Looks only, so Math.random() is fine here.
+const P = 900, pPos = new Float32Array(P * 3).fill(-100), pCol = new Float32Array(P * 3), pBase = new Float32Array(P * 3);
+const pVel = new Float32Array(P * 2), pLife = new Float32Array(P), pMax = new Float32Array(P), _c = new THREE.Color(), BG = new THREE.Color(PALETTE.background);
+let pNext = 0, points;
+function burst(x, z, color, count, speed, life = 0.6) {
+  _c.set(color);
+  for (let n = 0; n < count; n++) {
+    const i = pNext, a = Math.random() * TAU, s = speed * (0.25 + Math.random() * 0.75);
+    pNext = (pNext + 1) % P;
+    pPos[i * 3] = x; pPos[i * 3 + 1] = 0.8; pPos[i * 3 + 2] = z;
+    pVel[i * 2] = Math.sin(a) * s; pVel[i * 2 + 1] = Math.cos(a) * s;
+    pBase[i * 3] = _c.r; pBase[i * 3 + 1] = _c.g; pBase[i * 3 + 2] = _c.b;
+    pLife[i] = pMax[i] = life * (0.5 + Math.random() * 0.5);
+  }
+}
+
+function build() {
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.MeshBasicMaterial({ color: PALETTE.background }));
+  floor.rotation.x = -Math.PI / 2;
+  scene.add(floor);
+  const far = mix(PALETTE.muted, PALETTE.background, 0.55);
+  const outer = new THREE.GridHelper(160, 80, far, far);
+  outer.position.y = 0.01;
+  scene.add(outer);
+
+  // The arena's own grid, brighter than the plain beyond it, inside a glowing wall.
+  const lines = [];
+  for (let x = -HALF_W; x <= HALF_W; x += 2) lines.push(x, 0.02, -HALF_D, x, 0.02, HALF_D);
+  for (let z = -HALF_D; z <= HALF_D; z += 2) lines.push(-HALF_W, 0.02, z, HALF_W, 0.02, z);
+  const grid = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: mix(PALETTE.muted, PALETTE.accent, 0.3) }));
+  grid.geometry.setAttribute('position', new THREE.Float32BufferAttribute(lines, 3));
+  scene.add(grid);
+  const wall = new THREE.MeshBasicMaterial({ color: PALETTE.accent });
+  for (const [w, d, x, z] of [[HALF_W * 2 + 0.3, 0.3, 0, -HALF_D], [HALF_W * 2 + 0.3, 0.3, 0, HALF_D], [0.3, HALF_D * 2 + 0.3, -HALF_W, 0], [0.3, HALF_D * 2 + 0.3, HALF_W, 0]]) {
+    const side = new THREE.Mesh(new THREE.BoxGeometry(w, 0.3, d), wall);
+    side.position.set(x, 0.15, z);
+    scene.add(side);
+  }
+
+  ship = new THREE.Group();
+  shipBody = new THREE.Mesh(new THREE.ConeGeometry(0.75, 2, 3).rotateX(Math.PI / 2).scale(1, 0.5, 1), neon(SHIP_COLOR, 0.9));
+  shipBody.position.y = 0.8;
+  ringReady = new THREE.MeshBasicMaterial({ color: SHIP_COLOR });
+  ringSpent = new THREE.MeshBasicMaterial({ color: PALETTE.muted });
+  dashRing = new THREE.Mesh(new THREE.RingGeometry(1.15, 1.32, 40).rotateX(-Math.PI / 2), ringReady);
+  dashRing.position.y = 0.05;
+  ship.add(shipBody, dashRing);
+  scene.add(ship);
+
+  shock = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: SHIP_COLOR }));
+  shock.position.y = 0.1;
+  shock.visible = false;
+  scene.add(shock);
+
+  TYPES = {
+    drifter:  { radius: 0.65, hp: 1, points: 10, speed: 4.2, color: PALETTE.magenta, geometry: new THREE.OctahedronGeometry(0.85) },
+    dasher:   { radius: 0.6,  hp: 1, points: 25, speed: 2.2, color: PALETTE.yellow,  geometry: new THREE.ConeGeometry(0.6, 1.8, 4).rotateX(Math.PI / 2) },
+    splitter: { radius: 1.05, hp: 4, points: 30, speed: 2.8, color: PALETTE.red,     geometry: new THREE.BoxGeometry(1.6, 1.6, 1.6) },
+    mini:     { radius: 0.45, hp: 1, points: 5,  speed: 6.5, color: PALETTE.orange,  geometry: new THREE.BoxGeometry(0.7, 0.7, 0.7) },
+  };
+  for (const type of Object.values(TYPES)) type.material = neon(type.color);
+  flashMaterial = new THREE.MeshBasicMaterial({ color: DARK ? '#ffffff' : PALETTE.foreground });
+  markerGeometry = new THREE.RingGeometry(0.72, 0.86, 28).rotateX(-Math.PI / 2);
+  markerMaterial = new THREE.MeshBasicMaterial({ color: PALETTE.red });
+  lineGeometry = new THREE.BoxGeometry(0.07, 0.07, 26).translate(0, 0, 13.9);
+  lineMaterial = new THREE.MeshBasicMaterial({ color: PALETTE.yellow });
+  shardGeometry = new THREE.OctahedronGeometry(0.3);
+  shardMaterial = new THREE.MeshBasicMaterial({ color: PALETTE.green });
+
+  const bulletGeometry = new THREE.BoxGeometry(0.18, 0.18, 0.9), bulletMaterial = new THREE.MeshBasicMaterial({ color: SHIP_COLOR });
+  for (let i = 0; i < 140; i++) {
+    const mesh = new THREE.Mesh(bulletGeometry, bulletMaterial);
+    mesh.visible = false;
+    scene.add(mesh);
+    freeBullets.push(mesh);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+  points = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.3, vertexColors: true }));
+  points.frustumCulled = false;
+  scene.add(points);
+
+  if (DARK) {
+    const ratio = renderer.getPixelRatio();
+    composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth * ratio, innerHeight * ratio, { type: THREE.HalfFloatType, samples: 4 }));
+    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.5, 0.2));
+    composer.addPass(new OutputPass());
+  }
+
+  // The mouse aims once it moves; the arrow keys hand aiming back to the ship.
+  renderer.domElement.addEventListener('pointermove', () => { mouseAim = true; });
+  addEventListener('keydown', event => { if (event.code.startsWith('Arrow')) mouseAim = false; });
+}
+
+function resized() {
+  fitCamera(HALF_W * 2 + 1, HALF_D * 2 + 1, { tilt: 1.1, target: [0, 0, -0.4], margin: 0.93 });
+  baseCamera.copy(camera.position);
+  const distance = camera.position.length();
+  scene.fog.near = distance + 6;
+  scene.fog.far = distance + 50;
+  composer?.setSize(innerWidth, innerHeight);
+}
+
+function reset() {
+  for (const enemy of enemies) scene.remove(enemy.mesh);
+  for (const shard of shards) scene.remove(shard.mesh);
+  for (const spawn of pending) if (spawn.marker) scene.remove(spawn.marker);
+  for (const bullet of bullets) { bullet.mesh.visible = false; freeBullets.push(bullet.mesh); }
+  enemies = []; shards = []; pending = []; bullets = []; born = [];
+  px = 0; pz = 2; pvx = pvz = 0; facing = Math.PI; lastX = 0; lastZ = -1;
+  dashTime = 0; dashCool = 0; invuln = 0; fireTimer = 0; shields = 3; mult = 1;
+  wave = 0; waveGap = 0.8; waveTime = 0; score = 0; musicTime = 0; musicStep = 0;
+  ship.visible = true;
+  ship.position.set(px, 0, pz);
+}
+
+function banner(text) {
+  $('banner').textContent = text;
+  $('banner').classList.add('show');
+  bannerTime = 1.5;
+}
+
+function spawnEnemy(name, x, z, vx = 0, vz = 0) {
+  const type = TYPES[name], mesh = new THREE.Mesh(type.geometry, type.material);
+  mesh.position.set(x, 0.85, z);
+  scene.add(mesh);
+  const enemy = { name, type, mesh, x, z, vx, vz, hp: type.hp, flash: 0, arm: 0.45, mode: 'seek', timer: 1 + random(), dirX: 0, dirZ: 1, dead: false };
+  if (name === 'dasher') {
+    enemy.line = new THREE.Mesh(lineGeometry, lineMaterial);
+    enemy.line.visible = false;
+    mesh.add(enemy.line);
+  }
+  enemies.push(enemy);
+}
+
+// A wave arrives in a pattern the player can read: along one wall, in a ring, or from two opposite corners.
+function startWave() {
+  wave++;
+  waveGap = 1.2;
+  waveTime = 0;
+  banner(`WAVE ${wave}`);
+  sound(330, 0.1, 'square', 330, 0.06);
+  sound(660, 0.25, 'square', 660, 0.05);
+  const count = Math.min(2 + wave * 3, 45), pattern = wave === 1 ? 'ring' : ['wall', 'ring', 'corners'][Math.floor(random() * 3)];
+  const side = Math.floor(random() * 4), corner = random() < 0.5 ? 1 : -1, turn = random() * TAU;
+  for (let i = 0; i < count; i++) {
+    const roll = random();
+    const name = wave >= 5 && roll < 0.14 ? 'splitter' : wave >= 3 && roll < 0.36 ? 'dasher' : 'drifter';
+    let x, z;
+    if (pattern === 'ring') {
+      x = Math.cos(turn + i / count * TAU) * (HALF_W - 2);
+      z = Math.sin(turn + i / count * TAU) * (HALF_D - 2);
+    } else if (pattern === 'wall') {
+      const along = (i + 0.5) / count * 2 - 1;
+      x = side < 2 ? along * (HALF_W - 2) : (side === 2 ? -1 : 1) * (HALF_W - 1.5);
+      z = side < 2 ? (side === 0 ? -1 : 1) * (HALF_D - 1.5) : along * (HALF_D - 2);
+    } else {
+      const flip = i % 2 ? 1 : -1;
+      x = flip * (HALF_W - 2 - random() * 4);
+      z = flip * corner * (HALF_D - 2 - random() * 3);
+    }
+    pending.push({ name, x, z, delay: i * 0.1, warn: 1, marker: null, done: false });
+  }
+}
+
+function kill(enemy, scored) {
+  if (enemy.dead) return;
+  enemy.dead = true;
+  burst(enemy.x, enemy.z, enemy.type.color, enemy.name === 'splitter' ? 30 : 16, 10);
+  if (!scored) return;
+  score += enemy.type.points * mult;
+  scorePop = 1;
+  shake = Math.max(shake, 0.1);
+  noise(0.12, 0.1, 1800);
+  sound(240, 0.12, 'square', 60, 0.05);
+  const mesh = new THREE.Mesh(shardGeometry, shardMaterial);
+  mesh.position.set(enemy.x, 0.6, enemy.z);
+  scene.add(mesh);
+  shards.push({ mesh, x: enemy.x, z: enemy.z, life: 7 });
+  if (enemy.name === 'splitter') for (const s of [-1, 1]) born.push([enemy.x + s * 0.6, enemy.z, s * 7, (random() - 0.5) * 8]);
+}
+
+function hurt() {
+  shields--;
+  invuln = 1.6;
+  mult = Math.max(1, Math.floor(mult / 2));
+  shake = 0.5;
+  shockTime = 0;
+  shock.position.set(px, 0.1, pz);
+  noise(0.5, 0.3, 500);
+  sound(200, 0.4, 'sawtooth', 40, 0.1);
+  burst(px, pz, SHIP_COLOR, 50, 16, 0.9);
+  for (const enemy of enemies) if (Math.hypot(enemy.x - px, enemy.z - pz) < 7) kill(enemy, false);   // the blast buys room to recover
+  if (shields <= 0) {
+    ship.visible = false;
+    endRound(false, { title: 'OVERRUN', detail: `You held out to wave ${wave} with ${formatScore(score)} points` });
+  }
+}
+
+function fire() {
+  fireTimer = 0.14;
+  const shots = mult >= 15 ? 3 : mult >= 5 ? 2 : 1;
+  for (let i = 0; i < shots; i++) {
+    const mesh = freeBullets.pop();
+    if (!mesh) return;
+    const offset = i - (shots - 1) / 2, angle = facing + (shots === 3 ? offset * 0.13 : 0), aside = shots === 2 ? offset * 0.55 : 0;
+    const dx = Math.sin(angle), dz = Math.cos(angle);
+    const bullet = { mesh, x: px + dx * 1.1 + dz * aside, z: pz + dz * 1.1 - dx * aside, vx: dx * 34, vz: dz * 34, life: 1 };
+    mesh.position.set(bullet.x, 0.8, bullet.z);
+    mesh.rotation.y = angle;
+    mesh.visible = true;
+    bullets.push(bullet);
+  }
+  sound(900, 0.05, 'square', 400, 0.012);
+}
+
+function update(dt) {
+  // The ship: move, dash, aim, fire.
+  let mx = (isHeld('right') ? 1 : 0) - (isHeld('left') ? 1 : 0), mz = (isHeld('down') ? 1 : 0) - (isHeld('up') ? 1 : 0);
+  const moving = Math.hypot(mx, mz);
+  if (moving) { mx /= moving; mz /= moving; lastX = mx; lastZ = mz; }
+  dashCool -= dt;
+  if ((wasPressed('action') || wasClicked(0)) && dashCool <= 0) {
+    dashTime = 0.16; dashCool = 1; dashX = lastX; dashZ = lastZ;
+    sound(300, 0.18, 'sawtooth', 1200, 0.07);
+    burst(px, pz, SHIP_COLOR, 14, 6, 0.4);
+  }
+  if (dashTime > 0) {
+    dashTime -= dt;
+    pvx = dashX * 42; pvz = dashZ * 42;
+    if (dashTime <= 0) { pvx = dashX * 11; pvz = dashZ * 11; }
+  } else {
+    pvx = THREE.MathUtils.damp(pvx, mx * 11, 18, dt);
+    pvz = THREE.MathUtils.damp(pvz, mz * 11, 18, dt);
+  }
+  px = THREE.MathUtils.clamp(px + pvx * dt, -HALF_W + 0.9, HALF_W - 0.9);
+  pz = THREE.MathUtils.clamp(pz + pvz * dt, -HALF_D + 0.9, HALF_D - 0.9);
+  invuln -= dt;
+  const safe = invuln > 0 || dashTime > 0;
+
+  let target = null, nearest = Infinity;
+  for (const enemy of enemies) {
+    const d = Math.hypot(enemy.x - px, enemy.z - pz);
+    if (d < nearest) { nearest = d; target = enemy; }
+  }
+  const aim = mouseAim ? pickPlane(0.8) : null;
+  if (aim) facing = Math.atan2(aim.x - px, aim.z - pz);
+  else if (target || moving) {
+    const want = target ? Math.atan2(target.x - px, target.z - pz) : Math.atan2(mx, mz);
+    const turn = ((want - facing) % TAU + TAU + Math.PI) % TAU - Math.PI;
+    facing += THREE.MathUtils.clamp(turn, -14 * dt, 14 * dt);
+  }
+  fireTimer -= dt;
+  if (fireTimer <= 0 && (target || (aim && pending.length))) fire();
+  ship.position.set(px, 0, pz);
+
+  // Waves: the next comes when the floor is clear, or after a while if the player stalls.
+  waveTime += dt;
+  if (!pending.length && (!enemies.length || waveTime > 18)) {
+    waveGap -= dt;
+    if (waveGap <= 0) startWave();
+  }
+  for (const spawn of pending) {
+    if (spawn.delay > 0) { spawn.delay -= dt; continue; }
+    if (!spawn.marker) {
+      if (Math.hypot(spawn.x - px, spawn.z - pz) < 7) { spawn.x = -spawn.x; spawn.z = -spawn.z; }   // never on top of the player
+      if (Math.hypot(spawn.x - px, spawn.z - pz) < 7) spawn.x = (px > 0 ? -1 : 1) * (HALF_W - 2);
+      spawn.marker = new THREE.Mesh(markerGeometry, markerMaterial);
+      spawn.marker.position.set(spawn.x, 0.06, spawn.z);
+      scene.add(spawn.marker);
+    }
+    spawn.warn -= dt;
+    spawn.marker.scale.setScalar(0.5 + Math.max(0, spawn.warn) * 1.5);
+    if (spawn.warn <= 0) {
+      scene.remove(spawn.marker);
+      spawnEnemy(spawn.name, spawn.x, spawn.z);
+      spawn.done = true;
+    }
+  }
+  pending = pending.filter(spawn => !spawn.done);
+
+  // Enemies.
+  const pace = 1 + Math.min(wave, 14) * 0.07;
+  let struck = false;
+  for (const enemy of enemies) {
+    const dx = px - enemy.x, dz = pz - enemy.z, d = Math.hypot(dx, dz) || 1, speed = enemy.type.speed * pace;
+    enemy.arm -= dt;
+    enemy.flash -= dt;
+    enemy.mesh.scale.setScalar(1 - Math.max(0, enemy.arm) / 0.45 * 0.75);
+    if (enemy.name !== 'dasher' || enemy.mode === 'seek') {
+      enemy.vx = THREE.MathUtils.damp(enemy.vx, dx / d * speed, 3, dt);
+      enemy.vz = THREE.MathUtils.damp(enemy.vz, dz / d * speed, 3, dt);
+    }
+    if (enemy.name === 'dasher') {
+      enemy.timer -= dt;
+      if (enemy.mode === 'seek') {
+        enemy.dirX = dx / d; enemy.dirZ = dz / d;
+        if (enemy.timer <= 0 && enemy.arm <= 0) {           // stop, show the line it will charge down
+          enemy.mode = 'aim'; enemy.timer = 0.7; enemy.vx = enemy.vz = 0; enemy.line.visible = true;
+          sound(300, 0.6, 'sawtooth', 900, 0.03);
+        }
+      } else if (enemy.mode === 'aim') {
+        if (enemy.timer <= 0) {
+          enemy.mode = 'dash'; enemy.timer = 0.9; enemy.line.visible = false;
+          enemy.vx = enemy.dirX * 24; enemy.vz = enemy.dirZ * 24;
+          noise(0.2, 0.08, 3000);
+        }
+      } else {
+        const out = Math.abs(enemy.x) >= HALF_W - 0.8 || Math.abs(enemy.z) >= HALF_D - 0.8;
+        if (enemy.timer <= 0 || out) { enemy.mode = 'seek'; enemy.timer = 1.2 + random(); enemy.vx *= 0.1; enemy.vz *= 0.1; }
+      }
+      enemy.mesh.rotation.y = Math.atan2(enemy.dirX, enemy.dirZ);
+    }
+    enemy.x = THREE.MathUtils.clamp(enemy.x + enemy.vx * dt, -HALF_W + 0.8, HALF_W - 0.8);
+    enemy.z = THREE.MathUtils.clamp(enemy.z + enemy.vz * dt, -HALF_D + 0.8, HALF_D - 0.8);
+    if (!safe && enemy.arm <= 0 && d < enemy.type.radius + 0.5) struck = true;
+  }
+  for (let i = 0; i < enemies.length; i++) {            // keep the swarm from stacking into one blob
+    const a = enemies[i];
+    for (let j = i + 1; j < enemies.length; j++) {
+      const b = enemies[j], dx = b.x - a.x, dz = b.z - a.z, gap = a.type.radius + b.type.radius, d2 = dx * dx + dz * dz;
+      if (d2 >= gap * gap || d2 === 0 || a.mode === 'dash' || b.mode === 'dash') continue;
+      const d = Math.sqrt(d2), push = (gap - d) / d * 0.5;
+      a.x -= dx * push; a.z -= dz * push; b.x += dx * push; b.z += dz * push;
+    }
+  }
+  for (const enemy of enemies) enemy.mesh.position.set(enemy.x, 0.85, enemy.z);
+
+  // Bullets.
+  for (const bullet of bullets) {
+    bullet.x += bullet.vx * dt; bullet.z += bullet.vz * dt; bullet.life -= dt;
+    if (Math.abs(bullet.x) > HALF_W || Math.abs(bullet.z) > HALF_D) { bullet.life = 0; burst(bullet.x, bullet.z, SHIP_COLOR, 2, 4, 0.25); }
+    for (const enemy of enemies) {
+      if (enemy.dead || bullet.life <= 0 || Math.hypot(enemy.x - bullet.x, enemy.z - bullet.z) > enemy.type.radius + 0.3) continue;
+      bullet.life = 0;
+      enemy.flash = 0.07;
+      if (--enemy.hp <= 0) kill(enemy, true);
+      else { sound(500, 0.05, 'triangle', 300, 0.06); burst(bullet.x, bullet.z, enemy.type.color, 4, 5, 0.3); }
+    }
+    bullet.mesh.position.set(bullet.x, 0.8, bullet.z);
+    if (bullet.life <= 0) { bullet.mesh.visible = false; freeBullets.push(bullet.mesh); }
+  }
+  bullets = bullets.filter(bullet => bullet.life > 0);
+
+  if (struck) hurt();
+  if (enemies.some(enemy => enemy.dead)) {
+    for (const enemy of enemies) if (enemy.dead) scene.remove(enemy.mesh);
+    enemies = enemies.filter(enemy => !enemy.dead);
+  }
+  for (const [x, z, vx, vz] of born) spawnEnemy('mini', x, z, vx, vz);
+  born.length = 0;
+
+  // Shards drift to the ship when it comes near; each one raises the multiplier.
+  for (const shard of shards) {
+    const dx = px - shard.x, dz = pz - shard.z, d = Math.hypot(dx, dz) || 1;
+    shard.life -= dt;
+    if (d < 4.5) { shard.x += dx / d * 18 * dt; shard.z += dz / d * 18 * dt; }
+    if (d < 0.9) {
+      shard.life = 0;
+      mult++;
+      sound(500 + Math.min(mult, 24) * 35, 0.08, 'triangle', 1000 + Math.min(mult, 24) * 35, 0.06);
+      if (mult === 5) banner('TWIN SHOT');
+      if (mult === 15) banner('TRIPLE SHOT');
+    }
+    shard.mesh.position.set(shard.x, 0.6, shard.z);
+    if (shard.life <= 0) scene.remove(shard.mesh);
+  }
+  shards = shards.filter(shard => shard.life > 0);
+}
+
+const ROOTS = [110, 87.31, 130.81, 98];   // a four-bar bass line: A, F, C, G
+
+function draw(dt) {
+  if (state === 'paused' || state === 'help') return;
+  const playing = state === 'playing';
+
+  shipBody.rotation.y = facing;
+  ship.visible = shields > 0 && (invuln <= 0 || Math.floor(invuln * 12) % 2 === 0);
+  dashRing.material = dashCool <= 0 ? ringReady : ringSpent;
+  dashRing.scale.setScalar(dashCool <= 0 ? 1 : 0.55 + 0.45 * (1 - Math.max(0, dashCool)));
+  for (const enemy of enemies) {
+    enemy.mesh.material = enemy.flash > 0 ? flashMaterial : enemy.type.material;
+    if (enemy.name !== 'dasher') { enemy.mesh.rotation.y += dt * 2; enemy.mesh.rotation.x += dt * 1.3; }
+    else if (enemy.mode === 'aim') enemy.mesh.rotation.z += dt * 20;
+  }
+  for (const shard of shards) {
+    shard.mesh.rotation.y += dt * 5;
+    shard.mesh.visible = shard.life > 2 || Math.floor(shard.life * 10) % 2 === 0;
+  }
+  shockTime += dt;
+  shock.visible = shockTime < 0.35;
+  shock.scale.setScalar(1 + shockTime * 20);
+
+  if (playing && Math.hypot(pvx, pvz) > 3 && (trailTime -= dt) <= 0) {
+    trailTime = 0.02;
+    burst(px - Math.sin(facing) * 0.9, pz - Math.cos(facing) * 0.9, PALETTE.accent, 1, 1.5, 0.35);
+  }
+  for (let i = 0; i < P; i++) {
+    if (pLife[i] <= 0) continue;
+    pLife[i] -= dt;
+    const k = Math.max(0, Math.min(1, pLife[i] / pMax[i] * 1.6));
+    pPos[i * 3] += pVel[i * 2] * dt; pPos[i * 3 + 2] += pVel[i * 2 + 1] * dt;
+    pVel[i * 2] *= 1 - 2.5 * dt; pVel[i * 2 + 1] *= 1 - 2.5 * dt;
+    pCol[i * 3] = BG.r + (pBase[i * 3] - BG.r) * k; pCol[i * 3 + 1] = BG.g + (pBase[i * 3 + 1] - BG.g) * k; pCol[i * 3 + 2] = BG.b + (pBase[i * 3 + 2] - BG.b) * k;
+    if (pLife[i] <= 0) pPos[i * 3 + 1] = -100;
+  }
+  points.geometry.attributes.position.needsUpdate = true;
+  points.geometry.attributes.color.needsUpdate = true;
+
+  // The camera leans a little toward the ship.
+  camera.position.x = THREE.MathUtils.damp(camera.position.x, baseCamera.x + px * 0.06, 4, dt);
+  camera.position.z = THREE.MathUtils.damp(camera.position.z, baseCamera.z + pz * 0.06, 4, dt);
+
+  scorePop = Math.max(0, scorePop - dt * 5);
+  $('score').style.transform = `scale(${1 + scorePop * 0.25})`;
+  if ((bannerTime -= dt) <= 0) $('banner').classList.remove('show');
+  const now = `${wave}|${mult}|${shields}`;
+  if (now !== hud) {
+    hud = now;
+    $('wave').textContent = wave ? `WAVE ${wave}` : '';
+    $('mult').textContent = `×${mult}`;
+    [...$('shields').children].forEach((pip, i) => pip.classList.toggle('off', i >= shields));
+  }
+
+  if (playing && (musicTime += dt) >= 0.15) {
+    musicTime -= 0.15;
+    const root = ROOTS[Math.floor(musicStep / 16) % 4], beat = musicStep % 8;
+    sound(beat === 7 ? root * 1.5 : beat % 4 === 2 ? root * 2 : root, 0.14, 'sawtooth', root, 0.035);
+    if (musicStep % 4 === 0) sound(150, 0.12, 'sine', 40, 0.12);
+    if (musicStep % 2 === 1) noise(0.03, 0.02, 9000);
+    musicStep++;
+  }
+}
+
+// =============================================================================
+// THE FRAME, PART TWO: screens, rounds and the loop. Keep it.
+// =============================================================================
+$('best').textContent = best === null ? '—' : formatScore(best);
+
+function show(next) {
+  state = next;
+  for (const id of ['title', 'paused', 'over', 'help']) $(id).classList.toggle('show', id === next || (id === 'over' && next === 'won'));
+}
+
+function startRound() {
+  reset();
+  _stepPressed.clear();               // the key that started the round is not its first move
+  _stepClicks.clear();
+  show('playing');
+  sound(440, 0.12, 'square', 880);
+}
+
+function endRound(won, { title, detail } = {}) {
+  if (state !== 'playing') return;
+  const isBest = BEST_IS === 'lower' ? won && (best === null || score < best) : best === null || score > best;
+  if (isBest) { best = score; saved.set('best', best); $('best').textContent = formatScore(best); }
+  $('over-title').textContent = title ?? (won ? 'YOU WIN' : 'GAME OVER');
+  $('over-detail').textContent = detail ?? `Score ${formatScore(score)}`;
+  $('over-best').textContent = isBest ? 'New best!' : '';
+  show(won ? 'won' : 'over');
+}
+
+for (const line of document.querySelectorAll('.leave')) line.hidden = history.length <= 1;
+
+// The loop: keys → fixed-step simulation → draw → render. Game rules never run in draw.
+const STEP = 1 / 120, _clock = new THREE.Clock();
+let _accumulator = 0;
+
+function frame() {
+  const dt = Math.min(_clock.getDelta(), 0.1);       // a hidden window must not leap ahead
+
+  if (wasPressed('mute')) { _muted = !_muted; saved.set('muted', _muted); }
+  if (state === 'help') {
+    if (_pressed.size) show(_helpFrom);
+  } else if (wasPressed('help') && state !== 'playing') {
+    _helpFrom = state;
+    show('help');
+  } else if ((state === 'title' || state === 'over' || state === 'won') && wasPressed('pause') && history.length > 1) {
+    history.back();                                      // back to Game Vibes, which opened the game
+  } else if (state === 'title' || state === 'over' || state === 'won') {
+    const kept = typeof screenInput === 'function' && [..._pressed].some(code => screenInput(code));
+    if (!kept && (wasPressed('action') || wasClicked(0))) startRound();
+  } else if (state === 'paused') {
+    if (wasPressed('pause')) show('playing');
+    else if (wasPressed('leave') && history.length > 1) history.back();   // back to Game Vibes, mid-round
+  } else if (wasPressed('pause')) {
+    show('paused');
+  } else {
+    _accumulator += dt;
+    for (let steps = 0; _accumulator >= STEP && steps < 12 && state === 'playing'; steps++) {
+      _inStep = true;
+      update(STEP);
+      _inStep = false;
+      _stepPressed.clear();
+      _stepClicks.clear();
+      _accumulator -= STEP;
+    }
+  }
+  if (state !== 'playing') { _accumulator = 0; _stepPressed.clear(); _stepClicks.clear(); }
+  _pressed.clear();
+  _clicks.clear();
+
+  if (typeof draw === 'function') draw(dt, _accumulator / STEP);
+  $('score').textContent = formatScore(score);
+  shake = Math.max(0, shake - dt);
+  const shakeX = (Math.random() - 0.5) * shake, shakeY = (Math.random() - 0.5) * shake;
+  camera.position.x += shakeX;
+  camera.position.y += shakeY;
+  if (composer) composer.render(); else renderer.render(scene, camera);
+  camera.position.x -= shakeX;
+  camera.position.y -= shakeY;
+}
+
+build();
+if (typeof resized === 'function') resized();
+reset();
+renderer.setAnimationLoop(frame);
+</script>
+</body>
+</html>

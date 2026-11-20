@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy parasti kontrolē, izmantojot karstās taustiņu kombinācijas un Omarchy izvēlni (`Super + Space`). Bet tu vari to kontrolēt arī, izmantojot `omarchy` CLI. Tas ir īpaši noderīgi, kad tev ir AI aģents, kas strādā ar tevi pie pielāgošanas vai konfigurēšanas.
+Omarchy parasti vada ar karstajiem taustiņiem un Omarchy izvēlni (`Super + Space`). Bet to var vadīt arī ar `omarchy` CLI. Tas ir īpaši noderīgi, kad tev pielāgošanā vai konfigurēšanā palīdz AI aģents.
 
-CLI ir piekļuve visiem iekšējiem rīkiem, ko izmanto gan caur izvēlni, gan citādi. Tu vari redzēt visu, kas ir pieejams, palaižot `omarchy` terminālī.
+CLI ir piekļuve visiem iekšējiem rīkiem, ko izmanto gan caur izvēlni, gan citādi. Visu pieejamo vari apskatīt, palaižot terminālī `omarchy`.
 
 Tas izskatās apmēram šādi:
 
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,12 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-Un tu vari iedziļināties katrā grupā:
+Diagnostikai palaid tieši `omarchy-debug --no-sudo --print`. Tas izdrukā diagnostiku un ieraksta `/tmp/omarchy-debug.log` bez sudo pieprasījuma, tostarp pakotņu instalēšanas gadījumos, kur `omarchy debug` var neizdoties ar "Unknown Omarchy command".
+
+Un vari iedziļināties arī katrā grupā:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Katru komandu var izsaukt arī ar `--help`, neatkarīgi no tā, vai tu jautā visai grupai (`omarchy capture --help`) vai vienai komandai (`omarchy capture screenshot --help`).
+Katrai komandai ir arī `--help`, neatkarīgi no tā, vai jautā visai grupai (`omarchy capture --help`) vai vienai komandai (`omarchy capture screenshot --help`).
 
-### Izvēlnes atvēršana no termināla
+### Izvēlnes atvēršana no termināļa
 
-Omarchy izvēlne ir arī skriptējama, kas ir ērti tavām taustiņu piesaistēm. `omarchy menu` atver to saknē, un tu vari lekt tieši uz jebkuru punktu kokā, nosaucot to: `omarchy menu summon style.theme` dodas tieši uz tēmu atlasītāju, `omarchy menu toggle system` atver sistēmas izvēlni un atkal to aizver, ja tā jau ir augšā, un `omarchy menu close` to novāc.
+Omarchy izvēlne ir arī skriptējama, kas noder taviem paša taustiņu sasaistījumiem. `omarchy menu` to atver saknē, un vari pāriet tieši uz jebkuru vietu kokā, to nosaucot: `omarchy menu summon appearance.theme` aizved tieši uz motīvu izvēli, `omarchy menu toggle system` atver sistēmas izvēlni un aizver to atkal, ja tā jau ir atvērta, un `omarchy menu close` to noliek malā.

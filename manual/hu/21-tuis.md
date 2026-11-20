@@ -1,39 +1,39 @@
-# TUI-k
+# TUIs
 
 ## Lazygit
 
-A [Lazygit](https://github.com/jesseduffield/lazygit) egy remek alternatíva például a GitHub Desktop alkalmazással szemben, és a terminálban fut.
+A [Lazygit](https://github.com/jesseduffield/lazygit) egy kellemes alternatíva valami olyasmire, mint a GitHub Desktop alkalmazás, és a terminálban fut.
 
-Futtathatod közvetlenül: menj bármelyik git által kezelt könyvtárba, és futtasd a `lazygit` parancsot. Vagy futtathatod a Neovimon belül is, ahol a `Space G G` kombinációval indítható.
+Közvetlenül is futtathatod: menj bármelyik git által kezelt könyvtárba, és futtasd a `lazygit` parancsot. Vagy futtathatod a Neovimban is, ahol a `Space G G` billentyűkombinációval indítható.
 
-A különböző panelek között a `Tab` billentyűvel lépkedsz. A Files panelben a `Space` billentyűvel választasz ki fájlokat stage-eléshez, majd a `c` billentyűvel hozol létre új commitot. Az összes elérhető parancsot a `?` billentyűvel nézheted meg.
+A különböző panelek között a `Tab` billentyűvel ugrálhatsz. A Files panelen a `Space` segítségével választod ki a fájlokat stagingelésre, majd a `c` billentyűvel hozhatsz létre új commitot. Az összes elérhető parancsot a `?` billentyűvel nézheted meg.
 
 ## Btop
 
-A [Btop](https://github.com/aristocratos/btop) egy gyönyörű erőforráskezelő, amely mutatja a memória-, CPU-, lemez- és hálózathasználatot. Kilistázza az összes aktív folyamatot is, és lehetővé teszi azok kezelését.
+A [Btop](https://github.com/aristocratos/btop) egy gyönyörű erőforrás-kezelő, amely megmutatja a memória-, CPU-, lemez- és hálózathasználatot. Felsorolja az összes aktív folyamatot is, és lehetővé teszi azok kezelését.
 
-Az Omarchy Activitynek hívja, és a `Super + Ctrl + T` kombinációval indítod. Lebegő ablakként nyílik, amelyet a `Super + T` kombinációval mozaikolhatsz.
+Az Omarchy Activity Monitornak hívja, és az alkalmazásindítóból vagy a `Super + Shift + T` billentyűkombinációval indíthatod. Lebegő ablakként nyílik meg, amelyet a `Super + T` billentyűkombinációval csempézhetsz.
 
 ## Herdr
 
-A [Herdr](https://github.com/omacom-io/herdr) egy terminálos munkaterület-kezelő, amely munkaterületeket, lapokat és paneleket ad, és mindegyiket egy tartós munkamenetben tartja futva, amelyből leválaszthatsz, és később visszatérhetsz hozzá.
+A [Herdr](https://github.com/omacom-io/herdr) egy terminálos munkaterület-kezelő, amely munkaterületeket, lapokat és paneleket ad, és mindegyiket futva tartja egy állandó munkamenetben, amelyről leválhatsz, és amelyhez később visszatérhetsz.
 
-A `Super + Ctrl + Return` kombinációval indítod el (vagy csatolod vissza magad a meglévő munkamenetedhez). Az Omarchy olyan Herdr-konfigurációt szállít, amely tükrözi a Tmux-konfigurációját, így itt is a `Ctrl + Space` a prefixbillentyű. Az összes billentyűkiosztást a `Super + Ctrl + K` kombinációval böngészheted.
+Az alkalmazásindítóból vagy a `Super + Ctrl + Return` billentyűkombinációval indíthatod el (vagy csatlakozhatsz vissza a meglévő munkamenetedhez). Az Omarchy olyan Herdr-konfigurációval érkezik, amely tükrözi a Tmux-konfigurációját, így a prefix billentyű itt is a `Ctrl + Space`. Az összes billentyűkiosztást a `Super + Ctrl + K` billentyűkombinációval böngészheted.
 
 ## Fastfetch
 
-A [Fastfetch](https://github.com/fastfetch-cli/fastfetch) rendszerinformációkat mutat: kernelverziót, üzemidőt, témát, CPU-t, memóriát és egyebeket. A népszerű neofetch eszköz utódja.
+A [Fastfetch](https://github.com/fastfetch-cli/fastfetch) rendszerinformációkat mutat, például a kernel verzióját, az üzemidőt, a témát, a CPU-t, a memóriát és még sok mást. Ez a népszerű neofetch eszköz utódja.
 
-Az Omarchy _About_ néven csomagolta az Omarchy menüben (`Super + Space`).
+Az Omarchy ezt _Rendszer > Névjegy_ néven csomagolta be az Omarchy menübe (`Super + Space`).
 
 ## Cliamp
 
-A [Cliamp](https://www.cliamp.stream/) egy retró terminálos zenelejátszó, amelyet a Winamp 2.x ihletett, kiegészítve beépített lo-fi rádióadókkal. Indítsd a `Super + Shift + Alt + M` kombinációval, vagy az Omarchy menü _Apps_ pontjából. Nyomd meg a `?` billentyűt a teljes billentyűkiosztási listához.
+A [Cliamp](https://www.cliamp.stream/) egy retró terminálos zenelejátszó, amelyet a Winamp 2.x ihletett, beépített rádióállomásokkal lo-fi beatekhez. A `Super + Shift + Alt + M` billentyűkombinációval vagy az Omarchy menü _Alkalmazások_ pontja alól indíthatod. A teljes billentyűkiosztási listához nyomd meg a `?` billentyűt.
 
-## Mi a helyzet a Wi-Fivel és a Bluetoothszal?
+## Mi a helyzet a Wi-Fi-vel és a Bluetooth-szal?
 
-Wi-Fihez és Bluetoothhoz nem találsz TUI-kat — ezek a feladatok az Omarchy shellre tartoznak. Kattints a Wi-Fi ikonra a felső sávban (vagy nyomd meg a `Super + Ctrl + W` kombinációt) a hálózatok megtekintéséhez és a csatlakozáshoz, és kattints a Bluetooth ikonra (vagy nyomd meg a `Super + Ctrl + B` kombinációt) az eszközök párosításához és csatlakoztatásához. A teljes történetért lásd a [networking](35-networking.md) részt.
+Nem fogsz TUI-kat találni a Wi-Fi-hez és a Bluetooth-hoz — ezek a feladatok az Omarchy shellhez tartoznak. Kattints a Wi-Fi ikonra a felső sávban (vagy nyomd meg a `Super + Ctrl + N` billentyűkombinációt) a hálózatok megtekintéséhez és a csatlakozáshoz, és kattints a Bluetooth ikonra (vagy nyomd meg a `Super + Ctrl + B` billentyűkombinációt) az eszközök párosításához és csatlakoztatásához. A teljes történetért lásd a [hálózatkezelés](35-networking.md) oldalt.
 
 ## Saját hozzáadása
 
-Bármilyen terminálprogram megkaphatja a teljes alkalmazáskezelést. Menj az Omarchy menü (`Super + Space`) _Install > TUI_ pontjához, adj neki nevet, indítóparancsot, ablakstílust és ikont, és megjelenik az alkalmazásindítóban, mint bármelyik másik alkalmazás. Ismét eltávolíthatod az _Remove > TUI_ alatt.
+Bármelyik terminálprogram megkaphatja a teljes alkalmazáskezelést. Menj a _Telepítés > TUI_ pontra az Omarchy menüben (`Super + Space`), adj neki nevet, indítóparancsot, ablakstílust és ikont, és megjelenik az alkalmazásindítóban, mint bármelyik másik alkalmazás. A _Eltávolítás > TUI_ pont alatt ismét eltávolíthatod.

@@ -1,43 +1,45 @@
 # Að byrja
 
-Omarchy er sett upp með ISO. Þú getur valið á milli uppsetningar á öllum diskinum, sem tekur yfir allt drifið, eða uppsetningar í laust pláss, sem setur Omarchy í óúthlutað pláss á drifi — þannig ræsir þú í tvöfaldri ræsingu við hlið Windows eða annars OS (sjá [uppsetning með tvöfaldri ræsingu](50-dual-boot-install.md) — athugaðu að þú þarft að slökkva á BitLocker í Windows fyrst). Hvort sem er er sjálfgefið að uppsetningin noti fulla dulkóðun, og valkosturinn fyrir allan diskinn mun þurrka út valda drifið, svo vertu viss um að taka öryggisafrit áður en þú notar drif sem þegar er í notkun!
+Omarchy er sett upp með ISO. Þú getur valið á milli uppsetningar á öllum diskinum, sem tekur yfir allan diskinn, eða uppsetningar í laust pláss, sem setur Omarchy í óúthlutað pláss á diski — þannig tvíræsir þú ásamt Windows eða öðru stýrikerfi (sjá [uppsetning fyrir tvíræsingu](50-dual-boot-install.md) — athugaðu að þú þarft fyrst að slökkva á BitLocker í Windows). Hvorn veginn sem er er full dulritun sjálfgefin í uppsetningunni, og valkosturinn fyrir allan diskinn mun þurrka út valda diskinn, svo vertu viss um að taka öryggisafrit áður en þú notar disk sem þegar er í notkun!
 
-[Sæktu Omarchy ISO-ið](https://omarchy.org/) fyrst, settu það á USB-lykil (notaðu [balenaEtcher](https://etcher.balena.io/) á Mac/Windows eða [caligula](https://github.com/ifd3f/caligula) á Linux) og ræstu af lyklinum.
+[Sæktu Omarchy ISO](https://omarchy.org/) fyrst, settu það á USB-lykil (notaðu [Rufus](https://rufus.ie/) í Windows, [balenaEtcher](https://etcher.balena.io/) á Mac, eða [caligula](https://github.com/ifd3f/caligula) í Linux), og ræstu af lyklinum.
 
-_Þú verður að slökkva á Secure Boot og/eða TPM í BIOS. Þú verður að slökkva á þessu til að geta sett upp Omarchy. Þetta eru öryggiskerfi frá Microsoft sem eru ætluð fyrir Windows og Linux-dreifingar sem eru tengdar Microsoft._
+_Þú verður að slökkva á Secure Boot og/eða TPM í BIOS. Þú verður að slökkva á þessu til að geta sett upp Omarchy. Þetta eru öryggiskerfi frá Microsoft sem ætluð eru fyrir Windows og Linux-dreifingar í samstarfi við Microsoft._
 
-Svaraðu síðan stillingarspurningunum og staðfestu þær svona:
+Svaraðu síðan stillingaspurningunum og staðfestu þær svona:
 
  ![install-config](images/install-config.webp)
 
-Veldu síðan drif fyrir uppsetninguna þína, lentu þér aftur og horfðu á uppsetningarsýninguna rúlla. Það getur klárast á innan við mínútu á hraðvirkustu nútímavélum, en ætti ekki að taka meira en 5 mínútur jafnvel á eldri tölvu.
+Veldu síðan disk fyrir uppsetninguna þína, og leggstu til baka og fylgstu með uppsetningarsýningunni. Það getur tekið innan við mínútu á hröðustu nútímavélunum, en ætti ekki að taka meira en 5 mínútur jafnvel á eldri tölvu.
 
  ![install-done](images/install-done.webp)
 
-Nú ertu tilbúinn að Omarchy-a!
+Nú ertu tilbúinn fyrir Omarchy!
 
 ### Notaðu lyklaborð með snúru eða 2.4ghz!
 
-Dulkóðunin á öllum diskinum leyfir þér ekki að slá inn lykilorðið af Bluetooth-lyklaborði við ræsingu. Alveg eins og þú getur ekki notað Bluetooth-lyklaborð til að komast í BIOS á PC. Þú þarft lyklaborð sem notar annaðhvort 2.4ghz-dongle eða snúru (sem er hvort sem er miklu betra fyrir seinkun!). Mér finnst [Lofree Flow84](https://www.lofree.co/products/lofree-flow-the-smoothest-mechanical-keyboard) persónulega frábært!
+Full dulritun disksins leyfir þér ekki að slá inn lykilorðið af Bluetooth-lyklaborði við ræsingu. Rétt eins og þú getur ekki notað Bluetooth-lyklaborð til að opna BIOS á PC-tölvu. Þú þarft lyklaborð sem annaðhvort notar 2.4ghz-móttakara eða snúru (sem er hvort eð er mun þægilegra vegna töfar!). Persónulega elska ég [Lofree Flow84](https://www.lofree.co/products/lofree-flow-the-smoothest-mechanical-keyboard)!
 
 ### Uppsetning fyrir annan eiganda
 
-Ef þú ert að setja upp vél fyrir einhvern annan — fjölskyldumeðlim, nýjan starfsmann, kaupanda — átt þú ekki að svara persónulegu spurningunum fyrir þeirra hönd. Ýttu á `Ctrl + C` á allra fyrsta skjá uppsetningarforritsins (lyklaborðsvalinu), og Omarchy býðst til að undirbúa vélina fyrir annan eiganda í staðinn. Kerfið setur sig upp samstundis, en allri persónulegu uppsetningunni — lyklaborðsuppsetningu, notendanafni, lykilorði — er frestað þar til vélin ræsir í fyrsta skipti. Drifið er áfram dulkóðað sjálfgefið, og lykilorðið sem nýi eigandinn velur við þessa fyrstu ræsingu verður dulkóðunarlykilorðið líka. (Vél sem þú hefur þegar verið að nota er líka hægt að afhenda án enduruppsetningar — sjá [að endurstilla tölvuna](48-security.md).)
+Ef þú ert að setja upp vél fyrir einhvern annan — fjölskyldumeðlim, nýjan starfsmann, kaupanda — ættir þú ekki að svara persónulegu spurningunum fyrir þeirra hönd. Ýttu á `Ctrl + C` á allra fyrsta skjá uppsetningarforritsins (val á lyklaborði), og Omarchy mun bjóða upp á að undirbúa vélina fyrir annan eiganda í staðinn. Kerfið setur upp strax, en allri persónulegri uppsetningu — uppsetningu lyklaborðs, notendanafni, lykilorði — er frestað þar til vélin ræsir í fyrsta skipti. Diskurinn er áfram dulritaður sjálfgefið, og lykilorðið sem nýi eigandinn velur við þá fyrstu ræsingu verður líka dulritunarlykilorðið. (Vél sem þú hefur þegar verið að nota er líka hægt að afhenda án enduruppsetningar — sjá [að endurstilla tölvuna](48-security.md).)
 
-### Uppsetningar án aðstoðar
+### Uppsetningar án viðveru
 
-ISO-ið getur líka sett sig upp alveg sjálft — ekkert lyklaborð, enginn leiðarvísir — þegar því eru afhentar stillingarnar á öðru drifi. Þannig á að meðhöndla Omarchy sem grunnmynd fyrir VMs og vélaflota. Sjá [uppsetningar án aðstoðar](51-unattended-installs.md).
+ISO-ið getur líka sett upp alveg sjálft — ekkert lyklaborð, enginn leiðarvísir — þegar því er afhent stillingin á öðrum diski. Það er leiðin til að meðhöndla Omarchy sem grunnmynd fyrir VMs og vélaflota. Sjá [uppsetningar án viðveru](51-unattended-installs.md).
 
-### Uppsetningar án dulkóðunar
+### Uppsetningar án dulritunar
 
-Omarchy er sett upp með dulkóðun sjálfgefið. Það er öruggi, ábyrgi kosturinn fyrir hverja þá tölvu sem getur mögulega týnst eða verið stolið. Þú vilt ekki að neinn sem kemst yfir vélbúnaðinn þinn geti náð í gögnin þín!
+Omarchy er sett upp með dulritun sjálfgefið. Það er öruggi, ábyrgi kosturinn fyrir hverja tölvu sem getur hugsanlega týnst eða verið stolið. Þú vilt ekki að neinn sem hefur aðgang að vélbúnaðinum þínum geti komist yfir gögnin þín!
 
-En við sérstakar aðstæður, eins og við fjaruppsetningar á Omarchy á vernduðum tölvum eða fyrir einnota uppsetningar án viðkvæmra gagna, gætir þú viljað setja upp án dulkóðunar. Þú getur ýtt á `Ctrl + C` við staðfestinguna á formattingu disksins til að skipta yfir í uppsetningu án dulkóðunar.
+En við sérstakar aðstæður, eins og fjaruppsetningar Omarchy á vernduðum tölvum eða fyrir uppsetningar til að henda eftir á án viðkvæmra gagna, gætir þú viljað setja upp án dulritunar. Þú getur ýtt á `Ctrl + C` við staðfestingu á sniði disks til að skipta yfir í uppsetningu án dulritunar.
 
 ### Tungumál
 
-Omarchy talar 50 tungumál — sama safn og omarchy.org — og enska er sjálfgefna tungumálið. Til að skipta skaltu opna Omarchy-valmyndina og fara í _Setup > Language_, eða keyra `omarchy language <code>` í terminal (`omarchy language list` sýnir kóðana). Valmyndin, skjáborðið og tilkynningar frá Omarchy sjálfu skipta um tungumál strax, og sérhvert forrit sem þú opnar eftir það fylgir á eftir líka. Forrit sem voru þegar opin skipta þegar þú endurræsir þau.
+Omarchy talar 50 tungumál — sama safn og omarchy.org — og enska er sjálfgefin. Til að skipta skaltu opna Omarchy-valmyndina og fara í _Uppsetning > Svæði > Tungumál_, eða keyra `omarchy language <code>` í skel (`omarchy language list` sýnir kóðana). Valmyndin, skjáborðið og eigin tilkynningar Omarchy skipta um tungumál strax, og hvert forrit sem þú opnar á eftir fylgir líka. Forrit sem þegar voru opin skipta þegar þú endurræsir þau.
+
+Til að halda tungumálinu en skrifa dagsetningar, tíma, tölur, peninga, einingar og pappírsstærðir eins og annað svæði gerir (enska með evrópskum dagsetningum og 24 stunda klukku, til dæmis), veldu svæði undir _Uppsetning > Svæði > Snið_, þar sem hver valkostur sýnir dæmi, eða keyrðu `omarchy region <code>` (`omarchy region list` sýnir kóðana). _Sama og tungumál_ fer aftur í snið tungumálsins sjálfs. Líkt og tungumálaskipti nær það til forritanna sem þú opnar á eftir.
 
 ### Hjálp ef þú festist
 
-Ef þú festist finnurðu yfirleitt einhvern sem er til í að hjálpa í _#omarchy-help_ rásinni á [Discord samfélagsins](https://omarchy.org/discord).
+Ef þú festist geturðu venjulega fundið einhvern sem er tilbúinn að hjálpa á _#omarchy-help_ rásinni á [Discord samfélagsins](https://omarchy.org/discord).

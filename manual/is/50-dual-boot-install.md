@@ -1,44 +1,44 @@
-# Tvöföld ræsing uppsetning
+# Uppsetning með tvöfaldri ræsingu
 
-Þú getur sett Omarchy upp á eina disksneið við hlið Windows eða annarra uppsetninga.
+Þú getur sett Omarchy upp á einni disksneið samhliða Windows eða öðrum uppsetningum.
 
-Þessi uppsetningaraðferð kemur enn með LUKS dulritun fyrir sneiðina sjálfgefið, svo hún er í raun engu frábrugðin fullu drifi og krefst einfaldlega þess að laust pláss sé til á diskinum.
+Þessi uppsetningaraðferð kemur samt með LUKS-dulritun fyrir disksneiðina sem sjálfgefna, svo hún er í raun ekkert frábrugðin uppsetningu á allan diskinn og krefst einfaldlega þess að laust pláss sé tiltækt á diskinum.
 
-## Að búa til pláss á Windows
+## Að gera pláss í Windows
 
-Til að setja upp við hlið Windows skaltu slá inn `disk management` í upphafsvalmyndinni og velja valkostinn **Create and format hard disk partitions**.
+Til að setja upp samhliða Windows skaltu skrifa `disk management` í upphafsvalmyndina og velja valkostinn **Búa til og forsníða disksneiðar á harða diski**.
 
  ![dual-boot-1](images/dual-boot-1.webp)
 
-Finndu viðeigandi sneið, hægrismelltu og veldu **Shrink Volume**.
+Finndu viðeigandi disksneið, hægrismelltu og veldu **Minnka rúmmál**.
 
 ![dual-boot-2](images/dual-boot-2.webp)
 
- Sláðu inn magnið sem þú vilt minnka magnið um. Athugaðu að þetta verður stærð framtíðar Omarchy uppsetningarinnar þinnar að meðtalinni ræsisneiðinni.
+ Sláðu inn magnið sem þú vilt minnka rúmmálið um. Athugaðu að þetta verður stærð framtíðaruppsetningar þinnar á Omarchy, að ræsidisksneiðinni meðtalinni.
 
  ![dual-boot-3](images/dual-boot-3.webp)
 
-Þegar þú ert búinn ættirðu að sjá eitthvað eins og þetta þar sem 50GB hlutinn er þar sem við munum setja upp Omarchy í þessu dæmi.
+Þegar þú ert búinn ættir þú að sjá eitthvað á þessa leið, þar sem 50GB hlutinn er sá staður þar sem við setjum upp Omarchy í þessu dæmi.
 
  ![dual-boot-4](images/dual-boot-4.webp)
 
 ## Að setja upp Omarchy
 
-Uppsetningarferlið fyrir Omarchy er í raun það sama og venjulegt. Eftir að þú velur diskinn þinn færðu valkostinn **Free space install**. Veldu þann valkost til að koma í veg fyrir að allur diskurinn þurrkist út.
+Uppsetningarferlið fyrir Omarchy er í raun það sama og venjulega. Eftir að þú velur diskinn þinn færðu valkostinn **Uppsetning í lausu plássi**. Veldu þann valkost til að koma í veg fyrir að allur diskurinn sé þurrkaður út.
 
  ![dual-boot-5](images/dual-boot-5.webp)
 
-Staðfestu að allt líti vel út og bíddu eftir að uppsetningin klárist eins og venjulegt. Þetta er líka þar sem þú gætir valið að setja upp ódulritað (ekki mælt með) alveg eins og á fullri drifuppsetningu.
+Staðfestu að allt líti vel út og bíddu eftir að uppsetningin klárist eins og venjulega. Hér getur þú líka valið að setja upp án dulritunar (ekki mælt með því), rétt eins og við uppsetningu á allan diskinn.
  ![dual-boot-6](images/dual-boot-6.webp)
 
-## Að bæta öðrum uppsetningum við ræsiforritið
+## Að bæta öðrum uppsetningum við ræsistjórann
 
-Þegar þú klárar Omarchy uppsetninguna þína munt þú taka eftir að Limine ræsiforritið er sjálfgildið núna. Með því geturðu líka bætt valkostum við Limine fyrir aðrar uppsetningar þínar eins og Windows.
+Þegar þú klárar uppsetninguna á Omarchy muntu taka eftir því að Limine-ræsistjórinn er núna sjálfgefinn. Með honum getur þú líka bætt valkostum við Limine fyrir aðrar uppsetningar þínar, svo sem Windows.
 
-Til að gera það skaltu keyra `limine-scan` og fylgja kvaðningunum til að bæta hvaða hlutum sem þú vilt við limine stillinguna þína. Þegar þú ræsir sérðu svo venjulega valkostina þína fyrir Omarchy, sem og Windows Boot Manager eða fleiri.
+Til að bæta við öðrum stýrikerfum skaltu keyra `limine-scan` og fylgja leiðbeiningunum til að bæta þeim færslum sem þú vilt við Limine-stillingarnar þínar. Ræsivalmyndin helst falin sjálfgefið og ræsir Omarchy eftir eina sekúndu. Til að velja Windows eða aðra færslu skaltu ýta á hvaða takka sem er um leið og Limine ræsist; þegar valmyndin birtist skaltu nota örvatakkana til að velja færslu og ýta á Enter. Ef Omarchy ræsist áður en þú ýtir á takka skaltu endurræsa og reyna aftur.
 
 ## Bitlocker
 
-Mikilvægt er að athuga að þessi uppsetningaraðferð er ekki samhæf Bitlocker þar sem það dulritar allan drifinn, ekki bara sneiðina. Ef þú rekst á villu sem segir að Bitlocker sé virkt skaltu ræsa í Windows, fara í **Settings -> Privacy & Security -> Device encryption** og slökkva á Bitlocker. Það getur tekið nokkurn tíma að afkóða drifinn.
+Mikilvægt er að athuga að þessi uppsetningaraðferð er ekki samhæf Bitlocker, þar sem það dulritar allan diskinn, ekki bara disksneiðina. Ef þú lendir í villu þar sem segir að Bitlocker sé virkt skaltu ræsa í Windows, fara í **Stillingar -> Persónuvernd og öryggi -> Dulritun tækis** og slökkva á Bitlocker. Það getur tekið nokkurn tíma að afkóða diskinn.
 
  ![dual-boot-7](images/dual-boot-7.webp)

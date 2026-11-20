@@ -1,0 +1,3091 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checkmate</title>
+<meta name="description" content="3D chess on four sculpted sets">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--background); color: var(--foreground); font-family: ui-monospace, "JetBrainsMono Nerd Font", monospace; }
+  canvas { display: block; }
+  :root { --line: color-mix(in srgb, var(--foreground) 13%, transparent); --soft: color-mix(in srgb, var(--foreground) 58%, transparent); --tint: var(--accent); }
+  body { background: none; }
+  #backdrop { position: fixed; inset: 0 0 42px 0; z-index: -1; }
+  #scenery { position: absolute; inset: 0; background: center / cover no-repeat; }
+  #labels { position: fixed; inset: 0; pointer-events: none; font: bold 11px sans-serif; opacity: .8; }
+  #labels i { position: absolute; left: 0; top: 0; font-style: normal; }
+  #hud { position: fixed; left: 0; right: 0; bottom: 0; height: 42px; box-sizing: border-box; background: var(--background); border-top: 1px solid var(--line); font: 14px sans-serif; user-select: none; }
+  #hud .side { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; }
+  #hud button { all: unset; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; }
+  #hud button:hover { background: color-mix(in srgb, var(--foreground) 9%, transparent); }
+  #hud button:disabled { opacity: .35; pointer-events: none; }
+  #hud #wordmark { height: 26px; padding: 0 6px; gap: 7px; font: 17px serif; }
+  #wordmark .glyph { color: var(--tint); }
+  #sets { display: flex; gap: 4px; }
+  #hud .set { width: 26px; height: 26px; color: var(--ring); border: 1.5px solid transparent; }
+  #hud .set .glyph { opacity: .7; }
+  #hud .set.on { border-color: var(--ring); }
+  #hud .set.on .glyph, #hud .set:hover .glyph { opacity: 1; }
+  .glyph { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  #hud .icon { width: 30px; height: 26px; color: color-mix(in srgb, var(--foreground) 78%, transparent); border: 1px solid transparent; }
+  #hud .icon:hover { color: var(--foreground); }
+  #hud .icon.lit { color: var(--foreground); background: color-mix(in srgb, var(--tint) 13%, transparent); border-color: color-mix(in srgb, var(--tint) 50%, transparent); }
+  #hud .icon.lit:hover { background: color-mix(in srgb, var(--tint) 22%, transparent); }
+  #say { position: absolute; left: 50%; top: 0; bottom: 0; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; font-size: 12px; white-space: nowrap; }
+  #players { color: var(--soft); }
+  #status.alarm { color: var(--red); }
+  #score { display: none; }
+  #moves { position: fixed; top: 16px; right: 16px; width: 236px; max-height: calc(100vh - 132px); box-sizing: border-box; padding: 14px; display: none; flex-direction: column; gap: 10px; font: 13px sans-serif;
+    background: color-mix(in srgb, var(--background) 90%, transparent); border: 1px solid var(--line); border-radius: 6px; }
+  #moves.show { display: flex; }
+  #moves h3 { margin: 0; font-size: 10px; font-weight: normal; letter-spacing: 1.8px; color: var(--soft); }
+  #history { margin: 0; padding: 0; list-style: none; overflow-y: auto; min-height: 67px; }
+  #history li { display: grid; grid-template-columns: 30px 1fr 66px; align-items: center; height: 32px; padding: 0 8px; margin-bottom: 3px; }
+  #history li:nth-child(odd) { background: color-mix(in srgb, var(--foreground) 3.5%, transparent); }
+  #history li span:first-child, #history p { color: var(--soft); font-size: 12px; }
+  #history p { margin: 0; line-height: 1.6; }
+  body.bare #hud, body.bare #moves { display: none; }
+  body.bare #backdrop { bottom: 0; }
+  .dialog { position: fixed; inset: 0; display: none; place-items: center; background: rgba(0, 0, 0, .5); font: 14px sans-serif; }
+  .dialog.show { display: grid; }
+  .dialog > div { width: 420px; max-width: 90vw; box-sizing: border-box; padding: 22px 24px; background: var(--background); border: 1px solid color-mix(in srgb, var(--foreground) 22%, transparent); border-radius: 8px; }
+  .dialog h2 { margin: 0 0 14px; font: 20px sans-serif; }
+  .dialog p { margin: 0 0 12px; }
+  .dialog button { height: 38px; padding: 0 16px; border: 1px solid var(--line); border-radius: 6px; background: none; color: inherit; font: inherit; cursor: pointer; }
+  .dialog button:hover { background: color-mix(in srgb, var(--foreground) 9%, transparent); }
+  .dialog button.on { background: color-mix(in srgb, var(--tint) 22%, transparent); border-color: color-mix(in srgb, var(--tint) 60%, transparent); }
+  .choice { display: flex; gap: 6px; margin: 8px -4px; padding: 3px; border: 1px solid transparent; border-radius: 9px; }
+  .choice.at { border-color: var(--line); }
+  .choice[hidden] { display: none; }
+  .choice button { flex: 1; padding: 0 6px; }
+  .buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .screen { position: fixed; inset: 0; display: none; place-items: center; text-align: center; pointer-events: none; background: color-mix(in srgb, var(--background) 45%, transparent); }
+  .screen.show { display: grid; }
+  .screen > div { padding: 28px 44px; border-radius: 14px; background: color-mix(in srgb, var(--background) 88%, transparent); border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent); }
+  .screen button, .screen [data-click] { pointer-events: auto; }
+  .screen h1 { margin: 0 0 16px; font: 44px serif; color: var(--foreground); }
+  .screen > div { max-width: min(580px, 86vw); font-family: sans-serif; }
+  .screen p { margin: 8px 0; font-size: 16px; line-height: 1.4; }
+  .key { color: var(--accent); }
+  .dim { color: color-mix(in srgb, var(--foreground) 55%, var(--background)); }
+  .screen table { margin: 12px auto; border-spacing: 20px 4px; font-size: 15px; text-align: left; }
+  .screen td.key { font-family: ui-monospace, monospace; }
+</style>
+<!-- One pinned three.js version. Addons, if any, come from the same version. -->
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.min.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="backdrop"><div id="scenery"></div></div>
+<div id="labels"></div>
+<div id="moves"><h3>MOVE HISTORY</h3><ol id="history"></ol></div>
+<div id="hud">
+  <div class="side" style="left: 12px; gap: 12px">
+    <button id="wordmark" data-do="keys" title="Keyboard shortcuts  ·  ?"><svg class="glyph" viewBox="0 0 24 24"><path d="M12 3v4M10 5h4M6 20h12M7 17l-2-7 4 2.5 3-5.5 3 5.5 4-2.5-2 7Z"/></svg>Checkmate</button>
+    <span id="sets"></span>
+  </div>
+  <div id="say"><span id="players"></span><span id="status"></span><span id="score">0</span></div>
+  <div class="side" style="right: 12px; gap: 2px">
+    <button id="moves-button" class="icon" data-do="moves" title="Moves  ·  B"><svg class="glyph" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg></button>
+    <button id="undo" class="icon" data-do="undo" title="Undo  ·  Z"><svg class="glyph" viewBox="0 0 24 24"><path d="M8 5L3.5 9.5L8 14M3.5 9.5H14a5 5 0 0 1 0 10h-3"/></svg></button>
+    <button class="icon lit" data-do="new" title="New game  ·  N" style="margin: 0 4px"><svg class="glyph" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+  </div>
+</div>
+
+<div id="newgame" class="dialog"><div>
+  <h2>A new match</h2>
+  <p id="newgame-note"></p>
+  <div class="choice"><button data-choice="0:0">Play against the computer</button><button data-choice="0:1">Two players · same device</button></div>
+  <div class="choice"><button data-choice="1:0">Casual</button><button data-choice="1:1">Thoughtful</button><button data-choice="1:2">Challenging</button></div>
+  <div class="choice"><button data-choice="2:0">Play as White</button><button data-choice="2:1">Play as Black</button></div>
+  <div class="buttons"><button data-do="cancel">Cancel</button><button data-do="start" class="on">Start game</button></div>
+</div></div>
+
+<div id="promotion" class="dialog"><div>
+  <h2>Choose your promotion</h2>
+  <div class="choice at"><button data-do="promote5">Queen</button><button data-do="promote4">Rook</button><button data-do="promote3">Bishop</button><button data-do="promote2">Knight</button></div>
+</div></div>
+
+<div id="title" class="screen show"><div>
+  <h1>Checkmate</h1>
+  <p>3D chess on four sculpted sets. Play a friend on the same computer, or the built-in opponent.</p>
+  <p class="dim">Click a piece, then a highlighted square. Right-drag to orbit the board and scroll to zoom.</p>
+  <p><span class="key">Space</span> to play · <span class="key">N</span> for a new match · <span class="key">?</span> for the keyboard</p>
+  <p class="dim">Quickest win against the computer: <span id="best">—</span></p>
+</div></div>
+
+<div id="paused" class="screen"><div>
+  <h1>Paused</h1>
+  <table id="paused-keys"></table>
+  <p>Press <span class="key">Esc</span> to resume</p>
+  <p class="leave">Press <span class="key">Q</span> to go back to Game Vibes</p>
+</div></div>
+
+<div id="over" class="screen"><div>
+  <h1 id="over-title">Checkmate</h1>
+  <p id="over-detail" class="dim"></p>
+  <p id="over-best" class="key"></p>
+  <p>Press <span class="key">Space</span> for another game</p>
+</div></div>
+
+<div id="help" class="screen"><div>
+  <h1>At your fingertips</h1>
+  <table id="keys">
+    <tr><td class="key">← → ↑ ↓</td><td>Navigate squares</td></tr>
+    <tr><td class="key">Space / Enter</td><td>Select or move</td></tr>
+    <tr><td class="key">Esc</td><td>Cancel selection, or pause</td></tr>
+    <tr><td class="key">Z</td><td>Undo</td></tr>
+    <tr><td class="key">N</td><td>New game</td></tr>
+    <tr><td class="key">F</td><td>Flip board</td></tr>
+    <tr><td class="key">R</td><td>Reset camera</td></tr>
+    <tr><td class="key">1 2 3 4</td><td>Switch piece set</td></tr>
+    <tr><td class="key">B</td><td>Show or hide the moves</td></tr>
+    <tr><td class="key">Tab</td><td>Show or hide the interface</td></tr>
+    <tr><td class="key">M</td><td>Sound on or off</td></tr>
+    <tr><td class="key">?</td><td>Keyboard shortcuts</td></tr>
+  </table>
+  <p class="dim">Press any key to close</p>
+</div></div>
+
+<script type="module">
+import * as THREE from 'three';
+
+// =============================================================================
+// SETTINGS — change these.
+// NAME namespaces saved data. PALETTE is the Omarchy theme the game was made in, from
+// `omarchy-theme-color --all`. Launched from the app launcher, themed() swaps in the
+// desktop's current theme, so take every colour from PALETTE and keep themed() around it.
+// =============================================================================
+const NAME = 'checkmate';
+const PALETTE = themed({
+  mode: 'dark',
+  background: '#16242d', foreground: '#d6e2ee', accent: '#8bc9eb', muted: '#304860',
+  red: '#4d86b0', green: '#5e95bc', yellow: '#6fa4c9', blue: '#6fb8e3', magenta: '#8bc9eb', cyan: '#b4e4f6', orange: '#8bc9eb',
+});
+const BEST_IS = 'lower';                  // 'lower' for times and move counts: then only a won round can set it
+const formatScore = value => `${Math.floor(value)} moves`;
+const KEY_REPEAT = true;                  // true: a held move key repeats, for cursors on boards and cards
+
+// =============================================================================
+// THE FRAME, PART ONE: what the game builds on. Keep it; change only ACTIONS, the camera,
+// the lights and the fog. The game may use: renderer, scene, camera, sun, fitCamera, saved,
+// random, isHeld, wasPressed, pointer, wasClicked, pick, pickPlane, sound, noise,
+// score, best, state, shake, $. Names starting with _ are the frame's alone.
+// =============================================================================
+
+// omarchy-games-vibes-launch opens the game as index.html#palette=<the current theme as JSON>, and
+// `omarchy agent look page --theme` does the same for another theme. #seed=1 replays the same round.
+function launchParam(name) {
+  return new URLSearchParams(location.hash.slice(1)).get(name);
+}
+
+function themed(fallback) {
+  let current = {};
+  try { current = JSON.parse(launchParam('palette') ?? '{}'); } catch {}
+  const palette = { ...fallback };
+  for (const key of Object.keys(fallback)) {
+    const value = current[key];
+    if (key === 'mode' ? value === 'light' || value === 'dark' : /^#[0-9a-f]{6}$/i.test(value ?? '')) palette[key] = value;
+  }
+  return palette;
+}
+
+for (const [key, value] of Object.entries(PALETTE)) document.documentElement.style.setProperty(`--${key}`, value);
+
+// Saved data. Storage can fail or hold junk; the game must still run.
+const saved = {
+  get(key, fallback) { try { const v = JSON.parse(localStorage.getItem(`omarchy-game:${NAME}:${key}`)); return v ?? fallback; } catch { return fallback; } },
+  set(key, value) { try { localStorage.setItem(`omarchy-game:${NAME}:${key}`, JSON.stringify(value)); } catch {} },
+};
+
+// Seeded randomness, so #seed=1 plays the same round on every run.
+let _seed = Number(launchParam('seed') ?? Date.now()) >>> 0;
+function random() {
+  _seed = (_seed + 0x6d2b79f5) >>> 0;
+  let t = Math.imul(_seed ^ (_seed >>> 15), _seed | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+// Without WebGL nothing can draw, so say so in the window rather than show a title screen that never starts.
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });     // clear, so the scene painted behind the board shows through
+} catch (error) {
+  for (const screen of document.querySelectorAll('.screen, #hud')) screen.remove();
+  document.body.insertAdjacentHTML('beforeend', '<div class="screen show"><div><h1>NO 3D</h1><p>This game needs WebGL, and the browser could not start it on this computer.</p><p class="dim"></p></div></div>');
+  document.querySelector('.screen .dim').textContent = error.message;
+  throw error;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(PALETTE.background);
+scene.fog = new THREE.Fog(PALETTE.background, 30, 70);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 200);
+
+// Lit this way, a MeshStandardMaterial shows close to its PALETTE colour in dark and light themes alike.
+const _light = PALETTE.mode === 'light';
+const sun = new THREE.DirectionalLight('#ffffff', _light ? 1.2 : 1.5);
+sun.position.set(6, 15, 8);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 50 });
+scene.add(sun);
+
+// Aim the camera down at a width × depth area around target, tilted from the horizontal, and back it
+// off until all four corners of the area are inside the window with a margin. Call it from resized().
+function fitCamera(width, depth, { tilt = 0.9, target = [0, 0, 0], margin = 0.9 } = {}) {
+  const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([x, z]) => new THREE.Vector3(target[0] + x * width / 2, target[1], target[2] + z * depth / 2));
+  const place = distance => {
+    camera.position.set(target[0], target[1] + distance * Math.sin(tilt), target[2] + distance * Math.cos(tilt));
+    camera.lookAt(...target);
+    camera.updateMatrixWorld();
+  };
+  const fits = () => corners.every(corner => {
+    if (corner.clone().applyMatrix4(camera.matrixWorldInverse).z >= 0) return false;   // behind the camera
+    const p = corner.clone().project(camera);
+    return Math.abs(p.x) <= margin && Math.abs(p.y) <= margin;
+  });
+  let near = 0.5, far = 1000;
+  for (let i = 0; i < 40; i++) {
+    const distance = (near + far) / 2;
+    place(distance);
+    if (fits()) far = distance; else near = distance;
+  }
+  place(far);
+}
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  if (typeof resized === 'function') resized();
+});
+
+// Keys. isHeld() is what is down now. wasPressed() is what went down since it was last asked: once per
+// frame for the screens, and once per simulation step inside update(), so a press is never lost or doubled.
+const ACTIONS = {
+  left: ['ArrowLeft', 'KeyA'], right: ['ArrowRight', 'KeyD'], up: ['ArrowUp', 'KeyW'], down: ['ArrowDown', 'KeyS'],
+  action: ['Space', 'Enter', 'NumpadEnter'], pause: ['Escape', 'KeyP'], leave: ['KeyQ'], mute: ['KeyM'], help: ['Slash'],
+  undo: ['KeyZ'], deal: ['KeyN'], flip: ['KeyF'], home: ['KeyR'], moves: ['KeyB'], chrome: ['Tab'],
+  set0: ['Digit1'], set1: ['Digit2'], set2: ['Digit3'], set3: ['Digit4'],
+};
+const _held = new Set(), _pressed = new Set(), _stepPressed = new Set();
+let _inStep = false;
+const isHeld = action => ACTIONS[action].some(code => _held.has(code));
+const wasPressed = action => ACTIONS[action].some(code => (_inStep ? _stepPressed : _pressed).has(code));
+addEventListener('keydown', event => {
+  if (Object.values(ACTIONS).flat().includes(event.code)) event.preventDefault();
+  const moving = ['left', 'right', 'up', 'down'].some(action => ACTIONS[action].includes(event.code));
+  if (!event.repeat || (KEY_REPEAT && moving)) { _pressed.add(event.code); _stepPressed.add(event.code); }
+  _held.add(event.code);
+  _unlockSound();
+});
+addEventListener('keyup', event => _held.delete(event.code));
+addEventListener('blur', () => { _held.clear(); if (state === 'playing') show('paused'); });
+
+// The mouse, for games that want it. pointer.x/y run -1..1 across the window; wasClicked(button) works
+// like wasPressed (0 left, 1 middle, 2 right); pick(objects) is the nearest hit under the pointer, or null.
+const pointer = new THREE.Vector2(), _clicks = new Set(), _stepClicks = new Set(), _raycaster = new THREE.Raycaster();
+const wasClicked = (button = 0) => (_inStep ? _stepClicks : _clicks).has(button);
+renderer.domElement.addEventListener('pointermove', event => pointer.set(event.clientX / innerWidth * 2 - 1, -(event.clientY / innerHeight) * 2 + 1));
+renderer.domElement.addEventListener('pointerdown', event => { _clicks.add(event.button); _stepClicks.add(event.button); _unlockSound(); });
+renderer.domElement.addEventListener('contextmenu', event => event.preventDefault());
+document.addEventListener('mousedown', event => { if (event.target.closest('button')) event.preventDefault(); });  // a clicked button must not keep focus for Space
+function pick(objects) {
+  _raycaster.setFromCamera(pointer, camera);
+  return _raycaster.intersectObjects(objects, true)[0] ?? null;
+}
+function pickPlane(y = 0) {
+  _raycaster.setFromCamera(pointer, camera);
+  return _raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), new THREE.Vector3());
+}
+
+// Sound, synthesized so the game stays one file. Browsers allow it only after a key press or click.
+let _audio = null, _muted = saved.get('muted', false);
+function _unlockSound() {
+  try { _audio ??= new AudioContext(); _audio.resume(); } catch {}
+}
+function sound(freq = 440, seconds = 0.1, type = 'square', slideTo = freq, volume = 0.15) {
+  if (_muted || _audio?.state !== 'running') return;
+  const t = _audio.currentTime, osc = _audio.createOscillator(), gain = _audio.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(1, slideTo), t + seconds);
+  gain.gain.setValueAtTime(volume, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
+  osc.connect(gain).connect(_audio.destination);
+  osc.start(t);
+  osc.stop(t + seconds);
+}
+// Noise for knocks, thuds, explosions and mechanical clicks: lower `tone` sounds duller.
+function noise(seconds = 0.15, volume = 0.2, tone = 2000) {
+  if (_muted || _audio?.state !== 'running') return;
+  const t = _audio.currentTime, buffer = _audio.createBuffer(1, Math.ceil(_audio.sampleRate * seconds), _audio.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  const source = _audio.createBufferSource(), filter = _audio.createBiquadFilter(), gain = _audio.createGain();
+  source.buffer = buffer;
+  filter.type = 'lowpass';
+  filter.frequency.value = tone;
+  gain.gain.setValueAtTime(volume, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
+  source.connect(filter).connect(gain).connect(_audio.destination);
+  source.start(t);
+}
+
+const $ = id => document.getElementById(id);
+let state = 'title', score = 0, best = saved.get('best', null), shake = 0;
+let _helpFrom = 'title';
+
+// =============================================================================
+// THE GAME — replace this whole section with your game, keeping its shape:
+//   build()            once, at load: meshes, materials, lights, anything reused
+//   reset()            before every round: put everything back to the start
+//   update(dt)         every fixed step while playing: input, movement, rules
+//   draw(dt, alpha)    optional, every frame in every state: animation and effects that change no rules
+//   resized()          optional, at load and when the window changes: fit the camera
+//   screenInput(code)  optional, keys on the title and end screens; return true to keep a key from starting
+//   score              what the HUD shows; set it as the game goes
+//   random()           use instead of Math.random(), so #seed=1 plays the same round every time
+//   endRound(won, { title, detail })   call when the round is lost (false) or won (true)
+// =============================================================================
+// The rules of chess and the computer's play, with nothing of the page in them, so the same code
+// runs here and in the worker that thinks. A move is a number: from, to << 6, promotion << 12.
+function ChessLib() {
+  const PAWN = 1, KNIGHT = 2, BISHOP = 3, ROOK = 4, QUEEN = 5, KING = 6;
+  const LETTERS = ' PNBRQK', VALUES = [0, 100, 320, 335, 500, 900, 0];
+  const inside = (x, y) => x >= 0 && x < 8 && y >= 0 && y < 8;
+  const move = (from, to, promotion = 0) => from | to << 6 | promotion << 12;
+  const from = m => m & 63, to = m => m >> 6 & 63, promotion = m => m >> 12;
+  const squareName = s => 'abcdefgh'[s % 8] + (Math.floor(s / 8) + 1);
+  // A square holds kind | white << 3, or 0; `id` says which of the 32 pieces stands there.
+  const kindAt = (p, s) => p.b[s] & 7, whiteAt = (p, s) => p.b[s] >> 3 === 1;
+
+  function initial() {
+    const p = { b: new Int8Array(64), id: new Int8Array(64).fill(-1), white: true, castle: 15, ep: -1, halfmove: 0, fullmove: 1 };
+    let id = 0;
+    const rows = ['rnbqkbnr', 'pppppppp', '', '', '', '', 'PPPPPPPP', 'RNBQKBNR'];
+    rows.forEach((row, i) => [...row].forEach((c, file) => {
+      const s = (7 - i) * 8 + file, upper = c.toUpperCase();
+      p.b[s] = 'PNBRQK'.indexOf(upper) + 1 | (c === upper ? 8 : 0);
+      p.id[s] = id++;
+    }));
+    return p;
+  }
+
+  function fen(p) {
+    let out = '';
+    for (let rank = 7; rank >= 0; rank--) {
+      let empty = 0;
+      for (let file = 0; file < 8; file++) {
+        const s = rank * 8 + file;
+        if (!p.b[s]) { empty++; continue; }
+        if (empty) { out += empty; empty = 0; }
+        out += whiteAt(p, s) ? LETTERS[kindAt(p, s)] : LETTERS[kindAt(p, s)].toLowerCase();
+      }
+      if (empty) out += empty;
+      if (rank) out += '/';
+    }
+    out += p.white ? ' w ' : ' b ';
+    if (!p.castle) out += '-';
+    for (let i = 0; i < 4; i++) if (p.castle & 1 << i) out += 'KQkq'[i];
+    return `${out} ${p.ep < 0 ? '-' : squareName(p.ep)} ${p.halfmove} ${p.fullmove}`;
+  }
+
+  // What makes two positions the same for repetition: an en passant square counts only where the capture is legal.
+  function key(p) {
+    let ep = p.ep;
+    if (ep >= 0 && !legal(p).some(m => to(m) === ep && kindAt(p, from(m)) === PAWN && from(m) % 8 !== ep % 8)) ep = -1;
+    return fen({ ...p, ep }).split(' ').slice(0, 4).join(' ');
+  }
+
+  function attacked(p, s, side) {
+    const b = p.b, x = s % 8, y = s >> 3, mine = side ? 8 : 0;
+    const py = y + (side ? -1 : 1);
+    if (py >= 0 && py < 8) {
+      if (x > 0 && b[py * 8 + x - 1] === (PAWN | mine)) return true;
+      if (x < 7 && b[py * 8 + x + 1] === (PAWN | mine)) return true;
+    }
+    for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) {
+      if (Math.abs(dx * dy) !== 2 || !inside(x + dx, y + dy)) continue;
+      if (b[(y + dy) * 8 + x + dx] === (KNIGHT | mine)) return true;
+    }
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      if (!dx && !dy) continue;
+      for (let d = 1; inside(x + dx * d, y + dy * d); d++) {
+        const piece = b[(y + dy * d) * 8 + x + dx * d];
+        if (!piece) continue;
+        const kind = piece & 7;
+        if ((piece & 8) === mine && (kind === QUEEN || (kind === KING && d === 1) || (kind === BISHOP && dx && dy) || (kind === ROOK && (!dx || !dy)))) return true;
+        break;
+      }
+    }
+    return false;
+  }
+  function check(p, side) {
+    const king = KING | (side ? 8 : 0);
+    for (let s = 0; s < 64; s++) if (p.b[s] === king) return attacked(p, s, !side);
+    return true;
+  }
+  function insufficient(p) {
+    let minors = 0, bishopsColor = -1, bishopsOnly = true;
+    for (let s = 0; s < 64; s++) {
+      const k = p.b[s] & 7;
+      if (k === PAWN || k === ROOK || k === QUEEN) return false;
+      if (k === KNIGHT) { minors++; bishopsOnly = false; }
+      if (k === BISHOP) {
+        minors++;
+        const color = (s % 8 + (s >> 3)) % 2;
+        if (bishopsColor >= 0 && bishopsColor !== color) bishopsOnly = false;
+        bishopsColor = color;
+      }
+    }
+    return minors <= 1 || bishopsOnly;
+  }
+
+  function after(p, m) {
+    const f = from(m), t = to(m), promo = promotion(m), b = new Int8Array(p.b), id = p.id ? new Int8Array(p.id) : null;
+    const piece = p.b[f], kind = piece & 7, white = piece >> 3 === 1;
+    const capture = p.b[t] !== 0 || (kind === PAWN && t === p.ep);
+    const shift = (a, c) => { b[c] = b[a]; b[a] = 0; if (id) { id[c] = id[a]; id[a] = -1; } };
+    const clear = s => { b[s] = 0; if (id) id[s] = -1; };
+    if (kind === PAWN && t === p.ep && !p.b[t] && f % 8 !== t % 8) clear(t + (white ? -8 : 8));
+    shift(f, t);
+    if (kind === KING && Math.abs(t - f) === 2) shift(t > f ? f + 3 : f - 4, t > f ? f + 1 : f - 1);
+    if (promo) b[t] = promo | (white ? 8 : 0);
+    let castle = p.castle;
+    if (kind === KING) castle &= white ? ~3 : ~12;
+    if (f === 0 || t === 0) castle &= ~2;
+    if (f === 7 || t === 7) castle &= ~1;
+    if (f === 56 || t === 56) castle &= ~8;
+    if (f === 63 || t === 63) castle &= ~4;
+    return { b, id, white: !p.white, castle, ep: kind === PAWN && Math.abs(t - f) === 16 ? (t + f) / 2 : -1,
+      halfmove: kind === PAWN || capture ? 0 : p.halfmove + 1, fullmove: p.fullmove + (p.white ? 0 : 1) };
+  }
+
+  // Every move the pieces could make, before asking whether it leaves the mover in check.
+  function candidates(p) {
+    const out = [], b = p.b, white = p.white, mine = white ? 8 : 0;
+    const add = (f, t) => {
+      if ((b[t] & 7) === KING) return;
+      if ((b[f] & 7) === PAWN && (t >> 3 === 0 || t >> 3 === 7)) out.push(move(f, t, QUEEN), move(f, t, ROOK), move(f, t, BISHOP), move(f, t, KNIGHT));
+      else out.push(move(f, t));
+    };
+    for (let f = 0; f < 64; f++) {
+      const piece = b[f];
+      if (!piece || (piece & 8) !== mine) continue;
+      const kind = piece & 7, x = f % 8, y = f >> 3;
+      if (kind === PAWN) {
+        const step = white ? 1 : -1, ny = y + step;
+        if (inside(x, ny) && !b[ny * 8 + x]) {
+          add(f, ny * 8 + x);
+          if (y === (white ? 1 : 6) && !b[(y + 2 * step) * 8 + x]) add(f, (y + 2 * step) * 8 + x);
+        }
+        for (const dx of [-1, 1]) if (inside(x + dx, ny)) {
+          const t = ny * 8 + x + dx, target = b[t];
+          const enPassant = t === p.ep && !target && b[t - step * 8] === (PAWN | (white ? 0 : 8));
+          if ((target && (target & 8) !== mine) || enPassant) add(f, t);
+        }
+      } else if (kind === KNIGHT) {
+        for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++)
+          if (Math.abs(dx * dy) === 2 && inside(x + dx, y + dy)) {
+            const t = (y + dy) * 8 + x + dx;
+            if (!b[t] || (b[t] & 8) !== mine) add(f, t);
+          }
+      } else {
+        for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+          if ((!dx && !dy) || (kind === BISHOP && (!dx || !dy)) || (kind === ROOK && dx && dy)) continue;
+          for (let d = 1; inside(x + dx * d, y + dy * d); d++) {
+            const t = (y + dy * d) * 8 + x + dx * d;
+            if (b[t] && (b[t] & 8) === mine) break;
+            add(f, t);
+            if (b[t] || kind === KING) break;
+          }
+        }
+        const home = white ? 4 : 60;
+        if (kind === KING && f === home && !check(p, white)) {
+          for (const kingSide of [true, false]) {
+            const right = (white ? 1 : 4) * (kingSide ? 1 : 2), dir = kingSide ? 1 : -1, rook = home + (kingSide ? 3 : -4);
+            if (!(p.castle & right) || b[rook] !== (ROOK | mine)) continue;
+            let clear = true;
+            for (let s = home + dir; s !== rook; s += dir) if (b[s]) clear = false;
+            if (clear && !attacked(p, home + dir, !white) && !attacked(p, home + 2 * dir, !white)) add(home, home + 2 * dir);
+          }
+        }
+      }
+    }
+    return out;
+  }
+  const legal = p => candidates(p).filter(m => !check(after(p, m), p.white));
+  const anyLegal = p => candidates(p).some(m => !check(after(p, m), p.white));
+
+  function san(p, m) {
+    const f = from(m), t = to(m), kind = kindAt(p, f);
+    let text = '';
+    if (kind === KING && Math.abs(t - f) === 2) text = t > f ? 'O-O' : 'O-O-O';
+    else {
+      const capture = p.b[t] !== 0 || (kind === PAWN && t === p.ep);
+      if (kind !== PAWN) {
+        text += LETTERS[kind];
+        let ambiguous = false, sameFile = false, sameRank = false;
+        for (const other of legal(p)) if (to(other) === t && from(other) !== f && kindAt(p, from(other)) === kind) {
+          ambiguous = true;
+          sameFile ||= from(other) % 8 === f % 8;
+          sameRank ||= from(other) >> 3 === f >> 3;
+        }
+        if (ambiguous) text += !sameFile ? 'abcdefgh'[f % 8] : !sameRank ? (f >> 3) + 1 : squareName(f);
+      } else if (capture) text += 'abcdefgh'[f % 8];
+      if (capture) text += 'x';
+      text += squareName(t);
+      if (promotion(m)) text += '=' + LETTERS[promotion(m)];
+    }
+    const next = after(p, m);
+    if (check(next, next.white)) text += anyLegal(next) ? '+' : '#';
+    return text;
+  }
+
+  function perft(p, depth) {
+    if (!depth) return 1;
+    let nodes = 0;
+    for (const m of legal(p)) nodes += perft(after(p, m), depth - 1);
+    return nodes;
+  }
+
+  // How a position stands for the side to move, by the rules alone: '' while the game goes on.
+  function adjudicate(p, moves, repetitions) {
+    if (!moves.length) return check(p, p.white) ? (p.white ? 'black-wins' : 'white-wins') : 'stalemate';
+    if (insufficient(p)) return 'material';
+    if (p.halfmove >= 100) return 'fifty-moves';
+    if (repetitions >= 3) return 'repetition';
+    return '';
+  }
+
+  // ---- The computer's play.
+
+  // The middle of the board is 0 and a corner 6.
+  const fromCentre = s => (Math.abs(2 * (s % 8) - 7) >> 1) + (Math.abs(2 * (s >> 3) - 7) >> 1);
+  // The same for repetition as `key`, but settling for an en passant capture that is possible rather than legal.
+  function hash(p) {
+    let h1 = 0x811c9dc5, h2 = 0x1b873593;
+    const mix = value => { h1 = Math.imul(h1 ^ value, 0x01000193); h2 = Math.imul(h2 + value ^ h2 >>> 13, 0x5bd1e995); };
+    for (let s = 0; s < 64; s++) mix(p.b[s]);
+    mix(p.white ? 1 : 0); mix(p.castle);
+    let ep = -1;
+    if (p.ep >= 0) for (const dx of [-1, 1]) {
+      const x = p.ep % 8 + dx, y = (p.ep >> 3) + (p.white ? -1 : 1);
+      if (inside(x, y) && p.b[y * 8 + x] === (PAWN | (p.white ? 8 : 0))) ep = p.ep;
+    }
+    mix(ep + 1);
+    return (h1 >>> 0) * 2097152 + (h2 >>> 11);
+  }
+
+  function evaluate(p) {
+    let score = 0;
+    const material = [0, 0], pawns = [0, 0], king = [0, 0];
+    for (let s = 0; s < 64; s++) {
+      const piece = p.b[s];
+      if (!piece) continue;
+      const kind = piece & 7, white = piece >> 3, rank = white ? s >> 3 : 7 - (s >> 3);
+      const center = 7 - (Math.abs(2 * (s % 8) - 7) >> 1) - (Math.abs(2 * rank - 7) >> 1);
+      let bonus = kind === PAWN ? rank * 7 + center * 2 : kind === KNIGHT || kind === BISHOP ? center * 10 : 0;
+      if (kind === KING && rank < 2 && (s % 8 === 6 || s % 8 === 2)) bonus += 25;
+      score += (white ? 1 : -1) * (VALUES[kind] + bonus);
+      material[white] += VALUES[kind];
+      if (kind === PAWN) pawns[white]++;
+      if (kind === KING) king[white] = s;
+    }
+    // Material alone never mates a king that is free to roam. Once one side is down to a lone king, or a king and
+    // a minor against far more, the other is paid for driving it to the edge and bringing its own king up.
+    for (const winner of [0, 1]) {
+      const loser = 1 - winner;
+      if (pawns[loser] || material[loser] > VALUES[BISHOP] || material[winner] - material[loser] < VALUES[ROOK] - 100) continue;
+      const apart = Math.abs(king[winner] % 8 - king[loser] % 8) + Math.abs((king[winner] >> 3) - (king[loser] >> 3));
+      let room = 0;       // squares the lone king could still step to: the fewer, the nearer the mate
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        const x = king[loser] % 8 + dx, y = (king[loser] >> 3) + dy;
+        if ((!dx && !dy) || !inside(x, y)) continue;
+        const there = p.b[y * 8 + x];
+        if (!(there && there >> 3 === loser) && !attacked(p, y * 8 + x, winner === 1)) room++;
+      }
+      score += (winner ? 1 : -1) * (14 * fromCentre(king[loser]) + 6 * (14 - apart) + 10 * (8 - room));
+    }
+    return p.white ? score : -score;
+  }
+
+  // The best move for the side to play, at level 0 (casual) to 2 (challenging), within that level's time.
+  function bestMove(position, level, history = [], seed = 1) {
+    const p = { ...position, id: null };
+    let moves = legal(p);
+    if (!moves.length) return -1;
+    const now = () => performance.now(), started = now(), budget = level === 0 ? 180 : level === 1 ? 650 : 1600, deadline = started + budget;
+    let stopped = false, nodes = 0;
+    const chance = () => { seed = seed + 0x6d2b79f5 | 0; let t = Math.imul(seed ^ seed >>> 15, seed | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    // The positions behind this one since the last capture or pawn move, as far as the game and the search have come.
+    const reversible = Math.min(history.length, p.halfmove + 1);
+    const path = history.slice(history.length - reversible).map(hash);
+    if (!path.length) path.push(hash(p));
+    const order = (q, m) => VALUES[q.b[to(m)] & 7] * 10 - VALUES[q.b[from(m)] & 7] + VALUES[promotion(m)];
+    // `depth` counts down to the horizon at 0 and on below it, where only captures and promotions are followed
+    // until the position is quiet. That tail is as long at every level, so a deeper search never sees less of an exchange.
+    function run(q, depth, alpha, beta, ply) {
+      if (stopped || ((++nodes & 255) === 0 && now() >= deadline)) { stopped = true; return 0; }
+      const inCheck = check(q, q.white), tail = depth <= 0 && !inCheck;
+      // How the game ends comes first: a mate or a stalemate stands whatever the move counter says.
+      let list;
+      if (!tail) {
+        list = legal(q);
+        if (!list.length) return inCheck ? -100000 + ply : 0;
+      } else if (!anyLegal(q)) return 0;
+      if (q.halfmove >= 100 || insufficient(q)) return 0;
+      // A third occurrence is a draw wherever it is met. Nothing repeats before four quiet plies have passed.
+      const here = hash(q);
+      if (q.halfmove >= 4) {
+        let seen = 0;
+        for (let i = path.length - Math.min(path.length, q.halfmove); i < path.length; i++) if (path[i] === here) seen++;
+        if (seen >= 2) return 0;
+      }
+      if (depth <= -8) return evaluate(q);
+      if (tail) {
+        // Standing pat comes before the captures are listed: most of these nodes end here.
+        const stand = evaluate(q);
+        if (stand >= beta) return beta;
+        alpha = Math.max(alpha, stand);
+        list = legal(q).filter(m => q.b[to(m)] || promotion(m) || ((q.b[from(m)] & 7) === PAWN && to(m) === q.ep));
+      }
+      const scores = new Map(list.map(m => [m, order(q, m)]));
+      list.sort((a, b) => scores.get(b) - scores.get(a));
+      path.push(here);
+      for (const m of list) {
+        const score = -run(after(q, m), depth - 1, -beta, -alpha, ply + 1);
+        if (stopped) break;
+        if (score >= beta) { alpha = beta; break; }
+        alpha = Math.max(alpha, score);
+      }
+      path.pop();
+      return alpha;
+    }
+    // Moves that come out level are tried in a different order each time, so the same game is not played twice.
+    for (let i = moves.length - 1; i > 0; i--) { const j = Math.floor(chance() * (i + 1)); [moves[i], moves[j]] = [moves[j], moves[i]]; }
+    let best = moves[0], pieces = 0;
+    for (let s = 0; s < 64; s++) if (p.b[s]) pieces++;
+    // With five pieces or fewer left the tree is small and the mates are long, so the search looks two plies further.
+    const horizon = (level === 0 ? 1 : level === 1 ? 3 : 5) + (level > 0 && pieces <= 5 ? 2 : 0);
+    for (let depth = 1; depth <= horizon; depth++) {
+      // An iteration that cannot finish only spends the player's time: each takes several times the one before.
+      if (depth > 1 && now() - started > budget / 4) break;
+      moves = [best, ...moves.filter(m => m !== best)];
+      let alpha = -1000000, iteration = best;
+      const scored = [];
+      for (const m of moves) {
+        // The casual player wants every move's true score, to choose among the good ones; the others only the best.
+        const score = -run(after(p, m), depth - 1, -1000000, level === 0 ? 1000000 : -alpha, 1);
+        if (stopped) break;
+        scored.push([score, m]);
+        if (score > alpha) { alpha = score; iteration = m; }
+      }
+      if (stopped) break;
+      best = iteration;
+      if (level === 0) {
+        // Casual play takes any move within a fifth of a pawn of the best it found.
+        const good = scored.filter(entry => entry[0] >= alpha - 20);
+        best = good[Math.floor(chance() * good.length)][1];
+      }
+    }
+    return best;
+  }
+
+  return { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, move, from, to, promotion, squareName, kindAt, whiteAt, initial, fen, key,
+    check, legal, after, san, perft, adjudicate, bestMove };
+}
+
+// The four sets are sculpted here, from the same volumes the native app cuts them from.
+function SculptLib() {
+// ---- Modelling clay for the sculpted sets: the volumes figures are built from, measured as
+// distances that are negative inside, and the cut that turns such a field into a closed mesh.
+const pi = Math.PI, { sqrt, abs, min, max, sin, cos, atan2, floor, ceil, round, exp, pow } = Math;
+const V = (x = 0, y = 0, z = 0) => ({ x, y, z });
+const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
+const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
+const mul = (a, s) => ({ x: a.x * s, y: a.y * s, z: a.z * s });
+const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
+const cross = (a, b) => ({ x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x });
+const length = a => sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+const normalize = a => { const l = length(a); return l > 1e-9 ? mul(a, 1 / l) : V(0, 1, 0); };
+const mix = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t });
+const hypot2 = (a, b) => sqrt(a * a + b * b);
+const clamp = (v, low, high) => min(high, max(low, v));
+const saturate = v => min(1, max(0, v));
+const smooth = (a, b, v) => { const t = saturate((v - a) / (b - a)); return t * t * (3 - 2 * t); };
+const smin = (a, b, k) => {
+  if (k <= 0) return min(a, b);
+  const h = max(k - abs(a - b), 0) / k;
+  return min(a, b) - h * h * k * .25;
+};
+const smax = (a, b, k) => -smin(-a, -b, k);
+const sign = v => v > 0 ? 1 : v < 0 ? -1 : 0;
+
+const ball = (p, c, r) => sqrt((p.x - c.x) ** 2 + (p.y - c.y) ** 2 + (p.z - c.z) ** 2) - r;
+function egg(p, c, r) {
+  const ax = (p.x - c.x) / r.x, ay = (p.y - c.y) / r.y, az = (p.z - c.z) / r.z;
+  const k0 = sqrt(ax * ax + ay * ay + az * az), k1 = sqrt((ax / r.x) ** 2 + (ay / r.y) ** 2 + (az / r.z) ** 2);
+  return k1 > 1e-6 ? k0 * (k0 - 1) / k1 : -min(r.x, r.y, r.z);
+}
+// A limb between two balls of different sizes.
+function horn(p, a, b, ra, rb) {
+  const bax = b.x - a.x, bay = b.y - a.y, baz = b.z - a.z, pax = p.x - a.x, pay = p.y - a.y, paz = p.z - a.z;
+  const l2 = bax * bax + bay * bay + baz * baz, rr = ra - rb, a2 = l2 - rr * rr, il2 = 1 / l2;
+  const y = pax * bax + pay * bay + paz * baz, z = y - l2;
+  const wx = pax * l2 - bax * y, wy = pay * l2 - bay * y, wz = paz * l2 - baz * y;
+  const x2 = wx * wx + wy * wy + wz * wz, y2 = y * y * l2, z2 = z * z * l2;
+  const k = sign(rr) * rr * rr * x2;
+  if (sign(z) * a2 * z2 > k) return sqrt(x2 + z2) * il2 - rb;
+  if (sign(y) * a2 * y2 < k) return sqrt(x2 + y2) * il2 - ra;
+  return (sqrt(max(0, x2 * a2 * il2)) + y * rr) * il2 - ra;
+}
+function brick(q, half, rounding) {
+  const dx = abs(q.x) - half.x + rounding, dy = abs(q.y) - half.y + rounding, dz = abs(q.z) - half.z + rounding;
+  return sqrt(max(dx, 0) ** 2 + max(dy, 0) ** 2 + max(dz, 0) ** 2) + min(max(dx, max(dy, dz)), 0) - rounding;
+}
+const hoop = (q, radius, tube) => hypot2(hypot2(q.x, q.z) - radius, q.y) - tube;
+const arch = (x, y, half, sill, spring) => y > spring ? hypot2(x, y - spring) - half : max(abs(x) - half, sill - y);
+// A turned disc about the axis, its rims rounded.
+function disc(p, height, radius, half, rounding) {
+  const a = hypot2(p.x, p.z) - radius + rounding, b = abs(p.y - height) - half + rounding;
+  return min(max(a, b), 0) + hypot2(max(a, 0), max(b, 0)) - rounding;
+}
+// A cord through a run of distinct points, tapering from one girth to another.
+function strand(p, path, from, to) {
+  const last = path.length - 1;
+  let d = 1e9;
+  for (let i = 0; i + 1 < path.length; i++) d = min(d, horn(p, path[i], path[i + 1], from + (to - from) * i / last, from + (to - from) * (i + 1) / last));
+  return d;
+}
+// A cross with flared arms, flat to the front.
+function pattee(p, centre, reach, waist, flare, depth) {
+  const x = abs(p.x - centre.x), y = abs(p.y - centre.y), along = max(x, y), aside = min(x, y);
+  const a = max(aside - waist - (flare - waist) * along / reach, along - reach) + .006, b = abs(p.z - centre.z) - depth + .006;
+  return min(max(a, b), 0) + hypot2(max(a, 0), max(b, 0)) - .006;
+}
+// Squeeze space sideways so a round volume measured there comes out oval; scale its distance by the same factor.
+const narrow = (p, factor) => V(p.x / factor, p.y, p.z);
+// Turn the nearest of `count` evenly spaced copies, the first at `first` radians, to the front (-z).
+function wedge(p, count, first) {
+  const step = 2 * pi / count, rho = hypot2(p.x, p.z);
+  let angle = atan2(p.z, p.x) - first;
+  angle -= step * round(angle / step);
+  angle -= pi / 2;
+  return V(rho * cos(angle), p.y, rho * sin(angle));
+}
+
+function Frame(origin, up, front) {
+  const o = origin, v = normalize(up), w = normalize(sub(front, mul(v, dot(front, v)))), u = cross(v, w);
+  return { o, u, v, w,
+    local(p) { const q = sub(p, o); return V(dot(q, u), dot(q, v), dot(q, w)); },
+    world(q) { return add(add(add(o, mul(u, q.x)), mul(v, q.y)), mul(w, q.z)); } };
+}
+
+// A turned body: a (radius,height) outline from the axis and back, smoothed and revolved.
+// Drawn taut, a short chamfer beside a long face cannot swing out into a lip.
+function Lathe(knots, taut = false) {
+  const r = [], y = [], count = knots.length;
+  const knot = i => knots[clamp(i, 0, count - 1)];
+  const spline = (a, b, c, d, t) => .5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t * t * t);
+  // The way through a knot, no longer than the shorter run beside it.
+  const lean = i => {
+    const a = knot(i - 1), b = knot(i), c = knot(i + 1);
+    let way = [(c[0] - a[0]) * .5, (c[1] - a[1]) * .5];
+    const most = min(hypot2(b[0] - a[0], b[1] - a[1]), hypot2(c[0] - b[0], c[1] - b[1])), size = hypot2(way[0], way[1]);
+    if (size > most) way = [way[0] * most / size, way[1] * most / size];
+    return way;
+  };
+  for (let i = 0; i + 1 < count; i++) for (let j = 0; j < 4; j++) {
+    const a = knot(i - 1), b = knot(i), c = knot(i + 1), d = knot(i + 2), t = j / 4;
+    if (!taut) {
+      r.push(max(0, spline(a[0], b[0], c[0], d[0], t)));
+      y.push(spline(a[1], b[1], c[1], d[1], t));
+      continue;
+    }
+    const out = lean(i), into = lean(i + 1), t2 = t * t, t3 = t2 * t, h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t, h01 = 3 * t2 - 2 * t3, h11 = t3 - t2;
+    r.push(max(0, h00 * b[0] + h10 * out[0] + h01 * c[0] + h11 * into[0]));
+    y.push(h00 * b[1] + h10 * out[1] + h01 * c[1] + h11 * into[1]);
+  }
+  r.push(knots[count - 1][0]); y.push(knots[count - 1][1]);
+  let reach = 0, low = y[0], high = y[0];
+  for (let i = 0; i < r.length; i++) { reach = max(reach, r[i]); low = min(low, y[i]); high = max(high, y[i]); }
+  const size = r.length;
+  return { distance(rho, height) {
+    const outside = hypot2(max(rho - reach, 0), max(max(low - height, height - high), 0));
+    if (outside > .25) return outside;
+    let best = 1e9, inside = false;
+    for (let i = 0, j = size - 1; i < size; j = i++) {
+      const ex = r[j] - r[i], ey = y[j] - y[i], wx = rho - r[i], wy = height - y[i];
+      // The closing edge runs along the axis and is not part of the surface.
+      if (i > 0) {
+        const ee = ex * ex + ey * ey, t = ee > 1e-12 ? clamp((wx * ex + wy * ey) / ee, 0, 1) : 0;
+        const bx = wx - ex * t, by = wy - ey * t;
+        best = min(best, bx * bx + by * by);
+      }
+      const above = height >= y[i], below = height < y[j], left = ex * wy > ey * wx;
+      if ((above && below && left) || (!above && !below && !left)) inside = !inside;
+    }
+    return (inside ? -1 : 1) * sqrt(best);
+  } };
+}
+
+const CORNER = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]];
+const EDGE = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
+
+// Join surface cells across crossed grid edges; settle seats and stores each vertex.
+// Triangle receives corner indices in settlement order.
+function shell(distance, low, high, cell, settle, triangle) {
+  const nx = ceil((high.x - low.x) / cell) + 1, ny = ceil((high.y - low.y) / cell) + 1, nz = ceil((high.z - low.z) / cell) + 1;
+  const block = 4, bx = floor((nx + block - 2) / block), by = floor((ny + block - 2) / block), bz = floor((nz + block - 2) / block);
+  const at = (i, j, k) => i + nx * (j + ny * k);
+  const place = (i, j, k) => V(low.x + i * cell, low.y + j * cell, low.z + k * cell);
+  const last = (b, n) => min((b + 1) * block, n - 1);
+  const value = new Float32Array(nx * ny * nz), busy = new Uint8Array(bx * by * bz), known = new Uint8Array(value.length);
+  // Blocks far from any surface take one sample; only the shell around the clay is measured finely.
+  const reach = block * cell * 1.1 + .04;
+  for (let c = 0; c < bz; c++) for (let b = 0; b < by; b++) for (let a = 0; a < bx; a++) {
+    const d = distance(place((a + .5) * block, (b + .5) * block, (c + .5) * block));
+    if (abs(d) < reach) { busy[a + bx * (b + by * c)] = 1; continue; }
+    for (let k = c * block; k <= last(c, nz); k++) for (let j = b * block; j <= last(b, ny); j++) for (let i = a * block; i <= last(a, nx); i++) value[at(i, j, k)] = d;
+  }
+  for (let c = 0; c < bz; c++) for (let b = 0; b < by; b++) for (let a = 0; a < bx; a++) {
+    if (!busy[a + bx * (b + by * c)]) continue;
+    for (let k = c * block; k <= last(c, nz); k++) for (let j = b * block; j <= last(b, ny); j++) for (let i = a * block; i <= last(a, nx); i++) {
+      const sample = at(i, j, k);
+      if (known[sample]) continue;
+      known[sample] = 1;
+      value[sample] = distance(place(i, j, k));
+    }
+  }
+  // The faces of the grid count as air, so the mesh always closes.
+  for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++)
+    if (i === 0 || j === 0 || k === 0 || i === nx - 1 || j === ny - 1 || k === nz - 1) value[at(i, j, k)] = max(value[at(i, j, k)], cell);
+
+  const owner = new Int32Array(value.length).fill(-1), spots = [], v = new Float32Array(8);
+  for (let k = 0; k + 1 < nz; k++) for (let j = 0; j + 1 < ny; j++) for (let i = 0; i + 1 < nx; i++) {
+    let inside = 0;
+    for (let c = 0; c < 8; c++) { v[c] = value[at(i + CORNER[c][0], j + CORNER[c][1], k + CORNER[c][2])]; if (v[c] < 0) inside++; }
+    if (inside === 0 || inside === 8) continue;
+    let sx = 0, sy = 0, sz = 0, crossings = 0;
+    for (const e of EDGE) {
+      const a = v[e[0]], b = v[e[1]];
+      if ((a < 0) === (b < 0)) continue;
+      const t = a / (a - b), from = CORNER[e[0]], to = CORNER[e[1]];
+      sx += from[0] + (to[0] - from[0]) * t; sy += from[1] + (to[1] - from[1]) * t; sz += from[2] + (to[2] - from[2]) * t;
+      crossings++;
+    }
+    owner[at(i, j, k)] = spots.length;
+    spots.push(place(i + sx / crossings, j + sy / crossings, k + sz / crossings));
+  }
+  for (let i = 0; i < spots.length; i++) spots[i] = settle(spots[i]);
+  const quad = (a, b, c, d, flip) => {
+    if (a < 0 || b < 0 || c < 0 || d < 0) return;
+    if (flip) [b, d] = [d, b];
+    const ac = sub(spots[a], spots[c]), bd = sub(spots[b], spots[d]);
+    if (dot(ac, ac) <= dot(bd, bd)) { triangle(a, b, c); triangle(a, c, d); }
+    else { triangle(a, b, d); triangle(b, c, d); }
+  };
+  for (let k = 0; k + 1 < nz; k++) for (let j = 0; j + 1 < ny; j++) for (let i = 0; i + 1 < nx; i++) {
+    const solid = value[at(i, j, k)] < 0;
+    if (j > 0 && k > 0 && solid !== (value[at(i + 1, j, k)] < 0)) quad(owner[at(i, j - 1, k - 1)], owner[at(i, j, k - 1)], owner[at(i, j, k)], owner[at(i, j - 1, k)], !solid);
+    if (i > 0 && k > 0 && solid !== (value[at(i, j + 1, k)] < 0)) quad(owner[at(i - 1, j, k - 1)], owner[at(i - 1, j, k)], owner[at(i, j, k)], owner[at(i, j, k - 1)], !solid);
+    if (i > 0 && j > 0 && solid !== (value[at(i, j, k + 1)] < 0)) quad(owner[at(i - 1, j - 1, k)], owner[at(i, j - 1, k)], owner[at(i, j, k)], owner[at(i - 1, j, k)], !solid);
+  }
+}
+
+// ---- Casting: each material region of a figure is cut separately, so it can combine wood, metal and
+// inlay. A mould is { field, cell, shade, turned, company }: `cell` is how finely the solid is cut and
+// `shade` how far its recesses darken; a `turned` solid is the same all round its axis; `company`
+// stands against it and shades it.
+const mould = (field, cell = .017, shade = .4, turned = false, company = null) => ({ field, cell, shade, turned, company });
+
+// Walk in from outside until a field's surface is met, so details can be set onto it.
+function land(field, from, toward) {
+  toward = normalize(toward);
+  let travelled = 0;
+  for (let i = 0; i < 240 && travelled < 2; i++) {
+    const d = field(add(from, mul(toward, travelled)));
+    if (d < .0015) break;
+    travelled += max(.002, d * .6);
+  }
+  return add(from, mul(toward, travelled));
+}
+
+// Where a mould's solid lies, found on a coarse lattice so no figure needs a hand-measured box.
+function extent(field, margin) {
+  const step = .055, across = 11, below = 2, tall = 40;
+  let low = null, high = null;
+  for (let k = -across; k <= across; k++) for (let j = -below; j < tall; j++) for (let i = -across; i <= across; i++) {
+    const p = V(i * step, j * step, k * step), d = field(p);
+    if (d >= step) {
+      // A field never overstates the way to its surface by much, so the lattice strides across open air.
+      i += max(0, Math.trunc((min(d, 2) * .7 - step) / step));
+      continue;
+    }
+    if (!low) { low = { ...p }; high = { ...p }; }
+    low = V(min(low.x, p.x), min(low.y, p.y), min(low.z, p.z));
+    high = V(max(high.x, p.x), max(high.y, p.y), max(high.z, p.z));
+  }
+  return low && { low: V(low.x - margin, low.y - margin, low.z - margin), high: V(high.x + margin, high.y + margin, high.z + margin) };
+}
+
+// The slope of a field, uphill and as steep as the field really is there, felt over a reach of `e`.
+function slope(field, p, e) {
+  const a = field(V(p.x + e, p.y - e, p.z - e)), b = field(V(p.x - e, p.y - e, p.z + e)), c = field(V(p.x - e, p.y + e, p.z - e)), d = field(V(p.x + e, p.y + e, p.z + e)), s = .25 / e;
+  return V((a - b - c + d) * s, (-a - b + c + d) * s, (-a + b - c + d) * s);
+}
+
+// Shadow gathers where the surface is closed in, by its own solid or by what stands against it,
+// and is cast into the vertex with the shape.
+function daylight(m, spot, facing, steep) {
+  if (m.shade <= 0) return 1;
+  const air = reach => {
+    const p = add(spot, mul(facing, reach)), d = m.field(p);
+    return m.company ? min(d, m.company(p)) : d;
+  };
+  const here = m.field(spot);
+  const open = saturate((.55 * (air(.03) - here) / .03 + .45 * (air(.09) - here) / .09) / steep);
+  return 1 - m.shade * (1 - open);
+}
+
+const figure = () => ({ pos: [], nor: [], uv: [], col: [], idx: [] });
+function vertex(out, spot, facing, lit) {
+  out.pos.push(spot.x, spot.y, spot.z);
+  out.nor.push(facing.x, facing.y, facing.z);
+  // Grain runs through the solid like a plank's, so it meets itself all the way round.
+  out.uv.push(.5 + .62 * spot.x + .47 * spot.z, spot.y);
+  out.col.push(lit, lit, lit);
+}
+// Winding must agree with the sculpted normals.
+function face(out, a, b, c) {
+  const P = out.pos, N = out.nor, A = a * 3, B = b * 3, C = c * 3;
+  const ux = P[B] - P[A], uy = P[B + 1] - P[A + 1], uz = P[B + 2] - P[A + 2], vx = P[C] - P[A], vy = P[C + 1] - P[A + 1], vz = P[C + 2] - P[A + 2];
+  const facing = (uy * vz - uz * vy) * (N[A] + N[B] + N[C]) + (uz * vx - ux * vz) * (N[A + 1] + N[B + 1] + N[C + 1]) + (ux * vy - uy * vx) * (N[A + 2] + N[B + 2] + N[C + 2]);
+  if (facing < 0) out.idx.push(a, c, b); else out.idx.push(a, b, c);
+}
+
+// A cell that holds an edge of the solid seats its vertex on that edge, as dual contouring does,
+// so arrises run straight and evenly lit instead of stepping from cell to cell.
+function ridge(field, low, cell, home, spot, facing, steep) {
+  const base = V(low.x + floor((home.x - low.x) / cell) * cell, low.y + floor((home.y - low.y) / cell) * cell, low.z + floor((home.z - low.z) / cell) * cell);
+  // A smooth face lies flat across its cell; only a cell that departs from that is worked on.
+  const v = [];
+  let bend = 0;
+  for (let c = 0; c < 8; c++) {
+    const p = V(base.x + CORNER[c][0] * cell, base.y + CORNER[c][1] * cell, base.z + CORNER[c][2] * cell);
+    v[c] = field(p);
+    bend = max(bend, abs(v[c] / steep - dot(facing, sub(p, spot))));
+  }
+  if (bend < cell * .2) return null;
+  // Each crossing of the cell's edges gives a point on the surface and the plane of the face it lies in.
+  const at = [], plane = [];
+  let mass = V();
+  for (const e of EDGE) {
+    const a = v[e[0]], b = v[e[1]];
+    if ((a < 0) === (b < 0)) continue;
+    const t = a / (a - b), from = CORNER[e[0]], to = CORNER[e[1]];
+    const p = V(base.x + (from[0] + (to[0] - from[0]) * t) * cell, base.y + (from[1] + (to[1] - from[1]) * t) * cell, base.z + (from[2] + (to[2] - from[2]) * t) * cell);
+    const lean = slope(field, p, cell * .1), size = length(lean);
+    // A field torn across a step is no guide; the vertex stays where it settled.
+    if (size > 1.6) return null;
+    // Faces turned away belong to the far side of a thin sheet, not to this vertex.
+    if (size < 1e-4 || dot(lean, facing) < -.2 * size) continue;
+    const n = mul(lean, 1 / size);
+    plane.push(n);
+    at.push(sub(p, mul(n, clamp(field(p) / max(.25, size), -cell * .5, cell * .5))));
+    mass = add(mass, at[at.length - 1]);
+  }
+  const count = at.length;
+  if (count < 3) return null;
+  mass = mul(mass, 1 / count);
+  // The point nearest every plane, held lightly to the middle of the crossings where the planes leave it free.
+  let xx = .1, yy = .1, zz = .1, xy = 0, xz = 0, yz = 0, apart = 1, one = 0, other = 0, pull = V();
+  for (let i = 0; i < count; i++) {
+    const n = plane[i];
+    xx += n.x * n.x; yy += n.y * n.y; zz += n.z * n.z; xy += n.x * n.y; xz += n.x * n.z; yz += n.y * n.z;
+    pull = add(pull, mul(n, dot(n, sub(at[i], mass))));
+    for (let j = i + 1; j < count; j++) if (dot(n, plane[j]) < apart) { apart = dot(n, plane[j]); one = i; other = j; }
+  }
+  const c00 = yy * zz - yz * yz, c01 = xz * yz - xy * zz, c02 = xy * yz - xz * yy, c11 = xx * zz - xz * xz, c12 = xy * xz - xx * yz, c22 = xx * yy - xy * xy;
+  const det = xx * c00 + xy * c01 + xz * c02;
+  let seat = add(mass, mul(V(c00 * pull.x + c01 * pull.y + c02 * pull.z, c01 * pull.x + c11 * pull.y + c12 * pull.z, c02 * pull.x + c12 * pull.y + c22 * pull.z), 1 / det));
+  // Confine the fitted point to its cell before projecting it back onto the surface.
+  seat = V(clamp(seat.x, base.x, base.x + cell), clamp(seat.y, base.y, base.y + cell), clamp(seat.z, base.z, base.z + cell));
+  const rise = slope(field, seat, cell * .4);
+  spot = sub(seat, mul(normalize(rise), clamp(field(seat) / max(.25, length(rise)), -cell * .5, cell * .5)));
+  // On the arris itself the slope is torn between two faces; the normal there bisects them.
+  const here = normalize(slope(field, spot, cell * .1));
+  const torn = apart < .94 && apart > -.8 && dot(here, plane[one]) < .985 && dot(here, plane[other]) < .985;
+  return { spot, facing: torn ? normalize(add(plane[one], plane[other])) : here };
+}
+
+// Carved solids are cut from a grid of cells.
+function cast(m, out, fitEdges) {
+  const field = m.field, cell = m.cell, box = extent(field, .055 + 2 * cell);
+  if (!box) return;
+  const first = out.pos.length / 3;
+  shell(field, box.low, box.high, cell, spot => {
+    const home = spot;
+    // Two steps down the slope seat each vertex on the surface, so polished faces stay true.
+    const fall = slope(field, spot, cell * .4), down = normalize(fall), pitch = max(.25, length(fall));
+    for (let step = 0; step < 2; step++) spot = sub(spot, mul(down, clamp(field(spot) / pitch, -cell * .6, cell * .6)));
+    let rise = slope(field, spot, cell * .4), facing = normalize(rise);
+    const fitted = fitEdges && ridge(field, box.low, cell, home, spot, facing, max(.25, length(rise)));
+    if (fitted) { spot = fitted.spot; facing = fitted.facing; rise = slope(field, spot, cell * .4); }
+    vertex(out, spot, facing, daylight(m, spot, facing, max(.25, length(rise))));
+    return spot;
+  }, (a, b, c) => face(out, first + a, first + b, first + c));
+}
+
+// Turned solids are the same all the way round: the outline is traced once in a half-plane, finer
+// than a grid could cut it, and spun into whole rings, so rims and highlights run true about the axis.
+function turn(m, out) {
+  const field = m.field, cell = m.cell * .4, box = extent(field, .055 + 2 * cell);
+  if (!box) return;
+  const { low, high } = box, reach = max(max(high.x, -low.x), max(high.z, -low.z));
+  const solid = (rho, y) => field(V(abs(rho), y, 0));
+  // Nodes straddle the axis, so a cell on it is cut alike from both sides and its vertex is a pole.
+  const nx = ceil(reach / cell) + 2, ny = ceil((high.y - low.y) / cell) + 1;
+  const at = (i, j) => i + nx * j, value = new Float32Array(nx * ny);
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    const d = solid((i - .5) * cell, low.y + j * cell);
+    // The far faces of the grid count as air, so the outline always closes.
+    value[at(i, j)] = i === nx - 1 || j === 0 || j === ny - 1 ? max(d, cell) : d;
+  }
+  const lean = (rho, y) => {
+    const e = cell * .5;
+    return V((solid(rho + e, y) - solid(rho - e, y)) / (2 * e), (solid(rho, y + e) - solid(rho, y - e)) / (2 * e), 0);
+  };
+
+  // One bead of the outline settles in every cell the surface crosses.
+  const beads = [], owner = new Int32Array(value.length).fill(-1);
+  let widest = 0;
+  for (let j = 0; j + 1 < ny; j++) for (let i = 0; i + 1 < nx; i++) {
+    const v = [value[at(i, j)], value[at(i + 1, j)], value[at(i, j + 1)], value[at(i + 1, j + 1)]];
+    const inside = (v[0] < 0) + (v[1] < 0) + (v[2] < 0) + (v[3] < 0);
+    if (inside === 0 || inside === 4) continue;
+    let across = 0, up = 0, crossings = 0;
+    const cut = (from, to) => {
+      if ((v[from] < 0) === (v[to] < 0)) return;
+      const t = v[from] / (v[from] - v[to]);
+      across += (from & 1) + ((to & 1) - (from & 1)) * t;
+      up += (from >> 1) + ((to >> 1) - (from >> 1)) * t;
+      crossings++;
+    };
+    cut(0, 1); cut(2, 3); cut(0, 2); cut(1, 3);
+    const pole = i === 0;
+    let rho = pole ? 0 : (i - .5 + across / crossings) * cell, y = low.y + (j + up / crossings) * cell;
+    const fall = lean(rho, y), down = normalize(fall), pitch = max(.25, length(fall));
+    for (let step = 0; step < 2; step++) {
+      const d = clamp(solid(rho, y) / pitch, -cell * .6, cell * .6);
+      rho = pole ? 0 : max(0, rho - down.x * d);
+      y -= down.y * d;
+    }
+    const rise = lean(rho, y), facing = normalize(rise), steep = max(.25, length(rise));
+    owner[at(i, j)] = beads.length;
+    beads.push({ rho, y, facing, lit: daylight(m, V(rho, y, 0), facing, steep), steep, light: [] });
+    widest = max(widest, rho);
+  }
+  if (!beads.length) return;
+
+  // Beads are strung together across every grid edge the surface crosses, between the two cells that share it.
+  const link = new Int32Array(beads.length * 4).fill(-1);
+  const join = (a, b) => {
+    if (a < 0 || b < 0) return;
+    for (let s = 0; s < 4; s++) if (link[a * 4 + s] < 0) { link[a * 4 + s] = b; break; }
+    for (let s = 0; s < 4; s++) if (link[b * 4 + s] < 0) { link[b * 4 + s] = a; break; }
+  };
+  for (let j = 0; j + 1 < ny; j++) for (let i = 1; i + 1 < nx; i++) {
+    if ((value[at(i, j)] < 0) !== (value[at(i, j + 1)] < 0)) join(owner[at(i - 1, j)], owner[at(i, j)]);
+    if (j > 0 && (value[at(i, j)] < 0) !== (value[at(i + 1, j)] < 0)) join(owner[at(i, j - 1)], owner[at(i, j)]);
+  }
+  const follow = from => {
+    for (let s = 0; s < 4; s++) {
+      const to = link[from * 4 + s];
+      if (to < 0) continue;
+      link[from * 4 + s] = -1;
+      for (let t = 0; t < 4; t++) if (link[to * 4 + t] === from) { link[to * 4 + t] = -1; break; }
+      return to;
+    }
+    return -1;
+  };
+
+  // Every bead off the axis becomes a ring of vertices, shared by the bands on either side of it.
+  const around = clamp(8 * ceil(2 * pi * widest / .02 / 8), 48, 128);
+  // Contact shading is sampled around each ring because neighbouring parts may be asymmetric.
+  if (m.company) for (const b of beads) for (let k = 0; k < around; k++) {
+    const angle = 2 * pi * k / around, c = cos(angle), s = sin(angle);
+    b.light.push(daylight(m, V(b.rho * c, b.y, b.rho * s), V(b.facing.x * c, b.facing.y, b.facing.x * s), b.steep));
+  }
+  const ring = new Int32Array(beads.length).fill(-1);
+  const rim = bead => {
+    const b = beads[bead];
+    if (ring[bead] < 0) {
+      ring[bead] = out.pos.length / 3;
+      for (let k = 0; k < (b.rho > 0 ? around : 1); k++) {
+        const angle = 2 * pi * k / around, c = cos(angle), s = sin(angle);
+        vertex(out, V(b.rho * c, b.y, b.rho * s), V(b.facing.x * c, b.facing.y, b.facing.x * s), b.light.length ? b.light[k] : b.lit);
+      }
+    }
+    return ring[bead];
+  };
+  const band = (a, b) => {
+    const pointA = beads[a].rho <= 0, pointB = beads[b].rho <= 0;
+    if (pointA && pointB) return;
+    const A = rim(a), B = rim(b);
+    for (let k = 0; k < around; k++) {
+      const next = (k + 1) % around;
+      if (pointA) face(out, A, B + k, B + next);
+      else if (pointB) face(out, B, A + k, A + next);
+      else { face(out, A + k, A + next, B + next); face(out, A + k, B + next, B + k); }
+    }
+  };
+  // A run of beads may share one band while it stays straight, evenly lit and facing one way.
+  const spans = (path, a, c) => {
+    const from = beads[path[a]], to = beads[path[c]], dx = to.rho - from.rho, dy = to.y - from.y, run = hypot2(dx, dy);
+    if (run > .045) return false;
+    for (let k = a + 1; k <= c; k++) {
+      const bead = beads[path[k]];
+      if (dot(bead.facing, from.facing) < .988 || abs(bead.lit - from.lit) > .04) return false;
+      for (let angle = 0; angle < bead.light.length; angle++) if (abs(bead.light[angle] - from.light[angle]) > .04) return false;
+      if (k < c && abs(dx * (bead.y - from.y) - dy * (bead.rho - from.rho)) > .0003 * run) return false;
+    }
+    return true;
+  };
+  // Outlines run from pole to pole, or close on themselves as a hoop's does; poles are walked first.
+  for (let pass = 0; pass < 2; pass++) for (let start = 0; start < beads.length; start++) {
+    if (pass === 0 && beads[start].rho > 0) continue;
+    for (;;) {
+      const path = [start];
+      for (let next = follow(start); next >= 0; next = follow(next)) path.push(next);
+      if (path.length < 2) break;
+      for (let a = 0; a + 1 < path.length;) {
+        let b = a + 1;
+        while (b + 1 < path.length && spans(path, a, b + 1)) b++;
+        band(path[a], path[b]);
+        a = b;
+      }
+    }
+  }
+}
+// ---- Orbital Orders is a court among the stars in miniature: pale ceramic or gunmetal hulls on
+// ringed decks, gold instruments and edging for the officers, and small lights behind dark glass.
+const Orbital = (() => {
+  // Every piece stands on a deck, scaled to its rank: a plate under a low cone, a gold ring let into the step.
+  const deck = Lathe([[0, .04], [.31, .05], [.3, .085], [.25, .118], [.2, .15], [0, .15]]);
+  const rank = [0, .82, .95, .92, .98, 1, 1];
+  const base = (p, scale) => {
+    const q = mul(p, 1 / scale);
+    return smin(disc(q, .025, .35, .045, .014), deck.distance(hypot2(q.x, q.z), q.y), .006) * scale;
+  };
+  const ring = (p, height, radius, tube) => hoop(V(p.x, p.y - height, p.z), radius, tube);
+
+  // A plate cut to an outline seen from the side, thickest along its middle and bevelled flat to a fine edge.
+  // The outline is traced as (depth+.6, height); a knot given twice is a sharp corner.
+  const Plate = (outline, edge, bevel, thick) => {
+    const rim = p => outline.distance(p.z + .6, p.y);
+    return { rim, distance(p) { const d = rim(p); return smax(d, abs(p.x) - min(thick, edge + bevel * max(-d, 0)), .004) * .75; } };
+  };
+
+  // The sentinel: a beacon dome on a flared collar, parted all the way round by a slot of dark glass.
+  const sentinel = () => {
+    const neck = Lathe([[0, .1], [.168, .11], [.15, .17], [.122, .25], [.106, .33], [.116, .38], [.15, .408], [0, .42]]);
+    return p => {
+      const rho = hypot2(p.x, p.z);
+      const dome = smax(egg(p, V(0, .6, 0), V(.2, .215, .2)), -max(abs(p.y - .6) - .036, .183 - rho), .006);
+      return smin(neck.distance(rho, p.y), dome, .008);
+    };
+  };
+
+  // The comet steed is all blades: a sail of a neck swelling to a breastplate, a long wedge of a head
+  // with a hard brow, and two fins swept back from the crown.
+  const sail = Plate(Lathe([[.39, .1], [.39, .1], [.35, .36], [.4, .56], [.5, .74], [.55, .86], [.55, .86], [.67, .97], [.67, .97],
+    [.79, .8], [.87, .5], [.86, .3], [.83, .1], [.83, .1], [.39, .1], [.39, .1]]), .025, .8, .125);
+  const helm = Plate(Lathe([[.18, .72], [.18, .72], [.44, .93], [.44, .93], [.58, 1.06], [.58, 1.06], [.73, .97], [.73, .97],
+    [.65, .8], [.65, .8], [.4, .71], [.4, .71], [.18, .72], [.18, .72]]), .018, .75, .085);
+  const fin = Plate(Lathe([[.5, .97], [.5, .97], [.9, 1.26], [.9, 1.26], [.71, .9], [.71, .9], [.5, .97], [.5, .97]]), .014, .6, .032);
+  const steed = p => {
+    // Each plate is only measured near where it stands.
+    let d = p.y < 1.1 ? sail.distance(p) : 1e9;
+    if (p.y > .58) d = smin(d, helm.distance(p), .012);
+    // The fins lean apart as they rise.
+    if (p.y > .78 && p.z > -.22) d = min(d, fin.distance(V(abs(p.x) - .048 - .2 * (p.y - .95), p.y, p.z)));
+    return d;
+  };
+  // Gold edging follows the whole silhouette of sail and helm.
+  const edging = p => {
+    if (abs(p.x) > .12) return abs(p.x) - .016;
+    const rim = min(sail.rim(p), helm.rim(p)) - .013;
+    return max(max(rim, abs(p.x) - .016), max(.2 - p.y, -rim - .05));
+  };
+  // A slit of light lies under each brow.
+  const visor = () => {
+    const side = land(steed, V(.5, .925, -.09), V(-1, 0, 0)).x;
+    const brow = Frame(V(0, .925, -.09), V(0, .763, -.646), V(0, -.646, -.763));
+    return p => { const q = brow.local(p); return egg(V(abs(q.x), q.y, q.z), V(side, 0, 0), V(.016, .016, .07)); };
+  };
+
+  // The halo spire: a slender hull that carries a ring and its light.
+  const spire = () => {
+    const hull = Lathe([[0, .11], [.19, .12], [.172, .19], [.14, .32], [.108, .48], [.084, .64], [.068, .78], [.062, .87], [.074, .91], [0, .92]]);
+    return p => smin(hull.distance(hypot2(p.x, p.z), p.y), disc(p, .82, .088, .014, .008), .004);
+  };
+  const halo = p => {
+    let d = min(hoop(V(p.x, p.z, p.y - 1.1), .15, .021), horn(p, V(0, .94, 0), V(0, 1.27, 0), .011, .011));
+    d = smin(d, horn(p, V(0, .9, 0), V(0, .955, 0), .05, .036), .008);
+    return smin(d, ball(p, V(0, 1.295, 0), .03), .006);
+  };
+  // A seam of light runs down the front of the hull.
+  const seam = () => {
+    const hull = spire(), line = [];
+    for (let i = 0; i < 8; i++) line.push(land(hull, V(0, .25 + .074 * i, -.6), V(0, 0, 1)));
+    return p => strand(p, line, .011, .011);
+  };
+
+  // The bastion: a waisted keep under a ring of eight merlons, a lit port below each.
+  const bastion = () => {
+    const keep = Lathe([[0, .06], [.215, .07], [.215, .13], [.2, .2], [.186, .32], [.186, .5], [.2, .6], [.236, .66], [.262, .7], [.27, .74], [.27, .93], [.262, .95], [0, .95]], true);
+    return p => {
+      let d = keep.distance(hypot2(p.x, p.z), p.y);
+      d = smax(d, -disc(p, 1.0, .2, .11, .012), .012);
+      const gap = wedge(p, 8, pi / 8), port = wedge(p, 8, 0);
+      d = smax(d, -brick(V(gap.x, gap.y - .955, gap.z + .25), V(.04, .05, .1), .01), .01);
+      return smax(d, -brick(V(port.x, port.y - .81, port.z + .27), V(.022, .05, .04), .01), .005);
+    };
+  };
+
+  // The crescent regent: four broad panels overlap as they wind up her gown, and her shoulders
+  // carry a moon as thick as the hull itself, lined with gold and cradling its light.
+  const gown = Lathe([[0, .06], [.24, .07], [.24, .13], [.235, .22], [.215, .4], [.185, .6], [.16, .78], [.152, .86], [.168, .93], [.195, .97], [.19, 1.0], [.14, 1.02], [0, 1.03]]);
+  const wind = .9;
+  // How far the panels stand off one another, fading out at hem and shoulder.
+  const lift = height => .07 * smooth(.16, .3, height) * smooth(.97, .87, height);
+  const sickle = p => max(hypot2(p.x - .02, p.y - 1.24) - .24, .2 - hypot2(p.x + .07, p.y - 1.29));
+  const regent = p => {
+    const rho = hypot2(p.x, p.z), turn = 4 * atan2(p.z, p.x) / (2 * pi) + wind * p.y, lap = turn - floor(turn) - .5, rise = lift(p.y);
+    const panel = along => gown.distance(rho + rise * along, p.y);
+    // Each panel steps down onto the next. This one is cut square where it begins, the one before runs on
+    // beneath it, and the next one's step is measured from behind, so the field stays whole across every step.
+    const here = max(panel(lap), -rho * sin((lap + .5) * pi / 2)), next = max(panel(lap - 1), rho * sin((.5 - lap) * pi / 2));
+    // The panels wind as they rise, so the field is eased to stay an honest underestimate.
+    const dress = min(min(here, panel(lap + 1)), next) * .65;
+    const s = sickle(p), moon = smax(s, abs(p.z) - .02 - .5 * min(max(-s, 0), .09), .01) * .8;
+    return smin(dress, moon, .02);
+  };
+  // Gold piping runs up the proud edge of every panel.
+  const piping = p => {
+    const q = wedge(p, 4, -wind * p.y * pi / 2);
+    const d = hypot2(q.x, gown.distance(-q.z - lift(p.y) * .5 + .004, p.y)) - .011;
+    return max(d, max(p.y - .93, .22 - p.y)) * .7;
+  };
+  // The moon's inner curve is lined with gold, and a gold ring closes her collar.
+  const lining = p => {
+    const arc = max(abs(hypot2(p.x + .07, p.y - 1.29) - .2) - .013, hypot2(p.x - .02, p.y - 1.24) - .236);
+    return min(max(arc, abs(p.z) - .03), ring(p, .985, .196, .013));
+  };
+
+  // The armillary sovereign: a pleated robe under a mantle with broad shoulders and a standing collar,
+  // parted down the front, with the rings of an armillary nested in the collar.
+  const robe = Lathe([[0, .06], [.25, .07], [.25, .13], [.245, .22], [.228, .4], [.208, .6], [.195, .8], [.19, .95], [.17, 1.05], [.12, 1.1], [0, 1.11]]);
+  const mantle = Lathe([[0, .52], [.2, .5], [.258, .5], [.264, .53], [.25, .7], [.236, .86], [.242, .95], [.264, 1.02], [.27, 1.06], [.245, 1.09],
+    [.218, 1.13], [.224, 1.17], [.21, 1.185], [.17, 1.17], [.1, 1.13], [0, 1.12]]);
+  // Where the mantle parts: negative inside an opening that widens toward the hem, and inside the vee of the collar.
+  const parting = p => {
+    const a = (8 + 37 * saturate((1.05 - p.y) / .55)) * pi / 180;
+    return min(abs(p.x) * cos(a) + p.z * sin(a), max(abs(p.x) - (p.y - 1.0) * .5, p.z + .05));
+  };
+  const sovereign = p => {
+    const rho = hypot2(p.x, p.z);
+    const pleat = .03 * (1 - abs(cos(4 * atan2(p.z, p.x)))) * smooth(.18, .3, p.y) * smooth(1.0, .9, p.y);
+    const cloak = smax(mantle.distance(rho, p.y), -parting(p) * .9, .008);
+    return smin(robe.distance(rho + pleat, p.y) * .8, cloak, .006);
+  };
+  // Gold braid edges the parting and the hem.
+  const braid = p => {
+    const skin = mantle.distance(hypot2(p.x, p.z), p.y);
+    const lapel = max(max(abs(parting(p)) - .014, skin - .008), max(-skin - .03, .5 - p.y));
+    return min(lapel, max(ring(p, .515, .258, .015), -parting(p)));
+  };
+  const armillary = () => {
+    const heart = V(0, 1.35, 0);
+    const meridian = Frame(heart, V(0, 0, 1), V(0, 1, 0)), ecliptic = Frame(heart, V(.34, .94, 0), V(0, 0, 1)), orbit = Frame(heart, V(.68, .33, .65), V(0, 1, 0));
+    return p => {
+      let d = min(hoop(meridian.local(p), .19, .015), min(hoop(ecliptic.local(p), .174, .015), hoop(orbit.local(p), .158, .015)));
+      d = min(d, horn(p, V(0, 1.1, 0), V(0, 1.575, 0), .012, .012));
+      d = smin(d, horn(p, V(0, 1.11, 0), V(0, 1.19, 0), .05, .02), .01);
+      return min(d, ball(p, V(0, 1.585, 0), .028));
+    };
+  };
+  // A figure's hull above its deck.
+  const hullOf = kind => kind === 1 ? sentinel() : kind === 2 ? steed : kind === 3 ? spire() : kind === 4 ? bastion() : kind === 5 ? regent : sovereign;
+
+  return (kind, part) => {
+    const scale = rank[kind];
+    if (part === 0) {
+      const under = p => base(p, scale), hull = hullOf(kind);
+      // The deck's rounded rim is finer than any grid cell, so it is always turned. The sentinel and the
+      // spire are round all the way up and are turned whole; the others are carved and stand on it.
+      if (kind === 1 || kind === 3) return [mould(p => smin(under(p), hull(p), .008), .01, .5, true)];
+      return [mould(under, .01, .5, true, hull), mould(hull, kind === 2 ? .013 : kind === 4 ? .011 : .017, .5, false, under)];
+    }
+    if (part === 1) {
+      // Plain rings and discs about the axis are turned, so their rims run true.
+      const gold = [mould(p => ring(p, .07 * scale, .322 * scale, .013), .007, .3, true)];
+      if (kind === 1) gold.push(mould(p => ring(p, .405, .148, .016), .008, .3, true));
+      if (kind === 2) gold.push(mould(edging, .007, .3));
+      if (kind === 3) gold.push(mould(halo, .007, .3));
+      if (kind === 4) gold.push(mould(p => min(ring(p, .7, .264, .014), ring(p, .41, .186, .012)), .007, .3, true));
+      if (kind === 5) gold.push(mould(lining, .007, .3), mould(piping, .006, .3));
+      if (kind === 6) gold.push(mould(braid, .007, .3), mould(armillary(), .007, .3));
+      return gold;
+    }
+    if (part === 2) {
+      // Dark glass: the band round the sentinel's dome, and the well of the bastion.
+      if (kind === 1) return [mould(p => disc(p, .6, .19, .033, .006), .01, .2, true)];
+      if (kind === 4) return [mould(p => disc(p, .892, .196, .008, .003), .006, .2, true)];
+    }
+    if (part === 3) {
+      // Lights: a lens, eye slits, the orbs the instruments hold, and what shows through ports and seams.
+      if (kind === 1) return [mould(p => egg(p, V(0, .6, -.186), V(.052, .034, .03)), .006, 0)];
+      if (kind === 2) return [mould(visor(), .005, 0)];
+      if (kind === 3) return [mould(p => ball(p, V(0, 1.1, 0), .066), .01, 0), mould(seam(), .005, 0)];
+      if (kind === 4) return [mould(p => disc(p, .81, .247, .046, .004), .01, 0, true)];
+      if (kind === 5) return [mould(p => ball(p, V(-.07, 1.165, 0), .078), .012, 0)];
+      const gem = land(sovereign, V(0, .86, -.6), V(0, 0, 1));
+      return [mould(p => ball(p, V(0, 1.35, 0), .055), .01, 0), mould(p => egg(p, gem, V(.036, .048, .02)), .006, 0)];
+    }
+    return [];
+  };
+})();
+
+// ---- Midnight Atelier is a turned Staunton set: stout boxwood and walnut on brass shoes, a brass
+// ring under each crowned head, and a horse carved the way a club knight is.
+const Atelier = (() => {
+  // Every piece stands on the same foot, scaled to its rank: a wooden bead over a brass shoe.
+  // Both are drawn taut: their short chamfers lie beside the long flat of the sole.
+  const sole = Lathe([[0, -.02], [.34, -.02], [.35, 0], [.35, .06], [.336, .078], [.334, .09], [.346, .115], [.343, .14], [.318, .168], [.275, .188], [.235, .2], [0, .2]], true);
+  const shoe = Lathe([[0, -.022], [.346, -.022], [.361, -.012], [.365, .005], [.365, .05], [.359, .066], [.34, .075], [0, .075]], true);
+  const rank = [0, .8, .95, .92, .95, .98, 1];
+  // The horse's head is laid out along its own axis: across, above the nose line, and down it from the poll.
+  const skull = Frame(V(0, .88, -.02), V(0, .789, -.614), V(0, -.614, -.789));
+  const foot = (p, scale) => sole.distance(hypot2(p.x, p.z) / scale, p.y / scale) * scale;
+  const band = (height, radius, tube) => p => hoop(V(p.x, p.y - height, p.z), radius, tube);
+  // The nearer of two solids; either may be absent.
+  const either = (a, b) => !a ? b : !b ? a : p => min(a(p), b(p));
+
+  // A piece's wood is { turned, carved, cell }: what the lathe turns, and the head then carved onto it.
+  const pawn = () => {
+    const stem = Lathe([[0, .12], [.19, .135], [.174, .166], [.144, .208], [.118, .27], [.1, .34], [.092, .4], [0, .41]]);
+    return { turned: p => {
+      let d = smin(foot(p, .8), stem.distance(hypot2(p.x, p.z), p.y), .012);
+      d = smin(d, disc(p, .425, .172, .021, .019), .006);
+      d = smin(d, horn(p, V(0, .44, 0), V(0, .5, 0), .092, .082), .01);
+      return smin(d, ball(p, V(0, .6, 0), .16), .012);
+    } };
+  };
+
+  // How deep the middle of the neck lies at a height: back from the chest, then forward again to the poll.
+  const spine = height => height < .6 ? .085 * saturate((height - .33) / .27) : height < .84 ? .085 - .05 * (height - .6) / .24 : .035 - .055 * saturate((height - .84) / .04);
+
+  // The horse: a neck arched back over a deep chest, the head tucked in with a carved mouth, nostrils
+  // and brow, and a mane laid over the crest in combed strands that end in points down each side.
+  const knight = () => {
+    const forelock = Frame(V(0, .972, -.068), V(0, -.614, -.789), V(1, 0, 0));
+    return p => {
+      const d = smin(foot(p, .95), disc(p, .215, .258, .032, .022), .01);
+      if (p.y < .12) return d;
+      const m = V(abs(p.x), p.y, p.z);
+      const neck = smin(horn(narrow(p, .8), V(0, .33, 0), V(0, .6, .085), .205, .16) * .8, horn(narrow(p, .72), V(0, .6, .085), V(0, .84, .035), .16, .132) * .72, .04);
+      let horse = smin(neck, egg(p, V(0, .4, -.105), V(.16, .16, .15)), .05);
+      if (p.y > .5 && p.z < .25) {
+        let head = horn(narrow(p, .74), V(0, .88, -.02), V(0, .705, -.245), .122, .07) * .74;
+        // Cheek, the swell of the nose, and a lower lip under the cut of the mouth.
+        head = smin(head, egg(p, V(0, .79, -.06), V(.098, .1, .1)), .03);
+        head = smin(head, egg(p, V(0, .69, -.255), V(.058, .058, .065)), .02);
+        head = smin(head, egg(p, V(0, .652, -.212), V(.046, .034, .052)), .015);
+        head = smin(head, egg(forelock.local(p), V(0, 0, 0), V(.03, .065, .042)), .012);
+        const q = skull.local(p), s = V(abs(q.x), q.y, q.z);
+        head = smin(head, horn(s, V(.06, .078, .02), V(.068, .07, .095), .016, .013), .012);
+        // Pricked ears, hollowed toward the front.
+        const ear = smax(horn(m, V(.056, .95, .02), V(.07, 1.1, 0), .04, .012), -egg(m, V(.066, 1.03, -.022), V(.02, .05, .02)), .006);
+        head = smin(head, ear, .015);
+        head = smax(head, -egg(s, V(0, -.042, .35), V(.2, .013, .075)), .004);
+        head = smax(head, -ball(s, V(.04, .008, .345), .019), .004);
+        horse = smin(horse, head, .035);
+      }
+      if (p.y > .2 && p.z > -.08) {
+        // The mane lies over the back of the neck like a cape: its edge falls in points, its strands wander as they run down.
+        const behind = p.z - spine(p.y);
+        let mane = smax(smax(neck - .024, .035 + .02 * sin(24 * p.y) - behind, .008), p.y - .99, .01);
+        mane += .008 * sin(8 * atan2(m.x, behind) + 2 * sin(9 * p.y));
+        horse = smin(horse, mane * .8, .008);
+      }
+      return smin(d, horse, .03);
+    };
+  };
+
+  // Foot, stem and collar come off the lathe; the mitre is carved and set on the collar.
+  const bishop = () => {
+    const stem = Lathe([[0, .14], [.23, .155], [.21, .195], [.176, .25], [.146, .33], [.125, .44], [.112, .56], [.106, .66], [.106, .71], [0, .72]]);
+    const mitre = Lathe([[0, .75], [.105, .76], [.135, .805], [.162, .875], [.172, .945], [.163, 1.02], [.132, 1.1], [.083, 1.17], [.036, 1.208], [0, 1.218]]);
+    return { cell: .009,
+      turned: p => smin(smin(foot(p, .92), stem.distance(hypot2(p.x, p.z), p.y), .012), disc(p, .73, .195, .022, .02), .006),
+      carved: p => {
+        const head = smin(mitre.distance(hypot2(p.x, p.z), p.y), ball(p, V(0, 1.246, 0), .044), .008);
+        // The mitre's cut climbs from its middle to one shoulder, open to the front and the back.
+        const across = -.819 * (p.x - .01) + .574 * (p.y - .975), along = .574 * (p.x - .01) + .819 * (p.y - .975);
+        return smax(head, -max(abs(across) - .017, -.03 - along), .004);
+      } };
+  };
+
+  const rook = () => {
+    const tower = Lathe([[0, .15], [.25, .165], [.235, .205], [.215, .26], [.2, .34], [.194, .45], [.198, .54], [.212, .6], [.224, .63], [0, .635]]);
+    const turret = Lathe([[0, .665], [.21, .67], [.246, .695], [.268, .725], [.274, .765], [.274, .865], [.266, .88], [.256, .885], [0, .885]], true);
+    return { cell: .011,
+      turned: p => smin(smin(foot(p, .95), tower.distance(hypot2(p.x, p.z), p.y), .012), disc(p, .652, .255, .022, .02), .006),
+      // The turret is hollowed, and six crenels are sawn through its wall.
+      carved: p => {
+        const d = smax(turret.distance(hypot2(p.x, p.z), p.y), -disc(p, .91, .195, .1, .012), .008), q = wedge(p, 6, pi / 6);
+        return smax(d, -brick(V(q.x, q.y - .88, q.z + .255), V(.048, .058, .12), .008), .006);
+      } };
+  };
+
+  const queen = () => {
+    const stem = Lathe([[0, .15], [.25, .168], [.228, .21], [.192, .268], [.16, .355], [.138, .47], [.124, .6], [.116, .72], [.114, .79], [0, .8]]);
+    const cup = Lathe([[0, .83], [.118, .84], [.126, .89], [.142, .97], [.172, 1.06], [.208, 1.14], [.232, 1.19], [.24, 1.225], [.228, 1.243], [.205, 1.215], [.17, 1.188], [.11, 1.215], [.05, 1.24], [0, 1.245]]);
+    return { cell: .01,
+      turned: p => smin(smin(foot(p, .98), stem.distance(hypot2(p.x, p.z), p.y), .012), disc(p, .812, .208, .023, .021), .006),
+      // An open coronet: the standing rim scooped between eight points with a pearl on each, around a domed cap and its ball.
+      carved: p => {
+        let head = smax(cup.distance(hypot2(p.x, p.z), p.y), -ball(wedge(p, 8, pi / 8), V(0, 1.275, -.25), .068), .008);
+        head = smin(head, ball(wedge(p, 8, 0), V(0, 1.262, -.222), .038), .006);
+        head = smin(head, horn(p, V(0, 1.235, 0), V(0, 1.28, 0), .045, .032), .008);
+        return smin(head, ball(p, V(0, 1.318, 0), .052), .006);
+      } };
+  };
+
+  const king = () => {
+    const stem = Lathe([[0, .15], [.255, .17], [.235, .212], [.2, .27], [.168, .36], [.145, .48], [.13, .62], [.122, .76], [.12, .85], [0, .86]]);
+    const cup = Lathe([[0, .89], [.125, .9], [.132, .95], [.148, 1.03], [.178, 1.12], [.21, 1.19], [.228, 1.235], [.232, 1.262], [.222, 1.282], [.19, 1.294], [.12, 1.318], [.05, 1.332], [0, 1.335]]);
+    return { turned: p => {
+      const rho = hypot2(p.x, p.z);
+      let d = smin(foot(p, 1), stem.distance(rho, p.y), .012);
+      d = smin(d, disc(p, .872, .215, .024, .022), .006);
+      return smin(d, cup.distance(rho, p.y), .006);
+    } };
+  };
+  const timber = kind => kind === 1 ? pawn() : kind === 2 ? { carved: knight() } : kind === 3 ? bishop() : kind === 4 ? rook() : kind === 5 ? queen() : king();
+
+  // Shoe and rings are turned like the wood they clasp; the king's cross is cut fine enough to keep its arrises.
+  const metal = kind => {
+    const scale = rank[kind];
+    const brass = [mould(p => shoe.distance(hypot2(p.x, p.z) / scale, p.y / scale) * scale, .011, .3, true)];
+    // A ring rests on the collar beneath each crowned head, and the king carries his cross.
+    if (kind === 3) brass.push(mould(band(.768, .136, .027), .009, .3, true));
+    if (kind === 5) brass.push(mould(band(.851, .148, .028), .009, .3, true));
+    if (kind === 6) brass.push(mould(band(.912, .152, .029), .009, .3, true),
+      mould(p => smin(pattee(p, V(0, 1.44, 0), .085, .024, .048, .024), horn(p, V(0, 1.325, 0), V(0, 1.375, 0), .042, .03), .008), .004, .3));
+    return brass;
+  };
+
+  return (kind, part) => {
+    // The knight's eyes are beads of ebony set under the brow either side of the skull.
+    if (part === 2 && kind === 2) return [mould(p => { const q = skull.local(p); return egg(V(abs(q.x), q.y, q.z), V(.07, .048, .055), V(.018, .019, .028)); }, .006, .15)];
+    if (part !== 0 && part !== 1) return [];
+    // Wood and brass each shade the other where they meet, so the metal sits on the piece rather than over it.
+    const wood = timber(kind), brass = metal(kind);
+    if (part === 1) {
+      const against = either(wood.turned, wood.carved);
+      for (const each of brass) each.company = against;
+      return brass;
+    }
+    const metalwork = brass.reduce((all, each) => either(all, each.field), null), body = [];
+    if (wood.turned) body.push(mould(wood.turned, .012, .45, true, either(metalwork, wood.carved)));
+    if (wood.carved) body.push(mould(wood.carved, wood.cell ?? .013, .45, false, either(metalwork, wood.turned)));
+    return body;
+  };
+})();
+
+// ---- Candy Kingdom is moulded confectionery: pillowy gummy rings stacked into a tower, a bonbon
+// on a stand, a fat kiss, a carousel pony with a rolled liquorice mane, and plump royalty in gold leaf.
+const Candy = (() => {
+  // A gummy ring, rounded almost through.
+  const gum = (p, height, radius, half) => disc(p, height, radius, half, half * .9);
+  // Every sweet sits on two rings, scaled to its rank, pressed softly together.
+  const stand = (p, scale) => smin(gum(p, .07 * scale, .34 * scale, .09 * scale), gum(p, .215 * scale, .27 * scale, .07 * scale), .03 * scale);
+
+  const bonbon = p => smin(smin(stand(p, .82), horn(p, V(0, .2, 0), V(0, .3, 0), .11, .1), .03), ball(p, V(0, .47, 0), .19), .035);
+
+  // The pony: a big round head tucked over a curved neck and a plump chest, a short soft muzzle, two small ears.
+  const pony = p => {
+    const m = V(abs(p.x), p.y, p.z);
+    let body = horn(narrow(p, .9), V(0, .27, .05), V(0, .48, .085), .19, .162) * .9;
+    body = smin(body, horn(narrow(p, .9), V(0, .48, .085), V(0, .68, .04), .162, .155) * .9, .04);
+    body = smin(body, egg(p, V(0, .34, -.05), V(.165, .16, .17)), .05);
+    body = smin(body, egg(p, V(0, .82, -.03), V(.172, .165, .19)), .05);
+    body = smin(body, horn(narrow(p, .92), V(0, .79, -.13), V(0, .715, -.245), .125, .098) * .92, .04);
+    body = smin(body, horn(m, V(.08, .95, .02), V(.1, 1.07, .04), .048, .02), .025);
+    return smin(stand(p, .95), body, .03);
+  };
+
+  // The mane is one thick roll: a forelock, over the poll and down the neck, wound up at the end like a liquorice wheel.
+  const mane = () => {
+    const crown = [V(0, .93, -.165), V(0, .985, -.08), V(0, 1.0, 0), V(0, .97, .09), V(0, .9, .16)];
+    const fall = [V(0, .9, .16), V(0, .8, .2), V(0, .69, .22), V(0, .58, .24), V(0, .5, .255)], curl = [];
+    for (let i = 0; i <= 14; i++) {
+      const turn = 30 * i * pi / 180, reach = .12 - .085 * i / 14;
+      curl.push(V(0, .38 + reach * cos(turn), .255 + reach * sin(turn)));
+    }
+    return p => smin(smin(strand(p, crown, .05, .075), strand(p, fall, .075, .062), .01), strand(p, curl, .06, .04), .012);
+  };
+
+  // Eyes closed in a smile: an arch drawn onto each side of the head.
+  const lashes = () => {
+    const lid = [];
+    for (let i = 0; i <= 8; i++) {
+      const a = (25 + 130 * i / 8) * pi / 180;
+      lid.push(add(land(pony, V(.5, .84 + .038 * sin(a), -.1 + .045 * cos(a)), V(-1, 0, 0)), V(.003, 0, 0)));
+    }
+    return p => strand(V(abs(p.x), p.y, p.z), lid, .0115, .0115);
+  };
+
+  // A fat kiss on a soft collar, drawn up to a rounded point.
+  const kiss = p => smin(smin(stand(p, .9), gum(p, .33, .2, .075), .03), horn(p, V(0, .6, 0), V(0, .98, 0), .215, .038), .03);
+
+  // Three pillows and a short round keep, its wall parted into four fat merlons.
+  const tower = p => {
+    let d = smin(gum(p, .085, .335, .105), gum(p, .275, .312, .105), .03);
+    d = smin(d, gum(p, .465, .292, .105), .03);
+    let keep = smax(disc(p, .69, .285, .125, .08), -disc(p, .84, .17, .1, .045), .03);
+    const gaps = min(brick(V(p.x, p.y - .83, p.z), V(.055, .1, .5), .03), brick(V(p.x, p.y - .83, p.z), V(.5, .1, .055), .03));
+    keep = smax(keep, -gaps, .025);
+    return smin(d, keep, .03);
+  };
+
+  const royal = (gownKnots, bustKnots, collar, radius, half) => {
+    const gown = Lathe(gownKnots), bust = Lathe(bustKnots);
+    return p => {
+      const rho = hypot2(p.x, p.z);
+      let d = smin(stand(p, 1), gown.distance(rho, p.y), .03);
+      d = smin(d, gum(p, collar, radius, half), .025);
+      return smin(d, bust.distance(rho, p.y), .025);
+    };
+  };
+  const queen = () => royal([[0, .24], [.235, .26], [.228, .34], [.2, .45], [.17, .56], [.15, .66], [.143, .73], [0, .74]],
+    [[0, .78], [.14, .79], [.152, .83], [.185, .9], [.218, .96], [.232, 1.0], [.225, 1.04], [.185, 1.07], [.09, 1.085], [0, 1.088]], .765, .2, .05);
+  const king = () => royal([[0, .24], [.24, .26], [.234, .35], [.208, .48], [.18, .61], [.16, .73], [.152, .82], [0, .83]],
+    [[0, .87], [.148, .88], [.16, .92], [.192, .99], [.225, 1.05], [.24, 1.09], [.233, 1.13], [.19, 1.16], [.09, 1.175], [0, 1.178]], .855, .208, .052);
+
+  // A gold crown: a thick flaring band whose rim rises into points, one of them to the front.
+  const coronet = (p, base, radius, flare, band, peak, points) => {
+    const rho = hypot2(p.x, p.z), h = p.y - base;
+    const turn = (atan2(p.z, p.x) + pi / 2) * points / (2 * pi), valley = 2 * abs(turn - round(turn));
+    const wall = abs(rho - radius - flare * h) - .022;
+    // The rim climbs steeply, so the distance is eased to stay an honest underestimate.
+    return smax(wall, max(-h, h - band - peak * (1 - valley)), .012) * .55;
+  };
+  // Five tall points, each tipped with a fat gold bead.
+  const tiara = p => smin(coronet(p, 1.03, .2, .2, .06, .15, 5), ball(wedge(p, 5, -pi / 2), V(0, 1.25, -.244), .045), .006);
+  // A band under four stout arches that sink into the cushion and meet in an orb and a cross.
+  const rib = [V(0, 1.19, -.215), V(0, 1.27, -.236), V(0, 1.335, -.185), V(0, 1.37, -.095), V(0, 1.38, 0)];
+  const regalia = p => {
+    let d = smin(coronet(p, 1.12, .208, .1, .08, .03, 8), strand(wedge(p, 4, -pi / 2), rib, .032, .032), .008);
+    d = smin(d, ball(p, V(0, 1.405, 0), .05), .008);
+    d = smin(d, horn(p, V(0, 1.44, 0), V(0, 1.475, 0), .03, .027), .006);
+    return smin(d, pattee(p, V(0, 1.525, 0), .072, .024, .046, .024), .008);
+  };
+
+  return (kind, part) => {
+    // Sugar lets light through, so its recesses are barely shaded.
+    if (part === 0) return [mould(kind === 1 ? bonbon : kind === 2 ? pony : kind === 3 ? kiss : kind === 4 ? tower : kind === 5 ? queen() : king(), kind === 1 ? .016 : .018, .12)];
+    if (part === 1 && kind === 5) return [mould(tiara, .009, .15)];
+    if (part === 1 && kind === 6) return [mould(regalia, .009, .15)];
+    if (part === 2 && kind === 2) return [mould(lashes(), .005, 0)];
+    if (part === 3 && kind === 2) return [mould(mane(), .012, .12)];
+    // A cushion of the darker sweet swells between the arches of the king's crown.
+    if (part === 3 && kind === 6) return [mould(p => egg(p, V(0, 1.235, 0), V(.2, .15, .2)), .014, .12)];
+    return [];
+  };
+})();
+
+const typed = out => ({ position: new Float32Array(out.pos), normal: new Float32Array(out.nor), uv: new Float32Array(out.uv), color: new Float32Array(out.col), index: new Uint32Array(out.idx) });
+// Part 0 is a piece's body, 1 its metalwork, 2 its dark inlay and 3 the set's second colour.
+function castPart(design, kind, part) {
+  const out = figure();
+  for (const each of (design === 0 ? Orbital : design === 1 ? Atelier : Candy)(kind, part)) {
+    if (each.turned) turn(each, out);
+    // Stepped panel fields in the other sets are discontinuous and cannot guide edge fitting.
+    else cast(each, out, design === 1);
+  }
+  return typed(out);
+}
+// ---- Moss & Myth is modelled like clay: each figure is a field of blended volumes, cut into
+// one closed mesh and painted per vertex, the way a carved miniature is finished by hand.
+const carveFigure = (() => {
+  // A carved leaf: a pointed oval slab with a midrib groove, bent to lie on a body.
+  function Leaf(base, tip, out, wid, thick, curl = 0, cup = 0) {
+    const f = Frame(mul(add(base, tip), .5), sub(tip, base), out), len = length(sub(tip, base)) * .5;
+    const vr = (len * len / wid + wid) * .5, vd = (len * len / wid - wid) * .5;
+    const leaf = { outline: 0, distance(p) {
+      const q = f.local(p), far = dot(q, q), bound = len + .07;
+      if (far > (bound + .2) * (bound + .2)) return sqrt(far) - bound;
+      const px = abs(q.x), py = abs(q.y), along = min(1, py / len), across = min(1, px / wid);
+      const z = q.z + curl * along * along + cup * across * across;
+      const edge = (py - len) * vd > px * len ? hypot2(px, py - len) : hypot2(px + vd, py) - vr;
+      const rib = thick * (1 - .5 * exp(-q.x * q.x / (.09 * wid * wid)));
+      const a = edge + .006, b = abs(z) - rib + .006;
+      leaf.outline = edge;
+      return min(max(a, b), 0) + hypot2(max(a, 0), max(b, 0)) - .006;
+    } };
+    return leaf;
+  }
+
+  // Paint for the pale side and the dark side; glow keeps a colour bright inside a recess.
+  const pigment = hex => V(pow((hex >> 16 & 255) / 255, 2.2), pow((hex >> 8 & 255) / 255, 2.2), pow((hex & 255) / 255, 2.2));
+  const tone = (light, dark, glow = 0) => ({ light: pigment(light), dark: pigment(dark), glow });
+  // The board's key light and tone mapping brighten and saturate paint a good deal, so these are
+  // mixed darker and greyer than the ivory, chestnut and olive they come out as on the board.
+  const wood = tone(0xb2a07a, 0x6e4b33), footing = tone(0x7f705a, 0x513827), hollow = tone(0x6c5f4c, 0x462f22);
+  const skin = tone(0xb8a682, 0x8f775a), blush = tone(0x9a6f60, 0x83614f), ink = tone(0x2a1a10, 0x23150d), lash = tone(0x574332, 0x402b1f);
+  const acorn = tone(0x837054, 0x816847), husk = tone(0x6c573c, 0x674f32);
+  const leaf = tone(0x595f39, 0x645c39), leafEdge = tone(0x737351, 0x786e4c), sprig = tone(0x75755a, 0x8e836c);
+  const fur = tone(0xb6a580, 0x7c4f2f), furPale = tone(0xc4b898, 0xb8a886), sock = tone(0xa39069, 0x573623);
+  const plume = tone(0xb2a07a, 0x6c4e36), down = tone(0xc2b592, 0x8c775a), gold = tone(0x85704c, 0x836940);
+  const tress = tone(0x6c4e36, 0x5a3927), whisker = tone(0xc6bb9e, 0xbcae8e), felt = tone(0x555c36, 0x575a36);
+  const petal = tone(0xc8bea4, 0xc2b596), pollen = tone(0x8a7339, 0x8a7339);
+  const antler = tone(0x7f6c51, 0x7d6748), staff = tone(0x67543c, 0x4c3627);
+  const doorway = tone(0x432e21, 0xa87a30, .85), fungus = tone(0x7f5f46, 0x835c3c), stalk = tone(0xbdb193, 0xb5a685);
+
+  // The clay being built up at one point in space: its distance and, when asked, its paint.
+  class Clay {
+    constructor(paint = false) { this.d = 1e9; this.glow = 0; this.paint = paint; this.light = V(); this.dark = V(); }
+    coat(using, amount) { this.light = mix(this.light, using.light, amount); this.dark = mix(this.dark, using.dark, amount); this.glow += (using.glow - this.glow) * amount; }
+    add(shape, using, blend = 0) {
+      if (this.paint) this.coat(using, smooth(-.008, .008, this.d - shape));
+      this.d = smin(this.d, shape, blend);
+    }
+    cut(shape, using, blend = 0) {
+      if (this.paint) this.coat(using, smooth(-.008, .008, -shape - this.d));
+      this.d = smax(this.d, -shape, blend);
+    }
+    tint(shape, using, soft = .012, amount = 1) { if (this.paint) this.coat(using, amount * smooth(soft, -soft, shape)); }
+  }
+  const measurer = clay => p => { const f = new Clay(); clay(p, f); return f.d; };
+  const gradient = (field, p, e) => normalize(slope(field, p, e));
+
+  function foliage(f, blade, p, body, edge, blend = .006) {
+    const d = blade.distance(p);
+    f.add(d, body, blend);
+    if (f.paint && d < .02) f.tint(max(d - .012, -blade.outline - .02), edge, .008, .75);
+  }
+  // A leaf hung around the figure's axis, `turn` degrees from +x toward +z, between two (radius,height) ends.
+  function drape(turn, baseRadius, baseHeight, tipRadius, tipHeight, halfWidth, thickness, bend, wrap) {
+    const a = turn * pi / 180, out = V(cos(a), 0, sin(a));
+    return Leaf(add(mul(out, baseRadius), V(0, baseHeight, 0)), add(mul(out, tipRadius), V(0, tipHeight, 0)), add(mul(out, baseHeight - tipHeight), V(0, tipRadius - baseRadius, 0)), halfWidth, thickness, bend, wrap);
+  }
+  // A leaf laid on the clay where a ray lands, pointing along `along`.
+  function stick(field, from, toward, along, halfLength, halfWidth, thickness) {
+    const hit = land(field, from, toward), normal = gradient(field, hit, .01);
+    const axis = normalize(sub(along, mul(normal, dot(along, normal)))), centre = add(hit, mul(normal, .005));
+    return Leaf(sub(centre, mul(axis, halfLength)), add(centre, mul(axis, halfLength)), normal, halfWidth, thickness);
+  }
+
+  // The carving: points, normals and the paint of both sides, with crisp details pressed in as small closed solids.
+  function Carving() {
+    const out = { points: [], normals: [], light: [], dark: [], indices: [] };
+    const point = i => V(out.points[i * 3], out.points[i * 3 + 1], out.points[i * 3 + 2]), normal = i => V(out.normals[i * 3], out.normals[i * 3 + 1], out.normals[i * 3 + 2]);
+    out.vertex = (at, facing, pale, deep) => {
+      out.points.push(at.x, at.y, at.z); out.normals.push(facing.x, facing.y, facing.z);
+      out.light.push(pale.x, pale.y, pale.z); out.dark.push(deep.x, deep.y, deep.z);
+      return out.points.length / 3 - 1;
+    };
+    const daub = (at, facing, using) => out.vertex(at, facing, using.light, using.dark);
+    out.triangle = (a, b, c) => {
+      const facing = cross(sub(point(b), point(a)), sub(point(c), point(a)));
+      if (dot(facing, add(add(normal(a), normal(b)), normal(c))) < 0) [b, c] = [c, b];
+      out.indices.push(a, b, c);
+    };
+    out.orb = (centre, u, v, w, radii, using) => {
+      const rings = 6, sides = 10;
+      const place = (x, y, z) => daub(add(add(add(centre, mul(u, x * radii.x)), mul(v, y * radii.y)), mul(w, z * radii.z)),
+        normalize(add(add(mul(u, x / radii.x), mul(v, y / radii.y)), mul(w, z / radii.z))), using);
+      const top = place(0, 1, 0);
+      for (let j = 1; j < rings; j++) for (let i = 0; i < sides; i++) {
+        const polar = pi * j / rings, around = 2 * pi * i / sides;
+        place(sin(polar) * cos(around), cos(polar), sin(polar) * sin(around));
+      }
+      const bottom = place(0, -1, 0), first = top + 1, last = first + (rings - 2) * sides;
+      for (let i = 0; i < sides; i++) {
+        const next = (i + 1) % sides;
+        out.triangle(top, first + i, first + next);
+        out.triangle(bottom, last + i, last + next);
+        for (let j = 0; j + 2 < rings; j++) {
+          const row = first + j * sides, below = row + sides;
+          out.triangle(row + i, row + next, below + next);
+          out.triangle(row + i, below + next, below + i);
+        }
+      }
+    };
+    out.cord = (path, outward, radius, using) => {
+      const sides = 6, count = path.length;
+      if (count < 2) return;
+      const first = out.points.length / 3;
+      for (let i = 0; i < count; i++) {
+        const along = normalize(sub(path[min(i + 1, count - 1)], path[max(i - 1, 0)]));
+        const a = normalize(sub(outward[i], mul(along, dot(outward[i], along)))), b = cross(along, a);
+        const girth = radius * (.5 + .5 * sin(pi * (i + .5) / count));
+        for (let j = 0; j < sides; j++) {
+          const angle = 2 * pi * j / sides, facing = add(mul(a, cos(angle)), mul(b, sin(angle)));
+          daub(add(path[i], mul(facing, girth)), facing, using);
+        }
+      }
+      for (let i = 0; i + 1 < count; i++) for (let j = 0; j < sides; j++) {
+        const a = first + i * sides + j, b = first + i * sides + (j + 1) % sides, c = a + sides, d = b + sides;
+        out.triangle(a, b, d); out.triangle(a, d, c);
+      }
+      const front = normalize(sub(path[0], path[1])), back = normalize(sub(path[count - 1], path[count - 2]));
+      const start = daub(add(path[0], mul(front, radius * .3)), front, using), end = daub(add(path[count - 1], mul(back, radius * .3)), back, using);
+      for (let j = 0; j < sides; j++) {
+        out.triangle(start, first + j, first + (j + 1) % sides);
+        out.triangle(end, first + (count - 1) * sides + j, first + (count - 1) * sides + (j + 1) % sides);
+      }
+    };
+    // A lash or a smile: an arc drawn onto whatever the ray `toward` meets.
+    out.stroke = (field, centre, toward, radius, from, to, thickness, using) => {
+      toward = normalize(toward);
+      const side = normalize(cross(V(0, 1, 0), toward)), up = cross(toward, side), path = [], outward = [];
+      for (let i = 0; i <= 10; i++) {
+        const angle = (from + (to - from) * i / 10) * pi / 180;
+        const start = add(add(sub(centre, mul(toward, .3)), mul(side, radius * cos(angle))), mul(up, radius * sin(angle)));
+        path.push(sub(land(field, start, toward), mul(toward, thickness * .3)));
+        outward.push(mul(toward, -1));
+      }
+      out.cord(path, outward, thickness, using);
+    };
+    out.blossom = (centre, facing, size, turn = 0) => {
+      const n = normalize(facing), side = normalize(cross(n, abs(n.y) < .9 ? V(0, 1, 0) : V(1, 0, 0))), up = cross(n, side);
+      for (let i = 0; i < 5; i++) {
+        const angle = turn + 2 * pi * i / 5, away = add(mul(side, cos(angle)), mul(up, sin(angle)));
+        out.orb(add(add(centre, mul(away, size * .58)), mul(n, size * .1)), away, n, cross(n, away), V(size * .46, size * .2, size * .36), petal);
+      }
+      out.orb(add(centre, mul(n, size * .2)), side, n, up, V(size * .27, size * .24, size * .27), pollen);
+    };
+    return out;
+  }
+
+  // Cut the clay into a closed mesh, each vertex painted and shaded where it stands.
+  function carve(clay, field, low, high, cell, out) {
+    const first = out.points.length / 3;
+    shell(field, low, high, cell, spot => {
+      // Each vertex settles onto the true surface, so faces are smooth and details stay crisp.
+      spot = sub(spot, mul(gradient(field, spot, cell * .4), clamp(field(spot), -cell * .6, cell * .6)));
+      const normal = gradient(field, spot, cell * .4), f = new Clay(true);
+      clay(spot, f);
+      // Crevices are shaded where they are carved, warm like stained wood, with a little grain.
+      const open = saturate(.55 * (field(add(spot, mul(normal, .03))) - f.d) / .03 + .45 * (field(add(spot, mul(normal, .09))) - f.d) / .09);
+      const grain = 1 + .04 * sin(38 * (spot.x * .8 + spot.z * .6) + 2.5 * sin(spot.y * 7));
+      const shade = (.42 + .58 * open) * grain, lit = shade + (1 - shade) * f.glow;
+      const wash = V(pow(lit, .9), lit, pow(lit, 1.15));
+      out.vertex(spot, normal, V(f.light.x * wash.x, f.light.y * wash.y, f.light.z * wash.z), V(f.dark.x * wash.x, f.dark.y * wash.y, f.dark.z * wash.z));
+      return spot;
+    }, (a, b, c) => out.triangle(first + a, first + b, first + c));
+  }
+
+  const plinth = Lathe([[0, 0], [.31, 0], [.352, .016], [.36, .05], [.346, .08], [.318, .092], [.322, .112], [.305, .14], [.26, .155], [0, .155]]);
+  function stand(f, p, scale = 1) {
+    if (p.y > .4) return;
+    f.add(plinth.distance(hypot2(p.x, p.z) / scale, p.y / scale) * scale, p.y < .088 * scale ? footing : wood);
+  }
+
+  // A sleepy acorn child: round face under a cross-hatched cap pushed back, in a collar of leaves.
+  function pawn() {
+    const body = Lathe([[0, .11], [.2, .12], [.224, .17], [.207, .27], [.167, .38], [.126, .46], [.105, .5], [0, .52]]);
+    const dome = Lathe([[0, -.03], [.19, -.02], [.236, 0], [.254, .03], [.248, .07], [.226, .13], [.184, .19], [.12, .238], [.05, .262], [0, .268]]);
+    const crown = Frame(V(0, .672, -.012), V(0, .978, .208), V(0, 0, 1));
+    const mantle = Leaf(V(0, .515, -.085), V(0, .205, -.285), V(0, .2, -.31), .105, .026, .02, .03);
+    const ruff = Leaf(V(0, .53, -.09), V(0, .335, -.238), V(0, .148, -.195), .08, .023, .012, .02);
+    return { low: V(-.37, -.03, -.37), high: V(.37, 1.08, .37), cell: .0175,
+      clay(p, f) {
+        stand(f, p, .84);
+        if (p.y < .75) {
+          f.add(body.distance(hypot2(p.x, p.z), p.y), wood, .02);
+          foliage(f, mantle, wedge(p, 6, -pi / 2), leaf, leafEdge);
+          foliage(f, ruff, wedge(p, 6, -pi / 3), leaf, leafEdge);
+        }
+        if (p.y > .3) {
+          const m = V(abs(p.x), p.y, p.z);
+          f.add(egg(p, V(0, .66, -.012), V(.222, .2, .212)), skin, .03);
+          f.add(ball(m, V(.105, .618, -.118), .082), skin, .05);
+          f.add(ball(p, V(0, .636, -.226), .024), skin, .02);
+          if (f.paint) f.tint(ball(m, V(.122, .612, -.172), .045), blush, .03, .8);
+          const q = crown.local(p), around = hypot2(q.x, q.z);
+          let cup = dome.distance(around, q.y);
+          if (cup < .05) {
+            const theta = atan2(q.z, q.x), phi = atan2(around, q.y + .03);
+            const groove = min(abs(sin(7 * theta + 9 * phi)), abs(sin(7 * theta - 9 * phi)));
+            cup += .011 * (1 - smooth(0, .5, groove)) * smooth(.045, .09, q.y);
+          }
+          f.add(cup, acorn);
+          f.add(horn(q, V(0, .25, 0), V(.022, .335, .012), .034, .027), husk, .012);
+        }
+      },
+      details(field, out) {
+        for (const side of [-1, 1]) out.stroke(field, V(side * .09, .68, -.2), V(0, 0, 1), .045, 205, 335, .013, lash);
+        out.stroke(field, V(0, .592, -.2), V(0, 0, 1), .03, 215, 325, .009, lash);
+      } };
+  }
+
+  // A seated fox: upright chest, long muzzle, tall ears, and a brush curled round to its paws.
+  function fox() {
+    const leaves = [];
+    const a = V(0, .27, .3), b = V(.2, .25, .27), c = V(.31, .27, .1), d = V(.33, .35, -.085), e = V(.285, .5, -.21), tip = V(.23, .66, -.255);
+    const clay = (p, f) => {
+      stand(f, p);
+      const m = V(abs(p.x), p.y, p.z);
+      if (p.y < 1.3) {
+        f.add(egg(p, V(0, .37, .09), V(.255, .225, .255)), fur, .03);
+        f.add(horn(p, V(0, .42, .05), V(0, .8, -.07), .225, .158), fur, .05);
+        f.add(egg(m, V(.185, .31, .02), V(.105, .15, .165)), fur, .04);
+        f.add(egg(m, V(.185, .19, -.14), V(.058, .044, .095)), sock, .02);
+        f.add(horn(m, V(.088, .66, -.13), V(.1, .25, -.2), .076, .06), fur, .03);
+        f.add(egg(m, V(.1, .19, -.222), V(.064, .045, .076)), sock, .02);
+        f.add(horn(p, V(0, .78, -.06), V(0, .96, -.09), .15, .125), fur, .04);
+        f.add(egg(p, V(0, .7, -.15), V(.135, .17, .09)), furPale, .04);
+        f.add(horn(p, V(0, .66, -.2), V(0, .5, -.205), .07, .022), furPale, .03);
+      }
+      if (p.y < .95 && p.x > -.25) {
+        let brush = smin(horn(p, a, b, .075, .12), horn(p, b, c, .12, .14), .03);
+        brush = smin(brush, horn(p, c, d, .14, .13), .03);
+        brush = smin(brush, horn(p, d, e, .13, .095), .03);
+        let point = horn(p, e, tip, .095, .024);
+        if (min(brush, point) < .04) {
+          // Locks of fur are combed along the brush.
+          const lock = .008 * (1 - smooth(0, .5, abs(sin(atan2(p.z - .05, p.x - .05) * 9 + p.y * 16))));
+          brush += lock; point += lock;
+        }
+        f.add(brush, fur, .03);
+        f.add(point, furPale, .03);
+      }
+      if (p.y > .65) {
+        f.add(egg(p, V(0, 1.02, -.1), V(.172, .15, .165)), fur, .04);
+        f.add(horn(m, V(.09, .985, -.09), V(.228, .93, -.05), .085, .022), fur, .04);
+        f.add(horn(p, V(0, .992, -.2), V(0, .957, -.365), .082, .04), fur, .035);
+        if (f.paint) f.tint(egg(p, V(0, .925, -.17), V(.26, .065, .24)), furPale, .02);
+        const ear = V(m.x - .105, m.y - 1.11, (m.z + .05) / .55);
+        f.add(horn(ear, V(0, 0, 0), V(.05, .25, 0), .078, .028) * .55, fur, .03);
+        f.cut(egg(m, V(.134, 1.215, -.092), V(.036, .092, .03)), furPale, .012);
+        if (f.paint) f.tint(ball(m, V(.155, 1.36, -.05), .075), sock, .03, .9);
+      }
+      for (const blade of leaves) foliage(f, blade, p, sprig, sprig, .004);
+    };
+    // A carved sprig climbs each flank, the longer one on the side the brush leaves bare.
+    const field = measurer(clay);
+    const sprout = (side, height, depth, along) => leaves.push(stick(field, V(side * .7, height, depth), V(-side, 0, 0), along, .058, .031, .013));
+    sprout(-1, .3, .17, V(0, 1, .7)); sprout(-1, .385, .06, V(0, 1, -.7)); sprout(-1, .47, .15, V(0, 1, .7));
+    sprout(-1, .555, .04, V(0, 1, -.7)); sprout(-1, .66, .08, V(0, 1, .15));
+    sprout(1, .6, .04, V(0, 1, .7)); sprout(1, .68, -.03, V(0, 1, -.7)); sprout(1, .77, .02, V(0, 1, .2));
+    return { low: V(-.41, -.03, -.45), high: V(.51, 1.43, .44), cell: .02, clay,
+      details(field, out) {
+        out.orb(V(0, .972, -.4), V(1, 0, 0), V(0, 1, 0), V(0, 0, 1), V(.031, .025, .027), ink);
+        for (const side of [-1, 1]) {
+          const hit = land(field, V(side * .08, 1.048, -.5), V(0, 0, 1)), normal = gradient(field, hit, .01);
+          const level = normalize(cross(V(0, 1, 0), normal)), rise = cross(normal, level);
+          const slant = normalize(sub(level, mul(rise, side * .34)));
+          out.orb(add(hit, mul(normal, .003)), slant, cross(normal, slant), normal, V(.032, .02, .012), ink);
+        }
+      } };
+  }
+
+  // A plump owl: wide head with ear tufts, heavy-lidded eyes in pale discs, leaves for wings.
+  function owl() {
+    const body = Lathe([[0, .12], [.19, .13], [.25, .22], [.272, .42], [.264, .6], [.228, .78], [.17, .89], [0, .93]]);
+    const discs = Frame(V(.115, .993, -.197), V(0, 1, 0), V(.38, .06, -1));
+    const wing = Leaf(V(.287, .9, -.01), V(.287, .27, .05), V(1, 0, -.2), .15, .034, .075, .06);
+    const covert = Leaf(V(.305, .93, -.05), V(.315, .56, -.02), V(1, 0, -.3), .1, .03, .04, .04);
+    const bib = Leaf(V(0, .87, -.165), V(0, .69, -.275), V(0, .11, -.18), .07, .022, .012, .02);
+    return { low: V(-.42, -.03, -.41), high: V(.42, 1.37, .41), cell: .02,
+      clay(p, f) {
+        stand(f, p);
+        const m = V(abs(p.x), p.y, p.z);
+        let plump = body.distance(hypot2(p.x, p.z / .93), p.y) * .93;
+        if (plump < .05 && p.z < .1) {
+          // Breast feathers are staggered rows of small pillows.
+          const row = floor((p.y - .2) / .085), v = (p.y - .2) / .085 - row;
+          const u = atan2(p.z, p.x) * (12 / (2 * pi)) + .5 * (row & 1), fu = u - floor(u) - .5;
+          plump -= .011 * sqrt(max(0, 1 - 4 * fu * fu - 4 * (v - .5) * (v - .5))) * smooth(.08, -.08, p.z) * smooth(.22, .3, p.y) * smooth(.8, .7, p.y);
+        }
+        f.add(plump, plume, .03);
+        if (f.paint) f.tint(egg(p, V(0, .5, -.2), V(.19, .3, .16)), down, .03, .85);
+        if (p.y < .8) {
+          f.add(horn(p, V(0, .5, .19), V(0, .21, .295), .09, .05), plume, .04);
+          f.add(egg(m, V(.088, .185, -.215), V(.058, .04, .08)), gold, .015);
+        }
+        if (p.y > .55) {
+          f.add(egg(p, V(0, 1.0, -.015), V(.262, .215, .232)), plume, .06);
+          f.add(horn(m, V(.15, 1.14, 0), V(.235, 1.3, .03), .062, .023), plume, .04);
+          f.add(horn(m, V(0, 1.03, -.228), V(.2, 1.16, -.1), .04, .03), plume, .03);
+          const q = discs.local(m);
+          f.add(smax(egg(q, V(0, 0, 0), V(.112, .112, .045)), .2 - length(sub(q, V(0, 0, .233))), .02), down, .025);
+          f.add(egg(q, V(0, .046, .03), V(.07, .03, .034)), down, .012);
+          f.add(horn(p, V(0, .985, -.238), V(0, .915, -.28), .042, .015), gold, .01);
+        }
+        if (p.y > .45 && p.y < 1.1) foliage(f, bib, wedge(p, 9, -pi / 2), leaf, leafEdge);
+        foliage(f, wing, m, leaf, leafEdge);
+        foliage(f, covert, m, leaf, leafEdge);
+      },
+      details(field, out) {
+        for (const side of [-1, 1]) {
+          const mirror = p => V(side * p.x, p.y, p.z), u = mirror(discs.u), w = mirror(discs.w);
+          const hit = land(field, mirror(discs.world(V(0, -.01, .3))), mul(w, -1));
+          out.orb(add(hit, mul(w, .002)), u, discs.v, w, V(.05, .05, .012), gold);
+          out.orb(add(hit, mul(w, .01)), u, discs.v, w, V(.038, .038, .02), ink);
+        }
+      } };
+  }
+
+  // A tree-stump tower: bark and roots, a lit doorway, a battlement, and mushrooms at its foot.
+  function rook() {
+    const trunk = Lathe([[0, .12], [.325, .13], [.345, .19], [.305, .31], [.268, .5], [.258, .72], [.268, .9], [.305, .99], [.33, 1.04], [.335, 1.1], [.31, 1.125], [0, 1.125]]);
+    const shelf = Frame(V(.35, .4, -.2), V(.24, 1, -.14), V(0, 0, 1)), button = Frame(V(-.335, .275, -.15), V(-.2, 1, -.1), V(0, 0, 1));
+    const leaves = [];
+    const clay = (p, f) => {
+      stand(f, p);
+      const rho = hypot2(p.x, p.z), theta = atan2(p.z, p.x);
+      let bark = trunk.distance(rho, p.y);
+      if (bark < .06) {
+        // The trunk is dressed in staggered courses of blocks, like a keep grown from a stump.
+        const course = (p.y - .3) / .14, row = floor(course), v = course - row;
+        const u = theta * (9 / (2 * pi)) + .5 * (row & 1), h = u - floor(u);
+        const seam = min(min(v, 1 - v) * .14, min(h, 1 - h) * (2 * pi / 9) * rho);
+        bark += .015 * (1 - smooth(.005, .024, seam)) * smooth(.24, .31, p.y) * smooth(1.0, .95, p.y);
+      }
+      f.add(bark, wood, .02);
+      if (p.y < .7) f.add(horn(wedge(p, 5, -pi / 2 + pi / 5), V(0, .4, -.235), V(0, .17, -.322), .06, .04), wood, .045);
+      if (p.y > .7) {
+        f.add(hoop(V(p.x, p.y - .945, p.z), .272, .022), wood, .02);
+        f.cut(smax(rho - .225, 1.0 - p.y, .02), hollow, .01);
+        const q = wedge(p, 8, -pi / 2);
+        f.add(brick(V(q.x, q.y - 1.19, q.z + .283), V(.068, .078, .054), .016), wood, .012);
+      }
+      if (p.z < 0 && p.y < .95) {
+        const door = arch(p.x, p.y, .082, .17, .44), window = arch(p.x, p.y, .036, .66, .715);
+        f.add(smax(abs(door - .008) - .024, max(p.z + .2, -.318 - p.z), .012), acorn, .008);
+        f.cut(max(door, p.z + .185), doorway, .006);
+        f.cut(max(window, p.z + .2), doorway, .006);
+      }
+      if (p.y < .8) {
+        if (p.x > 0) {
+          f.add(horn(p, V(.27, .2, -.155), V(.345, .39, -.2), .036, .03), stalk, .02);
+          const q = shelf.local(p);
+          f.add(smax(egg(q, V(0, .012, 0), V(.112, .066, .112)), -q.y, .014), fungus, .006);
+        } else {
+          f.add(horn(p, V(-.285, .18, -.12), V(-.332, .265, -.148), .026, .022), stalk, .02);
+          const q = button.local(p);
+          f.add(smax(egg(q, V(0, .008, 0), V(.072, .044, .072)), -q.y, .01), fungus, .006);
+        }
+        for (const blade of leaves) foliage(f, blade, p, leaf, leafEdge, .004);
+      }
+    };
+    const field = measurer(clay);
+    const sprout = (turn, height, along) => {
+      const a = turn * pi / 180;
+      leaves.push(stick(field, V(cos(a) * .7, height, sin(a) * .7), V(-cos(a), 0, -sin(a)), along, .062, .034, .014));
+    };
+    sprout(-123, .3, V(-.5, 1, 0)); sprout(-116, .43, V(.3, 1, 0)); sprout(-127, .53, V(-.4, 1, 0));
+    sprout(-60, .34, V(.5, 1, 0)); sprout(-66, .46, V(-.2, 1, 0));
+    return { low: V(-.46, -.03, -.42), high: V(.5, 1.31, .42), cell: .018, clay };
+  }
+
+  // The woodland queen: a slender gown under a cloak of leaves, long hair, and a wreath of blossom.
+  function queen() {
+    const gown = Lathe([[0, .12], [.32, .13], [.345, .19], [.325, .32], [.27, .56], [.205, .82], [.16, 1.0], [.15, 1.1], [.165, 1.18], [.14, 1.25], [.07, 1.29], [0, 1.3]]);
+    const wreath = Frame(V(0, 1.572, .02), V(0, .985, .174), V(0, 0, 1)), neck = V(0, 1.3, 0), grown = 1.16, leaves = [];
+    for (let i = -2; i <= 2; i++) {
+      const lift = i & 1 ? .018 : 0;
+      leaves.push(drape(90 + i * 40, .17 + lift, 1.22, .345 + lift, .25, .155, .03, .02, .05));
+    }
+    for (const turn of [60, 120, 0, 180, -60, 240]) {
+      const lift = turn === 0 || turn === 180 ? .015 : 0;
+      leaves.push(drape(turn, .095 + lift, 1.305, .285 + lift, 1.0, .1, .026, .03, .04));
+    }
+    const grow = at => add(neck, mul(sub(at, neck), grown));
+    return { low: V(-.44, -.03, -.41), high: V(.44, 1.76, .45), cell: .02,
+      clay(p, f) {
+        stand(f, p);
+        const m = V(abs(p.x), p.y, p.z);
+        let dress = gown.distance(hypot2(p.x, p.z / .92), p.y) * .92;
+        if (dress < .05 && p.y < .95) dress += .011 * sin(atan2(p.z, p.x) * 11) * smooth(.9, .45, p.y);
+        f.add(dress, wood, .02);
+        if (p.y > .65 && p.y < 1.5) {
+          f.add(egg(p, V(0, 1.205, 0), V(.195, .07, .11)), wood, .05);
+          f.add(horn(m, V(.165, 1.19, 0), V(.185, .97, -.07), .052, .046), wood, .03);
+          f.add(horn(m, V(.185, .97, -.07), V(.05, .9, -.195), .046, .038), wood, .02);
+          f.add(ball(p, V(0, .897, -.212), .056), skin, .012);
+        }
+        for (const blade of leaves) foliage(f, blade, p, leaf, leafEdge);
+        if (p.y > .3) {
+          // Head, hair and wreath are modelled at life size, then enlarged about the neck as a storybook figure's are.
+          const h = add(neck, mul(sub(p, neck), 1 / grown)), n = V(abs(h.x), h.y, h.z);
+          let hair = smax(egg(h, V(0, 1.51, .02), V(.152, .147, .157)), -egg(h, V(0, 1.455, -.15), V(.098, .135, .1)), .02);
+          hair = smin(hair, horn(h, V(0, 1.48, .07), V(0, 1.1, .15), .145, .15), .03);
+          hair = smin(hair, horn(h, V(0, 1.1, .15), V(0, .72, .19), .15, .1), .03);
+          hair = smin(hair, horn(n, V(.115, 1.45, -.02), V(.152, 1.24, -.06), .056, .054), .02);
+          hair = smin(hair, horn(n, V(.152, 1.24, -.06), V(.128, 1.03, -.125), .054, .028), .02);
+          if (hair < .04) hair += .007 * sin(h.x * 48 + 3 * sin(h.y * 9) + h.z * 14);
+          f.add(horn(h, V(0, 1.27, 0), V(0, 1.39, -.012), .06, .052) * grown, skin, .02);
+          f.add(egg(h, V(0, 1.485, -.02), V(.122, .142, .128)) * grown, skin, .015);
+          f.add(ball(h, V(0, 1.47, -.15), .02) * grown, skin, .02);
+          if (f.paint) f.tint(ball(n, V(.062, 1.445, -.118), .032), blush, .025, .7);
+          f.add(hair * grown, tress, .008);
+          const q = wreath.local(h);
+          let garland = hoop(q, .14, .03);
+          if (garland < .04) garland += .008 * sin(atan2(q.z, q.x) * 13);
+          f.add(garland * grown, leaf, .01);
+        }
+      },
+      details(field, out) {
+        for (const side of [-1, 1]) out.stroke(field, grow(V(side * .047, 1.512, -.14)), V(0, 0, 1), .03, 205, 335, .008, lash);
+        out.stroke(field, grow(V(0, 1.438, -.14)), V(0, 0, 1), .022, 220, 320, .0065, lash);
+        [-90, -42, -138, 8, 172, 56, 124, 90].forEach((turn, i) => {
+          const a = turn * pi / 180, away = add(mul(wreath.u, cos(a)), mul(wreath.w, sin(a)));
+          out.blossom(grow(add(add(wreath.world(V(.14 * cos(a), .012, .14 * sin(a))), mul(away, .022)), mul(wreath.v, .018))), add(mul(away, .75), mul(wreath.v, .66)), i === 0 ? .07 : .058, i * .7);
+        });
+        [[V(-.075, .6, -.6), .056], [V(.09, .43, -.6), .064], [V(-.02, .29, -.6), .05]].forEach(([spot, size], i) => {
+          const hit = land(field, spot, V(0, 0, 1));
+          out.blossom(hit, gradient(field, hit, .01), size, i * 1.1);
+        });
+      } };
+  }
+
+  // The forest king: a stout robe and leaf cloak, a long beard over his staff, and antlers through a floppy hat.
+  function king() {
+    const robe = Lathe([[0, .12], [.335, .13], [.355, .19], [.34, .32], [.305, .55], [.27, .8], [.25, .98], [.225, 1.08], [.15, 1.16], [0, 1.19]]);
+    const hat = Frame(V(0, 1.415, -.005), V(0, .99, .139), V(0, 0, 1)), leaves = [];
+    for (let i = -3; i <= 3; i++) {
+      leaves.push(drape(90 + i * 40, .2 + (i & 1 ? .018 : 0), 1.12, .365 + (i & 1 ? .018 : 0), .25, .16, .03, .02, .05));
+      leaves.push(drape(90 + i * 51.43, .12, 1.22, .36 + (i & 1 ? .015 : 0), .84, .125, .028, .03, .045));
+    }
+    return { low: V(-.5, -.03, -.45), high: V(.5, 2.15, .47), cell: .019,
+      clay(p, f) {
+        stand(f, p);
+        const m = V(abs(p.x), p.y, p.z);
+        f.add(robe.distance(hypot2(p.x, p.z / .93), p.y) * .93, wood, .02);
+        if (p.y > .55 && p.y < 1.3) {
+          f.add(horn(m, V(.2, 1.0, -.03), V(.19, .86, -.17), .075, .062), wood, .03);
+          f.add(horn(m, V(.19, .86, -.17), V(.06, .88, -.27), .062, .046), wood, .02);
+          f.add(ball(m, V(.05, .885, -.275), .048), skin, .012);
+        }
+        for (const blade of leaves) foliage(f, blade, p, leaf, leafEdge);
+        if (p.y < 1.35) {
+          f.add(horn(p, V(0, .16, -.345), V(0, 1.08, -.3), .03, .027), staff, .008);
+          f.add(ball(p, V(0, 1.1, -.3), .046), staff, .02);
+        }
+        if (p.y > .5 && p.y < 1.75) {
+          let beard = horn(p, V(0, 1.16, -.115), V(0, .98, -.165), .115, .105);
+          beard = smin(beard, horn(p, V(0, .98, -.165), V(0, .75, -.19), .105, .03), .02);
+          beard = smin(beard, horn(m, V(.125, 1.26, -.06), V(.1, 1.03, -.14), .075, .07), .03);
+          if (beard < .04) beard += .008 * sin(p.x * 52 + 3.5 * sin(p.y * 11));
+          f.add(egg(p, V(0, 1.3, -.02), V(.165, .165, .165)), skin, .03);
+          f.add(ball(p, V(0, 1.292, -.192), .045), skin, .02);
+          f.add(ball(m, V(.088, 1.272, -.138), .046), skin, .03);
+          if (f.paint) {
+            f.tint(ball(m, V(.095, 1.268, -.17), .04), blush, .03, .5);
+            f.tint(ball(p, V(0, 1.29, -.225), .03), blush, .03, .4);
+          }
+          f.add(beard, whisker, .012);
+          f.add(horn(m, V(.02, 1.238, -.195), V(.15, 1.165, -.155), .042, .018), whisker, .01);
+          f.add(horn(m, V(.03, 1.378, -.168), V(.125, 1.368, -.128), .03, .02), whisker, .01);
+        }
+        if (p.y > 1.15) {
+          const q = hat.local(p), around = hypot2(q.x, q.z), theta = atan2(q.z, q.x), sweep = saturate((around - .13) / .16);
+          // The brim turns up at the front so the face shows from above, and droops behind.
+          const lift = .012 + (.032 - .05 * sin(theta)) * sweep * sweep + .01 * sin(3 * theta + 1) * sweep;
+          const a = abs(q.y - lift) - .012, b = around - .282;
+          const brim = min(max(a, b), 0) + hypot2(max(a, 0), max(b, 0)) - .01;
+          let cone = smin(horn(q, V(0, .03, 0), V(0, .19, 0), .168, .105), horn(q, V(0, .19, 0), V(-.03, .31, -.01), .105, .058), .02);
+          cone = smin(cone, horn(q, V(-.03, .31, -.01), V(-.1, .385, -.03), .058, .024), .02);
+          f.add(smin(brim, cone, .04), felt);
+          f.add(hoop(V(q.x, q.y - .082, q.z), .158, .02), acorn, .008);
+          let rack = smin(horn(m, V(.12, 1.555, .02), V(.25, 1.7, .035), .042, .036), horn(m, V(.25, 1.7, .035), V(.325, 1.9, .03), .036, .029), .02);
+          rack = smin(rack, horn(m, V(.325, 1.9, .03), V(.305, 2.08, .01), .029, .021), .02);
+          rack = smin(rack, horn(m, V(.22, 1.67, .035), V(.37, 1.745, .05), .03, .026), .02);
+          rack = smin(rack, horn(m, V(.37, 1.745, .05), V(.44, 1.87, .05), .026, .021), .02);
+          rack = smin(rack, horn(m, V(.31, 1.86, .03), V(.22, 1.975, .02), .027, .021), .02);
+          rack = smin(rack, horn(m, V(.33, 1.93, .03), V(.42, 2.03, .03), .025, .021), .02);
+          f.add(rack, antler, .02);
+        }
+      },
+      details(field, out) {
+        for (const side of [-1, 1]) out.stroke(field, V(side * .07, 1.352, -.17), V(0, 0, 1), .024, 205, 335, .008, lash);
+        [-128, -90, -54].forEach((turn, i) => {
+          const a = turn * pi / 180, away = add(mul(hat.u, cos(a)), mul(hat.w, sin(a)));
+          out.blossom(hat.world(V(.176 * cos(a), .088, .176 * sin(a))), add(away, mul(hat.v, .45)), i === 1 ? .058 : .048, i * .9);
+        });
+      } };
+  }
+
+  // The carved and painted figure for a piece kind (1 pawn to 6 king), with the paint of both sides.
+  return kind => {
+    const statue = [pawn, fox, owl, rook, queen, king][kind - 1](), field = measurer(statue.clay), out = Carving();
+    carve(statue.clay, field, statue.low, statue.high, statue.cell, out);
+    statue.details?.(field, out);
+    const count = out.points.length / 3, uv = new Float32Array(count * 2);
+    for (let i = 0; i < count; i++) { uv[i * 2] = atan2(out.points[i * 3 + 2], out.points[i * 3]) / (2 * pi) + .5; uv[i * 2 + 1] = out.points[i * 3 + 1]; }
+    return { position: new Float32Array(out.points), normal: new Float32Array(out.normals), uv, light: new Float32Array(out.light.map(saturate)), dark: new Float32Array(out.dark.map(saturate)), index: new Uint32Array(out.indices) };
+  };
+})();
+return { castPart, carveFigure };
+}
+
+const LIGHT = 2.9, PROBE = 1;             // Qt counts a light of 1 as full brightness; three counts it as 1/pi
+// Checkmate, as the native app plays it: the same rules and computer opponent, the same four sculpted
+// sets cut from the same clay, each moving in its own manner, on the same board under the same lights.
+const FOOT = 42, FIXED_GAME = launchParam('seed') !== null;      // a named seed neither reads nor writes the saved game
+const chess = ChessLib(), sculpt = SculptLib();
+const rad = degrees => degrees * Math.PI / 180;
+const SETS = [
+  { name: 'Orbital Orders', about: 'Across the stars', tint: '#d9ad69', light: '#7a7c7e', dark: '#252c33', frame: '#28343f', accent: '#dcad62', sky: ['#0b1726', '#080e19'], scene: 'orbital', veil: .85,
+    icon: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18ZM12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7Z' },
+  { name: 'Midnight Atelier', about: 'Wood, ivory & brass', tint: '#c99b6b', light: '#e2caa1', dark: '#54311e', frame: '#432b22', accent: '#cba265', sky: ['#49392e', '#1c1716'], scene: 'atelier', veil: .9,
+    icon: 'M7 20h11M9 20c.3-3.5 2.5-5 2.5-8l-3.5 1.5-1.5-2 4.5-5 .5-2.5 1.5 2c3.5 1 5.5 4.5 5.5 8.5 0 2-.5 3.5-1 5.5' },
+  { name: 'Moss & Myth', about: 'A woodland tale', tint: '#93a775', light: '#c7c0a0', dark: '#65704c', frame: '#5b4934', accent: '#9baa6b', sky: ['#353b27', '#1f261a'], scene: 'woodland', veil: .7,
+    icon: 'M5 19C5 10 10 5 19 5c0 9-5 14-14 14ZM5 19l8-8' },
+  { name: 'Candy Kingdom', about: 'A little sweetness', tint: '#db9eb2', light: '#f6e2cb', dark: '#a07a9b', frame: '#f0dccb', accent: '#dca6ab', sky: ['#e8c8c5', '#ad8b9e'], scene: 'candy', veil: .9,
+    icon: 'M5 19h14M6 16l-1.5-8 4.5 3.5 3-6 3 6 4.5-3.5-1.5 8Z' },
+];
+const LEVELS = ['Casual', 'Thoughtful', 'Challenging'];
+// Each set moves in its own manner. Orbital craft hover, bank into a glide and scan with their lights up. Atelier's
+// pieces are handled: tilted in unseen fingers, carried over, set down with a rock, and tipped over when taken. The
+// woodland creatures breathe, look and leap. The sweets wobble like jelly and pop.
+const MANNERS = [
+  { breath: 0, bulge: 0, sway: 0, hover: .035, drift: .02, raise: .2, raiseTime: 380, spring: false, bob: .06, pinch: 0,
+    windup: 0, crouch: 1, stretch: 1, squash: 1, lean: 11, counter: -6, dip: .03, settle: 'outCubic', settleTime: 320, glide: 'inOutCubic',
+    arc: .04, arcPer: .01, arcMax: .1, knightArc: .45, pace: 340, pacePer: 60, start: 1, reach: 1, shake: 20, shakeTime: 170,
+    look: 9, glance: 14, skip: 0, fade: 320, pop: false, twirl: 0, topple: 0 },
+  { breath: 0, bulge: 0, sway: 0, hover: 0, drift: 0, raise: .14, raiseTime: 220, spring: false, bob: 0, pinch: 3.5,
+    windup: 0, crouch: 1, stretch: 1, squash: 1, lean: 5, counter: -4, dip: 0, settle: 'outElastic', settleTime: 650, glide: 'inOutCubic',
+    arc: .16, arcPer: .03, arcMax: .34, knightArc: .5, pace: 320, pacePer: 45, start: 1, reach: 1, shake: 0, shakeTime: 100,
+    look: 0, glance: 0, skip: 0, fade: 380, pop: false, twirl: 0, topple: 80 },
+  { breath: .011, bulge: .6, sway: 1.2, hover: 0, drift: 0, raise: .17, raiseTime: 300, spring: true, bob: .1, pinch: 0,
+    windup: 70, crouch: .9, stretch: 1.07, squash: .88, lean: 9, counter: -5, dip: 0, settle: 'outBack', settleTime: 320, glide: 'inOutSine',
+    arc: .12, arcPer: .04, arcMax: .36, knightArc: .55, pace: 300, pacePer: 50, start: .93, reach: 1.08, shake: 9, shakeTime: 110,
+    look: 20, glance: 15, skip: .07, fade: 300, pop: false, twirl: 160, topple: 0 },
+  { breath: .014, bulge: .9, sway: .6, hover: 0, drift: 0, raise: .17, raiseTime: 320, spring: true, bob: .12, pinch: 0,
+    windup: 80, crouch: .84, stretch: 1.1, squash: .8, lean: 6, counter: -3, dip: 0, settle: 'outElastic', settleTime: 560, glide: 'inOutSine',
+    arc: .16, arcPer: .04, arcMax: .4, knightArc: .6, pace: 320, pacePer: 50, start: .88, reach: 1.13, shake: 0, shakeTime: 100,
+    look: 12, glance: 0, skip: .05, fade: 280, pop: true, twirl: 0, topple: 0 },
+];
+
+// ---- Motion: a property follows a run of steps, each [to, milliseconds, easing]; a step to null only waits.
+const EASE = {
+  linear: t => t, inQuad: t => t * t, outQuad: t => 1 - (1 - t) ** 2, inOutQuad: t => t < .5 ? 2 * t * t : 1 - (2 - 2 * t) ** 2 / 2,
+  inCubic: t => t ** 3, outCubic: t => 1 - (1 - t) ** 3, inOutCubic: t => t < .5 ? 4 * t ** 3 : 1 - (2 - 2 * t) ** 3 / 2,
+  inOutSine: t => (1 - Math.cos(Math.PI * t)) / 2,
+  inBack: t => t * t * (2.70158 * t - 1.70158), outBack: t => 1 + (t - 1) ** 2 * (2.70158 * (t - 1) + 1.70158),
+  outElastic: t => t <= 0 || t >= 1 ? t : 2 ** (-10 * t) * Math.sin((t - .075) * 2 * Math.PI / .3) + 1,
+};
+function tween(target, property, steps) { target.tracks[property] = { steps, at: 0, time: 0, from: target[property] }; }
+function advance(target, ms) {
+  for (const property in target.tracks) {
+    const track = target.tracks[property];
+    track.time += ms;
+    while (track.at < track.steps.length) {
+      const [to, span, ease] = track.steps[track.at];
+      if (track.time < span) {
+        if (to !== null) target[property] = track.from + (to - track.from) * EASE[ease ?? 'linear'](track.time / span);
+        break;
+      }
+      track.time -= span;
+      if (to !== null) target[property] = to;
+      track.from = target[property];
+      track.at++;
+    }
+    if (track.at >= track.steps.length) delete target.tracks[property];
+  }
+}
+
+// ---- The game being played: its positions, what is picked up, and who is playing.
+let positions = [chess.initial()], played = [], notation = [], repetitions = new Map(), legal = [], outcome = '';
+let selected = -1, pending = -1, computer = true, humanWhite = true, difficulty = 1, pieceSet = 0, movesOpen = false;
+let thinking = false, generation = 0, replyIn = -1, answer = null, endIn = -1, loaded = false, trouble = '';
+const position = () => positions[positions.length - 1];
+const checked = () => chess.check(position(), position().white);
+const canUndo = () => played.length > 0 && (!computer || humanWhite || played.length > 1);
+const lastFrom = () => played.length ? chess.from(played[played.length - 1]) : -1, lastTo = () => played.length ? chess.to(played[played.length - 1]) : -1;
+const targets = () => [...new Set(legal.filter(m => chess.from(m) === selected).map(chess.to))];
+const seatAngle = () => computer ? (humanWhite ? 0 : 180) : 0;
+
+function statusText() {
+  const said = { 'white-wins': 'White wins by checkmate', 'black-wins': 'Black wins by checkmate', stalemate: 'Draw by stalemate',
+    material: 'Draw · insufficient material', 'fifty-moves': 'Draw · fifty-move rule', repetition: 'Draw · threefold repetition' }[outcome];
+  if (said) return said;
+  if (thinking) return 'Considering the next move…';
+  if (checked()) return position().white ? 'White is in check' : 'Black is in check';
+  return position().white ? 'White to move' : 'Black to move';
+}
+
+function refresh(instant = false) {
+  const p = position();
+  legal = chess.legal(p);
+  outcome = chess.adjudicate(p, legal, repetitions.get(chess.key(p)) ?? 0);
+  const records = pieces.map(piece => ({ kind: piece.kind, white: piece.white, square: piece.square, alive: false }));
+  for (let s = 0; s < 64; s++) if (p.b[s]) records[p.id[s]] = { kind: chess.kindAt(p, s), white: chess.whiteAt(p, s), square: s, alive: true };
+  pieces.forEach((piece, id) => follow(piece, records[id], instant));
+  score = Math.ceil(played.length / 2);
+  marksDue = movesDue = true;
+}
+
+function selectSquare(square) {
+  if (square < 0 || square >= 64 || outcome || thinking || pending >= 0 || (computer && position().white !== humanWhite)) return;
+  if (selected >= 0 && square !== selected && move(selected, square)) return;
+  const p = position(), before = selected;
+  selected = square === selected || !p.b[square] || chess.whiteAt(p, square) !== p.white ? -1 : square;
+  if (selected >= 0 && selected !== before) sound(520, .05, 'triangle', 640, .04);
+  marksDue = true;
+}
+function move(from, to, promotion = 0) {
+  if (outcome || thinking || (computer && position().white !== humanWhite)) return false;
+  for (const candidate of legal) if (chess.from(candidate) === from && chess.to(candidate) === to) {
+    if (chess.promotion(candidate) && !promotion) { pending = candidate; openDialog('promotion'); return true; }
+    if (chess.promotion(candidate) === promotion) { pending = -1; apply(candidate); return true; }
+  }
+  return false;
+}
+function promote(kind) {
+  if (pending < 0) return;
+  closeDialog();
+  move(chess.from(pending), chess.to(pending), kind);
+}
+function cancelSelection() { pending = -1; selected = -1; marksDue = true; }
+
+function count(p, by) { const key = chess.key(p); repetitions.set(key, (repetitions.get(key) ?? 0) + by); }
+function apply(m) {
+  const p = position(), capture = p.b[chess.to(m)] !== 0 || (chess.kindAt(p, chess.from(m)) === chess.PAWN && chess.to(m) === p.ep);
+  notation.push(chess.san(p, m));
+  positions.push(chess.after(p, m));
+  played.push(m);
+  count(position(), 1);
+  selected = -1;
+  refresh();
+  // The sound waits for the piece to land.
+  thuds.push([(MANNERS[pieceSet].windup + MANNERS[pieceSet].pace) / 1000, capture]);
+  if (checked() && !outcome) { tween(board, 'checkGlow', [[.7, 220], [.22, 500]]); thuds.push([.55, 'check']); }
+  save();
+  replyIn = .42;                      // the pause before the computer answers, so the player's piece lands first
+  if (outcome) endIn = 1.6;
+}
+
+function cancelComputer() {
+  generation++;
+  replyIn = -1;
+  answer = null;
+  if (thinking) dismiss('thinker');
+  thinking = false;
+}
+function scheduleComputer() {
+  if (!computer || position().white === humanWhite || outcome || thinking) return;
+  thinking = true;
+  const asked = generation, p = position(), reversible = Math.min(positions.length, p.halfmove + 1);
+  // Only what came after the last capture or pawn move can be repeated.
+  ask('thinker', { type: 'think', position: p, level: difficulty, history: positions.slice(positions.length - reversible), seed: Math.floor(random() * 2 ** 31) },
+    result => { if (asked === generation) answer = result; });
+}
+
+function newGame(withComputer, level, asWhite) {
+  cancelComputer();
+  computer = withComputer; difficulty = THREE.MathUtils.clamp(level, 0, 2); humanWhite = asWhite;
+  positions = [chess.initial()]; played = []; notation = []; pending = -1; selected = -1; trouble = ''; endIn = -1;
+  repetitions = new Map(); count(position(), 1);
+  refresh(); save(); scheduleComputer();
+}
+function undo() {
+  if (!canUndo()) return;
+  cancelComputer();
+  do {
+    count(position(), -1);
+    positions.pop(); played.pop(); notation.pop();
+  } while (computer && played.length && position().white !== humanWhite);
+  selected = -1; pending = -1; endIn = -1;
+  refresh(); save(); scheduleComputer();
+  noise(.05, .1, 1200);
+}
+function setPieceSet(value) {
+  if (value === pieceSet && board.dressed === value) return;
+  pieceSet = value;
+  wantSet(value, true);
+  for (const piece of pieces) compose(piece);          // a new set starts from rest rather than finishing the last one's gesture
+  looksDue = marksDue = true;
+  dressBoard();
+  save();
+}
+
+function save() {
+  if (!FIXED_GAME && loaded) saved.set('game', { version: 1, moves: played.map(m => [chess.from(m), chess.to(m), chess.promotion(m)]), computer, humanWhite, difficulty, pieceSet, movesOpen });
+}
+function restore() {
+  const data = FIXED_GAME ? null : saved.get('game', null);
+  if (!data || data.version !== 1 || !Array.isArray(data.moves) || data.moves.length > 20000) return;
+  const line = [chess.initial()], moves = [], names = [], seen = new Map([[chess.key(line[0]), 1]]);
+  for (const entry of data.moves) {
+    const p = line[line.length - 1], options = chess.legal(p), m = Array.isArray(entry) ? chess.move(entry[0], entry[1], entry[2]) : -1;
+    if (chess.adjudicate(p, options, seen.get(chess.key(p)) ?? 0) || !options.includes(m)) return;      // a damaged save is left alone
+    names.push(chess.san(p, m)); line.push(chess.after(p, m)); moves.push(m);
+    seen.set(chess.key(line[line.length - 1]), (seen.get(chess.key(line[line.length - 1])) ?? 0) + 1);
+  }
+  positions = line; played = moves; notation = names; repetitions = seen;
+  computer = data.computer !== false; humanWhite = data.humanWhite !== false;
+  difficulty = THREE.MathUtils.clamp(Math.floor(Number(data.difficulty ?? 1)) || 0, 0, 2);
+  pieceSet = THREE.MathUtils.clamp(Math.floor(Number(data.pieceSet)) || 0, 0, 3);
+  movesOpen = data.movesOpen === true;
+}
+
+// ---- The workshop: sculpting and thinking are done by workers, so the board never waits on them.
+// Without workers the same jobs are done here, one a frame.
+function work(job) {
+  if (job.type === 'think') return chess.bestMove(job.position, job.level, job.history, job.seed);
+  return job.type === 'carve' ? sculpt.carveFigure(job.kind) : sculpt.castPart(job.design, job.kind, job.part);
+}
+const staff = {}, waiting = new Map(), byHand = [];
+let asked = 0;
+function hire(role) {
+  try {
+    const source = `${ChessLib}\n${SculptLib}\nconst chess = ChessLib(), sculpt = SculptLib();\n${work}\nonmessage = event => {
+      const result = work(event.data.job), buffers = result && typeof result === 'object' ? Object.values(result).map(array => array.buffer) : [];
+      postMessage({ id: event.data.id, result }, buffers);\n};`;
+    const worker = new Worker(URL.createObjectURL(new Blob([source], { type: 'text/javascript' })));
+    worker.onmessage = event => { const order = waiting.get(event.data.id); waiting.delete(event.data.id); order?.done(event.data.result); };
+    worker.onerror = () => {                       // a worker that fails hands its jobs back to be done here
+      staff[role] = null;
+      for (const [id, order] of waiting) if (order.role === role) { waiting.delete(id); byHand.push(order); }
+    };
+    return worker;
+  } catch { return null; }
+}
+function ask(role, job, done) {
+  if (!(role in staff)) staff[role] = hire(role);
+  const order = { role, job, done };
+  if (!staff[role]) return void byHand.push(order);
+  waiting.set(++asked, order);
+  staff[role].postMessage({ id: asked, job });
+}
+function dismiss(role) {
+  for (const [id, order] of waiting) if (order.role === role) waiting.delete(id);
+  for (let i = byHand.length - 1; i >= 0; i--) if (byHand[i].role === role) byHand.splice(i, 1);
+  staff[role]?.terminate();
+  delete staff[role];
+}
+
+// One geometry per figure, so sixteen pawns share a single mesh. A set is sculpted when first wanted,
+// the one on the board before the others.
+const geometries = new Map(), wanted = new Set(), sculptJobs = [], remaining = [0, 0, 0, 0];
+let sculpting = false;
+function wantSet(design, first = false) {
+  if (wanted.has(design)) return;
+  wanted.add(design);
+  const jobs = [];
+  for (let kind = 1; kind <= 6; kind++) {
+    if (design === 2) jobs.push({ type: 'carve', design, kind });
+    else for (let part = 0; part < 4; part++) jobs.push({ type: 'cast', design, kind, part });
+  }
+  remaining[design] = jobs.length;
+  if (first) sculptJobs.unshift(...jobs); else sculptJobs.push(...jobs);
+  nextSculpture();
+}
+function nextSculpture() {
+  if (sculpting || !sculptJobs.length) return;
+  sculpting = true;
+  const job = sculptJobs.shift();
+  ask('sculptor', job, result => {
+    sculpting = false;
+    const shape = colors => {
+      if (!result.index.length) return null;
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(result.position, 3));
+      geometry.setAttribute('normal', new THREE.BufferAttribute(result.normal, 3));
+      geometry.setAttribute('uv', new THREE.BufferAttribute(result.uv, 2));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      geometry.setIndex(new THREE.BufferAttribute(result.index, 1));
+      geometry.computeBoundingSphere();
+      return geometry;
+    };
+    // Moss & Myth figures are painted in the mesh, so each side has its own: 0 pale, 1 dark.
+    if (job.type === 'carve') { geometries.set(`2:${job.kind}:0:0`, shape(result.light)); geometries.set(`2:${job.kind}:0:1`, shape(result.dark)); }
+    else geometries.set(`${job.design}:${job.kind}:${job.part}:0`, shape(result.color));
+    remaining[job.design]--;
+    looksDue = true;
+    hudText = '';
+    nextSculpture();
+  });
+}
+
+// ---- The board and its figures.
+const board = { tracks: {}, azimuth: 0, seat: 0, manualAzimuth: 0, checkGlow: .22, elevation: null, distance: null, clock: 0, dressed: -1, aimed: null, seated: null };
+const pieces = [], tiles = [], markers = [], labels = [], thuds = [];
+let surfaces, slabs, lastMarks, checkMark, keyLight, view = { w: 1, h: 1 }, chrome = true;
+let cursorSquare = 12, keyboardMode = false, dialog = null, dialogRow = 0, choices = [0, 1, 0], promotionAt = 0;
+let looksDue = true, marksDue = true, movesDue = true, hudText = '', labelText = '', fidgetIn = 1.7, orbiting = null;
+const clicks = [], taps = [], aim = new THREE.Raycaster(), EMPTY = new THREE.BufferGeometry();
+
+// The surfaces every square and piece is dressed in: a grey grain per set, and the pale wood of Atelier's light side.
+function surface(style) {
+  const size = 256, data = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const grit = Math.sin(x * .73 + y * 1.37) * Math.sin(x * 2.27 - y * .37), wave = Math.sin(x * .17 + 3 * Math.sin(y * .018) + .7 * Math.sin(y * .051));
+    let value = .94;
+    if (style === 1) value = .87 + .065 * wave + .035 * Math.sin(x * .85 + wave * 3) + grit * .015;
+    else if (style === 2) value = .95 + .018 * Math.sin(x * .04 + 2 * Math.sin(y * .033)) + grit * .006;
+    else if (style === 5) value = .94 - .06 * (.5 + .5 * Math.sin(x * .035 + y * .025 + 2 * wave)) ** 12 + grit * .004;
+    else if (style === 0) value = .93 + grit * .02;
+    data.fill(THREE.MathUtils.clamp(Math.floor(value * 255), 0, 255), (y * size + x) * 4, (y * size + x) * 4 + 3);
+    data[(y * size + x) * 4 + 3] = 255;
+  }
+  const texture = new THREE.DataTexture(data, size, size);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.magFilter = THREE.LinearFilter; texture.minFilter = THREE.LinearMipmapLinearFilter; texture.generateMipmaps = true;
+  texture.needsUpdate = true;
+  return texture;
+}
+// The room the pieces mirror: a feathered softbox and a fill above a dim warm table.
+function studio() {
+  const width = 256, height = 128, data = new Uint16Array(width * height * 4), half = THREE.DataUtils.toHalfFloat;
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const u = x / width, v = 1 - y / height, across = (u - .22) / .0744, down = Math.abs(v - .32) / .1687;
+    let above = THREE.MathUtils.clamp((.5 - v) / .08, 0, 1);
+    above = above * above * (3 - 2 * above);
+    const softbox = 3.8 * above * Math.exp(-across * across - down * down * down);
+    const fill = 2 * above * Math.exp(-(((u - .73) / .13) ** 4) - ((v - .34) / .16) ** 4), sky = (.18 + .22 * (1 - v)) * above;
+    data.set([half(sky + .16 * (1 - above) + softbox + fill * .7), half(sky + .131 * (1 - above) + softbox * .94 + fill * .85), half(sky + .109 * (1 - above) + softbox * .84 + fill), half(1)], (y * width + x) * 4);
+  }
+  const texture = new THREE.DataTexture(data, width, height, THREE.RGBAFormat, THREE.HalfFloatType);
+  texture.mapping = THREE.EquirectangularReflectionMapping;
+  texture.magFilter = texture.minFilter = THREE.LinearFilter;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function build() {
+  scene.background = null;
+  scene.fog = null;
+  renderer.setClearColor(0x000000, 0);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  scene.environment = studio();
+  scene.environmentRotation.y = rad(-45);
+  surfaces = [0, 1, 2, 3, 4, 5].map(surface);
+
+  // The key light is warm and casts the shadows; a cool fill and a little from above keep them open.
+  keyLight = sun;
+  keyLight.color.set('#ffebd2');
+  keyLight.position.set(-.405, .707, .579).multiplyScalar(22);
+  keyLight.shadow.mapSize.set(2048, 2048);
+  Object.assign(keyLight.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7, near: 4, far: 44 });
+  keyLight.shadow.bias = -.0004;
+  keyLight.shadow.normalBias = .02;
+  keyLight.shadow.radius = 3;
+  const fill = new THREE.DirectionalLight('#c2ddf4', .35 * LIGHT), top = new THREE.DirectionalLight('#ffffff', .18 * LIGHT);
+  fill.position.set(.557, .5, -.663).multiplyScalar(22);
+  top.position.set(0, .94, .342).multiplyScalar(22);
+  scene.add(fill, top);
+
+  const cube = new THREE.BoxGeometry(1, 1, 1), slab = (y, width, height) => {
+    const mesh = new THREE.Mesh(cube, new THREE.MeshStandardMaterial());
+    mesh.position.y = y;
+    mesh.scale.set(width, height, width);
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+    return mesh;
+  };
+  slabs = [slab(-.27, 9.1, .5), slab(-.045, 8.7, .07), slab(.001, 8.4, .05)];
+  const disc = new THREE.CylinderGeometry(.5, .5, 1, 40), dot = new THREE.MeshBasicMaterial({ transparent: true, opacity: .8 });
+  for (let index = 0; index < 64; index++) {
+    const tile = slab(.04, .996, .1);
+    tile.position.x = index % 8 - 3.5;
+    tile.position.z = 3.5 - Math.floor(index / 8);
+    tile.userData.square = index;
+    tiles.push(tile);
+    const marker = new THREE.Mesh(disc, dot);
+    marker.position.set(tile.position.x, .096, tile.position.z);
+    marker.visible = false;
+    scene.add(marker);
+    markers.push(marker);
+  }
+  const wash = new THREE.MeshBasicMaterial({ transparent: true, opacity: .23, depthWrite: false });
+  lastMarks = [0, 1].map(() => {
+    const mesh = new THREE.Mesh(cube, wash);
+    mesh.scale.set(.95, .005, .95);
+    mesh.position.y = .095;
+    scene.add(mesh);
+    return mesh;
+  });
+  checkMark = new THREE.Mesh(disc, new THREE.MeshBasicMaterial({ color: '#ed7369', transparent: true, opacity: .22, depthWrite: false }));
+  checkMark.scale.set(.9, .005, .9);
+  checkMark.position.y = .1;
+  scene.add(checkMark);
+
+  for (let id = 0; id < 32; id++) {
+    const group = new THREE.Group(), meshes = [0, 1, 2, 3].map(() => {
+      const mesh = new THREE.Mesh(EMPTY, new THREE.MeshPhysicalMaterial({ vertexColors: true }));
+      mesh.castShadow = mesh.receiveShadow = true;
+      mesh.userData.piece = id;
+      group.add(mesh);
+      return mesh;
+    });
+    group.rotation.order = 'YXZ';
+    scene.add(group);
+    pieces.push({ id, group, meshes, tracks: {}, kind: 1, shownKind: 1, white: true, square: 0, alive: false, x: 0, z: 0, raise: 0, raiseTo: 0, look: 0, lookTo: 0,
+      presence: 0, lift: 0, stretch: 1, lean: 0, leanX: 0, leanZ: 0, wiggle: 0, travel: 360, leaping: 0, turn: 0, worn: '' });
+  }
+
+  for (let index = 0; index < 16; index++) {
+    const label = document.createElement('i');
+    label.textContent = index < 8 ? 'abcdefgh'[index] : index - 7;
+    $('labels').append(label);
+    labels.push({ label, at: index < 8 ? new THREE.Vector3(index - 3.5, .14, 4.25) : new THREE.Vector3(-4.25, .14, 3.5 - (index - 8)) });
+  }
+
+  // The footer: the four sets, each by its own sign, and what can be done.
+  const glyph = path => `<svg class="glyph" viewBox="0 0 24 24"><path d="${path}"/></svg>`;
+  $('sets').innerHTML = SETS.map((set, i) => `<button class="set" data-do="set${i}" title="${set.name}  ·  ${set.about}  ·  ${i + 1}" style="--ring:${set.tint}">${glyph(set.icon)}</button>`).join('');
+  $('paused-keys').innerHTML = $('keys').innerHTML;
+  for (const button of document.querySelectorAll('[data-do]')) button.addEventListener('click', () => clicks.push(button.dataset.do));
+  for (const button of document.querySelectorAll('[data-choice]')) button.addEventListener('click', () => { const [row, value] = button.dataset.choice.split(':').map(Number); dialogRow = row; choices[row] = value; drawDialog(); });
+  for (const overlay of document.querySelectorAll('.dialog')) overlay.addEventListener('pointerdown', event => { if (event.target === overlay) clicks.push('cancel'); });
+
+  const canvas = renderer.domElement;
+  canvas.addEventListener('pointerdown', event => {
+    if (event.button === 0) return void taps.push([event.clientX, event.clientY]);
+    canvas.setPointerCapture(event.pointerId);
+    orbiting = [event.clientX, event.clientY];
+  });
+  canvas.addEventListener('pointermove', event => {
+    if (!orbiting) return;
+    // Right-drag to orbit: round the board, and between a low seat and nearly overhead.
+    board.manualAzimuth -= (event.clientX - orbiting[0]) * .4;
+    board.elevation = THREE.MathUtils.clamp(elevation() - (event.clientY - orbiting[1]) * .25, -80, -25);
+    orbiting = [event.clientX, event.clientY];
+  });
+  const release = () => { orbiting = null; };
+  canvas.addEventListener('pointerup', release);
+  canvas.addEventListener('pointercancel', release);
+  canvas.addEventListener('wheel', event => {
+    event.preventDefault();
+    board.distance = THREE.MathUtils.clamp(distance() + event.deltaY / 500, 10.5, farthest());
+  }, { passive: false });
+
+  // While a dialog is up the keys are its own. Escape otherwise puts a piece back, and pauses when none is held.
+  addEventListener('keydown', event => {
+    if (state !== 'playing' || event.ctrlKey && event.code !== 'KeyZ' || event.metaKey || event.altKey) return;
+    if (dialog) {
+      event.stopImmediatePropagation();
+      event.preventDefault();
+      dialogKey(event.code);
+    } else if (event.code === 'Escape' && selected >= 0) {
+      event.stopImmediatePropagation();
+      event.preventDefault();
+      cancelSelection();
+    }
+  }, true);
+}
+
+// ---- The camera: seated behind the player's side, as far back as the board needs to fit.
+const lens = () => pieceSet === 2 ? 43 : 32;
+const elevation = () => board.elevation ?? (pieceSet === 2 ? -46 : -47);
+// The lens is fixed vertically, so a narrow view would crop the board's sides; the camera backs off until the frame and back-rank pieces fit.
+function fitDistance() {
+  const tanV = Math.tan(rad(lens()) / 2) * .94, tanH = tanV * view.w / view.h, e = rad(elevation()), points = [];
+  for (const x of [-4.55, 4.55]) for (const z of [-4.55, 4.55]) points.push([x, -.5, z], [x, .1, z]);
+  for (const x of [-4, 4]) for (const z of [-3.5, 3.5]) points.push([x, 1.5, z]);
+  let needed = 0;
+  for (const [x, y, z] of points) {
+    const y2 = y * Math.cos(e) + z * Math.sin(e), z2 = z * Math.cos(e) - y * Math.sin(e);
+    needed = Math.max(needed, z2 + Math.abs(x) / tanH, z2 + Math.abs(y2) / tanV);
+  }
+  return needed;
+}
+const distance = () => board.distance ?? Math.max(pieceSet === 2 ? 12.9 : 17, fitDistance());
+const farthest = () => Math.max(pieceSet === 2 ? 20 : 26, fitDistance() * 1.25);
+function resetCamera() {
+  // Whole turns are dropped first, so the way home is never more than half a turn however often the board was flipped.
+  const turns = 360 * Math.round(board.manualAzimuth / 360);
+  board.manualAzimuth -= turns; board.azimuth -= turns; board.aimed -= turns;
+  board.manualAzimuth = 0;
+  board.elevation = board.distance = null;
+}
+
+function resized() {
+  const foot = chrome ? FOOT : 0;
+  view = { w: innerWidth, h: Math.max(1, innerHeight - foot) };
+  renderer.setViewport(0, foot, view.w, view.h);
+  camera.aspect = view.w / view.h;
+  labelText = '';
+}
+
+function reset() {
+  if (!loaded) {
+    restore();
+    loaded = true;
+    if (!repetitions.size) count(position(), 1);
+    refresh(true);
+    if (outcome) newGame(computer, difficulty, humanWhite);
+    setPieceSet(pieceSet);
+    for (const design of [0, 1, 2, 3]) wantSet(design);         // the other sets are sculpted behind the game, ready to be switched to
+    board.azimuth = board.aimed = board.seat = board.seated = seatAngle();
+    replyIn = .3;
+  } else if (outcome) newGame(computer, difficulty, humanWhite);
+  closeDialog();
+  cancelSelection();
+  taps.length = clicks.length = 0;
+}
+
+// ---- Each figure follows its record: where it stands, what it is, and whether it is still on the board.
+function follow(piece, record, instant) {
+  const manner = MANNERS[pieceSet], changed = record.kind !== piece.kind;
+  piece.kind = record.kind;
+  piece.white = record.white;
+  if (record.alive !== piece.alive) {
+    piece.alive = record.alive;
+    if (instant) { delete piece.tracks.presence; piece.presence = piece.alive ? 1 : 0; }
+    else {
+      // The captor's journey is the last move's; the taken figure starts to go just before it lands.
+      const from = lastFrom(), to = lastTo(), reach = from < 0 ? 0 : Math.hypot(to % 8 - from % 8, Math.floor(to / 8) - Math.floor(from / 8));
+      const reprieve = piece.alive ? 0 : Math.max(0, manner.windup + Math.min(manner.pace + 320, manner.pace + manner.pacePer * reach) - manner.fade * .4);
+      tween(piece, 'presence', [[null, reprieve], [piece.alive ? 1 : 0, manner.fade, manner.pop && !piece.alive ? 'inBack' : 'inCubic']]);
+    }
+  }
+  if (record.square !== piece.square || instant) {
+    piece.square = record.square;
+    const x = piece.square % 8 - 3.5, z = 3.5 - Math.floor(piece.square / 8), dx = x - piece.x, dz = z - piece.z, reach = Math.hypot(dx, dz);
+    if (instant || !piece.alive) { delete piece.tracks.x; delete piece.tracks.z; piece.x = x; piece.z = z; compose(piece); }
+    else if (reach > .01) {
+      // Further is slower and higher; knights clear whatever stands between.
+      piece.travel = Math.min(manner.pace + 320, manner.pace + manner.pacePer * reach);
+      const height = piece.kind === chess.KNIGHT ? manner.knightArc : Math.min(manner.arcMax, manner.arc + manner.arcPer * reach), T = piece.travel, W = manner.windup;
+      // The figure leans along its path, which is turned into its own frame.
+      piece.leanX = (dx * Math.cos(piece.turn) - dz * Math.sin(piece.turn)) / reach;
+      piece.leanZ = (dx * Math.sin(piece.turn) + dz * Math.cos(piece.turn)) / reach;
+      // The journey: a crouch where the set has one, an arc leaning into the way ahead, and a landing that settles in character.
+      tween(piece, 'x', [[null, W], [x, T, manner.glide]]);
+      tween(piece, 'z', [[null, W], [z, T, manner.glide]]);
+      tween(piece, 'stretch', [[manner.crouch, W, 'outQuad'], [manner.stretch, T * .3, 'outQuad'], [1, T * .7], [manner.squash, 70, 'outQuad'], [1, manner.settleTime, manner.settle]]);
+      tween(piece, 'lift', [[null, W], [height, T * .5, 'outQuad'], [0, T * .5, 'inQuad'], [-manner.dip, 130, 'outQuad'], [0, 260, 'inOutQuad']]);
+      tween(piece, 'lean', [[null, W], [manner.lean, T * .35, 'outQuad'], [manner.counter, T * .65, 'inOutQuad'], [0, manner.settleTime, manner.settle]]);
+      tween(piece, 'wiggle', [[null, W], [0, T * .5, 'outQuad']]);
+      piece.leaping = W + T + Math.max(70 + manner.settleTime, 390);
+    }
+  }
+  // A promoting pawn stays a pawn until it lands, then becomes what it was promoted to.
+  if ((changed && piece.leaping <= 0) || instant) piece.shownKind = piece.kind;
+}
+function compose(piece) {
+  for (const property of ['lift', 'stretch', 'lean', 'wiggle']) delete piece.tracks[property];
+  piece.lift = 0; piece.stretch = 1; piece.lean = 0; piece.wiggle = 0;
+  if (piece.leaping > 0) { piece.leaping = 0; piece.shownKind = piece.kind; }
+}
+const stirring = piece => ['lift', 'stretch', 'lean', 'wiggle'].some(property => property in piece.tracks);
+// A tree stump stirs far less than the creatures around it.
+const liveliness = piece => pieceSet === 2 && piece.kind === chess.ROOK ? .3 : 1;
+// Every figure faces whoever is seated at the board. Knights turn in toward its middle: the foxes a little,
+// the horses far enough to show their profile.
+function facing(piece) {
+  const turn = pieceSet === 2 ? 32 : 58;
+  return 180 + board.seat + (piece.kind === chess.KNIGHT ? (piece.id % 2 ? turn : -turn) * Math.cos(rad(board.seat)) : 0);
+}
+// Neighbours turn part of the way toward the figure in hand; one standing behind them is left alone.
+function regard(piece) {
+  if (selected < 0 || selected === piece.square || !piece.alive) return 0;
+  const dx = selected % 8 - piece.square % 8, dz = Math.floor(piece.square / 8) - Math.floor(selected / 8), reach = Math.hypot(dx, dz);
+  if (reach < .5 || reach > 3.3) return 0;
+  return MANNERS[pieceSet].look * liveliness(piece) * Math.sin(Math.atan2(-dx, -dz) - rad(facing(piece))) * Math.min(1, (3.3 - reach) / 2);
+}
+// Now and then the board asks an idle figure to stir: a look to one side, or a small skip from the sweets, the young and the foxes.
+function fidget(piece) {
+  const manner = MANNERS[pieceSet];
+  if (!piece.alive || liveliness(piece) < 1 || selected === piece.square || piece.look !== 0 || stirring(piece)) return;
+  if (manner.skip > 0 && (manner.glance === 0 || (piece.kind <= 2 && Math.random() < .4))) {
+    tween(piece, 'lift', [[manner.skip, 130, 'outQuad'], [0, 170, 'inQuad']]);
+    tween(piece, 'stretch', [[1.05, 130], [.94, 170], [1, manner.settleTime, manner.settle]]);
+  } else if (manner.glance > 0) tween(piece, 'wiggle', [[(Math.random() < .5 ? -1 : 1) * manner.glance, 380, 'inOutSine'], [null, 500], [0, 520, 'inOutSine']]);
+}
+
+// What each part of a figure is made of: ceramic or gunmetal, polished wood, painted carving, boiled sugar,
+// with metalwork, dark inlay and a second colour each a solid of its own.
+function dress(piece) {
+  const design = pieceSet, white = piece.white, candy = design === 3, tone = design === 2 && !white ? 1 : 0, worn = `${design}:${white}`;
+  piece.meshes.forEach((mesh, part) => {
+    const geometry = geometries.get(`${design}:${piece.shownKind}:${part}:${part === 0 ? tone : 0}`);
+    mesh.geometry = geometry ?? EMPTY;
+    mesh.visible = !!geometry;
+  });
+  if (piece.worn === worn) return;
+  piece.worn = worn;
+  const [body, trim, inlay, second] = piece.meshes.map(mesh => mesh.material);
+  const set = (material, values) => { Object.assign(material, { map: null, metalness: 0, roughness: .5, clearcoat: 0, clearcoatRoughness: .2, specularIntensity: 1, emissiveIntensity: 1, ...values }); material.emissive.setRGB(...(values.glow ?? [0, 0, 0])); material.needsUpdate = true; };
+  set(body, { map: design === 2 ? null : design === 1 && white ? surfaces[5] : surfaces[design],
+    metalness: design === 0 ? (white ? .2 : .5) : 0, roughness: candy ? .24 : design === 1 ? .34 : design === 0 ? (white ? .3 : .36) : .7,
+    specularIntensity: design === 2 ? .6 : 1, clearcoat: design === 2 ? 0 : design === 0 ? .2 : .35, clearcoatRoughness: design === 1 ? .14 : candy ? .08 : .2,
+    // Sugar passes light through itself, so candy never falls into dark shadow: each sweet glows faintly in its own colour.
+    glow: !candy ? [0, 0, 0] : white ? [.24, .085, .095] : [.105, .05, .125] });
+  body.color.set(design === 0 ? (white ? '#e2d8c2' : '#343a44') : design === 1 ? (white ? '#eed8aa' : '#59321b') : design === 2 ? '#ffffff' : white ? '#f7949b' : '#9a5fa6');
+  // Gold leaf on a sweet is warmer and softer than cast metal.
+  set(trim, { metalness: candy ? .6 : .9, roughness: candy ? .3 : .26, glow: candy ? [.12, .08, .015] : [0, 0, 0] });
+  trim.color.set(design === 0 ? '#b99050' : design === 1 ? '#c89b51' : '#f2c653');
+  set(inlay, { roughness: design === 0 ? .1 : .25, clearcoat: design === 0 ? .6 : 0 });
+  inlay.color.set(candy ? (white ? '#5a2238' : '#2c1636') : design === 0 ? '#10151c' : '#1b1a20');
+  // Orbital lights burn in their own colour whatever the room is doing.
+  set(second, { roughness: candy ? .24 : .2, clearcoat: candy ? .35 : 0, clearcoatRoughness: candy ? .08 : .2,
+    glow: design === 0 ? (white ? [.22, .95, 1.05] : [1.25, .55, .08]) : !candy ? [0, 0, 0] : white ? [.15, .03, .06] : [.06, .025, .1] });
+  second.color.set(design === 0 ? (white ? '#52cdd0' : '#ffb84d') : design === 1 ? (white ? '#c8ac7e' : '#362115') : white ? '#d25a82' : '#7b4a9c');
+}
+
+function dressBoard() {
+  const set = SETS[pieceSet], design = pieceSet;
+  board.dressed = design;
+  const paint = (material, color, values) => { material.color.set(color); Object.assign(material, values); material.needsUpdate = true; };
+  paint(slabs[0].material, set.frame, { map: surfaces[design], roughness: .38, metalness: design === 0 ? .4 : .05 });
+  paint(slabs[1].material, set.accent, { map: null, roughness: .32, metalness: .5 });
+  paint(slabs[2].material, set.frame, { map: surfaces[design], roughness: .4, metalness: 0 });
+  tiles.forEach((tile, index) => {
+    const pale = (Math.floor(index / 8) + index % 8) % 2 === 1;
+    paint(tile.material, pale ? set.light : set.dark, { map: design === 1 && pale ? surfaces[5] : surfaces[design], roughness: design === 3 ? .3 : .55, metalness: design === 0 ? .15 : 0 });
+  });
+  markers[0].material.color.set(set.accent);
+  lastMarks[0].material.color.set(set.accent);
+  // Candy sits in a brighter, softer room than the other sets.
+  scene.environmentIntensity = (design === 3 ? 1.15 : .75) * PROBE;
+  document.documentElement.style.setProperty('--tint', set.tint);
+  $('backdrop').style.background = `linear-gradient(${set.sky[0]}, ${set.sky[1]})`;
+  $('scenery').style.backgroundImage = `url(scenes/${set.scene}.webp)`;
+  $('scenery').style.opacity = set.veil;
+  $('labels').style.color = design === 3 ? '#5d3c58' : '#f2e6c8';
+  document.querySelectorAll('.set').forEach((button, i) => button.classList.toggle('on', i === design));
+}
+
+// ---- Dialogs: a new match, and what a pawn becomes.
+function openDialog(name) {
+  dialog = name;
+  if (name === 'newgame') {
+    dialogRow = 0;
+    choices = [computer ? 0 : 1, difficulty, humanWhite ? 0 : 1];
+    $('newgame-note').textContent = canUndo() ? 'Starting a new match replaces the saved game.' : 'Choose your opponent and settle in.';
+  } else promotionAt = 0;
+  drawDialog();
+}
+function closeDialog() { dialog = null; drawDialog(); }
+function drawDialog() {
+  $('newgame').classList.toggle('show', dialog === 'newgame');
+  $('promotion').classList.toggle('show', dialog === 'promotion');
+  for (const button of document.querySelectorAll('[data-choice]')) {
+    const [row, value] = button.dataset.choice.split(':').map(Number);
+    button.classList.toggle('on', choices[row] === value);
+    button.parentElement.classList.toggle('at', row === dialogRow);
+    button.parentElement.hidden = row > 0 && choices[0] === 1;
+  }
+  document.querySelectorAll('#promotion [data-do]').forEach((button, i) => button.classList.toggle('on', i === promotionAt));
+}
+function startMatch() {
+  closeDialog();
+  newGame(choices[0] === 0, choices[1], choices[2] === 0);
+  resetCamera();
+}
+function dialogKey(code) {
+  const step = code === 'ArrowLeft' || code === 'ArrowUp' ? -1 : code === 'ArrowRight' || code === 'ArrowDown' ? 1 : 0, confirm = code === 'Enter' || code === 'Space' || code === 'NumpadEnter';
+  if (dialog === 'promotion') {
+    if (code === 'Escape') { closeDialog(); cancelSelection(); }
+    else if (confirm) promote([5, 4, 3, 2][promotionAt]);
+    else if (step) promotionAt = (promotionAt + step + 4) % 4;
+  } else {
+    const rows = choices[0] === 1 ? 1 : 3, sizes = [2, 3, 2];
+    if (code === 'Escape') return closeDialog();
+    if (confirm) return startMatch();
+    if (code === 'ArrowUp' || code === 'ArrowDown') dialogRow = (Math.min(dialogRow, rows - 1) + step + rows) % rows;
+    else if (step) choices[dialogRow] = (choices[dialogRow] + step + sizes[dialogRow]) % sizes[dialogRow];
+  }
+  drawDialog();
+}
+
+function act(name) {
+  if (name.startsWith('set')) return setPieceSet(Number(name.slice(3)));
+  if (state !== 'playing') return;
+  if (name === 'start') return startMatch();
+  if (name === 'cancel') { if (dialog === 'promotion') cancelSelection(); return closeDialog(); }
+  if (name.startsWith('promote')) return promote(Number(name.slice(7)));
+  if (dialog) return;
+  if (name === 'moves') { movesOpen = !movesOpen; movesDue = true; save(); }
+  if (name === 'undo') undo();
+  if (name === 'new') openDialog('newgame');
+  if (name === 'keys') show('paused');
+}
+
+// N on the title and end screens goes straight to choosing a new match, as the title screen says.
+function screenInput(code) {
+  if (!ACTIONS.deal.includes(code)) return false;
+  startRound();
+  openDialog('newgame');
+  return true;
+}
+
+function navigate(dx, dy) {
+  keyboardMode = true;
+  const angle = Math.round(board.azimuth / 90) * Math.PI / 2;
+  const fileStep = Math.round(dx * Math.cos(angle) - dy * Math.sin(angle)), rankStep = Math.round(dx * Math.sin(angle) + dy * Math.cos(angle));
+  cursorSquare = THREE.MathUtils.clamp(Math.floor(cursorSquare / 8) + rankStep, 0, 7) * 8 + THREE.MathUtils.clamp(cursorSquare % 8 + fileStep, 0, 7);
+  marksDue = true;
+}
+
+function update(dt) {
+  for (const name of clicks.splice(0)) act(name);
+  for (const [x, y] of taps.splice(0)) {
+    if (dialog) continue;
+    keyboardMode = false;
+    marksDue = true;
+    aim.setFromCamera(new THREE.Vector2(x / view.w * 2 - 1, -(y / view.h) * 2 + 1), camera);
+    const hit = aim.intersectObjects([...tiles, ...pieces.filter(piece => piece.alive).flatMap(piece => piece.meshes.filter(mesh => mesh.visible))], false)[0]?.object;
+    if (hit) selectSquare(hit.userData.square ?? pieces[hit.userData.piece].square); else cancelSelection();
+  }
+  if (!dialog) {
+    if (wasPressed('left')) navigate(-1, 0);
+    if (wasPressed('right')) navigate(1, 0);
+    if (wasPressed('up')) navigate(0, 1);
+    if (wasPressed('down')) navigate(0, -1);
+    if (wasPressed('action')) { keyboardMode = true; selectSquare(cursorSquare); }
+    if (wasPressed('undo')) undo();
+    if (wasPressed('deal')) openDialog('newgame');
+    if (wasPressed('flip')) board.manualAzimuth += 180;
+    if (wasPressed('home')) resetCamera();
+    if (wasPressed('moves')) act('moves');
+    if (wasPressed('chrome')) { chrome = !chrome; document.body.classList.toggle('bare', !chrome); resized(); }
+    if (wasPressed('help')) show('paused');
+    for (let i = 0; i < 4; i++) if (wasPressed(`set${i}`)) setPieceSet(i);
+  }
+  // The computer answers once the player's piece has landed and its own thinking is done.
+  if (replyIn >= 0 && (replyIn -= dt) < 0) scheduleComputer();
+  if (answer !== null) {
+    const reply = answer;
+    answer = null;
+    thinking = false;
+    if (legal.includes(reply)) apply(reply); else trouble = 'The computer could not choose a legal move. Undo or start a new game.';
+  }
+  if (endIn >= 0 && outcome && (endIn -= dt) < 0) {
+    const mine = computer && outcome === (humanWhite ? 'white-wins' : 'black-wins'), lost = computer && outcome.endsWith('wins') && !mine;
+    for (const [at, pitch] of mine ? [[0, 523], [.12, 659], [.24, 784], [.4, 1047]] : lost ? [[0, 392], [.2, 330], [.4, 262]] : [[0, 440], [.2, 440]]) thuds.push([at, pitch]);
+    endRound(mine, { title: statusText(), detail: `${computer ? `Against the computer  ·  ${LEVELS[difficulty]}` : 'Two players'}  ·  ${score} moves` });
+  }
+}
+
+function draw(dt) {
+  if (byHand.length) { const order = byHand.shift(); order.done(work(order.job)); }
+  for (const name of clicks.splice(0)) act(name);
+  const live = state !== 'paused' && state !== 'help', ms = live ? dt * 1000 : 0, manner = MANNERS[pieceSet], design = pieceSet;
+  if (live) board.clock += dt;
+  const clock = board.clock;
+
+  for (let i = thuds.length - 1; i >= 0; i--) if (live && (thuds[i][0] -= dt) <= 0) {
+    const what = thuds.splice(i, 1)[0][1];
+    if (what === 'check') sound(880, .14, 'triangle', 660, .06);
+    else if (typeof what === 'number') sound(what, .3, 'triangle', what, .07);
+    else { noise(what ? .12 : .06, what ? .22 : .14, what ? 1500 : 900); sound(what ? 140 : 190, .09, 'sine', 90, .1); }
+  }
+
+  // The seat and the camera turn together when the side changes or the board is flipped.
+  const seat = seatAngle(), aimed = seat + board.manualAzimuth;
+  if (seat !== board.seated) { board.seated = seat; tween(board, 'seat', [[seat, 650, 'inOutCubic']]); }
+  if (orbiting) { delete board.tracks.azimuth; board.azimuth = board.aimed = aimed; }
+  else if (aimed !== board.aimed) { board.aimed = aimed; tween(board, 'azimuth', [[aimed, 650, 'inOutCubic']]); }
+  advance(board, ms);
+  const e = rad(elevation()), a = rad(board.azimuth), far = distance();
+  camera.fov = lens();
+  camera.position.set(far * Math.cos(e) * Math.sin(a), -far * Math.sin(e), far * Math.cos(e) * Math.cos(a));
+  camera.lookAt(0, 0, 0);
+  camera.updateProjectionMatrix();
+  // Midnight Atelier is lit by a flame, which is never quite steady.
+  keyLight.intensity = 1.05 * LIGHT * (1 + (design === 1 ? .04 * Math.sin(clock * 7.3) * Math.sin(clock * 2.1) + .018 * Math.sin(clock * 13.7) : 0));
+
+  if (live && (fidgetIn -= dt) <= 0) { fidgetIn = 1.7; if (Math.random() < .75) fidget(pieces[Math.floor(Math.random() * 32)]); }
+  if (looksDue) { looksDue = false; for (const piece of pieces) dress(piece); }
+  for (const piece of pieces) {
+    const held = selected === piece.square && piece.alive, raiseTo = held ? manner.raise : 0, lookTo = regard(piece);
+    if (raiseTo !== piece.raiseTo) {
+      piece.raiseTo = raiseTo;
+      tween(piece, 'raise', [[raiseTo, manner.raiseTime, manner.spring && held ? 'outBack' : 'outCubic']]);
+      // Picked up: a start and a stretch, then a shake of the head or a scan to either side.
+      if (held) {
+        tween(piece, 'lift', [[0, 150, 'outQuad']]);
+        tween(piece, 'stretch', [[manner.start, 70, 'outQuad'], [manner.reach, 150, 'outQuad'], [1, manner.settleTime, manner.settle]]);
+        tween(piece, 'wiggle', [[null, 120], [manner.shake, manner.shakeTime, 'inOutSine'], [-manner.shake * .8, manner.shakeTime * 1.4, 'inOutSine'], [0, manner.shakeTime * 2, manner.spring ? 'outBack' : 'inOutCubic']]);
+      }
+    }
+    if (Math.abs(lookTo - piece.lookTo) > .01) {
+      piece.lookTo = lookTo;
+      tween(piece, 'look', [[null, piece.id * 53 % 140], [lookTo, 380, manner.spring ? 'outBack' : 'inOutCubic']]);
+    }
+    advance(piece, ms);
+    if (piece.leaping > 0 && (piece.leaping -= ms) <= 0 && piece.shownKind !== piece.kind) { piece.shownKind = piece.kind; dress(piece); }
+
+    const lively = liveliness(piece), phase = piece.id * 2.399, grip = piece.raise / manner.raise;
+    const breath = lively * Math.sin(clock * (1.5 + piece.id % 5 * .11) + phase);
+    const tall = piece.stretch * (1 + manner.breath * breath * (1 + piece.raise * 6)), wide = 1 + (1 - tall) * manner.bulge, shown = Math.max(piece.presence, 0);
+    // A piece in the fingers tips toward the player and is never held quite still.
+    const tilt = grip * manner.pinch * (1 + .35 * Math.sin(clock * 1.7 + phase));
+    piece.group.visible = shown > 0;
+    piece.group.position.set(piece.x, .12 + manner.hover + manner.drift * Math.sin(clock * .9 + phase) + piece.lift + piece.raise * (1 + manner.bob * Math.sin(clock * 3.1 + phase)), piece.z);
+    piece.group.scale.set(shown * wide, shown * tall, shown * wide);
+    // A captured woodland figure twirls as it goes; a captured Atelier piece is tipped onto its side.
+    piece.turn = rad(facing(piece) + piece.wiggle + piece.look + lively * manner.sway * Math.sin(clock * .7 + phase * 1.7) + (1 - shown) * manner.twirl);
+    piece.group.rotation.set(rad(piece.lean * piece.leanZ + tilt), piece.turn, rad(-piece.lean * piece.leanX + Math.min(1, (1 - shown) * 2.2) * manner.topple * (piece.id % 2 ? 1 : -1)));
+    // A sweet warms a little in the hand. Orbital lights idle at a slow pulse, come up in the hand and when a neighbour is chosen, and go out with a capture.
+    piece.meshes[0].material.emissiveIntensity = 1 + grip * .6;
+    piece.meshes[3].material.emissiveIntensity = design === 0 ? shown * (1 + .2 * Math.sin(clock * 1.3 + phase) + grip * .9 + Math.abs(piece.look) / 18) : 1;
+  }
+
+  if (marksDue) {
+    marksDue = false;
+    const open = targets(), set = SETS[design];
+    tiles.forEach((tile, index) => {
+      const marked = selected === index || (keyboardMode && cursorSquare === index);
+      tile.material.color.set(marked ? set.accent : (Math.floor(index / 8) + index % 8) % 2 === 1 ? set.light : set.dark);
+      markers[index].visible = open.includes(index);
+    });
+    [lastFrom(), lastTo()].forEach((square, i) => {
+      lastMarks[i].visible = square >= 0;
+      lastMarks[i].position.set(square % 8 - 3.5, .095, 3.5 - Math.floor(square / 8));
+    });
+    const king = checked() ? position().b.indexOf(chess.KING | (position().white ? 8 : 0)) : -1;
+    checkMark.visible = king >= 0;
+    checkMark.position.set(king % 8 - 3.5, .1, 3.5 - Math.floor(king / 8));
+  }
+  // Markers swell and settle so the way forward is never static.
+  markers.forEach((marker, index) => { if (marker.visible) { const swell = .2291 * (1 + .09 * Math.sin(clock * 3.1 + index)); marker.scale.set(swell, .11, swell); } });
+  checkMark.material.opacity = board.checkGlow;
+
+  // The files and ranks are lettered along the near edges of the frame.
+  const seen = `${camera.position.x.toFixed(3)},${camera.position.y.toFixed(3)},${camera.position.z.toFixed(3)},${camera.fov},${view.w},${view.h}`;
+  if (seen !== labelText) {
+    labelText = seen;
+    camera.updateMatrixWorld();
+    for (const { label, at } of labels) {
+      const spot = at.clone().project(camera);
+      label.style.transform = `translate(${((spot.x + 1) / 2 * view.w).toFixed(1)}px, ${((1 - spot.y) / 2 * view.h).toFixed(1)}px) translate(-50%, -50%)`;
+    }
+  }
+
+  const status = remaining[design] > 0 ? 'Sculpting the set…' : trouble || statusText();
+  const text = `${status}|${computer}|${difficulty}|${canUndo()}|${movesOpen}|${checked()}`;
+  if (text !== hudText) {
+    hudText = text;
+    $('status').textContent = status;
+    $('status').classList.toggle('alarm', (checked() && !outcome) || !!trouble);
+    $('players').textContent = computer ? `Computer  ·  ${LEVELS[difficulty]}` : 'Two players';
+    $('undo').disabled = !canUndo();
+    $('moves-button').classList.toggle('lit', movesOpen);
+  }
+  if (movesDue) {
+    movesDue = false;
+    $('moves').classList.toggle('show', movesOpen);
+    const rows = [];
+    for (let i = 0; i < notation.length; i += 2) rows.push(`<li><span>${i / 2 + 1}.</span><span>${notation[i]}</span><span>${notation[i + 1] ?? '·'}</span></li>`);
+    $('history').innerHTML = rows.join('') || '<p>Every great game starts<br>with a single move.</p>';
+    $('history').scrollTop = $('history').scrollHeight;
+  }
+}
+
+// =============================================================================
+// THE FRAME, PART TWO: screens, rounds and the loop. Keep it.
+// =============================================================================
+$('best').textContent = best === null ? '—' : formatScore(best);
+
+function show(next) {
+  state = next;
+  for (const id of ['title', 'paused', 'over', 'help']) $(id).classList.toggle('show', id === next || (id === 'over' && next === 'won'));
+}
+
+function startRound() {
+  reset();
+  _stepPressed.clear();               // the key that started the round is not its first move
+  _stepClicks.clear();
+  show('playing');
+  sound(440, 0.12, 'square', 880);
+}
+
+function endRound(won, { title, detail } = {}) {
+  if (state !== 'playing') return;
+  const isBest = BEST_IS === 'lower' ? won && (best === null || score < best) : best === null || score > best;
+  if (isBest) { best = score; saved.set('best', best); $('best').textContent = formatScore(best); }
+  $('over-title').textContent = title ?? (won ? 'YOU WIN' : 'GAME OVER');
+  $('over-detail').textContent = detail ?? `Score ${formatScore(score)}`;
+  $('over-best').textContent = isBest ? 'New best!' : '';
+  show(won ? 'won' : 'over');
+}
+
+for (const line of document.querySelectorAll('.leave')) line.hidden = history.length <= 1;
+
+// The loop: keys → fixed-step simulation → draw → render. Game rules never run in draw.
+const STEP = 1 / 120, _clock = new THREE.Clock();
+let _accumulator = 0;
+
+function frame() {
+  const dt = Math.min(_clock.getDelta(), 0.1);       // a hidden window must not leap ahead
+
+  if (wasPressed('mute')) { _muted = !_muted; saved.set('muted', _muted); }
+  if (state === 'help') {
+    if (_pressed.size) show(_helpFrom);
+  } else if (wasPressed('help') && state !== 'playing') {
+    _helpFrom = state;
+    show('help');
+  } else if ((state === 'title' || state === 'over' || state === 'won') && wasPressed('pause') && history.length > 1) {
+    history.back();                                      // back to Game Vibes, which opened the game
+  } else if (state === 'title' || state === 'over' || state === 'won') {
+    const kept = typeof screenInput === 'function' && [..._pressed].some(code => screenInput(code));
+    if (!kept && (wasPressed('action') || wasClicked(0))) startRound();
+  } else if (state === 'paused') {
+    if (wasPressed('pause')) show('playing');
+    else if (wasPressed('leave') && history.length > 1) history.back();   // back to Game Vibes, mid-round
+  } else if (wasPressed('pause')) {
+    show('paused');
+  } else {
+    _accumulator += dt;
+    for (let steps = 0; _accumulator >= STEP && steps < 12 && state === 'playing'; steps++) {
+      _inStep = true;
+      update(STEP);
+      _inStep = false;
+      _stepPressed.clear();
+      _stepClicks.clear();
+      _accumulator -= STEP;
+    }
+  }
+  if (state !== 'playing') { _accumulator = 0; _stepPressed.clear(); _stepClicks.clear(); }
+  _pressed.clear();
+  _clicks.clear();
+
+  if (typeof draw === 'function') draw(dt, _accumulator / STEP);
+  $('score').textContent = formatScore(score);
+  shake = Math.max(0, shake - dt);
+  const shakeX = (Math.random() - 0.5) * shake, shakeY = (Math.random() - 0.5) * shake;
+  camera.position.x += shakeX;
+  camera.position.y += shakeY;
+  renderer.render(scene, camera);
+  camera.position.x -= shakeX;
+  camera.position.y -= shakeY;
+}
+
+build();
+if (typeof resized === 'function') resized();
+reset();
+renderer.setAnimationLoop(frame);
+</script>
+</body>
+</html>
