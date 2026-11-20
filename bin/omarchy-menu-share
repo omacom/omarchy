@@ -14,21 +14,22 @@ fi
 MODE="$1"
 shift
 
-notify_failure() {
-  echo "$1" >&2
-  omarchy-notification-send -g "" -u critical "$(omarchy-i18n share.couldNot)" "$1"
-}
-
 if [[ $MODE == "clipboard" ]]; then
   TEMP_FILE=$(mktemp --suffix=.txt)
-  if ! wl-paste --no-newline >"$TEMP_FILE" || [[ ! -s $TEMP_FILE ]]; then
-    rm -f "$TEMP_FILE"
-    notify_failure "$(omarchy-i18n share.clipboardEmpty)"
-    exit 1
-  fi
+  wl-paste >"$TEMP_FILE"
   FILE_ARRAY=("$TEMP_FILE")
 elif (($# > 0)); then
-  FILE_ARRAY=("$@")
+  FILE_ARRAY=()
+  for path in "$@"; do
+    if [[ ! -e $path ]]; then
+      message=$(omarchy-i18n share.pathMissing "$path")
+      echo "$message" >&2
+      omarchy-notification-send -g "" -u critical "$(omarchy-i18n share.couldNot)" "$message"
+      exit 1
+    fi
+    # LocalSend runs as a user service from $HOME, not from this directory
+    FILE_ARRAY+=("$(realpath -- "$path")")
+  done
 else
   if [[ $MODE == "folder" ]]; then
     select_args=(--title "$(omarchy-i18n share.folderTitle)" --directory)
@@ -42,7 +43,7 @@ else
   picked=$(omarchy-file-select "${select_args[@]}") || status=$?
 
   if ((${status:-0} > 1)); then
-    notify_failure "$(omarchy-i18n share.chooserClosed)"
+    omarchy-notification-send -g "" -u critical "$(omarchy-i18n share.couldNot)" "$(omarchy-i18n share.chooserClosed)"
     exit 1
   fi
 
@@ -50,21 +51,10 @@ else
   readarray -t FILE_ARRAY <<<"$picked"
 fi
 
-for path in "${FILE_ARRAY[@]}"; do
-  if [[ ! -e $path ]]; then
-    notify_failure "$(omarchy-i18n share.pathMissing "$path")"
-    exit 1
-  fi
-done
-
-if pgrep -x localsend >/dev/null; then
-  [[ -z ${TEMP_FILE:-} ]] || rm -f "$TEMP_FILE"
-  notify_failure "$(omarchy-i18n share.alreadyRunning)"
-  exit 1
-fi
-
 # Run LocalSend in its own systemd service (detached from terminal)
 systemd-run --user --quiet --collect localsend --headless send "${FILE_ARRAY[@]}"
 
 # Note: Temporary file will remain until system cleanup for clipboard mode
 # This ensures the file content is available for the LocalSend GUI
+
+exit 0
