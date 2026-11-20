@@ -1,6 +1,6 @@
 # Local Models
 
-One bar icon and one panel for the models that run on hardware you own: this machine's, and those other machines share on the tailnet. `Models.qml` follows what `omarchy-agent-local` writes to `~/.local/state/omarchy/agent-local/` and runs the setups and pairings the panel starts; `Panel.qml` owns the bar button and the popup. [`docs/local-models.md`](../../../docs/local-models.md) covers the contract with the engine.
+One bar icon and one panel for the models that run on hardware you own: this machine's, and those other machines share on the tailnet. `Models.qml` follows what `omarchy-models` writes to `~/.local/state/omarchy/agent-local/` and runs the setups and pairings the panel starts; `Panel.qml` owns the bar button and the popup. [`docs/local-models.md`](../../../docs/local-models.md) covers the contract with the engine.
 
 The icon shows only where it has something to say: a model is set up or setting up, the tailnet shares one, or the catalog has a recipe that fits this machine.
 

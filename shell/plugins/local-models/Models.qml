@@ -4,7 +4,7 @@ import Quickshell.Io
 import Quickshell.Networking
 import qs.Commons
 
-// Everything the panel shows, followed from the files omarchy-agent-local
+// Everything the panel shows, followed from the files omarchy-models
 // writes under ~/.local/state/omarchy/agent-local/: this machine's models, the
 // catalog's recipes, and the models other machines share on the tailnet. The
 // commands that set models up and pair with them run from here too, so they
@@ -17,7 +17,7 @@ Item {
 
   readonly property string home: Quickshell.env("HOME") || ""
 
-  // What omarchy-agent-local runs here, followed even before the panel's
+  // What omarchy-models runs here, followed even before the panel's
   // content has been built.
   property var localModel: ({})
 
@@ -64,14 +64,14 @@ Item {
 
   Process {
     id: localRefresh
-    command: ["omarchy-agent-local", "refresh", "--quiet"]
+    command: ["omarchy-models", "refresh", "--quiet"]
     onExited: {
       localRecipesFile.reload()
       localModelFile.reload()
     }
   }
 
-  // Models other machines share on the tailnet, as omarchy-agent-local
+  // Models other machines share on the tailnet, as omarchy-models
   // network last surveyed them: running, stopped, or offline with the host
   // away. The survey runs while the panel is open; this only follows its file.
   property var networkModels: ({})
@@ -91,7 +91,7 @@ Item {
     onLoaded: root.parseNetwork(text())
   }
 
-  // How many machines use each shared model, as omarchy-agent-local's share
+  // How many machines use each shared model, as omarchy-models's share
   // proxy counts them: those whose request it served in the last five
   // minutes. The proxy rewrites the file only when a count changes.
   property var shareClients: ({})
@@ -126,13 +126,13 @@ Item {
 
   Process {
     id: networkRefresh
-    command: ["omarchy-agent-local", "network", "--write"]
+    command: ["omarchy-models", "network", "--write"]
     // A first survey creates the file, which can't be watched before it exists.
     onExited: networkFile.reload()
   }
 
   // Pairing with a model another machine shares runs here, not in a terminal,
-  // so the panel stays open on it: with no terminal, omarchy-agent-local pair
+  // so the panel stays open on it: with no terminal, omarchy-models pair
   // trusts a host met for the first time and asks nothing, so it pairs or
   // fails with a reason. One at a time; the model being paired, while it runs.
   property string pairingId: ""
@@ -156,11 +156,11 @@ Item {
     pairingId = id
     // A host already paired for another model is found by its tailnet name
     // too, and connects this one with no SSH.
-    pairProcess.command = ["bash", "-c", "exec omarchy-agent-local pair \"$1\" \"$2\" 2>&1", "pair", String(model.dns || model.host), String(model.recipe)]
+    pairProcess.command = ["bash", "-c", "exec omarchy-models pair \"$1\" \"$2\" 2>&1", "pair", String(model.dns || model.host), String(model.recipe)]
     pairProcess.running = true
   }
 
-  // The reason omarchy-agent-local gives, which it prints as "Error: " and
+  // The reason omarchy-models gives, which it prints as "Error: " and
   // a first line saying what went wrong; empty when it gave none.
   function pairFailureMessage(output) {
     var lines = String(output || "").split("\n")
@@ -211,7 +211,7 @@ Item {
     setupFailure = null
     setupOutput = ""
     settingUp = Object.assign({}, setup, { since_ms: Date.now() })
-    setupProcess.command = ["bash", "-c", "exec omarchy-agent-local use --detach \"$1\" 2>&1", "use", setup.recipe]
+    setupProcess.command = ["bash", "-c", "exec omarchy-models use --detach \"$1\" 2>&1", "use", setup.recipe]
     setupProcess.running = true
   }
 
@@ -219,7 +219,7 @@ Item {
     setupQueue = setupQueue.filter(function(queued) { return queued.recipe !== recipe })
   }
 
-  // omarchy-agent-local says "Installing …" before it asks for the password,
+  // omarchy-models says "Installing …" before it asks for the password,
   // and only on a first setup: until then the line just says it's starting.
   function setupLine(line) {
     setupOutput += line + "\n"
@@ -333,7 +333,7 @@ Item {
   }
 
   // A model that is set up has a launcher of its own, which
-  // omarchy-agent-local-launchers draws. omarchy-agent-local runs that after
+  // omarchy-models-launchers draws. omarchy-models runs that after
   // a setup or a removal it waited for, but a setup started here carries on
   // in the background, so the launcher is added when the model stops
   // installing. A setup that finished while the shell wasn't watching gets
@@ -351,7 +351,7 @@ Item {
   }
 
   function syncLaunchers() {
-    Util.execArgv(["omarchy-agent-local-launchers"])
+    Util.execArgv(["omarchy-models-launchers"])
   }
 
   function notifyModelReady(model) {
@@ -387,7 +387,7 @@ Item {
       if (lineEnabled("net:" + nid)) list.push({ id: "net:" + nid, model: network[nid] })
     var offer = localOffer(localRecipes, models, lineEnabled)
     if (offer) list.push({ id: "local:" + offer.id, name: offer.name || offer.id, offer: offer })
-    // Another DGX Spark cabled to this one and not set up yet (omarchy-agent-local's status.json
+    // Another DGX Spark cabled to this one and not set up yet (omarchy-models's status.json
     // `link`) is offered like a recommended model, always first: its line opens link setup.
     var link = localModel.link
     if (link && link.state === "available" && lineEnabled("local:link"))

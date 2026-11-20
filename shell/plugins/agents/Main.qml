@@ -17,7 +17,7 @@ Item {
   readonly property string usageDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/usage"
 
   // The local model a starter hands its task to, when one is running: the
-  // status omarchy-agent-local writes, which the Local Models panel shows.
+  // status omarchy-models writes, which the Local Models panel shows.
   property var localModel: ({})
 
   FileView {

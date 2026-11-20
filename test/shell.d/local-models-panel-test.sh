@@ -111,7 +111,7 @@ const showLocalLogs = new Function('Util', 'engine', 'root', 'pairFailure', 'mod
 const logRuns = [], dismissedPairs = [], readHere = []
 const logsOf = (failure) => showLocalLogs({ shellQuote: (text) => "'" + text + "'", execArgv: (argv) => logRuns.push(argv[1]) }, { dismissPairFailure: (id) => dismissedPairs.push(id) }, { close() {} }, () => failure, modelId, (model) => readHere.push(model.recipe))
 logsOf(null)({ recipe: 'm', unit: 'failed', error: 'Stopped unexpectedly' })
-assertEqual(logRuns[0], "omarchy-agent-local logs 'm'; logs=$?; omarchy-agent-local dismiss 'm' >/dev/null 2>&1; (exit $logs)", 'a model\'s logs print its failure before it is dismissed, and keep their own status')
+assertEqual(logRuns[0], "omarchy-models logs 'm'; logs=$?; omarchy-models dismiss 'm' >/dev/null 2>&1; (exit $logs)", 'a model\'s logs print its failure before it is dismissed, and keep their own status')
 assertDeepEqual(dismissedPairs, [], 'a model\'s failure is the engine\'s to forget')
 assertDeepEqual(readHere, ['m'], 'the line drops a model\'s error as soon as its logs are opened, whatever the engine does')
 const errorRead = new Function('readErrors', panel.match(/function errorRead\([^]*?\n  \}/)[0] + '\nreturn errorRead')({ m: 'Stopped unexpectedly' })
@@ -162,7 +162,7 @@ JS
 # installs them through polkit first, and otherwise starts at once.
 wrapper_dir=$(mktemp -d)
 trap 'rm -rf "$wrapper_dir"' EXIT
-for stub in omarchy-hw-nvidia omarchy-pkg-add omarchy-local-ai omarchy-agent-local-launchers omarchy-launch-floating-terminal-with-presentation; do
+for stub in omarchy-hw-nvidia omarchy-pkg-add omarchy-local-ai omarchy-models-launchers omarchy-launch-floating-terminal-with-presentation; do
   printf '#!/bin/bash\nprintf "%%s\\n" "%s $*" >>"%s/calls"\n' "$stub" "$wrapper_dir" >"$wrapper_dir/$stub"
 done
 printf '#!/bin/bash\nexit 1\n' >"$wrapper_dir/omarchy-hw-nvidia"
@@ -174,33 +174,33 @@ run_wrapper() {
   printf '#!/bin/bash\n[[ -e "%s/installed" ]] && exit 1\nexit %s\n' "$wrapper_dir" "$1" >"$wrapper_dir/omarchy-pkg-missing"
   chmod +x "$wrapper_dir/omarchy-pkg-missing"
   shift
-  PATH="$wrapper_dir:$PATH" "$ROOT/bin/omarchy-agent-local" "$@" >/dev/null || printf 'exit %s\n' "$?" >>"$wrapper_dir/calls"
+  PATH="$wrapper_dir:$PATH" "$ROOT/bin/omarchy-models" "$@" >/dev/null || printf 'exit %s\n' "$?" >>"$wrapper_dir/calls"
   cat "$wrapper_dir/calls"
 }
 echo 0 >"$wrapper_dir/pkexec-status"
 calls=$(run_wrapper 0 use --detach nemotron-3.5-bolt-tensorfold)
-[[ $calls == $'pkexec /usr/bin/pacman -S --noconfirm --needed -- podman crun\nomarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "a detached setup missing its packages installs them through polkit first" "$calls"
+[[ $calls == $'pkexec /usr/bin/pacman -S --noconfirm --needed -- podman crun\nomarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold\nomarchy-models-launchers ' ]] || fail "a detached setup missing its packages installs them through polkit first" "$calls"
 pass "a detached setup missing its packages installs them through polkit first"
 echo 126 >"$wrapper_dir/pkexec-status"
 calls=$(run_wrapper 0 use --detach nemotron-3.5-bolt-tensorfold)
 [[ $calls == $'pkexec /usr/bin/pacman -S --noconfirm --needed -- podman crun\nexit 126' ]] || fail "a dismissed password dialog stops the setup as cancelled" "$calls"
 pass "a dismissed password dialog stops the setup as cancelled"
 calls=$(run_wrapper 1 use --detach nemotron-3.5-bolt-tensorfold)
-[[ $calls == $'omarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "a detached setup with its packages starts without a terminal" "$calls"
+[[ $calls == $'omarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold\nomarchy-models-launchers ' ]] || fail "a detached setup with its packages starts without a terminal" "$calls"
 pass "a detached setup with its packages starts without a terminal"
 calls=$(run_wrapper 1 use nemotron-3.5-bolt-tensorfold)
-[[ $calls == $'omarchy-pkg-add podman crun\nomarchy-local-ai use nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "a setup in a terminal installs its packages there" "$calls"
+[[ $calls == $'omarchy-pkg-add podman crun\nomarchy-local-ai use nemotron-3.5-bolt-tensorfold\nomarchy-models-launchers ' ]] || fail "a setup in a terminal installs its packages there" "$calls"
 pass "a setup in a terminal installs its packages there"
 
 # A model set up gets a launcher of its own and one removed loses it, so the
 # launchers are brought up to date after either; the other commands leave them.
 calls=$(run_wrapper 1 remove nemotron-3.5-bolt-tensorfold)
-[[ $calls == $'omarchy-local-ai remove nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "removing a model brings the launchers up to date" "$calls"
+[[ $calls == $'omarchy-local-ai remove nemotron-3.5-bolt-tensorfold\nomarchy-models-launchers ' ]] || fail "removing a model brings the launchers up to date" "$calls"
 calls=$(run_wrapper 1 stop nemotron-3.5-bolt-tensorfold)
 [[ $calls == "omarchy-local-ai stop nemotron-3.5-bolt-tensorfold" ]] || fail "stopping a model leaves the launchers alone" "$calls"
 printf '#!/bin/bash\nexit 7\n' >"$wrapper_dir/omarchy-local-ai"
 calls=$(run_wrapper 1 remove nemotron-3.5-bolt-tensorfold)
-[[ $calls == $'omarchy-agent-local-launchers \nexit 7' ]] || fail "a removal that fails still reports its own exit status" "$calls"
+[[ $calls == $'omarchy-models-launchers \nexit 7' ]] || fail "a removal that fails still reports its own exit status" "$calls"
 printf '#!/bin/bash\nprintf "%%s\\n" "omarchy-local-ai $*" >>"%s/calls"\n' "$wrapper_dir" >"$wrapper_dir/omarchy-local-ai"
 pass "setting up or removing a model brings its launcher up to date"
 

@@ -120,7 +120,7 @@ Panel {
     // for the terminal's last line; an engine without dismiss changes nothing.
     var recipe = Util.shellQuote(String(model.recipe))
     var command = failure ? "printf %s " + Util.shellQuote(String(failure.output)) + "; false"
-      : "omarchy-agent-local logs " + recipe + "; logs=$?; omarchy-agent-local dismiss " + recipe + " >/dev/null 2>&1; (exit $logs)"
+      : "omarchy-models logs " + recipe + "; logs=$?; omarchy-models dismiss " + recipe + " >/dev/null 2>&1; (exit $logs)"
     Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", command])
     // A failed pairing lives only here.
     if (failure && !model.panelSetup) engine.dismissPairFailure(modelId(model))
@@ -180,20 +180,20 @@ Panel {
       if (!running && localStartBlocked(model)) return
       // The panel has no terminal: a start that fails records its reason,
       // which the model's line shows.
-      Util.execArgv(["omarchy-agent-local", running ? "stop" : "start", model.recipe])
+      Util.execArgv(["omarchy-models", running ? "stop" : "start", model.recipe])
     } else if (action === "share") {
-      Util.execArgv(["omarchy-agent-local", "share", model.recipe].concat(model.shared ? ["--off"] : []))
+      Util.execArgv(["omarchy-models", "share", model.recipe].concat(model.shared ? ["--off"] : []))
     } else if (action === "update") {
       // In the background, like a setup: the model's line says it's updating
       // until its new runtime or weights are in place.
-      Util.execArgv(["omarchy-agent-local", "update", "--detach", model.recipe])
+      Util.execArgv(["omarchy-models", "update", "--detach", model.recipe])
     } else if (action === "pair") {
       // Pairs in the background while the panel stays open; a failure shows
       // on the model's line.
       engine.pair(model)
       if (engine.pairingId === modelId(model)) landAfterPair = modelId(model)
     } else if (action === "disconnect") {
-      Util.execArgv(["omarchy-agent-local", "forget", modelId(model)])
+      Util.execArgv(["omarchy-models", "forget", modelId(model)])
     }
   }
 
@@ -264,7 +264,7 @@ Panel {
     // A Spark cabled to this one: its setup asks for the other machine's password once, so it
     // runs in a terminal.
     if (recipe.link) {
-      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local link setup"])
+      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-models link setup"])
       root.close()
       return
     }
@@ -391,7 +391,7 @@ Panel {
     deleteTarget = null
     if (!target) return
     if (target.model && !target.model.host) {
-      Util.execArgv(["omarchy-agent-local", "remove", target.model.recipe])
+      Util.execArgv(["omarchy-models", "remove", target.model.recipe])
     } else if (bar && bar.shell) {
       var next = JSON.parse(JSON.stringify(settings || {}))
       if (!next.providers) next.providers = {}
@@ -672,7 +672,7 @@ Panel {
     engine.readMemory()
     // "Doesn't fit" was true when a model last started or stopped; memory an
     // app has since let go of only shows after a fresh look, once per open.
-    if (localBlocked) Util.execArgv(["omarchy-agent-local", "status", "--write"])
+    if (localBlocked) Util.execArgv(["omarchy-models", "status", "--write"])
     engine.refreshNetwork()
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
