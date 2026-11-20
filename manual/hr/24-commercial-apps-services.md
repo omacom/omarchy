@@ -1,41 +1,39 @@
 # Komercijalne aplikacije/usluge
 
-Omarchy je uglavnom usmjeren na pružanje besplatnog softvera otvorenog koda, ali nije religiozan po tom pitanju. Ponekad je najbolje rješenje komercijalna ponuda i to je sasvim u redu. Evo nekih opcija za koje nudimo jednostavnu instalaciju.
+Omarchy je uglavnom usmjeren na pružanje besplatnog softvera otvorenog koda, ali nije religiozan po tom pitanju. Ponekad je najbolje rješenje komercijalna ponuda i to je sasvim u redu. Evo nekih od opcija za koje nudimo jednostavnu instalaciju.
 
 ## 1Password
 
-Čuvanje zaporki u upravitelju zaporki najbolja je praksa. Dvostruko više ako radiš s timom. A [1password](https://1password.com/) sjajno je rješenje, koje dolazi i s alatom naredbenog retka za integraciju pretraživanja ključeva u skripte.
+Čuvanje lozinki u upravitelju lozinki najbolja je praksa. Dvostruko više ako radite s timom. A [1password](https://1password.com/) je odlično rješenje, koje dolazi i s alatom naredbenog retka za integriranje pretraživanja ključeva u skripte.
 
-1Password pokrećeš sa `Super + Shift + /`. Ako još nije instaliran, taj prečac prvo pokreće instalaciju (možeš koristiti i _Instaliraj > Service > 1Password_ iz izbornika Omarchy). Instalater postavlja i 1Password proširenje za Chromium.
+1Password pokrećete s `Super + Shift + /`. Ako još nije instaliran, ta tipkovnička prečica prvo pokreće instalaciju (možete koristiti i _Install > Service > 1Password_ iz izbornika Omarchy). Instalacijski program postavlja i proširenje 1Password za Chromium.
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/) alternativa je otvorenog koda u prostoru upravitelja zaporki, s besplatnom razinom koja pokriva većinu osobne upotrebe. Instaliraj ga s _Instaliraj > Service > Bitwarden_ iz izbornika Omarchy, što sa sobom donosi i Bitwarden alat naredbenog retka.
+[Bitwarden](https://bitwarden.com/) alternativa je otvorenog koda u području upravitelja lozinki, s besplatnom razinom koja pokriva većinu osobne uporabe. Instalirajte ga s _Install > Service > Bitwarden_ iz izbornika Omarchy, što donosi i alat naredbenog retka za Bitwarden.
 
 ## Spotify
 
-[Spotify](https://spotify.com/) najpopularnija je svjetska usluga za streaming glazbe. A Linux aplikacija pruža sve što bi očekivao, uključujući izvanmrežno reproduciranje.
-
-Spotify pokrećeš koristeći `Super + Shift + M`. Kao i 1Password, prečac prvo pokreće instalaciju ako Spotify još nije instaliran (ili koristi _Instaliraj > Service > Spotify_ iz izbornika Omarchy).
+[Spotify](https://spotify.com/) najpopularnija je usluga za streaming glazbe na svijetu. Omarchy ga isporučuje kao web aplikaciju, koja vam daje potpuni player, medijske tipke i Spotify Connect, ali ne i preuzimanja izvan mreže. Pokrenite ga s `Super + Shift + M`.
 
 ## Slack
 
-[Slack](https://slack.com/) je mjesto gdje mnogi timovi razgovaraju, i unutar tvrtke i s vanjskim suradnicima. Instaliraj ga s _Instaliraj > Service > Slack_ iz izbornika Omarchy i otvorit će se čim bude spreman.
+[Slack](https://slack.com/) mjesto je na kojem mnogi timovi razgovaraju, kako unutar tvrtke tako i s vanjskim suradnicima. Instalirajte ga s _Install > Service > Slack_ iz izbornika Omarchy i otvorit će se čim bude spreman.
 
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/) sjajan je način za sinkronizaciju datoteka između računala uz čuvanje sigurnosne kopije u oblaku. Za postavljanje odaberi _Instaliraj > Service > Dropbox_ iz izbornika Omarchy. Nakon što se pokrene, prijeđi mišem preko ladice u gornjem desnom kutu trake i desnom tipkom miša klikni ikonu Dropboxa za dovršetak postavljanja.
+[Dropbox](https://www.dropbox.com/) odličan je način za sinkronizaciju datoteka između računala uz čuvanje sigurnosne kopije u oblaku. Da biste ga postavili, odaberite _Install > Service > Dropbox_ iz izbornika Omarchy. Kada se pokrene, zadržite pokazivač iznad traya u gornjem desnom kutu trake i desnom tipkom miša kliknite ikonu Dropboxa da biste dovršili postavljanje.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) mesh je VPN koji čini dobivanje sigurnog pristupa svim tvojim računalima i poslužiteljima preko interneta iznimno jednostavnim. Za postavljanje odaberi _Instaliraj > Service > Tailscale_ iz izbornika Omarchy.
+[Tailscale](https://tailscale.com/) mesh je VPN koji sigurno pristupanje svim vašim računalima i poslužiteljima putem interneta čini iznimno jednostavnim. Da biste ga postavili, odaberite _Install > Service > Tailscale_ iz izbornika Omarchy.
 
-Dobiva panel u traci, web-aplikaciju za administratorsku konzolu i Taildrop za slanje datoteka između tvojih računala — pogledaj [networking](35-networking.md).
+Dobiva panel na traci, web aplikaciju za administratorsku konzolu i Taildrop za slanje datoteka između vaših računala — pogledajte [umrežavanje](35-networking.md).
 
 ## ONCE
 
-[ONCE](https://once.com/) 37signalsova je linija softvera koji kupiš jednom i pokrećeš na vlastitom poslužitelju, poput sustava za chat Campfire. Odaberi _Instaliraj > Service > ONCE_ iz izbornika Omarchy za instalaciju, što omogućuje njegovu pozadinsku uslugu i vodi te u ONCE terminalsko sučelje da nastaviš od tamo.
+[ONCE](https://once.com/) linija je softvera tvrtke 37signals koji kupite jednom i pokrećete na vlastitom poslužitelju, poput sustava za chat Campfire. Odaberite _Install > Service > ONCE_ iz izbornika Omarchy da biste ga instalirali, čime se omogućuje njegova pozadinska usluga i prebacuje vas u terminalsko sučelje ONCE-a da biste odande nastavili.
 
 ## NordVPN
 
-[NordVPN](https://nordvpn.com/) standardna je VPN usluga koja ti omogućuje izlaz prometa iz većine regija diljem svijeta. Za postavljanje odaberi _Instaliraj > Service > NordVPN_ iz izbornika Omarchy. Nakon ponovnog pokretanja koje traži, pokreni `nordvpn login` za autentifikaciju.
+[NordVPN](https://nordvpn.com/) standardna je VPN usluga koja vam omogućuje da vaš promet izlazi iz većine regija diljem svijeta. Da biste ga postavili, odaberite _Install > Service > NordVPN_ iz izbornika Omarchy. Nakon ponovnog pokretanja koje zatraži, pokrenite `nordvpn login` za autentifikaciju.

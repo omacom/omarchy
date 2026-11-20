@@ -232,4 +232,8 @@ if grep -Fxq 'PWNED' "$test_tmp/launch-pkg-inject.out"; then
 fi
 grep -Fxq 'pkg:alpha; echo PWNED' "$OMARCHY_TEST_LOG" ||
   fail "install-and-launch hands a hostile package list to the package helper as arguments" "$(<"$OMARCHY_TEST_LOG")"
+# The launch is detached; wait for it, or it can still be writing the log
+# while the EXIT trap removes the directory.
+wait_for_launch 'launch:uwsm-app -- gtk-launch Disk Usage' ||
+  fail "install-and-launch launches after installing a hostile package list" "$(<"$OMARCHY_TEST_LOG")"
 pass "install-and-launch does not run extra commands from a package list"
