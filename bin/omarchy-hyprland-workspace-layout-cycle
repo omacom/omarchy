@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set the layouts the workspace layout cycle moves through: dwindle, scrolling, floating
+# omarchy:args=[dwindle|scrolling|floating ...]
+# omarchy:examples=omarchy hyprland workspace layout cycle | omarchy hyprland workspace layout cycle dwindle scrolling
+
+# Super + L, Super + Alt + L, and a click on the bar's mark for the workspace
+# you are on all move through the same cycle. Leaving a layout out keeps it out
+# of reach from every one of them, and naming a single layout leaves the mark a
+# readout, since there is nowhere to cycle to.
+CYCLE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/workspace-layout-cycle"
+ALL_MODES="dwindle scrolling floating"
+
+# A layout named twice would stop the cycle on that layout twice. Files edited by
+# hand can name one the shell cannot hold, or nothing at all, so what is read
+# back is what the cycle command accepts.
+readable_cycle() {
+  local mode cycle=()
+  # The last layout may not end in a newline, as a hand-edited file often does
+  # not, and read reports EOF before handing it over. Without the extra test the
+  # cycle would fall back to all three while the bar read the file as one.
+  while read -r mode || [[ -n $mode ]]; do
+    case $mode in
+      dwindle|scrolling|floating)
+        [[ " ${cycle[*]} " == *" $mode "* ]] || cycle+=("$mode")
+        ;;
+    esac
+  done < <(tr -s '[:space:]' '\n' <"$CYCLE_FILE" 2>/dev/null)
+  (( ${#cycle[@]} )) || cycle=($ALL_MODES)
+  printf '%s\n' "${cycle[*]}"
+}
+
+if (( $# == 0 )); then
+  if [[ -r $CYCLE_FILE ]]; then
+    readable_cycle
+  else
+    echo "$ALL_MODES"
+  fi
+  exit 0
+fi
+
+CYCLE=()
+for MODE in "$@"; do
+  case $MODE in
+    dwindle|scrolling|floating) ;;
+    *)
+      echo "Usage: omarchy-hyprland-workspace-layout-cycle [dwindle|scrolling|floating ...]" >&2
+      exit 1
+      ;;
+  esac
+  [[ " ${CYCLE[*]} " == *" $MODE "* ]] || CYCLE+=("$MODE")
+done
+
+CYCLE_DIR=$(dirname "$CYCLE_FILE")
+CYCLE_TMP=""
+
+# A write that fails must not leave the cycle empty or half-written: the next
+# press would fall back to every layout, including the ones the user excluded.
+# So write beside it and put it in place only once the write has landed. -T keeps
+# a directory sitting at the destination from swallowing the scratch file and
+# reporting a save that never happened.
+if ! mkdir -p "$CYCLE_DIR" ||
+  ! CYCLE_TMP=$(mktemp "$CYCLE_DIR/.workspace-layout-cycle.XXXXXX") ||
+  ! printf '%s\n' "${CYCLE[*]}" >"$CYCLE_TMP" ||
+  ! mv -fT "$CYCLE_TMP" "$CYCLE_FILE"; then
+  if [[ -n $CYCLE_TMP ]]; then rm -f "$CYCLE_TMP"; fi
+  echo "omarchy-hyprland-workspace-layout-cycle: could not save $CYCLE_FILE" >&2
+  exit 1
+fi
+
+# The bar's mark stops being a button when the cycle names one layout, and a file
+# created after the shell started may not reach its file watch, so ask it to read
+# the cycle again. No shell running, as on a TTY, is not a failure.
+omarchy-shell -q omarchy.workspaces refreshCycle >/dev/null 2>&1 || true

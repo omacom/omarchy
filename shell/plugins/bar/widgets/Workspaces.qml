@@ -5,6 +5,7 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "WorkspacesModel.js" as WorkspacesModel
 
 BarWidget {
   id: root
@@ -36,13 +37,46 @@ BarWidget {
     root.blocks = next
   }
 
+  // Where the layout and per-monitor state files live, shared by the commands
+  // that write them and the bar that reads them.
+  readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy"
+
   FileView {
-    path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/monitors/workspaces"
+    path: root.stateDir + "/monitors/workspaces"
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
     onLoaded: root.readBlocks(text())
     onLoadFailed: root.readBlocks("")
+  }
+
+  FileView {
+    id: cycleFile
+    path: root.stateDir + "/workspace-layout-cycle"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.readCycle(text())
+    onLoadFailed: root.readCycle("")
+  }
+
+  // The layouts Super + L, Super + Alt + L, and a click on the shown
+  // workspace's mark move through, from the file
+  // omarchy-hyprland-workspace-layout-cycle writes. A press only changes
+  // anything when there is another layout to move to, or when the one layout
+  // the cycle names is not the one on screen, so the mark is a readout exactly
+  // when a press would do nothing.
+  property var cycleModes: WorkspacesModel.parseCycle("")
+  readonly property bool cycleCanChange: WorkspacesModel.canChange(root.cycleModes, root.activeMode)
+
+  function readCycle(text) {
+    root.cycleModes = WorkspacesModel.parseCycle(text)
+  }
+
+  // A cycle file created after the shell started may not reach the file watch,
+  // so the command that writes it asks every bar to read it again.
+  function reloadCycle() {
+    cycleFile.reload()
   }
 
   function blockOf(id) {
@@ -130,8 +164,8 @@ BarWidget {
   }
 
   // The workspace each monitor shows carries its layout: a square tiles, a
-  // circle scrolls, and a triangle floats. Clicking it cycles to the next one,
-  // as Super + L does.
+  // circle scrolls, and a triangle floats. Clicking it moves through the same
+  // cycle as Super + L, which omarchy-hyprland-workspace-layout-cycle sets.
   property string activeMode: "dwindle"
   property bool modeStale: false
 
@@ -237,6 +271,9 @@ BarWidget {
     target: "omarchy.workspaces"
 
     function refresh(): void { root.broadcast("refresh") }
+    // Only reachable once the cycle command in this checkout is live; a shell
+    // still running the packaged widget has no such method and ignores it.
+    function refreshCycle(): void { root.broadcast("reloadCycle") }
   }
 
   readonly property real trailingGap: root.vertical ? 0 : Style.spaceReal(1.5)
@@ -276,9 +313,17 @@ BarWidget {
         verticalPadding: 6
         fixedWidth: root.vertical ? root.barSize : Style.space(20)
         fixedHeight: root.barSize
+        // The mark for the workspace this monitor shows stops being a button
+        // when a press would change nothing: no pointer cursor, and no press
+        // give. A workspace on a layout the cycle leaves out stays a button,
+        // since that press is how it gets back into the cycle.
+        pressable: !shown || root.cycleCanChange
         onPressed: function() {
-          if (shown) root.cycleLayout()
-          else root.focusWorkspace(modelData)
+          if (shown) {
+            if (root.cycleCanChange) root.cycleLayout()
+          } else {
+            root.focusWorkspace(modelData)
+          }
         }
         onWheelMoved: function(delta) { root.scrollWorkspaces(delta) }
       }

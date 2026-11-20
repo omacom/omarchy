@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Cycle the current active workspace through the dwindle, scrolling, and floating layouts
+# omarchy:summary=Cycle the active workspace through the layouts in the layout cycle: dwindle, scrolling, and floating by default
 # omarchy:args=[back]
 
 # Layout changes replace one notification instead of stacking a new one for
@@ -29,19 +29,40 @@ MODES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/workspace-layouts"
 MODE_FILE="$MODES_DIR/$ACTIVE_WORKSPACE.lua"
 
 CURRENT_MODE=$(omarchy-hyprland-workspace-layout-current)
+read -r -a CYCLE < <(omarchy-hyprland-workspace-layout-cycle)
+(( ${#CYCLE[@]} )) || CYCLE=(dwindle scrolling floating)
+CYCLE_COUNT=${#CYCLE[@]}
 
-if [[ $DIRECTION == "back" ]]; then
-  case "$CURRENT_MODE" in
-    dwindle) NEW_MODE=floating ;;
-    floating) NEW_MODE=scrolling ;;
-    *) NEW_MODE=dwindle ;;
-  esac
-else
-  case "$CURRENT_MODE" in
-    dwindle) NEW_MODE=scrolling ;;
-    scrolling) NEW_MODE=floating ;;
-    *) NEW_MODE=dwindle ;;
-  esac
+# Which layouts the cycle holds is the user's to choose, so the next one is
+# looked up rather than assumed. A mode the cycle no longer names, such as a
+# workspace left floating before floating was taken out of it, takes the first
+# layout going forwards and the last going back.
+NEW_MODE=""
+for INDEX in "${!CYCLE[@]}"; do
+  if [[ ${CYCLE[INDEX]} == "$CURRENT_MODE" ]]; then
+    if [[ $DIRECTION == "back" ]]; then
+      NEW_MODE=${CYCLE[(INDEX - 1 + CYCLE_COUNT) % CYCLE_COUNT]}
+    else
+      NEW_MODE=${CYCLE[(INDEX + 1) % CYCLE_COUNT]}
+    fi
+    break
+  fi
+done
+
+if [[ -z $NEW_MODE ]]; then
+  if [[ $DIRECTION == "back" ]]; then
+    NEW_MODE=${CYCLE[CYCLE_COUNT - 1]}
+  else
+    NEW_MODE=${CYCLE[0]}
+  fi
+fi
+
+# A press that lands on the layout already on screen does nothing. That covers a
+# cycle of one layout, and the second press on a workspace the cycle has just
+# brought in; the first press still does, which is how a workspace gets back out
+# of a layout the cycle no longer holds.
+if [[ $NEW_MODE == "$CURRENT_MODE" ]]; then
+  exit 0
 fi
 
 APPLY="o.workspace_mode({ workspace = \"$ACTIVE_WORKSPACE\", mode = \"$NEW_MODE\" })"
