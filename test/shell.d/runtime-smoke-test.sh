@@ -52,6 +52,30 @@ Item {
 }
 QML
 
+# The test shell must not answer polkit. Run from a session of its own (ssh, a
+# VM worker), its agent registers and takes NetworkManager's requests, showing
+# prompts nobody answers. This clone replaces omarchy.polkit with no agent.
+prompt_id="acme.prompt"
+prompt_dir="$SCRATCH_HOME/.config/omarchy/plugins/$prompt_id"
+mkdir -p "$prompt_dir"
+cat >"$prompt_dir/manifest.json" <<JSON
+{
+  "schemaVersion": 1,
+  "id": "$prompt_id",
+  "name": "Prompt",
+  "version": "1.0.0",
+  "kinds": ["service"],
+  "keepLoaded": true,
+  "entryPoints": {"service": "Prompt.qml"},
+  "omarchy": {"clonedFrom": "omarchy.polkit"}
+}
+JSON
+cat >"$prompt_dir/Prompt.qml" <<'QML'
+import QtQuick
+
+Item {}
+QML
+
 # A keepLoaded service must keep its instance (and in-memory state) across a
 # plugin rescan. The marker below can only survive if the object does.
 keep_service_id="acme.keep-service"
@@ -366,6 +390,9 @@ jq -e '
   fail_with_log "shell IPC lists plugin metadata"
 }
 pass "shell IPC lists plugin metadata"
+
+[[ $(scratch_ipc shell setPluginEnabled "$prompt_id" true) == "ok" ]] ||
+  fail_with_log "the stand-in prompt replaces the polkit agent"
 
 # Plugins save their own state beside current/. That must not make the
 # transparent bar sample the wallpaper again; repointing the background must.
