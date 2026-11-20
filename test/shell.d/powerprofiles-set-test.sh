@@ -132,6 +132,10 @@ floor_with() {
   fail "balanced keeps 768 by default" "$(floor_with "")"
 [[ $(floor_with 600) == "-m 600 -a -p 4242" && $(floor_with 2000) == "-m 768 -a -p 4242" ]] ||
   fail "balanced takes a number up to 1024" "$(floor_with 600) / $(floor_with 2000)"
+[[ $(floor_with 0600) == "-m 600 -a -p 4242" && $(floor_with 02000) == "-m 768 -a -p 4242" ]] ||
+  fail "balanced reads a number with leading zeros as decimal" "$(floor_with 0600) / $(floor_with 02000)"
+[[ $(floor_with 18446744073709551617) == "-m 768 -a -p 4242" ]] ||
+  fail "balanced falls back to 768 for a number too large for bash" "$(floor_with 18446744073709551617)"
 echo 1024 >"$tmp_dir/cpu/cpu0/cpu_capacity"
 [[ $(floor_with smallest-core) == "-m 768 -a -p 4242" ]] ||
   fail "smallest-core never raises the floor above 768" "$(floor_with smallest-core)"

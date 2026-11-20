@@ -37,8 +37,8 @@ smallest_core_capacity() {
   for file in "${OMARCHY_CPU_SYSFS_DIR:-/sys/devices/system/cpu}"/cpu[0-9]*/cpu_capacity; do
     [[ -r $file ]] || continue
     capacity=$(<"$file")
-    if [[ $capacity =~ ^[0-9]+$ ]] && (( capacity < smallest )); then
-      smallest=$capacity
+    if [[ $capacity =~ ^[0-9]{1,4}$ ]] && (( 10#$capacity < smallest )); then
+      smallest=$(( 10#$capacity ))
     fi
   done
   echo "$smallest"
@@ -46,14 +46,16 @@ smallest_core_capacity() {
 
 balanced_floor() {
   local floor=${OMARCHY_POWERPROFILES_FLOOR_BALANCED:-768} smallest
-  if [[ $floor == smallest-core ]]; then
+  if [[ $floor == "smallest-core" ]]; then
     smallest=$(smallest_core_capacity)
     floor=$(( smallest < 768 ? smallest : 768 ))
   fi
-  if [[ ! $floor =~ ^[0-9]+$ ]] || (( floor > 1024 )); then
+  # Read as decimal: at most four digits cannot overflow, and 10# keeps a
+  # leading zero from being taken as octal
+  if [[ ! $floor =~ ^[0-9]{1,4}$ ]] || (( 10#$floor > 1024 )); then
     floor=768
   fi
-  echo "$floor"
+  echo "$(( 10#$floor ))"
 }
 
 floor_for_profile() {
