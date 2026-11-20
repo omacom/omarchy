@@ -31,6 +31,14 @@ print_plan
 if [[ $mode == "--print" ]]; then
   exit 0
 fi
+if [[ -z ${OMARCHY_OLLAMA_DROPIN:-} && $root != "/data" ]]; then
+  echo "Mount the drive at /data to configure the Ollama system service." >&2
+  exit 1
+fi
+if [[ $root != /* || $root == *[!a-zA-Z0-9_./-]* ]]; then
+  echo "The dataset directory must be a plain absolute path." >&2
+  exit 1
+fi
 
 mkdir -p \
   "$root/huggingface/hub" \
@@ -52,36 +60,36 @@ EOF
 
 chmod 755 "$root/models" "$root/models/ollama"
 if id ollama >/dev/null 2>&1; then
-  chown ollama:ollama "$root/models/ollama" 2>/dev/null || sudo chown ollama:ollama "$root/models/ollama"
+  if ! chown ollama:ollama "$root/models/ollama" 2>/dev/null && [[ -z ${OMARCHY_OLLAMA_DROPIN:-} ]]; then
+    sudo chown ollama:ollama "$root/models/ollama"
+  fi
 fi
 
-dropin="${OMARCHY_OLLAMA_DROPIN:-/etc/systemd/system/ollama.service.d/omarchy-models.conf}"
-write_dropin() {
-  mkdir -p "$(dirname "$dropin")"
-  cat > "$dropin" <<EOF
+system_dropin() {
+  cat <<'EOF'
 [Service]
-Environment=OLLAMA_MODELS=$root/models/ollama
+Environment=OLLAMA_MODELS=/data/models/ollama
 EOF
 }
-if [[ -n ${OMARCHY_OLLAMA_DROPIN:-} || -w $(dirname "$dropin") || $(id -u) -eq 0 ]]; then
-  write_dropin
-elif sudo -n true 2>/dev/null; then
-  sudo mkdir -p "$(dirname "$dropin")"
-  sudo tee "$dropin" >/dev/null <<EOF
-[Service]
-Environment=OLLAMA_MODELS=$root/models/ollama
-EOF
+
+if [[ -n ${OMARCHY_OLLAMA_DROPIN:-} ]]; then
+  mkdir -p "$(dirname "$OMARCHY_OLLAMA_DROPIN")"
+  printf '[Service]\nEnvironment=OLLAMA_MODELS=%s/models/ollama\n' "$root" > "$OMARCHY_OLLAMA_DROPIN"
 else
-  echo "Run this with sudo so ollama.service uses $root/models/ollama." >&2
-  exit 1
-fi
-if [[ -z ${OMARCHY_OLLAMA_DROPIN:-} ]]; then
+  dropin="/etc/systemd/system/ollama.service.d/omarchy-models.conf"
   if [[ $(id -u) -eq 0 ]]; then
+    mkdir -p "$(dirname "$dropin")"
+    system_dropin > "$dropin"
     systemctl daemon-reload
     systemctl try-restart ollama || true
-  else
+  elif sudo -n true 2>/dev/null; then
+    sudo mkdir -p "$(dirname "$dropin")"
+    system_dropin | sudo tee "$dropin" >/dev/null
     sudo systemctl daemon-reload
     sudo systemctl try-restart ollama || true
+  else
+    echo "Run this with sudo so ollama.service uses $root/models/ollama." >&2
+    exit 1
   fi
 fi
 
