@@ -69,12 +69,14 @@ max_brightness="$(brightnessctl -d "$device" max)"
 current_brightness="$(brightnessctl -d "$device" get)"
 
 # A key pressed while the keys are blanked steps from the level a wake would
-# bring back, not from the blank, whichever of the two runs first.
+# bring back, not from the blank, whichever of the two runs first. Keys that
+# something else has relit since (a firmware key, a light sensor) are not
+# blanked any more and step from their live level.
 blanked=0
 if [[ -s $saved ]]; then
   level="$(<"$saved")"
   if [[ $level =~ ^[0-9]+$ ]]; then
-    current_brightness=$level
+    (( current_brightness == 0 )) && current_brightness=$level
     blanked=1
   fi
 fi
