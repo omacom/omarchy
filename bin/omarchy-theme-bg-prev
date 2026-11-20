@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # omarchy:summary=Cycle to the previous background for the current theme
-# omarchy:examples=omarchy theme bg prev
 
 THEME_NAME=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
 THEME_BACKGROUNDS_PATH="$HOME/.local/state/omarchy/current/theme/backgrounds/"
@@ -20,7 +19,13 @@ if (( TOTAL == 0 )); then
   omarchy-notification-send "$(omarchy-i18n theme.noBackground)" -t 2000
 else
   INDEX=-1
-  current_background=$(readlink -f -- "$CURRENT_BACKGROUND_LINK" 2>/dev/null)
+  # The shell may have accepted a choice before updating the background link.
+  selected_background=$(omarchy-shell shell selectedBackground 2>/dev/null || true)
+  if [[ -n $selected_background ]]; then
+    current_background=$(readlink -f -- "$selected_background" 2>/dev/null)
+  else
+    current_background=$(readlink -f -- "$CURRENT_BACKGROUND_LINK" 2>/dev/null)
+  fi
   for i in "${!BACKGROUNDS[@]}"; do
     # Resolve directory symlinks without merging distinct hard-linked entries.
     if [[ -n $current_background && $(readlink -f -- "${BACKGROUNDS[$i]}") == "$current_background" ]]; then
