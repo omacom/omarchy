@@ -49,7 +49,7 @@ local runtime_dir = os.getenv("TEST_RUNTIME_DIR")
 local geom_dir = runtime_dir .. "/omarchy/windows/test-sig"
 local geom_path = geom_dir .. "/pop-0xdead-geometry"
 local f = assert(io.open(geom_path, "w"))
-f:write("640 480 100 120 0\n")
+f:write("640 480 100 120\n")
 f:close()
 handlers["window.destroy"]({ address = "0xdead" })
 assert(io.open(geom_path, "r") == nil, "closing a window cleans up its saved pop geometry")
@@ -101,7 +101,7 @@ run_pop() {
   XDG_RUNTIME_DIR="${2-$test_tmp/run}" \
     HYPRLAND_INSTANCE_SIGNATURE="test-sig" \
     FAKE_ACTIVE_WINDOW="$test_tmp/active.json" \
-    FAKE_MONITORS="$test_tmp/monitors.json" \
+    FAKE_MONITORS="${FAKE_MONITORS:-$test_tmp/monitors.json}" \
     FAKE_DISPATCH_LOG="$test_tmp/dispatch.log" \
     PATH="$test_tmp/bin:$PATH" \
     "$ROOT/bin/omarchy-hyprland-window-pop"
@@ -112,6 +112,9 @@ geom_file="$test_tmp/run/omarchy/windows/test-sig/pop-0x111-geometry"
 # 1. Floating window pop/unpop round trip on the same monitor restores size, position, and floating state.
 run_pop '{"address":"0x111","pinned":false,"floating":true,"monitor":0,"size":[720,540],"at":[140,180]}'
 [[ -f $geom_file ]] || fail "popping a floating window saves geometry in the session runtime dir"
+if grep -Fq 'hl.dsp.window.float(' "$test_tmp/dispatch.log"; then
+  fail "popping an already floating window leaves it floating" "$(<"$test_tmp/dispatch.log")"
+fi
 
 run_pop '{"address":"0x111","pinned":true,"floating":true,"monitor":0,"size":[1300,900],"at":[630,270]}'
 [[ ! -e $geom_file ]] || fail "unpopping removes the saved geometry file"
@@ -138,6 +141,14 @@ grep -Fq 'hl.dsp.window.resize({ window = "address:0x111", x = 720, y = 540 })' 
 grep -Fq 'hl.dsp.window.move({ window = "address:0x111", x = 3760, y = 540 })' "$test_tmp/dispatch.log" ||
   fail "unpopping after a monitor move clamps to the destination monitor work area" "$(<"$test_tmp/dispatch.log")"
 pass "unpopping after a monitor move keeps the window on the destination monitor"
+
+# A monitor rescaled while the window was popped out no longer has room where the window used to sit.
+run_pop '{"address":"0x111","pinned":false,"floating":true,"monitor":0,"size":[720,540],"at":[1500,700]}'
+sed 's/"width": 2560, "height": 1440, "scale": 1/"width": 2560, "height": 1440, "scale": 2/' "$test_tmp/monitors.json" >"$test_tmp/rescaled.json"
+FAKE_MONITORS="$test_tmp/rescaled.json" run_pop '{"address":"0x111","pinned":true,"floating":true,"monitor":0,"size":[1300,900],"at":[0,0]}'
+grep -Fq 'hl.dsp.window.move({ window = "address:0x111", x = 560, y = 180 })' "$test_tmp/dispatch.log" ||
+  fail "unpopping on a rescaled monitor keeps the window on it" "$(<"$test_tmp/dispatch.log")"
+pass "unpopping on a rescaled monitor keeps the window on it"
 
 # 3. Tiled window pop/unpop still returns to tiled.
 run_pop '{"address":"0x222","pinned":false,"floating":false,"monitor":0,"size":[1200,800],"at":[10,40]}'

@@ -47,8 +47,9 @@ if [[ $pinned == "true" ]]; then
   hypr_dispatch "hl.dsp.window.pin({ window = \"$window\" })" pin "$window"
   hypr_dispatch "hl.dsp.window.tag({ window = \"$window\", tag = \"-pop\" })" tagwindow -pop "$window"
 
+  restored=""
   if [[ -n $geometry_file && -f $geometry_file ]]; then
-    read -r saved_width saved_height offset_x offset_y saved_monitor <"$geometry_file" || true
+    read -r saved_width saved_height offset_x offset_y <"$geometry_file" || true
     rm -f "$geometry_file"
 
     if [[ $saved_width =~ ^[0-9]+$ && $saved_height =~ ^[0-9]+$ && $offset_x =~ ^-?[0-9]+$ && $offset_y =~ ^-?[0-9]+$ ]]; then
@@ -57,42 +58,38 @@ if [[ $pinned == "true" ]]; then
       target_x=$offset_x
       target_y=$offset_y
 
+      # The monitor may not be the one it was popped on, or may have been rescaled since.
       if current_rect=$(monitor_rect "$monitor_id") && [[ -n $current_rect ]]; then
         read -r cur_x cur_y cur_w cur_h res_l res_t res_r res_b <<<"$current_rect"
         target_x=$((cur_x + offset_x))
         target_y=$((cur_y + offset_y))
+        area_x=$((cur_x + res_l))
+        area_y=$((cur_y + res_t))
+        area_w=$((cur_w - res_l - res_r))
+        area_h=$((cur_h - res_t - res_b))
 
-        if [[ -z $saved_monitor || $monitor_id != $saved_monitor ]]; then
-          area_x=$((cur_x + res_l))
-          area_y=$((cur_y + res_t))
-          area_w=$((cur_w - res_l - res_r))
-          area_h=$((cur_h - res_t - res_b))
+        if (( area_w > 0 )); then
+          (( target_width > area_w )) && target_width=$area_w
+          max_x=$((area_x + area_w - target_width))
+          (( target_x < area_x )) && target_x=$area_x
+          (( target_x > max_x )) && target_x=$max_x
+        fi
 
-          if (( area_w > 0 )); then
-            (( target_width > area_w )) && target_width=$area_w
-            max_x=$((area_x + area_w - target_width))
-            (( target_x < area_x )) && target_x=$area_x
-            (( target_x > max_x )) && target_x=$max_x
-          fi
-
-          if (( area_h > 0 )); then
-            (( target_height > area_h )) && target_height=$area_h
-            max_y=$((area_y + area_h - target_height))
-            (( target_y < area_y )) && target_y=$area_y
-            (( target_y > max_y )) && target_y=$max_y
-          fi
+        if (( area_h > 0 )); then
+          (( target_height > area_h )) && target_height=$area_h
+          max_y=$((area_y + area_h - target_height))
+          (( target_y < area_y )) && target_y=$area_y
+          (( target_y > max_y )) && target_y=$max_y
         fi
       fi
 
-      if [[ $floating != "true" ]]; then
-        hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"on\" })" togglefloating "$window"
-      fi
       hypr_dispatch "hl.dsp.window.resize({ window = \"$window\", x = $target_width, y = $target_height })" resizewindowpixel "exact $target_width $target_height,$window"
       hypr_dispatch "hl.dsp.window.move({ window = \"$window\", x = $target_x, y = $target_y })" movewindowpixel "exact $target_x $target_y,$window"
-    else
-      hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"off\" })" togglefloating "$window"
+      restored="true"
     fi
-  else
+  fi
+
+  if [[ $restored != "true" ]]; then
     hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"off\" })" togglefloating "$window"
   fi
 elif [[ -n $addr ]]; then
@@ -112,7 +109,7 @@ elif [[ -n $addr ]]; then
       offset_y=$((saved_y - mon_y))
 
       mkdir -p "${geometry_file%/*}" &&
-        printf '%s %s %s %s %s\n' "$saved_width" "$saved_height" "$offset_x" "$offset_y" "$monitor_id" >"$geometry_file"
+        printf '%s %s %s %s\n' "$saved_width" "$saved_height" "$offset_x" "$offset_y" >"$geometry_file"
     fi
   elif [[ -n $geometry_file ]]; then
     rm -f "$geometry_file"
