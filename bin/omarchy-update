@@ -86,8 +86,10 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # tooling with privileged repairs. The no-update sudo wrapper has covered the
   # whole update, so neither the package transaction nor a later repair can
   # publish a timestamp to a detached migration child.
-  omarchy_security_revoke_sudo_timestamp
+  # Migrations still need the timestamp from the package transaction. sudo -N
+  # does not refresh it. Revoke after they finish so a later step cannot.
   omarchy-migrate
+  omarchy_security_revoke_sudo_timestamp
   omarchy-update-orphan-pkgs
 
   omarchy-update-analyze-logs
