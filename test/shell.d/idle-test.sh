@@ -52,7 +52,7 @@ const state = vm.createContext({
   screensaverLaunchGraceTimer: timer(),
   suspendTimer: timer(),
   suspendRetryTimer: timer(),
-  idleMonitor: { isIdle: false },
+  idleMonitor: { isIdle: false, timeout: 150 },
   suspendInhibitorMonitor: { isIdle: true },
   suspendInhibitorCheck: { running: false },
   suspendProcess: { running: false },
@@ -61,12 +61,28 @@ const state = vm.createContext({
   idleTimersEnabled: true,
   idleTimeoutsReady: true,
   idleMonitorArmed: true,
+  idleMonitorRearmTimer: timer(),
   suspendEnabled: true,
+  firstIdleTimeoutSeconds: 150,
   suspendDelaySeconds: 600,
   suspendGeneration: 0
 })
 state.root = state
 vm.runInContext(serviceSource.match(/^  function .*?^  }/gms).join('\n'), state)
+
+state.startIdleCycle()
+state.idleMonitor.isIdle = true
+state.firstIdleTimeoutSeconds = 120
+state.retimeIdleMonitor()
+assertEqual(state.idleMonitor.timeout, 150, 'retiming waits while the current idle deadline is running')
+state.idleMonitor.isIdle = false
+state.retimeIdleMonitor()
+assertEqual(state.idleMonitor.timeout, 120, 'retiming uses the new deadline once the user is active')
+state.handleIdleChanged()
+assert(state.suspendPending, 'the monitor rearm pulse does not cancel a pending suspend')
+state.idleMonitorRearmTimer.stop()
+state.handleIdleChanged()
+assert(!state.suspendPending, 'activity still cancels suspend once the monitor rearm pulse ends')
 
 state.startIdleCycle()
 state.handleSleepEvent('/org/freedesktop/login1: org.freedesktop.login1.Manager.PrepareForSleep (true,)')

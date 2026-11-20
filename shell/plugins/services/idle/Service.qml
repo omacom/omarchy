@@ -31,6 +31,21 @@ Item {
   readonly property int suspendDelaySeconds: IdleModel.delayAfterFirstIdle(suspendTimeoutSeconds, firstIdleTimeoutSeconds)
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
 
+  // A retimed IdleMonitor can reuse its notification's address and never rebind isIdle; pulsing it off sends the pointer through null.
+  // While idle that pulse would read as the user coming back, so retiming waits until they have.
+  function retimeIdleMonitor() {
+    var timeout = Math.max(1, root.firstIdleTimeoutSeconds)
+    if (idleMonitor.isIdle || idleMonitor.timeout === timeout) return
+
+    idleMonitor.timeout = timeout
+    if (root.idleEnabled) {
+      root.logEvent("idle-monitor-rearm", "timeout=" + timeout)
+      idleMonitorRearmTimer.restart()
+    }
+  }
+
+  onFirstIdleTimeoutSecondsChanged: retimeIdleMonitor()
+
   property bool stayAwake: false
   property bool stayAwakeStateLoaded: false
   property bool idleMonitorArmed: true
@@ -219,7 +234,7 @@ Item {
 
   function handleIdleChanged() {
     logEvent("idle-monitor", idleMonitor.isIdle ? "idle" : "active")
-    if (!root.idleEnabled || !root.idleTimersEnabled || !root.idleMonitorArmed || root.preparingForSleep) return
+    if (!root.idleEnabled || !root.idleTimersEnabled || !root.idleMonitorArmed || idleMonitorRearmTimer.running || root.preparingForSleep) return
 
     if (idleMonitor.isIdle) startIdleCycle()
     else handleActiveSignal()
@@ -279,6 +294,7 @@ Item {
       lockDelay: root.lockDelaySeconds,
       suspendDelay: root.suspendDelaySeconds,
       timers: {
+        idleMonitorRearm: idleMonitorRearmTimer.running,
         screensaver: screensaverTimer.running,
         lock: lockTimer.running,
         suspend: suspendTimer.running,
@@ -341,10 +357,18 @@ Item {
 
   IdleMonitor {
     id: idleMonitor
-    enabled: root.idleEnabled && root.idleTimersEnabled && root.idleMonitorArmed && !root.preparingForSleep
-    timeout: Math.max(1, root.firstIdleTimeoutSeconds)
+    enabled: root.idleEnabled && root.idleTimersEnabled && root.idleMonitorArmed && !idleMonitorRearmTimer.running && !root.preparingForSleep
     respectInhibitors: true
-    onIsIdleChanged: root.handleIdleChanged()
+    onIsIdleChanged: {
+      root.handleIdleChanged()
+      if (!isIdle) root.retimeIdleMonitor()
+    }
+  }
+
+  Timer {
+    id: idleMonitorRearmTimer
+    interval: 150
+    repeat: false
   }
 
   IdleMonitor {
@@ -480,6 +504,7 @@ Item {
 
   Component.onCompleted: {
     logEvent("service-ready")
+    retimeIdleMonitor()
     refreshStayAwakeState()
     root.idleTimeoutsReady = true
   }

@@ -69,6 +69,21 @@ expect("the record's own limits describe the active account", [record["tierLabel
 expect("each account keeps its own limits cache, keyed by subscription",
        [(cache_root() / name).is_file() for name in ("claude-limits.json", "claude-limits-u-work.json")], [True, True])
 
+# A switch moves logins holding the registry lock, so a collection waits for
+# it rather than reading where a login was and then what is there now.
+import fcntl, threading
+(accounts / ".claude.lock").touch()
+with open(accounts / ".claude.lock") as switching:
+  fcntl.flock(switching, fcntl.LOCK_EX)
+  waited = {}
+  collector = threading.Thread(target=lambda: waited.update(record=claude()))
+  collector.start()
+  collector.join(1.5)
+  mid_switch = collector.is_alive()
+  fcntl.flock(switching, fcntl.LOCK_UN)
+collector.join(10)
+check("a collection waits for a switch in progress", mid_switch and "record" in waited, waited)
+
 # Once every window a lapsed account last saw has reset, it has its whole
 # allowance back: that reads as 0%, not as nothing known.
 ANY = {"api.anthropic.com": {"five_hour": {"utilization": 30.0}}}

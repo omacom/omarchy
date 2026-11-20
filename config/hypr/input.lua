@@ -41,8 +41,19 @@
 --       -- Left-click-and-drag with three fingers. Turn off Omarchy's
 --       -- three-finger gestures with omarchy_default_gestures = false first.
 --       drag_3fg = 1,
+--
+--       -- Make taps only click: a tap followed by a touch-and-move no longer
+--       -- starts a drag or a text selection.
+--       tap_and_drag = false,
 --     },
 --   },
+-- })
+
+-- Ignore the touchpad's three-finger tap. It is a middle click, which pastes
+-- the last selected text in most apps. Limited to the touchpad, so a mouse's
+-- middle button keeps working. Find your touchpad's name with: hyprctl devices
+-- hl.bind("mouse:274", function() end, {
+--   device = { inclusive = true, list = { "your-touchpad-name" } },
 -- })
 
 -- App-specific touchpad scroll speeds.

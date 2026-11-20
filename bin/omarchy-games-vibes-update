@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Update the Game Vibes games installed from git repositories
+
+# Only the games that came from a clone. A symlinked game is someone's working
+# copy, and a game made here has no repository to pull from.
+status=0
+
+for game in ~/Games/vibes/*; do
+  [[ ! -L $game && -d $game/.git ]] || continue
+  echo "Updating: $(basename "$game")"
+  git -C "$game" pull || status=1
+  # Even a pull that fails can bring in the repository's symlinks.
+  find "$game" -type l -delete
+done
+
+exit $status
