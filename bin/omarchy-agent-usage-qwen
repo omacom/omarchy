@@ -390,6 +390,20 @@ def model_routes(home):
   return routes
 
 
+def omarchy_launches():
+  """(auth type, model id) of every model Omarchy has launched Qwen Code on,
+  from the launch files omarchy-agent-local overlay qwen writes: a model on
+  this machine or a paired one on the tailnet, either way the user's own
+  hardware. The files stay when a model is removed, so its replies keep
+  counting where they did."""
+  launched = set()
+  for path in sorted((Path.home() / ".config" / "omarchy" / "agent-local" / "overlays").glob("qwen-*.json")):
+    model = obj(read_json(path)).get("model")
+    if isinstance(model, str) and model:
+      launched.add(("openai", model))
+  return launched
+
+
 def selected_route(home):
   """(auth type, model id) settings.json selects, where Qwen Code sends a
   prompt when nothing else says: /auth's security.auth.selectedType and
@@ -402,20 +416,20 @@ def selected_route(home):
 
 def route_config(home):
   """What route_owner() decides with: the modelProviders routes, the base
-  URLs outside them, and the selected route."""
-  return model_routes(home), base_urls(home), selected_route(home)
+  URLs outside them, the selected route and Omarchy's local launches."""
+  return model_routes(home), base_urls(home), selected_route(home), omarchy_launches()
 
 
 def harness_match():
   """For a scan's cached_scan(match=...): a digest of where Qwen Code's
   replies are sent, which its settings and .env files can change without a
   transcript changing."""
-  routes, urls, selected = route_config(qwen_home())
-  config = json.dumps([sorted([*key, url] for key, url in routes.items()), sorted(urls.items()), selected])
+  routes, urls, selected, launched = route_config(qwen_home())
+  config = json.dumps([sorted([*key, url] for key, url in routes.items()), sorted(urls.items()), selected, sorted(launched)])
   return {"qwenRoutes": hashlib.sha1(config.encode("utf-8", "surrogatepass")).hexdigest()}
 
 
-def route_owner(auth_type, model, routes, urls=None):
+def route_owner(auth_type, model, routes, urls=None, launched=frozenset()):
   """The collector that bills a reply, by the auth type Qwen Code recorded
   for it and the base URL it was sent to: its model's modelProviders route,
   else the base URL the auth type takes from Qwen Code's environment (urls,
@@ -430,6 +444,10 @@ def route_owner(auth_type, model, routes, urls=None):
   a collector here bills."""
   if auth_type == "qwen-oauth":
     return AGENT_ID
+  # A model Omarchy launched Qwen Code on ran on the user's own hardware,
+  # unless their own modelProviders route sends it elsewhere.
+  if (auth_type, model) in launched and (auth_type, model) not in routes:
+    return "local"
   url = routes.get((auth_type, model)) or next((value for (_, routed), value in routes.items() if routed == model), "")
   url = url or (urls or {}).get(auth_type, "")
   if url:
@@ -448,7 +466,7 @@ def summarize(rows, owner):
   next request sent for it, answered or not, else with the route settings.json
   selects. Beside them, each row's (kind, key) and whether it is a fork's
   copy."""
-  routes, urls, selected = route_config(qwen_home())
+  routes, urls, selected, launched = route_config(qwen_home())
   parsed = []
   for row in rows:
     try:
@@ -457,9 +475,9 @@ def summarize(rows, owner):
       if kind == "r":
         model = str(row[4])
         counts = [int(value) for value in row[5:8]]
-        billed = route_owner(str(row[8]), str(row[9]), routes, urls)
+        billed = route_owner(str(row[8]), str(row[9]), routes, urls, launched)
       elif kind == "e":
-        model, counts, billed = "", [0, 0, 0], route_owner(str(row[4]), str(row[5]), routes, urls)
+        model, counts, billed = "", [0, 0, 0], route_owner(str(row[4]), str(row[5]), routes, urls, launched)
       elif kind == "p":
         model, counts, billed = "", [0, 0, 0], None
       else:
@@ -468,7 +486,7 @@ def summarize(rows, owner):
     except (TypeError, ValueError, IndexError, OverflowError, OSError):
       continue
     parsed.append([kind, key, day, str(session), model, counts, billed, copy])
-  answered = route_owner(*selected, routes, urls)
+  answered = route_owner(*selected, routes, urls, launched)
   for entry in reversed(parsed):
     if entry[0] in ("r", "e"):
       answered = entry[6]
