@@ -14,6 +14,17 @@ if ! systemctl --user show-environment >/dev/null; then
   exit 1
 fi
 
+# Coordinate the machine-wide inventory, transfer and provider replacement
+# across desktop users. tmpfiles preserves the inode on subsequent calls.
+# /run is root-owned; desktop users can take the lock but cannot replace it.
+migration_lock_path=/run/omarchy-podman-migration.lock
+printf 'f %s 0644 root root - -\n' "$migration_lock_path" | sudo /usr/bin/systemd-tmpfiles --create -
+exec {migration_lock}<"$migration_lock_path"
+if ! flock --nonblock "$migration_lock"; then
+  echo "Another Podman migration is running. Retry omarchy-migrate when it finishes." >&2
+  exit 1
+fi
+
 # Pacman resolves virtual providers too. A failed package database query must
 # not turn an installed engine into an apparently empty machine.
 if ! docker_provider=$(pacman -Qq docker 2>/dev/null); then
