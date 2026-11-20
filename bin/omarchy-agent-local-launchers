@@ -103,7 +103,6 @@ Name=$name
 Comment=Make $made with $name in Fantasi, running on this machine
 Exec=fantasi open --model $recipe
 Icon=$icon
-StartupWMClass=fantasi
 Terminal=false
 Type=Application
 Categories=Graphics;

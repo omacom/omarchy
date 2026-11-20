@@ -1,12 +1,12 @@
 # Browsers
 
-Omarchy ships with [Google Chrome](https://www.google.com/chrome/) as the default browser. It's themed to match the rest of your system, and it's what `Super + Shift + Return` opens and what every [web app](25-web-apps.md) runs inside. It opens straight to a browser window: there's no welcome screen or sign-in prompt, usage statistics and crash reports aren't sent to Google, and the ad privacy prompts are switched off. You can still sign in to your Google account from the profile button whenever you want sync.
+Omarchy ships with [Google Chrome](https://www.google.com/chrome/) as the default browser. It's themed to match the rest of your system, and it's what `Super + Shift + Return` (or `Super + Shift + B`) opens, with `Super + Shift + Alt + B` for a private window, and what every [web app](25-web-apps.md) runs inside. It opens straight to a browser window: there's no welcome screen or sign-in prompt, usage statistics and crash reports aren't sent to Google, and the ad privacy prompts are switched off. You can still sign in to your Google account from the profile button whenever you want sync.
 
-If Chrome isn't your taste, you're not stuck with it. Under _Install > Browser_ in the Omarchy menu you'll find [Chromium](https://www.chromium.org/) (the plain open-source build Chrome is made from), Edge, Brave, Brave Origin, Firefox, and [Zen](https://zen-browser.app/). Pick one and Omarchy installs it, sets up its policy directory, and applies your current theme to it.
+If Chrome isn't your taste, you're not stuck with it. Under _Install > Browser_ in the Omarchy menu you'll find [Chromium](https://www.chromium.org/) (the plain open-source build Chrome is made from), Edge, Brave, Brave Origin, Firefox, and [Zen](https://zen-browser.app/) (Edge on x86 machines only). Pick one and Omarchy installs it, sets up its policy directory, and applies your current theme to it.
 
 ## Making one the default
 
-Installing a browser doesn't promote it. Once it's on the machine, go to _Setup > Defaults > Browser_ and pick it — the menu only lists browsers you actually have installed, and marks the current default with a check.
+Installing a browser doesn't promote it. To switch, go to _Setup > Defaults > Browser_ and pick one. The current default is marked with a check, and picking a browser you don't have yet installs it first.
 
 From the terminal it's:
 
@@ -18,13 +18,15 @@ Run it with no argument and it tells you the current default. This sets the XDG 
 
 ## Copy URL and Download Video
 
-The Chromium-family browsers (Chromium itself, Chrome, Edge, and Brave) come with two Omarchy extensions that reach out of the browser and into the rest of your system.
+The Chromium-family browsers (Chromium itself, Chrome, Edge, Brave, and Brave Origin) come with three Omarchy extensions: two that reach out of the browser and into the rest of your system, and one that tidies up WhatsApp.
 
 **Copy URL** puts the current tab's address on your clipboard with `Alt + Shift + L`. That's faster than clicking into the address bar and copying, and because it goes through the system clipboard rather than the browser's, you get an Omarchy notification confirming it and the URL is immediately available in [clipboard history](08-unified-clipboard-history.md) and every other app. There's a toolbar button too, if you prefer clicking.
 
 **Download Video** grabs the video playing on the page you're looking at with `Alt + Shift + D`. It hands the URL to [yt-dlp](https://github.com/yt-dlp/yt-dlp), so it works on far more than YouTube, and the download lands in `~/Videos`. Progress shows up in the same on-screen display that volume and brightness use, updating in place rather than stacking up notifications. Set `OMARCHY_YTDLP_DIR` if you'd rather the files went somewhere else — see the [FAQ](46-faq.md) for where to put environment variables.
 
 Both extensions talk to Omarchy through a small native messaging host, which gets installed for you along with the browser. That's the piece that lets a web page's video end up in your home directory and a URL end up in your clipboard manager, which a normal extension can't do on its own.
+
+**WhatsApp Slim** makes WhatsApp Web follow your system theme and collapses its chat list when the window is narrow.
 
 These are Chromium-family only. Firefox and Zen don't get them.
 

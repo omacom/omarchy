@@ -70,7 +70,38 @@ Panel {
   // model can fail to pair instead, which links to what pairing printed.
   function localFailed(model) {
     if (model.host) return pairFailure(model) !== null
-    return ["active", "activating", "deactivating", "removing"].indexOf(model.unit) < 0 && String(model.error || "") !== ""
+    return ["active", "activating", "deactivating", "removing"].indexOf(model.unit) < 0 && String(model.error || "") !== "" && !errorRead(model)
+  }
+
+  // Errors whose logs have been opened, by recipe. The line drops one at once
+  // rather than waiting for the engine to forget it, which an engine older
+  // than its dismiss never does. A model that starts again can fail anew, so
+  // its entry goes then, as it does once the engine has forgotten the error.
+  property var readErrors: ({})
+
+  function errorRead(model) {
+    return !!model && !model.host && readErrors[model.recipe] === String(model.error || "")
+  }
+
+  function markErrorRead(model) {
+    var read = Object.assign({}, readErrors)
+    read[model.recipe] = String(model.error || "")
+    readErrors = read
+  }
+
+  Connections {
+    target: usage
+    function onLocalModelChanged() {
+      var models = usage.localModel.models || {}
+      var read = {}
+      var changed = false
+      for (var recipe in root.readErrors) {
+        var model = models[recipe]
+        if (model && ["active", "activating"].indexOf(model.unit) < 0 && String(model.error || "") === root.readErrors[recipe]) read[recipe] = root.readErrors[recipe]
+        else changed = true
+      }
+      if (changed) root.readErrors = read
+    }
   }
 
   // A failed pairing still to explain: not once the model is paired, its host
@@ -95,6 +126,7 @@ Panel {
     Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", command])
     // A failed pairing lives only here.
     if (failure && !model.panelSetup) usage.dismissPairFailure(modelId(model))
+    else if (!failure) markErrorRead(model)
     root.close()
   }
 
@@ -2713,7 +2745,7 @@ Panel {
 
     // Why a model on this machine stopped, which links to its logs.
     TextLink {
-      visible: !!section.model && !section.remote && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
+      visible: !!section.model && !section.remote && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== "" && !root.errorRead(section.model)
       width: Math.min(implicitWidth, parent.width)
       text: section.model ? String(section.model.error || "") : ""
       idleColor: root.urgent

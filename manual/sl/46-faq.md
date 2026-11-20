@@ -2,7 +2,7 @@
 
 ### Kako preklapljam med postavitvami tipkovnice?
 
-Uredite svojo datoteko `~/.config/hypr/input.lua` in dodajte to, da boste med postavitvami preklapljali z `Left Alt + Right Alt`:
+Uredite datoteko `~/.config/hypr/input.lua` in dodajte tole za preklapljanje med postavitvami s `Left Alt + Right Alt`:
 
 ```
 hl.config({
@@ -16,9 +16,9 @@ hl.config({
 
 Vrstica bo samodejno prikazala vašo trenutno postavitev tipkovnice, ko boste imeli nastavljenih več postavitev (in nanjo lahko tudi kliknete za preklop).
 
-### Kako spremenim obliko ure v 12-urno?
+### Kako spremenim obliko zapisa ure na 12-urno?
 
-Z desno miškino tipko kliknite uro v vrstici, da preklapljate med običajnimi oblikami, vključno z 12-urnimi. Obliko lahko nastavite tudi neposredno:
+Z desnim klikom na uro v vrstici preklapljate med običajnimi oblikami zapisa, vključno z 12-urnimi. Obliko lahko nastavite tudi neposredno:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
@@ -28,54 +28,54 @@ To bo prikazalo Nedelja 10:55 AM.
 
 ### Kako spremenim svoj časovni pas?
 
-Zaženite _Nastavitev > Regija > Časovni pas_ v meniju Omarchy in izberite s seznama. Če je časovni pas pravilen, a je ura sama zamaknjena, _Posodobitev > Čas_ za vas znova zažene sinhronizacijo časa.
+V meniju Omarchy zaženite _Nastavitev > Regija > Časovni pas_ in izberite s seznama. Če je časovni pas pravilen, a je ura sama zašla, _Posodobitev > Čas_ za vas znova zažene sinhronizacijo časa.
 
-### Kako spremenim svoj DNS, delim svoj Wi-Fi ali preverim hitrost povezave?
+### Kako spremenim svoj DNS, delim svoj Wi-Fi ali preverim hitrost svoje povezave?
 
-Vse to najdete v [omrežju](35-networking.md).
+Vse to boste našli v [omrežnem povezovanju](35-networking.md).
 
 ### Kako preverim, kako hiter je moj disk?
 
-_Sprožilec > Preizkus hitrosti > Preizkus hitrosti diska_ meri trenutno hitrost branja in pisanja na vašem pogonu, ali pa `omarchy disk speedtest` iz terminala.
+_Sprožilec > Preizkus hitrosti > Preizkus hitrosti diska_ meri sprotno hitrost branja in pisanja na vašem pogonu, ali pa iz terminala uporabite `omarchy disk speedtest`.
 
 ### Kako dodam tiskalnik?
 
-Tiskanje je nastavljeno in deluje takoj po namestitvi, vsak tiskalnik pa dodate sami iz _Nastavitve tiskanja_ v zaganjalniku aplikacij (`Super + Space`).
+Tiskanje je nastavljeno in deluje takoj po namestitvi, vsak tiskalnik pa dodate sami iz _Nastavitve tiskanja_ v zaganjalniku aplikacij (`Super + Alt + Space`).
 
-Izberite _Dodaj_ in mu dajte trenutek za iskanje: tiskalnik, priključen prek USB, in večino omrežnih tiskalnikov bo našel namesto vas. Če vašega ni na seznamu, izberite _Omrežni tiskalnik > Internet Printing Protocol (ipp)_ in vnesite njegov naslov — zaslon tiskalnika ali njegova spletna stran vam bo povedala, kaj to je, običajno nekaj, kot je `192.168.1.50` z vrsto `ipp/print`. _Naprej_ nato ponudi gonilnik, pri čemer sodoben tiskalnik najbolje deluje na profilu _IPP Everywhere_ brez gonilnika, starejši pa želi gonilnik za svoj model.
+Izberite _Dodaj_ in mu dajte trenutek, da poišče: tiskalnik, priključen prek USB, in večino omrežnih tiskalnikov bo našel namesto vas. Če vašega ni na seznamu, izberite _Omrežni tiskalnik > Internet Printing Protocol (ipp)_ in vnesite njegov naslov — zaslon samega tiskalnika ali njegova spletna stran vam bo povedala, kaj to je, običajno nekaj takega kot `192.168.1.50` s čakalno vrsto `ipp/print`. _Naprej_ nato ponudi gonilnik, pri čemer sodoben tiskalnik najbolje deluje na profilu _IPP Everywhere_ brez gonilnika, starejši pa želi gonilnik svojega modela.
 
-Z desno miškino tipko kliknite tiskalnik in izberite _Nastavi kot privzeto_, da določite, katerega vaše aplikacije najprej dosežejo, ter _Lastnosti_, da nastavite velikost papirja, dvostransko tiskanje in kakovost.
+Z desnim klikom kliknite tiskalnik in izberite _Nastavi kot privzeto_, da izberete, po katerem bodo vaše aplikacije najprej segle, ter _Lastnosti_, da nastavite velikost papirja, obojestransko tiskanje in kakovost.
 
-Samodejno odkrivanje, pri katerem se tiskalniki v omrežju pojavijo, ne da bi jih dodali, je med predelavo začasno izklopljeno, zato je prvi korak zgoraj vaš in ne samodejen. Tiskanje v datoteko PDF deluje brez kakršnega koli tiskalnika.
+Samodejno odkrivanje, pri katerem se tiskalniki v omrežju pojavijo, ne da bi jih dodali, je začasno izklopljeno, medtem ko ga predelujejo, zato je prvi korak zgoraj vaš in ne samodejen. Tiskanje v datoteko PDF deluje brez kakršnega koli tiskalnika.
 
-### Kako spremenim, kam se shranjujejo posnetki zaslona ali snemanje zaslona?
+### Kako spremenim, kam se shranjujejo posnetki zaslona ali snemanja zaslona?
 
-Shranjeni posnetki zaslona privzeto gredo v `~/Pictures/Screenshots`. Za uporabo drugega imenika dodajte to v datoteko pod `~/.config/uwsm/env.d/` (kot je `~/.config/uwsm/env.d/capture`):
+Shranjeni posnetki zaslona privzeto gredo v `~/Pictures/Screenshots`. Če želite uporabiti drugo mapo, dodajte tole v datoteko pod `~/.config/uwsm/env.d/` (kot je `~/.config/uwsm/env.d/capture`):
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Enako lahko storite za snemanje zaslona z uporabo `OMARCHY_SCREENRECORD_DIR`.
+Enako lahko naredite za snemanja zaslona z uporabo `OMARCHY_SCREENRECORD_DIR`.
 
-Omasnap samodejno ustvari svoj imenik za posnetke zaslona. Imenik za snemanje zaslona ustvarite sami, nato znova zaženite Omarchy, da bo katera koli sprememba okolja začela veljati.
+Omasnap samodejno ustvari svojo mapo za posnetke zaslona. Mapo za snemanje zaslona ustvarite sami, nato pa znova zaženite Omarchy, da bo katera koli sprememba okolja začela veljati.
 
-### Kako poskrbim, da zvočniki + spletna kamera delujejo na mojem Apple Studio Display?
+### Kako poskrbim, da bosta zvočnika + spletna kamera delovala na mojem Apple Studio Display?
 
-Mislili bi, da bi moralo vse delovati že samo s priklopom USB C, a žal to ni tako. Rešitev, za katero sem ugotovil, da zanesljivo deluje, je uporaba [the WJESOG DisplayPort + USB-A => USB-C cable](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Nato zvočniki in spletna kamera delujejo kot po maslu.
+Mislili bi si, da bo vse delovalo kar samo od sebe, ko priklopite USB C, a žal ni tako. Rešitev, za katero sem ugotovil, da zanesljivo deluje, je uporaba [kabla WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Potem zvočnika in spletna kamera delujeta kot po maslu.
 
-Ne pozabite, da imate v Omarchy vgrajen nadzor svetlosti za zaslona Apple (tako Studio kot XDR) z običajnima gumboma za svetlost na tipkovnici.
+Ne pozabite, da imate v Omarchy vgrajen nadzor svetlosti za zaslona Apple (tako Studio kot XDR) z običajnimi tipkami za svetlost na tipkovnici.
 
-### Kako se znebim vse dodatne programske opreme?
+### Kako se znebim vse odvečne programske opreme?
 
-Če ne želite programov, kot so Obsidian ali LibreOffice ali katero koli drugo prednameščeno stvar, jo lahko zelo enostavno odstranite.
+Če nočete programov, kot so Obsidian ali LibreOffice ali katera koli druga vnaprej nameščena stvar, jo lahko zelo enostavno odstranite.
 
-Zaženite _Odstrani > Paket_, da vidite vsak nameščen paket. Nato lahko s tab izberete kateri koli paket, ki ga želite odstraniti, in z return začnete odstranjevati vse, kar ste izbrali.
+Zaženite _Odstrani > Paket_, da si ogledate vsak nameščeni paket. Nato lahko s tab izberete kateri koli paket, ki bi ga radi odstranili, in z return začnete odstranjevati vse, kar ste izbrali.
 
-Iz menija Omarchy lahko uporabite tudi _Odstrani > Spletna aplikacija_, da odstranite katere koli prednameščene spletne aplikacije, ki jih ne želite.
+Iz menija Omarchy lahko uporabite tudi _Odstrani > Spletna aplikacija_, da odstranite katero koli od vnaprej nameščenih spletnih aplikacij, ki je nočete.
 
-Ali pa zaženite _Odstrani > Prednameščene_, da v enem zamahu pometete vse prednameščene dodatke — spletne aplikacije, TUI-je in izbirne aplikacije. Bližnjice, ki so jih zagnale, izginejo z njimi, tako da vam ostane čist list vezav, ki ga lahko zapolnite s svojimi v `~/.config/hypr/bindings.lua`.
+Ali pa zaženite _Odstrani > Vnaprej nameščeno_, da v enem zamahu pometete vse vnaprej nameščene dodatke — spletne aplikacije, TUI-je in izbirne aplikacije. Bližnjice, ki so jih zagnale, izginejo z njimi, tako da vam ostane čist list vezav, ki jih lahko zapolnite s svojimi v `~/.config/hypr/bindings.lua`.
 
 ---
 
-Za napake in pokvarjene dele glejte [razdelek Odpravljanje težav](45-troubleshooting.md).
+Za napake in pokvarjene stvari glejte [razdelek Odpravljanje težav](45-troubleshooting.md).

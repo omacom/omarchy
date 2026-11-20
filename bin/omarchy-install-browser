@@ -37,6 +37,7 @@ copy_chromium_flags() {
   omarchy-install-chromium-ytdlp
   omarchy-install-chromium-omareader
   omarchy-install-video-decode
+  omarchy-install-camera
 }
 
 setup_firefox_wayland() {
