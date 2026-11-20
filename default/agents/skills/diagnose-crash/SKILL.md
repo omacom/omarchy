@@ -97,8 +97,8 @@ silence notifications for **that one program**, and never run it unprompted. Say
 how to lift it in the same breath, so it is not a one-way door.
 
 ```bash
-omarchy-crash-mute '<program>'        # silence it
-omarchy-crash-mute '<program>' off    # let it speak again
+omarchy-crash-mute -- '<program>'     # silence it
+omarchy-crash-mute -- '<program>' off # let it speak again
 omarchy-crash-mute                    # list what is muted
 ```
 
