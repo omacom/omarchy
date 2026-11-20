@@ -41,10 +41,10 @@ GROUP_DESCRIPTIONS[clipboard]="Clipboard helpers"
 GROUP_DESCRIPTIONS[cmd]="Command and shortcut helpers"
 GROUP_DESCRIPTIONS[config]="System configuration helpers"
 GROUP_DESCRIPTIONS[crash]="Crash notification controls"
-GROUP_DESCRIPTIONS[debug]="Diagnostics and support logs"
 GROUP_DESCRIPTIONS[finalize]="Finalize user setup"
 GROUP_DESCRIPTIONS[default]="Default application selection"
 GROUP_DESCRIPTIONS[dev]="Omarchy development tools"
+GROUP_DESCRIPTIONS[device]="Hardware controls and settings"
 GROUP_DESCRIPTIONS[disk]="Disk performance helpers"
 GROUP_DESCRIPTIONS[dictation]="Dictation recording"
 GROUP_DESCRIPTIONS[display]="Display and text scaling"
@@ -56,11 +56,13 @@ GROUP_DESCRIPTIONS[font]="Font management"
 GROUP_DESCRIPTIONS[games]="Game launchers and helpers"
 GROUP_DESCRIPTIONS[hibernation]="Hibernation setup and removal"
 GROUP_DESCRIPTIONS[hook]="User hook runner"
-GROUP_DESCRIPTIONS[hw]="Hardware detection and controls"
+GROUP_DESCRIPTIONS[hw]="Hardware detection"
 GROUP_DESCRIPTIONS[hyprland]="Hyprland window, monitor, and toggle controls"
+GROUP_DESCRIPTIONS[icons]="App icon set management"
 GROUP_DESCRIPTIONS[install]="Optional software installers"
 GROUP_DESCRIPTIONS[installed]="Installed optional service checks"
 GROUP_DESCRIPTIONS[launch]="Application launchers"
+GROUP_DESCRIPTIONS[kernel]="Default boot kernel selection"
 GROUP_DESCRIPTIONS[language]="Display language and system locale"
 GROUP_DESCRIPTIONS[menu]="Omarchy menu commands"
 GROUP_DESCRIPTIONS[migrate]="Migration runner"
@@ -76,13 +78,13 @@ GROUP_DESCRIPTIONS[plymouth]="Plymouth boot theme management"
 GROUP_DESCRIPTIONS[power]="Power supply detection"
 GROUP_DESCRIPTIONS[powerprofiles]="Power profile management"
 GROUP_DESCRIPTIONS[refresh]="Reset config to defaults"
+GROUP_DESCRIPTIONS[region]="How dates, times, numbers and units are written"
 GROUP_DESCRIPTIONS[reinstall]="Reinstall and reset workflows"
 GROUP_DESCRIPTIONS[reminder]="Desktop notification reminders"
 GROUP_DESCRIPTIONS[remove]="Removal workflows"
 GROUP_DESCRIPTIONS[restart]="Restart Omarchy components"
 GROUP_DESCRIPTIONS[setup]="Interactive setup wizards"
 GROUP_DESCRIPTIONS[shell]="Omarchy shell IPC helpers"
-GROUP_DESCRIPTIONS[screensaver]="Screensaver branding and animation"
 GROUP_DESCRIPTIONS[snapshot]="System snapshots"
 GROUP_DESCRIPTIONS[sudo]="Sudo configuration helpers"
 GROUP_DESCRIPTIONS[system]="System status, reboot, shutdown, logout, and lock"
@@ -417,9 +419,25 @@ command_takes_only_flags() {
   local args="${COMMAND_ARGS[$key]}"
   local token=""
 
+  local in_option=false
+
   [[ -n $args ]] || return 1
+  # An optional flag may name its value, as in [--model <name>]; the value
+  # placeholder belongs to the flag and isn't a positional argument.
   for token in $args; do
-    [[ $token == -* || $token == "[-"* ]] || return 1
+    if [[ $token == -* || $token == "[-"* ]]; then
+      if [[ $token == "[-"* && $token != *"]" ]]; then
+        in_option=true
+      else
+        in_option=false
+      fi
+    elif [[ $in_option == true ]]; then
+      if [[ $token == *"]" ]]; then
+        in_option=false
+      fi
+    else
+      return 1
+    fi
   done
 }
 
@@ -583,7 +601,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
 EOF
@@ -626,6 +644,10 @@ print_command_table() {
     width=${#command}
     (( width > max_width )) && max_width=$width
   done <<<"$rows"
+
+  # Cap the column so a usage longer than 48 characters pushes only its own summary
+  # along, rather than padding every row out past the edge of a normal terminal.
+  (( max_width > 48 )) && max_width=48
 
   while IFS=$'\t' read -r command rest; do
     [[ -n $command ]] || continue
@@ -1046,10 +1068,11 @@ dispatch_fast_or_help() {
         if (( DIRECT_RESOLVED_COUNT == 1 )) && group_has_child_commands "$1"; then
           load_group_commands "$1"
           show_group_help "$1"
+          return 0
         else
           show_command_help "$key"
+          return 1
         fi
-        return 0
       fi
     fi
 
@@ -1110,10 +1133,11 @@ dispatch_or_help() {
     if (( ${#remaining[@]} == 0 )) && command_requires_args "$key"; then
       if (( RESOLVED_COUNT == 1 )) && group_exists "$1"; then
         show_group_help "$1"
+        return 0
       else
         show_command_help "$key"
+        return 1
       fi
-      return 0
     fi
 
     exec "$binary_path" "${remaining[@]}"
