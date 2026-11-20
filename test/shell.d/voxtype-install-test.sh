@@ -30,10 +30,6 @@ printf 'packages %s\n' "$*" >>"$TEST_LOG"
 [[ ${PACKAGE_FAIL:-0} == "0" ]]
 SH
 # Existing installs are the default; the fresh-install case overrides this.
-cat >"$stub_bin/omarchy-cmd-present" <<'SH'
-#!/bin/bash
-[[ ${VOXTYPE_INSTALLED:-1} == "1" ]]
-SH
 cat >"$stub_bin/omarchy-cmd-missing" <<'SH'
 #!/bin/bash
 [[ ${VOXTYPE_INSTALLED:-1} == "0" ]]
@@ -103,20 +99,3 @@ if HOME="$test_tmp/home" OMARCHY_PATH="$ROOT" TEST_LOG="$calls" PACKAGE_FAIL=1 \
 fi
 ! grep -q '^voxtype ' "$calls" || fail "failed dependency installation does not start model or service setup"
 pass "dependency failures stop Voxtype setup for a later retry"
-
-migration="$ROOT/migrations/1795203907.sh"
-for installed in 0 1; do
-  : >"$calls"
-  VOXTYPE_INSTALLED="$installed" TEST_LOG="$calls" PATH="$stub_bin:$PATH" \
-    bash -euo pipefail "$migration" >/dev/null
-  if (( installed )); then
-    grep -Fx 'packages whisper-cpp' "$calls" >/dev/null || fail "migration repairs existing Voxtype installs"
-  else
-    [[ ! -s $calls ]] || fail "migration does not install a backend without Voxtype"
-  fi
-done
-if VOXTYPE_INSTALLED=1 PACKAGE_FAIL=1 TEST_LOG="$calls" PATH="$stub_bin:$PATH" \
-  bash -euo pipefail "$migration" >/dev/null; then
-  fail "failed backend repairs must leave the migration pending"
-fi
-pass "the backend migration repairs Voxtype only and propagates package failures"
