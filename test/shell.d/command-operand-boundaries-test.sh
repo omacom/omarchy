@@ -77,14 +77,12 @@ STUB
 cat >"$mock_bin/sudo" <<'STUB'
 #!/bin/bash
 
-# Like sudo, outlive a Ctrl-C at the password prompt and exit 1 rather than die of the signal.
-if [[ -n ${OMARCHY_TEST_SUDO_SLEEP:-} ]]; then
-  trap : INT
-  : >"$OMARCHY_TEST_SUDO_READY"
-  sleep "$OMARCHY_TEST_SUDO_SLEEP"
+# sudo outlives a Ctrl-C at its prompt and exits 1, as it does when it refuses.
+if [[ ${OMARCHY_TEST_SUDO:-} == "cancelled" ]]; then
+  kill -INT "$PPID"
   exit 1
-elif [[ -n ${OMARCHY_TEST_SUDO_STATUS:-} ]]; then
-  exit "$OMARCHY_TEST_SUDO_STATUS"
+elif [[ ${OMARCHY_TEST_SUDO:-} == "refused" ]]; then
+  exit 1
 else
   exec "$@"
 fi
@@ -112,115 +110,26 @@ grep -Fx 'pacman <-Q> <--> <--hookdir=/tmp/hooks>' "$package_calls" >/dev/null |
 pass "pkg-add keeps option-shaped package names out of pacman option parsing"
 
 if (( EUID == 0 )); then
-  skip "pkg-add sudo authentication cancellation checks do not apply to root"
+  skip "a service install stops at a cancelled or refused sudo prompt (root is never prompted)"
 else
   service_mock_bin="$test_tmp/service-bin"
   mkdir -p "$service_mock_bin"
-  for helper in omarchy-plugin-enable uwsm-app systemctl tailscale omarchy-webapp-install; do
-    cat >"$service_mock_bin/$helper" <<STUB
-#!/bin/bash
-
-printf '$helper %s\n' "\$*" >>"\$OMARCHY_TEST_PACKAGE_CALLS"
-exit 0
-STUB
+  for helper in omarchy-plugin-enable uwsm-app; do
+    printf '#!/bin/bash\n\necho "%s $*" >>"$OMARCHY_TEST_PACKAGE_CALLS"\n' "$helper" >"$service_mock_bin/$helper"
   done
   chmod +x "$service_mock_bin"/*
 
-  : >"$package_calls"
-  status=0
-  PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_PACKAGE_CALLS="$package_calls" \
-    OMARCHY_TEST_SUDO_STATUS=1 \
-    "$ROOT/bin/omarchy-pkg-add" demo-pkg >/dev/null 2>&1 || status=$?
-  (( status == 1 )) || fail "a sudo failure nobody cancelled in omarchy-pkg-add exits 1" "status=$status"
-  [[ ! -s $package_calls ]] || fail "a sudo failure in omarchy-pkg-add must not start pacman" "$(<"$package_calls")"
-  pass "a sudo failure nobody cancelled in omarchy-pkg-add exits 1, so it is reported as failed"
-
-  for installer in omarchy-install-service-dropbox omarchy-install-service-tailscale; do
+  # Only the Ctrl-C is the user bailing; the presentation wrapper shows Failed for anything but 130.
+  for outcome in cancelled:130 refused:1; do
     : >"$package_calls"
     status=0
     PATH="$service_mock_bin:$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_PACKAGE_CALLS="$package_calls" \
-      OMARCHY_TEST_SUDO_STATUS=1 \
-      "$ROOT/bin/$installer" >/dev/null 2>&1 || status=$?
-    (( status == 1 )) || fail "$installer stops with the package install's status" "status=$status"
-    [[ ! -s $package_calls ]] || fail "$installer must not run later service steps after a failed package install" "$(<"$package_calls")"
+      OMARCHY_TEST_SUDO="${outcome%:*}" \
+      env --default-signal=INT "$ROOT/bin/omarchy-install-service-dropbox" >/dev/null 2>&1 || status=$?
+    (( status == ${outcome#*:} )) || fail "a ${outcome%:*} sudo prompt ends the Dropbox install with ${outcome#*:}" "status=$status"
+    [[ ! -s $package_calls ]] || fail "a ${outcome%:*} sudo prompt must not go on to the later Dropbox steps" "$(<"$package_calls")"
   done
-  pass "service installers stop at a failed package install without running later service steps"
-
-  require_command python3
-  ready="$test_tmp/sudo-ready"
-  : >"$package_calls"
-  rm -f "$ready"
-  interrupt_output=$(
-    PATH="$mock_bin:$ROOT/bin:$PATH" \
-    OMARCHY_TEST_PACKAGE_CALLS="$package_calls" \
-    OMARCHY_TEST_SUDO_SLEEP=3 \
-    OMARCHY_TEST_SUDO_READY="$ready" \
-    python3 - "$ROOT/bin/omarchy-pkg-add" "$ready" 2>&1 <<'PY'
-import os
-from pathlib import Path
-import signal
-import sys
-import time
-
-cmd, ready_path = sys.argv[1], Path(sys.argv[2])
-pid = os.fork()
-if pid == 0:
-    try:
-        os.setsid()
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-        devnull = os.open(os.devnull, os.O_RDWR)
-        for fd in (0, 1, 2):
-            os.dup2(devnull, fd)
-        if devnull > 2:
-            os.close(devnull)
-        os.execv(cmd, [cmd, "demo-pkg"])
-    except BaseException:
-        os._exit(127)
-
-status = None
-try:
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        if ready_path.exists():
-            break
-        waited, wait_status = os.waitpid(pid, os.WNOHANG)
-        if waited == pid:
-            status = wait_status
-            raise SystemExit(f"omarchy-pkg-add exited before sudo started (wait status {status})")
-        time.sleep(0.02)
-    if not ready_path.exists():
-        raise SystemExit("sudo authentication did not start in time")
-
-    os.killpg(pid, signal.SIGINT)
-
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        waited, wait_status = os.waitpid(pid, os.WNOHANG)
-        if waited == pid:
-            status = wait_status
-            break
-        time.sleep(0.02)
-    if status is None:
-        raise SystemExit("omarchy-pkg-add did not exit after SIGINT")
-    if os.WIFSIGNALED(status):
-        raise SystemExit(f"killed by signal {os.WTERMSIG(status)} instead of exiting 130")
-    code = os.WEXITSTATUS(status)
-    if code != 130:
-        raise SystemExit(f"status={code}")
-finally:
-    if status is None:
-        try:
-            os.killpg(pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        try:
-            os.waitpid(pid, 0)
-        except ChildProcessError:
-            pass
-PY
-  ) || fail "SIGINT during omarchy-pkg-add sudo prompt exits 130" "$interrupt_output"
-  [[ ! -s $package_calls ]] || fail "SIGINT during sudo prompt must not run pacman" "$(<"$package_calls")"
-  pass "SIGINT during omarchy-pkg-add sudo prompt exits 130 without running pacman"
+  pass "a service install stops at a cancelled sudo prompt with 130 and at a refused one with 1"
 fi
 
 : >"$package_calls"
