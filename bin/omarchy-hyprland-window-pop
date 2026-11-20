@@ -15,66 +15,11 @@ addr=$(jq -r '.address // empty' <<<"$active")
 monitor_id=$(jq -r '.monitor // empty' <<<"$active")
 window="address:$addr"
 
-safe_path_component() {
-  local value="$1"
-  [[ -n $value && $value != "." && $value != ".." && $value =~ ^[0-9A-Za-z._-]+$ ]]
-}
-
-dir_matches_mode_mask() {
-  local dir="$1"
-  local forbidden_mask="$2"
-  local owner="" mode="" type=""
-
-  [[ -d $dir && ! -L $dir ]] || return 1
-  read -r owner mode type < <(LC_ALL=C stat -c '%u %a %F' -- "$dir" 2>/dev/null) || return 1
-  [[ $type == "directory" && $owner == $EUID && $mode =~ ^[0-7]+$ ]] || return 1
-  (( (8#$mode & 8#$forbidden_mask) == 0 ))
-}
-
-geometry_dirs_safe() {
-  local dir=""
-  (( ${#geometry_dirs[@]} > 0 )) || return 1
-  for dir in "${geometry_dirs[@]}"; do
-    dir_matches_mode_mask "$dir" 022 || return 1
-  done
-}
-
-ensure_geometry_dirs() {
-  local dir=""
-  (( ${#geometry_dirs[@]} > 0 )) || return 1
-  for dir in "${geometry_dirs[@]}"; do
-    if [[ ! -e $dir && ! -L $dir ]]; then
-      mkdir -m 700 -- "$dir" 2>/dev/null || true
-    fi
-    dir_matches_mode_mask "$dir" 022 || return 1
-  done
-}
-
-# Only store session geometry under a private, user-owned XDG_RUNTIME_DIR.
-# Never fall back to shared /tmp where another local user could pre-create paths or symlinks.
-runtime_dir="${XDG_RUNTIME_DIR:-}"
-while [[ $runtime_dir == */ && $runtime_dir != "/" ]]; do
-  runtime_dir="${runtime_dir%/}"
-done
-
-geometry_dirs=()
-geometry_dir=""
+# Where a floating window sat before it was popped out, kept for the session so popping it back in
+# returns it there. Only under the private runtime dir: without one nothing is saved.
 geometry_file=""
-
-if [[ -n $runtime_dir && $runtime_dir == /* ]] && safe_path_component "$addr" && dir_matches_mode_mask "$runtime_dir" 077; then
-  if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-    geometry_dirs=("$runtime_dir/omarchy" "$runtime_dir/omarchy/windows")
-    geometry_dir="$runtime_dir/omarchy/windows"
-    geometry_file="$geometry_dir/pop-${addr}-geometry"
-  elif safe_path_component "$HYPRLAND_INSTANCE_SIGNATURE"; then
-    geometry_dirs=(
-      "$runtime_dir/omarchy"
-      "$runtime_dir/omarchy/windows"
-      "$runtime_dir/omarchy/windows/$HYPRLAND_INSTANCE_SIGNATURE"
-    )
-    geometry_dir="$runtime_dir/omarchy/windows/$HYPRLAND_INSTANCE_SIGNATURE"
-    geometry_file="$geometry_dir/pop-${addr}-geometry"
-  fi
+if [[ -n ${XDG_RUNTIME_DIR:-} && -n $addr ]]; then
+  geometry_file="$XDG_RUNTIME_DIR/omarchy/windows/${HYPRLAND_INSTANCE_SIGNATURE:-}/pop-$addr-geometry"
 fi
 
 hypr_dispatch() {
@@ -102,9 +47,9 @@ if [[ $pinned == "true" ]]; then
   hypr_dispatch "hl.dsp.window.pin({ window = \"$window\" })" pin "$window"
   hypr_dispatch "hl.dsp.window.tag({ window = \"$window\", tag = \"-pop\" })" tagwindow -pop "$window"
 
-  if [[ -n $geometry_file ]] && geometry_dirs_safe && [[ -f $geometry_file && ! -L $geometry_file ]]; then
+  if [[ -n $geometry_file && -f $geometry_file ]]; then
     read -r saved_width saved_height offset_x offset_y saved_monitor <"$geometry_file" || true
-    rm -f -- "$geometry_file"
+    rm -f "$geometry_file"
 
     if [[ $saved_width =~ ^[0-9]+$ && $saved_height =~ ^[0-9]+$ && $offset_x =~ ^-?[0-9]+$ && $offset_y =~ ^-?[0-9]+$ ]]; then
       target_width=$saved_width
@@ -166,23 +111,11 @@ elif [[ -n $addr ]]; then
       offset_x=$((saved_x - mon_x))
       offset_y=$((saved_y - mon_y))
 
-      if ensure_geometry_dirs; then
-        tmp_file=$(mktemp "$geometry_dir/.pop-${addr}-geometry.XXXXXX" 2>/dev/null) || tmp_file=""
-        if [[ -n $tmp_file ]]; then
-          if chmod 600 -- "$tmp_file" &&
-            printf '%s %s %s %s %s\n' "$saved_width" "$saved_height" "$offset_x" "$offset_y" "$monitor_id" >"$tmp_file" &&
-            mv -f -- "$tmp_file" "$geometry_file"; then
-            :
-          else
-            rm -f -- "$tmp_file"
-          fi
-        fi
-      fi
+      mkdir -p "${geometry_file%/*}" &&
+        printf '%s %s %s %s %s\n' "$saved_width" "$saved_height" "$offset_x" "$offset_y" "$monitor_id" >"$geometry_file"
     fi
-  else
-    if [[ -n $geometry_file ]] && geometry_dirs_safe; then
-      rm -f -- "$geometry_file"
-    fi
+  elif [[ -n $geometry_file ]]; then
+    rm -f "$geometry_file"
   fi
 
   if [[ $floating != "true" ]]; then

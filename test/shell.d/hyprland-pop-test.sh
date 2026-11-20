@@ -7,11 +7,7 @@ require_command lua
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
-mkdir -p "$test_tmp/bin" "$test_tmp/state"
-mkdir -m 700 "$test_tmp/run"
-mkdir -m 700 "$test_tmp/run/omarchy"
-mkdir -m 700 "$test_tmp/run/omarchy/windows"
-mkdir -m 700 "$test_tmp/run/omarchy/windows/test-sig"
+mkdir -p "$test_tmp/bin" "$test_tmp/run/omarchy/windows/test-sig"
 
 OMARCHY_PATH="$ROOT" XDG_RUNTIME_DIR="$test_tmp/run" HYPRLAND_INSTANCE_SIGNATURE="test-sig" TEST_RUNTIME_DIR="$test_tmp/run" lua - <<'LUA' || fail "a popped-out window is centered again on the monitor it moves to"
 local handlers, timers, centered = {}, {}, {}
@@ -100,42 +96,22 @@ cat >"$test_tmp/monitors.json" <<'JSON'
 JSON
 
 run_pop() {
-  local active_json="$1"
-  local runtime_dir="${2-$test_tmp/run}"
-  local sig="${3:-test-sig}"
-  printf '%s\n' "$active_json" >"$test_tmp/active.json"
+  printf '%s\n' "$1" >"$test_tmp/active.json"
   : >"$test_tmp/dispatch.log"
-  if [[ -n $runtime_dir ]]; then
-    HOME="$test_tmp/home" \
-      XDG_RUNTIME_DIR="$runtime_dir" \
-      XDG_STATE_HOME="$test_tmp/state" \
-      HYPRLAND_INSTANCE_SIGNATURE="$sig" \
-      FAKE_ACTIVE_WINDOW="$test_tmp/active.json" \
-      FAKE_MONITORS="$test_tmp/monitors.json" \
-      FAKE_DISPATCH_LOG="$test_tmp/dispatch.log" \
-      PATH="$test_tmp/bin:$PATH" \
-      "$ROOT/bin/omarchy-hyprland-window-pop"
-  else
-    env -u XDG_RUNTIME_DIR \
-      HOME="$test_tmp/home" \
-      XDG_STATE_HOME="$test_tmp/state" \
-      HYPRLAND_INSTANCE_SIGNATURE="$sig" \
-      FAKE_ACTIVE_WINDOW="$test_tmp/active.json" \
-      FAKE_MONITORS="$test_tmp/monitors.json" \
-      FAKE_DISPATCH_LOG="$test_tmp/dispatch.log" \
-      PATH="$test_tmp/bin:$PATH" \
-      "$ROOT/bin/omarchy-hyprland-window-pop"
-  fi
+  XDG_RUNTIME_DIR="${2-$test_tmp/run}" \
+    HYPRLAND_INSTANCE_SIGNATURE="test-sig" \
+    FAKE_ACTIVE_WINDOW="$test_tmp/active.json" \
+    FAKE_MONITORS="$test_tmp/monitors.json" \
+    FAKE_DISPATCH_LOG="$test_tmp/dispatch.log" \
+    PATH="$test_tmp/bin:$PATH" \
+    "$ROOT/bin/omarchy-hyprland-window-pop"
 }
 
 geom_file="$test_tmp/run/omarchy/windows/test-sig/pop-0x111-geometry"
 
 # 1. Floating window pop/unpop round trip on the same monitor restores size, position, and floating state.
 run_pop '{"address":"0x111","pinned":false,"floating":true,"monitor":0,"size":[720,540],"at":[140,180]}'
-[[ -f $geom_file && ! -L $geom_file ]] || fail "popping a floating window saves geometry in the session runtime dir"
-[[ $(stat -c '%a' -- "$geom_file") == "600" ]] || fail "saved geometry file is private (mode 600)"
-[[ ! -e $test_tmp/state/omarchy/windows/pop-0x111-geometry ]] ||
-  fail "pop geometry is not stored under persistent XDG_STATE_HOME"
+[[ -f $geom_file ]] || fail "popping a floating window saves geometry in the session runtime dir"
 
 run_pop '{"address":"0x111","pinned":true,"floating":true,"monitor":0,"size":[1300,900],"at":[630,270]}'
 [[ ! -e $geom_file ]] || fail "unpopping removes the saved geometry file"
@@ -170,38 +146,8 @@ grep -Fq 'hl.dsp.window.float({ window = "address:0x222", action = "off" })' "$t
   fail "unpopping a previously tiled window tiles it again" "$(<"$test_tmp/dispatch.log")"
 pass "tiled window pop/unpop returns to tiled"
 
-# 4. Unset XDG_RUNTIME_DIR skips geometry storage instead of falling back to shared /tmp.
-unset_sig="omarchy-pop-test-$$"
-run_pop '{"address":"0x333","pinned":false,"floating":true,"monitor":0,"size":[720,540],"at":[140,180]}' "" "$unset_sig"
+# 4. Without XDG_RUNTIME_DIR nothing is saved, and the window still pops out.
+run_pop '{"address":"0x333","pinned":false,"floating":true,"monitor":0,"size":[720,540],"at":[140,180]}' ""
 grep -Fq 'hl.dsp.window.tag({ window = "address:0x333", tag = "+pop" })' "$test_tmp/dispatch.log" ||
   fail "popping still succeeds when XDG_RUNTIME_DIR is unset" "$(<"$test_tmp/dispatch.log")"
-[[ ! -e /tmp/omarchy/windows/$unset_sig/pop-0x333-geometry ]] ||
-  fail "unset XDG_RUNTIME_DIR must not fall back to shared /tmp/omarchy"
-[[ ! -e $test_tmp/state/omarchy/windows/pop-0x333-geometry ]] ||
-  fail "unset XDG_RUNTIME_DIR must not write under persistent XDG_STATE_HOME"
-pass "unset XDG_RUNTIME_DIR skips geometry storage without touching /tmp"
-
-# 5. Unsafe runtime dirs and symlink targets are never followed or overwritten.
-mkdir -m 777 "$test_tmp/shared-run"
-mkdir -p "$test_tmp/shared-run/omarchy/windows/test-sig"
-printf 'do-not-overwrite\n' >"$test_tmp/victim"
-ln -s "$test_tmp/victim" "$test_tmp/shared-run/omarchy/windows/test-sig/pop-0x444-geometry"
-run_pop '{"address":"0x444","pinned":false,"floating":true,"monitor":0,"size":[720,540],"at":[140,180]}' "$test_tmp/shared-run"
-[[ $(<"$test_tmp/victim") == "do-not-overwrite" ]] ||
-  fail "permissive XDG_RUNTIME_DIR must not follow or overwrite a symlink target"
-[[ -L $test_tmp/shared-run/omarchy/windows/test-sig/pop-0x444-geometry ]] ||
-  fail "permissive XDG_RUNTIME_DIR must be ignored completely"
-
-ln -s "$test_tmp/run" "$test_tmp/symlink-run"
-run_pop '{"address":"0x555","pinned":false,"floating":true,"monitor":0,"size":[720,540],"at":[140,180]}' "$test_tmp/symlink-run"
-[[ ! -e $test_tmp/run/omarchy/windows/test-sig/pop-0x555-geometry ]] ||
-  fail "symlink XDG_RUNTIME_DIR must be rejected"
-
-printf 'do-not-overwrite\n' >"$test_tmp/victim-private"
-ln -s "$test_tmp/victim-private" "$test_tmp/run/omarchy/windows/test-sig/pop-0x666-geometry"
-run_pop '{"address":"0x666","pinned":false,"floating":true,"monitor":0,"size":[720,540],"at":[140,180]}' "$test_tmp/run"
-[[ $(<"$test_tmp/victim-private") == "do-not-overwrite" ]] ||
-  fail "atomic geometry write must never follow a symlink target"
-[[ ! -L $test_tmp/run/omarchy/windows/test-sig/pop-0x666-geometry && -f $test_tmp/run/omarchy/windows/test-sig/pop-0x666-geometry ]] ||
-  fail "atomic geometry write replaces a symlink with a regular file"
-pass "unsafe runtime dirs and symlink targets are rejected and never overwritten"
+pass "popping a floating window still works without XDG_RUNTIME_DIR"

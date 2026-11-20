@@ -11,38 +11,14 @@ local function popped(window)
   return false
 end
 
-local function safe_path_component(value)
-  return type(value) == "string"
-    and value ~= ""
-    and value ~= "."
-    and value ~= ".."
-    and value:match("^[%w._-]+$") ~= nil
-end
-
 local function geometry_file(address)
-  if not safe_path_component(address) then
-    return nil
-  end
-
   local runtime_dir = os.getenv("XDG_RUNTIME_DIR")
-  if not runtime_dir or runtime_dir == "" or runtime_dir:sub(1, 1) ~= "/" then
+  if not runtime_dir or runtime_dir == "" then
     return nil
   end
 
-  runtime_dir = runtime_dir:gsub("/+$", "")
-  if runtime_dir == "" then
-    return nil
-  end
-
-  local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
-  if signature and signature ~= "" then
-    if not safe_path_component(signature) then
-      return nil
-    end
-    return runtime_dir .. "/omarchy/windows/" .. signature .. "/pop-" .. address .. "-geometry"
-  end
-
-  return runtime_dir .. "/omarchy/windows/pop-" .. address .. "-geometry"
+  local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE") or ""
+  return runtime_dir .. "/omarchy/windows/" .. signature .. "/pop-" .. address .. "-geometry"
 end
 
 -- A dispatcher move fires this before the window lands, while window.monitor is still
