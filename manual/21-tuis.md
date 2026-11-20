@@ -24,7 +24,7 @@ You start it (or reattach to your existing session) from the app launcher or wit
 
 [Fastfetch](https://github.com/fastfetch-cli/fastfetch) shows system information, like kernel version, uptime, theme, CPU, memory, and more. It's a successor to the popular neofetch tool.
 
-Omarchy has packaged this as _About_ in the Omarchy menu (`Super + Space`).
+Omarchy has packaged this as _System > About_ in the Omarchy menu (`Super + Space`).
 
 ## Cliamp
 

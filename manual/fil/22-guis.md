@@ -1,122 +1,116 @@
-# Mga GUI
+# GUIs
 
 ## Files
 
-Ang Files (Nautilus) ang graphical na file manager. Binubuksan ito ng `Super + Shift + F`, at binubuksan naman ito ng `Super + Shift + Alt + F` sa directory kung nasaan ang terminal mo, kaya malaki ang matitipid mo sa pag-click. Sa `Ctrl + L`, makapagta-type ka ng path, at kapag pinindot mo ang `Space` sa anumang file, makakakuha ka ng mabilis na preview nang hindi nagbubukas ng kahit ano.
+Ang Files (Folio) ang grapikal na file manager. Binubuksan ito ng `Super + Shift + F`, at binubuksan ito ng `Super + Shift + Alt + F` sa direktoryong kinaroroonan ng iyong terminal, na nakakatipid ng maraming pag-click. Hinahayaan ka ng `Ctrl + L` na mag-type ng path, at ipinapakita ng pagpindot ng `Space` sa anumang file ang preview nito sa buong laki nang hindi ito binubuksan.
 
-Isaksak mo ang isang USB stick o isang SD card at awtomatiko itong mai-mount, kaya lalabas na lang ito sa sidebar. Para sa anumang mas masalimuot — pag-format ng drive, pagsuri sa SMART health, paglikha ng mga partition — ilunsad ang _Disks_ mula sa app launcher (`Super + Space`).
+Magsaksak ka ng USB stick o SD card at awtomatiko itong mamo-mount, kaya lalabas na lang ito sa sidebar. Para sa anumang mas masalimuot — pag-format ng drive, pagsuri sa kalusugan ng SMART, paggawa ng mga partition — ilunsad ang _Disks_ mula sa app launcher (`Super + Space`).
 
-Makatuwiran ang sinusunod na mga default ng pag-double-click: bumubukas ang mga larawan, video, at musika sa Omaview, ang mga PDF sa Document Viewer, ang Markdown sa Omawrite, at ang plain text sa editor na pinili sa ilalim ng _Setup > Default > Editor_.
+Sumusunod ang pag-double-click sa mga makatwirang default: bumubukas ang mga larawan, video, at musika sa Omaview, ang mga PDF sa Document Viewer, ang Markdown sa Omawrite, at ang plain text sa editor na pinili sa ilalim ng _Setup > Default > Editor_.
 
 ## Disktree
 
-Kapag napuno ang drive at wala kang ideya kung ano ang kumakain dito, ilunsad ang [Disktree](https://github.com/tobi/disktree) mula sa app launcher (`Super + Space`). Nagpapakita ito ng graphical na treemap ng home directory mo. Mas maraming espasyo ang kinukuha ng mas malalaking block; pumasok sa mga directory gamit ang keyboard o mouse, markahan kung ano ang dapat alisin, at suriin ang mga pinili mo bago mag-alis ng kahit ano. Patakbuhin ang `disktree --disk` para i-scan ang buong disk.
+Kapag napuno na ang drive at wala kang ideya kung ano ang kumakain dito, ilunsad ang [Disktree](https://github.com/tobi/disktree) mula sa app launcher (`Super + Space`). Ipinapakita nito ang isang grapikal na treemap ng iyong home directory. Mas maraming espasyo ang kinukuha ng mas malalaking bloke; pasukin ang mga direktoryo gamit ang keyboard o mouse, markahan ang dapat alisin, at suriin ang iyong mga pinili bago mag-alis ng anuman. Patakbuhin ang `disktree --disk` para i-scan ang buong disk.
 
 ## Obsidian
 
-Ang [Obsidian](https://obsidian.md/) ay isang libre at lubos na napapalawak na application sa pagkuha ng tala na gumagamit ng mga simpleng Markdown file para sa storage.
+Ang [Obsidian](https://obsidian.md/) ay isang libre at lubhang napapalawak na application para sa pagkuha ng tala na gumagamit ng mga simpleng Markdown file para sa storage.
 
 Libre ang Obsidian para sa lahat ng layunin, kabilang ang personal, komersyal, at non-profit na paggamit.
 
-Nag-aalok din ang Obsidian ng [komersyal na add-on para sa pag-sync](https://obsidian.md/sync) sa mga mobile app sa iOS at Android. (https://obsidian.md/pricing).
+Nag-aalok din ang Obsidian ng isang [komersyal na add-on para sa pag-sync](https://obsidian.md/sync) sa mga mobile app sa iOS at Android. (https://obsidian.md/pricing).
 
-Sinisimulan mo ang Obsidian gamit ang `Super + Shift + O`. Para magamit ang theme syncing, kailangan mong piliin ang `Omarchy` theme sa ilalim ng settings.
+Sinisimulan mo ang Obsidian gamit ang `Super + Shift + O`. Para magamit ang pag-sync ng tema, kailangan mong piliin ang temang `Omarchy` sa ilalim ng settings.
 
 ## Omawrite
 
-Ang [Omawrite](https://github.com/omacom-io/omawrite) ang sariling napakasimpleng Markdown writing app ng Omarchy. Walang mga vault, walang mga plugin, ikaw lang at ang mga salita.
+Ang [Omawrite](https://github.com/omacom-io/omawrite) ay ang sariling napakasimpleng Markdown writing app ng Omarchy. Walang mga vault, walang mga plugin, ikaw lang at ang mga salita.
 
 Sinisimulan mo ang Omawrite gamit ang `Super + Shift + W`.
 
 ## Pinta
 
-Ang [Pinta](https://www.pinta-project.com/) ay isang pangunahing tool sa pag-edit ng larawan na mahusay para sa pag-crop, pag-resize, at iba pang pangunahing pagmamanipula. Huwag ka lang umasa ng alternatibo sa Photoshop. Pero mayroon pa rin itong Magic Wand at mga layer!
+Ang [Pinta](https://www.pinta-project.com/) ay isang pangunahing tool sa pag-edit ng larawan na mahusay para sa pag-crop, pag-resize, at iba pang pangunahing manipulasyon. Huwag lang umasa ng alternatibo sa Photoshop. Pero mayroon pa rin itong Magic Wand at mga layer!
 
 Sinisimulan mo ang Pinta sa pamamagitan ng application launcher (`Super + Space`).
 
 ## Aether
 
-Ang [Aether](https://github.com/bjarneo/aether) ay isang theming application na maaaring kumuha ng mga kulay mula sa isang background image at gawing kumpleto at magkakaugnay na theme ang mga ito. Ito ang pinakamadaling paraan para [gumawa ng sarili mong theme](43-making-your-own-theme.md).
+Ang [Aether](https://github.com/bjarneo/aether) ay isang theming application na maaaring kumuha ng mga kulay mula sa isang background image at gawin itong isang kumpleto at magkakaugnay na tema. Ito ang pinakamadaling paraan para [gumawa ng sarili mong tema](43-making-your-own-theme.md).
 
 Sinisimulan mo ang Aether sa pamamagitan ng application launcher (`Super + Space`).
 
 ## LocalSend
 
-Hinahayaan ka ng [LocalSend](https://localsend.org/) na magpadala ng mga file sa iba pang device sa parehong network na nagpapatakbo ng app, tulad ng AirDrop ng Apple. Cross-platform nga lang ito, kaya makapagpapadala ka ng mga file papunta at mula sa Windows, macOS, Android, iOS, at siyempre sa Linux.
+Hinahayaan ka ng [LocalSend](https://localsend.org/) na magpadala ng mga file sa iba pang device sa parehong network na nagpapatakbo ng app, tulad ng AirDrop ng Apple. Cross-platform nga lang ito, kaya makakapagpadala ka ng mga file papunta at mula sa Windows, macOS, Android, iOS, at siyempre Linux.
 
-Mabubuksan mo ang Share menu sa `Super + Ctrl + S` o sa ilalim ng _Trigger > Share_ sa menu ng Omarchy. Binibigyan ka nito ng apat na opsyon:
+Maaari mong buksan ang Share menu sa `Super + Ctrl + S` o sa ilalim ng _Trigger > Share_ sa menu ng Omarchy. Nagbibigay ito sa iyo ng apat na opsyon:
 
-- Ipinapadala ng **Clipboard** bilang text file ang anumang kinopya mo. Mahusay ito para mailagay ang isang link o snippet sa telepono mo nang hindi nag-e-email sa sarili mo.
+- Ipinapadala ng **Clipboard** ang anumang kinopya mo bilang isang text file. Mahusay para mailagay ang isang link o snippet sa iyong telepono nang hindi nag-e-email sa sarili mo.
 - Binubuksan ng **File** ang isang file picker kung saan makakapili ka ng ilan nang sabay-sabay.
-- Ipinapadala ng **Folder** ang isang buong directory.
-- Binubuksan ng **Receive** ang LocalSend mismo para makapagpadala sa iyo ang ibang device ng isang bagay.
+- Ipinapadala ng **Folder** ang isang buong direktoryo.
+- Binubuksan ng **Receive** ang LocalSend mismo para makapagpadala sa iyo ang isa pang device ng isang bagay.
 
 Gumagana rin ang parehong bagay mula sa terminal gamit ang `omarchy share clipboard`, `omarchy share file [path]`, at `omarchy share folder [path]`. Iwanan ang path at makukuha mo ang picker.
 
-Maaari ka ring magpadala nang diretso mula sa file manager: i-right-click ang anumang pinili sa Nautilus at piliin ang _Send via LocalSend_.
+Maaari ka ring magpadala nang diretso mula sa file manager: i-right-click ang anumang pinili sa Files at ibahagi ito sa LocalSend.
 
-Sarado ang firewall ng Omarchy bilang default maliban sa port ng LocalSend, kaya gumagana ito agad sa isang bagong install. Tingnan ang [security](48-security.md).
+Sarado ang firewall ng Omarchy bilang default maliban sa port ng LocalSend, kaya gumagana ito agad sa isang bagong install. Tingnan ang [seguridad](48-security.md).
 
 ## LibreOffice
 
-Ang [LibreOffice](https://www.libreoffice.org/) ay isang kumpletong office package na may word processor, spreadsheet, mga presentation, drawing application, at marami pa. Compatible ito sa mga file mula sa Microsoft Office, kaya mahusay itong paraan para mabuksan ang mga dokumentong Word na iyon.
+Ang [LibreOffice](https://www.libreoffice.org/) ay isang kumpletong office package na may word processor, spreadsheet, mga presentasyon, drawing application, at higit pa. Tugma ito sa mga file mula sa Microsoft Office, kaya ito ay isang mahusay na paraan para mabuksan ang mga Word document na iyon.
 
 Sinisimulan mo ang LibreOffice sa pamamagitan ng application launcher (`Super + Space`).
 
 ## Hype
 
-Ang [Hype](https://github.com/omacom/hype) ang sariling napakasimpleng presentation app ng Omarchy. Ang deck mo ay isang Markdown file na nasa tabi nito ang mga larawan at video nito: isulat ang bawat slide sa ibaba ng isang live preview, i-drag ang mga slide ayon sa pagkakasunod-sunod, pagkatapos ay mag-present nang fullscreen o mag-export sa PDF at PowerPoint. Kinukuha pa nito ang Omarchy theme mo.
+Ang [Hype](https://github.com/omacom/hype) ay ang sariling napakasimpleng presentation app ng Omarchy. Ang iyong deck ay isang solong Markdown file na katabi ang mga larawan at video nito: isulat ang bawat slide sa ibaba ng isang live preview, i-drag ang mga slide sa pagkakasunod-sunod, pagkatapos ay mag-present nang fullscreen o mag-export sa PDF at PowerPoint. Kinukuha pa nito ang iyong temang Omarchy.
 
 Sinisimulan mo ang Hype sa pamamagitan ng application launcher (`Super + Space`). Pindutin ang `?` sa loob nito para makita ang bawat shortcut.
 
 ## Signed
 
-Ang [Signed](https://github.com/omacom/signed) ang sariling napakasimpleng paraan ng Omarchy para pumirma ng mga PDF at sagutan ang mga ito. Ilagay ang na-save mong signature, text, at petsa ngayon kahit saan sa isang page, pagkatapos ay mag-save ng pinirmahang kopya sa tabi ng orihinal. Tingnan ang [Filling out PDFs](27-filling-out-pdfs.md) para sa kung paano.
+Ang [Signed](https://github.com/omacom/signed) ay ang sariling napakasimpleng paraan ng Omarchy para pumirma ng mga PDF at punan ang mga ito. Ilagay ang iyong naka-save na lagda, teksto, at petsa ngayon kahit saan sa isang pahina, pagkatapos ay mag-save ng isang pinirmahang kopya sa tabi ng orihinal. Tingnan ang [Pagpuno sa mga PDF](27-filling-out-pdfs.md) para sa kung paano.
 
 Sinisimulan mo ang Signed sa pamamagitan ng application launcher (`Super + Space`), o magbukas ng PDF gamit ito mula sa file manager.
 
-## Checkmate
+## Game Vibes
 
-Ang [Checkmate](https://github.com/omacom/checkmate) ang sariling 3D chess game ng Omarchy. Laruin ang isang kaibigan sa parehong computer o ang built-in na kalaban sa tatlong antas, sa apat na inukit na set na bawat isa ay gumagalaw sa sarili nitong paraan: orbital craft, inukit na kahoy at ivory, mga nilalang sa kakahuyan, at candy. Walang orasan ang mga laro at nagse-save pagkatapos ng bawat galaw.
+Ang Game Vibes, sa application launcher (`Super + Space`), ay kung saan naroon ang maliliit na laro ng Omarchy: Checkmate, isang 3D chess game laban sa isang kaibigan o sa built-in na kalaban; Cards, Klondike solitaire; at Neon Swarm, isang arcade shooter. Bawat isa ay isang solong web page na sumusunod sa iyong tema. Pumili ng isa gamit ang mga arrow at `Enter`, at bumalik sa listahan gamit ang `Esc` mula sa title screen ng isang laro o `Q` habang naka-pause ito. Bumubukas ito nang full screen: ginagawa itong isang window ng `Super + F`, at isinasara ito ng `Super + W`.
 
-Sinisimulan mo ang Checkmate sa pamamagitan ng application launcher (`Super + Space`), kung saan nakalista ito bilang Chess. Pindutin ang `?` sa loob nito para makita ang bawat shortcut.
-
-## Cards
-
-Ang [Cards](https://github.com/omacom/cards) ang sariling Klondike solitaire ng Omarchy. Bumunot ng tatlo, nang walang limitasyon sa mga pass, sa apat na serye ng baraha: isa ang iginuhit sa mga kulay ng theme mo, at tatlo ang may sariling hitsura. I-click ang isang baraha at pagkatapos ay kung saan ito pupunta, i-drag ito, o i-double-click para ipadala ito sa pinakamagandang lugar. Nagse-save ang mga laro pagkatapos ng bawat galaw.
-
-Sinisimulan mo ang Cards sa pamamagitan ng application launcher (`Super + Space`). I-click ang pangalan nito, o pindutin ang `?`, para makita ang bawat shortcut.
+Lumilitaw din dito ang mga larong ginagawa mo gamit ang isang agent: piliin ang _Make something cool → Game_ sa panel ng mga agent at ilarawan ang isa, o pangalanan ang isang laro na nasa Game Vibes na para patuloy na gawin ito. Kinokopya ito ng agent sa `~/Games/vibes`, kung saan sa iyo na ito para baguhin, at binubuksan ito kapag tapos na. Magagawa mo mismo ang kopyang iyon gamit ang `omarchy games vibes copy <game>`. Ang isang larong ibinabahagi ng iba ay nai-install tulad ng isang tema: piliin ang _Install > Gaming > Game Vibes_ at i-paste ang git address nito, o patakbuhin ang `omarchy games vibes install <git-repo-url>`. Inaalis ulit ng _Remove > Gaming_ ang isa, at kinukuha ng _Update > Game Vibes Games_ ang mga bagong bersyon. Naglo-load ang mga laro ng three.js mula sa web, kaya kailangan nila ng koneksyon para magsimula.
 
 ## Omacalc
 
-Ang [Omacalc](https://github.com/omacom-io/omacalc) ang sariling napakasimpleng calculator ng Omarchy, na bumubukas sa isang floating window.
+Ang [Omacalc](https://github.com/omacom-io/omacalc) ay ang sariling napakasimpleng calculator ng Omarchy, na bumubukas sa isang floating window.
 
-Sinisimulan mo ang Omacalc gamit ang `Super + Shift + Q` (o ang calculator key, kung mayroon ang keyboard mo).
+Sinisimulan mo ang Omacalc gamit ang `Super + Shift + Q` (o ang calculator key, kung mayroon ang iyong keyboard).
 
 ## Signal
 
-Ang [Signal](https://signal.org/) ang nanguna sa E2E encrypted messaging, at isang mahusay na opsyon sa komunikasyon para sa sinumang mas gugustuhing hindi dumaan sa isa sa malalaking tech conglomerate.
+Ang [Signal](https://signal.org/) ay ang nangunguna sa E2E encrypted messaging, at isang mahusay na opsyon sa komunikasyon para sa sinumang mas gustong hindi dumaan sa isa sa malalaking tech conglomerate.
 
-Sinisimulan mo ang Signal gamit ang `Super + Shift + G`. Hindi ito bahagi ng base install, kaya sa unang beses na pindutin mo iyon, aalukin ka ng Omarchy na i-install ito para sa iyo (nasa ilalim din ito ng _Install > Service_ sa menu ng Omarchy).
+Sinisimulan mo ang Signal gamit ang `Super + Shift + G`. Hindi ito bahagi ng base install, kaya sa unang pagkakataong pindutin mo iyon, aalukin ka ng Omarchy na i-install ito para sa iyo (nasa ilalim din ito ng _Install > Service_ sa menu ng Omarchy).
 
 ## Omaview
 
-Ang [Omaview](https://github.com/omacom/omaview) ang sariling napakasimpleng picture viewer at media player ng Omarchy: isang window para sa mga larawan, video, at musika mo. Magbukas ng larawan at ang mga arrow key ang magpapalipat-lipat sa natitira sa folder nito, ginagawa ito ng `N` at `P` para sa anumang bagay, at ipinapakita ng `Ctrl + M` ang buong folder bilang grid. Ipinapakita rin nito ang mga larawang HEIC, AVIF, at JPEG XL, at itinutuloy kung saan ka huminto sa anumang mahaba.
+Ang [Omaview](https://github.com/omacom/omaview) ay ang sariling napakasimpleng picture viewer at media player ng Omarchy: isang window para sa iyong mga larawan, video, at musika. Magbukas ng isang larawan at hahakbang ang mga arrow key sa natitirang bahagi ng folder nito, ginagawa ito ng `N` at `P` para sa anuman, at ipinapakita ng `Ctrl + M` ang buong folder bilang isang grid. Ipinapakita rin nito ang mga larawang HEIC, AVIF, at JPEG XL, at nagpapatuloy kung saan ka tumigil sa anumang mahaba.
 
-Pindutin ang `F` para sa fullscreen, ang `E` para mag-edit ng larawan sa Omasnap o mag-trim ng video sa Omacut, ang `Ctrl + P` para mag-print ng larawan, at ang `Delete` para ilipat ang isang file sa Trash (ibabalik ito ng `Ctrl + Z`). Pindutin ang `?` sa loob nito para makita ang bawat shortcut.
+Pindutin ang `F` para sa fullscreen, `E` para mag-edit ng larawan sa Omasnap o mag-trim ng video sa Omacut, `Ctrl + P` para mag-print ng larawan, at `Delete` para ilipat ang isang file sa Trash (ibabalik ito ng `Ctrl + Z`). Pindutin ang `?` sa loob nito para makita ang bawat shortcut.
 
-Sinisimulan mo ang Omaview bilang _Media Viewer_ sa pamamagitan ng application launcher (`Super + Space`), o mag-double-click na lang ng larawan, video, o kanta sa file manager.
+Sinisimulan mo ang Omaview bilang _Media Viewer_ sa pamamagitan ng application launcher (`Super + Space`), o mag-double-click lang ng isang larawan, video, o kanta sa file manager.
 
 ## Omacut
 
-Ang [Omacut](https://github.com/omacom-io/omacut) ang sariling napakasimpleng video trimmer ng Omarchy. Kapag ang kailangan mo lang ay putulin ang simula at dulo ng isang clip, tatalunin nito ang pagbubukas ng isang buong video editor.
+Ang [Omacut](https://github.com/omacom-io/omacut) ay ang sariling napakasimpleng video trimmer ng Omarchy. Kapag ang kailangan mo lang ay putulin ang simula at dulo ng isang clip, tatalunin nito ang pagbukas ng isang buong video editor.
 
 Sinisimulan mo ang Omacut sa pamamagitan ng application launcher (`Super + Space`).
 
 ## Monologue
 
-Ang [Monologue](https://github.com/omacom/monologue) ang sariling napakasimpleng webcam recorder ng Omarchy. Piliin ang camera at microphone mo nang isang beses, pagkatapos ay pindutin ang `Space` para mag-record, at muli para i-pause at ipagpatuloy ang parehong take. Palagi itong nagre-record sa pinakamataas na resolution ng camera mo, na may live na microphone meter para masuri mo ang levels mo bago ka magsimula.
+Ang [Monologue](https://github.com/omacom/monologue) ay ang sariling napakasimpleng webcam recorder ng Omarchy. Piliin ang iyong camera at microphone nang isang beses, pagkatapos ay pindutin ang `Space` para mag-record, at muli para i-pause at ipagpatuloy ang parehong take. Palagi itong nagre-record sa pinakamataas na resolution ng iyong camera, na may live microphone meter para masuri mo ang iyong mga level bago ka magsimula.
 
-Itigil ang take at bubuksan ito agad sa isang built-in na editor. I-double-click ang isang clip para hatiin ito, i-drag ang mga handle para i-trim ang bawat piraso, at alisin ang mga bahaging ayaw mo. Pagkatapos ay i-save ito bilang MP4. Mananatili ang orihinal mong recording hanggang sa itapon mo ito, kaya palagi kang makakabalik at makakaputol nito nang iba.
+Itigil ang take at bubukas ito agad sa isang built-in na editor. I-double-click ang isang clip para hatiin ito, i-drag ang mga handle para i-trim ang bawat piraso, at alisin ang mga bahaging ayaw mo. Pagkatapos ay i-save ito bilang isang MP4. Mananatiling itinatago ang iyong orihinal na recording hanggang sa itapon mo ito, kaya maaari kang laging bumalik at putulin ito nang iba.
 
 Sinisimulan mo ang Monologue sa pamamagitan ng application launcher (`Super + Space`).
