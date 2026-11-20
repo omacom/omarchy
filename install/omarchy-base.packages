@@ -14,8 +14,9 @@ bluez-utils
 bolt
 brightnessctl
 btop
-chromium
 cliamp
+cmake
+crun
 cups
 cups-filters
 cups-pk-helper
@@ -27,11 +28,11 @@ docker-compose
 docker-rootless-extras
 dosfstools
 dotnet-runtime
-evince
 exfatprogs
 expac
 eza
 fakeroot
+fantasi
 fastfetch
 fcitx5
 fcitx5-chewing
@@ -44,14 +45,17 @@ fcitx5-table-extra
 fd
 ffmpeg
 ffmpegthumbnailer
+folio
 fontconfig
 foot
 fzf
 fuse-overlayfs
+ghostscript
 git
 gliff
 gnome-keyring
 gnome-themes-extra
+google-chrome
 grim
 gpu-screen-recorder
 gum
@@ -66,7 +70,6 @@ hyprland-preview-share-picker
 hyprpicker
 hyprsunset
 imagemagick
-imv
 inetutils
 inotify-tools
 inxi
@@ -86,11 +89,6 @@ man-db
 mariadb-libs
 mise-bin
 monologue
-moonlight-qt
-mpv
-mpv-mpris
-nautilus
-nautilus-python
 gnome-disk-utility
 noto-fonts
 noto-fonts-cjk
@@ -100,23 +98,29 @@ nvim
 obsidian
 omacalc
 omacut
+omaview
 omawrite
 omarchy-nvim
 omarchy-hyprland-titlebars
-# Local model recipes and their engine; Podman comes when a model is set up.
+# Local model recipes and their engine.
 omarchy-local-ai
 # Stock power-profiles-daemon has no cppc_cpufreq driver, so profiles do nothing
 # on ARM laptops. Back to stock once upstream merges MR !236 and !239.
 omarchy-power-profiles-daemon
 omarchy-screensaver
+omarchy-themes-intros
+omarchy-themes-loops
 omasnap
 # OWE owns desktop video backgrounds and feeds the lock screen its frames.
 owe
 pacman-contrib
 pamixer
+papers
 pinta
+plain
 plocate
 plymouth
+podman
 postgresql-libs
 python-gobject
 python-poetry-core
@@ -125,6 +129,7 @@ qt6-declarative
 qt6-multimedia
 qt6-svg
 qt6-wayland
+qtengine
 ttfx
 qemu-user-static-binfmt
 qrencode
@@ -141,8 +146,8 @@ slurp
 socat
 starship
 superwhisper-bin
-sushi
 system-config-printer
+terminus-font
 tesseract
 tesseract-data-eng
 tldr
@@ -168,8 +173,8 @@ woff2-font-awesome
 xdg-desktop-portal-gtk
 xdg-desktop-portal-hyprland
 xdg-terminal-exec
-xorg-xsetroot
-yaru-icon-theme
+xdg-user-dirs
+xorg-xrandr
 yay
 yt-dlp
 zbar

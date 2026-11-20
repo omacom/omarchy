@@ -1,6 +1,7 @@
 {
   "Activity": "سرگرمی",
   "Agent": "ایجنٹ",
+  "Agents": "ایجنٹس",
   "Apps": "ایپس",
   "Audio": "آڈیو",
   "Background switcher": "پس منظر بدلیں",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "فعال ونڈو اوپر دکھائیں",
   "Save window width": "ونڈو کی چوڑائی محفوظ کریں",
   "Screenrecording": "اسکرین ریکارڈنگ",
+  "Screenrecording with no audio": "بغیر آڈیو کے اسکرین ریکارڈنگ",
   "Screenshot": "اسکرین شاٹ",
   "Scroll active workspace backward": "فعال ورک اسپیس پیچھے اسکرول کریں",
   "Scroll active workspace forward": "فعال ورک اسپیس آگے اسکرول کریں",

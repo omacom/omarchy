@@ -45,8 +45,8 @@ verify_defaults() {
   [[ $(omarchy-default-terminal) == "foot" ]] || fail "Foot is the default terminal"
   pass "Foot is the default terminal"
 
-  [[ $(omarchy-default-editor) == "nvim" ]] || fail "Neovim is the default editor"
-  pass "Neovim is the default editor"
+  [[ $(omarchy-default-editor) == "plain" ]] || fail "Plain is the default editor"
+  pass "Plain is the default editor"
 
   [[ $(omarchy-theme-current) != "Unknown" ]] || fail "a current theme is configured"
   pass "a current theme is configured"
@@ -58,7 +58,7 @@ verify_defaults() {
   pass "a monospace font is configured"
 
   [[ $(xdg-mime query default x-scheme-handler/http) == "chromium.desktop" ]] || fail "HTTP MIME handling uses Chromium"
-  [[ $(xdg-mime query default inode/directory) == "org.gnome.Nautilus.desktop" ]] || fail "directory MIME handling uses Nautilus"
+  [[ $(xdg-mime query default inode/directory) == "folio.desktop" ]] || fail "directory MIME handling uses Files"
   pass "desktop MIME handlers are configured"
 }
 

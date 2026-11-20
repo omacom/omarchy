@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick] [--local] [--local-model <recipe>] [--prefer-local] [--agent <id>]
+# omarchy:args=[--inline] [--pick] [--local] [--local-model <recipe>] [--prefer-local] [--agent <id>] [--app-id=<app-id>]
 # omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --local | omarchy agent --agent codex
 
 inline=false
@@ -10,6 +10,8 @@ use_local=false
 prefer_local=false
 local_model=""
 agent_override=""
+app_id="org.omarchy.agent"
+launch_args=("$@")
 
 # Flags only. A bare prompt would shadow the subcommands under this group, so
 # prompts go through omarchy-agent-prompt, which passes one here as --prompt.
@@ -39,6 +41,12 @@ while (($#)); do
     --agent)
       agent_override=${2:?--agent needs an agent id}
       shift 2
+      ;;
+    # A launcher of its own (Codex, Claude Code, Grok Build) gives its windows
+    # their own class, so the dock keeps them under that launcher.
+    --app-id=*)
+      app_id=${1#--app-id=}
+      shift
       ;;
     --prompt)
       prompt=${2:?--prompt needs a value}
@@ -76,13 +84,24 @@ if [[ $prefer_local == "true" && $use_local != "true" ]]; then
   local_model=$(omarchy-agent-local status --json 2>/dev/null | jq -r '
     [.models // {} | to_entries[] | select(.value.unit == "active" and .value.sub_state == "running") | .key] as $up
     | if (.last as $last | $up | index($last)) != null then .last else ($up[0] // empty) end' 2>/dev/null)
-  [[ -n $local_model ]] && use_local=true
+  if [[ -n $local_model ]]; then
+    use_local=true
+    local_running=true
+  fi
 fi
 
 # Only agents with a launch-time overlay can be pointed at the local model. When
 # the default can't, or none is set, the local model opens in pi, or OpenCode
 # without pi: the agents panel launches it whether or not a default was chosen.
-if [[ $use_local == "true" && $agent != "pi" && $agent != "opencode" ]]; then
+# Qwen Code takes one from an omarchy-local-ai new enough to write it.
+local_capable() {
+  case "$1" in
+  pi | opencode) return 0 ;;
+  qwen) omarchy-agent-local overlay --help 2>/dev/null | grep -q qwen ;;
+  *) return 1 ;;
+  esac
+}
+if [[ $use_local == "true" ]] && ! local_capable "$agent"; then
   local_agent=""
   for candidate in pi opencode; do
     if omarchy-cmd-present "$candidate"; then
@@ -106,7 +125,7 @@ fi
 # picked. --pick offers the choice instead of the error, which is what the
 # keybinding wants: a keypress that opens nothing explains nothing.
 if [[ -z $agent ]]; then
-  [[ $pick == "true" ]] && exec omarchy-menu summon setup.default.agent
+  [[ $pick == "true" ]] && exec omarchy-menu summon agent.harness
   echo "Choose default agent with: omarchy default agent <name>" >&2
   exit 1
 fi
@@ -268,6 +287,24 @@ commandcode)
   ;;
 esac
 
+# A model that is set up but not running, as one opened from its launcher may
+# be, is started first, in the terminal the agent will have: loading takes a
+# minute or so, and omarchy-agent-local-warmup puts on a show for it there. So
+# a launch from outside a terminal reruns itself inside one. A model on a
+# paired machine is that machine's to start.
+if [[ $use_local == "true" && ${local_running:-} != "true" && $local_model != */* ]]; then
+  local_state=$(omarchy-agent-local status --json 2>/dev/null | jq -r --arg recipe "$local_model" '
+    (if $recipe == "" then .last // "" else $recipe end) as $recipe
+    | .models[$recipe] // empty | "\(.unit)/\(.sub_state)"' 2>/dev/null)
+  if [[ -n $local_state && $local_state != "active/running" ]]; then
+    if [[ $inline == "true" ]]; then
+      omarchy-agent-local-warmup ${local_model:+"$local_model"} || exit 1
+    else
+      exec omarchy-launch-tui --app-id="$app_id" omarchy-agent --inline "${launch_args[@]}"
+    fi
+  fi
+fi
+
 # --local points the agent at the model `omarchy agent local use` runs, through
 # a launch-time overlay Omarchy owns, never by editing the agent's own config.
 # Only agents with such an overlay can be pointed there.
@@ -282,6 +319,17 @@ if [[ $use_local == "true" ]]; then
     ;;
   pi)
     command+=(--extension "${overlay[0]}" --provider "${overlay[1]}" --model "${overlay[2]}")
+    ;;
+  qwen)
+    # Qwen Code takes the endpoint and model as flags and the key only from
+    # its environment. Terminals launched through uwsm don't inherit ours, and
+    # a key on the command line is anyone's to read, so the terminal's own
+    # shell reads it from its file just before Qwen Code starts.
+    base_url=$(jq -r '.baseUrl // empty' "${overlay[0]}")
+    key_file=$(jq -r '.keyFile // empty' "${overlay[0]}")
+    [[ -n $base_url && -n $key_file ]] || exit 1
+    command=(bash -c 'OPENAI_API_KEY=$(<"$1") || exit 1; export OPENAI_API_KEY; shift; exec "$@"' omarchy-agent-qwen "$key_file"
+      "${command[@]}" --auth-type openai --openai-base-url "$base_url" --model "${overlay[2]}")
     ;;
   esac
 fi
@@ -346,5 +394,5 @@ if [[ $inline == "true" ]]; then
 else
   # A fixed app-id rather than the default org.omarchy.<binary>, so every agent
   # window shares one class for window rules and themes to single out.
-  exec omarchy-launch-tui --app-id=org.omarchy.agent "${command[@]}"
+  exec omarchy-launch-tui --app-id="$app_id" "${command[@]}"
 fi
