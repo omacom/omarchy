@@ -2,16 +2,14 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
+import Quickshell.Services.UPower
 import qs.Commons
 import "BrightnessModel.js" as BrightnessModel
 
 // The display brightness keys, arriving as global shortcuts. On the internal
-// panel they step the backlight here: one brightnessctl write and the OSD in
-// process, instead of omarchy-brightness-display resolving the monitor and
-// device, reading, writing and reading back, then an IPC client for the OSD.
-// They step, clamp and read back the way that script does, so either path
-// lands on the same level and OSD. External and Apple displays go through the
-// script, which drives them over DDC or their own helper.
+// panel the shell chooses the target and keeps the OSD in process. External
+// and Apple displays go through the script, which drives them over DDC or
+// their own helper.
 Item {
   id: root
 
@@ -34,11 +32,7 @@ Item {
     // repeat cannot race the writes.
     if (setProc.running) return true
 
-    var max = readNumber(maxFile)
-    if (!(max > 0)) return false
-    var current = Math.round(100 * readNumber(brightnessFile) / max)
-
-    setProc.command = ["brightnessctl", "-q", "-d", device, "set", BrightnessModel.brightnessKeyTarget(action, current) + "%"]
+    setProc.command = ["omarchy-brightness-memory", "set", action === "raise" ? "+5%" : "5%-"]
     setProc.running = true
     return true
   }
@@ -88,6 +82,32 @@ Item {
       if (!deviceProc.running) deviceProc.running = true
     }
   }
+
+  property bool syncPending: false
+
+  function requestSync() {
+    if (syncProc.running) {
+      syncPending = true
+      return
+    }
+    syncPending = false
+    syncProc.running = true
+  }
+
+  Process {
+    id: syncProc
+    command: ["omarchy-brightness-memory", "sync"]
+    onExited: {
+      if (root.syncPending) Qt.callLater(root.requestSync)
+    }
+  }
+
+  Connections {
+    target: UPower
+    function onOnBatteryChanged() { root.requestSync() }
+  }
+
+  Component.onCompleted: root.requestSync()
 
   Process {
     id: deviceProc
