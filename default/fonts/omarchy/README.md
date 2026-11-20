@@ -34,6 +34,7 @@ The private-use glyphs in `omarchy.ttf` are:
 - `U+E91D` — Kimi, from <https://simpleicons.org/icons/kimi.svg>
 - `U+E91E` — Crush, the heartbit from <https://github.com/charmbracelet/crush/blob/main/internal/oauth/callback/heartbit.svg>, its eyes and mouth cut out
 - `U+E91F` — Muse Code, from <https://simpleicons.org/icons/meta.svg>: Meta publishes no separate Muse mark and dev.meta.ai uses this one
+- `U+E920` — Orca, the path from <https://github.com/stablyai/orca/blob/558845a4a96fe1763a531774c800b16533044ca9/resources/logo.svg>, its group translate folded into the viewBox and its outline grown by 5 units so the hairline stroke holds up at menu size
 
 The agent marks are monochrome so the menu can render them using the active
 theme's foreground and selection colors.

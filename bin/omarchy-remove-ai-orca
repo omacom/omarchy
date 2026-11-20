@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the Orca desktop app and its caches.
+# omarchy:requires-sudo=true
+
+# -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
+set -euo pipefail
+
+# Only the packaged app and the terminal daemon it started. A standalone Orca
+# runtime under ~/.local/share/orca, which a remote Orca may be driving, runs
+# the same binary name from elsewhere and stays up.
+pkill -f '^/opt/Orca/' || true
+
+omarchy-pkg-drop stably-orca-bin
+
+# The app's "install CLI" links ~/.local/bin/orca-ide to its shim, which is
+# about to be gone. Leave a link that points anywhere else alone.
+if [[ $(readlink "$HOME/.local/bin/orca-ide" || true) == /opt/Orca/* ]]; then
+  rm -f "$HOME/.local/bin/orca-ide"
+fi
+
+# Not ~/.config/orca: the CLI and a standalone runtime keep their state there
+# too, along with the workspaces and accounts a reinstall picks back up.
+rm -rf "$HOME/.cache/orca"
+
+echo ""
+echo "Orca has been removed. Its settings stay in ~/.config/orca."
