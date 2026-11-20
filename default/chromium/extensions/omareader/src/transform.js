@@ -341,6 +341,21 @@
     return set;
   }
 
+  // The uncolored longhands a re-emitted var() shorthand resets (background-size,
+  // border-width ...). Every rule's own values for them are mirrored too, so a shorthand
+  // copied after the page's sheets cannot override a later rule's size or geometry: among
+  // the mirrors they cascade exactly as among their sources.
+  let shorthandGeometry = null;
+  function resetByShorthand(prop) {
+    if (!shorthandGeometry) {
+      shorthandGeometry = new Set();
+      for (const sh of VAR_SHORTHANDS) {
+        for (const lh of longhandsOf(sh)) if (!roleOf(lh)) shorthandGeometry.add(lh);
+      }
+    }
+    return shorthandGeometry.has(prop);
+  }
+
   function renderDecls(style, ctx, all = false, rule = null) {
     let out = '';
     const pending = [];
@@ -356,27 +371,16 @@
           out += `${sh}:${transformValue(v, roleOf(sh), ctx)}${style.getPropertyPriority(sh) ? '!important' : ''};`;
         }
       }
-      const emitted = found.slice();
       // background: var(--x) url(a.png); background-size: 10px  -> the CSSOM keeps no text
       // for the shorthand at all, so it is recovered from the sheet's source text.
       if (rule && ctx.rawDecls && pending.some((lh) => roleOf(lh) && !coveredBy(found, lh))) {
         for (const d of ctx.rawDecls(rule)) {
           if (!VAR_SHORTHANDS.includes(d.prop) || found.includes(d.prop) || !d.value.includes('var(')) continue;
-          emitted.push(d.prop);
           out += `${d.prop}:${transformValue(d.value, roleOf(d.prop), ctx)}${d.important ? '!important' : ''};`;
         }
       }
-      // A re-emitted shorthand resets all its longhands; the rule's own explicit ones
-      // (background-size after background) follow it again. Colored ones come below.
-      if (emitted.length) {
-        const reset = emitted.map(longhandsOf);
-        for (let i = 0; i < style.length; i++) {
-          const lh = style[i];
-          const v = style.getPropertyValue(lh);
-          if (!v || roleOf(lh) || !reset.some((set) => set.has(lh))) continue;
-          out += `${lh}:${v}${style.getPropertyPriority(lh) ? '!important' : ''};`;
-        }
-      }
+      // The rule's own longhands (background-size after background) follow its shorthands
+      // below, as in the source.
     }
     for (let i = 0; i < style.length; i++) {
       const prop = style[i];
@@ -395,7 +399,7 @@
       }
       const role = roleOf(prop);
       if (!role) {
-        if (all) out += `${prop}:${v}${important ? '!important' : ''};`;
+        if (all || resetByShorthand(prop)) out += `${prop}:${v}${important ? '!important' : ''};`;
         continue;
       }
       out += `${prop}:${transformValue(v, role, ctx)}${important ? '!important' : ''};`;
