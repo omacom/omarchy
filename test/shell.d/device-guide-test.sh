@@ -152,8 +152,6 @@ make_device 1-2 03f0 0001 HP "LaserJet MFP" S1 "07/01/04:-" "ff/ff/ff:-"
 hp=$(device_json 1-2)
 [[ $(jq -c .guides <<<"$hp") == '["printer.ipp"]' ]] ||
   fail "an IPP-USB printer gets the driverless guide ahead of its vendor's" "$hp"
-jq -e '."printer.ipp".options | any((.packages // []) | index("sane-airscan"))' "$catalog" >/dev/null ||
-  fail "the driverless printer guide still offers scanning, for an HP that scans"
 pass "an IPP-USB printer gets the driverless guide ahead of its vendor's"
 
 make_device 1-3 04f9 0002 Brother "MFC" S2 "07/01/04:-" "ff/ff/ff:-"
@@ -559,6 +557,21 @@ grep -q "lpadmin -p EPSON_L380_Series " "$INSTALL_LOG" &&
   fail "another printer's queue is left alone" "$(cat "$INSTALL_LOG")"
 : >"$QUEUES"
 pass "a second printer of the same model gets a queue of its own"
+
+# An HP that scans over IPP-USB is offered the driverless guide only, so
+# choosing its scanning option has to bring in the scanner software too.
+: >"$INSTALL_LOG"
+printf '%s\n' "Install and set up" \
+  "Driverless printing and scanning with ipp-usb, sane-airscan and Document Scanner, for a printer that scans (Arch repositories)" >"$GUM_ANSWERS"
+PATH="$stub_bin:$ROOT/bin:$PATH" \
+  INSTALLED="$INSTALLED" QUEUES="$QUEUES" GUM_LOG="$GUM_LOG" GUM_ANSWERS="$GUM_ANSWERS" GUM_CONFIRM="$GUM_CONFIRM" \
+  INSTALL_LOG="$INSTALL_LOG" \
+  OMARCHY_USB_DEVICES_PATH="$TMPDIR/sys-all" \
+  OMARCHY_DEVICE_CATALOG="$catalog" \
+    "$ROOT/bin/omarchy-setup-device" 03f0:0001 >/dev/null 2>&1
+grep -Fxq "omarchy-pkg-add ipp-usb sane-airscan simple-scan" "$INSTALL_LOG" ||
+  fail "an HP that scans over IPP-USB gets its scanner software from the driverless guide" "$(cat "$INSTALL_LOG")"
+pass "an HP that scans over IPP-USB gets its scanner software from the driverless guide"
 
 # Two printers of the same model are two rows, and each opens itself.
 : >"$GUM_LOG"
