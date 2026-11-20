@@ -7,7 +7,9 @@ set -euo pipefail
 # Dev is a linked source checkout: OMARCHY_PATH points somewhere other than
 # the package-backed install at /usr/share/omarchy. This takes precedence over
 # the package channels, since the checkout overrides whatever is installed.
-if [[ $OMARCHY_PATH != "/usr/share/omarchy" ]]; then
+# A flavor (OMARCHY_PATH_TYPE=flavor) is built from the package, so it reports
+# the package's channel.
+if [[ $OMARCHY_PATH != "/usr/share/omarchy" && ${OMARCHY_PATH_TYPE:-} != "flavor" ]]; then
   echo dev
   exit 0
 fi

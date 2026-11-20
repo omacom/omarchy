@@ -6,7 +6,9 @@
 
 # /etc/omarchy.conf is written by omarchy-dev-link and reset by
 # omarchy-dev-unlink. When absent, force the packaged default instead of
-# preserving a stale inherited value.
+# preserving a stale inherited value. OMARCHY_PATH_TYPE says what the path
+# holds (package, dev or flavor); a tool that builds a flavor writes its own.
+OMARCHY_PATH_TYPE=
 if [ -f /etc/omarchy.conf ]; then
   . /etc/omarchy.conf
   : "${OMARCHY_PATH:=/usr/share/omarchy}"
@@ -14,6 +16,11 @@ else
   OMARCHY_PATH=/usr/share/omarchy
 fi
 export OMARCHY_PATH
+if [ -n "$OMARCHY_PATH_TYPE" ]; then
+  export OMARCHY_PATH_TYPE
+else
+  unset OMARCHY_PATH_TYPE
+fi
 
 # Only prepend in dev-link mode. On a production install, the binaries are
 # already on PATH as /usr/bin/omarchy-* via the omarchy package — prepending

@@ -6,7 +6,7 @@
 omarchy_path=${OMARCHY_PATH:-/usr/share/omarchy}
 omarchy_path=${omarchy_path%/}
 
-[[ $omarchy_path != "/usr/share/omarchy" ]] || exit 1
+[[ $omarchy_path != "/usr/share/omarchy" && ${OMARCHY_PATH_TYPE:-} != "flavor" ]] || exit 1
 
 branch=$(git -C "$omarchy_path" branch --show-current 2>/dev/null || true)
 if [[ -z $branch ]]; then

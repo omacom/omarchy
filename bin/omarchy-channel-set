@@ -141,7 +141,7 @@ fi
 # to pick it back up rather than dying silently under set -e.
 trap 'echo -e "\nThe channel switch did not complete. Review the error above, then rerun: omarchy-channel-set '"$channel"'" >&2' ERR
 
-if [[ -z $dev_checkout && $OMARCHY_PATH != "/usr/share/omarchy" ]]; then
+if [[ -z $dev_checkout && $OMARCHY_PATH != "/usr/share/omarchy" && ${OMARCHY_PATH_TYPE:-} != "flavor" ]]; then
   leaving_dev=1
 fi
 
@@ -158,7 +158,9 @@ omarchy-refresh-pacman "$pacman_channel"
 # replacement prompts without file overwrites.
 sudo env OMARCHY_UPDATE_PACMAN=1 pacman -S --needed --noconfirm --ask 4 "${packages[@]}"
 
-if [[ -z $dev_checkout ]]; then
+# A flavor's tree is rebuilt from the package this switch installs, so it keeps
+# its path; unlinking would point Omarchy back at stock.
+if [[ -z $dev_checkout && ${OMARCHY_PATH_TYPE:-} != "flavor" ]]; then
   omarchy-dev-unlink --no-reboot
 
   if (( leaving_dev )); then
@@ -171,7 +173,7 @@ if [[ -z $dev_checkout ]]; then
     export PATH=$path
     omarchy-state set reboot-required
   fi
-  export OMARCHY_PATH=/usr/share/omarchy
+  export OMARCHY_PATH=/usr/share/omarchy OMARCHY_PATH_TYPE=package
 fi
 
 # The switch was already confirmed, but the user is still here: keep the

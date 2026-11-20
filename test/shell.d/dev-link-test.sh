@@ -78,7 +78,7 @@ checkout=$(make_checkout checkout)
 : >"$sudoers_file"
 run_dev link "$checkout" --no-reboot >"$test_tmp/link.out"
 
-[[ $(<"$conf_file") == "export OMARCHY_PATH=\"$checkout\"" ]] ||
+[[ $(<"$conf_file") == "export OMARCHY_PATH=\"$checkout\""$'\n''export OMARCHY_PATH_TYPE="dev"' ]] ||
   fail "dev link points OMARCHY_PATH at the checkout" "$(<"$conf_file")"
 pass "dev link points OMARCHY_PATH at the checkout"
 
@@ -132,7 +132,7 @@ run_dev unlink --no-reboot
 
 grep -Fx $'sudo\ttee\t/etc/omarchy.conf' "$log_file" >/dev/null ||
   fail "dev unlink writes the package path without rebooting" "$(cat "$log_file")"
-[[ $(<"$conf_file") == 'export OMARCHY_PATH="/usr/share/omarchy"' ]] ||
+[[ $(<"$conf_file") == 'export OMARCHY_PATH="/usr/share/omarchy"'$'\n''export OMARCHY_PATH_TYPE="package"' ]] ||
   fail "dev unlink writes the package path guard" "$(<"$conf_file")"
 
 # Left behind, it keeps sudo running a checkout nothing else points at.
