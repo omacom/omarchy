@@ -200,6 +200,13 @@ mp.register_event('shutdown', function()
   if rounding_timeout then rounding_timeout:kill() end
 end)
 
+-- Theme folders may contain spaces, as omarchy-theme-set allows. Accept any
+-- plain folder name and refuse anything that could leave the theme directories.
+local function valid_slug(slug)
+  return type(slug) == 'string' and slug ~= '' and not slug:find('[%c/]') and
+    slug:sub(1,1) ~= '.'
+end
+
 local function theme_file(slug, name)
   for _, directory in ipairs({user_themes, omarchy_path and omarchy_path..'/themes' or ''}) do
     if directory ~= '' then
@@ -235,7 +242,7 @@ local function render_palette(template, colors)
 end
 
 local function select_theme(slug)
-  if not slug or not slug:match('^[%w][%w_%-]*$') then return end
+  if not valid_slug(slug) then return end
   selection_generation = selection_generation + 1
   local generation = selection_generation
   if slug == 'automatic' then
@@ -281,7 +288,7 @@ local function theme_menu()
   local slugs, seen = {}, {}
   for _, directory in ipairs({user_themes, omarchy_path and omarchy_path..'/themes' or ''}) do
     for _, slug in ipairs(utils.readdir(directory, 'dirs') or {}) do
-      if slug:match('^[%w][%w_%-]*$') and not seen[slug] and
+      if valid_slug(slug) and not seen[slug] and
         (theme_file(slug, 'colors.toml') or theme_file(slug, 'mpv-theme.conf')) then
         seen[slug] = true
         slugs[#slugs+1] = slug

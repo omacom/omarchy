@@ -167,7 +167,19 @@ def test():
         replacement.replace(theme)
         wait_palette(parsed(dark), parsed(light))
         assert second_property('user-data/omarchy/theme-selection') == 'automatic'
-        for invalid in ('missing-theme-for-test', '../nord', f"nord;touch {home / 'sentinel'}"):
+        # A custom theme folder with spaces is selectable like any other.
+        spaced = 'Walk Handmade Theme'
+        spaced_dir = home / '.config/omarchy/themes' / spaced
+        spaced_dir.mkdir(parents=True)
+        shutil.copyfile(ROOT / 'themes/flexoki-light/colors.toml', spaced_dir / 'colors.toml')
+        command('script-message', 'set-omarchy-theme', spaced)
+        deadline=time.monotonic()+5
+        while property('user-data/omarchy/theme-selection') != spaced and time.monotonic()<deadline:time.sleep(.05)
+        assert property('user-data/omarchy/theme-selection') == spaced, 'Theme with spaces was rejected'
+        assert property('user-data/omarchy/theme') == parsed(light), 'Theme with spaces was not applied'
+        command('script-message', 'set-omarchy-theme', 'nord')
+        wait_palette(parsed(dark), parsed(light))
+        for invalid in ('missing-theme-for-test', '..', '.hidden', 'nord/..', '../nord', f"nord;touch {home / 'sentinel'}"):
           command('script-message', 'set-omarchy-theme', invalid)
           time.sleep(.1)
           assert property('user-data/omarchy/theme') == parsed(dark)
