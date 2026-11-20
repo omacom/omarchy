@@ -148,6 +148,12 @@ function trackChanged(previousSignature, player) {
   return trackSignature(player) !== String(previousSignature || "")
 }
 
+// Browsers clear a track's metadata for a moment mid-skip before the next one
+// arrives, so a change to a blank title is not the new track yet.
+function newTrackArrived(previousSignature, player) {
+  return !!(player && player.trackTitle) && trackChanged(previousSignature, player)
+}
+
 function labelFor(player) {
   if (!player) return ""
   return player.trackTitle || player.identity || player.desktopEntry || ""
@@ -193,6 +199,7 @@ if (typeof module !== "undefined") {
     playerKey: playerKey,
     trackSignature: trackSignature,
     trackChanged: trackChanged,
+    newTrackArrived: newTrackArrived,
     labelFor: labelFor,
     osdMessage: osdMessage,
     volumeKeyStep: volumeKeyStep,
