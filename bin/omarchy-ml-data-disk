@@ -40,7 +40,7 @@ mkdir -p \
   "$root/models/ollama"
 chmod 755 "$root/models" "$root/models/ollama"
 
-if command -v systemctl >/dev/null && systemctl cat ollama.service >/dev/null 2>&1; then
+if omarchy-cmd-present systemctl && systemctl cat ollama.service >/dev/null 2>&1; then
   sudo mkdir -p /etc/systemd/system/ollama.service.d
   printf '[Service]\nEnvironment=OLLAMA_MODELS=%s\n' "$root/models/ollama" |
     sudo tee /etc/systemd/system/ollama.service.d/omarchy-models.conf >/dev/null

@@ -5,7 +5,12 @@ import Quickshell.Io
 Item {
   id: root
 
+  property var shell: null
+  property var manifest: null
   property string label: ""
+
+  readonly property string widgetId: manifest?.id ?? "omarchy.gpu"
+  readonly property bool inBar: shell?.pluginRegistry?.inBar(widgetId) ?? false
 
   function refresh() {
     if (!statusProc.running) statusProc.running = true
@@ -23,11 +28,10 @@ Item {
     }
   }
 
-  // nvidia-smi and rocm-smi have no change signal. One service polls for
-  // every monitor instead of each bar widget starting its own probe.
+  // nvidia-smi and rocm-smi have no change signal, so one shared service polls.
   Timer {
     interval: 5000
-    running: true
+    running: root.inBar
     repeat: true
     triggeredOnStart: true
     onTriggered: root.refresh()
