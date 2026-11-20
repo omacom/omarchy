@@ -158,6 +158,18 @@ run_keyboard --no-osd down
 [[ ! -e $record ]] || fail "a key spends the record"
 pass "a key pressed while blanked steps from the level a wake brings back"
 
+# Keys relit by something else while blanked step from the live level, and the
+# key still spends the record so a later wake does not undo it.
+echo 3 >"$level_file"
+run_keyboard off
+echo 1 >"$level_file"
+run_keyboard --no-osd down
+[[ $(level) == "0" ]] || fail "down after the keys were relit steps from the live level (got $(level))"
+[[ ! -e $record ]] || fail "a key after a relight spends the record"
+run_keyboard restore
+[[ $(level) == "0" ]] || fail "a wake after the key leaves the level the key chose (got $(level))"
+pass "a key after the keys were relit steps from the live level"
+
 # A key that steps the level never leaves a record behind.
 echo 1 >"$level_file"
 run_keyboard --no-osd up
