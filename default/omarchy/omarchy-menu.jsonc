@@ -50,6 +50,7 @@
   "agent.harness.dsh": {"icon":"","iconFont":"omarchy","label":"DeepSeek Harness","checked":"[[ \"$(omarchy-default-agent)\" == \"dsh\" ]]","action":"omarchy-default-agent dsh"},
   "agent.harness.devin": {"icon":"","iconFont":"omarchy","label":"Devin CLI","checked":"[[ \"$(omarchy-default-agent)\" == \"devin\" ]]","action":"omarchy-default-agent devin"},
   "agent.harness.freebuff": {"icon":"","iconFont":"omarchy","label":"Freebuff","checked":"[[ \"$(omarchy-default-agent)\" == \"freebuff\" ]]","action":"omarchy-default-agent freebuff"},
+  "agent.harness.duo": {"icon":"","label":"GitLab Duo CLI","checked":"[[ \"$(omarchy-default-agent)\" == \"duo\" ]]","action":"omarchy-default-agent duo"},
   "agent.harness.grok": {"icon":"","iconFont":"omarchy","label":"Grok","checked":"[[ \"$(omarchy-default-agent)\" == \"grok\" ]]","action":"omarchy-default-agent grok"},
   "agent.harness.hermes": {"icon":"","iconFont":"omarchy","label":"Hermes","checked":"[[ \"$(omarchy-default-agent)\" == \"hermes\" ]]","action":"omarchy-default-agent hermes"},
   "agent.harness.kilo": {"icon":"","iconFont":"omarchy","label":"Kilo","checked":"[[ \"$(omarchy-default-agent)\" == \"kilo\" ]]","action":"omarchy-default-agent kilo"},

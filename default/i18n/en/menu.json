@@ -546,6 +546,9 @@
   "agent.harness.freebuff": {
     "label": "Freebuff"
   },
+  "agent.harness.duo": {
+    "label": "GitLab Duo CLI"
+  },
   "agent.harness.grok": {
     "label": "Grok"
   },
