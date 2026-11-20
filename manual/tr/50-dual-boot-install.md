@@ -1,8 +1,8 @@
-# Çift Önyükleme Kurulumu
+# Çift Önyüklemeli Kurulum
 
 Omarchy'yi Windows'un veya diğer kurulumların yanına tek bir bölüme kurabilirsiniz.
 
-Bu kurulum yöntemi de bölüm için varsayılan olarak LUKS şifrelemesiyle gelir, bu yüzden aslında tam disk kurulumundan hiçbir farkı yoktur ve yalnızca diskte boş alan bulunmasını gerektirir.
+Bu kurulum yöntemi, bölüm için varsayılan olarak hâlâ LUKS şifrelemesiyle gelir, bu yüzden aslında tüm sürücü kurulumundan hiçbir farkı yoktur ve yalnızca diskte boş alan olmasını gerektirir.
 
 ## Windows'ta Yer Açma
 
@@ -18,27 +18,27 @@ Uygun bölümü bulun, sağ tıklayın ve **Birimi Küçült** seçeneğini seç
 
  ![dual-boot-3](images/dual-boot-3.webp)
 
-İşiniz bittiğinde buna benzer bir şey görmelisiniz; bu örnekte 50GB'lik bölüm, Omarchy'yi kuracağımız yerdir.
+İşiniz bittiğinde, buna benzer bir şey görmelisiniz; bu örnekte 50GB'lik bölüm, Omarchy'yi kuracağımız yerdir.
 
  ![dual-boot-4](images/dual-boot-4.webp)
 
 ## Omarchy'yi Kurma
 
-Omarchy kurulum süreci aslında normal kurulumla aynıdır. Diskinizi seçtikten sonra size **Boş alana kurulum** seçeneği sunulacaktır. Tüm diski silmeyi önlemek için bu seçeneği seçin.
+Omarchy kurulum süreci aslında normal kurulumla aynıdır. Diskinizi seçtikten sonra size **Boş alan kurulumu** seçeneği sunulacaktır. Tüm diskin silinmesini önlemek için bu seçeneği seçin.
 
  ![dual-boot-5](images/dual-boot-5.webp)
 
-Her şeyin doğru göründüğünü onaylayın ve kurulumun normal şekilde bitmesini bekleyin. Tam disk kurulumunda olduğu gibi, şifresiz kurulum yapmayı (önerilmez) da buradan seçebilirsiniz.
+Her şeyin düzgün göründüğünü onaylayın ve kurulumun normal şekilde bitmesini bekleyin. Burası aynı zamanda, tıpkı tüm sürücü kurulumunda olduğu gibi, şifresiz kurulum yapmayı seçebileceğiniz yerdir (önerilmez).
  ![dual-boot-6](images/dual-boot-6.webp)
 
 ## Diğer Kurulumları Önyükleyiciye Ekleme
 
-Omarchy kurulumunuzu bitirdiğinizde, artık varsayılanın Limine önyükleyicisi olduğunu fark edeceksiniz. Bununla, Windows gibi diğer kurulumlarınız için de Limine'ye seçenekler ekleyebilirsiniz.
+Omarchy kurulumunuzu bitirdiğinizde, artık varsayılanın Limine önyükleyicisi olduğunu fark edeceksiniz. Bununla, Windows gibi diğer kurulumlarınız için Limine'ye seçenekler de ekleyebilirsiniz.
 
-Diğer işletim sistemlerini eklemek için `limine-scan` çalıştırın ve istediğiniz girdileri Limine yapılandırmanıza eklemek için yönergeleri izleyin. Önyükleme menüsü varsayılan olarak gizli kalır ve bir saniye sonra Omarchy'yi başlatır. Windows'u veya başka bir girdiyi seçmek için Limine başlar başlamaz herhangi bir tuşa basın; menü göründüğünde, bir girdi seçmek için ok tuşlarını kullanın ve Enter tuşuna basın. Siz bir tuşa basmadan Omarchy başlarsa, yeniden başlatın ve tekrar deneyin. _Setup > Direct Boot_ seçeneğini açtıysanız, donanım yazılımı Limine'yi tamamen atlar, bu yüzden BIOS önyükleme menünüzden Limine'yi seçin veya girdiyi kaldırmak için _Setup > Direct Boot_ seçeneğini tekrar çalıştırın.
+Diğer işletim sistemlerini eklemek için `limine-scan` komutunu çalıştırın ve istediğiniz girdileri Limine yapılandırmanıza eklemek için istemleri izleyin. Önyükleme menüsü varsayılan olarak gizli kalır ve bir saniye sonra Omarchy'yi başlatır. Windows'u veya başka bir girdiyi seçmek için Limine başlar başlamaz herhangi bir tuşa basın; menü göründüğünde, bir girdiyi seçmek için ok tuşlarını kullanın ve Enter tuşuna basın. Siz bir tuşa basmadan önce Omarchy başlarsa, yeniden başlatın ve tekrar deneyin.
 
 ## Bitlocker
 
-Bu kurulum yönteminin Bitlocker ile uyumlu olmadığını unutmayın; çünkü Bitlocker yalnızca bölümü değil, tüm sürücüyü şifreler. Bitlocker'ın etkin olduğunu belirten bir hatayla karşılaşırsanız, Windows'u başlatın, **Ayarlar -> Gizlilik ve güvenlik -> Cihaz şifrelemesi** bölümüne gidin ve Bitlocker'ı kapatın. Sürücünün şifresini çözmek biraz zaman alabilir.
+Bu kurulum yönteminin, yalnızca bölümü değil tüm sürücüyü şifrelediği için Bitlocker ile uyumlu olmadığını unutmamak önemlidir. Bitlocker'ın etkin olduğunu belirten bir hatayla karşılaşırsanız, Windows'u başlatın, **Ayarlar -> Gizlilik ve Güvenlik -> Cihaz şifreleme** bölümüne gidin ve Bitlocker'ı kapatın. Sürücünün şifresinin çözülmesi biraz zaman alabilir.
 
  ![dual-boot-7](images/dual-boot-7.webp)
