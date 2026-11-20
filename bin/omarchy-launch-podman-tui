@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# omarchy:summary=Manage containers and images in Podman TUI
+
+systemctl --user start podman.socket || exit 1
+# An older Desktop process may have unlinked the managed socket.
+if [[ ! -S $XDG_RUNTIME_DIR/podman/podman.sock ]]; then
+  systemctl --user stop podman.service || exit 1
+  systemctl --user restart podman.socket || exit 1
+fi
+
+# Podman TUI reads Podman's saved connections rather than discovering the
+# local socket. Seed an empty list, preserving any user-selected connections.
+connections=$(podman system connection list --format '{{.Name}}') || exit 1
+if [[ -z $connections ]]; then
+  podman system connection add omarchy-local "unix://$XDG_RUNTIME_DIR/podman/podman.sock" || exit 1
+fi
+
+exec omarchy-launch-tui podman-tui "$@"

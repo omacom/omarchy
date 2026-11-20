@@ -22,6 +22,8 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
     libreoffice-fresh \
     pinta \
     obsidian \
+    podman-desktop \
+    podman-tui \
     omacut \
     monologue \
     omacalc \

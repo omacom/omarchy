@@ -138,7 +138,7 @@ Run `omarchy --help` for the full list. The most common groups:
 | `omarchy device` | Touchpad, touchscreen, keyboard top row | `omarchy device touchpad off` |
 | `omarchy plugin` | Manage/clone shell plugins | `omarchy plugin clone omarchy.clock` |
 | `omarchy hook` | Install automation hooks | `omarchy hook install theme-set <script>` |
-| `omarchy install` / `remove` | Curated software installers | `omarchy install browser firefox` |
+| `omarchy install` / `remove` | Curated software installers | `omarchy install podman dbs` |
 | `omarchy pkg` | Package management | `omarchy pkg add <pkg>` |
 | `omarchy webapp` / `tui` | Launchers for web apps and terminal apps | `omarchy webapp install` |
 | `omarchy launch` | Launch apps | `omarchy launch browser` |
