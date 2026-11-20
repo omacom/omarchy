@@ -11,9 +11,7 @@ if [[ -z $theme ]]; then
   exit 1
 fi
 
-theme=$(sed -E 's/<[^>]+>//g' <<< "$theme")
-
-if [[ -z $theme || $theme == .* || $theme == */* ]]; then
+if [[ $theme == .* || $theme == */* ]]; then
   echo "Invalid theme name: $1" >&2
   exit 1
 fi
