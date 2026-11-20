@@ -331,6 +331,12 @@
   "trigger.toggle.crash-capture-off": {
     "label": "Crash Capture Off"
   },
+  "trigger.toggle.cua-input-on": {
+    "label": "Cua Input On"
+  },
+  "trigger.toggle.cua-input-off": {
+    "label": "Cua Input Off"
+  },
   "trigger.emoji": {
     "label": "Emoji"
   },
@@ -892,6 +898,9 @@
   "install.ai.claude": {
     "label": "Claude Desktop"
   },
+  "install.ai.cua": {
+    "label": "Cua"
+  },
   "install.ai.grok-bot": {
     "label": "Grok Bot"
   },
@@ -1125,6 +1134,9 @@
   },
   "remove.ai.claude": {
     "label": "Claude Desktop"
+  },
+  "remove.ai.cua": {
+    "label": "Cua"
   },
   "remove.dictation.hex": {
     "label": "Hex"
