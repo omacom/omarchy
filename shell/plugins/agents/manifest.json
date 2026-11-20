@@ -31,6 +31,7 @@
         "kimchi": { "enabled": true },
         "hermes": { "enabled": true },
         "devin": { "enabled": true },
+        "droid": { "enabled": true },
         "vibe": { "enabled": true },
         "qwen": { "enabled": true },
         "opencode": { "enabled": true },
