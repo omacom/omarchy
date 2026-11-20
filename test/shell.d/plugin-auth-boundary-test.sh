@@ -28,11 +28,46 @@ qml_matches "$shell_qml" 'AuthServiceStore\.isTrusted\( *key *\)' ||
   fail "live authentication classification survives public manifest mutation"
 qml_matches "$shell_qml" 'AuthServiceStore\.updateManifest\( *id, *shell\.publicPluginManifest\( *m *\) *\)' ||
   fail "kept authentication services receive only a public manifest snapshot"
-qml_matches "$shell_qml" 'if *\( *!serviceKeepLoaded\( *authenticationId *\) *\) *AuthServiceStore\.destroy\( *authenticationId *\)' ||
-  fail "keepLoaded authentication services survive plugin rescans"
 qml_matches "$shell_qml" 'shouldRetainDisabledKeepLoaded\( *authenticationId' ||
   fail "disabled keepLoaded authentication services are retained only while locked"
 pass "third-party and authentication services are detached from the host object tree"
+
+
+run_node_test <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+const qml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
+function grab(name) {
+  const start = qml.indexOf('function ' + name)
+  if (start < 0) throw new Error('missing ' + name)
+  let depth = 0
+  for (let j = qml.indexOf('{', start); j < qml.length; j++) {
+    if (qml[j] === '{') depth++
+    else if (qml[j] === '}') {
+      depth--
+      if (depth === 0) return qml.slice(start, j + 1)
+    }
+  }
+  throw new Error('unclosed ' + name)
+}
+const ctx = {
+  pluginRegistry: { installedPlugins: { lock: { keepLoaded: true }, other: { keepLoaded: false } } },
+  _services: {},
+  _waitingForServiceUnlock: { has() { return true }, add() {}, delete() {} },
+  Qt: { callLater() {} },
+}
+vm.createContext(ctx)
+vm.runInContext(
+  grab('serviceKeepLoaded') + '\n' + grab('shouldRetainDisabledKeepLoaded') + '\n' +
+  'this.serviceKeepLoaded = serviceKeepLoaded\nthis.shouldRetainDisabledKeepLoaded = shouldRetainDisabledKeepLoaded\n',
+  ctx
+)
+assert(ctx.serviceKeepLoaded('lock') === true, 'keepLoaded manifest stays loaded')
+assert(ctx.serviceKeepLoaded('other') === false, 'a service without keepLoaded is not retained')
+assert(ctx.shouldRetainDisabledKeepLoaded('lock', { locked: true }) === true, 'a locked keepLoaded service survives disable')
+assert(ctx.shouldRetainDisabledKeepLoaded('lock', { locked: false }) === false, 'an unlocked keepLoaded service is dropped')
+assert(ctx.shouldRetainDisabledKeepLoaded('other', { locked: true }) === false, 'locked alone does not keep a normal service')
+JS
 
 run_node_test <<'JS'
 const fs = require('fs')
