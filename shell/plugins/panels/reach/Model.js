@@ -133,10 +133,21 @@ function finish(row) {
 }
 
 // Put `name` at `index` in the row (clamped), moving it if it's already in.
+// The spelling written back into the row. This machine stays `me` even when
+// the status file listed it as a domain name; anything else keeps the
+// spelling already in the row.
+function keptName(screens, me, name) {
+  if (sameHost(name, me)) return me
+  var row = ownRow(screens, me)
+  var at = indexOf(row, name)
+  return at === -1 ? text(name) : row[at]
+}
+
 function moveTo(screens, me, name, index) {
+  if (shortName(name) === "") return finish(ownRow(screens, me))
   var row = ownRow(screens, me).filter(function(s) { return !sameHost(s, name) })
   var i = Math.max(0, Math.min(row.length, Math.round(index)))
-  row.splice(i, 0, indexOf(screens, name) === -1 ? name : screens[indexOf(screens, name)])
+  row.splice(i, 0, keptName(screens, me, name))
   return finish(row)
 }
 
