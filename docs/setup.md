@@ -70,3 +70,13 @@ A row whose action the tour cannot read a value from, such as a harness a menu e
 ## The pages
 
 Outside the tour, a click or Enter runs the row as the menu would and closes Setup. It closes for the same reason the menu does: most rows open a terminal, the editor or a picker, which could not be reached under an overlay that holds the keyboard. The scene previews the option under the cursor, so what is there to see is seen before anything runs.
+
+## First run
+
+`install/user/first-run/welcome-tour.sh` opens the tour once for a new user, from `omarchy-provision-first-run`, ahead of first run's toasts. It runs `omarchy launch setup welcome --wait`, so the toasts arrive after the tour rather than over it. Closing the tour is an answer, whether or not anything was picked, and marks `welcome-tour` done.
+
+A tour that could not be shown is left unmarked, and the step still passes: a failed step would run all of first run again at the next login, toasts included. The tour stays under _Setup > Welcome_.
+
+The tour is also the invitation to pick an agent. When the wait's reply names the agent step, the same script marks first run's `agent-setup-invitation` done before first run goes on to send that toast; `omarchy-setup-essentials` marks it too and takes down a toast already on screen, for a tour taken later from the menu.
+
+An image that should never show the tour, such as one for a kiosk or a test harness, creates the marker ahead of first login: `~/.local/state/omarchy/done/welcome-tour`. `test/acceptance` does the same, and closes a tour already open for as long as first run could still open one.
