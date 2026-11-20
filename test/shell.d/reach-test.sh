@@ -115,4 +115,15 @@ assertDeepEqual(
 )
 const padded = reach.parseStatus(JSON.stringify({ me: 'desk', screens: [' desk '], circle: { up: true, peers: [] } }))
 assertDeepEqual(padded.screens, ['desk'], 'reach trims the name of a machine in the row')
+
+assertDeepEqual(
+  reach.nudge(['desk.local', 'laptop'], 'desk', 'desk', 1),
+  ['laptop', 'desk'],
+  'reach keeps this machine\'s own name when the row moves it'
+)
+assertDeepEqual(
+  reach.place(['desk.local', 'laptop'], 'desk', ' mini ', 'left'),
+  ['mini', 'desk', 'laptop'],
+  'reach trims a machine as it is added, and does not rename this one'
+)
 JS
