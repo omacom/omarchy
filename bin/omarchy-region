@@ -1,0 +1,112 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set how dates, times, numbers and units are written
+# omarchy:args=[<code>|list|default]
+# omarchy:examples=omarchy region | omarchy region en-DK | omarchy region default | omarchy region list
+
+set -euo pipefail
+
+locales_json=$OMARCHY_PATH/default/i18n/locales.json
+regions_json=$OMARCHY_PATH/default/i18n/regions.json
+samples_json=$OMARCHY_PATH/default/i18n/format-samples.json
+
+source omarchy-locale-session
+
+# The categories that say how things are written. LANG and LC_MESSAGES stay
+# with the language, so the interface keeps speaking it.
+categories=(LC_TIME LC_NUMERIC LC_MONETARY LC_MEASUREMENT LC_PAPER)
+
+# uwsm sources this at login after 50-omarchy-language, so these win over the
+# LANG it sets for the categories they name.
+session_env=${XDG_CONFIG_HOME:-$HOME/.config}/uwsm/env.d/51-omarchy-region
+
+# Every code a format choice can name: the regions, then the languages, whose
+# locales are their own regions'.
+registry() {
+  jq -n --slurpfile languages "$locales_json" --slurpfile regions "$regions_json" '$regions[0] + $languages[0]'
+}
+
+locale_for() {
+  registry | jq -r --arg code "$1" '.[$code].locale // empty'
+}
+
+name_for() {
+  registry | jq -r --arg code "$1" '.[$code].name // empty'
+}
+
+# The code whose locale the session's formats name, regions first, or
+# "default" when they follow the language.
+current_region() {
+  local locale=""
+  [[ -f $session_env ]] && locale=$(sed -n 's/^export LC_TIME=//p' "$session_env" | head -n 1)
+
+  local code=""
+  if [[ -n $locale ]]; then
+    code=$(registry | jq -r --arg locale "$locale" '[to_entries[] | select(.value.locale == $locale) | .key][0] // empty')
+  fi
+  echo "${code:-default}"
+}
+
+list_regions() {
+  # One tab-delimited row per choice: code, name, sample. The regions come
+  # first, then each language's own region, sorted by English name and
+  # skipping a locale a region already offers (en is en-US).
+  jq -nr --slurpfile languages "$locales_json" --slurpfile regions "$regions_json" --slurpfile samples "$samples_json" '
+    ($regions[0] | to_entries) as $regions
+    | ($regions | map(.value.locale)) as $offered
+    | ($languages[0] | to_entries | map(select(.value.locale as $locale | $offered | index($locale) | not)) | sort_by(.value.englishName)) as $languages
+    | ($regions + $languages)[]
+    | [.key, .value.name, ($samples[0][.value.locale] // "")] | @tsv
+  '
+}
+
+set_region() {
+  local code=$1 locale name
+  locale=$(locale_for "$code")
+  if [[ -z $locale ]]; then
+    echo "Usage: omarchy-region [<code>|list|default]" >&2
+    echo "Unknown region code: $code" >&2
+    echo "Run 'omarchy-region list' to see the available codes." >&2
+    exit 1
+  fi
+  name=$(name_for "$code")
+
+  # Written only once the locale exists, so a cancelled password prompt
+  # cannot point the formats at a locale the system doesn't have.
+  generate_locale "$code" "$locale"
+
+  local category assignments=()
+  for category in "${categories[@]}"; do
+    assignments+=("$category=$locale")
+  done
+  mkdir -p "$(dirname "$session_env")"
+  {
+    echo "# How dates, times, numbers and units are written, set by omarchy-region (Setup > Region > Formats)."
+    printf 'export %s\n' "${assignments[@]}"
+  } >"$session_env"
+  apply_session_env "${assignments[@]}"
+
+  omarchy-notification-send -g 󰃰 "$(omarchy-i18n region.changed "$name")" "$(omarchy-i18n language.newApps)"
+}
+
+follow_language() {
+  rm -f "$session_env"
+  apply_session_env "${categories[@]/%/=}"
+
+  omarchy-notification-send -g 󰃰 "$(omarchy-i18n region.followsLanguage)" "$(omarchy-i18n language.newApps)"
+}
+
+case "${1:-}" in
+"")
+  current_region
+  ;;
+list)
+  list_regions
+  ;;
+default)
+  follow_language
+  ;;
+*)
+  set_region "$1"
+  ;;
+esac
