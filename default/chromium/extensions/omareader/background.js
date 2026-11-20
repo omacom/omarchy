@@ -64,15 +64,7 @@ const CSS_TIMEOUT_MS = 10000;
 const CSS_MAX_BYTES = 5 * 1024 * 1024;
 const cssCache = new Map();
 
-const { isPrivateHost } = OmareaderNet;
-
-function originHost(sender) {
-  try {
-    return new URL(sender.origin || sender.url).hostname;
-  } catch {
-    return '';
-  }
-}
+const { isPrivateHost, isPrivateOrigin } = OmareaderNet;
 
 // The body as UTF-8 text (as res.text() decodes it), or null once it passes `limit` bytes.
 async function readCapped(res, limit) {
@@ -162,7 +154,7 @@ async function imageStatsOnce(url, allowPrivate) {
 async function fetchCss(url, sender) {
   // Only our own content scripts running in a tab may ask.
   if (sender.id !== chrome.runtime.id || !sender.tab) return { ok: false, error: 'bad sender' };
-  const allowPrivate = isPrivateHost(originHost(sender));
+  const allowPrivate = isPrivateOrigin(sender.origin || sender.url);
   const key = `${allowPrivate ? 'p' : 'o'}|${url}`;
   const hit = cssCache.get(key);
   if (hit) return hit;
@@ -177,7 +169,7 @@ async function fetchCss(url, sender) {
 const imageCache = new Map();
 async function imageStats(url, sender) {
   if (sender.id !== chrome.runtime.id || !sender.tab) return { ok: false, error: 'bad sender' };
-  const allowPrivate = isPrivateHost(originHost(sender));
+  const allowPrivate = isPrivateOrigin(sender.origin || sender.url);
   const key = `${allowPrivate ? 'p' : 'o'}|${url}`;
   const hit = imageCache.get(key);
   if (hit) return hit;

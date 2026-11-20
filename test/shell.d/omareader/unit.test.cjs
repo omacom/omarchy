@@ -395,6 +395,11 @@ test('private-network classification covers canonical bypass forms', () => {
   ]) assert.ok(N.isPrivateHost(host(u)), `${u} (${host(u)}) should be private`);
   for (const u of ['https://cdn.jsdelivr.net/x.css', 'http://8.8.8.8/', 'http://[2606:4700::1111]/', 'https://example.com./a'])
     assert.ok(!N.isPrivateHost(host(u)), `${u} should be public`);
+  // Only a sender whose own host is private may reach private hosts; a sandboxed frame's
+  // opaque origin must not unlock them.
+  assert.ok(N.isPrivateOrigin('http://192.168.1.1'));
+  for (const o of ['null', '', 'data:text/html,x', 'file:///tmp/x.html', 'https://example.com'])
+    assert.ok(!N.isPrivateOrigin(o), `${o || '(empty)'} should not count as a private origin`);
 });
 
 test('mode setting migrates from the old on/off flag', () => {

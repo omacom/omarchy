@@ -51,5 +51,18 @@
     return !h.includes('.');
   }
 
-  root.OmareaderNet = { isPrivateHost };
+  // Whether a requesting page's origin is itself on a private network, which is what lets
+  // it reach private hosts. Opaque origins (a sandboxed frame sends "null") and anything
+  // without a host say nothing about where the page lives, so they count as public.
+  function isPrivateOrigin(origin) {
+    let host;
+    try {
+      host = new URL(origin).hostname;
+    } catch {
+      return false;
+    }
+    return host !== '' && isPrivateHost(host);
+  }
+
+  root.OmareaderNet = { isPrivateHost, isPrivateOrigin };
 })(globalThis);
