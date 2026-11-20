@@ -23,6 +23,7 @@ set_fallback_default_browser() {
 
 # PIDs running a binary owned by this package. Matching on package contents needs no per-browser
 # paths, and separates Brave from Brave Origin, which both run a process named "brave".
+# Other users' processes can't be read without root, so only this user's browser is closed.
 package_pids() {
   local package=$1 file exe exe_link pid
   local -A owned_files=()

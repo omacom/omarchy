@@ -10,8 +10,17 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 # removal, sudo and the package database stubbed so nothing real is touched.
 test_tmp=$(mktemp -d)
 fake_pids=()
+# Kills the fakes still running from this test's directory, never a process
+# that has since taken over a fake's PID.
+kill_fakes() {
+  local pid exe
+  for pid in "${fake_pids[@]}"; do
+    exe=$(readlink "/proc/$pid/exe" 2>/dev/null) || continue
+    [[ $exe != "$test_tmp"/* ]] || kill -KILL "$pid" 2>/dev/null || true
+  done
+}
 cleanup() {
-  ((${#fake_pids[@]} == 0)) || kill -KILL "${fake_pids[@]}" 2>/dev/null || true
+  kill_fakes
   rm -rf "$test_tmp"
 }
 trap cleanup EXIT
@@ -27,9 +36,8 @@ cat >"$stub_bin/pacman" <<SH
 echo "$test_tmp/opt/\$2/"
 echo "$test_tmp/opt/\$2/brave"
 SH
-# Removal records which fake browsers were still alive at that moment. This
-# test is their parent and can't reap them while it waits on the removal, so a
-# zombie counts as gone, as it would be once the session reaped it.
+# Removal records which fake browsers were still alive at that moment. A killed
+# fake this test hasn't reaped yet is a zombie, which counts as gone.
 cat >"$stub_bin/omarchy-pkg-drop" <<'SH'
 #!/bin/bash
 alive=()
@@ -54,6 +62,7 @@ start_fake() {
   cp "$binary" "$test_tmp/opt/$package/brave"
   "$test_tmp/opt/$package/brave" "$@" &
   fake_pids+=("$!")
+  # Keep bash from reporting the fakes this test kills.
   disown "$!"
   printf '%s\n' "${fake_pids[@]}" >"$test_tmp/pids"
 }
@@ -66,8 +75,7 @@ remove() {
 }
 
 stop_fakes() {
-  kill -KILL "${fake_pids[@]}" 2>/dev/null || true
-  wait "${fake_pids[@]}" 2>/dev/null || true
+  kill_fakes
   fake_pids=()
   : >"$test_tmp/pids"
 }
