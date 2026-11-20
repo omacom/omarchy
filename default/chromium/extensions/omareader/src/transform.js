@@ -116,20 +116,34 @@
       const [first, fallback] = splitTopLevelComma(inner);
       const varName = first.trim();
       if (!varName.startsWith('--') || varName.startsWith('--omareader-')) return `${name}(${inner})`;
-      const fb = fallback === undefined ? '' : `,${transformValue(fallback, role, ctx)}`;
+      // rgba(var(--on-surface-rgb, 31,31,31), .38): while the variable is undefined, the
+      // channel triple in its fallback is the color that renders.
+      const triple = ctx.channelFn && fallback !== undefined && parseTriple(fallback.trim());
+      const fb = fallback === undefined ? ''
+        : triple ? `,${formatTriple(triple, ctx.mapper.map(triple.color, role))}`
+          : `,${transformValue(fallback, role, ctx)}`;
       // The original variable is the fallback: it covers non-color variables (widths in a
       // border shorthand) and variables defined somewhere this extension could not read.
       return `var(${typedName(role, varName)}, var(${varName}${fb}))`;
     }
+    let channelFn = null;
     if (COLOR_FNS.has(fn)) {
       const c = C.parse(`${fn}(${inner})`);
       if (c) return mapColor(c, role, ctx);
       if (inner.includes('var(') && !/\bfrom\b/.test(inner)) {
         const lit = legacyWithVarAlpha(fn, inner, role, ctx);
         if (lit) return lit;
+        if (/^(rgba?|hsla?)$/.test(fn)) channelFn = fn;
       }
     }
-    return `${name}(${transformValue(inner, role, ctx)})`;
+    // Channel context covers var() chains directly inside rgb()/hsl(), nothing deeper.
+    const outer = ctx.channelFn;
+    ctx.channelFn = channelFn;
+    try {
+      return `${name}(${transformValue(inner, role, ctx)})`;
+    } finally {
+      ctx.channelFn = outer;
+    }
   }
 
   const ZERO_LEN = /^[-+]?0*\.?0+([a-z]+)?$/i;
@@ -186,7 +200,7 @@
       role = 'border';
     }
     // url() output depends on the sheet's base URL, so those values are not cached.
-    const cacheKey = ctx.values && !v.includes('url(') ? role + '\u0000' + v : null;
+    const cacheKey = ctx.values && !v.includes('url(') ? (ctx.channelFn ? '#' : '') + role + '\u0000' + v : null;
     const hit = cacheKey ? ctx.values.get(cacheKey) : undefined;
     if (hit !== undefined) return hit;
     let out = '';

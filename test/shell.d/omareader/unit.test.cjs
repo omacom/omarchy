@@ -261,6 +261,24 @@ test('variables are renamed per role with the original as fallback', () => {
   assert.match(X.transformValue('color-mix(in srgb, white 50%, var(--x))', 'bg', c), /^color-mix\(in srgb, #151e26 50%, var\(--omareader-bg--x, var\(--x\)\)\)$/);
 });
 
+test('channel-triple fallbacks inside rgb()/hsl() map like the color they render', () => {
+  const c = ctx();
+  // Google Docs' disabled menu text: the -rgb variable is undefined, so 31,31,31 renders.
+  const m = c.mapper.map(C.parse('rgb(31,31,31)'), 'text');
+  assert.equal(
+    X.transformValue('rgba(var(--on-rgb,31,31,31),.38)', 'text', c),
+    `rgba(var(--omareader-text--on-rgb, var(--on-rgb,${[m.r, m.g, m.b].map(Math.round).join(',')})),.38)`,
+  );
+  assert.ok(C.toOklab(m).L > 0.8);
+  const light = X.transformValue('rgb(var(--a, var(--b, 31 31 31)) / .5)', 'text', c).match(/var\(--b,(\d+) (\d+) (\d+)\)/);
+  assert.ok(light && C.toOklab({ r: +light[1], g: +light[2], b: +light[3], a: 1 }).L > 0.8, 'nested chain fallback maps');
+  assert.match(X.transformValue('hsl(var(--bg, 0 0% 100%))', 'bg', c), /var\(--bg,[\d.]+ [\d.]+% [\d.]+%\)\)\)$/);
+  assert.ok(!/100%\)\)\)$/.test(X.transformValue('hsl(var(--bg, 0 0% 100%))', 'bg', c)), 'white hsl fallback darkens');
+  // Outside a channel position the same text is not a color.
+  assert.equal(X.transformValue('var(--pad, 1 2 3)', 'text', c), 'var(--omareader-text--pad, var(--pad, 1 2 3))');
+  assert.equal(X.transformValue('rgb(calc(var(--n, 1 2 3)) 0 0)', 'text', c).includes('var(--n, 1 2 3)'), true);
+});
+
 test('typed custom properties cover full colors, rgb triples and hsl triples', () => {
   const c = ctx();
   const plain = Object.fromEntries(X.typedVars('--surface', '#ffffff', c));
