@@ -54,3 +54,15 @@ function hasActiveLock() {
   }
   return false
 }
+
+// A polkit prompt is on screen from the request until its close animation ends.
+function hasOpenPrompt() {
+  var keys = ids()
+  for (var i = 0; i < keys.length; i++)
+    if (services[keys[i]].dialogVisible === true) return true
+  return false
+}
+
+function holdsEngineReload() {
+  return hasActiveLock() || hasOpenPrompt()
+}

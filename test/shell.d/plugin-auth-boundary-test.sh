@@ -62,6 +62,16 @@ assert(store.hasActiveLock(), 'a lock whose bound property went stale still hold
 store.put('my.lock', { locked: true, currentlyLocked: () => false })
 assert(!store.hasActiveLock(), 'a stale locked property does not hold an engine reload after unlock')
 store.destroyAll()
+
+const prompt = { dialogVisible: false }
+store.put('omarchy.polkit', prompt)
+assert(!store.holdsEngineReload(), 'a closed polkit prompt holds no engine reload')
+prompt.dialogVisible = true
+assert(store.holdsEngineReload(), 'an open polkit prompt holds an engine reload')
+store.destroyAll()
+store.put('my.polkit', { dialogVisible: true })
+assert(store.holdsEngineReload(), 'a prompt in an authentication clone also holds an engine reload')
+store.destroyAll()
 JS
 
 qml_matches "$shell_qml" 'inst\.shell *= *shell\.pluginShellFor\( *manifest *\)' ||

@@ -69,6 +69,7 @@ ShellRoot {
   property bool pluginReloadPending: false
   property bool localPluginNeedsReload: false
   property bool localPluginQmlReloadPending: false
+  property bool localPluginReloadHoldLogged: false
 
   Timer {
     id: localPluginReloadTimer
@@ -76,7 +77,7 @@ ShellRoot {
     onTriggered: {
       shell.localPluginQmlReloadPending = PluginReload.flush(
         shell.localPluginQmlReloadPending,
-        AuthServiceStore.hasActiveLock(),
+        AuthServiceStore.holdsEngineReload(),
         function() { Quickshell.reload(false) },
         function() {
           if (shell.localPluginNeedsReload) {
@@ -86,8 +87,14 @@ ShellRoot {
             shell.rescanPlugins()
           }
         })
-      if (shell.localPluginQmlReloadPending) {
-        // Keep the edit queued until unlock without polling the idle shell.
+      if (!shell.localPluginQmlReloadPending) {
+        shell.localPluginReloadHoldLogged = false
+      } else {
+        if (!shell.localPluginReloadHoldLogged) {
+          shell.localPluginReloadHoldLogged = true
+          console.log("Plugin source reload waits for the lock or an authentication prompt")
+        }
+        // Keep the edit queued until the lock and any prompt are gone.
         localPluginReloadTimer.interval = 1000
         localPluginReloadTimer.start()
       }

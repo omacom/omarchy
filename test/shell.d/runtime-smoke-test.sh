@@ -54,7 +54,8 @@ QML
 
 # The test shell must not answer polkit. Run from a session of its own (ssh, a
 # VM worker), its agent registers and takes NetworkManager's requests, showing
-# prompts nobody answers. This clone replaces omarchy.polkit with no agent.
+# prompts nobody answers. This clone replaces omarchy.polkit with no agent and
+# stands in for an open prompt, which must hold a source reload.
 prompt_id="acme.prompt"
 prompt_dir="$SCRATCH_HOME/.config/omarchy/plugins/$prompt_id"
 mkdir -p "$prompt_dir"
@@ -72,8 +73,19 @@ cat >"$prompt_dir/manifest.json" <<JSON
 JSON
 cat >"$prompt_dir/Prompt.qml" <<'QML'
 import QtQuick
+import Quickshell.Io
 
-Item {}
+Item {
+  property bool dialogVisible: false
+  property string marker: ""
+
+  IpcHandler {
+    target: "acme-prompt"
+    function show(value: string): string { marker = value; dialogVisible = true; return "ok" }
+    function hide(): string { dialogVisible = false; return "ok" }
+    function get(): string { return marker }
+  }
+}
 QML
 
 # A keepLoaded service must keep its instance (and in-memory state) across a
@@ -492,6 +504,20 @@ pass "QML edits refresh the mounted plugin through the live watcher and shell re
 sed -i 's/js-before/js-after/' "$hot_reload_dir/Model.js"
 wait_source_version "qml-after:js-after"
 pass "imported JavaScript edits refresh through the live watcher and shell reload"
+
+# Rebuilding the engine under an open prompt would cancel it, and pkexec fails.
+[[ $(scratch_ipc acme-prompt show held) == "ok" ]] || fail_with_log "the stand-in prompt opens"
+sed -i 's/qml-after/qml-held/' "$hot_reload_dir/Overlay.qml"
+for _ in {1..100}; do
+  grep -q "Plugin source reload waits" "$SCRATCH_LOG" && break
+  sleep 0.1
+done
+[[ $(scratch_ipc acme-prompt get) == "held" && $(scratch_ipc acme-hot-reload sourceVersion) == "qml-after:js-after" ]] ||
+  fail_with_log "an open prompt holds a source reload"
+scratch_ipc_quiet acme-prompt hide >/dev/null
+wait_source_version "qml-held:js-after"
+[[ -z $(scratch_ipc acme-prompt get) ]] || fail_with_log "the held source reload runs once the prompt closes"
+pass "an open prompt holds a source reload until it closes"
 
 scratch_ipc_quiet shell hide omarchy.emojis >/dev/null
 scratch_ipc_quiet shell setPluginEnabled "$hot_reload_id" false >/dev/null

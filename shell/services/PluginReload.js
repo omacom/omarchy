@@ -12,10 +12,11 @@ function quietInterval(sourcePending) {
   return sourcePending ? 500 : 150
 }
 
-// Return whether the engine reload is still pending. Never tear down the
-// ext-session-lock client while it owns (or is acquiring) the session lock.
-function flush(sourcePending, locked, reloadShell, reloadPlugins) {
-  if (sourcePending && locked) return true
+// Return whether the engine reload is still pending. An engine reload tears
+// down every authentication service, so it never runs while one is held: the
+// session lock owned or being acquired, or a polkit prompt.
+function flush(sourcePending, held, reloadShell, reloadPlugins) {
+  if (sourcePending && held) return true
   if (sourcePending) reloadShell()
   else reloadPlugins()
   return false
