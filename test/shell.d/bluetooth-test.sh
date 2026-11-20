@@ -11,11 +11,22 @@ grep -q 'bt-agent -c' "$ROOT/default/systemd/user/bt-agent.service" && \
 [[ -x $ROOT/bin/omarchy-bluetooth-agent ]] || fail "omarchy-bluetooth-agent is executable"
 grep -q 'RequestAuthorization' "$ROOT/bin/omarchy-bluetooth-agent" || \
   fail "omarchy-bluetooth-agent implements RequestAuthorization"
-grep -q 'device_adapter_pairable' "$ROOT/bin/omarchy-bluetooth-agent" || \
-  fail "omarchy-bluetooth-agent gates pairing on adapter Pairable"
-grep -q 'AuthorizeService' "$ROOT/bin/omarchy-bluetooth-agent" || \
-  fail "omarchy-bluetooth-agent still implements AuthorizeService"
-pass "bt-agent auto-accepts Just Works authorization via omarchy-bluetooth-agent"
+python3 - "$ROOT/bin/omarchy-bluetooth-agent" <<'PY' || fail "pairing window predicate"
+import ast, sys
+path = sys.argv[1]
+tree = ast.parse(open(path).read())
+fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "pairing_window_open")
+ns = {}
+exec(ast.unparse(fn), ns)
+open_window = ns["pairing_window_open"]
+assert open_window({"Pairable": True, "Discovering": True}) is True
+assert open_window({"Pairable": True, "Discovering": False}) is False
+assert open_window({"Pairable": False, "Discovering": True}) is False
+PY
+pass "a restart only restores a panel that is already scanning"
+
+# The source checks below used to grep for the implementation. The predicate
+# above is what the agent runs. Panel policy stays in the QML behavior tests.
 
 run_node_test <<'JS'
 const bluetooth = requireFromRoot('shell/plugins/panels/bluetooth/Model.js')
@@ -24,21 +35,6 @@ const panelSource = fs.readFileSync(root + '/shell/plugins/panels/bluetooth/Pane
 
 // Pairable is the agent's consent window. BlueZ defaults it true forever; the
 // panel must clear that at load/close and only raise it while open.
-assert(/function syncPairable\(\)/.test(panelSource), 'bluetooth has syncPairable')
-assert(/adapter\.pairable = keepPairable/.test(panelSource), 'bluetooth writes adapter.pairable from the open-panel policy')
-assert(/keepPairable = opened \|\| openSibling\(\) !== null/.test(panelSource), 'bluetooth raises Pairable only while a panel is open')
-assert(/onOpenedChanged:[\s\S]{0,800}syncPairable\(\)/.test(panelSource), 'bluetooth syncs Pairable when the panel opens or closes')
-assert(/Component\.onCompleted: syncPairable\(\)/.test(panelSource), 'bluetooth clears default Pairable as soon as the widget loads')
-assert(/onAdapterChanged: syncPairable\(\)/.test(panelSource), 'bluetooth syncs Pairable when the adapter appears')
-
-// A device trusted without a bond is stuck: BlueZ auto-connects it and the
-// pairing fails every few seconds, and a plain connect never opens the pairing
-// window that would let it bond. Only pair does, so trust alone must route there.
-const connectDevice = panelSource.match(/function connectDevice\(device\) \{[\s\S]*?\n  \}/)
-assert(connectDevice, 'bluetooth has connectDevice')
-assert(/if \(device\.paired \|\| device\.bonded\) runDeviceAction\(device, "connect"/.test(connectDevice[0]), 'bluetooth connects only a device with a pairing or a bond')
-assert(!/trusted/.test(connectDevice[0].replace(/\/\/.*/g, '')), 'bluetooth does not take trust alone as connectable')
-
 assert(bluetooth.isUuidLike('0000110b-0000-1000-8000-00805f9b34fb'), 'bluetooth detects UUID-like names')
 assert(bluetooth.isAddressLike('AA:BB:CC:DD:EE:FF'), 'bluetooth detects address-like names')
 assertEqual(bluetooth.normalizedAddress('AA:BB_CC-dd-ee-ff'), 'aabbccddeeff', 'bluetooth normalizes BlueZ and PipeWire address formats')

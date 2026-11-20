@@ -138,6 +138,41 @@ def on_method_call(connection, sender, object_path, interface_name, method_name,
         )
 
 
+def pairing_window_open(props: dict) -> bool:
+    # Pairable stays true after boot. Discovering is the panel's scan.
+    return props.get("Pairable") is True and props.get("Discovering") is True
+
+
+def seed_open_pairing_windows() -> None:
+    """Remember adapters the panel already has open.
+
+    Pairable is true by default, so that bit alone is not consent.
+    Discovering is only set while a panel is scanning.
+    """
+    if BUS is None:
+        return
+    try:
+        managed = BUS.call_sync(
+            "org.bluez",
+            "/",
+            "org.freedesktop.DBus.ObjectManager",
+            "GetManagedObjects",
+            None,
+            GLib.VariantType("(a{oa{sa{sv}}})"),
+            Gio.DBusCallFlags.NONE,
+            2000,
+            None,
+        )
+    except GLib.Error:
+        return
+    for path, ifaces in managed.unpack()[0].items():
+        adapter = ifaces.get("org.bluez.Adapter1")
+        if not adapter:
+            continue
+            if pairing_window_open(adapter):
+                pairable_adapters.add(path)
+
+
 def main() -> None:
     global BUS
     BUS = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
@@ -153,6 +188,7 @@ def main() -> None:
         global bluez_owner
         bluez_owner = name_owner
         pairable_adapters.clear()
+        seed_open_pairing_windows()
         for method, args in (
             ("RegisterAgent", GLib.Variant("(os)", (AGENT_PATH, "NoInputNoOutput"))),
             ("RequestDefaultAgent", GLib.Variant("(o)", (AGENT_PATH,))),
