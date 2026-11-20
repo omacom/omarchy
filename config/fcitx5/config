@@ -19,3 +19,6 @@
 
 [Behavior]
 ActiveByDefault=False
+# The bar already shows the input method. Fcitx's label for the first one sits
+# over the focused text input and covers a menu's first row.
+ShowFirstInputMethodInformation=False

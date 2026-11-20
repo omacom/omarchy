@@ -89,7 +89,7 @@ def without_ctrl_space(text):
 
 def defaults(config_home, fresh=False):
   changed = False
-  files = ["config", "conf/quickphrase.conf", "conf/wayland.conf", "conf/xcb.conf", "conf/pinyin.conf", "conf/classicui.conf"]
+  files = ["config", "conf/quickphrase.conf", "conf/wayland.conf", "conf/xcb.conf", "conf/pinyin.conf"]
   for name in files:
     target = config_home / "fcitx5" / name
     original = read(target)
@@ -97,6 +97,12 @@ def defaults(config_home, fresh=False):
     if name == "config" or name == "conf/quickphrase.conf":
       if name == "config":
         original = without_ctrl_space(original)
+        # The bar already shows the input method; Fcitx's label for the first
+        # one sits over the focused text input and covers a menu's first row.
+        # A missing [Behavior] section arrives whole from the shipped config.
+        behavior = re.search(r"(?m)^[ \t]*\[Behavior\][ \t]*$", original)
+        if behavior and "ShowFirstInputMethodInformation" not in sections(original)["Behavior"]:
+          original = original[:behavior.end()] + "\nShowFirstInputMethodInformation=False" + original[behavior.end():]
       existing = sections(original)
       additions = []
       for section, entries in sections(shipped).items():
@@ -130,16 +136,6 @@ def defaults(config_home, fresh=False):
       else:
         updated = "FirstRun=False\n" + original
       changed |= atomic_write(target, updated)
-    elif name == "conf/classicui.conf":
-      # The bar already shows the current input method; the classicui label
-      # is anchored to the focused text input and covers the menu's first row.
-      if not original:
-        updated = shipped
-      elif "ShowInputMethodInformation" in values(original):
-        updated = re.sub(r"(?m)^\s*ShowInputMethodInformation\s*=.*$", "ShowInputMethodInformation=False", original)
-      else:
-        updated = "ShowInputMethodInformation=False\n" + original.rstrip() + "\n\n[Interface]\nShowInputMethodInformation=False\n"
-      changed |= atomic_write(target, updated)
     elif not target.exists() and not target.is_symlink():
       changed |= atomic_write(target, shipped)
   return changed
@@ -159,7 +155,7 @@ def activation_default():
 @contextmanager
 def transaction(config_home):
   data_home = Path(os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local/share"))
-  paths = [config_home / "fcitx5" / name for name in ["profile", "config", "conf/quickphrase.conf", "conf/wayland.conf", "conf/xcb.conf", "conf/pinyin.conf", "conf/classicui.conf"]]
+  paths = [config_home / "fcitx5" / name for name in ["profile", "config", "conf/quickphrase.conf", "conf/wayland.conf", "conf/xcb.conf", "conf/pinyin.conf"]]
   paths += [font_path(config_home), data_home / "dbus-1/services/org.fcitx.Fcitx5.service"]
   before = {path.resolve(): path.read_text() if path.exists() else None for path in paths}
   try:
@@ -341,7 +337,6 @@ def configure_inner(args, config_home, running):
   if running and changed:
     try:
       run(CONTROLLER + ["ReloadConfig"])
-      run(CONTROLLER + ["ReloadAddonConfig", "s", "classicui"])
     except (OSError, subprocess.CalledProcessError) as error:
       print(f"Input defaults reload deferred until login: {error}", file=sys.stderr)
 
