@@ -134,6 +134,12 @@
   for (const name of ['addRule', 'removeRule', 'replaceSync']) wrap(CSSStyleSheet.prototype, name, notify);
   wrap(CSSStyleSheet.prototype, 'replace', (_, promise) => promise.then(notify, () => {}));
 
+  // Switching a sheet off or changing its media through the CSSOM touches no attribute.
+  wrapSetter(StyleSheet.prototype, 'disabled', notify);
+  wrapSetter(window.HTMLStyleElement && HTMLStyleElement.prototype, 'disabled', notify);
+  wrapSetter(window.MediaList && MediaList.prototype, 'mediaText', notify);
+  for (const name of ['appendMedium', 'deleteMedium']) wrap(window.MediaList && MediaList.prototype, name, notify);
+
   // In-place edits of existing rules (inline element styles have no parentRule and are
   // left alone; the isolated script sees those through attribute mutations).
   const decl = CSSStyleDeclaration.prototype;
@@ -190,8 +196,51 @@
     queueMicrotask(() => host.dispatchEvent(new Event('omareader:shadow', { bubbles: true, composed: true })));
   };
   wrap(Element.prototype, 'attachShadow', announceShadow);
-  wrapSetter(Document.prototype, 'adoptedStyleSheets', notify);
-  wrapSetter(window.ShadowRoot && ShadowRoot.prototype, 'adoptedStyleSheets', (root) => announceShadow(root.host));
+
+  // adoptedStyleSheets is an observable array: push() and splice() change it without
+  // going through the setter. Each list the page reads gets array methods of its own
+  // that report the change as the setter does.
+  const LIST_EDITS = ['push', 'pop', 'shift', 'unshift', 'splice', 'fill', 'copyWithin', 'reverse', 'sort'];
+  const watchedLists = new WeakSet();
+  function watchList(list, report, owner) {
+    if (!list || watchedLists.has(list)) return;
+    watchedLists.add(list);
+    for (const name of LIST_EDITS) {
+      const edit = Array.prototype[name];
+      try {
+        Object.defineProperty(list, name, {
+          configurable: true,
+          writable: true,
+          value: {
+            [name](...args) {
+              const result = edit.apply(this, args);
+              report(owner);
+              return result;
+            },
+          }[name],
+        });
+      } catch {}
+    }
+  }
+  const watchAdopted = (proto, report) => {
+    const desc = proto && Object.getOwnPropertyDescriptor(proto, 'adoptedStyleSheets');
+    if (!desc || !desc.get || !desc.set) return;
+    Object.defineProperty(proto, 'adoptedStyleSheets', {
+      configurable: true,
+      enumerable: desc.enumerable,
+      get() {
+        const list = desc.get.call(this);
+        watchList(list, report, this);
+        return list;
+      },
+      set(value) {
+        desc.set.call(this, value);
+        report(this);
+      },
+    });
+  };
+  watchAdopted(Document.prototype, notify);
+  watchAdopted(window.ShadowRoot && ShadowRoot.prototype, (root) => announceShadow(root.host));
 
   // SPA navigations can swap the page background without touching <html>/<body>.
   wrap(History.prototype, 'pushState', notifyNav);

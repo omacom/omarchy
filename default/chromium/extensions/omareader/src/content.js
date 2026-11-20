@@ -29,6 +29,15 @@
   }
   globalThis.__omareader = { alive: extAlive, stop: () => stop() };
 
+  // Disabling or removing the extension leaves this instance in open tabs with nothing to
+  // tell it. The page's next change, or the tab coming back into view, finds the runtime
+  // gone and puts the page back.
+  function orphaned() {
+    if (extAlive()) return false;
+    stop();
+    return true;
+  }
+
   // The per-site switch follows the top-level site, so embedded frames go with their page.
   const site = (() => {
     try {
@@ -106,7 +115,6 @@
   let propSheet = null;
   let varsSheet = null;
   let varsSeq = 0;
-  let timer = 0;
   let remoteVersion = 0;
   let renderHadPending = false;
   let copying = null;
@@ -774,24 +782,43 @@
   }
 
   function scanAll(deep = false) {
-    if (!running) return;
+    if (!running || orphaned()) return;
+    dropDetachedScopes();
+    for (const scope of scopes.values()) scope.scan(deep);
+    pruneRemote();
+  }
+
+  function dropDetachedScopes() {
     for (const [root, scope] of scopes) {
       if (root !== doc && !root.host.isConnected) {
         scope.destroy();
         scopes.delete(root);
-        continue;
       }
-      scope.scan(deep);
     }
-    pruneRemote();
+  }
+
+  // Removed elements leave typed-variable rules behind, and removed shadow hosts their
+  // scopes. Both are dropped a second after removals, so a page that churns its DOM pays
+  // for one pass a second and an idle page for none.
+  let tidyTimer = 0;
+  function scheduleTidy() {
+    if (tidyTimer) return;
+    tidyTimer = setTimeout(() => {
+      tidyTimer = 0;
+      if (!running) return;
+      sweepVars();
+      dropDetachedScopes();
+      pruneRemote();
+    }, 1000);
   }
 
   const isStyleNode = (n) => n.localName === 'style' || (n.localName === 'link' && /\bstylesheet\b/i.test(n.rel));
 
   function onMutations(scope, mutations) {
-    if (!running) return;
+    if (!running || orphaned()) return;
     let scan = false;
     let detect = false;
+    let removed = false;
     // Apps set inline properties one by one: map each element once per batch.
     const styled = new Set();
     for (const m of mutations) {
@@ -823,7 +850,7 @@
           continue;
         }
         if (n.nodeType === 1) {
-          detect = true;
+          detect = removed = true;
           if (isStyleNode(n) || (n.firstElementChild && n.querySelector('style,link'))) scan = true;
         }
       }
@@ -837,12 +864,14 @@
       scheduleDetect();
       requestScrims();
     }
+    if (removed && (varRules.size || scopes.size > 1)) scheduleTidy();
   }
 
   function onLoad(e) {
     const t = e.target;
     if (!t || (t.localName !== 'link' && t.localName !== 'style')) return;
-    // An @import inside the sheet may just have arrived: re-render it fully.
+    // Fired once a sheet's @imports have arrived (re-render it fully), and by a <style>
+    // whenever its text is parsed again, including edits to its text node (goober).
     if (t.sheet) entries.delete(t.sheet);
     scheduleScan();
     scheduleDetect();
@@ -1759,6 +1788,9 @@ mark{background-color:${s.mark};color:${s.fg}}
     }
   };
   const onNav = () => scheduleDetect(300, true);
+  const onVisibility = () => {
+    if (doc.visibilityState === 'visible') orphaned();
+  };
   const onBeforePrint = () => {
     printing = true;
     restoreAllInline();
@@ -1776,6 +1808,7 @@ mark{background-color:${s.mark};color:${s.fg}}
     doc.addEventListener('omareader:edit', onEdit);
     doc.addEventListener('omareader:nav', onNav);
     doc.addEventListener('omareader:shadow', onShadowEvent);
+    doc.addEventListener('visibilitychange', onVisibility);
     addEventListener('popstate', onNav);
     addEventListener('beforeprint', onBeforePrint);
     addEventListener('afterprint', onAfterPrint);
@@ -1789,21 +1822,12 @@ mark{background-color:${s.mark};color:${s.fg}}
     doc.removeEventListener('omareader:edit', onEdit);
     doc.removeEventListener('omareader:nav', onNav);
     doc.removeEventListener('omareader:shadow', onShadowEvent);
+    doc.removeEventListener('visibilitychange', onVisibility);
     removeEventListener('popstate', onNav);
     removeEventListener('beforeprint', onBeforePrint);
     removeEventListener('afterprint', onAfterPrint);
     removeEventListener('copy', onCopy, true);
     removeEventListener('cut', onCopy, true);
-  }
-
-  function tick() {
-    if (!extAlive()) {
-      stop();
-      return;
-    }
-    if (doc.documentElement && (!baseEl || !baseEl.isConnected)) onNewRoot();
-    if (doc.visibilityState === 'visible') scanAll();
-    sweepVars();
   }
 
   function start() {
@@ -1833,15 +1857,15 @@ mark{background-color:${s.mark};color:${s.fg}}
       requestScrims(0);
     }, { once: true });
     watchRootAttrs();
-    timer = setInterval(tick, 1000);
   }
 
   function stop() {
     if (!running) return;
     running = false;
-    clearInterval(timer);
     clearTimeout(detectTimer);
     detectTimer = 0;
+    clearTimeout(tidyTimer);
+    tidyTimer = 0;
     rootAttrObserver.disconnect();
     removeListeners();
     stopSweep();
