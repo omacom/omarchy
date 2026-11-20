@@ -70,6 +70,22 @@ expect("DeepSeek in use without a key prints a valid record with no plan and no 
        {key: record.get(key) for key in ("id", "ready", "tierLabel", "hasPromptStats", "usageStatusText", "authHelpText")} | {"balance": "balance" in record},
        {"id": "deepseek", "ready": True, "tierLabel": "", "hasPromptStats": True, "usageStatusText": "", "authHelpText": "", "balance": False}, record)
 
+# The costs pi and opencode wrote beside each DeepSeek reply add up to the
+# last 30 days' spend, a day at a time, as an estimate; another provider's cost
+# never counts, and replies with no cost add no spend at all.
+expect("replies without a cost add no spend", "spend" in record, False, record)
+sandbox()
+write_pi_session(sessions() / "project" / "pi.jsonl", [
+  pi_reply("deepseek", id="pi-1", usage={"input": 10, "cost": {"total": 0.25}}),
+  pi_reply("anthropic", id="pi-2", usage={"input": 10, "cost": {"total": 9}}),
+])
+opencode_db(tables=("message",), message=[
+  ("m-1", "ses_1", json.dumps({**json.loads(oc_v1("deepseek", {"input": 10})), "cost": 0.5})),
+])
+record = deepseek()
+expect("DeepSeek adds up the last 30 days' local reply costs, by day, as an estimate", record.get("spend"),
+       {"amount": 0.75, "cap": 0.0, "currency": "USD", "days": [0.0] * 29 + [0.75], "estimated": True}, record)
+
 # -------------------------------------------------------- DeepSeek Harness
 
 # dsh keeps one event log per session under $DSH_HOME/sessions, Zstandard-
