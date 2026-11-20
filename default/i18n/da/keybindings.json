@@ -1,6 +1,7 @@
 {
   "Activity": "Aktivitet",
   "Agent": "Agent",
+  "Agents": "Agenter",
   "Apps": "Apps",
   "Audio": "Lyd",
   "Background switcher": "Skift baggrund",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "Vis aktivt vindue øverst",
   "Save window width": "Gem vinduesbredde",
   "Screenrecording": "Skærmoptagelse",
+  "Screenrecording with no audio": "Skærmoptagelse uden lyd",
   "Screenshot": "Skærmbillede",
   "Scroll active workspace backward": "Rul aktivt arbejdsområde tilbage",
   "Scroll active workspace forward": "Rul aktivt arbejdsområde frem",
