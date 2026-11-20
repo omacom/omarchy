@@ -69,3 +69,25 @@ if "$ROOT/bin/omarchy-cmd-present" kitty && kitty --version >/dev/null 2>&1; the
 else
   skip "Kitty not installed; skipping native config parser checks"
 fi
+
+# Slash is the sed delimiter and ampersand is special in a replacement and in
+# XML, so a family like this only survives when the command escapes it before
+# rewriting each config. Reuse the stubs above.
+printf '#!/bin/bash\nprintf "Fake/Font & Friends:style=Regular\\n"\n' >"$test_dir/bin/fc-list"
+mkdir -p "$test_home/.config/alacritty" "$test_home/.config/ghostty" "$test_home/.config/foot"
+printf 'family = "Old Font"\n' >"$test_home/.config/alacritty/alacritty.toml"
+printf 'font-family = "Old Font"\n' >"$test_home/.config/ghostty/config"
+printf 'font=Old Font:size=12\n' >"$test_home/.config/foot/foot.ini"
+cp "$ROOT/config/kitty/kitty.conf" "$kitty_config"
+run_command omarchy-font-set 'Fake/Font & Friends'
+grep -Fq 'family = "Fake/Font & Friends"' "$test_home/.config/alacritty/alacritty.toml" ||
+  fail "alacritty keeps a family containing / and &" "$(cat "$test_home/.config/alacritty/alacritty.toml")"
+grep -Fq 'font_family Fake/Font & Friends' "$kitty_config" ||
+  fail "kitty keeps a family containing / and &" "$(cat "$kitty_config")"
+grep -Fq 'font-family = "Fake/Font & Friends"' "$test_home/.config/ghostty/config" ||
+  fail "ghostty keeps a family containing / and &" "$(cat "$test_home/.config/ghostty/config")"
+grep -Fq 'font=Fake/Font & Friends:size=12' "$test_home/.config/foot/foot.ini" ||
+  fail "foot keeps a family containing / and & and the size it already had" "$(cat "$test_home/.config/foot/foot.ini")"
+grep -Fq '<string>Fake/Font &amp; Friends</string>' "$test_home/.config/fontconfig/fonts.conf" ||
+  fail "fontconfig escapes & in the family" "$(cat "$test_home/.config/fontconfig/fonts.conf")"
+pass "font commands escape / and & for sed, TOML, ghostty, foot and fontconfig"
