@@ -89,4 +89,13 @@ assertDeepEqual(
   ],
   'reach keeps one tile when another machine is listed twice'
 )
+
+const withSelf = reach.parseStatus(JSON.stringify({
+  me: 'desk',
+  screens: ['desk'],
+  circle: { up: true, peers: [{ name: 'desk.lan', online: true, nearby: true }, { name: 'spark', online: true, nearby: true }] },
+}))
+assertDeepEqual(withSelf.peers.map((p) => p.name), ['spark'], 'reach does not list this machine as one of the others')
+assertEqual(reach.nearbyCount(withSelf.peers, 'desk'), 1, 'reach does not count this machine as close by')
+assertEqual(reach.nearbyCount([{ name: 'desk', nearby: true }, { name: 'spark', nearby: true }], 'desk'), 1, 'reach skips this machine in a raw peer list')
 JS
