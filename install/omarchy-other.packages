@@ -32,6 +32,7 @@ nvidia-580xx-utils
 nvidia-utils
 lib32-nvidia-580xx-utils
 lib32-nvidia-utils
+nvidia-container-toolkit
 pipewire
 pipewire-alsa
 pipewire-jack
@@ -60,18 +61,38 @@ linux-firmware-marvell
 
 # Surface Pro 11 (Snapdragon) support packages
 iptsd
-surface-pro-11-sensors
-surface-pro-11-support
+microsoft-surface-pro-11-sensors
+microsoft-surface-pro-11-support
+
+# Surface Laptop 7 15" (Snapdragon) support packages; iptsd is listed above
+microsoft-surface-snapdragon-addresses
+
+# Surface Laptop 8 (Snapdragon) support packages
+microsoft-surface-laptop-8-support
+
+# Raspberry Pi 4 support packages
+raspberry-pi-4-bluetooth-firmware
 
 # Dell laptop support packages
 dell-xps-touchpad-haptics
 dell-xps13-sidecar-amps
 linux-firmware-cirrus-dx13260
 
+# Acer laptop support packages
+acer-aspire-16-ai-audio
+
+# HP laptop support packages
+hp-omnibook-3-audio
+
 # ASUS laptop support packages
-asus-proart-p14-speaker-firmware
+asus-proart-p14-audio
+asus-proart-pz13-audio
 asus-zenbook-a16-audio
+asus-zenbook-14-ux3480qa-audio
 asus-zenbook-a16-firmware
+
+# Qualcomm Wi-Fi board data for cards linux-firmware does not list
+ath12k-board-fallback
 
 # Speaker tunings (LV2 limiter every tuning ends in)
 lsp-plugins-lv2

@@ -279,6 +279,22 @@ expect("Qwen leaves out an OpenAI-compatible reply with no route, which went to 
 (home() / ".qwen" / ".env").write_text("OPENAI_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1\n")
 expect("a Qwen scan made before a .env route is not reused after it", collect("qwen", "--limits-only")["todayTotalTokens"], 13730)
 
+# A model Omarchy launched Qwen Code on ran on the user's own hardware, here or
+# on a paired machine on the tailnet, which no URL rule would call local;
+# the user's own modelProviders route for it still wins.
+clear_routes()
+launch = write_json(home() / ".config" / "omarchy" / "agent-local" / "overlays" / "qwen-box--qwen-env-model.json",
+                    {"model": "qwen-env-model", "baseUrl": "https://box.tail.ts.net/local-ai/qwen-env-model/v1", "keyFile": "/dev/null"})
+records = {cid: collect(cid, "--force") for cid in ("qwen", "local")}
+expect("a Qwen Code reply on a model Omarchy launched it on counts as local",
+       {cid: [record["todayTotalTokens"], record["todayPrompts"]] for cid, record in records.items()}, {"qwen": [0, 0], "local": [13730, 1]}, records)
+write_json(home() / ".qwen" / "settings.json", {"modelProviders": {"openai": [{"id": "qwen-env-model", "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"}]}})
+records = {cid: collect(cid, "--force") for cid in ("qwen", "local")}
+expect("the user's own route for a model Omarchy launched wins",
+       {cid: record["todayTotalTokens"] for cid, record in records.items()}, {"qwen": 13730, "local": 0}, records)
+launch.unlink()
+clear_routes()
+
 # --------------------------------------------------------- untrusted fields
 
 studio()

@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# Sourced by test/ci-vm: prints a failed run's logs into the CI job log.
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  echo "source test/ci-failure-logs from test/ci-vm; do not run it directly" >&2
+  exit 1
+fi
+
+# The run's own log directory. Some tests run test/shell themselves, each with
+# a directory of its own, so take the one this run's test/shell announced in
+# run.log as it started.
+shell_log_dir() {
+  sed -n '/^==> test\/shell$/,$ s/^Logging every file to //p' "$1" | head -n 1
+}
+# One log in a folded group of the job log, cut to its last 64 KiB. Workflow
+# commands stay off while it prints, so a test's output cannot fold, mask or
+# annotate anything.
+show_log() {
+  local title=$1 file=$2 size token
+  size=$(wc -c <"$file")
+  token=$(cat /proc/sys/kernel/random/uuid)
+  echo "::group::$title"
+  echo "::stop-commands::$token"
+  if (( size > 65536 )); then
+    echo "(the first $(( size - 65536 )) of $size bytes are cut; the artifact has them)"
+  fi
+  tail -c 65536 "$file"
+  echo
+  echo "::$token::"
+  echo "::endgroup::"
+}
+# A failed run's evidence in the job log itself, so it can be read even when
+# the artifact upload fails: the CLI suite's output, each shell test file that
+# failed or never finished, and the end of run.log. It reads only the files
+# already pulled into out_dir, and test/ci-vm runs it in a subshell under
+# || true, so it cannot change the verdict.
+#   print_failure_logs <out_dir>
+print_failure_logs() {
+  local out=$1 log=$1/run.log dir file code
+  if [[ ! -s $log ]]; then
+    echo "test/ci-vm: no run.log, so there is no test output to show"
+    return 0
+  fi
+
+  sed -n '/^==> test\/cli$/,/^==> test\/shell$/p' "$log" >"$out/cli.log"
+  show_log "test/cli" "$out/cli.log"
+
+  dir=$(shell_log_dir "$log")
+  if [[ -z $dir || ! -d $out/shell-logs/${dir##*/} ]]; then
+    echo "test/ci-vm: no log directory from test/shell, so no test file's log to show"
+  else
+    for file in "$out/shell-logs/${dir##*/}"/*.out; do
+      [[ -f $file ]] || continue
+      code=$(cat "${file%.out}.code" 2>/dev/null || true)
+      if [[ $code == "0" ]]; then
+        continue
+      elif [[ $code =~ ^[0-9]+$ ]]; then
+        show_log "test/shell.d/$(basename "$file" .out) failed (exit $code)" "$file"
+      else
+        show_log "test/shell.d/$(basename "$file" .out) did not finish" "$file"
+      fi
+    done
+  fi
+
+  tail -n 150 "$log" >"$out/run-tail.log"
+  show_log "end of run.log" "$out/run-tail.log"
+}

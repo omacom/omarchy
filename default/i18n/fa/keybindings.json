@@ -1,6 +1,7 @@
 {
   "Activity": "فعالیت",
   "Agent": "ایجنت",
+  "Agents": "ایجنت‌ها",
   "Apps": "برنامه‌ها",
   "Audio": "صدا",
   "Background switcher": "تعویض پس‌زمینه",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "نمایش پنجرهٔ فعال روی همه",
   "Save window width": "ذخیرهٔ عرض پنجره",
   "Screenrecording": "ضبط صفحه‌نمایش",
+  "Screenrecording with no audio": "ضبط صفحه بدون صدا",
   "Screenshot": "اسکرین‌شات",
   "Scroll active workspace backward": "پیمایش فضای کاری فعال به عقب",
   "Scroll active workspace forward": "پیمایش فضای کاری فعال به جلو",
