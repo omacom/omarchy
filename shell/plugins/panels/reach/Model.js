@@ -44,6 +44,7 @@ function parseStatus(raw) {
   status.peers = (Array.isArray(circle.peers) ? circle.peers.slice(0, MAX_ITEMS) : [])
     .filter(function(p) { return p && typeof p === "object" && text(p.name) !== "" })
     .map(function(p) { return { name: text(p.name), online: p.online === true, nearby: p.nearby === true } })
+    .filter(function(p) { return !sameHost(p.name, me) })
   return status
 }
 
@@ -54,9 +55,14 @@ function names(list) {
 }
 
 // How many of the Circle machines are close by.
-function nearbyCount(peers) {
+function nearbyCount(peers, me) {
   var n = 0
-  for (var i = 0; i < peers.length; i++) if (peers[i].nearby) n++
+  for (var i = 0; i < peers.length; i++) {
+    if (!peers[i].nearby) continue
+    // This machine is not "another" machine, even if Circle lists it.
+    if (me && sameHost(peers[i].name, me)) continue
+    n++
+  }
   return n
 }
 
