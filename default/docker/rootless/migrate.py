@@ -716,6 +716,40 @@ def allowed_capabilities(container):
     return set() if "ALL" in dropped else DOCKER_CAPABILITIES - dropped
 
 
+def target_user_maps(proc=Path("/proc")):
+    pid, _ = verified_target_daemon(TARGET_DAEMON_IDENTITY, proc)
+    mappings = []
+    for kind in ("uid", "gid"):
+        try:
+            ranges = []
+            for line in (proc / str(pid) / f"{kind}_map").read_text().splitlines():
+                first, outside, length = map(int, line.split())
+                if first < 0 or outside < 0 or length <= 0:
+                    raise ValueError("invalid mapping range")
+                ranges.append(range(first, first + length))
+            if not ranges:
+                raise ValueError("empty mapping")
+        except (OSError, ValueError) as error:
+            raise ValueError(f"cannot read the rootless Docker daemon's {kind} map") from error
+        mappings.append(ranges)
+    # Detect a service restart or PID reuse while reading the maps.
+    verified_target_daemon(TARGET_DAEMON_IDENTITY, proc)
+    return mappings
+
+
+def validate_target_user(container, mappings):
+    user = container["Config"].get("User") or "0"
+    uid, separator, gid = user.partition(":")
+    name = container["Name"].lstrip("/")
+    for kind, value, ranges in (("UID", uid, mappings[0]), ("GID", gid, mappings[1])):
+        if kind == "GID" and not separator:
+            continue
+        if not re.fullmatch(r"[0-9]+", value):
+            raise ValueError(f"{name}: a named or invalid {kind} needs an explicit migration")
+        if not any(int(value) in mapped for mapped in ranges):
+            raise ValueError(f"{name}: {kind} {value} is outside the rootless Docker mapping")
+
+
 def verify_environment(container, values):
     # The committed image contains the source environment exactly. A temporary
     # empty DOCKER_CONFIG prevents the destination CLI from injecting proxy
@@ -2416,12 +2450,14 @@ def main():
         validate_target_policy()
         source_nofile = source_default_nofile()
         containers = [inspect(SOURCE, "container", name) for name in names]
+        mappings = target_user_maps() if containers else None
         volumes = set()
         blockers = []
         intents = {}
         for container in containers:
             try:
                 validate(container)
+                validate_target_user(container, mappings)
                 intent = migration_intent(container)
                 intents[container["Id"]] = intent
             except (ValueError, RuntimeError) as error:
@@ -2523,12 +2559,14 @@ def main():
         if not check_completed:
             source_nofile = source_default_nofile()
     containers = [inspect(SOURCE, "container", name) for name in names]
+    mappings = target_user_maps() if containers else None
     volumes = set()
     blockers = []
     intents = {}
     for container in containers:
         try:
             validate(container)
+            validate_target_user(container, mappings)
             intent = migration_intent(container)
             intents[container["Id"]] = intent
         except (ValueError, RuntimeError) as error:

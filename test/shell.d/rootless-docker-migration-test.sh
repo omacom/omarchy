@@ -457,6 +457,7 @@ print("ok - migration pins known daemon confinement and rejects hidden target wo
 # Direct migration unit fixtures replace Docker with an event recorder. The
 # daemon-policy parser is covered above and exercised end-to-end in Lab.
 migration.validate_target_policy = lambda: None
+migration.target_user_maps = lambda: ([range(65537)], [range(65537)])
 migration.source_default_nofile = lambda: source_nofile
 migration.validate_target_nofile = lambda limits: None
 
@@ -1037,6 +1038,26 @@ except ValueError as error:
 else:
     raise AssertionError("blocked batch passed preflight")
 print("ok - complete-batch preflight reports every blocker without exposing container secrets")
+
+mapped = copy.deepcopy(container)
+unmapped_uid = copy.deepcopy(container)
+unmapped_gid = copy.deepcopy(container)
+mapped["Name"], mapped["Config"]["User"] = "/mapped", "1000:1001"
+unmapped_uid["Name"], unmapped_uid["Config"]["User"] = "/unmapped-uid", "100000:1001"
+unmapped_gid["Name"], unmapped_gid["Config"]["User"] = "/unmapped-gid", "0:100000"
+mapping_records = {c["Name"][1:]: c for c in (mapped, unmapped_uid, unmapped_gid)}
+for flags in (["--check"], ["--quiesce-all", "-"], []):
+    sys.argv = ["migrate.py", *flags, *mapping_records]
+    migration.inspect = lambda engine, kind, name: mapping_records[name] if kind == "container" else copy.deepcopy(source_volume)
+    try:
+        migration.main()
+    except ValueError as error:
+        message = str(error)
+        assert "unmapped-uid: UID 100000 is outside" in message, message
+        assert "unmapped-gid: GID 100000 is outside" in message, message
+    else:
+        raise AssertionError("unmapped numeric identities passed preflight")
+print("ok - both rootless identity mappings are checked before quiescing or transferring the batch")
 
 stopped = copy.deepcopy(container)
 stopped["State"] = {"Running": False, "StartedAt": "start", "FinishedAt": "finish", "ExitCode": 0}
