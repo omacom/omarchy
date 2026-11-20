@@ -54,8 +54,17 @@ cleanup_update() {
 }
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
-  script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 script -qefc "$script_command" "/tmp/omarchy-update.log"
+  # Keep an untrapped shell as the PTY session leader. If script disappears,
+  # its hangup must reach the foreground prompt, not wait on our signal traps.
+  # script uses SHELL to interpret this Bash command; restore the caller's
+  # value inside it so hooks and package builds keep their original environment.
+  if [[ ${SHELL@a} == *x* ]]; then
+    printf -v script_command 'export SHELL=%q; ' "$SHELL"
+  else
+    script_command='unset SHELL; '
+  fi
+  script_command+="$(printf '%q ' "$0" "$@"); exit \$?"
+  exec env OMARCHY_UPDATE_LOGGED=1 SHELL=/usr/bin/bash script -qefc "$script_command" "/tmp/omarchy-update.log"
 fi
 
 if ! omarchy-update-lock held; then
