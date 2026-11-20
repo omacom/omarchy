@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Set the default editor used by omarchy-launch-editor
-# omarchy:args=[code|cursor|zed|sublime_text|helix|vim|emacs|nvim]
-# omarchy:examples=omarchy default editor | omarchy default editor code | omarchy default editor helix
+# omarchy:args=[plain|code|cursor|zed|sublime_text|helix|vim|emacs|nvim]
+# omarchy:examples=omarchy default editor | omarchy default editor plain | omarchy default editor helix
 
 installing=false
 if [[ ${1:-} == "--install" ]]; then
@@ -17,21 +17,25 @@ if (($# == 0)); then
     read -r editor <"$editor_file"
   fi
 
-  [[ -n $editor ]] && echo "$editor" || echo "nvim"
+  # sublime-text-4 ships `subl`; older defaults stored `sublime_text`.
+  [[ $editor == sublime_text ]] && editor=subl
+
+  [[ -n $editor ]] && echo "$editor" || echo "plain"
   exit 0
 fi
 
 case "$1" in
+plain) selection="plain"; editor="plain"; name="Plain"; glyph= ;;
 code) selection="code"; editor="code"; name="VSCode"; glyph= ;;
 cursor) selection="cursor"; editor="cursor"; name="Cursor"; glyph= ;;
 zed | zeditor) selection="zed"; editor="zeditor"; name="Zed"; glyph= ;;
-sublime_text) selection="sublime_text"; editor="sublime_text"; name="Sublime Text"; glyph= ;;
+sublime_text | subl) selection="sublime_text"; editor="subl"; name="Sublime Text"; glyph= ;;
 helix) selection="helix"; editor="helix"; name="Helix"; glyph= ;;
 vim) selection="vim"; editor="vim"; name="Vim"; glyph= ;;
-emacs) selection="emacs"; editor="emacs"; name="Emacs"; glyph= ;;
+emacs) selection="emacs"; editor="emacs"; name="Emacs"; glyph= ;;
 nvim) selection="nvim"; editor="nvim"; name="Neovim"; glyph= ;;
 *)
-  echo "Usage: omarchy-default-editor <code|cursor|zed|sublime_text|helix|vim|emacs|nvim>"
+  echo "Usage: omarchy-default-editor <plain|code|cursor|zed|sublime_text|helix|vim|emacs|nvim>"
   exit 1
   ;;
 esac
@@ -41,6 +45,7 @@ if omarchy-cmd-missing "$editor"; then
     exec omarchy-launch-floating-terminal-with-presentation omarchy-default-editor --install "$selection"
   else
     case "$selection" in
+    plain) omarchy-pkg-add plain ;;
     code) omarchy-install-editor-vscode ;;
     cursor) omarchy-pkg-add cursor-bin ;;
     zed) omarchy-install-editor-zed ;;
@@ -56,4 +61,10 @@ fi
 mkdir -p "$(dirname "$editor_file")"
 printf '%s\n' "$editor" >"$editor_file"
 
-omarchy-notification-send -g $glyph "$name is now the default editor"
+# Files and other apps open a text file with what mimeapps.list names for
+# its type, not Omarchy's own default. Point every text type at the editor
+# handler, which opens the editor recorded above, so the choice made here is
+# the one every app follows.
+omarchy-cmd-editor-mimetypes
+
+omarchy-notification-send -g $glyph "$(omarchy-i18n default.editorSet "$name")"
