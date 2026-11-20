@@ -359,7 +359,7 @@ old_monitor_lua() {
 }
 
 old_monitor_lua <<'LUA'
--- See https://wiki.hypr.land/Configuring/Basics/Monitors/
+-- See https://wiki.hypr.land/Configuring/Core/Monitors/
 -- List current monitors and supported resolutions with: hyprctl monitors all
 
 -- Monitor scale is Hyprland's scale for the output. It sizes everything
@@ -404,7 +404,7 @@ pass "monitors upgrade keeps an older monitors.lua's own lines under the new tem
 # A changed default stays as the user wrote it, and so does an unchanged one
 # another line still uses.
 old_monitor_lua <<'LUA'
--- See https://wiki.hypr.land/Configuring/Basics/Monitors/
+-- See https://wiki.hypr.land/Configuring/Core/Monitors/
 local omarchy_monitor_scale = 1.6
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })
 local omarchy_gdk_scale = 2

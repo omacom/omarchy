@@ -37,9 +37,9 @@ omarchy display text size 14
 
 ### 排列多块屏幕
 
-Hyprland 在多块屏幕上工作得非常好。顶栏中的显示器面板会按它们所在的位置绘制它们：将一块屏幕拖到另一块屏幕的边缘即可把它移过去，而排列方式会与每台显示器的其他设置一起保存。对于面板涵盖不到的任何事情，请在 [Hyprland 显示器文档](https://wiki.hypr.land/Configuring/Basics/Monitors/) 中阅读更多关于如何排列它们的内容。在 Omarchy 中，这些设置以 `hl.monitor` 条目的形式放在 `~/.config/hypr/monitors.lua` 中——该文件自带了一些注释示例，用于保持显示器关闭、面板不提供的模式、10-bit 颜色和可变刷新率。
+Hyprland 在多块屏幕上工作得非常好。顶栏中的显示器面板会按它们所在的位置绘制它们：将一块屏幕拖到另一块屏幕的边缘即可把它移过去，而排列方式会与每台显示器的其他设置一起保存。对于面板涵盖不到的任何事情，请在 [Hyprland 显示器文档](https://wiki.hypr.land/Configuring/Core/Monitors/) 中阅读更多关于如何排列它们的内容。在 Omarchy 中，这些设置以 `hl.monitor` 条目的形式放在 `~/.config/hypr/monitors.lua` 中——该文件自带了一些注释示例，用于保持显示器关闭、面板不提供的模式、10-bit 颜色和可变刷新率。
 
-每台显示器都有它自己的工作区 1 到 10，所以 `Super + 1` 始终表示你所在显示器的第一个工作区。在幕后，Hyprland 仍然会跨所有显示器对工作区进行编号：你的笔记本屏幕（或第一台显示器）得到 1–10，下一台显示器得到 11–20，以此类推，而且每次你插入一台显示器时，它都会保留它的编号块。如果你为特定显示器编写 [工作区规则](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) 或窗口规则，请使用这些编号，所以工作区 12 就是你的第二台显示器的第二个工作区。`~/.local/state/omarchy/monitors/workspaces` 会列出每台显示器拥有哪个编号块。
+每台显示器都有它自己的工作区 1 到 10，所以 `Super + 1` 始终表示你所在显示器的第一个工作区。在幕后，Hyprland 仍然会跨所有显示器对工作区进行编号：你的笔记本屏幕（或第一台显示器）得到 1–10，下一台显示器得到 11–20，以此类推，而且每次你插入一台显示器时，它都会保留它的编号块。如果你为特定显示器编写 [工作区规则](https://wiki.hypr.land/Configuring/Core/Rules/Workspace-Rules/) 或窗口规则，请使用这些编号，所以工作区 12 就是你的第二台显示器的第二个工作区。`~/.local/state/omarchy/monitors/workspaces` 会列出每台显示器拥有哪个编号块。
 
 方向键可以在布局中共用一条边缘的显示器之间工作。只在角落相切或之间有间隙的屏幕不是邻居，所以用 `Ctrl + Alt + Tab` 在它们之间切换。
 
