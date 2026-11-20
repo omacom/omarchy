@@ -163,6 +163,16 @@ done < <(grep -o '"action":"omarchy-launch-install [^"]*"' "$ROOT/default/omarch
 pass 'installs opened in the update window ask nothing it cannot show'
 pass 'declining an optional reboot does not fail an install'
 
+# The window reads the exit status, so an installer whose package fails to
+# install must fail with it, or the window calls the install done.
+probe=$(mktemp -d)
+printf '#!/bin/bash\nexit 1\n' >"$probe/omarchy-pkg-add"
+chmod +x "$probe/omarchy-pkg-add"
+output=$(HOME=$probe PATH="$probe:$PATH" "$ROOT/bin/omarchy-install-terminal" kitty 2>&1) && code=0 || code=$?
+rm -rf "$probe"
+(( code != 0 )) || fail 'a failed package fails the terminal install' "exit $code: $output"
+pass 'a failed package fails the terminal install'
+
 # A preview that could not ask the AUR says so, as one that could not ask the
 # repositories does, instead of passing for up to date.
 mock=$(mktemp -d)
