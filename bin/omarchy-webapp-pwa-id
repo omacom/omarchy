@@ -1,0 +1,101 @@
+#!/bin/bash
+
+# omarchy:summary=Print the app id of an installed PWA matching a URL's origin
+# omarchy:hidden=true
+# omarchy:args=<url> [browser-exec]
+
+set -euo pipefail
+
+url=${1:-}
+browser=${2:-}
+[[ -n $url ]] || exit 0
+shift $(( $# > 2 ? 2 : $# ))
+
+# A launcher's own profile flags decide which installation of a web app is in
+# use. Looking in another profile could pair its app id with a browser that
+# does not have it installed.
+user_data_dir=""
+profile=""
+for arg in "$@"; do
+  case $arg in
+  --user-data-dir=*) user_data_dir=${arg#*=} ;;
+  --profile-directory=*) profile=${arg#*=} ;;
+  esac
+done
+
+# The browser whose profile holds installed web apps. Only the executable name
+# is needed; a wrapper would have its own profile layout and is not a browser
+# Omarchy can introspect.
+if [[ -z $browser ]]; then
+  browser=$(omarchy-cmd-default-browser) || exit 0
+  IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  for data_dir in "${data_dirs[@]}"; do
+    entry="$data_dir/applications/$browser"
+    [[ -f $entry ]] || continue
+    browser=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
+    break
+  done
+fi
+
+case ${browser##*/} in
+chromium | chromium-browser) config=chromium ;;
+google-chrome | google-chrome-stable | chrome) config=google-chrome ;;
+brave | brave-browser | brave-origin) config=BraveSoftware/Brave-Browser ;;
+microsoft-edge | microsoft-edge-stable) config=microsoft-edge ;;
+vivaldi | vivaldi-stable) config=vivaldi ;;
+opera) config=opera ;;
+helium) config=helium ;;
+*) exit 0 ;;
+esac
+
+# The browser's flags file can pick a profile too. Launcher arguments above
+# win when both are present, matching the order Chromium applies them.
+flags=""
+case ${browser##*/} in
+chromium | chromium-browser) flags=chromium-flags.conf ;;
+google-chrome | google-chrome-stable | chrome) flags=chrome-flags.conf ;;
+brave) flags=brave-flags.conf ;;
+brave-origin) flags=brave-origin-flags.conf ;;
+microsoft-edge | microsoft-edge-stable) flags=microsoft-edge-stable-flags.conf ;;
+esac
+
+if [[ -n $flags ]]; then
+  flag_lines=$(
+    { cat "/etc/$flags" 2>/dev/null || true
+      cat "${XDG_CONFIG_HOME:-$HOME/.config}/$flags" 2>/dev/null || true
+    } | sed 's/#.*//'
+  )
+  [[ -n $user_data_dir ]] || user_data_dir=$(printf '%s\n' "$flag_lines" | sed -n 's/.*--user-data-dir=\([^ ]*\).*/\1/p' | tail -1)
+  [[ -n $profile ]] || profile=$(printf '%s\n' "$flag_lines" | sed -n 's/.*--profile-directory=\([^ ]*\).*/\1/p' | tail -1)
+fi
+
+origin=$(printf '%s' "$url" | sed -E 's#^(https?://[^/?#]+)([/?#].*)?$#\1#')
+[[ $origin == http://* || $origin == https://* ]] || exit 0
+
+config_home=${XDG_CONFIG_HOME:-$HOME/.config}
+if [[ -n $user_data_dir ]]; then
+  if [[ -n $profile ]]; then
+    patterns=("$user_data_dir/$profile/Web Applications"/*/manifest.json)
+  else
+    patterns=("$user_data_dir"/*/"Web Applications"/*/manifest.json)
+  fi
+elif [[ -n $profile ]]; then
+  patterns=("$config_home/$config/$profile/Web Applications"/*/manifest.json)
+else
+  patterns=("$config_home/$config"/*/"Web Applications"/*/manifest.json)
+fi
+
+for manifest in "${patterns[@]}"; do
+  [[ -f $manifest ]] || continue
+  start_url=$(jq -r '.start_url // .id // empty' "$manifest" 2>/dev/null) || continue
+  [[ -n $start_url ]] || continue
+  case $start_url in
+  http://* | https://*) ;;
+  /*) start_url="$origin$start_url" ;;
+  *) continue ;;
+  esac
+  manifest_origin=$(printf '%s' "$start_url" | sed -E 's#^(https?://[^/?#]+)([/?#].*)?$#\1#')
+  [[ $manifest_origin == "$origin" ]] || continue
+  basename "$(dirname "$manifest")"
+  exit 0
+done
