@@ -31,9 +31,9 @@
   },
   "printer.ipp": {
     "title": "Driverless printer",
-    "summary": "This printer speaks IPP over USB, so it prints without a driver once ipp-usb shares it with CUPS.",
+    "summary": "This printer speaks IPP over USB, so it prints without a driver once ipp-usb shares it with CUPS, and scans without one too if it is a printer that scans.",
     "steps": [
-      "Choose Install and set up to install ipp-usb.",
+      "Choose Install and set up to install ipp-usb. If the printer also scans, pick the option with Document Scanner.",
       "Unplug the printer and plug it back in.",
       "Print from any app: the printer shows up in the print dialog on its own."
     ],
@@ -43,6 +43,18 @@
         "packages": [
           "ipp-usb"
         ]
+      },
+      {
+        "label": "Driverless printing and scanning with ipp-usb, sane-airscan and Document Scanner, for a printer that scans (Arch repositories)",
+        "packages": [
+          "ipp-usb",
+          "sane-airscan",
+          "simple-scan"
+        ],
+        "open": {
+          "label": "Document Scanner",
+          "command": "simple-scan"
+        }
       }
     ],
     "open": {
@@ -110,6 +122,18 @@
         "packages": [
           "hplip"
         ]
+      },
+      {
+        "label": "HPLIP with SANE and Document Scanner, for a printer that scans (Arch repositories)",
+        "packages": [
+          "hplip",
+          "sane",
+          "simple-scan"
+        ],
+        "open": {
+          "label": "Document Scanner",
+          "command": "simple-scan"
+        }
       },
       {
         "label": "Download the driver from HP",
@@ -315,7 +339,11 @@
         "label": "Epson Scan 2, x86_64 only (AUR)",
         "aur": [
           "epsonscan2"
-        ]
+        ],
+        "open": {
+          "label": "Epson Scan 2",
+          "command": "epsonscan2"
+        }
       },
       {
         "label": "Download Epson Scan 2 from Epson",

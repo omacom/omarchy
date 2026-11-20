@@ -21,8 +21,9 @@ usb_devices_path="${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
 catalog="${OMARCHY_DEVICE_CATALOG:-$OMARCHY_PATH/default/omarchy/devices.json}"
 
 # Vendors whose printers carry a scanner on a vendor-specific interface that
-# SANE or the vendor's backend drives over libusb. HP is left out: HPLIP, which
-# its printer guide installs, scans as well.
+# SANE or the vendor's backend drives over libusb. HP is left out: its printer
+# guide offers HPLIP with Document Scanner, and the driverless printer guide
+# offers sane-airscan with it for any maker's printer that scans.
 readonly mfp_scanner_vendors=" 04b8 04a9 04f9 "
 # Vendors of standalone scanners, which expose only vendor-specific
 # interfaces: Epson, Canon, Brother, Fujitsu/PFU, Plustek, Avision, Visioneer,
@@ -147,8 +148,12 @@ roles_of() {
     return 0
   fi
 
+  # The names omarchy-hw-fingerprint trusts outright, so a reader it finds is
+  # this one rather than a second, platform entry: Elan's match-on-chip readers
+  # say "ELAN:ARM-M4" and Fingerprint Cards' lead with "FPC ".
   product_name=$(read_attr "$dev/product")
-  if ((!bound)) && [[ $fingerprint_vendors == *" $vendor "* || ${product_name,,} == *fingerprint* ]]; then
+  product_name=${product_name,,}
+  if ((!bound)) && [[ $fingerprint_vendors == *" $vendor "* || $product_name == *fingerprint* || $product_name == *biometric* || $product_name == *elan:arm-m4* || $product_name == "fpc "* ]]; then
     echo fingerprint
     return 0
   fi

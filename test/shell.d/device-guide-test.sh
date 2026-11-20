@@ -152,6 +152,8 @@ make_device 1-2 03f0 0001 HP "LaserJet MFP" S1 "07/01/04:-" "ff/ff/ff:-"
 hp=$(device_json 1-2)
 [[ $(jq -c .guides <<<"$hp") == '["printer.ipp"]' ]] ||
   fail "an IPP-USB printer gets the driverless guide ahead of its vendor's" "$hp"
+jq -e '."printer.ipp".options | any((.packages // []) | index("sane-airscan"))' "$catalog" >/dev/null ||
+  fail "the driverless printer guide still offers scanning, for an HP that scans"
 pass "an IPP-USB printer gets the driverless guide ahead of its vendor's"
 
 make_device 1-3 04f9 0002 Brother "MFC" S2 "07/01/04:-" "ff/ff/ff:-"
@@ -186,6 +188,10 @@ make_device 1-13 17e9 6000 DisplayLink Dock S8 "ff/00/00:-" "ff/00/00:-"
 [[ $(device_json 1-13 | jq -c .roles) == '["displaylink"]' ]] || fail "a DisplayLink dock is a DisplayLink device"
 make_device 1-14 27c6 538d Goodix "" "" "ff/00/00:-"
 [[ $(device_json 1-14 | jq -c .roles) == '["fingerprint"]' ]] || fail "a Goodix reader is a fingerprint reader, not a device without a driver"
+make_device 1-20 04f3 0c4b "" "ELAN:ARM-M4" "" "ff/00/00:-"
+[[ $(device_json 1-20 | jq -c .roles) == '["fingerprint"]' ]] || fail "an Elan match-on-chip reader is a fingerprint reader"
+make_device 1-21 10a5 9800 "" "FPC Sensor Controller" "" "ff/00/00:-"
+[[ $(device_json 1-21 | jq -c .roles) == '["fingerprint"]' ]] || fail "a Fingerprint Cards reader is a fingerprint reader"
 make_device 1-15 04b8 0142 EPSON "Perfection V600" S9 "ff/ff/ff:-"
 [[ $(device_json 1-15 | jq -c .guides) == '["scanner.04b8"]' ]] || fail "a standalone Epson scanner gets the Epson scanner guide"
 make_device 1-16 abcd 1234 Acme Widget S10 "ff/00/00:-"
@@ -498,16 +504,21 @@ SH
 cat >"$stub_bin/lpinfo" <<'SH'
 #!/bin/bash
 case $* in
-*-v*) echo "direct usb://EPSON/L380%20Series?serial=X33Q&interface=1" ;;
+*-v*)
+  echo "direct usb://EPSON/L380%20Series?serial=X33QZ&interface=1"
+  echo "direct usb://EPSON/L380%20Series?serial=X33Q&interface=1"
+  ;;
 *-m*)
   echo "gutenprint.5.3://escp2-l375/expert Epson L375 - CUPS+Gutenprint v5.3.5"
+  echo "gutenprint.5.3://escp2-l380/expert Epson L380 - CUPS+Gutenprint v5.3.5"
   echo "lsb/usr/epson-inkjet-printer-escpr/Epson-L380_Series-epson-escpr-en.ppd Epson L380 Series, Epson Inkjet Printer Driver (ESC/P-R) for Linux"
   ;;
 esac
 SH
 chmod +x "$stub_bin/sudo" "$stub_bin/lpinfo"
 
-printf '%s\n' "Install and set up" "Epson ESC/P-R driver (AUR)" "SANE and Document Scanner (Arch repositories)" >"$GUM_ANSWERS"
+printf '%s\n' "Install and set up" "Epson ESC/P-R driver (AUR)" "SANE and Document Scanner (Arch repositories)" \
+  "1. Epson L380 Series, Epson Inkjet Printer Driver (ESC/P-R) for Linux" >"$GUM_ANSWERS"
 touch "$GUM_CONFIRM"
 : >"$GUM_LOG"
 installing=$(PATH="$stub_bin:$ROOT/bin:$PATH" \
@@ -526,7 +537,57 @@ lpadmin -p EPSON_L380_Series -E -v usb://EPSON/L380%20Series?serial=X33Q&interfa
   fail "installing a printer that scans brings in the driver, Document Scanner and the printer's queue" "$(cat "$INSTALL_LOG")"
 grep -Fq "udevadm-real trigger --action=add --settle $sys/1-1" "$INSTALL_LOG" ||
   fail "the scanner can be used without unplugging it" "$(cat "$INSTALL_LOG")"
+grep -Fxq "2. Epson L380 - CUPS+Gutenprint v5.3.5" "$GUM_LOG" ||
+  fail "every installed driver that names the model is offered, the chosen option's first" "$(cat "$GUM_LOG")"
 pass "Install and set up asks for each half, then installs the driver, the app and the printer's queue"
+
+# A second L380 already has the plain queue name: this one gets its own queue
+# instead of taking that one over.
+: >"$INSTALL_LOG"
+echo "device for EPSON_L380_Series: usb://EPSON/L380%20Series?serial=OTHER&interface=1" >"$QUEUES"
+printf '%s\n' "Install and set up" "Epson ESC/P-R driver (AUR)" "Skip" \
+  "1. Epson L380 Series, Epson Inkjet Printer Driver (ESC/P-R) for Linux" >"$GUM_ANSWERS"
+PATH="$stub_bin:$ROOT/bin:$PATH" \
+  INSTALLED="$INSTALLED" QUEUES="$QUEUES" GUM_LOG="$GUM_LOG" GUM_ANSWERS="$GUM_ANSWERS" GUM_CONFIRM="$GUM_CONFIRM" \
+  INSTALL_LOG="$INSTALL_LOG" \
+  OMARCHY_USB_DEVICES_PATH="$sys" \
+  OMARCHY_DEVICE_CATALOG="$catalog" \
+    "$ROOT/bin/omarchy-setup-device" 04b8:1120 >/dev/null 2>&1
+grep -Fq "lpadmin -p EPSON_L380_Series_X33Q -E" "$INSTALL_LOG" ||
+  fail "a second printer of the same model gets a queue of its own" "$(cat "$INSTALL_LOG")"
+grep -q "lpadmin -p EPSON_L380_Series " "$INSTALL_LOG" &&
+  fail "another printer's queue is left alone" "$(cat "$INSTALL_LOG")"
+: >"$QUEUES"
+pass "a second printer of the same model gets a queue of its own"
+
+# Two printers of the same model are two rows, and each opens itself.
+: >"$GUM_LOG"
+twin_sys=$sys
+sys="$TMPDIR/twins"
+make_device 1-1 abcd 1234 Acme Widget S1 "ff/00/00:-"
+make_device 1-2 abcd 1234 Acme Widget S2 "ff/00/00:-"
+sys=$twin_sys
+printf '%s\n' "2. Acme Widget  (abcd:1234:S2)" >"$GUM_ANSWERS"
+twins=$(PATH="$stub_bin:$ROOT/bin:$PATH" \
+  INSTALLED="$INSTALLED" QUEUES="$QUEUES" GUM_LOG="$GUM_LOG" GUM_ANSWERS="$GUM_ANSWERS" GUM_CONFIRM="$GUM_CONFIRM" \
+  OMARCHY_USB_DEVICES_PATH="$TMPDIR/twins" \
+  OMARCHY_DEVICE_CATALOG="$catalog" \
+    "$ROOT/bin/omarchy-setup-device")
+grep -Fq "serial S2" <<<"$twins" || fail "the device picked is the one opened" "$twins"
+pass "two devices of the same model can each be picked"
+
+# Epson Scan 2, once chosen, is offered next to Document Scanner.
+: >"$GUM_LOG"
+: >"$GUM_ANSWERS"
+printf '%s\n' epsonscan2 >"$INSTALLED"
+PATH="$stub_bin:$ROOT/bin:$PATH" \
+  INSTALLED="$INSTALLED" QUEUES="$QUEUES" GUM_LOG="$GUM_LOG" GUM_ANSWERS="$GUM_ANSWERS" GUM_CONFIRM="$GUM_CONFIRM" \
+  OMARCHY_USB_DEVICES_PATH="$sys" \
+  OMARCHY_DEVICE_CATALOG="$catalog" \
+    "$ROOT/bin/omarchy-setup-device" 04b8:1120 >/dev/null
+grep -Fxq "Open Epson Scan 2" "$GUM_LOG" || fail "the app of the installed option is offered" "$(cat "$GUM_LOG")"
+: >"$INSTALLED"
+pass "the app of the installed option is offered"
 
 : >"$INSTALL_LOG"
 rm "$GUM_CONFIRM"

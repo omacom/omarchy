@@ -97,11 +97,20 @@ print_guide() {
   fi
 }
 
+# The device URI of an existing CUPS queue, empty when there is none.
+queue_uri() {
+  lpstat -v 2>/dev/null | sed -n "s|^device for $1: ||p"
+}
+
 # Adds the CUPS queue for a USB printer once its driver is installed, with the
-# driver that names its model. Falls back to Print Settings, where the user
-# picks, whenever the match is not certain.
+# driver that names its model. When several installed drivers name it, the user
+# picks, with those from the packages just chosen first. Falls back to Print
+# Settings, where the user picks, whenever the match is not certain.
+# add_printer_queue <device-json> [<chosen-package>...]
 add_printer_queue() {
-  local device=$1 serial name model uri="" ppd="" queue
+  local device=$1 serial name model uri="" ppd="" queue base line rest pkg
+  local drivers=() preferred=() others=() labels=() choice i
+  shift
   serial=$(jq -r '.key | split(":")[2:] | join(":")' <<<"$device")
   name=$(jq -r .name <<<"$device")
   # The model is the first word with a digit after the maker's name: "EPSON
@@ -110,10 +119,41 @@ add_printer_queue() {
   model=$(awk '{for (i = 2; i <= NF; i++) if ($i ~ /[0-9]/) { print $i; exit }}' <<<"$name")
 
   if [[ -n $serial ]]; then
-    uri=$(sudo lpinfo --include-schemes usb -v 2>/dev/null | awk '{print $2}' | grep -F "serial=$serial" | head -n 1)
+    # Whole, so serial X33 does not pick the printer whose serial is X33Q.
+    while read -r _ line; do
+      [[ $line == *"serial=$serial"* ]] || continue
+      rest=${line#*"serial=$serial"}
+      if [[ -z $rest || $rest == [\&?]* ]]; then
+        uri=$line
+        break
+      fi
+    done < <(sudo lpinfo --include-schemes usb -v 2>/dev/null)
   fi
+
   if [[ -n $model ]]; then
-    ppd=$(sudo lpinfo -m 2>/dev/null | grep -i -E "[^[:alnum:]]$model([^[:alnum:]]|$)" | head -n 1 | awk '{print $1}')
+    mapfile -t drivers < <(sudo lpinfo -m 2>/dev/null | grep -i -E "[^[:alnum:]]$model([^[:alnum:]]|$)")
+    for line in "${drivers[@]}"; do
+      for pkg in "$@"; do
+        if [[ ${line%% *} == *"$pkg"* ]]; then
+          preferred+=("$line")
+          continue 2
+        fi
+      done
+      others+=("$line")
+    done
+    drivers=("${preferred[@]}" "${others[@]}")
+  fi
+
+  if ((${#drivers[@]} == 1)); then
+    ppd=${drivers[0]%% *}
+  elif ((${#drivers[@]} > 1)); then
+    for i in "${!drivers[@]}"; do
+      labels+=("$((i + 1)). ${drivers[$i]#* }")
+    done
+    choice=$(gum choose --header "Which driver for $name?" "${labels[@]}") || choice=""
+    if [[ $choice =~ ^([0-9]+)\. ]]; then
+      ppd=${drivers[$((BASH_REMATCH[1] - 1))]%% *}
+    fi
   fi
 
   if [[ -z $uri || -z $ppd ]]; then
@@ -122,8 +162,22 @@ add_printer_queue() {
     return 0
   fi
 
-  queue=$(tr -c 'A-Za-z0-9_-' '_' <<<"$name" | sed 's/_*$//')
-  echo "Adding $name with $ppd"
+  # A queue of the same name for another printer (a second one of the same
+  # model) is left alone: this one is told apart by its serial.
+  base=$(tr -c 'A-Za-z0-9_-' '_' <<<"$name" | sed 's/_*$//')
+  queue=$base
+  line=$(queue_uri "$queue")
+  if [[ -n $line && $line != "$uri" ]]; then
+    queue="${base}_$(tr -c 'A-Za-z0-9_-' '_' <<<"$serial" | sed 's/_*$//')"
+    line=$(queue_uri "$queue")
+    if [[ -n $line && $line != "$uri" ]]; then
+      echo "A printer queue named $queue already belongs to another printer. Opening Print Settings to finish."
+      open_app system-config-printer
+      return 0
+    fi
+  fi
+
+  echo "Adding $name as $queue with $ppd"
   if sudo lpadmin -p "$queue" -E -v "$uri" -m "$ppd"; then
     # The first printer becomes the default, as it would on any other system.
     if ! lpstat -d 2>/dev/null | grep -q ':'; then
@@ -216,7 +270,7 @@ install_and_set_up() {
   if [[ -n $device ]]; then
     while IFS= read -r line; do
       case $line in
-      cups-queue) add_printer_queue "$device" ;;
+      cups-queue) add_printer_queue "$device" "${packages[@]}" "${aur[@]}" ;;
       usb-access) grant_usb_access "$device" ;;
       esac
     done < <(printf '%s\n' "${setups[@]}" | sort -u)
@@ -225,8 +279,28 @@ install_and_set_up() {
 
 # Prints every guide, then offers one menu for all of them: a printer that
 # scans installs and opens both halves from the same place.
+# The apps that use a guide's device, as "label<TAB>command" lines: the guide's
+# own, then that of each option installed with an app of its own (Epson Scan 2
+# rather than Document Scanner).
+guide_apps() {
+  local guide=$1 i count pkgs
+  jq -r --arg key "$guide" '.[$key].open // empty | [.label, .command] | @tsv' "$catalog"
+  count=$(option_count "$guide")
+  for ((i = 0; i < count; i++)); do
+    pkgs=$(
+      option_field "$guide" "$i" packages
+      option_field "$guide" "$i" aur
+    )
+    # shellcheck disable=SC2086 # one word per package
+    if [[ -n $pkgs ]] && installed $pkgs; then
+      jq -r --arg key "$guide" --argjson i "$i" '.[$key].options[$i].open // empty | [.label, .command] | @tsv' "$catalog"
+    fi
+  done
+}
+
 show_guides() {
-  local device=$1 id=$2 guide label url actions=() opens=() action installable=0
+  local device=$1 id=$2 guide label command url actions=() action installable=0
+  local -A apps=()
   shift 2
   local guides=("$@")
 
@@ -235,21 +309,24 @@ show_guides() {
     (($(option_count "$guide") > 0)) && installable=1
   done
 
-  ((installable)) && actions+=("Install and set up")
-  for guide in "${guides[@]}"; do
-    label=$(jq -r --arg key "$guide" '.[$key].open.label // empty' "$catalog")
-    if [[ -n $label && " ${opens[*]} " != *" Open $label "* ]]; then
-      opens+=("Open $label")
-      actions+=("Open $label")
-    fi
-  done
-  for guide in "${guides[@]}"; do
-    url=$(fill "$(guide_field "$guide" url)" "$id")
-    [[ -n $url ]] && actions+=("Read: $(guide_field "$guide" title)")
-  done
-  actions+=("Done")
-
   while true; do
+    # Rebuilt every round, so an app installed a moment ago can be opened.
+    actions=()
+    apps=()
+    ((installable)) && actions+=("Install and set up")
+    for guide in "${guides[@]}"; do
+      while IFS=$'\t' read -r label command; do
+        [[ -n $label && -z ${apps["Open $label"]:-} ]] || continue
+        apps["Open $label"]=$command
+        actions+=("Open $label")
+      done < <(guide_apps "$guide")
+    done
+    for guide in "${guides[@]}"; do
+      url=$(fill "$(guide_field "$guide" url)" "$id")
+      [[ -n $url ]] && actions+=("Read: $(guide_field "$guide" title)")
+    done
+    actions+=("Done")
+
     echo
     action=$(gum choose "${actions[@]}") || return 0
     case $action in
@@ -263,15 +340,7 @@ show_guides() {
         echo "Stopped before finishing. Choose Install and set up again to continue."
       fi
       ;;
-    "Open "*)
-      for guide in "${guides[@]}"; do
-        label=$(jq -r --arg key "$guide" '.[$key].open.label // empty' "$catalog")
-        if [[ $action == "Open $label" ]]; then
-          open_app "$(guide_field "$guide" open)"
-          break
-        fi
-      done
-      ;;
+    "Open "*) open_app "${apps[$action]}" ;;
     "Read: "*)
       for guide in "${guides[@]}"; do
         if [[ $action == "Read: $(guide_field "$guide" title)" ]]; then
@@ -286,12 +355,13 @@ show_guides() {
 }
 
 show_device() {
-  local device=$1 name id guides=()
+  local device=$1 name id serial guides=()
   name=$(jq -r .name <<<"$device")
   id=$(jq -r .id <<<"$device")
+  serial=$(jq -r '.key | split(":")[2:] | join(":")' <<<"$device")
   mapfile -t guides < <(jq -r '.guides[]' <<<"$device")
 
-  gum style --border rounded --padding "0 2" --bold "$name" "USB $id"
+  gum style --border rounded --padding "0 2" --bold "$name" "USB $id${serial:+, serial $serial}"
   show_guides "$device" "$id" "${guides[@]}"
 }
 
@@ -344,14 +414,12 @@ if ((${#devices[@]} == 1)); then
   exit 0
 fi
 
+# Numbered, so two printers of the same model are still two rows.
 labels=()
-for device in "${devices[@]}"; do
-  labels+=("$(jq -r '"\(.name)  (\(.id))"' <<<"$device")")
+for i in "${!devices[@]}"; do
+  labels+=("$((i + 1)). $(jq -r '"\(.name)  (\(.key))"' <<<"${devices[$i]}")")
 done
 choice=$(gum choose --header "Which device?" "${labels[@]}") || exit 0
-for i in "${!labels[@]}"; do
-  if [[ ${labels[$i]} == "$choice" ]]; then
-    show_device "${devices[$i]}"
-    break
-  fi
-done
+if [[ $choice =~ ^([0-9]+)\. ]]; then
+  show_device "${devices[$((BASH_REMATCH[1] - 1))]}"
+fi
