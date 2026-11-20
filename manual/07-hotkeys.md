@@ -40,6 +40,10 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Super + Ctrl + L` | Lock computer |
 | `Super + W` or `Super + Q` | Close window             |
 | `Ctrl + Alt + Del` | Close all windows |
+| `Super + K` | Show all hotkeys |
+| `Super + Alt + K` | Show tmux hotkeys |
+| `Super + Ctrl + K` | Show herdr hotkeys |
+| `Super + M` | Minimize window to the dock |
 | `Super + T`               | Toggle window between tiling/floating             |
 | `Super + J` | Toggle window position (horizontal/vertical) |
 | `Super + O`               | Toggle popping window into sticky'n'floating |
@@ -49,12 +53,12 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Super + F`                 | Go full screen              |
 | `Super + Alt + F`                 | Go full width              |
 | `Super + Ctrl + F`                 | Go full screen inside window              |
-| `Super + 1/2/3/4`         | Jump to specific workspace on the focused monitor |
+| `Super + 1…9/0`         | Jump to specific workspace (0 is 10) on the focused monitor |
 | `Super + Tab` | Jump to next workspace on the focused monitor |
 | `Super + Shift + Tab` | Jump to previous workspace on the focused monitor |
 | `Super + Ctrl + Tab` | Jump to former workspace on the focused monitor |
-| `Super + Shift + 1/2/3/4` | Move window to workspace on the focused monitor |
-| `Super + Shift + Alt + 1/2/3/4` | Move window to workspace on the focused monitor without following |
+| `Super + Shift + 1…9/0` | Move window to workspace on the focused monitor |
+| `Super + Shift + Alt + 1…9/0` | Move window to workspace on the focused monitor without following |
 | `Super + S` | Toggle full scratchpad |
 | `Super + Alt + S` | Move window to full scratchpad |
 | `Super + Grave` | Toggle Quake console |
@@ -90,6 +94,10 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Alt + Shift + Tab` | Cycle backward through windows on the active workspace |
 | `Ctrl + Alt + Tab`| Cycle focus forward through monitors |
 | `Ctrl + Alt + Shift + Tab`| Cycle focus backwards through monitors |
+| `Super + I` | Switch input language (with more than one layout or input method) |
+| `Super + Shift + I` | Switch input language back |
+
+On a touchpad, three- and four-finger swipes switch workspaces, move windows, and open the menu and the Quake console; see [keyboard, mouse, and trackpad](34-keyboard-mouse-trackpad.md) for the gestures.
 
 Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<AE12>`), regardless of the characters printed on the keyboard. On US keyboards these keys are `-` and `=`; on Japanese (JIS) keyboards they are `-` and `^`; on Spanish keyboards they are `'` and `¡`. On JIS, `Super + ^` is `Super + Equal`, while `Super + Shift + -` (which types `=`) is `Super + Shift + Minus`.
 
@@ -113,6 +121,8 @@ Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<A
 | `Super + Ctrl + E` | Emoji picker |
 | `Super + Ctrl + .` | Transcode media |
 | `Super + Shift + Ctrl + A` | Pick an AI agent |
+| `Power` key | System menu |
+| `Super + Shift + Copilot` key | Omarchy menu |
 
 ## Adjustments
 
@@ -124,6 +134,11 @@ Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<A
 | `Alt + Volume Up/Down` | Precise 1% volume changes |
 | `Keyboard Brightness Up/Down` | Keyboard backlight brighter/dimmer |
 | `Keyboard Backlight` | Cycle the keyboard backlight levels |
+| `Ctrl + Brightness Up/Down` | Keyboard backlight brighter/dimmer, on keyboards without their own keys |
+| `Mic Mute` | Mute the microphone |
+| `Shift + Mute` | Switch audio output |
+| `Touchpad Toggle` | Turn the touchpad on or off |
+| `Display` key | Cycle the workspace layout |
 | `Alt + Play` | Next track |
 | `Alt + Shift + Play` | Previous track |
 
@@ -134,16 +149,17 @@ Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<A
 | `Super + Return`           | Terminal    |
 | `Super + Alt + Return` | Tmux terminal |
 | `Super + Ctrl + Return` | Herdr (agent manager) |
-| `Super + Shift + Return`           | Browser    |
+| `Super + Shift + Return` or `Super + Shift + B`  | Browser    |
 | `Super + Shift + Alt + B`           | Browser (private/incognito)    |
 | `Super + Shift + F`           | File manager    |
 | `Super + Shift + Alt + F`           | File manager in cwd of terminal    |
 | `Super + Shift + M`           | Music (Spotify)    |
 | `Super + Shift + Alt + M`           | Music (cliamp)    |
 | `Super + Shift + /`           | Password manager (1password)    |
-| `Super + Shift + Q`           | Calculator (Omacalc)    |
+| `Super + Shift + Q` or `Calculator` key  | Calculator (Omacalc)    |
+| `Super + Shift + D`           | Docker (lazydocker, once installed)    |
 | `Super + Shift + T`           | Activity (btop)    |
-| `Super + Shift + N`           | Editor (Neovim)  |
+| `Super + Shift + N`           | Editor (Plain, or your chosen default)  |
 | `Super + Shift + C`           | Calendar ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | Email ([HEY](https://hey.com/))  |
 | `Super + Shift + Alt + E`           | New email ([HEY](https://hey.com/))  |
@@ -157,7 +173,7 @@ Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<A
 | `Super + Shift + O`           | Obsidian  |
 | `Super + Shift + W`           | Writing (Omawrite)  |
 | `Super + Shift + X`           | X |
-| `Super + Shift + Alt + X`           | X Compose |
+| `Super + Shift + Alt + X`           | X (new post) |
 | `Super + Shift + Y`           | YouTube |
 
 Change/add bindings in `~/.config/hypr/bindings.lua`.
@@ -218,7 +234,7 @@ All capture options are also accessible under _Trigger > Capture_ in the Omarchy
 
 Extra background images live in `~/.config/omarchy/backgrounds/<theme name>`. Also available via _Install > Style > Background_ in the Omarchy menu.
 
-All style options are also accessible under _Style_ in the Omarchy menu (`Super + Space`).
+All style options are also accessible under _Appearance_ in the Omarchy menu (`Super + Space`).
 
 ## Toggles
 
@@ -410,4 +426,4 @@ You can use `Super + Ctrl + E` to show a complete emoji picker that'll put the s
 | `Shift + CapsLock Space N` | Your name (as entered on setup)  |
 | `Shift + CapsLock Space E` | Your email (as entered on setup)  |
 
-You can add more of your own by editing `~/.XCompose`, then running `omarchy-restart-xcompose` in the terminal to get the changes picked up.
+You can add more of your own by editing `~/.XCompose`, then running `omarchy restart xcompose` in the terminal to get the changes picked up.
