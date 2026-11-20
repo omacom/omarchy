@@ -90,6 +90,14 @@ reconfigure. The one thing to clean up is your own: delete the core you extracte
 above, which is a copy of the crashed process's memory. The single change a
 diagnosis may make is the mute below, and only when the user asks for it.
 
+A diagnosis started from a crash notification runs with
+`OMARCHY_CRASH_DIAGNOSIS` in its environment, and everything you start inherits
+it, a nested `omarchy agent` launch included. For an hour from the start, a
+crash of anything carrying it is announced without offering another diagnosis,
+so reproducing the crash does not chain a fresh agent. Anything you leave
+running holds that for the whole hour, which is one more reason to close what
+you started.
+
 ## Offer to stop the notifications for this program
 
 A crash you have explained often keeps happening anyway. Finish by offering to
