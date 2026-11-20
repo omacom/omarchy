@@ -299,7 +299,7 @@ function altVariant(items, whenResults, disabledResults, entry) {
 // Only an action can stand in, so a reference to anything else (a submenu,
 // a missing id) hides nothing.
 function altVariantIds(items, itemOrder) {
-  var ids = {}
+  var ids = Object.create(null)
   var order = Array.isArray(itemOrder) ? itemOrder : []
   for (var i = 0; i < order.length; i++) {
     var entry = item(items, order[i])
