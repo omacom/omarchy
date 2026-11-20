@@ -337,7 +337,24 @@
     return { L: x.L + (y.L - x.L) * t, a: x.a + (y.a - x.a) * t, b: x.b + (y.b - x.b) * t };
   }
 
+  // RGBA bytes of a downscaled picture → its alpha-weighted average color, the share of
+  // it that is opaque (`cover`, 0..1) and its natural size.
+  function sampleStats(data, width, height) {
+    let r = 0, g = 0, b = 0, a = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const w = data[i + 3] / 255;
+      r += data[i] * w;
+      g += data[i + 1] * w;
+      b += data[i + 2] * w;
+      a += w;
+    }
+    const n = data.length / 4 || 1;
+    const color = a ? { r: r / a, g: g / a, b: b / a, a: 1 } : null;
+    return { color, cover: a / n, width, height };
+  }
+
   root.OmareaderColor = {
+    sampleStats,
     NAMED,
     parse,
     parseLegacy,

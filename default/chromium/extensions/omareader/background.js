@@ -76,7 +76,12 @@ function originHost(sender) {
 
 // The body as UTF-8 text (as res.text() decodes it), or null once it passes `limit` bytes.
 async function readCapped(res, limit) {
-  if (!res.body) return '';
+  const bytes = await readCappedBytes(res, limit);
+  return bytes && new TextDecoder().decode(bytes);
+}
+
+async function readCappedBytes(res, limit) {
+  if (!res.body) return new Uint8Array(0);
   const reader = res.body.getReader();
   const chunks = [];
   let size = 0;
@@ -96,10 +101,12 @@ async function readCapped(res, limit) {
     bytes.set(c, at);
     at += c.byteLength;
   }
-  return new TextDecoder().decode(bytes);
+  return bytes;
 }
 
-async function fetchCssOnce(url, allowPrivate) {
+// One anonymous GET under the cross-origin rules above: `accept(type)` decides the
+// content types, `read(res)` the result. Shared by stylesheets and background pictures.
+async function fetchPublic(url, allowPrivate, accept, read) {
   const target = new URL(url);
   if (!/^https?:$/.test(target.protocol)) return { ok: false, error: 'unsupported scheme' };
   if (!allowPrivate && isPrivateHost(target.hostname)) return { ok: false, error: 'private address' };
@@ -114,18 +121,42 @@ async function fetchCssOnce(url, allowPrivate) {
     if (!allowPrivate && isPrivateHost(new URL(res.url).hostname)) return { ok: false, error: 'redirected to private address' };
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
     const type = (res.headers.get('content-type') || '').toLowerCase();
-    if (!type.startsWith('text/css')) return { ok: false, error: `not CSS (${type || 'no type'})` };
+    if (!accept(type)) return { ok: false, error: `unexpected type (${type || 'no type'})` };
     if (Number(res.headers.get('content-length')) > CSS_MAX_BYTES) return { ok: false, error: 'too large' };
-    // Content-Length can be absent, or describe a compressed body that expands past the
-    // cap, so count the bytes as they arrive and stop at the cap.
-    const text = await readCapped(res, CSS_MAX_BYTES);
-    if (text === null) return { ok: false, error: 'too large' };
-    return { ok: true, text, url: res.url };
+    return await read(res, type);
   } catch (e) {
     return { ok: false, error: String(e) };
   } finally {
     clearTimeout(timer);
   }
+}
+
+function fetchCssOnce(url, allowPrivate) {
+  return fetchPublic(url, allowPrivate, (type) => type.startsWith('text/css'), async (res) => {
+    // Content-Length can be absent, or describe a compressed body that expands past the
+    // cap, so count the bytes as they arrive and stop at the cap.
+    const text = await readCapped(res, CSS_MAX_BYTES);
+    if (text === null) return { ok: false, error: 'too large' };
+    return { ok: true, text, url: res.url };
+  });
+}
+
+// A background picture's average color and coverage (16×16 sample) and natural size.
+// Only these numbers go back to the tab, never the bytes, except SVG text: a worker
+// cannot rasterize SVG, so the content script draws it from a blob URL of its own.
+async function imageStatsOnce(url, allowPrivate) {
+  return fetchPublic(url, allowPrivate, (type) => type.startsWith('image/'), async (res, type) => {
+    const bytes = await readCappedBytes(res, CSS_MAX_BYTES);
+    if (bytes === null) return { ok: false, error: 'too large' };
+    if (type.startsWith('image/svg')) return { ok: true, svg: new TextDecoder().decode(bytes) };
+    const bitmap = await createImageBitmap(new Blob([bytes], { type }));
+    const canvas = new OffscreenCanvas(16, 16);
+    const g = canvas.getContext('2d');
+    g.drawImage(bitmap, 0, 0, 16, 16);
+    const stats = OmareaderColor.sampleStats(g.getImageData(0, 0, 16, 16).data, bitmap.width, bitmap.height);
+    bitmap.close();
+    return { ok: true, stats };
+  });
 }
 
 async function fetchCss(url, sender) {
@@ -140,6 +171,19 @@ async function fetchCss(url, sender) {
     cssCache.set(key, res);
     if (cssCache.size > 100) cssCache.delete(cssCache.keys().next().value);
   }
+  return res;
+}
+
+const imageCache = new Map();
+async function imageStats(url, sender) {
+  if (sender.id !== chrome.runtime.id || !sender.tab) return { ok: false, error: 'bad sender' };
+  const allowPrivate = isPrivateHost(originHost(sender));
+  const key = `${allowPrivate ? 'p' : 'o'}|${url}`;
+  const hit = imageCache.get(key);
+  if (hit) return hit;
+  const res = await imageStatsOnce(url, allowPrivate).catch((e) => ({ ok: false, error: String(e) }));
+  imageCache.set(key, res);
+  if (imageCache.size > 200) imageCache.delete(imageCache.keys().next().value);
   return res;
 }
 
@@ -171,6 +215,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   if (msg.type === 'fetch-css') {
     fetchCss(String(msg.url), _sender).then(sendResponse);
+    return true;
+  }
+  if (msg.type === 'image-stats') {
+    imageStats(String(msg.url), _sender).then(sendResponse);
     return true;
   }
   if (msg.type === 'reconnect') {

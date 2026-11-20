@@ -416,6 +416,8 @@
     let out = '';
     let cacheable = true;
     if (W.CSSStyleRule && rule instanceof W.CSSStyleRule) {
+      // Elements under such rules may hold text over a picture the theme cannot recolor.
+      if (ctx.onImageRule && rule.style.backgroundImage.includes('url(')) ctx.onImageRule(rule.selectorText);
       const decls = renderDecls(rule.style, ctx, false, rule);
       const nested = rule.cssRules && rule.cssRules.length ? renderRules(rule.cssRules, ctx) : '';
       if (nested) cacheable = false;

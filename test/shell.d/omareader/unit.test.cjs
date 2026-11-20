@@ -261,6 +261,15 @@ test('variables are renamed per role with the original as fallback', () => {
   assert.match(X.transformValue('color-mix(in srgb, white 50%, var(--x))', 'bg', c), /^color-mix\(in srgb, #151e26 50%, var\(--omareader-bg--x, var\(--x\)\)\)$/);
 });
 
+test('picture samples average by alpha and report how much is opaque', () => {
+  // two opaque white pixels, one transparent red, one half-transparent black
+  const s = C.sampleStats(new Uint8ClampedArray([255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 128]), 40, 20);
+  assert.equal(s.width, 40);
+  assert.ok(Math.abs(s.cover - (2 + 128 / 255) / 4) < 1e-9);
+  assert.ok(s.color.r > 200 && s.color.r === s.color.g && s.color.g === s.color.b, 'red pixel is invisible, black is half weight');
+  assert.equal(C.sampleStats(new Uint8ClampedArray(8), 1, 1).color, null);
+});
+
 test('channel-triple fallbacks inside rgb()/hsl() map like the color they render', () => {
   const c = ctx();
   // Google Docs' disabled menu text: the -rgb variable is undefined, so 31,31,31 renders.

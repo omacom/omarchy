@@ -252,6 +252,7 @@
       rawDecls,
       onProperty,
       onAnonLayer,
+      onImageRule,
     };
   }
 
@@ -626,7 +627,7 @@
       // Shared with every shadow root as well as the document. Multiply-blended product
       // pictures otherwise disappear into a recolored black background.
       const media = mapper.mode === 'dark' ? 'img,picture,video,canvas{mix-blend-mode:normal !important;}' : '';
-      presSheet.replaceSync(`${MARK}@layer omareader-base{${media}${siteCss()}${[...presRules].map(([sel, css]) => `${sel}{${css}}`).join('')}}`);
+      presSheet.replaceSync(`${MARK}@layer omareader-base{${media}${siteCss()}${scrimCss()}${[...presRules].map(([sel, css]) => `${sel}{${css}}`).join('')}}`);
       propSheet.replaceSync(MARK + [...propRules.values()].join(''));
     });
   }
@@ -832,7 +833,10 @@
       scope.scan();
       pruneRemote();
     }
-    if (detect) scheduleDetect();
+    if (detect) {
+      scheduleDetect();
+      requestScrims();
+    }
   }
 
   function onLoad(e) {
@@ -1204,6 +1208,216 @@
     }
   }
 
+  // ---- text over light background pictures -------------------------------
+
+  // A pastel promo panel or a bright hero picture keeps its pixels while the dark copy
+  // designed for it turns light (Boozt's Club Boozt popup: 1.15:1). An element with text
+  // directly over a covering, mostly opaque, light picture gets an inset scrim in the
+  // palette background: box-shadow paints over the background and under the content,
+  // changes no layout, and goes away with one attribute. Dark palettes only.
+  const SCRIM_ATTR = 'data-omareader-scrim';
+  const SCRIM_ALPHA = 0.8;
+  const imageSelectors = new Set();
+  const imageStats = new Map(); // absolute URL → stats, null (unusable) or a pending promise
+  const scrims = new Map(); // element → { id, shadow }
+  let scrimNext = 0;
+  let scrimTimer = 0;
+  let scrimAt = -Infinity;
+
+  // Called while rendering a rule whose background has a url(). Pseudo-elements and
+  // nested relative selectors cannot be queried, so CSS.supports filters them out.
+  function onImageRule(sel) {
+    if (imageSelectors.has(sel) || imageSelectors.size >= 2000) return;
+    try {
+      if (!CSS.supports(`selector(${sel})`)) return;
+    } catch {
+      return;
+    }
+    imageSelectors.add(sel);
+    requestScrims();
+  }
+
+  // At most one pass a second: a carousel's DOM churn must not turn into steady work.
+  function requestScrims(delay = 300) {
+    if (!running || scrimTimer) return;
+    const wait = Math.max(delay, scrimAt + 1000 - performance.now());
+    scrimTimer = setTimeout(() => {
+      scrimTimer = 0;
+      scrimPass();
+    }, wait);
+  }
+
+  function scrimPass() {
+    scrimAt = performance.now();
+    if (!running) return;
+    if (mapper.mode !== 'dark') {
+      clearScrims();
+      return;
+    }
+    const query = imageSelectors.size ? `${[...imageSelectors].join(',')},[style*="url("]` : '[style*="url("]';
+    const seen = new Set();
+    let budget = 400;
+    for (const root of scopes.keys()) {
+      let list = [];
+      try {
+        list = root.querySelectorAll(query);
+      } catch {}
+      for (const el of list) {
+        if (budget-- <= 0) break;
+        seen.add(el);
+        checkScrim(el);
+      }
+    }
+    for (const el of [...scrims.keys()]) {
+      if (!el.isConnected || (budget > 0 && !seen.has(el))) setScrim(el, false);
+    }
+  }
+
+  function checkScrim(el) {
+    const r = el.getBoundingClientRect();
+    if (r.width < 64 || r.height < 24) return setScrim(el, false);
+    const cs = getComputedStyle(el);
+    const m = /url\((["']?)(.*?)\1\)/.exec(cs.backgroundImage);
+    if (!m) return setScrim(el, false);
+    const stats = statsFor(m[2]);
+    if (stats instanceof Promise) return; // keep the current state until it is known
+    const light = stats && stats.color && stats.cover > 0.6 && C.luminance(stats.color) > 0.4;
+    // A picture sized to the box (cover, 100%, tiled, or an SVG without its own size)
+    // is the backdrop; an icon or a sprite slice is not.
+    const covers = stats && (/cover|contain|100%/.test(cs.backgroundSize) || !/no-repeat/.test(cs.backgroundRepeat) ||
+      !stats.width || (stats.width >= r.width * 0.6 && stats.height >= r.height * 0.6));
+    setScrim(el, !!(light && covers && (textOver(el, el, null) || textBeside(el, r))));
+  }
+
+  const containerOf = (el) => el.parentElement || (el.parentNode && el.parentNode.host) || null;
+
+  // A picture layer is often a few levels away from the copy it sits behind (Sleeknote:
+  // form > … > .column-bg, copy under form > ul > li > …). Look in nearby containers,
+  // but stop once one is much larger than the picture.
+  function textBeside(el, r) {
+    let c = containerOf(el);
+    for (let k = 0; c && k < 5; k++, c = containerOf(c)) {
+      if (textOver(c, el, r)) return true;
+      const cr = c.getBoundingClientRect();
+      if (cr.width * cr.height > r.width * r.height * 4) return false;
+    }
+    return false;
+  }
+
+  // Some visible text whose nearest painted surface is this picture, not a card or button
+  // of its own. Inside the element itself (`box` null), or, for a picture layer behind
+  // sibling content (Sleeknote's absolutely positioned, z-index:-1 .column-bg), text in
+  // the layer's container that overlaps `box`.
+  function textOver(container, el, box) {
+    if (!container) return false;
+    const walker = doc.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    const range = box && doc.createRange();
+    let n = 0;
+    for (let t = walker.nextNode(); t && n < (box ? 150 : 40); t = walker.nextNode()) {
+      if (!t.data.trim()) continue;
+      n++;
+      if (box) {
+        if (el.contains(t)) continue;
+        range.selectNodeContents(t);
+        const tr = range.getBoundingClientRect();
+        if (!tr.width || tr.right < box.left || tr.left > box.right || tr.bottom < box.top || tr.top > box.bottom) continue;
+      }
+      let own = false;
+      for (let a = t.parentElement; a && a !== container; a = a.parentElement) {
+        const s = getComputedStyle(a);
+        const bg = C.parse(s.backgroundColor);
+        if ((bg && bg.a > 0.5) || s.backgroundImage.includes('url(')) {
+          own = true;
+          break;
+        }
+      }
+      if (!own && t.parentElement && t.parentElement.getClientRects().length) return true;
+    }
+    return false;
+  }
+
+  function statsFor(url) {
+    if (imageStats.has(url)) return imageStats.get(url);
+    const pending = loadStats(url).then(
+      (s) => imageStats.set(url, s || null),
+      () => imageStats.set(url, null),
+    ).then(() => requestScrims(50));
+    imageStats.set(url, pending);
+    if (imageStats.size > 500) imageStats.delete(imageStats.keys().next().value);
+    return pending;
+  }
+
+  // Same-origin, data: and blob: pictures are drawn here; others go through the worker's
+  // anonymous, public-only fetch, which answers with numbers (or SVG text to draw here).
+  async function loadStats(url) {
+    let u;
+    try {
+      u = new URL(url);
+    } catch {
+      return null;
+    }
+    if (u.protocol === 'data:' || u.protocol === 'blob:' || u.origin === location.origin) return drawStats(u.href);
+    if (!/^https?:$/.test(u.protocol)) return null;
+    const res = await chrome.runtime.sendMessage({ type: 'image-stats', url: u.href });
+    if (!res || !res.ok) return null;
+    if (res.stats) return res.stats;
+    if (typeof res.svg !== 'string') return null;
+    const blob = URL.createObjectURL(new Blob([res.svg], { type: 'image/svg+xml' }));
+    try {
+      return await drawStats(blob);
+    } finally {
+      URL.revokeObjectURL(blob);
+    }
+  }
+
+  function drawStats(src) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const g = new OffscreenCanvas(16, 16).getContext('2d');
+          g.drawImage(img, 0, 0, 16, 16);
+          resolve(C.sampleStats(g.getImageData(0, 0, 16, 16).data, img.naturalWidth, img.naturalHeight));
+        } catch {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+
+  function setScrim(el, on) {
+    const rec = scrims.get(el);
+    if (on && !rec) {
+      const id = String(++scrimNext);
+      // The element's own (themed) shadow is kept after the scrim.
+      const shadow = getComputedStyle(el).boxShadow;
+      scrims.set(el, { id, shadow: shadow === 'none' ? '' : shadow });
+      el.setAttribute(SCRIM_ATTR, id);
+      queueSheetWrite();
+    } else if (!on && rec) {
+      scrims.delete(el);
+      if (el.getAttribute(SCRIM_ATTR) === rec.id) el.removeAttribute(SCRIM_ATTR);
+      queueSheetWrite();
+    }
+  }
+
+  function clearScrims() {
+    for (const el of [...scrims.keys()]) setScrim(el, false);
+  }
+
+  function scrimCss() {
+    if (!scrims.size) return '';
+    const bg = C.parse(mapper.swatch.bg);
+    const veil = `rgba(${Math.round(bg.r)}, ${Math.round(bg.g)}, ${Math.round(bg.b)}, ${SCRIM_ALPHA})`;
+    let css = '';
+    for (const { id, shadow } of scrims.values()) {
+      css += `[${SCRIM_ATTR}="${id}"]{box-shadow:inset 0 0 0 100vmax ${veil}${shadow ? `,${shadow}` : ''} !important}`;
+    }
+    return css;
+  }
+
   // ---- base layer --------------------------------------------------------
 
   // Canvas pixels are out of reach of CSS colors, so the grid goes through one sRGB color
@@ -1508,6 +1722,7 @@ mark{background-color:${s.mark};color:${s.fg}}
       processTree(scope.root);
     }
     queueSheetWrite();
+    requestScrims();
   }
 
   function onReady() {
@@ -1518,6 +1733,7 @@ mark{background-color:${s.mark};color:${s.fg}}
     discoverShadows(doc);
     scanAll();
     detectSite();
+    requestScrims(0);
   }
 
   const onCss = () => {
@@ -1606,7 +1822,10 @@ mark{background-color:${s.mark};color:${s.fg}}
     addListeners();
     if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', onReady, { once: true });
     else onReady();
-    addEventListener('load', () => scheduleDetect(0, true), { once: true });
+    addEventListener('load', () => {
+      scheduleDetect(0, true);
+      requestScrims(0);
+    }, { once: true });
     watchRootAttrs();
     timer = setInterval(tick, 1000);
   }
@@ -1633,6 +1852,10 @@ mark{background-color:${s.mark};color:${s.fg}}
     presRules.clear();
     presSeen.clear();
     propRules.clear();
+    clearTimeout(scrimTimer);
+    scrimTimer = 0;
+    clearScrims();
+    imageSelectors.clear();
   }
 
   // attachShadow or a root's adoptedStyleSheets changed. The innermost scope sees the
