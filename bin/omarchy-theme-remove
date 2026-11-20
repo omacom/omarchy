@@ -48,12 +48,16 @@ if [[ $(cat "$THEME_NAME_PATH" 2>/dev/null || true) == "$THEME_NAME" ]]; then
   WAS_CURRENT=true
 fi
 
-# Remove the theme directory before switching away so a user folder named
-# "Tokyo Night" or "tokyo-night" cannot be reselected or overlaid again.
+# Remove the folder before switching, so an overlay being removed is not staged over its bundled theme again.
 rm -rf "$THEME_PATH"
 
+# A removed overlay leaves the bundled theme of that name to go back to; anything else leaves the default.
 if [[ $WAS_CURRENT == "true" ]]; then
-  omarchy-theme-set "tokyo-night"
+  if [[ -d $OMARCHY_PATH/themes/$THEME_NAME ]]; then
+    omarchy-theme-set "$THEME_NAME"
+  else
+    omarchy-theme-set "tokyo-night"
+  fi
 fi
 
 omarchy-notification-send "$(omarchy-i18n theme.removed)" "$THEME_NAME" || true
