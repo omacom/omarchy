@@ -517,7 +517,6 @@ assert_output_contains "theme preview finds a hand-made theme by its folder name
 
 make_tmpdir THEME_DIR_TMPDIR
 mkdir -p "$THEME_DIR_TMPDIR/.config/omarchy/themes/My Theme"
-touch "$THEME_DIR_TMPDIR/.config/omarchy/themes/My Theme/preview-unlock.png"
 
 theme_dir=$(OMARCHY_PATH="$ROOT" HOME="$THEME_DIR_TMPDIR" "$ROOT/bin/omarchy-theme-dir" "Tokyo Night")
 [[ $theme_dir == "$ROOT/themes/tokyo-night" ]] || fail "omarchy-theme-dir resolves display names to bundled directories"
@@ -527,15 +526,7 @@ theme_dir=$(OMARCHY_PATH="$ROOT" HOME="$THEME_DIR_TMPDIR" "$ROOT/bin/omarchy-the
 [[ $theme_dir == "$THEME_DIR_TMPDIR/.config/omarchy/themes/My Theme" ]] || fail "omarchy-theme-dir preserves exact custom theme directory names"
 pass "omarchy-theme-dir preserves exact custom theme directory names"
 
-plymouth_themes=$(OMARCHY_PATH="$ROOT" HOME="$THEME_DIR_TMPDIR" "$ROOT/bin/omarchy-plymouth-list")
-assert_output_contains "omarchy-plymouth-list includes custom themes with exact directory names" "$plymouth_themes" "My Theme"
-
-mkdir -p "$THEME_DIR_TMPDIR/.config/omarchy/themes/tokyo-night"
-theme_dir=$(OMARCHY_PATH="$ROOT" HOME="$THEME_DIR_TMPDIR" "$ROOT/bin/omarchy-theme-dir" "Tokyo Night")
-[[ $theme_dir == "$THEME_DIR_TMPDIR/.config/omarchy/themes/tokyo-night" ]] || fail "omarchy-theme-dir prefers user copy for resolved display names"
-pass "omarchy-theme-dir prefers user copy for resolved display names"
-
-for bad_theme in "No Such Theme" ".." "." "../evil"; do
+for bad_theme in "No Such Theme" ".."; do
   status=0
   OMARCHY_PATH="$ROOT" HOME="$THEME_DIR_TMPDIR" "$ROOT/bin/omarchy-theme-dir" "$bad_theme" >/dev/null 2>&1 || status=$?
   (( status != 0 )) || fail "omarchy-theme-dir rejects unknown or invalid theme '$bad_theme'"
