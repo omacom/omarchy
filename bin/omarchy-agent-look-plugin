@@ -121,6 +121,7 @@ if [[ ! -s $work/shot.png ]]; then
   echo "The widget didn't render." >&2
   if [[ $offscreen == "true" ]] && grep -q "No PanelWindow backend" "$work/log"; then
     echo "The display is off, and a widget with a popup panel can only be drawn on screen; the errors below other than the panel's are real." >&2
+    echo "Don't turn the display on or start a shell of your own to get around this: the user is away or the screen is locked. Fix the other errors, and tell the user the panel is still to be looked at." >&2
   fi
   [[ -n $problems ]] && echo "$problems" >&2
   exit 1

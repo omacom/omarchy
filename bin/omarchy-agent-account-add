@@ -35,8 +35,9 @@ while [[ ${1:-} == --* ]]; do
 done
 
 # Whether a provider's own home (~/.claude, ~/.codex, ~/.grok) is signed in.
+# For Claude that's whichever account sessions use, not always the primary.
 primary_signed_in() {
-  omarchy-agent-account-state list "$1" | jq -e '.[0].accounts | any(.primary and .signedIn)' >/dev/null
+  omarchy-agent-account-state list "$1" | jq -e --arg home "$HOME/.$1" '.[0].accounts | any(.home == $home and .signedIn)' >/dev/null
 }
 
 if [[ $check == "true" ]]; then
@@ -106,16 +107,23 @@ finish() {
 }
 
 # Accounts just added, fresh or recovered, are the ones you want tokens from
-# next, so new sessions switch to the newest. Running sessions stay where they
-# are. If the choice can't be saved, the accounts are still added and say so.
+# next, so sessions switch to the newest: running Claude sessions too, and new
+# ones for the others. If the choice can't be saved, the accounts are still
+# added and say so.
 announce_added() {
-  local added newest
+  local added newest used
   added=$(jq -r 'map(.label + (if .email != "" then " (" + .email + ")" else "" end)) | join(", ")' <<<"$1")
   newest=$(jq -c 'last' <<<"$1")
-  if omarchy-agent-account-state use "$provider" "$(jq -r .id <<<"$newest")" >/dev/null; then
+  if used=$(omarchy-agent-account-state use "$provider" "$(jq -r .id <<<"$newest")"); then
     omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
     finish "$(omarchy-i18n agents.added "$added")" more "$(jq -r .label <<<"$newest")"
-    [[ $events == "true" ]] || echo "New $name sessions now use $(jq -r .label <<<"$newest")."
+    if [[ $events != "true" ]]; then
+      if [[ $(jq -r .seated <<<"$used") == "true" ]]; then
+        echo "$name sessions now use $(jq -r .label <<<"$newest"), running ones included."
+      else
+        echo "New $name sessions now use $(jq -r .label <<<"$newest")."
+      fi
+    fi
   else
     omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
     finish "$(omarchy-i18n agents.addedNotSelected "$added")"
@@ -245,24 +253,35 @@ login() {
   interruptible env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME "OMARCHY_AGENT_${provider^^}_HOME=" "${login_command[@]}"
 }
 
-# Signing an account that's already here in again, where it lives: the
-# primary home through the normal browser, an added one through a private
-# window. Its home is never recreated or removed.
+# Signing an account that's already here in again: the primary through the
+# normal browser, an added one through a private window. Its home is never
+# recreated or removed.
 if [[ -n $reauth ]]; then
-  if [[ $reauth == ":primary" ]]; then
-    account_home="$HOME/.$provider"
-  else
-    account_home=$(omarchy-agent-account-state homes "$provider" | awk -F'\t' -v id="$reauth" '$1 == id { print $2 }')
-  fi
+  found=$(omarchy-agent-account-state homes "$provider" | awk -F'\t' -v id="$reauth" '$1 == id || (id == ":primary" && $4 == "1")' | head -1)
+  account_home=$(cut -f2 <<<"$found")
   [[ -n $account_home ]] || fail "$(omarchy-i18n agents.noAccountNamed "$name" "$reauth")"
 
-  if [[ $account_home == "$HOME/.$provider" ]]; then
+  # A Claude login can move while the browser is open, so it signs in to a
+  # scratch home and is installed wherever the account's login is by then.
+  if [[ $provider == "claude" ]]; then
+    home=$(omarchy-agent-account-state begin "$provider" "" "$$") || fail "$(omarchy-i18n agents.homeFailed)"
+    target="$home"
+  else
+    target="$account_home"
+  fi
+  where=(env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME "OMARCHY_AGENT_${provider^^}_HOME=")
+  [[ $target != "$HOME/.$provider" ]] && where+=("$home_env=$target")
+
+  if [[ $(cut -f4 <<<"$found") == "1" ]]; then
     say "$(omarchy-i18n agents.signInAgainBrowser "$name")"
-    login || fail "$(omarchy-i18n agents.signInFailed "$name")"
+    interruptible "${where[@]}" "${login_command[@]}" || fail "$(omarchy-i18n agents.signInFailed "$name")"
   else
     say "$(omarchy-i18n agents.signInAgainPrivate)"
     private_browser
-    interruptible env BROWSER="$browser" "$home_env=$account_home" "${login_command[@]}" || fail "$(omarchy-i18n agents.signInFailed "$name")"
+    interruptible "${where[@]}" BROWSER="$browser" "${login_command[@]}" || fail "$(omarchy-i18n agents.signInFailed "$name")"
+  fi
+  if [[ $provider == "claude" ]]; then
+    installed=$(omarchy-agent-account-state relogin "$provider" "$(cut -f1 <<<"$found")" "$home" 2>&1) || fail "$installed"
   fi
 
   omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &

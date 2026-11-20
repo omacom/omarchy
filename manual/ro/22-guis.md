@@ -1,36 +1,36 @@
-# GUIs
+# GUI-uri
 
 ## Files
 
-Files (Nautilus) este managerul grafic de fișiere. `Super + Shift + F` îl deschide, iar `Super + Shift + Alt + F` îl deschide în directorul în care se află terminalul tău, ceea ce te scutește de o mulțime de clicuri. `Ctrl + L` îți permite să tastezi o cale, iar apăsarea tastei `Space` pe orice fișier îți oferă o previzualizare rapidă fără să deschizi nimic.
+Files (Folio) este managerul grafic de fișiere. `Super + Shift + F` îl deschide, iar `Super + Shift + Alt + F` îl deschide în directorul în care se află terminalul tău, ceea ce te scutește de multe clicuri. `Ctrl + L` îți permite să tastezi o cale, iar apăsarea tastei `Space` pe orice fișier îl previzualizează la dimensiune completă fără să-l deschizi.
 
-Conectează un stick USB sau un card SD și este montat automat, așa că apare pur și simplu în bara laterală. Pentru orice lucru mai complicat — formatarea unei unități, verificarea stării SMART, crearea de partiții — lansează _Disks_ din lansatorul de aplicații (`Super + Space`).
+Conectezi un stick USB sau un card SD și este montat automat, așa că apare pur și simplu în bara laterală. Pentru orice lucru mai complex — formatarea unei unități, verificarea stării SMART, crearea de partiții — lansează _Disks_ din lansatorul de aplicații (`Super + Space`).
 
-Dublul clic respectă reguli implicite rezonabile: imaginile, videoclipurile și muzica se deschid în Omaview, PDF-urile în Document Viewer, Markdown în Omawrite, iar textul simplu în editorul ales la _Setup > Default > Editor_.
+Dublu-clicul urmează setări implicite de bun-simț: imaginile, videoclipurile și muzica se deschid în Omaview, PDF-urile în Document Viewer, fișierele Markdown în Omawrite, iar textul simplu în editorul ales la _Setup > Default > Editor_.
 
 ## Disktree
 
-Când unitatea se umple și habar nu ai ce o mănâncă, lansează [Disktree](https://github.com/tobi/disktree) din lansatorul de aplicații (`Super + Space`). Afișează o hartă treemap grafică a directorului tău personal. Blocurile mai mari ocupă mai mult spațiu; intră în directoare cu tastatura sau cu mouse-ul, marchează ce trebuie să dispară și verifică-ți selecțiile înainte să ștergi ceva. Rulează `disktree --disk` ca să scanezi întregul disc.
+Când unitatea se umple și habar n-ai ce o mănâncă, lansează [Disktree](https://github.com/tobi/disktree) din lansatorul de aplicații (`Super + Space`). Afișează o hartă arborescentă grafică a directorului tău home. Blocurile mai mari ocupă mai mult spațiu; intră în directoare cu tastatura sau mouse-ul, marchează ce trebuie să dispară și verifică selecțiile înainte să ștergi ceva. Rulează `disktree --disk` ca să scanezi întregul disc.
 
 ## Obsidian
 
-[Obsidian](https://obsidian.md/) este o aplicație gratuită și extrem de extensibilă pentru notițe, care folosește fișiere Markdown simple pentru stocare.
+[Obsidian](https://obsidian.md/) este o aplicație gratuită și foarte extensibilă pentru luarea de notițe, care folosește fișiere Markdown simple pentru stocare.
 
-Obsidian este gratuit în orice scop, inclusiv pentru uz personal, comercial și non-profit.
+Obsidian este gratuit pentru toate scopurile, inclusiv pentru uz personal, comercial și non-profit.
 
 Obsidian oferă și un [supliment comercial pentru sincronizare](https://obsidian.md/sync) cu aplicațiile mobile pe iOS și Android. (https://obsidian.md/pricing).
 
-Pornești Obsidian cu `Super + Shift + O`. Ca să folosești sincronizarea temei, trebuie să selectezi tema `Omarchy` în setări.
+Pornești Obsidian cu `Super + Shift + O`. Ca să folosești sincronizarea temelor, trebuie să selectezi tema `Omarchy` din setări.
 
 ## Omawrite
 
-[Omawrite](https://github.com/omacom-io/omawrite) este aplicația de scriere Markdown extrem de simplă a Omarchy. Fără vault-uri, fără plugin-uri, doar tu și cuvintele.
+[Omawrite](https://github.com/omacom-io/omawrite) este aplicația proprie a Omarchy, extrem de simplă, pentru scris în Markdown. Fără vault-uri, fără plugin-uri, doar tu și cuvintele.
 
 Pornești Omawrite cu `Super + Shift + W`.
 
 ## Pinta
 
-[Pinta](https://www.pinta-project.com/) este un instrument simplu de editare a imaginilor, excelent pentru decupare, redimensionare și alte manipulări de bază. Doar să nu te aștepți la o alternativă la Photoshop. Dar tot are Magic Wand și straturi!
+[Pinta](https://www.pinta-project.com/) este un instrument de bază pentru editarea imaginilor, excelent pentru decupare, redimensionare și alte manipulări de bază. Doar să nu te aștepți la o alternativă la Photoshop. Dar tot are Magic Wand și straturi!
 
 Pornești Pinta din lansatorul de aplicații (`Super + Space`).
 
@@ -42,20 +42,20 @@ Pornești Aether din lansatorul de aplicații (`Super + Space`).
 
 ## LocalSend
 
-[LocalSend](https://localsend.org/) îți permite să trimiți fișiere către alte dispozitive din aceeași rețea care rulează aplicația, ca AirDrop de la Apple. Totuși, este multiplatformă, așa că poți trimite fișiere către și de la Windows, macOS, Android, iOS și, bineînțeles, Linux.
+[LocalSend](https://localsend.org/) îți permite să trimiți fișiere către alte dispozitive din aceeași rețea pe care rulează aplicația, ca AirDrop de la Apple. Totuși, este multiplatformă, așa că poți trimite fișiere către și dinspre Windows, macOS, Android, iOS și, desigur, Linux.
 
 Poți deschide meniul Share cu `Super + Ctrl + S` sau la _Trigger > Share_ în meniul Omarchy. Îți oferă patru opțiuni:
 
-- **Clipboard** trimite tot ce ai copiat ca fișier text. Excelent ca să trimiți un link sau un fragment de cod pe telefon fără să-ți trimiți un e-mail.
+- **Clipboard** trimite tot ce ai copiat ca fișier text. Excelent ca să pui un link sau un fragment pe telefon fără să-ți trimiți e-mail.
 - **File** deschide un selector de fișiere în care poți selecta mai multe deodată.
 - **Folder** trimite un director întreg.
 - **Receive** deschide LocalSend propriu-zis, ca alt dispozitiv să-ți poată trimite ceva.
 
 Același lucru funcționează și din terminal cu `omarchy share clipboard`, `omarchy share file [path]` și `omarchy share folder [path]`. Omite calea și primești selectorul.
 
-Poți trimite și direct din managerul de fișiere: dă clic dreapta pe orice selecție în Nautilus și alege _Send via LocalSend_.
+Poți trimite și direct din managerul de fișiere: fă clic dreapta pe orice selecție în Files și partajeaz-o cu LocalSend.
 
-Firewall-ul Omarchy este închis implicit, cu excepția portului LocalSend, așa că asta funcționează din prima pe o instalare proaspătă. Vezi [securitatea](48-security.md).
+Firewall-ul Omarchy este închis în mod implicit, cu excepția portului LocalSend, așa că acest lucru funcționează din prima pe o instalare nouă. Vezi [securitate](48-security.md).
 
 ## LibreOffice
 
@@ -65,58 +65,52 @@ Pornești LibreOffice din lansatorul de aplicații (`Super + Space`).
 
 ## Hype
 
-[Hype](https://github.com/omacom/hype) este aplicația de prezentări extrem de simplă a Omarchy. Prezentarea ta este un singur fișier Markdown, cu imaginile și videoclipurile lui alături: scrii fiecare diapozitiv sub o previzualizare live, tragi diapozitivele în ordine, apoi prezinți pe ecran complet sau exporți în PDF și PowerPoint. Ba chiar îți preia tema Omarchy.
+[Hype](https://github.com/omacom/hype) este aplicația proprie a Omarchy, extrem de simplă, pentru prezentări. Prezentarea ta este un singur fișier Markdown, cu imaginile și videoclipurile lângă el: scrii fiecare diapozitiv sub o previzualizare live, tragi diapozitivele în ordine, apoi prezinți pe tot ecranul sau exporți în PDF și PowerPoint. Îți preia chiar și tema Omarchy.
 
-Pornești Hype din lansatorul de aplicații (`Super + Space`). Apasă `?` în interior ca să vezi fiecare scurtătură.
+Pornești Hype din lansatorul de aplicații (`Super + Space`). Apasă `?` în interiorul ei ca să vezi fiecare scurtătură.
 
 ## Signed
 
-[Signed](https://github.com/omacom/signed) este modul extrem de simplu al Omarchy de a semna PDF-uri și de a le completa. Pune semnătura salvată, text și data de azi oriunde pe o pagină, apoi salvează o copie semnată lângă original. Vezi [Completarea PDF-urilor](27-filling-out-pdfs.md) pentru cum se face.
+[Signed](https://github.com/omacom/signed) este modalitatea proprie a Omarchy, extrem de simplă, de a semna PDF-uri și de a le completa. Pune semnătura salvată, text și data de azi oriunde pe o pagină, apoi salvează o copie semnată lângă original. Vezi [Completarea PDF-urilor](27-filling-out-pdfs.md) pentru a afla cum.
 
-Pornești Signed din lansatorul de aplicații (`Super + Space`) sau deschizi un PDF cu el din managerul de fișiere.
+Pornești Signed din lansatorul de aplicații (`Super + Space`) sau deschizi un PDF cu ea din managerul de fișiere.
 
-## Checkmate
+## Game Vibes
 
-[Checkmate](https://github.com/omacom/checkmate) este jocul de șah 3D propriu al Omarchy. Joacă cu un prieten pe același computer sau împotriva adversarului integrat, la trei niveluri, pe patru seturi sculptate care se mișcă fiecare în felul lui: nave orbitale, lemn și fildeș sculptate, creaturi din pădure și bomboane. Partidele nu au ceas și se salvează după fiecare mutare.
+Game Vibes, în lansatorul de aplicații (`Super + Space`), este locul unde trăiesc micile jocuri ale Omarchy: Checkmate, un joc de șah 3D împotriva unui prieten sau a adversarului integrat; Cards, solitaire Klondike; și Neon Swarm, un shooter arcade. Fiecare este o singură pagină web care urmează tema ta. Alege unul cu săgețile și `Enter` și întoarce-te la listă cu `Esc` din ecranul de titlu al unui joc sau cu `Q` cât timp este în pauză. Se deschide pe tot ecranul: `Super + F` îl transformă într-o fereastră, iar `Super + W` îl închide.
 
-Pornești Checkmate din lansatorul de aplicații (`Super + Space`), unde este listat ca Chess. Apasă `?` în interior ca să vezi fiecare scurtătură.
-
-## Cards
-
-[Cards](https://github.com/omacom/cards) este jocul Klondike solitaire propriu al Omarchy. Trage trei cărți, fără limită la numărul de treceri, în patru serii de cărți: una desenată în culorile temei tale și trei cu un aspect propriu. Dă clic pe o carte și apoi pe locul unde merge, trage-o sau dă dublu clic ca să o trimiți în cel mai bun loc. Partidele se salvează după fiecare mutare.
-
-Pornești Cards din lansatorul de aplicații (`Super + Space`). Dă clic pe numele lui sau apasă `?` ca să vezi fiecare scurtătură.
+Jocurile pe care le faci cu un agent apar și ele aici: alege _Make something cool → Game_ în panoul de agenți și descrie unul sau numește un joc deja existent în Game Vibes ca să continui să lucrezi la el. Agentul îl copiază în `~/Games/vibes`, unde este al tău ca să-l modifici, și îl deschide când este gata. Poți face singur acea copie cu `omarchy games vibes copy <game>`. Un joc pe care îl partajează altcineva se instalează ca o temă: alege _Install > Gaming > Game Vibes_ și lipește adresa lui git sau rulează `omarchy games vibes install <git-repo-url>`. _Remove > Gaming_ scoate din nou unul, iar _Update > Game Vibes Games_ aduce versiuni noi. Jocurile încarcă three.js de pe web, așa că au nevoie de o conexiune ca să pornească.
 
 ## Omacalc
 
-[Omacalc](https://github.com/omacom-io/omacalc) este calculatorul extrem de simplu propriu al Omarchy, care se deschide într-o fereastră plutitoare.
+[Omacalc](https://github.com/omacom-io/omacalc) este calculatorul propriu al Omarchy, extrem de simplu, care se deschide într-o fereastră plutitoare.
 
-Pornești Omacalc cu `Super + Shift + Q` (sau cu tasta de calculator, dacă tastatura ta are una).
+Pornești Omacalc cu `Super + Shift + Q` (sau cu tasta calculatorului, dacă tastatura ta are una).
 
 ## Signal
 
-[Signal](https://signal.org/) este pionierul mesageriei criptate E2E și o opțiune de comunicare excelentă pentru oricine preferă să nu treacă printr-unul dintre marile conglomerate tech.
+[Signal](https://signal.org/) este pionierul mesageriei criptate E2E și o opțiune excelentă de comunicare pentru oricine preferă să nu treacă printr-unul dintre marile conglomerate tech.
 
-Pornești Signal cu `Super + Shift + G`. Nu face parte din instalarea de bază, așa că prima dată când apeși asta, Omarchy îți va oferi să îl instaleze pentru tine (este și la _Install > Service_ în meniul Omarchy).
+Pornești Signal cu `Super + Shift + G`. Nu face parte din instalarea de bază, așa că prima dată când apeși asta, Omarchy îți va oferi să ți-l instaleze (se află și la _Install > Service_ în meniul Omarchy).
 
 ## Omaview
 
-[Omaview](https://github.com/omacom/omaview) este vizualizatorul de imagini și playerul media extrem de simplu propriu al Omarchy: o singură fereastră pentru fotografiile, videoclipurile și muzica ta. Deschide o fotografie și tastele săgeți trec prin restul folderului ei, `N` și `P` fac asta pentru orice, iar `Ctrl + M` afișează întregul folder ca o grilă. Afișează și fotografii HEIC, AVIF și JPEG XL și reia de unde ai rămas la orice durează mai mult.
+[Omaview](https://github.com/omacom/omaview) este vizualizatorul de imagini și playerul media propriu al Omarchy, extrem de simplu: o singură fereastră pentru fotografiile, videoclipurile și muzica ta. Deschide o fotografie și tastele săgeată trec prin restul directorului ei, `N` și `P` fac asta pentru orice, iar `Ctrl + M` afișează întregul director ca o grilă. Afișează și fotografii HEIC, AVIF și JPEG XL și reia de unde ai rămas în orice lucru lung.
 
-Apasă `F` pentru ecran complet, `E` ca să editezi o imagine în Omasnap sau să tai un videoclip în Omacut, `Ctrl + P` ca să imprimi o imagine și `Delete` ca să muți un fișier la Trash (`Ctrl + Z` îl aduce înapoi). Apasă `?` în interior ca să vezi fiecare scurtătură.
+Apasă `F` pentru ecran complet, `E` ca să editezi o imagine în Omasnap sau să tai un videoclip în Omacut, `Ctrl + P` ca să imprimi o imagine și `Delete` ca să muți un fișier în Coșul de gunoi (`Ctrl + Z` îl aduce înapoi). Apasă `?` în interiorul ei ca să vezi fiecare scurtătură.
 
-Pornești Omaview ca _Media Viewer_ din lansatorul de aplicații (`Super + Space`) sau pur și simplu dai dublu clic pe o imagine, un videoclip sau o melodie în managerul de fișiere.
+Pornești Omaview ca _Media Viewer_ din lansatorul de aplicații (`Super + Space`) sau pur și simplu faci dublu clic pe o imagine, un videoclip sau o melodie în managerul de fișiere.
 
 ## Omacut
 
-[Omacut](https://github.com/omacom-io/omacut) este instrumentul de tăiere video extrem de simplu propriu al Omarchy. Când tot ce îți trebuie este să tai începutul și sfârșitul unui clip, bate pornirea unui editor video complet.
+[Omacut](https://github.com/omacom-io/omacut) este instrumentul propriu al Omarchy, extrem de simplu, pentru tăierea videoclipurilor. Când tot ce ai nevoie este să tai începutul și sfârșitul unui clip, bate lansarea unui editor video complet.
 
 Pornești Omacut din lansatorul de aplicații (`Super + Space`).
 
 ## Monologue
 
-[Monologue](https://github.com/omacom/monologue) este înregistratorul webcam extrem de simplu propriu al Omarchy. Alege-ți camera și microfonul o singură dată, apoi apasă `Space` ca să înregistrezi și din nou ca să pui pauză și să reiei aceeași înregistrare. Înregistrează întotdeauna la cea mai mare rezoluție a camerei tale, cu un indicator live pentru microfon, ca să-ți poți verifica nivelurile înainte să începi.
+[Monologue](https://github.com/omacom/monologue) este înregistratorul webcam propriu al Omarchy, extrem de simplu. Alege-ți camera și microfonul o singură dată, apoi apasă `Space` ca să înregistrezi și din nou ca să pui pauză și să reiei aceeași înregistrare. Înregistrează întotdeauna la cea mai înaltă rezoluție a camerei tale, cu un indicator live al microfonului, ca să-ți poți verifica nivelurile înainte să începi.
 
-Oprește înregistrarea și se deschide imediat într-un editor integrat. Dă dublu clic pe un clip ca să îl împarți, trage mânerele ca să tai fiecare bucată și elimină părțile pe care nu le vrei. Apoi salvează-l ca MP4. Înregistrarea ta originală este păstrată până o arunci, așa că poți oricând să revii și să o tai altfel.
+Oprești înregistrarea și se deschide imediat într-un editor integrat. Fă dublu clic pe un clip ca să-l împarți, trage mânerele ca să tai fiecare bucată și elimină părțile pe care nu le vrei. Apoi salvează-l ca MP4. Înregistrarea originală este păstrată până când renunți la ea, așa că poți oricând să te întorci și s-o tai altfel.
 
 Pornești Monologue din lansatorul de aplicații (`Super + Space`).
