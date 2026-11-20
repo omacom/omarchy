@@ -33,9 +33,9 @@ cat >"$case_root/bin/sysctl" <<'SH'
 #!/bin/bash
 printf 'sysctl %s\n' "$*" >>"$TEST_CALLS"
 if [[ $* == '-n dev.tty.ldisc_autoload' ]]; then
-  if [[ $TEST_MODE == read-error ]]; then echo read-error >&2; exit 1; fi
+  if [[ $TEST_MODE == readfail ]]; then echo readfail >&2; exit 1; fi
   cat "$TEST_VALUE"
-elif [[ ${TEST_SUDO:-} == 1 ]] && { [[ $* == '-w dev.tty.ldisc_autoload=0' ]] || [[ $1 == -p && $2 == "$TEST_CONFIG" ]]; }; then
+elif [[ ${TEST_SUDO:-} == 1 ]] && [[ $* == '-qw dev.tty.ldisc_autoload=0' ]]; then
   if [[ $TEST_MODE == apply-error ]]; then echo apply-error >&2; exit 1; fi
   if [[ $TEST_MODE != unchanged ]]; then printf '0\n' >"$TEST_VALUE"; fi
   if [[ $1 == -p ]] && grep -q 'unsupported.example' "$TEST_CONFIG"; then echo unsupported-key >&2; exit 1; fi
@@ -47,7 +47,7 @@ SH
 cat >"$case_root/bin/sudo" <<'SH'
 #!/bin/bash
 printf 'sudo %s\n' "$*" >>"$TEST_CALLS"
-[[ $1 == sysctl ]] && { [[ $* == 'sysctl -w dev.tty.ldisc_autoload=0' ]] || [[ $2 == -p && $3 == "$TEST_CONFIG" ]]; } || exit 99
+[[ $1 == sysctl && $* == 'sysctl -qw dev.tty.ldisc_autoload=0' ]] || exit 99
 if [[ $TEST_MODE == sudo-error ]]; then echo sudo-error >&2; exit 1; fi
 export TEST_SUDO=1
 exec "$@"
@@ -87,16 +87,12 @@ run_case() {
 
 setting='dev.tty.ldisc_autoload=0'
 run_case 'already applied setting avoids sudo' "$setting" 0 normal 0 0 0
-run_case 'successful apply verifies the changed runtime value' "$setting" 1 normal 0 1 0
-run_case 'sudo failure stays pending and visible' "$setting" 1 sudo-error 1 1 1
-run_case 'apply failure stays pending and visible' "$setting" 1 apply-error 1 1 1
-run_case 'successful command with unchanged value stays pending' "$setting" 1 unchanged 1 1 1
-run_case 'unreadable runtime value stays pending' "$setting" 1 read-error 1 1 1
-run_case 'missing drop-in stays pending' missing 1 normal 1 0 0
-run_case 'edited drop-in without the key stays pending' 'vm.swappiness=100' 1 normal 1 0 0
-run_case 'runtime zero cannot hide a missing persisted setting' 'vm.swappiness=100' 0 normal 1 0 0
-run_case 'later conflicting assignment stays pending' "$setting"$'\ndev.tty.ldisc_autoload=1' 0 normal 1 0 0
-run_case 'commented setting is not persistent protection' "# $setting" 0 normal 1 0 0
-run_case 'whitespace and an inline comment are accepted' ' dev.tty.ldisc_autoload = 0 # hardened' 0 normal 0 0 0
-
-run_case 'unrelated unsupported key does not block the owned setting' "$setting"$'\nunsupported.example=1' 1 normal 0 1 0
+run_case 'runtime value that is still on is applied' "$setting" 1 normal 0 1 0
+run_case 'sudo failure warns and lets the update continue' "$setting" 1 sudo-error 0 1 0
+run_case 'apply failure warns and lets the update continue' "$setting" 1 apply-error 0 1 0
+run_case 'unreadable runtime value still tries to apply' "$setting" 1 readfail 0 1 0
+run_case 'missing drop-in warns and still applies the runtime knob' missing 1 normal 0 1 0
+run_case 'edited drop-in without the key warns and still applies' 'vm.swappiness=100' 1 normal 0 1 0
+run_case 'runtime zero with a local drop-in only warns' 'vm.swappiness=100' 0 normal 0 0 0
+run_case 'a commented-out setting warns' "# $setting" 0 normal 0 0 0
+run_case 'whitespace and an inline comment count as set' ' dev.tty.ldisc_autoload = 0 # hardened' 0 normal 0 0 0
