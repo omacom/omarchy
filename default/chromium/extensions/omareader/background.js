@@ -46,6 +46,7 @@ function connect() {
     chrome.storage.local.set({ host: { connected: false, error: String(e.message || e) } });
     return;
   }
+  chrome.alarms.clear('reconnect');
   port.onMessage.addListener((msg) => {
     if (!msg || msg.type !== 'state') return;
     chrome.storage.local.set({ omarchy: msg.current, host: { connected: true, error: null } });
@@ -54,6 +55,9 @@ function connect() {
     const err = chrome.runtime.lastError && chrome.runtime.lastError.message;
     port = null;
     chrome.storage.local.set({ host: { connected: false, error: err || 'Native host exited' } });
+    // Nothing announces that a missing or crashed host can start again, so retry once a
+    // minute while it is down. A connected host keeps the worker alive and needs no timer.
+    chrome.alarms.create('reconnect', { delayInMinutes: 1 });
   });
 }
 
@@ -245,11 +249,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 chrome.runtime.onInstalled.addListener((details) => {
   setToolbarIcon();
-  chrome.alarms.create('reconnect', { periodInMinutes: 1 });
   if (details.reason === 'install' || details.reason === 'update') injectIntoOpenTabs();
 });
-
-chrome.runtime.onStartup.addListener(() => chrome.alarms.create('reconnect', { periodInMinutes: 1 }));
 
 // Replace an old runtime crescent immediately; native-host and palette work can follow.
 setToolbarIcon();
