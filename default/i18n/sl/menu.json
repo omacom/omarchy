@@ -1359,5 +1359,11 @@
   },
   "agent.make.game": {
     "label": "Naredi igro"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
   }
 }
