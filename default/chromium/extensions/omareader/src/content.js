@@ -1318,7 +1318,7 @@ mark{background-color:${s.mark};color:${s.fg}}
 
   function onNewBody() {
     watchRootAttrs();
-    scheduleDetect();
+    scheduleDetect(200, true);
   }
 
   // ---- page background detection ----------------------------------------
@@ -1386,10 +1386,22 @@ mark{background-color:${s.mark};color:${s.fg}}
       updateSiteBackground(C.parse(doc.documentElement.hasAttribute('dark') ? '#0f0f0f' : '#fff'));
       return;
     }
-    const own = ownSheets();
-    for (const s of own) s.disabled = true;
+    // Hit-test with the theme applied: it changes colors only, so the same surfaces are
+    // found without forcing a second, unthemed layout. Measuring the original colors
+    // means disabling every theme sheet (two full-page style recalcs), which on a busy
+    // shop cost 200–700 ms per run while the DOM changed several times a second. So it
+    // runs only when the themed surfaces changed, something forced it (root theme
+    // attributes, navigation, load), or the last measurement is DETECT_REFRESH_MS old.
     const candidates = pageCandidates();
     const measured = new Set([...candidates, doc.documentElement, doc.body]);
+    const sig = surfaceSignature(measured);
+    const now = performance.now();
+    if (!detectForce && sig === detectSig && now - detectAt < DETECT_REFRESH_MS) return;
+    detectForce = false;
+    detectSig = sig;
+    detectAt = now;
+    const own = ownSheets();
+    for (const s of own) s.disabled = true;
     // Only full-page surfaces need their original inline colors for this measurement.
     // Restoring unrelated buttons can restart transitions or trigger page observers.
     const originals = [];
@@ -1422,8 +1434,26 @@ mark{background-color:${s.mark};color:${s.fg}}
     }
   }
 
+  // The themed look of the candidate surfaces. Equal mapped colors come from originals
+  // the mapper treats alike, so a SPA swapping in an identical wrapper (or the page
+  // re-rendering one) needs no new measurement; a changed color or image does.
+  const DETECT_REFRESH_MS = 10000;
+  let detectSig = '';
+  let detectAt = 0;
+  let detectForce = true;
+  function surfaceSignature(els) {
+    let sig = String(version);
+    for (const el of els) {
+      if (!el) continue;
+      const cs = getComputedStyle(el);
+      sig += `|${cs.backgroundColor}:${cs.backgroundImage === 'none' ? '' : cs.backgroundImage.length}`;
+    }
+    return `${sig}|${getComputedStyle(doc.documentElement).colorScheme}`;
+  }
+
   let detectTimer = 0;
-  function scheduleDetect(delay = 200) {
+  function scheduleDetect(delay = 200, force = false) {
+    if (force) detectForce = true;
     // Coalesce bursts without postponing detection indefinitely on a busy feed.
     if (detectTimer) return;
     detectTimer = setTimeout(() => {
@@ -1432,7 +1462,7 @@ mark{background-color:${s.mark};color:${s.fg}}
     }, delay);
   }
 
-  const rootAttrObserver = new MutationObserver(() => scheduleDetect());
+  const rootAttrObserver = new MutationObserver(() => scheduleDetect(200, true));
 
   function watchRootAttrs() {
     rootAttrObserver.disconnect();
@@ -1489,7 +1519,7 @@ mark{background-color:${s.mark};color:${s.fg}}
       scheduleDetect();
     }
   };
-  const onNav = () => scheduleDetect(300);
+  const onNav = () => scheduleDetect(300, true);
   const onBeforePrint = () => {
     printing = true;
     restoreAllInline();
@@ -1559,7 +1589,7 @@ mark{background-color:${s.mark};color:${s.fg}}
     addListeners();
     if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', onReady, { once: true });
     else onReady();
-    addEventListener('load', () => scheduleDetect(0), { once: true });
+    addEventListener('load', () => scheduleDetect(0, true), { once: true });
     watchRootAttrs();
     timer = setInterval(tick, 1000);
   }
