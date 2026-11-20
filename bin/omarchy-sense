@@ -54,8 +54,24 @@ excluded_class() {
   esac
 }
 
-sanitize_field() {
-  printf '%s' "$1" | tr ',\t ' '___'
+# Comma, space and tab are field separators in the logs. Percent-encoding
+# keeps the real class and workspace names so replay can match them again.
+encode_field() {
+  local value="$1"
+  value=${value//%/%25}
+  value=${value//,/%2C}
+  value=${value// /%20}
+  value=${value//$'\t'/%09}
+  printf '%s' "$value"
+}
+
+decode_field() {
+  local value="$1"
+  value=${value//%09/$'\t'}
+  value=${value//%20/ }
+  value=${value//%2C/,}
+  value=${value//%25/%}
+  printf '%s' "$value"
 }
 
 current_items() {
@@ -63,7 +79,7 @@ current_items() {
     [ .[]
       | select((.class // "") != "")
       | select(.class != "org.omarchy.screensaver" and .class != "hyprlock" and (.class | startswith("org.omarchy.lock") | not))
-      | "\( (.class | gsub("[, \t]"; "_")) )@\( ((.workspace.name // "1") | tostring | gsub("[, \t]"; "_")) )"
+      | "\( (.class | gsub("%"; "%25") | gsub(","; "%2C") | gsub(" "; "%20") | gsub("\t"; "%09")) )@\( ((.workspace.name // "1") | tostring | gsub("%"; "%25") | gsub(","; "%2C") | gsub(" "; "%20") | gsub("\t"; "%09")) )"
     ]
     | unique
     | join(",")
@@ -98,7 +114,7 @@ record_event() {
   fi
 
   mkdir -p "$SENSE_DIR"
-  printf '%s\t%s\n' "$epoch" "$(sanitize_field "$class")" >>"$EVENTS_FILE"
+  printf '%s\t%s\n' "$epoch" "$(encode_field "$class")" >>"$EVENTS_FILE"
 }
 
 record_snapshot() {
@@ -260,12 +276,11 @@ flow_report() {
       if (last_class == "") last_class = "-"
       if (top_class == "") top_class = "-"
 
-      # Idle means away, not merely quiet: an hour with no focus event at
-      # all, or the screensaver/lock marker as the latest event. A long
-      # unbroken stretch in one app stays flow; it does not decay into idle
-      # just for lasting.
+      # Idle means the screensaver or lock marked the user away. Time since
+      # the last class change is not evidence they left; a long stretch in
+      # one app is still work.
       if (total < 8) state = "learning"
-      else if (last_class == "__away__" || dwell > 3600) state = "idle"
+      else if (last_class == "__away__") state = "idle"
       else if (switches >= 12 && distinct_count >= 4) state = "scattered"
       else if (longest >= 300 && switches <= 8) state = "flow"
       else state = "settling"
@@ -357,13 +372,13 @@ discover_routines() {
       kept_support[kept] = support
 
       split(gram, parts, ",")
-      name = short_name(parts[1]) "-to-" short_name(parts[n])
-      if (name in used_name) {
-        used_name[name]++
-        name = name "-" used_name[name]
-      } else {
-        used_name[name] = 1
-      }
+      # The tag is a hash of the whole sequence, so the name stays the same
+      # when support ranking changes. A copied replay command must not start
+      # meaning a different sequence tomorrow.
+      tag = 5381
+      for (i = 1; i <= length(gram); i++) tag = (tag * 33 + index("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,.-_", substr(gram, i, 1))) % 16777216
+      if (tag < 0) tag = -tag
+      name = short_name(parts[1]) "-to-" short_name(parts[n]) "-" sprintf("%06x", tag)
       printf "%s\t%d\t%d\t%s\n", name, support, days, gram
     }
   '
@@ -428,10 +443,13 @@ check_new_routines() {
   while IFS="$(printf '\t')" read -r name support days seq; do
     [[ -n $name ]] || continue
     grep -qxF "$seq" "$KNOWN_ROUTINES_FILE" && continue
-    printf '%s\n' "$seq" >>"$KNOWN_ROUTINES_FILE"
-    printf 'new routine learned: %s (%s). replay it with: omarchy sense routine %s\n' \
-      "$name" "${seq//,/ -> }" "$name"
-    omarchy-notification-send "$(omarchy-i18n sense.routineLearned)" "$(omarchy-i18n sense.routineReplay "$name")" || true
+    # Remember the sequence only after the offer is delivered. A send that
+    # fails while the shell is down has to be tried again later.
+    if omarchy-notification-send "$(omarchy-i18n sense.routineLearned)" "$(omarchy-i18n sense.routineReplay "$name")"; then
+      printf '%s\n' "$seq" >>"$KNOWN_ROUTINES_FILE"
+      printf 'new routine learned: %s (%s). replay it with: omarchy sense routine %s\n' \
+        "$name" "${seq//,/ -> }" "$name"
+    fi
   done <<<"$(routines_list)"
 }
 
@@ -446,24 +464,29 @@ routine_run() {
   name=${found%%$'\t'*}
   seq=${found##*$'\t'}
 
-  local clients class address workspace current_ws stepped=0 skipped=""
+  local clients stored class address workspace current_ws live_ws stepped=0 skipped=""
   clients=$(hyprctl clients -j 2>/dev/null || printf '[]')
   local -a steps
   IFS=',' read -ra steps <<<"$seq"
-  for class in "${steps[@]}"; do
+  for stored in "${steps[@]}"; do
+    class=$(decode_field "$stored")
     address=$(jq -r --arg c "$class" '[.[] | select(.class == $c)][0].address // ""' <<<"$clients")
     if [[ -z $address ]]; then
       skipped="$skipped $class"
       continue
     fi
-    workspace=$(modal_workspace "$class")
-    if [[ -n $workspace ]]; then
+    workspace=$(modal_workspace "$stored")
+    live_ws=$(decode_field "$workspace")
+    if [[ -n $live_ws ]]; then
       current_ws=$(jq -r --arg a "$address" '[.[] | select(.address == $a)][0].workspace.name // "" | tostring' <<<"$clients")
-      if [[ $current_ws != "$workspace" ]]; then
-        hyprctl dispatch movetoworkspacesilent "$workspace,address:$address" >/dev/null 2>&1 || true
+      if [[ $current_ws != "$live_ws" ]]; then
+        hyprctl dispatch movetoworkspacesilent "$live_ws,address:$address" >/dev/null 2>&1 || true
       fi
     fi
-    omarchy-hyprland-focus-app "$class" >/dev/null 2>&1 || true
+    # Focus the window we just chose. Matching the class again as a regex
+    # can land on a different client, such as code-server ahead of code.
+    hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 || \
+      hyprctl dispatch focuswindow "address:$address" >/dev/null 2>&1 || true
     stepped=$(( stepped + 1 ))
   done
 
@@ -494,7 +517,17 @@ restore_guardian_dnd() {
 
 guardian_guard() {
   local state switches distinct last_class dwell top_class longest current_dnd
-  sense_enabled || { printf 'sense is off\n'; return 0; }
+  # Disable removes the enabled flag even when the shell was down and the
+  # restore failed. Keep retrying that restore after learning has stopped.
+  if ! sense_enabled; then
+    if [[ -f $GUARDIAN_FILE ]]; then
+      restore_guardian_dnd
+      printf 'sense is off; notifications restored\n'
+    else
+      printf 'sense is off\n'
+    fi
+    return 0
+  fi
   IFS="$(printf '\t')" read -r state switches distinct last_class dwell top_class longest <<<"$(flow_report)"
 
   if [[ $state == "flow" ]]; then
@@ -504,7 +537,17 @@ guardian_guard() {
       return 0
     fi
     if [[ -f $GUARDIAN_FILE ]]; then
-      printf 'in flow; notifications already silenced by sense\n'
+      # The marker can outlive a setDnd that never landed. Silence again
+      # while notifications are still on.
+      if [[ $current_dnd == "off" ]]; then
+        if omarchy-shell notifications setDnd on >/dev/null 2>&1; then
+          printf 'in flow; notifications silenced\n'
+        else
+          printf 'in flow; silencing did not stick yet\n'
+        fi
+      else
+        printf 'in flow; notifications already silenced by sense\n'
+      fi
       return 0
     fi
     if [[ $current_dnd == "on" ]]; then
@@ -512,10 +555,13 @@ guardian_guard() {
       return 0
     fi
     mkdir -p "$SENSE_DIR"
-    printf '%s\t%s\n' "$(now_epoch)" "$current_dnd" >"$GUARDIAN_FILE"
-    omarchy-notification-send "$(omarchy-i18n sense.inFlow)" "$(omarchy-i18n sense.silencing)" || true
-    omarchy-shell notifications setDnd on >/dev/null 2>&1 || true
-    printf 'in flow; notifications silenced\n'
+    if omarchy-shell notifications setDnd on >/dev/null 2>&1; then
+      printf '%s\t%s\n' "$(now_epoch)" "$current_dnd" >"$GUARDIAN_FILE"
+      omarchy-notification-send "$(omarchy-i18n sense.inFlow)" "$(omarchy-i18n sense.silencing)" || true
+      printf 'in flow; notifications silenced\n'
+    else
+      printf 'in flow; could not silence notifications yet\n'
+    fi
   else
     if [[ -f $GUARDIAN_FILE ]]; then
       restore_guardian_dnd
@@ -549,16 +595,31 @@ scene_apply() {
   clients=$(hyprctl clients -j 2>/dev/null || printf '[]')
 
   # A scene can hold the same class on two workspaces (two terminals), so
-  # each window may only be assigned to one scene slot.
-  local used_json='[]'
+  # each window may only be assigned to one scene slot. Windows already on
+  # the right workspace are reserved first; otherwise the first unused match
+  # swaps two terminals that were already placed correctly.
+  local used_json='[]' reserved=""
   local -a core_items
   IFS=',' read -ra core_items <<<"$core"
   for item in "${core_items[@]}"; do
-    class=${item%@*}
-    workspace=${item##*@}
-    address=$(jq -r --arg c "$class" --argjson used "$used_json" \
-      '[.[] | select(.class == $c) | select(.address as $a | $used | index($a) | not)][0].address // ""' <<<"$clients")
-    [[ -n $address ]] && used_json=$(jq -c --arg a "$address" '. + [$a]' <<<"$used_json")
+    class=$(decode_field "${item%@*}")
+    workspace=$(decode_field "${item##*@}")
+    address=$(jq -r --arg c "$class" --arg w "$workspace" --argjson used "$used_json" \
+      '[.[] | select(.class == $c) | select((.workspace.name // "" | tostring) == $w) | select(.address as $a | $used | index($a) | not)][0].address // ""' <<<"$clients")
+    if [[ -n $address ]]; then
+      reserved="$reserved"$'\n'"$item"$'\t'"$address"
+      used_json=$(jq -c --arg a "$address" '. + [$a]' <<<"$used_json")
+    fi
+  done
+  for item in "${core_items[@]}"; do
+    class=$(decode_field "${item%@*}")
+    workspace=$(decode_field "${item##*@}")
+    address=$(printf '%s\n' "$reserved" | awk -F '\t' -v item="$item" '$1 == item { print $2; exit }')
+    if [[ -z $address ]]; then
+      address=$(jq -r --arg c "$class" --argjson used "$used_json" \
+        '[.[] | select(.class == $c) | select(.address as $a | $used | index($a) | not)][0].address // ""' <<<"$clients")
+      [[ -n $address ]] && used_json=$(jq -c --arg a "$address" '. + [$a]' <<<"$used_json")
+    fi
     if [[ -z $address ]]; then
       missing="$missing $class"
       continue
@@ -582,6 +643,33 @@ scene_apply() {
   omarchy-notification-send "$(omarchy-i18n sense.sceneRestored)" "$(omarchy-i18n sense.sceneBack "$found")" || true
 }
 
+# Hyprland has no socket2 event for ext-session-lock. The lock shows up as
+# LOCK in a monitor's solitaryBlockedBy, which omarchy-hyprland-session-locked
+# already reads. Poll it so a short lock is an away marker, not more time in
+# the app that was focused before the screen locked.
+note_lock() {
+  local status
+  omarchy-hyprland-session-locked >/dev/null 2>&1
+  status=$?
+  case "$status" in
+    0)
+      if [[ ${lock_marked:-0} == 0 ]]; then
+        last_class="__away__"
+        record_event "hyprlock"
+        lock_marked=1
+      fi
+      ;;
+    1)
+      if [[ ${lock_marked:-0} == 1 ]]; then
+        class=$(active_class)
+        last_class="$class"
+        record_event "$class"
+        lock_marked=0
+      fi
+      ;;
+  esac
+}
+
 watch_events() {
   sense_enabled || return 0
 
@@ -593,18 +681,29 @@ watch_events() {
   flock -n 9 || return 0
 
   record_snapshot
-  local last_class="" event class rc
+  local last_class="" event class rc now lock_marked=0
+  local last_routine_check last_layout_check last_guard
+  last_routine_check=$(now_epoch)
+  last_layout_check=$(now_epoch)
+  last_guard=$last_layout_check
   exec 3< <(socat -U - "UNIX-CONNECT:$socket" 2>/dev/null || true)
   while true; do
     event=""
-    read -r -t 60 event <&3
+    # Five seconds is short enough to notice a brief lock, and long enough
+    # that the socket is not spun on. Flow, offers and layout samples stay
+    # on their own clocks below.
+    read -r -t 5 event <&3
     rc=$?
-    # A timeout is the guardian's heartbeat: flow is a state you settle into
-    # without generating events, so it can only be noticed by checking the
-    # local log once in a while. This never queries the compositor.
     if (( rc > 128 )); then
-      guardian_guard >/dev/null 2>&1 || true
-      check_new_routines >/dev/null 2>&1 || true
+      note_lock
+      now=$(now_epoch)
+      if (( now - last_guard >= 60 )); then
+        guardian_guard >/dev/null 2>&1 || true
+        record_snapshot
+        check_new_routines >/dev/null 2>&1 || true
+        last_guard=$now
+        last_routine_check=$now
+      fi
       continue
     fi
     (( rc == 0 )) || break
@@ -623,8 +722,27 @@ watch_events() {
         # Sampling moves as well as opens means the layout a user settles
         # into by hand is learned, not just the one windows opened with.
         record_snapshot
+        last_layout_check=$(now_epoch)
         ;;
     esac
+
+    note_lock
+    # Offers and unchanged layouts are on a clock, not on a quiet socket.
+    # Window events restart the read timeout, so a busy session would
+    # otherwise never notice a routine it has already learned.
+    now=$(now_epoch)
+    if (( now - last_routine_check >= 60 )); then
+      check_new_routines >/dev/null 2>&1 || true
+      last_routine_check=$now
+    fi
+    if (( now - last_layout_check >= 600 )); then
+      record_snapshot
+      last_layout_check=$now
+    fi
+    if (( now - last_guard >= 60 )); then
+      guardian_guard >/dev/null 2>&1 || true
+      last_guard=$now
+    fi
   done
   exec 3<&-
 }
@@ -789,7 +907,7 @@ case "${1:-status}" in
     ;;
   forget)
     restore_guardian_dnd
-    rm -f "$EVENTS_FILE" "$SNAPSHOTS_FILE"
+    rm -f "$EVENTS_FILE" "$SNAPSHOTS_FILE" "$KNOWN_ROUTINES_FILE" "$DISMISSED_ROUTINES_FILE"
     printf 'forgotten. sense kept no copy anywhere else\n'
     ;;
   watch)
