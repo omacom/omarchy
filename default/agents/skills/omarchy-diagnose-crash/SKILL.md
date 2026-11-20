@@ -1,5 +1,5 @@
 ---
-name: diagnose-crash
+name: omarchy-diagnose-crash
 description: >
   Diagnose why a program crashed on this machine, from a systemd-coredump core dump.
   Use when a process has segfaulted, aborted, or otherwise dumped core, when asked

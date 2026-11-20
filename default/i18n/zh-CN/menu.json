@@ -1359,5 +1359,11 @@
   },
   "agent.make.game": {
     "label": "制作游戏"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
   }
 }

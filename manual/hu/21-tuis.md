@@ -2,38 +2,38 @@
 
 ## Lazygit
 
-A [Lazygit](https://github.com/jesseduffield/lazygit) egy kellemes alternatíva valami olyasmire, mint a GitHub Desktop alkalmazás, és a terminálban fut.
+[Lazygit](https://github.com/jesseduffield/lazygit) üdítő alternatívája például a GitHub Desktop alkalmazásnak, és a terminálban fut.
 
-Közvetlenül is futtathatod: menj bármelyik git által kezelt könyvtárba, és futtasd a `lazygit` parancsot. Vagy futtathatod a Neovimban is, ahol a `Space G G` billentyűkombinációval indítható.
+Közvetlenül is futtathatod: menj bármelyik git által kezelt könyvtárba, és futtasd a `lazygit` parancsot. Vagy futtathatod Neovimban is, ahol a `Space G G` billentyűkombinációval indítható.
 
-A különböző panelek között a `Tab` billentyűvel ugrálhatsz. A Files panelen a `Space` segítségével választod ki a fájlokat stagingelésre, majd a `c` billentyűvel hozhatsz létre új commitot. Az összes elérhető parancsot a `?` billentyűvel nézheted meg.
+A különböző panelek között a `Tab` billentyűvel ugrálhatsz. A Files panelen a `Space` billentyűvel választhatsz ki fájlokat stage-elésre, majd a `c` billentyűvel hozhatsz létre új commitot. Az összes elérhető parancsot a `?` billentyűvel nézheted meg.
 
 ## Btop
 
-A [Btop](https://github.com/aristocratos/btop) egy gyönyörű erőforrás-kezelő, amely megmutatja a memória-, CPU-, lemez- és hálózathasználatot. Felsorolja az összes aktív folyamatot is, és lehetővé teszi azok kezelését.
+[Btop](https://github.com/aristocratos/btop) egy gyönyörű erőforrás-kezelő, amely mutatja a memória-, CPU-, lemez- és hálózathasználatot. Felsorolja az összes aktív folyamatot is, és lehetővé teszi azok kezelését.
 
-Az Omarchy Activity Monitornak hívja, és az alkalmazásindítóból vagy a `Super + Shift + T` billentyűkombinációval indíthatod. Lebegő ablakként nyílik meg, amelyet a `Super + T` billentyűkombinációval csempézhetsz.
+Az Omarchy Activity Monitor néven hivatkozik rá, és az alkalmazásindítóból vagy a `Super + Shift + T` billentyűkombinációval indíthatod. Lebegő ablakként nyílik meg, amelyet a `Super + T` billentyűkombinációval csempézhetsz.
 
 ## Herdr
 
-A [Herdr](https://github.com/omacom-io/herdr) egy terminálos munkaterület-kezelő, amely munkaterületeket, lapokat és paneleket ad, és mindegyiket futva tartja egy állandó munkamenetben, amelyről leválhatsz, és amelyhez később visszatérhetsz.
+[Herdr](https://herdr.dev) egy terminálos munkaterület-kezelő, amely munkaterületeket, füleket és paneleket ad, és mindegyiket futva tartja egy állandó munkamenetben, amelyről leválhatsz, majd később visszatérhetsz hozzá.
 
-Az alkalmazásindítóból vagy a `Super + Ctrl + Return` billentyűkombinációval indíthatod el (vagy csatlakozhatsz vissza a meglévő munkamenetedhez). Az Omarchy olyan Herdr-konfigurációval érkezik, amely tükrözi a Tmux-konfigurációját, így a prefix billentyű itt is a `Ctrl + Space`. Az összes billentyűkiosztást a `Super + Ctrl + K` billentyűkombinációval böngészheted.
+Az alkalmazásindítóból vagy a `Super + Ctrl + Return` billentyűkombinációval indíthatod el (vagy csatlakozhatsz vissza a meglévő munkamenetedhez). Az Omarchy olyan Herdr-konfigurációval érkezik, amely tükrözi a Tmux configját, így itt is a `Ctrl + Space` a prefix billentyű. Az összes billentyűkiosztást a `Super + Ctrl + K` billentyűkombinációval böngészheted.
 
 ## Fastfetch
 
-A [Fastfetch](https://github.com/fastfetch-cli/fastfetch) rendszerinformációkat mutat, például a kernel verzióját, az üzemidőt, a témát, a CPU-t, a memóriát és még sok mást. Ez a népszerű neofetch eszköz utódja.
+[Fastfetch](https://github.com/fastfetch-cli/fastfetch) rendszerinformációkat mutat, például a kernel verzióját, az üzemidőt, a témát, a CPU-t, a memóriát és még sok mást. A népszerű neofetch eszköz utódja.
 
 Az Omarchy ezt _Rendszer > Névjegy_ néven csomagolta be az Omarchy menübe (`Super + Space`).
 
 ## Cliamp
 
-A [Cliamp](https://www.cliamp.stream/) egy retró terminálos zenelejátszó, amelyet a Winamp 2.x ihletett, beépített rádióállomásokkal lo-fi beatekhez. A `Super + Shift + Alt + M` billentyűkombinációval vagy az Omarchy menü _Alkalmazások_ pontja alól indíthatod. A teljes billentyűkiosztási listához nyomd meg a `?` billentyűt.
+[Cliamp](https://www.cliamp.stream/) egy retró terminálos zenelejátszó, amelyet a Winamp 2.x ihletett, beépített rádióállomásokkal lo-fi beatekhez. Indítsd a `Super + Shift + Alt + M` billentyűkombinációval, vagy az Omarchy menüből az _Alkalmazások_ alatt. A teljes billentyűkiosztási listáért nyomd meg a `?` billentyűt.
 
-## Mi a helyzet a Wi-Fi-vel és a Bluetooth-szal?
+## Mi a helyzet a Wi-Fi-vel és a Bluetoothszal?
 
-Nem fogsz TUI-kat találni a Wi-Fi-hez és a Bluetooth-hoz — ezek a feladatok az Omarchy shellhez tartoznak. Kattints a Wi-Fi ikonra a felső sávban (vagy nyomd meg a `Super + Ctrl + N` billentyűkombinációt) a hálózatok megtekintéséhez és a csatlakozáshoz, és kattints a Bluetooth ikonra (vagy nyomd meg a `Super + Ctrl + B` billentyűkombinációt) az eszközök párosításához és csatlakoztatásához. A teljes történetért lásd a [hálózatkezelés](35-networking.md) oldalt.
+Wi-Fi-hez és Bluetoothhoz nem találsz TUI-kat — ezek a feladatok az Omarchy shellre tartoznak. Kattints a Wi-Fi ikonra a felső sávban (vagy nyomd meg a `Super + Ctrl + N` billentyűkombinációt) a hálózatok megtekintéséhez és a csatlakozáshoz, és kattints a Bluetooth ikonra (vagy nyomd meg a `Super + Ctrl + B` billentyűkombinációt) az eszközök párosításához és csatlakoztatásához. A teljes történetért lásd a [hálózatkezelés](35-networking.md) oldalt.
 
 ## Saját hozzáadása
 
-Bármelyik terminálprogram megkaphatja a teljes alkalmazáskezelést. Menj a _Telepítés > TUI_ pontra az Omarchy menüben (`Super + Space`), adj neki nevet, indítóparancsot, ablakstílust és ikont, és megjelenik az alkalmazásindítóban, mint bármelyik másik alkalmazás. A _Eltávolítás > TUI_ pont alatt ismét eltávolíthatod.
+Bármelyik terminálprogram megkaphatja a teljes alkalmazáskezelést. Menj az Omarchy menüben (`Super + Space`) a _Telepítés > TUI_ pontra, adj neki nevet, indítási parancsot, ablakstílust és ikont, és megjelenik az alkalmazásindítóban, mint bármely más alkalmazás. Az _Eltávolítás > TUI_ alatt ismét eltávolíthatod.
