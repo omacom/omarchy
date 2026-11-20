@@ -116,12 +116,20 @@ Item {
     root.autohideEdgeHovered = BarModel.withScreenFlag(root.autohideEdgeHovered, screen ? screen.name : "", value)
   }
 
+  // Addresses of windows that received `closewindow`, cleared if `openwindow`
+  // reuses an address. Quickshell's `HyprlandIpc::refreshToplevels()` adds and
+  // updates entries from `j/clients` without pruning missing ones, so a stale
+  // refresh processed after `closewindow` resurrects the closed window as a
+  // ghost whose old `fullscreen: 2` would otherwise wedge `underFullscreenOn`
+  // true until the shell restarts.
+  property var closedWindowAddresses: ({})
+
   // Whether the active workspace on a screen holds a real fullscreen window.
   // The bar drops its input under one and its edge strip never calls it out.
   function underFullscreenOn(screen) {
     var monitor = Hyprland.monitorFor(screen)
     var workspace = monitor ? monitor.activeWorkspace : null
-    return !!workspace && BarModel.fullscreenOn(Hyprland.toplevels.values, workspace.id)
+    return !!workspace && BarModel.fullscreenOn(Hyprland.toplevels.values, workspace.id, root.closedWindowAddresses)
   }
 
   property string home: Quickshell.env("HOME")
@@ -1699,11 +1707,23 @@ Item {
   }
 
   // Hyprland's window list does not follow fullscreen on its own, and each
-  // BarPanel reads it to drop its input under a fullscreen window.
+  // BarPanel reads it to drop its input under a fullscreen window. Track
+  // closewindow/openwindow alongside it so a stale refreshToplevels() answer
+  // cannot resurrect a closed fullscreen window as a ghost.
   Connections {
     target: Hyprland
     function onRawEvent(event) {
-      if (event && String(event.name) === "fullscreen") Hyprland.refreshToplevels()
+      if (!event) return
+      var name = String(event.name)
+      if (name === "fullscreen") {
+        Hyprland.refreshToplevels()
+      } else if (name === "closewindow") {
+        var closedAddr = String(event.data || "").split(",")[0]
+        root.closedWindowAddresses = BarModel.withClosedWindow(root.closedWindowAddresses, closedAddr)
+      } else if (name === "openwindow") {
+        var openedAddr = String(event.data || "").split(",")[0]
+        root.closedWindowAddresses = BarModel.withoutClosedWindow(root.closedWindowAddresses, openedAddr)
+      }
     }
   }
 
