@@ -28,7 +28,7 @@ This will display Sunday 10:55 AM.
 
 ### How do I change my timezone?
 
-Run _Update > Timezone_ in the Omarchy menu and pick from the list. If the timezone is right but the clock itself has drifted, _Update > Time_ restarts the time synchronization for you.
+Run _Setup > Region > Timezone_ in the Omarchy menu and pick from the list. If the timezone is right but the clock itself has drifted, _Update > Time_ restarts the time synchronization for you.
 
 ### How do I change my DNS, share my Wi-Fi, or check my connection speed?
 
@@ -37,10 +37,6 @@ Those all live in [networking](35-networking.md).
 ### How do I check how fast my disk is?
 
 _Trigger > Speed Test > Disk Speed Test_ measures live read and write speed on your drive, or `omarchy disk speedtest` from the terminal.
-
-### Why can't I sign into my Google account in Chromium?
-
-The plain open source Chromium build doesn't ship with the OAuth credentials that Google requires for account sign-in. Run _Install > Service > Chromium Account_ in the Omarchy menu to add them, restart the browser, and the sign-in will go through.
 
 ### How do I add a printer?
 
