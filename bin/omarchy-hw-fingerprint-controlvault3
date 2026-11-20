@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true when a Broadcom ControlVault 3 fingerprint reader is present
+# omarchy:hidden=true
+
+# USB ids from Broadcom's 60-libfprint-2-device-broadcom.rules. The same
+# string lives in omarchy-hw-fingerprint; a test fails if the two drift.
+# ControlVault 3+ (0a5c:586x) is a different driver and must not match here.
+# A Dell Latitude 5540 ships 0a5c:5843.
+controlvault3_products=" 5842 5843 5844 5845 "
+usb_devices_path="${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
+
+for dev in "$usb_devices_path"/*; do
+  [[ -r $dev/idVendor && -r $dev/idProduct ]] || continue
+  vendor=$(<"$dev/idVendor")
+  product_id=$(<"$dev/idProduct")
+  [[ $vendor == "0a5c" && $controlvault3_products == *" $product_id "* ]] && exit 0
+done
+
+exit 1
