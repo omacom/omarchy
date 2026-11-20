@@ -30,7 +30,7 @@ printf '%s\n' "$*" >>"$QS_CALLS"
 case $QS_MODE in
   hang) sleep 5 ;;
   starting) printf 'Not ready to accept queries yet.\n' ;;
-  unknown) printf 'unknown\n' ;;
+  unknown | disabled | unavailable) printf '%s\n' "$QS_MODE" ;;
   *) printf 'from-qs on %s\n' "$WAYLAND_DISPLAY" ;;
 esac
 SH
@@ -61,19 +61,28 @@ pass "shell IPC calls fail while Quickshell is still starting"
 qs_mode=starting shell_call -q shell ping >/dev/null 2>&1 || fail "quiet best-effort IPC calls tolerate a starting shell"
 pass "quiet best-effort IPC calls tolerate a starting shell"
 
-for method in summon toggle; do
-  out_file="$test_tmp/qs-$method.out"
-  err_file="$test_tmp/qs-$method.err"
-  qs_mode=unknown shell_call shell "$method" missing.plugin >"$out_file" 2>"$err_file" &&
-    fail "qs ipc $method fails on unknown plugin"
-  [[ ! -s $out_file && $(<"$err_file") == "unknown plugin: missing.plugin" ]] ||
-    fail "qs ipc $method reports unknown plugin on stderr" "out=$(<"$out_file") err=$(<"$err_file")"
-  qs_mode=unknown shell_call -q shell "$method" missing.plugin >"$out_file" 2>"$err_file" ||
-    fail "quiet qs ipc $method succeeds on unknown plugin"
-  [[ ! -s $out_file && ! -s $err_file ]] ||
-    fail "quiet qs ipc $method prints nothing on unknown plugin" "out=$(<"$out_file") err=$(<"$err_file")"
+# A miss's reply and the message omarchy-shell gives for it.
+declare -A miss_message=(
+  [unknown]="unknown plugin: some.plugin"
+  [disabled]="disabled plugin: some.plugin"
+  [unavailable]="no live bar widget for plugin: some.plugin"
+)
+
+for miss in unknown disabled unavailable; do
+  for method in summon toggle; do
+    out_file="$test_tmp/qs-$method.out"
+    err_file="$test_tmp/qs-$method.err"
+    qs_mode=$miss shell_call shell "$method" some.plugin >"$out_file" 2>"$err_file" &&
+      fail "qs ipc $method fails on a $miss plugin"
+    [[ ! -s $out_file && $(<"$err_file") == "${miss_message[$miss]}" ]] ||
+      fail "qs ipc $method reports a $miss plugin on stderr" "out=$(<"$out_file") err=$(<"$err_file")"
+    qs_mode=$miss shell_call -q shell "$method" some.plugin >"$out_file" 2>"$err_file" ||
+      fail "quiet qs ipc $method succeeds on a $miss plugin"
+    [[ ! -s $out_file && ! -s $err_file ]] ||
+      fail "quiet qs ipc $method prints nothing on a $miss plugin" "out=$(<"$out_file") err=$(<"$err_file")"
+  done
 done
-pass "qs ipc summon and toggle reject unknown plugins unless quiet"
+pass "qs ipc summon and toggle reject unknown, disabled and unavailable plugins unless quiet"
 
 shell_call shell ping >/dev/null
 [[ $(<"$calls") == "ipc -n -p $root_dir/shell call -- shell ping" ]] ||
@@ -120,7 +129,7 @@ IFS= read -r -d $'\x1e' request
 printf '%s\n' "${request//$'\x1f'/|}" >>"$REQUESTS"
 case $(<"$MODE") in
   ok) printf 'OK\x1f%s\x1e' "answer to ${request//$'\x1f'/ }" ;;
-  unknown) printf 'OK\x1funknown\x1e' ;;
+  unknown | disabled | unavailable) printf 'OK\x1f%s\x1e' "$(<"$MODE")" ;;
   skip) printf 'SKIP\x1e' ;;
   hang) sleep 2 ;;
   close) ;;
@@ -149,20 +158,22 @@ output=$(shell_call -q media next)
 [[ -z $output ]] || fail "quiet calls print nothing" "got: $output"
 pass "quiet calls over the socket print nothing"
 
-printf 'unknown' >"$mode"
-for method in summon toggle; do
-  out_file="$test_tmp/sock-$method.out"
-  err_file="$test_tmp/sock-$method.err"
-  shell_call shell "$method" missing.plugin >"$out_file" 2>"$err_file" &&
-    fail "socket $method fails on unknown plugin"
-  [[ ! -s $out_file && $(<"$err_file") == "unknown plugin: missing.plugin" ]] ||
-    fail "socket $method reports unknown plugin on stderr" "out=$(<"$out_file") err=$(<"$err_file")"
-  shell_call -q shell "$method" missing.plugin >"$out_file" 2>"$err_file" ||
-    fail "quiet socket $method succeeds on unknown plugin"
-  [[ ! -s $out_file && ! -s $err_file ]] ||
-    fail "quiet socket $method prints nothing on unknown plugin" "out=$(<"$out_file") err=$(<"$err_file")"
+for miss in unknown disabled unavailable; do
+  printf '%s' "$miss" >"$mode"
+  for method in summon toggle; do
+    out_file="$test_tmp/sock-$method.out"
+    err_file="$test_tmp/sock-$method.err"
+    shell_call shell "$method" some.plugin >"$out_file" 2>"$err_file" &&
+      fail "socket $method fails on a $miss plugin"
+    [[ ! -s $out_file && $(<"$err_file") == "${miss_message[$miss]}" ]] ||
+      fail "socket $method reports a $miss plugin on stderr" "out=$(<"$out_file") err=$(<"$err_file")"
+    shell_call -q shell "$method" some.plugin >"$out_file" 2>"$err_file" ||
+      fail "quiet socket $method succeeds on a $miss plugin"
+    [[ ! -s $out_file && ! -s $err_file ]] ||
+      fail "quiet socket $method prints nothing on a $miss plugin" "out=$(<"$out_file") err=$(<"$err_file")"
+  done
 done
-pass "socket summon and toggle reject unknown plugins unless quiet"
+pass "socket summon and toggle reject unknown, disabled and unavailable plugins unless quiet"
 
 printf 'skip' >"$mode"
 output=$(shell_call nosuch ping)

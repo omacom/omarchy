@@ -478,12 +478,14 @@ unknown_stderr=$(<"$unknown_err_file")
   fail_with_log "hot-reload plugin could not be summoned before disabling"
 [[ $(scratch_ipc shell setPluginEnabled "$hot_reload_id" false) == "ok" ]] ||
   fail_with_log "hot-reload plugin could not be disabled while open"
-disabled_rc=0
-disabled_stdout=$(scratch_ipc shell toggle "$hot_reload_id" "{}" 2>"$unknown_err_file") || disabled_rc=$?
-disabled_stderr=$(<"$unknown_err_file")
+for method in toggle summon; do
+  disabled_rc=0
+  disabled_stdout=$(scratch_ipc shell "$method" "$hot_reload_id" "{}" 2>"$unknown_err_file") || disabled_rc=$?
+  disabled_stderr=$(<"$unknown_err_file")
+  (( disabled_rc != 0 )) && [[ -z $disabled_stdout && $disabled_stderr == *"disabled plugin: $hot_reload_id"* ]] ||
+    fail_with_log "shell IPC $method rejects a panel disabled while open (rc=$disabled_rc out=$disabled_stdout err=$disabled_stderr)"
+done
 rm -f "$unknown_err_file"
-(( disabled_rc != 0 )) && [[ -z $disabled_stdout && $disabled_stderr == *"unknown plugin: $hot_reload_id"* ]] ||
-  fail_with_log "shell IPC toggle rejects a panel disabled while open (rc=$disabled_rc out=$disabled_stdout err=$disabled_stderr)"
 pass "shell IPC summon and hide contract works"
 
 [[ $(scratch_ipc notifications ping) == "ok" ]] || fail_with_log "notifications IPC responds"

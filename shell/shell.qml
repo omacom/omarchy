@@ -1268,6 +1268,15 @@ ShellRoot {
     return isPluginOpen(id) ? hide(id) : summon(id, payloadJson)
   }
 
+  // Why summon or toggle could not act on a plugin: it was never installed,
+  // it is turned off, or it is a bar-widget panel with no widget in the bar.
+  function pluginMiss(pluginId) {
+    var id = shell.pluginRegistry.resolveEnabledId(pluginId)
+    if (!id || !shell.pluginRegistry.installedPlugins[id]) return "unknown"
+    if (!shell.pluginRegistry.isEnabled(id)) return "disabled"
+    return "unavailable"
+  }
+
   // Map of pluginId -> Loader, populated by the Instantiator delegate below.
   property var panelLoaders: ({})
 
@@ -1357,8 +1366,6 @@ ShellRoot {
       order.push(entry.id)
     }
 
-    var droppedIds = ({})
-    var hasDropped = false
     // Keep an entry whose plugin still loads the same way; drop the rest.
     for (var j = panelEntryModel.count - 1; j >= 0; j--) {
       var row = panelEntryModel.get(j)
@@ -1366,20 +1373,8 @@ ShellRoot {
       if (next && next.kind === row.entryKind && next.keepLoaded === row.keepLoaded && next.sourceUrl === row.sourceUrl) {
         delete wanted[row.pluginId]
       } else {
-        if (!next) {
-          droppedIds[row.pluginId] = true
-          hasDropped = true
-        }
         panelEntryModel.remove(j)
       }
-    }
-    if (hasDropped) {
-      var nextOpen = ({})
-      for (var o in openPanelIds) if (!droppedIds[o]) nextOpen[o] = openPanelIds[o]
-      openPanelIds = nextOpen
-      var nextPending = ({})
-      for (var p in pendingPayloads) if (!droppedIds[p]) nextPending[p] = pendingPayloads[p]
-      pendingPayloads = nextPending
     }
 
     for (var k = 0; k < order.length; k++) {
@@ -1999,7 +1994,7 @@ ShellRoot {
     }
 
     function summon(id: string, payloadJson: string): string {
-      return shell.summon(id, payloadJson) ? "ok" : "unknown"
+      return shell.summon(id, payloadJson) ? "ok" : shell.pluginMiss(id)
     }
 
     function hide(id: string): void {
@@ -2007,7 +2002,7 @@ ShellRoot {
     }
 
     function toggle(id: string, payloadJson: string): string {
-      return shell.toggle(id, payloadJson) ? "ok" : "unknown"
+      return shell.toggle(id, payloadJson) ? "ok" : shell.pluginMiss(id)
     }
 
     // A bar section's panels answer to their position as well as their id, so a
