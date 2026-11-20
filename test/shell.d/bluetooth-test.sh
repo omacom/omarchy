@@ -11,30 +11,52 @@ grep -q 'bt-agent -c' "$ROOT/default/systemd/user/bt-agent.service" && \
 [[ -x $ROOT/bin/omarchy-bluetooth-agent ]] || fail "omarchy-bluetooth-agent is executable"
 grep -q 'RequestAuthorization' "$ROOT/bin/omarchy-bluetooth-agent" || \
   fail "omarchy-bluetooth-agent implements RequestAuthorization"
-python3 - "$ROOT/bin/omarchy-bluetooth-agent" <<'PY' || fail "pairing window predicate"
+python3 - "$ROOT/bin/omarchy-bluetooth-agent" <<'PY'
 import ast, sys
 path = sys.argv[1]
-tree = ast.parse(open(path).read())
-fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "pairing_window_open")
-ns = {}
-exec(ast.unparse(fn), ns)
-open_window = ns["pairing_window_open"]
-assert open_window({"Pairable": True, "Discovering": True}) is True
-assert open_window({"Pairable": True, "Discovering": False}) is False
-assert open_window({"Pairable": False, "Discovering": True}) is False
+tree = ast.parse(open(path, encoding="utf-8").read())
+keep = {"adapters_from_pairing_marker", "read_pairing_marker", "pairing_marker_path"}
+mod = ast.Module([node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in keep], [])
+ns = {"os": __import__("os")}
+exec(compile(mod, path, "exec"), ns)
+adapter = "/org/bluez/hci0"
+other = "/org/bluez/hci1"
+objects = {
+    adapter: {"org.bluez.Adapter1": {"Pairable": True}},
+    other: {"org.bluez.Adapter1": {"Pairable": True}},
+}
+renewed = ns["adapters_from_pairing_marker"](objects, adapter + "\n")
+assert renewed == {adapter}, renewed
+default_only = ns["adapters_from_pairing_marker"](objects, "")
+assert default_only == set(), default_only
+closed = ns["adapters_from_pairing_marker"](
+    {adapter: {"org.bluez.Adapter1": {"Pairable": False}}},
+    adapter + "\n",
+)
+assert closed == set(), closed
+print("ok - a restarted agent renews only an open panel adapter")
+print("ok - bluez pairable defaults are not a pairing window")
+print("ok - a closed window stays closed after restart")
 PY
-pass "a restart only restores a panel that is already scanning"
-
-# The source checks below used to grep for the implementation. The predicate
-# above is what the agent runs. Panel policy stays in the QML behavior tests.
 
 run_node_test <<'JS'
 const bluetooth = requireFromRoot('shell/plugins/panels/bluetooth/Model.js')
-const fs = require('node:fs')
-const panelSource = fs.readFileSync(root + '/shell/plugins/panels/bluetooth/Panel.qml', 'utf8')
 
-// Pairable is the agent's consent window. BlueZ defaults it true forever; the
-// panel must clear that at load/close and only raise it while open.
+assert(bluetooth.keepPairable(true, false) === true, 'an open panel keeps the adapter pairable')
+assert(bluetooth.keepPairable(false, true) === true, 'an open sibling keeps the adapter pairable')
+assert(bluetooth.keepPairable(false, false) === false, 'a closed panel clears pairable')
+assertEqual(
+  bluetooth.pairingMarkerText(true, false, '/org/bluez/hci0'),
+  '/org/bluez/hci0\n',
+  'an open panel records its adapter for the agent restart'
+)
+assertEqual(bluetooth.pairingMarkerText(false, false, '/org/bluez/hci0'), '', 'a closed panel clears the restart marker')
+assertEqual(bluetooth.pairingMarkerText(true, false, ''), '', 'an open panel without an adapter path does not invent consent')
+assertEqual(bluetooth.connectAction({ connected: false, paired: true }), 'connect', 'bluetooth connects a paired device')
+assertEqual(bluetooth.connectAction({ connected: false, bonded: true }), 'connect', 'bluetooth connects a bonded device')
+assertEqual(bluetooth.connectAction({ connected: false, trusted: true }), 'pair', 'bluetooth pairs a device that is only trusted')
+assertEqual(bluetooth.connectAction({ connected: true, paired: false }), '', 'bluetooth leaves an already connected device alone')
+
 assert(bluetooth.isUuidLike('0000110b-0000-1000-8000-00805f9b34fb'), 'bluetooth detects UUID-like names')
 assert(bluetooth.isAddressLike('AA:BB:CC:DD:EE:FF'), 'bluetooth detects address-like names')
 assertEqual(bluetooth.normalizedAddress('AA:BB_CC-dd-ee-ff'), 'aabbccddeeff', 'bluetooth normalizes BlueZ and PipeWire address formats')

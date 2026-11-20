@@ -154,6 +154,26 @@ function sectionDevices(lists, section) {
   return []
 }
 
+// Pairable is the agent's consent window. BlueZ leaves it true by default, so
+// an open panel also records its adapter path. A restarted agent renews only
+// those paths, and ignores adapters that are merely still at the default.
+function keepPairable(opened, siblingOpen) {
+  return opened === true || siblingOpen === true
+}
+
+function pairingMarkerText(opened, siblingOpen, dbusPath) {
+  if (!keepPairable(opened, siblingOpen)) return ""
+  var path = String(dbusPath || "").trim()
+  return path === "" ? "" : path + "\n"
+}
+
+// Trust alone is not a bond. Only a pairing or a bond takes the connect path.
+function connectAction(device) {
+  if (!device || device.connected) return ""
+  if (device.paired || device.bonded) return "connect"
+  return "pair"
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     deviceLabel: deviceLabel,
@@ -172,6 +192,9 @@ if (typeof module !== "undefined") {
     pendingAction: pendingAction,
     withPendingAction: withPendingAction,
     visibleSections: visibleSections,
-    sectionDevices: sectionDevices
+    sectionDevices: sectionDevices,
+    keepPairable: keepPairable,
+    pairingMarkerText: pairingMarkerText,
+    connectAction: connectAction
   }
 }

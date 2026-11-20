@@ -275,11 +275,9 @@ Panel {
   }
 
   function connectDevice(device) {
-    if (!device || device.connected) return
-    // Trusted without a bond is stuck: BlueZ auto-connects and pairing fails
-    // until Forget. Only a real pairing or bond should take the connect path.
-    if (device.paired || device.bonded) runDeviceAction(device, "connect", "connecting")
-    else runDeviceAction(device, "pair", "connecting")
+    var action = Model.connectAction(device)
+    if (!action) return
+    runDeviceAction(device, action, "connecting")
   }
 
   function disconnectDevice(device) {
@@ -424,6 +422,17 @@ Panel {
     syncPairable()
   }
 
+  function pairingMarkerPath() {
+    var runtime = Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"
+    return runtime + "/omarchy/bluetooth-pairing-open"
+  }
+
+  function writePairingMarker() {
+    var text = Model.pairingMarkerText(opened, openSibling() !== null, adapter && adapter.dbusPath)
+    var path = pairingMarkerPath()
+    Quickshell.execDetached(["bash", "-c", "mkdir -p \"$(dirname \"$1\")\" && printf '%s' \"$2\" > \"$1\"", "bash", path, text])
+  }
+
   // Another per-monitor instance of this widget whose panel is open, if any.
   // All instances share the default adapter, and switching the popout to a
   // different monitor closes one instance as it opens the next, so the
@@ -442,8 +451,8 @@ Panel {
   // and clear it otherwise (including at widget load before the first open).
   function syncPairable() {
     if (adapter === null) return
-    var keepPairable = opened || openSibling() !== null
-    adapter.pairable = keepPairable
+    adapter.pairable = Model.keepPairable(opened, openSibling() !== null)
+    writePairingMarker()
   }
 
   Component.onCompleted: syncPairable()
@@ -598,14 +607,17 @@ Panel {
       if (!handedOff && adapter !== null && adapter.discovering) adapter.discovering = false
     }
     if (adapter !== null) {
-      var keepPairable = false
+      var siblingOpen = false
       for (var p = 0; p < items.length; p++) {
         if (items[p] && items[p] !== root && items[p].opened === true) {
-          keepPairable = true
+          siblingOpen = true
           break
         }
       }
-      adapter.pairable = keepPairable
+      adapter.pairable = Model.keepPairable(false, siblingOpen)
+      var text = Model.pairingMarkerText(false, siblingOpen, adapter.dbusPath)
+      var path = pairingMarkerPath()
+      Quickshell.execDetached(["bash", "-c", "mkdir -p \"$(dirname \"$1\")\" && printf '%s' \"$2\" > \"$1\"", "bash", path, text])
     }
   }
 
