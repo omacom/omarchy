@@ -48,6 +48,27 @@ helium) config=helium ;;
 *) exit 0 ;;
 esac
 
+# The browser's flags file can pick a profile too. Launcher arguments above
+# win when both are present, matching the order Chromium applies them.
+flags=""
+case ${browser##*/} in
+chromium | chromium-browser) flags=chromium-flags.conf ;;
+google-chrome | google-chrome-stable | chrome) flags=chrome-flags.conf ;;
+brave) flags=brave-flags.conf ;;
+brave-origin) flags=brave-origin-flags.conf ;;
+microsoft-edge | microsoft-edge-stable) flags=microsoft-edge-stable-flags.conf ;;
+esac
+
+if [[ -n $flags ]]; then
+  flag_lines=$(
+    { cat "/etc/$flags" 2>/dev/null || true
+      cat "${XDG_CONFIG_HOME:-$HOME/.config}/$flags" 2>/dev/null || true
+    } | sed 's/#.*//'
+  )
+  [[ -n $user_data_dir ]] || user_data_dir=$(printf '%s\n' "$flag_lines" | sed -n 's/.*--user-data-dir=\([^ ]*\).*/\1/p' | tail -1)
+  [[ -n $profile ]] || profile=$(printf '%s\n' "$flag_lines" | sed -n 's/.*--profile-directory=\([^ ]*\).*/\1/p' | tail -1)
+fi
+
 origin=$(printf '%s' "$url" | sed -E 's#^(https?://[^/?#]+)([/?#].*)?$#\1#')
 [[ $origin == http://* || $origin == https://* ]] || exit 0
 

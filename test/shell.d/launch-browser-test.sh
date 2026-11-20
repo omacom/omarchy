@@ -273,6 +273,19 @@ grep -Fxq -- "--app-id=$pwa_id" "$pwa_log" ||
   fail "web app lookup finds an app in the work profile" "$(cat "$pwa_log")"
 pass "web app lookup stays inside the launching profile"
 
+# A profile set in the browser's flags file decides the installation too.
+printf -- '--user-data-dir=%s\n' "$test_tmp/flagged" >"$XDG_CONFIG_HOME/chromium-flags.conf"
+launch_webapp "https://app.hey.com/mail/u/0/"
+! grep -q -- '--app-id=' "$pwa_log" ||
+  fail "web app lookup respects a profile from browser flags" "$(cat "$pwa_log")"
+mkdir -p "$test_tmp/flagged/Default/Web Applications/$pwa_id"
+cp "$manifest_dir/manifest.json" "$test_tmp/flagged/Default/Web Applications/$pwa_id/manifest.json"
+launch_webapp "https://app.hey.com/mail/u/0/"
+grep -Fxq -- "--app-id=$pwa_id" "$pwa_log" ||
+  fail "web app lookup finds an app in the flagged profile" "$(cat "$pwa_log")"
+rm -f "$XDG_CONFIG_HOME/chromium-flags.conf"
+pass "web app lookup honours profiles from browser flags"
+
 # Without a matching PWA the original --app shortcut path is unchanged.
 mv "$manifest_dir/manifest.json" "$test_tmp/manifest.saved"
 launch_webapp "https://app.hey.com/messages/new?to=x@y.com"
