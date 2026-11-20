@@ -133,6 +133,8 @@ function moveTo(screens, me, name, index) {
 
 // Add `name` at the far `side` ("left" or "right") of the row.
 function place(screens, me, name, side) {
+  if (side !== "left" && side !== "right") return finish(ownRow(screens, me))
+  if (shortName(name) === "") return finish(ownRow(screens, me))
   var row = ownRow(screens, me)
   return moveTo(screens, me, name, side === "left" ? 0 : row.length)
 }
@@ -141,7 +143,7 @@ function place(screens, me, name, side) {
 function nudge(screens, me, name, delta) {
   var row = ownRow(screens, me)
   var i = indexOf(row, name)
-  if (i === -1) return finish(row)
+  if (i === -1 || !delta) return finish(row)
   return moveTo(screens, me, name, i + (delta < 0 ? -1 : 1))
 }
 
