@@ -94,12 +94,14 @@ def send(msg: dict) -> None:
     sys.stdout.buffer.flush()
 
 
-def read_message():
+def port_open() -> bool:
+    """Reads one message from the browser, which sends none; False once it closes the port."""
     raw = sys.stdin.buffer.read(4)
     if len(raw) < 4:
-        return None
+        return False
     (length,) = struct.unpack("=I", raw)
-    return json.loads(sys.stdin.buffer.read(length) or b"null")
+    sys.stdin.buffer.read(length)
+    return True
 
 
 def serve() -> None:
@@ -108,15 +110,11 @@ def serve() -> None:
     send(state())
     while True:
         ready, _, _ = select.select([sys.stdin] + ([events] if events else []), [], [])
-        if sys.stdin in ready:
-            msg = read_message()
-            if msg is None:
-                return  # browser closed the port
-            if isinstance(msg, dict) and msg.get("type") == "refresh":
-                send(state())
+        if sys.stdin in ready and not port_open():
+            return
         if events and events in ready:
             if not events.readline():
-                events = None  # watcher gone; keep answering refreshes
+                events = None  # watcher gone; the palette stays as sent
                 continue
             # A theme switch writes several files: send once they have settled.
             while select.select([events], [], [], 0.25)[0] and events.readline():
