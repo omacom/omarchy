@@ -6,7 +6,7 @@ If Chrome isn't your taste, you're not stuck with it. Under _Install > Browser_ 
 
 ## Making one the default
 
-Installing a browser doesn't promote it. Once it's on the machine, go to _Setup > Defaults > Browser_ and pick it — the menu only lists browsers you actually have installed, and marks the current default with a check.
+Installing a browser doesn't promote it. Once it's on the machine, go to _Setup > Defaults > Browser_ and pick it — the menu lists every browser installed on your machine, including ones Omarchy doesn't ship, and marks the current default with a check.
 
 From the terminal it's:
 

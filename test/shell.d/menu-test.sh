@@ -179,13 +179,13 @@ const ranked = menu.mergeAppRows(rankBase.items, rankBase.itemOrder, [
 ])
 const rankScore = (id, query) => menu.searchScore(ranked.items, ranked.items[id], query)
 assert(
-  ['install.browser.brave', 'remove.browser.brave', 'setup.default.browser.brave'].every(
+  ['install.browser.brave', 'remove.browser.brave'].every(
     id => rankScore('apps.brave', 'brave') < rankScore(id, 'brave')
   ),
   'menu ranks an installed app above menu entries matching the query equally well'
 )
 assert(
-  ['install.browser.zen', 'remove.browser.zen', 'setup.default.browser.zen'].every(
+  ['install.browser.zen', 'remove.browser.zen'].every(
     id => rankScore('apps.zen', 'zen') < rankScore(id, 'zen')
   ),
   'menu ranks an app matching the query as a whole word above exact-labeled menu entries'

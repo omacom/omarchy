@@ -357,6 +357,15 @@ Item {
       icon: "\uf1ab",
       volatile: true,
       actionFor: function(value) { return "omarchy-language " + Util.shellQuote(value) }
+    },
+    // Browsers installed outside Omarchy's curated list still belong here:
+    // enumerate the real HTTPS handlers on every open, so a browser added
+    // since the shell started shows up without a restart.
+    "browsers": {
+      script: "current=$(omarchy-cmd-default-browser 2>/dev/null); omarchy-browser-list 2>/dev/null | while IFS=$'\\t' read -r label value; do [[ -z $value ]] && continue; printf '%s\\t%s\\t%s\\n' \"$label\" \"$value\" \"$current\"; done",
+      icon: "",
+      volatile: true,
+      actionFor: function(value) { return "omarchy-default-browser " + Util.shellQuote(value) }
     }
   })
 

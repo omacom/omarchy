@@ -589,27 +589,6 @@
     "label": "Browser",
     "title": "Default Browser"
   },
-  "setup.default.browser.chromium": {
-    "label": "Chromium"
-  },
-  "setup.default.browser.chrome": {
-    "label": "Chrome"
-  },
-  "setup.default.browser.brave": {
-    "label": "Brave"
-  },
-  "setup.default.browser.brave-origin": {
-    "label": "Brave Origin"
-  },
-  "setup.default.browser.edge": {
-    "label": "Edge"
-  },
-  "setup.default.browser.firefox": {
-    "label": "Firefox"
-  },
-  "setup.default.browser.zen": {
-    "label": "Zen"
-  },
   "setup.default.dictation": {
     "label": "Dictation",
     "title": "Default Dictation"
