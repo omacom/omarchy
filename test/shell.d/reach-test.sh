@@ -75,4 +75,18 @@ assertEqual(reach.dropIndex([10, 30, 50], 0, 40), 1, 'reach drops between the ti
 assertEqual(reach.dropIndex([10, 30, 50], 0, 60), 2, 'reach drops past the last tile')
 assertEqual(reach.dropIndex([10, 30, 50], 2, 0), 0, 'reach drops before the first tile')
 assertEqual(reach.dropIndex([10, 30, 50], 1, 31), 1, 'reach keeps a tile that barely moved')
+
+assertDeepEqual(
+  reach.tiles(['desk.local', 'laptop', 'desk'], 'desk', peers, []).map((t) => t.name),
+  ['desk', 'laptop'],
+  'reach keeps one tile when this machine is listed under its domain name'
+)
+assertDeepEqual(
+  reach.tiles(['laptop.local', 'laptop', 'desk'], 'desk', peers, ['laptop.local']).map((t) => ({ name: t.name, connected: t.connected })),
+  [
+    { name: 'laptop.local', connected: true },
+    { name: 'desk', connected: true },
+  ],
+  'reach keeps one tile when another machine is listed twice'
+)
 JS
