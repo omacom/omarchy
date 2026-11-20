@@ -104,23 +104,24 @@ start_webcam_overlay() {
 
   # Try preferred 16:9 resolutions in order, use first available
   local preferred_resolutions=("640x360" "1280x720" "1920x1080")
-  local capture_options="framerate=30"
+  local capture_options=(-framerate 30)
   local available_formats=$(v4l2-ctl --list-formats-ext -d "$WEBCAM_DEVICE" 2>/dev/null)
 
   for resolution in "${preferred_resolutions[@]}"; do
     if echo "$available_formats" | grep -q "$resolution"; then
-      capture_options="video_size=$resolution,$capture_options"
+      capture_options=(-video_size "$resolution" "${capture_options[@]}")
       break
     fi
   done
 
-  mpv "av://v4l2:$WEBCAM_DEVICE" \
-    --profile=low-latency --untimed --no-cache \
-    --demuxer-lavf-o="$capture_options" \
-    '--vf=lavfi=[crop=ih*8/9:ih]' \
-    --title="WebcamOverlay" --wayland-app-id="WebcamOverlay-$WEBCAM_SIZE" \
-    --no-border --no-audio --no-osc --osd-level=0 \
-    --really-quiet 9>&- &>/dev/null &
+  # ffplay's SDL window takes its Wayland app id from the environment, which the
+  # overlay's window rules match on.
+  SDL_VIDEO_WAYLAND_WMCLASS="WebcamOverlay-$WEBCAM_SIZE" SDL_APP_ID="WebcamOverlay-$WEBCAM_SIZE" \
+    ffplay -f v4l2 "${capture_options[@]}" -i "$WEBCAM_DEVICE" \
+    -fflags nobuffer -flags low_delay -framedrop -sync ext \
+    -vf 'crop=ih*8/9:ih' \
+    -window_title WebcamOverlay -noborder -an \
+    -loglevel quiet 9>&- &>/dev/null &
 
   # The move has to settle before gpu-screen-recorder starts, or the camera is
   # recorded sliding into its corner. Waiting for the map is what the blind
@@ -151,6 +152,28 @@ default_resolution() {
   else
     echo "0x0"
   fi
+}
+
+screenrecording_needs_cpu_encoder() {
+  # AMD Polaris GPUs can hang their VCE 3.4 encode ring mid-recording and lose
+  # compositor VRAM when the ensuing GPU reset fails (#9555). The recorder's
+  # fallback cannot recover from a GPU that has already hung, so avoid starting
+  # hardware encoding on Polaris altogether. The IDs are amdgpu's CHIP_POLARIS10,
+  # 11, 12 and CHIP_VEGAM, read from sysfs as lspci would wake a suspended dGPU.
+  local polaris=(
+    0x67c0 0x67c1 0x67c2 0x67c4 0x67c7 0x67c8 0x67c9 0x67ca 0x67cc 0x67cf 0x67d0 0x67d4 0x67df 0x6fdf
+    0x67e0 0x67e1 0x67e3 0x67e7 0x67e8 0x67e9 0x67eb 0x67ef 0x67ff
+    0x6980 0x6981 0x6985 0x6986 0x6987 0x698f 0x6995 0x6997 0x699f
+    0x694c 0x694e 0x694f
+  )
+  local device vendor id
+
+  for device in "${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"/*; do
+    [[ -r $device/device ]] && read -r vendor <"$device/vendor" && read -r id <"$device/device" || continue
+    [[ $vendor == "0x1002" && " ${polaris[*]} " == *" $id "* ]] && return 0
+  done
+
+  return 1
 }
 
 # Echoes "monitor:NAME" when the selection matches an entire monitor (prefer
@@ -200,6 +223,8 @@ wf_audio_device() {
   local sink="" source="" m
   [[ $DESKTOP_AUDIO == "true" ]] && sink=$(pactl get-default-sink 2>/dev/null)
   [[ $MICROPHONE_AUDIO == "true" ]] && source=$(pactl get-default-source 2>/dev/null)
+  # With no default source pactl answers its own placeholder, never nothing.
+  [[ $source == "@DEFAULT_SOURCE@" ]] && source=""
 
   if [[ -n $sink && -n $source ]]; then
     if m=$(pactl load-module module-null-sink sink_name=omarchy_screenrec sink_properties=device.description=omarchy_screenrec 2>/dev/null); then
@@ -273,8 +298,10 @@ launch_wf_recorder() {
   # -r 60 caps the framerate: capturing a 120 Hz panel at its native rate makes
   # needlessly large files. -R 48000 keeps the AAC track at 48 kHz rather than
   # following a sink that advertises 96 kHz into a file many players, and some
-  # speaker DSPs, play as silence.
-  wf-recorder "${geom_args[@]}" -r 60 -R 48000 "${audio_args[@]}" -f "$filename" 9>&- 2>>"$LOG_FILE" &
+  # speaker DSPs, play as silence. -D captures every frame, not only changed
+  # ones: wf-recorder reads a stop signal only when a frame arrives, so on a
+  # still screen it would never exit and the stop would have to kill it.
+  wf-recorder "${geom_args[@]}" -D -r 60 -R 48000 "${audio_args[@]}" -f "$filename" 9>&- 2>>"$LOG_FILE" &
   REC_PID=$!
 }
 
@@ -307,12 +334,12 @@ start_screenrecording() {
   # the portal backend supports and the kms backend doesn't). Default flow uses
   # slurp + the kms backend, which avoids the EGL DMA-BUF modifier import
   # failures the portal path can hit on some configurations.
-  if [[ $FULLSCREEN == "true" ]]; then
-    target="monitor:$(omarchy-hyprland-monitor-focused)"
-    capture_args=(-w "${target#monitor:}" -s "${RESOLUTION:-$(default_resolution)}")
-  elif [[ ${OMARCHY_SCREENRECORD_USE_PORTAL:-false} == "true" ]]; then
+  if [[ ${OMARCHY_SCREENRECORD_USE_PORTAL:-false} == "true" ]]; then
     target="portal"
     capture_args=(-w portal -s "${RESOLUTION:-$(default_resolution)}")
+  elif [[ $FULLSCREEN == "true" ]]; then
+    target="monitor:$(omarchy-hyprland-monitor-focused)"
+    capture_args=(-w "${target#monitor:}" -s "${RESOLUTION:-$(default_resolution)}")
   else
     target=$(select_capture_target) || return 1
     start_cancelled && return 1
@@ -344,6 +371,11 @@ start_screenrecording() {
     else
       local audio_devices=""
       local audio_args=()
+      local encoder_args=()
+
+      if screenrecording_needs_cpu_encoder; then
+        encoder_args=(-encoder cpu)
+      fi
 
       [[ $DESKTOP_AUDIO == "true" ]] && audio_devices+="default_output"
 
@@ -355,7 +387,7 @@ start_screenrecording() {
 
       [[ -n $audio_devices ]] && audio_args+=(-a "$audio_devices" -ac aac)
 
-      gpu-screen-recorder "${capture_args[@]}" -k auto -f 60 -fm cfr -fallback-cpu-encoding yes -o "$filename" "${audio_args[@]}" 9>&- 2>>"$LOG_FILE" &
+      gpu-screen-recorder "${capture_args[@]}" "${encoder_args[@]}" -k auto -f 60 -fm cfr -fallback-cpu-encoding yes -o "$filename" "${audio_args[@]}" 9>&- 2>>"$LOG_FILE" &
       pid=$!
     fi
 
@@ -453,7 +485,7 @@ stop_screenrecording() {
 
     omarchy-notification-send "$(omarchy-i18n capture.recordingSaved)" "$(recording_details "$filename")" \
       -t 10000 "${image_args[@]}" \
-      --action "$(omarchy-i18n capture.recordingOpen)" mpv -- \
+      --action "$(omarchy-i18n capture.recordingOpen)" omaview open \
       --action "$(omarchy-i18n capture.recordingCut)" omacut \
       --with "$filename"
 

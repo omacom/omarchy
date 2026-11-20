@@ -1,6 +1,7 @@
 {
   "Activity": "Gníomhaíocht",
   "Agent": "Gníomhaire",
+  "Agents": "Gníomhairí",
   "Apps": "Aipeanna",
   "Audio": "Fuaim",
   "Background switcher": "Malartóir cúlra",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "Nocht fuinneog ghníomhach ar bharr",
   "Save window width": "Sábháil leithead fuinneoige",
   "Screenrecording": "Taifeadadh scáileáin",
+  "Screenrecording with no audio": "Taifeadadh scáileáin gan fhuaim",
   "Screenshot": "Gabháil scáileáin",
   "Scroll active workspace backward": "Scrollaigh an spás oibre gníomhach ar ais",
   "Scroll active workspace forward": "Scrollaigh an spás oibre gníomhach ar aghaidh",
