@@ -1,39 +1,43 @@
 # Komercijalne aplikacije/usluge
 
-Omarchy je uglavnom usmjeren na pružanje besplatnog softvera otvorenog koda, ali nije religiozan po tom pitanju. Ponekad je najbolje rješenje komercijalna ponuda i to je sasvim u redu. Evo nekih od opcija za koje nudimo jednostavnu instalaciju.
+Omarchy je uglavnom usmjeren na pružanje besplatnog softvera otvorenog koda, ali po tom pitanju nije religiozan. Ponekad je najbolje rješenje komercijalna ponuda i to je sasvim u redu. Evo nekih od opcija za koje nudimo jednostavnu instalaciju.
 
 ## 1Password
 
-Čuvanje lozinki u upravitelju lozinki najbolja je praksa. Dvostruko više ako radite s timom. A [1password](https://1password.com/) je odlično rješenje, koje dolazi i s alatom naredbenog retka za integriranje pretraživanja ključeva u skripte.
+Čuvanje lozinki u upravitelju lozinki najbolja je praksa. Dvostruko ako radite s timom. A [1password](https://1password.com/) je sjajno rješenje koje dolazi i s alatom naredbenog retka za integraciju traženja ključeva u skriptama.
 
-1Password pokrećete s `Super + Shift + /`. Ako još nije instaliran, ta tipkovnička prečica prvo pokreće instalaciju (možete koristiti i _Install > Service > 1Password_ iz izbornika Omarchy). Instalacijski program postavlja i proširenje 1Password za Chromium.
+1Password pokrećete tipkama `Super + Shift + /`. Ako još nije instaliran, ta tipkovna prečica prvo pokreće instalaciju (možete koristiti i _Install > Service > 1Password_ iz Omarchy izbornika). Instalacijski program donosi i 1Password alat naredbenog retka te postavlja 1Password proširenje za Chrome i Chromium; ponovno pokrenite preglednik da biste ga učitali.
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/) alternativa je otvorenog koda u području upravitelja lozinki, s besplatnom razinom koja pokriva većinu osobne uporabe. Instalirajte ga s _Install > Service > Bitwarden_ iz izbornika Omarchy, što donosi i alat naredbenog retka za Bitwarden.
+[Bitwarden](https://bitwarden.com/) je alternativa otvorenog koda u svijetu upravitelja lozinki, s besplatnim planom koji pokriva većinu osobne uporabe. Instalirajte ga putem _Install > Service > Bitwarden_ iz Omarchy izbornika, što donosi i Bitwarden alat naredbenog retka.
 
 ## Spotify
 
-[Spotify](https://spotify.com/) najpopularnija je usluga za streaming glazbe na svijetu. Omarchy ga isporučuje kao web aplikaciju, koja vam daje potpuni player, medijske tipke i Spotify Connect, ali ne i preuzimanja izvan mreže. Pokrenite ga s `Super + Shift + M`.
+[Spotify](https://spotify.com/) je najpopularniji svjetski servis za streaming glazbe. Omarchy ga isporučuje kao web aplikaciju, što vam daje potpuni reproduktor, medijske tipke i Spotify Connect, ali ne i preuzimanja izvan mreže. Pokrećete ga tipkama `Super + Shift + M`.
 
 ## Slack
 
-[Slack](https://slack.com/) mjesto je na kojem mnogi timovi razgovaraju, kako unutar tvrtke tako i s vanjskim suradnicima. Instalirajte ga s _Install > Service > Slack_ iz izbornika Omarchy i otvorit će se čim bude spreman.
+[Slack](https://slack.com/) je mjesto gdje mnogi timovi razgovaraju, i unutar tvrtke i s vanjskim suradnicima. Instalirajte ga putem _Install > Service > Slack_ iz Omarchy izbornika i otvorit će se čim bude spreman.
+
+## Notion
+
+[Notion](https://www.notion.com/) je radni prostor za bilješke, dokumente i projekte. Instalirajte njegovu desktop aplikaciju putem _Install > Service > Notion_ iz Omarchy izbornika.
 
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/) odličan je način za sinkronizaciju datoteka između računala uz čuvanje sigurnosne kopije u oblaku. Da biste ga postavili, odaberite _Install > Service > Dropbox_ iz izbornika Omarchy. Kada se pokrene, zadržite pokazivač iznad traya u gornjem desnom kutu trake i desnom tipkom miša kliknite ikonu Dropboxa da biste dovršili postavljanje.
+[Dropbox](https://www.dropbox.com/) je sjajan način za sinkronizaciju datoteka između računala uz čuvanje sigurnosne kopije u oblaku. Da biste ga postavili, odaberite _Install > Service > Dropbox_ iz Omarchy izbornika. Dodaje ikonu Dropboxa na traku: kliknite je za prijavu, a zatim na istoj ploči provjerite pohranu i otvorite nedavno sinkronizirane datoteke.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) mesh je VPN koji sigurno pristupanje svim vašim računalima i poslužiteljima putem interneta čini iznimno jednostavnim. Da biste ga postavili, odaberite _Install > Service > Tailscale_ iz izbornika Omarchy.
+[Tailscale](https://tailscale.com/) je mesh VPN koji iznimno jednostavno i sigurno omogućuje pristup svim vašim računalima i poslužiteljima putem interneta. Da biste ga postavili, odaberite _Install > Service > Tailscale_ iz Omarchy izbornika.
 
-Dobiva panel na traci, web aplikaciju za administratorsku konzolu i Taildrop za slanje datoteka između vaših računala — pogledajte [umrežavanje](35-networking.md).
+Dobiva ploču na traci, web aplikaciju za administratorsku konzolu i Taildrop za slanje datoteka između vaših računala — pogledajte [umrežavanje](35-networking.md).
 
 ## ONCE
 
-[ONCE](https://once.com/) linija je softvera tvrtke 37signals koji kupite jednom i pokrećete na vlastitom poslužitelju, poput sustava za chat Campfire. Odaberite _Install > Service > ONCE_ iz izbornika Omarchy da biste ga instalirali, čime se omogućuje njegova pozadinska usluga i prebacuje vas u terminalsko sučelje ONCE-a da biste odande nastavili.
+[ONCE](https://once.com/) je linija softvera tvrtke 37signals koji kupite jednom i pokrećete na vlastitom poslužitelju, poput sustava za chat Campfire. Odaberite _Install > Service > ONCE_ iz Omarchy izbornika da biste ga instalirali, čime se omogućuje njegova pozadinska usluga i prebacuje vas u ONCE terminalsko sučelje da odatle nastavite.
 
 ## NordVPN
 
-[NordVPN](https://nordvpn.com/) standardna je VPN usluga koja vam omogućuje da vaš promet izlazi iz većine regija diljem svijeta. Da biste ga postavili, odaberite _Install > Service > NordVPN_ iz izbornika Omarchy. Nakon ponovnog pokretanja koje zatraži, pokrenite `nordvpn login` za autentifikaciju.
+[NordVPN](https://nordvpn.com/) je standardna VPN usluga koja vam omogućuje da vaš promet izlazi iz većine regija diljem svijeta. Da biste ga postavili, odaberite _Install > Service > NordVPN_ iz Omarchy izbornika. Nakon ponovnog pokretanja koje zatraži, pokrenite `nordvpn login` za autentifikaciju.
