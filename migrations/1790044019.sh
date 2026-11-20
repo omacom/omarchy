@@ -15,8 +15,8 @@ had_layout=$(omarchy_vconsole_get XKBLAYOUT)
 # Record the rebuild before the file changes. A retry that sees XKBLAYOUT
 # already filled would otherwise skip the UKI and mark the migration done.
 if [[ -z $had_layout ]]; then
-  mkdir -p "$pending_dir"
-  : >"$pending"
+  mkdir -p "$pending_dir" || exit 1
+  : >"$pending" || exit 1
 fi
 
 omarchy_ensure_vconsole_xkb
@@ -32,13 +32,16 @@ variant=${variant%%,*}
 
 # Non-Latin layouts must stay out of the initramfs (#6229); hooks already skip
 # them. Only rebuild when a Latin layout (or Latin variant of rs) applies.
-omarchy_layout_is_non_latin "$layout" "$variant" && exit 0
+if omarchy_layout_is_non_latin "$layout" "$variant"; then
+  rm -f "$pending"
+  exit 0
+fi
 
 # A failed limine/mkinitcpio run must not mark this migration complete on retry
 # when XKBLAYOUT is already set and CHANGED stays 0.
 if (( OMARCHY_VCONSOLE_XKB_CHANGED == 1 )); then
-  mkdir -p "$pending_dir"
-  : >"$pending"
+  mkdir -p "$pending_dir" || exit 1
+  : >"$pending" || exit 1
 fi
 
 [[ -f $pending ]] || exit 0

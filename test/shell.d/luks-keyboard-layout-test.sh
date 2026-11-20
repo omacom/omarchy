@@ -30,6 +30,7 @@ de			de	pc105	-	-
 dvorak			us	pc105	dvorak	-
 no			no	pc105	-	-
 sr-latin		rs	pc105	latin	-
+cz			cz	pc105	-	-
 MAP
 
 mkdir -p "$scratch/bin"

@@ -78,6 +78,11 @@ omarchy_keymap_to_xkb() {
       printf 'ch de_nodeadkeys\n'
       return 0
       ;;
+    # kbd's cz is QWERTY. The map's cz row has no variant, and XKB's default is not QWERTY.
+    cz)
+      printf 'cz qwerty\n'
+      return 0
+      ;;
   esac
 
   if [[ -f $map ]]; then
@@ -119,12 +124,6 @@ omarchy_keymap_to_xkb() {
         return 0
       fi
     fi
-  fi
-
-  # Console cz is QWERTY. XKB's default cz is not, so the variant has to travel with it.
-  if [[ $keymap == cz ]]; then
-    printf 'cz qwerty\n'
-    return 0
   fi
 
   # Bare two-letter console names (fr, de, es) are usually valid XKB layouts.

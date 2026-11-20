@@ -140,6 +140,10 @@ assert_greeter_input "greeter falls back to us without vconsole.conf" "[us] [] [
 assert_greeter_input "greeter follows the system layout" "[fr] [] []" 'XKBLAYOUT=fr
 '
 
+assert_greeter_input "greeter keeps serbian latin like the desktop" "[rs] [latin] []" 'XKBLAYOUT=rs
+XKBVARIANT=latin
+'
+
 assert_greeter_input "greeter keeps a latin layout in front" "[us,ru] [,phonetic] [grp:alts_toggle]" 'XKBLAYOUT=ru
 XKBVARIANT=phonetic
 '
