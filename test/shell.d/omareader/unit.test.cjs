@@ -283,6 +283,12 @@ test('channel-triple fallbacks inside rgb()/hsl() map like the color they render
   assert.ok(light && C.toOklab({ r: +light[1], g: +light[2], b: +light[3], a: 1 }).L > 0.8, 'nested chain fallback maps');
   assert.match(X.transformValue('hsl(var(--bg, 0 0% 100%))', 'bg', c), /var\(--bg,[\d.]+ [\d.]+% [\d.]+%\)\)\)$/);
   assert.ok(!/100%\)\)\)$/.test(X.transformValue('hsl(var(--bg, 0 0% 100%))', 'bg', c)), 'white hsl fallback darkens');
+  // Bare numbers are HSL inside hsl(), so the mapped fallback must still read as HSL.
+  const green = X.transformValue('hsl(var(--g, 120 100 50))', 'text', c).match(/var\(--g,([\d.]+) ([\d.]+)% ([\d.]+)%\)\)\)$/);
+  assert.ok(green, 'numeric hsl fallback stays an hsl triple');
+  const got = C.parse(`hsl(${green[1]} ${green[2]}% ${green[3]}%)`);
+  const want = c.mapper.map(C.parse('hsl(120 100% 50%)'), 'text');
+  assert.ok(['r', 'g', 'b'].every((k) => Math.abs(got[k] - want[k]) < 1.5), `${hex(got)} vs ${hex(want)}`);
   // Outside a channel position the same text is not a color.
   assert.equal(X.transformValue('var(--pad, 1 2 3)', 'text', c), 'var(--omareader-text--pad, var(--pad, 1 2 3))');
   assert.equal(X.transformValue('rgb(calc(var(--n, 1 2 3)) 0 0)', 'text', c).includes('var(--n, 1 2 3)'), true);

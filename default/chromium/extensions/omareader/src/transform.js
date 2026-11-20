@@ -118,7 +118,7 @@
       if (!varName.startsWith('--') || varName.startsWith('--omareader-')) return `${name}(${inner})`;
       // rgba(var(--on-surface-rgb, 31,31,31), .38): while the variable is undefined, the
       // channel triple in its fallback is the color that renders.
-      const triple = ctx.channelFn && fallback !== undefined && parseTriple(fallback.trim());
+      const triple = ctx.channelFn && fallback !== undefined && parseTriple(fallback.trim(), ctx.channelFn);
       const fb = fallback === undefined ? ''
         : triple ? `,${formatTriple(triple, ctx.mapper.map(triple.color, role))}`
           : `,${transformValue(fallback, role, ctx)}`;
@@ -265,11 +265,13 @@
   // Bootstrap's --bs-*-rgb and shadcn/Tailwind's hsl(var(--background)).
   const TRIPLE_RE = /^(-?[\d.]+)(deg)?(\s*,\s*|\s+)([\d.]+%?)(\s*,\s*|\s+)([\d.]+%?)$/;
 
-  function parseTriple(v) {
+  // `fn` is the rgb()/hsl() the triple fills in, when known: hsl(var(--x, 120 100 50)) holds
+  // HSL numbers. Without it (a custom property's own value), percentages mark HSL.
+  function parseTriple(v, fn) {
     const m = TRIPLE_RE.exec(v);
     if (!m) return null;
     const [, a, deg, sep, b, , c] = m;
-    if (b.endsWith('%') && c.endsWith('%')) {
+    if (fn ? fn.startsWith('hsl') : b.endsWith('%') && c.endsWith('%')) {
       const color = C.parse(`hsl(${a} ${b} ${c})`);
       return color && { kind: 'hsl', color, sep, deg: deg || '' };
     }
