@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy обикновено се управлява чрез клавишните комбинации и менюто на Omarchy (`Super + Space`). Но можете да го управлявате и чрез `omarchy` CLI. Това е особено полезно, когато AI агент работи с вас по персонализиране или конфигуриране.
+Omarchy обикновено се управлява чрез клавишните комбинации и менюто Omarchy (`Super + Space`). Но можете да го управлявате и чрез `omarchy` CLI. Това е особено полезно, когато AI агент работи заедно с вас по персонализиране или конфигуриране.
 
-CLI има достъп до всички вътрешни инструменти, които се използват както чрез менюто, така и по друг начин. Можете да видите всичко налично, като изпълните `omarchy` в терминала.
+CLI има достъп до всички вътрешни инструменти, които се използват както чрез менюто, така и по други начини. Можете да видите всичко налично, като изпълните `omarchy` в терминала.
 
 Изглежда приблизително така:
 
@@ -22,10 +22,11 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -38,9 +39,10 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
+
+За диагностика изпълнете директно `omarchy-debug --no-sudo --print`. То отпечатва диагностика и записва `/tmp/omarchy-debug.log`, без да изисква sudo, включително при инсталации на пакети, при които `omarchy debug` може да се провали с "Unknown Omarchy command".
 
 И можете да навлезете по-дълбоко във всяка група:
 
@@ -48,7 +50,7 @@ Groups:
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
@@ -59,4 +61,4 @@ Capture commands — Screenshots and screen recording:
 
 ### Отваряне на менюто от терминала
 
-Менюто на Omarchy също може да се скриптира, което е удобно за вашите собствени клавишни комбинации. `omarchy menu` го отваря в основата, а можете да прескочите директно до всяка точка от дървото, като я назовете: `omarchy menu summon appearance.theme` отива директно до избора на тема, `omarchy menu toggle system` отваря системното меню и го затваря отново, ако вече е отворено, а `omarchy menu close` го прибира.
+Менюто Omarchy също може да се управлява чрез скриптове, което е удобно за собствените ви клавишни комбинации. `omarchy menu` го отваря в основата, а можете да преминете директно към всяка точка от дървото, като я назовете: `omarchy menu summon appearance.theme` отива направо към избора на тема, `omarchy menu toggle system` отваря системното меню и го затваря отново, ако вече е отворено, а `omarchy menu close` го прибира.

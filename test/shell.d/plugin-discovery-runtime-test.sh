@@ -249,11 +249,11 @@ sleep 0.3
 (( $(instance_count test.service-a 1) == 1 )) || fail_with_log "late watcher acknowledgment does not reload existing services"
 pass "IPC-first discovery stays incremental after its scan finishes"
 
-shell_ipc shell rescanPlugins >/dev/null
-wait_for_count test.service-a 1 2 || fail_with_log "explicit rescan recreates service A"
-wait_for_count test.service-b 1 2 || fail_with_log "explicit rescan recreates service B"
-wait_for_count test.service-c 1 2 || fail_with_log "explicit rescan recreates service C"
-pass "explicit rescanPlugins retains full code-reload semantics"
+shell_ipc shell reloadPlugins >/dev/null
+wait_for_count test.service-a 1 2 || fail_with_log "explicit reload recreates service A"
+wait_for_count test.service-b 1 2 || fail_with_log "explicit reload recreates service B"
+wait_for_count test.service-c 1 2 || fail_with_log "explicit reload recreates service C"
+pass "explicit reloadPlugins retains full code-reload semantics"
 
 jq '.name = "Edited service B"' "$plugins_dir/different-folder/manifest.json" >"$TMPDIR/manifest.json"
 mv "$TMPDIR/manifest.json" "$plugins_dir/different-folder/manifest.json"

@@ -77,11 +77,19 @@ ShellRoot {
   // Values are true when a request arrived during a scan and therefore needs
   // one follow-up scan if that scan did not discover the plugin.
   property var pendingPluginDiscoveries: ({})
+  property bool localPluginNeedsReload: false
 
   Timer {
     id: localPluginReloadTimer
     interval: 150
-    onTriggered: shell.reloadPlugins()
+    onTriggered: {
+      if (shell.localPluginNeedsReload) {
+        shell.localPluginNeedsReload = false
+        shell.reloadPlugins()
+      } else {
+        shell.rescanPlugins()
+      }
+    }
   }
 
   onShellConfigChanged: {
@@ -1109,6 +1117,10 @@ ShellRoot {
       for (var id in shell._pluginAppLibraryApis)
         shell._pluginAppLibraryApis[id].appsChanged()
     }
+    function onRemovalNeedsTerminal() {
+      for (var id in shell._pluginAppLibraryApis)
+        shell._pluginAppLibraryApis[id].removalNeedsTerminal()
+    }
   }
 
   // Writes inline settings to a bar layout entry or top-level plugin entry in
@@ -1526,6 +1538,34 @@ ShellRoot {
     pluginWidgetComponents = ({})
   }
 
+  // A rescan asked for while another scan ran; it stays a rescan.
+  property bool pluginRescanPending: false
+
+  // The watcher names a plugin by its folder, which need not be its manifest
+  // id (Superwhisper's superwhisper-panel folder holds superwhisper.panel).
+  function localPluginLoaded(dirName) {
+    var dir = String(shell.pluginRegistry.pluginsDir || "").replace(/\/+$/, "") + "/" + dirName
+    var installed = shell.pluginRegistry.installedPlugins || ({})
+    for (var id in installed) {
+      var source = String((installed[id] && installed[id].__sourceDir) || "").replace(/\/+$/, "")
+      if (source === dir) return true
+    }
+    return false
+  }
+
+  // Rescan without closing anything: the syncs after the scan add, update and
+  // drop plugins in place. Only fresh code needs the full reload, which closes
+  // every panel and unloads every service. A first login linking a new
+  // plugin's panel (Superwhisper's setup) otherwise closed the menu and
+  // blanked the wallpaper.
+  function rescanPlugins() {
+    if (shell.pluginReloading || shell.pluginRegistry.scanning) {
+      shell.pluginRescanPending = true
+      return
+    }
+    shell.pluginRegistry.rescan()
+  }
+
   function reloadPlugins() {
     shell.requestedPluginDiscoveries = ({})
     shell.watcherPluginDiscoveries = ({})
@@ -1629,6 +1669,7 @@ ShellRoot {
         shell.requestPluginDiscovery(pluginId)
         return
       }
+      shell.localPluginNeedsReload = true
       console.log("Local plugin changed, reloading:", pluginId)
       localPluginReloadTimer.restart()
     }
@@ -1641,6 +1682,7 @@ ShellRoot {
       if (shell.pluginReloadPending) {
         shell.pluginReloadPending = false
         shell.pluginReloading = false
+        shell.pluginRescanPending = false
         Qt.callLater(shell.reloadPlugins)
         return
       }
@@ -1648,6 +1690,10 @@ ShellRoot {
       shell._syncServices()
       shell.syncPanelEntries()
       shell.syncPluginWidgets()
+      if (shell.pluginRescanPending) {
+        shell.pluginRescanPending = false
+        Qt.callLater(shell.rescanPlugins)
+      }
     }
   }
 
@@ -1907,7 +1953,13 @@ ShellRoot {
       return Commons.InputMethodState.cycle(direction === "back") ? "ok" : "not running"
     }
 
+    // Adds, updates and drops plugins in place, leaving running ones alone.
     function rescanPlugins(): void {
+      shell.rescanPlugins()
+    }
+
+    // Rebuilds every plugin from fresh code, for an update that kept its manifest.
+    function reloadPlugins(): void {
       shell.reloadPlugins()
     }
 

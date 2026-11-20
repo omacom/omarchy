@@ -311,7 +311,7 @@ HOME="$test_home" OMARCHY_PATH="$ROOT" OMARCHY_TEST_CALLS="$calls" \
   PATH="$stub_dir:$ROOT/bin:$PATH" omarchy-plugin-update acme.lifecycle --yes >/dev/null
 [[ $(jq -r .version "$test_home/.config/omarchy/plugins/acme.lifecycle/manifest.json") == 2 ]] ||
   fail "plugin update does not install changed plugin contents"
-grep -Fqx 'shell rescanPlugins' "$calls" ||
+grep -Fqx 'shell reloadPlugins' "$calls" ||
   fail "plugin update does not request full reload semantics"
 ! grep -q 'discoverPlugins' "$calls" ||
   fail "plugin update is mistaken for new-plugin discovery"
