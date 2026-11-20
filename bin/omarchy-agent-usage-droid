@@ -35,6 +35,10 @@ UNALLOCATED = "Droid (unallocated)"
 TOKEN_FIELDS = ("inputTokens", "outputTokens", "cacheReadTokens", "cacheCreationTokens")
 PROMPT_SOURCES = ("cli_tui", "desktop", "web")
 AUTH_HELP = "Run `droid` to sign in again, or update FACTORY_API_KEY."
+PAUSED_HELP = "Start `droid` to see its limits; signing in again is not needed."
+INSECURE_HELP = "FACTORY_API_BASE_URL must use HTTPS or loopback HTTP."
+UNREACHABLE_HELP = "Couldn't reach Factory's limits service. Retrying shortly."
+UNREADABLE_HELP = "Factory's limits service sent an answer that couldn't be read."
 TIERS = {"team": "Pro", "team_annual": "Pro Annual", "pro_plus": "Plus",
          "max": "Max", "ultra": "Ultra", "teams": "Teams"}
 
@@ -192,19 +196,18 @@ def collect_limits(entry, force):
   if not entry:
     return {"usageStatusText": "Waiting for auth", "authHelpText": AUTH_HELP}
   token, org, identity, lapsed = entry
-  cache = LimitsCache(AGENT_ID, identity, org)
+  base = (os.environ.get("FACTORY_API_BASE_URL") or "https://api.factory.ai").rstrip("/")
+  cache = LimitsCache(AGENT_ID, base, identity, org)
   limits, fetched = cache.kept()
   result = {"limits": limits, "limitsFetchedAt": fetched, "limitsStale": bool(limits),
             "balance": cache.data.get("balance"), "tierLabel": str(cache.data.get("tierLabel") or "")}
   if lapsed:
-    return dict(result, usageStatusText="Limits paused",
-                authHelpText="Start `droid` to renew its access token. Signing in again is not needed.")
-  if cache.fresh(force, allow_empty=True):
-    return dict(result, limitsStale=False, limitsFetchedAt=cache.fetched_at)
-  base = (os.environ.get("FACTORY_API_BASE_URL") or "https://api.factory.ai").rstrip("/")
+    return dict(result, usageStatusText="Limits paused", authHelpText=PAUSED_HELP)
   if not trusted_endpoint(base):
     return dict(result, usageStatusText="" if limits else "Factory Droid limits unavailable",
-                authHelpText="FACTORY_API_BASE_URL must use HTTPS or loopback HTTP.")
+                authHelpText=INSECURE_HELP)
+  if cache.fresh(force, allow_empty=True):
+    return dict(result, limitsStale=False, limitsFetchedAt=cache.fetched_at)
   headers = {"Authorization": f"Bearer {token}"}
   if org:
     headers["X-Factory-Org-Id"] = org
@@ -213,10 +216,9 @@ def collect_limits(entry, force):
   except HttpError as error:
     if error.status in (401, 403):
       return dict(result, usageStatusText="Sign-in expired", authHelpText=AUTH_HELP)
-    help_text = ("Couldn't reach Factory's limits service. Retrying shortly." if error.transport
-                 else "Factory's limits service sent an answer that couldn't be read.")
     return dict(result, usageStatusText="" if result["limits"] else "Factory Droid limits unavailable",
-                authHelpText=help_text, retryAdvised=error.transport)
+                authHelpText=UNREACHABLE_HELP if error.transport else UNREADABLE_HELP,
+                retryAdvised=error.transport)
   tier = account_tier(base, headers) or tier_label()
   fetched = cache.save(limits, balance=balance, tierLabel=tier)
   return {"limits": limits, "limitsFetchedAt": fetched, "limitsStale": False, "balance": balance, "tierLabel": tier}

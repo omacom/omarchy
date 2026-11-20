@@ -338,6 +338,14 @@ for base, allowed in (("https://mirror.example", True), ("http://127.0.0.1:8080"
   record, http = limits_record()
   expect(f"Droid only sends credentials to a trusted override at {base}",
          [r["url"] for r in http.requests], [base + "/api/billing/limits", base + "/api/app/auth/me"] if allowed else [])
+os.environ["FACTORY_API_BASE_URL"] = "https://mirror.example"
+limits_record()
+os.environ["FACTORY_API_BASE_URL"] = "https://other.example"
+record, http = limits_record(args=())
+expect("a fresh answer from one API base does not stand in for another", http.count, 2, record)
+os.environ["FACTORY_API_BASE_URL"] = "https://third.example"
+record, _ = limits_record("down")
+expect("an unreachable API base never shows another base's limits", record["limits"], [], record)
 del os.environ["FACTORY_API_BASE_URL"]
 sign_in(tier="team")
 record, _ = limits_record(routes={**ANSWER, ME: {"organization": {"subscription": {
