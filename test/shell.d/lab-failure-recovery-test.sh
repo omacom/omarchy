@@ -315,3 +315,113 @@ pass "an uninstalled Lab rejects command strings before any startup or wait"
   jq -e '.promoted == true' "$task_tmp/offline-gold-result" >/dev/null || fail "offline promotion does not report completion"
 )
 pass "offline gold promotion restarts the guest without waiting for SSH"
+
+(
+  source "$ROOT/bin/omarchy-lab-checkpoint"
+  export OMARCHY_LAB_DATA_DIR="$task_tmp/rename-lock"
+  CHECKPOINT_DIR="$task_tmp/checkpoints"
+  mkdir -p "$CHECKPOINT_DIR" "$OMARCHY_LAB_DATA_DIR"
+  for name in a b; do
+    printf '%s\n' "$name" >"$(checkpoint_image "$name")"
+    jq -cn --arg name "$name" '{name:$name}' >"$(checkpoint_metadata "$name")"
+  done
+  exec 8>"$OMARCHY_LAB_DATA_DIR/operation.lock"
+  flock 8
+  ( exec 8>&-; touch "$task_tmp/a-ready"; rename_checkpoint a target ) >"$task_tmp/a-result" 2>&1 &
+  first=$!
+  ( exec 8>&-; touch "$task_tmp/b-ready"; rename_checkpoint b target ) >"$task_tmp/b-result" 2>&1 &
+  second=$!
+  for ((waited=0; waited<100; waited++)); do
+    [[ -e $task_tmp/a-ready && -e $task_tmp/b-ready ]] && break
+    sleep .02
+  done
+  [[ -e $task_tmp/a-ready && -e $task_tmp/b-ready ]] || fail "rename workers did not start"
+  sleep .2
+  [[ ! -e $(checkpoint_image target) ]] || fail "rename changed a checkpoint while the operation was locked"
+  flock -u 8
+  successful=0
+  if wait "$first"; then ((++successful)); fi
+  if wait "$second"; then ((++successful)); fi
+  ((successful == 1)) || fail "two renames claimed the same destination"
+  winner=$(<"$(checkpoint_image target)")
+  [[ $(jq -r .name "$(checkpoint_metadata target)") == "target" ]] || fail "renamed metadata was not saved"
+  if [[ $winner == "a" ]]; then
+    [[ $(<"$(checkpoint_image b)") == "b" ]] || fail "concurrent rename lost checkpoint b"
+  else
+    [[ $winner == "b" && $(<"$(checkpoint_image a)") == "a" ]] || fail "concurrent rename lost checkpoint a"
+  fi
+)
+pass "checkpoint rename waits for the disk lock and preserves the losing source"
+
+(
+  source "$ROOT/bin/omarchy-lab-checkout"
+  export OMARCHY_LAB_DATA_DIR="$task_tmp/deploy-lock"
+  mkdir -p "$OMARCHY_LAB_DATA_DIR"
+  deploy_source() { printf 'deploy\n' >>"$task_tmp/operation-trace"; }
+  sync_checkout() { printf 'sync\n' >>"$task_tmp/operation-trace"; }
+  exec 8>"$OMARCHY_LAB_DATA_DIR/operation.lock"
+  flock 8
+  ( exec 8>&-; touch "$task_tmp/deploy-ready"; main deploy ) &
+  deploy_pid=$!
+  ( exec 8>&-; touch "$task_tmp/sync-ready"; main sync ) &
+  sync_pid=$!
+  for ((waited=0; waited<100; waited++)); do
+    [[ -e $task_tmp/deploy-ready && -e $task_tmp/sync-ready ]] && break
+    sleep .02
+  done
+  [[ -e $task_tmp/deploy-ready && -e $task_tmp/sync-ready ]] || fail "deployment workers did not start"
+  sleep .2
+  [[ ! -e $task_tmp/operation-trace ]] || fail "deploy or sync bypassed the operation lock"
+  flock -u 8
+  wait "$deploy_pid"
+  wait "$sync_pid"
+  [[ $(sort "$task_tmp/operation-trace") == $'deploy\nsync' ]] || fail "serialized deployment was lost"
+)
+pass "deploy and sync hold the Lab operation lock before executing their transactions"
+
+(
+  source "$ROOT/bin/omarchy-lab-vm"
+  default_wan() { echo enp4s0; }
+  sudo() {
+    case "$*" in
+      'ufw status') printf '%s\n' 'libvirt dhcp' 'libvirt dns' ;;
+      'ufw show added') printf '%s\n' \
+        "ufw route allow in on virbr0 out on wlp2s0 comment 'libvirt nat'" \
+        "ufw route allow in on virbr7 out on wg0 comment 'libvirt nat'" \
+        "ufw route allow in on virbr0 out on wg0 comment 'manual forward'" ;;
+      *) printf '%s\n' "$*" >>"$task_tmp/ufw-actions" ;;
+    esac
+  }
+  ensure_ufw
+  [[ $(<"$task_tmp/ufw-actions") == $'ufw route allow in on virbr0 out on enp4s0 comment libvirt nat\nufw --force route delete allow in on virbr0 out on wlp2s0 comment libvirt nat' ]] ||
+    fail "changed uplink does not replace only the stale Lab forwarding rule after adding the current rule"
+)
+pass "Lab reconciles forwarding after an uplink change and preserves custom rules"
+
+(
+  source "$ROOT/bin/omarchy-lab-transfer"
+  export XDG_RUNTIME_DIR="$task_tmp/runtime"
+  mkdir -p "$XDG_RUNTIME_DIR"
+  require_running_lab() { :; }
+  timeout() { shift; "$@"; }
+  systemctl() { :; }
+  pkill() { :; }
+  systemd-run() { cat "${!#}" >"$task_tmp/clipboard-guest"; }
+  sleep() { :; }
+  wl-paste() { cat "$task_tmp/clipboard-${side:-host}"; }
+  wl-copy() { cat >"$task_tmp/clipboard-host"; }
+  session_lab() { ( side=guest; eval "$1" ); }
+  printf 'a multibyte é\n\n' >"$task_tmp/clipboard-expected"
+  cp "$task_tmp/clipboard-expected" "$task_tmp/clipboard-host"
+  clipboard_to_guest --host --json >"$task_tmp/to-guest"
+  cmp "$task_tmp/clipboard-expected" "$task_tmp/clipboard-guest" || fail "host clipboard lost trailing newlines"
+  clipboard_to_guest --json <"$task_tmp/clipboard-expected" >"$task_tmp/to-guest"
+  cmp "$task_tmp/clipboard-expected" "$task_tmp/clipboard-guest" || fail "stdin clipboard lost trailing newlines"
+  clipboard_from_guest >"$task_tmp/clipboard-output"
+  cmp "$task_tmp/clipboard-expected" "$task_tmp/clipboard-output" || fail "guest stdout lost trailing newlines"
+  : >"$task_tmp/clipboard-host"
+  clipboard_from_guest --copy --json >"$task_tmp/from-guest"
+  cmp "$task_tmp/clipboard-expected" "$task_tmp/clipboard-host" || fail "guest clipboard lost trailing newlines"
+  jq -e --argjson bytes "$(wc -c <"$task_tmp/clipboard-expected")" '.bytes == $bytes and (.text | endswith("\n\n"))' "$task_tmp/from-guest" >/dev/null
+)
+pass "clipboard input, output, JSON and byte counts preserve trailing blank lines"
