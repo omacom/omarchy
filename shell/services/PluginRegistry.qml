@@ -470,8 +470,7 @@ QtObject {
     if (!Util.isPlainObject(config.cloneBarRestores)) return
     var saved = config.cloneBarRestores[sourceId]
     if (Util.isPlainObject(saved) && Util.isPlainObject(saved.entry)
-        && Util.barSections.indexOf(saved.section) !== -1
-        && !findBarLocation(config, sourceId, "").found) {
+        && Util.barSections.indexOf(saved.section) !== -1) {
       if (!Array.isArray(config.bar.layout[saved.section])) config.bar.layout[saved.section] = []
       var entries = config.bar.layout[saved.section]
       var entry = Util.cloneJson(saved.entry)
@@ -687,6 +686,26 @@ QtObject {
           config.plugins.push(entry)
         }
 
+        // An already configured menu can acquire a live clone claim on a
+        // rescan. Retire the built-in's slot without copying its settings over
+        // the active plugin; the saved slot belongs to the built-in itself.
+        if (onBar && clonedFrom && hasNonWidgetKind && !previousSource) {
+          var sourceSlot = findBarLocation(config, clonedFrom, "")
+          if (sourceSlot.found) {
+            if (!Util.isPlainObject(config.cloneBarRestores)) config.cloneBarRestores = {}
+            if (!config.cloneBarRestores[clonedFrom]) {
+              config.cloneBarRestores[clonedFrom] = {
+                owner: "",
+                section: sourceSlot.section,
+                index: sourceSlot.index,
+                entry: Util.isPlainObject(config.bar.layout[sourceSlot.section][sourceSlot.index])
+                  ? Util.cloneJson(config.bar.layout[sourceSlot.section][sourceSlot.index]) : { id: clonedFrom }
+              }
+            }
+            config.bar.layout[sourceSlot.section].splice(sourceSlot.index, 1)
+          }
+        }
+
         if (isBarWidget && !insertedWithPlacement && placement && Object.keys(placement).length)
           moveBarEntry(config, key, placement)
 
@@ -788,11 +807,22 @@ QtObject {
     var config = shellConfigProvider ? shellConfigProvider() : null
     var cloneSources = {}
     var revokedClones = []
+    var activeClaims = []
     for (var id in merged) {
       var metadata = Util.isPlainObject(merged[id].omarchy) ? merged[id].omarchy : null
       var source = metadata ? String(metadata.clonedFrom || "") : ""
       if (!source && Util.isPlainObject(config) && Util.isPlainObject(config.cloneSources)
           && config.cloneSources[id]) revokedClones.push(id)
+      // A newly declared live menu/panel claim replaces the built-in again.
+      // Pure bar widgets can coexist and do not claim restoration ownership
+      // merely by naming a source in their manifest.
+      if (source && merged[source] && merged[source].__isFirstParty
+          && Util.isPlainObject(config) && findEntryLocation(config, id).found
+          && !isDisabled(config, id) && !cloneShouldRestoreSource(config, id)
+          && (!Util.isPlainObject(config.cloneSources) || !config.cloneSources[id])
+          && Array.isArray(merged[id].kinds)
+          && merged[id].kinds.some(function(kind) { return kind !== "bar-widget" }))
+        activeClaims.push(id)
       if (source && Util.isPlainObject(config) && cloneShouldRestoreSource(config, id)
           && findEntryLocation(config, id).found
           && (!Util.isPlainObject(config.cloneSources) || !config.cloneSources[id]))
@@ -810,6 +840,8 @@ QtObject {
         }
       })
     }
+    for (var claimIndex = 0; claimIndex < activeClaims.length; claimIndex++)
+      setEnabled(activeClaims[claimIndex], true)
     registryRevision++
     scanning = false
     pluginsChanged()

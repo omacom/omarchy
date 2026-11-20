@@ -749,6 +749,34 @@ ShellRoot {
       }
     }
 
+    // Restoring one replaced slot must not discard another instance's settings.
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [{ id: "omarchy.first-widget", items: ["left"] }], center: [],
+        right: [{ id: "omarchy.first-widget", items: ["right"] }] } }, plugins: []
+    }
+    registry.parseScanOutput(scan)
+    registry.setEnabled("local.first-widget", true)
+    registry.setEnabled("local.first-widget", false)
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "omarchy.first-widget", items: ["left"] }], "a restored source keeps its replaced instance beside another source instance")
+    root.assertDeepEqual(root.config.bar.layout.right, [{ id: "omarchy.first-widget", items: ["right"] }], "restoration leaves the other instance and its settings alone")
+
+    // A returning live menu claim replaces its built-in again, without reviving
+    // a withdrawn claim's ownership or donating the unrelated plugin's settings.
+    root.config = { version: 1, bar: { layout: { left: [{ id: "omarchy.hybrid", keep: 1 }], center: [], right: [] } }, plugins: [] }
+    registry.parseScanOutput(scan)
+    registry.setEnabled("local.hybrid", true)
+    root.config.bar.layout.left[0].mine = 2
+    registry.parseScanOutput(scan + block("thirdparty", "/third/withdrawn-menu",
+      manifest("local.hybrid", ["menu", "bar-widget"], { menu: "Menu.qml", barWidget: "Widget.qml" })))
+    root.assertTrue(root.config.cloneSources === undefined, "a withdrawn menu claim leaves no saved source ownership")
+    registry.parseScanOutput(scan)
+    root.assertTrue(registry.isEnabled("local.hybrid") && !registry.isEnabled("omarchy.hybrid"), "a returning active menu claim disables the built-in again")
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "local.hybrid", keep: 1, mine: 2 }], "a returning menu claim keeps only its own bar entry and settings")
+    registry.setEnabled("local.hybrid", false)
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "omarchy.hybrid", keep: 1 }], "disabling the returning menu restores the built-in's own saved settings")
+    registry.parseScanOutput(scan)
+
     // A manifest claim alone must not take ownership of an existing source.
     for (var savedClaim = 0; savedClaim < 3; savedClaim++) {
       root.config = {
