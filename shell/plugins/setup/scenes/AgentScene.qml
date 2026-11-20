@@ -3,8 +3,8 @@ import qs.Commons
 import qs.Commons as Commons
 
 // An agent at work in a window of its own: the keys that summon it, its mark,
-// a prompt typed to it and the answer arriving. The mark is the harness under
-// the cursor, and with none there the window sits empty.
+// a prompt typed to it and the answer arriving. The mark is that of the
+// harness being shown, and with none the window sits empty.
 Desk {
   id: root
 

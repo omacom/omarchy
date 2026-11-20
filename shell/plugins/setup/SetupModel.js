@@ -549,15 +549,25 @@ function tourSteps(list, tr) {
   return out
 }
 
+// A step's pick: the option chosen there, if the step still offers it, else
+// what the machine has, else its Not now card. `staged` maps a step to the
+// option chosen there. The card a step marks, the picture it draws and the
+// plan below all ask here, so they cannot come to differ.
+function pick(step, staged) {
+  if (!step) return null
+  var id = staged ? staged[step.id] : undefined
+  return (id === undefined ? null : optionById(step, id)) || currentOption(step) || optionById(step, "")
+}
+
 // What Finish runs: one omarchy-setup-essentials call carrying a flag for each
-// step whose choice differs from what the machine has. `staged` maps a step to
-// the option chosen there. No changes means no command at all.
+// step whose pick differs from what the machine has. No changes means no
+// command at all.
 function tourPlan(steps, staged) {
   var changes = []
   var argv = []
 
   for (var i = 0; i < steps.length; i++) {
-    var option = optionById(steps[i], (staged && staged[steps[i].id]) || "")
+    var option = pick(steps[i], staged)
     if (!option || !option.args || option.current) continue
     changes.push({ page: steps[i].id, title: steps[i].title, label: option.label, icon: option.icon, iconFont: option.iconFont })
     argv = argv.concat(option.args)
@@ -620,6 +630,7 @@ if (typeof module !== "undefined") {
     optionById: optionById,
     currentOption: currentOption,
     tourSteps: tourSteps,
+    pick: pick,
     tourPlan: tourPlan,
     optionRows: optionRows,
     moveCursor: moveCursor

@@ -8,8 +8,8 @@ import qs.Commons as Commons
 Desk {
   id: root
 
-  // Where the backend under the cursor listens: "device", "cloud", or "" for
-  // one that says neither.
+  // Where the backend being shown listens: "device", "cloud", or "" for one
+  // that says neither.
   property string place: ""
   // Whether dictation is being set up, or left for later.
   property bool listening: true

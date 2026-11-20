@@ -7,7 +7,7 @@ import qs.Commons as Commons
 Desk {
   id: root
 
-  // Whether the model under the cursor would be set up, or left for later.
+  // Whether the option being shown sets the model up, or leaves it for later.
   property bool running: true
 
   property real turn: Style.reduceMotion ? 0.8 : 0
