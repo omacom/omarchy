@@ -116,6 +116,14 @@ Item {
     root.autohideEdgeHovered = BarModel.withScreenFlag(root.autohideEdgeHovered, screen ? screen.name : "", value)
   }
 
+  // Addresses of windows that received `closewindow`, cleared if `openwindow`
+  // reuses an address. Quickshell's `HyprlandIpc::refreshToplevels()` adds and
+  // updates entries from `j/clients` without pruning missing ones, so a stale
+  // refresh processed after `closewindow` resurrects the closed window as a
+  // ghost whose old `fullscreen: 2` would otherwise wedge `underFullscreenOn`
+  // true until the shell restarts.
+  property var closedWindowAddresses: ({})
+
   // Whether the active workspace on a screen holds a real fullscreen window.
   // A special workspace exposes the bar above the normal workspace beneath it.
   // The bar drops its input under one and its edge strip never calls it out.
@@ -126,7 +134,8 @@ Item {
     var special = ipc ? ipc.specialWorkspace : null
     return !!workspace && !!ipc && BarModel.fullscreenOn(Hyprland.toplevels.values,
       workspace.id, workspace.hasFullscreen, special ? special.name : null,
-      { x: ipc.x, y: ipc.y, width: screen.width, height: screen.height })
+      { x: ipc.x, y: ipc.y, width: screen.width, height: screen.height },
+      root.closedWindowAddresses)
   }
 
   property string home: Quickshell.env("HOME")
@@ -1702,15 +1711,24 @@ Item {
 
   // Refresh the snapshots that decide whether fullscreen covers each bar,
   // including focus-only scrolling changes and special-workspace toggles.
+  // Track closewindow/openwindow alongside them so a stale refreshToplevels()
+  // answer cannot resurrect a closed fullscreen window as a ghost.
   Connections {
     target: Hyprland
     function onRawEvent(event) {
-      var name = event ? String(event.name) : ""
+      if (!event) return
+      var name = String(event.name)
       if (name === "fullscreen" || name === "activewindowv2" || name === "moveworkspacev2") {
         Hyprland.refreshToplevels()
         Hyprland.refreshWorkspaces()
       } else if (name === "activespecial") {
         Hyprland.refreshMonitors()
+      } else if (name === "closewindow") {
+        var closedAddr = String(event.data || "").split(",")[0]
+        root.closedWindowAddresses = BarModel.withClosedWindow(root.closedWindowAddresses, closedAddr)
+      } else if (name === "openwindow") {
+        var openedAddr = String(event.data || "").split(",")[0]
+        root.closedWindowAddresses = BarModel.withoutClosedWindow(root.closedWindowAddresses, openedAddr)
       }
     }
   }

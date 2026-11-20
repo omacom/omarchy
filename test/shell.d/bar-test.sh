@@ -30,7 +30,7 @@ assertEqual(bar.pickDrawnSlot(null), null, 'bar tolerates a missing slot list')
 // the window gets the clicks along the edge; a maximized one keeps the bar.
 const output = { x: 0, y: 0, width: 1280, height: 800 }
 const toplevel = (id, fullscreen, name = String(id), x = 0) => ({ workspace: { id, name }, lastIpcObject: { fullscreen, at: [x, 0], size: [1280, 800] } })
-const fullscreenOn = (windows, hasFullscreen = true, special = '') => bar.fullscreenOn(windows, 4, hasFullscreen, special, output)
+const fullscreenOn = (windows, hasFullscreen = true, special = '', closed = undefined) => bar.fullscreenOn(windows, 4, hasFullscreen, special, output, closed)
 assertEqual(fullscreenOn([toplevel(4, 0), toplevel(4, 2)]), true, 'a fullscreen window takes the bar edge')
 assertEqual(fullscreenOn([toplevel(4, 1)]), false, 'a maximized window leaves the bar clickable')
 assertEqual(fullscreenOn([toplevel(9, 2)]), false, 'fullscreen on another workspace leaves the bar clickable')
@@ -45,6 +45,41 @@ assertEqual(bar.fullscreenOn([toplevel(4, 2, '4', -1280)], 4, true, '', { x: -12
 const roundedFullscreen = toplevel(4, 2)
 roundedFullscreen.lastIpcObject.size = [1279, 799]
 assertEqual(fullscreenOn([roundedFullscreen]), true, 'rounded fullscreen geometry still covers the output')
+
+// Quickshell's HyprlandIpc::refreshToplevels() never drops missing toplevels:
+// a stale j/clients answer processed after closewindow resurrects the closed
+// window as a ghost with its old fullscreen flag. Recording closed addresses
+// on closewindow (and clearing on openwindow reuse) keeps the ghost from
+// wedging fullscreenOn true.
+{
+  const addressed = (id, fullscreen, address) => ({
+    workspace: { id, name: String(id) },
+    lastIpcObject: { fullscreen, address, at: [0, 0], size: [1280, 800] }
+  })
+  const ghostAddr = '55a1b2c3'
+  const liveFullscreen = addressed(4, 2, '0x' + ghostAddr)
+  let closed = {}
+  // 1. Window is fullscreen on workspace 4; fullscreen>>0 triggers refreshToplevels().
+  assertEqual(fullscreenOn([liveFullscreen], true, '', closed), true, 'live fullscreen window is detected before close')
+  // 2. closewindow arrives before the stale j/clients response.
+  closed = bar.withClosedWindow(closed, ghostAddr)
+  // 3. Stale j/clients response resurrects the closed window with fullscreen 2.
+  assertEqual(fullscreenOn([liveFullscreen], true, '', closed), false, 'a ghost fullscreen window whose address got closewindow is ignored')
+  // 4. Another live fullscreen window on the same workspace still counts.
+  assertEqual(fullscreenOn([liveFullscreen, addressed(4, 2, '0xdeadbeef')], true, '', closed), true, 'another live fullscreen window still takes the bar edge')
+  // 5. Address normalization matches with or without 0x and across letter case.
+  assertEqual(fullscreenOn([addressed(4, 2, '0X55A1B2C3')], true, '', closed), false, 'closed address matching ignores 0x prefix and case')
+  // 6. openwindow reusing the same address clears it from the closed set.
+  closed = bar.withoutClosedWindow(closed, '0x' + ghostAddr)
+  assertEqual(fullscreenOn([liveFullscreen], true, '', closed), true, 'a new window reusing a closed address is tracked again')
+  // 7. Closed addresses stay bounded (last 32, oldest dropped first) so a long
+  // session never grows the map without bound.
+  let capped = {}
+  for (let i = 0; i < 40; i++) capped = bar.withClosedWindow(capped, (0x10000000 + i).toString(16))
+  assertEqual(Object.keys(capped).length, 32, 'closed window tracking caps at the 32 most recent addresses')
+  assertEqual(fullscreenOn([addressed(4, 2, '0x10000000')], true, '', capped), true, 'oldest closed address past the cap is dropped')
+  assertEqual(fullscreenOn([addressed(4, 2, '0x' + (0x10000000 + 39).toString(16))], true, '', capped), false, 'newest closed address is still filtered by fullscreenOn')
+}
 
 // A bar surface is built per monitor, so a panel hotkey has one live copy of
 // the widget per screen to choose between.

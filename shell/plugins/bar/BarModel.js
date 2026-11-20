@@ -653,9 +653,60 @@ function barSizeFor(sizes, screenName, fallback) {
   return size > 0 ? size : fallback
 }
 
+// Maximum number of recently closed window addresses retained to guard against
+// stale `HyprlandIpc::refreshToplevels()` answers. The race only spans an
+// in-flight refresh, so keeping the newest 32 bounds memory and copy cost.
+var closedWindowLimit = 32
+
+// Normalizes a Hyprland window address from either socket2 events (`55a1b2c3`)
+// or `j/clients` (`0x55a1b2c3`) to lowercase hex without a `0x` prefix.
+function normalizeWindowAddress(address) {
+  var text = String(address === undefined || address === null ? "" : address).trim().toLowerCase()
+  if (text.indexOf("0x") === 0) text = text.substring(2)
+  return /^[0-9a-f]+$/.test(text) ? text : ""
+}
+
+// Records a window address that received `closewindow` so a stale
+// `HyprlandIpc::refreshToplevels()` response cannot resurrect it as a ghost.
+// Keys are prefixed with `0x` so all-digit hex addresses never sort as array
+// indexes and insertion order stays exact; drops the oldest entries past
+// `closedWindowLimit` and returns a fresh map so QML bindings notify.
+function withClosedWindow(closed, address) {
+  var key = normalizeWindowAddress(address)
+  if (!key) return closed || {}
+  var mapKey = "0x" + key
+  var keys = []
+  for (var name in closed || {}) {
+    if (name !== mapKey && closed[name] === true) keys.push(name)
+  }
+  keys.push(mapKey)
+  if (keys.length > closedWindowLimit)
+    keys = keys.slice(keys.length - closedWindowLimit)
+  var next = {}
+  for (var i = 0; i < keys.length; i++) next[keys[i]] = true
+  return next
+}
+
+// Drops a window address from the closed set when `openwindow` reuses it.
+// Returns the existing map unchanged if the key was absent, or a fresh map so
+// QML property bindings notify when an entry is removed.
+function withoutClosedWindow(closed, address) {
+  var key = normalizeWindowAddress(address)
+  if (!key || !closed) return closed || {}
+  var mapKey = "0x" + key
+  if (!closed[mapKey] && !closed[key]) return closed
+  var next = {}
+  for (var name in closed) {
+    if (name !== mapKey && name !== key) next[name] = closed[name]
+  }
+  return next
+}
+
 // Only a real fullscreen window covering the output takes the bar's clicks.
 // Scrolling keeps fullscreen flags on columns outside the viewport.
-function fullscreenOn(toplevels, workspaceId, hasFullscreen, specialWorkspaceName, screen) {
+// `closedAddresses`, when given, skips ghost toplevels whose address already
+// received closewindow.
+function fullscreenOn(toplevels, workspaceId, hasFullscreen, specialWorkspaceName, screen, closedAddresses) {
   if (!specialWorkspaceName && !hasFullscreen) return false
   var list = toplevels || []
   for (var i = 0; i < list.length; i++) {
@@ -666,6 +717,10 @@ function fullscreenOn(toplevels, workspaceId, hasFullscreen, specialWorkspaceNam
     } else if (toplevel.workspace.id !== workspaceId) continue
     var ipc = toplevel.lastIpcObject
     if (!ipc || (Number(ipc.fullscreen) & 2) === 0 || !ipc.at || !ipc.size) continue
+    if (closedAddresses) {
+      var addr = normalizeWindowAddress(ipc.address !== undefined && ipc.address !== null ? ipc.address : toplevel.address)
+      if (addr && (closedAddresses["0x" + addr] === true || closedAddresses[addr] === true)) continue
+    }
     // IPC geometry rounds logical pixels at fractional scales.
     if (ipc.at[0] <= screen.x + 1 && ipc.at[1] <= screen.y + 1
         && ipc.at[0] + ipc.size[0] >= screen.x + screen.width - 1
@@ -763,6 +818,9 @@ function withScreenFlag(map, screenName, value) {
 if (typeof module !== "undefined") {
   module.exports = {
     barSizeFor: barSizeFor,
+    normalizeWindowAddress: normalizeWindowAddress,
+    withClosedWindow: withClosedWindow,
+    withoutClosedWindow: withoutClosedWindow,
     fullscreenOn: fullscreenOn,
     autohideEngaged: autohideEngaged,
     autohideHolds: autohideHolds,
