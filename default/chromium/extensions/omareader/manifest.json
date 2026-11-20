@@ -4,7 +4,7 @@
   "version": "1.0",
   "description": "Repaint web pages in the current Omarchy theme, this extension is installed by Omarchy",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoOuy4Khi/9bgXTLtG9y+dFcNElG7Z9UKYwqQc14+wgZO+kHmIO3ybuPyI3EaAreJce0CUb72FgYMFwlWuVPWPMgmuv7wx9VGTsenZQFOAb4NdHhI47SwP4Dt8i3mE8mP1XX27bBFOMoUenUNVfTPxZaufZvMt6Pa/QsBPj3P6GIiHkNS0aC+IRqYwLO6EtKoV16x/WoPiQ26lwSb+pOi52ksZR18Fw8Q3mekZEzh3pXLwIvr5PMxqFFP4+DD1/W+pSBDLaI/c3HCZShyny6Q28Ruu6NEO1uTqUKYfTMF+X2xW1wHasaCzY9RVQJGHOlHOwwMUeODbPEJzhEb0nrX5wIDAQAB",
-  "minimum_chrome_version": "125",
+  "minimum_chrome_version": "137",
   "permissions": ["storage", "nativeMessaging", "alarms", "scripting"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },

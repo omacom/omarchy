@@ -1444,9 +1444,12 @@
     if (!scrims.size) return '';
     const bg = C.parse(mapper.swatch.bg);
     const veil = `rgba(${Math.round(bg.r)}, ${Math.round(bg.g)}, ${Math.round(bg.b)}, ${SCRIM_ALPHA})`;
+    // The own shadow can substitute to `none` (box-shadow: var(--shadow, none)), which is
+    // invalid inside a list and would void the veil with it.
+    const own = (shadow) => `if(style(${X.OWN_SHADOW}: none): 0 0 #0000; else: var(${X.OWN_SHADOW},${shadow}))`;
     let css = '';
     for (const { id, shadow } of scrims.values()) {
-      css += `[${SCRIM_ATTR}="${id}"]{box-shadow:inset 0 0 0 100vmax ${veil},var(${X.OWN_SHADOW},${shadow}) !important}`;
+      css += `[${SCRIM_ATTR}="${id}"]{box-shadow:inset 0 0 0 100vmax ${veil},${own(shadow)} !important}`;
     }
     return css;
   }
