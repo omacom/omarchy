@@ -1,6 +1,7 @@
 {
   "Activity": "செயல்பாடு",
   "Agent": "ஏஜென்ட்",
+  "Agents": "ஏஜென்ட்கள்",
   "Apps": "பயன்பாடுகள்",
   "Audio": "ஒலி",
   "Background switcher": "பின்னணி மாற்றி",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "செயல்படும் சாளரத்தை மேலே காட்டு",
   "Save window width": "சாளர அகலத்தைச் சேமி",
   "Screenrecording": "திரைப்பதிவு",
+  "Screenrecording with no audio": "ஒலியின்றித் திரைப் பதிவு",
   "Screenshot": "திரைப்பிடிப்பு",
   "Scroll active workspace backward": "செயலில் உள்ள பணியிடத்தைப் பின்னோக்கி உருட்டு",
   "Scroll active workspace forward": "செயலில் உள்ள பணியிடத்தை முன்னோக்கி உருட்டு",
