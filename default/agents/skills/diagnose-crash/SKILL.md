@@ -24,6 +24,29 @@ program was working on when it died, which is often the whole answer.
 crashes of the same program, or several programs dying together, point somewhere
 different than a single failure does.
 
+**Check for a tracer or sandbox.** `coredumpctl info` omits the saved `/proc`
+status. Read it from the journal:
+
+```bash
+journalctl -n 1 -o cat --output-fields=COREDUMP_PROC_STATUS COREDUMP_PID=<pid>
+```
+
+A nonzero `TracerPid:` identifies an attached tracer, which can cause the crash:
+some programs trap into a debugger only when one is attached. Multiple `NSpid:`
+values indicate a PID namespace; paths require separate evidence, such as a
+sandbox launcher or `container=` in `COREDUMP_ENVIRON`. A missing executable may
+instead have been deleted. For bwrap, inspect its `--bind` arguments to map
+paths.
+
+For SIGTRAP, inspect `si_code`, the crashing instruction and its callers before
+concluding that an assertion fired.
+
+## Read the program's logs
+
+Read the logs around the crash timestamp; the command line may identify their
+location. Compare a successful run before treating a recurring warning as the
+cause.
+
 ## Rule out the boring causes first
 
 Check resource exhaustion before blaming the program: `free -h`, and the journal
@@ -72,6 +95,9 @@ Many packages publish no debug symbols. When frames stay unresolved, say so —
 never invent function names to fill the gap. An unsymbolized stack still has
 shape: which library each frame belongs to, and whether the crash came from a
 signal handler, a main loop, or a worker thread.
+
+A stripped binary still names its imports: a `call` into the PLT resolves to a
+function through its slot in `readelf -rW <executable>`.
 
 ## Report
 
