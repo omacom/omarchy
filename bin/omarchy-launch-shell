@@ -14,7 +14,45 @@
 # A package upgrade rewriting $OMARCHY_PATH/shell would otherwise reload it
 # against a half-written tree, and that failed reload leaves a second engine
 # generation behind that turns the next restart's IPC kill into a crash.
+
+# Quickshell writes each instance's lock, socket and logs under
+# $XDG_RUNTIME_DIR/quickshell/by-id/<id>/ and never removes them after the
+# instance is gone. A shell that keeps dying and relaunching (one death every
+# ~20s while the only output is Hyprland's headless fallback, say) leaves a
+# ~700KB log behind per launch, which fills the runtime tmpfs within a day.
+# A full runtime dir takes everything with it: `qs ipc` clients segfault on
+# the thousands of stale instances (launcher, notifications, lock IPC), the
+# live shell can no longer write its own lock file, and unrelated apps crash
+# on their runtime files. Reap the dead instances before each launch.
+prune_dead_instances() {
+  local instance_root="${XDG_RUNTIME_DIR:-/run/user/$UID}/quickshell"
+  local link dir pid id live_ids=" "
+
+  [[ -d $instance_root/by-id ]] || return 0
+
+  for link in "$instance_root"/by-pid/*; do
+    [[ -L $link ]] || continue
+    pid=${link##*/}
+    if kill -0 "$pid" 2>/dev/null; then
+      id=$(readlink -f "$link")
+      live_ids+="${id##*/} "
+    else
+      rm -f "$link"
+    fi
+  done
+
+  for dir in "$instance_root"/by-id/*/; do
+    [[ -d $dir ]] || continue
+    id=${dir%/}
+    id=${id##*/}
+    [[ $live_ids == *" $id "* ]] && continue
+    rm -rf "$dir"
+  done
+}
+
 run_shell() {
+  prune_dead_instances
+
   local startup_background
   startup_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
   OMARCHY_STARTUP_BACKGROUND="$startup_background" QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
