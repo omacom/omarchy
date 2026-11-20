@@ -77,9 +77,9 @@ ShellRoot {
     onTriggered: shell.flushLocalPluginReload()
   }
 
-  // An engine reload would tear down the session lock or an open polkit
-  // prompt, so a source edit waits for them. AuthServiceStore calls
-  // resumeHeldPluginReload() when either changes.
+  // An engine reload would tear down the session lock, its unlock wake or an
+  // open polkit prompt, so a source edit waits for them. AuthServiceStore
+  // calls resumeHeldPluginReload() when any of them changes.
   function flushLocalPluginReload() {
     shell.localPluginQmlReloadPending = PluginReload.flush(
       shell.localPluginQmlReloadPending,

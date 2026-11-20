@@ -70,6 +70,8 @@ Item {
   function currentlyLocked() {
     return lockRequested || sessionLock.locked || sessionLock.secure
   }
+  // The wake after an unlock restores the displays and the keyboard light.
+  readonly property bool waking: wakeProcess.running
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
   // A prompt clears the unavailable notice before the attempt finishes.
   readonly property bool fingerprintUnavailable: FingerprintModel.isUnavailable(fingerprintProbeStreak) || (fingerprintConfigured && (!fingerprintAttemptReachedDevice || fingerprintAttemptFastError) && FingerprintModel.isUnavailable(fingerprintUnreachedStreak))

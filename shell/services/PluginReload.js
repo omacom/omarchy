@@ -14,7 +14,7 @@ function quietInterval(sourcePending) {
 
 // Return whether the engine reload is still pending. An engine reload tears
 // down every authentication service, so it never runs while one is held: the
-// session lock owned or being acquired, or a polkit prompt.
+// session lock owned or being acquired, its unlock wake, or a polkit prompt.
 function flush(sourcePending, held, reloadShell, reloadPlugins) {
   if (sourcePending && held) return true
   if (sourcePending) reloadShell()

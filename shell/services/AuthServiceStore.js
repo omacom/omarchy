@@ -60,7 +60,7 @@ function notifyStateChanged() {
 }
 
 function watchState(service) {
-  var signals = ["lockedChanged", "lockRequestedChanged", "dialogVisibleChanged"]
+  var signals = ["lockedChanged", "lockRequestedChanged", "wakingChanged", "dialogVisibleChanged"]
   for (var i = 0; i < signals.length; i++) {
     var changed = service[signals[i]]
     if (changed && typeof changed.connect === "function") changed.connect(notifyStateChanged)
@@ -84,6 +84,13 @@ function hasOpenPrompt() {
   return false
 }
 
+function isWaking() {
+  var keys = ids()
+  for (var i = 0; i < keys.length; i++)
+    if (services[keys[i]].waking === true) return true
+  return false
+}
+
 function holdsEngineReload() {
-  return hasActiveLock() || hasOpenPrompt()
+  return hasActiveLock() || isWaking() || hasOpenPrompt()
 }

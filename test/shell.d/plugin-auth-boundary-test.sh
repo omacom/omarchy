@@ -96,6 +96,14 @@ assert(notifications === 3, 'a lock request and a lock change each report a stat
 store.destroy('omarchy.polkit')
 assert(notifications === 4, 'removing an authentication service reports a state change')
 assert(listenerArguments === 0, 'the state listener receives no authentication object')
+
+// The wake after an unlock restores the displays; a reload must not cut it short.
+const wake = { locked: false, waking: true, wakingChanged: changeSignal() }
+store.put('omarchy.lock', wake)
+assert(store.holdsEngineReload(), 'the unlock wake holds an engine reload')
+wake.waking = false
+wake.wakingChanged.emit()
+assert(!store.holdsEngineReload() && notifications === 5, 'the end of the unlock wake releases the hold and reports it')
 store.setStateListener(null)
 store.destroyAll()
 JS
