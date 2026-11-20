@@ -358,7 +358,7 @@
   "install.ai.perplexity": {"icon":"","iconFont":"omarchy","label":"Perplexity","disabled":"omarchy-pkg-present perplexity","action":"omarchy-install-and-launch Perplexity perplexity perplexity"},
   "install.ai.t3-code": {"icon":"","iconFont":"omarchy","label":"T3 Code","disabled":"[[ -f \"$HOME/.local/share/t3code/T3-Code.AppImage\" ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-ai-t3-code"},
   "install.ml": {"icon":"󱚤","label":"Machine Learning"},
-  "install.ml.gpu": {"icon":"","label":"NVIDIA or ROCm","disabled":"omarchy-cmd-present nvidia-smi || omarchy-cmd-present rocm-smi","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-ml-gpu"},
+  "install.ml.gpu": {"icon":"","label":"NVIDIA or ROCm","disabled":"if omarchy-cmd-present nvidia-smi || omarchy-hw-nvidia; then omarchy-pkg-present cuda nvidia-container-toolkit; elif omarchy-cmd-present rocminfo || omarchy-cmd-present rocm-smi || omarchy-hw-amd-gpu; then omarchy-pkg-present hip-runtime-amd rocm-smi-lib; else false; fi","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-ml-gpu"},
   "install.ml.pytorch": {"icon":"","label":"PyTorch","disabled":"[[ -x $HOME/.local/share/omarchy/ml/pytorch/bin/python ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-ml-pytorch"},
   "install.ml.jupyter": {"icon":"","label":"Jupyter","disabled":"[[ -x $HOME/.local/share/omarchy/ml/pytorch/bin/jupyter ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-ml-jupyter"},
   "install.ml.llamacpp": {"icon":"󱚤","label":"llama.cpp","disabled":"omarchy-pkg-present llama-cpp","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-ml-llamacpp"},
