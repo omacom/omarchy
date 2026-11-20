@@ -16,6 +16,8 @@ cat >"$mock_bin/omarchy-launch-webapp" <<'SH'
 printf '%s\n' "$@" >>"$OMARCHY_TEST_ARGV"
 SH
 chmod +x "$mock_bin/omarchy-launch-webapp"
+printf '#!/bin/bash\n' >"$mock_bin/omarchy-notification-send"
+chmod +x "$mock_bin/omarchy-notification-send"
 
 # A home with a space and a percent sign, which the file URL has to survive.
 export HOME="$test_tmp/my home 100%"
@@ -87,3 +89,36 @@ omarchy-games-vibes-copy chess >/dev/null || fail "a shipped game copies into ~/
 omarchy-games-vibes-copy snake snake-2 >/dev/null && [[ $(<"$vibes/snake-2/index.html") == *"<title>Snake</title>"* ]] ||
   fail "a game made here copies under a new name, from the user's own version"
 pass "a game in Game Vibes copies into ~/Games/vibes to keep working on"
+
+# A shared game is a git repository with index.html at its root, and installs like a theme.
+repo="$test_tmp/omarchy-Space_Rocks-game"
+git init -q "$repo"
+printf '<!doctype html><title>Space Rocks</title>\n' >"$repo/index.html"
+ln -s /etc/passwd "$repo/secret"
+git -C "$repo" add . && git -C "$repo" -c user.name=t -c user.email=t@t commit -qm game
+: >"$OMARCHY_TEST_ARGV"
+omarchy-games-vibes-install "file://$repo" >/dev/null 2>&1 || fail "a game installs from a git repository"
+[[ -f $vibes/space-rocks/index.html && ! -e $vibes/space-rocks/secret && ! -L $vibes/space-rocks/secret ]] ||
+  fail "the game is named after its repository, without the repository's symlinks"
+[[ $(head -1 "$OMARCHY_TEST_ARGV") == *"&open=space-rocks" ]] || fail "an installed game opens in Game Vibes"
+omarchy-games-vibes-install "file://$repo" >/dev/null 2>&1 || fail "installing again replaces the copy from the same repository"
+git -C "$repo" rm -q index.html && git -C "$repo" -c user.name=t -c user.email=t@t commit -qm broken
+! omarchy-games-vibes-install "file://$repo" >/dev/null 2>&1 && [[ -f $vibes/space-rocks/index.html ]] ||
+  fail "a reinstall that fails leaves the game that was there"
+[[ -z $(find "$vibes" -maxdepth 1 -type d -name '.install.*') ]] || fail "a failed install leaves nothing behind"
+
+git init -q "$test_tmp/snake" && printf '<!doctype html><title>Other Snake</title>\n' >"$test_tmp/snake/index.html" && git -C "$test_tmp/snake" add . &&
+  git -C "$test_tmp/snake" -c user.name=t -c user.email=t@t commit -qm game
+! omarchy-games-vibes-install "file://$test_tmp/snake" >/dev/null 2>&1 || fail "installing never replaces a game made here"
+[[ $(<"$vibes/snake/index.html") == *"<title>Snake</title>"* ]] || fail "the game made here is untouched"
+
+git init -q "$test_tmp/empty-game" && git -C "$test_tmp/empty-game" -c user.name=t -c user.email=t@t commit -qm none --allow-empty
+! omarchy-games-vibes-install "file://$test_tmp/empty-game" >/dev/null 2>&1 && [[ ! -e $vibes/empty ]] ||
+  fail "a repository without an index.html is not installed"
+pass "a shared game installs from its git repository, like a theme"
+
+omarchy-games-vibes-remove space-rocks >/dev/null || fail "an installed game is removed"
+[[ ! -e $vibes/space-rocks ]] || fail "removing a game deletes its folder"
+! omarchy-games-vibes-remove ../vibes >/dev/null 2>&1 || fail "remove refuses a path"
+! omarchy-games-vibes-remove chess-shipped >/dev/null 2>&1 || fail "remove refuses a game that isn't there"
+pass "a game is removed from ~/Games/vibes by name"

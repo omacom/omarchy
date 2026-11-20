@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Wejście"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Język"
+  },
+  "setup.region.timezone": {
+    "label": "Strefa czasowa"
   },
   "setup.network": {
     "label": "Sieć"
@@ -566,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Resetuj komputer"
+    "label": "Reset fabryczny"
   },
   "install.package": {
     "label": "Pakiet"
@@ -1078,9 +1081,6 @@
   "update.password": {
     "label": "Hasło"
   },
-  "update.timezone": {
-    "label": "Strefa czasowa"
-  },
   "update.time": {
     "label": "Czas"
   },
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Uruchom ponownie do BIOS",
     "description": "Uruchom ponownie w ustawieniach oprogramowania układowego UEFI"
+  },
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.formats": {
+    "label": "Formaty",
+    "description": "Jak zapisywane są daty, godziny, liczby i jednostki"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Gra Game Vibes"
+  },
+  "update.games": {
+    "label": "Gry Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Stwórz grę"
   }
 }

@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "輸入"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "語言"
+  },
+  "setup.region.timezone": {
+    "label": "時區"
   },
   "setup.network": {
     "label": "網路"
@@ -566,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "重設電腦"
+    "label": "恢復原廠設定"
   },
   "install.package": {
     "label": "套件"
@@ -1078,9 +1081,6 @@
   "update.password": {
     "label": "密碼"
   },
-  "update.timezone": {
-    "label": "時區"
-  },
   "update.time": {
     "label": "時間"
   },
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "重新啟動至 BIOS",
     "description": "重新啟動並進入 UEFI 韌體設定"
+  },
+  "setup.region": {
+    "label": "地區"
+  },
+  "setup.region.formats": {
+    "label": "格式",
+    "description": "日期、時間、數字與單位的寫法"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes 遊戲"
+  },
+  "update.games": {
+    "label": "Game Vibes 遊戲"
+  },
+  "agent.make.game": {
+    "label": "製作遊戲"
   }
 }

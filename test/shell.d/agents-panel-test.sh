@@ -190,6 +190,16 @@ assertDeepEqual(localActions({ recipe: 'm', unit: 'active', shared: true }, fals
 assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', shared: true }, true), ['toggle'], 'a stopped shared model does not say it is shared')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive' }, true), ['toggle'], 'a local model that has not been started is not offered for sharing')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'installing' }, true), [], 'a model being set up offers nothing yet')
+const stale = { image: true, weights: false, settings: false }
+assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', update: stale }, true), ['update', 'toggle'], 'a stopped model the catalog has moved on from offers its update')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'active', update: stale }, true), ['update', 'share', 'toggle', 'launch'], 'a running model offers its update before its other actions')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'activating', update: stale }, true), ['toggle'], 'a model that is loading does not offer its update')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', update: stale, updating: true }, true), ['toggle'], 'a model being updated does not offer its update again')
+assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '', update: stale }), ['disconnect', 'launch'], 'another machine\'s model is never updated from here')
+const updateTip = new Function('Commons', panel.match(/function updateTip\([^]*?\n  \}/)[0] + '\nreturn updateTip')({ I18n: { t: (key) => ({ arg: (value) => key + ' ' + value, toString: () => key }), formatNumber: (value, decimals) => value.toFixed(decimals) } })
+assertEqual(String(updateTip({ update: Object.assign({ download_bytes: 601000000 }, stale) })), 'agents.localUpdateDownloadGb 0.6', 'an update says how much it downloads')
+assertEqual(String(updateTip({ update: Object.assign({ download_bytes: 42000000 }, stale) })), 'agents.localUpdateDownloadMb 42', 'a small update is sized in megabytes')
+assertEqual(String(updateTip({ update: Object.assign({ download_bytes: null }, stale) })), 'agents.localUpdate', 'an update not sized yet, or with nothing to fetch, names no size')
 assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '' }), ['disconnect', 'launch'], 'a paired network model launches or disconnects, never stops its host\'s model')
 assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'inactive', paired: true, offline: '' }), [], 'a paired network model that is not running offers nothing, not even disconnecting')
 assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: false, offline: '' }), ['pair'], 'an unpaired network model offers pairing only')
@@ -198,6 +208,15 @@ assertDeepEqual(localActions({ host: 'away', recipe: 'm', unit: 'inactive', pair
 // A model paired from the panel that is still starting on its host has no
 // terminal yet: the cursor waits for one rather than giving up.
 const modelId = new Function(panel.match(/function modelId\([^]*?\n  \}/)[0] + '\nreturn modelId')()
+// Opening an error's logs dismisses it: the engine forgets a model's failure after printing it, and a failed pairing, which lives in the panel, is forgotten there.
+const showLocalLogs = new Function('Util', 'usage', 'root', 'pairFailure', 'modelId', panel.match(/function showLocalLogs\([^]*?\n  \}/)[0] + '\nreturn showLocalLogs')
+const logRuns = [], dismissedPairs = []
+const logsOf = (failure) => showLocalLogs({ shellQuote: (text) => "'" + text + "'", execArgv: (argv) => logRuns.push(argv[1]) }, { dismissPairFailure: (id) => dismissedPairs.push(id) }, { close() {} }, () => failure, modelId)
+logsOf(null)({ recipe: 'm', unit: 'failed', error: 'Stopped unexpectedly' })
+assertEqual(logRuns[0], "omarchy-agent-local logs 'm'; logs=$?; omarchy-agent-local dismiss 'm' >/dev/null 2>&1; (exit $logs)", 'a model\'s logs print its failure before it is dismissed, and keep their own status')
+assertDeepEqual(dismissedPairs, [], 'a model\'s failure is the engine\'s to forget')
+logsOf({ output: 'refused' })({ host: 'box', recipe: 'm', unit: 'inactive' })
+assertDeepEqual(dismissedPairs, ['box/m'], 'a failed pairing is forgotten once its output has been opened')
 // An image model's launch opens Fantasi on it, here or on a paired host; a text model's starts an agent.
 const makesInFantasi = new Function(panel.match(/function makesInFantasi\([^]*?\n  \}/)[0] + '\nreturn makesInFantasi')()
 const runLocalAction = new Function('Util', 'modelId', 'root', 'makesInFantasi', panel.match(/function runLocalAction\([^]*?\n  \}/)[0] + '\nreturn runLocalAction')

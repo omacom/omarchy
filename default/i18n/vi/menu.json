@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Đầu vào"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Ngôn ngữ"
+  },
+  "setup.region.timezone": {
+    "label": "Múi giờ"
   },
   "setup.network": {
     "label": "Mạng"
@@ -566,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Đặt lại máy"
+    "label": "Khôi phục cài đặt gốc"
   },
   "install.package": {
     "label": "Gói"
@@ -1078,9 +1081,6 @@
   "update.password": {
     "label": "Mật khẩu"
   },
-  "update.timezone": {
-    "label": "Múi giờ"
-  },
   "update.time": {
     "label": "Thời gian"
   },
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Khởi động lại vào BIOS",
     "description": "Khởi động lại vào thiết lập firmware UEFI"
+  },
+  "setup.region": {
+    "label": "Khu vực"
+  },
+  "setup.region.formats": {
+    "label": "Định dạng",
+    "description": "Cách hiển thị ngày, giờ, số và đơn vị"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "Tạo trò chơi"
   }
 }

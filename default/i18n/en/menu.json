@@ -469,8 +469,18 @@
   "setup.input": {
     "label": "Input"
   },
-  "setup.language": {
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.language": {
     "label": "Language"
+  },
+  "setup.region.formats": {
+    "label": "Formats",
+    "description": "How dates, times, numbers and units are written"
+  },
+  "setup.region.timezone": {
+    "label": "Timezone"
   },
   "setup.network": {
     "label": "Network"
@@ -921,6 +931,9 @@
   "install.gaming.minecraft": {
     "label": "Minecraft"
   },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
   "install.gaming.geforce-now": {
     "label": "NVIDIA GeForce NOW"
   },
@@ -1179,6 +1192,9 @@
   "remove.gaming.heroic": {
     "label": "Heroic (Epic Games)"
   },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
   "remove.development.rails": {
     "label": "Ruby on Rails"
   },
@@ -1264,6 +1280,9 @@
   "update.icons": {
     "label": "Extra Icons"
   },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
   "update.process": {
     "label": "Process",
     "title": "Restart"
@@ -1277,9 +1296,6 @@
   },
   "update.password": {
     "label": "Password"
-  },
-  "update.timezone": {
-    "label": "Timezone"
   },
   "update.time": {
     "label": "Time"

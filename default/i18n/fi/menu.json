@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Syöttö"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Kieli"
+  },
+  "setup.region.timezone": {
+    "label": "Aikavyöhyke"
   },
   "setup.network": {
     "label": "Verkko"
@@ -566,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Nollaa tietokone"
+    "label": "Tehdasasetusten palautus"
   },
   "install.package": {
     "label": "Paketti"
@@ -1078,9 +1081,6 @@
   "update.password": {
     "label": "Salasana"
   },
-  "update.timezone": {
-    "label": "Aikavyöhyke"
-  },
   "update.time": {
     "label": "Aika"
   },
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Käynnistä BIOSiin",
     "description": "Käynnistä uudelleen UEFI-laiteohjelmiston asetuksiin"
+  },
+  "setup.region": {
+    "label": "Alue"
+  },
+  "setup.region.formats": {
+    "label": "Muotoilut",
+    "description": "Päivämäärien, aikojen, lukujen ja yksiköiden esitystapa"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes -peli"
+  },
+  "update.games": {
+    "label": "Game Vibes -pelit"
+  },
+  "agent.make.game": {
+    "label": "Tee peli"
   }
 }

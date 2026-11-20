@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Ingizo"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Lugha"
+  },
+  "setup.region.timezone": {
+    "label": "Eneo la saa"
   },
   "setup.network": {
     "label": "Mtandao"
@@ -566,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Weka upya kompyuta"
+    "label": "Rejesha Kiwandani"
   },
   "install.package": {
     "label": "Kifurushi"
@@ -1078,9 +1081,6 @@
   "update.password": {
     "label": "Nenosiri"
   },
-  "update.timezone": {
-    "label": "Eneo la saa"
-  },
   "update.time": {
     "label": "Muda"
   },
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Washa upya hadi BIOS",
     "description": "Washa upya hadi mipangilio ya firmware ya UEFI"
+  },
+  "setup.region": {
+    "label": "Eneo"
+  },
+  "setup.region.formats": {
+    "label": "Miundo",
+    "description": "Jinsi tarehe, nyakati, nambari na vipimo vinavyoandikwa"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Mchezo wa Game Vibes"
+  },
+  "update.games": {
+    "label": "Michezo ya Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Tengeneza Mchezo"
   }
 }

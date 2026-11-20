@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Vstup"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Jazyk"
+  },
+  "setup.region.timezone": {
+    "label": "Časové pásmo"
   },
   "setup.network": {
     "label": "Síť"
@@ -566,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Reset počítače"
+    "label": "Tovární reset"
   },
   "install.package": {
     "label": "Balíček"
@@ -1078,9 +1081,6 @@
   "update.password": {
     "label": "Heslo"
   },
-  "update.timezone": {
-    "label": "Časové pásmo"
-  },
   "update.time": {
     "label": "Čas"
   },
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Restart do BIOSu",
     "description": "Restartovat do nastavení firmwaru UEFI"
+  },
+  "setup.region": {
+    "label": "Oblast"
+  },
+  "setup.region.formats": {
+    "label": "Formáty",
+    "description": "Jak se píší data, časy, čísla a jednotky"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Hra Game Vibes"
+  },
+  "update.games": {
+    "label": "Hry Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Vytvořit hru"
   }
 }

@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Ionchur"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Teanga"
+  },
+  "setup.region.timezone": {
+    "label": "Crios ama"
   },
   "setup.network": {
     "label": "Líonra"
@@ -566,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Athshocraigh ríomhaire"
+    "label": "Athshocrú Monarchan"
   },
   "install.package": {
     "label": "Pacáiste"
@@ -1078,9 +1081,6 @@
   "update.password": {
     "label": "Pasfhocal"
   },
-  "update.timezone": {
-    "label": "Crios ama"
-  },
   "update.time": {
     "label": "Am"
   },
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Atosaigh go BIOS",
     "description": "Atosaigh isteach sa socrú firmware UEFI"
+  },
+  "setup.region": {
+    "label": "Réigiún"
+  },
+  "setup.region.formats": {
+    "label": "Formáidí",
+    "description": "Mar a scríobhtar dátaí, amanna, uimhreacha agus aonaid"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Cluiche Game Vibes"
+  },
+  "update.games": {
+    "label": "Cluichí Game Vibes"
+  },
+  "agent.make.game": {
+    "label": "Déan cluiche"
   }
 }

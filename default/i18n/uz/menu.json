@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Kiritish"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Til"
+  },
+  "setup.region.timezone": {
+    "label": "Vaqt mintaqasi"
   },
   "setup.network": {
     "label": "Tarmoq"
@@ -566,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Kompyuterni tiklash"
+    "label": "Zavod holatiga qaytarish"
   },
   "install.package": {
     "label": "Paket"
@@ -1078,9 +1081,6 @@
   "update.password": {
     "label": "Parol"
   },
-  "update.timezone": {
-    "label": "Vaqt mintaqasi"
-  },
   "update.time": {
     "label": "Vaqt"
   },
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "BIOSga qayta yuklash",
     "description": "UEFI firmware sozlamalariga qayta yuklash"
+  },
+  "setup.region": {
+    "label": "Mintaqa"
+  },
+  "setup.region.formats": {
+    "label": "Formatlar",
+    "description": "Sana, vaqt, raqam va birliklar yozilishi"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes o'yini"
+  },
+  "update.games": {
+    "label": "Game Vibes o'yinlari"
+  },
+  "agent.make.game": {
+    "label": "O'yin yaratish"
   }
 }

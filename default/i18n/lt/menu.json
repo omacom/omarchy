@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Įvestis"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Kalba"
+  },
+  "setup.region.timezone": {
+    "label": "Laiko juosta"
   },
   "setup.network": {
     "label": "Tinklas"
@@ -566,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Atstatyti kompiuterį"
+    "label": "Gamyklinis atstatymas"
   },
   "install.package": {
     "label": "Paketas"
@@ -1078,9 +1081,6 @@
   "update.password": {
     "label": "Slaptažodis"
   },
-  "update.timezone": {
-    "label": "Laiko juosta"
-  },
   "update.time": {
     "label": "Laikas"
   },
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Perkrauti į BIOS",
     "description": "Paleisti iš naujo į UEFI programinės įrangos nustatymus"
+  },
+  "setup.region": {
+    "label": "Regionas"
+  },
+  "setup.region.formats": {
+    "label": "Formatai",
+    "description": "Kaip rašomos datos, laikas, skaičiai ir vienetai"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "Sukurti žaidimą"
   }
 }

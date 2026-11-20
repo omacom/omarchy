@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "输入"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "语言"
+  },
+  "setup.region.timezone": {
+    "label": "时区"
   },
   "setup.network": {
     "label": "网络"
@@ -566,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "重置电脑"
+    "label": "恢复出厂设置"
   },
   "install.package": {
     "label": "软件包"
@@ -1078,9 +1081,6 @@
   "update.password": {
     "label": "密码"
   },
-  "update.timezone": {
-    "label": "时区"
-  },
   "update.time": {
     "label": "时间"
   },
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "重启到 BIOS",
     "description": "重启进入 UEFI 固件设置"
+  },
+  "setup.region": {
+    "label": "区域"
+  },
+  "setup.region.formats": {
+    "label": "格式",
+    "description": "日期、时间、数字和单位的显示方式"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes 游戏"
+  },
+  "update.games": {
+    "label": "Game Vibes 游戏"
+  },
+  "agent.make.game": {
+    "label": "制作游戏"
   }
 }

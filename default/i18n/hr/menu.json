@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Unos"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Jezik"
+  },
+  "setup.region.timezone": {
+    "label": "Vremenska zona"
   },
   "setup.network": {
     "label": "Mreža"
@@ -566,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Resetiraj računalo"
+    "label": "Tvorničko vraćanje"
   },
   "install.package": {
     "label": "Paket"
@@ -1078,9 +1081,6 @@
   "update.password": {
     "label": "Lozinka"
   },
-  "update.timezone": {
-    "label": "Vremenska zona"
-  },
   "update.time": {
     "label": "Vrijeme"
   },
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Ponovno pokretanje u BIOS",
     "description": "Ponovno pokretanje u postavke UEFI firmvera"
+  },
+  "setup.region": {
+    "label": "Regija"
+  },
+  "setup.region.formats": {
+    "label": "Formati",
+    "description": "Kako se pišu datumi, vremena, brojevi i jedinice"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes igra"
+  },
+  "update.games": {
+    "label": "Game Vibes igre"
+  },
+  "agent.make.game": {
+    "label": "Napravi igru"
   }
 }

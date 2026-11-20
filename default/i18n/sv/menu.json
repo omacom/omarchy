@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Inmatning"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Språk"
+  },
+  "setup.region.timezone": {
+    "label": "Tidszon"
   },
   "setup.network": {
     "label": "Nätverk"
@@ -566,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Återställ datorn"
+    "label": "Fabriksåterställning"
   },
   "install.package": {
     "label": "Paket"
@@ -1078,9 +1081,6 @@
   "update.password": {
     "label": "Lösenord"
   },
-  "update.timezone": {
-    "label": "Tidszon"
-  },
   "update.time": {
     "label": "Tid"
   },
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Starta om till BIOS",
     "description": "Starta om till UEFI-firmwareinställningarna"
+  },
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.formats": {
+    "label": "Format",
+    "description": "Hur datum, tider, siffror och enheter skrivs"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "Skapa ett spel"
   }
 }

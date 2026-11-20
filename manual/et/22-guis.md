@@ -1,26 +1,26 @@
-# GUIs
+# Graafilised rakendused
 
-## Failid
+## Files
 
-Files (Nautilus) on graafiline failihaldur. `Super + Shift + F` avab selle ja `Super + Shift + Alt + F` avab selle kataloogis, kus sinu terminal parajasti asub, mis säästab palju klõpsamist. `Ctrl + L` võimaldab sul sisestada tee ja iga faili peal `Space` vajutamine annab sulle kiire eelvaate midagi avamata.
+Files (Folio) on graafiline failihaldur. `Super + Shift + F` avab selle ja `Super + Shift + Alt + F` avab selle kataloogis, kus su terminal parasjagu on, mis säästab palju klõpsimist. `Ctrl + L` laseb sul tee sisestada ja mis tahes failil `Space` vajutamine eelvaatab seda täissuuruses ilma seda avamata.
 
-Ühenda USB-mälupulk või SD-kaart ja see haagitakse automaatselt, nii et see ilmub lihtsalt külgribale. Millegi põhjalikuma jaoks — draivi vormindamine, SMART-i seisundi kontrollimine, partitsioonide loomine — käivita rakenduste käivitajast (`Super + Space`) _Disks_.
+Ühenda USB-mälupulk või SD-kaart ja see haagitakse automaatselt, nii et see ilmub lihtsalt külgribale. Millegi põhjalikuma jaoks — draivi vormindamine, SMART-i tervise kontrollimine, partitsioonide loomine — käivita rakenduste käivitajast (`Super + Space`) rakendus _Disks_.
 
 Topeltklõps järgib mõistlikke vaikeseadeid: pildid, videod ja muusika avanevad rakenduses Omaview, PDF-id rakenduses Document Viewer, Markdown rakenduses Omawrite ja lihttekst redaktoris, mis on valitud jaotuses _Setup > Default > Editor_.
 
 ## Disktree
 
-Kui draiv saab täis ja sul pole õrna aimugi, mis seda sööb, käivita rakenduste käivitajast (`Super + Space`) [Disktree](https://github.com/tobi/disktree). See näitab sinu kodukataloogi graafilist puukaarti. Suuremad plokid võtavad rohkem ruumi; liigu kataloogides klaviatuuri või hiirega, märgi ära, mis peab minema, ja vaata oma valikud enne millegi eemaldamist üle. Kogu ketta skannimiseks käivita `disktree --disk`.
+Kui draiv saab täis ja sul pole aimugi, mis seda sööb, käivita rakenduste käivitajast (`Super + Space`) [Disktree](https://github.com/tobi/disktree). See näitab sinu kodukataloogi graafilist puukaarti. Suuremad plokid võtavad rohkem ruumi; liigu kataloogidesse klaviatuuri või hiirega, märgi, mis peab minema, ja vaata oma valikud enne millegi eemaldamist üle. Kogu ketta skannimiseks käivita `disktree --disk`.
 
 ## Obsidian
 
 [Obsidian](https://obsidian.md/) on tasuta ja väga laiendatav märkmete tegemise rakendus, mis kasutab salvestamiseks lihtsaid Markdowni faile.
 
-Obsidian on tasuta igaks otstarbeks, sealhulgas isiklikuks, äriliseks ja mittetulunduslikuks kasutamiseks.
+Obsidian on tasuta kõigiks otstarveteks, sealhulgas isiklikuks, äriliseks ja mittetulunduslikuks kasutamiseks.
 
-Obsidian pakub ka [ärilist lisandmoodulit sünkroonimiseks](https://obsidian.md/sync) mobiilirakendustega iOS-il ja Androidil. (https://obsidian.md/pricing).
+Obsidian pakub ka [ärilist lisandmoodulit sünkroonimiseks](https://obsidian.md/sync) iOS-i ja Androidi mobiilirakendustega. (https://obsidian.md/pricing).
 
-Obsidiani käivitad klahvidega `Super + Shift + O`. Teemade sünkroonimise kasutamiseks pead seadetes valima teema `Omarchy`.
+Obsidiani käivitad klahvidega `Super + Shift + O`. Teema sünkroonimise kasutamiseks pead seadete all valima teema `Omarchy`.
 
 ## Omawrite
 
@@ -30,32 +30,32 @@ Omawrite'i käivitad klahvidega `Super + Shift + W`.
 
 ## Pinta
 
-[Pinta](https://www.pinta-project.com/) on lihtne pilditöötlustööriist, mis sobib suurepäraselt kärpimiseks, suuruse muutmiseks ja muudeks lihtsateks töötlusteks. Ära ainult Photoshopi alternatiivi oota. Aga sellel on ikkagi Magic Wand ja kihid!
+[Pinta](https://www.pinta-project.com/) on lihtne pilditöötlustööriist, mis sobib suurepäraselt kärpimiseks, suuruse muutmiseks ja muudeks lihtsateks töötlusteks. Ära lihtsalt Photoshopi alternatiivi oota. Aga sellel on ikkagi Magic Wand ja kihid!
 
 Pinta käivitad rakenduste käivitaja kaudu (`Super + Space`).
 
 ## Aether
 
-[Aether](https://github.com/bjarneo/aether) on teemarakendus, mis suudab taustapildist värvid välja võtta ja neist tervikliku, ühtse teema teha. See on lihtsaim viis [oma teema tegemiseks](43-making-your-own-theme.md).
+[Aether](https://github.com/bjarneo/aether) on teemarakendus, mis suudab taustapildist värve eraldada ja neist tervikliku, ühtse teema teha. See on lihtsaim viis [oma teema tegemiseks](43-making-your-own-theme.md).
 
 Aetheri käivitad rakenduste käivitaja kaudu (`Super + Space`).
 
 ## LocalSend
 
-[LocalSend](https://localsend.org/) võimaldab sul saata faile teistele samas võrgus olevatele seadmetele, kus rakendus töötab, nagu Apple'i AirDrop. See on aga platvormideülene, nii et saad faile saata Windowsi, macOS-i, Androidi, iOS-i ja muidugi Linuxi seadmetesse ja seadmetest.
+[LocalSend](https://localsend.org/) laseb sul saata faile teistesse samas võrgus olevatesse seadmetesse, kus rakendus töötab, nagu Apple'i AirDrop. See on aga platvormiülene, nii et saad faile edasi-tagasi saata Windowsi, macOS-i, Androidi, iOS-i ja muidugi Linuxiga.
 
-Jagamise menüü saad avada klahvidega `Super + Ctrl + S` või Omarchy menüüs jaotuses _Trigger > Share_. See annab sulle neli valikut:
+Saad avada menüü Share klahvidega `Super + Ctrl + S` või Omarchy menüüs jaotuses _Trigger > Share_. See annab sulle neli valikut:
 
-- **Clipboard** saadab kõik, mille oled kopeerinud, tekstifailina. Suurepärane viis lingi või koodijupi telefoni saamiseks ilma endale e-kirja saatmata.
+- **Clipboard** saadab kõik, mille oled kopeerinud, tekstifailina. Suurepärane lingi või koodijupi telefoni saamiseks ilma endale e-kirja saatmata.
 - **File** avab failivalija, kus saad korraga mitu valida.
 - **Folder** saadab terve kataloogi.
-- **Receive** avab päris LocalSendi, et teine seade saaks sulle midagi saata.
+- **Receive** avab LocalSendi enda, et teine seade saaks sulle midagi saata.
 
-Sama toimib terminalist käskudega `omarchy share clipboard`, `omarchy share file [path]` ja `omarchy share folder [path]`. Jäta tee ära ja saad failivalija.
+Sama toimib terminalist käskudega `omarchy share clipboard`, `omarchy share file [path]` ja `omarchy share folder [path]`. Jäta tee ära ja saad valija.
 
-Saad saata ka otse failihaldurist: tee Nautiluses valikul paremklõps ja vali _Send via LocalSend_.
+Saad saata ka otse failihaldurist: tee rakenduses Files mis tahes valikul paremklõps ja jaga seda LocalSendiga.
 
-Omarchy tulemüür on vaikimisi suletud, välja arvatud LocalSendi pordi puhul, nii et see töötab värskel installil kohe karbist välja. Vaata [turvalisust](48-security.md).
+Omarchy tulemüür on vaikimisi suletud, välja arvatud LocalSendi port, nii et see töötab värskel installil kohe karbist välja. Vaata jaotist [turvalisus](48-security.md).
 
 ## LibreOffice
 
@@ -65,58 +65,52 @@ LibreOffice'i käivitad rakenduste käivitaja kaudu (`Super + Space`).
 
 ## Hype
 
-[Hype](https://github.com/omacom/hype) on Omarchy enda ülilihtne esitlusrakendus. Sinu esitlus on üks Markdowni fail, mille kõrval on selle pildid ja videod: kirjuta iga slaid reaalajas eelvaate alla, lohista slaidid õigesse järjekorda, seejärel esitle täisekraanil või ekspordi PDF-i ja PowerPointi. See võtab isegi sinu Omarchy teema üle.
+[Hype](https://github.com/omacom/hype) on Omarchy enda ülilihtne esitlusrakendus. Sinu esitlus on üks Markdowni fail, mille kõrval on selle pildid ja videod: kirjuta iga slaid reaalajas eelvaate alla, lohista slaidid järjekorda, seejärel esitle täisekraanil või ekspordi PDF-i ja PowerPointi. See võtab isegi sinu Omarchy teema üle.
 
-Hype'i käivitad rakenduste käivitaja kaudu (`Super + Space`). Kõigi otseteede nägemiseks vajuta selle sees `?`.
+Hype'i käivitad rakenduste käivitaja kaudu (`Super + Space`). Vajuta selle sees `?`, et näha kõiki otseteid.
 
 ## Signed
 
-[Signed](https://github.com/omacom/signed) on Omarchy enda ülilihtne viis PDF-ide allkirjastamiseks ja täitmiseks. Pane oma salvestatud allkiri, tekst ja tänane kuupäev lehel ükskõik kuhu ning salvesta seejärel allkirjastatud koopia originaali kõrvale. Vaata, kuidas seda teha, jaotisest [PDF-ide täitmine](27-filling-out-pdfs.md).
+[Signed](https://github.com/omacom/signed) on Omarchy enda ülilihtne viis PDF-ide allkirjastamiseks ja täitmiseks. Pane oma salvestatud allkiri, tekst ja tänane kuupäev lehel ükskõik kuhu, seejärel salvesta allkirjastatud koopia originaali kõrvale. Vaata, kuidas, jaotisest [PDF-ide täitmine](27-filling-out-pdfs.md).
 
 Signedi käivitad rakenduste käivitaja kaudu (`Super + Space`) või avad sellega failihaldurist PDF-i.
 
-## Checkmate
+## Game Vibes
 
-[Checkmate](https://github.com/omacom/checkmate) on Omarchy enda 3D-malemäng. Mängi sõbraga samas arvutis või sisseehitatud vastase vastu kolmel tasemel, nelja skulptuurilise komplektiga, millest igaüks liigub omal moel: orbitaalsõidukid, nikerdatud puit ja elevandiluu, metsloomad ja kommid. Mängudel pole kella ja need salvestuvad pärast iga käiku.
+Game Vibes, rakenduste käivitajas (`Super + Space`), on koht, kus Omarchy väikesed mängud elavad: Checkmate, 3D malemäng sõbra või sisseehitatud vastase vastu; Cards, Klondike pasjanss; ja Neon Swarm, arkaaditulistamismäng. Igaüks on üks veebileht, mis järgib sinu teemat. Vali üks noolte ja klahviga `Enter` ning tule loendisse tagasi mängu tiitelkuvalt klahviga `Esc` või pausi ajal klahviga `Q`. See avaneb täisekraanil: `Super + F` teeb sellest akna ja `Super + W` sulgeb selle.
 
-Checkmate'i käivitad rakenduste käivitaja kaudu (`Super + Space`), kus see on loetletud nimega Chess. Kõigi otseteede nägemiseks vajuta selle sees `?`.
-
-## Cards
-
-[Cards](https://github.com/omacom/cards) on Omarchy enda Klondike pasjanss. Võta kolm kaarti, läbimiste arv pole piiratud, neljas kaardisarjas: üks on joonistatud sinu teema värvides ja kolmel on oma välimus. Klõpsa kaardil ja seejärel kohal, kuhu see läheb, lohista seda või topeltklõpsa, et saata see parimasse kohta. Mängud salvestuvad pärast iga käiku.
-
-Cardsi käivitad rakenduste käivitaja kaudu (`Super + Space`). Kõigi otseteede nägemiseks klõpsa selle nimel või vajuta `?`.
+Mängud, mille sa agendiga teed, ilmuvad ka siia: vali agentide paneelil _Make something cool → Game_ ja kirjelda üht või nimeta mäng, mis on juba Game Vibes'is, et sellega edasi töötada. Agent kopeerib selle kausta `~/Games/vibes`, kus see on sinu oma muuta, ja avab selle, kui see on valmis. Saad selle koopia ise teha käsuga `omarchy games vibes copy <game>`. Mäng, mida keegi teine jagab, installitakse nagu teema: vali _Install > Gaming > Game Vibes_ ja kleebi selle giti aadress või käivita `omarchy games vibes install <git-repo-url>`. _Remove > Gaming_ eemaldab ühe jälle ja _Update > Game Vibes Games_ toob uued versioonid. Mängud laadivad three.js-i veebist, nii et neil on käivitumiseks ühendust vaja.
 
 ## Omacalc
 
-[Omacalc](https://github.com/omacom-io/omacalc) on Omarchy enda ülilihtne kalkulaator, mis avaneb hõljuvas aknas.
+[Omacalc](https://github.com/omacom-io/omacalc) on Omarchy enda ülilihtne kalkulaator, mis avaneb ujuvas aknas.
 
-Omacalci käivitad klahvidega `Super + Shift + Q` (või kalkulaatori klahviga, kui sinu klaviatuuril selline on).
+Omacalci käivitad klahvidega `Super + Shift + Q` (või kalkulaatori klahviga, kui su klaviatuuril selline on).
 
 ## Signal
 
-[Signal](https://signal.org/) on otsast lõpuni krüpteeritud sõnumside teerajaja ja suurepärane suhtlusvõimalus igaühele, kes eelistab mitte minna läbi ühe suure tehnoloogiakonglomeraadi.
+[Signal](https://signal.org/) on E2E-krüpteeritud sõnumside teerajaja ja suurepärane suhtlusvõimalus kõigile, kes eelistaksid mitte ühe suure tehnoloogiakonglomeraadi kaudu käia.
 
-Signali käivitad klahvidega `Super + Shift + G`. See ei kuulu põhinstalli hulka, nii et esimesel korral, kui seda vajutad, pakub Omarchy selle sinu eest installimist (see on ka Omarchy menüüs jaotuses _Install > Service_).
+Signali käivitad klahvidega `Super + Shift + G`. See ei kuulu baasinstalli hulka, nii et esimesel korral, kui seda vajutad, pakub Omarchy selle sinu eest installida (see on ka Omarchy menüüs jaotuses _Install > Service_).
 
 ## Omaview
 
-[Omaview](https://github.com/omacom/omaview) on Omarchy enda ülilihtne pildivaatur ja meediumipleier: üks aken sinu fotode, videote ja muusika jaoks. Ava foto ja nooleklahvid liiguvad läbi ülejäänud kausta, `N` ja `P` teevad seda kõige puhul ning `Ctrl + M` näitab tervet kausta ruudustikuna. See näitab ka HEIC-, AVIF- ja JPEG XL fotosid ning jätkab pikemate asjade puhul sealt, kus pooleli jäid.
+[Omaview](https://github.com/omacom/omaview) on Omarchy enda ülilihtne pildivaatur ja meediamängija: üks aken sinu fotode, videote ja muusika jaoks. Ava foto ja nooleklahvid liiguvad läbi ülejäänud selle kausta, `N` ja `P` teevad seda kõige puhul ning `Ctrl + M` näitab tervet kausta ruudustikuna. See näitab ka HEIC-, AVIF- ja JPEG XL fotosid ning jätkab kõiges pikemas sealt, kus pooleli jäid.
 
-Vajuta `F` täisekraani jaoks, `E` pildi töötlemiseks rakenduses Omasnap või video kärpimiseks rakenduses Omacut, `Ctrl + P` pildi printimiseks ja `Delete` faili prügikasti teisaldamiseks (`Ctrl + Z` toob selle tagasi). Kõigi otseteede nägemiseks vajuta selle sees `?`.
+Vajuta `F` täisekraani jaoks, `E` pildi töötlemiseks rakenduses Omasnap või video trimmimiseks rakenduses Omacut, `Ctrl + P` pildi printimiseks ja `Delete`, et fail prügikasti teisaldada (`Ctrl + Z` toob selle tagasi). Vajuta selle sees `?`, et näha kõiki otseteid.
 
-Omaview käivitad nimega _Media Viewer_ rakenduste käivitaja kaudu (`Super + Space`) või tee lihtsalt failihalduris pildil, videol või laulul topeltklõps.
+Omaview' käivitad nime _Media Viewer_ all rakenduste käivitaja kaudu (`Super + Space`) või tee lihtsalt failihalduris pildil, videol või laulul topeltklõps.
 
 ## Omacut
 
-[Omacut](https://github.com/omacom-io/omacut) on Omarchy enda ülilihtne videokärpija. Kui sul on vaja ainult klipi algus ja lõpp ära lõigata, on see parem kui täisväärtusliku videoredaktori käivitamine.
+[Omacut](https://github.com/omacom-io/omacut) on Omarchy enda ülilihtne videotrimmija. Kui sul on vaja ainult klipi algus ja lõpp ära lõigata, on see palju mõistlikum kui täiemahulise videoredaktori käivitamine.
 
 Omacuti käivitad rakenduste käivitaja kaudu (`Super + Space`).
 
 ## Monologue
 
-[Monologue](https://github.com/omacom/monologue) on Omarchy enda ülilihtne veebikaamera salvesti. Vali oma kaamera ja mikrofon üks kord, seejärel vajuta salvestamiseks `Space` ning sama võtte peatamiseks ja jätkamiseks vajuta seda uuesti. See salvestab alati sinu kaamera kõrgeima eraldusvõimega, koos reaalajas mikrofoni mõõdikuga, et saaksid enne alustamist oma tasemed üle kontrollida.
+[Monologue](https://github.com/omacom/monologue) on Omarchy enda ülilihtne veebikaamera salvestaja. Vali oma kaamera ja mikrofon ühe korra, seejärel vajuta salvestamiseks klahvi `Space` ja uuesti, et sama võte pausile panna ja seda jätkata. See salvestab alati sinu kaamera kõrgeima resolutsiooniga, reaalajas mikrofoni tasememõõdikuga, et saaksid enne alustamist oma tasemeid kontrollida.
 
-Peata võte ja see avaneb kohe sisseehitatud redaktoris. Topeltklõpsa klipil selle poolitamiseks, lohista käepidemeid iga osa kärpimiseks ja eemalda osad, mida sa ei taha. Seejärel salvesta see MP4-na. Sinu algne salvestus säilib, kuni sa selle ära viskad, nii et saad alati tagasi tulla ja seda teisiti lõigata.
+Peata võte ja see avaneb kohe sisseehitatud redaktoris. Tee klipil topeltklõps selle poolitamiseks, lohista käepidemeid iga osa trimmimiseks ja eemalda osad, mida sa ei taha. Seejärel salvesta see MP4-na. Sinu algne salvestus säilitatakse, kuni sa selle ära viskad, nii et saad alati tagasi tulla ja seda teisiti lõigata.
 
 Monologue'i käivitad rakenduste käivitaja kaudu (`Super + Space`).

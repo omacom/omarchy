@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Masukan"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Bahasa"
+  },
+  "setup.region.timezone": {
+    "label": "Zona Waktu"
   },
   "setup.network": {
     "label": "Jaringan"
@@ -566,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Atur Ulang Komputer"
+    "label": "Reset Pabrik"
   },
   "install.package": {
     "label": "Paket"
@@ -1078,9 +1081,6 @@
   "update.password": {
     "label": "Kata Sandi"
   },
-  "update.timezone": {
-    "label": "Zona Waktu"
-  },
   "update.time": {
     "label": "Waktu"
   },
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "Mulai ulang ke BIOS",
     "description": "Mulai ulang ke pengaturan firmware UEFI"
+  },
+  "setup.region": {
+    "label": "Wilayah"
+  },
+  "setup.region.formats": {
+    "label": "Format",
+    "description": "Cara penulisan tanggal, waktu, angka, dan satuan"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Game"
+  },
+  "agent.make.game": {
+    "label": "Buat Game"
   }
 }

@@ -1,5 +1,5 @@
 ---
-name: web-game
+name: omarchy-make-game
 description: >
   Build a browser game or interactive 3D toy as a single HTML file with three.js, saved in ~/Games/vibes/<name>/ and played from Game Vibes in the app launcher: arcade games, endless runners, board and card games, puzzles, visual toys, small simulations. Starts from a working template, and covers what makes a game good (feel, fairness, clarity, polish), the three.js traps older examples walk into, checking it in a headless browser, and adding it to Game Vibes. Triggers: game, make me a game, three.js, WebGL, HTML game, browser game, canvas, arcade, 3D toy, snake, asteroids, breakout, pinball, platformer, runner, maze, puzzle, chess, solitaire, minesweeper.
 ---
@@ -8,7 +8,7 @@ description: >
 
 A game is one file, `~/Games/vibes/<name>/index.html` (unless the user asked for it somewhere else): three.js from a pinned CDN, everything else written in the file — shapes from three.js geometry, sound synthesized with Web Audio, text in HTML over the canvas. It's listed in Game Vibes, one launcher for every game made this way, and opens in the desktop's current theme, plays from the keyboard (and the mouse, where that's natural), and keeps its best score.
 
-Every game starts from `template.html` beside this file: a complete, working game (dodge the falling blocks) with what every game needs already done — title screen, pause on Esc and on losing focus, game over, restart, help, sound, a saved best score, a fixed-step loop that survives slow frames, seeded randomness, mouse picking, a camera fit, and lights that show the theme's colours true. You replace the game inside it, not the frame around it. Below, `SKILL_DIR` is the directory you read this file from (such as `~/.agents/skills/web-game`).
+Every game starts from `template.html` beside this file: a complete, working game (dodge the falling blocks) with what every game needs already done — title screen, pause on Esc and on losing focus, game over, restart, help, sound, a saved best score, a fixed-step loop that survives slow frames, seeded randomness, mouse picking, a camera fit, and lights that show the theme's colours true. You replace the game inside it, not the frame around it. Below, `SKILL_DIR` is the directory you read this file from (such as `~/.agents/skills/omarchy-make-game`).
 
 ## Keeping on with a game in Game Vibes
 
@@ -108,6 +108,14 @@ omarchy-games-vibes-launch <name>
 ```
 
 Do this once, at the end, not while checking. Game Vibes refreshes its list each time it opens, so later edits and a changed title need nothing more. Tell the user the game is open, that it's in Game Vibes in the app launcher (Super + Space), where the file is, and the controls.
+
+## Sharing a game
+
+A game is shared as a git repository with its `index.html` and `icon.svg` at the root, named `omarchy-<name>-game` so it installs as `<name>`. When the user asks to share one, run `git init` in `~/Games/vibes/<name>`, commit those files, and push to the remote they give. Anyone on Omarchy then installs it from the menu (Install > Gaming > Game Vibes) or with:
+
+```bash
+omarchy games vibes install <git-repo-url>
+```
 
 ## three.js and the page
 

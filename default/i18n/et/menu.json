@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Sisend"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Keel"
+  },
+  "setup.region.timezone": {
+    "label": "Ajavöönd"
   },
   "setup.network": {
     "label": "Võrk"
@@ -566,7 +569,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "Lähtesta arvuti"
+    "label": "Tehaseseadete taastamine"
   },
   "install.package": {
     "label": "Pakett"
@@ -1078,9 +1081,6 @@
   "update.password": {
     "label": "Parool"
   },
-  "update.timezone": {
-    "label": "Ajavöönd"
-  },
   "update.time": {
     "label": "Aeg"
   },
@@ -1340,5 +1340,24 @@
   "system.firmware": {
     "label": "BIOS-i taaskäivitus",
     "description": "Taaskäivita UEFI püsivara seadistusse"
+  },
+  "setup.region": {
+    "label": "Piirkond"
+  },
+  "setup.region.formats": {
+    "label": "Vormingud",
+    "description": "Kuupäevade, kellaaegade, arvude ja ühikute vorming"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes mäng"
+  },
+  "update.games": {
+    "label": "Game Vibes mängud"
+  },
+  "agent.make.game": {
+    "label": "Loo mäng"
   }
 }

@@ -1,23 +1,14 @@
-# Omarchy Shell: Bar, Plugins, and Idle
+---
+name: omarchy-make-plugin
+description: >
+  Make a new plugin for the Omarchy shell: a bar widget, a popup card, or a keyboard-driven panel, written in QML in ~/.config/omarchy/plugins/<username>.<name>/, following the theme, the language and the shell's motion, checked with omarchy agent look plugin, and put on the bar. Also for writing QML in a cloned built-in plugin. Use when asked to make, build, or write a plugin, widget, bar indicator, or panel. Moving, adding, or removing existing widgets on the bar, and idle or lock settings, belong to the omarchy skill. Triggers: make a plugin, new widget, bar widget, show X in the bar, Quickshell, QML plugin, popup, panel.
+---
 
-Read this before changing the status bar, notifications, shell plugins,
-widgets, or idle/lock behavior.
+# Making an Omarchy Shell Plugin
 
-The bar, notification daemon, settings panel, and assorted overlays all run
-inside a single long-running Quickshell process (`omarchy-shell`).
+The bar, notification daemon, settings panel, and assorted overlays all run inside a single long-running Quickshell process (`omarchy-shell`). A plugin is a folder of QML under `~/.config/omarchy/plugins/<plugin-id>/` that runs inside it. Saving any file under the plugin folder reloads it, and `omarchy-shell shell reloadPlugins` forces a reload if a change somehow fails to apply. The built-in plugins in `$OMARCHY_PATH/shell/plugins/` are the reference for anything bigger than the examples here.
 
-```
-~/.config/omarchy/shell.json             # User overrides: bar, plugins, idle
-~/.config/omarchy/plugins/<plugin-id>/   # User-owned shell plugins
-$OMARCHY_PATH/config/omarchy/shell.json  # Canonical defaults
-```
-
-The shell hot-reloads `shell.json` on save — no restart needed for layout
-changes. `idle.screensaver` and `idle.lock` are seconds since user idle began.
-
-**Commands:** `omarchy restart shell`, `omarchy refresh shell`
-
-## Making a New Bar Plugin
+## A Bar Widget
 
 A bar plugin is a folder `~/.config/omarchy/plugins/<username>.<name>/` (its id, e.g. `alice.counter`) with a manifest, the widget, and its strings:
 
@@ -178,7 +169,7 @@ Item {
 
 ## Translations
 
-Omarchy runs in 50 languages, and a plugin should follow the one picked under Setup > Language the way the built-in plugins do: live, without a shell restart. Ship the plugin's strings as flat JSON catalogs in an `i18n/` directory beside its QML, one file per Omarchy language code (`en.json`, `da.json`, `pt-BR.json`; `$OMARCHY_PATH/default/i18n/locales.json` lists all 50), and read them through `Commons.Translations`:
+Omarchy runs in 50 languages, and a plugin should follow the one picked under Setup > Region > Language the way the built-in plugins do: live, without a shell restart. Ship the plugin's strings as flat JSON catalogs in an `i18n/` directory beside its QML, one file per Omarchy language code (`en.json`, `da.json`, `pt-BR.json`; `$OMARCHY_PATH/default/i18n/locales.json` lists all 50), and read them through `Commons.Translations`:
 
 ```qml
 import qs.Commons as Commons
@@ -206,44 +197,3 @@ Item {
 - Format dates with `Qt.locale(Commons.I18n.formatLocale)`, not `Qt.formatDate` or a bare `Qt.locale()`: those follow the locale the shell started with, which changes only when it restarts.
 - Keep brand names, units, and keyboard keys as they are, and leave log and diagnostic output in English.
 - Use `strings.t()` only for the plugin's own text. `Commons.I18n` holds Omarchy's catalog, which can rename or drop its keys in any update.
-
-## Bar Layout
-
-Use the `omarchy bar` group to move and manage widgets:
-
-```bash
-omarchy bar move omarchy.clock --section right
-```
-
-For layout edits beyond what the commands cover, edit the bar configuration
-in `~/.config/omarchy/shell.json`; it hot-reloads on save.
-
-`bar.layout` has five sections, in the order they run along the bar: `left`,
-`centerBegin`, `center`, `centerEnd`, and `right`, plus `tray`, drawn inside
-the tray's drawer. `center` is a box in the middle of the bar whose widgets
-are centered as one group; `centerBegin` and `centerEnd` hang off its two
-edges. Put a widget beside the clock in `centerBegin` or `centerEnd`, not in
-`center`, or the clock moves off center.
-
-## Customizing Built-In Plugins and Widgets
-
-To customize a built-in bar widget, never edit `$OMARCHY_PATH/shell/plugins/`.
-Clone it into the user plugin directory instead:
-
-```bash
-omarchy plugin clone omarchy.workspaces
-# Edit ~/.config/omarchy/plugins/<username>.workspaces/; saved changes reload automatically.
-```
-
-Cloning switches the bar to the cloned copy (e.g. `<username>.workspaces`),
-which is yours to edit and survives updates.
-
-Saving a file anywhere under `~/.config/omarchy/plugins/` reloads plugin code
-automatically. If a change somehow fails to apply, force a reload with
-`omarchy-shell shell reloadPlugins`.
-
-## Idle and Lock
-
-Set `idle.screensaver` and `idle.lock` in `~/.config/omarchy/shell.json`,
-in seconds since user idle began. Example: "lock after ten minutes" means
-setting `idle.lock` to `600`.
