@@ -21,17 +21,17 @@ if [[ -z ${TOOLTIP_TEST_BASE:-} ]]; then
 from pathlib import Path
 import sys
 for name in ['Style', 'Border']:
-    path = Path(sys.argv[1]) / f'shell/Commons/{name}.qml'
-    path.write_text(path.read_text().replace('import "." as Commons', 'import qs.Commons as Commons'))
+  path = Path(sys.argv[1]) / f'shell/Commons/{name}.qml'
+  path.write_text(path.read_text().replace('import "." as Commons', 'import qs.Commons as Commons'))
 PY_BASE
 fi
 python3 - "$stage/stock.pkg.tar" <<'PY'
 import io, sys, tarfile
 raw = b'pkgname = quickshell\npkgver = 0.3.1-1\narch = any\nlicense = LGPL-3.0-only\nurl = https://quickshell.org\ndepend = qt6-base\n'
 with tarfile.open(sys.argv[1], 'w') as archive:
-    entry = tarfile.TarInfo('.PKGINFO')
-    entry.size = len(raw)
-    archive.addfile(entry, io.BytesIO(raw))
+  entry = tarfile.TarInfo('.PKGINFO')
+  entry.size = len(raw)
+  archive.addfile(entry, io.BytesIO(raw))
 PY
 python3 "$ROOT/default/tooltips/prepare-trial.py" --source "$ROOT" --installed "$stage/base" \
   --stock-package "$stage/stock.pkg.tar" --runtime "$(command -v quickshell)" --output "$stage/trial" > "$stage/prepare.json"
