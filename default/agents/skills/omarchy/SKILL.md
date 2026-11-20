@@ -9,10 +9,10 @@ description: >
   night light, idle, lock screen, screenshots, screen recording, reminders, layer rules, workspace
   settings, display config, appearance changes, default apps (browser, terminal, editor), web apps,
   installing software, environment variables, keyboard layouts, language, power profiles, dock,
-  and user-facing omarchy commands. Excludes Omarchy
-  source development through `omarchy dev link` workflows. Making a new theme, shell plugin, app,
-  or game follows the omarchy-make-theme, omarchy-make-plugin, omarchy-make-app, or
-  omarchy-make-game skill instead, and reporting a bug or contributing upstream follows omarchy-contribute.
+  and user-facing omarchy commands. Not for Omarchy source development (`omarchy dev link`).
+  New themes, shell plugins, apps and games use omarchy-make-theme, omarchy-make-plugin,
+  omarchy-make-app or omarchy-make-game instead; bug reports and upstream contributions use
+  omarchy-contribute.
 ---
 
 # Omarchy Skill
