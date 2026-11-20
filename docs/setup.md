@@ -29,12 +29,12 @@ What the plugin adds is a sentence about each page (`pageDescription`), a line a
 
 ## Scenes
 
-Each page has a scene: a miniature of the desktop that shows what the option under the cursor does. They are all built from `scenes/Desk.qml` (the screen and its bar), `scenes/Win.qml` (a window, with the accent border Hyprland gives the focused one), `scenes/Tile.qml` (anything that is not a window: a machine, a key, a file), `scenes/Way.qml` (the line between two of them, and something on its way along it) and `scenes/Keycap.qml` (a key), so they read as one set.
+Each page has a scene: a miniature of the desktop that shows what one option does. On the pages that is the option under the cursor. In the tour it is the step's pick, and only that, so the card that is marked and the picture never disagree. The scenes are all built from `scenes/Desk.qml` (the screen and its bar), `scenes/Win.qml` (a window, with the accent border Hyprland gives the focused one), `scenes/Tile.qml` (anything that is not a window: a machine, a key, a file), `scenes/Way.qml` (the line between two of them, and something on its way along it) and `scenes/Keycap.qml` (a key), so they read as one set.
 
 | Scene | Shows |
 |---|---|
-| `LayoutScene` | The same four windows rearranging between tiling, scrolling and floating as the cursor moves across the options |
-| `AgentScene` | The hotkey, and the harness under the cursor at work in the window it opens |
+| `LayoutScene` | The same four windows rearranging between tiling, scrolling and floating as the option shown changes, all four open at once on a change so the layouts are told apart. An option that sets no layout is an empty desk |
+| `AgentScene` | The hotkey, and the harness being shown at work in the window it opens |
 | `DictationScene` | Right Alt held while a voice becomes written words, by way of this machine or the cloud |
 | `LocalAiScene` | A model on this machine answering without leaving it |
 | `TailscaleScene` | Three machines that reach each other directly, or sit apart |
@@ -55,7 +55,7 @@ Scenes are pictures of the desktop, so they do not mirror for right-to-left lang
 
 The tour walks the essentials one step at a time, after a splash that brings in the wordmark (drawn from the paths of `logo.svg` by `Wordmark.qml`).
 
-Nothing changes until Finish. Each step remembers the option picked there, and Escape or _Skip tour_ at any point closes the tour with the machine exactly as it was. A click outside the card closes the pages but not the tour, because a stray click should not cost the choices made so far. A step with nothing chosen yet opens on a _Not now_ card, so pressing Enter through the tour changes nothing. The last screen, _Review_, lists what Finish is about to do.
+Nothing changes until Finish. Each step remembers the option picked there, and Escape or _Skip tour_ at any point closes the tour with the machine exactly as it was. A step has no cursor apart from its pick: an arrow key or a click picks the option it lands on, which gets the border, the check and the picture together, and Enter or _Continue_ moves on. The pointer passing over an option only lights it, since it crosses them on its way to a button. A click outside the card closes the pages but not the tour, because a stray click should not cost the choices made so far. A step with nothing chosen yet opens on a _Not now_ card, so pressing Enter through the tour changes nothing. The last screen, _Review_, lists what Finish is about to do.
 
 Finish runs one command, `omarchy-setup-essentials`, with a flag for each step whose choice differs from what the machine has:
 

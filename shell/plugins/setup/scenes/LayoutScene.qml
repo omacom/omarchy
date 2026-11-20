@@ -4,20 +4,34 @@ import qs.Commons as Commons
 
 // The three workspace layouts, shown by the same four windows: they split the
 // screen for tiling, line up on a strip for scrolling, and overlap under
-// titlebars above a dock for floating. Moving between the options rearranges
-// the windows already there, which is what changing the layout does.
+// titlebars above a dock for floating. Going from one option to another
+// rearranges the windows already there, which is what changing the layout does.
 Desk {
   id: root
 
   // dwindle, scrolling or floating: Hyprland's names, which the commands take.
+  // Empty for an option that sets no layout: no layout is drawn for it, since
+  // any arrangement would be taken for the one it leaves in place.
   property string mode: "dwindle"
 
   // Windows open one at a time, focus walks back across them, and it starts
   // over. Each beat is how many are open and which one has focus.
   readonly property var beats: [[1, 0], [2, 1], [3, 2], [4, 3], [4, 3], [4, 1], [4, 0], [4, 0]]
-  property int beat: Style.reduceMotion ? 4 : 0
-  readonly property int count: beats[beat][0]
+  // Where the loop has got to. With motion reduced the beat shown is the one
+  // with every window open, whenever that is turned on.
+  property int turn: 0
+  readonly property int beat: Style.reduceMotion ? 4 : turn
+  readonly property int count: mode === "" ? 0 : beats[beat][0]
   readonly property int focused: beats[beat][1]
+
+  // A change of layout is answered at once with every window open, which is
+  // where the three look least alike: two windows side by side are tiling and
+  // scrolling both. The loop carries on from there, and holds that beat a
+  // second time before it moves. A layout the scene opens on is not a change,
+  // and starts with its first window like any other.
+  property bool opened: false
+  Component.onCompleted: opened = true
+  onModeChanged: if (opened) turn = 3
 
   // A scrolling column's share of the screen, so a third one runs off its edge.
   readonly property real columnWidth: 0.44
@@ -60,8 +74,8 @@ Desk {
   Timer {
     interval: 950
     repeat: true
-    running: root.visible && !Style.reduceMotion
-    onTriggered: root.beat = (root.beat + 1) % root.beats.length
+    running: root.visible && root.mode !== "" && !Style.reduceMotion
+    onTriggered: root.turn = (root.turn + 1) % root.beats.length
   }
 
   Repeater {

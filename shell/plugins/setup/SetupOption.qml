@@ -15,11 +15,14 @@ BorderSurface {
   // What a small card sets its label in, which the page decides for all of
   // its cards together.
   property real labelSize: Style.font.body
-  // Under the pointer or the keyboard cursor.
+  // On a page, under the keyboard cursor or the pointer that moved it there.
   property bool cursor: false
+  // In the tour, where the pointer lights the card it is over and picks
+  // nothing until it clicks.
+  property bool lights: false
   // Picked in the tour, to be set up when it finishes.
   property bool chosen: false
-  // What the machine has now.
+  // On a page, what the machine has now.
   property bool current: false
   // Already installed, so there is nothing to pick.
   property bool installed: false
@@ -34,16 +37,17 @@ BorderSurface {
   // The pick is drawn in the text color: an accent quieter than the text
   // would make the chosen card the faintest one on the page.
   readonly property color ink: foreground
+  readonly property bool hovered: lights && pointer.containsMouse && !installed
   readonly property string glyphFont: iconFont !== "" ? iconFont : Style.font.menuFamily
 
   implicitHeight: large ? Style.space(78) : Style.space(32)
   radius: Style.cornerRadius
   opacity: installed ? 0.5 : 1
-  color: chosen ? Util.alpha(foreground, cursor ? 0.16 : 0.11)
-    : cursor ? Style.hoverFillFor(foreground, accent)
+  color: chosen ? Util.alpha(foreground, hovered ? 0.16 : 0.11)
+    : cursor || hovered ? Style.hoverFillFor(foreground, accent)
     : Style.normalFillFor(foreground, accent)
   borderSpec: chosen ? Border.flat(foreground, Math.max(1, Style.space(2)))
-    : Border.flat(Util.alpha(foreground, cursor ? 0.4 : 0.16), Style.spacing.hairline)
+    : Border.flat(Util.alpha(foreground, cursor || hovered ? 0.4 : 0.16), Style.spacing.hairline)
 
   Behavior on color { ColorAnimation { duration: Style.duration(120) } }
 
@@ -57,8 +61,8 @@ BorderSurface {
     }
   }
 
-  // Where the cursor is: the ring the card's buttons wear, so the keyboard's
-  // place and the tour's pick are never mistaken for each other.
+  // Where a page's cursor is: the ring the card's buttons wear. The tour has
+  // no cursor apart from its pick, so a step shows one marked card, not two.
   Rectangle {
     visible: root.cursor
     anchors.fill: parent
@@ -70,9 +74,10 @@ BorderSurface {
   }
 
   // The check the menu gives the current choice, and software already here.
+  // In the tour it goes with the pick, which is the current choice to be.
   Text {
     id: mark
-    visible: root.current || root.installed
+    visible: root.chosen || root.current || root.installed
     textFormat: Text.PlainText
     text: "\uf00c"
     color: root.ink

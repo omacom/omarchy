@@ -618,7 +618,7 @@
   "setup.timezoneDetail": "The timezone your clock follows.",
   "setup.title": "Setup",
   "setup.tour": "Welcome tour",
-  "setup.tourHint": "Enter picks · Tab skips · Esc closes",
+  "setup.tourHint": "Arrows choose · Enter continues · Esc closes",
   "setup.welcomeHeader": "Welcome",
   "setup.wifiQrDetail": "The Wi-Fi you're on as a QR code, for a phone to scan.",
   "speedtest.download": "DOWNLOAD",

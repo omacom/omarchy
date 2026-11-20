@@ -8,7 +8,7 @@ import qs.Commons as Commons
 Desk {
   id: root
 
-  // Whether the cursor is on setting Tailscale up, or on leaving it.
+  // Whether the option being shown sets Tailscale up, or leaves it.
   property bool connected: true
   property real turn: 0
 

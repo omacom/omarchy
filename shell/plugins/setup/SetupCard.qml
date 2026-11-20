@@ -32,8 +32,15 @@ BorderSurface {
   property int pageIndex: 0
   // What the tour has picked so far, step id to option id.
   property var staged: ({})
-  // The option under the keyboard cursor or the pointer.
+  // The option the picture and the line under the options are about. On the
+  // pages it is the one under the keyboard cursor or the pointer. In the tour
+  // it is the step's pick and nothing else, so the card that is marked, the
+  // picture and what Finish sets up are never different things.
   property int cursor: 0
+  // In the tour the pointer lights the card it is over, and picks nothing
+  // until it clicks. It lights nothing until it moves: not where it happens
+  // to rest as a step opens, nor once the arrow keys take over.
+  property bool pointerAwake: false
   // On the summary, the button the keyboard is on: 0 goes back, 1 finishes.
   property int summaryCursor: 1
   // The page a summon asked for, until the pages are there to find it in.
@@ -42,9 +49,11 @@ BorderSurface {
   property bool pendingStart: false
   // On the pages, the keyboard has tabbed past the last one to the tour's link.
   property bool onTourLink: false
-  // The cursor is being moved by the pointer, which must not scroll the list
-  // out from under itself.
+  // The cursor is being moved, or a card picked, by the pointer. The card is
+  // under it already, so the list is not scrolled out from under it: not for
+  // this, nor by a scroll already on its way.
   property bool pointing: false
+  onPointingChanged: if (pointing) optionScroll.due = false
 
   signal dismissed()
   // A row to run as the menu would: its action, or its route into the menu.
@@ -133,10 +142,8 @@ BorderSurface {
   // What the tour has picked at a step: the choice made there, else what the
   // machine has now.
   function chosenId(step) {
-    if (!step) return ""
-    if (staged[step.id] !== undefined) return staged[step.id]
-    var current = SetupModel.currentOption(step)
-    return current ? current.id : ""
+    var option = SetupModel.pick(step, staged)
+    return option ? option.id : ""
   }
 
   // The cursor rests on the choice a page already shows, not on its first row.
@@ -152,7 +159,14 @@ BorderSurface {
     cursor = index
   }
 
-  onPageChanged: settleCursor()
+  onPageChanged: {
+    pointerAwake = false
+    // A page opens from its top, and from there shows its marked card.
+    optionScroll.contentY = 0
+    settleCursor()
+  }
+  // The tour's cursor has no say of its own: it goes where the pick goes.
+  onStagedChanged: settleCursor()
   onReadyChanged: {
     if (!ready) return
     seekPage()
@@ -167,6 +181,20 @@ BorderSurface {
   PointerMoveGate {
     id: pointerGate
     referenceItem: root
+  }
+
+  // The tour's own gate, for waking the pointer. It is fed from all of the
+  // card, so what it compares with is where the pointer last was, and it
+  // places the pointer in the window, which the card growing in as it opens
+  // does not change. That tells the pointer moving from a card arriving
+  // under it, with no reset.
+  PointerMoveGate {
+    id: wakeGate
+    referenceItem: root.Window.contentItem
+  }
+
+  HoverHandler {
+    onPointChanged: if (wakeGate.moved(root, point.position) && root.touring) root.pointerAwake = true
   }
 
   FontMetrics {
@@ -198,17 +226,27 @@ BorderSurface {
     staged = next
   }
 
-  // A click, or Enter: the tour remembers the choice, the pages run the row.
-  function choose(index, advance) {
+  // A click, or Enter on a page: the tour remembers the option as the step's
+  // pick, and the pages run the row.
+  function choose(index) {
     var option = options[index]
     if (!ready || !option || option.installed) return
-    cursor = index
     if (touring) {
       stage(option)
-      if (advance) goToStep(stepIndex + 1)
     } else {
+      cursor = index
       activated(option)
     }
+  }
+
+  // An arrow key. On a page it moves the cursor. In the tour it picks the
+  // option it lands on, since a cursor apart from the pick would have the
+  // picture show one option while another is marked.
+  function move(dx, dy) {
+    var next = SetupModel.moveCursor(page, columns, cursor, dx, dy)
+    pointerAwake = false
+    if (touring) choose(next)
+    else cursor = next
   }
 
   function finish() {
@@ -272,10 +310,12 @@ BorderSurface {
       if (enter) start("tour", "")
       else if (forward) goToPage(0)
       else if (back) goToPage(pages.length - 1)
-    } else if (event.key === Qt.Key_Space) {
-      choose(cursor, false)
+    } else if (enter && !touring) {
+      choose(cursor)
     } else if (enter) {
-      choose(cursor, true)
+      // The step's pick is made by moving to it, so Enter only moves on, and
+      // Space, which would pick, has nothing left to do.
+      if (event.key !== Qt.Key_Space) goToStep(stepIndex + 1)
     } else if (forward || event.key === Qt.Key_PageDown) {
       if (touring) goToStep(stepIndex + 1)
       else goToPage(pageIndex + 1)
@@ -283,13 +323,13 @@ BorderSurface {
       if (touring) goToStep(stepIndex - 1)
       else goToPage(pageIndex - 1)
     } else if (key === Qt.Key_Left) {
-      cursor = SetupModel.moveCursor(page, columns, cursor, -1, 0)
+      move(-1, 0)
     } else if (key === Qt.Key_Right) {
-      cursor = SetupModel.moveCursor(page, columns, cursor, 1, 0)
+      move(1, 0)
     } else if (up) {
-      cursor = SetupModel.moveCursor(page, columns, cursor, 0, -1)
+      move(0, -1)
     } else if (down) {
-      cursor = SetupModel.moveCursor(page, columns, cursor, 0, 1)
+      move(0, 1)
     } else {
       return false
     }
@@ -367,8 +407,8 @@ BorderSurface {
       anchors.verticalCenter: parent.verticalCenter
     }
 
-    // A dot, as an editor marks a file with changes: the check is kept for
-    // what the machine already has.
+    // A dot, as an editor marks a file with changes: the check is the mark of
+    // a pick, and of what the machine already has.
     Rectangle {
       id: railMark
       visible: row.changed
@@ -547,8 +587,8 @@ BorderSurface {
       anchors.leftMargin: Style.space(18)
       anchors.right: parent.right
 
-      // A step with a Not now card pictures the thing set up while the cursor
-      // is on it, and left alone while the cursor is on Not now.
+      // A step with a Not now card pictures the thing set up while it is the
+      // pick, and left alone while Not now is.
       readonly property bool wanted: !!root.cursorOption && root.cursorOption.id !== ""
       // What sits under the scene: the words, the options and the detail line,
       // with the gaps between them.
@@ -586,7 +626,8 @@ BorderSurface {
         LayoutScene {
           foreground: root.foreground
           accent: root.accent
-          mode: root.cursorOption && root.cursorOption.args && root.cursorOption.args.length > 1 ? root.cursorOption.args[1] : "dwindle"
+          // An option that sets no layout, Not now among them, draws none.
+          mode: root.cursorOption && root.cursorOption.args && root.cursorOption.args.length > 1 ? root.cursorOption.args[1] : ""
         }
       }
       Component {
@@ -705,18 +746,42 @@ BorderSurface {
         boundsBehavior: Flickable.StopAtBounds
         interactive: contentHeight > height
 
-        // Keeps the keyboard's cursor in view on a page long enough to
-        // scroll, and clear of the fade wherever more lies past it.
-        function reveal(item) {
-          if (!item) return
-          var top = item.mapToItem(optionColumn, 0, 0).y
-          var bottom = top + item.height + bleed * 2
-          if (top - fade < contentY) contentY = Math.max(0, Math.floor(top - fade))
-          else if (bottom + fade > contentY + height) contentY = Math.min(contentHeight - height, Math.ceil(bottom + fade - height))
+        // The card that is marked: a page's cursor, or a step's pick.
+        property Item kept: null
+        // A scroll to it is on its way.
+        property bool due: false
+
+        // Brings that card into view on a page long enough to scroll, and
+        // clear of the fade wherever more lies past it, moving the list no
+        // further than that takes.
+        function reveal() {
+          if (!due) return
+          due = false
+          if (!kept) return
+          var top = kept.place
+          var bottom = top + kept.height + bleed * 2
+          var y = contentY
+          if (top - fade < y) y = Math.floor(top - fade)
+          else if (bottom + fade > y + height) y = Math.ceil(bottom + fade - height)
+          contentY = Math.max(0, Math.min(contentHeight - height, y))
         }
 
-        // With the pointer gone, the picture goes back to the pick rather
-        // than staying on whichever option it crossed last on its way out.
+        // Asked for whenever the marked card, where it sits or the room for
+        // the list changes, and done once those have settled: a card is
+        // created before its grid and its group have placed it, and the list
+        // is as long as it will be later still.
+        function follow() {
+          if (root.pointing) return
+          due = true
+          Qt.callLater(reveal)
+        }
+
+        onContentHeightChanged: follow()
+        onHeightChanged: follow()
+
+        // With the pointer gone, a page's picture goes back to what the
+        // machine has rather than staying on whichever option the pointer
+        // crossed last on its way out.
         HoverHandler {
           onHoveredChanged: if (!hovered) root.settleCursor()
         }
@@ -767,6 +832,10 @@ BorderSurface {
                     required property int index
                     required property var modelData
                     readonly property int flat: group.base + index
+                    // Where the card sits among the options, once its grid
+                    // and its group have placed it.
+                    readonly property real place: group.y + grid.y + y
+                    readonly property bool marked: cursor || chosen
 
                     width: root.single ? Style.space(200) : (grid.width - (grid.columns - 1) * grid.spacing) / grid.columns
                     label: root.single ? root.actionLabel(modelData) : modelData.label
@@ -774,20 +843,37 @@ BorderSurface {
                     iconFont: modelData.iconFont
                     large: root.large && !root.single
                     labelSize: root.labelSize
-                    cursor: root.cursor === flat && !root.onTourLink
+                    // A page marks its cursor and, as the menu does, what the
+                    // machine has. A step of the tour marks its pick alone.
+                    cursor: !root.touring && root.cursor === flat && !root.onTourLink
+                    lights: root.touring && root.pointerAwake
                     chosen: root.touring && root.chosenId(root.page) === modelData.id
-                    current: modelData.current
+                    current: !root.touring && modelData.current
                     installed: modelData.installed
                     foreground: root.foreground
                     accent: root.accent
+                    // On a page the cursor goes where the pointer moves. In
+                    // the tour the pointer picks nothing by moving.
                     onPointed: function(mouse) {
-                      if (!pointerGate.moved(card, mouse)) return
+                      if (root.touring || !pointerGate.moved(card, mouse)) return
                       root.pointing = true
                       root.cursor = flat
                       root.pointing = false
                     }
-                    onClicked: root.choose(flat, false)
-                    onCursorChanged: if (cursor && !root.pointing) optionScroll.reveal(card)
+                    onClicked: {
+                      root.pointing = true
+                      root.choose(flat)
+                      root.pointing = false
+                    }
+                    onMarkedChanged: {
+                      if (marked) {
+                        optionScroll.kept = card
+                        optionScroll.follow()
+                      } else if (optionScroll.kept === card) {
+                        optionScroll.kept = null
+                      }
+                    }
+                    onPlaceChanged: if (marked) optionScroll.follow()
                   }
                 }
               }

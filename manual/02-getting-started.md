@@ -36,7 +36,7 @@ But in special circumstances, like remote Omarchy installs on protected computer
 
 ### The welcome tour
 
-The first time you log in, Omarchy greets you with a short tour of the choices worth making early: how windows arrange themselves (tiling, scrolling or floating), which coding agent you want, how dictation works, whether to run an AI model on your own machine (offered only if your hardware can), and Tailscale. Each step shows what a choice does before you make it.
+The first time you log in, Omarchy greets you with a short tour of the choices worth making early: how windows arrange themselves (tiling, scrolling or floating), which coding agent you want, how dictation works, whether to run an AI model on your own machine (offered only if your hardware can), and Tailscale. Each step draws the option you have picked, so you can try each one and see what it does before anything changes.
 
 Nothing changes until you hit _Finish_ on the last screen, which lists what you picked. Skip the whole thing with `Escape` or _Skip tour_ and your system stays exactly as it was installed. If you picked anything that needs installing, one terminal opens and works through it all in turn. Once closed, the tour won't open again on its own.
 

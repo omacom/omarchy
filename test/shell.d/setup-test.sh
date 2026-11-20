@@ -144,6 +144,13 @@ assertDeepEqual(flags(plan.argv), [['--agent', 'claude'], ['--dictation', 'voxty
 assertDeepEqual(plan.changes.map((change) => change.page).sort(), ['agent', 'dictation', 'layout', 'local-ai', 'tailscale'],
   'and the plan says which steps those were')
 
+// One answer to what a step's pick is, for its card, its picture and the plan.
+assertEqual(Setup.pick(tour[0], {}).id, 'appearance.workspace-layout.dwindle', 'a step nothing was chosen at is on what the machine has')
+assertEqual(Setup.pick(tour[1], {}).id, '', 'or on Not now, where the machine has nothing')
+const stale = { layout: 'appearance.workspace-layout.gone' }
+assertEqual(Setup.pick(tour[0], stale).id, 'appearance.workspace-layout.dwindle', 'a choice the step no longer offers falls back the same way')
+assertDeepEqual(Setup.tourPlan(tour, stale).argv, [], 'and the plan falls back with it')
+
 // A row from a menu extension with a command of its own.
 const extended = withRows({ 'agent.harness.mine': { label: 'Mine', action: 'my-agent --start; echo done' } })
 assert(options(pagesFor(nothing, null, extended), 'agent').some((option) => option.id === 'agent.harness.mine'), 'an extension row is offered on the pages')
@@ -162,6 +169,24 @@ assertEqual(found('security'), 'setup.security', 'a page is found by the last pa
 assertEqual(found('Defaults'), 'setup.default', 'a page is found by the name the rail shows')
 assertEqual(Setup.pageIndex(fresh, 'nowhere'), -1, 'an unknown page is not found')
 JS
+
+# --- A step of the tour marks, draws and sets up one pick ---
+
+# The card itself, given its keys and a pointer. Off screen, so it needs no
+# desktop and shows on none, with a runtime directory of its own, so what
+# Quickshell keeps there goes when the fixture does.
+if command -v quickshell >/dev/null 2>&1; then
+  require_command jq
+  (
+    unset WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE DISPLAY
+    qml_fixture_scratch
+    mkdir -m 700 "$QML_FIXTURE_TMP/runtime"
+    XDG_RUNTIME_DIR="$QML_FIXTURE_TMP/runtime" QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QPA_PLATFORMTHEME= \
+      run_qml_fixture setup-tour "a step of the tour marks, draws and sets up one pick; no scroll follows a click or a lost mark, and a pointer at rest lights no card" Ui Commons plugins
+  )
+else
+  skip "quickshell not installed; skipping the tour's card"
+fi
 
 # --- omarchy-setup-essentials sets the choices up in order ---
 
