@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Kimi
+Comment=Start Kimi in a terminal
+Exec=omarchy-agent --agent kimi --app-id=org.omarchy.kimi
+Icon=omarchy-agent-kimi
+StartupWMClass=org.omarchy.kimi
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new

@@ -6,7 +6,7 @@ Omarchy is mostly focused on providing free, open source software, but it's not 
 
 Keeping your passwords in a password manager is a best practice. Doubly so if you're working with a team. And [1password](https://1password.com/) is a great solution, which also comes with a command line tool for integrating key lookups in scripts.
 
-You start 1Password with `Super + Shift + /`. If it isn't installed yet, that hotkey kicks off the installation first (you can also use _Install > Service > 1Password_ from the Omarchy menu). The installer sets up the 1Password extension for Chromium as well.
+You start 1Password with `Super + Shift + /`. If it isn't installed yet, that hotkey kicks off the installation first (you can also use _Install > Service > 1Password_ from the Omarchy menu). The installer also brings the 1Password command line tool and sets up the 1Password extension for Chrome and Chromium; restart your browser to load it.
 
 ## Bitwarden
 
@@ -20,9 +20,13 @@ You start 1Password with `Super + Shift + /`. If it isn't installed yet, that ho
 
 [Slack](https://slack.com/) is where a lot of teams do their chatting, both inside the company and with outside collaborators. Install it with _Install > Service > Slack_ from the Omarchy menu, and it'll open as soon as it's ready.
 
+## Notion
+
+[Notion](https://www.notion.com/) is a workspace for notes, docs, and projects. Install its desktop app with _Install > Service > Notion_ from the Omarchy menu.
+
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/) is a great way to sync files between machines while keeping a backup in the cloud. To set it up, select _Install > Service > Dropbox_ from the Omarchy menu. Once it's running, hover the tray in the top right of the bar and right-click the Dropbox icon to finish the setup.
+[Dropbox](https://www.dropbox.com/) is a great way to sync files between machines while keeping a backup in the cloud. To set it up, select _Install > Service > Dropbox_ from the Omarchy menu. It adds a Dropbox icon to the bar: click it to log in, then use the same panel to check your storage and open recently synced files.
 
 ## Tailscale
 
