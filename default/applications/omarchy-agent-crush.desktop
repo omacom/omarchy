@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Crush
+Comment=Start Crush in a terminal
+Exec=omarchy-agent --agent crush --app-id=org.omarchy.crush
+Icon=omarchy-agent-crush
+StartupWMClass=org.omarchy.crush
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new
