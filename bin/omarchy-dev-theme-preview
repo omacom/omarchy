@@ -92,6 +92,9 @@ resolve_colors_file() {
       elif [[ -f $USER_THEMES_PATH/$theme_name/alacritty.toml ]]; then
         colors_from_alacritty "$USER_THEMES_PATH/$theme_name"
         return
+      elif [[ -f $OMARCHY_THEMES_PATH/$theme_name/alacritty.toml ]]; then
+        colors_from_alacritty "$OMARCHY_THEMES_PATH/$theme_name"
+        return
       fi
     done
     return 1
