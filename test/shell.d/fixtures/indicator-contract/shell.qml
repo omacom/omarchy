@@ -211,11 +211,61 @@ ShellRoot {
 
   function checkInactiveOrders(cases) {
     if (cases.length === 0) {
-      checkTraySection(writeResult)
+      checkTraySection(function() { checkSectionPeek(writeResult) })
       return
     }
     checkInactiveOrder(cases[0], function() {
       root.checkInactiveOrders(cases.slice(1))
+    })
+  }
+
+  // Hidden indicators keep hiddenBlockZone underneath the icons so buttons keep
+  // their cursor and tooltips, and moving between two end-anchored sections
+  // updates the surface peek span to cover the new section.
+  function checkSectionPeek(done) {
+    notificationService.doNotDisturb = false
+    remoteSessionService.active = false
+    nightlightService.setNightlight(false)
+    idleService.setIdleEnabled(true)
+
+    var surface = Qt.createQmlObject("import QtQuick; Item { width: 968; height: 26 }", root)
+    var centerBegin = Qt.createQmlObject("import QtQuick; Item { x: 400; width: 0; height: 26 }", surface)
+    var rightSection = Qt.createQmlObject("import QtQuick; Item { x: 870; width: 90; height: 26 }", surface)
+    var component = Qt.createComponent("file://" + rootPath + "/shell/plugins/bar/widgets/Indicators.qml")
+    var tray = component.createObject(centerBegin, {
+      fixedEdge: "end",
+      sectionItem: centerBegin,
+      bar: mockBar,
+      moduleName: "omarchy.indicators",
+      settings: { items: ["Dnd", "NightLight", "StayAwake"] }
+    })
+    if (!tray) {
+      fail("section peek: Indicators failed to instantiate: " + component.errorString())
+      surface.destroy()
+      done()
+      return
+    }
+
+    Qt.callLater(function() {
+      root.layOut(tray)
+      var zoneIndex = -1
+      var loaderIndex = -1
+      for (var i = 0; i < tray.children.length; i++) {
+        if (tray.children[i].objectName === "hiddenBlockZone") zoneIndex = i
+        else if (tray.children[i].sourceComponent !== undefined) loaderIndex = i
+      }
+      root.assertTrue(zoneIndex >= 0 && loaderIndex > zoneIndex,
+        "section peek: hiddenBlockZone sits underneath the icon loader (" + zoneIndex + " < " + loaderIndex + ")")
+
+      // Live move from empty centerBegin to right index 0 (same fixedEdge "end").
+      tray.parent = rightSection
+      tray.x = 0
+      tray.sectionItem = rightSection
+      var span = tray.peekSpanIn(surface)
+      root.assertTrue(span !== null && span.start < 870 && span.end === 960,
+        "section peek: right index 0 covers growth zone and right section, got " + JSON.stringify(span))
+      surface.destroy()
+      done()
     })
   }
 

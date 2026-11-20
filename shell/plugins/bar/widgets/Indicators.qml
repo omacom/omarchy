@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "../BarModel.js" as BarModel
 
 BarWidget {
   id: root
@@ -14,6 +15,14 @@ BarWidget {
   property var indicatorActiveStates: ({})
   property bool indicatorAreaHovered: false
   property bool indicatorItemHovered: false
+  // The bar surface watches the same span, joined with the section that holds
+  // this widget (sectionItem). A collapsed widget is a point, so the zone
+  // beside it can sit outside every ancestor that would deliver hover.
+  property bool indicatorBarHovered: false
+  // The section list this widget is drawn in. Null in the contract fixture,
+  // which has no bar around it. The hover zone itself stays the growth side;
+  // the section is only added when the bar tests the pointer.
+  property Item sectionItem: null
   // Held a moment after the pointer leaves, so crossing between icons, or a
   // frame where the widget moves under a still pointer, doesn't flicker them.
   property bool hoverRevealHeld: false
@@ -21,6 +30,14 @@ BarWidget {
   // The tray's drawer already hides them until hovered, and an empty widget
   // there would leave no room to hover for a second reveal.
   readonly property bool revealInactiveIndicators: alwaysShowIndicators || inTraySection || hoverRevealHeld
+  readonly property real inactiveReach: orientationLoader.item ? orientationLoader.item.inactiveLength : 0
+  // In the widget's own coordinates. The fixed edge is 0, the widget's
+  // length, or its midpoint, which is the point the section holds still.
+  readonly property var indicatorPeekSpan: {
+    var length = root.vertical ? root.implicitHeight : root.implicitWidth
+    var origin = root.fixedEdge === "start" ? 0 : root.fixedEdge === "center" ? length / 2 : length
+    return BarModel.indicatorPeekSpan(root.fixedEdge, origin, length, root.inactiveReach, root.revealInactiveIndicators)
+  }
   // The active block sits against the widget's fixed edge, and everything that
   // grows the widget (revealed inactive icons, newly active ones) goes on its
   // far side, so the icons already showing keep their click targets. A
@@ -88,8 +105,41 @@ BarWidget {
     syncHoverReveal()
   }
 
+  function setIndicatorBarHovered(hovered) {
+    if (indicatorBarHovered === hovered) return
+    indicatorBarHovered = hovered
+    syncHoverReveal()
+  }
+
+  // `target` is the bar surface. The span is computed in that item's
+  // coordinates so the surface can test the pointer without the local hover
+  // zone having to sit over neighbouring widgets.
+  function sectionSpanIn(target) {
+    var list = sectionItem
+    if (!list || !target) return null
+    var extent = vertical ? list.height : list.width
+    if (!(extent > 0)) return null
+    var origin = list.mapToItem(target, 0, 0)
+    var start = vertical ? origin.y : origin.x
+    if (!isFinite(start)) return null
+    return { start: start, end: start + extent }
+  }
+
+  function peekSpanIn(target) {
+    if (!target) return null
+    var length = vertical ? implicitHeight : implicitWidth
+    var localOrigin = fixedEdge === "start" ? 0 : fixedEdge === "center" ? length / 2 : length
+    var point = mapToItem(target, vertical ? 0 : localOrigin, vertical ? localOrigin : 0)
+    var origin = vertical ? point.y : point.x
+    var section = sectionSpanIn(target)
+    return BarModel.indicatorPeekSpan(
+      fixedEdge, origin, length, inactiveReach, revealInactiveIndicators,
+      section ? section.start : NaN, section ? section.end : NaN
+    )
+  }
+
   function syncHoverReveal() {
-    if (indicatorAreaHovered || indicatorItemHovered) {
+    if (indicatorAreaHovered || indicatorItemHovered || indicatorBarHovered) {
       indicatorHideTimer.stop()
       hoverRevealHeld = true
     } else {
@@ -219,12 +269,40 @@ BarWidget {
   Timer {
     id: indicatorHideTimer
     interval: 120
-    onTriggered: if (!root.indicatorAreaHovered && !root.indicatorItemHovered) root.hoverRevealHeld = false
+    onTriggered: if (!root.indicatorAreaHovered && !root.indicatorItemHovered && !root.indicatorBarHovered) root.hoverRevealHeld = false
   }
 
   Component.onCompleted: {
     syncInactiveIndicatorModel()
     root.refreshRequested()
+  }
+
+  // Where the hidden icons would show: hovering there reveals them, and the
+  // rest of the bar leaves them hidden. Hidden, they take no room, so the zone
+  // reaches past the widget on the side they grow toward (both sides when the
+  // widget is centered). Revealed, a start or end edge keeps half that reach
+  // past the widget: the centered box slides half its growth back the other
+  // way, and a zone that stopped at the widget's edge would lose the pointer
+  // that opened it. Placed under orientationLoader so the icons stay on top
+  // and keep their hover, pointing-hand cursor, and tooltips; the bar surface
+  // tests the same span across the widget and its section.
+  Item {
+    id: hiddenBlockZone
+    objectName: "hiddenBlockZone"
+
+    readonly property var span: root.indicatorPeekSpan
+    readonly property real spanStart: span ? span.start : 0
+    readonly property real spanEnd: span ? span.end : 0
+
+    x: root.vertical ? 0 : spanStart
+    y: root.vertical ? spanStart : 0
+    width: root.vertical ? root.implicitWidth : Math.max(0, spanEnd - spanStart)
+    height: root.vertical ? Math.max(0, spanEnd - spanStart) : root.implicitHeight
+    visible: !!span
+
+    HoverHandler {
+      onHoveredChanged: root.setIndicatorAreaHovered(hovered)
+    }
   }
 
   // Instantiating both orientation trees and toggling `visible` doubled every
@@ -233,30 +311,6 @@ BarWidget {
   Loader {
     id: orientationLoader
     sourceComponent: root.vertical ? verticalIndicatorsTree : horizontalIndicatorsTree
-  }
-
-  // Where the hidden icons would show: hovering there reveals them, and the
-  // rest of the bar leaves them hidden. Hidden, they take no room, so the zone
-  // reaches past the widget on the side they grow toward. Revealed, it keeps
-  // half that reach: in the centered box the widget slides half its growth
-  // back the other way as the box re-centers, and a zone that stopped at the
-  // widget's edge would lose the pointer that opened it, closing and
-  // reopening in a loop. Above the icons, which a hover handler doesn't block.
-  Item {
-    objectName: "hiddenBlockZone"
-
-    readonly property real reach: (orientationLoader.item ? orientationLoader.item.inactiveLength : 0) * (root.revealInactiveIndicators ? 0.5 : 1)
-    readonly property real alongStart: root.fixedAtStart ? 0 : -reach
-    readonly property real alongLength: (root.vertical ? root.implicitHeight : root.implicitWidth) + reach
-
-    x: root.vertical ? 0 : alongStart
-    y: root.vertical ? alongStart : 0
-    width: root.vertical ? root.implicitWidth : alongLength
-    height: root.vertical ? alongLength : root.implicitHeight
-
-    HoverHandler {
-      onHoveredChanged: root.setIndicatorAreaHovered(hovered)
-    }
   }
 
   // The two blocks are placed by hand rather than by a Row or Column: a

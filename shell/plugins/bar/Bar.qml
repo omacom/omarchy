@@ -901,6 +901,33 @@ Item {
     return items
   }
 
+  // Hidden indicators peek on the side they grow toward and across the still
+  // side of the section that holds them (BarModel.indicatorPeekSpan). The
+  // widget's own zone hangs outside a collapsed slot, so the bar surface tests
+  // each indicators widget's span directly.
+  function syncIndicatorBarPeek(pool, surface, pos) {
+    if (!pool || !surface || !pos) return
+    var axis = vertical ? pos.y : pos.x
+    var hosts = pool.hosts || {}
+    for (var key in hosts) {
+      var host = hosts[key]
+      if (!host || !host.owner) continue
+      var item = host.activeItem
+      if (!item || typeof item.setIndicatorBarHovered !== "function" || typeof item.peekSpanIn !== "function") continue
+      item.setIndicatorBarHovered(BarModel.axisInSpan(axis, item.peekSpanIn(surface)))
+    }
+  }
+
+  function clearIndicatorBarPeek(pool) {
+    if (!pool) return
+    var hosts = pool.hosts || {}
+    for (var key in hosts) {
+      var host = hosts[key]
+      var item = host && host.activeItem
+      if (item && typeof item.setIndicatorBarHovered === "function") item.setIndicatorBarHovered(false)
+    }
+  }
+
   function slotScreenName(slot) {
     var window = slotWindow(slot)
     return window && window.screen ? String(window.screen.name || "") : ""
@@ -1871,7 +1898,19 @@ Item {
       id: horizontalBar
 
       Item {
+        id: horizontalSurface
         anchors.fill: parent
+
+        // Tracks the pointer across the bar strip so a collapsed indicators
+        // widget can peek from its growth side and the still side of its
+        // section without stealing hover from child widgets.
+        HoverHandler {
+          onHoveredChanged: {
+            if (hovered) root.syncIndicatorBarPeek(horizontalPool, horizontalSurface, point.position)
+            else root.clearIndicatorBarPeek(horizontalPool)
+          }
+          onPointChanged: if (hovered) root.syncIndicatorBarPeek(horizontalPool, horizontalSurface, point.position)
+        }
 
         WidgetPool { id: horizontalPool }
 
@@ -1921,7 +1960,16 @@ Item {
       id: verticalBar
 
       Item {
+        id: verticalSurface
         anchors.fill: parent
+
+        HoverHandler {
+          onHoveredChanged: {
+            if (hovered) root.syncIndicatorBarPeek(verticalPool, verticalSurface, point.position)
+            else root.clearIndicatorBarPeek(verticalPool)
+          }
+          onPointChanged: if (hovered) root.syncIndicatorBarPeek(verticalPool, verticalSurface, point.position)
+        }
 
         WidgetPool { id: verticalPool }
 
@@ -2691,6 +2739,10 @@ Item {
       fixedEdge = owner.fixedEdge
       inTraySection = owner.region === "tray"
       placed = true
+      // A live move between two sections sharing the same fixedEdge (for
+      // example centerBegin -> right) leaves fixedEdge and inTraySection
+      // unchanged, so refresh sectionItem explicitly.
+      injectProps()
     }
     // One no slot takes up again by the time the update is over, as one in
     // the tray's drawer while the tray is off the bar, is unloaded rather
@@ -2757,6 +2809,7 @@ Item {
       // a bar, as the indicators do by reporting which are already active.
       if ("fixedEdge" in target) target.fixedEdge = fixedEdge
       if ("inTraySection" in target) target.inTraySection = inTraySection
+      if ("sectionItem" in target) target.sectionItem = owner ? owner.parent : null
       if ("bar" in target) target.bar = firstParty
         ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered)
       if ("moduleName" in target) target.moduleName = moduleName
