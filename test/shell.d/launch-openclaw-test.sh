@@ -61,6 +61,18 @@ grep -q '^omarchy-launch-webapp:http://127.0.0.1:18789/#handoff$' "$TEST_LOG" ||
   fail "OpenClaw launch opens the running gateway's handoff URL"
 pass "OpenClaw launch opens the running gateway's handoff URL"
 
+# Behind an install window's Done prompt the handoff could expire before it is
+# used, so the launch waits there whole and fetches its own URL when it runs.
+: >"$TEST_LOG"
+queue="$tmp_dir/after-done"
+: >"$queue"
+OMARCHY_LAUNCH_AFTER_DONE="$queue" PATH="$tmp_dir/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-launch-openclaw"
+! grep -q '^omarchy-launch-webapp:' "$TEST_LOG" ||
+  fail "OpenClaw launch inside an install window waits for its Done prompt" "webapp opened before Done"
+grep -q '^setsid -f omarchy-launch-openclaw ' "$queue" ||
+  fail "OpenClaw launch inside an install window waits for its Done prompt" "$(<"$queue")"
+pass "OpenClaw launch inside an install window waits for its Done prompt"
+
 # A machine whose gateway unit was never enabled (never installed, or an
 # install that died after writing the unit) gets `gateway install --force`,
 # then is polled until the dashboard answers. Never `dashboard --yes`: since

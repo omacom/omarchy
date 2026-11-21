@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Launch an app once the install window's Done prompt is answered, or now outside one
+# omarchy:args=<command> [args...]
+# omarchy:hidden=true
+
+# An app opened before the Done prompt takes the focus and with it the key the
+# prompt waits for, so inside the presentation the launch waits for its exit.
+if [[ -n ${OMARCHY_LAUNCH_AFTER_DONE:-} && -w $OMARCHY_LAUNCH_AFTER_DONE ]]; then
+  printf -v launch '%q ' "$@"
+  printf 'setsid -f %s</dev/null >/dev/null 2>&1\n' "$launch" >>"$OMARCHY_LAUNCH_AFTER_DONE"
+else
+  unset OMARCHY_LAUNCH_AFTER_DONE
+  setsid -f "$@" </dev/null >/dev/null 2>&1
+fi
