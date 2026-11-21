@@ -104,3 +104,12 @@ pass "a limits-only update runs an unused agent it names"
 run_update
 [[ -e $TEST_HOME/idle-ran ]] || fail "a full update still runs unused agents"
 pass "a full update still runs unused agents"
+
+run_update --force --limits-only
+[[ -e $TEST_HOME/idle-ran ]] || fail "a forced limits-only update still runs unused agents"
+pass "a forced limits-only update still runs unused agents"
+
+touch -d '2 hours ago' "$usage_dir/idle.json"
+run_update --limits-only
+[[ -e $TEST_HOME/idle-ran ]] || fail "a limits-only update runs an unused agent whose record is over an hour old"
+pass "a limits-only update runs an unused agent whose record is over an hour old"

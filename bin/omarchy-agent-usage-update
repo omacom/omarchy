@@ -72,9 +72,15 @@ export OMARCHY_AGENT_USAGE_REFRESH_AT=${EPOCHREALTIME/,/.}
 # last record the panel hides as unused: starting every collector at once
 # takes seconds of CPU from the frames the panel is drawing. Full and forced
 # refreshes still run them all, so an agent put to use shows up on the next
-# one. The test mirrors providerHasData() in shell/plugins/agents/Main.qml.
+# one. Only a record written in the last hour counts, so the limits-only runs
+# that replace full ones while an account nears its limit still look again
+# hourly. The test mirrors providerHasData() in shell/plugins/agents/Main.qml.
 declare -A idle
-if [[ " ${flags[*]} " == *" --limits-only "* ]] && (( ${#only[@]} == 0 )); then
+recent=()
+if [[ " ${flags[*]} " == *" --limits-only "* && " ${flags[*]} " != *" --force "* ]] && (( ${#only[@]} == 0 )); then
+  mapfile -d '' recent < <(find "$USAGE_DIR" -maxdepth 1 -name '*.json' -mmin -60 -print0)
+fi
+if (( ${#recent[@]} > 0 )); then
   while read -r agent; do
     [[ -n $agent ]] && idle[$agent]=1
   done < <(jq -r 'select(
@@ -83,7 +89,7 @@ if [[ " ${flags[*]} " == *" --limits-only "* ]] && (( ${#only[@]} == 0 )); then
       or (.limits | length > 0) or (.accounts | length > 0)
       or (.balance | . != null and . != false) or (.spend | . != null and . != false)
       or (.ready == true and (.tierLabel // "") != "") | not) | .id // empty' \
-    "$USAGE_DIR"/*.json 2>/dev/null)
+    "${recent[@]}" 2>/dev/null)
 fi
 
 pids=()
