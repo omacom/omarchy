@@ -10,7 +10,8 @@ set -euo pipefail
 # the user's ~/.config/mimeapps.list, so every app opens text files in the
 # editor picked under Setup > Default > Editor. --unless-chosen leaves a type
 # alone when the user picked an app for it themselves, keeping only Omarchy's
-# own past defaults (Neovim, then Plain) to replace.
+# own past defaults (Neovim, then Plain) and apps no longer installed to
+# replace.
 
 handler=omarchy-launch-editor.desktop
 unless_chosen=false
@@ -32,8 +33,8 @@ mkdir -p "$(dirname "$list")"
 tr -d '\r' <"$list" | grep -qE '^[[:space:]]*\[Default Applications\][[:space:]]*$' ||
   printf '\n[Default Applications]\n' >>"$list"
 
-# The older ~/.local/share list counts too, for a type ~/.config doesn't set:
-# a line here would hide what the user chose there.
+# The older ~/.local/share list counts too, for a type ~/.config doesn't set to
+# an installed app: a line here would hide what the user chose there.
 older="${XDG_DATA_HOME:-$HOME/.local/share}/applications/mimeapps.list"
 [[ -f $older ]] || older=/dev/null
 
@@ -46,14 +47,49 @@ older="${XDG_DATA_HOME:-$HOME/.local/share}/applications/mimeapps.list"
 aliases=/usr/share/mime/aliases
 [[ -f $aliases ]] || aliases=/dev/null
 
-updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_chosen" -v older="$older" -v aliases="$aliases" '
+# The apps that are installed, by desktop ID (a subfolder's / read as -, as
+# GLib names them), following linked folders. A desktop file that exists
+# counts. Data dirs are taken literally, so a name that is a glob is not
+# expanded into whatever else it matches. Flatpak's export dirs are scanned
+# too, even when this process's XDG_DATA_DIRS doesn't list them (a TTY, SSH,
+# or a session started before Flatpak was installed). The migration runs
+# once, so an editor missed here would be replaced for good.
+# OMARCHY_FLATPAK_EXPORTS overrides the system export dir.
+# A type's line opens the first installed app it lists; one that lists none
+# was a choice once, but GLib skips it and opens the type in whatever it
+# finds next, so it's replaced like Omarchy's own past defaults.
+installed=$(
+  data_dirs=()
+  IFS=: read -r -a data_dirs <<< "${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  declare -A seen_dir=()
+  for dir in "${XDG_DATA_HOME:-$HOME/.local/share}" "${data_dirs[@]}" \
+    "${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/share" \
+    "${OMARCHY_FLATPAK_EXPORTS:-/var/lib/flatpak/exports/share}"; do
+    [[ -n $dir ]] || continue
+    [[ -z ${seen_dir["$dir"]+x} ]] || continue
+    seen_dir["$dir"]=1
+    if [[ -d $dir/applications ]]; then
+      find -L "$dir/applications" -name '*.desktop' -printf '%P\n' 2>/dev/null | tr / - || true
+    fi
+  done
+)
+
+updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_chosen" -v older="$older" -v aliases="$aliases" -v installed="$installed" '
   function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
   function ours(app) { return app == "nvim.desktop" || app == "plain.desktop" || app == handler }
+  # The app a line opens: the first one it lists that is installed.
+  function opens(value,   apps, count, i) {
+    count = split(value, apps, ";")
+    for (i = 1; i <= count; i++) if (trim(apps[i]) in present) return trim(apps[i])
+    return trim(apps[1])
+  }
   function canon(t) { return (t in alias) ? alias[t] : t }
   BEGIN {
     while ((getline pair < aliases) > 0) { split(pair, part, " "); alias[part[1]] = part[2] }
     n = split(types, list, "\n")
     for (i = 1; i <= n; i++) wanted[canon(list[i])] = 1
+    split(installed, apps, "\n")
+    for (i in apps) present[apps[i]] = 1
   }
   function header(line) { sub(/\r$/, "", line); return trim(line) }
   FILENAME != current { current = FILENAME; file = (FILENAME == older ? 1 : 2); section = "" }
@@ -64,7 +100,7 @@ updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_
   }
   {
     type = $0; sub(/=.*/, "", type); type = trim(type)
-    app = $0; sub(/\r$/, "", app); sub(/^[^=]*=/, "", app); sub(/;.*/, "", app); app = trim(app)
+    app = $0; sub(/\r$/, "", app); sub(/^[^=]*=/, "", app); app = opens(app)
   }
   # GLib reads a key by its last line, and among the names of one type
   # (aliases) the one listed first decides, so record both orders.
@@ -84,8 +120,9 @@ updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_
     }
   }
   END {
-    for (k = 1; k <= key_count; k++) if (!(canon(keys[k]) in chosen)) chosen[canon(keys[k])] = !ours(last[keys[k]])
-    for (k = 1; k <= older_count; k++) if (!(canon(older_keys[k]) in older_choice)) older_choice[canon(older_keys[k])] = !ours(older_last[older_keys[k]])
+    # A line naming no installed app is one GLib reads past, so it decides nothing.
+    for (k = 1; k <= key_count; k++) if (!(canon(keys[k]) in chosen) && (last[keys[k]] in present)) chosen[canon(keys[k])] = !ours(last[keys[k]])
+    for (k = 1; k <= older_count; k++) if (!(canon(older_keys[k]) in older_choice) && (older_last[older_keys[k]] in present)) older_choice[canon(older_keys[k])] = !ours(older_last[older_keys[k]])
     if (unless_chosen == "true") {
       for (type in chosen) if (chosen[type]) keep[type] = 1
       for (type in older_choice) if (older_choice[type] && !(type in chosen)) keep[type] = 1
