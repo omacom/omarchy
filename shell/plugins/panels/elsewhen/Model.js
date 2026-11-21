@@ -1016,6 +1016,24 @@ function usesTwentyFourHour(timeFormat) {
   return !/[Aa]/.test(pattern)
 }
 
+// The bar clock's choice, so the two clocks agree. Null when the bar has no
+// clock, or its format shows no hour to tell 12 from 24 by.
+function barClockHour24(layout, vertical) {
+  if (!layout || typeof layout !== "object") return null
+  var sections = ["left", "centerBegin", "center", "centerEnd", "right", "tray"]
+  for (var s = 0; s < sections.length; s++) {
+    var list = Array.isArray(layout[sections[s]]) ? layout[sections[s]] : []
+    for (var i = 0; i < list.length; i++) {
+      var entry = list[i]
+      if (!entry || typeof entry !== "object" || entry.id !== "omarchy.clock") continue
+      var format = String(entry[vertical ? "verticalFormat" : "format"] || "")
+      if (!/[Hh]/.test(format.replace(/'[^']*'/g, ""))) return null
+      return usesTwentyFourHour(format)
+    }
+  }
+  return null
+}
+
 // An explicit setting wins, and a stored `false` is explicit.
 function resolveHour24(setting, auto) {
   if (setting === true || setting === false) return setting
@@ -1372,6 +1390,7 @@ if (typeof module !== "undefined") {
     mergeFacts: mergeFacts,
     resolveUnits: resolveUnits,
     usesTwentyFourHour: usesTwentyFourHour,
+    barClockHour24: barClockHour24,
     resolveHour24: resolveHour24,
     formatTemp: formatTemp,
     tempLabel: tempLabel,
