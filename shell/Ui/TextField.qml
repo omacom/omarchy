@@ -41,6 +41,15 @@ TextField {
 
   readonly property bool _masked: password && !revealed
 
+  // What goes in the field ("City"), never its example: placeholder text is
+  // often a sample ("90", "Work") and disappears once the user types, so it
+  // stays the description, as in Qt Quick Controls' own TextField. Qt never
+  // reports a name for a password field, so it rides in the description there.
+  property string accessibleName: ""
+
+  Accessible.name: accessibleName
+  Accessible.description: password && accessibleName !== "" ? accessibleName : placeholderText
+
   // The password dot (U+25CF) is wider than a monospace cell, so masked
   // text runs together. Space the dots apart, as the lock screen does, but
   // only while there are dots so the placeholder keeps its normal spacing.

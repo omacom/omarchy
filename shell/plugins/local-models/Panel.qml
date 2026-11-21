@@ -867,6 +867,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("localModels.title")
     anchors.fill: parent
     bar: root.bar
     text: "󰙴"
@@ -878,6 +879,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("localModels.title")
     anchorItem: button
     owner: root
     bar: root.bar
@@ -1516,6 +1518,7 @@ Panel {
           visible: section.actions.indexOf("pair") >= 0
           iconText: "󰐊"
           tooltipText: section.remote ? Commons.I18n.t("localModels.networkPair").arg(section.model.host) : ""
+          accessibleName: Commons.I18n.t("localModels.networkPair").arg(section.remote ? section.model.host : "")
           foreground: engine.pairingId !== "" ? root.dim : root.foreground
           opacity: engine.pairingId !== "" ? 0.5 : 1
           fontFamily: root.fontFamily
@@ -1531,6 +1534,7 @@ Panel {
           visible: section.actions.indexOf("disconnect") >= 0
           iconText: "󰏤"
           tooltipText: section.remote ? Commons.I18n.t("localModels.networkDisconnect").arg(section.model.host) : ""
+          accessibleName: Commons.I18n.t("localModels.networkDisconnect").arg(section.remote ? section.model.host : "")
           foreground: root.foreground
           fontFamily: root.fontFamily
           hasCursor: root.hasKey("modelDisconnect", section.lineIndex)
