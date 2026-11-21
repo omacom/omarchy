@@ -15,8 +15,8 @@ Usage: omarchy-transcode-ascii <input-image.svg|png> <output-path> [options]
 Transcodes an image into ASCII/Unicode art text.
 
 Options:
-  -w, --width <columns>       Maximum output width in terminal columns (default: 80)
-  -H, --height <rows>         Maximum output height in terminal rows (default: 26)
+  -w, --width <columns>       Maximum output width, 1-1000 columns (default: 80)
+  -H, --height <rows>         Maximum output height, 1-1000 rows (default: 26)
   -m, --mode <braille|block>  Output style (default: braille)
   -t, --threshold <percent>   Pixel threshold from 0-100 (default: 50)
       --invert                Treat light pixels as the logo instead of dark pixels
@@ -93,6 +93,19 @@ fi
 
 if [[ $mode != "braille" && $mode != "block" ]]; then
   echo "Invalid mode: $mode (expected braille or block)" >&2
+  exit 1
+fi
+
+# Bash arithmetic evaluates variable names and array subscripts as expressions.
+# Dimensions are decimal data, and also bound the converter's work.
+if ! (LC_ALL=C; [[ $width =~ ^[0-9]{1,4}$ && $height =~ ^[0-9]{1,4}$ && $threshold =~ ^[0-9]{1,3}(\.[0-9]{1,6})?$ ]]); then
+  echo "Width and height must be whole numbers from 1 to 1000; threshold must be a percentage from 0 to 100." >&2
+  exit 1
+fi
+width=$((10#$width))
+height=$((10#$height))
+if (( width < 1 || width > 1000 || height < 1 || height > 1000 )) || ! awk -v value="$threshold" 'BEGIN { exit value > 100 }'; then
+  echo "Width and height must be whole numbers from 1 to 1000; threshold must be a percentage from 0 to 100." >&2
   exit 1
 fi
 
