@@ -18,7 +18,8 @@ fi
 
 tmp=
 html_tmp=
-trap 'rm -f -- "$tmp" "$html_tmp"' EXIT
+text_check_tmp=
+trap 'rm -f -- "$tmp" "$html_tmp" "$text_check_tmp"' EXIT
 
 # Rich text kept beside a text entry is capped so a huge page copy can't bloat
 # the history file; past the cap the entry keeps its plain text only.
@@ -32,11 +33,19 @@ read_copy() {
 
 # Copies from Slack, browsers and office apps also offer text/html, which holds
 # their links and formatting. Read it so pasting from history can offer it again.
+# The read stops one byte past the cap, so a huge page copy is never written out.
+# The HTML is read after the text, so a newer copy could have replaced it in
+# between; it's kept only when the clipboard still holds the same text.
 read_html() {
   grep -qx 'text/html' <<<"$types" || return 1
 
   html_tmp=$(mktemp --tmpdir="$STATE_DIR" clipboard-html.XXXXXX) || return 1
-  if timeout 2s wl-paste --type text/html >"$html_tmp" 2>/dev/null && [[ -s $html_tmp ]] && (( $(stat -c %s "$html_tmp") <= HTML_LIMIT )); then
+  text_check_tmp=$(mktemp --tmpdir="$STATE_DIR" clipboard-check.XXXXXX) || return 1
+
+  if timeout 2s wl-paste --type text/html --no-newline 2>/dev/null | head -c $(( HTML_LIMIT + 1 )) >"$html_tmp" &&
+    [[ -s $html_tmp ]] && (( $(stat -c %s "$html_tmp") <= HTML_LIMIT )) &&
+    timeout 2s wl-paste --type text --no-newline >"$text_check_tmp" 2>/dev/null &&
+    cmp -s "$tmp" "$text_check_tmp"; then
     return 0
   fi
 

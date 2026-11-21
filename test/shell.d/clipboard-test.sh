@@ -405,16 +405,20 @@ capture_output=$(WL_PASTE_TYPES="text/html\ntext/plain\n" XDG_RUNTIME_DIR="$TMPD
 [[ $capture_output == '{"type":"text","text":"terminal copy","html":"<a href=\"https://example.com/\">terminal copy</a>"}' ]] || fail "clipboard capture keeps the rich text of a copy" "actual: $capture_output"
 pass "clipboard capture keeps the rich text of a copy"
 
-capture_output=$(printf 'watched rich copy' | WL_PASTE_TYPES="text/html\ntext/plain\n" WL_PASTE_HTML="<b>watched rich copy</b>" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" text)
+capture_output=$(printf 'watched rich copy' | WL_PASTE_TYPES="text/html\ntext/plain\n" WL_PASTE_TEXT="watched rich copy" WL_PASTE_HTML="<b>watched rich copy</b>" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" text)
 [[ $capture_output == '{"type":"text","text":"watched rich copy","html":"<b>watched rich copy</b>"}' ]] || fail "clipboard capture keeps the rich text of a watched copy" "actual: $capture_output"
 pass "clipboard capture keeps the rich text of a watched copy"
+
+capture_output=$(printf 'first copy' | WL_PASTE_TYPES="text/html\ntext/plain\n" WL_PASTE_TEXT="second copy" WL_PASTE_HTML="<b>second copy</b>" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" text)
+[[ $capture_output == '{"type":"text","text":"first copy"}' ]] || fail "clipboard capture drops rich text that belongs to a newer copy" "actual: $capture_output"
+pass "clipboard capture drops rich text that belongs to a newer copy"
 
 head -c 262145 /dev/zero | tr '\0' 'x' >"$TMPDIR/oversized.html"
 capture_output=$(WL_PASTE_TYPES="text/html\ntext/plain\n" WL_PASTE_HTML_FILE="$TMPDIR/oversized.html" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh")
 [[ $capture_output == '{"type":"text","text":"terminal copy"}' ]] || fail "clipboard capture keeps plain text only when the rich text is too large" "actual: ${capture_output:0:200}"
 pass "clipboard capture keeps plain text only when the rich text is too large"
 
-leftover=$(find "$TMPDIR/state/omarchy" -maxdepth 1 -name 'clipboard-html.*' -print)
+leftover=$(find "$TMPDIR/state/omarchy" -maxdepth 1 \( -name 'clipboard-html.*' -o -name 'clipboard-check.*' \) -print)
 [[ -z $leftover ]] || fail "clipboard capture removes the rich text files it read" "left: $leftover"
 pass "clipboard capture removes the rich text files it read"
 
