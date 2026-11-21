@@ -1368,5 +1368,8 @@
   },
   "setup.network.hostname": {
     "label": "হোস্টনেম"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
   }
 }
