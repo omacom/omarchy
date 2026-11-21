@@ -54,6 +54,28 @@ ping_latency_ms() {
   LC_ALL=C ping -n -c 1 -W 1 "$host" 2>/dev/null | awk -F'time[=<]' '/time[=<]/ { split($2, parts, " "); print parts[1]; exit }'
 }
 
+print_adapter_counts() {
+  local path link_type
+  local wifi_count=0
+  local ethernet_count=0
+
+  for path in /sys/class/net/*; do
+    [[ -e $path/device ]] || continue
+
+    if [[ -d $path/wireless ]]; then
+      ((wifi_count += 1))
+    elif [[ -r $path/type ]]; then
+      read -r link_type <"$path/type"
+      if [[ $link_type == "1" ]]; then
+        ((ethernet_count += 1))
+      fi
+    fi
+  done
+
+  printf 'wifi_adapter_count\t%s\n' "$wifi_count"
+  printf 'ethernet_adapter_count\t%s\n' "$ethernet_count"
+}
+
 print_ping_samples() {
   local gateway=$1
   local tmpdir router_file internet_file
@@ -100,6 +122,7 @@ print_verbose() {
   printf 'ip\t%s\n' "$src"
   printf 'prefix\t%s\n' "$prefix"
   printf 'gateway\t%s\n' "$gw"
+  print_adapter_counts
 
   if [[ -r /sys/class/net/$iface/statistics/rx_bytes ]]; then
     printf 'rx_bytes\t%s\n' "$(cat /sys/class/net/$iface/statistics/rx_bytes)"
