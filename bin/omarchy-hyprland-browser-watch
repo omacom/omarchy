@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# omarchy:summary=Bring browser windows to the front when they open behind the Omarchy presentation float
+
+SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+
+# The browser classes default/hypr/apps/browser.lua tags; chromium-based ones
+# are forced to tile there, and the rest tile by layout anyway.
+BROWSERS='^((google-)?[cC]hrom(e|ium)|[bB]rave-browser|[mM]icrosoft-edge|Vivaldi-stable|helium|[fF]irefox|zen|librewolf)'
+
+# The presentation terminal omarchy-launch-floating-terminal-with-presentation
+# opens: floated, centered and 875x600 by default/hypr/apps/system.lua.
+PRESENTATION='^org\.omarchy\.terminal$'
+
+hypr_dispatch() {
+  local lua="$1"
+  shift
+
+  hyprctl dispatch "$lua" >/dev/null 2>&1 || hyprctl dispatch "$@" >/dev/null 2>&1
+}
+
+# Hyprland draws every floating window above every tiled one, so a tiled browser
+# under the presentation float cannot be raised: a click or an alt-tab gives it
+# the keyboard and leaves it behind the float, with nothing on screen to say a
+# login page is waiting. Floating the browser moves it into the only layer that
+# can cover the terminal that asked for it.
+raise_over_presentation() {
+  local address=$1 window="address:$1"
+
+  hyprctl clients -j 2>/dev/null |
+    jq -e --arg address "$address" --arg presentation "$PRESENTATION" '
+      (first(.[] | select(.address == $address)) // empty) as $browser
+      | $browser.floating == false
+        and any(
+          .[];
+          .floating
+            and .address != $address
+            and .workspace.id == $browser.workspace.id
+            and ((.class // "") | test($presentation))
+        )
+    ' >/dev/null || return 0
+
+  hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
+  hypr_dispatch "hl.dsp.window.alter_zorder({ window = \"$window\", mode = \"top\" })" alterzorder top "$window"
+  hypr_dispatch "hl.dsp.focus({ window = \"$window\" })" focuswindow "$window"
+}
+
+while IFS= read -r event; do
+  case "$event" in
+    openwindow\>\>*)
+      # openwindow>>address,workspace,class,title -- a title can hold commas, so
+      # let it take the rest of the line rather than shifting the fields. The
+      # event address comes without the 0x that hyprctl reports and expects.
+      IFS=, read -r address _ class _ <<<"${event#openwindow>>}"
+      if [[ $class =~ $BROWSERS ]]; then
+        raise_over_presentation "0x${address#0x}"
+      fi
+      ;;
+  esac
+done < <(socat -U - "UNIX-CONNECT:$SOCKET")
