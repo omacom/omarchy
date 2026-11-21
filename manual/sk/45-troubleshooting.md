@@ -2,36 +2,63 @@
 
 ### Pokazil som si systém aktualizáciou!
 
-Najskôr skúste [vrátiť systém späť](47-system-snapshots.md) na verziu pred najnovšou aktualizáciou. Ak to nefunguje, použite `omarchy-debug` a podeľte sa o problém v kanáli #omarchy-help na Discorde. A ak všetko ostatné zlyhá, môžete znova nainštalovať predvolené konfigurácie a balíky pomocou `omarchy-reinstall`.
+Najprv skúste [vrátiť systém](47-system-snapshots.md) na verziu pred vašou nedávnou aktualizáciou. Ak to nepomôže, použite `omarchy-debug` a podeľte sa o svoj problém na #omarchy-help na Discorde. A ak zlyhá aj to, môžete preinštalovať predvolené konfigurácie a balíčky pomocou `omarchy-reinstall`.
 
-### Prečo sú niektoré aplikácie na mojom displeji také veľké?
+### Prečo sú niektoré aplikácie na mojej obrazovke také veľké?
 
-Omarchy predpokladá displej s vysokým rozlíšením 2x, čo si vyžaduje nastavenie `GDK_SCALE` na hodnotu 2 v `~/.config/hypr/monitors.lua`. Ale ak máte displej 1x, môžete zmeniť `local omarchy_gdk_scale = 2` na 1 (a potom reštartovať každú aplikáciu, ktorá je príliš veľká). Pozrite si [príručku o monitoroch](33-monitors.md).
+Omarchy predpokladá 2x displej s vysokým rozlíšením, takže nastavuje `GDK_SCALE` na 2, kým si v paneli monitorov nevyberiete mierku. Ak máte 1x displej a aplikácie GTK alebo X11 vyzerajú nadrozmerné, vyberte preň 1x v paneli monitorov alebo pridajte `hl.env("GDK_SCALE", "1")` do `~/.config/hypr/monitors.lua` (a potom reštartujte každú aplikáciu, ktorá je nadrozmerná). Pozrite si [manuál o monitoroch](33-monitors.md).
 
-Pre Spotify môžete rozhranie zmenšiť skratkou `Ctrl + Minus` (a skratkou `Ctrl + Plus` ho zväčšiť).
+V Spotify môžete použiť `Ctrl + Minus` na zmenšenie používateľského rozhrania (a `Ctrl + Plus` na jeho zväčšenie).
 
-### Moja Wi-Fi, Bluetooth, zvuk alebo trackpad práve prestali fungovať
+### Prečo mi prestali fungovať všetky klávesové skratky s klávesom Super?
 
-Pred reštartom skúste reštartovať problematický podsystém samostatne. _Aktualizovať > Hardware_ v ponuke Omarchy má Wi-Fi, Bluetooth, Audio a Trackpad a opätovné načítanie jedného z nich vyrieši väčšinu situácií typu „pred piatimi minútami to fungovalo“ — slúchadlá Bluetooth, ktoré sa nechcú znova pripojiť, trackpad, ktorý po uspaní prestal reagovať, zvuk, ktorý zmizol, keď ste odpojili monitor.
+Na niektorých laptopoch ASUS ROG a TUF je `Fn + Super` ľahko prehliadnuteľná kombinácia, ktorá prepína firmvérový zámok klávesu Windows (určený na hranie, aby ste omylom neodišli z hry). Na obrazovke sa nič neukáže, že sa to stalo. Kým je zámok zapnutý, Super nevysiela vôbec nič — takže každá skratka v Omarchy, ktorá používa Super, jednoducho prestane fungovať a vyzerá to, akoby sa pokazil Hyprland.
 
-### Prečo nehrajú moje externé reproduktory?
+Stlačte `Fn + Super` raz, skôr než sa začnete hrabať v `~/.config/hypr/`, a ak to Super nevráti späť, stlačte to znova, aby ste nenechali zámok zapnutý. Toto nie je Fn-lock, ktorý mení len to, čo robí rad F-klávesov.
 
-Pravdepodobne preto, že nie sú nastavené ako primárny výstup. Kliknite na ikonu reproduktora na pravej strane lišty a otvorí sa vyskakovacie okno hlasitosti, kde si môžete vybrať výstupné zariadenie (a mixovať aj hlasitosť jednotlivých aplikácií).
+### Moje Wi-Fi, Bluetooth, audio alebo trackpad práve prestali fungovať
 
-### Reproduktory môjho notebooku znejú divne
+Skôr než reštartujete počítač, skúste reštartovať len problematický podsystém samostatne. _Update > Hardware_ v menu Omarchy obsahuje Wi-Fi, Bluetooth, Audio a Trackpad a opätovné načítanie jedného z nich vyrieši väčšinu situácií typu „pred piatimi minútami to fungovalo“ — headset Bluetooth, ktorý sa nechce znova pripojiť, trackpad, ktorý po uspaní prestal reagovať, zvuk, ktorý zmizol, keď ste odpojili monitor.
 
-Na niektorých notebookoch Omarchy automaticky použije ladenie reproduktorov, ktoré koriguje frekvenčnú odozvu vstavaných reproduktorov. `omarchy audio tuning status` vám povie, či je niektoré na vašom stroji aktívne, a `omarchy audio tuning off` ho vypne, ak chcete radšej počuť reproduktory bez úprav.
+### Prečo moje externé reproduktory nehrajú?
 
-### Prečo sa nemôžem prihlásiť alebo použiť sudo so svojím heslom?
+Pravdepodobne preto, že nie sú nastavené ako primárny výstup. Kliknite na ikonu reproduktora na pravej strane panela a otvorí sa vyskakovacie okno hlasitosti, kde si môžete vybrať výstupné zariadenie (a tiež nastaviť hlasitosť pre jednotlivé aplikácie).
 
-Pravdepodobne ste ho príliš veľakrát zadali nesprávne a systém vás zamkol. Ak sa to deje na zamknutej obrazovke, môžete stlačiť `CTRL + ALT + F2` a spustiť nový TTY, kde sa môžete prihlásiť ako root, a potom spustiť `faillock --reset --user [your-username]`. Tým sa zamknutie zruší a môžete pokračovať.
+### Reproduktory môjho laptopu znejú divne
 
-### Prečo sa nezobrazujú moje výzvy na autorizáciu 1Password pre 1Password SSH Agent / CLI?
+Na niektorých laptopoch Omarchy automaticky použije ladenie reproduktorov, ktoré koriguje frekvenčnú odozvu vstavaných reproduktorov. `omarchy audio tuning status` vám povie, či je nejaké na vašom počítači aktívne, a `omarchy audio tuning off` ho vypne, ak chcete radšej počuť reproduktory bez úprav.
+
+### Prečo sa nemôžem prihlásiť ani použiť sudo so svojím heslom?
+
+Pravdepodobne ste ho desaťkrát zadali nesprávne a zablokovali ste sa. Zablokovanie sa samo zruší po dvoch minútach. Ak nemôžete čakať a deje sa to na uzamknutej obrazovke, môžete stlačiť `CTRL + ALT + F2` a spustiť nové TTY, kde sa môžete prihlásiť ako root, a potom spustiť `faillock --reset --user [your-username]`. Tým sa zablokovanie resetuje a môžete pokračovať.
+
+### Heslo je prijaté, ale vrátim sa na prihlasovaciu obrazovku
+
+Poškodený súbor prostredia relácie môže zabrániť spusteniu pracovnej plochy, aj keď je vaše heslo správne. Toto sa oplatí skontrolovať najmä po úprave `~/.config/uwsm/env.d/`.
+
+Stlačte `Ctrl + Alt + F2`, prihláste sa so svojím bežným používateľským menom a heslom a skontrolujte používateľský denník aktuálneho spustenia:
+
+```bash
+journalctl --user -b -t uwsm_env-preloader --no-pager
+```
+
+Hľadajte chybu, ktorá uvádza niektorý z vašich súborov prostredia, napríklad `bad substitution`, tesne pred správou, že sa nenašla značka výstupu env. Presuňte tento súbor z `env.d` preč, skôr než sa skúsite znova prihlásiť. Napríklad, ak chyba uvádza `99-custom`:
+
+```bash
+mkdir -p ~/.config/uwsm/disabled
+mv -i ~/.config/uwsm/env.d/99-custom ~/.config/uwsm/disabled/
+```
+
+UWSM preskočí súbor s chybou syntaxe, ale závažná chyba, ktorá sa prejaví až počas behu súboru, ako napríklad `bad substitution`, môže stále zabrániť spusteniu pracovnej plochy. Vrátenie systému zo snímky tieto súbory neopraví, pretože `/home` sa nevracia späť.
+
+Keď sa už môžete prihlásiť, opravte uloženú kópiu, skôr než ju presuniete späť. `sh -n` zachytí chyby syntaxe bez spustenia súboru, ale nedokáže zachytiť každú chybu, ktorá sa vyskytne, keď sa súbor načíta. Počas testovania zmien majte otvorený funkčný terminál.
+
+### Prečo sa mi nezobrazujú výzvy na autorizáciu 1Password pre 1Password SSH Agent / CLI?
 
 Môže sa to stať z 2 dôvodov:
 
-Aby sa zobrazila bohatá výzva na schválenie, musí byť zapnutá možnosť Settings > Advanced > Use Hardware Acceleration. _Poznámka: Aby začala fungovať, je potrebný reštart._
+Aby sa zobrazila rozšírená výzva na schválenie, musí byť zapnuté Settings > Advanced > Use Hardware Acceleration. _Poznámka: Aby to začalo fungovať, je potrebný reštart._
 
  ![troubleshooting-1password](images/troubleshooting-1password.webp)
 
-Alebo ak ste od zavedenia systému nespustili 1Password, výzva sa nezobrazí.
+Alebo ak ste od spustenia počítača nespustili 1Password, výzva sa nezobrazí.

@@ -1,19 +1,21 @@
-# Usingizi wa mfumo
+# Kulala kwa mfumo
 
-Omarchy huwezesha kusitisha (suspend) na kusinzia (hibernation) kwa chaguomsingi, lakini kama unapata matatizo na yoyote kati yao kwenye mashine yako, unaweza kuzizima.
+Omarchy huwasha kusitisha kwa chaguo-msingi, na kulala kwa kina pindi kinapowekwa, lakini ukipata matatizo na mojawapo kwenye mashine yako, unaweza kuyazima.
 
-### Profaili za nguvu
+Kwenye mashine za NVIDIA GB10, kama vile DGX Spark na ASUS Ascent GX10, kusitisha na kulala kwa kina vimezimwa, kama ilivyo katika DGX OS ya NVIDIA, kwa sababu kulala bado hakujathibitishwa kufanya kazi kwenye maunzi hayo. Vivyo hivyo kwa ASUS Zenbook A16 (UX3607OA), ambapo kusitisha bado hakuiweki chipu kabisa katika usingizi na inaweza kukwama usiku kucha. Kipengele cha kuwasha/kuzima kusitisha na usanidi wa kulala kwa kina havitumiki hapo. Ili kuwasha kulala tena, ondoa `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` kwa `sudo rm`; Kusitisha kisha hurejea kwenye menyu, na kulala kwa kina kunaweza kuwekwa kama kwenye mashine nyingine. Kuendesha `sudo omarchy apply hardware --install-user "$USER"` huweka faili tena.
 
-Kwenye kompyuta mpakato, Omarchy hukumbuka profaili yako ya nguvu kando kwa iliyochomekwa na inayotumia betri, na hubadilisha kati ya hizo mbili unapochomeka na kuchomoa. Mara moja hiyo inamaanisha utendaji kwenye AC na usawaziko kwenye betri.
+### Profaili za nishati
 
-Unaweza kuona kile mashine yako inachotoa kwa `omarchy powerprofiles list`, na kuweka unachotaka kwa hali uliyo nayo sasa kwa `omarchy powerprofiles set autodetect power-saver`. Kuweka hali nyingine bila kuchomoa chochote, itaje moja kwa moja: `omarchy powerprofiles set battery power-saver`. Chochote unachochagua ndicho utakachopata tena mara utakapokuwa katika hali hiyo.
+Kwenye laptopu, Omarchy hukumbuka profaili yako ya nishati kando kwa ikiwa imechomekwa na ikiwa inatumia betri, na hubadilisha kati ya hizo mbili unapochomeka na kuchomoa. Kama ilivyo kutoka kiwandani, hiyo ina maana ya performance kwenye AC na balanced kwenye betri.
 
-### Badilisha kusitisha
+Unaweza kuona kile mashine yako inatoa kwa `omarchy powerprofiles list`, na kuweka unayoitaka kwa hali uliyonayo sasa kwa `omarchy powerprofiles set autodetect power-saver`. Ili kuweka hali nyingine bila kuchomoa chochote, itaje moja kwa moja: `omarchy powerprofiles set battery power-saver`. Chochote utakachochagua ndicho utakachopata tena wakati ujao ukiwa katika hali hiyo.
 
-Unabadilisha kusitisha kwa kuendesha `omarchy toggle suspend` kutoka terminali. Hiyo hufichua/huficha tu chaguo chini ya _Mfumo_ (au `Super + Esc`), na kisha unaweza kuona kama inafanya kazi kwa uthabiti kwenye mfumo wako. Kama sivyo, unaweza kuificha tena kwa amri hiyo hiyo.
+### Washa/zima kusitisha
 
-### Badilisha kusinzia
+Unawasha/kuzima kusitisha kwa kuendesha `omarchy toggle suspend` kutoka kwenye terminali. Hiyo hufunua/huficha tu chaguo chini ya _Mfumo_ (au `Super + Esc`), na kisha unaweza kuona kama inafanya kazi kwa uthabiti kwenye mfumo wako. Ikiwa sivyo, unaweza kuificha tena kwa amri hiyo hiyo.
 
-Unasanidi kusinzia kwa kuendesha `omarchy hibernation setup` kutoka terminali. Kusinzia huunda subvolume ya /swap kwenye kiendeshaji chako cha kuwasha yenye ukubwa wa ugoaji wako wa RAM halisi, kwa hivyo hakikisha una nafasi nyingi ya ziada. Kwenye mashine ya 32GB, utahitaji kila mara 32GB+ ya bure kwa volume hii. Kusinzia pia kunahitaji bootloader chaguomsingi ya Limine.
+### Washa/zima kulala kwa kina
 
-Ikiwa imesanidiwa, utaona chaguo la kusinzia chini ya _Mfumo_ (au `Super + Esc`), na kisha unaweza kuona kama inafanya kazi kwa uthabiti kwenye mfumo wako. Kama sivyo, unaweza kuiondoa tena kwa kuendesha `omarchy hibernation remove`.
+Unaweka kulala kwa kina kwa kuendesha `omarchy hibernation setup` kutoka kwenye terminali (haipatikani kwenye Mac za Apple Silicon). Kulala kwa kina huunda subvolume ya /swap kwenye kiendeshi chako cha kuwasha yenye ukubwa wa mgao wako wa RAM halisi, kwa hivyo hakikisha una nafasi nyingi iliyobaki. Kwenye mashine ya 32GB, utahitaji daima 32GB+ ya nafasi wazi kwa volume hii. Kulala kwa kina pia kunahitaji bootloader chaguo-msingi ya Limine.
+
+Ukishaweka, utaona chaguo la kulala kwa kina chini ya _Mfumo_ (au `Super + Esc`), na kisha unaweza kuona kama inafanya kazi kwa uthabiti kwenye mfumo wako. Ikiwa sivyo, unaweza kuiondoa tena kwa kuendesha `omarchy hibernation remove`.

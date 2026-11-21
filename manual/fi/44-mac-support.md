@@ -1,49 +1,49 @@
 # Mac-tuki
 
-Omarchyssa on sisäänrakennettu tuki **Intel-Maceille**. Tällä hetkellä on pari tunnettua rajoitusta, mutta kunhan olet niistä tietoinen ja hyväksyt ne, voit puhaltaa vanhoihin Maceihisi uutta elämää asentamalla Omarchyn.
+Omarchyssa on sisäänrakennettu tuki **Intel Maceille**. Tällä hetkellä tiedossa on pari rajoitusta, mutta kunhan tiedät ne ja ne sopivat sinulle, voit puhaltaa vanhoihin Maceihisi uutta elämää asentamalla Omarchyn.
 
-Huomaa, että asentamista M-sarjan Macille ei tueta suoraan tällä hetkellä. Saat lisätietoja tämän tilanteesta kanavalta #omarchy-on-other [Discordissamme](https://discord.gg/tXFUdasqhY).
+Huomaa, että asentaminen M-sarjan Maciin ei ole tällä hetkellä suoraan tuettua. Lisätietoja tämän tilanteesta löydät kanavalta #omarchy-on-other [Discordissamme](https://discord.gg/tXFUdasqhY).
 
-Yksinkertaisessa testissä saavutimme 36 % suorituskykyparannuksen vuoden 2019 MacBook Prolla pelkästään asentamalla Omarchyn.
+Yksinkertaisessa testissä saimme vuoden 2019 MacBook Prohon 36% lisää suorituskykyä pelkästään asentamalla Omarchyn.
 
  ![macbook-omarchy](images/macbook-omarchy.webp)
 
-### Omarchyn asentaminen Macille
+### Omarchyn asentaminen Maciin
 
-Omarchy tukee tällä hetkellä vain sitä, että se on **ainoa** asennettu käyttöjärjestelmä. Asennuksen aikana asema tyhjennetään eikä MacOS ole enää käynnistettävissä.
+Omarchy tukee tällä hetkellä vain sitä, että se on koneen **ainoa** käyttöjärjestelmä. Asennuksen aikana levy tyhjennetään, eikä MacOSia voi enää käynnistää.
 
-Voit silti palauttaa sen myöhemmin Internet Recoveryn kautta halutessasi.
+Voit silti palauttaa sen myöhemmin Internet Recoveryn kautta, jos haluat.
 
-Tämän osan osalta oletamme, että olet jo katsonut kohdan [Aloittaminen](02-getting-started.md) ja USB-asemasi on valmis. Jos ei ole, tee se nyt.
+Tässä osiossa oletamme, että olet jo lukenut kohdan [Aloittaminen](02-getting-started.md) ja USB-asemasi on valmiina. Jos ei ole, tee se nyt.
 
 #### Poista Secure Boot käytöstä
 
-Applen Secure Boot on poistettava käytöstä käynnistyäkseen käynnistettävältä USB:ltä sekä käyttöjärjestelmään. Poista se käytöstä seuraavasti:
+Applen Secure Boot on poistettava käytöstä, jotta käynnistettävä USB voidaan käynnistää, samoin kuin käyttöjärjestelmä. Poista se käytöstä näin:
 
 1. Sammuta Macisi
-2. Käynnistä se ja paina _heti_ Command-R pohjaan, kunnes näet latausruudun ilmestyvän
-3. Valitse käyttäjäsi ja syötä salasanasi pyydettäessä
-4. Kun olet palautusruudulla, valitse valikkopalkista **Utilities > Startup Security Utility**
-5. Syötä salasanasi, kun sinua pyydetään todentamaan
-6. Valitse Secure Boot -vaihtoehdoista ”No Security”
-7. Valitse External Boot -vaihtoehdoista ”Allow booting from external or removable media”
+2. Käynnistä se ja paina _välittömästi_ Command-R pohjaan ja pidä se painettuna, kunnes näet latausruudun tulevan näkyviin
+3. Valitse käyttäjäsi ja syötä salasanasi, jos sitä kysytään
+4. Kun olet palautusruudussa, valitse valikkopalkista **Utilities > Startup Security Utility**
+5. Syötä salasanasi, kun sinua pyydetään todentautumaan
+6. Valitse Secure Boot -asetuksista "No Security"
+7. Valitse External Boot -asetuksista "Allow booting from external or removable media"
 
-#### Käynnistä asennus
+#### Aloita asennus
 
-1. Aseta USB-asema
-2. Käynnistä Macisi uudelleen ja paina _heti_ Option pohjaan, kunnes näet käynnistyslaitteiden ruudun
+1. Aseta USB-asema paikalleen
+2. Käynnistä Macisi uudelleen ja paina _välittömästi_ Option pohjaan ja pidä se painettuna, kunnes näet käynnistyslaitteiden ruudun
 3. Valitse oranssi EFI Boot -laite
-4. Jatka [asennuksella normaalisti](02-getting-started.md)
+4. Jatka [asennusta normaalisti](02-getting-started.md)
 
-Asennusohjelma tunnistaa Mac-laitteiston ja soveltaa tarvittavat korjaukset automaattisesti: Broadcom Wi-Fi -ajurit ja laiteohjelmiston, SPI-näppäimistöajurin sitä tarvitseviin MacBook-malleihin sekä NVMe-lepotilakorjauksen samoille malleille.
+Asennusohjelma tunnistaa Mac-laitteiston ja ottaa tarvittavat korjaukset käyttöön automaattisesti: Broadcom Wi-Fi -ajurit ja firmwaren, SPI-näppäimistöajurin niillä MacBook-malleilla, jotka sitä tarvitsevat, ja NVMe-lepotilakorjauksen samoille malleille.
 
 ### Tunnetut rajoitukset
 
-Yhteisön jäsenet työskentelevät jatkuvasti ratkaisujen parissa näihin haasteisiin, joten jos nämä ovat sinulle ongelmallisia, liity kanavalle #omarchy-on-other [Discordissamme](https://discord.gg/tXFUdasqhY) ja katso, onko ajantasaisia menetelmiä niiden ratkaisemiseksi.
+Yhteisön jäsenet työstävät näihin haasteisiin jatkuvasti ratkaisuja, joten jos nämä ovat sinulle ongelma, liity kanavalle #omarchy-on-other [Discordissamme](https://discord.gg/tXFUdasqhY) ja katso, onko niiden ratkaisemiseen jo ajantasaisia keinoja.
 
 #### Laitteet, joissa on T1-siru
 
-Apple T1 -siru esiteltiin loppuvuonna 2016 ja sitä käytettiin yksinomaan ensimmäisen sukupolven MacBook Pro -malleissa, joissa on Touch Bar.
+Apple T1 -siru esiteltiin loppuvuonna 2016, ja sitä käytettiin yksinomaan ensimmäisen sukupolven MacBook Pro -malleissa, joissa on Touch Bar.
 - MacBook Pro 13-inch (2016, two Thunderbolt 3 ports) – Model: A1706
 - MacBook Pro 13-inch (2016, four Thunderbolt 3 ports) – Model: A1708
 - MacBook Pro 15-inch (2016) – Model: A1707
@@ -55,7 +55,7 @@ Apple T1 -siru esiteltiin loppuvuonna 2016 ja sitä käytettiin yksinomaan ensim
 
 #### Laitteet, joissa on T2-siru
 
-Apple T2 Security Chip esiteltiin vuonna 2017. T2-siru lakkautettiin siirtymässä Apple Siliconiin (M-sarjan siruihin) alkaen vuodesta 2020.
+Apple T2 Security Chip esiteltiin vuonna 2017. T2-sirun käyttö lopetettiin siirryttäessä Apple siliconiin (M-sarjan siruihin) vuodesta 2020 alkaen.
 
 - iMac Pro (2017) – Model: A1862
 - MacBook Pro 13-inch (2018, four Thunderbolt 3 ports) – Model: A1989
@@ -69,4 +69,19 @@ Apple T2 Security Chip esiteltiin vuonna 2017. T2-siru lakkautettiin siirtymäss
 - MacBook Pro 13-inch (2020, two Thunderbolt 3 ports) – Model: A2265
 - MacBook Pro 15-inch (2020) – Model: A1990
 
-Näissä malleissa asennusohjelma asettaa automaattisesti korjatun `linux-t2`-ytimen, T2-äänimäärityksen, Applen Broadcom Wi-Fi/Bluetooth-laiteohjelmiston ja tuulettimen ohjauksen `t2fanrd`:n kautta. Touch Bar toimii ytimen sisäänrakennetulla Boot Camp -tyylisellä tuella.
+Näissä malleissa asennusohjelma ottaa automaattisesti käyttöön paikatun `linux-t2`-ytimen, T2-ääniasetukset, Applen Broadcom Wi-Fi/Bluetooth-firmwaren ja tuuletinhallinnan `t2fanrd`:llä. Touch Bar toimii ytimen sisäänrakennetulla Boot Camp -tyylisellä tuella.
+
+#### iMac Retina 5K (2017)
+
+Vuoden 2017 27-tuumaisessa iMacissa ei ole T2-sirua, joten asennusohjelma asentaa sen kuten muutkin Intel Macit.
+
+- iMac (Retina 5K, 27-inch, 2017) – Model: A1419
+
+#### Tunnetut ongelmat
+
+- Näyttö ei toimi natiiviresoluutiollaan 5120×2880: paneeli koostuu kahdesta osasta, ja vakioajuri sytyttää niistä vain yhden
+- Ääni ei toimi
+- Kirkkaudensäätö ei vaikuta mihinkään
+- Lepotila jumittaa koneen; vain virrankatkaisu ja uudelleenkäynnistys palauttaa sen
+
+Tälle mallille tehty yhteisön korjaustyökalu korjaa näytön, äänen ja kirkkauden: [omarchy-imac18-3](https://github.com/ahmadtv/omarchy-imac18-3).

@@ -86,12 +86,23 @@ read_vcp() {
 
 read_brightness() {
   local bus=""
+  local cached_bus=""
+  local cached_maximum=""
   local now=0
   local values=""
 
+  if [[ -r $cache_file ]]; then
+    read -r cached_bus cached_maximum _ <"$cache_file" || true
+  fi
+
   bus="$(find_bus)" || return 1
   values="$(read_vcp "$bus")" || {
-    rm -f "$cache_file"
+    # Only a successful read caches the maximum. A bus that answered before is detected again next call; any other is left alone for a while.
+    if [[ $cached_bus =~ ^[0-9]+$ && $cached_maximum =~ ^[0-9]+$ ]]; then
+      rm -f "$cache_file"
+    else
+      cache_unavailable
+    fi
     return 1
   }
 
