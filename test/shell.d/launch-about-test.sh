@@ -252,6 +252,15 @@ for pad in "2 2" "4 5" "0 0" "6 10"; do
 done
 pass "the logo is found wherever fastfetch drew it"
 
+# ASCII art is full of backslashes, and awk's -v unescapes them.
+printf '%s\n' ' __ ' '/##\ ##\"#' ' \/ ' >"$LOGO_FILE"
+eval "fastfetch() { render_with_padding 1 3; }"
+LAYOUT_ROWS="" LOGO_ROW="" LOGO_COLUMN=""
+measure_layout && [[ $LOGO_ROW == "2" && $LOGO_COLUMN == "4" ]] ||
+  fail "a logo with backslashes in it is still found" "measured ${LOGO_ROW:-}/${LOGO_COLUMN:-}"
+pass "a logo with backslashes in it is still found"
+printf '%s\n' '████████' '██    ██' '████████' >"$LOGO_FILE"
+
 # A render that does not contain the file's own text is not this logo, whatever
 # the reason — a config that restyled it, a placeholder fastfetch substituted.
 fastfetch() { printf 'something else entirely\n'; }
