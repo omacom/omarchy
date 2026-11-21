@@ -95,3 +95,79 @@ fi
   fail "an escaping command name removes nothing outside ~/.local/bin"
 
 pass "an escaping command name removes nothing outside ~/.local/bin"
+
+# Updates rerun every install, so a file the user put at one of these paths has
+# to survive it. A wrapper of their own is the likely one.
+own="$home/.local/bin/claude"
+printf '#!/bin/sh\nexport ANTHROPIC_BASE_URL=https://proxy.example\nexec /opt/claude/bin/claude "$@"\n' >"$own"
+cp "$own" "$tmpdir/own.expected"
+
+install_wrapper claude >/dev/null 2>"$tmpdir/err" ||
+  fail "leaving the user's file in place does not fail the install"
+cmp -s "$own" "$tmpdir/own.expected" ||
+  fail "a file Omarchy did not write is left as it was" "$(cat "$own")"
+grep -Fq 'not a wrapper Omarchy wrote' "$tmpdir/err" ||
+  fail "leaving it says why" "$(cat "$tmpdir/err")"
+
+# One that only looks like Omarchy's, with the user's own change, is theirs too.
+edited_wrappers=(
+  $'#!/bin/bash\nmise use -g "gh" || exit 1\nexec env GH_HOST=git.example mise x "gh" -- "gh" "$@"\n'
+  $'#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nexport GH_HOST=git.example\nmise use -g --quiet "gh" || exit 1\nexec mise x "gh" -- "gh" "$@"\n'
+)
+
+for edited in "${edited_wrappers[@]}"; do
+  printf '%s' "$edited" >"$home/.local/bin/gh"
+  install_wrapper gh >/dev/null 2>&1
+  [[ $(<"$home/.local/bin/gh") == "${edited%$'\n'}" ]] ||
+    fail "an edited wrapper is left as it was" "$(cat "$home/.local/bin/gh")"
+done
+
+# Reading a file into a variable drops NULs, which must not hide an edit.
+printf '#!/bin/bash\nmise use -g "gh"\nexec "gh" "$@"\n\0' >"$home/.local/bin/gh"
+install_wrapper gh >/dev/null 2>&1
+grep -Fqx 'exec "gh" "$@"' "$home/.local/bin/gh" ||
+  fail "a wrapper with a NUL in it is left as it was"
+
+mkfifo "$home/.local/bin/copilot"
+install_wrapper copilot >/dev/null 2>&1
+[[ -p $home/.local/bin/copilot ]] || fail "something other than a file is left as it was"
+rm -f "$home/.local/bin/gh" "$home/.local/bin/copilot"
+
+pass "a file Omarchy did not write survives a reinstall"
+
+# Every form the generator has written is still replaced, so updates keep moving
+# old wrappers forward.
+legacy_wrappers=(
+  $'#!/bin/bash\nmise use -g "gh"\nexec "gh" "$@"\n'
+  $'#!/bin/bash\nmise use -g "gh"\nexec mise exec "gh" -- "gh" "$@"\n'
+  $'#!/bin/bash\nmise use -g "gh" || exit 1\nexec mise x "gh" -- "gh" "$@"\n'
+  $'#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g "gh" || exit 1\nexec mise x "gh" -- "gh" "$@"\n'
+  $'#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "gh" || exit 1\nexec mise x "gh" -- "gh" "$@"\n'
+)
+
+for legacy in "${legacy_wrappers[@]}"; do
+  printf '%s' "$legacy" >"$home/.local/bin/gh"
+  install_wrapper gh >/dev/null 2>"$tmpdir/err" || fail "an older wrapper is replaced" "$(cat "$tmpdir/err")"
+  grep -Fqx 'mise use -g --quiet "gh" || exit 1' "$home/.local/bin/gh" ||
+    fail "an older wrapper is rewritten in the current form" "was: $legacy"$'\n'"now: $(cat "$home/.local/bin/gh")"
+done
+
+# The names install/user/mise.sh passes carry scopes, URLs and brackets.
+for spec in "npm:@kitlangton/ghui ghui" "http:muse[url=https://example.com/muse.sh,bin=muse] muse"; do
+  read -r package name <<<"$spec"
+  install_wrapper "$package" "$name" >/dev/null
+  install_wrapper "$package" "$name" >/dev/null 2>"$tmpdir/err"
+  [[ -s $tmpdir/err ]] && fail "a reinstall of $name replaces its own wrapper" "$(cat "$tmpdir/err")"
+done
+
+pass "every wrapper form Omarchy has written is replaced"
+
+# A symlink is unlinked rather than written through, so whatever it points at is
+# untouched.
+printf 'real binary\n' >"$tmpdir/real-codex"
+ln -s "$tmpdir/real-codex" "$home/.local/bin/codex"
+install_wrapper codex >/dev/null
+[[ ! -L $home/.local/bin/codex ]] || fail "a symlink at the path is replaced by the wrapper"
+grep -Fqx 'real binary' "$tmpdir/real-codex" || fail "a symlink's target is left as it was"
+
+pass "a symlink is replaced without touching its target"
