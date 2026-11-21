@@ -34,12 +34,25 @@ function profileAfterRead(current, replyText, signalsAtStart, signalsNow) {
   return signalsAtStart === signalsNow ? parseActiveProfile(replyText) : current
 }
 
+function gateStartupWarning(state, alreadyNotified, checksReady) {
+  if (checksReady) {
+    return state
+  } else {
+    return {
+      level: state.level,
+      notify: false,
+      notifiedLowBattery: alreadyNotified && state.notifiedLowBattery
+    }
+  }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     batteryPercentage: batteryPercentage,
     isDischarging: isDischarging,
     shouldWarnLowBattery: shouldWarnLowBattery,
     parseActiveProfile: parseActiveProfile,
-    profileAfterRead: profileAfterRead
+    profileAfterRead: profileAfterRead,
+    gateStartupWarning: gateStartupWarning
   }
 }

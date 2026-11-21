@@ -47,4 +47,110 @@ assertEqual(
   'power-saver',
   'battery takes a read no signal overtook'
 )
+assertDeepEqual(
+  battery.gateStartupWarning({ level: 8, notify: true, notifiedLowBattery: true }, false, false),
+  { level: 8, notify: false, notifiedLowBattery: false },
+  'battery suppresses and does not record a stale low sample while startup checks are gated'
+)
+assertDeepEqual(
+  battery.gateStartupWarning({ level: 8, notify: false, notifiedLowBattery: false }, true, false),
+  { level: 8, notify: false, notifiedLowBattery: false },
+  'battery clears notified state on AC while startup checks are gated'
+)
+assertDeepEqual(
+  battery.gateStartupWarning({ level: 8, notify: false, notifiedLowBattery: true }, true, false),
+  { level: 8, notify: false, notifiedLowBattery: true },
+  'battery preserves notified state while a gated low condition remains'
+)
+assertDeepEqual(
+  battery.gateStartupWarning({ level: 8, notify: true, notifiedLowBattery: true }, false, true),
+  { level: 8, notify: true, notifiedLowBattery: true },
+  'battery applies the normal warning decision after startup checks are ready'
+)
 JS
+
+require_compositor "battery startup gate runtime test"
+
+if ! command -v quickshell >/dev/null 2>&1; then
+  skip "quickshell not installed; skipping battery startup gate runtime test"
+  exit 0
+fi
+
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+
+ln -s "$ROOT/shell/plugins/services/battery/BatteryStartupGate.qml" "$test_tmp/BatteryStartupGate.qml"
+
+cat >"$test_tmp/shell.qml" <<'QML'
+import QtQuick
+import Quickshell
+
+ShellRoot {
+  id: root
+
+  property double readyAt: 0
+
+  function fail(message) {
+    console.log("RESULT fail " + message)
+    Qt.quit()
+  }
+
+  BatteryStartupGate {
+    id: gate
+    deviceReady: false
+    interval: 100
+
+    onChecksReadyChanged: {
+      if (!checksReady) return
+      if (!deviceReady) {
+        root.fail("gate settled before device readiness")
+        return
+      }
+      if (Date.now() - root.readyAt < 80) {
+        root.fail("gate settled before its post-readiness interval")
+        return
+      }
+      console.log("RESULT pass")
+      Qt.quit()
+    }
+  }
+
+  Timer {
+    interval: 50
+    running: true
+    onTriggered: {
+      if (gate.checksReady) {
+        root.fail("gate ran while the device was not ready")
+        return
+      }
+      root.readyAt = Date.now()
+      gate.deviceReady = true
+      earlyProbe.start()
+    }
+  }
+
+  Timer {
+    id: earlyProbe
+    interval: 50
+    onTriggered: if (gate.checksReady) root.fail("gate skipped its post-readiness interval")
+  }
+
+  Timer {
+    interval: 1000
+    running: true
+    onTriggered: root.fail("gate never settled")
+  }
+}
+QML
+
+output=$(timeout 15 quickshell -p "$test_tmp" --no-color 2>&1) || {
+  printf '%s\n' "$output" >&2
+  fail "battery startup gate runtime fixture exits cleanly"
+}
+
+if ! grep -q "RESULT pass" <<<"$output"; then
+  printf '%s\n' "$output" >&2
+  fail "battery startup gate waits for readiness and its settle interval"
+fi
+
+pass "battery startup gate waits for readiness and its settle interval"
