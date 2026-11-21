@@ -30,6 +30,21 @@ output=$(look_theme "$test_tmp/good") || fail "a stock theme passes the theme ch
 [[ -s $test_tmp/preview.png ]] || fail "the theme check draws a preview" "$output"
 pass "a stock theme passes the theme check and is drawn"
 
+# Metadata and logo variants do not count as wallpapers. The SVG photo must
+# still be rendered with its relative image before judging or previewing it.
+mkdir -p "$test_tmp/linked/backgrounds/tiles"
+cp "$test_tmp/good/colors.toml" "$test_tmp/linked/colors.toml"
+cp "$ROOT/themes/kanagawa/backgrounds/1-kanagawa.jpg" "$test_tmp/linked/backgrounds/tiles/photo.jpg"
+printf '[defaults]\nfill = "fit"\n' >"$test_tmp/linked/backgrounds/backgrounds.toml"
+printf '<svg xmlns="http://www.w3.org/2000/svg" width="5120" height="1440"/>\n' >"$test_tmp/linked/backgrounds/omarchy@32x9.svg"
+cat >"$test_tmp/linked/backgrounds/photo@32x9.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="5120" height="1440">
+  <image xlink:href="tiles/photo.jpg" width="5120" height="1440" preserveAspectRatio="none"/>
+</svg>
+SVG
+output=$(look_theme "$test_tmp/linked") || fail "linked wallpaper renders independently of metadata and the logo" "$output"
+pass "the theme check renders SVG wallpaper tiles relative to the source"
+
 # The mistakes small models make: a palette missing keys, text the color of
 # the background, and a small, flat background drawn in code.
 mkdir -p "$test_tmp/bad/backgrounds"
