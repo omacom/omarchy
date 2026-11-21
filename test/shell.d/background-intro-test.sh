@@ -42,9 +42,13 @@ cat >"$command_bin/owe" <<'SH'
 #!/bin/bash
 printf 'owe: %s\n' "$*" >>"$COMMAND_LOG"
 case ${1:-} in
+  help)
+    [[ -z ${OWE_PRINT_SHOWN:-} ]] || echo "  intro [--start still|first-frame] [--refresh] [--hold] [--print-shown] <video>"
+    ;;
   intro)
     [[ ${OWE_FAIL:-} != "interrupted" && ${OWE_FAIL:-} != "unavailable" ]] || exit 1
     [[ -z ${OWE_READY_FILE:-} || -f $OWE_READY_FILE ]] || exit 1
+    [[ " $* " != *" --print-shown "* ]] || echo shown
     ;;
   status)
     [[ ${OWE_FAIL:-} != "unavailable" ]] || exit 1
@@ -174,6 +178,16 @@ intro_count=$(grep -c '^owe: intro ' "$command_log")
 (( intro_count == 1 )) || fail "concurrent launchers start exactly one intro" "$intro_count"
 
 pass "login intros settle the session once, wait briefly for OWE, and start on the first frame"
+
+# An OWE that reports the first frame holds the clip for the shell's reveal
+# and tells the shell, which waits for "shown" rather than polling.
+rm -f "$marker"
+: >"$command_log"
+output=$(PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_PRINT_SHOWN=1 \
+  OMARCHY_SESSION_ID=shown-boot "$ROOT/bin/omarchy-theme-bg-boot-intro")
+grep -Fxq "owe: intro --start first-frame --hold --print-shown $theme_intro_dir/road.mp4" "$command_log" || fail "an OWE that reports the first frame holds the login intro" "$(cat "$command_log")"
+[[ $output == $'intro\nshown' ]] || fail "the launcher announces the intro, then its first frame" "$output"
+pass "a login intro reports its first frame on screen when OWE can"
 
 : >"$command_log"
 for session in first-login first-login second-login; do
