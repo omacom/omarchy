@@ -336,7 +336,7 @@
   "install.terminal.alacritty": {"icon":"","label":"Alacritty","disabled":"omarchy-pkg-present alacritty","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-terminal alacritty'"},
   "install.terminal.foot": {"icon":"","label":"Foot","disabled":"omarchy-pkg-present foot","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-terminal foot'"},
   "install.terminal.ghostty": {"icon":"","label":"Ghostty","disabled":"omarchy-pkg-present ghostty","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-terminal ghostty'"},
-  "install.terminal.glass": {"icon":"","label":"Glass","disabled":"omarchy-pkg-present glass-term-bin","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-terminal glass'"},
+  "install.terminal.glass": {"icon":"","label":"Glass","disabled":"omarchy-cmd-present glass","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-terminal glass'"},
   "install.terminal.kitty": {"icon":"","label":"Kitty","disabled":"omarchy-pkg-present kitty","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-terminal kitty'"},
   "install.ai.amp": {"icon":"","iconFont":"omarchy","label":"Amp Desktop","when":"omarchy-region-global","disabled":"omarchy-pkg-present amp-desktop-bin","action":"omarchy-install-and-launch 'Amp Desktop' amp-desktop-bin amp-desktop"},
   "install.ai.antigravity": {"icon":"","iconFont":"omarchy","label":"Antigravity Desktop","when":"omarchy-region-global","disabled":"omarchy-pkg-present antigravity","action":"omarchy-install-and-launch 'Antigravity Desktop' antigravity antigravity"},

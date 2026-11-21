@@ -26,10 +26,22 @@ esac
 
 echo "Installing $package..."
 
-# glass is not in the Arch repos; its AUR package installs the release binary,
-# whose desktop entry already carries the X-TerminalArg* keys.
+# glass is not packaged for Arch yet. Its release installer puts it in ~/.local
+# for this user, checks the download against the release's SHA256SUMS, and adds
+# a desktop entry that already carries the X-TerminalArg* keys. Downloaded whole
+# before it runs, so a dropped connection can never run half a script.
+install_glass() {
+  local installer status
+  installer=$(mktemp) || return 1
+  curl -fsSL --retry 3 https://github.com/newjordan/glass/releases/latest/download/install.sh -o "$installer" &&
+    sh "$installer"
+  status=$?
+  rm -f "$installer"
+  return $status
+}
+
 if [[ $package == "glass" ]]; then
-  install_command=(omarchy-pkg-aur-add glass-term-bin)
+  install_command=(install_glass)
 else
   install_command=(omarchy-pkg-add "$package")
 fi
