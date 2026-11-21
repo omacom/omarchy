@@ -171,9 +171,15 @@ while IFS= read -r command; do
   if [[ -f $script && $(grep -vE '^\s*(#|$)' "$script" | tail -1) =~ ^[[:space:]]*gum\ confirm.*\&\& ]]; then
     fail 'declining an optional reboot does not fail an install' "${command%% *} ends in a gum confirm chained with &&; put the reboot in an if"
   fi
+  # Likewise an installer that carries on after a package it adds fails: the
+  # window would call the install done. set -e, or check the result.
+  if [[ -f $script ]] && ! grep -qE '^set -e' "$script" && grep -vE '^\s*#' "$script" | grep -qE '^\s*omarchy-pkg-(aur-)?add\b[^|]*$'; then
+    fail 'a failed package fails an install opened in the update window' "${command%% *} ignores what omarchy-pkg-add returns; run it under set -e or check the result"
+  fi
 done < <(grep -o '"action":"omarchy-launch-install [^"]*"' "$ROOT/default/omarchy/omarchy-menu.jsonc" | sed "s/^\"action\":\"omarchy-launch-install //; s/\"\$//; s/'//g")
 pass 'installs opened in the update window ask nothing it cannot show'
 pass 'declining an optional reboot does not fail an install'
+pass 'a failed package fails an install opened in the update window'
 
 # The window reads the exit status, so an installer whose package fails to
 # install must fail with it, or the window calls the install done.

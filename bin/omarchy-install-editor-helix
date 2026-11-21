@@ -2,6 +2,8 @@
 
 # omarchy:summary=Install Helix and configure it to use the current Omarchy theme
 
+set -e
+
 echo "Installing Helix..."
 omarchy-pkg-add helix
 
