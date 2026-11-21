@@ -4,7 +4,7 @@ set -euo pipefail
 
 source "$(dirname "$0")/base-test.sh"
 
-migration="$ROOT/migrations/1790598129.sh"
+migration="$ROOT/migrations/1793289056.sh"
 test_dir=$(mktemp -d)
 trap 'rm -rf "$test_dir"' EXIT
 
