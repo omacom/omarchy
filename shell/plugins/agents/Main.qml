@@ -443,7 +443,7 @@ Item {
     id: limitsRetry
     interval: 30000
     repeat: false
-    onTriggered: root.runUpdate("limits", root.retryAgentIds)
+    onTriggered: root.runUpdate("limits", root.retryAgentIds, true)
   }
 
   function scheduleLimitsRetry() {
@@ -467,6 +467,7 @@ Item {
 
   property int refreshIntervalSec: Math.max(30, Number(setting("refreshIntervalSec", 900)))
   property string pendingUpdateKind: ""
+  property bool pendingUpdateShared: false
 
   // A fifteen-minute interval can't catch an account crossing its switch
   // threshold, so while any provider with several accounts has its active one
@@ -493,7 +494,7 @@ Item {
     running: true
     repeat: true
     triggeredOnStart: true
-    onTriggered: root.runUpdate(root.nearLimit ? "limits" : "normal")
+    onTriggered: root.runUpdate(root.nearLimit ? "limits" : "normal", null, true)
   }
 
   Process {
@@ -502,11 +503,7 @@ Item {
     onExited: {
       root.rescanAgents()
       root.reloadRecords()
-      if (root.pendingUpdateKind !== "") {
-        var kind = root.pendingUpdateKind
-        root.pendingUpdateKind = ""
-        root.runUpdate(kind)
-      }
+      root.runPendingUpdate()
     }
 
     stderr: StdioCollector {
@@ -515,8 +512,21 @@ Item {
     }
   }
 
-  function updateCommand(kind, agentIds) {
-    var command = ["omarchy-agent-usage-update"]
+  // The bar builds this widget once per monitor, and every copy's timers fire
+  // together. The records are shared files that every copy watches, so one
+  // run serves them all: a timer-driven run takes a lock, and the copies that
+  // lose it wait for the winner to finish instead of collecting again. The
+  // lock file names the run that last held it, and a copy that waited skips
+  // only when that was its own request: one that waited behind a narrower run
+  // (a limits retry for one provider) still collects once the lock is free.
+  // Runs the user asks for (opening the panel, a forced refresh) are not shared.
+  readonly property string updateLockPath: (Quickshell.env("XDG_RUNTIME_DIR") || usageDir) + "/omarchy-agent-usage-update.lock"
+  readonly property var sharedRunPrefix: ["sh", "-c",
+    'exec 9<>"$0"; flock -n 9 || { flock 9; waited=1; }; if [ -z "$waited" ] || [ "$(cat "$0")" != "$*" ]; then printf %s "$*" >"$0"; "$@"; fi', updateLockPath]
+
+  function updateCommand(kind, agentIds, shared) {
+    var command = shared === true ? sharedRunPrefix.slice() : []
+    command.push("omarchy-agent-usage-update")
     if (kind === "force") command.push("--force")
     if (kind === "limits") command.push("--limits-only")
     var providers = settings && settings.providers ? settings.providers : {}
@@ -529,15 +539,30 @@ Item {
     return command
   }
 
-  function runUpdate(kind, agentIds) {
+  function runUpdate(kind, agentIds, shared) {
     if (updateProcess.running) {
       // Collapse queued requests to one full rerun; a forced refresh outranks
-      // the cheaper kinds it might have been queued behind.
-      if (kind === "force" || root.pendingUpdateKind === "") root.pendingUpdateKind = kind
+      // the cheaper kinds it might have been queued behind. The rerun stays
+      // shared only while every request behind it came from a timer, so a
+      // slow run does not send each copy off collecting on its own afterwards.
+      if (root.pendingUpdateKind === "") {
+        root.pendingUpdateKind = kind
+        root.pendingUpdateShared = shared === true
+      } else {
+        if (kind === "force") root.pendingUpdateKind = kind
+        if (shared !== true) root.pendingUpdateShared = false
+      }
       return
     }
-    updateProcess.command = updateCommand(kind, agentIds)
+    updateProcess.command = updateCommand(kind, agentIds, shared)
     updateProcess.running = true
+  }
+
+  function runPendingUpdate() {
+    if (root.pendingUpdateKind === "") return
+    var kind = root.pendingUpdateKind
+    root.pendingUpdateKind = ""
+    root.runUpdate(kind, null, root.pendingUpdateShared)
   }
 
   function refresh() { refreshAll(true) }

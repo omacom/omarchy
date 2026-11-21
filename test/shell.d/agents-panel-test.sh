@@ -487,3 +487,58 @@ assertEqual(progress(10, 10), 0.9, 'a start reaches 90% at the time the last one
 assert(progress(20, 10) > progress(15, 10) && progress(15, 10) > 0.9, 'a start that runs long keeps creeping')
 assert(progress(1000, 10) < 0.99, 'the bar never fills before the model is ready')
 JS
+
+# Every monitor's copy of the widget fires its refresh timer at once. They
+# share one update run, and the copies that lose the lock wait for it to
+# finish so their reload afterwards sees its records.
+shared_run=$(sed -n "s/^ *'\(exec 9.*\)', updateLockPath\]\$/\1/p" "$ROOT/shell/plugins/agents/Main.qml")
+[[ -n $shared_run ]] || fail "the shared update run is not where this test reads it from"
+lock_tmp=$(mktemp -d)
+for _ in 1 2 3; do
+  (
+    sh -c "$shared_run" "$lock_tmp/lock" sh -c 'echo run >>"$0"; sleep 0.3; echo done >>"$0"' "$lock_tmp/log"
+    echo exit >>"$lock_tmp/log"
+  ) &
+done
+wait
+shared_log=$(tr '\n' ' ' <"$lock_tmp/log")
+rm -rf "$lock_tmp"
+[[ $shared_log == "run done exit exit exit " ]] || fail "copies refreshing together did not share one update run: $shared_log"
+pass "copies refreshing together share one update run"
+
+# A copy that waited behind a different run (a retry for one provider) was not
+# served by it, so it still collects, once, for every copy that asked the same.
+lock_tmp=$(mktemp -d)
+sh -c "$shared_run" "$lock_tmp/lock" sh -c 'echo "$1" >>"$0"; sleep 0.3' "$lock_tmp/log" narrow &
+sleep 0.1
+for _ in 1 2; do
+  sh -c "$shared_run" "$lock_tmp/lock" sh -c 'echo "$1" >>"$0"; sleep 0.1' "$lock_tmp/log" wide &
+done
+wait
+shared_log=$(tr '\n' ' ' <"$lock_tmp/log")
+rm -rf "$lock_tmp"
+[[ $shared_log == "narrow wide " ]] || fail "a request the winning run did not cover was not run once afterwards: $shared_log"
+pass "a request the winning run did not cover runs once afterwards"
+
+# A timer that fires during a slow run queues a rerun. It has to stay shared,
+# or every copy collects on its own once the run ends; one the user asked for
+# while it was queued must not wait behind another copy's lock.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const functions = ['runUpdate', 'runPendingUpdate'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+const updateProcess = { running: true, command: null }
+const state = { pendingUpdateKind: '', pendingUpdateShared: false }
+const updateCommand = (kind, agentIds, shared) => [kind, shared === true]
+const { runUpdate, runPendingUpdate } = new Function('root', 'updateProcess', 'updateCommand', functions + '\nroot.runUpdate = runUpdate\nreturn { runUpdate, runPendingUpdate }')(state, updateProcess, updateCommand)
+const rerunAfter = requests => {
+  updateProcess.running = true
+  requests.forEach(request => runUpdate(...request))
+  updateProcess.running = false
+  runPendingUpdate()
+  return updateProcess.command
+}
+assertDeepEqual(rerunAfter([['limits', null, true]]), ['limits', true], 'a timer queued behind a slow run still shares its rerun')
+assertDeepEqual(rerunAfter([['normal', null, true], ['force']]), ['force', false], 'a forced refresh queued after a timer runs unshared')
+assertDeepEqual(rerunAfter([['limits'], ['normal', null, true]]), ['limits', false], 'a timer queued after a user refresh leaves it unshared')
+JS
