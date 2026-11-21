@@ -968,7 +968,18 @@ Panel {
   }
 
   function forget(net) {
-    runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) { network.forget() })
+    runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) {
+      network.forget()
+      forgetWifiProfiles.command = ["bash", "-c", Model.forgetWifiProfilesScript, "nmcli-forget", network.name || ""]
+      forgetWifiProfiles.running = true
+    })
+  }
+
+  // Cleans up any saved profile for the SSID that network.forget() left
+  // behind (see Model.forgetWifiProfilesScript). No stdin secret, so no
+  // Process-level stdin wiring is needed here.
+  Process {
+    id: forgetWifiProfiles
   }
 
   implicitWidth: button.implicitWidth
