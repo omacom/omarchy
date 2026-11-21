@@ -175,3 +175,107 @@ for good in \
     fail "plugin add did not reach git clone for a legitimate URL: $good" "$output"
 done
 pass "plugin add lets legitimate git URLs reach git clone"
+
+# Real repositories exercise both installation formats and the shared updater.
+package_home="$TMPDIR/package-home"
+package_source="$TMPDIR/package-source"
+package_dir="$package_home/.config/omarchy/plugins/acme.archive"
+write_plugin "$package_source" "acme.archive" "Archive"
+mkdir -p "$package_source/tests" "$package_source/docs"
+printf 'fixture\n' >"$package_source/tests/fixture"
+printf 'notes\n' >"$package_source/docs/notes"
+printf 'obsolete\n' >"$package_source/obsolete"
+printf '/tests export-ignore\n/docs export-ignore\n' >"$package_source/.gitattributes"
+git -C "$package_source" init -q
+commit_package() {
+  git -C "$package_source" add -A
+  git -C "$package_source" -c user.name=Test -c user.email=test@example.com commit -qm "$1"
+}
+package_command() {
+  HOME="$package_home" OMARCHY_PATH="$ROOT" PATH="$stub_dir:$ROOT/bin:$PATH" PLUGIN_SHELL_LOG="$TMPDIR/package-shell.log" "$@"
+}
+commit_package "Initial package"
+
+HOME="$TMPDIR/checkout-home" OMARCHY_PATH="$ROOT" PATH="$stub_dir:$ROOT/bin:$PATH" \
+  omarchy-plugin-add "$package_source" --yes
+checkout_dir="$TMPDIR/checkout-home/.config/omarchy/plugins/acme.archive"
+[[ -d $checkout_dir/.git && -f $checkout_dir/tests/fixture ]] || fail "default install must remain a full checkout"
+cat >"$stub_dir/omarchy-shell" <<'STUB'
+#!/bin/bash
+[[ -z ${PLUGIN_SHELL_LOG:-} ]] || printf '%s\n' "$*" >>"$PLUGIN_SHELL_LOG"
+exit 0
+STUB
+package_command omarchy-plugin-add "$package_source" --archive --yes
+[[ -f $package_dir/Widget.qml && ! -e $package_dir/.git && ! -e $package_dir/tests && ! -e $package_dir/docs ]] ||
+  fail "archive must contain runtime files without excluded files or git history"
+[[ $(jq -r '.commit' "$package_dir/.omarchy-package.json") == "$(git -C "$package_source" rev-parse HEAD)" ]] ||
+  fail "archive must record its exact source commit"
+pass "archive installation honors export-ignore while default installation remains a checkout"
+: >"$TMPDIR/package-shell.log"
+package_command omarchy-plugin-update acme.archive --yes
+[[ ! -s $TMPDIR/package-shell.log ]] || fail "an up-to-date archive must not rescan the shell"
+
+printf 'changed upstream\n' >"$package_source/new-file"
+rm "$package_source/obsolete"
+# Changing export rules must also remove files that were previously installed.
+printf '/new-file export-ignore\n' >>"$package_source/.gitattributes"
+commit_package "Update package"
+printf 'local file\n' >"$package_dir/personal"
+if package_command omarchy-plugin-update acme.archive --yes; then
+  fail "archive update must refuse untracked local files"
+fi
+[[ -f $package_dir/personal && -f $package_dir/obsolete ]] || fail "refused update changed local files"
+rm "$package_dir/personal"
+chmod +x "$package_dir/Widget.qml"
+if package_command omarchy-plugin-update acme.archive --yes; then
+  fail "archive update must preserve local executable-mode changes"
+fi
+chmod -x "$package_dir/Widget.qml"
+# A failed rename after moving the old directory must restore it.
+cat >"$stub_dir/mv" <<'STUB'
+#!/bin/bash
+for arg in "$@"; do
+  [[ $arg == */.update.tmp.*/package ]] && exit 1
+done
+exec /usr/bin/mv "$@"
+STUB
+chmod +x "$stub_dir/mv"
+if package_command omarchy-plugin-update acme.archive --yes; then
+  fail "replacement failure must fail the update"
+fi
+[[ -f $package_dir/obsolete && -f $package_dir/Widget.qml ]] || fail "replacement failure lost the previous package"
+rm "$stub_dir/mv"
+package_command omarchy-plugin-update --yes
+[[ ! -e $package_dir/obsolete && ! -e $package_dir/new-file ]] || fail "archive update left stale or excluded files"
+HOME="$TMPDIR/checkout-home" OMARCHY_PATH="$ROOT" PATH="$stub_dir:$ROOT/bin:$PATH" \
+  omarchy-plugin-update acme.archive --yes
+[[ -f $checkout_dir/new-file && -d $checkout_dir/.git ]] || fail "checkout update stopped following its original workflow"
+pass "both formats update; archives protect local files and honor changed export rules"
+
+installed_commit=$(jq -r '.commit' "$package_dir/.omarchy-package.json")
+printf '/Widget.qml export-ignore\n' >>"$package_source/.gitattributes"
+commit_package "Broken export"
+if package_command omarchy-plugin-update acme.archive --yes; then
+  fail "archive update must reject a missing entry point"
+fi
+[[ -f $package_dir/Widget.qml && $(jq -r '.commit' "$package_dir/.omarchy-package.json") == "$installed_commit" ]] ||
+  fail "failed validation replaced the working package"
+if HOME="$TMPDIR/broken-home" OMARCHY_PATH="$ROOT" PATH="$stub_dir:$ROOT/bin:$PATH" \
+  omarchy-plugin-add "$package_source" --archive --yes; then
+  fail "archive install must reject a missing entry point"
+fi
+[[ ! -e $TMPDIR/broken-home/.config/omarchy/plugins/acme.archive ]] || fail "invalid archive was installed"
+pass "invalid exports cannot replace or install a plugin"
+
+sed -i '\|/Widget.qml export-ignore|d' "$package_source/.gitattributes"
+sed -i 's/acme.archive/acme.changed/' "$package_source/manifest.json"
+commit_package "Changed identity"
+if package_command omarchy-plugin-update acme.archive --yes; then
+  fail "archive update must reject a changed plugin id"
+fi
+[[ $(jq -r '.commit' "$package_dir/.omarchy-package.json") == "$installed_commit" ]] || fail "identity change replaced installed package"
+package_command omarchy-plugin-remove acme.archive --yes
+[[ ! -e $package_dir ]] || fail "archive removal left the plugin installed"
+backups=("$package_home/.config/omarchy/plugins/.acme.archive.bak."*)
+[[ -f ${backups[0]}/Widget.qml && -f ${backups[0]}/.omarchy-package.json ]] || fail "archive removal must preserve the existing non-checkout backup behavior"
+pass "archive identity is stable and removal keeps the existing backup behavior"
