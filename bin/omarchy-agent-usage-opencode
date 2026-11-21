@@ -34,6 +34,7 @@ from collectors import (  # noqa: E402
   base_record,
   cache_root,  # noqa: F401 - the tests reach the cache through it
   cached_scan,
+  config_home,
   data_home,
   emit,
   limits_cache_path as shared_limits_cache_path,
@@ -41,6 +42,7 @@ from collectors import (  # noqa: E402
   open_json,
   opencode_db,
   pi_session_roots,
+  read_json,
   scan_max_age,
   scan_opencode,
   scan_pi_sessions,
@@ -63,6 +65,13 @@ CONSOLE_EXPIRED_HELP = "OpenCode's Console session has expired. Run `opencode au
 # answer every time, so it is asked again hourly rather than on every run;
 # --force asks at once, for someone who just subscribed.
 NO_PLAN_RECHECK_SECONDS = 3600
+
+# The plan the meters belong to. Go, Go Plus and Go Teams all read the same
+# usage endpoint, which answers with percentages and reset times and names no
+# plan at all, so this collector names none either: a plan is read from the
+# answer when the endpoint ever reports one, else from what the user declares.
+PLAN_FIELDS = ("plan", "planType", "plan_type", "planName", "plan_name", "tier", "planId", "plan_id")
+PLAN_SCOPES = ("usage", "subscription", "account")
 
 # The subscription has two provider ids: "opencode" for the plain Zen
 # gateway and "opencode-go" for the Go plan. Both spend the same account and
@@ -269,6 +278,48 @@ def parse_usage(payload):
   return limits
 
 
+def plan_name(value):
+  # Only a non-empty string names a plan to show: an object, a number or a
+  # blank is no label, and a blank label beats a wrong one.
+  return value.strip() if isinstance(value, str) else ""
+
+
+def plan_from_payload(payload):
+  """The plan the endpoint names, when it names one.
+
+  The Go meters report percentages and reset times and no plan, so this reads
+  whatever an answer may add later (`plan`, `tier`, ... at its top level or
+  under the subscription) rather than naming a plan Go, Go Plus and Go Teams
+  subscribers each are on.
+  """
+  if not isinstance(payload, dict):
+    return ""
+  for scope in (payload, *(payload.get(key) for key in PLAN_SCOPES)):
+    if not isinstance(scope, dict):
+      continue
+    for field in PLAN_FIELDS:
+      plan = plan_name(scope.get(field))
+      if plan:
+        return plan
+  return ""
+
+
+def declared_plan():
+  """The plan the user declared in ~/.config/omarchy/agents/opencode.json.
+
+  Which of the three plans an account is on is in no answer a key can ask for,
+  so a subscriber can say it: {"plan": "Go Plus"}.
+  """
+  return plan_name(read_json(config_home() / "omarchy" / "agents" / "opencode.json").get("plan"))
+
+
+def plan_label(reported):
+  """The plan to show: the user's declaration, else the one the endpoint
+  reported, else none at all. The panel shows no plan beside a blank label,
+  which is the honest reading of an answer that names no plan."""
+  return declared_plan() or reported or ""
+
+
 def probe_limits(credential):
   request = urllib.request.Request(credential.url, headers={
     "Authorization": "Bearer " + credential.token,
@@ -305,7 +356,7 @@ def probe_limits(credential):
   limits = parse_usage(payload)
   if not limits:
     return {"ok": False, "helpText": "OpenCode's usage endpoint returned no quota windows. Local OpenCode stats are still shown."}
-  return {"ok": True, "limits": limits}
+  return {"ok": True, "limits": limits, "plan": plan_from_payload(payload)}
 
 
 # One cache per credential, so a machine signed in to another account never
@@ -323,10 +374,11 @@ def collect_limits(force):
     return result
   result["signedIn"] = True
 
-  # Limits only ever show for a Go plan, so a tier follows them.
-  def answer(limits, fetched_at, stale):
+  # Limits only ever show for a Go plan, so a tier follows them — named by the
+  # answer, or by the user, and never assumed.
+  def answer(limits, fetched_at, stale, reported=""):
     # Stale says limits were kept past a failed check, so none kept is none stale.
-    result.update(limits=limits, tierLabel="Go" if limits else "", stale=stale and bool(limits), fetchedAtMs=fetched_at if limits else 0)
+    result.update(limits=limits, tierLabel=plan_label(reported) if limits else "", stale=stale and bool(limits), fetchedAtMs=fetched_at if limits else 0)
     return result
 
   refused = None
@@ -334,6 +386,7 @@ def collect_limits(force):
   for candidate in candidates:
     cache = LimitsCache(AGENT_ID, candidate.token)
     fallback, fetched_at = cache.limits, cache.fetched_at
+    kept_plan = plan_name(cache.data.get("plan"))
 
     # A key already known to have no Go plan isn't asked again for a while.
     if cache.data.get("noPlan") is True and not force and cache.younger_than(NO_PLAN_RECHECK_SECONDS):
@@ -342,11 +395,12 @@ def collect_limits(force):
 
     # A recent answer stands in for a probe; --force skips the wait.
     if cache.fresh(force):
-      return answer(fallback, fetched_at, False)
+      return answer(fallback, fetched_at, False, kept_plan)
 
     probe = probe_limits(candidate)
     if probe.get("ok"):
-      return answer(probe["limits"], cache.save(probe["limits"], only_if_newer=True), False)
+      stamp = cache.save(probe["limits"], only_if_newer=True, plan=probe["plan"])
+      return answer(probe["limits"], stamp, False, probe["plan"])
 
     if probe.get("noPlan"):
       # The windows of a plan that's gone mean nothing now, so they go too.
@@ -360,16 +414,16 @@ def collect_limits(force):
       # session is what to fix, whichever refusal is kept.
       expired = candidate.expired or bool(refused and refused[3])
       if refused is None or (not refused[1] and fallback):
-        refused = (probe, fallback, fetched_at, expired)
+        refused = (probe, fallback, fetched_at, expired, kept_plan)
       else:
-        refused = refused[:3] + (expired,)
+        refused = refused[:3] + (expired, kept_plan)
       continue
 
     # Last good numbers, marked stale, beat an empty limits section while
     # the probe is down. A key that already said it has no plan makes an
     # outage on another one no news.
     result["retryAdvised"] = bool(probe.get("transport"))
-    answer(fallback, fetched_at, True)
+    answer(fallback, fetched_at, True, kept_plan)
     if fallback:
       result["authHelpText"] = probe["helpText"]
     elif not no_plan:
@@ -384,8 +438,8 @@ def collect_limits(force):
 
   # Every way in was refused: an account problem, not an outage. Keep any
   # still-open numbers, but say a new sign-in is needed.
-  probe, fallback, fetched_at, expired = refused
-  answer(fallback, fetched_at, True)
+  probe, fallback, fetched_at, expired, refused_plan = refused
+  answer(fallback, fetched_at, True, refused_plan)
   result["usageStatusText"] = "Sign-in expired"
   result["authHelpText"] = CONSOLE_EXPIRED_HELP if expired else probe["helpText"]
   return result
