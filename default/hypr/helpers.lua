@@ -213,10 +213,11 @@ function o.bind(keys, description, dispatcher, options)
 end
 
 -- A shipped web app hotkey, left unbound when the region omits that web app
--- (docs/regions.md).
-function o.bind_webapp(keys, description, dispatcher, options)
-  if not o.region_omits_webapp(dispatcher.webapp) then
-    o.bind(keys, description, dispatcher, options)
+-- (docs/regions.md). { focus = true } focuses an open window of it instead of
+-- opening another.
+function o.bind_webapp(keys, description, url, options)
+  if not o.region_omits_webapp(url) then
+    o.bind(keys, description, { webapp = url, focus = (options or {}).focus })
   end
 end
 
