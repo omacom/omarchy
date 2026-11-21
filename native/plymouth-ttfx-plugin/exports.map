@@ -1,0 +1,6 @@
+{
+        global:
+                ply_boot_splash_plugin_get_interface;
+        local:
+                *;
+};

@@ -444,6 +444,24 @@ Item {
         return Qt.size(decodeWidth, decodeHeight)
       }
 
+      // The boot splash hands off to this layer once it has shown a settled
+      // frame. Report that once per panel; the handoff script watches for it.
+      property bool handoffReadyReported: false
+      readonly property bool handoffFrameReady: !handoffReadyReported && visible && backgroundReady
+        && root.displayedBackground !== "" && root.incomingBackground === ""
+        && !root.finishingTransition && root.revealProgress >= 1
+      onHandoffFrameReadyChanged: {
+        if (!handoffFrameReady) return
+        handoffReadyReported = true
+        handoffReadyProc.running = true
+      }
+
+      Process {
+        id: handoffReadyProc
+        running: false
+        command: ["sh", "-c", "set -eu; n=$1; case $n in ''|*[!A-Za-z0-9._-]*) exit 1;; esac; d=${XDG_RUNTIME_DIR:?}; umask 077; t=$d/.omarchy-wallpaper-ready.$n.$$; trap 'rm -f -- \"$t\"' EXIT; printf 'status=frame-ready\\nmonitor=%s\\n' \"$n\" >\"$t\"; chmod 600 \"$t\"; mv -f -- \"$t\" \"$d/omarchy-wallpaper-ready.$n\"; trap - EXIT", "sh", String(modelData.name || "")]
+      }
+
       function maybeStartReveal() {
         if (!incomingReady() || root.revealProgress >= 1 || maskReady) return
         Qt.callLater(function() {

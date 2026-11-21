@@ -12,6 +12,8 @@ omarchy plymouth preview '#1d2021' '#ebdbb2' logo.png preview.png
 
 Then apply the setup with `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png`, which will also give the SDDM login screen the same colors and logo. If you want to revert, you can use `omarchy plymouth reset`.
 
+When the native TTFX module is installed, the default boot unlock animation is `ttfx --frame-rate 240 decrypt`. Under _Appearance > Bootloader_, choose **Input Only** to play the effect once and hold its terminal frame through the desktop handoff, or choose **Full Animated** to keep the complete animation looping. A check marks the active playback mode. Select another renderer under _Appearance > Bootloader > Effect_; its checked current effect is shown first. Choosing an already active mode or effect is a no-op. Theme changes and refreshes retain both the playback behavior and effect selection. **Random** is resolved once when selected and saves that concrete effect; select **Random** again whenever you want another effect.
+
  ![branding-plymouth-shopify](images/branding-plymouth-shopify.webp)
 
 ### Screensaver

@@ -1,0 +1,17 @@
+[package]
+name = "ttfx-plymouth"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+clap = "4"
+ttfx = { path = "vendor/ttfx" }
+
+[profile.plymouth]
+inherits = "release"
+panic = "unwind"
+strip = false

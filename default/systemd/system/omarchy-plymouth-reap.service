@@ -1,0 +1,8 @@
+[Unit]
+Description=Release retained Omarchy Plymouth resources
+
+[Service]
+Type=oneshot
+ExecStart=-/usr/bin/timeout -k 1s 3s /usr/bin/plymouth quit --retain-splash
+ExecStartPost=-/usr/bin/systemctl stop plymouth-start.service
+TimeoutStartSec=8s

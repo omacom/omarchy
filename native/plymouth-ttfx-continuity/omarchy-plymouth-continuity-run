@@ -1,0 +1,162 @@
+#!/bin/bash
+# Keep the last Plymouth frame on screen until the wallpaper engine's intro
+# video is really playing, then let it fade out.
+#
+# Starts omarchy-plymouth-continuity in the background, polls
+# `owe render-status`, and sends the client SIGUSR1 once the intro is playing
+# (intro true and time_pos above a threshold). Without `owe`, or when no intro
+# starts in time, it signals anyway. Bounded by the client's own --max-ms.
+# Run it asynchronously from the compositor's autostart (exec-once): it polls
+# for up to --max-ms itself. It always exits 0 and never blocks the session.
+#
+# The client is started before anything else, with no subshell or external
+# command ahead of it: every fork before it would delay its first frame.
+#
+# Usage: omarchy-plymouth-continuity-run [client options...]
+# Client options are passed through (for example --file, --ready-file).
+#
+# Tuning (environment):
+#   OMARCHY_CONTINUITY_CLIENT      client binary (default: next to this script,
+#                                  else omarchy-plymouth-continuity in PATH)
+#   OMARCHY_CONTINUITY_OWE         wallpaper engine CLI (default: owe)
+#   OMARCHY_CONTINUITY_MAX_MS      client --max-ms and overall bound (8000)
+#   OMARCHY_CONTINUITY_INTRO_WAIT_MS  signal if no intro is seen by then (4000)
+#   OMARCHY_CONTINUITY_POLL_MS     poll interval (50)
+#   OMARCHY_CONTINUITY_TIME_POS    intro time_pos that counts as playing (0.05)
+#   OMARCHY_CONTINUITY_MIN_SWAPS   also require at least this many renderer
+#                                  swaps when the field is present (0 = ignore)
+#   OMARCHY_CONTINUITY_CALL_TIMEOUT  seconds allowed per owe call (0.5)
+
+set -u
+set +e
+
+start_us=${EPOCHREALTIME/[.,]/}
+max_ms=${OMARCHY_CONTINUITY_MAX_MS:-}
+[[ $max_ms =~ ^[0-9]{1,9}$ ]] && max_ms=$((10#$max_ms)) || max_ms=8000
+
+# Client: next to this script, else in PATH (both resolved without forking).
+client=${OMARCHY_CONTINUITY_CLIENT:-}
+if [[ -z $client ]]; then
+  self=${BASH_SOURCE[0]}
+  [[ $self == */* ]] && client=${self%/*}/omarchy-plymouth-continuity || client=./omarchy-plymouth-continuity
+  if [[ ! -f $client || ! -x $client ]]; then
+    client=
+    IFS=: read -r -a path_dirs <<<"${PATH:-}"
+    for dir in "${path_dirs[@]}"; do
+      [[ -n $dir && -f $dir/omarchy-plymouth-continuity && -x $dir/omarchy-plymouth-continuity ]] && { client=$dir/omarchy-plymouth-continuity; break; }
+    done
+  fi
+fi
+pid=
+if [[ -n $client && -x $client ]]; then
+  "$client" --max-ms "$max_ms" "$@" </dev/null &
+  pid=$!
+fi
+
+log() {
+  printf 'omarchy-plymouth-continuity-run: %s\n' "$*" >&2
+}
+
+# Non-negative integer or the default.
+int_or() {
+  [[ $1 =~ ^[0-9]{1,9}$ ]] && printf '%s' "$((10#$1))" || printf '%s' "$2"
+}
+
+# Decimal (optionally signed, optionally with exponent) -> integer
+# thousandths, truncated; garbage -> empty. Bash only, no awk/bc.
+to_milli() {
+  local value=$1 sign=1 int frac exp=0
+  [[ $value =~ ^(-?)([0-9]*)(\.([0-9]*))?([eE]([-+]?[0-9]+))?$ ]] || return 1
+  [[ -n ${BASH_REMATCH[2]}${BASH_REMATCH[4]} ]] || return 1
+  [[ ${BASH_REMATCH[1]} == - ]] && sign=-1
+  int=${BASH_REMATCH[2]:-0}
+  frac=${BASH_REMATCH[4]}000
+  local e=${BASH_REMATCH[6]} esign=1
+  if [[ -n $e ]]; then
+    [[ $e == -* ]] && esign=-1
+    e=${e#[-+]}
+    exp=$((esign * 10#${e:0:4}))
+  fi
+  local digits=$((10#${int:0:12}))${frac:0:3}
+  digits=$((10#$digits))
+  # Apply a decimal exponent by shifting thousandths.
+  while ((exp > 0 && digits < 100000000000)); do digits=$((digits * 10)); exp=$((exp - 1)); done
+  while ((exp < 0 && digits > 0)); do digits=$((digits / 10)); exp=$((exp + 1)); done
+  ((exp < 0)) && digits=0
+  printf '%s' "$((sign * digits))"
+}
+
+# Value of the first occurrence of a JSON key: true/false/null/number, or
+# empty. Pure bash on the engine's flat status objects; "intro" does not match
+# "intro_result" or "has_intro" because the quotes are part of the pattern.
+json_first() {
+  local json=$1 key=$2 rest
+  rest=${json#*\"$key\"}
+  [[ $rest == "$json" ]] && return 0
+  [[ $rest =~ ^[[:space:]]*:[[:space:]]*(true|false|null|-?[0-9][0-9.eE+-]*) ]] &&
+    printf '%s' "${BASH_REMATCH[1]}"
+  return 0
+}
+
+now_ms() {
+  local t=${EPOCHREALTIME/[.,]/}
+  printf '%s' "$((t / 1000))"
+}
+
+[[ -n $pid ]] || { log "client not found; nothing to do"; exit 0; }
+start=$((start_us / 1000))
+log "started client pid=$pid"
+
+owe=${OMARCHY_CONTINUITY_OWE:-owe}
+intro_wait_ms=$(int_or "${OMARCHY_CONTINUITY_INTRO_WAIT_MS:-}" 4000)
+poll_ms=$(int_or "${OMARCHY_CONTINUITY_POLL_MS:-}" 50)
+((poll_ms >= 10)) || poll_ms=10
+min_swaps=$(int_or "${OMARCHY_CONTINUITY_MIN_SWAPS:-}" 0)
+call_timeout=${OMARCHY_CONTINUITY_CALL_TIMEOUT:-0.5}
+[[ $call_timeout =~ ^[0-9]+(\.[0-9]+)?$ ]] || call_timeout=0.5
+threshold=$(to_milli "${OMARCHY_CONTINUITY_TIME_POS:-0.05}") || threshold=50
+[[ -n $threshold ]] || threshold=50
+poll_sleep=$((poll_ms / 1000)).$(printf '%03d' $((poll_ms % 1000)))
+
+signal_client() {
+  kill -USR1 "$pid" 2>/dev/null
+  log "signalled client pid=$pid reason=$1 after_ms=$(($(now_ms) - start))"
+  exit 0
+}
+
+have_owe=true
+command -v "$owe" >/dev/null 2>&1 || have_owe=false
+command -v timeout >/dev/null 2>&1 && call=(timeout -k 0.2 "$call_timeout" "$owe") || call=("$owe")
+$have_owe || signal_client "no-owe"
+
+seen_intro=false
+while :; do
+  kill -0 "$pid" 2>/dev/null || { log "client exited on its own after_ms=$(($(now_ms) - start))"; exit 0; }
+  elapsed=$(($(now_ms) - start))
+  ((elapsed < max_ms)) || { log "client max-ms reached; it fades by itself"; exit 0; }
+
+  status=$("${call[@]}" render-status 2>/dev/null </dev/null)
+  intro=$(json_first "$status" intro)
+  time_pos=$(json_first "$status" time_pos)
+  swaps=$(json_first "$status" swaps)
+
+  if [[ $intro == true ]]; then
+    seen_intro=true
+    pos=$(to_milli "$time_pos") || pos=0
+    [[ -n $pos ]] || pos=0
+    swaps_ok=true
+    if ((min_swaps > 0)) && [[ $swaps =~ ^[0-9]+$ ]] && ((swaps < min_swaps)); then
+      swaps_ok=false
+    fi
+    if ((pos > threshold)) && $swaps_ok; then
+      signal_client "intro-playing time_pos=$time_pos swaps=${swaps:-?}"
+    fi
+  elif $seen_intro && [[ $intro == false ]]; then
+    # The intro was playing and is over (short or skipped): the desktop
+    # shows whatever follows it, so stop covering it.
+    signal_client "intro-ended"
+  elif ! $seen_intro && ((elapsed >= intro_wait_ms)); then
+    signal_client "no-intro-within-${intro_wait_ms}ms"
+  fi
+  sleep "$poll_sleep" 2>/dev/null || sleep 1
+done
