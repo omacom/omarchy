@@ -11,10 +11,17 @@ Type=simple
 # If bluetoothd is unavailable (for example in VMs or machines without a
 # usable adapter), skip cleanly instead of entering a restart loop.
 ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service
-# NoInputNoOutput auto-accepts pair requests. Safe because the adapter
-# is only `pairable: true` when the user explicitly opens the omarchy
-# bluetoothPanel and starts scanning; outside that window bluez refuses
-# inbound pair attempts at a lower layer.
+# NoInputNoOutput auto-accepts pair requests, so the window in which one can
+# arrive is what keeps this safe. BlueZ brings every controller up pairable
+# with no timeout; the Omarchy Bluetooth bar widget turns the Pairable
+# property of each one on only while its panel is open or
+# omarchy-bluetooth-device holds it for a pairing it runs, and the kernel
+# refuses bonding while it is off. A controller is also not connectable or
+# discoverable unless something makes it so, which turns unknown devices away
+# before pairing starts. The gate lives in the widget: with it removed from
+# the bar, or the shell not running, BlueZ's default stands. Pair from the
+# panel or omarchy-bluetooth-device; a `bluetoothctl pairable on` is undone by
+# the shell.
 ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
 Restart=on-failure
 RestartSec=2
