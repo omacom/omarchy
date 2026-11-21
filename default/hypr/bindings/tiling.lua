@@ -15,10 +15,94 @@ o.bind("SUPER + L", "Cycle workspace layout", "omarchy-hyprland-workspace-layout
 o.bind("SUPER + ALT + L", "Cycle workspace layout back", "omarchy-hyprland-workspace-layout-toggle back")
 o.bind("XF86Display", "Cycle workspace layout", "omarchy-hyprland-workspace-layout-toggle")
 
-o.bind("SUPER + LEFT", "Focus on left window", hl.dsp.focus({ direction = "l" }))
-o.bind("SUPER + RIGHT", "Focus on right window", hl.dsp.focus({ direction = "r" }))
-o.bind("SUPER + UP", "Focus on above window", hl.dsp.focus({ direction = "u" }))
-o.bind("SUPER + DOWN", "Focus on below window", hl.dsp.focus({ direction = "d" }))
+-- Hyprland's directional focus only moves between windows of the same kind
+-- (tiled to tiled, floating to floating), so it skips a floating or popped-out
+-- (SUPER + O) window sitting over the tiles, and can't leave one either. Pick
+-- the nearest visible window in that direction by centre, tiled or floating:
+-- when it is of the other kind, go straight to it; otherwise keep Hyprland's
+-- own move, falling back to the nearest window when that finds nothing.
+local function window_center(window)
+  return window.at.x + window.size.x / 2, window.at.y + window.size.y / 2
+end
+
+local function nearest_window(from, direction)
+  local monitor = from.monitor and from.monitor.id
+  local workspace = hl.get_active_workspace()
+  local workspace_id = workspace and workspace.id
+  local cx, cy = window_center(from)
+  local best, best_score, pinned
+
+  for _, window in ipairs(hl.get_windows()) do
+    local on_screen = window.pinned or (window.workspace and window.workspace.id == workspace_id)
+
+    if window.address ~= from.address and window.mapped and not window.hidden
+        and window.monitor and window.monitor.id == monitor and on_screen then
+      if window.pinned then pinned = window end
+
+      local wx, wy = window_center(window)
+      local dx, dy = wx - cx, wy - cy
+      local along, across
+
+      if direction == "l" then
+        along, across = -dx, dy
+      elseif direction == "r" then
+        along, across = dx, dy
+      elseif direction == "u" then
+        along, across = -dy, dx
+      else
+        along, across = dy, dx
+      end
+
+      if along > 0 then
+        local score = along + 2 * math.abs(across)
+        if not best_score or score < best_score then
+          best, best_score = window, score
+        end
+      end
+    end
+  end
+
+  return best, pinned
+end
+
+local function focus_window(window)
+  local target = "address:" .. window.address
+  hl.dispatch(hl.dsp.focus({ window = target }))
+  if window.floating then
+    hl.dispatch(hl.dsp.window.alter_zorder({ window = target, mode = "top" }))
+  end
+end
+
+local function focus_direction(direction)
+  return function()
+    local before = hl.get_active_window()
+    if not before then
+      hl.dispatch(hl.dsp.focus({ direction = direction }))
+      return
+    end
+
+    local best, pinned = nearest_window(before, direction)
+
+    if best and best.floating ~= before.floating then
+      focus_window(best)
+      return
+    end
+
+    hl.dispatch(hl.dsp.focus({ direction = direction }))
+
+    local after = hl.get_active_window()
+    if after and after.address ~= before.address then return end
+
+    -- A lone tile right under a popped-out window has nothing "beside" it.
+    local fallback = best or (not before.pinned and pinned) or nil
+    if fallback then focus_window(fallback) end
+  end
+end
+
+o.bind("SUPER + LEFT", "Focus on left window", focus_direction("l"))
+o.bind("SUPER + RIGHT", "Focus on right window", focus_direction("r"))
+o.bind("SUPER + UP", "Focus on above window", focus_direction("u"))
+o.bind("SUPER + DOWN", "Focus on below window", focus_direction("d"))
 
 -- Each monitor has workspaces 1-10 of its own; see default/hypr/monitor-workspaces.lua.
 for workspace = 1, 10 do
