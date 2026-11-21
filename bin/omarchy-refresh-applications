@@ -4,12 +4,17 @@
 
 # The region's list names the launchers it installs (docs/regions.md).
 mkdir -p ~/.local/share/applications
+launchers=()
 while read -r name; do
-  cp "$OMARCHY_PATH/applications/$name.desktop" ~/.local/share/applications/
+  launchers+=("$OMARCHY_PATH/applications/$name.desktop")
 done < <(sed -e 's/[[:space:]]*#.*//' -e '/^[[:space:]]*$/d' "$OMARCHY_PATH/default/regions/$(omarchy-region)/applications")
 
 if omarchy-cmd-present alacritty; then
-  cp "$OMARCHY_PATH/default/alacritty/Alacritty.desktop" ~/.local/share/applications/
+  launchers+=("$OMARCHY_PATH/default/alacritty/Alacritty.desktop")
+fi
+
+if (( ${#launchers[@]} > 0 )); then
+  cp -t ~/.local/share/applications -- "${launchers[@]}"
 fi
 
 update-desktop-database ~/.local/share/applications
