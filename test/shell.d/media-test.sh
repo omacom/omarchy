@@ -53,6 +53,8 @@ const trackSignature = media.trackSignature(track)
 assert(!media.trackChanged(trackSignature, { ...track }), 'media detects unchanged track metadata')
 assert(media.trackChanged(trackSignature, { ...track, trackTitle: 'Next song' }), 'media detects changed track metadata')
 assertEqual(media.labelFor({ trackTitle: 'Song', identity: 'Spotify' }), 'Song', 'media labels players by track first')
+assertEqual(media.sourceDetail({ trackTitle: 'Song', trackArtist: 'Artist', identity: 'Spotify' }), 'Artist · Spotify', 'media names the app on a source row')
+assertEqual(media.sourceDetail({ trackArtist: 'Artist', identity: 'Spotify' }), 'Artist', 'media names the app once when the title is the app')
 assertEqual(media.osdMessage({ trackTitle: 'Song', trackArtist: 'Artist' }, 'Fallback'), 'Song - Artist', 'media builds OSD messages')
 assertEqual(media.osdMessage(null, 'Fallback'), 'Fallback', 'media falls back OSD messages')
 
@@ -69,3 +71,14 @@ assertEqual(media.volumeOsdIcon(48, false), 'volume-high', 'volume OSD shows the
 assertEqual(media.volumeOsdIcon(48, true), 'volume-muted', 'volume OSD shows muted when muted')
 assertEqual(media.volumeOsdIcon(0, false), 'volume-muted', 'volume OSD shows muted at zero')
 JS
+
+# Built offscreen, the media widget needs Quickshell but no compositor.
+if ! command -v quickshell >/dev/null 2>&1; then
+  skip "quickshell unavailable; skipping media source rows on a cloned bar"
+  exit 0
+fi
+require_command jq
+qml_fixture_scratch
+mkdir -m 700 "$QML_FIXTURE_TMP/runtime"
+XDG_RUNTIME_DIR="$QML_FIXTURE_TMP/runtime" QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software \
+  run_qml_fixture media-source-rows "media source rows name their app on a cloned bar" Ui Commons

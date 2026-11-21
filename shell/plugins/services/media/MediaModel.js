@@ -153,6 +153,14 @@ function labelFor(player) {
   return player.trackTitle || player.identity || player.desktopEntry || ""
 }
 
+// A source row's second line: the artist and the app playing it, so two players can be told apart.
+// The app is left off when the row's title already falls back to its name.
+function sourceDetail(player) {
+  if (!player) return ""
+  var app = player.trackTitle ? player.identity : ""
+  return [player.trackArtist, app].filter(Boolean).join(" · ")
+}
+
 function osdMessage(player, fallback) {
   if (!player) return fallback
   var label = labelFor(player)
@@ -194,6 +202,7 @@ if (typeof module !== "undefined") {
     trackSignature: trackSignature,
     trackChanged: trackChanged,
     labelFor: labelFor,
+    sourceDetail: sourceDetail,
     osdMessage: osdMessage,
     volumeKeyStep: volumeKeyStep,
     volumeOsdIcon: volumeOsdIcon

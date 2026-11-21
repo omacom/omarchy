@@ -3,6 +3,7 @@ import Quickshell
 import qs.Ui
 import qs.Commons
 import qs.Commons as Commons
+import "MediaModel.js" as MediaModel
 
 BarWidget {
   id: root
@@ -253,7 +254,7 @@ BarWidget {
             readonly property bool selected: root.activePlayer && player
               && root.mediaService.playerKey(root.activePlayer) === root.mediaService.playerKey(player)
             readonly property string sourceTitle: player ? (player.trackTitle || player.identity || player.desktopEntry || I18n.t("media.mediaSource")) : I18n.t("media.mediaSource")
-            readonly property string sourceDetail: player && player.trackArtist ? player.trackArtist : (player && player.identity ? player.identity : "")
+            readonly property string sourceDetail: MediaModel.sourceDetail(player)
 
             width: sourceList.width
             height: sourceInner.implicitHeight + Style.space(10)
