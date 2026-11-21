@@ -56,6 +56,20 @@ Exec=missing-browser %U
 MimeType=x-scheme-handler/http;x-scheme-handler/https;
 EOF
 
+# A broken user entry shadows a working system entry of the same id: XDG
+# resolution picks the user file, so offering the system one would name a
+# browser that cannot actually be set as the default.
+browser_entry "$user_data/firefox.desktop" "Broken Firefox" missing-browser
+browser_entry "$system_data/firefox.desktop" "Firefox" firefox
+
+# Both visibility keys are independent; the true one wins even when false
+# comes first.
+browser_entry "$system_data/com.example.Shadow.desktop" "Hidden Shadow" vivaldi-stable
+cat >>"$system_data/com.example.Shadow.desktop" <<'EOF'
+Hidden=false
+NoDisplay=true
+EOF
+
 expected=$(printf 'Chromium\tchromium.desktop\nVivaldi\tvivaldi-stable.desktop\n')
 [[ $(omarchy-browser-list) == "$expected" ]] ||
   fail "browser list shows installed browsers by name and desktop id" "$(omarchy-browser-list)"

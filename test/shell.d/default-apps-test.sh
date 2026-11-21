@@ -247,6 +247,16 @@ if omarchy-default-browser absent.desktop >/dev/null 2>&1; then
 fi
 pass "a browser outside Omarchy's list can be made the default by desktop id"
 
+# The menu passes desktop ids for every browser, including the curated ones.
+# Those must still take their short-name path, or extension repair is lost.
+: >"$setup_log"
+OMARCHY_TEST_BROWSER_EXTENSIONS_STALE=true omarchy-default-browser --install google-chrome.desktop
+grep -Fxq 'omarchy-install-browser-extensions:chrome' "$setup_log" ||
+  fail "a curated browser chosen by desktop id still repairs its extensions" "$(cat "$setup_log")"
+[[ $(omarchy-default-browser) == "chrome" ]] ||
+  fail "a curated browser chosen by desktop id maps to its short name"
+pass "desktop ids for curated browsers keep their short-name setup"
+
 : >"$install_log"
 : >"$setup_log"
 rm -f "$installed_dir/chromium"

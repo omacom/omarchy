@@ -22,6 +22,10 @@ for data_dir in "${data_dirs[@]}"; do
     id=${entry##*/}
     [[ $id != "omarchy-browser.desktop" ]] || continue
     [[ -z ${seen[$id]:-} ]] || continue
+    # XDG shadowing is decided by file order, not by whether this particular
+    # entry is usable: a broken user entry hides a working system one, just as
+    # omarchy-cmd-default-browser will reject the id when it is selected.
+    seen[$id]=1
 
     mime=$(sed -n 's/^MimeType=//p' "$entry" | head -1)
     [[ -n $mime ]] || continue
@@ -37,8 +41,9 @@ for data_dir in "${data_dirs[@]}"; do
 
     # Hidden aliases, such as Chrome's com.google.Chrome.desktop beside its
     # regular entry, would show up as a second row for the same browser.
-    hidden=$(sed -n 's/^\(NoDisplay\|Hidden\)=//p' "$entry" | head -1)
-    [[ $hidden != true ]] || continue
+    nodisplay=$(sed -n 's/^NoDisplay=//p' "$entry" | head -1)
+    hidden=$(sed -n 's/^Hidden=//p' "$entry" | head -1)
+    [[ $nodisplay != "true" && $hidden != "true" ]] || continue
 
     command=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
     [[ -n $command ]] && omarchy-cmd-present "$command" || continue
@@ -46,7 +51,6 @@ for data_dir in "${data_dirs[@]}"; do
     name=$(sed -n 's/^Name=\(.*\)/\1/p' "$entry" | head -1)
     [[ -n $name ]] || continue
 
-    seen[$id]=1
     printf '%s\t%s\n' "$name" "$id"
   done
 done | LC_ALL=C sort -t $'\t' -k2,2

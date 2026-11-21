@@ -365,10 +365,10 @@ Item {
       // Provider scripts run through `bash -lc`, whose profile resets
       // OMARCHY_PATH to the installed tree. Bake the shell's own path into the
       // command so a dev-linked checkout lists and sets its own browsers.
-      script: "current=$(\"" + root.omarchyPath + "/bin/omarchy-cmd-default-browser\" 2>/dev/null); \"" + root.omarchyPath + "/bin/omarchy-browser-list\" 2>/dev/null | while IFS=$'\\t' read -r label value; do [[ -z $value ]] && continue; printf '%s\\t%s\\t%s\\n' \"$label\" \"$value\" \"$current\"; done",
+      script: "current=$(" + Util.shellQuote(root.omarchyPath + "/bin/omarchy-cmd-default-browser") + " 2>/dev/null); " + Util.shellQuote(root.omarchyPath + "/bin/omarchy-browser-list") + " 2>/dev/null | while IFS=$'\\t' read -r label value; do [[ -z $value ]] && continue; printf '%s\\t%s\\t%s\\n' \"$label\" \"$value\" \"$current\"; done",
       icon: "",
       volatile: true,
-      actionFor: function(value) { return "\"" + root.omarchyPath + "/bin/omarchy-default-browser\" " + Util.shellQuote(value) }
+      actionFor: function(value) { return Util.shellQuote(root.omarchyPath + "/bin/omarchy-default-browser") + " " + Util.shellQuote(value) }
     }
   })
 

@@ -25,6 +25,20 @@ if (($# == 0)); then
   exit 0
 fi
 
+# The menu offers desktop ids for every browser, including the curated ones.
+# Fold those back to the short names so installation, extension repair and
+# notifications keep their existing setup; only genuinely external browsers
+# take the generic branch below.
+case "$1" in
+chromium.desktop) set -- chromium ;;
+google-chrome.desktop | com.google.Chrome.desktop) set -- chrome ;;
+brave-browser.desktop) set -- brave ;;
+brave-origin.desktop) set -- brave-origin ;;
+microsoft-edge.desktop) set -- edge ;;
+firefox.desktop) set -- firefox ;;
+zen.desktop) set -- zen ;;
+esac
+
 case "$1" in
 chromium) browser="chromium"; command="chromium"; desktop_id="chromium.desktop"; name="Chromium"; glyph= ;;
 chrome) browser="chrome"; command="google-chrome-stable"; desktop_id="google-chrome.desktop"; name="Chrome"; glyph=󰊯 ;;
