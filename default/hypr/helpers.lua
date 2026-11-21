@@ -224,6 +224,21 @@ function o.bind_toggle(keys, description, toggle, options)
   o.bind(keys, description, "omarchy-toggle-" .. toggle, options)
 end
 
+-- Hyprland starts a fresh Lua state on every reload, so a hold binding would
+-- forget a press made before the reload and skip its release: a chord with the
+-- hold key that reloads the config, like Super + Ctrl + Right Alt + Delete for
+-- mirroring, left dictation recording until its time limit. A file in this
+-- Hyprland instance's runtime directory marks the hold, and the reload ends it.
+local function hold_marker(keys)
+  local runtime = os.getenv("XDG_RUNTIME_DIR")
+  local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
+  if not runtime or runtime == "" or not signature or signature == "" then
+    return nil
+  end
+
+  return runtime .. "/hypr/" .. signature .. "/omarchy-held-" .. keys:gsub("[^%w]", "_")
+end
+
 -- Bind one action to a key's press and another to its release, as for
 -- push-to-talk. Hyprland skips a plain release bind once another key or mouse
 -- button is released during the hold, or once the modifiers have changed, so
@@ -235,6 +250,7 @@ end
 -- Shift+F9, or without them, such as a plain x for SUPER + X.
 function o.bind_hold(keys, press_description, press, release_description, release, options)
   local held = false
+  local marker = hold_marker(keys)
   press, release = command_from(press, press_description), command_from(release, release_description)
 
   local function run(dispatcher)
@@ -247,14 +263,27 @@ function o.bind_hold(keys, press_description, press, release_description, releas
     end
   end
 
+  if marker and os.remove(marker) then
+    run(release)
+  end
+
   local function on_press()
     held = true
+    if marker then
+      local file = io.open(marker, "w")
+      if file then
+        file:close()
+      end
+    end
     run(press)
   end
 
   local function on_release()
     if held then
       held = false
+      if marker then
+        os.remove(marker)
+      end
       run(release)
     end
   end

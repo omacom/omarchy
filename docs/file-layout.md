@@ -269,7 +269,7 @@ Runs once per user. It does **not** copy `~/.config/**`, `~/.bashrc`,
 `flags.lua`, or the nautilus extensions — `/etc/skel` already seeded those.
 It only does the things `/etc/skel` can't:
 
-- Skill symlinks into `~/.agents/skills/<name>`, `~/.claude/skills/<name>`, `~/.codex/skills/<name>`, `~/.pi/agent/skills/<name>`, `~/.gemini/config/skills/<name>` (Antigravity), `~/.hermes/skills/<name>`, and each existing `~/.hermes/profiles/*/skills/<name>` → `$OMARCHY_PATH/default/agents/skills/<name>`, looping over every skill directory there (currently `omarchy` and `diagnose-crash`) so new skills need no edit. Symlinks (not copies) so `omarchy dev link` against a dev checkout repoints them correctly. Hermes profile dirs are only linked when they already exist — provision does not create Hermes profiles.
+- Skill symlinks into `~/.agents/skills/<name>`, `~/.claude/skills/<name>`, `~/.codex/skills/<name>`, `~/.pi/agent/skills/<name>`, `~/.gemini/config/skills/<name>` (Antigravity), `~/.hermes/skills/<name>`, and each existing `~/.hermes/profiles/*/skills/<name>` → `$OMARCHY_PATH/default/agents/skills/<name>`, looping over every skill directory there (such as `omarchy` and `omarchy-diagnose-crash`) so new skills need no edit. Symlinks (not copies) so `omarchy dev link` against a dev checkout repoints them correctly. Hermes profile dirs are only linked when they already exist — provision does not create Hermes profiles.
 - `xdg-user-dirs-update` (Templates/Public/Desktop folded back into `$HOME`)
   and `~/.config/gtk-3.0/bookmarks` (needs `$HOME` expansion).
 - Hyprland's package-owned default input reads `XKBLAYOUT` / `XKBVARIANT`
@@ -351,7 +351,7 @@ and/or a working user systemd instance:
   first login and opens the cheatsheet when clicked. The caller runs
   `omarchy-notification-wait` once before this and the Wi-Fi step, so both
   toasts land on a live notification server.
-- `install/user/first-run/wifi.sh` — Wi-Fi toast, then (waiting detached on `nm-online` for the first connection, however long that takes) the default-agent and fingerprint invitations (`setup-agent.hook`, `setup-fingerprint.hook`) and the update toast. Each invitation is sent only once.
+- `install/user/first-run/wifi.sh` — Wi-Fi toast, then (waiting detached on `nm-online` for the first connection, however long that takes) the default-agent and fingerprint invitations (`setup-agent.hook`, `setup-fingerprint.hook`). Each invitation is sent only once. A pending first update shows as the bar's update icon instead (see `docs/update-process.md`).
 
 The entire sequence has one idempotency marker:
 `~/.local/state/omarchy/done/first-run-user`, managed by `omarchy-done`.
