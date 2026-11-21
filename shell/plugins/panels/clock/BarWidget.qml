@@ -36,8 +36,14 @@ BarWidget {
   readonly property var verticalLines: displayText.split("\n")
 
   function refresh() {
-    displayDate = new Date()
+    clock.sync()
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
+  }
+
+  // A wake keeps the month being browsed; an explicit refresh goes to today.
+  function catchUp() {
+    clock.sync()
+    if (panelLoader.item && panelLoader.item.catchUp) panelLoader.item.catchUp()
   }
 
   function cycleFormat() {
@@ -142,6 +148,7 @@ BarWidget {
     target: "omarchy.clock"
 
     function refresh(): void { root.broadcast("refresh") }
+    function catchUp(): void { root.broadcast("catchUp") }
     function cycleFormat(): void { root.cycleFormat() }
     function toggleWeekStart(): void { root.toggleWeekStart() }
     function open(): void { root.open() }

@@ -109,6 +109,41 @@ ShellRoot {
     safeCall(item, "refresh", entry)
     safeCall(item, "close", entry)
 
+    if (entry.id === "omarchy.clock") {
+      var tick = null
+      var calendar = null
+      for (var t = 0; t < item.data.length; t++) {
+        var child = item.data[t]
+        if ("step" in child && "interval" in child) tick = child
+        if (child.item && "viewMonth" in child.item) calendar = child.item
+      }
+      root.assertTrue(tick !== null && calendar !== null, entry.id + " loads both clocks")
+      if (tick && calendar) {
+        var calendarTick = null
+        for (var c = 0; c < calendar.data.length; c++)
+          if ("step" in calendar.data[c] && "interval" in calendar.data[c]) calendarTick = calendar.data[c]
+        root.assertTrue(calendarTick !== null, entry.id + " has a calendar clock")
+        if (calendarTick) {
+          // Suspend leaves stale dates and a countdown to a boundary already past.
+          tick.date = new Date(2000, 0, 1)
+          calendarTick.date = new Date(2000, 0, 1)
+          tick.interval = calendarTick.interval = 3600000
+          tick.restart()
+          calendarTick.restart()
+          calendar.viewYear = new Date().getFullYear() + 1
+          calendar.viewMonth = (new Date().getMonth() + 6) % 12
+          var browsed = calendar.viewMonth
+          var browsedYear = calendar.viewYear
+          item.catchUp()
+          root.assertTrue(Math.abs(item.displayDate.getTime() - Date.now()) < 1000, entry.id + " catches up the bar on wake")
+          root.assertTrue(Math.abs(calendar.today.getTime() - Date.now()) < 1000, entry.id + " catches up the calendar on wake")
+          root.assertTrue(tick.interval <= tick.step && calendarTick.interval <= calendarTick.step, entry.id + " re-arms both clocks on wake")
+          root.assertEqual(calendar.viewMonth, browsed, entry.id + " keeps the month being browsed on wake")
+          root.assertEqual(calendar.viewYear, browsedYear, entry.id + " keeps the year being browsed on wake")
+        }
+      }
+    }
+
     createdObjects.push(item)
     createdIds.push(entry.id)
   }

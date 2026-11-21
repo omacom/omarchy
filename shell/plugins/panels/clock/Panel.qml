@@ -116,8 +116,13 @@ Panel {
   }
 
   function refresh() {
-    root.today = new Date()
+    clock.sync()
+    root.today = clock.date
     root.goToToday()
+  }
+
+  function catchUp() {
+    clock.sync()
   }
 
   function goToToday() {
