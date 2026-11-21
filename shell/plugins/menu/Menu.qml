@@ -362,10 +362,10 @@ Item {
     // enumerate the real HTTPS handlers on every open, so a browser added
     // since the shell started shows up without a restart.
     "browsers": {
-      script: "current=$(omarchy-cmd-default-browser 2>/dev/null); omarchy-browser-list 2>/dev/null | while IFS=$'\\t' read -r label value; do [[ -z $value ]] && continue; printf '%s\\t%s\\t%s\\n' \"$label\" \"$value\" \"$current\"; done",
+      script: "current=$(\"$OMARCHY_PATH/bin/omarchy-cmd-default-browser\" 2>/dev/null); \"$OMARCHY_PATH/bin/omarchy-browser-list\" 2>/dev/null | while IFS=$'\\t' read -r label value; do [[ -z $value ]] && continue; printf '%s\\t%s\\t%s\\n' \"$label\" \"$value\" \"$current\"; done",
       icon: "",
       volatile: true,
-      actionFor: function(value) { return "omarchy-default-browser " + Util.shellQuote(value) }
+      actionFor: function(value) { return "\"$OMARCHY_PATH/bin/omarchy-default-browser\" " + Util.shellQuote(value) }
     }
   })
 

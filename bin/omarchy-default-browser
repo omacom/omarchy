@@ -40,7 +40,7 @@ zen) browser="zen"; command="zen-browser"; desktop_id="zen.desktop"; name="Zen";
   browser=$1
   command=""
   desktop_id=$1
-  name=$(omarchy-browser-list | awk -F '\t' -v id="$1" '$2 == id { print $1; exit }')
+  name=$("$OMARCHY_PATH/bin/omarchy-browser-list" | awk -F '\t' -v id="$1" '$2 == id { print $1; exit }')
   glyph=
   [[ -n $name ]] || {
     echo "Usage: omarchy-default-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen|<installed desktop id>>" >&2
