@@ -11,6 +11,17 @@ restore_marker=/run/omarchy-force-igpu-integrated
 sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
 [[ -x /usr/bin/supergfxctl ]] || exit 0
 
+# Machines without a dGPU can still have supergfxctl + Integrated mode, and the
+# Vfio dance then fails on every resume (#12496). Ask supergfxd which modes it
+# supports and skip only when the answer is exactly [Integrated]. Don't probe
+# sysfs for NVIDIA: in Integrated mode supergfxd has already removed the dGPU.
+# A timeout or error must not count as "no dGPU".
+integrated_only() {
+  local supported
+  supported=$(/usr/bin/timeout --kill-after=1s 3s /usr/bin/supergfxctl -s 2>/dev/null) || return 1
+  [[ $supported == "[Integrated]" ]]
+}
+
 switch_mode() {
   local expected="$1" current
 
@@ -37,7 +48,14 @@ case "$1" in
     # value when deciding whether to restore Integrated mode.
     if [[ -L $restore_marker ]]; then
       exit 1
-    elif [[ ! -f $restore_marker ]]; then
+    fi
+
+    if integrated_only; then
+      /usr/bin/rm -f -- "$restore_marker"
+      exit 0
+    fi
+
+    if [[ ! -f $restore_marker ]]; then
       /usr/bin/grep -Eq '"mode"[[:space:]]*:[[:space:]]*"Integrated"' /etc/supergfxd.conf 2>/dev/null || exit 0
       /usr/bin/install -m 0600 -o root -g root -T /dev/null "$restore_marker"
     fi
