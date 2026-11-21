@@ -150,6 +150,22 @@ output=$("$CLI" hw asus)
 assert_output_contains "partial hardware prefix renders matching commands" "$output" "omarchy hw asus rog"
 assert_output_contains "partial hardware prefix includes nested match" "$output" "omarchy hw asus zenbook ux5406aa"
 
+output=$("$CLI" install service --help)
+assert_output_contains "subgroup --help renders matching commands" "$output" "omarchy install service tailscale"
+output=$("$CLI" install service -h)
+assert_output_contains "subgroup -h renders matching commands" "$output" "omarchy install service 1password"
+
+status=0
+stderr=$("$CLI" install not-a-command 2>&1 >/dev/null) || status=$?
+(( status == 127 )) || fail "unknown subcommand exits 127"
+pass "unknown subcommand exits 127"
+assert_output_contains "unknown subcommand suggests runnable group help" "$stderr" "Did you mean: omarchy install --help"
+suggested_cmd=$(sed -n 's/^Did you mean: omarchy //p' <<<"$stderr")
+[[ -n $suggested_cmd ]] || fail "unknown subcommand printed a suggestion"
+read -ra suggested_args <<<"$suggested_cmd"
+output=$("$CLI" "${suggested_args[@]}")
+assert_output_contains "running the printed group suggestion opens help" "$output" "Install commands"
+
 # omarchy-agent takes only flags, so a word after it names the account
 # commands rather than reaching the agent launcher.
 output=$("$CLI" agent account)
@@ -849,6 +865,28 @@ assert_output_contains "a --help behind -- belongs to the command and still forw
 
 output=$("$TMPDIR/omarchy" parenthelp --helpme x--help)
 assert_output_contains "help lookalike tokens do not trigger help" "$output" "parenthelp-parent-ran args=[--helpme x--help]"
+
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Unknown-command suggestion target\n'
+  printf 'echo suggestprobe-ran\n'
+} >"$TMPDIR/omarchy-suggestprobe"
+chmod +x "$TMPDIR/omarchy-suggestprobe"
+
+status=0
+stderr=$("$TMPDIR/omarchy" suggestprob 2>&1 >/dev/null) || status=$?
+(( status == 127 )) || fail "unknown command typo exits 127"
+pass "unknown command typo exits 127"
+assert_output_contains "unknown command typo suggests --help" "$stderr" "Did you mean: omarchy suggestprobe --help"
+suggested_cmd=$(sed -n 's/^Did you mean: omarchy //p' <<<"$stderr")
+[[ -n $suggested_cmd ]] || fail "unknown command typo printed a suggestion"
+read -ra suggested_args <<<"$suggested_cmd"
+output=$("$TMPDIR/omarchy" "${suggested_args[@]}")
+assert_output_contains "following a command suggestion opens help" "$output" "omarchy-suggestprobe"
+if [[ $output == *"suggestprobe-ran"* ]]; then
+  fail "following a command suggestion does not execute the command"
+fi
+pass "following a command suggestion does not execute the command"
 
 # Alias and metadata-moved routes resolve by loading only the commands that can
 # own a route under their first word, then dispatch exactly like a full load.
