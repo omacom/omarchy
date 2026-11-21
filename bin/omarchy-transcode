@@ -31,7 +31,7 @@ EOF
 
 media_type() {
   local mime
-  mime=$(file -b --mime-type "$1")
+  mime=$(file -bL --mime-type -- "$1")
 
   case "$mime" in
   image/*) echo picture ;;
