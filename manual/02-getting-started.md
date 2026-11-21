@@ -6,6 +6,10 @@ Omarchy is installed using an ISO. You can choose between a full-disk install, w
 
 _You must turn off Secure Boot and/or TPM in the BIOS. You have to turn these off to be able to install Omarchy. They're Microsoft security schemes meant for Windows and Microsoft-affiliated Linux distributions._
 
+If the boot menu flashes `error: ... cannot load image.` and `Failed to boot both default and fallback entries.` and then drops you straight back to the menu, Secure Boot is most likely still on, even though it looks like a broken graphics card or a bad USB stick. Go back into the BIOS, set Secure Boot to Disabled, save, and boot the stick again.
+
+While you're in the BIOS, check that its date is right, and set it to today if it isn't.
+
 Then answer the configuration questions, and confirm them like this:
 
  ![install-config](images/install-config.webp)
