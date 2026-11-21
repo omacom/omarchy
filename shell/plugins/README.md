@@ -22,6 +22,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Notifications | `omarchy.notifications`   | `service`               | `notifications/Service.qml`           |
 | Audio         | `omarchy.audio`           | `bar-widget`            | `panels/audio/Panel.qml`              |
 | Bluetooth     | `omarchy.bluetooth`       | `bar-widget`            | `panels/bluetooth/Panel.qml`          |
+| Cellular      | `omarchy.cellular`        | `service`, `bar-widget` | `panels/cellular/Service.qml`, `panels/cellular/Panel.qml` |
 | Clock         | `omarchy.clock`           | `bar-widget`            | `panels/clock/BarWidget.qml`          |
 | Elsewhen      | `omarchy.elsewhen`        | `bar-widget`            | `panels/elsewhen/Panel.qml`           |
 | Monitor       | `omarchy.monitor`         | `bar-widget`            | `panels/monitor/Panel.qml`            |

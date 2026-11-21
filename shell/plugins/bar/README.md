@@ -68,6 +68,7 @@ Example `shell.json` (bar subtree only shown):
 
 | `omarchy.audio` | Volume icon + popup with master slider, output-device picker, per-app mixer | left = popup · right = mute · middle = popup · scroll = volume |
 | `omarchy.network` | Wi-Fi/Ethernet icon + popup with Wi-Fi scan, signal, connect, DNS provider selection | left = popup |
+| `omarchy.cellular` | WWAN signal bars + popup with operator, technology, roaming, SIM state, APN, address, interface traffic, and a mobile data switch; hidden without ModemManager | left = popup · middle = refresh |
 | `omarchy.tailscale` | Tailscale status, connection switcher, machine browser, and copy actions | left = popup · right = toggle · middle = refresh |
 | `omarchy.agents` | AI coding agent limits with pace, today, last week, and all-time model breakdown | left = panel · right = launch agent · middle = next subscription |
 | `omarchy.local-models` | Models running on this machine and the tailnet, and the RAM they run in; shown only where a model runs or fits | left = panel · middle = refresh |
