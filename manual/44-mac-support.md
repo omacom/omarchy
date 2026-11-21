@@ -43,9 +43,9 @@ Members of the community are constantly working on solutions to these challenges
 
 #### FaceTime HD Camera
 
-The camera driver hangs the machine if it is loaded when the Mac hibernates, so it is unloaded first. It cannot be unloaded while an app has the camera open, so hibernation is cancelled with a notification naming the app: close it and hibernate again. That includes hibernating automatically on a critical battery, and suspend-then-hibernate, which is refused before it suspends.
+The camera driver hangs the machine if it is loaded when the Mac hibernates, so it is unloaded first. It cannot be unloaded while an app has the camera open, so hibernation is cancelled with a notification naming the app: close it and hibernate again. That includes hibernating automatically on a critical battery, and suspend-then-hibernate, which is refused before it suspends. Ordinary suspend is refused by the driver itself while the camera is open, without a notification.
 
-The camera's firmware is downloaded from Apple, so the camera works only once the Mac has been online. The download starts at boot and is retried every 15 minutes until it succeeds. If the camera does not appear, `journalctl -u facetimehd-firmware-fetcher` says why, `sudo systemctl restart facetimehd-firmware-fetcher` tries again, and a reboot loads the driver if the download finished but the camera still is not there.
+The camera's firmware is downloaded from Apple, so the camera works only once the Mac has been online. The download starts at boot and is retried every 15 minutes while the network is the problem; if Apple's file has changed, it stops and waits for an Omarchy update. If the camera does not appear, `journalctl -u facetimehd-firmware-fetcher` says why, `sudo systemctl restart facetimehd-firmware-fetcher` tries again, and a reboot loads the driver if the download finished but the camera still is not there.
 
 #### Devices with T1 Chip
 

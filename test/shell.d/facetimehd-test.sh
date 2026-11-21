@@ -204,25 +204,39 @@ chmod +x "$stub_bin"/*
 run_guard() {
   : >"$calls"
   PATH="$stub_bin:$PATH" TEST_LOG="$calls" OMARCHY_FACETIMEHD_MODULE="$guard_root/$1" \
-    OMARCHY_FACETIMEHD_MARKER="$guard_root/unloaded" OMARCHY_FACETIMEHD_PROC="$guard_root/proc" \
-    OMARCHY_FACETIMEHD_LOCK="$guard_root/lock" \
+    OMARCHY_FACETIMEHD_RUN="$guard_root/run" OMARCHY_FACETIMEHD_PROC="$guard_root/proc" \
     MODULE_BUSY="${3:-}" "$guard" "$2" 2>"$test_tmp/guard.err"
 }
+mkdir -p "$guard_root/run"
+sleeping="$guard_root/run/facetimehd.sleeping"
+unloaded="$guard_root/run/facetimehd.unloaded"
 
 run_guard absent pre || fail "the guard lets a Mac without the driver loaded hibernate"
-[[ ! -e $guard_root/unloaded && ! -s $calls ]] || fail "the guard leaves an unloaded driver alone" "$(cat "$calls")"
+{ [[ -e $sleeping && ! -e $unloaded ]] && ! grep -q modprobe "$calls"; } ||
+  fail "the guard marks the sleep in progress and leaves an unloaded driver alone" "$(cat "$calls")"
+run_guard absent post
+{ [[ ! -e $sleeping ]] && ! grep -q modprobe "$calls"; } ||
+  fail "waking loads nothing that was not unloaded or asked for" "$(cat "$calls")"
 pass "the guard lets a Mac without the driver loaded hibernate"
 
+# A fetch finishing mid-sleep asks for the load rather than making it; waking makes it.
+run_guard absent pre
+touch "$guard_root/run/facetimehd.load"
+run_guard absent post
+{ grep -Fxq $'modprobe\tfacetimehd' "$calls" && [[ ! -e $sleeping && ! -e $guard_root/run/facetimehd.load ]]; } ||
+  fail "waking loads a driver a fetch asked for during the sleep" "$(cat "$calls")"
+pass "waking loads a driver a fetch asked for during the sleep"
+
 run_guard module pre || fail "the guard unloads an idle driver before hibernating" "$(cat "$test_tmp/guard.err")"
-{ grep -Fxq $'modprobe\t-r\tfacetimehd' "$calls" && [[ -e $guard_root/unloaded ]]; } ||
+{ grep -Fxq $'modprobe\t-r\tfacetimehd' "$calls" && [[ -e $unloaded && -e $sleeping ]]; } ||
   fail "the guard unloads an idle driver before hibernating" "$(cat "$calls")"
 run_guard module post
-{ grep -Fxq $'modprobe\tfacetimehd' "$calls" && [[ ! -e $guard_root/unloaded ]]; } ||
+{ grep -Fxq $'modprobe\tfacetimehd' "$calls" && [[ ! -e $unloaded && ! -e $sleeping ]]; } ||
   fail "the guard loads the driver again after resuming" "$(cat "$calls")"
 pass "the guard unloads an idle driver for hibernation and loads it again after"
 
 run_guard module post
-[[ ! -s $calls ]] || fail "the guard does not load a driver it did not unload" "$(cat "$calls")"
+! grep -q modprobe "$calls" || fail "the guard does not load a driver it did not unload" "$(cat "$calls")"
 pass "the guard does not load a driver it did not unload"
 
 if run_guard module pre busy; then
@@ -231,6 +245,6 @@ fi
 grep -q 'chromium' "$test_tmp/guard.err" || fail "the refusal names the app using the camera" "$(cat "$test_tmp/guard.err")"
 grep -q $'^runuser\t-u\tmac\t.*omarchy-notification-send\t-u\tcritical\tHibernation cancelled\tClose chromium' "$calls" ||
   fail "the refusal notifies the person at the seat" "$(cat "$calls")"
-[[ $(grep -c '^runuser' "$calls") == 1 && ! -e $guard_root/unloaded ]] ||
-  fail "only the seat session is notified, and nothing is marked unloaded" "$(cat "$calls")"
+[[ $(grep -c '^runuser' "$calls") == 1 && ! -e $unloaded && ! -e $sleeping ]] ||
+  fail "only the seat session is notified, and no sleep is left marked" "$(cat "$calls")"
 pass "the guard cancels hibernation while the camera is in use, and says which app to close"
