@@ -22,7 +22,7 @@ Workspaces will feel familiar: they're macOS Spaces or Windows virtual desktops,
 
 ### Copy and paste just work
 
-On the Mac you had Cmd + C everywhere. On Windows you had Ctrl + C everywhere — except the terminal, where it kills your program. Omarchy gives you `Super + C`, `Super + X`, and `Super + V`, and they work everywhere, including the terminal. No separate reflex to learn for the shell.
+On the Mac you had Cmd + C everywhere. On Windows you had Ctrl + C everywhere — except the terminal, where it kills your program. Omarchy gives you `Super + C`, `Super + X`, and `Super + V`, and they work everywhere, including the terminal — except cut, which the terminal doesn't support. No separate reflex to learn for the shell.
 
 Windows folks: your Win + V clipboard history lives on `Super + Ctrl + V`, and it holds images as well as text. See [unified clipboard & history](08-unified-clipboard-history.md).
 
