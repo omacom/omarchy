@@ -89,3 +89,5 @@ To move a window off either the scratchpad or the console, send it directly to a
 ### It takes some getting used to!
 
 It takes a little while to get used to navigating your desktop like this, but once you do, it'll be hard to go back to a traditional mouse-driven desktop experience!
+
+Appearance > Dock offers icon sizes from 24 to 66 px in 6 px steps and magnification choices from 0% to 35% in 5% steps (0% disables magnification). Defaults remain 36 px and 15%. `omarchy dock icon-size`, `magnification`, and `reset` provide the same controls; resetting preserves pins.
