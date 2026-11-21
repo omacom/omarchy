@@ -33,10 +33,11 @@ printf '%s\n' $GLIFF_PIDS
 SH
 chmod +x "$TMPDIR/bin/pgrep"
 
-# The probe reads /proc/<pid>/environ; point a copy at fixtures instead.
-sed "s|/proc/\$pid/environ|$TMPDIR/proc/\$pid/environ|" "$probe_script" >"$TMPDIR/probe.sh"
-grep -q "$TMPDIR/proc" "$TMPDIR/probe.sh" || fail "probe reads the server environment from /proc"
-pass "probe reads the server environment from /proc"
+# The probe reads /proc/<pid>/environ and /proc/<pid>/exe; point a copy at
+# fixtures instead.
+sed "s|/proc/\$pid|$TMPDIR/proc/\$pid|" "$probe_script" >"$TMPDIR/probe.sh"
+grep -q "$TMPDIR/proc" "$TMPDIR/probe.sh" || fail "probe reads the server from /proc"
+pass "probe reads the server from /proc"
 
 probe() {
   PATH="$TMPDIR/bin:$PATH" GLIFF_PIDS="${1:-}" bash "$TMPDIR/probe.sh"
@@ -47,6 +48,8 @@ pass "probe prints nothing without a gliff server"
 
 printf 'HOME=/home/x\0SSH_CONNECTION=10.0.0.5 51234 10.0.0.1 22\0TERM=foot\0' >"$TMPDIR/proc/100/environ"
 printf 'HOME=/home/x\0TERM=foot\0' >"$TMPDIR/proc/200/environ"
+ln -s /usr/bin/gliff-server "$TMPDIR/proc/100/exe"
+ln -s /usr/bin/gliff-server "$TMPDIR/proc/200/exe"
 
 [[ $(probe "100") == "100 10.0.0.5" ]] || fail "probe reports the ssh client address of a spawned server"
 pass "probe reports the ssh client address of a spawned server"
@@ -56,3 +59,21 @@ pass "probe reports a local server with an empty peer"
 
 (( $(probe "100 200" | wc -l) == 2 )) || fail "probe lists every server"
 pass "probe lists every server"
+
+mkdir "$TMPDIR/proc/300" "$TMPDIR/proc/400" "$TMPDIR/proc/500"
+ln -s /usr/bin/sleep "$TMPDIR/proc/300/exe"
+printf 'HOME=/home/x\0SSH_CONNECTION=10.9.9.9 51234 10.9.9.1 22\0' >"$TMPDIR/proc/300/environ"
+printf 'HOME=/home/x\0' >"$TMPDIR/proc/500/environ"
+ln -s "/usr/bin/gliff-server (deleted)" "$TMPDIR/proc/500/exe"
+
+[[ -z $(probe "300") ]] || fail "probe ignores a process named gliff-server running another executable"
+pass "probe ignores a process named gliff-server running another executable"
+
+[[ -z $(probe "400") ]] || fail "probe ignores a pid whose executable cannot be read"
+pass "probe ignores a pid whose executable cannot be read"
+
+[[ $(OMARCHY_GLIFF_SERVER_EXE=/usr/bin/sleep probe "300") == "300 10.9.9.9" ]] || fail "probe accepts a stand-in server when told which executable to expect"
+pass "probe accepts a stand-in server when told which executable to expect"
+
+[[ $(probe "500") == "500 " ]] || fail "probe keeps tracking a server across its own package upgrade"
+pass "probe keeps tracking a server across its own package upgrade"
