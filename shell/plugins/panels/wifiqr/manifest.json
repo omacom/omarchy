@@ -4,7 +4,7 @@
   "name": "Wi-Fi QR",
   "version": "1.0.0",
   "author": "Omarchy",
-  "description": "Share the connected Wi-Fi network as a scannable QR code",
+  "description": "Share the connected Wi-Fi network as a scannable QR code or scan a Wi-Fi QR code with the webcam",
   "kinds": [
     "panel"
   ],
