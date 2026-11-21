@@ -8,9 +8,12 @@ TOGGLE_FLAG="$HOME/.local/state/omarchy/toggles/hypr/$TOGGLE.lua"
 DISABLE_TOGGLE="internal-monitor-disable"
 
 INTERNAL=$(omarchy-hyprland-monitor-laptop)
-# Every active external monitor shows the internal display, as a Mac mirrors
-# all its displays.
-mapfile -t EXTERNALS < <(hyprctl monitors -j | jq -r '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not).name')
+# Read the names as NUL-delimited JSON fields. Command substitution strips
+# trailing newlines, which could turn an unsafe name into a different monitor.
+EXTERNALS=()
+while IFS= read -r -d '' external; do
+  EXTERNALS+=("$external")
+done < <(hyprctl monitors -j | jq -j '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not) | .name, "\u0000"')
 
 on() {
   if (( ${#EXTERNALS[@]} == 0 )); then

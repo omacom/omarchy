@@ -10,6 +10,10 @@ monitors_json=$(hyprctl monitors all -j | jq '
   | map(.mirrorOf = (if (.mirrorOf // "none") == "none" then "none" else ($names[.mirrorOf | tostring] // .mirrorOf) end))
 ')
 focused_monitor=$(printf '%s\n' "$monitors_json" | jq -r '[.[] | select(.focused == true)][0].name // ""')
+# A user-created headless output can carry a newline in its name. The panel
+# reads this output by line index, so it gets a folded copy while the raw name
+# stays for the brightness lookup below.
+focused_line=$(printf '%s\n' "$monitors_json" | jq -r 'def folded: gsub("[[:cntrl:]]"; " "); (([.[] | select(.focused == true)][0].name // "") | folded)')
 
 # Read every enabled display's brightness at once: a DDC read takes a moment
 # per monitor, so one after another they'd add up.
@@ -27,15 +31,19 @@ else
   echo
 fi
 
+# One line per field: a name with a newline in it would push every field below
+# it one slot early, so read each name from its JSON field and fold control
+# characters into spaces.
 printf '%s\n' "$monitors_json" | jq -r '
   def internal: test("^(eDP|LVDS|DSI)-");
-  ([.[] | select(.name | internal)][0].name // ""),
-  ([.[] | select((.name | internal) | not)][0].name // ""),
-  ([.[] | select((.name | internal) and .disabled != true)][0].name // ""),
-  ([.[] | select(.mirrorOf != "none") | if (.name | internal) then .mirrorOf else .name end][0] // "")
+  def folded: gsub("[[:cntrl:]]"; " ");
+  (([.[] | select(.name | internal)][0].name // "") | folded),
+  (([.[] | select((.name | internal) | not)][0].name // "") | folded),
+  (([.[] | select((.name | internal) and .disabled != true)][0].name // "") | folded),
+  (([.[] | select(.mirrorOf != "none") | if (.name | internal) then .mirrorOf else .name end][0] // "") | folded)
 '
 
-printf '%s\n' "$focused_monitor"
+printf '%s\n' "$focused_line"
 omarchy-hyprland-monitor-scaling 2>/dev/null || echo
 
 brightness_json=$(for file in "$brightness_dir"/*; do
