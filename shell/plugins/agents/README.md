@@ -44,8 +44,10 @@ Every subscription on one page, limits first.
 - **Terminal button** — beside a section's name, it opens the harness made
   for that subscription. Fireworks and OpenRouter have none of their own, so
   theirs opens pi or OpenCode (the default agent when it's one of them) through
-  `omarchy agent --provider`, on the model the section's record has used most
-  and, in pi, with model cycling kept to that provider.
+  `omarchy agent --provider`, always on one of that provider's models: the
+  one the harness last used there, so a switch made in a session sticks, else
+  the one the section's record has used most, else the first the harness
+  lists. In pi, model cycling is kept to that provider too.
 - **Spend** — pay-as-you-go agents show what the account spent in the last
   30 days, a bar a day, or, against a monthly cap when there is one, this
   month's spend as a meter. Hovering a bar lights it up and names its day,
