@@ -34,11 +34,17 @@ Singleton {
   // again after it went away with the last device, when the watch on the old
   // directory is gone and has to be set up on the new one. udev's records for
   // input devices are the c13: entries, character major 13.
+  //
+  // Quickshell only stops the watch on a clean exit. The pdeathsig has the
+  // kernel take it down with a shell that crashed or was killed, which the
+  // launcher then relaunches with a watch of its own: without it, every such
+  // relaunch left an inotifywait behind, each holding an inotify instance,
+  // until the per-user limit ran out for everything else.
   Process {
     id: watcher
     command: ["bash", "-c",
       "dirs=(\"$2\"); for dir in \"$1\" \"$3\"; do [[ -d $dir ]] && dirs+=(\"$dir\"); done; "
-        + "exec inotifywait -m -q -e create,delete,delete_self,moved_to --format '%w|%e|%f' \"${dirs[@]}\"",
+        + "exec setpriv --pdeathsig TERM inotifywait -m -q -e create,delete,delete_self,moved_to --format '%w|%e|%f' \"${dirs[@]}\"",
       "input-devices", root.inputDir, root.devDir, root.udevDir]
     running: true
     // Whatever arrived or left while no watch was set up went unseen, so read
