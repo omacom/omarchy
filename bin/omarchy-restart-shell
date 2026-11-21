@@ -105,6 +105,40 @@ while (( SECONDS < deadline )) && [[ -n $(omarchy_shell_dirs) ]]; do
   sleep 0.1
 done
 
+# A Quickshell instance that could not write its instance metadata — a full
+# runtime dir leaves instance.lock empty — never reaches `quickshell list`,
+# so the kills above pass it by: `quickshell kill` matches nothing, and the
+# blank record omarchy_shell_dirs reads has no usable path or pid. It stays
+# alive holding the notification server and the polkit agent while a fresh
+# shell starts next to it, and every later restart removes only the fresh
+# one. Stop a live quickshell process whose config is an Omarchy tree by
+# pid, under the same ownership rule omarchy_shell_dirs applies: only the
+# caller's own instances, never another account's.
+omarchy_tree_shell_pids() {
+  pgrep -u "$UID" -af "quickshell -n -p .*/shell" 2>/dev/null |
+    while IFS= read -r line; do
+      pid=${line%% *}
+      dir=${line#*quickshell -n -p }
+      if [[ -x ${dir%/shell}/bin/omarchy-launch-shell ]]; then
+        printf '%s\n' "$pid"
+      fi
+    done
+}
+
+for stray_pid in $(omarchy_tree_shell_pids); do
+  kill -TERM "$stray_pid" 2>/dev/null || true
+done
+
+deadline=$((SECONDS + 10))
+while (( SECONDS < deadline )) && [[ -n $(omarchy_tree_shell_pids) ]]; do
+  sleep 0.1
+done
+
+if [[ -n $(omarchy_tree_shell_pids) ]]; then
+  echo "An Omarchy shell instance Quickshell cannot manage would not exit; not starting a second shell next to it." >&2
+  exit 1
+fi
+
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.
 hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null
