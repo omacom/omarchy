@@ -102,6 +102,10 @@ assert(tailscale.isTaildropTarget({ TaildropTarget: 1, UserID: '1001' }, '2002')
 assert(!tailscale.isTaildropTarget({ TaildropTarget: 7, UserID: '1001' }, '1001'), 'tailscale skips peers Tailscale rules out')
 assert(tailscale.isTaildropTarget({ UserID: '1001' }, '1001'), 'tailscale falls back to same-owner peers without a grade')
 assert(!tailscale.isTaildropTarget({ UserID: '1002' }, '1001'), 'tailscale skips other owners without a grade')
+assertEqual(tailscale.taildropAddress({ DNSName: 'zed.tail32f559.ts.net.', HostName: 'zed', TailscaleIPs: ['100.1.1.2'] }), 'zed.tail32f559.ts.net.', 'tailscale sends to the exact DNS name the CLI matches without DNS')
+assertEqual(tailscale.taildropAddress({ DNSName: 'zed.tail32f559.ts.net', TailscaleIPs: ['100.1.1.2'] }), 'zed.tail32f559.ts.net.', 'tailscale restores the trailing dot on a DNS name')
+assertEqual(tailscale.taildropAddress({ HostName: 'Pixel 9', TailscaleIPs: ['fd7a:115c:a1e0::1', '100.1.1.3'] }), '100.1.1.3', 'tailscale sends to the Tailscale IPv4 without a DNS name')
+assertEqual(tailscale.taildropAddress(null), '', 'tailscale has no Taildrop address without a peer')
 
 const mullvadNodes = tailscale.parseExitNodeList(`
  IP                  HOSTNAME                         COUNTRY            CITY                   STATUS

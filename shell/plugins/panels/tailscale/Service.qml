@@ -185,7 +185,7 @@ Item {
 
   function sendFile(peer) {
     if (!canSendFiles(peer)) return
-    var target = peerAddress(peer)
+    var target = Model.taildropAddress(peer)
     if (target === "") return
     Quickshell.execDetached(["omarchy-tailscale-send", target])
   }
