@@ -54,7 +54,17 @@ while (($#)); do
       ;;
     *)
       echo "Unexpected argument: $1" >&2
-      echo "To pass a prompt: omarchy agent prompt \"$*\"" >&2
+      suggestion="omarchy agent prompt"
+      [[ $inline == "true" ]] && suggestion+=" --inline"
+      [[ $pick == "true" ]] && suggestion+=" --pick"
+      if [[ -n $local_model ]]; then
+        suggestion+=" --local-model \"$local_model\""
+      elif [[ $use_local == "true" ]]; then
+        suggestion+=" --local"
+      fi
+      [[ $prefer_local == "true" ]] && suggestion+=" --prefer-local"
+      [[ -n $agent_override ]] && suggestion+=" --agent \"$agent_override\""
+      echo "To pass a prompt: $suggestion \"$*\"" >&2
       exit 1
       ;;
   esac
