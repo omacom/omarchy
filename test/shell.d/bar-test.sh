@@ -464,6 +464,28 @@ assertDeepEqual(
   ['room:0'],
   'an empty section holds just the spacer'
 )
+assertDeepEqual(
+  bar.sectionRows(['tray', 'c'], [4], {}).map(row => row.kind + ':' + (row.place === undefined ? row.key : row.place)),
+  ['widget:tray', 'widget:c', 'spacer:4'],
+  'a room past the last drawn widget still shows at the end'
+)
+const foldedSections = { left: [], centerBegin: [], center: [], centerEnd: [], right: ['tray', 'a', 'b', 'c'], tray: [] }
+assertDeepEqual(
+  bar.dropRoom({ slot: { widgetKey: 'c', region: 'right' }, after: true }, { key: 'x', region: 'right' }, foldedSections, { tray: true, c: true }),
+  { region: 'right', index: 4, home: false },
+  'a drop after the last drawn widget still reaches the end of the folded span'
+)
+const foldedByRegion = (region, key) => region === 'right' ? key === 'tray' || key === 'c' : true
+assertDeepEqual(
+  bar.dropRoom({ slot: { widgetKey: 'c', region: 'right' }, after: false }, { key: 'x', region: 'right' }, foldedSections, foldedByRegion),
+  { region: 'right', index: 1, home: false },
+  'a drop before the first visible widget after a folded span lands after the last visible one'
+)
+assertDeepEqual(
+  bar.sectionRows(['tray', 'c'], [1], {}).map(row => row.kind + ':' + (row.place === undefined ? row.key : row.place)),
+  ['widget:tray', 'spacer:1', 'widget:c'],
+  'that room opens after the last visible widget, not inside the folded span'
+)
 
 // A layout places items on whole pixels, so the places get whole lengths
 // that add up to the rounded room, however it is split between them.
@@ -489,6 +511,38 @@ assertEqual(
   '/home/dhh/.config/omarchy/bar/modules/local.weather.qml',
   'bar builds default custom module paths'
 )
+
+// A side section folds only once it outgrows the room left beside the center
+// box. It keeps the edge it is anchored by and the tray, whose drawer shows
+// what folded; the entries nearest the center go first.
+const slotLength = key => ({ tray: 28, a: 28, b: 28, c: 28 }[key] || 0)
+assertDeepEqual(
+  bar.foldSection(['tray', 'a', 'b', 'c'], slotLength, 112, { tray: true }, true),
+  { visible: ['tray', 'a', 'b', 'c'], hidden: [] },
+  'a side section that fits keeps every widget'
+)
+assertDeepEqual(
+  bar.foldSection(['tray', 'a', 'b', 'c'], slotLength, 56, { tray: true }, true),
+  { visible: ['tray', 'c'], hidden: ['a', 'b'] },
+  'the right section folds from the center, keeping the tray and its outer widgets'
+)
+assertDeepEqual(
+  bar.foldSection(['a', 'b', 'c', 'tray'], slotLength, 56, { tray: true }, false),
+  { visible: ['a', 'tray'], hidden: ['b', 'c'] },
+  'the left section folds from the center, keeping the tray and its outer widgets'
+)
+assertDeepEqual(
+  bar.foldSection(['tray', 'a', 'b'], slotLength, 0, { tray: true }, true),
+  { visible: ['tray'], hidden: ['a', 'b'] },
+  'no room left folds everything the tray does not anchor'
+)
+assertDeepEqual(
+  bar.foldSection(['a', 'b', 'c'], slotLength, 56, {}, true),
+  { visible: ['b', 'c'], hidden: ['a'] },
+  'without a widget to keep, the section still keeps its outer widgets'
+)
+assertDeepEqual(bar.foldSection([], slotLength, 0, {}, true), { visible: [], hidden: [] }, 'an empty section folds nothing')
+assertDeepEqual(bar.foldSection(null, slotLength, 10, {}, true), { visible: [], hidden: [] }, 'a missing section folds nothing')
 JS
 
 put_tmp=$(mktemp -d)

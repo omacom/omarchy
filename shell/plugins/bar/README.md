@@ -81,6 +81,8 @@ The `omarchy.indicators` widget loads individual bar indicators from `indicators
 
 All widgets work in `top`, `bottom`, `left`, and `right` positions. Popups anchor on the side opposite the bar edge, sliding into the workspace. Vertical bars use 28px width; widgets that show text fall back to compact icon-only forms (e.g. `media` hides its scrolling label).
 
+When a horizontal bar is too narrow, or a vertical bar too short, the `left`/`right` (top/bottom) sections keep the widgets at the edge they are anchored to and fold the ones nearest the center into the tray's drawer. The tray stays on the bar and its chevron opens the folded widgets alongside its tray section. The fold follows the screen and the widgets' measured sizes; it never rewrites `shell.json`. Without a tray on the bar there is nowhere to fold, so the sections are left as they are.
+
 ## Icon geometry
 
 Use `BarIconButton` from `qs.Ui` for bar icons. It fits the visible glyph bounds to `Style.bar.iconSize` and centers them on both axes. It preserves each glyph's aspect ratio. Set `labelText` for an adjacent text label, such as the battery percentage.
