@@ -266,7 +266,7 @@ assert_hostname() {
   fi
 
   got=$(OMARCHY_DMI_DIR="$tmp_dir/dmi" OMARCHY_DEVICE_TREE_MODEL="$tmp_dir/model" bash -c \
-    'set -euo pipefail; source "$1"; username=$2; omarchy_prompt_hostname; printf %s "$hostname"' \
+    'set -euo pipefail; source "$1"; username=$2; omarchy_generate_hostname; printf %s "$hostname"' \
     _ "$ROOT/install/provisioning/setup-form.sh" "$user") || fail "hostname for $vendor $product dies under set -e"
   [[ $got == "$expected" ]] || fail "hostname for $vendor $product" "got $got, expected $expected"
 }

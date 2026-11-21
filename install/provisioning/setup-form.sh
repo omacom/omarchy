@@ -343,10 +343,9 @@ omarchy_hardware_name() {
   echo "${maker:0:12} ${model:0:16}"
 }
 
-# Named for the question it replaced, as the ISO's configurator calls it: the
-# hostname is now made from the owner and the machine, dhh-dell-xps14, and
-# changed after install from Setup > Network > Hostname.
-omarchy_prompt_hostname() {
+# The hostname, made from the owner and the machine (dhh-dell-xps14) rather
+# than asked for; Setup > Network > Hostname changes it after install.
+omarchy_generate_hostname() {
   local hardware
   hardware=$(omarchy_hardware_name)
   [[ -n ${hardware// /} ]] || hardware=$OMARCHY_HOSTNAME_DEFAULT
