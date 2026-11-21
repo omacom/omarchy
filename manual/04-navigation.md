@@ -74,7 +74,7 @@ You can pop a window out of its workspace allocation with `Super + O`. That'll p
 
 ### Scratchpad workspace
 
-There's a special full-size scratchpad workspace that overlays whatever workspace you're currently on. You access what's on it using `Super + S`, and you place windows there using `Super + Alt + S`.
+There's a special full-size scratchpad workspace that overlays whatever workspace you're currently on. You access what's on it using `Super + S`, and you place windows there using `Super + Shift + S`.
 
 It works well for controls or a terminal you want to interact with quickly without leaving the current workspace.
 
