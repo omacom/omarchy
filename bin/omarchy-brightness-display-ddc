@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# omarchy:summary=Show or adjust DDC/CI display brightness for a Hyprland monitor.
-# omarchy:args=<monitor> [+N%|N%-|N%]
-# omarchy:examples=omarchy-brightness-display-ddc DP-1 | omarchy-brightness-display-ddc DP-1 50%
+# omarchy:summary=Show or adjust DDC/CI display brightness, or sleep and wake a Hyprland monitor.
+# omarchy:args=<monitor> [+N%|N%-|N%|off|on]
+# omarchy:examples=omarchy-brightness-display-ddc DP-1 | omarchy-brightness-display-ddc DP-1 50% | omarchy-brightness-display-ddc HDMI-A-1 off
 
 monitor="${1:-}"
 step="${2:-}"
@@ -123,6 +123,23 @@ if [[ -z $step ]]; then
   [[ -n ${bus:-} && -n ${current:-} && -n ${maximum:-} ]] || exit 1
   (( percent = (current * 100 + maximum / 2) / maximum ))
   printf '%s\n' "$percent"
+  exit 0
+fi
+
+# VCP D6 is the monitor's power mode: 01 on, 04 off. Written without
+# verification: a monitor that is off no longer answers the read-back, so a
+# verified write reports failure for a command it applied.
+if [[ $step == "off" || $step == "on" ]]; then
+  bus="$(find_bus)" || exit 1
+  if [[ $step == "on" ]]; then
+    value=01
+  else
+    value=04
+  fi
+  if ! ddcutil --bus "$bus" --skip-ddc-checks --noverify setvcp D6 "$value" >/dev/null 2>&1; then
+    rm -f "$cache_file"
+    exit 1
+  fi
   exit 0
 fi
 
