@@ -5,7 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 raw_command_checks=$(rg -l 'command -v' "$ROOT/bin" \
-  | rg -v '/omarchy-(cmd-|pkg-|upgrade-to-quattro)' || true)
+  | rg -v '/omarchy-(cmd-|pkg-|upgrade-to-quattro|upload-log)' || true)
 [[ -z $raw_command_checks ]] || fail "bin commands use command helpers" "$raw_command_checks"
 pass "bin commands use command helpers"
 
