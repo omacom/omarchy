@@ -138,6 +138,14 @@ function withPendingAction(actions, address, action) {
   return next
 }
 
+// `rfkill -n -o SOFT list bluetooth` prints one "blocked" or "unblocked" line
+// per switch; any blocked switch means the radio is off rather than missing.
+function rfkillSoftBlocked(output) {
+  return String(output || "").split("\n").some(function(line) {
+    return line.trim() === "blocked"
+  })
+}
+
 function visibleSections(lists, discovering) {
   var sections = []
   if (lists && lists.connected && lists.connected.length > 0) sections.push("connected")
@@ -156,6 +164,7 @@ function sectionDevices(lists, section) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    rfkillSoftBlocked: rfkillSoftBlocked,
     deviceLabel: deviceLabel,
     toArray: toArray,
     isUuidLike: isUuidLike,
