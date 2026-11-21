@@ -12,6 +12,8 @@ Item {
   property int backgroundVersion: 0
   property bool fingerprintConfigured: false
   property bool fingerprintUnavailable: false
+  // The reader has a finger and is matching it.
+  property bool fingerprintScanning: false
   property bool authenticatingPassword: false
   property string failureMessage: ""
   property int failedAttempts: 0
@@ -36,6 +38,9 @@ Item {
     ? Math.min(1, (passwordInput.width - 4) / dotMetrics.advanceWidth)
     : 1
   readonly property bool showPasswordCursor: inputEnabled && !authenticatingPassword && failureMessage.length === 0
+  // Either way of unlocking is being checked: the field says so in place of
+  // its prompt, so a touch of the reader reads as taken, like a typed password.
+  readonly property bool checking: authenticatingPassword || fingerprintScanning
   readonly property bool errorState: failureMessage.length > 0
   readonly property var inputBorderSpec: errorState
     ? Border.surfaceSpec("lock", "border-error", Commons.Color.lock.borderError, root.outlineThickness, "border-alpha")
@@ -208,14 +213,15 @@ Item {
       }
 
       Text {
+        objectName: "passwordPlaceholder"
         textFormat: Text.PlainText
         anchors.fill: passwordInput
-        text: root.authenticatingPassword ? Commons.I18n.t("lock.checking") : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
+        text: root.checking ? Commons.I18n.t("lock.checking") : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
         visible: passwordInput.text.length === 0
-        color: root.authenticatingPassword ? Commons.Color.lock.text : (root.failureMessage.length > 0 ? Commons.Color.lock.textError : Commons.Color.lock.placeholder)
+        color: root.checking ? Commons.Color.lock.text : (root.failureMessage.length > 0 ? Commons.Color.lock.textError : Commons.Color.lock.placeholder)
         font.family: Style.font.family
         font.pixelSize: root.fieldFontSize
-        font.italic: !root.authenticatingPassword && root.failureMessage.length > 0
+        font.italic: !root.checking && root.failureMessage.length > 0
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
@@ -235,11 +241,23 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         visible: root.fingerprintConfigured
         text: root.fingerprintUnavailable ? "󰺱" : "󰈷"
-        color: root.fingerprintUnavailable ? Commons.Color.lock.textError : Commons.Color.lock.placeholder
+        color: root.fingerprintUnavailable ? Commons.Color.lock.textError : (root.fingerprintScanning ? Commons.Color.lock.text : Commons.Color.lock.placeholder)
         font.family: Style.font.family
         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
+
+        // While the reader matches, the icon breathes: the finger was taken
+        // and the verdict is on its way. The icon's brighter color carries that
+        // on its own where animations are off.
+        SequentialAnimation {
+          objectName: "fingerprintPulse"
+          running: fingerprintIcon.visible && !root.fingerprintUnavailable && root.fingerprintScanning && !Style.reduceMotion
+          loops: Animation.Infinite
+          NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 0.3; duration: Style.duration(420); easing.type: Easing.InOutQuad }
+          NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 1.0; duration: Style.duration(420); easing.type: Easing.InOutQuad }
+          onStopped: fingerprintIcon.opacity = 1
+        }
       }
     }
 

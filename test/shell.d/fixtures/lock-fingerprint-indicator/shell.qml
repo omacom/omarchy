@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 
 ShellRoot {
   id: root
@@ -118,12 +119,110 @@ ShellRoot {
             root.assertTrue(!notice.visible, "notice clears when the reader recovers")
             root.assertTrue(indicator.text === workingGlyph, "icon restores when the reader recovers")
           }
+
+          // A reader matching a finger: the field says it is checking and the
+          // icon breathes. The breath runs a few frames before it is stopped,
+          // so its reset is checked on an icon it has really faded.
+          root.checkScan(view, indicator)
+          return
         }
 
         view.destroy()
+        root.writeResult()
+      } catch (error) {
+        root.fail("lock fingerprint indicator fixture threw: " + error)
+        root.writeResult()
+      }
+    }
+  }
+
+  property var scanView: null
+  property var scanIndicator: null
+  property var scanPulse: null
+  property bool scanMotion: false
+
+  // Animations are resources, not visual children, so this walks data.
+  function findInData(node, name) {
+    if (!node) return null
+    if (node.objectName === name) return node
+    var kids = node.data || node.children || []
+    for (var i = 0; i < kids.length; i++) {
+      var found = findInData(kids[i], name)
+      if (found) return found
+    }
+    return null
+  }
+
+  function checkScan(view, indicator) {
+    var pulse = findInData(indicator, "fingerprintPulse")
+    var placeholder = findByObjectName(view, "passwordPlaceholder")
+    root.assertTrue(pulse !== null && placeholder !== null, "the icon has its pulse and the field its prompt")
+    if (!pulse || !placeholder) {
+      view.destroy()
+      root.writeResult()
+      return
+    }
+
+    var prompt = placeholder.text
+    var checking = I18n.t("lock.checking")
+    root.assertTrue(prompt !== checking, "the field prompts for a password while nothing is checked")
+
+    view.fingerprintConfigured = true
+    view.fingerprintUnavailable = false
+    root.assertTrue(!pulse.running, "the icon is still while no finger is on the reader")
+    var restingColor = indicator.color
+    // The palette comes from the theme, which this scratch home lacks; the
+    // colours are compared only where the two differ.
+    var coloredPalette = !Qt.colorEqual(Commons.Color.lock.text, Commons.Color.lock.placeholder)
+
+    view.fingerprintScanning = true
+    root.assertTrue(placeholder.text === checking, "the field says it is checking while the reader matches")
+    if (coloredPalette) root.assertTrue(Qt.colorEqual(indicator.color, Commons.Color.lock.text), "the icon brightens while the reader matches")
+
+    view.fingerprintScanning = false
+    root.assertTrue(placeholder.text === prompt, "the field prompts for a password again once the scan ends")
+    if (coloredPalette) root.assertTrue(Qt.colorEqual(indicator.color, restingColor), "the icon rests again once the scan ends")
+
+    view.fingerprintScanning = true
+    view.fingerprintConfigured = false
+    root.assertTrue(!pulse.running, "nothing pulses without a reader to show")
+    view.fingerprintConfigured = true
+    view.fingerprintUnavailable = true
+    root.assertTrue(!pulse.running, "the crossed-out icon of an unreachable reader never pulses")
+    view.fingerprintUnavailable = false
+
+    // `omarchy toggle animations` turns the shell's motion off; the field
+    // still says it is checking.
+    scanMotion = Style.reduceMotion
+    Style.reduceMotion = true
+    root.assertTrue(!pulse.running, "the pulse stays off with animations off")
+    root.assertTrue(placeholder.text === checking, "the field still says it is checking with animations off")
+
+    Style.reduceMotion = false
+    root.assertTrue(pulse.running, "the icon pulses while the reader matches")
+    scanView = view
+    scanIndicator = indicator
+    scanPulse = pulse
+    pulseTimer.start()
+  }
+
+  // A few frames into the pulse the icon has faded; stopping the scan then
+  // must draw it whole again, which only the animation's own reset does.
+  Timer {
+    id: pulseTimer
+    interval: 160
+    repeat: false
+    onTriggered: {
+      try {
+        root.assertTrue(root.scanIndicator.opacity < 1, "the pulse has faded the icon, at opacity " + root.scanIndicator.opacity)
+        root.scanView.fingerprintScanning = false
+        root.assertTrue(!root.scanPulse.running, "the pulse stops with the scan")
+        root.assertTrue(root.scanIndicator.opacity === 1, "the icon is drawn whole once the scan ends, at opacity " + root.scanIndicator.opacity)
       } catch (error) {
         root.fail("lock fingerprint indicator fixture threw: " + error)
       } finally {
+        Style.reduceMotion = root.scanMotion
+        root.scanView.destroy()
         root.writeResult()
       }
     }

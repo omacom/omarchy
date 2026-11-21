@@ -22,6 +22,13 @@ Item {
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
+  // The reader has a finger and is matching it. pam_fprintd says nothing until
+  // the verdict, and a match-on-chip reader (a Mac's Touch ID, behind its
+  // Secure Enclave) takes a moment, so without this the touch looks ignored.
+  property bool fingerprintScanning: false
+  // fprintd is watched for that while the lock can take a touch: locked, a
+  // reader enrolled, and the displays on.
+  readonly property bool fingerprintMonitoring: lockRequested && fingerprintConfigured && !fingerprintPaused
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
   property int fingerprintUnreachedStreak: 0
@@ -197,6 +204,7 @@ Item {
     failedAttempts = 0
     authenticatingPassword = false
     fingerprintAuthenticating = false
+    fingerprintScanning = false
     fingerprintUnreachedStreak = 0
     fingerprintAttemptFastError = false
     fingerprintAttemptPromptedAtMs = 0
@@ -210,6 +218,7 @@ Item {
     fingerprintRetryTimer.stop()
     fingerprintReachTimer.stop()
     fingerprintResumeTimer.stop()
+    fingerprintScanTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
   }
@@ -267,6 +276,7 @@ Item {
     if (fingerprintPaused) return
     fingerprintPaused = true
     fingerprintRetryTimer.stop()
+    clearFingerprintScan()
   }
 
   // The retry keeps whatever backoff was armed, counting the time spent blank,
@@ -414,6 +424,25 @@ Item {
     fingerprintReachTimer.stop()
   }
 
+  // The reader's finger status arrives through fprintd's D-Bus property, which
+  // the monitor process prints a line for. Only a finger during the lock's own
+  // attempt is a scan: fprintd reports one for any claimant's operation.
+  function applyFingerprintMonitorLine(line) {
+    var present = FingerprintModel.parseFingerPresent(line)
+    if (present === null) return
+    if (present && fingerprintAuthenticating) {
+      fingerprintScanning = true
+      fingerprintScanTimer.restart()
+    } else if (!present) {
+      clearFingerprintScan()
+    }
+  }
+
+  function clearFingerprintScan() {
+    fingerprintScanTimer.stop()
+    fingerprintScanning = false
+  }
+
   // abort() gives no completion signal; settle the attempt here.
   function timeoutFingerprintReach() {
     logEvent("fingerprint-reach-timeout")
@@ -426,6 +455,7 @@ Item {
     if (!fingerprintAuthenticating) return
     fingerprintAuthenticating = false
     fingerprintReachTimer.stop()
+    clearFingerprintScan()
     if (!lockRequested || !fingerprintConfigured) return
 
     // An error can arrive before the sleep watcher notices the wall-clock gap.
@@ -513,6 +543,7 @@ Item {
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
         fingerprintUnavailable: root.fingerprintUnavailable
+        fingerprintScanning: root.fingerprintScanning
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -549,6 +580,7 @@ Item {
       backgroundVersion: root.backgroundVersion
       fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
       fingerprintUnavailable: root.fingerprintUnavailable
+      fingerprintScanning: false
       authenticatingPassword: false
       failureMessage: ""
       failedAttempts: 0
@@ -682,6 +714,40 @@ Item {
     interval: FingerprintModel.REACH_TIMEOUT_MS
     repeat: false
     onTriggered: root.timeoutFingerprintReach()
+  }
+
+  // The verdict or the finger leaving ends a scan; this bounds one that
+  // neither ended, so the icon can't pulse until the attempt times out.
+  Timer {
+    id: fingerprintScanTimer
+    objectName: "fingerprintScanTimer"
+    interval: FingerprintModel.SCAN_TIMEOUT_MS
+    repeat: false
+    onTriggered: {
+      root.logEvent("fingerprint-scan-timeout")
+      root.clearFingerprintScan()
+    }
+  }
+
+  // Quickshell has no D-Bus client of its own, so gdbus (GLib's, which
+  // Quickshell depends on) watches fprintd's device for the shell, and its
+  // lines are read as they come: gdbus flushes each one. It keeps watching
+  // through fprintd's idle exits and restarts. If gdbus can't run, nothing
+  // restarts it: the lock works as before, without the scan feedback, and
+  // the exit is logged so a trial can see it. The watch reports changes, so
+  // a finger that landed while the displays were off, with the watch
+  // stopped, shows no scan on the wake; its verdict still comes.
+  Process {
+    id: fingerprintMonitorProc
+    objectName: "fingerprintMonitor"
+    command: ["gdbus", "monitor", "--system", "--dest", "net.reactivated.Fprint"]
+    running: root.fingerprintMonitoring
+    stdout: SplitParser {
+      onRead: function(line) { root.applyFingerprintMonitorLine(line) }
+    }
+    onExited: function(exitCode) {
+      if (root.fingerprintMonitoring) root.logEvent("fingerprint-monitor-exited: code=" + exitCode)
+    }
   }
 
   Process {
