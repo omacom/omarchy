@@ -254,17 +254,38 @@ done
 # no flag. Once the external display is unplugged, the recovery's rule update
 # has to say disabled = false, or the panel stays off behind Hyprland's
 # FALLBACK (#16307). While an external display or a headless output is still
-# there, the choice to run on it alone stands, since the docked poll reaches
-# this every two seconds.
+# there, the choice to run on it alone stands, and the docked poll reaches this
+# every two seconds: it applies nothing, as a rule by connector name would turn
+# back on a panel that a desc: rule turned off (#19176).
 OMARCHY_TEST_OTHER_OUTPUT=FALLBACK \
   expect_sync "clamshell recovery turns a panel-disabled display back on once nothing external is connected" off - \
   'hl.monitor({ output = "eDP-1", disabled = false, mode = "preferred", position = "0x0", scale = 1.25 })' <<<"$internal_config"
 OMARCHY_TEST_EXTERNAL_CONNECTED=true OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=DP-1 \
   expect_sync "clamshell recovery leaves a panel-disabled display off while an external display is connected" off - \
-  'scale = 1.25' '!disabled = false' <<<"$internal_config"
+  '!hl.monitor(' <<<"$internal_config"
 OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=HEADLESS-1 \
   expect_sync "clamshell recovery leaves a panel-disabled display off while a headless output is enabled" off - \
-  'scale = 1.25' '!disabled = false' <<<"$internal_config"
+  '!hl.monitor(' <<<"$internal_config"
+
+# A panel still off after removing the clamshell flag may be held off by
+# a desc: rule added while the lid was closed.
+mkdir -p "$state_dir"
+printf 'hl.monitor({ output = "eDP-1", disabled = true })\n' >"$state_dir/internal-monitor-clamshell.lua"
+OMARCHY_TEST_EXTERNAL_CONNECTED=true OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=DP-1 \
+  expect_sync "clamshell release preserves a panel still disabled beside an external display" off - \
+  '!hl.monitor(' <<<"$internal_config"
+
+# Closing the lid on a panel something else already turned off beside an
+# external display does not make it the script's own, so opening the lid again
+# applies no rule that would turn it back on (#19176).
+rm -f "$state_dir/internal-monitor-clamshell.lua"
+OMARCHY_TEST_CLAMSHELL=true OMARCHY_TEST_EXTERNAL_CONNECTED=true OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=DP-1 \
+  expect_sync "clamshell leaves alone a panel already off when the lid closes" off - \
+  '!hl.monitor(' <<<"$internal_config"
+[[ ! -f $state_dir/internal-monitor-clamshell.lua ]] || fail "clamshell takes no flag for a panel already off"
+OMARCHY_TEST_EXTERNAL_CONNECTED=true OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=DP-1 \
+  expect_sync "clamshell leaves a panel already off when the lid opens" off - \
+  '!hl.monitor(' <<<"$internal_config"
 
 # The display panel's choices for the panel win over monitors.lua, as
 # default/hypr/monitor-settings.lua applies them over it, so a scale chosen

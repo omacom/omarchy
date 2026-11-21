@@ -174,6 +174,17 @@ other_output_enabled() {
   hyprctl monitors all -j | jq -e --arg internal "$INTERNAL" 'any(.[]; .name != $internal and .name != "FALLBACK" and .disabled == false)' >/dev/null 2>&1
 }
 
+# A panel that is off beside an enabled output and carries no clamshell flag
+# was turned off by someone else: the Display panel, monitors.lua, a display
+# plugin. That rule can be keyed by the panel's description (desc:...), and a
+# rule this script then applies by connector name is a newer one Hyprland
+# honours over it, turning the panel back on.
+internal_off_beside_another_output() {
+  hyprctl monitors all -j | jq -e --arg internal "$INTERNAL" '
+    any(.[]; .name == $internal and .disabled == true) and
+    any(.[]; .name != $internal and .name != "FALLBACK" and .disabled == false)' >/dev/null 2>&1
+}
+
 store_internal_scale() {
   local scale="$1"
   valid_scale "$scale" || return 0
@@ -241,8 +252,7 @@ enable_internal_output() {
   # disabled = true and no flag, and an update of its mode, position and scale
   # leaves that in force. Say disabled = false only while no external display
   # is physically connected and no other output is enabled: that is the unplug
-  # this recovers from (#16307). Otherwise the choice to run elsewhere stands,
-  # and this is reached every two seconds by the docked poll.
+  # this recovers from (#16307). Otherwise the choice to run elsewhere stands.
   omarchy-hw-external-monitors || other_output_enabled || enable="disabled = false, "
   hyprctl eval "hl.monitor({ output = \"$INTERNAL\", ${enable}mode = \"$mode\", position = \"$position\", scale = $scale })" >/dev/null 2>&1 || true
 }
@@ -300,7 +310,12 @@ enable_internal() {
   fi
 
   [[ -f $MANUAL_DISABLE_FLAG ]] && omarchy-hyprland-monitor-external-active && return 0
-  sync_internal_scale
+
+  # A panel still disabled after reloading may be held off by the user.
+  # Leave its rule intact while another output is enabled.
+  if ! internal_off_beside_another_output; then
+    sync_internal_scale
+  fi
 
   if (( changed )); then
     dpms_internal enable
@@ -310,6 +325,10 @@ enable_internal() {
 disable_internal() {
   [[ -n $INTERNAL ]] || exit 0
   [[ -f $MANUAL_DISABLE_FLAG ]] && return 0
+
+  # A panel someone else already turned off is theirs to bring back: taking
+  # the flag would have the lid opening re-apply a rule to it.
+  [[ ! -f $CLAMSHELL_FLAG ]] && internal_off_beside_another_output && return 0
 
   mkdir -p "$TOGGLES_DIR"
   remember_internal_scale
