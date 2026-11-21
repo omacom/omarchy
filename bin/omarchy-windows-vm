@@ -920,7 +920,11 @@ __priv_up_wait() {
   # start time; an empty --since would match a stale "started successfully".
   local started_at count=0
   while true; do
-    started_at=$(docker inspect --format='{{.State.StartedAt}}' "$CONTAINER" 2>/dev/null)
+    # Podman's StartedAt is Go's time.String(), which logs --since rejects, so
+    # ask for epoch seconds. Docker's StartedAt is a string with no .Unix, so
+    # that fails there and the RFC 3339 value it accepts is used instead.
+    started_at=$(docker inspect --format='{{.State.StartedAt.Unix}}' "$CONTAINER" 2>/dev/null) ||
+      started_at=$(docker inspect --format='{{.State.StartedAt}}' "$CONTAINER" 2>/dev/null)
     if [[ -n $started_at ]] && docker logs --since "$started_at" "$CONTAINER" 2>&1 | grep -qi "windows started successfully"; then
       return 0
     fi
