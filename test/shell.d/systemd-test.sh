@@ -9,6 +9,9 @@ if grep -rlE '^(Path[A-Za-z]+|DirectoryNotEmpty)=.*/usr/share/omarchy/migrations
 fi
 pass "no unit watches the migration directory, so package updates cannot trigger the notifier"
 
+grep -F 'omarchy-cmd-repair-chromium-copy-url' "$ROOT/bin/omarchy-migrate-notify" >/dev/null ||
+  fail "login notifier does not retry Copy URL after install-time migration stamping"
+
 # Hyprland lives in session.slice/wayland-wm@hyprland.desktop.service. Marking
 # any ancestor of that as a kill candidate puts the compositor back in the
 # victim pool, which is the crash this whole thing exists to prevent.
