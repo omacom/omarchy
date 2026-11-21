@@ -1,16 +1,25 @@
 #!/bin/bash
 
 # omarchy:summary=Record dictation using Voxtype
-# omarchy:args=<start|stop|toggle>
+# omarchy:args=<start|stop|toggle> [recording-options]
+# omarchy:examples=omarchy dictation voxtype start --model large-v3-turbo | omarchy dictation voxtype start --clipboard
 
 case "${1:-}" in
-  start|toggle) voxtype record "$1" ;;
+  start|toggle)
+    action=$1
+    shift
+    voxtype record "$action" "$@"
+    ;;
   stop)
+    if (($# != 1)); then
+      echo "Recording options apply only to start or toggle." >&2
+      exit 1
+    fi
     if omarchy-cmd-missing voxtype || [[ $(voxtype status) == "stopped" ]]; then
       exit 0
     else
       voxtype record stop
     fi
     ;;
-  *) echo "Usage: omarchy dictation voxtype <start|stop|toggle>" >&2; exit 1 ;;
+  *) echo "Usage: omarchy dictation voxtype <start|stop|toggle> [recording-options]" >&2; exit 1 ;;
 esac
