@@ -38,7 +38,7 @@ fi
 # such as one started at login, so it counts as just started too.
 STARTING=false
 if ! pgrep -x hyprsunset >/dev/null; then
-  setsid uwsm-app -- hyprsunset &
+  setsid uwsm-app -- hyprsunset </dev/null >/dev/null 2>&1 &
   STARTING=true
 elif (( $(ps -o etimes= -p "$(pgrep -nx hyprsunset)" 2>/dev/null || echo 0) < 3 )); then
   STARTING=true
