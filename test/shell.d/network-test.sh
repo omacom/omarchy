@@ -260,3 +260,39 @@ assertDeepEqual(
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
 JS
+
+# Exercise the real read-only DNS classification without reading or changing
+# this machine's resolver configuration. Only the two config readers are fake.
+eval "$(sed -n '/^current_dns_provider() {/,/^}/p' "$ROOT/bin/omarchy-dns")"
+networkmanager_global_dns() { printf '%s\n' "$dns_fixture"; }
+resolved_dns() { printf '%s\n' "$resolved_fixture"; }
+resolved_fixture=""
+
+while IFS='|' read -r expected dns_fixture; do
+  actual=$(current_dns_provider)
+  [[ $actual == "$expected" ]] ||
+    fail "DNS labels only complete presets as their provider" "input: $dns_fixture; expected: $expected; got: $actual"
+done <<'DNS'
+Custom|20.20.20.3 1.1.1.1
+Custom|192.168.1.1,8.8.8.8
+Custom|1.1.1.1
+Custom|1.1.1.1,1.1.1.1
+Custom|1.0.0.1,1.1.1.1,2606:4700:4700::1111,2606:4700:4700::1001
+Custom|9.9.9.9#cloudflare-dns.com
+Custom|8.8.8.8#cloudflare-dns.com
+Cloudflare|1.1.1.1,1.0.0.1,2606:4700:4700::1111,2606:4700:4700::1001
+Cloudflare| 1.1.1.1, 1.0.0.1   2606:4700:4700::1111,2606:4700:4700::1001
+Google|8.8.8.8,8.8.4.4,2001:4860:4860::8888,2001:4860:4860::8844
+DHCP|
+DNS
+
+dns_fixture=""
+for provider in Cloudflare Google; do
+  if [[ $provider == "Cloudflare" ]]; then
+    resolved_fixture='1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com 2606:4700:4700::1111#cloudflare-dns.com 2606:4700:4700::1001#cloudflare-dns.com'
+  else
+    resolved_fixture='8.8.8.8#dns.google 8.8.4.4#dns.google 2001:4860:4860::8888#dns.google 2001:4860:4860::8844#dns.google'
+  fi
+  [[ $(current_dns_provider) == "$provider" ]] || fail "DNS recognizes the $provider resolved preset with TLS names"
+done
+pass "DNS distinguishes exact presets from custom lists and keeps resolved fallback"
