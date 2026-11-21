@@ -7,8 +7,9 @@ After=pipewire.service wireplumber.service
 Requires=pipewire.service
 Wants=wireplumber.service
 # Restart with the audio daemon, since the filter-chain loses its connection when
-# PipeWire goes away.
-PartOf=pipewire.service
+# PipeWire goes away, and with WirePlumber, since an output stream it linked can
+# be left running with no format after a resume restarts WirePlumber.
+PartOf=pipewire.service wireplumber.service
 
 [Service]
 Type=simple
@@ -29,4 +30,6 @@ Restart=on-failure
 RestartSec=2
 
 [Install]
-WantedBy=graphical-session.target
+# Pulled in by WirePlumber too, so stopping and starting it, which PartOf stops
+# the tuning for, brings the tuning back.
+WantedBy=graphical-session.target wireplumber.service
