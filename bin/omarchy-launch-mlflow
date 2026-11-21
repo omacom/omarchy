@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# omarchy:summary=View an existing local MLflow experiment store
+# omarchy:args=<database-or-mlruns-directory> [--port <1-65535>]
+# omarchy:examples=omarchy launch mlflow mlflow.db | omarchy launch mlflow mlruns --port 5001
+
+set -euo pipefail
+
+store=""
+port=5000
+while (( $# > 0 )); do
+  case "$1" in
+  --help | -h)
+    echo "Usage: omarchy launch mlflow <database-or-mlruns-directory> [--port <1-65535>]"
+    echo "Uses MLflow from the active environment and its normal local store behavior. Ctrl+C stops the server."
+    exit 0
+    ;;
+  --port)
+    (( $# >= 2 )) || { echo "--port needs a value" >&2; exit 2; }
+    port=$2
+    shift 2
+    ;;
+  --)
+    shift
+    (( $# == 1 )) && [[ -z $store ]] || { echo "Choose one local experiment store" >&2; exit 2; }
+    store=$1
+    shift
+    ;;
+  -*) echo "Unknown option: $1" >&2; exit 2 ;;
+  *)
+    [[ -z $store ]] || { echo "Choose one local experiment store" >&2; exit 2; }
+    store=$1
+    shift
+    ;;
+  esac
+done
+
+[[ $port =~ ^[0-9]{1,5}$ ]] && (( 10#$port >= 1 && 10#$port <= 65535 )) || { echo "Port must be between 1 and 65535" >&2; exit 2; }
+[[ -n $store && -e $store ]] || { echo "Choose an existing local MLflow database or mlruns directory" >&2; exit 1; }
+if [[ -d $store ]]; then
+  store=$(python3 - "$store" <<'PY'
+from pathlib import Path
+import sys
+
+print(Path(sys.argv[1]).resolve().as_uri())
+PY
+  )
+  # Selecting an existing mlruns directory explicitly opts this invocation
+  # into the legacy backend, which recent MLflow releases otherwise refuse.
+  export MLFLOW_ALLOW_FILE_STORE=true
+elif [[ -f $store ]]; then
+  # A typo must not turn an arbitrary file into a database or an empty run store.
+  [[ $(head -c 15 -- "$store") == "SQLite format 3" ]] || { echo "The experiment database must be SQLite" >&2; exit 1; }
+  # SQLAlchemy parses a URL before opening SQLite. Escape path characters so
+  # a '?' in the filename cannot select a different database.
+  store=$(python3 - "$store" <<'PY'
+from pathlib import Path
+import sys
+from urllib.parse import quote
+
+print("sqlite:///" + quote(str(Path(sys.argv[1]).resolve(strict=True)), safe="/"))
+PY
+  )
+else
+  echo "Choose a regular database file or an mlruns directory" >&2
+  exit 1
+fi
+if omarchy-cmd-missing mlflow; then
+  echo "Activate a Python environment with MLflow installed, then try again." >&2
+  exit 1
+fi
+
+echo "MLflow: http://127.0.0.1:$port (Ctrl+C to stop)"
+exec mlflow server --backend-store-uri "$store" --registry-store-uri "$store" --no-serve-artifacts --host 127.0.0.1 --port "$port"
