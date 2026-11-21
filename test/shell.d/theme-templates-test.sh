@@ -5,7 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+trap 'chmod -R u+rwX "$test_tmp"; rm -rf "$test_tmp"' EXIT
 
 home="$test_tmp/home"
 next="$home/.local/state/omarchy/current/next-theme"
@@ -151,6 +151,16 @@ done
 [[ $(readlink "$apps/omacalc.svg") == "$state/icons/omacalc.svg" ]] || fail "app icons replace a dangling link at their name"
 [[ -s $state/icons.revision ]] || fail "app icons tell the shell they changed"
 pass "the icon set renders after the switch and links into the user's icon theme"
+
+chmod 000 "$themed"
+if [[ -r $themed ]]; then
+  skip "unreadable template directory requires an unprivileged user"
+else
+  set_icons
+  [[ -s $state/icons/omawrite.svg && -L $apps/omawrite.svg ]] || fail "an unreadable app-template directory does not remove drawn icons"
+  pass "icon rendering does not depend on the app-template directory"
+fi
+chmod 700 "$themed"
 
 # A set of the user's own may draw any app, in the theme's colors or as it is,
 # and draws only what it holds. Switching sets takes the last one's icons away.

@@ -29,6 +29,8 @@ A theme installed from a git repo is held to a much shorter list; see [What an i
 5. Move the staging theme into `~/.local/state/omarchy/current/theme`, write
    `~/.local/state/omarchy/current/theme.name`, and notify the running shell.
 
+A failed copy, palette conversion or template render in steps 1-4 stops activation before step 5, so the current theme, its name and its background stay as they were. If the switch had already put up a background intro cover, the failure cancels that cover without applying a palette.
+
 Template rendering only happens when the staged theme has `colors.toml`.
 Existing files are never overwritten by a template, so a hand-written
 `themes/<name>/shell.toml` or `hyprland.lua` wins over
