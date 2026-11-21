@@ -275,9 +275,9 @@ Panel {
   }
 
   function connectDevice(device) {
-    if (!device || device.connected) return
-    if (device.paired || device.bonded || device.trusted) runDeviceAction(device, "connect", "connecting")
-    else runDeviceAction(device, "pair", "connecting")
+    var action = Model.connectAction(device)
+    if (!action) return
+    runDeviceAction(device, action, "connecting")
   }
 
   function disconnectDevice(device) {
@@ -419,6 +419,18 @@ Panel {
       actionFocused = false
       cursorActive = false
     }
+    syncPairable()
+  }
+
+  function pairingMarkerPath() {
+    var runtime = Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"
+    return runtime + "/omarchy/bluetooth-pairing-open"
+  }
+
+  function writePairingMarker() {
+    var text = Model.pairingMarkerText(opened, openSibling() !== null, adapter && adapter.dbusPath)
+    var path = pairingMarkerPath()
+    Quickshell.execDetached(["bash", "-c", "mkdir -p \"$(dirname \"$1\")\" && printf '%s' \"$2\" > \"$1\"", "bash", path, text])
   }
 
   // Another per-monitor instance of this widget whose panel is open, if any.
@@ -433,6 +445,18 @@ Panel {
     }
     return null
   }
+
+  // BlueZ defaults Pairable=true forever. The agent auto-accepts Just Works
+  // only while Pairable is on, so raise it while any panel instance is open
+  // and clear it otherwise (including at widget load before the first open).
+  function syncPairable() {
+    if (adapter === null) return
+    adapter.pairable = Model.keepPairable(opened, openSibling() !== null)
+    writePairingMarker()
+  }
+
+  Component.onCompleted: syncPairable()
+  onAdapterChanged: syncPairable()
 
   function updateFocusedAddress() {
     var d = deviceAt(focusSection, selectedIndex)
@@ -570,12 +594,31 @@ Panel {
   // confirmed after this object is gone — and only writes the stop directly
   // when it is the last one standing.
   Component.onDestruction: {
-    if (!owesDiscoveryStop) return
     var items = bar && typeof bar.moduleWidgets === "function" ? bar.moduleWidgets(moduleName) : []
-    for (var i = 0; i < items.length; i++) {
-      if (items[i] && items[i] !== root) { items[i].owesDiscoveryStop = true; return }
+    if (owesDiscoveryStop) {
+      var handedOff = false
+      for (var i = 0; i < items.length; i++) {
+        if (items[i] && items[i] !== root) {
+          items[i].owesDiscoveryStop = true
+          handedOff = true
+          break
+        }
+      }
+      if (!handedOff && adapter !== null && adapter.discovering) adapter.discovering = false
     }
-    if (adapter !== null && adapter.discovering) adapter.discovering = false
+    if (adapter !== null) {
+      var siblingOpen = false
+      for (var p = 0; p < items.length; p++) {
+        if (items[p] && items[p] !== root && items[p].opened === true) {
+          siblingOpen = true
+          break
+        }
+      }
+      adapter.pairable = Model.keepPairable(false, siblingOpen)
+      var text = Model.pairingMarkerText(false, siblingOpen, adapter.dbusPath)
+      var path = pairingMarkerPath()
+      Quickshell.execDetached(["bash", "-c", "mkdir -p \"$(dirname \"$1\")\" && printf '%s' \"$2\" > \"$1\"", "bash", path, text])
+    }
   }
 
   Timer {
