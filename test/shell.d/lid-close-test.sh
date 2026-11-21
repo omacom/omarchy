@@ -33,11 +33,13 @@ SH
 echo $command >>"\$CALL_LOG"
 SH
   done
+  printf '#!/bin/bash\n' >"$mock_bin/logger"
   chmod +x "$mock_bin"/*
 }
 
 run_lid_close() {
-  CALL_LOG="$call_log" PATH="$mock_bin:$PATH" "$lid_close"
+  mkdir -p "$scenario_dir/runtime"
+  CALL_LOG="$call_log" XDG_RUNTIME_DIR="$scenario_dir/runtime" PATH="$mock_bin:$PATH" "$lid_close"
   mapfile -t calls <"$call_log"
 }
 
@@ -91,3 +93,94 @@ run_lid_close
 [[ ${calls[1]} == "omarchy-hyprland-monitor-clamshell" ]] ||
   fail "a failing lock still reconciles displays" "calls: ${calls[*]}"
 pass "a failing lock still reconciles displays"
+
+# omarchy-system-hibernate holds its marker until resume. A lid closed while
+# that encrypted hibernate is being entered must neither lock (resume already
+# asks for the LUKS passphrase) nor touch the displays, but only while logind
+# confirms a hibernate is being prepared; any doubt locks as usual.
+hold_hibernate_marker() {
+  local marker="$scenario_dir/runtime/omarchy-hibernate-boot-auth.lock"
+  local ready="$scenario_dir/marker-held"
+  mkdir -p "$scenario_dir/runtime"
+  (
+    exec 9>>"$marker"
+    flock 9
+    touch "$ready"
+    exec sleep 30
+  ) &
+  marker_holder_pid=$!
+  for _ in {1..100}; do
+    [[ -e $ready ]] && break
+    sleep 0.01
+  done
+  [[ -e $ready ]] || fail "lid close test acquires the hibernate marker"
+}
+
+release_hibernate_marker() {
+  kill "$marker_holder_pid" 2>/dev/null || true
+  wait "$marker_holder_pid" 2>/dev/null || true
+}
+
+mock_logind() {
+  local preparing="$1" operation="$2"
+  cat >"$mock_bin/busctl" <<SH
+#!/bin/bash
+printf 'b %s\\n(st) "%s" 1791700000000000\\n' "$preparing" "$operation"
+SH
+  chmod +x "$mock_bin/busctl"
+}
+
+setup_scenario hibernating 0 1
+mock_logind true hibernate
+hold_hibernate_marker
+run_lid_close
+release_hibernate_marker
+
+(( ${#calls[@]} == 0 )) ||
+  fail "lid close during an encrypted hibernate neither locks nor reconciles displays" "calls: ${calls[*]}"
+pass "lid close during an encrypted hibernate neither locks nor reconciles displays"
+
+setup_scenario hibernate_marker_suspending 0 1
+mock_logind true suspend
+hold_hibernate_marker
+run_lid_close
+release_hibernate_marker
+
+[[ ${calls[0]:-} == "omarchy-system-lock" ]] ||
+  fail "a held hibernate marker does not stop the lock for a suspend" "calls: ${calls[*]}"
+pass "a held hibernate marker does not stop the lock for a suspend"
+
+# ScheduledShutdown keeps naming the last sleep after logind is done with it.
+setup_scenario hibernate_marker_not_preparing 0 1
+mock_logind false hibernate
+hold_hibernate_marker
+run_lid_close
+release_hibernate_marker
+
+[[ ${calls[0]:-} == "omarchy-system-lock" ]] ||
+  fail "a stale hibernate operation in logind does not stop the lock" "calls: ${calls[*]}"
+pass "a stale hibernate operation in logind does not stop the lock"
+
+setup_scenario stale_hibernate_marker 0 1
+mock_logind true hibernate
+mkdir -p "$scenario_dir/runtime"
+: >"$scenario_dir/runtime/omarchy-hibernate-boot-auth.lock"
+run_lid_close
+
+[[ ${calls[0]:-} == "omarchy-system-lock" ]] ||
+  fail "a hibernate marker without a live holder does not stop the lock" "calls: ${calls[*]}"
+pass "a hibernate marker without a live holder does not stop the lock"
+
+setup_scenario logind_unreachable 0 1
+cat >"$mock_bin/busctl" <<'SH'
+#!/bin/bash
+exit 1
+SH
+chmod +x "$mock_bin/busctl"
+hold_hibernate_marker
+run_lid_close
+release_hibernate_marker
+
+[[ ${calls[0]:-} == "omarchy-system-lock" ]] ||
+  fail "lid close locks when logind cannot confirm the hibernate" "calls: ${calls[*]}"
+pass "lid close locks when logind cannot confirm the hibernate"
