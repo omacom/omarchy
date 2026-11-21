@@ -1,0 +1,135 @@
+name: Greptile PR Labeler
+
+# Labels pull requests based on Greptile review comments and score/impact indicators.
+# Synchronizes greptile:5/5, greptile:needs-fixes and impact:* labels with the latest review.
+
+on:
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  label:
+    if: |
+      github.event.issue.pull_request &&
+      (github.event.comment.user.login == 'greptile-apps' || github.event.comment.user.login == 'greptile-apps[bot]') &&
+      contains(github.event.comment.body, 'greptile_summary')
+    concurrency:
+      group: greptile-labeler-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Parse and apply Greptile labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+
+          # Always resolve the latest Greptile review comment to prevent stale events from overwriting
+          latest_comment=$(gh api "repos/$GH_REPO/issues/$PR_NUMBER/comments" \
+            --jq '[.[] | select((.user.login == "greptile-apps" or .user.login == "greptile-apps[bot]") and (.body | contains("greptile_summary")))] | last | .body // empty' || true)
+
+          review_body="${latest_comment:-$COMMENT_BODY}"
+
+          # Extract Greptile confidence score
+          score=""
+          if [[ $review_body =~ \<\!--[[:space:]]*greptile_confidence_score:([0-9]+)[[:space:]]*--\> ]]; then
+            score="${BASH_REMATCH[1]}"
+          elif [[ $review_body =~ Confidence[[:space:]]+Score:[[:space:]]*([0-9]+)/5 ]]; then
+            score="${BASH_REMATCH[1]}"
+          fi
+
+          # Extract Greptile impact level
+          impact=""
+          if [[ $review_body =~ \*\*\[([a-zA-Z]+)[[:space:]]+impact\]\*\* ]]; then
+            impact="${BASH_REMATCH[1],,}"
+          fi
+
+          # Determine target labels
+          target_score_label=""
+          if [[ $score == "5" ]]; then
+            target_score_label="greptile:5/5"
+          elif [[ -n $score ]]; then
+            target_score_label="greptile:needs-fixes"
+          fi
+
+          target_impact_label=""
+          if [[ $impact =~ ^(critical|high|medium|low)$ ]]; then
+            target_impact_label="impact:$impact"
+          fi
+
+          if [[ -z $target_score_label && -z $target_impact_label ]]; then
+            echo "No actionable Greptile labels found in review."
+            exit 0
+          fi
+
+          # Define label metadata: color and description
+          declare -A LABEL_COLORS=(
+            ["greptile:5/5"]="0e8a16"
+            ["greptile:needs-fixes"]="d93f0b"
+            ["impact:critical"]="b60205"
+            ["impact:high"]="d93f0b"
+            ["impact:medium"]="fbca04"
+            ["impact:low"]="0e8a16"
+          )
+          declare -A LABEL_DESCS=(
+            ["greptile:5/5"]="Greptile AI confidence score 5/5"
+            ["greptile:needs-fixes"]="Greptile AI review identified open findings"
+            ["impact:critical"]="Critical impact findings"
+            ["impact:high"]="High impact findings"
+            ["impact:medium"]="Medium impact findings"
+            ["impact:low"]="Low impact findings"
+          )
+
+          # Ensure required labels exist in repository
+          for lbl in "$target_score_label" "$target_impact_label"; do
+            [[ -n $lbl ]] || continue
+            color="${LABEL_COLORS[$lbl]:-ededed}"
+            desc="${LABEL_DESCS[$lbl]:-}"
+            gh label create "$lbl" --repo "$GH_REPO" --color "$color" --description "$desc" --force 2>/dev/null || true
+          done
+
+          # Fetch current labels on PR - must succeed
+          current_labels=$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json labels --jq '.labels[].name')
+
+          # Collect all label modifications to apply atomically in one call
+          label_args=()
+
+          while IFS= read -r old; do
+            [[ -n $old ]] || continue
+            if [[ -n $target_score_label && $old != "$target_score_label" ]]; then
+              echo "Removing stale score label: $old"
+              label_args+=(--remove-label "$old")
+            fi
+          done < <(echo "$current_labels" | grep -E '^greptile:' || true)
+
+          while IFS= read -r old; do
+            [[ -n $old ]] || continue
+            if [[ -n $target_impact_label && $old != "$target_impact_label" ]]; then
+              echo "Removing stale impact label: $old"
+              label_args+=(--remove-label "$old")
+            fi
+          done < <(echo "$current_labels" | grep -E '^impact:' || true)
+
+          for new_lbl in "$target_score_label" "$target_impact_label"; do
+            [[ -n $new_lbl ]] || continue
+            if ! echo "$current_labels" | grep -qx "$new_lbl"; then
+              echo "Adding label: $new_lbl"
+              label_args+=(--add-label "$new_lbl")
+            fi
+          done
+
+          if (( ${#label_args[@]} > 0 )); then
+            echo "Applying label mutations atomically..."
+            gh pr edit "$PR_NUMBER" --repo "$GH_REPO" "${label_args[@]}"
+          else
+            echo "Labels are already synchronized."
+          fi
