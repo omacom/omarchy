@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# omarchy:summary=Install Simple Scan with the AirScan (eSCL/WSD) SANE backend, plus Canon PIXMA network detection
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+echo -e "\nInstalling scanning support..."
+omarchy-pkg-add sane sane-airscan simple-scan
+
+# Detect a Canon PIXMA network scanner and point the SANE pixma backend at it
+pixma_record=$(timeout 5 avahi-browse -tpr _canon-bjnp1._tcp 2>/dev/null | awk -F';' '$1 == "=" && $3 == "IPv4" && $0 ~ /"Scan=T"/ {print; exit}' || true)
+pixma_hostname=""
+if [[ -n $pixma_record ]]; then
+  IFS=';' read -r _ _ _ pixma_name _ _ pixma_hostname _ _ _ <<<"$pixma_record"
+  pixma_name=${pixma_name//\\032/ }
+
+  # Any device on the network can answer with any name, and the hostname ends
+  # up in a sed program run as root, so accept nothing but a plain hostname.
+  if [[ ! $pixma_hostname =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]]; then
+    echo "Ignoring a PIXMA scanner with an unusable hostname"
+    pixma_hostname=""
+  fi
+fi
+
+if [[ -n $pixma_hostname ]]; then
+  echo "Found $pixma_name at $pixma_hostname"
+
+  # Only the line under this marker is ours; addresses the user configured
+  # themselves are left alone, and omarchy-remove-scanner removes just ours.
+  PIXMA_CONF="/etc/sane.d/pixma.conf"
+  PIXMA_MARKER="# Added by omarchy-install-scanner"
+  if grep -qxF "$PIXMA_MARKER" "$PIXMA_CONF"; then
+    sudo sed -i "/^$PIXMA_MARKER\$/{n;s|^bjnp://.*|bjnp://$pixma_hostname|}" "$PIXMA_CONF"
+  elif ! grep -qxF "bjnp://$pixma_hostname" "$PIXMA_CONF"; then
+    printf '%s\nbjnp://%s\n' "$PIXMA_MARKER" "$pixma_hostname" | sudo tee -a "$PIXMA_CONF" >/dev/null
+  fi
+fi
+
+echo -e "\nScanning support is ready — open Simple Scan to scan a document."
