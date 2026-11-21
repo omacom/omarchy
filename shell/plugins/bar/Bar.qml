@@ -1047,7 +1047,22 @@ Item {
     if (drawer) return drawer
     var onBar = candidates.filter(function(row) { return row.region !== "tray" })
     var box = sourceWindow ? root.centerBoxFor(sourceWindow) : null
-    return BarModel.centerDropTarget(onBar, root.centerBoxDropRect(box), scenePoint, root.vertical, sourceSlot)
+    return BarModel.centerDropTarget(onBar, root.centerBoxDropRect(box), scenePoint, root.vertical, sourceSlot, root.moduleEdgeAnchors(sourceWindow))
+  }
+
+  // Drop anchors for the side sections: a section a drag has emptied keeps no
+  // slots, so without an anchor a drop at its end of the bar falls into the
+  // center group instead (BarModel stands an anchor down while a candidate
+  // still holds the region). Each anchor sits at the bar strip's end along
+  // the drag axis, in scene coordinates like the drop and the slots.
+  function moduleEdgeAnchors(window) {
+    var screen = window ? window.screen : null
+    if (!screen) return []
+    var end = root.vertical ? screen.height : screen.width
+    return [
+      { region: "left", axis: 0, after: true },
+      { region: "right", axis: end, after: false }
+    ]
   }
 
   // Where a drop lands in the tray's drawer section on a bar surface, in
