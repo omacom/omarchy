@@ -143,6 +143,42 @@ function reorderShiftSlots(index, fromIndex, toIndex) {
   return 0
 }
 
+function workspaceDropTarget(entries, localX, localY, rowWidth, rowHeight, cardWidth, spacing, mirrored, topPad, bottomPad) {
+  var list = entries || []
+  if (!(cardWidth > 0)) return { index: -1, id: -1 }
+  var regularIndices = []
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && !list[i].guest && !list[i].isNewSlot) regularIndices.push(i)
+  }
+  if (regularIndices.length < 2) return { index: -1, id: -1 }
+
+  var yTop = isFinite(Number(topPad)) ? Number(topPad) : 64
+  var yBottom = isFinite(Number(bottomPad)) ? Number(bottomPad) : 80
+  if (localY < -yTop || localY > rowHeight + yBottom) return { index: -1, id: -1 }
+
+  var width = rowWidth > 0 ? rowWidth : (list.length * cardWidth + Math.max(0, list.length - 1) * spacing)
+  var alongX = mirrored ? (width - localX) : localX
+  var step = cardWidth + spacing
+  var minSpan = regularIndices[0] * step
+  var maxSpan = regularIndices[regularIndices.length - 1] * step + cardWidth
+  if (alongX < minSpan - cardWidth * 0.5 || alongX > maxSpan + cardWidth * 0.5) {
+    return { index: -1, id: -1 }
+  }
+
+  var bestIndex = regularIndices[0]
+  var bestDistance = Infinity
+  for (var r = 0; r < regularIndices.length; r++) {
+    var idx = regularIndices[r]
+    var center = idx * step + cardWidth / 2
+    var dist = Math.abs(alongX - center)
+    if (dist < bestDistance) {
+      bestDistance = dist
+      bestIndex = idx
+    }
+  }
+  return { index: bestIndex, id: list[bestIndex].id }
+}
+
 function reorderWorkspacePlan(entries, sourceWorkspaceId, targetWorkspaceId, workspaces, toplevels, pendingMoves) {
   var regular = (entries || []).filter(function(entry) {
     return entry && !entry.guest && !entry.isNewSlot
@@ -213,14 +249,10 @@ function reorderWorkspacePlan(entries, sourceWorkspaceId, targetWorkspaceId, wor
     }
   }
 
-  var phase1 = []
-  var phase2 = []
-  for (var s = 0; s < stageOps.length; s++) {
-    var op = stageOps[s]
-    phase1.push("if hl.get_workspace(" + op.fromId + ") then hl.dispatch(hl.dsp.workspace.change_id({ workspace = \"" + op.fromId + "\", id = " + op.tempId + " })); staged[" + op.tempId + "] = true end")
-    phase2.push("if staged[" + op.tempId + "] and hl.get_workspace(" + op.tempId + ") then hl.dispatch(hl.dsp.workspace.change_id({ workspace = \"" + op.tempId + "\", id = " + op.toId + " })) end")
-  }
-  var luaDispatch = "function() local staged = {}; " + phase1.join(" ") + " " + phase2.join(" ") + " end"
+  var luaOps = stageOps.map(function(op) {
+    return "{ from = " + op.fromId + ", temp = " + op.tempId + ", to = " + op.toId + " }"
+  })
+  var luaDispatch = "function() o.workspaces.reorder({ " + luaOps.join(", ") + " }) end"
 
   return {
     fromIndex: fromIndex,
@@ -317,6 +349,7 @@ if (typeof module !== "undefined") {
     monitorBlock: monitorBlock,
     workspaceEntries: workspaceEntries,
     reorderShiftSlots: reorderShiftSlots,
+    workspaceDropTarget: workspaceDropTarget,
     reorderWorkspacePlan: reorderWorkspacePlan,
     applyWindowMoves: applyWindowMoves,
     miniWindowRects: miniWindowRects,

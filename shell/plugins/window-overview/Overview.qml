@@ -258,28 +258,20 @@ Item {
   }
 
   function updateWorkspaceDropTarget(pointInCatcher) {
-    var list = displayWorkspaceEntries
-    var regularCount = 0
-    for (var i = 0; i < list.length; i++) {
-      if (list[i] && !list[i].guest && !list[i].isNewSlot) regularCount++
-    }
-    if (regularCount < 2) {
-      wsDragTargetIndex = -1
-      wsDragTargetId = -1
-      return
-    }
     var local = workspaceRow.mapFromItem(keyCatcher, pointInCatcher.x, pointInCatcher.y)
-    var step = workspaceRow.cardWidth + workspaceRow.spacing
-    var maxSpan = regularCount * workspaceRow.cardWidth + Math.max(0, regularCount - 1) * workspaceRow.spacing
-    if (local.y < -Style.space(64) || local.y > workspaceRow.height + Style.space(80)
-        || local.x < -workspaceRow.cardWidth * 0.5 || local.x > maxSpan + workspaceRow.cardWidth * 0.5) {
-      wsDragTargetIndex = -1
-      wsDragTargetId = -1
-      return
-    }
-    var idx = Math.max(0, Math.min(regularCount - 1, Math.floor((local.x + workspaceRow.spacing / 2) / Math.max(1, step))))
-    wsDragTargetIndex = idx
-    wsDragTargetId = list[idx].id
+    var target = OverviewModel.workspaceDropTarget(
+      displayWorkspaceEntries,
+      local.x,
+      local.y,
+      workspaceRow.width,
+      workspaceRow.height,
+      workspaceRow.cardWidth,
+      workspaceRow.spacing,
+      workspaceRow.LayoutMirroring.enabled,
+      Style.space(64),
+      Style.space(80))
+    wsDragTargetIndex = target.index
+    wsDragTargetId = target.id
   }
 
   function cancelWorkspaceDrag() {
@@ -620,7 +612,7 @@ Item {
                 : (isDropTarget || isViewed || isHovered || modelData.occupied ? 1.0 : 0.72)
               scale: isDropTarget ? 1.06 : (isReorderSource ? 0.96 : 1.0)
               transform: Translate {
-                x: wsCard.reorderShiftSlots * (workspaceRow.cardWidth + workspaceRow.spacing)
+                x: (workspaceRow.LayoutMirroring.enabled ? -1 : 1) * wsCard.reorderShiftSlots * (workspaceRow.cardWidth + workspaceRow.spacing)
                 Behavior on x {
                   enabled: root.wsDragActive
                   NumberAnimation { duration: Style.duration(140); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
@@ -947,7 +939,7 @@ Item {
           Text {
             id: wsTargetBadgeText
             anchors.centerIn: parent
-            text: wsDragProxy.targetEntry ? "→ " + wsDragProxy.targetEntry.label : ""
+            text: wsDragProxy.targetEntry ? (Commons.I18n.rightToLeft ? "← " : "→ ") + wsDragProxy.targetEntry.label : ""
             textFormat: Text.PlainText
             color: Commons.Color.background
             font.family: Style.font.family
@@ -997,7 +989,7 @@ Item {
           Text {
             id: targetBadgeText
             anchors.centerIn: parent
-            text: dragProxy.targetEntry ? "→ " + dragProxy.targetEntry.label : ""
+            text: dragProxy.targetEntry ? (Commons.I18n.rightToLeft ? "← " : "→ ") + dragProxy.targetEntry.label : ""
             textFormat: Text.PlainText
             color: Commons.Color.background
             font.family: Style.font.family
