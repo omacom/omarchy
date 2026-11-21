@@ -276,11 +276,17 @@ ShellRoot {
     source: shell.activeBarId !== shell.defaultBarId ? shell.activeBarSourceUrl : ""
     asynchronous: true
     onLoaded: shell.configureBar(item, shell.activeBarManifest)
-    onActiveChanged: if (!active) shell.bar = null
+    // The built-in bar can load before this deactivates; leave it registered.
+    onActiveChanged: if (!active && shell.bar !== defaultBarLoader.item) shell.bar = null
     onStatusChanged: {
       if (status === Loader.Error) {
         console.warn("bar option " + shell.activeBarId + " failed to load, falling back to " + shell.defaultBarId)
-        shell.failedBarId = shell.activeBarId
+        // A retry of a cached component fails inside activeBarId's own change,
+        // where setting failedBarId leaves activeBarId stale; fall back next tick.
+        var failedId = shell.activeBarId
+        Qt.callLater(function() {
+          if (shell.activeBarId === failedId && pluginBarLoader.status === Loader.Error) shell.failedBarId = failedId
+        })
       }
     }
   }
