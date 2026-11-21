@@ -1,0 +1,18 @@
+[Unit]
+Description=Re-apply the power profile when an ASUS ROG laptop swaps chargers
+# Only ASUS laptops whose firmware says which charger is in use, through
+# asus-armoury's charge_mode (or asus-nb-wmi's on older kernels), can tell a
+# USB-C charger from the barrel adapter. Everywhere else the unit stays inert.
+ConditionPathExists=|/sys/class/firmware-attributes/asus-armoury/attributes/charge_mode/current_value
+ConditionPathExists=|/sys/devices/platform/asus-nb-wmi/charge_mode
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-powerprofiles-source-monitor
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
