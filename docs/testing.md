@@ -95,6 +95,8 @@ Gate only what needs gating — put `require_compositor` in files whose runtime
 half needs a live session, and keep static analysis of the same area in code
 that runs unconditionally before or beside it.
 
+`lock-activity-reblank-test.sh` is different: it starts a disposable headless Sway compositor with software rendering, a private runtime directory and an allowlisted environment, never the caller's desktop. Install `sway` as a **test-only** dependency to run it; without Sway or Quickshell it reports an explicit skip. A compositor that fails to start or answer on its private socket fails the test. The fixture exercises real blank timers and activity handlers, then adds an output to prove that `screensChanged` can acquire a protocol lock even when only `lockRequested` was set. Do not launch this fixture directly on a live session. The test confines that lock to its disposable compositor, with bounded process-group teardown and independent deadlines even if the runner is killed. This is not a Hyprland raw-input/DPMS reproduction; run those checks only in a disposable VM.
+
 ## Performance guards
 
 A handful of tests fail when a fast path gets slow again. Each prefers a count that is the same on every machine over a wall-clock time. Where it has to time something it takes the fastest of several runs, and either compares two paths timed in the same run or scales its budget with `process_speed_percent` from `base-test.sh`: how long 100 fork/execs take here against the 25ms they take on the laptop the budgets were set on. A machine more than 8x slower skips the timing (`require_comparable_speed`) rather than guess.
