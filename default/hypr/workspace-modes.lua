@@ -20,6 +20,7 @@ local paths = require("default.hypr.paths")
 
 local FLOATED_TAG = "omarchy-mode-floated"
 local WORKSPACE_TAG = "omarchy-floating-workspace"
+local SOLID_TAG = "omarchy-floating-solid"
 local OPENED_TAG = "omarchy-mode-opened"
 local OPEN_RULE = "omarchy-floating-open-"
 local LAST_WORKSPACE = 2147483647
@@ -36,6 +37,17 @@ local set_up_floating
 local cascade = 0
 local open_rules = 0
 
+-- Window Opacity is a toggle file, and choosing it reloads the config.
+local function glassy()
+  local file = io.open(paths.state_home .. "/omarchy/toggles/hypr/window-glassy.lua", "r")
+  if file then
+    file:close()
+    return true
+  end
+
+  return false
+end
+
 local function set_floating(window, floating)
   hl.dispatch(hl.dsp.window.float({ action = floating and "on" or "off", window = window }))
 end
@@ -44,8 +56,41 @@ local function set_claimed(window, claimed)
   hl.dispatch(hl.dsp.window.tag({ tag = (claimed and "+" or "-") .. FLOATED_TAG, window = window }))
 end
 
+-- Windows that stay solid under Glassy on tiled workspaces stay solid on a
+-- floating one too. Hyprland can't match two tags in one rule, so they carry a
+-- tag of their own while on a floating workspace. A rule's tags are listed with
+-- a trailing "*".
+local SOLID_APPS = { terminal = true, ["chromium-based-browser"] = true, ["firefox-based-browser"] = true, pip = true }
+
+local function window_tags(window)
+  local tags = {}
+
+  for _, tag in ipairs(window.tags or {}) do
+    tags[(tag:gsub("%*$", ""))] = true
+  end
+
+  return tags
+end
+
+local function stays_solid(tags)
+  for tag in pairs(SOLID_APPS) do
+    if tags[tag] then
+      return true
+    end
+  end
+
+  return false
+end
+
 local function set_on_floating_workspace(window, on)
   hl.dispatch(hl.dsp.window.tag({ tag = (on and "+" or "-") .. WORKSPACE_TAG, window = window }))
+
+  local tags = window_tags(window)
+  if on and stays_solid(tags) then
+    hl.dispatch(hl.dsp.window.tag({ tag = "+" .. SOLID_TAG, window = window }))
+  elseif not on and tags[SOLID_TAG] then
+    hl.dispatch(hl.dsp.window.tag({ tag = "-" .. SOLID_TAG, window = window }))
+  end
 end
 
 local function claimed()
@@ -351,6 +396,18 @@ local function watch()
     claim_opened(window)
     unmaximize_others(window)
     arrange({ window })
+
+    -- Hyprland doesn't look at a window's rules again while it is still opening,
+    -- so rules for floating windows, as Glassy's are, miss one the mode floated or
+    -- tagged just now. A tag change makes it look, once the window is open.
+    hl.timer(function()
+      for _, tagged in ipairs(hl.get_windows({ tag = WORKSPACE_TAG })) do
+        if tagged.address == window.address then
+          set_on_floating_workspace(tagged, false)
+          set_on_floating_workspace(tagged, true)
+        end
+      end
+    end, { type = "oneshot", timeout = 1 })
   end)
 
   -- A move is still being committed when this fires, and changing the window's
@@ -574,6 +631,19 @@ set_up_floating = function()
     glassy:close()
   else
     o.window({ tag = WORKSPACE_TAG }, { opacity = "1.0 override 1.0 override" })
+  end
+
+  -- Glassy asks for see-through windows, so on a floating workspace every window
+  -- fades as a whole, as Glassy fades Nautilus, and its titlebar turns to frosted
+  -- glass with it. Video and pictures stay solid. Terminals paint their own glass
+  -- already, and browsers stay solid as they do on tiled workspaces, whether
+  -- they float, tile or go fullscreen there.
+  if glassy() then
+    o.window({ tag = WORKSPACE_TAG, class = "negative:^(mpv|imv)$" }, {
+      opacity = "0.86 override 0.8 override",
+      tag = "+transparent-window",
+    })
+    o.window({ tag = SOLID_TAG }, { opacity = "1.0 override 1.0 override" })
   end
 
   titlebars()
