@@ -114,13 +114,17 @@ write_about_config() {
   fi
 }
 
-# A user's own fastfetch config runs as it is; otherwise the translated copy does.
+# Use About's branding with the default or translated config. A custom
+# fastfetch config owns its logo, layout and colors.
 about_fastfetch() {
-  if [[ -n $ABOUT_CONFIG && -f $ABOUT_CONFIG ]] && ! custom_fastfetch_config; then
-    fastfetch -c "$ABOUT_CONFIG" "$@"
-  else
-    fastfetch "$@"
+  local -a args=()
+  if ! custom_fastfetch_config; then
+    args+=(--logo-type file --logo "$LOGO_FILE")
+    if [[ -n $ABOUT_CONFIG && -f $ABOUT_CONFIG ]]; then
+      args+=(-c "$ABOUT_CONFIG")
+    fi
   fi
+  fastfetch "${args[@]}" "$@"
 }
 
 logo_dimensions() {
