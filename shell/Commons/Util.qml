@@ -1,6 +1,7 @@
 pragma Singleton
 import Quickshell
 import QtQuick
+import "Lua.js" as Lua
 
 // Shared utility helpers used across plugins. Pure functions only — no
 // state. Anything stateful belongs on Color, Style, or a service.
@@ -63,6 +64,13 @@ QtObject {
   // quotes by closing, escaping, and re-opening the literal.
   function shellQuote(value) {
     return "'" + String(value || "").replace(/'/g, "'\\''") + "'"
+  }
+
+  // Double-quote a string for a Lua expression, the way string.format("%q")
+  // does on the Lua side. The escaping lives in Lua.js so a test can load it
+  // without Quickshell.
+  function luaQuote(value) {
+    return Lua.quote(value)
   }
 
   function execDetached(command) {

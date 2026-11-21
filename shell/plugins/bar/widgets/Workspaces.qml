@@ -105,7 +105,7 @@ BarWidget {
 
   function focusWorkspace(id) {
     if (root.blockOf(id) === root.block) {
-      root.dispatch("o.workspaces.focus(" + root.slotOf(id) + ", \"" + root.monitorName + "\")")
+      root.dispatch("o.workspaces.focus(" + root.slotOf(id) + ", " + Util.luaQuote(root.monitorName) + ")")
     } else {
       root.dispatch("hl.dsp.focus({ workspace = \"" + id + "\" })")
     }
@@ -180,7 +180,7 @@ BarWidget {
     if (!root.bar) return
     var command = "omarchy-hyprland-workspace-layout-toggle"
     if (root.monitor && !root.monitor.focused) {
-      command = "hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = \"" + root.monitorName + "\" })") + " >/dev/null && " + command
+      command = "hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = " + Util.luaQuote(root.monitorName) + " })") + " >/dev/null && " + command
     }
     root.bar.run(command)
   }
