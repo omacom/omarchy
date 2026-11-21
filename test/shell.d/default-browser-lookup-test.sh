@@ -21,7 +21,7 @@ export OMARCHY_TEST_XDG_SETTINGS_LOG="$test_tmp/xdg-settings"
 
 cat >"$mock_bin/xdg-settings" <<'SH'
 #!/bin/bash
-printf '%s\n' "${BROWSER:-unset}" >"$OMARCHY_TEST_XDG_SETTINGS_LOG"
+printf '%s %s\n' "${BROWSER:-unset}" "${XDG_CURRENT_DESKTOP-}" >"$OMARCHY_TEST_XDG_SETTINGS_LOG"
 echo fallback.desktop
 SH
 export PATH="$mock_bin:$ROOT/bin:$PATH"
@@ -67,8 +67,8 @@ echo "Exec=brave %U" >"$XDG_DATA_DIRS/applications/fallback.desktop"
 
 [[ $(omarchy-cmd-default-browser) == "fallback.desktop" ]] ||
   fail "default browser falls back to xdg-settings when no listed handler is installed"
-[[ $(<"$OMARCHY_TEST_XDG_SETTINGS_LOG") == "unset" ]] ||
-  fail "default browser unsets BROWSER before asking xdg-settings"
+[[ $(<"$OMARCHY_TEST_XDG_SETTINGS_LOG") == "unset X-Generic" ]] ||
+  fail "default browser asks xdg-settings without BROWSER and as X-Generic, so xdg-utils skips its xprop probe"
 
 pass "default browser reads mimeapps.list and falls back to xdg-settings"
 
