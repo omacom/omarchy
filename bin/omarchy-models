@@ -2,10 +2,10 @@
 
 # omarchy:summary=Run open models on this machine for your agents
 # omarchy:args=<use|list|status|start|stop|update|remove|logs> [args]
-# omarchy:examples=omarchy agent local use best | omarchy agent local use qwen3.8-27b-gufo | omarchy agent local stop | omarchy-agent-local use --help
+# omarchy:examples=omarchy models use best text | omarchy models use best image | omarchy models use qwen3.8-27b-gufo | omarchy models stop | omarchy-models use --help
 
 # The engine and its recipes come in omarchy-local-ai, on every machine so the
-# agents panel knows which models fit. Podman, which runs them, is a base
+# local models panel knows which models fit. Podman, which runs them, is a base
 # package too, and an NVIDIA machine gets nvidia-container-toolkit with its
 # driver; a machine installed without them gets what's missing when a model is
 # first set up. An NVIDIA GPU reaches the containers through the CDI spec the
@@ -19,7 +19,7 @@ if [[ ${1:-} == "use" ]]; then
   fi
 
   if [[ " $* " == *" --detach "* ]]; then
-    # The agents panel starts a setup in the background, with no terminal to
+    # The local models panel starts a setup in the background, with no terminal to
     # ask for a password in, so polkit asks for it instead. The panel shows
     # the setup's line while this runs and reads the reason from the Error
     # line; pkexec's 126 is the password dialog dismissed, passed on as is.
@@ -53,12 +53,12 @@ if [[ ${1:-} == "share" && -n ${2:-} && ${2:-} != -* && " $* " != *" --off "* ]]
 fi
 
 # A model set up here gets a launcher of its own, and loses it when removed.
-# A setup handed to the background isn't done yet: the agents panel adds its
+# A setup handed to the background isn't done yet: the local models panel adds its
 # launcher once it is.
 if [[ ${1:-} == "use" || ${1:-} == "remove" ]]; then
   "${run[@]}"
   status=$?
-  omarchy-agent-local-launchers
+  omarchy-models-launchers
   exit "$status"
 else
   exec "${run[@]}"

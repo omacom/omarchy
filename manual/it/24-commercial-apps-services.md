@@ -1,12 +1,12 @@
 # App/servizi commerciali
 
-Omarchy è incentrato soprattutto sull'offerta di software gratuito e open source, ma senza farne una religione. A volte la soluzione migliore è un'offerta commerciale, e va benissimo così. Ecco alcune delle opzioni per cui forniamo un'installazione semplice.
+Omarchy è incentrato soprattutto sulla fornitura di software libero e open source, ma non ne fa una religione. A volte la soluzione migliore è un'offerta commerciale, e va benissimo così. Ecco alcune delle opzioni per cui forniamo un'installazione semplice.
 
 ## 1Password
 
-Conservare le tue password in un gestore di password è una buona pratica. A maggior ragione se lavori con un team. E [1password](https://1password.com/) è un'ottima soluzione, che include anche uno strumento da riga di comando per integrare la ricerca delle chiavi negli script.
+Conservare le password in un gestore di password è una buona pratica. A maggior ragione se lavori in team. E [1password](https://1password.com/) è un'ottima soluzione, che include anche uno strumento da riga di comando per integrare la ricerca delle chiavi negli script.
 
-Avvii 1Password con `Super + Shift + /`. Se non è ancora installato, quella scorciatoia avvia prima l'installazione (puoi anche usare _Installa > Servizio > 1Password_ dal menu di Omarchy). Il programma di installazione installa anche lo strumento da riga di comando di 1Password e configura l'estensione 1Password per Chrome e Chromium; riavvia il browser per caricarla.
+Avvii 1Password con `Super + Shift + /`. Se non è ancora installato, quella scorciatoia avvia prima l'installazione (puoi anche usare _Installa > Servizio > 1Password_ dal menu di Omarchy). Il programma di installazione installa anche lo strumento da riga di comando di 1Password e configura l'estensione di 1Password per Chrome e Chromium; riavvia il browser per caricarla.
 
 ## Bitwarden
 
@@ -24,20 +24,24 @@ Avvii 1Password con `Super + Shift + /`. Se non è ancora installato, quella sco
 
 [Notion](https://www.notion.com/) è uno spazio di lavoro per note, documenti e progetti. Installa la sua app desktop con _Installa > Servizio > Notion_ dal menu di Omarchy.
 
+## WeChat
+
+[WeChat](https://www.wechat.com/) è l'app di messaggistica su cui si basa la maggior parte della Cina, per chat, chiamate e per restare in contatto con chiunque viva lì. Installa il client Linux ufficiale di Tencent con _Installa > Servizio > WeChat_ dal menu di Omarchy, e si aprirà non appena sarà pronto. È disponibile solo su computer x86.
+
 ## Dropbox
 
 [Dropbox](https://www.dropbox.com/) è un ottimo modo per sincronizzare i file tra macchine mantenendo un backup nel cloud. Per configurarlo, seleziona _Installa > Servizio > Dropbox_ dal menu di Omarchy. Aggiunge un'icona di Dropbox alla barra: cliccala per accedere, poi usa lo stesso pannello per controllare lo spazio di archiviazione e aprire i file sincronizzati di recente.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) è una VPN mesh che rende semplicissimo accedere in modo sicuro a tutti i tuoi computer e server via internet. Per configurarlo, seleziona _Installa > Servizio > Tailscale_ dal menu di Omarchy.
+[Tailscale](https://tailscale.com/) è una VPN mesh che rende semplicissimo accedere in modo sicuro a tutti i tuoi computer e server tramite internet. Per configurarlo, seleziona _Installa > Servizio > Tailscale_ dal menu di Omarchy.
 
 Ottiene un pannello nella barra, una web app per la console di amministrazione e Taildrop per inviare file tra le tue macchine — vedi [rete](35-networking.md).
 
 ## ONCE
 
-[ONCE](https://once.com/) è la linea di software di 37signals che compri una volta e gestisci sul tuo server, come il sistema di chat Campfire. Seleziona _Installa > Servizio > ONCE_ dal menu di Omarchy per installarlo, che abilita il suo servizio in background e ti porta nell'interfaccia terminale di ONCE per proseguire da lì.
+[ONCE](https://once.com/) è la linea di software di 37signals che compri una volta e fai girare sul tuo server, come il sistema di chat Campfire. Seleziona _Installa > Servizio > ONCE_ dal menu di Omarchy per installarlo, cosa che abilita il suo servizio in background e ti porta nell'interfaccia terminale di ONCE per proseguire da lì.
 
 ## NordVPN
 
-[NordVPN](https://nordvpn.com/) è un servizio VPN standard che ti consente di far uscire il tuo traffico dalla maggior parte delle regioni del mondo. Per configurarlo, seleziona _Installa > Servizio > NordVPN_ dal menu di Omarchy. Dopo il riavvio che richiede, esegui `nordvpn login` per autenticarti.
+[NordVPN](https://nordvpn.com/) è un servizio VPN standard che ti permette di far uscire il tuo traffico dalla maggior parte delle regioni del mondo. Per configurarlo, seleziona _Installa > Servizio > NordVPN_ dal menu di Omarchy. Dopo il riavvio che richiede, esegui `nordvpn login` per autenticarti.
