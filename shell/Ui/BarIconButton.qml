@@ -6,6 +6,8 @@ WidgetButton {
   id: root
 
   property Component iconComponent: null
+  // Composite widgets can retain their source geometry instead of fitting one icon.
+  property bool normalizeIconComponent: true
   property real slotSize: Style.bar.iconSlot
   property real opticalSize: Style.bar.iconCanvas
   property real iconSize: Math.min(Style.bar.iconSize, opticalSize)
@@ -26,12 +28,15 @@ WidgetButton {
   readonly property real componentPaintedWidth: customIcon.visible ? customIcon.paintedWidth : 0
   readonly property real componentPaintedHeight: customIcon.visible ? customIcon.paintedHeight : 0
   readonly property rect componentSourceBounds: customIcon.sourceBounds
+  readonly property bool naturalComponent: iconComponent !== null && !normalizeIconComponent
+  readonly property real componentCanvasWidth: naturalComponent ? Math.max(canvasSize, customIcon.paintedWidth) : canvasSize
+  readonly property real componentCanvasHeight: naturalComponent ? Math.max(canvasSize, customIcon.paintedHeight) : canvasSize
 
   labelVisible: false
   hasVisualContent: text !== "" || iconComponent !== null || labelText !== ""
   fontSize: Style.bar.iconFont
-  fixedWidth: vertical ? -1 : slotSize
-  fixedHeight: vertical ? slotSize : -1
+  fixedWidth: vertical ? -1 : (naturalComponent ? Math.max(slotSize, content.width + scaledHorizontalMargin * 2) : slotSize)
+  fixedHeight: vertical ? (naturalComponent ? Math.max(slotSize, content.height + scaledVerticalPadding * 2) : slotSize) : -1
 
   Item {
     id: content
@@ -41,8 +46,8 @@ WidgetButton {
     // The icon draws here rather than in WidgetButton's own label, so it takes
     // the press scale here too.
     scale: root.pressScale
-    width: root.canvasSize + (label.visible ? label.implicitWidth + Style.space(4) : 0)
-    height: root.canvasSize
+    width: root.componentCanvasWidth + (label.visible ? label.implicitWidth + Style.space(4) : 0)
+    height: root.componentCanvasHeight
 
     Text {
       id: label
@@ -65,8 +70,8 @@ WidgetButton {
     Item {
       id: opticalCanvas
       x: label.visible ? label.implicitWidth + Style.space(4) : 0
-      width: root.canvasSize
-      height: root.canvasSize
+      width: root.componentCanvasWidth
+      height: root.componentCanvasHeight
 
       OpticalGlyph {
         id: glyph
@@ -87,6 +92,7 @@ WidgetButton {
         visible: root.iconComponent !== null
         sourceComponent: root.iconComponent
         sourceSize: root.opticalSize
+        normalize: root.normalizeIconComponent
       }
 
       Rectangle {
