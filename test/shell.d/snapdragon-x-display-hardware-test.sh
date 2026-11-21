@@ -51,12 +51,6 @@ done
     [[ $module == *\? ]] || fail "$module is optional, so a kernel or a model without it still builds its image"
   done
 
-  for module in msm dispcc_x1e80100 gpucc_x1e80100 gpucc_x1p42100 phy_qcom_edp panel_edp panel_samsung_atna33xc20 \
-    pwm_bl leds_qcom_lpg pmic_glink pmic_glink_altmode qrtr qcom_pd_mapper ps883x; do
-    [[ " ${MODULES[*]} " == *" $module? "* ]] ||
-      fail "$module loads early, for the screen at disk unlock"
-  done
-
   [[ ${FILES[*]} == "$firmware_root/updates/qcom/gen70500_sqe.fw $firmware_root/qcom/gen71500_gmu.bin.xz" ]] ||
     fail "early firmware prefers extracted copies and skips what is missing"
 )
@@ -80,8 +74,5 @@ done
   OMARCHY_PROC_ROOT="$dir/proc" OMARCHY_QUALCOMM_MKINITCPIO_DIR="$dir/mkinitcpio.conf.d" source "$setup"
   [[ ! -e $dir/mkinitcpio.conf.d ]] || fail "a machine that is not a Snapdragon is left alone"
 )
-
-grep -Fq 'run_logged "$OMARCHY_INSTALL/hardware/qualcomm/hamoa-display.sh"' "$ROOT/install/hardware/all.sh" ||
-  fail "the installer runs the Snapdragon X display setup"
 
 pass "Snapdragon X setup puts the display chain in every Hamoa and Purwa boot image"

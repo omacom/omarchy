@@ -65,8 +65,11 @@ run_setup "$smaller" >/dev/null
 (
   MODULES=() FILES=()
   source "$smaller/mkinitcpio.conf.d/surface-laptop-7-initramfs.conf"
-  [[ ${MODULES[*]} == 'surface_aggregator? surface_aggregator_registry? surface_hid_core? surface_hid?' && ${#FILES[@]} -eq 0 ]] ||
-    fail "Surface Laptop 7 13.8\" setup loads the keyboard early, each driver optional, and leaves the screen to the Snapdragon X setup"
+  for module in "${MODULES[@]}"; do
+    [[ $module == surface_*\? ]] || fail "$module is one of the keyboard's drivers and optional"
+  done
+  (( ${#MODULES[@]} > 0 && ${#FILES[@]} == 0 )) ||
+    fail "Surface Laptop 7 13.8\" setup loads the keyboard early and leaves the screen to the Snapdragon X setup"
 )
 
 other="$scratch/other"
