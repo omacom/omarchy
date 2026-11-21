@@ -20,7 +20,7 @@ key_names_file=/usr/share/omarchy-platform/key-names
 leading_keyboard() {
   local option value
   for option in kb_layout kb_variant; do
-    value=$(hyprctl -j getoption "input:$option" 2>/dev/null | jq -r '.str // empty' 2>/dev/null)
+    value=$(timeout 10 hyprctl -j getoption "input:$option" 2>/dev/null | jq -r '.str // empty' 2>/dev/null)
     value=${value%%,*}
     [[ $value =~ ^[A-Za-z0-9_-]*$ ]] || value=""
     printf '%s\n' "$value"
@@ -397,7 +397,7 @@ dynamic_bindings() {
   # Parse the plain `hyprctl binds` output rather than `hyprctl -j binds`:
   # Hyprland 0.56.0 emits invalid JSON for binds (misaligned fields in
   # bindsRequest), and older versions broke on quotes in bind args.
-  hyprctl binds | awk '
+  timeout 10 hyprctl binds | awk '
     function emit() {
       if (!seen) return
       seen = 0
@@ -687,9 +687,9 @@ keybindings_cache_key() {
     leading_keyboard
     omarchy-language 2>/dev/null
     cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null
-    hyprctl devices 2>/dev/null | grep -F 'active keymap:'
+    timeout 10 hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     cat "$key_names_file" 2>/dev/null
-    hyprctl binds 2>/dev/null
+    timeout 10 hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
 }
 
