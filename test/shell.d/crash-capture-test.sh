@@ -54,11 +54,13 @@ watch_bin="$TMPDIR/watch-bin"
 watch_home="$TMPDIR/watch-home"
 NOTIFY_LOG="$TMPDIR/notify-log"
 JOURNAL_ENTRIES="$TMPDIR/journal-entries"
+JOURNAL_ARGS="$TMPDIR/journal-args"
 
 mkdir -p "$watch_bin" "$watch_home"
 
 cat >"$watch_bin/journalctl" <<'SH'
 #!/bin/bash
+printf '%s\n' "$*" >"$JOURNAL_ARGS"
 cat "$JOURNAL_ENTRIES"
 SH
 
@@ -105,6 +107,7 @@ run_watch() {
 
   PATH="$watch_bin:$ROOT/bin:$PATH" \
   JOURNAL_ENTRIES="$JOURNAL_ENTRIES" \
+  JOURNAL_ARGS="$JOURNAL_ARGS" \
   NOTIFY_LOG="$NOTIFY_LOG" \
   HOME="$watch_home" \
     "$ROOT/bin/omarchy-crash-watch" || status=$?
@@ -128,6 +131,7 @@ announced() {
 reset_entries
 crash_entry hyprland /usr/bin/hyprland
 run_watch
+grep -Fq -- '--boot=0' "$JOURNAL_ARGS" || fail "journal follow stays scoped to the current boot"
 announced hyprland ||
   fail "a crash nobody muted still announces itself"
 pass "a crash nobody muted still announces itself"
