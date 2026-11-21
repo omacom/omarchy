@@ -502,3 +502,63 @@ assert(!M.weatherStale(reading, 60 * 1000, { lat: 40.71, lon: -74.01 }), 'elsewh
 assert(M.weatherStale(reading, 60 * 1000, { lat: 26.12, lon: -80.14 }), 'elsewhen refetches weather when a city\'s coordinates move')
 assert(!M.weatherStale({ c: 1, at: 0 }, 60 * 1000, { lat: 26.12, lon: -80.14 }), 'elsewhen keeps an older reading that never said where it was')
 JS
+
+# Node arrays cannot reproduce a Qt sequence injected through QML settings.
+# Evaluate the panel's actual binding with a typed QML list instead.
+run_node_test <<'JS'
+const fs = require('fs')
+const os = require('os')
+const { spawnSync } = require('child_process')
+const runner = ['/usr/lib/qt6/bin/qmltestrunner', '/usr/lib/qt6/qmltestrunner'].find(p => fs.existsSync(p))
+if (!runner) {
+  console.log('ok - elsewhen reads saved Qt city lists # SKIP qt6 qmltestrunner not found')
+} else {
+  const panel = fs.readFileSync(path.join(root, 'shell/plugins/panels/elsewhen/Panel.qml'), 'utf8')
+  const binding = panel.match(/^  readonly property var zones: (.+)$/m)[1]
+  const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'elsewhen-saved-cities.'))
+  try {
+    fs.mkdirSync(path.join(stage, 'runtime'), { mode: 0o700 })
+    fs.writeFileSync(path.join(stage, 'tst_saved_cities.qml'), `
+import QtQuick
+import QtTest
+import ${JSON.stringify(path.join(root, 'shell/plugins/panels/elsewhen/Model.js'))} as Model
+TestCase {
+  name: "ElsewhenSavedCities"
+  property list<var> savedCities: [
+    ({ name: "Manila", zone: "Asia/Manila", lat: 14.6042, lon: 120.9822 }),
+    ({ name: "Shenzhen", zone: "Asia/Shanghai", lat: 22.5446, lon: 114.0545 })
+  ]
+  property var settings: ({ cities: savedCities })
+  function setting(name, fallback) {
+    var value = settings[name]
+    return value === undefined || value === null ? fallback : value
+  }
+  readonly property var zones: ${binding}
+  function test_savedCities() {
+    verify(!Array.isArray(savedCities), "the fixture must exercise a Qt sequence")
+    compare(zones.length, 2)
+    compare(zones[0].label, "Manila")
+    compare(zones[0].id, "Asia/Manila")
+    compare(zones[0].lat, 14.6042)
+    compare(zones[1].label, "Shenzhen")
+    compare(zones[1].id, "Asia/Shanghai")
+    compare(zones[1].lon, 114.0545)
+    settings = { zones: "Paris|Europe/Paris" }
+    compare(zones.length, 1)
+    compare(zones[0].id, "Europe/Paris")
+    settings = {}
+    compare(zones.length, 0)
+  }
+}
+`)
+    const result = spawnSync(runner, ['-input', stage, '-o', '-,txt'], {
+      encoding: 'utf8', timeout: 15000,
+      env: { ...process.env, QT_QPA_PLATFORM: 'offscreen', QT_QPA_PLATFORMTHEME: '',
+        QT_QUICK_BACKEND: 'software', XDG_RUNTIME_DIR: path.join(stage, 'runtime') }
+    })
+    assert(result.status === 0, 'elsewhen reads saved Qt city lists without seeding defaults', result.error || result.stdout + result.stderr)
+  } finally {
+    fs.rmSync(stage, { recursive: true, force: true })
+  }
+}
+JS
