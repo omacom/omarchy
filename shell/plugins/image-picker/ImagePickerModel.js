@@ -29,14 +29,16 @@ function canDeleteTheme(name, extraNames, stockNames) {
 
 // Where selection lands when the selected image goes away: the previous
 // match in list order, or the next one when the first match is deleted.
-function replacementSelectionPath(images, selectedIndex, filterText) {
+function replacementSelectionPath(images, selectedIndex, filterText, indices) {
   var values = Array.isArray(images) ? images : []
   if (selectedIndex < 0 || selectedIndex >= values.length) return ""
+  // Use the picker's visible list when favourites and search are combined.
+  var matches = Array.isArray(indices) ? indices : matchingIndices(values, filterText)
   for (var i = selectedIndex - 1; i >= 0; i--) {
-    if (itemMatches(values, i, filterText)) return values[i].filePath
+    if (matches.indexOf(i) >= 0) return values[i].filePath
   }
   for (var i = selectedIndex + 1; i < values.length; i++) {
-    if (itemMatches(values, i, filterText)) return values[i].filePath
+    if (matches.indexOf(i) >= 0) return values[i].filePath
   }
   return ""
 }
