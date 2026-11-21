@@ -214,7 +214,7 @@ touch "$tmp/top/@factory/usr/lib/snapper/plugins/20-omarchy-boot"
 touch "$tmp/top/@omarchy-boot/old-owner-image"
 run reset x86 || fail "x86 systemd-boot: an encrypted reset stages" "$(cat "$tmp/out" "$tmp/reset.log")"
 activated || fail "x86 systemd-boot: the factory root is activated"
-grep -qx 'chroot env OMARCHY_PATH=/usr/share/omarchy /usr/bin/omarchy-boot-switch install --no-efi-register' "$tmp/calls" ||
+grep -qx 'chroot env OMARCHY_PATH=/usr/share/omarchy OMARCHY_BOOT_DEFER_DEFAULT=1 /usr/bin/omarchy-boot-switch install --no-efi-register' "$tmp/calls" ||
   fail "x86 systemd-boot: the factory root's own install builds its boot images" "$(cat "$tmp/calls")"
 ! grep -q 'limine' "$tmp/calls" || fail "x86 systemd-boot: nothing of Limine runs" "$(cat "$tmp/calls")"
 grep -q "mount --bind $tmp/top/@omarchy-boot-next $tmp/top/@omarchy-reset-next/var/lib/omarchy/boot" "$tmp/calls" ||

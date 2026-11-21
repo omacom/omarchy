@@ -243,13 +243,17 @@ retire_boot_store() {
   local subvolume
   umount "$(boot_store)" 2>/dev/null || umount -l "$(boot_store)" 2>/dev/null || true
   # A factory root installed with systemd-boot mounts its own store at the old
-  # one's name: the old one steps aside and the new one takes its place, two
-  # renames, before anything is deleted, so the factory root's fstab always
-  # finds a store.
+  # one's name. One atomic exchange puts it there and the old one at the new
+  # one's name, so the factory root's fstab always finds a store; two renames
+  # where the exchange isn't available.
   local retired=""
   if [[ -d $TOP_MNT/@omarchy-boot && -d $TOP_MNT/@omarchy-boot-next ]]; then
     retired=@omarchy-boot-retired-$(date +%s)
-    mv "$TOP_MNT/@omarchy-boot" "$TOP_MNT/$retired" || retired=""
+    if mv -T --exchange "$TOP_MNT/@omarchy-boot-next" "$TOP_MNT/@omarchy-boot" 2>/dev/null; then
+      mv "$TOP_MNT/@omarchy-boot-next" "$TOP_MNT/$retired" || true
+    else
+      mv "$TOP_MNT/@omarchy-boot" "$TOP_MNT/$retired" || retired=""
+    fi
   fi
   if [[ -d $TOP_MNT/@omarchy-boot-next ]]; then
     if [[ -e $TOP_MNT/@omarchy-boot ]] || ! mv "$TOP_MNT/@omarchy-boot-next" "$TOP_MNT/@omarchy-boot"; then
@@ -751,7 +755,7 @@ rebuild_next_boot_systemd() {
   next_store_mounted=1
 
   log "Rebuilding boot files from the factory system (this can take a minute)"
-  if ! chroot "$next" env OMARCHY_PATH=/usr/share/omarchy \
+  if ! chroot "$next" env OMARCHY_PATH=/usr/share/omarchy OMARCHY_BOOT_DEFER_DEFAULT=1 \
     /usr/bin/omarchy-boot-switch install --no-efi-register >>"$LOG_FILE" 2>&1; then
     fail "building the factory system's boot images failed (see $LOG_FILE)"
   fi
@@ -783,8 +787,21 @@ rebuild_next_boot_platform() {
 commit_next_boot() {
   if [[ -n ${limine_entry:-} ]]; then
     commit_systemd_boot_return || true
-  elif [[ -d $TOP_MNT/@omarchy-boot-next && ${esp_old_id:-} =~ ^[0-9a-f]{32}$ && $esp_old_id != "${esp_new_id:-}" ]]; then
-    rm -f "$ESP_MNT"/EFI/Linux/omarchy-"${esp_old_id:0:8}"-*.efi
+  elif [[ -d $TOP_MNT/@omarchy-boot-next ]]; then
+    # The factory root is in place: its default goes into loader.conf, then
+    # the old owner's images leave the ESP.
+    local default
+    default=$(cat "$TOP_MNT/@omarchy-boot-next/pending-default" 2>/dev/null || true)
+    if [[ -n $default && -f $ESP_MNT/EFI/Linux/$default ]]; then
+      { grep -v '^default ' "$ESP_MNT/loader/loader.conf" 2>/dev/null || true; echo "default $default"; } >"$ESP_MNT/loader/loader.conf.new" &&
+        mv -f "$ESP_MNT/loader/loader.conf.new" "$ESP_MNT/loader/loader.conf"
+      rm -f "$TOP_MNT/@omarchy-boot-next/pending-default"
+    else
+      log "The factory system's boot default is missing; systemd-boot picks the first entry"
+    fi
+    if [[ ${esp_old_id:-} =~ ^[0-9a-f]{32}$ && $esp_old_id != "${esp_new_id:-}" ]]; then
+      rm -f "$ESP_MNT"/EFI/Linux/omarchy-"${esp_old_id:0:8}"-*.efi
+    fi
   fi
   commit_esp_staging "$ESP_MNT" "${esp_old_id:-}" "${esp_new_id:-}" || true
   umount "$ESP_MNT" 2>/dev/null || true

@@ -464,7 +464,10 @@ finalize() {
   local step
   step=$(state_get final_step)
 
-  if [[ -z $step ]]; then
+  if [[ -z $step || $step == "packages-started" ]]; then
+    # Recorded first: once the transaction below has started, Limine may be
+    # gone, and revert must not run.
+    state_set final_step packages-started
     local package
     package=$(ls -t "$STORE"/packages/omarchy-boot-systemd-*.pkg.tar.* 2>/dev/null | grep -v '\.sig$' | sed -n 1p)
     [[ -n $package ]] || { notice finishNoPackage; return 1; }

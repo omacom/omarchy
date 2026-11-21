@@ -208,7 +208,13 @@ preferred_kernel() {
   if [[ -n $preferred && -L $STORE/current/$preferred ]]; then
     echo "$preferred"
   else
-    root_kernels "${1:-/}" | awk '{ print $1 }' | grep -x linux-omarchy || root_kernels "${1:-/}" | awk 'NR == 1 { print $1 }'
+    # Among the kernels with a current image: one being removed has lost its
+    # pointer while its modules are still on disk.
+    local kernels
+    kernels=$(root_kernels "${1:-/}" | awk '{ print $1 }' | while read -r k; do
+      [[ -L $STORE/current/$k || ! -d $STORE/current ]] && echo "$k"
+    done)
+    grep -x linux-omarchy <<<"$kernels" || sed -n 1p <<<"$kernels"
   fi
 }
 
@@ -511,8 +517,16 @@ efivar_string() {
   return 0
 }
 
+# A factory reset builds the next root's images next to the running ones and
+# may only hand the firmware's default over once that root is in place:
+# OMARCHY_BOOT_DEFER_DEFAULT=1 leaves loader.conf alone and records the
+# default in the store, for the reset to write after activating the root.
 set_loader_default() {
   local conf=$ESP/loader/loader.conf tmp
+  if [[ ${OMARCHY_BOOT_DEFER_DEFAULT:-} == "1" ]]; then
+    echo "$1" >"$STORE/pending-default"
+    return 0
+  fi
   mkdir -p "$(dirname "$conf")"
   tmp=$(mktemp "$conf.XXXXXX")
   { grep -v '^default ' "$conf" 2>/dev/null || true; echo "default $1"; } >"$tmp"
