@@ -323,6 +323,7 @@ Item {
     id: panel
     shown: root.opened
     WlrLayershell.namespace: "omarchy-clipboard"
+    onDismissRequested: root.close()
 
     Rectangle {
       anchors.fill: parent

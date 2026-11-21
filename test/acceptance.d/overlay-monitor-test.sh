@@ -38,6 +38,10 @@ menu_on_monitor() {
   hyprctl -j layers | jq -e --arg name "$1" '[.[$name].levels["3"][]? | select(.namespace == "omarchy-menu")] | length == 1'
 }
 
+twin_on_monitor() {
+  hyprctl -j layers | jq -e --arg name "$1" '[.[$name].levels["3"][]? | select(.namespace == "omarchy-overlay-dismiss")] | length == 1'
+}
+
 monitor_contains() {
   local monitor="$1" text="$2"
   local snapshot="$ARTIFACTS/monitor-text-$$.png"
@@ -77,8 +81,16 @@ omarchy-shell shell summon omarchy.menu '{"menu":"root"}' >/dev/null
 wait_until "menu opens on temporary monitor" 15 menu_on_monitor "$virtual_monitor"
 wait_until "menu renders on temporary monitor" 15 monitor_contains "$virtual_monitor" "Apps"
 screenshot "success-overlay-monitor-01-closed-source"
+# The other output gets a transparent twin that closes the menu on click, so
+# the menu can't leave it dead to the pointer. The menu's own output has none.
+wait_until "dismiss twin covers the remaining monitor" 15 twin_on_monitor "$remaining_monitor"
+if twin_on_monitor "$virtual_monitor"; then
+  fail "dismiss twin stays off the menu's own monitor"
+fi
+pass "dismiss twin stays off the menu's own monitor"
 omarchy-shell shell hide omarchy.menu >/dev/null
 wait_until "menu unmaps before monitor removal" 15 layer_absent "omarchy-menu"
+wait_until "dismiss twin unmaps with the menu" 15 layer_absent "omarchy-overlay-dismiss"
 remove_source_monitor
 omarchy-shell shell summon omarchy.menu '{"menu":"root"}' >/dev/null
 wait_until "closed menu reopens on remaining monitor" 15 menu_on_monitor "$remaining_monitor"
