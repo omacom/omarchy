@@ -2,7 +2,35 @@ o.bind("SUPER + W", "Close window", hl.dsp.window.close())
 o.bind("SUPER + Q", "Close window", hl.dsp.window.close())
 o.bind("CTRL + ALT + DELETE", "Close all windows", "omarchy-hyprland-window-close-all")
 
-o.bind("SUPER + J", "Toggle window split", hl.dsp.layout("togglesplit"))
+-- togglesplit exists only on dwindle. Sending it on scrolling raises
+-- "no such layoutmsg for scrolling" and pops the Lua error overlay.
+-- consume_or_expel is the same gesture there: a window alone in its
+-- column joins the neighbor, and a window stacked with others moves
+-- out into its own column. A new window opens to the right and takes
+-- focus, so "next" often has no column and returns not_found. That
+-- miss is a warning, not the overlay, and "prev" reaches the column
+-- that is there.
+function o.toggle_window_split()
+  local workspace = hl.get_active_special_workspace() or hl.get_active_workspace()
+  if not workspace then
+    return
+  end
+
+  if workspace.tiled_layout == "dwindle" then
+    hl.dispatch(hl.dsp.layout("togglesplit"))
+  elseif workspace.tiled_layout == "scrolling" then
+    local result = hl.dispatch(hl.dsp.layout("consume_or_expel next"))
+    if result and result.ok == false and result.code == "not_found" then
+      hl.dispatch(hl.dsp.layout("consume_or_expel prev"))
+    end
+  end
+end
+
+-- Hyprland reports a function bind only as __lua. The keybindings menu
+-- replays this command, the same way it replays the terminal bind.
+o.bind_commands[o.toggle_window_split] = "hyprctl eval 'o.toggle_window_split()'"
+
+o.bind("SUPER + J", "Toggle window split", o.toggle_window_split)
 o.bind("SUPER + P", "Pseudo window", hl.dsp.window.pseudo())
 o.bind("SUPER + T", "Toggle window floating/tiling", hl.dsp.window.float({ action = "toggle" }))
 o.bind("SUPER + F", "Full screen", hl.dsp.window.fullscreen({ mode = "fullscreen" }))
