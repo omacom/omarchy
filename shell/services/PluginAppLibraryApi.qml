@@ -1,7 +1,7 @@
 import QtQuick
 
-// Detached application-library capability for third-party menus. Callbacks
-// expose the supported app-list operations without retaining AppLibrary or its
+// Detached application-library capability for third-party menus and dock clones.
+// Callbacks expose app-list operations without retaining AppLibrary or its
 // ShellRoot parent in the plugin-visible object graph.
 QtObject {
   required property string ownerPluginId
@@ -14,6 +14,9 @@ QtObject {
   property var _sortedEntries: null
   property var _iconSource: null
   property var _refreshIcons: null
+  property var _refreshVersions: null
+  property var _version: null
+  property var _dockClickMode: null
   property var _launch: null
   property var _remove: null
 
@@ -35,6 +38,18 @@ QtObject {
 
   function refreshIcons() {
     if (_refreshIcons) _refreshIcons()
+  }
+
+  function refreshVersions() {
+    if (_refreshVersions) _refreshVersions()
+  }
+
+  function version(entry) {
+    return _version ? _version(entry) : ""
+  }
+
+  function dockClickMode(desktopId) {
+    return _dockClickMode ? _dockClickMode(String(desktopId || "")) : ""
   }
 
   function launch(desktopId, name) {
