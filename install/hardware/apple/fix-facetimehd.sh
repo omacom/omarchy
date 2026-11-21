@@ -15,6 +15,11 @@ if omarchy-hw-facetimehd; then
   # An install with no network fetches on the first boot that has one.
   if pacman -Q facetimehd-firmware-fetcher &>/dev/null; then
     sudo systemctl enable facetimehd-firmware-fetcher.service
+
+    # An image's first boot runs this after boot queued its units, so the fetch starts now rather than at the next boot.
+    if [[ ${OMARCHY_IMAGE_DEFERRED_HARDWARE:-} == "1" ]]; then
+      sudo systemctl start --no-block facetimehd-firmware-fetcher.service || true
+    fi
   fi
 
   # Whichever package provides the driver, it hangs hibernation, so every hibernating sleep is guarded.

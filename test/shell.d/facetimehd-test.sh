@@ -136,7 +136,14 @@ grep -Fxq $'omarchy-pkg-add\tfacetimehd-dkms\tfacetimehd-firmware-fetcher' "$cal
 grep -Fxq "$fetcher_enabled" "$calls" ||
   fail "leaf enables the fetch for a first boot with a network" "$(cat "$calls")"
 guarded || fail "leaf guards every hibernating sleep" "$(cat "$calls")"
+! grep -q $'sudo\tsystemctl\tstart' "$calls" ||
+  fail "an install leaves the fetch to the boot that follows it" "$(cat "$calls")"
 pass "leaf installs the DKMS module and the firmware fetcher, enables the fetch, and guards hibernation"
+
+OMARCHY_IMAGE_DEFERRED_HARDWARE=1 run_leaf 1
+grep -Fxq $'sudo\tsystemctl\tstart\t--no-block\tfacetimehd-firmware-fetcher.service' "$calls" ||
+  fail "an image's first boot starts the fetch it enabled" "$(cat "$calls")"
+pass "an image's first boot starts the fetch it enabled"
 
 run_leaf 1 facetimehd-dkms
 grep -Fxq $'omarchy-pkg-add\tfacetimehd-firmware-fetcher' "$calls" ||
@@ -198,6 +205,7 @@ run_guard() {
   : >"$calls"
   PATH="$stub_bin:$PATH" TEST_LOG="$calls" OMARCHY_FACETIMEHD_MODULE="$guard_root/$1" \
     OMARCHY_FACETIMEHD_MARKER="$guard_root/unloaded" OMARCHY_FACETIMEHD_PROC="$guard_root/proc" \
+    OMARCHY_FACETIMEHD_LOCK="$guard_root/lock" \
     MODULE_BUSY="${3:-}" "$guard" "$2" 2>"$test_tmp/guard.err"
 }
 
