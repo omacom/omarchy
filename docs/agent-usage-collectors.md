@@ -55,7 +55,7 @@ Its main entry points, each documented where it is defined:
 | `ready` | `true` once the agent is in use on this machine (a credential or local usage) |
 | `tierLabel` | The plan as the service names it, or `""`; never a placeholder or a guess. `"Prepaid"` is special to the panel |
 | `usageStatusText`, `authHelpText` | See [Status](#status) |
-| `limits` | `[{label, percent, resetsAt, title?}]`, `percent` in 0..1, `resetsAt` ISO or `""`, never `null`. Add `title` (Session, Weekly, Monthly) when the label doesn't parse as one |
+| `limits` | `[{label, percent, resetsAt, title?, supplementary?}]`, `percent` in 0..1, `resetsAt` ISO or `""`, never `null`. Add `title` (Session, Weekly, Monthly) when the label doesn't parse as one. `supplementary: true` marks a breakdown of another window, such as Cursor's auto and named model meters: the panel still draws it, and it does not light the bar. Omit the field otherwise |
 | `limitsStale`, `limitsFetchedAt` | Whether `limits` were kept past a failed check, and when they were measured (epoch ms, `0` when never) |
 | `retryAdvised` | `true` only when the service couldn't be reached at all (DNS, connection, timeout), so the panel retries this agent in 30 seconds |
 | `balance` | `{remaining, funded, spent, currency, estimated}` for prepaid accounts |
