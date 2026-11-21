@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.window-snap",
+  "name": "Window snap preview",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Shows where a floating window will land when it is dropped to maximize",
+  "kinds": [
+    "service"
+  ],
+  "entryPoints": {
+    "service": "SnapPreview.qml"
+  }
+}

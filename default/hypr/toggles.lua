@@ -16,6 +16,13 @@ require_all.files(toggles_dir, nil, {
   },
 })
 
+-- Windows Drag Snap marked for the dock keep their marks across a reload
+-- that leaves it off, with nothing left to clear them.
+local floating_bounds = package.loaded["default.hypr.floating-bounds"]
+if not (floating_bounds and floating_bounds.drop_maximize) then
+  require("default.hypr.floating-marks").clear()
+end
+
 local disabled_input_device = require("default.hypr.disabled-input-device")
 disabled_input_device("touchpad")
 disabled_input_device("touchscreen")
