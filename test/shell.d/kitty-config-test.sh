@@ -69,3 +69,21 @@ if "$ROOT/bin/omarchy-cmd-present" kitty && kitty --version >/dev/null 2>&1; the
 else
   skip "Kitty not installed; skipping native config parser checks"
 fi
+
+# The same text-size command updates an optional WezTerm config, including a
+# dotfiles symlink, without changing its selected font family.
+mkdir -p "$test_home/.config/wezterm"
+cp "$ROOT/config/wezterm/wezterm.lua" "$test_dir/wezterm.lua"
+ln -s "$test_dir/wezterm.lua" "$test_home/.config/wezterm/wezterm.lua"
+run_command omarchy-display-text-size 16
+grep -qx 'config.font_size = 12' "$test_dir/wezterm.lua" || fail "text size updates WezTerm's font size"
+[[ -L $test_home/.config/wezterm/wezterm.lua ]] || fail "text size preserves WezTerm config symlinks"
+rm "$kitty_config"
+output=$(run_command omarchy-display-text-size)
+[[ $output == *"terminal font: 12 pt"* ]] || fail "text size reports WezTerm when it is the only configured terminal"
+run_command omarchy-display-text-size 18
+grep -qx 'config.font_size = 14' "$test_dir/wezterm.lua" || fail "text size rounds WezTerm's point size"
+run_command omarchy-display-text-size reset
+grep -qx 'config.font_size = 9' "$test_dir/wezterm.lua" || fail "text size reset restores WezTerm's default"
+grep -Fq 'wezterm.font("monospace"' "$test_dir/wezterm.lua" || fail "text size preserves WezTerm's font family"
+pass "text size updates, reports and resets WezTerm through a config symlink"
