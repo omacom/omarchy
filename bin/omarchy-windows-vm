@@ -4,9 +4,11 @@
 # omarchy:args=<install|remove|launch|stop|status> [options]
 # omarchy:requires-sudo=true
 
-# The VM is an x86_64 Windows guest under KVM, which only an x86_64 host runs.
-if ! omarchy-hw-x86; then
-  echo "Windows VM needs an x86_64 machine (it runs an x86_64 guest under KVM)." >&2
+# The VM is a Windows guest of the host's own architecture under KVM. The
+# dockurr/windows image is multi-arch: an x86_64 host gets x86_64 Windows and an
+# aarch64 host gets Windows 11 on ARM. Anything else would need full emulation.
+if ! omarchy-hw-x86 && ! omarchy-hw-aarch64; then
+  echo "Windows VM needs an x86_64 or aarch64 machine (it runs a native guest under KVM)." >&2
   exit 1
 fi
 
@@ -678,7 +680,11 @@ rollback_new_caller_mounts() {
 
 write_compose_atomically() (
   local ram="$1" cores="$2" disk="$3" username="$4" password="$5" tz="$6"
-  local tmp="" rc esc_password
+  local tmp="" rc esc_password rtc_args="base=localtime,clock=host"
+  # driftfix=slew tunes the x86 MC146818 RTC, which an aarch64 guest doesn't have.
+  if omarchy-hw-x86; then
+    rtc_args+=",driftfix=slew"
+  fi
   cleanup_writer() {
     rc=$?
     trap - EXIT
@@ -718,7 +724,7 @@ services:
       PASSWORD: "$esc_password"
       PROTECT: "Y"
       TZ: "$tz"
-      ARGUMENTS: "-rtc base=localtime,clock=host,driftfix=slew"
+      ARGUMENTS: "-rtc $rtc_args"
     devices:
       - /dev/kvm
       - /dev/net/tun
@@ -1148,7 +1154,9 @@ check_prerequisites() {
       "" \
       "Please enable virtualization in BIOS or run:" \
       "  sudo modprobe kvm-intel  # for Intel CPUs" \
-      "  sudo modprobe kvm-amd    # for AMD CPUs"
+      "  sudo modprobe kvm-amd    # for AMD CPUs" \
+      "" \
+      "On ARM, KVM needs the kernel to boot in hypervisor mode (EL2)."
     exit 1
   fi
 
