@@ -406,9 +406,35 @@ end
 -- A maximized window the user brings forward, with a click, the dock or Alt +
 -- Tab, comes to the front. One that its app asked focus for, as an app does
 -- right after opening a link in the browser, leaves the windows over it there.
+--
+-- Hyprland marks a window urgent as it grants it focus on request, and does the
+-- same when another app sends for it, as the browser is when a link is opened
+-- from a chat, and that one the user did ask for. So only a window that has the
+-- focus, or had it moments ago, is taking it back.
 local asked_for_focus = nil
+local focused, lost_focus = nil, {}
+local TAKING_BACK = 3
+
+local function track_focus(window)
+  local address, now = window and window.address, os.time()
+  if focused and focused ~= address then
+    lost_focus[focused] = now
+  end
+  focused = address
+
+  for other, at in pairs(lost_focus) do
+    if now - at > TAKING_BACK then
+      lost_focus[other] = nil
+    end
+  end
+end
 
 local function on_urgent(window)
+  local lost = lost_focus[window.address]
+  if window.address ~= focused and not (lost and os.time() - lost <= TAKING_BACK) then
+    return
+  end
+
   asked_for_focus = window.address
   hl.timer(function()
     asked_for_focus = nil
@@ -543,6 +569,7 @@ local function watch()
 
   hl.on("window.urgent", on_urgent)
   hl.on("window.active", on_active)
+  hl.on("window.active", track_focus)
   for button = 272, 276 do
     hl.bind("mouse:" .. button, before_click, { non_consuming = true, ignore_mods = true })
   end

@@ -780,6 +780,15 @@ active = maximized
 emit("window.active", maximized, 16384)
 settle()
 assert(steam.allowed_over_fullscreen, "focus falling to the maximized window as another closed hid the window over it")
+
+-- A maximized window another app sends for, as the browser is when a link is
+-- opened from a chat, long after it last had the focus, comes forward as the
+-- user asked.
+click(steam)
+local now = os.time()
+os.time = function() return now + 60 end
+asks_for_focus(maximized)
+assert(not steam.allowed_over_fullscreen, "a maximized window another app sent for stayed behind the window over it")
 LUA
 
 if ! HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" OMARCHY_PATH="$ROOT" \
