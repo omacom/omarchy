@@ -306,6 +306,9 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.equal(Delivery.barThickness(null, 'plain', 28), 28)
   for (const [position, thickness, top, right] of [['top', 26, 36, 10], ['right', 40, 10, 50], ['bottom', 26, 10, 10], ['left', 26, 10, 10]])
     assert.deepEqual({ ...Delivery.deckMargins(position, thickness, 10) }, { top, right }, position)
+  // Uneven gaps_out: each edge keeps its own gap.
+  for (const [position, thickness, top, right] of [['top', 26, 26, 14], ['right', 40, 0, 54], ['bottom', 26, 0, 14]])
+    assert.deepEqual({ ...Delivery.deckMargins(position, thickness, { top: 0, right: 14 }) }, { top, right }, `${position} with uneven gaps`)
 }
 
 // --------------------------------------------------- Service.qml functions
