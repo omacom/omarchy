@@ -46,7 +46,8 @@ jq -n '
         sourceDir: $sourceDir,
         entryPoints: ($manifest.entryPoints // {}),
         barWidget: ($manifest.barWidget // null),
-        bar: ($manifest.bar // null)
+        bar: ($manifest.bar // null),
+        omarchy: ($manifest.omarchy // null)
       }
     | .barWidgetPath = (
         if (.entryPoints.barWidget // null) != null
