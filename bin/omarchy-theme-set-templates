@@ -44,23 +44,31 @@ trim() {
 }
 
 resolve_theme_ref() {
-  local ref="$1"
-  local fallback="${2:-}"
+  local ref last=""
 
-  if [[ -n ${THEME_COLORS[$ref]+_} ]]; then
-    REPLY="${THEME_COLORS[$ref]}"
-  elif [[ -n $fallback && -n ${THEME_COLORS[$fallback]+_} ]]; then
-    REPLY="${THEME_COLORS[$fallback]}"
-  elif [[ -n $fallback ]]; then
-    REPLY="$fallback"
-  else
-    REPLY="$ref"
-  fi
+  while (( $# > 0 )); do
+    ref="$1"
+    shift
+    [[ -n $ref ]] || continue
+    if [[ -n ${THEME_COLORS[$ref]:-} ]]; then
+      trim "${THEME_COLORS[$ref]}"
+      if [[ -n $REPLY ]]; then
+        return
+      fi
+    fi
+    if [[ $ref == \#* || $ref == 0x* || $ref == [Rr][Gg][Bb]*\(* ]]; then
+      REPLY="$ref${*:+ $*}"
+      return
+    fi
+    last="$ref"
+  done
+
+  REPLY="$last"
 }
 
 resolve_gradient_color() {
   trim "$1"
-  if [[ -n ${THEME_COLORS[$REPLY]+_} ]]; then
+  if [[ -n $REPLY && -n ${THEME_COLORS[$REPLY]:-} ]]; then
     REPLY="${THEME_COLORS[$REPLY]}"
   fi
 }
@@ -81,6 +89,7 @@ parse_gradient() {
       GRADIENT_ANGLE="${part%deg}"
     else
       resolve_gradient_color "$part"
+      [[ -n $REPLY ]] || continue
       GRADIENT_COLORS+=("$REPLY")
     fi
   done
@@ -114,7 +123,7 @@ color_to_shell_hex() {
 hypr_gradient_value() {
   local spec index value
 
-  resolve_theme_ref "$1" "${2:-}"
+  resolve_theme_ref "$@"
   spec="$REPLY"
   parse_gradient "$spec"
 
@@ -137,7 +146,7 @@ hypr_gradient_value() {
 gradient_start_value() {
   local spec
 
-  resolve_theme_ref "$1" "${2:-}"
+  resolve_theme_ref "$@"
   spec="$REPLY"
   parse_gradient "$spec"
 
@@ -151,7 +160,7 @@ gradient_start_value() {
 shell_gradient_value() {
   local spec index value=""
 
-  resolve_theme_ref "$1" "${2:-}"
+  resolve_theme_ref "$@"
   spec="$REPLY"
   parse_gradient "$spec"
 
@@ -204,21 +213,23 @@ add_mix_value() {
 
 add_gradient_function_value() {
   local token="$1"
-  local content fn key fallback
+  local content fn
+  local -a args
 
   content="${token#\{\{}"
   content="${content%\}\}}"
-  read -r fn key fallback <<<"$content"
+  read -ra args <<<"$content"
+  fn="${args[0]:-}"
 
   case "$fn" in
     hypr_gradient)
-      hypr_gradient_value "$key" "$fallback"
+      hypr_gradient_value "${args[@]:1}"
       ;;
     gradient_start)
-      gradient_start_value "$key" "$fallback"
+      gradient_start_value "${args[@]:1}"
       ;;
     shell_gradient)
-      shell_gradient_value "$key" "$fallback"
+      shell_gradient_value "${args[@]:1}"
       ;;
     *)
       return

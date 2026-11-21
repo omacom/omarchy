@@ -326,3 +326,71 @@ set_icons
 [[ ! -e $state/icons/omawrite.svg && ! -L $apps/omawrite.svg ]] || fail "a theme that can't draw app icons brings the packaged ones back"
 [[ $(<"$state/icons/gliff.svg") == "drawn" ]] || fail "an icon that needs no colors stays under a theme that can't draw the rest"
 pass "a theme that can't draw app icons brings the packaged ones back"
+
+# A sparse palette with only background and foreground renders without subscript
+# errors, does not export empty accent/blue aliases, and falls back to a concrete
+# hex color when a gradient helper provides one.
+sparse_home="$test_tmp/sparse-home"
+sparse_next="$sparse_home/.local/state/omarchy/current/next-theme"
+sparse_themed="$sparse_home/.config/omarchy/themed"
+mkdir -p "$sparse_next" "$sparse_themed"
+printf 'background = "#111111"\nforeground = "#eeeeee"\n' >"$sparse_next/colors.toml"
+cat >"$sparse_themed/sparse-fallback.txt.tpl" <<'EOF'
+fallback={{ gradient_start accent blue #7aa2f7 }}
+hypr={{ hypr_gradient hyprland_active_border accent #7aa2f7 }}
+shell={{ shell_gradient hyprland_active_border accent #7aa2f7 }}
+EOF
+sparse_colors=$("$ROOT/bin/omarchy-theme-color" --file "$sparse_next/colors.toml" --all)
+awk -F '\t' '$1 == "accent" || $1 == "blue" || $1 == "color4" { exit 1 }' <<<"$sparse_colors" ||
+  fail "a sparse palette does not export empty accent or blue aliases" "$sparse_colors"
+HOME="$sparse_home" XDG_STATE_HOME="$sparse_home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" 2>"$test_tmp/sparse.err"
+[[ ! -s $test_tmp/sparse.err ]] ||
+  fail "a sparse palette renders without errors" "$(cat "$test_tmp/sparse.err")"
+expected_sparse=$(cat <<'EOF'
+fallback=#7aa2f7
+hypr="#7aa2f7"
+shell=#7aa2f7
+EOF
+)
+[[ $(<"$sparse_next/sparse-fallback.txt") == "$expected_sparse" ]] ||
+  fail "a sparse theme without accent or blue falls back to a concrete hex color: $(diff <(printf '%s\n' "$expected_sparse") "$sparse_next/sparse-fallback.txt")"
+pass "a sparse theme without accent or blue renders without errors and resolves fallback chains"
+
+# Explicitly empty palette keys fall back through the chain to the first usable value.
+empty_home="$test_tmp/empty-home"
+empty_next="$empty_home/.local/state/omarchy/current/next-theme"
+empty_themed="$empty_home/.config/omarchy/themed"
+mkdir -p "$empty_next" "$empty_themed"
+cat >"$empty_next/colors.toml" <<'EOF'
+background = "#111111"
+foreground = "#eeeeee"
+accent = ""
+blue = "#336699"
+hyprland_active_border = ""
+empty_fallback = ""
+EOF
+cat >"$empty_themed/empty-fallback.txt.tpl" <<'EOF'
+accent={{ accent }}
+hypr={{ hypr_gradient hyprland_active_border blue }}
+shell={{ shell_gradient hyprland_active_border blue }}
+start={{ gradient_start hyprland_active_border blue #7aa2f7 }}
+chain={{ gradient_start hyprland_active_border empty_fallback #7aa2f7 }}
+multi={{ hypr_gradient missing_border rgba(112233ff) rgba(445566ff) 45deg }}
+EOF
+HOME="$empty_home" XDG_STATE_HOME="$empty_home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" 2>"$test_tmp/empty.err"
+[[ ! -s $test_tmp/empty.err ]] ||
+  fail "empty theme colors render without errors" "$(cat "$test_tmp/empty.err")"
+expected_empty=$(cat <<'EOF'
+accent=#336699
+hypr="#336699"
+shell=#336699
+start=#336699
+chain=#7aa2f7
+multi={ colors = { "rgba(112233ff)", "rgba(445566ff)" }, angle = 45 }
+EOF
+)
+[[ $(<"$empty_next/empty-fallback.txt") == "$expected_empty" ]] ||
+  fail "empty theme colors use their gradient fallbacks: $(diff <(printf '%s\n' "$expected_empty") "$empty_next/empty-fallback.txt")"
+pass "empty theme colors fall back cleanly in gradient helpers"
