@@ -61,8 +61,8 @@ Every subscription on one page, limits first.
   status, the code Grok, Muse, or OpenCode asks you to confirm in the browser,
   a field to paste back the code Gemini's page shows (or Claude's, if its
   page shows one instead of finishing), and a link to
-  reopen the sign-in page. Fireworks and OpenRouter have no login: the API
-  keys page opens, and the key pasted into the field is checked against the
+  reopen the sign-in page. Fireworks and OpenRouter have no login and open
+  no browser: the panel asks for an API key, which is checked against the
   provider, then saved for pi, and for opencode when it's installed. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
   carries on and its result arrives as a notification.
 

@@ -507,18 +507,19 @@ SH
 chmod +x "$fireworks_bin"/*
 echo '{"openrouter":{"type":"api_key","key":"or_kept"}}' >"$HOME/.pi/agent/auth.json"
 
-if PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"fw_bad" >/dev/null 2>&1 ||
-  [[ $(jq -c 'keys' "$HOME/.pi/agent/auth.json") != '["openrouter"]' || -e $test_tmp/fireworks-opencode ]]; then
-  fail "a key Fireworks refuses is not saved" "$(cat "$HOME/.pi/agent/auth.json")"
+if PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"fw_bad" >"$test_tmp/fireworks-refused" 2>&1 ||
+  [[ $(jq -c 'keys' "$HOME/.pi/agent/auth.json") != '["openrouter"]' || -e $test_tmp/fireworks-opencode ]] ||
+  ! grep -qx "@@omarchy error Fireworks didn't accept that key." "$test_tmp/fireworks-refused"; then
+  fail "a key Fireworks refuses is not saved, and says so" "$(cat "$test_tmp/fireworks-refused" "$HOME/.pi/agent/auth.json")"
 fi
-pass "a key Fireworks refuses is not saved"
+pass "a key Fireworks refuses is not saved, and says so"
 
 PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"fw_good" >"$test_tmp/fireworks-output"
 [[ $(jq -c '[.fireworks.key, .openrouter.key]' "$HOME/.pi/agent/auth.json") == '["fw_good","or_kept"]' ]] ||
   fail "a Fireworks key is saved beside pi's other keys" "$(cat "$HOME/.pi/agent/auth.json")"
 grep -q "^auth import fw_good$" "$test_tmp/fireworks-opencode" && grep -q "^auth switch fireworks-ai omarchy-" "$test_tmp/fireworks-opencode" ||
   fail "a Fireworks key is made opencode's active one" "$(cat "$test_tmp/fireworks-opencode")"
-grep -q "^@@omarchy paste " "$test_tmp/fireworks-output" && grep -qx "@@omarchy done Signed in to Fireworks." "$test_tmp/fireworks-output" ||
+grep -q "^@@omarchy key " "$test_tmp/fireworks-output" && grep -qx "@@omarchy done Signed in to Fireworks." "$test_tmp/fireworks-output" ||
   fail "the panel is asked for the key and told the result" "$(cat "$test_tmp/fireworks-output")"
 pass "a Fireworks key is saved for pi and opencode"
 

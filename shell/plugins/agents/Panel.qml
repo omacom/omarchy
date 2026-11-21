@@ -370,6 +370,8 @@ Panel {
   property bool addNeedsPaste: false
   // What to paste, when the sign-in says: Gemini's code, an API key.
   property string addPasteHint: ""
+  // An API key is the whole sign-in, with no browser login to speak of.
+  property bool addKeyEntry: false
   property string addResult: ""
   // The CLI's own download, when it isn't installed yet: the first sign-in
   // installs it before the browser opens.
@@ -443,6 +445,7 @@ Panel {
     // newline to read it by, so the field stays a link away the whole time.
     addNeedsPaste = false
     addPasteHint = ""
+    addKeyEntry = false
     addDownloading = false
     addPhase = ""
     addFetched = false
@@ -464,7 +467,9 @@ Panel {
   function submitPaste(code) {
     if (!addProcess.running || code.trim() === "") return
     addProcess.write(code.trim() + "\n")
-    addStatus = Commons.I18n.t("agents.checkingCode")
+    // A code or key that was asked for is the one answer, so its field goes.
+    if (addPasteHint !== "") addNeedsPaste = false
+    if (!addKeyEntry) addStatus = Commons.I18n.t("agents.checkingCode")
   }
 
   // The add command's own lines are tagged; everything else is the CLI
@@ -472,11 +477,12 @@ Panel {
   // browser (Grok, Muse, OpenCode), and an invitation to paste one back (Claude).
   function handleAddLine(line) {
     var text = String(line).replace(/\u001b\[[0-9;]*m/g, "")
-    var tagged = text.match(/^@@omarchy (status|progress|paste|done|error) (.*)$/)
+    var tagged = text.match(/^@@omarchy (status|progress|paste|key|done|error) (.*)$/)
     if (tagged) {
-      if (tagged[1] === "paste") {
+      if (tagged[1] === "paste" || tagged[1] === "key") {
         addPasteHint = tagged[2]
         addNeedsPaste = true
+        addKeyEntry = tagged[1] === "key"
       } else if (tagged[1] === "progress") {
         var bytes = tagged[2].split(" ")
         addDoneBytes = Number(bytes[0]) || 0
@@ -689,6 +695,7 @@ Panel {
     // newline to read it by, so the field stays a link away the whole time.
     addNeedsPaste = false
     addPasteHint = ""
+    addKeyEntry = false
     addDownloading = false
     addPhase = ""
     addFetched = false
@@ -1653,7 +1660,8 @@ Panel {
         Text {
           width: parent.width
           textFormat: Text.PlainText
-          text: Commons.I18n.t("agents.loginBrowser")
+          text: !root.addKeyEntry ? Commons.I18n.t("agents.loginBrowser")
+            : root.addNeedsPaste ? Commons.I18n.t("agents.enterApiKey") : Commons.I18n.t("agents.checkingKey")
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
