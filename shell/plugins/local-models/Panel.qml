@@ -930,7 +930,7 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "󰘚"
+    text: "󰙴"
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.MiddleButton) root.refreshNow()
       else root.toggle()
