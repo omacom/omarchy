@@ -967,6 +967,8 @@ Item {
             iconText: "⟳"
             text: Commons.I18n.t("imagePicker.autoRotate")
             selected: root.rotationOn
+            background: Util.alpha(root.dimColor, 0.9)
+            foreground: root.foreground
             onClicked: root.toggleRotation()
           }
 
@@ -980,6 +982,8 @@ Item {
                 : Commons.I18n.t("imagePicker.intervalMinutes").arg(Commons.I18n.formatNumber(modelData))
               text: label
               selected: root.rotationInterval === modelData
+              background: Util.alpha(root.dimColor, 0.9)
+              foreground: root.foreground
               onClicked: root.setRotationInterval(modelData)
             }
           }
