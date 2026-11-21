@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Disable Alpine Ridge Thunderbolt wakeup from S3
+# omarchy:group=hw
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# Alpine Ridge NHIs emit PME about every 45s and pull T1 MacBooks out of deep
+# sleep with the lid still closed. logind then suspends again. That loop is the
+# heat, and after enough cycles resume hangs.
+#
+# Toggle /proc/acpi/wakeup only while a node is currently enabled. LID0 and
+# SPIT stay enabled so the lid and keyboard can still wake the machine.
+
+wakeup_file=${OMARCHY_ACPI_WAKEUP:-/proc/acpi/wakeup}
+
+[[ -w $wakeup_file || -f $wakeup_file ]] || exit 0
+
+for dev in RP05 RP09 XHC2 XHC3 RP12; do
+  if grep -Eq "^${dev}[[:space:]].*enabled" "$wakeup_file"; then
+    printf '%s\n' "$dev" > "$wakeup_file"
+  fi
+done
