@@ -52,14 +52,20 @@ WidgetButton {
       font.family: root.fontFamily
       font.pixelSize: root.fontSize
       color: root.active && root.useActiveColor ? root.activeColor : root.foreground
-      y: (parent.height - height) / 2
-        + (labelMetrics.descent - labelMetrics.ascent + labelMetrics.tightBoundingRect("0").height) / 2
+      // The figures' ink, not the line box, on the icon's middle.
+      y: parent.height / 2 - baselineOffset
+        - (figureMetrics.tightBoundingRect.y + figureMetrics.tightBoundingRect.height / 2) / figureMetrics.metricsScale
       renderType: Text.NativeRendering
     }
 
-    FontMetrics {
-      id: labelMetrics
-      font: label.font
+    // Measured large, since whole-pixel tight bounds put the figures low.
+    TextMetrics {
+      id: figureMetrics
+      readonly property int metricsScale: 100
+      text: "0"
+      font.family: label.font.family
+      font.weight: label.font.weight
+      font.pixelSize: label.font.pixelSize * metricsScale
     }
 
     Item {
