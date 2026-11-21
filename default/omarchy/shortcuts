@@ -34,6 +34,7 @@ audio mute-toggle
 brightness raise
 brightness lower
 ipc media.playPause
+ipc media.pause
 ipc media.next
 ipc media.previous
 ipc notifications.act
