@@ -84,6 +84,21 @@ else
   notify_layout "$UNSAVED_MESSAGE"
 fi
 
+# Leaving floating takes the dock away, and with it the only way back for the
+# windows minimized from this workspace, so bring them back before it goes.
+restore_minimized_windows() {
+  local address
+  while read -r address; do
+    [[ -n $address ]] || continue
+    hyprctl dispatch "hl.dsp.window.move({ workspace = \"$ACTIVE_WORKSPACE\", follow = false, window = \"address:$address\" })" >/dev/null
+  done < <(hyprctl clients -j | jq -r --arg tag "omarchy-minimized-from-$ACTIVE_WORKSPACE" '
+    .[] | select(.workspace.name == "special:minimized" and any((.tags // [])[]; . == $tag)) | .address')
+}
+
+if (( APPLIED )) && [[ $CURRENT_MODE == "floating" && $NEW_MODE != "floating" ]]; then
+  restore_minimized_windows
+fi
+
 # The bar shows the focused workspace's layout, and the dock shows on floating ones.
 if (( APPLIED )); then
   omarchy-shell -q omarchy.workspaces refresh
