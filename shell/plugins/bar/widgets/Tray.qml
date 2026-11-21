@@ -841,10 +841,11 @@ BarWidget {
       id: trayIconImage
       anchors.fill: parent
       fillMode: Image.PreserveAspectFit
-      // Decode at physical pixels: IconImage uses the logical size,
-      // which leaves PNG icons upscaled and blurry on HiDPI displays.
-      sourceSize.width: Math.round(Math.min(width, height) * Screen.devicePixelRatio)
-      sourceSize.height: Math.round(Math.min(width, height) * Screen.devicePixelRatio)
+      // Request a larger source so tray providers with multiple pixmap sizes
+      // can select a high-resolution image before it is downsampled.
+      readonly property real sourcePixelSize: Math.min(width, height) * Screen.devicePixelRatio * 2
+      sourceSize.width: Math.round(sourcePixelSize)
+      sourceSize.height: Math.round(sourcePixelSize)
       source: root.trayIconSource(trayIconRoot.icon)
       // Kept as a hidden layer so the effect can sample it as a texture.
       visible: !trayIconRoot.symbolic
