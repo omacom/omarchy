@@ -1,0 +1,2 @@
+-- China binds no preinstalled web app hotkeys (docs/regions.md). This file has
+-- to exist, or China would get the global ones.

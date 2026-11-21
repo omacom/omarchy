@@ -149,32 +149,20 @@ function o.preinstalled_bindings_enabled()
   return not file_exists((os.getenv("HOME") or "") .. "/.local/state/omarchy/preinstalls-removed")
 end
 
--- Whether this machine's region binds the preinstalled hotkey with this
--- description: its profile's hotkeys list, or the global one (docs/regions.md).
-local region_hotkeys
-function o.region_hotkey(description)
-  if not region_hotkeys then
-    region_hotkeys = {}
-    local regions = (os.getenv("OMARCHY_PATH") or "") .. "/default/regions/"
-    local marker = io.open(os.getenv("OMARCHY_REGION_FILE") or "/etc/omarchy/region", "r")
-    local region = marker and (marker:read("*l") or ""):match("^%l%l$")
-    if marker then
-      marker:close()
-    end
-
-    local list = region and io.open(regions .. region .. "/hotkeys", "r") or io.open(regions .. "global/hotkeys", "r")
-    if list then
-      for line in list:lines() do
-        local name = line:gsub("#.*", ""):match("^%s*(.-)%s*$")
-        if name ~= "" then
-          region_hotkeys[name] = true
-        end
-      end
-      list:close()
-    end
+-- The module with the preinstalled web app hotkeys for this machine's region
+-- (docs/regions.md): bindings/regions/<code>.lua, or global.lua when the
+-- region has none.
+function o.region_bindings()
+  local marker = io.open(os.getenv("OMARCHY_REGION_FILE") or "/etc/omarchy/region", "r")
+  local code = marker and (marker:read("*l") or ""):match("^%l%l$")
+  if marker then
+    marker:close()
   end
 
-  return region_hotkeys[description] == true
+  if not (code and file_exists(paths.omarchy_path .. "/default/hypr/bindings/regions/" .. code .. ".lua")) then
+    code = "global"
+  end
+  return "default.hypr.bindings.regions." .. code
 end
 
 function o.bind(keys, description, dispatcher, options)
@@ -191,15 +179,6 @@ function o.bind(keys, description, dispatcher, options)
   end
 
   hl.bind(keys, dispatcher, opts)
-end
-
--- A preinstalled web app hotkey, bound when the region's hotkeys list names it
--- (docs/regions.md). { focus = true } focuses an open window of it instead of
--- opening another.
-function o.bind_webapp(keys, description, url, options)
-  if o.region_hotkey(description) then
-    o.bind(keys, description, { webapp = url, focus = (options or {}).focus })
-  end
 end
 
 function o.rebind(keys, description, dispatcher, options)
