@@ -1264,6 +1264,9 @@
   "update.omarchy": {
     "label": "Omarchy"
   },
+  "update.migrate": {
+    "label": "Migrate drive"
+  },
   "update.channel": {
     "label": "Channel"
   },

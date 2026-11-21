@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Prompt for confirmation before starting a drive migration
+
+gum style --border normal --padding "1 2" \
+  "Ready to migrate?" \
+  "" \
+  "• Save your progress before starting the migration." \
+  "• Make sure you're connected to power or have a full battery"
+
+echo
+
+if ! gum confirm "Continue with migration?"; then
+  echo "Migration cancelled"
+  exit 1
+fi

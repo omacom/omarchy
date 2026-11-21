@@ -1,0 +1,243 @@
+#!/bin/bash
+
+# omarchy:summary=Progressive drive migration with validation and safe operations
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+gib=1073741824
+
+human_size() {
+  if (( $1 == 0 )); then
+    printf '0B\n'
+  else
+    numfmt --to=iec-i --suffix=B --format='%.1f' "$1" 2>/dev/null || printf '%s B\n' "$1"
+  fi
+}
+
+disk_size() {
+  local size
+  size=$(lsblk -bdno SIZE "$1" 2>/dev/null | tr -d '[:space:]')
+  [[ $size =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "$size"
+}
+
+# The physical disk underneath a block device, however many partition, LUKS,
+# LVM or RAID layers sit between them.
+disk_for_source() {
+  local source=${1%%[*} disk
+  disk=$(lsblk -s -n -r -p -o NAME,TYPE "$source" 2>/dev/null |
+    awk '$2 == "disk" { print $1; exit }')
+  [[ -n $disk ]] || return 1
+  readlink -f -- "$disk"
+}
+
+# Every disk the running installation needs, not just the one below /. A
+# separate /boot or ESP counts too, so neither can be offered as the target.
+current_installation_disks() {
+  local mount source disk
+  local -a disks=()
+
+  for mount in / /boot /boot/efi; do
+    source=$(findmnt -no SOURCE "$mount" 2>/dev/null) || continue
+    disk=$(disk_for_source "$source") || continue
+    if [[ " ${disks[*]-} " != *" $disk "* ]]; then
+      disks+=("$disk")
+    fi
+  done
+
+  ((${#disks[@]} > 0)) || return 1
+  printf '%s\n' "${disks[@]}"
+}
+
+# Space the new partitions must provide. It comes from the filesystems' used
+# bytes, never the source disk's nominal size, so a smaller destination works
+# when it can hold what is actually there. A FAT ESP reports little used space
+# but still needs room for kernels and boot entries, so it gets a 1 GiB floor.
+# Shrinking the old filesystems is not needed: the copy creates new partitions
+# sized to the data in use, not a block-for-block clone of the old layout.
+required_bytes() {
+  local disk=$1 line fstype fsused total=0
+
+  while IFS= read -r line; do
+    [[ $line =~ FSTYPE=\"([^\"]*)\" ]] && fstype=${BASH_REMATCH[1]} || fstype=
+    case $fstype in
+      ""|crypto_LUKS|LVM2_member|linux_raid_member|swap|zfs_member|iso9660) continue ;;
+    esac
+    [[ $line =~ FSUSED=\"([^\"]*)\" ]] && fsused=${BASH_REMATCH[1]} || fsused=
+    if [[ $fstype == vfat ]]; then
+      # Count the full ESP partition size, not just used bytes, because the
+      # clone recreates the ESP at the source partition's size.
+      if [[ $line =~ SIZE=\"([^\"]*)\" ]]; then
+        fsused=${BASH_REMATCH[1]}
+      fi
+      [[ $fsused =~ ^[0-9]+$ ]] || fsused=0
+      if (( fsused < gib )); then
+        fsused=$gib
+      fi
+    elif [[ ! $fsused =~ ^[0-9]+$ ]]; then
+      continue
+    fi
+    total=$((total + fsused))
+  done < <(lsblk -bpP -o NAME,SIZE,TYPE,FSTYPE,FSUSED "$disk" 2>/dev/null)
+
+  printf '%s\n' "$total"
+}
+
+# Keep room for filesystem metadata, partition alignment and a little growth.
+migration_reserve() {
+  local used=$1 reserve
+  reserve=$((used / 20))
+  (( reserve >= gib )) || reserve=$gib
+  printf '%s\n' "$reserve"
+}
+
+physical_disks() {
+  local name size type
+  while read -r name size type; do
+    [[ $type == disk ]] || continue
+    [[ $name =~ ^/dev/(sd|hd|vd|nvme|mmcblk|xv) ]] || continue
+    [[ $size =~ ^[0-9]+$ ]] || continue
+    printf '%s\t%s\n' "$name" "$size"
+  done < <(lsblk -bdpno NAME,SIZE,TYPE 2>/dev/null)
+}
+
+# Fills eligible and too_small with the drives the user may and may not pick.
+classify_destination_disks() {
+  local required=$1 drive size source skip
+  shift
+  local -a source_disks=("$@")
+
+  eligible=()
+  too_small=()
+
+  while IFS=$'\t' read -r drive size; do
+    skip=0
+    for source in "${source_disks[@]}"; do
+      [[ $drive == "$source" ]] && skip=1
+    done
+    (( skip == 0 )) || continue
+
+    if (( size >= required )); then
+      eligible+=("$drive")
+    else
+      too_small+=("$drive")
+    fi
+  done < <(physical_disks)
+}
+
+main() {
+  if (( EUID != 0 )); then
+    echo "Error: omarchy-drive-migrate-progress must run as root" >&2
+    exit 1
+  fi
+
+  export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+  export PATH="$OMARCHY_PATH/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin"
+
+  mapfile -t source_disks < <(current_installation_disks)
+  if ((${#source_disks[@]} == 0)); then
+    echo "Error: cannot tell which disk holds the current installation." >&2
+    exit 1
+  fi
+
+  local root_disk
+  root_disk=$(disk_for_source "$(findmnt -no SOURCE /)") || {
+    echo "Error: cannot find the disk holding /." >&2
+    exit 1
+  }
+  local root_size
+  root_size=$(disk_size "$root_disk") || root_size=0
+
+  local used=0 drive size
+  for drive in "${source_disks[@]}"; do
+    size=$(required_bytes "$drive")
+    used=$((used + size))
+  done
+  if (( used == 0 )); then
+    echo "Error: cannot measure the data in use on the current installation." >&2
+    exit 1
+  fi
+
+  local reserve required
+  reserve=$(migration_reserve "$used")
+  required=$((used + reserve))
+
+  gum style --border normal --padding "1 2" \
+    "Select a destination drive" \
+    "" \
+    "Current installation: $(omarchy-drive-info "$root_disk")" \
+    "Data to copy: $(human_size "$used")" \
+    "Space required: $(human_size "$required") (including $(human_size "$reserve") of headroom)" \
+    "" \
+    "The current installation disk is not offered as a destination."
+
+  classify_destination_disks "$required" "${source_disks[@]}"
+
+  if ((${#too_small[@]} > 0)); then
+    echo
+    for drive in "${too_small[@]}"; do
+      size=$(disk_size "$drive") || size=0
+      printf '• %s (%s) - too small\n' "$drive" "$(human_size "$size")"
+    done
+    echo
+  fi
+
+  if ((${#eligible[@]} == 0)); then
+    if ((${#too_small[@]} == 0)); then
+      gum style --border normal --padding "1 2" \
+        "No destination drive found" \
+        "" \
+        "Connect another drive and try again."
+    else
+      gum style --border normal --padding "1 2" \
+        "No destination drive is large enough" \
+        "" \
+        "Connect a drive with at least $(human_size "$required") of space and try again."
+    fi
+    exit 1
+  fi
+
+  local selected destination_size found=0
+  selected=$(omarchy-drive-select "${eligible[@]}") || { echo "Migration cancelled."; exit 0; }
+
+  for drive in "${eligible[@]}"; do
+    [[ $selected == "$drive" ]] && found=1
+  done
+  if (( found == 0 )); then
+    echo "Error: '$selected' is not an eligible destination drive." >&2
+    exit 1
+  fi
+
+  destination_size=$(disk_size "$selected") || destination_size=0
+
+  gum style --border normal --padding "1 2" \
+    "Destination drive selected" \
+    "" \
+    "$(omarchy-drive-info "$selected")"
+
+  if (( destination_size > 0 && root_size > 0 && destination_size < root_size )); then
+    echo
+    echo "The destination is smaller than the current drive; partitions will be sized to the data actually in use."
+  fi
+
+  echo
+
+  gum confirm --default=false \
+    "This will ERASE ALL DATA on $(basename "$selected") and copy the system there. Continue?" \
+    --affirmative="Yes, proceed" \
+    --negative="No, cancel" || { echo "Migration cancelled."; exit 0; }
+
+  for drive in "${source_disks[@]}"; do
+    if [[ "$(readlink -f -- "$drive")" == "$(readlink -f -- "$selected")" ]]; then
+      echo "ERROR: destination is a source disk" >&2
+      exit 1
+    fi
+  done
+
+  OMARCHY_DRIVE_MIGRATE_CONFIRMED=1 "$OMARCHY_PATH/bin/omarchy-drive-migrate-clone" "$selected" "$used"
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi
