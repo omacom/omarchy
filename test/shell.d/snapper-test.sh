@@ -24,6 +24,12 @@ printf 'systemctl %s\n' "$*" >>"$TEST_LOG"
 STUB
 chmod +x "$fake_bin/systemctl"
 
+cat >"$fake_bin/findmnt" <<'STUB'
+#!/bin/bash
+printf 'btrfs\n'
+STUB
+chmod +x "$fake_bin/findmnt"
+
 TEST_LOG="$test_tmp/calls.log" \
 PATH="$fake_bin:$PATH" \
 OMARCHY_SNAPPER_CONFIGURE_TEST=1 \
@@ -37,3 +43,54 @@ grep -Fx 'SNAPPER_CONFIGS="root"' "$test_tmp/etc/conf.d/snapper" >/dev/null || f
 grep -Fx 'systemctl disable --now snapper-timeline.timer' "$test_tmp/calls.log" >/dev/null || fail "snapshot configure disables timeline snapshots"
 grep -Fx 'systemctl enable --now snapper-cleanup.timer limine-snapper-sync.service' "$test_tmp/calls.log" >/dev/null || fail "snapshot configure enables cleanup and Limine snapshot sync"
 pass "snapshot configure normalizes Snapper policy and services"
+
+# A missing snapper binary (aarch64 does not ship it) must skip the step with
+# exit 0 instead of failing with 127 and aborting `omarchy apply system`.
+skip_bin="$test_tmp/skip-bin"
+mkdir -p "$skip_bin" "$test_tmp/skip/etc/snapper/configs"
+cat >"$skip_bin/findmnt" <<'STUB'
+#!/bin/bash
+printf 'btrfs\n'
+STUB
+chmod +x "$skip_bin/findmnt"
+
+: >"$test_tmp/skip-calls.log"
+skip_rc=0
+TEST_LOG="$test_tmp/skip-calls.log" \
+PATH="$skip_bin" \
+OMARCHY_SNAPPER_CONFIGURE_TEST=0 \
+OMARCHY_PATH="$ROOT" \
+OMARCHY_SNAPPER_CONFIG_PATH="$test_tmp/skip/etc/snapper/configs/root" \
+OMARCHY_SNAPPER_CONF_PATH="$test_tmp/skip/etc/conf.d/snapper" \
+  /bin/bash -euo pipefail "$ROOT/install/config/snapper.sh" >"$test_tmp/skip-out.log" 2>&1 || skip_rc=$?
+(( skip_rc == 0 )) || fail "a missing snapper binary exits 0 (got $skip_rc: $(cat "$test_tmp/skip-out.log"))"
+grep -F 'snapper is not installed' "$test_tmp/skip-out.log" >/dev/null || fail "a missing snapper binary prints the skip reason"
+[[ ! -e $test_tmp/skip/etc/snapper/configs/root ]] || fail "a missing snapper binary writes no config"
+(( $(wc -l <"$test_tmp/skip-calls.log") == 0 )) || fail "a missing snapper binary touches no systemd units"
+pass "a missing snapper binary skips the step cleanly"
+
+# A non-btrfs root (ext4, xfs) must not install a config that claims btrfs and
+# then fail snapper-cleanup.service daily.
+ext4_bin="$test_tmp/ext4-bin"
+mkdir -p "$ext4_bin" "$test_tmp/ext4/etc/snapper/configs"
+cp "$fake_bin/snapper" "$fake_bin/systemctl" "$fake_bin/findmnt" "$ext4_bin/"
+cat >"$ext4_bin/findmnt" <<'STUB'
+#!/bin/bash
+printf 'ext4\n'
+STUB
+chmod +x "$ext4_bin/findmnt"
+
+: >"$test_tmp/ext4-calls.log"
+ext4_rc=0
+TEST_LOG="$test_tmp/ext4-calls.log" \
+PATH="$ext4_bin" \
+OMARCHY_SNAPPER_CONFIGURE_TEST=0 \
+OMARCHY_PATH="$ROOT" \
+OMARCHY_SNAPPER_CONFIG_PATH="$test_tmp/ext4/etc/snapper/configs/root" \
+OMARCHY_SNAPPER_CONF_PATH="$test_tmp/ext4/etc/conf.d/snapper" \
+  /bin/bash -euo pipefail "$ROOT/install/config/snapper.sh" >"$test_tmp/ext4-out.log" 2>&1 || ext4_rc=$?
+(( ext4_rc == 0 )) || fail "a non-btrfs root exits 0 (got $ext4_rc: $(cat "$test_tmp/ext4-out.log"))"
+grep -F 'not btrfs' "$test_tmp/ext4-out.log" >/dev/null || fail "a non-btrfs root prints the skip reason"
+[[ ! -e $test_tmp/ext4/etc/snapper/configs/root ]] || fail "a non-btrfs root writes no config"
+(( $(wc -l <"$test_tmp/ext4-calls.log") == 0 )) || fail "a non-btrfs root enables no snapper units"
+pass "a non-btrfs root skips the step cleanly"
