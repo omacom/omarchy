@@ -1,0 +1,101 @@
+#!/bin/bash
+
+# omarchy:summary=Review a plugin audit and choose whether to install
+# omarchy:hidden=true
+
+set -euo pipefail
+
+[[ $# == 1 && -f $1 ]] || exit 1
+report=$1
+[[ -t 0 && -t 1 ]] || exit 1
+
+show_page() {
+  local selected=${1:-}
+  local -a status
+  # Gum's pager adds its own frame. Use Omarchy's existing less dependency
+  # for borderless, wrapping details and disable its shell/editor escapes.
+  # Select and color in one writer so an early pager exit has one SIGPIPE to
+  # handle. A failed writer or pager must still abort the review.
+  awk -v selected="$selected" '
+    /^\[(HIGH|MEDIUM|LOW)\]/ { showing = ($0 == selected) }
+    /^Summary:/ { showing = 0 }
+    selected != "" && !showing { next }
+    /^\[HIGH\]/ { print "\033[31;1m" $0 "\033[0m"; next }
+    /^\[MEDIUM\]/ { print "\033[33;1m" $0 "\033[0m"; next }
+    /^\[LOW\]/ { print "\033[36;1m" $0 "\033[0m"; next }
+    { print }
+  ' "$report" | LESS= LESSSECURE=1 less -c -R -~ -P 'Arrows scroll / q returns' || {
+    status=("${PIPESTATUS[@]}")
+    (( status[0] == 141 && status[1] == 0 ))
+  }
+}
+
+mapfile -t findings < <(grep -E '^\[(HIGH|MEDIUM|LOW)\]' "$report" || true)
+high=0 medium=0 low=0
+for finding in "${findings[@]}"; do
+  case "$finding" in
+    '[HIGH]'*) ((high += 1)) ;;
+    '[MEDIUM]'*) ((medium += 1)) ;;
+    '[LOW]'*) ((low += 1)) ;;
+  esac
+done
+
+# The scanner emits a single-line identity, separate from its indented evidence.
+identity=$(sed -n '1s/^Plugin security audit: //p' "$report")
+while :; do
+  # Recalculate after returning from details; small terminals get a scrolling
+  # list, not a large block of text. Leave room for the header and key hints.
+  columns=$(tput cols 2>/dev/null || printf '80')
+  rows=$(tput lines 2>/dev/null || printf '24')
+  [[ $columns =~ ^[0-9]+$ && $rows =~ ^[0-9]+$ ]] || exit 1
+  width=$((columns - 4))
+  (( width >= 12 )) || width=12
+  height=$((rows - 10))
+  (( height >= 1 )) || height=1
+  (( height <= 10 )) || height=10
+
+  title=$identity
+  if (( ${#title} > width )); then
+    title="${title:0:width-3}..."
+  fi
+  header=$(printf '\033[32;1m4/4 Review plugin\033[0m\n%s\n\n\033[31m%d high\033[0m  \033[33m%d medium\033[0m  \033[36m%d low\033[0m\n' \
+    "$title" "$high" "$medium" "$low")
+  if (( ${#findings[@]} == 0 )); then
+    header+=$'\nNo patterns found; safety not proven.'
+  else
+    header+=$'\nPatterns only; safety not proven.'
+  fi
+  header+=$'\nArrows: browse  Enter: select'
+
+  # Values are stable even when labels are shortened for a narrow window.
+  # Keep installation actions together at the bottom, with Cancel explicitly
+  # selected every time the menu is shown.
+  choices=()
+  for i in "${!findings[@]}"; do
+    label=${findings[i]}
+    if (( ${#label} > width )); then
+      label="${label:0:width-3}..."
+    fi
+    choices+=("$label"$'\t'"finding:$i")
+  done
+  choices+=($'View full report\tView full report' $'Install plugin\tInstall plugin' $'Cancel\tCancel')
+  decision=$(printf '%s\n' "${choices[@]}" |
+    gum choose --header "$header" --height "$height" --selected "Cancel" \
+      --label-delimiter $'\t' --cursor.foreground 2 --selected.foreground 2 \
+      --header.foreground '' --no-show-help) || exit 1
+
+  case "$decision" in
+    'Cancel') exit 1 ;;
+    'Install plugin') exit 0 ;;
+    'View full report')
+      show_page
+      ;;
+    finding:*)
+      index=${decision#finding:}
+      [[ $index =~ ^[0-9]+$ ]] && (( index < ${#findings[@]} )) || exit 1
+      # Only the selected finding's description and evidence go to the pager.
+      show_page "${findings[index]}"
+      ;;
+    *) exit 1 ;;
+  esac
+done
