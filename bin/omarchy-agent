@@ -393,6 +393,8 @@ if [[ $inline == "true" ]]; then
   exec "${command[@]}"
 else
   # A fixed app-id rather than the default org.omarchy.<binary>, so every agent
-  # window shares one class for window rules and themes to single out.
-  exec omarchy-launch-tui --app-id="$app_id" "${command[@]}"
+  # window shares one class for window rules and themes to single out. The
+  # agent is the window's only process, so the guard stands in for the shell
+  # that would `fg` it back after an accidental Ctrl+Z.
+  exec omarchy-launch-tui --app-id="$app_id" omarchy-agent-suspend-guard "${command[@]}"
 fi

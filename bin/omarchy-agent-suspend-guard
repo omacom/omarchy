@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# omarchy:summary=Run an agent so Enter brings it back after an accidental Ctrl+Z
+# omarchy:args=<command> [args...]
+# omarchy:hidden=true
+
+# Agent windows run the agent as the terminal's only process, so Ctrl+Z used to
+# leave it stopped with no shell to `fg` it back: the session was lost. This
+# runs it as a job of a shell instead, and offers Enter as the `fg`. Bash just
+# waits on the child; nothing polls.
+
+set -m
+
+# A stopped job reports 128 + SIGSTOP/SIGTSTP/SIGTTIN/SIGTTOU (147-150) and is
+# still alive; any other status means the agent really exited.
+stopped() {
+  (( $1 >= 147 && $1 <= 150 )) && kill -0 %+ 2>/dev/null
+}
+
+# Recursion, not a loop: bash breaks out of any loop when a foreground job stops
+# inside it, which would end the guard (and close the window) on the second Ctrl+Z.
+resume() {
+  local status=$1
+  local mode
+
+  printf '\n\e[1;33m  Suspended by Ctrl+Z.\e[0m Press \e[1mEnter\e[0m to bring it back.\n'
+
+  # An agent stopped without its own suspend handling (kill -STOP) leaves the
+  # terminal raw, where Enter never ends the read. Read in sane mode, then hand
+  # the agent back exactly the mode it left.
+  mode=$(stty -g 2>/dev/null)
+  stty sane 2>/dev/null
+
+  if read -r; then
+    [[ -n $mode ]] && stty "$mode" 2>/dev/null
+    fg >/dev/null
+    status=$?
+    if stopped "$status"; then
+      resume "$status"
+    fi
+  fi
+
+  # Reached when the agent exits, or the read fails because the window closed.
+  exit "$status"
+}
+
+"$@"
+status=$?
+
+if stopped "$status"; then
+  resume "$status"
+else
+  exit "$status"
+fi
