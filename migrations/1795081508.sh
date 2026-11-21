@@ -1,5 +1,8 @@
 echo "Remove the retired Direct Boot EFI entry so the machine boots through Limine"
 
+# Containers can see the host's EFI directory but do not own its boot entries.
+systemd-detect-virt --container --quiet && exit 0
+
 # Setup > Direct Boot needed EFI and efibootmgr, and never ran on Apple Silicon.
 [[ -d /sys/firmware/efi ]] || exit 0
 omarchy-cmd-present efibootmgr || exit 0
