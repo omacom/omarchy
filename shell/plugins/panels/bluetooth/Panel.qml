@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Bluetooth
 import Quickshell.Services.Pipewire
+import Quickshell.Services.UPower
 import qs.Ui
 import qs.Commons
 import qs.Commons as Commons
@@ -34,6 +35,28 @@ Panel {
   readonly property var pipewireNodes: Pipewire.nodes ? Pipewire.nodes.values : []
   property var pendingAudioOutputDevice: null
   property int pendingAudioOutputAttempts: 0
+
+  // UPower power supplies as primitives, for devices whose battery the kernel
+  // reports (game controllers) rather than BlueZ. See Model.upowerBattery().
+  readonly property var upowerBatteries: {
+    var list = UPower.devices ? UPower.devices.values : []
+    var out = []
+    for (var i = 0; i < list.length; i++) {
+      var d = list[i]
+      if (!d || !d.nativePath) continue
+      out.push({
+        nativePath: String(d.nativePath),
+        percentage: d.percentage,
+        isPresent: !!d.isPresent,
+        charging: d.state === UPowerDeviceState.Charging
+      })
+    }
+    return out
+  }
+
+  function rowFor(device) {
+    return Model.deviceRow(device, device ? Model.upowerBattery(upowerBatteries, device.address) : null)
+  }
 
   function deviceLabel(device) {
     return Model.deviceLabel(device)
@@ -140,10 +163,10 @@ Panel {
   readonly property var scrollRows: {
     var rows = []
     for (var k = 0; k < knownDevices.length; k++)
-      rows.push({ dev: Model.deviceRow(knownDevices[k]), section: "known", indexInSection: k })
+      rows.push({ dev: root.rowFor(knownDevices[k]), section: "known", indexInSection: k })
     if (sectionVisible("discovered"))
       for (var d = 0; d < discoveredDevices.length; d++)
-        rows.push({ dev: Model.deviceRow(discoveredDevices[d]), section: "discovered", indexInSection: d })
+        rows.push({ dev: root.rowFor(discoveredDevices[d]), section: "discovered", indexInSection: d })
     return rows
   }
 
@@ -152,7 +175,7 @@ Panel {
   readonly property var connectedRows: {
     var rows = []
     for (var i = 0; i < connectedDevices.length; i++)
-      rows.push(Model.deviceRow(connectedDevices[i]))
+      rows.push(root.rowFor(connectedDevices[i]))
     return rows
   }
 
@@ -918,7 +941,7 @@ Panel {
       if (action === "forgetting") return Commons.I18n.t("bluetooth.forgetting")
       if (action === "disconnecting" || devState === 2) return Commons.I18n.t("bluetooth.disconnecting")
       if (isConnected) {
-        if (dev.batteryAvailable) return Commons.I18n.formatNumber(Math.round(dev.battery * 100)) + "%"
+        if (dev.batteryAvailable) return Model.batteryText(dev, Commons.I18n.t, Commons.I18n.formatNumber)
         return sectionName === "connected" ? "" : Commons.I18n.t("bluetooth.connectedStatus")
       }
       if (action === "connecting" || devState === 3 || dev.pairing === true) return Commons.I18n.t("bluetooth.connecting")
