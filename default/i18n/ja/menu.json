@@ -123,28 +123,28 @@
     "label": "日曜日 14:30"
   },
   "appearance.top-bar.indicators.clock.sunday-12h": {
-    "label": "日曜日 午後2:30"
+    "label": "日曜日 2:30 午後"
   },
   "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "日曜日 14:30:05"
   },
   "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
-    "label": "日曜日 午後2:30:05"
+    "label": "日曜日 2:30:05 午後"
   },
   "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
   "appearance.top-bar.indicators.clock.time-12h": {
-    "label": "午後2:30"
+    "label": "2:30 午後"
   },
   "appearance.top-bar.indicators.clock.date-24h": {
-    "label": "5月3日（日）14:30"
+    "label": "日 3 5月 14:30"
   },
   "appearance.top-bar.indicators.clock.date-12h": {
-    "label": "5月3日（日）午後2:30"
+    "label": "日 3 5月 2:30 午後"
   },
   "appearance.top-bar.indicators.clock.week": {
-    "label": "2026年5月3日 第18週"
+    "label": "3 5月 W18 2026"
   },
   "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
@@ -156,7 +156,7 @@
     "label": "2 — 30 午後"
   },
   "appearance.top-bar.indicators.clock.stacked-date": {
-    "label": "5月3日 第18週 '26"
+    "label": "03 5月 W18 '26"
   },
   "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"

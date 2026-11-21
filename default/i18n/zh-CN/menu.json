@@ -123,28 +123,28 @@
     "label": "星期日 14:30"
   },
   "appearance.top-bar.indicators.clock.sunday-12h": {
-    "label": "星期日 2:30 PM"
+    "label": "星期日 2:30 下午"
   },
   "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "星期日 14:30:05"
   },
   "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
-    "label": "星期日 2:30:05 PM"
+    "label": "星期日 2:30:05 下午"
   },
   "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
   "appearance.top-bar.indicators.clock.time-12h": {
-    "label": "2:30 PM"
+    "label": "2:30 下午"
   },
   "appearance.top-bar.indicators.clock.date-24h": {
-    "label": "周日 5月3日 14:30"
+    "label": "周日 3 5月 14:30"
   },
   "appearance.top-bar.indicators.clock.date-12h": {
-    "label": "周日 5月3日 2:30 PM"
+    "label": "周日 3 5月 2:30 下午"
   },
   "appearance.top-bar.indicators.clock.week": {
-    "label": "5月3日 W18 2026"
+    "label": "3 五月 W18 2026"
   },
   "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
@@ -153,10 +153,10 @@
     "label": "14 — 30"
   },
   "appearance.top-bar.indicators.clock.stacked-12h": {
-    "label": "2 — 30 PM"
+    "label": "2 — 30 下午"
   },
   "appearance.top-bar.indicators.clock.stacked-date": {
-    "label": "5月03日 W18 '26"
+    "label": "03 5月 W18 '26"
   },
   "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
