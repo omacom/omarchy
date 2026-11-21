@@ -2,14 +2,22 @@
 
 # omarchy:summary=Open a captive portal's sign-in window, pausing any Tailscale exit node until online
 # omarchy:group=network
-# omarchy:args=<url>
+# omarchy:args=[--auto] <url>
 
 set -euo pipefail
 
-url=${1:?Usage: omarchy-network-captive-portal <url>}
+# --auto marks a launch made on detection rather than by a click. Every
+# screen's network panel sees the same portal, so only the first opens a window.
+auto=0
+if [[ ${1:-} == --auto ]]; then
+  auto=1
+  shift
+fi
+url=${1:?Usage: omarchy-network-captive-portal [--auto] <url>}
 tailscale_socket=/var/run/tailscale/tailscaled.sock
 lock=${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy-network-captive-portal.lock
 paused_exit_node=0
+network=""
 
 # An exit node routes the portal's sign-in page into a tunnel the portal is
 # still blocking. tailscaled's own toggle (the one Tailscale's apps use) turns
@@ -84,28 +92,51 @@ close_portal_window() {
   done
 }
 
+# The connections a sign-in belongs to. VPNs come and go on their own, so
+# only the links themselves count.
+active_network() {
+  LC_ALL=C nmcli -t -f UUID,TYPE connection show --active 2>/dev/null |
+    grep -Ev ':(vpn|wireguard|loopback)$' | sort || true
+}
+
+online() {
+  # nmcli translates its answer, so read it in the C locale.
+  [[ $(LC_ALL=C timeout 5 nmcli networking connectivity check 2>/dev/null) == "full" ]]
+}
+
+# Whether a link the sign-in started on is gone. One coming up beside it, a
+# VM bridge say, leaves the portal where it was.
+network_left() {
+  local now link
+  now=$(active_network)
+  while IFS= read -r link; do
+    [[ -n $link ]] || continue
+    grep -Fxq -- "$link" <<<"$now" || return 0
+  done <<<"$network"
+  return 1
+}
+
 # Nothing on the machine changes when the sign-in completes, so ask
 # NetworkManager to re-check: often while a sign-in is likely, then gently
 # until it is done. Its connectivity state updates as it does, which is what
-# the panel shows. Joining any other working network ends the wait too.
+# the panel shows. Joining any other working network ends the wait too, and so
+# does leaving this one: a portal window closed without signing in must not
+# hold the lock against the next network's sign-in.
 wait_until_online() {
-  local fast_until=$(( SECONDS + 300 ))
+  local fast_until=$(( SECONDS + 300 )) ticks=0
+  network=$(active_network)
 
-  # nmcli translates its answer, so read it in the C locale.
-  until [[ $(LC_ALL=C timeout 5 nmcli networking connectivity check 2>/dev/null) == "full" ]]; do
+  until (( ticks % (SECONDS < fast_until ? 1 : 7) == 0 )) && online; do
     if portal_window_failed; then
       exit 1
     fi
-    if (( SECONDS < fast_until )); then
-      sleep 2
-    else
-      sleep 15
-    fi
+    network_left && return 0
+    sleep 2
+    ticks=$(( ticks + 1 ))
   done
 }
 
-exec 9>"$lock"
-if flock -n 9; then
+sign_in() {
   trap restore_exit_node EXIT
 
   if exit_node_active && set_exit_node_enabled false; then
@@ -115,9 +146,27 @@ if flock -n 9; then
 
   open_portal_window
   wait_until_online
+  # The exit node comes back first. The lock stays held until the window is
+  # closed: the next sign-in opens a window of the same class, which this
+  # cleanup would otherwise close too.
+  restore_exit_node
   close_portal_window
+}
+
+exec 9>"$lock"
+if flock -n 9; then
+  sign_in
+elif (( auto )); then
+  # A held lock is mostly another screen's panel signing in to this same
+  # portal, and then this launch adds nothing. A watch on a network just left
+  # notices within a check and closes its window within a few seconds more, so
+  # wait that long before deciding, and skip the window if that wait ended
+  # with the internet already reachable.
+  if flock -w 15 9 && ! online; then
+    sign_in
+  fi
 else
-  # An earlier click is already holding the pause and watching for the
-  # sign-in, so this one only brings the portal back up.
+  # An earlier launch is already holding the pause and watching for the
+  # sign-in, so a click only brings the portal back up.
   open_portal_window
 fi
