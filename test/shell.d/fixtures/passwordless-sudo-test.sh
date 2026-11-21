@@ -110,12 +110,16 @@ for name in ('omarchy-sudo-passwordless', 'omarchy-security-functions'):
     for path in ('/etc/', '/var/lib', '/run/', '/usr/share/libalpm/hooks'):
         target = str(temp/'hooks') if path == '/usr/share/libalpm/hooks' else str(temp) + path
         text = text.replace(path, target)
+    text = text.replace('INSTALLED_SELF=/usr/bin/omarchy-sudo-passwordless', 'INSTALLED_SELF=' + str(temp/'installed'/'omarchy-sudo-passwordless'))
     text = text.replace('((EUID == 0))', '((${TEST_EUID:-1} == 0))')
     for command in ('stat', 'chown', 'install', 'rm', 'mv', 'systemd-run', 'systemctl', 'date', 'getent', 'sudo', 'gum', 'omarchy-shell'):
         text = text.replace('/usr/bin/' + command, str(temp/'bin'/command))
     (temp/name).write_text(text)
     (temp/name).chmod(0o755)
 PY
+# The installed copy the helper delegates status and revocation to.
+mkdir -p "$test_tmp/installed"
+ln -s ../omarchy-sudo-passwordless "$test_tmp/installed/omarchy-sudo-passwordless"
 library="$test_tmp/functions.sh"
 {
   printf 'source %q\n' "$test_tmp/omarchy-security-functions"
