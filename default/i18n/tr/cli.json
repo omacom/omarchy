@@ -55,7 +55,7 @@
   "animations.disabled": "Animasyonlar devre dışı",
   "animations.enabled": "Animasyonlar etkin",
   "animations.softwareRendering": "GPU olmadan animasyonlar kapalı",
-  "animations.softwareRenderingBody": "GPU kullanılmadığından animasyonlar, bulanıklık ve gölgeler kapalı. Görünüm > Animasyonlar Açık ile geri getirebilirsiniz.",
+  "animations.softwareRenderingBody": "GPU kullanılmadığından animasyonlar, bulanıklık ve gölgeler kapalı. Görünüm > Animasyonlar Aç ile geri getirebilirsiniz.",
   "audio.micMuted": "Mikrofon sessize alındı",
   "audio.micOn": "Mikrofon açık",
   "audio.noDevices": "Ses aygıtı bulunamadı",
