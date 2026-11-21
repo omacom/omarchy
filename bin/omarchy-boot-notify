@@ -17,6 +17,13 @@ state_get() {
   sed -n "s/^$1=//p" "$STORE/state" 2>/dev/null | tail -1
 }
 
+# omarchy-boot-confirm, a system service this user unit can't be ordered
+# after, may still be writing this boot's notice (a restore it commits).
+for _ in $(seq 120); do
+  [[ $(systemctl show -p ActiveState --value omarchy-boot-confirm.service 2>/dev/null) == activating ]] || break
+  sleep 1
+done
+
 snapshot=$(sed -n 's#.*rootflags=[^ ]*subvol=[^ ,]*/\.snapshots/\([0-9]*\)/snapshot.*#\1#p' /proc/cmdline)
 notice_id=$(state_get notice_id)
 

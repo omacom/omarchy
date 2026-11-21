@@ -727,6 +727,8 @@ cmd_restore_cancel() {
 
 # Runs on the first boot of the restored root: makes its image the live one,
 # records the replaced root as the backup and drops the one before.
+# Prints one line, "restored: ..." or "failed: ...", which the confirm
+# service turns into a notice; publishing reports on stderr.
 cmd_restore_commit() {
   check_store
   mount_top
@@ -740,7 +742,7 @@ cmd_restore_commit() {
     [[ -d $TOP/$staged ]] && btrfs -q subvolume delete "$TOP/$staged" >/dev/null || true
     mv -f "$journal" "$STORE/restore/failed-$tx"
     rm -f /etc/systemd/sleep.conf.d/90-omarchy-restore-pending.conf
-    cmd_sync
+    cmd_sync >&2
     echo "failed: $(kv_get "$STORE/restore/failed-$tx" ERROR)"
     return 0
   fi
@@ -772,17 +774,19 @@ cmd_restore_commit() {
   state_set backup_image "$(kv_get "$journal" PREVIOUS_IMAGE)"
   state_set backup_date "$(date '+%b %-d %H:%M')"
 
-  # Published before the journal says done: a power loss or a failed publish
-  # leaves it swapped, and the next boot's confirm commits it again.
-  cmd_sync
+  # The restored root's entry is published before the journal says done: a
+  # power loss or a failed publish leaves it swapped, and the next boot's
+  # confirm commits it again. Published once more after, without the restore's
+  # own entries.
+  cmd_sync >&2
   kv_set "$journal" STATE done
   mv -f "$journal" "$STORE/restore/done-$tx"
 
   # The root before the previous restore. Never the one just replaced.
   if [[ -n $old && $old != "$backup" && -d $TOP/$old ]] && ! findmnt -n -o FSROOT | grep -qx "/$old"; then
     btrfs -q subvolume delete "$TOP/$old" >/dev/null || log "could not delete the older backup $old"
-    cmd_sync
   fi
+  cmd_sync >&2
 
   echo "restored: $(kv_get "$STORE/restore/done-$tx" SOURCE)"
 }
