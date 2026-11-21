@@ -491,3 +491,23 @@ jq -e '
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 [[ -f $TMPDIR/home/.local/state/omarchy/restart-shell-called ]] || fail "shell refresh restarts shell"
 pass "shell refresh places optional service widgets when services are available"
+
+# The commit's write must be an atomic rename: its temp file is created beside
+# shell.json, so the mv never degrades into a cross-filesystem copy that the
+# watching shell can reload half-written and fall back to the defaults from.
+mktemp_log="$TMPDIR/mktemp-args"
+cat >"$ipc_mock_bin/mktemp" <<SH
+#!/bin/bash
+printf '%s\n' "\$*" >>"$mktemp_log"
+exec /usr/bin/mktemp "\$@"
+SH
+chmod +x "$ipc_mock_bin/mktemp"
+
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar position top >/dev/null
+[[ -s $mktemp_log ]] || fail "shell config commit created no temp file"
+while IFS= read -r mktemp_arg; do
+  [[ $mktemp_arg == "$TMPDIR/home/.config/omarchy/shell.json."* ]] ||
+    fail "shell config commit creates its temp file outside the config's directory" "$mktemp_arg"
+done <"$mktemp_log"
+jq -e '.bar.position == "top"' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
+pass "shell config commits through a temp file beside shell.json"

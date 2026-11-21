@@ -57,7 +57,11 @@ commit() {
   local program="$1"
   shift
   mkdir -p "$(dirname "$CONFIG_FILE")"
-  _SHELL_CONFIG_TMP=$(mktemp)
+  # Create the temp file beside the target so the mv below is a same-filesystem
+  # rename: a bare mktemp lands in /tmp, and when that is a different
+  # filesystem from ~/.config the mv degrades to a non-atomic copy that the
+  # watching shell can reload half-written.
+  _SHELL_CONFIG_TMP=$(mktemp "$CONFIG_FILE.XXXXXX")
   jq -S -e "$@" "$program" "$(source_file)" >"$_SHELL_CONFIG_TMP" || fail "could not update shell config"
   mv "$_SHELL_CONFIG_TMP" "$CONFIG_FILE"
   _SHELL_CONFIG_TMP=""
