@@ -10,6 +10,11 @@ require_command ffmpeg
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
+# Sampled colours are remembered per wallpaper and inputs; keep that out of the
+# real cache, and give each case that re-samples the same wallpaper through a
+# different ImageMagick its own.
+export XDG_CACHE_HOME="$TMPDIR/cache"
+
 export PATH="$ROOT/bin:$PATH"
 
 light_top="$TMPDIR/light-top.png"
@@ -71,7 +76,7 @@ printf '245,245,245'
 SH
 chmod +x "$bounded_bin/timeout" "$bounded_bin/magick"
 
-result=$(HOME="$TMPDIR" LIMIT_LOG="$TMPDIR/limits" TIMEOUT_LOG="$TMPDIR/timeout" ARGS_LOG="$TMPDIR/args" PATH="$bounded_bin:$PATH" \
+result=$(HOME="$TMPDIR" XDG_CACHE_HOME="$TMPDIR/cache-bounded" LIMIT_LOG="$TMPDIR/limits" TIMEOUT_LOG="$TMPDIR/timeout" ARGS_LOG="$TMPDIR/args" PATH="$bounded_bin:$PATH" \
   omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$light_top" --screen 100x100)
 [[ $result == "#101010" ]] || fail "bounded wallpaper sample still chooses the contrasting color" "expected #101010, got $result"
 [[ $(<"$TMPDIR/limits") == $'512MiB\t0\t0\t5\t2' ]] || fail "wallpaper sampling bounds ImageMagick resources" "$(<"$TMPDIR/limits")"
@@ -81,7 +86,7 @@ pass "transparent bar wallpaper sampling is resource bounded"
 # Only the bar strip's mean color is needed, so a high-resolution screen is sampled
 # on a canvas at most 1920 px wide, and JPEG decodes at about that size. Otherwise
 # a 6K or 8K wallpaper exceeds the pixel-cache limit and silently falls back.
-HOME="$TMPDIR" LIMIT_LOG="$TMPDIR/limits" TIMEOUT_LOG="$TMPDIR/timeout" ARGS_LOG="$TMPDIR/args" PATH="$bounded_bin:$PATH" \
+HOME="$TMPDIR" XDG_CACHE_HOME="$TMPDIR/cache-bounded" LIMIT_LOG="$TMPDIR/limits" TIMEOUT_LOG="$TMPDIR/timeout" ARGS_LOG="$TMPDIR/args" PATH="$bounded_bin:$PATH" \
   omarchy-bar-text-color bottom 64 '#ffffff' '#101010' --background "$light_top" --screen 6016x3384 >/dev/null
 args=$(<"$TMPDIR/args")
 [[ $args == "-define jpeg:size=1920x1080 "* ]] || fail "high-resolution screen decodes JPEG at canvas size" "$args"
@@ -101,7 +106,7 @@ exit 1
 SH
 chmod +x "$failing_bin/magick"
 
-result=$(HOME="$TMPDIR" PATH="$failing_bin:$PATH" \
+result=$(HOME="$TMPDIR" XDG_CACHE_HOME="$TMPDIR/cache-failing" PATH="$failing_bin:$PATH" \
   omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$light_top" --screen 100x100)
 [[ $result == "#ffffff" ]] || fail "failed wallpaper sample falls back to text color" "expected #ffffff, got $result"
 pass "failed wallpaper sample falls back to text color"
@@ -114,7 +119,61 @@ exit 124
 SH
 chmod +x "$expired_bin/timeout"
 
-result=$(HOME="$TMPDIR" PATH="$expired_bin:$PATH" \
+result=$(HOME="$TMPDIR" XDG_CACHE_HOME="$TMPDIR/cache-expired" PATH="$expired_bin:$PATH" \
   omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$light_top" --screen 100x100)
 [[ $result == "#ffffff" ]] || fail "timed-out wallpaper sample falls back to text color" "expected #ffffff, got $result"
 pass "timed-out wallpaper sample falls back to text color"
+
+# The same wallpaper, screen, bar edge and colours always give the same answer,
+# so the sample runs once and later calls (every switch to a transparent bar)
+# answer from the remembered colour without ImageMagick. A changed wallpaper
+# file is sampled afresh.
+counting_bin="$TMPDIR/counting-bin"
+mkdir -p "$counting_bin"
+cat >"$counting_bin/magick" <<'SH'
+#!/bin/bash
+echo run >>"$COUNT_LOG"
+printf '245,245,245'
+SH
+chmod +x "$counting_bin/magick"
+
+for _ in 1 2; do
+  result=$(HOME="$TMPDIR" XDG_CACHE_HOME="$TMPDIR/cache-remember" COUNT_LOG="$TMPDIR/count" PATH="$counting_bin:$PATH" \
+    omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$light_top" --screen 100x100)
+  [[ $result == "#101010" ]] || fail "remembered wallpaper sample keeps its answer" "expected #101010, got $result"
+done
+[[ $(wc -l <"$TMPDIR/count") == 1 ]] || fail "repeated wallpaper sample is remembered" "magick ran $(wc -l <"$TMPDIR/count") times"
+pass "repeated wallpaper sample is remembered"
+
+touch -m -d '2020-01-01 00:00:00' "$light_top"
+HOME="$TMPDIR" XDG_CACHE_HOME="$TMPDIR/cache-remember" COUNT_LOG="$TMPDIR/count" PATH="$counting_bin:$PATH" \
+  omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$light_top" --screen 100x100 >/dev/null
+[[ $(wc -l <"$TMPDIR/count") == 2 ]] || fail "changed wallpaper file is sampled again" "magick ran $(wc -l <"$TMPDIR/count") times"
+pass "changed wallpaper file is sampled again"
+
+# A sample that fell back is not remembered: the next call tries again and, once
+# ImageMagick finishes, switches to the contrasting colour.
+result=$(HOME="$TMPDIR" XDG_CACHE_HOME="$TMPDIR/cache-retry" PATH="$failing_bin:$PATH" \
+  omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$light_top" --screen 100x100)
+[[ $result == "#ffffff" ]] || fail "failed wallpaper sample is not remembered" "expected #ffffff first, got $result"
+result=$(HOME="$TMPDIR" XDG_CACHE_HOME="$TMPDIR/cache-retry" \
+  omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$light_top" --screen 100x100)
+[[ $result == "#101010" ]] || fail "failed wallpaper sample is not remembered" "expected #101010 on retry, got $result"
+pass "failed wallpaper sample is not remembered"
+
+# Remembering is best-effort: a cache directory that cannot be written or swept
+# must not cost the caller the colour that was just sampled.
+locked_cache="$TMPDIR/locked-cache/omarchy/bar-text-color"
+mkdir -p "$locked_cache"
+chmod 000 "$locked_cache"
+result=$(HOME="$TMPDIR" XDG_CACHE_HOME="$TMPDIR/locked-cache" \
+  omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$light_top" --screen 100x100)
+chmod 755 "$locked_cache"
+[[ $result == "#101010" ]] || fail "unwritable cache still answers with the sampled colour" "expected #101010, got $result"
+pass "unwritable cache still answers with the sampled colour"
+
+: >"$TMPDIR/cache-is-a-file"
+result=$(HOME="$TMPDIR" XDG_CACHE_HOME="$TMPDIR/cache-is-a-file" \
+  omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$light_top" --screen 100x100)
+[[ $result == "#101010" ]] || fail "uncreatable cache still answers with the sampled colour" "expected #101010, got $result"
+pass "uncreatable cache still answers with the sampled colour"
