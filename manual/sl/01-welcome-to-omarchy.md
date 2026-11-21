@@ -4,7 +4,7 @@ Omarchy je Linux distribucija [omakase](https://manuals.omamix.org/3/omacom/76/o
 
 To pa ni le naključna zbirka vnaprej nameščenih paketov. Je celovit sistem, zasnovan z mislijo tako na estetiko kot na produktivnost. Ker _lep_ sistem je _motivacijski_ sistem, produktivnost pa je vedno bila [posledica motivacije](https://world.hey.com/dhh/beautiful-motivations-6fef7c73). Tu ni nobene navlake: le vse, kar uporabljam.
 
-Res je, da je razvijanje občutka za lepoto sistema, kot je Omarchy, ki je močno usmerjen v tekstovne uporabniše vmesnike (TUI), navdušen nad temami in upravljan s ploščičnim upravljalnikom oken, lahko pridobljen okus. Ampak zato ste tukaj, kajne? Da doživite nekaj malce izven svoje cone udobja? Da se podate na majhno pustolovščino v nov način dela z računalniki? Upam, da je tako.
+Res je, da je razvijanje občutka za lepoto sistema, kot je Omarchy, ki je močno usmerjen v tekstovne uporabniške vmesnike (TUI), navdušen nad temami in upravljan s ploščičnim upravljalnikom oken, lahko pridobljen okus. Ampak zato ste tukaj, kajne? Da doživite nekaj malce izven svoje cone udobja? Da se podate na majhno pustolovščino v nov način dela z računalniki? Upam, da je tako.
 
 Omarchy ni kot Windows in tudi ni kot macOS. Ne poskuša biti čim bolj domač. Poskuša biti lep in _boljši_. Sprejmite Linux-ovnost vsega skupaj. Ročno urejanje nekaterih konfiguracijskih datotek, seveda. Veliko terminala, zagotovo.
 
