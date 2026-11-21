@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Install rtkit and repair realtime budgets left at zero without it
+# omarchy:args=[--after-login]
 # omarchy:hidden=true
 # omarchy:requires-sudo=true
 
@@ -31,6 +32,9 @@
 # This never prompts: without cached sudo the machine-wide repair stops, and
 # the caller stays pending until a run that has it, such as omarchy update.
 # Anything it cannot inspect is a failure, never "nothing to do".
+#
+# --after-login only retries the caller's audio units. With linger, their
+# manager can start PipeWire before any active login is eligible for rtkit.
 
 proc_root=${OMARCHY_PROC_ROOT:-/proc}
 pending=${OMARCHY_REALTIME_REPAIR_PENDING:-/var/lib/omarchy/realtime-repair-pending}
@@ -245,7 +249,7 @@ raise_own_zero_budgets() {
 # omarchy-upgrade-to-quattro runs its migrations without the user's session
 # environment, so the bus is looked for where the session puts it.
 repair_own_session() {
-  local pipewire portal_failed=0
+  local portal_failed=0
 
   raise_own_zero_budgets
 
@@ -259,15 +263,31 @@ repair_own_session() {
   raise_own_zero_budgets
   (( ! portal_failed )) || exit 1
 
-  # The server is pipewire.service's main process: a filter-chain host, such
-  # as the speaker tuning, is also named pipewire and may already be realtime.
+  repair_audio
+}
+
+repair_audio() {
+  local pipewire classes
+  # A separate PipeWire process may be running the speaker filter chain. Only
+  # the server's scheduling classes tell us whether it needs to ask again.
   pipewire=$(systemctl --user show -p MainPID --value pipewire.service) ||
     fail "Could not read PipeWire's main process"
-  if [[ $pipewire =~ ^[1-9][0-9]*$ && ! $(ps -L -o cls= -p "$pipewire") =~ RR|FF ]]; then
+  [[ $pipewire =~ ^[1-9][0-9]*$ ]] || return 0
+  classes=$(ps -L -o cls= -p "$pipewire") ||
+    fail "Could not inspect PipeWire's scheduling classes"
+  if [[ ! $classes =~ (^|[[:space:]])(RR|FF)($|[[:space:]]) ]]; then
     systemctl --user try-restart pipewire.service pipewire-pulse.service wireplumber.service ||
       fail "Could not restart the audio units"
   fi
 }
+
+if [[ ${1:-} == "--after-login" ]]; then
+  if [[ $(loginctl show-user "$(id -u)" --property=Linger --value) == "yes" ]] &&
+    ! omarchy-pkg-missing rtkit; then
+    repair_audio
+  fi
+  exit 0
+fi
 
 # Root needs no prompt, so it always does the machine-wide part, and the
 # users' own runs then find nothing that needs sudo.
