@@ -342,12 +342,12 @@ Panel {
   // asked with gh's sign-in, which its own login doesn't renew, so trouble
   // there keeps its help text instead of a Sign-in required link.
   readonly property var addProviders: [
-    { providerId: "agy", providerName: "Antigravity" },
     { providerId: "claude", providerName: "Claude" },
     { providerId: "codex", providerName: "Codex" },
     { providerId: "copilot", providerName: "Copilot", limitsElsewhere: true },
     { providerId: "cursor", providerName: "Cursor" },
     { providerId: "fireworks", providerName: "Fireworks" },
+    { providerId: "agy", providerName: "Gemini" },
     { providerId: "grok", providerName: "Grok" },
     { providerId: "muse", providerName: "Muse", printsPage: true },
     { providerId: "opencode", providerName: "OpenCode", printsPage: true },
@@ -368,7 +368,7 @@ Panel {
   property string addCode: ""
   property string addUrl: ""
   property bool addNeedsPaste: false
-  // What to paste, when the sign-in says: Antigravity's code, an API key.
+  // What to paste, when the sign-in says: Gemini's code, an API key.
   property string addPasteHint: ""
   property string addResult: ""
   // The CLI's own download, when it isn't installed yet: the first sign-in

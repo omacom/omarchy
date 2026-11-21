@@ -68,8 +68,8 @@ case "${1:-}" in
 claude) provider="claude"; name="Claude"; app="Claude Code"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR"; accounts=true ;;
 codex) provider="codex"; name="Codex"; app="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME"; accounts=true ;;
 grok) provider="grok"; name="Grok"; app="Grok Build"; site="x.ai"; package="grok"; home_env="GROK_HOME"; accounts=true ;;
-# Antigravity signs in with the Google account a Gemini subscription is on.
-agy | gemini) provider="agy"; name="Antigravity"; app="Antigravity"; package="antigravity-cli"; login_command=(agy acp --login) ;;
+# A Gemini subscription is signed in to through Antigravity, its harness.
+agy | gemini) provider="agy"; name="Gemini"; app="Antigravity"; package="antigravity-cli"; login_command=(agy acp --login) ;;
 muse) provider="muse"; name="Muse"; app="Muse Code"; package="muse"; login_command=(muse login) ;;
 # One OpenCode Console sign-in covers Zen and Go.
 opencode) provider="opencode"; name="OpenCode"; app="OpenCode"; package="opencode"; login_command=(opencode auth login opencode --method device) ;;
@@ -298,7 +298,7 @@ key_login() {
 # goes to the panel, which shows the code it prints to confirm in the browser.
 if [[ $accounts == "false" ]]; then
   say "$(omarchy-i18n agents.signInBrowser "$name")"
-  # Antigravity's page ends on a code to paste back, and a key's on the key;
+  # Gemini's page ends on a code to paste back, and a key's on the key;
   # the panel shows a field for it, under what to paste.
   if [[ $events == "true" && $provider == "agy" ]]; then
     printf '@@omarchy paste %s\n' "$(omarchy-i18n agents.pasteSignInCode)"

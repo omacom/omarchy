@@ -50,8 +50,8 @@ Every subscription on one page, limits first.
 - **Make something cool** — starter prompts (a new theme, plugin, app, or game),
   two across, that start the agent on the task through `omarchy agent make`.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
-  Antigravity (a Gemini subscription), Claude Code, Codex, Copilot, Cursor,
-  Fireworks, Grok, Muse, OpenCode (Zen and Go), and OpenRouter as large marks
+  Claude Code, Codex, Copilot, Cursor, Fireworks, Gemini (signed in through
+  Antigravity), Grok, Muse, OpenCode (Zen and Go), and OpenRouter as large marks
   in alphabetical order, four across, with the first one focused, and the
   hero's line reads Add an account. The + becomes
   the X that goes back. A further Claude, Codex, or Grok account asks for a
@@ -59,7 +59,7 @@ Every subscription on one page, limits first.
   signing in again replaces. The
   panel then runs `omarchy-agent-account-add --events` and follows it: the
   status, the code Grok, Muse, or OpenCode asks you to confirm in the browser,
-  a field to paste back the code Antigravity's page shows (or Claude's, if its
+  a field to paste back the code Gemini's page shows (or Claude's, if its
   page shows one instead of finishing), and a link to
   reopen the sign-in page. Fireworks and OpenRouter have no login: the API
   keys page opens, and the key pasted into the field is checked against the
