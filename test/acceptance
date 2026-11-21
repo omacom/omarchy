@@ -9,6 +9,14 @@
 
 set -euo pipefail
 
+# The suite types into whatever window has focus and rewrites desktop state,
+# so refuse a real desktop before waiting for its session. Call the detector
+# directly: the installed bin/ on PATH may predate omarchy-hw-vm.
+if [[ ${OMARCHY_ACCEPTANCE_ALLOW_HOST:-} != "1" ]] && ! systemd-detect-virt --vm --quiet; then
+  echo "not ok - refusing to run outside a virtual machine; run it through omarchy-iso-test, or set OMARCHY_ACCEPTANCE_ALLOW_HOST=1 on a desktop you can lose" >&2
+  exit 1
+fi
+
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 TEST_DIR="$ROOT/test/acceptance.d"
 

@@ -13,6 +13,8 @@ Run acceptance tests in a disposable VM through the sibling `omarchy-iso`
 repository, not in the active development session. The suite opens and closes
 applications and temporarily changes desktop configuration.
 
+Both `test/acceptance` and `test/acceptance.d/base-test.sh` refuse to run unless `systemd-detect-virt --vm` detects a virtual machine, because the suite types into whatever window has focus; set `OMARCHY_ACCEPTANCE_ALLOW_HOST=1` only on a desktop you can afford to lose.
+
 For acceptance-test-only changes, reuse an installed base and sync the suite:
 
 ```bash

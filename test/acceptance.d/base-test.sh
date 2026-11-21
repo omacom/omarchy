@@ -5,6 +5,13 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
   exit 1
 fi
 
+# Running one test file directly skips the runner, so refuse a real desktop
+# here too: the tests type into whatever window has focus.
+if [[ ${OMARCHY_ACCEPTANCE_ALLOW_HOST:-} != "1" ]] && ! systemd-detect-virt --vm --quiet; then
+  echo "not ok - refusing to run outside a virtual machine; run it through omarchy-iso-test, or set OMARCHY_ACCEPTANCE_ALLOW_HOST=1 on a desktop you can lose" >&2
+  exit 1
+fi
+
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 ARTIFACTS="${OMARCHY_ACCEPTANCE_DIR:-/tmp/omarchy-acceptance}"
 
@@ -71,6 +78,11 @@ window_present() {
 
 window_absent() {
   ! window_present "$1"
+}
+
+# Typing goes to the focused window, so wait for this before sending keys.
+window_focused() {
+  hyprctl -j activewindow | jq -e --arg class "$1" '(.class // "") | test($class)'
 }
 
 layer_present() {

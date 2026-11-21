@@ -1,6 +1,8 @@
 #!/bin/bash
 
 source "$(dirname "$0")/base-test.sh"
+# This host is not a VM; the acceptance helpers refuse it without the override.
+export OMARCHY_ACCEPTANCE_ALLOW_HOST=1
 source "$ROOT/test/acceptance.d/base-test.sh"
 
 monitor_json='[
@@ -28,6 +30,8 @@ hyprctl() {
     printf '%s\n' "$monitor_json"
   elif [[ $2 == "layers" ]]; then
     printf '%s\n' "$layer_json"
+  elif [[ $2 == "activewindow" ]]; then
+    printf '%s\n' "$active_json"
   else
     return 1
   fi
@@ -51,3 +55,46 @@ assert_layer_on_screen "visible-negative-offset" "visible layer is found on a ne
 assert_layer_off_screen "parked-negative-offset" "left-parked layer stays off a negatively offset monitor"
 assert_layer_on_screen "visible-rotated" "visible layer uses the transformed monitor height"
 assert_layer_off_screen "parked-rotated" "parked layer uses the transformed monitor width"
+
+active_json='{"class":"org.omarchy.ime-test"}'
+window_focused '^org\.omarchy\.ime-test$' >/dev/null && pass "window_focused matches the focused window's class" || fail "window_focused matches the focused window's class"
+active_json='{"class":"signal"}'
+! window_focused '^org\.omarchy\.ime-test$' >/dev/null && pass "window_focused rejects another focused window" || fail "window_focused rejects another focused window"
+active_json='{}'
+! window_focused '^org\.omarchy\.ime-test$' >/dev/null && pass "window_focused rejects no focused window" || fail "window_focused rejects no focused window"
+
+# The host guard: stub systemd-detect-virt so the answer does not depend on
+# where this runs, and source or run in a child so its exit cannot end this test.
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$tmp/bin" "$tmp/runtime"
+printf '#!/bin/bash\nexit "$VIRT_STATUS"\n' > "$tmp/bin/systemd-detect-virt"
+printf '#!/bin/bash\nexit 1\n' > "$tmp/bin/hyprctl"
+chmod +x "$tmp/bin/systemd-detect-virt" "$tmp/bin/hyprctl"
+
+source_helpers() {
+  env -u OMARCHY_ACCEPTANCE_ALLOW_HOST PATH="$tmp/bin:$PATH" OMARCHY_ACCEPTANCE_DIR="$tmp/artifacts" "$@" \
+    bash -c 'source "$1" && echo sourced' _ "$ROOT/test/acceptance.d/base-test.sh" 2>&1
+}
+
+output=$(source_helpers VIRT_STATUS=1) && fail "acceptance helpers refuse a host that is not a VM" "$output"
+[[ $output == *"refusing to run outside a virtual machine"*"OMARCHY_ACCEPTANCE_ALLOW_HOST=1"* ]] || fail "acceptance helpers refuse a host that is not a VM" "$output"
+pass "acceptance helpers refuse a host that is not a VM"
+
+output=$(source_helpers VIRT_STATUS=1 OMARCHY_ACCEPTANCE_ALLOW_HOST=1) || fail "acceptance helpers load on a host with the override" "$output"
+[[ $output == "sourced" ]] || fail "acceptance helpers load on a host with the override" "$output"
+pass "acceptance helpers load on a host with the override"
+
+output=$(source_helpers VIRT_STATUS=0) || fail "acceptance helpers load in a VM" "$output"
+[[ $output == "sourced" ]] || fail "acceptance helpers load in a VM" "$output"
+pass "acceptance helpers load in a VM"
+
+# The runner must refuse before it looks for a session. Should the guard fail,
+# the empty runtime dir, zero boot timeout and failing hyprctl stop it at
+# "session never came up", so no acceptance file can reach this desktop.
+output=$(env -u OMARCHY_ACCEPTANCE_ALLOW_HOST -u HYPRLAND_INSTANCE_SIGNATURE -u WAYLAND_DISPLAY \
+  PATH="$tmp/bin:$PATH" VIRT_STATUS=1 OMARCHY_PATH="$tmp" OMARCHY_ACCEPTANCE_DIR="$tmp/artifacts" \
+  XDG_RUNTIME_DIR="$tmp/runtime" DISPLAY=:0 LANG=C.UTF-8 OMARCHY_ACCEPTANCE_BOOT_TIMEOUT=0 \
+  bash "$ROOT/test/acceptance" 2>&1) && fail "acceptance runner refuses a host that is not a VM" "$output"
+[[ $output == *"refusing to run outside a virtual machine"*"OMARCHY_ACCEPTANCE_ALLOW_HOST=1"* ]] || fail "acceptance runner refuses a host that is not a VM" "$output"
+pass "acceptance runner refuses a host that is not a VM"
