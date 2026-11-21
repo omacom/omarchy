@@ -6,6 +6,41 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
 const nightlight = requireFromRoot('shell/plugins/services/nightlight/NightlightModel.js')
+const fs = require('fs')
+const vm = require('vm')
+const service = fs.readFileSync(process.env.ROOT + '/shell/plugins/services/nightlight/Service.qml', 'utf8')
+const handler = service.match(/id: applyProcess\s+onExited: function\(([^)]*)\) \{([\s\S]*?)\n    \}/)
+function complete(code, status, pending = false) {
+  const calls = []
+  const root = { hasPendingTemperature: pending, pendingTemperature: 6500,
+    refresh() { calls.push('refresh') }, runApply(temp) { calls.push(temp) } }
+  vm.runInNewContext('(function(' + handler[1] + ') {' + handler[2] + '})', { root, Qt: { callLater(fn) { fn() } } })(code, status)
+  return JSON.stringify(calls)
+}
+assertEqual(complete(0, 0), '[]', 'successful apply avoids a redundant status process')
+assertEqual(complete(1, 0), '["refresh"]', 'failed apply reconciles daemon state')
+assertEqual(complete(0, 1), '["refresh"]', 'crashed apply reconciles daemon state')
+assertEqual(complete(1, 0, true), '[6500]', 'queued temperature runs before failure reconciliation')
+assertEqual(complete(0, 0, true), '[6500]', 'queued temperature runs after success')
+
+
+const streamHandler = service.match(/id: statusProbe[\s\S]*?onStreamFinished: \{([\s\S]*?)\n      \}/)[1]
+function probeResult(probeRevision, stateRevision) {
+  const root = { probeRevision, stateRevision, temperature: 4000, stateLoaded: true }
+  vm.runInNewContext('(function() {' + streamHandler + '})()', { root, text: '6500', NightlightModel: nightlight })
+  return root.temperature
+}
+assertEqual(probeResult(0, 1), 4000, 'probe predating an apply cannot overwrite its requested state')
+assertEqual(probeResult(1, 1), 6500, 'current probe still reconciles external state')
+const refreshHandler = service.match(/function refresh\(\) \{([\s\S]*?)\n  \}/)[1]
+const probeTestState = { refreshPending: false, stateRevision: 2, probeRevision: 1 }
+const statusProbe = { running: false }, applyProcess = { running: true }
+vm.runInNewContext('(function() {' + refreshHandler + '})()', { root: probeTestState, statusProbe, applyProcess })
+assert(probeTestState.refreshPending && !statusProbe.running, 'refresh during an apply waits for completion')
+applyProcess.running = false
+vm.runInNewContext('(function() {' + refreshHandler + '})()', { root: probeTestState, statusProbe, applyProcess })
+assert(!probeTestState.refreshPending && statusProbe.running && probeTestState.probeRevision === 2, 'deferred refresh captures the latest revision')
+
 
 assertEqual(nightlight.temperatureFromOutput('4000\n'), 4000, 'nightlight parses probe temperature')
 assertEqual(nightlight.temperatureFromOutput("Couldn't connect to hyprsunset"), null, 'nightlight treats unreachable hyprsunset as unknown')
