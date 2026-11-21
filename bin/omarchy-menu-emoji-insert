@@ -14,7 +14,11 @@ printf '%s' "$emoji" | wl-copy --type text/plain --sensitive --foreground &
 copy_pid=$!
 
 sleep 0.15
-wtype -M shift -k Insert -m shift 2>/dev/null || true
+# Paste the way omarchy-clipboard-paste-text --universal does: Hyprland's
+# universal paste (Ctrl+V, Ctrl+Shift+V in terminals). wtype's synthetic
+# Shift+Insert reaches Chromium-based browsers as Shift+Esc, which opens
+# Brave's Task Manager instead of pasting (#19315).
+hyprctl dispatch 'o.universal_paste' >/dev/null 2>&1 || true
 sleep 0.2
 
 kill "$copy_pid" 2>/dev/null || true
