@@ -47,6 +47,13 @@ Item {
   property string pendingDeleteTheme: ""
   property string deleteSelectionPath: ""
   property bool deleteConfirmOpen: false
+  // Background auto-rotation, configured through omarchy-theme-bg-rotate and
+  // omarchy-theme-bg-interval. Read when the background picker opens and after
+  // each change; the controls show only when picking the current theme's
+  // backgrounds, never while browsing themes.
+  property bool rotationOn: false
+  property int rotationInterval: 30
+  property bool rotationVisible: !themeMode
   // Bound to the central [image-picker] section in shell.toml via Commons.Color.qml.
   // `dimColor` tints unselected slices and text outlines against the desktop
   // behind the picker; it intentionally tracks the foundational background,
@@ -61,7 +68,7 @@ Item {
   property int sliceHeight: 432
   property int sliceSpacing: -30
   property int skewOffset: 28
-  property int bottomChromeHeight: showLabels ? (filterable ? 104 : 74) : (filterable ? 60 : 30)
+  property int bottomChromeHeight: (showLabels ? (filterable ? 104 : 74) : (filterable ? 60 : 30)) + (rotationVisible ? 46 : 0)
   // Render only what fits on this display, plus one prefetch slice per side.
   readonly property int previewRadius: Math.max(1, Math.min(16, Math.ceil((panel.width - expandedWidth) / (2 * (sliceWidth + sliceSpacing))) + 1))
   onPreviewRadiusChanged: updateVisibleItems()
@@ -584,6 +591,7 @@ Item {
     var doneF = String(args.doneFile || "")
     var labels = args.showLabels === true || args.showLabels === "true"
     var filter = args.filterable === true || args.filterable === "true"
+    refreshRotation()
     openSelector(dirs, rows, sel, selFile, doneF, labels, filter)
   }
 
@@ -626,6 +634,51 @@ Item {
   Process {
     id: releaseProc
     onExited: root.releaseNextDoneFile()
+  }
+
+  // Background rotation is read and changed through the theme bg commands
+  // rather than duplicated file paths, so the picker and the CLI agree on one
+  // source of truth.
+  function refreshRotation() {
+    if (!rotationStatusProc.running) rotationStatusProc.running = true
+    if (!rotationIntervalProc.running) rotationIntervalProc.running = true
+  }
+
+  function toggleRotation() {
+    if (!rotationToggleProc.running) rotationToggleProc.running = true
+  }
+
+  function setRotationInterval(minutes) {
+    rotationSetIntervalProc.command = ["omarchy-theme-bg-interval", String(minutes)]
+    if (!rotationSetIntervalProc.running) rotationSetIntervalProc.running = true
+  }
+
+  Process {
+    id: rotationStatusProc
+    command: ["omarchy-theme-bg-rotate", "status"]
+    onExited: function(exitCode) { root.rotationOn = exitCode === 0 }
+  }
+
+  Process {
+    id: rotationIntervalProc
+    command: ["omarchy-theme-bg-interval", "status"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var minutes = parseInt(String(text || "").trim(), 10)
+        if (minutes > 0) root.rotationInterval = minutes
+      }
+    }
+  }
+
+  Process {
+    id: rotationToggleProc
+    command: ["omarchy-theme-bg-rotate", "toggle"]
+    onExited: root.refreshRotation()
+  }
+
+  Process {
+    id: rotationSetIntervalProc
+    onExited: root.refreshRotation()
   }
 
   OverlayWindow {
@@ -884,6 +937,32 @@ Item {
           font.pixelSize: Style.font.title
           horizontalAlignment: Text.AlignHCenter
           elide: Text.ElideRight
+        }
+
+        Row {
+          visible: root.rotationVisible
+          anchors.bottom: parent.bottom
+          anchors.bottomMargin: Style.space(10)
+          anchors.horizontalCenter: parent.horizontalCenter
+          spacing: Style.space(8)
+
+          Button {
+            iconText: "⟳"
+            text: Commons.I18n.t("imagePicker.autoRotate")
+            selected: root.rotationOn
+            onClicked: root.toggleRotation()
+          }
+
+          Repeater {
+            model: [5, 15, 30, 60, 360]
+            delegate: Button {
+              required property int modelData
+              visible: root.rotationOn
+              text: modelData >= 60 ? (modelData / 60) + "h" : modelData + "m"
+              selected: root.rotationInterval === modelData
+              onClicked: root.setRotationInterval(modelData)
+            }
+          }
         }
     }
 

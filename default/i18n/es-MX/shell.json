@@ -327,6 +327,7 @@
   "elsewhen.yesterday": "Ayer",
   "emojis.noMatches": "Sin resultados para “%1”",
   "emojis.search": "Buscar emojis…",
+  "imagePicker.autoRotate": "Rotación automática",
   "imagePicker.deleteTheme": "¿Quieres borrar %1?",
   "localModels.addModel": "Agregar modelo",
   "localModels.allInstalled": "Todos los modelos elegibles están instalados",

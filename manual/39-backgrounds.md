@@ -10,6 +10,8 @@ Themes can include a short intro for a still background. For `backgrounds/road.w
 
 Choosing _Appearance > Animations Off_ also turns off background intros. Omarchy does this by default in a virtual machine. The `omarchy theme bg intro toggle` command can toggle intros separately. Refreshing a theme does not play an intro.
 
+A theme's backgrounds can also rotate on their own. `omarchy theme bg rotate on` turns that on, `omarchy theme bg rotate off` turns it off, and `omarchy theme bg interval 30` sets how many minutes to wait between changes, from 1 to 1440. While rotation is on, the background advances to the next one in the theme every interval. The same controls sit at the bottom of the background picker.
+
 A still can also have a loop, a quiet version of the same picture that keeps moving, at `backgrounds/loops/road.mp4`. It plays in the still's place, after its intro if it has one, and stops when animations are turned off. On battery, the still shows instead, and the loop comes back once you plug in. Loops stay out of the background picker.
 
 You can find a huge collection of cool curated backgrounds in [dharmx/walls](https://github.com/dharmx/walls).

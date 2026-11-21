@@ -1,0 +1,10 @@
+[Unit]
+Description=Advance the Omarchy background on a rotation schedule
+# The advance reaches the running shell, so wait until UWSM imports the session
+# environment (OMARCHY_PATH and WAYLAND_DISPLAY) before the first tick.
+After=wayland-session-waitenv.service
+ConditionEnvironment=OMARCHY_PATH
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-theme-bg-rotate --tick
