@@ -1,7 +1,58 @@
 #!/bin/bash
 
 # omarchy:summary=Restart system time synchronization
+# omarchy:args=[--if-behind]
 # omarchy:requires-sudo=true
 
-echo "Updating time..."
-sudo systemctl restart systemd-timesyncd
+set -euo pipefail
+
+# With --if-behind, omarchy update makes sure the clock is not plainly wrong
+# before anything checks a signature or a certificate. Apple Silicon reads its
+# RTC as 1970, and a board without a clock battery or one whose battery died
+# starts in the past too, so until the first NTP sync gpg rejects every
+# signing key as "created in the future" and TLS rejects every certificate as
+# not yet valid. A clock older than the keyrings this system installed is
+# behind for certain. Any other clock is left alone, so a network that blocks
+# NTP costs nothing.
+keyring_dir=/usr/share/pacman/keyrings
+
+clock_behind() {
+  [[ -d $keyring_dir ]] && (($(date +%s) < $(stat -c %Y "$keyring_dir")))
+}
+
+clock_synced() {
+  [[ $(timedatectl show --property=NTPSynchronized --value 2>/dev/null) == "yes" ]]
+}
+
+clock_wrong() {
+  ! clock_synced && clock_behind
+}
+
+wait_for_clock() {
+  local attempt
+
+  echo "The system clock reads $(date). Waiting for it to sync..."
+  # Restart only timesyncd: if another NTP client is running, chrony for one,
+  # starting timesyncd would stop it.
+  if systemctl is-active --quiet systemd-timesyncd; then
+    sudo systemctl restart systemd-timesyncd || true
+  fi
+  for ((attempt = 0; attempt < 30; attempt++)); do
+    sleep 1
+    if ! clock_wrong; then
+      echo "Clock synced: $(date)"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if [[ ${1:-} == "--if-behind" ]]; then
+  if clock_wrong && ! wait_for_clock; then
+    echo -e "\e[31mThe system clock still reads $(date), which is earlier than the installed signing keys, so package signatures can't be checked.\nConnect to the network and retry the update once the clock is right, or set it with timedatectl set-time.\e[0m" >&2
+    exit 1
+  fi
+else
+  echo "Updating time..."
+  sudo systemctl restart systemd-timesyncd
+fi
