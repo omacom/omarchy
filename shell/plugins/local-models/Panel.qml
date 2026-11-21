@@ -385,8 +385,9 @@ Panel {
     if (changed || Object.keys(bars).length !== Object.keys(updateBars).length) updateBars = bars
   }
 
+  // Only this machine's own: a tailnet model of the same recipe isn't the one updating.
   function updateBar(model) {
-    return model ? (updateBars[model.recipe] || null) : null
+    return model && !model.host ? (updateBars[model.recipe] || null) : null
   }
 
   onLoadNowMsChanged: tickUpdates()
@@ -704,16 +705,30 @@ Panel {
     return actions.indexOf("toggle") >= 0 ? "modelToggle" : "modelHeader"
   }
 
+  // A cabled Spark's offer is pinned first, so it doesn't move, and no line
+  // moves above it.
+  function pinnedLine(index) {
+    return !!lines[index] && lines[index].id === "local:link"
+  }
+
+  // The cursor follows a moved line to where it landed, which a pinned line
+  // can make other than where it was sent.
+  function pointAtLine(id) {
+    for (var i = 0; i < lines.length; i++)
+      if (lines[i].id === id) return pointAt(lineStop(i), i)
+  }
+
   // Ctrl+Up/Down carries the line the cursor is in up or down the page, and
   // the cursor along with it.
   function reorderLine(dy) {
     if (dragIndex >= 0) return
     var from = lineIndexOfKey()
-    if (from < 0) return
-    var to = clamp(from + dy, 0, lines.length - 1)
+    if (from < 0 || pinnedLine(from)) return
+    var to = clamp(from + dy, pinnedLine(0) ? 1 : 0, lines.length - 1)
     if (to === from) return
-    engine.moveLine(lines[from].id, to)
-    Qt.callLater(function() { pointAt(lineStop(to), to) })
+    var id = lines[from].id
+    engine.moveLine(id, to)
+    Qt.callLater(function() { pointAtLine(id) })
   }
 
   // Dragging a line by its mark, as the agents panel's lines move. The layout
@@ -728,7 +743,7 @@ Panel {
   property bool settling: false
 
   function beginLineDrag(index, y) {
-    if (dragIndex >= 0 || !modelSections) return
+    if (dragIndex >= 0 || !modelSections || pinnedLine(index)) return
     var pitches = []
     for (var i = 0; i < modelSections.count; i++)
       pitches.push(modelSections.itemAt(i).height + column.spacing)
@@ -761,13 +776,13 @@ Panel {
 
   function finishLineDrag() {
     var id = dragLineId
-    var to = dragTarget
+    var to = pinnedLine(0) ? Math.max(1, dragTarget) : dragTarget
     var moved = dragIndex >= 0 && to !== dragIndex
     // Disable slot motion before replacing the model: it already matches the preview.
     dragIndex = -1
     if (moved) engine.moveLine(id, to)
     resetLineDrag()
-    if (moved) Qt.callLater(function() { pointAt(lineStop(to), to) })
+    if (moved) Qt.callLater(function() { pointAtLine(id) })
   }
 
   function settleLineDrag(cancel) {
