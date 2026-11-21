@@ -9,6 +9,7 @@ require_command jq
 test_tmp=$(mktemp -d)
 watch_pid=""
 events_fd=""
+relight_pid=""
 
 # The watcher forks delayed clamshell retries and the recovery loop. Orphaning
 # those would leave them running against a deleted test tree.
@@ -38,8 +39,28 @@ stop_watcher() {
   return 0
 }
 
+# A relight run on its own waits on a monitor that will not wake, so a failed
+# assertion would otherwise leave it running against a deleted test tree.
+stop_relight() {
+  local child descendants
+
+  if [[ -n $relight_pid ]]; then
+    descendants=$(pgrep -P "$relight_pid" 2>/dev/null || true)
+    for child in $descendants; do
+      descendants+=" $(pgrep -P "$child" 2>/dev/null || true)"
+    done
+
+    kill -KILL "$relight_pid" $descendants 2>/dev/null || true
+    wait "$relight_pid" 2>/dev/null || true
+    relight_pid=""
+  fi
+
+  return 0
+}
+
 cleanup() {
   stop_watcher
+  stop_relight
   rm -rf "$test_tmp"
 }
 trap cleanup EXIT
@@ -75,6 +96,34 @@ elif [[ ${1:-} == "reload" ]]; then
   printf 'reload\n' >>"$OMARCHY_TEST_RELOAD_LOG"
   [[ -f $OMARCHY_TEST_RECOVERED_MONITORS ]] &&
     cp "$OMARCHY_TEST_RECOVERED_MONITORS" "$OMARCHY_TEST_MONITORS_FILE"
+elif [[ ${1:-} == "eval" ]]; then
+  printf '%s\n' "$2" >>"$OMARCHY_TEST_EVAL_LOG"
+  # The kernel accepts a mode the sleeping monitor offers, the link trains, and
+  # the monitor wakes announcing its real modes.
+  if [[ -n ${OMARCHY_TEST_WAKES_CONNECTOR:-} ]]; then
+    printf 'enabled\n' >"$OMARCHY_TEST_WAKES_CONNECTOR/enabled"
+    printf '5120x1440\n1920x1080\n' >"$OMARCHY_TEST_WAKES_CONNECTOR/modes"
+  fi
+  if [[ -n ${OMARCHY_TEST_BLANKS_MONITOR:-} ]]; then
+    jq --arg name "$OMARCHY_TEST_BLANKS_MONITOR" \
+      'map(if .name == $name then .dpmsStatus = false else . end)' \
+      "$OMARCHY_TEST_MONITORS_FILE" >"$OMARCHY_TEST_MONITORS_FILE.next"
+    mv "$OMARCHY_TEST_MONITORS_FILE.next" "$OMARCHY_TEST_MONITORS_FILE"
+  fi
+  # A waking monitor usually leaves the bus a moment after it is first driven.
+  # Most come back within seconds. One was seen never to.
+  if [[ -n ${OMARCHY_TEST_DROPS_CONNECTOR:-} ]]; then
+    (
+      sleep 2
+      printf 'disconnected\n' >"$OMARCHY_TEST_DROPS_CONNECTOR/status"
+      printf 'disabled\n' >"$OMARCHY_TEST_DROPS_CONNECTOR/enabled"
+      if [[ ${OMARCHY_TEST_DROP_RETURNS:-0} == 1 ]]; then
+        sleep 4
+        printf 'connected\n' >"$OMARCHY_TEST_DROPS_CONNECTOR/status"
+        printf 'enabled\n' >"$OMARCHY_TEST_DROPS_CONNECTOR/enabled"
+      fi
+    ) >/dev/null 2>&1 &
+  fi
 fi
 SH
 
@@ -104,6 +153,10 @@ exit 0
 SH
 
 cp "$fake_bin/omarchy-hyprland-monitor-clamshell" "$fake_bin/omarchy-system-lid-inhibit"
+
+# No external monitor plugged in, so the unlit poll stays out of the modeless
+# scenarios. The unlit scenarios at the end swap in the real command.
+cp "$fake_bin/omarchy-hw-laptop" "$fake_bin/omarchy-hw-external-monitors"
 
 chmod +x "$fake_bin"/*
 ln -s "$ROOT/bin/omarchy-hyprland-monitor-modeless" "$fake_bin/omarchy-hyprland-monitor-modeless"
@@ -289,3 +342,217 @@ sleep 0.6
 pass "a healthy machine is never reloaded"
 
 stop_watcher
+
+# A monitor that slept through a blank offers fewer modes than Hyprland
+# remembers, so the kernel refuses the wake modeset: connected, wanted on, and
+# not driven.
+drm_path="$test_tmp/drm"
+eval_log="$test_tmp/eval.log"
+unlit_lock="$test_tmp/omarchy-monitor-unlit.lock"
+lit_monitor='[{"name":"DP-1","width":5120,"height":1440,"disabled":false,"dpmsStatus":true,"availableModes":["5120x1440@59.98Hz","1920x1080@239.76Hz","1920x1080@60.00Hz","1280x720@59.94Hz"]}]'
+
+for command in omarchy-hyprland-monitor-unlit omarchy-hyprland-monitor-relight omarchy-hw-external-monitors omarchy-restart-hyprctl; do
+  ln -sf "$ROOT/bin/$command" "$fake_bin/$command"
+done
+
+write_connector() {
+  local connector="$drm_path/card1-$1"
+
+  mkdir -p "$connector"
+  printf '%s\n' "$2" >"$connector/status"
+  printf '%s\n' "$3" >"$connector/enabled"
+  printf '2560x1440\n1920x1080\n1280x720\n' >"$connector/modes"
+}
+
+UNLIT=0
+LIT=1
+
+assert_unlit() {
+  local expected="$1" actual=0
+
+  printf '%s' "$2" >"$monitors_file"
+  PATH="$fake_bin:$PATH" OMARCHY_DRM_PATH="$drm_path" OMARCHY_TEST_MONITORS_FILE="$monitors_file" \
+  OMARCHY_TEST_HYPRCTL_FAIL_FLAG="$hyprctl_fail" \
+    "$ROOT/bin/omarchy-hyprland-monitor-unlit" >"$test_tmp/unlit.out" || actual=$?
+
+  (( actual == expected )) || fail "$3" "expected exit $expected, got $actual"
+  pass "$3"
+}
+
+write_connector DP-1 connected disabled
+assert_unlit $UNLIT "$lit_monitor" "a connected monitor Hyprland wants on but the kernel is not driving is unlit"
+[[ $(<"$test_tmp/unlit.out") == "$drm_path/card1-DP-1" ]] ||
+  fail "the unlit connector is named" "$(<"$test_tmp/unlit.out")"
+pass "the unlit connector is named"
+
+# A mode the kernel still lists was refused for another reason, such as a
+# monitor switched off at its own button. Modesetting into that again is not a
+# recovery, and froze an NVIDIA session when it was last tried.
+assert_unlit $LIT '[{"name":"DP-1","width":2560,"height":1440,"disabled":false,"dpmsStatus":true}]' \
+  "a dark monitor whose mode the kernel still offers is left alone"
+
+# That one is the modeless recovery's to handle.
+assert_unlit $LIT '[{"name":"DP-1","width":0,"height":0,"disabled":false,"dpmsStatus":true}]' \
+  "a monitor with no mode at all is not reported unlit"
+
+# Every blank looks like this from the kernel's side, all night long.
+assert_unlit $LIT '[{"name":"DP-1","width":5120,"height":1440,"disabled":false,"dpmsStatus":false}]' \
+  "a monitor blanked by DPMS is dark on purpose"
+
+assert_unlit $LIT '[{"name":"DP-1","width":5120,"height":1440,"disabled":true,"dpmsStatus":true}]' \
+  "a monitor turned off in the config is dark on purpose"
+
+touch "$hyprctl_fail"
+assert_unlit $UNDETERMINED "$lit_monitor" "an unreachable compositor cannot say whether a dark monitor is wanted"
+
+# The poll runs this every two seconds, so a healthy desk must cost no hyprctl.
+write_connector DP-1 connected enabled
+assert_unlit $LIT "$lit_monitor" "a driven monitor is settled without asking the compositor"
+rm -f "$hyprctl_fail"
+
+# The internal panel is dark with the lid shut and comes back with the hardware.
+rm -rf "$drm_path"
+write_connector eDP-1 connected disabled
+assert_unlit $LIT '[{"name":"eDP-1","width":2880,"height":1800,"disabled":false,"dpmsStatus":true}]' \
+  "an internal panel is never reported unlit"
+
+start_unlit_watcher() {
+  : >"$eval_log"
+
+  export OMARCHY_DRM_PATH="$drm_path" OMARCHY_TEST_EVAL_LOG="$eval_log"
+  start_watcher
+}
+
+# The modeset the kernel accepts wakes the monitor, and only then is the
+# configured mode worth asking for again.
+rm -rf "$drm_path"
+write_connector DP-1 connected disabled
+printf '%s' "$lit_monitor" >"$monitors_file"
+rm -f "$recovered"
+export OMARCHY_TEST_WAKES_CONNECTOR="$drm_path/card1-DP-1"
+start_unlit_watcher
+
+await_reloads 1 || fail "an unlit monitor is woken and its config restored" "$(<"$eval_log")"
+[[ $(<"$eval_log") == 'hl.monitor({ output = "DP-1", mode = "1920x1080@60", position = "auto", scale = 1 })' ]] ||
+  fail "an unlit monitor is woken once, at the largest size it offers asleep" "$(<"$eval_log")"
+flock -w 5 "$unlit_lock" -c true || fail "the relight finishes once the monitor is driven"
+sleep 0.6
+(( $(reloads) == 1 )) || fail "a relit monitor is left alone" "$(<"$reload_log")"
+pass "an unlit monitor is woken at a size it offers asleep, then its config is restored"
+
+stop_watcher
+unset OMARCHY_TEST_WAKES_CONNECTOR
+
+# Waking a monitor the idle timer just blanked would undo every blank.
+write_connector DP-1 connected disabled
+printf '%s' '[{"name":"DP-1","width":5120,"height":1440,"disabled":false,"dpmsStatus":false}]' >"$monitors_file"
+start_unlit_watcher
+
+sleep 0.6
+[[ ! -s $eval_log && ! -s $reload_log ]] || fail "a blanked monitor is left dark" "$(<"$eval_log")"
+pass "a blanked monitor is left dark"
+
+stop_watcher
+
+# The small mode is a runtime rule that outlives a failed attempt. Left behind,
+# it would bring the monitor up small the next time it was plugged in.
+write_connector DP-1 connected disabled
+printf '%s' "$lit_monitor" >"$monitors_file"
+start_unlit_watcher
+
+await_reloads 1 || fail "a monitor that will not wake still gets its config restored" "$(<"$eval_log")"
+[[ -s $eval_log ]] || fail "a monitor that will not wake was tried"
+pass "a monitor that will not wake still gets its config restored"
+
+# Let the relight see the monitor driven and finish, so it does not outlive the test.
+write_connector DP-1 connected enabled
+flock -w 10 "$unlit_lock" -c true || fail "the relight stops once the monitor is driven"
+
+stop_watcher
+
+# The relight on its own, so what it reports can be read.
+run_relight() {
+  rm -rf "$drm_path"
+  write_connector DP-1 connected disabled
+  if [[ -n ${1:-} ]]; then
+    write_connector "$1" connected disabled
+  fi
+  printf '%s' "$lit_monitor" >"$monitors_file"
+  : >"$reload_log"
+  : >"$eval_log"
+
+  PATH="$fake_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test OMARCHY_DRM_PATH="$drm_path" OMARCHY_TEST_EVAL_LOG="$eval_log" \
+  OMARCHY_TEST_MONITORS_FILE="$monitors_file" OMARCHY_TEST_RELOAD_LOG="$reload_log" \
+  OMARCHY_TEST_RECOVERED_MONITORS="$recovered" OMARCHY_TEST_HYPRCTL_FAIL_FLAG="$hyprctl_fail" \
+    "$ROOT/bin/omarchy-hyprland-monitor-relight" >"$test_tmp/relight.out" 2>&1
+}
+
+export OMARCHY_TEST_WAKES_CONNECTOR="$drm_path/card1-DP-1" OMARCHY_TEST_DROPS_CONNECTOR="$drm_path/card1-DP-1"
+
+# The usual wake: driven for a moment, off the bus, then back for good.
+OMARCHY_TEST_DROP_RETURNS=1 run_relight
+grep -q "DP-1 woke, restored its configured mode" "$test_tmp/relight.out" ||
+  fail "a monitor that drops off the bus and returns is reported woken" "$(<"$test_tmp/relight.out")"
+pass "a monitor that drops off the bus and returns is reported woken"
+
+# The same wake, except the monitor never comes back. Being driven for that
+# first moment is not a wake, and saying so would hide a monitor that needs
+# its cable pulled.
+run_relight
+! grep -q "woke" "$test_tmp/relight.out" ||
+  fail "a monitor that drops off the bus for good is not reported woken" "$(<"$test_tmp/relight.out")"
+grep -q "DP-1 dropped off the bus while waking and did not come back" "$test_tmp/relight.out" ||
+  fail "a monitor that drops off the bus for good is reported lost" "$(<"$test_tmp/relight.out")"
+(( $(reloads) == 1 )) || fail "a lost monitor still gets its config restored, once" "$(<"$reload_log")"
+pass "a monitor that drops off the bus for good is reported lost, with its config restored"
+
+unset OMARCHY_TEST_WAKES_CONNECTOR OMARCHY_TEST_DROPS_CONNECTOR
+
+# Hyprland can only ask for a mode it remembers, so a size the kernel lists but
+# Hyprland never had would be refused three times over while a smaller one both
+# know goes untried.
+printf '%s' '[{"name":"DP-1","width":5120,"height":1440,"disabled":false,"dpmsStatus":true,"availableModes":["5120x1440@59.98Hz","1280x720@120.00Hz","1280x720@59.94Hz"]}]' >"$test_tmp/narrow.json"
+lit_monitor=$(<"$test_tmp/narrow.json")
+export OMARCHY_TEST_WAKES_CONNECTOR="$drm_path/card1-DP-1"
+run_relight
+[[ $(<"$eval_log") == 'hl.monitor({ output = "DP-1", mode = "1280x720@59.94", position = "auto", scale = 1 })' ]] ||
+  fail "the wake mode is one both the kernel and Hyprland have, at the rate nearest 60 Hz" "$(<"$eval_log")"
+pass "the wake mode is one both the kernel and Hyprland have, at the rate nearest 60 Hz"
+unset OMARCHY_TEST_WAKES_CONNECTOR
+
+two_monitors='[{"name":"DP-1","width":5120,"height":1440,"disabled":false,"dpmsStatus":true,"availableModes":["5120x1440@59.98Hz","1920x1080@60.00Hz"]},
+{"name":"DP-2","width":5120,"height":1440,"disabled":false,"dpmsStatus":true,"availableModes":["5120x1440@59.98Hz","1920x1080@60.00Hz"]}]'
+lit_monitor=$two_monitors
+OMARCHY_TEST_WAKES_CONNECTOR="$drm_path/card1-DP-1" OMARCHY_TEST_BLANKS_MONITOR=DP-2 run_relight DP-2
+grep -q 'output = "DP-1"' "$eval_log" && ! grep -q 'output = "DP-2"' "$eval_log" ||
+  fail "a monitor blanked while another recovers is left alone" "$(<"$eval_log")"
+pass "a monitor blanked while another recovers is left alone"
+
+# One monitor that will not wake must not keep a second from being tried. The
+# relight stays running for the first, and the watcher starts no other while it
+# does, so the second has only this one to rely on.
+run_relight &
+relight_pid=$!
+
+evals_for() {
+  grep -c "output = \"$1\"" "$eval_log" || true
+}
+
+for (( waited = 0; waited < 400 && $(evals_for DP-1) < 3; waited++ )); do
+  sleep 0.5
+done
+(( $(evals_for DP-1) == 3 )) || fail "a monitor that will not wake is tried three times" "$(<"$eval_log")"
+
+write_connector DP-2 connected disabled
+for (( waited = 0; waited < 400 && $(evals_for DP-2) < 1; waited++ )); do
+  sleep 0.5
+done
+(( $(evals_for DP-2) >= 1 )) || fail "a second monitor is tried while the first stays dark" "$(<"$eval_log")"
+(( $(evals_for DP-1) == 3 )) || fail "the monitor already given up on is not tried again" "$(<"$eval_log")"
+pass "a second monitor is tried while one that will not wake stays dark"
+
+# Let the relight see both driven and finish, so it does not outlive the test.
+write_connector DP-1 connected enabled
+write_connector DP-2 connected enabled
+wait "$relight_pid" || true
+relight_pid=""
