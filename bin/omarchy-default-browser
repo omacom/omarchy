@@ -36,11 +36,13 @@ zen) browser="zen"; command="zen-browser"; desktop_id="zen.desktop"; name="Zen";
 *.desktop)
   # Installed browsers Omarchy does not ship are selected by desktop id. The
   # menu offers exactly the ids omarchy-browser-list finds, so anything else
-  # is a usage error rather than a silently broken handler.
+  # is a usage error rather than a silently broken handler. The helper next to
+  # this script is used because menu actions run through `bash -lc`, which
+  # resets OMARCHY_PATH to the installed tree.
   browser=$1
   command=""
   desktop_id=$1
-  name=$("$OMARCHY_PATH/bin/omarchy-browser-list" | awk -F '\t' -v id="$1" '$2 == id { print $1; exit }')
+  name=$("$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/omarchy-browser-list" | awk -F '\t' -v id="$1" '$2 == id { print $1; exit }')
   glyph=
   [[ -n $name ]] || {
     echo "Usage: omarchy-default-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen|<installed desktop id>>" >&2
