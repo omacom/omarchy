@@ -57,3 +57,15 @@ for username in '../escaped' '../../escaped' 'nested/name' 'a..b' 'bad$name' $'b
   [[ ! -d $home/.config/omarchy/plugins && ! -s $TEST_CALLS ]] || fail "invalid username has no clone or shell side effects"
 done
 pass "path and control-character usernames fail before creating files"
+
+for username in omarchy OMARCHY OmaRchy; do
+  home="$case_root/reserved-$username"
+  mkdir -p "$home"
+  : >"$TEST_CALLS"
+  status=0
+  HOME="$home" USER="$username" PATH="$case_root/bin:$PATH" bash "$ROOT/bin/omarchy-plugin-clone" omarchy.fixture >"$case_root/output" 2>&1 || status=$?
+  (( status != 0 )) || fail "reserved username is refused"
+  grep -Fq 'would reuse the built-in omarchy.* namespace' "$case_root/output" || fail "reserved username has an explicit diagnostic"
+  [[ ! -d $home/.config/omarchy/plugins && ! -s $TEST_CALLS ]] || fail "reserved username has no clone or shell side effects"
+done
+pass "the built-in plugin namespace is rejected regardless of username case"

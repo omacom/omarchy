@@ -133,6 +133,7 @@ user_part="${USER:-$(id -un)}"
 # The same characters are accepted by plugin removal after adding the suffix.
 user_pattern='^[A-Za-z0-9_][A-Za-z0-9._-]*[$]?$'
 [[ $user_part =~ $user_pattern && $user_part != *..* ]] || fail "invalid username for plugin id: $user_part"
+[[ ${user_part,,} != "omarchy" ]] || fail "username '$user_part' would reuse the built-in omarchy.* namespace for the plugin id"
 new_id="${user_part}.${source_id#omarchy.}"
 display_name="My $source_name"
 target_dir="$PLUGINS_DIR/$new_id"
