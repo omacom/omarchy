@@ -6,6 +6,9 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("omarchy-launch-shell")
   hl.exec_cmd("omarchy-provision-first-run")
   hl.exec_cmd("omarchy-powerprofiles-init")
+  -- A reboot taken while the keyboard backlight was blanked brings it back at
+  -- the 0 systemd-backlight saved; put back the level from before the blank.
+  hl.exec_cmd("omarchy-brightness-keyboard restore")
   hl.exec_cmd("omarchy-hyprland-software-rendering")
   hl.exec_cmd(o.launch("omarchy-hyprland-monitor-watch"))
   hl.exec_cmd(o.launch("udiskie --automount --no-notify --no-tray"))
