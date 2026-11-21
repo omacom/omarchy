@@ -277,6 +277,21 @@ assertDeepEqual(shellNumbers, JSON.parse(process.env.JQ_NUMBERS), 'shell and CLI
 assertEqual(Numbers.format(13.14, 1, ',', '0'), '13,1', 'formatNumber rounds and uses the decimal separator')
 assertEqual(Numbers.format(13.5, 1, '٫', '۰'), '۱۳٫۵', 'formatNumber writes native digits')
 assertEqual(Object.values(registry).filter((r) => typeof r.decimal !== 'string' || typeof r.zeroDigit !== 'string').length, 0, 'every registry entry says how it writes numbers')
+
+const RegionalFormat = requireFromRoot('shell/Commons/RegionalFormat.js')
+assertEqual(RegionalFormat.sessionLocale('', '', 'en_AU.UTF-8'), 'en-AU', 'the session locale comes from LANG without its encoding')
+assertEqual(RegionalFormat.sessionLocale('', 'en_GB.UTF-8', 'en_US.UTF-8'), 'en-GB', 'a format category wins over LANG')
+assertEqual(RegionalFormat.sessionLocale('C.UTF-8', 'en_GB.UTF-8', 'en_US.UTF-8'), '', 'LC_ALL wins, and C names no region')
+assertEqual(RegionalFormat.pick('en-US', 'en-AU'), 'en-AU', 'a region of the shell language refines the registry locale')
+assertEqual(RegionalFormat.pick('da-DK', 'en-AU'), 'da-DK', 'a region of another language is ignored')
+assertEqual(RegionalFormat.pick('zh-CN', 'zh-TW'), 'zh-CN', 'Chinese regions do not cross scripts')
+assertEqual(RegionalFormat.dayFirst('dddd, MMMM d, yyyy'), false, 'en-US writes the month first')
+assertEqual(RegionalFormat.dayFirst('dddd, d MMMM yyyy'), true, 'en-GB writes the day first')
+assertEqual(RegionalFormat.dayFirst('dddd, dd MMMM yyyy'), true, 'en-ZA writes the day first, whatever its ISO short form')
+const english = JSON.parse(fs.readFileSync(path.join(root, 'default/i18n/en/shell.json'), 'utf8'))
+assertEqual(RegionalFormat.orderDayMonth(english['clock.dayMonthFormat'], true), 'd MMMM', 'the clock date turns day first')
+assertEqual(RegionalFormat.orderDayMonth(english['elsewhen.dateFormat'], true), 'ddd d MMM', 'the elsewhen date turns day first')
+assertEqual(RegionalFormat.orderDayMonth(english['clock.dayMonthFormat'], false), 'MMMM d', 'month-first regions keep the catalog order')
 JS
 
 # --- omarchy-language and omarchy-i18n behavior ---
