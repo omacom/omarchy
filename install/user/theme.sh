@@ -16,5 +16,9 @@ omarchy-theme-set-fcitx5 --activate
 # default icon theme until the first switch.
 omarchy-theme-set-qt
 
+# A see-through GTK app asks the compositor for blur through its gtk.css, which
+# follows the window mode, so a fresh install needs it written once too.
+omarchy-theme-set-glass
+
 mkdir -p ~/.config/btop/themes
 ln -snf "$HOME/.local/state/omarchy/current/theme/btop.theme" ~/.config/btop/themes/current.theme

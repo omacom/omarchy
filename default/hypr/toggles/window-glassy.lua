@@ -4,8 +4,9 @@
 require("default.hypr.glass")()
 
 -- Every window fades as a whole, since most apps draw their backgrounds solid.
--- GTK apps, such as Nautilus, get their blur from the backdrop-filter Glassy
--- adds to the user's gtk.css. Floating workspaces leave their opacity to this.
+-- GTK apps, such as Nautilus, get their blur from the backdrop-filter
+-- see-through windows add to the user's gtk.css. Floating workspaces leave
+-- their opacity to this.
 o.window(".*", { opacity = "0.75 0.75" })
 
 hl.layer_rule({
