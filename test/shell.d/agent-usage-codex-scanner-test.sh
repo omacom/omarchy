@@ -491,15 +491,15 @@ for name, answer in (("a list", [1]), ("a string account", {"account": "pro"})):
   }, {"tier": "", "status": "", "stale": False, "limits": [["Weekly (7-day)", 0.42]]}, record)
 
 # A Business seat with a spend cap and no rate windows reports the cap alone,
-# its share taken from the amounts; a zero cap takes the reported percentage.
+# its share taken from the amounts; a zero allocation has no spend meter.
 new_home()
 record = codex(env={"CODEX_RATE_LIMITS": '{"planType":"business","primary":null,"secondary":null,"individualLimit":{"limit":"6000","used":"1037.07","remainingPercent":83,"resetsAt":1793491200}}'})
 check("Codex reports a Business spend cap with its own reset time",
       [entry["label"] for entry in record["limits"]] == ["Spend limit"] and abs(record["limits"][0]["percent"] - 1037.07 / 6000) < 1e-6
       and record["limits"][0]["resetsAt"] == "2026-11-01T00:00:00+00:00", record)
 record = codex(env={"CODEX_RATE_LIMITS": '{"planType":"business","individualLimit":{"limit":"0","used":"0","remainingPercent":40,"resetsAt":1793491200}}'})
-expect("Codex takes the reported percentage when the spend cap is zero",
-       [entry["percent"] for entry in record["limits"] if entry["label"] == "Spend limit"], [0.6], record)
+expect("Codex hides a spend cap with no allocated credits",
+       [entry["percent"] for entry in record["limits"] if entry["label"] == "Spend limit"], [], record)
 
 # A home nobody is signed in to answers with an error, which reads as a
 # sign-in to restore rather than as missing numbers.
