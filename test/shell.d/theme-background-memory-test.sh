@@ -128,3 +128,13 @@ ln -nsf "$CURRENT_THEME_PATH/backgrounds/first.png" "$CURRENT_BACKGROUND_LINK"
 choose_staged_theme_background
 [[ $CHOSEN_THEME_BACKGROUND == "$CURRENT_THEME_PATH/backgrounds/selected.mp4" ]] || fail "staged same-theme selection still cycles backgrounds"
 pass "staged same-theme selection still cycles backgrounds"
+
+# A filename is compared as a string, never as a glob pattern.
+user_backgrounds="$HOME/.config/omarchy/backgrounds/$THEME_NAME"
+mkdir -p "$user_backgrounds"
+printf 'bracketed\n' >"$user_backgrounds/a [1].png"
+printf 'after\n' >"$user_backgrounds/b.png"
+ln -nsf "$user_backgrounds/a [1].png" "$CURRENT_BACKGROUND_LINK"
+choose_theme_background
+[[ $CHOSEN_THEME_BACKGROUND == "$user_backgrounds/b.png" ]] || fail "same-theme selection cycles past a background named with glob characters"
+pass "same-theme selection cycles past a background named with glob characters"
