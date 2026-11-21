@@ -151,11 +151,13 @@ end
 
 -- The region this machine was installed for (docs/regions.md).
 function o.region()
-  if o.shell_succeeds(shell_quote(paths.omarchy_path .. "/bin/omarchy-region-cn")) then
-    return "cn"
-  else
-    return "global"
+  local command = io.popen(shell_quote(paths.omarchy_path .. "/bin/omarchy-region"))
+  local region = command and command:read("*l")
+  if command then
+    command:close()
   end
+
+  return region or "global"
 end
 
 function o.bind(keys, description, dispatcher, options)

@@ -4,12 +4,7 @@
 # omarchy:args=[--first-install]
 
 # The region's list names the launchers it installs (docs/regions.md).
-if omarchy-region-cn; then
-  region=cn
-else
-  region=global
-fi
-mapfile -t launchers < <(sed -e 's/[[:space:]]*#.*//' -e '/^[[:space:]]*$/d' "$OMARCHY_PATH/default/regions/$region/applications")
+mapfile -t launchers < <(sed -e 's/[[:space:]]*#.*//' -e '/^[[:space:]]*$/d' "$OMARCHY_PATH/default/regions/$(omarchy-region)/applications")
 
 mkdir -p ~/.local/share/applications
 
