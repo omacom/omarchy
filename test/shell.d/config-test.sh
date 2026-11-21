@@ -396,6 +396,44 @@ if HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar set omarchy.bluetooth br
 fi
 pass "bar set rejects multiple JSON values"
 
+# Use the real widget manifests: alwaysShow is boolean, refreshIntervalSec integer.
+bar_set() { HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar set "$@"; }
+ipc_calls="$TMPDIR/home/.local/state/omarchy/shell-ipc-calls"
+for value in true 1 YeS ON false 0 nO Off; do
+  case "$value" in
+    true | 1 | YeS | ON) expected=true ;;
+    *) expected=false ;;
+  esac
+  bar_set omarchy.indicators alwaysShow "$value" >/dev/null
+  [[ $(tail -1 "$ipc_calls") == "shell setBarWidget omarchy.indicators alwaysShow $expected {}" ]] ||
+    fail "bar set encodes $value as a JSON boolean" "$(tail -1 "$ipc_calls")"
+done
+pass "bar set encodes bare boolean values and case-insensitive aliases"
+
+calls_before=$(wc -l <"$ipc_calls")
+if bar_set omarchy.indicators alwaysShow maybe 2>/dev/null; then
+  fail "bar set accepted an invalid boolean"
+fi
+[[ $(wc -l <"$ipc_calls") == "$calls_before" ]] || fail "invalid boolean reached IPC"
+pass "bar set rejects invalid known booleans before IPC"
+
+bar_set omarchy.indicators alwaysShow '"maybe"' --json >/dev/null
+[[ $(tail -1 "$ipc_calls") == 'shell setBarWidget omarchy.indicators alwaysShow "maybe" {}' ]] ||
+  fail "bar set changed explicit JSON encoding for a boolean setting"
+pass "bar set leaves explicit JSON values unchanged"
+
+while read -r id key value; do
+  bar_set "$id" "$key" "$value" >/dev/null
+  [[ $(tail -1 "$ipc_calls") == "shell setBarWidget $id $key \"$value\" {}" ]] ||
+    fail "bar set changed string encoding for $id $key" "$(tail -1 "$ipc_calls")"
+done <<'SETTINGS'
+omarchy.clock format HH:mm
+omarchy.agents refreshIntervalSec 1e3
+omarchy.indicators undeclared true
+local.unknown alwaysShow true
+SETTINGS
+pass "bar set keeps strings, numeric exponents, unknown keys and unknown widgets as strings"
+
 mock_bin="$TMPDIR/mock-bin"
 mkdir -p "$mock_bin"
 
