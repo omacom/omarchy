@@ -3,13 +3,32 @@
 # omarchy:summary=Toggle Omarchy features between enabled and disabled
 # omarchy:args=<flag-name> [toggle|on|off]
 
-if (($# < 1)); then
-  echo "Usage: omarchy-toggle <flag-name> [toggle|on|off]" >&2
-  exit 1
-fi
+usage() {
+  echo "Usage: omarchy-toggle <flag-name> [toggle|on|off]"
+}
+
+case "${1:-}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  "")
+    usage >&2
+    exit 1
+    ;;
+esac
 
 FLAG_NAME="$1"
 ACTION="${2:-toggle}"
+
+# A flag is a file under the toggles dir. Nested names like crash-ignore/<program>
+# are fine, but nothing that reads as an option or leaves the dir.
+if [[ $FLAG_NAME == -* || $FLAG_NAME == /* || $FLAG_NAME == */ || $FLAG_NAME == *//* || /$FLAG_NAME/ == */../* || /$FLAG_NAME/ == */./* ]]; then
+  echo "Not a flag name: $FLAG_NAME" >&2
+  usage >&2
+  exit 1
+fi
+
 FLAG="$HOME/.local/state/omarchy/toggles/$FLAG_NAME"
 
 enable() {
@@ -36,7 +55,7 @@ case "$ACTION" in
     disable
     ;;
   *)
-    echo "Usage: omarchy-toggle <flag-name> [toggle|on|off]" >&2
+    usage >&2
     exit 1
     ;;
 esac
