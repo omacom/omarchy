@@ -36,7 +36,7 @@ local M = { slots = SLOTS }
 local blocks = {}
 local written = nil
 
--- Connector -> identity for the monitors plugged in now.
+-- Connector -> identity of the last monitor seen on it, unplugged ones included.
 local current = {}
 
 local function load_blocks()
@@ -59,6 +59,61 @@ local function load_blocks()
 end
 
 load_blocks()
+
+-- The connectors in `current`, kept in a file of their own so that identical
+-- twins unplugged together still get their own identities back after a config
+-- reload. The state file can't hold them: the bar reads its connectors as the
+-- monitors plugged in now.
+local CONNECTORS_FILE = STATE_DIR .. "/workspaces-connectors"
+local connectors_written = nil
+
+local function load_connectors()
+  local file = io.open(CONNECTORS_FILE, "r")
+  if not file then
+    return
+  end
+
+  connectors_written = file:read("a")
+  file:close()
+
+  for connector, identity in connectors_written:gmatch("([^\t\n]+)\t([^\n]+)\n") do
+    if not current[connector] then
+      current[connector] = identity
+    end
+  end
+end
+
+load_connectors()
+
+local function save_connectors()
+  local names = {}
+  for connector in pairs(current) do
+    names[#names + 1] = connector
+  end
+  table.sort(names)
+
+  local lines = {}
+  for _, connector in ipairs(names) do
+    lines[#lines + 1] = connector .. "\t" .. current[connector] .. "\n"
+  end
+  local content = table.concat(lines)
+
+  if content == connectors_written then
+    return
+  end
+
+  local file = io.open(CONNECTORS_FILE, "w")
+  if not file then
+    os.execute("mkdir -p " .. o.shell_quote(STATE_DIR))
+    file = io.open(CONNECTORS_FILE, "w")
+  end
+
+  if file then
+    file:write(content)
+    file:close()
+    connectors_written = content
+  end
+end
 
 -- Workspace id -> where it came from, { id, identity }, for each workspace that
 -- joined another monitor's block while its own monitor was unplugged. Kept in a
@@ -174,7 +229,8 @@ end
 -- Make, model and serial. Two monitors that report the same, such as a pair
 -- without serials, are told apart by connector order when they first appear,
 -- and each keeps that identity while it stays plugged in, so unplugging one of
--- the pair doesn't hand its block to the other.
+-- the pair doesn't hand its block to the other, and gets it back when it
+-- returns on the same connector.
 local function identities_of(monitors)
   local identities = {}
   local taken = {}
@@ -211,7 +267,20 @@ local function identities_of(monitors)
     end
   end
 
-  current = identities
+  -- An unplugged monitor's connector keeps its identity, so a twin that comes
+  -- back on it gets its own block even when both were unplugged together, as a
+  -- sleep or a KVM switch does, and the other one returns first.
+  local remembered = {}
+  for connector, identity in pairs(identities) do
+    remembered[connector] = identity
+  end
+  for connector, identity in pairs(current) do
+    if not remembered[connector] and not taken[identity] then
+      remembered[connector] = identity
+    end
+  end
+  current = remembered
+  save_connectors()
 
   return identities
 end
