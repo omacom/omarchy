@@ -6,7 +6,8 @@
 # through the local daemon, both opencode stores, OPENCODE_DB and untrusted
 # values are held by the shared and partition tests, as is the
 # unused-machine record; the limits and scan caches go through the contract
-# checks.
+# checks. The local daemon's own account, which answers for the account it
+# holds when there is no key, is here too.
 
 set -euo pipefail
 
@@ -40,7 +41,7 @@ ROUTES = {
 def ollama(*args, routes=None, mode="up"):
   with FakeHttp(ROUTES if routes is None else routes, mode=mode) as http:
     record = collect("ollama", *(args or ("--force",)))
-  ollama.requests = http.count
+  ollama.requests = http.requests
   return record
 
 
@@ -77,9 +78,10 @@ expect("Ollama counts ollama-cloud usage from pi and omp, merging model tags", [
   "kimi-k3": {"inputTokens": 20, "outputTokens": 5, "cacheReadInputTokens": 4, "cacheCreationInputTokens": 1},
 }], record)
 
-# In use here, but no key to ask for the account's limits.
-expect("Ollama in use without a key waits for auth", [record["ready"], record["usageStatusText"], record["limitsStale"], ollama.requests],
-       [True, "Waiting for auth", False, 0], record)
+# In use here, but no key to ask for the account's limits: the local daemon
+# is asked for the account it holds, and that one request is all that is made.
+expect("Ollama in use without a key waits for auth", [record["ready"], record["usageStatusText"], record["limitsStale"], len(ollama.requests)],
+       [True, "Waiting for auth", False, 1], record)
 
 # A configured model prefix restricts the local stats to matching models, and
 # a scan only answers for the filter it applied: the same filter reuses it,
@@ -276,4 +278,148 @@ prefix("claude")
 record = ollama()
 expect("Ollama's model prefix keeps a MiniMax Code prompt with the reply that answered it",
        [record["todayTokensByModel"], record["todayPrompts"]], [{"claude-sonnet-4-5": 40}, 1], record)
+
+# --------------------------------------------------------- the local daemon
+
+# The local daemon holds the account of whoever signed in to it, so it
+# answers for it: the same allowance, asked of the machine itself, with no
+# credential going anywhere.
+DAEMON = "127.0.0.1:11434"
+DAEMON_LEGACY = {
+  "included": {
+    "session": {"remaining_percent": 75, "resets_at": SESSION_RESET},
+    "weekly": {"remaining_percent": 40, "resets_at": WEEKLY_RESET},
+  },
+  "purchased": {"balance_usd": 0},
+}
+DAEMON_ROUTES = {
+  f"{DAEMON}/api/balance": DAEMON_LEGACY,
+  f"{DAEMON}/api/me": {"plan": "pro"},
+}
+
+
+def cloud():
+  """A pi session on the cloud provider, so the machine is in use."""
+  write_pi_session(sessions() / "project" / "pi.jsonl", [
+    pi_reply("ollama-cloud", id="pi-1", model="deepseek-v4-pro",
+             usage={"input": 10, "output": 4, "cacheRead": 3, "cacheWrite": 2, "totalTokens": 19}),
+  ])
+
+
+# The daemon holds the account of whoever signed in to it, so it answers the
+# balance and the plan without a key, and the panel shows the same windows a
+# keyed account gets.
+sandbox()
+cloud()
+record = ollama(routes=DAEMON_ROUTES)
+expect("Ollama reads the allowance and the plan from the local daemon", {
+  "tierLabel": record["tierLabel"], "limits": record["limits"], "status": record["usageStatusText"],
+}, {
+  "tierLabel": "Pro", "limits": [
+    {"label": "Session (5-hour)", "percent": 0.25, "resetsAt": SESSION_RESET},
+    {"label": "Weekly (7-day)", "percent": 0.6, "resetsAt": WEEKLY_RESET},
+  ], "status": "",
+}, record)
+
+# The daemon is asked on this machine, and it is asked without a credential:
+# it knows the account already.
+expect("Ollama asks the local daemon itself, and sends it no credential",
+       [(request["url"], "authorization" in request["headers"]) for request in ollama.requests],
+       [(f"http://{DAEMON}/api/balance", False), (f"http://{DAEMON}/api/me", False)], record)
+
+# The daemon's account is kept apart from every key's: another sign-in never
+# shows this one's numbers.
+daemon_cache = limits_cache_files("ollama")
+os.environ["OLLAMA_API_KEY"] = "a-key"
+record = ollama(routes={**DAEMON_ROUTES, **ROUTES})
+expect("Ollama asks ollama.com itself once a key is there",
+       [request["url"] for request in ollama.requests],
+       ["https://ollama.com/api/balance", "https://ollama.com/api/me"], record)
+expect("Ollama keeps the daemon's answer apart from a key's",
+       len(limits_cache_files("ollama")) > len(daemon_cache), True, record)
+del os.environ["OLLAMA_API_KEY"]
+
+# A daemon that isn't signed in knows no account: the limits wait for a
+# sign-in, which is what a person can do about it.
+sandbox()
+cloud()
+record = ollama(routes={f"{DAEMON}/api/balance": 401, f"{DAEMON}/api/me": 401})
+expect("Ollama waits for a sign-in when the local daemon has no account",
+       [record["usageStatusText"], record.get("retryAdvised"), "ollama signin" in record["authHelpText"].lower()],
+       ["Waiting for auth", None, True], record)
+
+# A daemon that isn't running says so, and the one thing to do about it.
+record = ollama(routes=DAEMON_ROUTES, mode="down")
+expect("Ollama names the local daemon it couldn't reach",
+       [record["usageStatusText"], record.get("retryAdvised"), DAEMON in record["authHelpText"]],
+       ["Waiting for auth", None, True], record)
+
+# A daemon on a plain-HTTP host off this machine is not asked for an
+# account's allowance.
+os.environ["OLLAMA_HOST"] = "http://192.168.1.5:11434"
+record = ollama(routes=DAEMON_ROUTES)
+expect("Ollama doesn't ask a plain-HTTP host off this machine", ollama.requests, [], record)
+expect("Ollama points at a key when the daemon can't be asked",
+       [record["usageStatusText"], "OLLAMA_API_KEY" in record["authHelpText"]],
+       ["Waiting for auth", True], record)
+del os.environ["OLLAMA_HOST"]
+
+# An address that won't parse asks nothing and takes nothing down: the local
+# usage is still shown, and the limits wait for a sign-in.
+os.environ["OLLAMA_HOST"] = "http://[::1"
+record = ollama(routes=DAEMON_ROUTES)
+expect("Ollama keeps the local usage when the daemon's address is malformed",
+       [record["ready"], record["todayTotalTokens"], record["usageStatusText"], ollama.requests],
+       [True, 19, "Waiting for auth", []], record)
+del os.environ["OLLAMA_HOST"]
+
+# A daemon on this machine over plain HTTP is asked; the address the daemon
+# takes is the one it is given.
+
+os.environ["OLLAMA_HOST"] = "127.0.0.1:11434"
+record = ollama(routes=DAEMON_ROUTES)
+expect("Ollama asks the daemon at the address OLLAMA_HOST names",
+       [request["url"] for request in ollama.requests],
+       [f"http://{DAEMON}/api/balance", f"http://{DAEMON}/api/me"], record)
+del os.environ["OLLAMA_HOST"]
+
+# Two daemons are two accounts: the second one's allowance never shows under
+# the first one's, neither fresh nor as a fallback, and each keeps its own.
+OTHER_DAEMON = "127.0.0.1:11435"
+OTHER_LEGACY = {
+  "included": {
+    "session": {"remaining_percent": 50, "resets_at": SESSION_RESET},
+    "weekly": {"remaining_percent": 20, "resets_at": WEEKLY_RESET},
+  },
+  "purchased": {"balance_usd": 0},
+}
+sandbox()
+cloud()
+os.environ["OLLAMA_HOST"] = DAEMON
+ollama(routes=DAEMON_ROUTES)
+os.environ["OLLAMA_HOST"] = OTHER_DAEMON
+record = ollama("--limits-only", routes={**DAEMON_ROUTES, **ROUTES,
+                                         f"{OTHER_DAEMON}/api/balance": OTHER_LEGACY,
+                                         f"{OTHER_DAEMON}/api/me": {"plan": "free"}})
+expect("Ollama asks the second daemon and reads the second account's allowance",
+       [[request["url"] for request in ollama.requests], record["tierLabel"], [entry["percent"] for entry in record["limits"]]],
+       [[f"http://{OTHER_DAEMON}/api/balance", f"http://{OTHER_DAEMON}/api/me"], "Free", [0.5, 0.8]], record)
+expect("Ollama keeps each daemon's allowance under its own daemon",
+       len(limits_cache_files("ollama")), 2, record)
+
+# A third daemon that cannot answer shows no allowance at all: another
+# daemon's numbers are never a fallback.
+os.environ["OLLAMA_HOST"] = "127.0.0.1:11436"
+record = ollama(routes=DAEMON_ROUTES)
+expect("Ollama shows no allowance for a daemon that cannot answer, and none of another's either",
+       [record["limits"], record["tierLabel"], record["usageStatusText"]],
+       [[], "", "Waiting for auth"], record)
+del os.environ["OLLAMA_HOST"]
+
+# A machine that never used Ollama Cloud doesn't ask the daemon either: the
+# panel skips the record, and nothing was asked for.
+sandbox()
+record = ollama(routes=DAEMON_ROUTES)
+expect("Ollama asks nothing on a machine that doesn't use it",
+       [record["ready"], record["limits"], ollama.requests], [False, [], []], record)
 PY
