@@ -4,6 +4,10 @@ set -euo pipefail
 
 source "$(dirname "$0")/base-test.sh"
 
+# A PI_CODING_AGENT_DIR from the caller's environment would send pi's skill
+# links outside the temporary home.
+unset PI_CODING_AGENT_DIR
+
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
@@ -63,6 +67,15 @@ HOME="$test_tmp/relink" "$ROOT/bin/omarchy-agent-skills-link" "$ROOT" || fail "o
 [[ $(readlink "$test_tmp/relink/.agents/skills/omarchy-make-game") == "$ROOT/default/agents/skills/omarchy-make-game" ]] ||
   fail "every skill in the checkout is linked, including ones the package lacks"
 pass "omarchy-agent-skills-link moves Omarchy's skill links to the tree in use and keeps the user's"
+
+# pi reads skills from PI_CODING_AGENT_DIR when that is set, with a leading ~
+# expanded the way pi does it.
+HOME="$test_tmp/pi-dir" PI_CODING_AGENT_DIR="~/pi-work" "$ROOT/bin/omarchy-agent-skills-link" "$ROOT" ||
+  fail "omarchy-agent-skills-link runs with PI_CODING_AGENT_DIR set"
+[[ $(readlink "$test_tmp/pi-dir/pi-work/skills/omarchy") == "$ROOT/default/agents/skills/omarchy" ]] ||
+  fail "pi's skills are linked into PI_CODING_AGENT_DIR"
+[[ ! -e $test_tmp/pi-dir/.pi ]] || fail "pi's skills skip the default directory when PI_CODING_AGENT_DIR is set"
+pass "omarchy-agent-skills-link links pi's skills into PI_CODING_AGENT_DIR"
 
 # The Agent Skills spec caps a description at 1024 characters, and harnesses
 # such as pi flag a longer one. Descriptions are folded YAML, so the lines

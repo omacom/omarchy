@@ -20,7 +20,14 @@ if [[ ! -d $skills ]]; then
   exit 1
 fi
 
-dirs=(~/.agents/skills ~/.claude/skills ~/.codex/skills ~/.pi/agent/skills ~/.gemini/config/skills ~/.hermes/skills)
+# pi reads its skills from PI_CODING_AGENT_DIR when that is set, and expands a
+# leading ~ in it itself, so the value may carry one unexpanded.
+pi_agent_dir=${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}
+if [[ $pi_agent_dir == "~" || $pi_agent_dir == "~/"* ]]; then
+  pi_agent_dir="$HOME${pi_agent_dir:1}"
+fi
+
+dirs=(~/.agents/skills ~/.claude/skills ~/.codex/skills "$pi_agent_dir/skills" ~/.gemini/config/skills ~/.hermes/skills)
 for profile in ~/.hermes/profiles/*/; do
   [[ -d $profile ]] && dirs+=("${profile%/}/skills")
 done
