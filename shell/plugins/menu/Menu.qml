@@ -1303,7 +1303,7 @@ Item {
   }
   OverlayWindow {
     id: panel
-    shown: root.opened && root.rowsLoaded
+    shown: root.opened
     WlrLayershell.namespace: "omarchy-menu"
 
     // The card opens centered exactly as always. The first search keystroke

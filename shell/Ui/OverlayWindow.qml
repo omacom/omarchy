@@ -4,9 +4,17 @@ import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons as Commons
 
-// Map a fresh fullscreen surface on each open. Keep its first frames
-// transparent until Qt receives the output's scale, so it opens sharp without
-// retaining a parked surface that can be closed when a monitor disconnects.
+// A fullscreen overlay whose surface outlives each open. Closed, the surface
+// parks as a 1x1, input-less, content-less layer below windows: small enough
+// to cost nothing, off the overlay layer so it never blocks direct scanout for
+// fullscreen apps. Opening again on that screen only resizes and raises it, so
+// the compositor can grant it exclusive keyboard focus immediately rather than
+// after a fresh surface maps — keys typed straight after summoning reach the
+// overlay. Hyprland ignores a layer change made before a surface's first
+// frame, so a surface is only created by an open, directly on the overlay
+// layer, and only one that has shown is parked and raised again.
+// Keep its first frames transparent until Qt receives the output's scale, so
+// it opens sharp.
 PanelWindow {
   id: window
 
@@ -15,7 +23,12 @@ PanelWindow {
   property int shownLayer: WlrLayer.Overlay
   property int shownKeyboardFocus: WlrKeyboardFocus.Exclusive
 
+  // Set only while shown, once the open's layer is in place, and kept on close
+  // so the parked surface is raised in place by the next open on that screen.
+  // Assigned rather than bound, so an open overlay stays put when focus moves
+  // to another output.
   property var targetScreen: null
+  property Region emptyRegion: Region {}
   readonly property var targetMonitor: {
     var monitors = Hyprland.monitors.values
     for (var i = 0; i < monitors.length; i++) {
@@ -52,33 +65,46 @@ PanelWindow {
 
   // Live monitor scaling does not emit a Hyprland monitor event, so its cached
   // scale can lag behind Qt. Refresh on opening and on scale changes while open.
+  // Opening anywhere but the parked screen drops the parked surface now and
+  // creates the new one on the next turn, after the layer, size and focus
+  // bindings have followed shown: Qt creates the surface from their values.
   onShownChanged: {
-    targetScreen = shown ? focusedScreen() : null
-    if (shown) Hyprland.refreshMonitors()
+    if (shown) {
+      if (focusedScreen() !== targetScreen) {
+        targetScreen = null
+        Qt.callLater(window.attach)
+      }
+      Hyprland.refreshMonitors()
+    }
   }
   onDevicePixelRatioChanged: if (shown) Hyprland.refreshMonitors()
+
+  function attach() {
+    if (shown && !targetScreen) targetScreen = focusedScreen()
+  }
 
   Connections {
     target: Quickshell
     function onScreensChanged() {
-      if (window.shown && Quickshell.screens.indexOf(window.targetScreen) < 0) {
+      if (Quickshell.screens.indexOf(window.targetScreen) < 0) {
         window.targetScreen = null
         // Let the removed output finish closing its old window before mapping
         // a replacement, rather than recreating it during Qt's teardown.
-        Qt.callLater(function() {
-          if (window.shown && !window.targetScreen) window.targetScreen = window.focusedScreen()
-        })
+        Qt.callLater(window.attach)
       }
     }
   }
 
-  visible: shown && !!targetScreen && !!targetMonitor
+  visible: !!targetScreen && !!targetMonitor
   screen: targetScreen
-  anchors { top: true; left: true; bottom: true; right: true }
+  anchors { top: true; left: true; bottom: shown; right: shown }
+  implicitWidth: 1
+  implicitHeight: 1
+  mask: shown ? null : emptyRegion
   color: "transparent"
   exclusionMode: ExclusionMode.Ignore
-  WlrLayershell.layer: shownLayer
-  WlrLayershell.keyboardFocus: shownKeyboardFocus
+  WlrLayershell.layer: shown ? shownLayer : WlrLayer.Bottom
+  WlrLayershell.keyboardFocus: shown ? shownKeyboardFocus : WlrKeyboardFocus.None
 
   // Opacity preserves keyboard handling while the scale arrives, including
   // search keystrokes and Escape pressed immediately after opening.
