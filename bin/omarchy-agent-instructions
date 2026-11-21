@@ -50,6 +50,7 @@ declare -A links=(
   [kiro-cli]="$HOME/.kiro/steering/AGENTS.md"
   [kilo]="$config/kilo/AGENTS.md"
   [commandcode]="$HOME/.commandcode/AGENTS.md"
+  [droid]="$HOME/.factory/AGENTS.md"
   [freebuff]="$HOME/.AGENTS.md"
 )
 

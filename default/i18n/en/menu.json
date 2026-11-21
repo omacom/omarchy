@@ -540,6 +540,9 @@
   "agent.harness.devin": {
     "label": "Devin CLI"
   },
+  "agent.harness.droid": {
+    "label": "Droid"
+  },
   "agent.harness.dsh": {
     "label": "DeepSeek Harness"
   },
