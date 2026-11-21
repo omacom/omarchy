@@ -15,6 +15,9 @@ var REACH_TIMEOUT_MS = 20000
 var SLEEP_GAP_MS = 2000
 // Ignore transient misses while the asynchronous resume restart lands.
 var RESUME_GRACE_MS = 5000
+// Keep the reader armed this long after the lock blanks the display, so a
+// touch on a dark screen still unlocks; after that it waits for a wake.
+var BLANK_LISTEN_MS = 120000
 
 function retryDelayMs(streak) {
   if (streak <= 0) return MATCH_RETRY_MS
@@ -81,6 +84,7 @@ if (typeof module !== "undefined") {
     REACH_TIMEOUT_MS: REACH_TIMEOUT_MS,
     SLEEP_GAP_MS: SLEEP_GAP_MS,
     RESUME_GRACE_MS: RESUME_GRACE_MS,
+    BLANK_LISTEN_MS: BLANK_LISTEN_MS,
     spannedSleep: spannedSleep,
     classifyProbe: classifyProbe,
     inResumeGrace: inResumeGrace,
