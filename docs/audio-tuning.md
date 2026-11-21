@@ -79,6 +79,8 @@ so renaming it silently fails verification), and its output stream sets
 `node.dont-fallback` alongside `node.dont-move`, so WirePlumber cannot link it
 somewhere else when the target sink is absent at host start.
 
+One more name matters: the output stream's `node.name` must keep the sink's name as a prefix — `omarchy_speaker_tuning_output` behind a sink named `omarchy_speaker_tuning`, as the shipped tuning has it. `omarchy-audio-output-sink` resolves the sink a DSP node really plays into by matching each stream's `node.name` against the node being resolved, and the install's last check goes through it. With the stream named otherwise, that check cannot see where the output landed, so `on` reports the tuning linked to `omarchy_speaker_tuning` instead of the speakers and removes it again. The volume keys, the output switcher's OSD and the audio panel resolve through the same lookup.
+
 Gate narrowly and widen as models are validated; a tuning aimed at the wrong
 drivers can sound worse than none and can stress them. When a tuning covers a model
 it was not measured on, say so in `tuning.conf` — the provenance fields are there to
