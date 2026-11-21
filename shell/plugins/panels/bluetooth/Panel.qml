@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Bluetooth
 import Quickshell.Services.Pipewire
+import Quickshell.Services.UPower
 import qs.Ui
 import qs.Commons
 import qs.Commons as Commons
@@ -31,6 +32,8 @@ Panel {
   // never this panel's to stop.
   property bool owesDiscoveryStop: false
   readonly property var devices: Bluetooth.devices ? Bluetooth.devices.values : []
+  // HID batteries (Apple trackpads, mice and keyboards) that BlueZ does not report.
+  readonly property var upowerDevices: UPower.devices ? UPower.devices.values : []
   readonly property var pipewireNodes: Pipewire.nodes ? Pipewire.nodes.values : []
   property var pendingAudioOutputDevice: null
   property int pendingAudioOutputAttempts: 0
@@ -140,10 +143,10 @@ Panel {
   readonly property var scrollRows: {
     var rows = []
     for (var k = 0; k < knownDevices.length; k++)
-      rows.push({ dev: Model.deviceRow(knownDevices[k]), section: "known", indexInSection: k })
+      rows.push({ dev: Model.deviceRow(knownDevices[k], upowerDevices), section: "known", indexInSection: k })
     if (sectionVisible("discovered"))
       for (var d = 0; d < discoveredDevices.length; d++)
-        rows.push({ dev: Model.deviceRow(discoveredDevices[d]), section: "discovered", indexInSection: d })
+        rows.push({ dev: Model.deviceRow(discoveredDevices[d], upowerDevices), section: "discovered", indexInSection: d })
     return rows
   }
 
@@ -152,7 +155,7 @@ Panel {
   readonly property var connectedRows: {
     var rows = []
     for (var i = 0; i < connectedDevices.length; i++)
-      rows.push(Model.deviceRow(connectedDevices[i]))
+      rows.push(Model.deviceRow(connectedDevices[i], upowerDevices))
     return rows
   }
 
