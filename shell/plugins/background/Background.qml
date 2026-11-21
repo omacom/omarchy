@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
@@ -7,6 +8,7 @@ import QtQuick.Shapes
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "Panorama.js" as Panorama
 
 Item {
   id: root
@@ -36,6 +38,7 @@ Item {
   // at least as large as the screen: with PreserveAspectCrop Qt scales the
   // decode up to cover sourceSize, so a smaller wallpaper would cost the
   // screen's worth of pixels instead of its own.
+  // A 360 panorama records its view there too, as { heading, pitch, fov }.
   property var nativeSizes: ({})
   property var sizeQueue: []
   property bool finishingTransition: false
@@ -61,6 +64,11 @@ Item {
 
   function imageUrl(path) {
     return Util.fileUrl(path)
+  }
+
+  function panoramaFor(path) {
+    var native = path ? nativeSizes[path] : undefined
+    return native && native.panorama ? native.panorama : null
   }
 
   function refreshBackground() {
@@ -235,7 +243,14 @@ Item {
   function probeNextSize() {
     if (sizeProbe.running || sizeQueue.length === 0) return
     sizeProbe.path = sizeQueue[0]
-    sizeProbe.command = ["magick", "identify", "-ping", "-format", "%w %h", sizeProbe.path]
+    // The GPano XMP sits near the start of a JPEG and at the end of a WebP; a
+    // scan of the whole file takes milliseconds even at 50 MB.
+    sizeProbe.command = [
+      "bash", "-c",
+      'magick identify -ping -format "%w %h\\n" "$1" || exit 1; ' +
+      'LC_ALL=C grep -a -o -E "GPano:(ProjectionType|InitialViewHeadingDegrees|InitialViewPitchDegrees|InitialHorizontalFOVDegrees)(=\\"|>)[^\\"<]{1,32}" "$1"; exit 0',
+      "probe", sizeProbe.path
+    ]
     sizeProbe.running = true
   }
 
@@ -275,12 +290,17 @@ Item {
     property string path: ""
     stdout: StdioCollector { id: sizeProbeOut }
     onExited: function(exitCode) {
-      var parts = String(sizeProbeOut.text || "").trim().split(/\s+/)
+      var lines = String(sizeProbeOut.text || "").trim().split("\n")
+      var parts = String(lines[0] || "").trim().split(/\s+/)
       var width = exitCode === 0 ? parseInt(parts[0], 10) : 0
       var height = exitCode === 0 ? parseInt(parts[1], 10) : 0
       var known = Object.assign({}, root.nativeSizes)
       // An unreadable header records 0x0, which decodes at screen size.
-      known[path] = { width: width > 0 ? width : 0, height: height > 0 ? height : 0 }
+      known[path] = {
+        width: width > 0 ? width : 0,
+        height: height > 0 ? height : 0,
+        panorama: exitCode === 0 ? Panorama.parse(lines.slice(1), width, height) : null
+      }
       root.nativeSizes = known
       root.sizeQueue = root.sizeQueue.filter(function(queued) { return queued !== sizeProbe.path })
       root.probeNextSize()
@@ -440,8 +460,29 @@ Item {
         if (!sized || !path) return Qt.size(0, 0)
         var native = root.nativeSizes[path]
         if (native === undefined) return Qt.size(0, 0)
+        // A panorama shows fov degrees of its 360 across the screen, so one
+        // texel per pixel needs 360 / fov screens of width.
+        if (native.panorama) {
+          var panoramaWidth = Math.min(native.width, Math.ceil(decodeWidth * 360 / native.panorama.fov))
+          return Qt.size(panoramaWidth, Math.ceil(panoramaWidth / 2))
+        }
         if (native.width > 0 && (native.width < decodeWidth || native.height < decodeHeight)) return Qt.size(native.width, native.height)
         return Qt.size(decodeWidth, decodeHeight)
+      }
+
+      // Each screen looks toward its own active workspace.
+      readonly property var hyprMonitor: Hyprland.monitorFor(screen)
+      readonly property int workspaceId: hyprMonitor && hyprMonitor.activeWorkspace ? hyprMonitor.activeWorkspace.id : 1
+      readonly property bool showsPanorama: root.panoramaFor(root.displayedBackground) !== null
+        || root.panoramaFor(root.incomingBackground) !== null
+      property real yaw: Panorama.workspaceAngle(workspaceId)
+
+      // Special workspaces have negative ids and keep the current view.
+      onWorkspaceIdChanged: if (workspaceId >= 1) yaw += Panorama.turnTo(yaw, workspaceId)
+
+      Behavior on yaw {
+        enabled: panel.showsPanorama
+        NumberAnimation { duration: Style.duration(300); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
       }
 
       function maybeStartReveal() {
@@ -467,21 +508,22 @@ Item {
         cached: true
         constrainDecode: true
         decodeSize: panel.decodeSize(root.displayedBackground)
+        panorama: root.panoramaFor(root.displayedBackground)
+        yaw: panel.yaw
         onFailedChanged: if (failed) root.recoverBackground(path)
         onReadyChanged: panel.readyFrames = 0
       }
 
-      Image {
+      StillFrame {
         id: oldFrame
         anchors.fill: parent
         readonly property size decode: panel.decodeSize(root.oldBackground)
         source: decode.width > 0 ? root.imageUrl(root.oldBackground) : ""
-        sourceSize.width: decode.width
-        sourceSize.height: decode.height
-        fillMode: Image.PreserveAspectCrop
+        sourceSize: decode
+        panorama: root.panoramaFor(root.oldBackground)
+        yaw: panel.yaw
         asynchronous: true
         cache: false
-        smooth: true
         mipmap: true
         visible: root.oldBackground !== "" && root.revealProgress < 1
         onStatusChanged: panel.maybeStartReveal()
@@ -502,7 +544,7 @@ Item {
           maskSpreadAtMin: 0.02
         }
 
-        Image {
+        StillFrame {
           id: incomingFrame
           anchors.fill: parent
           // The same URL and size as a prepared frame keeps its decoded
@@ -510,12 +552,11 @@ Item {
           readonly property string framePath: root.incomingBackground || root.preparedBackground
           readonly property size decode: panel.decodeSize(framePath)
           source: decode.width > 0 ? root.imageUrl(framePath) : ""
-          sourceSize.width: decode.width
-          sourceSize.height: decode.height
-          fillMode: Image.PreserveAspectCrop
+          sourceSize: decode
+          panorama: root.panoramaFor(framePath)
+          yaw: panel.yaw
           asynchronous: true
           cache: false
-          smooth: true
           mipmap: true
           onStatusChanged: panel.maybeStartReveal()
         }

@@ -16,6 +16,9 @@ Item {
   // than decoding at the file's native size first.
   property bool constrainDecode: false
   property size decodeSize: Qt.size(0, 0)
+  // A 360 panorama's view, as StillFrame takes it: null for a flat image.
+  property var panorama: null
+  property real yaw: 0
   readonly property var current: imageLoader.item
   readonly property bool ready: current ? current.ready : false
   // The file behind path could not be loaded, as when it was deleted.
@@ -35,15 +38,16 @@ Item {
   Component {
     id: imageComponent
 
-    Image {
+    StillFrame {
       readonly property bool ready: status === Image.Ready
       readonly property bool failed: status === Image.Error
       source: !root.constrainDecode || root.decodeSize.width > 0 ? root.imageUrl : ""
-      fillMode: Image.PreserveAspectCrop
       asynchronous: true
       cache: root.cached
-      sourceSize.width: root.constrainDecode ? root.decodeSize.width : (root.version > 0 ? width : 0)
-      sourceSize.height: root.constrainDecode ? root.decodeSize.height : (root.version > 0 ? height : 0)
+      panorama: root.panorama
+      yaw: root.yaw
+      sourceSize: Qt.size(root.constrainDecode ? root.decodeSize.width : (root.version > 0 ? width : 0),
+        root.constrainDecode ? root.decodeSize.height : (root.version > 0 ? height : 0))
     }
   }
 }
