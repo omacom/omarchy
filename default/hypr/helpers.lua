@@ -212,6 +212,14 @@ function o.bind(keys, description, dispatcher, options)
   hl.bind(keys, dispatcher, opts)
 end
 
+-- A shipped web app hotkey, left unbound when the region omits that web app
+-- (docs/regions.md).
+function o.bind_webapp(keys, description, dispatcher, options)
+  if not o.region_omits_webapp(dispatcher.webapp) then
+    o.bind(keys, description, dispatcher, options)
+  end
+end
+
 function o.rebind(keys, description, dispatcher, options)
   hl.unbind(keys)
   o.bind(keys, description, dispatcher, options)
