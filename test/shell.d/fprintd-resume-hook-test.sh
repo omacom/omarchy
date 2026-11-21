@@ -18,7 +18,12 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 mock_bin="$tmpdir/bin"
 call_log="$tmpdir/systemctl-calls"
-mkdir -p "$mock_bin"
+devices="$tmpdir/usb"
+mkdir -p "$mock_bin" "$devices"
+# Use the real hook with a private sysfs tree so hardware on the test
+# machine cannot decide the result.
+sed "s|/sys/bus/usb/devices/|$devices/|" "$hook" >"$tmpdir/hook"
+chmod +x "$tmpdir/hook"
 
 cat >"$mock_bin/systemctl" <<SH
 #!/bin/bash
@@ -28,7 +33,7 @@ chmod +x "$mock_bin/systemctl"
 
 run_hook() {
   : >"$call_log"
-  PATH="$mock_bin:$PATH" "$hook" "$@"
+  PATH="$mock_bin:$PATH" "$tmpdir/hook" "$@"
 }
 
 # Resume ("post") is the only edge that clears a claim wedged across suspend.
@@ -46,3 +51,15 @@ run_hook pre suspend
 [[ -z $(<"$call_log") ]] ||
   fail "pre-suspend leaves fprintd alone" "calls: $(<"$call_log")"
 pass "pre-suspend leaves fprintd alone"
+
+mkdir -p "$devices/reader"
+printf '0a5c\n' >"$devices/reader/idVendor"
+printf '5843\n' >"$devices/reader/idProduct"
+run_hook post suspend
+[[ $(<"$call_log") == "--no-block try-restart fprintd.service" ]] ||
+  fail "the older ControlVault 3 keeps resume recovery"
+
+printf '5865\n' >"$devices/reader/idProduct"
+run_hook post suspend
+[[ ! -s $call_log ]] || fail "resume leaves the ControlVault 3 Plus reader alone"
+pass "only the ControlVault 3 Plus skips the automatic restart"
