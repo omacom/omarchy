@@ -97,6 +97,8 @@ while IFS=$'\t' read -r name file marker <&3; do
 done 3< <(migration_entries)
 
 # Clear a login-time notification the user left sitting there and then resolved
-# by running migrations some other way. The substring matches both the current
-# and legacy notification titles.
+# by running migrations some other way. The notifier sends it under a translated
+# title, so dismiss by the title in the user's language; the English substring
+# still matches the legacy titles.
+omarchy-notification-dismiss "$(omarchy-i18n migrate.pending 2>/dev/null)" >/dev/null 2>&1 || true
 omarchy-notification-dismiss "Omarchy Migrations" >/dev/null 2>&1 || true
