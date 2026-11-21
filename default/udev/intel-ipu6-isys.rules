@@ -1,0 +1,9 @@
+# Keep the IPU6's raw Bayer capture nodes away from users: nothing but
+# libcamera can make a picture of them, and browsers otherwise list dozens of
+# black "ipu6" cameras. The v4l2-relayd instance that re-exposes the sensor as
+# a regular v4l2 camera runs as root and still reaches them.
+# Sorted after 70-uaccess adds the tag and before 73-seat-late applies its ACL.
+SUBSYSTEM=="video4linux", ATTR{name}=="Intel IPU6 ISYS Capture *", \
+  TAG-="uaccess", TAG-="seat", OWNER="root", GROUP="root", MODE="0600"
+SUBSYSTEM=="video4linux", ATTR{name}=="Intel IPU6 ISYS Capture 0", \
+  TAG+="systemd", ENV{SYSTEMD_WANTS}="v4l2-relayd@ipu6.service"
