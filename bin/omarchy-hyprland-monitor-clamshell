@@ -227,6 +227,42 @@ read_monitor_position() {
   echo auto
 }
 
+# The catch-all reaches the panel only when no rule is the panel's own, which
+# is certain only when every rule names a literal output and none is the panel.
+catch_all_reaches_internal() {
+  local rules calls outputs
+  rules=$(monitor_rules)
+  calls=$(grep -oE 'hl\.monitor[[:space:]]*\(' <<<"$rules" | wc -l)
+  outputs=$(grep -oE "output[[:space:]]*=[[:space:]]*(\"[^\"]*\"|'[^']*')[[:space:]]*([,;}]|$)" <<<"$rules")
+  (( calls == $(grep -c . <<<"$outputs") )) || return 1
+  ! grep -Eq "[\"']($INTERNAL|desc:[^\"']*)[\"']" <<<"$outputs"
+}
+
+# The mode the user's rules give the panel, so re-enabling it does not drop a
+# chosen refresh rate or resolution: "preferred" lets Hyprland pick, and what it
+# picks can be a lower refresh rate than the one configured. The display panel's
+# choice comes first, then the internal rule; Hyprland gives an output with a
+# rule of its own nothing from the catch-all, so only without one is that read.
+read_monitor_mode() {
+  local mode
+  mode=$(saved_internal_monitor_value mode)
+  # The one-line reader takes the last mode on a line, whichever rule it is in.
+  if [[ -z $mode ]] && ! monitor_rules | grep -Eq 'hl\.monitor[[:space:]]*\(.*hl\.monitor[[:space:]]*\('; then
+    mode=$(configured_internal_monitor_value mode)
+    if [[ -z $mode ]] && catch_all_reaches_internal; then
+      mode=$(configured_monitor_value "" mode)
+    fi
+  fi
+  # A bare word naming no local reaches here as itself, so only Hyprland's mode
+  # keywords and WxH@R pass, and nothing else is written into the Lua.
+  if [[ $mode =~ ^([0-9]+x[0-9]+(@[0-9.]+)?|preferred|highrr|highres|maxwidth)$ ]]; then
+    echo "$mode"
+    return
+  fi
+
+  echo preferred
+}
+
 enable_internal_output() {
   [[ -n $INTERNAL ]] || return 0
   local scale="${1:-}"
@@ -235,8 +271,7 @@ enable_internal_output() {
   local enable=""
   [[ -n $scale ]] || scale=$(read_monitor_scale)
   position=$(read_monitor_position)
-  mode=$(saved_internal_monitor_value mode)
-  [[ $mode =~ ^[0-9]+x[0-9]+(@[0-9.]+)?$ ]] || mode="preferred"
+  mode=$(read_monitor_mode)
   # A panel turned off from the Display panel is a runtime rule carrying
   # disabled = true and no flag, and an update of its mode, position and scale
   # leaves that in force. Say disabled = false only while no external display

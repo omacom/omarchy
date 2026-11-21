@@ -294,3 +294,54 @@ omarchy_monitor_panel_settings = false
 ]]
 $internal_config"
 rm -f "$settings_file"
+
+# The mode the user chose for the panel survives re-enabling it, and a scale
+# sync; "preferred" would let Hyprland settle on a lower refresh rate.
+mode_config='hl.monitor({ output = "eDP-1", mode = "2880x1800@120", position = "0x0", scale = 1.25 })
+hl.monitor({ output = "", mode = "highres", position = "auto-right", scale = 1 })'
+expect_sync "clamshell recovery keeps the mode of the internal rule" off 1.75 'mode = "2880x1800@120"' <<<"$mode_config"
+expect_sync "scale sync keeps the mode of the internal rule" 2 - 'mode = "2880x1800@120"' <<<"$mode_config"
+
+# The catch-all's mode reaches the panel only when it has no rule of its own:
+# Hyprland brings a panel whose rule names no mode up at preferred.
+expect_sync "clamshell recovery takes the catch-all mode when the panel has no rule" off 1.75 'mode = "highrr"' <<'LUA'
+hl.monitor({ output = "DP-1", mode = "2560x1440@144", position = "0x0", scale = 1 })
+hl.monitor({ output = "", mode = "highrr", position = "auto-right", scale = 1 })
+LUA
+for rule in \
+  'hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })' \
+  $'hl.monitor({\n  output = "eDP-1",\n  position = "0x0",\n})' \
+  "hl.monitor({ output = 'eDP-1', position = '0x0' })" \
+  'hl.monitor({ output = "desc:Sharp Corporation 0x1517", position = "0x0" })' \
+  $'local panel = "eDP-1"\nhl.monitor({ output = panel, position = "0x0" })' \
+  $'hl.monitor({\n  output =\n    "eDP-1",\n})' \
+  'hl.monitor({ output = "eDP-" .. "1", position = "0x0" })'; do
+  expect_sync "clamshell recovery keeps the catch-all mode off a panel that may have its own rule: $rule" off 1.75 'mode = "preferred"' <<<"$rule
+hl.monitor({ output = \"\", mode = \"2560x1440@144\", position = \"auto-right\", scale = 1 })"
+done
+
+expect_sync "clamshell recovery reads no mode from a line holding two rules" off 1.75 'mode = "preferred"' <<'LUA'
+hl.monitor({ output = "eDP-1", mode = "2880x1800@120", scale = 1.25 }); hl.monitor({ output = "DP-1", mode = "7680x4320@60", scale = 1 })
+LUA
+
+expect_sync "clamshell recovery resolves a mode variable reference" off 1.75 'mode = "2880x1800@120"' <<'LUA'
+local omarchy_monitor_mode = "2880x1800@120"
+hl.monitor({ output = "eDP-1", mode = omarchy_monitor_mode, position = "0x0", scale = 1.25 })
+LUA
+
+# No rule names a mode, or the value is not a plain mode string: "preferred".
+expect_sync "clamshell recovery falls back to preferred when no rule names a mode" off 1.75 'mode = "preferred"' <<'LUA'
+hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })
+LUA
+expect_sync "clamshell recovery falls back to preferred for a mode naming no local" off 1.75 'mode = "preferred"' '!my_mode' <<'LUA'
+hl.monitor({ output = "eDP-1", mode = my_mode, position = "0x0", scale = 1.25 })
+LUA
+expect_sync "clamshell recovery falls back to preferred for an unsafe mode" off 1.75 'mode = "preferred"' '!os.exit' <<'LUA'
+hl.monitor({ output = "eDP-1", mode = "1920x1080 }) os.exit() hl.monitor({ x = 1", position = "auto", scale = 1.25 })
+LUA
+
+# The display panel's mode still comes before the one in monitors.lua.
+mkdir -p "${settings_file%/*}"
+printf '%s\t%s\t%s\t%s\n' "2560x1600@60" "640x1440" "1.6" "eDP-1" >"$settings_file"
+expect_sync "clamshell recovery prefers the display panel's mode to the internal rule's" off - 'mode = "2560x1600@60"' <<<"$mode_config"
+rm -f "$settings_file"
