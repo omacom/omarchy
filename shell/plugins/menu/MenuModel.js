@@ -90,7 +90,10 @@ function keepMenuRows(previous, raw, required) {
 // source supplies one; only then does rootLabel (the catalog's translation
 // of "Go") apply. A root row from either source keeps its own label, so a
 // user-supplied heading is never overwritten by the catalog.
-function mergeMenuSources(defaultItems, userItems, rootLabel) {
+// leadingIds come first in their submenus, in the order given, ahead of the
+// rest (a region's recommended harnesses); an id neither source declares is
+// ignored.
+function mergeMenuSources(defaultItems, userItems, rootLabel, leadingIds) {
   var nextItems = ({})
   var nextOrder = []
   var sources = [defaultItems || [], userItems || []]
@@ -110,6 +113,9 @@ function mergeMenuSources(defaultItems, userItems, rootLabel) {
     }
   }
 
+  var leading = (Array.isArray(leadingIds) ? leadingIds : []).filter(function (id) { return !!nextItems[id] })
+  if (leading.length) nextOrder = leading.concat(nextOrder.filter(function (id) { return leading.indexOf(id) < 0 }))
+
   if (!nextItems.root) {
     nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: (typeof rootLabel === "string" && rootLabel) ? rootLabel : "Go", title: "", target: "", description: "", aliases: [], searchTerms: [], when: "", checked: "", disabled: "", action: "", provider: "", alt: "" }
     nextOrder.unshift("root")
@@ -120,6 +126,14 @@ function mergeMenuSources(defaultItems, userItems, rootLabel) {
     items: nextItems,
     itemOrder: nextOrder
   }
+}
+
+// The Default Harness rows a region recommends, from its profile's agents file
+// (default/regions/<code>/agents): one harness command per line, # comments.
+function regionHarnessIds(text) {
+  return String(text || "").split("\n").map(function (line) {
+    return line.replace(/#.*/, "").trim()
+  }).filter(function (name) { return /^[a-z0-9-]+$/.test(name) }).map(function (name) { return "agent.harness." + name })
 }
 
 // Both merges below return fresh items/itemOrder objects for the caller to
@@ -726,6 +740,7 @@ if (typeof module !== "undefined") {
     parseMenuJsonc: parseMenuJsonc,
     keepMenuRows: keepMenuRows,
     mergeMenuSources: mergeMenuSources,
+    regionHarnessIds: regionHarnessIds,
     mergeAppRows: mergeAppRows,
     swapProviderRows: swapProviderRows,
     item: item,

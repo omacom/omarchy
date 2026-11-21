@@ -47,6 +47,32 @@ Item {
     return "ok"
   }
 
+  // A region's recommended harnesses lead Default Harness (docs/regions.md).
+  // Moving rows changes no guard answer, so these rebuilds skip the guards.
+  property string region: ""
+  property var regionLeadingIds: []
+  onRegionChanged: if (!region) { regionLeadingIds = []; rebuildItemsFromSources(true) }
+
+  FileView {
+    id: regionFile
+    path: Quickshell.env("OMARCHY_REGION_FILE") || "/etc/omarchy/region"
+    watchChanges: true
+    printErrors: false
+    onLoaded: { var code = text().trim(); root.region = /^[a-z]{2}$/.test(code) ? code : "" }
+    onLoadFailed: root.region = ""
+    onFileChanged: reload()
+  }
+
+  FileView {
+    id: regionAgentsFile
+    path: root.region ? root.omarchyPath + "/default/regions/" + root.region + "/agents" : ""
+    watchChanges: true
+    printErrors: false
+    onLoaded: { root.regionLeadingIds = MenuModel.regionHarnessIds(text()); root.rebuildItemsFromSources(true) }
+    onLoadFailed: { root.regionLeadingIds = []; root.rebuildItemsFromSources(true) }
+    onFileChanged: reload()
+  }
+
   function ping() { return "ok" }
 
   property string fontFamily: Style.font.menuFamily
@@ -300,7 +326,7 @@ Item {
     // "Go" label comes from the catalog's root entry; the merge only uses
     // it for the injected row, never over a user-supplied heading.
     var rootCatalog = root.menuCatalog.root
-    var mergedMenu = MenuModel.mergeMenuSources(translatedDefaults, root.userMenuItems, rootCatalog && rootCatalog.label)
+    var mergedMenu = MenuModel.mergeMenuSources(translatedDefaults, root.userMenuItems, rootCatalog && rootCatalog.label, root.regionLeadingIds)
     root.providerRevision += 1
     root.providersLoaded = ({})
     root.providerQueue = []

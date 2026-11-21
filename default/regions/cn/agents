@@ -1,0 +1,6 @@
+# Harnesses from Chinese AI providers, listed first under Default Harness in
+# this order. Every other harness stays in the list below them.
+kimi
+qwen
+mcode
+dsh

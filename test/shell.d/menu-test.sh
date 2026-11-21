@@ -87,6 +87,15 @@ assertEqual(merged.items['style.theme'].label, 'Theme picker', 'menu user entrie
 assertEqual(merged.items['style.theme'].order, 2, 'menu preserves original order on override')
 assert(merged.items.root, 'menu injects root when merging sources')
 
+const harnessRows = ['agent', 'agent.harness', 'agent.harness.claude', 'agent.harness.codex', 'agent.harness.kimi', 'agent.harness.qwen']
+  .map(id => menu.normalizeItem(id, { label: id }))
+const regionIds = menu.regionHarnessIds(fs.readFileSync(path.join(root, 'default/regions/cn/agents'), 'utf8'))
+assertEqual(regionIds[0], 'agent.harness.kimi', 'a region names its harnesses from its agents file, skipping comments')
+const regionMerged = menu.mergeMenuSources(harnessRows, [], '', regionIds)
+const harnessOrder = regionMerged.itemOrder.filter(id => regionMerged.items[id].parent === 'agent.harness')
+assertDeepEqual(harnessOrder, ['agent.harness.kimi', 'agent.harness.qwen', 'agent.harness.claude', 'agent.harness.codex'], 'a region lists its recommended harnesses first and keeps the rest')
+assertEqual(regionMerged.items['agent.harness.kimi'].order < regionMerged.items['agent.harness.claude'].order, true, 'a recommended harness ranks ahead in search too')
+
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')
 assertEqual(menu.parentPathFor(merged.items, 'style.theme'), 'Style', 'menu builds parent paths')

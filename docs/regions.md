@@ -43,3 +43,7 @@ The China profile provides repository defaults only. Language is a separate inst
 Unit tests cover region/channel independence, the timezone mapping, generated pacman contents, repeat application, and refresh ordering; refresh itself is exercised only inside the sudo-boundary sandbox. They do not establish live mirror availability, real package trust, or successful offline installation. Before distribution, build from matching local checkouts on an x86_64 builder and run the disposable-VM acceptance workflow in `agents/skills/acceptance-tests.md`.
 
 The acceptance run must install without network access in both directions: a non-China timezone must produce pacman files byte for byte identical to the channel templates, and `Asia/Shanghai` must produce the China profile, boot to a new user, and keep the regional mirrors and marker through `stable`, `rc`, and `edge` refreshes.
+
+## Recommended agents
+
+A profile's optional `agents` file names the harnesses the region recommends, one harness command per line (`kimi`, `qwen`), with blank lines and `#` comments allowed. The menu lists them first under Default Harness, in that order, ahead of every other harness, and ranks them first in search; nothing is hidden and no default agent is chosen. The menu watches `/etc/omarchy/region` and the profile's file, so a change applies without restarting the shell. The China profile recommends Kimi, Qwen Code, MiniMax Code and DeepSeek Harness.
