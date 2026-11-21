@@ -26,6 +26,19 @@ ShellRoot {
     throw new Error("Missing timer: " + interval + ", repeat=" + repeat)
   }
 
+  function commandProcess(service, needle) {
+    var objects = service.data || []
+    for (var i = 0; i < objects.length; i++) {
+      var command = objects[i].command
+      if (command && String(command).indexOf(needle) !== -1) return objects[i]
+    }
+    return null
+  }
+
+  function fingerprintProbe(service) {
+    return commandProcess(service, "fprintd-list")
+  }
+
   function resumeWatch(service) {
     var objects = service.data || []
     for (var i = 0; i < objects.length; i++) {
@@ -230,6 +243,89 @@ ShellRoot {
       service.lockRequested = true
       service.fingerprintConfigured = true
       service.pauseFingerprint()
+
+      // No reader and no logind signal. prepareSleepLock is what the inhibitor
+      // calls; the wake listener must not be running before that.
+      service.resumeFingerprint()
+      var holdTimer = timer(service, 30000, false)
+      var listener = commandProcess(service, "dbus-monitor")
+      var wakeProc = commandProcess(service, "omarchy-system-wake")
+      check(listener && !listener.running, "an idle lock does not watch logind")
+      listener.command = ["sleep", "30"]
+      if (wakeProc) wakeProc.command = ["true"]
+      service.fingerprintResumedAtMs = 0
+      service.fingerprintAuthenticating = true
+      service.fingerprintAttemptReachedDevice = true
+      reach.start()
+      retry.start()
+      recheck.start()
+      service.passwordPamConfigured = true
+      check(service.prepareSleepLock() === "ok", "the inhibitor entry accepts the release")
+      check(service.fingerprintPreparingForSleep, "prepare-for-sleep blocks new fingerprint claims")
+      check(listener.running, "the release starts the wake listener inside the inhibitor window")
+      check(service.lastEvent === "fingerprint-released", "prepare-for-sleep releases without a live PAM claim")
+      check(!service.fingerprintAuthenticating && !reach.running, "prepare-for-sleep drops the in-flight verify")
+      check(service.fingerprintCheckDeferred && !retry.running && !recheck.running, "suspend keeps a pending enrollment retry and stops its timer")
+      service.nudgeFingerprint()
+      check(!recheck.running && service.fingerprintCheckDeferred, "input during suspend cannot replace the pending enrollment retry")
+      check(holdTimer.running, "a missed wake cannot leave the claim blocked")
+      service.armFingerprintRetry(250)
+      check(!retry.running, "a retry during the suspend window does not claim the reader")
+      service.fingerprintCheckDeferred = false
+      service.refreshFingerprintStatus()
+      check(service.fingerprintCheckDeferred, "the enrollment probe waits until resume")
+      // finishUnlock wakes the displays. Point that process at true first, and
+      // skip the call if it cannot be found, so the fixture cannot change the
+      // brightness of the machine running it.
+      check(wakeProc, "the wake process can be kept off the real displays")
+      if (wakeProc) {
+        service.finishUnlock()
+        check(service.fingerprintPreparingForSleep, "unlock during the suspend window keeps the sleep hold")
+        check(listener.running, "unlock keeps the wake listener")
+        check(!service.lockRequested, "unlock still clears the lock")
+        service.lockRequested = true
+        service.fingerprintConfigured = true
+        service.fingerprintPaused = false
+        service.fingerprintCheckDeferred = true
+      }
+      service.prepareFingerprintForSleep(true)
+      check(service.fingerprintPreparingForSleep && !retry.running, "a repeated suspend signal does not restart the verify")
+      // Wake runs the deferred probe. Hold it off so a fast "no" cannot stop the verify the wake just armed.
+      var probe = fingerprintProbe(service)
+      if (probe && !probe.running) probe.command = ["sleep", "30"]
+      service.prepareFingerprintForSleep(false)
+      check(!service.fingerprintPreparingForSleep && !service.fingerprintCheckDeferred, "resume clears the hold and runs the deferred probe")
+      check(service.fingerprintResumedAtMs > 0, "resume opens the grace window")
+      check(retry.running && retry.interval === 250, "resume arms one fresh verify")
+      check(!holdTimer.running, "resume cancels the missed-wake hold")
+      var resumedAt = service.fingerprintResumedAtMs
+      service.prepareFingerprintForSleep(false)
+      check(service.fingerprintResumedAtMs === resumedAt && retry.running, "a duplicate wake does not cancel the fresh verify")
+      if (probe && probe.running) {
+        service.fingerprintCheckDeferred = false
+        service.refreshFingerprintStatus()
+        check(service.fingerprintCheckDeferred, "a probe still exiting at wake retains a queued enrollment refresh")
+      }
+
+      service.pauseFingerprint()
+      service.fingerprintAuthenticating = true
+      reach.start()
+      service.prepareFingerprintForSleep(true)
+      check(service.fingerprintPaused && !service.fingerprintAuthenticating && !reach.running, "suspend releases a claim the blank left running")
+      service.prepareFingerprintForSleep(false)
+      blankTimer.stop()
+      check(!service.fingerprintPaused && retry.running && retry.interval === 250, "resume after a blanked suspend restarts the verify")
+      check(!service.fingerprintPreparingForSleep && !holdTimer.running, "a blanked resume clears the suspend hold")
+      service.pauseFingerprint()
+
+      service.fingerprintConfigured = false
+      service.fingerprintCheckDeferred = false
+      service.applyFingerprintProbe("No devices available")
+      check(recheck.running, "unknown enrollment owns a retry before suspend")
+      service.prepareSleepLock()
+      check(service.fingerprintCheckDeferred && !recheck.running, "suspend preserves the unknown-enrollment retry")
+      service.nudgeFingerprint()
+      check(service.fingerprintCheckDeferred && !recheck.running, "input cannot claim during the enrollment sleep hold")
 
       service.lockRequested = false
       service.resetAuthenticationState()

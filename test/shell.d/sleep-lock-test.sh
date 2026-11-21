@@ -62,7 +62,7 @@ run_sleep_lock() {
 
   start_us=${EPOCHREALTIME//[!0-9]/}
   set +e
-  CALL_LOG="$call_log" STATE_DIR="$state_dir" PATH="$mock_bin:$PATH" \
+  CALL_LOG="$call_log" STATE_DIR="$state_dir" XDG_RUNTIME_DIR="$state_dir" WAYLAND_DISPLAY=fixture-wayland PATH="$mock_bin:$PATH" \
     "$sleep_lock" "${args[@]}" 2>"$journal_log"
   exit_status=$?
   set -e
@@ -77,7 +77,7 @@ cat >"$mock_bin/omarchy-shell" <<'SH'
 #!/bin/bash
 
 printf 'shell %s\n' "$*" >>"$CALL_LOG"
-if [[ $* == "lock lock" ]]; then
+if [[ $* == "lock prepareSleep" ]]; then
   printf 'ok\n'
 elif [[ $* == "lock status" ]]; then
   printf '{"secure":true}\n'
@@ -92,7 +92,7 @@ run_sleep_lock 4000
   fail "sleep lock succeeds once the session reports secure" "exit: $exit_status"
 pass "sleep lock succeeds once the session reports secure"
 
-[[ ${calls[0]} == "shell lock lock" ]] ||
+[[ ${calls[0]} == "shell lock prepareSleep" ]] ||
   fail "sleep lock requests the session lock first" "first call: ${calls[0]}"
 pass "sleep lock requests the session lock first"
 
@@ -112,7 +112,7 @@ cat >"$mock_bin/omarchy-shell" <<'SH'
 #!/bin/bash
 
 printf 'shell %s\n' "$*" >>"$CALL_LOG"
-if [[ $* == "lock lock" ]]; then
+if [[ $* == "lock prepareSleep" ]]; then
   printf 'ok\n'
 elif [[ $* == "lock status" ]]; then
   printf '{"secure":false}\n'
@@ -153,7 +153,7 @@ cat >"$mock_bin/omarchy-shell" <<'SH'
 
 printf 'shell %s\n' "$*" >>"$CALL_LOG"
 
-if [[ $* == "lock lock" ]]; then
+if [[ $* == "lock prepareSleep" ]]; then
   if [[ -f $STATE_DIR/requested ]]; then
     touch "$STATE_DIR/locked"
     printf 'ok\n'
@@ -182,7 +182,7 @@ pass "sleep lock retries a failed lock request"
 
 requests=0
 for call in "${calls[@]}"; do
-  [[ $call == "shell lock lock" ]] && (( ++requests ))
+  [[ $call == "shell lock prepareSleep" ]] && (( ++requests ))
 done
 (( requests == 2 )) ||
   fail "sleep lock stops requesting once the lock lands" "requests: $requests"
@@ -197,7 +197,7 @@ cat >"$mock_bin/omarchy-shell" <<'SH'
 
 printf 'shell %s\n' "$*" >>"$CALL_LOG"
 
-if [[ $* == "lock lock" ]]; then
+if [[ $* == "lock prepareSleep" ]]; then
   exit 1
 fi
 
@@ -221,7 +221,7 @@ pass "sleep lock succeeds after observing a pending lock"
 
 requests=0
 for call in "${calls[@]}"; do
-  [[ $call == "shell lock lock" ]] && (( ++requests ))
+  [[ $call == "shell lock prepareSleep" ]] && (( ++requests ))
 done
 (( requests == 1 )) ||
   fail "sleep lock does not retry an observed pending lock" "requests: $requests"
@@ -234,7 +234,7 @@ cat >"$mock_bin/omarchy-shell" <<'SH'
 #!/bin/bash
 
 printf 'shell %s\n' "$*" >>"$CALL_LOG"
-if [[ $* == "lock lock" ]]; then
+if [[ $* == "lock prepareSleep" ]]; then
   printf 'missing-pam\n'
 fi
 exit 0
@@ -272,7 +272,7 @@ never_secures() {
 #!/bin/bash
 
 printf 'shell %s\n' "$*" >>"$CALL_LOG"
-if [[ $* == "lock lock" ]]; then
+if [[ $* == "lock prepareSleep" ]]; then
   printf 'ok\n'
 elif [[ $* == "lock status" ]]; then
   printf '{"secure":false,"requested":true,"pending":true,"sessionLocked":false}\n'
@@ -353,3 +353,96 @@ budget_cap_ms=$(sed -n 's/^budget_cap_ms=//p' "$sleep_lock")
   fail "sleep lock cap leaves logind room to act" \
     "cap: ${budget_cap_ms}ms window: ${inhibit_delay}s"
 pass "sleep lock cap stays inside the shipped logind inhibitor window"
+
+# The fingerprint release is part of the inhibitor, not a side channel. A
+# session that is already secure still has to wait out a held claim, and the
+# request is repeated so a probe stopped with SIGTERM can be asked again.
+setup_scenario claim_held
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+
+printf 'shell %s\n' "$*" >>"$CALL_LOG"
+if [[ $* == "lock prepareSleep" ]]; then
+  printf 'ok\n'
+elif [[ $* == "lock status" ]]; then
+  if [[ ! -f $STATE_DIR/saw_held ]]; then
+    touch "$STATE_DIR/saw_held"
+    printf '{"secure":true,"fingerprintSleepReady":false}\n'
+  else
+    printf '{"secure":true,"fingerprintSleepReady":true}\n'
+  fi
+fi
+SH
+chmod +x "$mock_bin/omarchy-shell"
+mock_clamshell
+
+run_sleep_lock 4000
+
+(( exit_status == 0 )) ||
+  fail "sleep lock waits for the fingerprint claim before releasing the inhibitor" "exit: $exit_status"
+pass "sleep lock waits for the fingerprint claim before releasing the inhibitor"
+
+held_requests=0
+status_polls=0
+for call in "${calls[@]}"; do
+  [[ $call == "shell lock prepareSleep" ]] && (( ++held_requests ))
+  [[ $call == "shell lock status" ]] && (( ++status_polls ))
+done
+(( held_requests >= 2 )) ||
+  fail "sleep lock asks for the release again while the claim is held" "requests: $held_requests"
+(( status_polls >= 2 )) ||
+  fail "sleep lock does not treat the first secure status as the claim release" "polls: $status_polls"
+pass "sleep lock keeps the inhibitor until the claim is released"
+
+# A claim that never drains must not be told to the user as a failed lock.
+# logind suspends when the inhibitor process exits, secure or not.
+setup_scenario claim_stuck
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+
+printf 'shell %s\n' "$*" >>"$CALL_LOG"
+if [[ $* == "lock prepareSleep" ]]; then
+  printf 'ok\n'
+elif [[ $* == "lock status" ]]; then
+  printf '{"secure":true,"fingerprintSleepReady":false}\n'
+fi
+SH
+chmod +x "$mock_bin/omarchy-shell"
+mock_clamshell
+
+run_sleep_lock 1500
+
+(( exit_status == 0 )) ||
+  fail "a secure session with a stuck claim still lets suspend proceed" "exit: $exit_status"
+grep -qF "fingerprint claim still held" "$journal_log" ||
+  fail "a stuck claim is recorded without calling the session unlocked" "journal: $(<"$journal_log")"
+[[ ! -s $notify_log ]] ||
+  fail "a stuck claim does not raise the unlocked-suspend warning" "notifications: $(<"$notify_log")"
+pass "a stuck fingerprint claim does not masquerade as an unlocked suspend"
+
+# An older shell has no prepareSleep. The lock still has to be requested, or
+# the update that ships this sleep lock ahead of the shell suspends unlocked.
+setup_scenario old_shell
+ln -s "$ROOT/bin/omarchy-shell" "$mock_bin/omarchy-shell"
+cat >"$mock_bin/qs" <<'SH'
+#!/bin/bash
+
+args=("$@")
+method=${args[-1]}
+printf 'shell lock %s\n' "$method" >>"$CALL_LOG"
+case $method in
+  prepareSleep) printf 'Function not found.\n' ;;
+  lock) printf 'ok\n' ;;
+  status) printf '{"secure":true}\n' ;;
+esac
+SH
+chmod +x "$mock_bin/qs"
+mock_clamshell
+
+run_sleep_lock 4000
+
+(( exit_status == 0 )) ||
+  fail "sleep lock falls back to an ordinary lock on an older shell" "exit: $exit_status"
+[[ ${calls[*]} == *"shell lock prepareSleep"* && ${calls[*]} == *"shell lock lock"* ]] ||
+  fail "sleep lock asks the old shell to lock after prepareSleep is missing" "calls: ${calls[*]}"
+pass "sleep lock falls back to an ordinary lock on an older shell"

@@ -68,10 +68,34 @@ lock_ipc() {
 # only way to spot a lock it can never perform. Nothing else needs inspecting:
 # the status poll is what confirms success, and re-requesting is idempotent, so
 # a request that may not have landed costs nothing to repeat.
+#
+# prepareSleep is the suspend entry. It releases the fingerprint claim and
+# locks. `lock lock` stays the ordinary lock: a keybinding and a shell restart
+# both use it, and treating those as suspend would hold the reader shut.
+# A shell that predates prepareSleep answers "Function not found." and still
+# has to be locked the old way.
 request_lock() {
-  case $(lock_ipc "$lock_timeout_ms" lock lock 2>/dev/null) in
+  local reply
+  reply=$(lock_ipc "$lock_timeout_ms" lock prepareSleep 2>&1 || true)
+  case $reply in
     missing-pam) report_unsecured "no lock screen is configured" "$(omarchy-i18n lock.unlockedNoLockScreen)" ;;
+    ok) ;;
+    *"Function not found."*)
+      case $(lock_ipc "$lock_timeout_ms" lock lock 2>/dev/null) in
+        missing-pam) report_unsecured "no lock screen is configured" "$(omarchy-i18n lock.unlockedNoLockScreen)" ;;
+      esac
+      ;;
   esac
+}
+
+# One status read per pass, after the prepareSleep request. abort() queues PAM
+# helper destruction, so its reply alone is not the paused-state acknowledgement.
+# The shell cannot acknowledge fprintd releasing the physical device.
+lock_status_json=
+
+read_lock_status() {
+  lock_status_json=$(lock_ipc "$status_timeout_ms" lock status 2>/dev/null || true)
+  [[ -n $lock_status_json ]] || lock_status_json='{}'
 }
 
 # secure: done. locking: the shell has the request and is working on it, so
@@ -80,7 +104,15 @@ lock_state() {
   jq -r 'if .secure == true then "secure"
          elif .requested == true then "locking"
          else "idle" end' \
-    <<<"$(lock_ipc "$status_timeout_ms" lock status 2>/dev/null)" 2>/dev/null
+    <<<"$lock_status_json" 2>/dev/null || echo idle
+}
+
+# Absent on an older shell, which has no claim field to wait for. false means
+# the reader is still held and the inhibitor has to keep waiting.
+claim_state() {
+  jq -r 'if has("fingerprintSleepReady") and .fingerprintSleepReady == false then "held"
+         else "released" end' \
+    <<<"$lock_status_json" 2>/dev/null || echo released
 }
 
 sync_clamshell() {
@@ -112,14 +144,40 @@ sync_clamshell
 
 # The trailing sleep can overshoot the deadline by one interval, which is well
 # inside the reserve derive_budget_ms already held back for logind.
+# The last read has to be one the budget still allowed. A status call after
+# the deadline is refused, and an empty reply must not look like an unlocked
+# session when the last answer was a secure one.
+last_state=idle
+last_claim=released
 while (( $(remaining_ms) > 0 )); do
-  case $(lock_state) in
-    secure) exit 0 ;;
+  read_lock_status
+  last_state=$(lock_state)
+  last_claim=$(claim_state)
+  case $last_state in
+    secure)
+      # Session secure is not enough: new claims must be paused, PAM inactive,
+      # and the enrollment probe stopped before dropping the inhibitor.
+      if [[ $last_claim == held ]]; then
+        request_lock
+      else
+        exit 0
+      fi
+      ;;
     locking) ;;
     *) request_lock ;;
   esac
 
   sleep "$poll_interval"
 done
+
+if [[ $last_state == secure && $last_claim != held ]]; then
+  exit 0
+fi
+# The session is locked. logind suspends once this process exits either way,
+# so a claim that never drained must not be reported as an unlocked suspend.
+if [[ $last_state == secure ]]; then
+  printf 'omarchy-system-sleep-lock: suspending with the fingerprint claim still held\n' >&2
+  exit 0
+fi
 
 report_unsecured "the shell did not secure the session within ${budget_ms}ms" "$(omarchy-i18n lock.unlockedTimeout "$budget_ms")"
