@@ -4,4 +4,6 @@
 # omarchy:hidden=true
 
 # Clamshell = lid closed while driving one or more external monitors.
-omarchy-hw-laptop-closed && omarchy-hw-external-monitors
+# Ask about monitors first: that is a cached sysfs read, while some firmware
+# takes seconds to answer the ACPI lid, and the wake path asks every time.
+omarchy-hw-external-monitors && omarchy-hw-laptop-closed
