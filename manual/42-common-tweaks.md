@@ -23,7 +23,9 @@ hl.config({
 
 ### Remove window gaps
 
-On laptop displays, some people prefer not to waste any pixels on window gaps (or even a top bar, which you can toggle off with `Super + Shift + Space`). You can toggle all gaps and borders off with `Super + Shift + Backspace`, or remove them permanently by removing the comments in this section of `~/.config/hypr/looknfeel.lua`:
+A workspace with one visible tiled window has no border and no gaps. A floating window keeps its border. A second window brings back a 2px border, a 10px outer gap, and a 5px inner gap.
+
+On laptop displays, some people prefer not to waste any pixels on window gaps even with several windows (or even a top bar, which you can toggle off with `Super + Shift + Space`). You can toggle all gaps and borders off with `Super + Shift + Backspace`, or remove them permanently by removing the comments in this section of `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({

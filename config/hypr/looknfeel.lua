@@ -6,9 +6,12 @@
 -- o.transparent_window("my-app", "0.9 0.85") -- Custom active/inactive opacity.
 
 -- https://wiki.hypr.land/Configuring/Basics/Variables/#general
+-- One visible tiled window already has no border and no gaps. A floating
+-- window keeps its border. From the second window, general.border_size (2),
+-- gaps_out (10), and gaps_in (5) apply.
+-- Uncomment to remove them for every window.
 -- hl.config({
 --   general = {
---     -- No gaps between windows or borders.
 --     gaps_in = 0,
 --     gaps_out = 0,
 --     border_size = 0,
