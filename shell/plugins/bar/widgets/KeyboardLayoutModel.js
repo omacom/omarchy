@@ -54,6 +54,22 @@ function shortLabel(description, briefs) {
   return label.substring(0, 3).toUpperCase()
 }
 
+// Two entries of one xkb layout share its brief, so fr with fr(bepo) would read
+// FR either way and the label could not tell them apart. Show what kb_variant
+// names instead, or the layout itself for the entry without one, written as the
+// config writes it so the label reads back what was chosen. Layouts listed once
+// answer nothing and keep their brief.
+function variantLabel(layouts, variants, index) {
+  var codes = String(layouts || "").split(",")
+  var code = codes[index]
+  if (!code) return ""
+
+  var repeated = codes.filter(function (other) { return other === code }).length > 1
+  if (!repeated) return ""
+
+  return String(variants || "").split(",")[index] || code
+}
+
 // Hyprland's activelayout event pairs the keyboard that switched with the layout
 // it moved to. Quickshell cuts the event into that many fields, so a description
 // carrying a comma of its own stays in one piece; a binding old enough to hand
@@ -139,6 +155,7 @@ if (typeof module !== "undefined") {
     layoutBriefs: layoutBriefs,
     selectKeyboard: selectKeyboard,
     shortLabel: shortLabel,
+    variantLabel: variantLabel,
     inputLabel: inputLabel,
     inputTooltip: inputTooltip,
     showIndicator: showIndicator
