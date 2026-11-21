@@ -766,7 +766,10 @@ Item {
 
   Timer {
     id: idleBlankTimer
-    readonly property int idleMs: 5000
+    // Five seconds runs out while a slow panel is still resyncing after DPMS
+    // off, so the lock blanks again as the picture appears. Ten seconds leaves
+    // a visible window to start the password.
+    readonly property int idleMs: 10000
     // A resume reaches this as soon as the kernel thaws, seconds before the
     // panel lights (on NVIDIA it waits out a VT switch and a modeset), so the
     // idle run-up blanked the lock just as it appeared.
