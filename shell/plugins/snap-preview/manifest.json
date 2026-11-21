@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.snap-preview",
+  "name": "Snap preview",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Outline of where a dragged window will snap on a floating workspace",
+  "kinds": [
+    "service"
+  ],
+  "entryPoints": {
+    "service": "SnapPreview.qml"
+  }
+}
