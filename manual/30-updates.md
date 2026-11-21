@@ -34,6 +34,18 @@ When you need to change a setting in the BIOS itself, hold `Alt` in the system m
 
 If you're already familiar with Arch, you might be tempted to just run `pacman -Syu` or `yay -Syu` yourself, but if you do that, you'll miss the snapshot, migrations, and configuration updates that Omarchy runs together with new packages. That's why Omarchy will actually stop a direct system upgrade and point you to `omarchy update` instead. (If you really know what you're doing, the guard will tell you how to bypass it for a single transaction.)
 
+### AUR packages built from git
+
+AUR packages whose names end in `-git` build from the latest commit of the project's source, but the version listed in the AUR may stay unchanged when new commits land. yay only checks those packages for new commits in its devel mode, which is off by default. Without it, `omarchy update` relies on version updates in the AUR and can leave these packages behind upstream. To have updates rebuild them when their source has moved on, turn devel mode on once:
+
+```bash
+yay -Y --devel --save
+```
+
+This saves the setting in `~/.config/yay/config.json`, and `omarchy update` picks it up from there. `yay -Y --devel=false --save` turns it back off.
+
+For packages installed with another AUR helper, run `yay -Y --gendb` once to initialize yay's commit tracking.
+
 ### Rolling back bad updates
 
 If you ever have a problem after doing an update, you can rollback your system to the snapshot taken before the update. Just restart and pick the snapshot in the boot loading menu from before you started the update.
