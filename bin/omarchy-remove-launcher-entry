@@ -93,10 +93,14 @@ if is_user_desktop_file; then
 fi
 
 if package_name="$(pacman -Qqo "$desktop_file" 2>/dev/null | head -1)" && [[ -n $package_name ]]; then
-  display_name="${entry_name:-$desktop_name}"
-  quoted_package="$(printf '%q' "$package_name")"
-  quoted_display="$(printf '%q' "$display_name")"
-  uninstall_in_terminal "echo Uninstalling $quoted_display...; sudo pacman -Rns $quoted_package"
+  if [[ $package_name == "1password" ]]; then
+    uninstall_in_terminal omarchy-remove-service-1password
+  else
+    display_name="${entry_name:-$desktop_name}"
+    quoted_package="$(printf '%q' "$package_name")"
+    quoted_display="$(printf '%q' "$display_name")"
+    uninstall_in_terminal "echo Uninstalling $quoted_display...; sudo pacman -Rns $quoted_package"
+  fi
   exit 0
 fi
 
