@@ -38,7 +38,7 @@ Ali u posebnim okolnostima, poput udaljenih instalacija Omarchyja na zaštićeni
 
 Omarchy govori 50 jezika — isti skup kao omarchy.org — a engleski je zadani. Za promjenu otvorite izbornik Omarchy i idite na _Postavljanje > Regija > Jezik_ ili u terminalu pokrenite `omarchy language <code>` (`omarchy language list` prikazuje kodove). Izbornik, radna površina i vlastite obavijesti Omarchyja odmah mijenjaju jezik, a slijedi ih i svaka aplikacija koju nakon toga otvorite. Aplikacije koje su već bile otvorene promijenit će se nakon što ih ponovno pokrenete.
 
-Da biste zadržali jezik, ali datume, vremena, brojeve, novac, jedinice i veličine papira pisali onako kako to čini druga regija (recimo engleski s europskim datumima i 24-satnim satom), odaberite regiju pod _Postavljanje > Regija > Formati_, gdje svaki izbor prikazuje uzorak, ili pokrenite `omarchy region <code>` (`omarchy region list` prikazuje kodove). _Isto kao jezik_ vraća na formate samog jezika. Kao i promjena jezika, i ovo se odnosi na aplikacije koje otvorite nakon toga.
+Da biste zadržali jezik, ali datume, vremena, brojeve, novac, jedinice i veličine papira pisali onako kako to čini druga regija (recimo engleski s europskim datumima i 24-satnim satom), odaberite regiju pod _Postavljanje > Regija > Formati_, gdje svaki izbor prikazuje uzorak, ili pokrenite `omarchy region formats <code>` (`omarchy region formats list` prikazuje kodove). _Isto kao jezik_ vraća na formate samog jezika. Kao i promjena jezika, i ovo se odnosi na aplikacije koje otvorite nakon toga.
 
 ### Pomoć ako zapnete
 

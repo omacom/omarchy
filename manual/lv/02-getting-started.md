@@ -38,7 +38,7 @@ Bet īpašos apstākļos, piemēram, attālinātām Omarchy instalācijām aizsa
 
 Omarchy runā 50 valodās — tajā pašā komplektā kā omarchy.org — un angļu valoda ir noklusējuma valoda. Lai pārslēgtu, atver Omarchy izvēlni un dodies uz _Setup > Region > Language_ vai palaid `omarchy language <code>` terminālī (`omarchy language list` parāda kodus). Izvēlne, darbvirsma un paša Omarchy paziņojumi maina valodu nekavējoties, un katra lietotne, ko tu atver pēc tam, seko arī. Lietotnes, kas jau bija atvērtas, pārslēdzas, tiklīdz tu tās restartē.
 
-Lai saglabātu valodu, bet rakstītu datumus, laikus, skaitļus, naudu, mērvienības un papīra izmērus tā, kā to dara citā reģionā (piemēram, angļu valodā ar Eiropas datumiem un 24 stundu pulksteni), izvēlies reģionu sadaļā _Setup > Region > Formats_, kur katra izvēle rāda paraugu, vai palaid `omarchy region <code>` (`omarchy region list` parāda kodus). _Same as language_ atgriež valodas pašas formātus. Tāpat kā valodas pārslēgšana, tā sasniedz lietotnes, ko tu atver pēc tam.
+Lai saglabātu valodu, bet rakstītu datumus, laikus, skaitļus, naudu, mērvienības un papīra izmērus tā, kā to dara citā reģionā (piemēram, angļu valodā ar Eiropas datumiem un 24 stundu pulksteni), izvēlies reģionu sadaļā _Setup > Region > Formats_, kur katra izvēle rāda paraugu, vai palaid `omarchy region formats <code>` (`omarchy region formats list` parāda kodus). _Same as language_ atgriež valodas pašas formātus. Tāpat kā valodas pārslēgšana, tā sasniedz lietotnes, ko tu atver pēc tam.
 
 ### Palīdzība, ja esi iestrēdzis
 

@@ -38,7 +38,7 @@ Mutta erityisissä olosuhteissa, kuten Omarchyn etäasennuksissa suojatuille tie
 
 Omarchy puhuu 50 kieltä — sama valikoima kuin omarchy.org — ja englanti on oletus. Vaihtaaksesi avaa Omarchy-valikko ja siirry kohtaan _Asetukset > Alue > Kieli_, tai aja terminaalissa `omarchy language <code>` (`omarchy language list` näyttää koodit). Valikko, työpöytä ja Omarchyn omat ilmoitukset vaihtavat kielen heti, ja jokainen sen jälkeen avaamasi sovellus seuraa mukana. Jo auki olleet sovellukset vaihtavat kielen, kun käynnistät ne uudelleen.
 
-Jos haluat pitää kielen mutta kirjoittaa päivämäärät, ajat, numerot, rahasummat, yksiköt ja paperikoot toisen alueen tavalla (esimerkiksi englanti eurooppalaisilla päivämäärillä ja 24 tunnin kellolla), valitse alue kohdassa _Asetukset > Alue > Muotoilut_, jossa jokaisen valinnan yhteydessä näkyy esimerkki, tai aja `omarchy region <code>` (`omarchy region list` näyttää koodit). _Sama kuin kieli_ palaa kielen omiin muotoiluihin. Kielenvaihdon tavoin se vaikuttaa sovelluksiin, jotka avaat sen jälkeen.
+Jos haluat pitää kielen mutta kirjoittaa päivämäärät, ajat, numerot, rahasummat, yksiköt ja paperikoot toisen alueen tavalla (esimerkiksi englanti eurooppalaisilla päivämäärillä ja 24 tunnin kellolla), valitse alue kohdassa _Asetukset > Alue > Muotoilut_, jossa jokaisen valinnan yhteydessä näkyy esimerkki, tai aja `omarchy region formats <code>` (`omarchy region formats list` näyttää koodit). _Sama kuin kieli_ palaa kielen omiin muotoiluihin. Kielenvaihdon tavoin se vaikuttaa sovelluksiin, jotka avaat sen jälkeen.
 
 ### Apua, jos jäät jumiin
 

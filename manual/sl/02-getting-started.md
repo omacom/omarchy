@@ -38,7 +38,7 @@ V posebnih okoliščinah, kot so oddaljene namestitve Omarchy na zaščitenih ra
 
 Omarchy govori 50 jezikov — isti nabor kot omarchy.org — angleščina pa je privzeta. Za preklop odprite meni Omarchy in pojdite v _Setup > Region > Language_ ali v terminalu zaženite `omarchy language <code>` (`omarchy language list` prikaže kode). Meni, namizje in lastna obvestila Omarchy takoj zamenjajo jezik, prav tako pa mu sledi vsaka aplikacija, ki jo odprete pozneje. Aplikacije, ki so že bile odprte, se preklopijo, ko jih znova zaženete.
 
-Če želite jezik obdržati, a datume, čase, številke, denar, enote in velikosti papirja zapisovati tako, kot to počne druga regija (recimo angleščino z evropskimi datumi in 24-urno uro), izberite regijo v _Setup > Region > Formats_, kjer vsaka izbira prikaže vzorec, ali zaženite `omarchy region <code>` (`omarchy region list` prikaže kode). _Same as language_ vas vrne na zapise samega jezika. Tako kot preklop jezika velja tudi ta za aplikacije, ki jih odprete pozneje.
+Če želite jezik obdržati, a datume, čase, številke, denar, enote in velikosti papirja zapisovati tako, kot to počne druga regija (recimo angleščino z evropskimi datumi in 24-urno uro), izberite regijo v _Setup > Region > Formats_, kjer vsaka izbira prikaže vzorec, ali zaženite `omarchy region formats <code>` (`omarchy region formats list` prikaže kode). _Same as language_ vas vrne na zapise samega jezika. Tako kot preklop jezika velja tudi ta za aplikacije, ki jih odprete pozneje.
 
 ### Pomoč, če obtičite
 

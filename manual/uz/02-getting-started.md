@@ -38,7 +38,7 @@ Lekin maxsus holatlarda, masalan, himoyalangan kompyuterlarga masofadan Omarchy 
 
 Omarchy 50 tilda gapiradi — omarchy.org'dagi bilan bir xil to'plam — va English sukut bo'yicha tildir. O'zgartirish uchun Omarchy menyusini oching va _Sozlash > Mintaqa > Til_ ga o'ting yoki terminalda `omarchy language <code>` ni ishga tushiring (`omarchy language list` kodlarni ko'rsatadi). Menyu, ish stoli va Omarchy'ning o'z bildirishnomalari tilni darhol o'zgartiradi va undan keyin ochadigan har bir ilovangiz ham shunga ergashadi. Allaqachon ochiq bo'lgan ilovalar ularni qayta ishga tushirganingizdan keyin o'zgaradi.
 
-Tilni saqlab qolib, lekin sanalar, vaqtlar, raqamlar, pul, birliklar va qog'oz o'lchamlarini boshqa mintaqadagi kabi yozish uchun (masalan, European sanalari va 24 soatlik soat bilan English), _Sozlash > Mintaqa > Formatlar_ ostida mintaqani tanlang, bu yerda har bir tanlov namunani ko'rsatadi, yoki `omarchy region <code>` ni ishga tushiring (`omarchy region list` kodlarni ko'rsatadi). _Til bilan bir xil_ tilning o'z formatlariga qaytaradi. Tilni o'zgartirish kabi, bu ham undan keyin ochadigan ilovalaringizga yetib boradi.
+Tilni saqlab qolib, lekin sanalar, vaqtlar, raqamlar, pul, birliklar va qog'oz o'lchamlarini boshqa mintaqadagi kabi yozish uchun (masalan, European sanalari va 24 soatlik soat bilan English), _Sozlash > Mintaqa > Formatlar_ ostida mintaqani tanlang, bu yerda har bir tanlov namunani ko'rsatadi, yoki `omarchy region formats <code>` ni ishga tushiring (`omarchy region formats list` kodlarni ko'rsatadi). _Til bilan bir xil_ tilning o'z formatlariga qaytaradi. Tilni o'zgartirish kabi, bu ham undan keyin ochadigan ilovalaringizga yetib boradi.
 
 ### Qotib qolsangiz yordam
 

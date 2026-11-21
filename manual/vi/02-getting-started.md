@@ -38,7 +38,7 @@ Nhưng trong những trường hợp đặc biệt, như cài đặt Omarchy t�
 
 Omarchy nói được 50 ngôn ngữ — cùng bộ ngôn ngữ như omarchy.org — và tiếng Anh là mặc định. Để chuyển đổi, mở menu Omarchy và đi tới _Setup > Region > Language_, hoặc chạy `omarchy language <code>` trong một terminal (`omarchy language list` hiển thị các mã). Menu, màn hình nền, và các thông báo riêng của Omarchy sẽ đổi ngôn ngữ ngay lập tức, và mọi ứng dụng bạn mở sau đó cũng sẽ theo như vậy. Các ứng dụng đã mở sẵn sẽ chuyển khi bạn khởi động lại chúng.
 
-Để giữ nguyên ngôn ngữ nhưng viết ngày, giờ, số, tiền tệ, đơn vị và khổ giấy theo cách của một khu vực khác (ví dụ tiếng Anh với ngày tháng kiểu châu Âu và đồng hồ 24 giờ), hãy chọn một khu vực trong _Setup > Region > Formats_, nơi mỗi lựa chọn đều hiển thị một mẫu, hoặc chạy `omarchy region <code>` (`omarchy region list` hiển thị các mã). _Same as language_ sẽ quay lại định dạng riêng của ngôn ngữ. Giống như chuyển đổi ngôn ngữ, nó áp dụng cho các ứng dụng bạn mở sau đó.
+Để giữ nguyên ngôn ngữ nhưng viết ngày, giờ, số, tiền tệ, đơn vị và khổ giấy theo cách của một khu vực khác (ví dụ tiếng Anh với ngày tháng kiểu châu Âu và đồng hồ 24 giờ), hãy chọn một khu vực trong _Setup > Region > Formats_, nơi mỗi lựa chọn đều hiển thị một mẫu, hoặc chạy `omarchy region formats <code>` (`omarchy region formats list` hiển thị các mã). _Same as language_ sẽ quay lại định dạng riêng của ngôn ngữ. Giống như chuyển đổi ngôn ngữ, nó áp dụng cho các ứng dụng bạn mở sau đó.
 
 ### Trợ giúp nếu bạn bị kẹt
 

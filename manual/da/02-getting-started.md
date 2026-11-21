@@ -38,7 +38,7 @@ Men under særlige omstændigheder, som f.eks. fjerninstallationer af Omarchy p�
 
 Omarchy taler 50 sprog — samme sæt som omarchy.org — og engelsk er standarden. For at skifte skal du åbne Omarchy-menuen og gå til _Opsætning > Region > Sprog_ eller køre `omarchy language <code>` i en terminal (`omarchy language list` viser koderne). Menuen, skrivebordet og Omarchys egne notifikationer skifter sprog med det samme, og alle programmer, du åbner bagefter, følger også med. Programmer, der allerede var åbne, skifter, når du genstarter dem.
 
-For at beholde sproget, men skrive datoer, klokkeslæt, tal, penge, enheder og papirstørrelser, som man gør i en anden region (f.eks. engelsk med europæiske datoer og 24-timers ur), skal du vælge en region under _Opsætning > Region > Formater_, hvor hvert valg viser et eksempel, eller køre `omarchy region <code>` (`omarchy region list` viser koderne). _Samme som sprog_ går tilbage til sprogets egne formater. Ligesom et sprogskift gælder det for de programmer, du åbner bagefter.
+For at beholde sproget, men skrive datoer, klokkeslæt, tal, penge, enheder og papirstørrelser, som man gør i en anden region (f.eks. engelsk med europæiske datoer og 24-timers ur), skal du vælge en region under _Opsætning > Region > Formater_, hvor hvert valg viser et eksempel, eller køre `omarchy region formats <code>` (`omarchy region formats list` viser koderne). _Samme som sprog_ går tilbage til sprogets egne formater. Ligesom et sprogskift gælder det for de programmer, du åbner bagefter.
 
 ### Hjælp, hvis du sidder fast
 

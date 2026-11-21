@@ -38,7 +38,7 @@ Però en circumstàncies especials, com instal·lacions remotes d'Omarchy en ord
 
 Omarchy parla 50 idiomes — el mateix conjunt que omarchy.org — i l'anglès és el predeterminat. Per canviar-lo, obre el menú d'Omarchy i ves a _Setup > Region > Language_, o executa `omarchy language <code>` en un terminal (`omarchy language list` mostra els codis). El menú, l'escriptori i les notificacions pròpies d'Omarchy canvien d'idioma immediatament, i totes les aplicacions que obris després també. Les aplicacions que ja estaven obertes canvien quan les reinicies.
 
-Per mantenir l'idioma però escriure les dates, les hores, els nombres, els diners, les unitats i les mides de paper com es fa en una altra regió (anglès amb dates europees i un rellotge de 24 hores, per exemple), tria una regió a _Setup > Region > Formats_, on cada opció mostra un exemple, o executa `omarchy region <code>` (`omarchy region list` mostra els codis). _Same as language_ torna als formats propis de l'idioma. Com un canvi d'idioma, arriba a les aplicacions que obris després.
+Per mantenir l'idioma però escriure les dates, les hores, els nombres, els diners, les unitats i les mides de paper com es fa en una altra regió (anglès amb dates europees i un rellotge de 24 hores, per exemple), tria una regió a _Setup > Region > Formats_, on cada opció mostra un exemple, o executa `omarchy region formats <code>` (`omarchy region formats list` mostra els codis). _Same as language_ torna als formats propis de l'idioma. Com un canvi d'idioma, arriba a les aplicacions que obris després.
 
 ### Ajuda si t'encalles
 

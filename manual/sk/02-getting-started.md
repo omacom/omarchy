@@ -38,7 +38,7 @@ Ale za zvláštnych okolností, ako sú vzdialené inštalácie Omarchy na chrá
 
 Omarchy hovorí 50 jazykmi — rovnakou sadou ako omarchy.org — a angličtina je predvolená. Ak chcete jazyk prepnúť, otvorte menu Omarchy a prejdite na _Setup > Region > Language_, alebo spustite v termináli `omarchy language <code>` (`omarchy language list` zobrazí kódy). Menu, pracovná plocha a vlastné oznámenia Omarchy okamžite zmenia jazyk a každá aplikácia, ktorú otvoríte potom, ich bude nasledovať tiež. Aplikácie, ktoré už boli otvorené, sa prepnú, keď ich reštartujete.
 
-Ak chcete ponechať jazyk, ale písať dátumy, časy, čísla, peniaze, jednotky a veľkosti papiera tak, ako to robí iný región (napríklad angličtina s európskymi dátumami a 24-hodinovým formátom času), vyberte si región v _Setup > Region > Formats_, kde každá voľba zobrazuje ukážku, alebo spustite `omarchy region <code>` (`omarchy region list` zobrazí kódy). _Same as language_ sa vráti k vlastným formátom jazyka. Rovnako ako prepnutie jazyka, dosiahne aplikácie, ktoré otvoríte potom.
+Ak chcete ponechať jazyk, ale písať dátumy, časy, čísla, peniaze, jednotky a veľkosti papiera tak, ako to robí iný región (napríklad angličtina s európskymi dátumami a 24-hodinovým formátom času), vyberte si región v _Setup > Region > Formats_, kde každá voľba zobrazuje ukážku, alebo spustite `omarchy region formats <code>` (`omarchy region formats list` zobrazí kódy). _Same as language_ sa vráti k vlastným formátom jazyka. Rovnako ako prepnutie jazyka, dosiahne aplikácie, ktoré otvoríte potom.
 
 ### Pomoc, ak sa zaseknete
 

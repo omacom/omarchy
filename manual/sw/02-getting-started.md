@@ -38,7 +38,7 @@ Lakini katika mazingira maalum, kama usakinishaji wa mbali wa Omarchy kwenye kom
 
 Omarchy huzungumza lugha 50 — seti ile ile kama omarchy.org — na Kiingereza ndicho chaguo-msingi. Ili kubadilisha, fungua menyu ya Omarchy na uende _Setup > Region > Language_, au endesha `omarchy language <code>` kwenye terminali (`omarchy language list` huonyesha misimbo). Menyu, eneo-kazi, na arifa za Omarchy yenyewe hubadilisha lugha mara moja, na kila programu unayofungua baada ya hapo hufuata pia. Programu ambazo tayari zilikuwa wazi hubadilika mara tu unapoziwasha upya.
 
-Ili kubakisha lugha lakini kuandika tarehe, saa, nambari, pesa, vipimo na ukubwa wa karatasi kama eneo jingine lifanyavyo (Kiingereza chenye tarehe za Ulaya na saa ya masaa 24, kwa mfano), chagua eneo chini ya _Setup > Region > Formats_, ambapo kila chaguo huonyesha sampuli, au endesha `omarchy region <code>` (`omarchy region list` huonyesha misimbo). _Same as language_ hurudi kwenye miundo ya lugha yenyewe. Kama kubadilisha lugha, hufikia programu unazofungua baada ya hapo.
+Ili kubakisha lugha lakini kuandika tarehe, saa, nambari, pesa, vipimo na ukubwa wa karatasi kama eneo jingine lifanyavyo (Kiingereza chenye tarehe za Ulaya na saa ya masaa 24, kwa mfano), chagua eneo chini ya _Setup > Region > Formats_, ambapo kila chaguo huonyesha sampuli, au endesha `omarchy region formats <code>` (`omarchy region formats list` huonyesha misimbo). _Same as language_ hurudi kwenye miundo ya lugha yenyewe. Kama kubadilisha lugha, hufikia programu unazofungua baada ya hapo.
 
 ### Msaada ukikwama
 

@@ -38,7 +38,7 @@ Omarchy පෙරනිමියෙන් සංකේතනය සමඟ ස්
 
 Omarchy භාෂා 50ක් කතා කරයි — omarchy.org හි ඇති එම කට්ටලයම — සහ English පෙරනිමියයි. මාරු කිරීමට, Omarchy menu එක විවෘත කර _Setup > Region > Language_ වෙත යන්න, හෝ terminal එකක `omarchy language <code>` ධාවනය කරන්න (`omarchy language list` මඟින් codes පෙන්වයි). menu එක, desktop එක, සහ Omarchy හිම දැනුම්දීම් වහාම භාෂාව වෙනස් කරන අතර, ඉන්පසු ඔබ විවෘත කරන සෑම application එකක්ම ද ඒ අනුව හැසිරේ. දැනටමත් විවෘත කර තිබූ Apps ඔබ ඒවා restart කළ පසු මාරු වේ.
 
-භාෂාව එලෙසම තබාගෙන, තවත් region එකක් කරන ආකාරයට දින, වේලාවන්, අංක, මුදල්, ඒකක සහ කඩදාසි ප්‍රමාණ ලිවීමට (උදාහරණයක් ලෙස, European දින සහ පැය 24 ඔරලෝසුවක් සහිත English), _Setup > Region > Formats_ යටතේ region එකක් තෝරන්න, එහිදී සෑම තේරීමක්ම සාම්පලයක් පෙන්වයි, හෝ `omarchy region <code>` ධාවනය කරන්න (`omarchy region list` මඟින් codes පෙන්වයි). _Same as language_ මඟින් භාෂාවේම formats වෙත ආපසු යයි. භාෂා මාරුවක් මෙන්ම, එය ඉන්පසු ඔබ විවෘත කරන apps වෙත ළඟා වේ.
+භාෂාව එලෙසම තබාගෙන, තවත් region එකක් කරන ආකාරයට දින, වේලාවන්, අංක, මුදල්, ඒකක සහ කඩදාසි ප්‍රමාණ ලිවීමට (උදාහරණයක් ලෙස, European දින සහ පැය 24 ඔරලෝසුවක් සහිත English), _Setup > Region > Formats_ යටතේ region එකක් තෝරන්න, එහිදී සෑම තේරීමක්ම සාම්පලයක් පෙන්වයි, හෝ `omarchy region formats <code>` ධාවනය කරන්න (`omarchy region formats list` මඟින් codes පෙන්වයි). _Same as language_ මඟින් භාෂාවේම formats වෙත ආපසු යයි. භාෂා මාරුවක් මෙන්ම, එය ඉන්පසු ඔබ විවෘත කරන apps වෙත ළඟා වේ.
 
 ### ඔබ හිර වී ඇත්නම් උදව්
 
