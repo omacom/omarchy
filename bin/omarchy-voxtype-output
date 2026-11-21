@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=Paste Voxtype dictation through Hyprland
+# omarchy:args=<begin|end>
+# omarchy:hidden=true
+
+# Voxtype runs `begin` as its pre_output_command and `end` as its
+# post_output_command. In clipboard mode it only copies the transcript, and
+# `end` pastes it with Shift+Insert from Hyprland, which XWayland apps receive
+# intact where wtype's typing arrives as Escape and digits. Voxtype also runs
+# post_output_command after cancelled and empty recordings, so `end` pastes
+# only after a `begin`. Type and paste modes deliver the text themselves, so
+# `begin` arms nothing there.
+
+marker="${XDG_RUNTIME_DIR:-/tmp}/omarchy-voxtype-output"
+
+# The marker holds the id systemd gave this run of the daemon. One left behind
+# by a Voxtype that stopped between the two hooks must not arm a paste for the
+# next run, whose first recording may be cancelled.
+daemon_run() {
+  systemctl --user show voxtype.service --property=InvocationID --value 2>/dev/null
+}
+
+case "${1:-}" in
+  begin)
+    if [[ $(voxtype config get output.mode) == "clipboard" ]]; then
+      daemon_run >"$marker"
+    else
+      rm -f "$marker"
+    fi
+    ;;
+  end)
+    if [[ -e $marker ]]; then
+      armed_run=$(<"$marker")
+      rm -f "$marker"
+
+      if [[ $armed_run == "$(daemon_run)" ]]; then
+        # Voxtype's own paste mode gives the clipboard as long to settle.
+        sleep 0.1
+        omarchy-hyprland-send-shortcut SHIFT Insert
+      fi
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy-voxtype-output <begin|end>" >&2
+    exit 1
+    ;;
+esac
