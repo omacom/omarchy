@@ -867,6 +867,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("localModels.title")
     anchors.fill: parent
     bar: root.bar
     text: "󰙴"
@@ -878,6 +879,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("localModels.title")
     anchorItem: button
     owner: root
     bar: root.bar
