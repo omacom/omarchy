@@ -1,0 +1,212 @@
+#!/bin/bash
+
+# omarchy:summary=Set up what the welcome tour picked: workspace layout, dictation, Tailscale, a local model and the default agent
+# omarchy:args=[--install] [--layout <dwindle|scrolling|floating>] [--dictation <backend>] [--tailscale] [--local-ai <recipe>] [--agent <harness>]
+# omarchy:hidden=true
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-setup-essentials [--install] [--layout <dwindle|scrolling|floating>]
+                                [--dictation <backend>] [--tailscale]
+                                [--local-ai <recipe>] [--agent <harness>]
+
+Sets up each thing named, one after another. The layout changes at once. The
+rest install, so they are handed to a floating terminal, where they wait for
+a connection first. The agent goes last, since installing it opens it.
+
+  --install  Run the installs here instead: this is that terminal.
+USAGE
+}
+
+needs_value() {
+  if [[ -z ${2:-} || $2 == -* ]]; then
+    echo "$1 needs a value" >&2
+    usage >&2
+    exit 1
+  fi
+}
+
+layout="" dictation="" local_ai="" agent=""
+tailscale=0 here=0
+
+while (($#)); do
+  case "$1" in
+    --install)
+      here=1
+      ;;
+    --layout)
+      needs_value "$@"
+      layout=$2
+      shift
+      ;;
+    --dictation)
+      needs_value "$@"
+      dictation=$2
+      shift
+      ;;
+    --local-ai)
+      needs_value "$@"
+      local_ai=$2
+      shift
+      ;;
+    --agent)
+      needs_value "$@"
+      agent=$2
+      shift
+      ;;
+    --tailscale)
+      tailscale=1
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+if [[ -n $layout && ! $layout =~ ^(dwindle|scrolling|floating)$ ]]; then
+  echo "Unknown workspace layout: $layout" >&2
+  exit 1
+fi
+
+# These name commands, and go on to a terminal's command line.
+for name in "$dictation" "$agent"; do
+  if [[ -n $name && ! $name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+    echo "Invalid name: $name" >&2
+    exit 1
+  fi
+done
+
+# A recipe as omarchy-local-ai names them, which goes the same way.
+if [[ -n $local_ai && ! $local_ai =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+  echo "Invalid recipe: $local_ai" >&2
+  exit 1
+fi
+
+installs=()
+[[ -z $dictation ]] || installs+=(--dictation "$dictation")
+(( ! tailscale )) || installs+=(--tailscale)
+[[ -z $local_ai ]] || installs+=(--local-ai "$local_ai")
+[[ -z $agent ]] || installs+=(--agent "$agent")
+
+if [[ -z $layout ]] && (( ${#installs[@]} == 0 )); then
+  usage >&2
+  exit 1
+fi
+
+failed=()
+declined=()
+
+heading() {
+  printf '\n\033[1m%s\033[0m\n' "$1"
+}
+
+# What did not get set up: what failed, and what was turned down part way.
+report() {
+  local summary
+
+  if (( ${#failed[@]} > 0 )); then
+    printf -v summary '%s, ' "${failed[@]}"
+    printf '\nCould not set up: %s\n' "${summary%, }" >&2
+  fi
+  if (( ${#declined[@]} > 0 )); then
+    printf -v summary '%s, ' "${declined[@]}"
+    printf '\nLeft as it was: %s\n' "${summary%, }" >&2
+  fi
+}
+
+install_all() {
+  # As first run does for its own prompts: a connection still coming up is
+  # waited for, and a machine with none is told what it is waiting on.
+  if ! nm-online -q -x -t 30; then
+    heading "Waiting for an internet connection"
+    echo "Connect from the network panel in the bar, and this carries on by itself."
+    # nm-online has no "forever", and where NetworkManager is not running it
+    # gives up at once.
+    until nm-online -q -t 86400; do
+      sleep 1
+    done
+  fi
+
+  if [[ -n $dictation ]]; then
+    heading "Setting up dictation with $dictation"
+    if omarchy-cmd-present "omarchy-install-dictation-$dictation"; then
+      if "omarchy-install-dictation-$dictation"; then
+        # An installer whose confirmation is turned down ends without an
+        # error, so what counts is the backend now in use.
+        [[ $(omarchy-default-dictation 2>/dev/null) == "$dictation" ]] || declined+=("dictation")
+      else
+        failed+=("dictation")
+      fi
+    else
+      echo "No installer available for dictation backend: $dictation" >&2
+      failed+=("dictation")
+    fi
+  fi
+
+  if (( tailscale )); then
+    heading "Setting up Tailscale"
+    omarchy-install-service-tailscale || failed+=("Tailscale")
+  fi
+
+  if [[ -n $local_ai ]]; then
+    heading "Setting up a local model"
+    # Handed to the background, where the agents panel shows the download.
+    # What it needs installed first is asked for by polkit, as from that panel.
+    omarchy-agent-local use --detach "$local_ai" || failed+=("the local model")
+  fi
+
+  if [[ -n $agent ]]; then
+    # Installing an agent clears the terminal and opens the agent in it. So it
+    # goes last, and anything that failed before it is read first.
+    if (( ${#failed[@]} > 0 )); then
+      report
+      printf 'Press any key to carry on with %s' "$agent"
+      read -rsn 1 _ 2>/dev/null </dev/tty
+      echo
+    fi
+
+    heading "Setting up $agent"
+    omarchy-default-agent --install "$agent"
+    # That returns however the agent's own session ended, which says nothing
+    # about the install, so the harness is asked whether it is there.
+    omarchy-default-agent --installed "$agent" >/dev/null 2>&1 || failed+=("$agent")
+  fi
+}
+
+if [[ -n $layout ]]; then
+  omarchy-hyprland-workspace-layout-default "$layout" || failed+=("the workspace layout")
+fi
+
+if [[ -n $agent ]]; then
+  # The tour was the invitation to pick an agent, so first run's own has
+  # nothing left to offer, and one already on screen is taken down. First run
+  # records the pick itself before it gets as far as sending that toast, which
+  # this would be too late for. All of it holds when the install then fails,
+  # too: the pick was the answer, and the Agent menu is where it is tried again.
+  omarchy-done mark agent-setup-invitation
+  omarchy-notification-dismiss "$(omarchy-i18n firstRun.agentTitle)" >/dev/null 2>&1 || true
+fi
+
+# The installs ask for a password and show their progress, which takes a
+# terminal. The layout is set by then, so only they are passed on to one. A
+# layout that could not be set goes with them, to be tried where the reason shows.
+if (( ${#installs[@]} > 0 && ! here )); then
+  if (( ${#failed[@]} > 0 )); then
+    installs=(--layout "$layout" "${installs[@]}")
+  fi
+  exec omarchy-launch-floating-terminal-with-presentation "omarchy-setup-essentials --install ${installs[*]@Q}"
+else
+  (( ${#installs[@]} == 0 )) || install_all
+
+  report
+  if (( ${#failed[@]} > 0 )); then
+    exit 1
+  fi
+fi
