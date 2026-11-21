@@ -318,12 +318,14 @@ local function arrange(windows, workspace)
 end
 
 -- Overlapping windows are placed with the pointer, so a floating workspace
--- focuses on click rather than on hover. Every other workspace keeps the user's
--- own setting.
+-- focuses on click rather than on hover. The pointer still reaches the window
+-- under it (follow_mouse 2, where 0 would hold it on the focused window), so
+-- scrolling and hovering work on a window without focusing it. Every other
+-- workspace keeps the user's own setting.
 local input = {}
 
-local function update_input()
-  local workspace = hl.get_active_workspace()
+local function update_input(monitor)
+  local workspace = hl.get_active_workspace(monitor)
   local active = workspace ~= nil and floating_workspace(workspace.id)
 
   if active == input.floating then
@@ -332,7 +334,15 @@ local function update_input()
 
   input.floating = active
 
-  hl.config({ input = { follow_mouse = active and 0 or input.follow_mouse } })
+  -- float_switch_override_focus would still focus on hover whenever the pointer
+  -- crosses between a tiled window and a floating one, such as coming in from a
+  -- tiled window on another monitor.
+  hl.config({
+    input = {
+      follow_mouse = active and 2 or input.follow_mouse,
+      float_switch_override_focus = active and 0 or input.float_switch_override_focus,
+    },
+  })
 end
 
 -- Windows arrive by opening and by being carried in, and a window rule only ever
@@ -346,6 +356,7 @@ local function watch()
   watching = true
 
   input.follow_mouse = hl.get_config("input.follow_mouse")
+  input.float_switch_override_focus = hl.get_config("input.float_switch_override_focus")
 
   hl.on("window.open", function(window)
     claim_opened(window)
@@ -369,7 +380,10 @@ local function watch()
     end, { type = "oneshot", timeout = 1 })
   end)
 
-  hl.on("workspace.active", update_input)
+  hl.on("workspace.active", function()
+    update_input()
+  end)
+  -- This fires before Hyprland records the new monitor, so ask for its own workspace.
   hl.on("monitor.focused", update_input)
 end
 

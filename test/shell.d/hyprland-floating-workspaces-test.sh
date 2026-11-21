@@ -223,7 +223,7 @@ local subscriptions = {}
 local plugin_loads = 0
 local titlebar_config = nil
 local buttons = {}
-local config = { ["input.follow_mouse"] = 1, ["decoration.shadow.enabled"] = false }
+local config = { ["input.follow_mouse"] = 1, ["input.float_switch_override_focus"] = 1, ["decoration.shadow.enabled"] = false }
 local rules = {}
 local placed = {}
 local active = { id = 1 }
@@ -328,7 +328,7 @@ hl = {
   get_loaded_plugins = function()
     return os.getenv("HYPRBARS_RESIDENT") == "1" and { { name = "hyprbars" } } or {}
   end,
-  get_active_workspace = function() return active end,
+  get_active_workspace = function(monitor) return monitor and monitor.active_workspace or active end,
   get_config = function(key) return config[key] end,
   config = function(values)
     if values.plugin then
@@ -434,10 +434,15 @@ assert(not fullscreen.floating, "a fullscreen window was floated")
 assert(has_tag(fullscreen, "omarchy-floating-workspace"), "a fullscreen window on a floating workspace got no titlebar tag")
 
 -- Pointer focus follows the active workspace.
-assert(s.config["input.follow_mouse"] == 0, "a floating workspace focused on hover")
+assert(s.config["input.follow_mouse"] == 2, "a floating workspace focused on hover, or held the pointer on the focused window")
+assert(s.config["input.float_switch_override_focus"] == 0, "a floating workspace focused on hover coming from a tiled window")
 s.active.id = 2
 s.subscriptions["workspace.active"][1]()
 assert(s.config["input.follow_mouse"] == 1, "a tiled workspace lost the user focus setting")
+assert(s.config["input.float_switch_override_focus"] == 1, "a tiled workspace lost the user float switch setting")
+-- A monitor taking focus is not yet the focused one, so its own workspace decides.
+s.subscriptions["monitor.focused"][1]({ active_workspace = { id = 1 } })
+assert(s.config["input.follow_mouse"] == 2, "moving to a monitor showing a floating workspace kept the tiled focus setting")
 
 -- Shadows only for windows on floating workspaces, when the user has none.
 assert(s.config["decoration.shadow.enabled"] == true, "floating windows got no shadows to tell them apart")
