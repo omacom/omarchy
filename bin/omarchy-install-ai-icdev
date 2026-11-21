@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# omarchy:summary=Install ICDEV and set it up for this machine
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+# ICDEV is a Python CLI on PyPI. mise's pipx: backend installs it through uv,
+# so uv comes first on a machine that has never needed it. That adds uv to the
+# user's global mise config, so the output says so rather than leaving a new
+# global tool to be found later.
+if ! omarchy-cmd-present uv; then
+  echo "Installing uv, which mise needs to install Python tools like ICDEV."
+  echo "It is added to your global mise config (~/.config/mise/config.toml)."
+  mise use -g --quiet uv@latest
+fi
+
+echo "Installing ICDEV..."
+omarchy-mise-install 'pipx:icdev[extras=postgresql]' icdev
+
+# The wrapper installs ICDEV on its first run, then `icdev omarchy setup` wires
+# it into this machine: PostgreSQL (a healthy install is kept, otherwise ICDEV's
+# own Docker container when the daemon answers), its environment, and its MCP
+# server in each installed agent. It needs no sudo for the Docker path, and
+# reports each step with what to do about any it could not finish.
+echo "Setting up ICDEV..."
+"$HOME/.local/bin/icdev" omarchy setup
+
+echo ""
+echo "ICDEV has been installed."
