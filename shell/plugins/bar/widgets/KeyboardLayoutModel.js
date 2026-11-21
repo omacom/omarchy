@@ -112,6 +112,8 @@ function selectKeyboard(typed, namedByEvent) {
 
 function inputLabel(state, fallback) {
   if (!state || !state.current || state.current.indexOf("keyboard-") === 0) return fallback
+  // Rime's default label is Bopomofo even when its active schema uses Pinyin.
+  if (state.current === "rime" && (!state.label || state.label === "ㄓ")) return "中"
   if (state.label) return String(state.label).substring(0, 3)
   var labels = { mozc: "あ", hangul: "한", pinyin: "拼", chewing: "注", cangjie5: "倉" }
   return labels[state.current] || shortLabel(state.language || state.name, {})
