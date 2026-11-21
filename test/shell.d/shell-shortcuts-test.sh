@@ -6,13 +6,16 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command lua
 
+test_dir=$(mktemp -d)
+trap 'rm -rf "$test_dir"' EXIT
+
 shortcuts="$ROOT/default/omarchy/shortcuts"
 
 # Load the helpers and every default binding against a stub hl, and print one
 # line per binding: "global <name>" for a global shortcut, "exec <command>" for
 # a command, then its description.
 list_bindings() {
-  HOME="$(mktemp -d)" OMARCHY_PATH="$ROOT" lua - <<'LUA'
+  HOME="$test_dir" OMARCHY_PATH="$ROOT" lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local function proxy()
@@ -124,3 +127,144 @@ for (const line of lines) {
 }
 JS
 pass "every shortcut menu route resolves in the menu"
+
+# The compositor waits for a worker response, preserves request order and paired
+# releases, and drops late responses or requests whose target lost focus.
+OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "clipboard requests preserve targeting, order and paired releases"
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+local binds, events, commands, timers = {}, {}, {}, {}
+local window = { address = "editor", tags = {} }
+hl = {
+  get_active_window = function() return window end,
+  dsp = { send_key_state = function(spec) return spec end },
+  dispatch = function(spec) events[#events + 1] = spec end,
+  exec_cmd = function(command) commands[#commands + 1] = command end,
+  timer = function(callback, options)
+    local timer = { callback = callback, options = options, enabled = true }
+    function timer:set_enabled(enabled) self.enabled = enabled end
+    timers[#timers + 1] = timer
+    return timer
+  end,
+}
+require("default.hypr.helpers")
+o.bind = function(keys, _, callback) binds[keys] = callback end
+require("default.hypr.bindings.clipboard")
+local function check(callback, mods, code)
+  events, timers = {}, {}
+  callback()
+  local id = o.clipboard_request_id
+  assert(#events == 0 and #timers == 1, "resolution must be asynchronous")
+  o.clipboard_keycode_ready(id, code)
+  assert(#events == 1 and not timers[1].enabled)
+  o.clipboard_keycode_ready(id, code + 1)
+  assert(#events == 1, "duplicate response must not press again")
+  assert(timers[2].options.timeout == 50 and timers[2].options.type == "oneshot")
+  timers[2].callback()
+  for i, state in ipairs({ "down", "up" }) do
+    local event = events[i]
+    assert(event.mods == mods and event.key == "code:" .. code and event.state == state)
+    assert(event.window == nil, "injection must reach the focused surface")
+  end
+end
+for _, tags in ipairs({ {}, { "terminal" }, { "terminal*" } }) do
+  window.tags = tags
+  local mods = #tags > 0 and "CTRL SHIFT" or "CTRL"
+  check(binds["SUPER + A"], "CTRL", 24)
+  check(binds["SUPER + C"], mods, 31)
+  check(binds["SUPER + V"], mods, 60)
+  check(binds["SUPER + X"], "CTRL", 56)
+  check(o.universal_paste, mods, 60)
+end
+window = nil
+check(o.universal_paste, "CTRL", 55)
+window = { address = "editor", tags = {} }
+events, commands, timers = {}, {}, {}
+binds["SUPER + C"]()
+local copy_id = o.clipboard_request_id
+binds["SUPER + V"]()
+local paste_id = o.clipboard_request_id
+assert(#commands == 1, "workers must start in order")
+o.clipboard_keycode_ready(paste_id, 55)
+assert(#events == 0, "out-of-order responses must be ignored")
+o.clipboard_keycode_ready(copy_id, 54)
+timers[1].callback()
+assert(#commands == 1, "late deadline must not advance a request already sending keys")
+timers[2].callback()
+assert(#commands == 2)
+o.clipboard_keycode_ready(paste_id, 55)
+timers[4].callback()
+assert(events[1].key == "code:54" and events[2].state == "up" and events[3].key == "code:55")
+events, timers = {}, {}
+binds["SUPER + A"]()
+local id = o.clipboard_request_id
+window.address = "other-editor"
+o.clipboard_keycode_ready(id, 24)
+assert(#events == 0, "focus change must not send to another window")
+binds["SUPER + A"]()
+id = o.clipboard_request_id
+o.clipboard_keycode_ready(id, 0)
+assert(events[1].key == "A", "failed resolution must retain native named dispatch")
+timers[#timers].callback()
+assert(events[2].key == "A")
+events, timers = {}, {}
+binds["SUPER + A"]()
+id = o.clipboard_request_id
+timers[1].callback()
+o.clipboard_keycode_ready(id, 24)
+assert(#events == 0, "expired response must not inject")
+local device = { type = "keyboard", main = true, address = "kbd", active_keymap = "French" }
+hl.get_devices = function() return { device } end
+binds["SUPER + A"]()
+id = o.clipboard_request_id
+device.active_keymap = "English (US)"
+o.clipboard_keycode_ready(id, 24)
+assert(#events == 0, "changed seat keymap must not receive a stale code")
+
+-- A fresh Lua state must reject a worker started before the config reloaded.
+events, timers = {}, {}
+o = { bind = function(keys, _, callback) binds[keys] = callback end }
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bindings/clipboard.lua")
+binds["SUPER + C"]()
+local old_id = o.clipboard_request_id
+o = { bind = function(keys, _, callback) binds[keys] = callback end }
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bindings/clipboard.lua")
+binds["SUPER + V"]()
+local new_id = o.clipboard_request_id
+o.clipboard_keycode_ready(old_id, 54)
+assert(#events == 0, "a worker from before reload must not satisfy a new request")
+o.clipboard_keycode_ready(new_id, 55)
+assert(#events == 1 and events[1].key == "code:55")
+timers[#timers].callback()
+LUA
+pass "clipboard requests preserve targeting, order and paired releases"
+
+# Stub only the Wayland transport and outgoing IPC. Resolution uses real XKB
+# keymaps, so the actual client keymap wins over any configured-layout guess.
+require_command xkbcli
+export REAL_XKBCLI=$(command -v xkbcli)
+mkdir -p "$test_dir/bin"
+cat >"$test_dir/bin/xkbcli" <<'SH'
+#!/bin/bash
+if [[ $1 == "dump-keymap-wayland" ]]; then
+  cat "$TEST_SEAT_KEYMAP"
+else
+  exec "$REAL_XKBCLI" "$@"
+fi
+SH
+cat >"$test_dir/bin/hyprctl" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >"$TEST_HYPRCTL_LOG"
+SH
+chmod +x "$test_dir/bin/xkbcli" "$test_dir/bin/hyprctl"
+export TEST_SEAT_KEYMAP="$test_dir/seat keymap.xkb" TEST_HYPRCTL_LOG="$test_dir/ipc"
+request_id='01234567-89ab-4def-8123-456789abcdef:7'
+for spec in 'us,il::a:38' 'fr,il::a:24' 'us,il:dvorak,:c:31' 'us,il:dvorak,:x:56' 'us:3l:a:41'; do
+  IFS=: read -r layout variant key code <<<"$spec"
+  HOME="$test_dir" "$REAL_XKBCLI" compile-keymap --layout "$layout" --variant "$variant" >"$TEST_SEAT_KEYMAP"
+  HOME="$test_dir" PATH="$test_dir/bin:$PATH" "$ROOT/bin/omarchy-clipboard-keycode" "$request_id" "$key"
+  [[ $(<"$TEST_HYPRCTL_LOG") == "eval o.clipboard_keycode_ready(\"$request_id\",$code)" ]] || fail "clipboard worker resolves $layout/$variant $key from the seat keymap"
+done
+: >"$TEST_SEAT_KEYMAP"
+PATH="$test_dir/bin:$PATH" "$ROOT/bin/omarchy-clipboard-keycode" "$request_id" a
+[[ $(<"$TEST_HYPRCTL_LOG") == "eval o.clipboard_keycode_ready(\"$request_id\",0)" ]] || fail "unreadable keymaps retain named resolution"
+pass "clipboard worker resolves actual seat keymaps and reports failures"

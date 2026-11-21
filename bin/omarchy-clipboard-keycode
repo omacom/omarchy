@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# omarchy:summary=Resolve a universal shortcut from the current Wayland seat keymap
+# omarchy:args=<request-id> <a|c|v|x>
+# omarchy:hidden=true
+
+request_id=${1:-}
+key=${2:-}
+if [[ ! $request_id =~ ^[0-9a-f-]+:[0-9]+$ || ! $key =~ ^[acvx]$ ]]; then
+  exit 1
+fi
+
+keymap=""
+keycode=0
+finish() {
+  if [[ -n $keymap ]]; then rm -f "$keymap"; fi
+  # Zero means lookup failed: Lua retains the native named-key behavior.
+  hyprctl eval "o.clipboard_keycode_ready(\"$request_id\",$keycode)" >/dev/null 2>&1
+}
+trap finish EXIT
+keymap=$(mktemp) || exit 1
+
+# Run outside the compositor: the Wayland round trip must not wait on its own
+# blocked Lua callback. This includes Fcitx/client keymaps and per-device files.
+if timeout 2 xkbcli dump-keymap-wayland --raw >"$keymap" 2>/dev/null; then
+  # send_key_state injects in group 0. xkbcli numbers that group and level as 1;
+  # take only its unmodified letter, even if another layout is currently active.
+  pattern='^[[:space:]]*([0-9]+)[[:space:]]+[^[:space:]]+[[:space:]]+1[[:space:]]+.*[[:space:]]+1[[:space:]]+\[[[:space:]]*\][[:space:]]*$'
+  while IFS= read -r line; do
+    if [[ $line =~ $pattern ]]; then
+      keycode=${BASH_REMATCH[1]}
+      break
+    fi
+  done < <(timeout 2 xkbcli how-to-type --disable-compose --keysym --keymap="$keymap" "$key" 2>/dev/null)
+fi
