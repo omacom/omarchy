@@ -42,14 +42,15 @@ case ${1:-} in
   tr ',' '\n' <"$nv/order" | grep -vx "$3" | paste -sd, - >"$nv/order.new"
   mv "$nv/order.new" "$nv/order"
   ;;
---create)
+--create | --create-only)
   [[ -z ${REFUSE_CREATE:-} ]] || exit 1
+  create=$1
   while (( $# )); do
     case $1 in --label) label=$2 ;; --loader) loader=$2 ;; esac
     shift
   done
   printf '0007\t%s\t%s\n' "$label" "$loader" >>"$nv/entries"
-  echo "0007,$(<"$nv/order")" >"$nv/order"
+  [[ $create == --create-only ]] || echo "0007,$(<"$nv/order")" >"$nv/order"
   ;;
 esac
 SH

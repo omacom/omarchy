@@ -89,7 +89,9 @@ boot)
   entry=$(snapshot_entries | awk -F'\t' -v n="$number" '$1 == n { print $2 }' | sed -n 1p)
   [[ -n $entry ]] || { echo "$(omarchy-i18n snapshot.noBootEntry "$number")" >&2; exit 1; }
   # Only arm an entry whose image is on the ESP.
-  sudo test -s "/boot/EFI/Linux/${entry%%@*}" || { echo "$(omarchy-i18n snapshot.bootImageMissing "$number")" >&2; exit 1; }
+  esp=/boot
+  [[ $(findmnt -n -o FSTYPE --mountpoint /efi 2>/dev/null) == vfat ]] && esp=/efi
+  sudo test -s "$esp/EFI/Linux/${entry%%@*}" || { echo "$(omarchy-i18n snapshot.bootImageMissing "$number")" >&2; exit 1; }
   sudo bootctl set-oneshot "$entry"
   echo "$(omarchy-i18n snapshot.bootNext "$number")"
   confirm_reboot "$(omarchy-i18n snapshot.rebootIntoConfirm "$number")"

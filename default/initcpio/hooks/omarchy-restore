@@ -16,6 +16,29 @@
 # success, a restored root on the same kernel and initramfs boots right here;
 # one on another boot image gets its own entry for the next boot and a reboot.
 
+# A power loss during the swap leaves @ renamed away, and the boot after it is
+# an ordinary one: the maintenance entry was armed for one boot only. Before
+# that boot mounts @, an interrupted swap is undone, so the system it replaced
+# boots, and the journal is left failed for the confirm service to clear.
+run_hook() {
+  case " $(cat /proc/cmdline) " in *" omarchy.restore="*) return 0 ;; esac
+  [ -n "$root" ] || return 0
+
+  local device top=/run/omarchy-restore/top
+  device=$(resolve_device "$root") || return 0
+  mkdir -p "$top"
+  mount -t btrfs -o subvolid=5 "$device" "$top" 2>/dev/null || return 0
+
+  OMARCHY_RESTORE_JOURNAL=$top/@omarchy-boot/restore/journal
+  if [ -f "$OMARCHY_RESTORE_JOURNAL" ] && [ "$(omarchy_restore_get STATE)" = swapping ]; then
+    omarchy_restore_message "Undoing an interrupted snapshot restore..."
+    omarchy_restore_rollback "$top"
+    omarchy_restore_set ERROR "the restore was interrupted, so the system as it was before was put back"
+    omarchy_restore_set STATE failed
+  fi
+  umount "$top"
+}
+
 run_latehook() {
   local tx
   tx=$(sed -n 's/.*omarchy\.restore=\([0-9]*\).*/\1/p' /proc/cmdline)

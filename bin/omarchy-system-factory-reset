@@ -184,13 +184,11 @@ prepare_limine_return() {
     limine_boot_order=$(efibootmgr | sed -n 's/^BootOrder: //p')
     disk=/dev/$(lsblk -no PKNAME "$esp_device")
     part=$(lsblk -no PARTN "$esp_device")
-    efibootmgr --quiet --create --disk "$disk" --part "$part" --label Limine --loader "$limine_loader" ||
+    efibootmgr --quiet --create-only --disk "$disk" --part "$part" --label Limine --loader "$limine_loader" ||
       fail "the firmware refused a boot entry for Limine"
     limine_entry_created=1
     limine_entry=$(efi_entry_for "$limine_loader")
     [[ -n $limine_entry ]] || fail "the firmware didn't keep the boot entry for Limine"
-    # efibootmgr puts a new entry first; systemd-boot stays first until commit.
-    [[ -z $limine_boot_order ]] || efibootmgr --quiet --bootorder "$limine_boot_order"
   fi
 }
 
@@ -244,16 +242,30 @@ drop_stale_limine_entries() {
 retire_boot_store() {
   local subvolume
   umount "$(boot_store)" 2>/dev/null || umount -l "$(boot_store)" 2>/dev/null || true
-  for subvolume in "$TOP_MNT"/@omarchy-boot "$TOP_MNT"/@backup-* "$TOP_MNT"/@restore-*; do
-    [[ -d $subvolume ]] || continue
-    btrfs subvolume delete --recursive "$subvolume" >>"$LOG_FILE" 2>&1 ||
-      log "Could not delete $(basename "$subvolume"); remove it to finish the reset"
-  done
-  # A factory root installed with systemd-boot mounts its own at the old name.
+  # A factory root installed with systemd-boot mounts its own store at the old
+  # one's name: the old one steps aside and the new one takes its place, two
+  # renames, before anything is deleted, so the factory root's fstab always
+  # finds a store.
+  local retired=""
+  if [[ -d $TOP_MNT/@omarchy-boot && -d $TOP_MNT/@omarchy-boot-next ]]; then
+    retired=@omarchy-boot-retired-$(date +%s)
+    mv "$TOP_MNT/@omarchy-boot" "$TOP_MNT/$retired" || retired=""
+  fi
   if [[ -d $TOP_MNT/@omarchy-boot-next ]]; then
     if [[ -e $TOP_MNT/@omarchy-boot ]] || ! mv "$TOP_MNT/@omarchy-boot-next" "$TOP_MNT/@omarchy-boot"; then
       log "Could not put the factory system's boot store in place; from a live USB, rename @omarchy-boot-next to @omarchy-boot"
     fi
+  fi
+  sync
+  for subvolume in "$TOP_MNT"/@omarchy-boot-retired-* "$TOP_MNT"/@backup-* "$TOP_MNT"/@restore-*; do
+    [[ -d $subvolume ]] || continue
+    btrfs subvolume delete --recursive "$subvolume" >>"$LOG_FILE" 2>&1 ||
+      log "Could not delete $(basename "$subvolume"); remove it to finish the reset"
+  done
+  # Without a store of its own (a Limine factory root) the old one goes.
+  if [[ ! -d $TOP_MNT/@omarchy-boot-next && -z $retired && -d $TOP_MNT/@omarchy-boot ]] && ! boots_systemd_boot "$TOP_MNT/@"; then
+    btrfs subvolume delete --recursive "$TOP_MNT/@omarchy-boot" >>"$LOG_FILE" 2>&1 ||
+      log "Could not delete @omarchy-boot; remove it to finish the reset"
   fi
 }
 

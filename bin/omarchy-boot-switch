@@ -33,7 +33,9 @@
 set -euo pipefail
 
 STORE=${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}
-ESP=${OMARCHY_BOOT_ESP:-/boot}
+# The EFI system partition: /efi where an install put it there (an
+# unencrypted install into free space), /boot everywhere else.
+ESP=${OMARCHY_BOOT_ESP:-$([[ $(findmnt -n -o FSTYPE --mountpoint /efi 2>/dev/null) == vfat ]] && echo /efi || echo /boot)}
 # The EFI architecture names the loader and the firmware's fallback path.
 if omarchy-hw-aarch64; then
   EFI_ARCH=aa64
@@ -359,7 +361,9 @@ loader_entry() {
     esp_device=$(findmnt -n -o SOURCE --mountpoint "$ESP")
     disk=/dev/$(lsblk -no PKNAME "$esp_device")
     part=$(lsblk -no PARTN "$esp_device")
-    efibootmgr --quiet --create --disk "$disk" --part "$part" --label "$LOADER_LABEL" --loader "$LOADER_PATH" >/dev/null || return 1
+    # --create-only: a new entry is never first in the boot order, not even
+    # until the order is set, which a power loss could make for good.
+    efibootmgr --quiet --create-only --disk "$disk" --part "$part" --label "$LOADER_LABEL" --loader "$LOADER_PATH" >/dev/null || return 1
     num=$(boot_entry_for "$LOADER_PATH")
   fi
   [[ -n $num ]] && echo "$num"
@@ -598,6 +602,9 @@ install_fresh() {
 revert() {
   [[ -f $STORE/state ]] || die "No switch to revert."
   [[ $(phase) != active ]] || die "The switch is finished and Limine is gone. It can't be reverted."
+  # Finishing removes Limine's packages, then its files: from the first step on
+  # there is no Limine to go back to, only the finish to complete.
+  [[ -z $(state_get final_step) ]] || die "The switch is finishing and Limine is already being removed. Reboot to let it finish, or run omarchy-boot-switch confirm."
 
   local entry order
   entry=$(state_get loader_entry)
