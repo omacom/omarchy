@@ -135,3 +135,13 @@ for virt in vm none; do
   fi
 done
 pass "a VM install starts without animations and with opaque windows"
+
+# Hyprland and the bar read the shared-workspaces flag under XDG_STATE_HOME, so
+# the toggle must write it there too, not under ~/.local/state.
+custom_state="$TMPDIR/state"
+shared_flag="$custom_state/omarchy/toggles/shared-workspaces"
+HOME="$test_home" XDG_STATE_HOME="$custom_state" omarchy-toggle-shared-workspaces on
+[[ -f $shared_flag ]] || fail "shared workspaces on writes the flag under XDG_STATE_HOME"
+HOME="$test_home" XDG_STATE_HOME="$custom_state" omarchy-toggle-shared-workspaces
+[[ ! -f $shared_flag ]] || fail "toggling shared workspaces reads the flag from XDG_STATE_HOME"
+pass "the shared-workspaces toggle uses the flag Hyprland and the bar read"
