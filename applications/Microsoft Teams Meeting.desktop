@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=Microsoft Teams Meeting
+Exec=omarchy-webapp-handler-teams %u
+Terminal=false
+Type=Application
+Icon=microsoft-teams
+StartupNotify=true
+NoDisplay=true
+MimeType=x-scheme-handler/msteams;
