@@ -9,7 +9,6 @@ hw="$ROOT/bin/omarchy-hw-facetimehd"
 all="$ROOT/install/hardware/all.sh"
 manual="$ROOT/manual/44-mac-support.md"
 other_packages="$ROOT/install/omarchy-other.packages"
-migration="$ROOT/migrations/1789542390.sh"
 
 grep -q 'apple/fix-facetimehd.sh' "$all" ||
   fail "the FaceTime HD fix runs during hardware setup"
@@ -19,16 +18,14 @@ grep -q 'facetimehd-dkms' "$leaf" ||
   fail "the install leaf installs facetimehd-dkms"
 grep -qx 'facetimehd-dkms' "$other_packages" ||
   fail "the ISO caches facetimehd-dkms"
-grep -qx 'facetimehd-firmware' "$other_packages" ||
-  fail "the ISO caches facetimehd-firmware"
-grep -qx 'facetimehd-data' "$other_packages" ||
-  fail "the ISO caches facetimehd-data"
+grep -qx 'facetimehd-firmware-fetcher' "$other_packages" ||
+  fail "the ISO caches facetimehd-firmware-fetcher"
+! grep -qxE 'facetimehd-(firmware|data)' "$other_packages" ||
+  fail "the ISO carries no Apple firmware, which may not be redistributed"
 grep -q '14e4:1570' "$hw" ||
   fail "the detector matches the Broadcom 1570 PCI ID"
 grep -q 'FaceTime HD' "$manual" ||
   fail "Mac support documents the FaceTime HD camera"
-grep -q 'fix-facetimehd.sh' "$migration" ||
-  fail "a migration applies the FaceTime HD fix on existing installs"
 pass "the FaceTime HD fix is wired into hardware setup"
 
 test_tmp=$(mktemp -d)
@@ -59,6 +56,30 @@ cat >"$stub_bin/omarchy-pkg-add" <<'SH'
 printf 'omarchy-pkg-add' >>"$TEST_LOG"
 printf '\t%s' "$@" >>"$TEST_LOG"
 printf '\n' >>"$TEST_LOG"
+printf '%s\n' "$@" >>"$TEST_INSTALLED"
+SH
+
+# -T answers for what is installed or named in FACETIMEHD_PROVIDED, as an AUR package providing it would be.
+cat >"$stub_bin/pacman" <<'SH'
+#!/bin/bash
+
+satisfied() {
+  grep -qxF -- "$1" "$TEST_INSTALLED" || [[ " ${FACETIMEHD_PROVIDED:-} " == *" $1 "* ]]
+}
+
+case "$1" in
+  -T) for dep in "${@:2}"; do satisfied "$dep" || { echo "$dep"; exit 127; }; done ;;
+  -Q) grep -qxF -- "$2" "$TEST_INSTALLED" ;;
+  *) exit 2 ;;
+esac
+SH
+
+cat >"$stub_bin/systemctl" <<'SH'
+#!/bin/bash
+
+printf 'systemctl' >>"$TEST_LOG"
+printf '\t%s' "$@" >>"$TEST_LOG"
+printf '\n' >>"$TEST_LOG"
 SH
 
 cat >"$stub_bin/sudo" <<'SH'
@@ -83,35 +104,40 @@ if FACETIMEHD_HARDWARE=0 PATH="$stub_bin:$PATH" "$stub_bin/omarchy-hw-facetimehd
 fi
 pass "detector skips machines without a FaceTime HD camera"
 
+installed="$test_tmp/installed"
+
 run_leaf() {
-  local hardware="$1"
+  local hardware="$1" provided="${2:-}"
   : >"$calls"
-  FACETIMEHD_HARDWARE="$hardware" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
-    bash -euo pipefail -c 'source "$1"' _ "$leaf"
+  : >"$installed"
+  FACETIMEHD_HARDWARE="$hardware" FACETIMEHD_PROVIDED="$provided" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
+    TEST_INSTALLED="$installed" bash -euo pipefail -c 'source "$1"' _ "$leaf"
 }
 
+fetcher_enabled=$'systemctl\tenable\tfacetimehd-firmware-fetcher.service'
+
 run_leaf 1
-grep -Fxq $'omarchy-pkg-add\tfacetimehd-firmware\tfacetimehd-data\tfacetimehd-dkms' "$calls" ||
-  fail "leaf installs firmware, calibration data, and the DKMS module" "$(cat "$calls")"
-pass "leaf installs firmware, calibration data, and the DKMS module"
+grep -Fxq $'omarchy-pkg-add\tfacetimehd-dkms\tfacetimehd-firmware-fetcher' "$calls" ||
+  fail "leaf installs the DKMS module and the firmware fetcher" "$(cat "$calls")"
+grep -Fxq "$fetcher_enabled" "$calls" ||
+  fail "leaf enables the fetch for a first boot with a network" "$(cat "$calls")"
+pass "leaf installs the DKMS module and the firmware fetcher, and enables the fetch"
+
+run_leaf 1 facetimehd-dkms
+grep -Fxq $'omarchy-pkg-add\tfacetimehd-firmware-fetcher' "$calls" ||
+  fail "leaf keeps a driver the AUR already provides" "$(cat "$calls")"
+pass "leaf keeps a driver the AUR already provides"
+
+run_leaf 1 bcwc-pcie
+grep -Fxq $'omarchy-pkg-add\tfacetimehd-firmware-fetcher' "$calls" ||
+  fail "leaf keeps the legacy bcwc-pcie driver" "$(cat "$calls")"
+pass "leaf keeps the legacy bcwc-pcie driver"
+
+run_leaf 1 "facetimehd-dkms facetimehd-data"
+! grep -q -e omarchy-pkg-add -e systemctl "$calls" ||
+  fail "leaf installs nothing where the driver and firmware are already provided" "$(cat "$calls")"
+pass "leaf installs nothing where the driver and firmware are already provided"
 
 run_leaf 0
 [[ ! -s $calls ]] || fail "non-matching hardware is a no-op" "$(cat "$calls")"
 pass "leaf is a no-op on machines without a FaceTime HD camera"
-
-run_migration() {
-  local hardware="$1"
-  : >"$calls"
-  FACETIMEHD_HARDWARE="$hardware" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
-    OMARCHY_PATH="$ROOT" \
-    bash -euo pipefail "$migration" >/dev/null
-}
-
-run_migration 1
-grep -Fxq $'omarchy-pkg-add\tfacetimehd-firmware\tfacetimehd-data\tfacetimehd-dkms' "$calls" ||
-  fail "the migration installs the FaceTime HD packages" "$(cat "$calls")"
-pass "the migration installs the FaceTime HD packages"
-
-run_migration 0
-[[ ! -s $calls ]] || fail "the migration is a no-op without a FaceTime HD camera" "$(cat "$calls")"
-pass "the migration is a no-op without a FaceTime HD camera"

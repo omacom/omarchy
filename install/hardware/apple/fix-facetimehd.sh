@@ -1,10 +1,19 @@
-# Broadcom 720p FaceTime HD (PCI 14e4:1570) on 2013-2015 Intel Macs. There is
-# no in-tree driver; facetimehd is the reverse-engineered module. Linux 7.2
-# removed strncpy, so the packaged facetimehd-dkms must be built from
-# patjak/facetimehd after 54fb8f2. AUR 0.7.0.2 does not compile on linux-omarchy 7.2.
+# Broadcom 720p FaceTime HD (PCI 14e4:1570) on Intel Macs. There is no in-tree driver, and Apple's license forbids
+# redistributing the camera's firmware, so facetimehd-firmware-fetcher downloads it from Apple on the Mac itself.
 
 if omarchy-hw-facetimehd; then
   echo "Detected FaceTime HD camera"
 
-  omarchy-pkg-add facetimehd-firmware facetimehd-data facetimehd-dkms
+  # pacman -T resolves provides, so a Mac already running an AUR driver or firmware keeps it rather than conflicting.
+  packages=()
+  pacman -T facetimehd-dkms >/dev/null || pacman -T bcwc-pcie >/dev/null ||
+    pacman -T bcwc-pcie-dkms >/dev/null || packages+=(facetimehd-dkms)
+  pacman -T facetimehd-firmware >/dev/null || pacman -T facetimehd-data >/dev/null ||
+    pacman -T bcwc-pcie-firmware >/dev/null || packages+=(facetimehd-firmware-fetcher)
+  (( ${#packages[@]} == 0 )) || omarchy-pkg-add "${packages[@]}"
+
+  # An install with no network fetches on the first boot that has one.
+  if pacman -Q facetimehd-firmware-fetcher &>/dev/null; then
+    sudo systemctl enable facetimehd-firmware-fetcher.service
+  fi
 fi
