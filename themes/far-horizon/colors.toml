@@ -1,0 +1,39 @@
+mode = "dark"
+
+accent = "#FFA68F"
+selection = "#4E4264"
+muted = "#939FBE"
+
+background = "#27213E"
+dark_background = "#1E1A32"
+darker_background = "#171527"
+lighter_background = "#332C4B"
+
+# Compatibility aliases for the local terminal-theme generator.
+darker_bg = "#171527"
+lighter_bg = "#332C4B"
+bright_fg = "#F8FAFF"
+
+foreground = "#EEF2FA"
+dark_foreground = "#BAC5DF"
+light_foreground = "#DCE5F5"
+bright_foreground = "#F8FAFF"
+
+hyprland_active_border = "rgba(FFA68Fff)"
+hyprland_inactive_border = "rgba(4E4264aa)"
+active_border_color = "#FFA68F"
+active_tab_background = "#C0B0E6"
+
+red = "#F38491"
+yellow = "#F2C66D"
+green = "#9CC9AE"
+cyan = "#88C8D7"
+blue = "#FFA68F"
+magenta = "#C0B0E6"
+
+bright_red = "#F38491"
+bright_yellow = "#F2C66D"
+bright_green = "#9CC9AE"
+bright_cyan = "#88C8D7"
+bright_blue = "#FFA68F"
+bright_magenta = "#C0B0E6"

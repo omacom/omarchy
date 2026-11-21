@@ -1,0 +1,38 @@
+system: "base24"
+name: "Kinetic Zine"
+slug: "kinetic-zine"
+author: "OldJobobo / Omarchy Kids Themes"
+variant: "light"
+
+# Exported from colors.toml; semantic roles and repeated colors are preserved.
+
+palette:
+  # --- print stock / graphite hierarchy ---
+  base00: "#F5F5F5" # Print Stock - default background
+  base01: "#E6E6E6" # Paper Stack - lighter background
+  base02: "#D6D6D6" # Registration Sheet - selection background
+  base03: "#626267" # Graphite Note - comments / muted text
+  base04: "#48484E" # Caption Ink - dark foreground
+  base05: "#202024" # Printing Ink - default foreground
+  base06: "#202024" # Headline Ink - light foreground
+  base07: "#111114" # Press Black - brightest foreground
+
+  # --- risograph inks and overprints ---
+  base08: "#BA3046" # Cutout Coral - red / error
+  base09: "#AA4B19" # Rust Stamp - orange / warning
+  base0A: "#806000" # Ochre Label - yellow
+  base0B: "#26704F" # Bottle Ink - green
+  base0C: "#006D83" # Teal Roller - cyan
+  base0D: "#265BD8" # Cobalt Print - blue
+  base0E: "#7134B5" # Purple Overprint - purple
+  base0F: "#735451" # Cardboard Edge - brown / special
+
+  # --- base24 extension ---
+  base10: "#EDEDED" # Folded Stock - darker background
+  base11: "#EDEDED" # Press Recess - darkest background
+  base12: "#C9384C" # Bright Cutout Coral - bright red
+  base13: "#8E6800" # Bright Ochre Label - bright orange / yellow
+  base14: "#267D56" # Bright Bottle Ink - bright green
+  base15: "#007993" # Bright Teal Roller - bright cyan
+  base16: "#2462F6" # Bright Cobalt Print - bright blue
+  base17: "#8846D0" # Bright Purple Overprint - bright purple
