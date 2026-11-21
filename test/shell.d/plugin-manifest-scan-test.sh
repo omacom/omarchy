@@ -31,7 +31,7 @@ try {
   const qml = fs.readFileSync(path.join(root, 'shell/services/PluginRegistry.qml'), 'utf8')
   const body = qml.split('  function rescan() {')[1].split('\n  function ensureUserDir()')[0].replace(/\n  }\s*$/, '')
   const scan = {}
-  new Function('scanProcess', 'registry', 'scanning', body)(scan, { firstPartyDir: first, pluginsDir: third }, false)
+  new Function('scanProcess', 'registry', 'scanning', body)(scan, { omarchyPath: root, firstPartyDir: first, pluginsDir: third }, false)
   const result = spawnSync(scan.command[0], scan.command.slice(1), { encoding: 'utf8' })
   assertEqual(result.status, 0, 'manifest scan completes')
   assertEqual(result.stderr, '', 'manifest scan has no read errors')
