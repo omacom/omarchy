@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=List Omarchy config updates pacman left as .pacnew files
+
+set -e
+
+# pacman never overwrites a config file that was edited on this machine: the
+# packaged version lands beside it as a .pacnew and the edited file stays live,
+# so a default Omarchy changed does not take effect there. pacman says so once,
+# in the middle of the upgrade's output; this says it at every update for as
+# long as the .pacnew is there. Only packages from the omarchy repository
+# count. Other packages' .pacnew files are ordinary Arch upkeep, and pacman.conf
+# and the mirrorlist, which Omarchy installs its own copies of, get one whenever
+# their packages change them.
+omarchy_pkgs=$(pacman -Slq omarchy 2>/dev/null) || exit 0
+
+# This only reports, so a failure to look is said and never stops an update.
+pending=$(pacdiff -o) ||
+  echo -e "\e[33mCould not look for unmerged Omarchy config updates.\e[0m" >&2
+
+unmerged=()
+while IFS= read -r pacnew; do
+  [[ $pacnew == *.pacnew ]] || continue
+  owner=$(pacman -Qoq "${pacnew%.pacnew}" 2>/dev/null) || continue
+
+  if grep -Fxq -- "$owner" <<<"$omarchy_pkgs"; then
+    unmerged+=("$pacnew")
+  fi
+done <<<"$pending"
+
+(( ${#unmerged[@]} )) || exit 0
+
+echo -e "\e[33m\nOmarchy config updates not applied\e[0m"
+printf '  %s\n' "${unmerged[@]}"
+echo
+echo "pacman kept the config files that were changed on this machine and saved Omarchy's newer versions beside them instead of applying them."
+echo 'Review and merge them with: DIFFPROG="nvim -d" pacdiff -s'
+echo

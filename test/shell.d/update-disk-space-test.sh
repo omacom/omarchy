@@ -86,6 +86,7 @@ for command in \
   omarchy-update-boot \
   omarchy-hook \
   omarchy-update-analyze-logs \
+  omarchy-update-pacnew \
   omarchy-restart-shell \
   omarchy-shell \
   omarchy-update-restart; do
