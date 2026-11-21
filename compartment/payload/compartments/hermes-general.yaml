@@ -1,0 +1,21 @@
+# compartment.yaml — hermes-general policy (ephemeral)
+name: hermes-general
+persistence: ephemeral
+workspace: /home/agent/workspace
+
+intents:
+  - hermes
+  - attach
+  - status
+  - push
+  - pull
+  - git
+  - seal
+  - wipe-memory
+
+egress:
+  tor: true
+  pinholes: []
+
+rules:
+  ephemeral_overlay: true

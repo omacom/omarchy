@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# omarchy:summary=Boot a compartment VM (concurrency governor: max 2 AI VMs)
+# omarchy:hidden=true
+
+set -euo pipefail
+
+(( $# == 1 )) || { echo "usage: omarchy-compartment-up <vm>" >&2; exit 2; }
+VM="$1"
+REG="$HOME/.config/vmctl/vms"
+
+virsh_sys() { sudo virsh -c qemu:///system "$@"; }
+
+RUNNING=$(virsh_sys list --name | grep -c '^hermes-' || true)
+if (( RUNNING >= 2 )) && ! virsh_sys domstate "$VM" | grep -q running; then
+  echo "refused: $RUNNING AI VMs already running (RAM ceiling ~29GB)."
+  echo "running:"; virsh_sys list --name | grep '^hermes-'
+  exit 3
+fi
+virsh_sys start "$VM"
+echo "waiting for sshd on whonix-int..."
+IP=""
+for _ in $(seq 1 60); do
+  IP=$(virsh_sys domifaddr "$VM" --source agent 2>/dev/null | awk 'NR==3{split($4,a,"/");print a[1]}')
+  [[ -n $IP ]] && break; sleep 2
+done
+if [[ -f $REG ]]; then
+  sed -i "s|^$VM .*|$VM ${IP:-PENDING} agent $HOME/.ssh/vmctl/$VM|" "$REG"
+fi
+echo "starting inference stack"
+omarchy-compartment "$VM" status || true

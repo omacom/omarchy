@@ -1,0 +1,40 @@
+# remove previous rules, bump buffers
+-D
+-b 8192
+-r 500
+-f 1
+# auth + identity
+-w /etc/passwd -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/group -p wa -k identity
+-w /etc/gshadow -p wa -k identity
+-w /etc/sudoers -p wa -k sudoers
+-w /etc/sudoers.d -p wa -k sudoers
+-w /usr/bin/sudo -p x -k sudo-exec
+# login records
+-w /var/log/wtmp -p wa -k logins
+-w /var/log/btmp -p wa -k logins
+-w /var/log/lastlog -p wa -k logins
+# time / host changes
+-a always,exit -F arch=b64 -S adjtimex -S settimeofday -S clock_settime -k time-change
+-w /etc/localtime -p wa -k time-change
+-a always,exit -F arch=b64 -S sethostname -S setdomainname -k host-change
+# kernel modules + mounts
+-a always,exit -F arch=b64 -S init_module -S delete_module -S finit_module -k modules
+-a always,exit -F arch=b64 -S mount -S umount2 -k mounts
+# network config
+-w /etc/NetworkManager -p wa -k net-config
+-w /etc/hosts -p wa -k net-config
+# network syscalls (outbound connects + listeners — noisy, tagged for easy drop)
+-a always,exit -F arch=b64 -S connect -k net-connect
+-a always,exit -F arch=b64 -S bind -k net-bind
+# privileged exec (setuid escalation)
+-a always,exit -F arch=b64 -C euid!=uid -F auid!=unset -S execve -k priv-exec
+# VM assets
+-w /var/lib/libvirt -p wa -k libvirt
+-w /etc/libvirt -p wa -k libvirt
+# watchdog config itself
+-w /etc/audit -p wa -k audit-config
+-w /etc/suricata -p wa -k suricata-config
+# lock rules (uncomment to require reboot for any rule change)
+# -e 2

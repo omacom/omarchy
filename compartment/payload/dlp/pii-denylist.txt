@@ -1,0 +1,3 @@
+# pii-denylist.txt — one literal string per line that must NEVER reach a model.
+# This ships empty; fill it per host via: omarchy-compartment-pii
+# (writes ~/.config/omarchy/compartment/pii-denylist.txt, pushed to images)

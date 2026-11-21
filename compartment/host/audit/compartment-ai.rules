@@ -1,0 +1,15 @@
+# /etc/audit/rules.d/compartment-ai.rules — host TCB watchpoints
+# libvirt domain XMLs: redefining a VM (extra NIC, disk, device) is THE
+# VM-escape/bridge attack. Watch every write/attr change.
+-w /etc/libvirt/qemu/ -p wa -k libvirt-xml
+-w /etc/libvirt/qemu/networks/ -p wa -k libvirt-net-xml
+-w /var/lib/libvirt/images/whonix/ -p wa -k vm-images
+# coordinator credentials + forced-command state
+-w __HOME__/.ssh/vmctl/ -p wa -k vmctl-keys
+-w __HOME__/.config/vmctl/ -p wa -k vmctl-registry
+# privilege escalation surfaces
+-w /etc/sudoers -p wa -k sudoers
+-w /etc/sudoers.d/ -p wa -k sudoers
+-w /usr/local/bin/host-seal.sh -p wa -k seal-script
+-w /etc/ssh/sshd_config -p wa -k sshd
+-w __COMPARTMENT__ -p wa -k compartment-ai

@@ -1,0 +1,13 @@
+#!/bin/bash
+# vm-seal-local — agent-side seal helper invoked by vm-exec 'seal' intent.
+# Wraps the existing wazuh-vm-seal.sh containment script if present;
+# otherwise performs a minimal local seal: kill llama-server/hermes,
+# drop whonix-int route (best-effort), power off.
+set -u
+if [[ -x /usr/local/bin/wazuh-vm-seal.sh ]]; then
+    exec sudo -n /usr/local/bin/wazuh-vm-seal.sh -c 2
+fi
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+systemctl stop hermes-backend context-firewall llama-server 2>/dev/null
+ip route del default 2>/dev/null
+poweroff || /sbin/poweroff
