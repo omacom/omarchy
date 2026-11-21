@@ -11,6 +11,7 @@ BarWidget {
     if (!target) return
     if ("bar" in target) target.bar = root.bar
     if ("settings" in target) target.settings = root.settings
+    if ("moduleName" in target) target.moduleName = root.moduleName
     if ("anchorItem" in target) target.anchorItem = button
     if ("hostWidget" in target) target.hostWidget = root
   }
@@ -52,6 +53,7 @@ BarWidget {
 
   onBarChanged: injectPanel()
   onSettingsChanged: injectPanel()
+  onModuleNameChanged: injectPanel()
 
   Loader {
     id: panelLoader

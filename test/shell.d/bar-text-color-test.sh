@@ -118,3 +118,13 @@ result=$(HOME="$TMPDIR" PATH="$expired_bin:$PATH" \
   omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$light_top" --screen 100x100)
 [[ $result == "#ffffff" ]] || fail "timed-out wallpaper sample falls back to text color" "expected #ffffff, got $result"
 pass "timed-out wallpaper sample falls back to text color"
+
+# Multi-frame input must sample only frame 0 — otherwise ImageMagick decodes the
+# whole sequence and can exhaust memory (#8906). Frame 0 is light-topped so the
+# fallback color cannot satisfy this assertion.
+multi_frame="$TMPDIR/multi.gif"
+magick -size 100x100 xc:'#202020' -fill '#f5f5f5' -draw 'rectangle 0,0 99,19' \
+  \( -size 100x100 xc:'#00ff00' \) \( -size 100x100 xc:'#0000ff' \) "$multi_frame"
+result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$multi_frame" --screen 100x100)
+[[ $result == "#101010" ]] || fail "transparent bar text samples only the first frame of a multi-frame background" "expected #101010, got $result"
+pass "transparent bar text samples only the first frame of a multi-frame background"

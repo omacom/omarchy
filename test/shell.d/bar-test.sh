@@ -16,6 +16,42 @@ const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
 // A widget's slot can be on the bar without being drawn (hidden by the
 // widget, or folded away by a drag), so panel routing has to pick the one
 // that is actually on screen, whichever registered first.
+const shellSource = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
+const barSource = fs.readFileSync(path.join(root, 'shell/plugins/bar/Bar.qml'), 'utf8')
+const helper = shellSource.match(/function barInitialProperties\(manifest\) \{[\s\S]*?\n  \}/)
+assert(helper, 'shell has a shared barInitialProperties helper')
+for (const key of ['omarchyPath', 'barWidgetRegistry', 'barConfig']) {
+  assert(
+    new RegExp(key + '\\s*:').test(helper[0]),
+    `barInitialProperties injects ${key} at construction`
+  )
+}
+assert(
+  /function loadBar\(loader, url, manifest\) \{[\s\S]*?loader\.setSource\(url, barInitialProperties\(manifest\)\)/.test(shellSource),
+  'loadBar passes required properties through setSource initialProperties'
+)
+
+const defaultLoader = shellSource.slice(
+  shellSource.indexOf('id: defaultBarLoader'),
+  shellSource.indexOf('id: pluginBarLoader')
+)
+const pluginLoader = shellSource.slice(
+  shellSource.indexOf('id: pluginBarLoader'),
+  shellSource.indexOf('// ------------------------------------------------------------- services')
+)
+assert(/shell\.loadBar\(defaultBarLoader/.test(defaultLoader), 'built-in bar loads through the shared inject helper')
+assert(/shell\.loadBar\(pluginBarLoader/.test(pluginLoader), 'cloned and third-party bars load through the shared inject helper')
+assert(
+  !/source:\s*shell\.activeBarSourceUrl/.test(pluginLoader),
+  'plugin bars are not loaded via Loader.source without initial properties'
+)
+assert(
+  /property string omarchyPath/.test(barSource)
+    && /property var barWidgetRegistry/.test(barSource)
+    && /property var barConfig/.test(barSource),
+  'bar still declares omarchyPath, barWidgetRegistry, and barConfig'
+)
+
 const drawn = { moduleName: 'omarchy.clock', visible: true, width: 28, height: 81 }
 const undrawn = { moduleName: 'omarchy.clock', visible: true, width: 0, height: 26 }
 assertEqual(bar.isDrawnSlot(drawn), true, 'bar recognises a drawn slot')
