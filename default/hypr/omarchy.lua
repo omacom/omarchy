@@ -11,6 +11,7 @@ require("default.hypr.monitors")
 require("default.hypr.monitor-workspaces")
 if _G.omarchy_default_bindings ~= false then
   require("default.hypr.bindings.media")
+  require("default.hypr.bindings.zenbook-a16")
   require("default.hypr.bindings.clipboard")
   require("default.hypr.bindings.input-method")
   require("default.hypr.bindings.jis")
