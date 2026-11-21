@@ -13,6 +13,10 @@ assertEqual(nightlight.isNightlight(4000), true, 'nightlight reports warm temper
 assertEqual(nightlight.isNightlight(5999), true, 'nightlight reports warmer-than-identity values as enabled')
 assertEqual(nightlight.isNightlight(6000), false, 'nightlight reports identity temperature as disabled')
 assertEqual(nightlight.isNightlight(null), false, 'nightlight reports unknown temperature as disabled')
+assertEqual(nightlight.nightTemperatureFromConfig(4500), 4500, 'nightlight uses the configured night temperature')
+assertEqual(nightlight.nightTemperatureFromConfig(undefined), 4000, 'nightlight defaults to 4000K without a configured temperature')
+assertEqual(nightlight.nightTemperatureFromConfig(6000), 4000, 'nightlight ignores a night temperature the toggle would read back as off')
+assertEqual(nightlight.nightTemperatureFromConfig('4500'), 4000, 'nightlight ignores a night temperature that is not a number')
 JS
 
 TMPDIR=$(mktemp -d)
@@ -56,7 +60,8 @@ SH
 chmod +x "$TMPDIR/bin/hyprctl" "$TMPDIR/bin/pgrep" "$TMPDIR/bin/omarchy-shell"
 
 nightlight_cli() {
-  PATH="$TMPDIR/bin:$PATH" \
+  HOME="$TMPDIR/home" \
+  PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
   HYPRSUNSET_STATE="$STATE" \
   OMARCHY_SHELL_LOG="$SHELL_LOG" \
     "$ROOT/bin/omarchy-toggle-nightlight" "$@"
@@ -103,6 +108,36 @@ printf '6000\n' >"$STATE"
 nightlight_cli >/dev/null
 [[ $(<"$STATE") == 4000 ]] || fail "nightlight toggle warms the screen from hyprsunset's default"
 pass "nightlight toggle warms the screen from hyprsunset's default"
+
+mkdir -p "$TMPDIR/home/.config/omarchy"
+printf '{"version": 1, "nightlight": {"temperature": 4500}}\n' >"$TMPDIR/home/.config/omarchy/shell.json"
+printf '6500\n' >"$STATE"
+nightlight_cli >/dev/null
+[[ $(<"$STATE") == 4500 ]] || fail "nightlight toggle warms the screen to the configured temperature"
+pass "nightlight toggle warms the screen to the configured temperature"
+
+printf '{"version": 1, "nightlight": {"temperature": 6500}}\n' >"$TMPDIR/home/.config/omarchy/shell.json"
+printf '6500\n' >"$STATE"
+nightlight_cli >/dev/null
+[[ $(<"$STATE") == 4000 ]] || fail "nightlight toggle ignores a temperature it would read back as off"
+pass "nightlight toggle ignores a temperature it would read back as off"
+
+for unversioned in '{"nightlight": {"temperature": 4500}}' '{"version": "1", "nightlight": {"temperature": 4500}}'; do
+  printf '%s\n' "$unversioned" >"$TMPDIR/home/.config/omarchy/shell.json"
+  printf '6500\n' >"$STATE"
+  nightlight_cli >/dev/null
+  [[ $(<"$STATE") == 4000 ]] || fail "nightlight toggle ignores a shell.json the shell rejects: $unversioned" "$(<"$STATE")"
+done
+pass "nightlight toggle ignores a shell.json without version 1, as the shell does"
+
+for broken in '' '  \n' '{"version": 1, "nightlight": {"temperature": 4500}}\n{oops'; do
+  printf "$broken" >"$TMPDIR/home/.config/omarchy/shell.json"
+  printf '6500\n' >"$STATE"
+  nightlight_cli >/dev/null
+  [[ $(<"$STATE") == 4000 ]] || fail "nightlight toggle warms to 4000K from an unreadable shell.json: $(printf '%q' "$broken")" "$(<"$STATE")"
+done
+pass "nightlight toggle warms to 4000K when shell.json is empty, blank or has trailing junk"
+rm "$TMPDIR/home/.config/omarchy/shell.json"
 
 rg -F '(temp === dayTemperature ? " && hyprctl hyprsunset identity" : "")' "$ROOT/shell/plugins/services/nightlight/Service.qml" >/dev/null ||
   fail "nightlight service resets to the identity matrix when turning off"
