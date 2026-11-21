@@ -211,3 +211,56 @@ printf '9000000\n' >"$hold_dir/power/BAT0/power_now"
 sparse_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
 [[ $sparse_output == "Battery 60%  ·  "$' '"9W" ]] || fail "missing readings drop out of the status line" "$sparse_output"
 pass "battery status leaves out readings it doesn't have"
+
+# Sysfs is the live charge limit: UPower reports a ThinkPad's built-in 75/80
+# while its own threshold toggle is off, even when TLP has set 45/65.
+sysfs_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir" "$hold_dir" "$sysfs_dir"' EXIT
+mkdir -p "$sysfs_dir/bin" "$sysfs_dir/power/BAT0"
+printf '45\n' >"$sysfs_dir/power/BAT0/charge_control_start_threshold"
+printf '65\n' >"$sysfs_dir/power/BAT0/charge_control_end_threshold"
+printf '20000000\n' >"$sysfs_dir/power/BAT0/power_now"
+cat >"$sysfs_dir/bin/upower" <<'STUB'
+#!/bin/bash
+
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_BAT0"
+  exit 0
+fi
+
+if [[ $1 == "-i" ]]; then
+  cat <<'INFO'
+  native-path:          BAT0
+  power supply:         yes
+  state:                charging
+  energy:               20 Wh
+  energy-full:          50 Wh
+  percentage:           40%
+  charge-start-threshold: 75%
+  charge-end-threshold:   80%
+  charge-threshold-enabled: no
+INFO
+  exit 0
+fi
+
+exit 1
+STUB
+chmod +x "$sysfs_dir/bin/upower"
+
+sysfs_output=$(OMARCHY_POWER_SUPPLY_PATH="$sysfs_dir/power" PATH="$sysfs_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'threshold\t45-65%' <<<"$sysfs_output" >/dev/null || fail "sysfs charge thresholds win over UPower's defaults" "$sysfs_output"
+grep -Fx $'time\t38m' <<<"$sysfs_output" >/dev/null || fail "time to full counts up to the sysfs limit" "$sysfs_output"
+
+# An end-only limit (ASUS) is not paired with UPower's or another battery's start.
+rm "$sysfs_dir/power/BAT0/charge_control_start_threshold"
+printf '60\n' >"$sysfs_dir/power/BAT0/charge_control_end_threshold"
+mkdir -p "$sysfs_dir/power/BAT1"
+printf '75\n' >"$sysfs_dir/power/BAT1/charge_control_start_threshold"
+sysfs_output=$(OMARCHY_POWER_SUPPLY_PATH="$sysfs_dir/power" PATH="$sysfs_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'threshold\t60%' <<<"$sysfs_output" >/dev/null || fail "an end-only sysfs limit is not paired with UPower's start" "$sysfs_output"
+
+# UPower still stands in when sysfs has no thresholds.
+rm "$sysfs_dir/power/BAT0/charge_control_end_threshold"
+sysfs_output=$(OMARCHY_POWER_SUPPLY_PATH="$sysfs_dir/power" PATH="$sysfs_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'threshold\t75-80%' <<<"$sysfs_output" >/dev/null || fail "UPower thresholds stand in without sysfs" "$sysfs_output"
+pass "battery status prefers live sysfs charge thresholds over UPower"
