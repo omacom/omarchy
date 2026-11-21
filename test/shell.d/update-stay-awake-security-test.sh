@@ -550,7 +550,7 @@ chown 1000:1000 /tmp/victim-home
 
 setpriv --reuid=1000 --regid=1000 --clear-groups sleep 30 &
 victim_pid=$!
-trap 'kill "$victim_pid" "${legacy_sudo_pid:-$victim_pid}" 2>/dev/null || true; wait "$victim_pid" 2>/dev/null || true' EXIT
+trap 'kill "$victim_pid" "${legacy_sudo_pid:-$victim_pid}" "${legacy_root_pid:-$victim_pid}" 2>/dev/null || true; wait "$victim_pid" 2>/dev/null || true' EXIT
 victim_start=$(awk '{ print $22 }' "/proc/$victim_pid/stat")
 state=/tmp/omarchy-1000/omarchy-update-stay-awake-$run_id
 
@@ -626,6 +626,37 @@ chmod 644 "$state/inhibit-pid"
 run_fallback 1000 /tmp/victim-home stop
 [[ ! -e /proc/$legacy_sudo_pid || $(awk '{ print $3 }' "/proc/$legacy_sudo_pid/stat") == "Z" ]]
 wait "$legacy_sudo_pid" 2>/dev/null || true
+
+# Unattended 4.0.x updates ran the inhibitor through pkexec, leaving it fully
+# root. The caller cannot stop it, but that must not fail the update or block
+# the next one. A root process that is not the inhibitor still fails.
+for legacy_root in inhibitor other; do
+  legacy_args=(omarchy-test)
+  [[ $legacy_root == "other" ]] ||
+    legacy_args=(/usr/bin/systemd-inhibit --what=sleep:idle --who=omarchy-update "--why=Omarchy update in progress" --mode=block sleep infinity)
+  /usr/bin/bash -c 'trap "exit 0" TERM; while :; do sleep 0.05; done' "${legacy_args[@]}" &
+  legacy_root_pid=$!
+  mkdir -m 755 "$state"
+  chown 1000:1000 "$state"
+  printf '%s %s\n' "$legacy_root_pid" "$(awk '{ print $22 }' "/proc/$legacy_root_pid/stat")" >"$state/inhibit-pid"
+  chown 1000:1000 "$state/inhibit-pid"
+  chmod 644 "$state/inhibit-pid"
+  if [[ $legacy_root == "inhibitor" ]]; then
+    run_fallback 1000 /tmp/victim-home stop 2>/tmp/refusal
+    grep -q "sudo kill $legacy_root_pid" /tmp/refusal
+    [[ ! -e $state ]]
+    run_fallback 1000 /tmp/victim-home start
+    run_fallback 1000 /tmp/victim-home stop
+  elif run_fallback 1000 /tmp/victim-home stop 2>/dev/null; then
+    echo "legacy cleanup accepted an unrelated root process" >&2
+    exit 1
+  else
+    rm -rf "$state"
+  fi
+  kill -0 "$legacy_root_pid"
+  kill "$legacy_root_pid"
+  wait "$legacy_root_pid" 2>/dev/null || true
+done
 
 # Root may read the record, but must not signal a live legacy target whose
 # real UID differs. Preserve the retry handle instead of treating it as dead.
