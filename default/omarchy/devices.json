@@ -1,0 +1,565 @@
+{
+  "printer": {
+    "title": "Printer",
+    "summary": "Printers made in the last ten years usually print without a driver. Older models need one from their maker or from Gutenprint.",
+    "steps": [
+      "Choose Install and set up, and pick a driver. Omarchy installs it and adds the printer to CUPS.",
+      "If it can't match a driver to the model, Print Settings opens: choose Add, pick the printer, and select its model or the closest one in the same series.",
+      "Print from any app.",
+      "For a printer on the network, open Print Settings and choose Add: most network printers are listed without a driver."
+    ],
+    "options": [
+      {
+        "label": "Gutenprint and Foomatic drivers (Arch repositories)",
+        "packages": [
+          "gutenprint",
+          "foomatic-db"
+        ]
+      }
+    ],
+    "setup": [
+      "cups-queue"
+    ],
+    "check": [
+      "cups-queue"
+    ],
+    "open": {
+      "label": "Print Settings",
+      "command": "system-config-printer"
+    },
+    "url": "https://wiki.archlinux.org/title/CUPS"
+  },
+  "printer.ipp": {
+    "title": "Driverless printer",
+    "summary": "This printer speaks IPP over USB, so it prints without a driver once ipp-usb shares it with CUPS, and scans without one too if it is a printer that scans.",
+    "steps": [
+      "Choose Install and set up to install ipp-usb. If the printer also scans, pick the option with Document Scanner.",
+      "Unplug the printer and plug it back in.",
+      "Print from any app: the printer shows up in the print dialog on its own."
+    ],
+    "options": [
+      {
+        "label": "Driverless printing with ipp-usb (Arch repositories)",
+        "packages": [
+          "ipp-usb"
+        ]
+      },
+      {
+        "label": "Driverless printing and scanning with ipp-usb, sane-airscan and Document Scanner, for a printer that scans (Arch repositories)",
+        "packages": [
+          "ipp-usb",
+          "sane-airscan",
+          "simple-scan"
+        ],
+        "open": {
+          "label": "Document Scanner",
+          "command": "simple-scan"
+        }
+      }
+    ],
+    "open": {
+      "label": "Print Settings",
+      "command": "system-config-printer"
+    },
+    "url": "https://wiki.archlinux.org/title/CUPS/Printer-specific_problems"
+  },
+  "printer.04b8": {
+    "title": "Epson printer",
+    "summary": "Epson publishes its own open source driver (ESC/P-R). It is not in Omarchy's repositories, so it comes from the AUR, or from Epson's download site.",
+    "steps": [
+      "Choose Install and set up, and pick a driver. Omarchy installs it and adds the printer to CUPS.",
+      "If it can't match a driver to the model, Print Settings opens: choose Add, pick the printer, and select its model or the closest one in the same series.",
+      "Print from any app.",
+      "Models from about 2019 on (EcoTank ET-, WorkForce WF-) use the ESC/P-R 2 driver."
+    ],
+    "options": [
+      {
+        "label": "Epson ESC/P-R driver (AUR)",
+        "aur": [
+          "epson-inkjet-printer-escpr"
+        ]
+      },
+      {
+        "label": "Epson ESC/P-R 2 driver, for models from 2019 on (AUR)",
+        "aur": [
+          "epson-inkjet-printer-escpr2"
+        ]
+      },
+      {
+        "label": "Gutenprint (Arch repositories)",
+        "packages": [
+          "gutenprint"
+        ]
+      },
+      {
+        "label": "Download the driver from Epson",
+        "download": "https://epson.com/Support/wa00821"
+      }
+    ],
+    "setup": [
+      "cups-queue"
+    ],
+    "check": [
+      "cups-queue"
+    ],
+    "open": {
+      "label": "Print Settings",
+      "command": "system-config-printer"
+    },
+    "url": "https://wiki.archlinux.org/title/CUPS/Printer-specific_problems#Epson"
+  },
+  "printer.03f0": {
+    "title": "HP printer",
+    "summary": "HP's HPLIP drivers cover printing and scanning on most HP printers.",
+    "steps": [
+      "Choose Install and set up, and pick a driver. Omarchy installs it and adds the printer to CUPS.",
+      "If it can't match a driver to the model, Print Settings opens: choose Add, pick the printer, and select its model or the closest one in the same series.",
+      "Print from any app."
+    ],
+    "options": [
+      {
+        "label": "HPLIP (Arch repositories)",
+        "packages": [
+          "hplip"
+        ]
+      },
+      {
+        "label": "HPLIP with SANE and Document Scanner, for a printer that scans (Arch repositories)",
+        "packages": [
+          "hplip",
+          "sane",
+          "simple-scan"
+        ],
+        "open": {
+          "label": "Document Scanner",
+          "command": "simple-scan"
+        }
+      },
+      {
+        "label": "Download the driver from HP",
+        "download": "https://support.hp.com/drivers"
+      }
+    ],
+    "setup": [
+      "cups-queue"
+    ],
+    "check": [
+      "cups-queue"
+    ],
+    "open": {
+      "label": "Print Settings",
+      "command": "system-config-printer"
+    },
+    "url": "https://wiki.archlinux.org/title/CUPS/Printer-specific_problems#HP"
+  },
+  "printer.04f9": {
+    "title": "Brother printer",
+    "summary": "Brother laser printers work with brlaser, from the AUR. Brother publishes Linux drivers for its inkjets and the rest.",
+    "steps": [
+      "Choose Install and set up, and pick a driver. Omarchy installs it and adds the printer to CUPS.",
+      "If it can't match a driver to the model, Print Settings opens: choose Add, pick the printer, and select its model or the closest one in the same series.",
+      "Print from any app."
+    ],
+    "options": [
+      {
+        "label": "brlaser, for laser printers (AUR)",
+        "aur": [
+          "brlaser"
+        ]
+      },
+      {
+        "label": "Gutenprint and Foomatic (Arch repositories)",
+        "packages": [
+          "gutenprint",
+          "foomatic-db"
+        ]
+      },
+      {
+        "label": "Download the driver from Brother",
+        "download": "https://support.brother.com/g/s/id/linux/en/"
+      }
+    ],
+    "setup": [
+      "cups-queue"
+    ],
+    "check": [
+      "cups-queue"
+    ],
+    "open": {
+      "label": "Print Settings",
+      "command": "system-config-printer"
+    },
+    "url": "https://wiki.archlinux.org/title/CUPS/Printer-specific_problems#Brother"
+  },
+  "printer.04a9": {
+    "title": "Canon printer",
+    "summary": "Canon PIXMA printers use Canon's cnijfilter2 driver, from the AUR (x86_64 only) or Canon's support site. Gutenprint covers many older models.",
+    "steps": [
+      "Choose Install and set up, and pick a driver. Omarchy installs it and adds the printer to CUPS.",
+      "If it can't match a driver to the model, Print Settings opens: choose Add, pick the printer, and select its model or the closest one in the same series.",
+      "Print from any app."
+    ],
+    "options": [
+      {
+        "label": "Canon cnijfilter2, x86_64 only (AUR)",
+        "aur": [
+          "cnijfilter2"
+        ]
+      },
+      {
+        "label": "Gutenprint (Arch repositories)",
+        "packages": [
+          "gutenprint"
+        ]
+      },
+      {
+        "label": "Download the driver from Canon",
+        "download": "https://www.canon.com/support/"
+      }
+    ],
+    "setup": [
+      "cups-queue"
+    ],
+    "check": [
+      "cups-queue"
+    ],
+    "open": {
+      "label": "Print Settings",
+      "command": "system-config-printer"
+    },
+    "url": "https://wiki.archlinux.org/title/CUPS/Printer-specific_problems#Canon"
+  },
+  "printer.04e8": {
+    "title": "Samsung printer",
+    "summary": "Samsung laser printers work with the SpliX driver, from the AUR. Samsung printers are supported by HP now.",
+    "steps": [
+      "Choose Install and set up, and pick a driver. Omarchy installs it and adds the printer to CUPS.",
+      "If it can't match a driver to the model, Print Settings opens: choose Add, pick the printer, and select its model or the closest one in the same series.",
+      "Print from any app."
+    ],
+    "options": [
+      {
+        "label": "SpliX (AUR)",
+        "aur": [
+          "splix"
+        ]
+      },
+      {
+        "label": "HPLIP and Foomatic (Arch repositories)",
+        "packages": [
+          "hplip",
+          "foomatic-db"
+        ]
+      },
+      {
+        "label": "Download the driver from HP",
+        "download": "https://support.hp.com/drivers"
+      }
+    ],
+    "setup": [
+      "cups-queue"
+    ],
+    "check": [
+      "cups-queue"
+    ],
+    "open": {
+      "label": "Print Settings",
+      "command": "system-config-printer"
+    },
+    "url": "https://wiki.archlinux.org/title/CUPS/Printer-specific_problems#Samsung"
+  },
+  "scanner": {
+    "title": "Scanner",
+    "summary": "SANE drives most scanners, and Document Scanner is a simple app to scan with.",
+    "steps": [
+      "Choose Install and set up, and pick what to install. Omarchy installs it with Document Scanner and lets you use the scanner right away.",
+      "Open Document Scanner."
+    ],
+    "options": [
+      {
+        "label": "SANE and Document Scanner (Arch repositories)",
+        "packages": [
+          "sane",
+          "simple-scan"
+        ]
+      }
+    ],
+    "setup": [
+      "usb-access"
+    ],
+    "open": {
+      "label": "Document Scanner",
+      "command": "simple-scan"
+    },
+    "url": "https://wiki.archlinux.org/title/SANE"
+  },
+  "scanner.ipp": {
+    "title": "Driverless scanner",
+    "summary": "This scanner speaks eSCL over USB, so it scans without a driver through ipp-usb and sane-airscan.",
+    "steps": [
+      "Choose Install and set up, and pick what to install. Omarchy installs it with Document Scanner and lets you use the scanner right away.",
+      "Open Document Scanner."
+    ],
+    "options": [
+      {
+        "label": "Driverless scanning with ipp-usb, sane-airscan and Document Scanner (Arch repositories)",
+        "packages": [
+          "ipp-usb",
+          "sane-airscan",
+          "simple-scan"
+        ]
+      }
+    ],
+    "setup": [
+      "usb-access"
+    ],
+    "open": {
+      "label": "Document Scanner",
+      "command": "simple-scan"
+    },
+    "url": "https://wiki.archlinux.org/title/SANE"
+  },
+  "scanner.04b8": {
+    "title": "Epson scanner",
+    "summary": "Most Epson scanners work with SANE's built-in epson2 and epsonds backends.",
+    "steps": [
+      "Choose Install and set up, and pick what to install. Omarchy installs it with Document Scanner and lets you use the scanner right away.",
+      "Open Document Scanner.",
+      "If Document Scanner finds nothing, try Epson Scan 2 instead."
+    ],
+    "options": [
+      {
+        "label": "SANE and Document Scanner (Arch repositories)",
+        "packages": [
+          "sane",
+          "simple-scan"
+        ]
+      },
+      {
+        "label": "Epson Scan 2, x86_64 only (AUR)",
+        "aur": [
+          "epsonscan2"
+        ],
+        "open": {
+          "label": "Epson Scan 2",
+          "command": "epsonscan2"
+        }
+      },
+      {
+        "label": "Download Epson Scan 2 from Epson",
+        "download": "https://epson.com/Support/wa00821"
+      }
+    ],
+    "setup": [
+      "usb-access"
+    ],
+    "open": {
+      "label": "Document Scanner",
+      "command": "simple-scan"
+    },
+    "url": "https://wiki.archlinux.org/title/SANE/Scanner-specific_problems#Epson"
+  },
+  "scanner.04f9": {
+    "title": "Brother scanner",
+    "summary": "Brother scanners need Brother's SANE backend, brscan4 in the AUR (newer models: brscan5), also on Brother's site.",
+    "steps": [
+      "Choose Install and set up, and pick what to install. Omarchy installs it with Document Scanner and lets you use the scanner right away.",
+      "Open Document Scanner."
+    ],
+    "options": [
+      {
+        "label": "Brother brscan4 with SANE and Document Scanner (AUR)",
+        "packages": [
+          "sane",
+          "simple-scan"
+        ],
+        "aur": [
+          "brscan4"
+        ]
+      },
+      {
+        "label": "Brother brscan5, for newer models, with SANE and Document Scanner (AUR)",
+        "packages": [
+          "sane",
+          "simple-scan"
+        ],
+        "aur": [
+          "brscan5"
+        ]
+      },
+      {
+        "label": "Download the scanner driver from Brother",
+        "download": "https://support.brother.com/g/s/id/linux/en/"
+      }
+    ],
+    "setup": [
+      "usb-access"
+    ],
+    "open": {
+      "label": "Document Scanner",
+      "command": "simple-scan"
+    },
+    "url": "https://wiki.archlinux.org/title/SANE/Scanner-specific_problems#Brother"
+  },
+  "camera": {
+    "title": "Camera",
+    "summary": "Cameras and phones sharing photos over PTP open in the file manager once gvfs-gphoto2 is installed.",
+    "steps": [
+      "Choose Install and set up.",
+      "Open the file manager: the camera is listed in the sidebar."
+    ],
+    "options": [
+      {
+        "label": "gvfs-gphoto2 (Arch repositories)",
+        "packages": [
+          "gvfs-gphoto2"
+        ]
+      }
+    ],
+    "setup": [
+      "usb-access"
+    ],
+    "open": {
+      "label": "Files",
+      "command": "omarchy-launch-files"
+    },
+    "url": "https://wiki.archlinux.org/title/Libgphoto2"
+  },
+  "iphone": {
+    "title": "iPhone or iPad",
+    "summary": "An iPhone or iPad shares its photos and files once usbmuxd and the Apple file protocol are installed.",
+    "steps": [
+      "Choose Install and set up.",
+      "Unlock the device and tap Trust.",
+      "Open the file manager: the device is listed in the sidebar."
+    ],
+    "options": [
+      {
+        "label": "usbmuxd and the Apple file protocol (Arch repositories)",
+        "packages": [
+          "usbmuxd",
+          "gvfs-afc",
+          "gvfs-gphoto2"
+        ]
+      }
+    ],
+    "setup": [
+      "usb-access"
+    ],
+    "open": {
+      "label": "Files",
+      "command": "omarchy-launch-files"
+    },
+    "url": "https://wiki.archlinux.org/title/IOS"
+  },
+  "smartcard": {
+    "title": "Smart card reader",
+    "summary": "Smart cards, ID cards and security keys used as smart cards need the PC/SC daemon and its USB driver.",
+    "steps": [
+      "Choose Install and set up: it installs the PC/SC daemon and starts it.",
+      "Insert the card and use it from the browser or the app that asks for it."
+    ],
+    "options": [
+      {
+        "label": "PC/SC daemon and CCID driver (Arch repositories)",
+        "packages": [
+          "pcsclite",
+          "ccid"
+        ],
+        "run": [
+          "sudo systemctl enable --now pcscd.socket"
+        ]
+      }
+    ],
+    "check": [
+      "unit:pcscd.socket"
+    ],
+    "url": "https://wiki.archlinux.org/title/Smartcards"
+  },
+  "serial": {
+    "title": "Serial device",
+    "summary": "Boards and adapters that show up as a serial port (Arduino, ESP32, 3D printers, USB-serial cables) can be used once your user joins the uucp group.",
+    "steps": [
+      "Choose Install and set up to join the uucp group.",
+      "Log out and back in.",
+      "The device is /dev/ttyACM0 or /dev/ttyUSB0 for your app."
+    ],
+    "options": [
+      {
+        "label": "Add me to the uucp group",
+        "run": [
+          "sudo usermod -aG uucp \"$USER\""
+        ]
+      }
+    ],
+    "check": [
+      "group:uucp"
+    ],
+    "url": "https://wiki.archlinux.org/title/Working_with_the_serial_console"
+  },
+  "displaylink": {
+    "title": "DisplayLink dock or adapter",
+    "summary": "DisplayLink screens need DisplayLink's driver. It is not in Omarchy's repositories, so it comes from the AUR.",
+    "steps": [
+      "Choose Install and set up, or download the driver from DisplayLink.",
+      "Reboot."
+    ],
+    "options": [
+      {
+        "label": "DisplayLink driver (AUR)",
+        "aur": [
+          "displaylink"
+        ],
+        "run": [
+          "sudo systemctl enable displaylink.service"
+        ]
+      },
+      {
+        "label": "Download the driver from DisplayLink",
+        "download": "https://www.synaptics.com/products/displaylink-graphics/downloads"
+      }
+    ],
+    "url": "https://wiki.archlinux.org/title/DisplayLink"
+  },
+  "fingerprint": {
+    "title": "Fingerprint reader",
+    "summary": "Fingerprint readers work through fprintd. Omarchy's fingerprint setup installs it, enrolls a finger, and lets it unlock the screen, sudo and polkit.",
+    "steps": [
+      "Choose Install and set up, and follow the fingerprint setup's prompts."
+    ],
+    "options": [
+      {
+        "label": "Omarchy's fingerprint setup",
+        "packages": [
+          "fprintd"
+        ],
+        "run": [
+          "omarchy-setup-security-fingerprint"
+        ]
+      }
+    ],
+    "check": [
+      "fingerprint-enabled"
+    ],
+    "url": "https://wiki.archlinux.org/title/Fprint"
+  },
+  "fingerprint.touchid": {
+    "title": "Touch ID",
+    "summary": "Linux can't use Touch ID on Apple Silicon Macs yet: the sensor sits behind Apple's Secure Enclave, which Linux does not drive so far. There is nothing to install for it today.",
+    "steps": [
+      "Use your password to unlock and authorize, or a FIDO2 security key from Setup > Security > Fido2.",
+      "Omarchy will offer fingerprint setup here once Linux supports the sensor."
+    ],
+    "announce": false
+  },
+  "unknown": {
+    "title": "Device without a driver",
+    "summary": "Linux loaded no driver for this device. It may need one from its maker, or an app that talks to it directly.",
+    "steps": [
+      "Look the device up by its ID ({id}) on linux-hardware.org to see what others use with it.",
+      "Search the Arch Wiki for its name.",
+      "Install what they recommend with omarchy pkg add, or omarchy pkg aur add for AUR packages."
+    ],
+    "url": "https://linux-hardware.org/?id=usb:{vendor}-{product}"
+  }
+}
