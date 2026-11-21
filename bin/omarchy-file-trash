@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# omarchy:summary=Move a file to Trash
+# omarchy:args=<file>
+# omarchy:examples=omarchy file trash ~/Videos/recording.mp4
+
+set -euo pipefail
+
+# An empty path would resolve to the current directory and trash it.
+if (( $# != 1 )) || [[ -z $1 ]]; then
+  echo "Usage: omarchy file trash <file>" >&2
+  exit 1
+fi
+
+trash_failed() {
+  omarchy-notification-send -u critical "$(omarchy-i18n file.trashFailed)" "$1" || true
+  printf '%s\n' "$1" >&2
+  exit 1
+}
+
+# GIO cuts "link/.." lexically, so the directory is resolved first: otherwise a
+# same-named file beside the link would be trashed instead. The name is kept,
+# so a symlink is trashed itself rather than its target. A directory that
+# cannot be resolved stops here; handing GIO the path would let it guess.
+# NUL-terminated, since trailing newlines belong to the name.
+resolved=""
+IFS= read -r -d '' resolved < <(python3 -c '
+import os, sys
+head, name = os.path.split(sys.argv[1])
+try:
+  if name in ("", ".", ".."):
+    path = os.path.realpath(sys.argv[1], strict=True)
+  else:
+    path = os.path.join(os.path.realpath(head or ".", strict=True), name)
+except OSError as error:
+  sys.exit(str(error))
+sys.stdout.write(path + "\0")
+' "$1") || true
+[[ -n $resolved ]] || trash_failed "$1"
+
+# GIO preserves the original location for restoration. A filesystem without
+# trash support must fail, never fall back to permanent deletion.
+if ! error=$(gio trash -- "$resolved" 2>&1); then
+  trash_failed "$error"
+fi

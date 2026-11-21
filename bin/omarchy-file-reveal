@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# omarchy:summary=Show a file in its containing folder
+# omarchy:args=<file>
+# omarchy:examples=omarchy file reveal ~/Videos/recording.mp4
+
+set -euo pipefail
+
+if (( $# != 1 )); then
+  echo "Usage: omarchy file reveal <file>" >&2
+  exit 1
+fi
+
+# Encode paths as URIs without shell or GVariant interpolation. FileManager1
+# is shared by Nautilus, Dolphin and Thunar.
+# The directory is resolved and the name kept: "link/.." must follow the link,
+# which abspath() alone would cut lexically, while a selected file symlink
+# stays itself rather than becoming its target.
+uri=$(python3 -c '
+import os, pathlib, sys
+head, name = os.path.split(sys.argv[1])
+if name in ("", ".", ".."):
+  path = os.path.realpath(sys.argv[1])
+else:
+  path = os.path.join(os.path.realpath(head or "."), name)
+print(pathlib.Path(path).as_uri())
+' "$1")
+if ! busctl --user --timeout=5 call org.freedesktop.FileManager1 \
+  /org/freedesktop/FileManager1 org.freedesktop.FileManager1 ShowItems \
+  ass 1 "$uri" "" >/dev/null 2>&1; then
+  exec xdg-open "${uri%/*}/"
+fi
