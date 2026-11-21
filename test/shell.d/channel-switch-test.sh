@@ -184,6 +184,75 @@ for command in omarchy-hook omarchy-update-mise; do
 done
 pass "channel switching preserves user tools for both hooks and mise"
 
+# Edge has Arch's OpenSSL 4 and its openssl-3 compatibility package; rc has
+# only openssl 3.6, which installs openssl-3's two libraries again (#18591).
+# pacman is a model of that downgrade, down to the two library files.
+export SUDO_TEST_INSTALLED_FILE="$boundary_tmp/installed" SUDO_TEST_PKG_CACHE="$boundary_tmp/pkg" SUDO_TEST_LIB="$boundary_tmp/lib"
+mkdir -p "$SUDO_TEST_PKG_CACHE" "$SUDO_TEST_LIB"
+touch "$SUDO_TEST_PKG_CACHE/openssl-3-3.5.9-2-x86_64.pkg.tar.zst"{,.sig}
+rm "$SUDO_TEST_ROOT/bin/pacman"
+cat >"$SUDO_TEST_ROOT/bin/pacman" <<'STUB'
+#!/bin/bash
+printf 'step:pacman %s\n' "$*" >>"$SUDO_TEST_LOG"
+installed=$SUDO_TEST_INSTALLED_FILE libs=("$SUDO_TEST_LIB/libcrypto.so.3" "$SUDO_TEST_LIB/libssl.so.3")
+case "$1" in
+  -Q) grep "^$2 " "$installed" ;;
+  -Si) [[ $2 != "openssl-3" || $SUDO_TEST_CASE == "published" ]] ;;
+  # What the upgrade replaces: python too, unless IgnorePkg holds it.
+  -Suup) echo openssl; [[ $SUDO_TEST_CASE == "held" ]] || echo python ;;
+  -Rp) echo ":: removing openssl-3 breaks dependency 'libcrypto.so=3-64' required by python"; exit 1 ;;
+  -Rdd) sed -i "/^$3 /d" "$installed"; rm -f "${libs[@]}" ;;
+  -U) echo "openssl-3 3.5.9-2" >>"$installed"; touch "${libs[@]}" ;;
+  -Syyuu)
+    if grep -q '^openssl-3 ' "$installed"; then
+      echo 'error: failed to commit transaction (conflicting files)' >&2
+      printf 'openssl: %s exists in filesystem (owned by openssl-3)\n' "${libs[@]}" >&2
+      exit 1
+    fi
+    [[ $SUDO_TEST_CASE != "retry-fails" ]] || exit 1
+    # Closing the terminal signals the switch's whole process group.
+    [[ $SUDO_TEST_CASE != "interrupted" ]] || kill -TERM 0
+    printf 'openssl 3.6.5-1\npython 3.14.8-1\n' >"$installed"
+    touch "${libs[@]}"
+    ;;
+esac
+STUB
+printf '#!/bin/bash\necho "$SUDO_TEST_PKG_CACHE"\n' >"$SUDO_TEST_ROOT/bin/pacman-conf"
+chmod +x "$SUDO_TEST_ROOT/bin/pacman" "$SUDO_TEST_ROOT/bin/pacman-conf"
+
+for case in retired retry-fails interrupted held published; do
+  reset_boundary
+  printf 'openssl 4.1.0-1\nopenssl-3 3.5.9-2\npython 3.14.10-1\n' >"$SUDO_TEST_INSTALLED_FILE"
+  touch "$SUDO_TEST_LIB/libcrypto.so.3" "$SUDO_TEST_LIB/libssl.so.3"
+  status=0
+  if [[ $case == "interrupted" ]]; then
+    SUDO_TEST_CASE=$case setsid -w "$OMARCHY_PATH/bin/omarchy-channel-set" rc >"$boundary_tmp/output" 2>&1 || status=$?
+  else
+    SUDO_TEST_CASE=$case run_channel rc || status=$?
+  fi
+  steps=$(grep -oP '^step:pacman \K-(Syyuu|Rdd|U)(?= )' "$SUDO_TEST_LOG" | paste -sd' ' || true)
+  case $case in
+    retired)
+      (( status == 0 )) || fail "a package rc doesn't have is removed so the switch completes" "$(<"$boundary_tmp/output")"
+      [[ $steps == "-Syyuu -Rdd -Syyuu" ]] || fail "openssl-3 is removed before the retry, not after" "$(<"$SUDO_TEST_LOG")"
+      [[ $(<"$SUDO_TEST_INSTALLED_FILE") == $'openssl 3.6.5-1\npython 3.14.8-1' ]] || fail "the machine ends on rc's openssl" "$(<"$SUDO_TEST_INSTALLED_FILE")"
+      ;;
+    retry-fails|interrupted)
+      (( status != 0 )) || fail "$case: the switch stops"
+      [[ $steps == "-Syyuu -Rdd -Syyuu -U" ]] || fail "$case: openssl-3 is put back" "$(<"$SUDO_TEST_LOG")$(<"$boundary_tmp/output")"
+      grep -Fxq "step:pacman -U --noconfirm $SUDO_TEST_PKG_CACHE/openssl-3-3.5.9-2-x86_64.pkg.tar.zst" "$SUDO_TEST_LOG" ||
+        fail "$case: openssl-3 comes back from its cached package" "$(<"$SUDO_TEST_LOG")"
+      ;;
+    held|published)
+      (( status != 0 )) || fail "$case: the switch stops"
+      [[ $steps == "-Syyuu" ]] || fail "$case: openssl-3 is never removed" "$(<"$SUDO_TEST_LOG")"
+      ;;
+  esac
+done
+ln -sfn test-step "$SUDO_TEST_ROOT/bin/pacman"
+rm "$SUDO_TEST_ROOT/bin/pacman-conf"
+pass "leaving edge removes a package rc doesn't have before the retry, puts it back if the retry doesn't finish, and leaves it when the upgrade holds a package that needs it"
+
 for step in pacman omarchy-update-system-pkgs omarchy-hook; do
   reset_boundary
   if SUDO_TEST_FAIL_STEP="$step" run_channel stable; then fail "$step failure was ignored"; fi
