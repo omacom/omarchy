@@ -435,6 +435,71 @@ def switched_cache(root):
   expect("an answer is never kept under a token it wasn't asked with", record()["limits"], [])
 
 
+# Kimi Code 2.x keeps a global-region (or any custom-environment) login
+# under a scoped oauth key named in config.toml, landed as
+# credentials/kimi-code-env-<hash>.json; the default kimi-code.json slot is
+# only written for a mainland-China login (#19225).
+def scoped_config(root):
+  code = root / "code home"
+  cred = code / "credentials"
+  cred.mkdir(parents=True, exist_ok=True)
+  (code / "config.toml").write_text(
+    '[providers."managed:kimi-code".oauth]\nstorage = "file"\nkey = "oauth/kimi-code-env-0e4f99c69cc27850"\noauth_host = "https://auth.kimi.ai"\n'
+  )
+  write_json(cred / "kimi-code-env-0e4f99c69cc27850.json",
+             {"access_token": "AT_scoped", "refresh_token": "RT_old", "expires_at": time.time() + 3600})
+  # The collector resolves its credential file as it loads, so load it after
+  # the fixture stands.
+  record = lambda: run_main(load_collector("kimi"), "--force", "--limits-only")
+  data = record()
+  expect("a scoped oauth key named in config.toml is read",
+         [auth_header(), len(reqs), data["usageStatusText"], bool(data["limits"])],
+         ["Bearer AT_scoped", 1, "", True], data)
+
+
+# With no usable key in config.toml, a lone scoped file is still the sign-in.
+def scoped_fallback(root):
+  cred = root / "code home" / "credentials"
+  cred.mkdir(parents=True, exist_ok=True)
+  write_json(cred / "kimi-code-env-fedcba9876543210.json",
+             {"access_token": "AT_solo", "refresh_token": "RT_old", "expires_at": time.time() + 3600})
+  record = lambda: run_main(load_collector("kimi"), "--force", "--limits-only")
+  data = record()
+  expect("a lone scoped credential file is found without config.toml",
+         [auth_header(), len(reqs), data["usageStatusText"]],
+         ["Bearer AT_solo", 1, ""], data)
+
+
+# The default slot wins while it exists, and with the key unrecorded, two
+# scoped files are ambiguous — no sign-in is guessed.
+def scoped_precedence(root):
+  cred = root / "code home" / "credentials"
+  cred.mkdir(parents=True, exist_ok=True)
+  (root / "code home" / "config.toml").write_text(
+    '[providers."managed:kimi-code".oauth]\nstorage = "file"\nkey = "oauth/kimi-code-env-aaa111"\n'
+  )
+  write_json(cred / "kimi-code-env-aaa111.json",
+             {"access_token": "AT_env", "refresh_token": "RT_old", "expires_at": time.time() + 3600})
+  write_json(cred / "kimi-code.json",
+             {"access_token": "AT_default", "refresh_token": "RT_old", "expires_at": time.time() + 3600})
+  record = lambda: run_main(load_collector("kimi"), "--force", "--limits-only")
+  data = record()
+  expect("the default slot wins while it exists", [auth_header(), data["usageStatusText"]],
+         ["Bearer AT_default", ""], data)
+  (cred / "kimi-code.json").unlink()
+  expect("with the default gone, the key recorded in config.toml disambiguates",
+         load_collector("kimi").credentials_path().name, "kimi-code-env-aaa111.json")
+
+
+def ambiguous_scoped(root):
+  cred = root / "code home" / "credentials"
+  cred.mkdir(parents=True, exist_ok=True)
+  write_json(cred / "kimi-code-env-aaa111.json", {"access_token": "AT_a", "refresh_token": "RT_old", "expires_at": time.time() + 3600})
+  write_json(cred / "kimi-code-env-bbb222.json", {"access_token": "AT_b", "refresh_token": "RT_old", "expires_at": time.time() + 3600})
+  data = run_main(load_collector("kimi"), "--force", "--limits-only")
+  expect("two scoped files with no key recorded stay waiting for auth", data["usageStatusText"], "Waiting for auth", data)
+
+
 cases = {"contract": contract, "env_key": env_key, "stores": stores, "share_dir": share_dir, "home": home_isolation, "static": static_token,
          "refresh": refresh, "cli_lock": cli_lock, "stale_lock": stale_lock,"lock_failure": lock_failure, "heartbeat": heartbeat,
          "private_write": private_write, "concurrent_signin": concurrent_signin, "concurrent_logout": concurrent_logout,
@@ -442,7 +507,8 @@ cases = {"contract": contract, "env_key": env_key, "stores": stores, "share_dir"
          "waiting_for_auth": waiting_for_auth, "trust": trust, "destination": destination, "redirects": redirects,
          "quota": modern_quota, "legacy_quota": legacy_quota, "cache_identity": cache_identity,
          "rotation_cache": rotated_cache, "switched_cache": switched_cache, "empty_answer": empty_answer,
-         "odd_answer": odd_answer, "odd_resets": odd_resets}
+         "odd_answer": odd_answer, "odd_resets": odd_resets, "scoped_config": scoped_config,
+         "scoped_fallback": scoped_fallback, "scoped_precedence": scoped_precedence, "ambiguous_scoped": ambiguous_scoped}
 selected = os.environ.get("OMARCHY_TEST_KIMI_CASE")
 for name, case in cases.items():
   if selected and name != selected:
