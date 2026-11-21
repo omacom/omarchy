@@ -194,6 +194,40 @@ grep -q "$marker" "$(staged hyprland.lua)" || fail "a symlinked working copy is 
 
 pass "a symlinked working copy is the user's own"
 
+# Missing palettes also arise after filtering a symlink or converting an incomplete legacy theme.
+shipped="$test_tmp/shipped-omarchy"
+mkdir -p "$shipped/themes/backgrounds-only/backgrounds/intros" "$themes/no-palette" \
+  "$themes/linked-palette/.git" "$themes/partial-alacritty/.git"
+printf 'mp4\n' >"$shipped/themes/backgrounds-only/backgrounds/intros/1-glowing-city.mp4"
+printf 'general { col.active_border = rgb(ffffff) }\n' >"$themes/no-palette/hyprland.conf"
+ln -s "$mine/colors.toml" "$themes/linked-palette/colors.toml"
+cat >"$themes/partial-alacritty/alacritty.toml" <<TOML
+[colors.primary]
+background = "#102030"
+
+[colors.normal]
+black = "#102030"
+red = "#ff0000"
+TOML
+
+# Refusal must preserve the applied theme, its generated terminal config, and its background.
+printf 'png\n' >"$mine/background.png"
+ln -s "$mine/background.png" "$state/background"
+before=$(sha256sum "$state/theme/colors.toml" "$state/theme/foot.ini" "$state/theme.name" "$state/theme.generation")
+for theme in no-palette backgrounds-only linked-palette partial-alacritty; do
+  if HOME="$home" OMARCHY_PATH="$shipped" PATH="$ROOT/bin:$PATH" \
+    OMARCHY_THEME_HEADLESS=1 OMARCHY_THEME_SKIP_BACKGROUND=1 XDG_RUNTIME_DIR="$test_tmp" \
+    bash "$ROOT/bin/omarchy-theme-set" "$theme" >"$test_tmp/stdout" 2>"$test_tmp/stderr"; then
+    fail "omarchy-theme-set refuses $theme without a staged palette"
+  fi
+  grep -q 'colors.toml' "$test_tmp/stderr" || fail "the $theme refusal names the missing palette" "$(cat "$test_tmp/stderr")"
+  [[ $(sha256sum "$state/theme/colors.toml" "$state/theme/foot.ini" "$state/theme.name" "$state/theme.generation") == "$before" ]] ||
+    fail "the $theme refusal preserves the applied theme and generated terminal config"
+  [[ $(readlink "$state/background") == "$mine/background.png" ]] || fail "the $theme refusal preserves the background"
+  [[ ! -e $state/next-theme ]] || fail "the $theme refusal clears staging"
+  pass "$theme is refused without changing the applied theme"
+done
+
 # The name is joined into paths that get removed and copied into.
 for name in .. . "../../evil"; do
   if set_theme "$name" >/dev/null; then
