@@ -64,7 +64,11 @@ python)
   mise uninstall python --all
   mise rm -g python
   ;;
-elixir|phoenix)
+phoenix)
+  echo -e "Removing Phoenix Framework...\n"
+  rm -rf "$HOME"/.mix/archives/phx_new*
+  ;;
+elixir)
   echo -e "Removing Elixir/Erlang...\n"
   mise uninstall elixir --all
   mise uninstall erlang --all
