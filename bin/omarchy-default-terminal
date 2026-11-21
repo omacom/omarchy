@@ -42,10 +42,11 @@ if omarchy-cmd-missing "$terminal"; then
   fi
 fi
 
-cat >~/.config/xdg-terminals.list <<EOF
+cat >~/.config/xdg-terminals.list <<EOF || exit 1
 # Terminal emulator preference order for xdg-terminal-exec
 # The first found and valid terminal will be used
 $desktop_id
 EOF
+omarchy-shell -q shell call omarchy.menu refreshShortcutHints '{}' 2>/dev/null || true
 
 omarchy-notification-send -g $glyph "$(omarchy-i18n default.terminalSet "$name")"
