@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# omarchy:summary=Launch Chromium on the display GPU's EGL and VA-API drivers on hybrid NVIDIA laptops
+# omarchy:hidden=true
+
+# Launch Chromium with Mesa EGL (same GPU as the Hyprland compositor) and a
+# matching VAAPI driver, working around cross-GPU DMA-BUF import failures on
+# hybrid NVIDIA + iGPU laptops. Used by the user chromium.desktop override
+# installed by install/user/hardware/fix-hybrid-chromium.sh.
+#
+# On non-hybrid hosts the env vars are harmless: Mesa EGL is what Intel/AMD
+# systems would pick anyway, and LIBVA_DRIVER_NAME only applies when libva is
+# loaded. We still gate each var on a quick sanity check so this stays a
+# no-op on systems where it shouldn't matter.
+#
+# See: https://github.com/basecamp/omarchy/issues/4901
+
+MESA_EGL=/usr/share/glvnd/egl_vendor.d/50_mesa.json
+
+# Steer EGL and VA-API only while an Intel/AMD GPU drives the display, so a
+# laptop later switched to NVIDIA-only keeps NVIDIA EGL. Read sysfs rather than
+# lspci, which wakes a runtime-suspended NVIDIA GPU on every launch.
+for device in /sys/bus/pci/devices/*; do
+  [[ -f $device/boot_vga ]] && (( $(< "$device/boot_vga") == 1 )) || continue
+  case $(< "$device/vendor") in
+    0x8086) export LIBVA_DRIVER_NAME=iHD ;;
+    0x1002) export LIBVA_DRIVER_NAME=radeonsi ;;
+    *) continue ;;
+  esac
+  if [[ -f $MESA_EGL ]]; then
+    export __EGL_VENDOR_LIBRARY_FILENAMES="$MESA_EGL"
+  fi
+done
+
+exec /usr/bin/chromium "$@"
