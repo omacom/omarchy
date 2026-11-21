@@ -23,9 +23,42 @@ if [[ $* == *"DEVICE,TYPE,STATE"* ]]; then
 elif [[ $* == *GENERAL.CON-UUID* ]]; then
   echo test-uuid
 else
-  printf '%s' "$QR_NMCLI_FIELDS"
+  # Answer from the "name:value" profile in $QR_NMCLI_FIELDS the way nmcli
+  # does: --terse keeps the names, --get-values drops them, and the fields of a
+  # setting the profile lacks print nothing at all.
+  terse=false
+  while (( $# )); do
+    case $1 in
+      --terse) terse=true ;;
+      --fields | --get-values) requested=$2; shift ;;
+    esac
+    shift
+  done
+  IFS=, read -ra names <<<"$requested"
+  for name in "${names[@]}"; do
+    while IFS= read -r line; do
+      [[ $line == "$name:"* ]] || continue
+      if [[ $terse == "true" ]]; then
+        printf '%s\n' "$line"
+      else
+        printf '%s\n' "${line#*:}"
+      fi
+    done <<<"$QR_NMCLI_FIELDS"
+  done
 fi
 EOF
+
+# A Wi-Fi profile as name:value lines. The security fields exist only when the
+# profile has an 802-11-wireless-security setting, which open networks lack.
+profile() {
+  local ssid=$1 hidden=$2
+  printf '802-11-wireless.ssid:%s\n802-11-wireless.hidden:%s\n' "$ssid" "$hidden"
+  if (( $# > 2 )); then
+    printf '802-11-wireless-security.key-mgmt:%s\n' "$3"
+    printf '802-11-wireless-security.psk:%s\n' "${4:-}"
+    printf '802-11-wireless-security.wep-key0:%s\n' "${5:-}"
+  fi
+}
 
 cat >"$tmp/bin/qrencode" <<'EOF'
 #!/bin/bash
@@ -62,6 +95,7 @@ run_success_case() {
     expected_security=${expected_payload#WIFI:T:}
     expected_security=${expected_security%%;*}
     expected_ssid=$(head -n1 <<<"$fields")
+    expected_ssid=${expected_ssid#802-11-wireless.ssid:}
     [[ $meta == meta$'\t'$expected_iface$'\t'"$expected_security"$'\t'"$expected_ssid" ]] \
       || fail "$description leads with the interface, security, and SSID" "actual: $meta"
   else
@@ -76,7 +110,7 @@ run_success_case() {
 
 run_success_case \
   "network QR helper escapes WPA credentials through stdin" \
-  $'Cafe;Guest\\5G\nwpa-psk\np,a:ss;word\\42\nno\n' \
+  "$(profile 'Cafe;Guest\5G' no wpa-psk 'p,a:ss;word\42')" \
   'WIFI:T:WPA;S:Cafe\;Guest\\5G;P:p\,a\:ss\;word\\42;;' \
   --meta wlan0
 
@@ -84,32 +118,34 @@ run_success_case \
 # the network widget still parse.
 run_success_case \
   "network QR helper keeps the bare matrix without --meta" \
-  $'Cafe;Guest\\5G\nwpa-psk\np,a:ss;word\\42\nno\n' \
+  "$(profile 'Cafe;Guest\5G' no wpa-psk 'p,a:ss;word\42')" \
   'WIFI:T:WPA;S:Cafe\;Guest\\5G;P:p\,a\:ss\;word\\42;;' \
   wlan0
 
 # With no interface argument the helper finds the connected Wi-Fi device.
 run_success_case \
   "network QR helper detects the Wi-Fi interface" \
-  $'Cafe Detected\nwpa-psk\nsecret\nno\n' \
+  "$(profile 'Cafe Detected' no wpa-psk secret)" \
   'WIFI:T:WPA;S:Cafe Detected;P:secret;;' \
   --meta
 
 QR_ROUTE_EXIT=2 run_success_case \
   "network QR helper detects Wi-Fi when route lookup fails" \
-  $'Cafe No Route\nwpa-psk\nsecret\nno\n' \
+  "$(profile 'Cafe No Route' no wpa-psk secret)" \
   'WIFI:T:WPA;S:Cafe No Route;P:secret;;' \
   --meta
 
+# An open network's profile has no 802-11-wireless-security setting, so nmcli
+# prints only the SSID and hidden fields.
 run_success_case \
   "network QR helper supports open networks" \
-  $'Cafe Open\nnone\n\nno\n' \
+  "$(profile 'Cafe Open' no)" \
   'WIFI:T:nopass;S:Cafe Open;P:;;' \
   --meta wlan0
 
 run_success_case \
   "network QR helper marks hidden networks" \
-  $'Hidden Network\nwpa-psk\nsecret\nyes\n' \
+  "$(profile 'Hidden Network' yes wpa-psk secret)" \
   'WIFI:T:WPA;S:Hidden Network;P:secret;H:true;;' \
   --meta wlan0
 
@@ -117,11 +153,11 @@ run_success_case \
 # be mistaken for an open network.
 run_success_case \
   "network QR helper encodes WEP networks" \
-  $'Old Router\nnone\n\nno\nwep-secret\n' \
+  "$(profile 'Old Router' no none '' wep-secret)" \
   'WIFI:T:WEP;S:Old Router;P:wep-secret;;' \
   --meta wlan0
 
-export QR_NMCLI_FIELDS=$'Enterprise\nwpa-eap\nsecret\nno\n'
+export QR_NMCLI_FIELDS=$(profile Enterprise no wpa-eap secret)
 export QR_PAYLOAD_FILE="$tmp/enterprise-payload"
 if PATH="$tmp/bin:$PATH" "$ROOT/bin/omarchy-network-qr" wlan0 >"$tmp/enterprise-output" 2>"$tmp/enterprise-error"; then
   fail "network QR helper rejects enterprise networks" "helper unexpectedly succeeded"
