@@ -1,5 +1,12 @@
 o.bind("SUPER + SPACE", "Omarchy menu", { menu = "root" })
 o.bind("SUPER + ALT + SPACE", "Apps", "omarchy-shell omarchy.dock apps")
+
+-- Tapping SUPER on its own opens the apps on a floating workspace, the way the
+-- Windows key opens the start menu, and every other workspace keeps SUPER a
+-- modifier and nothing more.
+local apps_on_super_tap = o.apps_on_super_tap()
+o.bind("SUPER + Super_L", "Apps on a floating workspace", apps_on_super_tap, { release = true })
+o.bind("SUPER + Super_R", "Apps on a floating workspace", apps_on_super_tap, { release = true })
 o.bind("SUPER + CTRL + E", "Emojis", { panel = "omarchy.emojis" })
 o.bind("SUPER + CTRL + C", "Capture menu", { menu = "capture" })
 o.bind("SUPER + CTRL + O", "Toggle menu", { menu = "toggle" })

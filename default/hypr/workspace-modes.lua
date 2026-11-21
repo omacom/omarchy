@@ -75,6 +75,9 @@ local function floating_workspace(id)
   return default_mode == "floating"
 end
 
+-- Whether a workspace floats, for bindings that act only on floating ones.
+M.floating = floating_workspace
+
 local function anything_floats()
   if default_mode == "floating" then
     return true
