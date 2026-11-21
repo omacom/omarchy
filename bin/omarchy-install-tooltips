@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Install or remove the standalone tooltip runtime trial
+# omarchy:args=[--base <checkout>] [--uninstall]
+# omarchy:examples=omarchy install tooltips | omarchy install tooltips --uninstall
+
+exec bash "$OMARCHY_PATH/default/tooltips/install" "$@"

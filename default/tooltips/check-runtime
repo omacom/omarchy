@@ -1,0 +1,52 @@
+#!/bin/bash
+set -euo pipefail
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+: "${TOOLTIP_QUICKSHELL:?Set TOOLTIP_QUICKSHELL to the patched Quickshell binary}"
+stage=$(mktemp -d /tmp/omarchy-tooltip-patched-check.XXXXXX)
+trap 'rm -rf -- "$stage"' EXIT
+cp "$ROOT/test/shell.d/fixtures/tooltips/independent.qml" "$stage/shell.qml"
+# No consumer modules, pragma edits or ABI interposition.
+for style in unset empty Fusion Omarchy; do
+  expected=0
+  vars=()
+  if [[ $style == "Omarchy" ]]; then
+    expected=1
+  fi
+  if [[ $style != "unset" ]]; then
+    value=$style
+    if [[ $style == "empty" ]]; then
+      value=""
+    fi
+    vars=("QS_QUICK_CONTROLS_STYLE=$value")
+  fi
+  output=$(env -u LD_PRELOAD -u QS_QUICK_CONTROLS_STYLE -u QT_QUICK_CONTROLS_STYLE \
+    "${vars[@]}" HOME="$stage" XDG_CONFIG_HOME="$stage/.config" OMARCHY_PATH="$ROOT" QT_QPA_PLATFORM=offscreen \
+    QML_IMPORT_PATH="$ROOT/shell/styles" QT_QUICK_CONTROLS_FALLBACK_STYLE=Fusion \
+    TOOLTIP_EXPECT_STYLE="$expected" timeout 10 "$TOOLTIP_QUICKSHELL" -n -p "$stage" --no-color 2>&1)
+  if [[ $output != *"RESULT pass"* ]] || rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Binding loop' <<< "$output"; then
+    printf '%s\n' "$output" >&2
+    exit 1
+  fi
+  printf 'QS_QUICK_CONTROLS_STYLE=%s: ' "$style"
+  printf '%s\n' "$output" | rg 'Independent close tooltip'
+done
+
+check_precedence() {
+  local label=$1 expected=$2 default_style=$3 system_style=$4 pragma=$5
+  printf '%s\n' "$pragma" > "$stage/shell.qml"
+  cat "$ROOT/test/shell.d/fixtures/tooltips/independent.qml" >> "$stage/shell.qml"
+  local output
+  output=$(env -u LD_PRELOAD HOME="$stage" XDG_CONFIG_HOME="$stage/.config" OMARCHY_PATH="$ROOT" QT_QPA_PLATFORM=offscreen \
+    QML_IMPORT_PATH="$ROOT/shell/styles" QT_QUICK_CONTROLS_FALLBACK_STYLE=Fusion \
+    QS_QUICK_CONTROLS_STYLE="$default_style" QT_QUICK_CONTROLS_STYLE="$system_style" \
+    TOOLTIP_EXPECT_STYLE="$expected" timeout 10 "$TOOLTIP_QUICKSHELL" -n -p "$stage" --no-color 2>&1)
+  if [[ $output != *"RESULT pass"* ]] || rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Binding loop' <<< "$output"; then
+    printf '%s\n' "$output" >&2
+    exit 1
+  fi
+  printf '%s: pass\n' "$label"
+}
+check_precedence "RespectSystemStyle preserves Fusion" 0 Omarchy Fusion '//@ pragma RespectSystemStyle'
+check_precedence "RespectSystemStyle preserves Omarchy" 1 Fusion Omarchy '//@ pragma RespectSystemStyle'
+check_precedence "Entrypoint Env overrides distributor default" 0 Omarchy Omarchy '//@ pragma Env QT_QUICK_CONTROLS_STYLE=Fusion'
+check_precedence "System style alone retains original Fusion policy" 0 '' Omarchy ''

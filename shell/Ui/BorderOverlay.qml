@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
-import qs.Commons
+import "../Commons"
 import "../Commons/BorderGeometry.js" as Geometry
 
 // Visual-only border renderer. It draws closed side-run contours, or a
