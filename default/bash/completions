@@ -124,6 +124,30 @@ _omarchy_complete() {
 
 complete -o default -F _omarchy_complete omarchy
 
-# Hide individual omarchy-* binaries from initial-word command completion;
-# the unified `omarchy` dispatcher is the user-facing entry point.
-complete -I -A command -X 'omarchy-*'
+# Hide individual omarchy-* binaries from a short initial word so the unified
+# `omarchy` dispatcher stays the suggested entry point. Once the typed word
+# includes the hyphen, complete the real binary, such as omarchy-restart-shell.
+# An empty prompt has no current word. Path-shaped words keep Readline's
+# filename suffixes and escaping. Other words stay command names, so a command
+# that shares its name with a directory is left unchanged.
+_omarchy_command_complete() {
+  COMPREPLY=()
+  local cur=""
+  if (( COMP_CWORD >= 0 )); then
+    cur="${COMP_WORDS[COMP_CWORD]}"
+  fi
+  local IFS=$'\n'
+
+  if [[ $cur == omarchy-* ]]; then
+    COMPREPLY=($(compgen -A command -- "$cur" || true))
+  else
+    COMPREPLY=($(compgen -A command -X 'omarchy-*' -- "$cur" || true))
+  fi
+
+  # Quote "~" so tilde expansion does not rewrite the pattern into $HOME.
+  if [[ $cur == *"/"* || $cur == "~"* ]]; then
+    compopt -o filenames || true
+  fi
+}
+
+complete -I -F _omarchy_command_complete
