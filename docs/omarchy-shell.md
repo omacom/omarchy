@@ -404,13 +404,13 @@ size-vertical   = 28   # left/right bar width at base-size 12
 
 Set `scale-with-font = false` to keep those bar sizes as fixed pixels.
 
-A panel with a camera cutout (a notch) at its top keeps a top bar out of it: the bar is never shorter than the cutout, and its three center sections sit beside the right one. Omarchy knows no panel's cutout itself; the platform's own package describes them in `/usr/share/omarchy-platform/display-cutouts.json`, a fixed path no environment variable moves (see [file-layout.md](file-layout.md#platform-root)):
+A panel with a camera cutout (a notch) at its top keeps a top bar out of it: the bar is never shorter than the cutout, and its center sections split around it: `centerBegin` ends at the notch's left edge, and the center box and `centerEnd` start at its right edge. Moving a widget between those sections moves it across the notch, so the default layout puts the indicators left of it and the clock right of it. Where the cutout's width isn't known, the three center sections sit beside the right one instead. Omarchy knows no panel's cutout itself; the platform's own package describes them in `/usr/share/omarchy-platform/display-cutouts.json`, a fixed path no environment variable moves (see [file-layout.md](file-layout.md#platform-root)):
 
 ```json
-{ "panels": [ { "connector": "eDP", "width": 3024, "height": 1964, "top": 64 } ] }
+{ "panels": [ { "connector": "eDP", "width": 3024, "height": 1964, "top": 64, "cutoutWidth": 370 } ] }
 ```
 
-A panel matches a screen whose connector name starts with `connector` and whose mode, as `hyprctl monitors` reports it, is `width` x `height` physical pixels, at any scale; `top` is the physical rows the cutout covers. On such a panel, `[bar] notch-height` (logical pixels, not scaled with the font) sets the floor by hand. The bar reads the file when the shell starts and whenever it changes; a file installed where its directory didn't exist yet (the platform root itself, on a first install) is read at the next shell start.
+A panel matches a screen whose connector name starts with `connector` and whose mode, as `hyprctl monitors` reports it, is `width` x `height` physical pixels, at any scale; `top` is the physical rows the cutout covers, and the optional `cutoutWidth` the physical columns, centered on the panel. On such a panel, `[bar] notch-height` and `[bar] notch-width` (logical pixels, not scaled with the font) set the floor and the width by hand. The bar reads the file when the shell starts and whenever it changes; a file installed where its directory didn't exist yet (the platform root itself, on a first install) is read at the next shell start.
 
 Until Hyprland reports a screen's mode, a top bar there waits to appear if a description names the screen's connector, unless the logical size times Qt's whole-number scale already matches a panel. It then appears at its floor rather than growing once windows are laid out, and never guesses a floor for a panel nothing describes. After two seconds without a mode it appears without a floor. Notifications clear the bar as thick as it is on their screen. A plugin's `shell.bar` gives the same through `barSizeFor(screenName)` and the `barSizes` map (screen name to thickness); its `barSize` stays the configured size, which the widgets are drawn at.
 
@@ -442,8 +442,8 @@ elsewhere). The module is an `Item` and receives `bar`, `moduleName`,
 
 A module that declares `property string fixedEdge` also receives the edge of itself that stays put when it grows, set by how its section is anchored. Widgets that extend `BarWidget` from `qs.Ui` declare it already.
 
-- `"start"` (left, or top on a vertical bar): the left section and `centerEnd`, and the last widget in the center box when it holds more than one, which grows away from the middle as `centerEnd`'s do
-- `"end"`: the right section and `centerBegin`, the first widget in the center box when it holds more than one, and all three center sections where a display notch has moved them beside the right one
+- `"start"` (left, or top on a vertical bar): the left section and `centerEnd`, and the last widget in the center box when it holds more than one, which grows away from the middle as `centerEnd`'s do, and the whole center box where it starts at a display notch's right edge
+- `"end"`: the right section and `centerBegin`, the first widget in the center box when it holds more than one, and all three center sections where a display notch of unknown width has moved them beside the right one
 - `"center"`: the rest of the center box, and a widget alone in it, which grow both ways
 
 Widgets in the tray section grow from the edge the tray keeps its pinned icons against, beside which its drawer opens the section: `"start"` where the tray's own edge is `"start"`, and `"end"` otherwise.
