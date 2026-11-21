@@ -540,6 +540,90 @@ assert(tiled_max.fullscreen == 1, "a maximized window on a tiled workspace was u
 fi
 pass "a new window on a floating workspace brings a maximized one back to size"
 
+# Hyprland keeps one maximized window a workspace, and maximizing a second one
+# gives the first its own size back, before the second is maximized. The first
+# is maximized again when the user brings it forward, or another app sends for
+# it, not when its app takes back the focus it just lost, and not after the
+# other was brought back to its own size by hand.
+if ! run_lua '
+require("default.hypr.workspace-layouts")
+local events = state().subscriptions
+local queued = {}
+hl.timer = function(callback) table.insert(queued, callback) end
+local focused = nil
+hl.get_active_window = function() return focused end
+local function settle()
+  while #queued > 0 do
+    table.remove(queued, 1)()
+  end
+end
+local first = window("0x1", 1, { floating = true, fullscreen = 1 })
+local second = window("0x2", 1, { floating = true })
+events["window.fullscreen"][1](first)
+settle()
+first.fullscreen = 0
+events["window.fullscreen"][1](first)
+second.fullscreen = 1
+events["window.fullscreen"][1](second)
+settle()
+-- Hyprland marks a window urgent as it grants it the focus its app asked for.
+-- One that held the focus a moment ago is taking it back.
+local function saw_focus(target)
+  for _, handler in ipairs(events["window.active"]) do
+    handler(target)
+  end
+  settle()
+end
+saw_focus(first)
+saw_focus(second)
+focused = first
+events["window.urgent"][1](first)
+events["window.active"][1](first)
+settle()
+assert(first.fullscreen == 0, "a window was maximized again when its app took the focus back")
+events["window.active"][1](first)
+focused = second
+settle()
+assert(first.fullscreen == 0, "a window was maximized again when focus only passed through it")
+focused = first
+events["window.active"][1](first)
+settle()
+assert(first.fullscreen == 1, "a window another one took its maximize from came forward at its own size")
+first.fullscreen, second.fullscreen = 0, 0
+events["window.fullscreen"][1](first)
+events["window.fullscreen"][1](second)
+settle()
+events["window.active"][1](first)
+settle()
+assert(first.fullscreen == 0, "a window was maximized again after the one in front was brought back to its own size")
+-- One that never held the focus is sent for by another app, as the browser is
+-- when a link is opened from a chat, and comes forward as the user asked.
+local sent = window("0x3", 1, { floating = true, tags = { "omarchy-maximized" } })
+focused = sent
+events["window.urgent"][1](sent)
+events["window.active"][1](sent)
+settle()
+assert(sent.fullscreen == 1, "a window another app sent for came forward at its own size")
+sent.fullscreen, sent.tags = 0, {}
+-- A maximized window minimized leaves its maximize, is moved to the store and
+-- is maximized again there. The one waiting behind it is now in plain view at
+-- its own size, and the minimized one comes back maximized.
+first.fullscreen = 1
+table.insert(first.tags, "omarchy-maximized")
+table.insert(second.tags, "omarchy-maximized")
+first.fullscreen = 0
+events["window.fullscreen"][1](first)
+first.workspace = { id = -98, name = "special:minimized" }
+first.fullscreen = 1
+events["window.fullscreen"][1](first)
+settle()
+assert(not has_tag(second, "omarchy-maximized"), "a window left in view by a minimized one would be maximized when next focused")
+assert(has_tag(first, "omarchy-maximized"), "a window minimized while maximized would come back at its own size")
+'; then
+  fail "a window that lost its maximize to another one takes it back when brought forward"
+fi
+pass "a window that lost its maximize to another one takes it back when brought forward"
+
 # Apps with float rules of their own keep them on a floating workspace: the
 # open rule passes them over, so they open at their own size and the mode never
 # claims them.
