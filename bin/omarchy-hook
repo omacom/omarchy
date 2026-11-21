@@ -35,6 +35,11 @@ if [[ -d $HOOK_DIR ]]; then
   for hook in "$HOOK_DIR"/*; do
     [[ -f $hook ]] || continue
     [[ $hook == *.sample ]] && continue
+    # Only files someone deliberately made runnable. `omarchy hook install` chmods
+    # 755, so the bit is already the contract; without this check a README, an
+    # editor backup (`foo.sh~`) or an editor swap file dropped in the directory is
+    # executed as a shell script.
+    [[ -x $hook ]] || continue
     bash "$hook" "$@" || echo "Hook failed: $hook"
   done
 fi
