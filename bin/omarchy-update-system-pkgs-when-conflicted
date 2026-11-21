@@ -81,6 +81,39 @@ if grep -q 'unresolvable package conflicts detected' "$errors"; then
   exit 0
 fi
 
+# Any other failure, such as a download, is already explained by pacman above.
+grep -q ' exists in filesystem' "$errors" || exit 1
+
+# Whatever this can't clear safely goes back to the person updating. Name the
+# files, or every later update stops on the same generic failure with no clue.
+# Files this could clear itself are left off the list: they move once the rest
+# are gone, and moving them by hand would be work for nothing.
+leave_for_person() {
+  local -A ours=()
+  local path line held=0
+  for path in "${leftovers[@]}"; do ours[$path]=1; done
+
+  echo -e "\e[33m\nThese files are in the way of the upgrade:\e[0m" >&2
+  while IFS= read -r line; do
+    path=$(sed -E 's/^[^:]+: (.+) exists in filesystem( \(owned by .*\))?$/\1/' <<<"$line")
+    if [[ -n ${ours[$path]:-} ]]; then
+      held=$((held + 1))
+    else
+      echo "  $line" >&2
+    fi
+  done < <(grep ' exists in filesystem' "$errors")
+
+  echo -e "\nomarchy update only moves a file that no package owns and that omarchy," >&2
+  echo "omarchy-dev, omarchy-settings, or omarchy-settings-dev is installing, and it" >&2
+  echo "moves nothing until every file in the way qualifies." >&2
+  if ((held)); then
+    echo "It will move the other $held itself once these are gone." >&2
+  fi
+  echo "Check where these came from, move aside any that nothing else needs, then" >&2
+  echo "run omarchy update again." >&2
+  exit 1
+}
+
 # Paths one of these packages installs that pacman doesn't own. Moving them out
 # of the way is what lets the upgrade through, and works on a leftover directory
 # as well as a file.
@@ -92,11 +125,11 @@ mapfile -t leftovers < <(
   grep -oP '^omarchy(-dev|-settings|-settings-dev)?: \K.+(?= exists in filesystem$)' "$errors" |
     while IFS= read -r path; do pacman -Qo "$path" &>/dev/null || echo "$path"; done
 )
-((${#leftovers[@]})) || exit 1
+((${#leftovers[@]})) || leave_for_person
 
 # All of them or none: moving a subset leaves the retry blocked by the rest, and
 # the moved files inactive for nothing.
-((${#leftovers[@]} == $(grep -c ' exists in filesystem' "$errors"))) || exit 1
+((${#leftovers[@]} == $(grep -c ' exists in filesystem' "$errors"))) || leave_for_person
 
 # A platform whose boot package owns the boot chain may also have files no
 # package owns that it can't do without (written by its image or installer).
