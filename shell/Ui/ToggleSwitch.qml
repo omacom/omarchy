@@ -25,6 +25,11 @@ import qs.Commons as Commons
 //
 // `rounded` auto-detects from Style.cornerRadius so the switch follows the
 // theme: pill shape when Hyprland corners are rounded, square on sharp.
+//
+// `urgentWhenOff` is for a switch whose off state needs noticing, like a muted
+// microphone: off, it draws in the theme's urgent color instead of fading out.
+// That color is used as is, because themes may pin the selected state to a
+// fixed color that would otherwise win over it.
 Item {
   id: root
 
@@ -46,6 +51,9 @@ Item {
   property bool rounded: Style.cornerRadius > 0
   property color foreground: Commons.Color.foreground
   property color accent: Commons.Color.accent
+  property color urgent: Commons.Color.urgent
+  property bool urgentWhenOff: false
+  readonly property bool _urgent: urgentWhenOff && !checked
 
   signal toggled()
   signal hovered(bool isHovered)
@@ -66,6 +74,13 @@ Item {
 
   readonly property int _pad: cursorRing ? cursorPad : 0
 
+  // The selected border's widths, in the urgent color.
+  function urgentBorder() {
+    var spec = Border.flat(root.urgent, 0)
+    spec.widths = Border.controlWidths("selected")
+    return spec
+  }
+
   implicitWidth: trackWidth + _pad * 2
   implicitHeight: trackHeight + _pad * 2
 
@@ -83,10 +98,14 @@ Item {
     height: root.trackHeight
     anchors.centerIn: parent
     radius: root.rounded ? height / 2 : 0
-    color: root.checked
-      ? Style.selectedFillFor(root.foreground, root.accent)
-      : Style.normalFillFor(root.foreground, root.accent)
-    borderSpec: Border.controlSpec(root.checked ? "selected" : "normal", root.foreground, root.accent)
+    color: root._urgent
+      ? Util.alpha(root.urgent, Style.selectedFillAlpha)
+      : root.checked
+        ? Style.selectedFillFor(root.foreground, root.accent)
+        : Style.normalFillFor(root.foreground, root.accent)
+    borderSpec: root._urgent
+      ? root.urgentBorder()
+      : Border.controlSpec(root.checked ? "selected" : "normal", root.foreground, root.accent)
 
     Behavior on color { ColorAnimation { duration: Style.duration(120) } }
 
@@ -96,7 +115,9 @@ Item {
       radius: root.rounded ? height / 2 : 0
       x: root.checked !== root.mirrored ? track.width - width - root.knobInset : root.knobInset
       anchors.verticalCenter: parent.verticalCenter
-      color: root.checked ? Style.selectedStateColor(root.foreground, root.accent) : Qt.darker(root.foreground, 1.25)
+      color: root._urgent
+        ? root.urgent
+        : root.checked ? Style.selectedStateColor(root.foreground, root.accent) : Qt.darker(root.foreground, 1.25)
 
       Behavior on x { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
       Behavior on color { ColorAnimation { duration: Style.duration(120) } }
