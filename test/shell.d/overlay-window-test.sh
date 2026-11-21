@@ -23,6 +23,10 @@ for (const scale of [1, 1.25, 1.5, 2]) {
 }
 assert(ready(true, true, 1200, 750, screen, { scale: 1.333333 }, 160 / 120),
   'scale comparison tolerates compositor floating point rounding')
+for (const scale of [0.5, 0.6666667, 0.75, 0.9]) {
+  assert(ready(true, true, 1200, 750, screen, { scale }, 1),
+    `overlay reveals below 1x at ${scale}, where Qt clamps the surface to 1x`)
+}
 assert(!ready(true, true, 500, 500, screen, monitor, 1.6),
   'initial window geometry never stretches content across the screen')
 assert(!ready(true, false, 1200, 750, screen, monitor, 1.6),
