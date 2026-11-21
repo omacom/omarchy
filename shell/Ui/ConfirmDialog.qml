@@ -9,11 +9,11 @@ Item {
   property string cancelText: "Cancel"
   property string confirmText: "Confirm"
   property int selectedIndex: 1
-  property color background: Color.background
-  property color foreground: Color.foreground
-  property color scrim: Util.alpha(Color.background, 0.7)
-  property color selectedBackground: Util.alpha(Color.foreground, 0.08)
-  property color selectedText: Color.accent
+  property color background: ThemeColor.background
+  property color foreground: ThemeColor.foreground
+  property color scrim: Util.alpha(ThemeColor.background, 0.7)
+  property color selectedBackground: Util.alpha(ThemeColor.foreground, 0.08)
+  property color selectedText: ThemeColor.accent
   property string fontFamily: Style.font.family
   property int cornerRadius: Style.cornerRadius
 
@@ -98,10 +98,10 @@ Item {
               width: Style.space(88)
               height: Style.space(34)
               color: selected
-                ? (destructive ? Util.alpha(Color.urgent, 0.22) : root.selectedBackground)
+                ? (destructive ? Util.alpha(ThemeColor.urgent, 0.22) : root.selectedBackground)
                 : "transparent"
               borderSpec: Border.flat(destructive
-                ? (selected ? Color.urgent : Util.alpha(Color.urgent, 0.56))
+                ? (selected ? ThemeColor.urgent : Util.alpha(ThemeColor.urgent, 0.56))
                 : (selected ? root.selectedText : Util.alpha(root.foreground, 0.38)), Style.normalBorderWidth)
               radius: 0
 
@@ -109,7 +109,7 @@ Item {
                 textFormat: Text.PlainText
                 anchors.centerIn: parent
                 text: modelData
-                color: destructive ? (selected ? Color.urgent : root.foreground) : (selected ? root.selectedText : root.foreground)
+                color: destructive ? (selected ? ThemeColor.urgent : root.foreground) : (selected ? root.selectedText : root.foreground)
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
               }

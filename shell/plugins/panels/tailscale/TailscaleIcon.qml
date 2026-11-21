@@ -6,8 +6,8 @@ Item {
   id: root
 
   property real iconSize: Style.font.icon
-  property color color: Color.foreground
-  property color badgeColor: Color.urgent
+  property color color: ThemeColor.foreground
+  property color badgeColor: ThemeColor.urgent
   property bool crossed: false
   property bool warning: false
 
@@ -51,12 +51,12 @@ Item {
     color: root.badgeColor
     anchors.right: parent.right
     anchors.bottom: parent.bottom
-    borderSpec: Border.flat(Color.popups.background, 1)
+    borderSpec: Border.flat(ThemeColor.popups.background, 1)
 
     Text {
       anchors.centerIn: parent
       text: "!"
-      color: Color.background
+      color: ThemeColor.background
       font.family: Style.font.family
       font.pixelSize: Math.max(6, parent.height * 0.72)
       font.bold: true

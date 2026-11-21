@@ -88,7 +88,7 @@ Panel {
   }
 
   readonly property color batteryFillColor: {
-    return root.bar ? root.bar.foreground : Color.foreground
+    return root.bar ? root.bar.foreground : ThemeColor.foreground
   }
 
   // Cute agent-flavored phrases shown in the hero status line, rotated on a

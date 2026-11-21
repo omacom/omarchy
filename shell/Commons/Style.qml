@@ -113,27 +113,27 @@ QtObject {
   }
 
   function resolveStateColor(token, foreground, accent, urgent, fallback) {
-    var fb = fallback || foreground || Color.foreground
+    var fb = fallback || foreground || ThemeColor.foreground
     var s = String(token || "").replace(/^\s+|\s+$/g, "")
     var role = s.toLowerCase()
-    if (role === "foreground" || role === "text") return foreground || Color.foreground
-    if (role === "accent") return accent || Color.accent
-    if (role === "urgent") return urgent || Color.urgent
-    if (role === "background") return Color.background
+    if (role === "foreground" || role === "text") return foreground || ThemeColor.foreground
+    if (role === "accent") return accent || ThemeColor.accent
+    if (role === "urgent") return urgent || ThemeColor.urgent
+    if (role === "background") return ThemeColor.background
     if (role === "transparent") return Qt.rgba(0, 0, 0, 0)
     return colorFromHex(s, fb)
   }
 
   function normalStateColor(foreground, accent, urgent) {
-    return resolveStateColor(normalColorToken, foreground, accent, urgent, foreground || Color.foreground)
+    return resolveStateColor(normalColorToken, foreground, accent, urgent, foreground || ThemeColor.foreground)
   }
 
   function hoverStateColor(foreground, accent, urgent) {
-    return resolveStateColor(hoverColorToken, foreground, accent, urgent, foreground || Color.foreground)
+    return resolveStateColor(hoverColorToken, foreground, accent, urgent, foreground || ThemeColor.foreground)
   }
 
   function selectedStateColor(foreground, accent, urgent) {
-    return resolveStateColor(selectedColorToken, foreground, accent, urgent, foreground || Color.foreground)
+    return resolveStateColor(selectedColorToken, foreground, accent, urgent, foreground || ThemeColor.foreground)
   }
 
   function pressedStateColor(foreground, accent, urgent) {
@@ -148,7 +148,7 @@ QtObject {
   }
 
   function selectionStateColor(foreground, accent, urgent) {
-    return resolveStateColor(selectionColorToken, foreground, accent, urgent, foreground || Color.foreground)
+    return resolveStateColor(selectionColorToken, foreground, accent, urgent, foreground || ThemeColor.foreground)
   }
 
   function normalFillFor(foreground, accent, urgent) { return Util.alpha(normalStateColor(foreground, accent, urgent), normalFillAlpha) }
@@ -186,17 +186,17 @@ QtObject {
   }
 
   // Convenience colors resolved against the foundational palette.
-  readonly property color normalFill: normalFillFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color hoverFill: hoverFillFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color selectedFill: selectedFillFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color pressedFill: pressedFillFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color focusFillColor: focusFillFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color normalBorderColor: normalBorderFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color hoverBorderColor: hoverBorderFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color selectedBorderColor: selectedBorderFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color focusBorderColor: focusBorderFor(Color.foreground, Color.accent, Color.urgent)
-  readonly property color selectedAccentFill: Util.alpha(Color.accent, selectedFillAlpha)
-  readonly property color selectionFill: selectionFillFor(Color.foreground, Color.accent, Color.urgent)
+  readonly property color normalFill: normalFillFor(ThemeColor.foreground, ThemeColor.accent, ThemeColor.urgent)
+  readonly property color hoverFill: hoverFillFor(ThemeColor.foreground, ThemeColor.accent, ThemeColor.urgent)
+  readonly property color selectedFill: selectedFillFor(ThemeColor.foreground, ThemeColor.accent, ThemeColor.urgent)
+  readonly property color pressedFill: pressedFillFor(ThemeColor.foreground, ThemeColor.accent, ThemeColor.urgent)
+  readonly property color focusFillColor: focusFillFor(ThemeColor.foreground, ThemeColor.accent, ThemeColor.urgent)
+  readonly property color normalBorderColor: normalBorderFor(ThemeColor.foreground, ThemeColor.accent, ThemeColor.urgent)
+  readonly property color hoverBorderColor: hoverBorderFor(ThemeColor.foreground, ThemeColor.accent, ThemeColor.urgent)
+  readonly property color selectedBorderColor: selectedBorderFor(ThemeColor.foreground, ThemeColor.accent, ThemeColor.urgent)
+  readonly property color focusBorderColor: focusBorderFor(ThemeColor.foreground, ThemeColor.accent, ThemeColor.urgent)
+  readonly property color selectedAccentFill: Util.alpha(ThemeColor.accent, selectedFillAlpha)
+  readonly property color selectionFill: selectionFillFor(ThemeColor.foreground, ThemeColor.accent, ThemeColor.urgent)
 
   // ---------------------------------------------------------- spacing
   //
@@ -379,7 +379,7 @@ QtObject {
   }
 
   // Pull typography, bar dimensions, state tokens, and spacing out of the
-  // shell.toml dict that Color already parsed. Called by Color.loadShell so
+  // shell.toml dict that Color already parsed. Called by ThemeColor.loadShell so
   // a single parse pass feeds both singletons.
   function applyShellValues(values) {
     var fontOut = {}

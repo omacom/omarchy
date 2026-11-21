@@ -196,7 +196,7 @@ The filename decides the target section, so the `[lock]` header is optional.
 
 The running shell reads `shell.toml` into two QML singletons:
 
-- `Color` for palette and surface roles like `Color.menu.border`.
+- `ThemeColor` for palette and surface roles like `ThemeColor.menu.border`.
 - `Style` for controls, spacing, font scale, corner radius, and bar sizing.
 
 ### Borders
@@ -328,8 +328,8 @@ import qs.Commons
 import qs.Ui
 
 BorderSurface {
-  color: Color.popups.background
-  borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, 2)
+  color: ThemeColor.popups.background
+  borderSpec: Border.surfaceSpec("popups", "border", ThemeColor.popups.border, 2)
   padding: Style.spacing.popupPadding
 
   Item {

@@ -10,9 +10,9 @@ Item {
   property real maximum: 1
   property real step: 0.05
   property bool integer: false
-  property color trackColor: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "#333"
-  property color fillColor: bar ? bar.foreground : Color.foreground
-  property color knobColor: bar ? bar.foreground : Color.foreground
+  property color trackColor: bar ? Style.selectedFillFor(bar.foreground, ThemeColor.accent) : "#333"
+  property color fillColor: bar ? bar.foreground : ThemeColor.foreground
+  property color knobColor: bar ? bar.foreground : ThemeColor.foreground
   property bool dragging: false
   property real trackHeight: Math.max(4, Math.round(Style.spacing.controlHeight * 0.11))
   property real knobSize: Math.max(14, Math.round(Style.spacing.controlHeight * 0.38))
@@ -23,7 +23,7 @@ Item {
   // crossing the track shows). Purely visual — snapping is the caller's job via
   // `integer`/`step` or an index-based value. Default 0 leaves the track plain.
   property int tickCount: 0
-  property color tickColor: bar ? bar.background : Color.background
+  property color tickColor: bar ? bar.background : ThemeColor.background
 
   onValueChanged: if (!dragging) liveValue = value
 

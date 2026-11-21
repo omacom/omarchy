@@ -37,8 +37,8 @@ Panel {
   ]
   readonly property string heroPhraseText: activePhrases[phraseIndex % activePhrases.length]
 
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
-  readonly property color urgent: bar ? bar.urgent : Color.urgent
+  readonly property color foreground: bar ? bar.foreground : ThemeColor.foreground
+  readonly property color urgent: bar ? bar.urgent : ThemeColor.urgent
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property bool showConnections: tailscale.accounts.length > 1 || tailscale.accountsAccessDenied
@@ -54,8 +54,8 @@ Panel {
   readonly property color iconColor: tailscale.active ? foreground : dim
   readonly property string toggleHint: tailscale.active ? "Turn Tailscale off" : (tailscale.needsLogin ? "Authorize this device" : "Turn Tailscale on")
   readonly property color barIconColor: tailscale.active ? barForeground : Qt.darker(barForeground, 1.55)
-  readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, Color.accent) : "transparent"
-  readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "transparent"
+  readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, ThemeColor.accent) : "transparent"
+  readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, ThemeColor.accent) : "transparent"
 
   function selectedPeer() {
     if (tailscale.peers.length === 0) return null
@@ -1035,7 +1035,7 @@ Panel {
           }
         }
         background: BorderSurface {
-          color: Color.background
+          color: ThemeColor.background
           borderSpec: Border.flat(root.dim, 1)
           radius: Style.cornerRadius
         }

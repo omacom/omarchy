@@ -11,11 +11,11 @@ Panel {
   ipcTarget: "omarchy.agents"
   manageIpc: false
 
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
-  readonly property color urgent: bar ? bar.urgent : Color.urgent
+  readonly property color foreground: bar ? bar.foreground : ThemeColor.foreground
+  readonly property color urgent: bar ? bar.urgent : ThemeColor.urgent
   readonly property color dim: Qt.darker(foreground, 1.55)
-  readonly property color surface: Color.popups.background
-  readonly property color track: Style.selectedFillFor(foreground, Color.accent)
+  readonly property color surface: ThemeColor.popups.background
+  readonly property color track: Style.selectedFillFor(foreground, ThemeColor.accent)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   readonly property var providers: usage.enabledProviders
@@ -288,7 +288,7 @@ Panel {
   function iconCandidatesForProvider(p, surfaceColor) {
     if (!p) return []
     var candidates = []
-    if (colorLuminance(surfaceColor || Color.background) >= 0.5)
+    if (colorLuminance(surfaceColor || ThemeColor.background) >= 0.5)
       candidates.push(Qt.resolvedUrl("assets/" + p.providerId + "-light.svg"))
     candidates.push(Qt.resolvedUrl("assets/" + p.providerId + ".svg"))
     return candidates

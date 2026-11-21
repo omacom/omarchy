@@ -9,7 +9,7 @@ import qs.Commons
 //     text: "Forget network"
 //   }
 //
-// Defaults pull from [tooltip] in shell.toml via Color.tooltip.*. Override
+// Defaults pull from [tooltip] in shell.toml via ThemeColor.tooltip.*. Override
 // the panel* properties per-instance only when you need a tooltip that
 // intentionally diverges from the theme.
 //
@@ -18,13 +18,13 @@ import qs.Commons
 ToolTip {
   id: root
 
-  property color panelForeground: Color.tooltip.text
-  property color panelBackground: Color.tooltip.background
-  property color panelBorder: Color.tooltip.border
+  property color panelForeground: ThemeColor.tooltip.text
+  property color panelBackground: ThemeColor.tooltip.background
+  property color panelBorder: ThemeColor.tooltip.border
   property string fontFamily: Style.font.family
   property real fontSize: Style.font.bodySmall
 
-  readonly property var panelBorderSpec: Border.localOrSurfaceSpec("tooltip", "border", panelBorder, Color.tooltip.border, Style.normalBorderWidth)
+  readonly property var panelBorderSpec: Border.localOrSurfaceSpec("tooltip", "border", panelBorder, ThemeColor.tooltip.border, Style.normalBorderWidth)
 
   delay: 400
   padding: 0

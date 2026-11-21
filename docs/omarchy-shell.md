@@ -190,17 +190,17 @@ or override a single section with `shell.<section>.toml`, merged in by
 `omarchy-theme-set-templates` (see [`theming.md`](theming.md)).
 
 `colors.toml` uses `foreground` and `background` for the foundational
-text/background palette, exposed to QML as `Color.foreground` and
-`Color.background`.
+text/background palette, exposed to QML as `ThemeColor.foreground` and
+`ThemeColor.background`.
 
 The shell exposes these tokens to QML via three singletons in
 `qs.Commons`:
 
-- `Color` — palette (`foreground`, `background`, `accent`, `urgent`)
-  and per-surface roles (`Color.bar.*`, `Color.popups.*`,
-  `Color.tooltip.*`, `Color.notifications.*`, `Color.menu.*`,
-  `Color.polkit.*`, `Color.lock.*`, `Color.imagePicker.*`). Clipboard
-  and emojis share `Color.menu.*`; the `[launcher]` section is consumed
+- `ThemeColor` — palette (`foreground`, `background`, `accent`, `urgent`)
+  and per-surface roles (`ThemeColor.bar.*`, `ThemeColor.popups.*`,
+  `ThemeColor.tooltip.*`, `ThemeColor.notifications.*`, `ThemeColor.menu.*`,
+  `ThemeColor.polkit.*`, `ThemeColor.lock.*`, `ThemeColor.imagePicker.*`). Clipboard
+  and emojis share `ThemeColor.menu.*`; the `[launcher]` section is consumed
   by the launcher outside shell QML.
 - `Style` — structural tokens (`cornerRadius`), shared interactive
   state tokens/helpers, spacing (`Style.spacing.*` / `Style.space(px)`),

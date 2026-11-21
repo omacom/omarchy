@@ -21,9 +21,9 @@ ShellRoot {
     Network.Panel {
       id: panel
       bar: QtObject {
-        property color foreground: Color.foreground
-        property color barForeground: Color.foreground
-        property color urgent: Color.urgent
+        property color foreground: ThemeColor.foreground
+        property color barForeground: ThemeColor.foreground
+        property color urgent: ThemeColor.urgent
         property string fontFamily: Style.font.family
         property string position: "top"
         property int barSize: 24

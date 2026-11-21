@@ -6,7 +6,7 @@ Item {
   id: root
 
   property real iconSize: Style.font.icon
-  property color color: Color.foreground
+  property color color: ThemeColor.foreground
 
   width: iconSize * 1.18
   height: iconSize

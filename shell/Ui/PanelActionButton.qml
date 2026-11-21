@@ -29,7 +29,7 @@ BorderSurface {
 
   property string iconText: ""
   property string tooltipText: ""
-  property color foreground: Color.foreground
+  property color foreground: ThemeColor.foreground
   property color hoverColor: foreground
   property string fontFamily: Style.font.family
   property real fontSize: Style.font.icon
@@ -57,7 +57,7 @@ BorderSurface {
     ? Border.controlSpec("focus", hoverColor, hoverColor)
     : (_hot && bordered
       ? Border.controlSpec("hover-cursor", hoverColor, hoverColor)
-      : (bordered ? Border.controlSpec("normal", foreground, Color.accent) : Border.none()))
+      : (bordered ? Border.controlSpec("normal", foreground, ThemeColor.accent) : Border.none()))
 
   color: _showFocusRing
     ? Style.focusFillFor(hoverColor, hoverColor)

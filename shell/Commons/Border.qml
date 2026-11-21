@@ -22,7 +22,7 @@ QtObject {
   }
 
   function value(section, key) {
-    var v = Color.shellValues[section + "." + key]
+    var v = ThemeColor.shellValues[section + "." + key]
     return (v === undefined || v === null) ? "" : v
   }
 
@@ -39,7 +39,7 @@ QtObject {
     var seen = {}
     while (s.match(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/) && !seen[s]) {
       seen[s] = true
-      var next = Color.shellValues[s]
+      var next = ThemeColor.shellValues[s]
       if (next === undefined || next === null || String(next).length === 0) break
       s = String(next).replace(/^\s+|\s+$/g, "")
     }
@@ -68,10 +68,10 @@ QtObject {
 
     var s = String(color || "").replace(/^\s+|\s+$/g, "")
     var role = s.toLowerCase()
-    if (role === "foreground" || role === "text") return cssColor(Color.foreground, a)
-    if (role === "accent") return cssColor(Color.accent, a)
-    if (role === "urgent") return cssColor(Color.urgent, a)
-    if (role === "background") return cssColor(Color.background, a)
+    if (role === "foreground" || role === "text") return cssColor(ThemeColor.foreground, a)
+    if (role === "accent") return cssColor(ThemeColor.accent, a)
+    if (role === "urgent") return cssColor(ThemeColor.urgent, a)
+    if (role === "background") return cssColor(ThemeColor.background, a)
     if (role === "transparent") return "transparent"
     return Geometry.canonicalColor(s, a)
   }

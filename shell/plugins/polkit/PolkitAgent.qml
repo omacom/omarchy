@@ -11,14 +11,14 @@ Item {
   id: root
 
   property string fontFamily: Style.font.menuFamily
-  // Bound to the central [polkit] section in shell.toml via Color.qml.
-  property color accent: Color.polkit.accent
-  property color background: Color.polkit.background
-  property color foreground: Color.polkit.text
-  property color border: Color.polkit.border
-  property color borderError: Color.polkit.borderError
+  // Bound to the central [polkit] section in shell.toml via ThemeColor.qml.
+  property color accent: ThemeColor.polkit.accent
+  property color background: ThemeColor.polkit.background
+  property color foreground: ThemeColor.polkit.text
+  property color border: ThemeColor.polkit.border
+  property color borderError: ThemeColor.polkit.borderError
   property var borderSpec: Border.surfaceSpec("polkit", errorFlash ? "border-error" : "border", errorFlash ? borderError : border, Math.max(1, Style.space(2)), "border-alpha")
-  property color scrim: Color.polkit.scrim
+  property color scrim: ThemeColor.polkit.scrim
   readonly property int cornerRadius: Style.cornerRadius
   property int contentMargin: Style.spacing.panelPadding
   property int fieldHeight: Math.max(Style.space(42), Style.spacing.controlHeight)
@@ -278,7 +278,7 @@ Item {
         text: "\udb80\ude37"
         fontFamily: root.fontFamily
         fontSize: Math.round(root.fieldHeight * 0.7)
-        color: root.errorFlash ? Color.polkit.textError : root.accent
+        color: root.errorFlash ? ThemeColor.polkit.textError : root.accent
       }
 
       Row {
@@ -293,7 +293,7 @@ Item {
 
         Text {
           text: "\uf023"
-          color: root.errorFlash ? Color.polkit.textError : root.accent
+          color: root.errorFlash ? ThemeColor.polkit.textError : root.accent
           font.family: root.fontFamily
           font.pixelSize: Style.font.iconLarge
           width: Style.space(26)
@@ -318,7 +318,7 @@ Item {
             font.pixelSize: Style.font.iconLarge
             echoMode: root.responseVisible ? TextInput.Normal : TextInput.Password
             passwordCharacter: "\u2022"
-            color: root.errorFlash ? Color.polkit.textError : root.foreground
+            color: root.errorFlash ? ThemeColor.polkit.textError : root.foreground
             cursorVisible: activeFocus && !root.submitted && !root.errorFlash
             readOnly: root.submitted || root.errorFlash
             enabled: root.dialogVisible
@@ -337,7 +337,7 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             text: root.errorFlash ? "Wrong" : (root.submitted ? "Checking..." : "Enter password")
-            color: root.errorFlash ? Color.polkit.textError : root.foreground
+            color: root.errorFlash ? ThemeColor.polkit.textError : root.foreground
             opacity: root.errorFlash ? 1 : 0.36
             font.family: root.fontFamily
             font.pixelSize: Style.font.iconLarge
@@ -350,7 +350,7 @@ Item {
             height: Style.space(24)
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            color: root.errorFlash ? Color.polkit.textError : root.foreground
+            color: root.errorFlash ? ThemeColor.polkit.textError : root.foreground
             visible: passwordInput.visible && passwordInput.activeFocus && passwordInput.text.length === 0 && !root.submitted && !root.errorFlash
           }
 

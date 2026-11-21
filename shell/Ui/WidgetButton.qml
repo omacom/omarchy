@@ -8,8 +8,8 @@ Item {
   property string text: ""
   property string fontFamily: bar ? bar.fontFamily : Style.font.family
   property real fontSize: Style.font.body
-  property color foreground: bar ? bar.barForeground : Color.foreground
-  property color activeColor: bar ? bar.urgent : Color.urgent
+  property color foreground: bar ? bar.barForeground : ThemeColor.foreground
+  property color activeColor: bar ? bar.urgent : ThemeColor.urgent
   property bool active: false
   property real horizontalMargin: 8.5
   property real verticalPadding: 6
