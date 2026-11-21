@@ -223,7 +223,7 @@ def token_fresh(entry, now):
 
 
 def normalize_tier_label(name, tier_id=""):
-  for word in ("ultra", "pro", "free"):
+  for word in ("ultra", "pro", "plus", "free"):
     if word in tier_id.lower() or word in name.lower():
       return word.capitalize()
   if name.lower().startswith("google ai "):
