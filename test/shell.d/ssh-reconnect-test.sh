@@ -78,7 +78,7 @@ chmod +x "$fake_dir/ssh"
 cat >"$fake_dir/driver" <<EOF
 PATH="$fake_dir:\$PATH"
 source <(sed 's/< 30/< 2/' "$fns")
-sleep() { :; }
+sleep() { echo "\$1" >>"$fake_dir/sleeps"; }
 ssh "\$@"
 echo "rc=\$?"
 EOF
@@ -88,12 +88,17 @@ run_case() {
   local plan="$1"
   shift
   printf '%s\n' "$plan" >"$fake_dir/plan"
-  rm -f "$fake_dir/count"
+  rm -f "$fake_dir/count" "$fake_dir/sleeps"
   script -qec "bash '$fake_dir/driver' $*" /dev/null | tr -d '\r'
 }
 
 attempts() {
   cat "$fake_dir/count"
+}
+
+# The waits between attempts, space-separated.
+waits() {
+  paste -sd ' ' "$fake_dir/sleeps"
 }
 
 disarm=$(printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?1049l\e[?25h')
@@ -115,6 +120,16 @@ out=$(run_case $'2 255\n0 255\n0 0' host)
 [[ $out == *"rc=0"* ]] && (( $(attempts) == 3 )) ||
   fail "reconnecting keeps retrying while the server is still down" "$out"
 pass "reconnecting keeps retrying while the server is still down"
+
+out=$(run_case $'2 255\n0 255\n0 255\n0 255\n0 255\n0 255\n0 0' host)
+[[ $out == *"rc=0"* ]] && [[ $(waits) == "2 4 8 16 30 30" ]] ||
+  fail "retries back off up to 30 seconds" "$out waits: $(waits)"
+pass "retries back off up to 30 seconds"
+
+out=$(run_case $'2 255\n0 255\n0 255\n2 255\n0 255\n0 0' host)
+[[ $out == *"rc=0"* ]] && [[ $(waits) == "2 4 8 2 4" ]] ||
+  fail "a reconnected session that drops again starts the backoff over" "$out waits: $(waits)"
+pass "a reconnected session that drops again starts the backoff over"
 
 out=$(run_case $'2 255\n0 0' host uptime)
 [[ $out == *"rc=255"* ]] && (( $(attempts) == 1 )) ||
