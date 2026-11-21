@@ -137,7 +137,6 @@
   "localModels.durationDaysHours": "%1d %2h",
   "localModels.durationHoursMinutes": "%1h %2min",
   "localModels.durationMinutes": "%1min",
-  "localModels.durationNow": "zdaj",
   "localModels.endpoint": "%1 · model %2",
   "localModels.hideOfferConfirm": "Skriti %1 s plošče? Dodajte še enega › Lokalna UI ga še vedno nastavi.",
   "localModels.installingMeter": "Nameščanje",

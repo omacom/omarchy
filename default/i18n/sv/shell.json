@@ -123,7 +123,6 @@
   "localModels.durationDaysHours": "%1d %2tim",
   "localModels.durationHoursMinutes": "%1tim %2min",
   "localModels.durationMinutes": "%1min",
-  "localModels.durationNow": "nu",
   "localModels.endpoint": "%1 · modell %2",
   "localModels.hideOfferConfirm": "Dölj %1 från panelen? Lägg till en till › Lokal AI installerar den ändå.",
   "localModels.installingMeter": "Installerar",

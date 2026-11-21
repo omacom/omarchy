@@ -1381,8 +1381,11 @@ Panel {
                 visible: root.addButtonShown
 
                 HeroButton {
+                  id: addButton
                   visible: root.addButtonShown
                   hasCursor: root.hasKey("add")
+                  onHasCursorChanged: if (hasCursor) root.revealItem(addButton)
+                  fontFamily: root.fontFamily
                   onHovered: root.pointAt("add")
                   readonly property bool adding: root.addStage !== ""
                   glyph: adding ? "󰅖" : "󰐕"
@@ -2151,47 +2154,6 @@ Panel {
       text: root.starterLocalModel && !root.shiftHeld
         ? Commons.I18n.t("agents.startLocalOnNew").arg(tile.title.toLowerCase()).arg(root.starterLocalModel.name || root.starterLocalModel.recipe)
         : Commons.I18n.t("agents.startOnNew").arg(tile.title.toLowerCase())
-    }
-  }
-
-  // The tinted square in the hero's corner: start an agent, add a subscription.
-  component HeroButton: Rectangle {
-    id: heroButton
-    signal clicked()
-    signal hovered()
-    property string glyph: ""
-    property string tooltip: ""
-    property bool hasCursor: false
-    implicitWidth: Style.space(34)
-    implicitHeight: implicitWidth
-    radius: Style.cornerRadius
-    // The cursor needs more than a shade deeper to read on a tinted square.
-    color: root.alpha(Commons.Color.accent, hasCursor ? 0.3 : 0.12)
-    border.width: hasCursor ? Math.max(1, Style.hoverBorderWidth) : 0
-    border.color: Commons.Color.accent
-    onHasCursorChanged: if (hasCursor) root.revealItem(heroButton)
-
-    Text {
-      anchors.centerIn: parent
-      textFormat: Text.PlainText
-      text: heroButton.glyph
-      color: Commons.Color.accent
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.heading
-    }
-
-    MouseArea {
-      id: heroMouse
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: Qt.PointingHandCursor
-      onEntered: heroButton.hovered()
-      onClicked: heroButton.clicked()
-    }
-
-    PanelToolTip {
-      visible: heroMouse.containsMouse
-      text: heroButton.tooltip
     }
   }
 

@@ -137,7 +137,6 @@
   "localModels.durationDaysHours": "%1d %2godz.",
   "localModels.durationHoursMinutes": "%1godz. %2min",
   "localModels.durationMinutes": "%1min",
-  "localModels.durationNow": "teraz",
   "localModels.endpoint": "%1 · model %2",
   "localModels.hideOfferConfirm": "Ukryć %1 z panelu? Dodaj kolejne › Lokalna AI nadal to skonfiguruje.",
   "localModels.installingMeter": "Instalowanie",

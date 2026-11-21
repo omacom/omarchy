@@ -116,7 +116,6 @@
   "localModels.durationDaysHours": "%1 วัน %2 ชม.",
   "localModels.durationHoursMinutes": "%1 ชม. %2 น.",
   "localModels.durationMinutes": "%1 น.",
-  "localModels.durationNow": "ตอนนี้",
   "localModels.endpoint": "%1 · โมเดล %2",
   "localModels.hideOfferConfirm": "ซ่อน %1 จากแผงหรือไม่? เพิ่มอีก › AI ในเครื่องยังตั้งค่าให้ได้",
   "localModels.installingMeter": "กำลังติดตั้ง",

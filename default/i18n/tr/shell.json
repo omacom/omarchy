@@ -123,7 +123,6 @@
   "localModels.durationDaysHours": "%1g %2sa",
   "localModels.durationHoursMinutes": "%1sa %2dk",
   "localModels.durationMinutes": "%1dk",
-  "localModels.durationNow": "şimdi",
   "localModels.endpoint": "%1 · model %2",
   "localModels.hideOfferConfirm": "%1 panelden gizlensin mi? Bir tane daha ekleyin › Yerel AI yine de kurar.",
   "localModels.installingMeter": "Kuruluyor",

@@ -123,7 +123,6 @@
   "localModels.durationDaysHours": "%1 p %2 t",
   "localModels.durationHoursMinutes": "%1 t %2 min",
   "localModels.durationMinutes": "%1 min",
-  "localModels.durationNow": "nüüd",
   "localModels.endpoint": "%1 · mudel %2",
   "localModels.hideOfferConfirm": "Peida %1 paneelilt? Lisa veel üks › Kohalik TI seadistab selle ikka.",
   "localModels.installingMeter": "Installimine",

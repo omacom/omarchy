@@ -123,7 +123,6 @@
   "localModels.durationDaysHours": "%1д %2ч",
   "localModels.durationHoursMinutes": "%1ч %2мин",
   "localModels.durationMinutes": "%1мин",
-  "localModels.durationNow": "сега",
   "localModels.endpoint": "%1 · модел %2",
   "localModels.hideOfferConfirm": "Скрий %1 от панела? „Добави още един“ › „Локален ИИ“ пак ще го настрои.",
   "localModels.installingMeter": "Инсталиране",

@@ -116,7 +116,6 @@
   "localModels.durationDaysHours": "%1h %2j",
   "localModels.durationHoursMinutes": "%1j %2m",
   "localModels.durationMinutes": "%1m",
-  "localModels.durationNow": "sekarang",
   "localModels.endpoint": "%1 · model %2",
   "localModels.hideOfferConfirm": "Sembunyikan %1 dari panel? Tambahkan lagi › AI Lokal tetap menyiapkannya.",
   "localModels.installingMeter": "Menginstal",

@@ -16,7 +16,11 @@ Panel {
   moduleName: "omarchy.local-models"
   ipcTarget: "omarchy.local-models"
   manageIpc: false
-  visible: engine.relevant
+  visible: !!engine && engine.relevant
+
+  // The plugin's service, one for the whole shell however many bars show
+  // the icon: it follows the engine's files and runs what the panel starts.
+  readonly property var engine: bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.local-models") : null
 
   // Items inside the panel's lazily built content, null until it first
   // opens. Code inside the content reaches its own ids directly.
@@ -31,7 +35,39 @@ Panel {
   readonly property color track: Style.selectedFillFor(foreground, Commons.Color.accent)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
-  readonly property var lines: dragLines !== null ? dragLines : engine.lines
+  readonly property var lines: dragLines !== null ? dragLines : engine ? shownLines(engine.lines, hidden) : []
+
+  // Lines hidden from the panel, by id: an offer, a cabled Spark, or a tailnet
+  // model. A model set up here is removed rather than hidden, so it always shows.
+  readonly property var hidden: settings && Array.isArray(settings.hidden) ? settings.hidden : []
+
+  function shownLines(all, hidden) {
+    return all.filter(function(line) { return hidden.indexOf(line.id) < 0 || (!!line.model && !line.model.host) })
+  }
+
+  function setHidden(id, hide) {
+    if (!bar || !bar.shell) return
+    var next = Object.assign({}, settings || {})
+    next.hidden = hidden.filter(function(other) { return other !== id }).concat(hide ? [id] : [])
+    bar.shell.updateEntryInline(moduleName, next)
+  }
+
+  // The lines' ids, which change only when a line comes, goes or moves. The
+  // lines are built from these, so each keeps its own state (a bar filling
+  // to its end, an update under way) through the status the engine rewrites
+  // twice a second while something downloads.
+  property var lineIds: []
+
+  function syncLineIds() {
+    var ids = lines.map(function(line) { return line.id })
+    if (ids.join("\n") !== lineIds.join("\n")) lineIds = ids
+  }
+
+  function lineById(id) {
+    for (var i = 0; i < lines.length; i++)
+      if (lines[i].id === id) return lines[i]
+    return null
+  }
 
   // A model on another machine of the tailnet carries its host. Away, it
   // offers nothing; unpaired, only pairing, which is what fetches its key.
@@ -43,7 +79,7 @@ Panel {
   // it starts, but says nothing about it until then. One the catalog has
   // moved on from offers its update, running or stopped, but not while it
   // loads, stops or is being updated already.
-  function localActions(model, canShare) {
+  function localActions(model) {
     var actions = []
     if (model.unit === "removing" || model.unit === "installing") return actions
     if (model.host) {
@@ -52,7 +88,7 @@ Panel {
       return model.unit === "active" ? ["disconnect", "launch"] : []
     } else {
       if (model.update && model.updating !== true && ["active", "inactive", "failed"].indexOf(model.unit) >= 0) actions.push("update")
-      if (model.unit === "active" && (canShare || model.shared === true)) actions.push("share")
+      if (model.unit === "active" && (engine.canShare || model.shared === true)) actions.push("share")
     }
     if (model.unit !== "deactivating") actions.push("toggle")
     if (model.unit === "active") actions.push("launch")
@@ -188,7 +224,10 @@ Panel {
     } else if (action === "update") {
       // In the background, like a setup. Its bar starts at the press, before
       // the engine has said a word, and runs until the model is updated.
-      askUpdate(model)
+      for (var i = 0; modelSections && i < modelSections.count; i++) {
+        var section = modelSections.itemAt(i)
+        if (section && section.model && !section.model.host && section.model.recipe === model.recipe) section.askUpdate()
+      }
       Util.execArgv(["omarchy-models", "update", "--detach", model.recipe])
     } else if (action === "pair") {
       // Pairs in the background while the panel stays open; a failure shows
@@ -215,13 +254,17 @@ Panel {
     for (var p = 0; p < lines.length; p++) {
       var model = lines[p].model
       if (!model || !model.host || modelId(model) !== landAfterPair || model.paired !== true) continue
-      if (localActions(model, engine.canShare).indexOf("launch") < 0) return
+      if (localActions(model).indexOf("launch") < 0) return
       landAfterPair = ""
       pointAt("modelLaunch", p)
       return
     }
   }
-  onLinesChanged: Qt.callLater(landOnPaired)
+  onLinesChanged: {
+    syncLineIds()
+    Qt.callLater(landOnPaired)
+  }
+  Component.onCompleted: syncLineIds()
   Connections {
     target: engine
     function onPairingIdChanged() { Qt.callLater(root.landOnPaired) }
@@ -236,7 +279,6 @@ Panel {
   }
 
   function formatDuration(ms) {
-    if (!(ms > 0)) return Commons.I18n.t("localModels.durationNow")
     var minutes = Math.floor(ms / 60000)
     var hours = Math.floor(minutes / 60)
     var days = Math.floor(hours / 24)
@@ -301,38 +343,6 @@ Panel {
     return 0.9 + 0.08 * (1 - Math.exp(-(elapsed - expected) / expected))
   }
 
-  // Updates asked for from here, by recipe, with when: the command and the
-  // engine's first word take a moment, and the bar doesn't wait for them. The
-  // engine takes over once its status says the model is updating; one that
-  // never does (the command failed) lets the bar go after 20 seconds.
-  property var updateAsks: ({})
-
-  function askUpdate(model) {
-    var asks = Object.assign({}, updateAsks)
-    asks[model.recipe] = Date.now()
-    loadNowMs = asks[model.recipe]
-    updateAsks = asks
-  }
-
-  function updateAsked(model) {
-    var at = model ? updateAsks[model.recipe] : undefined
-    return at !== undefined && loadNowMs - at < 20000
-  }
-
-  Connections {
-    target: engine
-    function onLocalModelChanged() {
-      var models = engine.localModel.models || {}
-      var asks = {}
-      var changed = false
-      for (var recipe in root.updateAsks) {
-        if (models[recipe] && models[recipe].updating !== true) asks[recipe] = root.updateAsks[recipe]
-        else changed = true
-      }
-      if (changed) root.updateAsks = asks
-    }
-  }
-
   // How far an update is, as one bar from the press until the model is
   // updated: waiting its turn, its download (the engine's bytes, or time where
   // an engine reports none), then, when it ran, the old one stopping and the
@@ -341,9 +351,9 @@ Panel {
     var seconds = function(fromMs) { return Math.max(0, (nowMs - (fromMs || nowMs)) / 1000) }
     var share = function(elapsed, expected) { return phaseProgress(elapsed, expected) / 0.98 }
     if (model.updating === true && model.unit === "deactivating")
-      return 0.7 + 0.05 * share(seconds(Number(model.since_ms)), Number(model.expected_stop_seconds) || 10)
+      return 0.7 + 0.05 * share(seconds(Number(model.since_ms)), expectedStopSeconds(model))
     if (model.updating === true && model.unit === "activating")
-      return 0.75 + 0.23 * share(seconds(Number(model.since_ms)), Number(model.expected_load_seconds) || 60)
+      return 0.75 + 0.23 * share(seconds(Number(model.since_ms)), expectedLoadSeconds(model))
     var progress = model.update_progress
     if (!progress) return 0.7 * share(seconds(startedMs), 120)
     if (progress.phase === "downloading" && Number(progress.total_bytes) > 0)
@@ -351,56 +361,20 @@ Panel {
     return 0.05 * share(seconds(startedMs), 10)
   }
 
-  function updatingNow(model) {
-    return !!model && !model.host && model.unit !== "installing" && model.unit !== "removing"
-      && (model.updating === true || updateAsked(model))
+  // How long a start or stop took last time, or a guess where none has run.
+  function expectedLoadSeconds(model) {
+    return Number(model && model.expected_load_seconds) || 60
   }
 
-  // Each update's bar, by recipe: when it started, how far it has filled, and
-  // when it ended, so it fills to the end before giving way. Kept here rather
-  // than on the line, which is built again with every status the engine
-  // writes, twice a second while an update downloads.
-  property var updateBars: ({})
-
-  function tickUpdates() {
-    var bars = {}
-    var changed = false
-    var now = loadNowMs
-    for (var i = 0; i < lines.length; i++) {
-      var model = lines[i].model
-      if (!model || model.host) continue
-      var bar = updateBars[model.recipe]
-      if (updatingNow(model)) {
-        var started = bar && !bar.endedMs ? bar.startedMs : (updateAsks[model.recipe] || now)
-        var fill = Math.max(bar && !bar.endedMs ? bar.fill : 0, updateProgress(model, started, now))
-        bars[model.recipe] = { startedMs: started, fill: fill, endedMs: 0 }
-        changed = changed || !bar || bar.fill !== fill || bar.endedMs !== 0
-      } else if (bar && (!bar.endedMs || now - bar.endedMs < Style.duration(450))) {
-        bars[model.recipe] = bar.endedMs ? bar : { startedMs: bar.startedMs, fill: 1, endedMs: now }
-        changed = changed || !bar.endedMs
-      } else if (bar) {
-        changed = true
-      }
-    }
-    if (changed || Object.keys(bars).length !== Object.keys(updateBars).length) updateBars = bars
-  }
-
-  // Only this machine's own: a tailnet model of the same recipe isn't the one updating.
-  function updateBar(model) {
-    return model && !model.host ? (updateBars[model.recipe] || null) : null
-  }
-
-  onLoadNowMsChanged: tickUpdates()
-  Connections {
-    target: engine
-    function onLocalModelChanged() { Qt.callLater(root.tickUpdates) }
+  function expectedStopSeconds(model) {
+    return Number(model && model.expected_stop_seconds) || 10
   }
 
   property double loadNowMs: Date.now()
-  readonly property bool localLoading: Object.keys(updateBars).length > 0 || lines.some(function(line) {
+  readonly property bool localLoading: lines.some(function(line) {
     var model = line.model
     return model && (["activating", "deactivating", "removing"].indexOf(model.unit) >= 0 || (model.install && model.install.phase === "dependencies")
-      || updatingNow(model))
+      || model.updating === true)
   })
   Timer {
     interval: 250
@@ -425,14 +399,14 @@ Panel {
   // holding now, or, from an engine that can't say, what it took to load.
   function heldGib(model) {
     if (!model || model.host || ["active", "activating", "deactivating"].indexOf(model.unit) < 0) return 0
-    var now = engine.modelMemory[model.recipe]
+    var now = engine ? engine.modelMemory[model.recipe] : undefined
     if (typeof now === "number") return now
     return model.observed ? Math.max(0, Number(model.observed.ram_used_gib) || 0) : 0
   }
 
   readonly property var memory: {
-    var total = engine.memoryTotalGib
-    var free = Math.min(total, engine.memoryFreeGib)
+    var total = engine ? engine.memoryTotalGib : 0
+    var free = engine ? Math.min(total, engine.memoryFreeGib) : 0
     var slices = []
     var held = 0
     for (var i = 0; i < lines.length; i++) {
@@ -453,7 +427,8 @@ Panel {
     var line = lines[previewLine]
     var model = line ? line.model : null
     if (!model || model.host || model.unit === "installing" || model.unit === "removing") return null
-    if (heldGib(model) > 0) return { held: true, index: previewLine, name: model.name || model.recipe, gib: heldGib(model) }
+    var held = heldGib(model)
+    if (held > 0) return { held: true, index: previewLine, name: model.name || model.recipe, gib: held }
     var needs = localNeedsGib(model)
     if (!(needs > 0)) return null
     // The engine's verdict decides, as it does for the play button; the bar
@@ -478,7 +453,7 @@ Panel {
   property var deleteTarget: null
   function deleteSelected() {
     var target = keyTarget
-    if (!target || ["modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelUpdate", "modelHeader", "localDownload"].indexOf(target.kind) < 0) return
+    if (!lineKey(target) || target.kind === "modelLogs") return
     var model = lines[target.index].model
     // A setup the panel still owns has nothing on disk to delete, so it asks
     // nothing: a failure is forgotten and one waiting its turn is dropped. The
@@ -499,11 +474,8 @@ Panel {
     if (!target) return
     if (target.model && !target.model.host) {
       Util.execArgv(["omarchy-models", "remove", target.model.recipe])
-    } else if (bar && bar.shell) {
-      var next = JSON.parse(JSON.stringify(settings || {}))
-      if (!next.providers) next.providers = {}
-      next.providers[target.id] = Object.assign({}, next.providers[target.id] || {}, { enabled: false })
-      bar.shell.updateEntryInline(moduleName, next)
+    } else {
+      setHidden(target.id, true)
     }
   }
 
@@ -524,7 +496,8 @@ Panel {
   property bool adding: false
 
   readonly property var addRecipes: {
-    var models = engine.localModel && engine.localModel.models ? engine.localModel.models : {}
+    if (!engine) return []
+    var models = engine.localModel.models || {}
     var recipes = (engine.localRecipes || []).filter(function(recipe) {
       return recipe && recipe.available && !models[recipe.id]
     })
@@ -533,12 +506,12 @@ Panel {
   }
 
   readonly property var addNetwork: {
-    var network = engine.networkModels || {}
-    var hidden = []
+    var network = engine ? engine.networkModels : {}
+    var shown = []
     for (var id in network)
-      if (!engine.lineEnabled("net:" + id)) hidden.push(network[id])
-    hidden.sort(function(a, b) { return String(a.id).localeCompare(String(b.id)) })
-    return hidden
+      if (root.hidden.indexOf("net:" + id) >= 0) shown.push(network[id])
+    shown.sort(function(a, b) { return String(a.id).localeCompare(String(b.id)) })
+    return shown
   }
 
   readonly property var addRows: addRecipes.concat(addNetwork)
@@ -546,11 +519,15 @@ Panel {
   // no + to lead to an empty list.
   readonly property bool addButtonShown: adding || addRows.length > 0
 
+  function contextFact(ctx) {
+    return Commons.I18n.t("localModels.contextFact").arg(Commons.I18n.formatNumber(Math.round(Number(ctx) / 1024), 0))
+  }
+
   function recipeFacts(recipe) {
     if (recipe.link) return Commons.I18n.t("localModels.linkSetUp")
     var facts = []
     if (recipe.memory_gib != null) facts.push(Commons.I18n.t("localModels.memoryFact").arg(Commons.I18n.formatNumber(recipe.memory_gib, 0)))
-    if (recipe.context != null) facts.push(Commons.I18n.t("localModels.contextFact").arg(Commons.I18n.formatNumber(Math.round(recipe.context / 1024), 0)))
+    if (recipe.context != null) facts.push(contextFact(recipe.context))
     if (recipe.decode_tok_s != null) facts.push(Commons.I18n.t("localModels.speedFact").arg(Commons.I18n.formatNumber(Math.round(recipe.decode_tok_s), 0)))
     return facts.join(" · ")
   }
@@ -561,25 +538,16 @@ Panel {
     var facts = []
     var decode = Math.round(Number(model.decode_tok_s))
     if (decode > 0) facts.push(Commons.I18n.t("localModels.speedFact").arg(Commons.I18n.formatNumber(decode, 0)))
-    if (Number(model.ctx) > 0) facts.push(Commons.I18n.t("localModels.contextFact").arg(Commons.I18n.formatNumber(Math.round(Number(model.ctx) / 1024), 0)))
+    if (Number(model.ctx) > 0) facts.push(contextFact(model.ctx))
     return facts.join(" · ")
   }
 
   function networkFacts(model) {
     var facts = [Commons.I18n.t("localModels.networkOnHost").arg(model.host)]
-    if (Number(model.ctx) > 0) facts.push(Commons.I18n.t("localModels.contextFact").arg(Commons.I18n.formatNumber(Math.round(Number(model.ctx) / 1024), 0)))
+    if (Number(model.ctx) > 0) facts.push(contextFact(model.ctx))
     facts.push(model.offline ? Commons.I18n.t("localModels.networkOffline")
       : model.unit === "active" ? Commons.I18n.t("localModels.networkRunning") : Commons.I18n.t("localModels.loadingMeter"))
     return facts.join(" · ")
-  }
-
-  function showNetworkModel(model) {
-    if (!model || !bar || !bar.shell) return
-    var next = JSON.parse(JSON.stringify(settings || {}))
-    if (!next.providers) next.providers = {}
-    next.providers["net:" + model.id] = Object.assign({}, next.providers["net:" + model.id] || {}, { enabled: true })
-    bar.shell.updateEntryInline(moduleName, next)
-    stopAdding()
   }
 
   function chooseAddRow(index) {
@@ -587,7 +555,8 @@ Panel {
       engine.setUp(addRecipes[index])
       stopAdding()
     } else {
-      showNetworkModel(addNetwork[index - addRecipes.length])
+      setHidden("net:" + addNetwork[index - addRecipes.length].id, false)
+      stopAdding()
     }
   }
 
@@ -642,7 +611,7 @@ Panel {
         rows.push([{ kind: "localDownload", index: p }])
         continue
       }
-      var actions = localActions(lines[p].model, engine.canShare)
+      var actions = localActions(lines[p].model)
       rows.push(actions.length > 0 ? actions.map(function(action) { return { kind: actionKinds[action], index: p } }) : [{ kind: "modelHeader", index: p }])
       if (localFailed(lines[p].model)) rows.push([{ kind: "modelLogs", index: p }])
     }
@@ -678,34 +647,24 @@ Panel {
   function moveKey(dx, dy) {
     if (keyRows.length === 0) return
     if (!cursorActive) {
-      keyRow = clamp(keyRow, 0, keyRows.length - 1)
+      keyRow = Util.clamp(keyRow, 0, keyRows.length - 1)
       keyColumn = 0
       cursorActive = true
       return
     }
     if (dy !== 0) {
-      keyRow = clamp(keyRow + dy, 0, keyRows.length - 1)
+      keyRow = Util.clamp(keyRow + dy, 0, keyRows.length - 1)
       var row = keyRows[keyRow]
-      var line = ["modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelUpdate", "modelHeader", "localDownload"].indexOf(row[0].kind) >= 0
-      keyColumn = line ? row.length - 1 : Math.min(keyColumn, row.length - 1)
+      keyColumn = lineKey(row[0]) && row[0].kind !== "modelLogs" ? row.length - 1 : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
-      keyRow = clamp(keyRow, 0, keyRows.length - 1)
-      keyColumn = clamp(Math.min(keyColumn, keyRows[keyRow].length - 1) + dx, 0, keyRows[keyRow].length - 1)
+      keyRow = Util.clamp(keyRow, 0, keyRows.length - 1)
+      keyColumn = Util.clamp(Math.min(keyColumn, keyRows[keyRow].length - 1) + dx, 0, keyRows[keyRow].length - 1)
     }
   }
 
-  // A line's rightmost button, where the cursor lands on it: its terminal
-  // while it runs, else its play; the download on an offer; the mark only for
-  // a line with no button.
-  function lineStop(p) {
-    var line = lines[p]
-    if (!line) return "modelHeader"
-    if (line.offer) return "localDownload"
-    var actions = localActions(line.model, engine.canShare)
-    if (actions.indexOf("launch") >= 0) return "modelLaunch"
-    if (actions.indexOf("pair") >= 0) return "modelPair"
-    if (actions.indexOf("disconnect") >= 0) return "modelDisconnect"
-    return actions.indexOf("toggle") >= 0 ? "modelToggle" : "modelHeader"
+  // Everything the cursor lands on but the + and the rows to add belongs to a line.
+  function lineKey(target) {
+    return !!target && target.kind !== "add" && target.kind !== "localAdd"
   }
 
   // A cabled Spark's offer is pinned first, so it doesn't move, and no line
@@ -717,8 +676,17 @@ Panel {
   // The cursor follows a moved line to where it landed, which a pinned line
   // can make other than where it was sent.
   function pointAtLine(id) {
-    for (var i = 0; i < lines.length; i++)
-      if (lines[i].id === id) return pointAt(lineStop(i), i)
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].id !== id) continue
+      for (var r = 0; r < keyRows.length; r++) {
+        if (lineKey(keyRows[r][0]) && keyRows[r][0].index === i) {
+          keyRow = r
+          keyColumn = keyRows[r].length - 1
+          cursorActive = true
+          return
+        }
+      }
+    }
   }
 
   // Ctrl+Up/Down carries the line the cursor is in up or down the page, and
@@ -727,7 +695,7 @@ Panel {
     if (dragIndex >= 0) return
     var from = lineIndexOfKey()
     if (from < 0 || pinnedLine(from)) return
-    var to = clamp(from + dy, pinnedLine(0) ? 1 : 0, lines.length - 1)
+    var to = Util.clamp(from + dy, pinnedLine(0) ? 1 : 0, lines.length - 1)
     if (to === from) return
     var id = lines[from].id
     engine.moveLine(id, to)
@@ -820,9 +788,7 @@ Panel {
   // The line the cursor is in, by its position on the page.
   function lineIndexOfKey() {
     var target = keyTarget
-    if (!target || adding) return -1
-    if (["modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelUpdate", "modelHeader", "modelLogs", "localDownload"].indexOf(target.kind) >= 0) return target.index
-    return -1
+    return lineKey(target) && !adding ? target.index : -1
   }
 
   function activateSelection() {
@@ -830,8 +796,8 @@ Panel {
     if (!target) refreshNow()
     else if (target.kind === "add") adding ? stopAdding() : startAdding()
     else if (target.kind === "localAdd") chooseAddRow(target.index)
-    else if (["modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelUpdate"].indexOf(target.kind) >= 0)
-      runLocalAction(lines[target.index].model, { modelToggle: "toggle", modelLaunch: "launch", modelPair: "pair", modelDisconnect: "disconnect", modelShare: "share", modelUpdate: "update" }[target.kind])
+    else if (Object.keys(actionKinds).some(function(action) { return actionKinds[action] === target.kind }))
+      runLocalAction(lines[target.index].model, Object.keys(actionKinds).filter(function(action) { return actionKinds[action] === target.kind })[0])
     else if (target.kind === "localDownload") downloadLocal(lines[target.index].offer)
     else if (target.kind === "modelLogs") showLocalLogs(lines[target.index].model)
   }
@@ -859,9 +825,6 @@ Panel {
     else if (top + item.height + margin > panelFlick.contentY + panelFlick.height)
       panelFlick.contentY = Math.min(panelFlick.contentHeight - panelFlick.height, top + item.height + margin - panelFlick.height)
   }
-
-  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
-  function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
 
   readonly property bool localBlocked: lines.some(function(line) { return line.model && line.model.fits === false })
 
@@ -898,7 +861,7 @@ Panel {
     landAfterPair = ""
     hoveredLine = -1
     resetLineDrag()
-  } else if (!engine.relevant) {
+  } else if (!visible) {
     // The hotkey and IPC reach a machine with no icon too; it can run no
     // model, so there is no panel to show.
     Qt.callLater(root.close)
@@ -913,11 +876,6 @@ Panel {
     if (localBlocked) Util.execArgv(["omarchy-models", "status", "--write"])
     engine.refreshNetwork()
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
-  }
-
-  Models {
-    id: engine
-    settings: root.settings
   }
 
   ShellIpc {
@@ -950,7 +908,7 @@ Panel {
     // Pairing may bring up the SSH agent's prompt to approve a key, such as
     // 1Password's, which has to take focus and clicks while the panel shows
     // how the pairing goes.
-    yielding: engine.pairingId !== ""
+    yielding: !!engine && engine.pairingId !== ""
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(860))
@@ -1048,8 +1006,11 @@ Panel {
 
             trailingControl: Component {
               HeroButton {
+                id: addButton
                 visible: root.addButtonShown
                 hasCursor: root.hasKey("add")
+                onHasCursorChanged: if (hasCursor) root.revealItem(addButton)
+                fontFamily: root.fontFamily
                 onHovered: root.pointAt("add")
                 glyph: root.adding ? "󰅖" : "󰐕"
                 tooltip: root.adding ? Commons.I18n.t("localModels.backToModels") : Commons.I18n.t("localModels.addModel")
@@ -1068,15 +1029,17 @@ Panel {
             width: column.width
           }
 
+          // Kept while adding, so an update under way keeps its bar.
           Repeater {
             id: modelSections
-            model: root.adding ? [] : root.lines
+            model: root.lineIds
 
             ModelSection {
-              required property var modelData
+              required property string modelData
               required property int index
+              visible: !root.adding
               width: column.width
-              line: modelData
+              line: root.lineById(modelData)
               lineIndex: index
             }
           }
@@ -1094,16 +1057,11 @@ Panel {
     readonly property real thickness: Math.max(Style.space(8), Math.round(Style.spacing.controlHeight * 0.3))
     readonly property real gap: Style.space(2)
     readonly property var p: root.preview
-    // Every slice is drawn at least this wide, so a small one still shows;
-    // whatever that takes comes off the free space.
-    readonly property real minSlice: thickness
 
-    function share(gib) {
-      return root.memory.total > 0 ? gib / root.memory.total : 0
-    }
-
+    // Every slice is drawn at least as wide as the bar is thick, so a small
+    // one still shows; whatever that takes comes off the free space.
     function sliceWidth(gib) {
-      return Math.max(minSlice, room * share(gib))
+      return Math.max(thickness, root.memory.total > 0 ? room * gib / root.memory.total : 0)
     }
 
     // The row's width less its gaps, split between the slices; free takes
@@ -1132,7 +1090,7 @@ Panel {
           height: parent.height
           width: memoryBar.sliceWidth(root.memory.system)
           radius: Math.min(height / 2, Style.cornerRadius)
-          color: root.alpha(root.foreground, 0.28)
+          color: Util.alpha(root.foreground, 0.28)
         }
 
         Repeater {
@@ -1360,22 +1318,53 @@ Panel {
     property string finishing: ""
     readonly property bool loadingShown: loading || finishing === "loading"
     readonly property bool stoppingShown: stopping || finishing === "stopping"
-    onLoadingChanged: if (!loading && running && !updating) { finishing = "loading"; finishTimer.restart() }
-    onStoppingChanged: if (!stopping && !loading && !updating) { finishing = "stopping"; finishTimer.restart() }
-    // An update has one bar of its own from the press to the end, through
-    // the reload of a model that ran, and never runs back.
-    readonly property bool updating: root.updatingNow(model)
-    readonly property var updateBar: root.updateBar(model)
-    readonly property bool updateShown: updating || !!updateBar
+    function finish(what) {
+      finishing = what
+      finishTimer.restart()
+    }
+    onLoadingChanged: if (!loading && running && !updating) finish("loading")
+    onStoppingChanged: if (!stopping && !loading && !updating) finish("stopping")
     Timer {
       id: finishTimer
       interval: Style.duration(450)
       onTriggered: section.finishing = ""
     }
-    readonly property real loadSeconds: model && Number(model.expected_load_seconds) > 0 ? Number(model.expected_load_seconds) : 60
-    readonly property real stopSeconds: model && Number(model.expected_stop_seconds) > 0 ? Number(model.expected_stop_seconds) : 10
-    readonly property real removeSeconds: model && Number(model.expected_remove_seconds) > 0 ? Number(model.expected_remove_seconds) : 10
-    readonly property real phaseSeconds: removing ? removeSeconds : stopping ? stopSeconds : loadSeconds
+    // An update has one bar of its own from the press to the end, through
+    // the reload of a model that ran, and never runs back. The press counts
+    // until the engine says it's updating, which takes a moment; one that
+    // never does (the command failed) lets the bar go after 20 seconds.
+    property bool updateAsked: false
+    readonly property bool updating: !!model && !remote && !installing && !removing && (model.updating === true || updateAsked)
+    readonly property bool updateShown: updating || finishing === "updating"
+    property double updateStartedMs: 0
+    property real updateFill: 0
+    readonly property real updateTarget: updating ? root.updateProgress(model, updateStartedMs, root.loadNowMs) : 0
+    onUpdateTargetChanged: updateFill = Math.max(updateFill, updateTarget)
+    function askUpdate() {
+      updateAsked = true
+      askTimer.restart()
+    }
+    Timer {
+      id: askTimer
+      interval: 20000
+      onTriggered: section.updateAsked = false
+    }
+    onModelChanged: if (updateAsked && !!model && model.updating === true) {
+      updateAsked = false
+      askTimer.stop()
+    }
+    Component.onCompleted: if (updating) updateStartedMs = Date.now()
+    onUpdatingChanged: {
+      if (updating) {
+        updateStartedMs = Date.now()
+        updateFill = 0
+      } else {
+        finish("updating")
+      }
+    }
+    readonly property real removeSeconds: Number(model && model.expected_remove_seconds) || 10
+    readonly property real phaseSeconds: removing ? removeSeconds : stopping ? root.expectedStopSeconds(model) : root.expectedLoadSeconds(model)
+    readonly property var actions: model ? root.localActions(model) : []
     readonly property real elapsed: model ? Math.max(0, (root.loadNowMs - Number(model.since_ms || root.loadNowMs)) / 1000) : 0
     readonly property real memory: root.heldGib(model)
     readonly property real needsGib: root.localNeedsGib(model)
@@ -1453,7 +1442,7 @@ Panel {
         anchors.leftMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        width: Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionKind.implicitWidth - (localUpdate.visible ? localUpdate.width : 0) - (localShare.visible ? localShare.width : 0) - (remotePair.visible ? remotePair.width : 0) - (remoteDisconnect.visible ? remoteDisconnect.width : 0) - (localToggle.visible ? localToggle.width : 0) - (sectionLaunch.visible ? sectionLaunch.width : 0) - Style.space(44)))
+        width: Math.max(0, Math.min(implicitWidth, sectionButtons.x - x - sectionKind.implicitWidth - Style.space(24)))
         elide: Text.ElideRight
         text: section.model ? (section.model.name || section.model.recipe)
           : section.offer ? (section.offer.link ? root.linkTitle(section.offer.link) : (section.offer.name || section.offer.id))
@@ -1489,138 +1478,129 @@ Panel {
         font.pixelSize: Style.font.caption
       }
 
-      // Shares this machine's running model with the tailnet, or stops
-      // sharing it: the Tailscale mark, dim while private and in the icons'
-      // color while shared, when its tooltip counts the machines using it.
-      // Shown only while the model runs, where Tailscale can serve it or it's
-      // shared already; a stopped shared model is shared again on start.
-      PanelActionButton {
-        id: localShare
-        anchors.right: localToggle.visible ? localToggle.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
-        anchors.rightMargin: localToggle.visible || sectionLaunch.visible ? Style.space(4) : 0
-        anchors.verticalCenter: parent.verticalCenter
-        readonly property bool shared: !!section.model && section.model.shared === true
-        visible: !!section.model && !section.remote && !section.removing && !section.installing && section.running && (shared || engine.canShare)
-        readonly property int users: shared ? (engine.shareClients[section.model.recipe] || 0) : 0
-        tooltipText: users > 0 ? Commons.I18n.tn("localModels.networkSharedUsers", users).arg(Commons.I18n.formatNumber(users))
-          : shared ? Commons.I18n.t("localModels.networkStopSharing") : Commons.I18n.t("localModels.networkShare")
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        hasCursor: root.hasKey("modelShare", section.lineIndex)
-        onHasCursorChanged: if (hasCursor) root.revealItem(localShare)
-        onClicked: root.runLocalAction(section.model, "share")
-
-        Tailscale.TailscaleIcon {
-          anchors.centerIn: parent
-          // The mark fills its box where a font glyph leaves padding around
-          // its ink, so it's drawn smaller to sit no larger than the pause.
-          iconSize: Math.round(Style.font.icon * 0.7)
-          color: localShare.shared || localShare._hot ? root.foreground : root.dim
-        }
-      }
-
-      // The catalog has a newer runtime, weights or settings for this model
-      // than it was set up with. Updating restarts it, so it's offered, never
-      // done on its own; while it runs the button stays, dimmed, to say so.
-      PanelActionButton {
-        id: localUpdate
-        anchors.right: localShare.visible ? localShare.left : localToggle.visible ? localToggle.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
-        anchors.rightMargin: localShare.visible || localToggle.visible || sectionLaunch.visible ? Style.space(4) : 0
-        anchors.verticalCenter: parent.verticalCenter
-        readonly property bool updating: section.updating
-        visible: !!section.model && !section.remote && !section.removing && !section.installing && (updating || (!!section.model.update && !section.loading && !section.stopping))
-        // The arrows the bar's system update shows, drawn to the play's size:
-        // this glyph fills more of its box than the play and pause do.
-        iconText: ""
-        fontSize: Math.round(Style.font.icon * 0.8)
-        tooltipText: updating ? Commons.I18n.t("localModels.updating") : root.updateTip(section.model)
-        foreground: updating ? root.dim : root.foreground
-        opacity: updating ? 0.5 : 1
-        fontFamily: root.fontFamily
-        hasCursor: root.hasKey("modelUpdate", section.lineIndex)
-        onHasCursorChanged: if (hasCursor) root.revealItem(localUpdate)
-        onClicked: if (!updating) root.runLocalAction(section.model, "update")
-      }
-
-      // A network model this machine isn't paired with yet: the play a local
-      // model starts with, which pairs over SSH. Greyed out while a pairing
-      // runs, as only one runs at a time.
-      PanelActionButton {
-        id: remotePair
+      Row {
+        id: sectionButtons
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        visible: section.remote && !section.offline && !section.paired
-        iconText: "󰐊"
-        tooltipText: section.remote ? Commons.I18n.t("localModels.networkPair").arg(section.model.host) : ""
-        foreground: engine.pairingId !== "" ? root.dim : root.foreground
-        opacity: engine.pairingId !== "" ? 0.5 : 1
-        fontFamily: root.fontFamily
-        hasCursor: root.hasKey("modelPair", section.lineIndex)
-        onHasCursorChanged: if (hasCursor) root.revealItem(remotePair)
-        onClicked: root.runLocalAction(section.model, "pair")
-      }
+        spacing: Style.space(4)
 
-      // Once paired and running there: the pause a local model stops with,
-      // which stops using just this model here.
-      PanelActionButton {
-        id: remoteDisconnect
-        anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
-        anchors.rightMargin: sectionLaunch.visible ? Style.space(4) : 0
-        anchors.verticalCenter: parent.verticalCenter
-        visible: section.remote && !section.offline && section.paired && section.model.unit === "active"
-        iconText: "󰏤"
-        tooltipText: section.remote ? Commons.I18n.t("localModels.networkDisconnect").arg(section.model.host) : ""
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        hasCursor: root.hasKey("modelDisconnect", section.lineIndex)
-        onHasCursorChanged: if (hasCursor) root.revealItem(remoteDisconnect)
-        onClicked: root.runLocalAction(section.model, "disconnect")
-      }
-
-      PanelActionButton {
-        id: localToggle
-        anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
-        anchors.rightMargin: sectionLaunch.visible ? Style.space(4) : 0
-        anchors.verticalCenter: parent.verticalCenter
-        visible: !!section.model && !section.remote && !section.stopping && !section.removing && !section.installing
-        // Greyed out, not disabled, so the reason still shows on hover.
-        readonly property bool blocked: root.localStartBlocked(section.model)
-        iconText: section.running || section.loading ? "󰏤" : "󰐊"
-        tooltipText: blocked ? Commons.I18n.t("localModels.notEnoughMemory")
-          : section.running || section.loading ? Commons.I18n.t("localModels.stop") : Commons.I18n.t("localModels.start")
-        foreground: blocked ? root.dim : root.foreground
-        opacity: blocked ? 0.5 : 1
-        fontFamily: root.fontFamily
-        hasCursor: root.hasKey("modelToggle", section.lineIndex)
-        onClicked: root.runLocalAction(section.model, "toggle")
-
-        // The button's own tooltip follows the pointer; the keyboard cursor
-        // landing on a greyed-out play says why too.
-        PanelToolTip {
-          visible: localToggle.blocked && localToggle.hasCursor
-          text: Commons.I18n.t("localModels.notEnoughMemory")
+        // The catalog has a newer runtime, weights or settings for this model
+        // than it was set up with. Updating restarts it, so it's offered, never
+        // done on its own; while it runs the button stays, dimmed, to say so.
+        PanelActionButton {
+          id: localUpdate
+          readonly property bool updating: section.updating
+          visible: updating || section.actions.indexOf("update") >= 0
+          // The arrows the bar's system update shows, drawn to the play's size:
+          // this glyph fills more of its box than the play and pause do.
+          iconText: ""
+          fontSize: Math.round(Style.font.icon * 0.8)
+          tooltipText: updating ? Commons.I18n.t("localModels.updating") : root.updateTip(section.model)
+          foreground: updating ? root.dim : root.foreground
+          opacity: updating ? 0.5 : 1
           fontFamily: root.fontFamily
+          hasCursor: root.hasKey("modelUpdate", section.lineIndex)
+          onHasCursorChanged: if (hasCursor) root.revealItem(localUpdate)
+          onClicked: if (!updating) root.runLocalAction(section.model, "update")
         }
-      }
 
-      // Opens an agent on a running text model, or Fantasi on an image,
-      // video or music one. On an offered model, the same place downloads it.
-      PanelActionButton {
-        id: sectionLaunch
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        readonly property bool download: !!section.offer
-        readonly property bool image: !!section.model && root.makesInFantasi(section.model)
-        visible: download || (!!section.model && section.running && (!section.remote || (section.paired && !section.offline)))
-        iconText: download ? (section.offer.link ? "󰌘" : "󰇚") : image ? "󰋩" : "󰞷"
-        // Fantasi's own launcher icon, as the icon set draws it, on a model made with in it.
-        iconSource: !download && image ? root.fantasiIcon : ""
-        tooltipText: download ? (section.offer.link ? Commons.I18n.t("localModels.linkSetUp") : Commons.I18n.t("localModels.download"))
-          : image ? Commons.I18n.t("localModels.openFantasi") : Commons.I18n.t("localModels.launch")
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        hasCursor: root.hasKey(download ? "localDownload" : "modelLaunch", section.lineIndex)
-        onClicked: download ? root.downloadLocal(section.offer) : root.runLocalAction(section.model, "launch")
+        // Shares this machine's running model with the tailnet, or stops
+        // sharing it: the Tailscale mark, dim while private and in the icons'
+        // color while shared, when its tooltip counts the machines using it.
+        // Shown only while the model runs, where Tailscale can serve it or it's
+        // shared already; a stopped shared model is shared again on start.
+        PanelActionButton {
+          id: localShare
+          readonly property bool shared: !!section.model && section.model.shared === true
+          visible: section.actions.indexOf("share") >= 0
+          readonly property int users: shared ? (engine.shareClients[section.model.recipe] || 0) : 0
+          tooltipText: users > 0 ? Commons.I18n.tn("localModels.networkSharedUsers", users).arg(Commons.I18n.formatNumber(users))
+            : shared ? Commons.I18n.t("localModels.networkStopSharing") : Commons.I18n.t("localModels.networkShare")
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          hasCursor: root.hasKey("modelShare", section.lineIndex)
+          onHasCursorChanged: if (hasCursor) root.revealItem(localShare)
+          onClicked: root.runLocalAction(section.model, "share")
+
+          Tailscale.TailscaleIcon {
+            anchors.centerIn: parent
+            // The mark fills its box where a font glyph leaves padding around
+            // its ink, so it's drawn smaller to sit no larger than the pause.
+            iconSize: Math.round(Style.font.icon * 0.7)
+            color: localShare.shared || localShare._hot ? root.foreground : root.dim
+          }
+        }
+
+        // A network model this machine isn't paired with yet: the play a local
+        // model starts with, which pairs over SSH. Greyed out while a pairing
+        // runs, as only one runs at a time.
+        PanelActionButton {
+          id: remotePair
+          visible: section.actions.indexOf("pair") >= 0
+          iconText: "󰐊"
+          tooltipText: section.remote ? Commons.I18n.t("localModels.networkPair").arg(section.model.host) : ""
+          foreground: engine.pairingId !== "" ? root.dim : root.foreground
+          opacity: engine.pairingId !== "" ? 0.5 : 1
+          fontFamily: root.fontFamily
+          hasCursor: root.hasKey("modelPair", section.lineIndex)
+          onHasCursorChanged: if (hasCursor) root.revealItem(remotePair)
+          onClicked: root.runLocalAction(section.model, "pair")
+        }
+
+        // Once paired and running there: the pause a local model stops with,
+        // which stops using just this model here.
+        PanelActionButton {
+          id: remoteDisconnect
+          visible: section.actions.indexOf("disconnect") >= 0
+          iconText: "󰏤"
+          tooltipText: section.remote ? Commons.I18n.t("localModels.networkDisconnect").arg(section.model.host) : ""
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          hasCursor: root.hasKey("modelDisconnect", section.lineIndex)
+          onHasCursorChanged: if (hasCursor) root.revealItem(remoteDisconnect)
+          onClicked: root.runLocalAction(section.model, "disconnect")
+        }
+
+        PanelActionButton {
+          id: localToggle
+          visible: section.actions.indexOf("toggle") >= 0
+          // Greyed out, not disabled, so the reason still shows on hover.
+          readonly property bool blocked: root.localStartBlocked(section.model)
+          iconText: section.running || section.loading ? "󰏤" : "󰐊"
+          tooltipText: blocked ? Commons.I18n.t("localModels.notEnoughMemory")
+            : section.running || section.loading ? Commons.I18n.t("localModels.stop") : Commons.I18n.t("localModels.start")
+          foreground: blocked ? root.dim : root.foreground
+          opacity: blocked ? 0.5 : 1
+          fontFamily: root.fontFamily
+          hasCursor: root.hasKey("modelToggle", section.lineIndex)
+          onClicked: root.runLocalAction(section.model, "toggle")
+
+          // The button's own tooltip follows the pointer; the keyboard cursor
+          // landing on a greyed-out play says why too.
+          PanelToolTip {
+            visible: localToggle.blocked && localToggle.hasCursor
+            text: Commons.I18n.t("localModels.notEnoughMemory")
+            fontFamily: root.fontFamily
+          }
+        }
+
+        // Opens an agent on a running text model, or Fantasi on an image,
+        // video or music one. On an offered model, the same place downloads it.
+        PanelActionButton {
+          id: sectionLaunch
+          readonly property bool download: !!section.offer
+          readonly property bool image: !!section.model && root.makesInFantasi(section.model)
+          visible: download || section.actions.indexOf("launch") >= 0
+          iconText: download ? (section.offer.link ? "󰌘" : "󰇚") : image ? "󰋩" : "󰞷"
+          // Fantasi's own launcher icon, as the icon set draws it, on a model made with in it.
+          iconSource: !download && image ? root.fantasiIcon : ""
+          tooltipText: download ? (section.offer.link ? Commons.I18n.t("localModels.linkSetUp") : Commons.I18n.t("localModels.download"))
+            : image ? Commons.I18n.t("localModels.openFantasi") : Commons.I18n.t("localModels.launch")
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          hasCursor: root.hasKey(download ? "localDownload" : "modelLaunch", section.lineIndex)
+          onClicked: download ? root.downloadLocal(section.offer) : root.runLocalAction(section.model, "launch")
+        }
       }
     }
 
@@ -1667,7 +1647,7 @@ Panel {
         anchors.right: localMeterValue.left
         anchors.rightMargin: Style.space(20)
         anchors.verticalCenter: parent.verticalCenter
-        value: section.updateShown ? (section.updateBar ? section.updateBar.fill : 0)
+        value: section.updateShown ? (section.updating ? section.updateFill : 1)
           : section.preparing ? root.phaseProgress(section.elapsed, 30)
           : section.downloadShown ? (section.totalBytes > 0 ? section.doneBytes / section.totalBytes : 0)
           : section.finishing !== "" ? 1 : root.phaseProgress(section.elapsed, section.phaseSeconds)
@@ -1845,47 +1825,6 @@ Panel {
     }
   }
 
-  // The tinted square in the hero's corner.
-  component HeroButton: Rectangle {
-    id: heroButton
-    signal clicked()
-    signal hovered()
-    property string glyph: ""
-    property string tooltip: ""
-    property bool hasCursor: false
-    implicitWidth: Style.space(34)
-    implicitHeight: implicitWidth
-    radius: Style.cornerRadius
-    // The cursor needs more than a shade deeper to read on a tinted square.
-    color: root.alpha(Commons.Color.accent, hasCursor ? 0.3 : 0.12)
-    border.width: hasCursor ? Math.max(1, Style.hoverBorderWidth) : 0
-    border.color: Commons.Color.accent
-    onHasCursorChanged: if (hasCursor) root.revealItem(heroButton)
-
-    Text {
-      anchors.centerIn: parent
-      textFormat: Text.PlainText
-      text: heroButton.glyph
-      color: Commons.Color.accent
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.heading
-    }
-
-    MouseArea {
-      id: heroMouse
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: Qt.PointingHandCursor
-      onEntered: heroButton.hovered()
-      onClicked: heroButton.clicked()
-    }
-
-    PanelToolTip {
-      visible: heroMouse.containsMouse
-      text: heroButton.tooltip
-    }
-  }
-
   // A plain-text control: dim until hovered or picked.
   component TextLink: Text {
     id: link
@@ -1936,7 +1875,7 @@ Panel {
       anchors.verticalCenter: meterTrack.verticalCenter
       height: meterTrack.height
       radius: meterTrack.radius
-      width: meterTrack.width * root.clamp(meter.value, 0, 1)
+      width: meterTrack.width * Util.clamp(meter.value, 0, 1)
       color: root.foreground
 
       Behavior on width {

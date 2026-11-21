@@ -130,7 +130,6 @@
   "localModels.durationDaysHours": "%1 ימ׳ %2 שע׳",
   "localModels.durationHoursMinutes": "%1 שע׳ %2 דק׳",
   "localModels.durationMinutes": "%1 דק׳",
-  "localModels.durationNow": "עכשיו",
   "localModels.endpoint": "%1 · מודל %2",
   "localModels.hideOfferConfirm": "להסתיר את %1 מהפאנל? אפשר עדיין להגדיר אותו דרך הוספת נוסף › AI מקומי.",
   "localModels.installingMeter": "מתקין",

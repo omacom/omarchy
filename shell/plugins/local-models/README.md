@@ -19,8 +19,8 @@ The icon sits left of the agents icon, and shows only on a machine that can run 
 
 ## Settings
 
-Hidden lines live in the widget's entry in `~/.config/omarchy/shell.json`, by line id: `local:<recipe>` for an offer, `local:link` for a cabled Spark, `net:<host>/<recipe>` for a tailnet model.
+Lines hidden with Delete live in the widget's entry in `~/.config/omarchy/shell.json`, by line id: `local:<recipe>` for an offer, `local:link` for a cabled Spark, `net:<host>/<recipe>` for a tailnet model. A model set up here is removed rather than hidden.
 
 ```json
-{ "id": "omarchy.local-models", "providers": { "net:box/qwen3.8-27b-gufo": { "enabled": false } } }
+{ "id": "omarchy.local-models", "hidden": ["net:box/qwen3.8-27b-gufo"] }
 ```

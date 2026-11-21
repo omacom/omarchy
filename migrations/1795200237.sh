@@ -13,12 +13,6 @@ jq '
   if [.bar.layout[]?[]? | entry_id] | (index("omarchy.local-models") != null or index("omarchy.agents") == null) then
     .
   else
-    .bar.layout |= with_entries(
-      if (.value | type) == "array" then
-        .value |= (map(if entry_id == "omarchy.agents" then [{ id: "omarchy.local-models" }, .] else [.] end) | add // [])
-      else
-        .
-      end
-    )
+    .bar.layout[] |= (if type == "array" then [.[] | if entry_id == "omarchy.agents" then { id: "omarchy.local-models" }, . else . end] else . end)
   end
 ' "$config_file" >"$tmp" && mv "$tmp" "$config_file"

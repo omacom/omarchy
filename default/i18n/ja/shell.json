@@ -116,7 +116,6 @@
   "localModels.durationDaysHours": "%1日 %2時間",
   "localModels.durationHoursMinutes": "%1時間 %2分",
   "localModels.durationMinutes": "%1分",
-  "localModels.durationNow": "今",
   "localModels.endpoint": "%1 · モデル %2",
   "localModels.hideOfferConfirm": "パネルから %1 を非表示にしますか？「もう1つ追加 › ローカルAI」から引き続き設定できます。",
   "localModels.installingMeter": "インストール中",

@@ -116,7 +116,6 @@
   "localModels.durationDaysHours": "%1天 %2小時",
   "localModels.durationHoursMinutes": "%1小時 %2分",
   "localModels.durationMinutes": "%1分",
-  "localModels.durationNow": "現在",
   "localModels.endpoint": "%1 · 模型 %2",
   "localModels.hideOfferConfirm": "將 %1 從面板隱藏？「再新增一個 › 本機 AI」仍可進行設定。",
   "localModels.installingMeter": "安裝中",

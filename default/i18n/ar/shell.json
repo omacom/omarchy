@@ -151,7 +151,6 @@
   "localModels.durationDaysHours": "%1ي %2س",
   "localModels.durationHoursMinutes": "%1س %2د",
   "localModels.durationMinutes": "%1د",
-  "localModels.durationNow": "الآن",
   "localModels.endpoint": "%1 · النموذج %2",
   "localModels.hideOfferConfirm": "إخفاء %1 من اللوحة؟ يمكنك إعداده أيضًا عبر إضافة آخر › ذكاء اصطناعي محلي.",
   "localModels.installingMeter": "جارٍ التثبيت",

@@ -116,7 +116,6 @@
   "localModels.durationDaysHours": "%1일 %2시간",
   "localModels.durationHoursMinutes": "%1시간 %2분",
   "localModels.durationMinutes": "%1분",
-  "localModels.durationNow": "지금",
   "localModels.endpoint": "%1 · 모델 %2",
   "localModels.hideOfferConfirm": "패널에서 %1을 숨길까요? 하나 더 추가 › 로컬 AI에서 여전히 설정할 수 있습니다.",
   "localModels.installingMeter": "설치 중",

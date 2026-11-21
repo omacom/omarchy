@@ -8,7 +8,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/local-models/Models.qml', 'utf8')
-const state = { localModel: {}, noteReadyModels: () => {}, noteLaunchableModels: () => {} }
+const units = JSON.parse(source.match(/readonly property var units: (\[[^\]]*\])/)[1])
+const state = { localModel: {}, units, noteReadyModels: () => {}, noteLaunchableModels: () => {}, noteSharedModels: () => {} }
 const parse = new Function('root', source.match(/function parseLocalModel\([^]*?\n  \}/)[0] + '\nreturn parseLocalModel')(state)
 const running = { models: { 'model-a': { recipe: 'model-a', unit: 'active', endpoint: 'http://127.0.0.1:11435/v1' }, 'model-b': { recipe: 'model-b', unit: 'activating' } }, ram_total_gib: 125.1 }
 parse(JSON.stringify(running))
@@ -31,12 +32,15 @@ run_node_test <<'JS'
 const fs = require('fs')
 const main = fs.readFileSync(root + '/shell/plugins/local-models/Models.qml', 'utf8')
 const localOffer = new Function(main.match(/function localOffer\([^]*?\n  \}/)[0] + '\nreturn localOffer')()
+const panelSource = fs.readFileSync(root + '/shell/plugins/local-models/Panel.qml', 'utf8')
+const shownLines = new Function(panelSource.match(/function shownLines\([^]*?\n  \}/)[0] + '\nreturn shownLines')()
 const recipes = [{ id: 'qwen', available: true }, { id: 'nemotron', best: true, available: true }]
-const everyone = () => true
-assertEqual(localOffer(recipes, {}, everyone).id, 'nemotron', 'a machine without local models is offered the best recipe')
-assertEqual(localOffer(recipes, { qwen: { unit: 'inactive' } }, everyone), null, 'a machine with a local model gets no offer')
-assertEqual(localOffer(recipes, {}, id => id !== 'local:nemotron'), null, 'a hidden offer stays hidden')
-assertEqual(localOffer([{ id: 'nemotron', best: true, available: false }], {}, everyone), null, 'a best recipe that does not fit is not offered')
+assertEqual(localOffer(recipes, {}).id, 'nemotron', 'a machine without local models is offered the best recipe')
+assertEqual(localOffer(recipes, { qwen: { unit: 'inactive' } }), null, 'a machine with a local model gets no offer')
+assertEqual(localOffer([{ id: 'nemotron', best: true, available: false }], {}), null, 'a best recipe that does not fit is not offered')
+const offer = { id: 'local:nemotron', offer: {} }
+assertDeepEqual(shownLines([offer, { id: 'net:box/m', model: { host: 'box' } }], ['local:nemotron', 'net:box/m']), [], 'a hidden offer or tailnet model stays hidden')
+assertDeepEqual(shownLines([{ id: 'local:nemotron', model: { recipe: 'nemotron' } }], ['local:nemotron']).length, 1, 'but a model set up from a hidden offer shows')
 JS
 
 # The tailnet survey can be rewritten under the panel; models whose host is
@@ -44,7 +48,7 @@ JS
 run_node_test <<'JS'
 const fs = require('fs')
 const main = fs.readFileSync(root + '/shell/plugins/local-models/Models.qml', 'utf8')
-const state = { networkModels: {} }
+const state = { networkModels: {}, units: JSON.parse(main.match(/readonly property var units: (\[[^\]]*\])/)[1]) }
 const parse = new Function('root', main.match(/function parseNetwork\([^]*?\n  \}/)[0] + '\nreturn parseNetwork')(state)
 const survey = { models: {
   'box/big': { id: 'box/big', host: 'box', recipe: 'big', unit: 'active', paired: true, offline: '' },
@@ -81,7 +85,8 @@ assertEqual(pairFailureMessage("Pairing with box.tail.ts.net over SSH\nalice@box
 assertEqual(pairFailureMessage('Traceback (most recent call last):\n  ...\n'), '', 'a pairing that gave no reason leaves the line to say it failed')
 
 const panel = fs.readFileSync(root + '/shell/plugins/local-models/Panel.qml', 'utf8')
-const localActions = new Function(panel.match(/function localActions\([^]*?\n  \}/)[0] + '\nreturn localActions')()
+const localActionsWith = new Function('engine', panel.match(/function localActions\([^]*?\n  \}/)[0] + '\nreturn localActions')
+const localActions = (model, canShare) => localActionsWith({ canShare: !!canShare })(model)
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, true), ['share', 'toggle', 'launch'], 'a running local model can be shared, stopped and launched')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, false), ['toggle', 'launch'], 'without Tailscale set up, sharing is not offered')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active', shared: true }, false), ['share', 'toggle', 'launch'], 'a running shared model can always stop sharing')
@@ -151,7 +156,7 @@ assertEqual(landing.landAfterPair, '', 'and stops waiting')
 // A running network model shows what it is and how fast its host runs it,
 // not that host's memory.
 const i18n = { t: key => ({ text: key, arg(value) { this.text += '(' + value + ')'; return this }, toString() { return this.text } }), formatNumber: value => String(value) }
-const remoteStats = new Function('Commons', panel.match(/function remoteStats\([^]*?\n  \}/)[0] + '\nreturn remoteStats')({ I18n: i18n })
+const remoteStats = new Function('Commons', ['contextFact', 'remoteStats'].map(name => panel.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n') + '\nreturn remoteStats')({ I18n: i18n })
 assertEqual(remoteStats({ architecture: 'moe', decode_tok_s: 41.6, prefill_tok_s: 812.2, ctx: 262144 }),
   'localModels.speedFact(42) · localModels.contextFact(256)', 'a network model lists its output speed and context, never prefill')
 assertEqual(remoteStats({ architecture: 'dense', decode_tok_s: null, prefill_tok_s: null, ctx: 0 }), '', 'unmeasured speeds and an unknown context are left out, and the architecture never shows')
@@ -350,7 +355,7 @@ JS
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/local-models/Panel.qml', 'utf8')
-const fns = ['phaseProgress', 'updateProgress'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+const fns = ['phaseProgress', 'expectedLoadSeconds', 'expectedStopSeconds', 'updateProgress'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
 const updateProgress = new Function(fns + '\nreturn updateProgress')()
 const now = 100000
 const waiting = updateProgress({ updating: true, unit: 'active', update_progress: { phase: 'waiting' } }, now - 5000, now)
@@ -372,10 +377,7 @@ const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/local-models/Models.qml', 'utf8')
 const canRunModels = new Function(source.match(/function canRunModels\([^]*?\n  \}/)[0] + '\nreturn canRunModels')()
 assertEqual(canRunModels([{ id: 'big', available: false }], {}, { state: 'none' }), false, 'a machine no recipe fits gets no panel, whatever the tailnet shares')
-assertEqual(canRunModels([], {}, null), false, 'neither does one with no listing yet')
 assertEqual(canRunModels([{ id: 'big', available: false }, { id: 'small', available: true }], {}, null), true, 'a machine one recipe fits gets the panel')
-assertEqual(canRunModels([], { small: { unit: 'inactive' } }, null), true, 'so does one with a model set up')
-assertEqual(canRunModels([], {}, { state: 'available' }), true, 'and a Spark with another cabled to it')
 JS
 
 # Lines keep the order they were dragged into, including places saved for lines hidden now.

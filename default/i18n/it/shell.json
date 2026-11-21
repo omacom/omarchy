@@ -130,7 +130,6 @@
   "localModels.durationDaysHours": "%1g %2h",
   "localModels.durationHoursMinutes": "%1h %2min",
   "localModels.durationMinutes": "%1min",
-  "localModels.durationNow": "ora",
   "localModels.endpoint": "%1 · modello %2",
   "localModels.hideOfferConfirm": "Nascondere %1 dal pannello? Aggiungi un altro › IA locale lo configura comunque.",
   "localModels.installingMeter": "Installazione",

@@ -130,7 +130,6 @@
   "localModels.durationDaysHours": "%1 j %2 h",
   "localModels.durationHoursMinutes": "%1 h %2 min",
   "localModels.durationMinutes": "%1 min",
-  "localModels.durationNow": "maintenant",
   "localModels.endpoint": "%1 · modèle %2",
   "localModels.hideOfferConfirm": "Masquer %1 du panneau ? En ajouter un autre › IA locale permet toujours de le configurer.",
   "localModels.installingMeter": "Installation en cours",

@@ -123,7 +123,6 @@
   "localModels.durationDaysHours": "%1 pv %2 t",
   "localModels.durationHoursMinutes": "%1 t %2 min",
   "localModels.durationMinutes": "%1 min",
-  "localModels.durationNow": "nyt",
   "localModels.endpoint": "%1 · malli %2",
   "localModels.hideOfferConfirm": "Piilota %1 paneelista? Lisää toinen › Paikallinen tekoäly asentaa sen silti.",
   "localModels.installingMeter": "Asennetaan",

@@ -123,7 +123,6 @@
   "localModels.durationDaysHours": "%1দিন %2ঘণ্টা",
   "localModels.durationHoursMinutes": "%1ঘণ্টা %2মিনিট",
   "localModels.durationMinutes": "%1মিনিট",
-  "localModels.durationNow": "এখন",
   "localModels.endpoint": "%1 · মডেল %2",
   "localModels.hideOfferConfirm": "প্যানেল থেকে %1 লুকাবেন? আরেকটি যোগ করুন › লোকাল AI থেকে তবুও সেট আপ করা যাবে।",
   "localModels.installingMeter": "ইনস্টল হচ্ছে",

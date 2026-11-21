@@ -1,10 +1,10 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import Quickshell.Networking
 import qs.Commons
 
-// Everything the panel shows, followed from the files omarchy-models
+// The plugin's service, one for the whole shell: everything the panel shows,
+// followed from the files omarchy-models
 // writes under ~/.local/state/omarchy/agent-local/: this machine's models, the
 // catalog's recipes, and the models other machines share on the tailnet. The
 // commands that set models up and pair with them run from here too, so they
@@ -13,9 +13,12 @@ Item {
   id: root
   visible: false
 
-  property var settings: ({})
+  property var shell: null
 
   readonly property string home: Quickshell.env("HOME") || ""
+
+  // The states the engine writes a model in; a file with any other is half written.
+  readonly property var units: ["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"]
 
   // What omarchy-models runs here, followed even before the panel's
   // content has been built.
@@ -27,12 +30,7 @@ Item {
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
-    onLoaded: {
-      root.parseLocalModel(text())
-      // Sharing starts and stops the share proxy, which makes and removes
-      // clients.json: a file that can't be watched before it exists.
-      clientsFile.reload()
-    }
+    onLoaded: root.parseLocalModel(text())
   }
 
   // The catalog's recipes as this machine sees them (fits, best, installed),
@@ -281,7 +279,7 @@ Item {
       for (var id in parsed.models) {
         var model = parsed.models[id]
         if (!model || model.id !== id || id !== model.host + "/" + model.recipe) return
-        if (["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
+        if (root.units.indexOf(model.unit) < 0) return
         models[id] = model
       }
       var key = JSON.stringify(models, function(field, value) { return field === "last_seen_ms" ? undefined : value })
@@ -303,10 +301,11 @@ Item {
       for (var id in parsed.models) {
         var model = parsed.models[id]
         if (!model || model.recipe !== id || id === "") return
-        if (["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
+        if (root.units.indexOf(model.unit) < 0) return
       }
       root.noteReadyModels(parsed.models)
       root.noteLaunchableModels(parsed.models)
+      root.noteSharedModels(parsed.models)
       root.localModel = parsed
     } catch (e) {
       // A missing or partially written file leaves the last good state intact.
@@ -350,6 +349,18 @@ Item {
     launchableModels = key
   }
 
+  // Sharing starts and stops the share proxy, which makes and removes
+  // clients.json, a file that can't be watched before it exists, so it's read
+  // again whenever which models are shared changes.
+  property string sharedModels: ""
+
+  function noteSharedModels(models) {
+    var key = Object.keys(models).filter(function(id) { return models[id].shared === true }).sort().join("\n")
+    if (key === sharedModels) return
+    sharedModels = key
+    clientsFile.reload()
+  }
+
   function syncLaunchers() {
     Util.execArgv(["omarchy-models-launchers"])
   }
@@ -381,17 +392,17 @@ Item {
       models = Object.assign({}, models)
       models[setup.recipe] = setup
     }
-    // The tailnet's models follow this machine's own, hidden ones aside.
+    // The tailnet's models follow this machine's own.
     var network = networkModels || {}
     for (var nid in network)
-      if (lineEnabled("net:" + nid)) list.push({ id: "net:" + nid, model: network[nid] })
-    var offer = localOffer(localRecipes, models, lineEnabled)
+      list.push({ id: "net:" + nid, model: network[nid] })
+    var offer = localOffer(localRecipes, models)
     if (offer) list.push({ id: "local:" + offer.id, name: offer.name || offer.id, offer: offer })
     list = orderedLines(list)
     // Another DGX Spark cabled to this one and not set up yet (omarchy-models's status.json
     // `link`) is offered like a recommended model, always first: its line opens link setup.
     var link = localModel.link
-    if (link && link.state === "available" && lineEnabled("local:link"))
+    if (link && link.state === "available")
       list.unshift({ id: "local:link", name: link.host || "DGX Spark", offer: { id: "link", vendor: "nvidia", link: link } }) // i18n: ignore
     return list
   }
@@ -399,11 +410,11 @@ Item {
   // A machine with no local model yet is offered the one the catalog
   // recommends for it, ready to download. It shares its id with the model it
   // becomes, and hiding it hides the offer, not the model.
-  function localOffer(recipes, models, enabled) {
+  function localOffer(recipes, models) {
     if (Object.keys(models || {}).length > 0) return null
     for (var i = 0; i < (recipes || []).length; i++) {
       var recipe = recipes[i]
-      if (recipe && recipe.best && recipe.available && !recipe.installed && enabled("local:" + recipe.id)) return recipe
+      if (recipe && recipe.best && recipe.available && !recipe.installed) return recipe
     }
     return null
   }
@@ -451,18 +462,8 @@ Item {
     onFileChanged: reload()
   }
 
-  // Lines hidden from the panel (an offer, the cabled Spark, or a tailnet
-  // model) by line id, in this widget's settings.
-  function lineEnabled(id) {
-    if (!settings || !settings.providers || !settings.providers[id]) return true
-    return settings.providers[id].enabled !== false
-  }
-
   // Whether the panel is offered at all: only on a machine that can run a
-  // model itself. One that can runs a recipe the catalog fits to it (the
-  // engine's `available`: its runtime works on this GPU and it fits in
-  // memory), has a model set up already, or has another Spark cabled to it.
-  // The tailnet's models show on such a machine, but don't make one of their own.
+  // model itself (see the README).
   readonly property bool relevant: canRunModels(localRecipes, localModel.models, localModel.link)
 
   function canRunModels(recipes, models, link) {
@@ -471,17 +472,10 @@ Item {
       || (!!link && link.state === "available")
   }
 
-  // With the icon hidden, nothing else would look, so the shell does once as
-  // it starts: the listing, which a fresh account doesn't have yet and an
-  // upgrade may have changed, and the tailnet. The tailnet is surveyed again
-  // whenever the network comes up while there's still nothing to show.
-  Component.onCompleted: {
-    refreshLocal()
-    refreshNetwork()
-  }
-
-  readonly property bool online: Networking.connectivity === NetworkConnectivity.Full
-  onOnlineChanged: if (online && !relevant) refreshNetwork()
+  // Whether the icon shows rests on the listing, which a fresh account doesn't
+  // have yet and an upgrade may have changed, so the shell reads it fresh as
+  // it starts. The tailnet is surveyed while the panel is open.
+  Component.onCompleted: refreshLocal()
 
   // ----------------------------------------------------------------- memory
   //
@@ -498,7 +492,10 @@ Item {
 
   function readMemory() {
     meminfoFile.reload()
-    if (!memoryProcess.running) memoryProcess.running = true
+    var models = localModel.models || {}
+    var running = Object.keys(models).some(function(id) { return ["active", "activating", "deactivating"].indexOf(models[id].unit) >= 0 })
+    if (!running) modelMemory = ({})
+    else if (!memoryProcess.running) memoryProcess.running = true
   }
 
   Process {

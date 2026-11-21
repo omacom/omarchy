@@ -137,7 +137,6 @@
   "localModels.durationDaysHours": "%1д %2год",
   "localModels.durationHoursMinutes": "%1год %2хв",
   "localModels.durationMinutes": "%1хв",
-  "localModels.durationNow": "зараз",
   "localModels.endpoint": "%1 · модель %2",
   "localModels.hideOfferConfirm": "Сховати %1 з панелі? Налаштувати його все одно можна через «Додати ще › Локальний ШІ».",
   "localModels.installingMeter": "Встановлення",

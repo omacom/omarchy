@@ -116,7 +116,6 @@
   "localModels.durationDaysHours": "%1天 %2小时",
   "localModels.durationHoursMinutes": "%1小时 %2分钟",
   "localModels.durationMinutes": "%1分钟",
-  "localModels.durationNow": "现在",
   "localModels.endpoint": "%1 · 模型 %2",
   "localModels.hideOfferConfirm": "从面板中隐藏 %1？仍可通过“再添加一个 › 本地 AI”进行设置。",
   "localModels.installingMeter": "安装中",

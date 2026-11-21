@@ -130,7 +130,6 @@
   "localModels.durationDaysHours": "%1 d %2 h",
   "localModels.durationHoursMinutes": "%1 h %2 min",
   "localModels.durationMinutes": "%1 min",
-  "localModels.durationNow": "teraz",
   "localModels.endpoint": "%1 · model %2",
   "localModels.hideOfferConfirm": "Skryť %1 z panela? Cez Pridať ďalší › Lokálna AI to stále nastaví.",
   "localModels.installingMeter": "Inštaluje sa",

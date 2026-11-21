@@ -125,7 +125,6 @@
   "localModels.durationDaysHours": "%1d %2h",
   "localModels.durationHoursMinutes": "%1h %2m",
   "localModels.durationMinutes": "%1m",
-  "localModels.durationNow": "now",
   "localModels.endpoint": "%1 · model %2",
   "localModels.hideOfferConfirm": "Hide %1 from the panel? Add another › Local AI still sets it up.",
   "localModels.installingMeter": "Installing",
