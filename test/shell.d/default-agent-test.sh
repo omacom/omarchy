@@ -71,6 +71,7 @@ cat >"$mock_bin/mise" <<'SH'
 #!/bin/bash
 printf '%s\0' "$@" >"$OMARCHY_TEST_MISE_LOG"
 printf '%s\n' "$*" >>"$OMARCHY_TEST_MISE_HISTORY"
+printf '%s %s\n' "$1" "${MISE_MINIMUM_RELEASE_AGE-unset}" >>"$OMARCHY_TEST_MISE_LOG.env"
 if [[ -n ${MISE_PRERELEASES:-} ]]; then
   printf 'prereleases=%s %s\n' "$MISE_PRERELEASES" "$*" >>"$OMARCHY_TEST_MISE_HISTORY"
 fi
@@ -145,6 +146,9 @@ export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
 export OMARCHY_TEST_CLIPBOARD="$clipboard_log"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_MISE_CONFIG_PATH="$test_tmp/etc/mise/config.toml"
+# Omarchy's agent wrappers export the cooldown override into agent sessions, so
+# a run from one would inherit the value the cooldown assertions look for.
+unset MISE_MINIMUM_RELEASE_AGE
 
 grok_package="grok"
 omp_package="oh-my-pi"
@@ -447,6 +451,7 @@ for selection in "${!expected_agents[@]}"; do
   expected=${expected_agents[$selection]}
   : >"$agent_open_log"
   : >"$stub_log"
+  : >"$mise_log.env"
   OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent "$selection"
   [[ $(omarchy-default-agent) == $expected ]] || fail "default agent canonicalizes $selection"
 
@@ -463,6 +468,13 @@ for selection in "${!expected_agents[@]}"; do
     "${expected_packages[$expected]}") ;;
     *) fail "default agent preserves $selection backend options" ;;
   esac
+
+  # mise withholds releases younger than its cooldown. The probe and the install
+  # both have to run with the override, or they resolve different versions and
+  # the probe never finds what the install just activated.
+  grep -Fxq "where 0" "$mise_log.env" && grep -Fxq "use 0" "$mise_log.env" ||
+    fail "default agent defeats the mise release cooldown for $selection" \
+      "expected: where 0 and use 0, actual: $(paste -sd, <"$mise_log.env")"
 
   mapfile -d '' -t agent_open_args <"$agent_open_log"
   [[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
