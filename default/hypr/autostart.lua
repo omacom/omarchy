@@ -8,6 +8,8 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("omarchy-powerprofiles-init")
   hl.exec_cmd("omarchy-hyprland-software-rendering")
   hl.exec_cmd(o.launch("omarchy-hyprland-monitor-watch"))
+  -- Sense exits at once unless the user enabled it (omarchy sense enable).
+  hl.exec_cmd(o.launch("omarchy-sense watch"))
   hl.exec_cmd(o.launch("udiskie --automount --no-notify --no-tray"))
 
   -- Start the herdr server inside the graphical session so its panes inherit
