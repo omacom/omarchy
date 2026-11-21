@@ -1,0 +1,115 @@
+#!/usr/bin/python3
+# omarchy:summary=Show an installed Ollama model's capabilities and active context
+# omarchy:args=<model> [--port <local-port>] [--json]
+# omarchy:examples=omarchy agent inspect ollama gemma4 | omarchy agent inspect ollama gemma4 --json
+
+import argparse
+import http.client
+import json
+import sys
+
+
+PORT = 11434
+MAX_RESPONSE = 2 * 1024 * 1024
+
+
+def request(port, endpoint, data=None):
+  connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+  try:
+    method = "GET" if data is None else "POST"
+    body = None if data is None else json.dumps(data)
+    connection.request(method, "/api/" + endpoint, body, {"Content-Type": "application/json"})
+    response = connection.getresponse()
+    if endpoint == "show" and response.status == 404:
+      raise ValueError("Model is not installed")
+    if response.status != 200:
+      raise ValueError(f"Ollama's {endpoint} request failed (HTTP {response.status})")
+    raw = response.read(MAX_RESPONSE + 1)
+    if len(raw) > MAX_RESPONSE:
+      raise ValueError("Ollama returned an oversized response")
+    result = json.loads(raw)
+    if not isinstance(result, dict):
+      raise ValueError("Ollama returned an invalid response")
+    return result
+  finally:
+    connection.close()
+
+
+def tagged_name(name):
+  if ":" in name.rsplit("/", 1)[-1]:
+    return name
+  return name + ":latest"
+
+
+def context_size(value):
+  return value if type(value) is int and value > 0 else None
+
+
+def report_for(model, port):
+  info = request(port, "show", {"model": model})
+  details = info.get("details")
+  metadata = info.get("model_info")
+  if not isinstance(details, dict):
+    details = {}
+  if not isinstance(metadata, dict):
+    metadata = {}
+  running = request(port, "ps").get("models")
+  if not isinstance(running, list):
+    raise ValueError("Ollama returned no running-model list")
+  loaded = None
+  target = tagged_name(model).casefold()
+  for item in running:
+    if not isinstance(item, dict):
+      continue
+    names = (item.get("name"), item.get("model"))
+    if any(isinstance(name, str) and tagged_name(name).casefold() == target for name in names):
+      loaded = item
+      break
+
+  capabilities = info.get("capabilities")
+  if not isinstance(capabilities, list):
+    capabilities = []
+  quantization = details.get("quantization_level")
+  architecture = metadata.get("general.architecture")
+  return {
+    "model": model,
+    "quantization": quantization if isinstance(quantization, str) else None,
+    "capabilities": [cap for cap in capabilities if isinstance(cap, str)],
+    "max_context_tokens": context_size(metadata.get(f"{architecture}.context_length")),
+    "loaded": loaded is not None,
+    "active_context_tokens": context_size(loaded.get("context_length")) if loaded is not None else None,
+  }
+
+
+def display_text(value):
+  return "".join(character for character in value if character.isprintable())
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Compare an installed Ollama model's maximum and active context without loading it.")
+  parser.add_argument("model")
+  parser.add_argument("--port", type=int, default=PORT, help="Ollama port on 127.0.0.1 (default: 11434)")
+  parser.add_argument("--json", action="store_true")
+  args = parser.parse_args()
+  if not 1 <= args.port <= 65535:
+    parser.error("--port must be between 1 and 65535")
+  report = report_for(args.model, args.port)
+  if args.json:
+    print(json.dumps(report))
+    return
+  print(f"Model: {display_text(report['model'])}")
+  print("Quantization: " + display_text(report["quantization"] or "unavailable"))
+  print("Capabilities: " + (", ".join(map(display_text, report["capabilities"])) or "unavailable"))
+  print(f"Model maximum context: {report['max_context_tokens'] or 'unavailable'}")
+  if report["loaded"]:
+    print(f"Active context: {report['active_context_tokens'] or 'unavailable'}")
+  else:
+    print("Active context: model is not loaded")
+
+
+if __name__ == "__main__":
+  try:
+    main()
+  except (OSError, ValueError, http.client.HTTPException) as error:
+    print(f"Ollama inspect: {error}", file=sys.stderr)
+    sys.exit(1)
