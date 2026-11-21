@@ -1,0 +1,285 @@
+#!/bin/bash
+
+# omarchy:summary=Run an existing menu action from a sentence
+# omarchy:args=[--print] [sentence...] | teach <sentence> -- <command> | notes [directory]
+# omarchy:examples=omarchy ml intent --print dim the laptop screen | omarchy ml intent teach "evening mode" -- omarchy-brightness-display 10%- | omarchy ml intent notes ~/Notes
+
+set -euo pipefail
+
+intents_file() {
+  printf '%s/omarchy/ml/intents.json' "${XDG_CONFIG_HOME:-$HOME/.config}"
+}
+
+prompt_line() {
+  local placeholder=$1
+  local value=""
+  if [[ -t 0 ]] && omarchy-cmd-present gum; then
+    value=$(gum input --placeholder "$placeholder")
+  elif [[ ! -t 0 ]]; then
+    IFS= read -r value || true
+  fi
+  printf '%s' "$value"
+}
+
+if [[ ${1:-} == "teach" ]]; then
+  shift
+  sentence=${1:-}
+  if [[ -n $sentence ]]; then
+    shift
+  fi
+  if [[ ${1:-} == "--" ]]; then
+    shift
+  fi
+  command="$*"
+  if [[ -z $sentence ]]; then
+    sentence=$(prompt_line "evening mode")
+  fi
+  if [[ -z $command ]]; then
+    command=$(prompt_line "omarchy-brightness-display 10%-")
+  fi
+  if [[ -z $sentence || -z $command ]]; then
+    echo "Usage: omarchy ml intent teach <sentence> -- <command>" >&2
+    exit 1
+  fi
+  python3 - "$sentence" "$command" "$(intents_file)" <<'PY'
+import json
+import os
+import sys
+
+sentence, command, path = sys.argv[1:]
+os.makedirs(os.path.dirname(path), exist_ok=True)
+data = {"phrases": []}
+if os.path.isfile(path):
+    with open(path, encoding="utf-8") as handle:
+        loaded = json.load(handle)
+    if isinstance(loaded, dict):
+        data = loaded
+phrases = []
+for row in data.get("phrases") or []:
+    if isinstance(row, dict) and str(row.get("match") or "").lower() == sentence.lower():
+        continue
+    phrases.append(row)
+phrases.append({"match": sentence, "run": command})
+data["phrases"] = phrases
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, indent=2)
+    handle.write("\n")
+print(sentence)
+PY
+  exit 0
+fi
+
+if [[ ${1:-} == "notes" ]]; then
+  shift
+  directory=${1:-}
+  if [[ -z $directory ]]; then
+    directory=$(prompt_line "$HOME/Notes")
+  fi
+  if [[ -z $directory ]]; then
+    echo "Usage: omarchy ml intent notes [directory]" >&2
+    exit 1
+  fi
+  python3 - "$directory" "$(intents_file)" <<'PY'
+import json
+import os
+import sys
+
+directory, path = sys.argv[1:]
+os.makedirs(os.path.dirname(path), exist_ok=True)
+data = {}
+if os.path.isfile(path):
+    with open(path, encoding="utf-8") as handle:
+        loaded = json.load(handle)
+    if isinstance(loaded, dict):
+        data = loaded
+data["notes"] = directory
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, indent=2)
+    handle.write("\n")
+print(directory)
+PY
+  exit 0
+fi
+
+print_only=0
+if [[ ${1:-} == "--print" ]]; then
+  print_only=1
+  shift
+fi
+
+if (($# == 0)); then
+  query=""
+  if [[ -t 0 ]] && omarchy-cmd-present gum; then
+    query=$(gum input --placeholder "dim the laptop screen")
+  elif [[ ! -t 0 ]]; then
+    IFS= read -r query || true
+  fi
+  if [[ -z $query ]]; then
+    echo "Say what you want done. Example: omarchy ml intent dim the laptop screen" >&2
+    exit 1
+  fi
+  set -- "$query"
+fi
+
+if ((print_only)); then
+  set -- --print "$@"
+fi
+
+exec python3 - "$@" <<'PY'
+import datetime
+import json
+import os
+import re
+import shlex
+import sys
+
+STOP = {"the", "a", "an", "to", "on", "of", "my", "me", "for", "and", "please", "that", "this", "from"}
+
+def load_menu(path):
+    if not path or not os.path.isfile(path):
+        return {}
+    lines = []
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
+            if line.lstrip().startswith("//"):
+                continue
+            lines.append(line)
+    text = re.sub(r",(\s*[}\]])", r"\1", "".join(lines))
+    return json.loads(text)
+
+def menu_actions():
+    root = os.environ.get("OMARCHY_PATH", "")
+    menus = []
+    shipped = os.path.join(root, "default/omarchy/omarchy-menu.jsonc")
+    menus.append(load_menu(shipped))
+    home = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    menus.append(load_menu(os.path.join(home, "omarchy/extensions/omarchy-menu.jsonc")))
+    actions = []
+    for menu in menus:
+        for key, value in menu.items():
+            if isinstance(value, dict) and value.get("action"):
+                actions.append((key, value.get("label") or key, value["action"]))
+    return actions
+
+def tokens(text):
+    words = re.findall(r"[a-z0-9]+", text.lower())
+    extra = []
+    for word in words:
+        if word in {"dim", "darken", "darker"}:
+            extra.append("brightness")
+        elif word in {"shot", "screenshot"}:
+            extra.extend(["screenshot", "capture"])
+    return [word for word in words + extra if word not in STOP and len(word) > 1]
+
+def intents_path():
+    root = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(root, "omarchy", "ml", "intents.json")
+
+def load_intents():
+    path = intents_path()
+    if not os.path.isfile(path):
+        return {}
+    with open(path, encoding="utf-8") as handle:
+        data = json.load(handle)
+    return data if isinstance(data, dict) else {}
+
+def user_phrase(query):
+    lowered = query.lower()
+    best = ""
+    best_len = 0
+    for row in load_intents().get("phrases") or []:
+        if not isinstance(row, dict):
+            continue
+        match = str(row.get("match") or "").strip()
+        run = str(row.get("run") or "").strip()
+        if not match or not run:
+            continue
+        if match.lower() in lowered and len(match) > best_len:
+            best = run
+            best_len = len(match)
+    return best
+
+def yesterdays_note():
+    override = os.environ.get("OMARCHY_ML_NOTES")
+    if override:
+        root = override
+    else:
+        configured = load_intents().get("notes")
+        root = os.path.expanduser(str(configured)) if configured else os.path.join(os.path.expanduser("~"), "Notes")
+    if not os.path.isdir(root):
+        return None
+    today = os.environ.get("OMARCHY_ML_TODAY")
+    if today:
+        today = datetime.date.fromisoformat(today)
+    else:
+        today = datetime.date.today()
+    yesterday = today - datetime.timedelta(days=1)
+    best = None
+    best_mtime = -1
+    for dirpath, _, files in os.walk(root):
+        for name in files:
+            path = os.path.join(dirpath, name)
+            try:
+                mtime = os.path.getmtime(path)
+            except OSError:
+                continue
+            if datetime.date.fromtimestamp(mtime) != yesterday:
+                continue
+            if mtime > best_mtime:
+                best_mtime = mtime
+                best = path
+    return best
+
+def phrase_command(query):
+    text = query.lower()
+    if re.search(r"\b(dim|darken|darker)\b", text):
+        return "omarchy-brightness-display 20%-"
+    if re.search(r"\b(brighten|brighter)\b", text):
+        return "omarchy-brightness-display +20%"
+    if re.search(r"\b(shot|screenshot|capture)\b", text):
+        return "omarchy-capture-screenshot"
+    if re.search(r"\bnotes?\b", text):
+        path = yesterdays_note()
+        if not path:
+            print("No note from yesterday.", file=sys.stderr)
+            return None
+        return "xdg-open " + shlex.quote(path)
+    return ""
+
+def best_action(query):
+    wanted = tokens(query)
+    best = None
+    best_score = 0
+    for key, label, action in menu_actions():
+        hay = tokens(label + " " + key.replace(".", " "))
+        score = sum(1 for word in wanted if word in hay)
+        if score > best_score:
+            best_score = score
+            best = action
+    if best_score < 1:
+        return None
+    return best
+
+args = sys.argv[1:]
+print_only = False
+if args and args[0] == "--print":
+    print_only = True
+    args = args[1:]
+query = " ".join(args).strip()
+if not query:
+    print("Say what you want done.", file=sys.stderr)
+    sys.exit(1)
+
+command = user_phrase(query) or phrase_command(query)
+if command is None:
+    sys.exit(1)
+if command == "":
+    command = best_action(query)
+if not command:
+    print("No matching action.", file=sys.stderr)
+    sys.exit(1)
+if print_only:
+    print(command)
+    sys.exit(0)
+os.execvp("bash", ["bash", "-c", command])
+PY
