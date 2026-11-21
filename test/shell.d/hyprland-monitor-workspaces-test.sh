@@ -187,6 +187,7 @@ hl = {
           world.focused = workspace.monitor
         end
         cleanup()
+        if world.handlers["workspace.active"] then world.handlers["workspace.active"]() end
       end
     end,
     workspace = {
@@ -252,7 +253,7 @@ function load_module()
 end
 
 function plug(name, id, description, active)
-  world.monitors[#world.monitors + 1] = { name = name, id = id, description = description, active = active }
+  world.monitors[#world.monitors + 1] = { name = name, id = id, description = description, active = active, enabled = true }
   if not workspace_numbered(active) then create(active, name) end
 end
 
@@ -660,3 +661,24 @@ hl.dispatch(m.move_to_monitor("u"))
 check(world.windows["0xa"].workspace == 11 and world.focused == "DP-1", "a move toward no monitor did something")
 ' || fail "a window moves to the monitor in a direction, and nowhere when there is none"
 pass "a window moves to the monitor in a direction, and nowhere when there is none"
+
+run_lua remembered-collision '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 11)
+window("0xb", 12)
+hl.dispatch(m.focus(1))
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
+check(world.windows["0xa"].workspace == 2 and world.windows["0xb"].workspace == 3, "both workspaces merged")
+-- The fresh workspace occupies the remembered ID, so both restored IDs shift.
+plug("DP-3", 3, "LG", 11)
+world.handlers["monitor.added"]({ name = "DP-3" })
+check(world.windows["0xa"].workspace == 12 and world.windows["0xb"].workspace == 13, "restored workspaces avoid the fresh ID")
+check(shows("DP-3") == 12, "the remembered view followed its workspace once, not " .. shows("DP-3"))
+' || fail "a remembered view follows its original workspace through colliding IDs"
+pass "a remembered view follows its original workspace through colliding IDs"
