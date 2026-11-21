@@ -5,6 +5,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "../panels/elsewhen/Model.js" as Reorder
 import "../panels/tailscale" as Tailscale
 
 // The models that run on hardware you own, and the memory they run in: one
@@ -21,6 +22,7 @@ Panel {
   // opens. Code inside the content reaches its own ids directly.
   readonly property Item panelFlick: panel.loadedContent ? panel.loadedContent.panelFlick : null
   readonly property Item column: panel.loadedContent ? panel.loadedContent.column : null
+  readonly property Item modelSections: panel.loadedContent ? panel.loadedContent.modelSections : null
 
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
@@ -29,7 +31,7 @@ Panel {
   readonly property color track: Style.selectedFillFor(foreground, Commons.Color.accent)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
-  readonly property var lines: engine.lines
+  readonly property var lines: dragLines !== null ? dragLines : engine.lines
 
   // A model on another machine of the tailnet carries its host. Away, it
   // offers nothing; unpaired, only pairing, which is what fetches its key.
@@ -584,6 +586,115 @@ Panel {
     }
   }
 
+  // A line's rightmost button, where the cursor lands on it: its terminal
+  // while it runs, else its play; the download on an offer; the mark only for
+  // a line with no button.
+  function lineStop(p) {
+    var line = lines[p]
+    if (!line) return "modelHeader"
+    if (line.offer) return "localDownload"
+    var actions = localActions(line.model, engine.canShare)
+    if (actions.indexOf("launch") >= 0) return "modelLaunch"
+    if (actions.indexOf("pair") >= 0) return "modelPair"
+    if (actions.indexOf("disconnect") >= 0) return "modelDisconnect"
+    return actions.indexOf("toggle") >= 0 ? "modelToggle" : "modelHeader"
+  }
+
+  // Ctrl+Up/Down carries the line the cursor is in up or down the page, and
+  // the cursor along with it.
+  function reorderLine(dy) {
+    if (dragIndex >= 0) return
+    var from = lineIndexOfKey()
+    if (from < 0) return
+    var to = clamp(from + dy, 0, lines.length - 1)
+    if (to === from) return
+    engine.moveLine(lines[from].id, to)
+    Qt.callLater(function() { pointAt(lineStop(to), to) })
+  }
+
+  // Dragging a line by its mark, as the agents panel's lines move. The layout
+  // stays fixed until the lifted line settles.
+  property var dragLines: null
+  property string dragLineId: ""
+  property int dragIndex: -1
+  property int dragTarget: -1
+  property real dragOffset: 0
+  property real dragPressY: 0
+  property var rowPitches: []
+  property bool settling: false
+
+  function beginLineDrag(index, y) {
+    if (dragIndex >= 0 || !modelSections) return
+    var pitches = []
+    for (var i = 0; i < modelSections.count; i++)
+      pitches.push(modelSections.itemAt(i).height + column.spacing)
+    rowPitches = pitches
+    // Keep the same model object so grabbing does not rebuild the delegates.
+    dragLines = lines
+    dragLineId = lines[index].id
+    dragPressY = y
+    dragOffset = 0
+    dragTarget = index
+    dragIndex = index
+  }
+
+  function dragLineOver(y) {
+    if (dragIndex < 0 || settling) return
+    dragOffset = y - dragPressY
+    dragTarget = Reorder.dragTargetFor(dragIndex, dragOffset, rowPitches[dragIndex],
+                                      dragTarget, lines.length, rowPitches)
+  }
+
+  function resetLineDrag() {
+    dropAnimation.stop()
+    dragIndex = -1
+    dragTarget = -1
+    dragLineId = ""
+    dragOffset = 0
+    settling = false
+    dragLines = null
+  }
+
+  function finishLineDrag() {
+    var id = dragLineId
+    var to = dragTarget
+    var moved = dragIndex >= 0 && to !== dragIndex
+    // Disable slot motion before replacing the model: it already matches the preview.
+    dragIndex = -1
+    if (moved) engine.moveLine(id, to)
+    resetLineDrag()
+    if (moved) Qt.callLater(function() { pointAt(lineStop(to), to) })
+  }
+
+  function settleLineDrag(cancel) {
+    if (dragIndex < 0) return
+    dropAnimation.stop()
+    settling = true
+    if (cancel) dragTarget = dragIndex
+    var offset = Reorder.dropOffset(dragIndex, dragTarget, rowPitches[dragIndex], rowPitches)
+    if (Style.duration(150) === 0) {
+      dragOffset = offset
+      finishLineDrag()
+    } else {
+      dropAnimation.to = offset
+      dropAnimation.restart()
+    }
+  }
+
+  function dropLine() {
+    if (!settling) settleLineDrag(false)
+  }
+
+  NumberAnimation {
+    id: dropAnimation
+    target: root
+    property: "dragOffset"
+    duration: Style.duration(150)
+    easing.type: Easing.Bezier
+    easing.bezierCurve: Style.easeOut
+    onFinished: root.finishLineDrag()
+  }
+
   // The line the cursor is in, by its position on the page.
   function lineIndexOfKey() {
     var target = keyTarget
@@ -664,6 +775,7 @@ Panel {
     // the cursor the next time it opens.
     landAfterPair = ""
     hoveredLine = -1
+    resetLineDrag()
   } else {
     deleteTarget = null
     adding = false
@@ -721,6 +833,7 @@ Panel {
       id: keyCatcher
       property alias panelFlick: panelFlick
       property alias column: column
+      property alias modelSections: modelSections
       ConfirmDialog {
         anchors.fill: parent
         z: 20
@@ -744,13 +857,16 @@ Panel {
       }
       implicitHeight: column.implicitHeight
       anchors.fill: parent
+      reorderable: !root.adding
+      onReorderRequested: function(dy) { root.reorderLine(dy) }
 
       onMoveRequested: function(dx, dy) { root.moveKey(dx, dy) }
       onDeleteRequested: root.deleteSelected()
       blocked: root.deleteTarget !== null
       onActivateRequested: root.activateSelection()
       onCloseRequested: {
-        if (root.adding) root.stopAdding()
+        if (root.dragIndex >= 0) root.settleLineDrag(true)
+        else if (root.adding) root.stopAdding()
         else root.close()
       }
       onTabRequested: function(direction) { root.switchPanel(direction) }
@@ -826,6 +942,7 @@ Panel {
           }
 
           Repeater {
+            id: modelSections
             model: root.adding ? [] : root.lines
 
             ModelSection {
@@ -1131,6 +1248,21 @@ Panel {
     readonly property real memory: model && model.observed ? Number(model.observed.ram_used_gib || 0) : 0
     readonly property real needsGib: root.localNeedsGib(model)
     spacing: Style.space(16)
+    readonly property bool dragged: root.dragIndex === lineIndex
+    z: dragged ? 2 : 0
+    opacity: dragged ? 0.9 : 1
+    transform: Translate {
+      y: Reorder.rowShift(section.lineIndex, root.dragIndex, root.dragTarget,
+                          root.dragOffset, root.rowPitches[root.dragIndex] || 0)
+      Behavior on y {
+        enabled: root.dragIndex >= 0 && !section.dragged
+        NumberAnimation {
+          duration: Style.duration(150)
+          easing.type: Easing.Bezier
+          easing.bezierCurve: Style.easeOut
+        }
+      }
+    }
 
     // The whole line speaks for the memory bar while the pointer is on it.
     HoverHandler {
@@ -1146,8 +1278,9 @@ Panel {
       id: sectionHead
       width: parent.width
       implicitHeight: Math.max(sectionMark.height, sectionName.implicitHeight)
-      readonly property bool lit: root.hasKey("modelHeader", section.lineIndex)
-      onLitChanged: if (lit) root.revealItem(sectionHead)
+      // Lit for the keyboard, and as the drop spot while a line is dragged.
+      readonly property bool lit: root.dragLineId !== "" ? root.dragTarget === section.lineIndex : root.hasKey("modelHeader", section.lineIndex)
+      onLitChanged: if (lit && root.dragLineId === "") root.revealItem(sectionHead)
 
       CursorSurface {
         anchors.fill: sectionMark
@@ -1163,6 +1296,23 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         opacity: section.resting ? 0.45 : 1
         vendor: section.model ? section.model.vendor : section.offer ? section.offer.vendor : ""
+
+        // The mark is the handle for dragging the line up or down the page.
+        MouseArea {
+          anchors.fill: parent
+          anchors.margins: -Style.space(4)
+          hoverEnabled: true
+          preventStealing: true
+          cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+          onPressed: function(mouse) {
+            root.beginLineDrag(section.lineIndex, mapToItem(root.column, mouse.x, mouse.y).y)
+          }
+          onPositionChanged: function(mouse) {
+            if (pressed) root.dragLineOver(mapToItem(root.column, mouse.x, mouse.y).y)
+          }
+          onReleased: root.dropLine()
+          onCanceled: root.settleLineDrag(true)
+        }
       }
 
       Text {

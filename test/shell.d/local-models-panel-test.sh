@@ -344,3 +344,19 @@ assertDeepEqual(parseMeminfo(`MemTotal:       ${128 * gib} kB\nMemAvailable:   $
 for (const raw of ['', 'MemTotal: 0 kB\nMemAvailable: 0 kB\n', `MemTotal: ${gib} kB\n`])
   assertEqual(parseMeminfo(raw), null, 'a reading without both totals changes nothing: ' + JSON.stringify(raw))
 JS
+
+# Lines keep the order they were dragged into, including places saved for lines hidden now.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/local-models/Models.qml', 'utf8')
+const functions = ['orderedLines', 'moveLine'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+let lineOrder = ['local:b', 'net:box/m', 'hidden']
+let lines = [{id: 'local:a'}, {id: 'local:b'}, {id: 'net:box/m'}]
+let saved = ''
+const orderFile = {setText: text => { saved = text }}
+eval(functions)
+lines = orderedLines(lines)
+assertDeepEqual(lines.map(l => l.id), ['local:b', 'net:box/m', 'local:a'], 'saved order holds, and a line it does not name goes last')
+moveLine('local:a', 0)
+assertDeepEqual(JSON.parse(saved), ['local:a', 'local:b', 'net:box/m', 'hidden'], 'moving a line saves the order and keeps hidden lines in it')
+JS

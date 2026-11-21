@@ -364,9 +364,9 @@ Item {
   // ------------------------------------------------------------------ lines
   //
   // The panel's lines: this machine's models and the setups on their way, then
-  // the tailnet's, then the recommended model while none is set up. A line
-  // keeps its place when its model starts or stops, so the keyboard cursor
-  // stays on the model it was on.
+  // the tailnet's, then the recommended model while none is set up, in the
+  // order someone dragged them into. A line keeps its place when its model
+  // starts or stops, so the keyboard cursor stays on the model it was on.
   readonly property var lines: {
     var list = []
     var models = localModel.models || {}
@@ -387,6 +387,7 @@ Item {
       if (lineEnabled("net:" + nid)) list.push({ id: "net:" + nid, model: network[nid] })
     var offer = localOffer(localRecipes, models, lineEnabled)
     if (offer) list.push({ id: "local:" + offer.id, name: offer.name || offer.id, offer: offer })
+    list = orderedLines(list)
     // Another DGX Spark cabled to this one and not set up yet (omarchy-models's status.json
     // `link`) is offered like a recommended model, always first: its line opens link setup.
     var link = localModel.link
@@ -405,6 +406,49 @@ Item {
       if (recipe && recipe.best && recipe.available && !recipe.installed && enabled("local:" + recipe.id)) return recipe
     }
     return null
+  }
+
+  // The order lines were dragged into, by line id. A line the order doesn't
+  // name yet keeps its place after the ones it does.
+  readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/local-models-order.json"
+  property var lineOrder: []
+
+  function orderedLines(list) {
+    var order = lineOrder
+    var rank = function(line) {
+      var i = order.indexOf(line.id)
+      return i < 0 ? order.length : i
+    }
+    return list.slice().sort(function(a, b) { return rank(a) - rank(b) })
+  }
+
+  // Moves one line to a position among the ones shown, and saves the result,
+  // keeping the places of lines hidden or gone for now.
+  function moveLine(id, to) {
+    var ids = lines.map(function(line) { return line.id })
+    var from = ids.indexOf(id)
+    if (from < 0) return
+    to = Math.max(0, Math.min(ids.length - 1, to))
+    if (from === to) return
+    ids.splice(to, 0, ids.splice(from, 1)[0])
+    for (var i = 0; i < lineOrder.length; i++)
+      if (ids.indexOf(lineOrder[i]) < 0) ids.push(lineOrder[i])
+    lineOrder = ids
+    orderFile.setText(JSON.stringify(ids) + "\n")
+  }
+
+  FileView {
+    id: orderFile
+    path: root.orderPath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      var parsed = []
+      try { parsed = JSON.parse(text()) } catch (e) { parsed = [] }
+      root.lineOrder = Array.isArray(parsed) ? parsed.map(String) : []
+    }
+    onFileChanged: reload()
   }
 
   // Lines hidden from the panel (an offer, the cabled Spark, or a tailnet
