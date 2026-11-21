@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick] [--local] [--local-model <recipe>] [--prefer-local] [--agent <id>] [--app-id=<app-id>]
-# omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --local | omarchy agent --agent codex
+# omarchy:args=[--inline] [--pick] [--local] [--local-model <recipe>] [--prefer-local] [--agent <id>] [--provider <fireworks|openrouter>] [--app-id=<app-id>]
+# omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --local | omarchy agent --agent codex | omarchy agent --provider fireworks
 
 inline=false
 pick=false
@@ -10,6 +10,7 @@ use_local=false
 prefer_local=false
 local_model=""
 agent_override=""
+provider=""
 app_id="org.omarchy.agent"
 launch_args=("$@")
 
@@ -40,6 +41,10 @@ while (($#)); do
       ;;
     --agent)
       agent_override=${2:?--agent needs an agent id}
+      shift 2
+      ;;
+    --provider)
+      provider=${2:?--provider needs a provider id}
       shift 2
       ;;
     # A launcher of its own (Codex, Claude Code, Grok Build) gives its windows
@@ -74,6 +79,24 @@ if [[ -n $agent_override ]]; then
   fi
 else
   agent=$(omarchy-default-agent)
+fi
+
+# --provider opens a pay-as-you-go provider with no harness of its own
+# (Fireworks, OpenRouter) in pi or OpenCode, the agents the panel's sign-in
+# saves its key for: the default agent when it's one of them, else whichever
+# is there.
+if [[ -n $provider && $agent != "pi" && $agent != "opencode" ]]; then
+  agent=""
+  for candidate in pi opencode; do
+    if omarchy-cmd-present "$candidate"; then
+      agent=$candidate
+      break
+    fi
+  done
+  if [[ -z $agent ]]; then
+    omarchy-notification-send "$(omarchy-i18n agents.harnessMissing pi)" "$(omarchy-i18n agents.harnessMissingBody pi)"
+    exit 1
+  fi
 fi
 
 # --prefer-local takes the local model when one is up and the usual agent when
@@ -330,6 +353,44 @@ if [[ $use_local == "true" ]]; then
       "${command[@]}" --auth-type openai --openai-base-url "$base_url" --model "${overlay[2]}")
     ;;
   esac
+fi
+
+# --provider starts the session on the provider's most-used model, by the
+# tokens its usage record counts, passed at launch rather than written to the
+# agent's config. The record names a model by its short name
+# ("deepseek-v4.1-flash"), so the agent's own list supplies the id it knows it
+# by ("accounts/fireworks/models/deepseek-v4p1-flash"). With no usage to go
+# by, pi opens with the provider's models to pick from, and OpenCode as it was.
+if [[ -n $provider ]]; then
+  provider_id=$provider
+  if [[ $agent == "pi" ]]; then
+    provider_models=$(pi --list-models "$provider" 2>/dev/null | awk -v provider="$provider" '$1 == provider { print $2 }')
+  else
+    [[ $provider == "fireworks" ]] && provider_id="fireworks-ai"
+    provider_models=$(opencode models 2>/dev/null | sed -n "s|^$provider_id/||p")
+  fi
+  provider_record="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage/$provider.json"
+  provider_model=$(awk '
+    FILENAME == ARGV[1] { used[++count] = $0; next }
+    {
+      short = $0
+      sub(/.*\//, "", short)
+      while (match(short, /[0-9]p[0-9]/)) short = substr(short, 1, RSTART) "." substr(short, RSTART + 2)
+      if (!(short in id)) id[short] = $0
+    }
+    END { for (i = 1; i <= count; i++) if (used[i] in id) { print id[used[i]]; exit } }
+  ' <(jq -r '.modelUsage // {} | to_entries | sort_by(-([.value[]? | numbers] | add // 0)) | .[].key' "$provider_record" 2>/dev/null) \
+    <(printf '%s\n' "$provider_models"))
+
+  if [[ $agent == "pi" ]]; then
+    # Cycling models stays on the provider too.
+    command+=(--models "$provider/*")
+    [[ -n $provider_model ]] && command+=(--provider "$provider" --model "$provider_model")
+  elif [[ -n $provider_model ]]; then
+    # The shared background service never sees the choice, so run a private one.
+    model=$(jq -nc --arg model "$provider_id/$provider_model" '{model: $model}')
+    command=(env "OPENCODE_CONFIG_CONTENT=$model" "${command[@]}" --standalone)
+  fi
 fi
 
 # An agent with no way to take a starting prompt still opens, with the prompt

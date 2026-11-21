@@ -168,7 +168,7 @@ Panel {
   function lineStop(p) {
     var provider = providers[p]
     if (!provider) return "provider"
-    return harnessFor(provider) !== "" ? "providerLaunch" : "provider"
+    return launches(provider) ? "providerLaunch" : "provider"
   }
 
   function moveKey(dx, dy) {
@@ -745,8 +745,8 @@ Panel {
   }
 
   // The coding agent made for each subscription, by usage provider id. A
-  // provider with none of its own (OpenRouter, Fireworks, Z.ai…) gets no
-  // terminal button: which harness to point at it is the user's choice.
+  // provider with none of its own (Z.ai, DeepSeek…) gets no terminal button:
+  // which harness to point at it is the user's choice.
   readonly property var harnesses: ({
     agy: "agy",
     claude: "claude",
@@ -767,10 +767,23 @@ Panel {
     return provider && harnesses[provider.providerId] ? harnesses[provider.providerId] : ""
   }
 
+  // The providers whose key the panel saves for pi and OpenCode open in one
+  // of those, on the model they've used most.
+  readonly property var keyProviders: ["fireworks", "openrouter"]
+
+  function opensInAgent(provider) {
+    return !!provider && keyProviders.indexOf(provider.providerId) >= 0
+  }
+
+  function launches(provider) {
+    return harnessFor(provider) !== "" || opensInAgent(provider)
+  }
+
   function launchHarness(provider) {
-    var harness = harnessFor(provider)
-    if (harness === "") return
-    Util.execArgv(["omarchy-agent", "--agent", harness])
+    if (!launches(provider)) return
+    Util.execArgv(opensInAgent(provider)
+      ? ["omarchy-agent", "--provider", provider.providerId]
+      : ["omarchy-agent", "--agent", harnessFor(provider)])
     root.close()
   }
 
@@ -1907,7 +1920,7 @@ Panel {
         id: sectionLaunch
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        visible: root.harnessFor(section.provider) !== ""
+        visible: root.launches(section.provider)
         iconText: "󰞷"
         tooltipText: Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
         foreground: root.foreground

@@ -310,6 +310,26 @@ mapfile -d '' -t launch_args <"$launch_log"
 [[ ${launch_args[*]} == *"/overlays/"*"-local.config"* ]] ||
   fail "agent launcher points the local model's agent at its overlay: ${launch_args[*]}"
 rm "$mock_bin/omarchy-models"
+
+# A provider with no harness of its own opens in pi on the model its usage
+# record has used most, under the id pi lists it by rather than the record's
+# short name for it.
+provider_bin="$test_tmp/provider-bin"
+mkdir -p "$provider_bin" "$test_tmp/provider-state/omarchy/agents/usage"
+cat >"$provider_bin/pi" <<'SH'
+#!/bin/bash
+printf '%s\n' "provider model" "other fireworks/deepseek-v4p1-flash" \
+  "fireworks accounts/fireworks/models/kimi-k3" "fireworks accounts/fireworks/models/deepseek-v4p1-flash"
+SH
+chmod +x "$provider_bin/pi"
+echo '{"modelUsage":{"kimi-k3":{"inputTokens":5},"deepseek-v4.1-flash":{"inputTokens":3,"cacheReadInputTokens":9}}}' \
+  >"$test_tmp/provider-state/omarchy/agents/usage/fireworks.json"
+: >"$launch_log"
+PATH="$provider_bin:$PATH" XDG_STATE_HOME="$test_tmp/provider-state" omarchy-agent --provider fireworks
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent pi --models fireworks/* --provider fireworks --model accounts/fireworks/models/deepseek-v4p1-flash" ]] ||
+  fail "agent launcher opens a provider in pi on its most-used model: ${launch_args[*]}"
+pass "agent launcher opens a provider in pi on its most-used model"
 pass "agent launcher opens a local model without a default"
 
 # Qwen Code opens on a local model from an omarchy-local-ai that writes its

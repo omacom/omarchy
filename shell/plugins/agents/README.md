@@ -41,6 +41,11 @@ Every subscription on one page, limits first.
 - **Balance** — prepaid agents show a credit ledger instead of limits: a
   fuel-gauge meter that drains toward empty, the remaining credit, and
   funded-versus-spent detail.
+- **Terminal button** — beside a section's name, it opens the harness made
+  for that subscription. Fireworks and OpenRouter have none of their own, so
+  theirs opens pi or OpenCode (the default agent when it's one of them) through
+  `omarchy agent --provider`, on the model the section's record has used most
+  and, in pi, with model cycling kept to that provider.
 - **Spend** — pay-as-you-go agents show what the account spent in the last
   30 days, a bar a day, or, against a monthly cap when there is one, this
   month's spend as a meter. Hovering a bar lights it up and names its day,
