@@ -83,6 +83,11 @@ function clearHistory() {
   return []
 }
 
+function originAddress(toplevel, focusedWorkspace) {
+  if (!toplevel || !toplevel.address || !toplevel.workspace || !focusedWorkspace) return ""
+  return toplevel.workspace.id === focusedWorkspace.id ? String(toplevel.address) : ""
+}
+
 function parseEntryJson(line) {
   var raw = String(line || "").trim()
   if (!raw) return null
@@ -227,6 +232,7 @@ if (typeof module !== "undefined") {
     addEntry: addEntry,
     removeEntryAt: removeEntryAt,
     clearHistory: clearHistory,
+    originAddress: originAddress,
     parseEntryJson: parseEntryJson,
     searchableText: searchableText,
     previewText: previewText,
