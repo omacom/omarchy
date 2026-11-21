@@ -171,11 +171,7 @@ Item {
   }
 
   function peerAddress(peer) {
-    if (!peer) return ""
-    if (peer.DNSName) return cleanDnsName(peer.DNSName)
-    if (peer.HostName) return String(peer.HostName)
-    var ips = filterIPv4(peer.TailscaleIPs || [])
-    return ips.length > 0 ? ips[0] : ""
+    return Model.peerAddress(peer)
   }
 
   function canSendFiles(peer) {
