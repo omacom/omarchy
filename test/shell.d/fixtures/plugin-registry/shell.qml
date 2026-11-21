@@ -104,7 +104,17 @@ ShellRoot {
     scan += block("thirdparty", "/third/local-hybrid", localHybrid)
     var localPanel = manifest("local.grouped-panel", ["panel"], { panel: "Panel.qml" })
     localPanel.omarchy = { clonedFrom: "omarchy.grouped-panel" }
-    scan += block("thirdparty", "/third/local-panel", localPanel)
+    var localPanelBlock = block("thirdparty", "/third/local-panel", localPanel)
+    scan += localPanelBlock
+    var sharedWidget = manifest("shared.first-widget", ["bar-widget"], { barWidget: "Widget.qml" })
+    sharedWidget.omarchy = { clonedFrom: "omarchy.first-widget" }
+    scan += block("thirdparty", "/third/shared-widget", sharedWidget)
+    var sharedHybrid = manifest("shared.hybrid", ["menu", "bar-widget"], { menu: "Menu.qml", barWidget: "Widget.qml" })
+    sharedHybrid.omarchy = { clonedFrom: "omarchy.hybrid" }
+    scan += block("thirdparty", "/third/shared-hybrid", sharedHybrid)
+    var sharedPanel = manifest("shared.grouped-panel", ["panel"], { panel: "Panel.qml" })
+    sharedPanel.omarchy = { clonedFrom: "omarchy.grouped-panel" }
+    scan += block("thirdparty", "/third/shared-panel", sharedPanel)
     var localTray = manifest("local.tray", ["bar-widget"], { barWidget: "Tray.qml" })
     localTray.omarchy = { clonedFrom: "omarchy.tray" }
     scan += block("thirdparty", "/third/local-tray", localTray)
@@ -141,6 +151,9 @@ ShellRoot {
       "omarchy.future-auth",
       "omarchy.grouped-panel",
       "omarchy.hybrid",
+      "shared.first-widget",
+      "shared.grouped-panel",
+      "shared.hybrid",
       "third.bar",
       "third.begin-widget",
       "third.center-widget",
@@ -412,7 +425,7 @@ ShellRoot {
     }
     registry.setEnabled("local.hybrid", true)
     root.assertDeepEqual(root.config.bar.layout.left, [{ id: "local.hybrid" }], "enabling a multi-kind clone replaces its widget")
-    root.assertDeepEqual(root.config.disabledPlugins, ["omarchy.hybrid"], "enabling a multi-kind clone disables the source")
+    root.assertTrue(!registry.isEnabled("omarchy.hybrid"), "enabling a multi-kind clone disables the source")
     registry.setEnabled("local.hybrid", false)
     root.assertDeepEqual(root.config.bar.layout.left, [{ id: "omarchy.hybrid" }], "disabling a multi-kind clone restores its widget")
     root.assertTrue(root.config.disabledPlugins === undefined, "disabling a multi-kind clone enables the source")
@@ -420,7 +433,7 @@ ShellRoot {
     root.config = { version: 1, bar: { layout: { left: [], center: [], right: [] } }, plugins: [] }
     registry.setEnabled("local.grouped-panel", true)
     root.assertDeepEqual(root.config.plugins, [{ id: "local.grouped-panel" }], "enabling an ordinary clone adds it")
-    root.assertDeepEqual(root.config.disabledPlugins, ["omarchy.grouped-panel"], "enabling an ordinary clone disables the source")
+    root.assertTrue(!registry.isEnabled("omarchy.grouped-panel"), "enabling an ordinary clone disables the source")
     registry.setEnabled("local.grouped-panel", false)
     root.assertDeepEqual(root.config.plugins, [], "disabling an ordinary clone removes it")
     root.assertTrue(root.config.disabledPlugins === undefined, "disabling an ordinary clone restores the source")
@@ -433,9 +446,93 @@ ShellRoot {
     }
     registry.setEnabled("local.grouped-panel", true)
     root.assertDeepEqual(root.config.disabledPlugins, ["omarchy.grouped-panel"], "cloning an already-disabled source keeps it disabled")
-    root.assertTrue(root.config.cloneSourceRestores === undefined, "an already-disabled source is not marked for restoration")
     registry.setEnabled("local.grouped-panel", false)
     root.assertDeepEqual(root.config.disabledPlugins, ["omarchy.grouped-panel"], "disabling the clone preserves the source's prior disabled state")
+
+    // A clone stands in for its built-in only while it is installed and
+    // enabled, however it stops being either, and one clone stands in at a time.
+    root.config = { version: 1, bar: { layout: { left: [{ id: "omarchy.hybrid" }], center: [], right: [] } }, plugins: [] }
+    registry.setEnabled("local.hybrid", true)
+    root.config.bar.layout.left = []
+    var draggedOff = [registry.isEnabled("omarchy.hybrid"), registry.resolveEnabledId("omarchy.hybrid")]
+
+    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [] } }, plugins: [] }
+    registry.setEnabled("local.grouped-panel", true)
+    registry.parseScanOutput(scan.replace(localPanelBlock, ""))
+    var manifestGone = registry.isEnabled("omarchy.grouped-panel")
+    registry.parseScanOutput(scan)
+
+    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [] } }, plugins: [] }
+    registry.setEnabled("local.grouped-panel", true)
+    registry.setEnabled("shared.grouped-panel", true)
+    var secondPanel = [root.config.plugins, registry.resolveEnabledId("omarchy.grouped-panel")]
+    registry.setEnabled("shared.grouped-panel", false)
+    var lastPanelGone = [root.config.plugins, registry.isEnabled("omarchy.grouped-panel")]
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [], right: [] } },
+      plugins: [{ id: "local.grouped-panel" }, { id: "shared.grouped-panel" }]
+    }
+    registry.setEnabled("local.grouped-panel", false)
+    var otherPanelStays = [registry.isEnabled("omarchy.grouped-panel"), registry.resolveEnabledId("omarchy.grouped-panel")]
+    root.config.plugins = [{ id: "local.grouped-panel" }, { id: "shared.grouped-panel" }]
+    registry.setEnabled("omarchy.grouped-panel", true)
+    var builtInBack = [root.config.plugins, registry.isEnabled("omarchy.grouped-panel")]
+
+    root.config = { version: 1, bar: { layout: { left: [], center: [{ id: "omarchy.first-widget", size: 4 }], right: [] } }, plugins: [] }
+    registry.setEnabled("local.first-widget", true)
+    registry.setEnabled("shared.first-widget", true)
+    var secondWidget = [root.config.bar.layout.center, root.config.bar.layout.centerEnd]
+    registry.setEnabled("shared.first-widget", false)
+    var lastWidgetGone = [root.config.bar.layout.center, root.config.bar.layout.centerEnd]
+
+    root.config = { version: 1, bar: { layout: { left: [{ id: "omarchy.hybrid" }], center: [], right: [] } }, plugins: [] }
+    registry.setEnabled("local.hybrid", true)
+    registry.setEnabled("shared.hybrid", true)
+    var secondMenu = [root.config.bar.layout.left, root.config.bar.layout.centerEnd, registry.isEnabled("omarchy.hybrid"), registry.resolveEnabledId("omarchy.hybrid")]
+    registry.setEnabled("shared.hybrid", false)
+    var lastMenuGone = [root.config.bar.layout.left, root.config.bar.layout.centerEnd, registry.isEnabled("omarchy.hybrid"), root.config.disabledPlugins === undefined]
+
+    root.assertDeepEqual(
+      { draggedOff: draggedOff, manifestGone: manifestGone, secondPanel: secondPanel, lastPanelGone: lastPanelGone,
+        otherPanelStays: otherPanelStays, builtInBack: builtInBack, secondWidget: secondWidget, lastWidgetGone: lastWidgetGone,
+        secondMenu: secondMenu, lastMenuGone: lastMenuGone },
+      { draggedOff: [true, "omarchy.hybrid"], manifestGone: true,
+        secondPanel: [[{ id: "shared.grouped-panel" }], "shared.grouped-panel"], lastPanelGone: [[], true],
+        otherPanelStays: [false, "shared.grouped-panel"], builtInBack: [[], true],
+        secondWidget: [[{ id: "shared.first-widget", size: 4 }], []], lastWidgetGone: [[{ id: "omarchy.first-widget", size: 4 }], []],
+        secondMenu: [[{ id: "shared.hybrid" }], [], false, "shared.hybrid"], lastMenuGone: [[{ id: "omarchy.hybrid" }], [], true, true] },
+      "a clone stands in for its built-in only while it is installed and enabled, and one clone stands in at a time"
+    )
+
+    root.config = { version: 1, bar: { layout: { left: [], center: [{ id: "local.first-widget" }, { id: "local.first-widget" }], right: [] } }, plugins: [] }
+    registry.setEnabled("local.first-widget", false)
+    var everySlotBack = root.config.bar.layout.center
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [{ id: "local.first-widget" }, { id: "omarchy.weather" }, { id: "shared.first-widget" }], right: [] } },
+      plugins: []
+    }
+    var tookSlot = [registry.setEnabled("shared.first-widget", true, { before: "local.first-widget" }), root.config.bar.layout.center]
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [{ id: "local.first-widget", size: 2 }, { id: "omarchy.weather" }, { id: "shared.first-widget", size: 3 }], right: [] } },
+      plugins: []
+    }
+    registry.setEnabled("omarchy.first-widget", true)
+    var switchedBack = root.config.bar.layout.center
+    root.config = { version: 1, bar: { layout: { left: [], center: [{ id: "local.first-widget", size: 2 }, { id: "local.first-widget", size: 3 }], right: [] } }, plugins: [] }
+    registry.setEnabled("shared.first-widget", true)
+    var tookEverySlot = root.config.bar.layout.center
+    root.assertDeepEqual(
+      { everySlotBack: everySlotBack, tookSlot: tookSlot, switchedBack: switchedBack, tookEverySlot: tookEverySlot },
+      { everySlotBack: [{ id: "omarchy.first-widget" }, { id: "omarchy.first-widget" }],
+        tookSlot: [true, [{ id: "shared.first-widget" }, { id: "omarchy.weather" }]],
+        switchedBack: [{ id: "omarchy.first-widget", size: 2 }, { id: "omarchy.weather" }, { id: "omarchy.first-widget", size: 3 }],
+        tookEverySlot: [{ id: "shared.first-widget", size: 2 }, { id: "shared.first-widget", size: 3 }] },
+      "every slot retired clones held goes back to their built-in, and the clone enabled last takes every one"
+    )
 
     registry.setEnabled("local.bar", true)
     root.assertEqual(root.config.bar.id, "local.bar", "enabling a cloned bar selects it")
