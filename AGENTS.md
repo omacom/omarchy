@@ -64,6 +64,7 @@ guidance does not drift from the router.
 # Runtime Environment
 
 - `$OMARCHY_PATH` is set at the top level by the uwsm session environment and is always available to Omarchy runtime code.
+- `$OMARCHY_PATH_TYPE`, from the same `/etc/omarchy.conf`, says what the path holds: `package`, `dev` (a git checkout) or `flavor` (a tree built from the package by another tool). `omarchy dev link` and `unlink` leave it unset, since `omarchy-plymouth-set` trusts a dev checkout only when its conf is the single path line; a tool that builds a flavor writes `flavor`. When it is unset, any path but `/usr/share/omarchy` is a dev checkout. Code that means "is this a git checkout" checks that a non-stock path isn't a `flavor`.
 - Commands in `bin/` and Quickshell QML should rely on `$OMARCHY_PATH` / `Quickshell.env("OMARCHY_PATH")`; do not derive fallback paths from `HOME`, `Quickshell.shellDir`, or re-export/default `OMARCHY_PATH` manually.
 
 # Platforms

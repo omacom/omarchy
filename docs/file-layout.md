@@ -232,6 +232,7 @@ Single source of truth for `OMARCHY_PATH` and dev-link-aware `PATH`. It:
   package path by `omarchy-dev-unlink`) if present; otherwise forces
   `OMARCHY_PATH=/usr/share/omarchy` so a stale inherited value can't survive
   an `omarchy-dev-unlink`.
+- Exports `OMARCHY_PATH_TYPE` when the conf sets it: `package`, `dev`, or `flavor` for a tree another tool builds from the package and keeps in step with it. A `flavor` path is treated as a package install: `omarchy update` doesn't pull it, a channel switch keeps it, and the version and channel are the package's. An inherited value never outlives the conf that set it.
 - Prepends `$OMARCHY_PATH/bin` to `PATH` **only when** `OMARCHY_PATH` is
   not `/usr/share/omarchy`. On a production install the binaries are
   already on `PATH` as `/usr/bin/omarchy-*` via the `omarchy` package.
