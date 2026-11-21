@@ -2992,6 +2992,7 @@ Item {
       property var heldTarget: null
       property real pressedX: 0
       property real pressedY: 0
+      property var pressedScene: null
       readonly property bool canReorder: root.shell && typeof root.shell.mutateShellConfig === "function"
       readonly property real dragThreshold: Style.space(4)
 
@@ -3019,6 +3020,10 @@ Item {
         suppressClick = false
         pressedX = mouse.x
         pressedY = mouse.y
+        // The drag threshold is measured from this point in scene coordinates,
+        // so a slot that moves under a still pressed pointer does not read as
+        // pointer motion.
+        pressedScene = slot.mapToItem(null, mouse.x, mouse.y)
         hold(root.moduleClickTargetAt(slot, mouse.x, mouse.y), mouse.button)
         root.finishBarSettle()
         root.clearBarDrag()
@@ -3033,7 +3038,8 @@ Item {
       onPositionChanged: function(mouse) {
         if (!canReorder || !(mouse.buttons & Qt.LeftButton)) return
 
-        var distance = Math.abs(mouse.x - pressedX) + Math.abs(mouse.y - pressedY)
+        var scenePoint = slot.mapToItem(null, mouse.x, mouse.y)
+        var distance = Math.abs(scenePoint.x - pressedScene.x) + Math.abs(scenePoint.y - pressedScene.y)
         if (distance >= dragThreshold) {
           if (!dragging) root.beginBarDrag(slot, pressedX, pressedY)
           dragging = true
@@ -3044,7 +3050,6 @@ Item {
         // A drag let go of from elsewhere (onLayoutWidgetsChanged) stays let
         // go of until the button comes up.
         if (dragging && root.barDragSource === slot) {
-          var scenePoint = slot.mapToItem(null, mouse.x, mouse.y)
           var screenPoint = root.barDragScreenPoint(scenePoint)
           root.barDragSceneX = scenePoint.x
           root.barDragSceneY = scenePoint.y
