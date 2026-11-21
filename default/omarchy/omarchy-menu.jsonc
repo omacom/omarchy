@@ -460,6 +460,7 @@
 
   // Update
   "update.omarchy": {"icon":"","iconFont":"omarchy","label":"Omarchy","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update"},
+  "update.auto": {"icon":"󰁪","label":"Automatic Updates","checked":"systemctl is-enabled --quiet omarchy-update-auto.timer","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update-auto toggle"},
   "update.channel": {"icon":"󰔫","label":"Channel"},
   "update.kernel": {"icon":"","label":"Kernel","when":"(( $(omarchy-kernel list | wc -l) > 1 ))","provider":"kernels"},
   "update.config": {"icon":"","label":"Config","title":"Reset to default"},

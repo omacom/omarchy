@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# omarchy:summary=Install system updates automatically overnight
+# omarchy:args=[on|off|toggle|status]
+# omarchy:examples=omarchy update auto on | omarchy update auto off
+# omarchy:requires-sudo=true
+
+set -e
+
+unit=omarchy-update-auto
+worker=/usr/bin/omarchy-update-auto-run
+
+is_on() {
+  systemctl is-enabled --quiet "$unit.timer" 2>/dev/null
+}
+
+turn_on() {
+  # The timer runs the installed copy as root, so a development checkout alone
+  # cannot back it.
+  if [[ ! -x $worker ]]; then
+    echo "$worker is not installed. Update the omarchy package first." >&2
+    exit 1
+  fi
+
+  sudo install -Dm644 "$OMARCHY_PATH/default/systemd/system/$unit.service" "/etc/systemd/system/$unit.service"
+  sudo install -Dm644 "$OMARCHY_PATH/default/systemd/system/$unit.timer" "/etc/systemd/system/$unit.timer"
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now "$unit.timer"
+
+  echo "Automatic updates are ON. System packages install around 3am while plugged in."
+  echo "Migrations wait for you after login. Run omarchy update for AUR, mise and reboot prompts."
+}
+
+turn_off() {
+  sudo systemctl disable --now "$unit.timer"
+  sudo rm -f "/etc/systemd/system/$unit.timer" "/etc/systemd/system/$unit.service"
+  sudo systemctl daemon-reload
+
+  echo "Automatic updates are OFF."
+}
+
+show_status() {
+  if is_on; then
+    echo "Automatic updates are ON."
+    systemctl list-timers "$unit.timer" --no-legend --no-pager 2>/dev/null || true
+    systemctl show "$unit.service" -p Result -p ExecMainStartTimestamp 2>/dev/null || true
+  else
+    echo "Automatic updates are OFF."
+    return 1
+  fi
+}
+
+case "${1:-status}" in
+  on)
+    turn_on
+    ;;
+  off)
+    turn_off
+    ;;
+  toggle)
+    if is_on; then
+      turn_off
+    else
+      turn_on
+    fi
+    ;;
+  status)
+    show_status
+    ;;
+  *)
+    echo "Usage: omarchy-update-auto [on|off|toggle|status]" >&2
+    exit 1
+    ;;
+esac

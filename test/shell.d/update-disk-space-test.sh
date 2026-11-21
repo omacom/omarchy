@@ -63,6 +63,8 @@ write_stub gum '
 printf "%s\n" "$*" >>"$GUM_MARKER"
 if [[ ${1:-} == "confirm" ]]; then
   exit "$GUM_STATUS"
+elif [[ ${1:-} == "choose" ]]; then
+  printf "%s\n" "${GUM_CHOICE:-}"
 fi
 exit 0'
 
@@ -92,6 +94,10 @@ for command in \
   write_stub "$command" 'exit 0'
 done
 write_stub omarchy-update-available 'exit 1'
+# Automatic updates read as already on unless a case sets TEST_AUTO_STATUS=1.
+write_stub systemctl 'exit "${TEST_AUTO_STATUS:-0}"'
+write_stub omarchy-update-auto 'touch "$AUTO_MARKER"'
+export AUTO_MARKER="$test_tmp/auto"
 write_stub pkexec 'exec "$@"'
 
 set +e
@@ -149,3 +155,14 @@ output=$(TEST_DF_INVALID=1 run_update -y)
 [[ -z $output ]] || fail "failed disk-space detection remains silent"
 [[ -f $snapshot_marker ]] || fail "failed disk-space detection does not block the update"
 pass "failed disk-space detection silently continues"
+
+rm -f "$snapshot_marker" "$AUTO_MARKER"
+TEST_AVAILABLE_BYTES=$((10 * 1024 * 1024 * 1024)) TEST_AUTO_STATUS=1 GUM_CHOICE="Set Up Automatic Updates" run_update >/dev/null
+[[ -f $snapshot_marker ]] || fail "choosing Set Up Automatic Updates starts the update"
+[[ -f $AUTO_MARKER ]] || fail "choosing Set Up Automatic Updates turns automatic updates on"
+pass "Set Up Automatic Updates updates and turns automatic updates on"
+
+rm -f "$snapshot_marker" "$AUTO_MARKER"
+TEST_AVAILABLE_BYTES=$((10 * 1024 * 1024 * 1024)) TEST_AUTO_STATUS=1 GUM_CHOICE="Yes" run_update >/dev/null
+[[ -f $snapshot_marker && ! -f $AUTO_MARKER ]] || fail "choosing Yes updates without turning automatic updates on"
+pass "Yes updates without turning automatic updates on"

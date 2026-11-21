@@ -1261,6 +1261,9 @@
   "update.omarchy": {
     "label": "Omarchy"
   },
+  "update.auto": {
+    "label": "Automatic Updates"
+  },
   "update.channel": {
     "label": "Channel"
   },

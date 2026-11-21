@@ -276,6 +276,14 @@ There is no version file at runtime. `omarchy-version` derives the version from
 linked checkout, and `omarchy-version-channel` sniffs the mirrorlist and
 pacman.conf to answer which channel is active.
 
+## Automatic updates
+
+`omarchy update auto on` (one sudo password) installs and enables `omarchy-update-auto.timer` in `/etc/systemd/system`, and `omarchy update auto off` removes it. It is also the Update > Automatic Updates menu toggle. The timer fires around 03:00 with a one-hour random delay, wakes a sleeping machine, and catches up after a missed run.
+
+The service runs `omarchy-update-auto-run` as root from `/usr/bin` with `OMARCHY_PATH=/usr/share/omarchy`, so a user-writable development checkout is never executed with root privilege. The worker skips when the machine is discharging, an interactive `omarchy update` holds a user's update lock, `checkupdates` reports nothing pending, or free space is below the update threshold. Otherwise it creates the snapper snapshot, refreshes the keyrings and runs `omarchy-update-system-pkgs`, the same package step as `omarchy update`.
+
+A root job has no user session, so everything per-user stays with the next `omarchy update`: migrations, orphan removal, post-update hooks, mise tools, AUR packages and the reboot prompt. After the package step the worker starts `omarchy-migrate-notify.service` in each logged-in user's manager, so pending migrations raise the usual click-to-run notification without waiting for a login. Temporary passwordless sudo cannot stand in for the root service: the `omarchy-settings` pre-transaction hook revokes timed grants in the middle of the very upgrade it would authorize.
+
 ## Update-related binaries
 
 This inventory is intentionally opinionated. Some commands are useful as stable

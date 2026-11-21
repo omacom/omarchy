@@ -12,7 +12,23 @@ gum style --border normal --padding "1 2" \
 
 echo
 
-if ! gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n update.continue)"; then
-  echo "Update cancelled"
-  exit 1
+yes=$(omarchy-i18n common.yes)
+no=$(omarchy-i18n common.no)
+
+# Exit 0 to update, 1 to cancel, 2 to update and turn automatic updates on.
+if systemctl is-enabled --quiet omarchy-update-auto.timer 2>/dev/null; then
+  if ! gum confirm --affirmative "$yes" --negative "$no" "$(omarchy-i18n update.continue)"; then
+    echo "Update cancelled"
+    exit 1
+  fi
+else
+  automatically=$(omarchy-i18n update.automatically)
+  choice=$(gum choose --header "$(omarchy-i18n update.continue)" "$yes" "$automatically" "$no") || choice=$no
+
+  if [[ $choice == "$automatically" ]]; then
+    exit 2
+  elif [[ $choice != "$yes" ]]; then
+    echo "Update cancelled"
+    exit 1
+  fi
 fi
