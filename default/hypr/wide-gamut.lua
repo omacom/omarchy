@@ -3,8 +3,8 @@
 -- colors to them itself, so the Mac's display controller sends their native
 -- gamut, and Asahi's driver has no Colorspace property to say the signal is
 -- sRGB. Have Hyprland map sRGB into the gamut their EDID reports. Other
--- monitors stay on sRGB: they map the signal themselves, and mapping it twice
--- washes the colors out.
+-- monitors get sRGB, Hyprland's default: they map the signal themselves, and
+-- mapping it twice washes the colors out.
 --
 -- A workaround for the Asahi display driver: remove it once that handles color.
 --

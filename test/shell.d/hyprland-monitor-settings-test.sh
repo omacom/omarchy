@@ -149,7 +149,7 @@ pass "monitor settings leave monitors.lua alone until something is saved"
 
 # On Apple Silicon the built-in panel and Apple's wide-gamut displays map sRGB
 # into their own gamut, whatever port they're on and whenever they're plugged
-# in; every other monitor stays on sRGB, as on a PC. A rule's own cm wins.
+# in; every other monitor gets Hyprland's default sRGB. A rule's own cm wins.
 # rule_for picks a monitor's rule the way Hyprland does: a call merges into the
 # output's existing rule, and the latest rule naming the port or matching the
 # description wins, else the latest rule for every monitor.
