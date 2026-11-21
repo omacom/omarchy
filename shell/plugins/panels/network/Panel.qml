@@ -86,6 +86,19 @@ Panel {
   property string bandSelected: "auto"
   property var bandAvailable: []
   property string pendingBand: ""
+  // VPNs from `omarchy-network-vpn`, which rewrites this snapshot whenever a
+  // VPN changes, so every bar follows without polling. One switch runs at a
+  // time; `vpnPendingId` / `vpnPendingMode` describe it until it lands.
+  readonly property string vpnSnapshotPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/omarchy/network-vpn"
+  property WatchedFile vpnSnapshot: WatchedFile { path: root.vpnSnapshotPath }
+  readonly property var vpnList: Model.parseVpnList(vpnSnapshot.text)
+  readonly property var vpnUpNames: Model.vpnUpNames(vpnList)
+  property string vpnPendingId: ""
+  property string vpnPendingMode: ""
+  // Keyboard cursor in the VPN section: a row (vpnList.length is the Add VPN
+  // button) and a control within it (its mode pills, then Sign in).
+  property int vpnRowIndex: 0
+  property int vpnControlIndex: 0
 
   // Per-row in-flight state. `actionSsid` flips on for the row whose action
   // is currently running so it can render "Connecting…" / "Disconnecting…" /
@@ -142,7 +155,7 @@ Panel {
   // Keyboard focus zone for the panel. j/k crosses row boundaries:
   // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks. h/l move
   // within header actions, band pills, or DNS providers.
-  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "wifi"
+  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "vpn" | "wifi"
   property int headerIndex: 0
   readonly property bool canDisconnect: !!connectedWifiNetwork
   readonly property bool headerHasDisconnect: false
@@ -345,6 +358,7 @@ Panel {
   onOpenedChanged: {
     if (opened) {
       refresh(true)
+      refreshVpns()
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
       focusSection = hasCaptivePortal ? "portal" : (wifiNetworks.length > 0 ? "wifi" : "dns")
@@ -974,7 +988,99 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  Component.onCompleted: refresh()
+  Component.onCompleted: {
+    refresh()
+    refreshVpns()
+  }
+
+  // ---------- VPNs ----------
+  onVpnListChanged: {
+    if (vpnPendingId !== "" && !vpnModeProc.running && Model.vpnSwitchSettled(vpnList, vpnPendingId, vpnPendingMode)) {
+      vpnPendingId = ""
+      vpnPendingMode = ""
+    }
+    clampVpnCursor()
+  }
+
+  function refreshVpns() {
+    if (!vpnListProc.running) vpnListProc.running = true
+  }
+
+  function vpnControls(entry) {
+    return entry ? entry.modes.concat(entry.actions) : []
+  }
+
+  function setVpnMode(id, mode) {
+    if (vpnModeProc.running) return
+    var entry = vpnList.find(function(v) { return v.id === id })
+    if (!entry || entry.modes.indexOf(mode) < 0 || entry.mode === mode) return
+    vpnPendingId = id
+    vpnPendingMode = mode
+    vpnModeProc.command = ["omarchy-network-vpn", "mode", id, mode]
+    vpnModeProc.running = true
+  }
+
+  // Sign in needs a terminal for the password or token.
+  function vpnSignIn(id) {
+    close()
+    Quickshell.execDetached(["omarchy-network-vpn", "signin", id])
+  }
+
+  function addVpn() {
+    close()
+    Quickshell.execDetached(["omarchy-network-vpn", "add"])
+  }
+
+  function clampVpnCursor() {
+    vpnRowIndex = Math.max(0, Math.min(vpnList.length, vpnRowIndex))
+    var count = vpnRowIndex < vpnList.length ? vpnControls(vpnList[vpnRowIndex]).length : 1
+    vpnControlIndex = Math.max(0, Math.min(count - 1, vpnControlIndex))
+  }
+
+  function selectVpnRowByDelta(delta) {
+    vpnRowIndex += delta
+    clampVpnCursor()
+  }
+
+  function selectVpnControlByDelta(delta) {
+    vpnControlIndex += delta
+    clampVpnCursor()
+  }
+
+  function activateVpn() {
+    if (vpnRowIndex >= vpnList.length) {
+      addVpn()
+      return
+    }
+    var entry = vpnList[vpnRowIndex]
+    var control = vpnControls(entry)[vpnControlIndex]
+    if (control === "signin") vpnSignIn(entry.id)
+    else if (control) setVpnMode(entry.id, control)
+  }
+
+  function setVpnCursor(row, control) {
+    cursorActive = true
+    focusSection = "vpn"
+    vpnRowIndex = row
+    vpnControlIndex = control
+  }
+
+  // Writes the snapshot; reading it again also starts watching a file that
+  // didn't exist yet.
+  Process {
+    id: vpnListProc
+    command: ["omarchy-network-vpn", "list"]
+    onExited: root.vpnSnapshot.reread()
+  }
+
+  Process {
+    id: vpnModeProc
+    onExited: {
+      root.vpnPendingId = ""
+      root.vpnPendingMode = ""
+      root.vpnSnapshot.reread()
+    }
+  }
 
   // Pulls everything we want about the active route's interface in one shot.
   Process {
@@ -1151,7 +1257,21 @@ Panel {
     text: root.icon
     active: root.restricted
     tooltipText: root.hasCaptivePortal ? Commons.I18n.t("network.signInToNetwork")
-      : (root.restricted ? Commons.I18n.t("network.limitedAccess") : "")
+      : (root.restricted ? Commons.I18n.t("network.limitedAccess")
+      : (root.vpnUpNames.length > 0 ? Commons.I18n.t("network.vpnTooltip").arg(root.vpnUpNames.join(", ")) : ""))
+
+    // A VPN is connected.
+    Rectangle {
+      visible: root.vpnUpNames.length > 0
+      width: Style.space(6)
+      height: width
+      radius: width / 2
+      color: root.bar.foreground
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
+      anchors.rightMargin: Style.space(3)
+      anchors.bottomMargin: Style.space(4)
+    }
 
     onPressed: function(b) {
       if (root.opened) root.close()
@@ -1248,15 +1368,31 @@ Panel {
                 root.focusSection = "header"
                 root.headerIndex = 0
               }
-            } else if (root.wifiNetworks.length > 0) {
-              root.focusSection = "wifi"
-              if (root.selectedIndex < 0) root.selectedIndex = 0
+            } else {
+              root.focusSection = "vpn"
+              root.vpnRowIndex = 0
+              root.clampVpnCursor()
+            }
+          } else if (root.focusSection === "vpn") {
+            // Rows, then the Add VPN button; k from the first row goes back to
+            // DNS, j from Add VPN into the wifi list.
+            if (dy < 0 && root.vpnRowIndex === 0) {
+              root.focusSection = "dns"
+            } else if (dy > 0 && root.vpnRowIndex >= root.vpnList.length) {
+              if (root.wifiNetworks.length > 0) {
+                root.focusSection = "wifi"
+                if (root.selectedIndex < 0) root.selectedIndex = 0
+              }
+            } else {
+              root.selectVpnRowByDelta(dy)
             }
           } else {  // wifi
-            // k from the top row escapes back up to the DNS row rather than
-            // wrapping around to the bottom of the list.
+            // k from the top row escapes back up to the Add VPN button rather
+            // than wrapping around to the bottom of the list.
             if (dy < 0 && root.selectedIndex <= 0) {
-              root.focusSection = "dns"
+              root.focusSection = "vpn"
+              root.vpnRowIndex = root.vpnList.length
+              root.clampVpnCursor()
               root.wifiActionFocused = false
             }
             else root.selectByDelta(dy)
@@ -1266,6 +1402,7 @@ Panel {
           if (root.focusSection === "header") root.selectHeaderByDelta(dx)
           else if (root.focusSection === "band") { if (!root.bandAutoFocused) root.selectBandByDelta(dx) }
           else if (root.focusSection === "dns") root.selectDnsByDelta(dx)
+          else if (root.focusSection === "vpn") root.selectVpnControlByDelta(dx)
           else if (root.focusSection === "wifi") root.selectWifiActionByDelta(dx)
         }
       }
@@ -1275,13 +1412,17 @@ Panel {
           else if (root.focusSection === "portal") root.openCaptivePortal()
           else if (root.focusSection === "band") root.activateBand()
           else if (root.focusSection === "dns") root.activateDns()
+          else if (root.focusSection === "vpn") root.activateVpn()
           else root.activateSelected()
         }
       }
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
-        if (t === "r" || t === "R") root.refresh()
+        if (t === "r" || t === "R") {
+          root.refresh()
+          root.refreshVpns()
+        }
         else if (t === "w" || t === "W") root.toggleNetwork()
       }
 
@@ -1695,6 +1836,52 @@ Panel {
         }
       }
 
+      // VPNs: every NetworkManager VPN with its mode, and a way to add one.
+      PanelSeparator {
+        foreground: root.bar.foreground
+      }
+
+      Column {
+        width: parent.width
+        spacing: Style.space(10)
+
+        PanelSectionHeader {
+          text: Commons.I18n.t("network.vpn")
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+        }
+
+        Repeater {
+          model: root.vpnList
+          delegate: VpnRow {}
+        }
+
+        Text {
+          visible: root.vpnList.length === 0
+          width: parent.width
+          textFormat: Text.PlainText
+          wrapMode: Text.Wrap
+          text: Commons.I18n.t("network.vpnEmpty")
+          color: root.bar.foreground
+          opacity: 0.6
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.bodySmall
+        }
+
+        Button {
+          text: Commons.I18n.t("network.vpnAdd")
+          tooltipText: Commons.I18n.t("network.vpnAddTooltip")
+          fontSize: Style.font.bodySmall
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          horizontalPadding: Style.spacing.controlPaddingX
+          verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+          bordered: true
+          hasCursor: root.cursorActive && root.focusSection === "vpn" && root.vpnRowIndex === root.vpnList.length
+          onHovered: function(isHovered) { if (isHovered) root.setVpnCursor(root.vpnList.length, 0) }
+          onClicked: root.addVpn()
+        }
+      }
 
       // Wi-Fi networks (only if a Wi-Fi station is available).
       PanelSeparator {
@@ -1833,6 +2020,101 @@ Panel {
       root.cursorActive = true
       root.focusSection = "dns"
       root.dnsIndex = pill.index
+    }
+  }
+
+  // One VPN: a status dot, its name and state, then a pill per mode and Sign
+  // in when it needs credentials.
+  component VpnRow: Column {
+    id: vpnRow
+    required property var modelData
+    required property int index
+    readonly property var entry: modelData
+    readonly property bool switching: root.vpnPendingId === entry.id
+    readonly property string pending: switching ? root.vpnPendingMode : ""
+    readonly property string shownMode: pending !== "" ? pending : entry.mode
+    readonly property real cellWidth: (width - Style.space(6) * Math.max(0, root.vpnControls(entry).length - 1)) / Math.max(1, root.vpnControls(entry).length)
+
+    width: parent ? parent.width : 0
+    spacing: Style.space(6)
+
+    Item {
+      width: parent.width
+      implicitHeight: vpnLabels.implicitHeight
+      height: implicitHeight
+
+      Rectangle {
+        id: vpnDot
+        width: Style.space(8)
+        height: width
+        radius: width / 2
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        color: root.bar.foreground
+        opacity: vpnRow.entry.state === "up" ? 1 : (vpnRow.entry.state === "off" && !vpnRow.switching ? 0.18 : 0.55)
+      }
+
+      Column {
+        id: vpnLabels
+        anchors.left: vpnDot.right
+        anchors.leftMargin: Style.space(10)
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.space(2)
+
+        Text {
+          width: parent.width
+          textFormat: Text.PlainText
+          text: vpnRow.entry.name
+          elide: Text.ElideRight
+          color: root.bar.foreground
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.body
+        }
+
+        Text {
+          width: parent.width
+          textFormat: Text.PlainText
+          text: Model.vpnStateText(vpnRow.entry, vpnRow.pending, Commons.I18n.t)
+          elide: Text.ElideRight
+          color: root.bar.foreground
+          opacity: 0.6
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.bodySmall
+        }
+      }
+    }
+
+    Row {
+      width: parent.width
+      spacing: Style.space(6)
+
+      Repeater {
+        model: root.vpnControls(vpnRow.entry)
+        delegate: Button {
+          id: vpnControl
+          required property string modelData
+          required property int index
+          readonly property bool isSignIn: modelData === "signin"
+
+          width: vpnRow.cellWidth
+          text: isSignIn ? Commons.I18n.t("network.vpnSignIn") : Model.vpnModeLabel(modelData, Commons.I18n.t)
+          tooltipText: isSignIn ? Commons.I18n.t("network.vpnSignInTooltip") : Model.vpnModeTooltip(modelData, Commons.I18n.t)
+          fontSize: Style.font.bodySmall
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          horizontalPadding: Style.spacing.controlPaddingX
+          verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+          bordered: true
+          active: !isSignIn && vpnRow.shownMode === modelData
+          hasCursor: root.cursorActive && root.focusSection === "vpn" && root.vpnRowIndex === vpnRow.index && root.vpnControlIndex === index
+          onHovered: function(isHovered) { if (isHovered) root.setVpnCursor(vpnRow.index, vpnControl.index) }
+          onClicked: {
+            if (isSignIn) root.vpnSignIn(vpnRow.entry.id)
+            else root.setVpnMode(vpnRow.entry.id, modelData)
+          }
+        }
+      }
     }
   }
 

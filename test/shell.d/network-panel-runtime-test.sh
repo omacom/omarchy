@@ -17,7 +17,7 @@ fixtures="$SHELL_TEST_DIR/fixtures/network-panel"
 # browser are never touched, and the fixture writes only to its scratch HOME.
 stage_panel() {
   stage="$scratch/$1"
-  mkdir -p "$stage/network" "$stage/bin" "$stage/home"
+  mkdir -p "$stage/network" "$stage/bin" "$stage/home" "$stage/runtime/omarchy"
   ln -s "$ROOT/shell/Ui" "$stage/Ui"
   ln -s "$ROOT/shell/Commons" "$stage/Commons"
   cp -r "$fixtures/mocks" "$stage/mocks"
@@ -52,7 +52,7 @@ fs.writeFileSync(`${stage}/network/Panel.qml`, source)
 JS
   printf '#!/bin/bash\nexit 0\n' >"$stage/bin/noop"
   chmod +x "$stage/bin/noop"
-  for command in omarchy-dns omarchy-network-band; do
+  for command in omarchy-dns omarchy-network-band omarchy-network-vpn; do
     ln -s noop "$stage/bin/$command"
   done
   # Preview uses only synthetic details, never the host's SSID or addresses.
@@ -66,7 +66,10 @@ JS
 # run_panel <description>: run the staged fixture to completion.
 run_panel() {
   local output
-  output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
+  # A runtime dir of its own keeps the host's VPN snapshot out; the Wayland
+  # socket is then named by its full path.
+  local wayland="${XDG_RUNTIME_DIR:-}/${WAYLAND_DISPLAY:-}"
+  output=$(HOME="$stage/home" WAYLAND_DISPLAY="$wayland" XDG_RUNTIME_DIR="$stage/runtime" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
     NETWORK_TEST_BROWSER_LOG="$stage/browser.log" NETWORK_TEST_NMCLI_LOG="$stage/nmcli.log" \
     timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "$1 fixture exits cleanly" "$output"
   [[ $output == *"RESULT pass"* ]] || fail "$1 runtime assertions pass" "$output"
@@ -104,3 +107,25 @@ pass "network keeps Wi-Fi through OWE transition scan churn, reads the in-use ac
 stage_panel live-rows
 run_panel "network live rows"
 pass "network rows follow connects, drops, saves and forgets made outside the panel, with the cursor on its network"
+
+# Two made-up VPNs; switching Home rewrites the snapshot as the real command
+# does once NetworkManager is done.
+stage_panel vpn-section
+rm "$stage/bin/omarchy-network-vpn"
+vpn_row() { local IFS=$'\t'; echo "$*"; }
+{
+  vpn_row u-office Office wireguard up 10.8.0.2 full off,split,full ""
+  vpn_row u-home Home openvpn off "" off off,split,full signin
+} >"$stage/runtime/omarchy/network-vpn"
+cat >"$stage/bin/omarchy-network-vpn" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >> "$NETWORK_TEST_VPN_LOG"
+if [[ $1 == "mode" ]]; then
+  sleep 0.2
+  sed -i 's/^u-home\tHome\topenvpn\toff\t\toff\t\(.*\)\tsignin$/u-home\tHome\topenvpn\tup\t10.9.0.2\tsplit\t\1\t/' "$XDG_RUNTIME_DIR/omarchy/network-vpn"
+fi
+SH
+chmod +x "$stage/bin/omarchy-network-vpn"
+NETWORK_TEST_VPN_LOG="$stage/vpn.log" run_panel "network VPN section"
+grep -qx "mode u-home split" "$stage/vpn.log" || fail "a VPN mode switch runs omarchy-network-vpn" "$(cat "$stage/vpn.log")"
+pass "network VPN rows follow the snapshot, walk with the keyboard, and switch one mode at a time"
