@@ -113,6 +113,16 @@ assertDeepEqual(
   ['laptop', 'spark'],
   'reach offers a machine once, without the padding Circle left on its name'
 )
+for (const aliases of [
+  [{ name: 'laptop', online: false, nearby: false }, { name: 'laptop.lan', online: true, nearby: true }],
+  [{ name: 'laptop.lan', online: true, nearby: true }, { name: 'laptop', online: false, nearby: false }],
+]) {
+  assertDeepEqual(
+    reach.addable(['desk'], 'desk', [{ name: 'mini', online: true, nearby: false }, ...aliases]),
+    [{ name: 'laptop.lan', online: true, nearby: true }, { name: 'mini', online: true, nearby: false }],
+    'reach keeps the most available alias regardless of discovery order'
+  )
+}
 const padded = reach.parseStatus(JSON.stringify({ me: 'desk', screens: [' desk '], circle: { up: true, peers: [] } }))
 assertDeepEqual(padded.screens, ['desk'], 'reach trims the name of a machine in the row')
 

@@ -114,16 +114,16 @@ function addable(screens, me, peers) {
     return { name: text(p.name), online: p.online === true, nearby: p.nearby === true }
   }).filter(function(p) { return p.name !== "" })
   return peers
+    .sort(function(a, b) {
+      if (!!a.nearby !== !!b.nearby) return a.nearby ? -1 : 1
+      if (a.online !== b.online) return a.online ? -1 : 1
+      return a.name.localeCompare(b.name)
+    })
     .filter(function(p) {
       if (indexOf(row, p.name) !== -1 || sameHost(p.name, me)) return false
       if (indexOf(seen, p.name) !== -1) return false
       seen.push(p.name)
       return true
-    })
-    .sort(function(a, b) {
-      if (!!a.nearby !== !!b.nearby) return a.nearby ? -1 : 1
-      if (a.online !== b.online) return a.online ? -1 : 1
-      return a.name.localeCompare(b.name)
     })
 }
 
