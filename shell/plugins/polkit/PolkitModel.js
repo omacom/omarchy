@@ -38,6 +38,12 @@ function promptLabel(prompt, tr) {
   // one thing the dialog already had a good label for.
   if (/^(unix )?password$/i.test(text) || /^enter password$/i.test(text)) return enterPassword
 
+  // pam_u2f words its PIN prompt itself and ships no translations, so it gets
+  // a label in the Omarchy language, short enough to fit the field.
+  if (/^please enter the pin$/i.test(text)) return t("polkit.enterPin", "Enter PIN")
+
+  // A prompt nobody recognises is shown as its module worded it: a guessed
+  // label is how the PIN came to be asked for as a password.
   return text
 }
 

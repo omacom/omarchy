@@ -13,8 +13,18 @@ assert(!polkit.promptLooksFingerprint('Password:'), 'polkit ignores password pro
 
 assertEqual(
   polkit.promptLabel('Please enter the PIN: '),
-  'Please enter the PIN',
-  'polkit shows the security key PIN prompt PAM actually sent'
+  'Enter PIN',
+  'polkit asks for the PIN when pam_u2f does'
+)
+assertEqual(
+  polkit.promptLabel('Please enter the PIN: ', (key, english) => key === 'polkit.enterPin' ? 'Indtast pinkode' : english),
+  'Indtast pinkode',
+  'polkit asks for the PIN in the Omarchy language'
+)
+assertEqual(
+  polkit.promptLabel('Verification code: '),
+  'Verification code',
+  'polkit shows a prompt it does not recognise as PAM sent it'
 )
 assertEqual(
   polkit.promptLabel(''),
