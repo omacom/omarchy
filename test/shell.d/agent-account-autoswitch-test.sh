@@ -133,6 +133,27 @@ autoswitch >/dev/null
 [[ $(jq -r .alert "$accounts/claude.json") == "" ]] || fail "dropping back under the threshold re-arms the alert"
 pass "dropping back under the threshold re-arms the alert"
 
+# A credit allowance at 99% does not stop a prompt, so it never moves the
+# account or holds it over the threshold.
+registry main auto
+jq -nc --arg soon "$soon" --arg later "$later" '{
+  id: "claude",
+  accounts: [
+    {id: "main", limits: [
+      {label: "Session (5-hour)", percent: 0.10, resetsAt: $soon},
+      {label: "Usage credits", percent: 0.99, resetsAt: $later,
+        spend: {used: 495, limit: 500, currency: "USD"}}
+    ]},
+    {id: "work", limits: [
+      {label: "Session (5-hour)", percent: 0.12, resetsAt: $later}
+    ]}
+  ]
+}' >"$usage/claude.json"
+[[ -z $(autoswitch) && $(active) == "main" && ! -s $notifications ]] ||
+  fail "a full credit allowance does not switch accounts" \
+    "$(cat "$notifications")"
+pass "a full credit allowance does not switch accounts"
+
 registry main auto 80
 record 0.85 "$soon" 0.12 "$later"
 [[ $(autoswitch) == "claude" ]] || fail "the threshold is configurable"
