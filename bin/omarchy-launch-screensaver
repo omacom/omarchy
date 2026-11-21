@@ -1,6 +1,34 @@
 #!/bin/bash
 
-# omarchy:summary=Launch the Omarchy screensaver on every display.
-# omarchy:args=[force] [options]
+# omarchy:summary=Launch the selected Omarchy screensaver on every display.
+# omarchy:args=[force] [text|default] [options]
 
-exec /usr/lib/omarchy-screensaver/omarchy-screensaver "$@"
+# The Amiga controller's flock is the authority for its session; never start a
+# second backend over it.
+amiga_lock="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/omarchy-amiga-screensaver.lock"
+if [[ -f $amiga_lock ]] && ! flock -n "$amiga_lock" true; then
+  exit 0
+fi
+
+# Branding previews always show the text screensaver, whatever is selected.
+args=("$@")
+amiga=false
+if [[ ${2:-} == "text" || ${2:-} == "default" ]]; then
+  args=("$1" "${@:3}")
+elif omarchy-setup-screensaver --is-amiga; then
+  amiga=true
+fi
+
+if [[ $amiga == "true" ]]; then
+  # Amiga owns its child session and input guard; the idle path never installs.
+  if pgrep -f '[/]usr/lib/omarchy-screensaver/omarchy-screensaver' >/dev/null; then
+    exit 0
+  fi
+  if omarchy-toggle-enabled screensaver-off && [[ ${1:-} != "force" ]]; then
+    exit 1
+  fi
+  omarchy-shell -q shell hide omarchy.menu || true
+  exec omarchy-screensaver-amiga
+else
+  exec /usr/lib/omarchy-screensaver/omarchy-screensaver "${args[@]}"
+fi
