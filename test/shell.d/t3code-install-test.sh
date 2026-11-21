@@ -13,6 +13,22 @@ mount_dir="$test_tmp/mount"
 export TEST_TMP="$test_tmp"
 mkdir -p "$mock_bin" "$mount_dir"
 
+if command -v unshare >/dev/null && unshare -Ur true 2>/dev/null; then
+  mkdir -p "$test_tmp/root-bin" "$test_tmp/root-home"
+  # A missing root guard must stop at package work, not touch the host.
+  printf '#!/bin/bash\nexit 99\n' >"$test_tmp/root-bin/omarchy-pkg-add"
+  cp "$test_tmp/root-bin/omarchy-pkg-add" "$test_tmp/root-bin/omarchy-i18n"
+  chmod +x "$test_tmp/root-bin/"*
+  status=0
+  unshare -Ur env HOME="$test_tmp/root-home" PATH="$test_tmp/root-bin:/usr/bin:/bin" \
+    /bin/bash "$ROOT/bin/omarchy-install-ai-t3-code" stable >"$test_tmp/root.log" 2>&1 || status=$?
+  (( status == 1 )) && grep -q 'Run this command as your desktop user, without sudo.' "$test_tmp/root.log" ||
+    fail "T3 setup refuses root at its entrypoint" "$(cat "$test_tmp/root.log")"
+  pass "T3 setup refuses root before package or vendor work"
+else
+  skip "T3 setup root refusal (needs unprivileged user namespaces)"
+fi
+
 # Run the real theme refresh, renderer and publisher in a throwaway home.
 # Only the app install, the AppImage mount, the channel prompt and the desktop
 # launch are stubbed.
