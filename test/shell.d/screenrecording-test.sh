@@ -573,13 +573,14 @@ recording_flag="$tmp_dir/recording"
 cat >"$stub_bin/omarchy-capture-screenrecording-process" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_HELPER_CALLS"
-if [[ $1 == "--pid" ]]; then
-  [[ $2 == "${OMARCHY_TEST_LIVE_PID:-}" ]]
-  exit
-fi
 if [[ $* == *"--signal INT" ]]; then
   rm -f "$OMARCHY_TEST_RECORDING"
   exit 0
+fi
+if [[ $1 == "--pid" ]]; then
+  [[ $2 == "${OMARCHY_TEST_LIVE_PID:-}" ]] || exit 1
+  ! grep -Fq -- "--pid $2 --signal INT" "$OMARCHY_TEST_HELPER_CALLS"
+  exit
 fi
 [[ -e $OMARCHY_TEST_RECORDING ]]
 SH
@@ -621,6 +622,44 @@ grep -Fxq -- '--signal INT' "$helper_calls" ||
 [[ ! -e $OMARCHY_TEST_NOTIFICATION_ARGS ]] ||
   fail "stop announces no saved recording when none was recorded as started" "$(<"$OMARCHY_TEST_NOTIFICATION_ARGS")"
 pass "without a saved pid, status and stop select the user's recorders"
+
+# A stop has to reach the recorder even when the recordings directory is gone
+# (renamed, unmounted): the directory only names new recordings, and the stop
+# reads its path back from the runtime state file. Starting still refuses, so
+# a start cannot fill a directory the user moved away.
+stop_runtime="$tmp_dir/stop-missing-dir-runtime"
+mkdir -p "$stop_runtime"
+echo 424242 >"$stop_runtime/omarchy-screenrecord-pid"
+echo "$tmp_dir/nonexistent.mp4" >"$stop_runtime/omarchy-screenrecord-filename"
+touch "$recording_flag"
+[[ -e $stop_runtime/omarchy-screenrecord-filename && -e $stop_runtime/omarchy-screenrecord-pid ]] ||
+  fail "stop state files exist before stop runs"
+: >"$helper_calls"
+rm -f "$OMARCHY_TEST_NOTIFICATION_ARGS"
+XDG_RUNTIME_DIR="$stop_runtime" OMARCHY_TEST_HELPER_CALLS="$helper_calls" OMARCHY_TEST_RECORDING="$recording_flag" \
+  OMARCHY_TEST_LIVE_PID=424242 \
+  OMARCHY_SCREENRECORD_DIR="$tmp_dir/no-such-recordings" \
+  "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1 ||
+  fail "stop reaches the recorder without a recordings directory" "$(cat "$helper_calls" 2>/dev/null)"
+grep -Fxq -- '--pid 424242 --signal INT' "$helper_calls" ||
+  fail "stop signals the active recorder when the recordings directory is missing" "$(cat "$helper_calls")"
+[[ ! -e $recording_flag ]] || fail "the recording ends when stop runs without a recordings directory"
+[[ ! -e $OMARCHY_TEST_NOTIFICATION_ARGS ]] ||
+  fail "stop does not report a missing recordings directory while a recording runs" "$(cat "$OMARCHY_TEST_NOTIFICATION_ARGS")"
+[[ ! -e $stop_runtime/omarchy-screenrecord-filename && ! -e $stop_runtime/omarchy-screenrecord-pid ]] ||
+  fail "stop clears its state files without a recordings directory" "$(ls -a "$stop_runtime")"
+pass "stop ends a recording without a recordings directory"
+
+: >"$helper_calls"
+rm -f "$OMARCHY_TEST_NOTIFICATION_ARGS"
+if XDG_RUNTIME_DIR="$stop_runtime" OMARCHY_TEST_HELPER_CALLS="$helper_calls" OMARCHY_TEST_RECORDING="$recording_flag" \
+  OMARCHY_SCREENRECORD_DIR="$tmp_dir/no-such-recordings" \
+  "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1; then
+  fail "starting still refuses a missing recordings directory"
+fi
+[[ -s $OMARCHY_TEST_NOTIFICATION_ARGS ]] || fail "starting a recording without a recordings directory is named to the user"
+[[ ! -s $helper_calls ]] || fail "starting never reaches a recorder when the recordings directory is missing" "$(cat "$helper_calls")"
+pass "starting still refuses a missing recordings directory"
 
 # The bar indicator and the menu's Stop row ask --status, so they show a stop
 # exactly when the toggle has a recording of ours to end. It needs no
