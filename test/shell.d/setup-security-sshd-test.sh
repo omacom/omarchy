@@ -88,6 +88,8 @@ run_setup() {
   local root="$test_dir/$scenario/root"
 
   mkdir -p "$home" "$root"
+  # Set explicitly so an ambient umask of 002 does not trip the writable-home guard.
+  chmod "${HOME_MODE:-755}" "$home"
   : >"$test_dir/$scenario.calls"
 
   HOME="$home" TEST_ROOT="$root" CALL_LOG="$test_dir/$scenario.calls" \
@@ -162,3 +164,25 @@ fi
 grep -q "^gum choose" "$test_dir/cancelled.calls" || fail "SSH setup reaches the key prompt"
 assert_nothing_exposed cancelled
 pass "SSH setup starts nothing and opens nothing when the key prompt is cancelled"
+
+# StrictModes makes sshd ignore authorized_keys under a group-writable home,
+# so disabling passwords would leave SSH with neither passwords nor keys.
+if HOME_MODE=775 run_setup loose-home >"$test_dir/loose-home.output" 2>&1; then
+  fail "SSH setup must fail when the home directory is group-writable"
+fi
+[[ ! -e $test_dir/loose-home/root/etc/ssh/sshd_config.d/10-omarchy-hardening.conf ]] ||
+  fail "SSH setup must not disable passwords when sshd would ignore the key"
+assert_nothing_exposed loose-home
+! grep -q "Password logins are off" "$test_dir/loose-home.output" ||
+  fail "SSH setup must not claim hardening succeeded under a group-writable home"
+grep -q "group- or world-writable" "$test_dir/loose-home.output" ||
+  fail "SSH setup explains why it refused to disable passwords"
+pass "SSH setup leaves passwords on when the home directory is group-writable"
+
+# sshd checks the directory a symlinked home resolves to, not the link's own mode.
+mkdir -p "$test_dir/linked-home/target"
+chmod 755 "$test_dir/linked-home/target"
+ln -s target "$test_dir/linked-home/home"
+run_setup linked-home >"$test_dir/linked-home.output" 2>&1 ||
+  fail "SSH setup hardens when the home directory is a symlink to a safe directory"
+pass "SSH setup follows a symlinked home directory to judge its permissions"
