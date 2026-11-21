@@ -21,6 +21,7 @@ on:
       - 'default/i18n/en/**'
       - 'default/omarchy/omarchy-menu.jsonc'
       - 'default/hypr/bindings/**'
+      - 'default/omarchy/whats-new/**'
       - 'manual/*.md'
       - 'shell/**'
       - 'bin/**'
@@ -61,7 +62,7 @@ jobs:
           directory = Path(os.environ['RUNNER_TEMP'])
           pending = json.loads((directory / 'pending.json').read_text())
           scan = json.loads((directory / 'scan.json').read_text())
-          extract = bool(scan['candidates'] or scan['menuCatalogStale'] or scan.get('keybindingsCatalogStale'))
+          extract = bool(scan['candidates'] or scan['menuCatalogStale'] or scan.get('keybindingsCatalogStale') or scan.get('whatsNewCatalogStale'))
           if extract:
               # New English keys make every language pending.
               registry = json.loads(Path('default/i18n/locales.json').read_text())
@@ -407,7 +408,7 @@ jobs:
           from pathlib import Path
           patch = Path(os.environ['RUNNER_TEMP']) / 'collected/translations.patch'
           out = subprocess.run(['git', 'apply', '--numstat', '-z', str(patch)], check=True, capture_output=True).stdout
-          allowed = re.compile(r'^(default/i18n/(?!en/)[a-zA-Z-]+/(menu|shell|cli|keybindings)\.json|default/i18n/translation-manifest\.json|manual/(?!en/)[a-zA-Z-]+/[^/]+\.md)$')
+          allowed = re.compile(r'^(default/i18n/(?!en/)[a-zA-Z-]+/(menu|shell|cli|keybindings|whats-new)\.json|default/i18n/translation-manifest\.json|manual/(?!en/)[a-zA-Z-]+/[^/]+\.md)$')
           for record in out.split(b'\0'):
               if not record:
                   continue

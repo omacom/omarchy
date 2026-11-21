@@ -1,0 +1,184 @@
+// What's new in Omarchy 4.5, shown once to everyone who updates into a 4.5
+// release, then kept under Update > What's New. docs/whats-new.md covers the
+// fields and when in the release train this file is written.
+{
+  "post": "https://omarchy.org/news/2026/11/omarchy-4-5/",
+  "items": [
+    {
+      "changed": true,
+      "icon": "",
+      "title": "Some hotkeys moved",
+      "body": "Calculator is Super + Shift + Q, Activity is Super + Shift + T and Network is Super + Ctrl + N. Super + Ctrl + T now opens themes and Super + Ctrl + W backgrounds. Nightlight lost its hotkey; it's under Trigger > Toggle.",
+      "try": {
+        "label": "Show all hotkeys",
+        "action": "omarchy-menu-keybindings"
+      }
+    },
+    {
+      "changed": true,
+      "icon": "󰀨",
+      "title": "New default hotkeys may collide with yours",
+      "body": "You keep your own bindings, and these are defaults now too: Super + Q, Super + A, Super + M, Super + ~, Super + Alt + L, Super + Ctrl + Alt + C, E and F, and holding Right Alt.",
+      "when": "! cmp -s \"$HOME/.config/hypr/bindings.lua\" \"$OMARCHY_PATH/config/hypr/bindings.lua\"",
+      "try": {
+        "label": "Show all hotkeys",
+        "action": "omarchy-menu-keybindings"
+      }
+    },
+    {
+      "changed": true,
+      "icon": "󰂚",
+      "title": "Notification hotkeys do more",
+      "body": "Super + Comma acts on the newest card: dismiss it, open it, or press its button. Super + Ctrl + Comma hands you the keyboard to work through all of them.",
+      "keys": "Super + Ctrl + ,"
+    },
+    {
+      "changed": true,
+      "icon": "󰍬",
+      "title": "Dictation moved to Alt + Space",
+      "body": "Tap Alt + Space to start and stop, or hold Right Alt to talk. F9 and Super + Ctrl + X keep working.",
+      "keys": "Alt + Space",
+      "when": "omarchy-default-dictation >/dev/null 2>&1"
+    },
+    {
+      "changed": true,
+      "icon": "󰍹",
+      "title": "Each monitor has its own workspaces",
+      "body": "Super + 1 to 0 goes to the workspaces of the monitor you're on, and Super + Tab stays on it too.",
+      "when": "(( $(hyprctl monitors -j | jq length) > 1 ))"
+    },
+    {
+      "icon": "󰔶",
+      "title": "Floating workspaces with a dock",
+      "body": "Super + L cycles a workspace between tiling, scrolling and floating. Floating windows get titlebars and a dock, and Super + M minimizes a window to it.",
+      "keys": "Super + L",
+      "try": {
+        "label": "Cycle this workspace",
+        "action": "omarchy-hyprland-workspace-layout-toggle"
+      }
+    },
+    {
+      "icon": "",
+      "title": "A drop-down agent console",
+      "body": "Super + ~ drops a console over the desktop and starts your default agent. Press it again to hide it; the session keeps running.",
+      "keys": "Super + ~"
+    },
+    {
+      "icon": "󰚩",
+      "title": "More agents and accounts",
+      "body": "The agents panel tracks 23 agents with a meter for each limit. Keep several Claude, Codex and Grok logins and switch when one runs low.",
+      "try": {
+        "label": "Open agents",
+        "action": "omarchy-shell shell summon omarchy.agents"
+      }
+    },
+    {
+      "icon": "󰥔",
+      "title": "Elsewhen world clock",
+      "body": "Pin cities on a globe and name the people in each, right next to the clock.",
+      "keys": "Super + Ctrl + Alt + E",
+      "try": {
+        "label": "Open Elsewhen",
+        "action": "omarchy-shell shell summon omarchy.elsewhen"
+      }
+    },
+    {
+      "icon": "󰗊",
+      "title": "Omarchy in 50 languages",
+      "body": "The menus, the desktop and notifications switch right away, and apps follow as you open them.",
+      "try": {
+        "label": "Pick a language",
+        "action": "omarchy-menu summon setup.language"
+      }
+    },
+    {
+      "icon": "󰌓",
+      "title": "Japanese, Korean and Chinese input",
+      "body": "Add Mozc, Hangul, Pinyin, Zhuyin or Cangjie under Setup > Keyboard, then switch with Super + I.",
+      "keys": "Super + I",
+      "try": {
+        "label": "Set up keyboard",
+        "action": "omarchy-menu summon setup.keyboard"
+      }
+    },
+    {
+      "icon": "󰂵",
+      "title": "Glassy windows and rounded corners",
+      "body": "The Appearance menu picks opaque, transparent or glassy windows, and sharp, rounded or theme corners.",
+      "try": {
+        "label": "Open Appearance",
+        "action": "omarchy-menu summon appearance.windows"
+      }
+    },
+    {
+      "icon": "󰸌",
+      "title": "Jade Horse and Starship themes",
+      "body": "Two new bundled themes, and a theme can play a short intro when you switch to it.",
+      "keys": "Super + Ctrl + T",
+      "try": {
+        "label": "Open themes",
+        "action": "omarchy-menu summon appearance.theme"
+      }
+    },
+    {
+      "icon": "󰕧",
+      "title": "Video backgrounds",
+      "body": "A background can be a video now, and the lock screen shows a still from it.",
+      "keys": "Super + Ctrl + W",
+      "try": {
+        "label": "Pick a background",
+        "action": "omarchy-menu summon appearance.background"
+      }
+    },
+    {
+      "icon": "󰐨",
+      "title": "Hype for presentations",
+      "body": "Write slides in one Markdown file with a visual editor beside it, and export to PDF or PowerPoint.",
+      "when": "omarchy-cmd-present hype",
+      "try": {
+        "label": "Open Hype",
+        "action": "uwsm-app -- gtk-launch hype"
+      }
+    },
+    {
+      "icon": "󰏫",
+      "title": "Signed for PDFs",
+      "body": "Place your saved signature, text and dates on a PDF and save a signed copy.",
+      "when": "omarchy-cmd-present signed",
+      "try": {
+        "label": "Open Signed",
+        "action": "uwsm-app -- gtk-launch signed"
+      }
+    },
+    {
+      "icon": "󰋊",
+      "title": "Disktree shows what fills your disk",
+      "body": "A treemap of your disk that flags the caches that are safe to clear. It replaces Disk Usage.",
+      "when": "omarchy-cmd-present disktree",
+      "try": {
+        "label": "Open Disktree",
+        "action": "uwsm-app -- gtk-launch disktree"
+      }
+    },
+    {
+      "icon": "󰄀",
+      "title": "Monologue camera recorder",
+      "body": "Record yourself on camera with one key, themed to match your desktop.",
+      "when": "omarchy-cmd-present monologue",
+      "try": {
+        "label": "Open Monologue",
+        "action": "uwsm-app -- gtk-launch monologue"
+      }
+    },
+    {
+      "icon": "󰢹",
+      "title": "Gliff remote desktop",
+      "body": "Control another Omarchy machine over SSH, one tab per machine, with nothing to set up.",
+      "when": "omarchy-cmd-present gliff",
+      "try": {
+        "label": "Open Gliff",
+        "action": "uwsm-app -- gtk-launch gliff"
+      }
+    }
+  ]
+}

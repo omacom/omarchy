@@ -1264,6 +1264,9 @@
   "update.omarchy": {
     "label": "Omarchy"
   },
+  "update.whats-new": {
+    "label": "What's New"
+  },
   "update.channel": {
     "label": "Channel"
   },
