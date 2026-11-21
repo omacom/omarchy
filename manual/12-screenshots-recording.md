@@ -74,9 +74,11 @@ _Trigger > Capture > QR Code_ does the same trick for QR codes. Select the regio
 
 A 4K screen recording or a raw HEIC off your phone is often too big to just send. `Super + Ctrl + .` (or _Trigger > Transcode_) fixes that. It offers you a fuzzy file picker over `~/Pictures` and `~/Videos`, then asks for a format and a size.
 
-Pictures go to jpg or png at high, medium, or low, which cap the width at 3160, 2160, and 1080 pixels. Videos go to mp4 or an animated gif at 4k, 1080p, or 720p. The converted file is written next to the original with the resolution in the name — `demo-1080p.mp4` — and the path is copied to the clipboard as a file URI, so you can paste it directly into an app that takes file drops.
+Pictures go to jpg or png at high, medium, or low, which cap the width at 3160, 2160, and 1080 pixels. Animated or multi-page pictures use the first frame or page for the still-image output. Videos go to mp4 or an animated gif at 4k, 1080p, or 720p. The converted file is written next to the original with the resolution in the name — `demo-1080p.mp4` — and the path is copied to the clipboard as a file URI, so you can paste it directly into an app that takes file drops.
 
 It works from the terminal too, if you already know what you want: `omarchy transcode ~/Videos/demo.mov mp4 1080p`. There's also `omarchy transcode ascii`, which turns an image into ASCII art — that one's mostly for [branding](41-branding.md).
+
+When transcoding several selected files in Files, the resolution menu offers an unchecked **Apply to all [type] files** checkbox if more files of that source type remain. Click it (or press `Tab`) before choosing the resolution to reuse both the format and resolution for those files. Other types still prompt separately. The choice lasts only for that selection; leave it unchecked to choose settings for each file. Press `Esc` with an empty search to cancel the remaining batch. You can also start a batch with `omarchy transcode --batch -- photo.heic another.heic clip.mov`. Conversions publish their output only after encoding succeeds and never replace an existing output file, including one created by another conversion while they run. Failed conversions discard their private temporary output so you can retry.
 
 ## Sending it somewhere
 
