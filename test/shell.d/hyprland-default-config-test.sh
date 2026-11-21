@@ -164,10 +164,7 @@ grep -Fq $'SUPER + SHIFT + Y	Bilibili' <<<"$region_output" || fail "China binds 
 for binding in $'SUPER + SHIFT + A	ChatGPT' $'SUPER + SHIFT + E	Email' $'SUPER + SHIFT + Y	YouTube' $'SUPER + SHIFT + M	Music'; do
   if grep -Fq "$binding" <<<"$region_output"; then fail "China binds none of the global web app hotkeys" "$binding"; fi
 done
-echo zz >"$tmpdir/region-zz"
-OMARCHY_REGION_FILE="$tmpdir/region-zz" run_application_bindings "$fresh_home" | grep -Fq $'SUPER + SHIFT + Y	YouTube' ||
-  fail "a region without hotkeys of its own gets the global ones"
-pass "the region picks its web app hotkeys file, or the global one"
+pass "the region picks its web app hotkeys file"
 
 no_bindings_home="$tmpdir/no-bindings-home"
 mkdir -p "$no_bindings_home"

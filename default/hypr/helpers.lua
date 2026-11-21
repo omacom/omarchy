@@ -149,20 +149,16 @@ function o.preinstalled_bindings_enabled()
   return not file_exists((os.getenv("HOME") or "") .. "/.local/state/omarchy/preinstalls-removed")
 end
 
--- The module with the preinstalled web app hotkeys for this machine's region
--- (docs/regions.md): bindings/regions/<code>.lua, or global.lua when the
--- region has none.
-function o.region_bindings()
+-- The region this machine was installed for (docs/regions.md).
+function o.region()
   local marker = io.open(os.getenv("OMARCHY_REGION_FILE") or "/etc/omarchy/region", "r")
-  local code = marker and (marker:read("*l") or ""):match("^%l%l$")
-  if marker then
-    marker:close()
+  if not marker then
+    return "global"
   end
 
-  if not (code and file_exists(paths.omarchy_path .. "/default/hypr/bindings/regions/" .. code .. ".lua")) then
-    code = "global"
-  end
-  return "default.hypr.bindings.regions." .. code
+  local region = marker:read("*l")
+  marker:close()
+  return region or "global"
 end
 
 function o.bind(keys, description, dispatcher, options)

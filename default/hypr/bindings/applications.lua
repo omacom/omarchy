@@ -23,5 +23,5 @@ if o.preinstalled_bindings_enabled() then
   o.bind("SUPER + SHIFT + SLASH", "Passwords", { omarchy = "1password" })
 
   -- The web app hotkeys depend on the region (docs/regions.md).
-  require(o.region_bindings())
+  require("default.hypr.require_optional").module("default.hypr.bindings.regions." .. o.region())
 end
