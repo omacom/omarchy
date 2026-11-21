@@ -1048,9 +1048,13 @@ limine_auto_unlock_present() {
   return 1
 }
 
+boot_backend() {
+  "$OMARCHY_PATH/bin/omarchy-boot-backend"
+}
+
 # Rebuilds the boot images, on whichever loader this machine boots.
 rebuild_boot_images() {
-  if [[ $("$OMARCHY_PATH/bin/omarchy-boot-backend") == systemd-boot ]]; then
+  if [[ $(boot_backend) == systemd-boot ]]; then
     "$OMARCHY_PATH/bin/omarchy-boot-rebuild" >>"$LOG_FILE" 2>&1
   else
     reset_limine_config
@@ -1072,7 +1076,13 @@ limine_auto_unlock_drop() {
   if [[ -f $PROVISIONING_DIR/luks-key ]]; then
     log_step "the boot image rebuild failed during re-key; restoring auto-unlock for retry"
     install -Dm600 "$PROVISIONING_DIR/luks-key" /etc/omarchy/provisioning.key
-    "$OMARCHY_PATH/bin/omarchy-boot-cmdline" set 99-omarchy-provisioning-unlock cryptkey=rootfs:/etc/omarchy/provisioning.key
+    if [[ $(boot_backend) == systemd-boot ]]; then
+      mkdir -p /etc/cmdline.d
+      echo 'cryptkey=rootfs:/etc/omarchy/provisioning.key' >/etc/cmdline.d/99-omarchy-provisioning-unlock.conf
+    else
+      echo 'KERNEL_CMDLINE[default]+=" cryptkey=rootfs:/etc/omarchy/provisioning.key"' \
+        >/etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf
+    fi
     echo 'FILES+=(/etc/omarchy/provisioning.key)' >/etc/mkinitcpio.conf.d/99-omarchy-provisioning-key.conf
   else
     log_step "the boot image rebuild failed during re-key; the staged key is gone, so no auto-unlock is restored"
