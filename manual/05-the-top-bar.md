@@ -53,7 +53,7 @@ Clicking a bar icon opens a panel, which is a proper popup with sliders, lists, 
 The panels aren't read-outs. They're where you actually do the thing:
 
 - **Audio** has a master volume slider, an output-device picker, and a per-app mixer, so you can turn down that one browser tab without touching everything else.
-- **Network** scans for Wi-Fi, shows signal strength, connects, and lets you pick a DNS provider.
+- **Network** scans for Wi-Fi, shows signal strength, connects, lets you pick a DNS provider, and switches your VPNs between off, split, and full tunnel.
 - **Bluetooth** lists your devices with connect/disconnect and battery levels.
 - **Power** shows battery stats, switches power profiles (it remembers a separate choice for battery and AC), and prints some system info.
 - **Display** carries a brightness slider, text size, monitor scaling presets, and — when you have more than one screen — per-monitor controls. See [monitors](33-monitors.md) for the deeper story.

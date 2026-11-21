@@ -32,6 +32,20 @@ The firewall is on by default and blocks all incoming traffic, with one exceptio
 
 SSH is off until you turn it on with _Setup > Security > SSHD_, which starts the daemon, opens port 22 rate-limited against brute force, and authorizes a key. Docker is locked down too, so containers can't accidentally expose themselves to the world. See [security](48-security.md) for the whole story.
 
+## VPNs
+
+Every VPN NetworkManager knows about — WireGuard, OpenVPN, OpenConnect, and the rest — shows up in the VPN section of the network panel with three buttons:
+
+- _Off_ disconnects it.
+- _Split_ connects it, but only the VPN's own networks go through it. The rest of your traffic goes out the way it always does, which is what you want for reaching the office without routing your video calls through it.
+- _Full_ sends all your traffic through it. Only one VPN can be in _Full_ at a time; switching another one to _Full_ drops the first back to _Split_.
+
+The choice is stored in the VPN's own NetworkManager profile, so `nmcli` and any other NetworkManager tool see the same thing. A small dot on the network icon tells you a VPN is up, and hovering it names which one.
+
+If a VPN needs a password or a one-time code, a terminal opens to ask for it, and the row offers _Sign in_ until it connects.
+
+To add one, click _Add VPN_ and import the config file your provider gave you: a WireGuard `.conf` or an OpenVPN `.ovpn` (Omarchy installs the OpenVPN add-on the first time you need it). Imported VPNs start off, so nothing reroutes until you say so. _New WireGuard connection_ opens `nmtui` to type the details in by hand. From the terminal, `omarchy network vpn` lists them, `omarchy network vpn mode <uuid> split` switches one, and `omarchy network vpn import <file>` adds one.
+
 ## Tailscale
 
 [Tailscale](https://tailscale.com/) is a mesh VPN that makes reaching all your computers and servers over the internet simple and secure. Install it with _Install > Service > Tailscale_.
