@@ -12,7 +12,11 @@ Install [Steam](https://store.steampowered.com/) by selecting _Install > Gaming 
 
 After you've installed it, you'll be able to launch Steam with `Super + Space`.
 
+For Steam's controller-friendly interface, open the Omarchy menu and select _Trigger > Steam Big Picture_. To return to the desktop, choose _Power > Exit Big Picture Mode_ in Steam.
+
 Note that Steam can take 10-20 seconds to start up, and it's not going to provide any visual feedback that it's loading.
+
+Allow extra time for Steam to download updates and sign in the first time you open it.
 
  ![gaming-steam](images/gaming-steam.webp)
 
