@@ -7,6 +7,7 @@ import QtQuick.Shapes
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import qs.Ui
 
 Item {
   id: root
@@ -399,8 +400,16 @@ Item {
       required property var modelData
 
       screen: modelData
-      visible: !root.suspended
+      visible: !remapGuard.remapping && !root.suspended
       anchors { top: true; bottom: true; left: true; right: true }
+
+      ScreenMoveRemap {
+        id: remapGuard
+        window: panel
+        // Must match the WlrLayershell.namespace assigned to this window
+        // below; the attached property is not readable back from JS.
+        namespace: "omarchy-background"
+      }
 
       color: "transparent"
       // Keep render updates enabled. The background layer has been observed to

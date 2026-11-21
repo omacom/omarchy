@@ -1676,7 +1676,7 @@ Item {
     // before it maps (see BarModel.cutoutPending), so it maps at its floor
     // instead of growing once the windows are laid out. The wait ends once, for
     // good: when the mode settles it, or after two seconds without one.
-    visible: cutoutWaitOver || !cutoutPending
+    visible: !remapGuard.remapping && (cutoutWaitOver || !cutoutPending)
     // An explicit zone instead of Auto: the reserved area stays the strip's
     // thickness though the window spans its screen.
     exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
@@ -1693,6 +1693,14 @@ Item {
     // the slot's window, which is not this PanelWindow object itself.
     readonly property bool dragActive: (root.barDragSource !== null && root.sameWindow(root.barDragWindow, barWindow)) ||
       (root.barMoveActive && root.sameWindow(root.barMoveWindow, barWindow))
+
+    ScreenMoveRemap {
+      id: remapGuard
+      window: barWindow
+      // Must match the WlrLayershell.namespace assigned to this window
+      // below; the attached property is not readable back from JS.
+      namespace: "omarchy-bar"
+    }
 
     // Parked by the whole surface, which spans its screen, so none of it
     // stays on screen: not the strip, however thick a notch floor makes it,
