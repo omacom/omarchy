@@ -191,6 +191,15 @@ if [[ -f $HOME/.hermes/hermes-agent/.hermes-bootstrap-complete ]]; then
 
     if [[ -f $wrapper && ! -L $wrapper ]] && grep -qF "$HOME/.hermes" "$wrapper"; then
       rm -f "$wrapper"
+      # Only the upstream launcher for the command just removed is ours.
+      # A user entry that starts another command stays in place.
+      if [[ $command == "hermes" ]]; then
+        launcher="${XDG_DATA_HOME:-$HOME/.local/share}/applications/hermes.desktop"
+        launcher_exec=$(sed -n '/^\[Desktop Entry\]$/,/^\[/s/^Exec=//p' "$launcher" 2>/dev/null | head -1 || true)
+        if [[ $launcher_exec == "$wrapper desktop" || $launcher_exec == "\"$wrapper\" desktop" ]]; then
+          rm -f "$launcher"
+        fi
+      fi
     fi
   done
 

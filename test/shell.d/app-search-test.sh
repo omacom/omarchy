@@ -53,13 +53,31 @@ const entries = [
   }
 ]
 
-// Keep the packaged launcher when upstream rebuilds register their own entry.
-const configuredHides = new Set(fs.readFileSync(path.join(root, 'default/omarchy/launcher.hides'), 'utf8').trim().split(/\n/))
-const hermesEntries = [{ name: 'Hermes', id: 'hermes' }, { name: 'Hermes', id: 'hermes-desktop' }]
+// Evaluate the real visibility predicate against changing DesktopEntries, so a
+// source install stays visible and registering the packaged app hides its copy.
+const vm = require('vm')
+const library = fs.readFileSync(path.join(root, 'shell/services/AppLibrary.qml'), 'utf8')
+const visibility = library.match(/  function isHiddenEntry\(entry\) \{([\s\S]*?)\n  \}/)[1]
+const configuredHides = Object.fromEntries(fs.readFileSync(path.join(root, 'default/omarchy/launcher.hides'), 'utf8').trim().split(/\n/).map(id => [id, true]))
+let hermesEntries = [{ name: 'Hermes', id: 'hermes' }]
+const context = vm.createContext({
+  root: { configuredHiddenEntryIds: configuredHides, desktopHiddenEntryIds: {} },
+  DesktopEntries: { byId: id => hermesEntries.find(entry => entry.id === id) }
+})
+vm.runInContext('function isHiddenEntry(entry) {' + visibility + '\n}', context)
 for (const query of ['', 'hermes']) {
-  const visible = search.sortedEntries(hermesEntries, query, entry => configuredHides.has(entry.id))
-  assertDeepEqual(visible.map(row => row.entry.id), ['hermes-desktop'], 'only the packaged Hermes launcher is visible')
+  const visible = search.sortedEntries(hermesEntries, query, context.isHiddenEntry)
+  assertDeepEqual(visible.map(row => row.entry.id), ['hermes'], 'standalone Hermes remains visible without the packaged app')
 }
+hermesEntries.push({ name: 'Hermes', id: 'hermes-desktop' })
+for (const query of ['', 'hermes']) {
+  const visible = search.sortedEntries(hermesEntries, query, context.isHiddenEntry)
+  assertDeepEqual(visible.map(row => row.entry.id), ['hermes-desktop'], 'only the packaged Hermes launcher is visible when present')
+}
+hermesEntries.pop()
+assert(!context.isHiddenEntry(hermesEntries[0]), 'removing the packaged app restores the standalone launcher')
+context.root.desktopHiddenEntryIds.hermes = true
+assert(context.isHiddenEntry(hermesEntries[0]), 'standalone Hermes still honors desktop visibility')
 
 const contactMatches = search.sortedEntries(entries, 'contact').map(row => search.entryName(row.entry))
 assertDeepEqual(contactMatches, ['Google Contacts'], 'contact search only returns direct contact matches')

@@ -140,6 +140,30 @@ pass "removal keeps the user's data unasked when there is no terminal"
 [[ ! -e $test_home/.local/bin/hermes ]] || fail "the app's own hermes command is removed"
 pass "removal takes the command the app installed"
 
+# The upstream desktop entry must not outlive the managed command it starts.
+for quoted in false true; do
+  seed_install
+  launcher_dir="$test_tmp/launcher data/applications"
+  mkdir -p "$launcher_dir"
+  printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes" >"$test_home/.local/bin/hermes"
+  launcher_command="$test_home/.local/bin/hermes desktop"
+  if [[ $quoted == "true" ]]; then
+    launcher_command="\"$test_home/.local/bin/hermes\" desktop"
+  fi
+  printf '[Desktop Entry]\nType=Application\nExec=%s\n' "$launcher_command" >"$launcher_dir/hermes.desktop"
+  XDG_DATA_HOME="$test_tmp/launcher data" remove || fail "remove succeeds with the upstream launcher"
+  [[ ! -e $launcher_dir/hermes.desktop ]] || fail "removal takes the launcher for the deleted managed command"
+done
+pass "removal takes quoted and unquoted upstream launchers under XDG_DATA_HOME"
+
+seed_install
+mkdir -p "$test_home/.local/share/applications"
+printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes" >"$test_home/.local/bin/hermes"
+printf '[Desktop Entry]\nType=Application\nExec=/usr/local/bin/my-hermes desktop\n[Desktop Action managed]\nExec=%s desktop\n' "$test_home/.local/bin/hermes" >"$test_home/.local/share/applications/hermes.desktop"
+XDG_DATA_HOME= remove || fail "remove succeeds with a custom launcher"
+[[ -e $test_home/.local/share/applications/hermes.desktop ]] || fail "a launcher for a different command survives removal"
+pass "removal keeps a custom launcher even when an action uses the managed command"
+
 # A hermes command the app did not write survives even when the app did install
 # a runtime of its own.
 seed_install
