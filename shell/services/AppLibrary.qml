@@ -312,7 +312,7 @@ Item {
   Timer {
     id: iconIndexDebounce
     interval: 750
-    onTriggered: if (!iconIndexScan.running) iconIndexScan.running = true
+    onTriggered: root.refreshIcons()
   }
 
   FileView {
