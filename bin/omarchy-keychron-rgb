@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Set or query Keychron keyboard RGB over the raw HID config channel (wired or 2.4GHz dongle)
+# omarchy:args=<set <RRGGBB>|get>
+# omarchy:examples=omarchy keychron-rgb set 89b4fa | omarchy keychron-rgb get
+# omarchy:hidden=true
+
+if [[ -n ${OMARCHY_PATH:-} ]]; then
+  rgb_script="$OMARCHY_PATH/lib/omarchy/keychron_rgb.py"
+else
+  rgb_script=/usr/share/omarchy/lib/omarchy/keychron_rgb.py
+fi
+
+exec python3 "$rgb_script" "$@"
