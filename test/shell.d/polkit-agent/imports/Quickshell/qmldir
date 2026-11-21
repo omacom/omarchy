@@ -1,0 +1,2 @@
+module Quickshell
+PanelWindow 1.0 PanelWindow.qml
