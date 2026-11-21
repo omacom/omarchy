@@ -147,8 +147,6 @@
   "firstRun.fingerprintTitle": "Setup Fingerprint Reader",
   "firstRun.keybindingsBody": "Super + K for cheatsheet.\nSuper + Space for Omarchy Menu.",
   "firstRun.keybindingsTitle": "Learn Keybindings",
-  "firstRun.updateBody": "Click to update the system.",
-  "firstRun.updateTitle": "Update System",
   "firstRun.wifiBody": "Click to configure the wireless network.",
   "firstRun.wifiTitle": "Setup Wi-Fi",
   "font.cjkChanged": "Chinese, Japanese, and Korean glyph forms changed",

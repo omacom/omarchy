@@ -147,8 +147,6 @@
   "firstRun.fingerprintTitle": "Ujjlenyomat-olvasó beállítása",
   "firstRun.keybindingsBody": "Super + K a billentyűsúgóhoz.\nSuper + Space az Omarchy menühöz.",
   "firstRun.keybindingsTitle": "Billentyűkombinációk megismerése",
-  "firstRun.updateBody": "Kattints a rendszer frissítéséhez.",
-  "firstRun.updateTitle": "Rendszer frissítése",
   "firstRun.wifiBody": "Kattints a vezeték nélküli hálózat beállításához.",
   "firstRun.wifiTitle": "Wi-Fi beállítása",
   "font.cjkChanged": "A kínai, japán és koreai karakterformák megváltoztak",

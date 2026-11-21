@@ -148,8 +148,6 @@
   "firstRun.fingerprintTitle": "Iestatiet pirksta nospiedumu lasītāju",
   "firstRun.keybindingsBody": "Super + K — īsceļu lapa.\nSuper + Space — Omarchy izvēlne.",
   "firstRun.keybindingsTitle": "Apgūt īsceļus",
-  "firstRun.updateBody": "Noklikšķini, lai atjauninātu sistēmu.",
-  "firstRun.updateTitle": "Atjaunināt sistēmu",
   "firstRun.wifiBody": "Noklikšķini, lai konfigurētu bezvadu tīklu.",
   "firstRun.wifiTitle": "Wi-Fi iestatīšana",
   "font.cjkChanged": "Mainītas ķīniešu, japāņu un korejiešu glifu formas",

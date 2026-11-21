@@ -147,8 +147,6 @@
   "firstRun.fingerprintTitle": "Настройте четеца за пръстови отпечатъци",
   "firstRun.keybindingsBody": "Super + K за бърз справочник.\nSuper + Space за менюто на Omarchy.",
   "firstRun.keybindingsTitle": "Научи клавишните комбинации",
-  "firstRun.updateBody": "Кликни, за да актуализираш системата.",
-  "firstRun.updateTitle": "Актуализирай системата",
   "firstRun.wifiBody": "Кликни, за да настроиш безжичната мрежа.",
   "firstRun.wifiTitle": "Настрой Wi-Fi",
   "font.cjkChanged": "Променени са китайските, японските и корейските глифове",

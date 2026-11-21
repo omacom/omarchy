@@ -146,8 +146,6 @@
   "firstRun.fingerprintTitle": "設定指紋讀取器",
   "firstRun.keybindingsBody": "Super + K 查看速查表。\nSuper + Space 開啟 Omarchy Menu。",
   "firstRun.keybindingsTitle": "學習快捷鍵",
-  "firstRun.updateBody": "點擊以更新系統。",
-  "firstRun.updateTitle": "更新系統",
   "firstRun.wifiBody": "點擊以設定無線網路。",
   "firstRun.wifiTitle": "設定 Wi-Fi",
   "font.cjkChanged": "中日韓字形已變更",

@@ -147,8 +147,6 @@
   "firstRun.fingerprintTitle": "Määritä sormenjälkilukija",
   "firstRun.keybindingsBody": "Super + K avaa pikanäppäinluettelon.\nSuper + Space avaa Omarchy-valikon.",
   "firstRun.keybindingsTitle": "Opettele pikanäppäimet",
-  "firstRun.updateBody": "Napsauta päivittääksesi järjestelmän.",
-  "firstRun.updateTitle": "Päivitä järjestelmä",
   "firstRun.wifiBody": "Napsauta määrittääksesi langattoman verkon.",
   "firstRun.wifiTitle": "Määritä Wi-Fi",
   "font.cjkChanged": "Kiinan, japanin ja korean glyyfit muuttuivat",
