@@ -15,6 +15,15 @@
     "displayName": "Workspaces",
     "description": "Workspace number indicators",
     "category": "Compositor",
-    "allowMultiple": false
+    "allowMultiple": false,
+    "schema": [
+      {
+        "key": "cycleLayoutOnClick",
+        "type": "boolean",
+        "label": "Cycle Layout on Click",
+        "description": "Clicking the focused workspace cycles its layout between tiling, scrolling, and floating.",
+        "defaultValue": true
+      }
+    ]
   }
 }

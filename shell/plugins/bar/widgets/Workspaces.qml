@@ -131,7 +131,8 @@ BarWidget {
 
   // The workspace each monitor shows carries its layout: a square tiles, a
   // circle scrolls, and a triangle floats. Clicking it cycles to the next one,
-  // as Super + L does.
+  // as Super + L does, unless the user sets cycleLayoutOnClick to false.
+  readonly property bool cycleLayoutOnClick: setting("cycleLayoutOnClick", true) !== false
   property string activeMode: "dwindle"
   property bool modeStale: false
 
@@ -277,8 +278,8 @@ BarWidget {
         fixedWidth: root.vertical ? root.barSize : Style.space(20)
         fixedHeight: root.barSize
         onPressed: function() {
-          if (shown) root.cycleLayout()
-          else root.focusWorkspace(modelData)
+          if (!shown) root.focusWorkspace(modelData)
+          else if (root.cycleLayoutOnClick) root.cycleLayout()
         }
         onWheelMoved: function(delta) { root.scrollWorkspaces(delta) }
       }
