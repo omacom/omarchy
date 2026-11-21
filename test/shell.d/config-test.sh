@@ -276,7 +276,19 @@ if HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar move omarchy.active-wind
 fi
 pass "bar move rejects conflicting target section syntax"
 
-HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar position bottom
+# Refuse mv's copy fallback: shell watchers must see a rename, never a partial
+# config, even when the default temporary directory is on another filesystem.
+if [[ -w /dev/shm && $(stat -c %d /dev/shm) != "$(stat -c %d "$TMPDIR/home")" ]]; then
+  (
+    mv() { /usr/bin/python3 -c 'import os, sys; os.rename(*sys.argv[1:])' "$@"; }
+    export -f mv
+    HOME="$TMPDIR/home" TMPDIR=/dev/shm OMARCHY_PATH="$ROOT" omarchy-bar position bottom
+  ) || fail "shell config replacement is atomic across separate tmp/home filesystems"
+  pass "shell config replacement is atomic across separate tmp/home filesystems"
+else
+  skip "atomic shell config replacement: needs a writable /dev/shm on a different filesystem"
+  HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar position bottom
+fi
 jq -e '
   .bar.position == "bottom" and
   .plugins == []

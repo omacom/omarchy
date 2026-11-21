@@ -57,7 +57,8 @@ commit() {
   local program="$1"
   shift
   mkdir -p "$(dirname "$CONFIG_FILE")"
-  _SHELL_CONFIG_TMP=$(mktemp)
+  # Stage beside the destination so mv is an atomic rename, even with /tmp on tmpfs.
+  _SHELL_CONFIG_TMP=$(mktemp "$CONFIG_FILE.XXXXXX") || fail "could not stage shell config"
   jq -S -e "$@" "$program" "$(source_file)" >"$_SHELL_CONFIG_TMP" || fail "could not update shell config"
   mv "$_SHELL_CONFIG_TMP" "$CONFIG_FILE"
   _SHELL_CONFIG_TMP=""
