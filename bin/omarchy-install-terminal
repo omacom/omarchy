@@ -49,4 +49,5 @@ $desktop_id
 EOF
 else
   echo "Failed to install $package"
+  exit 1
 fi
