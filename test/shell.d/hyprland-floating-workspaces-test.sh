@@ -599,6 +599,20 @@ events["window.active"][1](sent)
 settle()
 assert(sent.fullscreen == 1, "a window another app sent for came forward at its own size")
 sent.fullscreen, sent.tags = 0, {}
+-- A maximized window minimized leaves its maximize, is moved to the store and
+-- is maximized again there. The one waiting behind it is now in plain view at
+-- its own size, and the minimized one comes back maximized.
+first.fullscreen = 1
+table.insert(first.tags, "omarchy-maximized")
+table.insert(second.tags, "omarchy-maximized")
+first.fullscreen = 0
+events["window.fullscreen"][1](first)
+first.workspace = { id = -98, name = "special:minimized" }
+first.fullscreen = 1
+events["window.fullscreen"][1](first)
+settle()
+assert(not has_tag(second, "omarchy-maximized"), "a window left in view by a minimized one would be maximized when next focused")
+assert(has_tag(first, "omarchy-maximized"), "a window minimized while maximized would come back at its own size")
 '; then
   fail "a window that lost its maximize to another one takes it back when brought forward"
 fi

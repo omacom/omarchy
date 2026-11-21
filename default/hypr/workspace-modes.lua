@@ -331,9 +331,12 @@ end
 -- size in plain view, and so is every window that was waiting behind it, so they
 -- all give the tag up. Hyprland takes the maximize from one window before it
 -- gives it to the next, so this is asked once both have happened.
-local function forget_maximized(window)
-  local id = window.workspace and window.workspace.id
-  if (window.fullscreen or 0) ~= 0 or not floating_workspace(id) then
+--
+-- The workspace is the one the window was on when it left its maximize: one
+-- minimized while maximized is on its way to the store, maximized again there,
+-- by the time this is asked.
+local function forget_maximized(id)
+  if not floating_workspace(id) then
     return
   end
 
@@ -476,9 +479,12 @@ local function watch()
   -- A fullscreen window is left as it is, so it is arranged once it comes back
   -- out: a tiled one leaving fullscreen on a floating workspace floats then.
   hl.on("window.fullscreen", function(window)
+    local left = (window.fullscreen or 0) == 0 and window.workspace and window.workspace.id
     hl.timer(function()
       arrange({ window })
-      forget_maximized(window)
+      if left then
+        forget_maximized(left)
+      end
     end, { type = "oneshot", timeout = 1 })
   end)
 
