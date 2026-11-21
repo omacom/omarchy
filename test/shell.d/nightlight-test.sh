@@ -144,3 +144,22 @@ chmod +x "$TMPDIR/bin/setsid"
 toggle_from_daylight 100
 [[ $(<"$STATE") == 4000 && ! -e $BOOT_PENDING ]] || fail "a freshly started hyprsunset can't undo the toggle with its default"
 pass "a freshly started hyprsunset can't undo the toggle with its default"
+
+run_node_test <<'JS'
+const fs = require('fs')
+
+const shellSource = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
+const nightBinding = shellSource.match(/api\.nightlightOn = Qt\.binding\(function\(\) \{([\s\S]*?)\n    \}\)/)
+const enabledBinding = shellSource.match(/api\.enabled = Qt\.binding\(function\(\) \{([\s\S]*?)\n    \}\)/)
+assert(nightBinding && enabledBinding, 'first-party proxies bind both nightlight and compatible enabled state')
+const readNight = new Function('service', 'id', nightBinding[1])
+const readEnabled = new Function('service', 'id', enabledBinding[1])
+for (const active of [false, true]) {
+  const target = { nightlightOn: active, enabled: !active }
+  assertEqual(readNight(() => target, 'omarchy.nightlight'), active, 'cloned nightlight state follows the domain state ' + active)
+  assertEqual(readEnabled(() => target, 'omarchy.nightlight'), active, 'legacy cloned enabled follows the nightlight domain state ' + active)
+}
+assertEqual(readEnabled(() => ({ enabled: true }), 'omarchy.idle'), true, 'other first-party services keep their enabled mapping')
+assertEqual(readNight(() => ({ nightlightOn: true }), 'omarchy.idle'), false, 'nightlight state is scoped to the nightlight service')
+
+JS
