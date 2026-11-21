@@ -28,5 +28,5 @@ if [[ -s $config_file ]] && jq -e '
       end
     | del(.bar.centerAnchor)
   ' "$config_file" >"$tmp"
-  mv "$tmp" "$config_file"
+  omarchy-file-replace "$tmp" "$config_file"
 fi
