@@ -1,6 +1,7 @@
 {
   "Activity": "गतिविधि",
   "Agent": "एजेंट",
+  "Agents": "एजेंट्स",
   "Apps": "ऐप्स",
   "Audio": "ऑडियो",
   "Background switcher": "बैकग्राउंड बदलें",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "कीबोर्ड बैकलाइट बदलें",
   "Keyboard brightness down": "कीबोर्ड चमक कम करें",
   "Keyboard brightness up": "कीबोर्ड चमक बढ़ाएँ",
+  "Local models": "स्थानीय मॉडल",
   "Lock system": "सिस्टम लॉक करें",
   "Make webcam overlay larger": "वेबकैम ओवरले बड़ा करें",
   "Make webcam overlay smaller": "वेबकैम ओवरले छोटा करें",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "सक्रिय विंडो ऊपर दिखाएँ",
   "Save window width": "विंडो चौड़ाई सहेजें",
   "Screenrecording": "स्क्रीन रिकॉर्डिंग",
+  "Screenrecording with no audio": "बिना ऑडियो स्क्रीन रिकॉर्डिंग",
   "Screenshot": "स्क्रीनशॉट",
   "Scroll active workspace backward": "सक्रिय वर्कस्पेस पीछे स्क्रॉल करें",
   "Scroll active workspace forward": "सक्रिय वर्कस्पेस आगे स्क्रॉल करें",

@@ -1,6 +1,7 @@
 {
   "Activity": "Активност",
   "Agent": "Агент",
+  "Agents": "Агенти",
   "Apps": "Приложения",
   "Audio": "Звук",
   "Background switcher": "Смяна на фон",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Превключи подсветката на клавиатурата",
   "Keyboard brightness down": "Намали яркостта на клавиатурата",
   "Keyboard brightness up": "Увеличи яркостта на клавиатурата",
+  "Local models": "Локални модели",
   "Lock system": "Заключи системата",
   "Make webcam overlay larger": "Уголеми уебкамерата",
   "Make webcam overlay smaller": "Смали уебкамерата",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Покажи активния прозорец отгоре",
   "Save window width": "Запази ширината на прозореца",
   "Screenrecording": "Запис на екрана",
+  "Screenrecording with no audio": "Запис на екрана без звук",
   "Screenshot": "Екранна снимка",
   "Scroll active workspace backward": "Превърти активното работно пространство назад",
   "Scroll active workspace forward": "Превърти активното работно пространство напред",

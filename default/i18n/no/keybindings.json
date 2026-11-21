@@ -1,6 +1,7 @@
 {
   "Activity": "Aktivitet",
   "Agent": "Agent",
+  "Agents": "Agenter",
   "Apps": "Apper",
   "Audio": "Lyd",
   "Background switcher": "Bakgrunnsbytter",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Neste tastaturbaklys",
   "Keyboard brightness down": "Reduser tastaturlysstyrke",
   "Keyboard brightness up": "Øk tastaturlysstyrke",
+  "Local models": "Lokale modeller",
   "Lock system": "Lås system",
   "Make webcam overlay larger": "Forstørr webkameraoverlegg",
   "Make webcam overlay smaller": "Forminsk webkameraoverlegg",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Vis aktivt vindu øverst",
   "Save window width": "Lagre vindusbredde",
   "Screenrecording": "Skjermopptak",
+  "Screenrecording with no audio": "Skjermopptak uten lyd",
   "Screenshot": "Skjermbilde",
   "Scroll active workspace backward": "Rull aktivt arbeidsområde bakover",
   "Scroll active workspace forward": "Rull aktivt arbeidsområde fremover",

@@ -1,6 +1,7 @@
 {
   "Activity": "فعالیت",
   "Agent": "ایجنت",
+  "Agents": "ایجنت‌ها",
   "Apps": "برنامه‌ها",
   "Audio": "صدا",
   "Background switcher": "تعویض پس‌زمینه",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "چرخه نور پس‌زمینه صفحه‌کلید",
   "Keyboard brightness down": "کم کردن روشنایی صفحه‌کلید",
   "Keyboard brightness up": "زیاد کردن روشنایی صفحه‌کلید",
+  "Local models": "مدل‌های محلی",
   "Lock system": "قفل کردن سیستم",
   "Make webcam overlay larger": "بزرگ‌تر کردن تصویر شناور وب‌کم",
   "Make webcam overlay smaller": "کوچک‌تر کردن تصویر شناور وب‌کم",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "نمایش پنجرهٔ فعال روی همه",
   "Save window width": "ذخیرهٔ عرض پنجره",
   "Screenrecording": "ضبط صفحه‌نمایش",
+  "Screenrecording with no audio": "ضبط صفحه بدون صدا",
   "Screenshot": "اسکرین‌شات",
   "Scroll active workspace backward": "پیمایش فضای کاری فعال به عقب",
   "Scroll active workspace forward": "پیمایش فضای کاری فعال به جلو",

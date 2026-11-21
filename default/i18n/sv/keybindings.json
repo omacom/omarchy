@@ -1,6 +1,7 @@
 {
   "Activity": "Aktivitet",
   "Agent": "Agent",
+  "Agents": "Agenter",
   "Apps": "Appar",
   "Audio": "Ljud",
   "Background switcher": "Bakgrundsväxlare",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Växla tangentbordsbelysning",
   "Keyboard brightness down": "Sänk tangentbordets ljusstyrka",
   "Keyboard brightness up": "Höj tangentbordets ljusstyrka",
+  "Local models": "Lokala modeller",
   "Lock system": "Lås systemet",
   "Make webcam overlay larger": "Förstora webbkameraöverlägg",
   "Make webcam overlay smaller": "Förminska webbkameraöverlägg",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Visa aktivt fönster överst",
   "Save window width": "Spara fönsterbredd",
   "Screenrecording": "Skärminspelning",
+  "Screenrecording with no audio": "Skärminspelning utan ljud",
   "Screenshot": "Skärmbild",
   "Scroll active workspace backward": "Rulla aktiv arbetsyta bakåt",
   "Scroll active workspace forward": "Rulla aktiv arbetsyta framåt",

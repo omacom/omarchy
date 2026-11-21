@@ -1,6 +1,7 @@
 {
   "Activity": "Δραστηριότητα",
   "Agent": "Πράκτορας",
+  "Agents": "Πράκτορες",
   "Apps": "Εφαρμογές",
   "Audio": "Ήχος",
   "Background switcher": "Εναλλαγή φόντου",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Εναλλαγή φωτισμού πληκτρολογίου",
   "Keyboard brightness down": "Μείωση φωτεινότητας πληκτρολογίου",
   "Keyboard brightness up": "Αύξηση φωτεινότητας πληκτρολογίου",
+  "Local models": "Τοπικά μοντέλα",
   "Lock system": "Κλείδωμα συστήματος",
   "Make webcam overlay larger": "Μεγέθυνση επικάλυψης webcam",
   "Make webcam overlay smaller": "Σμίκρυνση επικάλυψης webcam",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Εμφάνιση ενεργού παραθύρου στην κορυφή",
   "Save window width": "Αποθήκευση πλάτους παραθύρου",
   "Screenrecording": "Εγγραφή οθόνης",
+  "Screenrecording with no audio": "Εγγραφή οθόνης χωρίς ήχο",
   "Screenshot": "Στιγμιότυπο οθόνης",
   "Scroll active workspace backward": "Κύλιση ενεργού χώρου εργασίας προς τα πίσω",
   "Scroll active workspace forward": "Κύλιση ενεργού χώρου εργασίας προς τα εμπρός",

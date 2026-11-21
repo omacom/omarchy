@@ -1,6 +1,7 @@
 {
   "Activity": "Aktiviti",
   "Agent": "Ejen",
+  "Agents": "Ejen",
   "Apps": "Aplikasi",
   "Audio": "Audio",
   "Background switcher": "Penukar latar belakang",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Kitar lampu latar papan kekunci",
   "Keyboard brightness down": "Turunkan kecerahan papan kekunci",
   "Keyboard brightness up": "Naikkan kecerahan papan kekunci",
+  "Local models": "Model tempatan",
   "Lock system": "Kunci sistem",
   "Make webcam overlay larger": "Besarkan tindanan kamera web",
   "Make webcam overlay smaller": "Kecilkan tindanan kamera web",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Papar tetingkap aktif di atas",
   "Save window width": "Simpan lebar tetingkap",
   "Screenrecording": "Rakaman skrin",
+  "Screenrecording with no audio": "Rakaman skrin tanpa audio",
   "Screenshot": "Tangkapan skrin",
   "Scroll active workspace backward": "Tatal ruang kerja aktif ke belakang",
   "Scroll active workspace forward": "Tatal ruang kerja aktif ke hadapan",

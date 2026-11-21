@@ -1,6 +1,7 @@
 {
   "Activity": "Activiteit",
   "Agent": "Agent",
+  "Agents": "Agents",
   "Apps": "Apps",
   "Audio": "Audio",
   "Background switcher": "Achtergrondkiezer",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Toetsenbordverlichting wisselen",
   "Keyboard brightness down": "Toetsenbordhelderheid verlagen",
   "Keyboard brightness up": "Toetsenbordhelderheid verhogen",
+  "Local models": "Lokale modellen",
   "Lock system": "Systeem vergrendelen",
   "Make webcam overlay larger": "Webcam-overlay vergroten",
   "Make webcam overlay smaller": "Webcam-overlay verkleinen",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Actief venster naar voren halen",
   "Save window width": "Vensterbreedte opslaan",
   "Screenrecording": "Schermopname",
+  "Screenrecording with no audio": "Schermopname zonder audio",
   "Screenshot": "Schermafbeelding",
   "Scroll active workspace backward": "Actieve werkruimte achteruit scrollen",
   "Scroll active workspace forward": "Actieve werkruimte vooruit scrollen",

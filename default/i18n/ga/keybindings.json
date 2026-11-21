@@ -1,6 +1,7 @@
 {
   "Activity": "Gníomhaíocht",
   "Agent": "Gníomhaire",
+  "Agents": "Gníomhairí",
   "Apps": "Aipeanna",
   "Audio": "Fuaim",
   "Background switcher": "Malartóir cúlra",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Timthriallaigh cúlsolas an mhéarchláir",
   "Keyboard brightness down": "Ísligh gile méarchláir",
   "Keyboard brightness up": "Ardaigh gile méarchláir",
+  "Local models": "Samhlacha áitiúla",
   "Lock system": "Glasáil an córas",
   "Make webcam overlay larger": "Méadaigh forleagan ceamara gréasáin",
   "Make webcam overlay smaller": "Laghdaigh forleagan ceamara gréasáin",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Nocht fuinneog ghníomhach ar bharr",
   "Save window width": "Sábháil leithead fuinneoige",
   "Screenrecording": "Taifeadadh scáileáin",
+  "Screenrecording with no audio": "Taifeadadh scáileáin gan fhuaim",
   "Screenshot": "Gabháil scáileáin",
   "Scroll active workspace backward": "Scrollaigh an spás oibre gníomhach ar ais",
   "Scroll active workspace forward": "Scrollaigh an spás oibre gníomhach ar aghaidh",

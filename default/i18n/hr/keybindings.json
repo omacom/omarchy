@@ -1,6 +1,7 @@
 {
   "Activity": "Aktivnost",
   "Agent": "Agent",
+  "Agents": "Agenti",
   "Apps": "Aplikacije",
   "Audio": "Zvuk",
   "Background switcher": "Promjena pozadine",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Promijeni osvjetljenje tipkovnice",
   "Keyboard brightness down": "Smanji svjetlinu tipkovnice",
   "Keyboard brightness up": "Povećaj svjetlinu tipkovnice",
+  "Local models": "Lokalni modeli",
   "Lock system": "Zaključaj sustav",
   "Make webcam overlay larger": "Povećaj sloj web-kamere",
   "Make webcam overlay smaller": "Smanji sloj web-kamere",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Prikaži aktivni prozor na vrhu",
   "Save window width": "Spremi širinu prozora",
   "Screenrecording": "Snimanje zaslona",
+  "Screenrecording with no audio": "Snimanje zaslona bez zvuka",
   "Screenshot": "Snimka zaslona",
   "Scroll active workspace backward": "Pomakni aktivni radni prostor unatrag",
   "Scroll active workspace forward": "Pomakni aktivni radni prostor unaprijed",
