@@ -396,7 +396,7 @@ Item {
                    - Style.space(8))
             text: card.redacted ? I18n.t("notifications.redactedSummary") : String(card.row.summary || "")
             color: Commons.Color.notifications.text
-            font.family: "Liberation Sans"
+            font.family: Style.font.family
             font.pixelSize: Style.font.title
             font.bold: true
             wrapMode: Text.Wrap
@@ -489,7 +489,7 @@ Item {
 
         FontMetrics {
           id: metrics
-          font.family: "Liberation Sans"
+          font.family: Style.font.family
           font.pixelSize: Style.font.title
         }
 
@@ -507,7 +507,7 @@ Item {
           text: card.redacted ? I18n.t("notifications.redactedBody") : String(card.row.bodyRich || "")
           color: card.bodyColor
           linkColor: Commons.Color.notifications.countdown
-          font.family: "Liberation Sans"
+          font.family: Style.font.family
           font.pixelSize: Style.font.title
           wrapMode: Text.Wrap
           maximumLineCount: card.bodyLines
