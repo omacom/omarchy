@@ -3,6 +3,10 @@
 # UWSM doesn't source /etc/profile.d, so pull the env bootstrap in directly.
 [ -r /usr/share/omarchy/default/bash/env-bootstrap ] && . /usr/share/omarchy/default/bash/env-bootstrap
 
+# Same for Flatpak, whose profile.d script adds its exports to XDG_DATA_DIRS so
+# installed apps reach the app launcher.
+[ -r /etc/profile.d/flatpak.sh ] && . /etc/profile.d/flatpak.sh
+
 # Omarchy session defaults. Users can override these in ~/.config/uwsm/default
 # or, preferably, ~/.config/uwsm/env.d/*.
 if [ -f "${OMARCHY_PATH%/}/default/uwsm/default" ]; then
