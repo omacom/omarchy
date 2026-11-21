@@ -260,6 +260,10 @@ hl.monitor({ output = "DP-2", scale = 1.5, cm = "srgb" })
 plug("DP-2", "", { description = xdr })
 handlers["monitor.added"]({ name = "DP-2" })
 check(rule_for("DP-2", xdr).cm == "srgb" and rule_for("DP-2", xdr).scale == 1.5, "keeps a later port rule ahead of a rechecked description rule")
+hl.monitor({ output = "desc:Apple Computer Inc ProDisplayXDR", cm = "srgb" })
+plug("DP-4", "", { description = studio })
+hl.monitor({ output = "desc:Apple Computer Inc", scale = 2 })
+check(rule_for("DP-4", studio).cm == "edid", "keeps one display'"'"'s cm off a broader description rule")
 ' || fail "description rules get EDID color on Apple displays"
 pass "description rules get EDID color on Apple displays"
 

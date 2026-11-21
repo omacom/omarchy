@@ -94,8 +94,11 @@ local function cm_for(output)
     return chosen[output]
   end
 
+  -- A port rule takes the cm chosen for its monitor's description. A
+  -- description rule doesn't borrow one: it can cover other displays too.
   local matched = monitors_for(output)
-  for _, monitor in ipairs(matched) do
+  local by_port = not output:match("^desc:")
+  for _, monitor in ipairs(by_port and matched or {}) do
     for key, cm in pairs(chosen) do
       local prefix = key:match("^desc:(.+)$")
       if prefix and starts_with(monitor.description, prefix) then
