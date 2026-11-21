@@ -109,6 +109,17 @@ grep -qx 'omarchy-plugin-enable tester.menu' "$CALLS" ||
   fail "clone does not enable a multi-kind plugin"
 pass "clone preserves and enables multi-kind plugins"
 
+clone_plugin omarchy.apps >/dev/null
+apps="$TMPDIR/home/.config/omarchy/plugins/tester.apps"
+[[ -f $apps/Apps.qml ]] || fail "apps clone is missing its grid"
+jq -e '
+  .id == "tester.apps" and
+  .kinds == ["menu"] and
+  .entryPoints.menu == "Apps.qml" and
+  .omarchy.clonedFrom == "omarchy.apps"
+' "$apps/manifest.json" >/dev/null || fail "apps clone loses its menu application-library capability"
+pass "apps clones retain the menu capability needed to list and launch apps"
+
 remove_output=$(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
   FAKE_CALLS="$CALLS" OMARCHY_TEST_ROOT="$ROOT" \
   omarchy-plugin-remove tester.menu --yes)
