@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Reapply the CPU frequency limits for the active power profile after resume.
+# Resuming re-registers cpufreq and drops the limits omarchy-powerprofiles-intel-no-hwp-apply
+# set, and the D-Bus watcher only reacts to an actual profile change -- not to
+# resume -- so without this hook the previous profile's limits silently
+# disappear until the user switches profiles again.
+
+if [[ $1 == "post" ]]; then
+  omarchy-powerprofiles-intel-no-hwp-apply
+fi
