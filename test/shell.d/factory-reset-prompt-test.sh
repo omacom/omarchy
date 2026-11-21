@@ -70,8 +70,9 @@ done
   fail "factory reset says what to type" "$(cat "$tmp/screen")"
 pass "factory reset asks its question as root without OMARCHY_PATH in the environment"
 
-# After the switch to systemd-boot, whose boot images the reset does not rebuild
-# yet, the real top level refuses before it logs, mounts or asks anything.
+# Halfway through the switch to systemd-boot the reset would rebuild a boot
+# chain about to change, so the real top level refuses before it logs, mounts
+# or asks anything.
 sed \
   -e "s|^PACKAGED_PATH=.*|PACKAGED_PATH=\"$tmp/reset-main\"|" \
   -e "/^\(export \)\?OMARCHY_PATH=/s|:-/usr/share/omarchy}|:-$ROOT}|" \
@@ -80,13 +81,13 @@ sed \
   "$reset" >"$tmp/reset-main"
 chmod +x "$tmp/reset-main"
 mkdir -p "$tmp/boot-store"
-printf 'phase=active\n' >"$tmp/boot-store/state"
+printf 'phase=trial\n' >"$tmp/boot-store/state"
 : >"$tmp/screen"
 status=0
 unshare -Ur env -i PATH="$tmp/bin:/usr/bin:/bin" HOME="$tmp" OMARCHY_BOOT_STORE="$tmp/boot-store" \
   OMARCHY_LANGUAGE_FILE="$OMARCHY_LANGUAGE_FILE" SCREEN="$tmp/screen" \
   "$tmp/reset-main" >/dev/null 2>"$tmp/errors" || status=$?
-(( status == 1 )) || fail "factory reset refuses a machine that boots systemd-boot" "$(cat "$tmp/errors")"
-grep -Fq "switching to systemd-boot" "$tmp/screen" || fail "the refusal names systemd-boot" "$(cat "$tmp/screen")"
+(( status == 1 )) || fail "factory reset refuses a machine halfway through the switch" "$(cat "$tmp/errors")"
+grep -Fq "omarchy-boot-switch revert" "$tmp/screen" || fail "the refusal says how to finish or undo the switch" "$(cat "$tmp/screen")"
 [[ ! -e $tmp/reset.log && ! -e $tmp/top ]] || fail "the refusal comes before the reset logs or mounts anything"
-pass "factory reset refuses a machine that boots systemd-boot"
+pass "factory reset refuses a machine halfway through the switch to systemd-boot"

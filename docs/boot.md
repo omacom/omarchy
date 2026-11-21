@@ -95,5 +95,5 @@ The `omarchy-snapshot-overlay` hook boots read-only snapshots with a tmpfs overl
 
 - **Turning on Secure Boot.** Needs the Microsoft-signed Omarchy shim, `CONFIG_LOCK_DOWN_IN_EFI_SECURE_BOOT`, module signing (DKMS/NVIDIA) and MOK enrollment. `signing=required` in the state is where a signing key gets enforced: a missing key or a failed signature keeps the published images.
 - **ARM.** Needs aa64 loader paths, device trees from `/etc/kernel/uki.conf` in every image, N1x's fallback image, and hardware tests.
-- **Factory reset** on a machine that switched refuses for now: the factory root is a Limine root.
+- **Factory reset** on a machine that switched returns it to Limine, which the factory root was installed with. The reset runs `limine-install --no-efi-register` in the factory root and gives Limine a boot entry behind systemd-boot. Once the factory root is at `@`, it puts Limine first, makes Limine the fallback loader again if systemd-boot had taken it, and removes systemd-boot's entry and files, the old system's boot images, the boot store and any `@backup-*`/`@restore-*` roots. A reset that fails earlier leaves systemd-boot booting. The reset refuses while a switch is staged or on trial, and while a snapshot restore waits for its reboot.
 - **Fresh ISO installs** still install Limine.
