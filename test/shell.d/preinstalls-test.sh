@@ -190,22 +190,22 @@ refresh_region() {
   HOME="$region_home" PATH="$refresh_bin:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_REGION_FILE="$test_tmp/region" "$ROOT/bin/omarchy-refresh-applications" "$@"
 }
 refresh_region
-[[ -f "$launchers/Basecamp.desktop" && -f "$launchers/HEY.desktop" ]] || fail "a region installs the launchers on its list"
-for missing in X "Google Maps" Spotify; do
+[[ -f "$launchers/Bilibili.desktop" && -f "$launchers/Zoom.desktop" ]] || fail "a region installs the launchers on its list"
+for missing in X "Google Maps" Spotify HEY; do
   [[ ! -e "$launchers/$missing.desktop" ]] || fail "a region installs no launcher its list leaves off" "$missing"
 done
 [[ -f "$launchers/YouTube.desktop" ]] || fail "a region refresh keeps launchers an existing home already has"
 pass "a region installs exactly the launchers on its list"
 
 refresh_region --first-install
-[[ ! -e "$launchers/YouTube.desktop" && -f "$launchers/HEY.desktop" ]] || fail "a first install drops the seeded launchers its region's list leaves off"
+[[ ! -e "$launchers/YouTube.desktop" && -f "$launchers/Bilibili.desktop" ]] || fail "a first install drops the seeded launchers its region's list leaves off"
 pass "a first install drops the seeded launchers its region's list leaves off"
 
-# Every shipped launcher is on the world list, and every regional list names
-# only shipped launchers, so a new launcher can't silently never install.
+# Every shipped launcher is on some region's list, and every list names only
+# shipped launchers, so a new launcher can't silently never install.
 shipped=$(cd "$ROOT/applications" && ls -- *.desktop | sed 's/\.desktop$//' | sort)
 listed() { sed -e 's/[[:space:]]*#.*//' -e '/^[[:space:]]*$/d' "$1" | sort; }
-[[ $(listed "$ROOT/default/regions/global/applications") == "$shipped" ]] || fail "the world launcher list names every shipped launcher"
+[[ $(cat "$ROOT"/default/regions/*/applications | listed /dev/stdin | uniq) == "$shipped" ]] || fail "every shipped launcher is on some region's list"
 for list in "$ROOT"/default/regions/*/applications; do
   unknown=$(comm -13 <(echo "$shipped") <(listed "$list"))
   [[ -z $unknown ]] || fail "a regional launcher list names only shipped launchers" "$list: $unknown"
