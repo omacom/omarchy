@@ -26,6 +26,81 @@ while (( $# > 0 )); do
   esac
 done
 
+amd_gpu_read() {
+  local value
+
+  if IFS= read -r value 2>/dev/null < "$1" && [[ -n $value ]]; then
+    printf '%s\n' "$value"
+  else
+    echo "unavailable"
+  fi
+}
+
+amd_gpu_counter() {
+  local value
+  value=$(amd_gpu_read "$2")
+
+  if [[ $value =~ ^[0-9]+$ ]]; then
+    printf '  %s: %s%s\n' "$1" "$value" "$3"
+  else
+    printf '  %s: unavailable\n' "$1"
+  fi
+}
+
+amd_gpu_diagnostics() {
+  local pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+  local device vendor class device_id driver runtime_state found=0
+
+  if [[ ! -d $pci_devices_path || ! -r $pci_devices_path || ! -x $pci_devices_path ]]; then
+    echo "PCI device information unavailable."
+    return
+  fi
+
+  # Cached PCI IDs identify display controllers without loading a driver or
+  # reading PCI config space. Include non-VGA Display controllers (038000).
+  for device in "$pci_devices_path"/*; do
+    vendor=$(amd_gpu_read "$device/vendor")
+    [[ $vendor == "0x1002" ]] || continue
+    class=$(amd_gpu_read "$device/class")
+    [[ $class == 0x03* ]] || continue
+    found=1
+
+    device_id=$(amd_gpu_read "$device/device")
+    if driver=$(readlink -- "$device/driver" 2>/dev/null); then
+      driver=${driver##*/}
+    else
+      driver="unbound or unavailable"
+    fi
+    runtime_state=$(amd_gpu_read "$device/power/runtime_status")
+
+    printf 'PCI address: %s\n' "${device##*/}"
+    printf '  PCI ID: %s:%s\n' "${vendor#0x}" "${device_id#0x}"
+    printf '  PCI class: %s\n' "${class#0x}"
+    printf '  Driver: %s\n' "$driver"
+    printf '  Runtime state: %s\n' "$runtime_state"
+
+    if [[ $driver != "amdgpu" ]]; then
+      printf '  AMDGPU counters: unavailable for this driver.\n\n'
+    elif [[ $runtime_state != "active" && $runtime_state != "unsupported" ]]; then
+      # Missing/transitional PM state is not proof that a device is awake.
+      printf '  Live counters: skipped (device is not known to be active).\n\n'
+    else
+      amd_gpu_counter "GPU busy" "$device/gpu_busy_percent" "%"
+      amd_gpu_counter "Driver VRAM total" "$device/mem_info_vram_total" " bytes"
+      amd_gpu_counter "Driver VRAM used" "$device/mem_info_vram_used" " bytes"
+      amd_gpu_counter "GTT total" "$device/mem_info_gtt_total" " bytes"
+      amd_gpu_counter "GTT used" "$device/mem_info_gtt_used" " bytes"
+      echo
+    fi
+  done
+
+  if (( found == 0 )); then
+    echo "No AMD display controllers detected."
+  else
+    echo "VRAM/GTT are driver pools, not an additive breakdown of system RAM."
+  fi
+}
+
 LOG_FILE="/tmp/omarchy-debug.log"
 
 if [[ $NO_SUDO = "true" ]]; then
@@ -38,6 +113,11 @@ cat > "$LOG_FILE" <<EOF
 Date: $(date)
 Hostname: $(hostname)
 Omarchy Package: $(pacman -Q omarchy-dev 2>/dev/null || pacman -Q omarchy 2>/dev/null || echo "unknown")
+
+=========================================
+AMD GPU
+=========================================
+$(amd_gpu_diagnostics)
 
 =========================================
 SYSTEM INFORMATION
