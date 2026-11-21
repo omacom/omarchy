@@ -13,6 +13,11 @@ set -uo pipefail
 # not, and on a chain with a compressor or limiter the tone changes too. Resolve
 # through it to the physical sink it feeds.
 #
+# DSP sinks can be stacked: an equalizer or a loopback in front of a speaker
+# tuning plays into the tuning, which plays into the speakers. One step down would
+# stop at the tuning, so follow the chain until it reaches a sink that feeds
+# nothing further.
+#
 # With no argument this resolves the current default output, so when headphones or
 # HDMI are selected it returns those, not the speakers a tuning happens to front.
 # Callers that need to describe some *other* output -- an output switcher naming
@@ -25,73 +30,88 @@ if [[ -z $sink || $sink == alsa_output.* ]]; then
   exit 0
 fi
 
-# A DSP sink feeds its physical output through a stream of its own; follow that
-# stream down to the sink underneath.
-# pactl translates its headers; parse them in the C locale.
-downstream="$(LC_ALL=C pactl list sink-inputs 2>/dev/null |
-  awk -v virt="$sink" '
-    BEGIN {
-      output = virt
-      sub(/^effect_input\./, "effect_output.", output)
-    }
-    /^Sink Input #/ {target = ""}
-    /^[[:space:]]*Sink:/ {target = $2}
-    /node\.name = / {
-      name = $0
-      sub(/.*node\.name = "/, "", name)
-      sub(/"$/, "", name)
-      if (target != "" && (name == output || (output == virt && index(name, virt) == 1))) {selected = target; exit}
-      if (target != "" && fallback == "" && index(name, virt) == 1) fallback = target
-    }
-    /application\.name = "EasyEffects"/ {
-      if (virt == "easyeffects_sink" && target != "") {selected = target; exit}
-    }
-    END {
-      if (selected != "") print selected
-      else if (fallback != "") print fallback
-    }')"
+# Print the sink one DSP sink plays into, or nothing when that cannot be found.
+downstream_of() {
+  local sink="$1" downstream name linked configured
 
-if [[ -n $downstream ]]; then
-  name="$(pactl list sinks short 2>/dev/null |
-    awk -v id="$downstream" '$1 == id {print $2; exit}')"
-  if [[ -n $name ]]; then
-    printf '%s\n' "$name"
-    exit 0
-  fi
-fi
-
-# EasyEffects 8 does not play into the physical sink through a stream of its
-# own: its output node links its ports straight to the sink's playback ports,
-# so the sink-input search above finds nothing and the keys would move the
-# EasyEffects sink -- whose volume its monitor, the input of the processing,
-# does not follow. Follow the port links instead: the first ALSA or Bluetooth
-# sink any EasyEffects output port is linked to.
-if [[ $sink == "easyeffects_sink" ]]; then
-  linked="$(pw-link -l 2>/dev/null |
-    awk '
-      /^[^ ]/ {src = $0}
-      /^[[:space:]]*\|->/ {
-        if (src ~ /^ee_/ && $2 ~ /^(alsa|bluez)_output\..*:playback_/) {
-          sub(/:playback_.*$/, "", $2); print $2; exit
-        }
+  # A DSP sink feeds its physical output through a stream of its own; follow that
+  # stream down to the sink underneath.
+  # pactl translates its headers; parse them in the C locale.
+  downstream="$(LC_ALL=C pactl list sink-inputs 2>/dev/null |
+    awk -v virt="$sink" '
+      BEGIN {
+        output = virt
+        sub(/^effect_input\./, "effect_output.", output)
+      }
+      /^Sink Input #/ {target = ""}
+      /^[[:space:]]*Sink:/ {target = $2}
+      /node\.name = / {
+        name = $0
+        sub(/.*node\.name = "/, "", name)
+        sub(/"$/, "", name)
+        if (target != "" && (name == output || (output == virt && index(name, virt) == 1))) {selected = target; exit}
+        if (target != "" && fallback == "" && index(name, virt) == 1) fallback = target
+      }
+      /application\.name = "EasyEffects"/ {
+        if (virt == "easyeffects_sink" && target != "") {selected = target; exit}
+      }
+      END {
+        if (selected != "") print selected
+        else if (fallback != "") print fallback
       }')"
 
-  # Idle, EasyEffects drops those links: fall back to the output device it is
-  # configured to feed, when that sink exists.
-  if [[ -z $linked ]]; then
-    configured="$(sed -n 's/^outputDevice=//p' \
-      "${XDG_CONFIG_HOME:-$HOME/.config}/easyeffects/db/easyeffectsrc" 2>/dev/null)"
-    if [[ -n $configured ]] && pactl list sinks short 2>/dev/null | awk '{print $2}' | grep -qxF -- "$configured"; then
-      linked="$configured"
+  if [[ -n $downstream ]]; then
+    name="$(pactl list sinks short 2>/dev/null |
+      awk -v id="$downstream" '$1 == id {print $2; exit}')"
+    if [[ -n $name ]]; then
+      printf '%s\n' "$name"
+      return 0
     fi
   fi
 
-  if [[ -n $linked ]]; then
-    printf '%s\n' "$linked"
-    exit 0
-  fi
-fi
+  # EasyEffects 8 does not play into the physical sink through a stream of its
+  # own: its output node links its ports straight to the sink's playback ports,
+  # so the sink-input search above finds nothing and the keys would move the
+  # EasyEffects sink -- whose volume its monitor, the input of the processing,
+  # does not follow. Follow the port links instead: the first ALSA or Bluetooth
+  # sink any EasyEffects output port is linked to.
+  if [[ $sink == "easyeffects_sink" ]]; then
+    linked="$(pw-link -l 2>/dev/null |
+      awk '
+        /^[^ ]/ {src = $0}
+        /^[[:space:]]*\|->/ {
+          if (src ~ /^ee_/ && $2 ~ /^(alsa|bluez)_output\..*:playback_/) {
+            sub(/:playback_.*$/, "", $2); print $2; exit
+          }
+        }')"
 
-# Nothing resolvable downstream -- the DSP sink may simply be idle and unlinked.
-# Fall back to the sink itself so callers still have something to act on.
+    # Idle, EasyEffects drops those links: fall back to the output device it is
+    # configured to feed, when that sink exists.
+    if [[ -z $linked ]]; then
+      configured="$(sed -n 's/^outputDevice=//p' \
+        "${XDG_CONFIG_HOME:-$HOME/.config}/easyeffects/db/easyeffectsrc" 2>/dev/null)"
+      if [[ -n $configured ]] && pactl list sinks short 2>/dev/null | awk '{print $2}' | grep -qxF -- "$configured"; then
+        linked="$configured"
+      fi
+    fi
+
+    if [[ -n $linked ]]; then
+      printf '%s\n' "$linked"
+      return 0
+    fi
+  fi
+}
+
+# Remember each sink on the way, so a misrouted chain that loops back on itself
+# still ends.
+seen=" $sink "
+while [[ $sink != alsa_output.* ]]; do
+  next="$(downstream_of "$sink")"
+  [[ -n $next && $seen != *" $next "* ]] || break
+  sink="$next"
+  seen+="$next "
+done
+
+# Nothing resolvable further down -- the last DSP sink may simply be idle and
+# unlinked. Print the last sink reached so callers still have something to act on.
 printf '%s\n' "$sink"
