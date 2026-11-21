@@ -15,6 +15,19 @@ o.window(
   { no_focus = true }
 )
 
+-- Java AWT tooltips/menus are real X11 windows that reuse the parent class
+-- and title themselves win0, win1, ... Float them so a floating workspace
+-- leaves their size alone, and keep them unfocused.
+o.window({
+  title = "^win[0-9]+$",
+  xwayland = true,
+}, {
+  float = true,
+  no_initial_focus = true,
+  no_focus = true,
+  no_follow_mouse = true,
+})
+
 -- App-specific tweaks and terminal tags.
 require("default.hypr.apps")
 
