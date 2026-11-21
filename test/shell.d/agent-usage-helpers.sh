@@ -55,6 +55,8 @@ agent_sandbox() {
       unset "$name"
     fi
   done < <(compgen -e)
+  # The session bus would reach the developer's own keyring and its lock.
+  unset DBUS_SESSION_BUS_ADDRESS
 
   export http_proxy=$AGENT_DEAD_PROXY https_proxy=$AGENT_DEAD_PROXY
   export HTTP_PROXY=$AGENT_DEAD_PROXY HTTPS_PROXY=$AGENT_DEAD_PROXY

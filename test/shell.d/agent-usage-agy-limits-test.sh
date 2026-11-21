@@ -42,6 +42,14 @@ def machine():
   os.environ["AGY_DIR"] = str(home() / "agy")
 
 
+# The keyring lists agy's sign-in among its locked secrets.
+def lock_keyring():
+  busctl = home() / "bin" / "busctl"
+  busctl.write_text("#!/bin/bash\n[[ $* == *'SearchItems a{ss} 2 service gemini username antigravity' ]] || exit 1\n"
+                    "echo '{\"type\":\"aoao\",\"data\":[[],[\"/org/freedesktop/secrets/collection/login/3\"]]}'\n")
+  busctl.chmod(0o755)
+
+
 def sign_in(token="token-main", expiry=None, id_token=ME, refresh="refresh-main"):
   write_json(home() / "keyring.json", {"auth_method": "consumer", "id_token": id_token,
                                        "token": {"access_token": token, "refresh_token": refresh, "expiry": expiry or iso_in(3600)}})
@@ -221,4 +229,35 @@ for path in limits_cache_files("agy"):
 record, _ = agy("down")
 expect("Antigravity collector invents no limits when it has never reached Google",
        [record["limits"], record["usageStatusText"], record["retryAdvised"]], [[], "Antigravity limits unavailable", True], record)
+
+# A sign-in in a locked keyring is left alone, since secret-tool would put
+# its unlock prompt on screen: it isn't read and Google isn't asked, but the
+# record shows, without local history too, and the panel retries until the
+# keyring is unlocked.
+machine()
+sign_in()
+secret_tool_log = home() / "secret-tool.log"
+(home() / "bin" / "secret-tool").write_text(f'#!/bin/bash\necho run >>{secret_tool_log}\ncat "$HOME/keyring.json" 2>/dev/null\n')
+lock_keyring()
+record, http = agy()
+expect("Antigravity collector leaves a locked sign-in alone and waits for it",
+       [http.count, secret_tool_log.exists(), record["ready"], record["usageStatusText"], record["retryAdvised"], "keyring" in record["authHelpText"]],
+       [0, False, True, "Antigravity limits unavailable", True, True], record)
+
+# Another harness's sign-in that can't answer doesn't end the wait: agy's own
+# may still hold once the keyring is unlocked.
+write_json(home() / ".pi" / "agent" / "auth.json",
+           {"google-antigravity": {"type": "oauth", "access": "pi-token", "refresh": "r", "expires": ms_in(-60), "email": "me@example.com"}})
+record, http = agy()
+expect("Antigravity collector keeps retrying a locked sign-in behind a lapsed one",
+       [http.count, record["usageStatusText"], record["retryAdvised"]], [0, "Limits paused", True], record)
+(home() / ".pi" / "agent" / "auth.json").unlink()
+
+# agy's own sign-in file needs no keyring, and a live answer ends the wait.
+write_json(home() / "agy" / "antigravity-oauth-token",
+           {"token": {"access_token": "file-token", "refresh_token": "r", "expiry": iso_in(3600)}})
+record, http = agy()
+expect("Antigravity collector reads agy's sign-in file while the keyring is locked",
+       [secret_tool_log.exists(), [r["headers"]["authorization"] for r in http.requests][:1], record["retryAdvised"]],
+       [False, ["Bearer file-token"], False], record)
 PY

@@ -114,6 +114,25 @@ check(
   (collectors.scan_max_age(False, False), collectors.scan_max_age(False, True), collectors.scan_max_age(True, True)) == (20, 900, 0),
 )
 
+# ---------------------------------------------------------------- keyring
+
+# A secret reads as locked only when it is found and every match is in a
+# locked collection, the case where a lookup would prompt; the stub lists the
+# matches for SearchItems with exactly these attributes.
+stub_dir = work / "busctl"
+stub_dir.mkdir()
+busctl = stub_dir / "busctl"
+real_path = os.environ["PATH"]
+os.environ["PATH"] = f"{stub_dir}:{real_path}"
+search = "SearchItems a{ss} 2 service gemini username antigravity"
+answers = []
+for found in ('[[],["/l/1"]]', '[["/u/1"],["/l/1"]]', "[[],[]]"):
+  busctl.write_text(f"#!/bin/bash\n[[ $* == *'{search}' ]] || exit 1\necho '{{\"type\":\"aoao\",\"data\":{found}}}'\n")
+  busctl.chmod(0o755)
+  answers.append(collectors.secret_locked(service="gemini", username="antigravity"))
+os.environ["PATH"] = real_path
+check("a secret reads as locked only when all its matches are in a locked collection", answers == [True, False, False], answers)
+
 # ------------------------------------------------------------------- files
 
 # Collectors overlap in practice: the update command backgrounds one per agent

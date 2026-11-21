@@ -97,6 +97,8 @@ def sandbox(root: str | Path | None = None) -> Path:
   for name in list(os.environ):
     if name.endswith("_API_KEY") or name.startswith(DEVELOPER_PREFIXES):
       del os.environ[name]
+  # The session bus would reach the developer's own keyring and its lock.
+  os.environ.pop("DBUS_SESSION_BUS_ADDRESS", None)
   os.environ.update(
     HOME=str(home),
     XDG_CONFIG_HOME=str(home / ".config"),
