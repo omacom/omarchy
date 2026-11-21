@@ -81,6 +81,35 @@ ShellRoot {
     return checkPaintedBounds(icon, name)
   }
 
+  // A label lines up on its figures, and the figures paint from the baseline by
+  // their own ascent: the line box keeps room for descenders and Qt rounds it
+  // up, so centering them by ascent and descent leaves them above its middle.
+  function checkLabel(button, name) {
+    // Item has a baselineOffset of its own, so match on the text properties.
+    var label = findItem(button, function(item) { return item.text !== undefined && item.textFormat !== undefined })
+    if (!label) {
+      fail(name + " draws a text label")
+      return false
+    }
+    var metrics = Qt.createQmlObject("import QtQuick; FontMetrics {}", button)
+    metrics.font = Qt.font({ family: label.font.family, pixelSize: label.font.pixelSize, weight: label.font.weight })
+    var ink = metrics.tightBoundingRect("0")
+    var inkCenter = label.y + label.baselineOffset + ink.top + ink.height / 2
+    var boxCenter = label.y - label.anchors.verticalCenterOffset + label.height / 2
+    metrics.destroy()
+    if (Math.abs(inkCenter - boxCenter) > 0.05) {
+      fail(name + " figure ink centers at " + inkCenter + ", its line box at " + boxCenter)
+      return false
+    }
+    // Qt aligns a centered box to whole pixels, so an odd-height line box sits
+    // half a pixel off the button's middle whatever the offset says.
+    if (Math.abs(boxCenter - button.height / 2) > 0.5) {
+      fail(name + " line box centers at " + boxCenter + " in a button whose middle is " + button.height / 2)
+      return false
+    }
+    return true
+  }
+
   function checkGeometry() {
     if (!checkIcon(bluetooth, "bluetooth")) return false
     if (!checkIcon(network, "network")) return false
@@ -108,6 +137,14 @@ ShellRoot {
     }
     if (textLabel.iconLabel || textLabel.fontSize !== 15) {
       fail("icon normalization changes an ordinary text label")
+      return false
+    }
+    if (!checkLabel(captionLabel, "caption label")) return false
+    if (!checkLabel(textLabel, "text label")) return false
+    var boxedLabelText = findItem(boxedLabel, function(item) { return item.text !== undefined && item.textFormat !== undefined })
+    if (!boxedLabelText || Math.abs(boxedLabelText.anchors.verticalCenterOffset) > 0.05
+        || Math.abs(boxedLabelText.y + boxedLabelText.height / 2 - boxedLabel.height / 2) > 0.5) {
+      fail("a label that opts out of figure centering keeps its line box centered")
       return false
     }
     if (customRenderType !== Text.CurveRendering) {
@@ -304,6 +341,16 @@ ShellRoot {
   BarIconButton { id: smallCanvas; bar: testBar; text: "󰍹"; opticalSize: 8 }
   WidgetButton { id: legacyIcon; bar: testBar; text: "󰍹"; fontSize: 15 }
   WidgetButton { id: textLabel; bar: testBar; text: "GPU"; fontSize: 15 }
+  // The keyboard layout indicator, drawn at the caption size like the bar does.
+  WidgetButton { id: captionLabel; bar: testBar; text: "EN"; fontSize: Style.font.caption; horizontalMargin: 6 }
+  WidgetButton {
+    id: boxedLabel
+    bar: testBar
+    text: "EN"
+    fontSize: Style.font.caption
+    horizontalMargin: 6
+    centerFigures: false
+  }
   BarIconButton {
     id: customBox
     bar: testBar
