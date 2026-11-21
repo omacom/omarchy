@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Send a keyboard shortcut to the focused surface through Hyprland
+# omarchy:args=<mods> <key>
+# omarchy:examples=omarchy-hyprland-send-shortcut SHIFT Insert
+# omarchy:hidden=true
+
+# Hyprland presses the keys on the seat's own keymap, so XWayland apps receive
+# them as sent. wtype types through a keymap it uploads for each run, which
+# XWayland clients never load: they read its keys as Escape, digits and
+# letters, so wtype's Shift+Insert arrives as Shift+Escape. Omitting the window
+# target also reaches focused layer-shell surfaces, and the down/up split works
+# around Hyprland leaving synthetic keys stuck, as default/hypr/bindings/clipboard.lua does.
+
+mods=${1:-}
+key=${2:-}
+
+if [[ ! $mods =~ ^[A-Z_\ ]*$ || ! $key =~ ^[A-Za-z0-9_]+$ ]]; then
+  echo "Usage: omarchy-hyprland-send-shortcut <mods> <key>" >&2
+  exit 1
+fi
+
+send_key_state() {
+  hyprctl dispatch "hl.dsp.send_key_state({ mods = \"$mods\", key = \"$key\", state = \"$1\" })" >/dev/null
+}
+
+send_key_state down
+sleep 0.05
+send_key_state up
