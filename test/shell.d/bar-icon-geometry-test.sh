@@ -159,6 +159,21 @@ ShellRoot {
       return false
     }
     if (!checkPaintedBounds(labelledPower, "battery percentage")) return false
+    for (var labelledButton of [labelledPower, labelledCaption]) {
+      var figureLabel = findItem(labelledButton, function(item) {
+        return item.text === labelledButton.labelText && item.textFormat !== undefined
+      })
+      var figureMetrics = Qt.createQmlObject("import QtQuick; FontMetrics {}", labelledButton)
+      figureMetrics.font = figureLabel.font
+      var figureInk = figureMetrics.tightBoundingRect("0")
+      var inkCenter = figureLabel.mapToItem(labelledButton, 0,
+        figureLabel.baselineOffset + figureInk.top + figureInk.height / 2).y
+      figureMetrics.destroy()
+      if (Math.abs(inkCenter - labelledButton.height / 2) > 0.05) {
+        fail("bar icon label figures center at " + inkCenter + ", not " + labelledButton.height / 2)
+        return false
+      }
+    }
     if (Math.abs(labelledPower.glyphPaintedWidth - power.glyphPaintedWidth) > 0.05
         || Math.abs(labelledPower.glyphPaintedHeight - power.glyphPaintedHeight) > 0.05) {
       fail("the battery percentage changes the icon's size")
@@ -435,6 +450,7 @@ ShellRoot {
     }
   }
   BarIconButton { id: labelledPower; bar: testBar; text: "󰁹"; labelText: "100%"; slotSize: Style.bar.iconSlot * 2 }
+  BarIconButton { id: labelledCaption; bar: testBar; text: "󰁹"; labelText: "12%"; fontSize: Style.font.caption; slotSize: Style.bar.iconSlot * 2 }
   BarIconButton { id: rotatedIcon; bar: verticalBar; text: "\uf053"; textRotation: 90 }
   OpticalGlyph { id: plainLabel; width: 30; height: 20; text: "12"; fontSize: 12 }
   DropboxIcon { id: dropbox; iconSize: Style.bar.iconSize / aspectRatio; artworkScale: 1 }

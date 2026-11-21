@@ -52,8 +52,10 @@ WidgetButton {
       font.family: root.fontFamily
       font.pixelSize: root.fontSize
       color: root.active && root.useActiveColor ? root.activeColor : root.foreground
-      y: (parent.height - height) / 2
-        + (labelMetrics.descent - labelMetrics.ascent + labelMetrics.tightBoundingRect("0").height) / 2
+      // Center the figures' ink from the baseline. The rounded line box can
+      // include leading beyond ascent + descent, so it is not the ink's center.
+      y: parent.height / 2 - labelMetrics.ascent
+        - labelMetrics.tightBoundingRect("0").top - labelMetrics.tightBoundingRect("0").height / 2
       renderType: Text.NativeRendering
     }
 
