@@ -27,4 +27,12 @@ fi
 
 rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/omacom-elsewhen"
 
+# Checkouts that installed elsewhen before it moved here got the omarchy package
+# as its dependency, and dropping elsewhen recursively would remove the desktop.
+mapfile -t core_packages < <(pacman -Qqd omarchy omarchy-settings 2>/dev/null)
+
+if (( ${#core_packages[@]} )); then
+  sudo pacman -D --asexplicit "${core_packages[@]}"
+fi
+
 omarchy-pkg-drop elsewhen
