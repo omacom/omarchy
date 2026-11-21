@@ -414,10 +414,18 @@ Panel {
   // This machine's RAM split into what apps hold, what each running model
   // holds, and what's free for the next one to load into.
 
-  // The memory a model on this machine holds once it's loaded, as the engine
-  // last measured it.
+  // Whole GB, but a tenth under one, so a model that has let go of nearly
+  // everything doesn't read as holding nothing at all.
+  function formatGib(value) {
+    return value > 0 && value < 0.95 ? Commons.I18n.formatNumber(value, 1) : Commons.I18n.formatNumber(Math.round(value))
+  }
+
+  // The memory a model on this machine holds: what the engine measures it
+  // holding now, or, from an engine that can't say, what it took to load.
   function heldGib(model) {
     if (!model || model.host || ["active", "activating", "deactivating"].indexOf(model.unit) < 0) return 0
+    var now = engine.modelMemory[model.recipe]
+    if (typeof now === "number") return now
     return model.observed ? Math.max(0, Number(model.observed.ram_used_gib) || 0) : 0
   }
 
@@ -454,7 +462,7 @@ Panel {
 
   function memoryCaption() {
     var p = preview
-    var gb = function(value) { return Commons.I18n.formatNumber(Math.round(value)) }
+    var gb = root.formatGib
     if (p && p.held) return Commons.I18n.t("localModels.memoryHeldBy").arg(p.name).arg(gb(p.gib))
     if (p && p.fits) return Commons.I18n.t("localModels.memoryFits").arg(gb(Math.max(0, memory.free - p.needs)))
     if (p && p.needs > memory.free) return Commons.I18n.t("localModels.memoryShort").arg(gb(p.needs - memory.free))
@@ -1153,8 +1161,8 @@ Panel {
       PanelToolTip {
         visible: barHover.hovered && !memoryBar.p
         text: Commons.I18n.t("localModels.memoryTooltip")
-          .arg(Commons.I18n.formatNumber(Math.round(root.memory.apps)))
-          .arg(Commons.I18n.formatNumber(Math.round(root.memory.held)))
+          .arg(root.formatGib(root.memory.apps))
+          .arg(root.formatGib(root.memory.held))
           .arg(Commons.I18n.formatNumber(Math.round(root.memory.free)))
         fontFamily: root.fontFamily
       }
@@ -1346,7 +1354,7 @@ Panel {
     readonly property real removeSeconds: model && Number(model.expected_remove_seconds) > 0 ? Number(model.expected_remove_seconds) : 10
     readonly property real phaseSeconds: removing ? removeSeconds : stopping ? stopSeconds : loadSeconds
     readonly property real elapsed: model ? Math.max(0, (root.loadNowMs - Number(model.since_ms || root.loadNowMs)) / 1000) : 0
-    readonly property real memory: model && model.observed ? Number(model.observed.ram_used_gib || 0) : 0
+    readonly property real memory: root.heldGib(model)
     readonly property real needsGib: root.localNeedsGib(model)
     spacing: Style.space(16)
     readonly property bool dragged: root.dragIndex === lineIndex
@@ -1686,7 +1694,7 @@ Panel {
         y: -parent.pull
         width: parent.width
         textFormat: Text.PlainText
-        text: section.running ? Commons.I18n.t("localModels.usingRam").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
+        text: section.running ? Commons.I18n.t("localModels.usingRam").arg(root.formatGib(section.memory))
           : section.needsGib > 0 ? Commons.I18n.t("localModels.needsRam").arg(Commons.I18n.formatNumber(Math.round(section.needsGib))) : ""
         color: !section.running && root.localStartBlocked(section.model) ? Commons.Color.warning : root.dim
         // Steps back with the name, except as a warning that it won't fit.

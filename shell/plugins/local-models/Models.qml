@@ -485,9 +485,35 @@ Item {
   // Memory has no change signal, so the panel reads it while it's open.
   property real memoryTotalGib: 0
   property real memoryFreeGib: 0
+  // What each running model holds now, by recipe, as the engine measures it:
+  // an idle model may hold much less than it took to load. Empty where the
+  // engine can't say, and the panel falls back to what it took.
+  property var modelMemory: ({})
 
   function readMemory() {
     meminfoFile.reload()
+    if (!memoryProcess.running) memoryProcess.running = true
+  }
+
+  Process {
+    id: memoryProcess
+    command: ["omarchy-models", "memory", "--json"]
+    stdout: StdioCollector {
+      onStreamFinished: root.modelMemory = root.parseModelMemory(text)
+    }
+  }
+
+  function parseModelMemory(content) {
+    try {
+      var parsed = JSON.parse(content)
+      var held = {}
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+        for (var id in parsed)
+          if (typeof parsed[id] === "number" && parsed[id] >= 0) held[id] = parsed[id]
+      return held
+    } catch (e) {
+      return {}
+    }
   }
 
   function parseMeminfo(content) {
