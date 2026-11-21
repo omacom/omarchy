@@ -290,6 +290,8 @@ machine() {
     galaxy-book4-edge-14) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="samsung,galaxy-book4-edge-14 samsung,galaxy-book4-edge qcom,x1e80100" ;;
     galaxy-book4-edge-14-not-qualcomm) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="samsung,galaxy-book4-edge-14 samsung,galaxy-book4-edge qcom,x1e80100" ;;
     galaxy-book4-edge-16) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="samsung,galaxy-book4-edge-16 samsung,galaxy-book4-edge qcom,x1e80100" ;;
+    xps13-9345) dmi sys_vendor "Dell Inc."; dmi product_name "XPS 13 9345"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="dell,xps13-9345 qcom,x1e80100" ;;
+    xps13-9345-not-qualcomm) dmi sys_vendor "Dell Inc."; dmi product_name "XPS 13 9345"; FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="dell,xps13-9345 qcom,x1e80100" ;;
     raspberry-pi-4) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="raspberrypi,4-model-b brcm,bcm2711" ;;
     raspberry-pi-4-first-boot) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="raspberrypi,4-model-b brcm,bcm2711"; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
     # The Pi 5 has another SoC and is untested.
@@ -356,6 +358,7 @@ run_leaf() {
     OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
     OMARCHY_VIVOBOOK_S15_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_VIVOBOOK_S16_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_XPS13_9345_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_OMNIBOOK_X14_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZBOOK_ULTRA_G3A_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_IDEACENTRE_MINI_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
@@ -391,6 +394,7 @@ leaves=(
   hardware/asus/fix-asus-zenbook-a16-boot.sh
   hardware/asus/fix-asus-vivobook-s15-boot.sh
   hardware/asus/fix-asus-vivobook-s16-boot.sh
+  hardware/dell-xps13-9345-boot.sh
   hardware/hp/fix-hp-omnibook-x14-boot.sh
   hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh
   hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh
@@ -500,6 +504,12 @@ hardware/asus/fix-asus-vivobook-s16-boot.sh|vivobook-s16|0|wrote etc/mkinitcpio.
 hardware/asus/fix-asus-vivobook-s16-boot.sh|vivobook-s16+unreadable|0
 hardware/asus/fix-asus-vivobook-s16-boot.sh|vivobook-s16-not-qualcomm|0
 hardware/asus/fix-asus-vivobook-s16-boot.sh|vivobook-s15|0
+hardware/dell-xps13-9345-boot.sh|xps13-9345|0|wrote etc/mkinitcpio.conf.d/dell-xps13-9345-initramfs.conf
+# The device tree names the board, so unreadable DMI does not matter.
+hardware/dell-xps13-9345-boot.sh|xps13-9345+unreadable|0|wrote etc/mkinitcpio.conf.d/dell-xps13-9345-initramfs.conf
+hardware/dell-xps13-9345-boot.sh|xps13-9345-not-qualcomm|0
+hardware/dell-xps13-9345-boot.sh|galaxy-book4-edge-14|0
+hardware/dell-xps13-9345-boot.sh|xps13-ptl|0
 hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14|0|wrote etc/mkinitcpio.conf.d/omnibook-x14-initramfs.conf
 hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14+unreadable|0
 hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14-not-qualcomm|0
