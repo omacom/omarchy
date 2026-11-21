@@ -42,7 +42,23 @@ if [[ ! -d $THEME_PATH ]]; then
   exit 1
 fi
 
-# Now remove the theme directory for THEME_NAME
+THEME_NAME_PATH="$HOME/.local/state/omarchy/current/theme.name"
+WAS_CURRENT=false
+if [[ $(cat "$THEME_NAME_PATH" 2>/dev/null || true) == "$THEME_NAME" ]]; then
+  WAS_CURRENT=true
+fi
+
+# Remove the folder before switching, so an overlay being removed is not staged over its bundled theme again.
 rm -rf "$THEME_PATH"
+
+# A removed overlay leaves the bundled theme of that name to go back to; anything else leaves the default.
+if [[ $WAS_CURRENT == "true" ]]; then
+  if [[ -d $OMARCHY_PATH/themes/$THEME_NAME ]]; then
+    omarchy-theme-set "$THEME_NAME"
+  else
+    omarchy-theme-set "tokyo-night"
+  fi
+fi
+
 omarchy-notification-send "$(omarchy-i18n theme.removed)" "$THEME_NAME" || true
 echo "Removed $THEME_NAME"

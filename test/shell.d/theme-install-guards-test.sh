@@ -225,3 +225,39 @@ grep -Fq "comes with Omarchy" "$test_tmp/out" || fail "omarchy-theme-remove says
 [[ -d $ROOT/themes/tokyo-night ]] || fail "omarchy-theme-remove leaves the bundled theme alone"
 
 pass "a theme is removed by the name omarchy-theme-list shows"
+
+# Removing the theme in use switches to the default, or to the bundled theme of the same name
+# when the folder was an overlay on one. Removing any other theme leaves the current one alone.
+themes="$test_tmp/home/.config/omarchy/themes"
+state="$test_tmp/home/.local/state/omarchy/current"
+mkdir -p "$themes/other-theme" "$themes/my-theme" "$themes/gruvbox" "$state"
+printf 'my-theme\n' >"$state/theme.name"
+
+remove_theme "Other Theme" || fail "omarchy-theme-remove removes a theme that is not in use" "$(cat "$test_tmp/out")"
+! grep -Fxq "tokyo-night" "$theme_calls" || fail "removing a theme that is not in use does not switch themes" "$(cat "$theme_calls")"
+
+remove_theme "My Theme" || fail "omarchy-theme-remove removes the theme in use" "$(cat "$test_tmp/out")"
+grep -Fxq "tokyo-night" "$theme_calls" || fail "removing the theme in use switches to the default" "$(cat "$theme_calls")"
+
+# Only the real omarchy-theme-set shows whether the overlay was gone before the bundled theme was staged.
+notify_stub="$test_tmp/notify-bin"
+mkdir -p "$notify_stub"
+for command in omarchy-notification-send omarchy-theme-set-icons; do
+  printf '#!/bin/bash\nexit 0\n' >"$notify_stub/$command"
+  chmod +x "$notify_stub/$command"
+done
+
+run_real() {
+  HOME="$test_tmp/home" XDG_RUNTIME_DIR="$test_tmp" OMARCHY_PATH="$ROOT" OMARCHY_THEME_HEADLESS=1 OMARCHY_THEME_SKIP_BACKGROUND=1 \
+    PATH="$notify_stub:$ROOT/bin:$PATH" bash "$ROOT/bin/$1" gruvbox >"$test_tmp/out" 2>&1
+}
+
+printf 'background = "#333333"\nforeground = "#cccccc"\naccent = "#654321"\n' >"$themes/gruvbox/colors.toml"
+run_real omarchy-theme-set || fail "omarchy-theme-set applies an overlay on gruvbox" "$(cat "$test_tmp/out")"
+grep -Fq "#654321" "$state/theme/colors.toml" || fail "an overlay on gruvbox customizes the staged theme"
+run_real omarchy-theme-remove || fail "omarchy-theme-remove removes the overlay in use" "$(cat "$test_tmp/out")"
+[[ ! -e $themes/gruvbox && $(cat "$state/theme.name") == "gruvbox" ]] ||
+  fail "removing an overlay in use keeps the bundled theme of that name" "$(cat "$state/theme.name")"
+cmp -s "$ROOT/themes/gruvbox/colors.toml" "$state/theme/colors.toml" || fail "removing an overlay in use stages the bundled theme without it"
+
+pass "removing the theme in use switches to the default, or to the bundled theme it overlaid"
