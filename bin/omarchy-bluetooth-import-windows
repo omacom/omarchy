@@ -1,0 +1,192 @@
+#!/bin/bash
+
+# omarchy:summary=Copy Bluetooth pairings from Windows so devices work in both systems without pairing again
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# A device keeps one key per host, and each system makes its own when it
+# pairs, so pairing in Windows breaks the pairing in Omarchy. Pair in Omarchy
+# first, then in Windows, then run this: it copies the key Windows holds into
+# Omarchy's pairing, so both use the same one.
+#
+# Windows keeps the keys in its SYSTEM hive under
+# Services\BTHPORT\Parameters\Keys\<adapter>: a classic device's link key is a
+# value named after its address, and a Bluetooth LE device has a subkey with
+# its long-term key (LTK, KeyLength, EDIV, ERand). The LE identity key isn't
+# copied: it belongs to the device and stays the same across pairings.
+
+BLUETOOTH_DIR="${OMARCHY_BLUETOOTH_DIR:-/var/lib/bluetooth}"
+
+# 001a7dda7113 -> 00:1A:7D:DA:71:13
+colon_address() {
+  local hex=${1^^}
+  printf '%s:%s:%s:%s:%s:%s\n' "${hex:0:2}" "${hex:2:2}" "${hex:4:2}" "${hex:6:2}" "${hex:8:2}" "${hex:10:2}"
+}
+
+# The keys in a registry export, one per line:
+#   classic <adapter> <device> <link key>
+#   le <adapter> <device> <ltk> <key length> <ediv> <erand bytes>
+windows_keys() {
+  awk '
+    function hexbytes(value) { sub(/^hex(\([0-9a-f]+\))?:/, "", value); gsub(/[,[:space:]\\]/, "", value); return toupper(value) }
+    function dword(value) { sub(/^dword:/, "", value); return value }
+    function flush() {
+      if (device != "" && ltk != "") print "le", adapter, device, ltk, keylength, ediv, erand
+      ltk = keylength = ediv = erand = ""
+    }
+    # A value continued on the next line ends with a backslash.
+    { while (/\\$/ && (getline next_line) > 0) { sub(/\\$/, ""); $0 = $0 next_line } }
+    /^\[/ {
+      flush()
+      path = tolower($0)
+      if (!sub(/^.*\\keys\\/, "", path)) { adapter = device = ""; next }
+      sub(/\]$/, "", path)
+      n = split(path, parts, "\\")
+      adapter = (n >= 1 && parts[1] ~ /^[0-9a-f]{12}$/) ? parts[1] : ""
+      device = (n == 2 && parts[2] ~ /^[0-9a-f]{12}$/) ? parts[2] : ""
+      next
+    }
+    adapter == "" || !match($0, /^"[^"]+"=/) { next }
+    {
+      name = tolower(substr($0, 2, RLENGTH - 3))
+      value = substr($0, RLENGTH + 1)
+    }
+    device == "" && name ~ /^[0-9a-f]{12}$/ && value ~ /^hex:/ { print "classic", adapter, name, hexbytes(value); next }
+    device != "" && name == "ltk" { ltk = hexbytes(value) }
+    device != "" && name == "keylength" { keylength = dword(value) }
+    device != "" && name == "ediv" { ediv = dword(value) }
+    device != "" && name == "erand" { erand = hexbytes(value) }
+    END { flush() }
+  '
+}
+
+# Little-endian bytes as an unsigned decimal, as BlueZ writes Rand.
+little_endian_decimal() {
+  local hex=$1 reversed="" i
+  for (( i = ${#hex} - 2; i >= 0; i -= 2 )); do
+    reversed+=${hex:i:2}
+  done
+  printf '%u\n' "0x${reversed:-0}"
+}
+
+# Prints FILE with KEY=VALUE pairs set in [SECTION], adding the section or a
+# missing key at its end.
+set_section() {
+  local file=$1 section=$2
+  shift 2
+  awk -v section="[$section]" -v pairs="$*" '
+    BEGIN { n = split(pairs, list, " "); for (i = 1; i <= n; i++) { split(list[i], kv, "="); want[kv[1]] = substr(list[i], length(kv[1]) + 2); order[i] = kv[1] } }
+    function finish() { for (i = 1; i <= n; i++) if (!(order[i] in done)) print order[i] "=" want[order[i]]; }
+    /^\[/ { if (inside) finish(); inside = ($0 == section); if (inside) seen = 1 }
+    inside && /^[^=]+=/ { key = substr($0, 1, index($0, "=") - 1); if (key in want) { print key "=" want[key]; done[key] = 1; next } }
+    { print }
+    END { if (inside) finish(); if (!seen) { print ""; print section; for (i = 1; i <= n; i++) print order[i] "=" want[order[i]] } }
+  ' "$file"
+}
+
+# The Windows SYSTEM hive copied to TARGET from the first NTFS partition that
+# has one. Partitions that aren't mounted are mounted read-only for the copy.
+copy_windows_hive() {
+  local target=$1 device fstype mountpoint root hive
+  while IFS=$'\t' read -r device fstype mountpoint; do
+    case ${fstype,,} in
+      bitlocker)
+        echo "Skipping $device: BitLocker is on, so its Bluetooth keys can't be read from Omarchy." >&2
+        continue
+        ;;
+      ntfs) ;;
+      *) continue ;;
+    esac
+    root=$mountpoint
+    if [[ $root == "-" ]]; then
+      root="$work/mnt-${#mounted[@]}"
+      mkdir "$root"
+      if ! sudo mount -o ro -t ntfs3 "$device" "$root" 2>/dev/null; then
+        rmdir "$root"
+        continue
+      fi
+      mounted+=("$root")
+    fi
+    hive=$(sudo find "$root" -mindepth 4 -maxdepth 4 -ipath "$root/windows/system32/config/system" -type f -print -quit 2>/dev/null)
+    if [[ -n $hive ]]; then
+      sudo cat "$hive" >"$target"
+      return 0
+    fi
+  done < <(lsblk -J -o PATH,FSTYPE,MOUNTPOINT 2>/dev/null |
+    jq -r '.blockdevices[] | recurse(.children[]?) | [.path, (.fstype // "-"), (.mountpoint // "-")] | @tsv')
+  return 1
+}
+
+if omarchy-cmd-missing hivexregedit; then
+  omarchy-pkg-add hivex
+fi
+
+# Only partitions this command mounted are unmounted, however it ends, and
+# before the scratch directory holding their mount points goes.
+work=$(mktemp -d)
+mounted=()
+cleanup() {
+  local root
+  for root in "${mounted[@]}"; do
+    sudo umount "$root" 2>/dev/null
+  done
+  rm -rf "$work"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
+
+if ! copy_windows_hive "$work/SYSTEM"; then
+  echo "No Windows installation with Bluetooth keys was found." >&2
+  exit 1
+fi
+
+control_set=$(hivexget "$work/SYSTEM" '\Select' Current 2>/dev/null || echo 1)
+keys=$(hivexregedit --export "$work/SYSTEM" "$(printf '\\ControlSet%03d\\Services\\BTHPORT\\Parameters\\Keys' "$control_set")" 2>/dev/null | tr -d '\r' | windows_keys)
+
+if [[ -z $keys ]]; then
+  echo "Windows has no Bluetooth pairings to copy."
+  exit 0
+fi
+
+updates=()
+while read -r kind adapter device rest; do
+  adapter_address=$(colon_address "$adapter")
+  device_address=$(colon_address "$device")
+  if ! sudo test -f "$BLUETOOTH_DIR/$adapter_address/$device_address/info"; then
+    echo "Skipping $device_address: pair it in Omarchy first, then in Windows, then run this again."
+    continue
+  fi
+  updates+=("$kind $adapter_address $device_address $rest")
+  name=$(sudo sed -n 's/^Name=//p' "$BLUETOOTH_DIR/$adapter_address/$device_address/info" | head -n 1)
+  echo "Found the Windows key for ${name:-$device_address} ($device_address)."
+done <<<"$keys"
+
+if (( ${#updates[@]} == 0 )); then
+  exit 0
+fi
+
+if ! gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n bluetooth.importWindows)"; then
+  exit 0
+fi
+
+# A dual-mode device gets both a classic and an LE key: its info file is
+# backed up once, before either, so info.bak is the pairing as it was.
+declare -A backed_up=()
+for update in "${updates[@]}"; do
+  read -r kind adapter_address device_address key keylength ediv erand <<<"$update"
+  info="$BLUETOOTH_DIR/$adapter_address/$device_address/info"
+  if [[ -z ${backed_up[$info]:-} ]]; then
+    sudo cp -p "$info" "$info.bak"
+    backed_up[$info]=1
+  fi
+  if [[ $kind == "classic" ]]; then
+    updated=$(set_section <(sudo cat "$info") LinkKey "Key=$key")
+  else
+    updated=$(set_section <(sudo cat "$info") LongTermKey "Key=$key" "EncSize=$((16#${keylength:-10}))" "EDiv=$((16#${ediv:-0}))" "Rand=$(little_endian_decimal "$erand")")
+  fi
+  printf '%s\n' "$updated" | sudo tee "$info" >/dev/null
+done
+
+sudo systemctl restart bluetooth
+echo "Copied ${#updates[@]} Bluetooth pairing(s) from Windows. The previous ones are kept as info.bak."
