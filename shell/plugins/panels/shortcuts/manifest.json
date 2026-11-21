@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.shortcuts",
+  "name": "Shortcuts",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Interactive Hyprland shortcuts cheat-sheet and learning pinboard",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Shortcuts",
+    "description": "Keyboard shortcuts cheat-sheet with pinning for active learning",
+    "category": "System",
+    "allowMultiple": false
+  }
+}
