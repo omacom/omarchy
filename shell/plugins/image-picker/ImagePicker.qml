@@ -778,7 +778,7 @@ Item {
             } else if (event.key === Qt.Key_R && root.backgroundMode && (event.modifiers & Qt.ShiftModifier) && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
               root.cycleRotationInterval()
               event.accepted = true
-            } else if (event.key === Qt.Key_R && root.backgroundMode && event.modifiers === Qt.NoModifier) {
+            } else if (event.key === Qt.Key_R && root.backgroundMode && !(event.modifiers & (Qt.ShiftModifier | Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
               root.toggleRotation()
               event.accepted = true
             } else if (root.filterable && Util.editsFilter(event, root.filterText)) {
