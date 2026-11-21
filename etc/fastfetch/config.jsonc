@@ -23,6 +23,7 @@
     {
       "type": "host",
       "key": " PC",
+      "format": "{name}",
       "keyColor": "green"
     },
     {
