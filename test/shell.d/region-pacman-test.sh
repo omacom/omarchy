@@ -193,3 +193,30 @@ if tzdata.is_file():
 assert not listed & never, sorted(listed & never)
 PY
 pass "Hong Kong, Macau and Taiwan belong to no region"
+
+# Region packages: install what this architecture's repositories offer, and
+# record success only once pacman succeeds, so the service retries otherwise.
+cat >"$scratch/bin/pacman" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$PACMAN_LOG"
+[[ $1 == "-Si" ]] && { [[ $3 != "x86-only" ]]; exit; }
+[[ $1 == "-Sy" ]] && exit "${PACMAN_SY_STATUS:-0}"
+exit 0
+SH
+chmod +x "$scratch/bin/pacman"
+export PACMAN_LOG="$scratch/pacman.log" OMARCHY_REGION_PACKAGES_DONE="$scratch/region-packages-done"
+export OMARCHY_REGION_FILE="$TARGET_ROOT/etc/omarchy/region"
+printf 'cn\n' >"$OMARCHY_REGION_FILE"
+printf '# comment\nwechat-bin\nx86-only  # left out\n' >"$OMARCHY_PATH/default/regions/cn/packages-add"
+
+PACMAN_SY_STATUS=1 "$ROOT/bin/omarchy-region-packages" >/dev/null 2>&1 && fail "an offline sync fails the run"
+[[ ! -e $OMARCHY_REGION_PACKAGES_DONE ]] || fail "a failed run leaves the packages pending"
+: >"$PACMAN_LOG"
+"$ROOT/bin/omarchy-region-packages" >/dev/null
+grep -qxF -- "-S --needed --noconfirm -- wechat-bin" "$PACMAN_LOG" || fail "region packages install what the repositories offer" "$(<"$PACMAN_LOG")"
+[[ -e $OMARCHY_REGION_PACKAGES_DONE ]] || fail "a successful run is recorded"
+rm "$OMARCHY_REGION_PACKAGES_DONE" "$OMARCHY_REGION_FILE"
+: >"$PACMAN_LOG"
+"$ROOT/bin/omarchy-region-packages" >/dev/null
+[[ ! -s $PACMAN_LOG ]] || fail "a global machine installs no region packages"
+pass "region packages install once, skipping packages this architecture lacks"

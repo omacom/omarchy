@@ -1,0 +1,4 @@
+# Packages every install in this region gets, from the region's online mirrors
+# on first boot (bin/omarchy-region-packages). Other Chinese apps (QQ, Feishu,
+# DingTalk, WPS Office) are optional, under Install > Service.
+wechat-bin

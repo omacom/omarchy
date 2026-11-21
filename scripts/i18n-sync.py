@@ -309,7 +309,7 @@ def scan_candidates(root):
 
 # ------------------------------------------------------------- keybindings
 
-BIND_CALL = re.compile(r"\b(o\.(?:bind|rebind|bind_toggle|bind_hold)|hl\.bind)\(")
+BIND_CALL = re.compile(r"\b(o\.(?:bind|rebind|bind_toggle|bind_hold|bind_preinstalled)|hl\.bind)\(")
 LUA_STRING = re.compile(r'"((?:[^"\\]|\\.)*)"')
 
 
@@ -367,7 +367,8 @@ def keybinding_descriptions(root):
     """Every description the shipped Hyprland bindings show in the
     keybindings menu (Super+K), in English."""
     found = set()
-    for path in sorted((root / "default/hypr/bindings").glob("*.lua")):
+    paths = sorted((root / "default/hypr/bindings").glob("*.lua")) + sorted(root.glob("default/regions/*/bindings.lua"))
+    for path in paths:
         source = path.read_text(encoding="utf-8")
         source = re.sub(r"--[^\n]*", "", source)
         for match in BIND_CALL.finditer(source):

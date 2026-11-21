@@ -8,6 +8,7 @@ test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
 export OMARCHY_PATH="$ROOT"
+export OMARCHY_REGION_FILE="$test_tmp/no-region"
 export OMARCHY_PROVISIONING_DIR="$test_tmp/provisioning"
 
 source "$ROOT/install/helpers/browser-policy.sh"
@@ -329,3 +330,23 @@ printf 'not json\n' >"$fx_merge/policies.json"
 browser_policy_firefox_skip_default_check "$fx_merge"
 [[ $(<"$fx_merge/policies.json") == "not json" ]] || fail "an unreadable Firefox policies.json is left alone"
 pass "Firefox's default browser check is merged into existing policies"
+
+region_root=$test_tmp/region-policy
+mkdir -p "$region_root/etc/chromium/policies"
+chmod 755 "$region_root/etc/chromium" "$region_root/etc/chromium/policies"
+BROWSER_POLICY_PARENT_DIRS=(
+  "$region_root/etc/chromium"
+  "$region_root/etc/chromium/policies"
+)
+as_root() { unprivileged_as_root "$@"; }
+printf 'cn\n' >"$test_tmp/region"
+OMARCHY_REGION_FILE=$test_tmp/region browser_policy_setup_dir "$region_root/etc/chromium/policies/managed"
+[[ $(jq -r '.DefaultSearchProviderSearchURL' "$region_root/etc/chromium/policies/recommended/omarchy-region.json") == "https://cn.bing.com/search?q={searchTerms}" ]] ||
+  fail "a China machine recommends Bing China as its search engine"
+! grep -rq DefaultSearchProvider "$region_root/etc/chromium/policies/managed" ||
+  fail "the regional search engine stays a recommendation the user can change"
+browser_policy_setup_dir "$region_root/etc/chromium/policies/managed"
+[[ ! -e $region_root/etc/chromium/policies/recommended/omarchy-region.json ]] ||
+  fail "a machine outside the region drops the regional recommendation"
+BROWSER_POLICY_PARENT_DIRS=("${saved_parent_dirs[@]}")
+pass "a region's recommended browser policy follows the machine's region"

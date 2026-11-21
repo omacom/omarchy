@@ -850,6 +850,21 @@
   "install.service.bitwarden": {
     "label": "Bitwarden"
   },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
+  },
+  "install.service.feishu": {
+    "label": "Feishu"
+  },
+  "install.service.qq": {
+    "label": "QQ"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "install.service.wps": {
+    "label": "WPS Office"
+  },
   "install.service.microsoft": {
     "label": "Microsoft"
   },

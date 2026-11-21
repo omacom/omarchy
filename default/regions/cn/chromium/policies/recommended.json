@@ -1,0 +1,9 @@
+{
+  "DefaultSearchProviderEnabled": true,
+  "DefaultSearchProviderName": "Bing",
+  "DefaultSearchProviderKeyword": "cn.bing.com",
+  "DefaultSearchProviderSearchURL": "https://cn.bing.com/search?q={searchTerms}",
+  "DefaultSearchProviderSuggestURL": "https://cn.bing.com/osjson.aspx?query={searchTerms}",
+  "DefaultSearchProviderIconURL": "https://cn.bing.com/favicon.ico",
+  "DefaultSearchProviderEncodings": ["UTF-8"]
+}

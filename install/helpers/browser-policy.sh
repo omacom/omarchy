@@ -79,6 +79,18 @@ browser_policy_setup_parents_for() {
   done
 }
 
+# A policy file from this machine's region profile, if the region has one by
+# that name. The region follows /etc/omarchy/region at the time policy is set.
+browser_policy_regional_file() {
+  local name=$1
+  local region_file=${OMARCHY_REGION_FILE:-/etc/omarchy/region}
+  local region=""
+
+  [[ -r $region_file ]] && region=$(<"$region_file")
+  [[ $region =~ ^[a-z]{2}$ && -f $OMARCHY_PATH/default/regions/$region/chromium/policies/$name ]] || return 1
+  printf '%s' "$OMARCHY_PATH/default/regions/$region/chromium/policies/$name"
+}
+
 # Links reach the browser through omarchy-browser.desktop, so the browser never
 # sees itself as the default. Hide its check and its button to become one, which
 # would rewrite mimeapps.list behind Omarchy's back.
@@ -90,8 +102,28 @@ browser_policy_install_defaults() {
 
   # Google Chrome ignores --load-extension, so its policy installs the bundled
   # extensions from the CRXs Omarchy ships instead.
+  # A region can leave out an extension for a site it cannot reach.
   if [[ $policy_dir == "/etc/opt/chrome/policies/managed" ]]; then
-    as_root install -m 644 -o root -g root -T "$OMARCHY_PATH/default/chromium/policies/chrome-extensions.json" "$policy_dir/omarchy-extensions.json"
+    local extensions
+    extensions=$(browser_policy_regional_file chrome-extensions.json) ||
+      extensions=$OMARCHY_PATH/default/chromium/policies/chrome-extensions.json
+    as_root install -m 644 -o root -g root -T "$extensions" "$policy_dir/omarchy-extensions.json"
+  fi
+}
+
+# A region's recommended policies, such as its default search engine, go in the
+# sibling recommended directory, so they are defaults the user can still change.
+browser_policy_setup_recommended() {
+  local dir=$1
+  local recommended
+
+  if recommended=$(browser_policy_regional_file recommended.json); then
+    browser_policy_setup_parents_for "$dir"
+    browser_policy_setup_parent "$dir"
+    browser_policy_purge_dir "$dir"
+    as_root install -m 644 -o root -g root -T "$recommended" "$dir/omarchy-region.json"
+  elif [[ -d $dir && ! -L $dir ]]; then
+    as_root rm -f -- "$dir/omarchy-region.json"
   fi
 }
 
@@ -102,6 +134,9 @@ browser_policy_setup_dir() {
   browser_policy_setup_parent "$dir"
   browser_policy_purge_dir "$dir"
   browser_policy_install_defaults "$dir"
+  if [[ $dir == */managed ]]; then
+    browser_policy_setup_recommended "${dir%/managed}/recommended"
+  fi
 }
 
 # Themes are user-installed. Accept only three 0-255 components.
