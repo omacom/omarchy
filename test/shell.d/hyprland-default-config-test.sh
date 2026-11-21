@@ -33,7 +33,7 @@ run_application_bindings() {
   local home="$1"
   local prelude="${2:-}"
 
-  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
+  OMARCHY_REGION_FILE="${OMARCHY_REGION_FILE:-$tmpdir/no-region}" HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
 package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local prelude = os.getenv("OMARCHY_BINDING_PRELUDE") or ""
@@ -64,7 +64,7 @@ run_omarchy_bindings() {
   local home="$1"
   local prelude="${2:-}"
 
-  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
+  OMARCHY_REGION_FILE="${OMARCHY_REGION_FILE:-$tmpdir/no-region}" HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
 package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local function proxy()
@@ -156,6 +156,14 @@ if grep -Fq $'	Calculator' <<<"$variable_output"; then
   fail "preinstalled binding variable skips calculator bindings"
 fi
 pass "preinstalled binding variable skips optional application bindings"
+
+echo cn >"$tmpdir/region-cn"
+region_output=$(OMARCHY_REGION_FILE="$tmpdir/region-cn" run_application_bindings "$fresh_home")
+grep -Fq $'SUPER + SHIFT + E	Email' <<<"$region_output" || fail "a region keeps the web app hotkeys it doesn't omit"
+for binding in $'SUPER + SHIFT + Y	YouTube' $'SUPER + SHIFT + ALT + X	X Post' $'SUPER + SHIFT + S	Google Maps' $'SUPER + SHIFT + M	Music'; do
+  if grep -Fq "$binding" <<<"$region_output"; then fail "a region skips hotkeys for the web apps it omits" "$binding"; fi
+done
+pass "a region skips hotkeys for the web apps it omits, subdomains included"
 
 no_bindings_home="$tmpdir/no-bindings-home"
 mkdir -p "$no_bindings_home"

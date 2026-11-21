@@ -174,3 +174,20 @@ touch "$mise_config"
 "$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
 [[ -f $mise_config ]] || fail "Remove Preinstalls leaves the package-owned mise declarations in place"
 pass "Remove Preinstalls leaves the package-owned mise declarations in place"
+
+# The real launcher refresh, with only the desktop database stubbed.
+refresh_bin="$test_tmp/refresh-bin"
+mkdir -p "$refresh_bin"
+printf '#!/bin/bash\nexit 0\n' >"$refresh_bin/update-desktop-database"
+printf '#!/bin/bash\nexit 1\n' >"$refresh_bin/omarchy-cmd-present"
+chmod +x "$refresh_bin"/*
+echo cn >"$test_tmp/region"
+region_home="$test_tmp/region-home"
+mkdir -p "$region_home"
+HOME="$region_home" PATH="$refresh_bin:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_REGION_FILE="$test_tmp/region" "$ROOT/bin/omarchy-refresh-applications"
+launchers="$region_home/.local/share/applications"
+[[ -f "$launchers/Basecamp.desktop" && -f "$launchers/HEY.desktop" ]] || fail "a region keeps the launchers it doesn't omit"
+for omitted in YouTube X "Google Maps" Spotify; do
+  [[ ! -e "$launchers/$omitted.desktop" ]] || fail "a region leaves out the web app launchers it omits" "$omitted"
+done
+pass "a region leaves out the web app launchers it omits, subdomains included"

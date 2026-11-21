@@ -1,13 +1,20 @@
 # Setup user theme folder and seed the default only when no theme exists yet.
 mkdir -p ~/.config/omarchy/themes
 
+# A region's profile may pick another default (docs/regions.md).
+default_theme="Tokyo Night"
+region=$(cat "${OMARCHY_REGION_FILE:-/etc/omarchy/region}" 2>/dev/null)
+if [[ $region =~ ^[a-z]{2}$ && -s $OMARCHY_PATH/default/regions/$region/theme ]]; then
+  default_theme=$(<"$OMARCHY_PATH/default/regions/$region/theme")
+fi
+
 if [[ ! -s $HOME/.local/state/omarchy/current/theme.name ]]; then
   # iso-chroot and provision-owner both run without a live session to notify.
   if [[ ${OMARCHY_SETUP_CONTEXT:-runtime} != "runtime" ]]; then
-    OMARCHY_THEME_HEADLESS=1 omarchy-theme-set "Tokyo Night"
+    OMARCHY_THEME_HEADLESS=1 omarchy-theme-set "$default_theme"
     rm -f ~/.config/google-chrome/SingletonLock ~/.config/chromium/SingletonLock # otherwise archiso owns the browser singleton
   else
-    omarchy-theme-set "Tokyo Night"
+    omarchy-theme-set "$default_theme"
   fi
 fi
 omarchy-theme-set-pi --activate

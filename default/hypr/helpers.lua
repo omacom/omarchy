@@ -149,6 +149,53 @@ function o.preinstalled_bindings_enabled()
   return not file_exists((os.getenv("HOME") or "") .. "/.local/state/omarchy/preinstalls-removed")
 end
 
+-- The web app hosts this machine's region leaves out, from the webapps file of
+-- its profile (docs/regions.md). Global, or a region without one, omits none.
+local region_omitted_hosts
+local function omitted_hosts()
+  if region_omitted_hosts then
+    return region_omitted_hosts
+  end
+
+  region_omitted_hosts = {}
+  local marker = io.open(os.getenv("OMARCHY_REGION_FILE") or "/etc/omarchy/region", "r")
+  if not marker then
+    return region_omitted_hosts
+  end
+  local region = (marker:read("*l") or ""):match("^%l%l$")
+  marker:close()
+
+  local list = region and io.open((os.getenv("OMARCHY_PATH") or "") .. "/default/regions/" .. region .. "/webapps", "r")
+  if list then
+    for line in list:lines() do
+      local host = line:gsub("#.*", ""):match("^%s*(%S+)")
+      if host then
+        table.insert(region_omitted_hosts, host)
+      end
+    end
+    list:close()
+  end
+
+  return region_omitted_hosts
+end
+
+-- Whether the region leaves out the web app at this URL: its host is one the
+-- profile lists, or a subdomain of one.
+function o.region_omits_webapp(url)
+  local host = tostring(url):match("^%a+://([^/:?#]+)")
+  if not host then
+    return false
+  end
+
+  for _, omitted in ipairs(omitted_hosts()) do
+    if host == omitted or host:sub(-(#omitted + 1)) == "." .. omitted then
+      return true
+    end
+  end
+
+  return false
+end
+
 function o.bind(keys, description, dispatcher, options)
   local opts = options or {}
 

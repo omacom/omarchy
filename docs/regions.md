@@ -1,6 +1,6 @@
 # Regional defaults
 
-Regions customize bootstrap defaults independently of update channels and of the installer's language. Country identifiers are lowercase, officially assigned ISO 3166-1 alpha-2 codes. `global` is a reserved value for no country-specific additions. Only implemented profiles are accepted; currently `global` and `cn`.
+Regions customize install defaults independently of update channels and of the installer's language: where packages come from, which shipped web apps a fresh install gets, and its starting theme. Country identifiers are lowercase, officially assigned ISO 3166-1 alpha-2 codes. `global` is a reserved value for no country-specific additions. Only implemented profiles are accepted; currently `global` and `cn`.
 
 ## Runtime configuration
 
@@ -21,22 +21,24 @@ Installs from before regions have no marker and stay global; nothing changes the
 Each profile lives in `default/regions/<code>/`:
 
 - `timezones`: the timezones that select this region, one per line, with blank lines and `#` comments allowed. List tzdata's backward-compatible names too, since the installer's timezone list includes them. A timezone may belong to at most one profile.
+- `webapps` (optional): the hosts of web apps the region leaves out, one per line, with blank lines and `#` comments allowed. `omarchy-refresh-applications` skips a shipped launcher in `applications/` whose web app is on one of these hosts or a subdomain of one, and the default hotkeys in `default/hypr/bindings/applications.lua` skip those web apps too (`o.region_omits_webapp`). The launchers are only left uninstalled, never removed, so a user who adds one back keeps it; the hotkeys follow the marker on every config reload.
+- `theme` (optional): the name of the theme a new user starts with, in place of Tokyo Night (`install/user/theme.sh`). It is seeded only when the user has no theme yet.
 - `pacman/`: per channel (`stable`, `rc`, `edge`), `omarchy-<channel>.prepend`, placed first in the `[omarchy]` section of `pacman.conf`, and `mirrorlist-<channel>.prepend`, placed ahead of the channel's mirrorlist, so the regional mirrors are tried first.
 
 A profile adds mirrors of repositories every install already uses, never a repository or a signing key of its own. Hong Kong, Macau and Taiwan belong to no profile under any timezone name, and a test keeps it that way.
 
 ## ISO installer contract
 
-There is one ISO for every region. The companion `omarchy-iso` repository reads the profiles from the runtime it bundles, so a region and its repository defaults can never disagree.
+Each market gets its own media: the global ISO, and one per region profile (a China ISO for `cn`). The companion `omarchy-iso` repository reads the profiles from the runtime it bundles, so a region and its defaults can never disagree. A profile adds no package, so a market's media is the global ISO with its region preset.
 
-- **Build:** the builder bundles the profiles with the runtime; it adds no repository, key or package for them.
-- **Install:** the installer maps the timezone the user picked to a region through the `timezones` files; a timezone no profile lists means `global`. It shows the result on the summary screen. Unattended installs can set the region explicitly instead. For a regional install it writes `/etc/omarchy/region`; the runtime finalizer then applies the fragments.
-- **Deferred installs** have no timezone until first boot, so they are `global` unless the unattended configuration sets a region.
+- **Build:** the builder bundles the profiles with the runtime; it adds no repository, key or package for them. A market's media sets `REGION=<code>` in its form defaults (`/etc/omarchy/form-defaults`).
+- **Install:** the region follows the timezone the user picked: one a profile's `timezones` lists picks that region; Hong Kong, Macau and Taiwan are always `global`; any other timezone keeps the media's region, so China media used abroad stays `cn`. The installer shows the result on the summary screen. Unattended installs can set the region explicitly instead. For a regional install it writes `/etc/omarchy/region` before finalization, so the pacman fragments, launchers and theme all follow it.
+- **Deferred installs** have no timezone until first boot. `omarchy-provision-owner` settles the region from the media's `REGION` and the owner's timezone by the same rule before it provisions the user (`configure_region`).
 
 
 ## Scope of the China profile
 
-The China profile provides repository defaults only. Language is a separate installer choice, not part of a region: a Chinese speaker outside China keeps global mirrors, and a China install in English still gets the regional ones.
+The China profile puts Omarchy's China mirrors first, leaves out the web apps blocked or unavailable in mainland China (ChatGPT, Discord, Google's, Grok, Netflix, Spotify, WhatsApp, X and YouTube) along with their hotkeys, and starts new users on Jade Horse. Language is a separate installer choice, not part of a region: a Chinese speaker outside China keeps global mirrors, and a China install in English still gets the regional ones.
 
 ## Remaining release validation
 

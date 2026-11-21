@@ -2,9 +2,31 @@
 
 # omarchy:summary=Ensure default application launchers are installed.
 
+# A web app the region leaves out (docs/regions.md) gets no launcher.
+region=$(cat "${OMARCHY_REGION_FILE:-/etc/omarchy/region}" 2>/dev/null)
+omitted_hosts=""
+if [[ $region =~ ^[a-z]{2}$ ]]; then
+  omitted_hosts="$OMARCHY_PATH/default/regions/$region/webapps"
+fi
+
+region_omits() {
+  local host=$1 omitted
+  [[ -n $host && -n $omitted_hosts && -r $omitted_hosts ]] || return 1
+  while read -r omitted _; do
+    [[ -z $omitted || $omitted == \#* ]] && continue
+    [[ $host == "$omitted" || $host == *."$omitted" ]] && return 0
+  done <"$omitted_hosts"
+  return 1
+}
+
 # Copy .desktop declarations
 mkdir -p ~/.local/share/applications
-cp "$OMARCHY_PATH"/applications/*.desktop ~/.local/share/applications/
+for launcher in "$OMARCHY_PATH"/applications/*.desktop; do
+  host=$(sed -n 's|^Exec=omarchy-launch-webapp [a-z]*://\([^/:?# ]*\).*|\1|p' "$launcher")
+  if ! region_omits "$host"; then
+    cp "$launcher" ~/.local/share/applications/
+  fi
+done
 
 if omarchy-cmd-present alacritty; then
   cp "$OMARCHY_PATH/default/alacritty/Alacritty.desktop" ~/.local/share/applications/
