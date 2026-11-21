@@ -1,0 +1,16 @@
+[Unit]
+Description=Watch for the system clock jumping
+# Nothing to count down: OnClockChange= waits on a timerfd the user manager
+# already holds, so the timer costs no process and no wakeups. The kernel
+# cancels that timerfd when CLOCK_REALTIME jumps against CLOCK_MONOTONIC, which
+# is what a resume from suspend does as well as a clock being set.
+PartOf=graphical-session.target
+
+[Timer]
+OnClockChange=yes
+# A zone change leaves the label on the old zone until the next tick, which is
+# why omarchy-menu-timezone pushes a refresh; this covers any other way it is set.
+OnTimezoneChange=yes
+
+[Install]
+WantedBy=graphical-session.target
