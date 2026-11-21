@@ -27,7 +27,7 @@ if ! fc-list | grep -Fqi -- "$font_name"; then
 fi
 
 if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
-  sed -i "s/family = \".*\"/family = \"$font_name\"/g" ~/.config/alacritty/alacritty.toml
+  sed --follow-symlinks -i "s/family = \".*\"/family = \"$font_name\"/g" ~/.config/alacritty/alacritty.toml
 fi
 
 if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
@@ -42,7 +42,7 @@ if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
 fi
 
 if [[ -f ~/.config/ghostty/config ]]; then
-  sed -i "s/font-family = \".*\"/font-family = \"$font_name\"/g" ~/.config/ghostty/config
+  sed --follow-symlinks -i "s/font-family = \".*\"/font-family = \"$font_name\"/g" ~/.config/ghostty/config
   pkill -SIGUSR2 ghostty
 fi
 
@@ -52,7 +52,7 @@ if [[ -f ~/.config/foot/foot.ini ]]; then
   if [[ -z $foot_size ]]; then
     foot_size=9
   fi
-  sed -i "s/^font=.*/font=$font_name:size=$foot_size/g" ~/.config/foot/foot.ini
+  sed --follow-symlinks -i "s/^font=.*/font=$font_name:size=$foot_size/g" ~/.config/foot/foot.ini
 fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
