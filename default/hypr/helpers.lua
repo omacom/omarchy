@@ -182,6 +182,37 @@ o.bind_commands = {}
 -- to run instead. The menu dispatches it as `hyprctl dispatch <expression>`.
 o.bind_expressions = {}
 
+-- A dock click on this workspace should leave the cursor at the dock.
+function o.focus_dock_window(selector)
+  local window = hl.get_window(selector)
+  if not window then
+    return
+  end
+
+  local focus = hl.dsp.focus({ window = selector })
+  local raise = hl.dsp.window.alter_zorder({ mode = "top", window = selector })
+  local workspace = hl.get_active_workspace()
+  if not workspace or not window.workspace or workspace.id ~= window.workspace.id then
+    hl.dispatch(focus)
+    hl.dispatch(raise)
+    return
+  end
+
+  -- Raising replays pointer motion and can refocus the window under it.
+  hl.dispatch(raise)
+  if hl.get_config("cursor.no_warps") then
+    hl.dispatch(focus)
+    return
+  end
+
+  hl.config({ cursor = { no_warps = true } })
+  local ok, err = pcall(hl.dispatch, focus)
+  hl.config({ cursor = { no_warps = false } })
+  if not ok then
+    error(err)
+  end
+end
+
 -- Hand the launcher the focused window's pid, which it would otherwise ask
 -- Hyprland for, to open the new terminal in that terminal's directory.
 function o.launch_terminal()
