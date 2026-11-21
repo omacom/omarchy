@@ -11,6 +11,28 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 ROOT="$ROOT" run_node_test <<'JS'
 const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
+const handoffQml = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/dock/DockWindow.qml', 'utf8')
+const hoverExpression = handoffQml.match(/readonly property bool iconsHovered: ([^\n]+)/)[1]
+const iconHover = new Function('window', 'return ' + hoverExpression)
+const trackBody = handoffQml.match(/function trackIconHover\(icon\) \{([\s\S]*?)\n  \}/)[1]
+const trackHover = new Function('window', 'icon', trackBody)
+const hideBody = handoffQml.match(/id: hideTimer[\s\S]*?onTriggered: \{([\s\S]*?)\n    \}/)[1]
+const finishHide = new Function('window', 'bodyHover', 'edgeHover', 'edgeSensor', 'pinsHover', 'pinGapHover', hideBody)
+const handoffOutside = {hovered: false, containsMouse: false}
+const handoff = {revealed: true, hoveredIcon: null, menuOpen: false, dragging: false, positionChanging: false}
+Object.defineProperty(handoff, 'iconsHovered', {get: () => iconHover(handoff)})
+const handoffIcon = {pointerInside: true}, handoffNext = {pointerInside: true}
+trackHover(handoff, handoffIcon)
+finishHide(handoff, handoffOutside, handoffOutside, handoffOutside, handoffOutside, handoffOutside)
+assert(handoff.revealed, 'an app icon keeps the dock visible when edge and body hover have cleared')
+trackHover(handoff, handoffNext); handoffIcon.pointerInside = false; trackHover(handoff, handoffIcon)
+assertEqual(handoff.hoveredIcon, handoffNext, 'an old slot exit cannot clear a newer icon entry')
+finishHide(handoff, handoffOutside, handoffOutside, handoffOutside, handoffOutside, handoffOutside)
+assert(handoff.revealed, 'the next icon still holds the dock during handoff')
+handoffNext.pointerInside = false; trackHover(handoff, handoffNext)
+finishHide(handoff, handoffOutside, handoffOutside, handoffOutside, handoffOutside, handoffOutside)
+assert(!handoff.revealed, 'leaving all dock targets still allows auto-hide')
+
 
 assertEqual(dock.normalizePosition('left'), 'left', 'dock accepts a valid position')
 assertEqual(dock.normalizePosition(' Top '), 'top', 'dock reads a position loosely')
