@@ -251,8 +251,11 @@ plug("DP-2", "", { description = xdr })
 handlers["monitor.added"]({ name = "DP-2" })
 check(rule_for("DP-2", xdr).cm == "edid", "gives a broad description rule EDID color once an XDR arrives")
 ' || fail "description rules get EDID color on Apple displays"
-# A port rule with its own cm still wins over a description rule loaded before
-# it, after the description rule is rechecked for an arriving display.
+pass "description rules get EDID color on Apple displays"
+
+# A description rule that matches no connected display gets EDID color once an
+# Apple display it matches arrives (DP-5 has no rule of its own). A port rule
+# with its own cm still wins over a description rule loaded before it.
 run_lua "apple = true $wide_gamut"'
 hl.monitor({ output = "", mode = "preferred", scale = "auto" })
 hl.monitor({ output = "desc:Apple Computer Inc Pro", scale = 2 })
@@ -260,12 +263,13 @@ hl.monitor({ output = "DP-2", scale = 1.5, cm = "srgb" })
 plug("DP-2", "", { description = xdr })
 handlers["monitor.added"]({ name = "DP-2" })
 check(rule_for("DP-2", xdr).cm == "srgb" and rule_for("DP-2", xdr).scale == 1.5, "keeps a later port rule ahead of a rechecked description rule")
+check(rule_for("DP-5", xdr).cm == "edid", "gives a rechecked description rule EDID color")
 hl.monitor({ output = "desc:Apple Computer Inc ProDisplayXDR", cm = "srgb" })
 plug("DP-4", "", { description = studio })
 hl.monitor({ output = "desc:Apple Computer Inc", scale = 2 })
 check(rule_for("DP-4", studio).cm == "edid", "keeps one display'"'"'s cm off a broader description rule")
-' || fail "description rules get EDID color on Apple displays"
-pass "description rules get EDID color on Apple displays"
+' || fail "description rules are rechecked on hotplug and yield to port rules"
+pass "description rules are rechecked on hotplug and yield to port rules"
 
 # The replay keeps every field of a port rule, as Hyprland merges them.
 run_lua "apple = true $wide_gamut"'
