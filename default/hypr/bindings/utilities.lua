@@ -20,6 +20,27 @@ o.bind("SUPER + SHIFT + BACKSPACE", "Toggle window gaps", "omarchy-hyprland-wind
 o.bind("SUPER + CTRL + BACKSPACE", "Toggle single-window square aspect", "omarchy-hyprland-window-single-square-aspect-toggle")
 o.bind_toggle("SUPER + CTRL + ALT + F", "Toggle full screen desktop", "fullscreen-desktop")
 
+-- Every key but the exit reaches the focused VM, remote desktop, or KVM window.
+local passthrough_on = o.notify("Keyboard passthrough on (Super + Shift + Escape to exit)")
+
+local function start_keyboard_passthrough()
+  hl.dispatch(hl.dsp.submap("passthrough"))
+  hl.exec_cmd(passthrough_on)
+end
+
+-- The keybindings menu can't replay a Lua function, so it runs this instead.
+o.bind_commands[start_keyboard_passthrough] = "hyprctl dispatch 'hl.dsp.submap(\"passthrough\")' && " .. passthrough_on
+
+o.bind("SUPER + SHIFT + ESCAPE", "Start keyboard passthrough", start_keyboard_passthrough)
+
+-- Without a description the menu, which never scans submaps, leaves the exit out.
+hl.define_submap("passthrough", function()
+  o.bind("SUPER + SHIFT + ESCAPE", nil, function()
+    hl.dispatch(hl.dsp.submap("reset"))
+    hl.exec_cmd(o.notify("Keyboard passthrough off"))
+  end, { dont_inhibit = true, locked = true })
+end)
+
 -- xkbcommon names the comma keysym "comma"; the upper-case "COMMA" does not match.
 o.bind("SUPER + comma", "Dismiss, invoke, or focus last notification", { ipc = "notifications.act" })
 o.bind("SUPER + SHIFT + comma", "Dismiss all notifications", { ipc = "notifications.dismissAll" })
