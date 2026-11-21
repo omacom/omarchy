@@ -67,6 +67,9 @@
         },
         {
           "id": "omarchy.power"
+        },
+        {
+          "id": "omarchy.notification-center"
         }
       ]
     }
