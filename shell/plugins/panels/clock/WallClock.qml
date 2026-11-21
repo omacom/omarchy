@@ -18,6 +18,13 @@ Timer {
     restart()
   }
 
+  // Re-reads the time and re-arms from now, the way a tick does. Suspend stops
+  // the countdown this Timer waits on, so a wake calls this to catch up.
+  function catchUp() {
+    date = new Date()
+    arm()
+  }
+
   onStepChanged: arm()
   onTriggered: {
     date = new Date()
