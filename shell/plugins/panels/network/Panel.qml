@@ -136,6 +136,14 @@ Panel {
   // cursor follows it when a state change re-sorts the list.
   // null rather than "", which is a hidden network's SSID.
   property var cursorSsid: null
+  // The list's scroll offset just before a rebuild reassigns `wifiNetworks`,
+  // so the view can be put back there once the rebuild's delegates exist to
+  // anchor against. -1 when the upcoming rebuild shouldn't restore one (the
+  // panel wasn't open to have a scroll position worth keeping, or the
+  // rebuild is the `fresh` one on open, which starts clean on purpose).
+  property real pendingScrollY: -1
+  property int pendingScrollIndex: -1
+  property bool pendingScrollSelectionVisible: false
   property bool wifiActionFocused: false
   property bool cursorActive: false
 
@@ -343,8 +351,11 @@ Panel {
   // KeyboardPanel primes layer-shell focus whenever the panel opens. That's
   // what makes the SUPER+CTRL+W keybind land here with navigation ready.
   onOpenedChanged: {
+    pendingScrollY = -1
     if (opened) {
-      refresh(true)
+      // The rows (and their held signal readings) may be a stale snapshot
+      // from before the panel was last closed; this open starts clean.
+      refresh(true, true)
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
       focusSection = hasCaptivePortal ? "portal" : (wifiNetworks.length > 0 ? "wifi" : "dns")
@@ -383,6 +394,12 @@ Panel {
     }
   }
 
+  // Navigation owns scrolling; a cursor following its SSID still restores first.
+  onSelectedIndexChanged: {
+    var selected = wifiNetworks[selectedIndex]
+    if (!selected || selected.ssid !== cursorSsid) pendingScrollY = -1
+  }
+
   // Keep selectedIndex valid as scans refresh the network list.
   // If the list empties (station gone, e.g. wifi off), bounce the cursor
   // back to the DNS row so the panel doesn't end up with no cursor at all.
@@ -408,6 +425,15 @@ Panel {
     if (selectedIndex < 0 || selectedIndex >= wifiNetworks.length || !canForgetNetwork(wifiNetworks[selectedIndex])) {
       wifiActionFocused = false
     }
+
+    // Reassigning `wifiNetworks` resets the ListView's own scroll position,
+    // snapping the list back to the top under whatever the person was
+    // looking at -- scrolled with a trackpad, not just navigated with the
+    // keyboard, so the fix can't key off selectedIndex/currentIndex. Restore
+    // the offset `rebuildWifiRows` captured, once the rebuild's new
+    // delegates exist to hold it, clamped to the (possibly now larger or
+    // smaller) scrollable range.
+    if (pendingScrollY >= 0) Qt.callLater(restoreWifiScroll)
   }
 
   onWifiDeviceChanged: {
@@ -607,7 +633,7 @@ Panel {
     bar.shell.summon("omarchy.wifiqr", JSON.stringify(payload))
   }
 
-  function refresh(scanWifi) {
+  function refresh(scanWifi, freshWifiRows) {
     checkConnectivity()
     if (scanWifi === undefined) scanWifi = false
     if (!detailsProc.running) detailsProc.running = true
@@ -630,7 +656,7 @@ Panel {
         setScannerEnabled(true)
       }
     }
-    syncWifiNetworks()
+    syncWifiNetworks(freshWifiRows)
   }
 
   function formatHeaderSpeed(mbps) {
@@ -732,13 +758,26 @@ Panel {
     return null
   }
 
-  function syncWifiNetworks() {
-    rebuildWifiRows()
+  function syncWifiNetworks(fresh) {
+    rebuildWifiRows(fresh)
     wifiStationAvailable = !!wifiDevice
     scanning = false
   }
 
-  function rebuildWifiRows() {
+  function restoreWifiScroll() {
+    var restoreY = pendingScrollY
+    pendingScrollY = -1
+    if (restoreY < 0 || !opened || !panel.loadedContent) return
+    var listView = panel.loadedContent.networkList
+    var maxY = Math.max(0, listView.contentHeight - listView.height)
+    listView.contentY = Math.min(restoreY, maxY)
+    if (pendingScrollSelectionVisible && selectedIndex !== pendingScrollIndex && selectedIndex >= 0) listView.positionViewAtIndex(selectedIndex, ListView.Contain)
+  }
+
+  // `fresh` skips the hold below, for the rebuild that opens the panel: a
+  // snapshot held over from before the panel was last closed is stale, not
+  // worth protecting from reshuffling.
+  function rebuildWifiRows(fresh) {
     var nets = []
     var networks = wifiNetworkObjects || []
 
@@ -749,12 +788,28 @@ Panel {
       var row = Model.wifiRow(network)
       if (row) nets.push(row)
     }
-    nets = Model.sortWifiRows(nets, passwordSsid !== "" ? wifiNetworks : null)
+    // Freeze order (and each row's displayed signal) against whatever's on
+    // screen whenever the panel is open, not just while a password prompt is
+    // up: rounding noise in signalStrength otherwise swaps neighboring rows'
+    // places on every scan tick.
+    nets = Model.sortWifiRows(nets, opened && !fresh ? wifiNetworks : null)
     // A new model rebuilds every delegate, which takes focus from a passphrase
     // being typed, so identical rows are left in place.
     if (JSON.stringify(nets) === JSON.stringify(wifiNetworks)) return
     var selected = wifiNetworks[selectedIndex]
     cursorSsid = selected ? selected.ssid : null
+    // Capture the scroll offset now, before reassigning resets it: held rows
+    // keep their order (see above), so the view belongs back at this exact
+    // offset once the rebuild's new delegates exist to hold it there. Skip
+    // it for the `fresh` open-transition rebuild, which starts at the top.
+    if (fresh || !opened || !panel.loadedContent) pendingScrollY = -1
+    else if (pendingScrollY < 0) {
+      var listView = panel.loadedContent.networkList
+      var selectedItem = listView.itemAtIndex(selectedIndex)
+      pendingScrollY = listView.contentY
+      pendingScrollIndex = selectedIndex
+      pendingScrollSelectionVisible = !!selectedItem && selectedItem.y + selectedItem.height > listView.contentY && selectedItem.y < listView.contentY + listView.height
+    }
     wifiNetworks = nets
   }
 
@@ -1185,6 +1240,7 @@ Panel {
     content: PanelKeyCatcher {
       id: keyCatcher
       property alias heroMeta: heroMeta
+      property alias networkList: networkList
       implicitHeight: column.implicitHeight
       anchors.fill: parent
       // Freeze the cursor model while the inline password prompt is open;
