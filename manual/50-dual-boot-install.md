@@ -4,6 +4,8 @@ You're able to install Omarchy to a single partition alongside Windows or other 
 
 This installation method still comes with LUKS encryption for the partition by default so it's effectively no different than full drive and simply requires free space to be available on the disk.
 
+Turning off Secure Boot or TPM can make Windows ask you to set up your PIN again the next time you sign in. Have your Windows or Microsoft account password ready before you do.
+
 ## Making Space on Windows
 
 To install alongside Windows, type `disk management` in the start menu and select the option for **Create and format hard disk partitions**.
