@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# omarchy:summary=Launch Bambu Studio without the tooltip grab that freezes the session
+# omarchy:args=[arguments...]
+
+# Temporary. Bambu Studio's parameter card grabs the pointer and shapes the
+# window on GTK, which freezes the app on Hyprland. Upstream fixed that in
+# bambulab/BambuStudio#12262 (da8b44e); no Linux release contains it yet.
+# Remove this launcher, the shim, and the migration once one does.
+
+shim_src="$OMARCHY_PATH/default/bambu/bambu-nograb.c"
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/lib"
+shim_so="$cache_dir/bambu-nograb.so"
+
+find_studio() {
+  local self dir cand resolved path_list
+  self=$(readlink -f "$0")
+  path_list=$PATH
+  while [[ -n $path_list ]]; do
+    dir=${path_list%%:*}
+    if [[ $path_list == *:* ]]; then
+      path_list=${path_list#*:}
+    else
+      path_list=""
+    fi
+    [[ -n $dir ]] || continue
+    cand="$dir/bambu-studio"
+    [[ -x $cand ]] || continue
+    resolved=$(readlink -f "$cand")
+    [[ $resolved == "$self" ]] && continue
+    # The program is an ELF. Skip a shell wrapper, including another copy of
+    # this launcher, so we cannot exec ourselves.
+    [[ $(head -c 4 "$resolved") == $'\x7fELF' ]] || continue
+    printf '%s\n' "$resolved"
+    return 0
+  done
+  return 1
+}
+
+build_shim() {
+  local tmp
+  [[ -n ${OMARCHY_PATH:-} && -f $shim_src ]] || return 1
+  if [[ -f $shim_so && $shim_so -nt $shim_src ]]; then
+    return 0
+  fi
+  omarchy-cmd-present gcc || return 1
+  omarchy-cmd-present pkg-config || return 1
+  pkg-config --exists gtk+-3.0 || return 1
+  mkdir -p "$cache_dir"
+  tmp=$(mktemp "$cache_dir/bambu-nograb.XXXXXX")
+  if gcc -shared -fPIC -O2 -Wno-deprecated-declarations \
+      -o "$tmp" "$shim_src" $(pkg-config --cflags gtk+-3.0); then
+    mv "$tmp" "$shim_so"
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+studio=$(find_studio) || {
+  echo "Bambu Studio is not installed." >&2
+  exit 1
+}
+
+if build_shim; then
+  case :${LD_PRELOAD:-}: in
+    *:"$shim_so":*) ;;
+    ::) export LD_PRELOAD=$shim_so ;;
+    *) export LD_PRELOAD="$shim_so:$LD_PRELOAD" ;;
+  esac
+else
+  echo "Could not build the Bambu Studio tooltip workaround. Launching without it." >&2
+fi
+
+exec "$studio" "$@"
