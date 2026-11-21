@@ -433,3 +433,38 @@ OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 
 [[ $(<"$TMPDIR/omasnap") == "--notify $TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
 pass "clipboard open helper opens image entries in Omasnap"
+
+# Capture text only announces a copy that happened.
+mkdir -p "$TMPDIR/ocr-bin"
+for stub in hyprpicker grim; do
+  printf '#!/bin/bash\n' >"$TMPDIR/ocr-bin/$stub"
+done
+printf '#!/bin/bash\necho "0,0 10x10"\n' >"$TMPDIR/ocr-bin/slurp"
+printf '#!/bin/bash\necho "ocr text"\n' >"$TMPDIR/ocr-bin/tesseract"
+printf '#!/bin/bash\necho "$1"\n' >"$TMPDIR/ocr-bin/omarchy-i18n"
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >"$NOTIFY_OUT"\n' >"$TMPDIR/ocr-bin/omarchy-notification-send"
+cat >"$TMPDIR/ocr-bin/wl-copy" <<'SH'
+#!/bin/bash
+cat >"$WL_COPY_OUT"
+exit "${WL_COPY_STATUS:-0}"
+SH
+chmod +x "$TMPDIR/ocr-bin"/*
+
+WL_COPY_OUT="$TMPDIR/ocr-copied" NOTIFY_OUT="$TMPDIR/ocr-notify" PATH="$TMPDIR/ocr-bin:$PATH" \
+  "$ROOT/bin/omarchy-capture-text" || fail "capture text succeeds when the copy succeeds"
+
+[[ $(<"$TMPDIR/ocr-copied") == "ocr text" ]] || fail "capture text copies the recognized text"
+pass "capture text copies the recognized text"
+
+[[ $(<"$TMPDIR/ocr-notify") == *"capture.textCopied" ]] || fail "capture text announces a successful copy"
+pass "capture text announces a successful copy"
+
+rm -f "$TMPDIR/ocr-notify"
+if WL_COPY_STATUS=1 WL_COPY_OUT="$TMPDIR/ocr-copied" NOTIFY_OUT="$TMPDIR/ocr-notify" PATH="$TMPDIR/ocr-bin:$PATH" \
+  "$ROOT/bin/omarchy-capture-text"; then
+  fail "capture text fails when the copy fails"
+fi
+pass "capture text fails when the copy fails"
+
+[[ ! -e "$TMPDIR/ocr-notify" ]] || fail "capture text stays quiet when the copy fails"
+pass "capture text stays quiet when the copy fails"
