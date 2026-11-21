@@ -60,4 +60,54 @@ function keyboard.jis()
   return layout:match("^[^,]*") == "jp"
 end
 
+-- Layouts whose default Right Alt is ISO_Level3_Shift (AltGr), not Alt.
+-- Hyprland matches keybinds against the first kb_layout entry, and Fcitx
+-- keeps that entry on a Latin layout while the active group is Swedish (or
+-- another AltGr layout). A bind on Alt_R then takes the key those layouts
+-- need for @ and the rest of level 3.
+local altgr_layouts = {
+  ad = true, al = true, at = true, ba = true, be = true, br = true, ca = true,
+  ch = true, cz = true, de = true, dk = true, ee = true, es = true, fi = true,
+  fo = true, fr = true, gb = true, hr = true, hu = true, ie = true, is = true,
+  it = true, latam = true, lt = true, lv = true, nl = true, no = true, pl = true,
+  pt = true, ro = true, se = true, si = true, sk = true, tr = true,
+}
+
+function keyboard.layout_uses_altgr(layout)
+  local code = tostring(layout or ""):match("^([%a]+)")
+  return altgr_layouts[code or ""] == true
+end
+
+function keyboard.fcitx_keyboard_layouts()
+  local paths = require("default.hypr.paths")
+  local configured = os.getenv("FCITX_CONFIG_HOME")
+  local profile = (configured and configured ~= "" and configured or paths.config_home .. "/fcitx5") .. "/profile"
+  local file = io.open(profile, "r")
+  if not file then
+    return {}
+  end
+
+  local layouts = {}
+  for name in file:read("a"):gmatch("Name%s*=%s*keyboard%-([%a]+)") do
+    layouts[#layouts + 1] = name
+  end
+  file:close()
+  return layouts
+end
+
+function keyboard.right_alt_is_altgr()
+  local selected = keyboard.selected().XKBLAYOUT or "us"
+  for layout in (selected .. ","):gmatch("([^,]*),") do
+    if keyboard.layout_uses_altgr(layout) then
+      return true
+    end
+  end
+  for _, layout in ipairs(keyboard.fcitx_keyboard_layouts()) do
+    if keyboard.layout_uses_altgr(layout) then
+      return true
+    end
+  end
+  return false
+end
+
 return keyboard
