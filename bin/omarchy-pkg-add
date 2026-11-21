@@ -6,10 +6,22 @@
 # omarchy:requires-sudo=true
 
 if omarchy-pkg-missing "$@"; then
+  failed=0
+
   if (( EUID == 0 )); then
-    pacman -S --noconfirm --needed -- "$@" || exit 1
+    pacman -S --noconfirm --needed -- "$@" || failed=1
   else
-    sudo pacman -S --noconfirm --needed -- "$@" || exit 1
+    sudo pacman -S --noconfirm --needed -- "$@" || failed=1
+  fi
+
+  if (( failed )); then
+    # A package database older than the mirror asks for builds that are gone
+    # or replaced, which pacman reports as a failed download or bad checksum.
+    # An update is already refreshing the database, so only hint outside one.
+    if ! omarchy-update-lock held; then
+      echo -e "\033[33mYour package database may be out of date. Run 'omarchy update' and try again.\033[0m" >&2
+    fi
+    exit 1
   fi
 fi
 
