@@ -11,6 +11,12 @@
 
 set -o pipefail
 
+allow_first_party=false
+if [[ ${1:-} == --first-party ]]; then
+  allow_first_party=true
+  shift
+fi
+
 fail() {
   echo "omarchy-plugin-validate: $*" >&2
   exit 1
@@ -31,6 +37,12 @@ fi
 PLUGIN_DIR="${1:-}"
 [[ -n $PLUGIN_DIR && -d $PLUGIN_DIR ]] || fail "plugin folder not found: ${PLUGIN_DIR:-<none>}"
 
+if [[ $allow_first_party == true ]]; then
+  first_party_root="${OMARCHY_PATH:-/usr/share/omarchy}/shell/plugins/"
+  [[ $PLUGIN_DIR == "$first_party_root"* ]] ||
+    fail "--first-party is only valid for plugins under $first_party_root"
+fi
+
 MANIFEST="$PLUGIN_DIR/manifest.json"
 [[ -f $MANIFEST ]] || fail "missing manifest.json in $PLUGIN_DIR"
 jq -e . "$MANIFEST" >/dev/null 2>&1 || fail "manifest.json is not valid JSON: $MANIFEST"
@@ -50,7 +62,9 @@ ID=$(jq -r '.id // ""' "$MANIFEST")
 [[ -n $ID ]] || fail "manifest 'id' is empty"
 [[ $ID =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail "invalid plugin id '$ID'"
 [[ $ID != *".."* ]] || fail "invalid plugin id '$ID'"
-[[ $ID != omarchy.* ]] || fail "plugin id '$ID' uses the reserved omarchy.* namespace"
+if [[ $allow_first_party != true && $ID == omarchy.* ]]; then
+  fail "plugin id '$ID' uses the reserved omarchy.* namespace"
+fi
 
 # kinds must be a non-empty array.
 jq -e '(.kinds | type) == "array" and (.kinds | length) > 0' "$MANIFEST" >/dev/null 2>&1 \
