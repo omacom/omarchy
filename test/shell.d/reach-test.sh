@@ -75,4 +75,65 @@ assertEqual(reach.dropIndex([10, 30, 50], 0, 40), 1, 'reach drops between the ti
 assertEqual(reach.dropIndex([10, 30, 50], 0, 60), 2, 'reach drops past the last tile')
 assertEqual(reach.dropIndex([10, 30, 50], 2, 0), 0, 'reach drops before the first tile')
 assertEqual(reach.dropIndex([10, 30, 50], 1, 31), 1, 'reach keeps a tile that barely moved')
+
+assertDeepEqual(
+  reach.tiles(['desk.local', 'laptop', 'desk'], 'desk', peers, []).map((t) => t.name),
+  ['desk', 'laptop'],
+  'reach keeps one tile when this machine is listed under its domain name'
+)
+assertDeepEqual(
+  reach.tiles(['laptop.local', 'laptop', 'desk'], 'desk', peers, ['laptop.local']).map((t) => ({ name: t.name, connected: t.connected })),
+  [
+    { name: 'laptop.local', connected: true },
+    { name: 'desk', connected: true },
+  ],
+  'reach keeps one tile when another machine is listed twice'
+)
+
+const withSelf = reach.parseStatus(JSON.stringify({
+  me: 'desk',
+  screens: ['desk'],
+  circle: { up: true, peers: [{ name: 'desk.lan', online: true, nearby: true }, { name: 'spark', online: true, nearby: true }] },
+}))
+assertDeepEqual(withSelf.peers.map((p) => p.name), ['spark'], 'reach does not list this machine as one of the others')
+assertEqual(reach.nearbyCount(withSelf.peers, 'desk'), 1, 'reach does not count this machine as close by')
+assertEqual(reach.nearbyCount([{ name: 'desk', nearby: true }, { name: 'spark', nearby: true }], 'desk'), 1, 'reach skips this machine in a raw peer list')
+
+assertDeepEqual(reach.nudge(['a', 'desk', 'b'], 'desk', 'desk', 0), ['a', 'desk', 'b'], 'reach leaves a tile that was not moved')
+assertDeepEqual(reach.place(['laptop', 'desk'], 'desk', 'mini', 'beside'), ['laptop', 'desk'], 'reach ignores a side that is not an end of the row')
+assertDeepEqual(reach.place(['laptop', 'desk'], 'desk', '', 'left'), ['laptop', 'desk'], 'reach ignores a blank machine name')
+assertDeepEqual(reach.place(['laptop', 'desk'], 'desk', '   ', 'right'), ['laptop', 'desk'], 'reach ignores a machine name that is only spaces')
+
+assertDeepEqual(
+  reach.addable(['desk'], 'desk', [
+    { name: 'laptop', online: true, nearby: true },
+    { name: 'laptop.lan', online: true, nearby: false },
+    { name: ' spark', online: true, nearby: true },
+  ]).map((p) => p.name),
+  ['laptop', 'spark'],
+  'reach offers a machine once, without the padding Circle left on its name'
+)
+for (const aliases of [
+  [{ name: 'laptop', online: false, nearby: false }, { name: 'laptop.lan', online: true, nearby: true }],
+  [{ name: 'laptop.lan', online: true, nearby: true }, { name: 'laptop', online: false, nearby: false }],
+]) {
+  assertDeepEqual(
+    reach.addable(['desk'], 'desk', [{ name: 'mini', online: true, nearby: false }, ...aliases]),
+    [{ name: 'laptop.lan', online: true, nearby: true }, { name: 'mini', online: true, nearby: false }],
+    'reach keeps the most available alias regardless of discovery order'
+  )
+}
+const padded = reach.parseStatus(JSON.stringify({ me: 'desk', screens: [' desk '], circle: { up: true, peers: [] } }))
+assertDeepEqual(padded.screens, ['desk'], 'reach trims the name of a machine in the row')
+
+assertDeepEqual(
+  reach.nudge(['desk.local', 'laptop'], 'desk', 'desk', 1),
+  ['laptop', 'desk'],
+  'reach keeps this machine\'s own name when the row moves it'
+)
+assertDeepEqual(
+  reach.place(['desk.local', 'laptop'], 'desk', ' mini ', 'left'),
+  ['mini', 'desk', 'laptop'],
+  'reach trims a machine as it is added, and does not rename this one'
+)
 JS

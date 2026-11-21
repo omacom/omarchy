@@ -40,7 +40,7 @@ Panel {
   readonly property bool active: _desired === -1 ? running : _desired === 1
   readonly property bool busy: controlProc.running
   readonly property var tiles: Model.tiles(screens, me, peers, connected)
-  readonly property int nearby: Model.nearbyCount(peers)
+  readonly property int nearby: Model.nearbyCount(peers, me)
   readonly property var addList: Model.addable(screens, me, peers)
   readonly property bool arranged: tiles.length > 1
   readonly property bool arranging: available && active

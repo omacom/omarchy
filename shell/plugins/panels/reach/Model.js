@@ -7,12 +7,12 @@ var MAX_ITEMS = 64
 var MAX_TEXT = 255
 
 function text(value) {
-  var s = typeof value === "string" ? value : ""
+  var s = typeof value === "string" ? value.trim() : ""
   return s.length > MAX_TEXT ? s.substring(0, MAX_TEXT) : s
 }
 
 function shortName(name) {
-  return String(name || "").split(".")[0].toLowerCase()
+  return String(name || "").trim().split(".")[0].toLowerCase()
 }
 
 function sameHost(a, b) {
@@ -44,6 +44,7 @@ function parseStatus(raw) {
   status.peers = (Array.isArray(circle.peers) ? circle.peers.slice(0, MAX_ITEMS) : [])
     .filter(function(p) { return p && typeof p === "object" && text(p.name) !== "" })
     .map(function(p) { return { name: text(p.name), online: p.online === true, nearby: p.nearby === true } })
+    .filter(function(p) { return !sameHost(p.name, me) })
   return status
 }
 
@@ -54,9 +55,14 @@ function names(list) {
 }
 
 // How many of the Circle machines are close by.
-function nearbyCount(peers) {
+function nearbyCount(peers, me) {
   var n = 0
-  for (var i = 0; i < peers.length; i++) if (peers[i].nearby) n++
+  for (var i = 0; i < peers.length; i++) {
+    if (!peers[i].nearby) continue
+    // This machine is not "another" machine, even if Circle lists it.
+    if (me && sameHost(peers[i].name, me)) continue
+    n++
+  }
   return n
 }
 
@@ -71,8 +77,17 @@ function findPeer(peers, name) {
 }
 
 // The row this machine sees: the arrangement if it's in it, otherwise just itself.
+// One entry per machine. A domain name for this machine is written as `me`,
+// so the row Reach is given matches the name in the status file.
 function ownRow(screens, me) {
-  return indexOf(screens, me) === -1 ? [me] : screens.slice()
+  var source = indexOf(screens, me) === -1 ? [me] : screens
+  var out = []
+  for (var i = 0; i < source.length; i++) {
+    var name = sameHost(source[i], me) ? me : source[i]
+    if (shortName(name) === "") continue
+    if (indexOf(out, name) === -1) out.push(name)
+  }
+  return out
 }
 
 // One tile per machine in the row, left to right. `online` is unknown (null)
@@ -94,12 +109,21 @@ function tiles(screens, me, peers, connected) {
 // The Circle machines not in the row yet: close by first, then online, then by name.
 function addable(screens, me, peers) {
   var row = ownRow(screens, me)
+  var seen = []
+  peers = (peers || []).map(function(p) {
+    return { name: text(p.name), online: p.online === true, nearby: p.nearby === true }
+  }).filter(function(p) { return p.name !== "" })
   return peers
-    .filter(function(p) { return indexOf(row, p.name) === -1 && !sameHost(p.name, me) })
     .sort(function(a, b) {
       if (!!a.nearby !== !!b.nearby) return a.nearby ? -1 : 1
       if (a.online !== b.online) return a.online ? -1 : 1
       return a.name.localeCompare(b.name)
+    })
+    .filter(function(p) {
+      if (indexOf(row, p.name) !== -1 || sameHost(p.name, me)) return false
+      if (indexOf(seen, p.name) !== -1) return false
+      seen.push(p.name)
+      return true
     })
 }
 
@@ -109,15 +133,28 @@ function finish(row) {
 }
 
 // Put `name` at `index` in the row (clamped), moving it if it's already in.
+// The spelling written back into the row. This machine stays `me` even when
+// the status file listed it as a domain name; anything else keeps the
+// spelling already in the row.
+function keptName(screens, me, name) {
+  if (sameHost(name, me)) return me
+  var row = ownRow(screens, me)
+  var at = indexOf(row, name)
+  return at === -1 ? text(name) : row[at]
+}
+
 function moveTo(screens, me, name, index) {
+  if (shortName(name) === "") return finish(ownRow(screens, me))
   var row = ownRow(screens, me).filter(function(s) { return !sameHost(s, name) })
   var i = Math.max(0, Math.min(row.length, Math.round(index)))
-  row.splice(i, 0, indexOf(screens, name) === -1 ? name : screens[indexOf(screens, name)])
+  row.splice(i, 0, keptName(screens, me, name))
   return finish(row)
 }
 
 // Add `name` at the far `side` ("left" or "right") of the row.
 function place(screens, me, name, side) {
+  if (side !== "left" && side !== "right") return finish(ownRow(screens, me))
+  if (shortName(name) === "") return finish(ownRow(screens, me))
   var row = ownRow(screens, me)
   return moveTo(screens, me, name, side === "left" ? 0 : row.length)
 }
@@ -126,7 +163,7 @@ function place(screens, me, name, side) {
 function nudge(screens, me, name, delta) {
   var row = ownRow(screens, me)
   var i = indexOf(row, name)
-  if (i === -1) return finish(row)
+  if (i === -1 || !delta) return finish(row)
   return moveTo(screens, me, name, i + (delta < 0 ? -1 : 1))
 }
 
