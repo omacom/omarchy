@@ -47,3 +47,20 @@ auth required pam_unix.so
   'polkit reports no fingerprint when pam_fprintd is absent'
 )
 JS
+
+agent_qml="$ROOT/shell/plugins/polkit/PolkitAgent.qml"
+qml_matches() {
+  local file=$1
+  local pattern=$2
+  tr '\n\r\t' '   ' < "$file" | grep -Eq "$pattern"
+}
+
+qml_matches "$agent_qml" 'id: *agentLoader' ||
+  fail "polkit agent is not hosted in a Loader for re-registration"
+qml_matches "$agent_qml" 'function +recreateAgent\(' ||
+  fail "polkit agent has no recreate path after failed registration"
+qml_matches "$agent_qml" 'maxRegisterAttempts' ||
+  fail "polkit agent registration recovery is not bounded"
+qml_matches "$agent_qml" 'id: *startupRegisterTimer' ||
+  fail "polkit agent does not poll for a silent registration failure"
+pass "polkit agent recovers from stale registration"
