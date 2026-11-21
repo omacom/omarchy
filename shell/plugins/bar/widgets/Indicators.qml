@@ -244,8 +244,9 @@ BarWidget {
   // reopening in a loop. Above the icons, which a hover handler doesn't block.
   Item {
     objectName: "hiddenBlockZone"
+    z: 10
 
-    readonly property real reach: (orientationLoader.item ? orientationLoader.item.inactiveLength : 0) * (root.revealInactiveIndicators ? 0.5 : 1)
+    readonly property real reach: (orientationLoader.item ? orientationLoader.item.inactiveLength : 0) * (root.revealInactiveIndicators ? 1 : 1)
     readonly property real alongStart: root.fixedAtStart ? 0 : -reach
     readonly property real alongLength: (root.vertical ? root.implicitHeight : root.implicitWidth) + reach
 
