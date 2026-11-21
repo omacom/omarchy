@@ -60,6 +60,16 @@ Item {
   // The look the blur behind the bar was last synced for. A background set by
   // editing shell.json skips the CLI, so the bar syncs Hyprland's blur itself.
   property string glassSyncedLook: ""
+  // A locked bar stays as it is laid out: no widget is dragged about or off
+  // it, and the bar isn't dragged to another edge (omarchy bar lock).
+  property bool locked: false
+  // A drag under way as the bar locks is let go of, so releasing it changes
+  // nothing either.
+  onLockedChanged: {
+    if (!locked) return
+    clearBarDrag()
+    clearBarMove()
+  }
   property int barConfigSerial: 0
   property string position: "top"
   // Resolves through fontconfig at paint time (Style.font.family defaults
@@ -778,6 +788,7 @@ Item {
     var config = Util.isPlainObject(barConfig) ? barConfig : fallbackBarConfig
 
     position = normalizePosition(config.position)
+    locked = config.locked === true
     // opaque, glassy or none; a config from before background says
     // transparent instead.
     var look = config.background || (config.transparent === true ? "none" : "opaque")
@@ -2412,7 +2423,7 @@ Item {
     pressAndHoldInterval: 200
 
     function startDrag(x, y) {
-      if (dragging) return
+      if (dragging || root.locked) return
       dragging = true
       root.beginBarMove(root.targetWindow(gestureArea))
       var scenePoint = gestureArea.mapToItem(null, x, y)
@@ -2992,7 +3003,7 @@ Item {
       property var heldTarget: null
       property real pressedX: 0
       property real pressedY: 0
-      readonly property bool canReorder: root.shell && typeof root.shell.mutateShellConfig === "function"
+      readonly property bool canReorder: !root.locked && root.shell && typeof root.shell.mutateShellConfig === "function"
       readonly property real dragThreshold: Style.space(4)
 
       anchors.fill: parent
