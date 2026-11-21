@@ -332,9 +332,6 @@ cleanup() {
   if [[ ${next_store_mounted:-0} == 1 ]]; then
     umount "$TOP_MNT/$NEXT_NAME/var/lib/omarchy/boot" 2>/dev/null || true
   fi
-  if [[ ${next_self_mounted:-0} == 1 ]]; then
-    umount -R "$TOP_MNT/$NEXT_NAME" 2>/dev/null || true
-  fi
 
   if mountpoint -q "$TOP_MNT" 2>/dev/null; then
     if [[ ${reset_committed:-0} == 0 && -d $TOP_MNT/@omarchy-boot-next ]]; then
@@ -650,10 +647,6 @@ rebuild_next_boot() {
   fi
   [[ -e $esp_device ]] || fail "ESP device $esp_device not found"
 
-  # Boot tooling in the chroot finds its root device from the mount at /.
-  mount --bind "$next" "$next"
-  next_self_mounted=1
-
   # The ESP stays mounted outside the staged root until the root switch, so
   # the cleanup trap can still restore it after the bind into the chroot is
   # gone.
@@ -693,6 +686,9 @@ rebuild_next_boot() {
     fi
     [[ -f $next/swap/swapfile ]] ||
       fail "hibernation setup did not recreate $next/swap/swapfile (see $LOG_FILE)"
+    # Setup switched the new swapfile on; the factory root does that itself
+    # when it boots, and an active swapfile keeps its subvolume busy.
+    swapoff "$next/swap/swapfile" 2>/dev/null || true
   fi
 
   # The running system's identity is the one the reset replaces.
@@ -725,8 +721,6 @@ rebuild_next_boot() {
     umount -R "$next/$dir" 2>/dev/null || true
   done
   umount "$next$esp_mount"
-  umount "$next"
-  next_self_mounted=0
 }
 
 # A factory root installed with systemd-boot gets a boot store of its own, which

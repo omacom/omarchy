@@ -554,7 +554,8 @@ install_fresh() {
     shift
   done
   findmnt -n --mountpoint "$ESP" >/dev/null || die "The ESP isn't mounted at $ESP."
-  [[ $(findmnt -n -o FSTYPE --mountpoint /) == btrfs ]] || die "systemd-boot's boot images need the root on btrfs."
+  # stat, not findmnt: in a factory reset's chroot / is no mount of its own.
+  [[ $(stat -f -c %T /) == btrfs ]] || die "systemd-boot's boot images need the root on btrfs."
   [[ -f $LOADER_SOURCE ]] || die "systemd-boot isn't installed ($LOADER_SOURCE is missing)."
   [[ $(omarchy-boot-backend) == systemd-boot ]] || die "Install omarchy-boot-systemd first."
 
