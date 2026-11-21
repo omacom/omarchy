@@ -588,6 +588,31 @@ Item {
     return ""
   }
 
+  // The desktop's own arrival sound, played through the XDG sound theme: one
+  // event for the desktop rather than a jingle per app, which also keeps app
+  // sounds from bypassing Do Not Disturb. canberra resolves the theme and the
+  // file; an event name nothing in the theme answers simply plays nothing,
+  // which is the right reply to a name we do not know. A sender may ask for a
+  // themed event through the spec's sound-name hint - a bounded name, never a
+  // path: a sound file is the sender's choice of bytes on disk, and a theme
+  // name is all the default path needs. A sender may also refuse one, through
+  // the spec's suppress-sound hint.
+  property double lastSoundAt: 0
+
+  function playArrivalSound(hints) {
+    if (hints) {
+      var suppress = hints["suppress-sound"]
+      if (suppress === true || suppress === "true") return
+    }
+    // A burst of arrivals is one event to the ear, not one per card.
+    var now = Date.now()
+    if (now - lastSoundAt < 200) return
+    lastSoundAt = now
+    var name = /^[a-zA-Z0-9._-]{1,64}$/.test(String((hints || {})["sound-name"] || ""))
+               ? String(hints["sound-name"]) : "message-new-instant"
+    Quickshell.execDetached(["canberra-gtk-play", "-i", name])
+  }
+
   // ------------------------------------------------------------- arrival
   function handleNotification(notification) {
     // Replacements reuse the same slot, including before its first insertion.
@@ -595,7 +620,8 @@ Item {
     var row = Store.snapshot(notification, known, NotificationUrgency)
     // So does an identical copy under a new id: it takes over the card it
     // repeats, and the copy it supersedes is closed at its sender.
-    var key = known || keyForDuplicate(row, notification) || nextKey()
+    var duplicate = keyForDuplicate(row, notification)
+    var key = known || duplicate || nextKey()
     row.key = key
     // An unnamed sender's toast is grouped by its own key, known only now.
     row.groupKey = Markup.regroup(row)
@@ -635,6 +661,12 @@ Item {
     }
 
     storePut(row)
+
+    // A genuinely new arrival sounds, and it sounds when it arrives - a card
+    // waiting for a held deck has still arrived. A replacement changes a card
+    // that already made its sound, and a duplicate takes over one.
+    if (!known && !duplicate)
+      playArrivalSound(notification.hints)
 
     // Only a new card waits while the deck is held; an update changes a card in place.
     if (service.holding() && service.rowIndexFor(key) < 0) {
