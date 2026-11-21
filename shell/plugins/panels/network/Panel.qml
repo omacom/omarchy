@@ -153,8 +153,10 @@ Panel {
   readonly property bool canToggleWifi: networkManagerAvailable && wifiStationAvailable
   readonly property int qrHeaderIndex: canShareWifi ? 0 : -1
   readonly property int speedHeaderIndex: canRunSpeedTest ? (canShareWifi ? 1 : 0) : -1
-  readonly property int toggleHeaderIndex: canToggleWifi ? (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) : -1
-  readonly property int headerActionCount: (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) + (canToggleWifi ? 1 : 0)
+  readonly property int actionCount: (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0)
+  readonly property int ethernetIndex: ethernetTarget ? actionCount : -1
+  readonly property int toggleHeaderIndex: canToggleWifi ? actionCount + (ethernetTarget ? 1 : 0) : -1
+  readonly property int headerActionCount: actionCount + (ethernetTarget ? 1 : 0) + (canToggleWifi ? 1 : 0)
   readonly property bool qrHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === qrHeaderIndex
   readonly property bool speedHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === speedHeaderIndex
   readonly property bool toggleHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === toggleHeaderIndex
@@ -250,7 +252,8 @@ Panel {
   function activateHeader() {
     if (headerIndex === qrHeaderIndex) summonWifiQr()
     else if (headerIndex === speedHeaderIndex) summonSpeedTest()
-    else if (headerIndex === toggleHeaderIndex) toggleNetwork()
+    else if (ethernetTarget && headerIndex === ethernetIndex) toggleEthernet()
+    else if (canToggleWifi && headerIndex === toggleHeaderIndex) toggleNetwork()
   }
 
   function setHeaderCursor(index) {
@@ -465,6 +468,22 @@ Panel {
   // icon reflects connection changes without polling. Wired is preferred
   // when both are up, matching the default-route device.
   readonly property var wiredDevice: findDevice(DeviceType.Wired)
+  // A single Ethernet switch must not silently retarget a second linked port.
+  readonly property var ethernetTarget: networkManagerAvailable ? Model.singleLinkedPort(networkDevices, DeviceType.Wired) : null
+  property bool ethernetFailed: false
+  onEthernetTargetChanged: ethernetFailed = false
+
+  function toggleEthernet() {
+    if (!ethernetTarget || ethernetAction.running) return
+    ethernetFailed = false
+    ethernetAction.command = ["nmcli", "--wait", "20", "device", ethernetTarget.connected ? "disconnect" : "connect", ethernetTarget.name]
+    ethernetAction.running = true
+  }
+
+  Process {
+    id: ethernetAction
+    onExited: function(code) { root.ethernetFailed = code !== 0 }
+  }
   readonly property string kind: {
     if (wiredDevice && wiredDevice.connected) return "ethernet"
     if (connectedWifiNetwork) return "wifi"
@@ -1350,7 +1369,7 @@ Panel {
 
           ToggleSwitch {
             id: powerSwitch
-            visible: root.canToggleWifi
+            visible: root.canToggleWifi && !root.ethernetTarget
             checked: Networking.wifiEnabled
             hasCursor: root.toggleHeaderHasCursor
             foreground: root.bar.foreground
@@ -1450,6 +1469,55 @@ Panel {
           root.focusSection = "portal"
         }
         onClicked: root.openCaptivePortal()
+      }
+
+      RowLayout {
+        visible: !!root.ethernetTarget
+        width: parent.width
+        spacing: Style.space(8)
+
+        Toggle {
+          id: ethernetSwitch
+          Layout.fillWidth: true
+          Layout.preferredWidth: 1
+          implicitHeight: Style.space(38)
+          label: Commons.I18n.t("network.ethernet")
+          checked: !!root.ethernetTarget && root.ethernetTarget.connected
+          enabled: !ethernetAction.running
+          opacity: enabled ? 1 : 0.55
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          Accessible.name: label
+          Accessible.role: Accessible.CheckBox
+          Accessible.checked: checked
+          hasCursor: root.cursorActive && root.focusSection === "header" && root.headerIndex === root.ethernetIndex
+          onHovered: function(on) { if (on) root.setHeaderCursor(root.ethernetIndex) }
+          onClicked: root.toggleEthernet()
+        }
+        Toggle {
+          visible: root.canToggleWifi
+          Layout.fillWidth: true
+          Layout.preferredWidth: 1
+          implicitHeight: Style.space(38)
+          label: "Wi-Fi"
+          checked: Networking.wifiEnabled
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          Accessible.name: label
+          Accessible.role: Accessible.CheckBox
+          Accessible.checked: checked
+          hasCursor: root.toggleHeaderHasCursor
+          onHovered: function(on) { if (on) root.setHeaderCursor(root.toggleHeaderIndex) }
+          onClicked: root.toggleNetwork()
+        }
+      }
+      Text {
+        visible: !!root.ethernetTarget && root.ethernetFailed
+        textFormat: Text.PlainText
+        text: Commons.I18n.t("network.connectionFailed")
+        color: root.bar.urgent
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.caption
       }
 
       // Connection details: transfer metrics first, then IP/Gateway.

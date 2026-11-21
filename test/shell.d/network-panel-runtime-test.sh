@@ -36,6 +36,7 @@ source = source.replace(/\bNetworking\./g, 'NetworkMock.')
 source = source.replace('      id: keyCatcher\n', `      id: keyCatcher
       property alias testButton: portalAction
       property alias testTitle: heroSsid
+      property alias testEthernet: ethernetSwitch
 `)
 source = source.replace('  id: root', `  id: root
   function testEnsureContent() { return panel.ensureContent() }
@@ -102,5 +103,21 @@ done <"$stage/nmcli.log"
 pass "network keeps Wi-Fi through OWE transition scan churn, reads the in-use access point, and discards stale reads"
 
 stage_panel live-rows
+# Fail the third action; record argv boundaries, not a joined command string.
+cat >"$stage/bin/nmcli" <<'SH'
+#!/bin/bash
+# Switching back to the mock Wi-Fi route may refresh its signal reading.
+if [[ $* == '-t -f IN-USE,SIGNAL device wifi list ifname test-wifi --rescan no' ]]; then
+  printf '*:65\n'
+  exit 0
+fi
+printf '<%s>' "$@" >> "$NETWORK_TEST_NMCLI_LOG"
+printf '\n' >> "$NETWORK_TEST_NMCLI_LOG"
+[[ $(wc -l < "$NETWORK_TEST_NMCLI_LOG") != 3 ]]
+SH
+chmod +x "$stage/bin/nmcli"
 run_panel "network live rows"
+expected=$'<--wait><20><device><disconnect><dock0>\n<--wait><20><device><connect><dock0>\n<--wait><20><device><disconnect><dock0>'
+[[ $(<"$stage/nmcli.log") == "$expected" ]] || fail "Ethernet switch targets only the wired interface" "$(<"$stage/nmcli.log")"
+pass "Ethernet switch disconnects, reconnects, and reports failure without disabling Wi-Fi"
 pass "network rows follow connects, drops, saves and forgets made outside the panel, with the cursor on its network"
