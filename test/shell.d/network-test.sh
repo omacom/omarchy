@@ -259,4 +259,93 @@ assertDeepEqual(
 
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
+
+// A VPN locks the icon the bar already shows instead of adding another one:
+// every strength keeps its own bars, a portal still wins, and Ethernet changes.
+for (const strength of [0, 20, 45, 55, 90]) {
+  assert(network.connectionIcon('wifi', strength, 'full', true) !== network.connectionIcon('wifi', strength, 'full', false), `network locks the ${strength}% wifi icon while a VPN is up`)
+}
+assertEqual(new Set([0, 20, 45, 55, 90].map((strength) => network.wifiIconFor(strength, true))).size, 5, 'network keeps the signal bars in the locked wifi icon')
+assertEqual(network.connectionIcon('wifi', 90, 'portal', true), network.connectionIcon('wifi', 90, 'portal', false), 'network shows a captive portal over a VPN')
+assert(network.connectionIcon('ethernet', -1, 'full', true) !== network.connectionIcon('ethernet', -1, 'full', false), 'network marks a VPN over ethernet')
+assertEqual(network.connectionTooltip(false, false, ['Office', 'Home lab']), 'VPN: Office, Home lab', 'network names the active VPNs in the bar tooltip')
+assertEqual(network.connectionTooltip(false, false, []), '', 'network has no bar tooltip without a VPN or restriction')
+assertEqual(network.connectionTooltip(false, true, ['Office']), 'Limited internet access', 'network keeps the limited-access tooltip over a VPN')
+
+const officeId = '1f0e2d3c-4b5a-4c6d-8e7f-0a1b2c3d4e5f'
+const idleProfile = [{ id: officeId, provider: 'networkmanager', name: 'Office', type: 'vpn', state: '' }]
+assertEqual(network.vpnPlacement('wifi', idleProfile), 'top', 'network lists VPNs up front once there is a connection to carry them')
+assertEqual(network.vpnPlacement('ethernet', idleProfile), 'top', 'network lists VPNs up front over Ethernet')
+assertEqual(network.vpnPlacement('disconnected', idleProfile), 'bottom', 'network keeps VPNs at the bottom, past the networks, without a connection')
+assertEqual(network.vpnPlacement('wifi', []), '', 'network has no VPN section without VPNs')
+
+const nm = requireFromRoot('shell/Commons/VpnNetworkManagerModel.js')
+assertDeepEqual(
+  nm.parseVpnConnections([
+    'Home Wi-Fi:6a1c0c2e-5f0e-4d8a-9d55-3c1f7d1c1a01:802-11-wireless:activated',
+    'Office\\: Paris:1f0e2d3c-4b5a-4c6d-8e7f-0a1b2c3d4e5f:vpn:activated',
+    'lab\\\\wg:0e1d2c3b-4a59-4687-9a6b-5c4d3e2f1a0b:wireguard:',
+    'Backup:9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d:vpn:activating',
+    ''
+  ].join('\n')),
+  [
+    { id: '1f0e2d3c-4b5a-4c6d-8e7f-0a1b2c3d4e5f', provider: 'networkmanager', name: 'Office: Paris', type: 'vpn', state: 'activated' },
+    { id: '0e1d2c3b-4a59-4687-9a6b-5c4d3e2f1a0b', provider: 'networkmanager', name: 'lab\\wg', type: 'wireguard', state: '' },
+    { id: '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d', provider: 'networkmanager', name: 'Backup', type: 'vpn', state: 'activating' }
+  ],
+  'network vpn keeps VPN and WireGuard profiles and unescapes nmcli terse names'
+)
+assert(!nm.isUuid('x; rm -rf ~'), 'network vpn refuses a non-UUID before building the terminal command')
+assert(nm.needsSecrets("Error: Connection activation failed: Secrets were required, but not provided"), 'network vpn recognizes a connect that needs a password')
+assert(!nm.needsSecrets('Error: Connection activation failed: The VPN service stopped unexpectedly.'), 'network vpn reports other connect failures as failures')
+assert(nm.hasDevice('Home:6a1c0c2e-5f0e-4d8a-9d55-3c1f7d1c1a01:802-11-wireless:activated\ntailscale0:ae57342c-b0a6-4b25-b6a3-514f9ec50438:tun:activated\n', 'tailscale0', 'tun'), 'network vpn notices tailscaled through its tun device')
+assert(!nm.hasDevice('tun0:ae57342c-b0a6-4b25-b6a3-514f9ec50438:tun:activated\n', 'tailscale0', 'tun'), 'network vpn leaves other tun devices alone')
+
+// What a profile signs in with, read from `nmcli -g vpn.service-type,vpn.data`.
+const openvpnDetails = nm.parseVpnDetails('org.freedesktop.NetworkManager.openvpn\nca = /etc/vpn/ca.pem, connection-type = password, password-flags = 0, remote = 10.0.0.1\\:1197\\:udp4\\\\, 10.0.0.2\\:1197, username = alice\n')
+assertEqual(openvpnDetails.serviceType, 'org.freedesktop.NetworkManager.openvpn', 'network vpn reads the VPN plugin')
+assertEqual(openvpnDetails.data.remote, '10.0.0.1:1197:udp4, 10.0.0.2:1197', 'network vpn unescapes vpn.data values, commas included')
+assertDeepEqual(nm.credentialPlan(openvpnDetails), { userKey: 'username', secretKey: 'password', username: 'alice', askFirst: false }, 'network vpn connects a profile that keeps its name and password without asking')
+const notSaved = nm.parseVpnDetails('org.freedesktop.NetworkManager.openvpn\nconnection-type = password, password-flags = 2, username = alice\n')
+assertEqual(nm.credentialPlan(notSaved).askFirst, true, 'network vpn asks first for a password that is never kept')
+const noUser = nm.parseVpnDetails('org.freedesktop.NetworkManager.openvpn\nconnection-type = password-tls, password-flags = 1\n')
+assertDeepEqual(nm.credentialPlan(noUser), { userKey: 'username', secretKey: 'password', username: '', askFirst: true }, 'network vpn asks for a user name a profile does not have yet')
+assertEqual(nm.credentialPlan(nm.parseVpnDetails('org.freedesktop.NetworkManager.openvpn\nconnection-type = tls\n')), null, 'network vpn has no name and password to ask for a certificate profile')
+assertEqual(nm.credentialPlan(nm.parseVpnDetails('org.freedesktop.NetworkManager.openconnect\ngateway = vpn.example.com\n')), null, 'network vpn leaves a plugin it does not know to the terminal')
+assertDeepEqual(nm.credentialPlan(nm.parseVpnDetails('org.freedesktop.NetworkManager.vpnc\nIPSec gateway = vpn.example.com, Xauth password-flags = 2, Xauth username = bob\n')), { userKey: 'Xauth username', secretKey: 'Xauth password', username: 'bob', askFirst: true }, 'network vpn reads vpnc\'s own name and password keys')
+assertEqual(nm.credentialPlan(nm.parseVpnDetails('org.freedesktop.NetworkManager.l2tp\npassword-flags = 4, user = carol\n')), null, 'network vpn asks nothing of a profile whose password is not required')
+assertEqual(nm.vpnDataItem('username', 'a,b\\c'), 'username=a\\,b\\\\c', 'network vpn escapes a user name for vpn.data')
+{
+  // The connect script against an nmcli that only records what reached it:
+  // the password must arrive in the passwd-file, never in any argv.
+  const { execFileSync } = require('child_process')
+  const os = require('os')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nm-vpn-'))
+  fs.writeFileSync(path.join(dir, 'nmcli'), '#!/bin/bash\nprintf "%s\\n" "$*" >>"$NM_LOG"\nfor ((i = 1; i <= $#; i++)); do [[ ${!i} == passwd-file ]] && j=$((i + 1)) && cat "${!j}" >"$NM_SECRETS"; done\nexit 0\n', { mode: 0o755 })
+  const env = { ...process.env, PATH: dir + ':' + process.env.PATH, NM_LOG: path.join(dir, 'argv'), NM_SECRETS: path.join(dir, 'secrets') }
+  execFileSync('bash', ['-c', nm.connectScript, 'nmcli-vpn', officeId, 'password', nm.vpnDataItem('username', 'bob')], { env, input: 'hunter2 :x\n' })
+  const argv = fs.readFileSync(env.NM_LOG, 'utf8')
+  assert(!argv.includes('hunter2'), 'network vpn never puts the password in an nmcli argv')
+  assert(argv.includes(`connection modify uuid ${officeId} +vpn.data username=bob`), 'network vpn saves a new user name to the profile')
+  assertEqual(fs.readFileSync(env.NM_SECRETS, 'utf8'), 'vpn.secrets.password:hunter2 :x\n', 'network vpn hands the password to nmcli in its passwd-file')
+  fs.rmSync(dir, { recursive: true, force: true })
+}
+
+const tailscale = requireFromRoot('shell/Commons/VpnTailscaleModel.js')
+const tailscaleStatus = (state, peers) => JSON.stringify({ BackendState: state, Peer: peers || {} })
+const exitPeer = { 'nodekey:1': { HostName: 'nyc-exit', DNSName: 'nyc-exit.tail1234.ts.net.', ExitNode: true }, 'nodekey:2': { HostName: 'laptop', ExitNode: false } }
+assertDeepEqual(tailscale.parseStatus(tailscaleStatus('Running', exitPeer)), { id: 'tailscale', provider: 'tailscale', name: 'Tailscale', type: 'tailscale', state: 'activated', exitNode: 'nyc-exit', opens: 'omarchy.tailscale' }, 'network vpn reads a running Tailscale and its exit node, and opens its widget')
+assertEqual(tailscale.parseStatus(tailscaleStatus('Stopped', exitPeer)).state, '', 'network vpn reads a stopped Tailscale as off')
+assertEqual(tailscale.parseStatus(tailscaleStatus('NeedsLogin')).state, 'login', 'network vpn reads a Tailscale that needs signing in')
+assertEqual(tailscale.parseStatus('failed to connect to local tailscaled'), null, 'network vpn shows no Tailscale when tailscaled does not answer')
+assert(tailscale.isEvent('\t"State": 6,') && tailscale.isEvent('\t"Prefs": {'), 'network vpn rereads Tailscale on a state or preference change')
+assert(!tailscale.isEvent('\t"State": null,') && !tailscale.isEvent('\t\t"State": 6,'), 'network vpn ignores Tailscale notifications without a state change')
+
+const vpn = requireFromRoot('shell/Commons/NetworkVpnModel.js')
+const mesh = tailscale.parseStatus(tailscaleStatus('Running'))
+const routed = tailscale.parseStatus(tailscaleStatus('Running', exitPeer))
+assertDeepEqual(vpn.mergeConnections([[{ id: 'b', name: 'Work' }], [{ id: 'a', name: 'Home' }], null]).map((c) => c.name), ['Home', 'Work'], 'network vpn lists every provider\'s VPNs in name order')
+assertDeepEqual(vpn.activeVpnNames(nm.parseVpnConnections('A:9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d:vpn:activating\nB:1f0e2d3c-4b5a-4c6d-8e7f-0a1b2c3d4e5f:vpn:activated\n')), ['B'], 'network vpn counts a profile as up only once it is activated')
+assertDeepEqual(vpn.activeVpnNames([mesh]), [], 'network vpn does not lock the icon for a Tailscale that only reaches the tailnet')
+assertDeepEqual(vpn.activeVpnNames([routed]), ['Tailscale'], 'network vpn locks the icon while Tailscale routes through an exit node')
 JS

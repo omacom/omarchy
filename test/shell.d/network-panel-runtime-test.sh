@@ -31,15 +31,22 @@ let source = fs.readFileSync(`${root}/shell/plugins/panels/network/Panel.qml`, '
 // and expose private IDs in the disposable copy, never in production code.
 source = source.replace('import Quickshell.Networking', 'import Quickshell.Networking\nimport "../mocks"')
 source = source.replace(/\bNetworking\./g, 'NetworkMock.')
+source = source.replace(/\bCommons\.NetworkVpn\b/g, 'NetworkVpnMock')
 // The panel's content is built lazily, so its private IDs are exposed from
 // the content root and mirrored on the panel once the test builds it.
 source = source.replace('      id: keyCatcher\n', `      id: keyCatcher
       property alias testButton: portalAction
       property alias testTitle: heroSsid
+      property alias testVpnTop: vpnTopSection
+      property alias testVpnBottom: vpnBottomSection
+      property alias testNetworkList: networkList
+      property alias testDns: dnsSection
 `)
 source = source.replace('  id: root', `  id: root
   function testEnsureContent() { return panel.ensureContent() }
   readonly property Item testContent: panel.loadedContent
+  readonly property var testCard: panel
+  readonly property Item testVpnList: panel.loadedContent ? (vpnPlacement === "top" ? panel.loadedContent.testVpnTop.list : panel.loadedContent.testVpnBottom.list) : null
   readonly property Item testButton: panel.loadedContent ? panel.loadedContent.testButton : null
   readonly property Item testKeys: panel.loadedContent
   readonly property Item testMeta: panel.loadedContent ? panel.loadedContent.heroMeta : null
@@ -104,3 +111,7 @@ pass "network keeps Wi-Fi through OWE transition scan churn, reads the in-use ac
 stage_panel live-rows
 run_panel "network live rows"
 pass "network rows follow connects, drops, saves and forgets made outside the panel, with the cursor on its network"
+
+stage_panel vpn
+run_panel "network VPN"
+pass "network lists VPNs up front once connected and last without, scrolls a short card to the keyboard's VPN or Wi-Fi row, hands VPNs to the credentials prompt, and opens Tailscale's own widget"

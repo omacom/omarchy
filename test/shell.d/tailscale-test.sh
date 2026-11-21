@@ -263,4 +263,8 @@ assertEqual(runPlan(tailscale.renamePlan('dd11', 'dd11', 'Fail')).status, 23, 'i
 
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
+// tailscale refuses up/down from anyone but root or its operator; the widget
+// asks for the operator grant on that refusal, and only that one.
+assert(tailscale.refusedOperator("Access denied: prefs write access denied\n\nUse 'sudo tailscale up' or 'tailscale set --operator=$USER' to allow this user."), 'tailscale recognizes a refusal for want of an operator')
+assert(!tailscale.refusedOperator('backend error: invalid key: unable to validate API key'), 'tailscale leaves other failures to their own message')
 JS
