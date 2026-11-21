@@ -48,7 +48,19 @@ fi
 echo "upgrade complete"
 STUB
 
-chmod +x "$stub_bin/sudo" "$stub_bin/systemd-run" "$stub_bin/pacman"
+# zap stays out of the suite unless a case sets USE_ZAP=0, even on a machine
+# with zap installed and a terminal attached.
+cat >"$stub_bin/omarchy-update-via-zap" <<'STUB'
+#!/bin/bash
+exit "${USE_ZAP:-1}"
+STUB
+
+cat >"$stub_bin/zap" <<'STUB'
+#!/bin/bash
+exit "$ZAP_STATUS"
+STUB
+
+chmod +x "$stub_bin/sudo" "$stub_bin/systemd-run" "$stub_bin/pacman" "$stub_bin/omarchy-update-via-zap" "$stub_bin/zap"
 
 replaced="$test_tmp/replaced"
 
@@ -363,3 +375,24 @@ LIFECYCLE_ROOT="$boot_package" run_update >"$test_tmp/out" 2>"$test_tmp/err" ||
   fail "x86 takes over as before" "$(cat "$test_tmp/err")"
 [[ ! -e $stray && ! -e $test_tmp/vouched ]] || fail "x86 asks no boot package"
 pass "x86 takes over as before, asking no boot package"
+
+# With zap, pacman runs only when zap fails. A declined confirmation stops there.
+fresh_work
+write_report omarchy-settings "$stray"
+USE_ZAP=0 ZAP_STATUS=0 run_update >"$test_tmp/out" 2>"$test_tmp/err" ||
+  fail "a zap upgrade that succeeds fails the step" "$(cat "$test_tmp/err")"
+[[ $(cat "$test_tmp/attempts") == 0 ]] || fail "pacman runs after zap upgraded"
+status=0
+USE_ZAP=0 ZAP_STATUS=130 run_update >"$test_tmp/out" 2>"$test_tmp/err" || status=$?
+(( status == 130 )) && [[ $(cat "$test_tmp/attempts") == 0 ]] ||
+  fail "declining zap's confirmation does not stop the upgrade" "status $status"
+pass "zap upgrades without pacman, and declining it stops the upgrade"
+
+fresh_work
+echo "ours" >"$stray"
+write_report omarchy-settings "$stray"
+USE_ZAP=0 ZAP_STATUS=1 run_update >"$test_tmp/out" 2>"$test_tmp/err" ||
+  fail "a failed zap upgrade is not retried with pacman" "$(cat "$test_tmp/err")"
+[[ ! -e $stray && $(cat "$test_tmp/attempts") == 2 ]] ||
+  fail "a failed zap upgrade skips pacman's conflict recovery"
+pass "a failed zap upgrade falls back to pacman and its conflict recovery"

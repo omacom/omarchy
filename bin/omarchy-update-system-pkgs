@@ -15,6 +15,32 @@ fi
 
 echo -e "\e[32m\nUpdate system packages\e[0m"
 
+# zap runs the upgrade in the same PID 1 scope that omarchy-update-pacman gives
+# pacman (see there). It runs as this user so that zap's own sudo starts its
+# worker inside the scope, and it gets back the environment that sudo drops.
+# Conflict retries go to pacman's --overwrite below.
+if [[ -z ${OMARCHY_UPDATE_CONFLICT:-} ]] && omarchy-update-via-zap; then
+  scope=()
+  if [[ -d /run/systemd/system && ! -L /run/systemd/system ]]; then
+    scope=(sudo systemd-run --scope --quiet --collect --uid="$(id -u)" --gid="$(id -g)" -- env)
+    for var in HOME USER LOGNAME PATH TERM COLORTERM LANG LC_ALL XDG_CACHE_HOME NO_COLOR; do
+      [[ -z ${!var:-} ]] || scope+=("$var=${!var}")
+    done
+  fi
+
+  status=0
+  "${scope[@]}" env ZAP_ELEVATE=sudo zap upgrade --repo || status=$?
+
+  # 130 is a declined confirmation, and it stops the update.
+  if (( status == 0 || status == 130 )); then
+    exit "$status"
+  fi
+
+  # Most often this is an unowned file under /usr/share/omarchy, which zap
+  # won't overwrite.
+  echo -e "\e[33m\nzap could not finish the upgrade. Retrying with pacman:\e[0m"
+fi
+
 errors=$(mktemp)
 trap 'rm -f "$errors"' EXIT
 

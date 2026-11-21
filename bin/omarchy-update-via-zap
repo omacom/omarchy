@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:summary=Check whether the update's package steps should run through zap
+# omarchy:hidden=true
+
+# zap (https://github.com/cube-one-ber/zap) is an AUR helper with its own
+# libalpm engine. When it's installed, it runs the system, AUR and orphan
+# package steps of an update. By design it confirms every privileged
+# transaction at a terminal and has no --overwrite, so `omarchy update -y` and
+# runs without a terminal keep pacman and yay.
+
+[[ ${OMARCHY_UPDATE_UNATTENDED:-} != 1 && -t 0 && -t 1 ]] && omarchy-cmd-present zap
