@@ -69,7 +69,7 @@ PanelWindow {
   property var borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Math.max(1, Style.space(2)))
   property bool centerOnBar: false
   property bool open: false
-  property int gap: Style.gapsOut  // distance between bar edge and panel
+  property int gap: Style.gapsOutAt(barPos)  // distance between bar edge and panel, as gaps_out sets it on the bar's edge
   property bool popoutSwitching: false
   property bool popoutSwitchClosing: false
   property bool focusPrimed: false
