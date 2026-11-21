@@ -688,6 +688,10 @@ status)
   status
   ;;
 "" | --yes)
+  if [[ $(omarchy-boot-backend) == systemd-boot ]]; then
+    say "This machine already boots systemd-boot."
+    exit 0
+  fi
   if [[ ${1:-} != --yes ]]; then
     cat <<EOF
 Omarchy moves to systemd-boot, the boot loader a Secure Boot machine needs.
