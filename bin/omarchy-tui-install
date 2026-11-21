@@ -5,37 +5,7 @@
 
 set -e
 
-ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
-
-safe_icon_name() {
-  printf '%s\n' "$1" \
-    | tr '[:upper:]' '[:lower:]' \
-    | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//'
-}
-
-icon_name_from_ref() {
-  local ref="$1"
-  local name
-  name=$(basename "$ref")
-
-  if [[ $name == *.* ]]; then
-    safe_icon_name "${name%.*}"
-  else
-    printf '%s\n' "$name"
-  fi
-}
-
-install_user_icon() {
-  local source="$1"
-  local name="$2"
-  local ext="${source##*.}"
-
-  [[ $ext == "$source" ]] && ext="png"
-  mkdir -p "$ICON_DIR"
-  cp "$source" "$ICON_DIR/$name.$ext"
-  gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
-  printf '%s\n' "$name"
-}
+source "$OMARCHY_PATH/install/helpers/icon.sh"
 
 if (( $# != 4 )); then
   echo -e "\e[32m$(omarchy-i18n tui.intro)\n\e[0m"
@@ -59,18 +29,20 @@ DESKTOP_FILE="$HOME/.local/share/applications/$APP_NAME.desktop"
 mkdir -p "$(dirname "$DESKTOP_FILE")"
 
 if [[ $ICON_REF =~ ^https?:// ]]; then
-  ICON_VALUE=$(safe_icon_name "$APP_NAME")
-  mkdir -p "$ICON_DIR"
-  if ! curl -sL -o "$ICON_DIR/$ICON_VALUE.png" "$ICON_REF"; then
+  ICON_VALUE=$(omarchy_icon_name "$APP_NAME")
+  mkdir -p "$OMARCHY_ICON_DIR"
+  if ! omarchy_icon_download "$ICON_REF" "$OMARCHY_ICON_DIR/$ICON_VALUE.png"; then
     echo "Error: Failed to download icon."
     exit 1
   fi
-  gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
 elif [[ -f $ICON_REF ]]; then
-  ICON_VALUE=$(install_user_icon "$ICON_REF" "$(safe_icon_name "$APP_NAME")")
+  ICON_VALUE=$(omarchy_icon_install_local "$ICON_REF" "$(omarchy_icon_name "$APP_NAME")")
 else
   # Bundled Omarchy icons are package-owned under /usr/share/icons/hicolor.
-  ICON_VALUE=$(icon_name_from_ref "$ICON_REF")
+  ICON_VALUE=$(omarchy_icon_name_from_ref "$ICON_REF")
+  if ! omarchy_icon_exists "$ICON_VALUE"; then
+    echo "Warning: No icon named $ICON_VALUE was found." >&2
+  fi
 fi
 
 if [[ $WINDOW_STYLE == "float" ]]; then

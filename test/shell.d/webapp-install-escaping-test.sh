@@ -20,6 +20,7 @@ chmod +x "$mock_bin"/*
 
 export HOME="$test_tmp/home"
 export PATH="$mock_bin:$PATH"
+export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_ARGV="$test_tmp/argv"
 
 applications="$HOME/.local/share/applications"
