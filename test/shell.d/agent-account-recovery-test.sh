@@ -19,7 +19,7 @@ export PATH="$test_tmp/bin:$ROOT/bin:$PATH"
 unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME
 
 STATE="$ROOT/bin/omarchy-agent-account-state" python3 - <<'PY'
-import importlib.machinery, importlib.util, json, os, subprocess, sys
+import base64, importlib.machinery, importlib.util, json, os, subprocess, sys
 from pathlib import Path
 
 loader = importlib.machinery.SourceFileLoader("state", os.environ["STATE"])
@@ -180,6 +180,29 @@ pending = state.begin("claude", "Duplicate")
 signed_in(pending, "interrupted", "interrupted@example.com")
 assert state.recover("claude") == []
 assert not pending.exists()
+
+# Both pending and already-moved Codex logins must distinguish workspace members.
+def codex_login(home, user):
+  home.mkdir(parents=True, exist_ok=True)
+  claims = {"email": user + "@example.com", "https://api.openai.com/auth": {"user_id": user}}
+  token = base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip("=")
+  (home / "auth.json").write_text(json.dumps({"tokens": {"account_id": "business", "id_token": "h." + token + ".s"}}))
+
+codex_login(state.primary_home("codex"), "first")
+pending = state.begin("codex", "Second")
+codex_login(pending, "second")
+assert [a["id"] for a in state.recover("codex")] == ["second"]
+pending = state.begin("codex", "Third")
+codex_login(pending, "third")
+home = state.accounts_root() / "codex" / "third"
+entry = dict(state.identity("codex", pending), id="third", label="Third", home=str(home), primary=False)
+state.write_receipt(pending, {"entry": entry})
+pending.rename(home)
+assert [a["id"] for a in state.recover("codex")] == ["third"]
+pending = state.begin("codex", "Duplicate member")
+codex_login(pending, "second")
+assert state.recover("codex") == [] and not pending.exists()
+assert len(state.load("codex")["accounts"]) == 3
 
 # Leave a completed login for the real add command to recover below.
 pending = state.begin("claude", "Retry")

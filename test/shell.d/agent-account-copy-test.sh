@@ -343,6 +343,60 @@ except state.AccountError:
   pass
 else:
   raise AssertionError("must reject imported local settings")
+
+# Two members of a business and one user's other workspace are distinct logins.
+machine("codex-members-source")
+def codex_login(home, workspace, user, email):
+  claims = base64.urlsafe_b64encode(json.dumps({"email": email, "https://api.openai.com/auth": {"chatgpt_account_id": workspace, "chatgpt_user_id": user}}).encode()).decode().rstrip("=")
+  transfer.write_json(home / "auth.json", {"tokens": {"account_id": workspace, "id_token": "h." + claims + ".s"}})
+
+codex_login(state.primary_home("codex"), "business", "first", "first@example.com")
+for label, workspace, user, email in [("Colleague", "business", "second", "second@example.com"), ("University", "university", "first", "first@example.com")]:
+  pending = state.begin("codex", label)
+  codex_login(pending, workspace, user, email)
+  state.register("codex", label, pending)
+members = transfer.export_accounts(["codex"])
+transfer.validate(members)
+assert len({a["accountId"] for a in members["providers"]["codex"]["accounts"]}) == 3
+machine("codex-members-destination")
+transfer.import_provider("codex", members["providers"]["codex"], False)
+assert len(state.load("codex")["accounts"]) == 3
+transfer.import_provider("codex", members["providers"]["codex"], False)
+assert len(state.load("codex")["accounts"]) == 3
+
+# Workspace-only exports from older senders are matched using their credentials.
+legacy = copy.deepcopy(members)
+for entry in legacy["providers"]["codex"]["accounts"]:
+  entry["accountId"] = entry["files"]["auth.json"]["tokens"]["account_id"]
+legacy["providers"]["codex"]["accounts"][-1]["files"]["auth.json"]["tokens"].pop("account_id")
+transfer.validate(legacy)
+transfer.import_provider("codex", legacy["providers"]["codex"], False)
+assert len(state.load("codex")["accounts"]) == 3
+
+# A destination backend from before member identities still takes a
+# workspace-only Codex login when its receiver cannot report capabilities.
+machine("codex-older-backend")
+older_root = root / "older-omarchy"
+(older_root / "bin").mkdir(parents=True)
+older_source = (Path(os.environ["OMARCHY_PATH"]) / "bin/omarchy-agent-account-state").read_text().replace("codex_identity", "older_codex_identity")
+(older_root / "bin/omarchy-agent-account-state").write_text(older_source)
+command.write_text("#!/bin/bash\nexit 1\n")
+workspace_only = copy.deepcopy(legacy)
+workspace_only["providers"]["codex"]["accounts"] = workspace_only["providers"]["codex"]["accounts"][:1]
+workspace_only["providers"]["codex"]["accounts"][0]["files"]["auth.json"]["tokens"]["id_token"] = ""
+workspace_only["providers"]["codex"]["accounts"][0]["accountId"] = "business"
+bundle = {"version": 1, "backend": "raise RuntimeError('sender backend must not run')", "receiver": Path(transfer.__file__).read_text(), "accounts": workspace_only}
+result = subprocess.run(["/usr/bin/python3", "-I", "-c", transfer.RECEIVER_BOOTSTRAP], input=json.dumps(bundle), text=True, capture_output=True, env=dict(child_env, OMARCHY_PATH=str(older_root), HOME=str(Path.home()), XDG_STATE_HOME=os.environ["XDG_STATE_HOME"]))
+assert result.returncode == 0, result.stderr
+assert len(state.load("codex")["accounts"]) == 1
+
+# An old receiver with source-name support still cannot distinguish members.
+machine("codex-old-receiver")
+command.write_text('#!/bin/bash\nif [[ $1 == "capabilities" ]]; then echo \'{"sourceNames":true}\'; else exit 91; fi\n')
+bundle = {"version": 1, "backend": (Path(os.environ["OMARCHY_PATH"]) / "bin/omarchy-agent-account-state").read_text(), "receiver": Path(transfer.__file__).read_text(), "accounts": members}
+result = subprocess.run(["/usr/bin/python3", "-I", "-c", transfer.RECEIVER_BOOTSTRAP], input=json.dumps(bundle), text=True, capture_output=True, env=dict(child_env, HOME=str(Path.home()), XDG_STATE_HOME=os.environ["XDG_STATE_HOME"]))
+assert result.returncode == 0, result.stderr
+assert len(state.load("codex")["accounts"]) == 3
 PY
 pass "account transfer copies all providers, rebuilds homes, preserves settings, and protects existing logins"
 
