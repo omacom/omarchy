@@ -155,6 +155,15 @@ set_terminal_size() {
     pkill -SIGUSR2 ghostty 2>/dev/null || true
   fi
 
+  if [[ -f ~/.config/glass/glass.conf ]]; then
+    if grep -qE '^[[:space:]]*font_size[[:space:]]+' ~/.config/glass/glass.conf; then
+      sed --follow-symlinks -i -E "s/^[[:space:]]*font_size[[:space:]]+.*/font_size $pt/" ~/.config/glass/glass.conf
+    else
+      printf '\nfont_size %s\n' "$pt" >>~/.config/glass/glass.conf
+    fi
+    pkill -USR1 -x glass 2>/dev/null || true
+  fi
+
   if [[ -f ~/.config/foot/foot.ini ]]; then
     sed -i -E "s/(:size=)[0-9.]+/\1$pt/" ~/.config/foot/foot.ini
     # Foot has no config-reload signal, so a running instance keeps its startup
@@ -188,6 +197,8 @@ term_current_pt() {
     echo "${pt:-$TERM_DEFAULT_PT}"
   elif [[ -f ~/.config/foot/foot.ini ]]; then
     grep -oP ':size=\K[0-9.]+' ~/.config/foot/foot.ini | head -1
+  elif [[ -f ~/.config/glass/glass.conf ]]; then
+    grep -oP '^[[:space:]]*font_size[[:space:]]+\K[0-9.]+' ~/.config/glass/glass.conf | tail -1
   elif omarchy-cmd-present kitty; then
     echo "$TERM_DEFAULT_PT"
   fi

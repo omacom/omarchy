@@ -188,6 +188,7 @@ terminal_cases=(
   'alacritty Alacritty.desktop'
   'foot foot.desktop'
   'ghostty com.mitchellh.ghostty.desktop'
+  'glass glass.desktop'
   'kitty kitty.desktop'
 )
 

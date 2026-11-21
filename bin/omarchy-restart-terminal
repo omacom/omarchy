@@ -13,3 +13,8 @@ fi
 if pgrep -x ghostty >/dev/null; then
   killall -SIGUSR2 ghostty
 fi
+
+# glass rereads its config, and the theme file it includes, on SIGUSR1.
+if pgrep -x glass >/dev/null; then
+  pkill -USR1 -x glass
+fi
