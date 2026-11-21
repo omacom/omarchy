@@ -1012,7 +1012,7 @@ suggest_command() {
 
   for candidate in "${!ROUTE_TO_KEY[@]}"; do
     candidate="${candidate#omarchy }"
-    if [[ $candidate == "$first"* ]]; then
+    if [[ $candidate == "$first"* && ${candidate%% *} != "$first" ]]; then
       printf '%s' "${candidate%% *}"
       return 0
     fi
@@ -1111,6 +1111,8 @@ dispatch_or_help() {
   local key=""
   local binary_path=""
   local suggestion=""
+  local prefix_args=()
+  local arg=""
 
   if resolve_route "$#" "${args[@]}"; then
     key="$RESOLVED_KEY"
@@ -1154,14 +1156,19 @@ dispatch_or_help() {
     return 0
   fi
 
-  if show_prefix_help "omarchy ${args[*]}"; then
+  for arg in "${args[@]}"; do
+    [[ $arg == "--help" || $arg == "-h" || $arg == "?" || $arg == -* ]] && continue
+    prefix_args+=("$arg")
+  done
+
+  if (( ${#prefix_args[@]} > 0 )) && show_prefix_help "omarchy ${prefix_args[*]}"; then
     return 0
   fi
 
   echo "Unknown Omarchy command: omarchy ${args[*]}" >&2
   suggestion=$(suggest_command "${args[0]}")
   if [[ -n $suggestion ]]; then
-    echo "Did you mean: omarchy $suggestion ?" >&2
+    echo "Did you mean: omarchy $suggestion --help" >&2
   fi
   echo "Run 'omarchy commands --all' to discover available commands." >&2
   return 127
