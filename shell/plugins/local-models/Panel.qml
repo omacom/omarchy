@@ -351,11 +351,55 @@ Panel {
     return 0.05 * share(seconds(startedMs), 10)
   }
 
+  function updatingNow(model) {
+    return !!model && !model.host && model.unit !== "installing" && model.unit !== "removing"
+      && (model.updating === true || updateAsked(model))
+  }
+
+  // Each update's bar, by recipe: when it started, how far it has filled, and
+  // when it ended, so it fills to the end before giving way. Kept here rather
+  // than on the line, which is built again with every status the engine
+  // writes, twice a second while an update downloads.
+  property var updateBars: ({})
+
+  function tickUpdates() {
+    var bars = {}
+    var changed = false
+    var now = loadNowMs
+    for (var i = 0; i < lines.length; i++) {
+      var model = lines[i].model
+      if (!model || model.host) continue
+      var bar = updateBars[model.recipe]
+      if (updatingNow(model)) {
+        var started = bar && !bar.endedMs ? bar.startedMs : (updateAsks[model.recipe] || now)
+        var fill = Math.max(bar && !bar.endedMs ? bar.fill : 0, updateProgress(model, started, now))
+        bars[model.recipe] = { startedMs: started, fill: fill, endedMs: 0 }
+        changed = changed || !bar || bar.fill !== fill || bar.endedMs !== 0
+      } else if (bar && (!bar.endedMs || now - bar.endedMs < Style.duration(450))) {
+        bars[model.recipe] = bar.endedMs ? bar : { startedMs: bar.startedMs, fill: 1, endedMs: now }
+        changed = changed || !bar.endedMs
+      } else if (bar) {
+        changed = true
+      }
+    }
+    if (changed || Object.keys(bars).length !== Object.keys(updateBars).length) updateBars = bars
+  }
+
+  function updateBar(model) {
+    return model ? (updateBars[model.recipe] || null) : null
+  }
+
+  onLoadNowMsChanged: tickUpdates()
+  Connections {
+    target: engine
+    function onLocalModelChanged() { Qt.callLater(root.tickUpdates) }
+  }
+
   property double loadNowMs: Date.now()
-  readonly property bool localLoading: lines.some(function(line) {
+  readonly property bool localLoading: Object.keys(updateBars).length > 0 || lines.some(function(line) {
     var model = line.model
     return model && (["activating", "deactivating", "removing"].indexOf(model.unit) >= 0 || (model.install && model.install.phase === "dependencies")
-      || model.updating === true || updateAsked(model))
+      || updatingNow(model))
   })
   Timer {
     interval: 250
@@ -1289,26 +1333,9 @@ Panel {
     onStoppingChanged: if (!stopping && !loading && !updating) { finishing = "stopping"; finishTimer.restart() }
     // An update has one bar of its own from the press to the end, through
     // the reload of a model that ran, and never runs back.
-    readonly property bool updating: !!model && !remote && !installing && !removing && (model.updating === true || root.updateAsked(model))
-    readonly property bool updateShown: updating || finishing === "updating"
-    property double updateStartedMs: 0
-    property real updateFill: 0
-    readonly property real updateTarget: updating ? root.updateProgress(model, updateStartedMs, root.loadNowMs) : 0
-    onUpdateTargetChanged: updateFill = Math.max(updateFill, updateTarget)
-    function beginUpdate() {
-      updateStartedMs = root.updateAsks[model.recipe] || Date.now()
-      updateFill = 0
-    }
-    // Opened on an update already under way, the bar starts from there.
-    Component.onCompleted: if (updating) beginUpdate()
-    onUpdatingChanged: {
-      if (updating) {
-        beginUpdate()
-      } else {
-        finishing = "updating"
-        finishTimer.restart()
-      }
-    }
+    readonly property bool updating: root.updatingNow(model)
+    readonly property var updateBar: root.updateBar(model)
+    readonly property bool updateShown: updating || !!updateBar
     Timer {
       id: finishTimer
       interval: Style.duration(450)
@@ -1609,7 +1636,7 @@ Panel {
         anchors.right: localMeterValue.left
         anchors.rightMargin: Style.space(20)
         anchors.verticalCenter: parent.verticalCenter
-        value: section.updateShown ? (section.updating ? section.updateFill : 1)
+        value: section.updateShown ? (section.updateBar ? section.updateBar.fill : 0)
           : section.preparing ? root.phaseProgress(section.elapsed, 30)
           : section.downloadShown ? (section.totalBytes > 0 ? section.doneBytes / section.totalBytes : 0)
           : section.finishing !== "" ? 1 : root.phaseProgress(section.elapsed, section.phaseSeconds)
