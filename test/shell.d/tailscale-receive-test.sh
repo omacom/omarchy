@@ -45,16 +45,30 @@ receive() {
 printf 'png' >"$WORKDIR/outbox/photo.png"
 printf 'png' >"$WORKDIR/outbox/Vacation Photo.PNG"
 printf 'pdf' >"$WORKDIR/outbox/notes with space.pdf"
-receive 3 env
+# A sender picks the name and the contents, so a received .desktop is an
+# attacker-chosen application launcher: it must never be one click from running.
+printf '[Desktop Entry]\nType=Application\nExec=touch %s/pwned\n' "$WORKDIR" >"$WORKDIR/outbox/evil.desktop"
+# The launcher suffix is matched case-insensitively, so a mixed-case name hides
+# nothing: this one must be held back from the click just like evil.desktop.
+printf '[Desktop Entry]\nType=Application\nExec=touch %s/pwned2\n' "$WORKDIR" >"$WORKDIR/outbox/Trap.DESKTOP"
+receive 5 env
 
 notification_files=("$WORKDIR/notifications/"*)
-(( ${#notification_files[@]} == 3 )) || fail "taildrop receive announces each delivery once"
+(( ${#notification_files[@]} == 5 )) || fail "taildrop receive announces each delivery once"
 
-[[ -f $downloads/photo.png && -f "$downloads/Vacation Photo.PNG" && -f "$downloads/notes with space.pdf" ]] ||
+[[ -f $downloads/photo.png && -f "$downloads/Vacation Photo.PNG" && -f "$downloads/notes with space.pdf" &&
+  -f $downloads/evil.desktop && -f $downloads/Trap.DESKTOP ]] ||
   fail "taildrop receive saves incoming files" "$(ls "$downloads")"
 pass "taildrop receive saves incoming files"
 
+# --no-open: the file is announced like any other, but the toast carries no
+# click command at all.
 assert_notification() {
+  local opens=true
+  if [[ $1 == "--no-open" ]]; then
+    opens=false
+    shift
+  fi
   local path=$1 name=${1##*/} file i key open_json='' open_index=-1 image_index=-1 urgency_found=false glyph='' image=''
   local headline=${2:-Received $name} body=${3:-Saved to $downloads}
   local -a args
@@ -87,8 +101,12 @@ assert_notification() {
       [[ -z $image && $glyph == 󰒊 ]] || fail "taildrop receive gives other files the send glyph" "$name: image=$image glyph=$glyph"
       ;;
     esac
-    [[ -n $open_json ]] && jq -e --arg path "$path" '. == ["xdg-open", $path]' <<<"$open_json" >/dev/null ||
-      fail "taildrop receive keeps the literal click-to-open argv" "$name: $open_json"
+    if $opens; then
+      [[ -n $open_json ]] && jq -e --arg path "$path" '. == ["xdg-open", $path]' <<<"$open_json" >/dev/null ||
+        fail "taildrop receive keeps the literal click-to-open argv" "$name: $open_json"
+    else
+      (( open_index < 0 )) || fail "taildrop receive wires no click to a received launcher" "$name: $open_json"
+    fi
     for ((i = 0; i < ${#args[@]}; i++)); do
       if [[ ${args[i]} == *"$path"* ]] && (( i != open_index && i != image_index )); then
         fail "taildrop receive exposes the file path only in the open argv and preview" "$name: ${args[i]}"
@@ -105,6 +123,17 @@ assert_notification "$downloads/Vacation Photo.PNG"
 assert_notification "$downloads/notes with space.pdf"
 pass "taildrop receive previews images over the send glyph and gives other files the glyph"
 pass "taildrop receive keeps critical urgency and literal click-to-open paths"
+
+# A .desktop file still gets announced, but its click must not dispatch it: on a
+# desktop that honors launchers, opening one runs its Exec line, and the sender
+# chose both the name and the contents.
+assert_notification --no-open "$downloads/evil.desktop"
+pass "taildrop receive refuses to one-click launch a received .desktop file"
+
+# A mixed-case suffix must be held back the same way: the guard lowercases the
+# name before matching, so Trap.DESKTOP is still a launcher.
+assert_notification --no-open "$downloads/Trap.DESKTOP"
+pass "taildrop receive holds back a mixed-case .desktop name from the click"
 
 [[ -f $downloads/unrelated.txt ]] || fail "taildrop receive leaves unrelated downloads alone"
 pass "taildrop receive leaves the rest of the downloads directory alone"
