@@ -12,6 +12,7 @@ Item {
   property int backgroundVersion: 0
   property bool fingerprintConfigured: false
   property bool fingerprintUnavailable: false
+  property bool fingerprintReady: false
   property bool authenticatingPassword: false
   property string failureMessage: ""
   property int failedAttempts: 0
@@ -233,7 +234,7 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: inputField.borderRight + 18
         anchors.verticalCenter: parent.verticalCenter
-        visible: root.fingerprintConfigured
+        visible: root.fingerprintConfigured && (root.fingerprintReady || root.fingerprintUnavailable)
         text: root.fingerprintUnavailable ? "󰺱" : "󰈷"
         color: root.fingerprintUnavailable ? Commons.Color.lock.textError : Commons.Color.lock.placeholder
         font.family: Style.font.family

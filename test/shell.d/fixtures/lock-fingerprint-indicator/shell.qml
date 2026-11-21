@@ -78,7 +78,11 @@ ShellRoot {
           root.assertTrue(!indicator.visible, "fingerprint indicator is hidden when no sensor is configured")
 
           view.fingerprintConfigured = true
-          root.assertTrue(indicator.visible, "fingerprint indicator is shown when a sensor is configured")
+          root.assertTrue(!indicator.visible, "enrollment alone does not invite a touch before the lock owns the reader")
+          var reservedBeforeClaim = view.fingerprintReserve
+          view.fingerprintReady = true
+          root.assertTrue(indicator.visible, "fingerprint indicator is shown once lock PAM reaches the reader")
+          root.assertTrue(view.fingerprintReserve === reservedBeforeClaim, "claim readiness does not shift the password field")
 
           // The field reserves space for the icon so a long password can never
           // slide underneath it. The reserve must exceed the icon's own width

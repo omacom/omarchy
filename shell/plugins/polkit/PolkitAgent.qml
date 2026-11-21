@@ -33,6 +33,9 @@ Item {
   property bool responseVisible: false
   property bool failed: false
   property bool errorFlash: false
+  // The private authentication store opens this only after lock discovery.
+  // Keep the agent registered so locked-session requests are rejected here.
+  property alias authenticationBlocked: authenticationGate.blocked
   // pam_fprintd appears in the polkit PAM stack (a sensor is enrolled).
   property bool fingerprintConfigured: false
   // Lid shut right now — the reader is physically unreachable, so we fall back
@@ -40,7 +43,7 @@ Item {
   property bool laptopClosed: false
   property int shakeOffset: 0
 
-  readonly property bool dialogVisible: polkitAgent.isActive || closing
+  readonly property bool dialogVisible: !authenticationBlocked && (polkitAgent.isActive || closing)
   // We show one method at a time. Fingerprint owns the dialog while PAM is
   // waiting on the reader (lid open, sensor enrolled); the moment PAM asks for
   // a password — including immediately when the lid is shut and the clamshell
@@ -90,6 +93,7 @@ Item {
   }
 
   function beginFlow() {
+    if (rejectBlockedRequest()) return
     closeTimer.stop()
     closing = false
     submitted = false
@@ -108,6 +112,7 @@ Item {
   }
 
   function submitResponse() {
+    if (rejectBlockedRequest()) return
     var flow = polkitAgent.flow
     if (!flow || !flow.isResponseRequired) return
     submitted = true
@@ -124,6 +129,20 @@ Item {
     closing = true
     closeTimer.restart()
     if (flow) flow.cancelAuthenticationRequest()
+  }
+
+  function rejectBlockedRequest() {
+    return authenticationGate.rejectBlockedRequest()
+  }
+
+  AuthenticationGate {
+    id: authenticationGate
+    flow: polkitAgent.flow
+    onRejected: {
+      closeTimer.stop()
+      root.closing = false
+      root.resetSnapshot()
+    }
   }
 
   function triggerFailureFeedback() {
