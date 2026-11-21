@@ -44,7 +44,7 @@ if [[ $1 == "-nG" ]]; then
   exit 0
 fi
 if [[ $1 == "-un" ]]; then
-  printf '%s\n' "${USER:-tester}"
+  printf '%s\n' "${TEST_LOGIN_USER:-tester}"
   exit 0
 fi
 exec /usr/bin/id "$@"
@@ -87,6 +87,14 @@ printf 'new password\nnew password\n' >"$TEST_INPUTS"
 [[ $(<"$TEST_STDIN") == $'tester:new password\nroot:new password' ]] ||
   fail "user password sets the same passphrase on the login user and on root" "$(cat "$TEST_STDIN")"
 pass "user password rejects empty and mismatched passphrases and updates user and root together"
+
+# The inherited USER value must not select the privileged password target.
+rm -f "$TEST_ARGS" "$TEST_STDIN"
+printf 'actual-user\nactual-user\n' >"$TEST_INPUTS"
+USER=another-user "$ROOT/bin/omarchy-user-password" >/dev/null
+[[ $(<"$TEST_STDIN") == $'tester:actual-user\nroot:actual-user' ]] ||
+  fail "password targets the current identity rather than inherited USER" "$(cat "$TEST_STDIN")"
+pass "password targets the current identity rather than inherited USER"
 
 # Locked root: declining the confirm updates the user only.
 rm -f "$TEST_ARGS" "$TEST_STDIN"
