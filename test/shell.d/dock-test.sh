@@ -12,6 +12,35 @@ trap 'rm -rf "$TMPDIR"' EXIT
 ROOT="$ROOT" run_node_test <<'JS'
 const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
 
+const coordinateQml = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/dock/DockWindow.qml', 'utf8')
+const coordinateMoveBody = coordinateQml.match(/id: bodyHover[\s\S]*?onPointChanged: \{([\s\S]*?)\n      \}/)[1]
+const coordinateMove = new Function('window', 'point', 'Style', coordinateMoveBody)
+const coordinateWindow = {hoverStale: true, dragging: false, dropPoint: {x: 600, y: 400}}
+coordinateMove(coordinateWindow, {position: {x: 601, y: 400}}, {space: n => n})
+assert(coordinateWindow.hoverStale, 'one pixel in window space preserves post-drag hover suppression')
+coordinateMove(coordinateWindow, {position: {x: 607, y: 400}}, {space: n => n})
+assert(!coordinateWindow.hoverStale, 'a deliberate move in window space clears post-drag hover suppression')
+
+const waveSpaceBody = coordinateQml.match(/readonly property real pointerInfluence: \{([\s\S]*?)\n    \}/)[1]
+const waveSpaceInfluence = new Function('window', 'bodyHover', 'slot', 'body', 'DockModel', 'menu', waveSpaceBody)
+const waveSpaceRoot = {}
+const waveSpaceWindow = {contentItem: waveSpaceRoot, vertical: false, dock: {magnification: 0.35}, hoverStale: false, dragging: false, positionChanging: false, insertIndex: -1, contentShown: true, slotSize: 48}
+const waveSpacePointer = {hovered: true, point: {position: {x: 600, y: 400}}}
+const waveSpaceSlot = {width: 48, height: 48, hovered: true, mapToItem: target => target === waveSpaceRoot ? {x: 600, y: 400} : {x: 24, y: 24}}
+const waveSpaceMenu = {visible: false, x: 550, y: 350, width: 100, height: 100}
+assertEqual(waveSpaceInfluence(waveSpaceWindow, waveSpacePointer, waveSpaceSlot, {}, dock, waveSpaceMenu), 1, 'horizontal icon centers magnify fully with a translated dock')
+waveSpaceWindow.vertical = true
+assertEqual(waveSpaceInfluence(waveSpaceWindow, waveSpacePointer, waveSpaceSlot, {}, dock, waveSpaceMenu), 1, 'vertical icon centers use the same window coordinates')
+waveSpaceMenu.visible = true
+assertEqual(waveSpaceInfluence(waveSpaceWindow, waveSpacePointer, waveSpaceSlot, {}, dock, waveSpaceMenu), 0, 'hovering a popup does not magnify icons underneath it')
+
+
+assertEqual(dock.hoverInfluence(0, 90), 1, 'hover peaks under the pointer')
+assertEqual(dock.hoverInfluence(90, 90), 0, 'hover reaches base scale at the boundary')
+assertEqual(dock.hoverInfluence(120, 90), 0, 'hover leaves distant icons at base scale')
+assertEqual(dock.hoverInfluence(-45, 90), dock.hoverInfluence(45, 90), 'hover is symmetric on both sides')
+assertEqual(dock.hoverInfluence(0, 0), 0, 'zero reach has no magnification')
+
 assertEqual(dock.normalizePosition('left'), 'left', 'dock accepts a valid position')
 assertEqual(dock.normalizePosition(' Top '), 'top', 'dock reads a position loosely')
 assertEqual(dock.normalizePosition('diagonal'), 'bottom', 'dock falls back to the bottom')
