@@ -38,7 +38,7 @@ Kuid eriolukordades, näiteks Omarchy kaugpaigaldamisel kaitstud arvutitesse võ
 
 Omarchy räägib 50 keelt — sama komplekt nagu omarchy.org — ja inglise keel on vaikekeel. Vahetamiseks ava Omarchy menüü ja mine jaotisse _Setup > Region > Language_ või käivita terminalis käsk `omarchy language <code>` (`omarchy language list` näitab koode). Menüü, töölaud ja Omarchy enda teavitused vahetavad keelt kohe ning iga rakendus, mille sa pärast avad, järgib seda samuti. Juba avatud rakendused vahetuvad, kui sa need taaskäivitad.
 
-Et keel alles jätta, kuid kirjutada kuupäevad, kellaajad, numbrid, raha, ühikud ja paberiformaadid nii, nagu mõnes teises piirkonnas tehakse (näiteks inglise keel Euroopa kuupäevade ja 24-tunnise kellaga), vali jaotises _Setup > Region > Formats_ piirkond, kus iga valik näitab näidist, või käivita käsk `omarchy region formats <code>` (`omarchy region formats list` näitab koode). _Same as language_ naaseb keele enda vormingute juurde. Nagu keelevahetus, jõuab see rakendusteni, mille sa pärast avad.
+Et keel alles jätta, kuid kirjutada kuupäevad, kellaajad, numbrid, raha, ühikud ja paberiformaadid nii, nagu mõnes teises piirkonnas tehakse (näiteks inglise keel Euroopa kuupäevade ja 24-tunnise kellaga), vali jaotises _Setup > Region > Formats_ piirkond, kus iga valik näitab näidist, või käivita käsk `omarchy region <code>` (`omarchy region list` näitab koode). _Same as language_ naaseb keele enda vormingute juurde. Nagu keelevahetus, jõuab see rakendusteni, mille sa pärast avad.
 
 ### Abi, kui jääd hätta
 

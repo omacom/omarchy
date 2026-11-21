@@ -38,7 +38,7 @@ Tačiau ypatingomis aplinkybėmis, pavyzdžiui, nuotoliniuose Omarchy diegimuose
 
 Omarchy kalba 50 kalbų — tuo pačiu rinkiniu kaip omarchy.org — o numatytoji kalba yra anglų. Norėdami ją pakeisti, atidarykite Omarchy meniu ir eikite į _Setup > Region > Language_ arba terminale paleiskite `omarchy language <code>` (`omarchy language list` rodo kodus). Meniu, darbalaukis ir paties Omarchy pranešimai iš karto pakeičia kalbą, o kiekviena vėliau atidaryta programa taip pat ją perima. Jau atidarytos programos persijungia, kai jas paleidžiate iš naujo.
 
-Kad išlaikytumėte kalbą, bet datas, laiką, skaičius, pinigus, vienetus ir popieriaus dydžius rašytumėte taip, kaip įprasta kitame regione (pavyzdžiui, anglų kalba su europietiškomis datomis ir 24 valandų laikrodžiu), pasirinkite regioną skiltyje _Setup > Region > Formats_, kur prie kiekvieno pasirinkimo rodomas pavyzdys, arba paleiskite `omarchy region formats <code>` (`omarchy region formats list` rodo kodus). _Same as language_ grąžina pačios kalbos formatus. Kaip ir kalbos keitimas, tai pasiekia vėliau atidarytas programas.
+Kad išlaikytumėte kalbą, bet datas, laiką, skaičius, pinigus, vienetus ir popieriaus dydžius rašytumėte taip, kaip įprasta kitame regione (pavyzdžiui, anglų kalba su europietiškomis datomis ir 24 valandų laikrodžiu), pasirinkite regioną skiltyje _Setup > Region > Formats_, kur prie kiekvieno pasirinkimo rodomas pavyzdys, arba paleiskite `omarchy region <code>` (`omarchy region list` rodo kodus). _Same as language_ grąžina pačios kalbos formatus. Kaip ir kalbos keitimas, tai pasiekia vėliau atidarytas programas.
 
 ### Pagalba, jei užstrigote
 

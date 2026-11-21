@@ -38,7 +38,7 @@ Ach i gcúinsí speisialta, cosúil le suiteálacha cianda Omarchy ar ríomhair�
 
 Labhraíonn Omarchy 50 teanga — an tacar céanna le omarchy.org — agus is é Béarla an réamhshocrú. Chun athrú, oscail roghchlár Omarchy agus téigh go _Socrú > Réigiún > Teanga_, nó rith `omarchy language <code>` i dteirminéal (taispeánann `omarchy language list` na cóid). Athraíonn an roghchlár, an deasc, agus fógraí Omarchy féin teanga láithreach, agus leanann gach feidhmchlár a osclaíonn tú ina dhiaidh sin freisin. Athraíonn aipeanna a bhí oscailte cheana a luaithe a atosóidh tú iad.
 
-Chun an teanga a choinneáil ach dátaí, amanna, uimhreacha, airgead, aonaid agus méideanna páipéir a scríobh mar a dhéanann réigiún eile (Béarla le dátaí Eorpacha agus clog 24 uair an chloig, mar shampla), roghnaigh réigiún faoi _Socrú > Réigiún > Formáidí_, áit a dtaispeánann gach rogha sampla, nó rith `omarchy region formats <code>` (taispeánann `omarchy region formats list` na cóid). Téann _Mar an gcéanna leis an teanga_ ar ais go formáidí na teanga féin. Cosúil le hathrú teanga, sroicheann sé na haipeanna a osclaíonn tú ina dhiaidh sin.
+Chun an teanga a choinneáil ach dátaí, amanna, uimhreacha, airgead, aonaid agus méideanna páipéir a scríobh mar a dhéanann réigiún eile (Béarla le dátaí Eorpacha agus clog 24 uair an chloig, mar shampla), roghnaigh réigiún faoi _Socrú > Réigiún > Formáidí_, áit a dtaispeánann gach rogha sampla, nó rith `omarchy region <code>` (taispeánann `omarchy region list` na cóid). Téann _Mar an gcéanna leis an teanga_ ar ais go formáidí na teanga féin. Cosúil le hathrú teanga, sroicheann sé na haipeanna a osclaíonn tú ina dhiaidh sin.
 
 ### Cabhair má tá tú i bhfostú
 

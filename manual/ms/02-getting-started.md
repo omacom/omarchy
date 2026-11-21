@@ -38,7 +38,7 @@ Tetapi dalam keadaan khas, seperti pemasangan Omarchy jauh pada komputer yang di
 
 Omarchy bertutur dalam 50 bahasa — set yang sama seperti omarchy.org — dan bahasa Inggeris ialah lalainya. Untuk menukarnya, buka menu Omarchy dan pergi ke _Tetapan > Wilayah > Bahasa_, atau jalankan `omarchy language <code>` dalam terminal (`omarchy language list` menunjukkan kod-kodnya). Menu, desktop, dan pemberitahuan Omarchy sendiri berubah bahasa serta-merta, dan setiap aplikasi yang anda buka selepas itu turut mengikutinya. Aplikasi yang sudah dibuka akan bertukar sebaik sahaja anda memulakannya semula.
 
-Untuk mengekalkan bahasa tetapi menulis tarikh, masa, nombor, wang, unit dan saiz kertas mengikut cara wilayah lain (bahasa Inggeris dengan tarikh Eropah dan jam 24 jam, contohnya), pilih wilayah di bawah _Tetapan > Wilayah > Format_, di mana setiap pilihan menunjukkan contoh, atau jalankan `omarchy region formats <code>` (`omarchy region formats list` menunjukkan kod-kodnya). _Sama seperti bahasa_ mengembalikan kepada format bahasa itu sendiri. Seperti pertukaran bahasa, ia terpakai pada aplikasi yang anda buka selepas itu.
+Untuk mengekalkan bahasa tetapi menulis tarikh, masa, nombor, wang, unit dan saiz kertas mengikut cara wilayah lain (bahasa Inggeris dengan tarikh Eropah dan jam 24 jam, contohnya), pilih wilayah di bawah _Tetapan > Wilayah > Format_, di mana setiap pilihan menunjukkan contoh, atau jalankan `omarchy region <code>` (`omarchy region list` menunjukkan kod-kodnya). _Sama seperti bahasa_ mengembalikan kepada format bahasa itu sendiri. Seperti pertukaran bahasa, ia terpakai pada aplikasi yang anda buka selepas itu.
 
 ### Bantuan jika anda tersekat
 

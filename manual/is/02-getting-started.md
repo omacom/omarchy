@@ -38,7 +38,7 @@ En við sérstakar aðstæður, eins og fjaruppsetningar Omarchy á vernduðum t
 
 Omarchy talar 50 tungumál — sama safn og omarchy.org — og enska er sjálfgefin. Til að skipta skaltu opna Omarchy-valmyndina og fara í _Uppsetning > Svæði > Tungumál_, eða keyra `omarchy language <code>` í skel (`omarchy language list` sýnir kóðana). Valmyndin, skjáborðið og eigin tilkynningar Omarchy skipta um tungumál strax, og hvert forrit sem þú opnar á eftir fylgir líka. Forrit sem þegar voru opin skipta þegar þú endurræsir þau.
 
-Til að halda tungumálinu en skrifa dagsetningar, tíma, tölur, peninga, einingar og pappírsstærðir eins og annað svæði gerir (enska með evrópskum dagsetningum og 24 stunda klukku, til dæmis), veldu svæði undir _Uppsetning > Svæði > Snið_, þar sem hver valkostur sýnir dæmi, eða keyrðu `omarchy region formats <code>` (`omarchy region formats list` sýnir kóðana). _Sama og tungumál_ fer aftur í snið tungumálsins sjálfs. Líkt og tungumálaskipti nær það til forritanna sem þú opnar á eftir.
+Til að halda tungumálinu en skrifa dagsetningar, tíma, tölur, peninga, einingar og pappírsstærðir eins og annað svæði gerir (enska með evrópskum dagsetningum og 24 stunda klukku, til dæmis), veldu svæði undir _Uppsetning > Svæði > Snið_, þar sem hver valkostur sýnir dæmi, eða keyrðu `omarchy region <code>` (`omarchy region list` sýnir kóðana). _Sama og tungumál_ fer aftur í snið tungumálsins sjálfs. Líkt og tungumálaskipti nær það til forritanna sem þú opnar á eftir.
 
 ### Hjálp ef þú festist
 

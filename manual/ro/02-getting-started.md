@@ -38,7 +38,7 @@ Dar în circumstanțe speciale, cum ar fi instalarările Omarchy la distanță p
 
 Omarchy vorbește 50 de limbi — același set ca omarchy.org — iar limba implicită este engleza. Ca să o schimbi, deschide meniul Omarchy și mergi la _Configurare > Regiune > Limbă_ sau rulează `omarchy language <code>` într-un terminal (`omarchy language list` afișează codurile). Meniul, desktopul și notificările proprii ale Omarchy își schimbă limba imediat, iar fiecare aplicație pe care o deschizi după aceea face la fel. Aplicațiile care erau deja deschise se schimbă după ce le repornești.
 
-Ca să păstrezi limba, dar să scrii datele, orele, numerele, banii, unitățile de măsură și dimensiunile hârtiei așa cum se face în altă regiune (de exemplu, engleză cu date europene și ceas în format de 24 de ore), alege o regiune la _Configurare > Regiune > Formate_, unde fiecare alegere afișează un exemplu, sau rulează `omarchy region formats <code>` (`omarchy region formats list` afișează codurile). _La fel ca limba_ revine la formatele proprii ale limbii. La fel ca schimbarea limbii, ajunge la aplicațiile pe care le deschizi după aceea.
+Ca să păstrezi limba, dar să scrii datele, orele, numerele, banii, unitățile de măsură și dimensiunile hârtiei așa cum se face în altă regiune (de exemplu, engleză cu date europene și ceas în format de 24 de ore), alege o regiune la _Configurare > Regiune > Formate_, unde fiecare alegere afișează un exemplu, sau rulează `omarchy region <code>` (`omarchy region list` afișează codurile). _La fel ca limba_ revine la formatele proprii ale limbii. La fel ca schimbarea limbii, ajunge la aplicațiile pe care le deschizi după aceea.
 
 ### Ajutor dacă te blochezi
 

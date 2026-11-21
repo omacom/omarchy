@@ -38,7 +38,7 @@ Men under särskilda omständigheter, som fjärrinstallationer av Omarchy på sk
 
 Omarchy talar 50 språk — samma uppsättning som omarchy.org — och engelska är standard. För att byta öppnar du Omarchy-menyn och går till _Setup > Region > Language_, eller kör `omarchy language <code>` i en terminal (`omarchy language list` visar koderna). Menyn, skrivbordet och Omarchys egna aviseringar byter språk omedelbart, och varje program du öppnar efteråt följer också med. Appar som redan var öppna byter när du startar om dem.
 
-För att behålla språket men skriva datum, tider, tal, pengar, enheter och pappersstorlekar så som en annan region gör (engelska med europeiska datum och 24-timmarsklocka, till exempel), väljer du en region under _Setup > Region > Formats_, där varje val visar ett exempel, eller kör `omarchy region formats <code>` (`omarchy region formats list` visar koderna). _Same as language_ går tillbaka till språkets egna format. Precis som ett språkbyte når det apparna du öppnar efteråt.
+För att behålla språket men skriva datum, tider, tal, pengar, enheter och pappersstorlekar så som en annan region gör (engelska med europeiska datum och 24-timmarsklocka, till exempel), väljer du en region under _Setup > Region > Formats_, där varje val visar ett exempel, eller kör `omarchy region <code>` (`omarchy region list` visar koderna). _Same as language_ går tillbaka till språkets egna format. Precis som ett språkbyte når det apparna du öppnar efteråt.
 
 ### Hjälp om du kör fast
 

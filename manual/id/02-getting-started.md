@@ -38,7 +38,7 @@ Tetapi dalam keadaan khusus, seperti instalasi Omarchy jarak jauh di komputer ya
 
 Omarchy mendukung 50 bahasa — set yang sama seperti omarchy.org — dan bahasa Inggris adalah default-nya. Untuk beralih, buka menu Omarchy dan buka _Setup > Region > Language_, atau jalankan `omarchy language <code>` di terminal (`omarchy language list` menampilkan kode-kodenya). Menu, desktop, dan notifikasi Omarchy sendiri langsung berubah bahasa, dan setiap aplikasi yang Anda buka setelahnya juga mengikutinya. Aplikasi yang sudah terbuka akan beralih setelah Anda memulai ulangnya.
 
-Untuk mempertahankan bahasa tetapi menulis tanggal, waktu, angka, uang, satuan, dan ukuran kertas seperti yang dilakukan wilayah lain (bahasa Inggris dengan tanggal Eropa dan jam 24 jam, misalnya), pilih sebuah wilayah di _Setup > Region > Formats_, di mana setiap pilihan menampilkan contoh, atau jalankan `omarchy region formats <code>` (`omarchy region formats list` menampilkan kode-kodenya). _Same as language_ kembali ke format bawaan bahasa tersebut. Seperti pergantian bahasa, ini berlaku untuk aplikasi yang Anda buka setelahnya.
+Untuk mempertahankan bahasa tetapi menulis tanggal, waktu, angka, uang, satuan, dan ukuran kertas seperti yang dilakukan wilayah lain (bahasa Inggris dengan tanggal Eropa dan jam 24 jam, misalnya), pilih sebuah wilayah di _Setup > Region > Formats_, di mana setiap pilihan menampilkan contoh, atau jalankan `omarchy region <code>` (`omarchy region list` menampilkan kode-kodenya). _Same as language_ kembali ke format bawaan bahasa tersebut. Seperti pergantian bahasa, ini berlaku untuk aplikasi yang Anda buka setelahnya.
 
 ### Bantuan jika Anda kesulitan
 

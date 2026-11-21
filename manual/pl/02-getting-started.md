@@ -38,7 +38,7 @@ Ale w szczególnych okolicznościach, takich jak zdalne instalacje Omarchy na ch
 
 Omarchy mówi w 50 językach — tym samym zestawie co omarchy.org — a domyślny jest angielski. Aby przełączyć, otwórz menu Omarchy i przejdź do _Ustawienia > Region > Język_ lub uruchom `omarchy language <code>` w terminalu (`omarchy language list` pokazuje kody). Menu, pulpit i własne powiadomienia Omarchy zmieniają język natychmiast, a każda aplikacja, którą otworzysz później, również. Aplikacje, które były już otwarte, przełączą się po ich ponownym uruchomieniu.
 
-Aby zachować język, ale zapisywać daty, godziny, liczby, pieniądze, jednostki i rozmiary papieru tak, jak robi to inny region (powiedzmy angielski z europejskimi datami i zegarem 24-godzinnym), wybierz region w _Ustawienia > Region > Formaty_, gdzie każdy wybór pokazuje przykład, lub uruchom `omarchy region formats <code>` (`omarchy region formats list` pokazuje kody). _Tak samo jak język_ wraca do formatów właściwych dla języka. Podobnie jak przełączenie języka, dotyczy to aplikacji, które otworzysz później.
+Aby zachować język, ale zapisywać daty, godziny, liczby, pieniądze, jednostki i rozmiary papieru tak, jak robi to inny region (powiedzmy angielski z europejskimi datami i zegarem 24-godzinnym), wybierz region w _Ustawienia > Region > Formaty_, gdzie każdy wybór pokazuje przykład, lub uruchom `omarchy region <code>` (`omarchy region list` pokazuje kody). _Tak samo jak język_ wraca do formatów właściwych dla języka. Podobnie jak przełączenie języka, dotyczy to aplikacji, które otworzysz później.
 
 ### Pomoc, jeśli utkniesz
 

@@ -38,7 +38,7 @@ Ancak korumalı bilgisayarlara uzaktan Omarchy kurulumları veya hassas veri iç
 
 Omarchy 50 dil konuşur — omarchy.org ile aynı küme — ve varsayılan dil İngilizcedir. Değiştirmek için Omarchy menüsünü açın ve _Kurulum > Bölge > Dil_ yolunu izleyin ya da bir terminalde `omarchy language <code>` komutunu çalıştırın (`omarchy language list` kodları gösterir). Menü, masaüstü ve Omarchy'nin kendi bildirimleri dili hemen değiştirir ve sonrasında açtığınız her uygulama da buna uyar. Zaten açık olan uygulamalar, onları yeniden başlattığınızda geçiş yapar.
 
-Dili koruyup tarihleri, saatleri, sayıları, parayı, birimleri ve kâğıt boyutlarını başka bir bölgenin tarzında yazmak için (örneğin Avrupa tarihleri ve 24 saatlik saatle İngilizce), _Kurulum > Bölge > Biçimler_ altında, her seçimin bir örnek gösterdiği yerden bir bölge seçin ya da `omarchy region formats <code>` komutunu çalıştırın (`omarchy region formats list` kodları gösterir). _Dille aynı_ seçeneği, dilin kendi biçimlerine geri döner. Dil değişiminde olduğu gibi, bu da sonrasında açtığınız uygulamalara ulaşır.
+Dili koruyup tarihleri, saatleri, sayıları, parayı, birimleri ve kâğıt boyutlarını başka bir bölgenin tarzında yazmak için (örneğin Avrupa tarihleri ve 24 saatlik saatle İngilizce), _Kurulum > Bölge > Biçimler_ altında, her seçimin bir örnek gösterdiği yerden bir bölge seçin ya da `omarchy region <code>` komutunu çalıştırın (`omarchy region list` kodları gösterir). _Dille aynı_ seçeneği, dilin kendi biçimlerine geri döner. Dil değişiminde olduğu gibi, bu da sonrasında açtığınız uygulamalara ulaşır.
 
 ### Takılırsanız yardım
 

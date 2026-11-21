@@ -38,7 +38,7 @@ Mais dans des circonstances particulières, comme des installations distantes d'
 
 Omarchy parle 50 langues — le même ensemble qu'omarchy.org — et l'anglais est la langue par défaut. Pour en changer, ouvrez le menu Omarchy et allez dans _Setup > Region > Language_, ou exécutez `omarchy language <code>` dans un terminal (`omarchy language list` affiche les codes). Le menu, le bureau et les propres notifications d'Omarchy changent de langue immédiatement, et chaque application que vous ouvrez ensuite suit également. Les applications déjà ouvertes changent une fois que vous les redémarrez.
 
-Pour conserver la langue mais écrire les dates, les heures, les nombres, l'argent, les unités et les formats de papier comme le fait une autre région (l'anglais avec des dates européennes et une horloge 24 heures, par exemple), choisissez une région sous _Setup > Region > Formats_, où chaque choix affiche un exemple, ou exécutez `omarchy region formats <code>` (`omarchy region formats list` affiche les codes). _Same as language_ revient aux formats propres à la langue. Comme un changement de langue, cela s'applique aux applications que vous ouvrez ensuite.
+Pour conserver la langue mais écrire les dates, les heures, les nombres, l'argent, les unités et les formats de papier comme le fait une autre région (l'anglais avec des dates européennes et une horloge 24 heures, par exemple), choisissez une région sous _Setup > Region > Formats_, où chaque choix affiche un exemple, ou exécutez `omarchy region <code>` (`omarchy region list` affiche les codes). _Same as language_ revient aux formats propres à la langue. Comme un changement de langue, cela s'applique aux applications que vous ouvrez ensuite.
 
 ### De l'aide si vous êtes bloqué
 

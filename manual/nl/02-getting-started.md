@@ -38,7 +38,7 @@ Maar in speciale omstandigheden, zoals externe Omarchy-installaties op beveiligd
 
 Omarchy spreekt 50 talen — dezelfde set als omarchy.org — en Engels is de standaard. Om te wisselen open je het Omarchy-menu en ga je naar _Instellen > Regio > Taal_, of voer je `omarchy language <code>` uit in een terminal (`omarchy language list` toont de codes). Het menu, de desktop en Omarchy's eigen meldingen veranderen onmiddellijk van taal, en elke applicatie die je daarna opent, volgt ook. Apps die al open waren, wisselen zodra je ze opnieuw opstart.
 
-Om de taal te behouden maar datums, tijden, getallen, geld, eenheden en papierformaten te schrijven zoals een andere regio dat doet (bijvoorbeeld Engels met Europese datums en een 24-uursklok), kies je een regio onder _Instellen > Regio > Indelingen_, waar elke keuze een voorbeeld toont, of voer je `omarchy region formats <code>` uit (`omarchy region formats list` toont de codes). _Zelfde als taal_ gaat terug naar de eigen indelingen van de taal. Net als bij het wisselen van taal geldt dit voor de apps die je daarna opent.
+Om de taal te behouden maar datums, tijden, getallen, geld, eenheden en papierformaten te schrijven zoals een andere regio dat doet (bijvoorbeeld Engels met Europese datums en een 24-uursklok), kies je een regio onder _Instellen > Regio > Indelingen_, waar elke keuze een voorbeeld toont, of voer je `omarchy region <code>` uit (`omarchy region list` toont de codes). _Zelfde als taal_ gaat terug naar de eigen indelingen van de taal. Net als bij het wisselen van taal geldt dit voor de apps die je daarna opent.
 
 ### Hulp als je vastloopt
 

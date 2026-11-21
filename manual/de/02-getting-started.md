@@ -38,7 +38,7 @@ Aber unter besonderen Umständen, etwa bei Remote-Omarchy-Installationen auf ges
 
 Omarchy spricht 50 Sprachen — dieselbe Auswahl wie omarchy.org — und Englisch ist die Standardsprache. Um zu wechseln, öffne das Omarchy-Menü und gehe zu _Einrichtung > Region > Sprache_, oder führe `omarchy language <code>` in einem Terminal aus (`omarchy language list` zeigt die Codes). Das Menü, der Desktop und Omarchys eigene Benachrichtigungen wechseln die Sprache sofort, und jede Anwendung, die du danach öffnest, folgt ebenfalls. Apps, die bereits geöffnet waren, wechseln, sobald du sie neu startest.
 
-Um die Sprache beizubehalten, aber Datumsangaben, Uhrzeiten, Zahlen, Geld, Einheiten und Papierformate so zu schreiben, wie es eine andere Region tut (etwa Englisch mit europäischen Datumsangaben und einer 24-Stunden-Uhr), wähle eine Region unter _Einrichtung > Region > Formate_, wo jede Auswahl ein Beispiel zeigt, oder führe `omarchy region formats <code>` aus (`omarchy region formats list` zeigt die Codes). _Wie die Sprache_ kehrt zu den eigenen Formaten der Sprache zurück. Wie ein Sprachwechsel erreicht sie die Apps, die du danach öffnest.
+Um die Sprache beizubehalten, aber Datumsangaben, Uhrzeiten, Zahlen, Geld, Einheiten und Papierformate so zu schreiben, wie es eine andere Region tut (etwa Englisch mit europäischen Datumsangaben und einer 24-Stunden-Uhr), wähle eine Region unter _Einrichtung > Region > Formate_, wo jede Auswahl ein Beispiel zeigt, oder führe `omarchy region <code>` aus (`omarchy region list` zeigt die Codes). _Wie die Sprache_ kehrt zu den eigenen Formaten der Sprache zurück. Wie ein Sprachwechsel erreicht sie die Apps, die du danach öffnest.
 
 ### Hilfe, wenn du nicht weiterkommst
 
