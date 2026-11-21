@@ -37,6 +37,7 @@ hl.env("PATH", table.concat(kept, ":"))
 
 -- Hardware-specific environment.
 require("default.hypr.nvidia")
+require("default.hypr.apple-dual-gpu")
 
 hl.config({
   xwayland = {
