@@ -42,9 +42,8 @@ Item {
 
     function cleanup() {
       dropdown.close()
-      // Park the pointer on empty scene so a stale position cannot stay over
-      // the popup for the next data row.
-      mouseMove(scene, 0, 0)
+      // Park the pointer completely offscreen so no hover event can linger.
+      mouseMove(scene, -500, -500)
     }
 
     function test_viewport_data() {
@@ -107,9 +106,9 @@ Item {
         verify(list.contentY > 0, "long lists retain scrolling")
         // The delegates change currentIndex on hover, and the keyboard walk
         // scrolls rows under the pointer. A row that scrolls under a pointer
-        // left over the list takes the selection back mid-walk. Park it off
-        // the popup before walking.
-        mouseMove(scene, 0, 0)
+        // left over the list takes the selection back mid-walk. Park it
+        // completely offscreen before walking.
+        mouseMove(scene, -500, -500)
         list.positionViewAtBeginning()
         tryCompare(list, "contentY", 0)
         list.currentIndex = 0
