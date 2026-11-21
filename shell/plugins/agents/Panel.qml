@@ -52,6 +52,15 @@ Panel {
     }
   }
 
+  // Signing in to an agent that was hidden from the panel brings it back.
+  function showProvider(id) {
+    if (!bar || !bar.shell || !settings || !settings.providers || !settings.providers[id]
+        || settings.providers[id].enabled !== false) return
+    var next = JSON.parse(JSON.stringify(settings))
+    next.providers[id].enabled = true
+    bar.shell.updateEntryInline(moduleName, next)
+  }
+
   property bool cursorActive: false
 
   // Countdowns and "last updated" ages read this instead of Date.now() so the
@@ -85,9 +94,11 @@ Panel {
     if (addButtonShown) hero.push({ kind: "add", index: 0 })
     if (hero.length > 0) rows.push(hero)
     if (picking) {
-      var choices = []
-      for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
-      rows.push(choices)
+      for (var c = 0; c < addProviders.length; c += addColumns) {
+        var choices = []
+        for (var k = c; k < Math.min(c + addColumns, addProviders.length); k++) choices.push({ kind: "choice", index: k })
+        rows.push(choices)
+      }
     } else if (addStage === "running") {
       if (pasteLinkShown) rows.push([{ kind: "pasteCode", index: 0 }])
       if (addUrl !== "") rows.push([{ kind: "reopenSignIn", index: 0 }])
@@ -157,7 +168,7 @@ Panel {
   function lineStop(p) {
     var provider = providers[p]
     if (!provider) return "provider"
-    return harnessFor(provider) !== "" ? "providerLaunch" : "provider"
+    return launches(provider) ? "providerLaunch" : "provider"
   }
 
   function moveKey(dx, dy) {
@@ -335,11 +346,23 @@ Panel {
   // close the panel; the login carries on, and its result arrives as a
   // notification too.
 
+  // In alphabetical order. Muse and OpenCode print their sign-in page rather
+  // than opening it, so the panel opens it for them. Copilot's limits are
+  // asked with gh's sign-in, which its own login doesn't renew, so trouble
+  // there keeps its help text instead of a Sign-in required link.
   readonly property var addProviders: [
     { providerId: "claude", providerName: "Claude" },
     { providerId: "codex", providerName: "Codex" },
-    { providerId: "grok", providerName: "Grok" }
+    { providerId: "copilot", providerName: "Copilot", limitsElsewhere: true },
+    { providerId: "cursor", providerName: "Cursor" },
+    { providerId: "fireworks", providerName: "Fireworks" },
+    { providerId: "agy", providerName: "Gemini" },
+    { providerId: "grok", providerName: "Grok" },
+    { providerId: "muse", providerName: "Muse", printsPage: true },
+    { providerId: "opencode", providerName: "OpenCode", printsPage: true },
+    { providerId: "openrouter", providerName: "OpenRouter" }
   ]
+  readonly property int addColumns: 4
 
   // The CLI's download while a first sign-in installs it: its speed beside
   // its bar, in the decimal units downloads are counted in.
@@ -354,6 +377,10 @@ Panel {
   property string addCode: ""
   property string addUrl: ""
   property bool addNeedsPaste: false
+  // What to paste, when the sign-in says: Gemini's code, an API key.
+  property string addPasteHint: ""
+  // An API key is the whole sign-in, with no browser login to speak of.
+  property bool addKeyEntry: false
   property string addResult: ""
   // The CLI's own download, when it isn't installed yet: the first sign-in
   // installs it before the browser opens.
@@ -426,6 +453,8 @@ Panel {
     // to it. When its page shows a code instead, its prompt for it has no
     // newline to read it by, so the field stays a link away the whole time.
     addNeedsPaste = false
+    addPasteHint = ""
+    addKeyEntry = false
     addDownloading = false
     addPhase = ""
     addFetched = false
@@ -447,17 +476,23 @@ Panel {
   function submitPaste(code) {
     if (!addProcess.running || code.trim() === "") return
     addProcess.write(code.trim() + "\n")
-    addStatus = Commons.I18n.t("agents.checkingCode")
+    // A code or key that was asked for is the one answer, so its field goes.
+    if (addPasteHint !== "") addNeedsPaste = false
+    if (!addKeyEntry) addStatus = Commons.I18n.t("agents.checkingCode")
   }
 
   // The add command's own lines are tagged; everything else is the CLI
   // talking, and only two things in it matter here: a code to confirm in the
-  // browser (Grok), and an invitation to paste one back (Claude).
+  // browser (Grok, Muse, OpenCode), and an invitation to paste one back (Claude).
   function handleAddLine(line) {
     var text = String(line).replace(/\u001b\[[0-9;]*m/g, "")
-    var tagged = text.match(/^@@omarchy (status|progress|done|error) (.*)$/)
+    var tagged = text.match(/^@@omarchy (status|progress|paste|key|done|error) (.*)$/)
     if (tagged) {
-      if (tagged[1] === "progress") {
+      if (tagged[1] === "paste" || tagged[1] === "key") {
+        addPasteHint = tagged[2]
+        addNeedsPaste = true
+        addKeyEntry = tagged[1] === "key"
+      } else if (tagged[1] === "progress") {
         var bytes = tagged[2].split(" ")
         addDoneBytes = Number(bytes[0]) || 0
         addTotalBytes = Number(bytes[1]) || 0
@@ -485,6 +520,7 @@ Panel {
         // account shows once its limits arrive.
         addStage = tagged[1] === "done" ? "" : tagged[1]
         if (tagged[1] === "done") {
+          showProvider(addProvider)
           usage.refreshLimits()
           root.focusKeys()
           // Nothing to show yet means the sign-in is what counts as set up.
@@ -496,11 +532,15 @@ Panel {
       }
       return
     }
-    var code = text.match(/^\s*([A-Z0-9]{4}-[A-Z0-9]{4})\s*$/)
+    // On a line of its own, or after OpenCode's "Enter code:".
+    var code = text.match(/(?:^|code:)\s*([A-Z0-9]{4}-[A-Z0-9]{4})\s*$/)
     if (code) addCode = code[1]
     if (/paste code/i.test(text)) addNeedsPaste = true
     var url = text.match(/(https:\/\/\S+)/)
-    if (url && addUrl === "") addUrl = url[1]
+    if (url && addUrl === "") {
+      addUrl = url[1]
+      if (addProviderEntry && addProviderEntry.printsPage) reopenSignIn()
+    }
   }
 
   // The field takes the keys from here, so the cursor lets go of the links.
@@ -623,7 +663,7 @@ Panel {
   // other agent's sign-in trouble stays text, with its own help to follow.
   function supportsSignIn(p) {
     for (var i = 0; i < addProviders.length; i++)
-      if (p && addProviders[i].providerId === p.providerId) return true
+      if (p && addProviders[i].providerId === p.providerId) return !addProviders[i].limitsElsewhere
     return false
   }
 
@@ -664,6 +704,8 @@ Panel {
     // to it. When its page shows a code instead, its prompt for it has no
     // newline to read it by, so the field stays a link away the whole time.
     addNeedsPaste = false
+    addPasteHint = ""
+    addKeyEntry = false
     addDownloading = false
     addPhase = ""
     addFetched = false
@@ -703,8 +745,8 @@ Panel {
   }
 
   // The coding agent made for each subscription, by usage provider id. A
-  // provider with none of its own (OpenRouter, Fireworks, Z.ai…) gets no
-  // terminal button: which harness to point at it is the user's choice.
+  // provider with none of its own (Z.ai, DeepSeek…) gets no terminal button:
+  // which harness to point at it is the user's choice.
   readonly property var harnesses: ({
     agy: "agy",
     claude: "claude",
@@ -725,10 +767,23 @@ Panel {
     return provider && harnesses[provider.providerId] ? harnesses[provider.providerId] : ""
   }
 
+  // The providers whose key the panel saves for pi and OpenCode open in one
+  // of those, on the model they've used most.
+  readonly property var keyProviders: ["fireworks", "openrouter"]
+
+  function opensInAgent(provider) {
+    return !!provider && keyProviders.indexOf(provider.providerId) >= 0
+  }
+
+  function launches(provider) {
+    return harnessFor(provider) !== "" || opensInAgent(provider)
+  }
+
   function launchHarness(provider) {
-    var harness = harnessFor(provider)
-    if (harness === "") return
-    Util.execArgv(["omarchy-agent", "--agent", harness])
+    if (!launches(provider)) return
+    Util.execArgv(opensInAgent(provider)
+      ? ["omarchy-agent", "--provider", provider.providerId]
+      : ["omarchy-agent", "--agent", harnessFor(provider)])
     root.close()
   }
 
@@ -978,6 +1033,27 @@ Panel {
     // Added up from this machine's sessions, so only about what was billed.
     if (s.estimated) return Commons.I18n.t("agents.spendEstimated").arg(amount)
     return s.cap > 0 ? Commons.I18n.t("agents.spendOfCap").arg(amount).arg(formatMoney(s.cap, s.currency)) : amount
+  }
+
+  // What one of the spend's days cost, for its bar's tooltip, with the tokens
+  // it took when the record still has them (the last week's). The days end
+  // on the collector's today, the last of the record's recent days.
+  function spendDayText(s, recentDays, index) {
+    if (!s || !(index >= 0 && index < s.days.length)) return ""
+    var recent = recentDays || []
+    var day = new Date(recent.length > 0 ? String(recent[recent.length - 1].date) + "T12:00:00" : nowMs)
+    if (isNaN(day.getTime())) day = new Date(nowMs)
+    day.setDate(day.getDate() - (s.days.length - 1 - index))
+    var date = Qt.formatDate(day, "yyyy-MM-dd")
+    var label = day.toLocaleDateString(Qt.locale(Commons.I18n.formatLocale), "d MMM")
+    var cost = formatMoney(s.days[index], s.currency)
+    if (s.estimated) cost = Commons.I18n.t("agents.spendEstimated").arg(cost)
+    var tokens = 0
+    for (var i = 0; i < recent.length; i++)
+      if (recent[i].date === date) tokens = Number(recent[i].messageCount) || 0
+    return tokens > 0
+      ? Commons.I18n.tn("agents.spendDayTokens", tokens).arg(label).arg(cost).arg(usage.formatTokenCount(tokens))
+      : Commons.I18n.t("agents.spendDay").arg(label).arg(cost)
   }
 
   // ---------------------------------------------------------------- summary
@@ -1479,11 +1555,12 @@ Panel {
 
     PanelSeparator { foreground: root.foreground }
 
-    // Pick: each agent by a large mark over its name, three across.
-    Row {
+    // Pick: each agent by a large mark over its name, four across.
+    Grid {
       id: choiceRow
       visible: root.picking
       width: parent.width
+      columns: root.addColumns
       spacing: Style.space(10)
 
       Repeater {
@@ -1496,7 +1573,7 @@ Panel {
           readonly property string state: root.addChecks[modelData.providerId] || ""
           readonly property bool available: state === "first" || state === "additional"
           readonly property bool hasCursor: root.hasKey("choice", index)
-          width: (choiceRow.width - choiceRow.spacing * (root.addProviders.length - 1)) / root.addProviders.length
+          width: (choiceRow.width - choiceRow.spacing * (root.addColumns - 1)) / root.addColumns
           implicitHeight: choiceBody.implicitHeight + Style.space(16)
           onHasCursorChanged: if (hasCursor) root.revealItem(choice)
 
@@ -1627,7 +1704,8 @@ Panel {
         Text {
           width: parent.width
           textFormat: Text.PlainText
-          text: Commons.I18n.t("agents.loginBrowser")
+          text: !root.addKeyEntry ? Commons.I18n.t("agents.loginBrowser")
+            : root.addNeedsPaste ? Commons.I18n.t("agents.enterApiKey") : Commons.I18n.t("agents.checkingKey")
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -1679,7 +1757,7 @@ Panel {
 
           Text {
             width: parent.width
-            text: Commons.I18n.t("agents.pasteCode")
+            text: root.addPasteHint || Commons.I18n.t("agents.pasteCode")
             textFormat: Text.PlainText
             color: root.dim
             font.family: root.fontFamily
@@ -1690,7 +1768,7 @@ Panel {
           TextField {
             id: pasteField
             width: parent.width
-            placeholderText: Commons.I18n.t("agents.placeholderCode")
+            placeholderText: root.addPasteHint === "" ? Commons.I18n.t("agents.placeholderCode") : ""
             foreground: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
@@ -1842,7 +1920,7 @@ Panel {
         id: sectionLaunch
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        visible: root.harnessFor(section.provider) !== ""
+        visible: root.launches(section.provider)
         iconText: "󰞷"
         tooltipText: Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
         foreground: root.foreground
@@ -1992,6 +2070,18 @@ Panel {
         readonly property real busiest: Math.max.apply(null, days.concat([0]))
         readonly property real gap: Style.space(2)
         readonly property real stub: Math.max(Style.space(2), Math.round(Style.spacing.controlHeight * 0.07))
+        // The day under the pointer: its bar lights up, and the tooltip says
+        // what it cost. A mirrored row counts from the other end.
+        readonly property real hoverX: LayoutMirroring.enabled ? width - dayHover.point.position.x : dayHover.point.position.x
+        readonly property int hoveredDay: dayHover.hovered && days.length > 0
+          ? root.clamp(Math.floor(hoverX / width * days.length), 0, days.length - 1) : -1
+
+        HoverHandler { id: dayHover }
+
+        PanelToolTip {
+          visible: spendDays.hoveredDay >= 0
+          text: root.spendDayText(section.spend, section.provider ? section.provider.recentDays : [], spendDays.hoveredDay)
+        }
 
         Row {
           anchors.fill: parent
@@ -2006,7 +2096,7 @@ Panel {
               height: cost > 0 && spendDays.busiest > 0 ? Math.max(spendDays.stub, spendDays.height * cost / spendDays.busiest) : spendDays.stub
               anchors.bottom: parent ? parent.bottom : undefined
               radius: Math.min(width, height) / 2
-              color: cost > 0 ? root.foreground : root.track
+              color: index === spendDays.hoveredDay ? Commons.Color.accent : cost > 0 ? root.foreground : root.track
             }
           }
         }

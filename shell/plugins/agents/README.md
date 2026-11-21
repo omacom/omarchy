@@ -21,7 +21,9 @@ Every subscription on one page, limits first.
   per limit window: its meter and the time until it resets (the exact percentage
   on hover). A model-scoped allowance on the same clock (Claude's Fable weekly
   limit) is a tick on that window's meter rather than a line of its own; the
-  row's tooltip names it. A lapsed or missing Claude, Codex, or Grok sign-in
+  row's tooltip names it. A lapsed or missing sign-in of an agent the panel
+  can add (see Adding a subscription; all but Copilot, whose limits are asked
+  with `gh`'s sign-in)
   shows a _Sign-in required_ link that signs that account in again from the
   panel. Any other trouble — a paused token, another agent's sign-in, an
   endpoint that didn't answer — leaves the last known limits on show, with a
@@ -39,28 +41,44 @@ Every subscription on one page, limits first.
 - **Balance** — prepaid agents show a credit ledger instead of limits: a
   fuel-gauge meter that drains toward empty, the remaining credit, and
   funded-versus-spent detail.
+- **Terminal button** — beside a section's name, it opens the harness made
+  for that subscription. Fireworks and OpenRouter have none of their own, so
+  theirs opens pi or OpenCode (the default agent when it's one of them) through
+  `omarchy agent --provider`, always on one of that provider's models: the
+  one the harness last used there, so a switch made in a session sticks, else
+  the one the section's record has used most, else the first the harness
+  lists. In pi, model cycling is kept to that provider too.
 - **Spend** — pay-as-you-go agents show what the account spent in the last
   30 days, a bar a day, or, against a monthly cap when there is one, this
-  month's spend as a meter. Fireworks and OpenRouter with a management key
+  month's spend as a meter. Hovering a bar lights it up and names its day,
+  what it cost, and the tokens it took when they're among the last week's the
+  record keeps. Fireworks and OpenRouter with a management key
   report the account's own figures; DeepSeek, Kimchi, Ollama Cloud, and
   OpenRouter without a management key add up the costs pi and opencode wrote
   beside each reply on this machine, and mark the amount ≈ as an estimate.
 - **Make something cool** — starter prompts (a new theme, plugin, app, or game),
   two across, that start the agent on the task through `omarchy agent make`.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
-  Claude Code, Codex, and Grok as large marks, three across, with the first
-  one focused, and the hero's line reads Add an account. The + becomes the
-  X that goes back. An agent that can't be added is dimmed and says why on
-  hover. A further account asks for a name first, and Enter signs it in. The
+  Claude Code, Codex, Copilot, Cursor, Fireworks, Gemini (signed in through
+  Antigravity), Grok, Muse, OpenCode (Zen and Go), and OpenRouter as large marks
+  in alphabetical order, four across, with the first one focused, and the
+  hero's line reads Add an account. The + becomes
+  the X that goes back. A further Claude, Codex, or Grok account asks for a
+  name first, and Enter signs it in; the others keep one sign-in each, which
+  signing in again replaces. The
   panel then runs `omarchy-agent-account-add --events` and follows it: the
-  status, the code Grok asks you to confirm in the browser, a field to paste
-  Claude's code back if its page shows one instead of finishing, and a link to
-  reopen the sign-in page. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
-  carries on and its result arrives as a notification.
+  status, the code Grok, Muse, or OpenCode asks you to confirm in the browser,
+  a field to paste back the code Gemini's page shows (or Claude's, if its
+  page shows one instead of finishing), and a link to
+  reopen the sign-in page. Fireworks and OpenRouter have no login and open
+  no browser: the panel asks for an API key, which is checked against the
+  provider, then saved for pi, and for opencode when it's installed. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
+  carries on and its result arrives as a notification. Signing in to an
+  agent that was hidden from the panel shows it again.
 
 The icon is always in the bar. On a machine with no agent yet, the panel is
-the blank slate for setting one up: it opens on the same choice of Claude,
-Codex, or Grok, and the first agent signed in becomes the default agent if
+the blank slate for setting one up: it opens on the same choice of agents,
+and the first one signed in that has a harness of its own becomes the default agent if
 none was picked. An agent appears once it is enabled in settings and has
 recorded usage, on this machine or a synced one; a CLI installed
 mid-session shows up at the next refresh. Drop the widget with
@@ -177,9 +195,9 @@ A session's subagent logs roll up into it. Every billed call a child agent made 
 
 The collector asks the client's own key endpoint for the subscription's session and weekly percents with reset times — the same figures the TUI's `/usage` overlay shows. Minting is idempotent (the same Model API key comes back every call), so polling is safe; the token travels only in the `Authorization` header and neither it nor the returned key is persisted. `MUSE_KEY_ENDPOINT` moves the endpoint, over https only (plain http only to this machine). Pay-as-you-go accounts have no subscription windows and no plan name, so the tab shows measured local usage with no meters — never estimated, never zeroed. An active plan that returns no `subs_usage` (Muse Code Power Usage answers this way on every probe) behaves the same way, except the tab keeps the plan name.
 
-### Antigravity
+### Gemini
 
-The record's id is `agy`, the name the default agent knows it by. The plan and limits are asked of Google's Cloud Code API with whichever Antigravity sign-in is on the machine: the one `agy` keeps in the Secret Service keyring (service `gemini`, username `antigravity`) or, without a keyring, in `antigravity-oauth-token` under `AGY_DIR`; omp's `google-antigravity` sign-in in `~/.omp/agent/agent.db`; pi's in `auth.json` (under `PI_CODING_AGENT_DIR` when set); and opencode's `google` sign-in, only when the Antigravity plugin's `antigravity-accounts.json` is there. The token refreshed most recently is asked first, and one Google refuses gives way to the next. Those stores are only ever read. A lapsed token shows the last limits as paused until the harness that owns it runs again; a lapsed omp sign-in is asked through `omp usage`, which renews it. Each Google account keeps its own last answer, so another account's limits never stand in. `CLOUD_CODE_URL` moves the endpoint, over https only.
+The panel names the section for the subscription, Gemini; Antigravity is the harness that codes on it. The record's id is `agy`, the name the default agent knows it by. The plan and limits are asked of Google's Cloud Code API with whichever Antigravity sign-in is on the machine: the one `agy` keeps in the Secret Service keyring (service `gemini`, username `antigravity`) or, without a keyring, in `antigravity-oauth-token` under `AGY_DIR`; omp's `google-antigravity` sign-in in `~/.omp/agent/agent.db`; pi's in `auth.json` (under `PI_CODING_AGENT_DIR` when set); and opencode's `google` sign-in, only when the Antigravity plugin's `antigravity-accounts.json` is there. The token refreshed most recently is asked first, and one Google refuses gives way to the next. Those stores are only ever read. A lapsed token shows the last limits as paused until the harness that owns it runs again; a lapsed omp sign-in is asked through `omp usage`, which renews it. Each Google account keeps its own last answer, so another account's limits never stand in. `CLOUD_CODE_URL` moves the endpoint, over https only.
 
 Local stats count `agy`'s history prompts, its conversations (a subagent's conversation counts toward the one that spawned it), and the tokens each transcript step reports, under the model the step or the last Model Selection names. Antigravity answers that pi, omp, OpenClaw (`OPENCLAW_STATE_DIR`), and opencode's plugin recorded count too, a forked copy once. No other collector counts these.
 

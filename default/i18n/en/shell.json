@@ -12,6 +12,8 @@
   "agents.balanceUnavailable": "Balance unavailable",
   "agents.busiestDay": "Busiest day: %1",
   "agents.checkingCode": "Checking the code…",
+  "agents.checkingKey": "Checking the key…",
+  "agents.enterApiKey": "Paste your API key",
   "agents.confirmCode": "Confirm this code in your browser",
   "agents.durationDaysHours": "%1d %2h",
   "agents.durationHoursMinutes": "%1h %2m",
@@ -79,6 +81,11 @@
   "agents.loginBrowser": "Log in through your browser",
   "agents.hideProviderConfirm": "Hide %1 from the panel? Credentials and sign-in will be kept.",
   "agents.launchHarness": "Start %1",
+  "agents.spendDay": "%1: %2",
+  "agents.spendDayTokens": {
+    "one": "%1: %2 for %3 token",
+    "other": "%1: %2 for %3 tokens"
+  },
   "agents.spendEstimated": "≈ %1",
   "agents.spendLast30Days": "Last 30 days",
   "agents.spendOfCap": "%1 of %2",
