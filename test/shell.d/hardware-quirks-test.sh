@@ -190,7 +190,7 @@ chmod +x "$stub_bin"/*
 machine() {
   local name=${1%+unreadable}
   rm -rf "$hw" "$root"
-  mkdir -p "$hw/dmi" "$root/etc" "$root/home/.config/hypr"
+  mkdir -p "$hw/dmi" "$hw/acpi" "$root/etc" "$root/home/.config/hypr"
   printf '%s\n' '-- User look and feel' >"$root/home/.config/hypr/looknfeel.lua"
   : >"$hw/input-devices"
   FAKE_PLATFORM=x86 FAKE_LSMOD="" FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Alder Lake\n\tKernel driver in use: i915"
@@ -223,6 +223,10 @@ machine() {
       printf '%s 0\n' "$copy" >"$root/var/lib/ath12k-board-fallback/installed"
     fi
   }
+  # Both EliteBook X G2i models are board 8E86 and differ only in product name.
+  elitebook() { dmi sys_vendor HP; dmi board_vendor HP; dmi board_name 8E86; dmi product_name "HP EliteBook X ${1:-}G2i 14 inch Notebook Next Gen AI PC"; }
+  # acpi <HID> [status]: declare an ACPI device, with _STA if given.
+  acpi() { mkdir -p "$hw/acpi/$1:00"; [[ $# -lt 2 ]] || printf '%s\n' "$2" >"$hw/acpi/$1:00/status"; }
 
   case $name in
     plain) dmi sys_vendor LENOVO; dmi product_name 21HM0000US; dmi product_family "ThinkPad X1 Carbon Gen 11" ;;
@@ -317,6 +321,15 @@ machine() {
     wcn6855-card) ath12k 1103 ;;
     wcn6855-card-first-boot) ath12k 1103 board-data; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
     qualcomm-no-wifi) FAKE_LSPCI="0004:00:00.0 PCI bridge [0604]: Qualcomm Technologies, Inc SC8380XP PCIe Root Complex [17cb:0111]" ;;
+    # The DSDT declares two camera sensors this machine was not built with.
+    elitebook-x-g2i) elitebook; acpi OVTI05C1 15; acpi OVTI08F4 0; acpi OVTI01AF 0 ;;
+    elitebook-x-flip-g2i) elitebook "Flip "; acpi OVTI05C1 15; acpi OVTI08F4 0 ;;
+    elitebook-x-g2i-no-camera) elitebook; acpi OVTI05C1 0 ;;
+    elitebook-other-board) elitebook; dmi board_name 8E87; acpi OVTI05C1 15 ;;
+    elitebook-other-vendor) elitebook; dmi board_vendor Dell; acpi OVTI05C1 15 ;;
+    ipu7-ov08x40) acpi OVTI08F4 15 ;;
+    # ACPI treats a device with no _STA as present.
+    ipu7-ov08x40-no-sta) acpi OVTI08F4 ;;
     nouveau) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau" ;;
     nouveau-proprietary) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau"; : >"$hw/nvidia.conf" ;;
     *) fail "hardware-quirks-test knows the machine '$name'" ;;
@@ -343,6 +356,9 @@ run_leaf() {
     FAKE_HW="$hw" FAKE_ROOT="$root" FAKE_PROVIDERS="$test_tmp/providers" \
     OMARCHY_QCOM_FIRMWARE_MANIFEST="$hw/qcom-firmware-manifest" \
     OMARCHY_DMI_PRODUCT_SKU="$hw/dmi/product_sku" \
+    OMARCHY_DMI_BOARD_VENDOR="$hw/dmi/board_vendor" \
+    OMARCHY_DMI_BOARD_NAME="$hw/dmi/board_name" \
+    OMARCHY_ACPI_DEVICES_PATH="$hw/acpi" \
     OMARCHY_SYNAPTIC_INPUT_DEVICES="$hw/input-devices" \
     OMARCHY_SURFACE_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ASPIRE_16_AI_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
@@ -404,6 +420,8 @@ leaves=(
   hardware/dell-xps13-ptl-speaker-firmware.sh
   hardware/fix-ath12k-board-data.sh
   hardware/dell-xps13-sidecar-amps.sh
+  hardware/hp/elitebook-x-g2i.sh
+  hardware/intel/ipu7-camera.sh
   user/hardware/fix-nouveau-cursor.sh
 )
 
@@ -560,6 +578,19 @@ hardware/fix-ath12k-board-data.sh|wcn6855-card-first-boot|0|pkg-add ath12k-board
 # Wildcat Lake's GPU is named only "[Intel Graphics]".
 hardware/intel/video-acceleration.sh|xps13-wcl|0|pkg-add intel-media-driver libvpl vpl-gpu-rt
 hardware/intel/video-acceleration.sh|nouveau|0
+hardware/hp/elitebook-x-g2i.sh|elitebook-x-g2i|0|pkg-add hp-elitebook-x-g2i-audio|pkg-drop intel-ipu7-camera|pkg-add hp-elitebook-x-g2i-camera
+# The Flip is the same board and gets the same support, which its product name would not match.
+hardware/hp/elitebook-x-g2i.sh|elitebook-x-flip-g2i|0|pkg-add hp-elitebook-x-g2i-audio|pkg-drop intel-ipu7-camera|pkg-add hp-elitebook-x-g2i-camera
+# Speakers are fitted on every 8E86; a camera that _STA reports absent gets no camera stack.
+hardware/hp/elitebook-x-g2i.sh|elitebook-x-g2i-no-camera|0|pkg-add hp-elitebook-x-g2i-audio
+hardware/hp/elitebook-x-g2i.sh|elitebook-other-board|0
+hardware/hp/elitebook-x-g2i.sh|elitebook-other-vendor|0
+hardware/hp/elitebook-x-g2i.sh|elitebook-x-g2i+unreadable|0
+hardware/intel/ipu7-camera.sh|ipu7-ov08x40|0|pkg-add intel-ipu7-camera
+hardware/intel/ipu7-camera.sh|ipu7-ov08x40-no-sta|0|pkg-add intel-ipu7-camera
+# An OVTI08F4 node the machine was not built with must not pull in the IPU7 stack,
+# which also conflicts with the package that owns the camera this machine has.
+hardware/intel/ipu7-camera.sh|elitebook-x-g2i|0
 user/hardware/fix-nouveau-cursor.sh|nouveau|0|wrote home/.config/hypr/looknfeel.lua
 # Supported GPUs still use nouveau during installation before switching drivers on reboot.
 user/hardware/fix-nouveau-cursor.sh|nouveau-proprietary|0
