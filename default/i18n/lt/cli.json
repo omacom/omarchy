@@ -343,7 +343,6 @@
   "setupForm.confirmPlaceholder": "Turi sutapti su ką tik įvestu slaptažodžiu",
   "setupForm.confirmPrompt": "Patvirtinkite> ",
   "setupForm.hostnameInvalid": "Kompiuterio vardas: 1–63 raidės, skaitmenys ar brūkšneliai, be brūkšnelio pradžioje ar gale",
-  "setupForm.hostnamePlaceholder": "Raidės, skaitmenys ir brūkšneliai (arba Return – 'omarchy')",
   "setupForm.hostnamePrompt": "Kompiuterio vardas> ",
   "setupForm.keyboardHeader": "Pasirinkite klaviatūros išdėstymą",
   "setupForm.languageHeader": "Kalba",

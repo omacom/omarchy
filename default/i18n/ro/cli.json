@@ -343,7 +343,6 @@
   "setupForm.confirmPlaceholder": "Tastează din nou aceeași parolă",
   "setupForm.confirmPrompt": "Confirmă> ",
   "setupForm.hostnameInvalid": "Numele gazdei: 1-63 litere, cifre sau cratime, fără cratimă la început sau sfârșit",
-  "setupForm.hostnamePlaceholder": "Litere, cifre și cratime (sau Enter pentru 'omarchy')",
   "setupForm.hostnamePrompt": "Nume gazdă> ",
   "setupForm.keyboardHeader": "Alege aranjamentul tastaturii",
   "setupForm.languageHeader": "Limbă",

@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "Írd be újra ugyanazt a jelszót",
   "setupForm.confirmPrompt": "Megerősítés> ",
   "setupForm.hostnameInvalid": "A gépnév 1-63 betű, szám vagy kötőjel lehet, és nem kezdődhet vagy végződhet kötőjellel",
-  "setupForm.hostnamePlaceholder": "Betűk, számok és kötőjelek (vagy Enter: 'omarchy')",
   "setupForm.hostnamePrompt": "Gépnév> ",
   "setupForm.keyboardHeader": "Válassz billentyűzetkiosztást",
   "setupForm.languageHeader": "Nyelv",

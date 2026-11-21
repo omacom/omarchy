@@ -331,7 +331,6 @@
   "setupForm.confirmPlaceholder": "방금 입력한 비밀번호와 일치해야 합니다",
   "setupForm.confirmPrompt": "확인> ",
   "setupForm.hostnameInvalid": "호스트명은 1~63자의 영문자, 숫자, 대시여야 하며, 대시로 시작하거나 끝날 수 없습니다",
-  "setupForm.hostnamePlaceholder": "영문자, 숫자, 대시 (비워 두면 'omarchy')",
   "setupForm.hostnamePrompt": "호스트명> ",
   "setupForm.keyboardHeader": "키보드 레이아웃 선택",
   "setupForm.languageHeader": "언어",

@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "Kirjoita sama salasana uudelleen",
   "setupForm.confirmPrompt": "Vahvista> ",
   "setupForm.hostnameInvalid": "Koneen nimi: 1-63 kirjainta, numeroa tai yhdysmerkkiä, ei yhdysmerkkiä alussa tai lopussa",
-  "setupForm.hostnamePlaceholder": "Kirjaimia, numeroita ja yhdysmerkkejä (tai Enter: 'omarchy')",
   "setupForm.hostnamePrompt": "Koneen nimi> ",
   "setupForm.keyboardHeader": "Valitse näppäimistöasettelu",
   "setupForm.languageHeader": "Kieli",

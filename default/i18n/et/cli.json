@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "Peab kattuma äsja sisestatud parooliga",
   "setupForm.confirmPrompt": "Kinnita> ",
   "setupForm.hostnameInvalid": "Hostinimi: 1-63 tähte, numbrit või sidekriipsu, mitte sidekriips alguses ega lõpus",
-  "setupForm.hostnamePlaceholder": "Tähed, numbrid ja sidekriipsud (või Enter: 'omarchy')",
   "setupForm.hostnamePrompt": "Hostinimi> ",
   "setupForm.keyboardHeader": "Vali klaviatuuripaigutus",
   "setupForm.languageHeader": "Keel",

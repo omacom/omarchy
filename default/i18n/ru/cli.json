@@ -349,7 +349,6 @@
   "setupForm.confirmPlaceholder": "Должен совпадать с только что введённым паролем",
   "setupForm.confirmPrompt": "Ещё раз> ",
   "setupForm.hostnameInvalid": "Имя компьютера: 1–63 буквы, цифры или дефисы, без дефиса в начале и в конце",
-  "setupForm.hostnamePlaceholder": "Буквы, цифры и дефисы (или Return для 'omarchy')",
   "setupForm.hostnamePrompt": "Имя компьютера> ",
   "setupForm.keyboardHeader": "Выберите раскладку клавиатуры",
   "setupForm.languageHeader": "Язык",

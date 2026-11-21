@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "Az önce yazdığınız parolayla aynı olmalı",
   "setupForm.confirmPrompt": "Onayla> ",
   "setupForm.hostnameInvalid": "Bilgisayar adı 1-63 harf, rakam veya tire olmalı; tireyle başlayıp bitemez",
-  "setupForm.hostnamePlaceholder": "Harf, rakam ve tire (ya da 'omarchy' için Return)",
   "setupForm.hostnamePrompt": "Bilgisayar adı> ",
   "setupForm.keyboardHeader": "Klavye düzenini seçin",
   "setupForm.languageHeader": "Dil",

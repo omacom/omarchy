@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "நீங்கள் இப்போது தட்டச்சு செய்த கடவுச்சொல்லுடன் பொருந்த வேண்டும்",
   "setupForm.confirmPrompt": "உறுதிப்படுத்து> ",
   "setupForm.hostnameInvalid": "ஹோஸ்ட் பெயர் 1-63 எழுத்துகள், இலக்கங்கள் அல்லது இடைக்கோடுகளாக இருக்க வேண்டும்; இடைக்கோட்டில் தொடங்கவோ முடியவோ கூடாது",
-  "setupForm.hostnamePlaceholder": "எழுத்துகள், இலக்கங்கள் மற்றும் இடைக்கோடுகள் (அல்லது 'omarchy'-க்கு Return அழுத்தவும்)",
   "setupForm.hostnamePrompt": "ஹோஸ்ட் பெயர்> ",
   "setupForm.keyboardHeader": "விசைப்பலகை தளவமைப்பைத் தேர்ந்தெடுக்கவும்",
   "setupForm.languageHeader": "மொழி",

@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "Moet gelijk zijn aan het wachtwoord dat je net typte",
   "setupForm.confirmPrompt": "Bevestig> ",
   "setupForm.hostnameInvalid": "Computernaam: 1-63 letters, cijfers of streepjes, niet beginnend of eindigend met een streepje",
-  "setupForm.hostnamePlaceholder": "Letters, cijfers en streepjes (of Return voor 'omarchy')",
   "setupForm.hostnamePrompt": "Computernaam> ",
   "setupForm.keyboardHeader": "Kies een toetsenbordindeling",
   "setupForm.languageHeader": "Taal",

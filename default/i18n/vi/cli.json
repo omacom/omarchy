@@ -331,7 +331,6 @@
   "setupForm.confirmPlaceholder": "Phải khớp mật khẩu vừa nhập",
   "setupForm.confirmPrompt": "Xác nhận> ",
   "setupForm.hostnameInvalid": "Tên máy phải gồm 1-63 chữ cái, chữ số hoặc dấu gạch ngang, và không được bắt đầu hoặc kết thúc bằng dấu gạch ngang",
-  "setupForm.hostnamePlaceholder": "Chữ cái, chữ số và dấu gạch ngang (hoặc nhấn Return để dùng 'omarchy')",
   "setupForm.hostnamePrompt": "Tên máy> ",
   "setupForm.keyboardHeader": "Chọn bố cục bàn phím",
   "setupForm.languageHeader": "Ngôn ngữ",

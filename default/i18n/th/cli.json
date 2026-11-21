@@ -331,7 +331,6 @@
   "setupForm.confirmPlaceholder": "ต้องตรงกับรหัสผ่านที่เพิ่งพิมพ์",
   "setupForm.confirmPrompt": "ยืนยัน> ",
   "setupForm.hostnameInvalid": "ชื่อเครื่องต้องยาว 1-63 ตัว เป็นตัวอักษร ตัวเลข หรือขีดกลาง และขึ้นต้นหรือลงท้ายด้วยขีดกลางไม่ได้",
-  "setupForm.hostnamePlaceholder": "ตัวอักษร ตัวเลข และขีดกลาง (หรือกด Enter เพื่อใช้ 'omarchy')",
   "setupForm.hostnamePrompt": "ชื่อเครื่อง> ",
   "setupForm.keyboardHeader": "เลือกเค้าโครงแป้นพิมพ์",
   "setupForm.languageHeader": "ภาษา",

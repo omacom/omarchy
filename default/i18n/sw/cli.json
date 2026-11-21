@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "Lazima lilingane na nenosiri ulilocharaza sasa hivi",
   "setupForm.confirmPrompt": "Thibitisha> ",
   "setupForm.hostnameInvalid": "Jina la kompyuta: herufi, tarakimu au vistari 1-63, bila kistari mwanzoni au mwishoni",
-  "setupForm.hostnamePlaceholder": "Herufi, tarakimu na vistari (au Return kwa 'omarchy')",
   "setupForm.hostnamePrompt": "Jina la kompyuta> ",
   "setupForm.keyboardHeader": "Chagua mpangilio wa kibodi",
   "setupForm.languageHeader": "Lugha",

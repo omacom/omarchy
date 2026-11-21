@@ -361,7 +361,6 @@
   "setupForm.confirmPlaceholder": "يجب أن تطابق كلمة المرور التي كتبتها للتو",
   "setupForm.confirmPrompt": "تأكيد> ",
   "setupForm.hostnameInvalid": "يجب أن يتكون اسم المضيف من 1-63 حرفًا أو رقمًا أو شرطة، ولا يمكن أن يبدأ أو ينتهي بشرطة",
-  "setupForm.hostnamePlaceholder": "حروف وأرقام وشرطات (أو اضغط Return لاستخدام 'omarchy')",
   "setupForm.hostnamePrompt": "اسم المضيف> ",
   "setupForm.keyboardHeader": "اختر تخطيط لوحة المفاتيح",
   "setupForm.languageHeader": "اللغة",

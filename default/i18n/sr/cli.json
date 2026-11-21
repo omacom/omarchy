@@ -343,7 +343,6 @@
   "setupForm.confirmPlaceholder": "Мора да се поклапа са лозинком коју сте управо унели",
   "setupForm.confirmPrompt": "Потврда> ",
   "setupForm.hostnameInvalid": "Име рачунара: 1–63 слова, бројева или цртица, без цртице на почетку и крају",
-  "setupForm.hostnamePlaceholder": "Слова, бројеви и цртице (или Return за 'omarchy')",
   "setupForm.hostnamePrompt": "Име рачунара> ",
   "setupForm.keyboardHeader": "Изаберите распоред тастатуре",
   "setupForm.languageHeader": "Језик",

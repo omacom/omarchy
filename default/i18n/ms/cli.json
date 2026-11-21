@@ -331,7 +331,6 @@
   "setupForm.confirmPlaceholder": "Mesti sama dengan kata laluan yang baru anda taip",
   "setupForm.confirmPrompt": "Sahkan> ",
   "setupForm.hostnameInvalid": "Nama komputer mesti 1-63 huruf, nombor atau sempang, tidak bermula/berakhir dengan sempang",
-  "setupForm.hostnamePlaceholder": "Huruf, nombor dan sempang (atau Return untuk 'omarchy')",
   "setupForm.hostnamePrompt": "Nama komputer> ",
   "setupForm.keyboardHeader": "Pilih susun atur papan kekunci",
   "setupForm.languageHeader": "Bahasa",

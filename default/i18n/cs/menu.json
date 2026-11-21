@@ -1365,5 +1365,8 @@
   },
   "remove.ai.antigravity": {
     "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Název hostitele"
   }
 }

@@ -343,7 +343,6 @@
   "setupForm.confirmPlaceholder": "Zadajte rovnaké heslo ešte raz",
   "setupForm.confirmPrompt": "Potvrdenie> ",
   "setupForm.hostnameInvalid": "Názov: 1-63 písmen, číslic alebo pomlčiek, nesmie začínať ani končiť pomlčkou",
-  "setupForm.hostnamePlaceholder": "Písmená, číslice a pomlčky (alebo Enter pre 'omarchy')",
   "setupForm.hostnamePrompt": "Názov počítača> ",
   "setupForm.keyboardHeader": "Vyberte rozloženie klávesnice",
   "setupForm.languageHeader": "Jazyk",

@@ -343,7 +343,6 @@
   "setupForm.confirmPlaceholder": "Deve coincidere con la password appena digitata",
   "setupForm.confirmPrompt": "Conferma> ",
   "setupForm.hostnameInvalid": "Il nome host deve avere 1-63 lettere, numeri o trattini, senza trattino iniziale o finale",
-  "setupForm.hostnamePlaceholder": "Lettere, numeri e trattini (o Invio per 'omarchy')",
   "setupForm.hostnamePrompt": "Nome host> ",
   "setupForm.keyboardHeader": "Scegli il layout della tastiera",
   "setupForm.languageHeader": "Lingua",
