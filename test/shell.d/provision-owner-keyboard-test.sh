@@ -499,7 +499,7 @@ pass "keyboard Esc returns to the language picker and only undrawn languages get
   omarchy_prompt_timezone() { echo timezone >>"$lang/questions"; }
   omarchy_prompt_username() { echo username >>"$lang/questions"; username=chosen; }
   omarchy_prompt_password() { echo password >>"$lang/questions"; }
-  omarchy_prompt_hostname() { echo hostname >>"$lang/questions"; }
+  omarchy_generate_hostname() { echo hostname >>"$lang/questions"; }
   user_form >"$lang/output"
   [[ $(<"$lang/questions") == $'timezone\nusername\npassword\nhostname' ]] || fail "account questions follow the installer's order" "$(cat "$lang/questions")"
   : >"$lang/questions"
