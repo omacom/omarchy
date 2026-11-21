@@ -22,14 +22,27 @@ cat >"$stub_bin/omarchy-hw-vulkan" <<'SH'
 #!/bin/bash
 (( ${VULKAN:-1} == 1 ))
 SH
+cat >"$stub_bin/omarchy-hw-intel-haswell-gpu" <<'SH'
+#!/bin/bash
+(( ${HASWELL:-0} == 1 ))
+SH
+cat >"$stub_bin/omarchy-i18n" <<'SH'
+#!/bin/bash
+printf '%s\n' "$1"
+SH
 cat >"$stub_bin/voxtype" <<'SH'
 #!/bin/bash
 printf 'voxtype %s\n' "$*" >>"$TEST_LOG"
 SH
+cat >"$stub_bin/sudo" <<'SH'
+#!/bin/bash
+printf 'sudo %s\n' "$*" >>"$TEST_LOG"
+"$@"
+SH
 chmod +x "$stub_bin"/*
 
 run_install() {
-  local vulkan=$1 backend=$2
+  local vulkan=$1 backend=$2 haswell=${3:-0}
 
   : >"$calls"
   rm -rf "$test_tmp/home" "$lib_path/voxtype-vulkan"
@@ -45,7 +58,7 @@ run_install() {
   esac
 
   HOME="$test_tmp/home" OMARCHY_PATH="$ROOT" OMARCHY_VOXTYPE_LIB_PATH="$lib_path" \
-    VULKAN="$vulkan" TEST_LOG="$calls" PATH="$stub_bin:$PATH" \
+    VULKAN="$vulkan" HASWELL="$haswell" TEST_LOG="$calls" PATH="$stub_bin:$PATH" \
     XDG_CONFIG_HOME="$test_tmp/home/.config" bash "$ROOT/bin/omarchy-install-dictation-voxtype" >/dev/null ||
     fail "Voxtype install completes (vulkan=$vulkan backend=$backend)"
 
@@ -72,3 +85,18 @@ run_install 0 executable
 ! grep -q 'setup gpu' "$calls" ||
   fail "Voxtype does not enable the GPU backend without a Vulkan runtime"
 pass "Voxtype does not enable the GPU backend without a Vulkan runtime"
+
+run_install 1 executable 1
+grep -Fx 'sudo voxtype setup gpu --disable' "$calls" >/dev/null ||
+  fail "Haswell selects the CPU backend even when Vulkan is available"
+! grep -q 'gpu --enable' "$calls" || fail "Haswell must not enable Vulkan"
+pass "Haswell selects CPU dictation despite an available Vulkan backend"
+
+: >"$calls"
+HOME="$test_tmp/home" OMARCHY_PATH="$ROOT" OMARCHY_VOXTYPE_LIB_PATH="$lib_path" \
+  VULKAN=1 HASWELL=1 TEST_LOG="$calls" PATH="$stub_bin:$PATH" \
+  XDG_CONFIG_HOME="$test_tmp/home/.config" bash "$ROOT/bin/omarchy-install-dictation-voxtype" >/dev/null ||
+  fail "Haswell Voxtype reinstall completes"
+grep -Fx 'sudo voxtype setup gpu --disable' "$calls" >/dev/null ||
+  fail "Haswell reinstall resets a previous GPU selection"
+pass "Haswell reinstall resets an existing GPU selection"
