@@ -72,6 +72,34 @@ assertDeepEqual(
   ['1920x1080', '2560x1440', '3840x2160'],
   'monitor offers nothing below 1080p'
 )
+// A VM advertises ultrawide modes bigger than the screen behind it.
+const vm = ['3024x1964@120.00Hz', '5120x2160@50.00Hz', '4096x2160@50.00Hz', '3840x2160@60.00Hz',
+  '2560x1080@50.00Hz', '2048x1152@60.00Hz', '1920x1080@60.00Hz', '1280x720@60.00Hz']
+assertDeepEqual(
+  monitor.resolutionOptions(vm, 5120, 2160, 'Virtual-1'),
+  ['1920x1080', '2048x1152', '3024x1964', '3840x2160', '5120x2160'],
+  'monitor offers a way back to a normal resolution on a virtual display'
+)
+assertDeepEqual(
+  monitor.resolutionOptions(vm, 5120, 2160, 'DP-1'),
+  ['2560x1080', '5120x2160'],
+  'monitor keeps same-shape modes on a physical display'
+)
+assertDeepEqual(
+  monitor.resolutionOptions(['1280x800@60.00Hz', '5120x2160@50.00Hz', '3840x2160@60.00Hz', '2560x1440@60.00Hz', '1920x1080@60.00Hz', '1280x720@60.00Hz'], 1920, 1080, 'Virtual-1'),
+  ['1280x800', '1920x1080', '2560x1440', '3840x2160'],
+  'monitor keeps a virtual display\'s first mode below 1080p'
+)
+assertDeepEqual(
+  monitor.resolutionOptions(['1440x900@60.00Hz', '7680x4320@60.00Hz', '5120x2880@60.00Hz', '3840x2160@60.00Hz', '2560x1440@60.00Hz', '1920x1080@60.00Hz'], 1920, 1080, 'Virtual-1'),
+  ['1440x900', '1920x1080', '2560x1440', '3840x2160', '5120x2880'],
+  'monitor keeps a virtual display\'s first mode past the limit'
+)
+assertDeepEqual(
+  monitor.resolutionOptions(['3024x1964@120.00Hz', '7680x4320@60.00Hz', '5120x2880@60.00Hz', '3840x2160@60.00Hz', '2560x1440@60.00Hz', '2048x1152@60.00Hz', '1920x1080@60.00Hz'], 3840, 2160, 'Virtual-1'),
+  ['1920x1080', '2048x1152', '2560x1440', '3024x1964', '3840x2160'],
+  'monitor keeps 1080p on a virtual display with many larger modes'
+)
 assertDeepEqual(monitor.resolutionOptions(undefined, 0, 0), [], 'monitor offers no resolutions without modes')
 assertEqual(monitor.resolutionLabel('6016x3384'), '6K', 'monitor names 6K')
 assertEqual(monitor.resolutionLabel('3840x2160'), '4K', 'monitor names 4K')

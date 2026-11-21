@@ -87,7 +87,7 @@ function availableScales(scales, width, height) {
 var RESOLUTION_LIMIT = 5
 var RESOLUTION_MIN_HEIGHT = 1080
 
-function resolutionOptions(availableModes, width, height) {
+function resolutionOptions(availableModes, width, height, name) {
   if (!Array.isArray(availableModes)) return []
 
   var sizes = {}
@@ -103,11 +103,27 @@ function resolutionOptions(availableModes, width, height) {
   if (all.length === 0) return []
   all.sort(function(a, b) { return b.w * b.h - a.w * a.h || b.w - a.w })
 
-  var native = all[0]
-  var aspect = native.w / native.h
-  var options = all.filter(function(size) {
-    return size.h >= RESOLUTION_MIN_HEIGHT && Math.abs(size.w / size.h - aspect) < 0.01
-  }).slice(0, RESOLUTION_LIMIT).map(function(size) { return size.w + "x" + size.h })
+  // A virtual display advertises sizes larger than any real screen behind it, so
+  // its largest mode isn't its native one. Offer the mode it lists first, whatever
+  // its size, with the smallest 16:9 sizes, so there's always a way back to a
+  // normal one.
+  var options
+  if (/^Virtual-/.test(String(name || ""))) {
+    var firstMode = /^(\d+x\d+)@/.exec(String(availableModes[0]))
+    var preferred = firstMode ? firstMode[1] : ""
+    options = all.filter(function(size) {
+      return size.h >= RESOLUTION_MIN_HEIGHT && size.w + "x" + size.h !== preferred
+        && Math.abs(size.w / size.h - 16 / 9) < 0.01
+    }).slice(-(RESOLUTION_LIMIT - 1)).map(function(size) { return size.w + "x" + size.h })
+    if (preferred) options.push(preferred)
+    options.sort(function(a, b) { return sizes[b].w * sizes[b].h - sizes[a].w * sizes[a].h })
+  } else {
+    var native = all[0]
+    var aspect = native.w / native.h
+    options = all.filter(function(size) {
+      return size.h >= RESOLUTION_MIN_HEIGHT && Math.abs(size.w / size.h - aspect) < 0.01
+    }).slice(0, RESOLUTION_LIMIT).map(function(size) { return size.w + "x" + size.h })
+  }
 
   var current = Number(width) + "x" + Number(height)
   if (sizes[current] && options.indexOf(current) < 0) {
