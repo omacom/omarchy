@@ -28,9 +28,12 @@ as_root() {
 
 echo "Configuring lock screen password authentication..."
 
+# preauth is not silent: once pam_faillock has locked the account it refuses
+# the right password too, and its "account is locked ... minutes left" messages
+# are the only thing that tells the lock screen (which relays them) why.
 as_root tee /etc/pam.d/omarchy-lock-password >/dev/null <<'EOF'
 #%PAM-1.0
-auth       required                    pam_faillock.so preauth silent deny=10 unlock_time=120
+auth       required                    pam_faillock.so preauth deny=10 unlock_time=120
 -auth      [success=2 default=ignore]  pam_systemd_home.so
 auth       [success=1 default=bad]     pam_unix.so try_first_pass nullok
 auth       [default=die]               pam_faillock.so authfail deny=10 unlock_time=120
