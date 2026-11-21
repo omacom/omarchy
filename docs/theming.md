@@ -14,6 +14,8 @@ Aim for a video between five and seven seconds long that opens on its scene setu
 
 A still can also have a loop under the same name in `backgrounds/loops/`, such as `backgrounds/loops/0-winding-road.mp4`. OWE plays it in the still's place, after the still's intro if it has one, and goes back to the still when animations are turned off or the machine runs on battery, since decoding a loop costs a laptop several watts. It resumes on AC power. The background link keeps naming the still, so the background picker, cycling, theme memory and the lock screen only ever see stills. A loop's first frame is its still and its last frame leads straight back into it, so it repeats without a jump. Keep the motion small and steady through the whole clip, since easing in or out at the ends reads as the picture starting and stopping. Keep a loop to twenty seconds or less, so its file stays small. Encode it as H.264 at no more than the still's size, with one keyframe per loop, no B-frames, and colour tags matching the matrix it was encoded with, so its first frame matches the still on screen. The built-in themes' loops live in [omacom/omarchy-themes-loops](https://github.com/omacom/omarchy-themes-loops), not in this repository, and ship as the `omarchy-themes-loops` package into these same `backgrounds/loops/` directories.
 
+A theme can ship `helix.toml` to replace the generated Helix theme. Where Helix bundles the same palette, make it an overlay on that theme, with `"ui.background" = { }` so the terminal background still shows through: `inherits = "nord"`.
+
 A theme installed from a git repo is held to a much shorter list; see [What an installed theme may not ship](#what-an-installed-theme-may-not-ship).
 
 ## Theme activation flow
