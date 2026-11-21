@@ -31,6 +31,7 @@ matching guide before starting:
 - [`system.md`](system.md) - environment variables, toggles, language, power, network, audio, security, updates
 - [`hooks.md`](hooks.md) - automation hooks that run on system events
 - [`capture.md`](capture.md) - screenshots, screen recordings, OCR and QR capture, and file sharing
+- [`agent-seat.md`](agent-seat.md) - driving GUI apps (click, type, read controls, screenshot) on the agent seat instead of the user's desktop
 
 Making something new has a skill of its own: `omarchy-make-theme`, `omarchy-make-plugin`, `omarchy-make-app`, and `omarchy-make-game`. Reporting a bug or contributing a fix upstream follows `omarchy-contribute`.
 

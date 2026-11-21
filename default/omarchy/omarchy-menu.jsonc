@@ -38,6 +38,8 @@
   "agent.make.plugin": {"icon":"󰐱","label":"Make a plugin","action":"omarchy-agent-make plugin"},
   "agent.make.app": {"icon":"󰣆","label":"Make an app","action":"omarchy-agent-make app"},
   "agent.make.game": {"icon":"󰊴","label":"Make a game","action":"omarchy-agent-make game"},
+  "agent.seat": {"icon":"󱚤","label":"Agent Seat","action":"omarchy-agent-seat-show --start"},
+  "agent.seat-stop": {"icon":"󱚤","label":"Stop Agent Seat","when":"omarchy-agent-seat-status >/dev/null","action":"omarchy-agent-seat-stop"},
   "agent.harness": {"icon":"󰆍","label":"Harness","title":"Default Harness"},
   "agent.harness.amp": {"icon":"","iconFont":"omarchy","label":"Amp","checked":"[[ \"$(omarchy-default-agent)\" == \"amp\" ]]","action":"omarchy-default-agent amp"},
   "agent.harness.agy": {"icon":"","iconFont":"omarchy","label":"Antigravity","checked":"[[ \"$(omarchy-default-agent)\" == \"agy\" ]]","action":"omarchy-default-agent agy"},
