@@ -211,3 +211,49 @@ printf '9000000\n' >"$hold_dir/power/BAT0/power_now"
 sparse_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
 [[ $sparse_output == "Battery 60%  ·  "$' '"9W" ]] || fail "missing readings drop out of the status line" "$sparse_output"
 pass "battery status leaves out readings it doesn't have"
+
+mkdir -p "$tmp_dir/power/BAT0" "$tmp_dir/power/BAT1"
+printf '55\n' >"$tmp_dir/power/BAT0/cycle_count"
+printf '202\n' >"$tmp_dir/power/BAT1/cycle_count"
+printf '80\n' >"$tmp_dir/power/BAT1/charge_control_end_threshold"
+printf '5000000\n' >"$tmp_dir/power/BAT1/power_now"
+
+# Multi-pack machines must use the composite display reading, not the first
+# pack, and must not label combined charge with one pack's cycle count/limit.
+cat >"$tmp_dir/bin/upower" <<'STUB'
+#!/bin/bash
+if [[ $1 == "-e" ]]; then
+  printf '/org/freedesktop/UPower/devices/battery_BAT0\n/org/freedesktop/UPower/devices/battery_BAT1\n'
+elif [[ $2 == */DisplayDevice ]]; then
+  printf 'present: yes\nstate: discharging\nenergy: 70 Wh\nenergy-full: 100 Wh\nenergy-rate: 15 W\ntime to empty: 4.2 hours\npercentage: 70%%\n'
+elif [[ $2 == */battery_BAT0 ]]; then
+  printf 'native-path: BAT0\npower supply: yes\nenergy: 10 Wh\nenergy-full: 20 Wh\npercentage: 50%%\ncharge-end-threshold: 80%%\n'
+else
+  printf 'native-path: BAT1\npower supply: yes\nenergy: 60 Wh\nenergy-full: 80 Wh\npercentage: 75%%\n'
+fi
+STUB
+multi_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'percentage\t70%' <<<"$multi_output" >/dev/null || fail "unequal packs use combined charge, not first pack or arithmetic mean"
+grep -Fx $'size\t100Wh' <<<"$multi_output" >/dev/null || fail "combined full capacity"
+grep -Fx $'rate\t15W' <<<"$multi_output" >/dev/null || fail "combined rate"
+! grep -qE '^(cycles|threshold)' <<<"$multi_output" || fail "per-pack metadata is not reported as composite metadata"
+grep -Fx $'time\t4h 12m' <<<"$multi_output" >/dev/null || fail "multiple packs use UPower's combined time estimate"
+pass "battery status combines unequal battery packs"
+
+sed -i 's/state: discharging/state: charging/; s/time to empty: 4.2 hours/time to full: 1.5 hours/' "$tmp_dir/bin/upower"
+charging_multi=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'time\t1h 30m' <<<"$charging_multi" >/dev/null || fail "combined charging estimate must respect individual pack limits"
+pass "multiple packs use UPower's charging estimate"
+
+# X270: an unusable internal battery enumerates before a charged rear pack.
+sed -i 's/energy-full: 20 Wh/energy-full: 0 Wh/; s/energy-full: 100 Wh/energy-full: 19.99 Wh/; s/percentage: 70/percentage: 100/' "$tmp_dir/bin/upower"
+x270_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'percentage\t100%' <<<"$x270_output" >/dev/null || fail "empty internal slot must not hide charged rear pack"
+grep -Fx $'size\t19Wh' <<<"$x270_output" >/dev/null || fail "empty slot contributes no capacity"
+grep -Fx $'cycles\t202' <<<"$x270_output" >/dev/null || fail "cycle count comes from the usable removable pack"
+pass "battery status ignores firmware slots with zero full capacity"
+
+sed -i 's/energy-full: 0 Wh/energy-full: 20 Wh\\npresent: no/' "$tmp_dir/bin/upower"
+removed_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'cycles\t202' <<<"$removed_output" >/dev/null || fail "absent packs do not suppress remaining pack details"
+pass "battery status ignores removed packs"
