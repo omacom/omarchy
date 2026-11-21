@@ -104,3 +104,12 @@ HOME="$fake_home" "$ROOT/bin/omarchy-state" clear "restart-*-required"
 [[ ! -e $state_dir/restart-a-required && ! -e $state_dir/restart-b-required && -f $state_dir/keep-me ]] ||
   fail "omarchy state clear still clears matching patterns only"
 pass "omarchy state clear still clears matching patterns only"
+
+printf 'exit 7\n' >"$fake_home/.config/omarchy/hooks/agent-launch"
+chmod +x "$fake_home/.config/omarchy/hooks/agent-launch"
+HOME="$fake_home" "$ROOT/bin/omarchy-hook" agent-launch ||
+  fail "a hook failure stays best-effort unless a status was requested"
+if HOME="$fake_home" OMARCHY_HOOK_REPORT_STATUS=1 "$ROOT/bin/omarchy-hook" agent-launch; then
+  fail "OMARCHY_HOOK_REPORT_STATUS should surface a hook failure"
+fi
+pass "OMARCHY_HOOK_REPORT_STATUS returns the hook status"
