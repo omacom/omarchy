@@ -480,11 +480,9 @@ def code_home() -> Path:
 
 # Kimi as pi, omp and opencode name it: the Kimi Code plan (pi's own
 # `kimi-coding` provider and omp's `kimi-code`, both api.kimi.com/coding/v1,
-# and models.dev's `kimi-code-plan-global` and `kimi-code-plan-cn`), and
-# Moonshot's pay-as-you-go API (pi's and opencode's `moonshotai` and
-# `moonshotai-cn`, omp's `moonshot`), which these limits don't meter but
-# which counts here, as Claude Code's turns to Moonshot do. Exact ids.
-PROVIDERS = ("kimi-coding", "kimi-code", "kimi-code-plan-global", "kimi-code-plan-cn", "moonshotai", "moonshotai-cn", "moonshot")
+# and models.dev's `kimi-code-plan-global` and `kimi-code-plan-cn`).
+# Moonshot's pay-as-you-go API is the moonshot collector's own. Exact ids.
+PROVIDERS = ("kimi-coding", "kimi-code", "kimi-code-plan-global", "kimi-code-plan-cn")
 
 
 def billed_here(provider: str, model: str, entry: dict) -> bool:
@@ -663,7 +661,7 @@ def harness_rows(owner: str) -> tuple[list[UsageRow], bool]:
 def scan(reuse: bool = True) -> tuple[dict[str, Any], bool]:
   """Kimi Code's usage and typed prompts on Kimi's routes, pi, omp and
   opencode sessions on the Kimi Code plan, Claude Code's turns on Kimi
-  (pointed at Kimi's or Moonshot's API, or answered by a Kimi model) and
+  (pointed at Kimi's API, or answered by a kimi-* model) and
   MiniMax Code's custom providers at those hosts, and whether every session
   was read."""
   stats = Stats()
@@ -673,7 +671,7 @@ def scan(reuse: bool = True) -> tuple[dict[str, Any], bool]:
   routed_rows, routed_complete = scan_routed(AGENT_ID, reuse)
   pi_rows, pi_complete = scan_pi_sessions(r'"provider"\s*:\s*"(' + "|".join(PROVIDERS) + r')"', billed_here)
   # The database's prefilter matches every plan id.
-  db_rows, db_complete = scan_opencode(["kimi-cod", "moonshot"], billed_here)
+  db_rows, db_complete = scan_opencode(["kimi-cod"], billed_here)
   for row in routed_rows + pi_rows + db_rows:
     stats.add_row(row, row.model.rstrip("/").split("/")[-1] or AGENT_ID)
   return stats.snapshot(), complete and routed_complete and pi_complete and db_complete

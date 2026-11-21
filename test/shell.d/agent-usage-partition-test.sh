@@ -182,11 +182,11 @@ PROVIDERS = [
   ("kimi-coding", "kimi-pt", "", "kimi", "kimi"),
   ("kimi-code-plan-global", "kimi-pt", "", "kimi", "kimi"),
   ("kimi-code-plan-cn", "kimi-pt", "", "kimi", "kimi"),
-  # Moonshot's pay-as-you-go API counts under Kimi, as Claude Code's turns
-  # to it do; Alibaba's pay-as-you-go keys carry no plan.
+  # Moonshot's pay-as-you-go API has a collector of its own; Alibaba's
+  # pay-as-you-go keys carry no plan.
   ("alibaba", "qwen-pt", "", None, None),
-  ("moonshotai", "kimi-pt", "", "kimi", "kimi"),
-  ("moonshotai-cn", "kimi-pt", "", "kimi", "kimi"),
+  ("moonshotai", "kimi-pt", "", "moonshot", "moonshot"),
+  ("moonshotai-cn", "kimi-pt", "", "moonshot", "moonshot"),
   ("acme-unclaimed", "acme-pt", "", None, None),
 ]
 
@@ -552,7 +552,7 @@ MODELS = [
   ("MiniMax-zq902", "minimax", "local", None),
   ("deepseek-zq903", "deepseek", "local", None),
   ("kimi-zq904", "kimi", "local", None),
-  ("moonshot-zq905", "kimi", "local", None),
+  ("moonshot-zq905", "moonshot", "local", None),
   ("gpt-oss-zq906:120b-cloud", "ollama", "ollama", "ollama"),
   ("qwen3-zq907", None, "local", None),
 ]
@@ -890,7 +890,7 @@ IDS = [
   ("omp", "zhipu-coding-plan", "zai"),
   ("omp", "kimi-code", "kimi"),
   ("omp", "muse-code", "muse"),
-  ("omp", "moonshot", "kimi"),
+  ("omp", "moonshot", "moonshot"),
   ("opencode", "zai-coding-plan", "zai"),
   ("opencode", "zhipuai-coding-plan", "zai"),
   ("opencode", "zhipuai", "zai"),
@@ -1237,12 +1237,12 @@ cells = json.load(open(sys.argv[1]))
 json.dump({"providers": sorted({cell["provider"] for cell in cells})}, open(sys.argv[2], "w"))
 PY
 mkdir -p "$CLAIMED_IDS_HOME/.cache" "$CLAIMED_IDS_HOME/.run" "$WORK/ids-configured-results"
-for id in local kimi muse zai; do
+for id in local kimi moonshot muse zai; do
   run_collector "$CLAIMED_IDS_HOME" "$id" "$WORK/ids-configured-results/$id" &
 done
 wait
 
-claimed_ids_report=$(python3 - "$WORK" local kimi muse zai <<'PY'
+claimed_ids_report=$(python3 - "$WORK" local kimi moonshot muse zai <<'PY'
 import json
 import re
 import sys
@@ -1395,7 +1395,7 @@ ROUTES = [
   ("zai", "glm-4.6", "zai"),
   ("openrouter", "z-ai/glm-4.6", "openrouter"),
   ("dsk", "deepseek-chat", "deepseek"),
-  ("moon", "kimi-k2-0905-preview", "kimi"),
+  ("moon", "kimi-k2-0905-preview", "moonshot"),
   ("dash", "qwen3-coder-plus", "qwen"),
   ("mm", "MiniMax-M2", "minimax"),
   ("ollama", "gpt-oss:120b", "ollama"),

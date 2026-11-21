@@ -1144,7 +1144,7 @@ for url, owner in (
   ("https://api.minimaxi.com/anthropic", "minimax"),
   ("https://api.deepseek.com/anthropic", "deepseek"),
   ("https://api.kimi.com/coding/", "kimi"),
-  ("https://api.moonshot.ai/anthropic", "kimi"),
+  ("https://api.moonshot.ai/anthropic", "moonshot"),
   ("https://openrouter.ai/api", "openrouter"),
   ("https://eu.openrouter.ai/api", "openrouter"),
   ("http://localhost:11434", "local"),
@@ -1164,7 +1164,7 @@ for url, owner in (
 CLAUDE_CODE_OWNERS = {
   "": {"claude-sonnet-4-5": "claude", None: "claude", "glm-4.6": "zai", "GLM-4.5-Air": "zai", "glm-4.6:cloud": "ollama",
        "gpt-oss:120b-cloud": "ollama", "MiniMax-M2": "minimax", "deepseek-chat": "deepseek", "kimi-k2-0905": "kimi",
-       "moonshot-v1-8k": "kimi", "qwen3-coder": None, "<synthetic>": None},
+       "moonshot-v1-8k": "moonshot", "qwen3-coder": None, "<synthetic>": None},
   "https://api.anthropic.com": {"claude-sonnet-4-5": "claude", "glm-4.6": "zai"},
   "https://api.z.ai/api/anthropic": {"claude-sonnet-4-5": "zai", None: "zai", "glm-4.6": "zai", "glm-4.6:cloud": "zai"},
   "https://ollama.com": {"claude-sonnet-4-5": "ollama", "kimi-k2.7-code:cloud": "ollama", "glm-4.6": "ollama"},
