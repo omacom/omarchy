@@ -51,6 +51,7 @@ declare -A links=(
   [kilo]="$config/kilo/AGENTS.md"
   [commandcode]="$HOME/.commandcode/AGENTS.md"
   [freebuff]="$HOME/.AGENTS.md"
+  [zypi]="${PI_HOME:-$HOME/.pi-python}/agent/AGENTS.md"
 )
 
 backups=()
