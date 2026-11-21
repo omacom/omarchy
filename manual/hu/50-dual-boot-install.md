@@ -1,44 +1,48 @@
-# Kettős indítású telepítés
+# Kettős rendszerindításos telepítés
 
-Telepítheted az Omarchyt egyetlen partícióra Windows vagy más telepítések mellé.
+Telepítheted az Omarchy-t egyetlen partícióra a Windows vagy más telepítések mellé.
 
-Ez a telepítési módszer alapértelmezetten továbbra is LUKS-titkosítással érkezik a partícióhoz, így gyakorlatban nem különbözik a teljes meghajtós telepítéstől, és egyszerűen szabad helynek kell lennie a lemezen.
+Ez a telepítési módszer alapértelmezetten továbbra is LUKS-titkosítással érkezik a partícióhoz, így gyakorlatilag semmiben sem különbözik a teljes meghajtós telepítéstől, és egyszerűen csak szabad helyet igényel a lemezen.
 
-## Hely csinálása Windowson
+## Hely felszabadítása a Windowsban
 
-Ha Windows mellé akarsz telepíteni, írd be a start menübe a `disk management` kifejezést, és válaszd a **Create and format hard disk partitions** lehetőséget.
+A Windows mellé történő telepítéshez írd be a `disk management` kifejezést a Start menübe, és válaszd a **Merevlemez-partíciók létrehozása és formázása** lehetőséget.
 
  ![dual-boot-1](images/dual-boot-1.webp)
 
-Keresd meg a megfelelő partíciót, kattints rá jobb gombbal, és válaszd a **Shrink Volume** lehetőséget.
+Keresd meg a megfelelő partíciót, kattints rá jobb gombbal, és válaszd a **Kötet zsugorítása** lehetőséget.
 
 ![dual-boot-2](images/dual-boot-2.webp)
 
- Add meg, mennyivel szeretnéd zsugorítani a kötetet. Vedd figyelembe, hogy ez lesz a jövőbeli Omarchy-telepítésed mérete a rendszerindító partícióval együtt.
+ Add meg, mennyivel szeretnéd zsugorítani a kötetet. Ne feledd, hogy ez lesz a jövőbeli Omarchy-telepítésed mérete, a rendszerindító partícióval együtt.
 
  ![dual-boot-3](images/dual-boot-3.webp)
 
-Ha kész vagy, valami ilyesmit kell látnod, ahol az 50 GB-os szakasz az, ahová ebben a példában az Omarchyt telepítjük.
+Ha kész vagy, valami hasonlót kell látnod, ahol ebben a példában az 50GB-os rész az, ahová az Omarchy-t telepítjük.
 
  ![dual-boot-4](images/dual-boot-4.webp)
 
 ## Az Omarchy telepítése
 
-Az Omarchy telepítési folyamata gyakorlatban ugyanaz, mint normálisan. Miután kiválasztottad a lemezed, megkapod a **Free space install** lehetőségét. Válaszd azt a lehetőséget, hogy megakadályozd a teljes lemez törlését.
+Az Omarchy telepítési folyamata gyakorlatilag ugyanaz, mint normál esetben. Miután kiválasztottad a lemezt, megjelenik a **Telepítés szabad helyre** lehetőség. Válaszd ezt a lehetőséget, hogy ne törlődjön a teljes lemez.
 
  ![dual-boot-5](images/dual-boot-5.webp)
 
-Erősítsd meg, hogy minden rendben néz ki, és várd meg, amíg a telepítés a szokásos módon befejeződik. Itt is választhatod a titkosítás nélküli telepítést (nem ajánlott), csak úgy, mint egy teljes meghajtós telepítésnél.
+Ellenőrizd, hogy minden rendben van-e, és várd meg, amíg a telepítés a szokásos módon befejeződik. Itt választhatod azt is, hogy titkosítás nélkül telepítesz (nem ajánlott), ugyanúgy, mint egy teljes meghajtós telepítésnél.
  ![dual-boot-6](images/dual-boot-6.webp)
 
 ## Más telepítések hozzáadása a rendszerbetöltőhöz
 
-Amikor befejezed az Omarchy-telepítésed, észreveszed, hogy most a Limine rendszerbetöltő az alapértelmezett. Ezzel lehetőségeket is adhatsz a Limine-hez más telepítéseidre, például a Windowsra.
+Amikor befejezted az Omarchy telepítését, észre fogod venni, hogy mostantól a Limine rendszerbetöltő az alapértelmezett. Ezzel a Limine-hoz más telepítéseidhez, például a Windowshoz is hozzáadhatsz bejegyzéseket.
 
-Ennek érdekében futtasd a `limine-scan` parancsot, és kövesd az utasításokat minden olyan elem hozzáadásához, amelyet a limine-konfigurációdba akarsz. Ezután, amikor elindítod, az Omarchy szokásos lehetőségei mellett a Windows Boot Managert vagy másokat is fogsz látni.
+Más operációs rendszerek hozzáadásához futtasd a `limine-scan` parancsot, és kövesd az utasításokat a kívánt bejegyzések hozzáadásához a Limine-konfigurációdhoz. A rendszerindító menü alapértelmezetten rejtve marad, és egy másodperc után elindítja az Omarchy-t. A Windows vagy egy másik bejegyzés kiválasztásához nyomj meg egy tetszőleges billentyűt, amint a Limine elindul; amikor megjelenik a menü, a nyílbillentyűkkel válassz ki egy bejegyzést, és nyomd meg az Enter billentyűt. Ha az Omarchy elindul, mielőtt megnyomnál egy billentyűt, indítsd újra, és próbáld újra.
 
 ## Bitlocker
 
-Fontos megjegyezni, hogy ez a telepítési módszer nem kompatibilis a Bitlockerrel, mivel az a teljes meghajtót titkosítja, nem csak a partíciót. Ha olyan hibával találkozol, amely szerint a Bitlocker be van kapcsolva, indulj el Windowsra, menj a **Settings -> Privacy & Security -> Device encryption** pontra, és kapcsold ki a Bitlockert. A meghajtó visszafejtése eltarthat egy ideig.
+Fontos megjegyezni, hogy ez a telepítési módszer nem kompatibilis a Bitlockerrel, mivel az az egész meghajtót titkosítja, nem csak a partíciót. Ha olyan hibát kapsz, amely szerint a Bitlocker engedélyezve van, indítsd el a Windowst, lépj a **Beállítások -> Adatvédelem és biztonság -> Eszköztitkosítás** menüpontba, és kapcsold ki a Bitlockert. A meghajtó visszafejtése eltarthat egy ideig.
 
  ![dual-boot-7](images/dual-boot-7.webp)
+
+## A Windows újratelepítése
+
+Ha ez a számítógép Windowsszal érkezett, a termékkulcsa a firmware-ben van tárolva. Futtasd az `omarchy windows key` parancsot a kiírásához, így újra aktiválhatod a Windowst, ha valaha újratelepíted ezen a gépen.

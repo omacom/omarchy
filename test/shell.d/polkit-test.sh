@@ -12,6 +12,52 @@ assert(polkit.promptLooksFingerprint('fprintd verification'), 'polkit detects fp
 assert(!polkit.promptLooksFingerprint('Password:'), 'polkit ignores password prompts')
 
 assertEqual(
+  polkit.promptLabel('Please enter the PIN: '),
+  'Enter PIN',
+  'polkit asks for the PIN when pam_u2f does'
+)
+assertEqual(
+  polkit.promptLabel('Please enter the PIN: ', (key, english) => key === 'polkit.enterPin' ? 'Indtast pinkode' : english),
+  'Indtast pinkode',
+  'polkit asks for the PIN in the Omarchy language'
+)
+assertEqual(
+  polkit.promptLabel('Verification code: '),
+  'Verification code',
+  'polkit shows a prompt it does not recognise as PAM sent it'
+)
+assertEqual(
+  polkit.promptLabel(''),
+  'Enter password',
+  'polkit falls back to its own label when PAM sends no prompt'
+)
+assertEqual(
+  polkit.promptLabel('Password: '),
+  'Enter password',
+  'polkit normalizes the stock password prompt'
+)
+assertEqual(
+  polkit.promptLabel('UNIX password:'),
+  'Enter password',
+  'polkit normalizes the pam_unix password prompt'
+)
+assertEqual(
+  polkit.promptLabel('   :  '),
+  'Enter password',
+  'polkit falls back when the prompt is only punctuation'
+)
+assertEqual(
+  polkit.promptLabel("julianduque's password:"),
+  "julianduque's password",
+  'polkit passes a qualified password prompt through'
+)
+assertEqual(
+  polkit.promptLabel('Password: ', (key, english) => key === 'polkit.enterPassword' ? 'Indtast adgangskode' : english),
+  'Indtast adgangskode',
+  'polkit labels the stock password prompt in the Omarchy language'
+)
+
+assertEqual(
   polkit.authorizationLabel("Authentication is needed to run `/usr/bin/true' as the super user"),
   "Authorize running '/usr/bin/true'",
   'polkit shortens the standard pkexec message'
@@ -94,13 +140,6 @@ assert(polkit.messageLooksSecurityKey('Please touch the device.'), 'polkit detec
 assert(polkit.messageLooksSecurityKey('Please touch the FIDO authenticator.'), 'polkit detects the newer pam_u2f cue')
 assert(!polkit.messageLooksSecurityKey('Touch the fingerprint sensor'), 'polkit keeps fingerprint cues out of security key mode')
 
-assertEqual(polkit.passwordPlaceholder('Password: '), 'Enter password', 'polkit keeps its own label for the password')
-assertEqual(polkit.passwordPlaceholder('Please enter the PIN:'), 'Please enter the PIN', "polkit shows PAM's PIN prompt")
-assertEqual(
-  polkit.passwordPlaceholder('Password:', (key, english) => key === 'polkit.enterPassword' ? 'Passwort eingeben' : english),
-  'Passwort eingeben',
-  'polkit translates its password label'
-)
 
 // Every combination of the dialog's flags against a range of PAM messages.
 const flags = ['dialogVisible', 'responseRequired', 'submitted', 'errorFlash', 'securityKeyConfigured', 'securityKeyFirst', 'fingerprintConfigured', 'laptopClosed']

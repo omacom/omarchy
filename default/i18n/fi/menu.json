@@ -26,11 +26,11 @@
   "update": {
     "label": "Päivitä"
   },
-  "about": {
-    "label": "Tietoja"
-  },
   "system": {
     "label": "Järjestelmä"
+  },
+  "system.about": {
+    "label": "Tietoja"
   },
   "system.screensaver": {
     "label": "Näytönsäästäjä"
@@ -357,26 +357,14 @@
   "trigger.tests.disk-speedtest": {
     "label": "Levyn nopeustesti"
   },
-  "setup.monitors": {
-    "label": "Näytöt"
-  },
-  "setup.keybindings": {
-    "label": "Pikanäppäimet"
-  },
   "setup.input": {
     "label": "Syöttö"
   },
-  "setup.typing": {
-    "label": "Kirjoittaminen"
-  },
-  "setup.typing.keyboard": {
-    "label": "Näppäinasettelut"
-  },
-  "setup.typing.input": {
-    "label": "Syöttömenetelmät"
-  },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Kieli"
+  },
+  "setup.region.timezone": {
+    "label": "Aikavyöhyke"
   },
   "setup.network": {
     "label": "Verkko"
@@ -402,53 +390,52 @@
   "setup.default": {
     "label": "Oletukset"
   },
-  "setup.default.agent": {
-    "label": "Agentti",
-    "title": "Oletusagentti"
+  "agent": {
+    "label": "Agentti"
   },
-  "setup.default.agent.agy": {
+  "agent.harness.agy": {
     "label": "Antigravity"
   },
-  "setup.default.agent.claude": {
+  "agent.harness.claude": {
     "label": "Claude"
   },
-  "setup.default.agent.codex": {
+  "agent.harness.codex": {
     "label": "Codex"
   },
-  "setup.default.agent.copilot": {
+  "agent.harness.copilot": {
     "label": "Copilot"
   },
-  "setup.default.agent.crush": {
+  "agent.harness.crush": {
     "label": "Crush"
   },
-  "setup.default.agent.cursor-agent": {
+  "agent.harness.cursor-agent": {
     "label": "Cursor CLI"
   },
-  "setup.default.agent.grok": {
+  "agent.harness.grok": {
     "label": "Grok"
   },
-  "setup.default.agent.hermes": {
+  "agent.harness.hermes": {
     "label": "Hermes"
   },
-  "setup.default.agent.kimi": {
+  "agent.harness.kimi": {
     "label": "Kimi"
   },
-  "setup.default.agent.muse": {
+  "agent.harness.muse": {
     "label": "Muse Code"
   },
-  "setup.default.agent.omp": {
+  "agent.harness.omp": {
     "label": "omp"
   },
-  "setup.default.agent.openclaw": {
+  "agent.harness.openclaw": {
     "label": "OpenClaw"
   },
-  "setup.default.agent.opencode": {
+  "agent.harness.opencode": {
     "label": "OpenCode"
   },
-  "setup.default.agent.ori": {
+  "agent.harness.ori": {
     "label": "Ori"
   },
-  "setup.default.agent.pi": {
+  "agent.harness.pi": {
     "label": "Pi"
   },
   "setup.default.browser": {
@@ -581,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Suorakäynnistys"
-  },
-  "setup.reset": {
-    "label": "Nollaa tietokone"
+  "remove.factory-reset": {
+    "label": "Tehdasasetusten palautus"
   },
   "install.package": {
     "label": "Paketti"
@@ -680,9 +664,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -703,9 +684,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium-tili"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1103,9 +1081,6 @@
   "update.password": {
     "label": "Salasana"
   },
-  "update.timezone": {
-    "label": "Aikavyöhyke"
-  },
   "update.time": {
     "label": "Aika"
   },
@@ -1160,7 +1135,238 @@
   "update.password.user": {
     "label": "Käyttäjä"
   },
-  "system.reboot-boot-menu": {
-    "label": "Käynnistä uudelleen käynnistysvalikkoon"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Näytä akun %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Piilota akun %"
+  },
+  "appearance.windows": {
+    "label": "Ikkunat"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Ikkunavälit päällä"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Ikkunavälit pois"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-ikkunan suhde päällä"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-ikkunan suhde pois"
+  },
+  "appearance.branding": {
+    "label": "Brändäys"
+  },
+  "appearance.animations-on": {
+    "label": "Animaatiot päällä"
+  },
+  "appearance.animations-off": {
+    "label": "Animaatiot pois"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Pysy hereillä"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Salli lepotila"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Ilmoitukset päällä"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Hiljennä ilmoitukset"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Yövalo päällä"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Yövalo pois"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Näytönsäästäjä päällä"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Näytönsäästäjä pois"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Kaatumistallennus päällä"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Kaatumiskaappaus pois"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Kannettavan näyttö päälle"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Kannettavan näyttö pois"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Näytön peilaus päälle"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Näytön peilaus pois"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Vaihda hybridi-GPU:hun"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Vaihda integroituun GPU:hun"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Ota kosketuslevy käyttöön"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Poista kosketuslevy käytöstä"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Ota kosketusnäyttö käyttöön"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Poista kosketusnäyttö käytöstä"
+  },
+  "agent.harness.amp": {
+    "label": "Amp"
+  },
+  "agent.harness.commandcode": {
+    "label": "Command Code"
+  },
+  "agent.harness.devin": {
+    "label": "Devin CLI"
+  },
+  "agent.harness.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "agent.harness.freebuff": {
+    "label": "Freebuff"
+  },
+  "agent.harness.kilo": {
+    "label": "Kilo"
+  },
+  "agent.harness.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "agent.harness.mcode": {
+    "label": "MiniMax Code"
+  },
+  "agent.harness.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Ydin"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Näppäimistö"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Pikanäppäimet"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Näppäimistösyötteet"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Syöttömenetelmät"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Tavallinen"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Oletusharness"
+  },
+  "agent.instructions": {
+    "label": "Ohjeet"
+  },
+  "agent.make": {
+    "label": "Luo jotain"
+  },
+  "agent.make.theme": {
+    "label": "Luo teema"
+  },
+  "agent.make.plugin": {
+    "label": "Luo lisäosa"
+  },
+  "agent.make.app": {
+    "label": "Luo sovellus"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Kuvakkeet"
+  },
+  "install.style.icons": {
+    "label": "Kuvakkeet"
+  },
+  "remove.icons": {
+    "label": "Kuvakkeet"
+  },
+  "update.icons": {
+    "label": "Lisäkuvakkeet"
+  },
+  "system.firmware": {
+    "label": "Käynnistä BIOSiin",
+    "description": "Käynnistä uudelleen UEFI-laiteohjelmiston asetuksiin"
+  },
+  "setup.region": {
+    "label": "Alue"
+  },
+  "setup.region.formats": {
+    "label": "Muotoilut",
+    "description": "Päivämäärien, aikojen, lukujen ja yksiköiden esitystapa"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes -peli"
+  },
+  "update.games": {
+    "label": "Game Vibes -pelit"
+  },
+  "agent.make.game": {
+    "label": "Tee peli"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Isäntänimi"
   }
 }

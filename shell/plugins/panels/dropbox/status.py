@@ -43,14 +43,27 @@ def command_output(command):
   return completed.returncode, (completed.stdout + completed.stderr).strip()
 
 
+# The same check `dropbox-cli running` makes, without the CLI's inverted exit code.
+def daemon_running():
+  try:
+    pid = int((Path.home() / ".dropbox" / "dropbox.pid").read_text())
+    return "dropbox" in Path(f"/proc/{pid}/cmdline").read_text().lower()
+  except (OSError, ValueError):
+    return False
+
+
 def scan_dropbox(path, limit):
   total = 0
   counter = 0
   recent = []
+  internal_names = {".dropbox", ".dropbox.cache"}
   try:
     for root, dirs, files in os.walk(path):
-      dirs[:] = [name for name in dirs if not os.path.islink(os.path.join(root, name))]
+      # Internal metadata and staged downloads are not account files or stored usage.
+      dirs[:] = [name for name in dirs if not (root == path and name in internal_names) and not os.path.islink(os.path.join(root, name))]
       for name in files:
+        if root == path and name in internal_names:
+          continue
         file_path = os.path.join(root, name)
         if os.path.islink(file_path):
           continue
@@ -98,18 +111,24 @@ def main():
 
   running = False
   status_text = "Not installed"
-  if dropbox_cli:
+  if dropbox_cli and not authenticated:
+    # `dropbox-cli status` asks an unlinked daemon for a link URL, and each ask voids the one Log in opened.
+    running = daemon_running()
+    status_text = "Waiting to be linked to a Dropbox account" if running else "Stopped"
+  elif dropbox_cli:
     status_exit, status_output = command_output([dropbox_cli, "status"])
     status_text = status_output if status_exit == 0 and status_output else "Stopped"
     lowered = status_text.lower()
     stopped = "not running" in lowered or "isn't running" in lowered or lowered == "stopped"
     running = status_exit == 0 and status_output != "" and not stopped
 
-  used, files = scan_dropbox(account_path, limit) if authenticated else (0, [])
+  status_only = "--status-only" in sys.argv
+  used, files = scan_dropbox(account_path, limit) if authenticated and not status_only else (0, [])
   usage_percent = (used / quota * 100) if quota > 0 else 0
 
   print(json.dumps({
     "ok": True,
+    "statusOnly": status_only,
     "installed": dropbox_cli is not None,
     "running": running,
     "authenticated": authenticated,

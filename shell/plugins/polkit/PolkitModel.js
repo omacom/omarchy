@@ -134,12 +134,34 @@ function fingerprintMode(s) {
   return !!s.fingerprintConfigured && !s.laptopClosed && waitingOnHardware(s) && !securityKeyMode(s)
 }
 
-function passwordPlaceholder(prompt, tr) {
-  // PAM's own prompt when it asks for a PIN instead of the password
-  // (pam_u2f with pinverification asks "Please enter the PIN:").
+function promptLabel(prompt, tr) {
+  // PAM decides what it is asking for, and it is not always a password. With
+  // pam_u2f in the stack this prompt is the security key's PIN; a placeholder
+  // that says "Enter password" invites the user to type their password into it,
+  // where it is spent as a failed PIN attempt. A key allows eight before it
+  // locks itself out for good, and recovery is a factory reset that destroys
+  // every credential on it. Show what PAM actually asked for.
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
-  var text = String(prompt || "").replace(/^\s+|[\s:]+$/g, "")
-  return /\bPIN\b/.test(text) ? text : t("polkit.enterPassword", "Enter password")
+  var enterPassword = t("polkit.enterPassword", "Enter password")
+  var text = String(prompt || "").replace(/^\s+|\s+$/g, "")
+  if (!text) return enterPassword
+
+  // PAM prompts carry their own punctuation ("Password: "), the dialog's own
+  // label does not.
+  text = text.replace(/\s*:\s*$/, "")
+  if (!text) return enterPassword
+
+  // The several ways the stock modules phrase a password request all mean the
+  // one thing the dialog already had a good label for.
+  if (/^(unix )?password$/i.test(text) || /^enter password$/i.test(text)) return enterPassword
+
+  // pam_u2f words its PIN prompt itself and ships no translations, so it gets
+  // a label in the Omarchy language, short enough to fit the field.
+  if (/^please enter the pin$/i.test(text)) return t("polkit.enterPin", "Enter PIN")
+
+  // A prompt nobody recognises is shown as its module worded it: a guessed
+  // label is how the PIN came to be asked for as a password.
+  return text
 }
 
 function authorizationLabel(message, tr) {
@@ -152,6 +174,7 @@ function authorizationLabel(message, tr) {
 if (typeof module !== "undefined") {
   module.exports = {
     promptLooksFingerprint: promptLooksFingerprint,
+    promptLabel: promptLabel,
     fingerprintConfiguredFromPamConfig: fingerprintConfiguredFromPamConfig,
     messageLooksSecurityKey: messageLooksSecurityKey,
     waitingOnHardware: waitingOnHardware,
@@ -161,7 +184,6 @@ if (typeof module !== "undefined") {
     passiveAuthModules: passiveAuthModules,
     securityKeyConfiguredFromPamConfig: securityKeyConfiguredFromPamConfig,
     securityKeyCuesFromPamConfig: securityKeyCuesFromPamConfig,
-    passwordPlaceholder: passwordPlaceholder,
     authorizationLabel: authorizationLabel
   }
 }

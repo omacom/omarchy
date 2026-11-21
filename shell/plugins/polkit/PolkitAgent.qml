@@ -93,6 +93,10 @@ Item {
     return message ? PolkitModel.authorizationLabel(message, I18n.t) : I18n.t("polkit.authenticationNeeded")
   }
 
+  function promptLabel(prompt) {
+    return PolkitModel.promptLabel(prompt, I18n.t)
+  }
+
   function loadPamConfig(raw) {
     fingerprintConfigured = PolkitModel.fingerprintConfiguredFromPamConfig(raw)
     securityKeyConfigured = PolkitModel.securityKeyConfiguredFromPamConfig(raw)
@@ -409,7 +413,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: root.errorFlash ? I18n.t("polkit.wrong")
               : root.securityKeyMode ? I18n.t("polkit.touchSecurityKey")
-              : (root.submitted ? I18n.t("polkit.checking") : PolkitModel.passwordPlaceholder(root.currentPrompt, I18n.t))
+              : (root.submitted ? I18n.t("polkit.checking") : root.promptLabel(root.currentPrompt))
             color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
             opacity: root.errorFlash || root.securityKeyMode ? 1 : 0.36
             font.family: root.fontFamily
