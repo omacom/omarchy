@@ -34,5 +34,6 @@ done
 pass "valid numeric syntax still has to satisfy the dimensions and percentage bounds"
 bash "$ROOT/bin/omarchy-transcode-ascii" "$scratch/input.png" "$scratch/out" --width 011 --height 009 --threshold 50.5 >"$scratch/log" 2>&1 || fail "decimal dimensions with leading zeros and fractional thresholds work" "$(cat "$scratch/log")"
 grep -q -- '-resize 22x36' "$CONVERT_LOG" || fail "dimensions are decimal, including digits above seven"
+grep -q -- '-threshold 50.5%' "$CONVERT_LOG" || fail "fractional thresholds reach the converter unchanged"
 [[ -s $scratch/out ]] || fail "valid dimensions still produce art"
 pass "valid dimensions with leading zeros are decimal and still produce art"
