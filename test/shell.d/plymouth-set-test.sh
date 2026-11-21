@@ -966,3 +966,46 @@ status=$?
 assert_no_temporary_files "$fake_root"
 
 pass "a reset refusal cannot fall through to an unhardened SDDM copy"
+
+# omarchy-plymouth-rotate: the real command, with the drop-in it writes moved
+# into the scratch directory.
+require_command jq
+rotate_tmp="$test_tmp/rotate"
+rotate_drop_in=$rotate_tmp/limine-entry-tool.d/monitor-rotation.conf
+mkdir -p "$rotate_tmp/bin"
+sed "s|/etc/limine-entry-tool.d|$rotate_tmp/limine-entry-tool.d|g" "$ROOT/bin/omarchy-plymouth-rotate" >"$rotate_tmp/rotate"
+
+printf '#!/bin/bash\nexit 1\n' >"$rotate_tmp/bin/omarchy-cmd-missing"
+printf '#!/bin/bash\n:\n' >"$rotate_tmp/bin/omarchy-state"
+printf '#!/bin/bash\nexec "$@"\n' >"$rotate_tmp/bin/sudo"
+printf '#!/bin/bash\n[[ -z $HYPRCTL_FAIL ]] && cat "$MONITORS_JSON"\n' >"$rotate_tmp/bin/hyprctl"
+printf '#!/bin/bash\necho rebuilt >>"$REBUILD_LOG"\n' >"$rotate_tmp/bin/limine-mkinitcpio"
+chmod +x "$rotate_tmp/bin/"*
+
+run_rotate() {
+  printf '%s\n' "$1" >"$rotate_tmp/monitors.json"
+  : >"$rotate_tmp/rebuilds"
+  env PATH="$rotate_tmp/bin:$PATH" MONITORS_JSON="$rotate_tmp/monitors.json" REBUILD_LOG="$rotate_tmp/rebuilds" \
+    HYPRCTL_FAIL="${HYPRCTL_FAIL:-}" bash "$rotate_tmp/rotate" >"$rotate_tmp/out" 2>&1
+}
+
+# Plymouth turns a left-side-up screen counter-clockwise, which is what a 90°
+# transform does on the desktop, so swapping the two turns the boot screen
+# upside down. The drop-in is sourced as root, so a name with shell in it stays
+# out.
+run_rotate '[{"name":"DP-1","transform":0},{"name":"DP-2","transform":1},{"name":"eDP-1","transform":3},{"name":"DP-3\"$(touch pwned)","transform":1}]' ||
+  fail "rotate writes the rotated monitors" "$(<"$rotate_tmp/out")"
+[[ $(tail -n1 "$rotate_drop_in") == 'KERNEL_CMDLINE[default]+=" video=DP-2:panel_orientation=left_side_up video=eDP-1:panel_orientation=right_side_up"' ]] ||
+  fail "rotate maps transforms 1 and 3 to the orientations Plymouth corrects them with" "$(<"$rotate_drop_in")"
+[[ -s $rotate_tmp/rebuilds ]] || fail "rotate rebuilds the boot image"
+pass "rotate maps monitor transforms to panel orientations and refuses unsafe names"
+
+# A compositor that does not answer must not undo the rotation.
+HYPRCTL_FAIL=1 run_rotate '' && fail "rotate fails when Hyprland does not answer"
+[[ -f $rotate_drop_in && ! -s $rotate_tmp/rebuilds ]] || fail "rotate keeps the boot rotation when Hyprland does not answer"
+pass "rotate keeps the boot rotation when Hyprland does not answer"
+
+# Turning the monitor upright again must reach the boot screen too.
+run_rotate '[{"name":"DP-1","transform":0},{"name":"DP-2","transform":0}]' || fail "rotate on upright monitors" "$(<"$rotate_tmp/out")"
+[[ ! -e $rotate_drop_in && -s $rotate_tmp/rebuilds ]] || fail "rotate clears the boot rotation once no monitor is rotated"
+pass "rotate clears the boot rotation once no monitor is rotated"

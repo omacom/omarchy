@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# omarchy:summary=Rotate the boot screen to match rotated monitors
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# Plymouth draws the boot splash and the disk-unlock prompt before Hyprland
+# starts, so a monitor rotated in the monitor panel or monitors.lua shows them
+# sideways. The kernel's panel_orientation option tells Plymouth how a
+# connector's screen is mounted, and Plymouth rotates that screen alone.
+# Hyprland ignores the option, so the desktop is not rotated twice.
+
+DROP_IN=/etc/limine-entry-tool.d/monitor-rotation.conf
+
+# The inverse of how wlroots turns a panel orientation into a transform: a 90°
+# transform corrects a panel mounted left side up. Flips have no orientation.
+orientations=([1]=left_side_up [2]=upside_down [3]=right_side_up)
+
+if omarchy-cmd-missing limine-mkinitcpio; then
+  echo "Rotating the boot screen requires the Limine bootloader" >&2
+  exit 1
+fi
+
+# Read every monitor before changing anything, so a compositor that does not
+# answer cannot clear a rotation set before.
+monitors=$(hyprctl monitors all -j | jq -er 'map([.name, .transform] | @tsv) | if length > 0 then .[] else error("no monitors") end')
+
+params=
+while IFS=$'\t' read -r name transform; do
+  # limine-entry-tool sources the drop-in as root, so only a plain connector
+  # name may reach it.
+  if [[ ! $name =~ ^[A-Za-z]+(-[A-Za-z])?-[0-9]+$ ]]; then
+    echo "Skipping monitor with an unexpected name: $name" >&2
+  else
+    case $transform in
+      1 | 2 | 3) params+=" video=$name:panel_orientation=${orientations[transform]}" ;;
+      4 | 5 | 6 | 7) echo "Skipping $name: the boot screen can be rotated, not flipped" >&2 ;;
+    esac
+  fi
+done <<<"$monitors"
+
+if [[ -z $params && ! -f $DROP_IN ]]; then
+  echo "No monitor is rotated, so the boot screen needs no change"
+else
+  if [[ -n $params ]]; then
+    sudo mkdir -p "${DROP_IN%/*}"
+    printf '# Written by omarchy-plymouth-rotate from the monitor transforms in Hyprland\nKERNEL_CMDLINE[default]+="%s"\n' "$params" |
+      sudo tee "$DROP_IN" >/dev/null
+  else
+    sudo rm -f "$DROP_IN"
+  fi
+
+  sudo limine-mkinitcpio
+  omarchy-state set reboot-required
+  echo "The boot screen will match your monitors after the next restart."
+fi
