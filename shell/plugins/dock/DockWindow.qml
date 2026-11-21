@@ -136,17 +136,21 @@ PanelWindow {
   onShownChanged: {
     if (shown) return
     closeMenu()
+    closePeek()
     window.revealed = false
   }
+  onContentShownChanged: if (!contentShown) closePeek()
   Component.onCompleted: if (dock) dock.readMode(workspaceId)
 
   function openMenu(item, slot) {
+    closePeek()
     window.settingsMenu = false
     window.menuItem = item
     window.menuSlot = slot
   }
 
   function openSettingsMenu(slot) {
+    closePeek()
     window.menuItem = null
     window.settingsMenu = true
     window.menuSlot = slot
@@ -170,6 +174,60 @@ PanelWindow {
     window.settingsMenu = false
     window.menuSlot = null
     if (window.autohide) hideTimer.restart()
+  }
+
+  // The app whose slot the pointer rests on, if it has windows to show. The
+  // hand comes up after a short rest, so crossing the dock does not flash it,
+  // and swaps at once while it is already out.
+  property string peekWanted: ""
+  property Item peekWantedSlot: null
+
+  function wantPeek(key, slot) {
+    window.peekWanted = key
+    window.peekWantedSlot = slot
+    peekCloseTimer.stop()
+    peekOpenTimer.interval = peek.open ? 60 : 350
+    peekOpenTimer.restart()
+  }
+
+  function unwantPeek(key) {
+    if (window.peekWanted !== key) return
+    window.peekWanted = ""
+    window.peekWantedSlot = null
+    peekOpenTimer.stop()
+    peekCloseTimer.restart()
+  }
+
+  function closePeek() {
+    peekOpenTimer.stop()
+    peekCloseTimer.stop()
+    peek.hide()
+  }
+
+  Timer {
+    id: peekOpenTimer
+    onTriggered: {
+      var slot = window.peekWantedSlot
+      if (window.peekWanted === "" || !slot || !window.contentShown || window.menuOpen || window.dragging) return
+      var center = slot.mapToItem(window.contentItem, slot.width / 2, slot.height / 2)
+      peek.show(window.peekWanted, window.vertical ? center.y : center.x)
+    }
+  }
+
+  // Long enough to cross from the slot to the hand.
+  Timer {
+    id: peekCloseTimer
+    interval: 200
+    onTriggered: if (!peek.hovered && window.peekWanted === "") peek.hide()
+  }
+
+  Connections {
+    target: peek
+    function onHoveredChanged() {
+      if (peek.hovered) return
+      peekCloseTimer.restart()
+      if (window.autohide) hideTimer.restart()
+    }
   }
 
   // Places the menu inward of the dock, centered on a slot.
@@ -205,14 +263,16 @@ PanelWindow {
     right: window.position !== "left"
   }
 
-  implicitWidth: window.vertical ? window.gap + window.slotSize + window.popupRoom : 0
-  implicitHeight: window.vertical ? 0 : window.gap + window.slotSize + window.popupRoom
+  // The hand of window previews needs more room than the menus do.
+  implicitWidth: window.vertical ? window.gap + window.slotSize + Math.max(window.popupRoom, peek.reach) : 0
+  implicitHeight: window.vertical ? 0 : window.gap + window.slotSize + Math.max(window.popupRoom, peek.reach)
 
   mask: Region {
     item: window.contentShown ? body : null
 
     Region { item: window.shown && window.autohide ? edgeTrigger : null }
     Region { item: menu.visible ? menu : null }
+    Region { item: peek.open ? peek.area : null }
   }
 
   onAutohideChanged: window.revealed = false
@@ -222,7 +282,7 @@ PanelWindow {
     // Long enough to cross a gap between the edge and the icons, no longer.
     interval: 150
     onTriggered: {
-      if (!bodyHover.hovered && !edgeHover.hovered && !window.menuOpen && !window.dragging) window.revealed = false
+      if (!bodyHover.hovered && !edgeHover.hovered && !peek.hovered && !window.menuOpen && !window.dragging) window.revealed = false
     }
   }
 
@@ -265,7 +325,8 @@ PanelWindow {
     // How far the dock is tucked past its edge. Auto-hide slides it, but only
     // while the dock is on screen: arriving on a floating workspace shows it
     // where it belongs at once.
-    property real tuck: window.tucked ? window.slotSize + window.gap : 0
+    // Keep the inward window indicators inside the hide region.
+    property real tuck: window.tucked ? window.slotSize + window.gap + Math.ceil(window.iconSize * 0.25) : 0
 
     // Tucking away is quicker than coming back. A gentler curve than
     // Style.easeOut, which crosses the short slide in a frame or two.
@@ -315,6 +376,23 @@ PanelWindow {
         delegate: AppSlot {}
       }
     }
+  }
+
+  WindowPeek {
+    id: peek
+    anchors.fill: parent
+    dock: window.dock
+    position: window.position
+    workspaceId: window.workspaceId
+    slotSize: window.slotSize
+    screenWidth: window.screen ? window.screen.width : window.width
+    screenHeight: window.screen ? window.screen.height : window.height
+    // The dock's inward edge, which the hand rises from.
+    edge: window.position === "top" ? body.y + body.height
+      : window.position === "left" ? body.x + body.width
+      : window.position === "right" ? body.x
+      : body.y
+    onDismissed: window.closePeek()
   }
 
   component Slot: Item {
@@ -411,6 +489,17 @@ PanelWindow {
     property point pressPoint
     property bool dragged: false
     property real pulse: 1
+    readonly property int windowCount: modelData ? modelData.windows.length : 0
+    // A click acts on the app, so its previews stay away until the pointer
+    // leaves and comes back.
+    property bool peekMuted: false
+    readonly property bool wantsPeek: hovered && windowCount > 0 && !peekMuted && !pressed
+
+    onWantsPeekChanged: {
+      if (wantsPeek) window.wantPeek(key, appSlot)
+      else window.unwantPeek(key)
+    }
+    onHoveredChanged: if (!hovered) peekMuted = false
 
     // Slots between where the dragged app was and where it would land step
     // aside to make room; the dragged one follows the pointer.
@@ -452,6 +541,7 @@ PanelWindow {
       if (!window.dragging) {
         if (Math.abs(delta) < Style.space(6)) return
         window.closeMenu()
+        window.closePeek()
         // The landing slot first: with the dragged slot set and no landing
         // slot yet, every slot before it would count as in between and step
         // aside for a moment.
@@ -476,6 +566,8 @@ PanelWindow {
     mouse.onCanceled: if (appSlot.lifted) window.endDrag()
 
     mouse.onClicked: function(event) {
+      appSlot.peekMuted = true
+      window.closePeek()
       // A drag ends in a release over the app, which is not a click on it.
       if (appSlot.dragged) {
         appSlot.dragged = false
@@ -506,6 +598,22 @@ PanelWindow {
       transformOrigin: window.popOrigin
 
       Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
+
+      // Follow the icon during drag, hover and launch feedback.
+      WindowIndicator {
+        z: -1
+        iconSize: window.iconSize
+        position: window.position
+        width: window.slotSize
+        height: window.slotSize
+        x: (parent.width - width) / 2
+        y: (parent.height - height) / 2
+        // Match the live preview by address, not by its index: the indicator
+        // may omit windows when the app has more than six.
+        segments: DockModel.indicatorSegments((appSlot.modelData ? appSlot.modelData.windows : []).map(function(w) {
+          return { address: w.address, minimized: w.minimized, activated: w.toplevel.activated }
+        }), peek.open && peek.key === appSlot.key ? peek.addresses[peek.selected] : null)
+      }
     }
 
     // With animations off it holds still rather than spinning through
