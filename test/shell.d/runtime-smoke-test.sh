@@ -185,6 +185,48 @@ Item {
 }
 QML
 
+# A clone of the indicators widget reads the same services its source does, so
+# its night light, stay awake, and do-not-disturb toggles keep working, and it
+# gets nothing beyond them.
+indicators_clone_id="acme.indicators-clone"
+indicators_clone_dir="$SCRATCH_HOME/.config/omarchy/plugins/$indicators_clone_id"
+mkdir -p "$indicators_clone_dir"
+cat >"$indicators_clone_dir/manifest.json" <<JSON
+{
+  "schemaVersion": 1,
+  "id": "$indicators_clone_id",
+  "name": "Indicators Clone",
+  "version": "1.0.0",
+  "kinds": ["bar-widget"],
+  "entryPoints": {"barWidget": "Indicators.qml"},
+  "omarchy": {"clonedFrom": "omarchy.indicators"}
+}
+JSON
+cat >"$indicators_clone_dir/Indicators.qml" <<'QML'
+import QtQuick
+import Quickshell.Io
+
+Item {
+  id: root
+  property var bar: null
+
+  IpcHandler {
+    target: "acme-indicators-clone"
+    function probeServices(): string {
+      var shell = root.bar ? root.bar.shell : null
+      function reachable(id) { return !!shell && !!shell.firstPartyServiceFor(id) }
+      return JSON.stringify({
+        idle: reachable("omarchy.idle"),
+        nightlight: reachable("omarchy.nightlight"),
+        notifications: reachable("omarchy.notifications"),
+        remoteSession: reachable("omarchy.remote-session"),
+        media: reachable("omarchy.media")
+      })
+    }
+  }
+}
+QML
+
 review_bar_id="acme.review-bar"
 review_bar_dir="$SCRATCH_HOME/.config/omarchy/plugins/$review_bar_id"
 mkdir -p "$review_bar_dir"
@@ -752,6 +794,21 @@ pass "trusted bar gives a cloned widget its own companion service"
 [[ $(scratch_ipc acme-media-clone-service summonOsd) == "true" ]] ||
   fail_with_log "a cloned media service cannot summon its existing OSD target"
 pass "a cloned built-in service retains its auxiliary UI integration"
+
+[[ $(scratch_ipc shell setPluginEnabled "$indicators_clone_id" true) == "ok" ]] ||
+  fail_with_log "indicators clone fixture could not be enabled"
+indicators_expected='.idle == true and .nightlight == true and .notifications == true and .remoteSession == true and .media == false'
+indicators_probe=""
+for _ in {1..80}; do
+  indicators_probe=$(scratch_ipc acme-indicators-clone probeServices 2>/dev/null || true)
+  jq -e "$indicators_expected" <<<"$indicators_probe" >/dev/null 2>&1 && break
+  sleep 0.1
+done
+jq -e "$indicators_expected" <<<"$indicators_probe" >/dev/null || {
+  printf 'Indicators clone service probe: %s\n' "$indicators_probe" >&2
+  fail_with_log "a cloned indicators widget reaches only the services its source reads"
+}
+pass "a cloned indicators widget reaches only the services its source reads"
 
 [[ $(scratch_ipc shell setPluginEnabled "$victim_service_id" true) == "ok" ]] ||
   fail_with_log "victim service fixture could not be enabled"

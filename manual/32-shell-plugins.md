@@ -4,7 +4,7 @@ The Omarchy desktop runs as a single long-lived Quickshell process called `omarc
 
 That's not just an implementation detail. It means you can turn pieces of the desktop off, swap them out, or write your own without touching a line of Omarchy's source.
 
-The first-party plugins ship with Omarchy and live in `$OMARCHY_PATH/shell/plugins/`. Anything you add yourself — your own experiments, or something you found on GitHub — lives in `~/.config/omarchy/plugins/`. Both are discovered the same way at startup, but built-ins receive trusted shell interfaces while third-party plugins receive a limited interface scoped to their own service and lifecycle. Clones of built-ins keep only the source-specific configuration and UI calls needed for the original behavior.
+The first-party plugins ship with Omarchy and live in `$OMARCHY_PATH/shell/plugins/`. Anything you add yourself — your own experiments, or something you found on GitHub — lives in `~/.config/omarchy/plugins/`. Both are discovered the same way at startup, but built-ins receive trusted shell interfaces while third-party plugins receive a limited interface scoped to their own service and lifecycle. Clones of built-ins keep only the source-specific configuration, UI calls, and services needed for the original behavior, so a cloned indicators widget still toggles night light and stay awake.
 
 ## Seeing what you have
 
