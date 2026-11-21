@@ -28,6 +28,10 @@ You start 1Password with `Super + Shift + /`. If it isn't installed yet, that ho
 
 [Dropbox](https://www.dropbox.com/) is a great way to sync files between machines while keeping a backup in the cloud. To set it up, select _Install > Service > Dropbox_ from the Omarchy menu. It adds a Dropbox icon to the bar: click it to log in, then use the same panel to check your storage and open recently synced files.
 
+## Omacloud
+
+[Omacloud](https://omacloud.computer/) keeps your files, Omarchy settings and ssh and gpg keys in sync on every Omarchy computer, end to end encrypted, in storage of your own (an S3 bucket or Dropbox) or, optionally, on Omacloud storage (by invitation for now). To set it up, select _Install > Service > Omacloud_ from the Omarchy menu, then add your storage, sign in, or paste a join code from one of your computers in the app that opens.
+
 ## Tailscale
 
 [Tailscale](https://tailscale.com/) is a mesh VPN that makes getting access to all your computers and servers over the internet securely super simple. To set it up, select _Install > Service > Tailscale_ from the Omarchy menu.
