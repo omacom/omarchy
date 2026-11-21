@@ -113,36 +113,10 @@ elif use_ddc_display; then
 elif ! use_backlight_display; then
   exit 1
 else
-  # Current device highlighted
   device="$(omarchy-hw-display)" || exit 1
-
-  # Current brightness percentage
-  current=$(backlight_brightness "$device") || exit 1
-
-  # Apply non-uniform step size: 1% steps if at or below 5%, otherwise set an
-  # absolute target percentage to avoid raw backlight rounding causing uneven OSD steps.
-  if [[ $step == "+5%" ]]; then
-    if (( current < 5 )); then
-      (( target = current + 1 ))
-    else
-      (( target = current + 5 ))
-    fi
-
-    (( target > 100 )) && target=100
-    step="$target%"
-  elif [[ $step == "5%-" ]]; then
-    if (( current <= 5 )); then
-      (( target = current - 1 ))
-    else
-      (( target = current - 5 ))
-    fi
-
-    (( target < 1 )) && target=1
-    step="$target%"
-  fi
-
-  # Set brightness of the display device.
-  brightnessctl -d "$device" set "$step" >/dev/null
+  # The memory helper reads, calculates, writes and records the target under
+  # its shared lock, including relative forms accepted by brightnessctl.
+  omarchy-brightness-memory set "$step"
 
   # Show the new brightness in OSD
   (( no_osd )) || omarchy-osd -i brightness -p "$(backlight_brightness "$device")"
