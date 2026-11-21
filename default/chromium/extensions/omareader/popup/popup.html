@@ -7,25 +7,24 @@
 </head>
 <body>
   <header>
-    <img src="../icon.png" width="20" height="20" alt="">
-    <strong>Omareader</strong>
+<pre class="banner" aria-label="Omareader"><span>▄▀▀▄ █▄ ▄█ ▄▀▀▄</span> <b>█▀▀▄ █▀▀▀ ▄▀▀▄ █▀▀▄ █▀▀▀ █▀▀▄</b>
+<span>█  █ █ ▀ █ █▄▄█</span> <b>█▄▄▀ █▀▀  █▄▄█ █  █ █▀▀  █▄▄▀</b>
+<span>▀▄▄▀ █   █ █  █</span> <b>█ ▀▄ █▄▄▄ █  █ █▄▄▀ █▄▄▄ █ ▀▄</b></pre>
+    <div class="tagline">pages in your omarchy palette</div>
   </header>
-  <section>
-    <div class="label">All sites</div>
+  <section class="box">
+    <div class="title">all sites</div>
     <div class="modes" id="modes" role="radiogroup" aria-label="Mode for all sites">
       <button type="button" role="radio" data-mode="normal" title="Pages as they are">Normal</button>
       <button type="button" role="radio" data-mode="dark" title="Pitch black, page colors keep their hue">Dark</button>
       <button type="button" role="radio" data-mode="omarchy" title="Follow your current Omarchy theme">Follow Omarchy</button>
     </div>
-    <div class="label site" id="site">—</div>
-    <div class="modes" id="siteModes" role="radiogroup" aria-label="Mode on this site" title="Alt+Shift+O toggles this site off and back">
-      <button type="button" role="radio" data-mode="default">Default</button>
-      <button type="button" role="radio" data-mode="normal" title="Always as it is">Normal</button>
-      <button type="button" role="radio" data-mode="dark" title="Always pitch black">Dark</button>
-      <button type="button" role="radio" data-mode="omarchy" title="Always follow your Omarchy theme">Omarchy</button>
-    </div>
-    <div id="swatches" class="swatches" aria-hidden="true"></div>
   </section>
+  <div class="siterow">
+    <span class="site" id="site">—</span>
+    <button type="button" role="switch" id="siteToggle" aria-checked="false" aria-label="Theme this site" title="Theme this site · Alt+Shift+O">off</button>
+  </div>
+  <div id="swatches" class="swatches" aria-hidden="true"></div>
   <footer id="status"></footer>
   <script src="../src/color.js"></script>
   <script src="../src/theme.js"></script>

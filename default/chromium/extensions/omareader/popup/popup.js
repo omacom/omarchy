@@ -1,7 +1,6 @@
 const $ = (id) => document.getElementById(id);
 const T = OmareaderTheme;
 const DARK = T.normalize(T.DARK);
-const LABELS = { normal: 'Normal', dark: 'Dark', omarchy: 'Follow Omarchy' };
 
 const pretty = (name) =>
   (name || '')
@@ -22,6 +21,8 @@ function paint(palette) {
   root.setProperty('--muted', m.ramp(0.55));
   root.setProperty('--line', m.ramp(0.14));
   root.setProperty('--field', m.ramp(0.06));
+  root.setProperty('--ok', palette.green || palette.accent);
+  root.setProperty('--fail', palette.red || palette.accent);
   document.documentElement.style.colorScheme = palette.mode;
   const keys = ['bg', 'fg', 'accent', 'red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'magenta'];
   $('swatches').replaceChildren(
@@ -48,20 +49,22 @@ async function render() {
   const current = st.omarchy;
   // What the current tab shows: its own override, else the default.
   const mode = T.siteModeOf(settings, hostname);
-  const own = hostname ? settings.sites[T.siteKey(hostname)] : undefined;
 
   check($('modes'), settings.mode);
-  check($('siteModes'), own || 'default');
   $('site').textContent = hostname ? T.siteKey(hostname) : 'Not available on this page';
-  for (const b of $('siteModes').querySelectorAll('button')) b.disabled = !hostname;
-  const def = $('siteModes').querySelector('[data-mode="default"]');
-  def.title = `Use the mode for all sites (${LABELS[settings.mode]})`;
+  // The switch is Alt+Shift+O: on while the site is themed, off when it shows as it is.
+  const on = !!hostname && mode !== 'normal';
+  const toggle = $('siteToggle');
+  toggle.disabled = !hostname;
+  toggle.setAttribute('aria-checked', String(on));
+  toggle.textContent = on ? 'on' : 'off';
   $('swatches').hidden = mode === 'normal';
 
   if (mode === 'dark') paint(DARK);
   else if (st.active) paint(st.active.palette);
 
   const status = $('status');
+  status.dataset.state = mode === 'omarchy' ? (st.host && st.host.connected ? 'live' : 'offline') : mode;
   if (mode === 'normal') {
     status.textContent = 'Pages shown as they are';
   } else if (mode === 'dark') {
@@ -96,9 +99,11 @@ function radioGroup(group, selected, pick) {
 radioGroup($('modes'), () => settings.mode, async (mode) => {
   settings = { ...settings, mode };
 });
-radioGroup($('siteModes'), () => (hostname && settings.sites[T.siteKey(hostname)]) || 'default', async (mode) => {
-  if (hostname) settings = T.withSiteMode(settings, hostname, mode);
-});
+$('siteToggle').onclick = () => {
+  if (!hostname) return;
+  settings = T.toggleSite(settings, hostname);
+  save();
+};
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local') render();
