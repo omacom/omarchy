@@ -28,9 +28,88 @@ qml_matches "$shell_qml" 'AuthServiceStore\.isTrusted\( *key *\)' ||
   fail "live authentication classification survives public manifest mutation"
 qml_matches "$shell_qml" 'AuthServiceStore\.updateManifest\( *id, *shell\.publicPluginManifest\( *m *\) *\)' ||
   fail "kept authentication services receive only a public manifest snapshot"
-qml_matches "$shell_qml" 'if *\( *!serviceKeepLoaded\( *authenticationId *\) *\) *AuthServiceStore\.destroy\( *authenticationId *\)' ||
-  fail "keepLoaded authentication services survive plugin rescans"
 pass "third-party and authentication services are detached from the host object tree"
+
+
+run_node_test <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+const qml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
+function grab(name) {
+  const start = qml.indexOf('function ' + name)
+  if (start < 0) throw new Error('missing ' + name)
+  let depth = 0
+  for (let j = qml.indexOf('{', start); j < qml.length; j++) {
+    if (qml[j] === '{') depth++
+    else if (qml[j] === '}') {
+      depth--
+      if (depth === 0) return qml.slice(start, j + 1)
+    }
+  }
+  throw new Error('unclosed ' + name)
+}
+const store = {}
+vm.createContext(store)
+vm.runInContext(fs.readFileSync(path.join(root, 'shell/services/AuthServiceStore.js'), 'utf8'), store)
+
+function harness(enabled) {
+  const destroyed = []
+  const service = {
+    locked: true,
+    destroyed: false,
+    lockedChanged: {
+      handlers: [],
+      connect(fn) { this.handlers.push(fn) },
+      disconnect(fn) { this.handlers = this.handlers.filter((handler) => handler !== fn) },
+      fire() { this.handlers.slice().forEach((handler) => handler()) }
+    },
+    destroy() { this.destroyed = true; destroyed.push('lock') }
+  }
+  store.put('lock', service)
+  const ctx = {
+    pluginRegistry: {
+      installedPlugins: {
+        lock: { keepLoaded: true, enabled, kinds: ['service'], entryPoints: { service: 'Lock.qml' } },
+        other: { keepLoaded: false, enabled: false, kinds: ['service'], entryPoints: { service: 'Other.qml' } }
+      },
+      isEnabled(id) { return !!(this.installedPlugins[id] && this.installedPlugins[id].enabled !== false) }
+    },
+    _services: {},
+    _waitingForServiceUnlock: new Set(),
+    Qt: { callLater(fn) { ctx.later = fn } },
+    AuthServiceStore: store,
+    isAuthenticationService() { return true },
+    publicPluginManifest(manifest) { return manifest }
+  }
+  ctx.shell = ctx
+  vm.createContext(ctx)
+  vm.runInContext(
+    grab('_syncServices') + '\n' + grab('serviceKeepLoaded') + '\n' + grab('shouldRetainDisabledKeepLoaded') + '\n',
+    ctx
+  )
+  return { ctx, service, destroyed }
+}
+
+const held = harness(false)
+held.ctx._syncServices()
+assert(store.has('lock') && !held.service.destroyed, 'a locked keepLoaded service stays alive while disabled')
+held.service.locked = false
+held.service.lockedChanged.fire()
+assert(typeof held.ctx.later === 'function', 'unlock schedules another service sync')
+held.ctx.later()
+assert(!store.has('lock') && held.destroyed.length === 1, 'unlocking a disabled keepLoaded service destroys it')
+
+const open = harness(false)
+open.service.locked = false
+open.ctx._syncServices()
+assert(!store.has('lock') && open.service.destroyed, 'an unlocked keepLoaded service is dropped on disable')
+
+const plain = harness(false)
+store.put('other', { locked: true, destroy() { plain.destroyed.push('other') } })
+plain.ctx.pluginRegistry.installedPlugins.other.keepLoaded = false
+plain.ctx._syncServices()
+assert(plain.destroyed.indexOf('other') !== -1, 'locked alone does not keep a normal service')
+JS
 
 run_node_test <<'JS'
 const fs = require('fs')
