@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Install tql, a database client for the terminal, with a launcher
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+echo "Installing tql..."
+omarchy-pkg-add tql
+omarchy-tui-install "tql" "tql" tile "$OMARCHY_PATH/applications/icons/tql.png"
+
+echo ""
+echo "tql is installed. Start it from the app launcher (Super + Space), or run tql in a terminal."
