@@ -508,6 +508,14 @@ PanelWindow {
       Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
     }
 
+    // The icon alone does not say which app it is, so the name appears on
+    // hover. A running app's name is its entry name, the same one the app
+    // grid shows under its icon.
+    PanelToolTip {
+      visible: appSlot.hovered
+      text: window.dock && appSlot.modelData ? window.dock.nameFor(appSlot.modelData) : ""
+    }
+
     // With animations off it holds still rather than spinning through
     // zero-length steps.
     SequentialAnimation {
