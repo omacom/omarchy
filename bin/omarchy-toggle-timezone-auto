@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle setting the timezone automatically from nearby Wi-Fi networks
+
+# Off by default: it sends the addresses of nearby access points to BeaconDB
+# to find out where this is, which is a disclosure the user should choose.
+# Enabling the unit here rather than at install keeps it out of every session
+# until then; the unit also checks the flag, so a hand-enabled unit stays inert.
+
+# nf-cod-globe (the timezone menu's glyph), escaped so this file reads without a Nerd Font.
+readonly GLOBE_GLYPH=$'\ueb01'
+
+omarchy-toggle timezone-auto
+
+if omarchy-toggle-enabled timezone-auto; then
+  systemctl --user enable --now omarchy-timezone-watch.service
+  omarchy-notification-send -g "$GLOBE_GLYPH" "$(omarchy-i18n timezone.autoEnabled)" "$(omarchy-i18n timezone.autoEnabledDetail)"
+else
+  systemctl --user disable --now omarchy-timezone-watch.service
+  omarchy-notification-send -g "$GLOBE_GLYPH" "$(omarchy-i18n timezone.autoDisabled)"
+fi

@@ -7,6 +7,7 @@
 set -e
 
 timezone=$(timedatectl list-timezones | omarchy-menu-select "$(omarchy-i18n timezone.setTitle)" -- --width 520 --maxheight 520) || exit 1
-sudo timedatectl set-timezone "$timezone"
-omarchy-shell -q omarchy.clock refresh
-omarchy-notification-send "$(omarchy-i18n timezone.changed "$timezone")"
+
+# Also remembers the pick for this Wi-Fi network, so automatic timezone never
+# overrides a choice made here.
+omarchy-timezone-set "$timezone"
