@@ -1,0 +1,71 @@
+#!/bin/bash
+# omarchy:summary=Describe an image or screen region with an installed Ollama vision model
+# omarchy:args=[image | --region] --model <model> [--question <question>]
+# omarchy:examples=omarchy capture describe photo.png --model gemma3:4b | omarchy capture describe --region --model gemma3:4b
+
+exec python3 /dev/fd/3 "$@" 3<<'PY'
+import argparse
+import base64
+import json
+from pathlib import Path
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+
+
+def request(path, payload):
+  opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+  req = urllib.request.Request("http://127.0.0.1:11434/api/" + path,
+    data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+  with opener.open(req, timeout=180) as response:
+    return json.load(response)
+
+
+def main():
+  parser = argparse.ArgumentParser(prog="omarchy-capture-describe", description="Describe an image using a downloaded local vision model. Requires Ollama on localhost. Nothing is uploaded to a cloud model or copied to the clipboard.")
+  source = parser.add_mutually_exclusive_group(required=True)
+  source.add_argument("image", nargs="?", type=Path)
+  source.add_argument("--region", action="store_true", help="Select a screen region")
+  parser.add_argument("--model", required=True)
+  parser.add_argument("--question", default="Describe this image concisely in plain language. Mention uncertainty where details are unclear.")
+  args = parser.parse_args()
+
+  if args.region:
+    selection = subprocess.run(["slurp"], capture_output=True, text=True)
+    if selection.returncode:
+      diagnostic = (selection.stderr or "").strip()
+      if selection.returncode == 1 and diagnostic == "selection cancelled":
+        return 0
+      raise ValueError(f"Could not select a screen region: {diagnostic or f'slurp exited {selection.returncode}'}")
+    if not selection.stdout.strip():
+      return 0
+    data = subprocess.run(["grim", "-g", selection.stdout.strip(), "-"], check=True, capture_output=True).stdout
+  else:
+    with args.image.expanduser().open("rb") as image:
+      data = image.read(20 * 1024 * 1024 + 1)
+  if len(data) > 20 * 1024 * 1024:
+    raise ValueError("Choose an image smaller than 20 MiB.")
+  if not (data.startswith((b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff", b"GIF87a", b"GIF89a")) or (data.startswith(b"RIFF") and data[8:12] == b"WEBP")):
+    raise ValueError("Choose a PNG, JPEG, GIF, or WebP image.")
+  model = request("show", {"model": args.model})
+  if model.get("remote_host") or model.get("remote_model"):
+    raise ValueError("Choose a downloaded local model; cloud models are not supported.")
+  if "vision" not in model.get("capabilities", []):
+    raise ValueError("This model does not support images; choose a vision model.")
+  result = request("generate", {"model": args.model, "prompt": args.question,
+    "images": [base64.b64encode(data).decode("ascii")], "stream": False})
+  answer = result.get("response")
+  if not isinstance(answer, str) or not answer.strip():
+    raise ValueError("The model returned no description.")
+  print(answer)
+  return 0
+
+
+if __name__ == "__main__":
+  try:
+    sys.exit(main())
+  except (OSError, ValueError, subprocess.SubprocessError, urllib.error.URLError) as error:
+    print(f"Image description: {error}", file=sys.stderr)
+    sys.exit(1)
+PY
