@@ -527,6 +527,72 @@ function M.move_window_to_monitor(direction)
   end, "o.workspaces.move_window_to_monitor(" .. literal(direction) .. ")")
 end
 
+-- A monitor's place in the layout, in the units windows are measured in.
+local function box(monitor)
+  local scale = monitor.scale or 1
+  local width, height = math.floor(monitor.width / scale), math.floor(monitor.height / scale)
+
+  if (monitor.transform or 0) % 2 == 1 then
+    width, height = height, width
+  end
+
+  return { x = monitor.x, y = monitor.y, w = width, h = height }
+end
+
+-- Where a window goes along one axis of its monitor: as far into the screen as
+-- it was into the one it came from, which is what Hyprland left of its
+-- position, then pulled inside the bar and anything else that reserves an
+-- edge. One longer than the room starts where the room does, so its titlebar
+-- stays in reach.
+local function along(position, length, start, extent, before, after)
+  local place = start + position % extent
+  return math.max(start + before, math.min(place, start + extent - after - length))
+end
+
+-- Hyprland carries a floating window along with its workspace by the distance
+-- between the two monitors, and when the monitor it leaves is already gone it
+-- keeps only the window's place within a screen and drops where the new
+-- monitor is. Beside a monitor that isn't at the layout's origin, such as a
+-- laptop panel to the right of the display that was unplugged, the window ends
+-- up where no monitor is: still open and focusable, and nowhere to be seen.
+-- One whose middle is on no monitor is put on its own, at the place it had on
+-- the screen it came from. Any other is left where it is, as is one waiting
+-- on Hyprland's FALLBACK output for a monitor to come back.
+local function bring_on_screen(gone)
+  local boxes = {}
+  for _, monitor in ipairs(hl.get_monitors()) do
+    if monitor.name ~= gone then
+      boxes[#boxes + 1] = box(monitor)
+    end
+  end
+
+  local function visible(x, y)
+    for _, shown in ipairs(boxes) do
+      if x >= shown.x and x < shown.x + shown.w and y >= shown.y and y < shown.y + shown.h then
+        return true
+      end
+    end
+
+    return false
+  end
+
+  for _, window in ipairs(hl.get_windows()) do
+    local monitor = window.workspace and window.workspace.monitor or window.monitor
+    local fullscreen = window.fullscreen and window.fullscreen ~= 0
+
+    if window.floating and not fullscreen and window.at and window.size
+      and monitor and monitor.name ~= gone and monitor.name ~= "FALLBACK"
+      and not visible(window.at.x + window.size.x / 2, window.at.y + window.size.y / 2) then
+      local screen = box(monitor)
+      local reserved = monitor.reserved or {}
+      local x = along(window.at.x, window.size.x, screen.x, screen.w, reserved.left or 0, reserved.right or 0)
+      local y = along(window.at.y, window.size.y, screen.y, screen.h, reserved.top or 0, reserved.bottom or 0)
+
+      hl.dispatch(hl.dsp.window.move({ x = x, y = y, relative = false, window = "address:" .. window.address }))
+    end
+  end
+end
+
 -- Put every workspace whose monitor is plugged in back on it, and every monitor
 -- on a workspace of its own. `added` names a monitor that just arrived, which
 -- leaves whatever Hyprland put it on; `gone` one being removed.
@@ -664,6 +730,8 @@ function M.reconcile(added, gone)
 
   -- Moving a visible workspace home leaves a gap Hyprland fills with anything.
   own_views()
+
+  bring_on_screen(gone)
 
   if changed then
     if focused_window and hl.get_window("address:" .. focused_window.address) then
