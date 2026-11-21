@@ -5,13 +5,15 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 copy_boundary_file bin/omarchy-update
+# The update clears its transcript once it holds the lock: keep it off the host's.
+sed -i "s#/tmp/omarchy-update\.log#$boundary_tmp/omarchy-update.log#" "$SUDO_TEST_ROOT/bin/omarchy-update"
 
 # Model the two exec boundaries without a host update log or a real lock.
 # Both child processes inherit the environment exactly as script/lock would.
 cat >"$SUDO_TEST_ROOT/bin/script" <<'STUB'
 #!/bin/bash
 printf 'logged-reexec\n' >>"$SUDO_TEST_LOG"
-[[ $1 == "-qefc" ]] || exit 90
+[[ $1 == "-qaefc" ]] || exit 90
 exec /usr/bin/bash -c "$2"
 STUB
 rm "$SUDO_TEST_ROOT/bin/omarchy-update-lock"

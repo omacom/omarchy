@@ -64,11 +64,19 @@ if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
     script_command='unset SHELL; '
   fi
   script_command+="$(printf '%q ' "$0" "$@"); exit \$?"
-  exec env OMARCHY_UPDATE_LOGGED=1 SHELL=/usr/bin/bash script -qefc "$script_command" "/tmp/omarchy-update.log"
+  # Append, not truncate: a second update opens the transcript before it
+  # reaches the lock, and must not wipe the running update's log.
+  exec env OMARCHY_UPDATE_LOGGED=new SHELL=/usr/bin/bash script -qaefc "$script_command" "/tmp/omarchy-update.log"
 fi
 
 if ! omarchy-update-lock held; then
   exec omarchy-update-lock run "$0" "$@"
+fi
+
+# Only the update holding the lock starts its transcript afresh.
+if [[ ${OMARCHY_UPDATE_LOGGED:-} == new ]]; then
+  : >"/tmp/omarchy-update.log"
+  export OMARCHY_UPDATE_LOGGED=1
 fi
 
 trap 'echo ""; echo -e "\033[0;31mSomething went wrong during the update!\n\nPlease review the output above carefully, correct the error, and retry the update.\n\nIf you need assistance, get help from the community at https://omarchy.org/discord\033[0m"' ERR
