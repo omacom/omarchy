@@ -21,19 +21,47 @@ mkdir -p "$root_dir/shell" "$run_dir" "$stub_bin"
 touch "$root_dir/shell/shell.qml"
 display="test-display"
 calls="$test_tmp/qs-calls"
+notify_dir="$test_tmp/notify"
+notify_log="$test_tmp/notifications"
 
 # qs is the fallback: it logs its arguments and answers with the display it was
-# given, or hangs, or answers as a shell that is still starting.
+# given, or hangs, misses like a shell that lacks the plugin, or answers as a
+# shell that is still starting.
 cat >"$stub_bin/qs" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$QS_CALLS"
 case $QS_MODE in
   hang) sleep 5 ;;
   starting) printf 'Not ready to accept queries yet.\n' ;;
+  missing) printf 'Function not found.\n' ;;
+  missing-target) printf 'Target not found.\n' ;;
+  too-few) printf 'Too few arguments provided (expected 2)\n' ;;
+  not-running) exit 1 ;;
   *) printf 'from-qs on %s\n' "$WAYLAND_DISPLAY" ;;
 esac
 SH
 chmod +x "$stub_bin/qs"
+
+# A missing target or function raises a notification. Log it so the tests can
+# see the message, the rate limit, and the shared-directory safety.
+cat >"$stub_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$NOTIFY_LOG"
+[[ ${NOTIFY_FAIL:-0} == 1 ]] && exit 1
+SH
+chmod +x "$stub_bin/omarchy-notification-send"
+
+# The fake OMARCHY_PATH has no locales, so translate the two keys the
+# notification uses; the i18n-check workflow covers the real catalogs.
+cat >"$stub_bin/omarchy-i18n" <<'SH'
+#!/bin/bash
+case $1 in
+  shell.actionUnavailable) printf 'Omarchy shell action unavailable' ;;
+  shell.actionUnavailableBody) printf '%s is missing from the running shell.' "${2:-}" ;;
+  *) printf '%s' "$1" ;;
+esac
+SH
+chmod +x "$stub_bin/omarchy-i18n"
 
 # An empty $display calls with no WAYLAND_DISPLAY at all, as callers from a
 # stripped environment do.
@@ -43,6 +71,9 @@ shell_call() {
   : >"$calls"
   env -u WAYLAND_DISPLAY PATH="$stub_bin:$PATH" OMARCHY_PATH="$root_dir" XDG_RUNTIME_DIR="${runtime:-$run_dir}" \
     "${display_env[@]}" QS_CALLS="$calls" QS_MODE="${qs_mode:-}" \
+    OMARCHY_SHELL_NOTIFY_DIR="${NOTIFY_DIR:-$notify_dir}" \
+    OMARCHY_SHELL_NOTIFY_INTERVAL="${NOTIFY_INTERVAL:-300}" \
+    NOTIFY_LOG="$notify_log" NOTIFY_FAIL="${NOTIFY_FAIL:-0}" \
     OMARCHY_SHELL_IPC_TIMEOUT="${IPC_TIMEOUT:-2s}" "$ROOT/bin/omarchy-shell" "$@"
 }
 
@@ -176,6 +207,88 @@ rm -f "$socket"
 output=$(shell_call shell ping)
 [[ $output == "from-qs on $display" ]] || fail "without the socket calls go through qs ipc" "got: $output"
 pass "without the socket calls go through qs ipc"
+
+# The socket is gone, so these use the qs fallback. A missing target or function
+# is the mixed-version window during an update: the caller still fails, and one
+# notification per action tells the user instead of leaving a keybinding
+# silently dead.
+notification_count() {
+  [[ -f $notify_log ]] || {
+    printf '0\n'
+    return
+  }
+  wc -l <"$notify_log"
+}
+
+wait_for_notifications() {
+  local wanted="$1" i
+
+  for ((i = 0; i < 100; i++)); do
+    (( $(notification_count) >= wanted )) && return 0
+    sleep 0.02
+  done
+
+  return 1
+}
+
+output=$(qs_mode=missing shell_call omarchy.dock apps 2>&1) && fail "a missing shell function still fails the call"
+[[ $output == "Function not found." ]] || fail "the missing function is still reported on stderr" "$output"
+wait_for_notifications 1 || fail "a missing function raises a notification"
+grep -F 'Omarchy shell action unavailable' "$notify_log" >/dev/null ||
+  fail "the notification names the unavailable shell action"
+grep -F 'omarchy.dock.apps' "$notify_log" >/dev/null ||
+  fail "the notification names the missing target and method"
+pass "a missing shell function is visible in a notification"
+
+qs_mode=missing shell_call omarchy.dock apps >/dev/null 2>&1 || true
+sleep 0.2
+[[ $(notification_count) == "1" ]] || fail "repeating the same miss does not notify again"
+qs_mode=missing shell_call omarchy.dock settings >/dev/null 2>&1 || true
+wait_for_notifications 2 || fail "a different missing function notifies on its own"
+pass "missing shell actions are rate-limited per target and method"
+
+qs_mode=missing-target shell_call omarchy.missing ping >/dev/null 2>&1 || true
+wait_for_notifications 3 || fail "a missing target raises a notification"
+grep -F 'omarchy.missing.ping' "$notify_log" >/dev/null ||
+  fail "a missing target names the missing target and method"
+pass "a missing shell target is visible in a notification"
+
+qs_mode=missing shell_call -q omarchy.quiet apps >/dev/null 2>&1 ||
+  fail "a quiet miss still succeeds"
+sleep 0.2
+[[ $(notification_count) == "3" ]] || fail "quiet best-effort calls never notify"
+pass "quiet shell calls stay silent"
+
+qs_mode=too-few shell_call omarchy.argcheck apps >/dev/null 2>&1 || true
+sleep 0.2
+[[ $(notification_count) == "3" ]] || fail "an argument error is not a missing plugin"
+pass "shell argument errors do not notify"
+
+qs_mode=not-running shell_call omarchy.stopped apps >/dev/null 2>&1 || true
+sleep 0.2
+[[ $(notification_count) == "3" ]] || fail "a stopped shell does not notify about a missing target"
+pass "a stopped shell does not notify"
+
+qs_mode= shell_call shell ping >/dev/null 2>&1 || fail "a working shell still answers"
+[[ $(notification_count) == "3" ]] || fail "a successful call does not notify"
+
+output=$(NOTIFY_FAIL=1 NOTIFY_INTERVAL=0 qs_mode=missing shell_call omarchy.dock apps 2>&1) &&
+  fail "a missing function still fails when the notifier does"
+[[ $output == "Function not found." ]] || fail "the IPC answer is unchanged by the notifier" "$output"
+wait_for_notifications 4 || fail "a failing notifier is still attempted"
+pass "a failing notification never changes the IPC result"
+
+# The /tmp fallback directory is shared, so another user could precreate the
+# stamp directory and plant the stamp path as a symlink to a file this user can
+# write. The notifier must not follow it.
+victim="$test_tmp/victim"
+printf 'original\n' >"$victim"
+link_dir="$test_tmp/link-notify"
+mkdir -p "$link_dir"
+ln -s "$victim" "$link_dir/omarchy.link.apps"
+NOTIFY_DIR="$link_dir" qs_mode=missing shell_call omarchy.link apps >/dev/null 2>&1 || true
+[[ $(cat "$victim") == "original" ]] || fail "a planted stamp symlink is not followed"
+pass "a planted stamp symlink is not followed"
 
 # A call for a different display never reaches this shell's socket.
 printf 'ok' >"$mode"
