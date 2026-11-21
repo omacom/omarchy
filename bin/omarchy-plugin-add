@@ -2,8 +2,8 @@
 
 # omarchy:summary=Add a shell plugin from git
 # omarchy:group=plugin
-# omarchy:args=[git-url] [--enable] [--yes]
-# omarchy:examples=omarchy plugin add https://github.com/acme/omarchy-weather.git --enable
+# omarchy:args=[git-url|path] [--enable] [--yes]
+# omarchy:examples=omarchy plugin add https://github.com/acme/omarchy-weather.git --enable | omarchy plugin add ~/src/omarchy-weather
 # omarchy:alias=omarchy plugin install
 
 set -euo pipefail
@@ -73,7 +73,7 @@ while (( $# > 0 )); do
     shift
     ;;
   -h | --help)
-    echo "Usage: omarchy plugin add [git-url] [--enable] [--yes]"
+    echo "Usage: omarchy plugin add [git-url|path] [--enable] [--yes]"
     exit 0
     ;;
   -*)
