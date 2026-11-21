@@ -74,12 +74,13 @@ function summaryStartsWithGlyph(summary) {
 }
 
 // The bar's thickness on one screen (a notch can thicken it on one only), 0
-// when hidden, the default when there is no bar.
+// when hidden or when the bar leaves that screen out, the default when there
+// is no bar.
 function barThickness(bar, screenName, defaultBarSize) {
   if (!bar) return Number(defaultBarSize) || 0
   if (bar.barHidden) return 0
   var size = Number(typeof bar.barSizeFor === "function" ? bar.barSizeFor(screenName) : bar.barSize)
-  if (!isFinite(size) || size <= 0) size = Number(defaultBarSize) || 0
+  if (!isFinite(size) || size < 0) size = Number(defaultBarSize) || 0
   return Math.max(0, size)
 }
 
