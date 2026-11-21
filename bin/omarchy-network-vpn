@@ -1,0 +1,321 @@
+#!/bin/bash
+
+# omarchy:summary=List NetworkManager VPNs and switch them between off, split and full tunnel
+# omarchy:group=network
+# omarchy:args=[list] | mode <uuid> <off|split|full> | signin <uuid> [split|full] | add | import <file>
+# omarchy:examples=omarchy network vpn | omarchy network vpn mode 3f2504e0-4f89-11d3-9a0c-0305e82c3301 split | omarchy network vpn import ~/Downloads/office.conf
+
+# Every NetworkManager VPN (WireGuard, OpenVPN, OpenConnect, ...) gets three
+# modes in the Network panel:
+#
+#   off    disconnected
+#   split  connected, but only the VPN's own networks go through it
+#          (ipv4.never-default yes)
+#   full   connected, and all traffic goes through it (ipv4.never-default no);
+#          only one VPN is in full at a time, the others drop to split
+#
+# The mode lives in the profile itself, so nmcli, nm-applet and this command
+# always agree. `list` prints one tab-separated line per VPN:
+#
+#   uuid  name  kind  state  detail  mode  modes  actions
+#
+# state is up, connecting or off; kind is wireguard or the VPN plugin
+# (openvpn, openconnect, ...); actions is "signin" after a connect failed for
+# lack of credentials. The same lines go to $SNAPSHOT so every bar picks up a
+# change without polling.
+
+set -uo pipefail
+
+MODES="off,split,full"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/omarchy"
+SNAPSHOT="$RUNTIME_DIR/network-vpn"
+SIGNIN_DIR="$RUNTIME_DIR/network-vpn-signin"
+GLYPH="󰖂"
+
+notify() {
+  omarchy-notification-send -g "$GLYPH" "$@" >/dev/null 2>&1 || true
+}
+
+fail() {
+  echo "omarchy-network-vpn: $1" >&2
+  exit 1
+}
+
+valid_uuid() {
+  [[ $1 =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]
+}
+
+# Tabs and newlines would break the line format.
+clean() {
+  printf '%s' "$1" | tr '\t\n' '  '
+}
+
+# Sign-in flags live in the runtime dir, so they clear on logout.
+signin_flag() {
+  echo "$SIGNIN_DIR/$1"
+}
+
+needs_signin_set() {
+  mkdir -p "$SIGNIN_DIR"
+  touch "$(signin_flag "$1")"
+}
+
+needs_signin_clear() {
+  rm -f "$(signin_flag "$1")"
+}
+
+# Runs this command again in a floating terminal, where nmcli can ask for
+# secrets and pacman for a password.
+open_terminal() {
+  omarchy-launch-floating-terminal-with-presentation "$(printf '%q ' omarchy-network-vpn "$@")" >/dev/null 2>&1 &
+}
+
+profile_mode() {
+  if [[ $(nmcli -g ipv4.never-default connection show uuid "$1" 2>/dev/null) == "no" ]]; then
+    echo "full"
+  else
+    echo "split"
+  fi
+}
+
+# `nmcli -t` escapes ':' in values as '\:', so the name goes last and is
+# unescaped; uuid and type never contain one.
+list_vpns() {
+  local active uuid type name kind state detail mode actions
+  active=$(nmcli -t -f UUID,STATE connection show --active 2>/dev/null)
+
+  while IFS=: read -r uuid type name; do
+    [[ $type == "vpn" || $type == "wireguard" ]] || continue
+    name=$(sed 's/\\:/:/g; s/\\\\/\\/g' <<<"$name")
+
+    kind=$type
+    if [[ $type == "vpn" ]]; then
+      kind=$(nmcli -g vpn.service-type connection show uuid "$uuid" 2>/dev/null)
+      kind=${kind##*.}
+      kind=${kind:-vpn}
+    fi
+
+    state=off
+    detail=""
+    mode=off
+    case $(awk -F: -v u="$uuid" '$1 == u {print $2; exit}' <<<"$active") in
+      activated) state=up ;;
+      activating) state=connecting ;;
+    esac
+
+    if [[ $state != "off" ]]; then
+      mode=$(profile_mode "$uuid")
+      # The live address lags a moment behind activation; the profile's own
+      # address (WireGuard has one) stands in until then.
+      detail=$(nmcli -g IP4.ADDRESS connection show uuid "$uuid" 2>/dev/null | head -1)
+      [[ -n $detail ]] || detail=$(nmcli -g ipv4.addresses connection show uuid "$uuid" 2>/dev/null)
+      detail=$(cut -d'|' -f1 <<<"${detail%%,*}" | cut -d/ -f1 | tr -d ' ')
+    fi
+
+    actions=""
+    [[ -f $(signin_flag "$uuid") ]] && actions=signin
+
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$uuid" "$(clean "$name")" "$kind" "$state" "$detail" "$mode" "$MODES" "$actions"
+  done < <(nmcli -t -f UUID,TYPE,NAME connection show 2>/dev/null)
+}
+
+# Writes the snapshot the bar watches. Atomic, so a reader never sees half a list.
+write_snapshot() {
+  mkdir -p "$RUNTIME_DIR"
+  list_vpns >"$SNAPSHOT.tmp" && mv -f "$SNAPSHOT.tmp" "$SNAPSHOT"
+}
+
+list() {
+  write_snapshot
+  cat "$SNAPSHOT"
+}
+
+vpn_type() {
+  nmcli -g connection.type connection show uuid "$1" 2>/dev/null
+}
+
+vpn_name() {
+  nmcli -g connection.id connection show uuid "$1" 2>/dev/null
+}
+
+require_vpn() {
+  local type
+  valid_uuid "$1" || fail "not a connection uuid: $1"
+  type=$(vpn_type "$1")
+  [[ $type == "vpn" || $type == "wireguard" ]] || fail "not a VPN: $1"
+}
+
+active_full_vpns() {
+  list_vpns | awk -F'\t' -v skip="$1" '$1 != skip && $4 != "off" && $6 == "full" {print $1}'
+}
+
+# Brings the VPN up with the profile as it is now. Without a terminal, a
+# failure for missing credentials opens one to sign in rather than failing.
+connect() {
+  local uuid=$1 mode=$2 name err
+  name=$(vpn_name "$uuid")
+
+  if [[ -t 0 ]]; then
+    nmcli --ask connection up uuid "$uuid" || fail "could not connect $name"
+  elif ! err=$(nmcli connection up uuid "$uuid" 2>&1 >/dev/null); then
+    if grep -qiE 'secret|password|no agents|authenticat' <<<"$err"; then
+      needs_signin_set "$uuid"
+      open_terminal signin "$uuid" "$mode"
+      notify "$(omarchy-i18n vpn.signIn "$name")" "$(omarchy-i18n vpn.signInBody)"
+      return 0
+    fi
+    notify -u critical "$(omarchy-i18n vpn.connectFailed "$name")" "$(clean "$err")"
+    fail "could not connect $name"
+  fi
+
+  needs_signin_clear "$uuid"
+}
+
+set_mode() {
+  local uuid=$1 mode=$2 other
+  require_vpn "$uuid"
+
+  case $mode in
+    off)
+      nmcli connection down uuid "$uuid" >/dev/null 2>&1
+      return 0
+      ;;
+    split | full) ;;
+    *) fail "unknown mode: $mode (use off, split or full)" ;;
+  esac
+
+  # Only one VPN carries all traffic.
+  if [[ $mode == "full" ]]; then
+    for other in $(active_full_vpns "$uuid"); do
+      nmcli connection modify uuid "$other" ipv4.never-default yes &&
+        nmcli connection up uuid "$other" >/dev/null 2>&1
+    done
+  fi
+
+  if [[ $mode == "full" ]]; then
+    nmcli connection modify uuid "$uuid" ipv4.never-default no || fail "could not change the VPN profile"
+  else
+    nmcli connection modify uuid "$uuid" ipv4.never-default yes || fail "could not change the VPN profile"
+  fi
+
+  # Re-activating an active VPN applies the new routing.
+  connect "$uuid" "$mode"
+}
+
+signin() {
+  local uuid=$1 mode=${2:-}
+  require_vpn "$uuid"
+  [[ $mode == "split" || $mode == "full" ]] || mode=$(profile_mode "$uuid")
+
+  if [[ -t 0 ]]; then
+    echo "Sign in to $(vpn_name "$uuid")"
+    echo
+    set_mode "$uuid" "$mode"
+  else
+    open_terminal signin "$uuid" "$mode"
+  fi
+}
+
+openvpn_plugin_present() {
+  [[ -f /usr/lib/NetworkManager/VPN/nm-openvpn-service.name ]]
+}
+
+# Imports a WireGuard .conf or OpenVPN .ovpn. The new VPN starts off: a
+# full-tunnel profile would otherwise reroute everything the moment it lands.
+import_file() {
+  local file=$1 type label name dir out uuid rc
+
+  [[ -r $file ]] || fail "can't read $file"
+  label=$(basename "$file")
+  label=${label%.*}
+
+  if grep -qiE '^[[:space:]]*\[Interface\]' "$file"; then
+    type=wireguard
+  elif [[ ${file,,} == *.ovpn ]] || grep -qiE '^[[:space:]]*(client|remote)([[:space:]]|$)' "$file"; then
+    type=openvpn
+  else
+    notify -u critical "$(omarchy-i18n vpn.importFailed "$label")" "$(omarchy-i18n vpn.notVpnFile)"
+    fail "$file is not a WireGuard or OpenVPN config"
+  fi
+
+  if [[ $type == "openvpn" ]] && ! openvpn_plugin_present; then
+    if [[ -t 0 ]]; then
+      omarchy-pkg-add networkmanager-openvpn || fail "networkmanager-openvpn is needed to import $file"
+    else
+      open_terminal import "$file"
+      return 0
+    fi
+  fi
+
+  if [[ $type == "wireguard" ]]; then
+    # NetworkManager names the interface after the file, which has to be a
+    # valid interface name: letters, digits, - and _, at most 15 characters.
+    name=$(tr -c 'A-Za-z0-9_-' '-' <<<"$label" | head -c 15)
+    name=${name%-}
+    dir=$(mktemp -d)
+    cp "$file" "$dir/${name:-wg0}.conf"
+    out=$(nmcli connection import type wireguard file "$dir/${name:-wg0}.conf" 2>&1)
+    rc=$?
+    rm -rf "$dir"
+  else
+    out=$(nmcli connection import type openvpn file "$file" 2>&1)
+    rc=$?
+  fi
+
+  if ((rc != 0)); then
+    notify -u critical "$(omarchy-i18n vpn.importFailed "$label")" "$(clean "$out")"
+    fail "could not import $file: $out"
+  fi
+
+  uuid=$(grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' <<<"$out" | head -1)
+  if [[ -n $uuid ]]; then
+    nmcli connection modify uuid "$uuid" connection.id "$(clean "$label")" connection.autoconnect no >/dev/null 2>&1
+    nmcli connection down uuid "$uuid" >/dev/null 2>&1
+  fi
+
+  echo "Added $label"
+  notify "$(omarchy-i18n vpn.added "$label")" "$(omarchy-i18n vpn.addedBody)"
+}
+
+add() {
+  local import_label wireguard_label choice file
+  import_label=$(omarchy-i18n vpn.addImport)
+  wireguard_label=$(omarchy-i18n vpn.addWireGuard)
+
+  choice=$(omarchy-menu-select "$(omarchy-i18n vpn.addTitle)" "$import_label" "$wireguard_label") || exit 0
+
+  if [[ $choice == "$import_label" ]]; then
+    file=$(omarchy-file-select --title "$(omarchy-i18n vpn.chooseFile)" --extensions "conf ovpn") || exit 0
+    [[ -n $file ]] && import_file "$file"
+  elif [[ $choice == "$wireguard_label" ]]; then
+    omarchy-launch-floating-terminal-with-presentation "nmtui edit" >/dev/null 2>&1 &
+  fi
+}
+
+# Whatever changed, every bar shows it.
+trap 'write_snapshot' EXIT
+
+case ${1:-list} in
+  list)
+    trap - EXIT
+    list
+    ;;
+  mode)
+    (($# == 3)) || fail "usage: omarchy-network-vpn mode <uuid> off|split|full"
+    set_mode "$2" "$3"
+    ;;
+  signin)
+    (($# >= 2)) || fail "usage: omarchy-network-vpn signin <uuid> [split|full]"
+    signin "$2" "${3:-}"
+    ;;
+  add)
+    add
+    ;;
+  import)
+    (($# == 2)) || fail "usage: omarchy-network-vpn import <file>"
+    import_file "$2"
+    ;;
+  *)
+    fail "usage: omarchy-network-vpn [list] | mode <uuid> <off|split|full> | signin <uuid> [split|full] | add | import <file>"
+    ;;
+esac
