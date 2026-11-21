@@ -40,12 +40,23 @@ function isEphemeral(row) {
   return app === "notify-send" || app === "omarchy-action"
 }
 
-// "silenced", or "" when the row shows. A verification code always passes: it
-// was asked for a moment ago and expires in minutes.
-function quietReason(row, doNotDisturb) {
+// Whether the row's sender is on the mute list, which holds app names
+// lowercased (Store.parseQuiet).
+function isMuted(row, mutedApps) {
+  var app = String((row && row.app) || "").trim().toLowerCase()
+  if (!app || !mutedApps) return false
+  return mutedApps.indexOf(app) !== -1
+}
+
+// "muted" for an app on the mute list, "silenced" under Do Not Disturb, or ""
+// when the row shows. A verification code always passes: it was asked for a
+// moment ago and expires in minutes. A mute names one app on purpose, so it
+// holds back even the kinds Do Not Disturb lets through.
+function quietReason(row, doNotDisturb, mutedApps) {
+  if (String((row && row.code) || "")) return ""
+  if (isMuted(row, mutedApps)) return "muted"
   if (!doNotDisturb) return ""
   if (bypassesQuiet(row)) return ""
-  if (String((row && row.code) || "")) return ""
   return "silenced"
 }
 

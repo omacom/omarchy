@@ -1,0 +1,65 @@
+#!/bin/bash
+
+# omarchy:summary=Mute notifications from one app, or list the muted apps
+# omarchy:args=[--] [<app>] [on|off|toggle]
+# omarchy:examples=omarchy notification mute | omarchy notification mute omasnap | omarchy notification mute omasnap off
+
+# The app is the sender's app name, as notify-send --app-name sets it and as
+# history.json records it under "app". A muted app's notifications go straight
+# to history instead of the screen; Do Not Disturb is the switch for all apps.
+
+set -uo pipefail
+
+usage() {
+  echo "Usage: omarchy notification mute [--] [<app>] [on|off|toggle]" >&2
+}
+
+# An app may be named -h, and the router answers that with its own help before
+# this ever runs. `omarchy notification mute -- -h` is the way through.
+[[ ${1:-} == "--" ]] && shift
+
+if (($# == 0)); then
+  if ! muted=$(omarchy-shell notifications listMuted); then
+    echo "The Omarchy shell is not running." >&2
+    exit 1
+  fi
+  if [[ -n $muted ]]; then
+    printf '%s\n' "$muted"
+  else
+    echo "No apps muted. Notifications all show."
+  fi
+  exit 0
+fi
+
+app=$1
+action=${2:-on}
+
+case "$action" in
+  on|off|toggle) ;;
+  *)
+    echo "Not an action: $action" >&2
+    usage
+    exit 1
+    ;;
+esac
+
+if ! state=$(omarchy-shell notifications setMuted "$app" "$action"); then
+  echo "The Omarchy shell is not running." >&2
+  exit 1
+fi
+
+# Report what is now true rather than what was asked for: a toggle does not
+# say which way it went.
+case "$state" in
+  on) echo "Muted notifications from $app." ;;
+  off) echo "Notifications from $app are back on." ;;
+  full)
+    echo "Too many apps are muted to add $app. Unmute one first." >&2
+    exit 1
+    ;;
+  *)
+    echo "Not an app name: $app" >&2
+    usage
+    exit 1
+    ;;
+esac

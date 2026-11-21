@@ -280,6 +280,19 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
     [{ app: 'omarchy-action', urgency: 0 }, true, ''],
     [{ app: 'Google', urgency: 1, code: '482913' }, true, ''],
   ]) assert.equal(Delivery.quietReason(row, dnd), expected, JSON.stringify([row, dnd]))
+  // A muted app is held back with or without Do Not Disturb, even the kinds it
+  // lets through, matched by app name whatever its case; a code still shows.
+  const muted = ['omasnap', 'notify-send', 'omarchy-action']
+  for (const [row, dnd, expected] of [
+    [{ app: 'omasnap', urgency: 1 }, false, 'muted'],
+    [{ app: 'OmaSnap ', urgency: 1 }, true, 'muted'],
+    [{ app: 'notify-send', urgency: 2 }, true, 'muted'],
+    [{ app: 'omarchy-action', urgency: 0 }, false, 'muted'],
+    [{ app: 'Slack', urgency: 1 }, false, ''],
+    [{ app: 'Slack', urgency: 1 }, true, 'silenced'],
+    [{ app: '', urgency: 1 }, false, ''],
+    [{ app: 'omasnap', urgency: 1, code: '482913' }, false, ''],
+  ]) assert.equal(Delivery.quietReason(row, dnd, muted), expected, JSON.stringify([row, dnd]))
   // The number keys count buttons in the order the card draws them: codes, --action, the sender's.
   const deeds = Delivery.deeds({ codes: '482913 771204', execActions: JSON.stringify([{ label: 'Edit', argv: ['omasnap'] }]) },
                                [{ id: 'join', text: 'Join call' }])
@@ -358,7 +371,7 @@ const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'keyForDuplicate', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
   'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'senderActions', 'dismissOne',
   'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
-  'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
+  'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive', 'setAppMuted', 'saveQuiet', 'applyQuiet', 'loadQuiet']
 
 function newCapacityScope() {
   const toasts = { rows: [],
@@ -372,7 +385,7 @@ function newCapacityScope() {
     toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
     maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, departures: {}, layoutRevision: 0,
     arriving: '', jumping: false, travel: 24, arriveDuration: 250, leaveDuration: 200, placements: {},
-    held: [], doNotDisturb: false,
+    held: [], doNotDisturb: false, mutedApps: [], pendingMutes: {}, quietLoaded: false,
     liveEntries: [], historyEntries: [], unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
     deckDisplayName: '',
@@ -992,13 +1005,24 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
 }
 
 { // quiet.json keeps today's shape, and anything else in it is ignored.
-  const state = { dnd: true }
+  const state = { dnd: true, muted: ['omasnap', 'slack'] }
   eq(Store.parseQuiet(Store.serialiseQuiet(state)), state)
   eq(JSON.parse(Store.serialiseQuiet(state)), state)
   for (const text of ['', 'nope', '[]', '"dnd"', 'null'])
     assert.equal(Store.parseQuiet(text), null, text)
   const odd = Store.parseQuiet('{"snoozes":{"a":{"until":5}},"dnd":"yes","silencedSince":"later","codesBypassQuiet":"no"}')
-  eq(odd, { dnd: false })
+  eq(odd, { dnd: false, muted: [] })
+  // A file from before the mute list reads as nothing muted.
+  eq(Store.parseQuiet('{"dnd":true}'), { dnd: true, muted: [] })
+  // The mute list is names only: trimmed, lowercased, deduplicated, sorted,
+  // printable, capped in length and count.
+  const list = Store.parseQuiet(JSON.stringify({ muted: [' Slack', 'slack', 'OMASNAP', 5, null, '', '  ', 'a\u0007b',
+                                                          'x'.repeat(129), { app: 'x' }] }))
+  eq(list.muted, ['omasnap', 'slack'])
+  eq(Store.parseQuiet('{"muted":"omasnap"}').muted, [])
+  eq(Store.mutedList(Array.from({ length: 150 }, (_, i) => 'app' + i)).length, Store.MUTED_LIMIT)
+  assert.equal(Store.muteName('  Zoom '), 'zoom')
+  for (const bad of ['', ' ', 'a\nb', 'x'.repeat(129), null, undefined]) assert.equal(Store.muteName(bad), '', String(bad))
 }
 
 { // The service: shown rows are saved live, closed ones move to history, quiet
@@ -1017,6 +1041,104 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   eq(s.historyEntries.map(e => e.summary + ':' + e.closed_reason), ['Silenced:silenced', 'Shown:expired'])
   assert.equal(s.liveEntries.length, 0)
   assert.ok(s.unsaved.live && s.unsaved.history)
+}
+
+{ // A muted app goes straight to history, Do Not Disturb or not, and
+  // unmuting it lets the next one through. The mute is saved with quiet.json.
+  const s = newCapacityScope()
+  const from = (id, app) => Object.assign(s.fakeNotification(id, app + ' ' + id), { appName: app })
+  assert.equal(s.setAppMuted(' OmaSnap', true), 'on')
+  eq(s.mutedApps, ['omasnap'])
+  assert.ok(s.unsaved.quiet)
+  assert.equal(s.setAppMuted('', true), 'invalid')
+  s.handleNotification(from(1, 'omasnap'))
+  s.admit(from(2, 'Slack'))
+  eq([s.toasts.count, s.toasts.get(0).summary], [1, 'Slack 2'])
+  eq(s.historyEntries.map(e => e.summary + ':' + e.closed_reason), ['omasnap 1:muted'])
+  eq(s.liveEntries.map(e => e.summary), ['Slack 2'])
+  assert.equal(s.setAppMuted('omasnap', 'toggle'), 'off')
+  eq(s.mutedApps, [])
+  s.admit(from(3, 'omasnap'))
+  eq(s.toasts.count, 2)
+}
+
+{ // A full list refuses another app and says so, rather than answering "on"
+  // for an app that keeps notifying. Apps already on it can still come off.
+  const s = newCapacityScope()
+  const from = (id, app) => Object.assign(s.fakeNotification(id, app + ' ' + id), { appName: app })
+  s.quietLoaded = true
+  for (let i = 0; i < Store.MUTED_LIMIT; i++) assert.equal(s.setAppMuted('app' + i, true), 'on')
+  assert.equal(s.setAppMuted('one-too-many', true), 'full')
+  assert.equal(s.setAppMuted('one-too-many', 'toggle'), 'full')
+  assert.equal(s.mutedApps.length, Store.MUTED_LIMIT)
+  assert.ok(!s.mutedApps.includes('one-too-many'))
+  s.admit(from(1, 'one-too-many'))
+  eq([s.toasts.count, s.historyEntries.length], [1, 0])
+  assert.equal(s.setAppMuted('app0', true), 'on')
+  assert.equal(s.setAppMuted('app0', false), 'off')
+  assert.equal(s.setAppMuted('one-too-many', true), 'on')
+  assert.ok(s.mutedApps.includes('one-too-many'))
+  assert.equal(s.mutedApps.length, Store.MUTED_LIMIT)
+}
+
+{ // A mute changed before quiet.json is read still holds once it is. Reading
+  // the file must not bring back a stored app that was unmuted meanwhile, nor
+  // lose one that was muted.
+  const stored = names => JSON.stringify({ dnd: false, muted: names })
+
+  { // Unmuted at startup: stays off, and the file is rewritten without it.
+    const s = newCapacityScope()
+    assert.equal(s.setAppMuted('Slack', false), 'off')
+    s.loadQuiet(stored(['slack', 'zoom']))
+    eq(s.mutedApps, ['zoom'])
+    assert.ok(s.unsaved.quiet)
+    s.admit(Object.assign(s.fakeNotification(1, 'hello'), { appName: 'slack' }))
+    eq([s.toasts.count, s.historyEntries.length], [1, 0])
+  }
+
+  { // Muted at startup: kept next to the stored ones.
+    const s = newCapacityScope()
+    assert.equal(s.setAppMuted('Teams', true), 'on')
+    s.loadQuiet(stored(['slack']))
+    eq(s.mutedApps, ['slack', 'teams'])
+  }
+
+  { // Muted, unmuted and muted again before the read: the last word stands.
+    const s = newCapacityScope()
+    s.setAppMuted('slack', true)
+    s.setAppMuted('slack', false)
+    s.setAppMuted('slack', true)
+    s.setAppMuted('zoom', true)
+    s.setAppMuted('zoom', false)
+    s.loadQuiet(stored(['zoom']))
+    eq(s.mutedApps, ['slack'])
+  }
+
+  { // An unreadable file keeps what was asked for.
+    const s = newCapacityScope()
+    s.setAppMuted('slack', true)
+    s.loadQuiet('')
+    eq(s.mutedApps, ['slack'])
+    assert.equal(s.quietLoaded, true)
+  }
+
+  { // After the read a change is made straight away and nothing is pending.
+    const s = newCapacityScope()
+    s.loadQuiet(stored(['slack']))
+    assert.equal(s.setAppMuted('slack', false), 'off')
+    eq(s.mutedApps, [])
+    eq(s.pendingMutes, {})
+    s.loadQuiet(stored(['slack']))
+    eq(s.mutedApps, [])
+  }
+
+  { // A file already at the limit has no room for one more asked for meanwhile.
+    const s = newCapacityScope()
+    s.setAppMuted('zzz-new', true)
+    s.loadQuiet(stored(Array.from({ length: Store.MUTED_LIMIT }, (_, i) => 'app' + String(i).padStart(3, '0'))))
+    assert.equal(s.mutedApps.length, Store.MUTED_LIMIT)
+    assert.ok(!s.mutedApps.includes('zzz-new'))
+  }
 }
 
 { // A transient card is shown but never stored, so the next login does not

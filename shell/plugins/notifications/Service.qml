@@ -58,6 +58,29 @@ Item {
     saveQuiet()
   }
 
+  // Apps muted one by one, lowercased (Store.muteName). Their notifications
+  // go straight to history, Do Not Disturb or not.
+  property var mutedApps: []
+  // Changes made before quiet.json was read, name to on or off. The read
+  // would bring back a stored name turned off meanwhile, so they are applied
+  // on top of what it holds (applyQuiet).
+  property var pendingMutes: ({})
+  // The app's state after: "on" or "off", "full" when the list has no room
+  // for another app (Store.MUTED_LIMIT), "invalid" for a name it cannot hold.
+  function setAppMuted(app, value) {
+    var name = Store.muteName(app)
+    if (!name) return "invalid"
+    var muted = mutedApps.indexOf(name) !== -1
+    var on = value === "toggle" ? !muted : !!value
+    if (on && !muted && mutedApps.length >= Store.MUTED_LIMIT) return "full"
+    if (!quietLoaded) pendingMutes[name] = on
+    if (on !== muted) {
+      mutedApps = Store.mutedList(on ? mutedApps.concat([name]) : mutedApps.filter(function(a) { return a !== name }))
+      saveQuiet()
+    }
+    return on ? "on" : "off"
+  }
+
   // Persisted: nothing on screen says the desktop is quiet, so a reload must not lift it.
   function saveQuiet() { saveSoon("quiet") }
 
@@ -619,7 +642,7 @@ Item {
     }
 
     // Quiet still records it (unless ephemeral), straight to history.
-    var muted = Delivery.quietReason(row, doNotDisturb)
+    var muted = Delivery.quietReason(row, doNotDisturb, mutedApps)
     if (muted) {
       if (!Delivery.isEphemeral(row)) storeRecord(row, muted)
       release(key)
@@ -1266,7 +1289,7 @@ Item {
     }
     if (unsaved.quiet && quietLoaded) {
       delete unsaved.quiet
-      quietFile.setText(Store.serialiseQuiet({ dnd: doNotDisturb }))
+      quietFile.setText(Store.serialiseQuiet({ dnd: doNotDisturb, muted: mutedApps }))
     }
   }
 
@@ -1295,11 +1318,18 @@ Item {
 
   function applyQuiet(read) {
     if (quietLoaded) return
-    if (read) {
-      doNotDisturb = read.dnd
-    }
+    var pending = pendingMutes
+    var changed = Object.keys(pending)
+    var names = (read ? read.muted : []).filter(function(name) { return pending[name] !== false })
+    // What was asked for meanwhile wins over what was stored, to the limit.
+    changed.forEach(function(name) {
+      if (pending[name] && names.indexOf(name) === -1 && names.length < Store.MUTED_LIMIT) names.push(name)
+    })
+    mutedApps = Store.mutedList(names)
+    pendingMutes = ({})
+    if (read) doNotDisturb = read.dnd
     quietLoaded = true
-    if (unsaved.quiet) saveSoon("quiet")
+    if (unsaved.quiet || changed.length > 0) saveSoon("quiet")
   }
 
   // The files exist before anything writes them, at 0600; an atomic write
@@ -1431,6 +1461,18 @@ Item {
       var v = String(value || "").toLowerCase()
       service.setDoNotDisturb(v === "true" || v === "1" || v === "on" || v === "yes")
       return isDnd()
+    }
+
+    // The muted apps, one per line.
+    function listMuted(): string { return service.mutedApps.join("\n") }
+
+    // Mute or unmute one app by its app name: on, off or toggle. Answers the
+    // app's state after, "full" when the list has no room for another app, or
+    // "invalid" for a name it cannot hold.
+    function setMuted(app: string, value: string): string {
+      var v = String(value || "").toLowerCase()
+      if (v !== "on" && v !== "off" && v !== "toggle") return "invalid"
+      return service.setAppMuted(app, v === "toggle" ? "toggle" : v === "on")
     }
 
     // Dismiss, press the one button on, or focus the newest card on screen.
