@@ -184,3 +184,51 @@ run_lua "apple = false $wide_gamut_rules"'
 check(applied[1].cm == nil and applied[2].cm == nil, "changes no rule off Apple Silicon")
 ' || fail "monitors keep sRGB off Apple Silicon"
 pass "monitors get EDID color only on Apple Silicon"
+
+# A port-named rule, as the display panel, the monitor commands and the saved
+# settings send one, starts from the rule in force for its monitor: the keys only
+# the config carries (icc, bitdepth, transform, vrr) survive a mode or scale
+# change instead of falling back to Hyprland's defaults, as they already do when
+# the config names the port itself. A key of the rule's own still wins.
+run_lua '
+plug("DP-2", "", { description = "Apple Computer Inc Studio XDR 0x280A58FF" })
+plug("eDP-1", "", { description = "Apple Computer Inc Color LCD" })
+require("default.hypr.monitor-inherit")
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2, vrr = 1 })
+hl.monitor({ output = "desc:Apple Computer Inc Studio XDR", mode = "5120x2880@60", position = "0x0", scale = 2, icc = "/home/u/xdr.icc", bitdepth = 10, transform = 1 })
+hl.monitor({ output = "DP-2", mode = "3840x2160@120", position = "auto", scale = 1 })
+hl.monitor({ output = "eDP-1", position = "0x1440" })
+check(applied[1].vrr == 1 and applied[2].icc == "/home/u/xdr.icc", "leaves the catch-all and desc: rules as written")
+check(applied[3].icc == "/home/u/xdr.icc" and applied[3].bitdepth == 10 and applied[3].transform == 1,
+  "a port rule keeps the icc, bitdepth and rotation chosen for the monitor'"'"'s description")
+check(applied[3].mode == "3840x2160@120" and applied[3].scale == 1, "the port rule'"'"'s own mode and scale win")
+check(applied[4].scale == 2 and applied[4].vrr == 1 and applied[4].mode == "preferred" and applied[4].position == "0x1440",
+  "a port rule for a monitor the catch-all runs keeps its scale and vrr, got scale " .. tostring(applied[4].scale))
+' || fail "port-named rules inherit the rule in force for the monitor"
+# Named again, a port keeps what its earlier rule set, as Hyprland merges them;
+# the latest rule matching the monitor is the one in force, whichever named it.
+run_lua '
+plug("DP-2", "", { description = "Dell Inc. DELL U2723QE" })
+require("default.hypr.monitor-inherit")
+hl.monitor({ output = "DP-2", mode = "preferred", position = "auto", scale = 1.5, bitdepth = 10 })
+hl.monitor({ output = "DP-2", position = "0x0" })
+check(applied[2].scale == 1.5 and applied[2].bitdepth == 10 and applied[2].position == "0x0", "a repeated port rule keeps the earlier keys")
+hl.monitor({ output = "desc: Dell Inc. DELL U2723QE", cm = "dcip3" })
+hl.monitor({ output = "DP-2", scale = 2 })
+check(applied[4].cm == "dcip3" and applied[4].scale == 2, "a later desc: rule is the one in force, got cm " .. tostring(applied[4].cm))
+' || fail "port-named rules follow the latest rule in force"
+# With the Apple Silicon gamut module on top, a port rule gets both the config'"'"'s
+# icc and the EDID color the panel would otherwise lose.
+run_lua '
+apple = true
+plug("DP-2", "", { description = "Apple Computer Inc Studio XDR 0x280A58FF" })
+o.shell_quote = function(value) return value end
+o.shell_succeeds = function() return apple end
+require("default.hypr.monitor-inherit")
+package.loaded["default.hypr.wide-gamut"] = nil
+require("default.hypr.wide-gamut")
+hl.monitor({ output = "desc:Apple Computer Inc Studio XDR", mode = "5120x2880@60", position = "0x0", scale = 2, icc = "/home/u/xdr.icc" })
+hl.monitor({ output = "DP-2", scale = 2 })
+check(applied[2].icc == "/home/u/xdr.icc" and applied[2].cm == "edid", "a port rule keeps the icc and gets EDID color, got cm " .. tostring(applied[2].cm))
+' || fail "port-named rules inherit alongside the gamut module"
+pass "port-named rules start from the rule in force for the monitor"
