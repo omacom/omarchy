@@ -91,7 +91,7 @@ const harnessRows = ['agent', 'agent.harness', 'agent.harness.claude', 'agent.ha
   .map(id => menu.normalizeItem(id, { label: id }))
 const regionIds = menu.regionHarnessIds(fs.readFileSync(path.join(root, 'default/regions/cn/agents'), 'utf8'))
 assertEqual(regionIds[0], 'agent.harness.kimi', 'a region names its harnesses from its agents file, skipping comments')
-const regionMerged = menu.mergeMenuSources(harnessRows, [], '', regionIds)
+const regionMerged = menu.mergeMenuSources(harnessRows, [], '', regionIds.concat(['agent.harness.kimi']))
 const harnessOrder = regionMerged.itemOrder.filter(id => regionMerged.items[id].parent === 'agent.harness')
 assertDeepEqual(harnessOrder, ['agent.harness.kimi', 'agent.harness.qwen', 'agent.harness.claude', 'agent.harness.codex'], 'a region lists its recommended harnesses first and keeps the rest')
 assertEqual(regionMerged.items['agent.harness.kimi'].order < regionMerged.items['agent.harness.claude'].order, true, 'a recommended harness ranks ahead in search too')

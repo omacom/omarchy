@@ -113,7 +113,7 @@ function mergeMenuSources(defaultItems, userItems, rootLabel, leadingIds) {
     }
   }
 
-  var leading = (Array.isArray(leadingIds) ? leadingIds : []).filter(function (id) { return !!nextItems[id] })
+  var leading = (Array.isArray(leadingIds) ? leadingIds : []).filter(function (id, i, ids) { return !!nextItems[id] && ids.indexOf(id) === i })
   if (leading.length) nextOrder = leading.concat(nextOrder.filter(function (id) { return leading.indexOf(id) < 0 }))
 
   if (!nextItems.root) {
