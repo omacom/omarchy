@@ -114,3 +114,71 @@ grep -q '^after-reader$' "$stdin_calls" ||
   -f $stdin_home/.local/state/omarchy/migrations/200-after.sh ]] ||
   fail "migration runner marks both stdin-isolated migrations complete"
 pass "migration queue uses a private file descriptor instead of migration stdin"
+
+dag_root="$test_tmp/dag-omarchy"
+dag_home="$test_tmp/dag-home"
+dag_calls="$test_tmp/dag-calls"
+mkdir -p "$dag_root/migrations" "$dag_home"
+
+cat >"$dag_root/migrations/100-dependent.sh" <<'SH'
+# omarchy:depends_on=200-prereq.sh
+echo dependent >>"$TEST_CALLS"
+SH
+cat >"$dag_root/migrations/200-prereq.sh" <<'SH'
+echo prereq >>"$TEST_CALLS"
+SH
+
+TEST_CALLS="$dag_calls" run_migrate "$dag_home" "$dag_root" >"$test_tmp/dag.out"
+[[ $(sed -n '1p' "$dag_calls") == "prereq" ]] || fail "DAG sort runs prerequisite migration first"
+[[ $(sed -n '2p' "$dag_calls") == "dependent" ]] || fail "DAG sort runs dependent migration second"
+pass "migration runner resolves dependencies with DAG topological sort"
+
+order_root="$test_tmp/order-omarchy"
+order_home="$test_tmp/order-home"
+order_calls="$test_tmp/order-calls"
+mkdir -p "$order_root/migrations" "$order_home"
+
+cat >"$order_root/migrations/100.sh" <<'SH'
+echo 100 >>"$TEST_CALLS"
+SH
+cat >"$order_root/migrations/200.sh" <<'SH'
+# omarchy:depends_on=100.sh
+echo 200 >>"$TEST_CALLS"
+SH
+cat >"$order_root/migrations/300.sh" <<'SH'
+echo 300 >>"$TEST_CALLS"
+SH
+
+TEST_CALLS="$order_calls" run_migrate "$order_home" "$order_root" >"$test_tmp/order.out"
+[[ $(sed -n '1p' "$order_calls") == "100" ]] || fail "first migration runs first"
+[[ $(sed -n '2p' "$order_calls") == "200" ]] || fail "unblocked migration preserves historical order over subsequent migrations"
+[[ $(sed -n '3p' "$order_calls") == "300" ]] || fail "later migration runs after earlier unblocked migration"
+pass "migration runner preserves historical timestamp order for ready migrations"
+
+missing_root="$test_tmp/missing-omarchy"
+missing_home="$test_tmp/missing-home"
+missing_calls="$test_tmp/missing-calls"
+mkdir -p "$missing_root/migrations" "$missing_home"
+
+cat >"$missing_root/migrations/100-blocked.sh" <<'SH'
+# omarchy:depends_on=does-not-exist.sh
+echo blocked >>"$TEST_CALLS"
+SH
+
+# Pending check discovers unfinished migrations even when dependencies are missing (#8395)
+if ! run_migrate "$missing_home" "$missing_root" --pending >"$test_tmp/missing-pending.out"; then
+  fail "migration runner --pending fails when a migration has a missing prerequisite"
+fi
+grep -q '^100-blocked\.sh$' "$test_tmp/missing-pending.out" || fail "--pending does not list migration with missing prerequisite"
+pass "pending discovery reports unfinished migrations regardless of missing prerequisites"
+
+set +e
+missing_err="$test_tmp/missing.err"
+TEST_CALLS="$missing_calls" run_migrate "$missing_home" "$missing_root" >"$test_tmp/missing.out" 2>"$missing_err"
+missing_status=$?
+set -e
+(( missing_status != 0 )) || fail "migration runner exits non-zero when a prerequisite is missing"
+grep -q "requires missing prerequisite does-not-exist\.sh" "$missing_err" || fail "migration runner warns about missing prerequisite"
+[[ ! -f $missing_home/.local/state/omarchy/migrations/100-blocked.sh ]] || fail "blocked migration marker was created"
+[[ ! -s $missing_calls ]] || fail "blocked migration should not have run"
+pass "migration runner stops and warns before running migration with missing prerequisite"
