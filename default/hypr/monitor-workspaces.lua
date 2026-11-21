@@ -518,11 +518,19 @@ end
 
 -- Move the focused window onto the workspace the monitor in that direction
 -- shows, and follow it there.
+-- On a floating workspace the window then fits the new monitor
+-- (window-snapping.lua), so its box there is read before it moves.
 function M.move_window_to_monitor(direction)
   return action(function()
     local target = hl.get_monitor(direction)
     if target then
+      local window = hl.get_active_window()
+      local from = window and window.monitor
+      local before = window and window.at and window.size and { x = window.at.x, y = window.at.y, w = window.size.x, h = window.size.y }
       hl.dispatch(hl.dsp.window.move({ monitor = target.name }))
+      if window and o.snap and o.snap.carried then
+        o.snap.carried(window.address, from, before)
+      end
     end
   end, "o.workspaces.move_window_to_monitor(" .. literal(direction) .. ")")
 end
