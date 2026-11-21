@@ -285,7 +285,9 @@ machine() {
     t14-gen4) dmi product_name 21F60000US ;;
     rog-ally) asus_rog "ROG Ally RC71L_RC71L" RC71L ;;
     rog-ally-board-only) asus_rog "ROG Ally" RC71L ;;
-    rog-ally-product-only) asus_rog "ROG Ally RC71L_Action" "" ;;
+    rog-ally-product-only) asus_rog "ROG Ally RC71L" "" ;;
+    rog-ally-product-repeated) asus_rog "ROG Ally RC71L_RC71L" "" ;;
+    rog-ally-product-action) asus_rog "ROG Ally RC71L_Action" "" ;;
     rog-ally-near-match) asus_rog "ROG Ally RC71L2" RC71L2 ;;
     rog-ally-x) asus_rog "ROG Ally X RC72LA_RC72LA" RC72LA ;;
     rog-strix) asus_rog "ROG Strix G16" G614J ;;
@@ -472,6 +474,8 @@ hardware/surface.sh|surface-snapdragon|0
 hardware/asus-rog.sh|rog-ally|0
 hardware/asus-rog.sh|rog-ally-board-only|0
 hardware/asus-rog.sh|rog-ally-product-only|0
+hardware/asus-rog.sh|rog-ally-product-repeated|0
+hardware/asus-rog.sh|rog-ally-product-action|0
 hardware/asus-rog.sh|rog-ally-near-match|0|pkg-add asusctl
 hardware/asus-rog.sh|rog-ally-x|0|pkg-add asusctl
 hardware/asus-rog.sh|rog-strix|0|pkg-add asusctl
