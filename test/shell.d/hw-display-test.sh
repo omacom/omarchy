@@ -62,6 +62,15 @@ if hw_display >/dev/null 2>&1; then
 fi
 pass "the T2 Touch Bar is never used as the display backlight"
 
+write_backlights appledisplay0 nvidia_wmi_ec_backlight
+device=$(hw_display)
+[[ $device == "nvidia_wmi_ec_backlight" ]] || fail "an external Apple Cinema Display is never the built-in panel" "actual: $device"
+write_backlights appledisplay0
+if hw_display >/dev/null 2>&1; then
+  fail "an Apple Cinema Display alone is no display backlight"
+fi
+pass "an external Apple Cinema Display is never the built-in panel"
+
 write_backlights acpi_video0 amdgpu_bl0 appletb_backlight gmux_backlight intel_backlight
 device=$(hw_display)
 [[ $device == "gmux_backlight" ]] || fail "gmux outranks the GPU backlights on dual-GPU Macs" "actual: $device"

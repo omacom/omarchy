@@ -60,6 +60,20 @@ monitor_may_have_ddc() {
   return 0
 }
 
+# Apple's Cinema Displays dim through the backlight the kernel's appledisplay
+# driver registers (see 60-omarchy-apple-display-brightness.rules). The kernel
+# does not say which connector a USB backlight belongs to, so it drives the
+# focused monitor only when that is an Apple display, and only the first such
+# display is supported. The glob comes first, so other setups pay no hyprctl call.
+apple_display_backlight() {
+  local backlights=("${OMARCHY_BACKLIGHT_PATH:-/sys/class/backlight}"/appledisplay*)
+
+  [[ -n $monitor ]] && ! monitor_is_internal && [[ -e ${backlights[0]} ]] || return 1
+  hyprctl monitors -j | jq -e --arg monitor "$monitor" \
+    '.[] | select(.name == $monitor and .make == "Apple Computer Inc")' >/dev/null || return 1
+  printf '%s\n' "${backlights[0]##*/}"
+}
+
 # The kernel backlight is the built-in panel's, so an external monitor without
 # DDC fails rather than dimming the panel.
 use_backlight_display() {
@@ -69,6 +83,9 @@ use_backlight_display() {
 if (( $# == 0 )); then
   if use_apple_display; then
     omarchy-brightness-display-apple
+    exit
+  elif device="$(apple_display_backlight)"; then
+    backlight_brightness "$device"
     exit
   elif use_ddc_display; then
     omarchy-brightness-display-ddc "$monitor"
@@ -96,25 +113,9 @@ elif [[ $step == "on" ]]; then
   exit 0
 fi
 
-# Drop overlapping brightness key events so concurrent invocations do not race.
-# Hardware key repeat present on some devices can otherwise glitch OSD rendering.
-exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
-flock -n "$lock_fd" || exit 0
-
-if use_apple_display; then
-  if (( no_osd )); then
-    omarchy-brightness-display-apple --no-osd "$step"
-  else
-    omarchy-brightness-display-apple "$step"
-  fi
-elif use_ddc_display; then
-  brightness="$(omarchy-brightness-display-ddc "$monitor" "$step")" || exit 1
-  (( no_osd )) || omarchy-osd -i brightness -p "$brightness"
-elif ! use_backlight_display; then
-  exit 1
-else
-  # Current device highlighted
-  device="$(omarchy-hw-display)" || exit 1
+# Step a kernel backlight and show the result in the OSD.
+set_backlight_brightness() {
+  local device="$1" current target
 
   # Current brightness percentage
   current=$(backlight_brightness "$device") || exit 1
@@ -146,4 +147,28 @@ else
 
   # Show the new brightness in OSD
   (( no_osd )) || omarchy-osd -i brightness -p "$(backlight_brightness "$device")"
+}
+
+# Drop overlapping brightness key events so concurrent invocations do not race.
+# Hardware key repeat present on some devices can otherwise glitch OSD rendering.
+exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
+flock -n "$lock_fd" || exit 0
+
+if use_apple_display; then
+  if (( no_osd )); then
+    omarchy-brightness-display-apple --no-osd "$step"
+  else
+    omarchy-brightness-display-apple "$step"
+  fi
+elif device="$(apple_display_backlight)"; then
+  set_backlight_brightness "$device"
+elif use_ddc_display; then
+  brightness="$(omarchy-brightness-display-ddc "$monitor" "$step")" || exit 1
+  (( no_osd )) || omarchy-osd -i brightness -p "$brightness"
+elif ! use_backlight_display; then
+  exit 1
+else
+  # Current device highlighted
+  device="$(omarchy-hw-display)" || exit 1
+  set_backlight_brightness "$device"
 fi

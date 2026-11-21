@@ -23,8 +23,9 @@ fi
 
 usable() {
   local skip
-  # The Touch Bar on T2 Macs registers a backlight that never drives the display panel.
-  [[ -n $1 && $1 != appletb_backlight ]] || return 1
+  # The Touch Bar on T2 Macs registers a backlight that never drives the display panel,
+  # and so does an external Apple Cinema Display through the appledisplay driver.
+  [[ -n $1 && $1 != appletb_backlight && $1 != appledisplay* ]] || return 1
   for skip in "${skips[@]}"; do
     # shellcheck disable=SC2053 # a skip is a glob
     [[ $1 == $skip ]] && return 1
