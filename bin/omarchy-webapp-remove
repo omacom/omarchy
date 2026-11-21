@@ -15,7 +15,7 @@ DESKTOP_DIR="$HOME/.local/share/applications/"
 # the ones a reconstructed path cannot reach.
 WEB_APP_PATHS=()
 while IFS= read -r -d '' file; do
-  if grep -q '^Exec=.*\(omarchy-launch-webapp\|omarchy-webapp-handler\).*' "$file"; then
+  if grep -qE '^(X-Omarchy-WebApp=true|Exec=.*(omarchy-launch-webapp|omarchy-webapp-handler))' "$file"; then
     WEB_APPS+=("$(basename "${file%.desktop}")")
     WEB_APP_PATHS+=("$file")
   fi
