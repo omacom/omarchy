@@ -660,3 +660,32 @@ hl.dispatch(m.move_to_monitor("u"))
 check(world.windows["0xa"].workspace == 11 and world.focused == "DP-1", "a move toward no monitor did something")
 ' || fail "a window moves to the monitor in a direction, and nowhere when there is none"
 pass "a window moves to the monitor in a direction, and nowhere when there is none"
+
+run_lua fallback '
+plug("HDMI-A-1", 1, "Dock monitor", 1)
+world.focused = "HDMI-A-1"
+load_module()
+world.handlers["hyprland.start"]()
+for id = 1, 3 do window("0x" .. id, id) end
+
+-- DPMS briefly tears down the last real output. Hyprland parks its
+-- workspaces on FALLBACK until the display comes back.
+plug("FALLBACK", 2, "Fallback", 4)
+unplug("HDMI-A-1")
+world.handlers["monitor.removed"]({ name = "HDMI-A-1" })
+fire_timers()
+world.handlers["monitor.added"]({ name = "FALLBACK" })
+for id = 1, 3 do
+  check(world.windows["0x" .. id].workspace == id, "FALLBACK renumbered an existing workspace")
+end
+check(not state_file():find("FALLBACK", 1, true), "the temporary output claimed a workspace block")
+
+plug("HDMI-A-1", 3, "Dock monitor", 5)
+unplug("FALLBACK")
+world.handlers["monitor.added"]({ name = "HDMI-A-1" })
+for id = 1, 3 do
+  check(world.windows["0x" .. id].workspace == id and on(id) == "HDMI-A-1",
+    "the returning output did not retain a workspace and its number")
+end
+' || fail "a temporary fallback output preserves workspace numbers until the monitor returns"
+pass "a temporary fallback output preserves workspace numbers until the monitor returns"
