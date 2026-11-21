@@ -180,6 +180,7 @@ for script in bin/omarchy-install-openclaw-cli; do
     "$ROOT/$script" >"$mock_bin/${script##*/}"
 done
 chmod +x "$mock_bin/omarchy-install-openclaw-cli"
+ln -s "$ROOT/bin/omarchy-cmd-present" "$mock_bin/omarchy-cmd-present"
 
 new_home() {
   test_home="$test_tmp/$1"
@@ -208,6 +209,13 @@ run_update() {
   HOME="$test_home" OMARCHY_TEST_ROOT="$test_tmp" MISE_SHIMS_DIR='' MISE_DATA_DIR='' XDG_DATA_HOME='' PATH="$mock_bin:$test_tmp/tools" \
     "$@" >"$test_tmp/output" 2>&1
 }
+
+new_home absent
+run "$ROOT/bin/omarchy-openclaw-present" && fail "an absent OpenClaw does not count as installed"
+mkdir -p "$test_home/.config/systemd/user"
+touch "$test_home/.config/systemd/user/openclaw-gateway.service"
+run "$ROOT/bin/omarchy-openclaw-present" && fail "a gateway unit without its CLI does not hide installation"
+pass "a leftover gateway unit does not count as an installed OpenClaw"
 
 new_home usage
 run omarchy-install-openclaw-cli && fail "no mode is a usage error"
@@ -276,7 +284,9 @@ pass "a runtime that does not run fails the install"
 new_home foreign
 printf '#!/bin/bash\necho mine\n' >"$command"
 chmod +x "$command"
+run "$ROOT/bin/omarchy-openclaw-present" || fail "a user-installed CLI on PATH disables the installation entry"
 run omarchy-install-openclaw-cli --now && fail "a command that is the user's is not replaced"
+[[ ! -s $events ]] || fail "a user-installed CLI is rejected before installing another package" "$(cat "$events")"
 grep -q "Move it aside" "$test_tmp/output" || fail "a command that is the user's is named" "$(cat "$test_tmp/output")"
 [[ ! -L $command ]] && grep -q mine "$command" || fail "a command that is the user's is kept"
 run omarchy-install-openclaw-cli --check && fail "--check calls the runtime installed while the command is somebody else's"
