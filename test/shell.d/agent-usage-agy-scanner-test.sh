@@ -88,3 +88,121 @@ PY
 record=$(run_collector "$home" agy)
 expect_jq "Antigravity collector counts a subagent's conversation as part of its parent" '{totalPrompts, totalSessions, todaySessions}' \
   '{"totalPrompts":3,"totalSessions":2,"todaySessions":2}' "$record"
+
+# The desktop app keeps its own home, and no history.jsonl: its typed prompts
+# are the USER_INPUT steps. A completed planner turn writes exact token counts
+# into its conversation database, which wins over the transcript's own counts;
+# a database-only turn still counts under the model gen_metadata names.
+desktop="$home/.gemini/antigravity"
+mkdir -p "$desktop/brain/desk/.system_generated/logs" "$desktop/brain/dbonly"
+cat >"$desktop/brain/desk/.system_generated/logs/transcript_full.jsonl" <<'EOF'
+{"step_index":0,"type":"USER_INPUT","content":"desktop prompt","created_at":"2026-10-05T12:00:00Z"}
+{"step_index":1,"type":"PLANNER_RESPONSE","created_at":"2026-10-05T12:00:00Z","model":"Gemini 3.9 Desktop","usage":{"prompt_token_count":999,"candidates_token_count":999}}
+{"step_index":2,"type":"PLANNER_RESPONSE","created_at":"2026-10-05T12:00:00Z","model":"Gemini 3.9 Desktop","usage":{"prompt_token_count":20,"candidates_token_count":5}}
+EOF
+mkdir -p "$desktop/brain/fallback/.system_generated/logs" "$desktop/brain/damaged/.system_generated/logs"
+cat >"$desktop/brain/fallback/.system_generated/logs/transcript_full.jsonl" <<'EOF'
+{"step_index":0,"type":"PLANNER_RESPONSE","created_at":"2026-10-05T12:00:00Z","usage":{"prompt_token_count":999,"candidates_token_count":999}}
+EOF
+cat >"$desktop/brain/damaged/.system_generated/logs/transcript_full.jsonl" <<'EOF'
+{"step_index":0,"type":"PLANNER_RESPONSE","created_at":"2026-10-05T12:00:00Z","model":"Gemini 3.9 Damaged","usage":{"prompt_token_count":7,"candidates_token_count":2}}
+EOF
+python3 - "$desktop" <<'PY'
+import datetime as dt
+import sqlite3
+import sys
+from pathlib import Path
+
+desktop = Path(sys.argv[1])
+
+
+def varint(value):
+  out = bytearray()
+  while True:
+    byte = value & 0x7f
+    value >>= 7
+    if value:
+      out.append(byte | 0x80)
+    else:
+      out.append(byte)
+      return bytes(out)
+
+
+def field(number, wire, payload):
+  key = varint((number << 3) | wire)
+  if wire == 2:
+    return key + varint(len(payload)) + payload
+  return key + varint(payload)
+
+
+def usage(input_tokens, output_tokens, cache_read, cache_write):
+  return b"".join([
+    field(2, 0, input_tokens), field(3, 0, output_tokens),
+    field(4, 0, cache_write), field(5, 0, cache_read),
+  ])
+
+
+seconds = int(dt.datetime(2026, 10, 5, 12, tzinfo=dt.timezone.utc).timestamp())
+timestamp = field(1, 0, seconds) + field(2, 0, 0)
+metadata = field(1, 2, timestamp) + field(9, 2, usage(11, 7, 3, 1))
+
+
+def conversation(name, rows, model):
+  db = sqlite3.connect(desktop / "conversations" / f"{name}.db")
+  db.execute("CREATE TABLE steps (idx INTEGER PRIMARY KEY, step_type INTEGER, status INTEGER, metadata BLOB)")
+  db.execute("CREATE TABLE gen_metadata (idx INTEGER PRIMARY KEY, data BLOB)")
+  db.executemany("INSERT INTO steps VALUES (?, ?, ?, ?)", rows)
+  db.execute("INSERT INTO gen_metadata VALUES (0, ?)", (model.encode(),))
+  db.commit()
+  db.close()
+
+
+(desktop / "conversations").mkdir()
+conversation("desk", [
+  (1, 15, 3, metadata),
+  # An incomplete turn is not usage yet.
+  (2, 15, 2, field(1, 2, timestamp) + field(9, 2, usage(500, 500, 0, 0))),
+], "gemini-3.9-desktop")
+conversation("dbonly", [(0, 15, 3, field(1, 2, timestamp) + field(9, 2, usage(4, 2, 0, 0)))], "gemini-3.9-db")
+conversation("fallback", [(0, 15, 3, field(1, 2, timestamp) + field(9, 2, usage(6, 3, 0, 0)))], "gemini-3.9-fallback")
+# A damaged count is not usage, so the transcript's own counts stand.
+conversation("damaged", [(0, 15, 3, field(1, 2, timestamp) + field(9, 2, usage(2**63, 0, 0, 0)))], "gemini-3.9-damaged")
+
+summaries = sqlite3.connect(desktop / "conversation_summaries.db")
+summaries.execute("CREATE TABLE conversation_summaries (conversation_id TEXT, last_modified_time TEXT, parent_conversation_id TEXT)")
+summaries.executemany("INSERT INTO conversation_summaries VALUES (?, ?, ?)", [
+  ("desk", "2026-10-05T12:00:00Z", ""), ("dbonly", "2026-10-05T12:00:00Z", "")])
+summaries.commit()
+summaries.close()
+PY
+
+record=$(run_collector "$home" agy)
+expect_jq "Antigravity collector counts the desktop app and lets an exact database turn win over its transcript" \
+  '.modelUsage["gemini-3.9-desktop"]' \
+  '{"inputTokens":31,"outputTokens":12,"cacheReadInputTokens":3,"cacheCreationInputTokens":1}' "$record"
+expect_jq "Antigravity collector counts a database-only turn under the model gen_metadata names" \
+  '.modelUsage["gemini-3.9-db"]' \
+  '{"inputTokens":4,"outputTokens":2,"cacheReadInputTokens":0,"cacheCreationInputTokens":0}' "$record"
+expect_jq "Antigravity collector dates a desktop prompt from its USER_INPUT step and counts it once" \
+  '{totalPrompts, desktopDay: (.activeDates | index("2026-10-05") != null)}' \
+  '{"totalPrompts":4,"desktopDay":true}' "$record"
+expect_jq "Antigravity collector files an exact turn with no transcript model under the model gen_metadata names" \
+  '.modelUsage["gemini-3.9-fallback"]' \
+  '{"inputTokens":6,"outputTokens":3,"cacheReadInputTokens":0,"cacheCreationInputTokens":0}' "$record"
+expect_jq "Antigravity collector does not file that turn as unknown" \
+  '(.modelUsage | has("unknown"))' \
+  'false' "$record"
+expect_jq "Antigravity collector drops a damaged exact count and keeps the transcript's counts" \
+  '{model: (.modelUsage["gemini-3.9-damaged"] | {inputTokens, outputTokens}), inflated: ([.modelUsage[].inputTokens] | max > 1000000000)}' \
+  '{"model":{"inputTokens":7,"outputTokens":2},"inflated":false}' "$record"
+
+# A conversation database that exists but can't be read leaves the scan
+# incomplete, so its missing turns must not be cached as a complete scan.
+broken_home=$(new_home)
+mkdir -p "$broken_home/.gemini/antigravity/conversations"
+printf 'not a database\n' >"$broken_home/.gemini/antigravity/conversations/broken.db"
+run_collector "$broken_home" agy -- >/dev/null
+if compgen -G "$broken_home/.cache/omarchy/agent-usage/agy-scan-*.json" >/dev/null; then
+  fail "Antigravity collector does not cache a scan whose conversation database can't be read"
+fi
+pass "Antigravity collector does not cache a scan whose conversation database can't be read"
