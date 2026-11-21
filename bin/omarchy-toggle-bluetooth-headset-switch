@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle switching Bluetooth headsets to headset mode when an app opens the microphone
+# omarchy:args=[toggle|on|off]
+# omarchy:examples=omarchy toggle bluetooth headset switch off | omarchy toggle bluetooth headset switch on
+
+# WirePlumber moves a headset from music mode (A2DP: stereo, LDAC/AAC) to
+# headset mode (HFP: mono, mSBC/CVSD, with its microphone) whenever an app opens
+# a microphone. Off keeps the headset in music mode; calls then use another
+# microphone, such as the laptop's. On returns to WirePlumber's default rather
+# than saving true, so a later change of default still reaches this machine.
+
+set -euo pipefail
+
+KEY="bluetooth.autoswitch-to-headset-profile"
+
+enabled() {
+  [[ $(wpctl settings "$KEY" 2>/dev/null) != *"Value: false"* ]]
+}
+
+case ${1:-toggle} in
+  toggle)
+    if enabled; then
+      state=off
+    else
+      state=on
+    fi
+    ;;
+  on | off) state=$1 ;;
+  *)
+    echo "Usage: omarchy-toggle-bluetooth-headset-switch [toggle|on|off]" >&2
+    exit 1
+    ;;
+esac
+
+if [[ $state == "off" ]]; then
+  wpctl settings --save "$KEY" false >/dev/null
+else
+  wpctl settings --delete "$KEY" >/dev/null
+  wpctl settings --reset "$KEY" >/dev/null
+fi
