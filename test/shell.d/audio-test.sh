@@ -154,3 +154,13 @@ const panel = read('shell/plugins/panels/audio/Panel.qml')
   assertEqual(state.volumeSinkName, 'alsa_output.usb-headset', 'a script read that predates a switch to hardware cannot overwrite it')
 }
 JS
+
+# A stream label comes from outside, so a label naming an Object.prototype
+# member is just a label. A plain map answers for those members, and the
+# label lookup then hands back a function instead of the label.
+run_node_test <<'JS'
+const audio = requireFromRoot('shell/plugins/panels/audio/Model.js')
+assertEqual(audio.friendlyStreamLabel('constructor'), 'constructor', 'audio leaves an inherited member name as the stream label')
+assertEqual(audio.friendlyStreamLabel('toString'), 'toString', 'audio leaves an inherited method name as the stream label')
+assertEqual(audio.friendlyStreamLabel('spotify'), 'Spotify', 'audio still normalizes known stream labels')
+JS
