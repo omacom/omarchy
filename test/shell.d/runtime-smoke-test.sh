@@ -494,7 +494,7 @@ selector_done_file=$(mktemp "$SCRATCH_DIR/selector-done.XXXXXX")
 rm -f "$selector_done_file"
 selector_open=""
 for _ in {1..80}; do
-  selector_open=$(scratch_ipc image-selector open "" "$selector_rows_b64" "" "$selector_selection_file" "$selector_done_file" false false 2>/dev/null || true)
+  selector_open=$(scratch_ipc image-selector open "" "$selector_rows_b64" "" "$selector_selection_file" "$selector_done_file" false false false 2>/dev/null || true)
   if [[ $selector_open == "ok" ]]; then
     break
   fi
