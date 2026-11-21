@@ -48,7 +48,7 @@ cleanup_update() {
   trap - EXIT HUP INT TERM
   end_update_authorization
   if (( update_stay_awake_stopped == 0 )); then
-    omarchy-update-stay-awake stop || status=1
+    "$OMARCHY_PATH/bin/omarchy-update-stay-awake" stop || status=1
   fi
   exit "$status"
 }
@@ -98,7 +98,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   omarchy-snapshot create || (($? == 127)) ||
     echo -e "\e[33m$(omarchy-i18n update.noSnapshot)\e[0m" >&2
 
-  omarchy-update-stay-awake start
+  "$OMARCHY_PATH/bin/omarchy-update-stay-awake" start
 
   # Preserve the established development-checkout update ordering.
   omarchy-update-dev
@@ -149,7 +149,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # before offering a reboot: a confirmed reboot can terminate this
   # process before its EXIT trap gets a chance to remove the persistent Stay
   # Awake marker.
-  omarchy-update-stay-awake stop
+  "$OMARCHY_PATH/bin/omarchy-update-stay-awake" stop
   update_stay_awake_stopped=1
 
   if (( mise_updated == 0 )); then
