@@ -243,6 +243,33 @@ run_watch
 pass "the fallback name can be muted like any other"
 mute unknown off
 
+traced_entry() {
+  local comm="$1" status="$2"
+
+  jq -cn --arg uid "$UID" --arg comm "$comm" --argjson status "$status" \
+    '{_UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
+      COREDUMP_EXE: ("/usr/bin/" + $comm), COREDUMP_SIGNAL_NAME: "SIGTRAP",
+      COREDUMP_PROC_STATUS: $status}' >>"$JOURNAL_ENTRIES"
+}
+
+reset_entries
+traced_entry steamwebhelper '"Name:\tsteamwebhelper\nTracerPid:\t613146\nNSpid:\t613739\t1672\n"'
+traced_entry nautilus '"Name:\tnautilus\nTracerPid:\t0\n"'
+run_watch
+! announced steamwebhelper ||
+  fail "a crash under strace or gdb offers a diagnosis to someone already debugging it"
+announced nautilus ||
+  fail "a TracerPid of 0 is read as traced, so every crash with a recorded status goes silent"
+pass "a traced crash stays quiet while an untraced one still announces"
+
+# journalctl represents non-UTF-8 fields as byte arrays.
+reset_entries
+traced_entry nautilus '[78,97,109,101,58,9,255,10]'
+run_watch
+announced nautilus ||
+  fail "a status journalled as bytes drops the crash instead of announcing it"
+pass "a status journalled as bytes still announces"
+
 # What omarchy-crash-mute does on its own. That it agrees with the watcher is
 # already covered above, which drives it for every mute it makes.
 mute_home="$TMPDIR/mute-home"
