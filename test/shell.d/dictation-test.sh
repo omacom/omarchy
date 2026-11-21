@@ -92,6 +92,8 @@ cat > "$test_tmp/bin/systemctl" <<'SH'
 #!/bin/bash
 if [[ $* == "--user is-active --quiet superwhisper.service" ]]; then
   [[ ${DICTATION_SERVICE_ACTIVE:-1} == 1 ]]
+elif [[ $* == "--user show-environment" || $* == "--user cat "* ]]; then
+  exit "${SERVICE_EXIT:-0}"
 else
   printf '%s %s\n' "${0##*/}" "$*" >> "$DICTATION_LOG"
   exit "${SERVICE_EXIT:-0}"
@@ -242,20 +244,32 @@ pass "Voxtype retries incomplete model and service setup without replacing confi
 if DICTATION_EXIT=7 omarchy-dictation-use superwhisper > "$test_tmp/output" 2>&1; then fail "failed stop must prevent switching"; fi
 [[ $(cat "$config") == "voxtype" ]] || fail "failed stop preserves selection"
 omarchy-dictation-use superwhisper
-[[ $(cat "$DICTATION_LOG") == $'voxtype status\nvoxtype record stop\nvoxtype status\nvoxtype record stop' ]] || fail "switch stops the previous backend"
+[[ $(cat "$DICTATION_LOG") == $'voxtype status\nvoxtype record stop\nvoxtype status\nvoxtype record stop\nsystemctl --user enable --now superwhisper.service\nsystemctl --user disable --now voxtype.service' ]] || fail "switch stops the previous backend and swaps services"
 [[ $(cat "$config") == "superwhisper" ]] || fail "successful stop permits switching"
 : > "$DICTATION_LOG"
 omarchy-dictation-use superwhisper
 [[ ! -s $DICTATION_LOG ]] || fail "reselecting does not interrupt recording"
 printf '%s\n' voxtype > "$config"
+: > "$DICTATION_LOG"
 VOXTYPE_STATUS=stopped omarchy-dictation-use superwhisper
+grep -qx "systemctl --user disable --now voxtype.service" "$DICTATION_LOG" || fail "switch disables the previous service even when its daemon is stopped"
+grep -qx "systemctl --user enable --now superwhisper.service" "$DICTATION_LOG" || fail "switch starts a previously disabled backend"
 [[ $(cat "$config") == "superwhisper" ]] || fail "a stopped Voxtype daemon permits switching"
 printf '%s\n' superwhisper > "$config"
+: > "$DICTATION_LOG"
 DICTATION_SERVICE_ACTIVE=0 omarchy-dictation-use voxtype
+grep -qx "systemctl --user disable --now superwhisper.service" "$DICTATION_LOG" || fail "switch disables the previous service even when its unit is inactive"
 [[ $(cat "$config") == "voxtype" ]] || fail "a stopped Superwhisper service permits switching"
 printf '%s\n' removed-backend > "$config"
+: > "$DICTATION_LOG"
 omarchy-dictation-use voxtype
+if grep -q 'removed-backend.service' "$DICTATION_LOG"; then fail "an unknown backend does not identify a managed service"; fi
 [[ $(cat "$config") == "voxtype" ]] || fail "a removed adapter permits recovery"
+: > "$DICTATION_LOG"
+omarchy-dictation-use addon
+if grep -q 'addon.service' "$DICTATION_LOG"; then fail "selecting an add-on does not start an unrelated unit"; fi
+[[ $(cat "$config") == "addon" ]] || fail "an add-on backend can be selected"
+printf '%s\n' voxtype > "$config"
 pass "switching stops recordings, preserves failed stops, and recovers unavailable providers"
 
 # Readers may run throughout a switch, but must never observe a truncated file.
