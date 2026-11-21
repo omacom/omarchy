@@ -60,6 +60,8 @@ into history — "what did I miss while silenced" is what history is for.
 Ephemeral ones (the freedesktop `transient` hint, or an `app_name` of
 `notify-send`/`omarchy-action`) are dropped entirely.
 
+The optional `dropPrefixes` array in the same settings file filters by the start of the summary or body, after trimming leading whitespace. Matching is case-sensitive. Unlike DND, every matching notification goes straight to history, including ephemeral ones. Filtering happens before the DND check and does not change the DND preference.
+
 ## The sender contract
 
 `bin/omarchy-notification-send` is the one way Omarchy code sends

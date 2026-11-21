@@ -121,6 +121,18 @@ function shouldBypassDnd(notification, criticalUrgency) {
   return appName === "notify-send" && notification && notification.urgency === criticalUrgency
 }
 
+function matchesDropPrefix(notification, dropPrefixes) {
+  if (!Array.isArray(dropPrefixes)) return false
+  var summary = String((notification && notification.summary) || "").replace(/^\s+/, "")
+  var body = String((notification && notification.body) || "").replace(/^\s+/, "")
+  for (var i = 0; i < dropPrefixes.length; i++) {
+    var prefix = dropPrefixes[i]
+    if (typeof prefix === "string" && prefix.length > 0 &&
+        (summary.indexOf(prefix) === 0 || body.indexOf(prefix) === 0)) return true
+  }
+  return false
+}
+
 function isEphemeralApp(appName) {
   var name = String(appName || "")
   return name === "notify-send" || name === "omarchy-action"
@@ -252,23 +264,31 @@ function historyEntry(value, normalUrgency) {
   }
 }
 
-// notifications.json holds nothing but the last-set DND preference now that
-// history is a directory of files. Older versions kept `pending`/`past`
-// (and, older still, `entries`) arrays in there; their presence is reported
-// so the service can rewrite the file without the dead payload.
+// notifications.json holds the DND preference and text prefixes to filter.
+// Older versions kept `pending`/`past` (and, older still, `entries`) arrays in
+// there; their presence is reported so the service can rewrite the file
+// without the dead payload.
 function parseSettings(raw) {
   var text = String(raw || "").trim()
-  if (!text) return { error: false, dnd: null, legacy: false }
+  if (!text) return { error: false, dnd: null, dropPrefixes: [], legacy: false }
 
   try {
     var parsed = JSON.parse(text)
+    var dropPrefixes = []
+    if (parsed && Array.isArray(parsed.dropPrefixes)) {
+      for (var i = 0; i < parsed.dropPrefixes.length; i++) {
+        var prefix = parsed.dropPrefixes[i]
+        if (typeof prefix === "string" && prefix.length > 0) dropPrefixes.push(prefix)
+      }
+    }
     return {
       error: false,
       dnd: parsed && typeof parsed.dnd === "boolean" ? parsed.dnd : null,
+      dropPrefixes: dropPrefixes,
       legacy: !!(parsed && (parsed.pending || parsed.past || parsed.entries))
     }
   } catch (e) {
-    return { error: true, errorMessage: String(e), dnd: null, legacy: false }
+    return { error: true, errorMessage: String(e), dnd: null, dropPrefixes: [], legacy: false }
   }
 }
 
@@ -453,6 +473,7 @@ if (typeof module !== "undefined") {
     styledBody: styledBody,
     summaryStartsWithGlyph: summaryStartsWithGlyph,
     shouldBypassDnd: shouldBypassDnd,
+    matchesDropPrefix: matchesDropPrefix,
     isEphemeralApp: isEphemeralApp,
     stringHint: stringHint,
     glyphFromHints: glyphFromHints,

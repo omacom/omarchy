@@ -78,6 +78,7 @@ Item {
   property bool _hydrating: false
 
   readonly property alias doNotDisturb: persisted.doNotDisturb
+  property var dropPrefixes: []
 
   function setDoNotDisturb(value) {
     persisted.doNotDisturb = !!value
@@ -166,6 +167,11 @@ Item {
       if (service.liveRefs[snapshot.originalId] === notification)
         delete service.liveRefs[snapshot.originalId]
     })
+
+    if (NotificationLogic.matchesDropPrefix(notification, service.dropPrefixes)) {
+      writeSilenced(notification, snapshot)
+      return
+    }
 
     // DND bypass rules: chat apps abuse urgency=critical to force
     // visibility, so critical alone isn't enough — we also require the
@@ -821,6 +827,8 @@ Item {
       service._hydrating = false
     }
 
+    service.dropPrefixes = parsed.dropPrefixes
+
     service.settingsLoaded = true
     // Versions before the history moved into its own directory kept every
     // notification in here. Rewrite once so that dead payload doesn't sit in
@@ -829,7 +837,7 @@ Item {
   }
 
   function flushSettings() {
-    settingsFile.setText(JSON.stringify({ version: 3, dnd: persisted.doNotDisturb }, null, 2) + "\n")
+    settingsFile.setText(JSON.stringify({ version: 3, dnd: persisted.doNotDisturb, dropPrefixes: service.dropPrefixes }, null, 2) + "\n")
   }
 
   Component.onCompleted: {

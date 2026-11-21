@@ -194,6 +194,14 @@ assert(!notifications.shouldBypassDnd({ appName: 'Slack', urgency: 2 }, 2), 'cri
 assert(!notifications.shouldBypassDnd({ appName: 'omarchy-menu-keybindings', urgency: 1 }, 2), 'omarchy command app names do not bypass DND')
 assert(!notifications.isEphemeralApp('omarchy-menu-keybindings'), 'notifications treat omarchy command app names as normal apps')
 
+assert(notifications.matchesDropPrefix({ summary: 'Ghostty', body: 'Lane message from w86: ready' }, ['Lane message from']), 'notifications match a body prefix')
+assert(notifications.matchesDropPrefix({ summary: '  Automated alert', body: '' }, ['Automated']), 'notifications trim leading summary whitespace before matching')
+assert(notifications.matchesDropPrefix({ summary: 'Ghostty', body: '\t\nLane message from w86: ready' }, ['Lane message from']), 'notifications trim leading body whitespace before matching')
+assert(!notifications.matchesDropPrefix({ summary: 'Ghostty', body: 'A Lane message from w86: ready' }, ['Lane message from']), 'notifications do not match prefixes inside the text')
+assert(!notifications.matchesDropPrefix({ summary: 'lane message from w86', body: '' }, ['Lane message from']), 'notifications match prefixes case-sensitively')
+assert(!notifications.matchesDropPrefix({ summary: 'Ghostty', body: 'Lane message from w86' }, ['', 'Other']), 'notifications ignore empty prefixes')
+assert(!notifications.matchesDropPrefix({ summary: 'Ghostty', body: 'Lane message from w86' }, []), 'notifications allow an empty prefix list')
+
 // The click action's argv form: parsed from the persisted omarchy-exec-argv
 // JSON only when it is a non-empty array of strings whose program is present
 // and not a leading-dash option. Everything else fails closed so a malformed or
@@ -370,6 +378,18 @@ assertEqual(
   'notifications flag a settings file still carrying the retired history rows'
 )
 assert(notifications.parseSettings('{').error, 'notifications flag invalid settings JSON')
+assertDeepEqual(
+  notifications.parseSettings(JSON.stringify({ version: 3, dnd: false, dropPrefixes: ['Lane message from', 'Automated'] })).dropPrefixes,
+  ['Lane message from', 'Automated'],
+  'notifications load text prefixes from settings'
+)
+assertDeepEqual(notifications.parseSettings('').dropPrefixes, [], 'notifications default to no text prefixes')
+assertDeepEqual(
+  notifications.parseSettings(JSON.stringify({ dropPrefixes: ['Keep', '', 5, null, 'Drop'] })).dropPrefixes,
+  ['Keep', 'Drop'],
+  'notifications keep only non-empty text prefixes'
+)
+assertDeepEqual(notifications.parseSettings(JSON.stringify({ dropPrefixes: 'Lane message' })).dropPrefixes, [], 'notifications reject a non-array prefix setting')
 
 // History is the notification files moved into the history dir, read back
 // exactly like live popup files.
@@ -618,6 +638,10 @@ assert(
 assert(
   /rm -f \\"\$1\/\$2\.json\\" \\"\$3\/\$2\\"-\*/.test(serviceQml),
   'notifications service deletes a superseded popup\'s image copies with its file'
+)
+assert(
+  /if \(NotificationLogic\.matchesDropPrefix\(notification, service\.dropPrefixes\)\) \{\s*\n\s*writeSilenced\(notification, snapshot\)/.test(serviceQml),
+  'notifications service records prefix-filtered notifications straight into history'
 )
 assert(
   /if \(!isEphemeral\(notification\)\) \{\s*\n\s*writeSilenced\(notification, snapshot\)/.test(serviceQml),

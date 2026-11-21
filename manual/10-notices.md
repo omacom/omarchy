@@ -21,3 +21,19 @@ The location is detected from your IP address, which is usually close enough, bu
 `Super + Ctrl + Alt + B`
 
  ![notice-battery](images/notice-battery.webp)
+
+### Filter by text
+
+You can send notifications straight to history when their summary or body starts with specific text. Add case-sensitive prefixes to `~/.local/state/omarchy/notifications.json`:
+
+```json
+{
+  "version": 3,
+  "dnd": false,
+  "dropPrefixes": [
+    "Lane message from"
+  ]
+}
+```
+
+Leading whitespace is ignored. Run `omarchy-restart-shell` after editing the file. Filtered notifications do not appear as toasts, but remain available in notification history with `Super + Shift + Alt + Comma`. Keep your existing `dnd` value when editing the file.
