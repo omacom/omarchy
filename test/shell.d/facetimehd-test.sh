@@ -9,6 +9,8 @@ hw="$ROOT/bin/omarchy-hw-facetimehd"
 all="$ROOT/install/hardware/all.sh"
 manual="$ROOT/manual/44-mac-support.md"
 other_packages="$ROOT/install/omarchy-other.packages"
+guard="$ROOT/bin/omarchy-system-sleep-facetimehd"
+dropin="$ROOT/default/systemd/system/omarchy-facetimehd-hibernate.conf"
 
 grep -q 'apple/fix-facetimehd.sh' "$all" ||
   fail "the FaceTime HD fix runs during hardware setup"
@@ -26,6 +28,9 @@ grep -q '14e4:1570' "$hw" ||
   fail "the detector matches the Broadcom 1570 PCI ID"
 grep -q 'FaceTime HD' "$manual" ||
   fail "Mac support documents the FaceTime HD camera"
+{ grep -Fxq 'ExecStartPre=/usr/bin/omarchy-system-sleep-facetimehd pre' "$dropin" &&
+  grep -Fxq 'ExecStopPost=/usr/bin/omarchy-system-sleep-facetimehd post' "$dropin"; } ||
+  fail "the hibernation drop-in runs the guard before the sleep and after it"
 pass "the FaceTime HD fix is wired into hardware setup"
 
 test_tmp=$(mktemp -d)
@@ -82,13 +87,13 @@ printf '\t%s' "$@" >>"$TEST_LOG"
 printf '\n' >>"$TEST_LOG"
 SH
 
+# Records the privileged call without making it, so nothing reaches this machine's /etc or systemd.
 cat >"$stub_bin/sudo" <<'SH'
 #!/bin/bash
 
 printf 'sudo' >>"$TEST_LOG"
 printf '\t%s' "$@" >>"$TEST_LOG"
 printf '\n' >>"$TEST_LOG"
-"$@"
 SH
 
 install -m0755 "$hw" "$stub_bin/omarchy-hw-facetimehd"
@@ -111,17 +116,27 @@ run_leaf() {
   : >"$calls"
   : >"$installed"
   FACETIMEHD_HARDWARE="$hardware" FACETIMEHD_PROVIDED="$provided" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
-    TEST_INSTALLED="$installed" bash -euo pipefail -c 'source "$1"' _ "$leaf"
+    TEST_INSTALLED="$installed" OMARCHY_PATH="$ROOT" bash -euo pipefail -c 'source "$1"' _ "$leaf"
 }
 
-fetcher_enabled=$'systemctl\tenable\tfacetimehd-firmware-fetcher.service'
+fetcher_enabled=$'sudo\tsystemctl\tenable\tfacetimehd-firmware-fetcher.service'
+
+guarded() {
+  local unit
+  for unit in systemd-hibernate systemd-hybrid-sleep systemd-suspend-then-hibernate; do
+    grep -Fxq "sudo"$'\t'"install"$'\t'"-Dm644"$'\t'"$dropin"$'\t'"/etc/systemd/system/$unit.service.d/omarchy-facetimehd.conf" "$calls" ||
+      return 1
+  done
+  grep -Fxq $'sudo\tsystemctl\tdaemon-reload' "$calls"
+}
 
 run_leaf 1
 grep -Fxq $'omarchy-pkg-add\tfacetimehd-dkms\tfacetimehd-firmware-fetcher' "$calls" ||
   fail "leaf installs the DKMS module and the firmware fetcher" "$(cat "$calls")"
 grep -Fxq "$fetcher_enabled" "$calls" ||
   fail "leaf enables the fetch for a first boot with a network" "$(cat "$calls")"
-pass "leaf installs the DKMS module and the firmware fetcher, and enables the fetch"
+guarded || fail "leaf guards every hibernating sleep" "$(cat "$calls")"
+pass "leaf installs the DKMS module and the firmware fetcher, enables the fetch, and guards hibernation"
 
 run_leaf 1 facetimehd-dkms
 grep -Fxq $'omarchy-pkg-add\tfacetimehd-firmware-fetcher' "$calls" ||
@@ -133,11 +148,81 @@ grep -Fxq $'omarchy-pkg-add\tfacetimehd-firmware-fetcher' "$calls" ||
   fail "leaf keeps the legacy bcwc-pcie driver" "$(cat "$calls")"
 pass "leaf keeps the legacy bcwc-pcie driver"
 
-run_leaf 1 "facetimehd-dkms facetimehd-data"
-! grep -q -e omarchy-pkg-add -e systemctl "$calls" ||
+run_leaf 1 facetimehd-data
+grep -Fxq $'omarchy-pkg-add\tfacetimehd-dkms\tfacetimehd-firmware-fetcher' "$calls" ||
+  fail "calibration from the AUR does not stand in for the firmware" "$(cat "$calls")"
+pass "calibration from the AUR does not stand in for the firmware"
+
+run_leaf 1 "facetimehd-dkms facetimehd-firmware"
+! grep -q -e omarchy-pkg-add -e "$fetcher_enabled" "$calls" ||
   fail "leaf installs nothing where the driver and firmware are already provided" "$(cat "$calls")"
-pass "leaf installs nothing where the driver and firmware are already provided"
+guarded || fail "a Mac keeping its AUR driver still has hibernation guarded" "$(cat "$calls")"
+pass "leaf installs nothing where the driver and firmware are already provided, and still guards hibernation"
 
 run_leaf 0
 [[ ! -s $calls ]] || fail "non-matching hardware is a no-op" "$(cat "$calls")"
 pass "leaf is a no-op on machines without a FaceTime HD camera"
+
+# The guard, run as the hibernating sleep units run it, against a stand-in module, /proc and logind.
+guard_root="$test_tmp/guard"
+mkdir -p "$guard_root/proc/4242/fd" "$guard_root/module"
+echo chromium >"$guard_root/proc/4242/comm"
+ln -s /dev/video0 "$guard_root/proc/4242/fd/7"
+
+cat >"$stub_bin/modprobe" <<'SH'
+#!/bin/bash
+
+printf 'modprobe' >>"$TEST_LOG"
+printf '\t%s' "$@" >>"$TEST_LOG"
+printf '\n' >>"$TEST_LOG"
+[[ $1 != -r || -z ${MODULE_BUSY:-} ]]
+SH
+
+cat >"$stub_bin/loginctl" <<'SH'
+#!/bin/bash
+
+echo '2 1000 mac seat0 1234 user tty1 no -'
+echo '5 1000 mac -    9876 manager - no -'
+SH
+
+cat >"$stub_bin/runuser" <<'SH'
+#!/bin/bash
+
+printf 'runuser' >>"$TEST_LOG"
+printf '\t%s' "$@" >>"$TEST_LOG"
+printf '\n' >>"$TEST_LOG"
+SH
+chmod +x "$stub_bin"/*
+
+run_guard() {
+  : >"$calls"
+  PATH="$stub_bin:$PATH" TEST_LOG="$calls" OMARCHY_FACETIMEHD_MODULE="$guard_root/$1" \
+    OMARCHY_FACETIMEHD_MARKER="$guard_root/unloaded" OMARCHY_FACETIMEHD_PROC="$guard_root/proc" \
+    MODULE_BUSY="${3:-}" "$guard" "$2" 2>"$test_tmp/guard.err"
+}
+
+run_guard absent pre || fail "the guard lets a Mac without the driver loaded hibernate"
+[[ ! -e $guard_root/unloaded && ! -s $calls ]] || fail "the guard leaves an unloaded driver alone" "$(cat "$calls")"
+pass "the guard lets a Mac without the driver loaded hibernate"
+
+run_guard module pre || fail "the guard unloads an idle driver before hibernating" "$(cat "$test_tmp/guard.err")"
+{ grep -Fxq $'modprobe\t-r\tfacetimehd' "$calls" && [[ -e $guard_root/unloaded ]]; } ||
+  fail "the guard unloads an idle driver before hibernating" "$(cat "$calls")"
+run_guard module post
+{ grep -Fxq $'modprobe\tfacetimehd' "$calls" && [[ ! -e $guard_root/unloaded ]]; } ||
+  fail "the guard loads the driver again after resuming" "$(cat "$calls")"
+pass "the guard unloads an idle driver for hibernation and loads it again after"
+
+run_guard module post
+[[ ! -s $calls ]] || fail "the guard does not load a driver it did not unload" "$(cat "$calls")"
+pass "the guard does not load a driver it did not unload"
+
+if run_guard module pre busy; then
+  fail "the guard cancels hibernation while the camera is in use"
+fi
+grep -q 'chromium' "$test_tmp/guard.err" || fail "the refusal names the app using the camera" "$(cat "$test_tmp/guard.err")"
+grep -q $'^runuser\t-u\tmac\t.*omarchy-notification-send\t-u\tcritical\tHibernation cancelled\tClose chromium' "$calls" ||
+  fail "the refusal notifies the person at the seat" "$(cat "$calls")"
+[[ $(grep -c '^runuser' "$calls") == 1 && ! -e $guard_root/unloaded ]] ||
+  fail "only the seat session is notified, and nothing is marked unloaded" "$(cat "$calls")"
+pass "the guard cancels hibernation while the camera is in use, and says which app to close"

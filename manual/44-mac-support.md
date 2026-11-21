@@ -43,7 +43,9 @@ Members of the community are constantly working on solutions to these challenges
 
 #### FaceTime HD Camera
 
-Close any app using the camera before hibernating. The camera driver is unloaded for hibernation because it hangs the machine otherwise, and it cannot be unloaded while the camera is in use.
+The camera driver hangs the machine if it is loaded when the Mac hibernates, so it is unloaded first. It cannot be unloaded while an app has the camera open, so hibernation is cancelled with a notification naming the app: close it and hibernate again.
+
+The camera's firmware is downloaded from Apple, so the camera starts working within about 15 minutes of the Mac first being online. If it does not appear, `journalctl -u facetimehd-firmware-fetcher` says why, and `sudo systemctl restart facetimehd-firmware-fetcher` tries again.
 
 #### Devices with T1 Chip
 

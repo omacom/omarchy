@@ -8,12 +8,19 @@ if omarchy-hw-facetimehd; then
   packages=()
   pacman -T facetimehd-dkms >/dev/null || pacman -T bcwc-pcie >/dev/null ||
     pacman -T bcwc-pcie-dkms >/dev/null || packages+=(facetimehd-dkms)
-  pacman -T facetimehd-firmware >/dev/null || pacman -T facetimehd-data >/dev/null ||
-    pacman -T bcwc-pcie-firmware >/dev/null || packages+=(facetimehd-firmware-fetcher)
+  pacman -T facetimehd-firmware >/dev/null || pacman -T bcwc-pcie-firmware >/dev/null ||
+    packages+=(facetimehd-firmware-fetcher)
   (( ${#packages[@]} == 0 )) || omarchy-pkg-add "${packages[@]}"
 
   # An install with no network fetches on the first boot that has one.
   if pacman -Q facetimehd-firmware-fetcher &>/dev/null; then
     sudo systemctl enable facetimehd-firmware-fetcher.service
   fi
+
+  # Whichever package provides the driver, it hangs hibernation, so every hibernating sleep is guarded.
+  for unit in systemd-hibernate systemd-hybrid-sleep systemd-suspend-then-hibernate; do
+    sudo install -Dm644 "$OMARCHY_PATH/default/systemd/system/omarchy-facetimehd-hibernate.conf" \
+      "/etc/systemd/system/$unit.service.d/omarchy-facetimehd.conf"
+  done
+  sudo systemctl daemon-reload
 fi

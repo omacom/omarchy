@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# omarchy:summary=Unload the FaceTime HD camera driver for hibernation, refusing to hibernate while the camera is in use
+# omarchy:args=<pre|post>
+# omarchy:group=system
+# omarchy:hidden=true
+
+# facetimehd deadlocks the kernel's hibernation freeze, so the hibernating sleep units run this before they start and
+# after they stop. The driver cannot be unloaded while an app has the camera open, and failing here is what cancels the
+# sleep: systemd ignores a failing system-sleep hook.
+
+set -uo pipefail
+
+module=${OMARCHY_FACETIMEHD_MODULE:-/sys/module/facetimehd}
+marker=${OMARCHY_FACETIMEHD_MARKER:-/run/omarchy-facetimehd-unloaded}
+proc=${OMARCHY_FACETIMEHD_PROC:-/proc}
+
+camera_users() {
+  local fd pid
+  for fd in "$proc"/[0-9]*/fd/*; do
+    [[ $(readlink "$fd" 2>/dev/null) == /dev/video* ]] || continue
+    pid=${fd#"$proc"/}
+    cat "$proc/${pid%%/*}/comm" 2>/dev/null
+  done | sort -u | paste -sd, - | sed 's/,/, /g'
+}
+
+# The menu's systemctl hibernate shows nothing when the sleep fails, so each person at a seat is told why.
+notify_seats() {
+  local uid user
+  while read -r uid user; do
+    runuser -u "$user" -- env XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+      omarchy-notification-send -u critical "$1" "$2" >/dev/null 2>&1 || true
+  done < <(loginctl list-sessions --no-legend 2>/dev/null | awk '$4 ~ /^seat/ { print $2, $3 }' | sort -u)
+}
+
+case ${1:-} in
+  pre)
+    rm -f "$marker"
+    [[ -d $module ]] || exit 0
+    if modprobe -r facetimehd; then
+      touch "$marker"
+    else
+      users=$(camera_users)
+      echo "Not hibernating: the FaceTime HD camera is in use${users:+ by $users}, and its driver hangs hibernation" >&2
+      notify_seats "Hibernation cancelled" "Close ${users:-the app using the camera}, then try again. The camera's driver hangs hibernation while it is in use."
+      exit 1
+    fi
+    ;;
+  post)
+    # Only what pre unloaded comes back, so a driver unloaded on purpose stays unloaded.
+    if [[ -e $marker ]]; then
+      rm -f "$marker"
+      modprobe facetimehd || echo "Could not load the FaceTime HD camera driver again; it loads at the next boot" >&2
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy-system-sleep-facetimehd <pre|post>" >&2
+    exit 1
+    ;;
+esac
