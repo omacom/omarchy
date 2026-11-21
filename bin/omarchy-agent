@@ -123,9 +123,12 @@ fi
 # picked. --pick offers the choice instead of the error, which is what the
 # keybinding wants: a keypress that opens nothing explains nothing.
 if [[ -z $agent ]]; then
-  [[ $pick == "true" ]] && exec omarchy-menu summon agent.harness
-  echo "Choose default agent with: omarchy default agent <name>" >&2
-  exit 1
+  if [[ $pick == "true" ]]; then
+    exec omarchy-menu summon agent.harness
+  else
+    echo "Choose default agent with: omarchy default agent <name>" >&2
+    exit 1
+  fi
 fi
 
 # OpenClaw's launcher sets OpenClaw up when the package became the seed before
