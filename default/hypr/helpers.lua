@@ -281,6 +281,53 @@ function o.bind_hold(keys, press_description, press, release_description, releas
   o.bind(keys, release_description, on_release, release_options)
 end
 
+-- Send with explicit mods to the focused surface by omitting the window target,
+-- so universal clipboard shortcuts reach both normal windows and focused
+-- layer-shell surfaces such as Omarchy panels. A virtual keyboard (wtype) won't
+-- do: the physically held SUPER merges into the injected chord at the seat.
+-- The down/up split works around Hyprland send_shortcut sometimes leaving
+-- synthetic key state stuck/repeating.
+-- https://github.com/hyprwm/Hyprland/discussions/14099
+function o.send_shortcut_once(mods, key)
+  return function()
+    hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "down" }))
+
+    hl.timer(function()
+      hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "up" }))
+    end, { timeout = 50, type = "oneshot" })
+  end
+end
+
+-- Lean on the terminal tag from default/hypr/apps/terminals.lua so there's one
+-- definition of what counts as a terminal. Dynamic tags carry a trailing "*".
+function o.active_window_is_terminal()
+  local window = hl.get_active_window()
+  if not window then
+    return false
+  end
+
+  for _, tag in ipairs(window.tags or {}) do
+    if tag:gsub("%*$", "") == "terminal" then
+      return true
+    end
+  end
+
+  return false
+end
+
+function o.universal_clipboard_shortcut(default_mods, default_key, terminal_mods, terminal_key)
+  return function()
+    if o.active_window_is_terminal() then
+      o.send_shortcut_once(terminal_mods, terminal_key)()
+    else
+      o.send_shortcut_once(default_mods, default_key)()
+    end
+  end
+end
+
+-- Scripts paste the same way with `hyprctl dispatch 'o.universal_paste'`.
+o.universal_paste = o.universal_clipboard_shortcut("CTRL", "V", "CTRL SHIFT", "V")
+
 function o.notify(message)
   return "omarchy-notification-send -u low " .. shell_quote(message)
 end
