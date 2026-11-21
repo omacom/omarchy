@@ -19,7 +19,7 @@ mkdir -p "$command_bin"
 # systemctl: simulate the timer's enabled state with a marker file and record
 # the calls, so the command's orchestration can be asserted without the real
 # timer. `enable --now` and `disable --now` flip the marker the way systemd
-# would flip `is-enabled`.
+# would flip `is-enabled`; ROT_FAIL_ENABLE makes `enable --now` fail.
 cat >"$command_bin/systemctl" <<'SH'
 #!/bin/bash
 if [[ ${1:-} == "--user" && ${2:-} == "is-enabled" ]]; then
@@ -28,7 +28,9 @@ if [[ ${1:-} == "--user" && ${2:-} == "is-enabled" ]]; then
 fi
 printf 'systemctl %s\n' "$*" >>"$COMMAND_LOG"
 case "$*" in
-  *" enable --now"*) touch "$ROT_ENABLED" ;;
+  *" enable --now"*)
+    if [[ -n ${ROT_FAIL_ENABLE:-} ]]; then exit 1; fi
+    touch "$ROT_ENABLED" ;;
   *" disable --now"*) rm -f "$ROT_ENABLED" ;;
 esac
 SH
@@ -53,7 +55,7 @@ SH
 chmod +x "$command_bin/omarchy-i18n"
 
 run() {
-  HOME="$rot_home" PATH="$command_bin:$ROOT/bin:$PATH" ROT_ENABLED="$rot_enabled" COMMAND_LOG="$command_log" "$@"
+  HOME="$rot_home" PATH="$command_bin:$ROOT/bin:$PATH" ROT_ENABLED="$rot_enabled" COMMAND_LOG="$command_log" ROT_FAIL_ENABLE="${ROT_FAIL_ENABLE:-}" "$@"
 }
 
 state=$(run "$ROOT/bin/omarchy-theme-bg-rotate" status || true)
@@ -67,6 +69,12 @@ if run "$ROOT/bin/omarchy-theme-bg-interval" 1441; then fail "an interval over a
 run "$ROOT/bin/omarchy-theme-bg-interval" 90
 interval=$(run "$ROOT/bin/omarchy-theme-bg-interval" status)
 [[ $interval == "90" ]] || fail "a set interval is read back" "$interval"
+run "$ROOT/bin/omarchy-theme-bg-interval" 08
+interval=$(run "$ROOT/bin/omarchy-theme-bg-interval" status)
+[[ $interval == "8" ]] || fail "a zero-padded interval is saved in base ten" "$interval"
+run "$ROOT/bin/omarchy-theme-bg-interval" 010
+interval=$(run "$ROOT/bin/omarchy-theme-bg-interval" status)
+[[ $interval == "10" ]] || fail "010 is ten minutes, not octal eight" "$interval"
 
 : >"$command_log"
 run "$ROOT/bin/omarchy-theme-bg-rotate" on
@@ -74,6 +82,13 @@ run "$ROOT/bin/omarchy-theme-bg-rotate" on
 grep -q 'systemctl --user enable --now omarchy-theme-bg-rotate.timer' "$command_log" || fail "on enables the timer"
 state=$(run "$ROOT/bin/omarchy-theme-bg-rotate" status || true)
 [[ $state == "on" ]] || fail "on flips status to on" "$state"
+
+rm -f "$rot_enabled"
+: >"$command_log"
+if ROT_FAIL_ENABLE=1 run "$ROOT/bin/omarchy-theme-bg-rotate" on; then fail "on reports failure when the timer cannot be enabled"; fi
+if grep -q 'notify .* enabled' "$command_log"; then fail "a failed enable does not announce success"; fi
+
+touch "$rot_enabled"
 
 printf '0\n' >"$rot_state/background-rotation.last"
 : >"$command_log"

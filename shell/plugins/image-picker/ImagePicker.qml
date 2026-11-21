@@ -49,11 +49,13 @@ Item {
   property bool deleteConfirmOpen: false
   // Background auto-rotation, configured through omarchy-theme-bg-rotate and
   // omarchy-theme-bg-interval. Read when the background picker opens and after
-  // each change; the controls show only when picking the current theme's
-  // backgrounds, never while browsing themes.
+  // each change; the controls show only for the desktop background picker, set
+  // explicitly by omarchy-theme-bg-switcher, never for themes, icons, or the
+  // Plymouth picker.
   property bool rotationOn: false
   property int rotationInterval: 30
-  property bool rotationVisible: !themeMode
+  property bool backgroundMode: false
+  property bool rotationVisible: backgroundMode
   // Bound to the central [image-picker] section in shell.toml via Commons.Color.qml.
   // `dimColor` tints unselected slices and text outlines against the desktop
   // behind the picker; it intentionally tracks the foundational background,
@@ -580,6 +582,7 @@ Item {
     if (payload) {
       try { args = JSON.parse(payload) || {} } catch (e) { args = {} }
     }
+    backgroundMode = false
     if (args.source === "themes") {
       openThemes()
       return
@@ -591,7 +594,9 @@ Item {
     var doneF = String(args.doneFile || "")
     var labels = args.showLabels === true || args.showLabels === "true"
     var filter = args.filterable === true || args.filterable === "true"
-    refreshRotation()
+    backgroundMode = args.background === true || args.background === "true"
+    if (backgroundMode)
+      refreshRotation()
     openSelector(dirs, rows, sel, selFile, doneF, labels, filter)
   }
 
@@ -651,6 +656,12 @@ Item {
   function setRotationInterval(minutes) {
     rotationSetIntervalProc.command = ["omarchy-theme-bg-interval", String(minutes)]
     if (!rotationSetIntervalProc.running) rotationSetIntervalProc.running = true
+  }
+
+  function cycleRotationInterval() {
+    var presets = [5, 15, 30, 60, 360]
+    var index = presets.indexOf(root.rotationInterval)
+    setRotationInterval(presets[(index + 1) % presets.length])
   }
 
   Process {
@@ -763,6 +774,12 @@ Item {
               event.accepted = true
             } else if (event.key === Qt.Key_Delete && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
               root.requestDeleteSelectedTheme()
+              event.accepted = true
+            } else if (event.key === Qt.Key_R && root.backgroundMode && (event.modifiers & Qt.ShiftModifier) && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
+              root.cycleRotationInterval()
+              event.accepted = true
+            } else if (event.key === Qt.Key_R && root.backgroundMode && event.modifiers === Qt.NoModifier) {
+              root.toggleRotation()
               event.accepted = true
             } else if (root.filterable && Util.editsFilter(event, root.filterText)) {
               root.updateFilter(Util.editedFilter(event, root.filterText))
@@ -958,7 +975,10 @@ Item {
             delegate: Button {
               required property int modelData
               visible: root.rotationOn
-              text: modelData >= 60 ? (modelData / 60) + "h" : modelData + "m"
+              readonly property string label: modelData >= 60
+                ? Commons.I18n.t("imagePicker.intervalHours").arg(Commons.I18n.formatNumber(modelData / 60))
+                : Commons.I18n.t("imagePicker.intervalMinutes").arg(Commons.I18n.formatNumber(modelData))
+              text: label
               selected: root.rotationInterval === modelData
               onClicked: root.setRotationInterval(modelData)
             }

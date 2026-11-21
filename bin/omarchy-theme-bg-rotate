@@ -15,12 +15,16 @@ unit_dir="$config_home/systemd/user"
 unit_source="$OMARCHY_PATH/default/systemd/user"
 
 interval_minutes() {
-  local value
+  local value minutes
   value="$(cat "$interval_file" 2>/dev/null || true)"
-  if [[ ! $value =~ ^[0-9]+$ ]] || (( value < 1 )); then
-    value=30
+  minutes=30
+  if [[ $value =~ ^[0-9]+$ ]]; then
+    minutes=$((10#$value))
   fi
-  printf '%s\n' "$value"
+  if (( minutes < 1 )); then
+    minutes=30
+  fi
+  printf '%s\n' "$minutes"
 }
 
 install_units() {
@@ -60,12 +64,18 @@ case ${1:-} in
   on)
     install_units
     systemctl --user daemon-reload >/dev/null 2>&1
-    systemctl --user enable --now "$unit_name.timer" >/dev/null 2>&1
+    if ! systemctl --user enable --now "$unit_name.timer" >/dev/null 2>&1; then
+      printf 'Could not enable background rotation\n' >&2
+      exit 1
+    fi
     reset_clock
     omarchy-notification-send "$(omarchy-i18n theme.backgroundRotation)" "$(omarchy-i18n common.enabled)"
     ;;
   off)
-    systemctl --user disable --now "$unit_name.timer" >/dev/null 2>&1
+    if ! systemctl --user disable --now "$unit_name.timer" >/dev/null 2>&1; then
+      printf 'Could not disable background rotation\n' >&2
+      exit 1
+    fi
     omarchy-notification-send "$(omarchy-i18n theme.backgroundRotation)" "$(omarchy-i18n common.disabled)"
     ;;
   toggle)
