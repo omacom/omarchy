@@ -38,6 +38,8 @@ BarWidget {
 
   readonly property bool inUse: activeStreams.length > 0 && !muted
 
+  property real wheelAccumulator: 0
+
   visible: source !== null
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -47,6 +49,21 @@ BarWidget {
       if (UntypedInput.known) UntypedInput.setMuted(!UntypedInput.muted)
     }
     else if (source && source.audio) source.audio.muted = !source.audio.muted
+  }
+
+  function setInputVolume(v) {
+    var volume = Math.max(0, Math.min(1, v))
+    if (viaWpctl) UntypedInput.setVolume(volume)
+    else source.audio.volume = volume
+    return volume
+  }
+
+  function showInputOsd(volume) {
+    if (!bar || !bar.shell) return
+    bar.shell.summon("omarchy.osd", JSON.stringify({
+      icon: muted ? "microphone-muted" : "microphone",
+      value: Math.round(volume * 100)
+    }))
   }
 
   PwObjectTracker { objects: root.source ? [root.source] : [] }
@@ -63,13 +80,13 @@ BarWidget {
       else root.toggleMute()
     }
     onWheelMoved: function(delta) {
-      var step = 0.05
-      if (root.viaWpctl) {
-        if (UntypedInput.known) UntypedInput.setVolume(root.volume + (delta > 0 ? step : -step))
-        return
-      }
-      if (!root.source || !root.source.audio) return
-      root.source.audio.volume = Math.max(0, Math.min(1, root.volume + (delta > 0 ? step : -step)))
+      if (root.viaWpctl && !UntypedInput.known) return
+      if (!root.viaWpctl && (!root.source || !root.source.audio)) return
+      var wheel = Util.wheelSteps(root.wheelAccumulator, delta)
+      root.wheelAccumulator = wheel.remainder
+      if (wheel.steps === 0) return
+      var volume = root.setInputVolume(root.volume + wheel.steps * 0.05)
+      root.showInputOsd(volume)
     }
   }
 }
