@@ -111,6 +111,38 @@ finally:
 expect("Claude --force rereads a transcript the index would replay, rebuilding the index in place",
        [replayed["todayTotalTokens"], forced["todayTotalTokens"], removed, index.exists()], [29090, 29091, [], True], forced)
 
+# Project folders can be symlinks, several to one shared directory and one
+# back to an ancestor: each transcript is read once, under its real path.
+sandbox()
+shared = home() / "shared-sessions"
+shared.mkdir()
+(shared / "session.jsonl").write_text("".join(json.dumps(line) + "\n" for line in (
+  message("message-1", 2, 231, cache_write=28857),
+  message("message-2", 2, 390, cache_write=454, cache_read=28857),
+)))
+links = projects().parent
+links.mkdir(parents=True)
+for name in ("first", "second"):
+  (links / name).symlink_to(shared)
+(shared / "loop").symlink_to(links)
+record = claude()
+index = next(iter(cache_root().glob("claude-index-*.json")), None)
+expect("Claude reads symlinked project folders, each transcript once, through a link cycle", {
+  "today": record["todayTotalTokens"], "files": index and list(json.loads(index.read_text())["files"]),
+}, {
+  "today": 58793, "files": [os.path.realpath(shared / "session.jsonl")],
+}, record)
+
+# Following links keeps rglob's order, since the last transcript read wins a tie.
+plain = Path(os.path.realpath(home() / "plain"))
+for folder in ("a/sub", "b/sub"):
+  (plain / folder).mkdir(parents=True)
+for name in ("a/one.jsonl", "a/sub/two.jsonl", "b/one.jsonl", "b/sub/two.jsonl"):
+  (plain / name).touch()
+import collectors
+expect("Claude walks project folders in rglob's order",
+       [str(path) for path in collectors.claude_code_transcripts(plain)], [str(path) for path in plain.rglob("*.jsonl")])
+
 # Prompts are what a person typed, shaped as Claude Code 2.1 writes them: a
 # tool loop is one prompt however many API requests it makes, and a tool's
 # result, a background task reporting back, Claude Code's own meta lines, a
@@ -358,13 +390,13 @@ sandbox()
 transcript(*({**message(f"msg_{n}", 1000, 50 + n), "sessionId": "parent"} for n in (1, 2)), name="parent.jsonl")
 transcript(*({**message(f"msg_{n}", 1000, 50 + n), "sessionId": "fork"} for n in (1, 2, 3)), name="fork.jsonl")
 module = load_collector("claude")
-real_rglob = Path.rglob
+real_transcripts = collectors.claude_code_transcripts
 for reverse in (False, True):
-  module.Path.rglob = lambda path, pattern, reverse=reverse: iter(sorted(real_rglob(path, pattern), reverse=reverse))
+  collectors.claude_code_transcripts = lambda path, reverse=reverse: iter(sorted(real_transcripts(path), reverse=reverse))
   try:
     forked = module.scan_projects(projects().parent).snapshot()
   finally:
-    module.Path.rglob = real_rglob
+    collectors.claude_code_transcripts = real_transcripts
   expect(f"Claude counts a forked session's parent and its tokens once ({'parent' if reverse else 'fork'} read first)",
          [forked["todaySessions"], forked["totalSessions"], forked["todayTotalTokens"]], [2, 2, 3156], forked)
 
