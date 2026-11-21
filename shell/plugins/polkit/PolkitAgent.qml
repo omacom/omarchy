@@ -365,8 +365,8 @@ Item {
             running: root.securityKeyMode && !Style.reduceMotion
             loops: Animation.Infinite
             onStopped: methodIcon.opacity = 1
-            NumberAnimation { to: 0.35; duration: 700; easing.type: Easing.InOutSine }
-            NumberAnimation { to: 1; duration: 700; easing.type: Easing.InOutSine }
+            NumberAnimation { to: 0.35; duration: Style.duration(700); easing.type: Easing.InOutSine }
+            NumberAnimation { to: 1; duration: Style.duration(700); easing.type: Easing.InOutSine }
           }
           font.family: root.fontFamily
           font.pixelSize: Style.font.iconLarge
