@@ -111,6 +111,8 @@ omarchy hyprland monitor internal mirror [on|off|toggle]  # Mirror it to every e
 omarchy display text size [9-20|reset]                 # Scale text in the shell, GTK apps and terminals together
 ```
 
+Closing the laptop lid with an external connected also saves the position of any monitor without one, unless `monitors.lua` sets positions or shared rules of its own. A position there that seems ignored may be losing to one of these saved lines.
+
 Edit `~/.config/hypr/monitors.lua` only for what those don't cover: a mode the monitor panel doesn't offer (it already sets resolution, refresh rate and rotation), keeping a monitor off (`disabled = true`), 10-bit color, variable refresh rate, the default scale for monitors without a choice, or `GDK_SCALE`. The file ships with commented examples. If the user wants that file alone to set their monitors, overriding the monitor panel, add `omarchy_monitor_panel_settings = false` to it. Format:
 ```lua
 hl.monitor({ output = "DP-2", mode = "2560x1440@144", position = "auto", scale = 1.5 })

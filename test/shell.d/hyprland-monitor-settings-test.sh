@@ -184,3 +184,14 @@ run_lua "apple = false $wide_gamut_rules"'
 check(applied[1].cm == nil and applied[2].cm == nil, "changes no rule off Apple Silicon")
 ' || fail "monitors keep sRGB off Apple Silicon"
 pass "monitors get EDID color only on Apple Silicon"
+
+# A position saved on its own, as closing the lid does, sets no scale: Hyprland
+# keeps picking it and GDK_SCALE stays where monitors.lua left it.
+printf '%s\t%s\t%s\t%s\t%s\n' "" "-1600x0" "" "" "LG Display 0x0804" >"$settings"
+run_lua '
+plug("eDP-1", "LG Display 0x0804", { width = 2880, height = 1800, refresh_rate = 120, scale = 1.6, x = 0, y = 0 })
+load_module()
+check(#applied == 1 and applied[1].position == "-1600x0" and applied[1].scale == nil, "applies only the position")
+check(env.GDK_SCALE == nil, "leaves GDK_SCALE alone, got " .. tostring(env.GDK_SCALE))
+' || fail "a position saved on its own leaves the scale to Hyprland"
+pass "a position saved on its own leaves the scale to Hyprland"
