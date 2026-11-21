@@ -183,11 +183,20 @@ printf '#!/bin/bash\nexit 1\n' >"$refresh_bin/omarchy-cmd-present"
 chmod +x "$refresh_bin"/*
 echo cn >"$test_tmp/region"
 region_home="$test_tmp/region-home"
-mkdir -p "$region_home"
-HOME="$region_home" PATH="$refresh_bin:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_REGION_FILE="$test_tmp/region" "$ROOT/bin/omarchy-refresh-applications"
 launchers="$region_home/.local/share/applications"
+mkdir -p "$launchers"
+cp "$ROOT/applications/YouTube.desktop" "$launchers/" # as /etc/skel seeds it
+refresh_region() {
+  HOME="$region_home" PATH="$refresh_bin:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_REGION_FILE="$test_tmp/region" "$ROOT/bin/omarchy-refresh-applications" "$@"
+}
+refresh_region
 [[ -f "$launchers/Basecamp.desktop" && -f "$launchers/HEY.desktop" ]] || fail "a region keeps the launchers it doesn't omit"
-for omitted in YouTube X "Google Maps" Spotify; do
+for omitted in X "Google Maps" Spotify; do
   [[ ! -e "$launchers/$omitted.desktop" ]] || fail "a region leaves out the web app launchers it omits" "$omitted"
 done
+[[ -f "$launchers/YouTube.desktop" ]] || fail "a region refresh keeps launchers an existing home already has"
 pass "a region leaves out the web app launchers it omits, subdomains included"
+
+refresh_region --first-install
+[[ ! -e "$launchers/YouTube.desktop" && -f "$launchers/HEY.desktop" ]] || fail "a first install drops the seeded launchers its region omits"
+pass "a first install drops the seeded launchers its region omits"

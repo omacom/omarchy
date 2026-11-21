@@ -3,7 +3,7 @@ mkdir -p ~/.config/omarchy/themes
 
 # A region's profile may pick another default (docs/regions.md).
 default_theme="Tokyo Night"
-region=$(cat "${OMARCHY_REGION_FILE:-/etc/omarchy/region}" 2>/dev/null)
+region=$(cat "${OMARCHY_REGION_FILE:-/etc/omarchy/region}" 2>/dev/null || true)
 if [[ $region =~ ^[a-z]{2}$ && -s $OMARCHY_PATH/default/regions/$region/theme ]]; then
   default_theme=$(<"$OMARCHY_PATH/default/regions/$region/theme")
 fi

@@ -1,6 +1,10 @@
 #!/bin/bash
 
 # omarchy:summary=Ensure default application launchers are installed.
+# omarchy:args=[--first-install]
+
+first_install=false
+[[ ${1:-} == "--first-install" ]] && first_install=true
 
 # A web app the region leaves out (docs/regions.md) gets no launcher.
 region=$(cat "${OMARCHY_REGION_FILE:-/etc/omarchy/region}" 2>/dev/null)
@@ -25,6 +29,10 @@ for launcher in "$OMARCHY_PATH"/applications/*.desktop; do
   host=$(sed -n 's|^Exec=omarchy-launch-webapp [a-z]*://\([^/:?# ]*\).*|\1|p' "$launcher")
   if ! region_omits "$host"; then
     cp "$launcher" ~/.local/share/applications/
+  elif [[ $first_install == "true" ]]; then
+    # /etc/skel seeds every shipped launcher before the region is known. Only a
+    # brand-new home loses them; an existing one keeps what it has.
+    rm -f ~/.local/share/applications/"${launcher##*/}"
   fi
 done
 
