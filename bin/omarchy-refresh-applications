@@ -1,27 +1,12 @@
 #!/bin/bash
 
 # omarchy:summary=Ensure default application launchers are installed.
-# omarchy:args=[--first-install]
 
 # The region's list names the launchers it installs (docs/regions.md).
-mapfile -t launchers < <(sed -e 's/[[:space:]]*#.*//' -e '/^[[:space:]]*$/d' "$OMARCHY_PATH/default/regions/$(omarchy-region)/applications")
-
 mkdir -p ~/.local/share/applications
-
-# /etc/skel seeds every shipped launcher before the region is known, so a
-# brand-new home drops the ones its region doesn't list.
-if [[ ${1:-} == "--first-install" ]]; then
-  for launcher in "$OMARCHY_PATH"/applications/*.desktop; do
-    name=$(basename "$launcher" .desktop)
-    if ! printf '%s\n' "${launchers[@]}" | grep -qxF -- "$name"; then
-      rm -f ~/.local/share/applications/"$name.desktop"
-    fi
-  done
-fi
-
-for name in "${launchers[@]}"; do
+while read -r name; do
   cp "$OMARCHY_PATH/applications/$name.desktop" ~/.local/share/applications/
-done
+done < <(sed -e 's/[[:space:]]*#.*//' -e '/^[[:space:]]*$/d' "$OMARCHY_PATH/default/regions/$(omarchy-region)/applications")
 
 if omarchy-cmd-present alacritty; then
   cp "$OMARCHY_PATH/default/alacritty/Alacritty.desktop" ~/.local/share/applications/

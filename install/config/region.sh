@@ -1,7 +1,8 @@
-# China gets Node and npm packages from Alibaba's npmmirror: mise's Node builds,
-# the tools mise installs from npm, and npm itself (docs/regions.md).
-if omarchy-region-cn; then
-  install -D -m 644 "$OMARCHY_PATH/default/regions/cn/environment.conf" /etc/environment.d/60-omarchy-region.conf
+# The region's session environment, such as China's Node and npm mirrors
+# (docs/regions.md).
+environment="$OMARCHY_PATH/default/regions/$(omarchy-region)/environment.conf"
+if [[ -f $environment ]]; then
+  install -D -m 644 "$environment" /etc/environment.d/60-omarchy-region.conf
 else
   rm -f /etc/environment.d/60-omarchy-region.conf
 fi

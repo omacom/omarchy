@@ -197,10 +197,6 @@ done
 [[ -f "$launchers/YouTube.desktop" ]] || fail "a region refresh keeps launchers an existing home already has"
 pass "a region installs exactly the launchers on its list"
 
-refresh_region --first-install
-[[ ! -e "$launchers/YouTube.desktop" && -f "$launchers/Bilibili.desktop" ]] || fail "a first install drops the seeded launchers its region's list leaves off"
-pass "a first install drops the seeded launchers its region's list leaves off"
-
 # Every shipped launcher is on some region's list, and every list names only
 # shipped launchers, so a new launcher can't silently never install.
 shipped=$(cd "$ROOT/applications" && ls -- *.desktop | sed 's/\.desktop$//' | sort)

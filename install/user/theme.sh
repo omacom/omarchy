@@ -1,12 +1,8 @@
 # Setup user theme folder and seed the default only when no theme exists yet.
 mkdir -p ~/.config/omarchy/themes
 
-# China starts on its own theme (docs/regions.md).
-if omarchy-region-cn; then
-  default_theme=$(<"$OMARCHY_PATH/default/regions/cn/theme")
-else
-  default_theme="Tokyo Night"
-fi
+# Each region names the theme a new user starts on (docs/regions.md).
+default_theme=$(<"$OMARCHY_PATH/default/regions/$(omarchy-region)/theme")
 
 if [[ ! -s $HOME/.local/state/omarchy/current/theme.name ]]; then
   # iso-chroot and provision-owner both run without a live session to notify.

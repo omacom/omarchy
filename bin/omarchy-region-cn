@@ -3,5 +3,4 @@
 # omarchy:summary=Detect whether this machine was installed for mainland China (docs/regions.md).
 # omarchy:hidden=true
 
-region_file=${OMARCHY_REGION_FILE:-/etc/omarchy/region}
-[[ -f $region_file && $(<"$region_file") == "cn" ]]
+[[ $(omarchy-region) == "cn" ]]
