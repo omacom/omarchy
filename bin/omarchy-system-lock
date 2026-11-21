@@ -26,3 +26,4 @@ if pkill -f "$screensaver" 2>/dev/null; then
   # It hid the cursor, and a killed or failed exit leaves it hidden.
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' >/dev/null 2>&1 || hyprctl keyword cursor:invisible false >/dev/null 2>&1 || true
 fi
+pkill -f '^rusty-rex --screensaver' 2>/dev/null || true

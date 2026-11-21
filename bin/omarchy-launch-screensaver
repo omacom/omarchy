@@ -3,4 +3,16 @@
 # omarchy:summary=Launch the Omarchy screensaver on every display.
 # omarchy:args=[force] [options]
 
-exec /usr/lib/omarchy-screensaver/omarchy-screensaver "$@"
+# Without internet, the runner game from Chrome's no-internet page stands in for the text effects.
+offline() {
+  case $(LC_ALL=C nmcli networking connectivity 2>/dev/null) in
+  none | limited | portal) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+if offline && omarchy-cmd-present rusty-rex; then
+  exec omarchy-screensaver-rusty-rex "$@"
+else
+  exec /usr/lib/omarchy-screensaver/omarchy-screensaver "$@"
+fi
