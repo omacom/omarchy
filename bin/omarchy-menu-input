@@ -45,7 +45,7 @@ payload=$(perl -MEncode=decode -MJSON::PP=encode_json -e '
   print encode_json($payload)
 ' "$prompt" "$selection_file" "$done_file" "$menu_width")
 
-omarchy-shell shell summon omarchy.menu "$payload" >/dev/null
+[[ $(omarchy-shell shell summon omarchy.menu "$payload") == "ok" ]] || exit 2
 
 while [[ ! -e $done_file ]]; do
   sleep 0.05

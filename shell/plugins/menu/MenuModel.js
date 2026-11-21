@@ -195,12 +195,12 @@ function item(items, id) {
   return items && items[id] ? items[id] : null
 }
 
-// Routes may name a real id (`system`, `setup.power`) or an alias declared in
+// Routes may name a real id (`system`) or an alias declared in
 // JSONC (`power-menu`, `settings`). An exact id beats any alias, and app rows
 // are never routable: their aliases carry .desktop Keywords and GenericName
 // for search, so an installed application could otherwise shadow a menu route
-// (htop ships `Keywords=system;...`). Unknown strings fall through as the
-// literal input so misspellings still attempt to open that id.
+// (htop ships `Keywords=system;...`). Unknown strings resolve to null, so a
+// misspelling is refused rather than opened as the root menu.
 function resolveRoute(items, itemOrder, input) {
   var raw = String(input || "").toLowerCase().replace(/_/g, "-")
   if (!raw || raw === "go" || raw === "menu") return "root"
@@ -214,7 +214,7 @@ function resolveRoute(items, itemOrder, input) {
       if (alias === raw) return entry.id
     }
   }
-  return raw
+  return null
 }
 
 function slugify(value) {

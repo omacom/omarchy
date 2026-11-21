@@ -17,11 +17,13 @@ menu_payload() {
 }
 
 case "$verb" in
-  toggle)
-    exec omarchy-shell shell toggle omarchy.menu "$(menu_payload "$route")"
-    ;;
-  summon)
-    exec omarchy-shell shell summon omarchy.menu "$(menu_payload "$route")"
+  toggle | summon)
+    output=$(omarchy-shell shell "$verb" omarchy.menu "$(menu_payload "$route")") || exit $?
+    if [[ $output == "refused" ]]; then
+      echo "omarchy-menu: unknown menu route '$route'." >&2
+      exit 2
+    fi
+    if [[ -n $output ]]; then echo "$output"; fi
     ;;
   close)
     exec omarchy-shell shell hide omarchy.menu
@@ -40,7 +42,7 @@ Verbs:
   refresh          Re-parse the menu JSONC files.
   ping             Health check.
 
-Route is an item id (e.g. setup.power) or alias (e.g. power). Defaults to
+Route is an item id (e.g. system) or alias (e.g. power-menu). Defaults to
 "root", which opens the top-level menu.
 USAGE
     exit 0
