@@ -8,15 +8,50 @@
 # audio still playing), so the Hyprland NVIDIA env only applies when NVIDIA is
 # the display GPU.
 #
-# sysfs exposes which VGA device drives the display via boot_vga. When no
-# device claims it (attribute missing or unreadable), assume NVIDIA is the
-# display GPU to preserve the current behavior on machines we cannot tell.
+# Follow the GPU Hyprland renders on. AQ_DRM_DEVICES names it outright: its
+# first entry that exists. Otherwise Aquamarine makes the GPU with the most
+# connected built-in panels (eDP, LVDS, DSI) the primary renderer, ahead of
+# boot_vga, as on a hybrid laptop docked to ports wired to NVIDIA. With no
+# connected panel it takes boot_vga, wherever external monitors are plugged in;
+# an equal count of panels falls back to boot_vga here too. When no device
+# claims it (attribute missing or unreadable, as on iGPUs with a non-VGA PCI
+# class), assume NVIDIA is the display GPU to preserve the current behavior on
+# machines we cannot tell.
 #
 # Read the cached sysfs IDs rather than lspci, which reads PCI config space and
 # resumes runtime-suspended GPUs.
 pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
 
 shopt -s nullglob
+
+configured_vendor=""
+IFS=: read -ra configured <<<"${AQ_DRM_DEVICES-}"
+for entry in "${configured[@]}"; do
+  device=$(readlink -e -- "$entry") || continue
+  vendor_file="$drm_path/${device##*/}/device/vendor"
+  if [[ -f $vendor_file ]]; then
+    configured_vendor=$(< "$vendor_file")
+    break
+  fi
+done
+
+nvidia_panels=0
+other_panels=0
+
+for connector in "$drm_path"/card*-{eDP,LVDS,DSI}-*; do
+  [[ -f $connector/status ]] || continue
+  [[ $(< "$connector/status") == "connected" ]] || continue
+  card=${connector##*/}
+  card=${card%%-*}
+  vendor_file="$drm_path/$card/device/vendor"
+  [[ -f $vendor_file ]] || continue
+  if [[ $(< "$vendor_file") == "0x10de" ]]; then
+    (( ++nvidia_panels ))
+  else
+    (( ++other_panels ))
+  fi
+done
 
 nvidia_boot=0
 other_boot=0
@@ -38,7 +73,17 @@ for device in "$pci_devices_path"/*; do
   fi
 done
 
-if (( other_boot == 1 && nvidia_boot == 0 )); then
+if [[ -n $configured_vendor ]]; then
+  if [[ $configured_vendor == "0x10de" ]]; then
+    exit 0
+  else
+    exit 1
+  fi
+elif (( nvidia_panels > other_panels )); then
+  exit 0
+elif (( other_panels > nvidia_panels )); then
+  exit 1
+elif (( other_boot == 1 && nvidia_boot == 0 )); then
   exit 1
 else
   exit 0
