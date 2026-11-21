@@ -48,6 +48,7 @@ flowtunes
 folio
 fontconfig
 foot
+fs-uae
 fzf
 ghostscript
 git
@@ -99,6 +100,7 @@ omacalc
 omacut
 omaview
 omawrite
+omarchy-ambient
 omarchy-nvim
 omarchy-hyprland-titlebars
 # Local model recipes and their engine.
