@@ -62,8 +62,9 @@ outputs:
 
 region:
   # command to run for region selection
-  # the output needs to be in the <output>@<x>,<y>,<w>,<h> (e.g. DP-3@2789,436,756,576) format
-  command: slurp -f '%o@%x,%y,%w,%h'
+  # the output needs to be in the <output>@<x>,<y>,<w>,<h> (e.g. DP-3@100,200,756,576) format
+  # with <x>,<y> relative to <output>, which slurp's %X,%Y,%W,%H give
+  command: slurp -f '%o@%X,%Y,%W,%H'
 
 # hide the token restore checkbox and use the default value instead
 hide_token_restore: true
