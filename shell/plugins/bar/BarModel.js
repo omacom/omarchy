@@ -653,6 +653,64 @@ function barSizeFor(sizes, screenName, fallback) {
   return size > 0 ? size : fallback
 }
 
+// Where a pointer reveals hidden indicators, along the bar. `origin` is the
+// widget's fixed edge in the same coordinates as `length` (its current
+// length): the start edge for "start", the end edge for "end", and the
+// midpoint for "center". `reach` is how long the hidden icons are. The bar
+// passes x on a horizontal bar and y on a vertical one.
+//
+// "start" (left section, and centerEnd) grows toward higher coordinates.
+// "end" (right section, centerBegin, and centerEnd once a notch has moved
+// the center sections beside the right one) grows toward lower coordinates.
+// "center" grows both ways: the box re-centers, so the icons spread half of
+// `reach` to each side. `open` keeps only half of `reach` past the widget.
+// The closed span sits inside that, so the pointer that opened the icons can
+// travel onto them without the span dropping it. Nothing hidden has no span.
+//
+// `sectionStart`/`sectionEnd`, when given, are the section that holds the
+// widget, in the same coordinates. A zero-width widget at the inner edge of
+// an end-anchored section (right index 0) would otherwise peek only outward,
+// off the section, so hovering the tray or battery never reached it. Join only
+// the still side of the section — between the widget's fixed edge and the
+// section edge that holds still (the whole box for "center") — so hovering a
+// far widget on the growing side does not slide it out from under the pointer.
+function indicatorPeekSpan(edge, origin, length, reach, open, sectionStart, sectionEnd) {
+  var at = Number(origin)
+  var size = Number(length)
+  var extra = Number(reach)
+  if (!isFinite(at) || !isFinite(size) || !isFinite(extra)) return null
+  if (size < 0) size = 0
+  if (extra <= 0) return null
+  var side = String(edge || "")
+  var span
+  if (side === "center") {
+    var wing = extra * 0.5
+    var half = size / 2
+    span = { start: at - half - wing, end: at + half + wing }
+  } else {
+    var past = open ? extra * 0.5 : extra
+    span = side === "start"
+      ? { start: at, end: at + size + past }
+      : { start: at - size - past, end: at }
+  }
+  var sectionFrom = Number(sectionStart)
+  var sectionTo = Number(sectionEnd)
+  if (!isFinite(sectionFrom) || !isFinite(sectionTo) || !(sectionTo > sectionFrom)) return span
+  var stillStart = side === "end" ? Math.max(sectionFrom, at) : sectionFrom
+  var stillEnd = side === "start" ? Math.min(sectionTo, at) : sectionTo
+  if (!(stillEnd > stillStart)) return span
+  return { start: Math.min(span.start, stillStart), end: Math.max(span.end, stillEnd) }
+}
+
+function axisInSpan(axis, span) {
+  if (!span) return false
+  var value = Number(axis)
+  var start = Number(span.start)
+  var end = Number(span.end)
+  if (!isFinite(value) || !isFinite(start) || !isFinite(end) || !(end > start)) return false
+  return value >= start && value < end
+}
+
 // Whether a workspace holds a real fullscreen window, which fades the bar out
 // and has to take the clicks along its edge. Hyprland reports a maximized
 // window as fullscreen 1 and a real one with bit 2 set; only the latter hides
@@ -695,6 +753,8 @@ if (typeof module !== "undefined") {
     dragDistanceOutside: dragDistanceOutside,
     navigationRegions: navigationRegions,
     slotEdge: slotEdge,
+    indicatorPeekSpan: indicatorPeekSpan,
+    axisInSpan: axisInSpan,
     sections: sections,
     normalizePosition: normalizePosition,
     entrySettings: entrySettings,
