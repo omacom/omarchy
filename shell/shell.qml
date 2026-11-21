@@ -279,8 +279,13 @@ ShellRoot {
     onActiveChanged: if (!active) shell.bar = null
     onStatusChanged: {
       if (status === Loader.Error) {
-        console.warn("bar option " + shell.activeBarId + " failed to load, falling back to " + shell.defaultBarId)
-        shell.failedBarId = shell.activeBarId
+        var failedId = shell.activeBarId
+        console.warn("bar option " + failedId + " failed to load, falling back to " + shell.defaultBarId)
+        // Written after the Loader finishes: a synchronous write re-evaluates
+        // activeBarId, which is what is still reloading this Loader.
+        Qt.callLater(function() {
+          if (shell.activeBarId === failedId) shell.failedBarId = failedId
+        })
       }
     }
   }
