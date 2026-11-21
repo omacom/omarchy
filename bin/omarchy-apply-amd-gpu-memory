@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Let an AMD GPU map all of RAM but 8 GiB from the next boot
+# omarchy:args=[--options|size]
 # omarchy:requires-sudo=true
 # omarchy:hidden=true
 
@@ -13,33 +14,147 @@ set -euo pipefail
 # a limit, not a reservation: the RAM stays the desktop's while the GPU doesn't
 # hold it. On 16 GB or less the default is already as high, so nothing is set.
 #
+# The firmware also carves dedicated VRAM out of RAM before the kernel sees it,
+# often 16 or 32 GB to suit Windows, and that RAM is lost to GTT. fwupd offers
+# that carveout as its video-memory BIOS setting where the firmware lets Linux
+# change it, through the vendor's own interface (HP's "Dedicated Graphics
+# Memory") or amdgpu's uma/carveout. The vendor's is preferred: it is the one
+# the BIOS setup shows, and a write to amdgpu's doesn't change it. Shrink the
+# carveout to the smallest size, as the "Tuning" tab in AMD Adrenalin would, or
+# set the size given, like "4 GB" (omarchy-device-gpu-vram passes the one the
+# user picked). --options prints this boot's VRAM, the next boot's, then every
+# size the firmware offers. fwupdmgr goes through fwupd's daemon, which keeps
+# its view of the settings and of a pending reboot; the installer's chroot has
+# no daemon to reach, so there fwupdtool runs fwupd's plugins itself.
+#
+# The cap is then sized for the RAM the next boot will see, which is MemTotal
+# plus the VRAM carved out now, less the new carveout. A carveout large enough
+# that the kernel's half is as high drops the drop-in, so a stale cap can't
+# outgrow RAM.
+#
 # amdgpu sizes its GTT from the cap when it loads, so this writes a boot
 # setting and builds nothing; the caller rebuilds the boot image, and the new
-# cap applies from the next boot.
+# cap and carveout apply from the next boot.
 
+systemd_run="${OMARCHY_SYSTEMD_RUN:-/run/systemd/system}"
 drop_in="${OMARCHY_AMD_GPU_MEMORY_CONF:-/etc/limine-entry-tool.d/amd-gpu-memory.conf}"
 pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
 meminfo="${OMARCHY_MEMINFO:-/proc/meminfo}"
 reserve_kib=$(( 8 * 1024 * 1024 ))
+wanted=${1:-}
 
-amd_gpu() {
-  local device
-
-  shopt -s nullglob
-  for device in "$pci_devices_path"/*; do
-    [[ $(< "$device/vendor") == "0x1002" ]] || continue
-    [[ $(< "$device/class") == 0x03* ]] && return 0
-  done
-  return 1
+cannot_change() {
+  echo "This machine's firmware doesn't let Linux change the AMD GPU's dedicated VRAM" >&2
+  exit 1
 }
 
-amd_gpu || exit 0
+fwupd() {
+  if [[ -d $systemd_run ]]; then
+    fwupdmgr "$@" < /dev/null
+  else
+    fwupdtool "$@" < /dev/null
+  fi
+}
+
+# The size in KiB of a value like "512 MB", or amdgpu's "(512 MB)".
+kib_of() {
+  local amount unit
+
+  read -r amount unit <<< "${1//[()]/}"
+  if [[ $amount =~ ^[0-9]+$ && $unit == "GB" ]]; then
+    echo $(( amount * 1024 * 1024 ))
+  elif [[ $amount =~ ^[0-9]+$ && $unit == "MB" ]]; then
+    echo $(( amount * 1024 ))
+  fi
+}
+
+shopt -s nullglob
+amd_gpus=() apu=""
+for device in "$pci_devices_path"/*; do
+  if [[ $(< "$device/vendor") == "0x1002" && $(< "$device/class") == 0x03* ]]; then
+    amd_gpus+=("$device")
+    # amdgpu names the VRAM's memory vendor only on a GPU with chips of its own.
+    if [[ -f $device/mem_info_vram_total && ! -e $device/mem_info_vram_vendor ]]; then
+      apu=$device
+    fi
+  fi
+done
+
+# The video-memory setting fwupd offers, the vendor's own before amdgpu's: its
+# id, its value from the next boot, then each value it accepts.
+setting=()
+if [[ -n $apu ]]; then
+  mapfile -t setting < <(fwupd get-bios-settings --json 2>/dev/null | jq -r '
+    [.BiosSettings[]? | select(.AppstreamId == "org.fwupd.bios.video-memory" and (.BiosSettingReadOnly | not))]
+    | sort_by(.BiosSettingId | startswith("com.amd-gpu.")) | first // empty
+    | .BiosSettingId, .BiosSettingCurrentValue, .BiosSettingPossibleValues[]
+  ' 2>/dev/null)
+fi
+
+if [[ -n $wanted ]] && (( ${#setting[@]} < 3 )); then
+  cannot_change
+fi
+
+if [[ $wanted == "--options" ]]; then
+  vram_mib=$(( $(< "$apu/mem_info_vram_total") / 1024 / 1024 ))
+  if (( vram_mib % 1024 )); then
+    echo "$vram_mib MB"
+  else
+    echo "$(( vram_mib / 1024 )) GB"
+  fi
+  for value in "${setting[@]:1}"; do
+    echo "${value//[()]/}"
+  done
+  exit 0
+fi
+
+(( ${#amd_gpus[@]} )) || exit 0
 
 total_kib=$(awk '$1 == "MemTotal:" { print $2 }' "$meminfo")
 page_kib=$(( $(getconf PAGESIZE) / 1024 ))
+
+if (( ${#setting[@]} >= 3 )); then
+  setting_id=${setting[0]} current=${setting[1]} new_value="" new_kib=""
+  for value in "${setting[@]:2}"; do
+    kib=$(kib_of "$value")
+    [[ -n $kib ]] || continue
+    if [[ -n $wanted ]]; then
+      if [[ ${value//[()]/} == "$wanted" ]]; then
+        new_value=$value new_kib=$kib
+      fi
+    elif [[ -z $new_kib ]] || (( kib < new_kib )); then
+      new_value=$value new_kib=$kib
+    fi
+  done
+
+  if [[ -z $new_value && -n $wanted ]]; then
+    echo "The AMD GPU has no dedicated VRAM option of $wanted; see omarchy-device-gpu-vram list" >&2
+    exit 1
+  fi
+
+  if [[ -n $new_value ]]; then
+    # The VRAM carved out this boot; the setting already reads back a value
+    # written earlier this boot, so it can't say what the RAM is now.
+    vram_kib=$(( $(< "$apu/mem_info_vram_total") / 1024 ))
+    total_kib=$(( total_kib + vram_kib - new_kib ))
+
+    if [[ $current != "$new_value" ]]; then
+      if ! output=$(fwupd --no-reboot-check set-bios-setting "$setting_id" "$new_value" 2>&1); then
+        grep -v '^Loading\|^Idle\|^Waiting' <<< "$output" >&2
+        exit 1
+      fi
+      echo "Setting the AMD GPU's dedicated VRAM to ${new_value//[()]/} from the next boot"
+    fi
+  fi
+fi
+
 pages=$(( (total_kib - reserve_kib) / page_kib ))
 
 if (( pages <= total_kib / 2 / page_kib )); then
+  if [[ -f $drop_in ]]; then
+    rm -f "$drop_in"
+    echo "Leaving the AMD GPU at the kernel's half of RAM from the next boot"
+  fi
   exit 0
 fi
 
