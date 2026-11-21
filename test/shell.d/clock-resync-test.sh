@@ -73,11 +73,11 @@ else
     $(readlink "$tmp/home/.config/systemd/user/omarchy-clock-resync.service") == "$service" ]] ||
     fail "the migration links the clock resync units for an existing user"
   pass "the migration links the clock resync units for an existing user"
-fi
 
-grep -Fx -- '--user enable omarchy-clock-resync.timer' "$tmp/systemctl.log" >/dev/null ||
-  fail "the migration enables the clock resync timer"
-pass "the migration enables the clock resync timer"
+  grep -Fx -- '--user enable omarchy-clock-resync.timer' "$tmp/systemctl.log" >/dev/null ||
+    fail "the migration enables the clock resync timer"
+  pass "the migration enables the clock resync timer"
+fi
 
 # Over SSH there is no user manager to enable into, so the wants symlink is
 # written directly.
