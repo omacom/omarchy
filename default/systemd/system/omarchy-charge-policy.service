@@ -1,0 +1,20 @@
+[Unit]
+Description=Optimized battery charging for Apple SMC charge thresholds
+After=local-fs.target
+# Not enabled. Until somebody starts this unit, the kernel's own charge limits
+# stay in effect. ConditionPathExists is checked once at start; the program
+# also waits for the battery node when the unit does run.
+ConditionPathExists=/sys/class/power_supply/macsmc-battery/charge_control_end_threshold
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-charge-policy run
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=20
+StateDirectory=omarchy-charge-policy
+RuntimeDirectory=omarchy-charge-policy
+
+[Install]
+WantedBy=multi-user.target
