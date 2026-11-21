@@ -3,30 +3,60 @@
 # omarchy:group=transcode
 # omarchy:name=
 # omarchy:summary=Transcode pictures and videos for sharing
-# omarchy:args=[--path path] [input] [format] [resolution]
-# omarchy:examples=omarchy transcode|omarchy transcode --path ~/Downloads|omarchy transcode ~/Videos/demo.mov mp4 1080p|omarchy transcode ~/Pictures/background.heic jpg medium
+# omarchy:args=[--path path] [input] [format] [quality] [resolution] [engine]
+# omarchy:examples=omarchy transcode|omarchy transcode --path ~/Downloads|omarchy transcode ~/Videos/demo.mov mp4 '' 1080p|omarchy transcode ~/Pictures/background.heic webp high 4096
 
 set -euo pipefail
 
 usage() {
   cat <<'EOF'
 Usage:
-  omarchy transcode [--path path] [input] [format] [resolution]
+  omarchy transcode [--path path] [input] [format] [quality] [resolution] [engine]
 
 With no input, pick a picture or video from ~/Pictures and ~/Videos,
-or only from --path when provided. Then pick the output format and resolution.
+or only from --path when provided. Then pick one of two split paths:
+Codec (format, and quality for pictures) or Resolution (descending long-edge
+ladder rungs). The paths never intersect: Resolution
+resizes in the input's format, Codec re-encodes at native size.
 
 Options:
   --path path  Limit interactive fuzzy file selection to this path
 
 Formats:
-  Pictures: jpg, png
-  Videos: mp4, gif
+  Pictures: jpg, png, webp, avif
+  Videos: mp4, gif, webm, avif
+  GIFs route by output format: picture formats (jpg/png/webp) take the
+  picture path; avif and the other video formats take the video path.
+
+Engine (avif/webm):
+  asked when the vendor's hardware AV1 encoder passes a live probe, so a
+  gpu pick always encodes on the GPU; pass gpu or cpu as a trailing
+  argument to override. gif auto-detects the CUDA scale pipeline; mp4 stays
+  cpu.
+
+Quality:
+  Pictures: high, medium, low (ignored for png)
 
 Resolutions:
-  Pictures: high, medium, low
-  Videos: 4k, 1080p, 720p
+  Pictures and videos: a long-edge pixel size such as 5120, without upscaling
+  Legacy CLI aliases: picture high/medium/low = 3160/2160/1080;
+  video 4k/1080p/720p remain explicit height-based targets, never menu choices
 EOF
+}
+
+# Frame count for a picture input: 1 for stills, >1 for animated.
+# AVIF is the only picture format that can animate, and ffprobe's AVIF
+# demuxer exposes only the first frame, so probe without ffmpeg: `file`
+# tags multi-image AVIFs as "Image Sequence", magick counts frames.
+picture_frames() {
+  local desc frames
+  desc=$(file -b -- "$1")
+  if [[ $desc == *"Image Sequence"* ]]; then
+    printf '2'
+    return 0
+  fi
+  frames=$(magick identify -format '%n\n' -- "$1" 2>/dev/null | head -n 4 | wc -l)
+  printf '%s' "$frames"
 }
 
 media_type() {
@@ -34,8 +64,29 @@ media_type() {
   mime=$(file -b --mime-type "$1")
 
   case "$mime" in
-  image/*) echo picture ;;
   video/*) echo video ;;
+  image/gif)
+    # A static GIF is a plain picture; an animated one is an animated
+    # image. A static one still takes the video path when the caller
+    # explicitly asks for a video output (gif, mp4, webm).
+    if (( $(picture_frames "$1") > 1 )); then
+      echo video
+    elif [[ ${2:-} == "gif" || ${2:-} == "mp4" || ${2:-} == "webm" ]]; then
+      echo video
+    else
+      echo picture
+    fi
+    ;;
+  image/avif)
+    # AVIF is the one format that can be either: stills take the picture
+    # path, animated ones take the video path.
+    if (( $(picture_frames "$1") > 1 )); then
+      echo video
+    else
+      echo picture
+    fi
+    ;;
+  image/*) echo picture ;;
   *)
     echo "Unsupported file type: $mime" >&2
     return 1
@@ -43,43 +94,336 @@ media_type() {
   esac
 }
 
+# True when the input carries an alpha channel. GIFs are judged by their
+# palette: the gif decoder reports bgra, which would flag every GIF as
+# alpha-carrying.
+input_has_alpha() {
+  local pix a
+  if [[ $(file -b --mime-type -- "$1" 2>/dev/null) == "video/webm" ]]; then
+    # The native VP9 decoder reports yuv420p even for WebM with alpha.
+    a=$(ffprobe -v error -select_streams v:0 -show_entries stream_tags=alpha_mode \
+      -of default=noprint_wrappers=1:nokey=1 -- "$1" 2>/dev/null) || a=""
+    [[ $a == 1 ]] && return 0
+  fi
+  if [[ $(file -b --mime-type -- "$1" 2>/dev/null) == "image/gif" ]]; then
+    a=$(magick identify -format '%A' -- "$1[0]" 2>/dev/null)
+    [[ $a != "Undefined" && $a != "Opaque" ]]
+    return
+  fi
+  if [[ $(file -b --mime-type -- "$1" 2>/dev/null) == "image/avif" ]]; then
+    # The avif demuxer exposes the alpha auxiliary as a separate gray stream.
+    # A here-string, not a pipe: grep -q would otherwise SIGPIPE ffprobe.
+    pix=$(ffprobe -v error -select_streams v -show_entries stream=pix_fmt \
+      -of default=noprint_wrappers=1:nokey=1 -- "$1" 2>/dev/null)
+    grep -Eq '^gray([0-9]+(le|be)?)?$' <<<"$pix"
+    return
+  fi
+  pix=$(ffprobe -v error -select_streams v:0 -show_entries stream=pix_fmt \
+    -of default=noprint_wrappers=1:nokey=1 -- "$1" 2>/dev/null) || return 1
+  case "$pix" in
+  yuva* | rgba* | bgra* | argb | abgr | gbrap* | ya* | pal8a) return 0 ;;
+  pal8)
+    a=$(magick identify -format '%A' -- "$1[0]" 2>/dev/null)
+    [[ $a != "Undefined" && $a != "Opaque" ]]
+    ;;
+  *) return 1 ;;
+  esac
+}
+
+# The GPU vendor with a display device, nvidia preferred over amd over
+# intel on hybrid machines. Empty when no known vendor is present.
+gpu_vendor() {
+  local pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+  local device vendors=""
+  for device in "$pci_devices_path"/*; do
+    [[ -e "$device/vendor" ]] || continue
+    [[ $(< "$device/class") == 0x03* ]] || continue
+    case "$( < "$device/vendor")" in
+    0x10de) vendors+="nvidia " ;;
+    0x1002) vendors+="amd " ;;
+    0x8086) vendors+="intel " ;;
+    esac
+  done
+  local v
+  for v in nvidia amd intel; do
+    if [[ $vendors == *"$v"* ]]; then
+      printf '%s' "$v"
+      return 0
+    fi
+  done
+  return 0
+}
+
+# True when a hardware AV1 encoder is compiled in for the detected vendor.
+gpu_available() {
+  local vendor enc encs
+  vendor=$(gpu_vendor)
+  case "$vendor" in
+  nvidia) enc=av1_nvenc ;;
+  amd) enc='av1_(vaapi|amf)' ;;
+  intel) enc='av1_(qsv|vaapi)' ;;
+  *) return 1 ;;
+  esac
+  # A here-string, not a pipe: grep -q exits on first match and would
+  # otherwise SIGPIPE ffmpeg (141) under pipefail.
+  encs=$(ffmpeg -hide_banner -encoders 2>/dev/null) || return 1
+  grep -Eqw "$enc" <<<"$encs"
+}
+
+# Resolve the render node belonging to this vendor, not the first GPU on a
+# hybrid machine. A render node without its kernel driver is not usable.
+gpu_render_node() {
+  local vendor="$1" device id
+  case "$vendor" in
+  amd) id=0x1002 ;;
+  intel) id=0x8086 ;;
+  *) return 1 ;;
+  esac
+  for device in "${OMARCHY_DRM_PATH:-/sys/class/drm}"/renderD*; do
+    [[ -r $device/device/vendor && -e $device/device/driver ]] || continue
+    [[ $(< "$device/device/vendor") == "$id" ]] || continue
+    local node="${OMARCHY_DRI_PATH:-/dev/dri}/${device##*/}"
+    if [[ -r $node && -w $node ]]; then
+      printf '%s' "$node"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Set gpu_enc/gpu_flags to a working hardware AV1 encoder for the detected
+# vendor, probed with a real encode; empty when the encoder is unusable.
+gpu_av1_setup() {
+  gpu_enc="" gpu_flags="" gpu_upload="" gpu_pix=yuv420p
+  gpu_device=()
+  local vendor enc node="" error="" encs pkg
+  local -a candidates=() probe_filter=()
+  vendor=$(gpu_vendor)
+  case "$vendor" in
+  nvidia) candidates=(av1_nvenc) ;;
+  amd) candidates=(av1_vaapi av1_amf) ;;
+  intel) candidates=(av1_qsv av1_vaapi) ;;
+  *) return 0 ;;
+  esac
+  [[ $vendor == "nvidia" ]] || node=$(gpu_render_node "$vendor") || node=""
+  encs=$(ffmpeg -hide_banner -encoders 2>/dev/null) || encs=""
+  for enc in "${candidates[@]}"; do
+    grep -qw "$enc" <<<"$encs" || continue
+    gpu_device=() probe_filter=() gpu_upload="" gpu_pix=yuv420p
+    case "$enc" in
+    av1_nvenc) gpu_flags="-preset p6 -tune hq -rc vbr -cq 17 -b:v 0" ;;
+    av1_amf) gpu_flags="-quality quality -rc cqp -qp_i 17 -qp_p 17" ;;
+    av1_qsv)
+      [[ -n $node ]] || continue
+      gpu_device=(-qsv_device "$node")
+      gpu_flags="-global_quality 17"
+      ;;
+    av1_vaapi)
+      [[ -n $node ]] || continue
+      gpu_device=(-vaapi_device "$node")
+      gpu_flags="-qp 17"
+      gpu_upload='format=nv12,hwupload'
+      gpu_pix=vaapi
+      probe_filter=(-vf "$gpu_upload")
+      ;;
+    esac
+    # This checks the actual userspace driver and encoder, not just PCI or
+    # compiled-in support. Preserve the NVIDIA encoder settings.
+    if error=$(ffmpeg -v error "${gpu_device[@]}" -f lavfi -i "testsrc=s=${1:-256x144}:d=0.04" \
+      "${probe_filter[@]}" -c:v "$enc" $gpu_flags -pix_fmt "$gpu_pix" -f null - 2>&1); then
+      gpu_enc=$enc
+      return 0
+    fi
+  done
+  gpu_enc="" gpu_flags="" gpu_upload="" gpu_device=()
+  if grep -Eiq 'out of memory|not enough (memory|VRAM)|cannot allocate memory|CUDA_ERROR_OUT_OF_MEMORY|AMF_OUT_OF_MEMORY' <<<"$error"; then
+    echo "Not enough GPU memory for hardware AV1; using cpu" >&2
+  else
+    echo "Hardware AV1 unavailable: check the $vendor driver, render-node access, and AV1 encode support; using cpu" >&2
+    case "$vendor" in
+    nvidia) candidates=(nvidia-utils) ;;
+    amd) candidates=(mesa) ;;
+    intel) candidates=(intel-media-driver vpl-gpu-rt) ;;
+    esac
+    for pkg in "${candidates[@]}"; do
+      if omarchy-pkg-missing "$pkg"; then
+        echo "$pkg is not installed. Install it with: sudo pacman -S $pkg" >&2
+      fi
+    done
+  fi
+  [[ -z $error ]] || printf '%s\n' "$error" >&2
+  return 0
+}
+
+# AVIF/WebM only: alpha first, compiled hardware support second, animation
+# third, then a live driver/memory probe. Only a successful result is offered
+# in the engine picker; explicit cpu never runs these probes.
+gpu_av1_for_input() {
+  gpu_checked=1
+  gpu_enc="" gpu_flags="" gpu_upload="" gpu_device=()
+  input_has_alpha "$1" && return 0
+  gpu_available || return 0
+  local frames mime dims w h edge="${2:-}"
+  mime=$(file -b --mime-type -- "$1")
+  if [[ $mime == image/* ]]; then
+    frames=$(picture_frames "$1")
+  else
+    frames=$(ffprobe -v error -select_streams v:0 -read_intervals '%+#2' -count_frames \
+      -show_entries stream=nb_read_frames -of default=noprint_wrappers=1:nokey=1 -- "$1" 2>/dev/null) || frames=""
+  fi
+  [[ $frames =~ ^[0-9]+$ ]] && (( frames > 1 )) || return 0
+  dims=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 -- "$1" 2>/dev/null) || return 0
+  IFS=, read -r w h <<<"$dims"
+  [[ $w =~ ^[0-9]+$ && $h =~ ^[0-9]+$ ]] && (( w > 0 && h > 0 )) || return 0
+  case "$edge" in
+  4k) edge=2160 ;;
+  1080p) edge=1080 ;;
+  720p) edge=720 ;;
+  esac
+  if [[ -n $edge ]]; then
+    if [[ ${2:-} == *p || ${2:-} == "4k" ]]; then
+      w=$(( w * edge / h )) h=$edge
+    elif (( w >= h )); then
+      edge=$(( edge < w ? edge : w ))
+      h=$(( h * edge / w )) w=$edge
+    else
+      edge=$(( edge < h ? edge : h ))
+      w=$(( w * edge / h )) h=$edge
+    fi
+  fi
+  w=$(( w / 2 * 2 )) h=$(( h / 2 * 2 ))
+  if [[ $(gpu_vendor) == "nvidia" ]] && (( w < 256 || h < 144 )); then
+    return 0
+  fi
+  # Probe the requested dimensions too: a tiny encode cannot establish that
+  # enough memory is available for the actual target. Never upscale to fit.
+  (( w > 0 && h > 0 )) && gpu_av1_setup "${w}x${h}"
+  return 0
+}
+
 output_path() {
   local input="$1"
   local format="$2"
   local resolution="$3"
-  local dir base stem
+  local dir base stem ext
 
   dir=$(dirname -- "$input")
   base=$(basename -- "$input")
   stem="${base%.*}"
+  ext="${base##*.}"
 
-  printf '%s/%s-%s.%s' "$dir" "$stem" "$resolution" "$format"
+  if [[ -n $resolution ]]; then
+    printf '%s/%s-%s.%s' "$dir" "$stem" "$resolution" "$format"
+  elif [[ $ext == "$format" ]]; then
+    # Native re-encode in the input's own format: avoid clobbering the source.
+    printf '%s/%s-re.%s' "$dir" "$stem" "$format"
+  else
+    printf '%s/%s.%s' "$dir" "$stem" "$format"
+  fi
 }
 
 transcode_picture() {
-  local input="$1" format="$2" resolution="$3" output="$4"
-  local resize
+  local input="$1" format="$2" quality="$3" resolution="$4" output="$5" frames="$6"
+  local resize max q mq
 
   case "$resolution" in
-  high) resize='3160x>' ;;
-  medium) resize='2160x>' ;;
-  low) resize='1080x>' ;;
-  *)
+  high) resize='3160x3160>' max=3160 ;;
+  medium) resize='2160x2160>' max=2160 ;;
+  low) resize='1080x1080>' max=1080 ;;
+  *[!0-9]*|"")
     echo "Invalid picture resolution: $resolution" >&2
     return 1
     ;;
+  *)
+    max=$resolution
+    resize="${max}x${max}>"
+    ;;
   esac
 
+  # Normalize still-image pixels during the existing decode, before metadata
+  # is stripped. -auto-orient is a no-op for untagged/already upright images.
   case "$format" in
   jpg)
-    magick "$input" -resize "$resize" -quality 85 -strip "$output"
+    case "$quality" in
+    high) q=85 ;;
+    medium) q=75 ;;
+    low) q=60 ;;
+    *)
+      echo "Invalid picture quality: $quality" >&2
+      return 1
+      ;;
+    esac
+    magick "$input" -auto-orient -resize "$resize" -quality "$q" -strip "$output"
     ;;
   png)
-    magick "$input" -resize "$resize" -strip -define png:compression-filter=5 \
+    magick "$input" -auto-orient -resize "$resize" -strip -define png:compression-filter=5 \
       -define png:compression-level=9 \
       -define png:compression-strategy=1 \
       -define png:exclude-chunk=all \
       "$output"
+    ;;
+  webp)
+    if omarchy-cmd-missing cwebp; then
+      echo "cwebp not found. Install it first: sudo pacman -S libwebp-utils" >&2
+      return 1
+    fi
+    case "$quality" in
+    high) q=90 ;;
+    medium) q=75 ;;
+    low) q=60 ;;
+    *)
+      echo "Invalid picture quality: $quality" >&2
+      return 1
+      ;;
+    esac
+    if (( frames > 1 )); then
+      # Animated input: cwebp encodes from a single-frame temp, so use magick
+      # directly (preserves frames and timing).
+      magick "$input" -coalesce -resize "$resize" -quality "$q" "$output"
+      return 0
+    fi
+    local tmp
+    tmp=$(mktemp --suffix=.png)
+    trap 'rm -f "$tmp" 2>/dev/null; trap - RETURN' RETURN
+    # ImageMagick combines AVIF's auxiliary alpha with its color image;
+    # ffmpeg's default stream selection decodes only the color plane.
+    magick "$input[0]" -auto-orient -resize "$resize" -strip -type TrueColorAlpha -define png:color-type=6 "$tmp"
+    cwebp -q "$q" -alpha_q 100 -m 6 "$tmp" -o "$output"
+    rm -f "$tmp"
+    ;;
+  avif)
+    if omarchy-cmd-missing avifenc; then
+      echo "avifenc not found. Install it first: sudo pacman -S libavif" >&2
+      return 1
+    fi
+    case "$quality" in
+    high) q=20 ;;
+    medium) q=35 ;;
+    low) q=45 ;;
+    *)
+      echo "Invalid picture quality: $quality" >&2
+      return 1
+      ;;
+    esac
+    if (( frames > 1 )); then
+      # Animated input: avifenc encodes from a single-frame temp, so use
+      # magick directly (preserves frames and timing). Map the tier to
+      # magick's 0-100 quality scale.
+      case "$quality" in
+      high) mq=90 ;;
+      medium) mq=75 ;;
+      low) mq=60 ;;
+      *) mq=75 ;;
+      esac
+      magick "$input" -coalesce -resize "$resize" -quality "$mq" "$output"
+      return 0
+    fi
+    local tmp
+    tmp=$(mktemp --suffix=.png)
+    trap 'rm -f "$tmp" 2>/dev/null; trap - RETURN' RETURN
+    magick "$input[0]" -auto-orient -resize "$resize" -strip -type TrueColorAlpha -define png:color-type=6 "$tmp"
+    avifenc --codec aom --yuv 444 --min "$q" --max "$q" --qalpha 100 "$tmp" "$output"
+    rm -f "$tmp"
     ;;
   *)
     echo "Invalid picture format: $format" >&2
@@ -89,35 +433,261 @@ transcode_picture() {
 }
 
 transcode_video() {
-  local input="$1" format="$2" resolution="$3" output="$4"
-  local scale
+  local input="$1" format="$2" resolution="$3" output="$4" engine="${5:-cpu}"
+  local scale vf=""
+  # A fresh marker: ffmpeg exits 0 when the user declines its overwrite
+  # prompt, so only a freshly written output proves the encode happened.
+  # The EXIT trap keeps it from leaking on early returns and failures.
+  local ref
+  ref=$(mktemp)
+  trap 'rm -f "${ref:-}"' EXIT
 
   case "$resolution" in
+  "")
+    # native: pass through untouched, never upscale
+    scale=""
+    ;;
   4k) scale='scale=-2:2160' ;;
   1080p) scale='scale=-2:1080' ;;
   720p) scale='scale=-2:720' ;;
-  *)
+  *[!0-9]*)
     echo "Invalid video resolution: $resolution" >&2
     return 1
     ;;
+  *)
+    # Every numeric rung has the same longest-side meaning, regardless of
+    # orientation or container. Named legacy aliases above remain heights.
+    scale="scale='if(gte(iw,ih),min($resolution,iw),-2)':'if(gte(iw,ih),-2,min($resolution,ih))'"
+    ;;
   esac
+
+  # Animated formats (gif/webm/avif) keep the source frame rate — never
+  # framerate-compress by default — with a lanczos scale. mp4 keeps the
+  # source frame rate and pads to even dimensions so libx264 accepts odd
+  # inputs, including an odd long edge left by a numeric rung.
+  case "$format" in
+  gif|webm|avif)
+    if [[ -n $scale ]]; then
+      vf="-vf $scale:flags=lanczos"
+    else
+      vf=""
+    fi
+    ;;
+  *)
+    if [[ -n $scale ]]; then
+      vf="-vf $scale,pad=ceil(iw/2)*2:ceil(ih/2)*2"
+    else
+      vf='-vf pad=ceil(iw/2)*2:ceil(ih/2)*2'
+    fi
+    ;;
+  esac
+
+  # Animated AVIF: the avif demuxer reads only the first frame, so decode
+  # the full sequence once — frames plus each frame's own delay — and feed
+  # every encoder from the sequence.
+  local -a src_in=(-i "$input")
+  # Pass the source timestamps through untouched: the avif/webm muxers pick
+  # high-rate timebases, and default CFR resampling would duplicate frames
+  # to fill them (a 10 fps GIF becomes a 100 fps stream of dupes).
+  local vfr="-fps_mode passthrough"
+  local alpha=0
+  input_has_alpha "$input" && alpha=1
+  if (( alpha )) && [[ $(file -b --mime-type -- "$input") == "video/webm" ]]; then
+    # libvpx restores the alpha plane that the native VP9 decoder omits.
+    local codec
+    codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name \
+      -of default=noprint_wrappers=1:nokey=1 -- "$input" 2>/dev/null)
+    case "$codec" in
+    vp9) src_in=(-c:v libvpx-vp9 -i "$input") ;;
+    vp8) src_in=(-c:v libvpx -i "$input") ;;
+    esac
+  fi
+  if [[ $engine == "gpu" && ( $format == "avif" || $format == "webm" ) ]]; then
+    # Reuse the probe main() ran for the engine ask; probe once.
+    [[ ${gpu_checked:-0} == 1 ]] || gpu_av1_for_input "$input" "$resolution"
+  else
+    gpu_enc="" gpu_flags=""
+  fi
+  # Hardware AV1 loses alpha on every vendor in this stack (nvenc accepts
+  # alpha input but encodes yuv420p), and the gif scale pipeline forces
+  # yuv420p before the palette — so alpha inputs take the cpu path, the
+  # same no-exceptions rule the avif output already uses.
+  if (( alpha )); then
+    gpu_enc="" gpu_flags=""
+    [[ $format == "gif" ]] && engine=cpu
+  fi
+  # Hardware AV1 encoders have a minimum frame size (nvenc av1: 256x144).
+  # A target below it takes the cpu path instead of being upscaled, so
+  # native stays native and a picked rung is honored.
+  local hwvf=""
+  if [[ -n $gpu_enc ]]; then
+    local iw ih tw th
+    iw=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=noprint_wrappers=1:nokey=1 -- "$input" 2>/dev/null)
+    ih=$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=noprint_wrappers=1:nokey=1 -- "$input" 2>/dev/null)
+    if [[ $scale == scale=-2:* ]]; then
+      th=${scale#scale=-2:}
+      if [[ $iw =~ ^[0-9]+$ && $ih =~ ^[0-9]+$ && $th =~ ^[0-9]+$ ]]; then
+        tw=$(( (iw * th) / ih ))
+        (( tw % 2 )) && tw=$(( tw - 1 ))
+      else
+        tw=""
+      fi
+    elif [[ $scale == *'if(gte(iw,ih)'* ]]; then
+      # Longest-side target: derive w/h from the aspect, without upscaling.
+      if [[ $iw =~ ^[0-9]+$ && $ih =~ ^[0-9]+$ && $resolution =~ ^[0-9]+$ ]] && (( iw > 0 && ih > 0 )); then
+        if (( iw >= ih )); then
+          tw=$(( resolution < iw ? resolution : iw ))
+          th=$(( (tw * ih) / iw ))
+        else
+          th=$(( resolution < ih ? resolution : ih ))
+          tw=$(( (th * iw) / ih ))
+        fi
+        (( tw % 2 )) && tw=$(( tw - 1 ))
+        (( th % 2 )) && th=$(( th - 1 ))
+      else
+        tw=""
+      fi
+    else
+      tw=$iw th=$ih
+    fi
+    if [[ $tw =~ ^[0-9]+$ && $th =~ ^[0-9]+$ ]] && (( tw > 0 && th > 0 )) \
+      && { [[ $gpu_enc != "av1_nvenc" ]] || (( tw >= 256 && th >= 144 )); }; then
+      local minscale='scale=w=trunc(iw*max(1\,max(256/iw\,144/ih))/2)*2:h=trunc(ih*max(1\,max(256/iw\,144/ih))/2)*2'
+      hwvf=$vf
+      if [[ $gpu_enc == "av1_nvenc" ]]; then
+        if [[ -n $vf ]]; then
+          hwvf="-vf ${vf#-vf },$minscale"
+        else
+          hwvf="-vf $minscale"
+        fi
+      elif [[ -n $gpu_upload ]]; then
+        hwvf="-vf ${vf:+${vf#-vf },}$gpu_upload"
+      else
+        hwvf=$vf
+      fi
+    else
+      gpu_enc="" gpu_flags=""
+    fi
+  fi
+  if [[ $(file -b --mime-type -- "$input") == "image/avif" ]]; then
+    local tmpdir fc dur avg d t i list delays per_frame
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir" 2>/dev/null; trap - RETURN' RETURN
+    magick "$input" -coalesce -type TrueColorMATTE -define png:color-type=6 "$tmpdir/frame_%03d.png"
+    fc=$(ls "$tmpdir" | wc -l)
+    if (( fc < 2 )); then
+      # We only get here with a multi-frame source, so a single decoded
+      # frame means the decode failed: fail loudly rather than emit a
+      # 1-frame output.
+      echo "Failed to decode all frames of $input" >&2
+      return 1
+    fi
+    dur=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 -- "$input" 2>/dev/null)
+    avg=$(awk "BEGIN {d=${dur:-0}; if (d<=0) d=1; printf \"%.3f\", d/$fc}")
+    list="$tmpdir/concat.txt"
+    # libheif's per-frame delays are only trustworthy when they agree
+    # with the container total: ffmpeg-written avif carries a 1024cs
+    # placeholder per frame that would stretch playback ~100x. Carry the
+    # real per-frame delays when they reconcile, the uniform container
+    # duration otherwise.
+    delays=$(magick identify -format '%T\n' -- "$input" 2>/dev/null)
+    per_frame=$(awk -v d="$dur" '
+      $1 ~ /^[0-9]+$/ && $1 > 0 { s += $1; n++ }
+      END {
+        print (d + 0 > 0 && n > 0 && s / 100 >= 0.75 * d && s / 100 <= 1.5 * d) ? 1 : 0
+      }' <<<"$delays")
+    if (( per_frame )); then
+      i=0
+      while IFS= read -r t; do
+        if [[ $t =~ ^[0-9]+$ ]] && (( t > 0 )); then
+          d=$(awk "BEGIN {printf \"%.3f\", $t/100}")
+        else
+          d=$avg
+        fi
+        printf "file 'frame_%03d.png'\nduration %s\n" "$i" "$d" >>"$list"
+        i=$(( i + 1 ))
+      done <<<"$delays"
+    else
+      for (( i = 0; i < fc; i++ )); do
+        printf "file 'frame_%03d.png'\nduration %s\n" "$i" "$avg" >>"$list"
+      done
+    fi
+    src_in=(-f concat -safe 0 -i "$list")
+  fi
 
   case "$format" in
   mp4)
-    if [[ $resolution == "4k" ]]; then
-      ffmpeg -i "$input" -vf "$scale" -c:v libx265 -preset slow -crf 24 -c:a aac -b:a 192k -movflags +faststart "$output"
+    if [[ $resolution == "4k" || $resolution == "2160" ]]; then
+      ffmpeg "${src_in[@]}" $vf $vfr -c:v libx265 -preset slow -crf 24 -c:a aac -b:a 192k -movflags +faststart "$output"
     else
-      ffmpeg -i "$input" -vf "$scale" -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k -movflags +faststart "$output"
+      ffmpeg "${src_in[@]}" $vf $vfr -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k -movflags +faststart "$output"
     fi
     ;;
   gif)
-    ffmpeg -i "$input" -vf "fps=10,$scale:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" "$output"
+    # Two-pass palette: generate a frame-diff palette, then dither against it.
+    local palette='palettegen=max_colors=256:reserve_transparent=1:stats_mode=diff'
+    local use='paletteuse=dither=sierra2_4a:alpha_threshold=128:diff_mode=rectangle'
+    if [[ $engine == "gpu" ]] && [[ $(gpu_vendor) == "nvidia" ]]; then
+      local sc
+      if [[ -n $scale ]]; then
+        sc="scale_cuda=${scale#scale=}:interp_algo=lanczos:format=yuv420p:passthrough=0"
+      else
+        sc='scale_cuda=iw:ih:format=yuv420p:passthrough=0'
+      fi
+      # GIFs decode in software; convert to yuv420p, upload the frames
+      # (hwupload_cuda creates its own device context), scale on the GPU.
+      if ! ffmpeg -i "$input" $vfr \
+        -filter_complex "[0:v]format=yuv420p,hwupload_cuda,${sc},hwdownload,format=yuv420p,split[v0][v1];[v0]${palette}[p];[v1][p]${use}[out]" \
+        -map "[out]" -an -loop 0 -gifflags +transdiff "$output"; then
+        # The CUDA chain is unusable (nouveau, a build without scale_cuda):
+        # retry on the cpu pipeline.
+        echo "GPU scale pipeline failed; falling back to cpu" >&2
+        ffmpeg -i "$input" $vfr \
+          -filter_complex "[0:v]${scale:+$scale:flags=lanczos,}split[v0][v1];[v0]${palette}[p];[v1][p]${use}[out]" \
+          -map "[out]" -an -loop 0 -gifflags +transdiff "$output"
+      fi
+    else
+      ffmpeg -i "$input" $vfr \
+        -filter_complex "[0:v]${scale:+$scale:flags=lanczos,}split[v0][v1];[v0]${palette}[p];[v1][p]${use}[out]" \
+        -map "[out]" -an -loop 0 -gifflags +transdiff "$output"
+    fi
+    ;;
+  avif)
+    if [[ -n $gpu_enc ]]; then
+      ffmpeg "${gpu_device[@]}" "${src_in[@]}" $hwvf $vfr -an -c:v "$gpu_enc" $gpu_flags -pix_fmt "$gpu_pix" -loop 0 -f avif "$output"
+    elif (( alpha )); then
+      # The ffmpeg avif muxer drops the alpha auxiliary, so alpha-carrying
+      # input is encoded by magick (libheif) — the same encoder the picture
+      # path uses. Coalesce keeps per-frame delays.
+      local mresize=""
+      if [[ $scale == scale=-2:* ]]; then
+        mresize="-resize x${scale#scale=-2:}"
+      elif [[ $scale == *'if(gte(iw,ih)'* ]]; then
+        # Longest-side target: a shrink-only magick bounding box.
+        mresize="-resize ${resolution}x${resolution}>"
+      fi
+      magick "$input" -coalesce $mresize -quality 90 "$output"
+    else
+      ffmpeg "${src_in[@]}" $vf $vfr -an -c:v libaom-av1 -crf 20 -b:v 0 -cpu-used 6 -row-mt 1 -pix_fmt yuv420p -loop 0 -f avif "$output"
+    fi
+    ;;
+  webm)
+    if [[ -n $gpu_enc ]]; then
+      ffmpeg "${gpu_device[@]}" "${src_in[@]}" $hwvf $vfr -c:v "$gpu_enc" $gpu_flags -pix_fmt "$gpu_pix" -c:a libopus -b:a 128k -f webm "$output"
+    else
+      local wpix=yuv420p
+      (( alpha )) && wpix=yuva420p
+      ffmpeg "${src_in[@]}" $vf $vfr -c:v libvpx-vp9 -crf 20 -b:v 0 -deadline good -cpu-used 2 -row-mt 1 -pix_fmt "$wpix" -c:a libopus -b:a 128k -f webm "$output"
+    fi
     ;;
   *)
     echo "Invalid video format: $format" >&2
     return 1
     ;;
   esac
+  [[ $output -nt $ref ]] || { echo "No output written: $output" >&2; return 1; }
+  rm -f "$ref"
+  trap - EXIT
 }
 
 copy_to_clipboard() {
@@ -129,8 +699,10 @@ copy_to_clipboard() {
 }
 
 main() {
-  local input="" format="" resolution="" search_path=""
-  local type output positional=()
+  local input="" format="" quality="" resolution="" search_path=""
+  local gpu_checked=0 gpu_enc="" gpu_flags="" gpu_upload="" gpu_pix=yuv420p
+  local -a gpu_device=()
+  local type output stem positional=()
 
   while (( $# > 0 )); do
     case "$1" in
@@ -162,7 +734,15 @@ main() {
 
   input="${positional[0]:-}"
   format="${positional[1]:-}"
-  resolution="${positional[2]:-}"
+  quality="${positional[2]:-}"
+  resolution="${positional[3]:-}"
+  engine="${positional[4]:-}"
+  # Slot 3 is quality in the new form, but old callers passed resolution
+  # there. If it's not a known quality, treat it as a resolution.
+  if [[ -n $quality && $quality != "high" && $quality != "medium" && $quality != "low" ]]; then
+    resolution=$quality
+    quality=""
+  fi
   search_path="${search_path:-$HOME/Pictures:$HOME/Videos}"
 
   if [[ -z $input ]]; then
@@ -172,16 +752,73 @@ main() {
   [[ -n $input ]] || return 1
   [[ -f $input ]] || { echo "File not found: $input" >&2; return 1; }
 
-  type=$(media_type "$input")
+  type=$(media_type "$input" "$format")
 
-  if [[ -z $format ]]; then
-    if [[ $type == "picture" ]]; then
-      format=$(omarchy-menu-select "$(omarchy-i18n transcode.selectFormat)" jpg png)
+  local -a rungs=()
+  local w h long axis frames
+  local codec_done=0 res_done=0
+
+  if [[ $type == "picture" ]]; then
+    # Frame count: animated (multi-frame) inputs need animated-capable output.
+    frames=$(picture_frames "$input")
+    # Rung ladder: the image's long side, then the standard rungs below it
+    # (same ladder as the omafile dialog). Probe the first frame only —
+    # a multi-frame identify concatenates per-frame dims and breaks `read`.
+    read -r w h <<<"$(magick identify -format '%w %h' -- "$input[0]" 2>/dev/null)" || w="" h=""
+    long=$(( ${w:-0} > ${h:-0} ? ${w:-0} : ${h:-0} ))
+    if (( long > 0 )); then
+      rungs=("$long")
+      for r in 7168 6656 6144 5632 5120 4608 4096 3840 3584 3072 2560 2160 2048 1920 1440 1280 1080 1024 960 854 720 640 540 512 480 360 256 128; do
+        (( r < long )) && rungs+=("$r")
+      done
     else
-      format=$(omarchy-menu-select "$(omarchy-i18n transcode.selectFormat)" mp4 gif)
+      rungs=(3160 2160 1080)
     fi
+    [[ -n $format && -n $quality ]] && codec_done=1
+    [[ -n $resolution ]] && res_done=1
+    local quality_explicit=0 resolution_explicit=0
+    [[ -n $quality ]] && quality_explicit=1
+    [[ -n $resolution ]] && resolution_explicit=1
+    if [[ -z $format ]]; then
+      # Resolution-only runs keep the input's format (resize, no re-encode).
+      local ext="${input##*.}"
+      ext="${ext,,}"
+      case "$ext" in
+      jpg|jpeg) format="jpg" ;;
+      png|webp|avif) format="$ext" ;;
+      *)
+        # Not a supported output; ask before changing the format.
+        format=$(omarchy-menu-select "$(omarchy-i18n transcode.selectFormat)" jpg png webp avif) || return 1
+        ;;
+      esac
+    fi
+    [[ -n $quality ]] || quality="high"
+    [[ -n $resolution ]] || resolution="${rungs[0]}"
+  else
+    [[ -n $format ]] && codec_done=1
+    [[ -n $resolution ]] && res_done=1
+    local quality_explicit=0 resolution_explicit=0
+    [[ -n $quality ]] && quality_explicit=1
+    [[ -n $resolution ]] && resolution_explicit=1
+    if [[ -z $format ]]; then
+      # Resolution-only runs keep the input's container (re-encode, no resize).
+      local ext="${input##*.}"
+      ext="${ext,,}"
+      case "$ext" in
+      mp4|m4v) format="mp4" ;;
+      webm) format="webm" ;;
+      avif) format="avif" ;;
+      gif)
+        # An animated GIF is an animated image; the axis menu picks.
+        ;;
+      *)
+        # Not a supported output; ask before changing the container.
+        format=$(omarchy-menu-select "$(omarchy-i18n transcode.selectFormat)" mp4 gif webm avif) || return 1
+        ;;
+      esac
+    fi
+    # No resolution default: keep the source's native size, never upscale.
   fi
-
   # Picture qualities are words, so the menu shows them in the Omarchy language
   # and maps the pick back to the value the transcoder takes.
   local high medium low choice
@@ -189,38 +826,146 @@ main() {
   medium=$(omarchy-i18n transcode.qualityMedium)
   low=$(omarchy-i18n transcode.qualityLow)
 
-  if [[ -z $resolution ]]; then
-    if [[ $type == "picture" ]]; then
-      choice=$(omarchy-menu-select "$(omarchy-i18n transcode.selectResolution)" "$high" "$medium" "$low")
-      case $choice in
-        "$high") resolution=high ;;
-        "$medium") resolution=medium ;;
-        "$low") resolution=low ;;
-      esac
-    else
-      resolution=$(omarchy-menu-select "$(omarchy-i18n transcode.selectResolution)" 4k 1080p 720p)
-    fi
+  # Split paths: walking either one succeeds independently; the other
+  # axis keeps its default.
+  if [[ $codec_done == 0 && $res_done == 0 ]]; then
+    local codec_label res_label
+    codec_label=$(omarchy-i18n transcode.codec)
+    res_label=$(omarchy-i18n transcode.resolution)
+    axis=$(omarchy-menu-select "$(omarchy-i18n transcode.selectAxis)" "$codec_label" "$res_label") || return 1
+    case "$axis" in
+    "$codec_label")
+      if [[ $type == "picture" ]]; then
+        format=$(omarchy-menu-select "$(omarchy-i18n transcode.selectFormat)" jpg png webp avif) || return 1
+        choice=$(omarchy-menu-select "$(omarchy-i18n transcode.selectQuality)" "$high" "$medium" "$low") || return 1
+        case $choice in
+        "$high") quality=high ;;
+        "$medium") quality=medium ;;
+        "$low") quality=low ;;
+        esac
+      else
+        if [[ $(file -b --mime-type -- "$input") == "image/gif" ]]; then
+          # Animated images take every animated-capable output.
+          format=$(omarchy-menu-select "$(omarchy-i18n transcode.selectFormat)" webp avif gif mp4 webm) || return 1
+        else
+          format=$(omarchy-menu-select "$(omarchy-i18n transcode.selectFormat)" mp4 gif webm avif) || return 1
+        fi
+      fi
+      codec_done=1
+      [[ $type == "picture" ]] && quality_explicit=1
+      ;;
+    "$res_label")
+      if [[ $type == "picture" ]]; then
+        local -a labels=()
+        for r in "${rungs[@]}"; do labels+=("${r}x"); done
+        resolution=$(omarchy-menu-select "$(omarchy-i18n transcode.selectResolution)" "${labels[@]}") || return 1
+        resolution="${resolution%x}"
+      else
+        local -a vrungs=()
+        local dims vh
+        dims=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 -- "$input" 2>/dev/null) || dims=""
+        IFS=, read -r w h <<<"$dims"
+        vh=$(( ${w:-0} > ${h:-0} ? ${w:-0} : ${h:-0} ))
+        if [[ $vh =~ ^[0-9]+$ ]] && (( vh > 0 )); then
+          vrungs=("$vh")
+          for r in 7168 6656 6144 5632 5120 4608 4096 3840 3584 3072 2560 2160 2048 1920 1440 1280 1080 1024 960 854 720 640 540 512 480 360 256 128; do
+            (( r < vh )) && vrungs+=("$r")
+          done
+        else
+          vrungs=(2160 1080 720)
+        fi
+        resolution=$(omarchy-menu-select "$(omarchy-i18n transcode.selectResolution)" "${vrungs[@]}") || return 1
+      fi
+      res_done=1
+      resolution_explicit=1
+      ;;
+    *)
+      echo "Unknown transcode axis: $axis" >&2
+      return 1
+      ;;
+    esac
+  fi
+  # A gif that took the resolution axis first has no format pick yet:
+  # offer every animated-capable output before the picture/video split.
+  if [[ $type == "video" && -z $format ]] && [[ $(file -b --mime-type -- "$input") == "image/gif" ]]; then
+    format=$(omarchy-menu-select "$(omarchy-i18n transcode.selectFormat)" webp avif gif mp4 webm) || return 1
   fi
 
-  output=$(output_path "$input" "$format" "$resolution")
+  # GIFs split by target format: picture formats (jpg/png/webp) take the
+  # picture path (animated webp via magick, first-frame jpg/png); avif and
+  # the other video formats keep the video path.
+  if [[ $type == "video" ]] && [[ $(file -b --mime-type -- "$input") == "image/gif" ]] \
+    && [[ $format == "jpg" || $format == "png" || $format == "webp" ]]; then
+    type=picture
+    frames=$(picture_frames "$input")
+    [[ -n $quality ]] || quality="high"
+    if [[ -z $resolution ]]; then
+      read -r w h <<<"$(magick identify -format '%w %h' -- "$input[0]" 2>/dev/null)" || w="" h=""
+      long=$(( ${w:-0} > ${h:-0} ? ${w:-0} : ${h:-0} ))
+      (( long > 0 )) || long=3160
+      resolution=$long
+    fi
+  fi
+  # Engine: an optional trailing positional. When absent, avif and webm are
+  # offered the hardware path only when the vendor's encoder passes a live
+  # probe, so a "gpu" pick is always honored. gif auto-detects the CUDA
+  # scale pipeline; mp4 and pictures stay cpu. An explicit positional
+  # overrides.
+  if [[ -z $engine ]]; then
+    engine=cpu
+    if [[ $type == "video" ]]; then
+      case "$format" in
+      avif|webm)
+        gpu_av1_for_input "$input" "$resolution"
+        if [[ -n $gpu_enc ]]; then
+          engine=$(omarchy-menu-select "$(omarchy-i18n transcode.engine)" gpu cpu) || return 1
+        fi
+        ;;
+      gif)
+        # The GPU path is the CUDA scale pipeline; NVIDIA only.
+        if [[ $(gpu_vendor) == "nvidia" ]]; then
+          engine=gpu
+        fi
+        ;;
+      esac
+    fi
+  fi
+  [[ -n $engine ]] || engine=cpu
 
-  local resolution_label=$resolution
-  case $resolution in
-    high) resolution_label=$high ;;
-    medium) resolution_label=$medium ;;
-    low) resolution_label=$low ;;
-  esac
+  if [[ $type == "picture" ]]; then
+    # Animated pictures can only convert to animated-capable formats. Check
+    # the final choice, after any menu, so a no-argument animated input is
+    # not rejected on its inferred container before the user can pick
+    # webp/avif.
+    if (( frames > 1 )) && [[ $format != "webp" && $format != "avif" ]]; then
+      echo "Animated images can only be transcoded to webp or avif" >&2
+      return 1
+    fi
+    # Stamp only what was actually picked: the resolution rung and/or the
+    # quality tier. Defaults (native size, high) stay out of the name.
+    stem=""
+    [[ $resolution_explicit == 1 ]] && stem="$resolution"
+    if [[ $quality_explicit == 1 ]]; then
+      [[ -n $stem ]] && stem="$stem-"
+      stem="${stem}${quality}"
+    fi
+  else
+    stem="$resolution"
+  fi
+  output=$(output_path "$input" "$format" "$stem")
 
   if [[ $type == "video" ]]; then
-    omarchy-notification-send -g  "$(omarchy-i18n transcode.working)" "$(omarchy-i18n transcode.workingBody "$(basename -- "$input")" "$format" "$resolution")"
-    transcode_video "$input" "$format" "$resolution" "$output"
+    omarchy-notification-send -g 󰴑 "$(omarchy-i18n transcode.working)" "$(omarchy-i18n transcode.workingBody "$(basename -- "$input")" "$format" "$resolution")"
+    transcode_video "$input" "$format" "$resolution" "$output" "$engine"
     copy_to_clipboard "$output"
-    omarchy-notification-send -g  "$(omarchy-i18n transcode.done "$resolution" "$format")" "$(omarchy-i18n transcode.saved)"
+    omarchy-notification-send -g 󰴑 "$(omarchy-i18n transcode.done "$resolution" "$format")" "$(omarchy-i18n transcode.saved)"
   else
-    transcode_picture "$input" "$format" "$resolution" "$output"
+    transcode_picture "$input" "$format" "$quality" "$resolution" "$output" "$frames"
     copy_to_clipboard "$output"
-    omarchy-notification-send -g  "$(omarchy-i18n transcode.done "$resolution_label" "$format")" "$(omarchy-i18n transcode.saved)"
+    omarchy-notification-send -g 󰴑 "$(omarchy-i18n transcode.done "$resolution" "$format")" "$(omarchy-i18n transcode.saved)"
   fi
 }
 
-main "$@"
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi
