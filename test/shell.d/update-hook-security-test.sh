@@ -41,7 +41,15 @@ PY
   pass "update $args authorizes once for everything, AUR included"
 done
 
-for step in omarchy-update-system-pkgs yay omarchy-hook; do
+reset_boundary
+export SUDO_TEST_FAIL_STEP=yay
+run_update -y || fail "an AUR failure must not fail the update" "$(<"$boundary_tmp/output")"
+grep -q '^step:omarchy-update-boot' "$SUDO_TEST_LOG" || fail "a failed AUR update skipped boot verification" "$(<"$SUDO_TEST_LOG")"
+grep -Fxq 'step:omarchy-update-stay-awake stop' "$SUDO_TEST_LOG" || fail "a failed AUR update left the sleep inhibitor" "$(<"$SUDO_TEST_LOG")"
+grep -q '^step:omarchy-update-restart --reboot-only' "$SUDO_TEST_LOG" || fail "a failed AUR update offered no reboot" "$(<"$SUDO_TEST_LOG")"
+pass "update still verifies boot and offers a reboot after yay fails"
+
+for step in omarchy-update-system-pkgs omarchy-hook; do
   reset_boundary
   export SUDO_TEST_FAIL_STEP=$step
   if run_update -y; then fail "$step failure must fail the update"; fi
