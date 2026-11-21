@@ -133,6 +133,8 @@ omarchy-update
   ├─ run migrations
   ├─ automatically remove orphan packages and run log analysis
   ├─ clear the shell update indicator: the update just installed what it showed
+  ├─ update git-managed plugins, only when the update-plugins toggle is on (held plugins are skipped)
+  │  (-y approves each change, a failed plugin warns and the update continues)
   ├─ restart marked services and the shell
   ├─ run the post-update hook, then update mise tools (a failed tool update
   │  warns and the update continues)
