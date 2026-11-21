@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Install a supported browser
-# omarchy:args=<chromium|chrome|brave|brave-origin|edge|firefox|zen>
+# omarchy:args=<chromium|chrome|brave|brave-origin|edge|firefox|zen|yandex>
 # omarchy:examples=omarchy install browser chromium | omarchy install browser firefox
 
 set -e
@@ -37,6 +37,36 @@ copy_chromium_flags() {
   omarchy-install-chromium-ytdlp
   omarchy-install-video-decode
   omarchy-install-camera
+}
+
+# Yandex's deb ships no libffmpeg.so, and its bundled update-ffmpeg script
+# reads codecs.json, whose newest entry targets Chromium 112 — far behind the
+# browser. The maintained manifest is codecs_snap.json, keyed by Chromium
+# major version and pointing at chromium-ffmpeg snaps with a full libffmpeg.so.
+# update-ffmpeg names the base the browser expects, so follow it on upgrades.
+install_yandex_ffmpeg_codecs() {
+  local browser_dir="$opt_path/yandex/browser"
+  local base manifest url path tmp
+
+  base=$(grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' "$browser_dir/update-ffmpeg" | cut -d. -f1)
+  manifest=$(wget -qO- https://browser-resources.s3.yandex.net/linux/codecs_snap.json)
+  url=$(jq -r --arg base "$base" '.[$base].url // empty' <<<"$manifest")
+  path=$(jq -r --arg base "$base" '.[$base].path // empty' <<<"$manifest")
+
+  if [[ -z $url || -z $path ]]; then
+    echo "No codec bundle published for Chromium base $base; H.264/AAC playback may not work."
+    return 0
+  fi
+
+  tmp=$(mktemp -d)
+  if wget -q "$url" -O "$tmp/codecs.snap" &&
+    unsquashfs -f -d "$tmp/root" "$tmp/codecs.snap" "$path" >/dev/null; then
+    as_root install -m 644 "$tmp/root/$path" "$browser_dir/libffmpeg.so"
+    echo "Installed full ffmpeg codecs for Chromium base $base."
+  else
+    echo "Failed to fetch the codec bundle; H.264/AAC playback may not work."
+  fi
+  rm -rf "$tmp"
 }
 
 setup_firefox_wayland() {
@@ -115,8 +145,19 @@ zen)
   omarchy-lifecycle-dispatch post-install zen
   announce_browser_installed "Zen"
   ;;
+yandex)
+  echo "Installing Yandex Browser..."
+  omarchy-pkg-aur-add yandex-browser || exit 1
+
+  omarchy-pkg-add squashfs-tools
+  install_yandex_ffmpeg_codecs
+  copy_chromium_flags ~/.config/yandex-browser-flags.conf
+  omarchy-theme-set-browser
+  omarchy-lifecycle-dispatch post-install yandex
+  announce_browser_installed "Yandex Browser"
+  ;;
 *)
-  echo "Usage: omarchy-install-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen>"
+  echo "Usage: omarchy-install-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen|yandex>"
   exit 1
   ;;
 esac
