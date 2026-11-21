@@ -62,6 +62,8 @@ printf 'snapper %s\n' "$*" >>"$TEST_LOG"
 if [[ "$*" == *"list-configs"* ]]; then
   echo "config,subvolume"
   echo "root,/"
+elif [[ "$*" == *" create "*" -p" ]]; then
+  echo 9
 fi
 STUB
 chmod +x "$fake_bin/snapper"
@@ -70,11 +72,28 @@ chmod +x "$fake_bin/snapper"
 TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
   bash "$snapshot" create >/dev/null
 
-grep -qFx 'snapper -c root create -c number -d 4.0.0' "$test_tmp/calls.log" ||
+grep -qFx 'snapper -c root create -c number -d 4.0.0 -p' "$test_tmp/calls.log" ||
   fail "snapshot create snapshots each configured subvolume" "$(cat "$test_tmp/calls.log")"
 grep -qFx 'snapper -c root cleanup number' "$test_tmp/calls.log" ||
   fail "snapshot create prunes older snapshots"
 pass "snapshot create snapshots every configured Snapper config"
+
+# On systemd-boot an update only goes ahead once its rollback point boots: the
+# new root snapshot must have an entry after the sync.
+printf '#!/bin/bash\necho systemd-boot\n' >"$fake_bin/omarchy-boot-backend"
+printf '#!/bin/bash\nexit 0\n' >"$fake_bin/omarchy-boot-sync"
+chmod +x "$fake_bin/omarchy-boot-backend" "$fake_bin/omarchy-boot-sync"
+mkdir -p "$test_tmp/store"
+printf 'omarchy\tOmarchy\nsnapshot-9\tSnapshot 9\n' >"$test_tmp/store/entries"
+TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" OMARCHY_BOOT_STORE="$test_tmp/store" \
+  bash "$snapshot" create >/dev/null 2>&1 || fail "a snapshot with its boot entry succeeds"
+printf 'omarchy\tOmarchy\nsnapshot-8\tSnapshot 8\n' >"$test_tmp/store/entries"
+if TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" OMARCHY_BOOT_STORE="$test_tmp/store" \
+  bash "$snapshot" create >/dev/null 2>&1; then
+  fail "a snapshot without a boot entry fails"
+fi
+rm "$fake_bin/omarchy-boot-backend" "$fake_bin/omarchy-boot-sync"
+pass "on systemd-boot, snapshot create fails unless the new snapshot has a boot entry"
 
 # Snapper being deliberately absent is the one skip that stays quiet, and the
 # update has to keep treating it as such.

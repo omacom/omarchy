@@ -11,7 +11,8 @@ page_kib=$(( $(getconf PAGESIZE) / 1024 ))
 
 gpu() { mkdir -p "$OMARCHY_PCI_DEVICES_PATH/$1"; echo "$2" > "$OMARCHY_PCI_DEVICES_PATH/$1/vendor"; echo "$3" > "$OMARCHY_PCI_DEVICES_PATH/$1/class"; }
 ram_gib() { echo "MemTotal:       $(( $1 * 1024 * 1024 )) kB" > "$OMARCHY_MEMINFO"; }
-apply() { "$ROOT/bin/omarchy-apply-amd-gpu-memory" >/dev/null; }
+# It writes through omarchy-boot-cmdline.
+apply() { PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-apply-amd-gpu-memory" >/dev/null; }
 
 ram_gib 64
 gpu 0000:00:02.0 0x8086 0x030000

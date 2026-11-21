@@ -57,6 +57,13 @@
   "system.shutdown": {
     "label": "Shutdown"
   },
+  "system.snapshots": {
+    "label": "Snapshots",
+    "title": "Boot Into Snapshot"
+  },
+  "system.snapshot-restore": {
+    "label": "Restore This Snapshot"
+  },
   "learn.keybindings": {
     "label": "Keybindings"
   },
@@ -729,6 +736,9 @@
   },
   "setup.config.xcompose": {
     "label": "XCompose"
+  },
+  "setup.boot-loader": {
+    "label": "Switch to systemd-boot"
   },
   "remove.factory-reset": {
     "label": "Factory Reset"

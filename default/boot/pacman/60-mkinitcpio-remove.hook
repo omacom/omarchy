@@ -1,0 +1,13 @@
+# Omarchy on systemd-boot: overrides mkinitcpio's hook of the same name. A
+# removed kernel leaves the live boot entries; snapshots pinned to its boot
+# image keep booting it.
+[Trigger]
+Type = Path
+Operation = Remove
+Target = usr/lib/modules/*/vmlinuz
+
+[Action]
+Description = Removing Omarchy boot entries...
+When = PreTransaction
+Exec = /usr/bin/omarchy-boot-rebuild --pacman-remove
+NeedsTargets
