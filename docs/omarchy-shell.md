@@ -63,7 +63,7 @@ fast-forward pull:
 
 ```bash
 omarchy plugin add https://github.com/acme/omarchy-weather.git
-omarchy plugin update                # fetches, shows a diff, fast-forwards
+omarchy plugin update                # fetches, summarizes, offers review/update/skip
 omarchy plugin remove acme.weather
 ```
 
