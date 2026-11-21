@@ -6,6 +6,8 @@
 # omarchy:requires-sudo=true
 
 if omarchy-pkg-missing "$@"; then
+  omarchy-pkg-require-dbs || exit 1
+
   if (( EUID == 0 )); then
     pacman -S --noconfirm --needed -- "$@" || exit 1
   else

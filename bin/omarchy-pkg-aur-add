@@ -4,6 +4,7 @@
 # omarchy:args=<packages...>
 
 if omarchy-pkg-missing "$@"; then
+  omarchy-pkg-require-dbs || exit 1
   yay -S --noconfirm --needed -- "$@" || exit 1
 fi
 
