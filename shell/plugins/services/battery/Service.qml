@@ -37,6 +37,9 @@ Item {
   }
 
   function checkBattery() {
+    // UPower fills the device in one property at a time; a check against a
+    // half-read device would clear the warned flag kept across shell reloads.
+    if (!UPower.displayDevice.ready) return
     var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
     persisted.notifiedLowBattery = state.notifiedLowBattery
     if (state.notify) sendLowBatteryWarning(state.level)
@@ -124,12 +127,14 @@ Item {
     function refreshPowerProfile(): void { root.refreshPowerProfile() }
   }
 
-  Timer {
-    interval: 30000
-    running: true
-    repeat: true
-    triggeredOnStart: true
-    onTriggered: root.checkBattery()
+  // The display device emits a change for every value the check reads, so the
+  // warning goes out as the level crosses the threshold, with nothing polling.
+  Connections {
+    target: UPower.displayDevice
+    function onPercentageChanged() { root.checkBattery() }
+    function onStateChanged() { root.checkBattery() }
+    function onIsPresentChanged() { root.checkBattery() }
+    function onReadyChanged() { root.checkBattery() }
   }
 
   Connections {
@@ -141,5 +146,8 @@ Item {
     }
   }
 
-  Component.onCompleted: root.refreshPowerProfile()
+  Component.onCompleted: {
+    root.checkBattery()
+    root.refreshPowerProfile()
+  }
 }
