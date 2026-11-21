@@ -1,14 +1,17 @@
 #!/bin/bash
 
-# omarchy:summary=Set the mic-mute indicator LED on laptops that expose a platform::micmute LED node.
-# omarchy:args=<on|off>
+# omarchy:summary=Set a mute indicator LED on laptops that expose a matching platform:: LED node.
+# omarchy:args=<on|off> [device]
 
-if [[ -e /sys/class/leds/platform::micmute/brightness ]]; then
+leds_path="${OMARCHY_LEDS_PATH:-/sys/class/leds}"
+device="${2:-platform::micmute}"
+
+if [[ -e $leds_path/$device/brightness ]]; then
   case "$1" in
     on)  value=1 ;;
     off) value=0 ;;
-    *)   echo "Usage: $(basename "$0") <on|off>" >&2; exit 1 ;;
+    *)   echo "Usage: $(basename "$0") <on|off> [device]" >&2; exit 1 ;;
   esac
 
-  brightnessctl --device="platform::micmute" set "$value" >/dev/null 2>&1 || true
+  brightnessctl --device="$device" set "$value" >/dev/null 2>&1 || true
 fi
