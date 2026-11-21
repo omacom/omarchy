@@ -48,11 +48,20 @@ Item {
   }
 
   // A region's harnesses are the only ones Default Harness offers
-  // (docs/regions.md). That changes no guard answer, so these rebuilds skip
-  // the guards.
+  // (docs/regions.md).
   property string region: ""
-  property var regionLeadingIds: []
-  onRegionChanged: if (!region) { regionLeadingIds = []; rebuildItemsFromSources(true) }
+  property var regionHarnesses: []
+  onRegionChanged: if (!region) setRegionHarnesses([])
+
+  // Dropping rows changes no guard answer, so the first limit skips the
+  // guards. Rows a change brings back have no answers yet, so any change to a
+  // limit already in place checks them again.
+  function setRegionHarnesses(ids) {
+    if (JSON.stringify(ids) === JSON.stringify(root.regionHarnesses)) return
+    var restoring = root.regionHarnesses.length > 0
+    root.regionHarnesses = ids
+    root.rebuildItemsFromSources(!restoring)
+  }
 
   FileView {
     id: regionFile
@@ -69,8 +78,8 @@ Item {
     path: root.region ? root.omarchyPath + "/default/regions/" + root.region + "/agents" : ""
     watchChanges: true
     printErrors: false
-    onLoaded: { root.regionLeadingIds = MenuModel.regionHarnessIds(text()); root.rebuildItemsFromSources(true) }
-    onLoadFailed: { root.regionLeadingIds = []; root.rebuildItemsFromSources(true) }
+    onLoaded: root.setRegionHarnesses(MenuModel.regionHarnessIds(text()))
+    onLoadFailed: root.setRegionHarnesses([])
     onFileChanged: reload()
   }
 
@@ -327,7 +336,7 @@ Item {
     // "Go" label comes from the catalog's root entry; the merge only uses
     // it for the injected row, never over a user-supplied heading.
     var rootCatalog = root.menuCatalog.root
-    var mergedMenu = MenuModel.mergeMenuSources(translatedDefaults, root.userMenuItems, rootCatalog && rootCatalog.label, root.regionLeadingIds)
+    var mergedMenu = MenuModel.mergeMenuSources(translatedDefaults, root.userMenuItems, rootCatalog && rootCatalog.label, root.regionHarnesses)
     root.providerRevision += 1
     root.providersLoaded = ({})
     root.providerQueue = []

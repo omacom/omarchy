@@ -90,10 +90,11 @@ function keepMenuRows(previous, raw, required) {
 // source supplies one; only then does rootLabel (the catalog's translation
 // of "Go") apply. A root row from either source keeps its own label, so a
 // user-supplied heading is never overwritten by the catalog.
-// regionIds are the only rows their submenus offer, in the order given (a
-// region's harnesses); the other rows of those submenus are dropped, from
-// search and routes too. An id neither source declares is ignored.
-function mergeMenuSources(defaultItems, userItems, rootLabel, regionIds) {
+// regionHarnesses, when given, are the only rows Default Harness offers, in
+// that order (a region's harnesses); its other rows are dropped, from search
+// and routes too. An id that isn't a Default Harness row is ignored, so an
+// extension that moves a harness elsewhere never limits that other menu.
+function mergeMenuSources(defaultItems, userItems, rootLabel, regionHarnesses) {
   var nextItems = ({})
   var nextOrder = []
   var sources = [defaultItems || [], userItems || []]
@@ -113,12 +114,13 @@ function mergeMenuSources(defaultItems, userItems, rootLabel, regionIds) {
     }
   }
 
-  var offered = (Array.isArray(regionIds) ? regionIds : []).filter(function (id, i, ids) { return !!nextItems[id] && ids.indexOf(id) === i })
+  var offered = (Array.isArray(regionHarnesses) ? regionHarnesses : []).filter(function (id, i, ids) {
+    return !!nextItems[id] && nextItems[id].parent === "agent.harness" && ids.indexOf(id) === i
+  })
   if (offered.length) {
-    var limited = offered.map(function (id) { return nextItems[id].parent })
     nextOrder = offered.concat(nextOrder.filter(function (id) {
       if (offered.indexOf(id) >= 0) return false
-      if (limited.indexOf(nextItems[id].parent) < 0) return true
+      if (nextItems[id].parent !== "agent.harness") return true
       delete nextItems[id]
       return false
     }))

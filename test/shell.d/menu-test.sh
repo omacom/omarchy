@@ -96,6 +96,8 @@ const harnessOrder = regionMerged.itemOrder.filter(id => regionMerged.items[id].
 assertDeepEqual(harnessOrder, ['agent.harness.kimi', 'agent.harness.qwen'], 'a region offers only its own harnesses, in its order')
 assertEqual(regionMerged.items['agent.harness.claude'], undefined, 'a harness the region leaves out is gone from search too')
 assert(regionMerged.items['agent.usage'], 'a region leaves rows outside Default Harness alone')
+const movedMerged = menu.mergeMenuSources(harnessRows, [menu.normalizeItem('agent.harness.kimi', { label: 'Kimi', parent: 'root' })], '', regionIds)
+assert(movedMerged.items.agent, 'a harness an extension moves elsewhere never limits that other menu')
 
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')
