@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# omarchy:summary=Leave out a region's preinstalled launchers, dock pins and bindings for this user
+# omarchy:args=<region>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+region=${1:-}
+if [[ ! $region =~ ^[a-z]{2}$ ]]; then
+  echo "Usage: omarchy-region-preinstalls <region>" >&2
+  exit 1
+fi
+
+profile="$OMARCHY_PATH/default/regions/$region"
+if [[ -r $profile/apps-skip ]]; then
+  # Persist the install's choice, not the current region: switching download
+  # sources later must not change which applications this user has.
+  state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+  mkdir -p "$state_dir"
+  sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^#/d' -e '/^$/d' -e '/\//d' "$profile/apps-skip" >"$state_dir/preinstalls-skipped"
+
+  pinned=$(omarchy-dock pinned)
+  while IFS= read -r name; do
+    rm -f "$HOME/.local/share/applications/$name.desktop"
+    if grep -qxF -- "$name" <<<"$pinned"; then
+      omarchy-dock unpin "$name" >/dev/null
+    fi
+  done <"$state_dir/preinstalls-skipped"
+
+  if [[ -d $HOME/.local/share/applications ]]; then
+    update-desktop-database "$HOME/.local/share/applications"
+  fi
+
+  # Additional users finalize after Hyprland loaded its initial bindings.
+  # Do not reload Hyprland from install chroots or first-boot owner setup.
+  if [[ ${OMARCHY_SETUP_CONTEXT:-runtime} == "runtime" ]]; then
+    hyprctl reload >/dev/null 2>&1 || true
+  fi
+fi

@@ -12,7 +12,7 @@ Both installation finalization and `omarchy-refresh-pacman` use this command. Ex
 
 Refresh renders both files as the calling user and gives root only the finished copies,. That does not defend against other code already running as the same user: such code could change the rendered files while refresh waits for the password, as it could alter that user's own environment in other ways.
 
-The China profile changes only where packages come from, never which repositories or keys are trusted. It puts Omarchy's China replica of the channel's Arch mirror first (`stable-mirror.omarchy.cn`, `rc-mirror.omarchy.cn`, or `mirror.omarchy.cn` for edge and dev) and Omarchy's China replica of the `[omarchy]` repository first (`pkgs.omarchy.cn/<channel>`), keeping the `.org` servers as the fallback. Both replicas serve the same signed packages as `.org`, so package signatures are checked against the same keys as everywhere else. pacman tries servers in order and moves to the next one when a download fails, including a 404. After three failed downloads from one server, it skips that server for the rest of the transaction. It also takes the package databases from the first server that answers, without comparing them, so the China replicas must carry complete, current metadata; they sync from `.org` within minutes.
+For package downloads, the China profile changes only where packages come from, never which repositories or keys are trusted. It puts Omarchy's China replica of the channel's Arch mirror first (`stable-mirror.omarchy.cn`, `rc-mirror.omarchy.cn`, or `mirror.omarchy.cn` for edge and dev) and Omarchy's China replica of the `[omarchy]` repository first (`pkgs.omarchy.cn/<channel>`), keeping the `.org` servers as the fallback. Both replicas serve the same signed packages as `.org`, so package signatures are checked against the same keys as everywhere else. pacman tries servers in order and moves to the next one when a download fails, including a 404. After three failed downloads from one server, it skips that server for the rest of the transaction. It also takes the package databases from the first server that answers, without comparing them, so the China replicas must carry complete, current metadata; they sync from `.org` within minutes.
 
 Installs from before regions have no marker and stay global; nothing changes their pacman files on update. An existing machine in mainland China opts in by writing the marker and refreshing: `echo cn | sudo tee /etc/omarchy/region` then `omarchy-refresh-pacman`, which backs up both files first.
 
@@ -22,6 +22,8 @@ Each profile lives in `default/regions/<code>/`:
 
 - `timezones`: the timezones that select this region, one per line, with blank lines and `#` comments allowed. List tzdata's backward-compatible names too, since the installer's timezone list includes them. A timezone may belong to at most one profile.
 - `pacman/`: per channel (`stable`, `rc`, `edge`), `omarchy-<channel>.prepend`, placed first in the `[omarchy]` section of `pacman.conf`, and `mirrorlist-<channel>.prepend`, placed ahead of the channel's mirrorlist, so the regional mirrors are tried first.
+- `apps-skip`: launcher names (without `.desktop`) and English preinstalled binding descriptions to omit during user finalization. Blank lines and `#` comments are allowed. Entries cannot contain `/`.
+- `packages-add`: declarative regional package requirements. No runtime or upstream ISO installer consumes this list yet; it does not automatically install anything or require a regional ISO preset. Package availability, architecture support and offline delivery need separate installer work.
 
 A profile adds mirrors of repositories every install already uses, never a repository or a signing key of its own. Hong Kong, Macau and Taiwan belong to no profile under any timezone name, and a test keeps it that way.
 
@@ -36,7 +38,15 @@ There is one ISO for every region. The companion `omarchy-iso` repository reads 
 
 ## Scope of the China profile
 
-The China profile provides repository defaults only. Language is a separate installer choice, not part of a region: a Chinese speaker outside China keeps global mirrors, and a China install in English still gets the regional ones.
+The China profile provides repository defaults and optional per-user bootstrap defaults. Language is a separate installer choice, not part of a region: a Chinese speaker outside China keeps global mirrors, and a China install in English still gets the regional ones.
+
+User finalization omits the launchers, dock pins and preinstalled bindings in `apps-skip`. It records these choices in `${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/preinstalls-skipped`; application refreshes and the default Hyprland bindings read that record, not the current region. A later region switch neither restores these apps nor removes others. This removes user launchers and bindings, not system packages; it does not block a user from installing an app or adding a personal binding with `o.bind`. Refresh skips copying omitted defaults but preserves launchers the user explicitly creates later. The destructive `omarchy-reinstall-configs` command intentionally resets shipped files, including launchers and dock pins; it is not a normal refresh.
+
+Restore Preinstalls is an explicit opt-in to the full shipped launcher and binding set. It clears the saved regional exclusions only after package setup succeeds; a failed package setup keeps them. It does not restore dock pins the user removed. This differs from an ordinary launcher refresh, which preserves the install's exclusions.
+
+The exclusions are initial defaults: even forced user finalization leaves an already-finalized user's choices alone. First-login finalization reloads Hyprland so a new user's skipped bindings take effect immediately; ISO chroots and first-boot owner setup do not reload Hyprland. The Restore Preinstalls menu entry is available when either regional exclusions or the full preinstall opt-out is present.
+
+China's `packages-add` declares WeChat, QQ, WPS Office, DingTalk, Feishu and the Maple Mono NF CN font, but supplying those packages is not implemented here. In particular, WPS Office's `wps-office-cn` is x86_64-only. The unmerged installer changes in omacom/omarchy-iso#275 do not provide an installation capability in the current runtime or upstream installer.
 
 ## Remaining release validation
 
