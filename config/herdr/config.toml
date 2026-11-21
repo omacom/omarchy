@@ -13,6 +13,12 @@ name = "terminal"
 panel_bg = "reset"
 surface_dim = "black"
 
+# Borders of the panes that aren't focused, like pane-border-style "fg=brightblack".
+# herdr's default is ANSI 7, which every Omarchy theme sets to the foreground, so
+# those borders came out brighter than the focused pane's accent. Inactive tab
+# names share this color, as they do in tmux's window-status-format.
+overlay0 = "darkgray"
+
 [terminal]
 # Matches -c "#{pane_current_path}" on every split, window, and session
 new_cwd = "follow"
