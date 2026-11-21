@@ -38,7 +38,11 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Super + Alt + Space` | App grid |
 | `Super + Escape` | System menu (suspend, restart, etc)  |
 | `Super + Ctrl + L` | Lock computer |
-| `Super + W` or `Super + Q` | Close window             |
+| `Super + W` | Safely close window into the Window Vault |
+| `Super + Shift + T` | Restore the last safely closed window |
+| `Super + Alt + W` | Show or hide the Window Vault |
+| `Super + Q` | Close window permanently |
+| `Super + Shift + Q` | Permanently close the last vaulted window |
 | `Ctrl + Alt + Del` | Close all windows |
 | `Super + K` | Show all hotkeys |
 | `Super + Alt + K` | Show tmux hotkeys |
@@ -100,6 +104,8 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 On a touchpad, three- and four-finger swipes switch workspaces, move windows, and open the menu and the Quake console; see [keyboard, mouse, and trackpad](34-keyboard-mouse-trackpad.md) for the gestures.
 
 Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<AE12>`), regardless of the characters printed on the keyboard. On US keyboards these keys are `-` and `=`; on Japanese (JIS) keyboards they are `-` and `^`; on Spanish keyboards they are `'` and `¡`. On JIS, `Super + ^` is `Super + Equal`, while `Super + Shift + -` (which types `=`) is `Super + Shift + Minus`.
+
+`Super + W` keeps the window and its application running on a hidden special workspace, so its live state can be restored with `Super + Shift + T`, like reopening a closed browser tab. Use `Super + Q` when you intend to close an application normally. The vault protects Omarchy's safe-close shortcut; it cannot intercept an application's own close button or recover a process that has already exited. To make a window rule bypass the vault, give it the `+omarchy-no-window-vault` tag.
 
 ## System controls
 
