@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Read a bundled Lab plugin translation
+# omarchy:args=<catalog-key>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+key=${1:?missing Lab catalog key}
+language_file=${OMARCHY_LANGUAGE_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/language}
+language=en
+if [[ -f $language_file ]]; then
+  read -r language <"$language_file" || true
+fi
+[[ $language =~ ^[a-z]{2,3}(-[A-Za-z]{2})?$ ]] || language=en
+for code in "$language" "${language%%-*}" en; do
+  catalog="$OMARCHY_PATH/default/lab-vm/$code.json"
+  if [[ -f $catalog ]] && value=$(jq -er --arg key "$key" '.[$key] | select(type == "string" and length > 0)' "$catalog"); then
+    printf '%s\n' "$value"
+    exit 0
+  fi
+done
+printf '%s\n' "$key"

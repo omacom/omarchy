@@ -1365,5 +1365,15 @@
   },
   "agent.make.game": {
     "label": "Make a game"
+  },
+  "trigger.lab-controls": {
+    "label": "Lab Controls"
+  },
+  "install.lab": {
+    "label": "Lab",
+    "description": "Disposable Omarchy KVM for development and PoCs"
+  },
+  "remove.lab": {
+    "label": "Lab"
   }
 }
