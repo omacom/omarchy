@@ -5,7 +5,25 @@ o.bind("CTRL + ALT + DELETE", "Close all windows", "omarchy-hyprland-window-clos
 o.bind("SUPER + J", "Toggle window split", hl.dsp.layout("togglesplit"))
 o.bind("SUPER + P", "Pseudo window", hl.dsp.window.pseudo())
 o.bind("SUPER + T", "Toggle window floating/tiling", hl.dsp.window.float({ action = "toggle" }))
-o.bind("SUPER + F", "Full screen", hl.dsp.window.fullscreen({ mode = "fullscreen" }))
+-- Hyprland refuses to fullscreen a pinned window, so SUPER + F did nothing on a
+-- popped-out (SUPER + O) window. Put it back in the tiles first, the same way
+-- omarchy-hyprland-window-pop does, then fullscreen it.
+local function fullscreen()
+  local window = hl.get_active_window()
+
+  if window and window.pinned then
+    local target = "address:" .. window.address
+    hl.dispatch(hl.dsp.window.pin({ window = target }))
+    if window.floating then
+      hl.dispatch(hl.dsp.window.float({ window = target, action = "toggle" }))
+    end
+    hl.dispatch(hl.dsp.window.tag({ window = target, tag = "-pop" }))
+  end
+
+  hl.dispatch(hl.dsp.window.fullscreen({ mode = "fullscreen" }))
+end
+
+o.bind("SUPER + F", "Full screen", fullscreen)
 o.bind("SUPER + CTRL + F", "Tiled full screen", "omarchy-hyprland-window-tiled-fullscreen-toggle")
 o.bind("SUPER + ALT + F", "Full width", hl.dsp.window.fullscreen({ mode = "maximized" }))
 o.bind("SUPER + O", "Pop window out (float & pin)", "omarchy-hyprland-window-pop")
