@@ -1146,6 +1146,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("accessibility.network")
     anchors.fill: parent
     bar: root.bar
     text: root.icon
@@ -1171,6 +1172,7 @@ Panel {
   // here is the wifi-specific UI inside.
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("accessibility.network")
     anchorItem: button
     owner: root
     bar: root.bar
