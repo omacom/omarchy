@@ -1,0 +1,99 @@
+#!/bin/bash
+
+# omarchy:summary=Reopen the windows saved at the last logout, reboot or shutdown
+
+# Runs once at login from autostart. A saved file exists only when the user
+# asked for it (the reopen-windows toggle, or Reboot & Reopen Windows). It is
+# consumed, so a Hyprland restart without a logout does not open everything twice.
+
+state_dir="$HOME/.local/state/omarchy/session"
+saved="$state_dir/windows.json"
+
+[[ -f $saved ]] || exit 0
+mv "$saved" "$state_dir/windows.last.json"
+saved="$state_dir/windows.last.json"
+
+lua_string() {
+  jq -Rnr --arg value "$1" '$value | @json'
+}
+
+# Show the same workspace on each monitor as before, up front, so windows
+# appear where they were instead of the view jumping there at the end.
+while read -r monitor workspace; do
+  hyprctl dispatch "hl.dsp.focus({ monitor = $(lua_string "$monitor") })" >/dev/null
+  hyprctl dispatch "hl.dsp.focus({ workspace = $(lua_string "$workspace") })" >/dev/null
+done < <(jq -r '.active[] | "\(.monitor) \(.workspace)"' "$saved")
+
+running=$(hyprctl clients -j | jq -c '[.[].class] | unique')
+
+while read -r launch; do
+  class=$(jq -r '.class // empty' <<<"$launch")
+  # An app that autostarted is already open; it only needs placing below.
+  [[ -n $class ]] && jq -e --arg class "$class" 'index($class)' <<<"$running" >/dev/null && continue
+
+  command="uwsm-app -- $(jq -r '.command' <<<"$launch")"
+  workspace="$(jq -r '.workspace' <<<"$launch") silent"
+  hyprctl dispatch "hl.dsp.exec_cmd($(lua_string "$command"), { workspace = $(lua_string "$workspace") })" >/dev/null
+done < <(jq -c '.launches[]' "$saved")
+
+# Put each window on its saved workspace as it appears. Exact titles match
+# first, so a window is never claimed by another entry of its class. A class
+# match alone waits until the class is down to one window and one entry, or
+# until the last 20 seconds, when a title has had its chance to settle.
+wants=$(jq -c '.windows' "$saved")
+used="[]"
+for (( tries = 0; tries < 30; tries++ )); do
+  late=$(( tries >= 20 ))
+  plan=$(jq -n --argjson wants "$wants" --argjson used "$used" --argjson late "$late" --argjson clients "$(hyprctl clients -j)" '
+    def free($state; $class): [$clients[] | select(.class == $class) | select(.address as $a | $state.used | any(. == $a) | not)];
+    def take($want; $client):
+      .used += [$client.address]
+      | if ($client.workspace.name | tostring) != $want.workspace then
+          .moves += [{address: $client.address, workspace: $want.workspace}]
+        else . end;
+    reduce $wants[] as $want ({moves: [], left: [], used: $used};
+      ([free(.; $want.class)[] | select(.title == $want.title)] | first) as $client
+      | if $client == null then .left += [$want] else take($want; $client) end)
+    | . as $titled
+    | reduce $titled.left[] as $want ($titled + {left: []};
+        free(.; $want.class) as $same
+        | if ($same | length) > 0 and ($late == 1 or (($same | length) == 1 and ([$titled.left[] | select(.class == $want.class)] | length) == 1)) then
+            take($want; $same[0])
+          else .left += [$want] end)')
+
+  while read -r move; do
+    address=$(jq -r '.address' <<<"$move")
+    workspace=$(jq -r '.workspace' <<<"$move")
+    hyprctl dispatch "hl.dsp.window.move({ workspace = $(lua_string "$workspace"), follow = false, window = $(lua_string "address:$address") })" >/dev/null
+  done < <(jq -c '.moves[]' <<<"$plan")
+
+  wants=$(jq -c '.left' <<<"$plan")
+  used=$(jq -c '.used' <<<"$plan")
+  [[ $wants == "[]" ]] && break
+  sleep 2
+done
+
+# Then refocus the monitor that had focus.
+focused=$(jq -r '.focused // empty' "$saved")
+[[ -n $focused ]] && hyprctl dispatch "hl.dsp.focus({ monitor = $(lua_string "$focused") })" >/dev/null
+
+# Agents in Herdr Desktop panes. herdr-core recovers each pane as a shell with
+# the same id once Herdr Desktop starts it; type the resume command there.
+herdr_core="$HOME/.local/bin/herdr-core"
+mapfile -t panes < <(jq -c '.herdr // [] | .[]' "$saved")
+for (( tries = 0; ${#panes[@]} > 0 && tries < 60; tries++ )); do
+  waiting=()
+  for pane in "${panes[@]}"; do
+    id=$(jq -r '.pane' <<<"$pane")
+    info=$("$herdr_core" get "$id" 2>/dev/null)
+    # Right after recovery a pane is live with no pid until its shell starts.
+    if jq -e '.state == "live" and .pid != null and (.foreground == null or (.foreground.name | test("^(bash|zsh|fish|sh|nu)$")))' <<<"$info" >/dev/null 2>&1; then
+      "$herdr_core" send "$id" "cd $(jq -r '.dir | @sh' <<<"$pane") && $(jq -r '.resume' <<<"$pane")" >/dev/null
+    elif [[ -z $info ]] || ! jq -e '.state == "finished"' <<<"$info" >/dev/null 2>&1; then
+      waiting+=("$pane")
+    fi
+  done
+  panes=("${waiting[@]}")
+  (( ${#panes[@]} > 0 )) && sleep 2
+done
+exit 0
