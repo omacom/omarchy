@@ -1,109 +1,109 @@
-# Vifunguo vya Haraka
+# Vitufe vya Mkato
 
 Unaweza kuona vifunguo vyote vikuu vya kibodi kwa `Super + K` (vifunguo vya Tmux kwa `Super + Alt + K` na vifunguo vya Herdr kwa `Super + Ctrl + K`).
 
-## Jinsi vifunguo vya haraka vilivyopangwa
+## Jinsi vitufe vya mkato vilivyopangwa
 
-Kila kifunguo cha haraka kiko kwenye safu moja, iliyowekwa na virekebishaji vyake, na kila safu ina kazi moja. Hivyo ndivyo vifunguo vya haraka vinavyoepuka kuchanganyikana, na inamaanisha kwa kawaida unaweza kukisia kitu kiko wapi.
+Kila kitufe cha mkato hukaa kwenye tabaka, iliyowekwa na virekebishaji vyake, na kila tabaka ina kazi moja. Hilo ndilo linalozuia vitufe vya mkato kuchanganyikana, na linamaanisha kwa kawaida unaweza kukisia kitu kinaishi wapi.
 
-| Safu | Kinachoishi hapo | Mifano |
+| Tabaka | Kinachoishi hapo | Mifano |
 | --- | --- | --- |
-| `Super + key` | Mfumo: madirisha, nafasi za kazi, mipangilio, na menyu za msingi | `Super + Space` menyu ya Omarchy, `Super + W` funga dirisha, `Super + F` skrini nzima |
+| `Super + key` | Mfumo: madirisha, nafasi za kazi, mipangilio, na menyu kuu | `Super + Space` menyu ya Omarchy, `Super + W` funga dirisha, `Super + F` skrini nzima |
 | `Super + Shift + key` | Programu | `Super + Shift + B` kivinjari, `Super + Shift + E` barua pepe, `Super + Shift + N` kihariri |
 | `Super + Ctrl + key` | Paneli na menyu za mfumo | `Super + Ctrl + A` sauti, `Super + Ctrl + N` mtandao, `Super + Ctrl + C` menyu ya kunasa |
-| `Super + Ctrl + Alt + key` | Vitendo vya haraka na taarifa | `Super + Ctrl + Alt + T` onyesha muda, `Super + Ctrl + Alt + B` betri, `Super + Ctrl + Alt + C` picha ya skrini |
+| `Super + Ctrl + Alt + key` | Vitendo vya haraka na taarifa | `Super + Ctrl + Alt + T` onyesha saa, `Super + Ctrl + Alt + B` betri, `Super + Ctrl + Alt + C` picha ya skrini |
 
-Kuongeza `Alt` kwenye kifunguo cha haraka hukupa aina tofauti ya kitu kile kile, kamwe si kitu kisichohusiana:
+Kuongeza `Alt` kwenye kitufe cha mkato hukupa lahaja ya kitu kile kile, kamwe si kitu kisichohusiana:
 
-- `Super + Shift + B` hufungua kivinjari; `Super + Shift + Alt + B` hufungua dirisha la faragha
+- `Super + Shift + B` hufungua kivinjari; `Super + Shift + Alt + B` hufungua dirisha la binafsi
 - `Super + Shift + E` hufungua barua pepe; `Super + Shift + Alt + E` huanzisha mpya
 - `Super + F` huenda skrini nzima; `Super + Alt + F` huenda upana mzima
 - `Super + Ctrl + C` hufungua menyu ya kunasa; `Super + Ctrl + Alt + C` huruka menyu na kuchukua picha ya skrini
 
-Unapoongeza kifunguo cha haraka:
+Unapoongeza kitufe cha mkato:
 
-1. Chagua safu kutokana na kinachofanya, kisha chagua kitufe.
-2. Usihamishe kifunguo cha haraka kilichopo ili kupata nafasi. Tafuta kitufe kisichotumika kwenye safu sahihi.
-3. Tumia `Alt` tu kwa aina tofauti ya kifunguo cha haraka kisicho nayo.
+1. Chagua tabaka kutokana na inachofanya, kisha chagua kitufe.
+2. Usisogeze kitufe cha mkato kilichopo ili kupata nafasi. Tafuta kitufe kilicho wazi kwenye tabaka sahihi.
+3. Tumia `Alt` tu kwa lahaja ya kitufe cha mkato bila hiyo.
 
-Vifunguo vichache vya haraka huvunja sheria hizi kwa sababu ni rahisi kutumia. `Shift` pamoja na mshale au `Tab` huhamisha au hubadilisha mwelekeo badala ya kufungua programu, na `Print`, vitufe vya media, `Alt + Tab`, na `Ctrl + Alt + Del` hufanya kazi kama zinavyofanya kila mahali pengine. Ni tofauti na kanuni, si mifumo ya kuiga.
+Vitufe vichache vya mkato huvunja sheria hizi kwa sababu ni rahisi kutumia. `Shift` pamoja na mshale au `Tab` husogeza au kubadili mwelekeo badala ya kufungua programu, na `Print`, vitufe vya media, `Alt + Tab`, na `Ctrl + Alt + Del` hufanya kazi kama zinavyofanya kwingineko kote. Hizo ni isipokuwa, si mifumo ya kuiga.
 
-Kama chaguo-msingi halikufai (tuseme unataka `Super + Shift + S` kwa picha za skrini kama kwenye Windows), libadilishe katika `~/.config/hypr/bindings.lua`.
+Ikiwa chaguo-msingi halikufai (tuseme unataka `Super + Shift + S` kwa picha za skrini kama kwenye Windows), libadilishe katika `~/.config/hypr/bindings.lua`.
 
-## Urambazaji
+## Kusogeza
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
 | `Super + Space` | Menyu ya Omarchy (programu na kila kitu kingine) |
 | `Super + Alt + Space` | Gridi ya programu |
-| `Super + Escape` | Menyu ya mfumo (sitisha, anzisha upya, n.k.) |
+| `Super + Escape` | Menyu ya mfumo (kusimamisha, kuwasha upya, n.k.) |
 | `Super + Ctrl + L` | Funga kompyuta |
 | `Super + W` or `Super + Q` | Funga dirisha |
 | `Ctrl + Alt + Del` | Funga madirisha yote |
-| `Super + K` | Onyesha vifunguo vyote vya haraka |
-| `Super + Alt + K` | Onyesha vifunguo vya haraka vya tmux |
-| `Super + Ctrl + K` | Onyesha vifunguo vya haraka vya herdr |
+| `Super + K` | Onyesha vitufe vyote vya mkato |
+| `Super + Alt + K` | Onyesha vitufe vya mkato vya tmux |
+| `Super + Ctrl + K` | Onyesha vitufe vya mkato vya herdr |
 | `Super + M` | Punguza dirisha hadi kwenye doki |
-| `Super + T` | Badilisha dirisha kati ya kuweka vigae/kuelea |
-| `Super + J` | Badilisha msimamo wa dirisha (mlalo/wima) |
-| `Super + O` | Badilisha dirisha linalojitokeza kuwa linalonata na kuelea |
-| `Super + L` | Zunguka kupitia mipangilio ya dwindle, kusogeza, na kuelea |
+| `Super + T` | Geuza dirisha kati ya hali ya kupangwa/kuelea |
+| `Super + J` | Geuza nafasi ya dirisha (mlalo/wima) |
+| `Super + O` | Geuza uwekaji wa dirisha katika hali ya kunata na kuelea |
+| `Super + L` | Zunguka kupitia mipangilio ya dwindle, scrolling, na floating |
 | `Super + Alt + L` | Zunguka kupitia mipangilio kwa mwelekeo wa nyuma |
-| `Super + P` | Badilisha mtindo wa dirisha bandia (asili dhidi ya kunyoosha) |
+| `Super + P` | Geuza mtindo wa dirisha bandia (asili dhidi ya kunyoosha) |
 | `Super + F` | Nenda skrini nzima |
 | `Super + Alt + F` | Nenda upana mzima |
 | `Super + Ctrl + F` | Nenda skrini nzima ndani ya dirisha |
-| `Super + 1…9/0` | Ruka hadi nafasi maalum ya kazi (0 ni 10) kwenye kifuatiliaji kilicholengwa |
-| `Super + Tab` | Ruka hadi nafasi inayofuata ya kazi kwenye kifuatiliaji kilicholengwa |
-| `Super + Shift + Tab` | Ruka hadi nafasi ya kazi iliyopita kwenye kifuatiliaji kilicholengwa |
-| `Super + Ctrl + Tab` | Ruka hadi nafasi ya kazi ya awali kwenye kifuatiliaji kilicholengwa |
-| `Super + Shift + 1…9/0` | Hamisha dirisha hadi nafasi ya kazi kwenye kifuatiliaji kilicholengwa |
-| `Super + Shift + Alt + 1…9/0` | Hamisha dirisha hadi nafasi ya kazi kwenye kifuatiliaji kilicholengwa bila kufuata |
-| `Super + S` | Washa/zima scratchpad kamili |
-| `Super + Alt + S` | Hamisha dirisha hadi scratchpad kamili |
-| `Super + Grave` | Washa/zima konsoli ya Quake |
-| `Super + Shift + Grave` | Hamisha dirisha hadi konsoli ya Quake |
-| `Super + Shift + Ctrl + Arrows` | Hamisha dirisha hadi kifuatiliaji kilicho mwelekeo huo |
-| `Super + Shift + Alt + Arrows` | Hamisha nafasi ya kazi hadi kifuatiliaji kilicho mwelekeo huo |
-| `Super + Arrow` | Hamisha lengo hadi dirisha lililo mwelekeo wa mshale, ukivuka hadi kifuatiliaji kilicho upande huo kwenye ukingo wa skrini |
-| `Super + Shift + Arrow` | Badilishana dirisha na jingine lililo mwelekeo wa mshale, ikiwa ni pamoja na lililo kwenye kifuatiliaji kilicho upande huo |
+| `Super + 1…9/0` | Ruka hadi nafasi maalum ya kazi (0 ni 10) kwenye kifuatilia kilicholengwa |
+| `Super + Tab` | Ruka hadi nafasi inayofuata ya kazi kwenye kifuatilia kilicholengwa |
+| `Super + Shift + Tab` | Ruka hadi nafasi ya kazi iliyotangulia kwenye kifuatilia kilicholengwa |
+| `Super + Ctrl + Tab` | Ruka hadi nafasi ya kazi ya awali kwenye kifuatilia kilicholengwa |
+| `Super + Shift + 1…9/0` | Sogeza dirisha hadi nafasi ya kazi kwenye kifuatilia kilicholengwa |
+| `Super + Shift + Alt + 1…9/0` | Sogeza dirisha hadi nafasi ya kazi kwenye kifuatilia kilicholengwa bila kufuata |
+| `Super + S` | Geuza scratchpad nzima |
+| `Super + Alt + S` | Sogeza dirisha hadi scratchpad nzima |
+| `Super + Grave` | Geuza koni ya Quake |
+| `Super + Shift + Grave` | Sogeza dirisha hadi koni ya Quake |
+| `Super + Shift + Ctrl + Arrows` | Sogeza dirisha hadi kifuatilia katika mwelekeo huo |
+| `Super + Shift + Alt + Arrows` | Sogeza nafasi ya kazi hadi kifuatilia katika mwelekeo huo |
+| `Super + Arrow` | Sogeza lengo hadi dirisha katika mwelekeo wa mshale, ukivuka hadi kifuatilia kilicho upande huo kwenye ukingo wa skrini |
+| `Super + Shift + Arrow` | Badilishana dirisha na jingine katika mwelekeo wa mshale, ikijumuisha lililo kwenye kifuatilia kilicho upande huo |
 | `Super + Minus` | Panua dirisha kushoto |
 | `Super + Equal` | Punguza dirisha kushoto |
 | `Super + Shift + Minus` | Punguza dirisha juu |
 | `Super + Shift + Equal` | Panua dirisha chini |
-| `Super + Alt + Minus/Equal` | Urekebishaji uo huo wa ukubwa kwa hatua ndogo zaidi |
-| `Super + Ctrl + Minus/Equal` | Urekebishaji uo huo wa ukubwa kwa hatua kubwa zaidi |
+| `Super + Alt + Minus/Equal` | Kubadilisha ukubwa kule kule kwa hatua ndogo zaidi |
+| `Super + Ctrl + Minus/Equal` | Kubadilisha ukubwa kule kule kwa hatua kubwa zaidi |
 | `Super + Alt + Home` | Hifadhi upana wa dirisha |
 | `Super + Home` | Rejesha upana wa dirisha uliohifadhiwa |
-| `Super + Left Mouse` | Kokota dirisha huku na huko |
-| `Super + Right Mouse` | Rekebisha ukubwa wa dirisha |
-| `Super + Scroll Wheel` | Sogeza kupitia nafasi za kazi kwenye kifuatiliaji kilicholengwa |
-| `Super + G` | Washa/zima kuweka madirisha katika vikundi |
-| `Super + Alt + G` | Hamisha dirisha kutoka katika kikundi |
+| `Super + Left Mouse` | Buruta dirisha huku na huko |
+| `Super + Right Mouse` | Badilisha ukubwa wa dirisha |
+| `Super + Scroll Wheel` | Tembeza kupitia nafasi za kazi kwenye kifuatilia kilicholengwa |
+| `Super + G` | Geuza upanganaji wa madirisha katika kikundi |
+| `Super + Alt + G` | Sogeza dirisha kutoka kwenye kikundi |
 | `Super + Alt + Tab` | Zunguka kati ya madirisha katika kikundi |
-| `Super + Alt + Shift + Tab` | Zunguka kwa nyuma kati ya madirisha katika kikundi |
+| `Super + Alt + Shift + Tab` | Zunguka nyuma kati ya madirisha katika kikundi |
 | `Super + Alt + Scroll Wheel` | Zunguka kati ya madirisha katika kikundi |
 | `Super + Alt + 1/2/3/4/5` | Ruka hadi dirisha maalum katika kikundi |
-| `Super + Alt + Arrow` | Hamisha dirisha hadi katika kikundi mwelekeo wa mshale, ikiwa ni pamoja na lililo kwenye kifuatiliaji kilicho upande huo |
-| `Super + Ctrl + Left/Right` | Sogeza kati ya madirisha ndani ya kikundi cha vigae |
-| `Super + Ctrl + Z` | Kuza skrini (rudia kwa ukuzaji zaidi) |
-| `Super + Ctrl + Alt + Z` | Ondoa ukuzaji wote kutoka skrini |
-| `Super + /` | Sogeza mbele kupitia chaguo za upimaji wa kifuatiliaji |
-| `Super + Alt + /` | Sogeza nyuma kupitia chaguo za upimaji wa kifuatiliaji |
-| `Alt + Tab` | Zunguka mbele kupitia madirisha kwenye nafasi ya kazi inayotumika |
-| `Alt + Shift + Tab` | Zunguka nyuma kupitia madirisha kwenye nafasi ya kazi inayotumika |
-| `Ctrl + Alt + Tab` | Zungusha lengo mbele kupitia vifuatiliaji |
-| `Ctrl + Alt + Shift + Tab` | Zungusha lengo nyuma kupitia vifuatiliaji |
+| `Super + Alt + Arrow` | Sogeza dirisha hadi kwenye kikundi katika mwelekeo wa mshale, ikijumuisha lililo kwenye kifuatilia kilicho upande huo |
+| `Super + Ctrl + Left/Right` | Sogeza kati ya madirisha ndani ya kikundi cha kupanga |
+| `Super + Ctrl + Z` | Kuza ndani kwenye skrini (rudia kwa ukuzaji zaidi) |
+| `Super + Ctrl + Alt + Z` | Kuza nje kabisa kutoka skrini |
+| `Super + /` | Songa mbele kupitia chaguo za upimaji wa kifuatilia |
+| `Super + Alt + /` | Songa nyuma kupitia chaguo za upimaji wa kifuatilia |
+| `Alt + Tab` | Zunguka mbele kupitia madirisha kwenye nafasi ya kazi inayofanya kazi |
+| `Alt + Shift + Tab` | Zunguka nyuma kupitia madirisha kwenye nafasi ya kazi inayofanya kazi |
+| `Ctrl + Alt + Tab` | Zungusha lengo mbele kupitia vifuatilia |
+| `Ctrl + Alt + Shift + Tab` | Zungusha lengo nyuma kupitia vifuatilia |
 | `Super + I` | Badilisha lugha ya ingizo (ukiwa na mpangilio au mbinu ya ingizo zaidi ya moja) |
-| `Super + Shift + I` | Badilisha lugha ya ingizo nyuma |
+| `Super + Shift + I` | Badilisha lugha ya ingizo urudi nyuma |
 
-Kwenye pedi ya kugusa, telezesho za vidole vitatu na vinne hubadilisha nafasi za kazi, huhamisha madirisha, na hufungua menyu na konsoli ya Quake; angalia [kibodi, kipanya, na pedi ya kugusa](34-keyboard-mouse-trackpad.md) kwa ishara hizo.
+Kwenye pedi ya kugusa, miitelezo ya vidole vitatu na vinne hubadilisha nafasi za kazi, husogeza madirisha, na kufungua menyu na koni ya Quake; angalia [kibodi, kipanya, na pedi ya kugusa](34-keyboard-mouse-trackpad.md) kwa ishara hizo.
 
-Vifunguo vya mkato vya kurekebisha ukubwa hutumia vitufe halisi `code:20` na `code:21` (XKB `<AE11>` na `<AE12>`), bila kujali herufi zilizochapishwa kwenye kibodi. Kwenye kibodi za US vitufe hivi ni `-` na `=`; kwenye kibodi za Kijapani (JIS) ni `-` na `^`; kwenye kibodi za Kihispania ni `'` na `¡`. Kwenye JIS, `Super + ^` ni `Super + Equal`, ilhali `Super + Shift + -` (ambayo huchapa `=`) ni `Super + Shift + Minus`.
+Vitufe vya mkato vya kubadilisha ukubwa hutumia vitufe halisi `code:20` na `code:21` (XKB `<AE11>` na `<AE12>`), bila kujali herufi zilizochapishwa kwenye kibodi. Kwenye kibodi za US vitufe hivi ni `-` na `=`; kwenye kibodi za Kijapani (JIS) ni `-` na `^`; kwenye kibodi za Kihispania ni `'` na `¡`. Kwenye JIS, `Super + ^` ni `Super + Equal`, ilhali `Super + Shift + -` (ambayo huandika `=`) ni `Super + Shift + Minus`.
 
 ## Vidhibiti vya mfumo
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A` | Paneli ya sauti |
 | `Super + Ctrl + B` | Paneli ya Bluetooth |
@@ -111,15 +111,15 @@ Vifunguo vya mkato vya kurekebisha ukubwa hutumia vitufe halisi `code:20` na `co
 | `Super + Ctrl + D` | Paneli ya onyesho |
 | `Super + Ctrl + P` | Paneli ya nishati |
 | `Super + Ctrl + X` | Paneli ya mawakala |
-| `Super + Ctrl + Shift + X` | Paneli ya modeli za ndani |
+| `Super + Ctrl + Alt + X` | Paneli ya miundo ya ndani |
 | `Super + Ctrl + Alt + D` | Paneli ya kalenda |
 | `Super + Ctrl + Alt + E` | Paneli ya saa ya dunia |
-| `Super + Ctrl + 1-9` | Washa/zima paneli ya upau kulingana na msimamo |
+| `Super + Ctrl + 1-9` | Geuza paneli ya upau kulingana na nafasi |
 | `Super + Ctrl + S` | Menyu ya kushiriki (kupitia LocalSend) |
-| `Super + Ctrl + C` | Vidhibiti vya kunasa (picha ya skrini/-kurekodi/kiteuzi) |
-| `Super + Ctrl + O` | Washa/zima menyu |
-| `Super + Ctrl + H` | Menyu ya maunzi |
-| `Super + Ctrl + E` | Kiteuzi cha emoji |
+| `Super + Ctrl + C` | Vidhibiti vya kunasa (picha ya skrini/kurekodi/kiteua) |
+| `Super + Ctrl + O` | Geuza menyu |
+| `Super + Ctrl + H` | Menyu ya vifaa |
+| `Super + Ctrl + E` | Kiteua emoji |
 | `Super + Ctrl + .` | Badilisha umbizo la media |
 | `Super + Shift + Ctrl + A` | Chagua wakala wa AI |
 | `Power` key | Menyu ya mfumo |
@@ -127,7 +127,7 @@ Vifunguo vya mkato vya kurekebisha ukubwa hutumia vitufe halisi `code:20` na `co
 
 ## Marekebisho
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
 | `Shift + Brightness Up` | Mwangaza wa juu kabisa wa skrini |
 | `Shift + Brightness Down` | Mwangaza wa chini kabisa wa skrini |
@@ -141,24 +141,24 @@ Vifunguo vya mkato vya kurekebisha ukubwa hutumia vitufe halisi `code:20` na `co
 | `Touchpad Toggle` | Washa au zima pedi ya kugusa |
 | `Display` key | Zunguka mpangilio wa nafasi ya kazi |
 | `Alt + Play` | Wimbo unaofuata |
-| `Alt + Shift + Play` | Wimbo uliopita |
+| `Alt + Shift + Play` | Wimbo uliotangulia |
 
 ## Kufungua programu
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
 | `Super + Return` | Terminali |
 | `Super + Alt + Return` | Terminali ya Tmux |
 | `Super + Ctrl + Return` | Herdr (kidhibiti cha mawakala) |
 | `Super + Shift + Return` or `Super + Shift + B` | Kivinjari |
-| `Super + Shift + Alt + B` | Kivinjari (faragha/incognito) |
-| `Super + Shift + F` | Kidhibiti faili |
-| `Super + Shift + Alt + F` | Kidhibiti faili katika cwd ya terminali |
+| `Super + Shift + Alt + B` | Kivinjari (binafsi/incognito) |
+| `Super + Shift + F` | Kidhibiti cha faili |
+| `Super + Shift + Alt + F` | Kidhibiti cha faili katika cwd ya terminali |
 | `Super + Shift + M` | Muziki (Spotify) |
 | `Super + Shift + Alt + M` | Muziki (cliamp) |
-| `Super + Shift + /` | Kidhibiti cha manenosiri (1password) |
+| `Super + Shift + /` | Kidhibiti cha nywila (1password) |
 | `Super + Shift + Q` or `Calculator` key | Kikokotoo (Omacalc) |
-| `Super + Shift + D` | Docker (lazydocker, baada ya kusakinishwa) |
+| `Super + Shift + D` | Docker (lazydocker, ukisha kisakinisha) |
 | `Super + Shift + T` | Shughuli (btop) |
 | `Super + Shift + N` | Kihariri (Plain, au chaguo-msingi ulilochagua) |
 | `Super + Shift + C` | Kalenda ([HEY](https://hey.com/)) |
@@ -179,9 +179,9 @@ Vifunguo vya mkato vya kurekebisha ukubwa hutumia vitufe halisi `code:20` na `co
 
 Badilisha/ongeza vifunguo katika `~/.config/hypr/bindings.lua`.
 
-## Ubao wa kunakili unaotumika kote
+## Ubao wa kunakili wa kila mahali
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
 | `Super + A` | Chagua vyote katika programu zinazotumia `Ctrl + A` |
 | `Super + C` | Nakili |
@@ -189,136 +189,136 @@ Badilisha/ongeza vifunguo katika `~/.config/hypr/bindings.lua`.
 | `Super + V` | Bandika |
 | `Super + Ctrl + V` | Kidhibiti cha ubao wa kunakili |
 
-Kwa kawaida kwenye Linux, unahitaji `Ctrl + Shift + C/V` kunakili na kubandika katika terminali na `Ctrl + C/V` kufanya hivyo kila mahali pengine. Vifunguo hivi vya haraka vya ubao wa kunakili vilivyounganishwa vya Omarchy hufanya kazi kila mahali.
+Kwa kawaida kwenye Linux, unahitaji `Ctrl + Shift + C/V` kunakili na kubandika katika terminali na `Ctrl + C/V` kufanya hivyo kwingineko kote. Vitufe hivi vya mkato vya ubao wa kunakili vilivyounganishwa vya Omarchy hufanya kazi kila mahali.
 
 ## Kunasa
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ------------------- | ------------------------------ |
 | `Print Screen` | Picha ya skrini |
-| `Super + Ctrl + Alt + C` | Picha ya skrini (picha iyo hiyo, kwa kibodi zisizo na kitufe cha Print Screen) |
+| `Super + Ctrl + Alt + C` | Picha ya skrini (picha ile ile, kwa kibodi zisizo na kitufe cha Print Screen) |
 | `Super + Ctrl + C` | Menyu ya kunasa |
-| `Alt + Print Screen` | Kurekodi skrini |
-| `Super + Shift + Ctrl + Alt + C` | Kurekodi skrini bila sauti, ukiruka menyu (bonyeza tena kuacha) |
-| `Super + Print Screen` | Kiteuzi cha rangi |
+| `Alt + Print Screen` | Rekodi ya skrini |
+| `Super + Shift + Ctrl + Alt + C` | Rekodi ya skrini bila sauti, ukiruka menyu (bonyeza tena kusimamisha) |
+| `Super + Print Screen` | Kiteua rangi |
 | `Super + Ctrl + Print Screen` | Uchimbaji wa maandishi hadi ubao wa kunakili |
-| `Super + Alt + [` | Fanya ufunikaji wa kamera ya wavuti uwe mdogo zaidi wakati wa kurekodi |
-| `Super + Alt + ]` | Fanya ufunikaji wa kamera ya wavuti uwe mkubwa zaidi wakati wa kurekodi |
+| `Super + Alt + [` | Fanya ufunikaji wa webcam kuwa mdogo zaidi wakati wa kurekodi |
+| `Super + Alt + ]` | Fanya ufunikaji wa webcam kuwa mkubwa zaidi wakati wa kurekodi |
 | `Alt + Shift + L` | Nakili URL ya sasa kutoka programu ya wavuti au kivinjari |
 | `Alt + Shift + D` | Pakua video iliyo kwenye ukurasa wa sasa hadi `~/Videos` |
-| `Alt + Space` | Anzisha/acha kuandikisha kwa sauti (inahitaji _Setup > Defaults > Dictation_) |
-| `Right Alt` | Shikilia kuandikisha kwa sauti (inahitaji _Setup > Defaults > Dictation_) |
+| `Alt + Space` | Anza/simamisha udikteti (inahitaji _Setup > Defaults > Dictation_) |
+| `Right Alt` | Shikilia ili kudiketi (inahitaji _Setup > Defaults > Dictation_) |
 
-Ukiwa na rekodi za skrini, kifunguo cha haraka kwanza huuliza sauti unayotaka, kisha huanza kurekodi. Kibonyeze tena kuacha. Angalia [picha za skrini na kurekodi](12-screenshots-recording.md) kwa maelezo.
+Kwa rekodi za skrini, kitufe cha mkato kwanza huuliza sauti unayotaka, kisha huanza kurekodi. Kibonyeze tena kusimamisha. Angalia [picha za skrini na kurekodi](12-screenshots-recording.md) kwa maelezo.
 
-Chaguo zote za kunasa zinapatikana pia chini ya _Trigger > Capture_ katika menyu ya Omarchy (`Super + Space`).
+Chaguo zote za kunasa pia zinapatikana chini ya _Trigger > Capture_ katika menyu ya Omarchy (`Super + Space`).
 
 ## Arifa
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
-| `Super + ,` | Tenda kwenye arifa ya hivi karibuni zaidi: ifungue au bonyeza kitufe chake pekee, chagua kutoka chaguo zake, au iondoe ikiwa haina chochote |
+| `Super + ,` | Tenda kwenye arifa ya hivi karibuni zaidi: ifungue au bonyeza kitufe chake pekee, chagua kutoka chaguo zake, au iondoe ikiwa haina lolote |
 | `Super + Shift + ,` | Ondoa arifa zote |
 | `Super + Ctrl + ,` | Dhibiti arifa kwa kibodi |
 | `Super + Alt + ,` | Ondoa arifa ya hivi karibuni zaidi |
 | `Super + Shift + Alt + ,` | Fungua historia ya arifa |
-| `Super + Ctrl + Alt + ,` | Washa/zima kunyamazisha arifa |
+| `Super + Ctrl + Alt + ,` | Geuza kunyamazisha arifa |
 
 ## Mtindo
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + T` | Chagua mandhari mapya (pia `Super + Ctrl + Shift + Space`) |
-| `Super + Ctrl + W` | Chagua mandharinyuma ya mandhari (pia `Super + Ctrl + Space`) |
-| `Super + Backspace` | Washa/zima uwazi kwenye dirisha |
-| `Super + Ctrl + Backspace` | Washa/zima uwiano wa mraba wa dirisha moja |
+| `Super + Ctrl + W` | Chagua usuli wa mandhari (pia `Super + Ctrl + Space`) |
+| `Super + Backspace` | Geuza uwazi kwenye dirisha |
+| `Super + Ctrl + Backspace` | Geuza uwiano wa mraba wa dirisha moja |
 
-Picha za ziada za mandharinyuma ziko katika `~/.config/omarchy/backgrounds/<theme name>`. Zinapatikana pia kupitia _Install > Style > Background_ katika menyu ya Omarchy.
+Picha za ziada za usuli huishi katika `~/.config/omarchy/backgrounds/<theme name>`. Pia zinapatikana kupitia _Install > Style > Background_ katika menyu ya Omarchy.
 
-Chaguo zote za mtindo zinapatikana pia chini ya _Appearance_ katika menyu ya Omarchy (`Super + Space`).
+Chaguo zote za mtindo pia zinapatikana chini ya _Appearance_ katika menyu ya Omarchy (`Super + Space`).
 
-## Kuwasha/Kuzima
+## Kugeuza
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + I` | Washa/zima kufunga wakati wa kutofanya kazi |
-| `Super + Ctrl + Delete` | Washa/zima onyesho la kompyuta ndogo |
-| `Super + Ctrl + Alt + Delete` | Washa/zima kuakisi onyesho la kompyuta ndogo |
-| `Super + Shift + Space` | Washa/zima upau wa juu |
+| `Super + Ctrl + I` | Geuza kufunga wakati wa kutofanya kazi |
+| `Super + Ctrl + Delete` | Geuza onyesho la laptop kuwasha/kuzima |
+| `Super + Ctrl + Alt + Delete` | Geuza uakisi wa onyesho la laptop |
+| `Super + Shift + Space` | Geuza upau wa juu |
 | `Shift + Mute` | Badilisha hadi towe linalofuata la sauti |
 | `Shift + Play` | Badilisha hadi chanzo kinachofuata cha media |
-| `Super + Shift + Backspace` | Washa/zima mapengo ya madirisha |
-| `Super + Ctrl + Alt + F` | Washa/zima eneo-kazi la skrini nzima (upau wa juu + mapengo ya madirisha) |
+| `Super + Shift + Backspace` | Geuza mapengo ya madirisha |
+| `Super + Ctrl + Alt + F` | Geuza eneo-kazi la skrini nzima (upau wa juu + mapengo ya madirisha) |
 
 ## Vikumbusho
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + R` | Weka kikumbusho |
-| `Super + Ctrl + Alt + R` | Ona vikumbusho vyote |
+| `Super + Ctrl + Alt + R` | Angalia vikumbusho vyote |
 | `Super + Ctrl + Shift + R` | Futa vikumbusho vyote |
 
 ## Taarifa
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Alt + T` | Onyesha muda kama arifa |
+| `Super + Ctrl + Alt + T` | Onyesha saa kama arifa |
 | `Super + Ctrl + Alt + B` | Onyesha betri kama arifa |
-| `Super + Ctrl + Alt + W` | Washa/zima hali ya hewa kama arifa |
+| `Super + Ctrl + Alt + W` | Geuza hali ya hewa kama arifa |
 
 ## Tmux
 
 Kitufe cha kiambishi awali ni `Ctrl + Space` (`Ctrl + B` pia hufanya kazi). Unaweza kubadilisha vifunguo hivi katika `~/.config/tmux/tmux.conf`.
 
-### Vipande
+### Paneli
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
-| `Prefix + v` | Gawa kipande ubavuni (wima) |
-| `Prefix + h` | Gawa kipande chini (mlalo) |
-| `Prefix + x` | Ua kipande |
-| `Prefix + z` | Washa/zima ukuzaji wa kipande (skrini nzima) |
-| `Alt + Enter` | Gawa kipande chini (bila kiambishi awali) |
-| `Alt + Shift + Enter` | Gawa kipande ubavuni (bila kiambishi awali) |
-| `Alt + Escape` | Ua kipande (bila kiambishi awali) |
-| `Ctrl + Alt + Arrows` | Sogeza kati ya vipande |
-| `Ctrl + Alt + Shift + Arrows` | Rekebisha ukubwa wa vipande |
+| `Prefix + v` | Gawa paneli kando (wima) |
+| `Prefix + h` | Gawa paneli chini (mlalo) |
+| `Prefix + x` | Ua paneli |
+| `Prefix + z` | Geuza ukuzaji wa paneli (skrini nzima) |
+| `Alt + Enter` | Gawa paneli chini (bila kiambishi awali) |
+| `Alt + Shift + Enter` | Gawa paneli kando (bila kiambishi awali) |
+| `Alt + Escape` | Ua paneli (bila kiambishi awali) |
+| `Ctrl + Alt + Arrows` | Sogeza kati ya paneli |
+| `Ctrl + Alt + Shift + Arrows` | Badilisha ukubwa wa paneli |
 
 ### Madirisha
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Dirisha jipya |
 | `Prefix + k` | Ua dirisha |
 | `Prefix + r` | Badilisha jina la dirisha |
-| `Alt + 1-9` | Nenda kwenye dirisha maalum |
+| `Alt + 1-9` | Nenda hadi dirisha maalum |
 | `Alt + Arrow Left/Right` | Sogeza kati ya madirisha |
-| `Alt + Shift + Arrow Left/Right` | Hamisha dirisha kushoto/kulia |
+| `Alt + Shift + Arrow Left/Right` | Sogeza dirisha kushoto/kulia |
 
 ### Vipindi
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Kipindi kipya |
 | `Prefix + K` | Ua kipindi |
 | `Prefix + R` | Badilisha jina la kipindi |
 | `Prefix + N` | Kipindi kinachofuata |
-| `Prefix + P` | Kipindi kilichopita |
+| `Prefix + P` | Kipindi kilichotangulia |
 | `Alt + Arrow Up/Down` | Sogeza kati ya vipindi |
 | `Prefix + s` | Orodhesha vipindi |
 | `Prefix + d` | Tenganisha kutoka kipindi |
 
 ### Hali ya kunakili (mtindo wa vi)
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
 | `Prefix + [` | Ingia hali ya kunakili |
 | `v` | Anza uteuzi (katika hali ya kunakili) |
 | `y` | Nakili uteuzi (katika hali ya kunakili) |
 
-### Jumla
+### Kwa ujumla
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Pakia upya usanidi |
 | `Prefix + ?` | Onyesha vifunguo vya Tmux |
@@ -330,101 +330,101 @@ Vitendakazi hivi lazima viendeshwe ndani ya kipindi cha Tmux.
 
 | Amri | Kazi |
 | ------- | -------- |
-| `tdl <ai> [<second_ai>]` | Unda mpangilio wa uendelezaji wenye kihariri, AI, na terminali |
+| `tdl <ai> [<second_ai>]` | Unda mpangilio wa uendelezaji na kihariri, AI, na terminali |
 | `tdlm <ai> [<second_ai>]` | Unda mpangilio wa uendelezaji kwa kila saraka ndogo |
-| `tsl <count> <command>` | Unda mpangilio wa kundi wenye vipande vingi |
+| `tsl <count> <command>` | Unda mpangilio wa kundi wa paneli nyingi |
 
-## Ghostty Terminal
+## Terminali ya Ghostty
 
 Terminali ya Ghostty husakinishwa kwa kutumia _Install > Terminal_ kupitia menyu ya Omarchy.
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ----------------------- | --------------------- |
 | `Ctrl + Shift + E` | Mgawanyiko mpya chini |
-| `Ctrl + Shift + O` | Mgawanyiko mpya ubavuni |
+| `Ctrl + Shift + O` | Mgawanyiko mpya kando |
 | `Ctrl + Alt + Arrows` | Sogeza kati ya migawanyiko |
-| `Super + Ctrl + Shift + Arrows` | Rekebisha ukubwa wa mgawanyiko kwa mistari 10 |
-| `Super + Ctrl + Shift + Alt + Arrows` | Rekebisha ukubwa wa mgawanyiko kwa mistari 100 |
+| `Super + Ctrl + Shift + Arrows` | Badilisha ukubwa wa mgawanyiko kwa mistari 10 |
+| `Super + Ctrl + Shift + Alt + Arrows` | Badilisha ukubwa wa mgawanyiko kwa mistari 100 |
 | `Ctrl + Shift + T` | Kichupo kipya |
 | `Ctrl + Shift + Arrows` | Sogeza kati ya vichupo |
-| `Alt + Numbers` | Nenda kwenye kichupo maalum |
-| `Shift + Pg Up/Down` | Sogeza historia |
+| `Alt + Numbers` | Nenda hadi kichupo maalum |
+| `Shift + Pg Up/Down` | Tembeza historia |
 | `Ctrl + Left mouse` | Fungua kiungo katika kivinjari |
 
-## Kidhibiti Faili
+## Kidhibiti cha Faili
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ------------------- | ------------------------------ |
-| `Ctrl + L` | Nenda kwenye njia |
-| `Space` | Hakiki faili (mishale hupita) |
-| `Alt + Up` | Nenda juu hadi folda kuu |
+| `Ctrl + L` | Nenda hadi njia |
+| `Space` | Hakiki faili (mishale husogeza) |
+| `Alt + Up` | Nenda juu hadi folda mzazi |
 
 ## Neovim (w/ lazyvim)
 
 ### Urambazaji
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ------------------------ | ------------------------------- |
 | `Space` | Onyesha chaguo za amri |
-| `Space Space` | Fungua faili kupitia utafutaji usio mkali |
-| `Space E` | Washa/zima upau wa pembeni |
+| `Space Space` | Fungua faili kupitia utafutaji wa fuzzy |
+| `Space E` | Geuza upau wa kando |
 | `Space G G` | Onyesha vidhibiti vya git |
 | `Space S G` | Tafuta maudhui ya faili |
-| `Ctrl + W W` | Ruka kati ya upau wa pembeni na kihariri |
-| `Ctrl + Left/right arrow` | Badilisha ukubwa wa upau wa pembeni |
-| `Shift + H` | Nenda kwenye kichupo cha faili cha kushoto |
-| `Shift + L` | Nenda kwenye kichupo cha faili cha kulia |
+| `Ctrl + W W` | Ruka kati ya upau wa kando na kihariri |
+| `Ctrl + Left/right arrow` | Badilisha ukubwa wa upau wa kando |
+| `Shift + H` | Nenda hadi kichupo cha faili cha kushoto |
+| `Shift + L` | Nenda hadi kichupo cha faili cha kulia |
 | `Space B D` | Funga kichupo cha faili |
 
-### Ukiwa katika upau wa pembeni
+### Ukiwa katika upau wa kando
 
-| Kifunguo cha haraka | Kazi |
+| Kitufe cha Mkato | Kazi |
 | ------------------------ | ------------------------------- |
-| `A` | Ongeza faili mpya katika saraka kuu |
-| `Shift + A` | Ongeza saraka ndogo mpya katika saraka kuu |
+| `A` | Ongeza faili mpya katika saraka mzazi |
+| `Shift + A` | Ongeza saraka ndogo mpya katika saraka mzazi |
 | `D` | Futa faili/saraka iliyoangaziwa |
-| `M` | Hamisha faili/saraka iliyoangaziwa |
+| `M` | Sogeza faili/saraka iliyoangaziwa |
 | `R` | Badilisha jina la faili/saraka iliyoangaziwa |
 | `?` | Onyesha usaidizi kwa amri zote |
 
-[Angalia vifunguo vyote vya haraka vya Neovim vilivyosanidiwa na LazyVim](https://www.lazyvim.org/keymaps).
+[Angalia vitufe vyote vya mkato vya Neovim vilivyosanidiwa na LazyVim](https://www.lazyvim.org/keymaps).
 
 ## Emoji za Haraka
 
-Unaweza kutumia `Super + Ctrl + E` kuonyesha kiteuzi kamili cha emoji ambacho kitaweka uteuzi kwenye ubao wa kunakili au unaweza kutumia chaguo hizi za ufikiaji wa haraka.
+Unaweza kutumia `Super + Ctrl + E` kuonyesha kiteua kamili cha emoji ambacho kitaweka uteuzi kwenye ubao wa kunakili au unaweza kutumia chaguo hizi za ufikiaji wa haraka.
 
-| Kifunguo cha haraka | EM | Kidokezo |
+| Kitufe cha Mkato | EM | Kidokezo |
 | ------------ | -- | ---------- |
-| `Shift + CapsLock M S` | 😄 | tabasamu |
-| `Shift + CapsLock M C` | 😂 | kilio |
-| `Shift + CapsLock M L` | 😍 | upendo |
-| `Shift + CapsLock M V` | ✌️ | ushindi |
-| `Shift + CapsLock M H` | ❤️ | moyo |
-| `Shift + CapsLock M Y` | 👍 | ndiyo |
-| `Shift + CapsLock M N` | 👎 | hapana |
-| `Shift + CapsLock M F` | 🖕 | tusi |
-| `Shift + CapsLock M W` | 🤞 | tamani |
-| `Shift + CapsLock M R` | 🤘 | roki |
-| `Shift + CapsLock M K` | 😘 | busu |
-| `Shift + CapsLock M E` | 🙄 | zungusha macho |
-| `Shift + CapsLock M I` | 😉 | konyeza |
-| `Shift + CapsLock M P` | 🙏 | omba |
-| `Shift + CapsLock M D` | 🤤 | tokwa mate |
-| `Shift + CapsLock M M` | 💰 | pesa |
-| `Shift + CapsLock M X` | 🎉 | sherehekea |
+| `Shift + CapsLock M S` | 😄 | smile |
+| `Shift + CapsLock M C` | 😂 | cry |
+| `Shift + CapsLock M L` | 😍 | love |
+| `Shift + CapsLock M V` | ✌️ | victory |
+| `Shift + CapsLock M H` | ❤️ | heart |
+| `Shift + CapsLock M Y` | 👍 | yes |
+| `Shift + CapsLock M N` | 👎 | no |
+| `Shift + CapsLock M F` | 🖕 | fuck |
+| `Shift + CapsLock M W` | 🤞 | wish |
+| `Shift + CapsLock M R` | 🤘 | rock |
+| `Shift + CapsLock M K` | 😘 | kiss |
+| `Shift + CapsLock M E` | 🙄 | eyeroll |
+| `Shift + CapsLock M I` | 😉 | wink |
+| `Shift + CapsLock M P` | 🙏 | pray |
+| `Shift + CapsLock M D` | 🤤 | drool |
+| `Shift + CapsLock M M` | 💰 | money |
+| `Shift + CapsLock M X` | 🎉 | xellebrate |
 | `Shift + CapsLock M 1` | 💯 | 100% |
 | `Shift + CapsLock M T` | 🥂 | toast |
-| `Shift + CapsLock M O` |👌 | sawa |
-| `Shift + CapsLock M G` |👋 | salamu |
-| `Shift + CapsLock M A` |💪 | mkono |
-| `Shift + CapsLock M B` |🤯 | kupuliza |
+| `Shift + CapsLock M O` |👌 | ok |
+| `Shift + CapsLock M G` |👋 | greeting |
+| `Shift + CapsLock M A` |💪 | arm |
+| `Shift + CapsLock M B` |🤯 | blowing |
 
 ## Ukamilishaji wa Haraka
 
-| Kifunguo cha haraka | Ukamilishaji |
+| Kitufe cha Mkato | Ukamilishaji |
 | ------------ |  ---------- |
-| `Shift + CapsLock Space Space` | — (kistari mrefu) |
+| `Shift + CapsLock Space Space` | — (mdash) |
 | `Shift + CapsLock Space N` | Jina lako (kama lilivyoingizwa wakati wa usanidi) |
 | `Shift + CapsLock Space E` | Barua pepe yako (kama ilivyoingizwa wakati wa usanidi) |
 
-Unaweza kuongeza zaidi yako mwenyewe kwa kuhariri `~/.XCompose`, kisha kuendesha `omarchy restart xcompose` katika terminali ili mabadiliko yachukuliwe.
+Unaweza kuongeza zaidi yako mwenyewe kwa kuhariri `~/.XCompose`, kisha endesha `omarchy restart xcompose` katika terminali ili mabadiliko yachukuliwe.
