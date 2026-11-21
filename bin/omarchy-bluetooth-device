@@ -29,12 +29,29 @@ trust_device() {
   bluetoothctl trust "$address" >/dev/null 2>&1 || true
 }
 
+untrust_device() {
+  bluetoothctl untrust "$address" >/dev/null 2>&1 || true
+}
+
+paired() {
+  [[ $(timeout 5s bluetoothctl info "$address" 2>/dev/null) == *"Paired: yes"* ]]
+}
+
 case "$action" in
   pair)
     power_on
     timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
-    trust_device
-    timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    # Trust only a device that bonded. BlueZ reconnects to a trusted device on
+    # every advertisement, and one without a bond is dropped again as soon as
+    # it asks for encryption, so a trusted-but-unpaired device flaps once a
+    # second until it is forgotten. Lifting the trust after a failed pair also
+    # stops a loop a device is already in.
+    if paired; then
+      trust_device
+      timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    else
+      untrust_device
+    fi
     ;;
   connect)
     power_on
