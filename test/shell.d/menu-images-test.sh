@@ -263,6 +263,7 @@ lazy_rows() {
   rows=$(<"$lazy_state/rows")
 }
 
+lazy_cache_key=$(printf '%s' "$lazy_images" | md5sum | cut -d ' ' -f 1)
 for cores in 1 2 8; do
   rm -f "$lazy_images/new.png"
   printf 'image' >"$lazy_images/0.png"
@@ -316,6 +317,11 @@ for cores in 1 2 8; do
     fi
     sleep 0.02
   done
+  # The converter records completion before returning to generate_thumbnail,
+  # which still has to rename its output. Wait for the pool to release its
+  # lock before checking published thumbnails, including the final batch.
+  flock -w 10 "$tmp/lazy-cache-$cores/omarchy/image-selector/$lazy_cache_key.rows.thumbnails.lock" true ||
+    fail "lazy image menu releases its pool after completing the queue"
   (( $(wc -l <"$lazy_state/completed") == 42 && $(<"$lazy_state/peak") == expected_workers )) ||
     fail "lazy image menu completes the queue after its parent and queue path are gone"
   for thumbnail in "${changed_thumbnails[@]}"; do
