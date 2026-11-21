@@ -65,7 +65,10 @@ assertDeepEqual(media.volumeKeyStep('lower', 120, false), { percent: 115, muted:
 assertDeepEqual(media.volumeKeyStep('lower', 3, false), { percent: 0, muted: false }, 'volume lower clamps at 0')
 assertDeepEqual(media.volumeKeyStep('mute-toggle', 48, false), { percent: 48, muted: true }, 'mute toggle keeps the volume')
 assertEqual(media.volumeKeyStep('+1', 48, false), null, 'volume keys leave other steps to the script')
-assertEqual(media.volumeOsdIcon(48, false), 'volume-high', 'volume OSD shows the speaker when audible')
+assertEqual(media.volumeOsdIcon(33, false), 'volume-low', 'volume OSD shows the low speaker up to 33')
+assertEqual(media.volumeOsdIcon(34, false), 'volume-medium', 'volume OSD shows the medium speaker from 34')
+assertEqual(media.volumeOsdIcon(66, false), 'volume-medium', 'volume OSD shows the medium speaker up to 66')
+assertEqual(media.volumeOsdIcon(67, false), 'volume-high', 'volume OSD shows the high speaker from 67')
 assertEqual(media.volumeOsdIcon(48, true), 'volume-muted', 'volume OSD shows muted when muted')
 assertEqual(media.volumeOsdIcon(0, false), 'volume-muted', 'volume OSD shows muted at zero')
 JS

@@ -171,7 +171,10 @@ function volumeKeyStep(action, percent, muted) {
 }
 
 function volumeOsdIcon(percent, muted) {
-  return muted || percent === 0 ? "volume-muted" : "volume-high"
+  if (muted || percent === 0) return "volume-muted"
+  if (percent <= 33) return "volume-low"
+  if (percent <= 66) return "volume-medium"
+  return "volume-high"
 }
 
 if (typeof module !== "undefined") {
