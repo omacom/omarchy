@@ -139,3 +139,27 @@ for (const file of overlayFiles) {
   assert(namespace && unanimated.includes(namespace[1]), `${file} is exempt from Hyprland's layer animation`)
 }
 JS
+
+require_compositor "overlay output recovery runtime test"
+if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  skip "no parent Hyprland instance; skipping overlay output recovery runtime test"
+  exit 0
+fi
+
+for tool in Hyprland quickshell hyprctl wtype python; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    skip "$tool not installed; skipping overlay output recovery runtime test"
+    exit 0
+  fi
+done
+
+result=0
+python "$SHELL_TEST_DIR/fixtures/overlay-output-recovery/run.py" "$ROOT" || result=$?
+if (( result == 77 )); then
+  skip "nested compositor was denied KMS buffer allocation and could not allocate a headless output"
+  exit 0
+elif (( result != 0 )); then
+  exit "$result"
+fi
+# The first run established that this compositor can allocate outputs.
+python "$SHELL_TEST_DIR/fixtures/overlay-output-recovery/run.py" "$ROOT" --zero-output-open
