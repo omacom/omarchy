@@ -216,8 +216,8 @@ def main():
             setup = HELPER.absolute().parent.parent / 'install/user/hardware/asus/rog-ally-keyboard.sh'
             launcher = root / 'data/applications/omarchy-desktop-keyboard.desktop'
 
-            def configure():
-                return subprocess.run(['/bin/bash', str(setup)], env=env,
+            def configure(extra=None):
+                return subprocess.run(['/bin/bash', str(setup)], env=env | (extra or {}),
                                       capture_output=True, text=True, timeout=5)
 
             def outputs(*names):
@@ -229,6 +229,9 @@ def main():
             run('show')
             run('stop')
             (root / 'rc71l').touch()
+            for options in ('OLD_OPTIONS', 'STOCK_OPTIONS'):
+                result = configure({options: '1'})
+                assert result.returncode == 0 and not launcher.exists(), options
             result = configure()
             assert result.returncode == 0, (result.stdout, result.stderr)
             assert launcher.is_file() and not record.exists()
