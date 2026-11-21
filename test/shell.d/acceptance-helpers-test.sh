@@ -51,3 +51,49 @@ assert_layer_on_screen "visible-negative-offset" "visible layer is found on a ne
 assert_layer_off_screen "parked-negative-offset" "left-parked layer stays off a negatively offset monitor"
 assert_layer_on_screen "visible-rotated" "visible layer uses the transformed monitor height"
 assert_layer_off_screen "parked-rotated" "parked layer uses the transformed monitor width"
+
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+mkdir -p "$test_tmp/bin"
+export OCR_FIXTURE_CALLS="$test_tmp/calls"
+cat >"$test_tmp/bin/grim" <<'SH'
+#!/bin/bash
+printf 'capture:%s\n' "${@: -1}" >>"$OCR_FIXTURE_CALLS"
+printf 'same captured pixels\n' >"${@: -1}"
+SH
+cat >"$test_tmp/bin/tesseract" <<'SH'
+#!/bin/bash
+[[ $(cat "$1") == "same captured pixels" ]] || exit 1
+printf 'ocr:%s:%s\n' "$1" "${@: -1}" >>"$OCR_FIXTURE_CALLS"
+if [[ $OCR_FIXTURE_MODE == "sparse" || $OCR_FIXTURE_MODE == "fallback" && ${@: -1} == 6 ]]; then
+  printf 'Acceptance [literal].* caption\n'
+else
+  printf 'Wallpaper fragments\n'
+fi
+SH
+chmod +x "$test_tmp/bin/"*
+export PATH="$test_tmp/bin:$PATH"
+
+export OCR_FIXTURE_MODE=sparse
+: >"$OCR_FIXTURE_CALLS"
+screen_contains 'Acceptance [literal].* caption' || fail "sparse OCR match remains sufficient"
+mapfile -t calls <"$OCR_FIXTURE_CALLS"
+[[ ${#calls[@]} == 2 && ${calls[1]} == *:11 ]] || fail "sparse OCR success does not retry or recapture"
+snapshot=${calls[0]#capture:}
+[[ ! -e $snapshot ]] || fail "sparse OCR cleans its captured image"
+pass "sparse OCR match preserves literal text, one capture, and cleanup"
+
+export OCR_FIXTURE_MODE=fallback
+: >"$OCR_FIXTURE_CALLS"
+screen_contains 'Acceptance [literal].* caption' || fail "block OCR can find a caption missed by sparse segmentation"
+mapfile -t calls <"$OCR_FIXTURE_CALLS"
+[[ ${#calls[@]} == 3 && ${calls[1]} == "ocr:$snapshot:11" && ${calls[2]} == "ocr:$snapshot:6" ]] || fail "OCR fallback reuses the same captured pixels"
+[[ ! -e $snapshot ]] || fail "OCR fallback cleans its captured image"
+pass "block OCR fallback reuses the original capture and preserves cleanup"
+
+export OCR_FIXTURE_MODE=missing
+: >"$OCR_FIXTURE_CALLS"
+screen_contains 'Acceptance [literal].* caption' && fail "OCR without literal visible text must fail"
+mapfile -t calls <"$OCR_FIXTURE_CALLS"
+[[ ${#calls[@]} == 3 && ! -e $snapshot ]] || fail "failed OCR preserves one capture and cleanup"
+pass "missing visible text still fails after both segmentation modes"
