@@ -15,6 +15,10 @@ if omarchy-cmd-missing voxtype; then
   fi
 fi
 
+# The CLI transcription backend is a separate executable, not part of voxtype-bin.
+# Repair it on repeat setup too, before a configured model can need it.
+omarchy-pkg-add whisper-cpp
+
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 mkdir -p "$config_home/voxtype"
 if [[ ! -e $config_home/voxtype/config.toml ]]; then
