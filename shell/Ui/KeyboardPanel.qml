@@ -521,6 +521,7 @@ PanelWindow {
 
   BorderSurface {
     id: card
+    shadowSection: "popups"
     x: root.morphed(root.morphFrom.x, root.cardOrigin.x)
     y: root.morphed(root.morphFrom.y, root.cardOrigin.y)
     width: root.morphed(root.morphFrom.width, root.contentWidth)

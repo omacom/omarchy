@@ -338,6 +338,11 @@ Item {
 
       QQC.Popup {
         id: popup
+        readonly property var shadowInsets: Shadow.surfaceSpec("popups")
+        leftMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.left) : margins
+        rightMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.right) : margins
+        topMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.top) : margins
+        bottomMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.bottom) : margins
         closePolicy: QQC.Popup.CloseOnPressOutsideParent | QQC.Popup.CloseOnEscape
         // Keep the trigger as the logical parent so CloseOnPressOutsideParent
         // treats a press on the trigger as inside, leaving the toggle to the
@@ -349,7 +354,8 @@ Item {
         parent: trigger
         property real _anchorX: 0
         property real _anchorY: 0
-        property real _availableBelow: 0
+        property real _anchorWindowY: 0
+        readonly property real _availableBelow: Math.max(0, _windowHeight - _anchorWindowY - Math.max(Style.space(12), bottomMargin))
         readonly property var _windowItem: trigger.Window.window ? trigger.Window.window.contentItem : null
         readonly property real _windowHeight: _windowItem ? _windowItem.height : 0
         readonly property real _idealContent: resultList.contentHeight + Style.space(50)
@@ -361,9 +367,9 @@ Item {
           _anchorX = p.x
           _anchorY = p.y
           // _anchorY is relative to the trigger; the clamp below needs the
-          // anchor in window coordinates.
+          // anchor in window coordinates, including room for the shadow.
           var win = _windowItem ? trigger.mapToItem(_windowItem, 0, trigger.height + Style.spacing.xxs) : p
-          _availableBelow = Math.max(0, _windowHeight - win.y - Style.space(12))
+          _anchorWindowY = win.y
         }
 
         x: _anchorX
@@ -388,6 +394,7 @@ Item {
         }
 
         background: BorderSurface {
+          shadowSection: "popups"
           color: root.background
           borderSpec: root.popupBorderSpec
           radius: Style.cornerRadius

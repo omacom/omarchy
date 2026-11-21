@@ -16,6 +16,7 @@ PopupWindow {
   property int contentHeight: Style.space(200)
   property color borderColor: Commons.Color.popups.border
   property var borderSpec: Border.localOrSurfaceSpec("popups", "border", borderColor, Commons.Color.popups.border, Math.max(1, Style.space(2)))
+  readonly property var shadowSpec: Shadow.surfaceSpec("popups")
   property bool open: false
   property bool centerOnBar: false
   // "click" — uses HyprlandFocusGrab so clicking outside dismisses the popup.
@@ -35,10 +36,10 @@ PopupWindow {
   readonly property real barThickness: !bar ? 0
     : (typeof bar.barSizeFor === "function" && popupScreen ? bar.barSizeFor(popupScreen.name) : bar.barSize)
   readonly property real availableCardWidth: screenW > 0
-    ? Math.max(120, screenW - ((bar && (bar.position === "left" || bar.position === "right")) ? barThickness : 0) - root.margin * 2)
+    ? Math.max(120, screenW - ((bar && (bar.position === "left" || bar.position === "right")) ? barThickness : 0) - root.margin * 2 - shadowSpec.left - shadowSpec.right)
     : 0
   readonly property real availableCardHeight: screenH > 0
-    ? Math.max(120, screenH - ((bar && (bar.position === "top" || bar.position === "bottom")) ? barThickness : 0) - root.margin * 2)
+    ? Math.max(120, screenH - ((bar && (bar.position === "top" || bar.position === "bottom")) ? barThickness : 0) - root.margin * 2 - shadowSpec.top - shadowSpec.bottom)
     : 0
   readonly property real verticalContentInset: padding * 2 + Border.top(borderSpec) + Border.bottom(borderSpec)
 
@@ -74,8 +75,8 @@ PopupWindow {
   // A closing card stays mapped until its fade ends; it must not take clicks
   // meant for the bar underneath while it does.
   mask: Region { item: root.open ? card : null }
-  implicitWidth: contentWidth
-  implicitHeight: contentHeight
+  implicitWidth: contentWidth + shadowSpec.left + shadowSpec.right
+  implicitHeight: contentHeight + shadowSpec.top + shadowSpec.bottom
 
   onOpenChanged: {
     if (!bar) return
@@ -106,8 +107,11 @@ PopupWindow {
       if (!root.anchorItem || !root.bar) return
 
       var target = root.anchorItem
-      var popupWidth = root.implicitWidth
-      var popupHeight = root.implicitHeight
+      // Position the visible card, then subtract the transparent shadow pad.
+      // Near a monitor edge, PopupAdjustment.Slide may move the padded window
+      // inward to keep it on screen, shifting the card with it.
+      var popupWidth = root.contentWidth
+      var popupHeight = root.contentHeight
       var localX = target.width / 2 - popupWidth / 2
       var localY = target.height + root.margin
 
@@ -141,8 +145,8 @@ PopupWindow {
           cy = Math.max(root.margin, Math.min(cy, window.height - popupHeight - root.margin))
         }
 
-        popupAnchor.rect.x = Math.round(cx)
-        popupAnchor.rect.y = Math.round(cy)
+        popupAnchor.rect.x = Math.round(cx - root.shadowSpec.left)
+        popupAnchor.rect.y = Math.round(cy - root.shadowSpec.top)
         return
       }
 
@@ -154,14 +158,18 @@ PopupWindow {
         point.y = Math.max(root.margin, Math.min(point.y, window.height - popupHeight - root.margin))
       }
 
-      popupAnchor.rect.x = Math.round(point.x)
-      popupAnchor.rect.y = Math.round(point.y)
+      popupAnchor.rect.x = Math.round(point.x - root.shadowSpec.left)
+      popupAnchor.rect.y = Math.round(point.y - root.shadowSpec.top)
     }
   }
 
   BorderSurface {
     id: card
-    anchors.fill: parent
+    x: root.shadowSpec.left
+    y: root.shadowSpec.top
+    width: root.contentWidth
+    height: root.contentHeight
+    shadowSection: "popups"
     color: Commons.Color.popups.background
     borderSpec: root.borderSpec
     padding: root.padding

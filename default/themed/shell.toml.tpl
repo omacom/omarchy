@@ -121,6 +121,16 @@ base-size = 12
 
 [popups]
 # Shared by every bar flyout (dropdowns, OSD, popup cards).
+# Optional outer shadows (off by default). The same keys work in [menu],
+# [notifications], [tooltip], [polkit], and [lock], but never on [bar].
+# Sizes are logical pixels, independent of the font/spacing scale.
+# Alpha: 0..1; blur: 0..128; spread: -64..64; offsets: -128..128.
+# shadow-color    = "#000000"
+# shadow-alpha    = 0.35
+# shadow-blur     = 24
+# shadow-spread   = 0
+# shadow-offset-x = 0
+# shadow-offset-y = 6
 # Border accepts either a solid color or a Hyprland-style gradient. Border
 # widths accept one CSS-style scalar/list: N, "Y X", "T X B", or "T R B L";
 # individual border-width-top/right/bottom/left keys override the list.

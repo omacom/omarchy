@@ -971,6 +971,11 @@ Panel {
 
             Popup {
               id: sharedCopyPopup
+              readonly property var shadowInsets: Shadow.surfaceSpec("popups")
+              leftMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.left) : margins
+              rightMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.right) : margins
+              topMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.top) : margins
+              bottomMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.bottom) : margins
               parent: peerList
               width: Style.space(280)
               padding: 0
@@ -1008,6 +1013,7 @@ Panel {
                 }
               }
               background: BorderSurface {
+                shadowSection: "popups"
                 color: Commons.Color.background
                 borderSpec: Border.flat(root.dim, 1)
                 radius: Style.cornerRadius
