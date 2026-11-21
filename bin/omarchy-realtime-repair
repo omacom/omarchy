@@ -135,8 +135,10 @@ portal_budget() {
 # The portal reads rtkit's budget once, when it starts, so one started before
 # rtkit was installed keeps reporting zero. One that is not running reads it
 # when it next starts. A portal that already reports a budget is left alone.
+# A restart that the display condition refuses leaves the unit inactive with
+# an empty budget; that session has no display, so the upgrade continues.
 repair_portal() {
-  local user=$1 state
+  local user=$1 state condition
 
   state=$(as_user "$user" systemctl show -p ActiveState --value xdg-desktop-portal.service) ||
     fail "Could not read the state of $user's portal"
@@ -149,8 +151,20 @@ repair_portal() {
 
   [[ $(portal_budget "$user") =~ ^[1-9][0-9]*$ ]] && return 0
 
-  # A failed restart leaves the zero in place, which the check below catches.
-  as_user "$user" systemctl restart xdg-desktop-portal.service
+  as_user "$user" systemctl restart xdg-desktop-portal.service ||
+    fail "Could not restart $user's portal"
+
+  state=$(as_user "$user" systemctl show -p ActiveState --value xdg-desktop-portal.service) ||
+    fail "Could not read the state of $user's portal"
+  if [[ $state != "active" ]]; then
+    condition=$(as_user "$user" systemctl show -p ConditionResult --value xdg-desktop-portal.service) ||
+      fail "Could not read the start condition of $user's portal"
+    if [[ $condition == "no" ]]; then
+      return 0
+    fi
+    fail "$user's portal is $state after its restart"
+  fi
+
   [[ $(portal_budget "$user") =~ ^[1-9][0-9]*$ ]] ||
     fail "$user's portal still reports a zero realtime budget"
 }

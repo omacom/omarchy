@@ -102,12 +102,24 @@ case $* in
   *"show -p ActiveState --value xdg-desktop-portal.service")
     [[ -z ${PORTAL_SHOW_FAILS:-} ]] || exit 1
     cat "$STATE/portal-state-$user" 2>/dev/null || echo active ;;
+  *"show -p ConditionResult --value xdg-desktop-portal.service")
+    cat "$STATE/portal-condition-$user" 2>/dev/null || echo yes ;;
   *"restart xdg-desktop-portal.service")
     echo "restart portal $user" >>"$CALLS"
     # A client that read the old portal just before it went away.
     [[ -z ${ZERO_DURING_RESTART:-} || -e $OMARCHY_PROC_ROOT/77 ]] || fake-proc 77 1000 7700 0 0
     [[ -z ${PORTAL_RESTART_FAILS:-} && ${PORTAL_RESTART_FAILS_FOR:-} != $user ]] || exit 1
-    [[ -n ${PORTAL_STAYS_ZERO:-} ]] || cat "$STATE/budget" >"$STATE/portal-$user" ;;
+    if [[ -n ${PORTAL_CONDITION_SKIPS:-} ]]; then
+      echo inactive >"$STATE/portal-state-$user"
+      echo no >"$STATE/portal-condition-$user"
+      rm -f "$STATE/portal-$user"
+    elif [[ -n ${PORTAL_RESTART_STOPS:-} ]]; then
+      echo inactive >"$STATE/portal-state-$user"
+      echo yes >"$STATE/portal-condition-$user"
+      rm -f "$STATE/portal-$user"
+    else
+      [[ -n ${PORTAL_STAYS_ZERO:-} ]] || cat "$STATE/budget" >"$STATE/portal-$user"
+    fi ;;
   *"show -p MainPID --value pipewire.service")
     [[ -z ${MAINPID_FAILS:-} ]] || exit 1
     if [[ -e $STATE/pipewire ]]; then echo 500; else echo 0; fi ;;
@@ -265,6 +277,15 @@ pass "the repair fails when a portal restart fails"
 fresh_machine
 if PORTAL_STAYS_ZERO=1 repair; then fail "the repair fails while a portal still reports zero"; fi
 pass "the repair fails while a portal still reports zero"
+
+fresh_machine
+PORTAL_CONDITION_SKIPS=1 repair || fail "a portal skipped for lack of a display is not an upgrade failure" "$(cat "$test_dir/out")"
+grep -qx "restart portal $me" "$calls" || fail "a display-less portal is still asked to restart" "$(cat "$calls")"
+pass "a portal skipped for lack of a display is not an upgrade failure"
+
+fresh_machine
+if PORTAL_RESTART_STOPS=1 repair; then fail "the repair fails when a portal restart leaves it stopped"; fi
+pass "the repair fails when a portal restart leaves it stopped"
 
 fresh_machine
 rm "$proc_root/11/limits"
