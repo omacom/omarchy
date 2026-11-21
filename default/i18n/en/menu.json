@@ -1368,5 +1368,11 @@
   },
   "agent.make.game": {
     "label": "Make a game"
+  },
+  "appearance.dock.instances": {
+    "label": "Show Instances"
+  },
+  "appearance.dock.reset": {
+    "label": "Restore Defaults"
   }
 }

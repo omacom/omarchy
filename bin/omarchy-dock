@@ -2,7 +2,7 @@
 
 # omarchy:summary=Configure the dock shown on floating workspaces
 # omarchy:group=dock
-# omarchy:args=position [top|bottom|left|right] | autohide [on|off|toggle] | pinned [<desktop-id>...] | pin <desktop-id> | unpin <desktop-id>
+# omarchy:args=instances | reset | position [top|bottom|left|right] | autohide [on|off|toggle] | pinned [<desktop-id>...] | pin <desktop-id> | unpin <desktop-id>
 # omarchy:examples=omarchy dock position left | omarchy dock pin folio
 
 set -euo pipefail
@@ -18,6 +18,8 @@ Usage: omarchy dock <command> [args...]
   autohide [on|off|toggle]             Hide the dock until the pointer reaches
                                        its edge; prints on or off when given
                                        none
+  instances [on|off|toggle]  Show one workspace-labeled icon per window
+  reset  Restore dock defaults, preserving pins
   pinned [<desktop-id>...]             Pinned desktop ids in dock order; prints
                                        them one per line when given none
   pin <desktop-id>                     Keep an app in the dock
@@ -66,6 +68,28 @@ cmd_autohide() {
   echo "Dock auto-hide turned $value"
 }
 
+cmd_flag() {
+  local key="$1"
+  shift
+  local value
+  if (( $# == 0 )); then
+    jq -r --arg key "$key" 'if .dock[$key] == true then "on" else "off" end' "$(source_file)"
+    return
+  fi
+  (( $# == 1 )) || fail "$key takes a single value"
+  value="$1"
+  if [[ $value == "toggle" ]]; then
+    if [[ $(cmd_flag "$key") == "on" ]]; then value=off; else value=on; fi
+  fi
+  [[ $value == "on" || $value == "off" ]] || fail "$key must be on, off, or toggle"
+  commit "$NORMALIZE | .dock[\$key] = (\$value == \"on\")" --arg key "$key" --arg value "$value"
+}
+
+cmd_reset() {
+  (( $# == 0 )) || fail "reset takes no arguments"
+  commit "$NORMALIZE | .dock |= del(.position, .autohide, .instances)"
+}
+
 cmd_pinned() {
   if (( $# == 0 )); then
     jq -r --slurpfile defaults "$DEFAULTS_FILE" "$PINNED | .[]" "$(source_file)"
@@ -110,6 +134,8 @@ command="${1:-}"
 case "$command" in
   position) cmd_position "$@" ;;
   autohide) cmd_autohide "$@" ;;
+  instances) cmd_flag instances "$@" ;;
+  reset) cmd_reset "$@" ;;
   pinned) cmd_pinned "$@" ;;
   pin) cmd_pin "$@" ;;
   unpin) cmd_unpin "$@" ;;

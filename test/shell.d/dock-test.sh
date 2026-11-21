@@ -11,6 +11,71 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 ROOT="$ROOT" run_node_test <<'JS'
 const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
+const badgeDockQml = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/dock/Dock.qml', 'utf8')
+const badgeMethod = name => badgeDockQml.match(new RegExp('function ' + name + '\\([^)]*\\) \\{([\\s\\S]*?)\\n  \\}'))[1]
+const badgeMemory = {windowWorkspaces: {}}
+const rememberLiveWorkspace = new Function('root', 'toplevel', badgeMethod('rememberWindowWorkspace'))
+const rememberedBadgeWorkspace = new Function('root', 'toplevel', badgeMethod('rememberedWorkspace'))
+const badgeNative = {address: 'abc', workspace: {id: 2}, lastIpcObject: {tags: ['omarchy-minimized-from-2']}}
+rememberLiveWorkspace(badgeMemory, badgeNative)
+badgeNative.workspace = {id: 11}; rememberLiveWorkspace(badgeMemory, badgeNative)
+badgeNative.workspace = {id: -98}; rememberLiveWorkspace(badgeMemory, badgeNative)
+assertEqual(rememberedBadgeWorkspace(badgeMemory, badgeNative), 11, 'minimizing on monitor two ignores a stale monitor-one origin tag')
+badgeNative.lastIpcObject.tags = ['omarchy-minimized-from-11']
+assertEqual(rememberedBadgeWorkspace(badgeMemory, badgeNative), 11, 'the refreshed minimize tag does not change the badge')
+const badgeStartup = {address: 'new', workspace: {id: -98}, lastIpcObject: {tags: ['omarchy-minimized-from-3']}}
+assertEqual(rememberedBadgeWorkspace(badgeMemory, badgeStartup), 3, 'already minimized windows still use their persisted origin at startup')
+const badgeReusedAddress = {address: 'abc', workspace: {id: -98}, lastIpcObject: {tags: ['omarchy-minimized-from-4']}}
+assertEqual(rememberedBadgeWorkspace(badgeMemory, badgeReusedAddress), 4, 'a reused window address never borrows the previous window badge')
+new Function('root', 'Hyprland', badgeMethod('pruneWindowWorkspaces'))(badgeMemory, {toplevels: {values: []}})
+assertDeepEqual(badgeMemory.windowWorkspaces, {}, 'closed windows release remembered workspace state')
+const badgeWindowQml = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/dock/DockWindow.qml', 'utf8')
+const badgeValue = new Function('modelData', 'minimized', badgeWindowQml.match(/readonly property int otherWorkspace: \{([\s\S]*?)\n    \}/)[1])
+assertEqual(badgeValue({windows: [{workspaceId: -98, sortWorkspaceId: 11, minimized: true}]}, false), 11, 'badge selection uses one window snapshot while the delegate minimized flag catches up')
+
+
+for (const [icon, count, length, extra] of [[66, 12, 742, 0], [36, 29, 1280, 24], [36, 120, 742, 24]]) {
+  const fit = dock.fitSlots(icon, 6, count, length, extra)
+  assert((fit.iconSize + fit.inset * 2) * count + extra <= length + 0.0001, 'all dock slots fit the available edge: ' + count + ' slots on ' + length)
+  assert(fit.iconSize > 0 && fit.iconSize <= icon, 'fitting keeps every icon visible without enlarging requested icons')
+}
+const dragQml = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/dock/DockWindow.qml', 'utf8')
+const method = name => dragQml.match(new RegExp('function ' + name + '\\([^)]*\\) \\{([\\s\\S]*?)\\n  \\}'))[1]
+const dropWindow = { position: 'left', vertical: true, width: 240, height: 742, gap: 3, shown: true, autohide: false, insertIndex: -1, externalDropArea: null,
+  origin: () => ({x: 0, y: 0}), slotIndexAt: () => 5, settleShifts: () => {}, dock: {pinAt: key => { pinnedDrop = key }} }
+Object.defineProperty(dropWindow, 'slotSize', {get() { const fit = dock.fitSlots(66, 6, 12 + (this.insertIndex >= 0 ? 1 : 0), 736, 0); return fit.iconSize + fit.inset * 2 }})
+const dropBody = { x: 3, get y() { return (742 - this.height) / 2 }, get width() { return dropWindow.slotSize }, get height() { return dropWindow.slotSize * (12 + (dropWindow.insertIndex >= 0 ? 1 : 0)) } }
+const moveDrop = new Function('window', 'body', 'Qt', 'screenX', 'screenY', method('moveExternalDrag'))
+dropWindow.moveExternalDrag = (x, y) => moveDrop(dropWindow, dropBody, {point: (x,y) => ({x,y})}, x, y)
+const initialSlot = dropWindow.slotSize
+dropWindow.moveExternalDrag(120, 371)
+assert(dropWindow.insertIndex >= 0 && dropWindow.slotSize < initialSlot, 'a crowded dock shows a fitted app-drop preview')
+dropWindow.moveExternalDrag(120, 371)
+assert(dropWindow.insertIndex >= 0, 'preview shrink cannot reject the stationary drag pointer')
+let pinnedDrop = null
+const timer = {restart() {}}
+dropWindow.endExternalDrag = () => new Function('window', 'collapseTimer', 'hideTimer', method('endExternalDrag'))(dropWindow, timer, timer)
+new Function('window', 'screenX', 'screenY', 'key', method('dropExternalDrag'))(dropWindow, 120, 371, 'org.example.Drop')
+assertEqual(pinnedDrop, 'org.example.Drop', 'releasing a crowded preview pins the app')
+assertEqual(dropWindow.externalDropArea, null, 'the next drag starts with fresh acceptance bounds')
+
+const roomy = dock.fitSlots(36, 6, 4, 1280, 0)
+assertEqual(roomy.iconSize, 36, 'a dock that already fits keeps its normal icon size')
+assertEqual(roomy.inset, 6, 'a dock that already fits keeps its normal spacing')
+
+const dockSource = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/dock/Dock.qml', 'utf8')
+const keyBody = dockSource.match(/function appKey\(key\) \{([^}]+)\}/)[1]
+const pulseBody = dockSource.match(/function isLaunching\(key\) \{([^}]+)\}/)[1]
+const launchingRoot = { appKey: new Function('key', keyBody), launches: { 'org.example.App': {} } }
+const isLaunching = new Function('root', 'key', pulseBody)
+assert(isLaunching(launchingRoot, 'org.example.App::window::0xabc'), 'window-instance launch feedback resolves the shared app identity')
+assert(!isLaunching(launchingRoot, 'org.example.Other::window::0xdef'), 'launch feedback does not pulse another app')
+
+assertEqual(dock.workspaceBadgeNumber(1), 1, 'first-monitor workspace badges keep their number')
+assertEqual(dock.workspaceBadgeNumber(10), 10, 'the tenth workspace never becomes a zero badge')
+assertEqual(dock.workspaceBadgeNumber(11), 21, 'monitor two workspace one is labelled 21')
+assertEqual(dock.workspaceBadgeNumber(12), 22, 'monitor two workspace two is labelled 22')
+assertEqual(dock.workspaceBadgeNumber(20), 30, 'the second block keeps the previous complete numbering')
 
 assertEqual(dock.normalizePosition('left'), 'left', 'dock accepts a valid position')
 assertEqual(dock.normalizePosition(' Top '), 'top', 'dock reads a position loosely')
@@ -122,7 +187,101 @@ assertEqual(dock.pickClickWindow('workspace', foot, 4), 2, 'a click on a workspa
 assertEqual(dock.pickClickWindow('workspace', foot, 3), 1, 'a click on a workspace app restores a minimized one rather than leaving for another workspace')
 assertEqual(dock.pickClickWindow('workspace', [foot[0], foot[2]], 3), -1, 'a click on a workspace app opens another when none is on this workspace')
 
+const instances = dock.buildItems(['chromium'], [
+  app('chromium', 1, { address: 'a', workspaceId: 2 }),
+  app('chromium', 2, { address: 'b', workspaceId: 1 })
+], true)
+assertEqual(instances.length, 3, 'instances keep the pinned launcher and both window identities')
+assertDeepEqual(dock.orderItems(instances, [], true).map(i => i.windows.map(w => w.id)), [[], [2], [1]], 'instances sort by workspace')
+const minimized = instances[1]
+minimized.windows[0].minimized = true
+assertDeepEqual(dock.orderItems(instances, instances.map(i => i.key), true).map(i => i.key), instances.map(i => i.key), 'minimizing alone does not rearrange instances')
+
+const held = { key: 'M', windows: [{ minimized: true, workspaceId: -99 }] }
+const liveA = { key: 'A', windows: [{ workspaceId: 5 }] }
+const liveB = { key: 'B', windows: [{ workspaceId: 3 }] }
+assertDeepEqual(dock.orderItems([liveA, held, liveB], ['A', 'M', 'B'], true).map(i => i.key), ['B', 'M', 'A'], 'workspace changes sort live windows around a fixed minimized slot')
+assert(instances[1].appPinned && !instances[1].pinned, 'a pinned app instance keeps its menu pin state separate from launcher placement')
+
+assert(dock.isMinimizedWorkspace('special:minimized'), 'legacy minimized windows remain recognized')
+assert(dock.isMinimizedWorkspace('special:minimized-output-1'), 'a staged restore stays in the dock')
+assert(!dock.isMinimizedWorkspace('special:scratchpad'), 'other special workspaces stay excluded')
+
 JS
+
+# Exercise the action decision against live-state shaped Lua objects. Dispatch
+# clicks focus existing windows and can restore windows minimized elsewhere.
+ROOT="$ROOT" lua - <<'LUA'
+local windows = {
+  ["address:0xa"] = { mapped = true, hidden = false, active = true, workspace = { id = 2, name = "2" }, tags = {} },
+  ["address:0xb"] = { mapped = true, hidden = false, active = false, workspace = { id = 3, name = "3" }, tags = {} },
+}
+local calls, timers = {}, {}
+local function dispatch(kind) return function(args) return { kind = kind, args = args } end end
+hl = {
+  get_window = function(target) return windows[target] end,
+  get_workspace = function() return nil end,
+  window_rule = function() end,
+  workspace_rule = function() end,
+  dispatch = function(call) table.insert(calls, call) end,
+  timer = function(callback) table.insert(timers, callback) end,
+  dsp = { workspace = { move = dispatch("workspace-move") }, focus = dispatch("focus"), window = { move = dispatch("move"), tag = dispatch("tag"), alter_zorder = dispatch("raise") } },
+}
+o = {}
+dofile(os.getenv("ROOT") .. "/default/hypr/dock.lua")
+o.dock.activate("0xa", 2, "focus")
+assert(calls[1].kind == "focus" and calls[2].kind == "raise", "active click keeps the window focused without minimizing")
+calls = {}
+o.dock.activate("0xb", 2, "focus")
+assert(calls[1].kind == "focus" and calls[1].args.workspace == "3", "remote click switches workspace before focusing")
+windows["address:0xa"].workspace = { id = -99, name = "special:minimized" }
+calls = {}
+o.dock.activate("0xa", 2, "focus")
+assert(calls[1].kind == "move" and calls[1].args.workspace == "2", "minimized click restores to the clicked workspace")
+o.dock.activate("0xb", 3, "focus")
+local count = #calls
+timers[1]()
+assert(#calls == count, "a stale restore callback cannot steal focus from a newer click")
+
+-- Cross-monitor restores settle while hidden, then use the normal reveal.
+calls, timers = {}, {}
+local destination = { id = 1, name = "eDP-1" }
+hl.get_workspace = function() return { monitor = destination } end
+windows["address:0xa"].monitor = { id = 2, name = "DP-2" }
+hl.dispatch = function(call)
+  table.insert(calls, call)
+  if call.kind == "move" then
+    windows[call.args.window].workspace = { name = call.args.workspace }
+  end
+end
+o.dock.activate("0xa", 2, "focus")
+assert(calls[1].kind == "tag" and calls[1].args.tag == "+omarchy-dock-restore", "placement disables motion only for the restoring window")
+assert(calls[2].args.workspace == "special:minimized-output-1", "cross-monitor placement happens on a hidden destination workspace")
+timers[1]()
+assert(calls[3].args.tag == "-omarchy-dock-restore" and calls[4].args.workspace == "2", "normal animations return before the window is revealed")
+timers[2]()
+assert(calls[5].kind == "focus" and calls[6].kind == "raise", "restored window receives focus after placement")
+
+calls, timers = {}, {}
+windows["address:0xa"].workspace = { name = "special:minimized" }
+o.dock.activate("0xa", 2, "focus")
+o.dock.activate("0xa", 3, "focus")
+local before = #calls
+timers[1]()
+assert(#calls == before, "an older placement cannot override a second restore click")
+timers[2]()
+assert(calls[#calls].args.workspace == "3", "the latest restore destination wins")
+
+calls, timers = {}, {}
+windows["address:0xa"].workspace = { name = "special:minimized" }
+o.dock.activate("0xa", 2, "focus")
+windows["address:0xa"].workspace = { name = "4" }
+timers[1]()
+assert(calls[#calls].args.tag == "-omarchy-dock-restore", "a manual move cancels placement and restores animation rules")
+
+
+LUA
+pass "dock clicks use compositor state and discard stale focus callbacks"
 
 home="$TMPDIR/home"
 mkdir -p "$home/.config/omarchy"
@@ -171,6 +330,15 @@ if omarchy_dock autohide sometimes 2>/dev/null; then
   fail "dock auto-hide takes only on, off, or toggle"
 fi
 pass "dock auto-hide is set through omarchy-dock autohide"
+
+omarchy_dock instances on >/dev/null
+[[ $(omarchy_dock instances) == "on" ]] || fail "instances preference persists"
+omarchy_dock position left >/dev/null
+omarchy_dock autohide on >/dev/null
+omarchy_dock reset >/dev/null
+[[ $(omarchy_dock instances) == "off" ]] || fail "instances reset restores grouping"
+[[ $(omarchy_dock position) == "bottom" && $(omarchy_dock autohide) == "off" ]] || fail "dock reset restores native position and auto-hide defaults"
+pass "instance preference persists and resets"
 
 # Minimizing moves a window to the dock's hidden workspace without following
 # it, then focuses the workspace it left, so the next window opens there and
@@ -230,3 +398,104 @@ STUB
 minimize
 [[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows on a tiled workspace alone" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize leaves windows on a tiled workspace alone"
+
+# Exercise the production release handler and model synchronization against a
+# real Qt Quick Grid: deferred model moves must not replay after a manual drop.
+# /usr/bin/qmltestrunner may be Qt 5; use the same Qt 6 lookup as other shell tests.
+qml_test_runner=""
+for candidate in /usr/lib/qt6/bin/qmltestrunner /usr/lib/qt6/qmltestrunner; do
+  if [[ -x $candidate ]]; then
+    qml_test_runner=$candidate
+    break
+  fi
+done
+
+if [[ -z $qml_test_runner ]]; then
+  skip "qt6 qmltestrunner not found; skipping dock release geometry test"
+  exit 0
+fi
+
+ROOT="$ROOT" TEST_TMP="$TMPDIR" python - <<'PY'
+from pathlib import Path
+import os,re
+root=Path(os.environ['ROOT']);dest=Path(os.environ['TEST_TMP'])
+window=(root/'shell/plugins/dock/DockWindow.qml').read_text()
+dock=(root/'shell/plugins/dock/Dock.qml').read_text()
+def method(source,name):
+  return re.search(r'  function '+name+r'\([^)]*\) \{[\s\S]*?\n  \}',source).group()
+release=window.split('    mouse.onReleased: function(event) {',1)[1].split('\n    }',1)[0]
+qml='''import QtQuick
+import QtTest
+Item {
+  id: window
+  width: 240; height: 60
+  property var dock: root
+  property bool animateShifts: true
+  property bool hoverStale: false
+  property int dragIndex: -1
+  property int dropIndex: -1
+  property real dragOffset: 0
+  property point dropPoint
+  property bool pinPressActive: false
+  readonly property bool dragging: dragIndex >= 0
+  METHODS
+  Item { id: body }
+  function release() { var appSlot=appRepeater.itemAt(0); var event={x:0,y:0}; HANDLER }
+  Item {
+    id: root
+    property var items: [{key:"a"},{key:"b"},{key:"c"},{key:"d"}]
+    property bool instances: false
+    property var order: []
+    property alias itemModel: itemModel
+    ListModel {id:itemModel}
+    onItemsChanged: Qt.callLater(root.syncItemModel)
+    function settleLaunches() {}
+    function pruneWindowWorkspaces() {}
+    function moveItem(from,to) {
+      var next=items.slice(); next.splice(to,0,next.splice(from,1)[0]); items=next
+    }
+    SYNC
+  }
+  Grid {
+    id: slots
+    columns: 4
+    move: Transition {
+      enabled: !window.dragging && window.animateShifts
+      NumberAnimation {properties:"x,y"; duration:250}
+    }
+    Repeater {
+      id: appRepeater
+      model: root.itemModel
+      delegate: Item {
+        required property int index
+        required property string key
+        readonly property bool lifted: window.dragIndex===index
+        property bool dragged: false
+        property var mouse: QtObject {function mapToItem(item,x,y) {return Qt.point(x,y)}}
+        width:40; height:40
+      }
+    }
+  }
+  TestCase {
+    name: "DockRelease"
+    when: windowShown
+    function test_drop_commits_before_animations_resume() {
+      root.syncItemModel(); slots.forceLayout(); wait(300)
+      window.dragIndex=0; window.dropIndex=3; window.dragOffset=120
+      window.release()
+      compare(root.itemModel.get(3).key,"a")
+      compare(appRepeater.itemAt(3).x,120)
+      wait(50)
+      compare(appRepeater.itemAt(3).x,120)
+      compare(appRepeater.itemAt(0).x,0)
+      wait(300)
+      compare(appRepeater.itemAt(3).x,120)
+    }
+  }
+}
+'''
+qml=qml.replace('METHODS',method(window,'settleShifts')+'\n'+method(window,'endDrag')).replace('HANDLER',release).replace('SYNC',method(dock,'syncItemModel'))
+(dest/'tst_dock_release.qml').write_text(qml)
+PY
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software "$qml_test_runner" -input "$TMPDIR/tst_dock_release.qml"
+pass "manual dock release commits grid positions before deferred motion resumes"
