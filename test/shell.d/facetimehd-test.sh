@@ -182,7 +182,7 @@ cat >"$stub_bin/modprobe" <<'SH'
 printf 'modprobe' >>"$TEST_LOG"
 printf '\t%s' "$@" >>"$TEST_LOG"
 printf '\n' >>"$TEST_LOG"
-[[ $1 != -r || -z ${MODULE_BUSY:-} ]]
+if [[ $1 == -r ]]; then [[ -z ${MODULE_BUSY:-} ]]; else [[ -z ${MODULE_LOAD_FAILS:-} ]]; fi
 SH
 
 cat >"$stub_bin/loginctl" <<'SH'
@@ -205,11 +205,13 @@ run_guard() {
   : >"$calls"
   PATH="$stub_bin:$PATH" TEST_LOG="$calls" OMARCHY_FACETIMEHD_MODULE="$guard_root/$1" \
     OMARCHY_FACETIMEHD_RUN="$guard_root/run" OMARCHY_FACETIMEHD_PROC="$guard_root/proc" \
-    MODULE_BUSY="${3:-}" "$guard" "$2" 2>"$test_tmp/guard.err"
+    MODULE_BUSY="${3:-}" MODULE_LOAD_FAILS="${4:-}" "$guard" "$2" 2>"$test_tmp/guard.err"
 }
 mkdir -p "$guard_root/run"
 sleeping="$guard_root/run/facetimehd.sleeping"
 unloaded="$guard_root/run/facetimehd.unloaded"
+activate="$guard_root/run/facetimehd-firmware-fetcher.activate"
+fetch_started=$'systemctl\tstart\t--no-block\tfacetimehd-firmware-fetcher.service'
 
 run_guard absent pre || fail "the guard lets a Mac without the driver loaded hibernate"
 { [[ -e $sleeping && ! -e $unloaded ]] && ! grep -q modprobe "$calls"; } ||
@@ -219,13 +221,14 @@ run_guard absent post
   fail "waking loads nothing that was not unloaded or asked for" "$(cat "$calls")"
 pass "the guard lets a Mac without the driver loaded hibernate"
 
-# A fetch finishing mid-sleep asks for the load rather than making it; waking makes it.
+# A fetch finishing mid-sleep leaves its activation pending rather than loading the driver; waking resumes it.
 run_guard absent pre
-touch "$guard_root/run/facetimehd.load"
+touch "$activate"
 run_guard absent post
-{ grep -Fxq $'modprobe\tfacetimehd' "$calls" && [[ ! -e $sleeping && ! -e $guard_root/run/facetimehd.load ]]; } ||
-  fail "waking loads a driver a fetch asked for during the sleep" "$(cat "$calls")"
-pass "waking loads a driver a fetch asked for during the sleep"
+{ grep -Fxq "$fetch_started" "$calls" && ! grep -q modprobe "$calls" && [[ ! -e $sleeping ]]; } ||
+  fail "waking resumes an activation the fetch held back" "$(cat "$calls")"
+rm -f "$activate"
+pass "waking resumes an activation the fetch held back during the sleep"
 
 run_guard module pre || fail "the guard unloads an idle driver before hibernating" "$(cat "$test_tmp/guard.err")"
 { grep -Fxq $'modprobe\t-r\tfacetimehd' "$calls" && [[ -e $unloaded && -e $sleeping ]]; } ||
@@ -236,8 +239,16 @@ run_guard module post
 pass "the guard unloads an idle driver for hibernation and loads it again after"
 
 run_guard module post
-! grep -q modprobe "$calls" || fail "the guard does not load a driver it did not unload" "$(cat "$calls")"
+! grep -q -e modprobe -e systemctl "$calls" || fail "the guard does not load a driver it did not unload" "$(cat "$calls")"
 pass "the guard does not load a driver it did not unload"
+
+# A driver that will not load again after the sleep becomes the fetcher's pending activation, which it retries.
+run_guard module pre
+run_guard module post "" fails
+{ [[ -e $activate && ! -e $unloaded && ! -e $sleeping ]] && grep -Fxq "$fetch_started" "$calls"; } ||
+  fail "a failed reload is handed to the fetcher to retry" "$(cat "$calls")"
+rm -f "$activate"
+pass "a failed reload is handed to the fetcher to retry"
 
 if run_guard module pre busy; then
   fail "the guard cancels hibernation while the camera is in use"
