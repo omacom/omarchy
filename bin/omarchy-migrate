@@ -80,21 +80,41 @@ wait_for_pacman_transaction() {
   exit 0
 }
 
-wait_for_pacman_transaction
-
 mkdir -p "$STATE_DIR"
 [[ -d $MIGRATIONS_DIR ]] || exit 0
+
+# Direct runs and updates share the markers, even outside a graphical session.
+# Keep their lock beside that state and separate from the update lock, which
+# omarchy-update already holds when it calls us. Leave the file in place so
+# waiters always lock the same inode; closing the descriptor releases it.
+exec {migration_lock_fd}>"$STATE_DIR/.lock"
+if ! flock -n "$migration_lock_fd"; then
+  echo "Waiting for another Omarchy migration run to finish..."
+  flock "$migration_lock_fd"
+fi
+
+# Bash defers these traps until its foreground migration exits. If only the
+# runner is terminated, keep the lock while that migration is still active.
+# Leave its marker pending so the interrupted queue can be retried safely.
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+wait_for_pacman_transaction
 
 while IFS=$'\t' read -r name file marker <&3; do
   [[ -n $name ]] || continue
 
   if [[ ! -f $marker ]]; then
     echo -e "\e[32m\nRunning migration (${name%.sh})\e[0m"
-    OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail "$file" 3<&-
+    # A migration may launch a background service that outlives this runner.
+    OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail "$file" 3<&- {migration_lock_fd}>&-
     mkdir -p "$(dirname "$marker")"
     touch "$marker"
   fi
 done 3< <(migration_entries)
+
+exec {migration_lock_fd}>&-
 
 # Clear a login-time notification the user left sitting there and then resolved
 # by running migrations some other way. The substring matches both the current
