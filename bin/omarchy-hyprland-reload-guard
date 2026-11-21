@@ -27,6 +27,24 @@ hyprctl_instance() {
   XDG_RUNTIME_DIR="$runtime_dir" "$hyprctl_bin" --instance "$signature" "$@"
 }
 
+proc_root="${OMARCHY_HYPRLAND_PROC_ROOT:-/proc}"
+
+# hyprland.lock's first line is the compositor pid. Pacman replaces the
+# binary underneath a live session, and readlink then ends in " (deleted)".
+# Reloading that process re-parses config with a compositor that is about to
+# be replaced and can wedge the desktop. The update reboot prompt restarts it.
+instance_exe() {
+  local runtime_dir="$1"
+  local signature="$2"
+  local lock="$runtime_dir/hypr/$signature/hyprland.lock"
+  local pid
+
+  [[ -f $lock ]] || return 0
+  pid=$(head -n 1 "$lock" 2>/dev/null || true)
+  [[ $pid =~ ^[1-9][0-9]*$ ]] || return 0
+  readlink "$proc_root/$pid/exe" 2>/dev/null || true
+}
+
 option_bool() {
   local runtime_dir="$1"
   local signature="$2"
@@ -101,7 +119,11 @@ resume_instance() {
       "hl.config({ debug = { suppress_errors = $suppress_errors } })" \
       >/dev/null 2>&1 || true
 
-    hyprctl_instance "$runtime_dir" "$signature" reload >/dev/null 2>&1 || true
+    local exe
+    exe=$(instance_exe "$runtime_dir" "$signature")
+    if [[ $exe != *"(deleted)"* ]]; then
+      hyprctl_instance "$runtime_dir" "$signature" reload >/dev/null 2>&1 || true
+    fi
 
     hyprctl_instance "$runtime_dir" "$signature" eval \
       "hl.config({ misc = { disable_autoreload = $disable_autoreload }, debug = { suppress_errors = $suppress_errors } })" \
