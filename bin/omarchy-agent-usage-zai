@@ -38,6 +38,7 @@ from collectors import (  # noqa: E402
   base_record as shared_base_record,
   cached_scan,
   config_home,
+  data_home,
   emit,
   open_json,
   opencode_db,
@@ -139,7 +140,7 @@ def credentials() -> tuple[str, str]:
   """Return (api_key, platform). Platform is a PLATFORMS key."""
   config = read_config()
 
-  # An explicit config file wins, then live env, then whatever omp/pi stored.
+  # An explicit config file wins, then live env, then omp/pi, then opencode.
   key = str(config.get("apiKey") or "").strip()
   platform = str(config.get("platform") or "").strip().lower()
 
@@ -168,6 +169,17 @@ def credentials() -> tuple[str, str]:
         break
       if found := auth_json_key(auth_path, "zhipu"):
         key, platform = found, platform or "zhipu"
+        break
+
+  if not key:
+    auth = read_json(data_home() / "opencode" / "auth.json")
+    for provider, host in (("zai-coding-plan", "zai"), ("zai", "zai"), ("zhipuai-coding-plan", "zhipu"), ("zhipuai", "zhipu")):
+      entry = auth.get(provider)
+      if not isinstance(entry, dict) or entry.get("type") != "api" or not isinstance(entry.get("key"), str):
+        continue
+      found = entry["key"].strip()
+      if found and not found.startswith(("!", "$")):
+        key, platform = found, platform or host
         break
 
   if platform not in PLATFORMS:
