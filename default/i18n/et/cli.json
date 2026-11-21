@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "Väärtus",
   "setupForm.reviewYes": "Jah",
   "setupForm.timezoneHeader": "Ajavöönd",
+  "setupForm.timezonePlaceholder": "Filtreeri...",
   "setupForm.usernameInvalid": "Kasutajanimes võivad olla ainult tähed ja numbrid, ilma tühikuteta",
   "setupForm.usernamePlaceholder": "Tähed ja numbrid ilma tühikuteta (nt dhh)",
   "setupForm.usernamePrompt": "Kasutajanimi> ",

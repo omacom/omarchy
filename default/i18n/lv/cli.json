@@ -366,6 +366,7 @@
   "setupForm.reviewValue": "Vērtība",
   "setupForm.reviewYes": "Jā",
   "setupForm.timezoneHeader": "Laika josla",
+  "setupForm.timezonePlaceholder": "Filtrēt...",
   "setupForm.usernameInvalid": "Lietotājvārdā drīkst būt tikai burti un cipari, bez atstarpēm",
   "setupForm.usernamePlaceholder": "Burti un cipari bez atstarpēm (piem., dhh)",
   "setupForm.usernamePrompt": "Lietotājvārds> ",

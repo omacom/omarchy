@@ -366,6 +366,7 @@
   "setupForm.reviewValue": "Hodnota",
   "setupForm.reviewYes": "Áno",
   "setupForm.timezoneHeader": "Časové pásmo",
+  "setupForm.timezonePlaceholder": "Filtrovať...",
   "setupForm.usernameInvalid": "Používateľské meno môže obsahovať len písmená a číslice bez medzier",
   "setupForm.usernamePlaceholder": "Písmená a číslice bez medzier (napr. dhh)",
   "setupForm.usernamePrompt": "Používateľ> ",

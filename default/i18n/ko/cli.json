@@ -354,6 +354,7 @@
   "setupForm.reviewValue": "값",
   "setupForm.reviewYes": "예",
   "setupForm.timezoneHeader": "시간대",
+  "setupForm.timezonePlaceholder": "필터...",
   "setupForm.usernameInvalid": "사용자 이름은 공백 없는 영숫자여야 합니다",
   "setupForm.usernamePlaceholder": "공백 없는 영숫자 (예: dhh)",
   "setupForm.usernamePrompt": "사용자 이름> ",

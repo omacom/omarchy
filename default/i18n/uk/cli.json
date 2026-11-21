@@ -372,6 +372,7 @@
   "setupForm.reviewValue": "Значення",
   "setupForm.reviewYes": "Так",
   "setupForm.timezoneHeader": "Часовий пояс",
+  "setupForm.timezonePlaceholder": "Фільтр...",
   "setupForm.usernameInvalid": "Ім'я користувача: лише літери й цифри, без пробілів",
   "setupForm.usernamePlaceholder": "Латинські літери й цифри без пробілів (наприклад, dhh)",
   "setupForm.usernamePrompt": "Ім'я користувача> ",

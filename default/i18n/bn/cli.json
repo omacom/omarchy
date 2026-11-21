@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "মান",
   "setupForm.reviewYes": "হ্যাঁ",
   "setupForm.timezoneHeader": "সময় অঞ্চল",
+  "setupForm.timezonePlaceholder": "ফিল্টার...",
   "setupForm.usernameInvalid": "ব্যবহারকারীর নামে শুধু অক্ষর ও সংখ্যা থাকতে হবে, ফাঁকা জায়গা ছাড়া",
   "setupForm.usernamePlaceholder": "ফাঁকা জায়গা ছাড়া অক্ষর ও সংখ্যা (যেমন dhh)",
   "setupForm.usernamePrompt": "ব্যবহারকারীর নাম> ",

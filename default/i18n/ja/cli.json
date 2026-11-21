@@ -354,6 +354,7 @@
   "setupForm.reviewValue": "値",
   "setupForm.reviewYes": "はい",
   "setupForm.timezoneHeader": "タイムゾーン",
+  "setupForm.timezonePlaceholder": "フィルター...",
   "setupForm.usernameInvalid": "ユーザー名はスペースなしの半角英数字のみです",
   "setupForm.usernamePlaceholder": "スペースなしの半角英数字（例: dhh）",
   "setupForm.usernamePrompt": "ユーザー名> ",

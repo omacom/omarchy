@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "Érték",
   "setupForm.reviewYes": "Igen",
   "setupForm.timezoneHeader": "Időzóna",
+  "setupForm.timezonePlaceholder": "Szűrés...",
   "setupForm.usernameInvalid": "A felhasználónév csak betűket és számokat tartalmazhat, szóköz nélkül",
   "setupForm.usernamePlaceholder": "Betűk és számok szóköz nélkül (pl. dhh)",
   "setupForm.usernamePrompt": "Felhasználónév> ",

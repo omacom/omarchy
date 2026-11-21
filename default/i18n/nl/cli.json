@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "Waarde",
   "setupForm.reviewYes": "Ja",
   "setupForm.timezoneHeader": "Tijdzone",
+  "setupForm.timezonePlaceholder": "Filter...",
   "setupForm.usernameInvalid": "Gebruikersnaam mag alleen letters en cijfers bevatten, zonder spaties",
   "setupForm.usernamePlaceholder": "Letters en cijfers zonder spaties (zoals dhh)",
   "setupForm.usernamePrompt": "Gebruikersnaam> ",

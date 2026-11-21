@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "Värde",
   "setupForm.reviewYes": "Ja",
   "setupForm.timezoneHeader": "Tidszon",
+  "setupForm.timezonePlaceholder": "Filtrera...",
   "setupForm.usernameInvalid": "Användarnamnet får bara ha bokstäver och siffror, utan mellanslag",
   "setupForm.usernamePlaceholder": "Bokstäver och siffror utan mellanslag (t.ex. dhh)",
   "setupForm.usernamePrompt": "Användarnamn> ",

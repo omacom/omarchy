@@ -384,6 +384,7 @@
   "setupForm.reviewValue": "القيمة",
   "setupForm.reviewYes": "نعم",
   "setupForm.timezoneHeader": "المنطقة الزمنية",
+  "setupForm.timezonePlaceholder": "تصفية...",
   "setupForm.usernameInvalid": "يجب أن يكون اسم المستخدم حروفًا وأرقامًا بدون مسافات",
   "setupForm.usernamePlaceholder": "حروف وأرقام بدون مسافات (مثل dhh)",
   "setupForm.usernamePrompt": "اسم المستخدم> ",

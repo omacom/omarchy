@@ -366,6 +366,7 @@
   "setupForm.reviewValue": "Vrijednost",
   "setupForm.reviewYes": "Da",
   "setupForm.timezoneHeader": "Vremenska zona",
+  "setupForm.timezonePlaceholder": "Filtriraj...",
   "setupForm.usernameInvalid": "Korisničko ime smije sadržavati samo slova i brojke, bez razmaka",
   "setupForm.usernamePlaceholder": "Slova i brojke bez razmaka (npr. dhh)",
   "setupForm.usernamePrompt": "Korisnik> ",

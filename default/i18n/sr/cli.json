@@ -366,6 +366,7 @@
   "setupForm.reviewValue": "Вредност",
   "setupForm.reviewYes": "Да",
   "setupForm.timezoneHeader": "Временска зона",
+  "setupForm.timezonePlaceholder": "Филтрирај...",
   "setupForm.usernameInvalid": "Корисничко име сме да садржи само слова и бројеве, без размака",
   "setupForm.usernamePlaceholder": "Латинична слова и бројеви без размака (нпр. dhh)",
   "setupForm.usernamePrompt": "Корисничко име> ",

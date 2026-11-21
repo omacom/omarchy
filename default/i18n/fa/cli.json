@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "مقدار",
   "setupForm.reviewYes": "بله",
   "setupForm.timezoneHeader": "منطقه زمانی",
+  "setupForm.timezonePlaceholder": "فیلتر...",
   "setupForm.usernameInvalid": "نام کاربری باید حروف و اعداد بدون فاصله باشد",
   "setupForm.usernamePlaceholder": "حروف و اعداد بدون فاصله (مانند dhh)",
   "setupForm.usernamePrompt": "نام کاربری> ",

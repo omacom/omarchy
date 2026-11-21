@@ -366,6 +366,7 @@
   "setupForm.reviewValue": "Reikšmė",
   "setupForm.reviewYes": "Taip",
   "setupForm.timezoneHeader": "Laiko juosta",
+  "setupForm.timezonePlaceholder": "Filtruoti...",
   "setupForm.usernameInvalid": "Naudotojo vardą gali sudaryti tik raidės ir skaitmenys, be tarpų",
   "setupForm.usernamePlaceholder": "Raidės ir skaitmenys be tarpų (pvz., dhh)",
   "setupForm.usernamePrompt": "Naudotojo vardas> ",
