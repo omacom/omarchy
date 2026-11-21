@@ -222,6 +222,7 @@ Item {
 
     resetAuthenticationState()
     lockRequested = true
+    idleBlankTimer.blanked = false
     armBlankTimer()
     logEvent("lock-requested")
     queueSessionLock()
@@ -243,20 +244,35 @@ Item {
     pendingSessionLockTimer.stop()
     resetAuthenticationState()
     idleBlankTimer.stop()
+    idleBlankTimer.blanked = false
     sessionLock.locked = false
     logEvent("unlocked")
     runWake()
   }
 
   function armBlankTimer(delayMs) {
-    idleBlankTimer.interval = delayMs || idleBlankTimer.idleMs
+    var want = delayMs || idleBlankTimer.idleMs
+    // A longer pending countdown is never cut short: wake input right after
+    // a blank, and the output re-detection right after a resume, must not
+    // reset those longer graces to the idle run-up while more than the
+    // run-up is left. Once less of a grace remains than a run-up takes, an
+    // ordinary arm refreshes the countdown as before.
+    if (idleBlankTimer.running && idleBlankTimer.armedAt + idleBlankTimer.interval - Date.now() > want) return
+    idleBlankTimer.interval = want
     idleBlankTimer.armedAt = Date.now()
     idleBlankTimer.restart()
   }
 
   function runWake() {
     if (!wakeProcess.running) wakeProcess.running = true
-    if (lockRequested) armBlankTimer()
+    if (lockRequested) {
+      if (idleBlankTimer.blanked) {
+        idleBlankTimer.blanked = false
+        armBlankTimer(idleBlankTimer.wakeMs)
+      } else {
+        armBlankTimer()
+      }
+    }
     resumeFingerprint()
     nudgeFingerprint()
   }
@@ -349,6 +365,7 @@ Item {
   }
 
   function runBlank() {
+    idleBlankTimer.blanked = true
     pauseFingerprint()
     if (!blankProcess.running) blankProcess.running = true
   }
@@ -771,6 +788,10 @@ Item {
     // panel lights (on NVIDIA it waits out a VT switch and a modeset), so the
     // idle run-up blanked the lock just as it appeared.
     readonly property int resumeMs: 15000
+    // Displays take seconds to light after DPMS off, so the first wake after a
+    // blank gets a longer grace before the idle countdown reblanks.
+    readonly property int wakeMs: 15000
+    property bool blanked: false
     interval: idleMs
     repeat: false
     property double armedAt: 0
