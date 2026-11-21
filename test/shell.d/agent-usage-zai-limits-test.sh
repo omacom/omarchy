@@ -153,6 +153,19 @@ pi_auth(None, "zai", "$ZAI_KEY")
 pi_auth(home() / ".omp" / "agent", "zai", "!pass show zai")
 expect("Z.ai collector never sends a pi $VAR or !command entry as a key", list(load_collector("zai").credentials()), ["", "zai"])
 
+# apiKeyCommand in zai.json runs and its output is the key; an apiKey there
+# wins over it, and a failing command gives no key and falls through.
+sandbox()
+config = config_home() / "omarchy" / "agents" / "zai.json"
+config.parent.mkdir(parents=True, exist_ok=True)
+config.write_text(json.dumps({"apiKeyCommand": "printf 'from-command\\n'"}))
+pi_auth(None, "zai", "pi-saved")
+expect("Z.ai collector runs apiKeyCommand from zai.json", list(load_collector("zai").credentials()), ["from-command", "zai"])
+config.write_text(json.dumps({"apiKey": "literal", "apiKeyCommand": "printf from-command"}))
+expect("Z.ai collector prefers apiKey to apiKeyCommand", list(load_collector("zai").credentials()), ["literal", "zai"])
+config.write_text(json.dumps({"apiKeyCommand": "echo partial; exit 1", "platform": "zhipu"}))
+expect("Z.ai collector falls through when apiKeyCommand fails", list(load_collector("zai").credentials()), ["pi-saved", "zhipu"])
+
 # Keys in omp's and pi's .env files, omp's first, each naming its platform.
 sandbox()
 (home() / ".pi" / "agent").mkdir(parents=True)
