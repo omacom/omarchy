@@ -34,6 +34,14 @@ o.window("folio-preview", { float = true })
 -- Files is the file chooser other apps get through the portal (see
 -- hyprland-portals.conf), and its dialogs float as the GTK ones did.
 o.window("folio-chooser", { tag = "+floating-window" })
+-- Choosers must also sit ABOVE popped (pinned) floating windows: Hyprland
+-- stacks pinned floats above unpinned ones regardless of focus, so an
+-- unpinned chooser maps invisible behind the popped browser that asked for
+-- it, even while it holds keyboard focus. stay_focused + focus_on_activate
+-- keep keyboard focus against the caller re-activating itself after the
+-- async portal round-trip.
+o.window("folio-chooser", { pin = true, stay_focused = true, focus_on_activate = true })
+o.window("xdg-desktop-portal-gtk", { pin = true, stay_focused = true, focus_on_activate = true })
 
 o.window("omacalc", { float = true })
 
