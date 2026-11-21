@@ -1,0 +1,23 @@
+[Unit]
+Description=Parallels display agent through XWayland
+StartLimitIntervalSec=300
+StartLimitBurst=3
+After=graphical-session.target wayland-session-waitenv.service
+PartOf=graphical-session.target omarchy-parallels.service
+Conflicts=app-prlcc@autostart.service
+ConditionEnvironment=DISPLAY
+ConditionFileIsExecutable=/usr/bin/prlcc
+
+[Service]
+Type=exec
+TimeoutStartSec=20
+TimeoutStopSec=10
+ExecCondition=/usr/bin/env omarchy-hw-parallels
+Environment=GDK_BACKEND=x11
+Environment=XDG_SESSION_TYPE=x11
+UnsetEnvironment=WAYLAND_DISPLAY
+# Skip subtools here: the helper units retain their native Wayland backend.
+# Bound RandR confirmation waits when XWayland has not yet seen a DRM mode.
+ExecStart=/usr/bin/prlcc -r 100 -t 1000 -s 1
+Restart=on-failure
+RestartSec=2
