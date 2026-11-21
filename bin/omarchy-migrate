@@ -49,10 +49,25 @@ pending_migrations() {
 
   while IFS=$'\t' read -r name file marker; do
     [[ -n $name ]] || continue
-    if [[ ! -f $marker ]]; then
+    if ! migration_completed "$file" "$marker"; then
       printf '%s\n' "$name"
     fi
   done < <(migration_entries)
+}
+
+# A migration counts as completed only when its marker exists and contains the
+# sha256 of the migration file that wrote it. A marker with missing or
+# unexpected content (for example one planted with `touch`) is treated as
+# pending, so the idempotent migration runs instead of being silently skipped.
+migration_completed() {
+  local file=$1 marker=$2
+  local expected actual
+
+  [[ -f $marker ]] || return 1
+  expected=$(sha256sum "$file" 2>/dev/null | cut -d' ' -f1) || return 1
+  [[ -n $expected ]] || return 1
+  actual=$(cat "$marker" 2>/dev/null) || return 1
+  [[ $actual == $expected ]]
 }
 
 if [[ $mode == "pending" ]]; then
@@ -88,11 +103,16 @@ mkdir -p "$STATE_DIR"
 while IFS=$'\t' read -r name file marker <&3; do
   [[ -n $name ]] || continue
 
-  if [[ ! -f $marker ]]; then
+  if ! migration_completed "$file" "$marker"; then
     echo -e "\e[32m\nRunning migration (${name%.sh})\e[0m"
     OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail "$file" 3<&-
     mkdir -p "$(dirname "$marker")"
-    touch "$marker"
+    marker_hash=$(sha256sum "$file" | cut -d' ' -f1)
+    if [[ -n $marker_hash ]]; then
+      printf '%s\n' "$marker_hash" > "$marker"
+    else
+      rm -f "$marker"
+    fi
   fi
 done 3< <(migration_entries)
 
