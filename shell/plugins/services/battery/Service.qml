@@ -13,6 +13,20 @@ Item {
 
   readonly property int batteryThreshold: 10
   property string pendingPowerSource: ""
+  // UPower can latch energy-full on a garbage Smart Battery reading (MacBooks)
+  // and then report a tenth of the real charge until it restarts. The status
+  // script reads the kernel's registers past that (or, when they can't be
+  // read, UPower's energy over the design capacity); its percentage stands in
+  // for the display device's here and in the power panel, and is -1 while
+  // UPower's figure is sound. The script runs once at startup, again when
+  // UPower's full charge moves by more than a factor of two (a latch appearing
+  // or clearing; BatteryModel.shouldRereadKernel has the rule), and while a
+  // latch holds, as UPower's own percentage moves. A sound machine runs it
+  // once; shell-idle-spawn-test.sh holds it to that.
+  property int kernelPercentage: -1
+  property real kernelReadCapacity: -1
+  property real kernelReadPercentage: 0
+  property bool kernelReadPending: false
   // Follows power-profiles-daemon's change signals, so nothing polls it.
   // Quickshell never attaches that listener if the daemon failed when the
   // shell started, so a one-off read on startup, on a power source change and
@@ -29,7 +43,7 @@ Item {
   }
 
   function batteryPercentage() {
-    return BatteryModel.batteryPercentage(UPower.displayDevice)
+    return BatteryModel.batteryPercentage(UPower.displayDevice, kernelPercentage)
   }
 
   function isDischarging() {
@@ -37,7 +51,7 @@ Item {
   }
 
   function checkBattery() {
-    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
+    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery, kernelPercentage)
     persisted.notifiedLowBattery = state.notifiedLowBattery
     if (state.notify) sendLowBatteryWarning(state.level)
   }
@@ -49,6 +63,20 @@ Item {
       String(level)
     ]
     warningProcess.running = true
+  }
+
+  function refreshKernelPercentage() {
+    var device = UPower.displayDevice
+    if (!BatteryModel.shouldRereadKernel(kernelReadCapacity, device.energyCapacity, kernelReadPercentage, device.percentage, kernelPercentage >= 0)) return
+    // A change during a run may postdate what it sampled: run again after it.
+    if (statusProc.running) {
+      kernelReadPending = true
+      return
+    }
+    kernelReadPending = false
+    kernelReadCapacity = device.energyCapacity
+    kernelReadPercentage = device.percentage
+    statusProc.running = true
   }
 
   function applyPowerProfile() {
@@ -83,6 +111,26 @@ Item {
   }
 
   Process { id: warningProcess }
+
+  Process {
+    id: statusProc
+    command: ["omarchy-battery-status", "--shell"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var reading = BatteryModel.kernelReading(text, root.kernelPercentage)
+        root.kernelPercentage = reading.level
+        if (reading.retry) root.kernelReadCapacity = -1
+        root.checkBattery()
+      }
+    }
+    onExited: {
+      // Deferred: the process still reports running while it signals exit.
+      if (!root.kernelReadPending) return
+      root.kernelReadPending = false
+      Qt.callLater(root.refreshKernelPercentage)
+    }
+  }
 
   Process {
     id: powerProfileProcess
@@ -128,8 +176,14 @@ Item {
     interval: 30000
     running: true
     repeat: true
-    triggeredOnStart: true
+    // Not on start: the startup status read runs the first check, with its correction; this stays the fallback.
     onTriggered: root.checkBattery()
+  }
+
+  Connections {
+    target: UPower.displayDevice
+    function onEnergyCapacityChanged() { root.refreshKernelPercentage() }
+    function onPercentageChanged() { root.refreshKernelPercentage() }
   }
 
   Connections {
@@ -141,5 +195,8 @@ Item {
     }
   }
 
-  Component.onCompleted: root.refreshPowerProfile()
+  Component.onCompleted: {
+    root.refreshKernelPercentage()
+    root.refreshPowerProfile()
+  }
 }
