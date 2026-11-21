@@ -65,6 +65,7 @@
   "battery.durationMinutes": "%1m",
   "battery.fullyCharged": "Fully charged",
   "battery.holdingAt": "Holding at %1",
+  "battery.limitRefused": "The battery did not follow the charge limit change",
   "battery.lowBody": "Battery is down to %1%",
   "battery.lowTitle": "Time to recharge!",
   "battery.statusLabel": "Battery %1%",

@@ -3,10 +3,18 @@ function clampIndex(index, length) {
   return Math.max(0, Math.min(length - 1, index))
 }
 
-function selectProfileIndex(index, delta, profiles) {
-  var values = Array.isArray(profiles) ? profiles : []
-  if (values.length === 0) return 0
-  return clampIndex(index + delta, values.length)
+// The keyboard cursor walks the profiles and then the charge limit choices as
+// one run, stopping at either end.
+function moveCursor(profileIndex, limitIndex, delta, profileCount, limitCount) {
+  var position = clampIndex((limitIndex >= 0 ? profileCount + limitIndex : profileIndex) + delta, profileCount + limitCount)
+  if (limitCount <= 0 || position < profileCount) return { profileIndex: position, limitIndex: -1 }
+  return { profileIndex: profileIndex, limitIndex: position - profileCount }
+}
+
+// The battery glyph filled to a percentage, in the steps of ten the font has.
+function levelIcon(percentage) {
+  var step = Math.max(1, Math.min(10, Math.round(parseInt(percentage, 10) / 10) || 10))
+  return String.fromCodePoint(step === 10 ? 0xF0079 : 0xF0079 + step)
 }
 
 function parseKeyValue(raw) {
@@ -117,7 +125,8 @@ function profileLabel(name, tr) {
 if (typeof module !== "undefined") {
   module.exports = {
     clampIndex: clampIndex,
-    selectProfileIndex: selectProfileIndex,
+    moveCursor: moveCursor,
+    levelIcon: levelIcon,
     parseKeyValue: parseKeyValue,
     parseProfiles: parseProfiles,
     profileIcon: profileIcon,

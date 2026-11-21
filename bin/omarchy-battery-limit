@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# omarchy:summary=Cap battery charging to slow its wear, or lift the cap for a full charge
+# omarchy:args=[on|off|toggle]
+
+# UPower does the switching: it already holds the right to write the charge
+# thresholds, picks the pair the hardware accepts, and applies it again at
+# boot. What the battery holds afterwards is the proof that it took, since
+# some firmware accepts the request and carries on charging to full.
+
+power_supply_path="${OMARCHY_POWER_SUPPLY_PATH:-/sys/class/power_supply}"
+
+usage() {
+  echo "Usage: omarchy-battery-limit [on|off|toggle]" >&2
+  exit 2
+}
+
+(( $# <= 1 )) || usage
+
+device_property() {
+  busctl get-property org.freedesktop.UPower "$1" org.freedesktop.UPower.Device "$2" 2>/dev/null
+}
+
+held_limit() {
+  cat "$power_supply_path/$1/charge_control_end_threshold" 2>/dev/null
+}
+
+# Every battery UPower can limit and that reports back what it holds.
+devices=()
+native_paths=()
+while read -r device; do
+  [[ $(device_property "$device" ChargeThresholdSupported) == "b true" ]] || continue
+  native_path=$(device_property "$device" NativePath)
+  native_path=${native_path#s \"}
+  native_path=${native_path%\"}
+  [[ -n $(held_limit "$native_path") ]] || continue
+  devices+=("$device")
+  native_paths+=("$native_path")
+done < <(upower -e 2>/dev/null | grep '/battery_')
+
+if (( ${#devices[@]} == 0 )); then
+  echo "No battery here supports a charge limit" >&2
+  exit 1
+fi
+
+limited() {
+  (( $(held_limit "$1") < 100 ))
+}
+
+# The panel runs this with no terminal to read the reason from, so there the
+# failure is raised as a notification as well.
+refuse() {
+  echo "$1" >&2
+  [[ -t 2 ]] || omarchy-notification-send "$(omarchy-i18n battery.limitRefused)"
+  exit 1
+}
+
+case "${1:-}" in
+  "")
+    if limited "${native_paths[0]}"; then
+      echo "Charging stops at $(held_limit "${native_paths[0]}")%"
+    else
+      echo "Charging to full"
+    fi
+    exit 0
+    ;;
+  on) enable=true ;;
+  off) enable=false ;;
+  toggle)
+    if limited "${native_paths[0]}"; then
+      enable=false
+    else
+      enable=true
+    fi
+    ;;
+  *) usage ;;
+esac
+
+for i in "${!devices[@]}"; do
+  busctl call org.freedesktop.UPower "${devices[i]}" org.freedesktop.UPower.Device EnableChargeThreshold b "$enable" >/dev/null
+
+  if [[ $enable == "true" ]] && ! limited "${native_paths[i]}"; then
+    refuse "${native_paths[i]} did not take the charge limit"
+  elif [[ $enable == "false" ]] && limited "${native_paths[i]}"; then
+    refuse "${native_paths[i]} is still holding its charge limit"
+  fi
+done

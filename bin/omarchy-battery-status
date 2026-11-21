@@ -92,10 +92,16 @@ state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
 threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 
-# Read the thresholds from the battery UPower resolved rather than a BAT* glob,
-# which misses every battery with another name.
-[[ -n $threshold_end || ! -r $battery_path/charge_control_end_threshold ]] || threshold_end=$(<"$battery_path/charge_control_end_threshold")
-[[ -n $threshold_start || ! -r $battery_path/charge_control_start_threshold ]] || threshold_start=$(<"$battery_path/charge_control_start_threshold")
+# UPower lists the pair it would apply even while its limit is switched off,
+# so what the battery itself holds wins whenever it answers. Read it from the
+# battery UPower resolved rather than a BAT* glob, which misses every battery
+# with another name. Some firmware lists the files and fails every read.
+limit_target=$threshold_end
+held_end=$(cat "$battery_path/charge_control_end_threshold" 2>/dev/null)
+if [[ -n $held_end ]]; then
+  threshold_end=$held_end
+  threshold_start=$(cat "$battery_path/charge_control_start_threshold" 2>/dev/null)
+fi
 # The time to full counts to this battery's own limit, never another one's.
 charge_limit=${threshold_end:-100}
 [[ -n $threshold_end ]] || threshold_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
@@ -162,6 +168,18 @@ if [[ $shell_output == "true" ]]; then
   [[ -n $cycles ]] || cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
 
   [[ -n $cycles ]] && printf 'cycles\t%s\n' "$cycles"
+
+  # The limit is offered only where UPower can switch it and the battery says
+  # what it holds, so the panel shows what the firmware is doing rather than
+  # what was asked of it. Switched on, it names the cap in force; switched
+  # off, the one UPower would apply.
+  if [[ -n $held_end && -n $limit_target ]] && grep -qE 'charge-threshold-supported:\s+yes' <<<"$battery_info"; then
+    if (( held_end < 100 )); then
+      printf 'limit\ton\nlimit-at\t%s%%\n' "$held_end"
+    else
+      printf 'limit\toff\nlimit-at\t%s%%\n' "$limit_target"
+    fi
+  fi
 
   if [[ -n $threshold_end ]]; then
     if [[ -n $threshold_start && $threshold_start != $threshold_end ]]; then

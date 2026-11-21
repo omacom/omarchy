@@ -517,6 +517,8 @@
   "power.batteryState": "Battery state",
   "power.chargeCycles": "Charge cycles",
   "power.chargeLimit": "Charge limit",
+  "power.chargeLimitFull": "Full",
+  "power.chargeLimitTitle": "CHARGE LIMIT",
   "power.charging": "Charging",
   "power.chargingPhrase1": "Pumping power",
   "power.chargingPhrase2": "Injecting electrons",
