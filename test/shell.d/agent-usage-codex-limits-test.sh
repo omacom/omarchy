@@ -217,6 +217,14 @@ expect("a kept Codex spend cap whose reset passed comes back at zero, stale",
        [kept["limitsStale"], kept["limitsFetchedAt"] == spent["limitsFetchedAt"], [[entry["title"], entry["percent"], entry["resetsAt"]] for entry in kept["limits"]]],
        [True, True, [["Spend limit", 0.0, ""]]], kept)
 
+# A zero cap is a Business seat with additional spending turned off, not a
+# budget that ran out: nothing can be consumed, so there is no meter, and
+# the panel cannot read the seat as exhausted and alarm on it (#18049).
+login("ws-six", "user-f")
+disabled = codex("ok", CODEX_RATE_LIMITS=json.dumps({"planType": "business", "individualLimit": {"limit": "0", "used": "0", "remainingPercent": 0}}))
+expect("a disabled zero spend cap reads as no meter at all",
+       [entry["title"] for entry in disabled["limits"]], [], disabled)
+
 # ------------------------------------------------------------- no CLI
 
 # A Codex home puts Codex in use, so a missing CLI is then worth saying.
