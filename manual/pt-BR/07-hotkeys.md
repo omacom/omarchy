@@ -4,7 +4,7 @@ Você pode ver todos os principais atalhos de teclado com `Super + K` (atalhos d
 
 ## Como os atalhos de teclado são organizados
 
-Cada atalho fica em um plano, definido pelos seus modificadores, e cada plano tem uma função. É isso que impede os atalhos de se misturarem, e significa que você geralmente consegue adivinhar onde algo fica.
+Todo atalho de teclado fica em um plano, definido pelos seus modificadores, e cada plano tem uma função. É isso que impede os atalhos de se misturarem, e significa que você geralmente consegue adivinhar onde algo fica.
 
 | Plano | O que fica lá | Exemplos |
 | --- | --- | --- |
@@ -13,60 +13,60 @@ Cada atalho fica em um plano, definido pelos seus modificadores, e cada plano te
 | `Super + Ctrl + key` | Painéis e menus do sistema | `Super + Ctrl + A` áudio, `Super + Ctrl + N` rede, `Super + Ctrl + C` menu de captura |
 | `Super + Ctrl + Alt + key` | Ações rápidas e avisos | `Super + Ctrl + Alt + T` mostrar a hora, `Super + Ctrl + Alt + B` bateria, `Super + Ctrl + Alt + C` captura de tela |
 
-Adicionar `Alt` a um atalho oferece uma variante da mesma coisa, nunca algo sem relação:
+Adicionar `Alt` a um atalho de teclado oferece uma variante da mesma coisa, nunca algo sem relação:
 
 - `Super + Shift + B` abre o navegador; `Super + Shift + Alt + B` abre uma janela privativa
 - `Super + Shift + E` abre o e-mail; `Super + Shift + Alt + E` inicia um novo
-- `Super + F` entra em tela cheia; `Super + Alt + F` entra em largura total
+- `Super + F` entra em tela cheia; `Super + Alt + F` expande para a largura total
 - `Super + Ctrl + C` abre o menu de captura; `Super + Ctrl + Alt + C` pula o menu e faz uma captura de tela
 
-Ao adicionar um atalho:
+Ao adicionar um atalho de teclado:
 
 1. Escolha o plano pelo que ele faz, depois escolha a tecla.
-2. Não mova um atalho existente para abrir espaço. Encontre uma tecla livre no plano certo.
-3. Use `Alt` apenas para uma variante do atalho sem ele.
+2. Não mova um atalho de teclado existente para abrir espaço. Encontre uma tecla livre no plano certo.
+3. Use `Alt` apenas para uma variante do atalho de teclado sem ele.
 
-Alguns atalhos quebram essas regras porque são convenientes. `Shift` com uma seta ou `Tab` move ou inverte em vez de abrir um aplicativo, e `Print`, as teclas de mídia, `Alt + Tab` e `Ctrl + Alt + Del` funcionam do mesmo jeito que em qualquer outro lugar. São exceções, não padrões para copiar.
+Alguns atalhos de teclado quebram essas regras porque são convenientes. `Shift` com uma seta ou `Tab` move ou inverte em vez de abrir um aplicativo, e `Print`, as teclas de mídia, `Alt + Tab` e `Ctrl + Alt + Del` funcionam como em qualquer outro lugar. São exceções, não padrões para copiar.
 
-Se um padrão não servir para você (digamos que você queira `Super + Shift + S` para capturas de tela como no Windows), reatribua-o em `~/.config/hypr/bindings.lua`.
+Se um padrão não servir para você (digamos que você queira `Super + Shift + S` para capturas de tela como no Windows), redefina-o em `~/.config/hypr/bindings.lua`.
 
 ## Navegação
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
-| `Super + Space`           | Menu do Omarchy (aplicativos e todo o resto)    |
+| `Super + Space` | Menu do Omarchy (aplicativos e tudo o mais) |
 | `Super + Alt + Space` | Grade de aplicativos |
-| `Super + Escape` | Menu do sistema (suspender, reiniciar etc.)  |
+| `Super + Escape` | Menu do sistema (suspender, reiniciar etc.) |
 | `Super + Ctrl + L` | Bloquear o computador |
-| `Super + W` or `Super + Q` | Fechar janela             |
+| `Super + W` or `Super + Q` | Fechar a janela |
 | `Ctrl + Alt + Del` | Fechar todas as janelas |
 | `Super + K` | Mostrar todos os atalhos de teclado |
-| `Super + Alt + K` | Mostrar atalhos do tmux |
-| `Super + Ctrl + K` | Mostrar atalhos do herdr |
+| `Super + Alt + K` | Mostrar os atalhos do tmux |
+| `Super + Ctrl + K` | Mostrar os atalhos do herdr |
 | `Super + M` | Minimizar a janela para o dock |
-| `Super + T`               | Alternar a janela entre lado a lado/flutuante             |
+| `Super + T` | Alternar a janela entre lado a lado/flutuante |
 | `Super + J` | Alternar a posição da janela (horizontal/vertical) |
-| `Super + O`               | Alternar a janela emergente para fixa e flutuante |
-| `Super + L`               | Alternar entre os layouts dwindle, scrolling e floating |
-| `Super + Alt + L`         | Alternar entre os layouts na ordem inversa |
-| `Super + P`               | Alternar o estilo de janela pseudo (natural vs. esticado) |
-| `Super + F`                 | Entrar em tela cheia              |
-| `Super + Alt + F`                 | Entrar em largura total              |
-| `Super + Ctrl + F`                 | Entrar em tela cheia dentro da janela              |
-| `Super + 1…9/0`         | Ir para uma área de trabalho específica (0 é 10) no monitor em foco |
+| `Super + O` | Alternar a janela para fixa e flutuante |
+| `Super + L` | Percorrer os layouts dwindle, scrolling e floating |
+| `Super + Alt + L` | Percorrer os layouts em ordem inversa |
+| `Super + P` | Alternar o estilo de janela pseudo (natural x esticado) |
+| `Super + F` | Entrar em tela cheia |
+| `Super + Alt + F` | Expandir para a largura total |
+| `Super + Ctrl + F` | Entrar em tela cheia dentro da janela |
+| `Super + 1…9/0` | Ir para uma área de trabalho específica (0 é 10) no monitor em foco |
 | `Super + Tab` | Ir para a próxima área de trabalho no monitor em foco |
 | `Super + Shift + Tab` | Ir para a área de trabalho anterior no monitor em foco |
-| `Super + Ctrl + Tab` | Ir para a área de trabalho anterior no monitor em foco |
+| `Super + Ctrl + Tab` | Ir para a área de trabalho anterior à atual no monitor em foco |
 | `Super + Shift + 1…9/0` | Mover a janela para a área de trabalho no monitor em foco |
-| `Super + Shift + Alt + 1…9/0` | Mover a janela para a área de trabalho no monitor em foco sem acompanhar |
-| `Super + S` | Alternar o scratchpad completo |
-| `Super + Alt + S` | Mover a janela para o scratchpad completo |
+| `Super + Shift + Alt + 1…9/0` | Mover a janela para a área de trabalho no monitor em foco sem ir junto |
+| `Super + S` | Alternar o scratchpad em tela cheia |
+| `Super + Alt + S` | Mover a janela para o scratchpad em tela cheia |
 | `Super + Grave` | Alternar o console Quake |
 | `Super + Shift + Grave` | Mover a janela para o console Quake |
 | `Super + Shift + Ctrl + Arrows` | Mover a janela para o monitor naquela direção |
 | `Super + Shift + Alt + Arrows` | Mover a área de trabalho para o monitor naquela direção |
-| `Super + Arrow`  | Mover o foco para a janela na direção da seta, cruzando para o monitor daquele lado na borda da tela |
-| `Super + Shift + Arrow`  | Trocar a janela com outra na direção da seta, incluindo uma no monitor daquele lado |
+| `Super + Arrow` | Mover o foco para a janela na direção da seta, cruzando para o monitor daquele lado na borda da tela |
+| `Super + Shift + Arrow` | Trocar a janela com outra na direção da seta, incluindo uma no monitor daquele lado |
 | `Super + Minus` | Expandir a janela para a esquerda |
 | `Super + Equal` | Encolher a janela para a esquerda |
 | `Super + Shift + Minus` | Encolher a janela para cima |
@@ -78,42 +78,43 @@ Se um padrão não servir para você (digamos que você queira `Super + Shift + 
 | `Super + Left Mouse` | Arrastar a janela |
 | `Super + Right Mouse` | Redimensionar a janela |
 | `Super + Scroll Wheel` | Rolar pelas áreas de trabalho no monitor em foco |
-| `Super + G`               | Alternar o agrupamento de janelas      |
-| `Super + Alt + G`               | Mover a janela para fora do agrupamento      |
-| `Super + Alt + Tab`               | Alternar entre as janelas do agrupamento      |
-| `Super + Alt + Shift + Tab`               | Alternar para trás entre as janelas do agrupamento      |
-| `Super + Alt + Scroll Wheel` | Alternar entre as janelas do agrupamento |
-| `Super + Alt + 1/2/3/4/5`               | Ir para uma janela específica do agrupamento      |
-| `Super + Alt + Arrow`  | Mover a janela para dentro do agrupamento na direção da seta, incluindo uma no monitor daquele lado |
-| `Super + Ctrl + Left/Right`  | Mover-se entre janelas dentro de um grupo lado a lado |
+| `Super + G` | Alternar o agrupamento de janelas |
+| `Super + Alt + G` | Mover a janela para fora do agrupamento |
+| `Super + Alt + Tab` | Percorrer as janelas do agrupamento |
+| `Super + Alt + Shift + Tab` | Percorrer para trás as janelas do agrupamento |
+| `Super + Alt + Scroll Wheel` | Percorrer as janelas do agrupamento |
+| `Super + Alt + 1/2/3/4/5` | Ir para uma janela específica do agrupamento |
+| `Super + Alt + Arrow` | Mover a janela para dentro do agrupamento na direção da seta, incluindo uma no monitor daquele lado |
+| `Super + Ctrl + Left/Right` | Mover entre janelas dentro de um grupo lado a lado |
 | `Super + Ctrl + Z` | Ampliar a tela (repita para ampliar mais) |
 | `Super + Ctrl + Alt + Z` | Reduzir totalmente o zoom da tela |
 | `Super + /` | Avançar pelas opções de escala do monitor |
-| `Super + Alt + /` | Voltar pelas opções de escala do monitor |
-| `Alt + Tab` | Alternar para frente entre as janelas na área de trabalho ativa |
-| `Alt + Shift + Tab` | Alternar para trás entre as janelas na área de trabalho ativa |
-| `Ctrl + Alt + Tab`| Alternar o foco para frente entre os monitores |
-| `Ctrl + Alt + Shift + Tab`| Alternar o foco para trás entre os monitores |
+| `Super + Alt + /` | Retroceder pelas opções de escala do monitor |
+| `Alt + Tab` | Percorrer para frente as janelas na área de trabalho ativa |
+| `Alt + Shift + Tab` | Percorrer para trás as janelas na área de trabalho ativa |
+| `Ctrl + Alt + Tab` | Percorrer o foco para frente entre os monitores |
+| `Ctrl + Alt + Shift + Tab` | Percorrer o foco para trás entre os monitores |
 | `Super + I` | Trocar o idioma de entrada (com mais de um layout ou método de entrada) |
 | `Super + Shift + I` | Voltar o idioma de entrada |
 
-Em um touchpad, deslizamentos com três e quatro dedos alternam áreas de trabalho, movem janelas e abrem o menu e o console Quake; veja [teclado, mouse e trackpad](34-keyboard-mouse-trackpad.md) para ver os gestos.
+Em um touchpad, deslizes com três e quatro dedos trocam de área de trabalho, movem janelas e abrem o menu e o console Quake; veja [teclado, mouse e trackpad](34-keyboard-mouse-trackpad.md) para os gestos.
 
 Os atalhos de redimensionamento usam as teclas físicas `code:20` e `code:21` (XKB `<AE11>` e `<AE12>`), independentemente dos caracteres impressos no teclado. Em teclados US, essas teclas são `-` e `=`; em teclados japoneses (JIS), são `-` e `^`; em teclados espanhóis, são `'` e `¡`. No JIS, `Super + ^` é `Super + Equal`, enquanto `Super + Shift + -` (que digita `=`) é `Super + Shift + Minus`.
 
 ## Controles do sistema
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + A`           | Painel de áudio    |
-| `Super + Ctrl + B`           | Painel Bluetooth    |
-| `Super + Ctrl + N`           | Painel Wi-Fi/rede    |
-| `Super + Ctrl + D`           | Painel de exibição    |
-| `Super + Ctrl + P`           | Painel de energia    |
-| `Super + Ctrl + X`           | Painel de agentes    |
-| `Super + Ctrl + Alt + D`           | Painel de calendário    |
-| `Super + Ctrl + Alt + E`           | Painel de relógio mundial    |
-| `Super + Ctrl + 1-9`           | Alternar o painel da barra por posição    |
+| `Super + Ctrl + A` | Painel de áudio |
+| `Super + Ctrl + B` | Painel de Bluetooth |
+| `Super + Ctrl + N` | Painel de Wi-Fi/rede |
+| `Super + Ctrl + D` | Painel de tela |
+| `Super + Ctrl + P` | Painel de energia |
+| `Super + Ctrl + X` | Painel de agentes |
+| `Super + Ctrl + Shift + X` | Painel de modelos locais |
+| `Super + Ctrl + Alt + D` | Painel de calendário |
+| `Super + Ctrl + Alt + E` | Painel de relógio mundial |
+| `Super + Ctrl + 1-9` | Alternar o painel da barra por posição |
 | `Super + Ctrl + S` | Menu de compartilhamento (via LocalSend) |
 | `Super + Ctrl + C` | Controles de captura (captura de tela/gravação/seletor) |
 | `Super + Ctrl + O` | Alternar o menu |
@@ -121,157 +122,157 @@ Os atalhos de redimensionamento usam as teclas físicas `code:20` e `code:21` (X
 | `Super + Ctrl + E` | Seletor de emojis |
 | `Super + Ctrl + .` | Transcodificar mídia |
 | `Super + Shift + Ctrl + A` | Escolher um agente de IA |
-| `Power` key | Menu do sistema |
-| `Super + Shift + Copilot` key | Menu do Omarchy |
+| tecla `Power` | Menu do sistema |
+| tecla `Super + Shift + Copilot` | Menu do Omarchy |
 
 ## Ajustes
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
 | `Shift + Brightness Up` | Brilho máximo da tela |
 | `Shift + Brightness Down` | Brilho mínimo da tela |
-| `Alt + Brightness Up/Down` | Mudanças precisas de brilho de 1% |
-| `Alt + Volume Up/Down` | Mudanças precisas de volume de 1% |
-| `Keyboard Brightness Up/Down` | Retroiluminação do teclado mais forte/mais fraca |
-| `Keyboard Backlight` | Alternar entre os níveis de retroiluminação do teclado |
-| `Ctrl + Brightness Up/Down` | Retroiluminação do teclado mais forte/mais fraca, em teclados sem teclas próprias para isso |
+| `Alt + Brightness Up/Down` | Ajustes precisos de brilho de 1% |
+| `Alt + Volume Up/Down` | Ajustes precisos de volume de 1% |
+| `Keyboard Brightness Up/Down` | Luz de fundo do teclado mais forte/mais fraca |
+| `Keyboard Backlight` | Percorrer os níveis da luz de fundo do teclado |
+| `Ctrl + Brightness Up/Down` | Luz de fundo do teclado mais forte/mais fraca, em teclados sem teclas próprias para isso |
 | `Mic Mute` | Silenciar o microfone |
 | `Shift + Mute` | Trocar a saída de áudio |
 | `Touchpad Toggle` | Ligar ou desligar o touchpad |
-| `Display` key | Alternar o layout da área de trabalho |
+| tecla `Display` | Percorrer o layout da área de trabalho |
 | `Alt + Play` | Próxima faixa |
 | `Alt + Shift + Play` | Faixa anterior |
 
 ## Abrir aplicativos
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
-| `Super + Return`           | Terminal    |
-| `Super + Alt + Return` | Terminal Tmux |
+| `Super + Return` | Terminal |
+| `Super + Alt + Return` | Terminal do Tmux |
 | `Super + Ctrl + Return` | Herdr (gerenciador de agentes) |
-| `Super + Shift + Return` or `Super + Shift + B`  | Navegador    |
-| `Super + Shift + Alt + B`           | Navegador (privativo/anônimo)    |
-| `Super + Shift + F`           | Gerenciador de arquivos    |
-| `Super + Shift + Alt + F`           | Gerenciador de arquivos no cwd do terminal    |
-| `Super + Shift + M`           | Música (Spotify)    |
-| `Super + Shift + Alt + M`           | Música (cliamp)    |
-| `Super + Shift + /`           | Gerenciador de senhas (1password)    |
-| `Super + Shift + Q` or `Calculator` key  | Calculadora (Omacalc)    |
-| `Super + Shift + D`           | Docker (lazydocker, depois de instalado)    |
-| `Super + Shift + T`           | Atividade (btop)    |
-| `Super + Shift + N`           | Editor (Plain, ou o padrão que você escolheu)  |
-| `Super + Shift + C`           | Calendário ([HEY](https://hey.com/))  |
-| `Super + Shift + E`           | E-mail ([HEY](https://hey.com/))  |
-| `Super + Shift + Alt + E`           | Novo e-mail ([HEY](https://hey.com/))  |
-| `Super + Shift + A`           | IA (ChatGPT)  |
-| `Super + Shift + Alt + A`           | IA (Grok)  |
-| `Super + Shift + G`           | Mensagens (Signal)  |
-| `Super + Shift + P`           | Google Photos  |
-| `Super + Shift + S`           | Google Maps  |
-| `Super + Shift + Alt + G`           | Mensagens (WhatsApp)  |
-| `Super + Shift + Ctrl + G`           | Mensagens (Google)  |
-| `Super + Shift + O`           | Obsidian  |
-| `Super + Shift + W`           | Escrita (Omawrite)  |
-| `Super + Shift + X`           | X |
-| `Super + Shift + Alt + X`           | X (nova publicação) |
-| `Super + Shift + Y`           | YouTube |
+| `Super + Shift + Return` or `Super + Shift + B` | Navegador |
+| `Super + Shift + Alt + B` | Navegador (privativo/anônimo) |
+| `Super + Shift + F` | Gerenciador de arquivos |
+| `Super + Shift + Alt + F` | Gerenciador de arquivos no cwd do terminal |
+| `Super + Shift + M` | Música (Spotify) |
+| `Super + Shift + Alt + M` | Música (cliamp) |
+| `Super + Shift + /` | Gerenciador de senhas (1password) |
+| `Super + Shift + Q` or tecla `Calculator` | Calculadora (Omacalc) |
+| `Super + Shift + D` | Docker (lazydocker, depois de instalado) |
+| `Super + Shift + T` | Atividade (btop) |
+| `Super + Shift + N` | Editor (Plain, ou o padrão que você escolheu) |
+| `Super + Shift + C` | Calendário ([HEY](https://hey.com/)) |
+| `Super + Shift + E` | E-mail ([HEY](https://hey.com/)) |
+| `Super + Shift + Alt + E` | Novo e-mail ([HEY](https://hey.com/)) |
+| `Super + Shift + A` | IA (ChatGPT) |
+| `Super + Shift + Alt + A` | IA (Grok) |
+| `Super + Shift + G` | Mensageiro (Signal) |
+| `Super + Shift + P` | Google Photos |
+| `Super + Shift + S` | Google Maps |
+| `Super + Shift + Alt + G` | Mensageiro (WhatsApp) |
+| `Super + Shift + Ctrl + G` | Mensageiro (Google) |
+| `Super + Shift + O` | Obsidian |
+| `Super + Shift + W` | Escrita (Omawrite) |
+| `Super + Shift + X` | X |
+| `Super + Shift + Alt + X` | X (nova postagem) |
+| `Super + Shift + Y` | YouTube |
 
-Altere/adicione atribuições em `~/.config/hypr/bindings.lua`.
+Altere/adicione atalhos em `~/.config/hypr/bindings.lua`.
 
 ## Área de transferência universal
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
-| `Super + A`           | Selecionar tudo em aplicativos que aceitam `Ctrl + A`    |
-| `Super + C`           | Copiar    |
-| `Super + X`           | Recortar (não no terminal)    |
-| `Super + V`           | Colar    |
-| `Super + Ctrl + V`           | Gerenciador da área de transferência    |
+| `Super + A` | Selecionar tudo em aplicativos que suportam `Ctrl + A` |
+| `Super + C` | Copiar |
+| `Super + X` | Recortar (não no terminal) |
+| `Super + V` | Colar |
+| `Super + Ctrl + V` | Gerenciador da área de transferência |
 
 Normalmente no Linux, você precisa de `Ctrl + Shift + C/V` para copiar e colar no terminal e de `Ctrl + C/V` para fazer isso em todos os outros lugares. Esses atalhos unificados de área de transferência do Omarchy funcionam em todo lugar.
 
 ## Captura
 
-| Atalho              | Função                       |
+| Atalho | Função |
 | ------------------- | ------------------------------ |
-| `Print Screen`            | Captura de tela                      |
-| `Super + Ctrl + Alt + C`            | Captura de tela (a mesma captura, para teclados sem a tecla Print Screen) |
+| `Print Screen` | Captura de tela |
+| `Super + Ctrl + Alt + C` | Captura de tela (a mesma captura, para teclados sem a tecla Print Screen) |
 | `Super + Ctrl + C` | Menu de captura |
-| `Alt + Print Screen`            | Gravação de tela                     |
+| `Alt + Print Screen` | Gravação de tela |
 | `Super + Shift + Ctrl + Alt + C` | Gravação de tela sem áudio, pulando o menu (pressione de novo para parar) |
-| `Super + Print Screen` | Seletor de cores |
+| `Super + Print Screen` | Seletor de cor |
 | `Super + Ctrl + Print Screen` | Extração de texto para a área de transferência |
 | `Super + Alt + [` | Diminuir a sobreposição da webcam durante a gravação |
 | `Super + Alt + ]` | Aumentar a sobreposição da webcam durante a gravação |
-| `Alt + Shift + L` | Copiar o URL atual do webapp ou do navegador |
+| `Alt + Shift + L` | Copiar a URL atual do webapp ou navegador |
 | `Alt + Shift + D` | Baixar o vídeo da página atual para `~/Videos` |
-| `Alt + Space` | Iniciar/parar o ditado (exige _Configuração > Padrões > Ditado_) |
-| `Right Alt` | Segurar para ditar (exige _Configuração > Padrões > Ditado_) |
+| `Alt + Space` | Iniciar/parar o ditado (requer _Setup > Defaults > Dictation_) |
+| `Right Alt` | Segurar para ditar (requer _Setup > Defaults > Dictation_) |
 
-Com as gravações de tela, o atalho primeiro pergunta qual áudio você quer, depois começa a gravar. Pressione de novo para parar. Veja [capturas de tela e gravação](12-screenshots-recording.md) para ver os detalhes.
+Com as gravações de tela, o atalho primeiro pergunta qual áudio você quer, depois começa a gravar. Pressione de novo para parar. Veja [capturas de tela e gravação](12-screenshots-recording.md) para os detalhes.
 
-Todas as opções de captura também estão acessíveis em _Acionador > Captura_ no menu do Omarchy (`Super + Space`).
+Todas as opções de captura também estão acessíveis em _Trigger > Capture_ no menu do Omarchy (`Super + Space`).
 
 ## Notificações
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
-| `Super + ,` | Agir na notificação mais recente: abri-la ou pressionar seu único botão, escolher entre as opções dela ou dispensá-la quando ela não tiver nenhuma  |
+| `Super + ,` | Agir na notificação mais recente: abri-la ou pressionar seu único botão, escolher entre as opções dela ou dispensá-la quando ela não tiver nenhuma |
 | `Super + Shift + ,` | Dispensar todas as notificações |
-| `Super + Ctrl + ,` | Controlar as notificações com o teclado  |
-| `Super + Alt + ,` | Dispensar a notificação mais recente  |
-| `Super + Shift + Alt + ,` | Abrir o histórico de notificações  |
-| `Super + Ctrl + Alt + ,` | Alternar o silenciamento das notificações  |
+| `Super + Ctrl + ,` | Controlar as notificações com o teclado |
+| `Super + Alt + ,` | Dispensar a notificação mais recente |
+| `Super + Shift + Alt + ,` | Abrir o histórico de notificações |
+| `Super + Ctrl + Alt + ,` | Alternar o silenciamento de notificações |
 
 ## Estilo
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + T` | Escolher um novo tema (também `Super + Ctrl + Shift + Space`) |
 | `Super + Ctrl + W` | Escolher o fundo do tema (também `Super + Ctrl + Space`) |
 | `Super + Backspace` | Alternar a transparência de uma janela |
 | `Super + Ctrl + Backspace` | Alternar o aspecto quadrado de janela única |
 
-Imagens de fundo extras ficam em `~/.config/omarchy/backgrounds/<theme name>`. Também disponível em _Instalar > Estilo > Fundo_ no menu do Omarchy.
+Imagens de fundo extras ficam em `~/.config/omarchy/backgrounds/<theme name>`. Também disponíveis via _Install > Style > Background_ no menu do Omarchy.
 
-Todas as opções de estilo também estão acessíveis em _Aparência_ no menu do Omarchy (`Super + Space`).
+Todas as opções de estilo também estão acessíveis em _Appearance_ no menu do Omarchy (`Super + Space`).
 
 ## Alternâncias
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + I` | Alternar o bloqueio por inatividade |
-| `Super + Ctrl + Delete` | Ligar/desligar a tela do laptop |
+| `Super + Ctrl + Delete` | Alternar a tela do laptop ligada/desligada |
 | `Super + Ctrl + Alt + Delete` | Alternar o espelhamento da tela do laptop |
-| `Super + Shift + Space` | Alternar a barra superior  |
-| `Shift + Mute` | Trocar para a próxima saída de áudio |
-| `Shift + Play` | Trocar para a próxima fonte de mídia |
-| `Super + Shift + Backspace` | Alternar os espaços entre janelas |
-| `Super + Ctrl + Alt + F` | Alternar a área de trabalho em tela cheia (barra superior + espaços entre janelas) |
+| `Super + Shift + Space` | Alternar a barra superior |
+| `Shift + Mute` | Mudar para a próxima saída de áudio |
+| `Shift + Play` | Mudar para a próxima fonte de mídia |
+| `Super + Shift + Backspace` | Alternar os espaçamentos entre janelas |
+| `Super + Ctrl + Alt + F` | Alternar a área de trabalho em tela cheia (barra superior + espaçamentos entre janelas) |
 
 ## Lembretes
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + R` | Definir um lembrete  |
-| `Super + Ctrl + Alt + R` | Ver todos os lembretes  |
-| `Super + Ctrl + Shift + R` | Limpar todos os lembretes  |
+| `Super + Ctrl + R` | Definir um lembrete |
+| `Super + Ctrl + Alt + R` | Ver todos os lembretes |
+| `Super + Ctrl + Shift + R` | Limpar todos os lembretes |
 
 ## Avisos
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Alt + T` | Mostrar a hora como notificação  |
-| `Super + Ctrl + Alt + B` | Mostrar a bateria como notificação  |
-| `Super + Ctrl + Alt + W` | Alternar o clima como notificação  |
+| `Super + Ctrl + Alt + T` | Mostrar a hora como notificação |
+| `Super + Ctrl + Alt + B` | Mostrar a bateria como notificação |
+| `Super + Ctrl + Alt + W` | Alternar o clima como notificação |
 
 ## Tmux
 
-A tecla de prefixo é `Ctrl + Space` (`Ctrl + B` também funciona). Você pode alterar essas atribuições em `~/.config/tmux/tmux.conf`.
+A tecla de prefixo é `Ctrl + Space` (`Ctrl + B` também funciona). Você pode alterar esses atalhos em `~/.config/tmux/tmux.conf`.
 
 ### Painéis
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
 | `Prefix + v` | Dividir o painel ao lado (vertical) |
 | `Prefix + h` | Dividir o painel abaixo (horizontal) |
@@ -280,36 +281,36 @@ A tecla de prefixo é `Ctrl + Space` (`Ctrl + B` também funciona). Você pode a
 | `Alt + Enter` | Dividir o painel abaixo (sem prefixo) |
 | `Alt + Shift + Enter` | Dividir o painel ao lado (sem prefixo) |
 | `Alt + Escape` | Encerrar o painel (sem prefixo) |
-| `Ctrl + Alt + Arrows` | Mover-se entre os painéis |
-| `Ctrl + Alt + Shift + Arrows` | Redimensionar os painéis |
+| `Ctrl + Alt + Arrows` | Mover entre painéis |
+| `Ctrl + Alt + Shift + Arrows` | Redimensionar painéis |
 
 ### Janelas
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Nova janela |
 | `Prefix + k` | Encerrar a janela |
 | `Prefix + r` | Renomear a janela |
 | `Alt + 1-9` | Ir para uma janela específica |
-| `Alt + Arrow Left/Right` | Mover-se entre as janelas |
+| `Alt + Arrow Left/Right` | Mover entre janelas |
 | `Alt + Shift + Arrow Left/Right` | Mover a janela para a esquerda/direita |
 
 ### Sessões
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Nova sessão |
 | `Prefix + K` | Encerrar a sessão |
 | `Prefix + R` | Renomear a sessão |
 | `Prefix + N` | Próxima sessão |
 | `Prefix + P` | Sessão anterior |
-| `Alt + Arrow Up/Down` | Mover-se entre as sessões |
-| `Prefix + s` | Listar as sessões |
+| `Alt + Arrow Up/Down` | Mover entre sessões |
+| `Prefix + s` | Listar sessões |
 | `Prefix + d` | Desanexar da sessão |
 
 ### Modo de cópia (estilo vi)
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
 | `Prefix + [` | Entrar no modo de cópia |
 | `v` | Iniciar a seleção (no modo de cópia) |
@@ -317,15 +318,15 @@ A tecla de prefixo é `Ctrl + Space` (`Ctrl + B` também funciona). Você pode a
 
 ### Geral
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Recarregar a configuração |
-| `Prefix + ?` | Mostrar os atalhos de teclado do Tmux |
+| `Prefix + ?` | Mostrar os atalhos do Tmux |
 | `Prefix + :` | Prompt de comando |
 
 ### Funções de layout do Tmux
 
-Essas funções precisam ser executadas dentro de uma sessão do Tmux.
+Essas funções devem ser executadas dentro de uma sessão do Tmux.
 
 | Comando | Função |
 | ------- | -------- |
@@ -335,95 +336,95 @@ Essas funções precisam ser executadas dentro de uma sessão do Tmux.
 
 ## Terminal Ghostty
 
-O terminal Ghostty é instalado usando _Instalar > Terminal_ pelo menu do Omarchy.
+O terminal Ghostty é instalado usando _Install > Terminal_ pelo menu do Omarchy.
 
-| Atalho                  | Função              |
+| Atalho | Função |
 | ----------------------- | --------------------- |
 | `Ctrl + Shift + E` | Nova divisão abaixo |
 | `Ctrl + Shift + O` | Nova divisão ao lado |
-| `Ctrl + Alt + Arrows` | Mover-se entre as divisões |
+| `Ctrl + Alt + Arrows` | Mover entre divisões |
 | `Super + Ctrl + Shift + Arrows` | Redimensionar a divisão em 10 linhas |
 | `Super + Ctrl + Shift + Alt + Arrows` | Redimensionar a divisão em 100 linhas |
-| `Ctrl + Shift + T` | Nova aba  |
-| `Ctrl + Shift + Arrows` | Mover-se entre as abas |
+| `Ctrl + Shift + T` | Nova aba |
+| `Ctrl + Shift + Arrows` | Mover entre abas |
 | `Alt + Numbers` | Ir para uma aba específica |
 | `Shift + Pg Up/Down` | Rolar o histórico |
 | `Ctrl + Left mouse` | Abrir o link no navegador |
 
 ## Gerenciador de arquivos
 
-| Atalho              | Função                       |
+| Atalho | Função |
 | ------------------- | ------------------------------ |
-| `Ctrl + L`            | Ir para o caminho                     |
-| `Space`               | Visualizar o arquivo (as setas navegam) |
-| `Alt + Up`       | Subir para a pasta pai        |
+| `Ctrl + L` | Ir para o caminho |
+| `Space` | Visualizar o arquivo (as setas navegam) |
+| `Alt + Up` | Subir para a pasta pai |
 
 ## Neovim (com lazyvim)
 
 ### Navegação
 
-| Atalho                   | Função                        |
+| Atalho | Função |
 | ------------------------ | ------------------------------- |
-| `Space`                    | Mostrar as opções de comando            |
-| `Space Space`              | Abrir arquivo pela busca fuzzy      |
-| `Space E`                  | Alternar a barra lateral                  |
-| `Space G G`                | Mostrar os controles do git               |
-| `Space S G`                | Pesquisar o conteúdo do arquivo             |
-| `Ctrl + W W`               | Alternar entre a barra lateral e o editor |
-| `Ctrl + Left/right arrow`  | Alterar o tamanho da barra lateral          |
-| `Shift + H`                      | Ir para a aba de arquivo da esquerda             |
-| `Shift + L`                      | Ir para a aba de arquivo da direita            |
-| `Space B D`                | Fechar a aba de arquivo                  |
+| `Space` | Mostrar as opções de comando |
+| `Space Space` | Abrir arquivo via busca fuzzy |
+| `Space E` | Alternar a barra lateral |
+| `Space G G` | Mostrar os controles do git |
+| `Space S G` | Pesquisar o conteúdo do arquivo |
+| `Ctrl + W W` | Pular entre a barra lateral e o editor |
+| `Ctrl + Left/right arrow` | Alterar o tamanho da barra lateral |
+| `Shift + H` | Ir para a aba de arquivo da esquerda |
+| `Shift + L` | Ir para a aba de arquivo da direita |
+| `Space B D` | Fechar a aba de arquivo |
 
 ### Na barra lateral
 
-| Atalho                   | Função                        |
+| Atalho | Função |
 | ------------------------ | ------------------------------- |
-| `A`                        | Adicionar novo arquivo no diretório pai      |
-| `Shift + A`                | Adicionar novo subdiretório no diretório pai    |
-| `D`                        | Excluir o arquivo/diretório destacado     |
-| `M`                        | Mover o arquivo/diretório destacado       |
-| `R`                        | Renomear o arquivo/diretório destacado     |
-| `?`                        | Mostrar a ajuda de todos os comandos      |
+| `A` | Adicionar novo arquivo no diretório pai |
+| `Shift + A` | Adicionar novo subdiretório no diretório pai |
+| `D` | Excluir o arquivo/diretório destacado |
+| `M` | Mover o arquivo/diretório destacado |
+| `R` | Renomear o arquivo/diretório destacado |
+| `?` | Mostrar ajuda para todos os comandos |
 
-[Veja todos os atalhos de teclado do Neovim configurados pelo LazyVim](https://www.lazyvim.org/keymaps).
+[Veja todos os atalhos do Neovim configurados pelo LazyVim](https://www.lazyvim.org/keymaps).
 
 ## Emojis rápidos
 
-Você pode usar `Super + Ctrl + E` para mostrar um seletor de emojis completo que colocará a seleção na área de transferência, ou pode usar estas opções de acesso rápido.
+Você pode usar `Super + Ctrl + E` para mostrar um seletor de emojis completo que colocará a seleção na área de transferência ou pode usar estas opções de acesso rápido.
 
-| Atalho       | EM | Dica       |
+| Atalho | EM | Dica |
 | ------------ | -- | ---------- |
-| `Shift + CapsLock M S` | 😄 | sorriso      |
-| `Shift + CapsLock M C` | 😂 | choro        |
-| `Shift + CapsLock M L` | 😍 | amor       |
-| `Shift + CapsLock M V` | ✌️ | vitória    |
-| `Shift + CapsLock M H` | ❤️ | coração      |
-| `Shift + CapsLock M Y` | 👍 | sim        |
-| `Shift + CapsLock M N` | 👎 | não         |
-| `Shift + CapsLock M F` | 🖕 | foda-se       |
-| `Shift + CapsLock M W` | 🤞 | desejo       |
-| `Shift + CapsLock M R` | 🤘 | rock       |
-| `Shift + CapsLock M K` | 😘 | beijo       |
-| `Shift + CapsLock M E` | 🙄 | revirar os olhos    |
-| `Shift + CapsLock M I` | 😉 | piscada       |
-| `Shift + CapsLock M P` | 🙏 | rezar |
-| `Shift + CapsLock M D` | 🤤 | babar      |
-| `Shift + CapsLock M M` | 💰 | dinheiro      |
-| `Shift + CapsLock M X` | 🎉 | xellebrate |
-| `Shift + CapsLock M 1` | 💯 | 100%       |
-| `Shift + CapsLock M T` | 🥂 | brinde      |
+| `Shift + CapsLock M S` | 😄 | sorriso |
+| `Shift + CapsLock M C` | 😂 | choro |
+| `Shift + CapsLock M L` | 😍 | amor |
+| `Shift + CapsLock M V` | ✌️ | vitória |
+| `Shift + CapsLock M H` | ❤️ | coração |
+| `Shift + CapsLock M Y` | 👍 | sim |
+| `Shift + CapsLock M N` | 👎 | não |
+| `Shift + CapsLock M F` | 🖕 | foda-se |
+| `Shift + CapsLock M W` | 🤞 | desejo |
+| `Shift + CapsLock M R` | 🤘 | rock |
+| `Shift + CapsLock M K` | 😘 | beijo |
+| `Shift + CapsLock M E` | 🙄 | revirar os olhos |
+| `Shift + CapsLock M I` | 😉 | piscadela |
+| `Shift + CapsLock M P` | 🙏 | orar |
+| `Shift + CapsLock M D` | 🤤 | babar |
+| `Shift + CapsLock M M` | 💰 | dinheiro |
+| `Shift + CapsLock M X` | 🎉 | xelebrar |
+| `Shift + CapsLock M 1` | 💯 | 100% |
+| `Shift + CapsLock M T` | 🥂 | brinde |
 | `Shift + CapsLock M O` |👌 | ok |
 | `Shift + CapsLock M G` |👋 | saudação |
 | `Shift + CapsLock M A` |💪 | braço |
 | `Shift + CapsLock M B` |🤯 | explodindo |
 
-## Preenchimentos rápidos
+## Conclusões rápidas
 
-| Atalho       | Preenchimento       |
-| ------------ |  ---------- |
-| `Shift + CapsLock Space Space` | — (mdash)   |
-| `Shift + CapsLock Space N` | Seu nome (como informado na configuração)  |
-| `Shift + CapsLock Space E` | Seu e-mail (como informado na configuração)  |
+| Atalho | Conclusão |
+| ------------ | ---------- |
+| `Shift + CapsLock Space Space` | — (travessão) |
+| `Shift + CapsLock Space N` | Seu nome (como informado na configuração) |
+| `Shift + CapsLock Space E` | Seu e-mail (como informado na configuração) |
 
-Você pode adicionar mais dos seus editando `~/.XCompose` e depois executando `omarchy restart xcompose` no terminal para que as mudanças sejam aplicadas.
+Você pode adicionar mais das suas editando `~/.XCompose` e depois executando `omarchy restart xcompose` no terminal para que as alterações sejam aplicadas.
