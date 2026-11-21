@@ -163,6 +163,22 @@ if [[ $shell_output == "true" ]]; then
 
   [[ -n $cycles ]] && printf 'cycles\t%s\n' "$cycles"
 
+  # What the pack was sold as, and how much of that survives. `capacity` is
+  # UPower's own energy-full / energy-full-design; anchored so it cannot match
+  # `capacity-level:`, which is a word rather than a number. The design figure
+  # truncates like `size` beside it; health rounds, so 79.6% reads as 80%.
+  # A pack whose firmware omits either figure reports neither, and callers
+  # hide the difference rather than invent a 100%.
+  read -r design health < <(awk '
+    /energy-full-design:/ { design = int($2) }
+    /^[[:space:]]*capacity:/ { sub(/%/, "", $2); health = int($2 + 0.5) }
+    END { print design + 0, health + 0 }' <<<"$battery_info")
+
+  if (( design > 0 && health > 0 )); then
+    printf 'design\t%sWh\n' "$design"
+    printf 'health\t%s%%\n' "$health"
+  fi
+
   if [[ -n $threshold_end ]]; then
     if [[ -n $threshold_start && $threshold_start != $threshold_end ]]; then
       printf 'threshold\t%s-%s%%\n' "$threshold_start" "$threshold_end"

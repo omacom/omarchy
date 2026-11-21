@@ -45,9 +45,12 @@ if [[ $1 == "-i" ]]; then
   state:                discharging
   energy:               28.3 Wh
   energy-full:          56.7 Wh
+  energy-full-design:   78.9 Wh
   energy-rate:          7.3 W
   time to empty:        2.5 hours
   percentage:           51%
+  capacity-level:       Normal
+  capacity:             71.8%
 INFO
   exit 0
 fi
@@ -65,6 +68,17 @@ grep -Fx $'size\t56Wh' <<<"$shell_output" >/dev/null || fail "battery status rep
 grep -Fx $'time\t2h 37m' <<<"$shell_output" >/dev/null || fail "battery status works the time left out from the draw it shows"
 grep -Fx $'cycles\t212' <<<"$shell_output" >/dev/null || fail "battery status reports native-path cycle count"
 grep -Fx $'threshold\t75-80%' <<<"$shell_output" >/dev/null || fail "battery status reports native-path charge thresholds"
+grep -Fx $'design\t78Wh' <<<"$shell_output" >/dev/null || fail "battery status reports design capacity"
+grep -Fx $'health\t72%' <<<"$shell_output" >/dev/null || fail "battery status rounds pack health to the nearest percent"
+
+# capacity-level is a word ("Normal"), so an unanchored /capacity:/ match would
+# report a health of 0% and the panel would hide the rows it belongs to.
+grep -Fx $'health\t0%' <<<"$shell_output" >/dev/null && fail "battery status does not read health from capacity-level"
+
+# A pack missing either figure yields neither, never an invented 100%.
+sed -i '/energy-full-design:/d' "$tmp_dir/bin/upower"
+designless_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -qE $'^(design|health)\t' <<<"$designless_output" && fail "battery status omits both health fields without design capacity" "$designless_output"
 line_output=$(OMARCHY_TEST_NATIVE_PATH=macsmc-battery OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
 [[ $line_output == *$' '"10.8W"$' / '"56Wh" ]] || fail "a draw signed negative still shows in the status line" "$line_output"
 

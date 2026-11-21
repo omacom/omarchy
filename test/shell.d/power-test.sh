@@ -52,4 +52,12 @@ assertEqual(
   power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, true, states),
   'power shows battery icon when unplugged before battery state refreshes'
 )
+
+assertEqual(power.healthVerdict('90%'), 'Great', 'power calls a pack at 90% and up great')
+assertEqual(power.healthVerdict('80%'), 'Normal', 'power keeps the vendor service line on the normal side')
+assertEqual(power.healthVerdict('79%'), 'Worn', 'power calls a pack under the service line worn')
+assertEqual(power.healthVerdict('69%'), 'Bad', 'power calls a pack past a third gone bad')
+assertEqual(power.healthAdvice('75%'), 'Plan a replacement', 'power tells a worn pack owner to plan ahead')
+assertEqual(power.healthAdvice('75%', key => key), 'power.healthAdviceWorn', 'power translates the advice by tier')
+assertEqual(power.healthVerdict(undefined), '', 'power gives no verdict without a health figure')
 JS
