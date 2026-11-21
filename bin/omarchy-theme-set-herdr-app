@@ -43,8 +43,14 @@ fi
 
 # Theme setters release this lock before running app helpers. Hold it through
 # publication so a setter cannot swap the source directory mid-read and an
-# older helper cannot publish after a newer helper.
-exec {theme_lock}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
+# older helper cannot publish after a newer helper. Same path as
+# omarchy-theme-set, including the private state dir when there is no runtime dir.
+lock_dir="${XDG_RUNTIME_DIR:-$HOME/.local/state/omarchy}"
+mkdir -p "$lock_dir" || exit 1
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  chmod 700 "$lock_dir" || exit 1
+fi
+exec {theme_lock}>"$lock_dir/omarchy-theme-set.lock"
 flock "$theme_lock"
 if [[ ! -f $source_path ]]; then
   echo "Skipping Herdr theme: refresh the current Omarchy theme to generate its palette." >&2
