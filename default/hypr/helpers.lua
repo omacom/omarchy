@@ -149,51 +149,32 @@ function o.preinstalled_bindings_enabled()
   return not file_exists((os.getenv("HOME") or "") .. "/.local/state/omarchy/preinstalls-removed")
 end
 
--- The web app hosts this machine's region leaves out, from the webapps file of
--- its profile (docs/regions.md). Global, or a region without one, omits none.
-local region_omitted_hosts
-local function omitted_hosts()
-  if region_omitted_hosts then
-    return region_omitted_hosts
-  end
+-- Whether this machine's region binds the preinstalled hotkey with this
+-- description: its profile's hotkeys list, or the global one (docs/regions.md).
+local region_hotkeys
+function o.region_hotkey(description)
+  if not region_hotkeys then
+    region_hotkeys = {}
+    local regions = (os.getenv("OMARCHY_PATH") or "") .. "/default/regions/"
+    local marker = io.open(os.getenv("OMARCHY_REGION_FILE") or "/etc/omarchy/region", "r")
+    local region = marker and (marker:read("*l") or ""):match("^%l%l$")
+    if marker then
+      marker:close()
+    end
 
-  region_omitted_hosts = {}
-  local marker = io.open(os.getenv("OMARCHY_REGION_FILE") or "/etc/omarchy/region", "r")
-  if not marker then
-    return region_omitted_hosts
-  end
-  local region = (marker:read("*l") or ""):match("^%l%l$")
-  marker:close()
-
-  local list = region and io.open((os.getenv("OMARCHY_PATH") or "") .. "/default/regions/" .. region .. "/webapps", "r")
-  if list then
-    for line in list:lines() do
-      local host = line:gsub("#.*", ""):match("^%s*(%S+)")
-      if host then
-        table.insert(region_omitted_hosts, host)
+    local list = region and io.open(regions .. region .. "/hotkeys", "r") or io.open(regions .. "global/hotkeys", "r")
+    if list then
+      for line in list:lines() do
+        local name = line:gsub("#.*", ""):match("^%s*(.-)%s*$")
+        if name ~= "" then
+          region_hotkeys[name] = true
+        end
       end
-    end
-    list:close()
-  end
-
-  return region_omitted_hosts
-end
-
--- Whether the region leaves out the web app at this URL: its host is one the
--- profile lists, or a subdomain of one.
-function o.region_omits_webapp(url)
-  local host = tostring(url):match("^%a+://([^/:?#]+)")
-  if not host then
-    return false
-  end
-
-  for _, omitted in ipairs(omitted_hosts()) do
-    if host == omitted or host:sub(-(#omitted + 1)) == "." .. omitted then
-      return true
+      list:close()
     end
   end
 
-  return false
+  return region_hotkeys[description] == true
 end
 
 function o.bind(keys, description, dispatcher, options)
@@ -212,11 +193,11 @@ function o.bind(keys, description, dispatcher, options)
   hl.bind(keys, dispatcher, opts)
 end
 
--- A shipped web app hotkey, left unbound when the region omits that web app
+-- A preinstalled web app hotkey, bound when the region's hotkeys list names it
 -- (docs/regions.md). { focus = true } focuses an open window of it instead of
 -- opening another.
 function o.bind_webapp(keys, description, url, options)
-  if not o.region_omits_webapp(url) then
+  if o.region_hotkey(description) then
     o.bind(keys, description, { webapp = url, focus = (options or {}).focus })
   end
 end

@@ -18,10 +18,11 @@ Installs from before regions have no marker and stay global; nothing changes the
 
 ## Profile layout
 
-Each profile lives in `default/regions/<code>/`:
+Each profile lives in `default/regions/<code>/`, and `default/regions/global/` holds the world lists of `applications` and `hotkeys`. A region without one of those lists uses the world one, and a new launcher or web app hotkey goes on the world list, and on each regional list that should have it.
 
 - `timezones`: the timezones that select this region, one per line, with blank lines and `#` comments allowed. List tzdata's backward-compatible names too, since the installer's timezone list includes them. A timezone may belong to at most one profile.
-- `webapps` (optional): the hosts of web apps the region leaves out, one per line, with blank lines and `#` comments allowed. `omarchy-refresh-applications` skips a shipped launcher in `applications/` whose web app is on one of these hosts or a subdomain of one, and the default hotkeys in `default/hypr/bindings/applications.lua` skip those web apps too (`o.region_omits_webapp`). `/etc/skel` seeds every shipped launcher before the region is known, so a user's first install (`omarchy-provision-user --first-install`) also removes the seeded copies; later refreshes never remove a launcher, so a user who adds one back keeps it; the hotkeys follow the marker on every config reload.
+- `applications`: the launchers in `applications/` the region installs, by file name without `.desktop`, one per line, with blank lines and `#` comments allowed. `omarchy-refresh-applications` copies exactly these. `/etc/skel` seeds every shipped launcher before the region is known, so a user's first install (`omarchy-provision-user --first-install`) also removes the seeded copies the list doesn't name; later refreshes never remove a launcher, so a user who adds one back keeps it.
+- `hotkeys`: the preinstalled web app hotkeys the region binds, by their description in `default/hypr/bindings/applications.lua` (`o.bind_webapp`, and Music), in the same format. The hotkeys follow the marker on every config reload.
 - `theme` (optional): the name of the theme a new user starts with, in place of Tokyo Night (`install/user/theme.sh`). It is seeded only when the user has no theme yet.
 - `pacman/`: per channel (`stable`, `rc`, `edge`), `omarchy-<channel>.prepend`, placed first in the `[omarchy]` section of `pacman.conf`, and `mirrorlist-<channel>.prepend`, placed ahead of the channel's mirrorlist, so the regional mirrors are tried first.
 

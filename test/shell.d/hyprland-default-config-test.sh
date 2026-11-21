@@ -159,11 +159,22 @@ pass "preinstalled binding variable skips optional application bindings"
 
 echo cn >"$tmpdir/region-cn"
 region_output=$(OMARCHY_REGION_FILE="$tmpdir/region-cn" run_application_bindings "$fresh_home")
-grep -Fq $'SUPER + SHIFT + E	Email' <<<"$region_output" || fail "a region keeps the web app hotkeys it doesn't omit"
+grep -Fq $'SUPER + SHIFT + E	Email' <<<"$region_output" || fail "a region binds the web app hotkeys on its list"
 for binding in $'SUPER + SHIFT + Y	YouTube' $'SUPER + SHIFT + ALT + X	X Post' $'SUPER + SHIFT + S	Google Maps' $'SUPER + SHIFT + M	Music'; do
-  if grep -Fq "$binding" <<<"$region_output"; then fail "a region skips hotkeys for the web apps it omits" "$binding"; fi
+  if grep -Fq "$binding" <<<"$region_output"; then fail "a region binds no web app hotkey its list leaves off" "$binding"; fi
 done
-pass "a region skips hotkeys for the web apps it omits, subdomains included"
+pass "a region binds exactly the web app hotkeys on its list"
+
+# Every web app hotkey is on the world list, and every regional list names only
+# those, so a new hotkey can't silently never bind.
+hotkeys=$( { grep -o 'o\.bind_webapp("[^"]*", "[^"]*"' "$ROOT/default/hypr/bindings/applications.lua" | sed 's/.*, "//; s/"$//'; echo Music; } | sort)
+listed_hotkeys() { sed -e 's/[[:space:]]*#.*//' -e '/^[[:space:]]*$/d' "$1" | sort; }
+[[ $(listed_hotkeys "$ROOT/default/regions/global/hotkeys") == "$hotkeys" ]] || fail "the world hotkey list names every web app hotkey"
+for list in "$ROOT"/default/regions/*/hotkeys; do
+  unknown=$(comm -13 <(echo "$hotkeys") <(listed_hotkeys "$list"))
+  [[ -z $unknown ]] || fail "a regional hotkey list names only web app hotkeys" "$list: $unknown"
+done
+pass "hotkey lists match the web app hotkeys"
 
 no_bindings_home="$tmpdir/no-bindings-home"
 mkdir -p "$no_bindings_home"

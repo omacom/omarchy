@@ -13,7 +13,7 @@ if o.preinstalled_bindings_enabled() then
   o.bind("SUPER + CTRL + RETURN", "Herdr", { omarchy = "terminal-herdr" })
   o.bind("SUPER + SHIFT + Q", "Calculator", "omacalc")
   o.bind("XF86Calculator", "Calculator", "omacalc")
-  if not o.region_omits_webapp("https://open.spotify.com/") then
+  if o.region_hotkey("Music") then
     o.bind("SUPER + SHIFT + M", "Music", { omarchy = "spotify" })
   end
   o.bind("SUPER + SHIFT + ALT + M", "Music TUI", { tui = "cliamp", focus = true })
