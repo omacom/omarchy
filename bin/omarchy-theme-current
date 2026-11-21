@@ -6,7 +6,9 @@
 THEME_NAME_PATH="$HOME/.local/state/omarchy/current/theme.name"
 
 if [[ -f $THEME_NAME_PATH ]]; then
-  sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g' "$THEME_NAME_PATH"
+  # C locale: the [a-z] range misses i under tr_TR.UTF-8, so a theme named
+  # after an i (istanbul, ...) keeps its lowercase letter.
+  LC_ALL=C sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g' "$THEME_NAME_PATH"
 else
   echo "Unknown"
 fi
