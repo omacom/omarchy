@@ -167,10 +167,15 @@ shift || true
 message="$*"
 custom_message="$message"
 
-if [[ -z $minutes ]] || [[ ! $minutes =~ ^[0-9]+$ ]] || ((minutes == 0)); then
+if [[ -z $minutes ]] || [[ ! $minutes =~ ^[0-9]+$ ]] || ((10#$minutes == 0)); then
   usage
   exit 1
 fi
+
+# Typed as 05, the minutes still read as 5: bash takes a leading zero for octal,
+# so 08 fails arithmetic, and the zero would carry into every message and the
+# timer's name.
+minutes=$((10#$minutes))
 
 if [[ -z $message ]]; then
   message=$(omarchy-i18n --count "$minutes" reminder.minutesUp "$minutes")
