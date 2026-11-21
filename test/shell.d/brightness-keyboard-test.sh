@@ -114,3 +114,14 @@ touch "$pause.go"
 wait "$blank" "$wake"
 [[ $(level) == "3" ]] || fail "a wake overlapping a blank restores the level once the blank is done (got $(level))"
 pass "a wake overlapping a blank waits for it"
+
+# The hotkeys stay bound while locked, so a lit backlight at a wake is newer than the record.
+echo 3 >"$level_file"
+run_keyboard off
+echo 2 >"$level_file"
+run_keyboard restore
+[[ $(level) == "2" ]] || fail "restore leaves a level changed while blanked (got $(level))"
+run_keyboard off
+run_keyboard restore
+[[ $(level) == "2" ]] || fail "the next blank saves the level changed while blanked (got $(level))"
+pass "restore leaves a level changed while blanked"
