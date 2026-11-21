@@ -20,6 +20,8 @@ Item {
   readonly property string position: DockModel.normalizePosition(dockConfig.position)
   readonly property bool vertical: DockModel.isVertical(position)
   readonly property bool autohide: dockConfig.autohide === true
+  // Off unless chosen: a line under each open app, as on the Windows taskbar.
+  readonly property bool indicators: dockConfig.indicators === true
 
   // The dock's order for the session, as desktop ids, set when the user moves
   // an app: a drag moves it, and keeping it in the dock puts it at the end. An
