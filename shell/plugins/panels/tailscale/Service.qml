@@ -43,6 +43,12 @@ Item {
   property string actionStatus: ""
   property string lastError: ""
 
+  // The status JSON carries no control-plane URL, so it comes from the daemon's
+  // prefs and decides whether the admin console is Tailscale's hosted one or a
+  // self-hosted control server.
+  property string controlUrl: ""
+  readonly property string adminUrl: Model.adminUrlFromControlUrl(controlUrl)
+
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 30, 5, 3600)
   readonly property bool busy: whichProcess.running || statusProcess.running || mullvadExitNodesProcess.running || accountsProcess.running || actionProcess.running || loginProcess.running || switchProcess.running || renameProcess.running || operatorProcess.running || exitNodeProcess.running
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
@@ -51,6 +57,12 @@ Item {
   property string _statusError: ""
   property string _accountsOutput: ""
   property string _accountsError: ""
+  property string _prefsOutput: ""
+  // Whether the control URL needs reading, kept apart from its value: an empty
+  // URL is a real answer (the hosted console), not a read still owed.
+  property bool _prefsStale: true
+  property bool _prefsFailed: false
+  property string _prefsAccountId: ""
   property string _mullvadExitNodesOutput: ""
   property string _mullvadExitNodesError: ""
   property string _actionOutput: ""
@@ -190,6 +202,18 @@ Item {
     Quickshell.execDetached(["omarchy-tailscale-send", target])
   }
 
+  // Another account can sit on another control server. This catches a switch
+  // from the panel (which sets the id as soon as it succeeds) and one made with
+  // the CLI (seen by the accounts poll); the first id to arrive belongs to the
+  // read already made at startup.
+  onSelectedAccountIdChanged: {
+    if (selectedAccountId === "") return
+    if (_prefsAccountId !== "" && _prefsAccountId !== selectedAccountId) _prefsStale = true
+    _prefsAccountId = selectedAccountId
+  }
+
+  onRunningChanged: if (running && _prefsFailed) _prefsStale = true
+
   function refresh(forceAccounts, fullPeers) {
     if (installed) {
       refreshStatusAndAccounts(forceAccounts === true, fullPeers === true)
@@ -236,6 +260,18 @@ Item {
       _lastAccountsRefreshMs = now
       accountsProcess.command = ["tailscale", "switch", "--list", "--json"]
       accountsProcess.running = true
+      launched = true
+    }
+    // The control URL only moves when the connection does, so read it once and
+    // again when the account changes — not on the interval, which would spawn
+    // a process every tick for a value that stands still for the life of a
+    // login. A read launched while one is in flight waits for the next refresh.
+    if (_prefsStale && !prefsProcess.running) {
+      _prefsStale = false
+      _prefsFailed = false
+      _prefsOutput = ""
+      prefsProcess.command = ["tailscale", "debug", "prefs"]
+      prefsProcess.running = true
       launched = true
     }
     // Arm on the launch that needs watching and leave it alone after that.
@@ -462,6 +498,10 @@ Item {
     actionProcess.running = true
   }
 
+  function openAdminConsole() {
+    Quickshell.execDetached(["omarchy-launch-browser", adminUrl])
+  }
+
   function openAuthUrlFrom(text, allowFallback) {
     if (_loginUrlOpened) return true
     var match = String(text || "").match(/https?:\/\/\S+/)
@@ -530,6 +570,7 @@ Item {
       if (statusProcess.running) statusProcess.running = false
       if (mullvadExitNodesProcess.running) mullvadExitNodesProcess.running = false
       if (accountsProcess.running) accountsProcess.running = false
+      if (prefsProcess.running) prefsProcess.running = false
     }
   }
 
@@ -608,6 +649,21 @@ Item {
           root.lastError = elideStatus(stderr || stdout || I18n.t("tailscale.listConnectionsFailed"))
         }
       }
+    }
+  }
+
+  Process {
+    // A daemon too old for `debug prefs`, or one that refuses it, just leaves
+    // the control URL empty and the admin link pointing at the hosted console.
+    // A failed read is not retried on the interval, only once the daemon next
+    // comes up or the account changes.
+    id: prefsProcess
+    running: false
+    command: []
+    stdout: StdioCollector { id: prefsStdout; waitForEnd: true; onStreamFinished: root._prefsOutput = text }
+    onExited: function(exitCode) {
+      root._prefsFailed = exitCode !== 0
+      root.controlUrl = root._prefsFailed ? "" : Model.controlUrlFromPrefs(String(prefsStdout.text || root._prefsOutput || ""))
     }
   }
 
