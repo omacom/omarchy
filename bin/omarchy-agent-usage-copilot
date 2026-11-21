@@ -98,6 +98,10 @@ API_PLAN_LABELS = {
   "max": "Max",
 }
 
+# The allowances Copilot Free meters in place of premium requests, with the
+# panel titles that keep the two apart.
+FREE_ALLOWANCES = (("chat", "Monthly chat", "Chat Monthly"), ("completions", "Monthly completions", "Completions Monthly"))
+
 def expand_path(value: str) -> Path:
   return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
 
@@ -653,6 +657,35 @@ def quota_amount(value: Any) -> float | None:
   return amount if math.isfinite(amount) and amount >= 0 else None
 
 
+# What one quota snapshot allows and has used, as (unlimited, entitlement,
+# used), or None when a limited one is missing an amount.
+#
+# Under token-based billing the snapshot counts AI credits directly; only
+# the local store and transcripts count in nano units. GitHub's snapshot
+# (the CLI's CopilotUserResponseQuotaSnapshotsPremiumInteractions) says
+# what is left, as remaining, quota_remaining or percent_remaining, so the
+# amount used is the entitlement less that; a credits_used amount is still
+# read first where one is sent. A limited allowance needs both amounts: one
+# missing or unreadable would pass for no meter or an untouched allowance
+# and replace the last good answer, so it is a failed check instead.
+def snapshot_usage(snapshot: dict[str, Any]) -> tuple[bool, float, float] | None:
+  unlimited = snapshot.get("unlimited") is True
+  entitlement = quota_amount(snapshot.get("entitlement"))
+  used = quota_amount(snapshot.get("credits_used"))
+  if used is None and entitlement is not None:
+    remaining = quota_amount(snapshot.get("remaining"))
+    if remaining is None:
+      remaining = quota_amount(snapshot.get("quota_remaining"))
+    percent_remaining = quota_amount(snapshot.get("percent_remaining"))
+    if remaining is not None:
+      used = max(0.0, entitlement - remaining)
+    elif percent_remaining is not None:
+      used = entitlement * max(0.0, 100.0 - percent_remaining) / 100.0
+  if not unlimited and (entitlement is None or used is None):
+    return None
+  return unlimited, entitlement or 0.0, used or 0.0
+
+
 def ask_quota(token: str) -> dict[str, Any]:
   """Ask GitHub for the account-wide credit balance."""
   request = urllib.request.Request(
@@ -683,35 +716,37 @@ def ask_quota(token: str) -> dict[str, Any]:
   if not isinstance(snapshot, dict):
     return {"available": False, "reason": "no-quota"}
 
-  # Under token-based billing the snapshot counts AI credits directly; only
-  # the local store and transcripts count in nano units. GitHub's snapshot
-  # (the CLI's CopilotUserResponseQuotaSnapshotsPremiumInteractions) says
-  # what is left, as remaining, quota_remaining or percent_remaining, so the
-  # amount used is the entitlement less that; a credits_used amount is still
-  # read first where one is sent. A limited allowance needs both amounts: one
-  # missing or unreadable would pass for no meter or an untouched allowance
-  # and replace the last good answer, so it is a failed check instead.
-  unlimited = snapshot.get("unlimited") is True
-  entitlement = quota_amount(snapshot.get("entitlement"))
-  used = quota_amount(snapshot.get("credits_used"))
-  if used is None and entitlement is not None:
-    remaining = quota_amount(snapshot.get("remaining"))
-    if remaining is None:
-      remaining = quota_amount(snapshot.get("quota_remaining"))
-    percent_remaining = quota_amount(snapshot.get("percent_remaining"))
-    if remaining is not None:
-      used = max(0.0, entitlement - remaining)
-    elif percent_remaining is not None:
-      used = entitlement * max(0.0, 100.0 - percent_remaining) / 100.0
-  if not unlimited and (entitlement is None or used is None):
+  usage = snapshot_usage(snapshot)
+  if usage is None:
     return {"available": False, "reason": "bad-payload"}
+  unlimited, entitlement, used = usage
+
+  # Copilot Free reports copilot_plan "individual", the same as Pro; only its
+  # SKU tells them apart. It has no premium requests, so its allowances are
+  # the monthly chat and completions counts instead.
+  sku = str(payload.get("access_type_sku") or "").strip().lower()
+  free = sku.startswith("free_")
+  allowances = []
+  for key, label, title in FREE_ALLOWANCES if free else ():
+    other = snapshots.get(key)
+    if not isinstance(other, dict):
+      continue
+    # As with the premium allowance, one that can't be read is a failed check
+    # rather than a meter quietly dropped from the kept answer.
+    usage = snapshot_usage(other)
+    if usage is None:
+      return {"available": False, "reason": "bad-payload"}
+    if not usage[0] and usage[1] > 0:
+      allowances.append({"label": label, "title": title, "entitlement": usage[1], "used": usage[2]})
+  plan = "free" if free else str(payload.get("copilot_plan") or "").strip().lower()
   return {
     "available": True,
     "unlimited": unlimited,
-    "entitlement": entitlement or 0.0,
-    "used": used or 0.0,
+    "entitlement": entitlement,
+    "used": used,
+    "allowances": allowances,
     "resetsAt": str(payload.get("quota_reset_date_utc") or ""),
-    "planLabel": API_PLAN_LABELS.get(str(payload.get("copilot_plan") or "").strip().lower(), ""),
+    "planLabel": API_PLAN_LABELS.get(plan, ""),
   }
 
 
@@ -782,7 +817,8 @@ def fetch_remote_quota(force: bool = False) -> dict[str, Any]:
 def open_quota(cached: dict[str, Any]) -> dict[str, Any]:
   resets_at = parse_event_time(str(cached.get("resetsAt") or ""))
   if resets_at is not None and resets_at <= dt.datetime.now(dt.timezone.utc):
-    cached.update(used=0.0, resetsAt="")
+    allowances = [dict(a, used=0.0) for a in cached.get("allowances") or [] if isinstance(a, dict)]
+    cached.update(used=0.0, allowances=allowances, resetsAt="")
   return cached
 
 
@@ -836,16 +872,20 @@ def allowance_limits(
       # A refused token is a sign-in to redo, kept allowance or not.
       if reason in ("http-401", "http-403"):
         result["usageStatusText"] = "Sign-in expired"
+    allowances = [{"label": "Monthly allowance", "entitlement": remote.get("entitlement"), "used": remote.get("used")}]
     if remote.get("unlimited") or float(remote.get("entitlement") or 0) <= 0:
+      allowances = [a for a in remote.get("allowances") or [] if isinstance(a, dict)]
+    if not allowances:
       return result
     # GitHub's own reset date, or none: a kept window that has reset has no
     # known next one.
     parsed = parse_event_time(str(remote.get("resetsAt") or ""))
     result["limits"] = [{
-      "label": "Monthly allowance",
-      "percent": min(1.0, float(remote.get("used") or 0.0) / float(remote["entitlement"])),
+      "label": str(allowance.get("label") or ""),
+      **({"title": str(allowance["title"])} if allowance.get("title") else {}),
+      "percent": min(1.0, float(allowance.get("used") or 0.0) / float(allowance["entitlement"])),
       "resetsAt": parsed.isoformat() if parsed is not None and parsed > now else "",
-    }]
+    } for allowance in allowances]
     result["limitsStale"] = bool(remote.get("stale"))
     result["limitsFetchedAt"] = stamp(remote.get("fetchedAtMs"))
     return result
