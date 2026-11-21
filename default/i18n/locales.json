@@ -5,7 +5,8 @@
     "formatLocale": "en-US",
     "locale": "en_US.UTF-8",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.org/"
   },
   "da": {
     "name": "Dansk",
@@ -13,7 +14,8 @@
     "formatLocale": "da-DK",
     "locale": "da_DK.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.dk/"
   },
   "ar": {
     "name": "العربية",
@@ -22,7 +24,8 @@
     "locale": "ar_AE.UTF-8",
     "direction": "rtl",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.ae/"
   },
   "fi": {
     "name": "Suomi",
@@ -30,7 +33,8 @@
     "formatLocale": "fi-FI",
     "locale": "fi_FI.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.fi/"
   },
   "fr": {
     "name": "Français",
@@ -38,7 +42,8 @@
     "formatLocale": "fr-FR",
     "locale": "fr_FR.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.fr/"
   },
   "el": {
     "name": "Ελληνικά",
@@ -46,7 +51,8 @@
     "formatLocale": "el-GR",
     "locale": "el_GR.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.gr/"
   },
   "hu": {
     "name": "Magyar",
@@ -54,7 +60,8 @@
     "formatLocale": "hu-HU",
     "locale": "hu_HU.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.hu/"
   },
   "hi": {
     "name": "हिन्दी",
@@ -62,7 +69,8 @@
     "formatLocale": "hi-IN",
     "locale": "hi_IN.UTF-8",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.in/"
   },
   "is": {
     "name": "Íslenska",
@@ -70,7 +78,8 @@
     "formatLocale": "is-IS",
     "locale": "is_IS.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.is/"
   },
   "ja": {
     "name": "日本語",
@@ -78,7 +87,8 @@
     "formatLocale": "ja-JP",
     "locale": "ja_JP.UTF-8",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.jp/"
   },
   "ko": {
     "name": "한국어",
@@ -86,7 +96,8 @@
     "formatLocale": "ko-KR",
     "locale": "ko_KR.UTF-8",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.kr/"
   },
   "es-MX": {
     "name": "Español (México)",
@@ -94,7 +105,8 @@
     "formatLocale": "es-MX",
     "locale": "es_MX.UTF-8",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.mx/"
   },
   "fil": {
     "name": "Filipino",
@@ -102,7 +114,8 @@
     "formatLocale": "fil-PH",
     "locale": "fil_PH.UTF-8",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.ph/"
   },
   "pt": {
     "name": "Português (Portugal)",
@@ -110,7 +123,8 @@
     "formatLocale": "pt-PT",
     "locale": "pt_PT.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.pt/"
   },
   "sv": {
     "name": "Svenska",
@@ -118,7 +132,8 @@
     "formatLocale": "sv-SE",
     "locale": "sv_SE.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.se/"
   },
   "tr": {
     "name": "Türkçe",
@@ -126,7 +141,8 @@
     "formatLocale": "tr-TR",
     "locale": "tr_TR.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.tr/"
   },
   "vi": {
     "name": "Tiếng Việt",
@@ -134,7 +150,8 @@
     "formatLocale": "vi-VN",
     "locale": "vi_VN.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://vi.omarchy.org/"
   },
   "ur": {
     "name": "اردو",
@@ -143,7 +160,8 @@
     "locale": "ur_PK.UTF-8",
     "direction": "rtl",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://ur.omarchy.org/"
   },
   "bn": {
     "name": "বাংলা",
@@ -151,7 +169,8 @@
     "formatLocale": "bn-BD",
     "locale": "bn_BD.UTF-8",
     "decimal": ".",
-    "zeroDigit": "০"
+    "zeroDigit": "০",
+    "site": "https://bn.omarchy.org/"
   },
   "ca": {
     "name": "Català",
@@ -159,7 +178,8 @@
     "formatLocale": "ca-AD",
     "locale": "ca_AD.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://ca.omarchy.org/"
   },
   "si": {
     "name": "සිංහල",
@@ -167,7 +187,8 @@
     "formatLocale": "si-LK",
     "locale": "si_LK.UTF-8",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://si.omarchy.org/"
   },
   "ta": {
     "name": "தமிழ்",
@@ -175,7 +196,8 @@
     "formatLocale": "ta-LK",
     "locale": "ta_LK.UTF-8",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://ta.omarchy.org/"
   },
   "th": {
     "name": "ไทย",
@@ -183,7 +205,8 @@
     "formatLocale": "th-TH",
     "locale": "th_TH.UTF-8",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://th.omarchy.org/"
   },
   "uz": {
     "name": "Oʻzbekcha",
@@ -191,7 +214,8 @@
     "formatLocale": "uz-UZ",
     "locale": "uz_UZ.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://uz.omarchy.org/"
   },
   "it": {
     "name": "Italiano",
@@ -199,7 +223,8 @@
     "formatLocale": "it-IT",
     "locale": "it_IT.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://it.omarchy.org/"
   },
   "zh-CN": {
     "name": "简体中文",
@@ -207,7 +232,8 @@
     "formatLocale": "zh-CN",
     "locale": "zh_CN.UTF-8",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://zh.omarchy.org/"
   },
   "pl": {
     "name": "Polski",
@@ -215,7 +241,8 @@
     "formatLocale": "pl-PL",
     "locale": "pl_PL.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://pl.omarchy.org/"
   },
   "lt": {
     "name": "Lietuvių",
@@ -223,7 +250,8 @@
     "formatLocale": "lt-LT",
     "locale": "lt_LT.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://lt.omarchy.org/"
   },
   "ga": {
     "name": "Gaeilge",
@@ -231,7 +259,8 @@
     "formatLocale": "ga-IE",
     "locale": "ga_IE.UTF-8",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://ga.omarchy.org/"
   },
   "nl": {
     "name": "Nederlands",
@@ -239,7 +268,8 @@
     "formatLocale": "nl-NL",
     "locale": "nl_NL.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://nl.omarchy.org/"
   },
   "no": {
     "name": "Norsk",
@@ -247,7 +277,8 @@
     "formatLocale": "nb-NO",
     "locale": "nb_NO.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://omarchy.no/"
   },
   "ru": {
     "name": "Русский",
@@ -255,7 +286,8 @@
     "formatLocale": "ru-RU",
     "locale": "ru_RU.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://ru.omarchy.org/"
   },
   "id": {
     "name": "Bahasa Indonesia",
@@ -263,7 +295,8 @@
     "formatLocale": "id-ID",
     "locale": "id_ID.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://id.omarchy.org/"
   },
   "de": {
     "name": "Deutsch",
@@ -271,7 +304,8 @@
     "formatLocale": "de-DE",
     "locale": "de_DE.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://de.omarchy.org/"
   },
   "sw": {
     "name": "Kiswahili",
@@ -279,7 +313,8 @@
     "formatLocale": "sw-TZ",
     "locale": "sw_TZ.UTF-8",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://sw.omarchy.org/"
   },
   "fa": {
     "name": "فارسی",
@@ -288,7 +323,8 @@
     "locale": "fa_IR.UTF-8",
     "direction": "rtl",
     "decimal": "٫",
-    "zeroDigit": "۰"
+    "zeroDigit": "۰",
+    "site": "https://fa.omarchy.org/"
   },
   "ms": {
     "name": "Bahasa Melayu",
@@ -296,7 +332,8 @@
     "formatLocale": "ms-MY",
     "locale": "ms_MY.UTF-8",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://ms.omarchy.org/"
   },
   "uk": {
     "name": "Українська",
@@ -304,7 +341,8 @@
     "formatLocale": "uk-UA",
     "locale": "uk_UA.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://uk.omarchy.org/"
   },
   "ro": {
     "name": "Română",
@@ -312,7 +350,8 @@
     "formatLocale": "ro-RO",
     "locale": "ro_RO.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://ro.omarchy.org/"
   },
   "cs": {
     "name": "Čeština",
@@ -320,7 +359,8 @@
     "formatLocale": "cs-CZ",
     "locale": "cs_CZ.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://cs.omarchy.org/"
   },
   "sr": {
     "name": "Српски",
@@ -328,7 +368,8 @@
     "formatLocale": "sr-RS",
     "locale": "sr_RS.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://sr.omarchy.org/"
   },
   "he": {
     "name": "עברית",
@@ -337,7 +378,8 @@
     "locale": "he_IL.UTF-8",
     "direction": "rtl",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://he.omarchy.org/"
   },
   "bg": {
     "name": "Български",
@@ -345,7 +387,8 @@
     "formatLocale": "bg-BG",
     "locale": "bg_BG.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://bg.omarchy.org/"
   },
   "sk": {
     "name": "Slovenčina",
@@ -353,7 +396,8 @@
     "formatLocale": "sk-SK",
     "locale": "sk_SK.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://sk.omarchy.org/"
   },
   "hr": {
     "name": "Hrvatski",
@@ -361,7 +405,8 @@
     "formatLocale": "hr-HR",
     "locale": "hr_HR.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://hr.omarchy.org/"
   },
   "sl": {
     "name": "Slovenščina",
@@ -369,7 +414,8 @@
     "formatLocale": "sl-SI",
     "locale": "sl_SI.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://sl.omarchy.org/"
   },
   "zh-TW": {
     "name": "繁體中文",
@@ -377,7 +423,8 @@
     "formatLocale": "zh-TW",
     "locale": "zh_TW.UTF-8",
     "decimal": ".",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://zh-tw.omarchy.org/"
   },
   "et": {
     "name": "Eesti",
@@ -385,7 +432,8 @@
     "formatLocale": "et-EE",
     "locale": "et_EE.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://et.omarchy.org/"
   },
   "lv": {
     "name": "Latviešu",
@@ -393,7 +441,8 @@
     "formatLocale": "lv-LV",
     "locale": "lv_LV.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://lv.omarchy.org/"
   },
   "pt-BR": {
     "name": "Português (Brasil)",
@@ -401,6 +450,7 @@
     "formatLocale": "pt-BR",
     "locale": "pt_BR.UTF-8",
     "decimal": ",",
-    "zeroDigit": "0"
+    "zeroDigit": "0",
+    "site": "https://pt-br.omarchy.org/"
   }
 }
