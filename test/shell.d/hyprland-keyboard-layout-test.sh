@@ -53,6 +53,7 @@ hl = {
     local input = config.input
     print(("[%s] [%s] [%s]"):format(input.kb_layout, input.kb_variant, input.kb_options))
   end,
+  device = function() end,
 }
 
 o = { window = function() end }
