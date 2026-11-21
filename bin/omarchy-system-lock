@@ -3,9 +3,20 @@
 # omarchy:summary=Lock the computer and turn off the display
 # omarchy:group=system
 # omarchy:name=lock
-# omarchy:examples=omarchy system lock
+# omarchy:args=[--screensaver]
+# omarchy:examples=omarchy system lock | omarchy system lock --screensaver
 
-omarchy-shell lock lock >/dev/null
+if [[ $1 == "--screensaver" ]]; then
+  # Keep the displays on and show the screensaver behind the lock. Stop on a
+  # failed lock, so the caller never takes the screensaver for locked.
+  result=$(omarchy-shell lock screensaver)
+  if [[ $result != "ok" ]]; then
+    echo "Could not lock the session: ${result:-no shell}" >&2
+    exit 1
+  fi
+else
+  omarchy-shell lock lock >/dev/null
+fi
 
 # Set keyboard layout to default (first layout)
 hyprctl switchxkblayout all 0 > /dev/null 2>&1
