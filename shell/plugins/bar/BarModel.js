@@ -208,7 +208,27 @@ function centerDropTarget(candidates, box, point, vertical, source) {
   var edge = beginDistance <= endDistance
     ? { target: { region: "centerBegin", after: true }, distance: beginDistance }
     : { target: { region: "centerEnd", after: false }, distance: endDistance }
-  return outside && outside.distance <= edge.distance ? outside.target : edge.target
+  // An emptied left group has no widget to answer, so a drop on the
+  // bar's start side with no widget near would strand widgets in
+  // centerBegin with no way home. Offer left again when the drop point
+  // sits beyond every remaining candidate on the start side and no left
+  // widget answered — ahead of the nearest-widget rule, which can only
+  // point at a distant centerBegin widget.
+  if (beginDistance <= endDistance) {
+    var leftRows = rows.filter(function(row) { return row && row.region === "left" })
+    if (!leftRows.length) {
+      var extremo = null
+      for (var j = 0; j < rows.length; j++) {
+        var rpos = Number(vertical ? rows[j] && rows[j].y : rows[j] && rows[j].x)
+        if (!isFinite(rpos)) continue
+        if (extremo === null || rpos < extremo) extremo = rpos
+      }
+      var boxLen = Number(vertical ? box.height : box.width)
+      if (extremo !== null && axis < extremo && (start - axis) > (isFinite(boxLen) ? boxLen : 0)) return { region: "left", after: true }
+    }
+  }
+  if (outside && outside.distance <= edge.distance) return outside.target
+  return edge.target
 }
 
 // The stretch of the bar over which a drop lands in the center box: the box
