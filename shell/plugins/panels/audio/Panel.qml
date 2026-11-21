@@ -206,9 +206,9 @@ Panel {
   // selectedIndex semantics within a section:
   //   -1            → on the slider row (h/l adjusts volume, m/Enter mute)
   //   0..N-1        → on the Nth device/stream row
-  // Visuals derive from hasCursor/current via CursorSurface, never
-  // from containsMouse — that's what keeps the highlight unique across
-  // keyboard + mouse like wifi does.
+  // Visuals derive from hasCursor/current via CursorSurface, never from
+  // containsMouse. Pointer hover claims this cursor and releases it on
+  // leave (Cursor.applyHover), so keyboard and mouse share one highlight.
   property string focusSection: "output"
   property int selectedIndex: -1
   property bool cursorActive: false
@@ -817,7 +817,11 @@ Panel {
               foreground: root.bar.foreground
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
-              onHovered: function(on) { if (on) root.setHeaderCursor() }
+              onHovered: function(on) {
+                Cursor.applyHover(on, powerSwitch.hasCursor, function() {
+                  root.setHeaderCursor()
+                }, function() { root.cursorActive = false })
+              }
               onToggled: root.toggleAllMuted()
 
               PanelToolTip {
@@ -908,6 +912,13 @@ Panel {
               height: outputSlider.implicitHeight + Style.spacing.controlGap
               hasCursor: root.cursorActive && root.focusSection === "output" && root.selectedIndex === -1
               onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(outputSliderRow)
+              onHovered: function(isHovered) {
+                Cursor.applyHover(isHovered, outputSliderRow.hasCursor, function() {
+                  root.cursorActive = true
+                  root.focusSection = "output"
+                  root.selectedIndex = -1
+                }, function() { root.cursorActive = false })
+              }
               foreground: root.bar.foreground
               outline: true
 
@@ -928,13 +939,6 @@ Panel {
                 onRightClicked: root.toggleOutputMute()
               }
 
-              HoverHandler {
-                onHoveredChanged: if (hovered) {
-                  root.cursorActive = true
-                  root.focusSection = "output"
-                  root.selectedIndex = -1
-                }
-              }
             }
 
             Repeater {
@@ -996,6 +1000,13 @@ Panel {
               height: inputControls.implicitHeight + Style.spacing.controlGap
               hasCursor: root.cursorActive && root.focusSection === "input" && root.selectedIndex === -1
               onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(inputSliderRow)
+              onHovered: function(isHovered) {
+                Cursor.applyHover(isHovered, inputSliderRow.hasCursor, function() {
+                  root.cursorActive = true
+                  root.focusSection = "input"
+                  root.selectedIndex = -1
+                }, function() { root.cursorActive = false })
+              }
               foreground: root.bar.foreground
               outline: true
 
@@ -1041,13 +1052,6 @@ Panel {
                 }
               }
 
-              HoverHandler {
-                onHoveredChanged: if (hovered) {
-                  root.cursorActive = true
-                  root.focusSection = "input"
-                  root.selectedIndex = -1
-                }
-              }
             }
 
             Repeater {
@@ -1099,9 +1103,9 @@ Panel {
 
   // ---- Reusable inline components ----
 
-  // Output device row — cursor target inside the "output" section. Mouse
-  // hover updates the panel cursor at the root; visuals come entirely
-  // from hasCursor/current via CursorSurface, never from containsMouse.
+  // Output device row — cursor target inside the "output" section. The row's
+  // own HoverHandler claims the panel cursor and releases it on leave;
+  // visuals come entirely from hasCursor/current via CursorSurface.
   component SinkRow: CursorSurface {
     id: sinkRow
     required property var node
@@ -1110,6 +1114,13 @@ Panel {
     readonly property bool isActive: root.sink && node && root.sink.id === node.id
     hasCursor: root.cursorActive && root.focusSection === "output" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(sinkRow)
+    onHovered: function(isHovered) {
+      Cursor.applyHover(isHovered, sinkRow.hasCursor, function() {
+        root.cursorActive = true
+        root.focusSection = "output"
+        root.selectedIndex = sinkRow.rowIndex
+      }, function() { root.cursorActive = false })
+    }
     current: isActive
     foreground: root.bar.foreground
     fill: root.hoverFill
@@ -1153,11 +1164,6 @@ Panel {
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
-      onContainsMouseChanged: if (containsMouse) {
-        root.cursorActive = true
-        root.focusSection = "output"
-        root.selectedIndex = sinkRow.rowIndex
-      }
       onClicked: root.setDefaultSink(sinkRow.node)
     }
   }
@@ -1171,6 +1177,13 @@ Panel {
     readonly property bool isActive: root.source && node && root.source.id === node.id
     hasCursor: root.cursorActive && root.focusSection === "input" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(sourceRow)
+    onHovered: function(isHovered) {
+      Cursor.applyHover(isHovered, sourceRow.hasCursor, function() {
+        root.cursorActive = true
+        root.focusSection = "input"
+        root.selectedIndex = sourceRow.rowIndex
+      }, function() { root.cursorActive = false })
+    }
     current: isActive
     foreground: root.bar.foreground
     fill: root.hoverFill
@@ -1214,11 +1227,6 @@ Panel {
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
-      onContainsMouseChanged: if (containsMouse) {
-        root.cursorActive = true
-        root.focusSection = "input"
-        root.selectedIndex = sourceRow.rowIndex
-      }
       onClicked: root.setDefaultSource(sourceRow.node)
     }
   }
@@ -1238,6 +1246,13 @@ Panel {
 
     hasCursor: root.cursorActive && root.focusSection === "streams" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(streamRow)
+    onHovered: function(isHovered) {
+      Cursor.applyHover(isHovered, streamRow.hasCursor, function() {
+        root.cursorActive = true
+        root.focusSection = "streams"
+        root.selectedIndex = streamRow.rowIndex
+      }, function() { root.cursorActive = false })
+    }
     current: isActive
     foreground: root.bar.foreground
     fill: root.hoverFill
@@ -1330,11 +1345,6 @@ Panel {
       hoverEnabled: true
       acceptedButtons: Qt.NoButton
       propagateComposedEvents: true
-      onContainsMouseChanged: if (containsMouse) {
-        root.cursorActive = true
-        root.focusSection = "streams"
-        root.selectedIndex = streamRow.rowIndex
-      }
     }
   }
 }
