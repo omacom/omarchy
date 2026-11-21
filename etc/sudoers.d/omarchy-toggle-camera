@@ -1,0 +1,3 @@
+# The camera switch is a one-click toggle in the bar, so it cannot stop for a
+# password.
+%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-toggle-camera on, /usr/bin/omarchy-toggle-camera off
