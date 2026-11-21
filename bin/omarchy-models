@@ -2,7 +2,7 @@
 
 # omarchy:summary=Run open models on this machine for your agents
 # omarchy:args=<use|list|status|start|stop|update|remove|logs> [args]
-# omarchy:examples=omarchy models use best | omarchy models use qwen3.8-27b-gufo | omarchy models stop | omarchy-models use --help
+# omarchy:examples=omarchy models use best text | omarchy models use best image | omarchy models use qwen3.8-27b-gufo | omarchy models stop | omarchy-models use --help
 
 # The engine and its recipes come in omarchy-local-ai, on every machine so the
 # local models panel knows which models fit. Podman, which runs them, is a base
