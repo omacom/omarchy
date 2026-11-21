@@ -3,14 +3,19 @@ import QtQuick
 import Quickshell
 import "Plural.js" as Plural
 import "Numbers.js" as Numbers
+import "Placeholders.js" as Placeholders
 
 // Display-language strings for the shell. The selected code lives in
 // ~/.config/omarchy/language (omarchy-language owns it); a missing file
 // means English. Strings come from default/i18n/<code>/shell.json layered
 // over the English catalog, so a missing translation falls back to English
-// per string. Use as I18n.t("common.search"), with .arg(...) for %1 holes,
-// and I18n.tn(key, count).arg(I18n.formatNumber(count)) for an
-// entry with plural forms.
+// per string. Use as I18n.t("common.search"), with .arg(...) for one %1
+// hole, and I18n.tn(key, count).arg(I18n.formatNumber(count)) for a plural
+// entry with one hole. A string with several holes uses
+// I18n.format(text, value, ...), which fills %1, %2, … by number in one
+// pass. String.arg() fills the lowest-numbered hole still in the string,
+// so a plural form that says the count as a word and keeps only %2 would
+// show the count where the next value belongs.
 // The language file is watched, so switching language under Setup
 // re-renders the shell without a restart.
 QtObject {
@@ -62,6 +67,14 @@ QtObject {
   // without them the value is written as it is.
   function formatNumber(value, decimals) {
     return Numbers.format(value, decimals, root.decimal, root.zeroDigit)
+  }
+
+  // %1, %2, … by number, one pass. A value that contains %2 is inserted as
+  // text. See Placeholders.js for why this is not String.arg().
+  function format(text) {
+    var values = []
+    for (var i = 1; i < arguments.length; i++) values.push(arguments[i])
+    return Placeholders.fill(text, values)
   }
 
   function parseCatalog(raw) {

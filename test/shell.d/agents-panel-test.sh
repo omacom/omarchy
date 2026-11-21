@@ -160,3 +160,55 @@ assertEqual(writes.length, 1, 'cancel saves no order')
 assertDeepEqual([0, 1, 2].map(i => Reorder.rowShift(i, state.dragIndex, state.dragTarget, state.dragOffset, 60)), [0, 0, 0], 'cancel clears every offset')
 JS
 
+# A plural form may say the count as a word and keep only %2. Fill %1 and %2
+# by number, in one pass, so the duration stays in %2 and a value is inserted
+# once, replacement characters included.
+run_node_test <<'JS'
+const fs = require('fs')
+const { fill } = requireFromRoot('shell/Commons/Placeholders.js')
+const Plural = requireFromRoot('shell/Commons/Plural.js')
+
+const i18nSrc = fs.readFileSync(root + '/shell/Commons/I18n.qml', 'utf8')
+const formatSrc = i18nSrc.match(/function format\([^]*?\n  \}/)
+assert(formatSrc, 'I18n.format is the positional filler')
+const format = new Function('Placeholders', formatSrc[0] + '\nreturn format')({ fill })
+
+const cases = [
+  ['%1 · %2', ['1', '5m'], '1 · 5m', 'fills %1 and %2'],
+  ['%2 · %1', ['1', '5m'], '5m · 1', 'fills a reordered pair by number'],
+  ['only %2', ['1', '5m'], 'only 5m', 'keeps an omitted %1 from taking the expiry'],
+  ['%1 · %2', ['%2', '5m'], '%2 · 5m', 'inserts placeholder text inside a value once'],
+  ['%2', ['1', '$&'], '$&', 'keeps a $& replacement literal'],
+  ['%2', ['1', '$$'], '$$', 'keeps a $$ replacement literal'],
+  ['%2', ['1', '$1'], '$1', 'keeps a $1 replacement literal']
+]
+for (const [text, values, expected, label] of cases) {
+  assertEqual(fill(text, values), expected, 'Placeholders.fill ' + label)
+  assertEqual(format(text, ...values), expected, 'I18n.format ' + label)
+}
+
+const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const resetSrc = source.slice(source.indexOf('function resetCreditsText'), source.indexOf('function freeResetsText'))
+const durationSrc = source.match(/function formatDuration\([^]*?\n  \}/)[0]
+const nowMs = 1700000000000
+const expiresAt = new Date(nowMs + 5 * 60 * 1000).toISOString()
+const duration = '5m'
+
+// Arabic, Hebrew, and Irish say "one" as a word. Five minutes so formatDuration
+// takes the minutes form; the stand-in text is only where that duration lands.
+for (const code of ['ar', 'he', 'ga']) {
+  const strings = JSON.parse(fs.readFileSync(root + '/default/i18n/' + code + '/shell.json', 'utf8'))
+  const form = Plural.pick(strings['agents.freeResetsExpires'], code, 1)
+  assert(form.includes('%2') && !/%1(?!\d)/.test(form), code + ' says one free reset as a word and keeps only %2')
+  const resetCreditsText = new Function('Commons', 'nowMs', resetSrc + '\n' + durationSrc + '\nreturn resetCreditsText')({
+    I18n: {
+      tn(key, count) { return Plural.pick(strings[key], code, count) },
+      formatNumber(value) { return String(value) },
+      format,
+      t() { return { arg() { return duration } } }
+    }
+  }, nowMs)
+  const shown = String(resetCreditsText({ available: 1, nextExpiresAt: expiresAt }))
+  assertEqual(shown, format(form, '1', duration), code + ' renders the duration rather than %2 or the count')
+}
+JS
