@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Scale text everywhere — omarchy shell, GTK apps, and terminals
-# omarchy:args=[size|reset]
-# omarchy:examples=omarchy display text size | omarchy display text size 16 | omarchy display text size reset
+# omarchy:args=[size|reset|sync]
+# omarchy:examples=omarchy display text size | omarchy display text size 16 | omarchy display text size reset | omarchy display text size sync
 
 # One knob for apparent text size across the desktop. It drives three settings
 # in lockstep, all anchored to the shell default of 12px:
@@ -13,6 +13,12 @@
 # The shell override layers on top of the active theme (so the size survives
 # theme switches) and the shell watches the file, so shell text re-flows live.
 # Accepts an integer from 9 to 20 (px).
+#
+# The size is remembered per display: a laptop panel sits close, a desk monitor
+# sits further back, so the size that suits one rarely suits the other. Setting
+# a size records it for the external monitors connected at the time (or for the
+# built-in panel alone), and `sync` -- run by the monitor watcher on every
+# hotplug -- puts back whatever was last used with that set of displays.
 
 MIN=9
 MAX=20
@@ -24,12 +30,14 @@ TERM_DEFAULT_PT=9
 SHELL_DEFAULT_PX=12
 
 shell_config="$HOME/.config/omarchy/shell.toml"
+sizes_file="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/text-sizes"
 
 usage() {
-  echo "Usage: omarchy-display-text-size [size|reset]"
+  echo "Usage: omarchy-display-text-size [size|reset|sync]"
   echo "  (no args)   print the current text size, GTK factor, and terminal size"
   echo "  <size>      set text size in px ($MIN–$MAX); shell + GTK + terminals together"
   echo "  reset       return all three to their defaults (12px / 1.0 / 9pt)"
+  echo "  sync        apply the size last used with the displays connected right now"
 }
 
 # ---- shell base-size: the rem root every shell type size derives from ----
@@ -193,6 +201,82 @@ term_current_pt() {
   fi
 }
 
+# ---- per-display memory ----
+
+# Which displays the size belongs to: the external monitors by EDID description
+# (so a monitor keeps its size across ports), sorted so the key does not depend
+# on plug order, or "internal" when only the built-in panel is connected.
+display_key() {
+  local key
+  key=$(hyprctl monitors all -j 2>/dev/null | jq -r '
+    [.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not) | .description // .name]
+    | sort | join(" + ")' 2>/dev/null)
+  echo "${key:-internal}"
+}
+
+# Print the size recorded for the current displays, or nothing if none is.
+remembered_size() {
+  [[ -f $sizes_file ]] || return 0
+  awk -F'\t' -v key="$(display_key)" '$1 == key { print $2; exit }' "$sizes_file"
+}
+
+# Record a size (or "default") for the current displays, replacing any earlier
+# entry for the same key.
+remember_size() {
+  local size="$1" key tmp
+  key="$(display_key)"
+  mkdir -p "$(dirname "$sizes_file")"
+  tmp="$(mktemp)"
+  [[ -f $sizes_file ]] && awk -F'\t' -v key="$key" '$1 != key' "$sizes_file" >"$tmp"
+  printf '%s\t%s\n' "$key" "$size" >>"$tmp"
+  mv "$tmp" "$sizes_file"
+}
+
+# ---- applying a size ----
+
+apply_size() {
+  local size="$1"
+
+  # Shell side: base-size in px (the omarchy shell's rem root).
+  set_base_size "$size"
+
+  # GTK side: multiplier anchored so 12px == 1.0, quantized so the interface
+  # font renders at a whole point size. Raw ratios yield fractional point sizes,
+  # which GTK4 menus clip at the ascenders on scale-1 monitors.
+  local factor
+  factor="$(awk -v s="$size" -v b="$SHELL_DEFAULT_PX" -v f="$(gtk_font_pt)" \
+    'BEGIN { printf "%.4f", int(f * s / b + 0.5) / f }')"
+  set_factor "$factor"
+
+  # Terminal side: point size anchored so 12px == 9pt.
+  set_terminal_size "$(term_pt_for "$size")"
+}
+
+apply_default() {
+  reset_base_size
+  gsettings reset "$GKEY_SCHEMA" "$GKEY_NAME" 2>/dev/null || true
+  set_terminal_size "$TERM_DEFAULT_PT"
+}
+
+# Put back the size last used with the displays connected now. Displays seen
+# for the first time adopt the current size, so the next visit finds it.
+sync_size() {
+  local current wanted
+  current="$(current_base_size)"
+  current="${current:-default}"
+  wanted="$(remembered_size)"
+
+  if [[ -z $wanted ]]; then
+    remember_size "$current"
+  elif [[ $wanted == "$current" ]]; then
+    return 0
+  elif [[ $wanted == "default" ]]; then
+    apply_default
+  elif [[ $wanted =~ ^[0-9]+$ ]] && ((wanted >= MIN && wanted <= MAX)); then
+    apply_size "$wanted"
+  fi
+}
+
 case "${1:-}" in
   -h | --help)
     usage
@@ -208,9 +292,12 @@ case "${1:-}" in
     exit 0
     ;;
   reset | default)
-    reset_base_size
-    gsettings reset "$GKEY_SCHEMA" "$GKEY_NAME" 2>/dev/null || true
-    set_terminal_size "$TERM_DEFAULT_PT"
+    apply_default
+    remember_size default
+    exit 0
+    ;;
+  sync)
+    sync_size
     exit 0
     ;;
 esac
@@ -222,15 +309,5 @@ if [[ ! $size =~ ^[0-9]+$ ]] || ((size < MIN || size > MAX)); then
   exit 1
 fi
 
-# Shell side: base-size in px (the omarchy shell's rem root).
-set_base_size "$size"
-
-# GTK side: multiplier anchored so 12px == 1.0, quantized so the interface
-# font renders at a whole point size. Raw ratios yield fractional point sizes,
-# which GTK4 menus clip at the ascenders on scale-1 monitors.
-factor="$(awk -v s="$size" -v b="$SHELL_DEFAULT_PX" -v f="$(gtk_font_pt)" \
-  'BEGIN { printf "%.4f", int(f * s / b + 0.5) / f }')"
-set_factor "$factor"
-
-# Terminal side: point size anchored so 12px == 9pt.
-set_terminal_size "$(term_pt_for "$size")"
+apply_size "$size"
+remember_size "$size"
