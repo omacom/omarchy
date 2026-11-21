@@ -27,7 +27,7 @@ detect_apple_display_device() {
 
   (( ${#devices[@]} > 0 )) || return 1
 
-  sudo asdcontrol --detect "${devices[@]}" 2>/dev/null | awk -F: '/^\/dev\/(usb\/)?hiddev/{ print $1; exit }'
+  sudo -n asdcontrol --detect "${devices[@]}" 2>/dev/null | awk -F: '/^\/dev\/(usb\/)?hiddev/{ print $1; exit }'
 }
 
 find_apple_display_device() {
@@ -59,7 +59,7 @@ find_apple_display_device() {
 current_brightness() {
   local device="$1"
 
-  sudo asdcontrol "$device" 2>/dev/null | awk -F= '
+  sudo -n asdcontrol "$device" 2>/dev/null | awk -F= '
     /BRIGHTNESS=/ {
       print int($2 * 100 / 60000)
       found = 1
@@ -99,9 +99,9 @@ if [[ $step =~ ^([0-9]+)%-$ ]]; then
   step="-${BASH_REMATCH[1]}%"
 fi
 
-if ! sudo asdcontrol "$device" -- "$step" >/dev/null; then
+if ! sudo -n asdcontrol "$device" -- "$step" >/dev/null; then
   retry_with_fresh_device
-  sudo asdcontrol "$device" -- "$step" >/dev/null
+  sudo -n asdcontrol "$device" -- "$step" >/dev/null
 fi
 
 (( no_osd )) || omarchy-osd -i brightness -p "$(current_brightness "$device")"
