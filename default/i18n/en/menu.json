@@ -500,6 +500,9 @@
   "setup.network.dns.custom": {
     "label": "Custom"
   },
+  "setup.network.hostname": {
+    "label": "Hostname"
+  },
   "setup.network.qr": {
     "label": "QR Code"
   },
@@ -837,6 +840,9 @@
   },
   "install.service.tailscale": {
     "label": "Tailscale"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
   },
   "install.service.nordvpn": {
     "label": "NordVPN"

@@ -777,7 +777,7 @@ user_form() {
   fi
 
   omarchy_prompt_password || return $?
-  omarchy_prompt_hostname || return $?
+  omarchy_generate_hostname
 }
 
 confirm_form() {
