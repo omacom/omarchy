@@ -425,6 +425,7 @@
   "monitor.rotate90": "90°",
   "monitor.rotateHint": "r or right-click to rotate",
   "monitor.rotateNormal": "Normal",
+  "monitor.rotation": "ROTATION",
   "monitor.scale": "SCALE",
   "monitor.textSize": "TEXT SIZE",
   "multiSelect.exited": "Options command exited %1",
