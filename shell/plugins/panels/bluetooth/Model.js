@@ -74,6 +74,31 @@ function bluetoothSinkMatchesDevice(node, device) {
   return label !== "" && text.indexOf(label) !== -1
 }
 
+// A Bluetooth card profile as the audio mode the panel offers: "music" for
+// A2DP, "headset" for HFP/HSP, "" for anything else (off, or a phone's
+// audio gateway profile).
+function audioModeForProfile(profile) {
+  var name = String(profile || "")
+  if (name === "headset-head-unit" || name.indexOf("headset-head-unit-") === 0) return "headset"
+  if (name === "a2dp-sink" || name.indexOf("a2dp-sink-") === 0) return "music"
+  return ""
+}
+
+// While a device plays music, WirePlumber gives it a bluez_input loopback
+// source only when it also has a headset profile to switch to for the
+// microphone. Speakers and headphones without one get none, so the source is
+// what says headset mode can work.
+function hasHeadsetInput(nodes, device) {
+  var address = normalizedAddress(device && device.address)
+  if (address === "") return false
+  var list = toArray(nodes)
+  for (var i = 0; i < list.length; i++) {
+    var name = String(list[i] && list[i].name || "")
+    if (name.indexOf("bluez_input.") === 0 && normalizedAddress(name.slice(12)) === address) return true
+  }
+  return false
+}
+
 function sortedByLabel(devices) {
   var list = toArray(devices)
   list.sort(function(a, b) { return deviceLabel(a).localeCompare(deviceLabel(b)) })
@@ -165,6 +190,8 @@ if (typeof module !== "undefined") {
     nodeProps: nodeProps,
     nodeText: nodeText,
     bluetoothSinkMatchesDevice: bluetoothSinkMatchesDevice,
+    audioModeForProfile: audioModeForProfile,
+    hasHeadsetInput: hasHeadsetInput,
     sortedByLabel: sortedByLabel,
     deviceRow: deviceRow,
     deviceLists: deviceLists,
