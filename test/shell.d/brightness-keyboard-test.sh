@@ -114,3 +114,11 @@ touch "$pause.go"
 wait "$blank" "$wake"
 [[ $(level) == "3" ]] || fail "a wake overlapping a blank restores the level once the blank is done (got $(level))"
 pass "a wake overlapping a blank waits for it"
+
+# An unknown word is refused, not taken as "down".
+echo 2 >"$level_file"
+if run_keyboard --no-osd status 2>/dev/null; then
+  fail "an unknown argument exits with an error"
+fi
+[[ $(level) == "2" ]] || fail "an unknown argument leaves the backlight alone (got $(level))"
+pass "an unknown argument is refused without changing the backlight"
