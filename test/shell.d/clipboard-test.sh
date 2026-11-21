@@ -171,7 +171,12 @@ chmod +x "$TMPDIR/bin/timeout"
 
 cat >"$TMPDIR/bin/wl-copy" <<'SH'
 #!/bin/bash
-cat >"$WL_COPY_OUT"
+[[ -n ${WL_COPY_ARGS_OUT:-} ]] && printf '%s\n' "$*" >"$WL_COPY_ARGS_OUT"
+if [[ -n ${WL_COPY_OUT:-} ]]; then
+  cat >"$WL_COPY_OUT"
+else
+  cat >/dev/null
+fi
 SH
 
 cat >"$TMPDIR/bin/wl-paste" <<'SH'
@@ -433,3 +438,30 @@ OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 
 [[ $(<"$TMPDIR/omasnap") == "--notify $TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
 pass "clipboard open helper opens image entries in Omasnap"
+
+history_text=$'-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASC\n-----END PRIVATE KEY-----'
+jq -n --arg text "$history_text" '[{type:"text", text:$text}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+
+rm -f "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WL_COPY_ARGS_OUT="$TMPDIR/copied-args" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --history-index 0 --copy-only
+
+copy_args=" $(<"$TMPDIR/copied-args") "
+[[ $copy_args == *" --type text/plain;charset=utf-8 "* ]] || fail "clipboard paste helper specifies text/plain UTF-8 mime type for history entries" "actual: $(<"$TMPDIR/copied-args")"
+copied_stdin=$(<"$TMPDIR/copied")
+[[ $copied_stdin == "$history_text" ]] || fail "clipboard paste helper carries history entry text on stdin" "expected: $history_text\nactual: $copied_stdin"
+[[ ! -e $TMPDIR/wtype ]] || fail "clipboard paste helper copy-only skips typing"
+pass "clipboard paste helper sets plain text type for history entries"
+pass "clipboard paste helper carries history entry text on stdin"
+
+rm -f "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WL_COPY_ARGS_OUT="$TMPDIR/copied-args" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only "some text"
+
+copy_args=" $(<"$TMPDIR/copied-args") "
+[[ $copy_args == *" --type text/plain;charset=utf-8 "* ]] || fail "clipboard paste helper specifies text/plain UTF-8 mime type for direct text" "actual: $(<"$TMPDIR/copied-args")"
+copied_stdin=$(<"$TMPDIR/copied")
+[[ $copied_stdin == "some text" ]] || fail "clipboard paste helper carries direct text on stdin" "expected: some text\nactual: $copied_stdin"
+[[ ! -e $TMPDIR/wtype ]] || fail "clipboard paste helper direct copy-only skips typing"
+pass "clipboard paste helper sets plain text type for direct text"
+pass "clipboard paste helper carries direct text on stdin"
