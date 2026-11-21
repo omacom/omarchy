@@ -1,0 +1,121 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Kiro usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Kiro CLI usage into one display-ready JSON record.
+
+Kiro CLI keeps each session as ~/.kiro/sessions/<workspace>/sess_<id>/
+messages.jsonl, one JSON entry per line. A `user` entry is a typed prompt, and
+its timestamp dates it. The entries record no token counts, so the stats are
+prompts and sessions only. Kiro bills in credits against a plan that its CLI
+and its sessions never expose, so there are no limits and no plan to show: the
+agents panel only ever reads the JSON this prints.
+"""
+
+import argparse
+import json
+import os
+import sys
+from pathlib import Path
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  Stats,
+  base_record,
+  cached_scan,
+  emit,
+  local_day,
+  scan_max_age,
+  warn,
+)
+
+AGENT_ID = "kiro"
+AGENT_NAME = "Kiro"
+
+
+def sessions_root():
+  return Path.home() / ".kiro" / "sessions"
+
+
+def session_logs():
+  """Every session's messages.jsonl, and whether every directory could be
+  listed: Path.glob() skips an unreadable one without saying so."""
+  logs = []
+  complete = True
+  root = sessions_root()
+  try:
+    workspaces = [entry for entry in os.scandir(root) if entry.is_dir()]
+  except FileNotFoundError:
+    # Kiro CLI never ran here.
+    return logs, complete
+  except OSError as exc:
+    warn(f"could not list {root} ({exc})")
+    return logs, False
+  for workspace in workspaces:
+    try:
+      for entry in os.scandir(workspace.path):
+        if entry.name.startswith("sess_") and entry.is_dir():
+          logs.append(Path(entry.path) / "messages.jsonl")
+    except OSError as exc:
+      warn(f"could not list {workspace.name} ({exc})")
+      complete = False
+  return sorted(logs), complete
+
+
+def scan():
+  """Every typed prompt in Kiro CLI's session logs. Returns (stats, complete);
+  a scan that couldn't read every log is not cached."""
+  stats = Stats()
+  logs, complete = session_logs()
+  for path in logs:
+    session = "kiro:" + path.parent.name
+    try:
+      with path.open(errors="replace") as lines:
+        for line in lines:
+          # Most entries are replies and tool calls; only parse a prompt.
+          if '"user"' not in line:
+            continue
+          try:
+            entry = json.loads(line)
+          except ValueError:
+            continue
+          payload = entry.get("payload") if isinstance(entry, dict) else None
+          if not isinstance(payload, dict) or payload.get("type") != "user":
+            continue
+          day = local_day(entry.get("timestamp"))
+          if day is None:
+            continue
+          stats.add_prompts(day, session)
+    except FileNotFoundError:
+      # A session directory that never wrote a log.
+      continue
+    except OSError as exc:
+      warn(f"could not read {path.parent.name} ({exc})")
+      complete = False
+  return stats.snapshot(), complete
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Print the Kiro usage record as JSON")
+  # --force rescans everything. --limits-only only promises fresh limits, and
+  # Kiro exposes none, so it reuses a scan far longer than a normal run.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  stats = cached_scan(AGENT_ID, [sessions_root()], scan_max_age(args.force, args.limits_only), scan)
+
+  # There is no quota to read, so nothing waits on a sign-in: the status stays
+  # empty and local stats show alone. A machine that never ran Kiro CLI prints
+  # a record the panel skips.
+  in_use = stats["totalSessions"] > 0
+  record = base_record(AGENT_ID, AGENT_NAME, ready=in_use, hasLocalStats=in_use)
+  record.update(stats)
+  emit(record)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

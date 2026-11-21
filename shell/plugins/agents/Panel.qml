@@ -716,6 +716,7 @@ Panel {
     grok: "grok",
     hermes: "hermes",
     kimi: "kimi",
+    kiro: "kiro-cli",
     muse: "muse",
     opencode: "opencode",
     qwen: "qwen"
