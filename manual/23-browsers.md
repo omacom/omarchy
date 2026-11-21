@@ -18,7 +18,7 @@ Run it with no argument and it tells you the current default. This sets the XDG 
 
 ## Copy URL and Download Video
 
-The Chromium-family browsers (Chromium itself, Chrome, Edge, Brave, and Brave Origin) come with three Omarchy extensions: two that reach out of the browser and into the rest of your system, and one that tidies up WhatsApp.
+The Chromium-family browsers (Chromium itself, Chrome, Edge, Brave, and Brave Origin) come with four Omarchy extensions: two that reach out of the browser and into the rest of your system, one that tidies up WhatsApp, and [Omareader](#omareader), which paints web pages in your theme.
 
 **Copy URL** puts the current tab's address on your clipboard with `Alt + Shift + L`. That's faster than clicking into the address bar and copying, and because it goes through the system clipboard rather than the browser's, you get an Omarchy notification confirming it and the URL is immediately available in [clipboard history](08-unified-clipboard-history.md) and every other app. There's a toolbar button too, if you prefer clicking.
 
@@ -29,6 +29,18 @@ Both extensions talk to Omarchy through a small native messaging host, which get
 **WhatsApp Slim** makes WhatsApp Web follow your system theme and collapses its chat list when the window is narrow.
 
 These are Chromium-family only. Firefox and Zen don't get them.
+
+## Omareader
+
+**Omareader** repaints web pages in your Omarchy theme. It starts out off, so pages look the way their sites made them until you turn it on. Click its toolbar button (in the puzzle-piece extensions menu until you pin it) and pick a mode under _All sites_:
+
+- **Normal** leaves pages as they are.
+- **Dark** gives every page a pitch-black background and keeps the page's own colors for links and highlights.
+- **Follow Omarchy** paints pages in your current theme: backgrounds and text take the theme's colors, links its blue, errors its red. Light themes keep pages light. Switch your theme and open tabs repaint within about a second, no reload needed.
+
+The row below picks a mode for the site you're on, so YouTube can stay Dark while everything else follows Omarchy. `Alt + Shift + O` flips the current site between its theme and Normal. Photos and video keep their colors; the one exception is a light background picture with text right on it, which gets dimmed so the text stays readable.
+
+Like the extensions above, it gets your theme's colors through a small native messaging host, and it's Chromium-family only.
 
 ## Firefox and Zen
 

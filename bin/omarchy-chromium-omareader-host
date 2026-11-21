@@ -1,0 +1,132 @@
+#!/usr/bin/python3
+# omarchy:summary=Native messaging host: stream the Omarchy palette to the Omareader Chromium extension
+# omarchy:args=[--dump]
+# omarchy:hidden=true
+"""Omareader native messaging host.
+
+Streams the active Omarchy palette to the extension and pushes an update whenever the
+theme changes. `--dump` prints the current palette and every installed theme's once as JSON.
+"""
+
+import json
+import os
+import re
+import select
+import struct
+import subprocess
+import sys
+import tomllib
+from pathlib import Path
+
+HOME = Path.home()
+CURRENT = HOME / ".local/state/omarchy/current"
+HEX = re.compile(r"^#[0-9a-fA-F]{3,8}$")
+LINE = re.compile(r'^\s*([A-Za-z0-9_]+)\s*=\s*"([^"]*)"')
+
+
+def read_colors(path: Path) -> dict | None:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        data = {m[1]: m[2] for m in map(LINE.match, text.splitlines()) if m}
+    colors = {k: v for k, v in data.items() if isinstance(v, str) and HEX.match(v.strip())}
+    if data.get("mode") in ("light", "dark"):
+        colors["mode"] = data["mode"]
+    return colors if "background" in colors or "color0" in colors else None
+
+
+def current_state() -> dict:
+    try:
+        name = (CURRENT / "theme.name").read_text(encoding="utf-8").strip()
+    except OSError:
+        name = "omarchy"
+    return {"name": name, "colors": read_colors(CURRENT / "theme/colors.toml")}
+
+
+def all_themes() -> dict:
+    """Every installed theme's palette, for --dump. User themes win over Omarchy's own."""
+    themes = {}
+    for root in (Path(os.environ["OMARCHY_PATH"]) / "themes", HOME / ".config/omarchy/themes"):
+        if not root.is_dir():
+            continue
+        for d in sorted(root.iterdir()):
+            colors = read_colors(d / "colors.toml")
+            if colors:
+                themes[d.name] = colors
+    return themes
+
+
+def state() -> dict:
+    return {"type": "state", "current": current_state()}
+
+
+def watch():
+    """An inotifywait on the current-theme dir, printing one line per change, or None.
+
+    omarchy-theme-set moves the new theme dir in and writes theme.name last, so
+    close_write and moved_to on this one dir see every switch. The parent-death
+    signal ends the watcher with the host, even when the browser kills the host.
+    """
+    try:
+        proc = subprocess.Popen(
+            ["setpriv", "--pdeathsig", "TERM", "inotifywait", "-m", "-e", "close_write,moved_to", "--format", "%f", str(CURRENT)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=0,
+        )
+    except OSError:
+        return None
+    # Without -q, inotifywait reports when its watch is in place. Waiting for that
+    # means a switch right after the first palette is sent cannot be missed.
+    for line in iter(proc.stdout.readline, b""):
+        if line.startswith(b"Watches established"):
+            return proc
+    return None  # the dir is missing or inotify failed; the palette stays as sent
+
+
+def send(msg: dict) -> None:
+    data = json.dumps(msg, separators=(",", ":")).encode()
+    sys.stdout.buffer.write(struct.pack("=I", len(data)) + data)
+    sys.stdout.buffer.flush()
+
+
+def port_open() -> bool:
+    """Reads one message from the browser, which sends none; False once it closes the port."""
+    raw = sys.stdin.buffer.read(4)
+    if len(raw) < 4:
+        return False
+    (length,) = struct.unpack("=I", raw)
+    sys.stdin.buffer.read(length)
+    return True
+
+
+def serve() -> None:
+    watcher = watch()
+    events = watcher.stdout if watcher else None
+    send(state())
+    while True:
+        ready, _, _ = select.select([sys.stdin] + ([events] if events else []), [], [])
+        if sys.stdin in ready and not port_open():
+            return
+        if events and events in ready:
+            if not events.readline():
+                events = None  # watcher gone; the palette stays as sent
+                continue
+            # A theme switch writes several files: send once they have settled.
+            while select.select([events], [], [], 0.25)[0] and events.readline():
+                pass
+            send(state())
+
+
+if __name__ == "__main__":
+    if "--dump" in sys.argv:
+        print(json.dumps({"current": current_state(), "themes": all_themes()}, indent=1))
+    else:
+        try:
+            serve()
+        except (BrokenPipeError, KeyboardInterrupt):
+            pass
