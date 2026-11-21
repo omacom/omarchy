@@ -1,6 +1,6 @@
 # Notices
 
-Notifications land in the top-right corner of the focused display. You can also quickly access the date and time, battery status, and current weather using the hotkey notices.
+Notifications land in the top-right corner of the focused display. You can move them to any other corner by setting `notifications.position` in `~/.config/omarchy/shell.json` to `top-left`, `bottom-right`, or `bottom-left`. You can also quickly access the date and time, battery status, and current weather using the hotkey notices.
 
 ## Notifications
 
