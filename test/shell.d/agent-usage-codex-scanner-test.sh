@@ -143,7 +143,7 @@ expect("Codex counts each request once, without a quota notification or cache an
 # Separate arguments, not "-a on-request" as one, which is no policy Codex
 # accepts.
 expect("Codex starts its app-server read-only with a supported approval policy",
-       (home() / "codex-args").read_text().split("\0"), ["-s", "read-only", "-a", "on-request", "app-server"])
+       (home() / "codex-args").read_text().split("\0"), ["--disable", "plugins", "-s", "read-only", "-a", "on-request", "app-server"])
 
 # Codex 0.163 writes a token_usage_record for every response it is billed for.
 # A remote compaction is one only a record names: the token_count after it

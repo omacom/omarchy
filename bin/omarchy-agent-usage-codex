@@ -557,11 +557,9 @@ def fetch_codex_rpc(home=None, primary=True):
     return result
 
   # No auth.json under the file store and no CODEX_ACCESS_TOKEN means
-  # account/read can only fail — and starting the app-server is not free: it
-  # syncs the plugin list, a git fetch per refresh that also leaves
-  # .tmp/git-* folders behind. The home is the one being probed, so a
-  # signed-out secondary account reads as signed out even while ~/.codex
-  # holds a login.
+  # account/read can only fail — and starting the app-server is not free.
+  # The home is the one being probed, so a signed-out secondary account reads
+  # as signed out even while ~/.codex holds a login.
   if not has_codex_credentials(Path(env.get("CODEX_HOME") or (Path.home() / ".codex")), env):
     result["usageStatusText"] = "Waiting for auth"
     result["authHelpText"] = AUTH_HELP
@@ -581,7 +579,7 @@ def fetch_codex_rpc(home=None, primary=True):
     stderr_file = None
   try:
     proc = subprocess.Popen(
-      [codex, "-s", "read-only", "-a", "on-request", "app-server"],
+      [codex, "--disable", "plugins", "-s", "read-only", "-a", "on-request", "app-server"],
       stdin=subprocess.PIPE,
       stdout=subprocess.PIPE,
       stderr=stderr_file or subprocess.DEVNULL,
