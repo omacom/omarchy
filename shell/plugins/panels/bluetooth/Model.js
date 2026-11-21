@@ -99,24 +99,37 @@ function deviceRow(d) {
   }
 }
 
+// Whether BlueZ knows what this device is, from its class or the appearance
+// its advertisements carry. A keyboard, headset, or phone has one; the
+// neighborhood's bikes, bulbs, and air conditioners advertise nothing, which
+// is what makes a list of them useless to scan through. The icon is the only
+// such signal Quickshell exposes — no RSSI, service UUIDs, or address type.
+function deviceHasClass(device) {
+  var icon = String(device && device.icon || "").trim().toLowerCase()
+  return icon !== "" && icon !== "unknown"
+}
+
 function deviceLists(devices) {
   var values = toArray(devices)
   var connected = []
   var known = []
   var discovered = []
+  var other = []
 
   for (var i = 0; i < values.length; i++) {
     var d = values[i]
     if (!d || !hasHumanName(d)) continue
     if (d.connected) connected.push(d)
     else if (d.paired || d.bonded || d.trusted) known.push(d)
-    else discovered.push(d)
+    else if (deviceHasClass(d)) discovered.push(d)
+    else other.push(d)
   }
 
   return {
     connected: sortedByLabel(connected),
     known: sortedByLabel(known),
-    discovered: sortedByLabel(discovered)
+    discovered: sortedByLabel(discovered),
+    other: sortedByLabel(other)
   }
 }
 
@@ -138,11 +151,15 @@ function withPendingAction(actions, address, action) {
   return next
 }
 
-function visibleSections(lists, discovering) {
+function visibleSections(lists, discovering, showOther) {
   var sections = []
   if (lists && lists.connected && lists.connected.length > 0) sections.push("connected")
   if (lists && lists.known && lists.known.length > 0) sections.push("known")
   if (discovering && lists && lists.discovered && lists.discovered.length > 0) sections.push("discovered")
+  if (discovering && lists && lists.other && lists.other.length > 0) {
+    sections.push("otherHeader")
+    if (showOther) sections.push("other")
+  }
   return sections
 }
 
@@ -151,7 +168,78 @@ function sectionDevices(lists, section) {
   if (section === "connected") return lists.connected || []
   if (section === "known") return lists.known || []
   if (section === "discovered") return lists.discovered || []
+  if (section === "other") return lists.other || []
   return []
+}
+
+// A row's identity across rebuilds: the section it sits in plus its BlueZ
+// address. A device that moves between sections is removed and inserted again,
+// which is what a ListView needs to see anyway.
+function scrollRowKey(section, address) {
+  return String(section || "") + ":" + String(address || "")
+}
+
+function scrollRowValues(row) {
+  var dev = (row && row.dev) || {}
+  return {
+    key: scrollRowKey(row.section, dev.address),
+    address: dev.address || "",
+    name: dev.name || "",
+    deviceName: dev.deviceName || "",
+    connected: !!dev.connected,
+    devState: dev.state !== undefined ? dev.state : -1,
+    batteryAvailable: !!dev.batteryAvailable,
+    battery: dev.battery !== undefined ? dev.battery : 0,
+    pairing: !!dev.pairing,
+    section: row.section || "",
+    indexInSection: row.indexInSection !== undefined ? row.indexInSection : 0,
+    first: row.first === true,
+    toggle: row.toggle === true
+  }
+}
+
+// Apply the difference between a ListModel's rows and `rows` in place.
+// Replacing a ListView's model resets its scroll position to the top, and the
+// panel rebuilds the desired rows every time BlueZ reports a device, so the
+// view has to keep its model across updates. Rows keep their identity: an
+// unchanged row is never removed and re-added, and only its changed fields
+// are written.
+function syncScrollRows(model, rows) {
+  var desired = []
+  var wanted = ({})
+  for (var i = 0; i < rows.length; i++) {
+    var values = scrollRowValues(rows[i])
+    desired.push(values)
+    wanted[values.key] = true
+  }
+
+  for (var r = model.count - 1; r >= 0; r--) {
+    if (!wanted[model.get(r).key]) model.remove(r)
+  }
+
+  for (var k = 0; k < desired.length; k++) {
+    var want = desired[k]
+    var current = k < model.count ? model.get(k) : null
+    if (!current || current.key !== want.key) {
+      var found = -1
+      for (var m = k + 1; m < model.count; m++) {
+        if (model.get(m).key === want.key) { found = m; break }
+      }
+      if (found >= 0) model.move(found, k, 1)
+      else model.insert(k, want)
+    }
+    updateScrollRow(model, k, want)
+  }
+}
+
+function updateScrollRow(model, index, want) {
+  var current = model.get(index)
+  for (var field in want) {
+    if (current[field] !== want[field]) {
+      model.set(index, want)
+      return
+    }
+  }
 }
 
 if (typeof module !== "undefined") {
@@ -166,12 +254,16 @@ if (typeof module !== "undefined") {
     nodeText: nodeText,
     bluetoothSinkMatchesDevice: bluetoothSinkMatchesDevice,
     sortedByLabel: sortedByLabel,
+    deviceHasClass: deviceHasClass,
     deviceRow: deviceRow,
     deviceLists: deviceLists,
     cloneMap: cloneMap,
     pendingAction: pendingAction,
     withPendingAction: withPendingAction,
     visibleSections: visibleSections,
-    sectionDevices: sectionDevices
+    sectionDevices: sectionDevices,
+    scrollRowKey: scrollRowKey,
+    scrollRowValues: scrollRowValues,
+    syncScrollRows: syncScrollRows
   }
 }
