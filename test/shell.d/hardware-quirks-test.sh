@@ -393,6 +393,7 @@ leaves=(
   hardware/asus/fix-asus-vivobook-s16-boot.sh
   hardware/hp/fix-hp-omnibook-x14-boot.sh
   hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh
+  hardware/hp/fix-hp-zbook-ultra-g3a-display.sh
   hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh
   hardware/samsung/galaxy-book4-edge-14.sh
   hardware/raspberrypi/raspberry-pi-4.sh
@@ -507,6 +508,9 @@ hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-ultra-14|0
 hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh|zbook-ultra-g3a|0|wrote etc/limine-entry-tool.d/hp-zbook-ultra-g3a.conf
 hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh|zbook-ultra-g3a+unreadable|0
 hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh|zbook-ultra-g1a|0
+hardware/hp/fix-hp-zbook-ultra-g3a-display.sh|zbook-ultra-g3a|0|wrote etc/limine-entry-tool.d/hp-zbook-ultra-g3a-display.conf
+hardware/hp/fix-hp-zbook-ultra-g3a-display.sh|zbook-ultra-g3a+unreadable|0
+hardware/hp/fix-hp-zbook-ultra-g3a-display.sh|zbook-ultra-g1a|0
 hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh|ideacentre-mini|0|wrote etc/mkinitcpio.conf.d/ideacentre-mini-initramfs.conf
 hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh|ideacentre-mini+unreadable|0
 hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh|ideacentre-mini-not-qualcomm|0

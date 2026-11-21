@@ -50,6 +50,7 @@ run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-vivobook-s15-boot.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-vivobook-s16-boot.sh"
 run_logged "$OMARCHY_INSTALL/hardware/hp/fix-hp-omnibook-x14-boot.sh"
 run_logged "$OMARCHY_INSTALL/hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh"
+run_logged "$OMARCHY_INSTALL/hardware/hp/fix-hp-zbook-ultra-g3a-display.sh"
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-n1x-gpu-memory.sh"
 
