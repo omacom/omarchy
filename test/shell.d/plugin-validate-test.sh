@@ -115,3 +115,17 @@ output=$(validate "$dir") && fail "validate refuses an entry point file that is 
 grep -qF "entry point file not found" <<<"$output" \
   || fail "validate reports a missing file as a missing file" "$output"
 pass "validate refuses an entry point file that is not there"
+
+# A rename declaration must not claim reserved IDs, itself, or invalid paths.
+dir=$(write_plugin "renamed" '["bar-widget"]' '{"barWidget": "Widget.qml"}')
+for previous in '["acme.old"]' '[]'; do
+  jq --argjson previous "$previous" '.renamedFrom = $previous' "$dir/manifest.json" >"$dir/new.json"
+  mv "$dir/new.json" "$dir/manifest.json"
+  validate "$dir" >/dev/null || fail "validate accepts a valid rename declaration"
+done
+for previous in '"acme.old"' '["omarchy.clock"]' '["acme.renamed"]' '["../old"]' '["acme.old","acme.old"]' '[42]'; do
+  jq --argjson previous "$previous" '.renamedFrom = $previous' "$dir/manifest.json" >"$dir/new.json"
+  mv "$dir/new.json" "$dir/manifest.json"
+  output=$(validate "$dir") && fail "validate refuses unsafe rename declaration $previous" "$output"
+done
+pass "validate accepts explicit previous IDs and rejects unsafe rename declarations"
