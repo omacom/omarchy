@@ -20,5 +20,3 @@
 # etc/sysctl.d/99-omarchy-sysctl.conf, etc/tmpfiles.d/omarchy-zswap.conf
 #   Swap on zram everywhere: the installer provides zram-generator on x86_64,
 #   install/omarchy-aarch64.packages on aarch64.
-# etc/modprobe.d/omarchy-usb-autosuspend.conf
-#   Applies where usbcore is a module; a kernel that builds it in ignores it.
