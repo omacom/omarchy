@@ -39,3 +39,13 @@ LC_ALL=C run_helper -Syu
 [[ $(cat "$test_tmp/call") == "env OMARCHY_UPDATE_PACMAN=1 LC_ALL=C ${expected_scope}pacman -Syu" ]] ||
   fail "helper forwards LC_ALL to the transaction" "$(cat "$test_tmp/call")"
 pass "helper forwards LC_ALL to the transaction"
+
+OMARCHY_COMPAT_BUNDLE="$test_tmp/transaction.json" run_helper -Syu --noconfirm
+[[ $(cat "$test_tmp/call") == "env OMARCHY_UPDATE_PACMAN=1 ${expected_scope}/usr/lib/omarchy-update-compat/privileged transaction $test_tmp/transaction.json -- -Syu --noconfirm" ]] ||
+  fail "a staged full upgrade uses the fixed privileged handoff" "$(cat "$test_tmp/call")"
+pass "a staged full upgrade uses the fixed privileged handoff and scope"
+
+OMARCHY_COMPAT_BUNDLE="$test_tmp/transaction.json" run_helper -S --needed archlinux-keyring
+[[ $(cat "$test_tmp/call") == "env OMARCHY_UPDATE_PACMAN=1 ${expected_scope}pacman -S --needed archlinux-keyring" ]] ||
+  fail "keyring bootstrap retains the normal native helper"
+pass "the compatibility handoff only applies to the main system upgrade"
