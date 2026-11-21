@@ -1,7 +1,17 @@
 #!/bin/bash
 
 # omarchy:summary=Restart the Omarchy shell
-# omarchy:examples=omarchy restart shell
+# omarchy:args=[--force]
+# omarchy:examples=omarchy restart shell | omarchy restart shell --force
+
+force=0
+case ${1:-} in
+  --force) force=1; shift ;;
+esac
+if (( $# )); then
+  echo "Usage: omarchy restart shell [--force]" >&2
+  exit 2
+fi
 
 # A caller opened after dev link/unlink may disagree with the still-running
 # desktop. The user manager receives Hyprland's environment at session start.
@@ -16,6 +26,20 @@ CONFIG_DIR="$session_omarchy_path/shell"
 if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
   hypr_dir=$(find "${XDG_RUNTIME_DIR:-/run/user/$UID}/hypr" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -n 1 | cut -d' ' -f2-)
   [[ -n $hypr_dir ]] && export HYPRLAND_INSTANCE_SIGNATURE=${hypr_dir##*/}
+fi
+
+# Forced recovery is only for an explicitly unlocked desktop. A failed IPC
+# query cannot prove that an unresponsive process is not still its locker.
+require_unlocked() {
+  local state=0
+  omarchy-hyprland-session-locked || state=$?
+  if (( state != 1 )); then
+    echo "Refusing forced restart: session is locked or lock state is unknown." >&2
+    return 1
+  fi
+}
+if (( force )); then
+  require_unlocked || exit 1
 fi
 
 # Restarting a live lock client would kill the lock screen and strand the
@@ -94,6 +118,38 @@ omarchy_shell_dirs() {
   done < <(quickshell list -a -j 2>/dev/null |
     jq -r '.[].config_path | select(endswith("/shell/shell.qml")) | rtrimstr("/shell.qml")' 2>/dev/null)
 }
+
+# A hung Qt event loop cannot process Quickshell's graceful IPC kill. Match
+# both the registered config and the live executable/arguments before sending
+# SIGKILL, so a stale runtime record cannot kill an unrelated reused PID.
+if (( force )); then
+  while read -r pid; do
+    [[ $pid =~ ^[0-9]+$ ]] || continue
+    [[ -d /proc/$pid ]] || continue
+    executable=$(readlink "/proc/$pid/exe" 2>/dev/null)
+    # Linux appends this suffix when an update replaces the running inode.
+    # Keep checking the original executable name and configuration arguments.
+    executable=${executable%" (deleted)"}
+    if [[ $executable != */quickshell ]]; then
+      echo "Refusing forced restart: shell process identity changed." >&2
+      exit 1
+    fi
+    mapfile -d '' -t argv <"/proc/$pid/cmdline" || continue
+    matches=0
+    for (( i = 0; i + 1 < ${#argv[@]}; i++ )); do
+      if [[ ${argv[i]} == "-p" && ${argv[i+1]} == "$CONFIG_DIR" ]]; then
+        matches=1
+      fi
+    done
+    if (( ! matches )); then
+      echo "Refusing forced restart: shell process configuration changed." >&2
+      exit 1
+    fi
+    require_unlocked || exit 1
+    kill -KILL "$pid" || exit 1
+  done < <(quickshell list -a -j 2>/dev/null |
+    jq -r --arg config "$CONFIG_DIR/shell.qml" '.[] | select(.config_path == $config) | .pid')
+fi
 
 while timeout 30 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
 while IFS= read -r dir; do

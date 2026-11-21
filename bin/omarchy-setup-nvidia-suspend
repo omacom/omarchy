@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Use NVIDIA sleep services to work around suspend and wake hangs
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+if (( $# )); then
+  echo "Usage: omarchy setup nvidia-suspend" >&2
+  exit 2
+fi
+
+# This workaround is for the x86 NVIDIA kernel-notifier suspend regression.
+# Other platforms own their sleep configuration through their boot packages.
+if ! omarchy-hw-x86 || ! omarchy-hw-nvidia; then
+  echo "This workaround requires an x86 computer with an NVIDIA GPU." >&2
+  exit 1
+fi
+if ! modinfo -p nvidia | grep -q '^NVreg_UseKernelSuspendNotifiers:'; then
+  echo "The installed NVIDIA driver does not support kernel suspend notifiers." >&2
+  exit 1
+fi
+
+config=$(mktemp)
+trap 'rm -f "$config"' EXIT
+cat >"$config" <<'CONF'
+# Use NVIDIA's service-based video-memory save/restore instead of kernel notifiers.
+options nvidia NVreg_UseKernelSuspendNotifiers=0 NVreg_PreserveVideoMemoryAllocations=1 NVreg_TemporaryFilePath=/var/tmp
+CONF
+
+sudo install -Dm644 "$config" /etc/modprobe.d/omarchy-nvidia-suspend.conf
+# Enable only: starting these units now would suspend the active GPU.
+sudo systemctl enable nvidia-suspend.service nvidia-resume.service nvidia-hibernate.service
+# Rebuild installed Limine UKIs, including early-loaded NVIDIA configuration.
+# mkinitcpio -P can instead target an installer artifact on image-based installs.
+sudo limine-mkinitcpio
+
+echo "NVIDIA sleep services configured. Reboot before testing suspend and unlock."
