@@ -1,5 +1,6 @@
 -- Browser tags and styling.
-o.window(o.chromium_browsers, { tag = "+chromium-based-browser" })
+-- XWayland Chrome app windows share this class and still need titlebars.
+o.window("(" .. o.chromium_browsers .. "|Google-chrome)", { tag = "+chromium-based-browser" })
 o.window("([fF]irefox|zen|librewolf)", { tag = "+firefox-based-browser" })
 o.window({ tag = "chromium-based-browser" }, { tile = true })
 
