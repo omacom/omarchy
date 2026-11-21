@@ -362,9 +362,11 @@ Panel {
     if (addButtonShown) hero.push({ kind: "add", index: 0 })
     if (hero.length > 0) rows.push(hero)
     if (picking) {
-      var choices = []
-      for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
-      rows.push(choices)
+      if (!checkingAccounts) {
+        var choices = []
+        for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
+        rows.push(choices)
+      }
       // A blank slate shows the recommended model's offer under the picker.
       if (addStage === "")
         for (var o = 0; o < providers.length; o++)
@@ -1515,6 +1517,10 @@ Panel {
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
   readonly property bool picking: addStage === "pick" || (blankSlate && addStage === "")
+  // A subscription can't be picked until the check says whether it would be
+  // a first sign-in or another account.
+  readonly property bool checkingAccounts: checkProcess.running
+    && addProviders.some(function(p) { return p.providerId !== "local" && p.providerId !== "network" && !addChecks[p.providerId] })
   // The + in the hero turns into the X that leaves adding. A first setup has
   // nothing to go back to until an agent is chosen.
   readonly property bool addButtonShown: !blankSlate || !picking
@@ -1538,6 +1544,8 @@ Panel {
     if (picking) refreshLocalListing()
   }
 
+  onCheckingAccountsChanged: if (picking) resetKeys()
+
   // A package upgrade may have brought new recipes; the listing Local AI
   // offers from is rewritten whenever the picker shows, from + or as a blank
   // slate, including one the panel opens on.
@@ -1553,7 +1561,7 @@ Panel {
     keyRow = 0
     keyColumn = 0
     Qt.callLater(function() {
-      if (picking) pointAt("choice", 0)
+      if (picking && !checkingAccounts) pointAt("choice", 0)
       else if (addStage === "local" || addStage === "network") pointAt("localAdd", 0)
     })
   }
@@ -1915,10 +1923,28 @@ Panel {
 
     PanelSeparator { foreground: root.foreground }
 
+    Text {
+      id: checkSpinner
+      visible: root.picking && root.checkingAccounts
+      anchors.horizontalCenter: parent.horizontalCenter
+      textFormat: Text.PlainText
+      text: "󰦖"
+      color: root.foreground
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.display
+
+      RotationAnimator on rotation {
+        running: checkSpinner.visible && !Style.reduceMotion
+        from: 0; to: 360
+        duration: Style.duration(800)
+        loops: Animation.Infinite
+      }
+    }
+
     // Pick: each agent by a large mark over its name, three across.
     Row {
       id: choiceRow
-      visible: root.picking
+      visible: root.picking && !root.checkingAccounts
       width: parent.width
       spacing: Style.space(10)
 

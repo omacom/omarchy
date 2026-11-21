@@ -487,3 +487,52 @@ assertEqual(progress(10, 10), 0.9, 'a start reaches 90% at the time the last one
 assert(progress(20, 10) > progress(15, 10) && progress(15, 10) > 0.9, 'a start that runs long keeps creeping')
 assert(progress(1000, 10) < 0.99, 'the bar never fills before the model is ready')
 JS
+
+# While the account check runs, choices stay hidden behind the spinner and out
+# of keyboard navigation; once the check answers, the first choice takes focus.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const keyRowsBody = source.match(/readonly property var keyRows: (\{[\s\S]*?\n  \})/)[1]
+const checkingExpr = source.match(/readonly property bool checkingAccounts: ([\s\S]*?)\n  \/\//)[1]
+const pointAtFn = source.match(/function pointAt\([\s\S]*?\n  \}/)[0]
+const resetKeysFn = source.match(/function resetKeys\([\s\S]*?\n  \}/)[0]
+
+const evalChecking = new Function('scope', 'with (scope) { return (' + checkingExpr + ') }')
+const evalKeyRows = new Function('scope', 'with (scope) ' + keyRowsBody)
+const state = {
+  addButtonShown: true,
+  picking: true,
+  addStage: 'pick',
+  addProviders: [{ providerId: 'claude' }, { providerId: 'codex' }, { providerId: 'grok' }, { providerId: 'local' }, { providerId: 'network' }],
+  addChecks: { claude: 'first' },
+  checkProcess: { running: true },
+  providers: [],
+  addRows: [],
+  pasteLinkShown: false,
+  addUrl: '',
+  starterShown: false,
+  starterPrompts: [],
+  starterColumns: 2,
+  cursorActive: false,
+  keyRow: 0,
+  keyColumn: 0,
+  Qt: { callLater: fn => fn() }
+}
+Object.defineProperty(state, 'checkingAccounts', { get() { return evalChecking(state) } })
+Object.defineProperty(state, 'keyRows', { get() { return evalKeyRows(state) } })
+state.pointAt = new Function('scope', 'with (scope) { return ' + pointAtFn + ' }')(state)
+state.resetKeys = new Function('scope', 'with (scope) { return ' + resetKeysFn + ' }')(state)
+
+assertEqual(state.checkingAccounts, true, 'account check stays active until every subscription provider has answered')
+assert(!state.keyRows.flat().some(item => item.kind === 'choice'), 'hidden choices stay out of keyboard rows while checking accounts')
+state.resetKeys()
+assertEqual(state.cursorActive, false, 'resetKeys does not select a hidden choice while checking accounts')
+
+state.addChecks = { claude: 'first', codex: 'first', grok: 'first' }
+assertEqual(state.checkingAccounts, false, 'local and network entries do not keep the account check spinner up')
+assertEqual(state.keyRows.flat().filter(item => item.kind === 'choice').length, 5, 'choices join keyboard rows once checking finishes')
+state.resetKeys()
+assertEqual(state.cursorActive, true, 'resetKeys activates the cursor once choices appear')
+assertDeepEqual(state.keyRows[state.keyRow][state.keyColumn], { kind: 'choice', index: 0 }, 'first choice is selected once choices appear')
+JS
