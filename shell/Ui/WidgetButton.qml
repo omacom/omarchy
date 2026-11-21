@@ -30,6 +30,25 @@ Item {
   property bool hasVisualContent: text !== ""
   property var revealHost: bar
   property string tooltipText: ""
+  property string tooltipShortcut: ""
+  property string tooltipBindingDescription: ""
+  property string tooltipShortcutFormat: ""
+  readonly property string effectiveTooltipText: {
+    var text = String(root.tooltipText || "")
+    var shortcut = root.tooltipBindingDescription
+      ? Commons.ShortcutHints.forAction(root.tooltipBindingDescription)
+      : String(root.tooltipShortcut || "").trim()
+    if (!shortcut) return text
+    if (root.tooltipShortcutFormat) {
+      shortcut = String(root.tooltipShortcutFormat).replace("%1", shortcut)
+    }
+    return text ? text + " | " + shortcut : shortcut
+  }
+  onEffectiveTooltipTextChanged: {
+    if (root.bar && (root.bar.tooltipTarget === root || root.bar.pendingTooltipTarget === root)) {
+      root.bar.showTooltip(root, root.effectiveTooltipText)
+    }
+  }
   property var registeredBar: null
   // Set by the bar while its own press handler, laid over the widget for
   // dragging, holds this button down; mouseArea never sees that press.
@@ -175,7 +194,7 @@ Item {
     cursorShape: root.pressable ? Qt.PointingHandCursor : Qt.ArrowCursor
     onEntered: {
       if (root.bar) {
-        root.bar.showTooltip(root, root.tooltipText)
+        root.bar.showTooltip(root, root.effectiveTooltipText)
       }
       if (root.maintainIndicatorReveal && root.revealHost && root.revealHost.setIndicatorItemHovered)
         root.revealHost.setIndicatorItemHovered(true)

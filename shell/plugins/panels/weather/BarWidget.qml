@@ -70,8 +70,7 @@ BarWidget {
     bar: root.bar
     text: panelLoader.item ? panelLoader.item.label : ""
     slotSize: Style.bar.statusSlot
-    // Tooltip suppressed because the panel is the detail view.
-    tooltipText: ""
+    tooltipBindingDescription: "Toggle weather"
 
     onPressed: function(b) {
       if (!root.bar) return

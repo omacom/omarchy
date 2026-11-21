@@ -14,6 +14,7 @@ BarWidget {
     bar: root.bar
     text: "\ue900"
     fontFamily: "omarchy"
+    tooltipBindingDescription: "Omarchy menu"
     onPressed: function(button) {
       if (!root.bar) return
       if (button === Qt.RightButton) root.bar.run("xdg-terminal-exec")

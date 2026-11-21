@@ -12,6 +12,17 @@ export OMARCHY_PATH="$ROOT"
 run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
+const shortcuts = requireFromRoot('shell/Commons/ShortcutHints.js')
+
+const activeBindings = [
+  { description: 'Audio', modmask: 68, key: 'A' },
+  { description: 'Calendar', modmask: 76, key: 'D' },
+  { description: 'Switch to workspace 1', modmask: 64, keycode: 10 }
+]
+assertEqual(shortcuts.forAction(activeBindings, 'Audio'), 'Super + Ctrl + A', 'shortcut hints use the active binding')
+assertEqual(shortcuts.forAction(activeBindings, 'Calendar'), 'Super + Ctrl + Alt + D', 'shortcut hints format combined modifiers')
+assertEqual(shortcuts.forAction(activeBindings, 'Switch to workspace 1'), 'Super + 1', 'shortcut hints resolve workspace keycodes')
+assertEqual(shortcuts.forAction(activeBindings, 'Disabled action'), '', 'shortcut hints omit actions with no active binding')
 
 // A widget's slot can be on the bar without being drawn (hidden by the
 // widget, or folded away by a drag), so panel routing has to pick the one
