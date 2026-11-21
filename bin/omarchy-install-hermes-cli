@@ -171,9 +171,18 @@ hermes_prompt_ready() {
 # at that path -- an official install elsewhere, a hand-rolled wrapper, even a
 # dangling link -- is the user's. Matched as a plain string with its trailing
 # slash, because the path carries a dot and a bare prefix would also claim a
-# wrapper pointing at ~/.hermes-old.
+# wrapper pointing at ~/.hermes-old. The current installer names the runtime
+# with its links resolved, so one reached through a link counts, and quotes
+# the path as Python's shlex does, which respells an apostrophe in it.
 ours() {
-  [[ -f $command_path && ! -L $command_path ]] && grep -qF "$HERMES_HOME/" "$command_path"
+  local prefix
+  [[ -f $command_path && ! -L $command_path ]] || return 1
+  for prefix in "$HERMES_HOME" "$(realpath -m -- "$runtime")"; do
+    if grep -qF -e "$prefix/" -e "${prefix//\'/\'\"\'\"\'}/" -- "$command_path"; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 # What omarchy-agent runs is whichever hermes is first on PATH, and Omarchy puts
@@ -192,12 +201,40 @@ shadowing_hermes() {
 }
 
 # The installer writes the marker last, so it is the one thing that says a
-# runtime finished installing rather than merely started; the venv appears
-# several stages earlier. And a marker left behind by an install whose venv has
-# since gone answers for nothing, so the command has to run.
+# runtime finished installing rather than merely started; its command appears
+# several stages earlier. And a marker left behind by an install whose
+# environment has since gone answers for nothing, so the command has to run.
+# Upstream publishes that command under .hermes/bin since its package manager
+# took over the environments, and kept it in the checkout's venv before that.
 runtime_ready() {
-  [[ -f $runtime/.hermes-bootstrap-complete && -f $runtime/venv/bin/hermes && -x $runtime/venv/bin/hermes && -f $runtime/venv/bin/python && -x $runtime/venv/bin/python ]] &&
-    timeout 15 "$runtime/venv/bin/hermes" --version >/dev/null 2>&1
+  local cli="$runtime/.hermes/bin/hermes"
+  if [[ ! -f $cli ]]; then
+    cli="$runtime/venv/bin/hermes"
+    [[ -f $runtime/venv/bin/python && -x $runtime/venv/bin/python ]] || return 1
+  fi
+  [[ -f $runtime/.hermes-bootstrap-complete && -f $cli && -x $cli ]] &&
+    timeout 15 "$cli" --version >/dev/null 2>&1
+}
+
+# The package ships the installer of the release it was built from, and
+# upstream changed that installer's contract along with the runtime's layout.
+# The one before takes --force-commit and a path stage, replaces whatever holds
+# its commands' names, and leaves a shallow clone whose updater follows main.
+# The one after takes neither, keeps a command it did not write, and leaves a
+# full clone pinned to the release, which its updater moves release to release.
+# A runtime carries its own copy, which says which of the two it is whatever
+# release the package has moved to since.
+legacy_installer() {
+  grep -qs -- '--force-commit' "$1"
+}
+
+# A checkout that has lost its copy is taken to follow the package's.
+runtime_installer() {
+  if [[ -r $runtime/scripts/install.sh ]]; then
+    echo "$runtime/scripts/install.sh"
+  else
+    echo /usr/share/hermes-desktop/install.sh
+  fi
 }
 
 native_app_complete() {
@@ -408,7 +445,7 @@ refuse_unless_seedable() {
     echo "The Hermes runtime has moved beyond the packaged desktop release. Run 'hermes desktop --build-only', then try again." >&2
     return 1
   fi
-  if ! changes=$(git -C "$runtime" status --porcelain --untracked-files=all -- apps/desktop package.json package-lock.json 2>/dev/null); then
+  if ! changes=$(git -C "$runtime" status --porcelain --untracked-files=all -- apps/desktop package.json package-lock.json pnpm-lock.yaml 2>/dev/null); then
     echo "Could not read the Hermes runtime's git state at $runtime. Repair that installation before trying again; existing files have been kept." >&2
     return 1
   fi
@@ -448,11 +485,10 @@ if ! legacy_stub && ours && hermes_runs; then
   command_ready=true
 fi
 
-# Upstream replaces these commands, including foreign files and symlinks,
-# whether it sets the runtime up or only writes the commands again. Keep their
-# original bytes/links before handing the names to the runtime.
+# The runtime takes these names, whether this run sets it up or only writes
+# its commands again. Keep their original bytes/links before handing them over.
+command_backup=""
 if [[ $runtime_present == "false" || $command_ready == "false" ]]; then
-  command_backup=""
   for command in hermes hermes-agent hermes-acp; do
     existing="$HOME/.local/bin/$command"
     if [[ -e $existing || -L $existing ]]; then
@@ -469,34 +505,71 @@ if [[ $runtime_present == "false" || $command_ready == "false" ]]; then
   done
 fi
 
+# Writes the runtime's commands with its installer. The one before replaces
+# whatever holds their names in its path stage. The current one keeps a
+# command it did not write, so the names are freed first, and its products
+# stage, which publishes them, also rebuilds any product it finds stale. That
+# stage succeeds without writing them when Hermes is set not to, so what it
+# left is checked.
+publish_commands() {
+  local command installer saved="${command_backup:+ The commands that were there are saved in $command_backup.}"
+  installer=$(runtime_installer)
+  if legacy_installer "$installer"; then
+    bash "$installer" --stage path --dir "$runtime" --hermes-home "$HERMES_HOME"
+  else
+    for command in hermes hermes-agent hermes-acp; do
+      rm -f -- "$HOME/.local/bin/$command"
+    done
+    if ! bash "$installer" --stage products --dir "$runtime" --hermes-home "$HERMES_HOME"; then
+      echo "Hermes' installer did not finish.$saved" >&2
+      return 1
+    fi
+    if ! ours; then
+      echo "Hermes did not write its commands; its cli.expose_on_path setting can turn that off.$saved" >&2
+      return 1
+    fi
+  fi
+}
+
 if [[ $runtime_present == "false" ]]; then
   echo "Setting up the Hermes runtime..."
+  force_commit=()
+  if legacy_installer /usr/share/hermes-desktop/install.sh; then
+    force_commit=(--force-commit)
+  fi
   # npx stops to ask before fetching Playwright for the browser tools, and in
   # the terminal the menu opens for this nobody is there to say yes.
-  npm_config_yes=true bash /usr/share/hermes-desktop/install.sh --skip-setup --branch main --commit "$release_commit" --force-commit --dir "$runtime" --hermes-home "$HERMES_HOME"
+  npm_config_yes=true bash /usr/share/hermes-desktop/install.sh --skip-setup --branch main --commit "$release_commit" "${force_commit[@]}" --dir "$runtime" --hermes-home "$HERMES_HOME"
   if ! runtime_ready; then
     echo "Hermes runtime setup did not complete. Re-run this command after resolving the installer error." >&2
     exit 1
+  fi
+  # The current installer left any command saved above where it was, and
+  # writes none of its own when Hermes is set not to.
+  if { [[ -n $command_backup ]] || ! ours; } && ! legacy_installer "$(runtime_installer)"; then
+    publish_commands
   fi
   set_up=true
 elif [[ $command_ready == "false" ]]; then
   # The runtime is in place but the command is not its own, or does not run:
   # gone, the retired wrapper, one the user put there, or the runtime's own
-  # with its mode bits stripped. Upstream's path stage writes its commands
-  # without touching the checkout.
+  # with its mode bits stripped.
   echo "Restoring the Hermes commands..."
-  bash /usr/share/hermes-desktop/install.sh --stage path --dir "$runtime" --hermes-home "$HERMES_HOME"
+  publish_commands
 fi
 
 runtime_commit=$(git -C "$runtime" rev-parse HEAD)
 if [[ $runtime_commit == "$release_commit" ]]; then
-  # Start main at the packaged release, with enough history for its first
-  # fast-forward.
-  keep_main
-  if [[ $(git -C "$runtime" rev-parse --is-shallow-repository) == "true" ]]; then
-    unshallow_runtime
+  # The updater of the release before switches to main, so main starts at the
+  # packaged release, with enough history for its first fast-forward. The
+  # current one moves the pinned checkout from release to release as it is.
+  if legacy_installer "$(runtime_installer)"; then
+    keep_main
+    if [[ $(git -C "$runtime" rev-parse --is-shallow-repository) == "true" ]]; then
+      unshallow_runtime
+    fi
+    git -C "$runtime" switch -C main "$release_commit"
   fi
-  git -C "$runtime" switch -C main "$release_commit"
 
   if git -C "$runtime" apply --check /usr/share/hermes-desktop/runtime.patch >/dev/null 2>&1; then
     git -C "$runtime" apply /usr/share/hermes-desktop/runtime.patch
@@ -522,7 +595,10 @@ if [[ ! -e $native_app && ! -L $native_app ]]; then
 
   # Record this matching prebuilt app using the CLI's own content hash, so
   # subsequent menu launches do not rebuild an app that is already current.
-  env -u PYTHONPATH -u PYTHONHOME "$runtime/venv/bin/python" - "$runtime" <<'PY'
+  # The current release keeps a receipt only a build can write instead, so
+  # there the app is rebuilt the first time Hermes builds its products.
+  if legacy_installer "$(runtime_installer)"; then
+    env -u PYTHONPATH -u PYTHONHOME "$runtime/venv/bin/python" - "$runtime" <<'PY'
 import sys
 from pathlib import Path
 
@@ -534,6 +610,7 @@ else:
 
 _write_desktop_build_stamp(Path(sys.argv[1]), source_mode=False)
 PY
+  fi
   set_up=true
 fi
 
