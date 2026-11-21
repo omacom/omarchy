@@ -3,8 +3,34 @@
 # omarchy:summary=Record dictation using Voxtype
 # omarchy:args=<start|stop|toggle>
 
+# PipeWire suspends an idle mic. Voxtype starts the clock when record starts,
+# but audio arrives only after the source wakes, so the first part of a
+# sentence is missing. Unsuspend first, and give it a moment to come up.
+wake_suspended_source() {
+  local source state tries
+  source=$(pactl get-default-source 2>/dev/null) || return 0
+  [[ -n $source ]] || return 0
+  state=$(pactl list sources short 2>/dev/null | awk -v name="$source" '$2 == name { print $NF; exit }')
+  [[ $state == "SUSPENDED" ]] || return 0
+  pactl suspend-source "$source" 0 >/dev/null 2>&1 || return 0
+  for ((tries = 0; tries < 15; tries++)); do
+    state=$(pactl list sources short 2>/dev/null | awk -v name="$source" '$2 == name { print $NF; exit }')
+    [[ $state == "RUNNING" || $state == "IDLE" ]] && return 0
+    sleep 0.1
+  done
+}
+
 case "${1:-}" in
-  start|toggle) voxtype record "$1" ;;
+  start)
+    wake_suspended_source
+    voxtype record start
+    ;;
+  toggle)
+    if [[ $(voxtype status 2>/dev/null) != "recording" ]]; then
+      wake_suspended_source
+    fi
+    voxtype record toggle
+    ;;
   stop)
     if omarchy-cmd-missing voxtype || [[ $(voxtype status) == "stopped" ]]; then
       exit 0
