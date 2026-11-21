@@ -185,8 +185,11 @@ function ownRoomTarget(rows, axis, vertical, source) {
 // { region, after }: after its last widget, or before its first. Over the
 // room the dragged widget (`source`, a candidate's slot) still holds, a drop
 // puts it back, so a widget picked up beside an empty box, whose reach
-// covers its inner end, isn't thrown into it as the drag starts.
-function centerDropTarget(candidates, box, point, vertical, source) {
+// covers its inner end, isn't thrown into it as the drag starts. Where the
+// left or right section holds no widget, the bar's own ends (`bar`, its
+// { start, end } along it) stand for it, so a widget can be dropped back
+// into a section that was emptied.
+function centerDropTarget(candidates, box, point, vertical, source, bar) {
   var rows = Array.isArray(candidates) ? candidates : []
   if (!box) return nearestDropTarget(rows, point, vertical)
   var axis = vertical ? Number(point && point.y) : Number(point && point.x)
@@ -208,7 +211,28 @@ function centerDropTarget(candidates, box, point, vertical, source) {
   var edge = beginDistance <= endDistance
     ? { target: { region: "centerBegin", after: true }, distance: beginDistance }
     : { target: { region: "centerEnd", after: false }, distance: endDistance }
-  return outside && outside.distance <= edge.distance ? outside.target : edge.target
+  var best = outside && outside.distance <= edge.distance ? outside : edge
+  emptyEndEdges(rows, bar, axis).forEach(function(end) {
+    if (end.distance < best.distance) best = end
+  })
+  return best.target
+}
+
+// The bar's ends ({ start, end } along it) as drop edges for the left and
+// right sections where they hold no widget: the start of the bar begins the
+// left section, its end closes the right one.
+function emptyEndEdges(rows, bar, axis) {
+  if (!bar) return []
+  var start = Number(bar.start)
+  var end = Number(bar.end)
+  if (!isFinite(start) || !isFinite(end)) return []
+  function holds(region) {
+    return rows.some(function(row) { return row && row.region === region })
+  }
+  var edges = []
+  if (!holds("left")) edges.push({ target: { region: "left", after: false }, distance: Math.abs(axis - start) })
+  if (!holds("right")) edges.push({ target: { region: "right", after: true }, distance: Math.abs(axis - end) })
+  return edges
 }
 
 // The stretch of the bar over which a drop lands in the center box: the box
