@@ -79,7 +79,6 @@ raspberry-pi-4-bluetooth-firmware
 # Dell laptop support packages
 dell-xps-touchpad-haptics
 dell-xps13-sidecar-amps
-linux-firmware-cirrus-dx13260
 
 # Acer laptop support packages
 acer-aspire-16-ai-audio
