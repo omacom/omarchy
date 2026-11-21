@@ -57,7 +57,7 @@ PanelWindow {
   readonly property real pulseOpacity: 0.7
   // Room inward of the dock for its menus: the tallest, the apps button's,
   // has five rows.
-  readonly property int popupRoom: Style.spacing.popupRowHeight * 5 + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
+  readonly property int popupRoom: Style.spacing.popupRowHeight * 6 + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
   // Icons pop away from the screen edge.
   readonly property int popOrigin: position === "top" ? Item.Top
     : position === "left" ? Item.Left
@@ -129,6 +129,7 @@ PanelWindow {
   }
   property var menuItem: null
   property Item menuSlot: null
+  property point menuPoint: Qt.point(0, 0)
   // The apps button's menu: where the dock sits and whether it hides.
   property bool settingsMenu: false
 
@@ -140,13 +141,22 @@ PanelWindow {
   }
   Component.onCompleted: if (dock) dock.readMode(workspaceId)
 
-  function openMenu(item, slot) {
+  function setMenuPoint(slot, x, y) {
+    window.menuPoint = slot.mapToItem(window.contentItem,
+      x === undefined ? slot.width / 2 : x,
+      y === undefined ? slot.height / 2 : y)
+  }
+
+  function openMenu(item, slot, x, y) {
+    window.setMenuPoint(slot)
     window.settingsMenu = false
     window.menuItem = item
     window.menuSlot = slot
   }
 
-  function openSettingsMenu(slot) {
+  function openSettingsMenu(slot, x, y) {
+    if (slot === body) window.setMenuPoint(slot, x, y)
+    else window.setMenuPoint(slot)
     window.menuItem = null
     window.settingsMenu = true
     window.menuSlot = slot
@@ -172,10 +182,10 @@ PanelWindow {
     if (window.autohide) hideTimer.restart()
   }
 
-  // Places the menu inward of the dock, centered on a slot.
+  // Place the menu inward of the dock at the actual click, including gaps.
   function popupX(slot, popup) {
     if (!slot) return 0
-    var center = slot.mapToItem(window.contentItem, slot.width / 2, 0).x
+    var center = slot === body ? window.menuPoint.x : body.x + slots.x + slot.x + slot.width / 2
     if (window.position === "left") return body.x + body.width + window.gap
     if (window.position === "right") return body.x - window.gap - popup.width
     return Math.max(window.gap, Math.min(window.width - popup.width - window.gap, center - popup.width / 2))
@@ -183,7 +193,7 @@ PanelWindow {
 
   function popupY(slot, popup) {
     if (!slot) return 0
-    var center = slot.mapToItem(window.contentItem, 0, slot.height / 2).y
+    var center = slot === body ? window.menuPoint.y : body.y + slots.y + slot.y + slot.height / 2
     if (window.position === "top") return body.y + body.height + window.gap
     if (window.position === "bottom") return body.y - window.gap - popup.height
     return Math.max(window.gap, Math.min(window.height - popup.height - window.gap, center - popup.height / 2))
@@ -290,6 +300,13 @@ PanelWindow {
     // frame back instead of being uploaded again.
     opacity: window.shown ? 1 : 0
 
+    MouseArea {
+      anchors.fill: parent
+      z: -1
+      acceptedButtons: Qt.RightButton
+      onClicked: function(event) { window.openSettingsMenu(body, event.x, event.y) }
+    }
+
     HoverHandler {
       id: bodyHover
       onHoveredChanged: if (!hovered && window.autohide) hideTimer.restart()
@@ -325,6 +342,13 @@ PanelWindow {
     property bool hovered: mouse.containsMouse && !window.hoverStale && !window.dragging
     property bool pressed: mouse.pressed
     property alias mouse: mouse
+    property Item artwork: null
+
+    function iconContains(point) {
+      if (!artwork) return false
+      var at = slot.mapToItem(artwork, point.x, point.y)
+      return at.x >= 0 && at.y >= 0 && at.x < artwork.width && at.y < artwork.height
+    }
 
     width: window.slotSize
     height: window.slotSize
@@ -340,6 +364,7 @@ PanelWindow {
 
   component AppsSlot: Slot {
     id: appsSlot
+    artwork: launcherArtwork
 
     property real displayedShift: window.insertIndex >= 0 ? -window.slotSize / 2 : 0
 
@@ -355,7 +380,11 @@ PanelWindow {
 
     mouse.onClicked: function(event) {
       if (event.button === Qt.RightButton) {
-        window.openSettingsMenu(appsSlot)
+        if (appsSlot.iconContains(event)) window.openSettingsMenu(appsSlot, event.x, event.y)
+        else {
+          var point = appsSlot.mapToItem(body, event.x, event.y)
+          window.openSettingsMenu(body, point.x, point.y)
+        }
         return
       }
       window.closeMenu()
@@ -366,6 +395,7 @@ PanelWindow {
     // rather than taken from a font, so its edges stay crisp on the
     // transparent dock and it fills its slot like the app icons beside it.
     Item {
+      id: launcherArtwork
       x: window.iconInset
       y: window.iconInset
       width: window.iconSize
@@ -402,6 +432,7 @@ PanelWindow {
 
   component AppSlot: Slot {
     id: appSlot
+    artwork: appArtwork
 
     required property int index
     required property string key
@@ -482,7 +513,11 @@ PanelWindow {
         return
       }
       if (event.button === Qt.RightButton) {
-        window.openMenu(appSlot.modelData, appSlot)
+        if (appSlot.iconContains(event)) window.openMenu(appSlot.modelData, appSlot, event.x, event.y)
+        else {
+          var point = appSlot.bodyPoint(event)
+          window.openSettingsMenu(body, point.x, point.y)
+        }
         return
       }
       window.closeMenu()
@@ -492,6 +527,7 @@ PanelWindow {
 
     // Apps are drawn in full, running or not, and one that is starting pulses.
     AppIcon {
+      id: appArtwork
       x: window.iconInset
       y: window.iconInset
       width: window.iconSize
@@ -622,6 +658,17 @@ PanelWindow {
         onTriggered: {
           Util.execDetached("omarchy-dock autohide " + (window.autohide ? "off" : "on"))
           window.closeMenu()
+        }
+      }
+
+      PopupMenuRow {
+        text: Commons.I18n.t("dock.settings")
+        onTriggered: {
+          window.closeMenu()
+          Qt.callLater(function() {
+            if (window.dock && window.dock.shell)
+              window.dock.shell.summon("omarchy.menu", JSON.stringify({ menu: "appearance.dock" }))
+          })
         }
       }
 
