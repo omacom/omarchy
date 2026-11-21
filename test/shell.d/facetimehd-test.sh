@@ -205,9 +205,17 @@ run_guard() {
   : >"$calls"
   PATH="$stub_bin:$PATH" TEST_LOG="$calls" OMARCHY_FACETIMEHD_MODULE="$guard_root/$1" \
     OMARCHY_FACETIMEHD_RUN="$guard_root/run" OMARCHY_FACETIMEHD_PROC="$guard_root/proc" \
+    OMARCHY_FACETIMEHD_PCI="$guard_root/pci" OMARCHY_FACETIMEHD_PROBE_WAIT=0 \
     MODULE_BUSY="${3:-}" MODULE_LOAD_FAILS="${4:-}" "$guard" "$2" 2>"$test_tmp/guard.err"
 }
 mkdir -p "$guard_root/run"
+
+# A camera the driver has bound and registered, as the kernel shows one.
+camera="$guard_root/pci/0000:02:00.0"
+mkdir -p "$camera/video4linux/video0" "$guard_root/drivers/facetimehd"
+echo 0x14e4 >"$camera/vendor"
+echo 0x1570 >"$camera/device"
+ln -s "$guard_root/drivers/facetimehd" "$camera/driver"
 sleeping="$guard_root/run/facetimehd.sleeping"
 unloaded="$guard_root/run/facetimehd.unloaded"
 activate="$guard_root/run/facetimehd-firmware-fetcher.activate"
@@ -249,6 +257,16 @@ run_guard module post "" fails
   fail "a failed reload is handed to the fetcher to retry" "$(cat "$calls")"
 rm -f "$activate"
 pass "a failed reload is handed to the fetcher to retry"
+
+# The module loading again is not the camera coming back: one that fails to probe is handed over too.
+rmdir "$camera/video4linux/video0"
+run_guard module pre
+run_guard module post
+{ grep -Fxq $'modprobe\tfacetimehd' "$calls" && [[ -e $activate ]] && grep -Fxq "$fetch_started" "$calls"; } ||
+  fail "a camera that does not come back after the sleep is handed to the fetcher" "$(cat "$calls")"
+rm -f "$activate"
+mkdir "$camera/video4linux/video0"
+pass "a camera that does not come back after the sleep is handed to the fetcher"
 
 if run_guard module pre busy; then
   fail "the guard cancels hibernation while the camera is in use"

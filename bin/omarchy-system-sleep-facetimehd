@@ -13,6 +13,8 @@ set -uo pipefail
 
 module=${OMARCHY_FACETIMEHD_MODULE:-/sys/module/facetimehd}
 proc=${OMARCHY_FACETIMEHD_PROC:-/proc}
+pci=${OMARCHY_FACETIMEHD_PCI:-/sys/bus/pci/devices}
+probe_wait=${OMARCHY_FACETIMEHD_PROBE_WAIT:-10}
 
 # Shared with facetimehd-firmware-fetcher, which loads the driver once it has the firmware. Under the lock, it never
 # loads the driver while a hibernating sleep is in progress, and leaves its activation pending for post to resume.
@@ -29,6 +31,28 @@ camera_users() {
     pid=${fd#"$proc"/}
     cat "$proc/${pid%%/*}/comm" 2>/dev/null
   done | sort -u | paste -sd, - | sed 's/,/, /g'
+}
+
+# The module loading proves nothing about the camera, since the kernel keeps a module whose device failed to probe: it
+# works once the 1570's PCI function is bound to facetimehd and has registered a video device.
+camera_ready() {
+  local device found=
+  for device in "$pci"/*; do
+    [[ $(<"$device/vendor") == 0x14e4 && $(<"$device/device") == 0x1570 ]] || continue
+    [[ $(readlink "$device/driver") == */facetimehd ]] && compgen -G "$device/video4linux/video*" >/dev/null || return 1
+    found=1
+  done 2>/dev/null
+  [[ -n $found ]]
+}
+
+restore_driver() {
+  local _
+  modprobe facetimehd || return 1
+  for _ in $(seq "$probe_wait"); do
+    camera_ready && return 0
+    sleep 1
+  done
+  camera_ready
 }
 
 # The menu's systemctl hibernate shows nothing when the sleep fails, so each person at a seat is told why.
@@ -62,10 +86,10 @@ case ${1:-} in
     # The fetcher holds the lock only while it loads the driver, so waking waits for it rather than racing it.
     exec 8>>"$lock"
     flock 8
-    # Only a driver pre unloaded comes back, so one unloaded on purpose stays out. A load that fails becomes the
-    # fetcher's pending activation, which it retries until the camera works.
-    if [[ -e $unloaded ]] && ! modprobe facetimehd; then
-      echo "Could not load the FaceTime HD camera driver again; facetimehd-firmware-fetcher retries it" >&2
+    # Only a driver pre unloaded comes back, so one unloaded on purpose stays out. A camera that does not come back
+    # becomes the fetcher's pending activation, which it retries until the camera works.
+    if [[ -e $unloaded ]] && ! restore_driver; then
+      echo "The FaceTime HD camera did not come back after the sleep; facetimehd-firmware-fetcher retries it" >&2
       touch "$activate"
     fi
     rm -f "$unloaded" "$sleeping"
