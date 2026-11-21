@@ -140,6 +140,9 @@ Panel {
   }
 
   function copyCurrentOption() {
+    // No highlighted choice after a pointer leave: Enter waits for the
+    // keyboard cursor to pick one.
+    if (copyIndex < 0) return
     clampCopyIndex()
     if (copyOptions.length === 0) return
     copyOption(copyOptions[copyIndex].kind)
@@ -365,6 +368,9 @@ Panel {
   }
 
   function activateMullvadRegionCursor() {
+    // No highlighted region after a pointer leave: Enter waits for the
+    // keyboard cursor to pick one.
+    if (mullvadRegionIndex < 0) return
     var region = selectedMullvadRegion()
     if (region) chooseExitNode(region)
   }
@@ -618,6 +624,7 @@ Panel {
             // PanelHero (not this Panel) — reach panel state via `header`.
             readonly property bool ringVisible: root.headerHasCursor
             function focusHero() { root.setHeaderCursor() }
+            function releaseHero() { root.cursorActive = false }
 
             PanelHero {
               id: hero
@@ -649,7 +656,11 @@ Panel {
                   busy: tailscale.busy
                   hasCursor: header.ringVisible
                   foreground: hero.foreground
-                  onHovered: function(on) { if (on) header.focusHero() }
+                  onHovered: function(on) {
+                    Cursor.applyHover(on, powerSwitch.hasCursor, function() {
+                      header.focusHero()
+                    }, function() { header.releaseHero() })
+                  }
                   onToggled: tailscale.toggleTailscale()
 
                   PanelToolTip {
@@ -1028,7 +1039,11 @@ Panel {
                     width: parent.width
                     label: String(modelData.label || "")
                     selected: root.copyIndex === index
-                    onHovered: root.copyIndex = index
+                    onHovered: function(isHovered) {
+                      Cursor.applyHover(isHovered, selected, function() {
+                        root.copyIndex = index
+                      }, function() { root.copyIndex = -1 })
+                    }
                     onChosen: root.copyOption(String(modelData.kind || ""))
                   }
                 }
@@ -1067,6 +1082,12 @@ Panel {
     id: authRow
 
     hasCursor: root.cursorActive && root.focusSection === "auth"
+    hoverEnabled: !tailscale.busy
+    onHovered: function(isHovered) {
+      Cursor.applyHover(isHovered, authRow.hasCursor, function() {
+        root.setAuthCursor()
+      }, function() { root.cursorActive = false })
+    }
     foreground: root.foreground
 
     implicitHeight: row.implicitHeight + Style.spacing.rowPaddingX
@@ -1076,7 +1097,6 @@ Panel {
       hoverEnabled: true
       cursorShape: tailscale.busy ? Qt.ArrowCursor : Qt.PointingHandCursor
       enabled: !tailscale.busy
-      onEntered: root.setAuthCursor()
       onClicked: tailscale.authorizeTailscaleOperator()
     }
 
@@ -1136,6 +1156,11 @@ Panel {
     readonly property string accountText: account ? tailscale.accountLabel(account) : Commons.I18n.t("tailscale.account")
 
     hasCursor: root.cursorActive && root.focusSection === "accounts" && root.accountIndex === rowIndex
+    onHovered: function(isHovered) {
+      Cursor.applyHover(isHovered, accountRow.hasCursor, function() {
+        root.setAccountCursor(accountRow.rowIndex)
+      }, function() { root.cursorActive = false })
+    }
     current: selectedAccount
     foreground: root.foreground
     fill: root.hoverFill
@@ -1186,7 +1211,6 @@ Panel {
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
-      onEntered: root.setAccountCursor(accountRow.rowIndex)
       onClicked: if (accountRow.account && !accountRow.renaming && tailscale.switchingAccountId === "" && tailscale.renamingAccountId === "") tailscale.switchAccount(accountRow.account.id)
     }
 
@@ -1282,6 +1306,11 @@ Panel {
     }
     readonly property string peerDns: peer ? String(peer.DNSName || "") : ""
     hasCursor: root.cursorActive && root.focusSection === "peers" && root.peerIndex === rowIndex
+    onHovered: function(isHovered) {
+      Cursor.applyHover(isHovered, peerRow.hasCursor, function() {
+        root.setPeerCursor(peerRow.rowIndex)
+      }, function() { root.cursorActive = false })
+    }
     foreground: root.foreground
 
     implicitHeight: Math.max(peerContent.implicitHeight, copyButton.implicitHeight) + Style.spacing.rowPaddingX
@@ -1295,7 +1324,6 @@ Panel {
       acceptedButtons: Qt.LeftButton
       hoverEnabled: true
       cursorShape: Qt.ArrowCursor
-      onContainsMouseChanged: if (containsMouse) root.setPeerCursor(peerRow.rowIndex)
     }
 
     RowLayout {
@@ -1372,11 +1400,11 @@ Panel {
   component CopyChoice: CursorSurface {
     id: copyChoice
     signal chosen()
-    signal hovered()
     property string label: ""
     property bool selected: false
 
     visible: enabled
+    hoverEnabled: root.copyMenuOpen
     foreground: root.foreground
     hasCursor: selected
     implicitHeight: Style.space(48)
@@ -1386,7 +1414,6 @@ Panel {
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
-      onEntered: copyChoice.hovered()
       onClicked: copyChoice.chosen()
     }
 
@@ -1427,6 +1454,11 @@ Panel {
     readonly property string actionTooltip: addMullvad ? "" : (activeExitNode ? Commons.I18n.t("tailscale.disconnect") : Commons.I18n.t("tailscale.connect"))
 
     hasCursor: root.cursorActive && root.focusSection === "exitNodes" && root.exitNodeIndex === rowIndex
+    onHovered: function(isHovered) {
+      Cursor.applyHover(isHovered, exitNodeRow.hasCursor, function() {
+        root.setExitNodeCursor(exitNodeRow.rowIndex)
+      }, function() { root.cursorActive = false })
+    }
     current: activeExitNode || settingExitNode || (addMullvad && root.mullvadPickerOpen)
     foreground: root.foreground
     fill: root.hoverFill
@@ -1483,7 +1515,6 @@ Panel {
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
-      onEntered: root.setExitNodeCursor(exitNodeRow.rowIndex)
       onClicked: root.chooseExitNode(exitNodeRow.peer)
     }
 
@@ -1499,13 +1530,19 @@ Panel {
 
     property var peer: null
     property int rowIndex: 0
+    hoverEnabled: root.mullvadPickerOpen
     readonly property string regionName: root.mullvadRegionTitle(peer)
     readonly property string regionDetail: root.mullvadRegionSubtitle(peer)
     readonly property bool activeExitNode: peer && peer.ExitNode === true
     readonly property bool settingExitNode: peer && tailscale.settingExitNodeId === String(peer.id || "")
-    readonly property bool selectedRegion: root.mullvadPickerOpen && root.mullvadRegionIndex === rowIndex
+    readonly property bool selectedRegion: root.mullvadRegionIndex === rowIndex
     readonly property string actionTooltip: activeExitNode ? Commons.I18n.t("tailscale.disconnect") : Commons.I18n.t("tailscale.connect")
 
+    onHovered: function(isHovered) {
+      Cursor.applyHover(isHovered, regionRow.selectedRegion, function() {
+        root.mullvadRegionIndex = regionRow.rowIndex
+      }, function() { root.mullvadRegionIndex = -1 })
+    }
     foreground: root.foreground
     fill: root.hoverFill
     currentFill: root.selectedFill
@@ -1565,7 +1602,6 @@ Panel {
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
-      onEntered: root.mullvadRegionIndex = regionRow.rowIndex
       onClicked: root.chooseExitNode(regionRow.peer)
     }
 
