@@ -39,7 +39,7 @@ Each market gets its own media: the global ISO, and one per region profile (a Ch
 
 ## Scope of the China profile
 
-The China profile puts Omarchy's China mirrors first, installs China's own web apps (Bilibili, Weibo, Qwen, DeepSeek and Amap) in place of those blocked or unavailable in mainland China (ChatGPT, Discord, Google's, Grok, Netflix, Spotify, WhatsApp, X and YouTube) and of Basecamp and HEY, binds their hotkeys on the keys the global ones use, and starts new users on Jade Horse. Zoom stays: people in mainland China can join Zoom meetings. Language is a separate installer choice, not part of a region: a Chinese speaker outside China keeps global mirrors, and a China install in English still gets the regional ones.
+The China profile puts Omarchy's China mirrors first, installs China's own web apps (Bilibili, Weibo, Qwen, DeepSeek and Amap) in place of those blocked or unavailable in mainland China (ChatGPT, Discord, Google's, Grok, Netflix, Spotify, WhatsApp, X and YouTube) and of Basecamp and HEY, binds their hotkeys on the keys the global ones use, and starts new users on Jade Horse. Zoom stays: people in mainland China can join Zoom meetings. The menu hides what China blocks: Learn > Community (Discord) and the Signal, Dropbox, NordVPN and Microsoft rows of Install > Service, each with a `when` guard on `/etc/omarchy/region`. Language is a separate installer choice, not part of a region: a Chinese speaker outside China keeps global mirrors, and a China install in English still gets the regional ones.
 
 ## Remaining release validation
 
