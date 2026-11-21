@@ -1,0 +1,98 @@
+#!/usr/bin/python3
+# omarchy:summary=Copy text to the clipboard together with its rich text (HTML) version
+# omarchy:args=< {"text": "...", "html": "..."}
+# omarchy:hidden=true
+"""Offer one clipboard entry as both text/html and plain text.
+
+wl-copy offers a single MIME type, so a copy from Slack or a browser pasted
+back from clipboard history would lose its links. This reads {"text", "html"}
+as JSON on stdin and offers text/html beside text/plain, so rich text apps get
+the links and formatting while terminals and editors get the plain text.
+
+Like wl-copy, it keeps serving the clipboard in the background and exits once
+something else is copied. The foreground process returns only after the
+clipboard is set, so a paste that follows sees the new content.
+"""
+
+import json
+import os
+import sys
+
+
+def read_entry():
+    try:
+        entry = json.load(sys.stdin)
+    except ValueError:
+        return None
+
+    text = entry.get("text") if isinstance(entry, dict) else None
+    html = entry.get("html") if isinstance(entry, dict) else None
+    if not isinstance(text, str) or not text:
+        return None
+    if not isinstance(html, str) or not html:
+        html = None
+    return text, html
+
+
+def serve(text, html, ready_fd):
+    import gi
+
+    gi.require_version("Gdk", "4.0")
+    gi.require_version("Gtk", "4.0")
+    from gi.repository import Gdk, GLib, Gtk
+
+    Gtk.init()
+    display = Gdk.Display.get_default()
+    if display is None:
+        os.write(ready_fd, b"0")
+        return 1
+
+    plain = GLib.Bytes.new(text.encode())
+    providers = [
+        Gdk.ContentProvider.new_for_bytes("text/plain;charset=utf-8", plain),
+        Gdk.ContentProvider.new_for_bytes("text/plain", plain),
+    ]
+    if html:
+        providers.insert(0, Gdk.ContentProvider.new_for_bytes("text/html", GLib.Bytes.new(html.encode())))
+
+    clipboard = display.get_clipboard()
+    clipboard.set_content(Gdk.ContentProvider.new_union(providers))
+    display.sync()
+
+    loop = GLib.MainLoop()
+
+    def on_changed(changed_clipboard):
+        if not changed_clipboard.is_local():
+            loop.quit()
+
+    clipboard.connect("changed", on_changed)
+
+    os.write(ready_fd, b"1")
+    os.close(ready_fd)
+
+    devnull = os.open(os.devnull, os.O_RDWR)
+    for fd in (0, 1, 2):
+        os.dup2(devnull, fd)
+
+    loop.run()
+    return 0
+
+
+def main():
+    entry = read_entry()
+    if entry is None:
+        return 1
+
+    ready_read, ready_write = os.pipe()
+    if os.fork() > 0:
+        os.close(ready_write)
+        ready = os.read(ready_read, 1)
+        return 0 if ready == b"1" else 1
+
+    os.close(ready_read)
+    os.setsid()
+    os._exit(serve(*entry, ready_write))
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -17,12 +17,32 @@ if [[ ${CLIPBOARD_STATE:-} == "sensitive" ]] || grep -qx 'x-kde-passwordManagerH
 fi
 
 tmp=
-trap 'rm -f -- "$tmp"' EXIT
+html_tmp=
+trap 'rm -f -- "$tmp" "$html_tmp"' EXIT
+
+# Rich text kept beside a text entry is capped so a huge page copy can't bloat
+# the history file; past the cap the entry keeps its plain text only.
+HTML_LIMIT=262144
 
 # The clipboard owner streams the copy and can stall without closing its end, so
 # every read is bounded, and a copy cut off at the deadline is dropped, not kept.
 read_copy() {
   timeout 2s "$@" >"$tmp" 2>/dev/null && [[ -s $tmp ]]
+}
+
+# Copies from Slack, browsers and office apps also offer text/html, which holds
+# their links and formatting. Read it so pasting from history can offer it again.
+read_html() {
+  grep -qx 'text/html' <<<"$types" || return 1
+
+  html_tmp=$(mktemp --tmpdir="$STATE_DIR" clipboard-html.XXXXXX) || return 1
+  if timeout 2s wl-paste --type text/html >"$html_tmp" 2>/dev/null && [[ -s $html_tmp ]] && (( $(stat -c %s "$html_tmp") <= HTML_LIMIT )); then
+    return 0
+  fi
+
+  rm -f "$html_tmp"
+  html_tmp=
+  return 1
 }
 
 emit_image() {
@@ -49,9 +69,22 @@ emit_image() {
 }
 
 emit_text() {
+  local entry
+
   tmp=$(mktemp --tmpdir="$STATE_DIR" clipboard.XXXXXX) || return 0
   read_copy "$@" || return
 
+  entry=$(decode_text <"$tmp") || return
+  [[ -n $entry ]] || return
+
+  if read_html; then
+    jq -c --rawfile html "$html_tmp" '. + {html: $html}' <<<"$entry"
+  else
+    printf '%s\n' "$entry"
+  fi
+}
+
+decode_text() {
   perl -MEncode=decode,FB_CROAK,LEAVE_SRC -MJSON::PP=encode_json -0777 -e '
     my $raw = <STDIN>;
     exit unless length $raw;
@@ -95,7 +128,7 @@ emit_text() {
     }
     $text = decode("UTF-8", $raw) unless defined $text;
     print "{\"type\":\"text\",\"text\":", encode_json($text), "}\n";
-  ' <"$tmp"
+  '
 }
 
 case "${1:-}" in

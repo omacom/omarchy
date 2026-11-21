@@ -7,7 +7,13 @@ function normalizeEntry(value) {
   var type = String(value.type || value.kind || "")
   if (type === "text") {
     var text = String(value.text || "")
-    return text.trim().length > 0 ? { type: "text", text: text } : null
+    if (text.trim().length === 0) return null
+    var textEntry = { type: "text", text: text }
+    // Rich text copies keep their text/html beside the plain text so a paste
+    // from history brings back their links and formatting.
+    if (typeof value.html === "string" && value.html.trim().length > 0)
+      textEntry.html = value.html
+    return textEntry
   }
 
   if (type === "image") {
