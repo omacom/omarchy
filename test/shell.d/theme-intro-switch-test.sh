@@ -235,3 +235,14 @@ handed_over "$sky  false" || fail "a theme switch during an intro hands its cove
 ! grep -q '^shell: background themeTransition ' "$log" || fail "no ordinary transition runs under the playing intro"
 ! grep -qE '^owe: intro(-prepare)? ' "$log" || fail "the theme's still without an intro plays none"
 pass "a theme switch to a still without an intro while one plays keeps its cover"
+
+# The built-in intros ship only in the omarchy-themes-intros package, so a
+# theme staged from a checkout without them takes them from the installed tree.
+packaged="$test_tmp/packaged"
+mkdir -p "$packaged/solitude/backgrounds/intros" "$packaged/solitude/backgrounds/loops"
+printf 'intro\n' >"$packaged/solitude/backgrounds/intros/1-on-pole.mp4"
+printf 'loop\n' >"$packaged/solitude/backgrounds/loops/1-on-pole.mp4"
+OMARCHY_PACKAGED_THEMES_PATH="$packaged" set_theme solitude
+[[ -f $state/theme/backgrounds/intros/1-on-pole.mp4 ]] || fail "a checkout's theme stages the packaged intro"
+[[ -f $state/theme/backgrounds/loops/1-on-pole.mp4 ]] || fail "a checkout's theme stages the packaged loop"
+pass "themes staged from a checkout take their intros and loops from the package"
