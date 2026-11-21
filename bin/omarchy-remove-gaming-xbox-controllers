@@ -7,6 +7,22 @@
 
 set -e
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-gaming-xbox-controllers"
+    echo
+    echo "Remove the xpadneo Xbox controller driver and undo its module/blacklist config."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-gaming-xbox-controllers: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 omarchy-pkg-drop xpadneo-dkms
 
 sudo rm -f /etc/modprobe.d/blacklist-xpad.conf /etc/modules-load.d/xpadneo.conf

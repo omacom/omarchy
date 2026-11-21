@@ -5,6 +5,22 @@
 
 set -e
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-gaming-lutris"
+    echo
+    echo "Remove Lutris, Wine, umu-launcher, and all their configs and caches."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-gaming-lutris: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 omarchy-pkg-drop lutris wine-staging wine-mono wine-gecko winetricks python-protobuf umu-launcher
 
 rm -rf \

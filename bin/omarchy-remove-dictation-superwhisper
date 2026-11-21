@@ -5,6 +5,22 @@
 
 set -e
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-dictation-superwhisper"
+    echo
+    echo "Remove Superwhisper dictation and its desktop integration"
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-dictation-superwhisper: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 

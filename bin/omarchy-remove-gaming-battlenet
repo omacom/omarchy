@@ -4,6 +4,22 @@
 
 set -e
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-gaming-battlenet"
+    echo
+    echo "Remove Battle.net, its Proton prefix, installed games, and desktop entry."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-gaming-battlenet: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 PREFIX="$HOME/Games/battlenet"
 
 # Stop any running Battle.net / wine processes tied to this prefix.
