@@ -1,0 +1,5 @@
+# Apple Studio Display: on every DRM hotplug, pin its DisplayPort link to HBR3 so
+# 5K runs without DSC, which flickers on amdgpu. See omarchy-hw-apple-display-link.
+# The request file tells a run already going that an event arrived after it
+# looked: a start that merges into a running service leaves no other trace.
+ACTION=="change", SUBSYSTEM=="drm", ENV{DEVTYPE}=="drm_minor", RUN+="/bin/sh -c 'mkdir -p /run/omarchy-apple-display-link; touch /run/omarchy-apple-display-link/request; exec /usr/bin/systemctl --no-block start omarchy-apple-display-link.service'"
