@@ -69,21 +69,38 @@ done < <(ps -eo comm=,args=)
 chrome=google-chrome-stable
 omarchy-cmd-present "$chrome" || chrome=google-chrome
 
+# A refresh with no browser on the default profile would start one there, and
+# there is nothing to refresh: the next launch reads the policy. The profile's
+# SingletonLock points at <host>-<pid> of the browser that holds it. Another
+# data directory has a lock of its own, so that refresh is left to the timeout.
+profile_owned() {
+  local config=${XDG_CONFIG_HOME:-$HOME/.config} owner pid
+  [[ -n ${CHROME_USER_DATA_DIR:-}${CHROME_CONFIG_HOME:-} ]] && return 0
+  grep -qs -- --user-data-dir "${OMARCHY_BROWSER_FLAGS_DIR:-/etc}/$2" "$config/$2" && return 0
+  owner=$(readlink "$config/$1/SingletonLock") || return 1
+  pid=${owner##*-}
+  [[ ${owner%-*} == "$(uname -n)" && $pid =~ ^[0-9]+$ && -d /proc/$pid ]]
+}
+
 browsers_to_refresh=()
-for browser in chromium:chromium "chrome:$chrome" msedge:microsoft-edge-stable brave:brave; do
-  [[ -n ${running_names[${browser%%:*}]:-} ]] && omarchy-cmd-present "${browser#*:}" && browsers_to_refresh+=("${browser#*:}")
+for browser in chromium:chromium:chromium:chromium "chrome:$chrome:google-chrome:chrome" msedge:microsoft-edge-stable:microsoft-edge:microsoft-edge-stable brave:brave:BraveSoftware/Brave-Browser:brave; do
+  IFS=: read -r name command profile flags <<<"$browser"
+  [[ -n ${running_names[$name]:-} ]] && omarchy-cmd-present "$command" && profile_owned "$profile" "$flags-flags.conf" && browsers_to_refresh+=("$command")
 done
 # Match on the binary path: the running process is named plain "brave", and a
 # bare brave-origin pattern would also match the installer's own terminal.
-[[ $running_args == *"/opt/brave-origin-bin/"* ]] && omarchy-cmd-present brave-origin && browsers_to_refresh+=(brave-origin)
+[[ $running_args == *"/opt/brave-origin-bin/"* ]] && omarchy-cmd-present brave-origin && profile_owned BraveSoftware/Brave-Origin brave-origin-flags.conf && browsers_to_refresh+=(brave-origin)
 
 wait "$policy_pid" || failed=1
 
 # Refresh each running browser in parallel, so one slow launch doesn't
-# serialize the rest.
+# serialize the rest. The policy on disk is what the next launch reads either
+# way, so a browser that never returns must not hold up the theme change, the
+# migration that called it, or the update running that migration. -k because a
+# browser that ignores TERM leaves plain timeout waiting as long as it does.
 refresh_pids=()
 for command in "${browsers_to_refresh[@]}"; do
-  "$command" --refresh-platform-policy --no-startup-window &>/dev/null &
+  timeout -k 2s 10s "$command" --refresh-platform-policy --no-startup-window &>/dev/null &
   refresh_pids+=("$!")
 done
 
