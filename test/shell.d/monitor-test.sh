@@ -72,6 +72,20 @@ assertDeepEqual(
   ['1920x1080', '2560x1440', '3840x2160'],
   'monitor offers nothing below 1080p'
 )
+// Hyprland lists the kernel's preferred mode first. A 32:9 panel's native
+// 5120x1440 is that mode, even though an advertised 3840x2160 has more pixels.
+const superUltrawide = ['5120x1440@60.00Hz', '5120x1440@59.94Hz', '3840x2160@60.00Hz', '3840x1080@119.97Hz',
+  '2560x1440@60.00Hz', '1920x1080@60.00Hz', '1280x720@60.00Hz']
+assertDeepEqual(
+  monitor.resolutionOptions(superUltrawide, 5120, 1440),
+  ['3840x1080', '5120x1440'],
+  'monitor offers the preferred 32:9 modes when a 16:9 mode has more pixels'
+)
+assertDeepEqual(
+  monitor.resolutionOptions(['1280x800@60.00Hz', '1920x1200@59.88Hz', '1680x1050@60.00Hz'], 1920, 1200),
+  ['1280x800', '1920x1200'],
+  'monitor keeps a preferred mode below 1080p after switching to a larger one'
+)
 assertDeepEqual(monitor.resolutionOptions(undefined, 0, 0), [], 'monitor offers no resolutions without modes')
 assertEqual(monitor.resolutionLabel('6016x3384'), '6K', 'monitor names 6K')
 assertEqual(monitor.resolutionLabel('3840x2160'), '4K', 'monitor names 4K')

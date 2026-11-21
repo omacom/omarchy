@@ -80,10 +80,12 @@ function availableScales(scales, width, height) {
 }
 
 // The obvious resolutions for a display, smallest first so the row reads like a
-// slider: its native one, then the smaller modes with the same shape down to
-// 1080p, so nothing comes out stretched. Odd legacy and tiled modes stay out,
-// and the list stops at a handful. The current resolution always shows, so the
-// panel can mark it.
+// slider: the preferred mode Hyprland lists first and same-shape modes down to
+// 1080p, so nothing comes out stretched. The kernel puts the preferred mode
+// first and Hyprland keeps that order, whereas a mode with more pixels can have
+// another shape, as on a 32:9 panel that also advertises 4K. Odd legacy and
+// tiled modes stay out, and the list stops at a handful. The preferred and
+// current resolutions always show, so the panel can mark and return to them.
 var RESOLUTION_LIMIT = 5
 var RESOLUTION_MIN_HEIGHT = 1080
 
@@ -91,28 +93,38 @@ function resolutionOptions(availableModes, width, height) {
   if (!Array.isArray(availableModes)) return []
 
   var sizes = {}
+  var preferred = null
   for (var i = 0; i < availableModes.length; i++) {
     var match = /^(\d+)x(\d+)@/.exec(String(availableModes[i]))
     if (!match) continue
     var w = Number(match[1])
     var h = Number(match[2])
-    if (w > 0 && h > 0) sizes[w + "x" + h] = { w: w, h: h }
+    if (!(w > 0 && h > 0)) continue
+    var size = { w: w, h: h }
+    if (!preferred) preferred = size
+    sizes[w + "x" + h] = size
   }
 
   var all = Object.keys(sizes).map(function(key) { return sizes[key] })
   if (all.length === 0) return []
   all.sort(function(a, b) { return b.w * b.h - a.w * a.h || b.w - a.w })
 
-  var native = all[0]
-  var aspect = native.w / native.h
+  var aspect = preferred.w / preferred.h
+  var preferredKey = preferred.w + "x" + preferred.h
   var options = all.filter(function(size) {
     return size.h >= RESOLUTION_MIN_HEIGHT && Math.abs(size.w / size.h - aspect) < 0.01
   }).slice(0, RESOLUTION_LIMIT).map(function(size) { return size.w + "x" + size.h })
 
+  if (options.indexOf(preferredKey) < 0) {
+    if (options.length >= RESOLUTION_LIMIT) options.pop()
+    options.push(preferredKey)
+    options.sort(function(a, b) { return sizes[b].w * sizes[b].h - sizes[a].w * sizes[a].h || sizes[b].w - sizes[a].w })
+  }
+
   var current = Number(width) + "x" + Number(height)
   if (sizes[current] && options.indexOf(current) < 0) {
     options.push(current)
-    options.sort(function(a, b) { return sizes[b].w * sizes[b].h - sizes[a].w * sizes[a].h })
+    options.sort(function(a, b) { return sizes[b].w * sizes[b].h - sizes[a].w * sizes[a].h || sizes[b].w - sizes[a].w })
   }
   return options.reverse()
 }
