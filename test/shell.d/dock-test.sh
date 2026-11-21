@@ -91,6 +91,13 @@ const terminalEntries = [
 assertEqual(dock.claimingEntryId('org.omarchy.nvim', terminalEntries), 'nvim', 'dock gives Neovim launched by the TUI launcher its own entry')
 assertEqual(dock.claimingEntryId('org.omarchy.btop', terminalEntries), 'btop', 'dock matches a terminal entry by its program name')
 
+const hidden = { id: 'com.example.App', noDisplay: true }
+const launcher = { id: 'example', startupClass: 'com.example.App' }
+const other = { id: 'other', startupClass: 'org.example.Other' }
+assertEqual(dock.launcherIdForHiddenEntry('com.example.App', hidden, [other, launcher]), 'example', 'dock gives a window to its launcher over a hidden entry named after it')
+assertEqual(dock.launcherIdForHiddenEntry('com.example.App', { id: 'com.example.App' }, [launcher]), '', 'dock keeps a visible entry the lookup found')
+assertEqual(dock.launcherIdForHiddenEntry('com.example.App', hidden, [launcher, { id: 'example-beta', startupClass: 'com.example.App' }]), '', 'dock keeps the lookup when two launchers name the app id')
+
 const standIns = ['omarchy-terminal', 'omarchy-browser']
 assertEqual(dock.standInKey('foot', ['System', 'TerminalEmulator'], standIns), 'omarchy-terminal', 'a pinned Terminal claims the terminal it opened')
 assertEqual(dock.standInKey('google-chrome', ['Network', 'WebBrowser'], standIns), 'omarchy-browser', 'a pinned Browser claims the browser it opened')
