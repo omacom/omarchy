@@ -9,7 +9,7 @@ import "../panels/elsewhen/Model.js" as Reorder
 import "../panels/tailscale" as Tailscale
 
 // The models that run on hardware you own, and the memory they run in: one
-// bar across the top that splits this machine's RAM between apps, each running
+// bar across the top that splits this machine's RAM between Omarchy itself, each running
 // model and what's free, then a line per model.
 Panel {
   id: root
@@ -412,7 +412,7 @@ Panel {
 
   // ----------------------------------------------------------------- memory
   //
-  // This machine's RAM split into what apps hold, what each running model
+  // This machine's RAM split into what Omarchy holds (the system and its apps), what each running model
   // holds, and what's free for the next one to load into.
 
   // Whole GB, but a tenth under one, so a model that has let go of nearly
@@ -441,7 +441,7 @@ Panel {
       slices.push({ index: i, gib: gib })
       held += gib
     }
-    return { total: total, free: free, held: held, apps: Math.max(0, total - free - held), slices: slices }
+    return { total: total, free: free, held: held, system: Math.max(0, total - free - held), slices: slices }
   }
 
   // The line the bar speaks for: the one under the pointer, else the one the
@@ -468,7 +468,7 @@ Panel {
     if (p && p.fits) return Commons.I18n.t("localModels.memoryFits").arg(gb(Math.max(0, memory.free - p.needs)))
     if (p && p.needs > memory.free) return Commons.I18n.t("localModels.memoryShort").arg(gb(p.needs - memory.free))
     if (p) return Commons.I18n.t("localModels.notEnoughMemory")
-    var parts = [Commons.I18n.t("localModels.memoryApps").arg(gb(memory.apps))]
+    var parts = [Commons.I18n.t("localModels.memorySystem").arg(gb(memory.system))]
     if (memory.held > 0) parts.push(Commons.I18n.t("localModels.memoryModels").arg(gb(memory.held)))
     return parts.join(" · ")
   }
@@ -542,6 +542,9 @@ Panel {
   }
 
   readonly property var addRows: addRecipes.concat(addNetwork)
+  // Nothing left that fits and isn't set up, and no hidden tailnet model:
+  // no + to lead to an empty list.
+  readonly property bool addButtonShown: adding || addRows.length > 0
 
   function recipeFacts(recipe) {
     if (recipe.link) return Commons.I18n.t("localModels.linkSetUp")
@@ -629,7 +632,7 @@ Panel {
   property bool cursorActive: false
 
   readonly property var keyRows: {
-    var rows = [[{ kind: "add", index: 0 }]]
+    var rows = addButtonShown ? [[{ kind: "add", index: 0 }]] : []
     if (adding) {
       for (var r = 0; r < addRows.length; r++) rows.push([{ kind: "localAdd", index: r }])
       return rows
@@ -1041,6 +1044,7 @@ Panel {
 
             trailingControl: Component {
               HeroButton {
+                visible: root.addButtonShown
                 hasCursor: root.hasKey("add")
                 onHovered: root.pointAt("add")
                 glyph: root.adding ? "󰅖" : "󰐕"
@@ -1077,7 +1081,7 @@ Panel {
     }
   }
 
-  // The machine's memory as one bar: apps, then each running model, then
+  // The machine's memory as one bar: Omarchy, then each running model, then
   // what's free, to scale. Under it, what the bar adds up to, or what the
   // line under the pointer or cursor means for it.
   component MemoryBar: Column {
@@ -1102,7 +1106,7 @@ Panel {
     // what the others leave, which holds whichever way the row runs.
     readonly property real room: Math.max(0, width - gap * (root.memory.slices.length + 1))
     readonly property real freeWidth: {
-      var used = sliceWidth(root.memory.apps)
+      var used = sliceWidth(root.memory.system)
       for (var i = 0; i < root.memory.slices.length; i++) used += sliceWidth(root.memory.slices[i].gib)
       return Math.max(0, room - used)
     }
@@ -1119,10 +1123,10 @@ Panel {
         anchors.fill: parent
         spacing: memoryBar.gap
 
-        // What apps hold, in the track's own color.
+        // What Omarchy holds, in the track's own color.
         Rectangle {
           height: parent.height
-          width: memoryBar.sliceWidth(root.memory.apps)
+          width: memoryBar.sliceWidth(root.memory.system)
           radius: Math.min(height / 2, Style.cornerRadius)
           color: root.alpha(root.foreground, 0.28)
         }
@@ -1176,7 +1180,7 @@ Panel {
       PanelToolTip {
         visible: barHover.hovered && !memoryBar.p
         text: Commons.I18n.t("localModels.memoryTooltip")
-          .arg(root.formatGib(root.memory.apps))
+          .arg(root.formatGib(root.memory.system))
           .arg(root.formatGib(root.memory.held))
           .arg(Commons.I18n.formatNumber(Math.round(root.memory.free)))
         fontFamily: root.fontFamily
