@@ -108,6 +108,41 @@ grep -q '^omarchy-launch-webapp:http://127.0.0.1:18789/#cold-start$' "$TEST_LOG"
 pass "OpenClaw launch starts a stopped gateway before opening the app"
 rm -f "$tmp_dir/gateway-enabled"
 
+# timeout leaves the terminal's foreground group, so the agent's terminal stops
+# anything it runs that reads the terminal: only the TUI itself may have it.
+cat >"$tmp_dir/bin/openclaw" <<SCRIPT
+#!/bin/bash
+printf 'stdin:%s %s\\n' "\$(readlink /proc/\$\$/fd/0)" "\$*" >>"\$TEST_LOG"
+if [[ \$* == *--json* ]]; then
+  [[ -f $tmp_dir/gateway-up ]] || exit 1
+  echo '{"ok":true,"browserUrl":"http://127.0.0.1:18789/#tui"}'
+elif [[ \$1 == gateway ]]; then
+  touch "$tmp_dir/gateway-up"
+fi
+exit 0
+SCRIPT
+chmod +x "$tmp_dir/bin/openclaw"
+touch "$tmp_dir/terminal"
+for recovery in "gateway start" "gateway install --force"; do
+  if [[ $recovery == "gateway start" ]]; then
+    touch "$tmp_dir/gateway-enabled"
+  else
+    rm -f "$tmp_dir/gateway-enabled"
+  fi
+  rm -f "$tmp_dir/gateway-up"
+  : >"$TEST_LOG"
+  "$ROOT/bin/omarchy-launch-openclaw" --tui <"$tmp_dir/terminal"
+
+  grep -q "^stdin:/dev/null $recovery\$" "$TEST_LOG" ||
+    fail "--tui keeps the terminal from everything but the TUI" "$recovery: $(grep '^stdin:' "$TEST_LOG" | tr '\n' ' ')"
+  ! grep '^stdin:' "$TEST_LOG" | grep -v ' tui$' | grep -qv '^stdin:/dev/null ' ||
+    fail "--tui keeps the terminal from everything but the TUI" "$recovery: $(grep '^stdin:' "$TEST_LOG" | grep -v '^stdin:/dev/null ' | tr '\n' ' ')"
+  grep -q "^stdin:$tmp_dir/terminal tui\$" "$TEST_LOG" ||
+    fail "--tui keeps the terminal from everything but the TUI" "$recovery: the TUI did not get the terminal"
+done
+pass "--tui keeps the terminal from everything but the TUI"
+rm -f "$tmp_dir/gateway-enabled"
+
 # A dashboard probe that hangs is cut off, so the launch still fails cleanly
 # instead of sitting forever behind an app-grid icon with no terminal.
 cat >"$tmp_dir/bin/timeout" <<SCRIPT
