@@ -230,3 +230,36 @@ STUB
 minimize
 [[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows on a tiled workspace alone" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize leaves windows on a tiled workspace alone"
+
+# The dock raises a window in front of the pointer with Hyprland's warp off,
+# and puts the user's own setting back afterwards, even when a second click
+# lands before the first one's restore has run.
+require_command lua
+OMARCHY_PATH="$ROOT" node -e '
+  const dock = require(process.env.OMARCHY_PATH + "/shell/plugins/dock/DockModel.js")
+  process.stdout.write(dock.keepPointerLua(["hl.dsp.focus({ window = \"address:0x1\" })"]))
+' >"$TMPDIR/keep-pointer.lua"
+lua - "$TMPDIR/keep-pointer.lua" <<'LUA' || fail "dock raises a window without warping the pointer and restores the warp setting"
+local chunk = assert(loadfile(arg[1]))
+local config, timers, warp_at_focus = { no_warps = false }, {}, {}
+o = {}
+hl = {
+  get_config = function(key) assert(key == "cursor.no_warps"); return config.no_warps end,
+  config = function(c) config.no_warps = c.cursor.no_warps end,
+  dispatch = function() table.insert(warp_at_focus, config.no_warps) end,
+  timer = function(fn) table.insert(timers, fn) end,
+  dsp = { focus = function() end }
+}
+chunk()
+chunk()
+assert(warp_at_focus[1] == true and warp_at_focus[2] == true, "warp is off while the dock focuses")
+for _, run in ipairs(timers) do run() end
+assert(config.no_warps == false, "the user's setting comes back after two clicks")
+assert(o.dock_saved_no_warps == nil, "nothing is left saved")
+config.no_warps = true
+timers = {}
+chunk()
+for _, run in ipairs(timers) do run() end
+assert(config.no_warps == true, "a user who keeps warping off keeps it off")
+LUA
+pass "dock raises a window without warping the pointer and restores the warp setting"
