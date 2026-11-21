@@ -428,7 +428,7 @@ check(world.calls == 0, "the handler changed workspaces or focus during the tear
 check(#world.timers == 1, "the handler left the reconcile for later")
 
 fire_timers()
-check(world.calls > 0 and world.windows["0xb"].workspace == 2 and on(2) == "eDP-1", "the reconcile ran once the teardown returned")
+check(world.calls > 0 and world.windows["0xb"].workspace == 1 and on(1) == "eDP-1", "the reconcile ran once the teardown returned")
 ' || fail "a removed monitor is reconciled after its teardown, not during it"
 pass "a removed monitor is reconciled after its teardown, not during it"
 
@@ -444,8 +444,8 @@ world.active_window = "0xb"
 unplug("DP-1")
 world.handlers["monitor.removed"]({ name = "DP-1" })
 fire_timers()
-hl.dispatch(hl.dsp.focus({ workspace = "2" }))
-check(world.windows["0xb"].workspace == 2 and shows("eDP-1") == 2, "the workspace joined the laptop'"'"'s and is in view")
+hl.dispatch(hl.dsp.focus({ workspace = "1" }))
+check(world.windows["0xb"].workspace == 1 and shows("eDP-1") == 1, "the workspace joined the laptop'"'"'s and is in view")
 
 plug("DP-5", 1, "LG", 3)
 world.handlers["monitor.added"]({ name = "DP-5" })
@@ -499,6 +499,42 @@ check(world.windows["0xf"].workspace == 7 and on(7) == "eDP-1", "the new workspa
 ' || fail "an unplugged monitor's workspaces join another's after its own until it returns"
 pass "an unplugged monitor's workspaces join another's after its own until it returns"
 
+run_lua undock '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 11)
+window("0xb", 13)
+
+-- Docked with the lid shut, the panel is off and has no workspaces of its own.
+unplug("eDP-1")
+world.handlers["monitor.removed"]({ name = "eDP-1" })
+fire_timers()
+hl.dispatch(hl.dsp.focus({ workspace = "11" }))
+
+-- Undocking turns the panel back on, and Hyprland starts it on the lowest free number.
+plug("eDP-1", 0, "Panel", 1)
+world.handlers["monitor.added"]({ name = "eDP-1" })
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
+check(world.windows["0xa"].workspace == 1 and world.windows["0xb"].workspace == 2, "the workspaces start from the panel'"'"'s first, not " .. world.windows["0xa"].workspace)
+check(shows("eDP-1") == 1, "the panel shows the first of them, not " .. shows("eDP-1"))
+
+-- Docked again, Hyprland hands the LG its workspaces back before saying it has
+-- arrived, and parks the panel on the next free number.
+plug("DP-3", 3, "LG", 1)
+for _, workspace in ipairs(world.workspaces) do workspace.monitor = "DP-3" end
+world.workspaces[#world.workspaces + 1] = { id = 3, monitor = "eDP-1" }
+monitor_named("eDP-1").active = 3
+world.handlers["monitor.added"]({ name = "DP-3" })
+check(world.windows["0xa"].workspace == 11 and world.windows["0xb"].workspace == 13 and on(13) == "DP-3", "they go home under their old numbers")
+check(shows("eDP-1") == 1, "the panel is left on its first workspace, not " .. shows("eDP-1"))
+' || fail "an unplugged monitor's workspaces start from the first on a monitor with none of its own"
+pass "an unplugged monitor's workspaces start from the first on a monitor with none of its own"
+
 run_lua twins '
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 11)
@@ -516,7 +552,7 @@ world.handlers["monitor.removed"]({ name = "DP-1" })
 fire_timers()
 check(m.workspace_id(hl.get_monitor("DP-2"), 1) == 21, "the remaining twin took the unplugged one'"'"'s block")
 check(world.windows["0xb"].workspace == 22 and on(22) == "DP-2", "the remaining twin'"'"'s workspace moved to " .. world.windows["0xb"].workspace)
-check(world.windows["0xa"].workspace == 2 and on(2) == "eDP-1", "the unplugged twin'"'"'s workspace joined the laptop'"'"'s")
+check(world.windows["0xa"].workspace == 1 and on(1) == "eDP-1", "the unplugged twin'"'"'s workspace joined the laptop'"'"'s")
 
 m = load_module()
 world.handlers["config.reloaded"]()
