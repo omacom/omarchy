@@ -57,18 +57,23 @@ audit_scale_change() {
     "$grandparent_cmd" >>"$SCALE_LOG"
 }
 
-# Hyprland only accepts scales where the mode divides into whole logical
-# pixels (in 1/120 steps), so clean scales are divisors of gcd(w*120, h*120).
-# Round the requested scale up to the nearest clean value.
+# Match Hyprland's bounded search, including its floating-point whole-pixel check.
+# Integer divisibility can accept a scale the compositor would skip.
 clean_scale() {
   awk -v scale="$1" -v width="$2" -v height="$3" '
-    function gcd(a, b, t) { while (b) { t = a % b; a = b; b = t } return a }
+    function whole(k,    w, h) {
+      if (k <= 0) return 0
+      w = width / (k / 120); h = height / (k / 120)
+      return w == int(w) && h == int(h)
+    }
     BEGIN {
-      g = gcd(width * 120, height * 120)
       k = int(scale * 120 + 0.5)
-      if (k > g) k = g
-      while (g % k != 0) k++
-      printf "%g\n", k / 120
+      if (whole(k)) { printf "%g\n", k / 120; exit 0 }
+      for (i = 1; i < 90; i++) {
+        if (whole(k + i)) { printf "%g\n", (k + i) / 120; exit 0 }
+        if (whole(k - i)) { printf "%g\n", (k - i) / 120; exit 0 }
+      }
+      exit 1
     }'
 }
 
@@ -93,11 +98,15 @@ set_scale() {
     exit 1
   fi
 
-  local new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
+  local new_scale
+  new_scale="$(clean_scale "$requested_scale" "$width" "$height")" || {
+    echo "No scale near $requested_scale divides ${width}x${height} into whole pixels." >&2
+    return 1
+  }
 
   local mode="${width}x${height}@${refresh_rate}"
 
-  omarchy-hyprland-monitor-persist "$active_monitor" "$new_scale"
+  omarchy-hyprland-monitor-persist "$active_monitor" "$new_scale" || return 1
 
   # Beside other monitors it keeps its place, and the layout applies the new
   # scale in the same step as closing up around its new size, so the two never
@@ -117,13 +126,22 @@ scale_from_current() {
   local height="${3:-}"
 
   awk -v direction="$direction" -v list="${SCALES[*]}" -v width="$width" -v height="$height" '
-    function gcd(a, b, t) { while (b) { t = a % b; a = b; b = t } return a }
-    function clean(scale,    g, k) {
-      g = gcd(width * 120, height * 120)
+    function whole(k,    w, h) {
+      if (k <= 0) return 0
+      w = width / (k / 120); h = height / (k / 120)
+      return w == int(w) && h == int(h)
+    }
+    # Same search as clean_scale above, and for the same reason: a preset that
+    # steps to a scale the compositor would not have chosen is not a step the
+    # user can see. Returns 0 for a preset this mode cannot reach at all.
+    function clean(scale,    k, i) {
       k = int(scale * 120 + 0.5)
-      if (k > g) k = g
-      while (g % k != 0) k++
-      return k / 120
+      if (whole(k)) return k / 120
+      for (i = 1; i < 90; i++) {
+        if (whole(k + i)) return (k + i) / 120
+        if (whole(k - i)) return (k - i) / 120
+      }
+      return 0
     }
     NR == 1 { scale = $0; found = 1 }
     END {
@@ -132,6 +150,7 @@ scale_from_current() {
       preset_count = split(list, presets, " ")
       for (i = 1; i <= preset_count; i++) {
         effective = clean(presets[i])
+        if (effective == 0) continue
         key = sprintf("%.8f", effective)
         distance = presets[i] - effective
         if (distance < 0) distance = -distance
@@ -151,6 +170,9 @@ scale_from_current() {
           }
         }
       }
+
+      # Every preset was unreachable on this mode, so there is no step to take.
+      if (n == 0) exit 1
 
       # Snap to the nearest effective scale first. Hyprland reports floating
       # point values, so exact comparisons can otherwise get stuck.
@@ -194,13 +216,15 @@ case "${1:-}" in
   ;;
 up)
   monitor_info=$(target_monitor_info)
-  set_scale "$(echo "$monitor_info" | jq -r '.scale' | scale_from_current next \
-    "$(echo "$monitor_info" | jq -r '.width')" "$(echo "$monitor_info" | jq -r '.height')")" "up"
+  requested_scale=$(echo "$monitor_info" | jq -r '.scale' | scale_from_current next \
+    "$(echo "$monitor_info" | jq -r '.width')" "$(echo "$monitor_info" | jq -r '.height')") || exit 1
+  set_scale "$requested_scale" "up"
   ;;
 down)
   monitor_info=$(target_monitor_info)
-  set_scale "$(echo "$monitor_info" | jq -r '.scale' | scale_from_current previous \
-    "$(echo "$monitor_info" | jq -r '.width')" "$(echo "$monitor_info" | jq -r '.height')")" "down"
+  requested_scale=$(echo "$monitor_info" | jq -r '.scale' | scale_from_current previous \
+    "$(echo "$monitor_info" | jq -r '.width')" "$(echo "$monitor_info" | jq -r '.height')") || exit 1
+  set_scale "$requested_scale" "down"
   ;;
 1 | 1.25 | 1.6 | 2 | 3 | 4)
   set_scale "$1" "$1"
