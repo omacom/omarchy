@@ -1,6 +1,6 @@
 # Booting with systemd-boot
 
-x86 installs boot Limine until `omarchy-boot-switch` moves them to systemd-boot. Secure Boot on stock hardware needs a Microsoft-signed shim, and shim review's established second stages are GRUB and systemd-boot. This page is the reference for the systemd-boot side. ARM platforms and BIOS installs stay on Limine for now.
+New UEFI x86 installs boot systemd-boot; older x86 installs boot Limine until `omarchy-boot-switch` moves them. Secure Boot on stock hardware needs a Microsoft-signed shim, and shim review's established second stages are GRUB and systemd-boot. This page is the reference for the systemd-boot side. ARM platforms and BIOS installs stay on Limine for now.
 
 ## Which loader a machine boots
 
@@ -58,6 +58,17 @@ The pipeline:
 
 `omarchy-boot-switch revert` undoes everything before `active`. Snapshots taken before the switch stay on disk but have no systemd-boot entry and can't be restored: their roots expect Limine.
 
+## Installed with systemd-boot
+
+`omarchy-boot-switch install [--no-efi-register] [--no-fallback] [--prefer PKGBASE]` sets up a machine that never had Limine, straight to `active`. The ISO runs it in the new root once every boot drop-in is written, after swapping the image's `omarchy-boot` for `omarchy-boot-systemd` and registering the "Omarchy Boot" entry itself. It:
+
+- creates the store and its fstab line;
+- takes `/etc/kernel/cmdline` (or `/etc/default/limine`'s command line, if that's all there is) and moves any drop-ins written in Limine's format to `/etc/cmdline.d/`;
+- copies systemd-boot and `loader.conf` to the ESP, builds and verifies the images, and takes the fallback path unless told not to or another system's loader is there;
+- registers and puts first the NVRAM entry, unless the caller does.
+
+`omarchy-boot-backend` recognises such a machine by `omarchy-boot-systemd`'s snapper plugin, even where the store isn't mounted (a factory clone). A factory reset of it runs the same install in the clone, into a fresh `@omarchy-boot-next` store that replaces the old owner's `@omarchy-boot` once the clone is at `@`; the old owner's images leave the ESP then too. BIOS installs keep Limine: systemd-boot can't start on BIOS firmware. `OMARCHY_ISO_BOOT_LOADER=limine` keeps a UEFI install on Limine.
+
 The migration only offers the switch. Unattended updates, declines and ineligible machines stay on Limine, and Setup > Switch to systemd-boot keeps offering it. `omarchy-boot-notify`, a user service at login, shows what the root side recorded (`notice_*` in the state).
 
 ## Restore
@@ -96,4 +107,3 @@ The `omarchy-snapshot-overlay` hook boots read-only snapshots with a tmpfs overl
 - **Turning on Secure Boot.** Needs the Microsoft-signed Omarchy shim, `CONFIG_LOCK_DOWN_IN_EFI_SECURE_BOOT`, module signing (DKMS/NVIDIA) and MOK enrollment. `signing=required` in the state is where a signing key gets enforced: a missing key or a failed signature keeps the published images.
 - **ARM.** Needs aa64 loader paths, device trees from `/etc/kernel/uki.conf` in every image, N1x's fallback image, and hardware tests.
 - **Factory reset** on a machine that switched returns it to Limine, which the factory root was installed with. The reset runs `limine-install --no-efi-register` in the factory root and gives Limine a boot entry behind systemd-boot. Once the factory root is at `@`, it puts Limine first, makes Limine the fallback loader again if systemd-boot had taken it, and removes systemd-boot's entry and files, the old system's boot images, the boot store and any `@backup-*`/`@restore-*` roots. A reset that fails earlier leaves systemd-boot booting. The reset refuses while a switch is staged or on trial, and while a snapshot restore waits for its reboot.
-- **Fresh ISO installs** still install Limine.
