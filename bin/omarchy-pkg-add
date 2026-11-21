@@ -5,10 +5,15 @@
 # omarchy:examples=omarchy pkg add jq ripgrep
 # omarchy:requires-sudo=true
 
+trap 'exit 130' INT
+
 if omarchy-pkg-missing "$@"; then
   if (( EUID == 0 )); then
     pacman -S --noconfirm --needed -- "$@" || exit 1
   else
+    if [[ -t 0 ]]; then
+      "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/omarchy-sudo-authenticate" || exit $?
+    fi
     sudo pacman -S --noconfirm --needed -- "$@" || exit 1
   fi
 fi

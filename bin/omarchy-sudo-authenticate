@@ -1,0 +1,101 @@
+#!/bin/bash
+
+# omarchy:summary=Authenticate sudo in a terminal without disabling Ctrl-C.
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+trap 'unset sudo_password; echo; exit 130' INT
+
+if sudo -n true 2>/dev/null; then
+  exit 0
+fi
+
+helper_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+
+sudo_uses_device_auth() {
+  local pam_file="${OMARCHY_SUDO_PAM_FILE:-/etc/pam.d/sudo}"
+  local pam_dir="${pam_file%/*}"
+  local files=("$pam_file")
+  local included file laptop_closed
+
+  [[ -r $pam_file ]] || return 1
+
+  while IFS= read -r included; do
+    if [[ -n $included && -r $pam_dir/$included ]]; then
+      files+=("$pam_dir/$included")
+    fi
+  done < <(sed -nE 's/^[[:space:]]*auth[[:space:]]+(include|substack)[[:space:]]+([^[:space:]#]+).*/\2/p' "$pam_file")
+
+  # FIDO2 works regardless of lid state.
+  for file in "${files[@]}"; do
+    if grep -Eq '^[[:space:]]*auth[[:space:]].*pam_u2f\.so([[:space:]]|$)' "$file"; then
+      return 0
+    fi
+  done
+
+  # Fingerprint works unless the clamshell gate skips it while the lid is closed.
+  for file in "${files[@]}"; do
+    if grep -Eq '^[[:space:]]*auth[[:space:]].*pam_fprintd\.so([[:space:]]|$)' "$file"; then
+      laptop_closed="omarchy-hw-laptop-closed"
+      if "$helper_dir/omarchy-cmd-missing" "$laptop_closed"; then
+        laptop_closed="$helper_dir/omarchy-hw-laptop-closed"
+      fi
+      if grep -Eq '^[[:space:]]*auth[[:space:]].*omarchy-hw-laptop-closed([[:space:]]|$)' "$file" &&
+        "$laptop_closed" 2>/dev/null; then
+        return 1
+      fi
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# Without a terminal, or when fingerprint/FIDO2 auth is active in PAM, let sudo
+# run its own PAM flow so device authentication works without a password first.
+if [[ ! -t 0 ]] || sudo_uses_device_auth; then
+  sudo -v || exit $?
+  exit 0
+fi
+
+# sudo disables Ctrl-C at its own password prompt, so take the password in the
+# shell (where Ctrl-C still interrupts) and retry up to Omarchy's passwd_tries.
+attempt=0
+max_tries="${OMARCHY_SUDO_PASSWD_TRIES:-10}"
+sudo_password=""
+sudo_err=""
+sudo_status=0
+
+while (( attempt < max_tries )); do
+  if ! IFS= read -rsp "[sudo] password for $USER: " sudo_password; then
+    echo
+    unset sudo_password
+    exit 130
+  fi
+  echo
+
+  if sudo_err=$(printf '%s\n' "$sudo_password" | sudo -S -p "" -v 2>&1); then
+    unset sudo_password
+    exit 0
+  else
+    sudo_status=$?
+  fi
+  unset sudo_password
+
+  if (( sudo_status == 130 )); then
+    exit 130
+  fi
+
+  if [[ $sudo_err == *"not in the sudoers file"* || $sudo_err == *"account is locked"* ]]; then
+    printf '%s\n' "$sudo_err" >&2
+    exit "$sudo_status"
+  fi
+
+  (( attempt += 1 ))
+  if (( attempt < max_tries )); then
+    echo "Sorry, try again." >&2
+  fi
+done
+
+echo "sudo: $max_tries incorrect password attempts" >&2
+exit 1
