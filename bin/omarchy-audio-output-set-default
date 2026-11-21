@@ -12,21 +12,69 @@ if [[ -z $node_id || -z $sink_name ]]; then
   exit 1
 fi
 
-timeout 2 wpctl set-default "$node_id" 2>/dev/null || true
-timeout 2 pactl set-default-sink "$sink_name" 2>/dev/null || true
+use_output() {
+  timeout 2 wpctl set-default "$node_id" 2>/dev/null || true
+  timeout 2 pactl set-default-sink "$sink_name" 2>/dev/null || true
 
-# Move only real application streams. A DSP filter-chain's own output is also a
-# sink input but carries no application.name, and moving it would rewire the
-# processing itself -- onto headphones, or into its own virtual sink, which is a
-# cycle. EasyEffects' output stream must stay put for the same reason.
-# pactl translates its headers; parse them in the C locale.
-LC_ALL=C timeout 2 pactl list sink-inputs 2>/dev/null | awk '
-  /^Sink Input #/ {id = substr($3, 2)}
-  /application\.name = / {
-    app = $0
-    sub(/.*application\.name = "/, "", app)
-    sub(/"$/, "", app)
-    if (app != "EasyEffects") print id
-  }' | while read -r input; do
-  [[ -n $input ]] && timeout 2 pactl move-sink-input "$input" "$sink_name" 2>/dev/null || true
-done
+  # Both calls above save the choice, and WirePlumber then prefers a saved output
+  # over anything plugged in later: pick the speakers once and headphones never
+  # take over again. When the choice is the output WirePlumber would pick by itself
+  # (the only connected output with the highest priority), forget it instead, so
+  # the default keeps following what is plugged in. A choice it would not make by
+  # itself, such as the speakers while headphones are in, stays saved.
+  automatic_sink=$(LC_ALL=C timeout 2 pactl -f json list sinks 2>/dev/null | jq -r '
+    [.[]
+      | select((.ports | length == 0) or ([.ports[]? | .availability != "not available"] | any))
+      | {name, priority: ((.properties."priority.session" // "0") | tonumber? // 0)}]
+    | (map(.priority) | max) as $top
+    | map(select(.priority == $top))
+    | if length == 1 then .[0].name else empty end' 2>/dev/null)
+
+  if [[ -n $automatic_sink && $automatic_sink == "$sink_name" ]]; then
+    timeout 2 wpctl clear-default 0 2>/dev/null || true
+  fi
+
+  # Move only real application streams. A DSP filter-chain's own output is also a
+  # sink input but carries no application.name, and moving it would rewire the
+  # processing itself -- onto headphones, or into its own virtual sink, which is a
+  # cycle. EasyEffects' output stream must stay put for the same reason.
+  # pactl translates its headers; parse them in the C locale.
+  LC_ALL=C timeout 2 pactl list sink-inputs 2>/dev/null | awk '
+    /^Sink Input #/ {id = substr($3, 2)}
+    /application\.name = / {
+      app = $0
+      sub(/.*application\.name = "/, "", app)
+      sub(/"$/, "", app)
+      if (app != "EasyEffects") print id
+    }' | while read -r input; do
+    [[ -n $input ]] && timeout 2 pactl move-sink-input "$input" "$sink_name" 2>/dev/null || true
+  done
+}
+
+# The audio panels start this without waiting for an earlier call, and an earlier
+# call that reaches use_output's clear-default last would erase a newer choice. So
+# calls take turns, and a call that finds a newer choice queued behind it leaves
+# the work to that one. Every command below gives up within seconds, the kernel
+# drops the lock when this exits, and a call that can't get it in 10 seconds
+# goes ahead anyway, unless a newer choice has been made meanwhile.
+state="${XDG_RUNTIME_DIR:-/tmp}/omarchy-audio-output-default-$UID"
+request="$BASHPID $EPOCHREALTIME"
+recorded=0
+if { printf '%s\n' "$request" >"$state.latest.$BASHPID"; } 2>/dev/null &&
+  mv -f "$state.latest.$BASHPID" "$state.latest" 2>/dev/null; then
+  recorded=1
+fi
+if { exec {lock_fd}>"$state.lock"; } 2>/dev/null; then
+  flock -w 10 "$lock_fd" || true
+fi
+overtaken=0
+if (( recorded )); then
+  latest=$(cat "$state.latest" 2>/dev/null)
+  if [[ -n $latest && $latest != "$request" ]]; then
+    overtaken=1
+  fi
+fi
+
+if (( ! overtaken )); then
+  use_output
+fi
