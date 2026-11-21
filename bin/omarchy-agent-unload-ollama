@@ -1,0 +1,77 @@
+#!/bin/bash
+# omarchy:summary=Release memory held by loaded Ollama models without deleting downloads
+# omarchy:args=[--model <model> | --all]
+# omarchy:examples=omarchy agent unload ollama | omarchy agent unload ollama --all
+
+exec python3 /dev/fd/3 "$@" 3<<'PY'
+import argparse
+import json
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+
+
+def request(path, payload=None):
+  opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+  req = urllib.request.Request("http://127.0.0.1:11434/api/" + path,
+    data=json.dumps(payload).encode() if payload is not None else None,
+    headers={"Content-Type": "application/json"})
+  with opener.open(req, timeout=30) as response:
+    result = json.load(response)
+  if result.get("error"):
+    raise ValueError(str(result["error"]))
+  return result
+
+
+def main():
+  parser = argparse.ArgumentParser(prog="omarchy-agent-unload-ollama", description="Unload local Ollama models to release RAM/VRAM. Downloads are kept. Select a running model in a terminal, use --model, or explicitly unload all with --all.")
+  selection = parser.add_mutually_exclusive_group()
+  selection.add_argument("--model")
+  selection.add_argument("--all", action="store_true")
+  args = parser.parse_args()
+  if not args.model and not args.all and not sys.stdin.isatty():
+    parser.error("run in a terminal for the picker, or pass --model or --all")
+  running = sorted({item["name"] for item in request("ps").get("models", [])
+    if isinstance(item, dict) and isinstance(item.get("name"), str) and item["name"]})
+  if not running:
+    print("No Ollama models are loaded.")
+    return 0
+  if args.all:
+    models = running
+  else:
+    model = args.model
+    if model is None:
+      choice = subprocess.run(["gum", "choose", "--header", "Unload a model from memory", "--", *running], stdout=subprocess.PIPE, text=True)
+      if choice.returncode in (1, 130):
+        return 0
+      choice.check_returncode()
+      if not choice.stdout.strip():
+        return 0
+      model = choice.stdout.strip()
+    if model not in running:
+      if model + ":latest" in running:
+        model += ":latest"
+      else:
+        raise ValueError("That model is not loaded; no model was changed.")
+    models = [model]
+  failed = False
+  for model in models:
+    try:
+      request("generate", {"model": model, "keep_alive": 0, "stream": False})
+      print(f"Unloaded {model}; its download is kept.")
+    except (OSError, ValueError, urllib.error.URLError) as error:
+      print(f"Could not unload {model}: {error}", file=sys.stderr)
+      failed = True
+  return int(failed)
+
+
+if __name__ == "__main__":
+  try:
+    sys.exit(main())
+  except KeyboardInterrupt:
+    sys.exit(130)
+  except (OSError, ValueError, subprocess.SubprocessError, urllib.error.URLError) as error:
+    print(f"Unload Ollama: {error}", file=sys.stderr)
+    sys.exit(1)
+PY
