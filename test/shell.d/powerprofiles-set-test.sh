@@ -115,3 +115,28 @@ expected=$'-m 768 -a -p 4242\n-m 1024 -a -p 4242\n-m 0 -a -p 4242'
 [[ $(<"$UCLAMP_LOG") == "$expected" ]] ||
   fail "power profile floor follows the profile once listening, on profile changes and logins" "$(<"$UCLAMP_LOG")"
 pass "power profile floor follows the profile once listening, on profile changes and logins"
+
+# A platform with small cores floors balanced at their capacity, and only when it asks
+mkdir -p "$tmp_dir/cpu/cpu0" "$tmp_dir/cpu/cpu4"
+echo 531 >"$tmp_dir/cpu/cpu0/cpu_capacity"
+echo 1024 >"$tmp_dir/cpu/cpu4/cpu_capacity"
+floor_with() {
+  : >"$UCLAMP_LOG"
+  echo balanced >"$POWERPROFILES_QUEUE"
+  OMARCHY_CPU_SYSFS_DIR="$tmp_dir/cpu" OMARCHY_POWERPROFILES_FLOOR_BALANCED="$1" "$ROOT/bin/omarchy-powerprofiles-floor" apply
+  cat "$UCLAMP_LOG"
+}
+[[ $(floor_with smallest-core) == "-m 531 -a -p 4242" ]] ||
+  fail "balanced floors at the smallest core's capacity when asked" "$(floor_with smallest-core)"
+[[ $(floor_with "") == "-m 768 -a -p 4242" ]] ||
+  fail "balanced keeps 768 by default" "$(floor_with "")"
+[[ $(floor_with 600) == "-m 600 -a -p 4242" && $(floor_with 2000) == "-m 768 -a -p 4242" ]] ||
+  fail "balanced takes a number up to 1024" "$(floor_with 600) / $(floor_with 2000)"
+[[ $(floor_with 0600) == "-m 600 -a -p 4242" && $(floor_with 02000) == "-m 768 -a -p 4242" ]] ||
+  fail "balanced reads a number with leading zeros as decimal" "$(floor_with 0600) / $(floor_with 02000)"
+[[ $(floor_with 18446744073709551617) == "-m 768 -a -p 4242" ]] ||
+  fail "balanced falls back to 768 for a number too large for bash" "$(floor_with 18446744073709551617)"
+echo 1024 >"$tmp_dir/cpu/cpu0/cpu_capacity"
+[[ $(floor_with smallest-core) == "-m 768 -a -p 4242" ]] ||
+  fail "smallest-core never raises the floor above 768" "$(floor_with smallest-core)"
+pass "the balanced floor can follow the smallest core's capacity"

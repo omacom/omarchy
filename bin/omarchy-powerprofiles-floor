@@ -26,10 +26,42 @@
 # The service releases it after the monitor stops, since stopping signals
 # every process the monitor would release it with.
 
+# A floor above a core's capacity tells the scheduler that no task fits on
+# that core, so every task is steered to the bigger cores. A platform whose
+# smallest cores have less capacity than 768 (Apple Silicon's efficiency
+# cores: about 460 to 530) sets OMARCHY_POWERPROFILES_FLOOR_BALANCED to
+# smallest-core, and balanced then floors at that capacity. A number sets the
+# balanced floor directly. Unset, it stays 768.
+smallest_core_capacity() {
+  local file capacity smallest=1024
+  for file in "${OMARCHY_CPU_SYSFS_DIR:-/sys/devices/system/cpu}"/cpu[0-9]*/cpu_capacity; do
+    [[ -r $file ]] || continue
+    capacity=$(<"$file")
+    if [[ $capacity =~ ^[0-9]{1,4}$ ]] && (( 10#$capacity < smallest )); then
+      smallest=$(( 10#$capacity ))
+    fi
+  done
+  echo "$smallest"
+}
+
+balanced_floor() {
+  local floor=${OMARCHY_POWERPROFILES_FLOOR_BALANCED:-768} smallest
+  if [[ $floor == "smallest-core" ]]; then
+    smallest=$(smallest_core_capacity)
+    floor=$(( smallest < 768 ? smallest : 768 ))
+  fi
+  # Read as decimal: at most four digits cannot overflow, and 10# keeps a
+  # leading zero from being taken as octal
+  if [[ ! $floor =~ ^[0-9]{1,4}$ ]] || (( 10#$floor > 1024 )); then
+    floor=768
+  fi
+  echo "$(( 10#$floor ))"
+}
+
 floor_for_profile() {
   case $1 in
     performance) echo 1024 ;;
-    balanced) echo 768 ;;
+    balanced) balanced_floor ;;
     *) echo 0 ;;
   esac
 }
