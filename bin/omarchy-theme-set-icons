@@ -52,6 +52,19 @@ scratch=$(mktemp -d "$CURRENT/.icons.XXXXXX")
 trap 'rm -rf "$scratch"' EXIT
 mkdir "$scratch/set" "$scratch/out"
 
+# Run a file command in bounded argv chunks so very large custom icon sets
+# cannot hit ARG_MAX and abort mid-sync.
+run_batched() {
+  local -a cmd=()
+  while (( $# )) && [[ $1 != "--" ]]; do
+    cmd+=("$1")
+    shift
+  done
+  (( $# )) && shift
+  (( $# > 0 )) || return 0
+  printf '%s\0' "$@" | xargs -0 -r "${cmd[@]}" --
+}
+
 # The user's set goes over the built-in one of the same name. An icon is given
 # once, so the user's drawing replaces the built-in template of that name and
 # the other way around. A set cloned from a git repo holds whatever its author
@@ -67,32 +80,24 @@ for dir in "$BUILT_IN_SET" "$USER_SET"; do
   done
 done
 
-if (( ${#selected[@]} > 0 )); then
-  cp -t "$scratch/set" -- "${selected[@]}"
-fi
+run_batched cp -t "$scratch/set" -- "${selected[@]}" || exit 1
 
 static_svgs=("$scratch/set"/*.svg)
-if (( ${#static_svgs[@]} > 0 )); then
-  mv -t "$scratch/out" -- "${static_svgs[@]}"
-fi
+run_batched mv -t "$scratch/out" -- "${static_svgs[@]}" || exit 1
 omarchy-theme-set-templates --icons "$THEME" "$scratch/out" "$scratch/set"
 
 mkdir -p "$ICONS" "$LINKS"
 declare -A drawn=()
 rendered_svgs=("$scratch/out"/*.svg)
 missing_links=()
-if (( ${#rendered_svgs[@]} > 0 )); then
-  mv -f -t "$ICONS" -- "${rendered_svgs[@]}"
-fi
+run_batched mv -f -t "$ICONS" -- "${rendered_svgs[@]}" || exit 1
 for icon in "${rendered_svgs[@]}"; do
   name=${icon##*/}
   drawn[$name]=1
   # A working icon of the user's own stays; a dangling link at the name goes.
   [[ -e $LINKS/$name ]] || missing_links+=("$ICONS/$name")
 done
-if (( ${#missing_links[@]} > 0 )); then
-  ln -sfn -t "$LINKS" -- "${missing_links[@]}"
-fi
+run_batched ln -sfn -t "$LINKS" -- "${missing_links[@]}"
 
 # What the last run drew and this one didn't.
 for icon in "$ICONS"/*.svg; do
