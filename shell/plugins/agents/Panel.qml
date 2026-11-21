@@ -52,6 +52,15 @@ Panel {
     }
   }
 
+  // Signing in to an agent that was hidden from the panel brings it back.
+  function showProvider(id) {
+    if (!bar || !bar.shell || !settings || !settings.providers || !settings.providers[id]
+        || settings.providers[id].enabled !== false) return
+    var next = JSON.parse(JSON.stringify(settings))
+    next.providers[id].enabled = true
+    bar.shell.updateEntryInline(moduleName, next)
+  }
+
   property bool cursorActive: false
 
   // Countdowns and "last updated" ages read this instead of Date.now() so the
@@ -511,6 +520,7 @@ Panel {
         // account shows once its limits arrive.
         addStage = tagged[1] === "done" ? "" : tagged[1]
         if (tagged[1] === "done") {
+          showProvider(addProvider)
           usage.refreshLimits()
           root.focusKeys()
           // Nothing to show yet means the sign-in is what counts as set up.

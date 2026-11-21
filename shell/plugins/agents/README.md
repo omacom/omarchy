@@ -66,7 +66,8 @@ Every subscription on one page, limits first.
   reopen the sign-in page. Fireworks and OpenRouter have no login and open
   no browser: the panel asks for an API key, which is checked against the
   provider, then saved for pi, and for opencode when it's installed. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
-  carries on and its result arrives as a notification.
+  carries on and its result arrives as a notification. Signing in to an
+  agent that was hidden from the panel shows it again.
 
 The icon is always in the bar. On a machine with no agent yet, the panel is
 the blank slate for setting one up: it opens on the same choice of agents,
