@@ -1,0 +1,31 @@
+[Unit]
+Description=Opt-in iwd positioning for GeoClue
+After=iwd.service dbus.service
+Wants=iwd.service
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/lib/omarchy/iwd-geolocate.py
+DynamicUser=yes
+SupplementaryGroups=network geoclue
+RuntimeDirectory=iwd-geolocate
+RuntimeDirectoryMode=0755
+UMask=0077
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+[Install]
+WantedBy=multi-user.target
