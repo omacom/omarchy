@@ -2,7 +2,22 @@ o.bind("SUPER + W", "Close window", hl.dsp.window.close())
 o.bind("SUPER + Q", "Close window", hl.dsp.window.close())
 o.bind("CTRL + ALT + DELETE", "Close all windows", "omarchy-hyprland-window-close-all")
 
-o.bind("SUPER + J", "Toggle window split", hl.dsp.layout("togglesplit"))
+-- togglesplit is dwindle-only; sending it on a scrolling workspace raises
+-- "no such layoutmsg for scrolling". consume_or_expel is the scrolling analog:
+-- stack a lone column into its neighbor, or expel a stacked window back out.
+o.bind("SUPER + J", "Toggle window split", function()
+  local workspace = hl.get_active_special_workspace() or hl.get_active_workspace()
+  if not workspace or (workspace.windows or 0) < 2 then
+    return
+  end
+
+  local layout = workspace.tiled_layout
+  if layout == "scrolling" then
+    hl.dispatch(hl.dsp.layout("consume_or_expel next"))
+  elseif layout == "dwindle" then
+    hl.dispatch(hl.dsp.layout("togglesplit"))
+  end
+end)
 o.bind("SUPER + P", "Pseudo window", hl.dsp.window.pseudo())
 o.bind("SUPER + T", "Toggle window floating/tiling", hl.dsp.window.float({ action = "toggle" }))
 o.bind("SUPER + F", "Full screen", hl.dsp.window.fullscreen({ mode = "fullscreen" }))
