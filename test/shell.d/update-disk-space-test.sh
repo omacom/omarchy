@@ -17,14 +17,10 @@ runtime_dir="$test_tmp/runtime"
 snapshot_marker="$test_tmp/snapshot"
 gum_marker="$test_tmp/gum"
 mkdir -p "$runtime_dir"
-for command in omarchy-update omarchy-update-requires-free-space omarchy-update-confirm omarchy-i18n; do
+for command in omarchy-update omarchy-update-requires-free-space omarchy-update-confirm; do
   rm -f "$stub_bin/$command"
   copy_boundary_file "bin/$command"
 done
-# The confirmation prompt reads its text from the English catalog.
-mkdir -p "$SUDO_TEST_ROOT/default/i18n/en"
-/usr/bin/cp "$ROOT/default/i18n/en/cli.json" "$SUDO_TEST_ROOT/default/i18n/en/cli.json"
-/usr/bin/cp "$ROOT/default/i18n/plural.jq" "$ROOT/default/i18n/locales.json" "$SUDO_TEST_ROOT/default/i18n/"
 
 run_update() {
   SUDO_TEST_HOME="$test_home" \

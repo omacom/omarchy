@@ -69,14 +69,14 @@ wait_for_pacman_transaction() {
   local lock_file=/var/lib/pacman/db.lck
 
   [[ -e $lock_file ]] || return 0
-  echo "Waiting for pacman transaction to finish before running Omarchy migrations..."
+  echo "$(omarchy-i18n update.migrationsWaiting)"
 
   for _ in {1..900}; do
     [[ -e $lock_file ]] || return 0
     sleep 1
   done
 
-  echo "Pacman transaction is still running; Omarchy migrations will retry on next login."
+  echo "$(omarchy-i18n update.migrationsDeferred)"
   exit 0
 }
 
@@ -89,7 +89,7 @@ while IFS=$'\t' read -r name file marker <&3; do
   [[ -n $name ]] || continue
 
   if [[ ! -f $marker ]]; then
-    echo -e "\e[32m\nRunning migration (${name%.sh})\e[0m"
+    echo -e "\e[32m\n$(omarchy-i18n update.migration "${name%.sh}")\e[0m"
     OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail "$file" 3<&-
     mkdir -p "$(dirname "$marker")"
     touch "$marker"
