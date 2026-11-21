@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.switcher",
+  "name": "Window switcher",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Switch windows with Alt + Tab, the way Windows does",
+  "kinds": [
+    "service"
+  ],
+  "entryPoints": {
+    "service": "Switcher.qml"
+  }
+}
