@@ -86,6 +86,26 @@ if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding l
 fi
 pass "a finished switch keeps its cover until OWE hands back a decoded still"
 
+# A video replacing a video: OWE reports the outgoing video, playing, until it
+# shows the new one paused on its first frame.
+video="$stage/video"
+mkdir -p "$video/bin"
+printf '{"path":"/media/old.mp4","kind":"video","ready":true,"has_transition":false,"time_pos":4.2}\n' >"$video/shown"
+printf '{"path":"/media/new.mp4","kind":"video","ready":true,"has_transition":false,"time_pos":0}\n' >"$video/new-status"
+cat >"$video/bin/owe" <<'SH'
+#!/bin/bash
+cat "$VIDEO_TEST_SHOWN"
+SH
+chmod +x "$video/bin/owe"
+cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/video-handoff.qml" "$stage/shell.qml"
+output=$(HOME="$stage/home" PATH="$video/bin:$stage/bin:$PATH" OMARCHY_SESSION_ID=finish-session INTRO_TEST_LOG="$stage/starts" INTRO_TEST_COVER="$stage/cover.ppm" \
+  VIDEO_TEST_NEW=/media/new.mp4 VIDEO_TEST_SHOWN="$video/shown" VIDEO_TEST_NEW_STATUS="$video/new-status" timeout 10 quickshell -p "$stage" --no-color 2>&1) || fail "video handoff fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "video handoff assertions pass" "$output"
+if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
+  fail "video handoff fixture has no QML errors" "$output"
+fi
+pass "a switch onto a video while OWE holds the desktop lifts its cover once OWE shows that video"
+
 # BackgroundSwitch with the real intro lookup, a fake OWE and a fake Hyprland.
 require_command magick
 switch="$stage/switch"
