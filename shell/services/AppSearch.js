@@ -121,6 +121,25 @@ function sortedEntries(values, query, hiddenCallback) {
   return rows
 }
 
+// The uwsm-app argument that launches a desktop entry in a systemd scope
+// named after it (app-<id>-<pid>.scope), so xdg-desktop-portal can read the
+// app id back off the scope name. Ids keep their hyphens as \x2d escapes —
+// the unit-name convention the portal unescapes — because its parser reads
+// a literal hyphen as the separator of an optional launcher prefix
+// (app-[<launcher>-]<id>-<unique>.scope), which would truncate
+// "google-contacts" into "contacts". The token is double-quoted so the
+// escapes survive the launching shell while $$ still expands into that
+// process's pid, keeping simultaneous launches of one entry from sharing a
+// unit. "" when the id cannot name a unit (spaces, slashes, escapes past
+// the unit-name length limit), leaving uwsm's own scope naming in place.
+function launchScopeArg(id) {
+  var value = String(id || "")
+  if (!/^[A-Za-z0-9._-]+$/.test(value)) return ""
+  var unitId = value.replace(/-/g, "\\x2d")
+  if (unitId.length > 230) return ""
+  return '-u "app-' + unitId + '-$$.scope"'
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     entryName: entryName,
@@ -129,6 +148,7 @@ if (typeof module !== "undefined") {
     entrySearchText: entrySearchText,
     entryAcronym: entryAcronym,
     fuzzyScore: fuzzyScore,
-    sortedEntries: sortedEntries
+    sortedEntries: sortedEntries,
+    launchScopeArg: launchScopeArg
   }
 }

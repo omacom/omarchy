@@ -127,7 +127,19 @@ Item {
     // inherit wayland-wm@.service. Keeping gtk-launch as the desktop-entry
     // resolver supports IDs with spaces and entries that UWSM rejects.
     // Keep the .desktop suffix or ids like org.telegram.desktop won't resolve.
-    Util.execDetached("uwsm-app -- gtk-launch " + Util.shellQuote(id + ".desktop"))
+    //
+    // Name the scope after the entry id: xdg-desktop-portal identifies an
+    // app by the systemd unit its processes live in
+    // (app-[<launcher>-]<id>-<unique>.scope), and uwsm's own naming
+    // (app-<compositor>-<command>-<hex>.scope) never carries the entry, so
+    // apps the menu started had no app id, and portal requests that need
+    // one — GlobalShortcuts, for one — were refused with "An app id is
+    // required". The token launchScopeArg returns is quoted and
+    // charset-restricted already, so it interpolates here as-is; re-quoting
+    // it would freeze the $$ it relies on. IDs that cannot name a unit keep
+    // uwsm's naming and launch unchanged.
+    var scopeArg = AppSearch.launchScopeArg(id)
+    Util.execDetached("uwsm-app " + (scopeArg ? scopeArg + " " : "") + "-- gtk-launch " + Util.shellQuote(id + ".desktop"))
   }
 
   // The command a terminal entry runs, without the field codes it leaves for a
