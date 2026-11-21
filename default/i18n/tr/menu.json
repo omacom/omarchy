@@ -568,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Doğrudan Önyükleme"
-  },
-  "setup.reset": {
-    "label": "Bilgisayarı Sıfırla"
+  "remove.factory-reset": {
+    "label": "Fabrika Ayarlarına Sıfırla"
   },
   "install.package": {
     "label": "Paket"
