@@ -61,7 +61,7 @@ or re-icon a row without re-declaring its action, and an overridden entry
 keeps its original position in the list. New ids append. A `root` entry is
 injected if neither file declares one.
 
-The region's recommended harnesses (`default/regions/<code>/agents`, see `docs/regions.md`) are then moved to the front of the order, so they lead Default Harness.
+A region's harnesses (`default/regions/<code>/agents`, see `docs/regions.md`) then become the only rows of Default Harness, in the file's order; the other harness rows are dropped.
 
 The sample extension at `config/omarchy/extensions/omarchy-menu.jsonc`
 (refreshed into `~/.config/`) documents the format in its header and ships

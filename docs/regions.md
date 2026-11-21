@@ -44,6 +44,8 @@ Unit tests cover region/channel independence, the timezone mapping, generated pa
 
 The acceptance run must install without network access in both directions: a non-China timezone must produce pacman files byte for byte identical to the channel templates, and `Asia/Shanghai` must produce the China profile, boot to a new user, and keep the regional mirrors and marker through `stable`, `rc`, and `edge` refreshes.
 
-## Recommended agents
+## Agents
 
-A profile's optional `agents` file names the harnesses the region recommends, one harness command per line (`kimi`, `qwen`), with blank lines and `#` comments allowed. The menu lists them first under Default Harness, in that order, ahead of every other harness, and ranks them first in search; nothing is hidden and no default agent is chosen. The menu watches `/etc/omarchy/region` and the profile's file, so a change applies without restarting the shell. The China profile recommends Kimi, Qwen Code, MiniMax Code and DeepSeek Harness.
+A profile's optional `agents` file names the only harnesses Default Harness offers in the region, one harness command per line (`kimi`, `qwen`), with blank lines and `#` comments allowed. The menu lists them in that order and drops every other harness from the list, from search and from `omarchy menu summon`, so harnesses tied to services the region can't reach aren't offered; no default agent is chosen. The menu watches `/etc/omarchy/region` and the profile's file, so a change applies without restarting the shell. A profile without the file leaves the list as it is.
+
+The China profile offers the harnesses of Chinese AI providers (Kimi, Qwen Code, MiniMax Code and DeepSeek Harness) first, then the open harnesses that work with any provider's models (OpenCode, Pi, omp, Crush, Kilo, Hermes and OpenClaw). Claude Code, Codex, Grok Build and the other harnesses tied to services unavailable in China are left out.

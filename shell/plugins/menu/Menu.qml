@@ -47,8 +47,9 @@ Item {
     return "ok"
   }
 
-  // A region's recommended harnesses lead Default Harness (docs/regions.md).
-  // Moving rows changes no guard answer, so these rebuilds skip the guards.
+  // A region's harnesses are the only ones Default Harness offers
+  // (docs/regions.md). That changes no guard answer, so these rebuilds skip
+  // the guards.
   property string region: ""
   property var regionLeadingIds: []
   onRegionChanged: if (!region) { regionLeadingIds = []; rebuildItemsFromSources(true) }

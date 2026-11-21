@@ -1,6 +1,15 @@
-# Harnesses from Chinese AI providers, listed first under Default Harness in
-# this order. Every other harness stays in the list below them.
+# The only harnesses Default Harness offers in China, in this order: those
+# from Chinese AI providers, then open harnesses that work with any provider's
+# models. Harnesses tied to services unavailable in China (Claude, Codex, Grok
+# and the like) are left out.
 kimi
 qwen
 mcode
 dsh
+opencode
+pi
+omp
+crush
+kilo
+hermes
+openclaw
