@@ -677,6 +677,7 @@ Panel {
   property real dragPressY: 0
   property var rowPitches: []
   property bool settling: false
+  property bool dragCancelled: false
 
   function beginLineDrag(index, y) {
     if (dragIndex >= 0 || !modelSections || pinnedLine(index)) return
@@ -707,10 +708,12 @@ Panel {
     dragLineId = ""
     dragOffset = 0
     settling = false
+    dragCancelled = false
     dragLines = null
   }
 
   function finishLineDrag() {
+    var cancelled = dragCancelled
     var id = dragLineId
     var to = pinnedLine(0) ? Math.max(1, dragTarget) : dragTarget
     // Disable slot motion before replacing the model: it already matches the preview.
@@ -719,13 +722,14 @@ Panel {
     // A survey may have added or dropped a line while it was held.
     var from = lines.map(function(line) { return line.id }).indexOf(id)
     to = Math.min(to, lines.length - 1)
-    if (from >= 0 && to !== from) moveLine(from, to)
+    if (!cancelled && from >= 0 && to !== from) moveLine(from, to)
   }
 
   function settleLineDrag(cancel) {
     if (dragIndex < 0) return
     dropAnimation.stop()
     settling = true
+    dragCancelled = cancel
     if (cancel) dragTarget = dragIndex
     var offset = Reorder.dropOffset(dragIndex, dragTarget, rowPitches[dragIndex], rowPitches)
     if (Style.duration(150) === 0) {
@@ -821,13 +825,19 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
+  // A machine the listing says can run no model has no panel, however it was
+  // opened: the hotkey and IPC reach it without an icon. One opened before
+  // the first listing arrives closes once it says so.
+  readonly property bool unsupported: !!engine && engine.listed && !engine.relevant
+  onUnsupportedChanged: if (unsupported && opened) close()
+
   onOpenedChanged: if (!opened) {
     // A model paired here that starts after the panel closes doesn't move
     // the cursor the next time it opens.
     landAfterPair = ""
     hoveredLine = -1
     resetLineDrag()
-  } else if (!visible && (!engine || engine.listed)) {
+  } else if (unsupported) {
     // The hotkey and IPC reach a machine with no icon too; it can run no
     // model, so there is no panel to show.
     Qt.callLater(root.close)
