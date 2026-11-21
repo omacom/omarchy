@@ -449,6 +449,7 @@
     "one": "Remove %1 orphaned package?",
     "other": "Remove %1 orphaned packages?"
   },
+  "update.resetConfig": "Reset %1 to Omarchy defaults? This replaces your configuration.",
   "update.whatsNew": "What's new: %1",
   "update.failed": "Something went wrong during the update!",
   "update.failedReview": "Please review the output above carefully, correct the error, and retry the update.",
