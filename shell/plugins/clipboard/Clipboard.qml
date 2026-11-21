@@ -17,6 +17,8 @@ Item {
   property bool cursorActive: false
   property bool clearConfirmOpen: false
   property var history: []
+  // Whether Hyprland lists a touch screen, read each time the picker opens.
+  property bool touchScreen: false
 
   property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
@@ -41,6 +43,8 @@ Item {
   property int historyLimit: 500
 
   function open(payloadJson) {
+    touchProc.running = false
+    touchProc.running = true
     root.opened = true
     root.filterText = ""
     root.selectedIndex = 0
@@ -279,6 +283,20 @@ Item {
     }
   }
 
+  // A touch screen has no Escape key, so the picker shows a close button
+  // there. Asked once per open, not polled.
+  Process {
+    id: touchProc
+    command: ["hyprctl", "-j", "devices"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        try { root.touchScreen = (JSON.parse(text).touch || []).length > 0 }
+        catch (e) { root.touchScreen = false }
+      }
+    }
+  }
+
   Process {
     id: currentProc
     command: [root.captureScript]
@@ -437,7 +455,7 @@ Item {
           Text {
             textFormat: Text.PlainText
             anchors.left: parent.left
-            anchors.right: parent.right
+            anchors.right: closeButton.visible ? closeButton.left : parent.right
             anchors.verticalCenter: parent.verticalCenter
             text: root.filterText || Commons.I18n.t("clipboard.search")
             color: root.foreground
@@ -445,6 +463,27 @@ Item {
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
+          }
+
+          MouseArea {
+            id: closeButton
+            visible: root.touchScreen
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(44)
+            height: Math.max(parent.height, Style.space(44))
+            Accessible.role: Accessible.Button
+            onClicked: root.close()
+
+            Text {
+              textFormat: Text.PlainText
+              anchors.centerIn: parent
+              text: String.fromCodePoint(0xF0156)
+              color: root.foreground
+              opacity: 0.58
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.heading
+            }
           }
         }
 
