@@ -173,7 +173,11 @@ preferred_limine_kernel() {
 }
 
 preflight() {
-  omarchy-hw-x86 || problem "Only x86 machines move to systemd-boot; this one keeps Limine."
+  if omarchy-hw-aarch64-apple; then
+    problem "Apple Silicon boots through m1n1 and its own platform package, not Limine."
+  elif ! omarchy-hw-x86 && ! omarchy-hw-aarch64; then
+    problem "Only x86 and aarch64 machines move to systemd-boot."
+  fi
   [[ -d /sys/firmware/efi ]] || problem "This machine boots in BIOS mode; systemd-boot needs UEFI."
   if grep -qi apple /sys/class/dmi/id/sys_vendor 2>/dev/null || omarchy-pkg-present linux-t2; then
     problem "Intel Macs keep Limine: their firmware needs testing with systemd-boot first."

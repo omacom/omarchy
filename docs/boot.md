@@ -1,6 +1,6 @@
 # Booting with systemd-boot
 
-New UEFI x86 installs boot systemd-boot; older x86 installs boot Limine until `omarchy-boot-switch` moves them. Secure Boot on stock hardware needs a Microsoft-signed shim, and shim review's established second stages are GRUB and systemd-boot. This page is the reference for the systemd-boot side. ARM platforms and BIOS installs stay on Limine for now.
+New UEFI x86 installs boot systemd-boot; older x86 installs boot Limine until `omarchy-boot-switch` moves them. Secure Boot on stock hardware needs a Microsoft-signed shim, and shim review's established second stages are GRUB and systemd-boot. This page is the reference for the systemd-boot side. BIOS installs stay on Limine, and Apple Silicon on its own platform package.
 
 ## Which loader a machine boots
 
@@ -105,5 +105,5 @@ The `omarchy-snapshot-overlay` hook boots read-only snapshots with a tmpfs overl
 ## Not yet
 
 - **Turning on Secure Boot.** Needs the Microsoft-signed Omarchy shim, `CONFIG_LOCK_DOWN_IN_EFI_SECURE_BOOT`, module signing (DKMS/NVIDIA) and MOK enrollment. `signing=required` in the state is where a signing key gets enforced: a missing key or a failed signature keeps the published images.
-- **ARM.** Needs aa64 loader paths, device trees from `/etc/kernel/uki.conf` in every image, N1x's fallback image, and hardware tests.
+- **ARM hardware tests.** aarch64 machines (generic UEFI, Snapdragon, N1x, GB10) take the same path with the aa64 loader, Snapdragon's device trees from `/etc/kernel/uki.conf` in every image, and N1x's console parameters in `/etc/cmdline.d`. None has been booted on real hardware yet. The DGX Spark's Limine workaround (no UKI) isn't applied on systemd-boot, which doesn't claim the memory Limine frees.
 - **Factory reset** on a machine that switched returns it to Limine, which the factory root was installed with. The reset runs `limine-install --no-efi-register` in the factory root and gives Limine a boot entry behind systemd-boot. Once the factory root is at `@`, it puts Limine first, makes Limine the fallback loader again if systemd-boot had taken it, and removes systemd-boot's entry and files, the old system's boot images, the boot store and any `@backup-*`/`@restore-*` roots. A reset that fails earlier leaves systemd-boot booting. The reset refuses while a switch is staged or on trial, and while a snapshot restore waits for its reboot.
