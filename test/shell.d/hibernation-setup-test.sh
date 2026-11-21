@@ -148,6 +148,15 @@ SWAP_SOURCE="/dev/mapper/root[/@]" setup --force --no-rebuild --experimental ||
 machine 'KERNEL_CMDLINE[default]+=" resume=/dev/nvme1n1p2 resume_offset=4242"'
 SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup || fail "a rerun on an ARM computer that was set up" "$(<"$rtmp/out")"
 [[ $(<"$drop_in") == "$uuid_line" ]] || fail "a rerun keeps an ARM computer's setup up" "$(<"$drop_in")"
+# A factory reset of such a machine removes the resume hook, keeps the swap
+# file's line in fstab and calls setup as the installer does. It must get its
+# swap file and resume device back, or the reset stops.
+machine
+printf '%s none swap defaults,pri=0 0 0\n' "$rtmp/swapfile" >"$rtmp/fstab"
+SWAP_SOURCE="/dev/mapper/root[/@]" setup --force --no-rebuild ||
+  fail "a factory reset's call on an ARM computer that was set up" "$(<"$rtmp/out")"
+[[ -f $drop_in && $(<"$drop_in") == 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=4242"' ]] ||
+  fail "a factory reset keeps an ARM computer's hibernation set up" "$(<"$rtmp/out")"
 printf '#!/bin/bash\nexit 1\n' >"$rtmp/bin/omarchy-hw-aarch64"
 pass "an ARM computer gets hibernation only when asked with --experimental"
 rm -rf "$rtmp"
