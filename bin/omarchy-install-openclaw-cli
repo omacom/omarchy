@@ -3,7 +3,6 @@
 # omarchy:summary=Install OpenClaw for the default agent as the self-updating copy under ~/.openclaw
 # omarchy:args=<--check|--now>
 # omarchy:examples=omarchy install openclaw cli --now | omarchy install openclaw cli --check
-# omarchy:requires-sudo=true
 
 # There is one OpenClaw on a machine, and it is the one under ~/.openclaw that
 # upstream's install-cli.sh makes: a private Node and the package in a prefix

@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # omarchy:summary=Install the Hermes desktop app
-# omarchy:requires-sudo=true
 
 set -e
 
