@@ -39,7 +39,10 @@ If `~/Games/vibes/<name>` already holds a game, ask before replacing it. Otherwi
 ```bash
 mkdir -p ~/Games/vibes/<name>
 cp "$SKILL_DIR/template.html" ~/Games/vibes/<name>/index.html
+cp "$OMARCHY_PATH/default/games/vibes/three.min.js" ~/Games/vibes/
 ```
+
+The second copy is three.js, which the game loads from `../three.min.js`; Game Vibes puts it there too, but only once it has opened.
 
 Read the whole template once, then edit that copy in place, section by section. Never write the file from scratch or rewrite the frame.
 
