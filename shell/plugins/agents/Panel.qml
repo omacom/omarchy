@@ -530,7 +530,8 @@ Panel {
   // picks it: the last one started when it's running, any other running one
   // otherwise.
   readonly property var starterLocalModel: {
-    var local = usage.localModel || {}
+    var service = bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.local-models") : null
+    var local = service ? service.localModel : {}
     var models = local.models || {}
     var up = Object.keys(models).filter(function(id) {
       var m = models[id]

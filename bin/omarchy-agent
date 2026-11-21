@@ -93,11 +93,9 @@ fi
 # Only agents with a launch-time overlay can be pointed at the local model. When
 # the default can't, or none is set, the local model opens in pi, or OpenCode
 # without pi: the agents panel launches it whether or not a default was chosen.
-# Qwen Code takes one from an omarchy-local-ai new enough to write it.
 local_capable() {
   case "$1" in
-  pi | opencode) return 0 ;;
-  qwen) omarchy-models overlay --help 2>/dev/null | grep -q qwen ;;
+  pi | opencode | qwen) return 0 ;;
   *) return 1 ;;
   esac
 }

@@ -16,25 +16,6 @@ Item {
   readonly property string home: Quickshell.env("HOME") || ""
   readonly property string usageDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/usage"
 
-  // The local model a starter hands its task to, when one is running: the
-  // status omarchy-models writes, which the Local Models panel shows.
-  property var localModel: ({})
-
-  FileView {
-    path: root.home + "/.local/state/omarchy/agent-local/status.json"
-    watchChanges: true
-    printErrors: false
-    onFileChanged: reload()
-    onLoaded: {
-      try {
-        var parsed = JSON.parse(text())
-        if (parsed && parsed.models && typeof parsed.models === "object" && !Array.isArray(parsed.models)) root.localModel = parsed
-      } catch (e) {
-        // A half-written file keeps the last good state.
-      }
-    }
-  }
-
   // ------------------------------------------------------------- discovery
 
   property var agentIds: []

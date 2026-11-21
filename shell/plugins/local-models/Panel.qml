@@ -52,17 +52,10 @@ Panel {
     bar.shell.updateEntryInline(moduleName, next)
   }
 
-  // The lines' ids, which change only when a line comes, goes or moves. The
-  // lines are built from these, so each keeps its own state (a bar filling
-  // to its end, an update under way) through the status the engine rewrites
-  // twice a second while something downloads.
-  property var lineIds: []
-
-  function syncLineIds() {
-    var ids = lines.map(function(line) { return line.id })
-    if (ids.join("\n") !== lineIds.join("\n")) lineIds = ids
-  }
-
+  // The lines are built from their ids through a model that keeps each one
+  // while others come, go or move, so a line keeps its own state (a bar
+  // filling to its end, an update under way) through the status the engine
+  // rewrites twice a second while something downloads.
   function lineById(id) {
     for (var i = 0; i < lines.length; i++)
       if (lines[i].id === id) return lines[i]
@@ -106,38 +99,7 @@ Panel {
   // model can fail to pair instead, which links to what pairing printed.
   function localFailed(model) {
     if (model.host) return pairFailure(model) !== null
-    return ["active", "activating", "deactivating", "removing"].indexOf(model.unit) < 0 && String(model.error || "") !== "" && !errorRead(model)
-  }
-
-  // Errors whose logs have been opened, by recipe. The line drops one at once
-  // rather than waiting for the engine to forget it, which an engine older
-  // than its dismiss never does. A model that starts again can fail anew, so
-  // its entry goes then, as it does once the engine has forgotten the error.
-  property var readErrors: ({})
-
-  function errorRead(model) {
-    return !!model && !model.host && readErrors[model.recipe] === String(model.error || "")
-  }
-
-  function markErrorRead(model) {
-    var read = Object.assign({}, readErrors)
-    read[model.recipe] = String(model.error || "")
-    readErrors = read
-  }
-
-  Connections {
-    target: engine
-    function onLocalModelChanged() {
-      var models = engine.localModel.models || {}
-      var read = {}
-      var changed = false
-      for (var recipe in root.readErrors) {
-        var model = models[recipe]
-        if (model && ["active", "activating"].indexOf(model.unit) < 0 && String(model.error || "") === root.readErrors[recipe]) read[recipe] = root.readErrors[recipe]
-        else changed = true
-      }
-      if (changed) root.readErrors = read
-    }
+    return ["active", "activating", "deactivating", "removing"].indexOf(model.unit) < 0 && String(model.error || "") !== ""
   }
 
   // A failed pairing still to explain: not once the model is paired, its host
@@ -153,16 +115,14 @@ Panel {
     // A pairing's output is all there is of it, and so is that of a setup
     // that failed before its download began, so the terminal shows that
     // again and closes as failed, the way a pairing in a terminal ended.
-    // An error that has been read leaves the model's line. The engine forgets
-    // a model's failure after its logs have printed it, keeping their status
-    // for the terminal's last line; an engine without dismiss changes nothing.
+    // The engine forgets a model's failure after its logs have printed it,
+    // keeping their status for the terminal's last line, and the line drops it.
     var recipe = Util.shellQuote(String(model.recipe))
     var command = failure ? "printf %s " + Util.shellQuote(String(failure.output)) + "; false"
       : "omarchy-models logs " + recipe + "; logs=$?; omarchy-models dismiss " + recipe + " >/dev/null 2>&1; (exit $logs)"
     Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", command])
     // A failed pairing lives only here.
     if (failure && !model.panelSetup) engine.dismissPairFailure(modelId(model))
-    else if (!failure) markErrorRead(model)
     root.close()
   }
 
@@ -260,11 +220,7 @@ Panel {
       return
     }
   }
-  onLinesChanged: {
-    syncLineIds()
-    Qt.callLater(landOnPaired)
-  }
-  Component.onCompleted: syncLineIds()
+  onLinesChanged: Qt.callLater(landOnPaired)
   Connections {
     target: engine
     function onPairingIdChanged() { Qt.callLater(root.landOnPaired) }
@@ -274,7 +230,7 @@ Panel {
   function lastSeenText(model) {
     var seen = Number(model && model.last_seen_ms || 0)
     if (!(seen > 0)) return ""
-    var ago = Math.max(0, Date.now() - seen)
+    var ago = Math.max(0, nowMs - seen)
     return ago < 60000 ? Commons.I18n.t("localModels.networkJustNow") : Commons.I18n.t("localModels.networkAgo").arg(formatDuration(ago))
   }
 
@@ -297,6 +253,7 @@ Panel {
     running: root.opened
     repeat: true
     onTriggered: {
+      root.nowMs = Date.now()
       engine.refreshNetwork()
       engine.readMemory()
     }
@@ -370,7 +327,7 @@ Panel {
     return Number(model && model.expected_stop_seconds) || 10
   }
 
-  property double loadNowMs: Date.now()
+  property double nowMs: Date.now()
   readonly property bool localLoading: lines.some(function(line) {
     var model = line.model
     return model && (["activating", "deactivating", "removing"].indexOf(model.unit) >= 0 || (model.install && model.install.phase === "dependencies")
@@ -381,7 +338,7 @@ Panel {
     running: root.opened && root.localLoading
     repeat: true
     triggeredOnStart: true
-    onTriggered: root.loadNowMs = Date.now()
+    onTriggered: root.nowMs = Date.now()
   }
 
   // ----------------------------------------------------------------- memory
@@ -395,13 +352,12 @@ Panel {
     return value > 0 && value < 0.95 ? Commons.I18n.formatNumber(value, 1) : Commons.I18n.formatNumber(Math.round(value))
   }
 
-  // The memory a model on this machine holds: what the engine measures it
-  // holding now, or, from an engine that can't say, what it took to load.
+  // The memory a model on this machine holds, as the engine measures it now;
+  // nothing until it has.
   function heldGib(model) {
-    if (!model || model.host || ["active", "activating", "deactivating"].indexOf(model.unit) < 0) return 0
-    var now = engine ? engine.modelMemory[model.recipe] : undefined
-    if (typeof now === "number") return now
-    return model.observed ? Math.max(0, Number(model.observed.ram_used_gib) || 0) : 0
+    if (!model || model.host || !engine) return 0
+    var now = engine.modelMemory[model.recipe]
+    return typeof now === "number" ? now : 0
   }
 
   readonly property var memory: {
@@ -689,17 +645,23 @@ Panel {
     }
   }
 
-  // Ctrl+Up/Down carries the line the cursor is in up or down the page, and
-  // the cursor along with it.
+  // Moves a line among those shown, saves their order, and takes the cursor
+  // along to where it landed.
+  function moveLine(from, to) {
+    var ids = lines.map(function(line) { return line.id })
+    var id = ids[from]
+    ids.splice(to, 0, ids.splice(from, 1)[0])
+    engine.saveOrder(ids)
+    Qt.callLater(function() { pointAtLine(id) })
+  }
+
+  // Ctrl+Up/Down carries the line the cursor is in up or down the page.
   function reorderLine(dy) {
     if (dragIndex >= 0) return
     var from = lineIndexOfKey()
     if (from < 0 || pinnedLine(from)) return
     var to = Util.clamp(from + dy, pinnedLine(0) ? 1 : 0, lines.length - 1)
-    if (to === from) return
-    var id = lines[from].id
-    engine.moveLine(id, to)
-    Qt.callLater(function() { pointAtLine(id) })
+    if (to !== from) moveLine(from, to)
   }
 
   // Dragging a line by its mark, as the agents panel's lines move. The layout
@@ -746,14 +708,12 @@ Panel {
   }
 
   function finishLineDrag() {
-    var id = dragLineId
+    var from = dragIndex
     var to = pinnedLine(0) ? Math.max(1, dragTarget) : dragTarget
-    var moved = dragIndex >= 0 && to !== dragIndex
     // Disable slot motion before replacing the model: it already matches the preview.
     dragIndex = -1
-    if (moved) engine.moveLine(id, to)
     resetLineDrag()
-    if (moved) Qt.callLater(function() { pointAtLine(id) })
+    if (from >= 0 && to !== from) moveLine(from, to)
   }
 
   function settleLineDrag(cancel) {
@@ -870,6 +830,7 @@ Panel {
     adding = false
     resetKeys()
     if (panelFlick) panelFlick.contentY = 0
+    nowMs = Date.now()
     engine.readMemory()
     // "Doesn't fit" was true when a model last started or stopped; memory an
     // app has since let go of only shows after a fresh look, once per open.
@@ -1032,7 +993,7 @@ Panel {
           // Kept while adding, so an update under way keeps its bar.
           Repeater {
             id: modelSections
-            model: root.lineIds
+            model: ScriptModel { values: root.lines.map(function(line) { return line.id }) }
 
             ModelSection {
               required property string modelData
@@ -1338,7 +1299,7 @@ Panel {
     readonly property bool updateShown: updating || finishing === "updating"
     property double updateStartedMs: 0
     property real updateFill: 0
-    readonly property real updateTarget: updating ? root.updateProgress(model, updateStartedMs, root.loadNowMs) : 0
+    readonly property real updateTarget: updating ? root.updateProgress(model, updateStartedMs, root.nowMs) : 0
     onUpdateTargetChanged: updateFill = Math.max(updateFill, updateTarget)
     function askUpdate() {
       updateAsked = true
@@ -1365,7 +1326,7 @@ Panel {
     readonly property real removeSeconds: Number(model && model.expected_remove_seconds) || 10
     readonly property real phaseSeconds: removing ? removeSeconds : stopping ? root.expectedStopSeconds(model) : root.expectedLoadSeconds(model)
     readonly property var actions: model ? root.localActions(model) : []
-    readonly property real elapsed: model ? Math.max(0, (root.loadNowMs - Number(model.since_ms || root.loadNowMs)) / 1000) : 0
+    readonly property real elapsed: model ? Math.max(0, (root.nowMs - Number(model.since_ms || root.nowMs)) / 1000) : 0
     readonly property real memory: root.heldGib(model)
     readonly property real needsGib: root.localNeedsGib(model)
     spacing: Style.space(16)
@@ -1697,7 +1658,7 @@ Panel {
         y: -parent.pull
         width: parent.width
         textFormat: Text.PlainText
-        text: section.running ? Commons.I18n.t("localModels.usingRam").arg(root.formatGib(section.memory))
+        text: section.running ? (section.memory > 0 ? Commons.I18n.t("localModels.usingRam").arg(root.formatGib(section.memory)) : "")
           : section.needsGib > 0 ? Commons.I18n.t("localModels.needsRam").arg(Commons.I18n.formatNumber(Math.round(section.needsGib))) : ""
         color: !section.running && root.localStartBlocked(section.model) ? Commons.Color.warning : root.dim
         // Steps back with the name, except as a warning that it won't fit.
@@ -1775,7 +1736,7 @@ Panel {
 
     // Why a model on this machine stopped, which links to its logs.
     TextLink {
-      visible: !!section.model && !section.remote && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== "" && !root.errorRead(section.model)
+      visible: !!section.model && !section.remote && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
       width: Math.min(implicitWidth, parent.width)
       text: section.model ? String(section.model.error || "") : ""
       idleColor: root.urgent

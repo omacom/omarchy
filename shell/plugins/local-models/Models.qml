@@ -433,19 +433,12 @@ Item {
     return list.slice().sort(function(a, b) { return rank(a) - rank(b) })
   }
 
-  // Moves one line to a position among the ones shown, and saves the result,
-  // keeping the places of lines hidden or gone for now.
-  function moveLine(id, to) {
-    var ids = lines.map(function(line) { return line.id })
-    var from = ids.indexOf(id)
-    if (from < 0) return
-    to = Math.max(0, Math.min(ids.length - 1, to))
-    if (from === to) return
-    ids.splice(to, 0, ids.splice(from, 1)[0])
-    for (var i = 0; i < lineOrder.length; i++)
-      if (ids.indexOf(lineOrder[i]) < 0) ids.push(lineOrder[i])
-    lineOrder = ids
-    orderFile.setText(JSON.stringify(ids) + "\n")
+  // Saves the order of the lines a panel shows, keeping the places of lines
+  // hidden or gone for now after them.
+  function saveOrder(ids) {
+    var order = ids.concat(lineOrder.filter(function(id) { return ids.indexOf(id) < 0 }))
+    lineOrder = order
+    orderFile.setText(JSON.stringify(order) + "\n")
   }
 
   FileView {

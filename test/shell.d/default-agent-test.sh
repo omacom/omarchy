@@ -314,13 +314,11 @@ pass "agent launcher opens a local model without a default"
 
 # Qwen Code opens on a local model from an omarchy-local-ai that writes its
 # overlay: the endpoint and model as flags, the key read from its file inside
-# the terminal, never on a command line. An older one leaves it to pi.
+# the terminal, never on a command line.
 printf 'local-secret-key' >"$test_tmp/local-key"
 cat >"$mock_bin/omarchy-models" <<'SH'
 #!/bin/bash
-if [[ $1 == "overlay" && $2 == "--help" ]]; then
-  [[ -n ${OMARCHY_TEST_QWEN_OVERLAY:-} ]] && echo "agent {opencode,pi,qwen}" || echo "agent {opencode,pi}"
-elif [[ $1 == "overlay" && $2 == "qwen" ]]; then
+if [[ $1 == "overlay" && $2 == "qwen" ]]; then
   printf '{"baseUrl": "http://127.0.0.1:11435/v1", "model": "test-model", "keyFile": "%s"}\n' "$OMARCHY_TEST_KEY_FILE" >"$OMARCHY_TEST_QWEN_FILE"
   printf '%s\n' "$OMARCHY_TEST_QWEN_FILE" omarchy-local test-model
 elif [[ $1 == "overlay" ]]; then
@@ -331,7 +329,7 @@ chmod +x "$mock_bin/omarchy-models"
 printf '#!/bin/bash\nprintf "key=%%s args=%%s\\n" "$OPENAI_API_KEY" "$*"\n' >"$mock_bin/qwen"
 chmod +x "$mock_bin/qwen"
 : >"$launch_log"
-OMARCHY_TEST_QWEN_OVERLAY=1 OMARCHY_TEST_KEY_FILE="$test_tmp/local-key" OMARCHY_TEST_QWEN_FILE="$test_tmp/qwen-overlay.json" \
+OMARCHY_TEST_KEY_FILE="$test_tmp/local-key" OMARCHY_TEST_QWEN_FILE="$test_tmp/qwen-overlay.json" \
   omarchy-agent --agent qwen --local-model test-model >"$test_tmp/qwen-local-output" 2>&1 ||
   fail "agent launcher opens Qwen Code on a local model: $(<"$test_tmp/qwen-local-output")"
 mapfile -d '' -t launch_args <"$launch_log"
@@ -339,12 +337,6 @@ mapfile -d '' -t launch_args <"$launch_log"
 qwen_output=$("${launch_args[@]:1}")
 [[ $qwen_output == "key=local-secret-key args=--yolo --auth-type openai --openai-base-url http://127.0.0.1:11435/v1 --model test-model" ]] ||
   fail "Qwen Code gets the local endpoint and model as flags and the key in its environment: $qwen_output"
-: >"$launch_log"
-OMARCHY_TEST_KEY_FILE="$test_tmp/local-key" omarchy-agent --agent qwen --local-model test-model >"$test_tmp/qwen-old-output" 2>&1 ||
-  fail "agent launcher falls back from Qwen Code on an older omarchy-local-ai: $(<"$test_tmp/qwen-old-output")"
-mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == *"/overlays/"*"-local.config"* && ${launch_args[*]} != *"--auth-type"* ]] ||
-  fail "an omarchy-local-ai without Qwen Code's overlay opens the local model in pi or OpenCode: ${launch_args[*]}"
 rm "$mock_bin/omarchy-models" "$mock_bin/qwen" "$test_tmp/local-key"
 pass "agent launcher opens Qwen Code on a local model, keeping its key off the command line"
 
