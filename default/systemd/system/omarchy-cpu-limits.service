@@ -1,0 +1,14 @@
+[Unit]
+Description=Lower the CPU power limits while the power-saver profile is active
+# power-profiles-daemon orders itself after multi-user.target, so hang off
+# graphical.target like it does; multi-user.target would be an ordering cycle.
+After=power-profiles-daemon.service upower.service
+PartOf=power-profiles-daemon.service
+
+[Service]
+ExecStart=/usr/bin/omarchy-powerprofiles-cpu-limits watch
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target

@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Detect an AMD Raven Ridge, Picasso, or Dali APU (Ryzen 2000/3000 mobile and its Athlon siblings).
+
+# These are family 17h models 11h (Raven Ridge), 18h (Picasso) and 20h (Dali),
+# which /proc/cpuinfo prints in decimal. They share one SMU mailbox layout,
+# which is what omarchy-powerprofiles-cpu-limits relies on.
+#
+# Unprivileged tests may point at a fixture; root reads only the live file.
+cpuinfo=/proc/cpuinfo
+if (( EUID != 0 )) && [[ -n ${OMARCHY_CPUINFO_PATH:-} ]]; then
+  cpuinfo=$OMARCHY_CPUINFO_PATH
+fi
+
+awk -F': *' '
+  /^vendor_id/ && vendor == "" { vendor = $2 }
+  /^cpu family/ && family == "" { family = $2 }
+  /^model[[:space:]]*:/ && model == "" { model = $2 }
+  END { exit !(vendor == "AuthenticAMD" && family == 23 && (model == 17 || model == 24 || model == 32)) }
+' "$cpuinfo" 2>/dev/null
