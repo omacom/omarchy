@@ -327,6 +327,8 @@ Item {
       script: "current=$(omarchy-font-current 2>/dev/null); omarchy-font-list 2>/dev/null | while read -r f; do [[ -z $f ]] && continue; printf '%s\\t%s\\t%s\\n' \"$f\" \"$f\" \"$current\"; done",
       icon: "",
       volatile: true,
+      // Each row's name renders in its own font, so the list is a preview.
+      labelFontFor: function(value) { return value },
       actionFor: function(value) { return "omarchy-font-set " + Util.shellQuote(value) }
     },
     "power-profiles": {
@@ -457,6 +459,7 @@ Item {
         kind: "action",
         icon: (value === current) ? "✓" : (spec.icon || ""),
         label: label,
+        labelFont: spec.labelFontFor ? spec.labelFontFor(value) : "",
         title: "",
         target: "",
         description: "",
@@ -645,7 +648,7 @@ Item {
     if (root.dmenuMultiple && root.dmenuOnChange.length === 0) {
       displayModel.append({
         itemId: "dmenu.apply", disabled: false, kind: "dmenu", icon: "", iconFont: "",
-        appIcon: "", appId: "", label: Commons.I18n.t("common.apply"), target: "",
+        appIcon: "", appId: "", label: Commons.I18n.t("common.apply"), labelFont: "", target: "",
         detail: Commons.I18n.tn("menu.selectedCount", root.dmenuSelected.length).arg(Commons.I18n.formatNumber(root.dmenuSelected.length)), path: "", childCount: 0,
         action: "", provider: "", score: -1, section: ""
       })
@@ -671,6 +674,7 @@ Item {
         appIcon: "",
         appId: "",
         label: label,
+        labelFont: "",
         target: "",
         detail: detail,
         path: "",
@@ -1518,6 +1522,7 @@ Item {
               required property string appIcon
               required property string appId
               required property string label
+              required property string labelFont
               required property string target
               required property string detail
               required property string path
@@ -1600,7 +1605,7 @@ Item {
                   width: parent.width
                   text: row.altVariant ? root.labelFor(row.altVariant) : row.label
                   color: row.hasCursor ? root.selectedText : root.foreground
-                  font.family: root.fontFamily
+                  font.family: row.labelFont.length > 0 ? row.labelFont : root.fontFamily
                   font.pixelSize: Style.font.heading
                   font.weight: Font.Medium
                   elide: Text.ElideRight

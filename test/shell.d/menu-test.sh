@@ -154,6 +154,7 @@ assertDeepEqual(
     appIcon: '',
     appId: '',
     label: 'Theme picker',
+    labelFont: '',
     target: 'style.theme',
     detail: 'Style',
     path: 'Style › Theme picker',
