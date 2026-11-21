@@ -742,6 +742,13 @@ assert(index_of(picker) > index_of(maximized), "the file picker drawn over the m
 assert(click() == picker, "a click on the file picker over the maximized window went through it")
 table.remove(stack, index_of(picker))
 
+-- So does Omarchy's own file chooser, a process of its own.
+local chooser = window("0x11", { class = "folio-chooser", pid = 4 })
+click(chooser)
+click(maximized)
+assert(chooser.allowed_over_fullscreen, "a click on the maximized window hid the file chooser over it")
+table.remove(stack, index_of(chooser))
+
 -- So does a dialog of its own process.
 maximized.pid = 1
 local dialog = window("0xE", { pid = 1 })

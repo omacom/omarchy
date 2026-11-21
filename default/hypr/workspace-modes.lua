@@ -348,18 +348,20 @@ end
 -- A dialog belongs over the maximized window it was opened from, which its app
 -- may block until it closes. Hyprland tells nothing of which window owns which,
 -- so a dialog is a window floating on its own account that is of the same
--- process, or one of the portal's, which shows the file pickers and prompts of
--- other apps and nothing else. A window the mode floated opened as a window of
--- its own, such as a second browser window, whatever process it is of. Floating
--- on its own account is no sign of a dialog either: Steam, a calculator and a
--- password manager float by rule and are apps of their own.
+-- process, or one of the portal's or of Omarchy's file chooser, which show the
+-- file pickers and prompts of other apps and nothing else. A window the mode
+-- floated opened as a window of its own, such as a second browser window,
+-- whatever process it is of. Floating on its own account is no sign of a dialog
+-- either: Steam, a calculator and a password manager float by rule and are apps
+-- of their own.
 local function dialog_of(window, other, mine)
   if mine[other.address] then
     return false
   end
 
   local pid = window.pid or 0
-  return (pid > 0 and other.pid == pid) or (other.class or ""):find("^xdg%-desktop%-portal") ~= nil
+  local class = other.class or ""
+  return (pid > 0 and other.pid == pid) or class:find("^xdg%-desktop%-portal") ~= nil or class == "folio-chooser"
 end
 
 -- Brings a maximized window to the front, as a click on it does on Windows:
