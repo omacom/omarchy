@@ -964,3 +964,37 @@ if (( alias_ms * 4 > full_ms )); then
   fail "an alias dispatch costs a fraction of loading the whole command table"
 fi
 pass "an alias dispatch costs a fraction of loading the whole command table (${alias_ms}ms vs ${full_ms}ms)"
+
+# Screensaver presets list built-ins, apply cleanly, and reject unknown or
+# path-traversal names without touching the active screensaver.
+make_tmpdir SCREENSAVER_HOME
+make_tmpdir SCREENSAVER_STUB
+cat >"$SCREENSAVER_STUB/omarchy-launch-screensaver" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"$SCREENSAVER_LAUNCH_LOG"
+STUB
+chmod +x "$SCREENSAVER_STUB/omarchy-launch-screensaver"
+
+preset_list=$(OMARCHY_PATH="$ROOT" "$CLI" branding screensaver preset --list)
+assert_output_contains "screensaver presets include omarchy" "$preset_list" "omarchy"
+assert_output_contains "screensaver presets include riemann-alpoge" "$preset_list" "riemann-alpoge"
+
+SCREENSAVER_LAUNCH_LOG="$SCREENSAVER_HOME/launch.log" \
+  HOME="$SCREENSAVER_HOME" \
+  OMARCHY_PATH="$ROOT" \
+  PATH="$SCREENSAVER_STUB:$ROOT/bin:$PATH" \
+  "$CLI" branding screensaver preset riemann-alpoge
+cmp -s "$ROOT/default/screensavers/riemann-alpoge.txt" "$SCREENSAVER_HOME/.config/omarchy/branding/screensaver.txt" \
+  || fail "screensaver preset copies the chosen preset into branding/screensaver.txt"
+pass "screensaver preset copies the chosen preset into branding/screensaver.txt"
+[[ $(cat "$SCREENSAVER_HOME/launch.log") == "force" ]] \
+  || fail "screensaver preset previews the screensaver after applying"
+pass "screensaver preset previews the screensaver after applying"
+
+if HOME="$SCREENSAVER_HOME" OMARCHY_PATH="$ROOT" PATH="$SCREENSAVER_STUB:$ROOT/bin:$PATH" \
+  "$CLI" branding screensaver preset ../logo >/dev/null 2>&1; then
+  fail "screensaver preset rejects path traversal names"
+fi
+cmp -s "$ROOT/default/screensavers/riemann-alpoge.txt" "$SCREENSAVER_HOME/.config/omarchy/branding/screensaver.txt" \
+  || fail "rejected screensaver preset leaves the current screensaver untouched"
+pass "screensaver preset rejects path traversal names"
