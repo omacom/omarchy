@@ -520,3 +520,22 @@ if toggle HYPRCTL_WS_ID=-1339 HYPRCTL_WS_NAME=untouched HYPRCTL_APPLIED_LAYOUT=d
 fi
 [[ ! -e $named_layouts/name-756e746f7563686564.lua ]] || fail "unapplied named layout is not persisted"
 pass "named workspace changes are verified and persisted by name"
+
+# od normally folds repeated blocks into '*'; both rules must survive a reload.
+short_name=$(printf 'a%.0s' {1..32})
+long_name=$(printf 'a%.0s' {1..48})
+toggle HYPRCTL_WS_ID=-1340 HYPRCTL_WS_NAME="$short_name" HYPRCTL_APPLIED_LAYOUT=scrolling
+toggle HYPRCTL_WS_ID=-1341 HYPRCTL_WS_NAME="$long_name" HYPRCTL_TILED_LAYOUT=scrolling HYPRCTL_APPLIED_LAYOUT=dwindle
+if ! NAMED_LAYOUTS="$named_layouts" lua - <<'LUA'
+local restored = {}
+hl = { workspace_rule = function(rule) restored[rule.workspace] = rule.layout end }
+for path in io.popen('find "' .. os.getenv("NAMED_LAYOUTS") .. '" -name "name-*.lua"'):lines() do
+  dofile(path)
+end
+assert(restored["name:" .. string.rep("a", 32)] == "scrolling", "the first repeated name lost its layout")
+assert(restored["name:" .. string.rep("a", 48)] == "dwindle", "the second repeated name lost its layout")
+LUA
+then
+  fail "repeated blocks in workspace names keep independent layouts across reload"
+fi
+pass "repeated blocks in workspace names keep independent layouts across reload"

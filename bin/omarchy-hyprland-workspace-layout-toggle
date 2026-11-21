@@ -30,7 +30,7 @@ toggle_named_layout() {
   else
     selector="name:$name"
   fi
-  key=$(printf '%s' "$name" | od -An -tx1 | tr -d ' \n')
+  key=$(printf '%s' "$name" | od -An -v -tx1 | tr -d ' \n')
   selector=${selector//\\/\\\\}
   selector=${selector//\"/\\\"}
   selector=${selector//$'\n'/\\n}
