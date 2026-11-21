@@ -31,9 +31,9 @@ PopupWindow {
   // Thickness of the painted bar strip on this screen, notch floor
   // included. The bar window spans its whole screen (only the strip inside
   // it is painted and takes input), so the window's dimensions say nothing
-  // about the bar.
+  // about the bar. A bar object that reports no size counts as 0.
   readonly property real barThickness: !bar ? 0
-    : (typeof bar.barSizeFor === "function" && popupScreen ? bar.barSizeFor(popupScreen.name) : bar.barSize)
+    : Number(typeof bar.barSizeFor === "function" && popupScreen ? bar.barSizeFor(popupScreen.name) : bar.barSize) || 0
   readonly property real availableCardWidth: screenW > 0
     ? Math.max(120, screenW - ((bar && (bar.position === "left" || bar.position === "right")) ? barThickness : 0) - root.margin * 2)
     : 0
