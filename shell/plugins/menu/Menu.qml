@@ -51,6 +51,11 @@ Item {
 
   function ping() { return "ok" }
 
+  function refreshShortcutHints() {
+    shortcutRefresh.restart()
+    return "ok"
+  }
+
   property string fontFamily: Style.font.menuFamily
   // JSONC menu definitions. The shell parses both at startup and merges
   // the user file on top of the defaults, so the keybind → IPC → visible

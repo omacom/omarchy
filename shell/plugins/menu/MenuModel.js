@@ -727,8 +727,13 @@ function shortcutCommand(command) {
     rest = rest.substring(match[0].length)
   }
   if (words[0] === "omarchy" && words.length > 1) {
-    // The CLI router and its legacy binary names run the same command.
-    words = ["omarchy-" + words[1]].concat(words.slice(2))
+    // Match the single-token binary spelling and the theme setter's common
+    // multiword route. Other multiword routes are left as entered.
+    if (words[1] === "theme" && words[2] === "set") {
+      words.splice(0, 3, "omarchy-theme-set")
+    } else {
+      words.splice(0, 2, "omarchy-" + words[1])
+    }
   }
   if (words[0] === "omarchy-shell" && words[1] === "shell"
       && (words[2] === "toggle" || words[2] === "summon")) words[2] = "summon"
@@ -753,8 +758,12 @@ function shortcutAppCommand(command) {
     var key = shortcutCommand(command)
     if (!key) return ""
     words = JSON.parse(key)
-  } else words = Array.prototype.slice.call(command || [])
-  words = words.filter(function(word) { return !/%[fFuUiIcCkK]/.test(String(word)) })
+  } else {
+    words = Array.prototype.slice.call(command || [])
+    // Only desktop entries use field codes. Even there, an encoded URL can
+    // contain the same characters inside a literal argument.
+    words = words.filter(function(word) { return !/^%[fFuUiIcCkK]$/.test(String(word)) })
+  }
   while (words.length && (words[0] === "uwsm-app" || words[0] === "setsid" || words[0] === "env")) {
     var wrapper = words.shift()
     if (wrapper === "env") while (words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0])) words.shift()
@@ -764,6 +773,8 @@ function shortcutAppCommand(command) {
   if (words[0] === "omarchy-launch-or-focus-tui" || words[0] === "omarchy-launch-tui") words.shift()
   if (!words.length) return ""
   words[0] = words[0].substring(words[0].lastIndexOf("/") + 1)
+  if (words[0] === "omarchy-launch-or-focus-webapp" && words.length >= 3)
+    words.splice(0, 2, "omarchy-launch-webapp")
   var launchers = { "omarchy-launch-nautilus": ["nautilus", "--new-window"], "omarchy-launch-signal": ["signal-desktop"], "omarchy-launch-spotify": ["spotify"] }
   if (launchers[words[0]] && words.length === 1) words = launchers[words[0]]
   if (words[words.length - 1] === "--") words.pop()

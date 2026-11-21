@@ -47,6 +47,7 @@ assertEqual(hints.clipboard, '⌘⌃V', 'global panel binding matches summon act
 assertEqual(menu.shortcutCommand("echo a && echo b"), '', 'compound command is not mistaken for a simple action')
 assertEqual(menu.shortcutCommand('echo "$VALUE"'), '', 'expanded command is opaque')
 assertEqual(menu.shortcutCommand("omarchy-menu summon 'system'"), menu.shortcutCommand('omarchy menu summon system'), 'CLI and binary routes agree')
+assertEqual(menu.shortcutCommand('omarchy theme set nord'), menu.shortcutCommand('omarchy-theme-set nord'), 'theme set also matches the spaced CLI route')
 assertEqual(menu.shortcutChord('SUPER SHIFT + RETURN / XF86Calculator'), '⌘⇧↵', 'only first alternative is displayed')
 
 const appItems = {
@@ -75,6 +76,11 @@ assertEqual(appHints.otherChat, undefined, 'different web app does not inherit s
 assertEqual(appHints.obsidian, '⌘⇧O', 'focus wrapper resolves to application command')
 assertEqual(appHints.signal, '⌘⇧G', 'built-in app launcher matches desktop command')
 assert(menu.shortcutAppCommand('chromium --incognito') !== menu.shortcutAppCommand(['chromium', '%U']), 'private launch stays distinct from plain browser')
+const encodedUrl = 'https://example.com/%CF%80'
+assertEqual(menu.shortcutAppCommand("omarchy-launch-or-focus-webapp 'Test' '" + encodedUrl + "' --test-flag"),
+  menu.shortcutAppCommand(['omarchy-launch-webapp', encodedUrl, '--test-flag', '%U']), 'web-app focus wrapper matches the desktop URL and flags')
+assert(menu.shortcutAppCommand(['omarchy-launch-webapp', encodedUrl]) !==
+  menu.shortcutAppCommand(['omarchy-launch-webapp', 'https://example.com/%CF%81']), 'distinct percent-encoded URLs keep distinct shortcuts')
 
 const parsed = menu.parseMenuJsonc(`
 {

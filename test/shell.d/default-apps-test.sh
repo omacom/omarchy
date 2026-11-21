@@ -32,6 +32,11 @@ cat >"$mock_bin/omarchy-notification-send" <<'SH'
 printf '%s\0' "$@" >>"$OMARCHY_TEST_NOTIFICATION_LOG"
 SH
 
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$HOME/shortcut-refresh.log"
+SH
+
 cat >"$mock_bin/omarchy-test-setup-call" <<'SH'
 #!/bin/bash
 printf '%s:%s\n' "${0##*/}" "$*" >>"$OMARCHY_TEST_SETUP_LOG"
@@ -330,10 +335,13 @@ pass "editor defaults install every missing editor before selection"
 
 : >"$install_log"
 : >"$terminal_log"
+: >"$test_home/shortcut-refresh.log"
 omarchy-default-browser zen
 omarchy-default-terminal kitty
 omarchy-default-editor nvim
 [[ ! -s $install_log && ! -s $terminal_log ]] || fail "installed defaults skip installation"
+[[ $(rg -c -Fx -- '-q shell call omarchy.menu refreshShortcutHints {}' "$test_home/shortcut-refresh.log") == 3 ]] ||
+  fail "each default app change refreshes shortcut hints"
 pass "installed defaults are selected immediately"
 
 # The bundled extensions reach each browser through copies taken at setup that
