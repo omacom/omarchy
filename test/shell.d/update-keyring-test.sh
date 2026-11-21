@@ -197,26 +197,26 @@ grep -Eq $'^sudo\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy
   fail "x86 refreshes only Arch's keyring, even with Arch Linux ARM's installed" "$(cat "$log_file")"
 pass "aarch64 machines also refresh Arch Linux ARM's keyring where it is installed, x86 never"
 
-# The platform package's list adds the installed keyrings it names: Apple
-# Silicon's [asahi-alarm], with no platform branch here.
-printf '%s\n' '# Asahi' '' asahi-alarm-keyring archlinuxarm-keyring other-keyring asahi-alarm-keyring >"$platform_keyrings"
-printf 'asahi-alarm-keyring' >>"$platform_keyrings"
+# The platform package's list adds the installed keyrings it names, such as a
+# platform repository's own, with no platform branch here.
+printf '%s\n' '# Example' '' example-keyring archlinuxarm-keyring other-keyring example-keyring >"$platform_keyrings"
+printf 'example-keyring' >>"$platform_keyrings"
 : >"$log_file"
 rm -f "$test_tmp/list-calls"
-KEYRING_TEST_ARM=1 KEYRING_TEST_PLATFORM=aarch64-apple KEYRING_TEST_INSTALLED=asahi-alarm-keyring run_keyring >"$test_tmp/platform.out"
-grep -Eq $'^sudo\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring\tarchlinuxarm-keyring\tasahi-alarm-keyring$' "$log_file" ||
+KEYRING_TEST_ARM=1 KEYRING_TEST_PLATFORM=aarch64-apple KEYRING_TEST_INSTALLED=example-keyring run_keyring >"$test_tmp/platform.out"
+grep -Eq $'^sudo\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring\tarchlinuxarm-keyring\texample-keyring$' "$log_file" ||
   fail "update-keyring refreshes the installed keyrings the platform names, once each" "$(cat "$log_file")"
 pass "update-keyring refreshes the installed keyrings the platform names, once each"
 
-for listed in 'asahi-alarm-keyring;reboot' '../asahi-alarm-keyring' 'asahi-alarm' '-Syu-keyring' 'asahi-alarm-keyring extra'; do
-  printf '%s\n%s\n' "$listed" asahi-alarm-keyring >"$platform_keyrings"
+for listed in 'example-keyring;reboot' '../example-keyring' 'example' '-Syu-keyring' 'example-keyring extra'; do
+  printf '%s\n%s\n' "$listed" example-keyring >"$platform_keyrings"
   : >"$log_file"
   rm -f "$test_tmp/list-calls"
-  KEYRING_TEST_INSTALLED=asahi-alarm-keyring run_keyring >"$test_tmp/invalid.out" 2>&1 ||
+  KEYRING_TEST_INSTALLED=example-keyring run_keyring >"$test_tmp/invalid.out" 2>&1 ||
     fail "update-keyring carries on past a platform list line naming $listed" "$(cat "$test_tmp/invalid.out")"
   grep -qF "skipping $listed" "$test_tmp/invalid.out" ||
     fail "update-keyring warns about $listed" "$(cat "$test_tmp/invalid.out")"
-  grep -Eq $'^sudo\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring\tasahi-alarm-keyring$' "$log_file" ||
+  grep -Eq $'^sudo\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring\texample-keyring$' "$log_file" ||
     fail "update-keyring skips $listed and still refreshes the valid keyrings, and nothing else" "$(cat "$log_file")"
 done
 rm -f "$platform_keyrings"
