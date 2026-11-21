@@ -72,3 +72,44 @@ fi
 [[ $output == "--except needs an agent" && ! -e $usage_dir/good.json ]] ||
   fail "update refuses an empty --except before collecting anything" "$output"
 pass "update refuses an empty --except before collecting anything"
+
+# A limits-only refresh leaves out agents whose last record the panel hides as
+# unused; a full refresh and a named agent still run them.
+cat >"$FAKE_OMARCHY/bin/omarchy-agent-usage-idle" <<'EOF2'
+#!/bin/bash
+touch "$HOME/idle-ran"
+echo '{"schemaVersion":1,"id":"idle","ready":false,"limits":[],"totalPrompts":0}'
+EOF2
+chmod +x "$FAKE_OMARCHY/bin/omarchy-agent-usage-idle"
+rm -f "$FAKE_OMARCHY/bin/omarchy-agent-usage-noisy"
+mkdir -p "$usage_dir"
+echo '{"id":"idle","ready":false,"limits":[],"totalPrompts":0}' >"$usage_dir/idle.json"
+echo '{"id":"good","totalPrompts":3,"name":"Old"}' >"$usage_dir/good.json"
+
+run_update() {
+  rm -f "$TEST_HOME/idle-ran"
+  HOME="$TEST_HOME" OMARCHY_PATH="$FAKE_OMARCHY" XDG_STATE_HOME="" \
+    "$ROOT/bin/omarchy-agent-usage-update" "$@" 2>/dev/null
+}
+
+run_update --limits-only
+[[ ! -e $TEST_HOME/idle-ran && $(jq -r '.name' "$usage_dir/good.json") == "Good Agent" ]] ||
+  fail "a limits-only update skips unused agents and runs used ones"
+pass "a limits-only update skips unused agents and runs used ones"
+
+run_update --limits-only idle
+[[ -e $TEST_HOME/idle-ran ]] || fail "a limits-only update runs an unused agent it names"
+pass "a limits-only update runs an unused agent it names"
+
+run_update
+[[ -e $TEST_HOME/idle-ran ]] || fail "a full update still runs unused agents"
+pass "a full update still runs unused agents"
+
+run_update --force --limits-only
+[[ -e $TEST_HOME/idle-ran ]] || fail "a forced limits-only update still runs unused agents"
+pass "a forced limits-only update still runs unused agents"
+
+touch -d '2 hours ago' "$usage_dir/idle.json"
+run_update --limits-only
+[[ -e $TEST_HOME/idle-ran ]] || fail "a limits-only update runs an unused agent whose record is over an hour old"
+pass "a limits-only update runs an unused agent whose record is over an hour old"
