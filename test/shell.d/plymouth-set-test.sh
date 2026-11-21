@@ -966,3 +966,39 @@ status=$?
 assert_no_temporary_files "$fake_root"
 
 pass "a reset refusal cannot fall through to an unhardened SDDM copy"
+
+# omarchy-plymouth-current names the listed theme whose unlock.png is installed
+# and nothing else, and says custom for a logo that belongs to none of them.
+current_dir=$(mktemp -d "$test_tmp/current.XXXXXXXX")
+current_home="$current_dir/home"
+current_omarchy="$current_dir/omarchy"
+current_installed_logo="$current_dir/installed-logo.png"
+plymouth_current="$current_dir/omarchy-plymouth-current"
+
+mkdir -p "$current_home" "$current_omarchy/default/plymouth" "$current_omarchy/themes/listed"
+
+printf 'default-logo\n' >"$current_omarchy/default/plymouth/logo.png"
+printf 'preview\n' >"$current_omarchy/themes/listed/preview-unlock.png"
+printf 'listed-logo\n' >"$current_omarchy/themes/listed/unlock.png"
+
+sed "s|/usr/share/plymouth/themes/omarchy/logo.png|$current_installed_logo|" \
+  "$ROOT/bin/omarchy-plymouth-current" >"$plymouth_current" &&
+  chmod +x "$plymouth_current" &&
+  grep -Fq -- "$current_installed_logo" "$plymouth_current" ||
+  fail "omarchy-plymouth-current test copy points at the fixture installed logo"
+
+run_current() {
+  HOME="$current_home" OMARCHY_PATH="$current_omarchy" PATH="$ROOT/bin:$PATH" "$plymouth_current"
+}
+
+cp "$current_omarchy/themes/listed/unlock.png" "$current_installed_logo"
+output=$(run_current 2>&1)
+[[ $output == "listed" ]] ||
+  fail "omarchy-plymouth-current prints only the matched theme name" "$output"
+pass "omarchy-plymouth-current prints only the matched theme name"
+
+printf 'unmatched-logo\n' >"$current_installed_logo"
+output=$(run_current 2>&1)
+[[ $output == "custom" ]] ||
+  fail "omarchy-plymouth-current prints custom for an unmatched logo" "$output"
+pass "omarchy-plymouth-current prints custom for an unmatched logo"
