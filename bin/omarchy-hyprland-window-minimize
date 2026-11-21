@@ -14,8 +14,12 @@ fi
 
 [[ -n $ADDRESS && $WORKSPACE =~ ^[0-9]+$ ]] || exit 1
 
-# Only floating workspaces have the dock to bring a window back from.
-[[ $(omarchy-hyprland-workspace-layout-current "$WORKSPACE") == "floating" ]] || exit 0
+# Only floating workspaces have the dock to bring a window back from, so
+# elsewhere the window stays put and the user is told why.
+if [[ $(omarchy-hyprland-workspace-layout-current "$WORKSPACE") != "floating" ]]; then
+  omarchy-notification-send -g 󱂬 "$(omarchy-i18n window.minimizeNeedsFloating)" "$(omarchy-i18n window.minimizeFloatingHint)"
+  exit 0
+fi
 
 remember_minimized_from() {
   local address=$1 workspace=$2 clients tag
