@@ -34,8 +34,10 @@ Item {
   }
 
   // The catalog's recipes as this machine sees them (fits, best, installed),
-  // which the panel's + offers from.
+  // which the panel's + offers from, and whether the startup refresh has
+  // written them yet: until then, no machine can be told it runs no model.
   property var localRecipes: []
+  property bool listed: false
 
   FileView {
     id: localRecipesFile
@@ -66,6 +68,7 @@ Item {
     onExited: {
       localRecipesFile.reload()
       localModelFile.reload()
+      root.listed = true
     }
   }
 

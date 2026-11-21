@@ -575,6 +575,9 @@ Panel {
   }
   property int keyRow: 0
   property int keyColumn: 0
+  // The + is the first row, so it coming or going moves every row below it;
+  // the cursor moves with them and stays on what it was on.
+  onAddButtonShownChanged: if (cursorActive) keyRow = Math.max(0, keyRow + (addButtonShown ? 1 : -1))
   readonly property var keyTarget: {
     if (!cursorActive || keyRow < 0 || keyRow >= keyRows.length) return null
     var row = keyRows[keyRow]
@@ -708,11 +711,14 @@ Panel {
   }
 
   function finishLineDrag() {
-    var from = dragIndex
+    var id = dragLineId
     var to = pinnedLine(0) ? Math.max(1, dragTarget) : dragTarget
     // Disable slot motion before replacing the model: it already matches the preview.
     dragIndex = -1
     resetLineDrag()
+    // A survey may have added or dropped a line while it was held.
+    var from = lines.map(function(line) { return line.id }).indexOf(id)
+    to = Math.min(to, lines.length - 1)
     if (from >= 0 && to !== from) moveLine(from, to)
   }
 
@@ -821,7 +827,7 @@ Panel {
     landAfterPair = ""
     hoveredLine = -1
     resetLineDrag()
-  } else if (!visible) {
+  } else if (!visible && (!engine || engine.listed)) {
     // The hotkey and IPC reach a machine with no icon too; it can run no
     // model, so there is no panel to show.
     Qt.callLater(root.close)
@@ -1403,7 +1409,7 @@ Panel {
         anchors.leftMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        width: Math.max(0, Math.min(implicitWidth, sectionButtons.x - x - sectionKind.implicitWidth - Style.space(24)))
+        width: Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionButtons.width - sectionKind.implicitWidth - Style.space(34)))
         elide: Text.ElideRight
         text: section.model ? (section.model.name || section.model.recipe)
           : section.offer ? (section.offer.link ? root.linkTitle(section.offer.link) : (section.offer.name || section.offer.id))
