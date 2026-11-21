@@ -66,7 +66,7 @@ if [[ $mode == "pending" ]]; then
 fi
 
 wait_for_pacman_transaction() {
-  local lock_file=/var/lib/pacman/db.lck
+  local lock_file="${OMARCHY_PACMAN_LOCK:-/var/lib/pacman/db.lck}"
 
   [[ -e $lock_file ]] || return 0
   echo "Waiting for pacman transaction to finish before running Omarchy migrations..."
@@ -76,8 +76,10 @@ wait_for_pacman_transaction() {
     sleep 1
   done
 
-  echo "Pacman transaction is still running; Omarchy migrations will retry on next login."
-  exit 0
+  # Not exit 0: omarchy-update runs this between the package transaction and
+  # its post-update hooks, and a zero here reads as "migrations applied".
+  echo "Pacman transaction is still running; Omarchy migrations did not run. Retry once it finishes." >&2
+  exit 1
 }
 
 wait_for_pacman_transaction
