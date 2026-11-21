@@ -151,24 +151,6 @@ border-alpha     = 1.0
 # border-width     = 2
 countdown        = "{{ accent }}"
 
-[launcher]
-# Same six tokens as [menu], applied to the launcher overlay. Alpha
-# companions go from 0 (invisible) to 1 (opaque). scrim is the full-screen
-# dim layer behind the card; background is the card itself. Defaults
-# mirror [menu] with the card at 0.95 to preserve the legacy translucency.
-background                = "{{ background }}"
-background-alpha          = 0.95
-text                      = "{{ foreground }}"
-border                    = "hyprland.active-border-foreground"
-border-alpha              = 1.0
-scrim                     = "{{ background }}"
-scrim-alpha               = 0.5
-selected-background       = "{{ foreground }}"
-selected-background-alpha = 0.08
-selected-text             = "{{ accent }}"
-selected-border           = "hyprland.active-border-foreground"
-selected-border-alpha     = 0.25
-
 [menu]
 # Cards, rows, and selected-row treatment. Alpha companions (where present)
 # go from 0 (invisible) to 1 (opaque). scrim is the full-screen dim layer
