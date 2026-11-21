@@ -134,7 +134,14 @@ INSTALL_STATUS=1 run_setup
 if grep -qx enroll "$CALL_LOG"; then
   fail "a failed package transaction prevents enrollment"
 fi
-pass "a failed installation stops before enrollment"
+# A failed install must say why setup stopped: set -e alone ends the script
+# after pacman's own output with no message, and the floating setup terminal
+# closes on exit, so the failure read as "fingerprint setup failed" (#19194).
+grep -qF "Installing the fingerprint packages failed" "$scratch/output" ||
+  fail "a failed package installation says why setup stopped" "$(cat "$scratch/output")"
+grep -qF "omarchy update" "$scratch/output" ||
+  fail "a failed package installation names the database-refresh retry path" "$(cat "$scratch/output")"
+pass "a failed installation stops before enrollment, and says why"
 
 HARDWARE_STATUS=1 run_setup
 [[ ! -s $CALL_LOG ]] || fail "missing hardware stops before package operations"

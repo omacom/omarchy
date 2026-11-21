@@ -152,7 +152,14 @@ fi
 # one transaction, so a failed install leaves the existing driver in place.
 if omarchy-pkg-missing libfprint-git fprintd usbutils; then
   echo "Installing required packages..."
-  sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
+  # Say why setup stopped: set -e alone would end the script on pacman's
+  # failure with no message of its own, and a fresh install's stale databases
+  # are the usual cause (the reporter's identical command succeeded right
+  # after an omarchy update had refreshed keyrings and sync DBs).
+  if ! sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils; then
+    echo -e "\e[31mInstalling the fingerprint packages failed. Run 'omarchy update' to refresh the package databases, then run this setup again.\e[0m" >&2
+    exit 1
+  fi
 fi
 
 # Enroll first fingerprint
