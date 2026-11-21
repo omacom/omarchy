@@ -64,6 +64,14 @@ export PATH="$stub_bin:$PATH"
 
 gaps_flag="$test_home/.local/state/omarchy/toggles/hypr/window-no-gaps.lua"
 
+# Names that ship as Hyprland toggles go to the sourced directory, not an inert flat flag.
+rounded_flag="$test_home/.local/state/omarchy/toggles/hypr/corners-rounded.lua"
+HOME="$test_home" omarchy-toggle corners-rounded on >/dev/null
+[[ -f $rounded_flag && ! -e $test_home/.local/state/omarchy/toggles/corners-rounded ]] || fail "generic toggle routes a Hyprland toggle name to the sourced directory"
+HOME="$test_home" omarchy-toggle corners-rounded off >/dev/null
+[[ ! -f $rounded_flag ]] || fail "generic toggle turns a Hyprland toggle name off"
+pass "generic toggle routes Hyprland toggle names through omarchy-hyprland-toggle"
+
 HOME="$test_home" omarchy-toggle-fullscreen-desktop
 [[ -f $bar_flag && -f $gaps_flag ]] || fail "fullscreen toggle hides the bar and the gaps together"
 pass "fullscreen toggle hides the bar and the gaps together"
