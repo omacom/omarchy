@@ -237,3 +237,96 @@ number_claims=$(cut -f1 <<<"$panels_output" | grep -cE '^SUPER \+ CTRL \+ code:1
 (( number_claims == 9 )) ||
   fail "only the bar panel hotkeys bind SUPER + CTRL + a number" "$number_claims"
 pass "bar panel hotkeys bind SUPER + CTRL + a number without a collision"
+
+# A maximized window on the scrolling layout covers the rest, so movefocus has
+# nowhere to go and SUPER + arrows stop working. The arrow binds hand those
+# presses to the layout's own focus message instead, but only there: other
+# layouts and an unmaximized window keep using movefocus.
+run_focus_binding() {
+  local layout="$1" fullscreen="$2" key="$3"
+
+  HOME="$tmpdir/focus-home" XDG_CONFIG_HOME="$tmpdir/focus-home/.config" \
+    XDG_STATE_HOME="$tmpdir/focus-home/.local/state" OMARCHY_PATH="$ROOT" \
+    FOCUS_LAYOUT="$layout" FOCUS_FULLSCREEN="$fullscreen" FOCUS_KEY="$key" lua - <<'LUA'
+package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+
+local function proxy(path)
+  return setmetatable({ path = path }, {
+    __index = function(self, key)
+      return proxy(self.path .. "." .. key)
+    end,
+    __call = function(self, ...)
+      return { path = self.path, args = { ... } }
+    end,
+  })
+end
+
+local bindings, dispatched = {}, {}
+
+hl = setmetatable({
+  dsp = proxy("hl.dsp"),
+  bind = function(keys, dispatcher)
+    bindings[keys] = dispatcher
+  end,
+  dispatch = function(dispatcher)
+    table.insert(dispatched, dispatcher)
+  end,
+  get_active_workspace = function()
+    return { tiled_layout = os.getenv("FOCUS_LAYOUT") }
+  end,
+  get_active_special_workspace = function()
+    return nil
+  end,
+  get_active_window = function()
+    return { fullscreen = tonumber(os.getenv("FOCUS_FULLSCREEN")) }
+  end,
+}, {
+  __index = function()
+    return function()
+      return {}
+    end
+  end,
+})
+
+require("default.hypr.helpers")
+
+o.workspaces = {
+  focus = function() return function() end end,
+  move_window = function() return function() end end,
+  move_to_monitor = function() return function() end end,
+  move_window_to_monitor = function() return function() end end,
+}
+
+require("default.hypr.bindings.tiling")
+
+bindings["SUPER + " .. os.getenv("FOCUS_KEY")]()
+
+local dispatcher = dispatched[#dispatched]
+if dispatcher.path == "hl.dsp.layout" then
+  print("layout\t" .. tostring(dispatcher.args[1]))
+else
+  print("focus\t" .. tostring(dispatcher.args[1].direction))
+end
+LUA
+}
+
+focus_home="$tmpdir/focus-home"
+mkdir -p "$focus_home"
+
+for pair in "LEFT l" "RIGHT r" "UP u" "DOWN d"; do
+  read -r key direction <<<"$pair"
+  result=$(run_focus_binding scrolling 1 "$key")
+  [[ $result == $'layout\tfocus '"$direction" ]] ||
+    fail "a maximized scrolling window navigates with SUPER + $key" "$result"
+done
+pass "SUPER + arrows scroll a maximized window on the scrolling layout"
+
+result=$(run_focus_binding scrolling 0 LEFT)
+[[ $result == $'focus\tl' ]] || fail "an unmaximized scrolling window keeps movefocus" "$result"
+
+result=$(run_focus_binding dwindle 1 LEFT)
+[[ $result == $'focus\tl' ]] || fail "other layouts keep movefocus for a maximized window" "$result"
+
+result=$(run_focus_binding scrolling 2 LEFT)
+[[ $result == $'focus\tl' ]] || fail "a fullscreen scrolling window keeps movefocus" "$result"
+pass "SUPER + arrows only reroute for a maximized scrolling window"
