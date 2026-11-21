@@ -40,14 +40,13 @@ BarWidget {
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
   }
 
-  // SystemClock waits out the rest of the minute on a timer that stops during
-  // suspend, so after a wake the label kept the time from before it for up to a
-  // minute. Re-enabling the clock re-reads the time and arms its next tick from
-  // now, and onDateChanged below puts the result on the label. Unlike refresh()
-  // this leaves a month the user is browsing in the calendar where it is.
+  // The timer stops during suspend, so after a wake the label kept the time
+  // from before it for up to a minute. Resyncing re-reads the time and arms
+  // its next tick from now, and onDateChanged below puts the result on the
+  // label. Unlike refresh() this leaves a month the user is browsing in the
+  // calendar where it is.
   function resync() {
-    clock.enabled = false
-    clock.enabled = true
+    clock.resync()
     if (panelLoader.item && panelLoader.item.resync) panelLoader.item.resync()
   }
 

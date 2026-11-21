@@ -70,50 +70,39 @@ ShellRoot {
     return null
   }
 
-  // The SystemClock a QML object declares, found by the properties only it has.
-  function systemClockOf(item) {
+  // The WallClock a QML object declares, found by the properties only it has.
+  function wallClockOf(item) {
     for (var i = 0; i < item.data.length; i++) {
       var child = item.data[i]
-      if (child && ("precision" in child) && ("enabled" in child)) return child
+      if (child && ("step" in child) && ("date" in child) && typeof child.arm === "function") return child
     }
     return null
   }
 
-  // How many times a clock was stopped and started while fn ran.
-  function restartsDuring(clock, fn) {
-    var restarts = 0
-    var count = function() { if (clock.enabled) restarts++ }
-    clock.enabledChanged.connect(count)
-    fn()
-    clock.enabledChanged.disconnect(count)
-    return restarts
-  }
-
-  // A wake leaves SystemClock counting down a minute it started before the
-  // sleep. Re-enabling it is what re-reads the time, so the resync the system
-  // clock timer asks for has to restart both the label's clock and the
+  // A wake leaves WallClock counting down an interval it started before the
+  // sleep. Resyncing is what re-reads the time, so the catch-up the system
+  // clock timer asks for has to update both the label's clock and the
   // calendar's, and has to do it without sending a browsed month back to today.
   function assertClockResyncs(item) {
     var calendar = calendarOf(item)
     root.assertTrue(calendar !== null, "omarchy.clock loads its calendar")
     if (!calendar) return
 
-    var labelClock = systemClockOf(item)
-    var calendarClock = systemClockOf(calendar)
-    root.assertTrue(labelClock !== null && calendarClock !== null, "omarchy.clock and its calendar each run a SystemClock")
+    var labelClock = wallClockOf(item)
+    var calendarClock = wallClockOf(calendar)
+    root.assertTrue(labelClock !== null && calendarClock !== null, "omarchy.clock and its calendar each run a WallClock")
     if (!labelClock || !calendarClock) return
 
     calendar.viewMonth = (calendar.viewMonth + 3) % 12
     var browsed = calendar.viewMonth
 
-    var labelRestarts = 0
-    var calendarRestarts = restartsDuring(calendarClock, function() {
-      labelRestarts = restartsDuring(labelClock, function() { item.resync() })
-    })
+    var stale = new Date(Date.now() - 5 * 60 * 1000)
+    labelClock.date = stale
+    calendarClock.date = stale
+    item.resync()
 
-    root.assertEqual(labelRestarts, 1, "omarchy.clock restarts its clock when the system clock jumps")
-    root.assertEqual(calendarRestarts, 1, "omarchy.clock restarts its calendar's clock when the system clock jumps")
-    root.assertTrue(labelClock.enabled && calendarClock.enabled, "omarchy.clock leaves both clocks running after a resync")
+    root.assertTrue(Math.abs(labelClock.date.getTime() - Date.now()) < 2000, "omarchy.clock catches its label up when the system clock jumps")
+    root.assertTrue(Math.abs(calendarClock.date.getTime() - Date.now()) < 2000, "omarchy.clock catches its calendar up when the system clock jumps")
     root.assertEqual(calendar.viewMonth, browsed, "omarchy.clock leaves a browsed month alone when the system clock jumps")
   }
 

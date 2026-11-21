@@ -124,8 +124,7 @@ Panel {
   // after a sleep that crossed midnight. Its onDateChanged keeps a browsed
   // month, where refresh() would send it back to today.
   function resync() {
-    clock.enabled = false
-    clock.enabled = true
+    clock.resync()
   }
 
   function goToToday() {
