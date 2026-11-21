@@ -183,6 +183,7 @@ renders under the label, filters with it, and comes back as
 how the pickers behind menu actions (`omarchy-menu-plugin`,
 `omarchy-menu-timezone`, ...) present lists without owning any UI.
 
+An icon written `app:<name>` shows an installed app's own icon instead of a glyph, drawn like the rows of the Apps menu: the name is a desktop entry id or a window class, matched to an app exactly as the dock matches windows (so `app:chrome-web.whatsapp.com__-Default` finds the WhatsApp web app, and `app:TUI.tile` the Docker TUI), and otherwise taken as an icon name or path. A multi-select keeps its check marks in that column, so it ignores `app:` icons.
 
 Pass `-- --multiple` to `omarchy-menu-select` for a multi-select request. Repeat `--selected <value>` to preselect returned values (labels plus any subtext, without icons). Clicking or pressing Enter toggles an option without closing the menu; Apply returns a JSON array in option order, including `[]` when all choices are deselected. Cancellation still exits 1. Selections survive filtering.
 

@@ -662,13 +662,14 @@ Item {
       var detail = parts.join("\t")
       if (query && label.toLowerCase().indexOf(query) < 0
           && detail.toLowerCase().indexOf(query) < 0) continue
+      var appIcon = root.dmenuMultiple ? "" : root.dmenuAppIcon(icon)
       displayModel.append({
         itemId: "dmenu." + i,
         disabled: false,
         kind: "dmenu",
-        icon: root.dmenuMultiple ? (root.dmenuSelected.indexOf(MenuModel.dmenuValue(root.dmenuOptions[i])) !== -1 ? "✓" : "○") : icon,
+        icon: root.dmenuMultiple ? (root.dmenuSelected.indexOf(MenuModel.dmenuValue(root.dmenuOptions[i])) !== -1 ? "✓" : "○") : (appIcon ? "" : icon),
         iconFont: "",
-        appIcon: "",
+        appIcon: appIcon,
         appId: "",
         label: label,
         target: "",
@@ -691,6 +692,17 @@ Item {
     Qt.callLater(function() {
       if (displayModel.count > 0) root.revealCursor()
     })
+  }
+
+  // An "app:<name>" icon field shows an installed app's own icon instead of a
+  // glyph. The name is a desktop entry id or a window class, matched to an app
+  // the way the dock matches windows; anything else is taken as an icon name or
+  // path, and an unnamed one gets the generic application icon.
+  function dmenuAppIcon(icon) {
+    var name = MenuModel.dmenuAppName(icon)
+    if (name === null) return ""
+    var entry = name ? AppMatch.entryForAppId(name) : null
+    return entry && entry.icon ? String(entry.icon) : (name || "application-x-executable")
   }
 
   function updateDmenuChecks() {
@@ -1526,7 +1538,8 @@ Item {
               required property bool disabled
 
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
-              readonly property bool isApp: row.kind === "app"
+              // App rows in the menu, and select rows given an "app:" icon.
+              readonly property bool isApp: row.kind === "app" || row.appIcon.length > 0
               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
 
               width: ListView.view.width

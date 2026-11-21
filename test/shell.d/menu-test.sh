@@ -331,6 +331,11 @@ assert(
   fs.rmSync(home, { recursive: true, force: true })
 }
 
+assertEqual(menu.dmenuAppName('app:chrome-web.whatsapp.com__-Default'), 'chrome-web.whatsapp.com__-Default', 'select asks for an app icon by window class or desktop id')
+assertEqual(menu.dmenuAppName('\uf268'), null, 'select keeps a glyph icon a glyph')
+assertEqual(menu.dmenuAppName('app:'), '', 'select gives an unnamed app icon the generic icon')
+assertEqual(menu.dmenuValue('app:firefox\tFirefox'), 'Firefox', 'select never returns an app icon with the pick')
+
 const clockModel = requireFromRoot('shell/plugins/panels/clock/Model.js')
 const clockRows = defaultItems.filter(item => item.parent === 'appearance.top-bar.indicators.clock')
 // Each row hands bash its format, so ask bash what it hands over.
