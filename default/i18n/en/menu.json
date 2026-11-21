@@ -1368,5 +1368,8 @@
   },
   "agent.make.game": {
     "label": "Make a game"
+  },
+  "appearance.dock.collapse-pinned": {
+    "label": "Collapse Pinned"
   }
 }

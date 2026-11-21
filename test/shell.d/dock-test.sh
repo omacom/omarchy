@@ -12,6 +12,8 @@ trap 'rm -rf "$TMPDIR"' EXIT
 ROOT="$ROOT" run_node_test <<'JS'
 const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
 
+
+
 assertEqual(dock.normalizePosition('left'), 'left', 'dock accepts a valid position')
 assertEqual(dock.normalizePosition(' Top '), 'top', 'dock reads a position loosely')
 assertEqual(dock.normalizePosition('diagonal'), 'bottom', 'dock falls back to the bottom')
@@ -122,6 +124,18 @@ assertEqual(dock.pickClickWindow('workspace', foot, 4), 2, 'a click on a workspa
 assertEqual(dock.pickClickWindow('workspace', foot, 3), 1, 'a click on a workspace app restores a minimized one rather than leaving for another workspace')
 assertEqual(dock.pickClickWindow('workspace', [foot[0], foot[2]], 3), -1, 'a click on a workspace app opens another when none is on this workspace')
 
+const folded = [
+  { index: 0, center: 24, enabled: false },
+  { index: 1, center: 24, enabled: false },
+  { index: 2, center: 24, enabled: true },
+  { index: 3, center: 72, enabled: true }
+]
+assertEqual(dock.nearestDropIndex(2, 48, folded), 3, 'dragging beside collapsed pins lands on the visible next app')
+assertEqual(dock.nearestDropIndex(2, -500, folded), 2, 'dragging across hidden pins cannot save an invisible landing slot')
+assertEqual(dock.nearestDropIndex(3, -48, folded), 2, 'backward dragging uses actual visible slot centers')
+const expanded = folded.map((slot, i) => ({ index: i, center: i * 48 + 24, enabled: true }))
+assertEqual(dock.nearestDropIndex(3, -144, expanded), 0, 'expanded launchers retain normal full-row drag destinations')
+
 JS
 
 home="$TMPDIR/home"
@@ -171,6 +185,15 @@ if omarchy_dock autohide sometimes 2>/dev/null; then
   fail "dock auto-hide takes only on, off, or toggle"
 fi
 pass "dock auto-hide is set through omarchy-dock autohide"
+
+[[ $(omarchy_dock collapse-pinned) == "off" ]] || fail "pin collapse starts off"
+omarchy_dock collapse-pinned toggle >/dev/null
+[[ $(omarchy_dock collapse-pinned) == "on" ]] || fail "pin collapse toggles on"
+omarchy_dock collapse-pinned off >/dev/null
+[[ $(omarchy_dock collapse-pinned) == "off" ]] || fail "pin collapse turns off"
+if omarchy_dock collapse-pinned invalid 2>/dev/null; then fail "invalid collapse value accepted"; fi
+if omarchy_dock collapse-pinned on off 2>/dev/null; then fail "extra collapse argument accepted"; fi
+pass "pin collapse validates and persists independently"
 
 # Minimizing moves a window to the dock's hidden workspace without following
 # it, then focuses the workspace it left, so the next window opens there and
@@ -230,3 +253,106 @@ STUB
 minimize
 [[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows on a tiled workspace alone" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize leaves windows on a tiled workspace alone"
+external_drag_runner=/usr/lib/qt6/bin/qmltestrunner
+[[ -x $external_drag_runner ]] || external_drag_runner=/usr/lib/qt6/qmltestrunner
+if [[ -x $external_drag_runner ]]; then
+  python - "$ROOT" "$TMPDIR" <<'PY'
+from pathlib import Path
+import re, sys
+
+root, tmp = map(Path, sys.argv[1:])
+source = (root / "shell/plugins/dock/DockWindow.qml").read_text()
+binding = re.search(r"  property point externalDragPoint\n[\s\S]*?\n  readonly property int insertIndex:[^\n]+", source)[0]
+methods = [re.search(r"  function " + name + r"\([^\n]*\) \{[\s\S]*?\n  \}", source)[0]
+           for name in ("moveExternalDrag", "dropExternalDrag", "endExternalDrag", "externalIndexAt")]
+qml = """import QtQuick
+import QtTest
+
+Item {
+  id: window
+  width: vertical ? slotSize : 600
+  height: vertical ? 600 : slotSize
+  property bool vertical: false
+  property bool shown: true
+  property bool autohide: false
+  property bool revealed: false
+  property string position: vertical ? "left" : "top"
+  property real gap: 0
+  property real slotSize: 48
+  property real progress: 0
+  property var externalDropArea: null
+  property int pinnedIndex: -1
+  property var dock: QtObject {
+    function pinAt(key, index) { window.pinnedIndex = index }
+  }
+  Timer { id: collapseTimer }
+  Timer { id: hideTimer }
+  function settleShifts() {}
+  function origin() { return Qt.point(17, 29) }
+BINDING
+METHODS
+  Item {
+    id: body
+    width: vertical ? slotSize : slots.implicitWidth
+    height: vertical ? slots.implicitHeight : slotSize
+    x: (window.width - width) / 2
+    y: (window.height - height) / 2
+    Grid {
+      id: slots
+      columns: vertical ? 1 : 4
+      Item { width: slotSize; height: slotSize }
+      Repeater {
+        id: appRepeater
+        model: 3
+        delegate: Item {
+          required property int index
+          readonly property real reveal: index === 2 ? 1 : progress
+          property real sectionGap: 0
+          visible: reveal > 0
+          width: slotSize * (vertical ? 1 : reveal)
+          height: slotSize * (vertical ? reveal : 1)
+        }
+      }
+    }
+  }
+  TestCase {
+    name: "DockExternalDrag"
+    when: windowShown
+    function test_stationary_drop_data() {
+      return [
+        {tag: "horizontal normal", vertical: false, size: 48},
+        {tag: "vertical scaled", vertical: true, size: 72},
+        {tag: "horizontal fractional", vertical: false, size: 55.5},
+        {tag: "vertical normal", vertical: true, size: 48}
+      ]
+    }
+    function test_stationary_drop(data) {
+      window.vertical = data.vertical
+      window.slotSize = data.size
+      window.progress = 0
+      window.pinnedIndex = -1
+      slots.forceLayout()
+      const x = 17 + (vertical ? slotSize / 2 : 300 - slotSize / 5)
+      const y = 29 + (vertical ? 300 - slotSize / 5 : slotSize / 2)
+      window.moveExternalDrag(x, y)
+      compare(window.insertIndex, 2)
+      window.progress = 0.55
+      slots.forceLayout()
+      compare(window.insertIndex, 2)
+      window.progress = 1
+      slots.forceLayout()
+      compare(window.insertIndex, 1)
+      window.dropExternalDrag(x, y, "app")
+      compare(window.pinnedIndex, 1)
+      compare(window.insertIndex, -1)
+    }
+  }
+}
+"""
+(tmp / "tst_external_drag.qml").write_text(qml.replace("BINDING", binding).replace("METHODS", "\n".join(methods)))
+PY
+  QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software \
+    "$external_drag_runner" -input "$TMPDIR/tst_external_drag.qml" -o -,txt
+else
+  skip "Qt6 qmltestrunner not found; skipping external drag test"
+fi
