@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set and show lightweight desktop notification reminders
-# omarchy:args=[-i|--interactive] | <minutes> [message] | show [-j|--json] | clear
+# omarchy:args=[-i|--interactive] | [-u|--urgency <low|normal|critical>] <minutes> [message] | show [-j|--json] | clear
 # omarchy:examples=omarchy reminder -i | omarchy reminder 5 | omarchy reminder 30 "Check the oven" | omarchy reminder show | omarchy reminder show --json | omarchy reminder clear
 
 set -euo pipefail
@@ -131,7 +131,7 @@ clear_reminders() {
 
 usage() {
   echo "Usage: omarchy-reminder [-i|--interactive]"
-  echo "       omarchy-reminder <minutes> [message]"
+  echo "       omarchy-reminder [-u|--urgency low|normal|critical] <minutes> [message]"
   echo "       omarchy-reminder show [-j|--json]"
   echo "       omarchy-reminder clear"
 }
@@ -159,6 +159,33 @@ show | list)
 clear)
   clear_reminders
   exit 0
+  ;;
+esac
+
+urgency="critical"
+
+while [[ ${1:-} == -* ]]; do
+  case $1 in
+  -u | --urgency)
+    if [[ -z ${2:-} ]]; then
+      echo "omarchy-reminder: $1 needs low, normal, or critical" >&2
+      exit 1
+    fi
+    urgency=$2
+    shift 2
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+  esac
+done
+
+case $urgency in
+low | normal | critical) ;;
+*)
+  echo "omarchy-reminder: unknown urgency: $urgency (use low, normal, or critical)" >&2
+  exit 1
   ;;
 esac
 
@@ -192,7 +219,7 @@ if [[ -n $custom_message ]]; then
 fi
 
 systemd-run --user --quiet --collect --on-active="${minutes}m" --unit="$unit" \
-  bash -c 'omarchy-notification-send -g 󰢌 "$(omarchy-i18n reminder.title)" "$1"; rm -f "$2"; omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true' bash "$message" "$message_file"
+  bash -c 'omarchy-notification-send -g 󰢌 -u "$3" "$(omarchy-i18n reminder.title)" "$1"; rm -f "$2"; omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true' bash "$message" "$message_file" "$urgency"
 
 refresh_indicator
 omarchy-notification-send -g 󰢌 "$confirmation_title" "$confirmation"
