@@ -337,16 +337,21 @@ Panel {
   // close the panel; the login carries on, and its result arrives as a
   // notification too.
 
-  // Muse and OpenCode print their sign-in page rather than opening it, so the
-  // panel opens it for them.
+  // In alphabetical order. Muse and OpenCode print their sign-in page rather
+  // than opening it, so the panel opens it for them. Copilot's limits are
+  // asked with gh's sign-in, which its own login doesn't renew, so trouble
+  // there keeps its help text instead of a Sign-in required link.
   readonly property var addProviders: [
+    { providerId: "agy", providerName: "Antigravity" },
     { providerId: "claude", providerName: "Claude" },
     { providerId: "codex", providerName: "Codex" },
+    { providerId: "copilot", providerName: "Copilot", limitsElsewhere: true },
+    { providerId: "cursor", providerName: "Cursor" },
+    { providerId: "fireworks", providerName: "Fireworks" },
     { providerId: "grok", providerName: "Grok" },
-    { providerId: "agy", providerName: "Antigravity" },
     { providerId: "muse", providerName: "Muse", printsPage: true },
     { providerId: "opencode", providerName: "OpenCode", printsPage: true },
-    { providerId: "fireworks", providerName: "Fireworks" }
+    { providerId: "openrouter", providerName: "OpenRouter" }
   ]
   readonly property int addColumns: 4
 
@@ -363,7 +368,7 @@ Panel {
   property string addCode: ""
   property string addUrl: ""
   property bool addNeedsPaste: false
-  // What to paste, when the sign-in says: Antigravity's code, Fireworks' key.
+  // What to paste, when the sign-in says: Antigravity's code, an API key.
   property string addPasteHint: ""
   property string addResult: ""
   // The CLI's own download, when it isn't installed yet: the first sign-in
@@ -642,7 +647,7 @@ Panel {
   // other agent's sign-in trouble stays text, with its own help to follow.
   function supportsSignIn(p) {
     for (var i = 0; i < addProviders.length; i++)
-      if (p && addProviders[i].providerId === p.providerId) return true
+      if (p && addProviders[i].providerId === p.providerId) return !addProviders[i].limitsElsewhere
     return false
   }
 
