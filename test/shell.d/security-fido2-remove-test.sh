@@ -10,6 +10,7 @@ test_tmp=$(mktemp -d)
 stub_bin="$test_tmp/bin"
 calls="$test_tmp/calls.log"
 authdir="$test_tmp/etc-fido2"
+lockpam="$test_tmp/omarchy-lock-fido2"
 elsewhere="$test_tmp/elsewhere"
 remove_copy="$test_tmp/remove.sh"
 mkdir -p "$stub_bin"
@@ -30,7 +31,12 @@ occurrences=$(grep -Fxc 'authdir=/etc/fido2' "$remove") || occurrences=0
   fail "the removal names its FIDO2 directory exactly once" "found $occurrences occurrences"
 pass "removal names its FIDO2 directory once, and the test drives a retargeted copy"
 
-sed "s|^authdir=/etc/fido2$|authdir=$authdir|" "$remove" >"$remove_copy"
+occurrences=$(grep -Fxc 'lockpam=/etc/pam.d/omarchy-lock-fido2' "$remove") || occurrences=0
+(( occurrences == 1 )) ||
+  fail "the removal names its lock screen PAM service exactly once" "found $occurrences occurrences"
+
+sed -e "s|^authdir=/etc/fido2$|authdir=$authdir|" \
+  -e "s|^lockpam=/etc/pam.d/omarchy-lock-fido2$|lockpam=$lockpam|" "$remove" >"$remove_copy"
 
 cat >"$stub_bin/sudo" <<'SH'
 #!/bin/bash
@@ -44,7 +50,7 @@ reject() {
   exit 97
 }
 
-if [[ ${TEST_AUTHDIR:-} != /* || ${TEST_LOG:-} != /* ]]; then
+if [[ ${TEST_AUTHDIR:-} != /* || ${TEST_LOG:-} != /* || ${TEST_LOCKPAM:-} != /* ]]; then
   reject "$@"
 fi
 
@@ -54,6 +60,9 @@ printf '\n' >>"$TEST_LOG"
 
 case "${1:-}" in
   rm)
+    if (( $# == 3 )) && [[ $2 == "-f" && $3 == "$TEST_LOCKPAM" ]]; then
+      exec /usr/bin/rm -f "$TEST_LOCKPAM"
+    fi
     if (( $# != 3 )) || [[ $2 != "-rf" || $3 != "$TEST_AUTHDIR" ]]; then
       reject "$@"
     fi
@@ -79,7 +88,7 @@ chmod +x "$stub_bin/sudo" "$stub_bin/omarchy-pkg-drop"
 
 invoke_remove() {
   : >"$calls"
-  TEST_AUTHDIR="$authdir" TEST_LOG="$calls" \
+  TEST_AUTHDIR="$authdir" TEST_LOG="$calls" TEST_LOCKPAM="$lockpam" \
     PATH="$stub_bin:$ROOT/bin:$PATH" \
     bash "$remove_copy" </dev/null >/dev/null
 }
@@ -124,3 +133,20 @@ invoke_remove
 ! grep -Fq $'sudo\trm\t' "$calls" ||
   fail "removal escalates no rm when there is no FIDO2 directory" "$(cat "$calls")"
 pass "removal escalates nothing when there is no FIDO2 directory"
+
+# The lock screen's service goes with the key, or the lock keeps asking a key
+# that is no longer registered. A dangling link counts as present.
+printf 'auth required pam_u2f.so\n' >"$lockpam"
+invoke_remove
+[[ ! -e $lockpam ]] || fail "removal deletes the lock screen PAM service"
+pass "removal deletes the lock screen FIDO2 service"
+
+ln -s "$test_tmp/missing" "$lockpam"
+invoke_remove
+[[ ! -L $lockpam ]] || fail "removal deletes a dangling link at the lock screen service"
+pass "removal deletes a dangling lock screen service link"
+
+invoke_remove
+! grep -Fq $'sudo\trm\t-f\t' "$calls" ||
+  fail "removal escalates nothing when there is no lock screen service" "$(cat "$calls")"
+pass "removal escalates nothing when there is no lock screen service"
