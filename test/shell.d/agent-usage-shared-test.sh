@@ -1260,6 +1260,12 @@ def jwt(claims):
 
 later = time.time() + 3600
 check("jwt_claims reads a JWT's claims", collectors.jwt_claims(jwt({"sub": "u1", "exp": later})) == {"sub": "u1", "exp": later})
+deep_claims = b'{"nested":' + b'[' * 10000 + b'0' + b']' * 10000 + b'}'
+# Decoder limits vary by Python version and available C stack. Either a
+# successful object or the empty fallback is valid; an unhandled error is not.
+check("deeply nested JWT claims do not crash collectors", isinstance(collectors.jwt_claims("h." + base64.urlsafe_b64encode(deep_claims).decode() + ".s"), dict))
+check("oversized JWTs are not decoded", collectors.jwt_claims(jwt({"sub": "x" * 65536})) == {})
+check("invalid base64 characters cannot be silently discarded from JWT claims", collectors.jwt_claims(jwt({"sub": "u1"}).replace("header.", "header.!")) == {})
 check(
   "jwt_claims reads anything else as no claims",
   [collectors.jwt_claims(value) for value in ("opaque-key", "a.b", "a.!!!.c", f"h.{base64.urlsafe_b64encode(b'[1]').decode()}.s", None, 5)] == [{}] * 6,
