@@ -38,7 +38,7 @@ Item {
   property int cardWidth: Math.min(Style.space(875), panel.width - Style.gapsOut * 2)
   property int cardHeight: Math.min(Style.space(600), panel.height - Style.gapsOut * 2)
   property int rowHeight: Math.max(Style.space(50), Style.font.body + Style.font.caption + Style.spacing.rowPaddingX * 2)
-  property int historyLimit: 500
+  property int historyLimit: 50
 
   function open(payloadJson) {
     root.opened = true
@@ -69,7 +69,11 @@ Item {
   }
 
   function loadHistory(raw) {
-    root.history = ClipboardHistory.parseHistory(raw)
+    var parsed = ClipboardHistory.parseHistory(raw)
+    var trimmed = parsed.slice(0, root.historyLimit)
+    root.history = trimmed
+    if (parsed.length !== trimmed.length) root.saveHistory()
+    root.pruneImages(ClipboardHistory.evictedImagePaths(parsed, trimmed))
     if (root.opened) root.rebuildDisplay()
   }
 
@@ -77,12 +81,25 @@ Item {
     historyFile.setText(JSON.stringify(root.history.slice(0, root.historyLimit), null, 2) + "\n")
   }
 
+  // Image files fall off together with the entries that showed them: every
+  // history mutation reports the image paths it left unreferenced. History is
+  // saved before pruning so the helper can re-check the file and skip paths
+  // that were recopied (capture.sh reuses filenames by content hash) since.
+  function pruneImages(paths) {
+    if (!paths || paths.length === 0) return
+    var command = [root.omarchyPath + "/bin/omarchy-clipboard-prune-images"]
+    for (var i = 0; i < paths.length; i++) command.push(paths[i])
+    Quickshell.execDetached(command)
+  }
+
   function addClipboardEntry(entry) {
     var normalized = ClipboardHistory.normalizeEntry(entry)
     if (!normalized) return
 
-    root.history = ClipboardHistory.addEntry(root.history, normalized, root.historyLimit)
+    var previous = root.history
+    root.history = ClipboardHistory.addEntry(previous, normalized, root.historyLimit)
     root.saveHistory()
+    root.pruneImages(ClipboardHistory.evictedImagePaths(previous, root.history))
     if (root.opened) root.rebuildDisplay()
   }
 
@@ -103,8 +120,10 @@ Item {
   }
 
   function confirmClearHistory() {
+    var evicted = ClipboardHistory.evictedImagePaths(root.history, [])
     root.history = ClipboardHistory.clearHistory()
     root.saveHistory()
+    root.pruneImages(evicted)
     root.selectedIndex = 0
     root.cursorActive = false
     root.disarmPointer()
@@ -117,8 +136,11 @@ Item {
     if (index < 0 || index >= displayModel.count) return
 
     var row = displayModel.get(index)
-    root.history = ClipboardHistory.removeEntryAt(root.history, row.historyIndex)
+    var next = ClipboardHistory.removeEntryAt(root.history, row.historyIndex)
+    var removed = ClipboardHistory.evictedImagePaths(root.history, next)
+    root.history = next
     root.saveHistory()
+    root.pruneImages(removed)
 
     if (displayModel.count <= 1) {
       root.selectedIndex = 0

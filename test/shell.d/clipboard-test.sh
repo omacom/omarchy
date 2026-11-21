@@ -66,6 +66,37 @@ assertDeepEqual(clipboard.removeEntryAt(history, 10), history, 'clipboard remove
 assertDeepEqual(clipboard.clearHistory(), [], 'clipboard clearHistory returns an empty history')
 
 assertDeepEqual(
+  clipboard.evictedImagePaths(
+    [{ type: 'image', path: '/tmp/a.png', mime: 'image/png' }, { type: 'text', text: 'keep' }],
+    [{ type: 'text', text: 'keep' }]
+  ),
+  ['/tmp/a.png'],
+  'clipboard evictedImagePaths returns images dropped from history'
+)
+
+assertDeepEqual(
+  clipboard.evictedImagePaths(
+    [{ type: 'image', path: '/tmp/a.png', mime: 'image/png' }],
+    [{ type: 'image', path: '/tmp/a.png', mime: 'image/png' }, { type: 'text', text: 'new' }]
+  ),
+  [],
+  'clipboard evictedImagePaths keeps images still referenced by the new history'
+)
+
+assertDeepEqual(
+  clipboard.evictedImagePaths(
+    [{ type: 'image', path: '/tmp/a.png' }, { type: 'image', path: '/tmp/a.png' }, { type: 'text', text: 'x' }],
+    []
+  ),
+  ['/tmp/a.png'],
+  'clipboard evictedImagePaths dedupes evicted paths'
+)
+
+assertDeepEqual(clipboard.evictedImagePaths([], []), [], 'clipboard evictedImagePaths handles empty histories')
+assertDeepEqual(clipboard.evictedImagePaths([{ type: 'text', text: 'x' }], []), [], 'clipboard evictedImagePaths ignores text entries')
+assertDeepEqual(clipboard.evictedImagePaths(null, []), [], 'clipboard evictedImagePaths handles missing histories')
+
+assertDeepEqual(
   clipboard.displayRows(history, 'image', 50).map(row => ({ type: row.entryType, preview: row.previewText, mime: row.mime })),
   [{ type: 'image', preview: 'Image', mime: 'image/png' }],
   'clipboard display rows search image metadata'
@@ -124,6 +155,34 @@ assertDeepEqual(
 assertDeepEqual(clipboard.displayRows(history, '', 0), [], 'clipboard display rows supports zero result limit')
 assertDeepEqual(clipboard.addEntry(history, 'next', 0), [], 'clipboard addEntry supports zero history limit')
 
+assertDeepEqual(
+  clipboard.evictedImagePaths(
+    [{ type: 'image', path: '/tmp/a.png', mime: 'image/png' }, { type: 'text', text: 'keep' }],
+    [{ type: 'text', text: 'keep' }]
+  ),
+  ['/tmp/a.png'],
+  'clipboard evictedImagePaths returns images dropped from history'
+)
+
+assertDeepEqual(
+  clipboard.evictedImagePaths(
+    [{ type: 'image', path: '/tmp/a.png', mime: 'image/png' }],
+    [{ type: 'image', path: '/tmp/a.png', mime: 'image/png' }, { type: 'text', text: 'new' }]
+  ),
+  [],
+  'clipboard evictedImagePaths keeps images still referenced by the new history'
+)
+
+assertDeepEqual(
+  clipboard.evictedImagePaths(
+    [{ type: 'image', path: '/tmp/a.png' }, { type: 'image', path: '/tmp/a.png' }, { type: 'text', text: 'x' }],
+    []
+  ),
+  ['/tmp/a.png'],
+  'clipboard evictedImagePaths dedupes evicted paths'
+)
+
+assertDeepEqual(clipboard.evictedImagePaths([], []), [], 'clipboard evictedImagePaths handles empty histories')
 assertDeepEqual(
   clipboard.displayRows([{ type: 'text', text: 'a'.repeat(8192) + 'needle' }], 'needle', 50),
   [],
@@ -433,3 +492,131 @@ OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 
 [[ $(<"$TMPDIR/omasnap") == "--notify $TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
 pass "clipboard open helper opens image entries in Omasnap"
+
+prune_home="$TMPDIR/prune-home"
+mkdir -p "$prune_home/.local/state/omarchy/clipboard-images"
+printf 'dropped' >"$prune_home/.local/state/omarchy/clipboard-images/drop.png"
+printf 'kept' >"$prune_home/.local/state/omarchy/clipboard-images/keep.png"
+printf 'outside' >"$prune_home/outside.png"
+
+# Pin XDG_STATE_HOME to the scratch home: the ambient value would pull the
+# real state dir into the helper's search path.
+HOME="$prune_home" XDG_STATE_HOME="$prune_home/.local/state" "$ROOT/bin/omarchy-clipboard-prune-images" \
+  "$prune_home/.local/state/omarchy/clipboard-images/drop.png" \
+  "$prune_home/outside.png" \
+  /etc/hostname \
+  ""
+
+[[ ! -e $prune_home/.local/state/omarchy/clipboard-images/drop.png ]] || fail "clipboard prune helper deletes evicted images"
+pass "clipboard prune helper deletes evicted images"
+
+[[ $(<"$prune_home/.local/state/omarchy/clipboard-images/keep.png") == "kept" ]] || fail "clipboard prune helper keeps images it was not given"
+pass "clipboard prune helper keeps images it was not given"
+
+[[ $(<"$prune_home/outside.png") == "outside" ]] || fail "clipboard prune helper refuses paths outside the image directory"
+pass "clipboard prune helper refuses paths outside the image directory"
+
+empty_home="$TMPDIR/empty-home"
+mkdir -p "$empty_home"
+HOME="$empty_home" XDG_STATE_HOME="$empty_home/.local/state" "$ROOT/bin/omarchy-clipboard-prune-images" anything.png || fail "clipboard prune helper exits zero without an image directory"
+pass "clipboard prune helper exits zero without an image directory"
+
+# Prefix check alone lets ../ through; resolution must confine deletion.
+printf '[]' >"$prune_home/.local/state/omarchy/clipboard-history.json"
+printf 'history' >"$prune_home/.local/state/omarchy/clipboard-history.json.bak"
+HOME="$prune_home" XDG_STATE_HOME="$prune_home/.local/state" "$ROOT/bin/omarchy-clipboard-prune-images" \
+  "$prune_home/.local/state/omarchy/clipboard-images/../clipboard-history.json.bak"
+[[ $(<"$prune_home/.local/state/omarchy/clipboard-history.json.bak") == "history" ]] || fail "clipboard prune helper refuses dot-dot paths escaping the image directory"
+pass "clipboard prune helper refuses dot-dot paths escaping the image directory"
+
+# A symlink inside the image directory pointing outside must not be followed.
+printf 'live' >"$prune_home/link-target.png"
+ln -sf "$prune_home/link-target.png" "$prune_home/.local/state/omarchy/clipboard-images/link.png"
+HOME="$prune_home" XDG_STATE_HOME="$prune_home/.local/state" "$ROOT/bin/omarchy-clipboard-prune-images" \
+  "$prune_home/.local/state/omarchy/clipboard-images/link.png"
+[[ $(<"$prune_home/link-target.png") == "live" ]] || fail "clipboard prune helper refuses symlinks escaping the image directory"
+pass "clipboard prune helper refuses symlinks escaping the image directory"
+rm -f "$prune_home/.local/state/omarchy/clipboard-images/link.png"
+
+# A path the saved history still references (recopied image reusing the
+# content-hash filename after eviction) must survive a queued delete.
+printf 'recopied' >"$prune_home/.local/state/omarchy/clipboard-images/reused.png"
+jq -n --arg path "$prune_home/.local/state/omarchy/clipboard-images/reused.png" \
+  '[{type:"image", mime:"image/png", path:$path}]' >"$prune_home/.local/state/omarchy/clipboard-history.json"
+HOME="$prune_home" XDG_STATE_HOME="$prune_home/.local/state" "$ROOT/bin/omarchy-clipboard-prune-images" \
+  "$prune_home/.local/state/omarchy/clipboard-images/reused.png"
+[[ $(<"$prune_home/.local/state/omarchy/clipboard-images/reused.png") == "recopied" ]] || fail "clipboard prune helper keeps images the saved history still references"
+pass "clipboard prune helper keeps images the saved history still references"
+
+# An unreadable history must fail safe (leak) rather than delete.
+printf 'precious' >"$prune_home/.local/state/omarchy/clipboard-images/unsure.png"
+printf 'not json {{{' >"$prune_home/.local/state/omarchy/clipboard-history.json"
+HOME="$prune_home" XDG_STATE_HOME="$prune_home/.local/state" "$ROOT/bin/omarchy-clipboard-prune-images" \
+  "$prune_home/.local/state/omarchy/clipboard-images/unsure.png"
+[[ $(<"$prune_home/.local/state/omarchy/clipboard-images/unsure.png") == "precious" ]] || fail "clipboard prune helper leaves images alone when history is unreadable"
+pass "clipboard prune helper leaves images alone when history is unreadable"
+
+# Split layout: the picker always saves history under $HOME while images live
+# under $XDG_STATE_HOME. The helper must read the $HOME history, not look for
+# one under the custom dir (where a missing file would wrongly mean "nothing
+# is referenced").
+split_home="$TMPDIR/split-home"
+mkdir -p "$split_home/.local/state/omarchy" "$split_home/custom/state/omarchy/clipboard-images"
+printf 'xdg-live' >"$split_home/custom/state/omarchy/clipboard-images/live.png"
+touch -d '10 minutes ago' "$split_home/custom/state/omarchy/clipboard-images/live.png"
+jq -n --arg path "$split_home/custom/state/omarchy/clipboard-images/live.png" \
+  '[{type:"image", mime:"image/png", path:$path}]' >"$split_home/.local/state/omarchy/clipboard-history.json"
+HOME="$split_home" XDG_STATE_HOME="$split_home/custom/state" "$ROOT/bin/omarchy-clipboard-prune-images" \
+  "$split_home/custom/state/omarchy/clipboard-images/live.png"
+[[ $(<"$split_home/custom/state/omarchy/clipboard-images/live.png") == "xdg-live" ]] || fail "clipboard prune helper reads the history where the picker writes it"
+pass "clipboard prune helper reads the history where the picker writes it"
+
+# ...sweep mode: removes old unreferenced images, skips in-flight temp files
+# and brand-new captures.
+sweep_home="$TMPDIR/sweep-home"
+mkdir -p "$sweep_home/.local/state/omarchy/clipboard-images"
+printf 'keepme' >"$sweep_home/.local/state/omarchy/clipboard-images/orphan.png"
+touch -d '10 minutes ago' "$sweep_home/.local/state/omarchy/clipboard-images/orphan.png"
+printf 'not json {{{' >"$sweep_home/.local/state/omarchy/clipboard-history.json"
+HOME="$sweep_home" XDG_STATE_HOME="$sweep_home/.local/state" "$ROOT/bin/omarchy-clipboard-prune-images" --sweep >/dev/null
+[[ $(<"$sweep_home/.local/state/omarchy/clipboard-images/orphan.png") == "keepme" ]] || fail "clipboard sweep leaves images alone when history is unreadable"
+pass "clipboard sweep leaves images alone when history is unreadable"
+
+jq -n --arg path "$sweep_home/.local/state/omarchy/clipboard-images/kept.png" \
+  '[{type:"image", mime:"image/png", path:$path}]' >"$sweep_home/.local/state/omarchy/clipboard-history.json"
+printf 'sweepkeep' >"$sweep_home/.local/state/omarchy/clipboard-images/kept.png"
+touch -d '10 minutes ago' "$sweep_home/.local/state/omarchy/clipboard-images/kept.png"
+printf 'tmp' >"$sweep_home/.local/state/omarchy/clipboard-images/clipboard.XXXXXX"
+touch -d '10 minutes ago' "$sweep_home/.local/state/omarchy/clipboard-images/clipboard.XXXXXX"
+printf 'fresh' >"$sweep_home/.local/state/omarchy/clipboard-images/fresh.png"
+HOME="$sweep_home" XDG_STATE_HOME="$sweep_home/.local/state" "$ROOT/bin/omarchy-clipboard-prune-images" --sweep >/dev/null
+[[ ! -e $sweep_home/.local/state/omarchy/clipboard-images/orphan.png ]] || fail "clipboard sweep removes old unreferenced images"
+pass "clipboard sweep removes old unreferenced images"
+[[ $(<"$sweep_home/.local/state/omarchy/clipboard-images/kept.png") == "sweepkeep" ]] || fail "clipboard sweep keeps images the history references"
+pass "clipboard sweep keeps images the history references"
+[[ -e $sweep_home/.local/state/omarchy/clipboard-images/clipboard.XXXXXX ]] || fail "clipboard sweep skips in-flight capture temp files"
+pass "clipboard sweep skips in-flight capture temp files"
+[[ -e $sweep_home/.local/state/omarchy/clipboard-images/fresh.png ]] || fail "clipboard sweep skips brand-new captures"
+pass "clipboard sweep skips brand-new captures"
+
+# An empty referenced set with images on disk cannot be reconciled (wrong
+# home, emptied history): the sweep must leave everything alone rather than
+# mistake the lot for orphans.
+printf 'lonely' >"$sweep_home/.local/state/omarchy/clipboard-images/lone.png"
+touch -d '10 minutes ago' "$sweep_home/.local/state/omarchy/clipboard-images/lone.png"
+printf '[]' >"$sweep_home/.local/state/omarchy/clipboard-history.json"
+HOME="$sweep_home" XDG_STATE_HOME="$sweep_home/.local/state" "$ROOT/bin/omarchy-clipboard-prune-images" --sweep >/dev/null
+[[ $(<"$sweep_home/.local/state/omarchy/clipboard-images/lone.png") == "lonely" ]] || fail "clipboard sweep leaves everything alone when history references no images"
+pass "clipboard sweep leaves everything alone when history references no images"
+
+# ...sweep mode under a custom state dir reads the $HOME history and sweeps
+# the custom image dir.
+printf 'xdg-old' >"$split_home/custom/state/omarchy/clipboard-images/stale.png"
+touch -d '10 minutes ago' "$split_home/custom/state/omarchy/clipboard-images/stale.png"
+jq -n --arg path "$split_home/custom/state/omarchy/clipboard-images/live.png" \
+  '[{type:"image", mime:"image/png", path:$path}]' >"$split_home/.local/state/omarchy/clipboard-history.json"
+HOME="$split_home" XDG_STATE_HOME="$split_home/custom/state" "$ROOT/bin/omarchy-clipboard-prune-images" --sweep >/dev/null
+[[ ! -e $split_home/custom/state/omarchy/clipboard-images/stale.png ]] || fail "clipboard sweep removes unreferenced images under a custom state dir"
+pass "clipboard sweep removes unreferenced images under a custom state dir"
+[[ $(<"$split_home/custom/state/omarchy/clipboard-images/live.png") == "xdg-live" ]] || fail "clipboard sweep keeps custom-dir images the history still references"
+pass "clipboard sweep keeps custom-dir images the history still references"
