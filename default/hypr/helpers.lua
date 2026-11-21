@@ -34,6 +34,63 @@ local function file_exists(path)
   return false
 end
 
+-- Hyprland keeps a per-instance runtime dir that outlives config reloads, even
+-- though the Lua state is rebuilt. A marker there records that startup finished.
+local function hypr_instance_file(name)
+  local runtime = os.getenv("XDG_RUNTIME_DIR")
+  local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
+  if not runtime or runtime == "" or not signature or signature == "" then
+    return nil
+  end
+
+  return runtime .. "/hypr/" .. signature .. "/" .. name
+end
+
+-- Refreshes are unsafe before startup. Record readiness at start or first live
+-- installation, so a fresh Lua state can recognize a monitorless reload too.
+local refresh_guard = _G.omarchy_prop_refresh_guard
+if not refresh_guard and hl and type(hl.on) == "function"
+  and type(hl.exec_scheduled_prop_refresh_immediately) == "function" then
+  local started_path = hypr_instance_file("omarchy-prop-refresh-started")
+  local running = (started_path and file_exists(started_path))
+    or (type(hl.get_active_monitor) == "function" and hl.get_active_monitor() ~= nil)
+  refresh_guard = {
+    original = hl.exec_scheduled_prop_refresh_immediately,
+    started = running,
+    pending = false,
+  }
+  _G.omarchy_prop_refresh_guard = refresh_guard
+
+  hl.exec_scheduled_prop_refresh_immediately = function()
+    if refresh_guard.started then
+      refresh_guard.original()
+      return
+    end
+
+    refresh_guard.pending = true
+  end
+
+  local function start_refreshes()
+    if started_path then
+      local marker = io.open(started_path, "w")
+      if marker then
+        marker:close()
+      end
+    end
+    refresh_guard.started = true
+    if refresh_guard.pending then
+      refresh_guard.pending = false
+      refresh_guard.original()
+    end
+  end
+
+  if running then
+    start_refreshes()
+  else
+    hl.on("hyprland.start", start_refreshes)
+  end
+end
+
 -- Hyprland reaps its own children, so os.execute() can't retrieve an exit status
 -- from inside the compositor. Read a marker off stdout instead.
 function o.shell_succeeds(command)
