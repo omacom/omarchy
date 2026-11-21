@@ -150,6 +150,13 @@ output=$("$CLI" hw asus)
 assert_output_contains "partial hardware prefix renders matching commands" "$output" "omarchy hw asus rog"
 assert_output_contains "partial hardware prefix includes nested match" "$output" "omarchy hw asus zenbook ux5406aa"
 
+output=$("$CLI" theme bg --help)
+assert_output_contains "nested prefix --help renders matching commands" "$output" "omarchy theme bg next"
+assert_output_contains "nested prefix --help includes bg set" "$output" "omarchy theme bg set"
+
+output=$("$CLI" theme bg -h)
+assert_output_contains "nested prefix -h renders matching commands" "$output" "omarchy theme bg next"
+
 # omarchy-agent takes only flags, so a word after it names the account
 # commands rather than reaching the agent launcher.
 output=$("$CLI" agent account)
@@ -248,6 +255,14 @@ assert_output_contains "hidden setup plumbing still routes" "$output" "omarchy-a
 
 output=$("$CLI" screenshot --help)
 assert_output_contains "root alias resolves to command help" "$output" "omarchy-capture-screenshot"
+
+output=$("$CLI" plugin install --help)
+assert_output_contains "group alias --help resolves to command help" "$output" "omarchy-plugin-add"
+assert_output_contains "group alias --help shows command usage" "$output" "Usage:"
+
+output=$("$CLI" plugin rm --help)
+assert_output_contains "group short alias --help resolves to command help" "$output" "omarchy-plugin-remove"
+assert_output_contains "group short alias --help shows command usage" "$output" "Usage:"
 
 "$CLI" commands --json | jq -e '.commands[] | select(.binary == "omarchy-capture-screenshot") | .aliases | index("omarchy screenshot")' >/dev/null
 pass "aliases are included in JSON metadata"
