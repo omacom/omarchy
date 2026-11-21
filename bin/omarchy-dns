@@ -379,14 +379,13 @@ EOF
 AliDNS)
   # Alibaba's resolver, which mainland China reaches where foreign ones are
   # blocked or slow, with Tencent's DNSPod rather than Quad9 to fall back to.
-  write_networkmanager_dns "223.5.5.5,223.6.6.6,2400:3200::1,2400:3200:baba::1"
-  set_connection_dns "223.5.5.5 223.6.6.6" "2400:3200::1 2400:3200:baba::1"
   tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
 [Resolve]
 DNS=223.5.5.5#dns.alidns.com 223.6.6.6#dns.alidns.com 2400:3200::1#dns.alidns.com 2400:3200:baba::1#dns.alidns.com
 FallbackDNS=119.29.29.29#dot.pub 1.12.12.12#dot.pub
 DNSOverTLS=opportunistic
 EOF
+  set_connection_dns "223.5.5.5 223.6.6.6" "2400:3200::1 2400:3200:baba::1"
   ;;
 
 DHCP)
