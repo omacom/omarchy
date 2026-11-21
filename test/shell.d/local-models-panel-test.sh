@@ -345,6 +345,26 @@ for (const raw of ['', 'MemTotal: 0 kB\nMemAvailable: 0 kB\n', `MemTotal: ${gib}
   assertEqual(parseMeminfo(raw), null, 'a reading without both totals changes nothing: ' + JSON.stringify(raw))
 JS
 
+# An update's bar runs from the press to the end in one direction: its turn,
+# its download, then the old model stopping and the new one loading.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/local-models/Panel.qml', 'utf8')
+const fns = ['phaseProgress', 'updateProgress'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+const updateProgress = new Function(fns + '\nreturn updateProgress')()
+const now = 100000
+const waiting = updateProgress({ updating: true, unit: 'active', update_progress: { phase: 'waiting' } }, now - 5000, now)
+const half = updateProgress({ updating: true, unit: 'active', update_progress: { phase: 'downloading', done_bytes: 5, total_bytes: 10 } }, now - 5000, now)
+const fetched = updateProgress({ updating: true, unit: 'active', update_progress: { phase: 'downloading', done_bytes: 10, total_bytes: 10 } }, now - 5000, now)
+const stopping = updateProgress({ updating: true, unit: 'deactivating', since_ms: now - 1000, expected_stop_seconds: 2 }, now - 5000, now)
+const loading = updateProgress({ updating: true, unit: 'activating', since_ms: now - 30000, expected_load_seconds: 60 }, now - 5000, now)
+assert(waiting > 0 && waiting < 0.05, 'an update waiting its turn shows at once, and only a little', waiting)
+assert(half > waiting && half < fetched, 'its download fills the bar by bytes', [half, fetched])
+assert(fetched <= stopping && stopping < loading && loading < 1, 'the reload of a model that ran follows the download, never running back', [fetched, stopping, loading])
+const blind = updateProgress({ updating: true, unit: 'active' }, now - 60000, now)
+assert(blind > 0 && blind < 0.7, 'an engine that reports no download still moves the bar', blind)
+JS
+
 # Lines keep the order they were dragged into, including places saved for lines hidden now.
 run_node_test <<'JS'
 const fs = require('fs')

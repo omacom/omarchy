@@ -186,8 +186,9 @@ Panel {
     } else if (action === "share") {
       Util.execArgv(["omarchy-models", "share", model.recipe].concat(model.shared ? ["--off"] : []))
     } else if (action === "update") {
-      // In the background, like a setup: the model's line says it's updating
-      // until its new runtime or weights are in place.
+      // In the background, like a setup. Its bar starts at the press, before
+      // the engine has said a word, and runs until the model is updated.
+      askUpdate(model)
       Util.execArgv(["omarchy-models", "update", "--detach", model.recipe])
     } else if (action === "pair") {
       // Pairs in the background while the panel stays open; a failure shows
@@ -300,10 +301,61 @@ Panel {
     return 0.9 + 0.08 * (1 - Math.exp(-(elapsed - expected) / expected))
   }
 
+  // Updates asked for from here, by recipe, with when: the command and the
+  // engine's first word take a moment, and the bar doesn't wait for them. The
+  // engine takes over once its status says the model is updating; one that
+  // never does (the command failed) lets the bar go after 20 seconds.
+  property var updateAsks: ({})
+
+  function askUpdate(model) {
+    var asks = Object.assign({}, updateAsks)
+    asks[model.recipe] = Date.now()
+    loadNowMs = asks[model.recipe]
+    updateAsks = asks
+  }
+
+  function updateAsked(model) {
+    var at = model ? updateAsks[model.recipe] : undefined
+    return at !== undefined && loadNowMs - at < 20000
+  }
+
+  Connections {
+    target: engine
+    function onLocalModelChanged() {
+      var models = engine.localModel.models || {}
+      var asks = {}
+      var changed = false
+      for (var recipe in root.updateAsks) {
+        if (models[recipe] && models[recipe].updating !== true) asks[recipe] = root.updateAsks[recipe]
+        else changed = true
+      }
+      if (changed) root.updateAsks = asks
+    }
+  }
+
+  // How far an update is, as one bar from the press until the model is
+  // updated: waiting its turn, its download (the engine's bytes, or time where
+  // an engine reports none), then, when it ran, the old one stopping and the
+  // new one loading. A model that was stopped is stopped again at the end.
+  function updateProgress(model, startedMs, nowMs) {
+    var seconds = function(fromMs) { return Math.max(0, (nowMs - (fromMs || nowMs)) / 1000) }
+    var share = function(elapsed, expected) { return phaseProgress(elapsed, expected) / 0.98 }
+    if (model.updating === true && model.unit === "deactivating")
+      return 0.7 + 0.05 * share(seconds(Number(model.since_ms)), Number(model.expected_stop_seconds) || 10)
+    if (model.updating === true && model.unit === "activating")
+      return 0.75 + 0.23 * share(seconds(Number(model.since_ms)), Number(model.expected_load_seconds) || 60)
+    var progress = model.update_progress
+    if (!progress) return 0.7 * share(seconds(startedMs), 120)
+    if (progress.phase === "downloading" && Number(progress.total_bytes) > 0)
+      return 0.05 + 0.65 * Math.min(1, Number(progress.done_bytes) / Number(progress.total_bytes))
+    return 0.05 * share(seconds(startedMs), 10)
+  }
+
   property double loadNowMs: Date.now()
   readonly property bool localLoading: lines.some(function(line) {
     var model = line.model
-    return model && (["activating", "deactivating", "removing"].indexOf(model.unit) >= 0 || (model.install && model.install.phase === "dependencies"))
+    return model && (["activating", "deactivating", "removing"].indexOf(model.unit) >= 0 || (model.install && model.install.phase === "dependencies")
+      || model.updating === true || updateAsked(model))
   })
   Timer {
     interval: 250
@@ -1233,8 +1285,30 @@ Panel {
     property string finishing: ""
     readonly property bool loadingShown: loading || finishing === "loading"
     readonly property bool stoppingShown: stopping || finishing === "stopping"
-    onLoadingChanged: if (!loading && running) { finishing = "loading"; finishTimer.restart() }
-    onStoppingChanged: if (!stopping && !loading) { finishing = "stopping"; finishTimer.restart() }
+    onLoadingChanged: if (!loading && running && !updating) { finishing = "loading"; finishTimer.restart() }
+    onStoppingChanged: if (!stopping && !loading && !updating) { finishing = "stopping"; finishTimer.restart() }
+    // An update has one bar of its own from the press to the end, through
+    // the reload of a model that ran, and never runs back.
+    readonly property bool updating: !!model && !remote && !installing && !removing && (model.updating === true || root.updateAsked(model))
+    readonly property bool updateShown: updating || finishing === "updating"
+    property double updateStartedMs: 0
+    property real updateFill: 0
+    readonly property real updateTarget: updating ? root.updateProgress(model, updateStartedMs, root.loadNowMs) : 0
+    onUpdateTargetChanged: updateFill = Math.max(updateFill, updateTarget)
+    function beginUpdate() {
+      updateStartedMs = root.updateAsks[model.recipe] || Date.now()
+      updateFill = 0
+    }
+    // Opened on an update already under way, the bar starts from there.
+    Component.onCompleted: if (updating) beginUpdate()
+    onUpdatingChanged: {
+      if (updating) {
+        beginUpdate()
+      } else {
+        finishing = "updating"
+        finishTimer.restart()
+      }
+    }
     Timer {
       id: finishTimer
       interval: Style.duration(450)
@@ -1395,7 +1469,7 @@ Panel {
         anchors.right: localShare.visible ? localShare.left : localToggle.visible ? localToggle.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
         anchors.rightMargin: localShare.visible || localToggle.visible || sectionLaunch.visible ? Style.space(4) : 0
         anchors.verticalCenter: parent.verticalCenter
-        readonly property bool updating: !!section.model && section.model.updating === true
+        readonly property bool updating: section.updating
         visible: !!section.model && !section.remote && !section.removing && !section.installing && (updating || (!!section.model.update && !section.loading && !section.stopping))
         // The arrows the bar's system update shows, drawn to the play's size:
         // this glyph fills more of its box than the play and pause do.
@@ -1509,16 +1583,18 @@ Panel {
     // model shows its stats while it runs instead: its memory is its host's
     // business.
     Item {
-      visible: section.preparing || section.downloadShown || section.loadingShown || section.stoppingShown || section.removing
+      visible: section.updateShown || section.preparing || section.downloadShown || section.loadingShown || section.stoppingShown || section.removing
       width: parent.width
       implicitHeight: Math.max(localMeterTitle.implicitHeight, localMeterValue.implicitHeight)
+      readonly property var updateDownload: section.updating && section.model.update_progress && section.model.update_progress.phase === "downloading" ? section.model.update_progress : null
 
       Text {
         id: localMeterTitle
         width: parent.width * 0.3
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: section.preparing ? Commons.I18n.t("localModels.installingMeter")
+        text: section.updateShown ? Commons.I18n.t("localModels.updating")
+          : section.preparing ? Commons.I18n.t("localModels.installingMeter")
           : section.downloadShown ? Commons.I18n.t("localModels.downloadingMeter")
           : section.removing ? Commons.I18n.t("localModels.removingMeter")
           : section.loadingShown ? Commons.I18n.t("localModels.loadingMeter")
@@ -1533,7 +1609,8 @@ Panel {
         anchors.right: localMeterValue.left
         anchors.rightMargin: Style.space(20)
         anchors.verticalCenter: parent.verticalCenter
-        value: section.preparing ? root.phaseProgress(section.elapsed, 30)
+        value: section.updateShown ? (section.updating ? section.updateFill : 1)
+          : section.preparing ? root.phaseProgress(section.elapsed, 30)
           : section.downloadShown ? (section.totalBytes > 0 ? section.doneBytes / section.totalBytes : 0)
           : section.finishing !== "" ? 1 : root.phaseProgress(section.elapsed, section.phaseSeconds)
       }
@@ -1557,7 +1634,8 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         horizontalAlignment: Text.AlignRight
-        text: section.downloadShown ? root.downloadRate(section.rateBytes) : ""
+        text: parent.updateDownload ? root.downloadRate(Number(parent.updateDownload.rate_bytes_s) || 0)
+          : section.downloadShown ? root.downloadRate(section.rateBytes) : ""
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -1572,7 +1650,7 @@ Panel {
       // Never the whole line: a spacing scale that outgrows the text would
       // leave a zero-height row, which the column drops from its layout.
       readonly property real pull: Math.max(0, Math.min(Style.space(10), localRam.implicitHeight - 1))
-      visible: !!section.model && !section.remote && !section.installing && !section.loadingShown && !section.stoppingShown && !section.removing && localRam.text !== ""
+      visible: !!section.model && !section.remote && !section.installing && !section.updateShown && !section.loadingShown && !section.stoppingShown && !section.removing && localRam.text !== ""
       width: parent.width
       implicitHeight: localRam.implicitHeight - pull
 
