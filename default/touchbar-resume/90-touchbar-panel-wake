@@ -1,0 +1,6 @@
+#!/bin/bash
+# Optional J293 recovery hook; only suspend has been tested.
+if [[ ${1:-} == "post" && ${2:-} == "suspend" ]]; then
+  /usr/local/libexec/touchbar-panel-wake || logger -t touchbar-panel-wake -- 'Recovery attempt failed; see kernel and helper logs'
+fi
+exit 0
