@@ -110,7 +110,11 @@ local function set_gdk_scale(settings, identities)
   end
 
   if chosen and lowest then
-    hl.env("GDK_SCALE", tostring(math.max(1, math.floor(lowest + 0.5))))
+    local scale = math.max(1, math.floor(lowest + 0.5))
+    hl.env("GDK_SCALE", tostring(scale))
+    if hl.get_config("xwayland.scale") ~= nil then
+      hl.config({ xwayland = { scale = scale } })
+    end
   end
 end
 
