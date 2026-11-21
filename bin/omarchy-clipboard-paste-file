@@ -23,7 +23,15 @@ fi
 
 [[ -r $path ]] || exit 1
 
-wl-copy --type "$mime" < "$path"
+# A terminal pastes only text, so give it the image's path instead. Apps like
+# OpenCode attach an image whose path is pasted. The terminal tag comes from
+# default/hypr/apps/terminals.lua; dynamic tags carry a trailing "*".
+if [[ $copy_only == "false" && $mime == image/* ]] &&
+  hyprctl activewindow -j | jq -e 'any(.tags[]?; . == "terminal*" or . == "terminal")' >/dev/null; then
+  printf '%s' "$path" | wl-copy
+else
+  wl-copy --type "$mime" < "$path"
+fi
 
 if [[ $copy_only == "true" ]]; then
   exit
