@@ -20,6 +20,11 @@ Item {
 
   property string currentBackground: ""
   property string displayedBackground: ""
+  // An instant switch keeps the displayed path until the replacement's header
+  // is known, otherwise constrainDecode would clear the image's source.
+  property string pendingInstantBackground: ""
+  // Its reload waits with it, so the old path is not reloaded meanwhile.
+  property bool pendingInstantReload: false
   property string incomingBackground: ""
   property string oldBackground: ""
   // A theme switch names its next background before it has staged the rest of
@@ -47,6 +52,9 @@ Item {
   property string pendingShellRaw: ""
   property real revealProgress: 1
   readonly property bool ready: {
+    // The frame on screen is the old wallpaper until a pending instant switch
+    // displays its replacement, so a cover must not lift onto it.
+    if (pendingInstantBackground) return false
     if (isVideo(displayedBackground)) return true
     if (backgrounds.instances.length === 0) return false
     for (var panel of backgrounds.instances) {
@@ -54,6 +62,8 @@ Item {
     }
     return true
   }
+
+  onNativeSizesChanged: applyPendingInstantBackground()
 
   function isVideo(path) {
     return Util.isVideoPath(path)
@@ -78,7 +88,8 @@ Item {
   property int recoverVersion: -1
 
   function recoverBackground(failedPath) {
-    if (!failedPath || failedPath !== displayedBackground) return
+    // A pending instant switch is about to replace the failed path anyway.
+    if (!failedPath || failedPath !== displayedBackground || pendingInstantBackground) return
     failedBackground = failedPath
     if (recoverProc.running) return
     recoverVersion = backgroundVersion
@@ -98,7 +109,6 @@ Item {
   }
 
   function setBackground(path, instant) {
-    if (instant) reloadVersion += 1
     transitionBackground("", path, path, instant, instant)
   }
 
@@ -123,7 +133,11 @@ Item {
     // still stays on screen until OWE has the first frame and suspends this
     // layer, so the desktop does not show an empty background meanwhile. A
     // running reveal finishes on its incoming still, which OWE fades from.
-    if (!instant && !root.suspended && displayedBackground && isVideo(path) && !isVideo(displayedBackground)) return
+    if (!instant && !root.suspended && displayedBackground && isVideo(path) && !isVideo(displayedBackground)) {
+      pendingInstantBackground = ""
+      pendingInstantReload = false
+      return
+    }
 
     revealAnimation.stop()
     revealGraceTimer.stop()
@@ -135,14 +149,30 @@ Item {
       oldBackground = ""
       incomingBackground = ""
       preparedBackground = ""
-      displayedBackground = finalPath
+      // Replaced, never cleared first: an empty pending path would report the
+      // old frame ready for a moment and lift a waiting cover onto it.
+      pendingInstantBackground = finalPath
+      pendingInstantReload = instant
+      applyPendingInstantBackground()
       revealProgress = 1
       return
     }
 
+    pendingInstantBackground = ""
+    pendingInstantReload = false
     oldBackground = fromPath || displayedBackground
     incomingBackground = path
     revealProgress = 0
+  }
+
+  function applyPendingInstantBackground() {
+    var path = pendingInstantBackground
+    if (!path || (!isVideo(path) && nativeSizes[path] === undefined)) return
+    // The version moves first, or a cached frame for the path's old version shows.
+    if (pendingInstantReload) reloadVersion += 1
+    displayedBackground = path
+    pendingInstantBackground = ""
+    pendingInstantReload = false
   }
 
   function setPendingTheme(colorsB64, shellB64) {
@@ -243,7 +273,7 @@ Item {
   // the wallpapers still in play.
   function pruneNativeSizes() {
     var kept = {}
-    var paths = [displayedBackground, incomingBackground, oldBackground, preparedBackground]
+    var paths = [displayedBackground, incomingBackground, oldBackground, preparedBackground, pendingInstantBackground]
     for (var i = 0; i < paths.length; i++) {
       if (paths[i] && nativeSizes[paths[i]] !== undefined) kept[paths[i]] = nativeSizes[paths[i]]
     }
@@ -463,6 +493,7 @@ Item {
         id: base
         anchors.fill: parent
         path: root.displayedBackground
+        retainWhileLoading: true
         version: root.reloadVersion
         cached: true
         constrainDecode: true
