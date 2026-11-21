@@ -150,6 +150,7 @@ tesseract-data-eng
 tldr
 tree-sitter-cli
 tmux
+tmux-resurrect
 tobi-try
 ttf-jetbrains-mono-nerd-basic
 tzupdate
