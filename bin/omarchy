@@ -137,7 +137,7 @@ remaining_has_help_flag() {
 
   for token in "$@"; do
     [[ $token == "--" ]] && break
-    [[ $token == "--help" || $token == "-h" ]] && return 0
+    [[ $token == "--help" || $token == "-h" || $token == "?" ]] && return 0
   done
 
   return 1
@@ -898,6 +898,18 @@ show_group_help() {
 
 show_prefix_help() {
   local prefix="$1"
+  local raw_words=()
+  local word=""
+  local prefix_words=()
+
+  IFS=' ' read -r -a raw_words <<<"$prefix"
+  for word in "${raw_words[@]}"; do
+    [[ $word == "--help" || $word == "-h" || $word == "?" ]] && continue
+    prefix_words+=("$word")
+  done
+  (( ${#prefix_words[@]} >= 2 )) || return 1
+  prefix=$(join_words " " "${prefix_words[@]}")
+
   local prefix_with_space="$prefix "
   local key=""
   local rows=""
@@ -1086,7 +1098,7 @@ dispatch_fast_or_help() {
     return 0
   fi
 
-  if (( $# >= 2 )) && [[ $2 == "--help" || $2 == "-h" ]] && group_has_binary_commands "$1"; then
+  if (( $# >= 2 )) && [[ $2 == "--help" || $2 == "-h" || $2 == "?" ]] && group_has_binary_commands "$1"; then
     load_group_commands "$1"
     show_group_help "$1"
     return 0
@@ -1149,7 +1161,7 @@ dispatch_or_help() {
     return 0
   fi
 
-  if (( $# >= 2 )) && [[ $2 == "--help" || $2 == "-h" ]] && group_exists "$1"; then
+  if (( $# >= 2 )) && [[ $2 == "--help" || $2 == "-h" || $2 == "?" ]] && group_exists "$1"; then
     show_group_help "$1"
     return 0
   fi
@@ -1174,7 +1186,7 @@ main() {
   fi
 
   case "$1" in
-  --help | -h)
+  --help | -h | "?")
     show_main_help
     ;;
   logout | reboot | shutdown)
