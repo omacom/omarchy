@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Restart Hex when an update replaced its running binary
+# omarchy:hidden=true
+
+# hex-bin comes from the AUR, so the update installs it after the service
+# restart pass. The new hex command refuses the process that package replaced,
+# and Home dictation goes through that command. Pacman does not restart a
+# user service whose unit file did not change.
+
+if systemctl --user is-active --quiet hex.service; then
+  pid=$(systemctl --user show --property=MainPID --value hex.service)
+  if [[ -n $pid && $pid != 0 && $(readlink "/proc/$pid/exe" 2>/dev/null) == *" (deleted)" ]]; then
+    echo -e "\e[32m\nRestarting Hex\e[0m"
+    systemctl --user try-restart hex.service
+  fi
+fi

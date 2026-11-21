@@ -77,6 +77,7 @@ for command in \
   omarchy-update-system-pkgs \
   omarchy-migrate \
   omarchy-update-aur-pkgs \
+  omarchy-update-restart-hex \
   omarchy-update-mise \
   omarchy-update-orphan-pkgs \
   omarchy-update-boot \
