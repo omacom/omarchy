@@ -447,10 +447,11 @@ PanelWindow {
       if (!(appSlot.mouse.pressedButtons & Qt.LeftButton)) return
       var point = appSlot.bodyPoint(event)
       var delta = window.vertical ? point.y - appSlot.pressPoint.y : point.x - appSlot.pressPoint.x
-      // A press that wanders is a drag in the making, not a click.
-      if (Math.hypot(point.x - appSlot.pressPoint.x, point.y - appSlot.pressPoint.y) > Style.space(4)) appSlot.dragged = true
+      // Small pointer movements stay clicks until a deliberate drag begins.
+      var threshold = Style.space(16)
       if (!window.dragging) {
-        if (Math.abs(delta) < Style.space(6)) return
+        if (Math.abs(delta) < threshold) return
+        appSlot.dragged = true
         window.closeMenu()
         // The landing slot first: with the dragged slot set and no landing
         // slot yet, every slot before it would count as in between and step
