@@ -31,14 +31,27 @@ pass "completed first-run exits at its lifecycle gate"
 # missing from a build must cost first-run only that unit.
 cat >"$mock_bin/systemctl" <<'SH'
 #!/bin/bash
+if [[ $2 == show ]]; then
+  [[ $3 != "${OMARCHY_TEST_QUERY_FAILURE:-}" ]] || exit 1
+  if [[ $3 == "${OMARCHY_TEST_MASKED_UNIT:-}" ]]; then
+    echo masked
+  elif [[ $3 == "$OMARCHY_TEST_MISSING_UNIT" ]]; then
+    echo not-found
+  else
+    echo loaded
+  fi
+  exit 0
+fi
 [[ $* != *"$OMARCHY_TEST_MISSING_UNIT"* ]] || exit 1
 printf '%s\n' "$*" >>"$OMARCHY_TEST_CALLS"
+[[ $2 != enable || $4 != "${OMARCHY_TEST_MASKED_UNIT:-}" ]]
 SH
 cat >"$mock_bin/omarchy-hook-install" <<'SH'
 #!/bin/bash
 echo "hook $*" >>"$OMARCHY_TEST_CALLS"
 SH
-chmod +x "$mock_bin/systemctl" "$mock_bin/omarchy-hook-install"
+printf '#!/bin/bash\nexit 0\n' >"$mock_bin/omarchy-input-method"
+chmod +x "$mock_bin/systemctl" "$mock_bin/omarchy-hook-install" "$mock_bin/omarchy-input-method"
 
 enable_user_units() {
   rm -f "$test_tmp/calls"
@@ -61,6 +74,19 @@ for unit in "${units[@]}"; do
 done
 (( ${#units[@]} > 1 )) || fail "first-run enables each unit on its own"
 pass "a unit missing from the build costs first-run only that unit"
+
+masked=${units[0]}
+remaining=$(grep -Fvx -- "--user enable --now $masked" <<<"$clean_run")
+OMARCHY_TEST_MASKED_UNIT="$masked" enable_user_units no-such-unit ||
+  fail "first-run succeeds with an explicitly masked unit"
+[[ $(<"$test_tmp/calls") == "$remaining" ]] ||
+  fail "first-run preserves the mask and enables the other units"
+if OMARCHY_TEST_QUERY_FAILURE="$masked" enable_user_units no-such-unit; then
+  fail "first-run reports a failed unit state query"
+fi
+[[ $(<"$test_tmp/calls") == "$remaining" ]] ||
+  fail "a failed query costs first-run only that unit"
+pass "first-run preserves explicit masks and reports query failures"
 
 # First run offers an update only when there is one. A fresh install from
 # current media is already current, and a critical toast that leads to
