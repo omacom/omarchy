@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# omarchy:summary=Sign in to a Claude, Codex, or Grok subscription
-# omarchy:args=[--check] [--events] [--reauth <account>] [claude|codex|grok] [label]
-# omarchy:examples=omarchy agent account add claude | omarchy agent account add Work | omarchy agent account add codex Side
+# omarchy:summary=Sign in to an agent subscription
+# omarchy:args=[--check] [--events] [--reauth <account>] [claude|codex|grok|agy|muse|opencode|fireworks] [label]
+# omarchy:examples=omarchy agent account add claude | omarchy agent account add Work | omarchy agent account add codex Side | omarchy agent account add muse
 
 set -uo pipefail
 
@@ -24,7 +24,7 @@ while [[ ${1:-} == --* ]]; do
   --reauth)
     reauth="${2:-}"
     if [[ -z $reauth || $reauth == --* ]]; then
-      echo "Usage: omarchy-agent-account-add --reauth <account> [claude|codex|grok]" >&2
+      echo "Usage: omarchy-agent-account-add --reauth <account> [claude|codex|grok|agy|muse|opencode|fireworks]" >&2
       exit 1
     fi
     shift
@@ -48,22 +48,34 @@ if [[ $check == "true" ]]; then
       echo "$p first"
     fi
   done
+  # The rest keep one sign-in each, which signing in again replaces.
+  printf '%s first\n' agy muse opencode fireworks
   exit 0
 fi
 
 # The provider can be left out when it's your default agent:
 # `omarchy agent account add Work`.
-if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
+if [[ ! ${1:-} =~ ^(claude|codex|grok|agy|gemini|muse|opencode|fireworks)$ ]]; then
   default=$(omarchy-default-agent)
   [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
 fi
 
+# Claude, Codex, and Grok can hold several accounts, each in a home of its
+# own. The rest keep the one sign-in their CLI does.
+accounts=false
 case "${1:-}" in
-claude) provider="claude"; name="Claude"; app="Claude Code"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR" ;;
-codex) provider="codex"; name="Codex"; app="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME" ;;
-grok) provider="grok"; name="Grok"; app="Grok Build"; site="x.ai"; package="grok"; home_env="GROK_HOME" ;;
+claude) provider="claude"; name="Claude"; app="Claude Code"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR"; accounts=true ;;
+codex) provider="codex"; name="Codex"; app="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME"; accounts=true ;;
+grok) provider="grok"; name="Grok"; app="Grok Build"; site="x.ai"; package="grok"; home_env="GROK_HOME"; accounts=true ;;
+# Antigravity signs in with the Google account a Gemini subscription is on.
+agy | gemini) provider="agy"; name="Antigravity"; app="Antigravity"; package="antigravity-cli"; login_command=(agy acp --login) ;;
+muse) provider="muse"; name="Muse"; app="Muse Code"; package="muse"; login_command=(muse login) ;;
+# One OpenCode Console sign-in covers Zen and Go.
+opencode) provider="opencode"; name="OpenCode"; app="OpenCode"; package="opencode"; login_command=(opencode auth login opencode --method device) ;;
+# No CLI or harness of its own: pi and opencode are what use the key.
+fireworks) provider="fireworks"; name="Fireworks"; app=""; package=""; login_command=(fireworks_login) ;;
 *)
-  echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [claude|codex|grok] [label]" >&2
+  echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [claude|codex|grok|agy|muse|opencode|fireworks] [label]" >&2
   exit 1
   ;;
 esac
@@ -224,7 +236,7 @@ cli_missing() {
   ! PATH=$path type -P "$provider" >/dev/null
 }
 
-if cli_missing; then
+if [[ -n $package ]] && cli_missing; then
   say "$(omarchy-i18n agents.installingCli "$name")"
   if omarchy-mise-default-tools declares "$package"; then
     install_cli env MISE_MINIMUM_RELEASE_AGE=0 mise install "$package"
@@ -241,6 +253,65 @@ private_browser() {
   printf '#!/bin/bash\nexec omarchy-launch-browser --private "$1"\n' >"$browser" || fail "$(omarchy-i18n agents.homeFailed)"
   chmod +x "$browser" || fail "$(omarchy-i18n agents.homeFailed)"
 }
+
+# Fireworks has no login to run: an API key made in its console is the
+# sign-in. It's saved where pi keeps keys, and in opencode when that's
+# installed, since those are the agents that run on it. The key only travels
+# through the environment, never a command line. A key Fireworks refuses is
+# not saved.
+fireworks_login() {
+  local key auth saved id
+  omarchy-launch-browser "https://app.fireworks.ai/settings/users/api-keys"
+  if [[ $events == "true" ]]; then
+    read -r key
+  else
+    key=$(gum input --password --prompt "Fireworks API key: ")
+  fi
+  [[ -n $key ]] || return 1
+  FIREWORKS_API_KEY=$key omarchy-agent-usage-fireworks --force | jq -e '.usageStatusText != "Sign-in expired"' >/dev/null || return 1
+
+  auth="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/auth.json"
+  mkdir -p "${auth%/*}" || return 1
+  [[ -s $auth ]] || echo '{}' >"$auth"
+  saved=$(KEY=$key jq '.fireworks = {type: "api_key", key: env.KEY}' "$auth") || return 1
+  (umask 077 && printf '%s\n' "$saved" >"$auth.new") && mv "$auth.new" "$auth" || return 1
+
+  # opencode imports a credential as inactive when it already has one.
+  if mise where opencode &>/dev/null; then
+    id="omarchy-$EPOCHSECONDS"
+    KEY=$key jq -n --arg id "$id" '[{id: $id, integrationID: "fireworks-ai", label: "Fireworks AI", active: true, value: {type: "key", key: env.KEY}}]' |
+      opencode auth import >/dev/null 2>&1 && opencode auth switch fireworks-ai "$id" >/dev/null 2>&1
+  fi
+  return 0
+}
+
+# One sign-in, where the CLI always keeps it, through your normal browser:
+# adding it and signing in again are the same login. The CLI's whole output
+# goes to the panel, which shows the code it prints to confirm in the browser.
+if [[ $accounts == "false" ]]; then
+  say "$(omarchy-i18n agents.signInBrowser "$name")"
+  # Antigravity's page ends on a code to paste back, and Fireworks on a key;
+  # the panel shows a field for it, under what to paste.
+  if [[ $events == "true" && $provider == "agy" ]]; then
+    printf '@@omarchy paste %s\n' "$(omarchy-i18n agents.pasteSignInCode)"
+  elif [[ $events == "true" && $provider == "fireworks" ]]; then
+    printf '@@omarchy paste %s\n' "$(omarchy-i18n agents.pasteApiKey)"
+  fi
+  interruptible "${login_command[@]}" 2>&1 || fail "$(omarchy-i18n agents.signInFailed "$name")"
+
+  omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+  if [[ -n $app ]]; then
+    # As with the first Claude, Codex, or Grok sign-in below.
+    if [[ -z $(omarchy-default-agent) ]]; then
+      mkdir -p "$HOME/.config/omarchy/defaults"
+      printf '%s\n' "$provider" >"$HOME/.config/omarchy/defaults/agent"
+    fi
+    finish "$(omarchy-i18n agents.signedIn "$name")" ready
+  else
+    finish "$(omarchy-i18n agents.signedIn "$name")"
+  fi
+  exit 0
+fi
 
 case "$provider" in
 claude) login_command=(claude auth login) ;;

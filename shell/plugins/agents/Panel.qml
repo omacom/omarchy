@@ -85,9 +85,11 @@ Panel {
     if (addButtonShown) hero.push({ kind: "add", index: 0 })
     if (hero.length > 0) rows.push(hero)
     if (picking) {
-      var choices = []
-      for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
-      rows.push(choices)
+      for (var c = 0; c < addProviders.length; c += addColumns) {
+        var choices = []
+        for (var k = c; k < Math.min(c + addColumns, addProviders.length); k++) choices.push({ kind: "choice", index: k })
+        rows.push(choices)
+      }
     } else if (addStage === "running") {
       if (pasteLinkShown) rows.push([{ kind: "pasteCode", index: 0 }])
       if (addUrl !== "") rows.push([{ kind: "reopenSignIn", index: 0 }])
@@ -335,11 +337,18 @@ Panel {
   // close the panel; the login carries on, and its result arrives as a
   // notification too.
 
+  // Muse and OpenCode print their sign-in page rather than opening it, so the
+  // panel opens it for them.
   readonly property var addProviders: [
     { providerId: "claude", providerName: "Claude" },
     { providerId: "codex", providerName: "Codex" },
-    { providerId: "grok", providerName: "Grok" }
+    { providerId: "grok", providerName: "Grok" },
+    { providerId: "agy", providerName: "Antigravity" },
+    { providerId: "muse", providerName: "Muse", printsPage: true },
+    { providerId: "opencode", providerName: "OpenCode", printsPage: true },
+    { providerId: "fireworks", providerName: "Fireworks" }
   ]
+  readonly property int addColumns: 4
 
   // The CLI's download while a first sign-in installs it: its speed beside
   // its bar, in the decimal units downloads are counted in.
@@ -354,6 +363,8 @@ Panel {
   property string addCode: ""
   property string addUrl: ""
   property bool addNeedsPaste: false
+  // What to paste, when the sign-in says: Antigravity's code, Fireworks' key.
+  property string addPasteHint: ""
   property string addResult: ""
   // The CLI's own download, when it isn't installed yet: the first sign-in
   // installs it before the browser opens.
@@ -426,6 +437,7 @@ Panel {
     // to it. When its page shows a code instead, its prompt for it has no
     // newline to read it by, so the field stays a link away the whole time.
     addNeedsPaste = false
+    addPasteHint = ""
     addDownloading = false
     addPhase = ""
     addFetched = false
@@ -452,12 +464,15 @@ Panel {
 
   // The add command's own lines are tagged; everything else is the CLI
   // talking, and only two things in it matter here: a code to confirm in the
-  // browser (Grok), and an invitation to paste one back (Claude).
+  // browser (Grok, Muse, OpenCode), and an invitation to paste one back (Claude).
   function handleAddLine(line) {
     var text = String(line).replace(/\u001b\[[0-9;]*m/g, "")
-    var tagged = text.match(/^@@omarchy (status|progress|done|error) (.*)$/)
+    var tagged = text.match(/^@@omarchy (status|progress|paste|done|error) (.*)$/)
     if (tagged) {
-      if (tagged[1] === "progress") {
+      if (tagged[1] === "paste") {
+        addPasteHint = tagged[2]
+        addNeedsPaste = true
+      } else if (tagged[1] === "progress") {
         var bytes = tagged[2].split(" ")
         addDoneBytes = Number(bytes[0]) || 0
         addTotalBytes = Number(bytes[1]) || 0
@@ -496,11 +511,15 @@ Panel {
       }
       return
     }
-    var code = text.match(/^\s*([A-Z0-9]{4}-[A-Z0-9]{4})\s*$/)
+    // On a line of its own, or after OpenCode's "Enter code:".
+    var code = text.match(/(?:^|code:)\s*([A-Z0-9]{4}-[A-Z0-9]{4})\s*$/)
     if (code) addCode = code[1]
     if (/paste code/i.test(text)) addNeedsPaste = true
     var url = text.match(/(https:\/\/\S+)/)
-    if (url && addUrl === "") addUrl = url[1]
+    if (url && addUrl === "") {
+      addUrl = url[1]
+      if (addProviderEntry && addProviderEntry.printsPage) reopenSignIn()
+    }
   }
 
   // The field takes the keys from here, so the cursor lets go of the links.
@@ -664,6 +683,7 @@ Panel {
     // to it. When its page shows a code instead, its prompt for it has no
     // newline to read it by, so the field stays a link away the whole time.
     addNeedsPaste = false
+    addPasteHint = ""
     addDownloading = false
     addPhase = ""
     addFetched = false
@@ -1479,11 +1499,12 @@ Panel {
 
     PanelSeparator { foreground: root.foreground }
 
-    // Pick: each agent by a large mark over its name, three across.
-    Row {
+    // Pick: each agent by a large mark over its name, four across.
+    Grid {
       id: choiceRow
       visible: root.picking
       width: parent.width
+      columns: root.addColumns
       spacing: Style.space(10)
 
       Repeater {
@@ -1496,7 +1517,7 @@ Panel {
           readonly property string state: root.addChecks[modelData.providerId] || ""
           readonly property bool available: state === "first" || state === "additional"
           readonly property bool hasCursor: root.hasKey("choice", index)
-          width: (choiceRow.width - choiceRow.spacing * (root.addProviders.length - 1)) / root.addProviders.length
+          width: (choiceRow.width - choiceRow.spacing * (root.addColumns - 1)) / root.addColumns
           implicitHeight: choiceBody.implicitHeight + Style.space(16)
           onHasCursorChanged: if (hasCursor) root.revealItem(choice)
 
@@ -1679,7 +1700,7 @@ Panel {
 
           Text {
             width: parent.width
-            text: Commons.I18n.t("agents.pasteCode")
+            text: root.addPasteHint || Commons.I18n.t("agents.pasteCode")
             textFormat: Text.PlainText
             color: root.dim
             font.family: root.fontFamily
@@ -1690,7 +1711,7 @@ Panel {
           TextField {
             id: pasteField
             width: parent.width
-            placeholderText: Commons.I18n.t("agents.placeholderCode")
+            placeholderText: root.addPasteHint === "" ? Commons.I18n.t("agents.placeholderCode") : ""
             foreground: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
