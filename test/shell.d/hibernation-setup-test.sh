@@ -183,10 +183,26 @@ laptop || fail "setup on a laptop set up before succeeds" "$(<"$rtmp/out")"
 cmp -s "$ROOT/default/upower/omarchy-critical-hibernate.conf" "$upower" ||
   fail "a laptop set up before gets the critical battery action" "$(<"$rtmp/out")"
 grep -qx 'systemctl try-restart upower.service' "$rtmp/calls" || fail "UPower is restarted to read the new action"
+[[ ! -e $rtmp/var-lib/hibernation-upower-restart ]] || fail "a successful restart clears the pending UPower restart"
 : >"$rtmp/calls"
 laptop
 [[ ! -s $rtmp/calls ]] || fail "an installed action is left alone" "$(<"$rtmp/calls")"
 pass "a rerun on a laptop installs the critical battery action once"
+
+# If setup stops after the drop-in is installed but before UPower restarts,
+# the pending marker is still there; the next run restarts it, once.
+machine "$uuid_line"
+mkdir -p "$rtmp/UPower/UPower.conf.d" "$rtmp/var-lib"
+cp "$ROOT/default/upower/omarchy-critical-hibernate.conf" "$upower"
+: >"$rtmp/var-lib/hibernation-upower-restart"
+: >"$rtmp/calls"
+laptop || fail "a rerun after an interrupted UPower restart succeeds" "$(<"$rtmp/out")"
+grep -qx 'systemctl try-restart upower.service' "$rtmp/calls" || fail "a pending UPower restart is retried"
+[[ ! -e $rtmp/var-lib/hibernation-upower-restart ]] || fail "a successful retry clears the pending UPower restart"
+: >"$rtmp/calls"
+laptop
+[[ ! -s $rtmp/calls ]] || fail "a completed UPower restart is not retried" "$(<"$rtmp/calls")"
+pass "a UPower restart that was interrupted is retried on the next run"
 
 rm -rf "$rtmp/UPower"
 SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup

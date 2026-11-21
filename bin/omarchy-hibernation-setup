@@ -44,6 +44,7 @@ SWAP_FILE="/swap/swapfile"
 RESUME_DROP_IN="/etc/limine-entry-tool.d/resume.conf"
 RESUME_REBUILD_PENDING="/var/lib/omarchy/hibernation-resume-rebuild"
 UPOWER_DROP_IN="/etc/UPower/UPower.conf.d/70-omarchy-critical-hibernate.conf"
+UPOWER_RESTART_PENDING="/var/lib/omarchy/hibernation-upower-restart"
 
 # On the ARM computers hibernation is still being brought up: on most models the
 # machine resets when it resumes and the session is lost. So the installer does
@@ -165,21 +166,32 @@ resume_ready() {
 # On a laptop, hibernate when the battery runs critically low instead of
 # suspending into it. Rerunning setup installs it on machines set up before.
 # Only once resume works, so a dying battery never powers off a session that
-# cannot be restored.
+# cannot be restored. A marker written before the drop-in is installed stays
+# until UPower restarts, so a run that stops after the file is in place still
+# restarts it next time.
 setup_critical_battery_hibernate() {
   omarchy-battery-present || return 0
   if ! resume_ready; then
     echo "Not hibernating on critical battery until the resume offset is set" >&2
     return 0
   fi
-  cmp -s "$OMARCHY_PATH/default/upower/omarchy-critical-hibernate.conf" "$UPOWER_DROP_IN" && return 0
 
-  echo "Hibernating on critical battery"
-  sudo mkdir -p "${UPOWER_DROP_IN%/*}"
-  if install_root_file "$OMARCHY_PATH/default/upower/omarchy-critical-hibernate.conf" "$UPOWER_DROP_IN" 0644; then
-    sudo systemctl try-restart upower.service
+  if ! cmp -s "$OMARCHY_PATH/default/upower/omarchy-critical-hibernate.conf" "$UPOWER_DROP_IN"; then
+    echo "Hibernating on critical battery"
+    sudo mkdir -p "${UPOWER_DROP_IN%/*}"
+    if ! { sudo install -Dm644 /dev/null "$UPOWER_RESTART_PENDING" &&
+      install_root_file "$OMARCHY_PATH/default/upower/omarchy-critical-hibernate.conf" "$UPOWER_DROP_IN" 0644; }; then
+      echo "Could not install the critical battery action" >&2
+      return 1
+    fi
+  elif [[ ! -e $UPOWER_RESTART_PENDING ]]; then
+    return 0
+  fi
+
+  if sudo systemctl try-restart upower.service; then
+    sudo rm -f "$UPOWER_RESTART_PENDING"
   else
-    echo "Could not install the critical battery action" >&2
+    echo "Could not restart UPower to read the critical battery action; run omarchy-hibernation-setup again once that is fixed" >&2
     return 1
   fi
 }
