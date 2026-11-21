@@ -70,6 +70,17 @@ Item {
   })
   readonly property bool securityKeyMode: PolkitModel.securityKeyMode(modeState)
   readonly property bool fingerprintMode: PolkitModel.fingerprintMode(modeState)
+
+  // A hidden field keeps keyboard focus, so move it off the password field
+  // when the key takes over and drop what was typed there.
+  onSecurityKeyModeChanged: {
+    if (securityKeyMode) {
+      passwordInput.text = ""
+      keyCatcher.forceActiveFocus()
+    } else {
+      Qt.callLater(refocus)
+    }
+  }
   readonly property int cardHeight: panel.height > 0 ? Math.min(fieldHeight + contentMargin * 2, panel.height - Style.gapsOut * 2) : fieldHeight + contentMargin * 2
   // Password mode is a wide field; fingerprint mode collapses to a square that
   // just frames the centered sensor icon; the security key prompt widens to
