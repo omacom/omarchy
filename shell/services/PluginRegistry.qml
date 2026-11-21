@@ -731,6 +731,8 @@ QtObject {
       "-q",
       "-e",
       "close_write,create,delete,move",
+      "--exclude",
+      "/\\.git(/|$)|/__pycache__(/|$)|/node_modules(/|$)",
       "--format",
       "%w%f",
       registry.pluginsDir

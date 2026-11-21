@@ -70,7 +70,7 @@ ShellRoot {
 
   Timer {
     id: localPluginReloadTimer
-    interval: 150
+    interval: 1000
     onTriggered: {
       if (shell.localPluginNeedsReload) {
         shell.localPluginNeedsReload = false
