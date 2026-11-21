@@ -15,7 +15,7 @@ fi
 # runs, so a dropped connection can never run half a script.
 installer=$(mktemp)
 trap 'rm -f "$installer"' EXIT
-curl -fsSL --retry 3 https://releases.herdr.dev/app/install.sh -o "$installer"
+curl --proto '=https' --proto-redir '=https' -fsSL --retry 3 https://releases.herdr.dev/app/install.sh -o "$installer"
 sh "$installer"
 
 # An updated user's current theme may have been staged before this template existed.
