@@ -52,8 +52,20 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # IFS whitespace, so an empty field collapses into the next delimiter and
     # every field after it shifts along one. A process can set its own comm to
     # nothing, and that crash used to be read as somebody else's and dropped.
+    #
+    # The entry must come from systemd-coredump itself. Any process can write to
+    # the journal, MESSAGE_ID and COREDUMP_* fields included: a Flatpak app gets
+    # the journal socket by default. That forges a critical toast which bypasses
+    # Do Not Disturb, names any program, and hands its text to an agent launched
+    # with approvals off. Only the underscore fields are stamped by journald
+    # rather than the sender. _SYSTEMD_UNIT comes from the sender's cgroup, and
+    # a user's process cannot join a system service's cgroup. _EXE also rules out
+    # anything else that might run inside that unit. A forged entry selects
+    # nothing, so the read below fails and the PID check drops it.
     IFS=$'\t' read -r uid comm pid exe signal < <(
       jq -r 'def field: if . == null or . == "" then "-" else . end;
+             select(._EXE == "/usr/lib/systemd/systemd-coredump"
+                    and (._SYSTEMD_UNIT // "" | test("^systemd-coredump@[^/]+\\.service$"))) |
              [(._UID | field),
               (.COREDUMP_COMM | field),
               (.COREDUMP_PID | field),
