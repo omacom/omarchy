@@ -152,7 +152,12 @@ if [[ -n ${OMARCHY_TEST_SETSID_CALLS:-} ]]; then
 fi
 exit 0
 STUB
-chmod +x "$mock_bin/pkill" "$mock_bin/setsid"
+cat >"$mock_bin/systemd-run" <<'STUB'
+#!/bin/bash
+
+exit 0
+STUB
+chmod +x "$mock_bin/pkill" "$mock_bin/setsid" "$mock_bin/systemd-run"
 
 PATH="$mock_bin:$PATH" OMARCHY_TEST_PKILL_CALLS="$pkill_calls" \
   "$ROOT/bin/omarchy-restart-app" "-9 kitty"
