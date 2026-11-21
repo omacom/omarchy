@@ -10,11 +10,15 @@
 # retires the image's build manifest, so from then on this machine is itself.
 # Steps run in order and each one that succeeds leaves the queue, so a failure
 # stops the run and the next run resumes at that step. Once the queue is empty
-# the initramfs is rebuilt if any step changed its configuration or asked for
-# the rebuild, and the service is disabled. With nothing deferred this does
-# nothing. A failed step, or a failure to make the pacman keyring the build
-# asked for, exits 75 (it stays queued for the next run); anything else that
-# stops the run, such as an untrusted manifest or queue, exits 1.
+# the boot image is rebuilt: an image's boot image was built for the machine
+# that built the image, so this machine needs one of its own, and a step that
+# changed what the image is built from or asked for the rebuild needs it too.
+# The rebuild is owed until one lands, so a run that stops before it does not
+# leave the builder's boot image in place. The service is then disabled. With
+# nothing deferred this does nothing. A failed step, or a failure to make the
+# pacman keyring the build asked for, exits 75 (it stays queued for the next
+# run); anything else that stops the run, such as an untrusted manifest or
+# queue, exits 1.
 
 set -euo pipefail
 
@@ -54,6 +58,19 @@ work_present || exit 0
 
 if omarchy_image_manifest_present; then
   omarchy_image_read_manifest || exit 1
+
+  # The image was built away from this machine, so the boot image it carries
+  # describes the builder: its initramfs holds the modules the builder's
+  # hardware needs and none of this machine's, so a display on a discrete GPU
+  # has no driver until the real root loads one, after the session has
+  # already started. The rebuild at the end of this run puts a boot image
+  # built for the hardware here in its place. The request is written before
+  # the manifest is retired, so a run that stops between the two leaves the
+  # rebuild owed, and it stays on disk until that rebuild lands.
+  : >"$omarchy_image_boot_rebuild"
+
+  # The manifest is where omarchy-hw-platform reads the image's platform from,
+  # so it is retired before the live platform is asked for.
   mv -f "$omarchy_image_manifest" "$omarchy_image_manifest.booted" || fail "could not retire $omarchy_image_manifest"
   live_platform=$(omarchy-hw-platform) || live_platform=unknown
   echo "First boot of an image built for $omarchy_image_platform, on $live_platform hardware"
@@ -139,15 +156,45 @@ while (( ${#remaining[@]} )); do
   omarchy_image_write_queue "${remaining[@]}" || fail "could not update $omarchy_image_queue"
 done
 
-if [[ -e $omarchy_image_boot_rebuild || $(initramfs_inputs) != "$(<"$omarchy_image_initramfs_baseline")" ]]; then
-  echo "Rebuilding the initramfs for the deferred hardware setup"
+# A machine that booted an image still carries the builder's boot image until
+# a rebuild lands: the image was built away from this machine, so its
+# initramfs holds the modules the builder's hardware needs and none of this
+# machine's. The rebuild is owed until one lands, whatever became of the
+# request: a run that stopped between retiring the manifest and writing it
+# would otherwise leave the builder's boot image in place for good.
+image_boot_owed() {
+  [[ -e $omarchy_image_manifest.booted && ! -e $omarchy_image_boot_image_rebuilt ]]
+}
+
+# The boot image an image carries was built for the machine that built it, so
+# the machine builds its own: the initramfs has to hold the modules its own
+# hardware needs. A step that changed what the image is built from needs the
+# same rebuild, and one rebuild covers both.
+if image_boot_owed || [[ -e $omarchy_image_boot_rebuild || $(initramfs_inputs) != "$(<"$omarchy_image_initramfs_baseline")" ]]; then
+  echo "Rebuilding the boot image for this machine"
+
+  rebuild_log=$(mktemp)
+  trap 'rm -f "$rebuild_log"' EXIT
+
+  rebuild_status=0
   if omarchy-cmd-present limine-mkinitcpio; then
-    limine-mkinitcpio </dev/null >>"$OMARCHY_INSTALL_LOG_FILE" 2>&1
+    limine-mkinitcpio </dev/null >"$rebuild_log" 2>&1 || rebuild_status=$?
+    omarchy_image_limine_rebuild_confirmed "$(<"$rebuild_log")" || rebuild_status=1
   else
-    mkinitcpio -P </dev/null >>"$OMARCHY_INSTALL_LOG_FILE" 2>&1
-  fi || fail "Initramfs rebuild failed (see $OMARCHY_INSTALL_LOG_FILE); the next run retries it"
+    mkinitcpio -P </dev/null >"$rebuild_log" 2>&1 || rebuild_status=$?
+  fi
+  cat "$rebuild_log" >>"$OMARCHY_INSTALL_LOG_FILE"
+
+  # An incomplete rebuild leaves the machine's previous boot image in place.
+  if (( rebuild_status != 0 )); then
+    fail "Boot image rebuild failed (see $OMARCHY_INSTALL_LOG_FILE); the next run retries it"
+  fi
+
   # The new image must be on disk before the queue that owes it is cleared.
-  sync || fail "could not flush the rebuilt initramfs to disk"
+  sync || fail "could not flush the rebuilt boot image to disk"
+  # The boot image on this machine is its own now, so a later repair knows it
+  # does not have to build another one.
+  : >"$omarchy_image_boot_image_rebuilt"
 fi
 rm -f "$omarchy_image_initramfs_baseline" "$omarchy_image_boot_rebuild"
 

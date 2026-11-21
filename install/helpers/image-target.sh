@@ -23,6 +23,12 @@
 # /var/lib/omarchy/image/pacman-keyring instead, and the first boot makes it
 # before any deferred step runs.
 #
+# The boot image an image carries was built for the machine that built the
+# image, so the machine's first boot rebuilds it for the hardware it runs on
+# and records that in /var/lib/omarchy/image/boot-image-rebuilt. A machine
+# that booted an image before that rebuild existed still carries the
+# builder's, and a migration repairs it.
+#
 # The manifest is also the only source of the image's platform: until that boot,
 # omarchy-hw-platform reports its platform instead of the build host's, so the
 # initramfs, services and packages the build sets up are the target's. It reads
@@ -47,6 +53,7 @@ omarchy_image_init() {
   omarchy_image_queue=$omarchy_image_dir/deferred-steps
   omarchy_image_initramfs_baseline=$omarchy_image_dir/initramfs-inputs
   omarchy_image_boot_rebuild=$omarchy_image_dir/boot-rebuild
+  omarchy_image_boot_image_rebuilt=$omarchy_image_dir/boot-image-rebuilt
   omarchy_image_keyring_request=$omarchy_image_dir/pacman-keyring
   omarchy_image_unit=omarchy-provision-hardware.service
   omarchy_image_systemd_dir=$omarchy_image_root/etc/systemd/system
@@ -162,4 +169,19 @@ omarchy_image_defer_hardware() {
     return 1
 
   echo "Image build for $omarchy_image_platform: deferred ${#steps[@]} hardware steps to first boot"
+}
+
+# Limine can exit successfully after an image failed to build or install.
+# Every image it started must finish, with no error from its entry tool.
+omarchy_image_limine_rebuild_confirmed() {
+  local output uki initcpio built_uki built_initcpio
+
+  output=$(sed 's/\x1b\[[0-9;]*m//g' <<<"$1")
+  ! grep -Eq '^((==> )?(ERROR|Error|error)\b|Failed to |Command failed:|The file: |Invalid '"'"'initrd=|Repeated hash mismatches|Kernel name: |FAT32 boot partition not found|Exception in thread |[^ ]+: line [0-9]+: +[0-9]+ )' <<<"$output" ||
+    return 1
+  uki=$(grep -Ec '^Building UKI (fallback )?for ' <<<"$output") || true
+  initcpio=$(grep -Ec '^Building (fallback )?initramfs for ' <<<"$output") || true
+  built_uki=$(grep -Ec '^==> Unified kernel image generation successful' <<<"$output") || true
+  built_initcpio=$(grep -Ec '^==> Initcpio image generation successful' <<<"$output") || true
+  (( uki + initcpio > 0 && built_uki >= uki && built_initcpio >= initcpio + uki ))
 }
