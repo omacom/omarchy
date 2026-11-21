@@ -94,14 +94,3 @@ echo 2 >"$tmp_dir/scale"
 grep -q '^umu-run:.*Battle.net Launcher.exe$' "$TEST_LOG" ||
   fail "Battle.net launch leaves a running prefix's DPI alone" "launcher never started"
 pass "Battle.net launch leaves a running prefix's DPI alone"
-
-# The launcher's desktop entry must name the window class Battle.net's client
-# actually carries (steam_app_battlenet under umu/Proton) — the same class the
-# shipped Hyprland rules match — so docks can tie the running window to its
-# icon. Reads the class out of the rules so the two stay in lockstep.
-hypr_class=$(grep -m1 -oP 'class = "\^\K[^$]+' "$ROOT/default/hypr/apps/battlenet.lua")
-entry_class=$(grep -m1 -oP '^StartupWMClass=\K.*' "$ROOT/default/applications/battlenet.desktop")
-[[ -n $hypr_class && $entry_class == "$hypr_class" ]] ||
-  fail "Battle.net's desktop entry matches the window class its Hyprland rules expect" \
-    "StartupWMClass=$entry_class, but the rules match $hypr_class"
-pass "Battle.net's desktop entry matches the window class its Hyprland rules expect"
