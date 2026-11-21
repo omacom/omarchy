@@ -1,8 +1,8 @@
-# Kibodi, Kipanya, Kiguso
+# Kibodi, Kipanya, Trackpad
 
-Hyprland inakuwezesha kusanidi ingizo zako zote kwa undani mkubwa. Unaweza kubadilisha urudiaji wa kibodi kuwa haraka sana au kufanya kiguso kutumia usogeaji asili. Unabadilisha yote katika `~/.config/hypr/input.lua`, ambayo unaweza pia kuifikia kupitia _Sanidi > Ingizo_ katika menyu ya Omarchy (`Super + Space`). Chochote unachokiweka hapo huchukua nafasi ya chaguomsingi za Omarchy.
+Hyprland hukuruhusu kusanidi pembejeo zako zote kwa undani mkubwa. Unaweza kubadilisha marudio ya kibodi yawe ya haraka kupita kiasi au kufanya trackpad itumie usogeaji wa asili. Unabadilisha yote hayo katika `~/.config/hypr/input.lua`, ambayo unaweza pia kuifikia kupitia _Setup > Input_ katika menyu ya Omarchy (`Super + Space`). Chochote unachokiweka hapo hubadilisha mipangilio chaguo-msingi ya Omarchy.
 
-Huu hapa ni mfano:
+Hapa kuna mfano:
 
 ```lua
 hl.config({
@@ -35,9 +35,9 @@ hl.config({
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
-Unaweza [kuona chaguo zote za ingizo](https://wiki.hypr.land/Configuring/Basics/Variables/#input) kwenye wiki ya Hyprland kwa ingizo.
+Unaweza [kuona chaguo zote za pembejeo](https://wiki.hypr.land/Configuring/Basics/Variables/#input) kwenye wiki ya Hyprland kuhusu pembejeo.
 
-CapsLock hufanya kazi kama Caps Lock ya kawaida, na `Shift + CapsLock` ni kitufe cha kutunga kwa [emoji za haraka](07-hotkeys.md#quick-emojis) na [ukamilishaji mwingine](07-hotkeys.md#quick-completions). Kama ungependa kitufe cha kutunga kiwe mahali pengine, badilisha `omarchy:shift_caps_compose` katika `kb_options`. Kwa mfano, hii husogeza kitufe cha kutunga hadi Alt ya Kulia:
+CapsLock hufanya kazi kama Caps Lock ya kawaida, na `Shift + CapsLock` ni kitufe cha compose kwa [emojis za haraka](07-hotkeys.md#quick-emojis) na [ukamilishaji mwingine](07-hotkeys.md#quick-completions). Ikiwa ungependa zaidi kitufe cha compose kiwe mahali pengine, badilisha `omarchy:shift_caps_compose` katika `kb_options`. Kwa mfano, hii huhamisha kitufe cha compose hadi Right Alt:
 
 ```lua
 hl.config({
@@ -47,33 +47,50 @@ hl.config({
 })
 ```
 
-### Ishara za kiguso
+### Vitufe vya vitendakazi
 
-Unaweza pia kuwasha [ishara za kiguso](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), kama kubofya na vidole vitatu kubadilisha nafasi za kazi:
+Mstari wa juu wa kibodi ya laptop hutuma vitufe vya media (sauti, mwangaza na kadhalika) kwa chaguo-msingi, na kushikilia `Fn` hutoa F1-F12; `Fn + Esc` huifunga kwa njia nyingine hadi utakapokibonyeza tena. Kibodi nyingi hukumbuka ufungaji huo zenyewe. Laptop za ASUS na kibodi za mtindo wa Apple huachia Linux, ambayo huziwasha kwenye vitufe vya media kila inapoanza. Ili ziianze kwenye F1-F12 badala yake, endesha `omarchy device keyboard toprow fnkeys` (na `omarchy device keyboard toprow mediakeys` kurudi nyuma); kwenye baadhi ya laptop huanza kutumika baada ya kuwasha upya. Apple Silicon Macs huhifadhi mpangilio wao wenyewe.
+
+### Ishara za Trackpad
+
+Telezesha kwenye trackpad ili kuzunguka kwenye eneo kazi:
+
+| Ishara | Kitendo |
+| --- | --- |
+| Vidole vitatu kushoto / kulia | Eneo kazi lililotangulia / linalofuata, ikiwa ni pamoja na tupu |
+| Vidole vitatu juu | Washa/zima koni ya AI |
+| Vidole vitatu chini | Fungua menyu ya Omarchy |
+| Vidole vinne kushoto / kulia | Hamisha dirisha linalotumika hadi eneo kazi lililotangulia / linalofuata |
+| Vidole vinne chini | Washa/zima skrini nzima |
+
+Ili kubadilisha moja, iondoe katika `~/.config/hypr/input.lua` kabla ya kuongeza [ishara yako mwenyewe ya touchpad](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), kwa kuwa Hyprland haitachukua ishara mbili kwa vidole na mwelekeo ule ule:
 
 ```lua
-hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+hl.gesture({ fingers = 3, direction = "up", action = "unset" })
+hl.gesture({ fingers = 3, direction = "up", action = "fullscreen" })
 ```
 
-Kwenye kompyuta mpakato za Dell XPS zenye kiguso cha kugusa, unaweza pia kuweka nguvu ya ubofyaji kuwa chini, kati, au juu chini ya _Anzisha > Vifaa > Mtetema wa kiguso_.
+Ili kuzima ishara zote za Omarchy, weka `omarchy_default_gestures = false` karibu na juu ya `~/.config/hypr/hyprland.lua`, kabla ya mipangilio chaguo-msingi ya Omarchy kupakiwa.
+
+Kwenye laptop za Dell XPS zenye touchpad ya haptic, unaweza pia kuweka nguvu ya kubofya kuwa ya chini, ya kati, au ya juu chini ya _Trigger > Hardware > Touchpad Haptics_.
 
 ### Kuandika kwa Kichina, Kijapani, na lugha nyingine
 
-Chagua Kijapani, Kikorea, Kichina (Kilichorahisishwa, Pinyin), au Kichina (cha Jadi, Zhuyin) wakati kisakinishi kinakuuliza kibodi yako. Omarchy husanidi kibodi na injini ya ingizo inayolingana kiotomatiki, ikiwa ni pamoja na wakati wa usanidi wa kwanza wa kuwasha nje ya mtandao. Kijapani hutumia Mozc, Kikorea hutumia Hangul ya seti mbili ya kawaida, Kichina Kilichorahisishwa hutumia Pinyin, na Kichina cha Jadi hutumia mpangilio wa kawaida wa Zhuyin wa Chewing. Kijapani (kibodi ya US) hutoa Mozc na mpangilio wa kibodi ya US.
+Chagua Kijapani, Kikorea, Kichina (Kilichorahisishwa, Pinyin), Taiwan (Zhuyin), au Hong Kong (Cangjie) kisakinishi kinapokuuliza kuhusu kibodi yako. Omarchy husanidi kibodi na injini ya pembejeo inayolingana kiotomatiki, ikiwa ni pamoja na wakati wa usanidi wa mara ya kwanza wa kuwasha bila mtandao. Kijapani hutumia Mozc, Kikorea hutumia Hangul ya kawaida ya seti mbili, Kichina Kilichorahisishwa hutumia Pinyin, Taiwan hutumia mpangilio wa kawaida wa Zhuyin wa Chewing, na Hong Kong hutumia Cangjie yenye maumbo ya herufi za Hong Kong. Kijapani (kibodi ya US) hutoa Mozc yenye mpangilio wa kibodi ya US. Vitufe vya Hangul, Zhuyin, na Cangjie hubaki katika nafasi zao za kawaida hata unapoandika herufi za Kilatini kwa Dvorak, Colemak, au AZERTY. Ikiwa uliongeza Hangul au Chewing kabla ya hili, iondoe chaguo kisha uichague tena chini ya _Setup > Keyboard > Input Methods_ ili kuhamisha vitufe vyake huko; Omarchy huacha injini ambayo tayari unaandika nayo kama ilivyo.
 
-Kuandika huanza katika hali ya Kilatini. Bonyeza `Super + I` kuzunguka mbinu za ingizo zilizosanidiwa, na `Super + Shift + I` kurudi nyuma. Gonga `Shift` peke yake kutoka kwenye mbinu ya ingizo kama Pinyin kwenda kwenye herufi za Kilatini, na uigonge tena kurudi, jinsi Sogou, Microsoft Pinyin, na macOS hufanya kazi; `Shift` pamoja na herufi bado huandika herufi kubwa. Kwenye kibodi za Kijapani, 全角/半角 hubadilisha ingizo, 変換 huiwasha, na 無変換 huizima. Kwenye mpangilio wa kibodi ya Kikorea, vitufe maalum vya 한/영 na 한자 hubadilisha Hangul na kugeuza hadi Hanja. `Ctrl + Space` hubaki kupatikana kwa Tmux na Herdr; `Shift + CapsLock` hubaki kitufe cha kutunga.
+Kuandika huanza katika hali ya Kilatini. Bonyeza `Super + I` ili kuzunguka kupitia mbinu za pembejeo zilizosanidiwa, na `Super + Shift + I` ili kuzunguka kurudi nyuma. Gusa `Shift` peke yake ili kutoka katika mbinu ya pembejeo kama Pinyin hadi herufi za Kilatini, na uiguse tena kurudi nyuma, jinsi Sogou, Microsoft Pinyin, na macOS zinavyofanya kazi; `Shift` pamoja na herufi bado huandika herufi kubwa. Kwenye kibodi za Kijapani, 全角/半角 hubadilisha pembejeo, 変換 huiwasha, na 無変換 huizima. Ukiwa na Kikorea, 한/영 hubadilisha Hangul na 한자 hubadilisha hadi Hanja, iwe kibodi yako ina vitufe maalum au hutuma Right Alt na Right Ctrl kwa ajili yao, kama laptop nyingi zinavyofanya, kwa hivyo Right Alt na Right Ctrl si vibadilishaji vya kawaida hapo; utamkaji hubadilishwa kwa Alt + Space badala yake. `Ctrl + Space` hubaki inapatikana kwa Tmux na Herdr; `Shift + CapsLock` hubaki kitufe cha compose.
 
-Kiashiria cha kibodi huonekana kulia kwa upau wakati una mpangilio mingi ya kibodi au mbinu za ingizo. Ibofye kubadilisha lugha za ingizo; Kijapani huonyesha あ kwa hiragana. Kwa chaguo za herufi za Kijapani, badilisha hadi Kijapani, andika neno kama `nihongo`, kisha bonyeza Space mara mbili. Bonyeza Enter kukubali chaguo lako. Kama pia una mpangilio mingi ya kibodi, bofya kulia kiashiria kuzunguka hizo.
+Kiashiria cha kibodi huonekana upande wa kulia wa upau unapokuwa na mipangilio mingi ya kibodi au mbinu za pembejeo. Kibofye ili kubadilisha lugha za pembejeo; Kijapani huonyesha あ kwa hiragana. Kwa chaguo za herufi za Kijapani, badilisha hadi Kijapani, andika neno kama `nihongo`, kisha bonyeza Space mara mbili. Bonyeza Enter kukubali chaguo lako. Ikiwa pia una mipangilio mingi ya kibodi, bofya kulia kiashiria ili kuzunguka kupitia hiyo.
 
-Tumia _Sanidi > Kuandika > Miundo ya kibodi_ kuchagua miundo kama Kiingereza na Kifaransa, kutoka chaguo zile zile zinazotolewa wakati wa usakinishaji. Tumia _Sanidi > Kuandika > Mbinu za ingizo_ kuchagua injini zipi za utunzi ziko hai. Wateuzi wote wawili hufunguka ndani ya menyu ya Omarchy na chaguo zako za sasa zikiwa zimewekewa alama. Bofya au bonyeza Enter kubadilisha chaguo; kila mabadiliko hutumika mara moja. Kuondoa uteuzi wa mbinu ya ingizo huiondoa kwenye mzunguko bila kuiondoa usakinishaji; kibodi hubakia kupatikana.
+Tumia _Setup > Keyboard > Keyboard Inputs_ kuchagua mipangilio kama Kiingereza na Kifaransa, kutoka chaguo zile zile zinazotolewa wakati wa usakinishaji. Tumia _Setup > Keyboard > Input Methods_ kuchagua ni injini zipi za utungaji zinazotumika. Vichaguzi vyote viwili hufunguka ndani ya menyu ya Omarchy huku chaguo zako za sasa zikiwa zimechaguliwa. Bofya au bonyeza Enter ili kuwasha/zima chaguo; kila badiliko huanza kutumika mara moja. Kuondoa chaguo la mbinu ya pembejeo huiondoa kutoka mzunguko bila kuisanidua; kibodi hubaki inapatikana.
 
-Endesha `omarchy setup keyboard` au `omarchy setup input` kufungua wateuzi wale wale. Ili kuambatanisha lugha moja kutoka mstari wa amri, tumia `omarchy setup input mozc`, `hangul`, `pinyin`, au `chewing`. Vitufe vyako maalum vya kubadilisha huhifadhiwa. Kwa mipangilio mbadala ya injini au vitufe, sakinisha `fcitx5-configtool` kwa `omarchy pkg add fcitx5-configtool` na uizindue kutoka terminali. Kuchagua lugha ya ingizo hakubadilishi lugha ya eneo-kazi.
+Endesha `omarchy setup keyboard` au `omarchy setup input` kufungua vichaguzi vile vile. Ili kuongeza lugha moja kutoka mstari wa amri, tumia `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing`, au `cangjie5`. Quick, Boshiamy, na Array huja katika kifurushi kile kile kama Cangjie na huonekana katika kichaguzi cha Input Methods. Vitufe vyako maalum vya kubadilisha huhifadhiwa. Kwa mipangilio au vitufe mbadala vya injini, sakinisha `fcitx5-configtool` kwa `omarchy pkg add fcitx5-configtool` na uizindue kutoka terminal. Kuchagua lugha ya pembejeo hakubadilishi lugha ya eneo kazi. Kuchagua Kijapani, Kikorea, au Kichina chini ya _Setup > Region > Language_ huongeza mbinu yake ya pembejeo unapokuwa huna yoyote bado.
 
-Tumia `Super + I` kuzunguka mbinu za ingizo au mipangilio ya kibodi, na `Super + Shift + I` kurudi upande mwingine, hivyo na tatu zilizosanidiwa unaweza kusonga kati ya majirani wawili. Kiashiria cha ingizo huonekana kulia kwa upau tu wakati zaidi ya mbinu moja ya ingizo au mpangilio umesanidiwa. Kiunganishi hiki cha eneo-kazi hufanya kazi pamoja na vitufe vyako vilivyopo vya kubadilisha vya Fcitx; unaweza kukibatilisha katika `~/.config/hypr/bindings.lua`. Injini za ingizo na mfuatano wa utunzi hutumia huduma ya [Fcitx5](https://fcitx-im.org/) tayari inayofanya kazi katika kila kikao.
+Tumia `Super + I` kuzunguka kupitia mbinu za pembejeo au mipangilio ya kibodi, na `Super + Shift + I` kurudi nyuma kwa njia nyingine, kwa hivyo ukiwa na tatu zilizosanidiwa unaweza kusonga kati ya majirani wawili. Kiashiria cha pembejeo huonekana upande wa kulia wa upau tu wakati mbinu zaidi ya moja ya pembejeo au mpangilio umesanidiwa. Ufungaji huu wa eneo kazi hufanya kazi pamoja na vitufe vyako vilivyopo vya kubadilisha vya Fcitx; unaweza kuubatilisha katika `~/.config/hypr/bindings.lua`. Injini za pembejeo na mfuatano wa compose hutumia huduma ya [Fcitx5](https://fcitx-im.org/) ambayo tayari inaendeshwa katika kila kipindi.
 
 ### Tumia ALT kama SUPER
 
-Kwenye kibodi fulani, si rahisi kutumia kitufe cha msingi cha meta (kitufe cha Windows/cmd) kama SUPER. Unaweza kubadilisha hili kuwa ALT badala yake kwa kutumia mabadiliko haya:
+Kwenye baadhi ya kibodi, si rahisi kutumia kitufe kikuu cha meta (kitufe cha Windows/cmd) kama SUPER. Unaweza kubadilisha hiki kiwe ALT badala yake kwa kutumia badiliko hili:
 
 ```lua
 hl.config({

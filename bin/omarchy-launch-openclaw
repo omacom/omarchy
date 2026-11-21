@@ -16,6 +16,21 @@ if [[ ${1:-} == "--tui" ]]; then
   fi
 fi
 
+# With the package installed and no openclaw command, the package became the
+# seed before this user's OpenClaw moved, as for one installed while waiting
+# for the seed by a route that never ran the migration again. --now sets it up.
+if ! omarchy-cmd-present openclaw && omarchy-pkg-present openclaw; then
+  if [[ $tui == "true" ]]; then
+    # The agent's terminal closes when this exits, so a failure waits to be read.
+    if ! omarchy-install-openclaw-cli --now; then
+      omarchy-show-done 1
+      exit 1
+    fi
+  else
+    exec omarchy-launch-floating-terminal-with-presentation 'omarchy-install-openclaw-cli --now && omarchy-launch-openclaw'
+  fi
+fi
+
 # Onboarding is OpenClaw's own interactive wizard, run through
 # omarchy-openclaw-onboard so it stays in the terminal, installs the gateway
 # as a user service, and returns (see that script for why bare `openclaw

@@ -57,6 +57,19 @@ ShellRoot {
           return
         }
 
+        // Long passwords shrink the dots instead of clipping, and keep
+        // shrinking as they grow; the fit itself is checked below against
+        // the narrower width left beside the fingerprint icon.
+        view.passwordText = "x".repeat(6)
+        root.assertTrue(view.passwordDotScale === 1, "short passwords keep full-size dots, got scale " + view.passwordDotScale)
+
+        view.passwordText = "x".repeat(40)
+        var longScale = view.passwordDotScale
+        root.assertTrue(longScale > 0 && longScale < 1, "overflowing passwords shrink the dots, got scale " + longScale)
+
+        view.passwordText = "x".repeat(80)
+        root.assertTrue(view.passwordDotScale < longScale, "dots keep shrinking as the password grows, got " + view.passwordDotScale + " vs " + longScale)
+
         var indicator = view.children ? findByObjectName(view, "fingerprintIndicator") : null
         root.assertTrue(indicator !== null, "fingerprint indicator exists in the lock view")
 

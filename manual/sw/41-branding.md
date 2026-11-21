@@ -1,55 +1,55 @@
-# Chapa (Branding)
+# Chapa
 
-Omarchy hukuruhusu kuweka nembo ya kampuni yako au picha yako binafsi kwa kufungua kuwasha, kiokozi cha skrini, na skrini ya kuhusu.
+Omarchy inakuruhusu kuweka nembo ya kampuni yako au picha yako binafsi kwa ajili ya kufungua wakati wa kuwasha, kiokoa skrini, na skrini ya kuhusu.
 
-### Kufungua kuwasha
+### Kufungua wakati wa kuwasha
 
-Unaweza kutumia `omarchy plymouth preview` kuona jinsi nembo na rangi zako maalum zitakavyoonekana. Huchukua rangi ya mandhari ya nyuma, rangi ya maandishi, png ya nembo, na njia ya picha ya hakiki:
+Unaweza kutumia `omarchy plymouth preview` kuona jinsi nembo yako maalum na rangi zako zitakavyoonekana. Inachukua rangi ya mandharinyuma, rangi ya maandishi, png ya nembo, na njia ya picha ya onyesho la awali:
 
 ```
 omarchy plymouth preview '#1d2021' '#ebdbb2' logo.png preview.png
 ```
 
-Kisha tumia usanidi kwa `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png`, ambayo pia itapa skrini ya kuingia ya SDDM rangi na nembo zile zile. Kama unataka kubatilisha, unaweza kutumia `omarchy plymouth reset`.
+Kisha tumia mpangilio huo kwa `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png`, ambayo pia itaipa skrini ya kuingia ya SDDM rangi na nembo hizo hizo. Ikiwa unataka kurudisha, unaweza kutumia `omarchy plymouth reset`.
 
  ![branding-plymouth-shopify](images/branding-plymouth-shopify.webp)
 
-### Kiokozi cha skrini
+### Kiokoa skrini
 
-Unaweza kubadilisha nembo inayotumika kwa kiokozi cha skrini chini ya _Mtindo > Kiokozi cha skrini_. Ni nembo ya ASCII, kwa hivyo unaweza kuhariri maandishi moja kwa moja, lakini pia unaweza kuipa picha ya png au svg, na tutaigeuza kuwa ASCII. Inaonekana nzuri kabisa.
+Unaweza kubadilisha nembo inayotumika kwa kiokoa skrini chini ya _Mwonekano > Chapa > Kiokoa Skrini_. Ni nembo ya ASCII, kwa hivyo unaweza kuhariri maandishi moja kwa moja, lakini pia unaweza kuipa picha ya png au svg, nasi tutaibadilisha kuwa ASCII. Inaonekana poa sana.
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
-Kuna maingizo matatu katika menyu hiyo:
+Kuna vipengee vitatu katika menyu hiyo:
 
-- **Hariri maandishi** hufungua `~/.config/omarchy/branding/screensaver.txt` katika kihariri chako. Chapa au bandika unachopenda — sanaa ya ASCII, jina lako, neno baya. Hifadhi na kutoka, na kiokozi cha skrini huwaka mara moja ili uweze kukiona.
-- **Weka kutoka picha** hufungua kichaguzi cha faili kwa png au svg, huigeuza kuwa ASCII, na kukuonyesha matokeo. Nembo zenye umbo wazi hufanya kazi vizuri zaidi kuliko picha.
-- **Rejesha chaguomsingi** hurejesha nembo ya Omarchy.
+- **Hariri Maandishi** inafungua `~/.config/omarchy/branding/screensaver.txt` katika kihariri chako. Andika au bandika chochote unachotaka — sanaa ya ASCII, jina lako, neno chafu. Hifadhi na uondoke, na kiokoa skrini kitawaka mara moja ili uweze kukiona.
+- **Weka Kutoka kwenye Picha** inafungua kichagua faili kwa ajili ya png au svg, inaibadilisha kuwa ASCII, na inakuonyesha matokeo. Nembo zenye umbo lililo wazi hufanya kazi vizuri zaidi kuliko picha zilizopigwa.
+- **Rejesha Chaguo-msingi** inarudisha nembo ya Omarchy.
 
 ### Skrini ya kuhusu
 
-Chaguo hizo hizo tatu ziko chini ya _Mtindo > Kuhusu_ kwa skrini ya _Kuhusu_ unayoipata kutoka menyu ya Omarchy, na zinafanya kazi sawasawa — faili ni `~/.config/omarchy/branding/about.txt`, na dirisha la Kuhusu hujitokeza baada ya kila mabadiliko. Sanaa ya Kuhusu hugeuzwa kuwa ukubwa mdogo kuliko ile ya kiokozi cha skrini, kwani lazima iingie katika dirisha badala ya kujaza skrini yako.
+Chaguo hizo hizo tatu ziko chini ya _Mwonekano > Chapa > Kuhusu_ kwa ajili ya skrini ya _Kuhusu_ unayoipata kutoka kwenye menyu ya Omarchy, na zinafanya kazi kwa njia ile ile — faili ni `~/.config/omarchy/branding/about.txt`, na dirisha la Kuhusu hujitokeza baada ya kila mabadiliko. Sanaa ya Kuhusu hubadilishwa kuwa ukubwa mdogo kuliko wa kiokoa skrini, kwani inabidi itoshee kwenye dirisha badala ya kujaza onyesho lako.
 
-Wakati dirisha limefunguliwa mwangaza wa kijani huegemea kwenye sanaa kila baada ya sekunde chache na kisha huiacha tuli tena. Sanaa yako mwenyewe pia huipata, mradi kila herufi ndani yake ni safu moja pana — chochote kinachotolewa na _Weka kutoka picha_ ni hivyo. Sanaa iliyojengwa kutoka emoji au herufi za upana-mbili hukaa tuli badala yake, na vivyo hivyo skrini kama unatunza usanidi wako wa fastfetch: nembo tuli katika hali hizo ni uhuishaji ukikaa mbali badala ya kushindwa, kwani kuteleza mwangaza juu yake kungeweka sehemu nyingine ya mstari mahali pasipo.
+Wakati dirisha liko wazi, mkanda wa mwanga mweupe mkali huelekea kupita kwenye sanaa kila baada ya sekunde chache na kisha huiacha imetulia tena. Sanaa yako mwenyewe pia huipata, mradi kila herufi ndani yake ina upana wa safu wima moja — kila kitu kinachotengenezwa na _Weka Kutoka kwenye Picha_ kiko hivyo. Sanaa iliyotengenezwa kwa emoji au herufi zenye upana maradufu hubaki imetulia badala yake, na ndivyo ilivyo kwa skrini ukiweka usanidi wako mwenyewe wa fastfetch: nembo iliyotulia katika hali hizo ni uhuishaji ukijiepusha usiingilie badala ya kushindwa, kwani kutelezesha mwanga unaometa kupitia kwao kungeweka sehemu iliyobaki ya mstari mahali pasipofaa.
 
  ![branding-about](images/branding-about.webp)
 
 ### Kubadilisha picha mwenyewe
 
-Chaguo zote mbili za _Weka kutoka picha_ zinaita tu `omarchy transcode ascii`, ambayo unaweza kuiendesha moja kwa moja kama unataka kudhibiti ubadilishaji:
+Chaguo zote mbili za _Weka Kutoka kwenye Picha_ zinaita tu `omarchy transcode ascii`, ambayo unaweza kuiendesha moja kwa moja ikiwa unataka udhibiti wa ubadilishaji:
 
 ```
 omarchy transcode ascii ~/logo.svg ~/.config/omarchy/branding/screensaver.txt --width 100
 ```
 
-Huchukua `--width` na `--height` katika safu na safu-wima za terminali, `--mode` ya `braille` (chaguomsingi, na laini zaidi) au `block`, asilimia ya `--threshold` ya kuamua ni pikseli zipi huhesabika kama sehemu ya nembo, na `--invert` wakati nembo yako ni nyepesi kwenye mandhari ya giza. Kama ubadilishaji unatoka kama dongo, kizingiti (threshold) kawaida ndicho kigezo cha kugeuza.
+Inachukua `--width` na `--height` katika safu wima na safu mlalo za terminal, `--mode` ya ama `braille` (chaguo-msingi, na yenye undani zaidi) au `block`, asilimia ya `--threshold` ya kuamua ni pikseli zipi zinahesabika kama sehemu ya nembo, na `--invert` kwa wakati nembo yako ni nyepesi kwenye mandharinyuma meusi. Ikiwa ubadilishaji unatokea kama donge, threshold ndiyo kitufe cha kugeuza kwa kawaida.
 
 ### Maneno badala ya nembo
 
-`omarchy ascii` huchora maandishi katika Delta Corps Priest 1, fonti ya FIGlet ambayo neno la Omarchy lenyewe limechorwa humo, kwa hivyo kiokozi cha skrini kinaweza kusema kitu badala ya kuonyesha picha:
+`omarchy ascii` huchora maandishi katika Delta Corps Priest 1, fonti ya FIGlet ambayo neno la Omarchy lenyewe limechorwa kwayo, kwa hivyo kiokoa skrini kinaweza kusema kitu badala ya kuonyesha picha:
 
 ```
 omarchy ascii "Back in five" > ~/.config/omarchy/branding/screensaver.txt
 ```
 
-Huchukua maandishi kama hoja, au huyasoma kutoka bomba inapopewa bila chochote. Fonti hubeba herufi na nafasi tu — ilichorwa bila tarakimu au alama za uakifishaji — kwa hivyo chochote kingine huachwa na kutajwa kwenye stderr badala ya kumezwa kimya.
+Inachukua maandishi kama hoja, au huyasoma kutoka kwenye pipe inapopewa hakuna. Fonti hubeba herufi na nafasi tu — ilichorwa bila tarakimu au alama za uakifishaji — kwa hivyo kitu kingine chochote huachwa na kutajwa kwenye stderr badala ya kumezwa kimya kimya.

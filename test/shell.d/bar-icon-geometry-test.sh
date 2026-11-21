@@ -293,7 +293,8 @@ ShellRoot {
   TextMetrics {
     id: sourceMetrics
     font.family: testBar.fontFamily
-    font.pixelSize: Style.bar.iconFont
+    // Large, so the whole-pixel bounds match the outline's own proportions.
+    font.pixelSize: Style.bar.iconFont * 100
     text: bluetooth.text
   }
   BarIconButton { id: menu; bar: testBar; text: "\ue900"; fontFamily: "omarchy" }

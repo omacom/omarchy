@@ -1,12 +1,12 @@
 # थीम
 
-Omarchy बाईस सुंदर थीम के साथ आता है। आप Omarchy मेनू (`Super + Space`) में _Style > Theme_ के ज़रिए उनके बीच चुन सकते हैं या `Super + Ctrl + Shift + Space` से सीधे थीम चयनकर्ता पर जा सकते हैं।
+Omarchy तेईस खूबसूरत थीम के साथ आता है। आप Omarchy Menu (`Super + Space`) में _Appearance > Theme_ के ज़रिए उनमें से चुन सकते हैं या `Super + Ctrl + T` का उपयोग करके सीधे थीम चयनकर्ता पर जा सकते हैं।
 
-हर थीम डेस्कटॉप, टर्मिनल, neovim, एक्टिविटी स्क्रीन (btop), Chromium और पूरे Omarchy शेल को स्टाइल करती है: मेनू बार, मेनू, सूचनाएँ, OSD और लॉक स्क्रीन। (Obsidian के लिए, आपको ऐप के अंदर _Appearance > Themes_ से Omarchy थीम को मैन्युअल रूप से चुनना होगा)।
+हर थीम डेस्कटॉप, टर्मिनल, neovim, एक्टिविटी स्क्रीन (btop), आपके ब्राउज़र (Chrome, Chromium, Edge या Brave), और पूरे Omarchy शेल को स्टाइल करती है: टॉप बार, मेनू, नोटिफ़िकेशन, OSD, और लॉक स्क्रीन। (Obsidian के लिए, आपको ऐप के अंदर _Appearance > Themes_ के ज़रिए Omarchy थीम को मैन्युअल रूप से चुनना होगा)।
 
-थीम में पृष्ठभूमि इमेज का एक सेट होता है जिनमें से आप `Super + Ctrl + Space` से चुन सकते हैं।
+थीम में बैकग्राउंड इमेज का एक सेट होता है, जिनमें से आप `Super + Ctrl + W` का उपयोग करके चुन सकते हैं।
 
-आप [अतिरिक्त थीम पेज](https://omarchy.org/themes/) पर और भी अधिक थीम पा सकते हैं या [अपनी खुद की थीम भी बना सकते हैं](43-making-your-own-theme.md)।
+आप [अतिरिक्त थीम पेज](https://omarchy.org/themes/) पर और भी थीम पा सकते हैं या [अपनी खुद की थीम भी बना सकते हैं](43-making-your-own-theme.md)।
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,33 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
+
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
+### ऐप आइकन
+
+ऐप लॉन्चर और डॉक में आइकन आपकी थीम के रंगों में बनाए जाते हैं, इसलिए वे इसके साथ-साथ बदलते रहते हैं। वे एक आइकन सेट से आते हैं, जिसे आप थीम से अलग _Appearance > Icons_ के तहत, हर सेट के प्रीव्यू से चुनते हैं, ठीक उसी तरह जैसे आप थीम चुनते हैं:
+
+- _Papercraft_ डिफ़ॉल्ट है: जो कुछ भी इंस्टॉल होकर आता है, वह एक ही स्टाइल में बना होता है। अपने लोगो से पहचाने जाने वाले ऐप, जैसे Chrome, HEY, या YouTube, अपना आकार बरकरार रखते हैं और थीम के रंग अपना लेते हैं।
+- _Arcade_ उन्हीं ऐप को 8-bit पिक्सेल आर्ट के रूप में बनाता है, जैसे कोई पुराना गेम कंसोल बनाता।
+- _Original_ हर ऐप को उस आइकन के साथ दिखाता है जो उसके निर्माता ने उसे दिया था।
+
+आप _Install > Style > Icons_ (या `omarchy icons install <git url>`) के साथ किसी और के बनाए आइकन सेट को इंस्टॉल कर सकते हैं, और _Remove > Icons_ के तहत उसे फिर से हटा सकते हैं। _Update > Extra Icons_ आपके इंस्टॉल किए गए सेट के नवीनतम संस्करण लाता है।
+
+अपना खुद का बनाने के लिए, अपने आइकन `~/.config/omarchy/icons/<name>/` में रखें, हर ऐप के लिए एक फ़ाइल, जिसका नाम ऐप की `.desktop` फ़ाइल की `Icon=` पंक्ति के अनुसार रखा गया हो। `.svg` पर समाप्त होने वाली फ़ाइल जैसी है वैसी ही दिखाई जाती है। `.svg.tpl` पर समाप्त होने वाली फ़ाइल थीम के रंगों में बनाई जाती है: जहाँ रंग आता हो वहाँ `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` या `{{ icon_shadow }}` लिखें। `/usr/share/omarchy/icons/papercraft/` में डिफ़ॉल्ट सेट शुरुआत करने के लिए अच्छी जगह है। पिकर में अपना सेट दिखाने के लिए एक `preview.png` जोड़ें; इसके बिना, Omarchy आपके आइकन से एक प्रीव्यू बनाता है। डिफ़ॉल्ट सेट के किसी एक आइकन को बदलने के लिए, अपना संस्करण `~/.config/omarchy/icons/papercraft/` में रखें।
+
 ### अनलॉक
 
-थीम में कस्टम अनलॉक डिज़ाइन भी हो सकता है, जिसका इस्तेमाल बूट डिक्रिप्शन प्रक्रिया के लिए किया जाता है। आप _Style > Unlock_ के तहत इनमें से एक चुन सकते हैं। वे इस तरह दिखते हैं:
+थीम में एक कस्टम अनलॉक डिज़ाइन भी हो सकता है, जिसका उपयोग बूट डिक्रिप्शन प्रक्रिया के लिए किया जाता है। आप _Appearance > Unlock_ के तहत इनमें से एक चुन सकते हैं। वे इस तरह दिखते हैं:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,11 +114,20 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -105,9 +138,6 @@ _Miasma_
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
 
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
-
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
 
@@ -116,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_

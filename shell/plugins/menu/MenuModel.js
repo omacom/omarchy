@@ -39,11 +39,19 @@ function normalizeItem(id, raw) {
     searchTerms: normalizeAliases(value.searchTerms),
     when: value.when || "",
     checked: value.checked || "",
-    disabled: value.disabled || ""
+    disabled: value.disabled || "",
+    alt: value.alt || ""
   }
 }
 
 function parseMenuJsonc(raw) {
+  return readMenuJsonc(raw) || []
+}
+
+// Like parseMenuJsonc, but null when the text is not a menu at all: what a
+// reader sees of a file caught mid-write by an update, a checkout or an
+// editor's save. A file of nothing but comments is still an empty menu.
+function readMenuJsonc(raw) {
   var stripped = stripJsonc(raw)
   if (!stripped.trim()) return []
 
@@ -51,9 +59,9 @@ function parseMenuJsonc(raw) {
   try {
     parsed = JSON.parse(stripped)
   } catch (e) {
-    return []
+    return null
   }
-  if (typeof parsed !== "object" || parsed === null) return []
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null
 
   var source = (parsed.items && typeof parsed.items === "object" && !Array.isArray(parsed.items))
     ? parsed.items
@@ -65,6 +73,17 @@ function parseMenuJsonc(raw) {
     out.push(normalizeItem(id, entry))
   }
   return out
+}
+
+// The rows a watched menu file leaves after a read. An update, a checkout or
+// an editor's save can be read mid-write, and that read must not replace good
+// rows with nothing, so it keeps the previous ones until a later read finds
+// the file whole. The shipped menu is never legitimately empty, so for it
+// (required) an empty read is mid-write too.
+function keepMenuRows(previous, raw, required) {
+  var items = readMenuJsonc(raw)
+  if (!items || (required && items.length === 0)) return previous
+  return items
 }
 
 // The root row has no JSONC entry, so the merge injects it when neither
@@ -92,7 +111,7 @@ function mergeMenuSources(defaultItems, userItems, rootLabel) {
   }
 
   if (!nextItems.root) {
-    nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: (typeof rootLabel === "string" && rootLabel) ? rootLabel : "Go", title: "", target: "", description: "", aliases: [], searchTerms: [], when: "", checked: "", disabled: "", action: "", provider: "" }
+    nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: (typeof rootLabel === "string" && rootLabel) ? rootLabel : "Go", title: "", target: "", description: "", aliases: [], searchTerms: [], when: "", checked: "", disabled: "", action: "", provider: "", alt: "" }
     nextOrder.unshift("root")
   }
   for (var k3 = 0; k3 < nextOrder.length; k3++) nextItems[nextOrder[k3]].order = k3
@@ -260,6 +279,34 @@ function childCount(items, itemOrder, id) {
   return count
 }
 
+// `alt:` names another action entry that stands in for this row while
+// Alt is held: Reboot becomes Reboot to BIOS. The stand-in is an ordinary
+// entry, so it translates, searches, and routes like any other; it is only
+// kept out of its submenu's list, where it would duplicate the row it
+// replaces. A stand-in whose `when:` fails, or whose `disabled:` succeeds,
+// leaves the row as it is.
+function altVariant(items, whenResults, disabledResults, entry) {
+  if (!entry || !entry.alt) return null
+  var variant = item(items, entry.alt)
+  if (!variant || variant.kind !== "action") return null
+  if (variant.when && whenResults && whenResults[variant.id] === false) return null
+  if (isDisabled(disabledResults, variant)) return null
+  return variant
+}
+
+// Only an action can stand in, so a reference to anything else (a submenu,
+// a missing id) hides nothing.
+function altVariantIds(items, itemOrder) {
+  var ids = {}
+  var order = Array.isArray(itemOrder) ? itemOrder : []
+  for (var i = 0; i < order.length; i++) {
+    var entry = item(items, order[i])
+    var variant = entry && entry.alt ? item(items, entry.alt) : null
+    if (variant && variant.kind === "action") ids[variant.id] = true
+  }
+  return ids
+}
+
 function isVisible(items, itemOrder, whenResults, entry, depth) {
   if (!entry) return false
   if (entry.when && whenResults && whenResults[entry.id] === false) return false
@@ -362,12 +409,14 @@ function searchScore(items, entry, query) {
   else if (nameText.indexOf(needle) >= 0) score = 40
   else if (descriptionTextMatches(needle, descriptionText)) score = 60
 
-  if (entry.kind === "menu" || entry.kind === "link") score -= 2
   // App rows sort after all menu items, so they lose the tiebreak below to an
   // equal match. Outrank those, but stay inside the tier so better ones win.
   if (entry.kind === "app") score -= 5
 
-  return score * 1000 + depthFor(items, entry.id) * 25 + entry.order
+  // Within a tier, a shallower entry wins ("abou" finds System > About before
+  // Appearance > Branding > About); at equal depth a submenu beats an action.
+  var opensMenu = entry.kind === "menu" || entry.kind === "link"
+  return score * 10000000 + depthFor(items, entry.id) * 100000 + (opensMenu ? 0 : 50000) + entry.order
 }
 
 function displayRow(items, itemOrder, checkedResults, disabledResults, entry, detail, score, section) {
@@ -402,6 +451,7 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
 // memo never survives to the expression after it.
 var GUARD_READERS = [
   "omarchy-bar background",
+  "omarchy-bar get omarchy.power showPercentage",
   "omarchy-bar get omarchy.clock format",
   "omarchy-bar get omarchy.clock verticalFormat",
   "omarchy-bar position",
@@ -416,7 +466,9 @@ var GUARD_READERS = [
   "omarchy-dock position",
   "omarchy-hyprland-corners",
   "omarchy-hyprland-window-transparency",
-  "omarchy-hyprland-workspace-layout-default"
+  "omarchy-hyprland-workspace-layout-default",
+  "omarchy-shell notifications isDnd",
+  "omarchy-toggle-nightlight --status"
 ]
 
 // Package and command presence account for most of what the guards ask, and
@@ -672,6 +724,7 @@ if (typeof module !== "undefined") {
     normalizeAliases: normalizeAliases,
     normalizeItem: normalizeItem,
     parseMenuJsonc: parseMenuJsonc,
+    keepMenuRows: keepMenuRows,
     mergeMenuSources: mergeMenuSources,
     mergeAppRows: mergeAppRows,
     swapProviderRows: swapProviderRows,
@@ -684,6 +737,8 @@ if (typeof module !== "undefined") {
     isDescendantOf: isDescendantOf,
     childCount: childCount,
     isVisible: isVisible,
+    altVariant: altVariant,
+    altVariantIds: altVariantIds,
     isDisabled: isDisabled,
     labelFor: labelFor,
     searchableToken: searchableToken,
