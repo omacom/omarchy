@@ -1,0 +1,10 @@
+[Unit]
+Description=Recover an Intel Wi-Fi card whose firmware failed to start
+After=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-hw-recover-wifi
+
+[Install]
+WantedBy=multi-user.target
