@@ -82,6 +82,7 @@ Item {
   property string dmenuChangeKey: ""
   property var dmenuOnChange: []
   property string selectionFile: ""
+  property bool selectionFileCreated: false
   property string doneFile: ""
   property int dmenuWidth: 300
   property int dmenuMaxHeight: 0
@@ -96,7 +97,6 @@ Item {
   // Rows with a `alt:` stand-in show and run it while this holds.
   property bool altHeld: false
   property int requestSerial: 0
-  property int applySerial: 0
   property var items: ({})
   property var itemOrder: []
   property var navStack: []
@@ -143,6 +143,9 @@ Item {
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
     : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight, panel.height - Style.gapsOut * 2)
 
+  // The pick, or the text typed in input mode, is written from inside the
+  // shell. Handed to a command, it would sit on that command line, which every
+  // user on the machine can read in /proc/<pid>/cmdline.
   function finishRequest(selection) {
     if (!root.requestActive || !root.doneFile) {
       root.opened = false
@@ -150,17 +153,62 @@ Item {
     }
 
     var activeSelectionFile = root.selectionFile
+    var activeSelectionFileCreated = root.selectionFileCreated
     var activeDoneFile = root.doneFile
     root.requestActive = false
     root.selectionFile = ""
+    root.selectionFileCreated = false
     root.doneFile = ""
 
-    if (selection === null || selection === undefined) {
-      resultProc.command = ["bash", "-c", ": > " + Util.shellQuote(activeDoneFile)]
-    } else {
-      resultProc.command = ["bash", "-c", "printf '%s\\n' " + Util.shellQuote(selection) + " > " + Util.shellQuote(activeSelectionFile) + "; : > " + Util.shellQuote(activeDoneFile)]
+    // A caller that created its selection file and then gave up, because its
+    // summon timed out or it was stopped, has removed it again. Writing now
+    // would create new files that every user can read, and leave the pick in
+    // /tmp with nobody to remove it.
+    if (activeSelectionFileCreated && !root.requestFileExists(activeSelectionFile)) return
+
+    if (selection !== null && selection !== undefined)
+      root.writeRequestFile(activeSelectionFile, String(selection) + "\n")
+    root.writeRequestFile(activeDoneFile, "\n")
+  }
+
+  // Writes block, so the selection is complete before the done file the caller
+  // waits on appears. Nothing reads the selection before then, so it is
+  // written in place. The done file gets a newline because an empty write
+  // creates no file. A fresh writer per file never carries one request's text
+  // into the next.
+  function writeRequestFile(path, text) {
+    if (!path) return
+    var writer = requestFileWriter.createObject(root, { path: path })
+    writer.setText(text)
+    writer.destroy()
+  }
+
+  // A waiting caller's selection file is still empty, and an empty file loads.
+  function requestFileExists(path) {
+    var reader = requestFileReader.createObject(root, { path: path })
+    reader.waitForJob()
+    var exists = reader.loaded
+    reader.destroy()
+    return exists
+  }
+
+  // omarchy-menu-select hands its rows over in a private file the payload
+  // names as optionsFile: inline, they would meet Linux's 128 KiB limit on a
+  // single argument and be readable by every user on the machine. A fresh
+  // reader per request never serves the previous request's rows.
+  function readOptionsFile(path) {
+    var reader = requestFileReader.createObject(root, { path: path })
+    reader.waitForJob()
+    var text = reader.text()
+    var loaded = reader.loaded
+    reader.destroy()
+    if (!loaded) return null
+    try {
+      var options = JSON.parse(text)
+      return Array.isArray(options) ? options : null
+    } catch (error) {
+      return null
     }
-    resultProc.running = true
   }
 
   function runAction(action) {
@@ -642,8 +690,9 @@ Item {
       return
     }
 
+    var rows = []
     if (root.dmenuMultiple && root.dmenuOnChange.length === 0) {
-      displayModel.append({
+      rows.push({
         itemId: "dmenu.apply", disabled: false, kind: "dmenu", icon: "", iconFont: "",
         appIcon: "", appId: "", label: Commons.I18n.t("common.apply"), target: "",
         detail: Commons.I18n.tn("menu.selectedCount", root.dmenuSelected.length).arg(Commons.I18n.formatNumber(root.dmenuSelected.length)), path: "", childCount: 0,
@@ -662,7 +711,7 @@ Item {
       var detail = parts.join("\t")
       if (query && label.toLowerCase().indexOf(query) < 0
           && detail.toLowerCase().indexOf(query) < 0) continue
-      displayModel.append({
+      rows.push({
         itemId: "dmenu." + i,
         disabled: false,
         kind: "dmenu",
@@ -681,6 +730,10 @@ Item {
         section: ""
       })
     }
+    // One append for the whole list: the rows' height follows the model's
+    // count and measures every row, so appending rows one at a time made
+    // opening a long list quadratic.
+    if (rows.length > 0) displayModel.append(rows)
 
     layoutSerial += 1
 
@@ -901,7 +954,6 @@ Item {
     } else if (row.kind === "app") {
       var appId = row.appId
       var label = row.label
-      applySerial = requestSerial
       opened = false
       filterText = ""
       if (root.appLibrary) root.appLibrary.launch(appId, label)
@@ -947,7 +999,6 @@ Item {
   }
 
   function applyDmenuSelection(value) {
-    applySerial = requestSerial
     opened = false
     filterText = ""
     root.finishRequest(value)
@@ -956,7 +1007,6 @@ Item {
   function applySelected(id, action) {
     if (!id) { cancel(); return }
 
-    applySerial = requestSerial
     opened = false
     filterText = ""
     root.runAction(action)
@@ -995,10 +1045,26 @@ Item {
   }
 
   function openDmenu(payload) {
+    // omarchy-menu-select and omarchy-menu-input create the selection file
+    // before they summon and say so. If it is gone already, the caller gave up
+    // before its request arrived, because its summon timed out or it was
+    // stopped, and nobody is left to answer.
+    var callerCreatedSelection = payload.selectionFileCreated === true && !!payload.selectionFile
+    if (callerCreatedSelection && !root.requestFileExists(String(payload.selectionFile))) return
+    var options = Array.isArray(payload.options) ? payload.options : []
+    if (payload.optionsFile) {
+      options = root.readOptionsFile(String(payload.optionsFile))
+      // Rows that can't be read cancel this request rather than open an empty
+      // menu, and leave whatever the menu shows now alone.
+      if (options === null) {
+        root.writeRequestFile(String(payload.doneFile || ""), "\n")
+        return
+      }
+    }
     requestSerial += 1
     mode = payload.mode === "input" ? "input" : "select"
     dmenuPrompt = String(payload.prompt || (mode === "input" ? Commons.I18n.t("menu.inputPrompt") : Commons.I18n.t("menu.selectPrompt")))
-    dmenuOptions = Array.isArray(payload.options) ? payload.options : []
+    dmenuOptions = options
     dmenuMultiple = mode === "select" && payload.multiple === true
     dmenuOnChange = dmenuMultiple && Array.isArray(payload.onChange)
       && payload.onChange.every(function(arg) { return typeof arg === "string" }) ? payload.onChange : []
@@ -1008,6 +1074,7 @@ Item {
     if (dmenuOnChange.length > 0)
       dmenuSelected = MenuModel.dmenuSelections(dmenuOptions, selectionProc.requestedSelection(), true)
     selectionFile = String(payload.selectionFile || "")
+    selectionFileCreated = callerCreatedSelection
     doneFile = String(payload.doneFile || "")
     requestActive = !!doneFile
     dmenuWidth = Math.max(1, Number(payload.width || 300))
@@ -1151,11 +1218,20 @@ Item {
     }
   }
 
-  Process {
-    id: resultProc
-    onExited: {
-      if (root.applySerial === root.requestSerial)
-        root.opened = false
+  Component {
+    id: requestFileWriter
+    FileView {
+      atomicWrites: false
+      blockWrites: true
+      preload: false
+    }
+  }
+
+  Component {
+    id: requestFileReader
+    FileView {
+      blockLoading: true
+      printErrors: false
     }
   }
 
