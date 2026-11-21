@@ -838,6 +838,9 @@
   "install.service.tailscale": {
     "label": "Tailscale"
   },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
   "install.service.nordvpn": {
     "label": "NordVPN"
   },
