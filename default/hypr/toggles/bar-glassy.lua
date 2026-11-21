@@ -6,4 +6,5 @@ hl.layer_rule({
   match = { namespace = "^omarchy-bar$" },
   blur = true,
   ignore_alpha = 0.3,
+  blur_popups = true,
 })

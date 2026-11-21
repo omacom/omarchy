@@ -12,4 +12,5 @@ hl.layer_rule({
   match = { namespace = "^(omarchy-bar|omarchy-menu|omarchy-notifications|omarchy-osd|omarchy-polkit|omarchy-reminders|omarchy-clipboard|omarchy-emojis|omarchy-image-selector|omarchy-keyboard-panel|omarchy-network-qr)$" },
   blur = true,
   ignore_alpha = 0.3,
+  blur_popups = true,
 })
