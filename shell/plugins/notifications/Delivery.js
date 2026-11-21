@@ -40,9 +40,27 @@ function isEphemeral(row) {
   return app === "notify-send" || app === "omarchy-action"
 }
 
-// "silenced", or "" when the row shows. A verification code always passes: it
-// was asked for a moment ago and expires in minutes.
-function quietReason(row, doNotDisturb) {
+// A summary or body opening with one of the configured prefixes, after
+// trimming leading whitespace. Case-sensitive; empty and non-string entries
+// never match.
+function matchesDropPrefix(row, dropPrefixes) {
+  if (!Array.isArray(dropPrefixes)) return false
+  var summary = String((row && row.summary) || "").replace(/^\s+/, "")
+  var body = String((row && row.body) || "").replace(/^\s+/, "")
+  for (var i = 0; i < dropPrefixes.length; i++) {
+    var prefix = dropPrefixes[i]
+    if (typeof prefix === "string" && prefix.length > 0 &&
+        (summary.indexOf(prefix) === 0 || body.indexOf(prefix) === 0)) return true
+  }
+  return false
+}
+
+// "silenced", "filtered", or "" when the row shows. A verification code always
+// passes: it was asked for a moment ago and expires in minutes — but a
+// configured prefix outranks even that, because the user named this sender's
+// noise specifically.
+function quietReason(row, doNotDisturb, dropPrefixes) {
+  if (matchesDropPrefix(row, dropPrefixes)) return "filtered"
   if (!doNotDisturb) return ""
   if (bypassesQuiet(row)) return ""
   if (String((row && row.code) || "")) return ""
