@@ -2,7 +2,7 @@
 
 One bar icon and one panel for the models that run on hardware you own: this machine's, and those other machines share on the tailnet. `Models.qml` follows what `omarchy-models` writes to `~/.local/state/omarchy/agent-local/` and runs the setups and pairings the panel starts; `Panel.qml` owns the bar button and the popup. [`docs/local-models.md`](../../../docs/local-models.md) covers the contract with the engine.
 
-The icon sits left of the agents icon, and shows only on a machine that can run a model itself: the catalog has a recipe that fits it (the engine's `available`), a model is set up here, or another DGX Spark is cabled to it. Models the tailnet shares show on such a machine, but never make the panel appear on one that can't run any, where Super + Ctrl + Shift + X and IPC open nothing either.
+The icon sits left of the agents icon, and shows only on a machine that can run a model itself: the catalog has a recipe that fits it (the engine's `available`), a model is set up here, or another DGX Spark is cabled to it. Models the tailnet shares show on such a machine, but never make the panel appear on one that can't run any, where Super + Ctrl + Alt + X and IPC open nothing either.
 
 ## Panel
 
