@@ -5,7 +5,7 @@
 # omarchy:hidden=true
 
 # systemd-boot once omarchy-boot-switch made it the loader the firmware starts,
-# limine on a machine still booting Limine. --managed prints every loader whose
+# or on a machine installed with it; limine on a machine still booting Limine. --managed prints every loader whose
 # boot images have to be kept current: both while a switch is on trial, when
 # the firmware still starts Limine but systemd-boot is staged next to it.
 
@@ -28,7 +28,12 @@ staged | trial | trial-failed)
   fi
   ;;
 *)
-  if has_limine; then
+  # A machine installed with systemd-boot never switched: omarchy-boot-systemd,
+  # whose snapper plugin is there, says so even in a root whose boot store
+  # isn't mounted. (Its pacman hook can't: the installer masks it for a while.)
+  if [[ -f ${OMARCHY_BOOT_SYSTEMD_MARKER:-/usr/lib/snapper/plugins/20-omarchy-boot} ]]; then
+    echo systemd-boot
+  elif has_limine; then
     echo limine
   else
     echo none

@@ -22,7 +22,8 @@
 # unlocks it through omarchy-lifecycle-dispatch.
 #
 # A machine that switched to systemd-boot goes back to Limine, which its factory
-# root was installed with, and can switch again afterwards.
+# root was installed with, and can switch again afterwards. One installed with
+# systemd-boot stays on it, with a fresh boot store.
 #
 # Honest limitations:
 #  - On unencrypted disks this is deletion, not forensic erasure. fstrim helps
@@ -141,6 +142,11 @@ boot_store() {
   printf '%s\n' "${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}"
 }
 
+# A root installed with systemd-boot carries omarchy-boot-systemd's snapper plugin.
+boots_systemd_boot() {
+  [[ -f $1/usr/lib/snapper/plugins/20-omarchy-boot ]]
+}
+
 systemd_boot_host() {
   [[ $(omarchy-boot-backend 2>/dev/null) == systemd-boot ]]
 }
@@ -243,6 +249,12 @@ retire_boot_store() {
     btrfs subvolume delete --recursive "$subvolume" >>"$LOG_FILE" 2>&1 ||
       log "Could not delete $(basename "$subvolume"); remove it to finish the reset"
   done
+  # A factory root installed with systemd-boot mounts its own at the old name.
+  if [[ -d $TOP_MNT/@omarchy-boot-next ]]; then
+    if [[ -e $TOP_MNT/@omarchy-boot ]] || ! mv "$TOP_MNT/@omarchy-boot-next" "$TOP_MNT/@omarchy-boot"; then
+      log "Could not put the factory system's boot store in place; from a live USB, rename @omarchy-boot-next to @omarchy-boot"
+    fi
+  fi
 }
 
 # Resolve the crypto_LUKS partition backing the root, or return non-zero if
@@ -317,7 +329,17 @@ cleanup() {
   fi
   rmdir "$ESP_MNT" 2>/dev/null || true
 
+  if [[ ${next_store_mounted:-0} == 1 ]]; then
+    umount "$TOP_MNT/$NEXT_NAME/var/lib/omarchy/boot" 2>/dev/null || true
+  fi
+  if [[ ${next_self_mounted:-0} == 1 ]]; then
+    umount -R "$TOP_MNT/$NEXT_NAME" 2>/dev/null || true
+  fi
+
   if mountpoint -q "$TOP_MNT" 2>/dev/null; then
+    if [[ ${reset_committed:-0} == 0 && -d $TOP_MNT/@omarchy-boot-next ]]; then
+      btrfs subvolume delete "$TOP_MNT/@omarchy-boot-next" >/dev/null 2>&1 || true
+    fi
     # Never delete the staged root while there is no @: after a root switch
     # that could not be undone, it is one of the two systems left to recover.
     if [[ -d $TOP_MNT/$NEXT_NAME && ${swap_done:-0} == 0 && -d $TOP_MNT/@ ]]; then
@@ -436,9 +458,15 @@ stage_luks_rekey() {
   printf '%s' "$passphrase" >"$next/etc/omarchy/provisioning.key"
   chmod 600 "$next/etc/omarchy/provisioning.key"
 
-  install -d "$next/etc/limine-entry-tool.d" "$next/etc/mkinitcpio.conf.d"
-  echo 'KERNEL_CMDLINE[default]+=" cryptkey=rootfs:/etc/omarchy/provisioning.key"' \
-    >"$next/etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf"
+  install -d "$next/etc/mkinitcpio.conf.d"
+  if boots_systemd_boot "$next"; then
+    install -d "$next/etc/cmdline.d"
+    echo 'cryptkey=rootfs:/etc/omarchy/provisioning.key' >"$next/etc/cmdline.d/99-omarchy-provisioning-unlock.conf"
+  else
+    install -d "$next/etc/limine-entry-tool.d"
+    echo 'KERNEL_CMDLINE[default]+=" cryptkey=rootfs:/etc/omarchy/provisioning.key"' \
+      >"$next/etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf"
+  fi
   echo 'FILES+=(/etc/omarchy/provisioning.key)' \
     >"$next/etc/mkinitcpio.conf.d/99-omarchy-provisioning-key.conf"
 }
@@ -622,6 +650,10 @@ rebuild_next_boot() {
   fi
   [[ -e $esp_device ]] || fail "ESP device $esp_device not found"
 
+  # Boot tooling in the chroot finds its root device from the mount at /.
+  mount --bind "$next" "$next"
+  next_self_mounted=1
+
   # The ESP stays mounted outside the staged root until the root switch, so
   # the cleanup trap can still restore it after the bind into the chroot is
   # gone.
@@ -653,7 +685,7 @@ rebuild_next_boot() {
     # offset into the rebuilt UKI and breaks resume.
     if [[ ! -f $next/swap/swapfile ]]; then
       rm -f "$next/etc/mkinitcpio.conf.d/omarchy_resume.conf" \
-        "$next/etc/limine-entry-tool.d/resume.conf"
+        "$next/etc/limine-entry-tool.d/resume.conf" "$next/etc/cmdline.d/resume.conf"
     fi
     if ! chroot "$next" env OMARCHY_PATH=/usr/share/omarchy \
       /usr/bin/omarchy-hibernation-setup --force --no-rebuild >>"$LOG_FILE" 2>&1; then
@@ -673,22 +705,52 @@ rebuild_next_boot() {
   backup_esp "$ESP_MNT" "$esp_backup"
   esp_restore=$ESP_MNT
 
-  reset_limine_config "$next" "$esp_mount" "$esp_old_id"
-  if systemd_boot_host; then
-    prepare_limine_return "$next"
-  fi
+  if boots_systemd_boot "$next"; then
+    rebuild_next_boot_systemd "$next"
+  else
+    reset_limine_config "$next" "$esp_mount" "$esp_old_id"
+    if systemd_boot_host; then
+      prepare_limine_return "$next"
+    fi
 
-  log "Rebuilding boot files from the factory system (this can take a minute)"
-  if ! chroot "$next" /usr/bin/limine-update >>"$LOG_FILE" 2>&1; then
-    fail "limine-update failed in the factory root (see $LOG_FILE)"
-  fi
+    log "Rebuilding boot files from the factory system (this can take a minute)"
+    if ! chroot "$next" /usr/bin/limine-update >>"$LOG_FILE" 2>&1; then
+      fail "limine-update failed in the factory root (see $LOG_FILE)"
+    fi
 
-  verify_limine_hashes "$next" "$esp_mount"
+    verify_limine_hashes "$next" "$esp_mount"
+  fi
 
   for dir in run dev sys proc; do
     umount -R "$next/$dir" 2>/dev/null || true
   done
   umount "$next$esp_mount"
+  umount "$next"
+  next_self_mounted=0
+}
+
+# A factory root installed with systemd-boot gets a boot store of its own, which
+# replaces this system's at activation, and its boot images built and verified
+# by the same install that set it up. Its root has to be a mount for the boot
+# tooling to find the btrfs device it lives on.
+
+rebuild_next_boot_systemd() {
+  local next="$1" store="$TOP_MNT/@omarchy-boot-next"
+  if [[ -d $store ]]; then
+    btrfs subvolume delete "$store" >>"$LOG_FILE" 2>&1 || fail "could not clear a previous attempt's boot store"
+  fi
+  btrfs subvolume create "$store" >>"$LOG_FILE" || fail "could not create the factory system's boot store"
+  mkdir -p "$next/var/lib/omarchy/boot"
+  mount --bind "$store" "$next/var/lib/omarchy/boot"
+  next_store_mounted=1
+
+  log "Rebuilding boot files from the factory system (this can take a minute)"
+  if ! chroot "$next" env OMARCHY_PATH=/usr/share/omarchy \
+    /usr/bin/omarchy-boot-switch install --no-efi-register >>"$LOG_FILE" 2>&1; then
+    fail "building the factory system's boot images failed (see $LOG_FILE)"
+  fi
+  umount "$next/var/lib/omarchy/boot"
+  next_store_mounted=0
 }
 
 # The boot package stages the factory root's boot files and unlock, then proves
@@ -715,6 +777,8 @@ rebuild_next_boot_platform() {
 commit_next_boot() {
   if [[ -n ${limine_entry:-} ]]; then
     commit_systemd_boot_return || true
+  elif [[ -d $TOP_MNT/@omarchy-boot-next && ${esp_old_id:-} =~ ^[0-9a-f]{32}$ && $esp_old_id != "${esp_new_id:-}" ]]; then
+    rm -f "$ESP_MNT"/EFI/Linux/omarchy-"${esp_old_id:0:8}"-*.efi
   fi
   commit_esp_staging "$ESP_MNT" "${esp_old_id:-}" "${esp_new_id:-}" || true
   umount "$ESP_MNT" 2>/dev/null || true

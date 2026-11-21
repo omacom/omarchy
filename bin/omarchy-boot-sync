@@ -93,7 +93,9 @@ check_store() {
   local fstype fsroot
   read -r fstype fsroot < <(findmnt -n -o FSTYPE,FSROOT --mountpoint "$STORE" 2>/dev/null) ||
     die "the boot store is not mounted at $STORE"
-  [[ $fstype == btrfs && $fsroot == /@omarchy-boot ]] ||
+  # A factory reset builds the next root's store as @omarchy-boot-next, the
+  # name it keeps until that root is activated.
+  [[ $fstype == btrfs && ($fsroot == /@omarchy-boot || $fsroot == /@omarchy-boot-next) ]] ||
     die "$STORE is $fstype $fsroot, not the @omarchy-boot subvolume"
 }
 

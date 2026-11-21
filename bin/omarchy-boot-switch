@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Move this machine from the Limine boot loader to systemd-boot, the boot loader Secure Boot needs
-# omarchy:args=[--check] [--yes] | status | revert
+# omarchy:args=[--check] [--yes] | status | revert | install [--no-efi-register] [--no-fallback] [--prefer PKGBASE]
 # omarchy:examples=omarchy-boot-switch --check | omarchy-boot-switch | omarchy-boot-switch status
 # omarchy:requires-sudo=true
 
@@ -25,6 +25,10 @@
 #
 # Snapshots taken before the switch stay on disk but can't be booted from
 # systemd-boot: their roots expect Limine.
+#
+# install sets up a machine that never had Limine: the installer and a factory
+# reset run it inside the new root, with omarchy-boot-systemd installed and the
+# ESP mounted. It goes straight to active, with no trial.
 
 set -euo pipefail
 
@@ -264,16 +268,19 @@ root_device() {
 create_store() {
   local device fstab_line
   device=$(root_device)
-  mkdir -p "$TOP"
-  mountpoint -q "$TOP" || mount -t btrfs -o subvolid=5 "$device" "$TOP"
-  [[ -d $TOP/@omarchy-boot ]] || btrfs -q subvolume create "$TOP/@omarchy-boot" >/dev/null
+  # A factory reset mounts the new root's own fresh store before it calls install.
+  if ! mountpoint -q "$STORE"; then
+    mkdir -p "$TOP"
+    mountpoint -q "$TOP" || mount -t btrfs -o subvolid=5 "$device" "$TOP"
+    [[ -d $TOP/@omarchy-boot ]] || btrfs -q subvolume create "$TOP/@omarchy-boot" >/dev/null
+  fi
 
   if ! grep -qE '[[:space:]]/var/lib/omarchy/boot[[:space:]]' /etc/fstab; then
     fstab_line=$(awk '$2 == "/" && $3 == "btrfs"' /etc/fstab | sed -n 1p)
     [[ -n $fstab_line ]] || die "/etc/fstab has no btrfs root line to copy the store's mount from."
     fstab_line=$(awk 'BEGIN { OFS = "\t" } { $2 = "/var/lib/omarchy/boot"; gsub(/subvol=\/?@(,|$)/, "subvol=/@omarchy-boot,", $4); sub(/,$/, "", $4); $6 = 0; print }' <<<"$fstab_line")
     printf '# Omarchy boot images (omarchy-boot-switch)\n%s\n' "$fstab_line" >>/etc/fstab
-    systemctl daemon-reload
+    systemctl daemon-reload 2>/dev/null || true
   fi
   mkdir -p "$STORE"
   mountpoint -q "$STORE" || mount "$STORE"
@@ -331,8 +338,6 @@ install_loader() {
     cp "$BOOT_DEFAULTS/loader.conf" "$ESP/loader/loader.conf"
   fi
 
-  install -Dm644 "$BOOT_DEFAULTS/pacman/95-omarchy-boot-trial.hook" /etc/pacman.d/hooks/95-omarchy-boot-trial.hook
-
   # kernel-install would publish UKIs of its own next to Omarchy's.
   mkdir -p /etc/kernel/install.d
   local plugin
@@ -341,19 +346,25 @@ install_loader() {
   done
 }
 
-register_trial() {
-  local num esp_device disk part order
+# systemd-boot's NVRAM entry, created if the firmware has none yet. efibootmgr
+# puts a new entry first in the boot order.
+loader_entry() {
+  local num esp_device disk part
   num=$(boot_entry_for "$LOADER_PATH")
   if [[ -z $num ]]; then
-    order=$(boot_order)
     esp_device=$(findmnt -n -o SOURCE --mountpoint "$ESP")
     disk=/dev/$(lsblk -no PKNAME "$esp_device")
-    part=$(cat "/sys/class/block/$(basename "$esp_device")/partition")
-    efibootmgr --quiet --create --disk "$disk" --part "$part" --label "$LOADER_LABEL" --loader "$LOADER_PATH" ||
-      die "The firmware refused a new boot entry. Nothing that boots has changed; run omarchy-boot-switch revert to clean up."
+    part=$(lsblk -no PARTN "$esp_device")
+    efibootmgr --quiet --create --disk "$disk" --part "$part" --label "$LOADER_LABEL" --loader "$LOADER_PATH" >/dev/null || return 1
     num=$(boot_entry_for "$LOADER_PATH")
-    [[ -n $num ]] || die "The firmware didn't keep the new boot entry. Run omarchy-boot-switch revert to clean up."
   fi
+  [[ -n $num ]] && echo "$num"
+}
+
+register_trial() {
+  local num order
+  num=$(loader_entry) ||
+    die "The firmware refused a new boot entry, or didn't keep it. Nothing that boots has changed; run omarchy-boot-switch revert to clean up."
   state_set loader_entry "$num"
   # efibootmgr puts a new entry first. Until the trial has booted, the boot
   # order stays the one the machine had, Limine first, also on a rerun after
@@ -383,6 +394,7 @@ stage() {
 
   say "Building boot images"
   install_loader
+  install -Dm644 "$BOOT_DEFAULTS/pacman/95-omarchy-boot-trial.hook" /etc/pacman.d/hooks/95-omarchy-boot-trial.hook
   omarchy-boot-rebuild || die "Building the boot images failed. Nothing that boots has changed; fix the error above and run omarchy-boot-switch again, or revert."
   omarchy-boot-sync verify || die "The boot images don't match the installed kernels."
 
@@ -494,6 +506,88 @@ finalize() {
   notice "Omarchy now boots with systemd-boot" "Snapshots are in the boot menu (hold Space while starting) and under System > Snapshots."
 }
 
+# --- install (fresh installs and factory resets) ---------------------------------------
+
+# An install that set kernel parameters before systemd-boot's tooling was in
+# place wrote them in Limine's format: they move to /etc/cmdline.d. The
+# installer's own command line comes from /etc/kernel/cmdline, or from
+# /etc/default/limine when that is all it wrote.
+adopt_cmdline() {
+  local file stem values
+  if [[ ! -s /etc/kernel/cmdline && -f /etc/default/limine ]]; then
+    values=$(cmdline_values /etc/default/limine | paste -sd' ' - | tr -s ' ' | sed 's/^ //; s/ $//')
+    [[ $values != *UNSUPPORTED:* ]] || die "Can't read the kernel command line in /etc/default/limine."
+    mkdir -p /etc/kernel
+    printf '%s\n' "$values" >/etc/kernel/cmdline
+  fi
+  [[ -s /etc/kernel/cmdline ]] || die "/etc/kernel/cmdline is missing: write the root's kernel command line there first."
+
+  mkdir -p /etc/cmdline.d
+  for file in /etc/limine-entry-tool.d/*.conf; do
+    [[ -f $file ]] || continue
+    stem=$(basename "$file" .conf)
+    values=$(cmdline_values "$file" | paste -sd' ' - | tr -s ' ' | sed 's/^ //; s/ $//')
+    [[ $values != *UNSUPPORTED:* ]] || die "Can't read the kernel parameters in $file."
+    if [[ -n $values && $stem != omarchy-defaults && ! -f /etc/cmdline.d/$stem.conf ]]; then
+      printf '%s\n' "$values" >"/etc/cmdline.d/$stem.conf"
+    fi
+    rm -f "$file"
+  done
+}
+
+# --no-efi-register leaves NVRAM to the caller, --no-fallback leaves the
+# firmware's fallback loader path alone on an ESP shared with another system,
+# and --prefer boots that kernel first.
+install_fresh() {
+  local register=1 fallback=1 prefer="" num store_was_mounted=0
+  while (($#)); do
+    case $1 in
+    --no-efi-register) register=0 ;;
+    --no-fallback) fallback=0 ;;
+    --prefer) prefer=${2:-}; [[ -n $prefer ]] || die "--prefer needs a kernel package"; shift ;;
+    *) die "Usage: omarchy-boot-switch install [--no-efi-register] [--no-fallback] [--prefer PKGBASE]" ;;
+    esac
+    shift
+  done
+  findmnt -n --mountpoint "$ESP" >/dev/null || die "The ESP isn't mounted at $ESP."
+  [[ $(findmnt -n -o FSTYPE --mountpoint /) == btrfs ]] || die "systemd-boot's boot images need the root on btrfs."
+  [[ -f $LOADER_SOURCE ]] || die "systemd-boot isn't installed ($LOADER_SOURCE is missing)."
+  [[ $(omarchy-boot-backend) == systemd-boot ]] || die "Install omarchy-boot-systemd first."
+
+  mountpoint -q "$STORE" && store_was_mounted=1
+  create_store
+  state_set backend systemd-boot
+  state_set signing "$(state_get signing | grep -x required || echo off)"
+  adopt_cmdline
+  [[ -z $prefer ]] || state_set preferred "$prefer"
+
+  install_loader
+  omarchy-boot-rebuild || die "Building the boot images failed."
+  omarchy-boot-sync verify || die "The boot images don't match the installed kernels."
+  # The firmware's fallback loader, unless another system put its own there.
+  if ((fallback)) && { [[ ! -f $ESP/$FALLBACK ]] || grep -qaE 'systemd-boot|[Ll]imine' "$ESP/$FALLBACK"; }; then
+    install -Dm644 "$LOADER_SOURCE" "$ESP/$FALLBACK"
+  fi
+
+  systemctl enable omarchy-boot-confirm.service >/dev/null 2>&1 || true
+  systemctl --global enable omarchy-boot-notify.service >/dev/null 2>&1 || true
+
+  if ((register)); then
+    num=$(loader_entry) || die "The firmware refused a boot entry for systemd-boot."
+    efibootmgr --quiet --bootorder "$num$(boot_order | tr ',' '\n' | grep -vx "$num" | sed 's/^/,/' | tr -d '\n')"
+    state_set loader_entry "$num"
+  fi
+  state_set phase active
+  state_set installed "$(date +%s)"
+
+  # In the installer's chroot nothing may stay mounted inside the new root; it
+  # mounts the store from fstab when it boots.
+  if systemd-detect-virt --chroot -q; then
+    umount "$TOP" 2>/dev/null || true
+    ((store_was_mounted)) || umount "$STORE" 2>/dev/null || true
+  fi
+}
+
 # --- revert ---------------------------------------------------------------------------
 
 revert() {
@@ -573,6 +667,11 @@ revert)
   if ((EUID != 0)); then exec sudo "$0" revert; fi
   revert
   ;;
+install)
+  ((EUID == 0)) || die "install runs as root"
+  shift
+  install_fresh "$@"
+  ;;
 status)
   status
   ;;
@@ -599,7 +698,7 @@ EOF
   fi
   ;;
 *)
-  echo "Usage: omarchy-boot-switch [--check] [--yes] | status | revert" >&2
+  echo "Usage: omarchy-boot-switch [--check] [--yes] | status | revert | install [--no-efi-register] [--no-fallback] [--prefer PKGBASE]" >&2
   exit 2
   ;;
 esac
