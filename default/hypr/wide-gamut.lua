@@ -18,6 +18,73 @@ local paths = require("default.hypr.paths")
 
 local chosen = {}
 
+-- The area of the primaries triangle in an EDID's chromaticity block (sRGB is
+-- about 0.11). A panel that reports no primaries has no gamut to map into:
+-- "edid" then collapses the output to black. Unreadable EDIDs count as usable.
+local function edid_has_gamut(name)
+  if not name:match("^[%w%-]+$") then
+    return true
+  end
+
+  local pipe = io.popen("cat /sys/class/drm/card*-" .. name .. "/edid 2>/dev/null", "r")
+  if not pipe then
+    return true
+  end
+  local edid = pipe:read("a")
+  pipe:close()
+  if #edid < 35 then
+    return true
+  end
+
+  local function coord(msb_offset, lsb_offset, shift)
+    local msb = edid:byte(msb_offset + 1)
+    local lsb = (edid:byte(lsb_offset + 1) // 2 ^ shift) % 4
+    return (msb * 4 + lsb) / 1024
+  end
+
+  local rx, ry = coord(27, 25, 6), coord(28, 25, 4)
+  local gx, gy = coord(29, 25, 2), coord(30, 25, 0)
+  local bx, by = coord(31, 26, 6), coord(32, 26, 4)
+  return math.abs(rx * (gy - by) + gx * (by - ry) + bx * (ry - gy)) / 2 > 0.01
+end
+
+-- Whether a rule's output selector covers a monitor: "" covers all, otherwise
+-- the port name or a "desc:" prefix of the monitor description.
+local function covers(output, monitor)
+  local prefix = output:match("^desc:(.+)$")
+  if prefix then
+    return (monitor.description or ""):sub(1, #prefix) == prefix
+  end
+  return output == "" or monitor.name == output
+end
+
+-- The color mapping for a rule. "edid" when every monitor it covers has a
+-- gamut. A Mac's built-in panel is always P3, so a built-in panel that reports
+-- no primaries gets "dp3", which needs no EDID: sRGB there would show the
+-- panel's native gamut oversaturated. Any other monitor without primaries (or
+-- one sharing the rule with such a panel) gets no mapping, which is sRGB.
+local function cm_for_rule(output)
+  local builtin_without, other = false, false
+  for _, monitor in ipairs(hl.get_monitors()) do
+    if covers(output, monitor) then
+      local builtin = monitor.name:match("^eDP") ~= nil
+      if not edid_has_gamut(monitor.name) then
+        if not builtin then
+          return nil
+        end
+        builtin_without = true
+      elseif not builtin then
+        other = true
+      end
+    end
+  end
+
+  if not builtin_without then
+    return "edid"
+  end
+  return (not other) and "dp3" or nil
+end
+
 local function chosen_for(output)
   if chosen[output] then
     return chosen[output]
@@ -47,7 +114,7 @@ if o.shell_succeeds(o.shell_quote(paths.omarchy_path .. "/bin/omarchy-hw-aarch64
       if rule.cm ~= nil then
         chosen[output] = rule.cm
       else
-        rule.cm = chosen_for(output) or "edid"
+        rule.cm = chosen_for(output) or cm_for_rule(output)
       end
     end
 
