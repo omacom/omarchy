@@ -614,9 +614,9 @@ sanitize_factory_baseline() {
   local factory="$1"
   btrfs property set -ts "$factory" ro false
 
-  if ! scrub_factory_accounts "$factory"; then
+  if ! scrub_factory_accounts "$factory" || ! scrub_factory_packages "$factory"; then
     btrfs property set -ts "$factory" ro true
-    fail "could not remove account credentials from the factory baseline (see $LOG_FILE)"
+    fail "could not remove account credentials or provisioning packages from the factory baseline (see $LOG_FILE)"
   fi
   rm -f "$factory"/etc/ssh/ssh_host_*
   rm -f "$factory"/etc/NetworkManager/system-connections/*
@@ -625,6 +625,19 @@ sanitize_factory_baseline() {
   : >"$factory/etc/machine-id"
 
   btrfs property set -ts "$factory" ro true
+}
+
+scrub_factory_packages() {
+  local root="$1"
+  rm -rf "$root$PROVISIONING_DIR/packages" || return 1
+
+  # An older reset restored from @factory can copy live archives back into
+  # the next root. Keep this cleanup in both roots so systemd discards them
+  # before even that older owner setup can unpack them.
+  install -Dm644 /dev/stdin "$root/etc/systemd/system/omarchy-provision-owner.service.d/10-discard-packages.conf" <<EOF
+[Service]
+ExecStartPre=/usr/bin/rm -rf $PROVISIONING_DIR/packages
+EOF
 }
 
 stage_full_reset() {
@@ -652,6 +665,11 @@ stage_full_reset() {
   log "Removing account credentials from the factory system"
   scrub_factory_accounts "$next" ||
     fail "could not remove account credentials from the factory system (see $LOG_FILE)"
+
+  # Older factory snapshots still unpack bundled Node archives during owner
+  # setup. Discard those unverified packages before that code can run.
+  scrub_factory_packages "$next" ||
+    fail "could not sanitize provisioning packages in the factory system (see $LOG_FILE)"
 
   # @factory itself survives the wipe as the baseline for future resets. If it
   # came from a normal install it still holds the seller's account and
