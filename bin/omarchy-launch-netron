@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# omarchy:summary=Inspect a local neural network model in Netron
+# omarchy:args=<model-file> [--port <1-65535>] [--no-browser]
+# omarchy:examples=omarchy launch netron network.onnx | omarchy launch netron weights.safetensors --port 8081
+
+set -euo pipefail
+
+model=""
+port=8080
+browser=(--browse)
+while (( $# > 0 )); do
+  case "$1" in
+  --help | -h)
+    echo "Usage: omarchy launch netron <model-file> [--port <1-65535>] [--no-browser]"
+    echo "Uses the Netron Python CLI from the active environment. Ctrl+C stops the viewer."
+    exit 0
+    ;;
+  --port)
+    (( $# >= 2 )) || { echo "--port needs a value" >&2; exit 2; }
+    port=$2
+    shift 2
+    ;;
+  --no-browser) browser=(); shift ;;
+  --)
+    shift
+    (( $# == 1 )) && [[ -z $model ]] || { echo "Choose one model file" >&2; exit 2; }
+    model=$1
+    shift
+    ;;
+  -*) echo "Unknown option: $1" >&2; exit 2 ;;
+  *)
+    [[ -z $model ]] || { echo "Choose one model file" >&2; exit 2; }
+    model=$1
+    shift
+    ;;
+  esac
+done
+
+[[ $port =~ ^[0-9]{1,5}$ ]] && (( 10#$port >= 1 && 10#$port <= 65535 )) || { echo "Port must be between 1 and 65535" >&2; exit 2; }
+[[ -n $model && -f $model && -s $model ]] || { echo "Choose an existing, non-empty local model file" >&2; exit 1; }
+model="$(CDPATH= cd -P -- "$(dirname -- "$model")" && pwd -P)/$(basename -- "$model")"
+if omarchy-cmd-missing netron; then
+  echo "Activate a Python environment with the Netron CLI installed, then try again." >&2
+  exit 1
+fi
+
+echo "Netron: http://127.0.0.1:$port (Ctrl+C to stop)"
+exec netron --host 127.0.0.1 --port "$port" "${browser[@]}" "$model"
