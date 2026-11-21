@@ -100,6 +100,19 @@ set -e
 (( status == 1 )) || fail "free-space helper exits non-zero when disk space is low"
 pass "free-space helper reports low disk space through its exit status"
 
+# Exercise the real warning and formatter; only the disk reading is simulated.
+echo "fa" >"$test_tmp/language"
+set +e
+output=$(TEST_AVAILABLE_BYTES=$((9 * 1024 * 1024 * 1024)) \
+  OMARCHY_PATH="$ROOT" OMARCHY_LANGUAGE_FILE="$test_tmp/language" \
+  PATH="$stub_bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-update-requires-free-space")
+status=$?
+set -e
+(( status == 1 )) || fail "Persian low-space warning still blocks the update"
+[[ $output == *"۱۰ GiB"* ]] || fail "low-space warning formats its threshold with Persian digits"
+pass "low-space warning formats its threshold with Persian digits"
+
 set +e
 output=$(run_update -y)
 status=$?
