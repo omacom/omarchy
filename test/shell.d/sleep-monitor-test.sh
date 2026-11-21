@@ -38,11 +38,67 @@ cat >"$mock_omarchy/bin/omarchy-system-sleep-lock" <<'SH'
 echo locked >>"$LOCK_LOG"
 SH
 
+# The monitor reads logind's and systemd-sleep's journal lines; the real
+# journal must never decide a test.
+cat >"$mock_bin/journalctl" <<'SH'
+#!/bin/bash
+
+case " $* " in
+  *" systemd-logind "*) [[ -n ${LOGIND_LINE:-} ]] && echo "$LOGIND_LINE" ;;
+  *" systemd-sleep "*) [[ -n ${SLEEP_LINE:-} ]] && echo "$SLEEP_LINE" ;;
+esac
+exit 0
+SH
+
+cat >"$mock_bin/systemd-run" <<'SH'
+#!/bin/bash
+
+echo "$*" >>"$GUARD_LOG"
+SH
+
+cat >"$mock_bin/busctl" <<'SH'
+#!/bin/bash
+
+echo "b true"
+SH
+
+cat >"$mock_omarchy/bin/omarchy-system-lock" <<'SH'
+#!/bin/bash
+
+echo guard-locked >>"$LOCK_LOG"
+SH
+
+cat >"$mock_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+SH
+
+cat >"$mock_bin/omarchy-i18n" <<'SH'
+#!/bin/bash
+
+echo "$1"
+SH
+
 chmod +x \
   "$mock_bin/systemd-inhibit" \
   "$mock_bin/dbus-monitor" \
-  "$mock_omarchy/bin/omarchy-system-sleep-lock"
+  "$mock_bin/journalctl" \
+  "$mock_bin/systemd-run" \
+  "$mock_bin/busctl" \
+  "$mock_bin/omarchy-notification-send" \
+  "$mock_bin/omarchy-i18n" \
+  "$mock_omarchy/bin/omarchy-system-sleep-lock" \
+  "$mock_omarchy/bin/omarchy-system-lock"
 ln -s "$sleep_monitor" "$mock_omarchy/bin/omarchy-system-sleep-monitor"
+
+# A hibernation resume device on LUKS, as the initramfs encrypt hook opens it.
+sys_power="$tmpdir/sys-power"
+sys_dev_block="$tmpdir/sys-dev-block"
+cmdline_file="$tmpdir/cmdline"
+guard_log="$tmpdir/guard-log"
+mkdir -p "$sys_power" "$sys_dev_block/254:0/dm"
+echo "254:0" >"$sys_power/resume"
+echo "CRYPT-LUKS2-0123456789abcdef-root" >"$sys_dev_block/254:0/dm/uuid"
+echo "cryptdevice=UUID=abc:root root=/dev/mapper/root resume=/dev/mapper/root resume_offset=1" >"$cmdline_file"
 
 start_us=${EPOCHREALTIME//[!0-9]/}
 OMARCHY_PATH="$mock_omarchy" \
@@ -104,3 +160,66 @@ if kill -0 "$producer_pid" 2>/dev/null; then
   fail "sleep monitor cleans up its producer when terminated" "producer still running: $producer_pid"
 fi
 pass "sleep monitor cleans up its producer when terminated"
+
+# Hibernate: resume asks for the disk passphrase, so the lock screen is skipped
+# and a guard is started instead. A keyfile unlock keeps the lock.
+cat >"$mock_bin/dbus-monitor" <<'SH'
+#!/bin/bash
+
+printf '   boolean true\n'
+exec sleep 30
+SH
+chmod +x "$mock_bin/dbus-monitor"
+
+run_sleep_event() {
+  : >"$lock_log"
+  : >"$guard_log"
+  OMARCHY_PATH="$mock_omarchy" \
+    PATH="$mock_bin:$PATH" \
+    LOCK_LOG="$lock_log" \
+    GUARD_LOG="$guard_log" \
+    LOGIND_LINE="$1" \
+    OMARCHY_SYS_POWER_PATH="$sys_power" \
+    OMARCHY_SYS_DEV_BLOCK_PATH="$sys_dev_block" \
+    OMARCHY_PROC_CMDLINE_PATH="$cmdline_file" \
+    "$sleep_monitor" 2>/dev/null
+}
+
+run_sleep_event "The system will hibernate now!"
+[[ ! -s $lock_log && $(<"$guard_log") == *"--hibernate-guard"* ]] ||
+  fail "hibernate onto a passphrase LUKS resume device skips the lock and starts the guard" "lock: $(<"$lock_log") guard: $(<"$guard_log")"
+pass "hibernate onto a passphrase LUKS resume device skips the lock and starts the guard"
+
+echo "cryptdevice=UUID=abc:root cryptkey=rootfs:/etc/keyfile root=/dev/mapper/root" >"$cmdline_file"
+run_sleep_event "The system will hibernate now!"
+[[ $(<"$lock_log") == "locked" && ! -s $guard_log ]] ||
+  fail "hibernate with a keyfile unlock still locks" "lock: $(<"$lock_log") guard: $(<"$guard_log")"
+pass "hibernate with a keyfile unlock still locks"
+
+# The guard locks unless systemd-sleep reports a real restore from the image.
+cat >"$mock_bin/dbus-monitor" <<'SH'
+#!/bin/bash
+
+printf '   boolean false\n'
+exec sleep 30
+SH
+chmod +x "$mock_bin/dbus-monitor"
+
+run_guard() {
+  : >"$lock_log"
+  OMARCHY_PATH="$mock_omarchy" \
+    PATH="$mock_bin:$PATH" \
+    LOCK_LOG="$lock_log" \
+    SLEEP_LINE="$1" \
+    "$sleep_monitor" --hibernate-guard
+}
+
+run_guard "Failed to put system to sleep. System resumed again: Device or resource busy"
+[[ $(<"$lock_log") == "guard-locked" ]] ||
+  fail "hibernate guard locks when the hibernate failed" "lock: $(<"$lock_log")"
+pass "hibernate guard locks when the hibernate failed"
+
+run_guard "System returned from sleep operation 'hibernate'."
+[[ ! -s $lock_log ]] ||
+  fail "hibernate guard leaves a restored session alone" "lock: $(<"$lock_log")"
+pass "hibernate guard leaves a restored session alone"

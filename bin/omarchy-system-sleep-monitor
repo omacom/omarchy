@@ -4,16 +4,122 @@
 # omarchy:group=system
 # omarchy:hidden=true
 
+SYS_POWER_PATH="${OMARCHY_SYS_POWER_PATH:-/sys/power}"
+SYS_DEV_BLOCK_PATH="${OMARCHY_SYS_DEV_BLOCK_PATH:-/sys/dev/block}"
+PROC_CMDLINE_PATH="${OMARCHY_PROC_CMDLINE_PATH:-/proc/cmdline}"
+
+# PrepareForSleep does not say which operation is starting, but logind logs it
+# just before emitting the signal. Only an exact hibernate line counts; a
+# missing or unreadable journal reads as "other", which keeps the lock.
+pending_sleep_operation() {
+  local line=""
+
+  for _ in {1..5}; do
+    line=$(journalctl -u systemd-logind --since "-3s" -o cat --no-pager \
+      -g '^The system will .* now!$' 2>/dev/null | tail -n 1)
+    [[ -n $line ]] && break
+    sleep 0.1
+  done
+
+  if [[ $line == "The system will hibernate now!" ]]; then
+    echo hibernate
+  else
+    echo other
+  fi
+}
+
+# Resuming from hibernation only passes through a passphrase prompt when the
+# image sits on a LUKS volume that the initramfs encrypt hook unlocks with a
+# typed passphrase. A cryptkey= keyfile unlocks without one, and sd-encrypt
+# (rd.luks.*) may use an enrolled TPM2 token, so both keep the lock, as does a
+# resume device that is not dm-crypt at all.
+resume_requires_passphrase() {
+  local resume uuid cmdline
+
+  [[ -r $SYS_POWER_PATH/resume && -r $PROC_CMDLINE_PATH ]] || return 1
+  resume=$(<"$SYS_POWER_PATH/resume")
+  [[ $resume =~ ^[0-9]+:[0-9]+$ && $resume != "0:0" ]] || return 1
+
+  [[ -r $SYS_DEV_BLOCK_PATH/$resume/dm/uuid ]] || return 1
+  uuid=$(<"$SYS_DEV_BLOCK_PATH/$resume/dm/uuid")
+  [[ $uuid == CRYPT-LUKS* ]] || return 1
+
+  cmdline=" $(<"$PROC_CMDLINE_PATH") "
+  [[ $cmdline == *" cryptdevice="* && $cmdline != *" cryptkey="* ]]
+}
+
+# The guard runs as its own transient unit so the sleep inhibitor can be
+# released without it.
+start_hibernate_guard() {
+  systemd-run --user --quiet --collect \
+    "$OMARCHY_PATH/bin/omarchy-system-sleep-monitor" --hibernate-guard
+}
+
 consume_sleep_events() {
   local line sleep_lock
   sleep_lock="$OMARCHY_PATH/bin/omarchy-system-sleep-lock"
 
   while IFS= read -r line; do
     if [[ $line == *"boolean true"* ]]; then
-      "$sleep_lock"
+      if [[ $(pending_sleep_operation) == "hibernate" ]] && resume_requires_passphrase && start_hibernate_guard; then
+        echo "omarchy-system-sleep-monitor: hibernating without a lock screen; resume asks for the disk passphrase" >&2
+      else
+        "$sleep_lock"
+      fi
       return 0
     fi
   done
+}
+
+# systemd-sleep logs this line only when the kernel came back from a restored
+# image. A hibernate that failed before powering off logs "Failed to put
+# system to sleep" instead, and anything unexpected counts as a failure.
+hibernate_restored() {
+  local since=$1 line=""
+
+  for _ in {1..10}; do
+    line=$(journalctl -t systemd-sleep --since "@$since" -o cat --no-pager \
+      -g "^(System returned from sleep operation '.*'\.|Failed to put system to sleep\..*)$" 2>/dev/null | tail -n 1)
+    [[ -n $line ]] && break
+    sleep 0.1
+  done
+
+  [[ $line == "System returned from sleep operation 'hibernate'." ]]
+}
+
+consume_wake_events() {
+  local line
+
+  while IFS= read -r line; do
+    [[ $line == *"boolean false"* ]] && return 0
+  done
+}
+
+# The machine went down unlocked, so if the hibernate fails and the session
+# comes straight back, lock it before anyone else can use it.
+hibernate_guard() {
+  local since=$EPOCHSECONDS preparing
+
+  coproc WAKE_EVENTS {
+    exec dbus-monitor --system \
+      "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"
+  }
+  trap 'kill "$WAKE_EVENTS_PID" 2>/dev/null || true' EXIT
+
+  # A hibernate that failed before this subscription was in place has already
+  # sent its wake signal, so check the state once the monitor is listening.
+  preparing=$(busctl get-property org.freedesktop.login1 /org/freedesktop/login1 \
+    org.freedesktop.login1.Manager PreparingForSleep 2>/dev/null)
+  if [[ $preparing == "b true" ]]; then
+    consume_wake_events <&"${WAKE_EVENTS[0]}"
+  fi
+
+  if ! hibernate_restored "$since"; then
+    "$OMARCHY_PATH/bin/omarchy-system-lock"
+    omarchy-notification-send -u critical -g 󰌾 \
+      "$(omarchy-i18n lock.hibernateFailed)" \
+      "$(omarchy-i18n lock.lockedAfterFailedHibernate)" >/dev/null 2>&1 || true
+  fi
 }
 
 monitor_sleep_events() {
@@ -47,6 +153,10 @@ case ${1:-} in
     ;;
   --inhibited)
     monitor_sleep_events
+    exit 0
+    ;;
+  --hibernate-guard)
+    hibernate_guard
     exit 0
     ;;
 esac
