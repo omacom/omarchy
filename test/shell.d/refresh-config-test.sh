@@ -65,5 +65,8 @@ refuses hypr/../../escape
 refuses ..
 refuses hypr/..
 refuses /etc/passwd
+refuses $'hypr\n/../../escape'
+refuses $'hypr/a\nb.lua'
+refuses $'hypr/a\rb.lua'
 
 pass "refresh-config rejects paths escaping .config"

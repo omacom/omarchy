@@ -17,7 +17,9 @@ USAGE
   exit 1
 fi
 
-if [[ $config_file == /* || $config_file == ".." || $config_file == ../* || $config_file == */../* || $config_file == */.. ]]; then
+# Absolute paths, `..` segments, and line breaks are not shipped relative
+# configs. A `..` component can land the write outside ~/.config.
+if [[ $config_file == /* || $config_file == ".." || $config_file == ../* || $config_file == */../* || $config_file == */.. || $config_file == *$'\n'* || $config_file == *$'\r'* ]]; then
   echo "Invalid config path: $config_file" >&2
   exit 1
 fi
