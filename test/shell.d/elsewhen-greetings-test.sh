@@ -75,6 +75,14 @@ assertDeepEqual([g.countryFor('Antarctica/South_Pole'), g.countryFor('Pacific/Po
 assertEqual(language('Europe/Simferopol'), 'Ukrainian', 'elsewhen greets Simferopol in Ukrainian')
 assert(g.countryFor('America/Montreal') === g.countryFor('America/Toronto') && language('America/Montreal') === 'French', 'elsewhen greets Montreal in French inside Canada')
 
+const inRegion = region => g.greeting('Asia/Colombo', 9, { region: region }).language
+assertDeepEqual(
+  ['Northern Province, LK', 'Eastern Province, LK', 'Western Province, LK', ''].map(inRegion),
+  ['Tamil', 'Tamil', 'Sinhala', 'Sinhala'],
+  'elsewhen greets Jaffna and Batticaloa in Tamil inside Sri Lanka'
+)
+assertEqual(g.greeting('Asia/Colombo', 9, { region: 'Northern Province, IN' }).language, 'Sinhala', 'elsewhen keys region overrides by country too')
+
 // ---- every table
 
 const LATIN = /^[ -~ -ɏɐ-˿̀-ͯḀ-ỿ‘’]+$/
