@@ -141,9 +141,9 @@ expect("Codex counts each request once, without a quota notification or cache an
   "today": 210, "prompts": 1, "usage": {"inputTokens": 70, "outputTokens": 30, "cacheReadInputTokens": 110, "cacheCreationInputTokens": 0}, "help": "",
 }, record)
 # Separate arguments, not "-a on-request" as one, which is no policy Codex
-# accepts.
-expect("Codex starts its app-server read-only with a supported approval policy",
-       (home() / "codex-args").read_text().split("\0"), ["-s", "read-only", "-a", "on-request", "app-server"])
+# accepts. Plugins off, or every start syncs Codex's plugin marketplaces.
+expect("Codex starts its app-server read-only with a supported approval policy and no plugin sync",
+       (home() / "codex-args").read_text().split("\0"), ["-s", "read-only", "-a", "on-request", "app-server", "-c", "features.plugins=false"])
 
 # Codex 0.163 writes a token_usage_record for every response it is billed for.
 # A remote compaction is one only a record names: the token_count after it
@@ -589,8 +589,7 @@ record = codex("--limits-only")
 expect("Codex never runs a mise shim, and says its limits are unavailable",
        [record["usageStatusText"], mise_calls() in ([], ["which codex"])], ["Codex limits unavailable", True], record)
 
-# Without credentials account/read can only fail, and starting the app-server
-# isn't free (it syncs the plugin list, a git fetch each time), so it isn't
+# Without credentials account/read can only fail, so the app-server isn't
 # started. An API key alone doesn't sign it in, but a CODEX_ACCESS_TOKEN does,
 # and so does a store outside auth.json, read as TOML; an explicit file store
 # with no auth.json is still signed out.
