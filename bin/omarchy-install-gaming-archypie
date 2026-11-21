@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Install ArchyPie under Install > Gaming in the Omarchy menu.
+#
+# Called from the Omarchy menu (`install.gaming.archypie`). The ArchyPie
+# setup is a self-contained bash installer that must run under sudo.
+#
+# It is expected that the ArchyPie checkout lives at the path the user
+# passes on the command line, or at a known install location (default:
+# /opt/archypie, which is ArchyPie's configured rootdir).
+
+set -euo pipefail
+
+ARCHYPIE_DIR="${1:-/opt/archypie}"
+
+if [[ ! -f "${ARCHYPIE_DIR}/archypie_setup.sh" ]]; then
+    echo "ArchyPie setup not found at ${ARCHYPIE_DIR}" >&2
+    echo "Expected ${ARCHYPIE_DIR}/archypie_setup.sh" >&2
+    exit 1
+fi
+
+sudo "${ARCHYPIE_DIR}/archypie_setup.sh" setup gui
