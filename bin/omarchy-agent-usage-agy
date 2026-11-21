@@ -288,13 +288,16 @@ def listed(data, key):
   return data.get(key) is None or isinstance(data[key], list)
 
 
-# The Gemini group's 5-hour and weekly buckets are the plan's own limits; the
-# other groups (Claude and GPT models) are scoped allowances, shown once
-# they have been touched. An answer that lists its buckets without groups
-# lists the Gemini ones. An answer of another shape (not an object, an error,
-# groups or the Gemini buckets that aren't a list) is None, a failed check
-# rather than a plan without quotas; another group's buckets of the wrong
-# shape skip that group.
+# The Gemini group's 5-hour and weekly buckets are the plan's own limits.
+# Gemini 4 Argon has a weekly quota of its own on paid Pro plans, listed as a
+# group whose name also says Gemini; it is never taken for the plan's group
+# and always sits right after Weekly as "Argon Weekly", the way Claude's
+# Fable Weekly does. The other groups (Claude and GPT models) are scoped
+# allowances, shown once they have been touched. An answer that lists its
+# buckets without groups lists the Gemini ones. An answer of another shape
+# (not an object, an error, groups or the Gemini buckets that aren't a list)
+# is None, a failed check rather than a plan without quotas; another group's
+# buckets of the wrong shape skip that group.
 def extract_limits(data):
   if not isinstance(data, dict) or "error" in data or not listed(data, "groups") or not listed(data, "buckets"):
     return None
@@ -303,7 +306,9 @@ def extract_limits(data):
     groups = [{"displayName": "Gemini", "buckets": data["buckets"]}]
   if not groups:
     return []
-  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), groups[0])
+  argon = [g for g in groups if "argon" in str(g.get("displayName") or "").lower()]
+  plan = [g for g in groups if g not in argon] or groups
+  gemini = next((g for g in plan if "gemini" in str(g.get("displayName") or "").lower()), plan[0])
   if not listed(gemini, "buckets"):
     return None
 
@@ -324,8 +329,17 @@ def extract_limits(data):
   if weekly:
     limits.append({"label": "Weekly (7-day)", "title": "Weekly", "percent": used(weekly), "resetsAt": reset_of(weekly)})
 
-  for group in groups:
+  for group in argon:
     if group is gemini:
+      continue
+    buckets = group.get("buckets")
+    for bucket in buckets if isinstance(buckets, list) else []:
+      if isinstance(bucket, dict) and used(bucket) is not None:
+        title = f"Argon {'Session' if '5h' in str(bucket.get('window') or '').lower() else 'Weekly'}"
+        limits.append({"label": title, "title": title, "percent": used(bucket), "resetsAt": reset_of(bucket)})
+
+  for group in groups:
+    if group is gemini or group in argon:
       continue
     group_name = str(group.get("displayName") or "").strip()
     short = "Claude/GPT" if "claude" in group_name.lower() else (group_name or "3P")
