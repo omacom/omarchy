@@ -275,8 +275,9 @@ Item {
               function selectCurrent() {
                 if (currentIndex < 0 || currentIndex >= root.filtered.length) return
                 var v = root.optionValue(root.filtered[currentIndex])
-                root.value = v
+                // As in Dropdown: the owner first, so a bound value keeps its binding.
                 root.changed(v)
+                if (root.value !== v) root.value = v
                 popup.close()
               }
 
