@@ -256,7 +256,7 @@ pass "identity prompt propagates Esc from its second field"
 assert_hostname() {
   local expected=$1 user=$2 vendor=$3 product=$4 version=${5:-} got
   rm -rf "$tmp_dir/dmi" "$tmp_dir/model"
-  if [[ $vendor == - ]]; then
+  if [[ $vendor == "-" ]]; then
     printf '%s\0' "$product" >"$tmp_dir/model"
   else
     mkdir "$tmp_dir/dmi"

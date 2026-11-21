@@ -306,7 +306,7 @@ omarchy_hardware_name() {
     vendor=$(<"$dmi/sys_vendor")
     # Lenovo's product_name is a part number (21KC003FUS); the name on the lid
     # is its product_version.
-    if [[ ${vendor,,} == lenovo ]]; then
+    if [[ ${vendor,,} == "lenovo" ]]; then
       model=$(cat "$dmi/product_version" 2>/dev/null) || model=""
     else
       model=$(cat "$dmi/product_name" 2>/dev/null) || model=""

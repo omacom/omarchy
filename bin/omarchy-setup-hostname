@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
   echo "Usage: omarchy-setup-hostname [<name>]"
   echo
   echo "Without a name, asks for one, starting from the current hostname."
