@@ -56,12 +56,26 @@ run_setup "$matching" >/dev/null
     fail "early firmware prefers extracted copies and skips what is missing"
 )
 
-for other in 'microsoft,romulus13\0qcom,x1e80100\0' 'lenovo,yoga-slim7x\0qcom,x1e80100\0'; do
-  dir="$scratch/other-${other%%\\0*}"
-  compatible "$dir" "$other"
-  run_setup "$dir" >/dev/null
-  [[ ! -e $dir/packages.log && ! -e $dir/mkinitcpio.conf.d ]] ||
-    fail "${other%%\\0*} is left alone"
-done
+# The 13.8" model gets its keyboard at disk unlock and nothing else
+smaller="$scratch/smaller"
+compatible "$smaller" 'microsoft,romulus13\0qcom,x1e80100\0'
+run_setup "$smaller" >/dev/null
+[[ ! -e $smaller/packages.log ]] ||
+  fail "Surface Laptop 7 13.8\" setup adds no packages, as the 15\" model's are untried on it"
+(
+  MODULES=() FILES=()
+  source "$smaller/mkinitcpio.conf.d/surface-laptop-7-initramfs.conf"
+  for module in "${MODULES[@]}"; do
+    [[ $module == surface_*\? ]] || fail "$module is one of the keyboard's drivers and optional"
+  done
+  (( ${#MODULES[@]} > 0 && ${#FILES[@]} == 0 )) ||
+    fail "Surface Laptop 7 13.8\" setup loads the keyboard early and leaves the screen to the Snapdragon X setup"
+)
 
-pass "Surface Laptop 7 setup configures only the 15\" model"
+other="$scratch/other"
+compatible "$other" 'lenovo,yoga-slim7x\0qcom,x1e80100\0'
+run_setup "$other" >/dev/null
+[[ ! -e $other/packages.log && ! -e $other/mkinitcpio.conf.d ]] ||
+  fail "another Snapdragon X laptop is left alone"
+
+pass "Surface Laptop 7 setup configures the 15\" model, and the keyboard of the 13.8\" one"
