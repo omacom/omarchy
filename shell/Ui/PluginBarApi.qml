@@ -20,6 +20,7 @@ QtObject {
   property bool vertical: false
   property int barSize: 0
   property bool transparent: false
+  property bool cycleLayoutOnClick: true
   property bool foregroundAnimationEnabled: true
   property bool traySectionDragActive: false
   property bool traySectionPopoutOpen: false
