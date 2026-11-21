@@ -195,3 +195,105 @@ pass "physical monitor detection ignores disconnected external displays"
 write_connectors DP-1 connected
 has_external_monitor || fail "external-only systems still report a connected display"
 pass "physical monitor detection still supports external-only systems"
+
+# Hyprland can list the Apple Touch Bar's DSI connector before the laptop
+# panel. Use the real laptop/helper/lid/clamshell chain with fixture DRM and
+# compositor boundaries; no installed config or running compositor is touched.
+monitors_json="$tmp_dir/monitors.json"
+monitor_calls="$tmp_dir/monitor-calls"
+cat >"$tmp_dir/bin/hyprctl" <<'STUB'
+#!/bin/bash
+if [[ $1 == "monitors" && $2 == "all" && $3 == "-j" ]]; then
+  cat "$TEST_MONITORS_JSON"
+else
+  printf '%s\n' "$*" >>"$TEST_MONITOR_CALLS"
+fi
+STUB
+chmod +x "$tmp_dir/bin/hyprctl"
+
+write_drm_card() {
+  local card=$1 driver=$2 connector=$3 state=$4
+  mkdir -p "$drm_path/$card/device" "$drm_path/$card-$connector"
+  printf '%s\n' "$state" >"$drm_path/$card-$connector/status"
+  if [[ $driver != "unknown" ]]; then
+    printf 'DRIVER=%s\nOF_NAME=display-pipe\n' "$driver" >"$drm_path/$card/device/uevent"
+  fi
+}
+
+laptop_output() {
+  OMARCHY_DRM_PATH="$drm_path" TEST_MONITORS_JSON="$monitors_json" \
+    PATH="$tmp_dir/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hyprland-monitor-laptop"
+}
+
+expect_laptop() {
+  local expected=$1 description=$2 actual
+  actual=$(laptop_output)
+  [[ $actual == "$expected" ]] || fail "$description" "expected: $expected, actual: $actual"
+  pass "$description"
+}
+
+write_connectors
+write_drm_card card17 adp DSI-1 connected
+write_drm_card card3 apple-drm eDP-1 connected
+printf '%s\n' '[{"name":"DSI-1","disabled":false,"scale":1},{"name":"eDP-1","disabled":true,"scale":2}]' >"$monitors_json"
+expect_laptop eDP-1 "the Touch Bar listed first does not hide a disabled laptop panel"
+printf 'DRIVER=appletbdrm\n' >"$drm_path/card17/device/uevent"
+expect_laptop eDP-1 "the appletbdrm Touch Bar is also excluded"
+printf 'DRIVER=panel-driver\n' >"$drm_path/card17/device/uevent"
+expect_laptop DSI-1 "a genuine DSI laptop panel is retained"
+rm "$drm_path/card17/device/uevent"
+expect_laptop DSI-1 "missing driver evidence preserves the original connector fallback"
+rm -rf "$drm_path"
+mkdir "$drm_path"
+expect_laptop DSI-1 "missing sysfs preserves the original connector fallback"
+write_drm_card card17 adp DSI-1 connected
+write_drm_card card9 panel-driver DSI-1 connected
+expect_laptop DSI-1 "an ambiguous same-name real panel is retained"
+printf 'DRIVER=appletbdrm\n' >"$drm_path/card9/device/uevent"
+write_drm_card card3 apple-drm eDP-1 connected
+expect_laptop eDP-1 "only confirmed Touch Bar cards are excluded for a shared connector name"
+printf '%s\n' '[{"name":"DSI-1","disabled":false}]' >"$monitors_json"
+expect_laptop "" "a Touch Bar alone is not a laptop display"
+printf '%s\n' '[{"name":"LVDS-1","disabled":false}]' >"$monitors_json"
+expect_laptop LVDS-1 "ordinary LVDS panel discovery is unchanged"
+printf '%s\n' '[{"name":"eDP-1","disabled":false}]' >"$monitors_json"
+expect_laptop eDP-1 "ordinary eDP panel discovery is unchanged"
+
+# Recover helpers are unrelated manual/mirror state machines. Keep those and
+# compositor reloads at the boundary; all panel, lid and docking decisions below
+# use the actual commands from this checkout.
+for command in omarchy-hyprland-monitor-internal omarchy-hyprland-monitor-internal-mirror; do
+  printf '#!/bin/bash\nexit 0\n' >"$tmp_dir/bin/$command"
+done
+for command in omarchy-restart-hyprctl omarchy-system-lock; do
+  printf '#!/bin/bash\nprintf "%%s\\n" "%s" >>"$TEST_MONITOR_CALLS"\n' "$command" >"$tmp_dir/bin/$command"
+done
+chmod +x "$tmp_dir/bin/"*
+lid_home="$tmp_dir/lid-home"
+mkdir -p "$lid_home/.config/hypr" "$tmp_dir/lid/LID0" "$tmp_dir/input"
+printf 'hl.monitor({ output = "eDP-1", mode = "preferred", scale = 2 })\n' >"$lid_home/.config/hypr/monitors.lua"
+export HOME="$lid_home" OMARCHY_DRM_PATH="$drm_path" OMARCHY_ACPI_LID_PATH="$tmp_dir/lid" OMARCHY_INPUT_CLASS_PATH="$tmp_dir/input"
+export TEST_MONITORS_JSON="$monitors_json" TEST_MONITOR_CALLS="$monitor_calls"
+export PATH="$tmp_dir/bin:$ROOT/bin:$PATH"
+flag="$lid_home/.local/state/omarchy/toggles/hypr/internal-monitor-clamshell.lua"
+write_drm_card card3 apple-drm DP-2 connected
+printf '%s\n' '[{"name":"DSI-1","disabled":false,"scale":1},{"name":"eDP-1","disabled":false,"scale":2},{"name":"DP-2","disabled":false,"scale":1}]' >"$monitors_json"
+printf 'state: closed\n' >"$tmp_dir/lid/LID0/state"
+: >"$monitor_calls"
+"$ROOT/bin/omarchy-system-lid-close"
+[[ -f $flag && $(<"$flag") == 'hl.monitor({ output = "eDP-1", disabled = true })' ]] || fail "docked lid close disables the laptop panel, not the Touch Bar"
+! grep -q omarchy-system-lock "$monitor_calls" || fail "a real external display keeps the docked session unlocked"
+pass "docked lid close targets the real panel with the Touch Bar listed first"
+printf 'state: open\n' >"$tmp_dir/lid/LID0/state"
+"$ROOT/bin/omarchy-hyprland-monitor-clamshell"
+[[ ! -e $flag ]] || fail "reopening the lid removes the real panel's clamshell override"
+grep -F 'monitor = "eDP-1"' "$monitor_calls" >/dev/null || fail "reopening wakes the real panel"
+pass "reopening restores the real panel after a Touch Bar-first lid close"
+printf 'disconnected\n' >"$drm_path/card3-DP-2/status"
+printf '%s\n' '[{"name":"DSI-1","disabled":false,"scale":1},{"name":"eDP-1","disabled":false,"scale":2}]' >"$monitors_json"
+printf 'state: closed\n' >"$tmp_dir/lid/LID0/state"
+: >"$monitor_calls"
+"$ROOT/bin/omarchy-system-lid-close"
+[[ ! -e $flag ]] || fail "the Touch Bar must not count as an external display for clamshell"
+grep -q omarchy-system-lock "$monitor_calls" || fail "undocked lid close still locks before logind handles sleep"
+pass "Touch Bar without an external display does not trigger clamshell"
