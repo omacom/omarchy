@@ -288,13 +288,13 @@ def listed(data, key):
   return data.get(key) is None or isinstance(data[key], list)
 
 
-# The Gemini group's 5-hour and weekly buckets are the plan's own limits; the
-# other groups (Claude and GPT models) are scoped allowances, shown once
-# they have been touched. An answer that lists its buckets without groups
-# lists the Gemini ones. An answer of another shape (not an object, an error,
-# groups or the Gemini buckets that aren't a list) is None, a failed check
-# rather than a plan without quotas; another group's buckets of the wrong
-# shape skip that group.
+# The Gemini group's 5-hour and weekly buckets are the plan's own limits; on paid
+# Pro plans, Gemini 4 Argon has a weekly quota of its own, distinct from the
+# general Gemini group. The other groups (Claude and GPT models) are scoped
+# allowances. When several weekly allowances exist, each is titled by its model
+# family ("Gemini Weekly", "Argon Weekly", "Claude/GPT Weekly") so each renders
+# its own meter row and reset clock in the panel instead of collapsing onto a
+# single weekly bar.
 def extract_limits(data):
   if not isinstance(data, dict) or "error" in data or not listed(data, "groups") or not listed(data, "buckets"):
     return None
@@ -303,38 +303,121 @@ def extract_limits(data):
     groups = [{"displayName": "Gemini", "buckets": data["buckets"]}]
   if not groups:
     return []
-  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), groups[0])
-  if not listed(gemini, "buckets"):
+
+  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower() and "argon" not in str(g.get("displayName") or "").lower()), None)
+  if gemini is not None and not listed(gemini, "buckets"):
     return None
+
+  def group_short(g):
+    name = str(g.get("displayName") or "").strip()
+    low = name.lower()
+    if "argon" in low:
+      return "Argon"
+    if "claude" in low or "gpt" in low:
+      return "Claude/GPT"
+    if "gemini" in low:
+      return "Gemini"
+    return name or "3P"
+
+  # Count how many groups provide a valid weekly bucket
+  weekly_groups = []
+  for g in groups:
+    buckets = g.get("buckets")
+    for b in buckets if isinstance(buckets, list) else []:
+      if isinstance(b, dict) and used(b) is not None:
+        w = str(b.get("window") or "").lower()
+        bid = str(b.get("bucketId") or "").lower()
+        bname = str(b.get("displayName") or "").lower()
+        if w == "weekly" or "weekly" in bid or "week" in bname:
+          weekly_groups.append(g)
+          break
+
+  shared_weekly = len(weekly_groups) > 1
 
   limits = []
   session = weekly = None
-  for bucket in gemini.get("buckets") or []:
-    if not isinstance(bucket, dict) or used(bucket) is None:
-      continue
-    window = str(bucket.get("window") or "").lower()
-    bucket_id = str(bucket.get("bucketId") or "").lower()
-    name = str(bucket.get("displayName") or "").lower()
-    if window == "5h" or "5h" in bucket_id or "five" in name:
-      session = bucket
-    elif window == "weekly" or "weekly" in bucket_id or "week" in name:
-      weekly = bucket
-  if session:
-    limits.append({"label": "Session (5-hour)", "title": "Session", "percent": used(session), "resetsAt": reset_of(session)})
-  if weekly:
-    limits.append({"label": "Weekly (7-day)", "title": "Weekly", "percent": used(weekly), "resetsAt": reset_of(weekly)})
+  if gemini:
+    for bucket in gemini.get("buckets") or []:
+      if not isinstance(bucket, dict) or used(bucket) is None:
+        continue
+      window = str(bucket.get("window") or "").lower()
+      bucket_id = str(bucket.get("bucketId") or "").lower()
+      name = str(bucket.get("displayName") or "").lower()
+      if window == "5h" or "5h" in bucket_id or "five" in name:
+        session = bucket
+      elif window == "weekly" or "weekly" in bucket_id or "week" in name:
+        weekly = bucket
+    if session:
+      limits.append({"label": "Session (5-hour)", "title": "Session", "percent": used(session), "resetsAt": reset_of(session)})
+    if weekly:
+      title = "Gemini Weekly" if shared_weekly else "Weekly"
+      label = "Gemini Weekly" if shared_weekly else "Weekly (7-day)"
+      limits.append({"label": label, "title": title, "percent": used(weekly), "resetsAt": reset_of(weekly)})
 
-  for group in groups:
-    if group is gemini:
-      continue
-    group_name = str(group.get("displayName") or "").strip()
-    short = "Claude/GPT" if "claude" in group_name.lower() else (group_name or "3P")
+  def secondary_sort_key(g):
+    name = str(g.get("displayName") or "").lower()
+    if "argon" in name:
+      return 0
+    if "claude" in name or "gpt" in name:
+      return 1
+    return 2
+
+  for group in sorted([g for g in groups if g is not gemini], key=secondary_sort_key):
+    short = group_short(group)
     buckets = group.get("buckets")
     for bucket in buckets if isinstance(buckets, list) else []:
-      if isinstance(bucket, dict) and (used(bucket) or 0) > 0:
-        title = f"{short} {'Weekly' if 'week' in str(bucket.get('window') or '').lower() else 'Session'}"
+      if isinstance(bucket, dict) and used(bucket) is not None:
+        window = str(bucket.get("window") or "").lower()
+        bucket_id = str(bucket.get("bucketId") or "").lower()
+        name = str(bucket.get("displayName") or "").lower()
+        is_week = window == "weekly" or "weekly" in bucket_id or "week" in name
+        is_five = window == "5h" or "5h" in bucket_id or "five" in name
+        if is_five and (used(bucket) or 0) == 0:
+          continue
+        title = f"{short} {'Weekly' if is_week else 'Session'}"
         limits.append({"label": title, "title": title, "percent": used(bucket), "resetsAt": reset_of(bucket)})
   return limits
+
+
+DEFAULT_CLI_VERSION = "1.5.2"
+_CLI_VERSION = None
+
+
+# Google's quota service gates Gemini and Argon models behind modern CLI versions.
+# Derive the version from installed agy, falling back to the current packaged release.
+def cli_version():
+  global _CLI_VERSION
+  if _CLI_VERSION is not None:
+    return _CLI_VERSION
+  env_ver = os.environ.get("AGY_CLI_VERSION")
+  if env_ver:
+    _CLI_VERSION = env_ver.strip()
+    return _CLI_VERSION
+  try:
+    proc = subprocess.run(
+      ["agy", "--version"],
+      stdout=subprocess.PIPE,
+      stderr=subprocess.DEVNULL,
+      text=True,
+      timeout=1,
+    )
+    if proc.returncode == 0:
+      for token in proc.stdout.strip().split():
+        cleaned = token.lstrip("v")
+        if cleaned and cleaned[0].isdigit():
+          _CLI_VERSION = cleaned
+          return _CLI_VERSION
+  except Exception:
+    pass
+  _CLI_VERSION = DEFAULT_CLI_VERSION
+  return _CLI_VERSION
+
+
+def user_agent():
+  return f"antigravity/cli/{cli_version()} (aidev_client)"
+
+
+LOAD_CODE_ASSIST_BODY = {"metadata": {"ideType": "ANTIGRAVITY"}}
 
 
 # The bearer token goes wherever CLOUD_CODE_URL points, so a destination
@@ -345,9 +428,13 @@ def post(endpoint, token, body=None):
     base = DEFAULT_CLOUD_CODE_URL
   request = urllib.request.Request(
     f"{base}/v1internal:{endpoint}", data=json.dumps(body or {}).encode(),
-    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "antigravity"},
+    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": user_agent()},
   )
   return open_json(request, timeout=8)
+
+
+def load_code_assist(token):
+  return post("loadCodeAssist", token, LOAD_CODE_ASSIST_BODY)
 
 
 def kept_tier(entry):
@@ -420,7 +507,7 @@ def collect_limits(entries, force):
   refused, failure = [], None
   for entry in fresh:
     try:
-      assist = post("loadCodeAssist", entry["accessToken"])
+      assist = load_code_assist(entry["accessToken"])
       tier = extract_tier(assist)
       limits = extract_limits(post("retrieveUserQuotaSummary", entry["accessToken"], project_body(assist)))
       if limits is None:
@@ -523,7 +610,7 @@ def omp_answer(omp, entries):
   tier = ""
   if token_fresh(entry, time.time()):
     try:
-      tier = extract_tier(post("loadCodeAssist", entry["accessToken"]))
+      tier = extract_tier(load_code_assist(entry["accessToken"]))
     except HttpError:
       pass
   return entry, tier, extract_limits(quota)
