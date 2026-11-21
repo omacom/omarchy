@@ -1,16 +1,22 @@
 #!/bin/bash
 
 # omarchy:summary=Launch an app or focus an existing window matching a pattern
-# omarchy:args=<window-pattern> <launch-command>
+# omarchy:args=[--class-only] <window-pattern> [launch-command]
+
+CLASS_ONLY=false
+if [[ ${1:-} == "--class-only" ]]; then
+  CLASS_ONLY=true
+  shift
+fi
 
 if (($# == 0)); then
-  echo "Usage: omarchy-launch-or-focus [window-pattern] [launch-command]"
+  echo "Usage: omarchy-launch-or-focus [--class-only] <window-pattern> [launch-command]"
   exit 1
 fi
 
 WINDOW_PATTERN="$1"
 LAUNCH_COMMAND="${2:-"uwsm-app -- $WINDOW_PATTERN"}"
-WINDOW_ADDRESS=$(hyprctl clients -j | jq -r --arg p "$WINDOW_PATTERN" '.[]|select((.class|test("\\b" + $p + "\\b";"i")) or (.title|test("\\b" + $p + "\\b";"i")))|.address' | head -n1)
+WINDOW_ADDRESS=$(hyprctl clients -j | jq -r --arg p "$WINDOW_PATTERN" --argjson class_only "$CLASS_ONLY" '.[] | select(((.class // "") | ascii_downcase) != "org.quickshell") | select(((.class // "") | test("\\b" + $p + "\\b"; "i")) or (($class_only | not) and ((.title // "") | test("\\b" + $p + "\\b"; "i")))) | .address' | head -n1)
 
 if [[ -n $WINDOW_ADDRESS ]]; then
   hyprctl dispatch "hl.dsp.focus({ window = \"address:$WINDOW_ADDRESS\" })" >/dev/null 2>&1 || hyprctl dispatch focuswindow "address:$WINDOW_ADDRESS"
