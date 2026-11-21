@@ -22,4 +22,14 @@ if [[ -n ${LC_ALL:-} ]]; then
   env_args+=(LC_ALL="$LC_ALL")
 fi
 
-exec sudo env "${env_args[@]}" "${scope[@]}" pacman "$@"
+transaction=(pacman)
+if [[ -n ${OMARCHY_COMPAT_BUNDLE:-} ]]; then
+  for argument in "$@"; do
+    if [[ $argument == "-Syu" ]]; then
+      transaction=(/usr/lib/omarchy-update-compat/privileged transaction "$OMARCHY_COMPAT_BUNDLE" --)
+      break
+    fi
+  done
+fi
+
+exec sudo env "${env_args[@]}" "${scope[@]}" "${transaction[@]}" "$@"

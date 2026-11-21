@@ -9,10 +9,16 @@
 # whichever go is on PATH uses its own root.
 unset GOROOT GOBIN
 
+aur_ignore="gcc14,gcc14-libs"
+if [[ -n ${OMARCHY_COMPAT_SESSION:-} ]]; then
+  managed=$(omarchy-update-compat aur-ignore "$OMARCHY_COMPAT_SESSION") || exit 1
+  [[ -z $managed ]] || aur_ignore+=",$managed"
+fi
+
 if pacman -Qem >/dev/null; then
   if omarchy-pkg-aur-accessible; then
     echo -e "\e[32m\n$(omarchy-i18n update.aur)\e[0m"
-    yay -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs || exit 1
+    yay -Sua --noconfirm --cleanafter --ignore "$aur_ignore" || exit 1
     echo
   else
     echo -e "\e[31m\n$(omarchy-i18n update.aurUnavailable)\e[0m"
