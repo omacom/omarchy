@@ -230,7 +230,11 @@ register_command() {
         args="$metadata_value"
         ;;
       examples)
-        examples="$metadata_value"
+        if [[ -n $examples ]]; then
+          examples="$examples | $metadata_value"
+        else
+          examples="$metadata_value"
+        fi
         ;;
       alias | aliases)
         aliases="$metadata_value"

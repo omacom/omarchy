@@ -2,8 +2,7 @@
 
 # omarchy:summary=Install a theme from a git repository
 # omarchy:args=[git-repo-url]
-# omarchy:examples=omarchy theme install https://github.com/example/omarchy-example-theme.git
-# omarchy:examples=omarchy theme install git@github.com:example/omarchy-example-theme.git
+# omarchy:examples=omarchy theme install https://github.com/example/omarchy-example-theme.git | omarchy theme install git@github.com:example/omarchy-example-theme.git
 
 if [[ -z $1 ]]; then
   echo -e "\e[32mSee https://omarchy.org/themes/\n\e[0m"
