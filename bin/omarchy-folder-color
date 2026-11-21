@@ -1,0 +1,206 @@
+#!/bin/bash
+
+# omarchy:summary=Color folder icons and manually restore saved colors
+# omarchy:args=[set <folder> <color>|clear <folder>|list|reapply|colors]
+# omarchy:examples=omarchy folder color set ~/Projects blue | omarchy folder color clear ~/Projects | omarchy folder color reapply
+
+set -euo pipefail
+
+REGISTRY="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/folder-colors.json"
+ICON_BASE="${OMARCHY_FOLDER_COLOR_ICON_BASE:-/usr/share/icons}"
+
+# Friendly color name -> Yaru theme variant that ships that color's folder icons.
+declare -A THEME_OF=(
+  [orange]="Yaru"
+  [red]="Yaru-red"
+  [purple]="Yaru-purple"
+  [magenta]="Yaru-magenta"
+  [olive]="Yaru-olive"
+  [sage]="Yaru-sage"
+  [green]="Yaru-prussiangreen"
+  [yellow]="Yaru-yellow"
+  [brown]="Yaru-wartybrown"
+  [blue]="Yaru-blue"
+)
+COLOR_ORDER=(red orange yellow olive sage green blue purple magenta brown)
+
+die() {
+  echo "omarchy folder color: $*" >&2
+  exit 1
+}
+
+find_icon() {
+  # Echo the icon file for <theme>/<name> across the known sizes and formats.
+  local theme="$1" name="$2" dir ext file
+  for dir in 256x256/places 48x48/places 32x32/places 24x24/places scalable/places; do
+    for ext in png svg; do
+      file="$ICON_BASE/$theme/$dir/$name.$ext"
+      if [[ -f $file ]]; then
+        printf '%s' "$file"
+        return 0
+      fi
+    done
+  done
+  return 1
+}
+
+best_icon_for() {
+  # Pick the colored icon matching the folder's special type so Downloads, Music,
+  # and friends keep their glyph; fall back to the plain folder icon.
+  local theme="$1" path="$2" names raw name file
+  names=$(gio info -a standard::icon "$path" 2>/dev/null | sed -n 's/.*standard::icon: //p')
+
+  local IFS=','
+  for raw in $names; do
+    name="${raw//[[:space:]]/}"
+    [[ -z $name ]] && continue
+    [[ $name == *symbolic* ]] && continue
+    [[ $name == "inode-directory" ]] && name="folder"
+    if file=$(find_icon "$theme" "$name"); then
+      printf '%s' "$file"
+      return 0
+    fi
+  done
+
+  find_icon "$theme" "folder"
+}
+
+refresh_icon() {
+  # Add and remove a unique user xattr. Both writes emit ATTRIBUTE_CHANGED and
+  # update only ctime, so directory dates and a concurrent permission change
+  # remain untouched. The writes are best-effort for filesystems without xattrs.
+  local attribute="xattr::omarchy-folder-color-refresh-${BASHPID}-${RANDOM}-${RANDOM}"
+  gio set -n -t string "$1" "$attribute" 1 2>/dev/null || return 0
+  gio set -n -t unset "$1" "$attribute" 2>/dev/null || true
+}
+
+# Registry writers that assume the caller already holds the flock. The temp file
+# shares the registry's directory, so the final mv is an atomic rename.
+registry_put() {
+  [[ -f $REGISTRY ]] || echo '{}' >"$REGISTRY"
+  local tmp
+  tmp=$(mktemp "$REGISTRY.XXXXXX")
+  if ! jq -e --arg p "$1" --arg c "$2" '.[$p] = $c' "$REGISTRY" >"$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  if ! mv "$tmp" "$REGISTRY"; then
+    rm -f "$tmp"
+    return 1
+  fi
+}
+
+registry_del() {
+  [[ -f $REGISTRY ]] || return 0
+  local tmp
+  tmp=$(mktemp "$REGISTRY.XXXXXX")
+  if ! jq -e --arg p "$1" 'del(.[$p])' "$REGISTRY" >"$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  if ! mv "$tmp" "$REGISTRY"; then
+    rm -f "$tmp"
+    return 1
+  fi
+}
+
+color_set() {
+  local path="${1:-}" color="${2:-}"
+  [[ -n $path && -n $color ]] || die "usage: omarchy folder color set <folder> <color>"
+  [[ -d $path ]] || die "not a folder: $path"
+  IFS= read -r -d '' path < <(realpath -z -- "$path") || die "cannot resolve folder path"
+
+  local theme="${THEME_OF[$color]:-}"
+  [[ -n $theme ]] || die "invalid color '$color' (see: omarchy folder color colors)"
+
+  local icon
+  icon=$(best_icon_for "$theme" "$path") || die "no folder icon found for color '$color'"
+
+  # Hold the lock across both the icon write and the registry write so a
+  # concurrent command on the same folder can never leave the two out of sync.
+  mkdir -p "$(dirname "$REGISTRY")"
+  (
+    flock 9
+    gio set "$path" metadata::custom-icon "file://$icon"
+    refresh_icon "$path"
+    registry_put "$path" "$color"
+  ) 9>"$REGISTRY.lock"
+  echo "Colored $path $color"
+}
+
+color_clear() {
+  local path="${1:-}"
+  [[ -n $path ]] || die "usage: omarchy folder color clear <folder>"
+  IFS= read -r -d '' path < <(realpath -z -- "$path") || die "cannot resolve folder path"
+
+  mkdir -p "$(dirname "$REGISTRY")"
+  (
+    flock 9
+    gio set -t unset "$path" metadata::custom-icon
+    gio set -t unset "$path" metadata::custom-icon-name
+    refresh_icon "$path"
+    registry_del "$path"
+  ) 9>"$REGISTRY.lock"
+  echo "Cleared color from $path"
+}
+
+color_list() {
+  if [[ -f $REGISTRY ]]; then
+    jq -r 'to_entries | sort_by(.key)[] | "\(.value)\t\(.key)"' "$REGISTRY"
+  else
+    echo "No colored folders yet"
+  fi
+}
+
+color_reapply() {
+  [[ -f $REGISTRY ]] || return 0
+  # Serialize the whole restore against set/clear so it works from a consistent
+  # snapshot and never fights another command over the same folder.
+  (
+    flock 9
+    local entries path_b64 color_b64 path color theme icon
+    entries=$(mktemp "$REGISTRY.reapply.XXXXXX")
+    trap 'rm -f "$entries"' EXIT
+    jq -e 'type == "object"' "$REGISTRY" >/dev/null
+    jq -r 'to_entries[] | "\(.key|@base64) \(.value|@base64)"' "$REGISTRY" >"$entries"
+    # Fields are base64-encoded in the stream so folder names containing spaces,
+    # tabs, or newlines round-trip intact through the line-based read.
+    while read -r path_b64 color_b64; do
+      path=$(printf '%s' "$path_b64" | base64 -d)
+      color=$(printf '%s' "$color_b64" | base64 -d)
+      [[ -d $path && ! -L $path ]] || continue
+      theme="${THEME_OF[$color]:-}"
+      [[ -n $theme ]] || continue
+      icon=$(best_icon_for "$theme" "$path") || continue
+      gio set "$path" metadata::custom-icon "file://$icon"
+      refresh_icon "$path"
+    done <"$entries"
+    rm -f "$entries"
+    trap - EXIT
+  ) 9>"$REGISTRY.lock"
+}
+
+case "${1:-}" in
+  set)
+    shift
+    color_set "$@"
+    ;;
+  clear)
+    shift
+    color_clear "$@"
+    ;;
+  list)
+    color_list
+    ;;
+  reapply)
+    color_reapply
+    ;;
+  colors)
+    printf '%s\n' "${COLOR_ORDER[@]}"
+    ;;
+  *)
+    echo "Usage: omarchy folder color [set <folder> <color>|clear <folder>|list|reapply|colors]"
+    echo "Colors: ${COLOR_ORDER[*]}"
+    echo "Reapply manually restores saved colors if folder icon metadata is lost."
+    ;;
+esac
