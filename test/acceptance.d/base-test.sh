@@ -23,13 +23,21 @@ fail() {
   step=${step//[^a-z0-9-]/}
 
   [[ -n $detail ]] && printf '%s\n' "$detail" >&2
-  screenshot "failure-$step"
+  screenshot "failure-$step" || true
   printf 'not ok - %s\n' "$description" >&2
   exit 1
 }
 
 screenshot() {
-  timeout 10 grim "$ARTIFACTS/$1.png" 2>/dev/null || true
+  local snapshot="$ARTIFACTS/$1.png" status
+  if timeout 10 grim "$snapshot" 2>/dev/null; then
+    return 0
+  else
+    status=$?
+    rm -f "$snapshot"
+    printf 'could not capture screenshot %s (grim exit %s)\n' "$snapshot" "$status" >&2
+    return "$status"
+  fi
 }
 
 screen_contains() {
@@ -38,9 +46,13 @@ screen_contains() {
 
   # Capture at 2x scale: tesseract routinely drops small caption text at
   # native resolution (the weather panel's detail labels, for one).
-  if ! timeout 10 grim -s 2 "$snapshot" 2>/dev/null; then
+  if timeout 10 grim -s 2 "$snapshot" 2>/dev/null; then
+    :
+  else
+    local status=$?
     rm -f "$snapshot"
-    return 1
+    printf 'screen capture failed (grim exit %s); OCR was not run\n' "$status" >&2
+    return 2
   fi
   tesseract "$snapshot" stdout --psm 11 2>/dev/null | grep -Fi -- "$text" >/dev/null
   local status=$?
@@ -54,14 +66,20 @@ wait_until() {
   shift 2
 
   local deadline=$((SECONDS + timeout))
+  local attempt_log status output
+  attempt_log=$(mktemp "$ARTIFACTS/wait.XXXXXX.log") || fail "$description" "could not create polling log"
 
-  until "$@" >/dev/null 2>&1; do
+  until "$@" >"$attempt_log" 2>&1; do
+    status=$?
     if ((SECONDS >= deadline)); then
-      fail "$description" "timed out after ${timeout}s waiting for: $*"
+      output=$(<"$attempt_log")
+      rm -f "$attempt_log"
+      fail "$description" "timed out after ${timeout}s waiting for: $* (last exit $status)${output:+$'\n'$output}"
     fi
     sleep 1
   done
 
+  rm -f "$attempt_log"
   pass "$description"
 }
 
