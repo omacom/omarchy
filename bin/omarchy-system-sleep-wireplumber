@@ -1,0 +1,357 @@
+#!/bin/bash
+
+# omarchy:summary=Keep WirePlumber off the Bluetooth adapter while it resets
+# omarchy:group=system
+# omarchy:hidden=true
+
+# PipeWire before 1.6.11 frees Bluetooth device and node objects asynchronously
+# once WirePlumber 0.5.17 is in use, then still dereferences them. The crash is
+# in libspa-bluez5, during adapter removal: S3/S4 resume while the controller
+# reloads firmware, and an rfkill that drops hci while a headset is connected.
+# systemd restarts WirePlumber at once, which is during that reload, and
+# Bluetooth audio stays down afterwards.
+#
+# https://github.com/omacom/omarchy/issues/11280
+# https://github.com/PipeWire/pipewire/commit/b7246d0d5ddc79cbab06e7e55f6dda37c446118d
+#
+# Until a fixed PipeWire is installed, pause WirePlumber before sleep when a
+# paired audio device is present, and start it again only after the adapter is
+# powered (or the bounded recovery wait expires). The shipped bluez5.auto-connect rule is
+# left in place: the monitor hits this path with or without that property.
+#
+# This is an ordering workaround. It has not been reproduced on hardware here.
+
+set -u
+
+STATE_FILE=${OMARCHY_WIREPLUMBER_SLEEP_STATE:-/run/omarchy-wireplumber-sleep/uids}
+USER_RUN=${OMARCHY_WIREPLUMBER_SLEEP_USER_RUN:-/run/user}
+POLL=${OMARCHY_WIREPLUMBER_SLEEP_POLL:-0.5}
+TRIES=${OMARCHY_WIREPLUMBER_SLEEP_TRIES:-16}
+STATE_LOCKED=0
+HOLD_GENERATION=
+HOLD_UIDS=()
+HOLD_CONTROLLERS=()
+
+lock_state() {
+  local dir
+  dir=$(dirname -- "$STATE_FILE")
+  mkdir -p -- "$dir" || return 1
+  exec 9>"$dir/lock" || return 1
+  flock -w 5 9 || return 1
+  STATE_LOCKED=1
+}
+
+unlock_state() {
+  if (( STATE_LOCKED )); then
+    flock -u 9 || true
+    STATE_LOCKED=0
+  fi
+}
+
+generation_of() {
+  local line
+  HOLD_GENERATION=
+  HOLD_UIDS=()
+  HOLD_CONTROLLERS=()
+  [[ -f $STATE_FILE ]] || return 1
+  while IFS= read -r line || [[ -n $line ]]; do
+    if [[ $line =~ ^generation\ ([0-9]+)$ ]]; then
+      HOLD_GENERATION=${BASH_REMATCH[1]}
+    elif [[ $line =~ ^uid\ ([0-9]+)$ ]]; then
+      HOLD_UIDS+=("${BASH_REMATCH[1]}")
+    elif [[ $line =~ ^controller\ ([0-9A-Fa-f:]{17}|UNKNOWN)$ ]]; then
+      HOLD_CONTROLLERS+=("${BASH_REMATCH[1]^^}")
+    fi
+  done <"$STATE_FILE"
+  [[ -n $HOLD_GENERATION ]]
+}
+
+save_hold() {
+  local tmp="${STATE_FILE}.tmp" uid controller
+  local -a lines=("generation $HOLD_GENERATION")
+  for uid in "${HOLD_UIDS[@]}"; do
+    lines+=("uid $uid")
+  done
+  for controller in "${HOLD_CONTROLLERS[@]}"; do
+    lines+=("controller $controller")
+  done
+  # One checked write: an empty final loop must not hide an earlier ENOSPC.
+  if ! printf '%s\n' "${lines[@]}" >"$tmp"; then
+    rm -f -- "$tmp"
+    return 1
+  fi
+  mv -f -- "$tmp" "$STATE_FILE"
+}
+
+pipewire_fixed() {
+  local output
+  # 1.6.11 is the release whose notes include the async device-removal fix.
+  # Anything we cannot parse keeps the workaround.
+  output=$(timeout 2s pipewire --version 2>/dev/null || true)
+  [[ $output =~ ([0-9]+)\.([0-9]+)\.([0-9]+) ]] || return 1
+  if (( BASH_REMATCH[1] > 1 )); then
+    return 0
+  fi
+  if (( BASH_REMATCH[1] < 1 )); then
+    return 1
+  fi
+  if (( BASH_REMATCH[2] > 6 )); then
+    return 0
+  fi
+  if (( BASH_REMATCH[2] < 6 )); then
+    return 1
+  fi
+  (( BASH_REMATCH[3] >= 11 ))
+}
+
+bluez_tree() {
+  local output
+  if output=$(timeout 2s busctl tree org.bluez --list 2>/dev/null); then
+    printf '%s\n' "$output"
+    return 0
+  fi
+  if output=$(timeout 2s busctl tree org.bluez 2>/dev/null); then
+    printf '%s\n' "$output"
+    return 0
+  fi
+  return 1
+}
+
+uuids_are_audio() {
+  local uuids=${1,,}
+  [[ $uuids == *0000110a-* || $uuids == *0000110b-* || $uuids == *0000110d-* || $uuids == *00001108-* || $uuids == *00001112-* || $uuids == *0000111e-* || $uuids == *0000111f-* ]]
+}
+
+has_paired_audio() {
+  local token path value uuids tree
+  local -A seen=()
+  tree=$(bluez_tree) || return 1
+  snapshot_controllers "$tree"
+  while IFS= read -r token; do
+    [[ $token =~ (/org/bluez/hci[0-9]+/dev_[0-9A-Fa-f_]+) ]] || continue
+    path=${BASH_REMATCH[1]}
+    [[ -n ${seen[$path]:-} ]] && continue
+    seen[$path]=1
+    value=$(timeout 2s busctl get-property org.bluez "$path" org.bluez.Device1 Paired 2>/dev/null || true)
+    [[ $value == "b true" ]] || continue
+    uuids=$(timeout 2s busctl get-property org.bluez "$path" org.bluez.Device1 UUIDs 2>/dev/null || true)
+    if uuids_are_audio "$uuids"; then
+      return 0
+    fi
+  done < <(printf '%s\n' "$tree" | tr -s '[:space:]' '\n')
+  return 1
+}
+
+controller_address() {
+  local value
+  value=$(timeout 2s busctl get-property org.bluez "$1" org.bluez.Adapter1 Address 2>/dev/null || true)
+  if [[ $value =~ ^s\ \"([0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5})\"$ ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]^^}"
+  else
+    printf 'UNKNOWN\n'
+  fi
+}
+
+snapshot_controllers() {
+  local token path
+  local -A seen=()
+  # Track every controller the global BlueZ monitor can touch, not just the
+  # first powered one. Addresses survive hci index changes across resume.
+  while IFS= read -r token; do
+    [[ $token =~ (/org/bluez/hci[0-9]+) ]] || continue
+    path=${BASH_REMATCH[1]}
+    [[ -z ${seen[$path]:-} ]] || continue
+    seen[$path]=1
+    HOLD_CONTROLLERS+=("$(controller_address "$path")")
+  done < <(printf '%s\n' "$1" | tr -s '[:space:]' '\n')
+}
+
+adapter_state() {
+  local token path value address controller tree
+  local -A seen=() powered=()
+  local present=0 ready=1
+  # A temporarily unavailable BlueZ is not proof that the reset is finished.
+  if ! tree=$(bluez_tree); then
+    printf 'unknown\n'
+    return 0
+  fi
+  while IFS= read -r token; do
+    [[ $token =~ (/org/bluez/hci[0-9]+) ]] || continue
+    path=${BASH_REMATCH[1]}
+    [[ -z ${seen[$path]:-} ]] || continue
+    seen[$path]=1
+    present=1
+    address=$(controller_address "$path")
+    value=$(timeout 2s busctl get-property org.bluez "$path" org.bluez.Adapter1 Powered 2>/dev/null || true)
+    if [[ $value == "b true" && $address != "UNKNOWN" ]]; then
+      powered[$address]=1
+    else
+      ready=0
+    fi
+  done < <(printf '%s\n' "$tree" | tr -s '[:space:]' '\n')
+  for controller in "${HOLD_CONTROLLERS[@]}"; do
+    [[ -n ${powered[$controller]:-} ]] || ready=0
+  done
+  if (( present && ready )); then
+    printf 'powered\n'
+  elif (( present )); then
+    printf 'present\n'
+  else
+    printf 'waiting\n'
+  fi
+}
+
+bluetooth_radio_blocked() {
+  local type soft hard _rest radio_seen=0 output
+  output=$(rfkill -rn -o TYPE,SOFT,HARD 2>/dev/null) || return 1
+  while read -r type soft hard _rest; do
+    [[ $type == "bluetooth" ]] || continue
+    radio_seen=1
+    # Either block disables a radio. Every radio must be blocked before a
+    # missing controller can shorten the wait on a multi-adapter machine.
+    [[ $soft == "blocked" || $hard == "blocked" ]] || return 1
+  done <<<"$output"
+  (( radio_seen ))
+}
+
+wait_for_adapter() {
+  local i state
+  for (( i = 1; i <= TRIES; i++ )); do
+    state=$(adapter_state)
+    [[ $state != "powered" ]] || return 0
+    # An extant unpowered adapter may still be loading firmware even when
+    # rfkill says blocked. Give it the full bounded wait.
+    if [[ $state == "waiting" ]] && (( i >= 4 )) && bluetooth_radio_blocked; then
+      return 0
+    fi
+    sleep "$POLL"
+  done
+}
+
+user_wireplumber_active() {
+  timeout 3s systemctl --user --machine="$1@" is-active --quiet wireplumber.service
+}
+
+mask_user() {
+  timeout 3s systemctl --user --machine="$1@" mask --runtime wireplumber.service
+}
+
+stop_user() {
+  if ! timeout 3s systemctl --user --machine="$1@" stop wireplumber.service; then
+    timeout 3s systemctl --user --machine="$1@" kill --kill-whom=all --signal=KILL wireplumber.service
+  fi
+}
+
+unmask_user() {
+  timeout 3s systemctl --user --machine="$1@" unmask --runtime wireplumber.service
+}
+
+restart_user() {
+  timeout 15s systemctl --user --machine="$1@" restart wireplumber.service
+}
+
+# All user-manager changes are serialized with generation changes. A delayed
+# recovery may wait without the lock, but must recheck before touching users.
+# Never remove a user's record before both unmask and restart have succeeded.
+restore_users() {
+  local uid failed=0
+  local -a pending=()
+  for uid in "${HOLD_UIDS[@]}"; do
+    if ! unmask_user "$uid" || ! restart_user "$uid"; then
+      pending+=("$uid")
+      failed=1
+    fi
+  done
+  HOLD_UIDS=("${pending[@]}")
+  if (( ${#HOLD_UIDS[@]} )); then
+    save_hold || return 1
+    printf 'omarchy-system-sleep-wireplumber: recovery is pending for uid(s): %s\n' "${HOLD_UIDS[*]}" >&2
+  else
+    rm -f -- "$STATE_FILE" || return 1
+  fi
+  return "$failed"
+}
+
+on_pre() {
+  local dir uid failed=0
+  local -A seen=()
+  lock_state || return 1
+  generation_of || true
+  if pipewire_fixed || ! has_paired_audio; then
+    restore_users
+    failed=$?
+  else
+    # Carry stopped users straight into the next generation. They cannot pass
+    # is-active, and attempting to restore them first used to lose failures.
+    for uid in "${HOLD_UIDS[@]}"; do
+      seen[$uid]=1
+    done
+    for dir in "$USER_RUN"/*; do
+      [[ -d $dir && -S $dir/bus ]] || continue
+      uid=${dir##*/}
+      [[ $uid =~ ^[0-9]+$ && -z ${seen[$uid]:-} ]] || continue
+      if user_wireplumber_active "$uid"; then
+        HOLD_UIDS+=("$uid")
+        seen[$uid]=1
+      fi
+    done
+    if (( ${#HOLD_UIDS[@]} )); then
+      HOLD_GENERATION=$(date +%s%N)
+      if save_hold; then
+        for uid in "${HOLD_UIDS[@]}"; do
+          printf 'omarchy-system-sleep-wireplumber: pausing wireplumber for uid %s\n' "$uid" >&2
+          mask_user "$uid" || failed=1
+          stop_user "$uid" || failed=1
+        done
+      else
+        failed=1
+      fi
+    fi
+  fi
+  unlock_state
+  if (( failed )); then
+    printf 'omarchy-system-sleep-wireplumber: could not prepare audio; system sleep remains best effort\n' >&2
+  fi
+  return "$failed"
+}
+
+on_post() {
+  local gen
+  lock_state || return 1
+  if ! generation_of; then
+    unlock_state
+    return 0
+  fi
+  gen=$HOLD_GENERATION
+  unlock_state
+  # ExecStopPost runs after sleep.target is released, hence after systemd-sleep
+  # has thawed user.slice. This also recovers a failed/aborted preparation.
+  on_recover "$gen"
+}
+
+on_recover() {
+  local expected="${1:-}" failed
+  [[ $expected =~ ^[0-9]+$ ]] || return 0
+  lock_state || return 1
+  if ! generation_of || [[ $HOLD_GENERATION != "$expected" ]]; then
+    unlock_state
+    return 0
+  fi
+  unlock_state
+  wait_for_adapter
+  lock_state || return 1
+  if ! generation_of || [[ $HOLD_GENERATION != "$expected" ]]; then
+    unlock_state
+    return 0
+  fi
+  restore_users
+  failed=$?
+  unlock_state
+  return "$failed"
+}
+
+case ${1:-} in
+  pre) on_pre ;;
+  post) on_post ;;
+  recover) on_recover "${2:-}" ;;
+esac
