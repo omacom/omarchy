@@ -23,12 +23,21 @@ trap 'rm -f "$errors"' EXIT
 #
 # Progress bars stay on stdout. Errors are on stderr, kept for the conflict
 # handler below; LC_ALL=C is what keeps them parseable in any locale.
-if LC_ALL=C omarchy-update-pacman -Syu --noconfirm \
-  --overwrite '/usr/share/omarchy/*' 2>"$errors"; then
+for attempt in 1 2 3; do
+  if LC_ALL=C omarchy-update-pacman -Syu --noconfirm \
+    --overwrite '/usr/share/omarchy/*' 2>"$errors"; then
+    cat "$errors" >&2
+    exit 0
+  fi
   cat "$errors" >&2
-  exit 0
-fi
-cat "$errors" >&2
+
+  # Pacman keeps cached packages and partial downloads for the next attempt.
+  if (( attempt == 3 )) || ! grep -qE 'failed retrieving file|failed to retrieve some files' "$errors"; then
+    break
+  fi
+  echo -e "\e[33m\n$(omarchy-i18n update.downloadRetry "$((attempt + 1))")\e[0m"
+  sleep "$((attempt * 5))"
+done
 
 # The handler takes it from here: it clears files pacman doesn't own yet and
 # runs this again, and puts a package conflict to whoever started the update.

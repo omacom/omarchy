@@ -39,6 +39,10 @@ if ((attempt == 1)); then
   cat "$CONFLICT_REPORT" >&2
   exit 1
 fi
+if (( attempt == 2 )) && [[ -n ${NEXT_REPORT:-} ]]; then
+  cat "$NEXT_REPORT" >&2
+  exit 1
+fi
 if [[ -n ${RETRY_FAILS:-} ]]; then
   # Optionally commit the file first, as a partial transaction would.
   [[ -n ${RETRY_INSTALLS:-} ]] && echo "packaged" >"$RETRY_INSTALLS"
@@ -48,7 +52,12 @@ fi
 echo "upgrade complete"
 STUB
 
-chmod +x "$stub_bin/sudo" "$stub_bin/systemd-run" "$stub_bin/pacman"
+cat >"$stub_bin/sleep" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$1" >>"$PACMAN_ATTEMPTS.delays"
+STUB
+
+chmod +x "$stub_bin/sudo" "$stub_bin/systemd-run" "$stub_bin/pacman" "$stub_bin/sleep"
 
 replaced="$test_tmp/replaced"
 
@@ -72,6 +81,7 @@ run_update() {
   OMARCHY_REPLACED_DIR="$replaced" \
     RETRY_FAILS="${RETRY_FAILS:-}" \
     RETRY_INSTALLS="${RETRY_INSTALLS:-}" \
+    NEXT_REPORT="${NEXT_REPORT:-}" \
     PACMAN_ATTEMPTS="$test_tmp/attempts" \
     CONFLICT_REPORT="$test_tmp/report" \
     OWNED_PATHS="${OWNED_PATHS:-}" \
@@ -247,7 +257,7 @@ fi
   fail "a failed retry leaves the file moved away and inactive"
 grep -qx "ours" "$stray" ||
   fail "the restored file is not the original content"
-[[ $(cat "$test_tmp/attempts") == 2 ]] ||
+[[ $(cat "$test_tmp/attempts") == 4 ]] ||
   fail "the handler and the upgrade re-invoke each other instead of stopping"
 pass "a failed retry puts the files back, without re-invoking the handler"
 
@@ -300,6 +310,61 @@ run_update >"$test_tmp/out" 2>"$test_tmp/err" ||
 [[ $(cat "$test_tmp/attempts") == 2 ]] ||
   fail "a clean upgrade runs more than one pacman transaction"
 pass "a clean upgrade runs a single pacman transaction"
+
+echo 0 >"$test_tmp/attempts"
+echo "error: failed retrieving file 'example.pkg.tar.zst' from mirror: Operation too slow" >"$test_tmp/report"
+rm -f "$test_tmp/attempts.delays"
+run_update >"$test_tmp/out" 2>"$test_tmp/err" ||
+  fail "a transient download failure resumes the upgrade" "$(cat "$test_tmp/err")"
+[[ $(cat "$test_tmp/attempts") == "2" && $(cat "$test_tmp/attempts.delays") == "5" ]] ||
+  fail "a transient download retries once after a delay"
+grep -Fq 'Retrying (2 of 3)' "$test_tmp/out" || fail "a download retry explains the delay"
+pass "a transient download failure resumes the upgrade"
+
+echo 0 >"$test_tmp/attempts"
+rm -f "$test_tmp/attempts.delays"
+if RETRY_FAILS=1 run_update >"$test_tmp/out" 2>"$test_tmp/err"; then
+  fail "a persistent download failure reports success"
+fi
+[[ $(cat "$test_tmp/attempts") == "3" && $(cat "$test_tmp/attempts.delays") == $'5\n10' ]] ||
+  fail "a persistent download failure stops after three attempts"
+pass "a persistent download failure stops after three attempts"
+
+echo 0 >"$test_tmp/attempts"
+echo 'error: failed to synchronize all databases (unable to lock database)' >"$test_tmp/report"
+if run_update >"$test_tmp/out" 2>"$test_tmp/err"; then
+  fail "a database lock error reports success"
+fi
+[[ $(cat "$test_tmp/attempts") == "1" ]] || fail "a database lock error is retried as a download"
+pass "a database lock error is not retried as a download"
+
+# Each attempt must replace the report, so a recovered download cannot turn
+# a later signature error or file conflict into another download retry.
+echo 0 >"$test_tmp/attempts"
+echo "error: failed retrieving file 'example.pkg.tar.zst' from mirror: Operation too slow" >"$test_tmp/report"
+echo 'error: failed to commit transaction (invalid or corrupted package (PGP signature))' >"$test_tmp/next-report"
+rm -f "$test_tmp/attempts.delays"
+if NEXT_REPORT="$test_tmp/next-report" run_update >"$test_tmp/out" 2>"$test_tmp/err"; then
+  fail "a signature failure after a download retry reports success"
+fi
+[[ $(cat "$test_tmp/attempts") == "2" && $(cat "$test_tmp/attempts.delays") == "5" ]] ||
+  fail "a signature failure after a download retry is retried"
+grep -Fq 'PGP signature' "$test_tmp/err" || fail "the signature failure is not reported"
+pass "a signature failure after a download retry stops the upgrade"
+
+fresh_work
+echo "stray content" >"$stray"
+write_report omarchy-settings-dev "$stray"
+mv "$test_tmp/report" "$test_tmp/next-report"
+echo "error: failed retrieving file 'example.pkg.tar.zst' from mirror: Operation too slow" >"$test_tmp/report"
+rm -f "$test_tmp/attempts.delays"
+NEXT_REPORT="$test_tmp/next-report" run_update >"$test_tmp/out" 2>"$test_tmp/err" ||
+  fail "a file conflict after a download retry is not resolved" "$(cat "$test_tmp/err")"
+[[ $(cat "$test_tmp/attempts") == "3" && $(cat "$test_tmp/attempts.delays") == "5" ]] ||
+  fail "a file conflict after a download retry is retried as a download"
+[[ ! -e $stray ]] && grep -qx "stray content" "$replaced$stray" ||
+  fail "a file conflict after a download retry does not quarantine the original"
+pass "a file conflict after a download retry reaches the conflict handler"
 
 # A platform whose boot package owns files no package does vouches for a
 # takeover before anything moves. Only a boot package's answer lets it through.
