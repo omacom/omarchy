@@ -76,8 +76,8 @@ grep -qFx 'snapper -c root cleanup number' "$test_tmp/calls.log" ||
   fail "snapshot create prunes older snapshots"
 pass "snapshot create snapshots every configured Snapper config"
 
-# Snapper being deliberately absent is the one skip that stays quiet, and the
-# update has to keep treating it as such.
+# Snapper being deliberately absent has its own exit status, which the update
+# lets pass quietly (update-sequence-test.sh holds it to that).
 cat >"$fake_bin/omarchy-cmd-missing" <<'STUB'
 #!/bin/bash
 exit 0
@@ -91,8 +91,6 @@ status=$?
 set -e
 
 (( status == 127 )) || fail "snapshot create exits 127 without snapper" "got $status"
-grep -qF 'omarchy-snapshot create || (($? == 127))' "$ROOT/bin/omarchy-update" ||
-  fail "update ignores only the missing-snapper exit code"
 pass "snapshot create keeps the quiet 127 path for systems without snapper"
 
 # The quattro upgrade runs under set -e, so a failed snapshot has to be warned
