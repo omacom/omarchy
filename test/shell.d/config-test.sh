@@ -127,10 +127,14 @@ for source, destination, legacy in package_defaults:
 
 # A user unit has to be on the machine before anything turns it on: shipped in
 # /usr/lib/systemd/user, or copied out of default/ by the command enabling it.
-def installs_first(text):
-  source = re.search(r'(\w+)="[^"\n]*default/systemd/user/', text)
+def installs_first(text, alternate_source=None):
+  text = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+  sources = r"default/systemd/user/"
+  if alternate_source:
+    sources += "|" + re.escape(alternate_source)
+  source = re.search(rf'(\w+)="[^"\n]*(?:{sources})', text)
   held = rf"|\$\{{?{source[1]}\b" if source else ""
-  copy = re.search(rf"^[ \t]*(?:sudo[ \t]+)?(?:install|cp)\b[^\n]*(?:default/systemd/user/{held})", text, re.MULTILINE)
+  copy = re.search(rf"^[ \t]*(?:sudo[ \t]+)?(?:install|cp)\b[^\n]*(?:{sources}{held})", text, re.MULTILINE)
   enable = text.find("systemctl --user enable")
   return bool(copy) and (enable < 0 or copy.start() < enable)
 
@@ -146,9 +150,13 @@ for unit in sorted(path.name for path in (root / "default/systemd/user").glob("*
   if f"/usr/lib/systemd/user/{unit}" in pkgbuild:
     continue
   named = [text for text in scripts if unit in text]
-  if not any(installs_first(text) for text in named):
+  unit_path = root / "default/systemd/user" / unit
+  alternate_source = None
+  if unit_path.is_symlink():
+    alternate_source = unit_path.resolve(strict=True).relative_to(root).as_posix()
+  if not any(installs_first(text, alternate_source) for text in named):
     errors.append(f"PKGBUILD does not ship default/systemd/user/{unit} and no command installs it")
-  elif any("systemctl --user enable" in text and not installs_first(text) for text in named):
+  elif any("systemctl --user enable" in text and not installs_first(text, alternate_source) for text in named):
     errors.append(f"{unit} is enabled without being shipped by PKGBUILD or installed first")
 
 # Existing users have an absolute wants symlink to the old unit path, and the
