@@ -116,9 +116,13 @@ monitors)
   ]'
   ;;
 clients)
+  if [[ -n ${CAPTURE_CLIENTS:-} ]]; then
+    echo "$CAPTURE_CLIENTS"
+    exit 0
+  fi
   echo '[
-    {"at": [2000, 100], "size": [800, 600], "hidden": false, "workspace": {"id": 2}},
-    {"at": [2100, 200], "size": [300, 300], "hidden": false, "workspace": {"id": 3}}
+    {"at": [2000, 100], "size": [800, 600], "hidden": false, "visible": true, "workspace": {"id": 2}},
+    {"at": [2100, 200], "size": [300, 300], "hidden": false, "visible": true, "workspace": {"id": 3}}
   ]'
   ;;
 esac
@@ -134,3 +138,16 @@ rects=$(<"$stub_bin/rects")
 [[ $rects == *"2000,100 800x600"* && $rects != *"2100,200 300x300"* ]] || fail "the picker hints windows on every visible workspace and no hidden one (got: $rects)"
 
 pass "capture picker snaps a bare click on any monitor"
+
+# Maximizing leaves the covered sibling hidden=false but visible=false.
+export CAPTURE_CLIENTS='[
+  {"at":[0,0],"size":[1920,1200],"hidden":false,"visible":true,"workspace":{"id":1}},
+  {"at":[10,40],"size":[940,1030],"hidden":false,"visible":false,"workspace":{"id":1}}
+]'
+for mode in windows smart; do
+  SLURP_OUT="0,0 1920x1200" SLURP_RECTS="$stub_bin/rects" PATH="$stub_bin:$PATH" \
+    "$ROOT/bin/omarchy-capture-region" "$mode" --match-monitor >/dev/null
+  rects=$(<"$stub_bin/rects")
+  [[ $rects == *"0,0 1920x1200"* && $rects != *"10,40 940x1030"* ]] || fail "$mode picker excludes the covered sibling" "$rects"
+done
+pass "window and screen-recording pickers keep the maximized window and exclude its covered sibling"
