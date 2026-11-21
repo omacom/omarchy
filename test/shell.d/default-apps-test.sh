@@ -189,6 +189,7 @@ terminal_cases=(
   'foot foot.desktop'
   'ghostty com.mitchellh.ghostty.desktop'
   'kitty kitty.desktop'
+  'wezterm org.wezfurlong.wezterm.desktop'
 )
 
 editor_cases=(
