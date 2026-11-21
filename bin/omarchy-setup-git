@@ -46,8 +46,8 @@ done
 if (( interactive )); then
   omarchy-i18n gitSetup.intro
   echo
-  name=$(gum input --no-show-help --value "$name" --placeholder "$(omarchy-i18n gitSetup.namePlaceholder)" --prompt "$(omarchy-i18n gitSetup.namePrompt)")
-  email=$(gum input --no-show-help --value "$email" --placeholder "you@example.com" --prompt "$(omarchy-i18n gitSetup.emailPrompt)")
+  name=$(gum input --no-show-help --value "$name" --placeholder "$(omarchy-i18n gitSetup.namePlaceholder)" --prompt "$(omarchy-i18n gitSetup.namePrompt)") || exit 130
+  email=$(gum input --no-show-help --value "$email" --placeholder "you@example.com" --prompt "$(omarchy-i18n gitSetup.emailPrompt)") || exit 130
   set_name=1 set_email=1
 fi
 
