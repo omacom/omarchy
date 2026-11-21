@@ -94,6 +94,63 @@ record = zai()
 expect("Z.ai counts MiniMax Code replies on a custom provider at api.z.ai",
        [record["todayTokensByModel"], record["todayPrompts"], record["todaySessions"]], [{"glm-4.7": 2358}, 1, 1], record)
 
+# DeepSeek Harness logs a turn's route and its usage under $DSH_HOME/sessions;
+# a Z.ai turn is the route `zai`, whatever model answered, and another
+# provider's route on the same session is not Z.ai's.
+sandbox()
+os.environ["DSH_HOME"] = str(home() / "dsh")
+now = ms_in(0)
+
+try:
+  from compression import zstd
+except ImportError:
+  zstd = None
+
+
+def dsh_header(session):
+  return {"type": "session", "version": 4, "id": session, "createdAt": now, "isSeeded": False, "delegationDepth": 0}
+
+
+def typed(seq=1):
+  return {"type": "user/message", "seq": seq, "time": now, "data": {"content": [{"type": "text", "text": "go"}], "source": {"kind": "user"}, "role": "user", "id": f"m{seq}"}}
+
+
+def route(provider, model, seq=1):
+  return {"type": "request/header", "seq": seq, "time": now, "data": {"header": {"config": {"provider": provider, "model": model}}, "reason": "initial"}}
+
+
+def message(turn, step, usage, seq=2):
+  return {"type": "assistant/message", "seq": seq, "time": now, "data": {"turn": turn, "step": step, "stream": [], "usage": usage}}
+
+
+def usage(input, output=0):
+  return {"inputTokens": input, "outputTokens": output, "cacheReadTokens": 0, "cacheWriteTokens": 0}
+
+
+def write_log(path, records):
+  path.parent.mkdir(parents=True, exist_ok=True)
+  lines = [(json.dumps(record) + "\n").encode() for record in records]
+  if zstd is not None:
+    path.write_bytes(b"".join(zstd.compress(line) for line in lines))
+  else:
+    path.write_bytes(b"".join(lines))
+
+
+suffix = ".jsonl.zstd" if zstd is not None else ".jsonl"
+project = home() / "dsh" / "sessions" / "--home-me-code--"
+write_log(project / "s1" / ("session.v4" + suffix), [
+  dsh_header("s1"),
+  typed(),
+  route("zai", "glm-5.3"),
+  message(1, 1, usage(400, 100)),
+  route("deepseek-official", "deepseek-v4-pro", seq=3),
+  message(2, 1, usage(999, 999), seq=4),
+])
+record = zai()
+expect("Z.ai counts DeepSeek Harness's zai route, not its other routes",
+       [record["todayTokensByModel"], record["todayPrompts"], record["todaySessions"], record["ready"]],
+       [{"glm-5.3": 500}, 1, 1, True], record)
+
 # ---------------------------------------------------------------- contract
 
 sandbox()
