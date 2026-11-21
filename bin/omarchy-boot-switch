@@ -189,10 +189,6 @@ preflight() {
   [[ ! -e /etc/omarchy/provisioning.key ]] || problem "Finish setting up the machine's owner first."
   [[ ! -e /var/lib/pacman/db.lck ]] || problem "A package transaction is running."
 
-  if omarchy-cmd-present omarchy-boot-direct && omarchy-boot-direct >/dev/null 2>&1; then
-    problem "Direct Boot is on. Turn it off first: Setup > Direct Boot."
-  fi
-
   if ! grep -q 'omarchy-restore' /etc/mkinitcpio.conf.d/00-omarchy-hooks.conf 2>/dev/null; then
     problem "This Omarchy version's initramfs hooks aren't installed yet. Run omarchy update first."
   fi

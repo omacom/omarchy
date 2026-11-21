@@ -484,7 +484,7 @@ hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16|0|wrote etc/systemd/sleep
 hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16-not-qualcomm|0
 hardware/asus/fix-asus-zenbook-a16-boot.sh|yoga-slim7x|0
-hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-14|0|pkg-add samsung-galaxy-book4-edge-14-support|wrote etc/mkinitcpio.conf.d/samsung-galaxy-book4-edge-14.conf|wrote etc/initcpio/install/samsung-galaxy-book4-edge-14|wrote etc/limine-entry-tool.d/samsung-galaxy-book4-edge-14.conf
+hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-14|0|pkg-add samsung-galaxy-book4-edge-14-support|wrote etc/limine-entry-tool.d/samsung-galaxy-book4-edge-14.conf|wrote etc/mkinitcpio.conf.d/samsung-galaxy-book4-edge-14.conf|wrote etc/initcpio/install/samsung-galaxy-book4-edge-14
 hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-14-not-qualcomm|0
 hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-16|0
 hardware/raspberrypi/raspberry-pi-4.sh|raspberry-pi-4|0|pkg-add raspberry-pi-4-bluetooth-firmware|wrote etc/limine-entry-tool.d/raspberry-pi-4.conf|wrote etc/udev/rules.d/70-raspberry-pi-4-ddc.rules
