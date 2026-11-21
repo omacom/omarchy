@@ -374,9 +374,35 @@ end
 -- maximizing them again would hide the browser behind them. Hyprland marks a
 -- window urgent just before it gives it the focus its app asked for, and never
 -- for focus the user moves.
+--
+-- Hyprland marks a window urgent as it grants it focus on request, and does the
+-- same when another app sends for it, as the browser is when a link is opened
+-- from a chat, and that one the user did ask for. So only a window that has the
+-- focus, or had it moments ago, is taking it back.
 local asked_for_focus = nil
+local focused, lost_focus = nil, {}
+local TAKING_BACK = 3
+
+local function track_focus(window)
+  local address, now = window and window.address, os.time()
+  if focused and focused ~= address then
+    lost_focus[focused] = now
+  end
+  focused = address
+
+  for other, at in pairs(lost_focus) do
+    if now - at > TAKING_BACK then
+      lost_focus[other] = nil
+    end
+  end
+end
 
 local function on_urgent(window)
+  local lost = lost_focus[window.address]
+  if window.address ~= focused and not (lost and os.time() - lost <= TAKING_BACK) then
+    return
+  end
+
   asked_for_focus = window.address
   hl.timer(function()
     asked_for_focus = nil
@@ -470,6 +496,8 @@ local function watch()
       end, { type = "oneshot", timeout = 1 })
     end
   end)
+
+  hl.on("window.active", track_focus)
 
   hl.on("workspace.active", update_input)
   hl.on("monitor.focused", update_input)

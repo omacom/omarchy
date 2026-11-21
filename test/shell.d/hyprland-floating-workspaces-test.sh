@@ -536,8 +536,9 @@ pass "a new window on a floating workspace brings a maximized one back to size"
 
 # Hyprland keeps one maximized window a workspace, and maximizing a second one
 # gives the first its own size back, before the second is maximized. The first
-# is maximized again when the user brings it forward, not when its app asks for
-# focus, and not after the other was brought back to its own size by hand.
+# is maximized again when the user brings it forward, or another app sends for
+# it, not when its app takes back the focus it just lost, and not after the
+# other was brought back to its own size by hand.
 if ! run_lua '
 require("default.hypr.workspace-layouts")
 local events = state().subscriptions
@@ -559,11 +560,21 @@ events["window.fullscreen"][1](first)
 second.fullscreen = 1
 events["window.fullscreen"][1](second)
 settle()
+-- Hyprland marks a window urgent as it grants it the focus its app asked for.
+-- One that held the focus a moment ago is taking it back.
+local function saw_focus(target)
+  for _, handler in ipairs(events["window.active"]) do
+    handler(target)
+  end
+  settle()
+end
+saw_focus(first)
+saw_focus(second)
 focused = first
 events["window.urgent"][1](first)
 events["window.active"][1](first)
 settle()
-assert(first.fullscreen == 0, "a window was maximized again when its app asked for focus")
+assert(first.fullscreen == 0, "a window was maximized again when its app took the focus back")
 events["window.active"][1](first)
 focused = second
 settle()
@@ -579,6 +590,15 @@ settle()
 events["window.active"][1](first)
 settle()
 assert(first.fullscreen == 0, "a window was maximized again after the one in front was brought back to its own size")
+-- One that never held the focus is sent for by another app, as the browser is
+-- when a link is opened from a chat, and comes forward as the user asked.
+local sent = window("0x3", 1, { floating = true, tags = { "omarchy-maximized" } })
+focused = sent
+events["window.urgent"][1](sent)
+events["window.active"][1](sent)
+settle()
+assert(sent.fullscreen == 1, "a window another app sent for came forward at its own size")
+sent.fullscreen, sent.tags = 0, {}
 '; then
   fail "a window that lost its maximize to another one takes it back when brought forward"
 fi
