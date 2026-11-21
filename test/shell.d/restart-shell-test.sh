@@ -155,7 +155,9 @@ else
     (( checks == 1 )) && echo 'b true' || echo 'b false'
     exit 0
   fi
-  if (( checks == 1 || checks >= 4 )); then
+  # Come back only after the old 20-attempt (~2s) wait would have given
+  # up: check 1 is the pre-restart probe, checks 2-21 are that loop.
+  if (( checks == 1 || checks >= 22 )); then
     echo 'b true'
   else
     echo 'b false'
@@ -205,7 +207,7 @@ grep -F "kill -p $restart_root/shell --any-display" "$restart_log" >/dev/null ||
 grep -F 'hl.dsp.exec_cmd("omarchy-launch-shell")' "$dispatch_log" >/dev/null || fail "restart launches the fresh shell through Hyprland"
 grep -F "ipc -n -p $restart_root/shell call -- shell ping" "$ipc_log" >/dev/null || fail "restart checks readiness in the session checkout"
 pass "restart replaces duplicate shell instances from the session checkout"
-[[ $(<"$test_tmp/notification-checks") == 4 ]] || fail "restart waits for the existing notification service after core IPC is ready"
+[[ $(<"$test_tmp/notification-checks") == 22 ]] || fail "restart waits for the existing notification service after core IPC is ready"
 pass "restart waits for notification readiness before one-time update hooks"
 
 : >"$restart_log"
