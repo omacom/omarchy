@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Agent
+GenericName=Coding agent
+Comment=Omarchy coding agent
+Exec=omarchy-agent
+Icon=org.omarchy.agent
+Terminal=false
+StartupWMClass=org.omarchy.agent
+NoDisplay=true
