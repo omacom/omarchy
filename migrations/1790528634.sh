@@ -2,7 +2,12 @@ echo "Move Elsewhen, the world clock, into Omarchy as omarchy.elsewhen"
 
 # The widget keeps its entry, and with it the cities and settings stored there.
 config_file="$HOME/.config/omarchy/shell.json"
-if [[ -s $config_file ]]; then
+if omarchy-config-symlinked "$config_file"; then
+  if grep -qsF omacom.elsewhen "$config_file"; then
+    echo "Preserving symlink-managed shell config: $config_file"
+    echo "Rename omacom.elsewhen to omarchy.elsewhen there to keep the world clock."
+  fi
+elif [[ -s $config_file ]]; then
   tmp=$(mktemp)
   jq '
     def rename:

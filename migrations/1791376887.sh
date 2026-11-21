@@ -4,6 +4,11 @@ for flags_file in "$HOME"/.config/{chromium,chrome,microsoft-edge-stable,brave,b
   [[ -f $flags_file ]] || continue
   grep -Eq -- '^--enable-features=([^,]+,)*OverlayScrollbar([,:]|$)' "$flags_file" && continue
 
+  if omarchy-config-symlinked "$flags_file"; then
+    echo "Preserving symlink-managed browser flags: $flags_file"
+    continue
+  fi
+
   if grep -q -- '^--enable-features=' "$flags_file"; then
     sed -i --follow-symlinks \
       -e '/^--enable-features=/ s/$/,OverlayScrollbar/' \
