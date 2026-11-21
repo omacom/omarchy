@@ -1,7 +1,0 @@
-#!/bin/bash
-
-# omarchy:summary=Bring the local model launchers up to date (now omarchy-models-launchers)
-# omarchy:hidden=true
-
-# The old name of omarchy-models-launchers, which migration 1794839007 calls.
-exec omarchy-models-launchers "$@"

@@ -1,9 +1,0 @@
-#!/bin/bash
-
-# omarchy:summary=Run open models on this machine (now omarchy models)
-# omarchy:hidden=true
-
-# The old name of omarchy-models. The model units omarchy-local-ai writes call
-# it from their start and stop hooks, and its messages still name it, so it
-# stays until the engine names omarchy-models instead.
-exec omarchy-models "$@"

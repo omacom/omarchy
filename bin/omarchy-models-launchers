@@ -16,7 +16,7 @@
 APPLICATIONS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 ICONS="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
 LOGOS="$OMARCHY_PATH/shell/plugins/agents/assets"
-PREFIX="omarchy-agent-local-"
+PREFIX="omarchy-models-"
 STATE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agent-local"
 
 shopt -s nullglob

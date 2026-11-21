@@ -1205,7 +1205,7 @@ write_status() {
 }
 
 launchers() {
-  (cd "$applications" && printf '%s\n' omarchy-agent-local-*.desktop | sort | paste -sd' ')
+  (cd "$applications" && printf '%s\n' omarchy-models-*.desktop | sort | paste -sd' ')
 }
 
 # Each model that is set up gets a launcher with its name and its vendor's
@@ -1213,20 +1213,20 @@ launchers() {
 write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)" "$(model glm-5.3 "GLM-5.3 Flash" zai active running)" \
   "$(model nemotron "Nemotron 3.5 Bolt" nvidia installing)"
 omarchy-models-launchers
-[[ $(launchers) == "omarchy-agent-local-glm-5.3.desktop omarchy-agent-local-qwen-fast.desktop" ]] ||
+[[ $(launchers) == "omarchy-models-glm-5.3.desktop omarchy-models-qwen-fast.desktop" ]] ||
   fail "each model that is set up gets a launcher, and one still installing none" "$(launchers)"
-entry=$(<"$applications/omarchy-agent-local-qwen-fast.desktop")
+entry=$(<"$applications/omarchy-models-qwen-fast.desktop")
 [[ $entry == *$'\nName=Qwen3.8 Flash Next\n'* ]] || fail "the launcher carries the model's name" "$entry"
 [[ $entry == *$'\nExec=omarchy-agent --local-model qwen-fast --app-id=org.omarchy.local.qwen-fast\n'* ]] ||
   fail "the launcher opens an agent on its model" "$entry"
-[[ $entry == *$'\nIcon=omarchy-agent-local-qwen\n'* && $entry == *$'\nStartupWMClass=org.omarchy.local.qwen-fast\n'* ]] ||
+[[ $entry == *$'\nIcon=omarchy-models-qwen\n'* && $entry == *$'\nStartupWMClass=org.omarchy.local.qwen-fast\n'* ]] ||
   fail "the launcher has its vendor's icon and a window class of its own" "$entry"
 pass "each local model that is set up gets a launcher of its own"
 
 # An image model's launcher opens Fantasi on it, since no agent runs on one.
 jq -c '.models += {"klein": {recipe: "klein", name: "FLUX.2 Klein 4B", vendor: "bfl", kind: "image", unit: "active"}}' "$status_file" >"$status_file.new" && mv "$status_file.new" "$status_file"
 omarchy-models-launchers
-entry=$(<"$applications/omarchy-agent-local-klein.desktop")
+entry=$(<"$applications/omarchy-models-klein.desktop")
 [[ $entry == *$'\nExec=fantasi open --model klein\n'* && $entry == *$'\nStartupWMClass=fantasi\n'* ]] ||
   fail "an image model's launcher opens Fantasi on it" "$entry"
 [[ $entry != *'Exec=omarchy-agent'* ]] || fail "an image model's launcher starts no agent" "$entry"
@@ -1234,11 +1234,11 @@ pass "an image model's launcher opens Fantasi on it"
 
 # The icon is the vendor's logo on a tile: the logo's paths, scaled to fit,
 # with the fill a logo keeps on its root.
-[[ $(<"$icons/omarchy-agent-local-qwen.svg") == *'fill="#6D44E8"'* ]] || fail "the icon holds the vendor's logo"
-grep -q '<g transform="translate([0-9. -]*) scale([0-9.]*)" fill="#fff" fill-rule="evenodd">' "$icons/omarchy-agent-local-zai.svg" ||
-  fail "a logo filled from its root keeps that fill on the tile" "$(<"$icons/omarchy-agent-local-zai.svg")"
+[[ $(<"$icons/omarchy-models-qwen.svg") == *'fill="#6D44E8"'* ]] || fail "the icon holds the vendor's logo"
+grep -q '<g transform="translate([0-9. -]*) scale([0-9.]*)" fill="#fff" fill-rule="evenodd">' "$icons/omarchy-models-zai.svg" ||
+  fail "a logo filled from its root keeps that fill on the tile" "$(<"$icons/omarchy-models-zai.svg")"
 if omarchy-cmd-present xmllint; then
-  for icon in "$icons"/omarchy-agent-local-*.svg; do
+  for icon in "$icons"/omarchy-models-*.svg; do
     xmllint --noout "$icon" || fail "the icon is well-formed: $icon"
   done
 fi
@@ -1249,11 +1249,11 @@ pass "the launcher's icon is the model's vendor logo"
 write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)" "$(model odd "Odd One" ../mystery inactive)" \
   "$(model 'bad; rm -rf ~' "Bad" qwen inactive)"
 omarchy-models-launchers
-[[ $(launchers) == "omarchy-agent-local-odd.desktop omarchy-agent-local-qwen-fast.desktop" ]] ||
+[[ $(launchers) == "omarchy-models-odd.desktop omarchy-models-qwen-fast.desktop" ]] ||
   fail "a recipe that isn't a plain id gets no launcher" "$(launchers)"
-grep -q '^Icon=omarchy-agent-local-local$' "$applications/omarchy-agent-local-odd.desktop" ||
+grep -q '^Icon=omarchy-models-local$' "$applications/omarchy-models-odd.desktop" ||
   fail "a vendor without a logo gets the local model's icon"
-[[ -f $icons/omarchy-agent-local-local.svg ]] || fail "the local model's icon is drawn"
+[[ -f $icons/omarchy-models-local.svg ]] || fail "the local model's icon is drawn"
 pass "a vendor without a logo gets the local model's icon"
 
 # Removing a model takes its launcher, and an icon no launcher uses, with it.
@@ -1261,14 +1261,14 @@ pass "a vendor without a logo gets the local model's icon"
 touch "$applications/omarchy-agent-claude.desktop" "$icons/omarchy-agent-claude.svg"
 write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)" "$(model glm-5.3 "GLM-5.3 Flash" zai removing)"
 omarchy-models-launchers
-[[ $(launchers) == "omarchy-agent-local-qwen-fast.desktop" ]] || fail "a removed model loses its launcher" "$(launchers)"
-[[ ! -e $icons/omarchy-agent-local-zai.svg && ! -e $icons/omarchy-agent-local-local.svg && -f $icons/omarchy-agent-local-qwen.svg ]] ||
+[[ $(launchers) == "omarchy-models-qwen-fast.desktop" ]] || fail "a removed model loses its launcher" "$(launchers)"
+[[ ! -e $icons/omarchy-models-zai.svg && ! -e $icons/omarchy-models-local.svg && -f $icons/omarchy-models-qwen.svg ]] ||
   fail "an icon no launcher uses goes with it" "$(ls "$icons")"
 [[ -f $applications/omarchy-agent-claude.desktop && -f $icons/omarchy-agent-claude.svg ]] ||
   fail "launchers that aren't a local model's are left alone"
 echo '{"models":{}}' >"$status_file"
 omarchy-models-launchers
-[[ $(launchers) == "omarchy-agent-local-*.desktop" ]] || fail "the last model removed leaves no launcher" "$(launchers)"
+[[ $(launchers) == "omarchy-models-*.desktop" ]] || fail "the last model removed leaves no launcher" "$(launchers)"
 pass "removing a local model removes its launcher"
 
 # A reading that fails says nothing about which models are gone, so it leaves
@@ -1279,7 +1279,7 @@ echo "not json" >"$status_file"
 if omarchy-models-launchers 2>/dev/null; then
   fail "a status that can't be read fails the sync"
 fi
-[[ $(launchers) == "omarchy-agent-local-qwen-fast.desktop" && -f $icons/omarchy-agent-local-qwen.svg ]] ||
+[[ $(launchers) == "omarchy-models-qwen-fast.desktop" && -f $icons/omarchy-models-qwen.svg ]] ||
   fail "a status that can't be read leaves the launchers alone" "$(launchers)"
 pass "a status that can't be read leaves the launchers alone"
 
