@@ -24,6 +24,7 @@
 -- the block they stay guests, and the bar lists them after the monitor's own.
 
 local paths = require("default.hypr.paths")
+local workspace_modes = require("default.hypr.workspace-modes")
 
 local SLOTS = 10
 local STATE_DIR = paths.state_home .. "/omarchy/monitors"
@@ -269,16 +270,30 @@ local function identity_of_block(block)
   return nil
 end
 
--- Give a workspace another id, carrying where it came from with it.
+-- Give a workspace another id, carrying where it came from and its layout
+-- with it.
 local function renumber(workspace, id)
   local old = workspace.id
   hl.dispatch(hl.dsp.workspace.change_id({ workspace = tostring(old), id = id }))
+  workspace_modes.renumber(old, id)
 
   -- A record left under the new id belonged to a workspace that has gone.
   if merged[old] or merged[id] then
     merged[id] = merged[old]
     merged[old] = nil
     save_merged()
+  end
+end
+
+-- A workspace that joined another block while its monitor was unplugged took
+-- its layout to the number it was given there. Closed before going home, it
+-- sends the layout back to the number it came from, unless a workspace with
+-- windows has that number now. An empty one is only the number Hyprland parked
+-- a returning monitor on.
+local function send_layout_home(id, origin)
+  local there = hl.get_workspace(origin.id)
+  if not there or (there.windows or 0) == 0 then
+    workspace_modes.renumber(id, origin.id)
   end
 end
 
@@ -369,6 +384,14 @@ local function reclaim(monitor, id)
   settle(away, monitors, assign(monitors))
 end
 
+-- A number is free when no workspace has it and no layout is saved for it. A
+-- layout saved for a number whose workspace Hyprland dropped once it was empty
+-- is the user's choice for the next workspace opened under it, so a workspace
+-- from elsewhere doesn't take the number.
+local function free(id)
+  return not hl.get_workspace(id) and not workspace_modes.saved(id)
+end
+
 -- Renumber a workspace into a block, keeping its slot when that one is free and
 -- taking the first free one otherwise. False when all ten are taken.
 local function adopt(workspace, block)
@@ -379,7 +402,7 @@ local function adopt(workspace, block)
   end
 
   for _, id in ipairs(candidates) do
-    if not hl.get_workspace(id) then
+    if free(id) then
       renumber(workspace, id)
       return true
     end
@@ -390,7 +413,7 @@ end
 
 -- The first free id after the highest of a block in use, as Niri appends an
 -- unplugged output's workspaces after another's, or any free one in the block
--- when the last is taken. Nil when all ten are.
+-- when none after it is. Nil when all ten are taken.
 local function append_slot(block)
   local highest = block * SLOTS
   for _, workspace in ipairs(hl.get_workspaces()) do
@@ -399,12 +422,14 @@ local function append_slot(block)
     end
   end
 
-  if highest < block * SLOTS + SLOTS then
-    return highest + 1
+  for id = highest + 1, block * SLOTS + SLOTS do
+    if free(id) then
+      return id
+    end
   end
 
-  for id = block * SLOTS + 1, block * SLOTS + SLOTS do
-    if not hl.get_workspace(id) then
+  for id = block * SLOTS + 1, highest do
+    if free(id) then
       return id
     end
   end
@@ -584,7 +609,8 @@ function M.reconcile(added, gone)
   end
 
   -- Workspaces that joined another monitor's block while theirs was unplugged
-  -- go back to it, under their old numbers when those are free.
+  -- go back to it, under their old numbers when those are free. One closed
+  -- since sends back its layout.
   local function restore()
     local ids = {}
     for id in pairs(merged) do
@@ -612,11 +638,16 @@ function M.reconcile(added, gone)
           end
 
           if block_of_id(origin.id) == by_connector[monitor.name] and not hl.get_workspace(origin.id) then
+            -- A layout saved under its old number while it was away was given
+            -- to another workspace there, and gives way to its own.
+            workspace_modes.forget(origin.id)
             renumber(workspace, origin.id)
           elseif block_of_id(id) ~= by_connector[monitor.name] then
             adopt(workspace, by_connector[monitor.name])
           end
           changed = true
+        else
+          send_layout_home(id, origin)
         end
       end
     end
@@ -675,16 +706,21 @@ function M.reconcile(added, gone)
 end
 
 hl.on("hyprland.start", function()
-  -- Windows don't outlive a session, so neither do the workspaces that held them.
+  -- Windows don't outlive a session, so neither do the workspaces that held
+  -- them, and those from elsewhere send back their layouts.
+  for id, origin in pairs(merged) do
+    send_layout_home(id, origin)
+  end
   merged = {}
   save_merged()
   M.reconcile()
 end)
 
 -- A workspace created under a remembered number is a new one; the one that
--- came from elsewhere has gone.
+-- came from elsewhere has gone, and sends back its layout.
 hl.on("workspace.created", function(workspace)
   if workspace and merged[workspace.id] then
+    send_layout_home(workspace.id, merged[workspace.id])
     merged[workspace.id] = nil
     save_merged()
   end
