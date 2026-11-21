@@ -2,12 +2,13 @@
 
 o.window(".*", { suppress_event = "maximize" })
 
--- Fix some dragging issues with XWayland.
+-- Keep transient floating windows with no class or title, like the surfaces
+-- Chrome creates for tab dragging, from stealing focus on both XWayland and
+-- native Wayland.
 o.window(
   {
     class = "^$",
     title = "^$",
-    xwayland = true,
     float = true,
     fullscreen = false,
     pin = false,
