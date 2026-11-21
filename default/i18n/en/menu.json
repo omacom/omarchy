@@ -1368,5 +1368,11 @@
   },
   "agent.make.game": {
     "label": "Make a game"
+  },
+  "appearance.dock.shelf": {
+    "label": "Dock Shelf"
+  },
+  "appearance.dock.reset": {
+    "label": "Restore Defaults"
   }
 }
