@@ -48,7 +48,12 @@ done
 
 ID=$(jq -r '.id // ""' "$MANIFEST")
 [[ -n $ID ]] || fail "manifest 'id' is empty"
-[[ $ID =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail "invalid plugin id '$ID'"
+# A bracket range follows the locale's collation, not ASCII: under tr_TR, "i"
+# is outside [a-z], so ids like io.github... were rejected. Pin C like
+# omarchy-theme-install does for theme names.
+if ! (LC_ALL=C; [[ $ID =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]); then
+  fail "invalid plugin id '$ID'"
+fi
 [[ $ID != *".."* ]] || fail "invalid plugin id '$ID'"
 [[ $ID != omarchy.* ]] || fail "plugin id '$ID' uses the reserved omarchy.* namespace"
 
