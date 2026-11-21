@@ -253,10 +253,12 @@ Item {
 
         // While the reader matches, the icon breathes: the finger was taken
         // and the verdict is on its way. The icon's brighter color carries that
-        // on its own where animations are off.
+        // on its own where animations are off. A rejection's red moment holds
+        // the breath, so the red is seen even when the finger stays on the
+        // reader and is matched again at once; the breath resumes after it.
         SequentialAnimation {
           objectName: "fingerprintPulse"
-          running: fingerprintIcon.visible && !root.fingerprintUnavailable && root.fingerprintScanning && !Style.reduceMotion
+          running: fingerprintIcon.visible && !root.fingerprintUnavailable && root.fingerprintScanning && !root.fingerprintRejected && !Style.reduceMotion
           loops: Animation.Infinite
           NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 0.3; duration: Style.duration(420); easing.type: Easing.InOutQuad }
           NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 1.0; duration: Style.duration(420); easing.type: Easing.InOutQuad }
@@ -265,7 +267,7 @@ Item {
 
         // A rejected finger dips the icon once, in red: every wrong finger
         // is seen, not only the lockout. The red alone carries it where
-        // animations are off, and it yields to the next finger's breath.
+        // animations are off.
         SequentialAnimation {
           id: fingerprintRejectDip
           objectName: "fingerprintRejectDip"
@@ -277,10 +279,7 @@ Item {
         Connections {
           target: root
           function onFingerprintRejectedChanged() {
-            if (root.fingerprintRejected && fingerprintIcon.visible && !root.fingerprintUnavailable && !root.fingerprintScanning && !Style.reduceMotion) fingerprintRejectDip.restart()
-          }
-          function onFingerprintScanningChanged() {
-            if (root.fingerprintScanning) fingerprintRejectDip.stop()
+            if (root.fingerprintRejected && fingerprintIcon.visible && !root.fingerprintUnavailable && !Style.reduceMotion) fingerprintRejectDip.restart()
           }
         }
       }

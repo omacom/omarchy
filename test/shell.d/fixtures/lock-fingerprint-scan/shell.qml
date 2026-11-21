@@ -103,8 +103,9 @@ ShellRoot {
       check(!service.fingerprintMonitoring, "unlocking stops the watch")
 
       // A rejected finger shows for a moment, whatever the attempt's state,
-      // and the next finger landing, the lock resetting, a blank or the
-      // moment passing ends it. Other verdicts show nothing.
+      // and the lock resetting, a blank or the moment passing ends it; the
+      // next finger landing doesn't, since pam_fprintd matches a finger left
+      // on the reader again at once. Other verdicts show nothing.
       var rejectTimer = findByObjectName(service, "fingerprintRejectTimer")
       check(rejectTimer !== null, "the service bounds a rejection with a timer")
       if (!rejectTimer) return
@@ -126,8 +127,7 @@ ShellRoot {
       service.fingerprintAuthenticating = true
       service.applyFingerprintMonitorLine(root.rejectedLine)
       service.applyFingerprintMonitorLine(root.presentLine)
-      check(!service.fingerprintRejected && service.fingerprintScanning, "the next finger landing ends the rejection and starts its scan")
-      service.applyFingerprintMonitorLine(root.rejectedLine)
+      check(service.fingerprintRejected && service.fingerprintScanning, "the next finger landing starts its scan and keeps the rejection showing")
       service.resetAuthenticationState()
       check(!service.fingerprintRejected && !rejectTimer.running, "an unlock's reset ends the rejection")
       service.fingerprintAuthenticating = true

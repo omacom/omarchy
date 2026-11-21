@@ -436,12 +436,14 @@ Item {
   // VerifyStatus signal on the same watch. Only a finger during the lock's
   // own attempt is a scan: fprintd reports one for any claimant's operation.
   // A rejection shows whatever the attempt's state, since pam_fprintd's last
-  // try can end the attempt before its verdict's line is read.
+  // try can end the attempt before its verdict's line is read, and for its
+  // whole moment: pam_fprintd retries at once, and a finger left on the
+  // reader is matched again within milliseconds, so a rejection the next
+  // scan ended was never seen.
   function applyFingerprintMonitorLine(line) {
     var present = FingerprintModel.parseFingerPresent(line)
     if (present !== null) {
       if (present && fingerprintAuthenticating) {
-        clearFingerprintReject()
         fingerprintScanning = true
         fingerprintScanTimer.restart()
       } else if (!present) {

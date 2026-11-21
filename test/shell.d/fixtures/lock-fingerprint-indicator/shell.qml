@@ -237,8 +237,8 @@ ShellRoot {
         root.assertTrue(!root.scanPulse.running, "the pulse stops with the scan")
         root.assertTrue(root.scanIndicator.opacity === 1, "the icon is drawn whole once the scan ends, at opacity " + root.scanIndicator.opacity)
 
-        // With animations on, a rejection dips the icon once; a new scan cuts
-        // the dip short and the breath takes over whole.
+        // With animations on, a rejection dips the icon once and holds the
+        // breath for its moment, even with the next finger already matching.
         if (root.scanDip) {
           root.scanView.fingerprintRejected = true
           root.assertTrue(root.scanDip.running, "a rejected finger dips the icon")
@@ -260,10 +260,11 @@ ShellRoot {
       try {
         root.assertTrue(root.scanIndicator.opacity < 1, "the dip has faded the icon, at opacity " + root.scanIndicator.opacity)
         root.scanView.fingerprintScanning = true
-        root.assertTrue(!root.scanDip.running, "a new scan cuts the dip short")
-        root.assertTrue(root.scanPulse.running, "and the breath takes over")
-        root.scanView.fingerprintScanning = false
+        root.assertTrue(root.scanDip.running, "a new scan leaves the dip to finish")
+        root.assertTrue(!root.scanPulse.running, "and the breath waits for the rejection's moment to pass")
         root.scanView.fingerprintRejected = false
+        root.assertTrue(root.scanPulse.running, "the breath takes over once the rejection passes")
+        root.scanView.fingerprintScanning = false
         root.assertTrue(root.scanIndicator.opacity === 1, "the icon is drawn whole once both end, at opacity " + root.scanIndicator.opacity)
       } catch (error) {
         root.fail("lock fingerprint indicator fixture threw: " + error)
