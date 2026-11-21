@@ -8,9 +8,11 @@ BarIndicator {
   readonly property var idleService: bar?.shell?.firstPartyServiceFor("omarchy.idle")
 
   active: idleService ? idleService.stayAwake : false
-  // A mug without a saucer, which drew a line under the cup.
-  activeText: ""
-  inactiveText: ""
+  // An outline mug without a saucer. A saucer drew a line under the cup, and
+  // a solid mug carries three times the ink of its neighbors, so it read
+  // bigger and lower than them.
+  activeText: ""
+  inactiveText: ""
   activeTooltipText: I18n.t("bar.allowIdleLock")
   inactiveTooltipText: I18n.t("bar.stayAwake")
 
