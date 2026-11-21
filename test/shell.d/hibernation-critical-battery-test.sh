@@ -37,7 +37,7 @@ printf '#!/bin/bash\necho "btrfs $*" >> "$CALL_LOG"\nexit 1\n' > "$scratch/bin/b
 chmod +x "$scratch/bin/"*
 
 redirect() {
-  sed -e "s|/etc/|$scratch/etc/|g" -e "s|\"/swap|\"$scratch/swap|g" \
+  sed -e "s|/etc/|$scratch/etc/|g" -e "s|/var/lib/omarchy/|$scratch/var/lib/omarchy/|g" -e "s|\"/swap|\"$scratch/swap|g" \
     -e "s|/sys/power/image_size|$scratch/image_size|g" "$ROOT/bin/$1" > "$scratch/$1"
 }
 redirect omarchy-hibernation-setup
