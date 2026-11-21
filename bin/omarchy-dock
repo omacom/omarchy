@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# omarchy:summary=Configure the dock shown on floating workspaces
+# omarchy:summary=Configure the app dock
 # omarchy:group=dock
-# omarchy:args=position [top|bottom|left|right] | autohide [on|off|toggle] | pinned [<desktop-id>...] | pin <desktop-id> | unpin <desktop-id>
+# omarchy:args=show-on [floating|all] | position [top|bottom|left|right] | autohide [on|off|toggle] | pinned [<desktop-id>...] | pin <desktop-id> | unpin <desktop-id>
 # omarchy:examples=omarchy dock position left | omarchy dock pin folio
 
 set -euo pipefail
@@ -13,6 +13,8 @@ usage() {
   cat <<USAGE
 Usage: omarchy dock <command> [args...]
 
+  show-on [floating|all]              Workspaces where the dock appears;
+                                       prints the current mode when given none
   position [top|bottom|left|right]     Dock position; prints the current one
                                        when given none
   autohide [on|off|toggle]             Hide the dock until the pointer reaches
@@ -28,6 +30,19 @@ USAGE
 # A shell.json without pins of its own uses the default pins, so pinning or
 # unpinning starts from those rather than from an empty dock.
 PINNED='(.dock.pinned // $defaults[0].dock.pinned // [])'
+
+cmd_show_on() {
+  if (( $# == 0 )); then
+    jq -r 'if .dock.showOn == "all" then "all" else "floating" end' "$(source_file)"
+    return
+  fi
+
+  local value="$1"
+  (( $# == 1 )) || fail "show-on takes a single value"
+  [[ $value == "floating" || $value == "all" ]] || fail "show-on must be floating or all"
+  commit "$NORMALIZE | .dock.showOn = \$value" --arg value "$value"
+  echo "Dock shown on $value workspaces"
+}
 
 cmd_position() {
   if (( $# == 0 )); then
@@ -108,6 +123,7 @@ command="${1:-}"
 (( $# > 0 )) && shift
 
 case "$command" in
+  show-on) cmd_show_on "$@" ;;
   position) cmd_position "$@" ;;
   autohide) cmd_autohide "$@" ;;
   pinned) cmd_pinned "$@" ;;
