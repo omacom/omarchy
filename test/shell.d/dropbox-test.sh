@@ -133,3 +133,11 @@ status=$(dropbox_status)
 jq -e '.usedBytes == 5 and ([.files[].name] | sort) == [".notes", "document.txt"]' <<<"$status" >/dev/null ||
   fail "dropbox excludes internal metadata and cache while retaining ordinary hidden files" "$status"
 pass "dropbox excludes internal metadata and cache while retaining ordinary hidden files"
+
+# The plan name does not set the quota: bonus and referral space put Basic accounts well past 2 GB (#12638).
+jq -n --arg path "$test_tmp/home/Dropbox" '{personal: {path: $path, subscription_type: "Basic"}}' >"$test_tmp/home/.dropbox/info.json"
+printf 'hello\n' >"$test_tmp/home/Dropbox/note.txt"
+status=$(dropbox_status)
+[[ $(jq -r .quotaKnown <<<"$status") == "false" && $(jq -r .quotaBytes <<<"$status") == "0" && $(jq -r .usagePercent <<<"$status") == "0" ]] && (( $(jq -r .usedBytes <<<"$status") > 0 )) ||
+  fail "dropbox status does not derive a quota from the plan name" "$status"
+pass "dropbox status does not derive a quota from the plan name"
