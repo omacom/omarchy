@@ -30,6 +30,24 @@ printf '%s\n' $OMARCHY_TEST_LOCKERS
 SH
 chmod +x "$fake_bin"/*
 
+# Each locker's /proc entry, for the lockers that need one.
+fake_proc="$test_tmp/proc"
+
+fake_process() {
+  local pid="$1" comm="$2" threads="$3"
+
+  mkdir -p "$fake_proc/$pid"
+  printf '%s\n' "$comm" >"$fake_proc/$pid/comm"
+  printf 'Name:\t%s\nState:\tS (sleeping)\nThreads:\t%s\n' "$comm" "$threads" >"$fake_proc/$pid/status"
+}
+
+fake_process 300 quickshell 1
+fake_process 301 qs 1
+fake_process 302 quickshell 14
+fake_process 303 hyprlock 1
+mkdir -p "$fake_proc/304"
+printf 'quickshell\n' >"$fake_proc/304/comm"
+
 LOCKED=0
 UNLOCKED=1
 UNDETERMINED=2
@@ -46,6 +64,7 @@ exit_status() {
   OMARCHY_TEST_MONITORS="$monitors" \
   OMARCHY_TEST_HYPRCTL_FAILS="$hyprctl_fails" \
   OMARCHY_TEST_LOCKERS="$lockers" \
+  OMARCHY_PROC_ROOT="$fake_proc" \
     "$ROOT/bin/$command" 100 || actual=$?
 
   printf '%s\n' "$actual"
@@ -117,3 +136,10 @@ assert_stranded 0 "$locked_monitors" "100" "the asking shell does not count as a
 assert_stranded 1 "$unlocked_monitors" "" "an unlocked session is not stranded"
 assert_stranded 2 '[]' "" "a compositor that cannot say leaves it undetermined" 1
 assert_stranded 2 "$locked_monitors" "100 200" "a lock another locker may hold is left undetermined, so it is never taken"
+
+# A crashed shell's PAM child outlives it until the attempt ends, and can hold no lock.
+assert_stranded 0 "$locked_monitors" "100 300" "a single-threaded Quickshell PAM child left by a crashed shell does not count as a locker"
+assert_stranded 0 "$locked_monitors" "100 301" "a PAM child forked from a shell started as qs does not count either"
+assert_stranded 2 "$locked_monitors" "100 300 302" "a multithreaded Quickshell beside the PAM child still leaves it undetermined"
+assert_stranded 2 "$locked_monitors" "100 303" "hyprlock counts as a locker whatever its thread count"
+assert_stranded 2 "$locked_monitors" "100 304" "a Quickshell whose thread count cannot be read still counts"

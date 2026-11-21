@@ -14,6 +14,29 @@
 # as a crash re-execs the shell in place.
 omarchy-hyprland-session-locked || exit
 
-if pgrep -u "$UID" -x 'quickshell|qs|hyprlock' | grep -qvxF "$1"; then
-  exit 2
-fi
+proc_root=${OMARCHY_PROC_ROOT:-/proc}
+
+# Quickshell runs each PAM conversation in a fork() of itself that never execs,
+# so it is named quickshell too. When the shell dies mid-attempt, that child
+# lives on until PAM returns: up to fprintd's 30s verify timeout, longer than
+# the caller asks. fork() copies only the calling thread, so the child is
+# single-threaded, while a Quickshell that can hold a lock runs Qt's threads.
+is_pam_child() {
+  local comm line
+
+  read -r comm 2>/dev/null <"$proc_root/$1/comm" || return 1
+  [[ $comm == "quickshell" || $comm == "qs" ]] || return 1
+
+  while read -r line; do
+    if [[ $line == Threads:* ]]; then
+      (( ${line##*[[:space:]]} == 1 ))
+      return
+    fi
+  done 2>/dev/null <"$proc_root/$1/status"
+
+  return 1
+}
+
+while read -r pid; do
+  [[ $pid == "$1" ]] || is_pam_child "$pid" || exit 2
+done < <(pgrep -u "$UID" -x 'quickshell|qs|hyprlock')
