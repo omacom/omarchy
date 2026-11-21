@@ -365,6 +365,19 @@ const blind = updateProgress({ updating: true, unit: 'active' }, now - 60000, no
 assert(blind > 0 && blind < 0.7, 'an engine that reports no download still moves the bar', blind)
 JS
 
+# The panel is offered only on a machine that can run a model itself, not on
+# one whose tailnet merely shares some.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/local-models/Models.qml', 'utf8')
+const canRunModels = new Function(source.match(/function canRunModels\([^]*?\n  \}/)[0] + '\nreturn canRunModels')()
+assertEqual(canRunModels([{ id: 'big', available: false }], {}, { state: 'none' }), false, 'a machine no recipe fits gets no panel, whatever the tailnet shares')
+assertEqual(canRunModels([], {}, null), false, 'neither does one with no listing yet')
+assertEqual(canRunModels([{ id: 'big', available: false }, { id: 'small', available: true }], {}, null), true, 'a machine one recipe fits gets the panel')
+assertEqual(canRunModels([], { small: { unit: 'inactive' } }, null), true, 'so does one with a model set up')
+assertEqual(canRunModels([], {}, { state: 'available' }), true, 'and a Spark with another cabled to it')
+JS
+
 # Lines keep the order they were dragged into, including places saved for lines hidden now.
 run_node_test <<'JS'
 const fs = require('fs')

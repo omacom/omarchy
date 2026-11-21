@@ -1,7 +1,8 @@
 echo "Put the local models icon beside the agents icon"
 
-# Local models have a bar icon of their own, which only shows where a model runs
-# or fits. It goes right after the agents icon, and only where that one is.
+# Local models have a bar icon of their own, which only shows on a machine that
+# can run a model. It goes right before the agents icon, and only where that
+# one is.
 config_file="$HOME/.config/omarchy/shell.json"
 [[ -s $config_file ]] || exit 0
 
@@ -14,7 +15,7 @@ jq '
   else
     .bar.layout |= with_entries(
       if (.value | type) == "array" then
-        .value |= (map(if entry_id == "omarchy.agents" then [., { id: "omarchy.local-models" }] else [.] end) | add // [])
+        .value |= (map(if entry_id == "omarchy.agents" then [{ id: "omarchy.local-models" }, .] else [.] end) | add // [])
       else
         .
       end

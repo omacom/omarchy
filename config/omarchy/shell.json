@@ -48,10 +48,10 @@
           "id": "omarchy.keyboard-layout"
         },
         {
-          "id": "omarchy.agents"
+          "id": "omarchy.local-models"
         },
         {
-          "id": "omarchy.local-models"
+          "id": "omarchy.agents"
         },
         {
           "id": "omarchy.bluetooth"

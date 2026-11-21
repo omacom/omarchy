@@ -898,6 +898,10 @@ Panel {
     landAfterPair = ""
     hoveredLine = -1
     resetLineDrag()
+  } else if (!engine.relevant) {
+    // The hotkey and IPC reach a machine with no icon too; it can run no
+    // model, so there is no panel to show.
+    Qt.callLater(root.close)
   } else {
     deleteTarget = null
     adding = false

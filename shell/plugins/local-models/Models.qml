@@ -458,12 +458,18 @@ Item {
     return settings.providers[id].enabled !== false
   }
 
-  // Whether the bar shows the icon at all: on a machine where a model runs or
-  // could, or where the tailnet shares one. Where nothing fits and nothing is
-  // set up, there is nothing to show.
-  readonly property bool relevant: lines.length > 0
-    || Object.keys(networkModels || {}).length > 0
-    || localRecipes.some(function(recipe) { return recipe && recipe.available })
+  // Whether the panel is offered at all: only on a machine that can run a
+  // model itself. One that can runs a recipe the catalog fits to it (the
+  // engine's `available`: its runtime works on this GPU and it fits in
+  // memory), has a model set up already, or has another Spark cabled to it.
+  // The tailnet's models show on such a machine, but don't make one of their own.
+  readonly property bool relevant: canRunModels(localRecipes, localModel.models, localModel.link)
+
+  function canRunModels(recipes, models, link) {
+    return (recipes || []).some(function(recipe) { return recipe && recipe.available === true })
+      || Object.keys(models || {}).length > 0
+      || (!!link && link.state === "available")
+  }
 
   // With the icon hidden, nothing else would look, so the shell does once as
   // it starts: the listing, which a fresh account doesn't have yet and an
