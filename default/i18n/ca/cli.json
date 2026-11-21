@@ -148,8 +148,6 @@
   "firstRun.fingerprintTitle": "Configura el lector d'empremtes digitals",
   "firstRun.keybindingsBody": "Super + K per a la guia ràpida.\nSuper + Space per al menú d'Omarchy.",
   "firstRun.keybindingsTitle": "Aprèn les dreceres",
-  "firstRun.updateBody": "Fes clic per actualitzar el sistema.",
-  "firstRun.updateTitle": "Actualitza el sistema",
   "firstRun.wifiBody": "Fes clic per configurar la xarxa sense fil.",
   "firstRun.wifiTitle": "Configura el Wi-Fi",
   "font.cjkChanged": "Han canviat les formes dels glifs del xinès, el japonès i el coreà",

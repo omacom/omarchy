@@ -121,6 +121,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # The dev checkout was fast-forwarded and the full upgrade went through, so
   # there is no Omarchy update left to show. Rechecking would download every
   # sync database again and refetch the checkout only to hear the same.
+  omarchy-done mark first-update
   omarchy-shell -q omarchy.system-update clear
 
   # Service restart helpers can need sudo. The reboot-only phase below

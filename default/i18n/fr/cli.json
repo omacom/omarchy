@@ -148,8 +148,6 @@
   "firstRun.fingerprintTitle": "Configurer le lecteur d'empreintes",
   "firstRun.keybindingsBody": "Super + K pour l’aide-mémoire.\nSuper + Space pour le menu Omarchy.",
   "firstRun.keybindingsTitle": "Apprendre les raccourcis",
-  "firstRun.updateBody": "Cliquez pour mettre à jour le système.",
-  "firstRun.updateTitle": "Mettre à jour le système",
   "firstRun.wifiBody": "Cliquez pour configurer le réseau sans fil.",
   "firstRun.wifiTitle": "Configurer le Wi-Fi",
   "font.cjkChanged": "Formes des glyphes chinois, japonais et coréens modifiées",

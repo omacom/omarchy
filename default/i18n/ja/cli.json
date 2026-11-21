@@ -146,8 +146,6 @@
   "firstRun.fingerprintTitle": "指紋リーダーを設定",
   "firstRun.keybindingsBody": "チートシートは Super + K。\nOmarchy Menu は Super + Space。",
   "firstRun.keybindingsTitle": "キーバインドを学ぶ",
-  "firstRun.updateBody": "クリックしてシステムを更新してください。",
-  "firstRun.updateTitle": "システムを更新",
   "firstRun.wifiBody": "クリックして無線ネットワークを設定してください。",
   "firstRun.wifiTitle": "Wi-Fi の設定",
   "font.cjkChanged": "中国語、日本語、韓国語の字形が変更されました",

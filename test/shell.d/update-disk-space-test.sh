@@ -92,6 +92,7 @@ for command in \
   write_stub "$command" 'exit 0'
 done
 write_stub omarchy-update-available 'exit 1'
+write_stub omarchy-done 'exit 0'
 write_stub pkexec 'exec "$@"'
 
 set +e

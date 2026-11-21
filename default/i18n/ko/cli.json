@@ -146,8 +146,6 @@
   "firstRun.fingerprintTitle": "지문 인식 설정",
   "firstRun.keybindingsBody": "Super + K: 치트 시트.\nSuper + Space: Omarchy 메뉴.",
   "firstRun.keybindingsTitle": "단축키 익히기",
-  "firstRun.updateBody": "클릭하여 시스템을 업데이트하세요.",
-  "firstRun.updateTitle": "시스템 업데이트",
   "firstRun.wifiBody": "클릭하여 무선 네트워크를 설정하세요.",
   "firstRun.wifiTitle": "Wi-Fi 설정",
   "font.cjkChanged": "중국어, 일본어, 한국어 문자 형태가 변경되었습니다",
