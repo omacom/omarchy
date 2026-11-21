@@ -11,6 +11,10 @@ Item {
   // Unversioned images cache by path. A caller whose version changes with every
   // new file, as the lock's does, may cache too: the version is in the URL.
   property bool cached: version === 0
+  // Names the version in the URL. Two callers that version the same file
+  // separately, as the desktop and the lock do, would otherwise reach the
+  // same URL and share each other's cached image.
+  property string versionKey: "v"
   // A caller that knows the size its screen needs, in physical pixels, sets
   // constrainDecode and decodeSize. The image then waits for that size rather
   // than decoding at the file's native size first.
@@ -23,7 +27,7 @@ Item {
   readonly property bool video: Util.isVideoPath(path)
   // Cache-bust images selected in a running lock session, so a theme switch
   // that replaces the file behind an unchanged path shows the new pixels.
-  readonly property url imageUrl: path && !video ? Util.fileUrl(path) + (version ? "?v=" + version : "") : ""
+  readonly property url imageUrl: path && !video ? Util.fileUrl(path) + (version ? "?" + versionKey + "=" + version : "") : ""
 
   Loader {
     id: imageLoader
