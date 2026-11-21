@@ -23,6 +23,7 @@ ShellRoot {
   property BarWidgetRegistry barWidgetRegistry: BarWidgetRegistry { }
   property AppLibrary appLibrary: AppLibrary { shell: shell }
   property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
+  property HyprlandMonitorResync hyprlandMonitorResync: HyprlandMonitorResync { }
   property BackgroundIntro bootIntro: BackgroundIntro { host: shell }
   property BackgroundSwitch backgroundSwitch: BackgroundSwitch { intro: shell.bootIntro }
 
