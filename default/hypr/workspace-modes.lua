@@ -322,8 +322,12 @@ end
 -- own setting.
 local input = {}
 
-local function update_input()
-  local workspace = hl.get_active_workspace()
+local function update_input(workspace)
+  -- A monitor focus event can arrive while Hyprland's focus state still
+  -- reports the workspace the pointer left, so the handler passes the focus
+  -- event's monitor in and reads that monitor's own active workspace, which
+  -- is already the right one. Everything else reads the active workspace.
+  workspace = workspace or hl.get_active_workspace()
   local active = workspace ~= nil and floating_workspace(workspace.id)
 
   if active == input.floating then
@@ -369,8 +373,14 @@ local function watch()
     end, { type = "oneshot", timeout = 1 })
   end)
 
-  hl.on("workspace.active", update_input)
-  hl.on("monitor.focused", update_input)
+  -- A workspace switch can hand focus to a window on another monitor, so the
+  -- event's workspace is not necessarily the focused one.
+  hl.on("workspace.active", function()
+    update_input()
+  end)
+  hl.on("monitor.focused", function(monitor)
+    update_input(monitor and monitor.active_workspace)
+  end)
 end
 
 function o.workspace_mode(spec)
