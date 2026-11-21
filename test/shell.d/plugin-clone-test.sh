@@ -68,6 +68,26 @@ grep -q 'import "Model.js"' "$clock/BarWidget.qml" &&
   fail "clock clone does not preserve local dependencies"
 pass "clone keeps plugin dependencies local"
 
+# A clone copies only its plugin's folder, so a file imported from another
+# plugin's folder is missing from it and the clone fails to load: a cloned
+# battery service would lose low-battery warnings. Listed exceptions predate
+# this check.
+known_outside_imports=("agents/Panel.qml:../panels/elsewhen/Model.js")
+outside_imports=()
+plugins_root=$(realpath "$ROOT/shell/plugins")
+while IFS= read -r manifest; do
+  plugin_dir=$(dirname "$manifest")
+  while IFS=: read -r file _ path; do
+    target=$(realpath -m "$(dirname "$file")/$path")
+    [[ $target == "$plugin_dir"/* ]] && continue
+    entry="${file#"$plugins_root/"}:$path"
+    [[ " ${known_outside_imports[*]} " == *" $entry "* ]] || outside_imports+=("$entry")
+  done < <(rg --no-heading --with-filename --line-number --only-matching --replace '$1' '^\s*import\s+"(\.\./[^"]+)"' "$plugin_dir" --glob '*.qml' --glob '*.js')
+done < <(find "$plugins_root" -name manifest.json)
+(( ${#outside_imports[@]} == 0 )) ||
+  fail "first-party plugins import files only from their own folder" "${outside_imports[*]}"
+pass "first-party plugins import files only from their own folder"
+
 rg -qF "omarchy.clock" "$clock" -g '*.qml' -g '*.js' ||
   fail "clock clone does not preserve the stable runtime id"
 pass "clone preserves the built-in runtime IPC id"
