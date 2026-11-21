@@ -42,8 +42,10 @@ JQ_MONITOR_GEO='
 # monitor's content and has no place of its own in the layout.
 JQ_LAID_OUT='select((.mirrorOf // "none") == "none")'
 
+# A shown special workspace only appears under specialWorkspace, and Hyprland
+# reports its windows as not hidden even while it is closed.
 visible_workspaces() {
-  hyprctl monitors -j | jq -c "[.[] | ${JQ_LAID_OUT} | .activeWorkspace.id]"
+  hyprctl monitors -j | jq -c "[.[] | ${JQ_LAID_OUT} | .activeWorkspace.id, (select((.specialWorkspace.name // \"\") != \"\") | .specialWorkspace.id)]"
 }
 
 # Hidden group members and windows stacked at identical geometry collapse to
