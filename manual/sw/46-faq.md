@@ -18,7 +18,7 @@ Upau utaonyesha kiotomatiki mpangilio wako wa sasa wa kibodi mara tu unapokuwa n
 
 ### Je, ninabadilishaje umbizo la saa kuwa la saa 12?
 
-Bofya kulia saa iliyo kwenye upau ili kuzunguka kati ya umbizo za kawaida, zikiwemo zile za saa 12. Unaweza pia kuweka umbizo moja kwa moja:
+Bofya kulia saa iliyo kwenye upau ili kuzunguka katika umbizo za kawaida, ikiwa ni pamoja na zile za saa 12. Unaweza pia kuweka umbizo moja kwa moja:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
@@ -28,29 +28,29 @@ Hii itaonyesha Jumapili 10:55 AM.
 
 ### Je, ninabadilishaje eneo langu la saa?
 
-Endesha _Setup > Region > Timezone_ kwenye menyu ya Omarchy na uchague kutoka kwenye orodha. Ikiwa eneo la saa ni sahihi lakini saa yenyewe imepotoka, _Update > Time_ huanzisha upya usawazishaji wa saa kwa ajili yako.
+Endesha _Usanidi > Eneo > Eneo la Saa_ katika menyu ya Omarchy na uchague kutoka kwenye orodha. Ikiwa eneo la saa ni sahihi lakini saa yenyewe imepoteza usahihi, _Sasisha > Saa_ huwasha upya ulandanishi wa saa kwa ajili yako.
 
-### Je, ninabadilishaje DNS yangu, kushiriki Wi-Fi yangu, au kukagua kasi ya muunganisho wangu?
+### Je, ninabadilishaje DNS yangu, kushiriki Wi-Fi yangu, au kukagua kasi ya muunganiko wangu?
 
-Hayo yote yako katika [masuala ya mtandao](35-networking.md).
+Yote hayo yako katika [mtandao](35-networking.md).
 
-### Je, ninakaguaje jinsi diski yangu ilivyo na kasi?
+### Je, ninapimaje kasi ya diski yangu?
 
-_Trigger > Speed Test > Disk Speed Test_ hupima kasi ya moja kwa moja ya kusoma na kuandika kwenye diski yako, au `omarchy disk speedtest` kutoka kwenye terminali.
+_Anzisha > Jaribio la Kasi > Jaribio la Kasi ya Diski_ hupima kasi ya moja kwa moja ya kusoma na kuandika kwenye diski yako, au `omarchy disk speedtest` kutoka kwenye terminali.
 
-### Je, ninaongezaje kichapishi?
+### Je, ninaongezaje printa?
 
-Uchapishaji umesanidiwa na unafanya kazi kuanzia mwanzo, na unaongeza kila kichapishi mwenyewe kutoka _Print Settings_ katika kizindua programu (`Super + Space`).
+Uchapishaji umewekwa na unafanya kazi mara moja bila usanidi wa ziada, na unaongeza kila printa mwenyewe kutoka _Mipangilio ya Uchapishaji_ katika kizindua programu (`Super + Alt + Space`).
 
-Chagua _Add_, na uipe muda wa kutafuta: kichapishi kilichounganishwa kwa USB, na vichapishi vingi vya mtandao, hupatikana kwa ajili yako. Ikiwa chako hakipo kwenye orodha, chagua _Network Printer > Internet Printing Protocol (ipp)_ na uingize anwani yake — onyesho la kichapishi chenyewe au ukurasa wake wa wavuti utakuambia hiyo ni nini, kwa kawaida kitu kama `192.168.1.50` chenye foleni ya `ipp/print`. _Forward_ kisha hutoa kiendeshi, ambapo kichapishi cha kisasa hufanya kazi vizuri zaidi kwenye wasifu usiohitaji kiendeshi wa _IPP Everywhere_ na cha zamani hutaka kiendeshi chenyewe cha modeli hiyo.
+Chagua _Ongeza_, na uipe muda wa kutafuta: printa iliyochomekwa kupitia USB, na printa nyingi za mtandao, hutafutwa na kupatikana kwa ajili yako. Ikiwa yako haiko kwenye orodha, chagua _Printa ya Mtandao > Internet Printing Protocol (ipp)_ na uweke anwani yake — skrini ya printa yenyewe au ukurasa wake wa wavuti utakuambia anwani hiyo ni ipi, kwa kawaida ni kitu kama `192.168.1.50` yenye foleni ya `ipp/print`. Kisha _Endelea_ hutoa kiendeshi, ambapo printa ya kisasa hufanya kazi vizuri zaidi kwenye wasifu wa _IPP Everywhere_ usiohitaji kiendeshi na printa ya zamani huhitaji kiendeshi cha modeli yake yenyewe.
 
-Bofya kulia kichapishi na uchague _Set as Default_ ili kuchagua kile ambacho programu zako hukifikia kwanza, na _Properties_ ili kuweka ukubwa wa karatasi, duplex na ubora.
+Bofya kulia printa na uchague _Weka kama Chaguo-msingi_ ili kuchagua ipi programu zako zitatumia kwanza, na _Sifa_ ili kuweka ukubwa wa karatasi, uchapishaji wa pande mbili na ubora.
 
-Ugunduzi wa kiotomatiki, ambapo vichapishi vilivyo kwenye mtandao huonekana bila kuongezwa, umezimwa kwa muda huku ukifanyiwa kazi upya, ndiyo sababu hatua ya kwanza hapo juu ni yako badala ya kuwa ya kiotomatiki. Kuchapisha kwenye faili ya PDF hufanya kazi bila kichapishi chochote kabisa.
+Ugunduzi wa kiotomatiki, ambapo printa zilizo kwenye mtandao huonekana bila kuongezwa, umezimwa kwa muda wakati unafanyiwa marekebisho, ndiyo maana hatua ya kwanza hapo juu ni yako badala ya kuwa ya kiotomatiki. Kuchapisha hadi faili ya PDF hufanya kazi bila printa yoyote kabisa.
 
 ### Je, ninabadilishaje mahali ambapo picha za skrini au rekodi za skrini huhifadhiwa?
 
-Picha za skrini zilizohifadhiwa huenda kwenye `~/Pictures/Screenshots` kwa chaguo-msingi. Ili kutumia saraka nyingine, ongeza hii kwenye faili iliyo chini ya `~/.config/uwsm/env.d/` (kama `~/.config/uwsm/env.d/capture`):
+Picha za skrini zilizohifadhiwa huenda kwenye `~/Pictures/Screenshots` kama chaguo-msingi. Ili kutumia saraka nyingine, ongeza hii kwenye faili iliyo chini ya `~/.config/uwsm/env.d/` (kama `~/.config/uwsm/env.d/capture`):
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
@@ -58,23 +58,23 @@ export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 
 Unaweza kufanya vivyo hivyo kwa rekodi za skrini kwa kutumia `OMARCHY_SCREENRECORD_DIR`.
 
-Omasnap huunda saraka yake ya picha za skrini kiotomatiki. Unda saraka ya rekodi za skrini mwenyewe, kisha uanzishe upya Omarchy ili mabadiliko yoyote kati ya hayo ya mazingira yaanze kutumika.
+Omasnap huunda saraka yake ya picha za skrini kiotomatiki. Unda saraka ya rekodi za skrini mwenyewe, kisha uwashe upya Omarchy ili mabadiliko yoyote ya mazingira yaanze kutumika.
 
-### Je, ninapataje spika + kamera ya wavuti zifanye kazi kwenye Apple Studio Display yangu?
+### Je, ninawashaje spika + kamera ya wavuti kwenye Apple Studio Display yangu?
 
-Ungedhani kwamba yote yanapaswa kufanya kazi kwa kuunganisha tu USB C, lakini kwa bahati mbaya sivyo ilivyo. Suluhisho nililolipata ili kuifanya ifanye kazi kwa uhakika ni kutumia [kebo ya WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Kisha spika na kamera ya wavuti hufanya kazi bila shida yoyote.
+Ungedhani kuwa kila kitu kinapaswa kufanya kazi kwa kuchomeka tu USB C, lakini kwa bahati mbaya sivyo ilivyo. Suluhisho nililopata ili lifanye kazi kwa uhakika ni kutumia [kebo ya WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Kisha spika na kamera ya wavuti hufanya kazi vizuri sana bila matatizo.
 
-Kumbuka kwamba una udhibiti wa mwangaza uliojengewa ndani katika Omarchy kwa ajili ya Apple Displays (Studio na XDR zote mbili) kwa kutumia vitufe vya kawaida vya mwangaza vya kibodi.
+Kumbuka kuwa una udhibiti wa mwangaza uliojengwa ndani katika Omarchy kwa Apple Displays (Studio na XDR zote mbili) kwa kutumia vitufe vya kawaida vya mwangaza vya kibodi.
 
-### Je, ninaondoaje programu zote za ziada?
+### Je, ninaondokana vipi na programu zote za ziada?
 
-Ikiwa hutaki programu kama Obsidian au LibreOffice au vitu vingine vyovyote vilivyosakinishwa awali, unaweza kuviondoa kwa urahisi sana.
+Ikiwa hutaki programu kama Obsidian au LibreOffice au kitu chochote kingine kilichosakinishwa awali, unaweza kukiondoa kwa urahisi sana.
 
-Endesha _Remove > Package_ ili kuona kila kifurushi kilichosakinishwa. Kisha unaweza kuchagua kifurushi chochote ambacho ungependa kukiondoa kwa tab, na kuanza kuondoa kila kitu ulichochagua kwa return.
+Endesha _Ondoa > Kifurushi_ ili kuona kila kifurushi kilichosakinishwa. Kisha unaweza kuchagua kifurushi chochote unachotaka kuondoa kwa tab, na kuanza kuondoa kila ulichochagua kwa return.
 
-Na unaweza kutumia _Remove > Web App_ kutoka kwenye menyu ya Omarchy ili kuondoa programu zozote za wavuti zilizosakinishwa awali ambazo huzitaki.
+Na unaweza kutumia _Ondoa > Programu ya Wavuti_ kutoka kwenye menyu ya Omarchy ili kuondoa programu zozote za wavuti zilizosakinishwa awali ambazo huzitaki.
 
-Au endesha _Remove > Preinstalls_ ili kufagia programu zote za ziada zilizosakinishwa awali — programu za wavuti, TUI, na programu za hiari — kwa wakati mmoja. Vitufe vya mkato vilivyozizindua huondoka pamoja nazo, hivyo unabaki na ukurasa safi wa miunganisho ya kujaza kwa yako mwenyewe katika `~/.config/hypr/bindings.lua`.
+Au endesha _Ondoa > Vilivyosakinishwa Awali_ ili kufagia programu zote za ziada zilizosakinishwa awali — programu za wavuti, TUI, na programu za hiari — kwa mara moja. Vitufe vya mkato vilivyozizindua huondoka nazo, hivyo unabaki na orodha safi ya vifungo vya kujaza na vyako mwenyewe katika `~/.config/hypr/bindings.lua`.
 
 ---
 

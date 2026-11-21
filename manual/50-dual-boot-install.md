@@ -42,3 +42,7 @@ To add other operating systems, run `limine-scan` and follow the prompts to add 
 It's important to note that this install method is not compatible with Bitlocker as it encrypts the entire drive, not just the partition. If you encounter an error stating that Bitlocker is enabled, boot to Windows, go to **Settings -> Privacy & Security -> Device encryption** and toggle Bitlocker off. It may take some time to decrypt the drive.
 
  ![dual-boot-7](images/dual-boot-7.webp)
+
+## Reinstalling Windows
+
+If this computer shipped with Windows, its product key is stored in the firmware. Run `omarchy windows key` to print it, so you can activate Windows again if you ever reinstall it on this machine.

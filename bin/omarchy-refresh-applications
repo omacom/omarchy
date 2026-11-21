@@ -2,9 +2,11 @@
 
 # omarchy:summary=Ensure default application launchers are installed.
 
-# Copy .desktop declarations
+# The region's list names the launchers it installs (docs/regions.md).
 mkdir -p ~/.local/share/applications
-cp "$OMARCHY_PATH"/applications/*.desktop ~/.local/share/applications/
+while read -r name; do
+  cp "$OMARCHY_PATH/applications/$name.desktop" ~/.local/share/applications/
+done < <(sed -e 's/[[:space:]]*#.*//' -e '/^[[:space:]]*$/d' "$OMARCHY_PATH/default/regions/$(omarchy-region)/applications")
 
 if omarchy-cmd-present alacritty; then
   cp "$OMARCHY_PATH/default/alacritty/Alacritty.desktop" ~/.local/share/applications/

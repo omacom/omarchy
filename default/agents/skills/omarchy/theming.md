@@ -1,6 +1,6 @@
 # Themes, Backgrounds, and Fonts
 
-Read this before changing themes, backgrounds, fonts, or theme colors.
+Read this before changing themes, backgrounds, fonts, theme colors, app icons, or the boot screen.
 Making a new theme follows the omarchy-make-theme skill.
 
 ## Theme Commands
@@ -10,6 +10,8 @@ omarchy theme list              # Show available themes
 omarchy theme current           # Show current theme
 omarchy theme set <name>        # Apply theme ("Tokyo Night" and "tokyo-night" both work)
 omarchy theme bg next           # Cycle background
+omarchy theme bg set <path>     # Use any image or video as the background
+omarchy theme bg intro <enable|disable>  # Background intros
 omarchy theme install <url>     # Install from git repo
 ```
 
@@ -54,5 +56,27 @@ omarchy theme set catppuccin-custom
 ```bash
 omarchy font list               # Available fonts
 omarchy font current            # Current font
-omarchy font set <name>         # Change font
+omarchy font set <name>         # Change the monospace font used everywhere
+omarchy font cjk [jp|kr|sc|tc|hk|default]  # Glyph forms for Chinese, Japanese, and Korean text
+```
+
+`omarchy font list` shows installed Nerd Fonts; a new one comes from the menu's Install > Style > Font, or `omarchy install font <display-name> <package> <family>`.
+
+## App Icons
+
+Icon sets are chosen apart from themes:
+
+```bash
+omarchy icons list
+omarchy icons set <name>
+omarchy icons install <git-repo-url>
+```
+
+## Boot Screen and Branding
+
+```bash
+omarchy plymouth set by theme <theme>     # Style the boot and disk-unlock screen from a theme
+omarchy plymouth reset                    # Back to Omarchy's own
+omarchy branding about <image|text|reset> # The logo shown by About (omarchy launch about)
+omarchy branding screensaver <image|text|reset>
 ```

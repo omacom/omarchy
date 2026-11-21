@@ -62,6 +62,8 @@ mkdir -p "$region_root/omarchy/default/regions/cn" "$region_root/omarchy/bin" "$
 printf 'Asia/Shanghai\nAsia/Urumqi\n' >"$region_root/omarchy/default/regions/cn/timezones"
 printf '#!/bin/bash\necho "apply $*" >>"$REGION_LOG"\n' >"$region_root/omarchy/bin/omarchy-apply-pacman"
 chmod +x "$region_root/omarchy/bin/omarchy-apply-pacman"
+mkdir -p "$region_root/omarchy/install/config"
+printf 'echo region >>"$REGION_LOG"\n' >"$region_root/omarchy/install/config/region.sh"
 export OMARCHY_FORM_DEFAULTS=$region_root/etc/omarchy/form-defaults OMARCHY_REGION_FILE=$region_root/etc/omarchy/region \
   OMARCHY_PACMAN_CONF=$region_root/etc/pacman.conf OMARCHY_REGION_TARGET=$region_root REGION_LOG=$region_root/log
 printf '[omarchy]\nServer = https://pkgs.omarchy.cn/stable/$arch\nServer = https://pkgs.omarchy.org/stable/$arch\n' >"$OMARCHY_PACMAN_CONF"
@@ -77,6 +79,7 @@ for case in Asia/Shanghai:cn UTC:cn Europe/Copenhagen:cn Asia/Hong_Kong:global H
   [[ $(settle "${case%%:*}") == "${case#*:}" ]] || fail "an owner in ${case%%:*} gets the ${case#*:} region"
   if [[ ${case#*:} == global ]]; then
     grep -qx "apply stable $region_root" "$REGION_LOG" || fail "leaving China re-renders pacman for the installed channel" "$(cat "$REGION_LOG")"
+    grep -qx "region" "$REGION_LOG" || fail "leaving China re-applies the region's mirrors" "$(cat "$REGION_LOG")"
   else
     [[ ! -s $REGION_LOG ]] || fail "keeping the region leaves pacman alone"
   fi

@@ -38,7 +38,7 @@ But in special circumstances, like remote Omarchy installs on protected computer
 
 Omarchy speaks 50 languages — the same set as omarchy.org — and English is the default. To switch, open the Omarchy menu and go to _Setup > Region > Language_, or run `omarchy language <code>` in a terminal (`omarchy language list` shows the codes). The menu, desktop, and Omarchy's own notifications change language immediately, and every application you open afterwards follows too. Apps that were already open switch once you restart them.
 
-To keep the language but write dates, times, numbers, money, units and paper sizes the way another region does (English with European dates and a 24-hour clock, say), pick a region under _Setup > Region > Formats_, where each choice shows a sample, or run `omarchy region <code>` (`omarchy region list` shows the codes). _Same as language_ goes back to the language's own formats. Like a language switch, it reaches the apps you open afterwards.
+To keep the language but write dates, times, numbers, money, units and paper sizes the way another region does (English with European dates and a 24-hour clock, say), pick a region under _Setup > Region > Formats_, where each choice shows a sample, or run `omarchy region formats <code>` (`omarchy region formats list` shows the codes). _Same as language_ goes back to the language's own formats. Like a language switch, it reaches the apps you open afterwards.
 
 ### Help if you're stuck
 

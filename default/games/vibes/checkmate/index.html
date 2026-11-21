@@ -71,13 +71,10 @@
   .screen table { margin: 12px auto; border-spacing: 20px 4px; font-size: 15px; text-align: left; }
   .screen td.key { font-family: ui-monospace, monospace; }
 </style>
-<!-- One pinned three.js version. Addons, if any, come from the same version. -->
-<script type="importmap">
-{ "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.min.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
-} }
-</script>
+<!-- three.js 0.180 and its bloom passes, as one global THREE. Game Vibes keeps
+     three.min.js beside the games, since a page opened from a file can load a
+     script next to it but not a module. -->
+<script src="../three.min.js"></script>
 </head>
 <body>
 <div id="backdrop"><div id="scenery"></div></div>
@@ -152,7 +149,6 @@
 </div></div>
 
 <script type="module">
-import * as THREE from 'three';
 
 // =============================================================================
 // SETTINGS — change these.
