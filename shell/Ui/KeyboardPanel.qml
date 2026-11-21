@@ -276,8 +276,11 @@ PanelWindow {
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
       y = barThickness + gap
     }
-    x = Math.max(margin, Math.min(x, screenW - contentWidth - margin))
-    y = Math.max(margin, Math.min(y, screenH - drawnHeight - margin))
+    // Keep the card on screen by `margin`, except on the bar's own edge: that
+    // side already sits barThickness + gap from it, and gap follows gaps_out
+    // there, which margin need not match.
+    x = Math.max(barPos === "left" ? 0 : margin, Math.min(x, screenW - contentWidth - (barPos === "right" ? 0 : margin)))
+    y = Math.max(barPos === "top" ? 0 : margin, Math.min(y, screenH - drawnHeight - (barPos === "bottom" ? 0 : margin)))
     return Qt.point(Math.round(x), Math.round(y))
   }
 
