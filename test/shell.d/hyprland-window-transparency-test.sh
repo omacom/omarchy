@@ -25,6 +25,57 @@ run() {
   HOME="$home_dir" XDG_RUNTIME_DIR="$tmpdir" XDG_STATE_HOME="$state_home" XDG_CONFIG_HOME="$home_dir/.config" OMARCHY_PATH="$ROOT" PATH="$stub_dir:$ROOT/bin:$PATH" "$@"
 }
 
+require_command lua
+
+# A later tag override can be skipped when Hyprland rechecks a class rule on a
+# title change. The helper's own rule must already honor the opaque choice.
+for state_setting in default empty custom; do
+  helper_home="$tmpdir/helper-$state_setting"
+  mkdir -p "$helper_home/.local/state/omarchy/toggles/hypr" "$helper_home/state/omarchy/toggles/hypr"
+  (
+    export HOME="$helper_home" OMARCHY_PATH="$ROOT"
+    if [[ $state_setting == "default" ]]; then
+      unset XDG_STATE_HOME
+    elif [[ $state_setting == "empty" ]]; then
+      export XDG_STATE_HOME=""
+    else
+      export XDG_STATE_HOME="$helper_home/state"
+    fi
+    lua - <<'LUA'
+local root = os.getenv("OMARCHY_PATH")
+local registered
+hl = { window_rule = function(rule) registered = rule end }
+local function reload()
+  dofile(root .. "/default/hypr/bootstrap.lua")
+  require("default.hypr.helpers")
+end
+reload()
+local state = require("default.hypr.paths").state_home .. "/omarchy/toggles/hypr/"
+local function check(expected, opacity)
+  for _, match in ipairs({ "test-app", { tag = "terminal" }, { class = "test-app", title = "test-title" } }) do
+    o.transparent_window(match, opacity)
+    assert(registered.opacity == expected, "expected " .. expected .. ", got " .. registered.opacity)
+  end
+end
+check("0.985 0.96")
+check("0.7 0.6", "0.7 0.6")
+assert(io.open(state .. "window-opaque.lua", "w")):close()
+reload()
+check("1 1")
+check("1 1", "0.7 0.6")
+assert(os.remove(state .. "window-opaque.lua"))
+assert(io.open(state .. "window-glassy.lua", "w")):close()
+reload()
+check("0.985 0.96")
+check("0.7 0.6", "0.7 0.6")
+assert(os.remove(state .. "window-glassy.lua"))
+reload()
+check("0.985 0.96")
+LUA
+  ) || fail "window rules follow the mode across reloads ($state_setting state home)"
+done
+pass "window rules follow the mode across reloads and state homes"
+
 [[ $(run omarchy-hyprland-window-transparency) == "transparent" ]] || fail "windows start out transparent"
 pass "windows start out transparent"
 
