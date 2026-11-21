@@ -238,6 +238,22 @@ assertDeepEqual(
   'elsewhen follows the system unit otherwise'
 )
 assertDeepEqual(
+  [M.autoUnits('PT', true), M.autoUnits('US', false), M.autoUnits('us', false), M.autoUnits('LR', false), M.autoUnits('MM', false), M.autoUnits(' gb ', true)],
+  ['C', 'F', 'F', 'F', 'F', 'C'],
+  'elsewhen picks units from the timezone country before the locale'
+)
+assertDeepEqual(
+  [M.autoUnits('', true), M.autoUnits('', false), M.autoUnits(undefined, true), M.autoUnits(null, false)],
+  ['F', 'C', 'F', 'C'],
+  'elsewhen falls back to the locale when the timezone has no country'
+)
+const G = requireFromRoot('shell/plugins/panels/elsewhen/Greetings.js')
+assertDeepEqual(
+  ['Europe/Lisbon', 'America/New_York', 'Asia/Rangoon', 'Etc/GMT+5'].map(z => M.autoUnits(G.countryFor(z), true)),
+  ['C', 'F', 'F', 'F'],
+  'elsewhen reads an English (US) desktop in Lisbon as Celsius'
+)
+assertDeepEqual(
   [M.formatTemp(0, 'C'), M.formatTemp(0, 'F'), M.formatTemp(100, 'F'), M.formatTemp(37, 'F'), M.formatTemp(-17.8, 'F'), M.formatTemp(21.5, 'C'), M.formatTemp(null, 'C')],
   ['0°C', '32°F', '212°F', '99°F', '0°F', '22°C', ''],
   'elsewhen formats temperatures'

@@ -390,9 +390,11 @@ The starting notation follows the machine. With `hour24` unset, the locale's own
 
 Those patterns were read off the running shell, and the ones that matter are in `test/shell.d/elsewhen-model-test.sh` verbatim - including the detail that Qt spells the designator `Ap` and puts U+202F in front of it, not a space.
 
-The starting unit follows the machine too. With `units` unset, `Qt.locale().measurementSystem` decides: the US system means Fahrenheit and everything else means Celsius. `en_US` reports `ImperialUSSystem`, `en_GB` reports `ImperialUKSystem` and `de_DE` and `ja_JP` report `MetricSystem`, so the rule gives Britain Celsius, which is what Britain uses for weather whatever else it measures in miles.
+The starting unit follows the machine too, and it is decided the way the weather panel decides it: by place first, then by locale. With `units` unset, the country of the machine's timezone answers when there is one (`Greetings.countryFor(localZone)`): the United States, Liberia and Myanmar mean Fahrenheit and every other country means Celsius. The language is not a place, so an English (US) desktop in Lisbon reads Celsius, the same as the weather panel next to it.
 
-The rule is Qt's CLDR data and it is not a survey of thermometers: Liberia, which does use Fahrenheit day to day, reports as metric. That is what the click is for. An explicit `C` or `F` always wins over the automatic answer, so one click is the whole escape hatch, and `""` puts it back on the system's units. `Model.resolveUnits` holds those rules and `test/shell.d/elsewhen-model-test.sh` covers them, including the junk values a hand-edited `shell.json` can produce.
+Only a zone with no country - `UTC` or `Etc/GMT+5`, say - falls back to the locale: `Qt.locale(I18n.formatLocale).measurementSystem` reporting the US system means Fahrenheit and everything else means Celsius. `en_US` reports `ImperialUSSystem`, `en_GB` reports `ImperialUKSystem` and `de_DE` and `ja_JP` report `MetricSystem`, so the fallback gives Britain Celsius, which is what Britain uses for weather whatever else it measures in miles.
+
+An explicit `C` or `F` always wins over the automatic answer, so one click is the whole escape hatch, and `""` puts it back on the automatic units. `Model.autoUnits` and `Model.resolveUnits` hold those rules and `test/shell.d/elsewhen-model-test.sh` covers them, including the junk values a hand-edited `shell.json` can produce.
 
 ## Testing what the pointer does
 
@@ -434,7 +436,7 @@ Inline on the widget's `shell.json` entry:
 | `zones`  | the older `Label\|IANA name` string, read only while `cities` is unset |
 | `hour24` | `true` or `false`; unset (the default) follows the system's time format. Click any row's time to flip it |
 | `offsetMode` | `home` for the offset from you (default), `utc` for the absolute one |
-| `units`  | `F` or `C`; blank (the default) follows the system's measurement units. Click any temperature to flip it |
+| `units`  | `F` or `C`; blank (the default) follows the timezone's country, then the locale. Click any temperature to flip it |
 | `globeEnabled` | `false` to remove the globe entry point (default on) |
 | `here` | where you are, `{ name, zone, lat, lon, region }`; counts only while the machine is on `zone`. Set from the header |
 | `homeCity` | the older name for here, read only while `here` is unset |
