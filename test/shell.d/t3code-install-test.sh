@@ -13,6 +13,26 @@ mount_dir="$test_tmp/mount"
 export TEST_TMP="$test_tmp"
 mkdir -p "$mock_bin" "$mount_dir"
 
+# Test exact-path publication before starting any mocked installer or AppImage.
+dir_home="$test_tmp/directory-home"
+dir_t3="$test_tmp/directory-t3"
+dir_source="$dir_home/.local/state/omarchy/current/theme"
+dir_palette="$dir_t3/userdata/themes/omarchy.json"
+mkdir -p "$dir_source" "$dir_palette"
+printf '{"name":"Omarchy"}\n' >"$dir_source/t3code.json"
+printf 'keep\n' >"$dir_palette/sentinel"
+if HOME="$dir_home" T3CODE_HOME="$dir_t3" XDG_RUNTIME_DIR="$test_tmp" \
+  "$ROOT/bin/omarchy-theme-set-t3code" >"$test_tmp/directory-output" 2>&1; then
+  fail "theme publication refuses a directory at the exact destination"
+fi
+[[ -d $dir_palette && $(cat "$dir_palette/sentinel") == keep ]] ||
+  fail "failed publication leaves the existing directory intact"
+[[ $(find "$dir_palette" -mindepth 1 -maxdepth 1 -printf .) == . ]] ||
+  fail "failed publication leaves no file inside the directory"
+[[ -z $(find "$(dirname "$dir_palette")" -maxdepth 1 -name 'omarchy.json.*') ]] ||
+  fail "failed publication removes the temporary file"
+pass "theme publication refuses a directory and cleans up its temporary file"
+
 # Run the real theme refresh, renderer and publisher in a throwaway home.
 # Only the app install, the AppImage mount, the channel prompt and the desktop
 # launch are stubbed.

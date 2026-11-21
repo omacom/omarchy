@@ -74,4 +74,4 @@ jq --arg css "$css" '
   else .css = $css + "\n" + .css
   end
 ' <<<"$palette" >"$tmp"
-mv "$tmp" "$T3CODE_THEME_PATH"
+mv -T -- "$tmp" "$T3CODE_THEME_PATH"
