@@ -487,3 +487,50 @@ assertEqual(progress(10, 10), 0.9, 'a start reaches 90% at the time the last one
 assert(progress(20, 10) > progress(15, 10) && progress(15, 10) > 0.9, 'a start that runs long keeps creeping')
 assert(progress(1000, 10) < 0.99, 'the bar never fills before the model is ready')
 JS
+
+# The time left is wider in most languages than English's "19h 40m". A column
+# measured from the English sample let the German one run over the meter. Run
+# the panel's own duration functions for every shipped language and require
+# each reading, whatever it says, to fit the shared value column.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const fn = name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]
+const hole = text => ({ arg: value => hole(text.replace(/%\d/, value)), text })
+const loadCatalog = lang => {
+  const english = JSON.parse(fs.readFileSync(root + '/default/i18n/en/shell.json', 'utf8'))
+  const file = root + '/default/i18n/' + lang + '/shell.json'
+  return Object.assign({}, english, fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {})
+}
+// Digits are as wide as each other in the panel's font, so a reading is its
+// digits at one width plus every other glyph at another.
+const width = shown => Array.from(shown.text).reduce((sum, ch) => sum + (/\p{Nd}/u.test(ch) ? 0.6 : 0.5), 0)
+const panelFor = catalog => {
+  const Commons = { I18n: { t: key => hole(catalog[key]), formatNumber: String } }
+  return new Function('Commons', fn('durationSample') + '\n' + fn('formatDuration') + '\nreturn { durationSample, formatDuration }')(Commons)
+}
+const columnOf = panel => Math.max(width(panel.durationSample('agents.durationHoursMinutes')), width(panel.durationSample('agents.durationDaysHours')))
+const minute = 60 * 1000, hour = 60 * minute, day = 24 * hour
+
+// Every counted reading the panel can show: 1-59 minutes, hours with a spread
+// of minute counts, days with every hour count. The word for "now" is not a
+// count and is left out.
+const readings = []
+for (let m = 1; m < 60; m++) readings.push(m * minute)
+for (let h = 1; h < 24; h++) for (const m of [0, 9, 10, 59]) readings.push(h * hour + m * minute)
+for (const d of [1, 9, 10, 30]) for (let h = 0; h < 24; h++) readings.push(d * day + h * hour)
+
+const languages = fs.readdirSync(root + '/default/i18n').filter(lang => fs.existsSync(root + '/default/i18n/' + lang + '/shell.json'))
+assert(languages.includes('de') && languages.includes('en'), 'the language sweep includes German and English')
+for (const lang of languages) {
+  const panel = panelFor(loadCatalog(lang))
+  const column = columnOf(panel)
+  const widest = Math.max(...readings.map(ms => width(panel.formatDuration(ms))))
+  assert(widest <= column, lang + ' time left fits the shared value column', 'widest reading ' + widest + ' exceeds column ' + column)
+}
+
+// The column follows the language rather than the English sample.
+const english = panelFor(loadCatalog('en')), german = panelFor(loadCatalog('de'))
+assert(columnOf(german) > columnOf(english), 'the German column is wider than the English one')
+assert(width(german.formatDuration(19 * hour + 40 * minute)) > columnOf(english), 'a German reading would overrun a column sized from the English sample')
+JS
