@@ -29,7 +29,8 @@ grep -q '14e4:1570' "$hw" ||
 grep -q 'FaceTime HD' "$manual" ||
   fail "Mac support documents the FaceTime HD camera"
 { grep -Fxq 'ExecStartPre=/usr/bin/omarchy-system-sleep-facetimehd pre' "$dropin" &&
-  grep -Fxq 'ExecStopPost=/usr/bin/omarchy-system-sleep-facetimehd post' "$dropin"; } ||
+  grep -Fxq 'ExecStopPost=/usr/bin/omarchy-system-sleep-facetimehd post' "$dropin" &&
+  grep -Fxq 'TimeoutStopSec=30s' "$dropin"; } ||
   fail "the hibernation drop-in runs the guard before the sleep and after it"
 pass "the FaceTime HD fix is wired into hardware setup"
 
@@ -267,6 +268,18 @@ run_guard module post
 rm -f "$activate"
 mkdir "$camera/video4linux/video0"
 pass "a camera that does not come back after the sleep is handed to the fetcher"
+
+# A post that cannot get the lock in time touches no shared state and hands the restore to the fetcher.
+run_guard module pre
+flock "$guard_root/run/facetimehd.lock" sleep 2 &
+holder=$!
+sleep 0.5
+OMARCHY_FACETIMEHD_LOCK_WAIT=0 run_guard module post
+wait "$holder"
+{ ! grep -q modprobe "$calls" && [[ -e $activate && -e $unloaded && -e $sleeping ]] && grep -Fxq "$fetch_started" "$calls"; } ||
+  fail "a post that cannot get the lock leaves the markers and hands the restore to the fetcher" "$(cat "$calls")"
+rm -f "$activate" "$unloaded" "$sleeping"
+pass "a post that cannot get the lock leaves the markers and hands the restore to the fetcher"
 
 if run_guard module pre busy; then
   fail "the guard cancels hibernation while the camera is in use"
