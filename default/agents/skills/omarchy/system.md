@@ -86,5 +86,5 @@ omarchy setup factory reset           # Back to a fresh install (destructive; co
 ## AI Agents and Dictation
 
 - `omarchy default agent <name>` picks the coding agent that `omarchy agent` and the bar's agents panel use. Personal rules for every agent go in `~/.agents/AGENTS.md` (`omarchy agent instructions --edit`).
-- `omarchy agent account list|add|use` manages Claude, Codex and Grok subscription accounts; `omarchy agent local use best` runs an open model on this machine.
+- `omarchy agent account list|add|use` manages Claude, Codex and Grok subscription accounts; `omarchy models use best <text|image|video|music>` runs the recommended open model of that kind on this machine.
 - Dictation is Alt+Space, or hold Right Alt to talk; `omarchy default dictation <superwhisper|voxtype|hex>` picks the backend. Superwhisper installs a `superwhisper` skill of its own for its settings.

@@ -10,13 +10,13 @@
 # since no agent runs on one. Removing the model takes the launcher away.
 #
 # This makes the launchers match the models set up right now, so it is safe to
-# run at any time: omarchy-agent-local runs it after a setup or a removal, and
-# the agents panel when a setup it started in the background has finished.
+# run at any time: omarchy-models runs it after a setup or a removal, and
+# the local models panel when a setup it started in the background has finished.
 
 APPLICATIONS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 ICONS="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
 LOGOS="$OMARCHY_PATH/shell/plugins/agents/assets"
-PREFIX="omarchy-agent-local-"
+PREFIX="omarchy-models-"
 STATE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agent-local"
 
 shopt -s nullglob
@@ -52,7 +52,7 @@ SVG
 
 mkdir -p "$APPLICATIONS" "$ICONS" "$STATE"
 
-# omarchy-agent-local and the agents panel can both run this after the same
+# omarchy-models and the local models panel can both run this after the same
 # setup or removal. Each removes what isn't in its own reading of the models,
 # so one at a time, from that reading to the last file removed.
 exec 9>"$STATE/launchers.lock"
@@ -61,7 +61,7 @@ flock 9
 # A reading that fails says nothing about which models are gone, so the
 # launchers stay as they are rather than all being taken away. Models still
 # downloading, or on their way out, have nothing to open yet.
-if ! status=$(omarchy-agent-local status --json 2>/dev/null) ||
+if ! status=$(omarchy-models status --json 2>/dev/null) ||
   ! jq -e '.models | type == "object"' <<<"$status" >/dev/null 2>&1; then
   echo "Couldn't read which local models are set up" >&2
   exit 1

@@ -16,10 +16,10 @@
 
 STATUS_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agent-local/status.json"
 
-status=$(omarchy-agent-local status --json 2>/dev/null)
+status=$(omarchy-models status --json 2>/dev/null)
 recipe=${1:-$(jq -r '.last // empty' <<<"$status" 2>/dev/null)}
 if [[ -z $recipe ]]; then
-  echo "No local model is set up. Set one up with: omarchy agent local use best" >&2
+  echo "No local model is set up. Set one up with: omarchy models use best text" >&2
   exit 1
 fi
 
@@ -28,7 +28,7 @@ model_field() {
 }
 
 if [[ -z $(model_field '.recipe' <<<"$status") ]]; then
-  echo "$recipe is not set up. Set it up with: omarchy agent local use $recipe" >&2
+  echo "$recipe is not set up. Set it up with: omarchy models use $recipe" >&2
   exit 1
 fi
 
@@ -60,7 +60,7 @@ activating/* | installing/*)
 *)
   since_ms=""
   # A session of its own, so Ctrl+C in the terminal doesn't reach the load.
-  setsid omarchy-agent-local start "$recipe" >"$log" 2>&1 </dev/null &
+  setsid omarchy-models start "$recipe" >"$log" 2>&1 </dev/null &
   starter=$!
   ;;
 esac
@@ -96,7 +96,7 @@ failed() {
   if [[ -s $log ]]; then
     cat "$log" >&2
   else
-    echo "See why with: omarchy agent local logs $recipe" >&2
+    echo "See why with: omarchy models logs $recipe" >&2
   fi
   # The terminal closes with this command, taking the reason with it.
   if [[ -t 0 && -t 2 ]]; then

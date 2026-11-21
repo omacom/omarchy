@@ -1365,5 +1365,11 @@
   },
   "remove.ai.antigravity": {
     "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "ධාරක නාමය"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
   }
 }

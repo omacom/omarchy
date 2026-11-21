@@ -298,40 +298,38 @@ pass "agent launcher refuses to launch without a default"
 
 # The agents panel launches a running local model whether or not a default was
 # chosen; it opens in an agent with an overlay all the same.
-cat >"$mock_bin/omarchy-agent-local" <<'SH'
+cat >"$mock_bin/omarchy-models" <<'SH'
 #!/bin/bash
 [[ $1 == "overlay" ]] && printf '%s\n' "/overlays/$2-local.config" omarchy-local test-model
 SH
-chmod +x "$mock_bin/omarchy-agent-local"
+chmod +x "$mock_bin/omarchy-models"
 : >"$launch_log"
 omarchy-agent --local-model test-model >"$test_tmp/local-output" 2>&1 ||
   fail "agent launcher opens a local model without a default: $(<"$test_tmp/local-output")"
 mapfile -d '' -t launch_args <"$launch_log"
 [[ ${launch_args[*]} == *"/overlays/"*"-local.config"* ]] ||
   fail "agent launcher points the local model's agent at its overlay: ${launch_args[*]}"
-rm "$mock_bin/omarchy-agent-local"
+rm "$mock_bin/omarchy-models"
 pass "agent launcher opens a local model without a default"
 
 # Qwen Code opens on a local model from an omarchy-local-ai that writes its
 # overlay: the endpoint and model as flags, the key read from its file inside
-# the terminal, never on a command line. An older one leaves it to pi.
+# the terminal, never on a command line.
 printf 'local-secret-key' >"$test_tmp/local-key"
-cat >"$mock_bin/omarchy-agent-local" <<'SH'
+cat >"$mock_bin/omarchy-models" <<'SH'
 #!/bin/bash
-if [[ $1 == "overlay" && $2 == "--help" ]]; then
-  [[ -n ${OMARCHY_TEST_QWEN_OVERLAY:-} ]] && echo "agent {opencode,pi,qwen}" || echo "agent {opencode,pi}"
-elif [[ $1 == "overlay" && $2 == "qwen" ]]; then
+if [[ $1 == "overlay" && $2 == "qwen" ]]; then
   printf '{"baseUrl": "http://127.0.0.1:11435/v1", "model": "test-model", "keyFile": "%s"}\n' "$OMARCHY_TEST_KEY_FILE" >"$OMARCHY_TEST_QWEN_FILE"
   printf '%s\n' "$OMARCHY_TEST_QWEN_FILE" omarchy-local test-model
 elif [[ $1 == "overlay" ]]; then
   printf '%s\n' "/overlays/$2-local.config" omarchy-local test-model
 fi
 SH
-chmod +x "$mock_bin/omarchy-agent-local"
+chmod +x "$mock_bin/omarchy-models"
 printf '#!/bin/bash\nprintf "key=%%s args=%%s\\n" "$OPENAI_API_KEY" "$*"\n' >"$mock_bin/qwen"
 chmod +x "$mock_bin/qwen"
 : >"$launch_log"
-OMARCHY_TEST_QWEN_OVERLAY=1 OMARCHY_TEST_KEY_FILE="$test_tmp/local-key" OMARCHY_TEST_QWEN_FILE="$test_tmp/qwen-overlay.json" \
+OMARCHY_TEST_KEY_FILE="$test_tmp/local-key" OMARCHY_TEST_QWEN_FILE="$test_tmp/qwen-overlay.json" \
   omarchy-agent --agent qwen --local-model test-model >"$test_tmp/qwen-local-output" 2>&1 ||
   fail "agent launcher opens Qwen Code on a local model: $(<"$test_tmp/qwen-local-output")"
 mapfile -d '' -t launch_args <"$launch_log"
@@ -339,13 +337,7 @@ mapfile -d '' -t launch_args <"$launch_log"
 qwen_output=$("${launch_args[@]:1}")
 [[ $qwen_output == "key=local-secret-key args=--yolo --auth-type openai --openai-base-url http://127.0.0.1:11435/v1 --model test-model" ]] ||
   fail "Qwen Code gets the local endpoint and model as flags and the key in its environment: $qwen_output"
-: >"$launch_log"
-OMARCHY_TEST_KEY_FILE="$test_tmp/local-key" omarchy-agent --agent qwen --local-model test-model >"$test_tmp/qwen-old-output" 2>&1 ||
-  fail "agent launcher falls back from Qwen Code on an older omarchy-local-ai: $(<"$test_tmp/qwen-old-output")"
-mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == *"/overlays/"*"-local.config"* && ${launch_args[*]} != *"--auth-type"* ]] ||
-  fail "an omarchy-local-ai without Qwen Code's overlay opens the local model in pi or OpenCode: ${launch_args[*]}"
-rm "$mock_bin/omarchy-agent-local" "$mock_bin/qwen" "$test_tmp/local-key"
+rm "$mock_bin/omarchy-models" "$mock_bin/qwen" "$test_tmp/local-key"
 pass "agent launcher opens Qwen Code on a local model, keeping its key off the command line"
 
 # The keybinding uses --pick, where an error on stderr nobody sees would make
@@ -942,14 +934,14 @@ pass "--pick launches once an agent is chosen"
 # The Quake console seeds with --prefer-local: the local model when one is
 # running, the usual agent otherwise. The mock reports whatever status the test
 # writes to OMARCHY_TEST_LOCAL_STATUS, and no status at all when it is unset.
-cat >"$mock_bin/omarchy-agent-local" <<'SH'
+cat >"$mock_bin/omarchy-models" <<'SH'
 #!/bin/bash
 case $1 in
 status) [[ -n ${OMARCHY_TEST_LOCAL_STATUS:-} ]] && printf '%s\n' "$OMARCHY_TEST_LOCAL_STATUS" || exit 1 ;;
 overlay) printf '%s\n' "/overlays/$2-${3:-last}.config" omarchy-local "${3:-last}" ;;
 esac
 SH
-chmod +x "$mock_bin/omarchy-agent-local"
+chmod +x "$mock_bin/omarchy-models"
 prefer_local_launch() {
   : >"$launch_log"
   OMARCHY_TEST_LOCAL_STATUS=$1 omarchy-agent --pick --prefer-local
@@ -989,8 +981,8 @@ mapfile -d '' -t launch_args <"$launch_log"
 [[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-agent --inline --local" ]] ||
   fail "--local on a stopped model starts the one last used: ${launch_args[*]}"
 
-printf '#!/bin/bash\nprintf "%%s\\n" "warmup $*" >>"$OMARCHY_TEST_WARMUP_LOG"\nexit "${OMARCHY_TEST_WARMUP_STATUS:-0}"\n' >"$mock_bin/omarchy-agent-local-warmup"
-chmod +x "$mock_bin/omarchy-agent-local-warmup"
+printf '#!/bin/bash\nprintf "%%s\\n" "warmup $*" >>"$OMARCHY_TEST_WARMUP_LOG"\nexit "${OMARCHY_TEST_WARMUP_STATUS:-0}"\n' >"$mock_bin/omarchy-models-warmup"
+chmod +x "$mock_bin/omarchy-models-warmup"
 export OMARCHY_TEST_WARMUP_LOG="$test_tmp/warmup"
 : >"$inline_log"
 OMARCHY_TEST_LOCAL_STATUS=$stopped omarchy-agent --inline --local-model big
@@ -1010,7 +1002,7 @@ OMARCHY_TEST_LOCAL_STATUS='{"last":"big","models":{"big":{"unit":"active","sub_s
 mapfile -d '' -t launch_args <"$launch_log"
 [[ ! -s $OMARCHY_TEST_WARMUP_LOG && ${launch_args[*]} == *"/overlays/opencode-big.config"*"opencode --auto --standalone" ]] ||
   fail "a running local model opens at once: ${launch_args[*]}"
-rm "$mock_bin/omarchy-agent-local-warmup"
+rm "$mock_bin/omarchy-models-warmup"
 pass "a stopped local model is started in the agent's terminal before the agent opens"
 
 # A default that can't take the overlay, with no pi or OpenCode to stand in,
@@ -1024,7 +1016,7 @@ prefer_local_launch '{"last":"big","models":{"big":{"unit":"active","sub_state":
   fail "--prefer-local falls back to a default that can't take the overlay: ${launch_args[*]}"
 [[ ! -s $notification_history ]] || fail "--prefer-local falling back raises no notification"
 printf '%s\n' "opencode" >"$agent_file"
-rm "$mock_bin/omarchy-agent-local" "$mock_bin/omarchy-cmd-present"
+rm "$mock_bin/omarchy-models" "$mock_bin/omarchy-cmd-present"
 pass "--prefer-local opens the running local model, and the usual agent otherwise"
 
 : >"$launch_log"
@@ -1179,7 +1171,7 @@ export OMARCHY_TEST_START_LOG="$test_tmp/start"
 
 # The engine as the commands see it: status is whatever the test wrote, and a
 # start marks the model running, or fails with the engine's reason.
-cat >"$mock_bin/omarchy-agent-local" <<'SH'
+cat >"$mock_bin/omarchy-models" <<'SH'
 #!/bin/bash
 case $1 in
 status) cat "$OMARCHY_TEST_STATUS_FILE" ;;
@@ -1205,29 +1197,29 @@ write_status() {
 }
 
 launchers() {
-  (cd "$applications" && printf '%s\n' omarchy-agent-local-*.desktop | sort | paste -sd' ')
+  (cd "$applications" && printf '%s\n' omarchy-models-*.desktop | sort | paste -sd' ')
 }
 
 # Each model that is set up gets a launcher with its name and its vendor's
 # logo, which opens an agent on it. One still downloading has nothing to open.
 write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)" "$(model glm-5.3 "GLM-5.3 Flash" zai active running)" \
   "$(model nemotron "Nemotron 3.5 Bolt" nvidia installing)"
-omarchy-agent-local-launchers
-[[ $(launchers) == "omarchy-agent-local-glm-5.3.desktop omarchy-agent-local-qwen-fast.desktop" ]] ||
+omarchy-models-launchers
+[[ $(launchers) == "omarchy-models-glm-5.3.desktop omarchy-models-qwen-fast.desktop" ]] ||
   fail "each model that is set up gets a launcher, and one still installing none" "$(launchers)"
-entry=$(<"$applications/omarchy-agent-local-qwen-fast.desktop")
+entry=$(<"$applications/omarchy-models-qwen-fast.desktop")
 [[ $entry == *$'\nName=Qwen3.8 Flash Next\n'* ]] || fail "the launcher carries the model's name" "$entry"
 [[ $entry == *$'\nExec=omarchy-agent --local-model qwen-fast --app-id=org.omarchy.local.qwen-fast\n'* ]] ||
   fail "the launcher opens an agent on its model" "$entry"
-[[ $entry == *$'\nIcon=omarchy-agent-local-qwen\n'* && $entry == *$'\nStartupWMClass=org.omarchy.local.qwen-fast\n'* ]] ||
+[[ $entry == *$'\nIcon=omarchy-models-qwen\n'* && $entry == *$'\nStartupWMClass=org.omarchy.local.qwen-fast\n'* ]] ||
   fail "the launcher has its vendor's icon and a window class of its own" "$entry"
 pass "each local model that is set up gets a launcher of its own"
 
 # An image model's launcher opens Fantasi on it, since no agent runs on one,
 # and leaves Fantasi's window to Fantasi's own launcher, so it keeps its name.
 jq -c '.models += {"klein": {recipe: "klein", name: "FLUX.2 Klein 4B", vendor: "bfl", kind: "image", unit: "active"}}' "$status_file" >"$status_file.new" && mv "$status_file.new" "$status_file"
-omarchy-agent-local-launchers
-entry=$(<"$applications/omarchy-agent-local-klein.desktop")
+omarchy-models-launchers
+entry=$(<"$applications/omarchy-models-klein.desktop")
 [[ $entry == *$'\nExec=fantasi open --model klein\n'* && $entry != *'StartupWMClass='* ]] ||
   fail "an image model's launcher opens Fantasi on it" "$entry"
 [[ $entry != *'Exec=omarchy-agent'* ]] || fail "an image model's launcher starts no agent" "$entry"
@@ -1235,11 +1227,11 @@ pass "an image model's launcher opens Fantasi on it"
 
 # The icon is the vendor's logo on a tile: the logo's paths, scaled to fit,
 # with the fill a logo keeps on its root.
-[[ $(<"$icons/omarchy-agent-local-qwen.svg") == *'fill="#6D44E8"'* ]] || fail "the icon holds the vendor's logo"
-grep -q '<g transform="translate([0-9. -]*) scale([0-9.]*)" fill="#fff" fill-rule="evenodd">' "$icons/omarchy-agent-local-zai.svg" ||
-  fail "a logo filled from its root keeps that fill on the tile" "$(<"$icons/omarchy-agent-local-zai.svg")"
+[[ $(<"$icons/omarchy-models-qwen.svg") == *'fill="#6D44E8"'* ]] || fail "the icon holds the vendor's logo"
+grep -q '<g transform="translate([0-9. -]*) scale([0-9.]*)" fill="#fff" fill-rule="evenodd">' "$icons/omarchy-models-zai.svg" ||
+  fail "a logo filled from its root keeps that fill on the tile" "$(<"$icons/omarchy-models-zai.svg")"
 if omarchy-cmd-present xmllint; then
-  for icon in "$icons"/omarchy-agent-local-*.svg; do
+  for icon in "$icons"/omarchy-models-*.svg; do
     xmllint --noout "$icon" || fail "the icon is well-formed: $icon"
   done
 fi
@@ -1249,38 +1241,38 @@ pass "the launcher's icon is the model's vendor logo"
 # a command line or a path are not written anywhere.
 write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)" "$(model odd "Odd One" ../mystery inactive)" \
   "$(model 'bad; rm -rf ~' "Bad" qwen inactive)"
-omarchy-agent-local-launchers
-[[ $(launchers) == "omarchy-agent-local-odd.desktop omarchy-agent-local-qwen-fast.desktop" ]] ||
+omarchy-models-launchers
+[[ $(launchers) == "omarchy-models-odd.desktop omarchy-models-qwen-fast.desktop" ]] ||
   fail "a recipe that isn't a plain id gets no launcher" "$(launchers)"
-grep -q '^Icon=omarchy-agent-local-local$' "$applications/omarchy-agent-local-odd.desktop" ||
+grep -q '^Icon=omarchy-models-local$' "$applications/omarchy-models-odd.desktop" ||
   fail "a vendor without a logo gets the local model's icon"
-[[ -f $icons/omarchy-agent-local-local.svg ]] || fail "the local model's icon is drawn"
+[[ -f $icons/omarchy-models-local.svg ]] || fail "the local model's icon is drawn"
 pass "a vendor without a logo gets the local model's icon"
 
 # Removing a model takes its launcher, and an icon no launcher uses, with it.
 # Launchers that aren't a local model's are never touched.
 touch "$applications/omarchy-agent-claude.desktop" "$icons/omarchy-agent-claude.svg"
 write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)" "$(model glm-5.3 "GLM-5.3 Flash" zai removing)"
-omarchy-agent-local-launchers
-[[ $(launchers) == "omarchy-agent-local-qwen-fast.desktop" ]] || fail "a removed model loses its launcher" "$(launchers)"
-[[ ! -e $icons/omarchy-agent-local-zai.svg && ! -e $icons/omarchy-agent-local-local.svg && -f $icons/omarchy-agent-local-qwen.svg ]] ||
+omarchy-models-launchers
+[[ $(launchers) == "omarchy-models-qwen-fast.desktop" ]] || fail "a removed model loses its launcher" "$(launchers)"
+[[ ! -e $icons/omarchy-models-zai.svg && ! -e $icons/omarchy-models-local.svg && -f $icons/omarchy-models-qwen.svg ]] ||
   fail "an icon no launcher uses goes with it" "$(ls "$icons")"
 [[ -f $applications/omarchy-agent-claude.desktop && -f $icons/omarchy-agent-claude.svg ]] ||
   fail "launchers that aren't a local model's are left alone"
 echo '{"models":{}}' >"$status_file"
-omarchy-agent-local-launchers
-[[ $(launchers) == "omarchy-agent-local-*.desktop" ]] || fail "the last model removed leaves no launcher" "$(launchers)"
+omarchy-models-launchers
+[[ $(launchers) == "omarchy-models-*.desktop" ]] || fail "the last model removed leaves no launcher" "$(launchers)"
 pass "removing a local model removes its launcher"
 
 # A reading that fails says nothing about which models are gone, so it leaves
 # every launcher where it was and says so.
 write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)"
-omarchy-agent-local-launchers
+omarchy-models-launchers
 echo "not json" >"$status_file"
-if omarchy-agent-local-launchers 2>/dev/null; then
+if omarchy-models-launchers 2>/dev/null; then
   fail "a status that can't be read fails the sync"
 fi
-[[ $(launchers) == "omarchy-agent-local-qwen-fast.desktop" && -f $icons/omarchy-agent-local-qwen.svg ]] ||
+[[ $(launchers) == "omarchy-models-qwen-fast.desktop" && -f $icons/omarchy-models-qwen.svg ]] ||
   fail "a status that can't be read leaves the launchers alone" "$(launchers)"
 pass "a status that can't be read leaves the launchers alone"
 
@@ -1288,27 +1280,27 @@ pass "a status that can't be read leaves the launchers alone"
 # terminal it draws nothing and just waits.
 write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)"
 : >"$OMARCHY_TEST_START_LOG"
-omarchy-agent-local-warmup qwen-fast </dev/null >"$test_tmp/warmup-output" 2>&1 ||
+omarchy-models-warmup qwen-fast </dev/null >"$test_tmp/warmup-output" 2>&1 ||
   fail "the warm-up starts a stopped model" "$(<"$test_tmp/warmup-output")"
 [[ $(<"$OMARCHY_TEST_START_LOG") == "qwen-fast" ]] || fail "the warm-up starts the model it was given"
 : >"$OMARCHY_TEST_START_LOG"
-omarchy-agent-local-warmup </dev/null >/dev/null 2>&1 || fail "the warm-up starts the model last used when given none"
+omarchy-models-warmup </dev/null >/dev/null 2>&1 || fail "the warm-up starts the model last used when given none"
 [[ $(<"$OMARCHY_TEST_START_LOG") == "qwen-fast" ]] || fail "the warm-up defaults to the model last used"
 pass "the warm-up starts a stopped model"
 
 write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen active running)"
 : >"$OMARCHY_TEST_START_LOG"
-omarchy-agent-local-warmup qwen-fast </dev/null >/dev/null 2>&1 || fail "the warm-up passes a running model"
+omarchy-models-warmup qwen-fast </dev/null >/dev/null 2>&1 || fail "the warm-up passes a running model"
 [[ ! -s $OMARCHY_TEST_START_LOG ]] || fail "a running model is not started again"
 pass "the warm-up leaves a running model alone"
 
 write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)"
-if OMARCHY_TEST_START_FAILS=1 omarchy-agent-local-warmup qwen-fast </dev/null >"$test_tmp/warmup-output" 2>&1; then
+if OMARCHY_TEST_START_FAILS=1 omarchy-models-warmup qwen-fast </dev/null >"$test_tmp/warmup-output" 2>&1; then
   fail "a model that didn't start fails the warm-up"
 fi
 [[ $(<"$test_tmp/warmup-output") == *"Qwen3.8 Flash Next didn't start."*"Not enough memory to start qwen-fast"* ]] ||
   fail "the warm-up says why the model didn't start" "$(<"$test_tmp/warmup-output")"
-if omarchy-agent-local-warmup missing </dev/null >"$test_tmp/warmup-output" 2>&1; then
+if omarchy-models-warmup missing </dev/null >"$test_tmp/warmup-output" 2>&1; then
   fail "a model that isn't set up fails the warm-up"
 fi
 [[ $(<"$test_tmp/warmup-output") == *"missing is not set up"* ]] || fail "the warm-up says a model isn't set up" "$(<"$test_tmp/warmup-output")"
@@ -1326,7 +1318,7 @@ cp "$status_file" "$state_file"
   jq -c '.models["qwen-fast"] += {unit: "active", sub_state: "running"}' "$status_file" >"$state_file.tmp"
   mv "$state_file.tmp" "$state_file"
 ) &
-omarchy-agent-local-warmup qwen-fast </dev/null >/dev/null 2>&1 || fail "the warm-up waits for a model that is already loading"
+omarchy-models-warmup qwen-fast </dev/null >/dev/null 2>&1 || fail "the warm-up waits for a model that is already loading"
 wait
 [[ ! -s $OMARCHY_TEST_START_LOG ]] || fail "a model already loading is not started again"
 pass "the warm-up waits for a model that is already loading"
@@ -1335,14 +1327,14 @@ pass "the warm-up waits for a model that is already loading"
 # and the terminal handed back as it was found.
 if omarchy-cmd-present script; then
   write_status "$(model qwen-fast "Qwen3.8 Flash Next" qwen inactive)"
-  cat >"$mock_bin/omarchy-agent-local" <<'SH'
+  cat >"$mock_bin/omarchy-models" <<'SH'
 #!/bin/bash
 case $1 in
 status) cat "$OMARCHY_TEST_STATUS_FILE" ;;
 start) sleep 1 ;;
 esac
 SH
-  script -qec "stty rows 30 cols 100; omarchy-agent-local-warmup qwen-fast" "$test_tmp/show" </dev/null >/dev/null ||
+  script -qec "stty rows 30 cols 100; omarchy-models-warmup qwen-fast" "$test_tmp/show" </dev/null >/dev/null ||
     fail "the warm-up's show ends well once the model is up"
   show=$(sed -E $'s/\e\\[[0-9;?]*[A-Za-z]//g' "$test_tmp/show")
   [[ $show == *"Q W E N 3 . 8   F L A S H   N E X T"* && $show == *"... 1%"* && $show == *"Qwen3.8 Flash Next is ready"* ]] ||
@@ -1353,4 +1345,4 @@ SH
 else
   skip "the warm-up puts on a show in a terminal (no script command)"
 fi
-rm "$mock_bin/omarchy-agent-local" "$mock_bin/update-desktop-database"
+rm "$mock_bin/omarchy-models" "$mock_bin/update-desktop-database"

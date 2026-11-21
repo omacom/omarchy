@@ -81,7 +81,7 @@ fi
 # last started wins when it is running; any other running one will do. One
 # still loading is not up yet, and opening an agent on it would only error.
 if [[ $prefer_local == "true" && $use_local != "true" ]]; then
-  local_model=$(omarchy-agent-local status --json 2>/dev/null | jq -r '
+  local_model=$(omarchy-models status --json 2>/dev/null | jq -r '
     [.models // {} | to_entries[] | select(.value.unit == "active" and .value.sub_state == "running") | .key] as $up
     | if (.last as $last | $up | index($last)) != null then .last else ($up[0] // empty) end' 2>/dev/null)
   if [[ -n $local_model ]]; then
@@ -93,11 +93,9 @@ fi
 # Only agents with a launch-time overlay can be pointed at the local model. When
 # the default can't, or none is set, the local model opens in pi, or OpenCode
 # without pi: the agents panel launches it whether or not a default was chosen.
-# Qwen Code takes one from an omarchy-local-ai new enough to write it.
 local_capable() {
   case "$1" in
-  pi | opencode) return 0 ;;
-  qwen) omarchy-agent-local overlay --help 2>/dev/null | grep -q qwen ;;
+  pi | opencode | qwen) return 0 ;;
   *) return 1 ;;
   esac
 }
@@ -289,27 +287,27 @@ esac
 
 # A model that is set up but not running, as one opened from its launcher may
 # be, is started first, in the terminal the agent will have: loading takes a
-# minute or so, and omarchy-agent-local-warmup puts on a show for it there. So
+# minute or so, and omarchy-models-warmup puts on a show for it there. So
 # a launch from outside a terminal reruns itself inside one. A model on a
 # paired machine is that machine's to start.
 if [[ $use_local == "true" && ${local_running:-} != "true" && $local_model != */* ]]; then
-  local_state=$(omarchy-agent-local status --json 2>/dev/null | jq -r --arg recipe "$local_model" '
+  local_state=$(omarchy-models status --json 2>/dev/null | jq -r --arg recipe "$local_model" '
     (if $recipe == "" then .last // "" else $recipe end) as $recipe
     | .models[$recipe] // empty | "\(.unit)/\(.sub_state)"' 2>/dev/null)
   if [[ -n $local_state && $local_state != "active/running" ]]; then
     if [[ $inline == "true" ]]; then
-      omarchy-agent-local-warmup ${local_model:+"$local_model"} || exit 1
+      omarchy-models-warmup ${local_model:+"$local_model"} || exit 1
     else
       exec omarchy-launch-tui --app-id="$app_id" omarchy-agent --inline "${launch_args[@]}"
     fi
   fi
 fi
 
-# --local points the agent at the model `omarchy agent local use` runs, through
+# --local points the agent at the model `omarchy models use` runs, through
 # a launch-time overlay Omarchy owns, never by editing the agent's own config.
 # Only agents with such an overlay can be pointed there.
 if [[ $use_local == "true" ]]; then
-  mapfile -t overlay < <(omarchy-agent-local overlay "$agent" ${local_model:+"$local_model"})
+  mapfile -t overlay < <(omarchy-models overlay "$agent" ${local_model:+"$local_model"})
   (( ${#overlay[@]} == 3 )) || exit 1
   case "$agent" in
   opencode)
