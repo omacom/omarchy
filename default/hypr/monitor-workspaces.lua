@@ -453,6 +453,28 @@ function M.focus(slot, monitor_name)
   end, "o.workspaces.focus(" .. slot .. (monitor_name and ", " .. literal(monitor_name) or "") .. ")")
 end
 
+-- Go to the same slot on every monitor at once, so a slot number means the same
+-- thing on all of them. M.focus moves the focused monitor alone, which leaves
+-- the others showing whatever they had, so with several monitors in view
+-- "workspace 3" means a different thing on each. Focus stays on the monitor it
+-- was on, since this changes what the others show rather than where you are.
+function M.focus_all(slot)
+  return action(function()
+    local focused = hl.get_active_monitor()
+
+    for _, monitor in ipairs(connected()) do
+      local id = M.workspace_id(monitor, slot)
+      reclaim(monitor, id)
+      show(monitor, id)
+    end
+
+    -- show() focuses a monitor to create a workspace that isn't there yet.
+    if focused then
+      hl.dispatch(hl.dsp.focus({ monitor = focused.name }))
+    end
+  end, "o.workspaces.focus_all(" .. slot .. ")")
+end
+
 -- Move the active window to a slot on the focused monitor, following it unless
 -- `follow` is false.
 function M.move_window(slot, follow)
