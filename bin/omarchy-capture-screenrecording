@@ -56,6 +56,8 @@ PA_MODULES_FILE="$RUNTIME_DIR/omarchy-screenrecord-pa-modules"
 # CANCEL_FILE for that start instead of queueing behind its picker or recorder.
 STARTING_FILE="$RUNTIME_DIR/omarchy-screenrecord-starting"
 CANCEL_FILE="$RUNTIME_DIR/omarchy-screenrecord-cancel"
+# A stop owns this marker until finalization and the saved notification finish.
+PROCESSING_FILE="$RUNTIME_DIR/omarchy-screenrecord-processing"
 # How long a recorder may take to create its file, except through the portal,
 # whose picker waits on the user.
 READY_TIMEOUT_TICKS=75
@@ -441,6 +443,8 @@ select_recorder() {
 
 # Stops the recorder screenrecording_active selected.
 stop_screenrecording() {
+  echo $$ >"$PROCESSING_FILE"
+  trap 'rm -f "$PROCESSING_FILE"' EXIT
   omarchy-capture-screenrecording-process "${RECORDER[@]}" --signal INT # SIGINT required to save video properly
 
   # Wait a maximum of 5 seconds to finish before hard killing
@@ -461,6 +465,7 @@ stop_screenrecording() {
     # No recording to finalize or show, as when stopping a recorder this script did not start.
     :
   else
+    notify_processing
     local filename=$(cat "$RECORDING_FILE" 2>/dev/null)
     local preview="$RUNTIME_DIR/omarchy-screenrecord-preview-$$.png"
 
@@ -498,7 +503,17 @@ stop_screenrecording() {
     ) 9>&- &
   fi
 
-  rm -f "$RECORDING_FILE" "$REC_PID_FILE"
+  rm -f "$RECORDING_FILE" "$REC_PID_FILE" "$PROCESSING_FILE"
+}
+
+notify_processing() {
+  omarchy-notification-send -t 5000 "$(omarchy-i18n capture.recordingProcessing)" "$(omarchy-i18n capture.recordingProcessingWait)"
+}
+
+recording_processing() {
+  local pid=""
+  [[ -r $PROCESSING_FILE ]] && pid=$(<"$PROCESSING_FILE")
+  [[ $pid =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null
 }
 
 # How long the saved recording runs and how big it is, like "1:07 · 12.4 MB".
@@ -600,12 +615,21 @@ fi
       select_recorder && omarchy-capture-screenrecording-process "${RECORDER[@]}"
     fi
   else
+    if ! flock -n 9 && recording_processing; then
+      notify_processing
+      exit 0
+    fi
     # A start still in its picker or waiting on its recorder is cancelled, not
     # queued behind: that toggle would otherwise begin another recording.
     # The start reads CANCEL_FILE only after it removes STARTING_FILE, so a
     # request left while STARTING_FILE stands is always seen. One that finds it
     # gone waits its turn, and a request the start used up by then is done.
     if ! flock -w 1 9; then
+      # Do not turn a click during finalization into a recording later.
+      if recording_processing; then
+        notify_processing
+        exit 0
+      fi
       touch "$CANCEL_FILE"
       # A start that was killed leaves its marker: it counts only while that
       # start still runs.
@@ -618,6 +642,7 @@ fi
       [[ -e $CANCEL_FILE ]] || exit 0
       rm -f "$CANCEL_FILE"
     fi
+    rm -f "$PROCESSING_FILE"
     if screenrecording_active; then
       stop_screenrecording
     elif [[ $STOP_RECORDING == "true" ]]; then

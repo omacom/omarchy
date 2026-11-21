@@ -92,6 +92,8 @@
   "capture.recordingLength": "%1:%2",
   "capture.recordingLengthHours": "%1:%2:%3",
   "capture.recordingOpen": "Open",
+  "capture.recordingProcessing": "Processing screen recording",
+  "capture.recordingProcessingWait": "Please wait until processing finishes before starting another recording.",
   "capture.recordingSaved": "Screen recording saved",
   "capture.recordingSizeB": "%1 B",
   "capture.recordingSizeGB": "%1 GB",
