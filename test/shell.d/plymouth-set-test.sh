@@ -97,6 +97,7 @@ mkdir -p "$stub_dir"
 canary="$test_tmp/canary"
 set_args="$test_tmp/set-args"
 reset_marker="$test_tmp/reset-ran"
+launch_done="$test_tmp/launch-done"
 
 # What a name that got reparsed would reach. It is a command rather than a
 # `touch` so that no quoting of the test's own paths is involved.
@@ -122,13 +123,18 @@ STUB
 
 cat >"$stub_dir/setsid" <<'STUB'
 #!/bin/bash
+status=97
 while (( $# >= 3 )); do
   if [[ $1 == "bash" && $2 == "-c" ]]; then
-    exec bash -c "$3"
+    bash -c "$3"
+    status=$?
+    break
   fi
   shift
 done
-exit 97
+printf '%s\n' "$status" >"$OMARCHY_TEST_LAUNCH_DONE.tmp"
+mv -f "$OMARCHY_TEST_LAUNCH_DONE.tmp" "$OMARCHY_TEST_LAUNCH_DONE"
+exit "$status"
 STUB
 
 # Records what actually arrived, so a name that survived as data is told apart
@@ -150,13 +156,24 @@ done
 chmod +x "$stub_dir"/*
 
 run_unlock_action() {
-  rm -f "$canary" "$set_args" "$reset_marker"
+  rm -f "$canary" "$set_args" "$reset_marker" "$launch_done" "$launch_done.tmp"
 
   PATH="$stub_dir:$PATH" \
     OMARCHY_TEST_UNLOCK_NAME="$1" \
     OMARCHY_TEST_SET_ARGS="$set_args" \
     OMARCHY_TEST_RESET_MARKER="$reset_marker" \
+    OMARCHY_TEST_LAUNCH_DONE="$launch_done" \
     bash -c "$unlock_action" >/dev/null 2>&1
+
+  local attempt
+  for (( attempt = 0; attempt < 500; attempt++ )); do
+    if [[ -e $launch_done ]]; then
+      (( $(<"$launch_done") != 97 )) || fail "the unlock launcher passed bash -c to setsid"
+      return 0
+    fi
+    sleep 0.01
+  done
+  fail "the unlock action's floating terminal finished" "timed out waiting for: $1"
 }
 
 # A directory name cannot hold a slash or a NUL, and everything else is fair

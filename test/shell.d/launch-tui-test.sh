@@ -18,24 +18,33 @@ for command in setsid uwsm-app; do
 done
 cat >"$test_tmp/bin/xdg-terminal-exec" <<STUB
 #!/bin/bash
-printf 'NO_COLOR=%s PAGER=%s GIT_PAGER=%s args=%s\\n' "\${NO_COLOR-unset}" "\${PAGER-unset}" "\${GIT_PAGER-unset}" "\$*" >"$test_tmp/window"
+printf 'NO_COLOR=%s PAGER=%s GIT_PAGER=%s args=%s\\n' "\${NO_COLOR-unset}" "\${PAGER-unset}" "\${GIT_PAGER-unset}" "\$*" >"$test_tmp/window.tmp"
+mv -f "$test_tmp/window.tmp" "$test_tmp/window"
 STUB
 chmod +x "$test_tmp/bin"/*
 
 launch() {
-  rm -f "$test_tmp/window"
+  rm -f "$test_tmp/window" "$test_tmp/window.tmp"
   env -u NO_COLOR -u PAGER -u GIT_PAGER "$@" PATH="$test_tmp/bin:$PATH" bash "$ROOT/bin/omarchy-launch-tui" --app-id=org.omarchy.test btop --utf-force
-  cat "$test_tmp/window"
+  local attempt
+  for ((attempt = 0; attempt < 500; attempt++)); do
+    if [[ -e $test_tmp/window ]]; then
+      cat "$test_tmp/window"
+      return 0
+    fi
+    sleep 0.01
+  done
+  return 1
 }
 
 [[ $(launch NO_COLOR=1 PAGER=cat GIT_PAGER=cat) == "NO_COLOR=unset PAGER=unset GIT_PAGER=unset args=--app-id=org.omarchy.test -e btop --utf-force" ]] ||
-  fail "a window opened from an agent's command gets its colors and pager back" "$(cat "$test_tmp/window")"
+  fail "a window opened from an agent's command gets its colors and pager back" "$(cat "$test_tmp/window" 2>/dev/null || true)"
 pass "a window opened from an agent's command gets its colors and pager back"
 
 [[ $(launch NO_COLOR=1 PAGER=less) == "NO_COLOR=1 PAGER=less GIT_PAGER=unset args="* ]] ||
-  fail "NO_COLOR the user set for themselves stays" "$(cat "$test_tmp/window")"
+  fail "NO_COLOR the user set for themselves stays" "$(cat "$test_tmp/window" 2>/dev/null || true)"
 [[ $(launch PAGER=cat GIT_PAGER=delta) == "NO_COLOR=unset PAGER=cat GIT_PAGER=delta args="* ]] ||
-  fail "a pager the user chose stays" "$(cat "$test_tmp/window")"
+  fail "a pager the user chose stays" "$(cat "$test_tmp/window" 2>/dev/null || true)"
 [[ $(launch) == "NO_COLOR=unset PAGER=unset GIT_PAGER=unset args="* ]] ||
-  fail "a plain launch is unchanged" "$(cat "$test_tmp/window")"
+  fail "a plain launch is unchanged" "$(cat "$test_tmp/window" 2>/dev/null || true)"
 pass "what the user set for themselves stays as it is"

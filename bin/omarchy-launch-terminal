@@ -9,4 +9,4 @@ if [[ ${1:-} == --pid=* ]]; then
   shift
 fi
 
-exec setsid uwsm-app -- xdg-terminal-exec --dir="$(omarchy-cmd-terminal-cwd "$pid")" "$@"
+setsid uwsm-app -- xdg-terminal-exec --dir="$(omarchy-cmd-terminal-cwd "$pid")" "$@" </dev/null >/dev/null 2>&1 &
