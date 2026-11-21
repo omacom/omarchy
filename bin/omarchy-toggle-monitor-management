@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Hand automatic monitor management to another manager, or take it back
+# omarchy:args=[toggle|on|off]
+# omarchy:examples=omarchy toggle monitor-management off | omarchy toggle monitor-management on
+
+# Nothing else brings back the saved monitor settings and clamshell rule the
+# other manager's layout replaced: a healthy desktop has no reason to reload.
+turn_on() {
+  if omarchy-toggle-enabled monitor-management-off; then
+    omarchy-toggle monitor-management-off off
+    omarchy-restart-hyprctl
+  fi
+}
+
+turn_off() {
+  omarchy-toggle monitor-management-off on
+}
+
+case "${1:-toggle}" in
+  on)
+    turn_on
+    ;;
+  off)
+    turn_off
+    ;;
+  toggle)
+    if omarchy-toggle-enabled monitor-management-off; then
+      turn_on
+    else
+      turn_off
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy-toggle-monitor-management [toggle|on|off]" >&2
+    exit 1
+    ;;
+esac
