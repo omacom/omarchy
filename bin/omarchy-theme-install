@@ -16,10 +16,11 @@ if [[ -z $REPO_URL ]]; then
   exit 1
 fi
 
-# Refuse a URL that names a git option or a transport helper before cloning. The
-# check is shared with omarchy-plugin-add and explains itself; a missing checker
-# leaves this non-zero, which refuses the URL rather than cloning it.
-omarchy-git-url-check "$REPO_URL" || exit 1
+# Resolve Git's url.*.insteadOf rules to a stable destination, then refuse an
+# option, transport helper, or network transport without peer authentication.
+# Clone that exact checked destination so another rewrite cannot change the
+# transport after validation.
+CLONE_URL=$(omarchy-git-url-check --require-authenticated-network --resolve "$REPO_URL") || exit 1
 
 THEMES_DIR="$HOME/.config/omarchy/themes"
 
@@ -53,7 +54,7 @@ if [[ -d $THEME_PATH ]]; then
 fi
 
 # Clone the repo directly to ~/.config/omarchy/themes
-if ! git clone -- "$REPO_URL" "$THEME_PATH"; then
+if ! git clone -- "$CLONE_URL" "$THEME_PATH"; then
   echo "Error: Failed to clone theme repo."
   exit 1
 fi
