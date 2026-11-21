@@ -34,12 +34,13 @@ case "$action" in
     power_on
     timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
     trust_device
-    timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    # The connect's status is the command's, so the panel can say a connect failed.
+    timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1
     ;;
   connect)
     power_on
     trust_device
-    timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1
     ;;
   disconnect)
     timeout 10s bluetoothctl disconnect "$address" >/dev/null 2>&1 || true
