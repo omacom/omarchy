@@ -23,6 +23,12 @@ class TypingSetupTest(unittest.TestCase):
     with self.assertRaises(ValueError):
       typing.keyboard_values([])
 
+  def test_saved_catalan_selection_is_named_in_the_picker(self):
+    # A layout saved by hand as es:cat reads as Catalan, not its XKB code.
+    rows = typing.picker_rows(typing.keyboard_catalog(), ["es:cat"])
+    self.assertEqual(rows["es:cat"], "\tCatalan")
+    self.assertEqual(list(rows)[0], "es:cat")
+
   def test_keyboard_catalog_uses_installer_choices(self):
     catalog = typing.keyboard_catalog()
     self.assertEqual(catalog["us"], "English (US)")
@@ -32,6 +38,8 @@ class TypingSetupTest(unittest.TestCase):
     self.assertEqual(catalog["la"], "Lao")
     self.assertEqual(catalog["kr:kr104"], "Korean")
     self.assertNotIn("kr", catalog)
+    self.assertEqual(catalog["es:cat"], "Catalan")
+    self.assertEqual(catalog["es"], "Spanish")
     # Converted as the installer does.
     self.assertEqual(catalog["fr"], "French")
     self.assertEqual(catalog["bg:phonetic"], "Bulgarian")
