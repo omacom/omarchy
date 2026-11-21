@@ -504,6 +504,8 @@ local function window(address, options)
     fullscreen = options and options.fullscreen or 0,
     allowed_over_fullscreen = true,
     tags = options and options.tags or {},
+    class = options and options.class,
+    pid = options and options.pid,
     workspace = { id = 3 },
   }
   table.insert(stack, created)
@@ -589,9 +591,9 @@ hl = {
   plugin = { load = function() end },
 }
 
-local function emit(event, target)
+local function emit(event, target, reason)
   for _, callback in ipairs(handlers[event] or {}) do
-    callback(target)
+    callback(target, reason)
   end
 end
 
@@ -729,15 +731,64 @@ asks_for_focus(maximized)
 o.bring_forward("0xA")
 assert(not browser.allowed_over_fullscreen, "the dock left the browser over the focused maximized window")
 
--- A dialog over the maximized window, such as the file picker its app waits on,
--- floats on its own account and belongs over it: a click on the maximized window
--- leaves it there, and a click on the dialog reaches it.
-local picker = window("0xC")
+-- The portal's file picker the maximized window's app waits on belongs over
+-- it: a click on the maximized window leaves it there, and a click on the
+-- picker reaches it.
+local picker = window("0xC", { class = "xdg-desktop-portal-gtk", pid = 2 })
 click(picker)
 click(maximized)
-assert(picker.allowed_over_fullscreen, "a click on the maximized window hid the dialog over it")
-assert(index_of(picker) > index_of(maximized), "the dialog drawn over the maximized window was left under it")
-assert(click() == picker, "a click on the dialog over the maximized window went through it")
+assert(picker.allowed_over_fullscreen, "a click on the maximized window hid the file picker over it")
+assert(index_of(picker) > index_of(maximized), "the file picker drawn over the maximized window was left under it")
+assert(click() == picker, "a click on the file picker over the maximized window went through it")
+table.remove(stack, index_of(picker))
+
+-- So does Omarchy's own file chooser, a process of its own.
+local chooser = window("0x11", { class = "folio-chooser", pid = 4 })
+click(chooser)
+click(maximized)
+assert(chooser.allowed_over_fullscreen, "a click on the maximized window hid the file chooser over it")
+table.remove(stack, index_of(chooser))
+
+-- So does a dialog of its own process.
+maximized.pid = 1
+local dialog = window("0xE", { pid = 1 })
+click(dialog)
+click(maximized)
+assert(dialog.allowed_over_fullscreen, "a click on the maximized window hid its own dialog")
+table.remove(stack, index_of(dialog))
+
+-- Another app floating by a rule of its own, as Steam does, is no dialog: it
+-- waits behind the maximized window brought forward like any other.
+local steam = window("0xF", { class = "steam", pid = 3 })
+click(steam)
+click(maximized)
+assert(not steam.allowed_over_fullscreen, "an app floating on its own account stayed over the maximized window")
+
+-- Nor is another window of the maximized window's own process that the mode
+-- floated, such as a second browser window.
+local sibling = window("0x10", { pid = 1, tags = { "omarchy-mode-floated" } })
+click(sibling)
+click(maximized)
+assert(not sibling.allowed_over_fullscreen, "a second window of the same app stayed over the maximized window")
+
+-- Focus left with the maximized window when another one closes is nobody
+-- bringing it forward: what was over it stays there. 16384 is Hyprland's reason
+-- for a floating window gone.
+click(steam)
+table.insert(maximized.tags, "omarchy-maximized")
+active = maximized
+emit("window.active", maximized, 16384)
+settle()
+assert(steam.allowed_over_fullscreen, "focus falling to the maximized window as another closed hid the window over it")
+
+-- A maximized window another app sends for, as the browser is when a link is
+-- opened from a chat, long after it last had the focus, comes forward as the
+-- user asked.
+click(steam)
+local now = os.time()
+os.time = function() return now + 60 end
+asks_for_focus(maximized)
+assert(not steam.allowed_over_fullscreen, "a maximized window another app sent for stayed behind the window over it")
 LUA
 
 if ! HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" OMARCHY_PATH="$ROOT" \

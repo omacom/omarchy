@@ -334,21 +334,38 @@ local function keep_over(window)
   end
 end
 
--- Brings a maximized window to the front, as a click on it does on Windows: the
--- windows the mode floated over it wait behind it until they are brought
--- forward. One floating on its own account, such as a dialog or a portal's
--- file picker, belongs over the maximized window, which its app may block until
--- it closes, so it stays there and is put back above it for the clicks on it.
+-- A dialog belongs over the maximized window it was opened from, which its app
+-- may block until it closes. Hyprland tells nothing of which window owns which,
+-- so a dialog is a window floating on its own account that is of the same
+-- process, or one of the portal's or of Omarchy's file chooser, which show the
+-- file pickers and prompts of other apps and nothing else. A window the mode
+-- floated opened as a window of its own, such as a second browser window,
+-- whatever process it is of. Floating on its own account is no sign of a dialog
+-- either: Steam, a calculator and a password manager float by rule and are apps
+-- of their own.
+local function dialog_of(window, other, mine)
+  if mine[other.address] then
+    return false
+  end
+
+  local pid = window.pid or 0
+  local class = other.class or ""
+  return (pid > 0 and other.pid == pid) or class:find("^xdg%-desktop%-portal") ~= nil or class == "folio-chooser"
+end
+
+-- Brings a maximized window to the front, as a click on it does on Windows:
+-- every other window waits behind it until it is brought forward. Its dialogs
+-- stay over it, and are put back above it for the clicks on them.
 local function bring_forward(window)
   local over, mine = drawn_over(window), claimed()
   for index = #over, 1, -1 do
-    if mine[over[index].address] then
+    if not dialog_of(window, over[index], mine) then
       restack(over[index], "bottom")
     end
   end
 
   for _, other in ipairs(over) do
-    if not mine[other.address] then
+    if dialog_of(window, other, mine) then
       restack(other, "top")
     end
   end
@@ -378,23 +395,70 @@ end
 -- A maximized window the user brings forward, with a click, the dock or Alt +
 -- Tab, comes to the front. One that its app asked focus for, as an app does
 -- right after opening a link in the browser, leaves the windows over it there.
+--
+-- Hyprland marks a window urgent as it grants it focus on request, and does the
+-- same when another app sends for it, as the browser is when a link is opened
+-- from a chat, and that one the user did ask for. So only a window that has the
+-- focus, or had it moments ago, is taking it back.
 local asked_for_focus = nil
+local focused, lost_focus = nil, {}
+local TAKING_BACK = 3
+
+local function track_focus(window)
+  local address, now = window and window.address, os.time()
+  if focused and focused ~= address then
+    lost_focus[focused] = now
+  end
+  focused = address
+
+  for other, at in pairs(lost_focus) do
+    if now - at > TAKING_BACK then
+      lost_focus[other] = nil
+    end
+  end
+end
 
 local function on_urgent(window)
+  local lost = lost_focus[window.address]
+  if window.address ~= focused and not (lost and os.time() - lost <= TAKING_BACK) then
+    return
+  end
+
   asked_for_focus = window.address
   hl.timer(function()
     asked_for_focus = nil
   end, { type = "oneshot", timeout = 1 })
 end
 
-local function on_active(window)
+-- Focus also lands on windows nobody picked: the one left when another closes
+-- or is minimized, and the one last focused on a workspace switched to. Such a
+-- window stays where it is among the others, as it does on Windows, where a
+-- maximized window left with the focus hides nothing that was over it. These
+-- are Hyprland's reasons for a workspace change, a special workspace toggled,
+-- and a tiled, floating or grouped window gone.
+local FELL = { [2048] = true, [4096] = true, [8192] = true, [16384] = true, [32768] = true }
+
+-- A window minimized is moved to the store, and Hyprland then focuses the one
+-- under where it was, giving a keybind as the reason.
+local minimizing = false
+
+local function on_moved(_, workspace)
+  if workspace and workspace.name == "special:minimized" then
+    minimizing = true
+    hl.timer(function()
+      minimizing = false
+    end, { type = "oneshot", timeout = 1 })
+  end
+end
+
+local function on_active(window, reason)
   if not maximized_on_floating_workspace(window) then
     return
   end
 
   -- Focus can pass through on its way to another window, as it does when one
   -- comes back from the dock, and only where it lands counts.
-  local asked = asked_for_focus == window.address
+  local asked = asked_for_focus == window.address or FELL[reason] or minimizing
   hl.timer(function()
     local active = hl.get_active_window()
     if not active or active.address ~= window.address or not maximized_on_floating_workspace(window) then
@@ -477,6 +541,7 @@ local function watch()
   -- A move is still being committed when this fires, and changing the window's
   -- floating state underneath it loses the move. Let it land first.
   hl.on("window.move_to_workspace", function(window, workspace)
+    on_moved(window, workspace)
     hl.timer(function()
       arrange({ window }, workspace)
     end, { type = "oneshot", timeout = 1 })
@@ -492,6 +557,7 @@ local function watch()
 
   hl.on("window.urgent", on_urgent)
   hl.on("window.active", on_active)
+  hl.on("window.active", track_focus)
   for button = 272, 276 do
     hl.bind("mouse:" .. button, before_click, { non_consuming = true, ignore_mods = true })
   end
