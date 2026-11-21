@@ -26,6 +26,8 @@ Timed access expires automatically, including immediately after resuming from a 
 
 Updating or removing Omarchy's settings package ends any temporary grant before its expiry support changes. If the command reports an authorization or cleanup error, resolve it before trying to enable another grant; an error does not mean passwordless access is inactive.
 
+The update that switches passwordless sudo to numeric account identities revokes existing temporary and permanent access. Re-enable it through _Setup > Security > Passwordless Sudo_ if you still need it. Disable permanent access before deleting the account or reusing its numeric user ID.
+
 Be clear-eyed about this one: while it's on, anything running as your user can do anything as root without being asked. That's the whole point, and it's also the whole risk.
 
 ## Signing Keys
