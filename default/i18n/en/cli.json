@@ -339,7 +339,6 @@
   "setupForm.confirmPlaceholder": "Must match the password you just typed",
   "setupForm.confirmPrompt": "Confirm> ",
   "setupForm.hostnameInvalid": "Hostname must be 1-63 letters, digits, or dashes, and cannot start or end with a dash",
-  "setupForm.hostnamePlaceholder": "Letters, digits, and dashes (or return for 'omarchy')",
   "setupForm.hostnamePrompt": "Hostname> ",
   "setupForm.keyboardHeader": "Select keyboard layout",
   "setupForm.languageHeader": "Language",

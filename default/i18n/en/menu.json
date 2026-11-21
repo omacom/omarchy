@@ -500,6 +500,9 @@
   "setup.network.dns.custom": {
     "label": "Custom"
   },
+  "setup.network.hostname": {
+    "label": "Hostname"
+  },
   "setup.network.qr": {
     "label": "QR Code"
   },
