@@ -8,6 +8,7 @@ matching guide before starting:
 - [`agents/skills/mise-tools.md`](agents/skills/mise-tools.md) - adding or changing mise-managed tools
 - [`agents/skills/shell-dev.md`](agents/skills/shell-dev.md) - editing the Quickshell desktop under `shell/`
 - [`agents/skills/icon-font.md`](agents/skills/icon-font.md) - adding branded glyphs to `default/fonts/omarchy/omarchy.ttf`
+- [`agents/skills/font-previews.md`](agents/skills/font-previews.md) - adding installable fonts and their offline menu previews
 - [`agents/skills/acceptance-tests.md`](agents/skills/acceptance-tests.md) - writing or running graphical acceptance tests under `test/acceptance.d/`
 - [`agents/skills/oligarchy-tests.md`](agents/skills/oligarchy-tests.md) - full omarchy tests that run in qemu to validate behavior
 - [`agents/skills/motion.md`](agents/skills/motion.md) - adding or changing any animation or transition in `shell/`
