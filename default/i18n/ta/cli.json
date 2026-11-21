@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "மதிப்பு",
   "setupForm.reviewYes": "ஆம்",
   "setupForm.timezoneHeader": "நேர மண்டலம்",
+  "setupForm.timezonePlaceholder": "வடிகட்டு...",
   "setupForm.usernameInvalid": "பயனர்பெயர் இடைவெளியின்றி எழுத்துகளும் எண்களும் மட்டுமே இருக்க வேண்டும்",
   "setupForm.usernamePlaceholder": "இடைவெளியின்றி எழுத்துகளும் எண்களும் (dhh போல)",
   "setupForm.usernamePrompt": "பயனர்பெயர்> ",

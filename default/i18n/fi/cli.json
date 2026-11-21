@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "Arvo",
   "setupForm.reviewYes": "Kyllä",
   "setupForm.timezoneHeader": "Aikavyöhyke",
+  "setupForm.timezonePlaceholder": "Suodata...",
   "setupForm.usernameInvalid": "Käyttäjänimessä saa olla vain kirjaimia ja numeroita ilman välilyöntejä",
   "setupForm.usernamePlaceholder": "Kirjaimia ja numeroita ilman välilyöntejä (esim. dhh)",
   "setupForm.usernamePrompt": "Käyttäjänimi> ",

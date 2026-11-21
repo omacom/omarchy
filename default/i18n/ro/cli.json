@@ -366,6 +366,7 @@
   "setupForm.reviewValue": "Valoare",
   "setupForm.reviewYes": "Da",
   "setupForm.timezoneHeader": "Fus orar",
+  "setupForm.timezonePlaceholder": "Filtrează...",
   "setupForm.usernameInvalid": "Numele de utilizator poate conține doar litere și cifre, fără spații",
   "setupForm.usernamePlaceholder": "Litere și cifre fără spații (de ex. dhh)",
   "setupForm.usernamePrompt": "Utilizator> ",

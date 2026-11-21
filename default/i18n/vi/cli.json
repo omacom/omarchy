@@ -354,6 +354,7 @@
   "setupForm.reviewValue": "Giá trị",
   "setupForm.reviewYes": "Có",
   "setupForm.timezoneHeader": "Múi giờ",
+  "setupForm.timezonePlaceholder": "Lọc...",
   "setupForm.usernameInvalid": "Tên người dùng phải là chữ và số, không có khoảng trắng",
   "setupForm.usernamePlaceholder": "Chữ và số không có khoảng trắng (ví dụ dhh)",
   "setupForm.usernamePrompt": "Tên người dùng> ",

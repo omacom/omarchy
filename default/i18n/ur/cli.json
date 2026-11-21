@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "قدر",
   "setupForm.reviewYes": "ہاں",
   "setupForm.timezoneHeader": "ٹائم زون",
+  "setupForm.timezonePlaceholder": "فلٹر کریں...",
   "setupForm.usernameInvalid": "صارف نام صرف حروف اور ہندسوں پر مشتمل ہو، بغیر خالی جگہ کے",
   "setupForm.usernamePlaceholder": "بغیر خالی جگہ حروف اور ہندسے (جیسے dhh)",
   "setupForm.usernamePrompt": "صارف نام> ",

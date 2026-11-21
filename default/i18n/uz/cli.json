@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "Qiymat",
   "setupForm.reviewYes": "Ha",
   "setupForm.timezoneHeader": "Vaqt mintaqasi",
+  "setupForm.timezonePlaceholder": "Filtrlash...",
   "setupForm.usernameInvalid": "Foydalanuvchi nomi faqat harf va raqamlardan iborat bo‘lishi, bo‘shliqsiz",
   "setupForm.usernamePlaceholder": "Bo‘shliqsiz harf va raqamlar (masalan, dhh)",
   "setupForm.usernamePrompt": "Foydalanuvchi nomi> ",

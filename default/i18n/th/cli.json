@@ -354,6 +354,7 @@
   "setupForm.reviewValue": "ค่า",
   "setupForm.reviewYes": "ใช่",
   "setupForm.timezoneHeader": "เขตเวลา",
+  "setupForm.timezonePlaceholder": "กรอง...",
   "setupForm.usernameInvalid": "ชื่อผู้ใช้ต้องเป็นตัวอักษรและตัวเลข ไม่มีช่องว่าง",
   "setupForm.usernamePlaceholder": "ตัวอักษรและตัวเลข ไม่มีช่องว่าง (เช่น dhh)",
   "setupForm.usernamePrompt": "ชื่อผู้ใช้> ",

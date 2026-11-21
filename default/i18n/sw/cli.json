@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "Thamani",
   "setupForm.reviewYes": "Ndiyo",
   "setupForm.timezoneHeader": "Saa za eneo",
+  "setupForm.timezonePlaceholder": "Chuja...",
   "setupForm.usernameInvalid": "Jina la mtumiaji liwe herufi na tarakimu tu, bila nafasi",
   "setupForm.usernamePlaceholder": "Herufi na tarakimu bila nafasi (kama dhh)",
   "setupForm.usernamePrompt": "Jina la mtumiaji> ",

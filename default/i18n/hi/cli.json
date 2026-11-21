@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "मान",
   "setupForm.reviewYes": "हाँ",
   "setupForm.timezoneHeader": "समय क्षेत्र",
+  "setupForm.timezonePlaceholder": "फ़िल्टर करें...",
   "setupForm.usernameInvalid": "उपयोगकर्ता नाम बिना रिक्त स्थान के अक्षर-अंक होना चाहिए",
   "setupForm.usernamePlaceholder": "बिना रिक्त स्थान के अक्षर-अंक (जैसे dhh)",
   "setupForm.usernamePrompt": "उपयोगकर्ता नाम> ",

@@ -372,6 +372,7 @@
   "setupForm.reviewValue": "Vrednost",
   "setupForm.reviewYes": "Da",
   "setupForm.timezoneHeader": "Časovni pas",
+  "setupForm.timezonePlaceholder": "Filtriraj...",
   "setupForm.usernameInvalid": "Uporabniško ime lahko vsebuje le črke in številke, brez presledkov",
   "setupForm.usernamePlaceholder": "Črke in številke brez presledkov (npr. dhh)",
   "setupForm.usernamePrompt": "Uporabnik> ",

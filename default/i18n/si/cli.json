@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "අගය",
   "setupForm.reviewYes": "ඔව්",
   "setupForm.timezoneHeader": "වේලා කලාපය",
+  "setupForm.timezonePlaceholder": "පෙරන්න...",
   "setupForm.usernameInvalid": "පරිශීලක නාමය හිස්තැන් රහිත අක්ෂරාංක විය යුතුය",
   "setupForm.usernamePlaceholder": "හිස්තැන් නැති අකුරු සහ ඉලක්කම් (dhh වැනි)",
   "setupForm.usernamePrompt": "පරිශීලක නාමය> ",

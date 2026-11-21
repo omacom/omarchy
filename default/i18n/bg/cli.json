@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "Стойност",
   "setupForm.reviewYes": "Да",
   "setupForm.timezoneHeader": "Часова зона",
+  "setupForm.timezonePlaceholder": "Филтър...",
   "setupForm.usernameInvalid": "Потребителското име може да съдържа само букви и цифри, без интервали",
   "setupForm.usernamePlaceholder": "Латински букви и цифри без интервали (напр. dhh)",
   "setupForm.usernamePrompt": "Потребител> ",

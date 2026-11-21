@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "Halaga",
   "setupForm.reviewYes": "Oo",
   "setupForm.timezoneHeader": "Timezone",
+  "setupForm.timezonePlaceholder": "Salain...",
   "setupForm.usernameInvalid": "Dapat titik at numero lang ang username, walang espasyo",
   "setupForm.usernamePlaceholder": "Mga titik at numero na walang espasyo (gaya ng dhh)",
   "setupForm.usernamePrompt": "Username> ",

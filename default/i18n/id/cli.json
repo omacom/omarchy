@@ -354,6 +354,7 @@
   "setupForm.reviewValue": "Nilai",
   "setupForm.reviewYes": "Ya",
   "setupForm.timezoneHeader": "Zona waktu",
+  "setupForm.timezonePlaceholder": "Saring...",
   "setupForm.usernameInvalid": "Nama pengguna hanya boleh huruf dan angka tanpa spasi",
   "setupForm.usernamePlaceholder": "Huruf dan angka tanpa spasi (seperti dhh)",
   "setupForm.usernamePrompt": "Nama pengguna> ",
