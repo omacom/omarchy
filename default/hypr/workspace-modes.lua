@@ -415,14 +415,35 @@ local function on_urgent(window)
   end, { type = "oneshot", timeout = 1 })
 end
 
-local function on_active(window)
+-- Focus also lands on windows nobody picked: the one left when another closes
+-- or is minimized, and the one last focused on a workspace switched to. Such a
+-- window stays where it is among the others, as it does on Windows, where a
+-- maximized window left with the focus hides nothing that was over it. These
+-- are Hyprland's reasons for a workspace change, a special workspace toggled,
+-- and a tiled, floating or grouped window gone.
+local FELL = { [2048] = true, [4096] = true, [8192] = true, [16384] = true, [32768] = true }
+
+-- A window minimized is moved to the store, and Hyprland then focuses the one
+-- under where it was, giving a keybind as the reason.
+local minimizing = false
+
+local function on_moved(_, workspace)
+  if workspace and workspace.name == "special:minimized" then
+    minimizing = true
+    hl.timer(function()
+      minimizing = false
+    end, { type = "oneshot", timeout = 1 })
+  end
+end
+
+local function on_active(window, reason)
   if not maximized_on_floating_workspace(window) then
     return
   end
 
   -- Focus can pass through on its way to another window, as it does when one
   -- comes back from the dock, and only where it lands counts.
-  local asked = asked_for_focus == window.address
+  local asked = asked_for_focus == window.address or FELL[reason] or minimizing
   hl.timer(function()
     local active = hl.get_active_window()
     if not active or active.address ~= window.address or not maximized_on_floating_workspace(window) then
@@ -506,6 +527,7 @@ local function watch()
   -- A move is still being committed when this fires, and changing the window's
   -- floating state underneath it loses the move. Let it land first.
   hl.on("window.move_to_workspace", function(window, workspace)
+    on_moved(window, workspace)
     hl.timer(function()
       arrange({ window }, workspace)
     end, { type = "oneshot", timeout = 1 })

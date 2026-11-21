@@ -591,9 +591,9 @@ hl = {
   plugin = { load = function() end },
 }
 
-local function emit(event, target)
+local function emit(event, target, reason)
   for _, callback in ipairs(handlers[event] or {}) do
-    callback(target)
+    callback(target, reason)
   end
 end
 
@@ -770,6 +770,16 @@ local sibling = window("0x10", { pid = 1, tags = { "omarchy-mode-floated" } })
 click(sibling)
 click(maximized)
 assert(not sibling.allowed_over_fullscreen, "a second window of the same app stayed over the maximized window")
+
+-- Focus left with the maximized window when another one closes is nobody
+-- bringing it forward: what was over it stays there. 16384 is Hyprland's reason
+-- for a floating window gone.
+click(steam)
+table.insert(maximized.tags, "omarchy-maximized")
+active = maximized
+emit("window.active", maximized, 16384)
+settle()
+assert(steam.allowed_over_fullscreen, "focus falling to the maximized window as another closed hid the window over it")
 LUA
 
 if ! HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" OMARCHY_PATH="$ROOT" \
