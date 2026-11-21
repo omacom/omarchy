@@ -14,7 +14,8 @@
 -- per display, so it's copied for the built-in port and the Apple displays'
 -- descriptions, which covers ones plugged in later. Hyprland uses the last
 -- matching rule, so rules naming a monitor are replayed after the copies and
--- still win. A cm chosen in hypr/monitors.lua wins too: the panel's rules name
+-- still win, and a port rule is checked again when its monitor is plugged
+-- in. A cm chosen in hypr/monitors.lua wins too: the panel's rules name
 -- the port and carry no cm, so they take the choice made for that port, for
 -- the monitor's description, or for every monitor.
 
@@ -70,7 +71,7 @@ local function copy(rule, output, cm)
   return copied
 end
 
-local chosen, named = {}, {}
+local chosen, named, given = {}, {}, {}
 
 local function cm_for(output)
   if chosen[output] then
@@ -105,7 +106,8 @@ if o.shell_succeeds(o.shell_quote(paths.omarchy_path .. "/bin/omarchy-hw-aarch64
       chosen[output] = rule.cm
       return monitor(rule)
     end
-    return monitor(copy(rule, rule.output, cm_for(output)))
+    given[output] = cm_for(output)
+    return monitor(copy(rule, rule.output, given[output]))
   end
 
   hl.monitor = function(rule)
@@ -127,14 +129,25 @@ if o.shell_succeeds(o.shell_quote(paths.omarchy_path .. "/bin/omarchy-hw-aarch64
 
     local result = apply(rule)
     for _, port in ipairs(built_in_ports()) do
-      monitor(copy(rule, port, rule.cm or "edid"))
+      monitor(copy(rule, port, rule.cm or chosen[""] or "edid"))
     end
     for _, prefix in ipairs(apple_displays) do
-      monitor(copy(rule, "desc:" .. prefix, rule.cm or "edid"))
+      monitor(copy(rule, "desc:" .. prefix, rule.cm or chosen[""] or "edid"))
     end
     for _, earlier in ipairs(named) do
       apply(earlier)
     end
     return result
   end
+
+  -- A port rule loaded before its monitor was plugged in couldn't see which
+  -- display it was for, so check again when one arrives.
+  hl.on("monitor.added", function(added)
+    local name = added and added.name
+    for _, rule in ipairs(named) do
+      if rule.output == name and rule.cm == nil and cm_for(name) ~= given[name] then
+        apply(rule)
+      end
+    end
+  end)
 end

@@ -203,8 +203,25 @@ hl.monitor({ output = "DP-2", scale = 2 })
 check(rule_for("DP-2", xdr).cm == "dcip3", "keeps the cm chosen for the description, got " .. tostring(rule_for("DP-2", xdr).cm))
 hl.monitor({ output = "", cm = "srgb" })
 check(rule_for("DP-1", studio).cm == "srgb" and rule_for("eDP-1", "").cm == "srgb", "keeps the cm chosen for every monitor")
+hl.monitor({ output = "", scale = 1.5 })
+check(rule_for("DP-1", studio).cm == "srgb", "keeps the cm chosen for every monitor through a later shared rule")
 ' || fail "port rules get EDID color only on Apple displays"
 pass "port rules get EDID color only on Apple displays"
+
+# A port rule loaded before its Apple display was plugged in gets EDID color
+# once the display arrives.
+run_lua "apple = true $wide_gamut"'
+hl.monitor({ output = "", mode = "preferred", scale = "auto" })
+hl.monitor({ output = "DP-2", scale = 2 })
+check(rule_for("DP-2", xdr).cm == nil, "has no display to check before it is plugged in")
+plug("DP-2", "", { description = xdr })
+handlers["monitor.added"]({ name = "DP-2" })
+check(rule_for("DP-2", xdr).cm == "edid" and rule_for("DP-2", xdr).scale == 2, "gives the port rule EDID color once the display arrives")
+local count = #applied
+handlers["monitor.added"]({ name = "DP-2" })
+check(#applied == count, "leaves the rule alone when nothing changed")
+' || fail "port rules wait for their monitor"
+pass "port rules wait for their monitor"
 
 run_lua "apple = false $wide_gamut"'
 hl.monitor({ output = "", mode = "preferred", scale = "auto" })
