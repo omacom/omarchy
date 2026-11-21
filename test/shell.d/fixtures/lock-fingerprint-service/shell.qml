@@ -10,6 +10,10 @@ ShellRoot {
   readonly property string resultPath: Quickshell.env("OMARCHY_QML_TEST_RESULT")
   property var failures: []
   property int checks: 0
+  property var probeService: null
+  property var probeProcess: null
+  property int probeStage: 0
+  property int probeTicks: 0
 
   Item { id: host }
 
@@ -151,6 +155,29 @@ ShellRoot {
       check(retry.running && retry.interval === 1000, "resume retries without retaining the capped wait")
       check(service.lockRequested, "resume never unlocks")
 
+      var sleepWatch = timer(service, 1000, true)
+      service.fingerprintAuthenticating = true
+      reach.start()
+      service.prepareForSleep(true)
+      check(service.suspending && !retry.running, "suspend stops retries")
+      check(!reach.running, "suspend stops the reach bound that would abort the scan")
+      check(service.fingerprintAuthenticating, "suspend leaves a running scan alone")
+      service.refreshFingerprintStatus()
+      check(service.fingerprintCheckDeferred, "a status check waits for resume")
+      sleepWatch.lastTickMs = Date.now() - 60000
+      service.prepareForSleep(false)
+      check(!service.suspending && !service.fingerprintCheckDeferred, "resume runs the held-back check")
+      check(!service.fingerprintAuthenticating && retry.running, "resume settles a scan that rode through and retries")
+      check(Date.now() - sleepWatch.lastTickMs < 1000, "the sleep watch does not handle the same resume again")
+      check(service.lockRequested, "resume never unlocks")
+
+      service.fingerprintConfigured = false
+      service.fingerprintResumedAtMs = 0
+      service.prepareForSleep(true)
+      service.prepareForSleep(false)
+      check(service.fingerprintResumedAtMs > 0, "resume opens the grace window while enrollment is still being checked")
+      service.fingerprintConfigured = true
+
       service.fingerprintAuthenticating = true
       reach.start()
       service.timeoutFingerprintReach()
@@ -244,18 +271,80 @@ ShellRoot {
     }
   }
 
+  function report() {
+    if (probeService) {
+      probeService.lockRequested = false
+      probeService.resetAuthenticationState()
+      probeService.destroy()
+      probeService = null
+    }
+    var payload = JSON.stringify({ ok: failures.length === 0, checks: checks, failures: failures })
+    var quoted = "'" + payload.replace(/'/g, "'\\''") + "'"
+    Quickshell.execDetached(["bash", "-c", "printf '%s' " + quoted + " > \"$1\"", "_", resultPath])
+  }
+
+  function startDeferredProbeTest() {
+    var component = Qt.createComponent("file://" + rootPath + "/shell/plugins/lock/Service.qml", Component.PreferSynchronous)
+    if (component.status !== Component.Ready) throw new Error(component.errorString())
+    probeService = component.createObject(host, { omarchyPath: rootPath })
+    if (!probeService) throw new Error(component.errorString())
+    var objects = probeService.data || []
+    for (var i = 0; i < objects.length; i++) {
+      var command = objects[i].command
+      if (command && String(command).indexOf("fprintd-list") !== -1) probeProcess = objects[i]
+    }
+    if (!probeProcess) throw new Error("Missing fingerprint check process")
+    deferredProbeTimer.start()
+  }
+
+  // Exercise the actual Process through the event loop, not only the deferred
+  // flag. A controlled command proves resume really executes the held check.
+  Timer {
+    id: deferredProbeTimer
+    interval: 20
+    repeat: true
+    onTriggered: {
+      try {
+        root.probeTicks += 1
+        if (root.probeTicks > 100) throw new Error("Deferred probe did not finish")
+        if (root.probeProcess.running) {
+          // The service's startup probe runs the real fprintd-list, which a slow reader can hold past this deadline.
+          if (root.probeStage === 0) root.probeProcess.running = false
+          return
+        }
+        if (root.probeStage === 0) {
+          root.probeProcess.command = ["printf", "deferred-probe-ran"]
+          root.probeService.lockRequested = true
+          root.probeService.prepareForSleep(true)
+          root.probeService.refreshFingerprintStatus()
+          root.check(!root.probeProcess.running, "the controlled probe does not start during sleep preparation")
+          root.probeService.prepareForSleep(false)
+          root.check(root.probeProcess.running, "resume starts the deferred probe process")
+          root.probeStage = 1
+        } else {
+          root.check(String(root.probeProcess.stdout.text) === "deferred-probe-ran", "the deferred command actually executes after resume")
+          stop()
+          root.report()
+        }
+      } catch (error) {
+        root.failures.push(String(error))
+        stop()
+        root.report()
+      }
+    }
+  }
+
   Timer {
     interval: 1
     running: true
     onTriggered: {
       try {
         root.run()
+        root.startDeferredProbeTest()
       } catch (error) {
         root.failures.push(String(error))
+        root.report()
       }
-      var payload = JSON.stringify({ ok: root.failures.length === 0, checks: root.checks, failures: root.failures })
-      var quoted = "'" + payload.replace(/'/g, "'\\''") + "'"
-      Quickshell.execDetached(["bash", "-c", "printf '%s' " + quoted + " > \"$1\"", "_", root.resultPath])
     }
   }
 }
