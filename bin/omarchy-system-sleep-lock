@@ -122,4 +122,4 @@ while (( $(remaining_ms) > 0 )); do
   sleep "$poll_interval"
 done
 
-report_unsecured "the shell did not secure the session within ${budget_ms}ms" "$(omarchy-i18n lock.unlockedTimeout "$budget_ms")"
+report_unsecured "the shell did not secure the session within ${budget_ms}ms" "$(omarchy-i18n lock.unlockedTimeout "$(omarchy-i18n --number "$budget_ms")")"

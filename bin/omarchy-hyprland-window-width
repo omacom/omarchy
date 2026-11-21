@@ -25,6 +25,19 @@ workspace_key() {
   jq -r '.workspace.id // .workspace.name // empty' <<<"$1"
 }
 
+# A numbered workspace's id is localized. Named and special workspaces report a
+# negative id, so they show their name as typed, even one like "1942".
+workspace_label() {
+  local id
+  id=$(jq -r '.workspace.id // empty' <<<"$1")
+
+  if [[ $id =~ ^[0-9]+$ ]] && (( id >= 1 )); then
+    omarchy-i18n --number "$id"
+  else
+    jq -r '.workspace.name // empty' <<<"$1"
+  fi
+}
+
 state_file_for() {
   local key="$1"
   local workspace="$2"
@@ -85,7 +98,7 @@ save_width() {
   printf '%s\n' "$width" >"$tmp"
   mv "$tmp" "$state_file"
 
-  notify_saved_width "$key" "$workspace"
+  notify_saved_width "$key" "$(workspace_label "$active")"
   echo "Saved width for $key on workspace $workspace"
 }
 
@@ -105,7 +118,7 @@ restore_width() {
   local window=""
 
   if [[ ! -f $state_file ]]; then
-    notify_missing_width "$key" "$workspace"
+    notify_missing_width "$key" "$(workspace_label "$active")"
     exit 1
   fi
 
