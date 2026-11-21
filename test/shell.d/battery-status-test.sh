@@ -77,6 +77,26 @@ grep -Fx $'rate\t7.3W' <<<"$generic_output" >/dev/null || fail "battery status a
 grep -Fx $'time\t3h 53m' <<<"$generic_output" >/dev/null || fail "battery status time left follows the live draw"
 pass "battery status supports Apple Silicon and arbitrary native battery paths"
 
+# Firmware without a cycle count reads back the kernel's 0, which the panel would show as a real count.
+battery_status() {
+  OMARCHY_TEST_NATIVE_PATH=CMB0 OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell
+}
+
+printf '0\n' >"$tmp_dir/power/CMB0/cycle_count"
+zero_output=$(battery_status)
+if grep -q $'^cycles\t' <<<"$zero_output"; then
+  fail "battery status leaves out an unavailable cycle count" "$zero_output"
+fi
+
+# A pack reporting nothing must not hide a sibling's real count.
+mkdir -p "$tmp_dir/power/BAT0" "$tmp_dir/power/BAT1"
+printf '0\n' >"$tmp_dir/power/BAT0/cycle_count"
+printf '450\n' >"$tmp_dir/power/BAT1/cycle_count"
+battery_status | grep -Fx $'cycles\t450' >/dev/null || fail "battery status reports a real cycle count from a second pack"
+rm -r "$tmp_dir/power/BAT0" "$tmp_dir/power/BAT1"
+
+pass "battery status reports an unavailable cycle count as unknown"
+
 # Firmware that doesn't know the present rate leaves current_now in place but
 # gives nothing on read; UPower's rate, from the falling charge, stands.
 rm "$tmp_dir/power/CMB0/power_now"
