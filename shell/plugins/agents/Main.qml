@@ -16,71 +16,6 @@ Item {
   readonly property string home: Quickshell.env("HOME") || ""
   readonly property string usageDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/usage"
 
-  // Server lifecycle is independent of the local usage collector. Keep the
-  // watch alive even before the panel's content has been built.
-  property var localModel: ({})
-
-  FileView {
-    id: localModelFile
-    path: root.home + "/.local/state/omarchy/agent-local/status.json"
-    watchChanges: true
-    printErrors: false
-    onFileChanged: reload()
-    onLoaded: root.parseLocalModel(text())
-  }
-
-  // The catalog's recipes as this machine sees them (fits, best, installed),
-  // which Add another › Local AI offers from.
-  property var localRecipes: []
-
-  FileView {
-    id: localRecipesFile
-    path: root.home + "/.local/state/omarchy/agent-local/list.json"
-    watchChanges: true
-    printErrors: false
-    onFileChanged: reload()
-    onLoaded: {
-      try {
-        var parsed = JSON.parse(text())
-        if (Array.isArray(parsed)) root.localRecipes = parsed
-      } catch (e) {
-        // A half-written listing keeps the last good one.
-      }
-    }
-  }
-
-  // Rewrites the listing and status, which a package upgrade may have
-  // changed. On a fresh account neither file exists until this first run, and
-  // a missing file can't be watched, so both are loaded once it finishes.
-  function refreshLocal() {
-    if (!localRefresh.running) localRefresh.running = true
-  }
-
-  Process {
-    id: localRefresh
-    command: ["omarchy-agent-local", "refresh", "--quiet"]
-    onExited: {
-      localRecipesFile.reload()
-      localModelFile.reload()
-    }
-  }
-
-  function parseLocalModel(content) {
-    try {
-      var parsed = JSON.parse(content)
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return
-      if (!parsed.models || typeof parsed.models !== "object" || Array.isArray(parsed.models)) return
-      for (var id in parsed.models) {
-        var model = parsed.models[id]
-        if (!model || model.recipe !== id || id === "") return
-        if (["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
-      }
-      root.localModel = parsed
-    } catch (e) {
-      // A missing or partially written file leaves the last good state intact.
-    }
-  }
-
   // ------------------------------------------------------------- discovery
 
   property var agentIds: []
@@ -321,28 +256,7 @@ Item {
   readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/order.json"
   property var providerOrder: []
 
-  readonly property var panelProviders: {
-    var list = subscribedProviders.slice()
-    var models = localModel.models || {}
-    for (var id in models)
-      list.push({ providerId: "local:" + id, localModel: models[id] })
-    var offer = localOffer(localRecipes, models, providerEnabled)
-    if (offer) list.push({ providerId: "local:" + offer.id, providerName: offer.name || offer.id, localOffer: offer })
-    return orderedProviders(list)
-  }
-
-  // A machine with no local model yet is offered the one the catalog
-  // recommends for it, ready to download from the first page. It shares its
-  // id with the model it becomes, so it keeps its place once set up, and
-  // hiding it hides the offer, not the model.
-  function localOffer(recipes, models, enabled) {
-    if (Object.keys(models || {}).length > 0) return null
-    for (var i = 0; i < (recipes || []).length; i++) {
-      var recipe = recipes[i]
-      if (recipe && recipe.best && recipe.available && !recipe.installed && enabled("local:" + recipe.id)) return recipe
-    }
-    return null
-  }
+  readonly property var panelProviders: orderedProviders(subscribedProviders)
 
   function orderedProviders(list) {
     var order = providerOrder

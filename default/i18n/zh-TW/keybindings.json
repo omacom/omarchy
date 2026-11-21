@@ -1,6 +1,7 @@
 {
   "Activity": "活動",
   "Agent": "代理人",
+  "Agents": "代理人",
   "Apps": "應用程式",
   "Audio": "音訊",
   "Background switcher": "背景切換器",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "輪替鍵盤背光",
   "Keyboard brightness down": "調低鍵盤亮度",
   "Keyboard brightness up": "調高鍵盤亮度",
+  "Local models": "本地模型",
   "Lock system": "鎖定系統",
   "Make webcam overlay larger": "放大網路攝影機浮層",
   "Make webcam overlay smaller": "縮小網路攝影機浮層",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "置頂顯示作用中視窗",
   "Save window width": "儲存視窗寬度",
   "Screenrecording": "螢幕錄影",
+  "Screenrecording with no audio": "螢幕錄影（無音訊）",
   "Screenshot": "螢幕擷圖",
   "Scroll active workspace backward": "向後捲動目前工作區",
   "Scroll active workspace forward": "向前捲動目前工作區",

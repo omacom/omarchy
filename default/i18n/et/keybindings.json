@@ -1,6 +1,7 @@
 {
   "Activity": "Tegevus",
   "Agent": "Agent",
+  "Agents": "Agendid",
   "Apps": "Rakendused",
   "Audio": "Heli",
   "Background switcher": "Tausta vahetaja",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Vaheta klaviatuuri taustavalgust",
   "Keyboard brightness down": "Vähenda klaviatuuri heledust",
   "Keyboard brightness up": "Suurenda klaviatuuri heledust",
+  "Local models": "Kohalikud mudelid",
   "Lock system": "Lukusta süsteem",
   "Make webcam overlay larger": "Suurenda veebikaamera ülekatet",
   "Make webcam overlay smaller": "Vähenda veebikaamera ülekatet",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Too aktiivne aken ette",
   "Save window width": "Salvesta akna laius",
   "Screenrecording": "Ekraanisalvestus",
+  "Screenrecording with no audio": "Ekraanisalvestus ilma helita",
   "Screenshot": "Ekraanipilt",
   "Scroll active workspace backward": "Keri aktiivset tööala tagasi",
   "Scroll active workspace forward": "Keri aktiivset tööala edasi",

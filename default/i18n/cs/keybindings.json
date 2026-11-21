@@ -1,6 +1,7 @@
 {
   "Activity": "Aktivita",
   "Agent": "Agent",
+  "Agents": "Agenti",
   "Apps": "Aplikace",
   "Audio": "Zvuk",
   "Background switcher": "Přepínač pozadí",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Přepínat podsvícení klávesnice",
   "Keyboard brightness down": "Snížit jas klávesnice",
   "Keyboard brightness up": "Zvýšit jas klávesnice",
+  "Local models": "Lokální modely",
   "Lock system": "Zamknout systém",
   "Make webcam overlay larger": "Zvětšit překryv webkamery",
   "Make webcam overlay smaller": "Zmenšit překryv webkamery",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Zobrazit aktivní okno nahoře",
   "Save window width": "Uložit šířku okna",
   "Screenrecording": "Nahrávání obrazovky",
+  "Screenrecording with no audio": "Nahrávání obrazovky bez zvuku",
   "Screenshot": "Snímek obrazovky",
   "Scroll active workspace backward": "Posunout aktivní pracovní plochu dozadu",
   "Scroll active workspace forward": "Posunout aktivní pracovní plochu dopředu",

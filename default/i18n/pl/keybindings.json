@@ -1,6 +1,7 @@
 {
   "Activity": "Aktywność",
   "Agent": "Agent",
+  "Agents": "Agenci",
   "Apps": "Aplikacje",
   "Audio": "Dźwięk",
   "Background switcher": "Przełącznik tła",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Przełącz podświetlenie klawiatury",
   "Keyboard brightness down": "Zmniejsz jasność klawiatury",
   "Keyboard brightness up": "Zwiększ jasność klawiatury",
+  "Local models": "Modele lokalne",
   "Lock system": "Zablokuj system",
   "Make webcam overlay larger": "Powiększ nakładkę kamery",
   "Make webcam overlay smaller": "Pomniejsz nakładkę kamery",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Przenieś aktywne okno na wierzch",
   "Save window width": "Zapisz szerokość okna",
   "Screenrecording": "Nagrywanie ekranu",
+  "Screenrecording with no audio": "Nagrywanie ekranu bez dźwięku",
   "Screenshot": "Zrzut ekranu",
   "Scroll active workspace backward": "Przewiń aktywny obszar roboczy wstecz",
   "Scroll active workspace forward": "Przewiń aktywny obszar roboczy w przód",

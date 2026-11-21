@@ -1,6 +1,7 @@
 {
   "Activity": "Veikla",
   "Agent": "Agentas",
+  "Agents": "Agentai",
   "Apps": "Programos",
   "Audio": "Garsas",
   "Background switcher": "Fono perjungiklis",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Perjungti klaviatūros apšvietimo lygį",
   "Keyboard brightness down": "Sumažinti klaviatūros ryškumą",
   "Keyboard brightness up": "Padidinti klaviatūros ryškumą",
+  "Local models": "Vietiniai modeliai",
   "Lock system": "Užrakinti sistemą",
   "Make webcam overlay larger": "Padidinti kameros perdangą",
   "Make webcam overlay smaller": "Sumažinti kameros perdangą",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Rodyti aktyvų langą viršuje",
   "Save window width": "Išsaugoti lango plotį",
   "Screenrecording": "Ekrano įrašymas",
+  "Screenrecording with no audio": "Ekrano įrašymas be garso",
   "Screenshot": "Ekrano kopija",
   "Scroll active workspace backward": "Slinkti aktyvią darbo sritį atgal",
   "Scroll active workspace forward": "Slinkti aktyvią darbo sritį pirmyn",

@@ -8,11 +8,11 @@ run_node_test <<'JS'
 const fs = require('fs')
 const panelSource = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
 
-const signInFunctions = ['supportsSignIn', 'needsSignIn', 'usageNote'].map(name => {
+const signInFunctions = ['supportsSignIn', 'signedOut', 'needsSignIn', 'usageNote'].map(name => {
   const match = panelSource.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))
   return match ? match[0] : ''
 }).join('\n')
-const signIn = new Function('addProviders', 'helpDisplayText', 'statusDisplayText', signInFunctions + '\nreturn {needsSignIn, usageNote}')(
+const signIn = new Function('addProviders', 'helpDisplayText', 'statusDisplayText', signInFunctions + '\nreturn {needsSignIn, signedOut, usageNote}')(
   [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'grok'}], text => text, status => status
 )
 for (const id of ['claude', 'codex', 'grok']) {
@@ -22,6 +22,7 @@ for (const id of ['claude', 'codex', 'grok']) {
 assert(signIn.needsSignIn({usageStatusText: 'Sign-in expired'}), 'account rows keep their sign-in link')
 for (const status of ['Sign-in expired', 'Waiting for auth']) {
   assert(!signIn.needsSignIn({providerId: 'agy', usageStatusText: status}), 'an agent the panel cannot sign in gets no link for ' + status)
+  assert(signIn.signedOut({providerId: 'agy', usageStatusText: status}), 'an agent the panel cannot sign in still counts as signed out for ' + status)
   assertEqual(signIn.usageNote({providerId: 'agy', usageStatusText: status}), status, 'an agent the panel cannot sign in still notes ' + status)
 }
 assertEqual(signIn.usageNote({providerId: 'grok', usageStatusText: 'Limits paused', authHelpText: 'Start Grok to refresh it.'}),
@@ -105,82 +106,20 @@ assertDeepEqual(
 )
 JS
 
-# A rewrite may briefly leave an incomplete file; lifecycle state must survive it.
-run_node_test <<'JS'
-const fs = require('fs')
-const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const state = { localModel: {} }
-const parse = new Function('root', source.match(/function parseLocalModel\([^]*?\n  \}/)[0] + '\nreturn parseLocalModel')(state)
-const running = { models: { 'model-a': { recipe: 'model-a', unit: 'active', endpoint: 'http://127.0.0.1:11435/v1' }, 'model-b': { recipe: 'model-b', unit: 'activating' } }, ram_total_gib: 125.1 }
-parse(JSON.stringify(running))
-assertDeepEqual(state.localModel, running, 'lifecycle state loads without any usage record')
-for (const raw of ['{', 'null', '[]', '{}', '{"models":[]}', '{"models":{"model-a":{"recipe":false,"unit":"active"}}}', '{"models":{"model-a":{"recipe":"model-a","unit":"unknown"}}}']) {
-  parse(raw)
-  assertDeepEqual(state.localModel, running, 'invalid lifecycle state keeps the last good value: ' + raw)
-}
-parse('{"models":{"model-a":{"recipe":"model-a","unit":"failed","result":"exit-code"}}}')
-assertEqual(state.localModel.models['model-a'].result, 'exit-code', 'a server failure replaces the running state')
-parse('{"models":{}}')
-assertDeepEqual(state.localModel.models, {}, 'an empty models map clears the local lines')
-parse('{"models":{"model-a":{"recipe":"model-a","unit":"installing","install":{"phase":"downloading","done_bytes":5,"total_bytes":10}}}}')
-assertEqual(state.localModel.models['model-a'].unit, 'installing', 'a setup in progress loads, so its download shows')
-JS
-
-# The recommended model is offered on the first page until a local model
-# exists or the offer is hidden.
-run_node_test <<'JS'
-const fs = require('fs')
-const main = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const localOffer = new Function(main.match(/function localOffer\([^]*?\n  \}/)[0] + '\nreturn localOffer')()
-const recipes = [{ id: 'qwen', available: true }, { id: 'nemotron', best: true, available: true }]
-const everyone = () => true
-assertEqual(localOffer(recipes, {}, everyone).id, 'nemotron', 'a machine without local models is offered the best recipe')
-assertEqual(localOffer(recipes, { qwen: { unit: 'inactive' } }, everyone), null, 'a machine with a local model gets no offer')
-assertEqual(localOffer(recipes, {}, id => id !== 'local:nemotron'), null, 'a hidden offer stays hidden')
-assertEqual(localOffer([{ id: 'nemotron', best: true, available: false }], {}, everyone), null, 'a best recipe that does not fit is not offered')
-JS
-
-# The panel has no terminal for sudo: a detached setup missing its packages
-# installs them in one first, and otherwise starts at once.
-wrapper_dir=$(mktemp -d)
-trap 'rm -rf "$wrapper_dir"' EXIT
-for stub in omarchy-hw-nvidia omarchy-pkg-add omarchy-local-ai omarchy-launch-floating-terminal-with-presentation; do
-  printf '#!/bin/bash\nprintf "%%s\\n" "%s $*" >>"%s/calls"\n' "$stub" "$wrapper_dir" >"$wrapper_dir/$stub"
-done
-printf '#!/bin/bash\nexit 1\n' >"$wrapper_dir/omarchy-hw-nvidia"
-chmod +x "$wrapper_dir"/omarchy-*
-run_wrapper() {
-  rm -f "$wrapper_dir/calls"
-  printf '#!/bin/bash\nexit %s\n' "$1" >"$wrapper_dir/omarchy-pkg-missing"
-  chmod +x "$wrapper_dir/omarchy-pkg-missing"
-  shift
-  PATH="$wrapper_dir:$PATH" "$ROOT/bin/omarchy-agent-local" "$@"
-  cat "$wrapper_dir/calls"
-}
-calls=$(run_wrapper 0 use --detach nemotron-3.5-bolt-tensorfold)
-[[ $calls == "omarchy-launch-floating-terminal-with-presentation omarchy-pkg-add podman crun && omarchy-local-ai 'use' '--detach' 'nemotron-3.5-bolt-tensorfold'" ]] || fail "a detached setup missing its packages installs them in a terminal first" "$calls"
-pass "a detached setup missing its packages installs them in a terminal first"
-calls=$(run_wrapper 1 use --detach nemotron-3.5-bolt-tensorfold)
-[[ $calls == "omarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold" ]] || fail "a detached setup with its packages starts without a terminal" "$calls"
-pass "a detached setup with its packages starts without a terminal"
-calls=$(run_wrapper 1 use nemotron-3.5-bolt-tensorfold)
-[[ $calls == $'omarchy-pkg-add podman crun\nomarchy-local-ai use nemotron-3.5-bolt-tensorfold' ]] || fail "a setup in a terminal installs its packages there" "$calls"
-pass "a setup in a terminal installs its packages there"
-
-# Hosted and local rows share ordering, including positions saved while hidden.
+# The saved order keeps agents where they were put, including ones hidden now.
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
 const functions = ['orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
-let providerOrder = ['codex', 'local:a', 'claude', 'hidden']
-let panelProviders = [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'local:a'}, {providerId: 'local:b'}]
+let providerOrder = ['codex', 'kimi', 'claude', 'hidden']
+let panelProviders = [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'kimi'}, {providerId: 'grok'}]
 let saved = ''
 const orderFile = {setText: text => { saved = text }}
 eval(functions)
 panelProviders = orderedProviders(panelProviders)
-assertDeepEqual(panelProviders.map(p => p.providerId), ['codex', 'local:a', 'claude', 'local:b'], 'saved order interleaves local models and puts new models last')
-moveProvider('local:b', 0)
-assertDeepEqual(JSON.parse(saved), ['local:b', 'codex', 'local:a', 'claude', 'hidden'], 'moving a local model saves the shared order and retains hidden ids')
+assertDeepEqual(panelProviders.map(p => p.providerId), ['codex', 'kimi', 'claude', 'grok'], 'saved order keeps its agents in place and puts new ones last')
+moveProvider('grok', 0)
+assertDeepEqual(JSON.parse(saved), ['grok', 'codex', 'kimi', 'claude', 'hidden'], 'moving an agent saves the order and retains hidden ids')
 JS
 
 # Exercise the panel's drag lifecycle with Elsewhen's real variable-height math.
@@ -192,7 +131,7 @@ const Reorder = {}
 vm.runInNewContext(fs.readFileSync(root + '/shell/plugins/panels/elsewhen/Model.js', 'utf8').replace(/^\.pragma.*$/mg, ''), Reorder)
 const state = {
   dragIndex: 0, dragTarget: 0, dragOffset: 0, dragPressY: 100,
-  rowPitches: [80, 140, 60], providers: [{providerId: 'codex'}, {providerId: 'local:a'}, {providerId: 'claude'}],
+  rowPitches: [80, 140, 60], providers: [{providerId: 'codex'}, {providerId: 'kimi'}, {providerId: 'claude'}],
   dragProviderId: 'codex', dragProviders: [], settling: false
 }
 let writes = []
@@ -221,12 +160,3 @@ assertEqual(writes.length, 1, 'cancel saves no order')
 assertDeepEqual([0, 1, 2].map(i => Reorder.rowShift(i, state.dragIndex, state.dragTarget, state.dragOffset, 60)), [0, 0, 0], 'cancel clears every offset')
 JS
 
-# A start that runs past its last duration must keep moving, never fill up.
-run_node_test <<'JS'
-const fs = require('fs')
-const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
-const progress = new Function(source.match(/function phaseProgress\([^]*?\n  \}/)[0] + '\nreturn phaseProgress')()
-assertEqual(progress(10, 10), 0.9, 'a start reaches 90% at the time the last one took')
-assert(progress(20, 10) > progress(15, 10) && progress(15, 10) > 0.9, 'a start that runs long keeps creeping')
-assert(progress(1000, 10) < 0.99, 'the bar never fills before the model is ready')
-JS

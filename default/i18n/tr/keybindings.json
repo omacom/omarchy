@@ -1,6 +1,7 @@
 {
   "Activity": "Etkinlik",
   "Agent": "Ajan",
+  "Agents": "Ajanlar",
   "Apps": "Uygulamalar",
   "Audio": "Ses",
   "Background switcher": "Arka plan değiştirici",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Klavye arka ışığını değiştir",
   "Keyboard brightness down": "Klavye parlaklığını azalt",
   "Keyboard brightness up": "Klavye parlaklığını artır",
+  "Local models": "Yerel modeller",
   "Lock system": "Sistemi kilitle",
   "Make webcam overlay larger": "Web kamerası görüntüsünü büyüt",
   "Make webcam overlay smaller": "Web kamerası görüntüsünü küçült",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Etkin pencereyi öne getir",
   "Save window width": "Pencere genişliğini kaydet",
   "Screenrecording": "Ekran kaydı",
+  "Screenrecording with no audio": "Sessiz ekran kaydı",
   "Screenshot": "Ekran görüntüsü",
   "Scroll active workspace backward": "Etkin çalışma alanını geri kaydır",
   "Scroll active workspace forward": "Etkin çalışma alanını ileri kaydır",

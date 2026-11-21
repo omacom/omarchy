@@ -1,55 +1,55 @@
 # برانڈنگ
 
-Omarchy آپ کو بوٹ ان لاک، اسکرین سیور، اور اباؤٹ اسکرین، تینوں کے لیے اپنی کمپنی کا لوگو یا ذاتی تصویر سیٹ کرنے کی اجازت دیتا ہے۔
+Omarchy آپ کو boot unlock، screensaver، اور about screen کے لیے اپنی company کا logo یا ذاتی image سیٹ کرنے کی سہولت دیتا ہے۔
 
-### بوٹ ان لاک
+### Boot unlock
 
-آپ `omarchy plymouth preview` استعمال کر کے دیکھ سکتے ہیں کہ آپ کا کسٹم لوگو اور رنگ کیسے نظر آئیں گے۔ یہ ایک پس منظر کا رنگ، ایک متن کا رنگ، ایک logo png، اور پیش نظارہ تصویر کے لیے ایک پاتھ لیتا ہے:
+آپ `omarchy plymouth preview` استعمال کر کے دیکھ سکتے ہیں کہ آپ کا کسٹم logo اور colors کیسے نظر آئیں گے۔ یہ ایک background color، ایک text color، ایک logo png، اور preview image کے لیے ایک path لیتا ہے:
 
 ```
 omarchy plymouth preview '#1d2021' '#ebdbb2' logo.png preview.png
 ```
 
-پھر `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png` کے ساتھ سیٹ اپ لاگو کریں، جو SDDM لاگ ان اسکرین کو بھی وہی رنگ اور لوگو دے گا۔ اگر آپ واپس پلٹنا چاہتے ہیں تو آپ `omarchy plymouth reset` استعمال کر سکتے ہیں۔
+پھر `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png` کے ساتھ setup apply کریں، جو SDDM login screen کو بھی وہی colors اور logo دے گا۔ اگر آپ واپس پلٹنا چاہیں تو `omarchy plymouth reset` استعمال کر سکتے ہیں۔
 
  ![branding-plymouth-shopify](images/branding-plymouth-shopify.webp)
 
-### اسکرین سیور
+### Screensaver
 
-آپ _Appearance > Branding > Screensaver_ کے تحت اسکرین سیور کے لیے استعمال ہونے والا لوگو تبدیل کر سکتے ہیں۔ یہ ایک ASCII لوگو ہے، لہٰذا آپ متن کو براہ راست ایڈٹ کر سکتے ہیں، لیکن آپ اسے png یا svg تصویر بھی دے سکتے ہیں، اور ہم اسے ASCII میں تبدیل کر دیں گے۔ یہ کافی زبردست لگتا ہے۔
+آپ screensaver کے لیے استعمال ہونے والا logo _Appearance > Branding > Screensaver_ میں جا کر تبدیل کر سکتے ہیں۔ یہ ایک ASCII logo ہے، اس لیے آپ text کو براہ راست edit کر سکتے ہیں، لیکن آپ اسے png یا svg image بھی دے سکتے ہیں، اور ہم اسے ASCII میں تبدیل کر دیں گے۔ یہ کافی زبردست لگتا ہے۔
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
-اس مینو میں تین اندراجات ہیں:
+اس menu میں تین entries ہیں:
 
-- **Edit Text** آپ کے ایڈیٹر میں `~/.config/omarchy/branding/screensaver.txt` کھولتا ہے۔ جو چاہیں ٹائپ یا پیسٹ کریں — ASCII آرٹ، اپنا نام، کوئی بدتمیزی والا لفظ۔ محفوظ کریں اور باہر نکلیں، اور اسکرین سیور فوراً شروع ہو جاتا ہے تاکہ آپ اسے دیکھ سکیں۔
-- **Set From Image** png یا svg کے لیے فائل پکر کھولتا ہے، اسے ASCII میں تبدیل کرتا ہے، اور آپ کو نتیجہ دکھاتا ہے۔ واضح خاکے والے لوگو تصاویر کے مقابلے میں کہیں بہتر کام کرتے ہیں۔
-- **Restore Default** Omarchy لوگو واپس لے آتا ہے۔
+- **Edit Text** آپ کے editor میں `~/.config/omarchy/branding/screensaver.txt` کھولتا ہے۔ جو چاہیں type یا paste کریں — ASCII art، اپنا نام، کوئی ناشائستہ لفظ۔ Save کر کے بند کریں، اور screensaver فوراً چل پڑتا ہے تاکہ آپ اسے دیکھ سکیں۔
+- **Set From Image** png یا svg کے لیے ایک file picker کھولتا ہے، اسے ASCII میں تبدیل کرتا ہے، اور آپ کو نتیجہ دکھاتا ہے۔ واضح silhouette والے logos photos کے مقابلے میں کہیں بہتر کام کرتے ہیں۔
+- **Restore Default** Omarchy logo واپس لگا دیتا ہے۔
 
-### اباؤٹ اسکرین
+### About screen
 
-یہی تین آپشنز _Appearance > Branding > About_ کے تحت اس _About_ اسکرین کے لیے ہیں جو آپ کو Omarchy مینو سے ملتی ہے، اور یہ بالکل اسی طرح کام کرتے ہیں — فائل `~/.config/omarchy/branding/about.txt` ہے، اور ہر تبدیلی کے بعد About ونڈو کھل جاتی ہے۔ About آرٹ اسکرین سیور کے مقابلے میں چھوٹے سائز میں تبدیل کیا جاتا ہے، کیونکہ اسے آپ کی ڈسپلے کو بھرنے کے بجائے ایک ونڈو میں فٹ ہونا ہوتا ہے۔
+وہی تین options _Appearance > Branding > About_ میں اس _About_ screen کے لیے موجود ہیں جو آپ کو Omarchy menu سے ملتی ہے، اور یہ بالکل اسی طرح کام کرتی ہیں — file `~/.config/omarchy/branding/about.txt` ہے، اور ہر تبدیلی کے بعد About window سامنے آ جاتا ہے۔ About art کو screensaver کے مقابلے میں چھوٹے size میں تبدیل کیا جاتا ہے، کیونکہ اسے آپ کی پوری display بھرنے کے بجائے ایک window میں فٹ ہونا ہوتا ہے۔
 
-جب ونڈو کھلی ہوتی ہے تو ہر چند سیکنڈ بعد سبز رنگ کی ایک جھلک آرٹ پر ترچھی گزرتی ہے اور پھر اسے دوبارہ ساکن چھوڑ دیتی ہے۔ آپ کا اپنا آرٹ بھی اسے حاصل کرتا ہے، بشرطیکہ اس میں موجود ہر حرف ایک کالم چوڑا ہو — _Set From Image_ سے بننے والی ہر چیز ایسی ہی ہوتی ہے۔ ایموجی یا دوہری چوڑائی والے حروف سے بنا آرٹ اس کے بجائے ساکن رہتا ہے، اور اسکرین بھی ساکن رہتی ہے اگر آپ اپنی خود کی fastfetch کنفگ رکھتے ہیں: ان صورتوں میں ساکن لوگو اینیمیشن کی ناکامی نہیں ہے بلکہ اس کا راستے سے ہٹے رہنا ہے، کیونکہ ان پر جھلک پھسلانے سے باقی لائن غلط جگہ پر جا گرے گی۔
+جب window کھلا ہوتا ہے تو ہر چند seconds میں روشن سفید روشنی کی ایک پٹی art پر ترچھی گزرتی ہے اور پھر اسے دوبارہ ساکن چھوڑ دیتی ہے۔ آپ کے اپنے art کو بھی یہی ملتا ہے، بشرطیکہ اس کا ہر character ایک column چوڑا ہو — _Set From Image_ سے بننے والی ہر چیز ایسی ہی ہوتی ہے۔ emoji یا double-width characters سے بنا ہوا art اس کے بجائے ساکن رہتا ہے، اور اسی طرح وہ screen بھی اگر آپ اپنی خود کی fastfetch config رکھیں: ان صورتوں میں ساکن logo animation کی ناکامی نہیں ہے بلکہ اس کا راستے سے ہٹے رہنا ہے، کیونکہ ان پر چمک سرکانے سے line کا باقی حصہ غلط جگہ پر جا گرے گا۔
 
  ![branding-about](images/branding-about.webp)
 
-### تصاویر کو خود تبدیل کرنا
+### Converting images yourself
 
-دونوں _Set From Image_ آپشنز صرف `omarchy transcode ascii` کو کال کر رہے ہیں، جسے آپ براہ راست چلا سکتے ہیں اگر آپ تبدیلی پر کنٹرول چاہتے ہیں:
+دونوں _Set From Image_ options بس `omarchy transcode ascii` کو call کر رہی ہوتی ہیں، جسے آپ براہ راست چلا سکتے ہیں اگر آپ conversion پر کنٹرول چاہتے ہیں:
 
 ```
 omarchy transcode ascii ~/logo.svg ~/.config/omarchy/branding/screensaver.txt --width 100
 ```
 
-یہ ٹرمینل کالموں اور قطاروں میں `--width` اور `--height` لیتا ہے، `braille` (ڈیفالٹ، اور کہیں زیادہ باریک) یا `block` میں سے کوئی ایک `--mode`، یہ فیصلہ کرنے کے لیے کہ کون سے پکسلز لوگو کا حصہ شمار ہوں گے ایک `--threshold` فیصد، اور `--invert` اس صورت کے لیے جب آپ کا لوگو گہرے پس منظر پر ہلکا ہو۔ اگر کوئی تبدیلی ایک دھبے کی صورت میں نکلے تو عام طور پر threshold ہی وہ ناب ہے جسے گھمانا چاہیے۔
+یہ terminal columns اور rows میں `--width` اور `--height`، `braille` (default، اور کہیں زیادہ باریک) یا `block` میں سے کسی ایک کا `--mode`، یہ فیصلہ کرنے کے لیے کہ کون سے pixels logo کا حصہ شمار ہوں گے ایک `--threshold` percentage، اور جب آپ کا logo dark background پر light ہو تو اس کے لیے `--invert` لیتا ہے۔ اگر کوئی conversion ایک دھبے کی صورت میں نکلے تو عام طور پر threshold ہی وہ knob ہے جسے گھمانا چاہیے۔
 
-### لوگو کے بجائے الفاظ
+### Words instead of a logo
 
-`omarchy ascii` Delta Corps Priest 1 میں متن بناتا ہے، وہی FIGlet فونٹ جس میں خود Omarchy ورڈ مارک بنایا گیا ہے، لہٰذا اسکرین سیور تصویر دکھانے کے بجائے کچھ کہہ سکتا ہے:
+`omarchy ascii` Delta Corps Priest 1 میں text بناتا ہے، وہی FIGlet font جس میں خود Omarchy wordmark بنا ہوا ہے، اس لیے screensaver تصویر دکھانے کے بجائے کچھ کہہ سکتا ہے:
 
 ```
 omarchy ascii "Back in five" > ~/.config/omarchy/branding/screensaver.txt
 ```
 
-یہ متن کو آرگیومینٹس کے طور پر لیتا ہے، یا جب کوئی نہ دیا جائے تو اسے پائپ سے پڑھتا ہے۔ فونٹ میں صرف حروف اور خالی جگہیں ہیں — یہ ہندسوں یا اوقاف کے بغیر بنایا گیا تھا — لہٰذا اس کے علاوہ ہر چیز کو خاموشی سے نگلنے کے بجائے stderr پر اس کا نام لے کر خارج کر دیا جاتا ہے۔
+یہ text کو arguments کے طور پر لیتا ہے، یا جب کوئی argument نہ دیا گیا ہو تو اسے pipe سے پڑھتا ہے۔ font میں صرف حروف اور spaces ہیں — یہ digits یا punctuation کے بغیر بنایا گیا تھا — اس لیے اس کے علاوہ ہر چیز کو چھوڑ دیا جاتا ہے اور stderr پر اس کا نام لیا جاتا ہے، خاموشی سے نگلا نہیں جاتا۔

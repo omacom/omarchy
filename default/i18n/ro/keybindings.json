@@ -1,6 +1,7 @@
 {
   "Activity": "Activitate",
   "Agent": "Agent",
+  "Agents": "Agenți",
   "Apps": "Aplicații",
   "Audio": "Audio",
   "Background switcher": "Comutator fundal",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Comută iluminarea tastaturii",
   "Keyboard brightness down": "Reduce luminozitatea tastaturii",
   "Keyboard brightness up": "Crește luminozitatea tastaturii",
+  "Local models": "Modele locale",
   "Lock system": "Blochează sistemul",
   "Make webcam overlay larger": "Mărește suprapunerea webcam",
   "Make webcam overlay smaller": "Micșorează suprapunerea webcam",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Adu fereastra activă în față",
   "Save window width": "Salvează lățimea ferestrei",
   "Screenrecording": "Înregistrare ecran",
+  "Screenrecording with no audio": "Înregistrare ecran fără audio",
   "Screenshot": "Captură de ecran",
   "Scroll active workspace backward": "Derulează spațiul de lucru activ înapoi",
   "Scroll active workspace forward": "Derulează spațiul de lucru activ înainte",

@@ -1,6 +1,7 @@
 {
   "Activity": "কার্যকলাপ",
   "Agent": "এজেন্ট",
+  "Agents": "এজেন্টস",
   "Apps": "অ্যাপস",
   "Audio": "অডিও",
   "Background switcher": "পটভূমি বদল",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "কীবোর্ড ব্যাকলাইট বদল করুন",
   "Keyboard brightness down": "কীবোর্ড উজ্জ্বলতা কমান",
   "Keyboard brightness up": "কীবোর্ড উজ্জ্বলতা বাড়ান",
+  "Local models": "স্থানীয় মডেল",
   "Lock system": "সিস্টেম লক করুন",
   "Make webcam overlay larger": "ওয়েবক্যাম ওভারলে বড় করুন",
   "Make webcam overlay smaller": "ওয়েবক্যাম ওভারলে ছোট করুন",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "সক্রিয় উইন্ডো উপরে দেখান",
   "Save window width": "উইন্ডোর প্রস্থ সংরক্ষণ করুন",
   "Screenrecording": "স্ক্রিন রেকর্ডিং",
+  "Screenrecording with no audio": "অডিও ছাড়া স্ক্রিন রেকর্ডিং",
   "Screenshot": "স্ক্রিনশট",
   "Scroll active workspace backward": "সক্রিয় ওয়ার্কস্পেস পিছনে স্ক্রল করুন",
   "Scroll active workspace forward": "সক্রিয় ওয়ার্কস্পেস সামনে স্ক্রল করুন",

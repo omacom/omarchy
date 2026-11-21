@@ -1,6 +1,7 @@
 {
   "Activity": "Toiminnot",
   "Agent": "Agentti",
+  "Agents": "Agentit",
   "Apps": "Sovellukset",
   "Audio": "Ääni",
   "Background switcher": "Taustakuvan valitsin",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Vaihda näppäimistön taustavaloa",
   "Keyboard brightness down": "Vähennä näppäimistön kirkkautta",
   "Keyboard brightness up": "Lisää näppäimistön kirkkautta",
+  "Local models": "Paikalliset mallit",
   "Lock system": "Lukitse järjestelmä",
   "Make webcam overlay larger": "Suurenna verkkokameraikkunaa",
   "Make webcam overlay smaller": "Pienennä verkkokameraikkunaa",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Tuo aktiivinen ikkuna eteen",
   "Save window width": "Tallenna ikkunan leveys",
   "Screenrecording": "Näytön tallennus",
+  "Screenrecording with no audio": "Näytön tallennus ilman ääntä",
   "Screenshot": "Kuvakaappaus",
   "Scroll active workspace backward": "Vieritä aktiivista työtilaa taaksepäin",
   "Scroll active workspace forward": "Vieritä aktiivista työtilaa eteenpäin",

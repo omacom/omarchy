@@ -1,6 +1,7 @@
 {
   "Activity": "Активност",
   "Agent": "Агент",
+  "Agents": "Агенти",
   "Apps": "Апликације",
   "Audio": "Звук",
   "Background switcher": "Бирач позадине",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Следећи ниво осветљења тастатуре",
   "Keyboard brightness down": "Смањи осветљење тастатуре",
   "Keyboard brightness up": "Повећај осветљење тастатуре",
+  "Local models": "Локални модели",
   "Lock system": "Закључај систем",
   "Make webcam overlay larger": "Повећај преклоп веб-камере",
   "Make webcam overlay smaller": "Смањи преклоп веб-камере",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Прикажи активни прозор на врху",
   "Save window width": "Сачувај ширину прозора",
   "Screenrecording": "Снимање екрана",
+  "Screenrecording with no audio": "Снимање екрана без звука",
   "Screenshot": "Снимак екрана",
   "Scroll active workspace backward": "Скролуј активни радни простор уназад",
   "Scroll active workspace forward": "Скролуј активни радни простор унапред",

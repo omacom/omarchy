@@ -1,6 +1,7 @@
 {
   "Activity": "Tevékenység",
   "Agent": "Ügynök",
+  "Agents": "Ügynökök",
   "Apps": "Alkalmazások",
   "Audio": "Hang",
   "Background switcher": "Háttérváltó",
@@ -69,6 +70,7 @@
   "Keyboard backlight cycle": "Billentyűzetvilágítás váltása",
   "Keyboard brightness down": "Billentyűzet fényerő csökkentése",
   "Keyboard brightness up": "Billentyűzet fényerő növelése",
+  "Local models": "Helyi modellek",
   "Lock system": "Rendszer zárolása",
   "Make webcam overlay larger": "Webkamera-átfedés nagyítása",
   "Make webcam overlay smaller": "Webkamera-átfedés kicsinyítése",
@@ -124,6 +126,7 @@
   "Reveal active window on top": "Aktív ablak előtérbe hozása",
   "Save window width": "Ablakszélesség mentése",
   "Screenrecording": "Képernyőfelvétel",
+  "Screenrecording with no audio": "Képernyőfelvétel hang nélkül",
   "Screenshot": "Képernyőkép",
   "Scroll active workspace backward": "Aktív munkaterület görgetése hátra",
   "Scroll active workspace forward": "Aktív munkaterület görgetése előre",
