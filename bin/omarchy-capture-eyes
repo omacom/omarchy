@@ -1,0 +1,204 @@
+#!/bin/bash
+
+# omarchy:summary=Ask a local vision model about your screen
+# omarchy:group=capture
+# omarchy:args=[describe|ask <question>|locate <thing>|setup] [--region] [--copy] [--notify]
+# omarchy:examples=omarchy capture eyes | omarchy capture eyes ask "what does this error mean" --region | omarchy capture eyes locate "the export button"
+
+set -uo pipefail
+
+# Eyes is the counterpart to capture text: OCR reads the words, Eyes
+# understands the picture. It sends a screenshot to a vision model running
+# on this machine (Ollama, default model moondream) and nowhere else. The
+# screenshot lives in a temp file that is deleted on exit, is never taken
+# near a password manager, and taking it is always an explicit keystroke,
+# never a background watcher.
+
+EYES_URL="${OMARCHY_EYES_URL:-http://127.0.0.1:11434}"
+EYES_MODEL="${OMARCHY_EYES_MODEL:-moondream}"
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-capture-eyes [describe|ask <question>|locate <thing>|setup] [--region] [--copy]
+
+  describe   What is on screen, and anything that needs attention (default)
+  ask        Answer a question about what is on screen
+  locate     Where something is, as a position on the screen
+  setup      Install the local model Eyes talks to
+
+  --region   Look at a selected region instead of the whole screen
+  --copy     Also copy the answer to the clipboard
+USAGE
+}
+
+active_class() {
+  hyprctl activewindow -j 2>/dev/null | jq -r '.class // ""' 2>/dev/null || true
+}
+
+refuse_near_secrets() {
+  local class lower
+  class=$(active_class)
+  lower=$(printf '%s' "$class" | tr '[:upper:]' '[:lower:]')
+  case "$lower" in
+    *1password* | *bitwarden* | *keepass* | *authy* | *password* | *secret* | *gcr-prompter* | *pinentry*)
+      echo "eyes stays shut near $class. switch to the window you want described first" >&2
+      return 1
+      ;;
+  esac
+  return 0
+}
+
+model_answering() {
+  curl -fsS --max-time 2 "$EYES_URL/api/tags" >/dev/null 2>&1
+}
+
+require_model() {
+  if model_answering; then
+    return 0
+  fi
+  echo "no local vision model is answering at $EYES_URL" >&2
+  echo "set one up with: omarchy capture eyes setup" >&2
+  return 1
+}
+
+eyes_setup() {
+  if ! omarchy-cmd-present ollama; then
+    omarchy-pkg-add ollama || return 1
+  fi
+
+  if omarchy-cmd-missing ollama; then
+    echo "ollama did not install; eyes cannot be set up" >&2
+    return 1
+  fi
+
+  # The service holds the model server open on 127.0.0.1; enable it if it is
+  # not already answering.
+  if ! model_answering; then
+    sudo systemctl enable --now ollama.service || return 1
+  fi
+
+  local attempt
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    model_answering && break
+    sleep 1
+  done
+  model_answering || { echo "ollama is installed but not answering at $EYES_URL" >&2; return 1; }
+
+  echo "pulling $EYES_MODEL (one-time download)..."
+  ollama pull "$EYES_MODEL" || return 1
+  echo "eyes is ready: omarchy capture eyes"
+}
+
+main() {
+  local verb="${1:-describe}"
+  case "$verb" in
+    -h | --help | help) usage; return 0 ;;
+    setup) eyes_setup; return $? ;;
+    describe | ask | locate) shift ;;
+    *)
+      # Bare words with no verb are treated as a question.
+      verb="ask"
+      ;;
+  esac
+
+  local region=0 copy=0 notify=0 arg
+  local -a words=()
+  for arg in "$@"; do
+    case "$arg" in
+      --region) region=1 ;;
+      --copy) copy=1 ;;
+      --notify) notify=1 ;;
+      *) words+=("$arg") ;;
+    esac
+  done
+
+  local prompt
+  case "$verb" in
+    describe)
+      prompt="Describe what is on this screen in three short sentences. Then list anything that looks like an error, a warning, or an action the user probably cares about. Be concrete and name the app if you can."
+      ;;
+    ask)
+      if (( ${#words[@]} == 0 )); then
+        echo "ask needs a question: omarchy capture eyes ask \"what does this error mean\"" >&2
+        return 1
+      fi
+      prompt="${words[*]}. Answer based only on what is visible in the image, and say so if the image does not show the answer."
+      ;;
+    locate)
+      if (( ${#words[@]} == 0 )); then
+        echo "locate needs a thing: omarchy capture eyes locate \"the export button\"" >&2
+        return 1
+      fi
+      prompt="Find: ${words[*]}. Reply with only a JSON object {\"x\": <number>, \"y\": <number>} giving the center of that element as coordinates from 0 to 1000 across the image width and height. If it is not visible, reply {\"x\": -1, \"y\": -1}."
+      ;;
+  esac
+
+  refuse_near_secrets || return 1
+  require_model || return 1
+
+  local work image b64 payload response answer
+  work=$(mktemp -d)
+  trap 'rm -rf "$work"' RETURN
+  image="$work/screen.png"
+
+  if (( region )); then
+    local selection freeze_pid=""
+    # Freeze the screen while selecting, like capture text does, so the
+    # region is picked from what was there when eyes was invoked.
+    hyprpicker -r -z >/dev/null 2>&1 &
+    freeze_pid=$!
+    sleep 0.1
+    selection=$(slurp 2>/dev/null || true)
+    [[ -n $freeze_pid ]] && kill "$freeze_pid" 2>/dev/null
+    if [[ -z $selection ]]; then
+      return 0
+    fi
+    grim -g "$selection" "$image" || { echo "could not capture that region" >&2; return 1; }
+  else
+    grim "$image" || { echo "could not capture the screen" >&2; return 1; }
+  fi
+
+  base64 <"$image" | tr -d '\n' >"$work/image.b64"
+  b64="$work/image.b64"
+  payload="$work/payload.json"
+  jq -n --arg model "$EYES_MODEL" --arg prompt "$prompt" --rawfile image "$b64" \
+    '{model: $model, prompt: $prompt, images: [$image], stream: false}' >"$payload"
+
+  response=$(curl -fsS --max-time 120 "$EYES_URL/api/generate" -d @"$payload") || {
+    echo "the vision model did not answer" >&2
+    return 1
+  }
+
+  if jq -e '.error' >/dev/null 2>&1 <<<"$response"; then
+    echo "the vision model said: $(jq -r '.error' <<<"$response")" >&2
+    echo "if the model is missing, run: ollama pull $EYES_MODEL" >&2
+    return 1
+  fi
+
+  answer=$(jq -r '.response // ""' <<<"$response")
+
+  if [[ $verb == "locate" ]]; then
+    local coords x y
+    coords=$(printf '%s' "$answer" | grep -o '{[^}]*}' | head -n 1 || true)
+    x=$(jq -r '.x // -1' <<<"$coords" 2>/dev/null || printf -- '-1')
+    y=$(jq -r '.y // -1' <<<"$coords" 2>/dev/null || printf -- '-1')
+    if [[ $x == "-1" || $y == "-1" ]]; then
+      echo "not visible: ${words[*]}"
+      return 0
+    fi
+    answer=$(awk -v x="$x" -v y="$y" 'BEGIN { printf "around %.0f%% across, %.0f%% down the screen", x / 10, y / 10 }')
+    printf '%s: %s\n' "${words[*]}" "$answer"
+  else
+    printf '%s\n' "$answer"
+  fi
+
+  if (( copy )); then
+    printf '%s' "$answer" | wl-copy
+  fi
+
+  if (( notify )); then
+    omarchy-notification-send "$(omarchy-i18n capture.eyesTitle)" "${answer:0:300}" || true
+  fi
+}
+
+main "$@"
