@@ -9,6 +9,11 @@
 # agents panel watches them. Adding an agent is adding a collector — the
 # panel picks up any record that appears here.
 
+# Usage refreshes are background work: run them, and every collector they start, at
+# low CPU and I/O priority so they never compete with the desktop.
+renice -n 15 -p $$ >/dev/null 2>&1 || true
+ionice -c 3 -p $$ >/dev/null 2>&1 || true
+
 USAGE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage"
 mkdir -p "$USAGE_DIR"
 

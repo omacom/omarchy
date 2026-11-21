@@ -1186,7 +1186,7 @@ import re
 import sys
 from pathlib import Path
 
-bin_dir = Path(sys.argv[1]) / "bin"
+usage_dir = Path(sys.argv[1]) / "shell" / "plugins" / "agents" / "usage"
 
 def literals(node):
   if isinstance(node, ast.Constant) and isinstance(node.value, str):
@@ -1198,12 +1198,12 @@ def literals(node):
 def assigned(tree, names):
   return [node.value for node in tree.body if isinstance(node, ast.Assign) and any(getattr(target, "id", "") in names for target in node.targets)]
 
-local = ast.parse((bin_dir / "omarchy-agent-usage-local").read_text())
+local = ast.parse((usage_dir / "local.py").read_text())
 claimed = {pid for value in assigned(local, ("CLAIMED_PROVIDERS",)) for pid in literals(value)}
 missing = [] if claimed else ["CLAIMED_PROVIDERS is not found in omarchy-agent-usage-local"]
-for path in sorted(bin_dir.glob("omarchy-agent-usage-*")):
-  cid = path.name.removeprefix("omarchy-agent-usage-")
-  if cid in ("local", "update"):
+for path in sorted(usage_dir.glob("*.py")):
+  cid = path.stem
+  if cid in ("local", "__init__"):
     continue
   tree = ast.parse(path.read_text())
   ids = {pid for value in assigned(tree, ("PROVIDERS", "PROVIDER", "NATIVE_PROVIDER")) for pid in literals(value)}
