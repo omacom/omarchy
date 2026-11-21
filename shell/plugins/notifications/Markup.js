@@ -74,12 +74,17 @@ function liftSource(body) {
   if (!m) return { source: "", body: text }
   // The origin is the href's host, which must pass the URL policy; the label
   // is the sender's text and never stands in for it.
+  var url = Security.safeHttpUrl(m[1])
   var host = Security.hostOf(m[1])
   if (!host) return { source: "", body: text }
-  // Only when the label is that host or a bare domain; a real in-body link
-  // stays where the sender put it.
+  // A non-default port is part of the origin the browser prints
+  // ("example.com:8443"), but never of the host used for clicks and grouping.
+  var port = (url.match(/^https?:\/\/[^/:?#]+:([0-9]+)/) || [])[1]
+  // Only when the label is that host, that host and port, or a bare domain; a
+  // real in-body link stays where the sender put it.
   var label = String(m[2]).trim()
-  var looksLikeSource = label === host || /^[\w.-]+\.[a-z]{2,}$/i.test(label)
+  var looksLikeSource = label === host || (port && label === host + ":" + port) ||
+                        /^[\w.-]+\.[a-z]{2,}$/i.test(label)
   if (!looksLikeSource) return { source: "", body: text }
   return { source: host, body: text.slice(m[0].length) }
 }
