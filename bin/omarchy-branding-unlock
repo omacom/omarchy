@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Put the screensaver art on the boot unlock screen, or restore the default
+# omarchy:group=branding
+# omarchy:name=unlock
+# omarchy:args=<screensaver|reset>
+# omarchy:examples=omarchy branding unlock screensaver | omarchy branding unlock reset
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+case "${1:-}" in
+screensaver)
+  # Drawn the way the themes draw their own unlock logos: the art in the accent
+  # color, on the theme background, with the foreground for the password field.
+  logo=$(mktemp --suffix=.png)
+  trap 'rm -f "$logo"' EXIT
+  omarchy-transcode-logo ~/.config/omarchy/branding/screensaver.txt "$logo" --color "$(omarchy-theme-color accent foreground)" >/dev/null
+  omarchy-plymouth-set "$(omarchy-theme-color background)" "$(omarchy-theme-color foreground)" "$logo"
+  ;;
+reset)
+  omarchy-plymouth-reset
+  ;;
+*)
+  echo "Usage: omarchy-branding-unlock <screensaver|reset>" >&2
+  exit 1
+  ;;
+esac
