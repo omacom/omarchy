@@ -139,6 +139,7 @@ BarWidget {
             anchors.margins: Style.space(2)
             crop: true
             url: root.activePlayer && root.activePlayer.trackArtUrl ? root.activePlayer.trackArtUrl : ""
+            asynchronous: Util.loadsOffThread(url)
             visible: url != ""
           }
 
