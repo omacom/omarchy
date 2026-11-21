@@ -44,6 +44,11 @@ printf 'sudo:%s\n' "$*" >>"$OMARCHY_TEST_SETUP_LOG"
 [[ ${OMARCHY_TEST_SETUP_FAIL:-} != "sudo" ]]
 SH
 
+cat >"$mock_bin/omarchy-pkg-drop" <<'SH'
+#!/bin/bash
+[[ ${OMARCHY_TEST_INSTALL_FAIL:-false} != "true" ]]
+SH
+
 cat >"$mock_bin/xdg-settings" <<'SH'
 #!/bin/bash
 case $1 in
@@ -484,3 +489,10 @@ if OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-editor --install vim >"$test_t
 fi
 [[ $(omarchy-default-editor) == "$previous_editor" ]] || fail "failed installation preserves the default"
 pass "failed installation preserves the current default"
+
+for browser in chrome edge brave brave-origin; do
+  if OMARCHY_TEST_INSTALL_FAIL=true bash "$ROOT/bin/omarchy-remove-browser" "$browser" >"$test_tmp/remove-browser-failure" 2>&1; then
+    fail "removing $browser returns an error when its package removal fails"
+  fi
+done
+pass "browser removal reports a failed package removal"

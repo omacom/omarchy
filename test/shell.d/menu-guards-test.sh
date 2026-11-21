@@ -297,6 +297,7 @@ cat >"$stub_dir/git" <<'STUB'
 #!/bin/bash
 : "${GIT_CALLS:=/dev/null}"
 { printf '<%s>' "$@"; printf '\n'; } >>"$GIT_CALLS"
+[[ $2 != "${GIT_FAIL:-}" ]]
 STUB
 chmod +x "$stub_dir/git"
 
@@ -356,6 +357,12 @@ pulled=$(<"$git_calls")
 [[ $pulled == "<-C><$many/tokyo night><pull>"$'\n'"<-C><$many/zen><pull>" ]] ||
   fail "omarchy-theme-update pulls each clone by its whole path" "got: $pulled"
 pass "omarchy-theme-update pulls each clone by its whole path"
+
+if HOME="$themes_home/many" LC_ALL=C GIT_FAIL="$many/tokyo night" PATH="$ROOT/bin:$stub_dir:$PATH" \
+  "$ROOT/bin/omarchy-theme-update" >/dev/null 2>&1; then
+  fail "omarchy-theme-update returns an error when a pull fails"
+fi
+pass "omarchy-theme-update reports a failed pull"
 
 # The package set is cached across batches, keyed on the local database
 # directory. Each case gets its own runtime dir and database, and a pacman

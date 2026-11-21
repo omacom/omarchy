@@ -53,3 +53,10 @@ if PATH="$mock_path:$PATH" TEST_TMP="$test_tmp" TEST_REMOVE_STATUS=1 \
   fail "failed package transaction must fail removal"
 fi
 pass "package removal propagates transaction failures"
+
+printf '#!/bin/bash\nexit 1\n' >"$mock_path/omarchy-pkg-drop"
+chmod +x "$mock_path/omarchy-pkg-drop"
+if PATH="$mock_path:$PATH" TEST_TMP="$test_tmp" "$ROOT/bin/omarchy-remove-service-1password" >/dev/null 2>&1; then
+  fail "failed 1Password package removal returns an error"
+fi
+pass "failed 1Password package removal returns an error"

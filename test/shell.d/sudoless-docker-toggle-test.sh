@@ -92,3 +92,26 @@ grep -q -- "-aG docker tester" "$usermod_calls" || fail "setup adds the user to 
 [[ -f $reboot_flag ]] || fail "setup flags a reboot"
 [[ -f $reboot_called ]] || fail "setup reboots when the prompt is confirmed"
 pass "setup adds the group, flags a reboot, and reboots on confirm"
+
+cat >"$stub_bin/omarchy-pkg-add" <<'STUB'
+#!/bin/bash
+exit "${PKG_STATUS:-0}"
+STUB
+cat >"$stub_bin/systemctl" <<'STUB'
+#!/bin/bash
+STUB
+chmod +x "$stub_bin/omarchy-pkg-add" "$stub_bin/systemctl"
+
+nordvpn() { # PKG_STATUS GUM_ANSWER
+  rm -f "$gum_called" "$reboot_called" "$usermod_calls"
+  env HOME="$home" USER="tester" PKG_STATUS="$1" GUM_ANSWER="$2" \
+    GUM_CALLED="$gum_called" REBOOT_CALLED="$reboot_called" USERMOD_CALLS="$usermod_calls" \
+    PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-install-service-nordvpn" >/dev/null 2>&1
+}
+
+if nordvpn 1 0; then
+  fail "NordVPN install exits non-zero when its package step fails"
+fi
+[[ ! -f $reboot_called ]] || fail "failed NordVPN install does not offer the reboot"
+nordvpn 0 1 || fail "NordVPN install declined at the reboot prompt exits zero"
+pass "NordVPN install reports a failed package step and succeeds when the reboot is declined"

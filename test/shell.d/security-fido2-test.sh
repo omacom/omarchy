@@ -71,7 +71,7 @@ reject() {
   exit 97
 }
 
-if [[ ${TEST_TMP:-} != /* || ${TEST_AUTHDIR:-} != "$TEST_TMP/etc-fido2" || ${TEST_AUTHFILE:-} != "$TEST_AUTHDIR/fido2" || ${TEST_STAGES:-} != "$TEST_TMP/stages.log" || ${TEST_LOG:-} != "$TEST_TMP/calls.log" || ! ${TEST_FAIL_CHMOD:-} =~ ^[01]$ || ! ${TEST_FAIL_MV:-} =~ ^[01]$ ]]; then
+if [[ ${TEST_TMP:-} != /* || ${TEST_AUTHDIR:-} != "$TEST_TMP/etc-fido2" || ${TEST_AUTHFILE:-} != "$TEST_AUTHDIR/fido2" || ${TEST_STAGES:-} != "$TEST_TMP/stages.log" || ${TEST_LOG:-} != "$TEST_TMP/calls.log" || ! ${TEST_FAIL_CHMOD:-} =~ ^[01]$ || ! ${TEST_FAIL_MV:-} =~ ^[01]$ || ! ${TEST_FAIL_VERIFY:-} =~ ^[01]$ ]]; then
   reject "$@"
 fi
 
@@ -196,6 +196,7 @@ case "${1:-}" in
     if (( $# != 2 )) || [[ $2 != "FIDO2 authentication test successful" ]]; then
       reject "$@"
     fi
+    [[ $TEST_FAIL_VERIFY == 0 ]] || exit 1
     ;;
   *)
     reject "$@"
@@ -258,9 +259,10 @@ invoke_setup() {
   local fail_chmod="${2:-0}"
   local fail_mv="${3:-0}"
   local mktemp_mode="${4:-normal}"
+  local fail_verify="${5:-0}"
 
   TEST_AUTHDIR="$authdir" TEST_AUTHFILE="$authfile" TEST_BARE_MKTEMP="$bare_mktemp" \
-    TEST_CREDENTIAL="$credential" TEST_FAIL_CHMOD="$fail_chmod" TEST_FAIL_MV="$fail_mv" \
+    TEST_CREDENTIAL="$credential" TEST_FAIL_CHMOD="$fail_chmod" TEST_FAIL_MV="$fail_mv" TEST_FAIL_VERIFY="$fail_verify" \
     TEST_LOG="$calls" TEST_MKTEMP_MODE="$mktemp_mode" TEST_PAMU_MODE="$pamu_mode" \
     TEST_PAMU_TARGETS="$pamu_targets" TEST_STAGES="$stages" TEST_TMP="$test_tmp" \
     PATH="$stub_bin:$ROOT/bin:$PATH" \
@@ -478,3 +480,9 @@ invoke_setup success 0 0 nonregular >/dev/null 2>&1 &&
   fail "a nonregular stage is never published" "$(cat "$calls")"
 [[ ! -e $authfile ]] || fail "a nonregular stage publishes no authfile"
 pass "FIDO2 setup rejects nonregular mktemp output before any privileged write"
+
+reset_run
+if invoke_setup success 0 0 normal 1 >/dev/null 2>&1; then
+  fail "a failed sudo verification propagates out of FIDO2 setup"
+fi
+pass "FIDO2 setup reports a failed sudo verification"
