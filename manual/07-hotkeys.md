@@ -258,6 +258,13 @@ All style options are also accessible under _Appearance_ in the Omarchy menu (`S
 | `Super + Ctrl + Alt + R` | See all reminders  |
 | `Super + Ctrl + Shift + R` | Clear all reminders  |
 
+## Notes
+
+| Hotkey                  | Function              |
+| ----------------------- | --------------------- |
+| `Super + Ctrl + M` | Quick notes scratchpad |
+
+
 ## Notices
 
 | Hotkey                  | Function              |
