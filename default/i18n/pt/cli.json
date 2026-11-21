@@ -343,7 +343,6 @@
   "setupForm.confirmPlaceholder": "Tem de ser igual à palavra-passe que escreveste",
   "setupForm.confirmPrompt": "Confirmar> ",
   "setupForm.hostnameInvalid": "O nome tem de ter 1 a 63 letras, algarismos ou hífenes, sem hífen no início ou no fim",
-  "setupForm.hostnamePlaceholder": "Letras, algarismos e hífenes (ou Enter para 'omarchy')",
   "setupForm.hostnamePrompt": "Anfitrião> ",
   "setupForm.keyboardHeader": "Escolhe o esquema de teclado",
   "setupForm.languageHeader": "Idioma",

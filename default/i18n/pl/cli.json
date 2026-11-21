@@ -349,7 +349,6 @@
   "setupForm.confirmPlaceholder": "Wpisz ponownie to samo hasło",
   "setupForm.confirmPrompt": "Potwierdź> ",
   "setupForm.hostnameInvalid": "Nazwa hosta: 1-63 litery, cyfry lub myślniki, bez myślnika na początku i końcu",
-  "setupForm.hostnamePlaceholder": "Litery, cyfry i myślniki (lub Enter dla 'omarchy')",
   "setupForm.hostnamePrompt": "Nazwa hosta> ",
   "setupForm.keyboardHeader": "Wybierz układ klawiatury",
   "setupForm.languageHeader": "Język",

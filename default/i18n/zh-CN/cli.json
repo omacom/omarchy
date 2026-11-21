@@ -331,7 +331,6 @@
   "setupForm.confirmPlaceholder": "必须与刚输入的密码一致",
   "setupForm.confirmPrompt": "确认> ",
   "setupForm.hostnameInvalid": "主机名须为 1-63 个字母、数字或连字符，不能以连字符开头或结尾",
-  "setupForm.hostnamePlaceholder": "字母、数字和连字符（或回车使用 'omarchy'）",
   "setupForm.hostnamePrompt": "主机名> ",
   "setupForm.keyboardHeader": "选择键盘布局",
   "setupForm.languageHeader": "语言",

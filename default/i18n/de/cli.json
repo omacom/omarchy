@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "Muss mit dem eben eingegebenen Passwort übereinstimmen",
   "setupForm.confirmPrompt": "Bestätigen> ",
   "setupForm.hostnameInvalid": "Hostname: 1-63 Buchstaben, Ziffern oder Bindestriche, kein Bindestrich am Anfang oder Ende",
-  "setupForm.hostnamePlaceholder": "Buchstaben, Ziffern und Bindestriche (oder Enter für 'omarchy')",
   "setupForm.hostnamePrompt": "Hostname> ",
   "setupForm.keyboardHeader": "Tastaturlayout auswählen",
   "setupForm.languageHeader": "Sprache",

@@ -349,7 +349,6 @@
   "setupForm.confirmPlaceholder": "Znova vnesite isto geslo",
   "setupForm.confirmPrompt": "Potrdite> ",
   "setupForm.hostnameInvalid": "Ime: 1-63 črk, številk ali vezajev, ne sme se začeti ali končati z vezajem",
-  "setupForm.hostnamePlaceholder": "Črke, številke in vezaji (ali Enter za 'omarchy')",
   "setupForm.hostnamePrompt": "Ime gostitelja> ",
   "setupForm.keyboardHeader": "Izberite razporeditev tipkovnice",
   "setupForm.languageHeader": "Jezik",

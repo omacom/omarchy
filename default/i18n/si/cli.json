@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "ඔබ දැන් ටයිප් කළ මුරපදයට ගැලපිය යුතුය",
   "setupForm.confirmPrompt": "තහවුරු කරන්න> ",
   "setupForm.hostnameInvalid": "සත්කාරක නාමය අකුරු, ඉලක්කම් හෝ ඉරි 1-63 විය යුතු අතර, ඉරකින් ආරම්භ හෝ අවසන් විය නොහැක",
-  "setupForm.hostnamePlaceholder": "අකුරු, ඉලක්කම් සහ ඉරි (හෝ 'omarchy' සඳහා Return ඔබන්න)",
   "setupForm.hostnamePrompt": "සත්කාරක නාමය> ",
   "setupForm.keyboardHeader": "යතුරුපුවරු සැකැස්ම තෝරන්න",
   "setupForm.languageHeader": "භාෂාව",

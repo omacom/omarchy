@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "Skal matche den adgangskode, du lige har skrevet",
   "setupForm.confirmPrompt": "Bekræft> ",
   "setupForm.hostnameInvalid": "Værtsnavn: 1-63 bogstaver, tal eller bindestreger, ikke bindestreg først eller sidst",
-  "setupForm.hostnamePlaceholder": "Bogstaver, tal og bindestreger (eller Enter for 'omarchy')",
   "setupForm.hostnamePrompt": "Værtsnavn> ",
   "setupForm.keyboardHeader": "Vælg tastaturlayout",
   "setupForm.languageHeader": "Sprog",

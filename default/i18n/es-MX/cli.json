@@ -343,7 +343,6 @@
   "setupForm.confirmPlaceholder": "Debe coincidir con la contraseña que escribiste",
   "setupForm.confirmPrompt": "Confirmar> ",
   "setupForm.hostnameInvalid": "El nombre debe tener de 1 a 63 letras, números o guiones, sin guion al inicio ni al final",
-  "setupForm.hostnamePlaceholder": "Letras, números y guiones (o Enter para 'omarchy')",
   "setupForm.hostnamePrompt": "Nombre del equipo> ",
   "setupForm.keyboardHeader": "Elige la distribución del teclado",
   "setupForm.languageHeader": "Idioma",

@@ -343,7 +343,6 @@
   "setupForm.confirmPlaceholder": "Doit correspondre au mot de passe saisi",
   "setupForm.confirmPrompt": "Confirmer> ",
   "setupForm.hostnameInvalid": "Le nom d'hôte doit faire 1 à 63 lettres, chiffres ou tirets, sans tiret au début ni à la fin",
-  "setupForm.hostnamePlaceholder": "Lettres, chiffres et tirets (ou Entrée pour 'omarchy')",
   "setupForm.hostnamePrompt": "Nom d'hôte> ",
   "setupForm.keyboardHeader": "Choisissez la disposition du clavier",
   "setupForm.languageHeader": "Langue",

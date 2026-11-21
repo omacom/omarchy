@@ -331,7 +331,6 @@
   "setupForm.confirmPlaceholder": "入力したパスワードと一致する必要があります",
   "setupForm.confirmPrompt": "確認> ",
   "setupForm.hostnameInvalid": "ホスト名は1～63文字の英字・数字・ダッシュで、先頭と末尾にダッシュは使えません",
-  "setupForm.hostnamePlaceholder": "英字・数字・ダッシュ（Enterで 'omarchy'）",
   "setupForm.hostnamePrompt": "ホスト名> ",
   "setupForm.keyboardHeader": "キーボードレイアウトを選択",
   "setupForm.languageHeader": "言語",

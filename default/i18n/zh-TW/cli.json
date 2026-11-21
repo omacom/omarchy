@@ -331,7 +331,6 @@
   "setupForm.confirmPlaceholder": "須與剛輸入的密碼相符",
   "setupForm.confirmPrompt": "確認> ",
   "setupForm.hostnameInvalid": "主機名稱須為 1-63 個字母、數字或連字號，且不可以連字號開頭或結尾",
-  "setupForm.hostnamePlaceholder": "字母、數字和連字號（或按 Enter 使用 'omarchy'）",
   "setupForm.hostnamePrompt": "主機名稱> ",
   "setupForm.keyboardHeader": "選擇鍵盤配置",
   "setupForm.languageHeader": "語言",

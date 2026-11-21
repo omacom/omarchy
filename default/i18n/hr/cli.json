@@ -343,7 +343,6 @@
   "setupForm.confirmPlaceholder": "Ponovno upišite istu lozinku",
   "setupForm.confirmPrompt": "Potvrda> ",
   "setupForm.hostnameInvalid": "Naziv: 1-63 slova, brojke ili crtice, ne smije počinjati ni završavati crticom",
-  "setupForm.hostnamePlaceholder": "Slova, brojke i crtice (ili Enter za 'omarchy')",
   "setupForm.hostnamePrompt": "Naziv računala> ",
   "setupForm.keyboardHeader": "Odaberite raspored tipkovnice",
   "setupForm.languageHeader": "Jezik",

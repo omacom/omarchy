@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "باید با گذرواژه‌ای که تازه وارد کردید مطابقت داشته باشد",
   "setupForm.confirmPrompt": "تأیید> ",
   "setupForm.hostnameInvalid": "نام میزبان باید 1-63 حرف، رقم یا خط تیره باشد و نمی‌تواند با خط تیره شروع یا تمام شود",
-  "setupForm.hostnamePlaceholder": "حروف، ارقام و خط تیره (یا Return برای 'omarchy')",
   "setupForm.hostnamePrompt": "نام میزبان> ",
   "setupForm.keyboardHeader": "انتخاب چیدمان صفحه‌کلید",
   "setupForm.languageHeader": "زبان",

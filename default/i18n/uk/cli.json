@@ -349,7 +349,6 @@
   "setupForm.confirmPlaceholder": "Має збігатися з щойно введеним паролем",
   "setupForm.confirmPrompt": "Ще раз> ",
   "setupForm.hostnameInvalid": "Ім'я комп'ютера: 1–63 літери, цифри чи дефіси, без дефіса на початку й у кінці",
-  "setupForm.hostnamePlaceholder": "Літери, цифри й дефіси (або Return для 'omarchy')",
   "setupForm.hostnamePrompt": "Ім'я комп'ютера> ",
   "setupForm.keyboardHeader": "Виберіть розкладку клавіатури",
   "setupForm.languageHeader": "Мова",

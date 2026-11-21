@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "Πρέπει να ταιριάζει με τον κωδικό που μόλις έγραψες",
   "setupForm.confirmPrompt": "Επιβεβαίωση> ",
   "setupForm.hostnameInvalid": "1-63 γράμματα, αριθμοί ή παύλες, χωρίς παύλα στην αρχή ή στο τέλος",
-  "setupForm.hostnamePlaceholder": "Γράμματα, αριθμοί και παύλες (ή Return για 'omarchy')",
   "setupForm.hostnamePrompt": "Όνομα υπολογιστή> ",
   "setupForm.keyboardHeader": "Διάταξη πληκτρολογίου",
   "setupForm.languageHeader": "Γλώσσα",

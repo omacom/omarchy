@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "Hozir kiritgan parolingiz bilan bir xil bo‘lishi kerak",
   "setupForm.confirmPrompt": "Tasdiqlash> ",
   "setupForm.hostnameInvalid": "Kompyuter nomi: 1-63 harf, raqam yoki chiziqcha, chetlarida chiziqchasiz",
-  "setupForm.hostnamePlaceholder": "Harflar, raqamlar va chiziqchalar (yoki 'omarchy' uchun Return)",
   "setupForm.hostnamePrompt": "Kompyuter nomi> ",
   "setupForm.keyboardHeader": "Klaviatura tartibini tanlang",
   "setupForm.languageHeader": "Til",

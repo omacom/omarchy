@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "अभी टाइप किए पासवर्ड से मेल खाना चाहिए",
   "setupForm.confirmPrompt": "पुष्टि करें> ",
   "setupForm.hostnameInvalid": "होस्टनाम 1-63 अक्षर, अंक या डैश का होना चाहिए, और डैश से शुरू या ख़त्म नहीं हो सकता",
-  "setupForm.hostnamePlaceholder": "अक्षर, अंक और डैश (या 'omarchy' के लिए return दबाएँ)",
   "setupForm.hostnamePrompt": "होस्टनाम> ",
   "setupForm.keyboardHeader": "कीबोर्ड लेआउट चुनें",
   "setupForm.languageHeader": "भाषा",

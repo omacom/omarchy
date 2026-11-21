@@ -355,7 +355,6 @@
   "setupForm.confirmPlaceholder": "Caithfidh sé a bheith mar an gcéanna leis an bpasfhocal",
   "setupForm.confirmPrompt": "Deimhnigh> ",
   "setupForm.hostnameInvalid": "1-63 litir, digit nó fleiscín, gan fleiscín ag an tús ná ag an deireadh",
-  "setupForm.hostnamePlaceholder": "Litreacha, digití agus fleiscíní (nó Enter do 'omarchy')",
   "setupForm.hostnamePrompt": "Óstainm> ",
   "setupForm.keyboardHeader": "Roghnaigh leagan amach an mhéarchláir",
   "setupForm.languageHeader": "Teanga",

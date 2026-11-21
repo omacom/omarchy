@@ -343,7 +343,6 @@
   "setupForm.confirmPlaceholder": "חייב להתאים לסיסמה שהזנת זה עתה",
   "setupForm.confirmPrompt": "אישור> ",
   "setupForm.hostnameInvalid": "שם המארח חייב להיות 1-63 אותיות, ספרות או מקפים, ולא יכול להתחיל או להסתיים במקף",
-  "setupForm.hostnamePlaceholder": "אותיות, ספרות ומקפים (או Enter עבור 'omarchy')",
   "setupForm.hostnamePrompt": "שם מארח> ",
   "setupForm.keyboardHeader": "בחר פריסת מקלדת",
   "setupForm.languageHeader": "שפה",

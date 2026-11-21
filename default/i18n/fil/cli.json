@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "Dapat tugma sa password na kaka-type mo lang",
   "setupForm.confirmPrompt": "Kumpirmahin> ",
   "setupForm.hostnameInvalid": "Dapat 1-63 titik, numero, o gitling ang hostname, at hindi nagsisimula o nagtatapos sa gitling",
-  "setupForm.hostnamePlaceholder": "Mga titik, numero, at gitling (o Return para sa 'omarchy')",
   "setupForm.hostnamePrompt": "Hostname> ",
   "setupForm.keyboardHeader": "Piliin ang keyboard layout",
   "setupForm.languageHeader": "Wika",

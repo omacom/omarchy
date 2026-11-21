@@ -337,7 +337,6 @@
   "setupForm.confirmPlaceholder": "Трябва да съвпада с току-що въведената парола",
   "setupForm.confirmPrompt": "Потвърди> ",
   "setupForm.hostnameInvalid": "Името трябва да е 1–63 букви, цифри или тирета, без тире в началото или края",
-  "setupForm.hostnamePlaceholder": "Букви, цифри и тирета (или Return за 'omarchy')",
   "setupForm.hostnamePrompt": "Име на компютъра> ",
   "setupForm.keyboardHeader": "Избери клавиатурна подредба",
   "setupForm.languageHeader": "Език",
