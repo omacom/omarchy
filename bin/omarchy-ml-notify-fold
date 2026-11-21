@@ -1,0 +1,233 @@
+#!/bin/bash
+
+# omarchy:summary=Collapse repeated chat, mail, and CI notifications into one line
+# omarchy:args=[--notify] [history-file-or-dir] | rule <add|drop|enable> [name] [--words word...] [--label text]
+# omarchy:examples=omarchy ml notify fold rule add discord --words discord --label "discord messages" | omarchy ml notify fold rule drop mail
+
+set -euo pipefail
+
+fold_file() {
+  printf '%s/omarchy/ml/fold.json' "${XDG_CONFIG_HOME:-$HOME/.config}"
+}
+
+prompt_line() {
+  local placeholder=$1
+  local value=""
+  if [[ -t 0 ]] && omarchy-cmd-present gum; then
+    value=$(gum input --placeholder "$placeholder")
+  elif [[ ! -t 0 ]]; then
+    IFS= read -r value || true
+  fi
+  printf '%s' "$value"
+}
+
+if [[ ${1:-} == "rule" ]]; then
+  shift
+  verb=${1:-}
+  if [[ -z $verb ]]; then
+    verb=$(prompt_line "add")
+  else
+    shift
+  fi
+  name=${1:-}
+  if [[ -n $name && $name != --* ]]; then
+    shift
+  else
+    name=""
+  fi
+  words=()
+  label=""
+  while (($#)); do
+    case $1 in
+      --words)
+        shift
+        while (($#)) && [[ $1 != --* ]]; do
+          words+=("$1")
+          shift
+        done
+        ;;
+      --label)
+        label=${2:-}
+        shift 2
+        ;;
+      *)
+        echo "Unknown option: $1" >&2
+        exit 1
+        ;;
+    esac
+  done
+  if [[ $verb == "add" && -z $name ]]; then
+    name=$(prompt_line "discord")
+  fi
+  if [[ $verb == "add" && ${#words[@]} -eq 0 ]]; then
+    raw=$(prompt_line "discord slack")
+    read -r -a words <<<"$raw"
+  fi
+  if [[ $verb == "add" && -z $label ]]; then
+    label=$(prompt_line "discord messages")
+  fi
+  if [[ $verb != "add" && -z $name ]]; then
+    name=$(prompt_line "mail")
+  fi
+  if [[ -z $verb || -z $name ]]; then
+    echo "Usage: omarchy ml notify fold rule <add|drop|enable> <name>" >&2
+    exit 1
+  fi
+  python3 - "$verb" "$name" "$label" "$(fold_file)" ${words[@]+"${words[@]}"} <<'PY'
+import json
+import os
+import sys
+
+verb, name, label, path = sys.argv[1:5]
+words = sys.argv[5:]
+os.makedirs(os.path.dirname(path), exist_ok=True)
+data = {"disabled": [], "groups": []}
+if os.path.isfile(path):
+    with open(path, encoding="utf-8") as handle:
+        loaded = json.load(handle)
+    if isinstance(loaded, dict):
+        data = loaded
+disabled = [item for item in data.get("disabled") or [] if item != name]
+groups = [row for row in data.get("groups") or [] if not isinstance(row, dict) or row.get("id") != name]
+if verb == "drop":
+    if name in ("ci", "mail", "chat"):
+        disabled.append(name)
+elif verb == "enable":
+    pass
+elif verb == "add":
+    if not words or not label:
+        print("An added group needs words and a label.", file=sys.stderr)
+        sys.exit(1)
+    groups.append({"id": name, "words": words, "label": label})
+else:
+    print("Usage: omarchy ml notify fold rule <add|drop|enable> <name>", file=sys.stderr)
+    sys.exit(1)
+data["disabled"] = disabled
+data["groups"] = groups
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, indent=2)
+    handle.write("\n")
+print(name)
+PY
+  exit 0
+fi
+
+notify=0
+if [[ ${1:-} == "--notify" ]]; then
+  notify=1
+  shift
+fi
+
+dir="${1:-${OMARCHY_ML_NOTIFY_DIR:-$HOME/.local/state/omarchy/notifications/history.json}}"
+
+line=$(python3 - "$dir" <<'PY'
+import json
+import os
+import re
+import sys
+
+def text_of(row):
+    return " ".join(str(row.get(key) or "") for key in ("app", "summary", "body"))
+
+def load_rules():
+    root = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    path = os.path.join(root, "omarchy", "ml", "fold.json")
+    if not os.path.isfile(path):
+        return {"disabled": [], "groups": []}
+    with open(path, encoding="utf-8") as handle:
+        data = json.load(handle)
+    return data if isinstance(data, dict) else {"disabled": [], "groups": []}
+
+def word_hit(text, word):
+    if not word:
+        return False
+    return re.search(r"\b" + re.escape(word) + r"\b", text, re.I) is not None
+
+def classify(text, rules):
+    lowered = text.lower()
+    for group in rules.get("groups") or []:
+        if not isinstance(group, dict):
+            continue
+        if any(word_hit(lowered, word) for word in group.get("words") or []):
+            return str(group.get("id") or "")
+    disabled = set(rules.get("disabled") or [])
+    if "ci" not in disabled and (re.search(r"\b(failed|failure|build|pipeline|workflow)\b", lowered) or "github actions" in lowered or re.search(r"\bci\b", lowered)):
+        return "ci"
+    if "mail" not in disabled and re.search(r"\b(mail|email|inbox|gmail|thunderbird)\b", lowered):
+        return "mail"
+    if "chat" not in disabled and (re.search(r"\b(slack|discord|signal|matrix|telegram)\b", lowered) or re.search(r"#[a-z0-9][a-z0-9_-]*", lowered)):
+        return "chat"
+    return "other"
+
+def channels(text):
+    found = []
+    for name in re.findall(r"#([a-z0-9][a-z0-9_-]*)", text.lower()):
+        if name not in found:
+            found.append(name)
+    return found
+
+def read_json(path):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            raw = handle.read(2 * 1024 * 1024 + 1)
+        if len(raw) <= 2 * 1024 * 1024:
+            return json.loads(raw)
+    except (OSError, UnicodeError, ValueError):
+        pass
+    return None
+
+
+history = sys.argv[1]
+if os.path.isdir(history):
+    # Explicit legacy exports still contain one notification per file.
+    rows = [read_json(os.path.join(history, name)) for name in sorted(os.listdir(history)) if name.endswith(".json")]
+else:
+    data = read_json(history)
+    rows = data if isinstance(data, list) else []
+rows = [row for row in rows if isinstance(row, dict)]
+
+rules = load_rules()
+groups = {"ci": [], "mail": [], "chat": []}
+extra = {}
+for row in rows:
+    kind = classify(text_of(row), rules)
+    if kind in groups:
+        groups[kind].append(row)
+    elif kind and kind != "other":
+        extra.setdefault(kind, []).append(row)
+
+parts = []
+if len(groups["ci"]) >= 2:
+    failed = any(re.search(r"fail", text_of(row), re.I) for row in groups["ci"])
+    parts.append(f"{len(groups['ci'])} failed builds" if failed else f"{len(groups['ci'])} builds")
+if len(groups["mail"]) >= 2:
+    parts.append(f"{len(groups['mail'])} emails")
+if len(groups["chat"]) >= 2:
+    names = []
+    for row in groups["chat"]:
+        for name in channels(text_of(row)):
+            if name not in names:
+                names.append(name)
+    chat = f"{len(groups['chat'])} messages"
+    if names:
+        chat += " from #" + ", #".join(names)
+    parts.append(chat)
+for group in rules.get("groups") or []:
+    if not isinstance(group, dict):
+        continue
+    name = str(group.get("id") or "")
+    rows_for = extra.get(name) or []
+    if name and len(rows_for) >= 2:
+        parts.append(f"{len(rows_for)} {group.get('label') or name}")
+
+if not parts:
+    sys.exit(1)
+print(", ".join(parts))
+PY
+)
+
+if ((notify)); then
+  omarchy-notification-send "$(omarchy-i18n ml.notifications)" "$line"
+else
+  printf '%s\n' "$line"
+fi

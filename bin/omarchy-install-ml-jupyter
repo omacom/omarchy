@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Install Jupyter Lab into the PyTorch environment
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+venv="${OMARCHY_ML_PYTORCH:-$HOME/.local/share/omarchy/ml/pytorch}"
+if [[ ! -x $venv/bin/python ]]; then
+  omarchy-install-ml-pytorch
+fi
+if omarchy-cmd-missing uv; then
+  curl -fsSL https://astral.sh/uv/install.sh | sh
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+uv pip install --python "$venv/bin/python" jupyterlab
+echo "Open it with: omarchy launch jupyter"
