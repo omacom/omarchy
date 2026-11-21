@@ -33,3 +33,53 @@ HOME="$test_home" "$ROOT/bin/omarchy-toggle-idle" allow-idle >/dev/null
 [[ ! -f $test_home/.local/state/omarchy/indicators/stay-awake ]] || fail "Stay Awake toggle persists disabled state"
 
 pass "Stay Awake toggle persists state"
+
+if ! command -v dbus-run-session >/dev/null; then
+  skip "screensaver helper honors inhibits on a private bus"
+else
+  # The two clients share one bus, so the second could release the first's
+  # inhibit by cookie, and only the bus dropping the first should release it.
+  if ! output=$(timeout 20 dbus-run-session -- python3 - "$ROOT/shell/plugins/services/idle/screensaver.py" 2>&1 <<'PY'
+import json, select, subprocess, sys, time
+from gi.repository import Gio, GLib
+
+helper = subprocess.Popen(["python3", sys.argv[1]], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+
+def apps():
+  if not select.select([helper.stdout], [], [], 5)[0]:
+    sys.exit("helper published nothing")
+  return [i["app"] for i in json.loads(helper.stdout.readline())["inhibitors"]]
+
+def client():
+  address = Gio.dbus_address_get_for_bus_sync(Gio.BusType.SESSION, None)
+  flags = Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION
+  return Gio.DBusConnection.new_for_address_sync(address, flags, None, None)
+
+def call(connection, path, method, args):
+  return connection.call_sync("org.freedesktop.ScreenSaver", path, "org.freedesktop.ScreenSaver", method, args, None, 0, 5000, None)
+
+assert apps() == []
+player, other = client(), client()
+for _ in range(50):
+  if player.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "NameHasOwner",
+                      GLib.Variant("(s)", ("org.freedesktop.ScreenSaver",)), None, 0, -1, None).unpack()[0]:
+    break
+  time.sleep(0.1)
+
+(cookie,) = call(player, "/org/freedesktop/ScreenSaver", "Inhibit", GLib.Variant("(ss)", ("chromium", "video"))).unpack()
+assert apps() == ["chromium"], "Inhibit on the Chromium path"
+call(other, "/ScreenSaver", "UnInhibit", GLib.Variant("(u)", (cookie,)))
+call(player, "/ScreenSaver", "Inhibit", GLib.Variant("(ss)", ("firefox", "video")))
+assert apps() == ["chromium", "firefox"], "another client cannot release an inhibit"
+call(player, "/org/freedesktop/ScreenSaver", "UnInhibit", GLib.Variant("(u)", (cookie,)))
+assert apps() == ["firefox"], "the owner releases its inhibit"
+player.close_sync(None)
+assert apps() == [], "a client leaving the bus releases its inhibits"
+helper.stdin.close()
+helper.wait(5)
+PY
+  ); then
+    fail "screensaver helper honors inhibits on a private bus" "$output"
+  fi
+  pass "screensaver helper honors inhibits on a private bus"
+fi
