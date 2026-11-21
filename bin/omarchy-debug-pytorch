@@ -1,0 +1,81 @@
+#!/bin/bash
+
+# omarchy:summary=Check whether the active PyTorch environment can actually use its GPU
+# omarchy:args=[--device <auto|cpu|cuda|xpu>] [--require-gpu] [--json]
+# omarchy:examples=omarchy debug pytorch --require-gpu | omarchy debug pytorch --device cuda --json
+
+exec python3 - "$@" <<'PY'
+import argparse
+import json
+import sys
+
+
+def main():
+  parser = argparse.ArgumentParser(
+    description="Inspect PyTorch in the active Python environment and run a tiny 32x32 matrix operation. Installs nothing and loads no model."
+  )
+  parser.add_argument("--device", choices=("auto", "cpu", "cuda", "xpu"), default="auto")
+  parser.add_argument("--require-gpu", action="store_true")
+  parser.add_argument("--json", action="store_true")
+  args = parser.parse_args()
+  try:
+    import torch
+  except ImportError:
+    raise ValueError("Activate the Python environment containing PyTorch, then try again") from None
+  cuda = torch.cuda.is_available()
+  xpu_backend = getattr(torch, "xpu", None)
+  xpu = xpu_backend is not None and xpu_backend.is_available()
+  device = args.device
+  if device == "auto":
+    if cuda:
+      device = "cuda"
+    elif xpu:
+      device = "xpu"
+    else:
+      device = "cpu"
+  if (device == "cuda" and not cuda) or (device == "xpu" and not xpu):
+    raise ValueError(f"{device} is unavailable in this PyTorch environment")
+  if args.require_gpu and device == "cpu":
+    raise ValueError("No GPU selected; this environment would run the operation on the CPU")
+
+  # is_available() alone cannot catch a missing device kernel or an ABI
+  # mismatch. item() synchronizes, so an asynchronous failure is reported.
+  with torch.no_grad():
+    matrix = torch.ones((32, 32), device=device)
+    result = (matrix @ matrix).sum().item()
+  if result != 32768:
+    raise ValueError("The matrix check returned an unexpected result")
+  devices = []
+  if device == "cuda":
+    devices = [torch.cuda.get_device_name(index) for index in range(torch.cuda.device_count())]
+  elif device == "xpu":
+    devices = [xpu_backend.get_device_name(index) for index in range(xpu_backend.device_count())]
+  report = {
+    "python": sys.executable,
+    "torch": str(torch.__version__),
+    "cuda_build": torch.version.cuda,
+    "rocm_build": torch.version.hip,
+    "cuda_available": cuda,
+    "xpu_available": xpu,
+    "device": device,
+    "devices": devices,
+    "matrix_check": "passed",
+  }
+  if args.json:
+    print(json.dumps(report))
+  else:
+    print(f"Python: {report['python']}\nPyTorch: {report['torch']}")
+    print(f"Device: {device}; matrix check passed")
+    for name in devices:
+      print(f"GPU: {name}")
+    if device == "cpu":
+      print("CPU execution selected. Use --require-gpu to fail when GPU acceleration is unavailable.")
+    print(f"Build: CUDA {report['cuda_build'] or 'none'}, ROCm {report['rocm_build'] or 'none'}")
+
+
+try:
+  main()
+except (ImportError, OSError, ValueError, RuntimeError) as error:
+  print(f"omarchy-debug-pytorch: {error}", file=sys.stderr)
+  sys.exit(1)
+PY
