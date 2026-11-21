@@ -185,6 +185,11 @@ BarWidget {
     root.bar.run(command)
   }
 
+  // Every workspace number shows the layout that workspace comes back with, not
+  // only the one this monitor shows, so a number says what a click on it brings.
+  readonly property var layouts: layoutReader
+  WorkspaceLayouts { id: layoutReader }
+
   Component.onCompleted: refresh()
   onMonitorChanged: root.showActiveMode()
 
@@ -270,7 +275,10 @@ BarWidget {
         Layout.topMargin: firstGuest && root.vertical ? Style.space(6) : 0
 
         bar: root.bar
-        text: shown ? root.modeGlyph(root.activeMode) : (slot === root.slots ? "0" : String(slot))
+        text: shown
+          ? root.modeGlyph(root.activeMode)
+          : root.layouts.label(modelData, slot)
+        tooltipText: shown ? "" : root.layouts.detail(modelData)
         opacity: occupied || shown ? 1 : 0.5
         horizontalMargin: 6
         verticalPadding: 6
