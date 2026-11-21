@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Install Vesktop from the AUR and launch it.
+
+set -e
+
+echo "Installing Vesktop..."
+omarchy-pkg-aur-add vesktop
+
+echo "Opening Vesktop..."
+setsid uwsm-app -- gtk-launch vesktop >/dev/null 2>&1 &
+
+echo ""
+echo "Vesktop has been installed."
