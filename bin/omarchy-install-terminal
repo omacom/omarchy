@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # omarchy:summary=Install one of the approved terminals and set it as the default for Omarchy (Super + Return etc).
-# omarchy:args=<alacritty|foot|ghostty|kitty>
+# omarchy:args=<alacritty|foot|ghostty|glass|kitty>
 # omarchy:requires-sudo=true
 
 if (($# == 0)); then
-  echo "Usage: omarchy-install-terminal [alacritty|foot|ghostty|kitty]"
+  echo "Usage: omarchy-install-terminal [alacritty|foot|ghostty|glass|kitty]"
   exit 1
 fi
 
@@ -16,6 +16,7 @@ case "$package" in
 alacritty) desktop_id="Alacritty.desktop" ;;
 foot) desktop_id="foot.desktop" ;;
 ghostty) desktop_id="com.mitchellh.ghostty.desktop" ;;
+glass) desktop_id="glass.desktop" ;;
 kitty) desktop_id="kitty.desktop" ;;
 *)
   echo "Unknown terminal: $package"
@@ -25,8 +26,16 @@ esac
 
 echo "Installing $package..."
 
+# glass is not in the Arch repos; its AUR package installs the release binary,
+# whose desktop entry already carries the X-TerminalArg* keys.
+if [[ $package == "glass" ]]; then
+  install_command=(omarchy-pkg-aur-add glass-term-bin)
+else
+  install_command=(omarchy-pkg-add "$package")
+fi
+
 # Install package
-if omarchy-pkg-add $package; then
+if "${install_command[@]}"; then
   # Copy custom desktop entries with X-TerminalArg* keys
   if [[ $package == "alacritty" ]]; then
     mkdir -p ~/.local/share/applications
@@ -39,6 +48,11 @@ if omarchy-pkg-add $package; then
   # Copy default config for optional terminals when missing
   if [[ ! -e ~/.config/$package ]]; then
     cp -Rpf "$OMARCHY_PATH/config/$package" ~/.config/
+  fi
+
+  # A current theme staged before the glass template existed has no glass.conf.
+  if [[ $package == "glass" && ! -f $HOME/.local/state/omarchy/current/theme/glass.conf ]]; then
+    omarchy-theme-refresh
   fi
 
   # Update xdg-terminals.list to prioritize the proper terminal

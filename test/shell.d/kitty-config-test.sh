@@ -62,6 +62,25 @@ run_command omarchy-display-text-size 16
 grep -qx 'font_size 12.0' "$kitty_config" || fail "size command handles absent config"
 pass "font controls create missing Kitty overrides without restoring the theme include"
 
+# The same commands keep glass's config in step, through a dotfiles symlink,
+# without touching the theme include at its top.
+glass_config="$test_home/.config/glass/glass.conf"
+mkdir -p "$(dirname "$glass_config")"
+cp "$ROOT/config/glass/glass.conf" "$test_dir/glass.conf"
+ln -s "$test_dir/glass.conf" "$glass_config"
+run_command omarchy-display-text-size 16
+run_command omarchy-font-set 'Test Font'
+grep -qx 'font_size 12' "$test_dir/glass.conf" || fail "text size updates glass's font size"
+grep -qx 'font_family Test Font' "$test_dir/glass.conf" || fail "font set updates glass's font family"
+grep -qx 'include ~/.local/state/omarchy/current/theme/glass.conf' "$test_dir/glass.conf" || fail "font commands keep glass's theme include"
+[[ -L $glass_config ]] || fail "font commands preserve a glass config symlink"
+rm "$kitty_config"
+output=$(run_command omarchy-display-text-size)
+[[ $output == *"terminal font: 12 pt"* ]] || fail "text size reports glass when it is the only configured terminal"
+run_command omarchy-display-text-size reset
+grep -qx 'font_size 9' "$test_dir/glass.conf" || fail "text size reset restores glass's default"
+pass "font controls update, report and reset glass through a config symlink"
+
 # try-omarchy VMs put a wrapper named kitty on PATH that exits 127 until Kitty
 # is installed, so a command on PATH is not enough: ask Kitty itself.
 if "$ROOT/bin/omarchy-cmd-present" kitty && kitty --version >/dev/null 2>&1; then
