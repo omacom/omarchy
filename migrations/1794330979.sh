@@ -24,5 +24,14 @@ for package_name in nautilus nautilus-python nautilus-dropbox sushi; do
   pacman -Qq "$package_name" &>/dev/null && nautilus_packages+=("$package_name")
 done
 if ((${#nautilus_packages[@]})); then
-  sudo pacman -Rn --noconfirm "${nautilus_packages[@]}"
+  # Other extensions installed later, like nautilus-open-any-terminal, need these
+  # too, so they go with them (-c). If anything else still needs Nautilus, like
+  # xdg-desktop-portal-gnome, Nautilus stays rather than failing the update.
+  removing=$(pacman -Rc --print --print-format %n "${nautilus_packages[@]}")
+  needed_by=$(grep -vx sushi <<<"$removing" | grep -v nautilus || true)
+  if [[ -z $needed_by ]]; then
+    sudo pacman -Rnc --noconfirm "${nautilus_packages[@]}"
+  else
+    echo "Keeping Nautilus, still needed by ${needed_by//$'\n'/ }"
+  fi
 fi
