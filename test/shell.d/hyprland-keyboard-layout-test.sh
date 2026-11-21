@@ -55,6 +55,7 @@ hl = {
   end,
   get_config = function() end,
   on = function() end,
+  device = function() end,
 }
 
 o = { window = function() end }
