@@ -21,8 +21,8 @@ ensure_systemd_resolved() {
   if [[ -L /etc/resolv.conf ]]; then
     local target
     target=$(readlink /etc/resolv.conf)
-    if [[ $target != /run/systemd/resolve/stub-resolv.conf &&
-      $target != ../run/systemd/resolve/stub-resolv.conf ]]; then
+    if [[ $target != "/run/systemd/resolve/stub-resolv.conf" &&
+      $target != "../run/systemd/resolve/stub-resolv.conf" ]]; then
       return 0
     fi
   else
