@@ -285,6 +285,48 @@ function iconForCode(code, night) {
   }
 }
 
+function upcomingPrecipitation(dailyForecastReport) {
+  var series = dailyForecastReport && dailyForecastReport.minutely_15
+  var current = dailyForecastReport && dailyForecastReport.current
+  if (!series || !series.time || !current || !current.time) return []
+  var now = String(current.time).slice(0, 16)
+  var probabilities = series.precipitation_probability || []
+  var amounts = series.precipitation || []
+  var slots = []
+  for (var i = 0; i < series.time.length && slots.length < 48; i++) {
+    var time = String(series.time[i])
+    if (time.slice(0, 16) < now) continue
+    slots.push({
+      hour: parseInt(time.slice(11, 13), 10),
+      minute: parseInt(time.slice(14, 16), 10),
+      probability: Math.round(parseFloat(probabilities[i])) || 0,
+      amountMm: parseFloat(amounts[i]) || 0
+    })
+  }
+  return slots
+}
+
+function precipitationTotals(slots) {
+  var totals = { maxChance: 0, totalMm: 0 }
+  for (var i = 0; i < slots.length; i++) {
+    totals.maxChance = Math.max(totals.maxChance, slots[i].probability)
+    totals.totalMm += slots[i].amountMm
+  }
+  return totals
+}
+
+function formatPrecipitation(mm, useImperial, fmt, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var write = displayNumber(fmt)
+  if (useImperial) {
+    var inches = mm / 25.4
+    if (inches > 0 && inches < 0.005) return t("weather.amountInchesUnder", "< %1 in").replace("%1", write(0.01, 2))
+    return t("weather.amountInches", "%1 in").replace("%1", write(inches, 2))
+  }
+  if (mm > 0 && mm < 0.05) return t("weather.amountMmUnder", "< %1 mm").replace("%1", write(0.1, 1))
+  return t("weather.amountMm", "%1 mm").replace("%1", write(mm, 1))
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     parseLocationFile: parseLocationFile,
@@ -312,6 +354,9 @@ if (typeof module !== "undefined") {
     bareTempForDay: bareTempForDay,
     dayIcon: dayIcon,
     iconForOpenMeteoCode: iconForOpenMeteoCode,
-    iconForCode: iconForCode
+    iconForCode: iconForCode,
+    upcomingPrecipitation: upcomingPrecipitation,
+    precipitationTotals: precipitationTotals,
+    formatPrecipitation: formatPrecipitation
   }
 }
