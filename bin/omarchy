@@ -1086,7 +1086,7 @@ dispatch_fast_or_help() {
     return 0
   fi
 
-  if (( $# >= 2 )) && [[ $2 == "--help" || $2 == "-h" ]] && group_has_binary_commands "$1"; then
+  if (( $# >= 2 )) && [[ $2 == "--help" || $2 == "-h" || $2 == "?" ]] && group_has_binary_commands "$1"; then
     load_group_commands "$1"
     show_group_help "$1"
     return 0
@@ -1111,6 +1111,8 @@ dispatch_or_help() {
   local key=""
   local binary_path=""
   local suggestion=""
+  local prefix_args=()
+  local arg=""
 
   if resolve_route "$#" "${args[@]}"; then
     key="$RESOLVED_KEY"
@@ -1149,19 +1151,24 @@ dispatch_or_help() {
     return 0
   fi
 
-  if (( $# >= 2 )) && [[ $2 == "--help" || $2 == "-h" ]] && group_exists "$1"; then
+  if (( $# >= 2 )) && [[ $2 == "--help" || $2 == "-h" || $2 == "?" ]] && group_exists "$1"; then
     show_group_help "$1"
     return 0
   fi
 
-  if show_prefix_help "omarchy ${args[*]}"; then
+  prefix_args=()
+  for arg in "${args[@]}"; do
+    [[ $arg == "--help" || $arg == "-h" || $arg == "?" ]] || prefix_args+=("$arg")
+  done
+
+  if (( ${#prefix_args[@]} > 0 )) && show_prefix_help "omarchy ${prefix_args[*]}"; then
     return 0
   fi
 
   echo "Unknown Omarchy command: omarchy ${args[*]}" >&2
   suggestion=$(suggest_command "${args[0]}")
   if [[ -n $suggestion ]]; then
-    echo "Did you mean: omarchy $suggestion ?" >&2
+    echo "Did you mean: omarchy $suggestion --help" >&2
   fi
   echo "Run 'omarchy commands --all' to discover available commands." >&2
   return 127
