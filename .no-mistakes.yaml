@@ -1,0 +1,3 @@
+commands:
+  test: bash test/shell.d/hardware-quirks-test.sh
+  lint: shellcheck -s bash install/hardware/fix-bcm43xx.sh && git diff --check && gitleaks dir --redact --no-banner install/hardware
