@@ -1,0 +1,15 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = chromium
+Target = google-chrome
+Target = microsoft-edge-stable-bin
+Target = brave-bin
+Target = brave-origin-bin
+
+[Action]
+Description = Applying Omarchy's browser policy...
+When = PostTransaction
+Exec = /usr/bin/omarchy-apply-browser-policy
+NeedsTargets
