@@ -1480,8 +1480,9 @@ Item {
 
             WheelHandler {
               target: null
+              acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
               onWheel: function(event) {
-                var delta = event.pixelDelta.y || event.angleDelta.y / 120 * root.rowHeightForDetail("") * 3
+                var delta = event.pixelDelta.y ? event.pixelDelta.y * 4 : event.angleDelta.y / 120 * root.rowHeightForDetail("") * 3
                 var bottom = resultList.originY + Math.max(0, resultList.contentHeight - resultList.height)
                 resultList.contentY = Math.max(resultList.originY, Math.min(bottom, resultList.contentY - delta))
                 event.accepted = true

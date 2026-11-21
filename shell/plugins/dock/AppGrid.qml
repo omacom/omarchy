@@ -337,6 +337,21 @@ Item {
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
 
+            WheelHandler {
+              target: null
+              acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+
+              onWheel: function(event) {
+                var delta = event.pixelDelta.y
+                  ? event.pixelDelta.y * 4
+                  : event.angleDelta.y / 120 * grid.cellHeight * 3
+
+                var bottom = grid.originY + Math.max(0, grid.contentHeight - grid.height)
+                grid.contentY = Math.max(grid.originY, Math.min(bottom, grid.contentY - delta))
+                event.accepted = true
+              }
+            }
+
             delegate: Item {
               id: cell
 
