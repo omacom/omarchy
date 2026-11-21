@@ -77,7 +77,15 @@ STUB
 cat >"$mock_bin/sudo" <<'STUB'
 #!/bin/bash
 
-exec "$@"
+# sudo outlives a Ctrl-C at its prompt and exits 1, as it does when it refuses.
+if [[ ${OMARCHY_TEST_SUDO:-} == "cancelled" ]]; then
+  kill -INT "$PPID"
+  exit 1
+elif [[ ${OMARCHY_TEST_SUDO:-} == "refused" ]]; then
+  exit 1
+else
+  exec "$@"
+fi
 STUB
 cat >"$mock_bin/yay" <<'STUB'
 #!/bin/bash
@@ -100,6 +108,29 @@ grep -Fx 'pacman <-S> <--noconfirm> <--needed> <--> <--hookdir=/tmp/hooks>' "$pa
 grep -Fx 'pacman <-Q> <--> <--hookdir=/tmp/hooks>' "$package_calls" >/dev/null ||
   fail "pkg-add verifies an option-shaped package name literally" "$(<"$package_calls")"
 pass "pkg-add keeps option-shaped package names out of pacman option parsing"
+
+if (( EUID == 0 )); then
+  skip "a service install stops at a cancelled or refused sudo prompt (root is never prompted)"
+else
+  service_mock_bin="$test_tmp/service-bin"
+  mkdir -p "$service_mock_bin"
+  for helper in omarchy-plugin-enable uwsm-app; do
+    printf '#!/bin/bash\n\necho "%s $*" >>"$OMARCHY_TEST_PACKAGE_CALLS"\n' "$helper" >"$service_mock_bin/$helper"
+  done
+  chmod +x "$service_mock_bin"/*
+
+  # Only the Ctrl-C is the user bailing; the presentation wrapper shows Failed for anything but 130.
+  for outcome in cancelled:130 refused:1; do
+    : >"$package_calls"
+    status=0
+    PATH="$service_mock_bin:$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_PACKAGE_CALLS="$package_calls" \
+      OMARCHY_TEST_SUDO="${outcome%:*}" \
+      env --default-signal=INT "$ROOT/bin/omarchy-install-service-dropbox" >/dev/null 2>&1 || status=$?
+    (( status == ${outcome#*:} )) || fail "a ${outcome%:*} sudo prompt ends the Dropbox install with ${outcome#*:}" "status=$status"
+    [[ ! -s $package_calls ]] || fail "a ${outcome%:*} sudo prompt must not go on to the later Dropbox steps" "$(<"$package_calls")"
+  done
+  pass "a service install stops at a cancelled sudo prompt with 130 and at a refused one with 1"
+fi
 
 : >"$package_calls"
 PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_PACKAGE_CALLS="$package_calls" \
