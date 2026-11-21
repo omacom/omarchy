@@ -125,12 +125,17 @@ pass "dispatcher pins only IPv4 on a profile whose IPv6 takes no DNS"
 pin "$cloudflare" 802-11-wireless yes no disabled
 refute_modify "dispatcher leaves a profile alone once IPv4 is pinned and IPv6 is disabled"
 
-for method in disabled shared link-local; do
+for method in disabled link-local; do
   pin "$cloudflare" 802-3-ethernet no no auto "$method"
   grep -Fx "connection modify $uuid ipv6.ignore-auto-dns yes ipv6.dns 2606:4700:4700::1111 2606:4700:4700::1001" "$work/log" >/dev/null ||
     fail "dispatcher pins only IPv6 on a profile with ipv4.method=$method" "log: $(cat "$work/log")"
 done
 pass "dispatcher pins only IPv6 on a profile whose IPv4 takes no DNS"
+
+# A hotspot shares the host's uplink and resolver; even with IPv6 shared too,
+# it has no DNS of its own to pin.
+pin "$cloudflare" 802-11-wireless no no shared shared
+refute_modify "dispatcher leaves a hotspot alone"
 
 pin "$cloudflare" 802-3-ethernet no no disabled disabled
 refute_modify "dispatcher leaves a profile alone when neither family takes DNS"

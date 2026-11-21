@@ -159,9 +159,11 @@ profile_dns_info() {
 # nmcli settings that pin <ipv4> <ipv6>, and set profile_dns_pinned=yes when the
 # profile already ignores automatic DNS on every family it can carry. Returns 1
 # when the profile takes no DNS of its own: not an uplink type, a bridge, bond
-# or team port (its controller carries its IP settings), or no family that
-# accepts servers. nmcli rejects ipvN.dns for a method that takes no DNS (IPv6
-# disabled, say) and fails the whole modify, so only those families are set.
+# or team port (its controller carries its IP settings), a hotspot (ipv4.method
+# shared hands clients the host's resolver; the uplink is another profile), or
+# no family that accepts servers. nmcli rejects ipvN.dns for a method that
+# takes no DNS (IPv6 disabled, say) and fails the whole modify, so only those
+# families are set.
 read_profile_dns_settings() {
   local info="$1" ipv4_dns="$2" ipv6_dns="$3"
   local fields=()
@@ -172,9 +174,10 @@ read_profile_dns_settings() {
   mapfile -t fields <<<"$info"
   networkmanager_dns_connection "${fields[0]:-}" || return 1
   [[ -z ${fields[1]:-} ]] || return 1
+  [[ ${fields[2]:-} != "shared" ]] || return 1
 
   case "${fields[2]:-}" in
-    link-local|shared|disabled) ;;
+    link-local|disabled) ;;
     *)
       profile_dns_settings+=(ipv4.ignore-auto-dns yes ipv4.dns "$ipv4_dns")
       [[ ${fields[3]:-} == "yes" ]] || profile_dns_pinned=no
