@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy thường được điều khiển qua các phím tắt và menu Omarchy (`Super + Space`). Nhưng bạn cũng có thể điều khiển nó qua CLI `omarchy`. Điều này đặc biệt hữu ích khi bạn để một AI agent làm việc cùng bạn về tùy chỉnh hoặc cấu hình.
+Omarchy thường được điều khiển bằng các phím tắt và menu Omarchy (`Super + Space`). Nhưng bạn cũng có thể điều khiển nó qua `omarchy` CLI. Điều này đặc biệt hữu ích khi bạn để một AI agent làm việc cùng mình về tùy chỉnh hoặc cấu hình.
 
-CLI có quyền truy cập vào toàn bộ công cụ nội bộ được dùng cả qua menu và theo những cách khác. Bạn có thể xem mọi thứ có sẵn bằng cách chạy `omarchy` trong terminal.
+CLI có quyền truy cập vào toàn bộ công cụ nội bộ được dùng cả qua menu lẫn theo các cách khác. Bạn có thể xem mọi thứ có sẵn bằng cách chạy `omarchy` trong terminal.
 
 Nó trông đại khái như thế này:
 
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -41,7 +42,7 @@ Groups:
   ...
 ```
 
-Để chẩn đoán, hãy chạy trực tiếp `omarchy-debug --no-sudo --print`. Nó in ra thông tin chẩn đoán và ghi vào `/tmp/omarchy-debug.log` mà không nhắc sudo, kể cả trên những bản cài đặt gói nơi `omarchy debug` có thể thất bại với "Unknown Omarchy command".
+Để chẩn đoán, hãy chạy trực tiếp `omarchy-debug --no-sudo --print`. Nó in thông tin chẩn đoán và ghi vào `/tmp/omarchy-debug.log` mà không nhắc nhập sudo, kể cả trên các lần cài đặt gói mà ở đó `omarchy debug` có thể thất bại với "Unknown Omarchy command".
 
 Và bạn có thể đào sâu hơn vào từng nhóm:
 
@@ -49,15 +50,15 @@ Và bạn có thể đào sâu hơn vào từng nhóm:
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Mọi lệnh cũng đều nhận `--help`, dù bạn hỏi cả một nhóm (`omarchy capture --help`) hay một lệnh đơn (`omarchy capture screenshot --help`).
+Mọi lệnh cũng đều nhận `--help`, dù bạn hỏi cả một nhóm (`omarchy capture --help`) hay một lệnh đơn lẻ (`omarchy capture screenshot --help`).
 
 ### Mở menu từ terminal
 
-Menu Omarchy cũng có thể điều khiển bằng script, rất tiện cho các keybinding của riêng bạn. `omarchy menu` mở nó ở gốc, và bạn có thể nhảy thẳng tới bất kỳ điểm nào trong cây bằng cách gọi tên nó: `omarchy menu summon appearance.theme` đi thẳng tới trình chọn theme, `omarchy menu toggle system` mở menu hệ thống và đóng lại nếu nó đã đang mở, và `omarchy menu close` đóng nó đi.
+Menu Omarchy cũng có thể điều khiển bằng script, rất tiện cho các keybinding của riêng bạn. `omarchy menu` mở nó ở cấp gốc, và bạn có thể nhảy thẳng tới bất kỳ điểm nào trong cây bằng cách gọi tên nó: `omarchy menu summon appearance.theme` đi thẳng tới trình chọn theme, `omarchy menu toggle system` mở menu hệ thống và đóng nó lại nếu nó đã đang mở, còn `omarchy menu close` thì cất nó đi.

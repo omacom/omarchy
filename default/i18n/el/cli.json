@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "Τιμή",
   "setupForm.reviewYes": "Ναι",
   "setupForm.timezoneHeader": "Ζώνη ώρας",
+  "setupForm.timezonePlaceholder": "Φίλτρο...",
   "setupForm.usernameInvalid": "Το όνομα χρήστη θέλει μόνο γράμματα και αριθμούς, χωρίς κενά",
   "setupForm.usernamePlaceholder": "Λατινικά γράμματα και αριθμοί χωρίς κενά (π.χ. dhh)",
   "setupForm.usernamePrompt": "Όνομα χρήστη> ",

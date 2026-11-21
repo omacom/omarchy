@@ -354,6 +354,7 @@
   "setupForm.reviewValue": "值",
   "setupForm.reviewYes": "是",
   "setupForm.timezoneHeader": "時區",
+  "setupForm.timezonePlaceholder": "篩選...",
   "setupForm.usernameInvalid": "使用者名稱須為英數字，且不可包含空格",
   "setupForm.usernamePlaceholder": "不含空格的英數字（例如 dhh）",
   "setupForm.usernamePrompt": "使用者名稱> ",

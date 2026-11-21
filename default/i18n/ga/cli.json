@@ -378,6 +378,7 @@
   "setupForm.reviewValue": "Luach",
   "setupForm.reviewYes": "Sea",
   "setupForm.timezoneHeader": "Crios ama",
+  "setupForm.timezonePlaceholder": "Scag...",
   "setupForm.usernameInvalid": "Caithfidh an t-ainm úsáideora a bheith alfa-uimhriúil gan spásanna",
   "setupForm.usernamePlaceholder": "Litreacha agus uimhreacha gan spásanna (mar dhh)",
   "setupForm.usernamePrompt": "Úsáideoir> ",

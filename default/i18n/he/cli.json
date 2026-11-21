@@ -366,6 +366,7 @@
   "setupForm.reviewValue": "ערך",
   "setupForm.reviewYes": "כן",
   "setupForm.timezoneHeader": "אזור זמן",
+  "setupForm.timezonePlaceholder": "סינון...",
   "setupForm.usernameInvalid": "שם המשתמש חייב להיות אלפאנומרי ללא רווחים",
   "setupForm.usernamePlaceholder": "אלפאנומרי ללא רווחים (כמו dhh)",
   "setupForm.usernamePrompt": "שם משתמש> ",

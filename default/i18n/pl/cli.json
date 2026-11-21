@@ -372,6 +372,7 @@
   "setupForm.reviewValue": "Wartość",
   "setupForm.reviewYes": "Tak",
   "setupForm.timezoneHeader": "Strefa czasowa",
+  "setupForm.timezonePlaceholder": "Filtruj...",
   "setupForm.usernameInvalid": "Nazwa użytkownika może zawierać tylko litery i cyfry, bez spacji",
   "setupForm.usernamePlaceholder": "Litery i cyfry bez spacji (np. dhh)",
   "setupForm.usernamePrompt": "Użytkownik> ",

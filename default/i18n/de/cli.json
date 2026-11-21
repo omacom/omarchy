@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "Wert",
   "setupForm.reviewYes": "Ja",
   "setupForm.timezoneHeader": "Zeitzone",
+  "setupForm.timezonePlaceholder": "Filtern...",
   "setupForm.usernameInvalid": "Benutzername darf nur Buchstaben und Ziffern ohne Leerzeichen enthalten",
   "setupForm.usernamePlaceholder": "Buchstaben und Ziffern ohne Leerzeichen (z. B. dhh)",
   "setupForm.usernamePrompt": "Benutzername> ",

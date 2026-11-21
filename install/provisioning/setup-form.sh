@@ -325,7 +325,8 @@ omarchy_prompt_timezone() {
     zones=$(printf '%s\n' "$guess"; grep -vxF -- "$guess" <<<"$zones")
   fi
 
-  timezone=$(gum filter --height 10 --header "$(omarchy_form_text setupForm.timezoneHeader)" <<<"$zones") && status=0 || status=$?
+  timezone=$(gum filter --height 10 --header "$(omarchy_form_text setupForm.timezoneHeader)" \
+    --placeholder "$(omarchy_form_text setupForm.timezonePlaceholder)" <<<"$zones") && status=0 || status=$?
   ((status == 0)) || return $status
 
   [[ -n $timezone ]] || timezone="UTC"

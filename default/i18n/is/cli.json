@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "Gildi",
   "setupForm.reviewYes": "Já",
   "setupForm.timezoneHeader": "Tímabelti",
+  "setupForm.timezonePlaceholder": "Sía...",
   "setupForm.usernameInvalid": "Notandanafnið má aðeins innihalda bókstafi og tölur, án bila",
   "setupForm.usernamePlaceholder": "Bókstafir og tölur án bila (t.d. dhh)",
   "setupForm.usernamePrompt": "Notandanafn> ",

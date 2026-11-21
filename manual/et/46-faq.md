@@ -2,7 +2,7 @@
 
 ### Kuidas vahetada klaviatuuripaigutusi?
 
-Muuda oma `~/.config/hypr/input.lua` faili ja lisa see, et vahetada paigutusi klahvidega `Left Alt + Right Alt`:
+Muuda faili `~/.config/hypr/input.lua` ja lisa see, et vahetada paigutusi klahvidega `Left Alt + Right Alt`:
 
 ```
 hl.config({
@@ -14,11 +14,11 @@ hl.config({
 })
 ```
 
-Riba näitab automaatselt sinu praegust klaviatuuripaigutust, kui sul on seadistatud mitu paigutust (ja sa saad selle vahetamiseks ka sellel klõpsata).
+Riba näitab automaatselt sinu praegust klaviatuuripaigutust, kui sul on seadistatud mitu paigutust (ja vahetamiseks saad sellel ka klõpsata).
 
 ### Kuidas muuta kella vorming 12-tunniseks?
 
-Paremklõpsa ribal oleval kellal, et liikuda läbi levinumate vormingute, sealhulgas 12-tunniste vormingute. Vormingu saad määrata ka otse:
+Tee ribal kellal paremklõps, et liikuda läbi levinud vormingute, sealhulgas 12-tunniste. Vormingu saad määrata ka otse:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
@@ -26,29 +26,29 @@ omarchy bar set omarchy.clock format "dddd h:mm AP"
 
 See kuvab pühapäev 10:55 AM.
 
-### Kuidas muuta oma ajavööndit?
+### Kuidas muuta ajavööndit?
 
-Käivita Omarchy menüüs _Setup > Region > Timezone_ ja vali loendist sobiv. Kui ajavöönd on õige, aga kell ise on paigast ära läinud, käivitab _Update > Time_ sinu eest ajasünkroonimise uuesti.
+Käivita Omarchy menüüs _Setup > Region > Timezone_ ja vali loendist. Kui ajavöönd on õige, aga kell ise on paigast ära, taaskäivitab _Update > Time_ sinu eest aja sünkroonimise.
 
-### Kuidas muuta oma DNS-i, jagada oma Wi-Fi-t või kontrollida oma ühenduse kiirust?
+### Kuidas muuta oma DNS-i, jagada Wi-Fi-t või kontrollida ühenduse kiirust?
 
-Need kõik asuvad [võrgunduse](35-networking.md) all.
+Need kõik asuvad [võrgunduses](35-networking.md).
 
-### Kuidas kontrollida, kui kiire mu ketas on?
+### Kuidas kontrollida, kui kiire on minu ketas?
 
-_Trigger > Speed Test > Disk Speed Test_ mõõdab sinu ketta reaalajas lugemis- ja kirjutamiskiirust või kasuta terminalist käsku `omarchy disk speedtest`.
+_Trigger > Speed Test > Disk Speed Test_ mõõdab sinu ketta reaalajas lugemis- ja kirjutamiskiirust või terminalist `omarchy disk speedtest`.
 
 ### Kuidas lisada printerit?
 
-Printimine on seadistatud ja töötab kohe karbist võttes ning iga printeri lisad sa ise rakenduste käivitajast (`Super + Space`) valiku _Print Settings_ kaudu.
+Printimine on seadistatud ja töötab kohe karbist võttes ning iga printeri lisad sa ise rakenduste käivitaja _Print Settings_ kaudu (`Super + Alt + Space`).
 
-Vali _Add_ ja anna sellele hetk otsimiseks: USB kaudu ühendatud printer ja enamik võrguprintereid leitakse sinu eest üles. Kui sinu oma loendis pole, vali _Network Printer > Internet Printing Protocol (ipp)_ ja sisesta selle aadress — printeri enda ekraan või selle veebileht ütleb sulle, mis see on, tavaliselt midagi sellist nagu `192.168.1.50`, mille järjekord on `ipp/print`. Seejärel pakub _Forward_ draiverit, kus tänapäevane printer töötab kõige paremini draiverita profiiliga _IPP Everywhere_ ja vanem tahab mudeli enda draiverit.
+Vali _Add_ ja anna sellele hetk otsimiseks: USB kaudu ühendatud printer ja enamik võrguprintereid leitakse sinu eest. Kui sinu oma loendis ei ole, vali _Network Printer > Internet Printing Protocol (ipp)_ ja sisesta selle aadress — printeri enda ekraan või selle veebileht ütleb sulle, mis see on, tavaliselt midagi sellist nagu `192.168.1.50` koos järjekorraga `ipp/print`. _Forward_ pakub seejärel draiverit, kus kaasaegne printer töötab kõige paremini draiverivaba profiiliga _IPP Everywhere_ ja vanem tahab mudeli enda draiverit.
 
-Paremklõpsa printeril ja vali _Set as Default_, et määrata, kumba sinu rakendused esimesena kasutavad, ning _Properties_, et määrata paberiformaat, kahepoolne printimine ja kvaliteet.
+Tee printeril paremklõps ja vali _Set as Default_, et määrata, kumma poole sinu rakendused esimesena pöörduvad, ja _Properties_, et määrata paberi suurus, kahepoolne printimine ja kvaliteet.
 
-Automaatne tuvastamine, kus võrgus olevad printerid ilmuvad ilma lisamata, on ajutiselt välja lülitatud, kuni seda ümber tehakse, mistõttu on ülalolev esimene samm sinu teha, mitte automaatne. PDF-faili printimine töötab ka ilma igasuguse printerita.
+Automaatne avastamine, kus võrgus olevad printerid ilmuvad ilma lisamata, on ajutiselt välja lülitatud, kuni seda ümber tehakse, mistõttu on ülalolev esimene samm sinu teha, mitte automaatne. PDF-faili printimine töötab ilma ühegi printerita.
 
-### Kuidas muuta kohta, kuhu ekraanipildid või ekraanisalvestused salvestatakse?
+### Kuidas muuta, kuhu ekraanipildid või ekraanisalvestused salvestatakse?
 
 Salvestatud ekraanipildid lähevad vaikimisi kausta `~/Pictures/Screenshots`. Teise kataloogi kasutamiseks lisa see faili kaustas `~/.config/uwsm/env.d/` (näiteks `~/.config/uwsm/env.d/capture`):
 
@@ -56,26 +56,26 @@ Salvestatud ekraanipildid lähevad vaikimisi kausta `~/Pictures/Screenshots`. Te
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Sama saad teha ka ekraanisalvestustega, kasutades muutujat `OMARCHY_SCREENRECORD_DIR`.
+Samamoodi saad teha ekraanisalvestustega, kasutades muutujat `OMARCHY_SCREENRECORD_DIR`.
 
-Omasnap loob oma ekraanipiltide kataloogi automaatselt. Loo ekraanisalvestuste kataloog ise, seejärel taaskäivita Omarchy, et kumbki keskkonnamuudatus jõustuks.
+Omasnap loob oma ekraanipiltide kataloogi automaatselt. Ekraanisalvestuste kataloog loo ise, seejärel taaskäivita Omarchy, et kumbki keskkonnamuudatus jõustuks.
 
-### Kuidas panna Apple Studio Display kõlarid ja veebikaamera tööle?
+### Kuidas panna Apple Studio Display kõlarid + veebikaamera tööle?
 
-Arvaksid, et kõik peaks töötama lihtsalt USB C ühendamisega, aga kahjuks see nii ei ole. Lahendus, mille olen leidnud selle usaldusväärseks tööle saamiseks, on kasutada [WJESOG DisplayPort + USB-A => USB-C kaablit](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Siis töötavad kõlarid ja veebikaamera nagu võluväel.
+Arvaks, et kõik peaks töötama lihtsalt USB C ühendamisega, aga kahjuks nii ei ole. Lahendus, mille olen leidnud, et see töötaks usaldusväärselt, on kasutada [WJESOG DisplayPort + USB-A => USB-C kaablit](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Siis töötavad kõlarid ja veebikaamera nagu võluväel.
 
-Pea meeles, et sul on Omarchy's Apple ekraanide (nii Studio kui ka XDR) jaoks sisseehitatud heleduse juhtimine tavaliste klaviatuuri heledusnuppude abil.
+Pea meeles, et Omarchy's on Apple'i ekraanidele (nii Studio kui ka XDR) sisseehitatud heleduse juhtimine tavaliste klaviatuuri heledusnuppudega.
 
 ### Kuidas vabaneda kogu lisatarkvarast?
 
-Kui sa ei taha selliseid programme nagu Obsidian või LibreOffice või muud eelinstallitud kraami, saad selle väga lihtsalt eemaldada.
+Kui sa ei taha programme nagu Obsidian või LibreOffice või muud eelinstallitud kraami, saad selle väga lihtsalt eemaldada.
 
-Käivita _Remove > Package_, et näha kõiki installitud pakette. Seejärel saad klahviga tab valida iga paketi, mille soovid eemaldada, ja alustada kõigi valitud pakettide eemaldamist klahviga return.
+Käivita _Remove > Package_, et näha kõiki installitud pakette. Seejärel saad tab-klahviga valida iga paketi, mille soovid eemaldada, ja alustada kõige valitu eemaldamist return-klahviga.
 
-Ja sa saad kasutada Omarchy menüüst valikut _Remove > Web App_, et eemaldada eelinstallitud veebirakendused, mida sa ei taha.
+Ja Omarchy menüüst saad kasutada valikut _Remove > Web App_, et eemaldada kõik eelinstallitud veebirakendused, mida sa ei taha.
 
-Või käivita _Remove > Preinstalls_, et pühkida ühe korraga välja kõik eelinstallitud lisad — veebirakendused, TUI-d ja valikulised rakendused. Kiirklahvid, mis neid käivitasid, kaovad koos nendega, nii et sulle jääb puhas leht sidumisi, mille saad täita enda omadega failis `~/.config/hypr/bindings.lua`.
+Või käivita _Remove > Preinstalls_, et pühkida kõik eelinstallitud lisad — veebirakendused, TUI-d ja valikulised rakendused — ühe korraga minema. Kiirklahvid, mis neid käivitasid, kaovad koos nendega, nii et sulle jääb puhas leht seoseid, mille saad täita enda omadega failis `~/.config/hypr/bindings.lua`.
 
 ---
 
-Vigade ja katkiste kohtade kohta vaata [tõrkeotsingu jaotust](45-troubleshooting.md).
+Vigade ja katki läinud asjade kohta vaata [tõrkeotsingu jaotist](45-troubleshooting.md).

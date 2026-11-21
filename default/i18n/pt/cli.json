@@ -366,6 +366,7 @@
   "setupForm.reviewValue": "Valor",
   "setupForm.reviewYes": "Sim",
   "setupForm.timezoneHeader": "Fuso horário",
+  "setupForm.timezonePlaceholder": "Filtrar...",
   "setupForm.usernameInvalid": "O nome de utilizador tem de ser alfanumérico, sem espaços",
   "setupForm.usernamePlaceholder": "Letras e números sem espaços (como dhh)",
   "setupForm.usernamePrompt": "Utilizador> ",

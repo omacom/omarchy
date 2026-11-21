@@ -360,6 +360,7 @@
   "setupForm.reviewValue": "Değer",
   "setupForm.reviewYes": "Evet",
   "setupForm.timezoneHeader": "Saat dilimi",
+  "setupForm.timezonePlaceholder": "Filtrele...",
   "setupForm.usernameInvalid": "Kullanıcı adı yalnızca harf ve rakamlardan oluşmalı, boşluk içermemeli",
   "setupForm.usernamePlaceholder": "Boşluksuz harf ve rakamlar (örneğin dhh)",
   "setupForm.usernamePrompt": "Kullanıcı adı> ",
