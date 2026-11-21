@@ -808,7 +808,7 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     text: Quickshell.screens.length > 1 ? "󰍺" : "󰍹"
-    onPressed: function(b) { root.toggle() }
+    onPressed: function(b) { if (b === Qt.LeftButton) root.toggle() }
     onWheelMoved: function(delta) {
       if (!root.brightnessAvailable) return
       var wheel = Util.wheelSteps(root.wheelAccumulator, delta)
