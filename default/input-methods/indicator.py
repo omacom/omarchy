@@ -101,7 +101,9 @@ class Indicator:
     if following is None:
       return
     self.pending = following
-    for command in layout_switches(keyboards, index) if index is not None else []:
+    # Fcitx translates engine layouts from the group's default layout, which
+    # Omarchy keeps first in the compositor's list.
+    for command in layout_switches(keyboards, index if index is not None else 0):
       subprocess.run(command, check=True, capture_output=True)
     self.refresh()
 
