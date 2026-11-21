@@ -64,6 +64,25 @@ done
 exec /usr/bin/cat "${args[@]}"
 SH
 
+cat >"$stub_bin/grep" <<'SH'
+#!/bin/bash
+# Exercise the laptop mic path without reading or writing the host's ALSA devices.
+case "$*" in
+  '-q ALC285 /proc/asound/'*) exit 0 ;;
+  '-oP card\K\d+') cat >/dev/null; printf '7\n'; exit 0 ;;
+esac
+args=()
+for arg in "$@"; do
+  [[ $arg == /sys/class/dmi/id/* ]] && arg="$FAKE_HW/dmi/${arg#/sys/class/dmi/id/}"
+  args+=("$arg")
+done
+exec /usr/bin/grep "${args[@]}"
+SH
+
+for command in aplay amixer; do
+  printf '#!/bin/bash\nexit 0\n' >"$stub_bin/$command"
+done
+
 cat >"$stub_bin/omarchy-hw-x86" <<'SH'
 #!/bin/bash
 [[ $FAKE_PLATFORM == "x86" ]]
@@ -198,6 +217,12 @@ machine() {
   unset OMARCHY_IMAGE_DEFERRED_HARDWARE
 
   dmi() { printf '%s\n' "$2" >"$hw/dmi/$1"; }
+  asus_rog() {
+    dmi sys_vendor "ASUSTeK COMPUTER INC."
+    dmi product_family "ROG"
+    dmi product_name "$1"
+    dmi board_name "$2"
+  }
   xps13() { dmi sys_vendor "Dell Inc."; dmi product_name "XPS 13 ${1:-DX13260}"; dmi product_sku "${2:-0E53}"; }
   synaptics() { printf '%s\n' 'N: Name="SynPS/2 Synaptics TouchPad"' >"$hw/input-devices"; }
   surface() { dmi sys_vendor "Microsoft Corporation"; dmi product_name "$1"; }
@@ -258,6 +283,14 @@ machine() {
     t14s-21n2) dmi product_name 21N20000US; FAKE_PLATFORM=aarch64-qualcomm ;;
     t14s-21n1-not-qualcomm) dmi product_name 21N10000US; FAKE_PLATFORM=aarch64 ;;
     t14-gen4) dmi product_name 21F60000US ;;
+    rog-ally) asus_rog "ROG Ally RC71L_RC71L" RC71L ;;
+    rog-ally-board-only) asus_rog "ROG Ally" RC71L ;;
+    rog-ally-product-only) asus_rog "ROG Ally RC71L" "" ;;
+    rog-ally-product-repeated) asus_rog "ROG Ally RC71L_RC71L" "" ;;
+    rog-ally-product-action) asus_rog "ROG Ally RC71L_Action" "" ;;
+    rog-ally-near-match) asus_rog "ROG Ally RC71L2" RC71L2 ;;
+    rog-ally-x) asus_rog "ROG Ally X RC72LA_RC72LA" RC72LA ;;
+    rog-strix) asus_rog "ROG Strix G16" G614J ;;
     yoga-slim7x) dmi product_name 83ED; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="lenovo,yoga-slim7x qcom,x1e80100" ;;
     zenbook-a16) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64-qualcomm ;;
     zenbook-a16-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64 ;;
@@ -380,6 +413,7 @@ leaves=(
   hardware/n1x.sh
   hardware/fix-synaptic-touchpad.sh
   hardware/surface.sh
+  hardware/asus-rog.sh
   hardware/fix-surface-keyboard.sh
   hardware/lenovo/thinkpad-t14s-camera.sh
   hardware/asus/fix-asus-zenbook-a16-speakers.sh
@@ -439,6 +473,18 @@ hardware/fix-synaptic-touchpad.sh|synaptics-modprobe-fails|0|modprobe psmouse sy
 hardware/surface.sh|surface-intel|0|pkg-add linux-firmware-marvell
 hardware/surface.sh|surface-intel+unreadable|0
 hardware/surface.sh|surface-snapdragon|0
+hardware/asus-rog.sh|rog-ally|0
+hardware/asus-rog.sh|rog-ally-board-only|0
+hardware/asus-rog.sh|rog-ally-product-only|0
+hardware/asus-rog.sh|rog-ally-product-repeated|0
+hardware/asus-rog.sh|rog-ally-product-action|0
+hardware/asus-rog.sh|rog-ally-near-match|0|pkg-add asusctl
+hardware/asus-rog.sh|rog-ally-x|0|pkg-add asusctl
+hardware/asus-rog.sh|rog-strix|0|pkg-add asusctl
+user/hardware/asus/fix-audio-mixer.sh|rog-ally|0
+user/hardware/asus/fix-audio-mixer.sh|rog-strix|0|wrote home/.config/wireplumber/wireplumber.conf.d/alsa-soft-mixer.conf
+user/hardware/asus/fix-mic.sh|rog-ally|0
+user/hardware/asus/fix-mic.sh|rog-strix|0|sudo alsactl store 7
 hardware/fix-surface-keyboard.sh|surface-intel|0|wrote etc/mkinitcpio.conf.d/surface_device_modules.conf
 hardware/fix-surface-keyboard.sh|surface-intel-no-pinctrl|0
 hardware/fix-surface-keyboard.sh|surface-snapdragon|0
