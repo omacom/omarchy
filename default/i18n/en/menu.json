@@ -497,6 +497,9 @@
   "setup.network.dns.google": {
     "label": "Google"
   },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
   "setup.network.dns.custom": {
     "label": "Custom"
   },
@@ -828,6 +831,9 @@
   },
   "install.service.dropbox": {
     "label": "Dropbox"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   },
   "install.service.signal": {
     "label": "Signal"
