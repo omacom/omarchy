@@ -521,6 +521,28 @@ normalize_limine_config() {
   fi
 }
 
+# The classic encrypt hook reads one cryptdevice= and ignores rd.luks.*, while
+# sd-encrypt ignores cryptdevice=, so the pin carries both for the root volume.
+encrypt_hook_cryptdevice() {
+  local param root_name="" luks=()
+
+  for param in "$@"; do
+    case $param in
+      cryptdevice=*) return 0 ;;
+      root=/dev/mapper/*) root_name=${param#root=/dev/mapper/} ;;
+      rd.luks.name=*=*) luks+=("${param#rd.luks.name=}") ;;
+    esac
+  done
+
+  for param in "${luks[@]}"; do
+    [[ -n ${param#*=} && ${param#*=} != *:* ]] || continue
+    if [[ ${param#*=} == "$root_name" ]] || { [[ -z $root_name ]] && ((${#luks[@]} == 1)); }; then
+      printf 'cryptdevice=UUID=%s:%s\n' "${param%%=*}" "${param#*=}"
+      return 0
+    fi
+  done
+}
+
 # True when the limine config layers state root= themselves, rather than leaving
 # it to the /proc/cmdline fallback that the first += drop-in switches off.
 # Only the default profile matters here: that is the key this function appends
@@ -554,7 +576,7 @@ kernel_cmdline_root_pinned() {
 
 preserve_kernel_cmdline_root() {
   local default_conf=/etc/default/limine
-  local cmdline param key root_source root_stack root_uuid subvol
+  local cmdline param key root_source root_stack root_uuid subvol cryptdevice
   local boot_params=()
   local have_root=0 have_mount_mode=0 have_unlock=0
 
@@ -633,6 +655,11 @@ preserve_kernel_cmdline_root() {
     if [[ $(findmnt -no FSTYPE / 2>/dev/null) == "btrfs" && -n $subvol && $subvol != "/" ]]; then
       boot_params+=("rootflags=subvol=${subvol#/}")
     fi
+  fi
+
+  cryptdevice=$(encrypt_hook_cryptdevice "${boot_params[@]}")
+  if [[ -n $cryptdevice ]]; then
+    boot_params+=("$cryptdevice")
   fi
 
   log "Preserving the kernel cmdline root parameters in $default_conf"
