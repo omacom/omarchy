@@ -466,11 +466,7 @@ Panel {
     if (!sink || !sink.audio) return ""
     if (isHeadphones(sink)) return "󰋋"
     if (outputMuted) return ""
-    var v = volume === undefined ? outputVolume : volume
-    if (v >= 0.67) return ""
-    if (v >= 0.34) return ""
-    if (v > 0) return ""
-    return ""
+    return Model.speakerVolumeGlyph(volume === undefined ? outputVolume : volume)
   }
 
   function inputIcon() {

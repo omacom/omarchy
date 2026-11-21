@@ -61,6 +61,18 @@ function outputVolumeName(volume, muted, tr) {
   return t("audio.level.whisper", "Whisper")
 }
 
+// Font Awesome 6 moved the 2-wave speaker to U+EFCF (fa-volume), leaving U+F026
+// with 0 waves, U+F027 with 1, and U+F028 with 3. Split 1..100% across 1, 2,
+// and 3 waves (1-33, 34-66, 67-100) using the same rounded percentage the
+// panel and OSD display.
+function speakerVolumeGlyph(volume) {
+  var p = Math.round((Number(volume) || 0) * 100)
+  if (p >= 67) return ""
+  if (p >= 34) return ""
+  if (p >= 1) return ""
+  return ""
+}
+
 function parseSinkAvailability(raw) {
   var next = {}
   var lines = String(raw || "").split("\n")
@@ -292,6 +304,7 @@ if (typeof module !== "undefined") {
     nodeRow: nodeRow,
     rowSnapshot: rowSnapshot,
     outputVolumeName: outputVolumeName,
+    speakerVolumeGlyph: speakerVolumeGlyph,
     parseSinkAvailability: parseSinkAvailability,
     friendlyDeviceLabel: friendlyDeviceLabel,
     nodeProps: nodeProps,
