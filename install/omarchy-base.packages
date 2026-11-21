@@ -120,6 +120,7 @@ plain
 plocate
 plymouth
 podman
+poppler
 postgresql-libs
 python-gobject
 python-poetry-core
