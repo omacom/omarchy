@@ -5,6 +5,12 @@
 
 set -e
 
+# It asks for sudo itself; under sudo, $HOME is root's, so it would offer to remove root's keys.
+if (( EUID == 0 )); then
+  echo "Error: run omarchy-remove-security-sshd as your user, not under sudo." >&2
+  exit 1
+fi
+
 AUTHORIZED_KEYS="$HOME/.ssh/authorized_keys"
 
 echo -e "\e[32mRemoving SSH server access.\n\e[0m"

@@ -109,3 +109,14 @@ UFW_PRESENT=0 run_remove
 assert_no_success_claim
 [[ -s $home/.ssh/authorized_keys ]] || fail "no-UFW removal preserves authorized keys"
 pass "no-UFW removal does not claim firewall success"
+
+# Under sudo $HOME is root's, so the command refuses to run as root before touching anything.
+prepare_case root
+if unshare --user --map-root-user true 2>/dev/null; then
+  output=$(unshare --user --map-root-user env HOME="$home" PATH="$stub_bin:$ROOT/bin:/usr/bin:/bin" CALL_LOG="$calls" bash "$remove" 2>&1) && status=0 || status=$?
+  (( status != 0 )) && [[ $output == *"not under sudo"* ]] || fail "removal refuses to run as root" "$output"
+  [[ ! -s $calls ]] || fail "a refused run changes nothing" "$(cat "$calls")"
+else
+  grep -A2 -Eq '^if \(\( EUID == 0 \)\); then$' "$remove" || fail "removal retains its root guard"
+fi
+pass "removal refuses to run as root"
