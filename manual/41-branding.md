@@ -20,15 +20,16 @@ You can change the logo used for the screensaver under _Appearance > Branding > 
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
-There are three entries in that menu:
+There are four entries in that menu:
 
 - **Edit Text** opens `~/.config/omarchy/branding/screensaver.txt` in your editor. Type or paste whatever you like — ASCII art, your name, a rude word. Save and quit, and the screensaver fires up immediately so you can see it.
 - **Set From Image** opens a file picker for a png or svg, converts it to ASCII, and shows you the result. Logos with a clear silhouette work far better than photos.
+- **Choose Preset** picks from the built-in ASCII screensaver presets (or set one directly with `omarchy branding screensaver preset <name>`).
 - **Restore Default** puts the Omarchy logo back.
 
 ### About screen
 
-The same three options are under _Appearance > Branding > About_ for the _About_ screen you get from the Omarchy menu, and they work identically — the file is `~/.config/omarchy/branding/about.txt`, and the About window pops up after each change. The About art is converted to a smaller size than the screensaver's, since it has to fit in a window rather than fill your display.
+**Edit Text**, **Set From Image**, and **Restore Default** are also under _Appearance > Branding > About_ for the _About_ screen you get from the Omarchy menu, and they work identically — the file is `~/.config/omarchy/branding/about.txt`, and the About window pops up after each change. The About art is converted to a smaller size than the screensaver's, since it has to fit in a window rather than fill your display.
 
 While the window is open a band of bright white light leans across the art every few seconds and then leaves it still again. Your own art gets it too, as long as every character in it is one column wide — anything _Set From Image_ produces is. Art built from emoji or double-width characters stays still instead, and so does the screen if you keep a fastfetch config of your own: a still logo in those cases is the animation keeping out of the way rather than failing, since sliding a glint across them would land the rest of the line in the wrong place.
 
