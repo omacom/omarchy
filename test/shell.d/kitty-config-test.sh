@@ -79,11 +79,16 @@ printf 'family = "Old Font"\n' >"$test_home/.config/alacritty/alacritty.toml"
 printf 'font-family = "Old Font"\n' >"$test_home/.config/ghostty/config"
 printf 'font=Old Font:size=12\n' >"$test_home/.config/foot/foot.ini"
 cp "$ROOT/config/kitty/kitty.conf" "$kitty_config"
+printf 'font_family Old Font\n' >>"$kitty_config"
 run_command omarchy-font-set 'Fake/Font & Friends'
 grep -Fq 'family = "Fake/Font & Friends"' "$test_home/.config/alacritty/alacritty.toml" ||
   fail "alacritty keeps a family containing / and &" "$(cat "$test_home/.config/alacritty/alacritty.toml")"
 grep -Fq 'font_family Fake/Font & Friends' "$kitty_config" ||
   fail "kitty keeps a family containing / and &" "$(cat "$kitty_config")"
+[[ $(grep -c '^font_family ' "$kitty_config") == "1" ]] ||
+  fail "kitty rewrites the family it already had instead of appending a second one" "$(cat "$kitty_config")"
+! grep -Fq 'Old Font' "$kitty_config" ||
+  fail "kitty replaces the seeded family instead of leaving it behind" "$(cat "$kitty_config")"
 grep -Fq 'font-family = "Fake/Font & Friends"' "$test_home/.config/ghostty/config" ||
   fail "ghostty keeps a family containing / and &" "$(cat "$test_home/.config/ghostty/config")"
 grep -Fq 'font=Fake/Font & Friends:size=12' "$test_home/.config/foot/foot.ini" ||
