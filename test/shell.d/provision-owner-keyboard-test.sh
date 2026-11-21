@@ -71,8 +71,8 @@ chmod +x "$stub_bin"/*
 export PATH="$stub_bin:$PATH"
 
 {
-  sed -n '/^keyboard_form() {/,/^}/p; /^keyboard_xkb_settings() {/,/^}/p; /^apply_keyboard() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner"
-  sed -n '/^omarchy_persist_input_selection() {/,/^}/p' "$ROOT/install/provisioning/setup-form.sh"
+  sed -n '/^keyboard_form() {/,/^}/p; /^apply_keyboard() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner"
+  sed -n '/^omarchy_persist_input_selection() {/,/^}/p; /^keyboard_xkb_settings() {/,/^}/p' "$ROOT/install/provisioning/setup-form.sh"
 } | sed "s|/etc/|$root/etc/|g" >"$tmp/keyboard.sh"
 grep -q '^keyboard_form() {' "$tmp/keyboard.sh" && grep -q '^apply_keyboard() {' "$tmp/keyboard.sh" ||
   fail "omarchy-provision-owner defines the keyboard step"
