@@ -11,6 +11,7 @@ copy_boundary_file bin/omarchy-update
 cat >"$SUDO_TEST_ROOT/bin/script" <<'STUB'
 #!/bin/bash
 printf 'logged-reexec\n' >>"$SUDO_TEST_LOG"
+printf 'transcript:%s:%s\n' "$3" "${OMARCHY_UPDATE_LOG:-}" >>"$SUDO_TEST_LOG"
 [[ $1 == "-qefc" ]] || exit 90
 exec /usr/bin/bash -c "$2"
 STUB
@@ -63,3 +64,38 @@ for entry in fresh logged locked; do
   fi
   pass "$entry update preserves the original user PATH through logging and locking and shares its authorization"
 done
+
+# The transcript holds root-only output, so it goes to the caller's own runtime
+# dir, or a private temp file without one, never shared /tmp. The analyzer is
+# told which file it is.
+mkdir -m 700 "$boundary_tmp/runtime" "$boundary_tmp/tmp"
+for runtime in "$boundary_tmp/runtime" "$boundary_tmp/missing-runtime"; do
+  reset_boundary
+  unset OMARCHY_UPDATE_LOGGED SUDO_TEST_LOCKED
+  PATH="$boundary_tmp/user commands:$PATH" XDG_RUNTIME_DIR="$runtime" TMPDIR="$boundary_tmp/tmp" \
+    "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$boundary_tmp/output" 2>&1 ||
+    fail "update with runtime dir $runtime failed" "$(<"$boundary_tmp/output")"
+  IFS=: read -r _ transcript announced < <(grep '^transcript:' "$SUDO_TEST_LOG")
+  [[ $transcript == "$announced" ]] || fail "update tells the analyzer which transcript it writes" "$transcript vs $announced"
+  if [[ $runtime == "$boundary_tmp/runtime" ]]; then
+    [[ $transcript == "$runtime/omarchy-update.log" ]] || fail "update writes its transcript to the runtime dir" "$transcript"
+  else
+    [[ $transcript == "$boundary_tmp/tmp/"* && $(stat -c %a "$transcript") == "600" ]] ||
+      fail "update without a runtime dir writes its transcript to a private temp file" "$transcript"
+  fi
+done
+pass "update writes its transcript privately and tells the analyzer where"
+
+printf 'Updating linux initcpios\n' >"$boundary_tmp/transcript"
+OMARCHY_UPDATE_LOG="$boundary_tmp/transcript" bash "$ROOT/bin/omarchy-update-analyze-logs" >"$boundary_tmp/output" 2>&1
+grep -q "Initramfs generation may have failed" "$boundary_tmp/output" ||
+  fail "analyzer reads the transcript the update names" "$(<"$boundary_tmp/output")"
+pass "analyzer reads the transcript the update names"
+
+# Run on its own, as `omarchy update analyze-logs`, it finds the transcript the
+# last update left in the caller's runtime dir.
+printf 'Updating linux initcpios\n' >"$boundary_tmp/runtime/omarchy-update.log"
+env -u OMARCHY_UPDATE_LOG XDG_RUNTIME_DIR="$boundary_tmp/runtime" bash "$ROOT/bin/omarchy-update-analyze-logs" >"$boundary_tmp/output" 2>&1
+grep -q "Initramfs generation may have failed" "$boundary_tmp/output" ||
+  fail "analyzer run on its own reads the runtime-dir transcript" "$(<"$boundary_tmp/output")"
+pass "analyzer run on its own reads the runtime-dir transcript"

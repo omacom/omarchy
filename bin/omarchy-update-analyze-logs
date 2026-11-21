@@ -2,7 +2,16 @@
 
 # omarchy:summary=Check the update log for known failure conditions
 
-update_log="/tmp/omarchy-update.log"
+# Run on its own, read this user's transcript; the updater that installs this
+# command still writes the old /tmp one.
+update_log=${OMARCHY_UPDATE_LOG:-}
+if [[ -z $update_log ]]; then
+  update_log=/tmp/omarchy-update.log
+  if [[ -d ${XDG_RUNTIME_DIR:-} && -O $XDG_RUNTIME_DIR && -r $XDG_RUNTIME_DIR/omarchy-update.log ]]; then
+    update_log=$XDG_RUNTIME_DIR/omarchy-update.log
+  fi
+fi
+[[ -r $update_log ]] || exit 0
 
 # limine-mkinitcpio-hook's Apple Silicon hook announces itself on every ARM
 # machine, since pacman prints the description before the hook checks for a Mac,
