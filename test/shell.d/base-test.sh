@@ -33,6 +33,12 @@ unset XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME
 # into tests of agent accounts the same way.
 unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME OMARCHY_AGENT_CLAUDE_HOME OMARCHY_AGENT_CODEX_HOME OMARCHY_AGENT_GROK_HOME
 
+# Commands call their sibling omarchy-* helpers by name. Put this checkout's
+# ahead of any installed Omarchy, so a test exercises the code under test
+# rather than whatever version the machine happens to run -- or nothing, on a
+# machine without Omarchy. Stubs a test prepends to PATH still take precedence.
+export PATH="$ROOT/bin:$PATH"
+
 pass() {
   printf 'ok - %s\n' "$1"
 }
