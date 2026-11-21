@@ -14,6 +14,8 @@ Item {
   property bool fingerprintUnavailable: false
   // The reader has a finger and is matching it.
   property bool fingerprintScanning: false
+  // The reader has just rejected a finger.
+  property bool fingerprintRejected: false
   property bool authenticatingPassword: false
   property string failureMessage: ""
   property int failedAttempts: 0
@@ -241,7 +243,9 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         visible: root.fingerprintConfigured
         text: root.fingerprintUnavailable ? "󰺱" : "󰈷"
-        color: root.fingerprintUnavailable ? Commons.Color.lock.textError : (root.fingerprintScanning ? Commons.Color.lock.text : Commons.Color.lock.placeholder)
+        // Red for a reader the shell can't reach, and for a moment after a
+        // finger it rejected; bright while it matches one.
+        color: root.fingerprintUnavailable || root.fingerprintRejected ? Commons.Color.lock.textError : (root.fingerprintScanning ? Commons.Color.lock.text : Commons.Color.lock.placeholder)
         font.family: Style.font.family
         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
         horizontalAlignment: Text.AlignHCenter
@@ -257,6 +261,27 @@ Item {
           NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 0.3; duration: Style.duration(420); easing.type: Easing.InOutQuad }
           NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 1.0; duration: Style.duration(420); easing.type: Easing.InOutQuad }
           onStopped: fingerprintIcon.opacity = 1
+        }
+
+        // A rejected finger dips the icon once, in red: every wrong finger
+        // is seen, not only the lockout. The red alone carries it where
+        // animations are off, and it yields to the next finger's breath.
+        SequentialAnimation {
+          id: fingerprintRejectDip
+          objectName: "fingerprintRejectDip"
+          NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 0.3; duration: Style.duration(120); easing.type: Easing.OutCubic }
+          NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 1.0; duration: Style.duration(240); easing.type: Easing.OutCubic }
+          onStopped: fingerprintIcon.opacity = 1
+        }
+
+        Connections {
+          target: root
+          function onFingerprintRejectedChanged() {
+            if (root.fingerprintRejected && fingerprintIcon.visible && !root.fingerprintUnavailable && !root.fingerprintScanning && !Style.reduceMotion) fingerprintRejectDip.restart()
+          }
+          function onFingerprintScanningChanged() {
+            if (root.fingerprintScanning) fingerprintRejectDip.stop()
+          }
         }
       }
     }

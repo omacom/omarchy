@@ -26,6 +26,10 @@ Item {
   // the verdict, and a match-on-chip reader (a Mac's Touch ID, behind its
   // Secure Enclave) takes a moment, so without this the touch looks ignored.
   property bool fingerprintScanning: false
+  // The reader has just rejected a finger. pam_fprintd retries on its own,
+  // so one wrong finger otherwise goes quietly back to waiting; only the
+  // final lockout showed.
+  property bool fingerprintRejected: false
   // fprintd is watched for that while the lock can take a touch: locked, a
   // reader enrolled, and the displays on.
   readonly property bool fingerprintMonitoring: lockRequested && fingerprintConfigured && !fingerprintPaused
@@ -205,6 +209,7 @@ Item {
     authenticatingPassword = false
     fingerprintAuthenticating = false
     fingerprintScanning = false
+    fingerprintRejected = false
     fingerprintUnreachedStreak = 0
     fingerprintAttemptFastError = false
     fingerprintAttemptPromptedAtMs = 0
@@ -219,6 +224,7 @@ Item {
     fingerprintReachTimer.stop()
     fingerprintResumeTimer.stop()
     fingerprintScanTimer.stop()
+    fingerprintRejectTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
   }
@@ -277,6 +283,7 @@ Item {
     fingerprintPaused = true
     fingerprintRetryTimer.stop()
     clearFingerprintScan()
+    clearFingerprintReject()
   }
 
   // The retry keeps whatever backoff was armed, counting the time spent blank,
@@ -425,22 +432,37 @@ Item {
   }
 
   // The reader's finger status arrives through fprintd's D-Bus property, which
-  // the monitor process prints a line for. Only a finger during the lock's own
-  // attempt is a scan: fprintd reports one for any claimant's operation.
+  // the monitor process prints a line for, and its verdicts through the
+  // VerifyStatus signal on the same watch. Only a finger during the lock's
+  // own attempt is a scan: fprintd reports one for any claimant's operation.
+  // A rejection shows whatever the attempt's state, since pam_fprintd's last
+  // try can end the attempt before its verdict's line is read.
   function applyFingerprintMonitorLine(line) {
     var present = FingerprintModel.parseFingerPresent(line)
-    if (present === null) return
-    if (present && fingerprintAuthenticating) {
-      fingerprintScanning = true
-      fingerprintScanTimer.restart()
-    } else if (!present) {
-      clearFingerprintScan()
+    if (present !== null) {
+      if (present && fingerprintAuthenticating) {
+        clearFingerprintReject()
+        fingerprintScanning = true
+        fingerprintScanTimer.restart()
+      } else if (!present) {
+        clearFingerprintScan()
+      }
+      return
+    }
+    if (FingerprintModel.parseVerifyStatus(line) === "verify-no-match") {
+      fingerprintRejected = true
+      fingerprintRejectTimer.restart()
     }
   }
 
   function clearFingerprintScan() {
     fingerprintScanTimer.stop()
     fingerprintScanning = false
+  }
+
+  function clearFingerprintReject() {
+    fingerprintRejectTimer.stop()
+    fingerprintRejected = false
   }
 
   // abort() gives no completion signal; settle the attempt here.
@@ -544,6 +566,7 @@ Item {
         fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
         fingerprintUnavailable: root.fingerprintUnavailable
         fingerprintScanning: root.fingerprintScanning
+        fingerprintRejected: root.fingerprintRejected
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -581,6 +604,7 @@ Item {
       fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
       fingerprintUnavailable: root.fingerprintUnavailable
       fingerprintScanning: false
+      fingerprintRejected: false
       authenticatingPassword: false
       failureMessage: ""
       failedAttempts: 0
@@ -727,6 +751,15 @@ Item {
       root.logEvent("fingerprint-scan-timeout")
       root.clearFingerprintScan()
     }
+  }
+
+  // A rejected finger shows for a moment, then the icon waits again.
+  Timer {
+    id: fingerprintRejectTimer
+    objectName: "fingerprintRejectTimer"
+    interval: FingerprintModel.REJECT_SHOW_MS
+    repeat: false
+    onTriggered: root.clearFingerprintReject()
   }
 
   // Quickshell has no D-Bus client of its own, so gdbus (GLib's, which

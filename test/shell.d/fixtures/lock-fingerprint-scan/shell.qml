@@ -12,6 +12,9 @@ ShellRoot {
 
   readonly property string presentLine: "/net/reactivated/Fprint/Device/0: org.freedesktop.DBus.Properties.PropertiesChanged ('net.reactivated.Fprint.Device', {'finger-present': <true>}, @as [])"
   readonly property string absentLine: "/net/reactivated/Fprint/Device/0: org.freedesktop.DBus.Properties.PropertiesChanged ('net.reactivated.Fprint.Device', {'finger-present': <false>}, @as [])"
+  readonly property string rejectedLine: "/net/reactivated/Fprint/Device/0: net.reactivated.Fprint.Device.VerifyStatus ('verify-no-match', true)"
+  readonly property string matchedLine: "/net/reactivated/Fprint/Device/0: net.reactivated.Fprint.Device.VerifyStatus ('verify-match', true)"
+  readonly property string retryLine: "/net/reactivated/Fprint/Device/0: net.reactivated.Fprint.Device.VerifyStatus ('verify-retry-scan', false)"
 
   Item { id: host; width: 800; height: 600 }
 
@@ -98,6 +101,41 @@ ShellRoot {
 
       service.lockRequested = false
       check(!service.fingerprintMonitoring, "unlocking stops the watch")
+
+      // A rejected finger shows for a moment, whatever the attempt's state,
+      // and the next finger landing, the lock resetting, a blank or the
+      // moment passing ends it. Other verdicts show nothing.
+      var rejectTimer = findByObjectName(service, "fingerprintRejectTimer")
+      check(rejectTimer !== null, "the service bounds a rejection with a timer")
+      if (!rejectTimer) return
+      service.lockRequested = true
+      service.fingerprintAuthenticating = true
+      service.applyFingerprintMonitorLine(root.matchedLine)
+      check(!service.fingerprintRejected, "a match is not a rejection")
+      service.applyFingerprintMonitorLine(root.retryLine)
+      check(!service.fingerprintRejected, "the reader asking to scan again is not a rejection")
+      service.applyFingerprintMonitorLine(root.rejectedLine)
+      check(service.fingerprintRejected && rejectTimer.running, "a rejected finger shows, under its bound")
+      service.applyFingerprintMonitorLine(root.absentLine)
+      check(service.fingerprintRejected, "the rejected finger leaving keeps the rejection showing")
+      service.fingerprintAuthenticating = false
+      service.applyFingerprintMonitorLine(root.rejectedLine)
+      check(service.fingerprintRejected, "a rejection that ends the attempt still shows")
+      rejectTimer.triggered()
+      check(!service.fingerprintRejected && !rejectTimer.running, "the rejection ends when its moment passes")
+      service.fingerprintAuthenticating = true
+      service.applyFingerprintMonitorLine(root.rejectedLine)
+      service.applyFingerprintMonitorLine(root.presentLine)
+      check(!service.fingerprintRejected && service.fingerprintScanning, "the next finger landing ends the rejection and starts its scan")
+      service.applyFingerprintMonitorLine(root.rejectedLine)
+      service.resetAuthenticationState()
+      check(!service.fingerprintRejected && !rejectTimer.running, "an unlock's reset ends the rejection")
+      service.fingerprintAuthenticating = true
+      service.applyFingerprintMonitorLine(root.rejectedLine)
+      service.pauseFingerprint()
+      check(!service.fingerprintRejected, "blanking the displays ends the rejection")
+      service.resumeFingerprint()
+      service.lockRequested = false
     } finally {
       service.lockRequested = false
       service.destroy()

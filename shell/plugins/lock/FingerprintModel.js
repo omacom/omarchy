@@ -19,6 +19,10 @@ var RESUME_GRACE_MS = 5000
 // verdict or the finger leaving ends it first on a working reader; this is
 // for a daemon that forgot to clear the status, so the icon can't pulse on.
 var SCAN_TIMEOUT_MS = 5000
+// A rejected finger shows for this long, then the icon waits again. Long
+// enough to be seen after the hand has lifted, short enough that the next
+// touch isn't coloured by the last.
+var REJECT_SHOW_MS = 1200
 
 function retryDelayMs(streak) {
   if (streak <= 0) return MATCH_RETRY_MS
@@ -84,6 +88,15 @@ function parseFingerPresent(line) {
   return match[1] === "true"
 }
 
+// fprintd's verdict on a finger, as `gdbus monitor` prints the signal:
+//   /net/reactivated/Fprint/Device/0: net.reactivated.Fprint.Device.VerifyStatus ('verify-no-match', true)
+// The result's name ("verify-match", "verify-no-match", "verify-retry-scan",
+// ...) for a VerifyStatus line, null for any other.
+function parseVerifyStatus(line) {
+  var match = /\.VerifyStatus \('([a-z-]+)',/.exec(String(line || ""))
+  return match ? match[1] : null
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     MATCH_RETRY_MS: MATCH_RETRY_MS,
@@ -99,7 +112,9 @@ if (typeof module !== "undefined") {
     SLEEP_GAP_MS: SLEEP_GAP_MS,
     RESUME_GRACE_MS: RESUME_GRACE_MS,
     SCAN_TIMEOUT_MS: SCAN_TIMEOUT_MS,
+    REJECT_SHOW_MS: REJECT_SHOW_MS,
     parseFingerPresent: parseFingerPresent,
+    parseVerifyStatus: parseVerifyStatus,
     spannedSleep: spannedSleep,
     classifyProbe: classifyProbe,
     inResumeGrace: inResumeGrace,

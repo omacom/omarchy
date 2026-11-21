@@ -198,13 +198,31 @@ ShellRoot {
     root.assertTrue(!pulse.running, "the pulse stays off with animations off")
     root.assertTrue(placeholder.text === checking, "the field still says it is checking with animations off")
 
+    // A rejected finger: red, with one dip of the icon where animations run,
+    // and the red alone where they don't. The dip yields to the next scan.
+    var dip = findInData(indicator, "fingerprintRejectDip")
+    root.assertTrue(dip !== null, "the icon has its rejection dip")
+    if (dip) {
+      view.fingerprintScanning = false
+      view.fingerprintRejected = true
+      if (coloredPalette) root.assertTrue(Qt.colorEqual(indicator.color, Commons.Color.lock.textError), "the icon turns red for a rejected finger")
+      root.assertTrue(!dip.running, "the dip stays off with animations off")
+      root.assertTrue(placeholder.text === prompt, "a rejection leaves the field's prompt alone")
+      view.fingerprintRejected = false
+      if (coloredPalette) root.assertTrue(Qt.colorEqual(indicator.color, restingColor), "the icon rests again once the rejection passes")
+      view.fingerprintScanning = true
+    }
+
     Style.reduceMotion = false
     root.assertTrue(pulse.running, "the icon pulses while the reader matches")
     scanView = view
     scanIndicator = indicator
     scanPulse = pulse
+    scanDip = dip
     pulseTimer.start()
   }
+
+  property var scanDip: null
 
   // A few frames into the pulse the icon has faded; stopping the scan then
   // must draw it whole again, which only the animation's own reset does.
@@ -218,14 +236,46 @@ ShellRoot {
         root.scanView.fingerprintScanning = false
         root.assertTrue(!root.scanPulse.running, "the pulse stops with the scan")
         root.assertTrue(root.scanIndicator.opacity === 1, "the icon is drawn whole once the scan ends, at opacity " + root.scanIndicator.opacity)
+
+        // With animations on, a rejection dips the icon once; a new scan cuts
+        // the dip short and the breath takes over whole.
+        if (root.scanDip) {
+          root.scanView.fingerprintRejected = true
+          root.assertTrue(root.scanDip.running, "a rejected finger dips the icon")
+          dipTimer.start()
+          return
+        }
       } catch (error) {
         root.fail("lock fingerprint indicator fixture threw: " + error)
-      } finally {
-        Style.reduceMotion = root.scanMotion
-        root.scanView.destroy()
-        root.writeResult()
       }
+      root.finishScan()
     }
+  }
+
+  Timer {
+    id: dipTimer
+    interval: 60
+    repeat: false
+    onTriggered: {
+      try {
+        root.assertTrue(root.scanIndicator.opacity < 1, "the dip has faded the icon, at opacity " + root.scanIndicator.opacity)
+        root.scanView.fingerprintScanning = true
+        root.assertTrue(!root.scanDip.running, "a new scan cuts the dip short")
+        root.assertTrue(root.scanPulse.running, "and the breath takes over")
+        root.scanView.fingerprintScanning = false
+        root.scanView.fingerprintRejected = false
+        root.assertTrue(root.scanIndicator.opacity === 1, "the icon is drawn whole once both end, at opacity " + root.scanIndicator.opacity)
+      } catch (error) {
+        root.fail("lock fingerprint indicator fixture threw: " + error)
+      }
+      root.finishScan()
+    }
+  }
+
+  function finishScan() {
+    Style.reduceMotion = root.scanMotion
+    root.scanView.destroy()
+    root.writeResult()
   }
 
   function findByObjectName(node, name) {
