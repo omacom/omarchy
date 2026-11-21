@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether this machine was installed for no region in particular (docs/regions.md).
+# omarchy:hidden=true
+
+region_file=${OMARCHY_REGION_FILE:-/etc/omarchy/region}
+[[ ! -f $region_file || $(<"$region_file") == "global" ]]

@@ -1,11 +1,11 @@
 # Setup user theme folder and seed the default only when no theme exists yet.
 mkdir -p ~/.config/omarchy/themes
 
-# A region's profile may pick another default (docs/regions.md).
-default_theme="Tokyo Night"
-region=$(cat "${OMARCHY_REGION_FILE:-/etc/omarchy/region}" 2>/dev/null || true)
-if [[ $region =~ ^[a-z]{2}$ && -s $OMARCHY_PATH/default/regions/$region/theme ]]; then
-  default_theme=$(<"$OMARCHY_PATH/default/regions/$region/theme")
+# China starts on its own theme (docs/regions.md).
+if omarchy-region-cn; then
+  default_theme=$(<"$OMARCHY_PATH/default/regions/cn/theme")
+else
+  default_theme="Tokyo Night"
 fi
 
 if [[ ! -s $HOME/.local/state/omarchy/current/theme.name ]]; then

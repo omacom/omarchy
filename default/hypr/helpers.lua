@@ -151,14 +151,11 @@ end
 
 -- The region this machine was installed for (docs/regions.md).
 function o.region()
-  local marker = io.open(os.getenv("OMARCHY_REGION_FILE") or "/etc/omarchy/region", "r")
-  if not marker then
+  if o.shell_succeeds(shell_quote(paths.omarchy_path .. "/bin/omarchy-region-cn")) then
+    return "cn"
+  else
     return "global"
   end
-
-  local region = marker:read("*l")
-  marker:close()
-  return region or "global"
 end
 
 function o.bind(keys, description, dispatcher, options)
