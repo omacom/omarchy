@@ -261,6 +261,12 @@
   "appearance.dock.always-on": {
     "label": "Always-on Dock"
   },
+  "appearance.dock.click-minimize-on": {
+    "label": "Click Minimize On"
+  },
+  "appearance.dock.click-minimize-off": {
+    "label": "Click Minimize Off"
+  },
   "appearance.dock.position": {
     "label": "Dock Position"
   },

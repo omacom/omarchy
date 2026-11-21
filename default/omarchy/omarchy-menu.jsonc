@@ -148,6 +148,8 @@
   "appearance.dock": {"icon":"󱂩","label":"Dock","when":"[[ $(omarchy-hyprland-workspace-layout-current) == \"floating\" ]]"},
   "appearance.dock.autohide": {"icon":"󰈉","label":"Auto-hide Dock","when":"[[ $(omarchy-dock autohide) == \"off\" ]]","action":"omarchy-dock autohide on"},
   "appearance.dock.always-on": {"icon":"󰈈","label":"Always-on Dock","when":"[[ $(omarchy-dock autohide) == \"on\" ]]","action":"omarchy-dock autohide off"},
+  "appearance.dock.click-minimize-on": {"icon":"󰖰","label":"Click Minimize On","when":"[[ $(omarchy-dock click-minimize) == \"off\" ]]","action":"omarchy-dock click-minimize toggle"},
+  "appearance.dock.click-minimize-off": {"icon":"󰖰","label":"Click Minimize Off","when":"[[ $(omarchy-dock click-minimize) == \"on\" ]]","action":"omarchy-dock click-minimize toggle"},
   "appearance.dock.position": {"icon":"","label":"Dock Position"},
   "appearance.dock.position.top": {"icon":"󰁝","label":"Top Dock","checked":"[[ $(omarchy-dock position) == \"top\" ]]","action":"omarchy-dock position top"},
   "appearance.dock.position.bottom": {"icon":"󰁅","label":"Bottom Dock","checked":"[[ $(omarchy-dock position) == \"bottom\" ]]","action":"omarchy-dock position bottom"},
