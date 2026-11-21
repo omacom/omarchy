@@ -2,12 +2,12 @@
 
 # omarchy:summary=Install a supported development environment
 # omarchy:name=dev-env
-# omarchy:args=<ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala>
+# omarchy:args=<ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala|terraform>
 # omarchy:examples=omarchy install dev-env ruby | omarchy install dev-env node
 # omarchy:requires-sudo=true
 
 if [[ -z $1 ]]; then
-  echo "Usage: omarchy-install-dev-env <ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala>" >&2
+  echo "Usage: omarchy-install-dev-env <ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala|terraform>" >&2
   exit 1
 fi
 
@@ -139,5 +139,25 @@ scala)
   mise use --global java@latest
   mise use --global scala@latest
   mise use --global scala-cli@latest
+  ;;
+terraform)
+  set -e
+  echo -e "Installing Terraform...\n"
+  mise use --global terraform@latest
+
+  # One provider cache shared across projects, instead of a fresh download per init
+  plugin_cache_dir="$HOME/.terraform.d/plugin-cache"
+  mkdir -p "$plugin_cache_dir"
+  terraformrc=${TF_CLI_CONFIG_FILE:-${TERRAFORM_CONFIG:-$HOME/.terraformrc}}
+  if ! grep -Eqs '^[[:space:]]*plugin_cache_dir[[:space:]]*=' "$terraformrc"; then
+    # Start on a fresh line so the setting can't run into an unterminated last line
+    if [[ -s $terraformrc && -n $(tail -c 1 "$terraformrc") ]]; then
+      echo >>"$terraformrc"
+    fi
+    echo "plugin_cache_dir = \"$plugin_cache_dir\"" >>"$terraformrc"
+    echo "Enabled the shared provider plugin cache."
+  fi
+
+  echo -e "\nYou can now run: terraform init"
   ;;
 esac
