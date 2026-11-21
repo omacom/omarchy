@@ -26,6 +26,7 @@ export OMARCHY_PATH="$test_tmp/omarchy"
 shipped="$OMARCHY_PATH/default/games/vibes"
 mkdir -p "$shipped/chess" "$shipped/snake"
 cp "$ROOT/default/games/vibes.html" "$OMARCHY_PATH/default/games/"
+echo 'window.THREE = {};' >"$shipped/three.min.js"
 # Its launcher, as a fresh install and omarchy-refresh-applications put it.
 mkdir -p "$OMARCHY_PATH/applications" "$HOME/.local/share/applications"
 cp "$ROOT/applications/Game Vibes.desktop" "$OMARCHY_PATH/applications/"
@@ -60,6 +61,9 @@ games=$(sed -n 's:^const GAMES = \(.*\);$:\1:p' "$vibes/index.html" | sed 's/\\u
 [[ $(jq -r '.[2].title' <<<"$games") == 'Tilt </script><script>alert(1)</script>' ]] || fail "a game is listed by its <title>" "$games"
 (( $(grep -c '</script>' "$vibes/index.html") == 1 )) || fail "a title can't end the list's script"
 pass "Game Vibes lists the games in ~/Games/vibes by their titles"
+
+cmp -s "$shipped/three.min.js" "$vibes/three.min.js" || fail "Game Vibes puts three.js beside the games made here"
+pass "Game Vibes puts three.js beside the games made here"
 
 : >"$OMARCHY_TEST_ARGV"
 gio launch "$HOME/.local/share/applications/Game Vibes.desktop" >/dev/null 2>&1 || fail "the Game Vibes launcher starts"
