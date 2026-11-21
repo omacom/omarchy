@@ -6,6 +6,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
 const { execFileSync } = require('child_process')
+const fs = require('fs')
+const vm = require('vm')
 const M = requireFromRoot('shell/plugins/panels/elsewhen/Model.js')
 
 const probe = (ids, withLocal) => {
@@ -185,6 +187,28 @@ assertEqual(M.dragTargetFor(2, -400, 40, -1, 4), 0, 'elsewhen clamps the target 
 assertDeepEqual([0, 1, 2, 3].map(i => M.rowShift(i, 1, 3, 70, 40)), [0, 70, -40, -40], 'elsewhen steps rows up under a downward drag')
 assertDeepEqual([0, 1, 2, 3].map(i => M.rowShift(i, 3, 1, -70, 40)), [0, 40, 40, -70], 'elsewhen steps rows down under an upward drag')
 assertDeepEqual([0, 1].map(i => M.rowShift(i, -1, -1, 0, 40)), [0, 0], 'elsewhen shifts nothing without a drag')
+
+// Replacing the list rebuilds the delegates synchronously. They must start
+// without the old drag's translations, or they animate back from wrong slots.
+const panelSource = fs.readFileSync(root + '/shell/plugins/panels/elsewhen/Panel.qml', 'utf8')
+const dragFunctions = ['commitRowDrag', 'cancelRowDrag'].map(name =>
+  panelSource.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]
+).join('\n')
+for (const [from, to] of [[0, 2], [2, 0]]) {
+  let saved
+  const panel = {
+    Model: M, zones, dragIndex: from, dragTarget: to, dragOffset: (to - from) * 40,
+    dropAnimation: { stop() {} },
+    persistSettings(values) {
+      const shifts = zones.map((_, i) => M.rowShift(i, panel.dragIndex, panel.dragTarget, panel.dragOffset, 40))
+      assertDeepEqual(shifts, [0, 0, 0], 'elsewhen rebuilds dropped rows without stale drag translations')
+      saved = values.cities
+    }
+  }
+  vm.runInNewContext(dragFunctions, panel)
+  panel.commitRowDrag()
+  assertDeepEqual(saved, M.serializeCities(M.moveZone(zones, from, to)), 'elsewhen saves the drop destination before clearing drag state')
+}
 
 assertDeepEqual(M.mix({ r: 0, g: 0, b: 0 }, { r: 1, g: 0.5, b: 0.2 }, 0.5), { r: 0.5, g: 0.25, b: 0.1, a: 1 }, 'elsewhen mixes two colors opaquely')
 assertDeepEqual(M.mix({ r: 0.2, g: 0.4, b: 0.6, a: 0.3 }, { r: 1, g: 1, b: 1 }, 0), { r: 0.2, g: 0.4, b: 0.6, a: 1 }, 'elsewhen mix at zero is the base color, opaque')
