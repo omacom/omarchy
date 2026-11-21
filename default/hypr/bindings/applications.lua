@@ -17,11 +17,11 @@ if o.preinstalled_bindings_enabled() then
   if o.cmd_present("lazydocker") then
     o.bind("SUPER + SHIFT + D", "Docker", { tui = "omarchy-launch-docker-tui" })
   end
-  o.bind("SUPER + SHIFT + G", "Signal", { omarchy = "signal" })
   o.bind("SUPER + SHIFT + O", "Obsidian", { launch = "obsidian", focus = "^obsidian$" })
   o.bind("SUPER + SHIFT + W", "Omawrite", { launch = "omawrite" })
   o.bind("SUPER + SHIFT + SLASH", "Passwords", { omarchy = "1password" })
 
-  -- The web app hotkeys depend on the region (docs/regions.md).
+  -- Hotkeys for apps and web apps whose services depend on the region
+  -- (docs/regions.md).
   require("default.hypr.require_optional").module("default.hypr.bindings.regions." .. o.region())
 end

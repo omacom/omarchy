@@ -1,6 +1,7 @@
--- Hotkeys for the preinstalled web apps, everywhere without a region file of
--- its own (docs/regions.md).
+-- Hotkeys for the preinstalled apps and web apps whose services depend on the
+-- region, everywhere without a region file of its own (docs/regions.md).
 o.bind("SUPER + SHIFT + M", "Music", { omarchy = "spotify" })
+o.bind("SUPER + SHIFT + G", "Signal", { omarchy = "signal" })
 o.bind("SUPER + SHIFT + A", "ChatGPT", { webapp = "https://chatgpt.com" })
 o.bind("SUPER + SHIFT + ALT + A", "Grok", { webapp = "https://grok.com" })
 o.bind("SUPER + SHIFT + C", "Calendar", { webapp = "https://app.hey.com/calendar/weeks/" })
