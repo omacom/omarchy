@@ -20,7 +20,7 @@ After you select an area, Omasnap saves the capture, copies it to the clipboard,
 
 The annotation editor can draw arrows, lines, shapes, highlights, numbered markers, text, and secure redactions; crop or cut out part of the image; OCR its text; and add a backdrop. In the editor, press `Enter` to copy and save the finished PNG, `Ctrl + C` to copy it without saving, or `Ctrl + S` to save it without copying.
 
-Saved screenshots land in `~/Pictures/Screenshots` by default, with a name such as `screenshot-2026-08-13_14-22-05-firefox.png`. Set `OMASNAP_SCREENSHOT_DIR` to use another directory — see [the FAQ](46-faq.md) for where to put session environment variables. Omasnap creates the directory when it saves the first shot. Set `[output] autosave = false` in `~/.config/omasnap/omasnap.conf` to disable automatic saving; captures are then only copied, and shown in a preview for 10 seconds that you can keep on screen with its pin button or `Ctrl + P`.
+Saved screenshots land in `~/Pictures/Screenshots` by default, with a name such as `screenshot-2026-08-13_14-22-05-firefox.png`. Set `OMASNAP_SCREENSHOT_DIR` to use another directory — see [the FAQ](46-faq.md) for where to put session environment variables. Omasnap creates the directory when it saves the first shot. Set `[output] autosave = false` in `~/.config/omasnap/omasnap.conf` to disable automatic saving; captures are then only copied, and shown in a preview for 7 seconds that you can keep on screen with its pin button or `Ctrl + P`.
 
 From the terminal, `omarchy screenshot` opens the same overlay, and you can choose its starting mode: `omarchy capture screenshot region`, `windows`, `fullscreen`, or `scroll`. A second argument of `copy` or `save` sends the shot straight to that destination. To edit before output, use `omarchy screenshot --editor=overlay` for a fullscreen editor or `omarchy screenshot --editor=window` for a separate window.
 
@@ -43,11 +43,11 @@ These bindings only exist while Omasnap is open, so they can't collide with anyt
 
 `Alt + Print Screen` opens _Trigger > Capture > Screenrecord_, which asks what you want on the soundtrack: no audio, desktop audio, desktop plus microphone, or desktop plus microphone plus webcam. That last one only shows up if you actually have a camera plugged in. Pick one and Omarchy's recording picker lets you drag a region or click a window or monitor.
 
-Recording runs on gpu-screen-recorder, which encodes on the GPU at 60fps and falls back to the CPU if it has to. The result is an MP4 in `~/Videos`, named `screenrecording-2026-08-13_14-22-05.mp4`. Set `OMARCHY_SCREENRECORD_DIR` to change that — but note that unlike the screenshot directory, this one has to exist already, or the recording refuses to start.
+Recording runs on gpu-screen-recorder, which encodes on the GPU at 60fps and falls back to the CPU if it has to; on GPUs it doesn't support, such as Apple Silicon's, Omarchy records with wf-recorder instead. The result is an MP4 in `~/Videos`, named `screenrecording-2026-08-13_14-22-05.mp4`. Set `OMARCHY_SCREENRECORD_DIR` to change that — but note that unlike the screenshot directory, this one has to exist already, or the recording refuses to start.
 
 While you're recording, a little indicator shows up in the bar. Click it to stop. You can also stop with `Alt + Print Screen` again, or with the _Stop Screenrecording_ entry under _Trigger > Capture > Screenrecord_, which only appears while something is actually recording.
 
-Stopping does a bit of tidying before it hands you the file: the first frame gets trimmed, and if there's audio it's normalized to -14 LUFS with the PipeWire capture pop at the very start muted out. Then a notification appears with a thumbnail from the recording. Click it to play the file in mpv.
+Stopping does a bit of tidying before it hands you the file: the first frame gets trimmed, and if there's audio it's normalized to -14 LUFS with the PipeWire capture pop at the very start muted out. Then a notification appears with a thumbnail from the recording. Choose _Open_ to play the file in Omaview, or _Cut_ to trim it in Omacut.
 
 ### The webcam overlay
 
