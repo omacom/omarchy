@@ -16,9 +16,10 @@ function bypassesQuiet(row) {
 
 // The buttons a card offers, in the order it draws them and the number keys
 // count them: copying each code it found, then an Omarchy sender's --action
-// buttons, then the sender's own actions. A code's label is left to the card,
-// which translates it.
-function deeds(row, senderActions) {
+// buttons, then Reply when the sender takes an inline reply, then the sender's
+// own actions. Code and Reply labels are left to the card, which translates
+// them.
+function deeds(row, senderActions, canReply) {
   var out = []
   var codes = String((row && (row.codes || row.code)) || "").split(" ")
   for (var c = 0; c < codes.length; c++)
@@ -26,6 +27,7 @@ function deeds(row, senderActions) {
   var exec = Security.parseExecActions(row && row.execActions) || []
   for (var e = 0; e < exec.length; e++)
     out.push({ kind: "exec", value: e, label: exec[e].label })
+  if (canReply) out.push({ kind: "reply", value: "", label: "" })
   var actions = senderActions || []
   for (var i = 0; i < actions.length; i++)
     out.push({ kind: "action", value: String(actions[i].id), label: String(actions[i].text || "") })
