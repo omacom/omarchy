@@ -1368,5 +1368,8 @@
   },
   "setup.network.hostname": {
     "label": "Pangalan ng host"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
   }
 }

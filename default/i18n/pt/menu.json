@@ -1368,5 +1368,8 @@
   },
   "setup.network.hostname": {
     "label": "Nome do anfitrião"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
   }
 }
