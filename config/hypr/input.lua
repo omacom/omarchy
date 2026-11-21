@@ -16,7 +16,9 @@
 --     repeat_rate = 40,
 --     repeat_delay = 250,
 --
---     -- Start with numlock on by default.
+--     -- Start with numlock on by default (keep false for Bluetooth keyboards
+--     -- like Keychron that use Apple Wireless ID 05ac:0255, where hid_apple
+--     -- turns the right half of the keyboard into an embedded numpad).
 --     numlock_by_default = true,
 --
 --     -- Increase sensitivity for mouse/trackpad (default: 0).
