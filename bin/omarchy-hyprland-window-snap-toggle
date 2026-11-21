@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle snapping floating windows dropped against a screen edge or corner.
+
+case $(omarchy-hyprland-toggle window-snap) in
+  on) omarchy-notification-send -g  "$(omarchy-i18n window.snapOn)" ;;
+  off) omarchy-notification-send -g  "$(omarchy-i18n window.snapOff)" ;;
+esac
