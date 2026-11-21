@@ -1,0 +1,12 @@
+polkit.addRule(function(action, subject) {
+  // The packaged Bolt rule grants wheel passwordless global management and
+  // authorization. Keep changes behind admin authentication while we own policy.
+  if ((action.id === "org.freedesktop.bolt.manage" || action.id === "org.freedesktop.bolt.authorize" || action.id === "org.freedesktop.bolt.enroll") && subject.user !== "root") {
+    try {
+      polkit.spawn(["/usr/bin/test", "-f", "/etc/omarchy/thunderbolt-lock.enabled"]);
+      return polkit.Result.AUTH_ADMIN;
+    } catch (error) {
+      // Disabled: retain Bolt's normal permissions.
+    }
+  }
+});

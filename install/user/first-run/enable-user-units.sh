@@ -23,6 +23,9 @@ for unit in \
   owed.service \
   omarchy-recover-internal-monitor.service \
   omarchy-sleep-lock.service \
+  omarchy-usb-lock-watch.service \
+  omarchy-thunderbolt-lock-watch.path \
+  omarchy-thunderbolt-lock-notify.service \
   omarchy-migrate-notify.service \
   omarchy-fcitx5.service \
   omarchy-crash-watch.service; do

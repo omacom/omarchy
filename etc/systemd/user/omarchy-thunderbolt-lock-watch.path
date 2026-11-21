@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch Thunderbolt policy results
+PartOf=graphical-session.target
+
+[Path]
+PathChanged=/run/omarchy-thunderbolt-lock/snapshot.json
+Unit=omarchy-thunderbolt-lock-notify.service
+
+[Install]
+WantedBy=graphical-session.target

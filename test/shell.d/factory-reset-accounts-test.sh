@@ -3,6 +3,7 @@
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+export OMARCHY_PATH=$ROOT
 
 if (( EUID != 0 )); then
   if unshare --user --map-root-user true 2>/dev/null; then
@@ -91,6 +92,14 @@ make_fixture() {
     "$factory/usr/share/omarchy/install/provisioning/omarchy-provision-owner.service"
   printf '#!/bin/bash\n' >"$factory/usr/bin/omarchy-provision-owner"
   chmod +x "$factory/usr/bin/omarchy-provision-owner"
+  mkdir -p "$factory/etc/omarchy" "$factory/etc/systemd/system" "$factory/var/lib/omarchy/usb-lock"
+  cp "$ROOT/etc/systemd/system/omarchy-usb-lock.service" "$factory/etc/systemd/system/"
+  cp "$ROOT/etc/systemd/system/omarchy-thunderbolt-lock.service" "$factory/etc/systemd/system/"
+  mkdir -p "$factory/var/lib/omarchy/thunderbolt-lock" "$factory/var/lib/boltd/keys" "$factory/var/lib/boltd/devices"
+  echo old-owner >"$factory/var/lib/omarchy/thunderbolt-lock/policy.json"
+  touch "$factory/var/lib/boltd/keys/old-device" "$factory/var/lib/boltd/devices/old-device"
+  touch "$factory/etc/omarchy/usb-lock.approval" "$factory/etc/omarchy/usb-lock.disabled"
+  echo 'allow id 1234:5678' >"$factory/var/lib/omarchy/usb-lock/approved.conf"
   printf 'true\n' >"$factory/read-only"
   cat >"$factory/etc/passwd" <<'EOF'
 root:x:0:0:root:/root:/bin/bash
@@ -111,7 +120,8 @@ EOF
 }
 
 assert_scrubbed() {
-  local root="$1" file
+  local root="$1" vendor=${2:-} file
+  assert_device_policy "$root" "$vendor"
   [[ $(awk -F: '$1 == "root" { print $2 }' "$root/etc/shadow") == "!" ]] ||
     fail "reset erases the root hash while keeping the account locked"
   ! grep -q 'original-.*-hash\|seller' "$root/etc/"{passwd,shadow,group,gshadow} ||
@@ -124,25 +134,103 @@ assert_scrubbed() {
   done
 }
 
-for scenario in normal locked; do
+assert_device_policy() {
+  local root=$1 vendor=${2:-}
+  [[ ! -e $root/var/lib/omarchy/usb-lock && ! -e $root/etc/omarchy/usb-lock.approval && ! -e $root/etc/omarchy/usb-lock.disabled ]] ||
+    fail "reset retained previous-owner USB consent"
+  [[ ! -e $root/var/lib/boltd/keys && ! -e $root/var/lib/boltd/devices ]] || fail "reset retained previous-owner Bolt keys"
+  if [[ -n $vendor ]]; then
+    systemctl --root "$root" is-enabled --quiet "$vendor" || fail "reset disabled independent USBGuard"
+    [[ $(cat "$root/etc/usbguard/rules.conf") == 'block id 1234:5678' ]] || fail "reset changed manual USB rules"
+    for name in usb thunderbolt; do
+      [[ ! -e $root/etc/omarchy/$name-lock.enabled ]] || fail "reset published conflicting $name enable marker"
+      if systemctl --root "$root" is-enabled --quiet "omarchy-$name-lock.service"; then
+        fail "reset enabled conflicting $name service"
+      fi
+    done
+    [[ ! -e $root/var/lib/omarchy/thunderbolt-lock/policy.json ]] || fail "reset retained Thunderbolt consent"
+  else
+    for name in usb thunderbolt; do
+      [[ -e $root/etc/omarchy/$name-lock.enabled ]] || fail "reset lost default $name protection"
+      systemctl --root "$root" is-enabled --quiet "omarchy-$name-lock.service" || fail "reset did not enable $name protection"
+    done
+    jq -e '.enabled and .trusted=={} and .enrolled=={}' "$root/var/lib/omarchy/thunderbolt-lock/policy.json" >/dev/null || fail "reset retained Thunderbolt consent"
+  fi
+}
+
+enable_vendor() {
+  local root=$1 vendor=$2
+  mkdir -p "$root/etc/usbguard"
+  printf 'block id 1234:5678\n' >"$root/etc/usbguard/rules.conf"
+  printf '[Service]\nExecStart=/usr/bin/true\n[Install]\nWantedBy=multi-user.target\n' >"$root/etc/systemd/system/$vendor"
+  systemctl --root "$root" enable "$vendor" omarchy-usb-lock.service omarchy-thunderbolt-lock.service
+  touch "$root/etc/omarchy/usb-lock.enabled" "$root/etc/omarchy/thunderbolt-lock.enabled"
+}
+
+for scenario in normal locked usbguard.service usbguard-dbus.service; do
   top="$test_tmp/$scenario"
+  vendor=""
   if [[ $scenario == "locked" ]]; then
     make_fixture "$top" '!'
   else
     make_fixture "$top"
   fi
+  if [[ $scenario == *.service ]]; then
+    vendor=$scenario
+    enable_vendor "$top/@factory" "$vendor"
+  fi
   bash "$test_tmp/reset" "$test_tmp" "$top" || fail "$scenario reset stages successfully"
-  assert_scrubbed "$top/@factory"
-  assert_scrubbed "$top/@"
+  assert_scrubbed "$top/@factory" "$vendor"
+  assert_scrubbed "$top/@" "$vendor"
   [[ $(cat "$top/@factory/read-only") == "true" ]] || fail "baseline returns to read-only"
   [[ -f $top/@/var/lib/omarchy/provisioning/pending && -f $top/rebuilt ]] ||
     fail "reset reaches provisioning after cleanup"
 
   bash "$test_tmp/reset" "$test_tmp" "$top" || fail "$scenario reset can be repeated"
-  assert_scrubbed "$top/@factory"
-  assert_scrubbed "$top/@"
+  assert_scrubbed "$top/@factory" "$vendor"
+  assert_scrubbed "$top/@" "$vendor"
   pass "$scenario reset scrubs both roots, preserves service accounts, and can be repeated"
 done
+
+# Run the actual degraded-reset worker function with filesystem paths redirected
+# into a retained-root fixture. Real systemctl operates only on that root.
+# The early boot service has no desktop OMARCHY_PATH environment.
+for vendor in "" usbguard.service usbguard-dbus.service; do
+  (
+    unset OMARCHY_PATH
+    top="$test_tmp/degraded-${vendor:-default}"
+    make_fixture "$top"
+    retained="$top/@factory"
+    [[ -z $vendor ]] || enable_vendor "$retained" "$vendor"
+    awk '/^scrub_legacy_degraded_state\(\)/ { copying=1 } copying { print } /^}/ { copying=0 }' \
+      "$ROOT/bin/omarchy-system-factory-reset-finish" |
+      sed -e "s|/etc/|$retained/etc/|g" -e "s|/var/|$retained/var/|g" \
+        -e "s|/usr/share/omarchy/install/helpers/|$ROOT/install/helpers/|g" \
+        -e "s|/\.snapshots/|$retained/.snapshots/|g" -e "s|reset_root / |reset_root \"$retained\" |g" >"$top/finish-functions"
+    log() { :; }
+    abort() { fail "$1"; }
+    userdel() { command userdel --root "$retained" "$@"; }
+    systemctl() {
+      if [[ $1 == "--root" ]]; then command systemctl "$@"; else command systemctl --root "$retained" "$@"; fi
+    }
+    source "$top/finish-functions"
+    scrub_legacy_degraded_state
+    assert_device_policy "$retained" "$vendor"
+    OMARCHY_PATH="$top/absent-checkout"
+    scrub_legacy_degraded_state
+    assert_device_policy "$retained" "$vendor"
+    pass "degraded reset preserves ${vendor:-default protection} without a desktop environment or checkout"
+  )
+done
+
+# Reset must not follow a snapshot's linked policy parent out of its root.
+source "$ROOT/install/helpers/usb-lock.sh"
+mkdir -p "$test_tmp/linked-root" "$test_tmp/outside/omarchy"
+touch "$test_tmp/outside/omarchy/usb-lock.enabled"
+ln -s "$test_tmp/outside" "$test_tmp/linked-root/etc"
+if usb_lock_reset_root "$test_tmp/linked-root"; then fail "reset accepted a linked policy parent"; fi
+[[ -e $test_tmp/outside/omarchy/usb-lock.enabled ]] || fail "reset changed files outside its root"
+pass "device reset refuses linked policy parents before changing files"
 
 for target in @omarchy-reset-next @factory; do
   for command in userdel usermod rm; do

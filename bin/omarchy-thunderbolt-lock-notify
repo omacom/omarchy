@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Notify about the current Thunderbolt approval policy
+
+set -euo pipefail
+source "$OMARCHY_PATH/install/helpers/thunderbolt-lock.sh"
+protection_title=$(omarchy-i18n thunderbolt.protection)
+blocked_title=$(omarchy-i18n thunderbolt.accessoryBlocked)
+notices="$XDG_RUNTIME_DIR/omarchy-thunderbolt-lock-notices"
+mkdir -p "$notices"
+chmod 700 "$notices"
+exec 9>"$notices/.lock"
+flock 9
+if [[ ! -e $TB_MARKER ]]; then
+  omarchy-notification-dismiss "$blocked_title" || true
+  omarchy-notification-dismiss "$protection_title" || true
+  rm -f "$notices/current" "$notices/warning"
+  exit 0
+fi
+status=$(omarchy-shell lock status)
+if jq -e '.locked==true' <<<"$status" >/dev/null; then
+  omarchy-notification-dismiss "$blocked_title" || true
+  rm -f "$notices/current"
+  exit 0
+fi
+jq -e '.locked==false' <<<"$status" >/dev/null
+available=true
+if ! snapshot=$(tb_public_snapshot); then
+  available=false
+  snapshot='{"mode":"unavailable","devices":[],"warnings":[],"error":"Thunderbolt protection could not be verified. Check omarchy-thunderbolt-lock.service."}'
+fi
+warning=$(jq -r '[.warnings[],.error] | map(select(. != "")) | join(" ")' <<<"$snapshot")
+if [[ -z $warning ]]; then
+  omarchy-notification-dismiss "$protection_title" || true
+  rm -f "$notices/warning"
+elif [[ ! -f $notices/warning || $(<"$notices/warning") != "$warning" ]]; then
+  omarchy-notification-wait 1
+  omarchy-notification-send --urgency critical --glyph 󰖀 "$protection_title" "$warning"
+  printf '%s\n' "$warning" >"$notices/warning"
+fi
+pending=$(jq -c 'if .mode=="approval" then [.devices[] | select((.status=="connected" or .status=="auth-error") and (.flags | contains("nopcie") | not)) | .identity] else [] end' <<<"$snapshot")
+if [[ $pending == "[]" ]]; then
+  omarchy-notification-dismiss "$blocked_title" || true
+  rm -f "$notices/current"
+  if [[ $available == "true" ]]; then exit 0; else exit 1; fi
+fi
+token=$(printf '%s' "$pending" | sha256sum)
+[[ ! -f $notices/current || $(<"$notices/current") != "$token" ]] || exit 0
+omarchy-notification-dismiss "$blocked_title" || true
+omarchy-notification-wait 1
+omarchy-notification-send --urgency critical --glyph 󰖀 "$blocked_title" \
+  "$(omarchy-i18n thunderbolt.reviewPending)" \
+  --exec omarchy-launch-floating-terminal-with-presentation omarchy-thunderbolt-lock-review
+printf '%s\n' "$token" >"$notices/current"

@@ -1,0 +1,18 @@
+[Unit]
+Description=Notify about pending Thunderbolt approval
+After=dbus.socket wayland-session-waitenv.service
+Requires=dbus.socket
+PartOf=graphical-session.target
+ConditionEnvironment=OMARCHY_PATH
+ConditionEnvironment=WAYLAND_DISPLAY
+# Several policy results can arrive during one dock connection.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-thunderbolt-lock-notify
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

@@ -33,3 +33,15 @@ Be clear-eyed about this one: while it's on, anything running as your user can d
 The public key for all ISO signatures and Omarchy repo package is `40DFB630FF42BCFFB047046CF0134EE680CAC571` ([verify at openpgp.org](https://keys.openpgp.org/search?q=pkgs%40omarchy.org)). The `omarchy/omarchy-keyring` package contains this as well and will be used to rollout any potential updates seamlessly.
 
 You can find the signature for any ISO release by adding `.sig` to its URL, like `https://iso.omarchy.org/omarchy-x.x.x.iso.sig`.
+
+## USB and Thunderbolt protection
+
+Omarchy blocks unfamiliar USB and Thunderbolt/USB4 PCIe devices while the screen is locked by default. Devices already in use keep working. Unlocking automatically allows devices connected while locked; a device left by an attacker can therefore reach its driver after you unlock. Keep an existing keyboard or authentication method available: a newly connected keyboard cannot unlock the screen.
+
+**Setup > Security > USB & Thunderbolt** can also require approval for devices connected while unlocked. Choose **Always allow** to remember a device across connections and reboots, or **Keep blocked**. Devices already awaiting approval before locking remain blocked after unlocking. Devices admitted automatically on unlock are trusted temporarily, not permanently.
+
+Manage saved approvals under **USB Devices** or **Thunderbolt Devices** in the same menu. Forgetting a USB approval blocks that device if connected. Forgetting a Thunderbolt approval affects future connections; safely disconnect the device to end current access without interrupting mounted storage. Secure Thunderbolt reconnection requires its saved key; a device without one may need unlocking or explicit approval after reconnection.
+
+Boot input works normally. This is not boot-time protection: firmware can authorize Thunderbolt devices before Linux starts, and a controller in firmware security mode `none` cannot be blocked by this policy. Omarchy reports those limitations. No firmware boot allowlists are changed by enabling this feature.
+
+Disable the protection under **Remove > Security > USB & Thunderbolt**; updates preserve that choice. Existing independently managed policies are preserved. If a Thunderbolt setup or removal fails and automatic restoration cannot finish, run `sudo /usr/bin/omarchy-thunderbolt-lock-admin recover` before trying again.
