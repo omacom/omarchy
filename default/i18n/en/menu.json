@@ -331,6 +331,12 @@
   "trigger.toggle.crash-capture-off": {
     "label": "Crash Capture Off"
   },
+  "trigger.toggle.memory-watch-on": {
+    "label": "Memory Watch On"
+  },
+  "trigger.toggle.memory-watch-off": {
+    "label": "Memory Watch Off"
+  },
   "trigger.emoji": {
     "label": "Emoji"
   },
