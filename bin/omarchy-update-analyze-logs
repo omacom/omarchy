@@ -2,7 +2,9 @@
 
 # omarchy:summary=Check the update log for known failure conditions
 
-update_log="/tmp/omarchy-update.log"
+# omarchy-update hands its per-run log path through the environment; the
+# legacy fallback also covers an update started before this change.
+update_log="${OMARCHY_UPDATE_LOG_FILE:-/tmp/omarchy-update.log}"
 
 # limine-mkinitcpio-hook's Apple Silicon hook announces itself on every ARM
 # machine, since pacman prints the description before the hook checks for a Mac,
