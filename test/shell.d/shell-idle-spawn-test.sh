@@ -136,6 +136,8 @@ stub() {
 # Keep startup off the network. These only shape what startup does; a poll
 # still shows up as an exec whether or not its command is stubbed.
 stub omarchy-update-available 'exit 1'
+# The local models listing and tailnet survey, which the shell takes once.
+stub omarchy-models 'exit 0'
 # A weather fetch that fails is retried, so answer it the way wttr.in does.
 stub curl 'case "${*: -1}" in
   *"?format=j1") printf "{\"current_condition\":[{\"weatherCode\":\"113\",\"temp_F\":\"72\"}]}\n" ;;

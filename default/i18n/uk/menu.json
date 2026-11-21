@@ -1365,5 +1365,11 @@
   },
   "remove.ai.antigravity": {
     "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Ім'я хоста"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
   }
 }
