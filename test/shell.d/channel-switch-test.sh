@@ -153,7 +153,10 @@ grep -q "Update the checkout before switching to dev; it has no edge templates f
 pass "a dev checkout without its templates for the platform is rejected before linking"
 
 reset_boundary
-OMARCHY_PATH="$SUDO_TEST_HOME/omarchy" run_channel stable || fail "leaving dev failed" "$(<"$boundary_tmp/output")"
+# A dev-linked session puts the checkout's bin first on PATH; keep that here so
+# the refresh command is the checkout's own copy, as it is at a real login.
+PATH="$SUDO_TEST_HOME/omarchy/bin:$PATH" OMARCHY_PATH="$SUDO_TEST_HOME/omarchy" run_channel stable ||
+  fail "leaving dev failed" "$(<"$boundary_tmp/output")"
 assert_channel_order
 grep -Fxq 'step:omarchy-dev-unlink --no-reboot' "$SUDO_TEST_LOG" || fail "leaving dev did not unlink" "$(<"$SUDO_TEST_LOG")"
 pass "leaving dev unlinks and hands off to the packaged update"
