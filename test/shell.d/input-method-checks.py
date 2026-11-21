@@ -30,6 +30,21 @@ class InputMethodTest(unittest.TestCase):
     setup.defaults(self.config)
     self.assertEqual(pinyin.read_text(), "FirstRun=False\nCloudPinyinEnabled=True\nPageSize=7\n")
 
+  def test_first_input_method_label_is_hidden_unless_the_user_chose_it(self):
+    target = self.home / "dotfiles-config"
+    target.write_text("[Behavior]\nActiveByDefault=True\n")
+    path = self.config / "fcitx5/config"
+    path.parent.mkdir(parents=True)
+    path.symlink_to(target)
+    self.assertTrue(setup.defaults(self.config))
+    self.assertTrue(path.is_symlink())
+    self.assertEqual(setup.sections(target.read_text())["Behavior"], {"ActiveByDefault": "True", "ShowFirstInputMethodInformation": "False"})
+    self.assertFalse(setup.defaults(self.config))
+
+    target.write_text("[Behavior]\nShowFirstInputMethodInformation=True\n")
+    setup.defaults(self.config)
+    self.assertEqual(setup.sections(target.read_text())["Behavior"], {"ShowFirstInputMethodInformation": "True"})
+
   def setUp(self):
     self.temporary = tempfile.TemporaryDirectory()
     self.addCleanup(self.temporary.cleanup)
@@ -65,6 +80,7 @@ class InputMethodTest(unittest.TestCase):
         self.assertEqual(data["Groups/0/Items/0"]["Name"], "keyboard-kr" if method == "hangul" else "keyboard-us")
         keys = setup.sections((self.config / "fcitx5/config").read_text())
         self.assertEqual(keys["Behavior"]["ActiveByDefault"], "False")
+        self.assertEqual(keys["Behavior"]["ShowFirstInputMethodInformation"], "False")
         self.assertNotIn("Control+space", keys["Hotkey/TriggerKeys"].values())
         self.assertEqual(set(keys["Hotkey/TriggerKeys"].values()), {"Zenkaku_Hankaku", "Hangul"})
         self.assertEqual(keys["Hotkey/AltTriggerKeys"], {"0": "Shift_L"})
@@ -117,7 +133,7 @@ class InputMethodTest(unittest.TestCase):
     setup.defaults(self.config, fresh=True)
     config = setup.sections(path.read_text())
     self.assertEqual(config["Hotkey/TriggerKeys"], {"0": "Alt+space"})
-    self.assertEqual(config["Behavior"], {"ActiveByDefault": "True"})
+    self.assertEqual(config["Behavior"], {"ShowFirstInputMethodInformation": "False", "ActiveByDefault": "True"})
     self.assertEqual(quickphrase.read_text(), "[TriggerKey]\n\n")
 
   def test_ctrl_space_is_removed_from_every_trigger_list(self):
@@ -126,7 +142,7 @@ class InputMethodTest(unittest.TestCase):
     setup.defaults(self.config)
     config = setup.sections(path.read_text())
     self.assertEqual(config["Hotkey/TriggerKeys"], {"0": "Alt+space", "1": "Hangul"})
-    self.assertEqual(config["Behavior"], {"ActiveByDefault": "True"})
+    self.assertEqual(config["Behavior"], {"ShowFirstInputMethodInformation": "False", "ActiveByDefault": "True"})
 
   def test_generated_stock_shortcuts_are_repaired(self):
     path = self.config / "fcitx5/config"
@@ -140,7 +156,7 @@ class InputMethodTest(unittest.TestCase):
     path = self.config / "fcitx5/config"
     setup.atomic_write(path, "[Behavior]\nActiveByDefault=True\n")
     setup.defaults(self.config, fresh=False)
-    self.assertEqual(path.read_text(), "[Behavior]\nActiveByDefault=True\n\n[Hotkey/TriggerKeys]\n0=Zenkaku_Hankaku\n1=Hangul\n")
+    self.assertEqual(path.read_text(), "[Behavior]\nShowFirstInputMethodInformation=False\nActiveByDefault=True\n\n[Hotkey/TriggerKeys]\n0=Zenkaku_Hankaku\n1=Hangul\n")
     self.assertFalse(setup.defaults(self.config, fresh=False))
 
   def test_korean_right_alt_preference_reaches_fcitx_with_its_variant(self):

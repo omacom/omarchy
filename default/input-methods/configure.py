@@ -97,6 +97,12 @@ def defaults(config_home, fresh=False):
     if name == "config" or name == "conf/quickphrase.conf":
       if name == "config":
         original = without_ctrl_space(original)
+        # The bar already shows the input method; Fcitx's label for the first
+        # one sits over the focused text input and covers a menu's first row.
+        # A missing [Behavior] section arrives whole from the shipped config.
+        behavior = re.search(r"(?m)^[ \t]*\[Behavior\][ \t]*$", original)
+        if behavior and "ShowFirstInputMethodInformation" not in sections(original)["Behavior"]:
+          original = original[:behavior.end()] + "\nShowFirstInputMethodInformation=False" + original[behavior.end():]
       existing = sections(original)
       additions = []
       for section, entries in sections(shipped).items():
