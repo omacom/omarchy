@@ -22,7 +22,7 @@ plymouth_theme_assets=(
   progress_box.png
 )
 plymouth_default_assets=("${plymouth_theme_assets[@]}" logos/oma.png)
-sddm_theme_assets=(Main.qml bullet.png entry-failed.png entry.png lock-failed.png lock.png logo.png)
+sddm_theme_assets=(Main.qml bullet.png entry-failed.png entry.png lock-failed.png lock.png logo.png resolve-session-index.js)
 sddm_default_assets=("${sddm_theme_assets[@]}" metadata.desktop theme.conf)
 
 # Keep the refresh allowlist synchronized with every packaged Plymouth asset.
@@ -434,6 +434,7 @@ assert_packaged_assets() {
 
 for requested_umask in 022 027 077; do
   setup_fresh_run
+  rm -f -- "$sddm/resolve-session-index.js"
   output=$(run_set "$requested_umask" env 2>&1)
   status=$?
   (( status == 0 )) || fail "Plymouth publisher succeeds under umask $requested_umask" "$output"
@@ -454,6 +455,7 @@ for requested_umask in 022 027 077; do
   cmp -s "$test_tmp/logo.png" "$theme/logo.png" || fail "Plymouth receives the selected logo under umask $requested_umask"
   cmp -s "$test_tmp/logo.png" "$sddm/logo.png" || fail "SDDM receives the selected logo under umask $requested_umask"
   grep -Fq '#1d2021' "$sddm/Main.qml" || fail "SDDM Main.qml receives the selected background under umask $requested_umask"
+  cmp -s "$ROOT/default/sddm/omarchy/resolve-session-index.js" "$sddm/resolve-session-index.js" || fail "theme set publishes the session resolver Main.qml imports under umask $requested_umask"
   grep -Fq 'Window.SetBackgroundTopColor(0.114, 0.125, 0.129);' "$theme/omarchy.script" || fail "Plymouth script receives the selected background under umask $requested_umask"
 
   cmp -s "$ROOT/default/plymouth/logos/oma.png" "$theme/logos/oma.png" || fail "theme set leaves the packaged nested logo unchanged"
