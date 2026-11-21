@@ -216,11 +216,16 @@ case "${1:-}" in
 esac
 
 size="$1"
-if [[ ! $size =~ ^[0-9]+$ ]] || ((size < MIN || size > MAX)); then
+if [[ ! $size =~ ^[0-9]+$ ]] || ((10#$size < MIN || 10#$size > MAX)); then
   echo "Size must be an integer between $MIN and $MAX (px)." >&2
   usage >&2
   exit 1
 fi
+
+# Typed as 016, the size still reads as 16: bash takes a leading zero for octal,
+# so 09 fails arithmetic and 0024 slips past MAX, and the zero would carry into
+# shell.toml.
+size=$((10#$size))
 
 # Shell side: base-size in px (the omarchy shell's rem root).
 set_base_size "$size"
