@@ -84,10 +84,41 @@ fi
 
 step="$1"
 
+# On dual-GPU Intel Macs the panel backlight is the gmux, which DPMS never
+# reaches: a blanked panel stays lit, and on some models the gmux jumps to its
+# own level while the panel is off. Hold it at zero while blanked and send the
+# saved level back on wake.
+gmux_backlight=/sys/class/backlight/gmux_backlight
+gmux_saved="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display-gmux"
+
+# Drop overlapping brightness key events so concurrent invocations do not race.
+# Hardware key repeat present on some devices can otherwise glitch OSD rendering.
+# A blank and a wake wait for each other instead, so a wake that lands mid-blank
+# cannot restore the gmux before the blank zeroes it.
+exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
+
 if [[ $step == "off" ]]; then
+  flock "$lock_fd"
   hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
+  if [[ -e $gmux_backlight ]]; then
+    level=$(<"$gmux_backlight/brightness")
+    # Keep the first saved level until a wake restores it: a second blank must
+    # not overwrite it with zero or with a level the gmux reset to while blanked.
+    if [[ ! -f $gmux_saved ]] && (( level > 0 )); then
+      printf '%s\n' "$level" >"$gmux_saved"
+    fi
+    brightnessctl -d gmux_backlight set 0 >/dev/null
+  fi
   exit 0
 elif [[ $step == "on" ]]; then
+  flock "$lock_fd"
+  # Restore before the early exit below: Hyprland's key_press_enables_dpms has
+  # usually lit the panel already by the time the wake runs.
+  if [[ -f $gmux_saved ]]; then
+    # Keep the saved level when the restore fails so the next wake retries.
+    brightnessctl -d gmux_backlight set "$(<"$gmux_saved")" >/dev/null && rm -f "$gmux_saved"
+  fi
+
   # Skip the dispatch when every active display is already lit: a redundant
   # DPMS enable right after system resume forces another modeset, which blanks
   # the panel for a beat (visible flash at the unlock screen).
@@ -96,9 +127,6 @@ elif [[ $step == "on" ]]; then
   exit 0
 fi
 
-# Drop overlapping brightness key events so concurrent invocations do not race.
-# Hardware key repeat present on some devices can otherwise glitch OSD rendering.
-exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
 flock -n "$lock_fd" || exit 0
 
 if use_apple_display; then
