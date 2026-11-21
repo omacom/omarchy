@@ -1012,6 +1012,27 @@ Panel {
     return s.cap > 0 ? Commons.I18n.t("agents.spendOfCap").arg(amount).arg(formatMoney(s.cap, s.currency)) : amount
   }
 
+  // What one of the spend's days cost, for its bar's tooltip, with the tokens
+  // it took when the record still has them (the last week's). The days end
+  // on the collector's today, the last of the record's recent days.
+  function spendDayText(s, recentDays, index) {
+    if (!s || !(index >= 0 && index < s.days.length)) return ""
+    var recent = recentDays || []
+    var day = new Date(recent.length > 0 ? String(recent[recent.length - 1].date) + "T12:00:00" : nowMs)
+    if (isNaN(day.getTime())) day = new Date(nowMs)
+    day.setDate(day.getDate() - (s.days.length - 1 - index))
+    var date = Qt.formatDate(day, "yyyy-MM-dd")
+    var label = day.toLocaleDateString(Qt.locale(Commons.I18n.formatLocale), "d MMM")
+    var cost = formatMoney(s.days[index], s.currency)
+    if (s.estimated) cost = Commons.I18n.t("agents.spendEstimated").arg(cost)
+    var tokens = 0
+    for (var i = 0; i < recent.length; i++)
+      if (recent[i].date === date) tokens = Number(recent[i].messageCount) || 0
+    return tokens > 0
+      ? Commons.I18n.tn("agents.spendDayTokens", tokens).arg(label).arg(cost).arg(usage.formatTokenCount(tokens))
+      : Commons.I18n.t("agents.spendDay").arg(label).arg(cost)
+  }
+
   // ---------------------------------------------------------------- summary
   //
   // The hero's line rotates through what the token counts add up to across
@@ -2026,6 +2047,18 @@ Panel {
         readonly property real busiest: Math.max.apply(null, days.concat([0]))
         readonly property real gap: Style.space(2)
         readonly property real stub: Math.max(Style.space(2), Math.round(Style.spacing.controlHeight * 0.07))
+        // The day under the pointer: its bar lights up, and the tooltip says
+        // what it cost. A mirrored row counts from the other end.
+        readonly property real hoverX: LayoutMirroring.enabled ? width - dayHover.point.position.x : dayHover.point.position.x
+        readonly property int hoveredDay: dayHover.hovered && days.length > 0
+          ? root.clamp(Math.floor(hoverX / width * days.length), 0, days.length - 1) : -1
+
+        HoverHandler { id: dayHover }
+
+        PanelToolTip {
+          visible: spendDays.hoveredDay >= 0
+          text: root.spendDayText(section.spend, section.provider ? section.provider.recentDays : [], spendDays.hoveredDay)
+        }
 
         Row {
           anchors.fill: parent
@@ -2040,7 +2073,7 @@ Panel {
               height: cost > 0 && spendDays.busiest > 0 ? Math.max(spendDays.stub, spendDays.height * cost / spendDays.busiest) : spendDays.stub
               anchors.bottom: parent ? parent.bottom : undefined
               radius: Math.min(width, height) / 2
-              color: cost > 0 ? root.foreground : root.track
+              color: index === spendDays.hoveredDay ? Commons.Color.accent : cost > 0 ? root.foreground : root.track
             }
           }
         }

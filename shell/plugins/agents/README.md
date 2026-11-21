@@ -43,7 +43,9 @@ Every subscription on one page, limits first.
   funded-versus-spent detail.
 - **Spend** — pay-as-you-go agents show what the account spent in the last
   30 days, a bar a day, or, against a monthly cap when there is one, this
-  month's spend as a meter. Fireworks and OpenRouter with a management key
+  month's spend as a meter. Hovering a bar lights it up and names its day,
+  what it cost, and the tokens it took when they're among the last week's the
+  record keeps. Fireworks and OpenRouter with a management key
   report the account's own figures; DeepSeek, Kimchi, Ollama Cloud, and
   OpenRouter without a management key add up the costs pi and opencode wrote
   beside each reply on this machine, and mark the amount ≈ as an estimate.
