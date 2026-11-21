@@ -92,6 +92,10 @@ SH
 
 cat >"$stub_bin/lspci" <<'SH'
 #!/bin/bash
+if (( FAKE_LSPCI_STATUS != 0 )); then
+  echo "pcilib: Cannot open /proc/bus/pci" >&2
+  exit "$FAKE_LSPCI_STATUS"
+fi
 printf '%b\n' "$FAKE_LSPCI"
 SH
 
@@ -194,7 +198,7 @@ machine() {
   printf '%s\n' '-- User look and feel' >"$root/home/.config/hypr/looknfeel.lua"
   : >"$hw/input-devices"
   FAKE_PLATFORM=x86 FAKE_LSMOD="" FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Alder Lake\n\tKernel driver in use: i915"
-  FAKE_MODPROBE_RESOLVES=0 FAKE_MODPROBE_STATUS=0 FAKE_PKG_ADD_STATUS=0 FAKE_APPLY_STATUS=0 FAKE_MISSING_FIRMWARE="" FAKE_COMPATIBLE=""
+  FAKE_LSPCI_STATUS=0 FAKE_MODPROBE_RESOLVES=0 FAKE_MODPROBE_STATUS=0 FAKE_PKG_ADD_STATUS=0 FAKE_APPLY_STATUS=0 FAKE_MISSING_FIRMWARE="" FAKE_COMPATIBLE=""
   unset OMARCHY_IMAGE_DEFERRED_HARDWARE
 
   dmi() { printf '%s\n' "$2" >"$hw/dmi/$1"; }
@@ -316,6 +320,8 @@ machine() {
     qcc2072-card-first-boot) ath12k 1112 board-data; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
     wcn6855-card) ath12k 1103 ;;
     wcn6855-card-first-boot) ath12k 1103 board-data; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
+    bcm4360-card) FAKE_LSPCI="03:00.0 Network controller [0280]: Broadcom Inc. and subsidiaries BCM4360 802.11ac Dual Band Wireless Network Adapter [14e4:43a0]" ;;
+    no-pci-bus) FAKE_LSPCI_STATUS=1 ;;
     qualcomm-no-wifi) FAKE_LSPCI="0004:00:00.0 PCI bridge [0604]: Qualcomm Technologies, Inc SC8380XP PCIe Root Complex [17cb:0111]" ;;
     nouveau) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau" ;;
     nouveau-proprietary) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau"; : >"$hw/nvidia.conf" ;;
@@ -325,7 +331,7 @@ machine() {
   if [[ $1 == *+unreadable ]]; then
     chmod 000 "$hw/dmi"/*
   fi
-  export FAKE_PLATFORM FAKE_LSMOD FAKE_LSPCI FAKE_MODPROBE_RESOLVES FAKE_MODPROBE_STATUS FAKE_PKG_ADD_STATUS FAKE_APPLY_STATUS FAKE_MISSING_FIRMWARE FAKE_COMPATIBLE
+  export FAKE_PLATFORM FAKE_LSMOD FAKE_LSPCI FAKE_LSPCI_STATUS FAKE_MODPROBE_RESOLVES FAKE_MODPROBE_STATUS FAKE_PKG_ADD_STATUS FAKE_APPLY_STATUS FAKE_MISSING_FIRMWARE FAKE_COMPATIBLE
 }
 
 snapshot() {
@@ -430,6 +436,8 @@ hardware/apple/fix-spi-keyboard.sh|macbookpro13|0|pkg-add macbook12-spi-driver-d
 hardware/apple/fix-spi-keyboard.sh|macbook8|0|pkg-add macbook12-spi-driver-dkms|wrote etc/mkinitcpio.conf.d/macbook_spi_modules.conf
 hardware/apple/fix-spi-keyboard.sh|macbookpro13+unreadable|0
 hardware/apple/fix-spi-keyboard.sh|macbookpro15|0
+hardware/fix-bcm43xx.sh|bcm4360-card|0|pkg-add broadcom-wl-dkms
+hardware/fix-bcm43xx.sh|no-pci-bus|0
 hardware/fix-synaptic-touchpad.sh|synaptics|0|modprobe psmouse synaptics_intertouch=1
 # Under arch-chroot the live kernel's modules are not the ones on disk.
 hardware/fix-synaptic-touchpad.sh|synaptics-chroot|0
