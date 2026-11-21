@@ -14,11 +14,17 @@ phase=$(sed -n 's/^phase=//p' "$state" 2>/dev/null | tail -1)
 has_limine() { omarchy-cmd-present limine-entry-tool; }
 
 case $phase in
-promoted | active)
+active)
+  echo systemd-boot
+  ;;
+promoted)
+  # systemd-boot starts the machine, and Limine stays its fallback until the
+  # switch finishes, so both are kept current.
+  [[ ${1:-} == "--managed" ]] && has_limine && echo limine
   echo systemd-boot
   ;;
 staged | trial | trial-failed)
-  if [[ ${1:-} == --managed ]]; then
+  if [[ ${1:-} == "--managed" ]]; then
     has_limine && echo limine
     echo systemd-boot
   elif has_limine; then

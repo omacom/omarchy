@@ -26,7 +26,7 @@ _Setup > Switch to systemd-boot_ (or `omarchy-boot-switch`) checks the machine f
 2. Once systemd-boot has started Omarchy, it becomes the default; Limine stays as the fallback.
 3. After one more restart proves the firmware starts systemd-boot on its own, Limine is removed and a fresh snapshot is taken.
 
-Until that last step, `omarchy-boot-switch revert` puts everything back the way it was. Other operating systems on the same disk show up in systemd-boot's menu when they're Windows; anything else is reached from the firmware's boot menu. Factory reset isn't available after the switch yet.
+Until that last step, `omarchy-boot-switch revert` puts everything back the way it was. Other operating systems on the same disk show up in systemd-boot's menu when they're Windows; anything else is reached from the firmware's boot menu. A factory reset after the switch returns the machine to Limine, which it was installed with; a machine installed with systemd-boot stays on it.
 
 ## With Limine
 

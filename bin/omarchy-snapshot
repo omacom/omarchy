@@ -61,16 +61,22 @@ create)
 
   echo -e "\e[32m$(omarchy-i18n snapshot.create)\e[0m"
 
+  root_number=""
   for config in "${CONFIGS[@]}"; do
-    sudo snapper -c "$config" create -c number -d "$DESC"
+    number=$(sudo snapper -c "$config" create -c number -d "$DESC" -p)
+    [[ $config == "root" ]] && root_number=$number
     sudo snapper -c "$config" cleanup number
   done
 
   # On systemd-boot the snapshot's boot entry is built by omarchy-boot-sync;
-  # wait for it, so an update only goes ahead once its rollback point boots.
-  if [[ $backend == systemd-boot ]] && ! sudo omarchy-boot-sync sync >/dev/null; then
-    echo -e "\e[33m$(omarchy-i18n snapshot.bootEntryFailed)\e[0m" >&2
-    exit 1
+  # wait for it, and check it is there, so an update only goes ahead once its
+  # rollback point boots.
+  if [[ $backend == "systemd-boot" ]]; then
+    if ! sudo omarchy-boot-sync sync >/dev/null ||
+      { [[ -n $root_number ]] && ! grep -q "^snapshot-$root_number"$'\t' "${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}/entries"; }; then
+      echo -e "\e[33m$(omarchy-i18n snapshot.bootEntryFailed)\e[0m" >&2
+      exit 1
+    fi
   fi
 
   echo "$(omarchy-i18n snapshot.bootSelectable)"

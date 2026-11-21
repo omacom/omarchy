@@ -32,6 +32,9 @@ pass "a machine with Limine's entry tool and no switch boots Limine"
 echo 'phase=trial' >"$tmp/store/state"
 [[ $(backend) == limine && $(backend --managed) == "limine systemd-boot" ]] ||
   fail "a switch on trial keeps both loaders current" "$(backend) / $(backend --managed)"
+echo 'phase=promoted' >"$tmp/store/state"
+[[ $(backend) == systemd-boot && $(backend --managed) == "limine systemd-boot" ]] ||
+  fail "a promoted switch boots systemd-boot and keeps Limine, its fallback, current" "$(backend) / $(backend --managed)"
 echo 'phase=active' >"$tmp/store/state"
 [[ $(backend) == systemd-boot && $(backend --managed) == systemd-boot ]] || fail "a finished switch boots systemd-boot"
 pass "the switch's phase decides while there is one"

@@ -20,7 +20,7 @@ state_get() {
 # omarchy-boot-confirm, a system service this user unit can't be ordered
 # after, may still be writing this boot's notice (a restore it commits).
 for _ in $(seq 120); do
-  [[ $(systemctl show -p ActiveState --value omarchy-boot-confirm.service 2>/dev/null) == activating ]] || break
+  [[ $(systemctl show -p ActiveState --value omarchy-boot-confirm.service 2>/dev/null) == "activating" ]] || break
   sleep 1
 done
 
@@ -32,13 +32,25 @@ notice_id=$(state_get notice_id)
 omarchy-notification-wait || true
 
 if [[ -n $snapshot ]]; then
-  omarchy-notification-send -u critical --transient -g "󰁯" "Running snapshot $snapshot" \
-    "Changes made now are discarded at the next reboot. Click to make this snapshot the system." \
+  omarchy-notification-send -u critical --transient -g "󰁯" "$(omarchy-i18n boot.runningSnapshot.title "$snapshot")" \
+    "$(omarchy-i18n boot.runningSnapshot.body)" \
     --exec omarchy-launch-floating-terminal-with-presentation omarchy-snapshot restore "$snapshot"
 fi
 
 if [[ -n $notice_id && $(cat "$seen_file" 2>/dev/null) != "$notice_id" ]]; then
-  omarchy-notification-send -g "󰋊" "$(state_get notice_title)" "$(state_get notice_body)"
+  arg=$(state_get notice_arg) title="" body=""
+  case $(state_get notice_key) in
+  trialUp) title=$(omarchy-i18n boot.notice.trialUp.title) body=$(omarchy-i18n boot.notice.trialUp.body) ;;
+  trialFailed) title=$(omarchy-i18n boot.notice.trialFailed.title) body=$(omarchy-i18n boot.notice.trialFailed.body) ;;
+  firmwareKeptLimine) title=$(omarchy-i18n boot.notice.firmwareKeptLimine.title) body=$(omarchy-i18n boot.notice.firmwareKeptLimine.body) ;;
+  restored) title=$(omarchy-i18n boot.notice.restored.title) body=$(omarchy-i18n boot.notice.restored.body "$arg") ;;
+  restoreFailed) title=$(omarchy-i18n boot.notice.restoreFailed.title) body=$(omarchy-i18n boot.notice.restoreFailed.body "$arg") ;;
+  finishNoPackage) title=$(omarchy-i18n boot.notice.finishNoPackage.title) body=$(omarchy-i18n boot.notice.finishNoPackage.body) ;;
+  finishInstallFailed) title=$(omarchy-i18n boot.notice.finishInstallFailed.title) body=$(omarchy-i18n boot.notice.finishInstallFailed.body) ;;
+  finishNoRecoveryEntry) title=$(omarchy-i18n boot.notice.finishNoRecoveryEntry.title) body=$(omarchy-i18n boot.notice.finishNoRecoveryEntry.body "$arg") ;;
+  switched) title=$(omarchy-i18n boot.notice.switched.title) body=$(omarchy-i18n boot.notice.switched.body) ;;
+  esac
+  [[ -z $title ]] || omarchy-notification-send -g "󰋊" "$title" "$body"
   mkdir -p "$(dirname "$seen_file")"
   echo "$notice_id" >"$seen_file"
 fi

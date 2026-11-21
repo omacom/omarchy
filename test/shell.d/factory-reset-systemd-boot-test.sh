@@ -128,14 +128,14 @@ grep -q $'^0007\tLimine\t\\\\EFI\\\\limine\\\\limine_x64.efi$' "$test_tmp/nvram/
 [[ $(order) == 0003,0000 ]] || fail "systemd-boot stays first until the factory root is in place" "$(order)"
 pass "the reset gives Limine a boot entry and leaves systemd-boot first"
 
+# The production cleanup trap, after a reset that failed once Limine's entry
+# was added: nothing else is mounted or staged, so only NVRAM is undone.
 new_machine
 run_reset 'prepare_limine_return /next
-  efibootmgr --quiet --delete-bootnum --bootnum "$limine_entry"
-  efibootmgr --quiet --bootorder "$limine_boot_order"' || fail "a failed reset drops Limine's new entry"
+  TOP_MNT=$1/no-top NEXT_NAME=@omarchy-reset-next reset_committed=0
+  cleanup' || fail "the cleanup trap runs after a failed reset"
 ! grep -q Limine "$test_tmp/nvram/entries" && [[ $(order) == 0003,0000 ]] ||
   fail "a failed reset leaves NVRAM as it was" "$(cat "$test_tmp/nvram/entries"; order)"
-grep -q 'limine_entry_created:-0} == 1 && -n ${limine_entry:-}' "$ROOT/bin/omarchy-system-factory-reset" ||
-  fail "the cleanup trap removes the entry a failed reset created"
 pass "a reset that fails before the switch leaves systemd-boot booting"
 
 new_machine

@@ -30,7 +30,7 @@ shift 2
 mapfile -t backends < <(omarchy-boot-backend --managed)
 # Before any boot loader tooling is installed (the installer writes hardware
 # parameters early), the machine is about to get Limine: write its format.
-[[ ${backends[*]} == none || ${#backends[@]} == 0 ]] && backends=(limine)
+[[ ${backends[*]} == "none" || ${#backends[@]} == 0 ]] && backends=(limine)
 
 case $action in
 set)

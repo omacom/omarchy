@@ -35,7 +35,7 @@ set -euo pipefail
 STORE=${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}
 # The EFI system partition: /efi where an install put it there (an
 # unencrypted install into free space), /boot everywhere else.
-ESP=${OMARCHY_BOOT_ESP:-$([[ $(findmnt -n -o FSTYPE --mountpoint /efi 2>/dev/null) == vfat ]] && echo /efi || echo /boot)}
+ESP=${OMARCHY_BOOT_ESP:-$([[ $(findmnt -n -o FSTYPE --mountpoint /efi 2>/dev/null) == "vfat" ]] && echo /efi || echo /boot)}
 # The EFI architecture names the loader and the firmware's fallback path.
 if omarchy-hw-aarch64; then
   EFI_ARCH=aa64
@@ -46,6 +46,8 @@ LOADER_SOURCE=/usr/lib/systemd/boot/efi/systemd-boot$EFI_ARCH.efi
 LOADER_PATH="\\EFI\\systemd\\systemd-boot$EFI_ARCH.efi"
 FALLBACK=EFI/BOOT/BOOT${EFI_ARCH^^}.EFI
 LOADER_LABEL="Omarchy Boot"
+# Runs as root from a system unit, a pacman hook and the installer's chroot,
+# none of which has the session's OMARCHY_PATH, like omarchy-apply-system.
 BOOT_DEFAULTS=${OMARCHY_PATH:-/usr/share/omarchy}/default/boot
 LOADER_GUID=4a67b082-0a4c-41cf-b6c7-440b29bb8c4f
 TOP=/run/omarchy-boot/top
@@ -79,10 +81,12 @@ state_set() { kv_set "$STORE/state" "$1" "$2"; }
 phase() { state_get phase; }
 
 # Shown at the next login by omarchy-boot-notify.
+# A notice for the next login, as a cli.json key under boot.notice and an
+# argument: omarchy-boot-notify shows it in the user's language.
 notice() {
   state_set notice_id "$(date +%s)"
-  state_set notice_title "$1"
-  state_set notice_body "$2"
+  state_set notice_key "$1"
+  state_set notice_arg "${2:-}"
 }
 
 as_root() {
@@ -192,8 +196,8 @@ preflight() {
 
   local fstype fsroot
   read -r fstype fsroot < <(findmnt -n -o FSTYPE,FSROOT --mountpoint /)
-  [[ $fstype == btrfs && $fsroot == /@ ]] || problem "The root filesystem isn't the btrfs @ subvolume Omarchy installs."
-  [[ $(findmnt -n -o FSTYPE --mountpoint "$ESP") == vfat ]] || problem "The EFI system partition isn't mounted at $ESP."
+  [[ $fstype == "btrfs" && $fsroot == /@ ]] || problem "The root filesystem isn't the btrfs @ subvolume Omarchy installs."
+  [[ $(findmnt -n -o FSTYPE --mountpoint "$ESP") == "vfat" ]] || problem "The EFI system partition isn't mounted at $ESP."
   [[ -f /etc/snapper/configs/root ]] || problem "Snapper isn't set up, so there would be no snapshots to boot."
   [[ -f $LOADER_SOURCE ]] || problem "systemd-boot isn't installed ($LOADER_SOURCE)."
   [[ ! -e /etc/omarchy/provisioning.key ]] || problem "Finish setting up the machine's owner first."
@@ -311,7 +315,7 @@ convert_cmdline() {
     stem=$(basename "$file" .conf)
     # Omarchy's own defaults come with the package (default/boot/cmdline-defaults.conf);
     # the comparison below catches a locally edited copy.
-    [[ $stem == omarchy-defaults ]] && continue
+    [[ $stem == "omarchy-defaults" ]] && continue
     printf '%s\n' "$values" >"/etc/cmdline.d/$stem.conf"
     created+=("/etc/cmdline.d/$stem.conf")
   done
@@ -430,10 +434,10 @@ confirm() {
     if started_by_systemd_boot && [[ $current == "$loader_entry" ]] && live_root && omarchy-boot-sync verify >/dev/null; then
       efibootmgr --quiet --bootorder "$loader_entry,$(boot_order | tr ',' '\n' | grep -vx "$loader_entry" | paste -sd, -)"
       state_set phase promoted
-      notice "Omarchy started with systemd-boot" "Reboot once more to finish the switch. Limine stays as the fallback until then."
+      notice trialUp
     elif ! started_by_systemd_boot; then
       state_set phase trial-failed
-      notice "The systemd-boot trial didn't come up" "This boot came from Limine, which keeps working. Run omarchy-boot-switch to try again, or omarchy-boot-switch revert."
+      notice trialFailed
     fi
     ;;
   promoted)
@@ -442,15 +446,15 @@ confirm() {
     elif ! started_by_systemd_boot; then
       efibootmgr --quiet --bootorder "$(state_get boot_order)"
       state_set phase trial-failed
-      notice "The firmware kept starting Limine" "This machine's firmware ignored the new boot order, so Omarchy stays on Limine. Run omarchy-boot-switch revert to clean up."
+      notice firmwareKeptLimine
     fi
     ;;
   active)
     local result
     result=$(omarchy-boot-sync restore-commit || true)
     case $result in
-    restored:*) notice "Snapshot restored" "Omarchy is running the restored snapshot ${result#restored: }. The system as it was before is kept as \"Before restore\" in the boot menu." ;;
-    failed:*) notice "The snapshot restore failed" "Nothing changed: ${result#failed: }" ;;
+    restored:*) notice restored "${result#restored: }" ;;
+    failed:*) notice restoreFailed "${result#failed: }" ;;
     esac
     ;;
   esac
@@ -463,11 +467,11 @@ finalize() {
   if [[ -z $step ]]; then
     local package
     package=$(ls -t "$STORE"/packages/omarchy-boot-systemd-*.pkg.tar.* 2>/dev/null | grep -v '\.sig$' | sed -n 1p)
-    [[ -n $package ]] || { notice "Finishing the switch failed" "The omarchy-boot-systemd package isn't in the boot store. Run omarchy-boot-switch again."; return 1; }
+    [[ -n $package ]] || { notice finishNoPackage; return 1; }
     # Installing it removes the Limine packages it conflicts with; their
     # pacman hook is replaced by the one this package owns.
     if ! pacman -U --noconfirm --ask=4 "$package"; then
-      notice "Finishing the switch failed" "Installing omarchy-boot-systemd failed; Limine stays as the fallback. See journalctl -u omarchy-boot-confirm."
+      notice finishInstallFailed
       return 1
     fi
     if omarchy-pkg-present limine && ! pacman -Qi limine | grep -q '^Required By *: [^N]'; then
@@ -479,21 +483,21 @@ finalize() {
     step=packages
   fi
 
-  if [[ $step == packages ]]; then
+  if [[ $step == "packages" ]]; then
     # A rollback point on the new loader before Limine's goes away.
     local number
     number=$(snapper -c root create -c number -p -d "Boot loader switched to systemd-boot")
     omarchy-boot-sync pin "$number"
     omarchy-boot-sync sync
     grep -q "^snapshot-$number	" "$STORE/entries" || {
-      notice "Finishing the switch failed" "The recovery snapshot $number has no boot entry; Limine stays as the fallback."
+      notice finishNoRecoveryEntry "$number"
       return 1
     }
     state_set final_step snapshot
     step=snapshot
   fi
 
-  if [[ $step == snapshot ]]; then
+  if [[ $step == "snapshot" ]]; then
     rm -rf "$ESP/EFI/limine" "$ESP/limine.conf" "$ESP/limine.conf.old" "$ESP/limine.conf.bak" "$ESP/limine_history"
     # limine-snapper-sync's copies of boot files, per machine.
     rm -rf "$ESP/$(cat /etc/machine-id)/limine_history"
@@ -511,7 +515,7 @@ finalize() {
 
   state_set phase active
   state_set finished "$(date +%s)"
-  notice "Omarchy now boots with systemd-boot" "Snapshots are in the boot menu (hold Space while starting) and under System > Snapshots."
+  notice switched
 }
 
 # --- install (fresh installs and factory resets) ---------------------------------------
@@ -536,7 +540,7 @@ adopt_cmdline() {
     stem=$(basename "$file" .conf)
     values=$(cmdline_values "$file" | paste -sd' ' - | tr -s ' ' | sed 's/^ //; s/ $//')
     [[ $values != *UNSUPPORTED:* ]] || die "Can't read the kernel parameters in $file."
-    if [[ -n $values && $stem != omarchy-defaults && ! -f /etc/cmdline.d/$stem.conf ]]; then
+    if [[ -n $values && $stem != "omarchy-defaults" && ! -f /etc/cmdline.d/$stem.conf ]]; then
       printf '%s\n' "$values" >"/etc/cmdline.d/$stem.conf"
     fi
     rm -f "$file"
@@ -559,11 +563,14 @@ install_fresh() {
   done
   findmnt -n --mountpoint "$ESP" >/dev/null || die "The ESP isn't mounted at $ESP."
   # stat, not findmnt: in a factory reset's chroot / is no mount of its own.
-  [[ $(stat -f -c %T /) == btrfs ]] || die "systemd-boot's boot images need the root on btrfs."
+  [[ $(stat -f -c %T /) == "btrfs" ]] || die "systemd-boot's boot images need the root on btrfs."
   [[ -f $LOADER_SOURCE ]] || die "systemd-boot isn't installed ($LOADER_SOURCE is missing)."
-  [[ $(omarchy-boot-backend) == systemd-boot ]] || die "Install omarchy-boot-systemd first."
+  [[ $(omarchy-boot-backend) == "systemd-boot" ]] || die "Install omarchy-boot-systemd first."
 
   mountpoint -q "$STORE" && store_was_mounted=1
+  # The kernels to publish are this root's: a factory reset runs this in the
+  # root it is building, while the old one is still @.
+  export OMARCHY_BOOT_LIVE_ROOT=/
   create_store
   state_set backend systemd-boot
   state_set signing "$(state_get signing | grep -x required || echo off)"
@@ -601,7 +608,7 @@ install_fresh() {
 
 revert() {
   [[ -f $STORE/state ]] || die "No switch to revert."
-  [[ $(phase) != active ]] || die "The switch is finished and Limine is gone. It can't be reverted."
+  [[ $(phase) != "active" ]] || die "The switch is finished and Limine is gone. It can't be reverted."
   # Finishing removes Limine's packages, then its files: from the first step on
   # there is no Limine to go back to, only the finish to complete.
   [[ -z $(state_get final_step) ]] || die "The switch is finishing and Limine is already being removed. Reboot to let it finish, or run omarchy-boot-switch confirm."
@@ -643,7 +650,7 @@ status() {
   fi
   echo "Boot loader: $(omarchy-boot-backend)"
   echo "Switch: $(phase)"
-  [[ -n $(state_get final_step) && $(phase) != active ]] && echo "Finishing step: $(state_get final_step)"
+  [[ -n $(state_get final_step) && $(phase) != "active" ]] && echo "Finishing step: $(state_get final_step)"
   return 0
 }
 
@@ -688,11 +695,11 @@ status)
   status
   ;;
 "" | --yes)
-  if [[ $(omarchy-boot-backend) == systemd-boot ]]; then
+  if [[ $(omarchy-boot-backend) == "systemd-boot" ]]; then
     say "This machine already boots systemd-boot."
     exit 0
   fi
-  if [[ ${1:-} != --yes ]]; then
+  if [[ ${1:-} != "--yes" ]]; then
     cat <<EOF
 Omarchy moves to systemd-boot, the boot loader a Secure Boot machine needs.
 Snapshots work as before: pick one from the boot menu (hold Space while the
@@ -709,7 +716,7 @@ EOF
   fi
   as_root "$0" --apply
   say "\nsystemd-boot is ready for its trial boot. Reboot to start it; if it doesn't come up, a reset brings back Limine."
-  if [[ ${1:-} != --yes ]] && gum confirm "Reboot now?"; then
+  if [[ ${1:-} != "--yes" ]] && gum confirm "Reboot now?"; then
     omarchy-system reboot
   fi
   ;;

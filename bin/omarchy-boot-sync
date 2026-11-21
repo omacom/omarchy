@@ -31,7 +31,7 @@ set -euo pipefail
 STORE=${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}
 # The EFI system partition: /efi where an install put it there (an
 # unencrypted install into free space), /boot everywhere else.
-ESP=${OMARCHY_BOOT_ESP:-$([[ $(findmnt -n -o FSTYPE --mountpoint /efi 2>/dev/null) == vfat ]] && echo /efi || echo /boot)}
+ESP=${OMARCHY_BOOT_ESP:-$([[ $(findmnt -n -o FSTYPE --mountpoint /efi 2>/dev/null) == "vfat" ]] && echo /efi || echo /boot)}
 TOP=${OMARCHY_BOOT_TOP:-/run/omarchy-boot/top}
 LOCK=${OMARCHY_BOOT_LOCK:-/run/omarchy-boot.lock}
 # ukify picks the stub for the machine's architecture. The image itself reads
@@ -91,21 +91,30 @@ namespace() {
 # Writing into an unmounted /var/lib/omarchy/boot would put boot images on the
 # root that a restore replaces, so every writer checks the mount first.
 check_store() {
-  [[ ${OMARCHY_BOOT_TEST:-} == 1 ]] && return 0
+  [[ ${OMARCHY_BOOT_TEST:-} == "1" ]] && return 0
   local fstype fsroot
   read -r fstype fsroot < <(findmnt -n -o FSTYPE,FSROOT --mountpoint "$STORE" 2>/dev/null) ||
     die "the boot store is not mounted at $STORE"
   # A factory reset builds the next root's store as @omarchy-boot-next, the
   # name it keeps until that root is activated.
-  [[ $fstype == btrfs && ($fsroot == /@omarchy-boot || $fsroot == /@omarchy-boot-next) ]] ||
+  [[ $fstype == "btrfs" && ($fsroot == /@omarchy-boot || $fsroot == /@omarchy-boot-next) ]] ||
     die "$STORE is $fstype $fsroot, not the @omarchy-boot subvolume"
 }
 
 # The btrfs top level, where @, its snapshots and the store live side by side.
 # Mounted on its own so this works the same from the live system and from a
 # booted snapshot, whose / is an overlay.
+# The root whose kernels are published: the live root @, even from a booted
+# snapshot, or the root a factory reset is building
+# (omarchy-boot-switch install sets OMARCHY_BOOT_LIVE_ROOT=/ in its chroot).
+LIVE_ROOT_OVERRIDE=${OMARCHY_BOOT_LIVE_ROOT:-}
+
+live_root() {
+  echo "${LIVE_ROOT_OVERRIDE:-$TOP/@}"
+}
+
 mount_top() {
-  [[ ${OMARCHY_BOOT_TEST:-} == 1 ]] && return 0
+  [[ ${OMARCHY_BOOT_TEST:-} == "1" ]] && return 0
   mountpoint -q "$TOP" && return 0
   local device
   device=$(findmnt -n -o SOURCE --mountpoint "$STORE")
@@ -126,6 +135,8 @@ with_lock() {
 # wrote), Omarchy's defaults, then every /etc/cmdline.d/*.conf in name order,
 # comments dropped, as one line. An /etc/cmdline.d/omarchy-defaults.conf
 # replaces the packaged defaults.
+# OMARCHY_PATH has a default: this runs as root from units and pacman hooks,
+# outside the session that sets it.
 assemble_cmdline() {
   local root=${1:-/} file defaults=${OMARCHY_BOOT_CMDLINE_DEFAULTS:-${OMARCHY_PATH:-/usr/share/omarchy}/default/boot/cmdline-defaults.conf}
   [[ -f $root/etc/cmdline.d/omarchy-defaults.conf ]] && defaults=
@@ -261,7 +272,7 @@ cmd_pin() {
 
   # The image of the kernel the machine boots by default, when that kernel is
   # in the snapshot; otherwise any installed kernel the snapshot carries.
-  for pkgbase in $(preferred_kernel "$TOP/@") $(ls "$STORE/current" 2>/dev/null); do
+  for pkgbase in $(preferred_kernel "$(live_root)") $(ls "$STORE/current" 2>/dev/null); do
     image=$(current_image "$pkgbase")
     [[ -n $image ]] || continue
     kver=$(image_get "$image" KVER)
@@ -352,7 +363,7 @@ build_uki() {
     fi
   done <<<"$profiles"
 
-  if [[ $(state_get signing) == required ]]; then
+  if [[ $(state_get signing) == "required" ]]; then
     local key=$STORE/keys/db.key cert=$STORE/keys/db.crt
     [[ -f $key && -f $cert ]] || die "signing is required but $STORE/keys has no key; keeping the published images"
     args+=(--signtool=systemd-sbsign --secureboot-private-key="$key" --secureboot-certificate="$cert")
@@ -386,7 +397,7 @@ cmd_sync() {
   local -A profiles=() wanted=()
   local entries=()
   ns=$(namespace)
-  preferred=$(preferred_kernel "$TOP/@")
+  preferred=$(preferred_kernel "$(live_root)")
 
   # The live system: one profile per installed kernel with a stored image.
   local order=999999
@@ -402,7 +413,7 @@ cmd_sync() {
     [[ $pkgbase == "$preferred" ]] && this_order=1000000
     profiles[$image]+=$(printf 'omarchy\x1f%s\x1f\x1f%s\x1f%s' "$pretty" "$this_order" "$(image_get "$image" CMDLINE)")$'\n'
     order=$((order - 1))
-  done < <(root_kernels "$TOP/@")
+  done < <(root_kernels "$(live_root)")
 
   # A pending restore adds the maintenance boot that swaps the roots and the
   # entry that boots the restored root once it is in place.
@@ -605,7 +616,7 @@ root_children() {
 swap_holds_hibernation_image() {
   local swapfile=$TOP/@/swap/swapfile
   [[ -f $swapfile ]] || return 1
-  [[ $(dd if="$swapfile" bs=1 skip=4086 count=10 2>/dev/null) != SWAPSPACE2 ]]
+  [[ $(dd if="$swapfile" bs=1 skip=4086 count=10 2>/dev/null) != "SWAPSPACE2" ]]
 }
 
 # Stages a restore: a writable copy of the snapshot next to @, a journal the
@@ -617,12 +628,12 @@ cmd_restore_stage() {
   mount_top
   local source=$1 source_path image kver tx staged journal=$STORE/restore/journal
 
-  [[ $(state_get phase) == active ]] || die "snapshots are restored this way only once the switch to systemd-boot is finished"
+  [[ $(state_get phase) == "active" ]] || die "snapshots are restored this way only once the switch to systemd-boot is finished"
   if [[ -f $journal ]] && [[ $(kv_get "$journal" STATE) =~ ^(pending|swapping|swapped)$ ]]; then
     die "a restore of snapshot $(kv_get "$journal" SOURCE) is already waiting for a reboot; cancel it first"
   fi
 
-  if [[ $source == backup ]]; then
+  if [[ $source == "backup" ]]; then
     source_path=$TOP/$(state_get backup)
     image=$(state_get backup_image)
     [[ -n $(state_get backup) && -d $source_path ]] || die "there is no previous root to go back to"
@@ -641,7 +652,7 @@ cmd_restore_stage() {
   swap_holds_hibernation_image && die "the swapfile holds a hibernation image; boot Omarchy normally to resume it before restoring"
 
   local live
-  live=$(current_image "$(preferred_kernel "$TOP/@")")
+  live=$(current_image "$(preferred_kernel "$(live_root)")")
   lsinitcpio "$(image_dir "$live")/initramfs.img" 2>/dev/null | grep -q 'hooks/omarchy-restore$' ||
     die "the boot image cannot apply restores yet; run omarchy-boot-rebuild first"
 
@@ -715,7 +726,7 @@ cmd_restore_cancel() {
   mount_top
   local journal=$STORE/restore/journal staged
   [[ -f $journal ]] || die "no restore is waiting"
-  [[ $(kv_get "$journal" STATE) == pending ]] || die "the restore is past the point where it can be cancelled"
+  [[ $(kv_get "$journal" STATE) == "pending" ]] || die "the restore is past the point where it can be cancelled"
   staged=$(kv_get "$journal" STAGED)
   [[ -n $staged && -d $TOP/$staged ]] && btrfs -q subvolume delete "$TOP/$staged" >/dev/null
   mv -f "$journal" "$STORE/restore/cancelled-$(kv_get "$journal" TX)"
@@ -737,7 +748,7 @@ cmd_restore_commit() {
   state=$(kv_get "$journal" STATE)
   tx=$(kv_get "$journal" TX)
 
-  if [[ $state == failed ]]; then
+  if [[ $state == "failed" ]]; then
     staged=$(kv_get "$journal" STAGED)
     [[ -d $TOP/$staged ]] && btrfs -q subvolume delete "$TOP/$staged" >/dev/null || true
     mv -f "$journal" "$STORE/restore/failed-$tx"
@@ -746,7 +757,7 @@ cmd_restore_commit() {
     echo "failed: $(kv_get "$STORE/restore/failed-$tx" ERROR)"
     return 0
   fi
-  [[ $state == swapped ]] || return 0
+  [[ $state == "swapped" ]] || return 0
   [[ $(subvol_uuid "$TOP/@") == "$(kv_get "$journal" STAGED_UUID)" ]] || die "@ is not the staged root; leaving the restore journal for inspection"
 
   image=$(kv_get "$journal" IMAGE)
@@ -770,6 +781,9 @@ cmd_restore_commit() {
   done
   [[ -L $STORE/current/$(state_get preferred) ]] || state_set preferred "$(image_get "$image" PKGBASE)"
 
+  # The restored root may have kept the restore's hibernation block (an undo
+  # brings back the root it was written in).
+  rm -f /etc/systemd/sleep.conf.d/90-omarchy-restore-pending.conf
   state_set backup "$backup"
   state_set backup_image "$(kv_get "$journal" PREVIOUS_IMAGE)"
   state_set backup_date "$(date '+%b %-d %H:%M')"
