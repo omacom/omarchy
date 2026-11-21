@@ -128,6 +128,7 @@ for id in "${targets[@]}"; do
 done
 
 if (( UPDATED_ANY )); then
-  omarchy-shell shell reloadPlugins >/dev/null
+  # A refused restart (locked session, ssh) only prints its reason: the update is already done.
+  omarchy-restart-shell || true
 fi
 exit $rc
