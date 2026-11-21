@@ -38,24 +38,23 @@ assertDeepEqual(
 
 let warned = false
 let warnings = 0
-const lowBattery = { isPresent: true, percentage: 0.08, state: discharging }
-for (const onBattery of [true, false, true, false, true]) {
-  const result = battery.shouldWarnLowBattery(lowBattery, onBattery, discharging, 10, warned)
+for (const state of [discharging, charging, discharging, charging, discharging]) {
+  const result = battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state }, discharging, 10, warned)
   warned = result.notifiedLowBattery
   warnings += Number(result.notify)
 }
 assertEqual(warnings, 1, 'battery warns only once across AC flaps while low')
 assertEqual(
-  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.1, state: 2 }, false, discharging, 10, true).notifiedLowBattery,
+  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.1, state: charging }, discharging, 10, true).notifiedLowBattery,
   true,
   'charging at the warning threshold does not re-arm the latch'
 )
 assertEqual(
-  battery.shouldWarnLowBattery(null, true, discharging, 10, true).notifiedLowBattery,
+  battery.shouldWarnLowBattery(null, discharging, 10, true).notifiedLowBattery,
   true,
   'a missing reading does not re-arm the low-battery warning'
 )
-const recovered = battery.shouldWarnLowBattery({ ...lowBattery, percentage: 0.11 }, false, discharging, 10, true)
+const recovered = battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.11, state: charging }, discharging, 10, true)
 assertEqual(recovered.notifiedLowBattery, false, 'battery re-arms after recovering above the threshold')
 
 const reply = profile => JSON.stringify({ type: 's', data: profile })
