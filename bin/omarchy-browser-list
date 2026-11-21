@@ -35,6 +35,11 @@ for data_dir in "${data_dirs[@]}"; do
     categories=${categories%;}
     [[ -z $categories || ";$categories;" == *";WebBrowser;"* ]] || continue
 
+    # Hidden aliases, such as Chrome's com.google.Chrome.desktop beside its
+    # regular entry, would show up as a second row for the same browser.
+    hidden=$(sed -n 's/^\(NoDisplay\|Hidden\)=//p' "$entry" | head -1)
+    [[ $hidden != true ]] || continue
+
     command=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
     [[ -n $command ]] && omarchy-cmd-present "$command" || continue
 

@@ -44,6 +44,10 @@ EOF
 # Omarchy's own routing entry must never appear as a choice.
 browser_entry "$system_data/omarchy-browser.desktop" "Omarchy" chromium
 
+# A hidden alias for a browser already listed must not add a duplicate row.
+browser_entry "$system_data/com.vivaldi.Vivaldi.desktop" "Hidden Vivaldi" vivaldi-stable
+echo "NoDisplay=true" >>"$system_data/com.vivaldi.Vivaldi.desktop"
+
 # A handler whose Exec is gone is not installed.
 cat >"$system_data/stale.desktop" <<'EOF'
 [Desktop Entry]
