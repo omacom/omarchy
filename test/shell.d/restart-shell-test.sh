@@ -282,7 +282,7 @@ if PATH="$restart_bin:$PATH" \
   OMARCHY_TEST_SESSION_PATH="$restart_root" \
   OMARCHY_TEST_NOTIFICATION_CHECKS="$test_tmp/notification-checks" \
   OMARCHY_TEST_NOTIFICATIONS_DIE=1 \
-  timeout 10 "$ROOT/bin/omarchy-restart-shell" >"$test_tmp/dead-notifications.out" 2>&1; then
+  timeout 20 "$ROOT/bin/omarchy-restart-shell" >"$test_tmp/dead-notifications.out" 2>&1; then
   fail "a restart whose notification service never returns must not report success"
 fi
 wait "$restart_pid_one" 2>/dev/null || true
