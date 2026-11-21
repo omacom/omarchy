@@ -414,15 +414,35 @@ Item {
     return true
   }
 
+  // A card's height can change while the layout is still being worked out:
+  // a new front card shows its buttons as the placements arrive. Taking the
+  // height then would rebuild the layout from inside its own update, a binding
+  // loop that drops the new height. So it waits for the next tick, except
+  // while the card is being inserted, which measures it in place. A height
+  // that follows a jump (a keyboard dismissal) jumps with it.
+  property var pendingHeights: ({})
+  property bool jumpedSinceMove: false
+  function queueHeight(key, h) {
+    if (key === arriving) { noteHeight(key, h); return }
+    pendingHeights[key] = h
+    Qt.callLater(flushHeights)
+  }
+  function flushHeights() {
+    var queued = pendingHeights, instant = jumpedSinceMove
+    pendingHeights = {}
+    for (var key in queued) if (liveKeys[key]) noteHeight(key, queued[key], instant)
+    jumpedSinceMove = false
+  }
+
   // Fed target heights, never mid-animation ones, so layout moves on events.
-  function noteHeight(key, h) {
+  function noteHeight(key, h, instant) {
     if (Math.abs((heights[key] || 0) - h) < 0.5) return
     // Measured while it is being inserted: the arrival's own move follows.
     if (key === arriving) {
       heights[key] = h
       return
     }
-    if (fresh[key] && !expanded && !sceneRun.running) {
+    if (instant || (fresh[key] && !expanded && !sceneRun.running)) {
       heights[key] = h
       land()
     } else {
@@ -498,6 +518,7 @@ Item {
     deckWas = deckNow
     was = snap
     sceneDuration = duration || arriveDuration
+    jumpedSinceMove = false
     layoutRevision += 1
     t = 0
     sceneRun.restart()
@@ -506,6 +527,7 @@ Item {
   // Keyboard dismissals skip the clock: everything jumps to its place.
   function land() {
     sceneRun.stop()
+    jumpedSinceMove = true
     jumping = true
     layoutRevision += 1
     t = 1
@@ -515,8 +537,13 @@ Item {
 
   // Cards come to rest when the clock finishes or a jump has been drawn.
   signal settled()
-  // A move started after the jump settles on its own finish instead.
-  function landed() { if (t >= 1) settled() }
+  // A move started after the jump settles on its own finish instead. Heights
+  // the jump queued are taken here too, so the jump never outlives its turn:
+  // with nothing queued, a later hover must still move rather than jump.
+  function landed() {
+    flushHeights()
+    if (t >= 1) settled()
+  }
 
   readonly property var layout: { layoutRevision; return layoutWith(expanded, openDeck) }
 
@@ -1670,7 +1697,7 @@ Item {
               drawnHeight: service.at(model.key, "height")
               // A hidden output collapses child visibility; its measurements
               // must not overwrite the visible deck's heights.
-              onTargetHeightChanged: if (surface.showingNotifications) service.noteHeight(model.key, targetHeight)
+              onTargetHeightChanged: if (surface.showingNotifications) service.queueHeight(model.key, targetHeight)
               Component.onCompleted: if (surface.showingNotifications) service.noteHeight(model.key, targetHeight)
 
               onExpired: service.closeToast(model.key, "expired")
