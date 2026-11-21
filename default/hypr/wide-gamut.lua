@@ -9,15 +9,14 @@
 -- A workaround for the Asahi display driver: remove it once that handles color.
 --
 -- Every monitor rule goes through hl.monitor, from the config and from the
--- bin/ commands' hyprctl eval alike, and a rule without cm puts the display
--- back on sRGB. So wrap it. The rule for every monitor ("") can't pick a cm
--- per display, so it's copied for the built-in port and the Apple displays'
--- descriptions, which covers ones plugged in later. Hyprland uses the last
--- matching rule, so rules naming a monitor are replayed after the copies and
--- still win, and a port rule is checked again when its monitor is plugged
--- in. A cm chosen in hypr/monitors.lua wins too: the panel's rules name
--- the port and carry no cm, so they take the choice made for that port, for
--- the monitor's description, or for every monitor.
+-- bin/ commands' hyprctl eval alike, so wrap it. The rule for every monitor
+-- ("") can't pick a cm per display, so it's copied for the built-in port and
+-- the Apple displays' descriptions, which covers ones plugged in later.
+-- Hyprland uses the last matching rule, so rules naming a monitor are
+-- replayed after the copies and still win, and they're checked again when a
+-- monitor they match is plugged in. A cm chosen in hypr/monitors.lua wins too:
+-- the panel's rules name the port and carry no cm, so they take the choice
+-- made for that port, for the monitor's description, or for every monitor.
 
 local paths = require("default.hypr.paths")
 
@@ -73,20 +72,34 @@ end
 
 local chosen, named, given = {}, {}, {}
 
+-- The connected monitors a rule is for: the one on its port, or every one
+-- whose description starts with the rule's.
+local function monitors_for(output)
+  local prefix = output:match("^desc:(.+)$")
+  local found = {}
+  for _, monitor in ipairs(hl.get_monitors()) do
+    local description = monitor.description or ""
+    if monitor.name == output or (prefix and starts_with(description, prefix)) then
+      found[#found + 1] = { name = monitor.name or "", description = description }
+    end
+  end
+  return found
+end
+
+-- Returns "srgb" rather than nothing for other displays: hl.monitor updates
+-- the port's existing rule, so leaving cm out would keep an edid given to the
+-- display that was there before.
 local function cm_for(output)
   if chosen[output] then
     return chosen[output]
   end
 
-  local description = ""
-  for _, monitor in ipairs(hl.get_monitors()) do
-    if monitor.name == output then
-      description = monitor.description or ""
-      for key, cm in pairs(chosen) do
-        local prefix = key:match("^desc:(.+)$")
-        if prefix and starts_with(description, prefix) then
-          return cm
-        end
+  local matched = monitors_for(output)
+  for _, monitor in ipairs(matched) do
+    for key, cm in pairs(chosen) do
+      local prefix = key:match("^desc:(.+)$")
+      if prefix and starts_with(monitor.description, prefix) then
+        return cm
       end
     end
   end
@@ -94,7 +107,16 @@ local function cm_for(output)
   if chosen[""] then
     return chosen[""]
   end
-  return wide_gamut(output, description) and "edid" or nil
+
+  if wide_gamut(output, "") then
+    return "edid"
+  end
+  for _, monitor in ipairs(matched) do
+    if wide_gamut(monitor.name, monitor.description) then
+      return "edid"
+    end
+  end
+  return "srgb"
 end
 
 if o.shell_succeeds(o.shell_quote(paths.omarchy_path .. "/bin/omarchy-hw-aarch64-apple")) then
@@ -117,14 +139,20 @@ if o.shell_succeeds(o.shell_quote(paths.omarchy_path .. "/bin/omarchy-hw-aarch64
 
     local output = rule.output or ""
     if output ~= "" then
+      -- hl.monitor merges into the output's existing rule, so the replay does
+      -- too: an earlier mode survives a later call that sets only the scale.
+      local entry = {}
       for i, earlier in ipairs(named) do
-        if (earlier.output or "") == output then
-          table.remove(named, i)
+        if earlier.output == output then
+          entry = table.remove(named, i)
           break
         end
       end
-      named[#named + 1] = copy(rule, rule.output, rule.cm)
-      return apply(rule)
+      for key, value in pairs(rule) do
+        entry[key] = value
+      end
+      named[#named + 1] = entry
+      return apply(entry)
     end
 
     local result = apply(rule)
@@ -140,12 +168,24 @@ if o.shell_succeeds(o.shell_quote(paths.omarchy_path .. "/bin/omarchy-hw-aarch64
     return result
   end
 
-  -- A port rule loaded before its monitor was plugged in couldn't see which
-  -- display it was for, so check again when one arrives.
+  -- A rule loaded before its monitor was plugged in couldn't see which
+  -- display it was for, so check again when one arrives. Hyprland moves a
+  -- re-sent rule to the end, so once one changes, every rule after it is
+  -- re-sent too and the order that decides which wins stays the same.
   hl.on("monitor.added", function(added)
     local name = added and added.name
+    local description = ""
+    for _, monitor in ipairs(hl.get_monitors()) do
+      if monitor.name == name then
+        description = monitor.description or ""
+      end
+    end
+    local changed = false
     for _, rule in ipairs(named) do
-      if rule.output == name and rule.cm == nil and cm_for(name) ~= given[name] then
+      local prefix = rule.output:match("^desc:(.+)$")
+      local matches = rule.output == name or (prefix and starts_with(description, prefix))
+      if changed or (matches and rule.cm == nil and cm_for(rule.output) ~= given[rule.output]) then
+        changed = true
         apply(rule)
       end
     end

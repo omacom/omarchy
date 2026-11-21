@@ -150,21 +150,31 @@ pass "monitor settings leave monitors.lua alone until something is saved"
 # On Apple Silicon the built-in panel and Apple's wide-gamut displays map sRGB
 # into their own gamut, whatever port they're on and whenever they're plugged
 # in; every other monitor stays on sRGB, as on a PC. A rule's own cm wins.
-# rule_for picks a monitor's rule the way Hyprland does: the last one naming
-# its port or matching its description, else the rule for every monitor.
+# rule_for picks a monitor's rule the way Hyprland does: a call merges into the
+# output's existing rule, and the latest rule naming the port or matching the
+# description wins, else the latest rule for every monitor.
 wide_gamut='
 o.shell_quote = function(value) return value end
 o.shell_succeeds = function() return apple end
 package.loaded["default.hypr.wide-gamut"] = nil
 require("default.hypr.wide-gamut")
 function rule_for(name, description)
-  for i = #applied, 1, -1 do
-    local output = applied[i].output or ""
-    local desc = output:match("^desc:(.+)$")
-    if output == name or (desc and description:sub(1, #desc) == desc) then return applied[i] end
+  local rules = {}
+  for _, call in ipairs(applied) do
+    local output, merged = call.output or "", {}
+    for i, rule in ipairs(rules) do
+      if rule.output == output then merged = table.remove(rules, i) break end
+    end
+    for key, value in pairs(call) do merged[key] = value end
+    merged.output = output
+    rules[#rules + 1] = merged
   end
-  for _, rule in ipairs(applied) do
-    if (rule.output or "") == "" then return rule end
+  for i = #rules, 1, -1 do
+    local desc = rules[i].output:match("^desc:(.+)$")
+    if rules[i].output == name or (desc and description:sub(1, #desc) == desc) then return rules[i] end
+  end
+  for i = #rules, 1, -1 do
+    if rules[i].output == "" then return rules[i] end
   end
 end
 xdr = "Apple Computer Inc ProDisplayXDR 0x0A110A08"
@@ -178,7 +188,7 @@ hl.monitor({ output = "", mode = "preferred", scale = "auto" })
 check(rule_for("eDP-1", "").cm == "edid", "gives the built-in panel EDID color")
 check(rule_for("DP-1", xdr).cm == "edid" and rule_for("DP-1", xdr).scale == "auto", "gives a Pro Display XDR EDID color and the shared settings")
 check(rule_for("DP-4", studio).cm == "edid", "gives a Studio Display EDID color")
-check(rule_for("DP-2", lg).cm == nil, "leaves another monitor on sRGB")
+check(rule_for("DP-2", lg).cm ~= "edid", "leaves another monitor on sRGB")
 ' || fail "Apple displays get EDID color, other monitors keep sRGB"
 pass "Apple displays get EDID color, other monitors keep sRGB"
 
@@ -192,7 +202,7 @@ hl.monitor({ output = "", mode = "preferred", scale = "auto" })
 hl.monitor({ output = "DP-2", scale = 2 })
 hl.monitor({ output = "DP-3", scale = 2 })
 check(rule_for("DP-2", xdr).cm == "edid" and rule_for("DP-2", xdr).scale == 2, "gives an Apple display'"'"'s port rule EDID color")
-check(rule_for("DP-3", lg).cm == nil, "leaves another monitor'"'"'s port rule on sRGB")
+check(rule_for("DP-3", lg).cm == "srgb", "leaves another monitor'"'"'s port rule on sRGB")
 hl.monitor({ output = "", scale = 1.5 })
 check(rule_for("DP-2", xdr).scale == 2, "keeps a port rule ahead of a later rule for every monitor")
 check(rule_for("DP-1", studio).scale == 1.5 and rule_for("DP-1", studio).cm == "edid", "copies a later rule for every monitor to the Apple displays")
@@ -213,15 +223,56 @@ pass "port rules get EDID color only on Apple displays"
 run_lua "apple = true $wide_gamut"'
 hl.monitor({ output = "", mode = "preferred", scale = "auto" })
 hl.monitor({ output = "DP-2", scale = 2 })
-check(rule_for("DP-2", xdr).cm == nil, "has no display to check before it is plugged in")
+check(rule_for("DP-2", xdr).cm == "srgb", "has no display to check before it is plugged in")
 plug("DP-2", "", { description = xdr })
 handlers["monitor.added"]({ name = "DP-2" })
 check(rule_for("DP-2", xdr).cm == "edid" and rule_for("DP-2", xdr).scale == 2, "gives the port rule EDID color once the display arrives")
 local count = #applied
 handlers["monitor.added"]({ name = "DP-2" })
 check(#applied == count, "leaves the rule alone when nothing changed")
+-- Swapped for another monitor on the same port: the merged rule must not keep edid.
+monitors[#monitors].description = lg
+handlers["monitor.added"]({ name = "DP-2" })
+check(rule_for("DP-2", lg).cm == "srgb" and rule_for("DP-2", lg).scale == 2, "puts the port back on sRGB for another monitor")
 ' || fail "port rules wait for their monitor"
 pass "port rules wait for their monitor"
+
+# Description rules get EDID color for the monitors they match, connected now
+# or plugged in later.
+run_lua "apple = true $wide_gamut"'
+hl.monitor({ output = "", mode = "preferred", scale = "auto" })
+hl.monitor({ output = "desc:Apple Computer Inc Apple Panel", scale = 2 })
+check(rule_for("eDP-1", "Apple Computer Inc Apple Panel 9201b950").cm == "edid" and rule_for("eDP-1", "Apple Computer Inc Apple Panel 9201b950").scale == 2,
+  "gives a description rule for the built-in panel EDID color")
+hl.monitor({ output = "desc:LG Electronics", scale = 1 })
+check(rule_for("DP-3", lg).cm == "srgb", "leaves a description rule for another monitor on sRGB")
+hl.monitor({ output = "desc:Apple Computer Inc", scale = 2 })
+plug("DP-2", "", { description = xdr })
+handlers["monitor.added"]({ name = "DP-2" })
+check(rule_for("DP-2", xdr).cm == "edid", "gives a broad description rule EDID color once an XDR arrives")
+' || fail "description rules get EDID color on Apple displays"
+# A port rule with its own cm still wins over a description rule loaded before
+# it, after the description rule is rechecked for an arriving display.
+run_lua "apple = true $wide_gamut"'
+hl.monitor({ output = "", mode = "preferred", scale = "auto" })
+hl.monitor({ output = "desc:Apple Computer Inc Pro", scale = 2 })
+hl.monitor({ output = "DP-2", scale = 1.5, cm = "srgb" })
+plug("DP-2", "", { description = xdr })
+handlers["monitor.added"]({ name = "DP-2" })
+check(rule_for("DP-2", xdr).cm == "srgb" and rule_for("DP-2", xdr).scale == 1.5, "keeps a later port rule ahead of a rechecked description rule")
+' || fail "description rules get EDID color on Apple displays"
+pass "description rules get EDID color on Apple displays"
+
+# The replay keeps every field of a port rule, as Hyprland merges them.
+run_lua "apple = true $wide_gamut"'
+hl.monitor({ output = "", mode = "preferred", scale = "auto" })
+hl.monitor({ output = "eDP-1", mode = "3456x2234@120" })
+hl.monitor({ output = "eDP-1", scale = 2 })
+hl.monitor({ output = "", mode = "preferred", scale = 1.5 })
+local rule = rule_for("eDP-1", "Apple Computer Inc Apple Panel 9201b950")
+check(rule.mode == "3456x2234@120" and rule.scale == 2 and rule.cm == "edid", "keeps an earlier mode through a later rule for every monitor")
+' || fail "replayed port rules keep every field"
+pass "replayed port rules keep every field"
 
 run_lua "apple = false $wide_gamut"'
 hl.monitor({ output = "", mode = "preferred", scale = "auto" })
