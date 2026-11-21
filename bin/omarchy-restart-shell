@@ -139,7 +139,8 @@ fi
 # name, so wait for it separately before one-time toasts are sent.
 if (( notifications_were_running )); then
   notifications_restored=0
-  for (( attempt = 0; attempt < 20; attempt++ )); do
+  deadline=$((SECONDS + 15))
+  while (( SECONDS < deadline )); do
     if notifications_ready; then
       notifications_restored=1
       break
