@@ -21,6 +21,23 @@ Panel {
   // The actual Bluetooth sequencing lives in bin/omarchy-bluetooth-device;
   // this map only keeps the panel responsive while BlueZ catches up.
   property var pendingActions: ({})
+  property string pairingMessage: ""
+  property string pairingCode: ""
+
+  Process {
+    id: pairProcess
+    stdout: SplitParser {
+      onRead: function(line) {
+        var split = line.indexOf("\t")
+        if (split < 0) return
+        var kind = line.substring(0, split)
+        var value = line.substring(split + 1)
+        if (kind === "code") { root.pairingCode = value; root.pairingMessage = "Type this code on the keyboard, then press Enter:" }
+        else { root.pairingCode = ""; root.pairingMessage = value }
+      }
+    }
+    onExited: function(exitCode) { if (exitCode !== 0 && root.pairingMessage === "Waiting for pairing…") root.pairingMessage = "Pairing could not start." }
+  }
 
   readonly property var adapter: Bluetooth.defaultAdapter
 
@@ -271,7 +288,15 @@ Panel {
   function runDeviceAction(device, action, pending) {
     if (!device || !device.address) return
     setPendingAction(device.address, pending)
-    Quickshell.execDetached(deviceCommand(action, device.address))
+    if (action === "pair") {
+      if (pairProcess.running) return
+      pairingCode = ""
+      pairingMessage = "Waiting for pairing…"
+      pairProcess.command = ["/usr/bin/python3", Qt.resolvedUrl("pair-agent.py").toString().replace("file://", ""), device.address]
+      pairProcess.running = true
+    } else {
+      Quickshell.execDetached(deviceCommand(action, device.address))
+    }
   }
 
   function connectDevice(device) {
@@ -763,6 +788,30 @@ Panel {
               elide: Text.ElideRight
               width: parent.width
             }
+          }
+        }
+
+        Column {
+          visible: root.pairingMessage !== ""
+          width: parent.width
+          spacing: Style.space(4)
+          Text {
+            width: parent.width
+            text: root.pairingMessage
+            textFormat: Text.PlainText
+            wrapMode: Text.Wrap
+            color: root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.body
+          }
+          Text {
+            visible: root.pairingCode !== ""
+            text: root.pairingCode
+            textFormat: Text.PlainText
+            color: root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.title
+            font.bold: true
           }
         }
 
