@@ -734,4 +734,29 @@ if os.geteuid() != 0:
   expect("Claude does not cache a scan that missed a transcript", record["todayTokensByModel"], {"claude-sonnet-4-5": 340}, record)
 else:
   print("ok - Claude does not cache a scan that missed a transcript # SKIP root reads anything")
+
+sandbox()
+kept = claude_code_session("kept", [("claude-sonnet-4-5", 300)])
+(kept.parent / "removed.jsonl").symlink_to(kept.parent / "gone.jsonl")
+record = claude()
+expect("Claude skips a link to a removed transcript and still caches the scan",
+       [record["todayTokensByModel"], bool(scan_cache_files("claude"))], [{"claude-sonnet-4-5": 300}, True], record)
+
+# A transcript stat can't reach is unread, not absent.
+if os.geteuid() != 0:
+  sandbox()
+  claude_code_session("seen", [("claude-sonnet-4-5", 300)])
+  late = claude_code_session("late", [("claude-sonnet-4-5", 40)])
+  shut = late.parent / "shut"
+  shut.mkdir()
+  late.rename(shut / late.name)
+  shut.chmod(0o644)
+  try:
+    claude()
+  finally:
+    shut.chmod(0o755)
+  record = claude("--limits-only")
+  expect("Claude does not cache a scan that couldn't stat a transcript", record["todayTokensByModel"], {"claude-sonnet-4-5": 340}, record)
+else:
+  print("ok - Claude does not cache a scan that couldn't stat a transcript # SKIP root reads anything")
 PY
