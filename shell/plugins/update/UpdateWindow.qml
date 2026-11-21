@@ -112,7 +112,36 @@ Item {
     printErrors: false
   }
 
+  // omarchy update prints its headings through omarchy-i18n, so the model
+  // matches them against the same catalog: the session language's over English.
+  FileView {
+    id: englishCatalog
+    path: root.omarchyPath + "/default/i18n/en/cli.json"
+    blockAllReads: true
+    printErrors: false
+  }
+
+  FileView {
+    id: languageCatalog
+    path: root.omarchyPath + "/default/i18n/" + I18n.language + "/cli.json"
+    blockAllReads: true
+    printErrors: false
+  }
+
+  function catalog() {
+    var strings = {}
+    var files = [englishCatalog, languageCatalog]
+    for (var i = 0; i < files.length; i++) {
+      try {
+        var parsed = JSON.parse(files[i].text())
+        for (var key in parsed) strings[key] = parsed[key]
+      } catch (e) {}
+    }
+    return strings
+  }
+
   Component.onCompleted: {
+    UpdateModel.localize(catalog())
     if (attach) {
       task = taskFile.text().replace(/\n$/, "")
       if (!isTask) planFile.text().split("\n").forEach(addPendingLine)
@@ -783,7 +812,7 @@ Item {
                 textFormat: Text.PlainText
                 width: log.width
                 text: (root.rev, index < root.st.lines.length ? root.st.lines[index] : root.st.tail)
-                color: /^error|^Something went wrong/i.test(text) ? root.urgent : Util.alpha(root.fg, 0.75)
+                color: UpdateModel.isError(text) ? root.urgent : Util.alpha(root.fg, 0.75)
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
                 wrapMode: Text.WrapAnywhere

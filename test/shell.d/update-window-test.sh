@@ -97,6 +97,18 @@ assert(s.opened, 'an installer that opens the app itself is noticed')
 assertEqual([s.ask.kind, s.ask.secret, s.ask.question, s.ask.hint].join(','), 'input,false,Icon URL/name> ,Could not fetch favicon', 'the gum input marker carries its prompt')
 U.feed(s, '\n\x1b]5150;confirm;no;Remove 2 packages?\x07')
 assertEqual([s.ask.kind, s.ask.yes, s.ask.question].join(','), 'confirm,false,Remove 2 packages?', 'the gum confirm marker carries its default')
+
+// omarchy update prints its headings through omarchy-i18n, so a session in
+// another language gets them translated; the model matches the catalog's strings.
+s = U.create()
+U.localize({ 'update.systemPackages': 'Systempakete aktualisieren', 'update.migration': 'Migration (%1) läuft', 'update.rebootLater': 'Führe %2 aus, wenn bereit: %1' })
+U.feed(s, '\x1b[32m\nSystempakete aktualisieren\x1b[0m\n\x1b[32m\nMigration (1700000000) läuft\x1b[0m\n')
+assertEqual(s.step, 'configure', 'translated headings move the steps along')
+U.feed(s, 'Führe omarchy-system reboot aus, wenn bereit: Der Kernel wurde aktualisiert.\n')
+assertEqual(s.reboot, 'Der Kernel wurde aktualisiert.', 'the translated reboot notice still gives its reason, wherever the translation puts it')
+U.localize(null)
+U.feed(s, '\x1b[32m\nUpdate AUR packages\x1b[0m\n')
+assertEqual(s.step, 'apps', 'without a catalog the English headings match')
 JS
 
 # The gum stand-in turns confirm into a marker and reads the answer back.

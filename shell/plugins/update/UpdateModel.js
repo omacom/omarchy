@@ -9,19 +9,60 @@
 // restart come before mise and AUR, so Clean up precedes Apps & tools.
 var STEPS = ["prepare", "packages", "configure", "cleanup", "apps"]
 
-var HEADINGS = [
-  [/^Prune package cache$/, "prepare", "prune"],
-  [/^Create system snapshot$/, "prepare", "snapshot"],
-  [/^Update Omarchy dev checkout$/, "prepare", "checkout"],
-  [/^Update signing keys$/, "prepare", "keyring"],
-  [/^Update system packages$/, "packages", "servers"],
-  [/^Running migration/, "configure", "migrations"],
-  [/^Orphan system packages$/, "cleanup", "orphans"],
-  [/^Removing orphan system packages$/, "cleanup", "orphansRemove"],
-  [/^Restarting shell$/, "cleanup", "shell"],
-  [/^Update mise tools$/, "apps", "mise"],
-  [/^Update AUR packages$/, "apps", "aur"]
+// What omarchy update prints through omarchy-i18n, in the session language.
+// These English defaults match until localize() gets the cli.json catalog the
+// scripts read; a %1-style hole matches anything.
+var TEXTS = {
+  "update.pruneCache": "Prune package cache",
+  "snapshot.create": "Create system snapshot",
+  "update.devCheckout": "Update Omarchy dev checkout",
+  "update.signingKeys": "Update signing keys",
+  "update.systemPackages": "Update system packages",
+  "update.migration": "Running migration (%1)",
+  "update.orphans": "Orphan system packages",
+  "update.removingOrphans": "Removing orphan system packages",
+  "update.restartingShell": "Restarting shell",
+  "update.mise": "Update mise tools",
+  "update.aur": "Update AUR packages",
+  // omarchy-update-restart under -y: "<why> Run omarchy-system reboot when ready."
+  "update.rebootLater": "%1 Run %2 when ready.",
+  "update.failed": "Something went wrong during the update!"
+}
+
+var HEADING_STEPS = [
+  ["update.pruneCache", "prepare", "prune"],
+  ["snapshot.create", "prepare", "snapshot"],
+  ["update.devCheckout", "prepare", "checkout"],
+  ["update.signingKeys", "prepare", "keyring"],
+  ["update.systemPackages", "packages", "servers"],
+  ["update.migration", "configure", "migrations"],
+  ["update.orphans", "cleanup", "orphans"],
+  ["update.removingOrphans", "cleanup", "orphansRemove"],
+  ["update.restartingShell", "cleanup", "shell"],
+  ["update.mise", "apps", "mise"],
+  ["update.aur", "apps", "aur"]
 ]
+
+var HEADINGS, REBOOT, FAILED
+
+// A whole-line pattern for a catalog string; %1 is captured, other holes are not.
+function pattern(text) {
+  var literal = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  return new RegExp("^" + literal.replace(/%(\d)/g, function(_, n) { return n === "1" ? "(.*?)" : "(?:.*?)" }) + "$")
+}
+
+// strings: a cli.json catalog, the session language's merged over English.
+function localize(strings) {
+  var lookup = function(key) { return (strings && typeof strings[key] === "string" && strings[key]) || TEXTS[key] }
+  HEADINGS = HEADING_STEPS.map(function(h) { return [pattern(lookup(h[0])), h[1], h[2]] })
+  REBOOT = pattern(lookup("update.rebootLater"))
+  FAILED = pattern(lookup("update.failed"))
+}
+localize(null)
+
+function isError(text) {
+  return /^error:/i.test(text) || FAILED.test(text)
+}
 
 var ACTIVITIES = [
   [/^:: Synchronizing package databases/, "servers"],
@@ -37,9 +78,6 @@ var ACTIVITIES = [
 // What PAM modules say while sudo waits on them: face (facelock, howdy),
 // fingerprint (fprintd), security keys (pam_u2f), smart cards.
 var AUTH = /^(Identifying face|Attempting (facial|face)|.*\bface\b.*(recogni|detect|match|identif|timed out)|(Place|Swipe|Lift|Put|Scan) your .*finger|.*fingerprint|Failed to match|Please touch the device|.*\btouch (your|the) (security key|key|device|token)|(Please )?insert .*(security key|smart ?card|token|U2F)|Sorry, try again)/i
-
-// omarchy-update-restart under -y: "<why> Run omarchy-system reboot when ready."
-var REBOOT = /^(.*?)\s*Run omarchy-system reboot when ready\.$/
 
 function create() {
   return {
@@ -180,7 +218,7 @@ function line(s, text, complete) {
     return
   }
 
-  if (/^error:/i.test(trimmed) || /^Something went wrong/.test(trimmed)) {
+  if (isError(trimmed)) {
     if (complete) s.errors.push(trimmed)
     return
   }
@@ -319,6 +357,8 @@ if (typeof module !== "undefined") {
     STEPS: STEPS,
     create: create,
     feed: feed,
+    localize: localize,
+    isError: isError,
     transfer: transfer,
     stepFraction: stepFraction,
     progress: progress,
