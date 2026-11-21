@@ -30,6 +30,13 @@ echo 4.0.0
 STUB
 chmod +x "$fake_bin/omarchy-version"
 
+cat >"$fake_bin/limine-snapper-sync" <<'STUB'
+#!/bin/bash
+printf 'limine-snapper-sync %s\n' "$*" >>"$TEST_LOG"
+[[ -z ${FAKE_SYNC_FAILS:-} ]]
+STUB
+chmod +x "$fake_bin/limine-snapper-sync"
+
 # Snapper with no configs: list-configs prints only the CSV header.
 cat >"$fake_bin/snapper" <<'STUB'
 #!/bin/bash
@@ -67,14 +74,35 @@ STUB
 chmod +x "$fake_bin/snapper"
 
 : >"$test_tmp/calls.log"
-TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
-  bash "$snapshot" create >/dev/null
+stdout=$(TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
+  bash "$snapshot" create)
 
 grep -qFx 'snapper -c root create -c number -d 4.0.0' "$test_tmp/calls.log" ||
   fail "snapshot create snapshots each configured subvolume" "$(cat "$test_tmp/calls.log")"
 grep -qFx 'snapper -c root cleanup number' "$test_tmp/calls.log" ||
   fail "snapshot create prunes older snapshots"
 pass "snapshot create snapshots every configured Snapper config"
+
+grep -q '^limine-snapper-sync' "$test_tmp/calls.log" ||
+  fail "snapshot create syncs the Limine boot menu" "$(cat "$test_tmp/calls.log")"
+grep -qF 'Snapshots can be selected during boot.' <<<"$stdout" ||
+  fail "snapshot create reports a bootable snapshot after a good sync" "$stdout"
+pass "snapshot create calls the snapshot bootable once the boot menu is synced"
+
+# A rejected sync leaves the snapshot out of the boot menu (#16498), so it must
+# not be called bootable, and must not fail the update that took it.
+set +e
+output=$(FAKE_SYNC_FAILS=1 TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
+  bash "$snapshot" create 2>&1)
+status=$?
+set -e
+
+(( status == 0 )) || fail "a failed boot-menu sync does not fail snapshot create" "got $status"
+! grep -qF 'Snapshots can be selected during boot.' <<<"$output" ||
+  fail "snapshot create does not call a snapshot bootable after a failed sync" "$output"
+grep -qF 'journalctl -t limine-snapper-sync' <<<"$output" ||
+  fail "snapshot create points at the sync journal when the sync fails" "$output"
+pass "snapshot create warns instead of claiming a bootable snapshot when the sync fails"
 
 # Snapper being deliberately absent is the one skip that stays quiet, and the
 # update has to keep treating it as such.
