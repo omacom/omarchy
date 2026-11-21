@@ -12,6 +12,19 @@ Cards offer what they carry: _Copy code_ for verification codes (kept out of [cl
 
 Silencing notifications holds them back, except Omarchy's own confirmations, emergency alerts, and verification codes, which you asked for a moment ago. Put the last few back on screen, held back or not, with `Super + Shift + Alt + ,`. History is kept for a day.
 
+You can also hold back notifications by the start of their text, which helps when one app sends both noise and signal under the same name. Add case-sensitive prefixes to `dropPrefixes` in `~/.local/state/omarchy/notifications/quiet.json` and run `omarchy-restart-shell`:
+
+```json
+{
+  "dnd": false,
+  "dropPrefixes": [
+    "Lane message from"
+  ]
+}
+```
+
+A notification whose summary or body starts with one of the prefixes never pops up; it waits in history with the rest, one `Super + Shift + Alt + ,` away.
+
 ## Hotkey notices
 
 ### Date & Time
