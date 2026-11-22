@@ -27,7 +27,7 @@ Install Docker Engine with the compose plugin following Docker's Debian instruct
 The fabric lives in the `fabric/` folder of the Omarchy fork; a sparse clone fetches just that folder:
 
 ```bash
-git clone --depth 1 --filter=blob:none --sparse --branch fabric/round-1 https://github.com/dereksgithub/omarchy ~/omarchy
+git clone --depth 1 --filter=blob:none --sparse --branch fabric/main https://github.com/dereksgithub/omarchy ~/omarchy
 ```
 
 ```bash

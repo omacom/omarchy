@@ -1,6 +1,6 @@
 # omarchy-fabric
 
-> This folder is the fabric inside a fork of Omarchy ([dereksgithub/omarchy](https://github.com/dereksgithub/omarchy), branch `fabric/round-1`). Run everything below from here; the rest of the tree is Omarchy itself.
+> This folder is the fabric inside a fork of Omarchy ([dereksgithub/omarchy](https://github.com/dereksgithub/omarchy), branch `fabric/main`). Run everything below from here; the rest of the tree is Omarchy itself.
 
 **The agent-to-physical layer for [Omarchy](https://omarchy.org).** Your coding agents (Claude Code, Codex, pi, OpenCode...) get to use lights, plugs, thermostats, blinds, locks and sensors, through Matter and Home Assistant, without being able to do anything a person wouldn't sign off on.
 

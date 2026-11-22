@@ -1,6 +1,6 @@
 # Omarchy integration and contributing back
 
-Studied against `omacom/omarchy` on the `quattro` branch (2026-11-22). The fabric now lives in `fabric/` on the `fabric/round-1` branch of a fork of Omarchy ([dereksgithub/omarchy](https://github.com/dereksgithub/omarchy)), so the tree around it is Omarchy itself. Omarchy 4 is an agentic distribution: coding-agent launchers, shared skills in `~/.agents/skills`, an agents panel, local models. It has no smart-home, IoT or MCP device layer, so the fabric adds a new area rather than competing with anything in it.
+Studied against `omacom/omarchy` on the `quattro` branch (2026-11-22). The fabric now lives in `fabric/` on the `fabric/main` branch of a fork of Omarchy ([dereksgithub/omarchy](https://github.com/dereksgithub/omarchy)), so the tree around it is Omarchy itself. Omarchy 4 is an agentic distribution: coding-agent launchers, shared skills in `~/.agents/skills`, an agents panel, local models. It has no smart-home, IoT or MCP device layer, so the fabric adds a new area rather than competing with anything in it.
 
 ## What plugs in where
 
@@ -38,6 +38,22 @@ omarchy agent look plugin ~/.config/omarchy/plugins/fabric.status
 ```
 
 Hyprland's config is Lua in Omarchy 4, so no hotkey is installed yet; the menu entry and the bar cover it until a binding is chosen by the plane rules in Omarchy's hotkeys manual.
+
+## Branches on the fork
+
+| Branch | Role |
+|---|---|
+| `quattro` | An exact mirror of Omarchy's `quattro`. Never commit to it; keep it current with GitHub's "Sync fork" or `gh repo sync dereksgithub/omarchy`. |
+| `fabric/main` | The fabric's main branch. Clone this one. |
+| `fabric/round-N` and other topic branches | One round or topic of work, cut from `fabric/main` and merged back by a pull request inside the fork. |
+
+Open those pull requests with an explicit base: GitHub points a fork's pull requests at the parent repository by default, which would send them to Omarchy itself.
+
+```bash
+gh pr create --repo dereksgithub/omarchy --base fabric/main --head fabric/round-N
+```
+
+When Omarchy's `quattro` moves on, sync the fork's `quattro`, then merge it into `fabric/main`. Nothing outside `fabric/` differs between the two, so the merge is clean.
 
 ## Contributing back: what and in what order
 
