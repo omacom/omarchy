@@ -6,15 +6,14 @@
 import { type ExtensionAPI, keyHint, keyText, rawKeyHint, VERSION } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 
-// icon.txt, one cell per square of its 13 by 13 grid.
+// icon.txt redrawn on an 11 by 10 grid: five lines high, the smallest the
+// mark keeps an open middle at.
 const MARK = [
-  "█▀▀▀▀▀█▀▀▀▀▀█",
-  "█ █▀▀▀▀  ▀█ █",
-  "█ █       █ █",
-  "█▀█       █ █",
-  "█ █       █ █",
-  "█ ▀▀▀▀█▀▀▀▀ █",
-  "▀▀▀▀▀▀▀ ▀▀▀▀▀",
+  "█▀▀▀▀█▀▀▀▀█",
+  "█ █▀▀▀  █ █",
+  "█▄█     █ █",
+  "█ █▄▄▄▄▄█ █",
+  "█▄▄▄▄█ ▄▄▄█",
 ];
 
 export default function (pi: ExtensionAPI) {
@@ -30,7 +29,7 @@ export default function (pi: ExtensionAPI) {
           rawKeyHint("/", "commands"),
           rawKeyHint("!", "bash"),
         ].join(theme.fg("muted", " · "));
-        const beside = ["", "", theme.fg("dim", `Pi v${VERSION}`), hints];
+        const beside = ["", theme.fg("dim", `Pi v${VERSION}`), hints];
 
         return MARK.map((row, i) => truncateToWidth(` ${theme.fg("accent", row)}   ${beside[i] ?? ""}`, width));
       },
