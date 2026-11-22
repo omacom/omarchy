@@ -20,6 +20,7 @@ WORK="$WORK" python3 - <<'PY'
 import contextlib
 import json
 import os
+import shlex
 import shutil
 import sqlite3
 import sys
@@ -1282,7 +1283,7 @@ keyring_bin = work / "keyring-bin"
 keyring_bin.mkdir()
 keyring = work / "keyring.json"
 (keyring_bin / "secret-tool").write_text(f"""#!/bin/sh
-[ "$*" = "lookup service cursor-credentials account cursor-user" ] && exec {shutil.which("cat")} {keyring}
+[ "$*" = "lookup service cursor-credentials account cursor-user" ] && exec {shlex.quote(shutil.which("cat"))} {shlex.quote(str(keyring))}
 exit 1
 """)
 (keyring_bin / "secret-tool").chmod(0o755)
