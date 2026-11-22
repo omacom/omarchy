@@ -463,13 +463,16 @@ Item {
   // rejection the next scan ended was never seen. Each one counts, so a
   // rejection while the last one's red is still up shows too. The message's
   // text is translated, so it isn't read.
+  // The rejection is set before the scan ends, so the display hold and the
+  // pulse's reset never see a moment with neither.
   function noteFingerprintRejected() {
     logEvent("fingerprint-rejected")
+    if (lockRequested && !fingerprintPaused) {
+      fingerprintRejected = true
+      fingerprintRejectCount += 1
+      fingerprintRejectTimer.restart()
+    }
     clearFingerprintScan()
-    if (!lockRequested || fingerprintPaused) return
-    fingerprintRejected = true
-    fingerprintRejectCount += 1
-    fingerprintRejectTimer.restart()
   }
 
   function clearFingerprintScan() {

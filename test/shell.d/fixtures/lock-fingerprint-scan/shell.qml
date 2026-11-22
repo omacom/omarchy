@@ -305,7 +305,8 @@ ShellRoot {
         root.startWiring()
       } catch (error) {
         root.failures.push("lock fingerprint scan fixture threw: " + error)
-        root.writeResult()
+        if (root.wiringService) root.finishWiring(false)
+        else root.writeResult()
       }
     }
   }
