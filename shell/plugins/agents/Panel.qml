@@ -35,7 +35,7 @@ Panel {
   property var deleteTarget: null
   function deleteSelected() {
     var target = keyTarget
-    if (!target || ["provider", "providerLaunch", "providerRemove"].indexOf(target.kind) < 0) return
+    if (!target || ["provider", "providerLaunch"].indexOf(target.kind) < 0) return
     if (removable(providers[target.index])) deleteTarget = providers[target.index]
   }
 
@@ -117,15 +117,14 @@ Panel {
         // button when it has a harness of its own, else its mark. One that
         // doesn't hold the star offers it, and a lapsed sign-in follows.
         var line = []
-        if (removable(providers[p])) line.push({ kind: "providerRemove", index: p })
+        if (defaultIdFor(providers[p]) !== "" && !starred(providers[p], providers[p].account || null))
+          line.push({ kind: "providerStar", index: p })
         if (makesOpenIndex === p)
           for (var m = 0; m < starterPrompts.length; m++) line.push({ kind: "make:" + starterPrompts[m].kind, index: p })
         else if (launches(providers[p]))
           line.push({ kind: "makeToggle", index: p })
         if (desktopFor(providers[p])) line.push({ kind: "providerDesktop", index: p })
         line.push({ kind: lineStop(p), index: p })
-        if (defaultIdFor(providers[p]) !== "" && !starred(providers[p], providers[p].account || null))
-          line.push({ kind: "providerStar", index: p })
         rows.push(line)
         if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
       }
@@ -164,8 +163,8 @@ Panel {
     }
   }
 
-  // Where the cursor lands on a line: its terminal, or the mark for a line
-  // with no button.
+  // A line's rightmost button, where the cursor lands on it: its terminal,
+  // or the mark for a line with no button.
   function lineStop(p) {
     return launches(providers[p]) ? "providerLaunch" : "provider"
   }
@@ -183,10 +182,10 @@ Panel {
       keyRow = clamp(keyRow + dy, 0, keyRows.length - 1)
       // Arriving on an agent or account lands on its terminal button, so
       // Down then Enter starts the next one; a line without one lands on its
-      // mark.
+      // rightmost stop.
       var row = keyRows[keyRow]
-      var stop = row.findIndex(function(t) { return t.kind === "providerLaunch" || t.kind === "provider" })
-      keyColumn = stop >= 0 ? stop : Math.min(keyColumn, row.length - 1)
+      var last = row[row.length - 1].kind
+      keyColumn = last === "providerLaunch" || last === "provider" ? row.length - 1 : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
       // A row can go while the cursor is on it, like the starters when the
       // last agent stops.
@@ -199,7 +198,7 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch", "providerStar", "makeToggle", "providerDesktop", "providerRemove"].indexOf(target.kind) >= 0 || target.kind.indexOf("make:") === 0) return target.index
+    if (["provider", "providerSignin", "providerLaunch", "providerStar", "makeToggle", "providerDesktop"].indexOf(target.kind) >= 0 || target.kind.indexOf("make:") === 0) return target.index
     return -1
   }
 
@@ -839,7 +838,6 @@ Panel {
     else if (target.kind === "providerLaunch") runLine(providers[target.index])
     else if (target.kind === "providerStar") makeDefault(providers[target.index], providers[target.index].account || null)
     else if (target.kind === "makeToggle") openMakes(target.index)
-    else if (target.kind === "providerRemove") deleteTarget = providers[target.index]
     else if (target.kind === "providerDesktop") launchDesktop(providers[target.index])
     else if (target.kind.indexOf("make:") === 0) runLine(providers[target.index], target.kind.slice(5))
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind)
@@ -2499,9 +2497,9 @@ Panel {
         record: section.provider
       }
 
-      // The line's buttons, from the right: its star, its terminal, its
-      // desktop app, its makes, and its trash. Hidden ones take no room, but an
-      // unlit star keeps its place.
+      // The line's buttons, from the right: its terminal, its desktop app,
+      // its makes, and its star. Hidden ones take no room, but an unlit star
+      // keeps its place so the others don't move.
       Row {
         id: sectionActions
         anchors.right: parent.right
@@ -2509,34 +2507,9 @@ Panel {
         layoutDirection: Qt.RightToLeft
         spacing: Style.space(6)
 
-        // The default's star is filled: the default agent, and with several
-        // accounts the one in use. Another line's makes it the default.
-        PanelActionButton {
-          outlined: true
-          id: sectionStar
-          anchors.verticalCenter: parent.verticalCenter
-          visible: root.defaultIdFor(section.provider) !== ""
-          readonly property bool on: root.starred(section.provider, section.account)
-          // Only the default's star stays; another shows when it's engaged. It
-          // keeps its place either way, so the terminal doesn't move under the
-          // pointer arriving on the line.
-          readonly property bool shown: on || section.engaged
-          opacity: shown ? 1 : 0
-          enabled: shown
-          iconText: on ? "󰓎" : "󰓒"
-          tooltipText: on
-            ? Commons.I18n.t("agents.isDefault")
-            : Commons.I18n.t("agents.makeDefault").arg(root.lineName(section.provider))
-          foreground: on ? Commons.Color.accent : root.foreground
-          fontFamily: root.fontFamily
-          hasCursor: root.hasKey("providerStar", section.providerIndex)
-          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerStar", section.providerIndex) }
-          onClicked: root.makeDefault(section.provider, section.account)
-        }
-
         // Opens the coding agent made for this subscription: Codex for OpenAI,
-        // Claude Code for Anthropic. The default's line shows only its star
-        // until it's engaged.
+        // Claude Code for Anthropic. The default's line shows its star here
+        // instead until it's engaged.
         PanelActionButton {
           outlined: true
           id: sectionLaunch
@@ -2608,21 +2581,29 @@ Panel {
           }
         }
 
-        // Removing the line: on the line in use, leftmost.
+        // The default's star is filled: the default agent, and with several
+        // accounts the one in use. Another line's makes it the default.
         PanelActionButton {
           outlined: true
-          id: sectionRemove
+          id: sectionStar
           anchors.verticalCenter: parent.verticalCenter
-          visible: section.engaged && root.removable(section.provider)
-          iconText: "󰩹"
-          tooltipText: root.forgets(section.provider)
-            ? Commons.I18n.t("agents.forgetAccount").arg(root.lineName(section.provider))
-            : Commons.I18n.t("agents.hideProvider").arg(section.provider ? section.provider.providerName : "")
-          foreground: root.foreground
+          visible: root.defaultIdFor(section.provider) !== "" && !(on && section.engaged)
+          readonly property bool on: root.starred(section.provider, section.account)
+          // The default's star shows only at rest, in place of its buttons;
+          // another shows when it's engaged, and keeps its place either way so
+          // the terminal button doesn't move.
+          readonly property bool shown: on || section.engaged
+          opacity: shown ? 1 : 0
+          enabled: shown
+          iconText: on ? "󰓎" : "󰓒"
+          tooltipText: on
+            ? Commons.I18n.t("agents.isDefault")
+            : Commons.I18n.t("agents.makeDefault").arg(root.lineName(section.provider))
+          foreground: on ? Commons.Color.accent : root.foreground
           fontFamily: root.fontFamily
-          hasCursor: root.hasKey("providerRemove", section.providerIndex)
-          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerRemove", section.providerIndex) }
-          onClicked: root.deleteTarget = section.provider
+          hasCursor: root.hasKey("providerStar", section.providerIndex)
+          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerStar", section.providerIndex) }
+          onClicked: root.makeDefault(section.provider, section.account)
         }
       }
     }
