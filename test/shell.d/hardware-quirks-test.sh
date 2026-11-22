@@ -90,6 +90,11 @@ cat >"$stub_bin/omarchy-hw-aarch64-n1x" <<'SH'
 [[ $FAKE_PLATFORM == "aarch64-n1x" ]]
 SH
 
+cat >"$stub_bin/omarchy-hw-aarch64-apple" <<'SH'
+#!/bin/bash
+[[ $FAKE_PLATFORM == "aarch64-apple" ]]
+SH
+
 cat >"$stub_bin/lspci" <<'SH'
 #!/bin/bash
 printf '%b\n' "$FAKE_LSPCI"
@@ -254,6 +259,10 @@ machine() {
       ;;
     ideacentre-mini-x-no-firmware) dmi product_name 91B6; FAKE_PLATFORM=aarch64-qualcomm FAKE_MISSING_FIRMWARE="qcom/x1e80100/LENOVO/91B6/qcadsp8380.mbn" ;;
     snapdragon-unpackaged) dmi product_name "Aspire A14-11M"; FAKE_PLATFORM=aarch64-qualcomm FAKE_MISSING_FIRMWARE="qcom/x1e80100/ACER/AL14-31P/qcadsp8380.mbn" ;;
+    # Apple Silicon Wi-Fi: the M3 Pro's BCM4388, and the M1/M2 parts' BCM4387.
+    apple-bcm4388) FAKE_PLATFORM=aarch64-apple FAKE_LSPCI="0000:01:00.0 Network controller [0280]: Broadcom Inc. and subsidiaries BCM4388 [14e4:4434]" ;;
+    apple-bcm4387) FAKE_PLATFORM=aarch64-apple FAKE_LSPCI="0000:01:00.0 Network controller [0280]: Broadcom Inc. and subsidiaries BCM4387 [14e4:4433]" ;;
+    bcm4388-not-apple) FAKE_LSPCI="0000:01:00.0 Network controller [0280]: Broadcom Inc. and subsidiaries BCM4388 [14e4:4434]" ;;
     t14s-21n1) dmi product_name 21N10000US; FAKE_PLATFORM=aarch64-qualcomm ;;
     t14s-21n2) dmi product_name 21N20000US; FAKE_PLATFORM=aarch64-qualcomm ;;
     t14s-21n1-not-qualcomm) dmi product_name 21N10000US; FAKE_PLATFORM=aarch64 ;;
@@ -377,6 +386,7 @@ run_leaf() {
 # standing between it and any other machine.
 leaves=(
   hardware/apple/fix-spi-keyboard.sh
+  hardware/apple/wifi-powersave-bcm4388.sh
   hardware/n1x.sh
   hardware/fix-synaptic-touchpad.sh
   hardware/surface.sh
@@ -431,6 +441,10 @@ hardware/apple/fix-spi-keyboard.sh|macbookpro13|0|pkg-add macbook12-spi-driver-d
 hardware/apple/fix-spi-keyboard.sh|macbook8|0|pkg-add macbook12-spi-driver-dkms|wrote etc/mkinitcpio.conf.d/macbook_spi_modules.conf
 hardware/apple/fix-spi-keyboard.sh|macbookpro13+unreadable|0
 hardware/apple/fix-spi-keyboard.sh|macbookpro15|0
+# Measured on the BCM4388 only; other parts keep the global power save default.
+hardware/apple/wifi-powersave-bcm4388.sh|apple-bcm4388|0|wrote etc/NetworkManager/conf.d/omarchy-wifi-powersave_bcm4388.conf
+hardware/apple/wifi-powersave-bcm4388.sh|apple-bcm4387|0
+hardware/apple/wifi-powersave-bcm4388.sh|bcm4388-not-apple|0
 hardware/fix-synaptic-touchpad.sh|synaptics|0|modprobe psmouse synaptics_intertouch=1
 # Under arch-chroot the live kernel's modules are not the ones on disk.
 hardware/fix-synaptic-touchpad.sh|synaptics-chroot|0
