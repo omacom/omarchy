@@ -143,6 +143,9 @@ cat >"$stub_bin/pacman" <<'SH'
 name=${!#}
 providers=$(awk -v name="$name" '$1 == name { print $2 }' "$FAKE_PROVIDERS")
 case $1 in
+  -Q)
+    [[ $name == "virtualbox-guest-utils-nox" && ${FAKE_VBOX_NOX:-0} == "1" ]]
+    ;;
   -T)
     for package in $providers; do
       grep -qx "pkg-add $package" "$CALLS" && exit 0
@@ -201,7 +204,7 @@ machine() {
   : >"$hw/input-devices"
   FAKE_PLATFORM=x86 FAKE_LSMOD="" FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Alder Lake\n\tKernel driver in use: i915"
   FAKE_MODPROBE_RESOLVES=0 FAKE_MODPROBE_STATUS=0 FAKE_PKG_ADD_STATUS=0 FAKE_APPLY_STATUS=0 FAKE_MISSING_FIRMWARE="" FAKE_COMPATIBLE=""
-  FAKE_VIRT=none
+  FAKE_VIRT=none FAKE_VBOX_NOX=0
   unset OMARCHY_IMAGE_DEFERRED_HARDWARE
 
   dmi() { printf '%s\n' "$2" >"$hw/dmi/$1"; }
@@ -229,6 +232,8 @@ machine() {
     no-dmi) rm -rf "$hw/dmi" ;;
     virtualbox) FAKE_VIRT=oracle ;;
     virtualbox-first-boot) FAKE_VIRT=oracle; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
+    virtualbox-nox) FAKE_VIRT=oracle FAKE_VBOX_NOX=1 ;;
+    virtualbox-nox-first-boot) FAKE_VIRT=oracle FAKE_VBOX_NOX=1; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
     virtualbox-aarch64) FAKE_VIRT=oracle FAKE_PLATFORM=aarch64 ;;
     virtualbox-pkg-fails) FAKE_VIRT=oracle FAKE_PKG_ADD_STATUS=1 ;;
     vmware) FAKE_VIRT=vmware ;;
@@ -297,7 +302,7 @@ machine() {
     chmod 000 "$hw/dmi"/*
   fi
   export FAKE_PLATFORM FAKE_LSMOD FAKE_LSPCI FAKE_MODPROBE_RESOLVES FAKE_MODPROBE_STATUS FAKE_PKG_ADD_STATUS FAKE_APPLY_STATUS FAKE_MISSING_FIRMWARE FAKE_COMPATIBLE
-  export FAKE_VIRT
+  export FAKE_VIRT FAKE_VBOX_NOX
 }
 
 snapshot() {
@@ -378,6 +383,8 @@ while IFS='|' read -r leaf name want; do
 done <<'ROWS'
 hardware/virtualbox.sh|virtualbox|0|pkg-add virtualbox-guest-utils|sudo systemctl enable vboxservice.service
 hardware/virtualbox.sh|virtualbox-first-boot|0|pkg-add virtualbox-guest-utils|sudo systemctl enable vboxservice.service|sudo systemctl start --no-block vboxservice.service
+hardware/virtualbox.sh|virtualbox-nox|0|sudo systemctl enable vboxservice.service
+hardware/virtualbox.sh|virtualbox-nox-first-boot|0|sudo systemctl enable vboxservice.service|sudo systemctl start --no-block vboxservice.service
 hardware/virtualbox.sh|virtualbox-aarch64|0
 hardware/virtualbox.sh|vmware|0
 hardware/virtualbox.sh|qemu|0
