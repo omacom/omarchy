@@ -96,6 +96,7 @@ compose() {
   [[ $1 != "no-detector" ]] || path="$fixture/bin"
   KERNELVERSION=6.99.0-test KERNEL_MODULES="${KERNEL_MODULES-thunderbolt}" KERNEL_BUILTINS="${KERNEL_BUILTINS-}" \
     OMARCHY_PROC_ROOT="$fixture/proc" OMARCHY_PCI_DEVICES_PATH="$devices" \
+    OMARCHY_DRM_CLASS_PATH="$test_tmp/drm" \
     OMARCHY_MKINITCPIO_CONF_DIR="$etc/mkinitcpio.conf.d" PATH="$path" "$BASH" -c '
     . "$1" || exit 1
     printf "HOOKS=%s\nMODULES=%s\nFILES=%s\n" "${HOOKS[*]}" "${MODULES[*]}" "${FILES[*]}"

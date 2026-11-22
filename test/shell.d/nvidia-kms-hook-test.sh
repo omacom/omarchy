@@ -77,6 +77,7 @@ resolved_hooks() {
   # test stays independent of the machine it runs on.
   KERNELVERSION=6.99.0-test KERNEL_MODULES="${KERNEL_MODULES-thunderbolt i915 amdgpu}" \
     OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" OMARCHY_PROC_ROOT="$tmp_dir/generic/proc" \
+    OMARCHY_DRM_CLASS_PATH="$tmp_dir/drm" \
     OMARCHY_MKINITCPIO_CONF_DIR="${conf%/*}" PATH="$tmp_dir/generic/bin:$ROOT/bin:$PATH" bash -uc "
     FILES=()
     XKBLAYOUT=us
@@ -162,6 +163,13 @@ assert_hooks "offload-only NVIDIA drops kms" \
   "$nvidia_modules" "$without_kms"
 assert_modules "offload-only NVIDIA trades the nvidia modules for the iGPU driver" \
   "thunderbolt $nvidia_modules" "thunderbolt i915"
+
+mkdir -p "$tmp_dir/drm/privacy_screen-thinkpad_acpi"
+assert_hooks "an offload-only hybrid with a privacy screen keeps kms for its provider" \
+  "$nvidia_modules" "$with_kms"
+assert_modules "a privacy screen keeps the existing early modules" \
+  "$nvidia_modules" "$nvidia_modules"
+rmdir "$tmp_dir/drm/privacy_screen-thinkpad_acpi"
 
 write_pci_devices 0x1002:0x030000:boot_vga,module=amdgpu,output 0x10de:0x030200:drm
 assert_modules "offload-only NVIDIA beside an AMD iGPU early-loads amdgpu" \
