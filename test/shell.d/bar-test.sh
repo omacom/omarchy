@@ -511,7 +511,7 @@ assertDeepEqual(leftLast, { start: 8, end: 230 }, 'left last index joins its sti
 assertDeepEqual(bar.indicatorPeekSpan('end', 400, 0, 80, false), { start: 320, end: 400 }, 'without a section, end peeks along its growth side')
 assertDeepEqual(bar.indicatorPeekSpan('start', 500, 0, 80, false, 500, 560), { start: 500, end: 580 }, 'centerEnd peeks across its growth side')
 assertDeepEqual(bar.indicatorPeekSpan('end', 740, 0, 80, false, 740, 820), { start: 660, end: 820 }, 'notched centerEnd index 0 peeks across its still section')
-assertDeepEqual(bar.indicatorPeekSpan('center', 500, 0, 80, false), { start: 460, end: 540 }, 'center without a still section peeks equally both ways')
+assertDeepEqual(bar.indicatorPeekSpan('center', 500, 0, 80, false), { start: 420, end: 500 }, 'center keeps its peek off the following neighbour')
 assertDeepEqual(bar.indicatorPeekSpan('end', 640, 0, 80, false, 640, 760), { start: 560, end: 760 }, 'vertical bottom section peeks upward across the section')
 assertEqual(bar.indicatorPeekSpan('end', 870, 0, 0, false, 870, 960), null, 'nothing hidden means no peek')
 assertEqual(bar.indicatorPeekSpan('end', NaN, 0, 80, false), null, 'a missing edge produces no peek')

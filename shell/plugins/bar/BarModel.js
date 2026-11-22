@@ -662,8 +662,8 @@ function barSizeFor(sizes, screenName, fallback) {
 // "start" (left section, and centerEnd) grows toward higher coordinates.
 // "end" (right section, centerBegin, and centerEnd once a notch has moved
 // the center sections beside the right one) grows toward lower coordinates.
-// "center" grows both ways: the box re-centers, so the icons spread half of
-// `reach` to each side. `open` keeps only half of `reach` past the widget.
+// "center" re-centers as it grows, so its peek stays on the leading side:
+// reaching over a following neighbour could move it out from under the pointer.
 // The closed span sits inside that, so the pointer that opened the icons can
 // travel onto them without the span dropping it. Nothing hidden has no span.
 //
@@ -684,9 +684,8 @@ function indicatorPeekSpan(edge, origin, length, reach, open, sectionStart, sect
   var side = String(edge || "")
   var span
   if (side === "center") {
-    var wing = extra * 0.5
     var half = size / 2
-    span = { start: at - half - wing, end: at + half + wing }
+    span = { start: at - half - (open ? extra * 0.5 : extra), end: at + half }
   } else {
     var past = open ? extra * 0.5 : extra
     span = side === "start"

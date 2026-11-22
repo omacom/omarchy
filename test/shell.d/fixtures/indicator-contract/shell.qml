@@ -340,17 +340,17 @@ ShellRoot {
         config.bar.layout.right = []
       })
 
-      function awaitCenter(tries) {
+      function awaitCenter(tries, siblingRegion) {
         var indicators = slotsNamed("omarchy.indicators", "center")
-        var siblings = slotsNamed("test.sibling", "center")
+        var siblings = slotsNamed("test.sibling", siblingRegion)
         if (indicators.length !== 1 || siblings.length !== 1 || indicators[0].activeItem !== tray ||
             !tray.sectionItem || tray.sectionItem.fixedEdge !== "center" || tray.implicitWidth !== 0) {
           if (tries <= 0) {
-            fail("center peek: indicators did not settle hidden beside a centered sibling")
+            fail("center peek (" + siblingRegion + "): indicators did not settle hidden beside a sibling")
             finish()
             return
           }
-          root.after(150, function() { awaitCenter(tries - 1) })
+          root.after(150, function() { awaitCenter(tries - 1, siblingRegion) })
           return
         }
 
@@ -361,17 +361,25 @@ ShellRoot {
         var probe = sibling.mapToItem(surface, sibling.width / 2, sibling.height / 2)
         bar.syncIndicatorBarPeek(indicators[0].pool, surface, probe)
         root.assertTrue(!tray.indicatorBarHovered,
-          "center peek: hovering a centered sibling does not reveal indicators")
+          "center peek (" + siblingRegion + "): hovering a sibling does not reveal indicators")
         root.after(200, function() {
           root.layOut(surface)
           var after = sibling.mapToItem(surface, 0, 0)
           root.assertTrue(tray.implicitWidth === 0 && Math.abs(after.x - before.x) < 1,
-            "center peek: hovering the sibling keeps its click target still")
-          finish()
+            "center peek (" + siblingRegion + "): hovering the sibling keeps its click target still")
+          if (siblingRegion === "center") {
+            sectionPeekHost.mutateShellConfig(function(config) {
+              config.bar.layout.centerEnd = config.bar.layout.center.slice(1)
+              config.bar.layout.center = config.bar.layout.center.slice(0, 1)
+            })
+            root.after(150, function() { awaitCenter(12, "centerEnd") })
+          } else {
+            finish()
+          }
         })
       }
 
-      root.after(150, function() { awaitCenter(12) })
+      root.after(150, function() { awaitCenter(12, "center") })
     }
 
     function awaitPlacement(tries) {
