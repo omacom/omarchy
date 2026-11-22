@@ -317,6 +317,7 @@ machine() {
     wcn6855-card) ath12k 1103 ;;
     wcn6855-card-first-boot) ath12k 1103 board-data; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
     qualcomm-no-wifi) FAKE_LSPCI="0004:00:00.0 PCI bridge [0604]: Qualcomm Technologies, Inc SC8380XP PCIe Root Complex [17cb:0111]" ;;
+    alder-lake-p) FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Alder Lake-P Integrated Graphics Controller" ;;
     nouveau) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau" ;;
     nouveau-proprietary) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau"; : >"$hw/nvidia.conf" ;;
     *) fail "hardware-quirks-test knows the machine '$name'" ;;
@@ -563,6 +564,8 @@ hardware/fix-ath12k-board-data.sh|wcn7850-card-first-boot|0|pkg-add ath12k-board
 hardware/fix-ath12k-board-data.sh|wcn6855-card-first-boot|0|pkg-add ath12k-board-fallback|wrote sys/bus/pci/drivers/ath11k_pci/bind|wrote sys/bus/pci/drivers/ath11k_pci/unbind
 # Wildcat Lake's GPU is named only "[Intel Graphics]".
 hardware/intel/video-acceleration.sh|xps13-wcl|0|pkg-add intel-media-driver libvpl vpl-gpu-rt
+# Alder Lake-P's GPU is named only "Integrated Graphics Controller".
+hardware/intel/video-acceleration.sh|alder-lake-p|0|pkg-add intel-media-driver libvpl vpl-gpu-rt
 hardware/intel/video-acceleration.sh|nouveau|0
 user/hardware/fix-nouveau-cursor.sh|nouveau|0|wrote home/.config/hypr/looknfeel.lua
 # Supported GPUs still use nouveau during installation before switching drivers on reboot.
