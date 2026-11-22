@@ -8,7 +8,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 # system drive under / and a data drive, and blkid has the empty cache a user
 # sees until root runs blkid in that boot; cryptsetup is either a slot-table fake
 # or the real binary on file-backed volumes; a chpasswd fake shows the login and
-# root passwords never change. Each cryptsetup call is a crash point, so a run
+# root passwords never change without --login. Each cryptsetup call is a crash point, so a run
 # can be killed after every step and rerun, like a power loss. The runs repeat on an Apple fixture,
 # where a fake boot package records the owner's slot through the real
 # omarchy-lifecycle-dispatch; on the x86 fixture that is a no-op.
@@ -102,9 +102,15 @@ done
 exec "$@"
 SH
 
+cat >"$tmp/bin/passwd" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >"$TEST_TMP/passwd-called"
+SH
+
 cat >"$tmp/bin/chpasswd" <<'SH'
 #!/bin/bash
 source "$TEST_TMP/crash.sh"
+[[ -z ${TEST_CHPASSWD_FAIL:-} ]] || exit 1
 IFS= read -r line
 name=${line%%:*}
 {
@@ -311,8 +317,9 @@ volume() {
 
 # / on the system drive, which also holds a recovery key; a data drive beside it.
 fixture() {
-  rm -rf "$tmp/state" "$tmp/output" "$tmp/trace" "$tmp/offered" "$tmp"/dev/* "$tmp/slot-record" "$tmp/record-fail" "$tmp/owner-slot" "$tmp/owner-query-fail" "$tmp/owner-query-garbage" "$tmp/owner-unrecorded"
-  unset TEST_ENROLL_AT_PROMPT TEST_ENROLL_DEVICE TEST_OPEN_FAIL TEST_CHANGE_FAIL TEST_CHANGE_PARTIAL TEST_KILL_FAIL TEST_FINDMNT_FAIL TEST_TOKEN_SLOT CRASH_ORPHAN
+  run_args=()
+  rm -rf "$tmp/state" "$tmp/output" "$tmp/trace" "$tmp/passwd-called" "$tmp/offered" "$tmp"/dev/* "$tmp/slot-record" "$tmp/record-fail" "$tmp/owner-slot" "$tmp/owner-query-fail" "$tmp/owner-query-garbage" "$tmp/owner-unrecorded"
+  unset TEST_CHPASSWD_FAIL TEST_ENROLL_AT_PROMPT TEST_ENROLL_DEVICE TEST_OPEN_FAIL TEST_CHANGE_FAIL TEST_CHANGE_PARTIAL TEST_KILL_FAIL TEST_FINDMNT_FAIL TEST_TOKEN_SLOT CRASH_ORPHAN
   system=$tmp/dev/system
   recovery=${1-$recovery_key}
   volume "$system" "$old_password" "$recovery"
@@ -334,7 +341,7 @@ attempt() {
   echo "$crash_at" >"$tmp/crash-at"
   : >"$tmp/trace"
   {
-    CRASH_AT=$crash_at bash -c 'TEST_PID=$$ exec bash ${TEST_TRACE:+-x} "$0"' "$ROOT/bin/omarchy-drive-password"
+    CRASH_AT=$crash_at bash -c 'TEST_PID=$$ exec bash ${TEST_TRACE:+-x} "$0" "$@"' "$ROOT/bin/omarchy-drive-password" "${run_args[@]}"
   } >>"$tmp/output" 2>&1
 }
 
@@ -721,6 +728,60 @@ attempt 0 "$data_password" "$new_password" "$new_password" || fail "an unencrypt
 [[ -n $(opens "$data" "$new_password") ]] || fail "an unencrypted root still changes the data drive"
 untouched_accounts "unencrypted root"
 pass "with / unencrypted, every encrypted drive changes alone"
+
+# --login changes the system disk without offering a drive, then the login
+# password to match; root keeps its own.
+fixture
+run_args=(--login)
+attempt 0 "$old_password" "$new_password" "$new_password" || fail "--login changes the system disk and login password" "$(cat "$tmp/output")"
+[[ ! -e $tmp/offered && -n $(opens "$system" "$new_password") && -z $(opens "$system" "$old_password") ]] ||
+  fail "--login changes the system disk without offering a drive" "$(cat "$tmp/output")"
+[[ $(account owner) == "$new_password" && $(account root) == "$old_password" ]] ||
+  fail "--login sets the login password and leaves root's" "$(cat "$tmp/accounts")"
+[[ $(opens "$data" "$data_password") == "0" && ! -e $journal ]] || fail "--login leaves the data drive alone and no journal"
+no_secrets "--login"
+pass "--login changes the system disk's password and the login password together"
+
+# Killed after the disk took the new key, a rerun with --login finishes the
+# change and then sets the login password to the one the disk settled on.
+for (( step = 1; ; step++ )); do
+  fixture
+  run_args=(--login)
+  if attempt "$step" "$old_password" "$new_password" "$new_password"; then fail "--login: no step leaves a journal with the new key"; fi
+  [[ ! -e $journal || -z $(opens "$system" "$new_password") ]] || break
+done
+[[ $(account owner) == "$old_password" ]] || fail "--login: the login password waits for the disk's change to finish"
+attempt 0 "$new_password" "$new_password" "$old_password" || fail "--login: the rerun finishes" "$(cat "$tmp/output")"
+[[ ! -e $journal && $(account owner) == "$new_password" && $(account root) == "$old_password" ]] ||
+  fail "--login: the rerun sets the login password to the disk's" "$(cat "$tmp/accounts" "$tmp/output")"
+pass "--login: an interrupted change sets the login password once a rerun finishes the disk's"
+
+# A login password that fails to follow keeps the journal, and the next run,
+# with or without --login, sets it from the disk's new password.
+fixture
+run_args=(--login)
+export TEST_CHPASSWD_FAIL=1
+if attempt 0 "$old_password" "$new_password" "$new_password"; then fail "--login: a failed login password change fails the command"; fi
+unset TEST_CHPASSWD_FAIL
+[[ -n $(opens "$system" "$new_password") && $(account owner) == "$old_password" ]] && grep -qx 'phase=login' "$journal" ||
+  fail "--login: the disk keeps its new key and the journal waits for the login password" "$(cat "$journal" "$tmp/output" 2>&1)"
+no_secrets "--login: login password pending"
+run_args=()
+if attempt 0 "$old_password"; then fail "--login: the old password does not finish a confirmed change"; fi
+[[ $(account owner) == "$old_password" && -e $journal ]] || fail "--login: a refused rerun keeps the login password and the journal"
+attempt 0 "$new_password" || fail "--login: a rerun finishes the login password" "$(cat "$tmp/output")"
+[[ ! -e $journal && $(account owner) == "$new_password" && $(account root) == "$old_password" ]] ||
+  fail "--login: a rerun sets the pending login password" "$(cat "$tmp/accounts" "$tmp/output")"
+pass "--login: a login password that failed to follow is set by the next run"
+
+fixture
+printf '/dev/mapper/root part ext4\n/dev/fake-disk disk \n' >"$tmp/root-ancestry"
+run_args=(--login)
+attempt 0 || fail "--login with / unencrypted runs passwd" "$(cat "$tmp/output")"
+[[ $(cat "$tmp/passwd-called" 2>/dev/null) == "owner" ]] && ! grep -q 'cryptsetup\|chpasswd' "$tmp/sudo-calls" ||
+  fail "--login with / unencrypted changes only the login password with passwd" "$(cat "$tmp/sudo-calls")"
+[[ $(opens "$data" "$data_password") == "0" ]] || fail "--login with / unencrypted leaves encrypted data drives alone"
+pass "--login with / unencrypted changes the login password alone"
 
 fixture
 mkdir -p "${journal%/*}"
