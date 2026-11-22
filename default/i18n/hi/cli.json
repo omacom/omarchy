@@ -47,8 +47,6 @@
   "agents.signedInAgain": "%1 में फिर से साइन इन किया।",
   "agents.stayingOn": "%1 पर ही रह रहे हैं।",
   "agents.stayingOnUntil": "%1 पर ही रह रहे हैं। %2 %3 में रीसेट होगा।",
-  "agents.switchedAllBody": "%1 सत्र अब %2 का उपयोग करते हैं (%3%), चल रहे सत्रों सहित।",
-  "agents.switchedBody": "नए %1 सत्र अब %2 का उपयोग करते हैं (%3%)।\nचल रहे सत्र %4 पर ही रहेंगे।",
   "agents.wrongAccount": "यह %1 है, %2 नहीं। पुनः प्रयास करें, और %2 के रूप में साइन इन करें।",
   "animations.disabled": "एनिमेशन अक्षम किया गया",
   "animations.enabled": "एनिमेशन सक्षम किया गया",

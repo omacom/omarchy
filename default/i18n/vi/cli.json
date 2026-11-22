@@ -46,8 +46,6 @@
   "agents.signedInAgain": "Đã đăng nhập lại vào %1.",
   "agents.stayingOn": "Tiếp tục dùng %1.",
   "agents.stayingOnUntil": "Tiếp tục dùng %1. %2 đặt lại sau %3.",
-  "agents.switchedAllBody": "Phiên %1 giờ dùng %2 (%3%), kể cả phiên đang chạy.",
-  "agents.switchedBody": "Phiên %1 mới giờ dùng %2 (%3%).\nPhiên đang chạy vẫn dùng %4.",
   "agents.wrongAccount": "Đó là %1, không phải %2. Thử lại và đăng nhập bằng %2.",
   "animations.disabled": "Đã tắt hiệu ứng",
   "animations.enabled": "Đã bật hiệu ứng",

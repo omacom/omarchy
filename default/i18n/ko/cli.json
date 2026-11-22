@@ -46,8 +46,6 @@
   "agents.signedInAgain": "%1에 다시 로그인했습니다.",
   "agents.stayingOn": "%1을(를) 계속 사용합니다.",
   "agents.stayingOnUntil": "%1을(를) 계속 사용합니다. %2은(는) %3 후 초기화됩니다.",
-  "agents.switchedAllBody": "%1 세션은 이제 %2을(를) 사용합니다 (%3%), 실행 중인 세션도 포함됩니다.",
-  "agents.switchedBody": "새 %1 세션은 이제 %2을(를) 사용합니다 (%3%).\n실행 중인 세션은 %4을(를) 계속 사용합니다.",
   "agents.wrongAccount": "%1 계정입니다. %2 계정이 아닙니다. 다시 시도하고, %2 계정으로 로그인하세요.",
   "animations.disabled": "애니메이션 비활성화됨",
   "animations.enabled": "애니메이션 활성화됨",

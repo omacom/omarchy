@@ -48,8 +48,6 @@
   "agents.signedInAgain": "מחובר ל-%1 שוב.",
   "agents.stayingOn": "נשאר על %1.",
   "agents.stayingOnUntil": "נשאר על %1. %2 יתאפס בעוד %3.",
-  "agents.switchedAllBody": "הפעלות %1 משתמשות כעת ב-%2 (%3%), כולל הפעילות.",
-  "agents.switchedBody": "הפעלות %1 חדשות משתמשות כעת ב-%2 (%3%).\nהפעלות פעילות נשארות על %4.",
   "agents.wrongAccount": "זה %1, לא %2. נסו שוב והתחברו בתור %2.",
   "animations.disabled": "ההנפשות כבויות",
   "animations.enabled": "ההנפשות פעילות",

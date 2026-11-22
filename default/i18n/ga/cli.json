@@ -50,8 +50,6 @@
   "agents.signedInAgain": "Sínithe isteach i %1 arís.",
   "agents.stayingOn": "Ag fanacht ar %1.",
   "agents.stayingOnUntil": "Ag fanacht ar %1. Athshocraíonn %2 i gceann %3.",
-  "agents.switchedAllBody": "Úsáideann seisiúin %1 %2 (%3%) anois, cinn atá ag rith san áireamh.",
-  "agents.switchedBody": "Úsáideann seisiúin nua %1 %2 (%3%) anois.\nFanann seisiúin atá ag rith ar %4.",
   "agents.wrongAccount": "Sin %1, ní %2. Bain triail eile as, agus sínigh isteach mar %2.",
   "animations.disabled": "Beochana díchumasaithe",
   "animations.enabled": "Beochana cumasaithe",

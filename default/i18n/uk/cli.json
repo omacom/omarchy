@@ -49,8 +49,6 @@
   "agents.signedInAgain": "Ви знову увійшли до %1.",
   "agents.stayingOn": "Залишаємося на %1.",
   "agents.stayingOnUntil": "Залишаємося на %1. %2 скидається через %3.",
-  "agents.switchedAllBody": "Сеанси %1 тепер використовують %2 (%3%), включно із запущеними.",
-  "agents.switchedBody": "Нові сеанси %1 тепер використовують %2 (%3%).\nАктивні сеанси залишаються на %4.",
   "agents.wrongAccount": "Це %1, а не %2. Спробуйте ще раз і увійдіть як %2.",
   "animations.disabled": "Анімації вимкнено",
   "animations.enabled": "Анімації ввімкнено",

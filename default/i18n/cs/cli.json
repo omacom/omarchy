@@ -48,8 +48,6 @@
   "agents.signedInAgain": "Znovu přihlášeno k %1.",
   "agents.stayingOn": "Zůstává %1.",
   "agents.stayingOnUntil": "Zůstává %1. %2 se resetuje za %3.",
-  "agents.switchedAllBody": "Relace %1 nyní používají %2 (%3%), včetně běžících.",
-  "agents.switchedBody": "Nové relace %1 nyní používají %2 (%3%).\nBěžící relace zůstávají na %4.",
   "agents.wrongAccount": "To je %1, ne %2. Zkuste to znovu a přihlaste se jako %2.",
   "animations.disabled": "Animace vypnuty",
   "animations.enabled": "Animace zapnuty",

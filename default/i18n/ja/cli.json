@@ -46,8 +46,6 @@
   "agents.signedInAgain": "%1 に再度サインインしました。",
   "agents.stayingOn": "%1 のままにします。",
   "agents.stayingOnUntil": "%1 のままにします。%2 は %3 後にリセットされます。",
-  "agents.switchedAllBody": "%1セッションでは%2（%3%）が使用されます。実行中のセッションも含みます。",
-  "agents.switchedBody": "新しい %1 セッションでは %2（%3%）が使用されます。\n実行中のセッションは %4 のままです。",
   "agents.wrongAccount": "それは%1で、%2ではありません。もう一度試し、%2としてサインインしてください。",
   "animations.disabled": "アニメーションを無効にしました",
   "animations.enabled": "アニメーションを有効にしました",

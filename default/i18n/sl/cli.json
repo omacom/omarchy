@@ -49,8 +49,6 @@
   "agents.signedInAgain": "Znova ste prijavljeni v %1.",
   "agents.stayingOn": "Ostajamo na %1.",
   "agents.stayingOnUntil": "Ostajamo na %1. %2 se ponastavi čez %3.",
-  "agents.switchedAllBody": "Seje %1 zdaj uporabljajo %2 (%3 %), tudi aktivne.",
-  "agents.switchedBody": "Nove seje %1 zdaj uporabljajo %2 (%3 %).\nAktivne seje ostanejo na %4.",
   "agents.wrongAccount": "To je %1, ne %2. Poskusite znova in se prijavite kot %2.",
   "animations.disabled": "Animacije onemogočene",
   "animations.enabled": "Animacije omogočene",

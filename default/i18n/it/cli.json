@@ -48,8 +48,6 @@
   "agents.signedInAgain": "Accesso effettuato di nuovo a %1.",
   "agents.stayingOn": "Resti su %1.",
   "agents.stayingOnUntil": "Resti su %1. %2 si azzera tra %3.",
-  "agents.switchedAllBody": "Le sessioni %1 ora usano %2 (%3%), comprese quelle in corso.",
-  "agents.switchedBody": "Le nuove sessioni %1 ora usano %2 (%3%).\nLe sessioni in corso restano su %4.",
   "agents.wrongAccount": "È %1, non %2. Riprova e accedi come %2.",
   "animations.disabled": "Animazioni disattivate",
   "animations.enabled": "Animazioni attivate",

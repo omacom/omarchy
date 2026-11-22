@@ -51,8 +51,6 @@
   "agents.signedInAgain": "تم تسجيل الدخول إلى %1 مجددًا.",
   "agents.stayingOn": "البقاء على %1.",
   "agents.stayingOnUntil": "البقاء على %1. يُعاد تعيين %2 بعد %3.",
-  "agents.switchedAllBody": "جلسات %1 تستخدم الآن %2 (%3%)، بما في ذلك الجارية.",
-  "agents.switchedBody": "جلسات %1 الجديدة تستخدم الآن %2 (%3%).\nتبقى الجلسات الجارية على %4.",
   "agents.wrongAccount": "هذا %1، وليس %2. حاول مجددًا، وسجّل الدخول باسم %2.",
   "animations.disabled": "عُطّلت الرسوم المتحركة",
   "animations.enabled": "فُعّلت الرسوم المتحركة",

@@ -47,8 +47,6 @@
   "agents.signedInAgain": "%1-sse uuesti sisse logitud.",
   "agents.stayingOn": "Jäädakse %1 juurde.",
   "agents.stayingOnUntil": "Jäädakse %1 juurde. %2 lähtestub %3 pärast.",
-  "agents.switchedAllBody": "%1-seansid kasutavad nüüd %2 (%3%), kaasa arvatud käimasolevad.",
-  "agents.switchedBody": "Uued %1-seansid kasutavad nüüd %2 (%3%).\nTöötavad seansid jäävad %4 juurde.",
   "agents.wrongAccount": "See on %1, mitte %2. Proovi uuesti ja logi sisse %2-na.",
   "animations.disabled": "Animatsioonid keelatud",
   "animations.enabled": "Animatsioonid lubatud",

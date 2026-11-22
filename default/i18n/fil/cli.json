@@ -47,8 +47,6 @@
   "agents.signedInAgain": "Naka-sign in ulit sa %1.",
   "agents.stayingOn": "Mananatili sa %1.",
   "agents.stayingOnUntil": "Mananatili sa %1. Magre-reset ang %2 pagkalipas ng %3.",
-  "agents.switchedAllBody": "Gumagamit na ngayon ng %2 ang mga session na %1 (%3%), kasama na ang mga tumatakbo.",
-  "agents.switchedBody": "Gumagamit na ngayon ng %2 ang mga bagong session na %1 (%3%).\nMananatili sa %4 ang mga tumatakbong session.",
   "agents.wrongAccount": "Iyan ang %1, hindi ang %2. Subukan ulit, at mag-sign in bilang %2.",
   "animations.disabled": "Naka-disable ang animasyon",
   "animations.enabled": "Naka-enable ang animasyon",
