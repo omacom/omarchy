@@ -64,6 +64,9 @@ AUTH_HELP = "Run `agy` to sign in, or sign in to Antigravity in omp, pi, or open
 # How each source of a sign-in is named when it needs attention.
 SOURCE_NAMES = {"agy": "`agy`", "omp": "omp", "pi": "pi", "opencode": "opencode"}
 DEFAULT_CLOUD_CODE_URL = "https://daily-cloudcode-pa.googleapis.com"
+# Google omits Gemini quota for an unversioned client. Use a compatible
+# release without running agy, since Omarchy's lazy launcher can install it.
+QUOTA_USER_AGENT = "antigravity/cli/1.5.14"
 
 
 def app_root():
@@ -214,10 +217,10 @@ def email_of(id_token):
 # Which Google account a sign-in belongs to, so the limits kept for it are
 # its own: the email when the sign-in names one, otherwise its refresh token,
 # which outlives the access tokens it mints. Only a digest of either names
-# the cache file.
+# the cache file. Keep answers from before Gemini was requested out of it.
 def limits_cache(entry):
   identity = entry.get("email") or entry.get("refresh") or entry.get("accessToken")
-  return LimitsCache(AGENT_ID, identity) if identity else None
+  return LimitsCache(AGENT_ID, "gemini-quota:" + identity) if identity else None
 
 
 def token_fresh(entry, now):
@@ -305,7 +308,7 @@ def extract_limits(data):
     groups = [{"displayName": "Gemini", "buckets": data["buckets"]}]
   if not groups:
     return []
-  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), groups[0])
+  gemini = next((g for g in groups if str(g.get("displayName") or "").strip().casefold() in ("gemini", "gemini models")), {})
   if not listed(gemini, "buckets"):
     return None
 
@@ -347,7 +350,7 @@ def post(endpoint, token, body=None):
     base = DEFAULT_CLOUD_CODE_URL
   request = urllib.request.Request(
     f"{base}/v1internal:{endpoint}", data=json.dumps(body or {}).encode(),
-    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "antigravity"},
+    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": QUOTA_USER_AGENT},
   )
   return open_json(request, timeout=8)
 

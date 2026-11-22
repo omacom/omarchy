@@ -92,6 +92,24 @@ read = limits({"groups": [
 ]})
 expect("Antigravity collector finds the Gemini group wherever it is listed", [(entry["label"], entry["percent"]) for entry in read], [("Weekly (7-day)", 0.5)], read)
 
+allowances = [
+  {"displayName": "Claude and GPT models", "buckets": [
+    {"bucketId": "3p-5h", "window": "5h", "remainingFraction": 1.0},
+    {"bucketId": "3p-weekly", "window": "weekly", "remainingFraction": 0.9},
+  ]},
+  {"displayName": "Gemini 4 Argon", "buckets": [
+    {"window": "weekly", "remainingFraction": 0.8},
+  ]},
+]
+for groups, expected in [
+  (allowances, [("Claude/GPT Weekly", 0.1), ("Gemini 4 Argon Weekly", 0.2)]),
+  (allowances[::-1] + [{"displayName": "Gemini Models", "buckets": [{"window": "weekly", "remainingFraction": 0.6}]}],
+   [("Weekly", 0.4), ("Gemini 4 Argon Weekly", 0.2), ("Claude/GPT Weekly", 0.1)]),
+]:
+  read = limits({"groups": groups})
+  expect("Antigravity collector keeps Claude/GPT and Argon separate from the Gemini plan",
+         [(entry["title"], entry["percent"]) for entry in read], expected, read)
+
 read = limits({"buckets": [
   {"window": "5h", "remaining_fraction": 0.4, "reset_time": "2026-09-15T19:31:46Z"},
   {"window": "weekly", "remainingFraction": "plenty"},
@@ -148,6 +166,8 @@ check_scan_cache(adapter)
 
 record, http = agy()
 expect("Antigravity collector asks with agy's token", {r["headers"].get("authorization") for r in http.requests}, {"Bearer token-main"})
+expect("Antigravity collector asks as a versioned CLI so Google includes Gemini quota",
+       {r["headers"].get("user-agent") for r in http.requests}, {"antigravity/cli/1.5.14"})
 
 # agy's RetrieveUserQuotaSummaryRequest carries the project, which omp sends
 # from loadCodeAssist's cloudaicompanionProject, named as a string or {id}.
