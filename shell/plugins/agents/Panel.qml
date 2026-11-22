@@ -2734,9 +2734,9 @@ Panel {
 
     // Against a real monthly cap the spend is this month's meter; without
     // one, a bar for each of the last 30 days, scaled to the busiest, shows
-    // where it went.
+    // where it went. A section with a balance shows that alone.
     Item {
-      visible: !!section.spend
+      visible: !!section.spend && !section.balance
       width: parent.width
       implicitHeight: spendTitle.implicitHeight
 
