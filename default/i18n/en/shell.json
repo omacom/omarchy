@@ -78,6 +78,7 @@
   "agents.loginBrowser": "Log in through your browser",
   "agents.hideProviderConfirm": "Hide %1 from the panel? Credentials and sign-in will be kept.",
   "agents.launchHarness": "Start %1",
+  "agents.openDesktopApp": "Open %1",
   "agents.spendEstimated": "≈ %1",
   "agents.spendLast30Days": "Last 30 days",
   "agents.spendOfCap": "%1 of %2",

@@ -51,6 +51,49 @@ for (const name of ['claude', 'codex', 'grok', 'fireworks']) {
 }
 JS
 
+# Enter on an agent's header opens the installed desktop app or starts its
+# terminal harness, depending on which button the keyboard reached.
+run_node_test <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const entries = [{id: 'other-editor'}]
+const actions = []
+const panel = vm.createContext({
+  providers: [{providerId: 'codex'}],
+  harnesses: {codex: 'codex'}, desktopApps: {codex: 'chatgpt'},
+  DesktopEntries: {applications: {values: entries}, byId: id => entries.find(entry => entry.id === id)},
+  desktopWindows: [], Util: {execArgv: argv => actions.push(argv)}, close() {},
+  addButtonShown: false, picking: false, addStage: '', starterShown: false,
+  providerAccounts: () => [], needsSignIn: () => false
+})
+panel.root = panel
+for (const name of ['harnessFor', 'desktopFor', 'lineStop', 'lineStops', 'launchHarness', 'launchDesktop', 'activateSelection']) {
+  const match = source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))
+  if (match) vm.runInContext(match[0], panel)
+}
+const keyRows = source.match(/readonly property var keyRows: (\{[^]*?\n  \})/)[1]
+function header() { return vm.runInContext('(() => ' + keyRows + ')()', panel)[0] }
+assertDeepEqual(header(), [{kind: 'providerLaunch', index: 0}], 'an absent desktop app leaves only the terminal action')
+entries.push({id: 'chatgpt', startupClass: 'ChatGPT'})
+const buttons = header()
+assertDeepEqual(buttons.map(button => button.kind), ['providerDesktop', 'providerLaunch'], 'an installed app adds a separate keyboard stop')
+for (const button of buttons) {
+  panel.keyTarget = button
+  panel.activateSelection(0)
+}
+assertDeepEqual(actions, [['uwsm-app', '--', 'gtk-launch', 'chatgpt.desktop'], ['omarchy-agent', '--agent', 'codex']],
+  'Enter runs the selected desktop entry or the terminal harness')
+panel.desktopWindows.push(
+  {appId: 'org.omarchy.codex', activate: () => actions.push('raised terminal')},
+  {appId: 'Codex', activate: () => actions.push('raised desktop')}
+)
+actions.length = 0
+panel.keyTarget = buttons[0]
+panel.activateSelection(0)
+assertDeepEqual(actions, ['raised desktop'], 'Enter raises the open Codex desktop window even with a Codex terminal present')
+JS
+
 # The panel reads a window out of a label, and that guess cannot survive a
 # model name — "Opus 5 (1M context)" parses as a one-minute window. A collector
 # that states the title outright is taken at its word.

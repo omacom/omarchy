@@ -1,7 +1,9 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -35,7 +37,7 @@ Panel {
   property var deleteTarget: null
   function deleteSelected() {
     var target = keyTarget
-    if (!target || ["provider", "providerLaunch"].indexOf(target.kind) < 0) return
+    if (!target || !isProviderLine(target.kind)) return
     deleteTarget = providers[target.index]
   }
 
@@ -97,9 +99,7 @@ Panel {
       // comes first, and the active account with nothing to fix is skipped.
       var entry = 0
       for (var p = 0; p < providers.length; p++) {
-        // Every agent's line is a stop, so Ctrl+Up/Down can move it: its
-        // terminal button when it has a harness of its own, else its mark.
-        rows.push([{ kind: lineStop(p), index: p }])
+        rows.push(lineStops(p))
         var accounts = providerAccounts(providers[p])
         if (accounts.length < 2) {
           if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
@@ -147,13 +147,24 @@ Panel {
     }
   }
 
-  // The first arrow only shows where the cursor is, as in the other panels.
-  // A line's rightmost button, where the cursor lands on it: its terminal,
-  // or the mark for a line with no button.
-  function lineStop(p) {
+  function isProviderLine(kind) {
+    return kind === "provider" || kind === "providerDesktop" || kind === "providerLaunch"
+  }
+
+  // The rightmost action is the terminal where there is one. A line with
+  // no actions still has its mark so it can be reordered or hidden.
+  function lineStops(p) {
     var provider = providers[p]
-    if (!provider) return "provider"
-    return harnessFor(provider) !== "" ? "providerLaunch" : "provider"
+    var row = []
+    if (desktopFor(provider)) row.push({ kind: "providerDesktop", index: p })
+    if (harnessFor(provider) !== "") row.push({ kind: "providerLaunch", index: p })
+    if (!row.length) row.push({ kind: "provider", index: p })
+    return row
+  }
+
+  function lineStop(p) {
+    var row = lineStops(p)
+    return row[row.length - 1].kind
   }
 
   function moveKey(dx, dy) {
@@ -171,7 +182,7 @@ Panel {
       var row = keyRows[keyRow]
       var use = -1
       for (var c = 0; c < row.length; c++) if (row[c].kind === "account") use = c
-      var line = ["provider", "providerLaunch"].indexOf(row[0].kind) >= 0
+      var line = isProviderLine(row[0].kind)
       keyColumn = use >= 0 ? use : line ? row.length - 1 : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
       // A row can go while the cursor is on it, like the starters when the
@@ -185,7 +196,7 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch"].indexOf(target.kind) >= 0) return target.index
+    if (isProviderLine(target.kind) || target.kind === "providerSignin") return target.index
     if (["account", "signin"].indexOf(target.kind) < 0) return -1
     var entry = accountEntries[target.index]
     return entry ? providers.indexOf(entry.provider) : -1
@@ -568,6 +579,7 @@ Panel {
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
     else if (target.kind === "pasteCode") openPasteField()
     else if (target.kind === "reopenSignIn") reopenSignIn()
+    else if (target.kind === "providerDesktop") launchDesktop(providers[target.index])
     else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind, modifiers)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
@@ -704,6 +716,42 @@ Panel {
     if (harness === "") return
     Util.execArgv(["omarchy-agent", "--agent", harness])
     root.close()
+  }
+
+  readonly property var desktopApps: ({
+    agy: "antigravity",
+    claude: "com.anthropic.Claude",
+    codex: "chatgpt",
+    cursor: "cursor",
+    grok: "grok-bot",
+    grokbot: "grok-bot",
+    hermes: "hermes-desktop",
+    opencode: "ai.opencode.desktop"
+  })
+  readonly property var desktopWindows: ToplevelManager.toplevels.values
+
+  function desktopFor(provider) {
+    var id = provider && desktopApps[provider.providerId]
+    if (typeof id !== "string" || !DesktopEntries.applications.values.length) return null
+    return DesktopEntries.byId(id)
+  }
+
+  function launchDesktop(provider) {
+    var entry = desktopFor(provider)
+    if (!entry) return
+    root.close()
+    var id = entry.id.toLowerCase()
+    var startupClass = entry.startupClass.toLowerCase()
+    for (var win of desktopWindows) {
+      var appId = win.appId.toLowerCase()
+      // ChatGPT also uses the Codex app id. The harness lives in a terminal
+      // with its own id (org.omarchy.codex), which must never claim this action.
+      if (!win.parent && appId && (appId === id || appId === startupClass || (id === "chatgpt" && appId === "codex"))) {
+        win.activate()
+        return
+      }
+    }
+    Util.execArgv(["uwsm-app", "--", "gtk-launch", entry.id + ".desktop"])
   }
 
   // ---------------------------------------------------------------- limits
@@ -1702,6 +1750,20 @@ Panel {
     }
   }
 
+  component ProviderAction: PanelActionButton {
+    id: action
+    required property string kind
+    required property int providerIndex
+    foreground: root.foreground
+    fontFamily: root.fontFamily
+    hasCursor: root.hasKey(kind, providerIndex)
+    onHasCursorChanged: if (hasCursor && root.dragProviderId === "") root.revealItem(action)
+    onHovered: function(over) { if (over) root.pointAt(kind, providerIndex) }
+    Accessible.role: Accessible.Button
+    Accessible.name: tooltipText
+    Accessible.onPressAction: clicked()
+  }
+
   // One provider: its mark, name, and plan, then its limits — or, with
   // several accounts, each account's name, state, and limits in turn. A
   // prepaid provider shows its balance instead.
@@ -1709,6 +1771,7 @@ Panel {
     id: section
     property var provider: null
     property int providerIndex: -1
+    readonly property var desktop: root.desktopFor(provider)
     readonly property var accounts: root.providerAccounts(provider)
     readonly property bool multi: accounts.length > 1
     readonly property var windows: root.displayWindows(provider)
@@ -1736,7 +1799,7 @@ Panel {
     Item {
       id: sectionHead
       width: parent.width
-      implicitHeight: Math.max(sectionMark.height, sectionName.implicitHeight)
+      implicitHeight: Math.max(sectionMark.height, labels.implicitHeight)
       // Lit for the keyboard, and as the drop spot while an agent is dragged.
       readonly property bool lit: root.dragProviderId !== "" ? root.dragTarget === section.providerIndex : root.hasKey("provider", section.providerIndex)
       onLitChanged: if (lit && root.dragProviderId === "") root.revealItem(sectionHead)
@@ -1774,54 +1837,70 @@ Panel {
         }
       }
 
-      Text {
-        id: sectionName
+      RowLayout {
+        id: labels
         anchors.left: sectionMark.right
         anchors.leftMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
-        textFormat: Text.PlainText
-        text: section.provider ? section.provider.providerName : ""
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.body
-        font.bold: true
+        width: Math.min(implicitWidth, Math.max(0, sectionHead.width - sectionMark.width
+          - anchors.leftMargin - actions.width - (actions.width ? Style.space(8) : 0)))
+        spacing: Style.space(8)
+
+        Text {
+          Layout.minimumWidth: 0
+          Layout.alignment: Qt.AlignBaseline
+          elide: Text.ElideRight
+          textFormat: Text.PlainText
+          text: section.provider ? section.provider.providerName : ""
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          font.bold: true
+        }
+
+        // The plan reads as part of the name: Claude Max 20x.
+        Text {
+          Layout.fillWidth: true
+          Layout.minimumWidth: 0
+          Layout.alignment: Qt.AlignBaseline
+          visible: !section.multi && text !== ""
+          elide: Text.ElideRight
+          textFormat: Text.PlainText
+          text: root.planLabel(section.provider)
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        UsageNote {
+          visible: !section.multi && message !== ""
+          record: section.provider
+        }
       }
 
-      // The plan reads as part of the name: Claude Max 20x.
-      Text {
-        id: sectionPlan
-        anchors.left: sectionName.right
-        anchors.leftMargin: Style.space(8)
-        anchors.baseline: sectionName.baseline
-        visible: !section.multi && text !== ""
-        textFormat: Text.PlainText
-        text: root.planLabel(section.provider)
-        color: root.dim
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-      }
-
-      UsageNote {
-        anchors.left: sectionPlan.visible ? sectionPlan.right : sectionName.right
-        anchors.leftMargin: Style.space(8)
-        anchors.verticalCenter: sectionName.verticalCenter
-        visible: !section.multi && message !== ""
-        record: section.provider
-      }
-
-      // Opens the coding agent made for this subscription: Codex for OpenAI,
-      // Claude Code for Anthropic.
-      PanelActionButton {
-        id: sectionLaunch
+      Row {
+        id: actions
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        visible: root.harnessFor(section.provider) !== ""
-        iconText: "󰞷"
-        tooltipText: Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        hasCursor: root.hasKey("providerLaunch", section.providerIndex)
-        onClicked: root.launchHarness(section.provider)
+        spacing: Style.space(4)
+
+        ProviderAction {
+          kind: "providerDesktop"
+          providerIndex: section.providerIndex
+          visible: !!section.desktop
+          iconText: "↗"
+          tooltipText: section.desktop ? Commons.I18n.t("agents.openDesktopApp").arg(section.desktop.name) : ""
+          onClicked: root.launchDesktop(section.provider)
+        }
+
+        ProviderAction {
+          kind: "providerLaunch"
+          providerIndex: section.providerIndex
+          visible: root.harnessFor(section.provider) !== ""
+          iconText: "󰞷"
+          tooltipText: Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
+          onClicked: root.launchHarness(section.provider)
+        }
       }
     }
 
