@@ -39,7 +39,7 @@ migration_entries() {
 
   for file in "$MIGRATIONS_DIR"/*.sh; do
     [[ -f $file ]] || continue
-    filename=$(basename "$file")
+    filename=${file##*/}
     printf '%s\t%s\t%s\n' "$filename" "$file" "$STATE_DIR/$filename"
   done
 }

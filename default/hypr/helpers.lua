@@ -149,6 +149,17 @@ function o.preinstalled_bindings_enabled()
   return not file_exists((os.getenv("HOME") or "") .. "/.local/state/omarchy/preinstalls-removed")
 end
 
+-- The region this machine was installed for (docs/regions.md).
+function o.region()
+  local command = io.popen(shell_quote(paths.omarchy_path .. "/bin/omarchy-region"))
+  local region = command and command:read("*l")
+  if command then
+    command:close()
+  end
+
+  return region or "global"
+end
+
 function o.bind(keys, description, dispatcher, options)
   local opts = options or {}
 

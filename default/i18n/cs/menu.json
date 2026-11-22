@@ -1368,5 +1368,14 @@
   },
   "setup.network.hostname": {
     "label": "Název hostitele"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

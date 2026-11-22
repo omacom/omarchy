@@ -497,6 +497,9 @@
   "setup.network.dns.google": {
     "label": "Google"
   },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
   "setup.network.dns.custom": {
     "label": "Custom"
   },
@@ -841,6 +844,9 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
+  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -849,6 +855,9 @@
   },
   "install.service.tailscale": {
     "label": "Tailscale"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
   },
   "install.service.nordvpn": {
     "label": "NordVPN"

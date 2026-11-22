@@ -6,8 +6,9 @@
 # A model set up on this machine gets a launcher beside Agent, as signing in to
 # Claude, Codex or Grok adds one: its name, its vendor's logo, and an agent
 # opened on it, in the default agent where that can take a local model and in
-# pi or OpenCode where it can't. An image, video or music model's opens Fantasi on it instead,
-# since no agent runs on one. Removing the model takes the launcher away.
+# pi or OpenCode where it can't. Removing the model takes the launcher away.
+# An image, video or music model gets none: no agent runs on one, and Fantasi
+# lists them itself.
 #
 # This makes the launchers match the models set up right now, so it is safe to
 # run at any time: omarchy-models runs it after a setup or a removal, and
@@ -69,12 +70,13 @@ fi
 mapfile -t models < <(jq -r '
   .models | to_entries[]
   | select(.value.unit != "installing" and .value.unit != "removing")
-  | [.key, (.value.name // .key | gsub("[[:cntrl:]]"; " ")), (.value.vendor // "local"), (.value.kind // "text")] | @tsv' <<<"$status")
+  | select((.value.kind // "text") == "text")
+  | [.key, (.value.name // .key | gsub("[[:cntrl:]]"; " ")), (.value.vendor // "local")] | @tsv' <<<"$status")
 
 declare -A entries=() icons=()
 
 for model in "${models[@]}"; do
-  IFS=$'\t' read -r recipe name vendor kind <<<"$model"
+  IFS=$'\t' read -r recipe name vendor <<<"$model"
   # The recipe goes on a command line and the vendor into a file name.
   [[ $recipe =~ ^[a-z0-9][a-z0-9._-]*$ ]] || continue
   [[ $vendor =~ ^[a-z0-9-]+$ ]] || vendor="local"
@@ -90,25 +92,7 @@ for model in "${models[@]}"; do
     icons[$icon.svg]=1
   fi
 
-  if [[ $kind == "image" || $kind == "video" || $kind == "music" ]]; then
-    case $kind in
-      video) made="videos" ;;
-      music) made="music" ;;
-      *) made="images" ;;
-    esac
-    cat >"$APPLICATIONS/$entry.tmp" <<ENTRY
-[Desktop Entry]
-Version=1.0
-Name=$name
-Comment=Make $made with $name in Fantasi, running on this machine
-Exec=fantasi open --model $recipe
-Icon=$icon
-Terminal=false
-Type=Application
-Categories=Graphics;
-ENTRY
-  else
-    cat >"$APPLICATIONS/$entry.tmp" <<ENTRY
+  cat >"$APPLICATIONS/$entry.tmp" <<ENTRY
 [Desktop Entry]
 Version=1.0
 Name=$name
@@ -121,7 +105,6 @@ Type=Application
 Categories=Development;
 X-Omarchy-Dock-Click=new
 ENTRY
-  fi
   chmod 644 "$APPLICATIONS/$entry.tmp"
   mv -f "$APPLICATIONS/$entry.tmp" "$APPLICATIONS/$entry"
 done
