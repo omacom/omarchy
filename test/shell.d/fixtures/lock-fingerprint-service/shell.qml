@@ -298,7 +298,7 @@ ShellRoot {
         service.runBlank()
         var command = String(root.blankProcess.command)
         root.check(command.indexOf("omarchy-brightness-display off") !== -1, "every blank turns off displays")
-        root.check((command.indexOf("omarchy-brightness-keyboard off") !== -1) === (root.blankStep !== 1), "only the first blank since a wake saves keyboard brightness (step " + root.blankStep + ")")
+        root.check(command.indexOf("omarchy-brightness-keyboard off") !== -1, "every blank turns off a keyboard relit outside the lock (step " + root.blankStep + ")")
         root.blankStep += 1
       } else {
         stop()

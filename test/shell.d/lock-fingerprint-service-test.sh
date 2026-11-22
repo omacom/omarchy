@@ -23,5 +23,5 @@ run_qml_fixture lock-fingerprint-service "fingerprint service handles enrollment
 display_runs=$(grep -cx 'omarchy-brightness-display off' "$OMARCHY_LOCK_COMMANDS" || true)
 keyboard_runs=$(grep -cx 'omarchy-brightness-keyboard off' "$OMARCHY_LOCK_COMMANDS" || true)
 (( display_runs == 3 )) || fail "every blank dispatches display off"
-(( keyboard_runs == 2 )) || fail "keyboard brightness is saved once between wakes"
-pass "repeated blanks dispatch display off and preserve keyboard brightness between wakes"
+(( keyboard_runs == 3 )) || fail "every blank dispatches keyboard off, including after an external backlight change"
+pass "repeated blanks dispatch both display and keyboard off across wakes"

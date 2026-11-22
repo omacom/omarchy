@@ -58,9 +58,6 @@ Item {
   property string backgroundSignature: ""
   property string lastEvent: "init"
   property string lastEventAt: ""
-  // The keyboard backlight saves its level as it goes off, so only the first
-  // blank since a wake turns it off; a second would save the 0 over it.
-  property bool keyboardBlank: false
   property double sleepRequestedAtMs: 0
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
@@ -266,7 +263,6 @@ Item {
   }
 
   function runWake() {
-    root.keyboardBlank = false
     if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
     resumeFingerprint()
@@ -369,10 +365,7 @@ Item {
 
   function runBlank() {
     pauseFingerprint()
-    if (blankProcess.running) return
-    blankProcess.keyboard = !root.keyboardBlank
-    root.keyboardBlank = true
-    blankProcess.running = true
+    if (!blankProcess.running) blankProcess.running = true
   }
 
   function submitPassword(value) {
@@ -783,8 +776,7 @@ Item {
 
   Process {
     id: blankProcess
-    property bool keyboard: true
-    command: ["bash", "-c", (keyboard ? "omarchy-brightness-keyboard off; " : "") + "omarchy-brightness-display off"]
+    command: ["bash", "-c", "omarchy-brightness-keyboard off; omarchy-brightness-display off"]
   }
 
   Timer {
