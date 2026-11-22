@@ -1,0 +1,54 @@
+#!/bin/bash
+# omarchy:summary=Configure the package-owned Touch Bar plugin for a user, including offline provisioning
+# omarchy:hidden=true
+# omarchy:args=[--uninstall]
+set -euo pipefail
+
+remove=0
+if [[ ${1:-} == "--uninstall" && $# == 1 ]]; then
+  remove=1
+elif (( $# )); then
+  exit 2
+else
+  "$OMARCHY_PATH/bin/omarchy-hw-touchbar" || exit 0
+fi
+(( EUID != 0 )) || { echo 'Touch Bar user setup must run as the desktop user.' >&2; exit 1; }
+id=io.github.austindixson.touchbar
+plugin=/usr/share/omarchy/shell/plugins/touchbar
+legacy="$HOME/.config/omarchy/plugins/$id"
+source "$OMARCHY_PATH/bin/omarchy-shell-config"
+if [[ ${OMARCHY_SETUP_CONTEXT:-runtime} != "runtime" ]]; then
+  refresh_shell_config() { :; }
+fi
+if (( remove )); then
+  commit "$NORMALIZE | .plugins |= map(select((if type == \"string\" then . else .id end) != \$id))" --arg id "$id"
+  /usr/bin/python3 "$OMARCHY_PATH/scripts/touchbar-hooks.py" --uninstall
+  /usr/bin/python3 "$OMARCHY_PATH/scripts/touchbar-remove-bindings.py" "$HOME/.config/hypr/bindings.lua"
+  if [[ ${OMARCHY_SETUP_CONTEXT:-runtime} == "runtime" ]]; then
+    omarchy-shell shell rescanPlugins >/dev/null
+  fi
+  echo 'Removed Touch Bar user integration; kept your layouts and backups.'
+  exit 0
+fi
+[[ -f $plugin/.omarchy-touchbar-package ]] || { echo 'Combined Touch Bar package is not installed.' >&2; exit 1; }
+omarchy-plugin-validate "$plugin"
+[[ $(jq -r .id "$plugin/manifest.json") == "$id" ]] || exit 1
+if [[ -e $legacy || -L $legacy ]]; then
+  [[ -d $legacy && ! -L $legacy && -f $legacy/manifest.json && ! -L $legacy/manifest.json ]] || { echo 'Refusing an unsafe existing Touch Bar plugin path.' >&2; exit 1; }
+  [[ $(jq -r .id "$legacy/manifest.json") == "$id" ]] || { echo 'Existing plugin directory belongs to another plugin.' >&2; exit 1; }
+  backup="${legacy%/*}/.touchbar-backup-$(date +%Y%m%d-%H%M%S)-$$"
+  mv -- "$legacy" "$backup"
+  echo "Previous user plugin retained at $backup"
+fi
+# Package files remain the runtime source; pacman upgrades daemon and plugin in
+# one transaction. Never clone, build, or copy a stale plugin into the user tree.
+/usr/bin/python3 "$OMARCHY_PATH/scripts/touchbar-hooks.py" "$plugin/hooks/90-touchbar-font"
+# No systemd session or polkit exists during ISO user provisioning. Render only
+# the user layout/bindings here; root setup already installed animated defaults.
+OMARCHY_TOUCHBAR_SKIP_INSTALL=1 /usr/bin/bash "$plugin/enable-animation.sh"
+commit "$NORMALIZE | .disabledPlugins = ((.disabledPlugins // []) | map(select(. != \$id))) | if any(.plugins[]; (if type == \"string\" then . else .id end) == \$id) then . else .plugins += [{id: \$id}] end" --arg id "$id"
+# Reloading settings does not discover the newly installed/migrated plugin.
+if [[ ${OMARCHY_SETUP_CONTEXT:-runtime} == "runtime" ]]; then
+  omarchy-shell shell rescanPlugins >/dev/null
+fi
+/usr/bin/bash "$plugin/sync-font.sh"

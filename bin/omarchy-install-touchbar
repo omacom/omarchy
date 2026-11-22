@@ -1,0 +1,32 @@
+#!/bin/bash
+# omarchy:summary=Install the prebuilt animated Touch Bar integration on supported Macs
+# omarchy:args=[--package /absolute/archive | --uninstall]
+# omarchy:examples=omarchy install touchbar | omarchy install touchbar --package /path/omarchy-touchbar.pkg.tar.zst
+set -euo pipefail
+
+if [[ ${1:-} != "--uninstall" ]]; then
+  "$OMARCHY_PATH/bin/omarchy-hw-touchbar" || exit 0
+fi
+(( EUID != 0 )) || { echo 'Run omarchy install touchbar as your desktop user.' >&2; exit 1; }
+if [[ ${1:-} == "--uninstall" ]]; then
+  (( $# == 1 )) || exit 2
+  status=0
+  omarchy-setup-touchbar-system --uninstall || status=$?
+  # Package rollback/manual removal may leave user state even when its root
+  # cleanup helper is missing or fails. Attempt both, retaining any error.
+  omarchy-setup-touchbar-user --uninstall || { user_status=$?; (( status )) || status=$user_status; }
+  exit "$status"
+else
+  if (( $# )) && [[ $# != 2 || $1 != "--package" ]]; then
+    echo 'Usage: omarchy install touchbar [--package /absolute/archive | --uninstall]' >&2
+    exit 2
+  fi
+  omarchy-setup-touchbar-system "$@" --user "$(/usr/bin/id -un)"
+  omarchy-setup-touchbar-user
+  # Runtime applies the preserved user layout; provisioning uses the package's
+  # default config and stages user bindings offline without elevation or IPC.
+  /usr/bin/bash /usr/share/omarchy/shell/plugins/touchbar/apply.sh
+  /usr/bin/omarchy-touchbar --check-config
+  /usr/bin/systemctl is-active --quiet tiny-dfr.service
+  echo 'Touch Bar package, animated layout, font hooks and service are ready.'
+fi

@@ -78,3 +78,56 @@ if OMARCHY_IMAGE_ROOT="$test_tmp/acpi" "$match" asus,zenbook-a16-ux3607oa micros
   fail "hw-match-device-tree reads no live device tree when an image root is named"
 fi
 pass "hw-match-device-tree follows the fixture roots"
+
+# Touch Bar setup must not select all Apple Silicon laptops. Exercise the real
+# platform and model helpers together, including an image target with no model.
+touchbar="$ROOT/bin/omarchy-hw-touchbar"
+for board in j293 j493 j313 j413 j314c; do
+  world="$test_tmp/$board"
+  fake_platform "$world" aarch64-apple
+  printf '%s\0' "apple,$board" apple,arm-platform >"$world/proc/device-tree/compatible"
+  if OMARCHY_PROC_ROOT="$world/proc" PATH="$world/bin:$ROOT/bin:$PATH" "$touchbar"; then
+    case $board in
+      j293|j493) pass "$board selects Touch Bar setup" ;;
+      *) fail "$board without a Touch Bar skips setup" ;;
+    esac
+  else
+    case $board in
+      j293|j493) fail "$board selects Touch Bar setup" ;;
+      *) pass "$board without a Touch Bar skips setup" ;;
+    esac
+  fi
+done
+for platform in x86 aarch64 aarch64-qualcomm; do
+  world="$test_tmp/$platform"
+  fake_platform "$world" "$platform"
+  if OMARCHY_PROC_ROOT="$world/proc" PATH="$world/bin:$ROOT/bin:$PATH" "$touchbar"; then
+    fail "$platform skips Touch Bar setup"
+  fi
+  pass "$platform skips Touch Bar setup"
+done
+# A contradictory fixture must not turn an x86 host into a supported model.
+mkdir -p "$test_tmp/x86/proc/device-tree"
+printf '%s\0' apple,j293 apple,arm-platform >"$test_tmp/x86/proc/device-tree/compatible"
+if OMARCHY_PROC_ROOT="$test_tmp/x86/proc" PATH="$test_tmp/x86/bin:$ROOT/bin:$PATH" "$touchbar"; then
+  fail "an Apple model string on x86 skips Touch Bar setup"
+fi
+pass "an Apple model string on x86 skips Touch Bar setup"
+if OMARCHY_IMAGE_ROOT="$test_tmp/acpi" "$touchbar"; then
+  fail "an image without an identified model skips Touch Bar setup"
+fi
+pass "an image without an identified model skips Touch Bar setup"
+printf 'touch %q\n' "$test_tmp/injected" >"$test_tmp/bash-env"
+# The fixture uname is a shell script; the real system uname is a binary and
+# does not source BASH_ENV. Keep the fixture from injecting independently.
+sed -i '1c#!/bin/bash -p' "$test_tmp/j293/bin/uname"
+if ! BASH_ENV="$test_tmp/bash-env" OMARCHY_PROC_ROOT="$test_tmp/j293/proc" \
+  PATH="$test_tmp/j293/bin:$ROOT/bin:$PATH" "$touchbar"; then
+  fail "Touch Bar detection works with an inherited Bash startup file"
+fi
+[[ ! -e $test_tmp/injected ]] || fail "the model matcher ignores inherited Bash startup code"
+pass "the model matcher ignores inherited Bash startup code"
+if /usr/bin/bash "$touchbar" -p; then
+  fail "the Touch Bar predicate refuses unsafe Bash startup"
+fi
+pass "the Touch Bar predicate refuses unsafe Bash startup"
