@@ -2,11 +2,12 @@
   "name": "omarchy",
   "private": true,
   "type": "module",
-  "description": "Omarchy's defaults for pi: web_fetch, todo_write and subagents",
+  "description": "Omarchy's defaults for pi: web_fetch, todo_write, subagents and tokens per second",
   "pi": {
     "extensions": [
       "./extensions/web-fetch.ts",
       "./extensions/todo.ts",
+      "./extensions/tps.ts",
       "./extensions/subagent/index.ts"
     ],
     "changelogPath": ""
