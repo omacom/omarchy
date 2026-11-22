@@ -68,19 +68,32 @@ fi
 # EPOCHREALTIME uses the locale's decimal separator, a comma in many.
 export OMARCHY_AGENT_USAGE_REFRESH_AT=${EPOCHREALTIME/,/.}
 
-pids=()
+# A refresh runs on a timer while something else may hold the CPU, such as a
+# game. Started all at once at normal priority, the collectors took about five
+# cores for a second and a half, a visible hitch. A few at a time at idle CPU
+# and I/O priority, they fill only spare time and finish no later.
+chrt --idle -p 0 $$
+ionice -c 3 -p $$
+max_jobs=4
+
+status=0
+running=0
 for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
   [[ -x $collector ]] || continue
   agent="${collector##*/omarchy-agent-usage-}"
   [[ $agent == "update" ]] && continue
   wanted "$agent" || continue
+  if (( running >= max_jobs )); then
+    wait -n || status=1
+    (( running-- ))
+  fi
   collect "$collector" "$agent" &
-  pids+=($!)
+  (( running++ ))
 done
 
-status=0
-for pid in "${pids[@]}"; do
-  wait "$pid" || status=1
+while (( running > 0 )); do
+  wait -n || status=1
+  (( running-- ))
 done
 
 # Fresh limits are when an account near a limit gets announced.

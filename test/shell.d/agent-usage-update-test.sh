@@ -72,3 +72,32 @@ fi
 [[ $output == "--except needs an agent" && ! -e $usage_dir/good.json ]] ||
   fail "update refuses an empty --except before collecting anything" "$output"
 pass "update refuses an empty --except before collecting anything"
+
+# A refresh runs while something else may hold the CPU, so the collectors take
+# turns instead of all starting at once.
+PARALLEL_OMARCHY=$(mktemp -d)
+RUNNING_DIR=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$FAKE_OMARCHY" "$PARALLEL_OMARCHY" "$RUNNING_DIR"' EXIT
+mkdir -p "$PARALLEL_OMARCHY/bin" "$RUNNING_DIR/now"
+
+for i in 1 2 3 4 5 6 7 8; do
+  cat >"$PARALLEL_OMARCHY/bin/omarchy-agent-usage-slow$i" <<COLLECTOR
+#!/bin/bash
+touch "$RUNNING_DIR/now/\$\$"
+ls "$RUNNING_DIR/now" | wc -l >>"$RUNNING_DIR/counts"
+sleep 0.2
+rm "$RUNNING_DIR/now/\$\$"
+echo '{"id":"slow$i"}'
+COLLECTOR
+done
+chmod +x "$PARALLEL_OMARCHY/bin/"omarchy-agent-usage-*
+
+rm -rf "$usage_dir"
+HOME="$TEST_HOME" OMARCHY_PATH="$PARALLEL_OMARCHY" XDG_STATE_HOME="" \
+  "$ROOT/bin/omarchy-agent-usage-update" 2>/dev/null ||
+  fail "update succeeds with more collectors than run at once"
+most=$(sort -n "$RUNNING_DIR/counts" | tail -1)
+written=$(find "$usage_dir" -name 'slow*.json' | wc -l)
+(( most <= 4 && written == 8 )) ||
+  fail "update runs at most four collectors at a time and still runs them all" "most at once: $most, records: $written"
+pass "update runs at most four collectors at a time and still runs them all"
