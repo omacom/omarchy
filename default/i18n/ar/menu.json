@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "لوحة اللمس"
   },
-  "update.password.drive": {
-    "label": "تشفير القرص"
-  },
-  "update.password.user": {
-    "label": "المستخدم"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "إظهار نسبة البطارية %"
   },

@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Touchpad"
   },
-  "update.password.drive": {
-    "label": "Crittografia disco"
-  },
-  "update.password.user": {
-    "label": "Utente"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Disattiva registrazione crash"
   },

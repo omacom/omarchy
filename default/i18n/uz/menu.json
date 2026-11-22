@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Trekpad"
   },
-  "update.password.drive": {
-    "label": "Disk shifrlash"
-  },
-  "update.password.user": {
-    "label": "Foydalanuvchi"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Batareya % koʻrsatish"
   },

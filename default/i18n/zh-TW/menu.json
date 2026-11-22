@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "觸控板"
   },
-  "update.password.drive": {
-    "label": "磁碟加密"
-  },
-  "update.password.user": {
-    "label": "使用者"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "顯示電池 %"
   },

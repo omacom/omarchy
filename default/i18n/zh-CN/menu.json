@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "触控板"
   },
-  "update.password.drive": {
-    "label": "磁盘加密"
-  },
-  "update.password.user": {
-    "label": "用户"
-  },
   "appearance.windows.gaps-on": {
     "label": "窗口间距开"
   },

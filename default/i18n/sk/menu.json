@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Touchpad"
   },
-  "update.password.drive": {
-    "label": "Šifrovanie disku"
-  },
-  "update.password.user": {
-    "label": "Používateľ"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Zobraziť % batérie"
   },

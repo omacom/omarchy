@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Тачпед"
   },
-  "update.password.drive": {
-    "label": "Шифровање диска"
-  },
-  "update.password.user": {
-    "label": "Корисник"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Прикажи % батерије"
   },

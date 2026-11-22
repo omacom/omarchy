@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Тачпад"
   },
-  "update.password.drive": {
-    "label": "Шифрування диска"
-  },
-  "update.password.user": {
-    "label": "Користувач"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Показати % батареї"
   },

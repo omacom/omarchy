@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "משטח מגע"
   },
-  "update.password.drive": {
-    "label": "הצפנת כונן"
-  },
-  "update.password.user": {
-    "label": "משתמש"
-  },
   "appearance.windows.gaps-on": {
     "label": "מרווחי חלונות פעילים"
   },

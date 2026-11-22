@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Kiguso"
   },
-  "update.password.drive": {
-    "label": "Usimbaji wa kiendeshaji"
-  },
-  "update.password.user": {
-    "label": "Mtumiaji"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Onyesha % ya betri"
   },

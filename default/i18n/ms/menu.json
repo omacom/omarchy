@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Pad Jejak"
   },
-  "update.password.drive": {
-    "label": "Penyulitan Pemacu"
-  },
-  "update.password.user": {
-    "label": "Pengguna"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Papar % Bateri"
   },

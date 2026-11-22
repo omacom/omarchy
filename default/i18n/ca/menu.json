@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Panell tàctil"
   },
-  "update.password.drive": {
-    "label": "Xifratge del disc"
-  },
-  "update.password.user": {
-    "label": "Usuari"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Desactiva la captura d'errors"
   },

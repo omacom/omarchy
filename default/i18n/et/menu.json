@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Puuteplaat"
   },
-  "update.password.drive": {
-    "label": "Kettakrüptimine"
-  },
-  "update.password.user": {
-    "label": "Kasutaja"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Kuva aku %"
   },
