@@ -23,8 +23,6 @@
   "agents.installCliFailed": "%1 CLI instalēšana netika pabeigta.",
   "agents.installingCli": "Instalē %1 CLI…",
   "agents.instructionsBackedUp": "Jūsu vecās aģenta instrukcijas saglabātas kā rezerves kopijas",
-  "agents.localUnsupported": "Neviens aģents nevar izmantot lokālo modeli",
-  "agents.localUnsupportedBody": "Instalējiet pi vai OpenCode, lai izmantotu lokālo modeli.",
   "agents.loginUnfinished": "Pieteikšanās netika pabeigta, tāpēc konts netika pievienots.",
   "agents.newSessionsUse": "Jaunas %1 sesijas tagad izmanto %2",
   "agents.noAccountNamed": "Nav %1 konta ar nosaukumu %2.",

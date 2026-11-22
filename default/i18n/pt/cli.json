@@ -23,8 +23,6 @@
   "agents.installCliFailed": "A instalação do CLI do %1 não terminou.",
   "agents.installingCli": "A instalar o CLI do %1…",
   "agents.instructionsBackedUp": "As suas instruções antigas do agente foram guardadas como cópias de segurança",
-  "agents.localUnsupported": "Nenhum agente pode usar o modelo local",
-  "agents.localUnsupportedBody": "Instale pi ou OpenCode para usar o modelo local.",
   "agents.loginUnfinished": "O início de sessão não terminou, por isso nenhuma conta foi adicionada.",
   "agents.newSessionsUse": "As novas sessões %1 usam agora %2",
   "agents.noAccountNamed": "Nenhuma conta %1 com o nome %2.",

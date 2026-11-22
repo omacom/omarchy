@@ -22,8 +22,6 @@
   "agents.installCliFailed": "Η εγκατάσταση του CLI %1 δεν ολοκληρώθηκε.",
   "agents.installingCli": "Εγκατάσταση του CLI %1…",
   "agents.instructionsBackedUp": "Οι παλιές οδηγίες agent κρατήθηκαν ως αντίγραφα ασφαλείας",
-  "agents.localUnsupported": "Κανένας agent δεν μπορεί να χρησιμοποιήσει το τοπικό μοντέλο",
-  "agents.localUnsupportedBody": "Εγκατάστησε το pi ή το OpenCode για να χρησιμοποιήσεις το τοπικό μοντέλο.",
   "agents.loginUnfinished": "Η σύνδεση δεν ολοκληρώθηκε, οπότε δεν προστέθηκε λογαριασμός.",
   "agents.newSessionsUse": "Οι νέες συνεδρίες %1 χρησιμοποιούν πλέον %2",
   "agents.noAccountNamed": "Δεν υπάρχει λογαριασμός %1 με όνομα %2.",

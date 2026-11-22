@@ -23,8 +23,6 @@
   "agents.installCliFailed": "Instaliranje %1 CLI nije završilo.",
   "agents.installingCli": "Instaliranje %1 CLI…",
   "agents.instructionsBackedUp": "Stare upute za agenta spremljene su kao sigurnosne kopije",
-  "agents.localUnsupported": "Nijedan agent ne može koristiti lokalni model",
-  "agents.localUnsupportedBody": "Instaliraj pi ili OpenCode za korištenje lokalnog modela.",
   "agents.loginUnfinished": "Prijava nije završila, pa račun nije dodan.",
   "agents.newSessionsUse": "Nove %1 sesije sada koriste %2",
   "agents.noAccountNamed": "Nema %1 računa pod nazivom %2.",

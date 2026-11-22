@@ -22,8 +22,6 @@
   "agents.installCliFailed": "Uppsetning %1 CLI kláraðist ekki.",
   "agents.installingCli": "Set upp %1 CLI…",
   "agents.instructionsBackedUp": "Geymdi gömlu fyrirmæli umboðsmannsins sem öryggisafrit",
-  "agents.localUnsupported": "Enginn umboðsmaður getur notað staðarlíkanið",
-  "agents.localUnsupportedBody": "Settu upp pi eða OpenCode til að nota staðarlíkanið.",
   "agents.loginUnfinished": "Innskráningin kláraðist ekki, svo engum reikningi var bætt við.",
   "agents.newSessionsUse": "Nýjar %1-lotur nota nú %2",
   "agents.noAccountNamed": "Enginn %1-reikningur að nafni %2.",
