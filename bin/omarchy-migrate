@@ -85,6 +85,7 @@ wait_for_pacman_transaction
 mkdir -p "$STATE_DIR"
 [[ -d $MIGRATIONS_DIR ]] || exit 0
 
+deferred=0
 while IFS=$'\t' read -r name file marker <&3; do
   [[ -n $name ]] || continue
 
@@ -98,6 +99,7 @@ while IFS=$'\t' read -r name file marker <&3; do
     # pending and holds back the rest of the queue, but the update goes on.
     if (( status == 75 )); then
       echo "$(omarchy-i18n update.migrationDeferred "${name%.sh}")"
+      deferred=1
       break
     elif (( status != 0 )); then
       exit $status
@@ -110,5 +112,8 @@ done 3< <(migration_entries)
 
 # Clear a login-time notification the user left sitting there and then resolved
 # by running migrations some other way. The substring matches both the current
-# and legacy notification titles.
-omarchy-notification-dismiss "Omarchy Migrations" >/dev/null 2>&1 || true
+# and legacy notification titles. A deferred migration is still pending, so its
+# reminder stays.
+if (( ! deferred )); then
+  omarchy-notification-dismiss "Omarchy Migrations" >/dev/null 2>&1 || true
+fi

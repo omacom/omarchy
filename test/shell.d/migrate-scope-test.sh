@@ -103,11 +103,13 @@ cat >"$deferred_root/migrations/200-later.sh" <<'SH'
 echo later >>"$TEST_CALLS"
 SH
 
+: >"$dismissals"
 TEST_CALLS="$deferred_calls" run_migrate "$deferred_home" "$deferred_root" >"$test_tmp/deferred.out" ||
   fail "a migration waiting on a package does not fail the run"
 grep -qx waiting "$deferred_calls" || fail "migration runner started the waiting migration"
 ! grep -qx later "$deferred_calls" || fail "a waiting migration holds back the rest of the queue"
 [[ ! -e $deferred_home/.local/state/omarchy/migrations/100-waiting.sh ]] || fail "a waiting migration stays pending"
+[[ ! -s $dismissals ]] || fail "a waiting migration keeps the pending-migrations reminder"
 pass "migration runner defers a migration that exits 75"
 
 stdin_root="$test_tmp/stdin-omarchy"
