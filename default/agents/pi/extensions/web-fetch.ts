@@ -1,8 +1,10 @@
 // web_fetch: read a web page as Markdown, the way OpenCode's webfetch and
 // Omp's fetch tool do, so the model doesn't curl raw HTML into its context.
-// Text and JSON come back as they are, images as images, and anything else
-// (a PDF, an archive) is saved to a temp file for the other tools to open.
+// Text and JSON come back as they are, images as images, PDFs as their text
+// (with pdftotext), and anything else is saved to a temp file for the other
+// tools to open. A page that comes back all but empty says why.
 
+import { execFile } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -25,6 +27,11 @@ const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp
 // Some sites turn away anything that doesn't look like a browser.
 const USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
+const HONEST_USER_AGENT = "pi-web-fetch";
+
+function challenged(response: Response): boolean {
+  return response.status === 403 && response.headers.get("cf-mitigated") === "challenge";
+}
 
 const WebFetchParams = Type.Object({
   url: Type.String({ description: "The http(s) URL to fetch" }),
@@ -84,6 +91,15 @@ function fileNameFor(url: URL, contentType: string): string {
   return `${base || "download"}.${extension}`;
 }
 
+// The PDF's text, or undefined when pdftotext isn't installed or can't read it.
+function pdfText(file: string, signal: AbortSignal): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    execFile("pdftotext", ["-enc", "UTF-8", file, "-"], { signal, maxBuffer: 64 * 1024 * 1024 }, (error, stdout) => {
+      resolve(error || !stdout.trim() ? undefined : stdout);
+    });
+  });
+}
+
 function decode(bytes: Buffer, contentType: string): string {
   const charset = /charset=["']?([\w-]+)/i.exec(contentType)?.[1] ?? "utf-8";
   try {
@@ -108,13 +124,15 @@ export default function (pi: ExtensionAPI) {
     description: [
       "Fetch a URL and return its content. HTML pages are converted to Markdown (main content only;",
       "pass raw: true for the HTML). Text, JSON and other text formats come back as-is, images as images,",
-      "and other files (PDFs, archives) are saved to a temp file whose path is returned.",
+      "PDFs as their text, and other files are saved to a temp file whose path is returned.",
+      "It fetches a URL you already have; it does not search the web.",
       `Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)};`,
       "the full text is then saved to a temp file whose path is given.",
     ].join(" "),
     promptSnippet: "Fetch a web page or file over http(s) and read it as Markdown",
     promptGuidelines: [
-      "Use web_fetch instead of curl or wget in bash to read web pages, documentation, issues and other URLs.",
+      "Use web_fetch instead of curl or wget in bash to read web pages, documentation and other URLs.",
+      "For GitHub issues, pull requests and API data, prefer the gh CLI in bash over web_fetch when gh is available.",
     ],
     parameters: WebFetchParams,
 
@@ -140,19 +158,28 @@ export default function (pi: ExtensionAPI) {
       const timeout = AbortSignal.timeout(seconds * 1000);
       const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
 
-      let response: Response;
-      let body: { bytes: Buffer; complete: boolean };
-      try {
-        response = await fetch(url, {
+      const request = (userAgent: string) =>
+        fetch(url, {
           redirect: "follow",
           signal: combined,
           headers: {
-            "User-Agent": USER_AGENT,
+            "User-Agent": userAgent,
             // Sites that serve Markdown to agents send it instead of HTML.
             Accept: "text/markdown, text/html;q=0.9, application/xhtml+xml;q=0.9, */*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
           },
         });
+
+      let response: Response;
+      let body: { bytes: Buffer; complete: boolean };
+      try {
+        response = await request(USER_AGENT);
+        // Cloudflare challenges a browser that can't run its check, yet often
+        // lets through a client that says plainly what it is.
+        if (challenged(response)) {
+          await response.body?.cancel().catch(() => {});
+          response = await request(HONEST_USER_AGENT);
+        }
         body = await readCapped(response, combined);
       } catch (error) {
         if (timeout.aborted && !signal?.aborted) return fail(`timed out after ${seconds}s fetching ${url.href}`);
@@ -181,27 +208,41 @@ export default function (pi: ExtensionAPI) {
         };
       }
 
+      let text: string | undefined;
       if (!isText(mimeType) && !mimeType.includes("html")) {
         const savedTo = saveToTemp(fileNameFor(new URL(finalUrl), mimeType), body.bytes);
         details.savedTo = savedTo;
-        const note = body.complete ? "" : ` (cut off at ${formatSize(MAX_RESPONSE_BYTES)})`;
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: [...header, `Content-Type: ${mimeType}`, `Saved ${formatSize(body.bytes.length)}${note} to: ${savedTo}`].join("\n"),
-            },
-          ],
-          details,
-          isError: !response.ok,
-        };
+        // Pi's read tool can't open a PDF, so its text comes back when pdftotext is installed.
+        if (mimeType === "application/pdf" && body.complete && response.ok) text = await pdfText(savedTo, combined);
+        if (text === undefined) {
+          const note = body.complete ? "" : ` (cut off at ${formatSize(MAX_RESPONSE_BYTES)})`;
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: [...header, `Content-Type: ${mimeType}`, `Saved ${formatSize(body.bytes.length)}${note} to: ${savedTo}`].join("\n"),
+              },
+            ],
+            details,
+            isError: !response.ok,
+          };
+        }
+        header.push(`PDF saved to: ${savedTo}`);
       }
 
-      let text = decode(body.bytes, contentType);
+      text ??= decode(body.bytes, contentType);
       if (mimeType.includes("html") && !params.raw) {
-        details.title = titleOf(text);
-        text = htmlToMarkdown(text, finalUrl);
+        const html = text;
+        details.title = titleOf(html);
+        text = htmlToMarkdown(html, finalUrl);
         if (details.title) header.push(`Title: ${details.title}`);
+        if (challenged(response)) {
+          header.push("Note: blocked by a Cloudflare bot check. Look for the same content elsewhere.");
+        } else if (text.length < 200 && html.length > 5000) {
+          header.push(
+            "Note: the page has almost no readable text. It probably renders with JavaScript; look for the same content elsewhere, such as a raw file, an API or the project's repository.",
+          );
+        }
       }
       if (!body.complete) text += `\n\n[Response cut off at ${formatSize(MAX_RESPONSE_BYTES)}]`;
 

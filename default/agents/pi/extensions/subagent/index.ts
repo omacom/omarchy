@@ -398,7 +398,11 @@ async function runSingleAgent(
   const inheritsDispatchConfig = !agent.model;
   const model = agent.model ?? dispatchDefaults.model;
   if (model) args.push("--model", model);
-  if (inheritsDispatchConfig && dispatchDefaults.thinkingLevel) {
+  // An agent's own thinking level wins; otherwise it inherits the session's
+  // along with its model.
+  if (agent.thinking) {
+    args.push("--thinking", agent.thinking);
+  } else if (inheritsDispatchConfig && dispatchDefaults.thinkingLevel) {
     args.push("--thinking", dispatchDefaults.thinkingLevel);
   }
   if (agent.tools && agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
@@ -674,7 +678,7 @@ export default function (pi: ExtensionAPI) {
     ].join(" "),
     promptSnippet: "Delegate research or self-contained work to subagents with their own context",
     promptGuidelines: [
-      "Use subagent with the scout agent for broad searches of a codebase or the web whose details you don't need in your own context; run independent scouts in parallel.",
+      "Use subagent with the scout agent for broad searches of a codebase, or reading through web pages, whose details you don't need in your own context; run independent scouts in parallel.",
       "Use subagent with the worker agent for self-contained tasks you can fully specify up front; do small or tightly coupled work yourself instead of delegating it.",
     ],
     parameters: SubagentParams,

@@ -23,6 +23,7 @@ export interface AgentConfig {
   description: string;
   tools?: string[];
   model?: string;
+  thinking?: string;
   systemPrompt: string;
   source: AgentSource;
   filePath: string;
@@ -46,6 +47,7 @@ type AgentFrontmatter = {
   description?: unknown;
   tools?: unknown;
   model?: unknown;
+  thinking?: unknown;
 };
 
 /**
@@ -106,6 +108,7 @@ function loadAgentsFromDir(dir: string, source: AgentSource): AgentConfig[] {
       description: frontmatter.description,
       tools: parseToolList(frontmatter.tools),
       model: typeof frontmatter.model === "string" ? frontmatter.model : undefined,
+      thinking: typeof frontmatter.thinking === "string" ? frontmatter.thinking : undefined,
       systemPrompt: body,
       source,
       filePath,

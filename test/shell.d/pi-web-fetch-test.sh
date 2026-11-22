@@ -34,5 +34,24 @@ import(path.join(root, 'default/agents/pi/lib/html-to-markdown.ts')).then(({ htm
     'a table gets a header separator as wide as its first row, and a heading in a cell stays on its row',
     markdown
   )
+
+  // Minified scripts compare with < and attributes hold >; neither may swallow
+  // or leak into the page.
+  const tricky = htmlToMarkdown(
+    '<body><script>if (a<b) { go() }</script><div x-show="count > 0"><p>After the script</p></div></body>'
+  )
+  assertEqual(tricky, 'After the script', 'a < in a script or a > in an attribute leaves the rest of the page intact')
+
+  // Inactive tabs are hidden, not gone: docs put the other install commands there.
+  const tabs = htmlToMarkdown('<main><div><p>npm i pkg</p></div><div hidden><p>pacman -S pkg</p></div><span aria-hidden="true">★</span></main>')
+  assert(tabs.includes('pacman -S pkg') && !tabs.includes('★'), 'hidden tab panels stay, aria-hidden decoration goes', tabs)
+
+  // A <main> holding only a stub falls back to the whole body.
+  const stub = htmlToMarkdown(`<body><main><p>Hi</p></main><div><p>${'The real article text. '.repeat(20)}</p></div></body>`)
+  assert(stub.includes('The real article text.'), 'a nearly empty <main> falls back to the body', stub)
+
+  // <base href> sets what relative links resolve against.
+  const based = htmlToMarkdown('<head><base href="https://docs.example.com/v2/"></head><body><a href="intro">Intro</a></body>', 'https://example.com/x')
+  assertEqual(based, '[Intro](https://docs.example.com/v2/intro)', 'relative links resolve against <base href>')
 })
 JS

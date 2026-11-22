@@ -3,9 +3,10 @@
 // scripts, styles, navigation and other chrome dropped. It imports nothing, so
 // it also runs under plain Node for its test.
 
+// Page chrome and embedded objects. Script-like elements are already gone (withoutRawText).
 const DROP = new Set([
-  "script", "style", "noscript", "template", "svg", "canvas", "iframe", "object",
-  "nav", "footer", "aside", "form", "button", "select", "dialog", "head",
+  "svg", "canvas", "iframe", "object", "nav", "footer", "aside", "form", "button",
+  "select", "dialog", "head",
 ]);
 const VOID = new Set([
   "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta",
@@ -62,16 +63,23 @@ function resolveUrl(href: string, base: string | undefined): string {
   }
 }
 
-// The part of the page worth reading: the first <main>, else the first
-// <article>, else the <body>, else the whole document.
-function contentOf(html: string): string {
-  for (const tag of ["main", "article", "body"]) {
-    const open = new RegExp(`<${tag}(\\s[^>]*)?>`, "i").exec(html);
-    if (!open) continue;
-    const close = html.toLowerCase().lastIndexOf(`</${tag}>`);
-    if (close > open.index) return html.slice(open.index + open[0].length, close);
-  }
-  return html;
+// A tag, with > allowed inside its quoted attribute values.
+const TAG = /<(?:[^>"']|"[^"]*"|'[^']*')*>|[^<]+|</g;
+
+// Elements whose content is text rather than markup end at their first closing
+// tag, so they go before tokenizing: a < in a script must not open a tag.
+function withoutRawText(html: string): string {
+  return html
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, "")
+    .replace(/<(script|style|textarea|noscript|template|title)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "");
+}
+
+function inner(html: string, tag: string): string | undefined {
+  const open = new RegExp(`<${tag}(\\s(?:[^>"']|"[^"]*"|'[^']*')*)?>`, "i").exec(html);
+  if (!open) return undefined;
+  const close = html.toLowerCase().lastIndexOf(`</${tag}>`);
+  return close > open.index ? html.slice(open.index + open[0].length, close) : html.slice(open.index + open[0].length);
 }
 
 export function titleOf(html: string): string | undefined {
@@ -80,9 +88,26 @@ export function titleOf(html: string): string | undefined {
   return title || undefined;
 }
 
+// The page's main content: its first <main> or <article>, unless that holds
+// next to nothing (a stub some layouts leave), and otherwise its <body>.
 export function htmlToMarkdown(html: string, baseUrl?: string): string {
-  const source = contentOf(html.replace(/<!--[\s\S]*?-->/g, "").replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, ""));
-  const tokens = source.match(/<[^>]*>|[^<]+|</g) ?? [];
+  const source = withoutRawText(html);
+  const baseHref = /<base\s(?:[^>"']|"[^"]*"|'[^']*')*?href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(source);
+  const base = baseHref ? resolveUrl(decodeEntities(baseHref[1] ?? baseHref[2] ?? baseHref[3]), baseUrl) : baseUrl;
+  const body = inner(source, "body") ?? source;
+
+  const focused = inner(body, "main") ?? inner(body, "article");
+  if (focused !== undefined) {
+    const markdown = convert(focused, base);
+    if (markdown.length >= 200) return markdown;
+    const whole = convert(body, base);
+    return whole.length > markdown.length ? whole : markdown;
+  }
+  return convert(body, base);
+}
+
+function convert(source: string, baseUrl: string | undefined): string {
+  const tokens = source.match(TAG) ?? [];
 
   let out = "";
   let dropDepth = 0;
@@ -166,7 +191,9 @@ export function htmlToMarkdown(html: string, baseUrl?: string): string {
       }
       continue;
     }
-    if (tag.attrs.hidden !== undefined || tag.attrs["aria-hidden"] === "true") {
+    // aria-hidden marks decoration (icons, ornaments). The hidden attribute is
+    // left alone: inactive tabs and collapsed sections use it for real content.
+    if (tag.attrs["aria-hidden"] === "true") {
       if (!tag.closing && !VOID.has(tag.name) && !token.endsWith("/>")) {
         dropDepth = 1;
         dropTag = tag.name;
