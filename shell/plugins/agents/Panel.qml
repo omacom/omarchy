@@ -138,6 +138,17 @@ Panel {
     bar.shell.updateEntryInline(moduleName, next)
   }
 
+  // Off until asked for: a click on a limit, or p, shows where every limit
+  // is heading. Kept in the widget's shell.json entry.
+  readonly property bool predictions: !!(settings && settings.predictions)
+
+  function togglePredictions() {
+    if (!bar || !bar.shell) return
+    var next = JSON.parse(JSON.stringify(settings || {}))
+    next.predictions = !predictions
+    bar.shell.updateEntryInline(moduleName, next)
+  }
+
   property bool cursorActive: false
 
   // Countdowns and "last updated" ages read this instead of Date.now() so the
@@ -1482,7 +1493,8 @@ Panel {
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: expired ? 0 : Number(percent),
-      resetAt: expired ? "" : String(resetAt || "")
+      resetAt: expired ? "" : String(resetAt || ""),
+      spanMs: windowSpanMs(label)
     }
   }
 
@@ -1546,6 +1558,30 @@ Panel {
     if (!w || w.resetAt === "") return -1
     var ms = new Date(w.resetAt).getTime()
     return isFinite(ms) ? ms - root.nowMs : -1
+  }
+
+  // Where a window ends up if the rest of it is spent at the rate so far:
+  // the share used by the reset, and how long until it runs out when that
+  // comes first. Null for a window of unknown length, and until a tenth of
+  // it has passed: an hour of heavy use after a reset is not the week's rate.
+  function prediction(w) {
+    var left = resetMsFor(w)
+    var span = w ? Number(w.spanMs) : 0
+    if (!(span > 0) || !(left > 0) || left > span) return null
+    var elapsed = span - left
+    if (elapsed < span * 0.1 || !(w.percent > 0) || w.percent >= 1) return null
+    var percent = w.percent * span / elapsed
+    return { percent: percent, runsOutMs: percent > 1 ? (1 - w.percent) * elapsed / w.percent : -1 }
+  }
+
+  function predictionText(p) {
+    if (!p) return ""
+    var share = Commons.I18n.formatNumber(Math.round(p.percent * 100))
+    if (!(p.runsOutMs > 0)) return Commons.I18n.t("agents.predictedEnds").arg(share)
+    var at = new Date(root.nowMs + p.runsOutMs)
+    var locale = Qt.locale(Commons.I18n.formatLocale)
+    return Commons.I18n.t("agents.predictedRunsOut").arg(share)
+      .arg(locale.dayName(at.getDay(), Locale.ShortFormat) + " " + at.toLocaleTimeString(locale, Locale.ShortFormat))
   }
 
   function formatDuration(ms) {
@@ -2101,6 +2137,7 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "r" || t === "R") root.refreshNow()
+        else if (t === "p" || t === "P") root.togglePredictions()
         else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.providers.length) { root.pointerActive = false; root.pointAtProvider(Number(t) - 1) }
       }
 
@@ -3703,9 +3740,18 @@ Panel {
     readonly property var scoped: window && window.scoped ? window.scoped : []
     readonly property bool alarming: window && window.percent >= 0.9
     readonly property real resetMs: root.resetMsFor(window)
+    readonly property var prediction: root.prediction(window)
     implicitHeight: Math.max(compactTitle.implicitHeight, compactValue.implicitHeight)
+      + (compactPrediction.visible ? compactPrediction.anchors.topMargin + compactPrediction.implicitHeight : 0)
 
-    HoverHandler { id: compactHover }
+    HoverHandler {
+      id: compactHover
+      cursorShape: compact.prediction ? Qt.PointingHandCursor : undefined
+    }
+    TapHandler {
+      enabled: !!compact.prediction
+      onTapped: root.togglePredictions()
+    }
 
     PanelToolTip {
       visible: compactHover.hovered && !!compact.window
@@ -3718,6 +3764,8 @@ Panel {
             ? Commons.I18n.t("agents.windowUsedResets").arg(windowName).arg(used).arg(root.formatDuration(compact.resetMs))
             : Commons.I18n.t("agents.windowUsed").arg(windowName).arg(used))
         }
+        if (compact.prediction && !root.predictions)
+          lines.push(root.predictionText(compact.prediction))
         if (compact.stale)
           lines.push(compact.fetchedAt > 0 && root.nowMs - compact.fetchedAt > 60000
             ? Commons.I18n.t("agents.lastUpdatedAgo").arg(root.formatDuration(root.nowMs - compact.fetchedAt))
@@ -3732,7 +3780,7 @@ Panel {
       id: compactTitle
       textFormat: Text.PlainText
       width: parent.width * 0.3
-      anchors.verticalCenter: parent.verticalCenter
+      anchors.top: parent.top
       text: compact.window ? root.windowDisplayTitle(compact.window.title) : ""
       color: root.foreground
       font.family: root.fontFamily
@@ -3744,9 +3792,10 @@ Panel {
       anchors.left: compactTitle.right
       anchors.right: compactValue.left
       anchors.rightMargin: Style.space(20)
-      anchors.verticalCenter: parent.verticalCenter
+      anchors.verticalCenter: compactTitle.verticalCenter
       value: compact.window ? compact.window.percent : -1
       alarming: compact.alarming
+      predicted: root.predictions && compact.prediction ? compact.prediction.percent : -1
       markers: compact.scoped
     }
 
@@ -3765,7 +3814,7 @@ Panel {
       id: compactValue
       width: Math.ceil(compactValueMetrics.advanceWidth)
       anchors.right: parent.right
-      anchors.verticalCenter: parent.verticalCenter
+      anchors.verticalCenter: compactTitle.verticalCenter
       textFormat: Text.PlainText
       horizontalAlignment: Text.AlignRight
       text: compact.resetMs > 0 ? root.formatDuration(compact.resetMs) : ""
@@ -3776,9 +3825,23 @@ Panel {
 
     UsageNote {
       anchors.right: parent.right
-      anchors.verticalCenter: parent.verticalCenter
+      anchors.verticalCenter: compactTitle.verticalCenter
       visible: !!compact.note && compact.resetMs <= 0 && message !== ""
       record: compact.note
+    }
+
+    Text {
+      id: compactPrediction
+      visible: root.predictions && !!compact.prediction
+      anchors.top: compactTitle.bottom
+      anchors.topMargin: Style.space(6)
+      width: parent.width
+      textFormat: Text.PlainText
+      text: root.predictionText(compact.prediction)
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      wrapMode: Text.WordWrap
     }
   }
 
@@ -3786,6 +3849,8 @@ Panel {
   component Meter: Item {
     id: meter
     property real value: -1
+    // The share the window is heading for by its reset; past 1 it runs out.
+    property real predicted: -1
     property bool alarming: false
     property real thickness: Math.max(Style.space(4), Math.round(Style.spacing.controlHeight * 0.14))
 
@@ -3799,6 +3864,16 @@ Panel {
       anchors.fill: parent
       radius: height / 2
       color: root.track
+    }
+
+    Rectangle {
+      visible: meter.predicted > meter.value
+      anchors.left: meterTrack.left
+      anchors.verticalCenter: meterTrack.verticalCenter
+      height: meterTrack.height
+      radius: meterTrack.radius
+      width: meterTrack.width * root.clamp(meter.predicted, 0, 1)
+      color: root.alpha(meter.alarming || meter.predicted > 1 ? root.urgent : root.foreground, 0.35)
     }
 
     Rectangle {

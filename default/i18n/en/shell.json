@@ -57,6 +57,8 @@
   "agents.placeholderCode": "Code",
   "agents.placeholderWork": "Work",
   "agents.plugin": "Plugin",
+  "agents.predictedEnds": "on pace for %1% by reset",
+  "agents.predictedRunsOut": "on pace for %1% by reset · runs out %2",
   "agents.promptsToday": {
     "one": "%1 prompt today",
     "other": "%1 prompts today"
