@@ -325,13 +325,14 @@ ShellRoot {
     }
     bar.barConfig = Qt.binding(function() { return sectionPeekHost.config.bar })
 
-    function slotsNamed(name, region) {
+    function slotsNamed(name, region, surfaceWindow) {
       return bar.moduleSlots.filter(function(slot) {
-        return slot && slot.moduleName === name && (!region || slot.region === region)
+        return slot && slot.moduleName === name && (!region || slot.region === region) &&
+          (!surfaceWindow || bar.slotWindow(slot) === surfaceWindow)
       })
     }
 
-    function checkCenteredSibling(tray, pool) {
+    function checkCenteredSibling(tray, pool, surfaceWindow) {
       bar.clearIndicatorBarPeek(pool)
       tray.setIndicatorAreaHovered(false)
       tray.setIndicatorItemHovered(false)
@@ -341,8 +342,8 @@ ShellRoot {
       })
 
       function awaitCenter(tries, siblingRegion) {
-        var indicators = slotsNamed("omarchy.indicators", "center")
-        var siblings = slotsNamed("test.sibling", siblingRegion)
+        var indicators = slotsNamed("omarchy.indicators", "center", surfaceWindow)
+        var siblings = slotsNamed("test.sibling", siblingRegion, surfaceWindow)
         if (indicators.length !== 1 || siblings.length !== 1 || indicators[0].activeItem !== tray ||
             !tray.sectionItem || tray.sectionItem.fixedEdge !== "center" || tray.implicitWidth !== 0) {
           if (tries <= 0) {
@@ -490,7 +491,7 @@ ShellRoot {
             Qt.callLater(function() {
               root.layOut(tray)
               root.assertTrue(tray.implicitWidth > 0, "section peek: the right-section hover grows the hidden indicators, got width " + tray.implicitWidth)
-              checkCenteredSibling(tray, moved.pool)
+              checkCenteredSibling(tray, moved.pool, surface)
             })
             return
           }
