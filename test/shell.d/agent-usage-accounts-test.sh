@@ -38,7 +38,7 @@ registry("claude", [
   {"id": "main", "label": "Main", "home": "", "primary": True, "email": "me@example.com"},
   {"id": "work", "label": "Work", "home": str(accounts / "claude" / "work"), "primary": False, "email": "work@example.com", "accountId": "u-work"},
   {"id": "old", "label": "Old", "home": str(accounts / "claude" / "old"), "primary": False, "email": "old@example.com"},
-], active="work", switch="auto", threshold=95)
+], active="work", threshold=95)
 
 # Anthropic answers per token, so each account's probe is told apart by the
 # credential it carried.
@@ -116,7 +116,7 @@ check("a primary home signed in to another subscription doesn't inherit its limi
 (home() / ".claude.json").unlink()
 
 # A registry with one account changes nothing about the record.
-registry("claude", [{"id": "main", "label": "Main", "home": "", "primary": True, "email": "me@example.com"}], active="main", switch="auto", threshold=95)
+registry("claude", [{"id": "main", "label": "Main", "home": "", "primary": True, "email": "me@example.com"}], active="main", threshold=95)
 record = claude(ANY)
 expect("a single account record is unchanged, and limits checked just now aren't stale",
        ["accounts" in record, record["limits"][0]["percent"], record["limitsStale"], record["limitsFetchedAt"] > 0], [False, 0.3, False, True], record)
