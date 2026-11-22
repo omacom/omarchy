@@ -32,6 +32,9 @@ Panel {
     localModels ? localModels.modelMemory : null))
   // The slice under the pointer, in the bar or its legend; the rest dim.
   property int hoveredSegment: -1
+  // The repeaters count slices rather than take the list, so a fresh reading
+  // every second updates them in place instead of rebuilding them.
+  readonly property var noSegment: ({ kind: "free", gib: 0 })
 
   function segmentLabel(segment) {
     if (segment.kind === "model") return segment.name
@@ -228,17 +231,17 @@ Panel {
           MemoryBar { width: parent.width }
 
           Repeater {
-            model: root.memory.segments
+            model: root.memory.segments.length
 
             LegendRow {
-              required property var modelData
               required property int index
+              readonly property var segment: root.memory.segments[index] || root.noSegment
               width: parent.width
-              visible: modelData.gib > 0 || modelData.kind === "free"
+              visible: segment.gib > 0 || segment.kind === "free"
               segmentIndex: index
-              kind: modelData.kind
-              label: root.segmentLabel(modelData)
-              value: root.size(modelData.gib)
+              kind: segment.kind
+              label: root.segmentLabel(segment)
+              value: root.size(segment.gib)
             }
           }
 
@@ -294,11 +297,11 @@ Panel {
           SectionHeading { title: Commons.I18n.t("system.disk") }
 
           Repeater {
-            model: root.disks
+            model: root.disks.length
             DiskRow {
-              required property var modelData
+              required property int index
               width: parent.width
-              disk: modelData
+              disk: root.disks[index] || ({})
             }
           }
         }
@@ -362,17 +365,17 @@ Panel {
       spacing: memoryBar.gap
 
       Repeater {
-        model: root.memory.segments
+        model: root.memory.segments.length
 
         Rectangle {
-          required property var modelData
           required property int index
-          visible: modelData.gib > 0
+          readonly property var segment: root.memory.segments[index] || root.noSegment
+          visible: segment.gib > 0
           height: parent.height
-          width: memoryBar.sliceWidth(modelData)
+          width: memoryBar.sliceWidth(segment)
           radius: Math.min(height / 2, Style.cornerRadius)
-          color: root.segmentColor(modelData.kind)
-          border.width: modelData.kind === "free" ? Math.max(1, Style.hoverBorderWidth) : 0
+          color: root.segmentColor(segment.kind)
+          border.width: segment.kind === "free" ? Math.max(1, Style.hoverBorderWidth) : 0
           border.color: root.track
           opacity: root.hoveredSegment < 0 || root.hoveredSegment === index ? 1 : 0.35
 
