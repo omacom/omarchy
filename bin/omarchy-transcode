@@ -624,6 +624,9 @@ transcode_video() {
     fi
     ;;
   gif)
+    # Decode through src_in, like every other format here: the native VP9 and
+    # avif demuxers omit the alpha plane libvpx and the decoded avif sequence
+    # carry, and palettegen cannot reserve transparency it never sees.
     # Two-pass palette: generate a frame-diff palette, then dither against it.
     local palette='palettegen=max_colors=256:reserve_transparent=1:stats_mode=diff'
     local use='paletteuse=dither=sierra2_4a:alpha_threshold=128:diff_mode=rectangle'
@@ -636,18 +639,18 @@ transcode_video() {
       fi
       # GIFs decode in software; convert to yuv420p, upload the frames
       # (hwupload_cuda creates its own device context), scale on the GPU.
-      if ! ffmpeg -i "$input" $vfr \
+      if ! ffmpeg "${src_in[@]}" $vfr \
         -filter_complex "[0:v]format=yuv420p,hwupload_cuda,${sc},hwdownload,format=yuv420p,split[v0][v1];[v0]${palette}[p];[v1][p]${use}[out]" \
         -map "[out]" -an -loop 0 -gifflags +transdiff "$output"; then
         # The CUDA chain is unusable (nouveau, a build without scale_cuda):
         # retry on the cpu pipeline.
         echo "GPU scale pipeline failed; falling back to cpu" >&2
-        ffmpeg -i "$input" $vfr \
+        ffmpeg "${src_in[@]}" $vfr \
           -filter_complex "[0:v]${scale:+$scale:flags=lanczos,}split[v0][v1];[v0]${palette}[p];[v1][p]${use}[out]" \
           -map "[out]" -an -loop 0 -gifflags +transdiff "$output"
       fi
     else
-      ffmpeg -i "$input" $vfr \
+      ffmpeg "${src_in[@]}" $vfr \
         -filter_complex "[0:v]${scale:+$scale:flags=lanczos,}split[v0][v1];[v0]${palette}[p];[v1][p]${use}[out]" \
         -map "[out]" -an -loop 0 -gifflags +transdiff "$output"
     fi
