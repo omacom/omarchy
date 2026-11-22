@@ -59,7 +59,7 @@ export default function (pi: ExtensionAPI) {
           const stats: string[] = [];
           const context = ctx.getContextUsage();
           const percent = context?.percent ?? 0;
-          if (context?.tokens != null) stats.push(`${formatTokens(context.tokens)} (${percent.toFixed(1)}%)`);
+          if (context?.tokens) stats.push(`${formatTokens(context.tokens)} (${percent.toFixed(1)}%)`);
           if (tps !== undefined) stats.push(`${Math.round(tps)} tok/s`);
           let left = dim(stats.join(" • "));
           if (percent > 90) left = theme.fg("error", stats.join(" • "));
