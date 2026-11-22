@@ -1989,14 +1989,11 @@ Panel {
                 elide: Text.ElideRight
               }
 
-              // A paired machine's model says whose it is before its facts.
+              // A paired machine's model ends on whose it is, where this
+              // machine's says the memory it takes.
               Text {
                 width: parent.width
-                text: {
-                  var facts = root.ownModelFacts(ownModel.modelData.facts)
-                  var host = ownModel.modelData.host
-                  return host !== "" && facts !== "" ? host + " · " + facts : host !== "" ? host : facts
-                }
+                text: [root.ownModelFacts(ownModel.modelData.facts), ownModel.modelData.host].filter(function(part) { return part !== "" }).join(" · ")
                 textFormat: Text.PlainText
                 color: root.dim
                 font.family: root.fontFamily
