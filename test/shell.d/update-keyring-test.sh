@@ -32,6 +32,16 @@ for arg in "$@"; do
 done
 printf '\n' >>"$KEYRING_TEST_LOG"
 
+# `sudo env LC_ALL=C pacman ...` is how the script pins pacman's locale.
+# Apply those assignments the way sudo does, so the stub below sees them.
+if [[ $1 == "env" ]]; then
+  shift
+  while [[ $1 == *=* ]]; do
+    export "$1"
+    shift
+  done
+fi
+
 alarm_key=68B3537F39A313B3E574D06777193F152BDBE6A6
 trust_file="$KEYRING_TEST_DIR/alarm-trust"
 
@@ -86,10 +96,17 @@ fi
 
 if [[ $1 == "pacman" && $* == *archlinux-keyring* ]]; then
   # What --needed prints for a keyring that is already current, plus a
-  # warning that must still reach the person running the update.
+  # warning that must still reach the person running the update. pacman speaks
+  # the session language, so a French desktop gets French notices: the script
+  # pins LC_ALL=C, and only that makes its filter match everywhere.
   if [[ ${KEYRING_TEST_WARN:-0} == 1 ]]; then
-    echo "warning: archlinux-keyring-20260909-1 is up to date -- skipping" >&2
-    echo "warning: omarchy-keyring-20251027-1 is up to date -- skipping" >&2
+    if [[ ${LC_ALL:-} == "C" ]]; then
+      echo "warning: archlinux-keyring-20260909-1 is up to date -- skipping" >&2
+      echo "warning: omarchy-keyring-20251027-1 is up to date -- skipping" >&2
+    else
+      echo "avertissement : archlinux-keyring-20260909-1 est à jour -- ignoré" >&2
+      echo "avertissement : omarchy-keyring-20251027-1 est à jour -- ignoré" >&2
+    fi
     echo "warning: some other warning" >&2
     echo " there is nothing to do"
   fi
@@ -171,7 +188,7 @@ grep -F "Keys are correct" "$test_tmp/ok.out" >/dev/null ||
   fail "update-keyring reports success when the keyring is healthy" "$(cat "$test_tmp/ok.out")"
 pass "update-keyring reports success when the keyring is healthy"
 
-grep -Eq $'^sudo\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring$' "$log_file" ||
+grep -Eq $'^sudo\tenv\tLC_ALL=C\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring$' "$log_file" ||
   fail "update-keyring refreshes the Arch and Omarchy keyrings, installing only newer ones" "$(cat "$log_file")"
 pass "update-keyring refreshes the Arch and Omarchy keyrings, installing only newer ones"
 
@@ -187,13 +204,13 @@ for platform in aarch64-apple aarch64; do
   : >"$log_file"
   rm -f "$test_tmp/list-calls"
   KEYRING_TEST_ARM=1 KEYRING_TEST_PLATFORM=$platform run_keyring >"$test_tmp/arm.out"
-  grep -Eq $'^sudo\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring\tarchlinuxarm-keyring$' "$log_file" ||
+  grep -Eq $'^sudo\tenv\tLC_ALL=C\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring\tarchlinuxarm-keyring$' "$log_file" ||
     fail "update-keyring also refreshes Arch Linux ARM's keyring on $platform" "$(cat "$log_file")"
 done
 : >"$log_file"
 rm -f "$test_tmp/list-calls"
 KEYRING_TEST_ARM=1 run_keyring >"$test_tmp/x86.out"
-grep -Eq $'^sudo\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring$' "$log_file" ||
+grep -Eq $'^sudo\tenv\tLC_ALL=C\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring$' "$log_file" ||
   fail "x86 refreshes only Arch's keyring, even with Arch Linux ARM's installed" "$(cat "$log_file")"
 pass "aarch64 machines also refresh Arch Linux ARM's keyring where it is installed, x86 never"
 
@@ -204,7 +221,7 @@ printf 'asahi-alarm-keyring' >>"$platform_keyrings"
 : >"$log_file"
 rm -f "$test_tmp/list-calls"
 KEYRING_TEST_ARM=1 KEYRING_TEST_PLATFORM=aarch64-apple KEYRING_TEST_INSTALLED=asahi-alarm-keyring run_keyring >"$test_tmp/platform.out"
-grep -Eq $'^sudo\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring\tarchlinuxarm-keyring\tasahi-alarm-keyring$' "$log_file" ||
+grep -Eq $'^sudo\tenv\tLC_ALL=C\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring\tarchlinuxarm-keyring\tasahi-alarm-keyring$' "$log_file" ||
   fail "update-keyring refreshes the installed keyrings the platform names, once each" "$(cat "$log_file")"
 pass "update-keyring refreshes the installed keyrings the platform names, once each"
 
@@ -216,7 +233,7 @@ for listed in 'asahi-alarm-keyring;reboot' '../asahi-alarm-keyring' 'asahi-alarm
     fail "update-keyring carries on past a platform list line naming $listed" "$(cat "$test_tmp/invalid.out")"
   grep -qF "skipping $listed" "$test_tmp/invalid.out" ||
     fail "update-keyring warns about $listed" "$(cat "$test_tmp/invalid.out")"
-  grep -Eq $'^sudo\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring\tasahi-alarm-keyring$' "$log_file" ||
+  grep -Eq $'^sudo\tenv\tLC_ALL=C\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring\tasahi-alarm-keyring$' "$log_file" ||
     fail "update-keyring skips $listed and still refreshes the valid keyrings, and nothing else" "$(cat "$log_file")"
 done
 rm -f "$platform_keyrings"
@@ -303,7 +320,7 @@ KEYRING_TEST_ARM=1 KEYRING_TEST_PLATFORM=aarch64 KEYRING_TEST_ALARM_TRUST= run_k
 grep -F "Keys are correct" "$test_tmp/arm-populate.out" >/dev/null ||
   fail "update-keyring populates an installed Arch Linux ARM keyring" "$(cat "$test_tmp/arm-populate.out")"
 populate_line=$(grep -nE $'^sudo\tpacman-key\t--populate\tarchlinuxarm$' "$log_file" | cut -d: -f1 || true)
-refresh_line=$(grep -nE $'^sudo\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring\tarchlinuxarm-keyring$' "$log_file" | cut -d: -f1 || true)
+refresh_line=$(grep -nE $'^sudo\tenv\tLC_ALL=C\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring\tarchlinuxarm-keyring$' "$log_file" | cut -d: -f1 || true)
 [[ -n $populate_line && -n $refresh_line ]] && (( populate_line < refresh_line )) ||
   fail "update-keyring populates an installed Arch Linux ARM keyring before the refresh" "$(cat "$log_file")"
 pass "update-keyring populates an installed Arch Linux ARM keyring before the refresh"
@@ -317,7 +334,7 @@ grep -F "Keys are correct" "$test_tmp/arm-recv.out" >/dev/null ||
   fail "update-keyring bootstraps a missing Arch Linux ARM keyring" "$(cat "$test_tmp/arm-recv.out")"
 for expected in $'^sudo\tpacman-key\t--add\t'"$ROOT/default/pacman/keys/$alarm_key"'\.asc$' \
   $'^sudo\tpacman-key\t--lsign-key\t'"$alarm_key"'$' \
-  $'^sudo\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring\tarchlinuxarm-keyring$'; do
+  $'^sudo\tenv\tLC_ALL=C\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring\tarchlinuxarm-keyring$'; do
   grep -Eq "$expected" "$log_file" ||
     fail "update-keyring bootstraps a missing Arch Linux ARM keyring" "$(cat "$log_file")"
 done
