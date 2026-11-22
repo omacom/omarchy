@@ -97,7 +97,7 @@ Panel {
       var blocks = [addGroup("subscription"), addGroup("provider")]
       for (var b = 0; b < blocks.length; b++) {
         var choices = []
-        for (var k = 0; k < blocks[b].length; k++) choices.push({ kind: "choice", index: addProviders.indexOf(blocks[b][k]) })
+        for (var k = 0; k < blocks[b].length; k++) choices.push({ kind: "choice", index: addIndexOf(blocks[b][k].providerId) })
         if (choices.length > 0) rows.push(choices)
       }
       if (ownModelRecipe) rows.push([{ kind: "ownModel", index: 0 }])
@@ -369,6 +369,14 @@ Panel {
 
   function addGroup(group) {
     return signInProviders.filter(function(p) { return p.group === group })
+  }
+
+  // A tile's place in the picker, by id: reading a list property can hand
+  // back copies of its entries, so they can't be found by identity.
+  function addIndexOf(id) {
+    for (var i = 0; i < addProviders.length; i++)
+      if (addProviders[i].providerId === id) return i
+    return -1
   }
 
   // The third block: the best coding model for this computer, when one fits.
@@ -1661,7 +1669,7 @@ Panel {
               AddChoice {
                 required property var modelData
                 entry: modelData
-                index: root.addProviders.indexOf(modelData)
+                index: root.addIndexOf(modelData.providerId)
                 width: (choiceRow.width - choiceRow.spacing * (root.addColumns - 1)) / root.addColumns
               }
             }

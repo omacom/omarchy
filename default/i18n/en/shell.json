@@ -1,9 +1,9 @@
 {
   "agents.active": "ACTIVE",
-  "agents.addKinds": "Subscription, provider, or model",
+  "agents.addKinds": "Subscription, per use, or local",
   "agents.addTitle": "Add an agent",
-  "agents.blockOwnModel": "USE YOUR OWN MODEL",
-  "agents.blockProviders": "USE A MODEL PROVIDER",
+  "agents.blockOwnModel": "USE A LOCAL MODEL",
+  "agents.blockProviders": "PAY AS YOU GO",
   "agents.blockSubscriptions": "SIGN IN TO A SUBSCRIPTION",
   "agents.firstBecomesDefault": "The first one is your default",
   "agents.addProviderAccount": "Add %1 account",

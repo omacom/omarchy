@@ -55,9 +55,9 @@ Every subscription on one page, limits first.
   two across, that start the agent on the task through `omarchy agent make`.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
   three blocks: _Sign in to a subscription_ (Claude, Codex, Grok, and Gemini,
-  signed in through Antigravity), _Use a model provider_ (Fireworks, OpenCode
+  signed in through Antigravity), _Pay as you go_ (Fireworks, OpenCode
   Zen and Go, and OpenRouter, all run in OpenCode), each a large mark four
-  across, and _Use your own model_, a line for the best coding model for this
+  across, and _Use a local model_, a line for the best coding model for this
   computer when the local models catalog has one that fits. The first one is
   focused and the hero reads Add an agent. Choosing the model hands its setup
   to the local models panel, which follows the download; one already set up
