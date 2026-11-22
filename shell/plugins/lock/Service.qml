@@ -30,6 +30,9 @@ Item {
   // so one wrong finger otherwise goes quietly back to waiting; only the
   // final lockout showed.
   property bool fingerprintRejected: false
+  // Counts rejections, so each one is shown even when the next lands while
+  // the last one's red is still up: the flag above doesn't change then.
+  property int fingerprintRejectCount: 0
   // A finger on the reader, or the moment after a rejection, holds the idle
   // blank as a password check does: the countdown otherwise ran on through
   // the match and the retry, and the panel went dark under the finger.
@@ -457,6 +460,7 @@ Item {
     }
     if (FingerprintModel.parseVerifyStatus(line) === "verify-no-match") {
       fingerprintRejected = true
+      fingerprintRejectCount += 1
       fingerprintRejectTimer.restart()
     }
   }
@@ -573,6 +577,7 @@ Item {
         fingerprintUnavailable: root.fingerprintUnavailable
         fingerprintScanning: root.fingerprintScanning
         fingerprintRejected: root.fingerprintRejected
+        fingerprintRejectCount: root.fingerprintRejectCount
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -951,7 +956,9 @@ Item {
   }
 
   // The hold ends with a fresh run-up, unless the lock is gone, the displays
-  // are already off, or a password check holds them in its own right.
+  // are already off, or a password check holds them in its own right. The
+  // run-up is the idle one even inside a resume's longer grace: a finger on
+  // the reader means the panel is lit and someone is at it.
   onFingerprintHoldsDisplayChanged: {
     if (!lockRequested) return
     if (fingerprintHoldsDisplay) idleBlankTimer.stop()

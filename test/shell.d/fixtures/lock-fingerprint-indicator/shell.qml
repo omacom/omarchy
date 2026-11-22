@@ -199,7 +199,7 @@ ShellRoot {
     root.assertTrue(placeholder.text === checking, "the field still says it is checking with animations off")
 
     // A rejected finger: red, with one dip of the icon where animations run,
-    // and the red alone where they don't. The dip yields to the next scan.
+    // and the red alone where they don't. The red holds through the next scan.
     var dip = findInData(indicator, "fingerprintRejectDip")
     root.assertTrue(dip !== null, "the icon has its rejection dip")
     if (dip) {
@@ -241,6 +241,7 @@ ShellRoot {
         // breath for its moment, even with the next finger already matching.
         if (root.scanDip) {
           root.scanView.fingerprintRejected = true
+          root.scanView.fingerprintRejectCount += 1
           root.assertTrue(root.scanDip.running, "a rejected finger dips the icon")
           dipTimer.start()
           return
@@ -266,6 +267,58 @@ ShellRoot {
         root.assertTrue(root.scanPulse.running, "the breath takes over once the rejection passes")
         root.scanView.fingerprintScanning = false
         root.assertTrue(root.scanIndicator.opacity === 1, "the icon is drawn whole once both end, at opacity " + root.scanIndicator.opacity)
+
+        // Back-to-back rejections: the red is still up when the next lands.
+        root.scanView.fingerprintRejected = true
+        root.scanView.fingerprintRejectCount += 1
+        againTimer.start()
+        return
+      } catch (error) {
+        root.fail("lock fingerprint indicator fixture threw: " + error)
+      }
+      root.finishScan()
+    }
+  }
+
+  Timer {
+    id: againTimer
+    interval: 450
+    repeat: false
+    onTriggered: {
+      try {
+        root.assertTrue(!root.scanDip.running && root.scanView.fingerprintRejected, "the first dip has ended with the red still up")
+        root.scanView.fingerprintRejectCount += 1
+        root.assertTrue(root.scanDip.running, "a second rejection while the red still shows dips again")
+        root.scanDip.stop()
+        root.scanView.fingerprintRejected = false
+        root.assertTrue(root.scanIndicator.opacity === 1, "the icon is drawn whole once the red passes, at opacity " + root.scanIndicator.opacity)
+
+        // The breath handing over to a rejection's dip.
+        root.scanView.fingerprintScanning = true
+        handoverTimer.start()
+        return
+      } catch (error) {
+        root.fail("lock fingerprint indicator fixture threw: " + error)
+      }
+      root.finishScan()
+    }
+  }
+
+  Timer {
+    id: handoverTimer
+    interval: 160
+    repeat: false
+    onTriggered: {
+      try {
+        root.assertTrue(root.scanIndicator.opacity < 1, "the breath has faded the icon, at opacity " + root.scanIndicator.opacity)
+        root.scanView.fingerprintRejected = true
+        root.scanView.fingerprintRejectCount += 1
+        root.assertTrue(!root.scanPulse.running && root.scanDip.running, "a rejection mid-breath hands over to the dip")
+        root.assertTrue(root.scanIndicator.opacity < 1, "the handover doesn't flash the icon whole, at opacity " + root.scanIndicator.opacity)
+        root.scanDip.stop()
+        root.scanView.fingerprintScanning = false
+        root.scanView.fingerprintRejected = false
+        root.assertTrue(root.scanIndicator.opacity === 1, "the icon is drawn whole once it all ends, at opacity " + root.scanIndicator.opacity)
       } catch (error) {
         root.fail("lock fingerprint indicator fixture threw: " + error)
       }

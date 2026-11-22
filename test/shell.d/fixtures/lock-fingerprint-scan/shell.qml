@@ -35,6 +35,16 @@ ShellRoot {
     return null
   }
 
+  // The process that turns the displays off.
+  function blankProcess(service) {
+    var objects = service.data || []
+    for (var i = 0; i < objects.length; i++) {
+      var command = objects[i].command
+      if (command && String(command).indexOf("omarchy-brightness-display off") !== -1) return objects[i]
+    }
+    return null
+  }
+
   // The idle blank countdown is the timer with an idle run-up of its own.
   function idleBlank(service) {
     var objects = service.data || []
@@ -128,6 +138,10 @@ ShellRoot {
       check(service.fingerprintRejected && rejectTimer.running, "a rejected finger shows, under its bound")
       service.applyFingerprintMonitorLine(root.absentLine)
       check(service.fingerprintRejected, "the rejected finger leaving keeps the rejection showing")
+      var count = service.fingerprintRejectCount
+      service.applyFingerprintMonitorLine(root.rejectedLine)
+      check(service.fingerprintRejectCount === count + 1, "a rejection while the last one still shows counts as a new one")
+      rejectTimer.triggered()
       service.fingerprintAuthenticating = false
       service.applyFingerprintMonitorLine(root.rejectedLine)
       check(service.fingerprintRejected, "a rejection that ends the attempt still shows")
@@ -147,8 +161,8 @@ ShellRoot {
 
       // A finger on the reader holds the idle blank, and so does the moment
       // after a rejection; lifting it, the verdict or the moment passing
-      // starts a fresh run-up. Nothing here lets the blank fire: it would
-      // drive this machine's real displays.
+      // starts a fresh run-up. The blank's own command is swapped for `true`
+      // before it may fire, or it would drive this machine's real displays.
       var blank = idleBlank(service)
       check(blank !== null, "the service has its idle blank countdown")
       if (blank) {
@@ -171,10 +185,37 @@ ShellRoot {
         check(!blank.running, "a hold ending in a blank arms nothing while the displays are off")
         service.resumeFingerprint()
         service.applyFingerprintMonitorLine(root.presentLine)
+        service.authenticatingPassword = true
+        service.applyFingerprintMonitorLine(root.absentLine)
+        check(!blank.running, "a hold ending during a password check leaves the check holding the display")
+        service.authenticatingPassword = false
+        check(blank.running, "the password check ending starts the run-up")
+        service.applyFingerprintMonitorLine(root.presentLine)
         service.lockRequested = false
         service.resetAuthenticationState()
         check(!blank.running, "a hold ending in an unlock arms nothing")
         blank.stop()
+
+        // The blank's trigger refuses while a finger holds the display, even
+        // when input restarted the countdown during the hold.
+        var blanker = blankProcess(service)
+        if (blanker) blanker.command = ["true"]
+        check(blanker !== null && blanker.command.length === 1 && blanker.command[0] === "true", "the blank's command is a stand-in before the trigger fires")
+        if (blanker && blanker.command[0] === "true") {
+          service.lockRequested = true
+          service.fingerprintAuthenticating = true
+          service.applyFingerprintMonitorLine(root.presentLine)
+          service.armBlankTimer()
+          blank.triggered()
+          check(!service.fingerprintPaused, "the countdown firing under a finger doesn't blank")
+          service.clearFingerprintScan()
+          service.armBlankTimer()
+          blank.triggered()
+          check(service.fingerprintPaused, "the countdown firing with nothing holding it blanks")
+          service.resumeFingerprint()
+          blank.stop()
+          service.lockRequested = false
+        }
       }
       service.lockRequested = false
     } finally {

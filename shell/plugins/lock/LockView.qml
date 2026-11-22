@@ -16,6 +16,8 @@ Item {
   property bool fingerprintScanning: false
   // The reader has just rejected a finger.
   property bool fingerprintRejected: false
+  // Goes up by one with each rejected finger.
+  property int fingerprintRejectCount: 0
   property bool authenticatingPassword: false
   property string failureMessage: ""
   property int failedAttempts: 0
@@ -262,7 +264,9 @@ Item {
           loops: Animation.Infinite
           NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 0.3; duration: Style.duration(420); easing.type: Easing.InOutQuad }
           NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 1.0; duration: Style.duration(420); easing.type: Easing.InOutQuad }
-          onStopped: fingerprintIcon.opacity = 1
+          // A rejection stops the breath and starts the dip from wherever the
+          // breath left the icon; drawing it whole first would flash it.
+          onStopped: if (!root.fingerprintRejected) fingerprintIcon.opacity = 1
         }
 
         // A rejected finger dips the icon once, in red: every wrong finger
@@ -279,7 +283,10 @@ Item {
         Connections {
           target: root
           function onFingerprintRejectedChanged() {
-            if (root.fingerprintRejected && fingerprintIcon.visible && !root.fingerprintUnavailable && !Style.reduceMotion) fingerprintRejectDip.restart()
+            if (!root.fingerprintRejected && !fingerprintRejectDip.running) fingerprintIcon.opacity = 1
+          }
+          function onFingerprintRejectCountChanged() {
+            if (root.fingerprintRejectCount > 0 && fingerprintIcon.visible && !root.fingerprintUnavailable && !Style.reduceMotion) fingerprintRejectDip.restart()
           }
         }
       }

@@ -20,8 +20,8 @@ var RESUME_GRACE_MS = 5000
 // for a daemon that forgot to clear the status, so the icon can't pulse on.
 var SCAN_TIMEOUT_MS = 5000
 // A rejected finger shows for this long, then the icon waits again. Long
-// enough to be seen after the hand has lifted, short enough that the next
-// touch isn't coloured by the last.
+// enough to be seen after the hand has lifted, short enough that a wrong
+// finger doesn't linger long after the next verdict.
 var REJECT_SHOW_MS = 1200
 
 function retryDelayMs(streak) {
