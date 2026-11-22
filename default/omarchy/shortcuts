@@ -18,6 +18,7 @@ menu theme
 menu share
 menu reminder-set
 panel omarchy.clipboard
+panel omarchy.apps
 panel omarchy.emojis
 panel omarchy.audio
 panel omarchy.bluetooth
