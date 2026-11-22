@@ -350,16 +350,19 @@ mapfile -d '' -t launch_args <"$launch_log"
   fail "agent launcher reopens a provider on the model OpenCode last used there: ${launch_args[*]}"
 pass "agent launcher reopens a provider on the model last used there"
 
-# The keybinding uses --pick, where an error on stderr nobody sees would make
-# the keypress look broken. It offers the choice instead.
+# --pick is for callers with nowhere to show an error, where stderr nobody sees
+# would make them look broken. It opens the agents panel to set one up instead.
 : >"$launch_log"
-: >"$menu_log"
-omarchy-agent --pick
-mapfile -d '' -t menu_args <"$menu_log"
-[[ ${menu_args[*]} == "summon agent.harness" ]] ||
-  fail "--pick opens the agent defaults menu when none is set"
+printf '#!/bin/bash
+printf "%%s" "$*" >"$OMARCHY_TEST_SHELL_LOG"
+' >"$mock_bin/omarchy-shell"
+chmod +x "$mock_bin/omarchy-shell"
+OMARCHY_TEST_SHELL_LOG="$test_tmp/shell" omarchy-agent --pick
+rm "$mock_bin/omarchy-shell"
+[[ $(<"$test_tmp/shell") == "omarchy.agents open" ]] ||
+  fail "--pick opens the agents panel when none is set" "$(<"$shell_log")"
 [[ ! -s $launch_log ]] || fail "--pick starts nothing when no agent is set"
-pass "--pick opens the agent defaults menu when none is set"
+pass "--pick opens the agents panel when none is set"
 
 # The AI hotkey opens the region's AI web app until an agent is chosen.
 cat >"$mock_bin/omarchy-launch-webapp" <<'SH'

@@ -713,8 +713,7 @@ Panel {
   }
 
   // A few ways into making Omarchy your own, handed to the default agent. The
-  // prompts live in omarchy-agent-make, shared with the menu's Agent > Make
-  // something.
+  // prompts live in omarchy-agent-make.
   readonly property var starterPrompts: [
     { glyph: "󰏘", label: Commons.I18n.t("agents.theme"), kind: "theme" },
     { glyph: "󰐱", label: Commons.I18n.t("agents.plugin"), kind: "plugin" },
@@ -1461,9 +1460,6 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  // Agent > Add opens the panel on its add screen rather than its list.
-  property bool addOnOpen: false
-
   onOpenedChanged: if (!opened) {
     resetProviderDrag()
     makesOpenIndex = -1
@@ -1477,10 +1473,6 @@ Panel {
     usage.refreshLimits()
     usage.reloadDefaults()
     if (localModelsService) localModelsService.refreshNetwork()
-    if (addOnOpen) {
-      addOnOpen = false
-      addAccount()
-    }
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
 
@@ -1580,16 +1572,6 @@ Panel {
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
     function refresh(): string { root.refreshNow(); return "ok" }
-    // Opens on the add screen, as + does: the menu's Agent > Add. Opening
-    // resets the page, so the add screen is asked for as part of opening.
-    function add(): void {
-      if (root.opened) {
-        root.addAccount()
-      } else {
-        root.addOnOpen = true
-        root.open()
-      }
-    }
   }
 
   BarIconButton {

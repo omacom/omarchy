@@ -5,8 +5,7 @@
 # omarchy:examples=omarchy agent make theme | omarchy agent make --agent claude app | omarchy agent make --local-model qwen3.8-27b-gufo game
 
 # A few ways into making Omarchy your own, shared by the agents panel's starter
-# tiles, the make icons on each of its lines, and the menu's Agent > Make
-# something. The task goes to the default agent, or to the agent, provider, or
+# tiles and the make icons on each of its lines. The task goes to the default agent, or to the agent, provider, or
 # local model named first.
 
 target=()

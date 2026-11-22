@@ -114,13 +114,14 @@ if [[ -z $agent && -n $or_webapp ]]; then
   exec omarchy-launch-webapp "$or_webapp"
 elif [[ -z $agent ]]; then
   if [[ $pick == "true" ]]; then
-    # The menu starts the chosen agent itself, so a prompt (a crash report, a
-    # Make something task) waits on the clipboard to paste into it.
+    # The agents panel sets one up, and its agent is started from there, so a
+    # prompt (a crash report, a Make something task) waits on the clipboard
+    # to paste into it.
     if [[ -n ${prompt:-} ]]; then
       printf '%s' "$prompt" | wl-copy
       omarchy-notification-send -g 󰅇 "$(omarchy-i18n agents.chooseForPrompt)" "$(omarchy-i18n agents.promptOnClipboardBody)"
     fi
-    exec omarchy-menu summon agent.harness
+    exec omarchy-shell omarchy.agents open
   fi
   echo "Choose default agent with: omarchy default agent <name>" >&2
   exit 1

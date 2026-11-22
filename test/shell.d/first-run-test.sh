@@ -96,7 +96,7 @@ cat >"$mock_bin/omarchy-done" <<'SH'
 SH
 chmod +x "$mock_bin/omarchy-default-agent" "$mock_bin/omarchy-done"
 run_first_run_network
-grep -Fq -- '--exec omarchy menu summon agent.harness' "$test_tmp/calls" ||
+grep -Fq -- '--exec omarchy-shell omarchy.agents open' "$test_tmp/calls" ||
   fail "first run invites a default agent once there is a connection"
 pass "first run invites a default agent once there is a connection"
 
