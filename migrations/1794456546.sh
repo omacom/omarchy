@@ -13,7 +13,7 @@ module_conf="${OMARCHY_MKINITCPIO_NVIDIA_MODULE_CONF:-/etc/mkinitcpio.conf.d/nvi
 rebuild_marker="${OMARCHY_NVIDIA_MODULE_REBUILD_MARKER:-/var/lib/omarchy/migrations/1794456546}"
 
 omarchy-cmd-present limine-mkinitcpio || exit 0
-[[ -f $module_conf && ! -f $nvidia_conf ]] || exit 0
+[[ ! -f $nvidia_conf ]] || exit 0
 
 # Only a machine with an NVIDIA GPU has the lag now. Elsewhere the drop-in takes
 # effect at the next rebuild, with no reboot to ask for.
@@ -23,6 +23,13 @@ omarchy-hw-nvidia || exit 0
 # records completion so another user's run does not repeat it, while a missing
 # marker still retries an interrupted rebuild.
 [[ ! -e $rebuild_marker ]] || exit 0
+
+# The settings package ships the drop-in. Until it has, stay pending: a rebuild
+# now would still leave the modules out.
+if [[ ! -f $module_conf ]]; then
+  echo "Waiting for the omarchy-settings package that ships nvidia_module.conf" >&2
+  exit 75
+fi
 
 adds_modules=0
 for pkgbase in /usr/lib/modules/*/pkgbase; do
