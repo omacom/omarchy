@@ -31,6 +31,7 @@ exfatprogs
 expac
 eza
 fakeroot
+fantasi
 fastfetch
 fcitx5
 fcitx5-chewing
@@ -43,10 +44,12 @@ fcitx5-table-extra
 fd
 ffmpeg
 ffmpegthumbnailer
+flowtunes
 folio
 fontconfig
 foot
 fzf
+ghostscript
 git
 gliff
 gnome-keyring
@@ -66,7 +69,6 @@ hyprland-preview-share-picker
 hyprpicker
 hyprsunset
 imagemagick
-imv
 inetutils
 inotify-tools
 inxi
@@ -86,8 +88,6 @@ man-db
 mariadb-libs
 mise-bin
 monologue
-mpv
-mpv-mpris
 gnome-disk-utility
 noto-fonts
 noto-fonts-cjk
@@ -97,6 +97,7 @@ nvim
 obsidian
 omacalc
 omacut
+omaview
 omawrite
 omarchy-nvim
 omarchy-hyprland-titlebars
@@ -106,6 +107,8 @@ omarchy-local-ai
 # on ARM laptops. Back to stock once upstream merges MR !236 and !239.
 omarchy-power-profiles-daemon
 omarchy-screensaver
+omarchy-themes-intros
+omarchy-themes-loops
 omasnap
 # OWE owns desktop video backgrounds and feeds the lock screen its frames.
 owe
@@ -148,7 +151,6 @@ tldr
 tree-sitter-cli
 tmux
 tobi-try
-ttf-ia-writer
 ttf-jetbrains-mono-nerd-basic
 tzupdate
 udiskie
