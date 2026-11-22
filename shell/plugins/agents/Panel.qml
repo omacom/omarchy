@@ -539,10 +539,20 @@ Panel {
     return models[up.indexOf(local.last) >= 0 ? local.last : up[0]]
   }
 
+  // A coding model that is set up but stopped takes a task too: opening the
+  // agent on it starts it first.
+  readonly property bool starterLocalStopped: {
+    var service = bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.local-models") : null
+    var models = (service ? service.localModel : {}).models || {}
+    return Object.keys(models).some(function(id) {
+      return models[id] && models[id].kind === "text" && models[id].unit === "inactive"
+    })
+  }
+
   // The starters only show once something can take the task: a local model
-  // that's running, or a signed-in subscription with a coding agent of its own.
-  // A model still downloading or loading doesn't count yet.
-  readonly property bool starterAgentReady: starterLocalModel !== null || providers.some(function(p) {
+  // that's running or stopped, or a signed-in subscription with a coding agent
+  // of its own. A model still downloading or loading doesn't count yet.
+  readonly property bool starterAgentReady: starterLocalModel !== null || starterLocalStopped || providers.some(function(p) {
     return harnessFor(p) !== "" && !signedOut(p)
   })
   readonly property bool starterShown: addStage === "" && !blankSlate && starterAgentReady
