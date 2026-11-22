@@ -2,26 +2,20 @@
 
 Mēs automātiski izveidojam momentuzņēmumus katrā Omarchy atjauninājumā, bet, ja vēlaties izveidot savu, varat izmantot `omarchy-snapshot create`.
 
-Lai sāknētu un atjaunotu momentuzņēmumu, izvēlieties to Limine sāknēšanas ielādētājā. (Ja pašlaik sāknējaties tieši Omarchy atšifrēšanas ekrānā, vispirms BIOS būs jāizvēlas Limine kā sāknēšanas opcija).
+Lai sāknētu un atjaunotu momentuzņēmumu, izvēlieties to no Limine sāknēšanas ielādētāja. Sāknēšanas izvēlne pēc noklusējuma paliek paslēpta, tāpēc nospiediet jebkuru taustiņu, tiklīdz Limine sāk darboties, lai to atvērtu.
 
-Tajā ekrānā izvēlieties momentuzņēmumu, kurā vēlaties sāknēties, pēc datuma un versijas. Omarchy versiju momentuzņēmuma izveides laikā var redzēt apakšējā kreisajā stūrī.
+Šajā ekrānā izvēlieties momentuzņēmumu, kurā vēlaties sāknēt, pēc datuma un versijas. Omarchy versiju momentuzņēmuma izveides brīdī var redzēt apakšējā kreisajā stūrī.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Kad būsiet iekšā, parādīsies paziņojums, kas informēs, ka atrodaties sāknējamā momentuzņēmumā, un, ja uz tā noklikšķināsiet, sāksies atjaunošanas process. Varat arī izmantot `omarchy-snapshot restore`.
+Kad būsiet iekšā, parādīsies paziņojums, kas informēs, ka atrodaties sāknējamā momentuzņēmumā, un, ja noklikšķināsiet uz tā, sāksies atjaunošanas process. Vai arī varat izmantot `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Tas atjaunos jūsu saknes failu sistēmu, bet ne jūsu `/home`. Tāpēc tas der bojāta sistēmas atjauninājuma atcelšanai, bet ne zaudētu personīgo failu atgūšanai.
+Tas atjaunos jūsu saknes failu sistēmu, bet ne jūsu `/home`. Tātad tas noder, lai atceltu bojātu sistēmas atjauninājumu, bet ne zaudētu personīgo failu atgūšanai.
 
-Tas arī nozīmē, ka jūsu `~/.config` direktorijs paliek tāds, kāds tas ir. Tāpēc, ja atgriežaties pie vecākas bibliotēkas vai lietojumprogrammas versijas, kas konfigurācijas failus glabā jaunā formātā, jums tas būs jāatrisina pašam.
+Tas arī nozīmē, ka jūsu `~/.config` direktorija paliek nemainīga. Tātad, ja atgriežaties pie agrākas bibliotēkas vai lietojumprogrammas versijas, kas glabā konfigurācijas failus jaunā formātā, jums tas būs jārisina manuāli.
 
-Tas pats attiecas uz paša Omarchy ierakstu par to, kuras migrācijas jau ir palaistas: tas atrodas jūsu mājas direktorijā, tāpēc tas pārdzīvo atjaunošanu. Migrācijas, kas palaistas pēc momentuzņēmuma izveides, paliek atzīmētas kā pabeigtas, lai gan to veiktās izmaiņas saknes failu sistēmā ir atceltas, un nākamais `omarchy update` tās vairs nepalaidīs vēlreiz. Tāpēc, ja pēc atjaunošanas atjaunināt vēlreiz un kaut kas, ko iepriekšējais atjauninājums bija iestatījis, joprojām trūkst, tas, visticamāk, ir iemesls.
+Tas pats attiecas uz Omarchy paša žurnālu par to, kuras migrācijas jau ir izpildītas: tas atrodas jūsu mājas direktorijā, tāpēc tas saglabājas pēc atjaunošanas. Migrācijas, kas izpildītas pēc momentuzņēmuma izveides, paliek atzīmētas kā paveiktas, pat ja to veiktās izmaiņas saknes failu sistēmā ir atceltas, un nākamais `omarchy update` tās vairs neizpildīs vēlreiz. Tātad, ja pēc atjaunošanas atjaunināsiet vēlreiz un kaut kas, ko bija iestatījis agrāks atjauninājums, joprojām trūkst, visticamāk, iemesls ir šis.
 
 _Piezīme: Šī funkcija ir pieejama tikai instalācijās, kas izmanto Limine sāknēšanas ielādētāju, kas ir noklusējums kopš Omarchy 2.0. Tā nav pieejama, ja izmantojat GRUB vai systemd-boot._
-
-### Sāknēšanas izvēlnes izlaišana
-
-Ja nekad neaiztiekat sāknēšanas izvēlni un vēlaties, lai dators dotos tieši uz atšifrēšanas ekrānu, Omarchy izvēlnē palaidiet _Setup > Direct Boot_. Tas pievieno EFI ierakstu, kas norāda tieši uz Omarchy, tāpēc programmaparatūra to sāknē, neapstājoties pie Limine.
-
-Kompromiss ir tas pats, kas minēts sākumā: ja tiešā sāknēšana ir ieslēgta, lai piekļūtu momentuzņēmumam, vispirms BIOS sāknēšanas izvēlnē jāizvēlas Limine. Palaidiet _Setup > Direct Boot_ vēlreiz, lai noņemtu ierakstu un atgrieztos pie sāknēšanas caur Limine. Daža programmaparatūra nelabvēlīgi izturas pret pielāgotiem EFI ierakstiem, tāpēc iestatīšana atsakās darboties American Megatrends un Apple programmaparatūrā.

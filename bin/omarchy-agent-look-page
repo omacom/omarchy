@@ -1,0 +1,158 @@
+#!/bin/bash
+
+# omarchy:summary=Screenshot a web page an agent built and report its console errors
+# omarchy:args=<file.html|url> [--keys "Space ArrowLeft"] [--after ms] [--theme <name>] [--size WxH] [--out file.png]
+# omarchy:examples=omarchy agent look page index.html | omarchy agent look page game.html --keys "Space ArrowLeft" --after 5000
+
+# Renders the page in a throwaway headless Chrome driven by Playwright, so an
+# agent can see what it built and read the errors a browser console would
+# show, without opening a window on the user's desktop or leaving a browser
+# running. The page runs in real time on the GPU, so a game plays as it would
+# for a player: --keys presses each key once a page has loaded, and --after
+# waits that long before the screenshot. --theme passes a theme's palette in
+# the URL fragment, as omarchy-games-vibes-launch does, so a game from the omarchy-make-game
+# template shows in that theme. Prints the screenshot's path and exits 1 when
+# the page logged errors.
+
+set -uo pipefail
+
+target=${1:-}
+if [[ -z $target || $target == -* ]]; then
+  echo "Usage: omarchy agent look page <file.html|url> [--keys \"Space ArrowLeft\"] [--after ms] [--theme <name>] [--size WxH] [--out file.png]" >&2
+  exit 2
+fi
+shift
+
+keys="" after=3000 size=1280x720 out="" theme=""
+while (( $# )); do
+  case $1 in
+    --keys) keys=$2; shift 2 ;;
+    --after) after=$2; shift 2 ;;
+    --theme) theme=$2; shift 2 ;;
+    --size) size=$2; shift 2 ;;
+    --out) out=$2; shift 2 ;;
+    *) echo "Unknown option: $1" >&2; exit 2 ;;
+  esac
+done
+if [[ ! $after =~ ^(0|[1-9][0-9]*)$ ]] || (( after > 60000 )); then
+  echo "--after takes milliseconds up to 60000, like 3000" >&2
+  exit 2
+fi
+if [[ ! $size =~ ^[0-9]+x[0-9]+$ ]]; then
+  echo "--size takes a width and height, like 1280x720" >&2
+  exit 2
+fi
+[[ -n $out ]] || out=$(mktemp --suffix=.png -p "${TMPDIR:-/tmp}" look-XXXXXX)
+# An image left from an earlier look must never pass for this one.
+rm -f "$out"
+
+# A file may carry a fragment, like game.html#seed=1.
+url=$target
+file=${target%%#*}
+[[ -f $file ]] && url="file://$(realpath "$file")${target:${#file}}"
+if [[ -n $theme ]]; then
+  colors="$(omarchy-theme-dir "$theme")/colors.toml"
+  if [[ ! -f $colors ]]; then
+    echo "No theme $theme with a colors.toml" >&2
+    exit 2
+  fi
+  # In place of a palette the address already has, which the page would read first.
+  fragment=""
+  [[ $url == *"#"* ]] && fragment=$(sed -E 's/(^|&)palette=[^&]*//g; s/^&//' <<<"${url#*#}")
+  url="${url%%#*}#${fragment:+$fragment&}palette=$(omarchy-theme-color --file "$colors" --all | jq -Rrn '[inputs | split("\t") | {(.[0]): .[1]}] | add | tojson | @uri')"
+fi
+
+# Playwright is a mise tool installed on first use, with Node before it.
+playwright=$(mise where playwright 2>/dev/null)
+if [[ ! -d $playwright/node_modules/playwright ]]; then
+  mise install node playwright >/dev/null 2>&1
+  playwright=$(mise where playwright 2>/dev/null)
+fi
+if [[ ! -d $playwright/node_modules/playwright ]]; then
+  echo "Playwright isn't installed and couldn't be: run mise install node playwright" >&2
+  exit 1
+fi
+
+# An image from before Chrome was the default browser has Chromium, which
+# Playwright drives the same way.
+chrome=$(type -P google-chrome-stable || type -P chromium)
+
+log=$(mktemp)
+# Prints "error: <text>" for each console error, uncaught exception and
+# failed load, then "saved" once the screenshot is written.
+timeout $(( after / 1000 + 60 )) mise exec node -- node - \
+  "$playwright/node_modules/playwright" "$chrome" "$url" "$keys" "$after" "${size%x*}" "${size#*x}" "$out" >"$log" 2>&1 <<'JS'
+const [, , playwrightDir, chrome, url, keys, after, width, height, out] = process.argv;
+const { chromium } = require(playwrightDir);
+
+async function launch() {
+  const options = { executablePath: chrome, headless: true, args: ["--use-angle=gl-egl"] };
+  // Chrome keeps its own sandbox wherever it can start with one.
+  try {
+    return await chromium.launch({ ...options, chromiumSandbox: true });
+  } catch {
+    return await chromium.launch({ ...options, chromiumSandbox: false });
+  }
+}
+
+(async () => {
+  let browser;
+  try {
+    browser = await launch();
+  } catch (error) {
+    console.log("launch failed: " + String(error.message).split("\n")[0]);
+    process.exit(3);
+  }
+  const page = await browser.newPage({ viewport: { width: Number(width), height: Number(height) } });
+  const report = (text) => {
+    if (!/chrome-extension:\/\/|lastError/.test(text)) console.log("error: " + text.replace(/\s+/g, " ").slice(0, 300));
+  };
+  // A 404 or 500 reaches only the console, as "Failed to load resource",
+  // with the resource's URL in its location rather than its text.
+  page.on("console", (message) => {
+    if (message.type() !== "error") return;
+    const text = message.text();
+    const source = message.location().url;
+    report(text.startsWith("Failed to load resource") && source ? `${text} (${source})` : text);
+  });
+  page.on("pageerror", (error) => report("Uncaught " + error.message));
+  page.on("requestfailed", (request) => report(`failed to load ${request.url()}: ${request.failure()?.errorText}`));
+
+  try {
+    await page.goto(url, { waitUntil: "load", timeout: 30000 });
+  } catch (error) {
+    report("page didn't load: " + String(error.message).split("\n")[0]);
+  }
+  // Real key presses, held across a few frames as a player's are, so a game
+  // reads both the press and the key held down.
+  await page.waitForTimeout(800);
+  for (const key of keys.split(" ").filter(Boolean)) {
+    await page.keyboard.down(key);
+    await page.waitForTimeout(100);
+    await page.keyboard.up(key);
+    await page.waitForTimeout(150);
+  }
+  await page.waitForTimeout(Number(after));
+  await page.screenshot({ path: out });
+  console.log("saved");
+  await browser.close();
+})();
+JS
+status=$?
+errors=$(grep '^error: ' "$log" | sed 's/^error: //' | head -20)
+
+if [[ ! -s $out ]]; then
+  echo "Chrome produced no screenshot (exit $status)" >&2
+  grep -v '^error: ' "$log" | head -5 >&2
+  rm -f "$log"
+  exit 1
+fi
+rm -f "$log"
+magick "$out" -resize '1280x>' "$out"
+echo "screenshot: $out"
+if [[ -n $errors ]]; then
+  echo "console errors:"
+  echo "$errors"
+  exit 1
+fi
+echo "console errors: none"

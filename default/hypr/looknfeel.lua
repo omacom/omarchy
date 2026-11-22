@@ -118,7 +118,8 @@ hl.config({
     -- died, so omarchy-restart-shell can recover the LOCK failsafe.
     allow_session_lock_restore = true,
     -- Don't chime on every terminal BEL (tab-completion misses, TUI alerts).
-    bell_sound = "none",
+    -- During an upgrade the running compositor can predate this option.
+    bell_sound = hl.get_config("misc.bell_sound") ~= nil and "none" or nil,
   },
 
   cursor = {
