@@ -121,7 +121,7 @@ Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<A
 | `Super + Ctrl + H` | Hardware menu |
 | `Super + Ctrl + E` | Emoji picker |
 | `Super + Ctrl + .` | Transcode media |
-| `Super + Shift + Ctrl + A` | Pick an AI agent |
+| `Super + Shift + Ctrl + A` | Start your default agent |
 | `Power` key | System menu |
 | `Super + Shift + Copilot` key | Omarchy menu |
 
