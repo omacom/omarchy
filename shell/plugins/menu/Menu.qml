@@ -523,6 +523,8 @@ Item {
       var entry = root.item(root.itemOrder[i])
       if (!entry || !entry.provider || root.providersLoaded[entry.id]) continue
       if (active !== "root" && entry.id !== active && !root.isDescendantOf(entry.id, active)) continue
+      // Search hides every row of a menu it can't reach, so don't run its provider.
+      if (entry.id !== active && (!root.isVisible(entry) || !root.isReachable(entry))) continue
 
       root.loadProviderForMenu(entry.id)
     }
@@ -587,11 +589,18 @@ Item {
     return MenuModel.isDisabled(root.disabledResults, entry)
   }
 
+  // Search reaches into submenus, so a row there also needs every submenu
+  // between it and the menu search started in to be showing.
+  function isReachable(entry) {
+    var active = root.item(root.activeMenu) ? root.activeMenu : "root"
+    return MenuModel.isReachable(root.items, root.whenResults, entry, active)
+  }
+
   // A disabled row earns its place in the submenu it belongs to, where the
   // list around it is the point. Search is a list of what you can do, so it
   // leaves them out.
   function matchesQuery(entry, query) {
-    return MenuModel.matchesQuery(entry, query, root.isVisible(entry) && !root.isDisabled(entry))
+    return MenuModel.matchesQuery(entry, query, root.isVisible(entry) && root.isReachable(entry) && !root.isDisabled(entry))
   }
 
   function searchScore(entry, query) {

@@ -326,6 +326,22 @@ function isVisible(items, itemOrder, whenResults, entry, depth) {
   return false
 }
 
+// Search lists rows from every submenu below the one it starts in, so a
+// visible row can still sit in a submenu that browsing would not show. It is
+// reachable only when no submenu between it and `fromId` is hidden by its own
+// `when:`. Those are the only guards left to check: a submenu holding a
+// visible row has a visible child, so its children don't hide it.
+function isReachable(items, whenResults, entry, fromId) {
+  var current = entry ? item(items, entry.parent) : null
+  var guard = 0
+  while (current && current.id !== fromId && guard < 32) {
+    if (current.when && whenResults && whenResults[current.id] === false) return false
+    current = item(items, current.parent)
+    guard += 1
+  }
+  return true
+}
+
 // A `disabled:` row stays listed but goes dim and unselectable. The
 // Install submenus use it so software already on the machine reads as
 // installed rather than disappearing from the list it was installed from.
@@ -737,6 +753,7 @@ if (typeof module !== "undefined") {
     isDescendantOf: isDescendantOf,
     childCount: childCount,
     isVisible: isVisible,
+    isReachable: isReachable,
     altVariant: altVariant,
     altVariantIds: altVariantIds,
     isDisabled: isDisabled,

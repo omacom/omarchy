@@ -110,6 +110,23 @@ assert(menu.isVisible(visibilityItems, visibilityOrder, { 'hardware.laptop': tru
 assert(!menu.isVisible(visibilityItems, visibilityOrder, { 'nested.branch.leaf': false }, visibilityItems.nested), 'menu hides recursively empty submenus')
 assert(menu.isVisible(visibilityItems, visibilityOrder, {}, visibilityItems.dynamic), 'menu keeps provider-backed submenus visible')
 
+// Search reaches past the submenus browsing shows, so it must stop at one
+// whose `when:` hides it, however deep the row and whether or not it is a
+// provider's (Update › Kernel with one kernel, Appearance › Dock outside the
+// floating layout).
+const reachItems = {
+  kernel: menu.normalizeItem('update.kernel', { label: 'Kernel', when: 'many-kernels', provider: 'kernels' }),
+  installed: { id: 'update.kernel.linux', parent: 'update.kernel', kind: 'action', label: 'linux', when: '' },
+  dock: menu.normalizeItem('appearance.dock', { label: 'Dock', when: 'floating' }),
+  position: menu.normalizeItem('appearance.dock.position', { label: 'Dock Position' }),
+  top: menu.normalizeItem('appearance.dock.position.top', { label: 'Top Dock', action: 'dock-top' })
+}
+const reachIndex = Object.fromEntries(Object.values(reachItems).map(entry => [entry.id, entry]))
+assert(!menu.isReachable(reachIndex, { 'update.kernel': false }, reachItems.installed, 'root'), 'menu search skips rows of a hidden provider submenu')
+assert(!menu.isReachable(reachIndex, { 'appearance.dock': false }, reachItems.top, 'root'), 'menu search skips rows nested under a hidden submenu')
+assert(menu.isReachable(reachIndex, { 'appearance.dock': true }, reachItems.top, 'root'), 'menu search reaches rows under a showing submenu')
+assert(menu.isReachable(reachIndex, { 'appearance.dock': false }, reachItems.top, 'appearance.dock'), 'menu search inside a hidden submenu still lists its own rows')
+
 // `disabled:` is the softer guard: the row stays listed and only loses the
 // cursor, which is how an already-installed app keeps its place in Install.
 const installed = menu.normalizeItem('install.browser.zen', { label: 'Zen', disabled: 'omarchy-pkg-present zen-browser-bin', action: 'install-zen' })

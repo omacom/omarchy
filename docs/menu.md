@@ -99,6 +99,7 @@ The three guards differ in what failure means:
 - `when` hides the row when it fails. A submenu whose visible descendants
   are all hidden disappears with them (provider-backed submenus stay, since
   their rows load on demand).
+  Search follows the same rule: it leaves out every row under a submenu whose `when:` hides it, and doesn't run that submenu's provider, unless the search started inside that submenu.
 - `checked` appends ✓ when it succeeds — the "this is the current choice"
   marker on defaults, DNS, channel rows.
 - `disabled` keeps the row listed but dims it, marks it ✓, and makes it
