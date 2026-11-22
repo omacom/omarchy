@@ -35,7 +35,7 @@ ShellRoot {
       measurements: measurements
     })
     if (resultPath)
-      Quickshell.execDetached(["bash", "-c", "printf '%s' " + shellQuote(payload) + " > " + shellQuote(resultPath)])
+      Quickshell.execDetached(["bash", "-c", "printf '%s' " + shellQuote(payload) + " > " + shellQuote(resultPath + ".tmp") + " && mv -- " + shellQuote(resultPath + ".tmp") + " " + shellQuote(resultPath)])
   }
 
   function find(item, test, out) {
