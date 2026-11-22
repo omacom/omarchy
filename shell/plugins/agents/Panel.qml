@@ -70,27 +70,22 @@ Panel {
 
 
   // The keyboard walks everything on the page that does something, in
-  // reading order, one row at a time: the hero's buttons, then each agent's
-  // header, its Sign-in required link or switchable accounts, and the starter
-  // tiles, or the agents to add while picking one. Up and down change rows, left and right move along one.
-  // Hovering moves the same cursor, so only one thing is lit.
+  // reading order, one row at a time: the hero's button, then each line's
+  // buttons, its Sign-in required link, and the starter tiles; or, while
+  // adding, the choices by provider id. Up and down change rows, left and
+  // right move along one. Hovering moves the same cursor, so only one thing
+  // is lit.
   readonly property var keyRows: {
     var rows = []
-    var hero = []
-    if (addButtonShown) hero.push({ kind: "add", index: 0 })
-    if (hero.length > 0) rows.push(hero)
+    if (addButtonShown) rows.push([{ kind: "add", index: 0 }])
     if (picking) {
       var blocks = [addGroup("subscription"), addGroup("provider")]
-      for (var b = 0; b < blocks.length; b++) {
-        var choices = []
-        for (var k = 0; k < blocks[b].length; k++) choices.push({ kind: "choice", index: addIndexOf(blocks[b][k].providerId) })
-        if (choices.length > 0) rows.push(choices)
-      }
+      for (var b = 0; b < blocks.length; b++)
+        rows.push(blocks[b].map(function(choice) { return { kind: "choice", index: choice.providerId } }))
       for (var o = 0; o < ownModelOffers.length; o++) rows.push([{ kind: "ownModel", index: o }])
     } else if (addStage === "more") {
-      var more = addGroup("more")
-      for (var r = 0; r < more.length; r++) rows.push([{ kind: "moreChoice", index: r }])
-      rows.push([{ kind: "moreOpenCode", index: 0 }])
+      var more = addGroup("more").concat([{ providerId: otherInOpenCode }])
+      for (var r = 0; r < more.length; r++) rows.push([{ kind: "choice", index: more[r].providerId }])
     } else if (addStage === "running") {
       if (pasteLinkShown) rows.push([{ kind: "pasteCode", index: 0 }])
       if (addUrl !== "") rows.push([{ kind: "reopenSignIn", index: 0 }])
@@ -102,7 +97,7 @@ Panel {
         var line = []
         if (defaultIdFor(providers[p]) !== "" && !starred(providers[p], providers[p].account || null))
           line.push({ kind: "providerStar", index: p })
-        if (launches(providers[p]) && makesOpenIndex === p)
+        if (makesOpenIndex === p)
           for (var m = 0; m < starterPrompts.length; m++) line.push({ kind: "make:" + starterPrompts[m].kind, index: p })
         else if (launches(providers[p]))
           line.push({ kind: "makeToggle", index: p })
@@ -146,15 +141,13 @@ Panel {
     }
   }
 
-  // The first arrow only shows where the cursor is, as in the other panels.
   // A line's rightmost button, where the cursor lands on it: its terminal,
   // or the mark for a line with no button.
   function lineStop(p) {
-    var provider = providers[p]
-    if (!provider) return "provider"
-    return launches(provider) ? "providerLaunch" : "provider"
+    return launches(providers[p]) ? "providerLaunch" : "provider"
   }
 
+  // The first arrow only shows where the cursor is, as in the other panels.
   function moveKey(dx, dy) {
     if (keyRows.length === 0) return
     if (!cursorActive) {
@@ -169,11 +162,8 @@ Panel {
       // Down then Enter starts the next one; a line without one lands on its
       // rightmost stop.
       var row = keyRows[keyRow]
-      var launch = -1
-      for (var c = 0; c < row.length; c++)
-        if (row[c].kind === "providerLaunch") launch = c
-      var line = ["provider", "providerStar"].indexOf(row[0].kind) >= 0
-      keyColumn = launch >= 0 ? launch : line ? row.length - 1 : Math.min(keyColumn, row.length - 1)
+      var last = row[row.length - 1].kind
+      keyColumn = last === "providerLaunch" || last === "provider" ? row.length - 1 : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
       // A row can go while the cursor is on it, like the starters when the
       // last agent stops.
@@ -356,31 +346,18 @@ Panel {
     { providerId: "cursor", providerName: "Cursor" },
     { providerId: "muse", providerName: "Muse", printsPage: true }
   ]
-  readonly property var addProviders: addGroup("subscription").concat(addGroup("provider"))
   readonly property int addColumns: 4
+  // The More list's last row, which hands any other provider to OpenCode.
+  readonly property string otherInOpenCode: "opencode-other"
 
   function addGroup(group) {
     return signInProviders.filter(function(p) { return p.group === group })
-  }
-
-  // A tile's place in the picker, by id: reading a list property can hand
-  // back copies of its entries, so they can't be found by identity.
-  function addIndexOf(id) {
-    for (var i = 0; i < addProviders.length; i++)
-      if (addProviders[i].providerId === id) return i
-    return -1
   }
 
   // The third block: the best coding model for this computer, when one fits.
   // Setting it up belongs to the local models panel, which follows the
   // download, so choosing it hands over there.
   readonly property var localModelsService: bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.local-models") : null
-  readonly property var ownModelRecipe: {
-    var recipes = localModelsService ? localModelsService.localRecipes || [] : []
-    for (var i = 0; i < recipes.length; i++)
-      if (recipes[i].kind === "text" && recipes[i].best && recipes[i].available) return recipes[i]
-    return null
-  }
 
   // What the local block offers: a paired machine's coding model that's
   // running now, ready at once, then the best one for this computer.
@@ -391,7 +368,8 @@ Panel {
       if (lines[i].localModel.host !== "")
         offers.push({ target: lines[i].localModel.target, name: lines[i].providerName, vendor: lines[i].iconId,
                       host: lines[i].localModel.host, facts: lines[i].localModel, ready: true })
-    var recipe = ownModelRecipe
+    var recipes = localModelsService ? localModelsService.localRecipes || [] : []
+    var recipe = recipes.find(function(r) { return r.kind === "text" && r.best && r.available })
     if (recipe)
       offers.push({ target: String(recipe.id), name: recipe.name || String(recipe.id), vendor: recipe.vendor || "local",
                     host: "", facts: recipe, ready: recipe.installed === true, recipe: recipe })
@@ -452,14 +430,7 @@ Panel {
           decode_tok_s: model.decode_tok_s != null ? model.decode_tok_s : recipe.decode_tok_s,
           context: model.ctx != null ? model.ctx : recipe.context,
           memory_gib: recipe.memory_gib
-        },
-        limits: [],
-        accounts: [],
-        tierLabel: "",
-        usageStatusText: "",
-        authHelpText: "",
-        balance: null,
-        spend: null
+        }
       })
     }
     var models = (service.localModel || {}).models || {}
@@ -569,6 +540,10 @@ Panel {
   function chooseAddProvider(id) {
     if (id === "more") {
       addStage = "more"
+      return
+    }
+    if (id === otherInOpenCode) {
+      openOpenCodeLogin()
       return
     }
     var state = addChecks[id] || ""
@@ -700,9 +675,9 @@ Panel {
     Util.execArgv(addPrivate ? ["omarchy-launch-browser", "--private", addUrl] : ["omarchy-launch-browser", addUrl])
   }
 
-  // A few ways into making Omarchy your own, handed to the local model when one
-  // is running, and to the default agent otherwise or when Shift is held. The
-  // prompts live in omarchy-agent-make, shared with the menu's Agent > Make something.
+  // A few ways into making Omarchy your own, handed to the default agent. The
+  // prompts live in omarchy-agent-make, shared with the menu's Agent > Make
+  // something.
   readonly property var starterPrompts: [
     { glyph: "󰏘", label: Commons.I18n.t("agents.theme"), kind: "theme" },
     { glyph: "󰐱", label: Commons.I18n.t("agents.plugin"), kind: "plugin" },
@@ -712,34 +687,20 @@ Panel {
   // Two across, so a label in a long language still fits its tile.
   readonly property int starterColumns: 2
 
-  // A local model that is up: the last one started when it's running, any
-  // other running one otherwise.
-  readonly property var starterLocalModel: {
-    var service = bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.local-models") : null
-    var local = service ? service.localModel : {}
-    var models = local.models || {}
-    var up = Object.keys(models).filter(function(id) {
-      var m = models[id]
-      return m && m.unit === "active" && m.sub_state === "running"
-    })
-    if (up.length === 0) return null
-    return models[up.indexOf(local.last) >= 0 ? local.last : up[0]]
-  }
-
-  // A coding model that is set up but stopped takes a task too: opening the
-  // agent on it starts it first.
-  readonly property bool starterLocalStopped: {
-    var service = bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.local-models") : null
-    var models = (service ? service.localModel : {}).models || {}
-    return Object.keys(models).some(function(id) {
-      return models[id] && models[id].kind === "text" && models[id].unit === "inactive"
-    })
-  }
+  // A local model that's running, and a coding model that's set up but
+  // stopped, which takes a task too: opening the agent on it starts it first.
+  readonly property var localModels: localModelsService && localModelsService.localModel ? localModelsService.localModel.models || {} : {}
+  readonly property bool localModelRunning: Object.keys(localModels).some(function(id) {
+    return localModels[id] && localModels[id].unit === "active" && localModels[id].sub_state === "running"
+  })
+  readonly property bool localModelStopped: Object.keys(localModels).some(function(id) {
+    return localModels[id] && localModels[id].kind === "text" && localModels[id].unit === "inactive"
+  })
 
   // The starters only show once something can take the task: a local model
   // that's running or stopped, or a signed-in subscription with a coding agent
   // of its own. A model still downloading or loading doesn't count yet.
-  readonly property bool starterAgentReady: starterLocalModel !== null || starterLocalStopped || providers.some(function(p) {
+  readonly property bool starterAgentReady: localModelRunning || localModelStopped || providers.some(function(p) {
     return harnessFor(p) !== "" && !signedOut(p)
   })
   readonly property bool starterShown: addStage === "" && !blankSlate && starterAgentReady
@@ -783,7 +744,6 @@ Panel {
     hermes: "hermes-desktop",
     opencode: "ai.opencode.desktop"
   })
-  readonly property var desktopWindows: ToplevelManager.toplevels.values
 
   function desktopFor(provider) {
     var id = provider && desktopApps[provider.providerId]
@@ -798,7 +758,7 @@ Panel {
     root.close()
     var id = entry.id.toLowerCase()
     var startupClass = entry.startupClass.toLowerCase()
-    for (var win of desktopWindows) {
+    for (var win of ToplevelManager.toplevels.values) {
       var appId = win.appId.toLowerCase()
       // ChatGPT also uses the Codex app id. The harness lives in a terminal
       // with its own id (org.omarchy.codex), which must never claim this.
@@ -810,37 +770,19 @@ Panel {
     Util.execArgv(["uwsm-app", "--", "gtk-launch", entry.id + ".desktop"])
   }
 
-  function makeOnLine(line, kind) {
-    if (!line || !launches(line)) return
-    if (line.localModel) {
-      Util.execArgv(["omarchy-agent-make", "--local-model", line.localModel.target, kind])
-    } else if (opensInAgent(line)) {
-      Util.execArgv(["omarchy-agent-make", "--provider", line.providerId, kind])
-    } else if (line.account && !line.account.active) {
-      Util.execArgv(["bash", "-c", 'omarchy-agent-account-use "$1" "$2" >/dev/null && exec omarchy-agent-make --agent "$3" "$4"',
-                     "make-on-account", line.providerId, String(line.account.id), harnessFor(line), kind])
-    } else {
-      Util.execArgv(["omarchy-agent-make", "--agent", harnessFor(line), kind])
-    }
-    root.close()
-  }
-
-  function launchLine(line) {
-    if (line && line.localModel) {
-      Util.execArgv(["omarchy-agent", "--local-model", line.localModel.target])
-      root.close()
-    } else if (line && line.account) launchAccount(line, line.account)
-    else launchHarness(line)
-  }
-
-  function launchAccount(p, account) {
-    if (!launches(p)) return
-    if (!account || account.active) {
-      launchHarness(p)
-      return
-    }
-    Util.execArgv(["bash", "-c", 'omarchy-agent-account-use "$1" "$2" >/dev/null && exec omarchy-agent --agent "$3"',
-                   "launch-account", p.providerId, String(account.id), harnessFor(p)])
+  // Starts a line's agent, or has it make `kind` when one is given, first
+  // switching to the line's account when it isn't the one in use.
+  function runLine(line, kind) {
+    if (!launches(line)) return
+    var command = [kind ? "omarchy-agent-make" : "omarchy-agent"]
+    if (line.localModel) command.push("--local-model", line.localModel.target)
+    else if (opensInAgent(line)) command.push("--provider", line.providerId)
+    else command.push("--agent", harnessFor(line))
+    if (kind) command.push(kind)
+    if (command[1] === "--agent" && line.account && !line.account.active)
+      command = ["bash", "-c", 'omarchy-agent-account-use "$1" "$2" >/dev/null && exec "${@:3}"',
+                 "run-line", line.providerId, String(line.account.id)].concat(command)
+    Util.execArgv(command)
     root.close()
   }
 
@@ -849,21 +791,19 @@ Panel {
     Util.execArgv(["omarchy-agent-account-use", p.providerId, String(account.id)])
   }
 
-  function activateSelection(modifiers) {
+  function activateSelection() {
     var target = keyTarget
     if (!target) refreshNow()
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
-    else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
+    else if (target.kind === "choice") chooseAddProvider(target.index)
     else if (target.kind === "ownModel") chooseOwnModel(target.index)
-    else if (target.kind === "moreChoice") chooseAddProvider(addGroup("more")[target.index].providerId)
-    else if (target.kind === "moreOpenCode") openOpenCodeLogin()
     else if (target.kind === "pasteCode") openPasteField()
     else if (target.kind === "reopenSignIn") reopenSignIn()
-    else if (target.kind === "providerLaunch") launchLine(providers[target.index])
+    else if (target.kind === "providerLaunch") runLine(providers[target.index])
     else if (target.kind === "providerStar") makeDefault(providers[target.index], providers[target.index].account || null)
     else if (target.kind === "makeToggle") openMakes(target.index)
     else if (target.kind === "providerDesktop") launchDesktop(providers[target.index])
-    else if (target.kind.indexOf("make:") === 0) makeOnLine(providers[target.index], target.kind.slice(5))
+    else if (target.kind.indexOf("make:") === 0) runLine(providers[target.index], target.kind.slice(5))
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], providers[target.index].account || null)
   }
@@ -876,14 +816,6 @@ Panel {
   // Hands the keyboard back to the panel after an inline edit.
   function focusKeys() {
     if (panel.loadedContent) panel.loadedContent.forceActiveFocus()
-  }
-
-  function accountDetail(account) {
-    var parts = []
-    if (String(account.plan || "") !== "") parts.push(account.plan)
-    if (account.resetCredits && Number(account.resetCredits.available) > 0)
-      parts.push(freeResetsText(Number(account.resetCredits.available)))
-    return parts.join(" · ")
   }
 
   // Only the agents `omarchy-agent-account-add` signs in get the link; any
@@ -1045,13 +977,6 @@ Panel {
     return isDefault(provider) && (!account || account.active === true)
   }
 
-  function launchHarness(provider) {
-    if (!launches(provider)) return
-    Util.execArgv(opensInAgent(provider)
-      ? ["omarchy-agent", "--provider", provider.providerId]
-      : ["omarchy-agent", "--agent", harnessFor(provider)])
-    root.close()
-  }
 
   // ---------------------------------------------------------------- limits
   //
@@ -1454,7 +1379,7 @@ Panel {
   // Local history counts as set up, so a machine with no subscription still
   // gets its summary rather than the picker.
   // So does a running local model, which the starters can hand their task to.
-  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn && starterLocalModel === null
+  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn && !localModelRunning
   // Choosing a provider: asked for with the +, or simply what the panel is
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
@@ -1485,7 +1410,7 @@ Panel {
     cursorActive = false
     keyRow = 0
     keyColumn = 0
-    Qt.callLater(function() { if (picking) pointAt("choice", 0) })
+    Qt.callLater(function() { if (picking) pointAt("choice", "claude") })
   }
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -1504,8 +1429,7 @@ Panel {
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
     usage.refreshLimits()
-    usage.reloadDefaultAgent()
-    usage.reloadLocalPin()
+    usage.reloadDefaults()
     if (localModelsService) localModelsService.refreshNetwork()
     if (addOnOpen) {
       addOnOpen = false
@@ -1530,8 +1454,7 @@ Panel {
   Process {
     id: selectDefault
     onExited: {
-      usage.reloadDefaultAgent()
-      usage.reloadLocalPin()
+      usage.reloadDefaults()
     }
   }
 
@@ -1690,7 +1613,7 @@ Panel {
       }
       onDeleteRequested: root.deleteSelected()
       blocked: root.renaming || root.deleteTarget !== null
-      onActivateRequested: function(modifiers) { root.activateSelection(modifiers) }
+      onActivateRequested: root.activateSelection()
       onCloseRequested: {
         if (root.dragIndex >= 0) root.settleProviderDrag(true)
         else if (root.addStage !== "") root.cancelAdd()
@@ -1870,10 +1793,9 @@ Panel {
   component AddChoice: Item {
     id: choice
     property var entry: ({})
-    property int index: -1
     readonly property string state: root.addChecks[entry.providerId] || ""
     readonly property bool available: entry.more === true || state === "first" || state === "additional"
-    readonly property bool hasCursor: root.hasKey("choice", index)
+    readonly property bool hasCursor: root.hasKey("choice", entry.providerId)
     implicitHeight: choiceBody.implicitHeight + Style.space(16)
     onHasCursorChanged: if (hasCursor) root.revealItem(choice)
 
@@ -1925,7 +1847,7 @@ Panel {
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: choice.available ? Qt.PointingHandCursor : Qt.ArrowCursor
-      onEntered: root.pointAt("choice", choice.index)
+      onEntered: root.pointAt("choice", choice.entry.providerId)
       onClicked: root.chooseAddProvider(choice.entry.providerId)
     }
   }
@@ -1980,7 +1902,6 @@ Panel {
               AddChoice {
                 required property var modelData
                 entry: modelData
-                index: root.addIndexOf(modelData.providerId)
                 width: (choiceRow.width - choiceRow.spacing * (root.addColumns - 1)) / root.addColumns
               }
             }
@@ -2088,13 +2009,12 @@ Panel {
       }
 
       Repeater {
-        model: root.addStage === "more" ? root.addGroup("more").concat([{ providerId: "", providerName: Commons.I18n.t("agents.moreInOpenCode"), opencode: true }]) : []
+        model: root.addStage === "more" ? root.addGroup("more").concat([{ providerId: root.otherInOpenCode, providerName: Commons.I18n.t("agents.moreInOpenCode"), opencode: true }]) : []
 
         Item {
           id: moreRow
           required property var modelData
-          required property int index
-          readonly property bool hasCursor: modelData.opencode ? root.hasKey("moreOpenCode", 0) : root.hasKey("moreChoice", index)
+          readonly property bool hasCursor: root.hasKey("choice", modelData.providerId)
           width: parent.width
           implicitHeight: Style.space(36)
           onHasCursorChanged: if (hasCursor) root.revealItem(moreRow)
@@ -2133,8 +2053,8 @@ Panel {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onEntered: moreRow.modelData.opencode ? root.pointAt("moreOpenCode", 0) : root.pointAt("moreChoice", moreRow.index)
-            onClicked: moreRow.modelData.opencode ? root.openOpenCodeLogin() : root.chooseAddProvider(moreRow.modelData.providerId)
+            onEntered: root.pointAt("choice", moreRow.modelData.providerId)
+            onClicked: root.chooseAddProvider(moreRow.modelData.providerId)
           }
         }
       }
@@ -2336,8 +2256,8 @@ Panel {
     }
   }
 
-  // One provider: its mark, name, and plan, then its limits — or, with
-  // several accounts, each account's name, state, and limits in turn. A
+  // One line: a subscription account, a pay-as-you-go provider, or a running
+  // local model. Its mark, name, and plan, its buttons, then its limits; a
   // prepaid provider shows its balance instead.
   component ProviderSection: Column {
     id: section
@@ -2404,14 +2324,8 @@ Panel {
     Item {
       id: sectionHead
       width: parent.width
-      // Where the line's text has to stop: the star, the make icons, or the
-      // terminal button, whichever is leftmost.
-      readonly property real textEnd: (sectionStar.visible ? sectionStar.x
-        : sectionMakes.visible ? sectionMakes.x
-      : sectionSparkles.visible ? sectionSparkles.x
-      : sectionDesktop.visible ? sectionDesktop.x
-        : sectionLaunch.visible ? sectionLaunch.x
-        : width) - Style.space(8)
+      // Where the line's text has to stop: before its buttons.
+      readonly property real textEnd: sectionActions.x - Style.space(8)
       implicitHeight: Math.max(sectionMark.height, sectionName.implicitHeight)
       // Lit for the keyboard, and as the drop spot while an agent is dragged.
       readonly property bool lit: root.dragProviderId !== "" ? root.dragTarget === section.providerIndex : root.hasKey("provider", section.providerIndex)
@@ -2501,7 +2415,7 @@ Panel {
         visible: section.editingName
         anchors.left: sectionName.right
         anchors.leftMargin: Style.space(8)
-        anchors.right: sectionStar.left
+        anchors.right: sectionActions.left
         anchors.rightMargin: Style.space(8)
         anchors.verticalCenter: sectionName.verticalCenter
         foreground: root.foreground
@@ -2544,103 +2458,106 @@ Panel {
         record: section.provider
       }
 
-      // The default's star is filled: the default agent, and with several
-      // accounts the one in use. Another line's makes it the default.
-      PanelActionButton {
-        id: sectionStar
-        anchors.right: sectionMakes.visible ? sectionMakes.left : sectionSparkles.visible ? sectionSparkles.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
-        anchors.rightMargin: sectionMakes.visible || sectionSparkles.visible || sectionLaunch.visible ? Style.space(6) : 0
-        anchors.verticalCenter: parent.verticalCenter
-        visible: root.defaultIdFor(section.provider) !== ""
-        readonly property bool on: root.starred(section.provider, section.account)
-        // Only the default's star stays; another shows when it's engaged. It
-        // keeps its place either way, so the terminal button doesn't move.
-        readonly property bool shown: on || section.engaged
-        opacity: shown ? 1 : 0
-        enabled: shown
-        iconText: on ? "󰓎" : "󰓒"
-        tooltipText: on
-          ? Commons.I18n.t("agents.isDefault")
-          : Commons.I18n.t("agents.makeDefault").arg(root.lineName(section.provider))
-        foreground: on ? Commons.Color.accent : root.foreground
-        fontFamily: root.fontFamily
-        hasCursor: root.hasKey("providerStar", section.providerIndex)
-        onHovered: function(isHovered) { if (isHovered) root.pointAt("providerStar", section.providerIndex) }
-        onClicked: root.makeDefault(section.provider, section.account)
-      }
-
-      // Making something with this line's agent, as the starter tiles do with
-      // the default: one sparkles icon on the line in use, which opens into
-      // the four.
-      PanelActionButton {
-        id: sectionDesktop
-        readonly property var entry: root.desktopFor(section.provider)
-        anchors.right: sectionLaunch.left
-        anchors.rightMargin: Style.space(6)
-        anchors.verticalCenter: parent.verticalCenter
-        visible: !!entry && section.engaged
-        iconText: "󰍹"
-        tooltipText: entry ? Commons.I18n.t("agents.openDesktopApp").arg(entry.name) : ""
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        hasCursor: root.hasKey("providerDesktop", section.providerIndex)
-        onHovered: function(isHovered) { if (isHovered) root.pointAt("providerDesktop", section.providerIndex) }
-        onClicked: root.launchDesktop(section.provider)
-      }
-
-      PanelActionButton {
-        id: sectionSparkles
-        anchors.right: sectionDesktop.visible ? sectionDesktop.left : sectionLaunch.left
-        anchors.rightMargin: Style.space(6)
-        anchors.verticalCenter: parent.verticalCenter
-        visible: root.launches(section.provider) && section.engaged && !section.makesOpen
-        iconText: "󰙴"
-        tooltipText: Commons.I18n.t("agents.makeSomethingWith").arg(root.lineName(section.provider))
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        hasCursor: root.hasKey("makeToggle", section.providerIndex)
-        onHovered: function(isHovered) { if (isHovered) root.pointAt("makeToggle", section.providerIndex) }
-        onClicked: root.openMakes(section.providerIndex)
-      }
-
+      // The line's buttons, from the right: its terminal, its desktop app,
+      // its makes, and its star. Hidden ones take no room, but an unlit star
+      // keeps its place so the others don't move.
       Row {
-        id: sectionMakes
-        anchors.right: sectionDesktop.visible ? sectionDesktop.left : sectionLaunch.left
-        anchors.rightMargin: Style.space(6)
-        anchors.verticalCenter: parent.verticalCenter
-        visible: root.launches(section.provider) && section.makesOpen
-        spacing: Style.space(2)
-
-        Repeater {
-          model: root.starterPrompts
-
-          PanelActionButton {
-            required property var modelData
-            iconText: modelData.glyph
-            tooltipText: Commons.I18n.t("agents.makeWith").arg(modelData.label.toLowerCase()).arg(root.lineName(section.provider))
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            hasCursor: root.hasKey("make:" + modelData.kind, section.providerIndex)
-            onHovered: function(isHovered) { if (isHovered) root.pointAt("make:" + modelData.kind, section.providerIndex) }
-            onClicked: root.makeOnLine(section.provider, modelData.kind)
-          }
-        }
-      }
-
-      // Opens the coding agent made for this subscription: Codex for OpenAI,
-      // Claude Code for Anthropic.
-      PanelActionButton {
-        id: sectionLaunch
+        id: sectionActions
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        visible: root.launches(section.provider)
-        iconText: "󰞷"
-        tooltipText: Commons.I18n.t("agents.launchHarness").arg(root.lineName(section.provider))
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        hasCursor: root.hasKey("providerLaunch", section.providerIndex)
-        onHovered: function(isHovered) { if (isHovered) root.pointAt("providerLaunch", section.providerIndex) }
-        onClicked: root.launchLine(section.provider)
+        layoutDirection: Qt.RightToLeft
+        spacing: Style.space(6)
+
+        // Opens the coding agent made for this subscription: Codex for OpenAI,
+        // Claude Code for Anthropic.
+        PanelActionButton {
+          id: sectionLaunch
+          anchors.verticalCenter: parent.verticalCenter
+          visible: root.launches(section.provider)
+          iconText: "󰞷"
+          tooltipText: Commons.I18n.t("agents.launchHarness").arg(root.lineName(section.provider))
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          hasCursor: root.hasKey("providerLaunch", section.providerIndex)
+          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerLaunch", section.providerIndex) }
+          onClicked: root.runLine(section.provider)
+        }
+
+          // The subscription's desktop app, when it's installed.
+        PanelActionButton {
+          id: sectionDesktop
+          readonly property var entry: root.desktopFor(section.provider)
+          anchors.verticalCenter: parent.verticalCenter
+          visible: !!entry && section.engaged
+          iconText: "󰍹"
+          tooltipText: entry ? Commons.I18n.t("agents.openDesktopApp").arg(entry.name) : ""
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          hasCursor: root.hasKey("providerDesktop", section.providerIndex)
+          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerDesktop", section.providerIndex) }
+          onClicked: root.launchDesktop(section.provider)
+        }
+
+          // Making something with this line's agent, as the starter tiles do
+          // with the default: one sparkles icon on the line in use, which opens
+          // into the four.
+        PanelActionButton {
+          id: sectionSparkles
+          anchors.verticalCenter: parent.verticalCenter
+          visible: root.launches(section.provider) && section.engaged && !section.makesOpen
+          iconText: "󰙴"
+          tooltipText: Commons.I18n.t("agents.makeSomethingWith").arg(root.lineName(section.provider))
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          hasCursor: root.hasKey("makeToggle", section.providerIndex)
+          onHovered: function(isHovered) { if (isHovered) root.pointAt("makeToggle", section.providerIndex) }
+          onClicked: root.openMakes(section.providerIndex)
+        }
+
+        Row {
+          id: sectionMakes
+          anchors.verticalCenter: parent.verticalCenter
+          visible: section.makesOpen
+          spacing: Style.space(2)
+
+          Repeater {
+            model: root.starterPrompts
+
+            PanelActionButton {
+              required property var modelData
+              iconText: modelData.glyph
+              tooltipText: Commons.I18n.t("agents.makeWith").arg(modelData.label.toLowerCase()).arg(root.lineName(section.provider))
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              hasCursor: root.hasKey("make:" + modelData.kind, section.providerIndex)
+              onHovered: function(isHovered) { if (isHovered) root.pointAt("make:" + modelData.kind, section.providerIndex) }
+              onClicked: root.runLine(section.provider, modelData.kind)
+            }
+          }
+        }
+
+        // The default's star is filled: the default agent, and with several
+        // accounts the one in use. Another line's makes it the default.
+        PanelActionButton {
+          id: sectionStar
+          anchors.verticalCenter: parent.verticalCenter
+          visible: root.defaultIdFor(section.provider) !== ""
+          readonly property bool on: root.starred(section.provider, section.account)
+          // Only the default's star stays; another shows when it's engaged. It
+          // keeps its place either way, so the terminal button doesn't move.
+          readonly property bool shown: on || section.engaged
+          opacity: shown ? 1 : 0
+          enabled: shown
+          iconText: on ? "󰓎" : "󰓒"
+          tooltipText: on
+            ? Commons.I18n.t("agents.isDefault")
+            : Commons.I18n.t("agents.makeDefault").arg(root.lineName(section.provider))
+          foreground: on ? Commons.Color.accent : root.foreground
+          fontFamily: root.fontFamily
+          hasCursor: root.hasKey("providerStar", section.providerIndex)
+          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerStar", section.providerIndex) }
+          onClicked: root.makeDefault(section.provider, section.account)
+        }
       }
     }
 
@@ -2889,7 +2806,7 @@ Panel {
   // accent on hover.
   component StarterTile: Rectangle {
     id: tile
-    signal clicked(int modifiers)
+    signal clicked()
     signal hovered()
     property string glyph: ""
     property string title: ""
@@ -2930,7 +2847,7 @@ Panel {
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onEntered: tile.hovered()
-      onClicked: function(mouse) { tile.clicked(mouse.modifiers) }
+      onClicked: tile.clicked()
     }
 
     PanelToolTip {

@@ -51,7 +51,7 @@ per local coding model that is running and ready.
   accounts, on the account in use. Any other line's star shows while the line
   is hovered or the keyboard is on it, and makes it the default without
   opening it, through `omarchy default agent --select`: starring an account
-  also switches to it, starring Fireworks or OpenRouter chooses OpenCode, and
+  also switches to it, starring a pay-as-you-go provider chooses OpenCode, and
   starring a local model pins it (`omarchy default agent local <model>`),
   which the default then opens instead of the model started last.
 - **Make icons** — the line in use also shows a sparkles icon beside its
@@ -63,18 +63,18 @@ per local coding model that is running and ready.
   funded-versus-spent detail.
 - **Terminal button** — at the end of a line, it opens the harness made for
   that subscription, switching to an account first when it isn't the one in
-  use.
+  use. Pay-as-you-go providers have none of their own, so theirs opens
+  OpenCode, where their key is saved, through `omarchy agent --provider`,
+  always on one of that provider's models: the one OpenCode last used there,
+  so a switch made in a session sticks, else the one the section's record has
+  used most, else the first OpenCode lists.
 - **Desktop app** — on the line in use, a monitor icon beside the terminal
   button opens the subscription's desktop app when it's installed (Claude,
   ChatGPT for Codex, Grok Bot, Antigravity, Cursor, Hermes, OpenCode),
   focusing its window when one is already open. The app keeps its own
   sign-in. A first sign-in to Claude, Codex, Grok, or Gemini installs its
   desktop app where it's offered: through `omarchy-pkg-add` in a terminal,
-  and through polkit from the panel, which has none. Fireworks and OpenRouter have none of their own, so
-  theirs opens OpenCode, where their key is saved, through
-  `omarchy agent --provider`, always on one of that provider's models: the
-  one OpenCode last used there, so a switch made in a session sticks, else
-  the one the section's record has used most, else the first OpenCode lists.
+  and through polkit from the panel, which has none.
 - **Spend** — pay-as-you-go agents show what the account spent in the last
   30 days, a bar a day, or, against a monthly cap when there is one, this
   month's spend as a meter. Hovering a bar lights it up and names its day,
@@ -345,8 +345,9 @@ It is the exact complement of the provider collectors: a provider id another col
   urgent when any account new sessions use is at 90% of a window, or a
   prepaid balance is down to its last 10%.
 - Panel: the arrows (or `h`/`j`/`k`/`l`) walk a cursor over everything that
-  does something, row by row: the hero's buttons, each line's star, make
-  icons, and terminal button, and the starter tiles, or the agents to add.
+  does something, row by row: the hero's button, each line's star, sparkles
+  (or make icons once opened), desktop app, and terminal button, and the
+  starter tiles, or the agents to add.
   Up and Down land on a line's terminal button, so Down then Enter starts the
   next one. Ctrl+Up/Down (or Ctrl+`k`/`j`) moves the line the cursor is in up
   or down the page; dragging a line by its mark does the same, lighting the

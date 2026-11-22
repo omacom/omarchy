@@ -266,8 +266,6 @@ Item {
   // local <model>` pins it. Empty when none is: it opens the one started last.
   property string localPin: ""
 
-  function reloadLocalPin() { localPinFile.reload() }
-
   FileView {
     id: localPinFile
     path: root.home + "/.config/omarchy/defaults/local-model"
@@ -346,7 +344,11 @@ Item {
   // "local" for the local model. Empty until one is chosen.
   property string defaultAgent: ""
 
-  function reloadDefaultAgent() { defaultAgentFile.reload() }
+  // The default and the local model pin, read again after they're written.
+  function reloadDefaults() {
+    defaultAgentFile.reload()
+    localPinFile.reload()
+  }
 
   FileView {
     id: defaultAgentFile
