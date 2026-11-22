@@ -2616,7 +2616,7 @@ Panel {
         visible: !head.editing
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
-        text: head.owner ? head.owner.providerName + " · " : ""
+        text: head.owner ? head.owner.providerName : ""
         color: head.picked ? Commons.Color.accent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
@@ -2628,13 +2628,13 @@ Panel {
         textFormat: Text.PlainText
         visible: !head.editing
         anchors.left: ownerText.right
-        anchors.verticalCenter: parent.verticalCenter
-        width: Math.min(implicitWidth, parent.width * 0.6 - ownerText.width)
+        anchors.leftMargin: Style.space(8)
+        anchors.baseline: ownerText.baseline
+        width: Math.min(implicitWidth, parent.width * 0.6 - ownerText.width - Style.space(8))
         text: head.label
-        color: head.picked ? Commons.Color.accent : root.foreground
+        color: head.picked ? Commons.Color.accent : root.dim
         font.family: root.fontFamily
-        font.pixelSize: Style.font.body
-        font.bold: true
+        font.pixelSize: Style.font.caption
         font.underline: nameMouse.containsMouse
         elide: Text.ElideRight
 
@@ -2660,7 +2660,7 @@ Panel {
         anchors.left: nameText.right
         anchors.leftMargin: Style.space(8)
         anchors.verticalCenter: nameText.verticalCenter
-        width: Math.max(0, parent.width - ownerText.width - nameText.width - Style.space(8))
+        width: Math.max(0, parent.width - ownerText.width - nameText.width - Style.space(16))
         spacing: Style.space(8)
 
         Text {
