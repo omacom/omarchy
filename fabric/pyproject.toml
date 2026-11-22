@@ -13,13 +13,13 @@ dependencies = [
 
 [project.optional-dependencies]
 # MCP server for agents (desktop / console side).
-mcp = ["mcp>=1.12,<2"]
+mcp = ["mcp>=2.3,<3"]
 # Raspberry Pi 5 GPIO (buttons, LEDs, relays). lgpio is the Pi 5 backend for gpiozero.
 pi = [
   "gpiozero>=2.0",
   "lgpio>=0.2.2; sys_platform == 'linux' and platform_machine == 'aarch64'",
 ]
-dev = ["pytest>=8", "pytest-asyncio>=0.24", "gpiozero>=2.0", "mcp>=1.12,<2"]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "gpiozero>=2.0", "mcp>=2.3,<3"]
 
 [project.scripts]
 ofab = "omarchy_fabric.cli:main"
