@@ -33,6 +33,23 @@ assertEqual(signIn.usageNote({providerId: 'grok', usageStatusText: '', limitsSta
 assertEqual(signIn.usageNote({usageStatusText: '', stale: true, authHelpText: 'Endpoint returned 500.'}),
   'Endpoint returned 500.', 'an account whose refresh failed still says why')
 
+// Go asks for a masked API key and explains where to create it, rather than
+// reusing Claude's browser-code prompt and hiding the Console instructions.
+const addStart = panelSource.indexOf('function startAdd')
+const addEnd = panelSource.indexOf('function cancelAdd', addStart)
+const addFlow = new Function('Commons', 'addFetchTimer', 'with (this) { return (' + panelSource.slice(addStart, addEnd) + ')("") }')
+const addState = {addProvider: 'opencode', addChecks: {opencode: 'first'}, addPrivate: '', addStatus: '', addCode: '', addUrl: '', addNeedsPaste: false,
+  addDownloading: true, addPhase: 'get', addFetched: true, addReauth: true, addFetchTimer: {stop() {}},
+  addResult: 'failed', addStage: 'pick', addIsApiKey: true, addProcess: {command: [], running: false}}
+addFlow.call(addState, {I18n: {t: key => key}}, addState.addFetchTimer)
+assert(addState.addNeedsPaste, 'OpenCode Go shows its paste field immediately')
+assertEqual(addState.addStage, 'running', 'OpenCode Go starts its sign-in')
+assertDeepEqual(addState.addProcess.command, ['omarchy-agent-account-add', '--events', 'opencode'], 'OpenCode Go starts the key-based add flow')
+for (const key of ['agents.connectApiKey', 'agents.pasteApiKey', 'agents.placeholderApiKey', 'agents.checkingApiKey'])
+  assert(panelSource.includes(key), key + ' is used for the Go setup')
+assert(/visible:\s*root\.addPrivate \|\| root\.addIsApiKey/.test(panelSource), 'Go keeps the Console instructions visible')
+assert(/password:\s*root\.addIsApiKey/.test(panelSource), 'Go masks the pasted API key')
+
 // Local history alone feeds the summary; a section needs a subscription to show.
 const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
 const subscribed = new Function(mainSource.match(/function providerHasSubscription\([^]*?\n  \}/)[0] + '\nreturn providerHasSubscription')()

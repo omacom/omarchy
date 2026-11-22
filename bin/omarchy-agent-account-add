@@ -346,10 +346,11 @@ finally:
 store_name = os.environ.get("OPENCODE_DB_NAME", "").strip()
 store_path = Path(store_name).expanduser() if store_name else None
 if store_path is not None and not store_path.is_absolute():
-    store_path = auth_dir / store_path.name
+    store_path = auth_dir / store_path
 if store_path is None:
     normal, legacy = auth_dir / "opencode.db", auth_dir / "opencode-v2.db"
     store_path = legacy if not normal.is_file() and legacy.is_file() else normal
+store_path.parent.mkdir(parents=True, exist_ok=True)
 import sqlite3, time
 # Secure existing databases too, and create new ones privately before SQLite
 # opens them. A permissions failure must abort before any key is inserted.

@@ -559,6 +559,35 @@ sqlite3.connect = connect
 PY
 pass "Go sign-in secures existing and new credential databases before saving the key"
 
+python3 - <<'PY' || fail "Go sign-in preserves a nested relative database path"
+import os, sqlite3, subprocess, tempfile
+from pathlib import Path
+
+with tempfile.TemporaryDirectory() as temporary:
+  fixture = Path(temporary)
+  data_home = fixture / "data"
+  environment = dict(os.environ, OPENCODE_DB="work/opencode.db",
+                     XDG_DATA_HOME=str(data_home),
+                     PATH=str(fixture / "bin") + os.pathsep + os.environ["PATH"])
+  mock_bin = fixture / "bin"
+  mock_bin.mkdir()
+  for command, body in (("curl", "printf 200"), ("opencode", "exit 0")):
+    executable = mock_bin / command
+    executable.write_text("#!/bin/bash\n" + body + "\n")
+    executable.chmod(0o755)
+  result = subprocess.run(["omarchy-agent-account-add", "--events", "opencode"],
+                          input="nested-fixture-key\n", text=True,
+                          capture_output=True, env=environment)
+  assert result.returncode == 0, (result.stdout, result.stderr)
+  database = data_home / "opencode" / "work" / "opencode.db"
+  assert database.is_file(), (database, result.stdout, result.stderr)
+  assert not (data_home / "opencode" / "opencode.db").exists()
+  with sqlite3.connect(database) as conn:
+    active = conn.execute("SELECT value FROM credential WHERE active = 1").fetchall()
+  assert "nested-fixture-key" in active[0][0], active
+PY
+pass "Go sign-in preserves a nested relative database path"
+
 : >"$notifications"
 OMARCHY_TEST_LOGIN_UUID=u-events OMARCHY_TEST_LOGIN_EMAIL=events@example.com \
   omarchy-agent-account-add --events claude Events </dev/null >"$test_tmp/events-output"
