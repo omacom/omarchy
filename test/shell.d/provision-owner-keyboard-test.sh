@@ -946,6 +946,7 @@ KMSCON_RELAUNCH=75
 language=\$1 chosen=\$2 keyboard_label=German keyboard_input_method=none keyboard_xkb_layout=""
 clear_logo() { :; }
 step() { :; }
+omarchy_form_text() { :; }
 omarchy_form_language_drawn() { :; }
 omarchy_persist_input_selection() { :; }
 omarchy_prompt_keyboard() { keyboard=\$chosen; }
