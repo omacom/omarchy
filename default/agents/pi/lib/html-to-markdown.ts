@@ -240,7 +240,7 @@ function convert(source: string, baseUrl: string | undefined): string {
             // The fence has to outrun any backticks in the code, such as a
             // Markdown example's own fences.
             const code = out.slice(out.indexOf("\n", fenceAt) + 1);
-            const longest = Math.max(0, ...(code.match(/`+/g) ?? []).map((run) => run.length));
+            const longest = (code.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 0);
             const fence = "`".repeat(Math.max(3, longest + 1));
             out = out.slice(0, fenceAt) + fence + out.slice(fenceAt + 3).replace(/\n*$/, "") + "\n" + fence;
             ensureBreak(2);
