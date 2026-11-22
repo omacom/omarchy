@@ -183,13 +183,15 @@ Panel {
     }
     if (dy !== 0) {
       keyRow = clamp(keyRow + dy, 0, keyRows.length - 1)
-      // Arriving on an account lands on Use, and on an agent's line on its
-      // rightmost button.
+      // Arriving on an agent or account lands on its terminal button, so
+      // Down then Enter starts the next one; a line without one lands on its
+      // rightmost stop.
       var row = keyRows[keyRow]
-      var use = -1
-      for (var c = 0; c < row.length; c++) if (row[c].kind === "account") use = c
-      var line = ["provider", "providerLaunch"].indexOf(row[0].kind) >= 0
-      keyColumn = use >= 0 ? use : line ? row.length - 1 : Math.min(keyColumn, row.length - 1)
+      var launch = -1
+      for (var c = 0; c < row.length; c++)
+        if (row[c].kind === "providerLaunch" || row[c].kind === "accountLaunch") launch = c
+      var line = ["provider", "providerStar", "account"].indexOf(row[0].kind) >= 0
+      keyColumn = launch >= 0 ? launch : line ? row.length - 1 : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
       // A row can go while the cursor is on it, like the starters when the
       // last agent stops.
@@ -2037,6 +2039,9 @@ Panel {
     readonly property var spend: provider ? (provider.spend || null) : null
     spacing: Style.space(16)
     readonly property bool dragged: root.dragIndex === providerIndex
+    // The pointer or the keyboard is on this agent, which shows its hollow star.
+    readonly property bool engaged: sectionHover.hovered || root.providerIndexOfKey() === providerIndex
+    HoverHandler { id: sectionHover }
     z: dragged ? 2 : 0
     opacity: dragged ? 0.9 : 1
     transform: Translate {
@@ -2152,6 +2157,11 @@ Panel {
         anchors.rightMargin: sectionLaunch.visible ? Style.space(6) : 0
         anchors.verticalCenter: parent.verticalCenter
         visible: !section.multi && root.defaultIdFor(section.provider) !== ""
+        // Only the default's star stays; another shows when it's engaged. It
+        // keeps its place either way, so the terminal button doesn't move.
+        readonly property bool shown: root.isDefault(section.provider) || section.engaged
+        opacity: shown ? 1 : 0
+        enabled: shown
         iconText: root.isDefault(section.provider) ? "󰓎" : "󰓒"
         tooltipText: root.isDefault(section.provider)
           ? Commons.I18n.t("agents.isDefault")
@@ -2381,11 +2391,14 @@ Panel {
           foreground: root.foreground
         }
 
+        HoverHandler { id: accountHover }
+
         AccountHeader {
           width: parent.width
           account: accountBlock.modelData
           owner: section.provider
           providerIndex: section.providerIndex
+          hovered: accountHover.hovered
           picked: root.isPicked(section.provider, accountBlock.modelData)
         }
 
@@ -2542,6 +2555,7 @@ Panel {
     property var account: ({})
     property var owner: null
     property int providerIndex: -1
+    property bool hovered: false
     property bool picked: false
     property bool editing: false
     // The new name shows at once; the record catches up a moment later.
@@ -2738,6 +2752,9 @@ Panel {
         anchors.right: accountLaunch.visible ? accountLaunch.left : parent.right
         anchors.rightMargin: accountLaunch.visible ? Style.space(6) : 0
         readonly property bool on: root.starred(head.owner, head.account)
+        readonly property bool shown: on || head.hovered || head.picked
+        opacity: shown ? 1 : 0
+        enabled: shown
         iconText: on ? "󰓎" : "󰓒"
         tooltipText: on
           ? Commons.I18n.t("agents.isDefault")
