@@ -12,7 +12,7 @@ legacy="$name([^[:alnum:]_.\/-]|\$)"
 
 for file in "$HOME/.config/omarchy/extensions/omarchy-menu.jsonc" "$HOME"/.config/hypr/*.lua "$HOME"/.config/hypr/*.conf; do
   [[ -f $file ]] || continue
-  grep -Eq "$legacy" "$file" || continue
+  grep -Eq "${legacy//\\}" "$file" || continue
 
   # When a shell quote wraps just the command, it has to close before the new
   # argument, or the shell still reads "omarchy-system shutdown" as one
