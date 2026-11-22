@@ -625,11 +625,14 @@ full.fullscreen = 2
 hl.dispatch(hl.dsp.window.alter_zorder({ mode = "top", window = full }))
 s.subscriptions["window.active"][1](overlay)
 assert(picked() == overlay, "a visible overlay over true fullscreen would pass its click underneath")
-full.fullscreen = 0
 local count = #s.lowered
-s.subscriptions["window.active"][1](overlay)
+s.set_focused(pinned)
 s.subscriptions["window.active"][1](pinned)
-assert(#s.lowered == count, "ordinary focus without fullscreen or pinned focus changed stacking")
+assert(#s.lowered == count, "pinned focus over fullscreen changed stacking")
+full.fullscreen = 0
+s.set_focused(overlay)
+s.subscriptions["window.active"][1](overlay)
+assert(#s.lowered == count, "ordinary focus without fullscreen changed stacking")
 '; then
   fail "a visible focused overlay receives its own clicks over fullscreen"
 fi
