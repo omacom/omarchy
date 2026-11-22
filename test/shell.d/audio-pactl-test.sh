@@ -105,6 +105,8 @@ SH
 chmod +x "$work/bin"/*
 
 export MIC_STATE="$work/mic" CALLS="$work/calls" SOURCES="$work/sources" SINKS="$work/sinks" OUTPUTS="$work/outputs"
+# Keep the volume command's pending steps away from the live session's.
+export XDG_RUNTIME_DIR="$work"
 export PATH="$work/bin:$ROOT/bin:$PATH"
 
 calls() {
@@ -161,7 +163,7 @@ SH
 chmod +x "$work/slow/pactl"
 echo 50 >"$work/volume"
 (
-  export PATH="$work/slow:$PATH" VOLUME="$work/volume" XDG_RUNTIME_DIR="$work"
+  export PATH="$work/slow:$PATH" VOLUME="$work/volume"
   for _ in {1..10}; do
     omarchy-audio-output-volume -1 >/dev/null 2>&1 &
     sleep 0.01
@@ -171,6 +173,13 @@ echo 50 >"$work/volume"
 [[ $(<"$work/volume") == 40 ]] ||
   fail 'audio-output-volume applies every step of a held key' "ten -1 steps from 50 left $(<"$work/volume")"
 pass 'audio-output-volume applies every step of a held key'
+
+# The pending total is read back from a file; only a plain number may reach
+# arithmetic, which would otherwise run a command substitution inside it.
+printf 'a[$(touch %s)]\n' "$work/ran" >"$work/omarchy-audio-output-volume.alsa_output.speakers.pending"
+omarchy-audio-output-volume +1 >/dev/null 2>&1 || true
+[[ ! -e $work/ran ]] || fail 'audio-output-volume never evaluates a tampered pending file'
+pass 'audio-output-volume never evaluates a tampered pending file'
 
 : >"$CALLS"
 (

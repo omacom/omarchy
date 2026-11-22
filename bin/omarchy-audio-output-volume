@@ -53,6 +53,18 @@ show_osd() {
   omarchy-osd -i "$icon" -p "${percent:-0}"
 }
 
+# Only ever do arithmetic on a plain number read back from the file.
+read_pending() {
+  local value
+
+  read -r value <"$pending_file" 2>/dev/null || true
+  if [[ $value =~ ^-?(0|[1-9][0-9]*)$ ]]; then
+    echo "$value"
+  else
+    echo 0
+  fi
+}
+
 runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
 
 if [[ $action == "mute-toggle" ]]; then
@@ -72,20 +84,22 @@ elif [[ $action =~ ^[+-][0-9]+$ ]]; then
   # volume and writes it back. So every run adds its step to a pending total,
   # and only the run holding the apply lock reads and writes the volume. It
   # lets the lock go only once the total is empty, both under the pending lock,
-  # so no step is left behind.
-  pending_file="$runtime_dir/omarchy-audio-output-volume.pending"
-  exec {pending_fd}>"$pending_file.lock" {apply_fd}>"$runtime_dir/omarchy-audio-output-volume.lock"
+  # so no step is left behind. Each output keeps its own total, so a step
+  # always lands on the output it was pressed for.
+  state="$runtime_dir/omarchy-audio-output-volume.${sink//[^A-Za-z0-9._-]/_}"
+  pending_file="$state.pending"
+  exec {pending_fd}>"$state.pending.lock" {apply_fd}>"$state.apply.lock"
 
   applying=false
   flock "$pending_fd"
-  read -r pending <"$pending_file" 2>/dev/null || pending=0
+  pending=$(read_pending)
   printf '%s\n' $((pending + action)) >"$pending_file"
   flock -n "$apply_fd" && applying=true
   flock -u "$pending_fd"
 
   while [[ $applying == "true" ]]; do
     flock "$pending_fd"
-    read -r step <"$pending_file" 2>/dev/null || step=0
+    step=$(read_pending)
     printf '0\n' >"$pending_file"
     if ((step == 0)); then
       flock -u "$apply_fd"
