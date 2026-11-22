@@ -506,9 +506,7 @@ BarWidget {
     }
 
     function injectProps() {
-      // Destroying the hosting bar nulls this widget while injection is still
-      // running. root is the indicators widget, and reading root.bar throws
-      // once it is gone. A live owner still injects as before.
+      // Owner bindings can change during bar teardown after root is gone.
       if (!root) return
       var target = indicatorSource.item
       if (!target) return
