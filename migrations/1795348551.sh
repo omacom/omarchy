@@ -3,33 +3,45 @@ echo "Let Intel GPUs map all of RAM but 8 GiB, not half"
 # See omarchy-apply-gpu-memory, which now raises the cap for Intel graphics on
 # xe as well as AMD. The cap is a kernel option, so it takes a boot image
 # rebuild and applies from the next boot. A machine-wide marker, written only
-# after the rebuild, records that this one is done, so a retry after a failed
-# rebuild writes and rebuilds again and a second user's run does nothing.
+# after the rebuild, records that this one is done, so a second user's run
+# does nothing.
 done_marker=/var/lib/omarchy/migrations/1795348551-done
 if [[ -e $done_marker ]]; then
   exit 0
 fi
 
+# Written before the drop-in changes and removed only after the rebuild: once
+# the drop-in holds the new cap, it no longer shows that a rebuild is owed, so
+# a retry after a failed rebuild goes by this instead.
+owed_marker=/var/lib/omarchy/migrations/1795348551-owed
 drop_in=/etc/limine-entry-tool.d/amd-gpu-memory.conf
-# Only the setting counts: the helper's comment line changed with this, and a
-# raise omarchy-local-ai wrote carries its own.
-setting() { grep -v '^#' "$drop_in" 2>/dev/null || true; }
-before=$(setting)
+
+if [[ ! -e $owed_marker ]]; then
+  # What the helper would write, worked out without root and without touching
+  # the drop-in. Only the setting counts: the helper's comment line changed
+  # with this, and a raise omarchy-local-ai wrote carries its own.
+  wanted_conf=$(mktemp -u)
+  OMARCHY_AMD_GPU_MEMORY_CONF=$wanted_conf omarchy-apply-gpu-memory >/dev/null
+  wanted=$(grep -v '^#' "$wanted_conf" 2>/dev/null || true)
+  rm -f "$wanted_conf"
+
+  # No integrated GPU it covers, or 16 GB or less where the kernel's default is
+  # as high.
+  if [[ -z $wanted ]]; then
+    exit 0
+  fi
+
+  # An AMD machine that 1794855305 already rebuilt for, with the same cap,
+  # needs no second rebuild.
+  if [[ -e /var/lib/omarchy/migrations/1794855305-done && $(grep -v '^#' "$drop_in" 2>/dev/null || true) == "$wanted" ]]; then
+    sudo install -Dm644 /dev/null "$done_marker"
+    exit 0
+  fi
+
+  sudo install -Dm644 /dev/null "$owed_marker"
+fi
 
 sudo env PATH="$PATH" omarchy-apply-gpu-memory || exit 1
-
-# No integrated GPU it covers, or 16 GB or less where the kernel's default is
-# as high.
-if [[ ! -f $drop_in ]]; then
-  exit 0
-fi
-
-# An AMD machine that 1794855305 already rebuilt for, with the same cap, needs
-# no second rebuild.
-if [[ -e /var/lib/omarchy/migrations/1794855305-done && $(setting) == "$before" ]]; then
-  sudo install -Dm644 /dev/null "$done_marker"
-  exit 0
-fi
 
 rebuild_log=$(mktemp)
 trap 'rm -f "$rebuild_log"' EXIT
@@ -42,4 +54,5 @@ if grep -q 'mkinitcpio failed for kernel' "$rebuild_log"; then
 fi
 
 sudo install -Dm644 /dev/null "$done_marker"
+sudo rm -f "$owed_marker"
 omarchy-state set reboot-required
