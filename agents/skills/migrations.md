@@ -150,15 +150,15 @@ ln -sfn "$current_relative_target" "$theme_link"
 
 ## Removing a bundled theme
 
-A bundled theme lives only under `$OMARCHY_PATH/themes`, and nobody has a copy of it. `~/.local/state/omarchy/current/theme` is a build output: `omarchy-theme-set` reassembles it from that source whenever anything re-stages the theme, whether a new template, a refresh or a migration. So "anyone on it keeps their staged copy" holds only until the next rebuild, and the user is then left with the default theme or with no palette at all.
+A bundled theme's source is `$OMARCHY_PATH/themes/<name>`; users normally have no separate copy. `~/.local/state/omarchy/current/theme` is a build output: `omarchy-theme-set` rebuilds it from that source and any user overrides. After removal, a refresh either refuses the missing theme or rebuilds an incomplete leftover directory with no palette; a migration may instead select the default theme. A failed refresh inside a migration can stop the migration queue, so keeping the staged copy is not enough.
 
 Removing one therefore ships, in the same change, a migration that installs it from its own repo for anyone whose `current/theme.name` names it, so they keep a real copy under `~/.config/omarchy/themes`:
 
 - If an earlier migration that re-stages the current theme may still be pending, date this one before it. Pending migrations run in filename order, so an earlier date runs first on an upgrade and still runs on an install that is already past it.
-- Keep an existing `~/.config/omarchy/themes/<name>`, which holds the user's overrides. `omarchy-theme-install` deletes that directory before it clones, so add the repo's files beside the user's instead of reinstalling over them.
-- When the repo cannot be fetched, apply the theme that replaced it, never leave the removed one current.
+- Keep an existing `~/.config/omarchy/themes/<name>`, which holds the user's overrides. `omarchy-theme-install` deletes that directory before cloning, so clone separately and fill in missing theme data, such as `colors.toml`, `icons.theme` and wallpapers, without overwriting user files or replacing a symlinked `backgrounds`. Keep the clone's `.git` and any files the installed-theme filter rejects out of the override directory: overrides are staged without that filter.
+- When the repo cannot be fetched, apply the replacement theme, or the default if there is no replacement; never leave the removed one current.
 
-Remove the theme from every package, not only this repo. `omarchy-themes-intros` in omarchy-pkgs ships each theme's intro from a pinned commit, and an intro directory left behind makes the theme look installed while it has no palette. `migrations/1787481314.sh`, which moved Osaka Jade to its own repo, is the worked example.
+Remove the theme from every package that installs under `/usr/share/omarchy/themes/<name>`, including `omarchy-themes-intros` and `omarchy-themes-loops` in omarchy-pkgs. Advance their pinned releases and package versions/checksums so they stop shipping it: a leftover video directory makes the theme look installed while it has no palette. `migrations/1787481314.sh`, which moved Osaka Jade to its own repo, is the worked example.
 
 ## Testing migrations
 
