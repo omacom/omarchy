@@ -363,10 +363,6 @@ transcode_picture() {
       "$output"
     ;;
   webp)
-    if omarchy-cmd-missing cwebp; then
-      echo "cwebp not found. Install it first: sudo pacman -S libwebp-utils" >&2
-      return 1
-    fi
     case "$quality" in
     high) q=90 ;;
     medium) q=75 ;;
@@ -382,6 +378,13 @@ transcode_picture() {
       magick "$input" -coalesce -resize "$resize" -quality "$q" "$output"
       return 0
     fi
+    # Only this still route shells out to libwebp-utils; the animated route
+    # above encodes through ImageMagick's own libwebp delegate, which comes
+    # with imagemagick. Refuse only where the missing command is actually run.
+    if omarchy-cmd-missing cwebp; then
+      echo "cwebp not found. Install it first: sudo pacman -S libwebp-utils" >&2
+      return 1
+    fi
     local tmp
     tmp=$(mktemp --suffix=.png)
     trap 'rm -f "$tmp" 2>/dev/null; trap - RETURN' RETURN
@@ -392,10 +395,6 @@ transcode_picture() {
     rm -f "$tmp"
     ;;
   avif)
-    if omarchy-cmd-missing avifenc; then
-      echo "avifenc not found. Install it first: sudo pacman -S libavif" >&2
-      return 1
-    fi
     case "$quality" in
     high) q=20 ;;
     medium) q=35 ;;
@@ -417,6 +416,12 @@ transcode_picture() {
       esac
       magick "$input" -coalesce -resize "$resize" -quality "$mq" "$output"
       return 0
+    fi
+    # Same split as WebP above: the animated route needs only ImageMagick's
+    # libheif delegate, so the libavif CLI is required only here.
+    if omarchy-cmd-missing avifenc; then
+      echo "avifenc not found. Install it first: sudo pacman -S libavif" >&2
+      return 1
     fi
     local tmp
     tmp=$(mktemp --suffix=.png)
