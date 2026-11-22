@@ -125,7 +125,7 @@ rust)
   # Crates that generate C bindings with bindgen, including Ruby gems built
   # with rb-sys, load libclang from clang.
   omarchy-pkg-add clang
-  run_downloaded_installer https://sh.rustup.rs -y || exit 1
+  run_downloaded_installer https://sh.rustup.rs -y || exit $?
   ;;
 java)
   echo -e "Installing Java...\n"
@@ -138,7 +138,7 @@ zig)
   ;;
 ocaml)
   echo -e "Installing OCaml...\n"
-  run_downloaded_installer https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh || exit 1
+  run_downloaded_installer https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh || exit $?
   opam init --yes
   eval "$(opam env)"
   opam install ocaml-lsp-server odoc ocamlformat utop --yes
