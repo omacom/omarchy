@@ -52,6 +52,13 @@ const endOnly = { start: NaN, end: 80 }
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.33, state: states.PendingCharge }, false, states, undefined, endOnly), 'power does not flag pending charge as threshold far below an end-only limit')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.33, state: states.PendingCharge }, false, states, undefined, { start: 0, end: 80 }), 'power does not flag pending charge as threshold far below a limit starting at 0')
 assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.PendingCharge }, false, states, undefined, endOnly), 'power detects threshold at an end-only limit')
+// applesmc exposes only an end threshold of 100 while UPower reports its 75/80
+// defaults (MacBookPro12,1, #10193): the SMC holding below full, and the
+// unmeasured rate after plug-in, are not a threshold.
+const appleSmc = { start: NaN, end: 100 }
+assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.93, state: states.FullyCharged, changeRate: 0 }, false, states, undefined, appleSmc), 'power does not flag the SMC holding below full as threshold with an end-only limit of 100')
+assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.79, state: states.Charging, changeRate: 0, timeToFull: 0 }, false, states, true, appleSmc), 'power does not flag the unmeasured rate as threshold with an end-only limit of 100')
+assertEqual(power.modeLabel({ isPresent: true, percentage: 0.93, state: states.FullyCharged, changeRate: 0 }, false, states, null, undefined, appleSmc) === 'Threshold', false, 'power does not label the SMC holding below full as a held charge')
 // With two batteries the combined level says nothing about either one: each is
 // checked against its own limit, and the pair is held only when neither can
 // still charge.
