@@ -393,7 +393,7 @@
   "localModels.removingMeter": "Wird entfernt",
   "localModels.setupFailed": "Einrichtung fehlgeschlagen",
   "localModels.showLogsTip": "Logs dieses Modells in einem Terminal öffnen",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "Starten",
   "localModels.stop": "Stoppen",
   "localModels.stoppingMeter": "Wird gestoppt",

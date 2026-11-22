@@ -393,7 +393,7 @@
   "localModels.removingMeter": "அகற்றுகிறது",
   "localModels.setupFailed": "அமைப்பு தோல்வியடைந்தது",
   "localModels.showLogsTip": "இந்த மாடலின் பதிவுகளை முனையத்தில் திறக்கவும்",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "தொடங்கு",
   "localModels.stop": "நிறுத்து",
   "localModels.stoppingMeter": "நிறுத்துகிறது",

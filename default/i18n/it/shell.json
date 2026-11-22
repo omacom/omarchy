@@ -405,7 +405,7 @@
   "localModels.removingMeter": "Rimozione",
   "localModels.setupFailed": "Configurazione non riuscita",
   "localModels.showLogsTip": "Apri i log di questo modello in un terminale",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "Avvia",
   "localModels.stop": "Ferma",
   "localModels.stoppingMeter": "Arresto",

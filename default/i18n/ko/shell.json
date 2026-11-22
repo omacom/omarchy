@@ -381,7 +381,7 @@
   "localModels.removingMeter": "제거 중",
   "localModels.setupFailed": "설정 실패",
   "localModels.showLogsTip": "터미널에서 이 모델의 로그 열기",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "시작",
   "localModels.stop": "중지",
   "localModels.stoppingMeter": "중지 중",

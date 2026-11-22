@@ -393,7 +393,7 @@
   "localModels.removingMeter": "ඉවත් කරමින්",
   "localModels.setupFailed": "සැකසුම අසාර්ථක විය",
   "localModels.showLogsTip": "මෙම මාදිලියේ ලොග් ටර්මිනලයක විවෘත කරන්න",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "ආරම්භ කරන්න",
   "localModels.stop": "නවත්වන්න",
   "localModels.stoppingMeter": "නවත්වමින්",

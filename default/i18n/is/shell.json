@@ -393,7 +393,7 @@
   "localModels.removingMeter": "Fjarlægir",
   "localModels.setupFailed": "Uppsetning mistókst",
   "localModels.showLogsTip": "Opnaðu annála þessa líkans í útstöðinni",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "Ræsa",
   "localModels.stop": "Stöðva",
   "localModels.stoppingMeter": "Stöðvar",

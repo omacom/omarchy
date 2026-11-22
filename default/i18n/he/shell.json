@@ -405,7 +405,7 @@
   "localModels.removingMeter": "הסרה",
   "localModels.setupFailed": "ההגדרה נכשלה",
   "localModels.showLogsTip": "פתיחת יומני מודל זה במסוף",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "הפעלה",
   "localModels.stop": "עצירה",
   "localModels.stoppingMeter": "עצירה",

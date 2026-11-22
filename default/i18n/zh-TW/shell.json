@@ -381,7 +381,7 @@
   "localModels.removingMeter": "移除中",
   "localModels.setupFailed": "設定失敗",
   "localModels.showLogsTip": "在終端機中開啟此模型的日誌",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "啟動",
   "localModels.stop": "停止",
   "localModels.stoppingMeter": "停止中",

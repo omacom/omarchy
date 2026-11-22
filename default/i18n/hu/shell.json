@@ -393,7 +393,7 @@
   "localModels.removingMeter": "Eltávolítás",
   "localModels.setupFailed": "Beállítás sikertelen",
   "localModels.showLogsTip": "A modell naplóinak megnyitása terminálban",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "Indítás",
   "localModels.stop": "Leállítás",
   "localModels.stoppingMeter": "Leállítás",

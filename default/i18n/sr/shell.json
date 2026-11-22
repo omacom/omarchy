@@ -405,7 +405,7 @@
   "localModels.removingMeter": "Уклањање",
   "localModels.setupFailed": "Подешавање није успело",
   "localModels.showLogsTip": "Отвори дневнике овог модела у терминалу",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "Покрени",
   "localModels.stop": "Заустави",
   "localModels.stoppingMeter": "Заустављање",

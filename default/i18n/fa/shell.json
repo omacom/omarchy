@@ -393,7 +393,7 @@
   "localModels.removingMeter": "در حال حذف",
   "localModels.setupFailed": "راه‌اندازی ناموفق بود",
   "localModels.showLogsTip": "لاگ‌های این مدل را در ترمینال باز کنید",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "شروع",
   "localModels.stop": "توقف",
   "localModels.stoppingMeter": "در حال توقف",
