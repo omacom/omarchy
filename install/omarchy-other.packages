@@ -41,6 +41,7 @@ pipewire-pulse
 qt6-wayland
 snapper
 sof-firmware
+tb-ar-shim-dkms
 thermald
 webp-pixbuf-loader
 yay-debug
