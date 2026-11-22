@@ -26,11 +26,11 @@
   "update": {
     "label": "Kemas Kini"
   },
-  "about": {
-    "label": "Perihal"
-  },
   "system": {
     "label": "Sistem"
+  },
+  "system.about": {
+    "label": "Perihal"
   },
   "system.screensaver": {
     "label": "Tabir Skrin"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Input"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Bahasa"
+  },
+  "setup.region.timezone": {
+    "label": "Zon Masa"
   },
   "setup.network": {
     "label": "Rangkaian"
@@ -387,54 +390,8 @@
   "setup.default": {
     "label": "Lalai"
   },
-  "setup.default.agent": {
-    "label": "Ejen",
-    "title": "Ejen Lalai"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
+  "agent": {
+    "label": "Ejen"
   },
   "setup.default.browser": {
     "label": "Pelayar",
@@ -566,11 +523,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "But Terus"
-  },
-  "setup.reset": {
-    "label": "Set Semula Komputer"
+  "remove.factory-reset": {
+    "label": "Tetapan Semula Kilang"
   },
   "install.package": {
     "label": "Pakej"
@@ -665,9 +619,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -688,9 +639,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Akaun Chromium"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1088,9 +1036,6 @@
   "update.password": {
     "label": "Kata Laluan"
   },
-  "update.timezone": {
-    "label": "Zon Masa"
-  },
   "update.time": {
     "label": "Masa"
   },
@@ -1138,12 +1083,6 @@
   },
   "update.hardware.trackpad": {
     "label": "Pad Jejak"
-  },
-  "update.password.drive": {
-    "label": "Penyulitan Pemacu"
-  },
-  "update.password.user": {
-    "label": "Pengguna"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Papar % Bateri"
@@ -1235,34 +1174,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Nyahdayakan Skrin Sentuh"
   },
-  "setup.default.agent.amp": {
-    "label": "Amp"
-  },
-  "setup.default.agent.commandcode": {
-    "label": "Command Code"
-  },
-  "setup.default.agent.devin": {
-    "label": "Devin CLI"
-  },
-  "setup.default.agent.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "setup.default.agent.freebuff": {
-    "label": "Freebuff"
-  },
-  "setup.default.agent.kilo": {
-    "label": "Kilo"
-  },
-  "setup.default.agent.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "setup.default.agent.mcode": {
-    "label": "MiniMax Code"
-  },
-  "setup.default.agent.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1300,5 +1212,70 @@
   },
   "install.service.notion": {
     "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Biasa"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikon"
+  },
+  "install.style.icons": {
+    "label": "Ikon"
+  },
+  "remove.icons": {
+    "label": "Ikon"
+  },
+  "update.icons": {
+    "label": "Ikon Tambahan"
+  },
+  "system.firmware": {
+    "label": "Mulakan semula ke BIOS",
+    "description": "Mulakan semula ke tetapan firmware UEFI"
+  },
+  "setup.region": {
+    "label": "Wilayah"
+  },
+  "setup.region.formats": {
+    "label": "Format",
+    "description": "Cara tarikh, masa, nombor dan unit ditulis"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Nama Hos"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

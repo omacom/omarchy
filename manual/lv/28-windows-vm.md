@@ -1,22 +1,22 @@
 # Windows VM
 
-Omarchy piedāvā vienkāršu veidu, kā darbināt Windows caur Docker virtuālo mašīnu. To var instalēt no Omarchy izvēlnes (`Super + Space`) sadaļas _Instalēt > Windows_.
+Omarchy piedāvā vienkāršu veidu, kā x86_64 datoros darbināt Windows, izmantojot Docker VM. To var instalēt Omarchy izvēlnē, izvēloties _Install > Windows_ (`Super + Space`).
 
-Šim nolūkam jūsu datoram nepieciešama KVM virtualizācija, kura lielākoties ir — taču dažkārt tā BIOS līmenī ir izslēgta, un instalētājs jums pateiks, ja tas tā ir. Jums būs vajadzīga arī diska vieta: viss, ko iedodat Windows, plus apmēram 10 GB pašam attēlam.
+Šim nolūkam datoram ir nepieciešama KVM virtualizācija, kas lielākajai daļai datoru ir, taču dažkārt tā BIOS ir izslēgta, un instalētājs par to paziņos, ja tā būs. Būs vajadzīga arī vieta diskā: tik daudz, cik atvēlēsiet Windows, un vēl aptuveni 10GB pašam attēlam.
 
-Instalētājs prasa, cik daudz RAM, cik daudz centrālā procesora kodolu un cik daudz diska atdot (64 GB vai vairāk ir saprātīgā apakšējā robeža), pēc tam prasa Windows lietotājvārdu un paroli. Atstājiet tos tukšus, un iegūsiet `docker` / `admin`. Lejupielāde aizņem kādu laiku — 10–15 minūtes ir normāli —, un tās norisei varat sekot pārlūkprogrammā adresē `http://127.0.0.1:8006`. Pirms konsoles atvēršanas pārlūkprogramma prasa to pašu lietotājvārdu un paroli.
+Instalētājs pajautās, cik daudz RAM, cik daudz CPU kodolu un cik daudz vietas diskā atvēlēt (64GB vai vairāk ir saprātīgā apakšējā robeža), un pēc tam pajautās Windows lietotājvārdu un paroli. Ja tos atstāsiet tukšus, iegūsiet `docker` / `admin`. Lejupielāde aizņem kādu laiku — 10-15 minūtes ir normāli —, un tās norisei var sekot pārlūkā adresē `http://127.0.0.1:8006`. Pirms konsoles atvēršanas pārlūks pieprasīs to pašu lietotājvārdu un paroli.
 
  ![windows-vm](images/windows-vm.webp)
 
 ## Lietošana
 
-Kad tā ir instalēta, no lietotņu palaidēja palaidiet _Windows_. Tas palaiž virtuālo mašīnu, ja tā jau nedarbojas, un pilnekrāna režīmā savieno jūs caur RDP. Aukstā palaišanā dodiet tam 15–30 sekundes.
+Kad tā ir instalēta, lietotņu palaidējā palaidiet _Windows_. Tas palaiž VM, ja tā vēl nedarbojas, un izveido pilnekrāna savienojumu ar to, izmantojot RDP. Aukstai palaišanai atvēliet 15-30 sekundes.
 
-RDP sesija pārraida skaņu, jūsu mikrofonu un koplietu starpliktuvi, tāpēc teksta kopēšana starp Linux un Windows vienkārši darbojas. Izšķirtspēja seko jūsu logam, un Omarchy cauri padod jūsu ekrāna mērogu, tāpēc augsta pikseļu blīvuma (HiDPI) ekrānā tas nav izplūdis haoss.
+RDP sesija nodrošina skaņu, mikrofona izmantošanu un kopīgu starpliktuvi, tāpēc teksta kopēšana starp Linux un Windows vienkārši darbojas. Izšķirtspēja pielāgojas logam, un Omarchy nodod tālāk displeja mērogošanas iestatījumu, tāpēc HiDPI ekrānā attēls nav izplūdusi putra.
 
-Kad aizverat RDP logu, virtuālā mašīna automātiski izslēdzas. Ja labprātāk to atstāt darboties — teiksim, jums tur kaut kas darbojas —, palaidiet to tā vietā ar komandu `omarchy windows vm launch --keep-alive`.
+Kad aizverat RDP logu, VM automātiski izslēdzas. Ja vēlaties to atstāt darbojamies, piemēram, ja tajā kaut kas turpina strādāt, palaidiet to ar `omarchy windows vm launch --keep-alive`.
 
-Pārējās vadības komandas ir tajā pašā komandā:
+Pārējās vadīklas ir pieejamas ar to pašu komandu:
 
 ```bash
 omarchy windows vm status    # is it running?
@@ -24,26 +24,26 @@ omarchy windows vm stop      # shut it down
 omarchy windows vm launch    # start and connect
 ```
 
-## Failu koplietošana
+## Failu kopīgošana
 
-Direktorija `~/Windows` jūsu mājas direktorijā tiek automātiski koplietota ar virtuālo mašīnu. Lieciet tur failus, ja vēlaties, lai tie būtu pieejami Windows. Virtuālajai mašīnai nav piekļuves nevienai citai jūsu failu sistēmas daļai, tāpēc jūs esat pasargāts no visa ļaunā Windows pusē. Tās pašas virtuālais disks ir pieejams ceļā `~/.windows`.
+Jūsu mājas direktorijā esošā direktorija `~/Windows` tiek automātiski kopīgota ar VM. Ja vēlaties, lai faili būtu pieejami Windows, ievietojiet tos tur. VM nav piekļuves nevienai citai failu sistēmas daļai, tāpēc Windows pusē esošs kaitēklis jums nekā nevar nodarīt. VM virtuālais disks ir pieejams mapē `~/.windows`.
 
-Šie pazīstamie mājas ceļi paliek savās failu sistēmās. Tie var būt arī simboliskās saites uz jums piederošām direktorijām, kas ir noderīgi, kad virtuālais disks dzīvo uz lielāka diska. Instalētājs brīvo vietu mēra tajā failu sistēmā, kurā patiesībā atrodas `~/.windows`, nevis obligāti tajā failu sistēmā, kurā ir jūsu mājas direktorija.
+Šie pazīstamie mājas ceļi paliek katrs savā failu sistēmā. Tie var būt arī simboliskās saites uz jums piederošām direktorijām, kas ir noderīgi, ja virtuālais disks atrodas lielākā diskā. Instalētājs brīvo vietu mēra failu sistēmā, kurā faktiski atrodas `~/.windows`, nevis obligāti failu sistēmā, kurā atrodas jūsu mājas direktorija.
 
-Uzturiet diska un koplietošanas ceļus kā atsevišķas direktorijas, kas nepārklājas. Noņemšana mērķtiecīgi iztukšo diska direktoriju, bet koplietošanas direktoriju saglabā. Tieši pirms dzēšanas Omarchy veic ierobežotu norobežojuma pārbaudi un atsaka jebkā noņemšanu, ja šī pārbaude pārsniedz laika ierobežojumu vai nevar pierādīt, ka abi koki ir atsevišķi.
+Diska un kopīgoto ceļu turiet kā atsevišķas direktorijas, kas nepārklājas. Noņemšanas laikā diska direktorija tiek apzināti iztukšota, bet kopīgotā direktorija tiek saglabāta. Tieši pirms dzēšanas Omarchy veic ierobežota laika ierobežošanas pārbaudi un atsakās kaut ko noņemt, ja šīs pārbaudes laiks beidzas vai tā nevar pierādīt, ka abi koki ir atsevišķi.
 
-Pirms virtuālās mašīnas palaišanas Omarchy atver un nofiksē šīs abas direktorijas un pēc tam ar stiprinājumu (bind-mount) precīzās direktoriju inode vērtības uzstāda uz privātām, katram lietotājam atsevišķām enkura vietām zem `/var/lib/omarchy/windows/mounts`. Docker redz tikai šīs root aizsargātās enkura vietas. Tas saglabā pielāgotās diska atrašanās vietas, vienlaikus neļaujot citam procesam, kas darbojas jūsu vārdā, apmainīt pārbaudītu ceļu, pirms to patērē privileģētais konteiners. Migrācijas laikā esošās diska un koplietošanas direktorijas tiek nostingrinātas līdz režīmam `0700`, lai citi lokālie konti nevarētu pārlūkot to saturu.
+Pirms VM palaišanas Omarchy atver un piesprauž šīs abas direktorijas, pēc tam ar bind-mount piestiprina tieši šo direktoriju inodes pie privātiem katram lietotājam paredzētiem enkuriem mapē `/var/lib/omarchy/windows/mounts`. Docker redz tikai šos ar root aizsargātos enkurus. Tādējādi tiek saglabātas pielāgotas diska atrašanās vietas, vienlaikus neļaujot citam procesam, kas darbojas ar jūsu tiesībām, nomainīt pārbaudīto ceļu, pirms priviliģētais konteiners to izmanto. Migrācijas laikā esošajām diska un kopīgotajām direktorijām tiek noteikts stingrāks režīms `0700`, lai citi lokālie konti nevarētu pārlūkot to saturu.
 
-Virtuālās mašīnas porti ir piesaistīti tikai localhost, tāpēc nekas jūsu tīklā nevar sasniegt Windows datoru. Tīmekļa konsole arī prasa konfigurēto Windows lietotājvārdu un paroli, neļaujot citam lokālam kontam vadīt virtuālo mašīnu caur 8006. portu.
+VM porti ir piesaistīti tikai localhost, tāpēc nekas jūsu tīklā nevar sasniegt Windows datoru. Tīmekļa konsolei ir nepieciešams arī konfigurētais Windows lietotājvārds un parole, tāpēc cits lokālais konts nevar vadīt VM caur portu 8006.
 
 ## Ierobežojumi un licencēšana
 
-Grafikas procesoru (GPU) ar šo iestatījumu cauri padot nevar, tāpēc tas spēlēm vai video rediģēšanai piemērots nav. Tas ir lielisks veids, kā darbināt Microsoft Office vai jebko citu, kas jums noteikti ir nepieciešams.
+Šajā konfigurācijā nav GPU passthrough, tāpēc tā nav piemērota spēlēm vai video montāžai. Tas ir lielisks veids, kā darbināt Microsoft Office vai jebko citu, kas jums ir absolūti nepieciešams.
 
-Instalētā versija ir Windows 11 Pro, neaktivizēta. Lai izmantotu par autorizāciju noslēgtās funkcijas, jums būs nepieciešama sava licences atslēga.
+Instalētā versija ir Windows 11 Pro bez aktivizācijas. Lai izmantotu funkcijas, kurām nepieciešama licence, būs vajadzīga pašam sava licences atslēga.
 
-Ja šis dators tika piegādāts ar Windows, OEM atslēga programmaparatūrā joprojām saglabājas pat pēc Omarchy instalēšanas. Izdrukājiet to ar `omarchy windows key`. Šī atslēga ir piesaistīta šim datoram — tā aktivizēs Windows, kas pārinstalēts uz šīs aparatūras, bet parasti virtuālo mašīnu neaktivizēs.
+Ja šis dators tika piegādāts ar Windows, OEM atslēga arī pēc Omarchy instalēšanas joprojām atrodas programmaparatūrā. To var izdrukāt ar komandu `omarchy windows key`. Šī atslēga ir piesaistīta šim datoram: tā aktivizēs Windows, kas pārinstalēta uz šīs pašas aparatūras, bet parasti neaktivizēs VM.
 
-Resursu piešķīrumu vēlāk varat mainīt, atkārtoti palaižot `omarchy-windows-vm install`, kas no jūsu atbildēm pārraksta virtuālās mašīnas konfigurāciju. Pats compose fails tagad atrodas ceļā `/var/lib/omarchy/windows/docker-compose.yml` un pieder root — tas ir darīts apzināti, lai process, kas darbojas jūsu vārdā, nevarētu to pārrakstīt un likt privileģētajai ienākšanai uzmontēt veselu jūsu disku konteinerā. Ja tas jums ir jārediģē ar rokām (piemēram, lai pievienotu USB ierīci), rediģējiet to ar `sudo` un visas iespējas skatiet [Dockur Windows projektā](https://github.com/dockur/windows).
+Resursu piešķīrumu vēlāk var mainīt, terminālī palaižot `omarchy windows vm install`, kas pārraksta VM konfigurāciju atbilstoši jūsu atbildēm. Pats compose fails tagad atrodas mapē `/var/lib/omarchy/windows/docker-compose.yml` un pieder root. Tas ir darīts apzināti, lai process, kas darbojas ar jūsu tiesībām, nevarētu to pārrakstīt un panākt, ka priviliģētā palaišana konteinerā piemontē visu jūsu disku. Ja tas ir jārediģē manuāli, piemēram, lai piemontētu USB ierīci, rediģējiet to ar `sudo` un skatiet visas iespējas [Dockur Windows projektā](https://github.com/dockur/windows).
 
-Lai no visa tā atbrīvotos, Omarchy izvēlnē izmantojiet _Noņemt > Windows_. Tas izdzēš virtuālās mašīnas disku un visus tā datus, tāpēc vispirms pārliecinieties, ka viss jums svarīgais ir ārā no mapes `~/Windows`.
+Lai no visa tā atbrīvotos, Omarchy izvēlnē izvēlieties _Remove > Windows_. Tādējādi tiks izdzēsts VM disks mapē `~/.windows` un viss, kas instalēts Windows, tāpēc vispirms izkopējiet no VM visu nepieciešamo. Kopīgotā mape `~/Windows` tiek atstāta neskarta.
