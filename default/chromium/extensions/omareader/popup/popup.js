@@ -2,13 +2,6 @@ const $ = (id) => document.getElementById(id);
 const T = OmareaderTheme;
 const DARK = T.normalize(T.DARK);
 
-const pretty = (name) =>
-  (name || '')
-    .replace(/^theme-/, '')
-    .split(/[-_]/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ') || '—';
-
 let settings = T.normalizeSettings();
 let hostname = '';
 
@@ -46,7 +39,6 @@ const check = (group, mode) => {
 async function render() {
   const st = await chrome.storage.local.get(['settings', 'active', 'omarchy', 'host']);
   settings = T.normalizeSettings(st.settings);
-  const current = st.omarchy;
   // What the current tab shows: its own override, else the default.
   const mode = T.siteModeOf(settings, hostname);
 
@@ -64,13 +56,13 @@ async function render() {
   else if (st.active) paint(st.active.palette);
 
   const status = $('status');
-  status.dataset.state = mode === 'omarchy' ? (st.host && st.host.connected ? 'live' : 'offline') : mode;
+  const live = mode === 'omarchy' && !!(st.host && st.host.connected);
+  status.hidden = live;
+  status.dataset.state = mode === 'omarchy' ? (live ? 'live' : 'offline') : mode;
   if (mode === 'normal') {
     status.textContent = 'Pages shown as they are';
   } else if (mode === 'dark') {
     status.textContent = 'Pitch black · page hues kept';
-  } else if (st.host && st.host.connected) {
-    status.textContent = `Live sync · ${pretty(current && current.name)}`;
   } else {
     status.textContent = 'Theme sync offline · run omarchy-install-chromium-omareader ';
     const retry = document.createElement('button');
