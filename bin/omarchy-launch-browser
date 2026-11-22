@@ -15,6 +15,8 @@ if ! desktop_exec_argv "$default_browser"; then
   exit 1
 fi
 
+browser_class=$(sed -n 's/^StartupWMClass=//p' "$desktop_exec_file" | head -1)
+
 # The browser is what an env or flatpak wrapper runs, including inside an
 # env -S string; a Flatpak's is its app id, which is no command on the host.
 browser_exec="" flatpak_app="" flatpak=0
@@ -82,5 +84,13 @@ for argument in "$@"; do
 done
 
 if [[ -n $url && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-  omarchy-hyprland-focus-app "^$(basename "$browser_exec" -stable).*$" || true
+  # The binary name is only a guess at the window class (Zen runs zen-bin as
+  # class zen), so prefer the class the desktop entry declares, then the guess.
+  guessed_pattern="^$(basename "$browser_exec" -stable).*$"
+  if [[ -n $browser_class ]]; then
+    omarchy-hyprland-focus-app "^$browser_class$" ||
+      omarchy-hyprland-focus-app "$guessed_pattern" || true
+  else
+    omarchy-hyprland-focus-app "$guessed_pattern" || true
+  fi
 fi

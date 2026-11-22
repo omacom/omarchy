@@ -26,11 +26,11 @@
   "update": {
     "label": "Update"
   },
-  "about": {
-    "label": "About"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "About"
   },
   "system.screensaver": {
     "label": "Screensaver"
@@ -469,8 +469,18 @@
   "setup.input": {
     "label": "Input"
   },
-  "setup.language": {
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.language": {
     "label": "Language"
+  },
+  "setup.region.formats": {
+    "label": "Formats",
+    "description": "How dates, times, numbers and units are written"
+  },
+  "setup.region.timezone": {
+    "label": "Timezone"
   },
   "setup.network": {
     "label": "Network"
@@ -487,8 +497,14 @@
   "setup.network.dns.google": {
     "label": "Google"
   },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
   "setup.network.dns.custom": {
     "label": "Custom"
+  },
+  "setup.network.hostname": {
+    "label": "Hostname"
   },
   "setup.network.qr": {
     "label": "QR Code"
@@ -702,7 +718,7 @@
   "setup.security.passwordless-sudo": {
     "label": "Passwordless Sudo"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "setup.config.hyprland": {
@@ -714,11 +730,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direct Boot"
-  },
-  "setup.reset": {
-    "label": "Reset Computer"
+  "remove.factory-reset": {
+    "label": "Factory Reset"
   },
   "install.package": {
     "label": "Package"
@@ -819,6 +832,9 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
+  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -827,6 +843,9 @@
   },
   "install.service.tailscale": {
     "label": "Tailscale"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
   },
   "install.service.nordvpn": {
     "label": "NordVPN"
@@ -879,6 +898,9 @@
   "install.ai.amp": {
     "label": "Amp Desktop"
   },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
   "install.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
@@ -917,6 +939,9 @@
   },
   "install.gaming.minecraft": {
     "label": "Minecraft"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
   },
   "install.gaming.geforce-now": {
     "label": "NVIDIA GeForce NOW"
@@ -1110,6 +1135,9 @@
   "remove.ai.amp": {
     "label": "Amp Desktop"
   },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
   "remove.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
@@ -1172,6 +1200,9 @@
   },
   "remove.gaming.heroic": {
     "label": "Heroic (Epic Games)"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
   },
   "remove.development.rails": {
     "label": "Ruby on Rails"
@@ -1258,6 +1289,9 @@
   "update.icons": {
     "label": "Extra Icons"
   },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
   "update.process": {
     "label": "Process",
     "title": "Restart"
@@ -1271,9 +1305,6 @@
   },
   "update.password": {
     "label": "Password"
-  },
-  "update.timezone": {
-    "label": "Timezone"
   },
   "update.time": {
     "label": "Time"
@@ -1323,12 +1354,6 @@
   "update.hardware.trackpad": {
     "label": "Trackpad"
   },
-  "update.password.drive": {
-    "label": "Drive Encryption"
-  },
-  "update.password.user": {
-    "label": "User"
-  },
   "agent.instructions": {
     "label": "Instructions"
   },
@@ -1343,5 +1368,8 @@
   },
   "agent.make.app": {
     "label": "Make an app"
+  },
+  "agent.make.game": {
+    "label": "Make a game"
   }
 }

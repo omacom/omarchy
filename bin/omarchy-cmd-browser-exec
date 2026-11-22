@@ -28,6 +28,7 @@ desktop_exec_argv() {
   local desktop=$1
   local file="" line="" name data_dir
   desktop_exec_argv=()
+  desktop_exec_file=""
   # Read Exec= from the same data dirs omarchy-cmd-default-browser searched, in
   # the same order, so the command always comes from the entry that was checked.
   local -a data_dirs
@@ -39,6 +40,7 @@ desktop_exec_argv() {
     break
   done
   [[ -n $line ]] || return 1
+  desktop_exec_file=$file
   desktop_string "$(sed -n 's/^Name=//p' "$file" | head -1)"
   name=$REPLY
 
