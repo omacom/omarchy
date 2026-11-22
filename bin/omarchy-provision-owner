@@ -1487,8 +1487,15 @@ main() {
     set_tokyo_night_colors
     while true; do
       initial_language
+      rm -f "$KMSCON_STATE/shell"
       omarchy_kmscon_show "$KMSCON_STATE" "$language" "$OMARCHY_OEM_COLOR" "$0" || break
-      [[ -e $KMSCON_RESUME ]] || exit 0
+      [[ -e $KMSCON_RESUME ]] && continue
+      # kmscon ended with setup done, or left for the root shell or a reboot.
+      # Anything else is kmscon dying under setup, which carries on here: SDDM
+      # must not start on a machine that still has no owner.
+      [[ ! -f $PROVISIONING_DIR/pending || -e $KMSCON_STATE/shell ]] && exit 0
+      [[ $(systemctl is-system-running 2>/dev/null) == stopping ]] && exit 0
+      break
     done
   fi
   [[ ${OMARCHY_KMSCON:-} != 1 ]] || touch "$KMSCON_STATE/started"
@@ -1516,6 +1523,7 @@ main() {
       # is locked — so exiting would strand the machine with no way in. Exec a
       # root shell on tty1; SDDM starts once it exits.
       say "Dropping to a root shell. Run 'omarchy-provision-owner' to retry setup."
+      [[ ${OMARCHY_KMSCON:-} != 1 ]] || touch "$KMSCON_STATE/shell"
       exec /bin/bash
     fi
   done

@@ -19,7 +19,7 @@
 omarchy_kmscon_wanted() {
   ! grep -qw 'omarchy.kmscon=0' /proc/cmdline 2>/dev/null &&
     [[ $(tty 2>/dev/null) == /dev/tty[0-9]* ]] &&
-    command -v kmscon >/dev/null && compgen -G '/dev/dri/card*' >/dev/null
+    omarchy-cmd-present kmscon && compgen -G '/dev/dri/card*' >/dev/null
 }
 
 # kmscon reads keys through XKB, not the console keymap: the layout
