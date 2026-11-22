@@ -363,3 +363,60 @@ refusal=$(HOME="$mute_home" PATH="$failing_bin:$ROOT/bin:$PATH" \
 ! grep -Fq "Muted crash notifications" <<<"$refusal" ||
   fail "a mute that could not be written still reports success, so the user believes a program is silenced when it is not"
 pass "a mute that could not be written is not reported as one"
+
+# Crash diagnosis notifies when the configured agent's command is missing
+agent_crash_bin="$TMPDIR/agent-crash-bin"
+AGENT_CRASH_NOTIFY_LOG="$TMPDIR/agent-crash-notify-log"
+mkdir -p "$agent_crash_bin"
+
+cat >"$agent_crash_bin/omarchy-default-agent" <<'SH'
+#!/bin/bash
+echo nonexistentagent
+SH
+
+cat >"$agent_crash_bin/omarchy-notification-send" <<SH
+#!/bin/bash
+printf '%s\n' "\$*" >>"$AGENT_CRASH_NOTIFY_LOG"
+SH
+
+cat >"$agent_crash_bin/omarchy-agent" <<'SH'
+#!/bin/bash
+exit 0
+SH
+
+chmod +x "$agent_crash_bin/omarchy-default-agent" \
+  "$agent_crash_bin/omarchy-notification-send" \
+  "$agent_crash_bin/omarchy-agent"
+
+status=0
+: >"$AGENT_CRASH_NOTIFY_LOG"
+PATH="$agent_crash_bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-agent-crash" 4242 >/dev/null 2>&1 || status=$?
+
+(( status != 0 )) ||
+  fail "agent-crash exits 0 when the configured agent command is missing"
+grep -Fq "AI diagnosis unavailable" "$AGENT_CRASH_NOTIFY_LOG" ||
+  fail "agent-crash notifies when the default agent is not installed"
+pass "agent-crash notifies when the default agent is not installed"
+
+cat >"$agent_crash_bin/omarchy-default-agent" <<'SH'
+#!/bin/bash
+echo openclaw
+SH
+
+cat >"$agent_crash_bin/omarchy-pkg-present" <<'SH'
+#!/bin/bash
+[[ $1 == "openclaw" ]]
+SH
+chmod +x "$agent_crash_bin/omarchy-pkg-present"
+
+status=0
+: >"$AGENT_CRASH_NOTIFY_LOG"
+PATH="$agent_crash_bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-agent-crash" 4242 >/dev/null 2>&1 || status=$?
+
+(( status == 0 )) ||
+  fail "agent-crash rejects openclaw when the package is present"
+! grep -Fq "AI diagnosis unavailable" "$AGENT_CRASH_NOTIFY_LOG" ||
+  fail "agent-crash notifies failure for openclaw when the package is present"
+pass "agent-crash delegates openclaw when the package is present"
