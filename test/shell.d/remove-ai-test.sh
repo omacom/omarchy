@@ -449,3 +449,27 @@ fi
   fail "OpenClaw removal drops a service's restart record with the service, before anything else can fail"
 mv "$tmp_dir/omarchy-pkg-drop.real" "$tmp_dir/bin/omarchy-pkg-drop"
 pass "OpenClaw removal drops a service's restart record with the service, before anything else can fail"
+
+# Antigravity CLI (agy) state and shared skills live under ~/.gemini, while
+# the desktop app keeps its Electron state in ~/.config/Antigravity.
+: >"$TEST_LOG"
+fresh_home
+mkdir -p "$HOME/.config/Antigravity" "$HOME/.cache/antigravity-updater" \
+  "$HOME/.gemini/antigravity" "$HOME/.gemini/antigravity-cli" "$HOME/.gemini/config"
+"$ROOT/bin/omarchy-remove-ai-antigravity" >/dev/null
+
+for gone in .config/Antigravity .cache/antigravity-updater; do
+  [[ ! -e $HOME/$gone ]] || fail "Antigravity removal deletes the desktop app's config and caches" "$gone"
+done
+pass "Antigravity removal deletes the desktop app's config and caches"
+
+for kept in .gemini/antigravity .gemini/antigravity-cli .gemini/config; do
+  [[ -d $HOME/$kept ]] || fail "Antigravity removal keeps ~/.gemini CLI and shared data" "$kept"
+done
+pass "Antigravity removal keeps ~/.gemini CLI and shared data"
+
+grep -qx 'pkill:-x antigravity' "$TEST_LOG" || fail "Antigravity removal quits the running app before deleting its state"
+pass "Antigravity removal quits the running app before deleting its state"
+
+grep -qx 'drop:antigravity' "$TEST_LOG" || fail "Antigravity removal drops the antigravity package"
+pass "Antigravity removal drops the antigravity package"

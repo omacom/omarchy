@@ -2,12 +2,20 @@
 
 # omarchy:summary=Toggle microphone mute. Drives the hardware mic-mute LED on laptops that expose one.
 
-wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle >/dev/null
+# With no default source wpctl prints an error, nothing on stdout, and exits 0,
+# so only a Volume: answer says there is a microphone to toggle.
+if wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null | grep -q '^Volume:'; then
+  wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle >/dev/null
 
-if wpctl get-volume @DEFAULT_AUDIO_SOURCE@ | grep -q MUTED; then
-  omarchy-brightness-keyboard-mute on
-  omarchy-osd -i microphone-muted -m "$(omarchy-i18n audio.micMuted)"
+  if wpctl get-volume @DEFAULT_AUDIO_SOURCE@ | grep -q MUTED; then
+    omarchy-brightness-keyboard-mute on
+    omarchy-osd -i microphone-muted -m "$(omarchy-i18n audio.micMuted)"
+  else
+    omarchy-brightness-keyboard-mute off
+    omarchy-osd -i microphone -m "$(omarchy-i18n audio.micOn)"
+  fi
 else
-  omarchy-brightness-keyboard-mute off
-  omarchy-osd -i microphone -m "$(omarchy-i18n audio.micOn)"
+  echo "No microphone found." >&2
+  omarchy-osd -i microphone-off -m "$(omarchy-i18n audio.noMicrophone)"
+  exit 1
 fi

@@ -26,11 +26,11 @@
   "update": {
     "label": "Sasisha"
   },
-  "about": {
-    "label": "Kuhusu"
-  },
   "system": {
     "label": "Mfumo"
+  },
+  "system.about": {
+    "label": "Kuhusu"
   },
   "system.screensaver": {
     "label": "Kiokozi cha skrini"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Ingizo"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Lugha"
+  },
+  "setup.region.timezone": {
+    "label": "Eneo la saa"
   },
   "setup.network": {
     "label": "Mtandao"
@@ -387,54 +390,8 @@
   "setup.default": {
     "label": "Chaguomsingi"
   },
-  "setup.default.agent": {
-    "label": "Ajenti",
-    "title": "Ajenti chaguomsingi"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
+  "agent": {
+    "label": "Ajenti"
   },
   "setup.default.browser": {
     "label": "Kivinjari",
@@ -566,11 +523,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Anza moja kwa moja"
-  },
-  "setup.reset": {
-    "label": "Weka upya kompyuta"
+  "remove.factory-reset": {
+    "label": "Rejesha Kiwandani"
   },
   "install.package": {
     "label": "Kifurushi"
@@ -665,9 +619,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -688,9 +639,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Akaunti ya Chromium"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1088,9 +1036,6 @@
   "update.password": {
     "label": "Nenosiri"
   },
-  "update.timezone": {
-    "label": "Eneo la saa"
-  },
   "update.time": {
     "label": "Muda"
   },
@@ -1138,12 +1083,6 @@
   },
   "update.hardware.trackpad": {
     "label": "Kiguso"
-  },
-  "update.password.drive": {
-    "label": "Usimbaji wa kiendeshaji"
-  },
-  "update.password.user": {
-    "label": "Mtumiaji"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Onyesha % ya betri"
@@ -1235,34 +1174,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Zima Skrini ya Mguso"
   },
-  "setup.default.agent.amp": {
-    "label": "Amp"
-  },
-  "setup.default.agent.commandcode": {
-    "label": "Command Code"
-  },
-  "setup.default.agent.devin": {
-    "label": "Devin CLI"
-  },
-  "setup.default.agent.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "setup.default.agent.freebuff": {
-    "label": "Freebuff"
-  },
-  "setup.default.agent.kilo": {
-    "label": "Kilo"
-  },
-  "setup.default.agent.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "setup.default.agent.mcode": {
-    "label": "MiniMax Code"
-  },
-  "setup.default.agent.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1300,5 +1212,70 @@
   },
   "install.service.notion": {
     "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Kawaida"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikoni"
+  },
+  "install.style.icons": {
+    "label": "Ikoni"
+  },
+  "remove.icons": {
+    "label": "Ikoni"
+  },
+  "update.icons": {
+    "label": "Ikoni za ziada"
+  },
+  "system.firmware": {
+    "label": "Washa upya hadi BIOS",
+    "description": "Washa upya hadi mipangilio ya firmware ya UEFI"
+  },
+  "setup.region": {
+    "label": "Eneo"
+  },
+  "setup.region.formats": {
+    "label": "Miundo",
+    "description": "Jinsi tarehe, nyakati, nambari na vipimo vinavyoandikwa"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Mchezo wa Game Vibes"
+  },
+  "update.games": {
+    "label": "Michezo ya Game Vibes"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Jina la mwenyeji"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
