@@ -6,7 +6,19 @@ Omarchy for Apple Silicon is an official Omacom solution, first released with Om
 
 Got a notice about Omarchy Mac? Go to [Coming from Omarchy Mac](#coming-from-omarchy-mac).
 
-It runs on M1, M2 and M3 MacBook Air and MacBook Pro models, the M1 and M2 Mac mini and Mac Studio, the M1 and M3 iMac, the M2 Mac Pro, and the MacBook Neo. The installer checks your Mac before it changes anything. M4 Macs aren't supported yet. M4 support is in testing on the edge channel and comes next.
+It runs on these Macs:
+
+| Mac | Chips |
+| --- | --- |
+| MacBook Air | M1, M2, M3 |
+| MacBook Pro | M1, M1 Pro, M1 Max, M2, M2 Pro, M2 Max, M3, M3 Pro, M3 Max |
+| MacBook Neo | A18 Pro |
+| Mac mini | M1, M2, M2 Pro |
+| Mac Studio | M1 Max, M1 Ultra, M2 Max, M2 Ultra |
+| iMac | M1, M3 |
+| Mac Pro | M2 Ultra |
+
+M4 and newer Macs aren't supported yet. M4 support is in testing on the edge channel and comes next. The installer checks your Mac before it changes anything.
 
 ### What you need
 
