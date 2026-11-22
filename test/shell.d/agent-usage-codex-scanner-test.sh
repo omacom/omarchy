@@ -390,7 +390,7 @@ if zstd is not None:
          [[record["modelUsage"].get("gpt-compressed", {}).get(key) for key in ("inputTokens", "outputTokens")] for record in (compressed, swapping)],
          [[7, 2], [7, 2]], swapping)
 else:
-  print("ok - Codex counts a compressed rollout, once while Codex swaps its compression, past a damaged one # SKIP no Zstandard support")
+  print("ok - Codex counts a compressed rollout, once while Codex swaps its compression, past a damaged one (no Zstandard support) # SKIP")
 
 # ------------------------------------------------------- pi and opencode
 
