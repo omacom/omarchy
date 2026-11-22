@@ -2134,6 +2134,12 @@ Panel {
     Item {
       id: sectionHead
       width: parent.width
+      // Where the line's text has to stop: the star, the make icons, or the
+      // terminal button, whichever is leftmost.
+      readonly property real textEnd: (sectionStar.visible ? sectionStar.x
+        : sectionMakes.visible ? sectionMakes.x
+        : sectionLaunch.visible ? sectionLaunch.x
+        : width) - Style.space(8)
       implicitHeight: Math.max(sectionMark.height, sectionName.implicitHeight)
       // Lit for the keyboard, and as the drop spot while an agent is dragged.
       readonly property bool lit: root.dragProviderId !== "" ? root.dragTarget === section.providerIndex : root.hasKey("provider", section.providerIndex)
@@ -2179,6 +2185,8 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         text: section.provider ? section.provider.providerName : ""
+        width: Math.max(0, Math.min(implicitWidth, sectionHead.textEnd - x))
+        elide: Text.ElideRight
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
@@ -2192,6 +2200,8 @@ Panel {
         anchors.leftMargin: Style.space(8)
         anchors.baseline: sectionName.baseline
         visible: (!!section.account || section.localHost !== "") && !section.editingName
+        width: Math.max(0, Math.min(implicitWidth, sectionHead.textEnd - x))
+        elide: Text.ElideRight
         textFormat: Text.PlainText
         text: section.account ? section.accountLabel : section.localHost
         color: sectionHead.lit ? Commons.Color.accent : root.dim
@@ -2242,7 +2252,7 @@ Panel {
         anchors.leftMargin: Style.space(8)
         anchors.baseline: sectionName.baseline
         visible: !section.editingName && text !== ""
-        width: Math.max(0, Math.min(implicitWidth, (sectionStar.visible ? sectionStar.x : sectionMakes.visible ? sectionMakes.x : sectionLaunch.x) - x - Style.space(8)))
+        width: Math.max(0, Math.min(implicitWidth, sectionHead.textEnd - x))
         elide: Text.ElideRight
         textFormat: Text.PlainText
         text: {
