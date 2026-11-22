@@ -220,6 +220,12 @@ if [[ $output == *"omarchy update perform"* ]]; then
 fi
 pass "hidden update perform compatibility wrapper is not shown"
 
+# Help must show every example a command declares: theme install declares both
+# its examples on one ` | `-separated omarchy:examples line (the convention).
+output=$(timeout 5 "$CLI" theme install --help)
+assert_output_contains "theme install --help shows its https example" "$output" "https://github.com/example/omarchy-example-theme.git"
+assert_output_contains "theme install --help shows its ssh example" "$output" "git@github.com:example/omarchy-example-theme.git"
+
 # These three are install-time plumbing the ISO and install leaves call, so
 # they stay out of the listing a user browses -- while still routing, because
 # those callers use the CLI. A GROUP_DESCRIPTIONS entry would put the group
@@ -797,6 +803,26 @@ assert_output_contains "partial metadata command dispatches" "$output" "partial-
 
 output=$("$TMPDIR/omarchy" body metadata test)
 assert_output_contains "body metadata command dispatches by filename" "$output" "body-metadata-ok"
+
+# Repeated omarchy:examples lines accumulate instead of the last one replacing
+# the rest, so a command that declares its examples one per line still lists
+# all of them (#18837).
+make_tmpdir EXAMPLES_TMPDIR
+mkdir -p "$EXAMPLES_TMPDIR/bin"
+cp "$CLI" "$EXAMPLES_TMPDIR/bin/omarchy"
+cat >"$EXAMPLES_TMPDIR/bin/omarchy-example-sandbox" <<'METADATA'
+#!/bin/bash
+# omarchy:summary=Sandbox command for metadata tests
+# omarchy:args=[nothing]
+# omarchy:examples=omarchy example sandbox first
+# omarchy:examples=omarchy example sandbox second
+exit 0
+METADATA
+chmod +x "$EXAMPLES_TMPDIR/bin/omarchy-example-sandbox"
+
+output=$("$EXAMPLES_TMPDIR/bin/omarchy" example sandbox --help)
+assert_output_contains "a second omarchy:examples line does not erase the first" "$output" "omarchy example sandbox first"
+assert_output_contains "a second omarchy:examples line is shown" "$output" "omarchy example sandbox second"
 
 # A trailing --help must render help even when the route only partially
 # resolves, leaving unresolved words ahead of the flag (e.g. `update aur --help`
