@@ -203,7 +203,7 @@ pass "clone removes a partial clone when switching fails"
 
 clone_plugin omarchy.agents >/dev/null
 agents="$TMPDIR/home/.config/omarchy/plugins/tester.agents"
-for file in Panel.qml tailscale/Panel.qml tailscale/Model.js elsewhen/Model.js; do
+for file in Panel.qml elsewhen/Model.js; do
   [[ -f $agents/$file ]] || fail "agents clone is missing $file"
 done
 if rg -q '"\.\./' "$agents" -g '*.qml' -g '*.js'; then

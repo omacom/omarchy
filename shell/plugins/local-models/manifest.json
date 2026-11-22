@@ -10,6 +10,13 @@
     "service",
     "bar-widget"
   ],
+  "omarchy": {
+    "clonePaths": [
+      { "source": "../panels/tailscale", "target": "tailscale" },
+      { "source": "../panels/elsewhen/Model.js", "target": "elsewhen/Model.js" },
+      { "source": "../agents/assets", "target": "agents/assets" }
+    ]
+  },
   "activation": "on-demand",
   "entryPoints": {
     "service": "Models.qml",
