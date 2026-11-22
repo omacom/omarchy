@@ -74,7 +74,7 @@ async function render() {
   }
 }
 
-// Both rows are radio groups: click to pick, arrow keys to move like a native one.
+// The mode row is a radio group: click to pick, arrow keys to move like a native one.
 function radioGroup(group, selected, pick) {
   const modes = () => [...group.querySelectorAll('button')].map((b) => b.dataset.mode);
   group.onclick = (e) => {
