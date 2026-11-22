@@ -1,10 +1,10 @@
 # Tizim snapshotlari
 
-Biz har bir Omarchy yangilanishida snapshotlarni avtomatik ravishda yaratamiz, lekin o'zingiznikini yaratmoqchi bo'lsangiz, `omarchy-snapshot create` dan foydalanishingiz mumkin.
+Biz har bir Omarchy yangilanishida snapshotlarni avtomatik ravishda yaratamiz, lekin o'zingiz yaratmoqchi bo'lsangiz, `omarchy-snapshot create` dan foydalanishingiz mumkin.
 
-Snapshotni yuklash va tiklash uchun uni Limine boot loaderidan tanlaysiz. (Agar hozir to'g'ridan-to'g'ri Omarchy shifrini ochish ekraniga yuklanayotgan bo'lsangiz, avval BIOS orqali Limine ni yuklash varianti sifatida tanlashingiz kerak bo'ladi).
+Snapshotni yuklash va tiklash uchun uni Limine boot loader dan tanlaysiz. Yuklash menyusi odatiy holatda yashirin bo'ladi, shuning uchun uni chiqarish uchun Limine ishga tushishi bilanoq istalgan tugmani bosing.
 
-O'sha ekrandan sana va versiyaga qarab yuklamoqchi bo'lgan snapshotingizni tanlang. Snapshot olingan paytdagi Omarchy versiyasini pastki chap burchakda ko'rish mumkin.
+O'sha ekrandan sana va versiyaga qarab yuklamoqchi bo'lgan snapshotni tanlang. Snapshot olingan paytdagi Omarchy versiyasini pastki chap burchakda ko'rishingiz mumkin.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
@@ -12,16 +12,10 @@ Ichkariga kirganingizda, yuklanadigan snapshotda ekanligingiz haqida xabar berad
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Bu sizning root fayl tizimingizni tiklaydi, lekin `/home` ni emas. Shunday qilib, u buzilgan tizim yangilanishini orqaga qaytarish uchun ishlaydi, lekin yo'qolgan shaxsiy fayllarni tiklash uchun emas.
+Bu sizning root fayl tizimingizni tiklaydi, lekin `/home` ni emas. Shuning uchun u buzilgan tizim yangilanishini orqaga qaytarish uchun ishlaydi, lekin yo'qolgan shaxsiy fayllarni tiklash uchun emas.
 
-Bu shuningdek, `~/.config` katalogingiz o'z holicha qolishini anglatadi. Shunday qilib, agar konfiguratsiya fayllarini yangi formatda saqlaydigan kutubxona yoki ilovaning oldingi versiyasiga qaytayotgan bo'lsangiz, buni qo'lda hal qilishingizga to'g'ri keladi.
+Bu shuningdek, `~/.config` katalogingiz o'z holicha qolishini anglatadi. Shuning uchun, agar siz konfiguratsiya fayllarini yangi formatda saqlaydigan kutubxona yoki dasturning eski versiyasiga qaytayotgan bo'lsangiz, buni qo'lda hal qilishingizga to'g'ri keladi.
 
-Xuddi shu narsa qaysi migratsiyalar allaqachon ishga tushganligi haqidagi Omarchy ning o'z yozuviga ham tegishli: u sizning home katalogingizda joylashgan, shuning uchun tiklashdan keyin ham saqlanib qoladi. Snapshot olingandan keyin ishga tushgan migratsiyalar bajarilgan deb belgilangan holda qoladi, garchi ular root fayl tizimiga kiritgan o'zgarishlar orqaga qaytarilgan bo'lsa ham, va keyingi `omarchy update` ularni qayta ishga tushirmaydi. Shunday qilib, agar tiklashdan keyin yana yangilasangiz va oldingi yangilanish o'rnatgan biror narsa hali ham bo'lmasa, ehtimoliy sabab shudir.
+Xuddi shu narsa qaysi migratsiyalar allaqachon ishga tushirilganligi haqidagi Omarchy ning o'z yozuviga ham tegishli: u sizning uy katalogingizda joylashgan, shuning uchun tiklashdan keyin ham saqlanib qoladi. Snapshot olingandan keyin ishga tushirilgan migratsiyalar bajarilgan deb belgilanganicha qoladi, garchi ular root fayl tizimiga kiritgan o'zgarishlar orqaga qaytarilgan bo'lsa ham, va keyingi `omarchy update` ularni qayta ishga tushirmaydi. Shuning uchun, agar tiklashdan keyin yana yangilasangiz va avvalgi yangilanish o'rnatgan narsa hali ham bo'lmasa, sababi katta ehtimol bilan shu.
 
-_Eslatma: Bu xususiyat faqat Limine boot loaderidan foydalanadigan o'rnatishlarda mavjud bo'lib, u Omarchy 2.0 dan beri standart hisoblanadi. Agar siz GRUB yoki systemd-boot da bo'lsangiz, u mavjud emas._
-
-### Yuklash menyusini o'tkazib yuborish
-
-Agar yuklash menyusiga hech qachon tegmasangiz va mashina to'g'ridan-to'g'ri shifrni ochish ekraniga o'tishini istasangiz, Omarchy menyusida _Setup > Direct Boot_ ni ishga tushiring. Bu to'g'ridan-to'g'ri Omarchy ga ishora qiluvchi EFI yozuvini qo'shadi, shuning uchun firmware Limine da to'xtamasdan uni yuklaydi.
-
-Muqobil zarari yuqorida tilga olinganidir: to'g'ridan-to'g'ri yuklash yoqilgan holda, snapshotga o'tish avval BIOS yuklash menyusidan Limine ni tanlashni anglatadi. Yozuvni olib tashlash va Limine orqali yuklashga qaytish uchun _Setup > Direct Boot_ ni yana ishga tushiring. Ba'zi firmwarelar maxsus EFI yozuvlarini yaxshi qabul qilmaydi, shuning uchun o'rnatish American Megatrends va Apple firmwarelarida ishlashdan bosh tortadi.
+_Eslatma: Bu xususiyat faqat Limine boot loader dan foydalanadigan o'rnatmalarda mavjud bo'lib, u Omarchy 2.0 dan beri standart hisoblanadi. Agar siz GRUB yoki systemd-boot da bo'lsangiz, u mavjud emas._

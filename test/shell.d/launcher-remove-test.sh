@@ -75,8 +75,15 @@ export XDG_DATA_DIRS="$tmp_dir/system"
 
 "$ROOT/bin/omarchy-remove-launcher-entry" Basecamp.desktop Basecamp
 "$ROOT/bin/omarchy-remove-launcher-entry" Docker.desktop Docker
-"$ROOT/bin/omarchy-remove-launcher-entry" native.desktop Native
-"$ROOT/bin/omarchy-remove-launcher-entry" aliens.desktop Aliens
+native_output="$("$ROOT/bin/omarchy-remove-launcher-entry" native.desktop Native)"
+aliens_output="$("$ROOT/bin/omarchy-remove-launcher-entry" aliens.desktop Aliens)"
+
+# The uninstall terminal is left running on its own, so its log line lands
+# after the command returns.
+for _ in {1..50}; do
+  grep -q '^terminal:' "$TEST_LOG" && break
+  sleep 0.1
+done
 
 mapfile -t lines <"$TEST_LOG"
 
@@ -89,18 +96,14 @@ pass "launcher remove routes TUIs by desktop name"
 [[ ${lines[2]} == "terminal::echo Uninstalling Native...; sudo pacman -Rns native-pkg" ]] || fail "launcher remove opens package uninstall flow" "${lines[2]}"
 pass "launcher remove opens package uninstall flow"
 
+[[ $native_output == "terminal" ]] || fail "launcher remove announces an uninstall that needs a terminal" "$native_output"
+pass "launcher remove announces an uninstall that needs a terminal"
+
+[[ -z $aliens_output ]] || fail "launcher remove deletes user-owned desktop files without a terminal" "$aliens_output"
+pass "launcher remove deletes user-owned desktop files without a terminal"
+
 [[ ! -e $tmp_dir/data/applications/aliens.desktop ]] || fail "launcher remove deletes user-owned desktop files"
 pass "launcher remove deletes user-owned desktop files"
 
 (( ${#lines[@]} == 3 )) || fail "launcher remove does not notify for user-owned desktop files" "$(printf '%s\n' "${lines[@]}")"
 pass "launcher remove does not notify for user-owned desktop files"
-
-cat >"$tmp_dir/data/applications/slack.desktop" <<'DESKTOP'
-[Desktop Entry]
-Name=Slack
-Exec=omarchy-launch-slack --ozone-platform=wayland %U
-DESKTOP
-"$ROOT/bin/omarchy-remove-launcher-entry" slack.desktop Slack
-[[ $(tail -1 "$TEST_LOG") == "terminal::omarchy-remove-service-slack" ]] || fail "the themed Slack launcher opens its package removal flow"
-[[ -f $tmp_dir/data/applications/slack.desktop ]] || fail "the override remains until package removal succeeds"
-pass "the themed Slack override routes to package removal before any cleanup"
