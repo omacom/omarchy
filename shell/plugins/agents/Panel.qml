@@ -1508,6 +1508,11 @@ Panel {
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
     function refresh(): string { root.refreshNow(); return "ok" }
+    // Opens on the add screen, as + does: the menu's Agent > Add.
+    function add(): void {
+      root.open()
+      root.addAccount()
+    }
   }
 
   BarIconButton {

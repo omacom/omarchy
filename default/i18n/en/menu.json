@@ -1363,6 +1363,9 @@
   "update.password.user": {
     "label": "User"
   },
+  "agent.add": {
+    "label": "Add"
+  },
   "agent.instructions": {
     "label": "Instructions"
   },

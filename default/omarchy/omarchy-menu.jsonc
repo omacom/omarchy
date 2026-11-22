@@ -33,6 +33,7 @@
   "system": {"icon":"","label":"System","aliases":["power-menu"]},
 
   // Agent
+  "agent.add": {"icon":"󰐕","label":"Add","action":"omarchy-shell omarchy.agents add"},
   "agent.make": {"icon":"󰙴","label":"Make something"},
   "agent.make.theme": {"icon":"󰏘","label":"Make a theme","action":"omarchy-agent-make theme"},
   "agent.make.plugin": {"icon":"󰐱","label":"Make a plugin","action":"omarchy-agent-make plugin"},
