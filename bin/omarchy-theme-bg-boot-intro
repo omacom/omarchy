@@ -1,0 +1,147 @@
+#!/bin/bash
+
+# omarchy:summary=Play the current background's matching theme intro
+# omarchy:hidden=true
+
+set -euo pipefail
+
+state_home="$HOME/.local/state"
+current_dir="$state_home/omarchy/current"
+current_background_link="$current_dir/background"
+marker="$state_home/omarchy/background-intro.session-id"
+toggle="$state_home/omarchy/toggles/background-intros-off"
+video_extensions=(mp4 m4v mov webm mkv avi)
+
+resolve_intro() {
+  local background
+  local stem
+  local extension
+  local intro
+
+  background=$(readlink -f "${1:-$current_background_link}" 2>/dev/null) || return 1
+  [[ -f $background ]] || return 1
+  case ${background,,} in
+  *.jpg | *.jpeg | *.png | *.bmp | *.webp) ;;
+  *) return 1 ;;
+  esac
+
+  stem=${background##*/}
+  stem=${stem%.*}
+  for extension in "${video_extensions[@]}"; do
+    intro="${background%/*}/intros/$stem.$extension"
+    if [[ -f $intro ]]; then
+      printf '%s\n' "$intro"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Preparation is speculative: the selected staged clip is compared again by OWE.
+prepare_theme_intro() {
+  local theme="$1" background remembered name source intro
+  local -a names=()
+  [[ -n $theme && $theme != .* && $theme != */* ]] || return 0
+  [[ ! -f $toggle ]] && ! animations_off || return 0
+  owe warm >/dev/null 2>&1 || return 0
+  [[ $(cat "$current_dir/theme.name" 2>/dev/null) != "$theme" ]] || return 0
+  remembered=$(cat "$state_home/omarchy/theme-backgrounds/$theme" 2>/dev/null || true)
+  if [[ ${remembered%/*} == "$current_dir/theme/backgrounds" ]]; then
+    name=${remembered##*/}
+  elif [[ -f $remembered ]]; then
+    background="$remembered"
+  else
+    mapfile -d '' -t names < <(
+      find -L "$HOME/.config/omarchy/backgrounds/$theme" -maxdepth 1 -type f -print0 2>/dev/null | sort -z
+    )
+    if (( ${#names[@]} > 0 )); then
+      background=${names[0]}
+    else
+      mapfile -d '' -t names < <(
+        find -L "$OMARCHY_PATH/themes/$theme/backgrounds" "$HOME/.config/omarchy/themes/$theme/backgrounds" -maxdepth 1 -type f \
+          \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.bmp' -o -iname '*.webp' \) -printf '%f\0' 2>/dev/null | sort -zu
+      )
+      (( ${#names[@]} > 0 )) || return 0
+      name=${names[0]}
+    fi
+  fi
+  if [[ -n ${name:-} ]]; then
+    for source in "$HOME/.config/omarchy/themes/$theme" "$OMARCHY_PATH/themes/$theme"; do
+      if [[ -f $source/backgrounds/$name ]]; then
+        background="$source/backgrounds/$name"
+        break
+      fi
+    done
+  fi
+  [[ -n ${background:-} ]] || return 0
+  intro=$(resolve_intro "$background" || true)
+  [[ -z $intro ]] || owe intro-prepare "$intro" >/dev/null 2>&1 || true
+}
+
+animations_off() {
+  [[ $(hyprctl -j getoption animations:enabled 2>/dev/null | jq -r '.bool' 2>/dev/null) == "false" ]]
+}
+
+
+case ${1:-} in
+  "") ;;
+  --prepare-theme)
+    prepare_theme_intro "${2:-}"
+    exit 0
+    ;;
+  --resolve-only)
+    resolve_intro "${2:-}" || true
+    exit 0
+    ;;
+  # The clip that would play for a background, or the current one, now: none
+  # while intros or animations are off.
+  --resolve-startup | --resolve-enabled)
+    if [[ ! -f $toggle ]] && ! animations_off; then
+      resolve_intro "${2:-}" || true
+    fi
+    exit 0
+    ;;
+  *)
+    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--resolve-enabled [background]|--resolve-startup|--prepare-theme theme]" >&2
+    exit 1
+    ;;
+esac
+
+mkdir -p "$(dirname "$marker")"
+exec 9>"$state_home/omarchy/background-intro.lock"
+flock 9
+
+session_id=${OMARCHY_SESSION_ID:-${HYPRLAND_INSTANCE_SIGNATURE:-}}
+[[ -n $session_id ]] || exit 0
+if [[ -f $marker && $(<"$marker") == "$session_id" ]]; then
+  exit 0
+fi
+
+# The shell reads the marker at startup, so it is replaced whole. The lock
+# keeps this the only writer, so a fixed staging name is safe.
+printf '%s\n' "$session_id" >"$marker.staged"
+mv -f "$marker.staged" "$marker"
+exec 9>&-
+
+if [[ -f $toggle ]] || animations_off; then
+  exit 0
+fi
+
+intro=$(resolve_intro || true)
+if [[ -z $intro ]]; then
+  exit 0
+fi
+
+deadline=$((SECONDS + 5))
+while ! timeout 1 owe status >/dev/null 2>&1; do
+  if (( SECONDS >= deadline )); then
+    exit 0
+  fi
+  sleep 0.2
+done
+(( SECONDS < deadline )) || exit 0
+
+# A selection or setting changed while OWE was starting no longer permits this intro.
+if [[ ! -f $toggle && $intro == "$(resolve_intro || true)" ]] && ! animations_off; then
+  owe intro --start first-frame "$intro"
+fi
