@@ -395,9 +395,8 @@ Panel {
     onTriggered: if (!forecastProc.running) forecastProc.running = true
   }
 
-  // With configured coordinates this fetch is the only thing that updates the
-  // bar icon, so a dropped response (e.g. waking before the network is back)
-  // must retry rather than wait out the refresh timer with a stale icon.
+  // Only this fetch replaces a resolved bar icon. Retry dropped responses
+  // rather than leave a stale icon until the next refresh.
   function scheduleDailyForecastRetry() {
     if (dailyForecastRetries >= 3) return
     dailyForecastRetries++
