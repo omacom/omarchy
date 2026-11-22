@@ -395,7 +395,7 @@ omarchy_form_review() {
     "$(omarchy_form_text setupForm.reviewUsername)" "$username" \
     "$(omarchy_form_text setupForm.reviewPassword)" "$(printf "%${#password}s" | tr ' ' '*')" \
     "$(omarchy_form_text setupForm.reviewHostname)" "$hostname" |
-    gum table -s $'\t' -p | sed "s/^/$indent/"
+    gum table -s $'\t' -p | sed -e 's/\x1b\[1;/\x1b[/g' -e "s/^/$indent/"
 
   echo
   gum confirm --affirmative "$(omarchy_form_text setupForm.reviewYes)" --negative "$(omarchy_form_text setupForm.reviewChange)" \
