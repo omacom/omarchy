@@ -1260,15 +1260,6 @@ Panel {
     return currencyPrefix(currency) + Commons.I18n.formatNumber(amount, 2)
   }
 
-  function balanceDetailText(b) {
-    if (!b || !(b.funded > 0)) return ""
-    var spent = formatMoney(b.spent, b.currency)
-    var funded = formatMoney(b.funded, b.currency)
-    return b.estimated
-      ? Commons.I18n.t("agents.balanceSpentEstimated").arg(spent).arg(funded)
-      : Commons.I18n.t("agents.balanceSpent").arg(spent).arg(funded)
-  }
-
   // A balance or spend row's amount is as wide as a limit row's time left
   // ("19h 40m"), so every line ends where the limit meters do.
   TextMetrics {
@@ -2707,69 +2698,54 @@ Panel {
       }
     }
 
-    // The meter shows what is left, not what is used: a prepaid account
-    // drains toward empty rather than filling toward a cap.
-    Column {
+    // The meter fills with what has been spent, the way a limit window fills
+    // toward its cap.
+    Item {
       visible: !!section.balance
       width: parent.width
-      spacing: Style.space(6)
+      implicitHeight: balanceTitle.implicitHeight
 
-      Item {
-        width: parent.width
-        implicitHeight: balanceTitle.implicitHeight
+      Text {
+        id: balanceTitle
+        textFormat: Text.PlainText
+        width: parent.width * 0.3
+        anchors.verticalCenter: parent.verticalCenter
+        text: Commons.I18n.t("agents.balance")
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+      }
 
-        Text {
-          id: balanceTitle
-          textFormat: Text.PlainText
-          width: parent.width * 0.3
-          anchors.verticalCenter: parent.verticalCenter
-          text: Commons.I18n.t("agents.balance")
-          color: root.foreground
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall
-        }
-
-        // Without a funded figure there is nothing to drain from, so no meter.
-        Meter {
-          visible: !!section.balance && section.balance.funded > 0
-          anchors.left: balanceTitle.right
-          anchors.right: balanceValue.left
-          anchors.rightMargin: Style.space(20)
-          anchors.verticalCenter: parent.verticalCenter
-          value: visible ? section.balance.remaining / section.balance.funded : -1
-          alarming: root.balanceAlarming(section.balance)
-        }
-
-        Text {
-          id: balanceValue
-          textFormat: Text.PlainText
-          width: Math.max(root.valueColumnWidth, implicitWidth)
-          anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
-          horizontalAlignment: Text.AlignRight
-          text: section.balance ? root.formatMoney(section.balance.remaining, section.balance.currency) : ""
-          color: root.balanceAlarming(section.balance) ? root.urgent : root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall
-        }
+      // Without a funded figure there is nothing to fill toward, so no meter.
+      Meter {
+        visible: !!section.balance && section.balance.funded > 0
+        anchors.left: balanceTitle.right
+        anchors.right: balanceValue.left
+        anchors.rightMargin: Style.space(20)
+        anchors.verticalCenter: parent.verticalCenter
+        value: visible ? 1 - section.balance.remaining / section.balance.funded : -1
+        alarming: root.balanceAlarming(section.balance)
       }
 
       Text {
+        id: balanceValue
         textFormat: Text.PlainText
-        visible: text !== ""
-        width: parent.width
-        text: root.balanceDetailText(section.balance)
-        color: root.dim
+        width: Math.max(root.valueColumnWidth, implicitWidth)
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        horizontalAlignment: Text.AlignRight
+        text: section.balance ? root.formatMoney(section.balance.remaining, section.balance.currency) : ""
+        color: root.balanceAlarming(section.balance) ? root.urgent : root.dim
         font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
+        font.pixelSize: Style.font.bodySmall
       }
     }
 
     // Against a real monthly cap the spend is this month's meter; without
     // one, a bar for each of the last 30 days, scaled to the busiest, shows
-    // where it went.
+    // where it went. A section with a balance shows that alone.
     Item {
-      visible: !!section.spend
+      visible: !!section.spend && !section.balance
       width: parent.width
       implicitHeight: spendTitle.implicitHeight
 
@@ -2801,8 +2777,9 @@ Panel {
         anchors.left: spendTitle.right
         anchors.right: spendValue.left
         anchors.rightMargin: Style.space(20)
-        anchors.verticalCenter: parent.verticalCenter
-        height: spendTitle.implicitHeight
+        // The bars stand on the title's baseline, as tall as its letters rise.
+        anchors.bottom: spendTitle.baseline
+        height: spendTitle.baselineOffset
         readonly property var days: section.spend ? section.spend.days : []
         readonly property real busiest: Math.max.apply(null, days.concat([0]))
         readonly property real gap: Style.space(2)
