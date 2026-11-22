@@ -1435,6 +1435,9 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
+  // Agent > Add opens the panel on its add screen rather than its list.
+  property bool addOnOpen: false
+
   onOpenedChanged: if (!opened) {
     resetProviderDrag()
   } else {
@@ -1448,6 +1451,10 @@ Panel {
     usage.reloadDefaultAgent()
     usage.reloadLocalPin()
     if (localModelsService) localModelsService.refreshNetwork()
+    if (addOnOpen) {
+      addOnOpen = false
+      addAccount()
+    }
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
 
@@ -1548,10 +1555,15 @@ Panel {
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
     function refresh(): string { root.refreshNow(); return "ok" }
-    // Opens on the add screen, as + does: the menu's Agent > Add.
+    // Opens on the add screen, as + does: the menu's Agent > Add. Opening
+    // resets the page, so the add screen is asked for as part of opening.
     function add(): void {
-      root.open()
-      root.addAccount()
+      if (root.opened) {
+        root.addAccount()
+      } else {
+        root.addOnOpen = true
+        root.open()
+      }
     }
   }
 
@@ -1811,14 +1823,23 @@ Panel {
       anchors.centerIn: parent
       spacing: Style.space(10)
 
-      Text {
+      // The same square a mark fills, so More's name lines up with theirs.
+      Item {
         visible: choice.entry.more === true
         anchors.horizontalCenter: parent.horizontalCenter
-        text: "󰇘"
-        textFormat: Text.PlainText
-        color: choice.hasCursor ? Commons.Color.accent : root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.display * 1.6
+        width: Style.font.display * 1.6
+        height: width
+        scale: choice.hasCursor ? 1.08 : 1.0
+        Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutQuad } }
+
+        Text {
+          anchors.centerIn: parent
+          text: "󰇘"
+          textFormat: Text.PlainText
+          color: choice.hasCursor ? Commons.Color.accent : root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.display * 1.6
+        }
       }
 
       ProviderIcon {
