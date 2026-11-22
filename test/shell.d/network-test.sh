@@ -159,6 +159,31 @@ const rows = network.sortWifiRows([
   { ssid: 'Connected', connected: true, known: true, signal: 20 }
 ])
 assertDeepEqual(rows.map(row => row.ssid), ['Connected', 'Known', 'Open'], 'network sorts wifi rows by connection and known state')
+assertDeepEqual(
+  network.sortWifiRows([
+    { ssid: 'Fresh', connected: false, known: false, signal: 99 },
+    { ssid: 'Weak', connected: false, known: false, signal: 90 },
+    { ssid: 'Strong', connected: false, known: false, signal: 10 },
+    { ssid: 'Known', connected: false, known: true, signal: 5 }
+  ], [
+    { ssid: 'Known', connected: false, known: true, signal: 5 },
+    { ssid: 'Strong', connected: false, known: false, signal: 80 },
+    { ssid: 'Gone', connected: false, known: false, signal: 70 },
+    { ssid: 'Weak', connected: false, known: false, signal: 30 }
+  ]).map(row => row.ssid + ':' + row.signal),
+  ['Known:5', 'Strong:80', 'Weak:30', 'Fresh:99'],
+  'network holds the wifi rows on screen in place, with their signal, while a passphrase prompt is open'
+)
+assertDeepEqual(
+  network.sortWifiRows([
+    { ssid: 'hasOwnProperty', connected: false, known: false, signal: 10 },
+    { ssid: 'Other', connected: false, known: false, signal: 90 }
+  ], [
+    { ssid: 'hasOwnProperty', connected: false, known: false, signal: 50 }
+  ]).map(row => row.ssid),
+  ['hasOwnProperty', 'Other'],
+  'network holds wifi rows whatever their SSID, even one named like an Object method'
+)
 assertEqual(network.wifiSectionTitle(rows, 0), 'KNOWN NETWORKS', 'network labels known wifi section')
 assertEqual(network.wifiSectionTitle(rows, 2), 'OTHER NETWORKS', 'network labels other wifi section')
 
@@ -235,3 +260,23 @@ assertDeepEqual(
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
 JS
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+mkdir -p "$tmpdir/bin"
+printf '#!/bin/bash\nexit 0\n' >"$tmpdir/bin/nmcli"
+cat >"$tmpdir/bin/rfkill" <<'SH'
+#!/bin/bash
+if [[ $* == *"--output HARD"* ]]; then
+  [[ $LC_ALL == "C" ]] || exit 2
+  printf '%s\n' "$HARD_BLOCKS"
+fi
+SH
+chmod +x "$tmpdir/bin/"*
+PATH="$tmpdir/bin:$PATH" HARD_BLOCKS=unblocked "$ROOT/bin/omarchy-restart-wifi" >"$tmpdir/output" 2>&1 ||
+  fail "Wi-Fi restart accepts radios without a hard block" "$(cat "$tmpdir/output")"
+status=0
+PATH="$tmpdir/bin:$PATH" HARD_BLOCKS=$'unblocked\nblocked' "$ROOT/bin/omarchy-restart-wifi" >"$tmpdir/output" 2>&1 || status=$?
+(( status == 1 )) && grep -q "still hardware-blocked" "$tmpdir/output" ||
+  fail "Wi-Fi restart reports a remaining hardware block" "status=$status: $(cat "$tmpdir/output")"
+pass "Wi-Fi restart distinguishes unblocked and hardware-blocked radios"

@@ -77,6 +77,7 @@ for command in \
   write_stub "$command" 'exit 0'
 done
 write_stub omarchy-update-available 'exit 1'
+write_stub omarchy-done 'exit 0'
 write_stub pkexec 'exec "$@"'
 ln -s ../bin/pkexec "$SUDO_TEST_ROOT/mock/pkexec"
 write_stub systemd-inhibit 'while [[ $1 == --* ]]; do shift; done; exec "$@"'
@@ -107,6 +108,19 @@ wait "$update_pid"
 grep -q "already running" "$test_tmp/update-second.out" || fail "second omarchy-update reports held update lock"
 [[ ! -f $test_tmp/update-second-snapshot-started ]] || fail "second omarchy-update did not snapshot while lock was held"
 pass "omarchy-update prevents overlapping top-level updates"
+
+# The PID is only a diagnostic; flock still decides whether the lock is held.
+# In particular, a rejected contender must leave the recorded PID intact.
+read -r owner_pid <"$runtime_dir/$update_lock_name"
+[[ $owner_pid =~ ^[0-9]+$ ]] || fail "update lock records an acquiring PID"
+grep -q "Update lock acquired by PID $owner_pid\." "$test_tmp/update-second.out" ||
+  fail "contender reports the holder without overwriting its PID"
+# A stale PID in the file must not prevent the next acquisition.
+printf '999999999\n' >"$runtime_dir/$update_lock_name"
+run_with_lock_env "$stub_bin/omarchy-update-lock" run /bin/bash -c \
+  'read -r owner <"$XDG_RUNTIME_DIR/'"$update_lock_name"'"; [[ $owner == "$$" ]]' ||
+  fail "free flock replaces a stale diagnostic PID"
+pass "update lock PID is diagnostic and survives rejected contenders"
 
 # The sleep inhibitor deliberately outlives the step that starts it, so it must
 # not inherit the update lock. An update killed before restore_update_inhibitors
