@@ -408,7 +408,7 @@ def compact(id, provider, input, timestamp=STAMP, api=None):
 write_pi_session(root / "pi.jsonl", [
   compact("deadbeef", "openai-codex", 10),
   compact("deadbeef", "openai-codex", 8, timestamp=STAMP.replace(":00:00", ":00:01")),
-  compact("api", "openai", 20, api="openai-codex-responses"),
+  compact("api", "", 20, api="openai-codex-responses"),
   compact("current", "openai", 30, api="openai-responses"),
   compact("custom", "openai-local", 999, api="openai-responses"),
   compact("other", "anthropic", 999),
