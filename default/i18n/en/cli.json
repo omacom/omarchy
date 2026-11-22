@@ -145,7 +145,7 @@
   "drive.select": "Select drive",
   "files.selectFile": "Select file",
   "firstRun.agentBody": "Let your favorite agent help with Omarchy.",
-  "firstRun.agentTitle": "Set your default agent",
+  "firstRun.agentTitle": "Set up your agent",
   "firstRun.fingerprintBody": "Enable sudo and unlocking with your fingerprint.",
   "firstRun.fingerprintTitle": "Setup Fingerprint Reader",
   "firstRun.keybindingsBody": "Super + K for cheatsheet.\nSuper + Space for Omarchy Menu.",
