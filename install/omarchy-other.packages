@@ -70,6 +70,9 @@ microsoft-surface-snapdragon-addresses
 # Surface Laptop 8 (Snapdragon) support packages
 microsoft-surface-laptop-8-support
 
+# Samsung Galaxy Book4 Edge 14 (Snapdragon) support packages
+samsung-galaxy-book4-edge-14-support
+
 # Raspberry Pi 4 support packages
 raspberry-pi-4-bluetooth-firmware
 
