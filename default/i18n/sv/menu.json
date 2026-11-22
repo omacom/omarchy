@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Styrplatta"
   },
-  "update.password.drive": {
-    "label": "Enhetskryptering"
-  },
-  "update.password.user": {
-    "label": "Användare"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Kraschloggning av"
   },

@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "แทร็คแพด"
   },
-  "update.password.drive": {
-    "label": "เข้ารหัสไดรฟ์"
-  },
-  "update.password.user": {
-    "label": "ผู้ใช้"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "แสดง % แบตเตอรี่"
   },

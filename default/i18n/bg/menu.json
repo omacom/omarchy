@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Тракпад"
   },
-  "update.password.drive": {
-    "label": "Криптиране на диска"
-  },
-  "update.password.user": {
-    "label": "Потребител"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Покажи % на батерията"
   },

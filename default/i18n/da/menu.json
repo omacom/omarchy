@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Pegefelt"
   },
-  "update.password.drive": {
-    "label": "Drevkryptering"
-  },
-  "update.password.user": {
-    "label": "Bruger"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Nedbrudsregistrering fra"
   },

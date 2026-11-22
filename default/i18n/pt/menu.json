@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Painel tátil"
   },
-  "update.password.drive": {
-    "label": "Encriptação do disco"
-  },
-  "update.password.user": {
-    "label": "Utilizador"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Mostrar % da bateria"
   },

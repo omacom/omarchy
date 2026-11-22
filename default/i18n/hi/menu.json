@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "ट्रैकपैड"
   },
-  "update.password.drive": {
-    "label": "ड्राइव एन्क्रिप्शन"
-  },
-  "update.password.user": {
-    "label": "उपयोगकर्ता"
-  },
   "appearance.windows.gaps-on": {
     "label": "विंडो गैप चालू"
   },

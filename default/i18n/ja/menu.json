@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "トラックパッド"
   },
-  "update.password.drive": {
-    "label": "ドライブ暗号化"
-  },
-  "update.password.user": {
-    "label": "ユーザー"
-  },
   "appearance.windows.gaps-on": {
     "label": "ウィンドウ間隔 オン"
   },

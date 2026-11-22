@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Jutiklinis kilimėlis"
   },
-  "update.password.drive": {
-    "label": "Disko šifravimas"
-  },
-  "update.password.user": {
-    "label": "Vartotojas"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Rodyti baterijos %"
   },

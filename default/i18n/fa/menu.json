@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "ترک‌پد"
   },
-  "update.password.drive": {
-    "label": "رمزگذاری درایو"
-  },
-  "update.password.user": {
-    "label": "کاربر"
-  },
   "appearance.windows.gaps-on": {
     "label": "فاصله پنجره‌ها روشن"
   },

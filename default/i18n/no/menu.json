@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Styreflate"
   },
-  "update.password.drive": {
-    "label": "Diskkryptering"
-  },
-  "update.password.user": {
-    "label": "Bruker"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Vis batteri %"
   },

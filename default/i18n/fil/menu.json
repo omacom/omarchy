@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Trackpad"
   },
-  "update.password.drive": {
-    "label": "Pag-encrypt ng Drive"
-  },
-  "update.password.user": {
-    "label": "Gumagamit"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Ipakita ang Baterya %"
   },

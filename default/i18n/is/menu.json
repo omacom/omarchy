@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Snertiflötur"
   },
-  "update.password.drive": {
-    "label": "Drifdulkóðun"
-  },
-  "update.password.user": {
-    "label": "Notandi"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Sýna rafhlöðu %"
   },

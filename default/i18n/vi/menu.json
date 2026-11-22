@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Bàn di chuột"
   },
-  "update.password.drive": {
-    "label": "Mã hóa ổ đĩa"
-  },
-  "update.password.user": {
-    "label": "Người dùng"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Hiện % pin"
   },

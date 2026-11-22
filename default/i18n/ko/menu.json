@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "트랙패드"
   },
-  "update.password.drive": {
-    "label": "드라이브 암호화"
-  },
-  "update.password.user": {
-    "label": "사용자"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "배터리 % 표시"
   },

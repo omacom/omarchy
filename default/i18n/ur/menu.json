@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "ٹریک پیڈ"
   },
-  "update.password.drive": {
-    "label": "ڈرائیو انکرپشن"
-  },
-  "update.password.user": {
-    "label": "صارف"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "بیٹری % دکھائیں"
   },

@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Dokunmatik Yüzey"
   },
-  "update.password.drive": {
-    "label": "Sürücü Şifreleme"
-  },
-  "update.password.user": {
-    "label": "Kullanıcı"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Pil Yüzdesini Göster"
   },

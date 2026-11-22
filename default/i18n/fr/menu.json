@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Pavé tactile"
   },
-  "update.password.drive": {
-    "label": "Chiffrement du disque"
-  },
-  "update.password.user": {
-    "label": "Utilisateur"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Capture de plantage désactivée"
   },

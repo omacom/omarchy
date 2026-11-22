@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Επιφάνεια αφής"
   },
-  "update.password.drive": {
-    "label": "Κρυπτογράφηση δίσκου"
-  },
-  "update.password.user": {
-    "label": "Χρήστης"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Καταγραφή σφαλμάτων ανενεργή"
   },
