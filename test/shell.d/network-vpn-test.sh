@@ -100,6 +100,10 @@ vpn mode "$WG" full
 [[ $(<"$stage/nm/nd-$OTHER") == "yes" && $(<"$stage/nm/nd-$WG") == "no" ]] || fail "full moves the other full VPN to split" "$(<"$stage/log")"
 grep -qx "connection up uuid $OTHER" "$stage/log" || fail "the VPN moved to split reconnects to apply it" "$(<"$stage/log")"
 pass "full moves the other full VPN to split and reconnects it"
+grep -qx "connection modify uuid $WG ipv4.never-default no ipv6.never-default no" "$stage/log" &&
+  grep -qx "connection modify uuid $OTHER ipv4.never-default yes ipv6.never-default yes" "$stage/log" ||
+  fail "the mode covers IPv6 too" "$(<"$stage/log")"
+pass "the mode covers IPv6 too"
 [[ $(awk -F'\t' -v u="$WG" '$1 == u {print $4 $6}' "$stage/runtime/omarchy/network-vpn") == "upfull" ]] || fail "a switch rewrites the snapshot" "$(cat "$stage/runtime/omarchy/network-vpn")"
 pass "a switch rewrites the snapshot"
 
@@ -116,6 +120,17 @@ grep -q "^notify .*Sign in to Home" "$stage/log" || fail "a missing password say
 [[ $(vpn list | awk -F'\t' -v u="$OVPN" '$1 == u {print $8}') == "signin" ]] || fail "the row offers Sign in"
 pass "a missing password opens a sign-in terminal and the row offers Sign in"
 rm "$stage/nm/needs-secrets"
+
+# A VPN pushed out of full whose token can't be reused offers Sign in.
+reset_nm
+echo no > "$stage/nm/nd-$OTHER"
+echo "$OTHER:activated" > "$stage/nm/active"
+echo "$OTHER" > "$stage/nm/needs-secrets"
+vpn mode "$WG" full
+[[ $(vpn list | awk -F'\t' -v u="$OTHER" '$1 == u {print $8}') == "signin" ]] || fail "a VPN dropped from full for a token offers Sign in" "$(<"$stage/log")"
+pass "a VPN dropped from full for a token offers Sign in"
+rm "$stage/nm/needs-secrets"
+
 vpn mode "$OVPN" split
 [[ -z $(vpn list | awk -F'\t' -v u="$OVPN" '$1 == u {print $8}') ]] || fail "connecting clears Sign in"
 pass "connecting clears Sign in"

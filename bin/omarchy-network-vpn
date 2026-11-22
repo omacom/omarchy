@@ -10,8 +10,8 @@
 #
 #   off    disconnected
 #   split  connected, but only the VPN's own networks go through it
-#          (ipv4.never-default yes)
-#   full   connected, and all traffic goes through it (ipv4.never-default no);
+#          (never-default yes, for IPv4 and IPv6)
+#   full   connected, and all traffic goes through it (never-default no);
 #          only one VPN is in full at a time, the others drop to split
 #
 # The mode lives in the profile itself, so nmcli, nm-applet and this command
@@ -149,6 +149,20 @@ active_full_vpns() {
   list_vpns | awk -F'\t' -v skip="$1" '$1 != skip && $4 != "off" && $6 == "full" {print $1}'
 }
 
+# Split keeps the default route off the VPN for IPv6 too, or a server that
+# hands out an IPv6 default route would still carry all IPv6 traffic.
+set_default_route() { # <uuid> <split|full>
+  local never_default=yes
+  [[ $2 == "full" ]] && never_default=no
+  nmcli connection modify uuid "$1" ipv4.never-default "$never_default" ipv6.never-default "$never_default"
+}
+
+# How nmcli reports a VPN it could not bring up without asking for a password,
+# token or login cookie.
+needs_secrets() {
+  grep -qiE 'secret|password|no agents|authenticat' <<<"$1"
+}
+
 # Brings the VPN up with the profile as it is now. Without a terminal, a
 # failure for missing credentials opens one to sign in rather than failing.
 connect() {
@@ -158,7 +172,7 @@ connect() {
   if [[ -t 0 ]]; then
     nmcli --ask connection up uuid "$uuid" || fail "could not connect $name"
   elif ! err=$(nmcli connection up uuid "$uuid" 2>&1 >/dev/null); then
-    if grep -qiE 'secret|password|no agents|authenticat' <<<"$err"; then
+    if needs_secrets "$err"; then
       needs_signin_set "$uuid"
       open_terminal signin "$uuid" "$mode"
       notify "$(omarchy-i18n vpn.signIn "$name")" "$(omarchy-i18n vpn.signInBody)"
@@ -172,7 +186,7 @@ connect() {
 }
 
 set_mode() {
-  local uuid=$1 mode=$2 other
+  local uuid=$1 mode=$2 other err
   require_vpn "$uuid"
 
   case $mode in
@@ -187,16 +201,16 @@ set_mode() {
   # Only one VPN carries all traffic.
   if [[ $mode == "full" ]]; then
     for other in $(active_full_vpns "$uuid"); do
-      nmcli connection modify uuid "$other" ipv4.never-default yes &&
-        nmcli connection up uuid "$other" >/dev/null 2>&1
+      set_default_route "$other" split || continue
+      # Reconnecting applies the change. A VPN whose token or login cookie
+      # can't be reused drops here, so its row offers Sign in.
+      if ! err=$(nmcli connection up uuid "$other" 2>&1 >/dev/null) && needs_secrets "$err"; then
+        needs_signin_set "$other"
+      fi
     done
   fi
 
-  if [[ $mode == "full" ]]; then
-    nmcli connection modify uuid "$uuid" ipv4.never-default no || fail "could not change the VPN profile"
-  else
-    nmcli connection modify uuid "$uuid" ipv4.never-default yes || fail "could not change the VPN profile"
-  fi
+  set_default_route "$uuid" "$mode" || fail "could not change the VPN profile"
 
   # Re-activating an active VPN applies the new routing.
   connect "$uuid" "$mode"
