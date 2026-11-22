@@ -326,7 +326,7 @@ mkdir -p "$provider_bin" "$test_tmp/provider-state/omarchy/agents/usage" "$test_
 cat >"$provider_bin/opencode" <<'SH'
 #!/bin/bash
 if [[ $1 == "models" ]]; then
-  printf '%s\n' "openrouter/other" "fireworks-ai/accounts/fireworks/models/kimi-k3" "fireworks-ai/accounts/fireworks/models/deepseek-v4p1-flash"
+  printf '%s\n' "openrouter/other" "fireworks-ai/accounts/fireworks/models/kimi-k3" "fireworks-ai/accounts/fireworks/models/deepseek-v4p1-flash" "openai/gpt-5.5"
 else
   printf '%s\0' opencode "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
 fi
@@ -349,6 +349,17 @@ mapfile -d '' -t launch_args <"$launch_log"
 [[ ${launch_args[*]} == *'"model":"fireworks-ai/accounts/fireworks/models/kimi-k3"'* ]] ||
   fail "agent launcher reopens a provider on the model OpenCode last used there: ${launch_args[*]}"
 pass "agent launcher reopens a provider on the model last used there"
+
+# Codex chosen to open in OpenCode does, on one of OpenAI's models.
+mkdir -p "$HOME/.config/omarchy/defaults"
+printf '{"codex":"opencode"}\n' >"$HOME/.config/omarchy/defaults/harnesses.json"
+: >"$launch_log"
+PATH="$provider_bin:$PATH" XDG_STATE_HOME="$test_tmp/provider-state" omarchy-agent --agent codex
+mapfile -d '' -t launch_args <"$launch_log"
+rm "$HOME/.config/omarchy/defaults/harnesses.json"
+[[ ${launch_args[*]} == *'"model":"openai/gpt-5.5"'*"opencode --auto --standalone" ]] ||
+  fail "Codex opens in the harness chosen for it: ${launch_args[*]}"
+pass "Codex opens in the harness chosen for it"
 
 # --pick is for callers with nowhere to show an error, where stderr nobody sees
 # would make them look broken. It opens the agents panel to set one up instead.
@@ -869,7 +880,7 @@ assert_bypass() {
 assert_launch pi pi "Review this project"
 assert_launch omp omp --auto-approve -- "Review this project"
 assert_launch opencode opencode --auto --prompt "Review this project"
-assert_launch ori ori code --interactive --prompt "Review this project"
+assert_launch ori ori opencode
 assert_launch claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto -- "Review this project"
 assert_launch codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me -- "Review this project"
 assert_launch muse muse --approval-mode never -- "Review this project"
@@ -922,7 +933,7 @@ pass "Hermes receives prompted launches as one literal query argument"
 assert_bypass pi pi
 assert_bypass omp omp --auto-approve
 assert_bypass opencode opencode --auto
-assert_bypass ori ori code
+assert_bypass ori ori opencode
 assert_bypass claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto
 assert_bypass codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me
 assert_bypass muse muse --approval-mode never

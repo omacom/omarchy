@@ -811,6 +811,65 @@ Panel {
     Util.execArgv(["uwsm-app", "--", "gtk-launch", entry.id + ".desktop"])
   }
 
+  // The harnesses a subscription can open in, the one made for it first, each
+  // signed in to the same subscription (omarchy agent harness). Chosen with
+  // Alt+Return or a right click on a line's terminal button; a line with
+  // several accounts keeps its own, whose homes the others don't share.
+  readonly property var harnessOptions: ({
+    codex: [{ id: "codex", name: "Codex" }, { id: "opencode", name: "OpenCode" }, { id: "pi", name: "Pi" }],
+    openrouter: [{ id: "opencode", name: "OpenCode" }, { id: "ori-claude", name: "Claude Code", ori: true },
+                 { id: "ori-codex", name: "Codex", ori: true }, { id: "ori-pi", name: "Pi", ori: true }]
+  })
+
+  function harnessesFor(line) {
+    if (!line || line.account || line.localModel) return []
+    return harnessOptions[line.providerId] || []
+  }
+
+  function harnessName(option) {
+    return option.ori ? Commons.I18n.t("agents.viaOri").arg(option.name) : option.name
+  }
+
+  // The harness a line opens in: the one chosen for it, else the first.
+  function chosenHarness(line) {
+    var options = harnessesFor(line)
+    if (options.length === 0) return null
+    var id = usage.harnessChoices[line.providerId] || ""
+    return options.find(function(o) { return o.id === id }) || options[0]
+  }
+
+  property int harnessMenuLine: -1
+  property int harnessMenuRow: 0
+  property real harnessMenuX: 0
+  property real harnessMenuY: 0
+
+  function openHarnessMenu(index) {
+    var options = harnessesFor(providers[index])
+    var section = providerSections.itemAt(index)
+    if (options.length === 0 || !section || !panel.loadedContent) return
+    var spot = section.launchButton.mapToItem(panel.loadedContent, section.launchButton.width, section.launchButton.height)
+    harnessMenuX = spot.x
+    harnessMenuY = spot.y
+    var chosen = chosenHarness(providers[index])
+    harnessMenuRow = Math.max(0, options.findIndex(function(o) { return o.id === chosen.id }))
+    harnessMenuLine = index
+  }
+
+  function closeHarnessMenu() {
+    harnessMenuLine = -1
+    root.focusKeys()
+  }
+
+  // Choosing signs the harness in first when it isn't; the choice is kept
+  // once it is.
+  function chooseHarness(row) {
+    var line = providers[harnessMenuLine]
+    var option = harnessesFor(line)[row]
+    closeHarnessMenu()
+    if (!option || option.id === chosenHarness(line).id) return
+    Util.execArgv(["omarchy-agent-harness", line.providerId, option.id])
+  }
+
   // Starts a line's agent, or has it make `kind` when one is given, first
   // switching to the line's account when it isn't the one in use.
   function runLine(line, kind) {
@@ -1015,6 +1074,8 @@ Panel {
   function defaultIdFor(provider) {
     if (!provider) return ""
     if (provider.providerId === "local") return "local"
+    var chosen = chosenHarness(provider)
+    if (chosen && chosen.ori) return "ori"
     if (opensInAgent(provider)) return "opencode"
     return harnessFor(provider)
   }
@@ -1629,6 +1690,52 @@ Panel {
       property alias hero: hero
       property alias column: column
       property alias providerSections: providerSections
+      // The harnesses a line can open in, by its terminal button. A click
+      // anywhere else closes it.
+      MouseArea {
+        anchors.fill: parent
+        z: 19
+        visible: root.harnessMenuLine >= 0
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onPressed: root.closeHarnessMenu()
+      }
+
+      BorderSurface {
+        id: harnessMenu
+        z: 19
+        visible: root.harnessMenuLine >= 0
+        width: Math.max(Style.space(180), harnessColumn.implicitWidth) + padding * 2
+        height: harnessColumn.implicitHeight + padding * 2
+        x: Math.max(0, Math.min(root.harnessMenuX - width, parent.width - width))
+        y: Math.max(0, Math.min(root.harnessMenuY, parent.height - height))
+        radius: Style.cornerRadius
+        color: Commons.Color.popups.background
+        borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Style.normalBorderWidth)
+        padding: Style.spacing.sm
+
+        Column {
+          id: harnessColumn
+          x: harnessMenu.contentLeftInset
+          y: harnessMenu.contentTopInset
+          width: harnessMenu.width - harnessMenu.contentLeftInset - harnessMenu.contentRightInset
+
+          Repeater {
+            model: root.harnessMenuLine >= 0 ? root.harnessesFor(root.providers[root.harnessMenuLine]) : []
+
+            delegate: PopupMenuRow {
+              required property var modelData
+              required property int index
+              text: root.harnessName(modelData)
+              checked: root.chosenHarness(root.providers[root.harnessMenuLine]).id === modelData.id
+              // Hover and the keyboard share one lit row.
+              highlighted: root.harnessMenuRow === index
+              HoverHandler { onHoveredChanged: if (hovered) root.harnessMenuRow = index }
+              onTriggered: root.chooseHarness(index)
+            }
+          }
+        }
+      }
+
       ConfirmDialog {
         id: deleteConfirm
         anchors.fill: parent
@@ -1660,6 +1767,10 @@ Panel {
       onReorderRequested: function(dy) { root.reorderProvider(dy) }
 
       onMoveRequested: function(dx, dy) {
+        if (root.harnessMenuLine >= 0) {
+          root.harnessMenuRow = root.clamp(root.harnessMenuRow + dy, 0, root.harnessesFor(root.providers[root.harnessMenuLine]).length - 1)
+          return
+        }
         // Naming has its own field; there the arrows scroll. Signing in walks
         // its links, and a code field takes its own keys once it's open.
         if (root.addStage === "" || root.addStage === "running" || root.addStage === "more" || root.picking) root.moveKey(dx, dy)
@@ -1669,9 +1780,16 @@ Panel {
       }
       onDeleteRequested: root.deleteSelected()
       blocked: root.renaming || root.deleteTarget !== null
-      onActivateRequested: root.activateSelection()
+      // Alt+Return on a line offers the harnesses it can open in.
+      onActivateRequested: function(modifiers) {
+        if (root.harnessMenuLine >= 0) root.chooseHarness(root.harnessMenuRow)
+        else if ((modifiers & Qt.AltModifier) && root.keyTarget && root.addStage === "" && root.harnessesFor(root.providers[root.keyTarget.index]).length > 0)
+          root.openHarnessMenu(root.keyTarget.index)
+        else root.activateSelection()
+      }
       onCloseRequested: {
-        if (root.dragIndex >= 0) root.settleProviderDrag(true)
+        if (root.harnessMenuLine >= 0) root.closeHarnessMenu()
+        else if (root.dragIndex >= 0) root.settleProviderDrag(true)
         else if (root.addStage !== "") root.cancelAdd()
         else root.close()
       }
@@ -2331,6 +2449,7 @@ Panel {
   // prepaid provider shows its balance instead.
   component ProviderSection: Column {
     id: section
+    property alias launchButton: sectionLaunch
     property var provider: null
     property int providerIndex: -1
     // An account's line: its account, renamed in place by clicking its name.
@@ -2549,7 +2668,12 @@ Panel {
           anchors.verticalCenter: parent.verticalCenter
           visible: root.launches(section.provider) && (section.engaged || !sectionStar.on)
           iconText: "󰞷"
-          tooltipText: Commons.I18n.t("agents.launchHarness").arg(root.lineName(section.provider))
+          readonly property var harness: root.chosenHarness(section.provider)
+        tooltipText: harness && harness.id !== root.harnessesFor(section.provider)[0].id
+          ? Commons.I18n.t("agents.launchHarnessIn").arg(root.lineName(section.provider)).arg(root.harnessName(harness))
+          : Commons.I18n.t("agents.launchHarness").arg(root.lineName(section.provider))
+        rightClickable: root.harnessesFor(section.provider).length > 0
+        onRightClicked: root.openHarnessMenu(section.providerIndex)
           foreground: root.foreground
           fontFamily: root.fontFamily
           hasCursor: root.hasKey("providerLaunch", section.providerIndex)

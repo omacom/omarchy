@@ -67,6 +67,13 @@ per local coding model that is running and ready.
   always on one of that provider's models: the one OpenCode last used there,
   so a switch made in a session sticks, else the one the section's record has
   used most, else the first OpenCode lists.
+- **Harness** — Alt+Return on a line, or a right click on its terminal
+  button, offers the other harnesses that sign in to that subscription:
+  Codex in OpenCode or Pi, and OpenRouter through Ori in Claude Code, Codex,
+  or Pi. Choosing one signs it in first when it isn't, through `omarchy agent
+  harness`, which keeps the choice; the terminal button, the star, and
+  `omarchy agent` then open that harness. A line with several accounts keeps
+  the harness made for it.
 - **Desktop app** — on the line in use, a monitor icon beside the terminal
   button opens the subscription's desktop app when it's installed (Claude,
   ChatGPT for Codex, Grok Bot, Antigravity, Cursor, Hermes, OpenCode),

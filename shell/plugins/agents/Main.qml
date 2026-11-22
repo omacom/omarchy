@@ -344,10 +344,28 @@ Item {
   // "local" for the local model. Empty until one is chosen.
   property string defaultAgent: ""
 
-  // The default and the local model pin, read again after they're written.
+  // The harness each subscription opens in when it isn't the one made for it,
+  // as `omarchy agent harness` keeps them: {"codex": "opencode"}.
+  property var harnessChoices: ({})
+
+  // The default, the local model pin, and the harness choices, read again
+  // after they're written.
   function reloadDefaults() {
     defaultAgentFile.reload()
     localPinFile.reload()
+    harnessFile.reload()
+  }
+
+  FileView {
+    id: harnessFile
+    path: root.home + "/.config/omarchy/defaults/harnesses.json"
+    watchChanges: true
+    printErrors: false
+    onLoaded: {
+      try { root.harnessChoices = JSON.parse(text()) || {} } catch (e) { root.harnessChoices = {} }
+    }
+    onLoadFailed: root.harnessChoices = {}
+    onFileChanged: reload()
   }
 
   FileView {
