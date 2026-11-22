@@ -436,12 +436,15 @@ Panel {
   }
 
   // A model removed from this machine is no longer added, so set up again
-  // it's offered on the add screen first. The one being set up isn't
-  // installed yet, and stays.
+  // it's offered on the add screen first. One still being set up or
+  // downloaded isn't installed yet either, and stays.
   readonly property var removedLocalModels: {
-    var recipes = localModelsService ? localModelsService.localRecipes || [] : []
+    if (!localModelsService) return []
+    var recipes = localModelsService.localRecipes || []
+    var models = (localModelsService.localModel || {}).models || {}
+    var setups = localModelsService.setupRows()
     return usage.addedLocalModels.filter(function(target) {
-      return target.indexOf("/") < 0 && target !== settingUpLocal
+      return target.indexOf("/") < 0 && !models[target] && !setups.some(function(row) { return row.recipe === target })
         && recipes.some(function(recipe) { return String(recipe.id) === target && recipe.installed === false })
     })
   }
@@ -481,7 +484,11 @@ Panel {
     var install = model.install || {}
     var elapsed = Math.max(0, (nowMs - Number(model.since_ms || nowMs)) / 1000)
     var creep = function(expected) { return elapsed <= expected ? 0.9 * elapsed / expected : 0.9 + 0.08 * (1 - Math.exp(-(elapsed - expected) / expected)) }
-    if (model.unit === "installing" && install.phase === "failed")
+    // Set up but stopped: failed, or too big for the memory free. Stopped
+    // without either is the moment between download and start.
+    if (model.unit === "inactive" && model.fits === false && !model.error)
+      return { title: Commons.I18n.t("localModels.notEnoughMemory"), value: -1, rate: "", failed: true }
+    if ((model.unit === "installing" && install.phase === "failed") || model.unit === "failed" || (model.unit === "inactive" && !!model.error))
       return { title: String(model.error || "") || Commons.I18n.t("localModels.setupFailed"), value: -1, rate: "", failed: true }
     if (model.unit === "installing" && install.phase === "dependencies")
       return { title: Commons.I18n.t("localModels.installingMeter"), value: creep(30), rate: "" }
@@ -496,7 +503,7 @@ Panel {
   // The setup's meter moves by the second, so the clock ticks while it shows.
   Timer {
     interval: 250
-    running: root.opened && root.addStage === "pick" && root.localSetupMeter !== null && !root.localSetupMeter.failed
+    running: root.opened && root.picking && root.localSetupMeter !== null && !root.localSetupMeter.failed
     repeat: true
     onTriggered: root.nowMs = Date.now()
   }
@@ -564,8 +571,9 @@ Panel {
 
   function chooseOwnModel(index) {
     var offer = ownModelOffers[index]
-    // A setup underway goes on; one that failed is tried again.
-    if (!offer || (offer.target === settingUpLocal && !(localSetupMeter && localSetupMeter.failed))) return
+    // A setup underway goes on; one that failed, or whose password prompt
+    // was dismissed, is tried again.
+    if (!offer || (offer.target === settingUpLocal && localSetupMeter && !localSetupMeter.failed)) return
     usage.addLocalModel(offer.target)
     if (offer.ready) {
       root.close()
