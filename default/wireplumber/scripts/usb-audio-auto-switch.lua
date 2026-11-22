@@ -9,28 +9,19 @@
 -- DAC) plugged in later would otherwise stay silent until it was picked by
 -- hand. Selecting it as soon as its node appears is what desktop environments
 -- do, and is enough to move both playback and capture over to the headset.
+--
+-- Devices that were already connected when WirePlumber started must not
+-- replace the user's saved choice, though. udev records when it initialized
+-- each device in device.plugged.usec, and this script notes the monotonic
+-- time it was loaded. A device whose udev timestamp predates the script was
+-- part of the startup enumeration and is left alone; a device plugged in
+-- later has a newer timestamp and is selected. This distinguishes startup
+-- devices from real hotplug events without a settling timer, so a device
+-- connected right after startup is still picked up.
 
 log = Log.open_topic ("s-default-nodes")
 
--- WirePlumber also emits session-item-added while it discovers devices that
--- are already connected at startup. Switching on those would replace the
--- user's saved choice on every login or audio restart, so keep the hook
--- disarmed until the startup burst has gone quiet. Resetting on each event
--- lets slower enumerations finish before the hook is armed.
-local settling = true
-local settle_source = nil
-
-local function arm_when_settled ()
-  if settle_source then
-    settle_source:destroy ()
-  end
-  settle_source = Core.timeout_add (3000, function ()
-    settling = false
-    settle_source = nil
-  end)
-end
-
-arm_when_settled ()
+local started_usec = GLib.get_monotonic_time ()
 
 local function defaultTypesFor (media_class)
   if media_class == "Audio/Source" then
@@ -53,6 +44,25 @@ local function isUsbAudio (props)
   return node_name ~= nil and node_name:find ("%.usb%-", 1, false) ~= nil
 end
 
+-- Returns true if the device behind this node was already known to udev when
+-- WirePlumber started, in which case it is part of the startup enumeration
+-- and the saved default must win. Nodes without a device, or whose udev
+-- timestamp is missing, are treated the same way, to be safe.
+local function wasConnectedAtStartup (source, props)
+  local device_id = props ["device.id"]
+  if not device_id then
+    return true
+  end
+
+  local om = source:call ("get-object-manager", "device")
+  local device = om:lookup {
+    Constraint { "bound-id", "=", device_id, type = "gobject" },
+  }
+  local plugged_usec = device and tonumber (device.properties ["device.plugged.usec"])
+
+  return plugged_usec == nil or plugged_usec < started_usec
+end
+
 SimpleEventHook {
   name = "usb-audio-auto-switch/select-default-node",
   interests = {
@@ -63,11 +73,6 @@ SimpleEventHook {
     },
   },
   execute = function (event)
-    if settling then
-      arm_when_settled ()
-      return
-    end
-
     local props = event:get_properties ()
     local node_name = props ["node.name"]
 
@@ -76,6 +81,11 @@ SimpleEventHook {
     end
 
     local source = event:get_source ()
+    if wasConnectedAtStartup (source, props) then
+      log:info ("keeping saved default for startup device " .. node_name)
+      return
+    end
+
     local om = source:call ("get-object-manager", "metadata")
     local metadata = om:lookup { Constraint { "metadata.name", "=", "default" } }
     if metadata == nil then
