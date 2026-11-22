@@ -2026,6 +2026,18 @@ Panel {
 
     PanelSeparator { foreground: root.foreground }
 
+    // Each group's heading sits over its first agent.
+    PanelSectionHeader {
+      readonly property string group: section.provider ? usage.providerGroup(section.provider) : ""
+      visible: group !== "" && (section.providerIndex === 0
+        || usage.providerGroup(root.providers[section.providerIndex - 1]) !== group)
+      text: group === "payg" ? Commons.I18n.t("agents.groupPayg")
+        : group === "local" ? Commons.I18n.t("agents.groupLocal")
+        : Commons.I18n.t("agents.groupSubscriptions")
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+    }
+
     Item {
       id: sectionHead
       width: parent.width

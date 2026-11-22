@@ -110,7 +110,8 @@ JS
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const functions = ['orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+const functions = ['providerGroup', 'orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+const providerGroups = ['subscription', 'payg', 'local']
 let providerOrder = ['codex', 'kimi', 'claude', 'hidden']
 let panelProviders = [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'kimi'}, {providerId: 'grok'}]
 let saved = ''
@@ -120,6 +121,12 @@ panelProviders = orderedProviders(panelProviders)
 assertDeepEqual(panelProviders.map(p => p.providerId), ['codex', 'kimi', 'claude', 'grok'], 'saved order keeps its agents in place and puts new ones last')
 moveProvider('grok', 0)
 assertDeepEqual(JSON.parse(saved), ['grok', 'codex', 'kimi', 'claude', 'hidden'], 'moving an agent saves the order and retains hidden ids')
+
+// Subscriptions come first, then what bills by use, then local models,
+// however the saved order has them.
+providerOrder = ['local', 'fireworks', 'claude']
+const grouped = orderedProviders([{providerId: 'claude'}, {providerId: 'local'}, {providerId: 'fireworks', spend: {}}, {providerId: 'codex'}])
+assertDeepEqual(grouped.map(p => p.providerId), ['claude', 'codex', 'fireworks', 'local'], 'agents are grouped as the add screen offers them')
 JS
 
 # Exercise the panel's drag lifecycle with Elsewhen's real variable-height math.

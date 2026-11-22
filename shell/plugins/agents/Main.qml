@@ -258,13 +258,26 @@ Item {
 
   readonly property var panelProviders: orderedProviders(subscribedProviders)
 
+  // The panel lists agents in three groups, the ones its add screen offers:
+  // a plan with limits, a prepaid balance or a bill by use, and the models
+  // that run on hardware you own.
+  readonly property var providerGroups: ["subscription", "payg", "local"]
+
+  function providerGroup(p) {
+    if (p.providerId === "local") return "local"
+    if (p.balance || p.spend) return "payg"
+    return "subscription"
+  }
+
+  // By group, then where each agent was put within it.
   function orderedProviders(list) {
     var order = providerOrder
     var rank = function(p) {
       var i = order.indexOf(p.providerId)
       return i < 0 ? order.length : i
     }
-    return list.slice().sort(function(a, b) { return rank(a) - rank(b) })
+    var group = function(p) { return providerGroups.indexOf(providerGroup(p)) }
+    return list.slice().sort(function(a, b) { return group(a) - group(b) || rank(a) - rank(b) })
   }
 
   // Moves one agent to a position among the ones shown, and saves the result.
