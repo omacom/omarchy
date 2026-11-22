@@ -12,3 +12,7 @@ pass "bin commands use command helpers"
 raw_notifications=$(rg -l -P '^[[:space:]]*[^#[:space:]].*\bnotify-send\b' "$ROOT/bin" || true)
 [[ -z $raw_notifications ]] || fail "bin commands use the notification helper, never notify-send" "$raw_notifications"
 pass "bin commands use the notification helper"
+
+non_executable=$(find "$ROOT/bin" -maxdepth 1 -name 'omarchy-*' -type f ! -perm -u+x -printf '%f\n' || true)
+[[ -z $non_executable ]] || fail "bin commands are executable" "$non_executable"
+pass "bin commands are executable"
