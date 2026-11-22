@@ -184,7 +184,7 @@ SH
 HOME="$home" XDG_STATE_HOME="$home/.local/state" PATH="$home/bin:$PATH" PR18065_NOTIFICATION_LOG="$home/notifications" \
   "$ROOT/bin/omarchy-agent-account-state" alert codex >/dev/null
 expect_jq "a zero credit allocation leaves the selected account below its alert threshold" \
-  '[.active, .alert]' '["side", ""]' "$(cat "$accounts/codex.json")"
+  '[.active, .alert]' '["side",""]' "$(cat "$accounts/codex.json")"
 [[ ! -e $home/notifications ]] || fail "a zero credit allocation must not send a limit notification"
 pass "a zero credit allocation sends no limit notification"
 
