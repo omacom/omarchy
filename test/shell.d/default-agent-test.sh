@@ -168,6 +168,9 @@ amp_package="amp"
 commandcode_package="npm:command-code"
 cursor_agent_package="cursor-agent"
 muse_package="muse"
+# zycode is the name of the agent, and zypi is its command and its saved name.
+zypi_tool="http:zycode"
+zypi_package="$zypi_tool[platforms_linux_x64_url=https://github.com/zy1233/pi-python/releases/download/v{{ version }}/zycode-linux-x86_64-{{ version }}.tar.gz,platforms_linux_arm64_url=https://github.com/zy1233/pi-python/releases/download/v{{ version }}/zycode-linux-aarch64-{{ version }}.tar.gz,version_list_url=https://api.github.com/repos/zy1233/pi-python/releases,version_json_path=.[].tag_name,version_order=semver]"
 
 assert_lazy_stub() {
   local package=$1
@@ -229,6 +232,7 @@ declare -A declared_option_bins=(
   [mcode]='"mcode"'
   [kiro_cli]='"kiro-cli"'
   [devin]='"devin"'
+  [zypi]='"zypi"'
 )
 for agent in "${!declared_option_bins[@]}"; do
   tool_var="${agent}_tool"
@@ -242,12 +246,12 @@ for agent in "${!declared_option_bins[@]}"; do
       fail "user setup declares ${!tool_var} with ${option%%=*} inside its table"
   done
 done
-[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 21 ]] || fail "only the agent CLIs update themselves"
+[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 22 ]] || fail "only the agent CLIs update themselves"
 for tool in node uv; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
     fail "user setup declares $tool as a native lazy tool"
 done
-[[ $(grep -c 'lazy = true' "$lazy_config") == 31 ]] || fail "user setup declares every default mise tool as lazy"
+[[ $(grep -c 'lazy = true' "$lazy_config") == 32 ]] || fail "user setup declares every default mise tool as lazy"
 grep -Fx "reshim --system" "$mise_history" >/dev/null || fail "user setup builds the system lazy bootstrap shims"
 pass "user setup configures system lazy tools from registry shorthands"
 : >"$stub_log"
@@ -416,6 +420,8 @@ declare -A expected_agents=(
   [muse]="muse"
   [muse-code]="muse"
   [musecode]="muse"
+  [zycode]="zypi"
+  [zypi]="zypi"
 )
 
 declare -A expected_packages=(
@@ -441,6 +447,7 @@ declare -A expected_packages=(
   [commandcode]="$commandcode_package"
   [cursor-agent]="$cursor_agent_package"
   [muse]="$muse_package"
+  [zypi]="$zypi_package"
 )
 
 for selection in "${!expected_agents[@]}"; do
@@ -719,7 +726,7 @@ mapfile -d '' -t agent_open_args <"$agent_open_log"
 pass "Muse installs visibly through mise and opens directly"
 
 saved_agent=$(<"$agent_file")
-for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode; do
+for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode zypi; do
   tool_var="${agent//-/_}_tool"
   package_var="${agent//-/_}_package"
   declared_tool=${!tool_var:-${!package_var}}
@@ -727,7 +734,7 @@ for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode; do
   omarchy-default-agent --install "$agent" >/dev/null
   # npm-backed agents bring node along, which a fresh machine doesn't have yet.
   case "$agent" in
-  kiro-cli | devin) expected_install="install $declared_tool" ;;
+  kiro-cli | devin | zypi) expected_install="install $declared_tool" ;;
   *) expected_install="install node $declared_tool" ;;
   esac
   grep -Fx "$expected_install" "$mise_history" >/dev/null || fail "visible $agent installation installs Omarchy's declaration (expected: $expected_install)"
@@ -854,6 +861,7 @@ assert_launch kilo kilo --auto "--prompt=Review this project"
 assert_launch devin devin --permission-mode dangerous --respect-workspace-trust false -- "Review this project"
 assert_launch amp bash -c 'printf "%s\n" "$1" | exec "$0" --dangerously-allow-all' amp "Review this project"
 assert_launch commandcode commandcode --yolo -- "Review this project"
+assert_launch zypi zypi --always-approve -- "Review this project"
 [[ $(<"$clipboard_log") == "Review this project" ]] || fail "Freebuff launcher puts the prompt on the clipboard"
 mapfile -d '' -t notification_args <"$notification_history"
 [[ ${notification_args[*]} == *"Freebuff takes no starting prompt"* ]] || fail "Freebuff launcher says where the prompt went"
@@ -897,8 +905,35 @@ assert_bypass kilo kilo --auto
 assert_bypass devin devin --permission-mode dangerous --respect-workspace-trust false
 assert_bypass amp amp --dangerously-allow-all
 assert_bypass commandcode commandcode --yolo
+assert_bypass zypi zypi --always-approve
 [[ ! -s $clipboard_log && ! -s $notification_history ]] || fail "Freebuff launcher leaves the clipboard alone without a prompt"
 pass "agent launcher skips permission prompts for every supported agent"
+
+# omarchy-agent checks the saved name as a command, and the mock above says that
+# no command is missing. Run zycode once with the real omarchy-cmd-missing:
+# the archive installs zypi and zycode-agent, so zypi is the only name that
+# passes. A saved "zycode" would be refused as not installed.
+real_cmd_bin="$test_tmp/real-cmd-bin"
+mkdir -p "$real_cmd_bin"
+for stub in "$mock_bin"/*; do
+  [[ ${stub##*/} == omarchy-cmd-missing ]] || ln -s "$stub" "$real_cmd_bin/${stub##*/}"
+done
+cat >"$real_cmd_bin/zypi" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$real_cmd_bin/zypi"
+saved_path=$PATH
+PATH="$real_cmd_bin:$ROOT/bin:$saved_path"
+assert_launch zypi zypi --always-approve -- "Review this project"
+printf '%s\n' zycode >"$agent_file"
+if omarchy-agent >"$test_tmp/zycode-name-output" 2>&1; then
+  fail "agent launcher refuses a saved name that is not a command"
+fi
+grep -F "zycode is not installed" "$test_tmp/zycode-name-output" >/dev/null ||
+  fail "agent launcher says that a saved name without a command is not installed"
+PATH=$saved_path
+pass "agent launcher finds zycode by its command, checked with the real omarchy-cmd-missing"
 
 printf '%s\n' "opencode" >"$agent_file"
 omarchy-agent

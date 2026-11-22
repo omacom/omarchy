@@ -82,3 +82,18 @@ GROK_HOME=$account instructions grok >/dev/null
 HOME=$test_home PATH="$ROOT/bin:$PATH" omarchy-agent-account-state link grok "$account" >/dev/null
 [[ $account/AGENTS.md -ef $canonical ]] || fail "an added Grok account reads the shared rules" "$(ls -la "$account")"
 pass "an added Grok account reads the shared rules"
+
+# zycode reads its rules from agent/AGENTS.md in its home: ~/.pi-python, or
+# where PI_HOME puts it. A shell that exports PI_HOME must not take the tests
+# out of their scratch HOME, so base-test.sh clears it.
+new_home zycode
+instructions zypi >/dev/null
+[[ $test_home/.pi-python/agent/AGENTS.md -ef $canonical ]] ||
+  fail "zycode is linked in its home" "$(ls -la "$test_home/.pi-python/agent")"
+new_home zycode-moved
+PI_HOME=$test_home/zycode instructions zypi >/dev/null
+[[ $test_home/zycode/agent/AGENTS.md -ef $canonical && ! -e $test_home/.pi-python ]] ||
+  fail "PI_HOME moves the zycode link" "$(ls -la "$test_home" "$test_home/zycode/agent")"
+[[ $(PI_HOME=$test_tmp/outside bash -c 'source "$1" && printf "%s" "${PI_HOME-unset}"' _ "$SHELL_TEST_DIR/base-test.sh") == "unset" ]] ||
+  fail "tests do not inherit PI_HOME from the shell that runs them"
+pass "zycode reads the shared rules, in its home or where PI_HOME puts it"

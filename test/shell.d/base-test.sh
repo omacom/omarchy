@@ -30,8 +30,10 @@ export OMARCHY_LANGUAGE_FILE=$ROOT/test/.no-language
 unset XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME
 
 # Run from inside an agent session, the agent's own account home would leak
-# into tests of agent accounts the same way.
-unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME OMARCHY_AGENT_CLAUDE_HOME OMARCHY_AGENT_CODEX_HOME OMARCHY_AGENT_GROK_HOME
+# into tests of agent accounts the same way. PI_HOME is zycode's home, where
+# the instructions link goes: a shell that exports it would send a test to the
+# developer's real zycode home.
+unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME OMARCHY_AGENT_CLAUDE_HOME OMARCHY_AGENT_CODEX_HOME OMARCHY_AGENT_GROK_HOME PI_HOME
 
 pass() {
   printf 'ok - %s\n' "$1"
