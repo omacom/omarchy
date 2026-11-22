@@ -4,6 +4,7 @@ import QtQuick.Shapes
 import Quickshell
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // Centered speed test overlay shared by the network and disk speed tests. No
@@ -14,6 +15,10 @@ import qs.Ui
 // track the live readings. Callers name the dials, the unit, and the scale.
 PanelWindow {
   id: root
+  // Right-to-left languages read this window mirrored.
+  Binding { target: root.contentItem; property: "LayoutMirroring.enabled"; value: Commons.I18n.rightToLeft }
+  Binding { target: root.contentItem; property: "LayoutMirroring.childrenInherit"; value: true }
+
 
   required property string fontFamily
   required property bool running
@@ -22,7 +27,7 @@ PanelWindow {
   property string unit: "Mbps"
   property string title: ""
   property string layerNamespace: "omarchy-speed-test"
-  property string runAgainTooltip: "Measure again"
+  property string runAgainTooltip: Commons.I18n.t("speedtest.measureAgain")
   property real leftValue: 0
   property real rightValue: 0
   property bool leftLive: false
@@ -61,7 +66,7 @@ PanelWindow {
   onRightValueChanged: expandScale(rightValue)
 
   Behavior on fullScale {
-    NumberAnimation { duration: 400; easing.type: Easing.OutCubic }
+    NumberAnimation { duration: Style.duration(400); easing.type: Easing.OutCubic }
   }
 
   // The scrim below is a fixed near-black regardless of theme, so text and
@@ -130,6 +135,7 @@ PanelWindow {
         spacing: Style.space(16)
 
         Text {
+          textFormat: Text.PlainText
           visible: root.title !== ""
           text: root.title.toUpperCase()
           color: root.onScrimDim
@@ -163,7 +169,7 @@ PanelWindow {
         // Centered on the dial pair. Fades rather than unmounts while a run
         // is in flight, so the cluster never shifts.
         Button {
-          text: "Run Again"
+          text: Commons.I18n.t("speedtest.runAgain")
           tooltipText: root.runAgainTooltip
           bordered: true
           enabled: !root.running
@@ -177,11 +183,12 @@ PanelWindow {
           onClicked: root.runAgainRequested()
 
           Behavior on opacity {
-            NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Style.duration(240); easing.type: Easing.OutCubic }
           }
         }
 
         Text {
+          textFormat: Text.PlainText
           visible: root.failed
           text: root.error
           color: root.onScrimUrgent
@@ -234,13 +241,13 @@ PanelWindow {
     opacity: engaged ? 1 : 0.5
 
     Behavior on opacity {
-      NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Style.duration(240); easing.type: Easing.OutCubic }
     }
 
     // Live readings land once a second; glide between them rather than snap.
     Behavior on shown {
       enabled: !ignition.running
-      NumberAnimation { duration: 600; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Style.duration(600); easing.type: Easing.OutCubic }
     }
 
     onValueChanged: {
@@ -255,8 +262,8 @@ PanelWindow {
     // the live figures take over.
     SequentialAnimation {
       id: ignition
-      NumberAnimation { target: dial; property: "shown"; to: dial.fullScale; duration: 550; easing.type: Easing.InOutCubic }
-      NumberAnimation { target: dial; property: "shown"; to: 0; duration: 650; easing.type: Easing.OutCubic }
+      NumberAnimation { target: dial; property: "shown"; to: dial.fullScale; duration: Style.duration(550); easing.type: Easing.InOutCubic }
+      NumberAnimation { target: dial; property: "shown"; to: 0; duration: Style.duration(650); easing.type: Easing.OutCubic }
       onFinished: dial.shown = dial.value
     }
 
@@ -286,7 +293,7 @@ PanelWindow {
       // round caps would leave a stray dot at the foot of the scale.
       ShapePath {
         strokeWidth: dial.arcWidth * 3
-        strokeColor: dial.arcVisible ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.18) : "transparent"
+        strokeColor: dial.arcVisible ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.18) : "transparent"
         fillColor: "transparent"
         capStyle: ShapePath.RoundCap
 
@@ -303,7 +310,7 @@ PanelWindow {
       // Value: fills behind the needle.
       ShapePath {
         strokeWidth: dial.arcWidth
-        strokeColor: dial.arcVisible ? Color.accent : "transparent"
+        strokeColor: dial.arcVisible ? Commons.Color.accent : "transparent"
         fillColor: "transparent"
         capStyle: ShapePath.RoundCap
 
@@ -354,8 +361,8 @@ PanelWindow {
         radius: width / 2
 
         gradient: Gradient {
-          GradientStop { position: 0.0; color: Color.accent }
-          GradientStop { position: 0.55; color: Color.accent }
+          GradientStop { position: 0.0; color: Commons.Color.accent }
+          GradientStop { position: 0.55; color: Commons.Color.accent }
           GradientStop { position: 1.0; color: "transparent" }
         }
       }
@@ -368,14 +375,10 @@ PanelWindow {
       spacing: 0
 
       Text {
+        textFormat: Text.PlainText
         anchors.horizontalCenter: parent.horizontalCenter
-        // Both branches go through the locale: a reading is a measurement, so
-        // its separators follow the system's number conventions rather than the
-        // interface language. toFixed would have hardcoded a dot below 10 while
-        // everything above it was already grouped for the locale.
-        text: dial.reading < 10
-          ? dial.reading.toLocaleString(Qt.locale(), 'f', 1)
-          : Math.round(dial.reading).toLocaleString(Qt.locale(), 'f', 0)
+        // Written in the interface language's decimal separator and digits.
+        text: Commons.I18n.formatNumber(dial.reading, dial.reading < 10 ? 1 : 0)
         color: root.onScrim
         font.family: root.fontFamily
         font.pixelSize: Style.font.display
@@ -383,6 +386,7 @@ PanelWindow {
       }
 
       Text {
+        textFormat: Text.PlainText
         anchors.horizontalCenter: parent.horizontalCenter
         text: root.unit
         color: root.onScrimDim
@@ -394,6 +398,7 @@ PanelWindow {
     // The 90° gap at the bottom of the scale is where a cluster prints its
     // unit; here it names the direction.
     Text {
+      textFormat: Text.PlainText
       anchors.horizontalCenter: parent.horizontalCenter
       anchors.bottom: parent.bottom
       text: dial.label

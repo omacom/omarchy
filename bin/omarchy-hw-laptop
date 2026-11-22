@@ -2,15 +2,39 @@
 
 # omarchy:summary=Returns true when running on a laptop (has a lid or laptop chassis).
 
+acpi_lid="${OMARCHY_ACPI_LID_PATH:-/proc/acpi/button/lid}"
+input_class="${OMARCHY_INPUT_CLASS_PATH:-/sys/class/input}"
+dmi_chassis="${OMARCHY_DMI_CHASSIS_TYPE_PATH:-/sys/class/dmi/id/chassis_type}"
+
+shopt -s nullglob
+acpi_states=("$acpi_lid"/*/state)
+input_switches=("$input_class"/*/capabilities/sw)
+shopt -u nullglob
+
 # A lid switch is the definitive signal for clamshell-capable hardware.
-for state in /proc/acpi/button/lid/*/state; do
+for state in "${acpi_states[@]}"; do
   [[ -e $state ]] && exit 0
+done
+
+# Without an ACPI lid (Apple Silicon, for one), any input device that reports a
+# lid switch (SW_LID, bit 0 of its switch capabilities, the last word of the
+# bitmap) counts. The switch's name varies: Apple's SMC input device carries
+# the same name on a Mac mini, where it reports no lid.
+for switches in "${input_switches[@]}"; do
+  [[ -r $switches ]] || continue
+  read -r -a words <"$switches" || true
+  (( ${#words[@]} )) || continue
+  word=${words[-1]}
+  [[ $word =~ ^[0-9a-fA-F]+$ ]] || continue
+  (( 16#$word & 1 )) && exit 0
 done
 
 # Fall back to the DMI chassis type for laptops that don't expose an ACPI lid
 # button. 8=Portable 9=Laptop 10=Notebook 14=Sub Notebook 30=Tablet
 # 31=Convertible 32=Detachable.
-case $(< /sys/class/dmi/id/chassis_type 2>/dev/null) in
+chassis_type=""
+read -r chassis_type <"$dmi_chassis" 2>/dev/null || true
+case $chassis_type in
 8 | 9 | 10 | 14 | 30 | 31 | 32) exit 0 ;;
 esac
 

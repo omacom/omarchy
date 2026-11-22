@@ -1,20 +1,20 @@
 # Omarchy on...
 
-### Apple M1/M2 chips
+### Apple Silicon Macs
 
-[Asahi Alarm](https://asahi-alarm.org/) is a version of Arch for Apple M1/M2 computers built on top of [Asahi Linux](https://asahilinux.org/). You can get Omarchy running on top of that with some effort. See [the user-driven guide](https://codeberg.org/malik-na/omarchy-mac).
+Omarchy for Apple Silicon runs on M1, M2 and M3 Macs and installs next to macOS. See [Omarchy for Apple Silicon](44-mac-support.md#omarchy-for-apple-silicon) in the Mac support chapter.
 
-### Apple Virtual Machine
+### Try Omarchy on a Mac
 
-You can also install Omarchy inside a Parallels VM. Quite the cumbersome process, but there's [a user-driven guide](https://github.com/basecamp/omarchy/discussions/452) for that too.
+[Try Omarchy](https://github.com/omacom/try-omarchy) runs Omarchy in a virtual machine on any Apple Silicon Mac with macOS 15 or newer, with nothing to partition or install beside macOS.
 
 ### VirtualBox
 
-VirtualBox is a popular VM runner. [You can run Omarchy inside that too](https://github.com/basecamp/omarchy/discussions/176). But performance probably won't be great.
+VirtualBox is a popular VM runner. [You can run Omarchy inside that too](https://github.com/omacom/omarchy/discussions/176). But performance probably won't be great.
 
 ### VMware Workstation on Windows 11
 
-Another popular VM runner for Windows. [Omarchy has been setup inside of that as well](https://github.com/basecamp/omarchy/discussions/572).
+Another popular VM runner for Windows. [Omarchy has been setup inside of that as well](https://github.com/omacom/omarchy/discussions/572).
 
 ### Steam Deck
 

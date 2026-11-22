@@ -12,6 +12,7 @@ fcitx5-configtool
 fcitx5-wayland-launcher
 foot-server
 footclient
+hermes
 java-java-openjdk
 jconsole-java-openjdk
 jshell-java-openjdk
@@ -26,6 +27,7 @@ libreoffice-startcenter
 libreoffice-xsltfilter
 limine-snapper-restore
 lstopo
+mpv
 org.fcitx.Fcitx5
 org.fcitx.fcitx5-config-qt
 org.fcitx.fcitx5-migrator

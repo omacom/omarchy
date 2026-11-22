@@ -25,10 +25,69 @@ valid_url() {
   [[ $1 =~ ^https?:// ]]
 }
 
+# A printed path is only usable if it is a regular file inside DOWNLOAD_DIR.
+# Forged records (leading-dash options, paths with control chars, or
+# anything that escaped the download directory) must not reach the click command.
+resolve_download_file() {
+  local candidate=$1 file_real dir_real
+
+  [[ -n $candidate ]] || return 1
+  [[ $candidate != *$'\n'* && $candidate != *$'\r'* && $candidate != *$'\t'* ]] || return 1
+  [[ -f $candidate ]] || return 1
+
+  # Read to a NUL: command substitution strips trailing newlines, which would
+  # resolve a name ending in one to a different file that may well exist.
+  IFS= read -r -d '' file_real < <(realpath -ze -- "$candidate") || return 1
+  IFS= read -r -d '' dir_real < <(realpath -ze -- "$DOWNLOAD_DIR") || return 1
+
+  [[ $file_real != *$'\n'* && $file_real != *$'\r'* && $file_real != *$'\t'* ]] || return 1
+  # Trim the slash so a download directory of "/" still leaves a usable prefix.
+  [[ $file_real == "${dir_real%/}"/* ]] || return 1
+
+  printf '%s' "$file_real"
+}
+
+# yt-dlp prints the title JSON-encoded, so a newline or tab in page metadata is an
+# escape sequence rather than a record boundary. This is toast text, never a command.
+decode_title() {
+  local decoded
+
+  decoded=$(jq -r 'if type == "string" then . else empty end' <<<"$1" 2>/dev/null) || return 1
+  decoded=${decoded%%[[:cntrl:]]*} # keep what a person would read, drop the forgery
+  [[ -n $decoded && $decoded != -* ]] || return 1
+
+  printf '%s' "$decoded"
+}
+
+title_from_file() {
+  local name=${1##*/}
+  name=${name%.*}
+  name=${name//[$'\n\r\t']/}
+  if [[ -z $name || $name == -* ]]; then
+    printf '%s' "Video"
+  else
+    printf '%s' "$name"
+  fi
+}
+
 # Drive the Quickshell OSD — a single overlay that updates in place (like the
 # volume/brightness bar), so download progress never stacks like notifications.
 osd_progress() {
   omarchy-osd -i 󰇚 -p "$1" -d 8000 >/dev/null 2>&1 || true
+}
+
+# yt-dlp downloads video and audio as separate streams, each running 0-100%, then
+# merges them. Fold them into one bar: the streams before the last share the first
+# 90%, and the last one, the audio and a fraction of the size, fills the rest.
+overall_percent() { # overall_percent <part> <parts> <percent>
+  local part=$1 parts=$2 pct=$3
+  if ((parts < 2)); then
+    echo "$pct"
+  elif ((part < parts)); then
+    echo $((((part - 1) * 100 + pct) * 90 / ((parts - 1) * 100)))
+  else
+    echo $((90 + pct / 10))
+  fi
 }
 
 osd_close() {
@@ -41,48 +100,78 @@ download_url() {
   mkdir -p "$DOWNLOAD_DIR"
 
   # Don't show anything until yt-dlp confirms there's actually a video to grab.
-  if ! yt-dlp --no-playlist --simulate --quiet --no-warnings "$url" >/dev/null 2>&1; then
-    omarchy-notification-send -u critical -g 󰅖 "No video found for download" "$url"
+  if ! yt-dlp --no-playlist --simulate --quiet --no-warnings --no-exec --no-exec-before-download -- "$url" >/dev/null 2>&1; then
+    omarchy-notification-send -u critical -g 󰅖 "$(omarchy-i18n download.none)" "$url"
     exit 0
   fi
 
   osd_progress 0
+  local er=$EPOCHREALTIME
+  local lastms=$((${er%[.,]*} * 1000 + 10#${er##*[.,]} / 1000))
 
-  # Stream the download: OMARCHY_PROG carries the percent (drives the OSD),
-  # OMARCHY_FILE (printed only after a successful move) carries title + path.
-  local line rest pct intpct last="" er nowms lastms=0 title="" filepath=""
+  # Stream the download: OMARCHY_PARTS names the formats yt-dlp picked (616+251 is a
+  # video and an audio stream), OMARCHY_PROG carries each stream's status and percent
+  # (drives the OSD), and OMARCHY_FILE and OMARCHY_TITLE (printed only after a
+  # successful move) carry the path and the title. The title is JSON-encoded so
+  # metadata cannot forge a record, and the file is named after it: yt-dlp strips
+  # control characters from a filename with or without --restrict-filenames, so a
+  # record is still only ever one line.
+  local line status format pct intpct parts=1 part=0 current="" plus last=0 nowms title="" filepath="" resolved
   while IFS= read -r line; do
     case $line in
+    OMARCHY_PARTS*)
+      plus=${line//[^+]/}
+      parts=$((${#plus} + 1))
+      ;;
     OMARCHY_PROG*)
-      pct=${line#OMARCHY_PROG$'\t'}
+      IFS=$'\t' read -r _ status format pct <<<"$line"
+      if [[ $format != "$current" ]]; then
+        current=$format
+        ((++part))
+      fi
       intpct=${pct%%.*}
       intpct=${intpct//[^0-9]/}
-      [[ -n $intpct && $intpct != "$last" ]] || continue # skip no-op repeats
+      [[ -n $intpct ]] || continue
+      # A chunked (HLS) stream's first report reads 100% before any chunk arrives.
+      # A real finish always comes as its own "finished" report.
+      [[ $status == downloading && $intpct == 100 ]] && continue
       # Throttle to ~4 redraws/sec so fast downloads don't spawn a flurry of processes.
       er=$EPOCHREALTIME
       nowms=$((${er%[.,]*} * 1000 + 10#${er##*[.,]} / 1000))
       ((nowms - lastms >= 250)) || continue
-      last=$intpct
+      intpct=$(overall_percent "$part" "$parts" "$intpct")
+      # Never run the bar backwards. A stretch that doesn't move it still redraws
+      # every few seconds, before the OSD's 8s timeout hides a slow download.
+      if ((intpct > last)); then
+        last=$intpct
+      elif ((nowms - lastms < 4000)); then
+        continue
+      fi
       lastms=$nowms
-      osd_progress "$intpct"
+      osd_progress "$last"
       ;;
     OMARCHY_FILE*)
-      rest=${line#OMARCHY_FILE$'\t'}
-      title=${rest%%$'\t'*}
-      filepath=${rest#*$'\t'}
+      resolved=$(resolve_download_file "${line#OMARCHY_FILE$'\t'}") || continue
+      filepath=$resolved
+      ;;
+    OMARCHY_TITLE*)
+      title=$(decode_title "${line#OMARCHY_TITLE$'\t'}") || title=""
       ;;
     esac
-  done < <(PYTHONUNBUFFERED=1 yt-dlp --no-playlist --restrict-filenames --no-simulate \
-    --quiet --no-warnings --progress --newline \
-    --progress-template $'download:OMARCHY_PROG\t%(progress._percent_str)s' \
-    --paths "$DOWNLOAD_DIR" -o '%(title)s [%(id)s].%(ext)s' \
-    --print $'after_move:OMARCHY_FILE\t%(title)s\t%(filepath)s' \
-    "$url" 2>&1)
+  done < <(PYTHONUNBUFFERED=1 yt-dlp --no-playlist --no-simulate \
+    --quiet --no-warnings --no-exec --no-exec-before-download --progress --newline \
+    --progress-template $'download:OMARCHY_PROG\t%(progress.status)s\t%(info.format_id)s\t%(progress._percent_str)s' \
+    --paths "$DOWNLOAD_DIR" -o '%(title)s.%(ext)s' \
+    --print $'video:OMARCHY_PARTS\t%(format_id)s' \
+    --print $'after_move:OMARCHY_FILE\t%(filepath)s' \
+    --print $'after_move:OMARCHY_TITLE\t%(title)j' \
+    -- "$url" 2>&1)
 
   osd_close
 
   # after_move only prints on a successful download+move, so a captured path == success.
   if [[ -n $filepath ]]; then
+    [[ -n $title ]] || title=$(title_from_file "$filepath")
     ((${#title} > 50)) && title="${title:0:50}…" # keep the toast compact
 
     # Square, center-cropped thumbnail so the notification preview isn't stretched.
@@ -94,9 +183,15 @@ download_url() {
 
     # Best-effort: the download already succeeded, and under `set -e` a failed
     # toast would exit before the thumbnail cleanup below is ever scheduled.
-    omarchy-notification-send -g 󰄬 "Download complete" "$title" \
+    # Open plays it, Cut takes it into Omacut; clicking the card plays it too.
+    # Omaview has no `--`, so the path it gets is always the absolute one
+    # resolve_download_file returned, which can't pass for an option; it is one
+    # discrete --with argument, so it never reaches a shell.
+    omarchy-notification-send -g 󰄬 "$(omarchy-i18n download.complete)" "$title" \
       -t 10000 --image "${preview:-$filepath}" \
-      --exec "$(printf 'mpv %q' "$filepath")" || true
+      --action "$(omarchy-i18n download.open)" omaview open \
+      --action "$(omarchy-i18n download.cut)" omacut \
+      --with "$filepath" || true
 
     # The shell loads the thumbnail into memory when the toast appears and never
     # re-reads the file, so the preview only has to outlive that load, not the
@@ -106,7 +201,7 @@ download_url() {
       rm -f "$preview"
     ) &
   else
-    omarchy-notification-send -u critical -g 󰅖 "Download failed" "$url"
+    omarchy-notification-send -u critical -g 󰅖 "$(omarchy-i18n download.failed)" "$url"
   fi
 
   exit 0
@@ -116,7 +211,7 @@ main() {
   local length payload url
 
   # Detached worker: this is what actually runs yt-dlp and fires notifications.
-  if [[ "${1:-}" == "--download" ]]; then
+  if [[ ${1:-} == "--download" ]]; then
     download_url "$2"
   fi
 
