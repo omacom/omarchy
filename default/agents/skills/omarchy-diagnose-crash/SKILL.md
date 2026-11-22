@@ -38,6 +38,12 @@ sandbox launcher or `container=` in `COREDUMP_ENVIRON`. A missing executable may
 instead have been deleted. For bwrap, inspect its `--bind` arguments to map
 paths.
 
+Read only the container marker from the saved environment; other variables can contain credentials:
+
+```bash
+journalctl -n 1 -o cat --output-fields=COREDUMP_ENVIRON COREDUMP_PID=<pid> | grep -a '^container='
+```
+
 For SIGTRAP, inspect `si_code`, the crashing instruction and its callers before
 concluding that an assertion fired.
 
