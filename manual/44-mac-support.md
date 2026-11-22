@@ -55,8 +55,7 @@ Omarchy Mac is now part of Omarchy for Apple Silicon, and every Mac that ran it 
 
 ### Good to know
 
-- On M1 and M2 MacBooks, open the lid or press the power button to wake from sleep. The keyboard and trackpad don't wake it.
-- 6 GHz Wi-Fi networks can connect but pass no traffic. Use 2.4 or 5 GHz.
+- On M1 and M2 MacBooks, wake from sleep by opening the lid or pressing the power button.
 - Questions or problems: ask in our [Discord](https://discord.gg/tXFUdasqhY).
 
 The [installer's README](https://github.com/omacom/omarchy-mac-installer#readme) covers release channels, updating the installer and removing Omarchy.
