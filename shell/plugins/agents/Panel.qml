@@ -426,15 +426,26 @@ Panel {
   readonly property var localModelsService: bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.local-models") : null
 
   // What the network and local blocks offer: each coding model running now,
-  // ready at once, a paired machine's before this one's, then the best one
-  // for this computer. One already added has its line in the panel instead.
+  // ready at once, a paired machine's before this one's; then one shared on
+  // the tailnet by a machine not paired yet, which choosing pairs with; then
+  // the best one for this computer. One already added has its line in the
+  // panel instead.
   readonly property var ownModelOffers: {
     var offers = []
     var lines = localModelLines.filter(function(line) { return !usage.localModelAdded(line) })
-    lines.sort(function(a, b) { return (a.localModel.host === "") - (b.localModel.host === "") })
-    for (var i = 0; i < lines.length; i++)
-      offers.push({ target: lines[i].localModel.target, name: lines[i].providerName, vendor: lines[i].iconId,
-                    host: lines[i].localModel.host, facts: lines[i].localModel, ready: true })
+    var offerLine = function(line) {
+      offers.push({ target: line.localModel.target, name: line.providerName, vendor: line.iconId,
+                    host: line.localModel.host, facts: line.localModel, ready: true })
+    }
+    lines.filter(function(line) { return line.localModel.host !== "" }).forEach(offerLine)
+    var network = localModelsService ? localModelsService.networkModels || {} : {}
+    for (var nid in network) {
+      var shared = network[nid]
+      if (shared.paired === true || String(shared.offline || "") !== "" || shared.kind !== "text" || shared.unit !== "active") continue
+      offers.push({ target: nid, name: shared.name || shared.recipe, vendor: shared.vendor || "local", host: shared.host,
+                    facts: { decode_tok_s: shared.decode_tok_s, context: shared.ctx }, ready: false, pair: shared })
+    }
+    lines.filter(function(line) { return line.localModel.host === "" }).forEach(offerLine)
     lines = localModelLines
     var recipes = localModelsService ? localModelsService.localRecipes || [] : []
     var recipe = recipes.find(function(r) { return r.kind === "text" && r.best && r.available })
@@ -492,6 +503,16 @@ Panel {
   // Its meter: what it's doing, how far along (by the download's bytes, or by
   // time against what a load usually takes), and the download's speed.
   readonly property var localSetupMeter: {
+    // A tailnet model being paired with, or whose pairing failed.
+    if (settingUpLocal.indexOf("/") >= 0 && localModelsService) {
+      var host = settingUpLocal.split("/")[0]
+      if (localModelsService.pairingId === settingUpLocal)
+        return { title: Commons.I18n.t("localModels.networkPairing").arg(host), value: -1, rate: "" }
+      var failure = localModelsService.pairFailures[settingUpLocal]
+      if (failure)
+        return { title: failure.message || Commons.I18n.t("localModels.networkPairFailed").arg(host), value: -1, rate: "", failed: true }
+      return null
+    }
     var model = localSetup
     if (!model) return null
     var install = model.install || {}
@@ -516,7 +537,7 @@ Panel {
   // The setup's meter moves by the second, so the clock ticks while it shows.
   Timer {
     interval: 250
-    running: root.opened && root.picking && root.localSetupMeter !== null && !root.localSetupMeter.failed
+    running: root.opened && root.picking && root.localSetupMeter !== null && root.localSetupMeter.value >= 0
     repeat: true
     onTriggered: root.nowMs = Date.now()
   }
@@ -587,6 +608,15 @@ Panel {
     // A setup underway goes on; one that failed, or whose password prompt
     // was dismissed, is tried again.
     if (!offer || (offer.target === settingUpLocal && localSetupMeter && !localSetupMeter.failed)) return
+    // A tailnet model not paired yet is paired with in the background, its
+    // row saying how that goes; once paired, it has its line in the panel.
+    if (offer.pair) {
+      if (localModelsService.pairingId !== "") return
+      usage.addLocalModel(offer.target)
+      settingUpLocal = offer.target
+      localModelsService.pair(offer.pair)
+      return
+    }
     usage.addLocalModel(offer.target)
     if (offer.ready) {
       root.close()
@@ -2079,8 +2109,8 @@ Panel {
         }
       }
 
-      // A model from a paired machine, in a block of its own above this
-      // machine's.
+      // A model from a paired machine, or shared by one to pair with, in a
+      // block of its own above this machine's.
       Column {
         visible: root.networkOfferCount > 0
         width: parent.width
@@ -2190,7 +2220,7 @@ Panel {
 
               Text {
                 id: setupTitle
-                width: parent.meter && parent.meter.failed ? parent.width : parent.width * 0.3
+                width: parent.meter && parent.meter.value < 0 ? parent.width : parent.width * 0.3
                 anchors.bottom: parent.bottom
                 textFormat: Text.PlainText
                 text: parent.meter ? parent.meter.title : ""
@@ -2200,7 +2230,7 @@ Panel {
               }
 
               Meter {
-                visible: !!parent.meter && !parent.meter.failed
+                visible: !!parent.meter && parent.meter.value >= 0
                 anchors.left: setupTitle.right
                 anchors.right: setupRate.left
                 anchors.rightMargin: Style.space(20)
