@@ -117,6 +117,27 @@ Item {
         list.forceActiveFocus()
         for (var index = 1; index < data.count; index++) {
           keyClick(Qt.Key_Down)
+          // A press that leaves the selection behind fails here now and then in
+          // CI and nowhere else. Say what the list looked like when it did: who
+          // has focus, which row the pointer is over, and whether another
+          // press gets through.
+          if (list.currentIndex !== index) {
+            var hovered = []
+            var rows = list.contentItem.children
+            for (var r = 0; r < rows.length; r++) {
+              if (rows[r].index === undefined) continue
+              var parts = rows[r].children
+              for (var c = 0; c < parts.length; c++)
+                if (parts[c].containsMouse) hovered.push(rows[r].index + "@" + parts[c].mouseX + "," + parts[c].mouseY)
+            }
+            console.warn("STALL want", index, "cur", list.currentIndex, "popupOpened", popup.opened, "listFocus", list.activeFocus,
+                         "winActive", scene.Window.active, "afi", scene.Window.activeFocusItem, "contentY", list.contentY, "hovered", hovered)
+            keyClick(Qt.Key_Down)
+            console.warn("STALL second press cur", list.currentIndex)
+            wait(200)
+            console.warn("STALL settled cur", list.currentIndex)
+            fail("keyboard walk stalled at " + index)
+          }
           tryCompare(list, "currentIndex", index)
         }
         tryCompare(list, "currentIndex", data.count - 1)

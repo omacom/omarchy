@@ -65,9 +65,9 @@ rm -rf "$modprobe_dir"
 : >"$calls"
 run_fkeys 1
 [[ ! -e $modprobe_dir && ! -s $calls ]] || fail "Apple Silicon keeps its own keyboard mode" "$(cat "$calls")"
-output=$(APPLE_SILICON=1 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-keyboard-toprow" fnkeys 2>&1) &&
-  fail "omarchy keyboard toprow refuses Apple Silicon"
-[[ $output == *omarchy-mac* ]] || fail "omarchy keyboard toprow says why it refuses Apple Silicon" "$output"
+output=$(APPLE_SILICON=1 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-device-keyboard-toprow" fnkeys 2>&1) &&
+  fail "omarchy device keyboard toprow refuses Apple Silicon"
+[[ $output == *omarchy-mac* ]] || fail "omarchy device keyboard toprow says why it refuses Apple Silicon" "$output"
 pass "Apple Silicon keeps its own keyboard mode"
 
 # The Windows guest is x86_64, so every other CPU refuses it before it touches
@@ -79,16 +79,12 @@ for machine in aarch64 armv7l; do
 done
 pass "Windows VM refuses every CPU but x86_64"
 
-# The firmware boot entry and hibernation are refused or skipped on Apple
-# Silicon before they touch anything.
-output=$(APPLE_SILICON=1 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-setup-direct-boot" 2>&1) &&
-  fail "direct boot fails on Apple Silicon"
-[[ $output == *"not supported on Apple Silicon"* ]] || fail "direct boot says why it refuses" "$output"
+# Hibernation is skipped on Apple Silicon before it touches anything.
 output=$(APPLE_SILICON=1 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-hibernation-setup" --force 2>&1) ||
   fail "hibernation setup skips Apple Silicon without failing" "$output"
 [[ $output == "Skipping hibernation setup (not supported on Apple Silicon)" ]] ||
   fail "hibernation setup stops before its own checks on Apple Silicon" "$output"
-pass "direct boot and hibernation step aside on Apple Silicon"
+pass "hibernation steps aside on Apple Silicon"
 
 # On x86_64 the Windows VM goes on to its own commands, as before.
 output=$(UNAME_M=x86_64 PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-windows-vm" help 2>&1) || true

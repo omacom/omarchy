@@ -18,7 +18,7 @@ sed -e "s|/sys/power/|$rtmp/sys/|g" \
   -e "s|/var/lib/omarchy|$rtmp/var-lib|g" \
   "$ROOT/bin/omarchy-hibernation-setup" >"$rtmp/setup"
 
-for command in omarchy-hw-aarch64-apple omarchy-sleep-disabled omarchy-cmd-missing gum; do
+for command in omarchy-hw-aarch64-apple omarchy-hw-aarch64 omarchy-sleep-disabled omarchy-cmd-missing gum; do
   printf '#!/bin/bash\nexit 1\n' >"$rtmp/bin/$command"
 done
 printf '#!/bin/bash\nexit 0\n' >"$rtmp/bin/swaplabel"
@@ -131,6 +131,34 @@ for line in 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=42
   [[ $(<"$drop_in") == "$line" && ! -s $rtmp/rebuilds ]] || fail "setup leaves a drop-in it does not own alone" "$(<"$drop_in")"
 done
 pass "setup leaves device-mapper and hand-edited drop-ins alone"
+
+# An ARM computer: the installer's call sets nothing up, since most models reset
+# when they resume. --experimental does, and a machine set up that way is kept
+# up by a later run without it.
+printf '#!/bin/bash\nexit 0\n' >"$rtmp/bin/omarchy-hw-aarch64"
+machine
+SWAP_SOURCE="/dev/mapper/root[/@]" setup --force --no-rebuild || fail "setup on an ARM computer" "$(<"$rtmp/out")"
+[[ ! -e $drop_in && ! -e $rtmp/mkinitcpio.conf.d/omarchy_resume.conf ]] ||
+  fail "the installer's call sets hibernation up on an ARM computer" "$(<"$rtmp/out")"
+[[ $(<"$rtmp/out") == *"--experimental"* ]] || fail "the skip says how to ask for it" "$(<"$rtmp/out")"
+SWAP_SOURCE="/dev/mapper/root[/@]" setup --force --no-rebuild --experimental ||
+  fail "setup --experimental on an ARM computer" "$(<"$rtmp/out")"
+[[ $(<"$drop_in") == 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=4242"' ]] ||
+  fail "--experimental sets hibernation up on an ARM computer" "$(<"$rtmp/out")"
+machine 'KERNEL_CMDLINE[default]+=" resume=/dev/nvme1n1p2 resume_offset=4242"'
+SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup || fail "a rerun on an ARM computer that was set up" "$(<"$rtmp/out")"
+[[ $(<"$drop_in") == "$uuid_line" ]] || fail "a rerun keeps an ARM computer's setup up" "$(<"$drop_in")"
+# A factory reset of such a machine removes the resume hook, keeps the swap
+# file's line in fstab and calls setup as the installer does. It must get its
+# swap file and resume device back, or the reset stops.
+machine
+printf '%s none swap defaults,pri=0 0 0\n' "$rtmp/swapfile" >"$rtmp/fstab"
+SWAP_SOURCE="/dev/mapper/root[/@]" setup --force --no-rebuild ||
+  fail "a factory reset's call on an ARM computer that was set up" "$(<"$rtmp/out")"
+[[ -f $drop_in && $(<"$drop_in") == 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=4242"' ]] ||
+  fail "a factory reset keeps an ARM computer's hibernation set up" "$(<"$rtmp/out")"
+printf '#!/bin/bash\nexit 1\n' >"$rtmp/bin/omarchy-hw-aarch64"
+pass "an ARM computer gets hibernation only when asked with --experimental"
 rm -rf "$rtmp"
 
 if [[ ! -f /sys/power/image_size ]]; then
@@ -146,6 +174,7 @@ cat >"$tmpdir/bin/omarchy-cmd-missing" <<'EOF'
 #!/bin/bash
 exit 1
 EOF
+cp "$tmpdir/bin/omarchy-cmd-missing" "$tmpdir/bin/omarchy-hw-aarch64"
 
 cat >"$tmpdir/bin/grep" <<'EOF'
 #!/bin/bash

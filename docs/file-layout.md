@@ -85,6 +85,7 @@ default/libalpm/hooks/*.hook
 install/**                     ──►  omarchy             /usr/share/omarchy/install/
 migrations/**                  ──►  omarchy             /usr/share/omarchy/migrations/
 themes/**                      ──►  omarchy             /usr/share/omarchy/themes/
+icons/**                       ──►  omarchy             /usr/share/omarchy/icons/    (icon sets, see theming.md "App icons")
 shell/**                       ──►  omarchy             /usr/share/omarchy/shell/
 version                        ──►  omarchy             /usr/share/omarchy/version
                                                         + /etc/skel/.local/state/omarchy/migrations/*
@@ -93,7 +94,6 @@ config/**                      ──►  omarchy-settings    /etc/skel/.config/
                                                         /usr/share/omarchy/config/** (resync source)
 etc/fastfetch/config.jsonc     ──►  omarchy-settings    /etc/fastfetch/config.jsonc
 etc/xdg/kitty/kitty.conf       ──►  omarchy-settings    /etc/xdg/kitty/kitty.conf
-etc/mpv/mpv.conf               ──►  omarchy-settings    /etc/mpv/mpv.conf            (hardware decoding; ~/.config/mpv wins)
 etc/xkb/{rules/evdev,symbols/omarchy}
                                ──►  omarchy-settings    /etc/xkb/                    (Shift + Caps Lock compose option)
 
@@ -105,7 +105,7 @@ default/applications/*.desktop
 applications/icons/*           ──►  omarchy-settings    /usr/share/icons/hicolor/{48,256,scalable}/apps/
 
 etc/**                         ──►  omarchy-settings    /etc/**           (drop-ins we own outright)
-  ├─ mkinitcpio.conf.d/{00-omarchy-hooks,omarchy_compression,omarchy_hooks,thunderbolt_module}.conf
+  ├─ mkinitcpio.conf.d/{00-omarchy-hooks,omarchy_compression,omarchy_hooks,omarchy_mount_events,thunderbolt_module}.conf
   ├─ limine-entry-tool.d/{omarchy-defaults,omarchy-uki}.conf
   ├─ mise/conf.d/{omarchy,omarchy-tools,omarchy-agent-accounts}.toml
   ├─ NetworkManager/, sudoers.d/, sysctl.d/, tmpfiles.d/,
@@ -220,7 +220,7 @@ upgrade. This is documented in the PKGBUILD.
 
 `default/systemd/system/plocate-updatedb.service.d/10-omarchy.conf` ships through `omarchy-settings` to `/usr/lib/systemd/system/plocate-updatedb.service.d/10-omarchy.conf`. It replaces the existing service's `ExecStart` with `updatedb --prune-bind-mounts=no --add-prunepaths=/.snapshots`, keeping Btrfs subvolume mounts searchable and excluding Snapper snapshots. The upstream service retains its timer, resource limits, and sandbox; Omarchy's existing AC-power condition still applies.
 
-`/etc/updatedb.conf` remains owned by plocate and is never rewritten by Omarchy. The command-line options override bind-mount pruning and add to the administrator's existing path exclusions. Installer and AUR package refreshes pass the same options directly because installation may run without systemd and an explicitly requested refresh should work on battery.
+`/etc/updatedb.conf` remains owned by plocate and is never rewritten by Omarchy. The command-line options override bind-mount pruning and add to the administrator's existing path exclusions. AUR package refreshes pass the same options directly because an explicitly requested refresh should work on battery. A fresh install builds no database: the timer is `Persistent`, so the first run comes soon after first boot, once on AC power.
 
 Arch's systemd package hook reloads units when the vendor drop-in is installed or upgraded. The settings package containing the drop-in must ship alongside the runtime package that removes the old configuration helper and migration. Pacman removes those retired files; no new state migration is needed. A running indexer finishes with its original options, and subsequent service starts use the drop-in. For an immediate local test after installing the packages, restart `plocate-updatedb.service` while connected to AC power.
 
@@ -235,7 +235,7 @@ Single source of truth for `OMARCHY_PATH` and dev-link-aware `PATH`. It:
 - Prepends `$OMARCHY_PATH/bin` to `PATH` **only when** `OMARCHY_PATH` is
   not `/usr/share/omarchy`. On a production install the binaries are
   already on `PATH` as `/usr/bin/omarchy-*` via the `omarchy` package.
-- Prepends mise's `command-wrappers/bin` so subscription account dispatch runs before inherited tool binaries, then appends `~/.local/share/mise/shims` and `~/.local/bin` so login shells and the uwsm session find mise-managed tools. The existing mise tool shims also dispatch these wrappers for SSH commands that run no shell setup; the PAM path needs no additional entry. `etc/mise/conf.d/omarchy-agent-accounts.toml` declares the Claude, Codex, and Grok wrappers; `mise reshim` builds them during user setup and migration. Each invocation resolves the selected account through `omarchy-agent-account-exec`, while an explicit provider home takes precedence. Credentials and running sessions remain in their original account homes.
+- Prepends mise's `command-wrappers/bin` so subscription account dispatch runs before inherited tool binaries, then appends `~/.local/share/mise/shims` and `~/.local/bin` so login shells and the uwsm session find mise-managed tools. The existing mise tool shims also dispatch these wrappers for SSH commands that run no shell setup; the PAM path needs no additional entry. `etc/mise/conf.d/omarchy-agent-accounts.toml` declares the Claude, Codex, and Grok wrappers; `mise reshim` builds them during user setup and migration. Each invocation resolves the selected account through `omarchy-agent-account-exec`, while an explicit provider home takes precedence. Claude sessions all start in `~/.claude`, which holds the active account's login; the others wait in their own homes (Main's in `accounts/claude/.primary`), and switching moves logins between them under Claude Code's own lock directories, so running sessions re-read the new login on their next message. Codex and Grok credentials and running sessions remain in their original account homes.
 
 Sourced by every entry point that needs the env set:
 
@@ -269,13 +269,14 @@ Runs once per user. It does **not** copy `~/.config/**`, `~/.bashrc`,
 `flags.lua`, or the nautilus extensions — `/etc/skel` already seeded those.
 It only does the things `/etc/skel` can't:
 
-- Skill symlinks into `~/.agents/skills/<name>`, `~/.claude/skills/<name>`, `~/.codex/skills/<name>`, `~/.pi/agent/skills/<name>`, `~/.gemini/config/skills/<name>` (Antigravity), `~/.hermes/skills/<name>`, and each existing `~/.hermes/profiles/*/skills/<name>` → `$OMARCHY_PATH/default/agents/skills/<name>`, looping over every skill directory there (currently `omarchy` and `diagnose-crash`) so new skills need no edit. Symlinks (not copies) so `omarchy dev link` against a dev checkout repoints them correctly. Hermes profile dirs are only linked when they already exist — provision does not create Hermes profiles.
+- Skill symlinks into `~/.agents/skills/<name>`, `~/.claude/skills/<name>`, `~/.codex/skills/<name>`, `~/.pi/agent/skills/<name>`, `~/.gemini/config/skills/<name>` (Antigravity), `~/.hermes/skills/<name>`, and each existing `~/.hermes/profiles/*/skills/<name>` → `$OMARCHY_PATH/default/agents/skills/<name>`, looping over every skill directory there (such as `omarchy` and `omarchy-diagnose-crash`) so new skills need no edit. Symlinks (not copies) so `omarchy dev link` against a dev checkout repoints them correctly. Hermes profile dirs are only linked when they already exist — provision does not create Hermes profiles.
 - `xdg-user-dirs-update` (Templates/Public/Desktop folded back into `$HOME`)
   and `~/.config/gtk-3.0/bookmarks` (needs `$HOME` expansion).
 - Hyprland's package-owned default input reads `XKBLAYOUT` / `XKBVARIANT`
   from `/etc/vconsole.conf`; no per-user Hyprland config rewrite is needed.
-- `xdg-settings set default-web-browser chromium.desktop` and
-  `xdg-mime default HEY.desktop x-scheme-handler/mailto` (XDG-aware paths).
+- `xdg-settings set default-web-browser chromium.desktop` (XDG-aware paths).
+  Mail links go to HEY because its launcher declares the `mailto` handler, so
+  a region without HEY has none.
 - `omarchy-refresh-applications` (composes generated `.desktop` launchers).
 - Sources `install/user/all.sh` — theme, chromium, git, xcompose, mise,
   keyring, per-user hardware quirks (asus mic/mixer, framework f13 audio, …).
@@ -332,14 +333,7 @@ first runs `omarchy-provision-user || true` so finalize catches up if it
 never ran, then handles the steps that need a running graphical session
 and/or a working user systemd instance:
 
-- `install/user/first-run/enable-user-units.sh` — daemon-reload, then
-  `systemctl --user enable --now` the shipped user units (`bt-agent`,
-  `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`,
-  `omarchy-migrate-notify.service`, `omarchy-fcitx5.service`,
-  `omarchy-crash-watch.service`) so they run in the first session too.
-  Done here, not at finalize, because
-  the user manager isn't reachable from the ISO chroot; `ConditionPath*`
-  in the unit files keeps services inert when they don't apply.
+- `install/user/first-run/enable-user-units.sh` — enables the shipped user units (`bt-agent`, `owed`, `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`, `omarchy-migrate-notify.service`, `omarchy-fcitx5.service`, `omarchy-crash-watch.service`) with `--no-reload`, runs a single `systemctl --user daemon-reload`, and starts each enabled unit so they run in the first session too. Done here, not at finalize, because the user manager isn't reachable from the ISO chroot; `ConditionPath*` in the unit files keeps services inert when they don't apply.
 - `omarchy-lifecycle-dispatch setup-user` — the platform's own user setup,
   now with the session up (a no-op where the platform registers none; see
   [lifecycle-dispatch.md](lifecycle-dispatch.md)).
@@ -351,7 +345,7 @@ and/or a working user systemd instance:
   first login and opens the cheatsheet when clicked. The caller runs
   `omarchy-notification-wait` once before this and the Wi-Fi step, so both
   toasts land on a live notification server.
-- `install/user/first-run/wifi.sh` — Wi-Fi toast, then (waiting detached on `nm-online` for the first connection, however long that takes) the default-agent and fingerprint invitations (`setup-agent.hook`, `setup-fingerprint.hook`) and the update toast. Each invitation is sent only once.
+- `install/user/first-run/wifi.sh` — Wi-Fi toast, then (waiting detached on `nm-online` for the first connection, however long that takes) the default-agent and fingerprint invitations (`setup-agent.hook`, `setup-fingerprint.hook`). Each invitation is sent only once. A pending first update shows as the bar's update icon instead (see `docs/update-process.md`).
 
 The entire sequence has one idempotency marker:
 `~/.local/state/omarchy/done/first-run-user`, managed by `omarchy-done`.
@@ -377,7 +371,7 @@ finalization. It sources:
   device-specific kernel modules, udev rules, microcode, wireless regdom,
   ASUS / Framework / Intel / Apple / Lenovo quirks.
 - `install/login/all.sh` — SDDM theme/session config.
-- `install/post-install/all.sh` — final pacman/udev/localdb passes.
+- `install/post-install/all.sh` — final pacman and udev passes; the `plocate-updatedb` timer builds the locate database after first boot.
 
 Logging goes to `/var/log/omarchy-install.log` via
 `install/helpers/logging.sh`.

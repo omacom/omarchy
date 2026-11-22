@@ -4,18 +4,15 @@
 if omarchy-hw-aarch64-n1x; then
   echo "NVIDIA N1x platform detected; GPU driver policy is owned by hardware/n1x.sh"
 elif lspci | grep -qi 'nvidia'; then
-  # The 32-bit libraries come from multilib, which only x86_64 has.
+  # No 32-bit libraries here. Only Steam and the other game launchers run
+  # 32-bit code, and their installers add the driver's
+  # (omarchy-install-gaming-gpu-lib32). Installed with the driver, they and
+  # the multilib packages they pull in were 305 MB of the ISO's offline
+  # mirror, for every machine.
   if omarchy-hw-nvidia-gsp; then
-    PACKAGES=(linux-omarchy-nvidia-open nvidia-utils)
-    if omarchy-hw-x86; then
-      PACKAGES+=(lib32-nvidia-utils)
-    fi
-    PACKAGES+=(libva-nvidia-driver)
+    PACKAGES=(linux-omarchy-nvidia-open nvidia-utils libva-nvidia-driver)
   elif omarchy-hw-nvidia-without-gsp; then
     PACKAGES=(nvidia-580xx-dkms nvidia-580xx-utils)
-    if omarchy-hw-x86; then
-      PACKAGES+=(lib32-nvidia-580xx-utils)
-    fi
   fi
 
   # Bail if no supported GPU

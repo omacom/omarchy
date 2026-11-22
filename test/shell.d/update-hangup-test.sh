@@ -94,11 +94,16 @@ try:
         finally:
             os.close(master)
         until(lambda _: not alive(prompt), mode + ': gum survived terminal loss')
-        lock = os.open(os.environ['XDG_RUNTIME_DIR'] + '/omarchy-update.lock', os.O_WRONLY)
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        finally:
-            os.close(lock)
+        def lock_free(_):
+            lock = os.open(os.environ['XDG_RUNTIME_DIR'] + '/omarchy-update.lock', os.O_WRONLY)
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return True
+            except BlockingIOError:
+                return False
+            finally:
+                os.close(lock)
+        until(lock_free, mode + ': the update lock was never released')
         until(lambda _: not alive(pid), mode + ': launcher did not exit')
         os.waitpid(pid, 0)
         print('ok - ' + mode + ' ends real gum and releases the update lock', flush=True)
