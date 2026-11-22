@@ -106,6 +106,14 @@ ShellRoot {
       root.assertTrue(lightIcons.indexOf("codex-light.svg") >= 0, entry.id + " prefers the light-theme Codex icon on light surfaces")
     }
 
+    if (entry.id === "omarchy.power") {
+      root.assertEqual(item.rotatingPhrasesEnabled, true, entry.id + " enables rotating phrases by default")
+      item.settings = { rotatingPhrases: false }
+      root.assertEqual(item.rotatingPhrasesEnabled, false, entry.id + " disables rotating phrases via settings")
+      root.assertEqual(item.rotatingPhrases, false, entry.id + " stops rotating phrases when disabled")
+      item.settings = {}
+    }
+
     safeCall(item, "refresh", entry)
     safeCall(item, "close", entry)
 

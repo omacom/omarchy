@@ -105,6 +105,12 @@ function localizeReading(raw, fmt) {
   })
 }
 
+function showRotatingPhrases(setting) {
+  if (setting === false) return false
+  if (typeof setting === "string" && setting.trim().toLowerCase() === "false") return false
+  return true
+}
+
 function profileLabel(name, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var value = String(name || "")
@@ -125,6 +131,7 @@ if (typeof module !== "undefined") {
     chargeThresholdActive: chargeThresholdActive,
     batteryIcon: batteryIcon,
     modeLabel: modeLabel,
+    showRotatingPhrases: showRotatingPhrases,
     profileLabel: profileLabel,
     localizeReading: localizeReading
   }
