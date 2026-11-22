@@ -1,6 +1,7 @@
 {
   "agents.addKinds": "Subscription, per use, or local",
   "agents.addTitle": "Add an agent",
+  "agents.blockNetworkModel": "USE A NETWORK MODEL",
   "agents.blockOwnModel": "USE A LOCAL MODEL",
   "agents.blockProviders": "USE PAY AS YOU GO",
   "agents.blockSubscriptions": "USE A SUBSCRIPTION",

@@ -416,16 +416,17 @@ Panel {
   // download, so choosing it hands over there.
   readonly property var localModelsService: bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.local-models") : null
 
-  // What the local block offers: each coding model running now, here or on a
-  // paired machine, ready at once, then the best one for this computer. One
-  // already added has its line in the panel instead.
+  // What the network and local blocks offer: each coding model running now,
+  // ready at once, a paired machine's before this one's, then the best one
+  // for this computer. One already added has its line in the panel instead.
   readonly property var ownModelOffers: {
     var offers = []
-    var lines = localModelLines
+    var lines = localModelLines.filter(function(line) { return !usage.localModelAdded(line) })
+    lines.sort(function(a, b) { return (a.localModel.host === "") - (b.localModel.host === "") })
     for (var i = 0; i < lines.length; i++)
-      if (!usage.localModelAdded(lines[i]))
-        offers.push({ target: lines[i].localModel.target, name: lines[i].providerName, vendor: lines[i].iconId,
-                      host: lines[i].localModel.host, facts: lines[i].localModel, ready: true })
+      offers.push({ target: lines[i].localModel.target, name: lines[i].providerName, vendor: lines[i].iconId,
+                    host: lines[i].localModel.host, facts: lines[i].localModel, ready: true })
+    lines = localModelLines
     var recipes = localModelsService ? localModelsService.localRecipes || [] : []
     var recipe = recipes.find(function(r) { return r.kind === "text" && r.best && r.available })
     var running = lines.some(function(line) { return recipe && line.localModel.target === String(recipe.id) })
@@ -434,6 +435,9 @@ Panel {
                     host: "", facts: recipe, ready: recipe.installed === true, recipe: recipe })
     return offers
   }
+
+  // The network block's share of the offers, which come first.
+  readonly property int networkOfferCount: ownModelOffers.filter(function(offer) { return offer.host !== "" }).length
 
   // A model removed from this machine is no longer added, so set up again
   // it's offered on the add screen first. One still being set up or
@@ -2066,8 +2070,29 @@ Panel {
         }
       }
 
+      // A model from a paired machine, in a block of its own above this
+      // machine's.
       Column {
-        visible: root.ownModelOffers.length > 0
+        visible: root.networkOfferCount > 0
+        width: parent.width
+        spacing: Style.space(10)
+
+        PanelSeparator { foreground: root.foreground }
+
+        PanelSectionHeader {
+          text: Commons.I18n.t("agents.blockNetworkModel")
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+        }
+
+        Repeater {
+          model: root.ownModelOffers.slice(0, root.networkOfferCount)
+          delegate: ownModelRow
+        }
+      }
+
+      Column {
+        visible: root.ownModelOffers.length > root.networkOfferCount
         width: parent.width
         spacing: Style.space(10)
 
@@ -2080,113 +2105,121 @@ Panel {
         }
 
         Repeater {
-          model: root.ownModelOffers
+          model: root.ownModelOffers.slice(root.networkOfferCount)
+          delegate: ownModelRow
+        }
+      }
 
-          Item {
-            id: ownModel
-            required property var modelData
-            required property int index
-            readonly property bool hasCursor: root.hasKey("ownModel", index)
-            width: parent.width
-            implicitHeight: ownModelText.implicitHeight + Style.space(16)
-            onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
+      // One offered model; its place among all the offers, network ones
+      // first, is what the keys and choosing go by.
+      Component {
+        id: ownModelRow
 
-            CursorSurface {
-              anchors.fill: parent
-              hasCursor: ownModel.hasCursor || ownModelMouse.containsMouse
-              foreground: root.foreground
+        Item {
+          id: ownModel
+          required property var modelData
+          required property int index
+          readonly property int offerIndex: index + (modelData.host !== "" ? 0 : root.networkOfferCount)
+          readonly property bool hasCursor: root.hasKey("ownModel", offerIndex)
+          width: parent.width
+          implicitHeight: ownModelText.implicitHeight + Style.space(16)
+          onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
+
+          CursorSurface {
+            anchors.fill: parent
+            hasCursor: ownModel.hasCursor || ownModelMouse.containsMouse
+            foreground: root.foreground
+          }
+
+          // The maker's mark, as the local models panel draws it.
+          ProviderIcon {
+            id: ownModelMark
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            provider: ({ providerId: String(ownModel.modelData.vendor || "local") })
+            size: Style.font.display
+          }
+
+          Column {
+            id: ownModelText
+            anchors.left: ownModelMark.right
+            anchors.leftMargin: Style.space(12)
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(2)
+
+            Text {
+              width: parent.width
+              text: ownModel.modelData.name
+              textFormat: Text.PlainText
+              color: ownModel.hasCursor ? Commons.Color.accent : root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              font.bold: true
+              elide: Text.ElideRight
             }
 
-            // The maker's mark, as the local models panel draws it.
-            ProviderIcon {
-              id: ownModelMark
-              anchors.left: parent.left
-              anchors.leftMargin: Style.space(8)
-              anchors.verticalCenter: parent.verticalCenter
-              provider: ({ providerId: String(ownModel.modelData.vendor || "local") })
-              size: Style.font.display
+            // A paired machine's model says whose it is before its facts.
+            Text {
+              width: parent.width
+              text: [ownModel.modelData.host, root.ownModelFacts(ownModel.modelData.facts)].filter(function(part) { return part !== "" }).join(" · ")
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
             }
 
-            Column {
-              id: ownModelText
-              anchors.left: ownModelMark.right
-              anchors.leftMargin: Style.space(12)
-              anchors.right: parent.right
-              anchors.verticalCenter: parent.verticalCenter
-              spacing: Style.space(2)
+            // The setup started here, as the local models panel would show
+            // it: installing, downloading, then loading.
+            Item {
+              readonly property var meter: ownModel.modelData.target === root.settingUpLocal ? root.localSetupMeter : null
+              visible: !!meter
+              width: parent.width
+              implicitHeight: visible ? Math.max(setupTitle.implicitHeight, setupRate.implicitHeight) + Style.space(6) : 0
 
               Text {
-                width: parent.width
-                text: ownModel.modelData.name
+                id: setupTitle
+                width: parent.meter && parent.meter.failed ? parent.width : parent.width * 0.3
+                anchors.bottom: parent.bottom
                 textFormat: Text.PlainText
-                color: ownModel.hasCursor ? Commons.Color.accent : root.foreground
+                text: parent.meter ? parent.meter.title : ""
+                color: parent.meter && parent.meter.failed ? root.urgent : root.foreground
                 font.family: root.fontFamily
-                font.pixelSize: Style.font.body
-                font.bold: true
-                elide: Text.ElideRight
+                font.pixelSize: Style.font.bodySmall
               }
 
-              // A paired machine's model says whose it is before its facts.
+              Meter {
+                visible: !!parent.meter && !parent.meter.failed
+                anchors.left: setupTitle.right
+                anchors.right: setupRate.left
+                anchors.rightMargin: Style.space(20)
+                anchors.verticalCenter: setupTitle.verticalCenter
+                value: parent.meter ? parent.meter.value : 0
+              }
+
               Text {
-                width: parent.width
-                text: [ownModel.modelData.host, root.ownModelFacts(ownModel.modelData.facts)].filter(function(part) { return part !== "" }).join(" · ")
+                id: setupRate
+                anchors.right: parent.right
+                anchors.verticalCenter: setupTitle.verticalCenter
                 textFormat: Text.PlainText
+                horizontalAlignment: Text.AlignRight
+                text: parent.meter ? parent.meter.rate : ""
                 color: root.dim
                 font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-                elide: Text.ElideRight
-              }
-
-              // The setup started here, as the local models panel would show
-              // it: installing, downloading, then loading.
-              Item {
-                readonly property var meter: ownModel.modelData.target === root.settingUpLocal ? root.localSetupMeter : null
-                visible: !!meter
-                width: parent.width
-                implicitHeight: visible ? Math.max(setupTitle.implicitHeight, setupRate.implicitHeight) + Style.space(6) : 0
-
-                Text {
-                  id: setupTitle
-                  width: parent.meter && parent.meter.failed ? parent.width : parent.width * 0.3
-                  anchors.bottom: parent.bottom
-                  textFormat: Text.PlainText
-                  text: parent.meter ? parent.meter.title : ""
-                  color: parent.meter && parent.meter.failed ? root.urgent : root.foreground
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.bodySmall
-                }
-
-                Meter {
-                  visible: !!parent.meter && !parent.meter.failed
-                  anchors.left: setupTitle.right
-                  anchors.right: setupRate.left
-                  anchors.rightMargin: Style.space(20)
-                  anchors.verticalCenter: setupTitle.verticalCenter
-                  value: parent.meter ? parent.meter.value : 0
-                }
-
-                Text {
-                  id: setupRate
-                  anchors.right: parent.right
-                  anchors.verticalCenter: setupTitle.verticalCenter
-                  textFormat: Text.PlainText
-                  horizontalAlignment: Text.AlignRight
-                  text: parent.meter ? parent.meter.rate : ""
-                  color: root.dim
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.bodySmall
-                }
+                font.pixelSize: Style.font.bodySmall
               }
             }
+          }
 
-            MouseArea {
-              id: ownModelMouse
-              anchors.fill: parent
-              hoverEnabled: true
-              cursorShape: Qt.PointingHandCursor
-              onEntered: root.pointAt("ownModel", ownModel.index)
-              onClicked: root.chooseOwnModel(ownModel.index)
-            }
+          MouseArea {
+            id: ownModelMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onEntered: root.pointAt("ownModel", ownModel.offerIndex)
+            onClicked: root.chooseOwnModel(ownModel.offerIndex)
           }
         }
       }

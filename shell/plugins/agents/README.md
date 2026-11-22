@@ -102,10 +102,11 @@ per local coding model that is running and ready.
   _Use pay as you go_ (Fireworks, OpenCode Zen and Go, and OpenRouter, all
   run in OpenCode, and More: DeepSeek, then OpenCode's own sign-in for any
   other provider; every key is checked like Fireworks'), each a
-  large mark four across, and _Use a local model_: a line for each coding model not added yet that this
-  machine or a paired, online one is running, then one for the best coding
-  model for this computer when the local models catalog has one that fits and
-  it isn't added. The first one is focused and the hero reads Add an agent.
+  large mark four across, then _Use a network model_: a line for each coding model not added yet
+  that a paired, online machine is running, and _Use a local model_: one for
+  each this machine is running, then one for the best coding model for this
+  computer when the local models catalog has one that fits and it isn't
+  added. The first one is focused and the hero reads Add an agent.
   Choosing a model adds it. One that's ready opens the agent on it; one to set
   up stays on the add screen, with its installing, download, and loading
   under it as the local models panel would show them, until it runs and the
