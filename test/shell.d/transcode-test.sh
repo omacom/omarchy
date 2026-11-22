@@ -155,6 +155,31 @@ awk -v a="$mean" 'BEGIN { exit (a >= 0 && a < 0.9) ? 0 : 1 }' \
   || fail "transparent WebM retains its alpha pixels when resized" "$mean"
 pass "transparent WebM is decoded with its alpha plane before a CPU resize"
 
+# The gif commands take that same decoded input: opened directly they hand ffmpeg
+# the native VP9 decoder, which omits the plane, and palettegen cannot reserve a
+# transparent index it never sees.
+run_transcode "$test_tmp/alpha-128.webm" gif '' 64 cpu >"$test_tmp/webm-gif.log" 2>&1 \
+  || fail "the transparent WebM encodes to gif" "$(cat "$test_tmp/webm-gif.log")"
+gif_mean=$(magick "$test_tmp/alpha-128-64.gif[0]" -alpha extract -format '%[fx:mean]' info:)
+awk -v a="$gif_mean" 'BEGIN { exit (a >= 0 && a < 0.9) ? 0 : 1 }' \
+  || fail "transparent WebM reaches gif with its transparent pixels, not an opaque background" "$gif_mean"
+pass "transparent WebM keeps its alpha plane through a gif encode"
+
+# The other half of that decode: an animated AVIF's alpha reaches ffmpeg only as
+# the magick-coalesced frame sequence, since its own demuxer leaves the auxiliary
+# alpha as a separate stream. No optional encoder involved, both are delegates of
+# imagemagick itself.
+magick "$test_tmp/t1.png" "$test_tmp/t2.png" -set delay 100 "$test_tmp/alpha-anim.avif"
+read -r avif_frames avif_alpha <<<"$(magick identify -format '%n\n' -- "$test_tmp/alpha-anim.avif" | grep -c .) $(magick identify -format '%A' -- "$test_tmp/alpha-anim.avif[0]")"
+[[ $avif_frames == 2 && $avif_alpha != "Opaque" && $avif_alpha != "Undefined" ]] \
+  || fail "the transparent animated AVIF fixture has two frames and alpha" "$avif_frames $avif_alpha"
+run_transcode "$test_tmp/alpha-anim.avif" gif '' 64 cpu >"$test_tmp/avif-gif.log" 2>&1 \
+  || fail "the transparent animated AVIF encodes to gif" "$(cat "$test_tmp/avif-gif.log")"
+avif_gif_mean=$(magick "$test_tmp/alpha-anim-64.gif[0]" -alpha extract -format '%[fx:mean]' info:)
+awk -v a="$avif_gif_mean" 'BEGIN { exit (a >= 0 && a < 0.9) ? 0 : 1 }' \
+  || fail "transparent animated AVIF reaches gif with its transparent pixels, not an opaque background" "$avif_gif_mean"
+pass "transparent animated AVIF keeps its alpha plane through a gif encode"
+
 # Numeric video rungs are long-edge sizes in both orientations; the top
 # menu entry is native, not the height of a landscape recording. Keep the
 # explicit legacy height aliases working without advertising them as rungs.
