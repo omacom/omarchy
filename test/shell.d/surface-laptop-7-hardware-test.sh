@@ -60,8 +60,8 @@ run_setup "$matching" >/dev/null
 smaller="$scratch/smaller"
 compatible "$smaller" 'microsoft,romulus13\0qcom,x1e80100\0'
 run_setup "$smaller" >/dev/null
-[[ $(<"$smaller/packages.log") == 'add microsoft-surface-snapdragon-addresses iptsd' ]] ||
-  fail "Surface Laptop 7 13.8\" setup adds its Wi-Fi and Bluetooth addresses and iptsd"
+[[ $(<"$smaller/packages.log") == 'add microsoft-surface-snapdragon-addresses iptsd microsoft-surface-laptop-7-support' ]] ||
+  fail "Surface Laptop 7 13.8\" setup adds its Wi-Fi and Bluetooth addresses, iptsd and its support package"
 (
   MODULES=() FILES=()
   source "$smaller/mkinitcpio.conf.d/surface-laptop-7-initramfs.conf"

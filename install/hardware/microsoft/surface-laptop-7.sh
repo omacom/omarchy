@@ -64,6 +64,8 @@ CONF
   # Bluetooth has no controller and Wi-Fi takes a new address on every boot.
   # The touchpad and touchscreen are the 15" model's digitizers (045E:0C77 and
   # 045E:0C6E), and iptsd gives them two-finger scroll, pinch and tap, and runs
-  # the touchscreen.
-  omarchy-pkg-add microsoft-surface-snapdragon-addresses iptsd
+  # the touchscreen. microsoft-surface-laptop-7-support relays the front camera,
+  # which only libcamera can run, to a regular webcam device for apps that read
+  # V4L2 cameras only.
+  omarchy-pkg-add microsoft-surface-snapdragon-addresses iptsd microsoft-surface-laptop-7-support
 fi
