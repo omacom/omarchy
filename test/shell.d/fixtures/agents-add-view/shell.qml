@@ -36,7 +36,11 @@ ShellRoot {
     for (var i = 0; i < children.length; i++) findControls(children[i])
   }
 
+  // The harness stops this fixture once the result lands (as with the
+  // other fixtures): quitting here could exit before the detached writer
+  // finishes and fail an otherwise passing test.
   function writeResult() {
+    poll.running = false
     var payload = JSON.stringify({
       ok: failures.length === 0,
       failures: failures,
@@ -46,7 +50,6 @@ ShellRoot {
       var quote = function(value) { return "'" + String(value).replace(/'/g, "'\\''") + "'" }
       Quickshell.execDetached(["bash", "-lc", "printf '%s' " + quote(payload) + " > " + quote(resultPath)])
     }
-    Qt.callLater(Qt.quit)
   }
 
   Item { id: host }
