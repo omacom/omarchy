@@ -87,6 +87,14 @@ fi
 if [[ $agent == "local" ]]; then
   use_local=true
   agent=pi
+  # The model the default pins, unless it's since been removed from this
+  # machine; a paired machine's is that machine's to answer for.
+  pinned=$(cat "$HOME/.config/omarchy/defaults/local-model" 2>/dev/null)
+  if [[ -z $local_model && -n $pinned ]]; then
+    if [[ $pinned == */* ]] || omarchy-models status --json 2>/dev/null | jq -e --arg recipe "$pinned" '.models[$recipe]' >/dev/null; then
+      local_model=$pinned
+    fi
+  fi
 elif [[ $use_local == "true" && -z $agent_override ]]; then
   agent=pi
 fi

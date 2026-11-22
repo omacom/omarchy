@@ -256,7 +256,27 @@ Item {
   readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/order.json"
   property var providerOrder: []
 
-  readonly property var panelProviders: orderedProviders(accountLines(subscribedProviders))
+  readonly property var panelProviders: orderedProviders(accountLines(subscribedProviders).concat(localModelLines))
+
+  // A line for each coding model you can open, here or on a paired machine,
+  // built by the panel from the local models service.
+  property var localModelLines: []
+
+  // The local model a default of "local" opens, as `omarchy default agent
+  // local <model>` pins it. Empty when none is: it opens the one started last.
+  property string localPin: ""
+
+  function reloadLocalPin() { localPinFile.reload() }
+
+  FileView {
+    id: localPinFile
+    path: root.home + "/.config/omarchy/defaults/local-model"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.localPin = text().trim()
+    onLoadFailed: root.localPin = ""
+    onFileChanged: reload()
+  }
 
   // The panel shows a line for each subscription account: an agent with
   // several is split into one per account, carrying that account's limits,

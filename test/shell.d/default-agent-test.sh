@@ -1011,6 +1011,21 @@ OMARCHY_TEST_LOCAL_STATUS='{"last":"big","models":{"big":{"unit":"active","sub_s
 mapfile -d '' -t launch_args <"$launch_log"
 [[ ${launch_args[*]} == *"pi --extension /overlays/pi-last.config --provider omarchy-local --model last" ]] ||
   fail "a default of local opens the last local model in pi: ${launch_args[*]}"
+
+# A pinned model is the one it opens, while this machine still has it.
+running='{"last":"small","models":{"big":{"unit":"active","sub_state":"running"},"small":{"unit":"active","sub_state":"running"}}}'
+omarchy-default-agent --select local big
+[[ $(<"${agent_file%/*}/local-model") == "big" ]] || fail "starring a local model pins it"
+: >"$launch_log"
+OMARCHY_TEST_LOCAL_STATUS=$running omarchy-agent --pick
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *"--model big" ]] || fail "a default of local opens the pinned model: ${launch_args[*]}"
+: >"$launch_log"
+OMARCHY_TEST_LOCAL_STATUS='{"last":"small","models":{"small":{"unit":"active","sub_state":"running"}}}' omarchy-agent --pick
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *"--model last" ]] || fail "a pin to a removed model opens the last one instead: ${launch_args[*]}"
+omarchy-default-agent --select local
+[[ ! -e ${agent_file%/*}/local-model ]] || fail "choosing local alone clears the pin"
 printf '%s\n' "opencode" >"$agent_file"
 pass "a default of local opens the local model in pi"
 

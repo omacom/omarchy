@@ -35,6 +35,7 @@ Panel {
   function deleteSelected() {
     var target = keyTarget
     if (!target || ["provider", "providerLaunch"].indexOf(target.kind) < 0) return
+    if (providers[target.index].localModel) return
     deleteTarget = providers[target.index]
   }
 
@@ -369,6 +370,62 @@ Panel {
     return facts.join(" · ")
   }
 
+  // A line for each coding model set up here or shared by a paired machine,
+  // under Local models. Its target is what opens it: the recipe, or
+  // host/recipe for a paired machine's.
+  readonly property var localModelLines: {
+    var service = localModelsService
+    if (!service) return []
+    var recipes = {}
+    var list = service.localRecipes || []
+    for (var r = 0; r < list.length; r++) recipes[list[r].id] = list[r]
+    var out = []
+    var add = function(model, host) {
+      if (!model || model.kind !== "text" || ["installing", "removing"].indexOf(model.unit) >= 0) return
+      var target = host ? host + "/" + model.recipe : model.recipe
+      var recipe = host ? {} : (recipes[model.recipe] || {})
+      out.push({
+        providerId: "local",
+        providerName: model.name || model.recipe,
+        lineId: "local/" + target,
+        iconId: model.vendor || "local",
+        localModel: {
+          target: target,
+          host: host || "",
+          unit: model.unit,
+          running: model.unit === "active" && (host || model.sub_state === "running"),
+          decode_tok_s: model.decode_tok_s != null ? model.decode_tok_s : recipe.decode_tok_s,
+          context: model.ctx != null ? model.ctx : recipe.context,
+          memory_gib: recipe.memory_gib
+        },
+        limits: [],
+        accounts: [],
+        tierLabel: "",
+        usageStatusText: "",
+        authHelpText: "",
+        balance: null,
+        spend: null
+      })
+    }
+    var models = (service.localModel || {}).models || {}
+    for (var id in models) add(models[id], "")
+    var network = service.networkModels || {}
+    for (var nid in network) add(network[nid], network[nid].host)
+    return out
+  }
+
+  // The local model the default opens: the pinned one, else the one started
+  // last.
+  readonly property string localDefaultTarget: usage.localPin !== ""
+    ? usage.localPin
+    : String(localModelsService && localModelsService.localModel ? localModelsService.localModel.last || "" : "")
+
+  function localState(model) {
+    if (model.running) return Commons.I18n.t("agents.localRunning")
+    if (model.unit === "activating") return Commons.I18n.t("agents.localStarting")
+    return Commons.I18n.t("agents.localStopped")
+  }
+
   function chooseOwnModel() {
     var recipe = ownModelRecipe
     if (!recipe) return
@@ -628,11 +685,15 @@ Panel {
   // A line's name: the agent's, and its account's when it's one of several.
   function lineName(line) {
     if (!line) return ""
+    if (line.localModel) return line.localModel.host ? line.providerName + " " + line.localModel.host : line.providerName
     return line.account ? line.providerName + " " + String(line.account.label || line.account.id || "") : line.providerName
   }
 
   function launchLine(line) {
-    if (line && line.account) launchAccount(line, line.account)
+    if (line && line.localModel) {
+      Util.execArgv(["omarchy-agent", "--local-model", line.localModel.target])
+      root.close()
+    } else if (line && line.account) launchAccount(line, line.account)
     else launchHarness(line)
   }
 
@@ -801,7 +862,7 @@ Panel {
   }
 
   function launches(provider) {
-    return harnessFor(provider) !== "" || opensInAgent(provider)
+    return harnessFor(provider) !== "" || opensInAgent(provider) || !!(provider && provider.localModel)
   }
 
   // What choosing this agent as the default writes: its harness, OpenCode for
@@ -824,6 +885,14 @@ Panel {
   function makeDefault(provider, account) {
     var id = defaultIdFor(provider)
     if (id === "") return
+    // A local model's star pins it as the one the default opens.
+    if (provider.localModel) {
+      if (starred(provider, null)) return
+      usage.defaultAgent = "local"
+      usage.localPin = provider.localModel.target
+      Util.execArgv(["omarchy-default-agent", "--select", "local", provider.localModel.target])
+      return
+    }
     if (account && !account.active) useAccount(provider, account)
     if (usage.defaultAgent === id) return
     usage.defaultAgent = id
@@ -832,6 +901,7 @@ Panel {
 
   // Filled on the default agent, and with several accounts on the one in use.
   function starred(provider, account) {
+    if (provider && provider.localModel) return isDefault(provider) && provider.localModel.target === localDefaultTarget
     return isDefault(provider) && (!account || account.active === true)
   }
 
@@ -1223,10 +1293,11 @@ Panel {
   // if it doesn't.
   function iconCandidatesForProvider(p, surfaceColor) {
     if (!p) return []
+    var id = p.iconId || p.providerId
     var candidates = []
     if (colorLuminance(surfaceColor || Commons.Color.background) >= 0.5)
-      candidates.push(Qt.resolvedUrl("assets/" + p.providerId + "-light.svg"))
-    candidates.push(Qt.resolvedUrl("assets/" + p.providerId + ".svg"))
+      candidates.push(Qt.resolvedUrl("assets/" + id + "-light.svg"))
+    candidates.push(Qt.resolvedUrl("assets/" + id + ".svg"))
     return candidates
   }
 
@@ -1287,12 +1358,14 @@ Panel {
     if (panelFlick) panelFlick.contentY = 0
     usage.refreshLimits()
     usage.reloadDefaultAgent()
+    usage.reloadLocalPin()
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
 
   Main {
     id: usage
     settings: root.settings
+    localModelLines: root.localModelLines
   }
 
   Process {
@@ -1992,6 +2065,9 @@ Panel {
     property int providerIndex: -1
     // An account's line: its account, renamed in place by clicking its name.
     readonly property var account: provider ? (provider.account || null) : null
+    // A local model's line: where it runs and what it is.
+    readonly property var local: provider ? (provider.localModel || null) : null
+    readonly property string localHost: local ? local.host : ""
     property bool editingName: false
     property string renamedTo: ""
     readonly property string accountLabel: renamedTo !== "" ? renamedTo : account ? String(account.label || account.id || "") : ""
@@ -2016,6 +2092,9 @@ Panel {
       }
     }
     readonly property var windows: root.displayWindows(provider)
+    // A note on numbers that aren't current sits where the first limit's time
+    // left would, when that limit has none to show; else beside the name.
+    readonly property bool noteInRow: windows.length > 0 && root.resetMsFor(windows[0]) <= 0
     readonly property var balance: provider ? (provider.balance || null) : null
     readonly property var spend: provider ? (provider.spend || null) : null
     spacing: Style.space(16)
@@ -2112,9 +2191,9 @@ Panel {
         anchors.left: sectionName.right
         anchors.leftMargin: Style.space(8)
         anchors.baseline: sectionName.baseline
-        visible: !!section.account && !section.editingName
+        visible: (!!section.account || section.localHost !== "") && !section.editingName
         textFormat: Text.PlainText
-        text: section.accountLabel
+        text: section.account ? section.accountLabel : section.localHost
         color: sectionHead.lit ? Commons.Color.accent : root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -2123,6 +2202,7 @@ Panel {
         MouseArea {
           id: accountNameMouse
           anchors.fill: parent
+          enabled: !!section.account
           hoverEnabled: true
           cursorShape: Qt.IBeamCursor
           onClicked: section.startRename()
@@ -2164,8 +2244,8 @@ Panel {
         visible: !section.editingName && text !== ""
         textFormat: Text.PlainText
         text: {
-          var plan = root.planLabel(section.provider)
-          return plan !== "" && section.account ? "· " + plan : plan
+          var plan = section.local ? root.localState(section.local) : root.planLabel(section.provider)
+          return plan !== "" && (section.account || section.localHost !== "") ? "· " + plan : plan
         }
         color: root.dim
         font.family: root.fontFamily
@@ -2176,7 +2256,7 @@ Panel {
         anchors.left: sectionPlan.visible ? sectionPlan.right : sectionName.right
         anchors.leftMargin: Style.space(8)
         anchors.verticalCenter: sectionName.verticalCenter
-        visible: !section.editingName && message !== ""
+        visible: !section.editingName && !section.noteInRow && message !== ""
         record: section.provider
       }
 
@@ -2220,13 +2300,28 @@ Panel {
       }
     }
 
+    // A local model's speed, context, and memory, as the local models panel
+    // says them.
+    Text {
+      visible: !!section.local && text !== ""
+      width: parent.width
+      textFormat: Text.PlainText
+      text: section.local ? root.ownModelFacts(section.local) : ""
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      elide: Text.ElideRight
+    }
+
     // A sign-in to redo, for the line's account when it's one of several.
     TextLink {
       visible: root.needsSignIn(section.provider)
       picked: root.hasKey("providerSignin", section.providerIndex)
       text: Commons.I18n.t("agents.signInRequired")
       idleColor: root.urgent
-      tooltip: Commons.I18n.t("agents.signInAgainProvider").arg(section.provider ? section.provider.providerName : "")
+      tooltip: section.account
+        ? Commons.I18n.t("agents.signInAgainAccount")
+        : Commons.I18n.t("agents.signInAgainProvider").arg(section.provider ? section.provider.providerName : "")
       onClicked: root.signInAgain(section.provider, section.account)
     }
 
@@ -2241,8 +2336,10 @@ Panel {
 
         CompactLimit {
           required property var modelData
+          required property int index
           width: section.width
           window: modelData
+          note: index === 0 && section.noteInRow ? section.provider : null
           stale: !!section.provider && section.provider.limitsStale === true
           fetchedAt: section.provider ? Number(section.provider.limitsFetchedAt || 0) : 0
         }
@@ -2564,6 +2661,8 @@ Panel {
   component CompactLimit: Item {
     id: compact
     property var window: null
+    // The agent's note, shown in the time-left slot when there's none.
+    property var note: null
     // The age of numbers kept past a failed check is shown only on hover.
     property bool stale: false
     property real fetchedAt: 0
@@ -2639,6 +2738,13 @@ Panel {
       color: root.dim
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
+    }
+
+    UsageNote {
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      visible: !!compact.note && compact.resetMs <= 0 && message !== ""
+      record: compact.note
     }
   }
 
