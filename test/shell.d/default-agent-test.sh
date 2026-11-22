@@ -1037,10 +1037,12 @@ mapfile -d '' -t launch_args <"$launch_log"
   fail "a stopped local model is opened by rerunning the launch inside its terminal: ${launch_args[*]}"
 
 : >"$launch_log"
-OMARCHY_TEST_LOCAL_STATUS=$stopped omarchy-agent --local
+printf '%s\n' "local" >"$agent_file"
+OMARCHY_TEST_LOCAL_STATUS=$stopped omarchy-agent
 mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-agent --inline --local" ]] ||
-  fail "--local on a stopped model starts the one last used: ${launch_args[*]}"
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-agent --inline" ]] ||
+  fail "a default of local with a stopped model starts the one last used: ${launch_args[*]}"
+printf '%s\n' "opencode" >"$agent_file"
 
 printf '#!/bin/bash\nprintf "%%s\\n" "warmup $*" >>"$OMARCHY_TEST_WARMUP_LOG"\nexit "${OMARCHY_TEST_WARMUP_STATUS:-0}"\n' >"$mock_bin/omarchy-models-warmup"
 chmod +x "$mock_bin/omarchy-models-warmup"
