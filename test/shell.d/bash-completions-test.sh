@@ -25,6 +25,16 @@ for word in lock logout reboot shutdown; do
 done
 pass "omarchy system completes its arguments beside its subcommands"
 
+hybrid=$(complete_words omarchy toggle hybrid "")
+[[ $hybrid == "gpu" ]] || fail "nested subcommands exclude parent argument choices" "$hybrid"
+pass "nested subcommands exclude parent argument choices"
+
+flag=$(complete_words omarchy toggle test-feature "")
+for word in toggle on off; do
+  grep -qx "$word" <<<"$flag" || fail "feature flags still complete the $word action" "$flag"
+done
+pass "feature flags still complete their actions"
+
 # omarchy reboot is an alias route with no binary of its own.
 re=$(complete_words omarchy re)
 grep -qx reboot <<<"$re" || fail "omarchy re completes the reboot alias" "$re"
