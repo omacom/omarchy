@@ -34,9 +34,8 @@ Panel {
 
   property var deleteTarget: null
   function deleteSelected() {
-    var target = keyTarget
-    if (!target || ["provider", "providerLaunch"].indexOf(target.kind) < 0) return
-    if (removable(providers[target.index])) deleteTarget = providers[target.index]
+    var i = providerIndexOfKey()
+    if (i >= 0 && removable(providers[i])) deleteTarget = providers[i]
   }
 
   // An added account is forgotten, its sign-in deleted here. Any other line
@@ -199,7 +198,11 @@ Panel {
 
   // The agent the cursor is in, by its position on the page.
   function providerIndexOfKey() {
-    var target = keyTarget
+    return lineOf(keyTarget)
+  }
+
+  // The agent a cursor stop belongs to, or -1.
+  function lineOf(target) {
     if (!target) return -1
     if (["provider", "providerSignin", "providerLaunch", "providerStar", "makeToggle", "providerDesktop"].indexOf(target.kind) >= 0 || target.kind.indexOf("make:") === 0) return target.index
     return -1
@@ -870,7 +873,7 @@ Panel {
   function pointerOnLine(i) {
     if (!pointerActive) return
     var row = keyRows[keyRow]
-    if (!row || row[0].index !== i || row[0].kind === "providerSignin") pointAtProvider(i)
+    if (!row || lineOf(row[Math.min(keyColumn, row.length - 1)]) !== i) pointAtProvider(i)
     cursorActive = false
   }
 
@@ -1483,6 +1486,7 @@ Panel {
   // rows follow the same stage change, so the cursor waits a tick for them.
   function resetKeys() {
     cursorActive = false
+    pointerActive = false
     keyRow = 0
     keyColumn = 0
     Qt.callLater(function() { if (picking) pointAt("choice", "claude") })
@@ -2303,6 +2307,7 @@ Panel {
         TextLink {
           visible: root.pasteLinkShown
           picked: root.hasKey("pasteCode")
+          onHovered: root.hoverAt("pasteCode")
           text: Commons.I18n.t("agents.pasteCodeLink")
           onClicked: root.openPasteField()
         }
@@ -2310,6 +2315,7 @@ Panel {
         TextLink {
           visible: root.addUrl !== ""
           picked: root.hasKey("reopenSignIn")
+          onHovered: root.hoverAt("reopenSignIn")
           text: Commons.I18n.t("agents.reopenSignIn")
           onClicked: root.reopenSignIn()
         }
@@ -2661,6 +2667,7 @@ Panel {
     TextLink {
       visible: root.needsSignIn(section.provider)
       picked: root.hasKey("providerSignin", section.providerIndex)
+      onHovered: root.hoverAt("providerSignin", section.providerIndex)
       text: Commons.I18n.t("agents.signInRequired")
       idleColor: root.urgent
       tooltip: section.account
@@ -2945,6 +2952,7 @@ Panel {
   component TextLink: Text {
     id: link
     signal clicked()
+    signal hovered()
     property bool current: false
     property bool picked: false
     property string tooltip: ""
@@ -2965,6 +2973,7 @@ Panel {
       anchors.margins: -Style.space(4)
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
+      onEntered: link.hovered()
       onClicked: link.clicked()
     }
 
