@@ -1,4 +1,4 @@
-# Preguntas frecuentes
+# FAQ
 
 ### ¿Cómo cambio entre distribuciones de teclado?
 
@@ -14,7 +14,7 @@ hl.config({
 })
 ```
 
-La barra mostrará automáticamente tu distribución de teclado actual una vez que tengas configuradas varias distribuciones (y también puedes hacer clic en ella para cambiar).
+La barra mostrará automáticamente tu distribución de teclado actual una vez que tengas varias distribuciones configuradas (y también puedes hacer clic en ella para cambiar).
 
 ### ¿Cómo cambio el formato del reloj a 12 horas?
 
@@ -24,11 +24,11 @@ Haz clic derecho en el reloj de la barra para recorrer los formatos comunes, inc
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-Esto mostrará domingo 10:55 AM.
+Esto mostrará Domingo 10:55 AM.
 
 ### ¿Cómo cambio mi zona horaria?
 
-Ejecuta _Update > Timezone_ en el menú de Omarchy y elige de la lista. Si la zona horaria es correcta pero el reloj en sí se desfasó, _Update > Time_ reinicia la sincronización de la hora por ti.
+Ejecuta _Configuración > Región > Zona horaria_ en el menú de Omarchy y elige de la lista. Si la zona horaria es correcta pero el reloj en sí se desvió, _Actualizar > Hora_ reinicia la sincronización de la hora por ti.
 
 ### ¿Cómo cambio mi DNS, comparto mi Wi-Fi o reviso la velocidad de mi conexión?
 
@@ -36,21 +36,21 @@ Todo eso está en [redes](35-networking.md).
 
 ### ¿Cómo reviso qué tan rápido es mi disco?
 
-_Trigger > Speed Test > Disk Speed Test_ mide la velocidad de lectura y escritura en tiempo real de tu unidad, o `omarchy disk speedtest` desde la terminal.
+_Activar > Prueba de velocidad > Prueba de velocidad de disco_ mide la velocidad de lectura y escritura en vivo en tu unidad, o `omarchy disk speedtest` desde la terminal.
 
 ### ¿Cómo agrego una impresora?
 
-La impresión ya está configurada y funcionando desde el inicio, y tú agregas cada impresora desde _Print Settings_ en el lanzador de aplicaciones (`Super + Space`).
+La impresión ya está configurada y funcionando desde el inicio, y agregas cada impresora tú mismo desde _Configuración de impresión_ en el lanzador de aplicaciones (`Super + Alt + Space`).
 
-Elige _Add_, y dale un momento para buscar: detecta por ti una impresora conectada por USB y a la mayoría de las impresoras de red. Si la tuya no está en la lista, elige _Network Printer > Internet Printing Protocol (ipp)_ e ingresa su dirección — la propia pantalla de la impresora o su página web te dirá cuál es, normalmente algo como `192.168.1.50` con una cola de `ipp/print`. _Forward_ luego te ofrece un controlador, donde una impresora moderna funciona mejor con el perfil sin controladores _IPP Everywhere_ y una más antigua quiere el controlador propio del modelo.
+Elige _Agregar_ y dale un momento para buscar: una impresora conectada por USB, y la mayoría de las impresoras de red, se encuentran por ti. Si la tuya no está en la lista, elige _Impresora de red > Internet Printing Protocol (ipp)_ e ingresa su dirección — la propia pantalla de la impresora o su página web te dirá cuál es, normalmente algo como `192.168.1.50` con una cola de `ipp/print`. _Adelante_ luego te ofrece un controlador, donde una impresora moderna funciona mejor con el perfil sin controlador _IPP Everywhere_ y una más antigua quiere el controlador propio del modelo.
 
-Haz clic derecho en una impresora y elige _Set as Default_ para elegir cuál usarán primero tus aplicaciones, y _Properties_ para configurar el tamaño de papel, la impresión a doble cara y la calidad.
+Haz clic derecho en una impresora y elige _Establecer como predeterminada_ para elegir a cuál recurren primero tus aplicaciones, y _Propiedades_ para establecer el tamaño de papel, la impresión a doble cara y la calidad.
 
-La detección automática, con la que las impresoras en la red aparecen sin tener que agregarlas, está desactivada temporalmente mientras se está rehaciendo, por eso el primer paso anterior te toca a ti y no es automático. Imprimir a un archivo PDF funciona sin ninguna impresora.
+El descubrimiento automático, donde las impresoras de la red aparecen sin agregarlas, está desactivado temporalmente mientras se está rehaciendo, por eso el primer paso anterior es tuyo y no automático. Imprimir a un archivo PDF funciona sin ninguna impresora.
 
 ### ¿Cómo cambio dónde se guardan las capturas de pantalla o las grabaciones de pantalla?
 
-Las capturas de pantalla guardadas van a `~/Pictures/Screenshots` de forma predeterminada. Para usar otro directorio, agrega esto a un archivo dentro de `~/.config/uwsm/env.d/` (como `~/.config/uwsm/env.d/capture`):
+Las capturas de pantalla guardadas van a `~/Pictures/Screenshots` de forma predeterminada. Para usar otro directorio, agrega esto a un archivo bajo `~/.config/uwsm/env.d/` (como `~/.config/uwsm/env.d/capture`):
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
@@ -62,19 +62,19 @@ Omasnap crea su directorio de capturas de pantalla automáticamente. Crea tú mi
 
 ### ¿Cómo hago que funcionen las bocinas + la cámara web en mi Apple Studio Display?
 
-Uno pensaría que todo debería funcionar con solo conectar el USB C, pero desafortunadamente no es así. La solución que encontré para que funcione de forma confiable es usar [el cable WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Entonces las bocinas y la cámara web funcionan de maravilla.
+Pensarías que todo debería funcionar solo con conectar el USB C, pero desafortunadamente no es así. La solución que encontré para que funcione de forma confiable es usar [el cable WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Luego las bocinas y la cámara web funcionan de maravilla.
 
 Recuerda que tienes control de brillo integrado en Omarchy para las pantallas Apple (tanto Studio como XDR) usando los botones normales de brillo del teclado.
 
 ### ¿Cómo me deshago de todo el software extra?
 
-Si no quieres programas como Obsidian o LibreOffice o cualquiera de las demás cosas preinstaladas, puedes eliminarlas muy fácilmente.
+Si no quieres programas como Obsidian o LibreOffice o cualquiera de las demás cosas preinstaladas, puedes quitarlo muy fácilmente.
 
-Ejecuta _Remove > Package_ para ver todos los paquetes instalados. Luego puedes seleccionar cualquier paquete que quieras eliminar con tab, y empezar a eliminar todo lo que seleccionaste con return.
+Ejecuta _Eliminar > Paquete_ para ver todos los paquetes que están instalados. Luego puedes seleccionar cualquier paquete que quieras eliminar con tab, y empezar a eliminar todo lo que hayas seleccionado con return.
 
-Y puedes usar _Remove > Web App_ desde el menú de Omarchy para eliminar cualquiera de las aplicaciones web preinstaladas que no quieras.
+Y puedes usar _Eliminar > Aplicación web_ desde el menú de Omarchy para eliminar cualquiera de las aplicaciones web preinstaladas que no quieras.
 
-O ejecuta _Remove > Preinstalls_ para barrer con todos los extras preinstalados — aplicaciones web, TUIs y aplicaciones opcionales — de una sola vez. Los atajos de teclado que las abrían desaparecen con ellos, así que te queda una hoja en blanco de asignaciones para llenarla con las tuyas en `~/.config/hypr/bindings.lua`.
+O ejecuta _Eliminar > Preinstalados_ para barrer con todos los extras preinstalados — aplicaciones web, TUIs y aplicaciones opcionales — de una sola vez. Los atajos de teclado que los lanzaban desaparecen con ellos, así que te queda una hoja en blanco de atajos para llenarla con los tuyos en `~/.config/hypr/bindings.lua`.
 
 ---
 

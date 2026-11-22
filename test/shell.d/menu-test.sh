@@ -194,6 +194,10 @@ assert(
   rankScore('appearance.font', 'font') < rankScore('apps.fontforge', 'font'),
   'menu keeps a better-matching menu entry above a weaker app match'
 )
+assert(
+  rankScore('system.about', 'abou') < rankScore('appearance.branding.about', 'abou'),
+  'menu ranks a shallower equal match above a deeper submenu'
+)
 
 // Routing: htop ships `Keywords=system;...`, which app rows carry as aliases.
 // An installed app must never capture a menu route (SUPER+ESCAPE opens the

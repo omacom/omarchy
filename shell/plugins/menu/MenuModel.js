@@ -409,12 +409,14 @@ function searchScore(items, entry, query) {
   else if (nameText.indexOf(needle) >= 0) score = 40
   else if (descriptionTextMatches(needle, descriptionText)) score = 60
 
-  if (entry.kind === "menu" || entry.kind === "link") score -= 2
   // App rows sort after all menu items, so they lose the tiebreak below to an
   // equal match. Outrank those, but stay inside the tier so better ones win.
   if (entry.kind === "app") score -= 5
 
-  return score * 1000 + depthFor(items, entry.id) * 25 + entry.order
+  // Within a tier, a shallower entry wins ("abou" finds System > About before
+  // Appearance > Branding > About); at equal depth a submenu beats an action.
+  var opensMenu = entry.kind === "menu" || entry.kind === "link"
+  return score * 10000000 + depthFor(items, entry.id) * 100000 + (opensMenu ? 0 : 50000) + entry.order
 }
 
 function displayRow(items, itemOrder, checkedResults, disabledResults, entry, detail, score, section) {

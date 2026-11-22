@@ -16,7 +16,7 @@ Omarchy calls it Activity Monitor, and you start it from the app launcher or by 
 
 ## Herdr
 
-[Herdr](https://github.com/omacom-io/herdr) is a terminal workspace manager that gives you workspaces, tabs, and panes, and keeps them all running in a persistent session you can detach from and come back to later.
+[Herdr](https://herdr.dev) is a terminal workspace manager that gives you workspaces, tabs, and panes, and keeps them all running in a persistent session you can detach from and come back to later.
 
 You start it (or reattach to your existing session) from the app launcher or with `Super + Ctrl + Return`. Omarchy ships a Herdr configuration that mirrors its Tmux config, so the prefix key is `Ctrl + Space` here too. You can browse all the keybindings with `Super + Ctrl + K`.
 
@@ -24,7 +24,7 @@ You start it (or reattach to your existing session) from the app launcher or wit
 
 [Fastfetch](https://github.com/fastfetch-cli/fastfetch) shows system information, like kernel version, uptime, theme, CPU, memory, and more. It's a successor to the popular neofetch tool.
 
-Omarchy has packaged this as _About_ in the Omarchy menu (`Super + Space`).
+Omarchy has packaged this as _System > About_ in the Omarchy menu (`Super + Space`).
 
 ## Cliamp
 
