@@ -95,6 +95,10 @@ if [[ -n ${agent_installer:-} ]]; then
   # minutes-long install inside the menu action instead.
   agent_present() { "$agent_installer" --check; }
   agent_install() { "$agent_installer" --now; }
+elif [[ $agent == "pi" ]]; then
+  # Pi is one of Omarchy's base packages, so there is nothing to install.
+  agent_present() { true; }
+  agent_install() { true; }
 else
   # omarchy-mise-install's wrappers run `mise use` and `mise x`, current ones on
   # lines of their own and older ones after an inline variable; either way

@@ -18,7 +18,7 @@ Die Leiste zeigt automatisch dein aktuelles Tastaturlayout an, sobald du mehrere
 
 ### Wie ändere ich das Uhrformat auf 12 Stunden?
 
-Klicke mit der rechten Maustaste auf die Uhr in der Leiste, um durch die gängigen Formate zu blättern, einschließlich der 12-Stunden-Formate. Du kannst das Format auch direkt festlegen:
+Klicke mit der rechten Maustaste auf die Uhr in der Leiste, um durch die gängigen Formate zu wechseln, einschließlich der 12-Stunden-Formate. Du kannst das Format auch direkt festlegen:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
@@ -28,25 +28,25 @@ Dadurch wird Sonntag 10:55 AM angezeigt.
 
 ### Wie ändere ich meine Zeitzone?
 
-Führe im Omarchy-Menü _Einrichten > Region > Zeitzone_ aus und wähle aus der Liste aus. Wenn die Zeitzone stimmt, die Uhr selbst aber abweicht, startet _Aktualisieren > Zeit_ die Zeitsynchronisierung für dich neu.
+Führe im Omarchy-Menü _Setup > Region > Timezone_ aus und wähle aus der Liste aus. Wenn die Zeitzone stimmt, aber die Uhr selbst abgewichen ist, startet _Update > Time_ die Zeitsynchronisierung für dich neu.
 
 ### Wie ändere ich meinen DNS, teile mein Wi-Fi oder prüfe meine Verbindungsgeschwindigkeit?
 
 Das findest du alles unter [Netzwerk](35-networking.md).
 
-### Wie prüfe ich, wie schnell mein Laufwerk ist?
+### Wie prüfe ich, wie schnell meine Festplatte ist?
 
-_Auslöser > Geschwindigkeitstest > Laufwerksgeschwindigkeitstest_ misst die Live-Lese- und Schreibgeschwindigkeit deines Laufwerks, oder `omarchy disk speedtest` aus dem Terminal.
+_Trigger > Speed Test > Disk Speed Test_ misst die Live-Lese- und Schreibgeschwindigkeit deiner Festplatte, oder `omarchy disk speedtest` vom Terminal aus.
 
 ### Wie füge ich einen Drucker hinzu?
 
-Drucken ist sofort einsatzbereit eingerichtet und läuft, und du fügst jeden Drucker selbst über _Druckeinstellungen_ im App-Launcher hinzu (`Super + Space`).
+Drucken ist sofort einsatzbereit eingerichtet und läuft, und du fügst jeden Drucker selbst über _Print Settings_ im App-Launcher (`Super + Alt + Space`) hinzu.
 
-Wähle _Hinzufügen_ und gib ihm einen Moment Zeit zum Suchen: Ein über USB angeschlossener Drucker und die meisten Netzwerkdrucker werden für dich gefunden. Wenn deiner nicht in der Liste ist, wähle _Netzwerkdrucker > Internet Printing Protocol (ipp)_ und gib seine Adresse ein — das eigene Display des Druckers oder seine Webseite sagt dir, welche das ist, normalerweise so etwas wie `192.168.1.50` mit einer Warteschlange von `ipp/print`. _Weiter_ bietet dir dann einen Treiber an, wobei ein moderner Drucker am besten mit dem treiberlosen Profil _IPP Everywhere_ funktioniert und ein älterer den eigenen Treiber des Modells will.
+Wähle _Add_ und gib ihm einen Moment Zeit zum Suchen: Ein über USB angeschlossener Drucker und die meisten Netzwerkdrucker werden für dich gefunden. Wenn deiner nicht in der Liste ist, wähle _Network Printer > Internet Printing Protocol (ipp)_ und gib seine Adresse ein — das Display des Druckers selbst oder seine Webseite verrät dir, wie diese lautet, normalerweise so etwas wie `192.168.1.50` mit einer Warteschlange von `ipp/print`. _Forward_ bietet dann einen Treiber an, wobei ein moderner Drucker am besten mit dem treiberlosen Profil _IPP Everywhere_ funktioniert und ein älterer den eigenen Treiber des Modells möchte.
 
-Klicke mit der rechten Maustaste auf einen Drucker und wähle _Als Standard festlegen_, um zu bestimmen, welchen deine Apps zuerst verwenden, und _Eigenschaften_, um Papierformat, Duplex und Qualität festzulegen.
+Klicke mit der rechten Maustaste auf einen Drucker und wähle _Set as Default_, um festzulegen, welchen deine Apps zuerst verwenden, und _Properties_, um Papiergröße, Duplex und Qualität festzulegen.
 
-Die automatische Erkennung, bei der Drucker im Netzwerk erscheinen, ohne hinzugefügt zu werden, ist vorübergehend ausgeschaltet, während sie überarbeitet wird, weshalb der erste Schritt oben dir überlassen bleibt, statt automatisch zu erfolgen. In eine PDF-Datei zu drucken funktioniert ganz ohne Drucker.
+Die automatische Erkennung, bei der Drucker im Netzwerk erscheinen, ohne hinzugefügt zu werden, ist vorübergehend abgeschaltet, während sie überarbeitet wird, weshalb der erste Schritt oben deiner ist und nicht automatisch erfolgt. Das Drucken in eine PDF-Datei funktioniert ganz ohne Drucker.
 
 ### Wie ändere ich, wo Screenshots oder Bildschirmaufnahmen gespeichert werden?
 
@@ -56,26 +56,26 @@ Gespeicherte Screenshots landen standardmäßig in `~/Pictures/Screenshots`. Um 
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Dasselbe kannst du für Bildschirmaufnahmen mit `OMARCHY_SCREENRECORD_DIR` machen.
+Dasselbe kannst du für Bildschirmaufnahmen mit `OMARCHY_SCREENRECORD_DIR` tun.
 
-Omasnap erstellt sein Screenshot-Verzeichnis automatisch. Erstelle das Verzeichnis für Bildschirmaufnahmen selbst und starte dann Omarchy neu, damit jede der beiden Umgebungsänderungen wirksam wird.
+Omasnap erstellt sein Screenshot-Verzeichnis automatisch. Erstelle das Verzeichnis für Bildschirmaufnahmen selbst und starte dann Omarchy neu, damit eine der beiden Umgebungsänderungen wirksam wird.
 
 ### Wie bekomme ich die Lautsprecher + Webcam an meinem Apple Studio Display zum Laufen?
 
-Man sollte meinen, dass alles einfach durch Einstecken von USB C funktionieren sollte, aber leider ist das nicht der Fall. Die Lösung, die ich gefunden habe, damit es zuverlässig funktioniert, ist [das WJESOG DisplayPort + USB-A => USB-C Kabel](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Dann funktionieren Lautsprecher und Webcam einwandfrei.
+Man sollte meinen, dass alles einfach durch Einstecken von USB C funktionieren sollte, aber leider ist das nicht der Fall. Die Lösung, die ich gefunden habe, damit es zuverlässig funktioniert, ist [das WJESOG DisplayPort + USB-A => USB-C Kabel](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Dann funktionieren Lautsprecher und Webcam wunderbar.
 
-Denk daran, dass du in Omarchy eine eingebaute Helligkeitssteuerung für die Apple Displays (sowohl Studio als auch XDR) über die normalen Helligkeitstasten der Tastatur hast.
+Denke daran, dass du in Omarchy eine integrierte Helligkeitssteuerung für die Apple Displays (sowohl Studio als auch XDR) hast, und zwar über die regulären Tastaturtasten für die Helligkeit.
 
-### Wie werde ich die ganze zusätzliche Software los?
+### Wie werde ich all die zusätzliche Software los?
 
 Wenn du Programme wie Obsidian oder LibreOffice oder den anderen vorinstallierten Kram nicht willst, kannst du ihn ganz einfach entfernen.
 
-Führe _Entfernen > Paket_ aus, um jedes installierte Paket zu sehen. Dann kannst du mit Tab jedes Paket auswählen, das du entfernen möchtest, und mit Return damit beginnen, alles zu entfernen, was du ausgewählt hast.
+Führe _Remove > Package_ aus, um jedes Paket zu sehen, das installiert ist. Dann kannst du mit Tab jedes Paket auswählen, das du entfernen möchtest, und mit Return beginnen, alles Ausgewählte zu entfernen.
 
-Und mit _Entfernen > Web-App_ aus dem Omarchy-Menü kannst du alle vorinstallierten Web-Apps entfernen, die du nicht willst.
+Und du kannst _Remove > Web App_ im Omarchy-Menü verwenden, um jede der vorinstallierten Web-Apps zu entfernen, die du nicht willst.
 
-Oder führe _Entfernen > Vorinstallationen_ aus, um alle vorinstallierten Extras — Web-Apps, TUIs und optionale Anwendungen — in einem Rutsch zu entfernen. Die Tastenkürzel, mit denen sie gestartet wurden, verschwinden mit ihnen, sodass dir eine saubere Ausgangsbasis an Tastenbelegungen bleibt, die du in `~/.config/hypr/bindings.lua` mit deinen eigenen füllen kannst.
+Oder führe _Remove > Preinstalls_ aus, um alle vorinstallierten Extras — Web-Apps, TUIs und optionale Anwendungen — in einem Durchgang zu entfernen. Die Hotkeys, die sie gestartet haben, verschwinden mit ihnen, sodass du eine saubere Ausgangsbasis an Tastenkombinationen behältst, die du in `~/.config/hypr/bindings.lua` mit deinen eigenen füllen kannst.
 
 ---
 
-Bei Fehlern und kaputten Stellen siehe [Abschnitt zur Fehlerbehebung](45-troubleshooting.md).
+Für Fehler und defekte Stellen siehe [den Abschnitt zur Fehlerbehebung](45-troubleshooting.md).

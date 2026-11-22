@@ -105,7 +105,7 @@ default/applications/*.desktop
 applications/icons/*           ──►  omarchy-settings    /usr/share/icons/hicolor/{48,256,scalable}/apps/
 
 etc/**                         ──►  omarchy-settings    /etc/**           (drop-ins we own outright)
-  ├─ mkinitcpio.conf.d/{00-omarchy-hooks,omarchy_compression,omarchy_hooks,thunderbolt_module}.conf
+  ├─ mkinitcpio.conf.d/{00-omarchy-hooks,omarchy_compression,omarchy_hooks,omarchy_mount_events,thunderbolt_module}.conf
   ├─ limine-entry-tool.d/{omarchy-defaults,omarchy-uki}.conf
   ├─ mise/conf.d/{omarchy,omarchy-tools,omarchy-agent-accounts}.toml
   ├─ NetworkManager/, sudoers.d/, sysctl.d/, tmpfiles.d/,
@@ -269,13 +269,14 @@ Runs once per user. It does **not** copy `~/.config/**`, `~/.bashrc`,
 `flags.lua`, or the nautilus extensions — `/etc/skel` already seeded those.
 It only does the things `/etc/skel` can't:
 
-- Skill symlinks into `~/.agents/skills/<name>`, `~/.claude/skills/<name>`, `~/.codex/skills/<name>`, `~/.pi/agent/skills/<name>`, `~/.gemini/config/skills/<name>` (Antigravity), `~/.hermes/skills/<name>`, and each existing `~/.hermes/profiles/*/skills/<name>` → `$OMARCHY_PATH/default/agents/skills/<name>`, looping over every skill directory there (currently `omarchy` and `diagnose-crash`) so new skills need no edit. Symlinks (not copies) so `omarchy dev link` against a dev checkout repoints them correctly. Hermes profile dirs are only linked when they already exist — provision does not create Hermes profiles.
+- Skill symlinks into `~/.agents/skills/<name>`, `~/.claude/skills/<name>`, `~/.codex/skills/<name>`, `~/.pi/agent/skills/<name>`, `~/.gemini/config/skills/<name>` (Antigravity), `~/.hermes/skills/<name>`, and each existing `~/.hermes/profiles/*/skills/<name>` → `$OMARCHY_PATH/default/agents/skills/<name>`, looping over every skill directory there (such as `omarchy` and `omarchy-diagnose-crash`) so new skills need no edit. Symlinks (not copies) so `omarchy dev link` against a dev checkout repoints them correctly. Hermes profile dirs are only linked when they already exist — provision does not create Hermes profiles.
 - `xdg-user-dirs-update` (Templates/Public/Desktop folded back into `$HOME`)
   and `~/.config/gtk-3.0/bookmarks` (needs `$HOME` expansion).
 - Hyprland's package-owned default input reads `XKBLAYOUT` / `XKBVARIANT`
   from `/etc/vconsole.conf`; no per-user Hyprland config rewrite is needed.
-- `xdg-settings set default-web-browser chromium.desktop` and
-  `xdg-mime default HEY.desktop x-scheme-handler/mailto` (XDG-aware paths).
+- `xdg-settings set default-web-browser chromium.desktop` (XDG-aware paths).
+  Mail links go to HEY because its launcher declares the `mailto` handler, so
+  a region without HEY has none.
 - `omarchy-refresh-applications` (composes generated `.desktop` launchers).
 - Sources `install/user/all.sh` — theme, chromium, git, xcompose, mise,
   keyring, per-user hardware quirks (asus mic/mixer, framework f13 audio, …).
@@ -332,14 +333,7 @@ first runs `omarchy-provision-user || true` so finalize catches up if it
 never ran, then handles the steps that need a running graphical session
 and/or a working user systemd instance:
 
-- `install/user/first-run/enable-user-units.sh` — daemon-reload, then
-  `systemctl --user enable --now` the shipped user units (`bt-agent`,
-  `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`,
-  `omarchy-migrate-notify.service`, `omarchy-fcitx5.service`,
-  `omarchy-crash-watch.service`) so they run in the first session too.
-  Done here, not at finalize, because
-  the user manager isn't reachable from the ISO chroot; `ConditionPath*`
-  in the unit files keeps services inert when they don't apply.
+- `install/user/first-run/enable-user-units.sh` — enables the shipped user units (`bt-agent`, `owed`, `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`, `omarchy-migrate-notify.service`, `omarchy-fcitx5.service`, `omarchy-crash-watch.service`) with `--no-reload`, runs a single `systemctl --user daemon-reload`, and starts each enabled unit so they run in the first session too. Done here, not at finalize, because the user manager isn't reachable from the ISO chroot; `ConditionPath*` in the unit files keeps services inert when they don't apply.
 - `omarchy-lifecycle-dispatch setup-user` — the platform's own user setup,
   now with the session up (a no-op where the platform registers none; see
   [lifecycle-dispatch.md](lifecycle-dispatch.md)).
@@ -351,7 +345,7 @@ and/or a working user systemd instance:
   first login and opens the cheatsheet when clicked. The caller runs
   `omarchy-notification-wait` once before this and the Wi-Fi step, so both
   toasts land on a live notification server.
-- `install/user/first-run/wifi.sh` — Wi-Fi toast, then (waiting detached on `nm-online` for the first connection, however long that takes) the default-agent and fingerprint invitations (`setup-agent.hook`, `setup-fingerprint.hook`) and the update toast. Each invitation is sent only once.
+- `install/user/first-run/wifi.sh` — Wi-Fi toast, then (waiting detached on `nm-online` for the first connection, however long that takes) the default-agent and fingerprint invitations (`setup-agent.hook`, `setup-fingerprint.hook`). Each invitation is sent only once. A pending first update shows as the bar's update icon instead (see `docs/update-process.md`).
 
 The entire sequence has one idempotency marker:
 `~/.local/state/omarchy/done/first-run-user`, managed by `omarchy-done`.
