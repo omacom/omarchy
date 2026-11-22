@@ -262,6 +262,7 @@ io.open = function(path, mode)
 end
 
 hl = {
+  get_active_window = function() end,
   workspace_rule = function() end,
   window_rule = function(rule) table.insert(rules, rule) end,
   get_workspace_windows = function(selector)
@@ -323,7 +324,6 @@ hl = {
     table.insert(subscriptions[event], callback)
   end,
   timer = function(callback) callback() end,
-  get_active_window = function() end,
   get_active_workspace = function() return active end,
   get_config = function(key) return config[key] end,
   config = function(values)
