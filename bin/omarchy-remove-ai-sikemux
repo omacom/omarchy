@@ -12,21 +12,45 @@ sikemux-host stop &>/dev/null || pkill -x sikemux-host || true
 pkill -x sikemux || true
 
 omarchy-pkg-drop sikemux-bin sikemux-nightly-bin
-rm -f "$HOME/.local/share/applications/com.nodelike.sikemux.desktop"
+
+if [[ -e /etc/systemd/system/sikemux-update.socket || -e /etc/systemd/system/sikemux-update@.service ]]; then
+  sudo systemctl disable --now sikemux-update.socket &>/dev/null || true
+  sudo rm -f /etc/systemd/system/sikemux-update.socket /etc/systemd/system/sikemux-update@.service
+  sudo systemctl daemon-reload &>/dev/null || true
+fi
+if [[ -d /usr/local/lib/sikemux ]]; then
+  sudo rm -rf /usr/local/lib/sikemux
+fi
+if [[ -L "$HOME/.local/bin/sikemux" && "$(readlink "$HOME/.local/bin/sikemux")" == /usr/local/lib/sikemux/* ]]; then
+  rm -f "$HOME/.local/bin/sikemux"
+fi
+rm -f "${XDG_DATA_HOME:-$HOME/.local/share}/applications/com.nodelike.sikemux.desktop"
 
 data_removed=false
 if [[ -t 0 && -t 2 ]]; then
-  size=$(du -shc "$HOME/.local/share/com.nodelike.sikemux" "$HOME/.config/com.nodelike.sikemux" "$HOME/.config/sikemux" 2>/dev/null | tail -1 | cut -f1 || true)
-  if [[ $size =~ ^([0-9]+([.,][0-9]+)?)([A-Za-z]*)$ ]] && number=$(omarchy-i18n --number "${BASH_REMATCH[1]/,/.}"); then
-    size="$number${BASH_REMATCH[3]}"
-  fi
-  if gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n sikemux.deleteData "$size")"; then
-    rm -rf \
-      "$HOME/.local/share/com.nodelike.sikemux" \
-      "$HOME/.config/com.nodelike.sikemux" \
-      "$HOME/.config/sikemux"
-    sudo rm -rf "/var/lib/sikemux/$(id -u)"
-    data_removed=true
+  data_dirs=()
+  for dir in \
+    "$HOME/.local/share/com.nodelike.sikemux" \
+    "$HOME/.config/com.nodelike.sikemux" \
+    "$HOME/.config/sikemux" \
+    "/var/lib/sikemux/$(id -u)"; do
+    if sudo test -d "$dir"; then
+      data_dirs+=("$dir")
+    fi
+  done
+  if (( ${#data_dirs[@]} > 0 )); then
+    size=$(sudo du -shc "${data_dirs[@]}" 2>/dev/null | tail -1 | cut -f1 || true)
+    if [[ $size =~ ^([0-9]+([.,][0-9]+)?)([A-Za-z]*)$ ]] && number=$(omarchy-i18n --number "${BASH_REMATCH[1]/,/.}"); then
+      size="$number${BASH_REMATCH[3]}"
+    fi
+    if gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n sikemux.deleteData "$size")"; then
+      rm -rf \
+        "$HOME/.local/share/com.nodelike.sikemux" \
+        "$HOME/.config/com.nodelike.sikemux" \
+        "$HOME/.config/sikemux"
+      sudo rm -rf "/var/lib/sikemux/$(id -u)"
+      data_removed=true
+    fi
   fi
 fi
 
