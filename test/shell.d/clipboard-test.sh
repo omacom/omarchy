@@ -403,6 +403,7 @@ pass "clipboard paste helper copy-only copies history entry text"
 [[ ! -e "$TMPDIR/wtype" ]] || fail "clipboard paste helper copy-only skips typing"
 pass "clipboard paste helper copy-only skips typing"
 
+rm -f "$TMPDIR/copied" "$TMPDIR/copy-args"
 WL_COPY_OUT="$TMPDIR/copied" WL_COPY_ARGS="$TMPDIR/copy-args" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only $'  Тест\n'
 cmp -s "$TMPDIR/expected-text" "$TMPDIR/copied" || fail "clipboard paste helper copies direct text"
