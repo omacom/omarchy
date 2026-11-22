@@ -47,9 +47,9 @@ while IFS='|' read -r name command class timeout; do
 done <<<"$apps"
 
 # Exercise real title changes: class-matched transparency used to overwrite the
-# tag-matched opaque rule after Nautilus finished loading a folder.
+# tag-matched opaque rule after Files finished loading a folder.
 verify_file_opacity() (
-  if window_present '^org\.gnome\.Nautilus$' >/dev/null 2>&1; then
+  if window_present '^folio$' >/dev/null 2>&1; then
     fail "opacity check starts without existing Files windows"
   fi
 
@@ -70,7 +70,7 @@ verify_file_opacity() (
     # Include a window that opened just before a timeout, without closing
     # unrelated windows somebody might have opened during the check.
     mapfile -t addresses < <(hyprctl -j clients | jq -r \
-      '.[] | select(.class == "org.gnome.Nautilus" and (.title == "opacity-one" or .title == "opacity-two")) | .address'; printf '%s\n' "${addresses[@]}")
+      '.[] | select(.class == "folio" and (.title == "opacity-one" or .title == "opacity-two")) | .address'; printf '%s\n' "${addresses[@]}")
     for address in "${addresses[@]}"; do
       [[ -n $address ]] || continue
       hyprctl dispatch "hl.dsp.window.close({ window = \"address:$address\" })" >/dev/null 2>&1 || true
@@ -105,9 +105,9 @@ verify_file_opacity() (
   for mode in opaque transparent glassy opaque glassy transparent opaque; do
     omarchy hyprland window transparency "$mode"
     if [[ -z $address ]]; then
-      launch_app "nautilus --new-window '$scratch/opacity-one'"
-      wait_until "Files opens for opacity check" 30 window_present '^org\.gnome\.Nautilus$'
-      address=$(hyprctl -j clients | jq -r '.[] | select(.class == "org.gnome.Nautilus") | .address')
+      launch_app "uwsm-app -- folio '$scratch/opacity-one'"
+      wait_until "Files opens for opacity check" 30 window_present '^folio$'
+      address=$(hyprctl -j clients | jq -r '.[] | select(.class == "folio") | .address')
       addresses+=("$address")
       wait_until "new Files title finishes loading" 15 file_title_is opacity-one
     fi
@@ -128,14 +128,14 @@ verify_file_opacity() (
     screenshot "success-files-opacity-$mode"
   done
 
-  launch_app "nautilus --new-window '$scratch/opacity-two'"
+  launch_app "uwsm-app -- folio '$scratch/opacity-two'"
   files_count_is_two() {
     local count
-    count=$(hyprctl -j clients | jq '[.[] | select(.class == "org.gnome.Nautilus")] | length')
+    count=$(hyprctl -j clients | jq '[.[] | select(.class == "folio")] | length')
     (( count == 2 ))
   }
   wait_until "second Files window opens opaque" 30 files_count_is_two
-  mapfile -t addresses < <(hyprctl -j clients | jq -r '.[] | select(.class == "org.gnome.Nautilus") | .address')
+  mapfile -t addresses < <(hyprctl -j clients | jq -r '.[] | select(.class == "folio") | .address')
   for address in "${addresses[@]}"; do
     hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null
     wait_until "each Files window stays opaque across focus changes" 10 file_opacity_is
