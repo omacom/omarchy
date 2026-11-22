@@ -57,7 +57,7 @@ chmod +x "$stub_bin"/*
 
 # Starts $1's "brave" from a copy of $2 with arguments $3..., recording its PID.
 start_fake() {
-  local package=$1 binary=$2
+  local package=$1 binary=$2 pid
   shift 2
   cp "$binary" "$test_tmp/opt/$package/brave"
   "$test_tmp/opt/$package/brave" "$@" &
@@ -65,6 +65,13 @@ start_fake() {
   # Keep bash from reporting the fakes this test kills.
   disown "$!"
   printf '%s\n' "${fake_pids[@]}" >"$test_tmp/pids"
+
+  pid=${fake_pids[-1]}
+  for _ in {1..100}; do
+    [[ $(readlink "/proc/$pid/exe" 2>/dev/null) == "$test_tmp/opt/$package/brave" ]] && return
+    /usr/bin/sleep 0.01
+  done
+  fail "the fake browser starts from its package's binary"
 }
 
 remove() {
@@ -97,6 +104,8 @@ stop_fakes
 start_fake brave-bin /usr/bin/sleep 300
 rm "$test_tmp/opt/brave-bin/brave"
 cp /usr/bin/sleep "$test_tmp/opt/brave-bin/brave"
+[[ $(readlink "/proc/${fake_pids[0]}/exe") == "$test_tmp/opt/brave-bin/brave (deleted)" ]] ||
+  fail "the fake browser is running from a deleted binary"
 remove brave
 grep -Fx "drop brave-bin alive=" "$log" >/dev/null ||
   fail "a browser running from a deleted binary is closed" "$(cat "$log")"
@@ -104,7 +113,12 @@ pass "a browser running from a deleted binary is closed"
 stop_fakes
 
 # One that ignores SIGTERM is killed.
-start_fake brave-bin /usr/bin/bash -c 'trap "" TERM; while :; do :; done'
+start_fake brave-bin /usr/bin/bash -c 'trap "" TERM; : >"$1"; while :; do :; done' bash "$test_tmp/term-ready"
+for _ in {1..100}; do
+  [[ -f $test_tmp/term-ready ]] && break
+  /usr/bin/sleep 0.01
+done
+[[ -f $test_tmp/term-ready ]] || fail "the fake browser installs its SIGTERM trap"
 remove brave
 grep -Fx "drop brave-bin alive=" "$log" >/dev/null ||
   fail "a browser that ignores SIGTERM is killed" "$(cat "$log")"
