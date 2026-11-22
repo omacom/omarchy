@@ -1633,8 +1633,15 @@ Panel {
         Column {
           id: block
           required property var modelData
+          required property int index
           width: parent.width
           spacing: Style.space(10)
+
+          // A line between blocks; the first sits under the hero's own.
+          PanelSeparator {
+            visible: block.index > 0
+            foreground: root.foreground
+          }
 
           PanelSectionHeader {
             text: block.modelData.label
@@ -1666,6 +1673,8 @@ Panel {
         visible: root.ownModelRecipe !== null
         width: parent.width
         spacing: Style.space(10)
+
+        PanelSeparator { foreground: root.foreground }
 
         PanelSectionHeader {
           text: Commons.I18n.t("agents.blockOwnModel")
