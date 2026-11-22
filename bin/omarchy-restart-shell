@@ -95,27 +95,23 @@ omarchy_shell_dirs() {
     jq -r '.[].config_path | select(endswith("/shell/shell.qml")) | rtrimstr("/shell.qml")' 2>/dev/null)
 }
 
-# A launcher whose shell exits non-zero takes that for a crash and relaunches
-# it, and a shell can exit non-zero on its way out of this restart, a teardown
-# crash say, while the restart starts a replacement of its own: two shells
-# (#17341). So each Omarchy shell's launcher is asked to stand down first. On
-# TERM it stops its shell and exits without relaunching. Only that launcher is
-# signalled: it is the parent of the shell it supervises, found through the
-# shell's pid, so no other process that merely shares the name is touched.
+# Stop supervisors even during crash backoff, when no shell is registered.
+# Match the Bash script itself so editors viewing it are left alone.
 stand_down_launchers() {
-  local dir pid parent
+  local pid launcher exe
+  local -a argv
 
-  # The pid goes first: a checkout path can hold spaces, and the rest of the
-  # line, spaces and all, is the path.
-  while read -r pid dir; do
-    [[ -x ${dir%/shell}/bin/omarchy-launch-shell && $pid =~ ^[0-9]+$ ]] || continue
-    parent=$(ps -o ppid= -p "$pid" 2>/dev/null)
-    parent=${parent//[[:space:]]/}
-    [[ $parent =~ ^[0-9]+$ ]] && (( parent > 1 )) || continue
-    [[ $(ps -o args= -p "$parent" 2>/dev/null) == *omarchy-launch-shell* ]] || continue
-    kill -TERM "$parent" 2>/dev/null || true
-  done < <(quickshell list -a -j 2>/dev/null |
-    jq -r '.[] | select(.config_path | endswith("/shell/shell.qml")) | "\(.pid) \(.config_path | rtrimstr("/shell.qml"))"' 2>/dev/null)
+  for pid in $(pgrep -u "$UID" -f omarchy-launch-shell); do
+    exe=$(readlink "/proc/$pid/exe") || continue
+    [[ ${exe%" (deleted)"} == */bash ]] || continue
+    { mapfile -d '' -t argv <"/proc/$pid/cmdline"; } 2>/dev/null || continue
+    (( ${#argv[@]} == 2 )) || continue
+    launcher=${argv[1]}
+    if [[ $launcher == "/usr/bin/omarchy-launch-shell" ]] ||
+      [[ $launcher == */bin/omarchy-launch-shell && -x $launcher && -f ${launcher%/bin/omarchy-launch-shell}/shell/shell.qml ]]; then
+      kill -TERM "$pid" 2>/dev/null || true
+    fi
+  done
 }
 
 stand_down_launchers
