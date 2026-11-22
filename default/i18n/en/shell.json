@@ -103,11 +103,8 @@
   "agents.syncScanFailed": "Usage sync scan failed",
   "agents.theme": "Theme",
   "agents.tierPrepaid": "Prepaid",
-  "agents.ownModelDetail": "%1 · holds %2 GB",
-  "agents.runBestModel": "Run the best model for this computer",
   "agents.setUpTitle": "Set up your agent",
   "agents.title": "Agents",
-  "agents.useOwnModel": "Use the model on this computer",
   "agents.tokensThisWeek": {
     "one": "%1 token this week",
     "other": "%1 tokens this week"

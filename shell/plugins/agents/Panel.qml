@@ -382,6 +382,14 @@ Panel {
     return null
   }
 
+  function ownModelFacts(recipe) {
+    var facts = []
+    if (recipe.decode_tok_s != null) facts.push(Commons.I18n.t("localModels.speedFact").arg(Commons.I18n.formatNumber(Math.round(recipe.decode_tok_s), 0)))
+    if (recipe.context != null) facts.push(Commons.I18n.t("localModels.contextFact").arg(Commons.I18n.formatNumber(Math.round(Number(recipe.context) / 1024), 0)))
+    if (recipe.memory_gib != null) facts.push(Commons.I18n.t("localModels.memoryFact").arg(Commons.I18n.formatNumber(recipe.memory_gib, 0)))
+    return facts.join(" · ")
+  }
+
   function chooseOwnModel() {
     var recipe = ownModelRecipe
     if (!recipe) return
@@ -1679,21 +1687,19 @@ Panel {
             foreground: root.foreground
           }
 
-          Text {
-            id: ownModelGlyph
+          // The maker's mark, as the local models panel draws it.
+          ProviderIcon {
+            id: ownModelMark
             anchors.left: parent.left
             anchors.leftMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
-            text: "󰙴"
-            textFormat: Text.PlainText
-            color: ownModel.hasCursor ? Commons.Color.accent : root.foreground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.display
+            provider: ({ providerId: String(ownModel.recipe.vendor || "local") })
+            size: Style.font.display
           }
 
           Column {
             id: ownModelText
-            anchors.left: ownModelGlyph.right
+            anchors.left: ownModelMark.right
             anchors.leftMargin: Style.space(12)
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
@@ -1701,7 +1707,7 @@ Panel {
 
             Text {
               width: parent.width
-              text: ownModel.recipe.installed ? Commons.I18n.t("agents.useOwnModel") : Commons.I18n.t("agents.runBestModel")
+              text: ownModel.recipe.name || String(ownModel.recipe.id || "")
               textFormat: Text.PlainText
               color: ownModel.hasCursor ? Commons.Color.accent : root.foreground
               font.family: root.fontFamily
@@ -1712,9 +1718,7 @@ Panel {
 
             Text {
               width: parent.width
-              text: Commons.I18n.t("agents.ownModelDetail")
-                .arg(ownModel.recipe.name || String(ownModel.recipe.id || ""))
-                .arg(Commons.I18n.formatNumber(Math.round(Number(ownModel.recipe.memory_gib || 0)), 0))
+              text: root.ownModelFacts(ownModel.recipe)
               textFormat: Text.PlainText
               color: root.dim
               font.family: root.fontFamily
