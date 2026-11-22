@@ -5,6 +5,8 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 export PATH="$ROOT/bin:$PATH"
+# Reload this session's Hyprland, as a desktop does, even when run over ssh.
+export HYPRLAND_INSTANCE_SIGNATURE=test
 
 require_command jq
 require_command lua

@@ -57,7 +57,9 @@ from collectors import (  # noqa: E402
 )
 
 AGENT_ID = "agy"
-AGENT_NAME = "Antigravity"
+# The panel names the subscription, as it does Claude and Grok; Antigravity is
+# the harness that codes on it.
+AGENT_NAME = "Gemini"
 AUTH_HELP = "Run `agy` to sign in, or sign in to Antigravity in omp, pi, or opencode."
 # How each source of a sign-in is named when it needs attention.
 SOURCE_NAMES = {"agy": "`agy`", "omp": "omp", "pi": "pi", "opencode": "opencode"}
@@ -445,7 +447,7 @@ def collect_limits(entries, force):
     keep(entry)
     result.update(authHelpText=help_text, retryAdvised=transport)
     if not result["limits"]:
-      result["usageStatusText"] = "Antigravity limits unavailable"
+      result["usageStatusText"] = "Gemini limits unavailable"
     return result
 
   # No token in hand answered, but omp renews its own sign-in when asked
