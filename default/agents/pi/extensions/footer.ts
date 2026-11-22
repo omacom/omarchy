@@ -1,6 +1,6 @@
 // Pi's footer, trimmed to one line with tokens per second for each reply as
 // OpenCode shows it. The folder and branch move into the editor's top border,
-// and the cache counters and the auto-compaction marker are dropped, so the
+// and cost, the cache counters and the auto-compaction marker are dropped, so the
 // footer keeps the same height from the first prompt on. The clock starts at
 // the first streamed token, so the prompt processing before it doesn't count:
 // the number is how fast the model writes. Replies that error, abort or arrive
@@ -57,19 +57,16 @@ export default function (pi: ExtensionAPI) {
 
           let input = 0;
           let output = 0;
-          let cost = 0;
           for (const entry of ctx.sessionManager.getEntries()) {
             const usage = entry.type === "message" ? entry.message.usage : entry.usage;
             if (!usage) continue;
             input += usage.input;
             output += usage.output;
-            cost += usage.cost.total;
           }
 
           const stats: string[] = [];
           if (input) stats.push(`↑${formatTokens(input)}`);
           if (output) stats.push(`↓${formatTokens(output)}`);
-          if (cost) stats.push(`$${cost.toFixed(3)}`);
           const context = ctx.getContextUsage();
           const window = context?.contextWindow ?? ctx.model?.contextWindow ?? 0;
           const percent = context?.percent;
