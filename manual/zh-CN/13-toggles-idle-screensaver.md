@@ -1,50 +1,54 @@
-# 切换项、闲置与屏幕保护程序
+# 开关、空闲与屏幕保护程序
 
-你日常改动的很多东西其实算不上设置。它们是你打开一小时、然后再关掉的模式：工作到很晚时开夜间暖光，演示时开勿扰，看东西时保持唤醒。Omarchy 把这些叫做切换项，它们的工作方式都一样——快捷键、菜单项和命令，全都拨动同一个开关。
+你日常频繁改动的很多东西，其实并不算真正的设置。它只是一种你开启一个小时、然后再关掉的模式：深夜工作时开夜间光，演示时开勿扰，看东西时保持唤醒。Omarchy 把这些叫做开关，它们的工作方式都一样——一个快捷键、一个菜单项和一个命令，都触发同一个开关。
 
-### 切换菜单
+### 开关菜单
 
-`Super + Ctrl + O` 可以直接打开_触发 > 切换_，你也可以从 Omarchy 菜单（`Super + Space`）走过去。那份列表里的一切都是开关，你不用去想状态存在哪里就能随手拨动。控制桌面外观的开关就在它旁边，位于_外观_之下。
+`Super + Ctrl + O` 会直接打开 _Trigger > Toggle_，你也可以从 Omarchy 菜单（`Super + Space`）进入那里。列表中的每一项都是一个开关，你可以随手切换，无需操心状态保存在哪里。控制桌面外观的开关就紧挨着它，位于 _Appearance_ 下。
 
-在终端里，同样的开关是 `omarchy toggle <thing>`。单独运行 `omarchy toggle` 可以看到整个分组。
+在终端中，同样的开关是 `omarchy toggle <thing>`。单独运行 `omarchy toggle` 即可查看整个分组。
 
-| 切换项 | 快捷键 | 命令 |
+| 开关 | 快捷键 | 命令 |
 | ------ | ------ | ------- |
-| 夜间暖光 | — | `omarchy toggle nightlight` |
-| 静默通知 | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
-| 保持唤醒（无闲置锁定） | `Super + Ctrl + I` | `omarchy toggle idle` |
+| 夜间光 | — | `omarchy toggle nightlight` |
+| 让通知静音 | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
+| 保持唤醒（无空闲锁定） | `Super + Ctrl + I` | `omarchy toggle idle` |
 | 崩溃捕获 | — | `omarchy toggle crash-capture` |
 | 屏幕保护程序 | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) 主题同步 | — | `omarchy toggle theme sync` |
 | 菜单栏 | `Super + Shift + Space` | `omarchy toggle bar` |
-| 触控板 | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| 触摸屏 | — | `omarchy toggle touchscreen` |
+| 全屏桌面（无栏、无间隙） | `Super + Ctrl + Alt + F` | `omarchy toggle fullscreen desktop` |
+| 动画、模糊和阴影 | — | `omarchy toggle animations` |
+| 触摸板 | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| 触摸屏 | — | `omarchy device touchscreen` |
 | 挂起 | — | `omarchy toggle suspend` |
-| 混合 GPU | — | `omarchy toggle hybrid gpu` |
+| 混合 GPU | — | `omarchy device gpu hybrid` |
 
-触控板、触摸屏和混合 GPU 开关位于_触发 > 硬件_（`Super + Ctrl + H`）之下，而不是在切换项之下，因为它们只有当你真的有那类硬件时才会出现。触控板和触摸屏这两个开关在 Hyprland 重载后依然有效——被禁用设备的名称会被保存到一个小的状态文件中，Hyprland 在启动时读取它，再次将该设备禁用。
+触摸板、触摸屏和混合 GPU 开关位于 _Trigger > Hardware_（`Super + Ctrl + H`）下，而不是 Toggle 下，因为只有当你确实拥有该硬件时它们才会出现。触摸板和触摸屏开关在 Hyprland 重新加载后依然有效——被禁用设备的名称会保存到一个小的状态文件中，Hyprland 在启动时会读取它，再次禁用该设备。
 
-_外观_里放着菜单栏和动画，还有几样不是 `omarchy toggle` 命令、但行为方式相同的东西：栏中的电池百分比、默认工作区布局，以及在_窗口_之下的窗口间隙（`Super + Shift + Backspace`）和单窗口方形比例（`Super + Ctrl + Backspace`）。
+_Appearance_ 中有菜单栏和动画，还有一些并非 `omarchy toggle` 命令但行为相同的功能：栏中的电池百分比、默认工作区布局，以及 _Windows_ 下的窗口间隙（`Super + Shift + Backspace`）和 1 窗口方形宽高比（`Super + Ctrl + Backspace`）。
 
-这些切换项大多只是 `~/.local/state/omarchy/toggles/` 下的一个标志文件。如果你想在脚本里根据某个切换项做分支判断，`omarchy-toggle-enabled` 会给你一个退出码，免得你自己去找：
+当 Hyprland 没有 GPU 可用于绘制、转而在 CPU 上渲染时（llvmpipe），例如在 GPU 尚未受支持的 Mac 上、在大多数虚拟机中，或者图形驱动加载失败时，Omarchy 会在该会话中关闭动画、模糊和阴影，并用一条通知告诉你一次。_Appearance > Animations On_ 会将它们重新打开，Omarchy 也会为以后的会话记住这一点。
+
+其中大多数只不过是 `~/.local/state/omarchy/toggles/` 下的一个标志文件。如果你想在脚本中根据其中之一进行分支，`omarchy-toggle-enabled` 会为你提供退出码，免得你亲自去查找：
 
 ```bash
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
 ```
 
-这些标志以关闭状态命名——`screensaver-off`、`suspend-off`、`bar-off`——所以它们的存在就意味着该功能已被禁用。
+这些标志以关闭状态命名——`screensaver-off`、`suspend-off`、`bar-off`——因此它们的存在即表示该功能已被禁用。
 
 ### 栏中的指示器
 
-当某个模式开启时，你会在顶栏中部、时钟旁边看到一个小字形。那就是指示器小组件，它承载着听写、屏幕录制、待处理的提醒、夜间暖光、勿扰和保持唤醒。
+当某个模式开启时，你会在顶栏中间、时钟旁边看到一个小字形。那就是指示器小部件，它承载屏幕录制、待处理的提醒、夜间光、勿扰和保持唤醒，以及无密码 sudo 开启时或有人连接到远程会话时出现的警告。
 
-未激活的指示器是隐藏的。将鼠标悬停在栏的任意位置，它们会以变暗的样子淡入，这样你不用知道快捷键也能点一下把它们打开。点击一个已激活的指示器会把它关回去。如果你宁愿一直看到全部指示器，就在 `~/.config/omarchy/shell.json` 中把 `omarchy.indicators` 条目的 `alwaysShow` 设为 `true`——栏小组件的配置方法见[顶栏](05-the-top-bar.md)。
+未激活的指示器会被隐藏。将鼠标悬停在栏的任意位置，它们会以变暗的状态淡入，这样你无需知道其快捷键即可点击其中一个来开启它。点击已激活的指示器会将其关闭。如果你希望一直看到全部指示器，请在 `~/.config/omarchy/shell.json` 中为 `omarchy.indicators` 条目将 `alwaysShow` 设为 `true`——有关如何配置栏小部件，请参阅[顶栏](05-the-top-bar.md)。
 
-### 夜间暖光
+### 夜间光
 
-夜间暖光把屏幕变暖到 4000K，再切换一次则恢复到 6500K。从切换菜单（`Super + Ctrl + O`）或用 `omarchy toggle nightlight` 来拨动它。它由 hyprsunset 驱动，如果 hyprsunset 还没有运行，这个切换项会替你把它启动起来。
+夜间光会将屏幕调暖至 4000K，再次切换则恢复到 6500K。通过开关菜单（`Super + Ctrl + O`）或 `omarchy toggle nightlight` 来切换它。它由 hyprsunset 驱动，如果 hyprsunset 尚未运行，切换开关会为你启动它。
 
-默认情况下，hyprsunset 根本不会对你的屏幕做任何事。`~/.config/hypr/hyprsunset.conf` 自带一个恒等配置文件，为的就是让显示屏在你要求变暖之前保持原样不动。如果你宁愿让它按时钟自动切换，就把那个文件替换成一个时间配置文件：
+默认情况下，hyprsunset 完全不会对你的屏幕做任何处理。`~/.config/hypr/hyprsunset.conf` 自带一个恒等配置文件，正是为了在你要求变暖之前让显示器保持原样。如果你更希望它按时钟切换，请将该文件替换为时间配置文件：
 
 ```
 profile {
@@ -53,19 +57,19 @@ profile {
 }
 ```
 
-然后通过把 `o.launch_on_start("hyprsunset")` 添加到 `~/.config/hypr/autostart.lua`，让 hyprsunset 在登录时启动。切换项使用的 4000K/6500K 这一对数值是固定的，所以如果你想要不同的色温，去改配置文件。
+然后将 `o.launch_on_start("hyprsunset")` 添加到 `~/.config/hypr/autostart.lua`，以便在登录时启动 hyprsunset。开关使用的 4000K/6500K 组合是固定的，因此如果你想要不同的色温，需要去修改配置文件。
 
 ### 勿扰
 
-`Super + Ctrl + Alt + ,` 会静默通知。它开启时不会有任何提示框弹出来，栏中会出现一个划掉的铃铛指示器，提醒你桌面为什么安静下来了。
+`Super + Ctrl + Alt + ,` 会让通知静音。开启时不会弹出任何提示弹窗，被划掉的铃铛指示器会停留在栏中，提醒你桌面为什么安静了下来。
 
-不过不会有任何东西丢失。被静默的通知会被扣住：用 `Super + Shift + Alt + ,` 把最近几条重新放回屏幕。其余内容见[通知](10-notices.md)。
+但任何内容都不会丢失。被静音的通知会被延后：使用 `Super + Shift + Alt + ,` 将最近的几条重新显示到屏幕上。其余内容请参阅[通知](10-notices.md)。
 
-有两类消息仍然能穿透进来：Omarchy 自己给你的操作确认提示（“主题已更改”、“截图已保存”），以及从命令行发出的关键警报。那些把一切都标记为关键、就为了强行挤到你面前的聊天应用不够格。
+有三种消息仍然可以穿透：Omarchy 自身针对你刚完成的操作显示的确认弹窗（"Theme changed"、"Screenshot saved"）、从命令行发出的关键警报，以及验证码。那些把一切都标记为关键、强行挤到你面前的聊天应用不在此列。
 
-### 闲置
+### 空闲
 
-Omarchy shell 掌管闲置行为，时间设置是 `~/.config/omarchy/shell.json` 中顶层的 `idle` 块：
+Omarchy shell 负责空闲行为，计时设置位于 `~/.config/omarchy/shell.json` 中的顶层 `idle` 块：
 
 ```json
 {
@@ -77,26 +81,26 @@ Omarchy shell 掌管闲置行为，时间设置是 `~/.config/omarchy/shell.json
 }
 ```
 
-两个数字都是从你进入闲置那一刻起计数的秒数——不是从彼此起计。所以按默认设置，屏幕保护程序在两分半钟后出现，锁屏在五分钟时接管，不管屏幕保护程序有没有运行过。保存文件，shell 会立即采用新的时间设置。
+这两个数字都是从你进入空闲状态那一刻起计算的秒数，而不是从对方之后开始计算。因此，在默认设置下，屏幕保护程序会在两分半钟后出现，锁屏会在五分钟时接管，无论屏幕保护程序是否运行过。保存文件后，shell 会立即采用新的计时设置。
 
-如果你在锁定截止时间之前关掉了屏幕保护程序，那会被算作一次活动，待处理的锁定就会被取消。你不会因为瞥了一眼机器就被锁在外面。
+如果你在锁定截止时间之前关闭屏幕保护程序，这会被视为活动，待执行的锁定会被取消。你不会因为瞥了一眼电脑就被锁在外面。
 
-要彻底停止闲置时锁定，`Super + Ctrl + I`——或者 `omarchy toggle idle`——会打开保持唤醒，栏中会出现咖啡杯指示器。做长时间演示或想盯着某个构建过程之前，就该按这个。再按一次则恢复正常。如果你需要从脚本里获取它，`omarchy toggle idle status` 会以 JSON 形式打印当前状态。
+要完全停止空闲锁定，`Super + Ctrl + I`——或 `omarchy toggle idle`——会开启保持唤醒，咖啡杯指示器会出现在栏中。在长时间的演示或你想盯着完成的构建之前，就应该点它。再点一次即可恢复正常。`omarchy toggle idle status` 会以 JSON 格式打印当前状态，供你在脚本中使用。
 
-这里说的是锁定和屏幕保护程序，不是电源。挂起和休眠有它们自己的设置，见[系统睡眠](36-system-sleep.md)。
+这里讨论的是锁定和屏幕保护程序，而不是电源。挂起和休眠有其自己的设置，详见[系统睡眠](36-system-sleep.md)。
 
 ### 屏幕保护程序
 
-Omarchy 的屏幕保护程序是通过随机文字效果运行的 ASCII 艺术，每个显示器一个实例。任意按键或鼠标移动都会退出它。
+Omarchy 的屏幕保护程序是运行随机文本效果的 ASCII 艺术，每个显示器运行一个实例。按下任意键或移动鼠标即可退出。
 
-你可以从_系统 > 屏幕保护程序_（`Super + Esc`）按需启动它，它会强制出现，哪怕你已经关掉了闲置屏幕保护程序。默认没有给它绑定快捷键。
+你可以从 _System > Screensaver_（`Super + Esc`）按需启动它，即使你已关闭空闲屏幕保护程序，它也会强制出现。默认没有为它绑定快捷键。
 
-`omarchy toggle screensaver` 关闭的是闲置时的那个屏幕保护程序，如果你宁愿从工作中直接进入锁定状态的话。它需要一个它知道如何配置的终端——Alacritty、Foot、Ghostty 或 Kitty——如果你的默认终端是别的什么，它会告诉你的。
+如果你更想直接从工作状态进入锁定状态，`omarchy toggle screensaver` 即可关闭空闲屏幕保护程序。任意按键、点击、滚动或鼠标移动都会关闭它。
 
-它绘制的徽标可以由你来改，位于_外观 > 品牌 > 屏幕保护程序_之下。上传一张 png 或 svg，Omarchy 会把它转换成 ASCII。见[品牌](41-branding.md)。
+它绘制的徽标可以由你自行更改，位置在 _Appearance > Branding > Screensaver_ 下。上传 png 或 svg 文件，Omarchy 会将其转换为 ASCII。详见[品牌定制](41-branding.md)。
 
 ### 锁屏
 
-`Super + Ctrl + L` 会锁定机器。它会运行 Omarchy shell 的锁屏，熄灭显示屏，把你的键盘布局重置为第一个，这样你就不会用错字母表输入密码，而且——如果你正在运行 1Password——会在退出时顺带把它也锁上。
+`Super + Ctrl + L` 会锁定机器。这会运行 Omarchy shell 的锁屏、熄灭显示屏、将键盘布局重置为第一个布局，以免你用错误的字母输入密码，并且——如果你正在运行 1Password——会在离开时将其锁定。
 
-锁屏接受密码，一旦你设置好了指纹，它也能接受指纹。这一点以及其他身份验证方式，都在[硬件身份验证](37-hardware-authentication.md)中介绍。
+锁屏接受密码，一旦你设置了指纹，也接受指纹。这一点以及其他身份验证方式，详见[硬件身份验证](37-hardware-authentication.md)。

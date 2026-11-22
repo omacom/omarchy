@@ -1,40 +1,72 @@
 # Klávesové skratky
 
-Všetky hlavné klávesové skratky si môžete pozrieť pomocou `Super + K` (skratky pre Tmux pomocou `Super + Alt + K` a skratky pre Herdr pomocou `Super + Ctrl + K`).
+Všetky hlavné klávesové skratky si môžete pozrieť pomocou `Super + K` (skratky Tmuxu pomocou `Super + Alt + K` a skratky Herdr pomocou `Super + Ctrl + K`).
+
+## Ako sú klávesové skratky usporiadané
+
+Každá klávesová skratka sedí na rovine určenej jej modifikátormi a každá rovina má jednu úlohu. Práve to bráni tomu, aby sa skratky miešali dokopy, a znamená to, že zvyčajne uhádnete, kam niečo patrí.
+
+| Rovina | Čo tam patrí | Príklady |
+| --- | --- | --- |
+| `Super + key` | Systém: okná, pracovné plochy, rozloženia a základné ponuky | `Super + Space` ponuka Omarchy, `Super + W` zatvoriť okno, `Super + F` celá obrazovka |
+| `Super + Shift + key` | Aplikácie | `Super + Shift + B` prehliadač, `Super + Shift + E` e-mail, `Super + Shift + N` editor |
+| `Super + Ctrl + key` | Panely a systémové ponuky | `Super + Ctrl + A` zvuk, `Super + Ctrl + N` sieť, `Super + Ctrl + C` ponuka snímania |
+| `Super + Ctrl + Alt + key` | Rýchle akcie a oznámenia | `Super + Ctrl + Alt + T` zobraziť čas, `Super + Ctrl + Alt + B` batéria, `Super + Ctrl + Alt + C` snímka obrazovky |
+
+Pridaním `Alt` ku klávesovej skratke získate variant toho istého, nikdy niečo nesúvisiace:
+
+- `Super + Shift + B` otvorí prehliadač; `Super + Shift + Alt + B` otvorí súkromné okno
+- `Super + Shift + E` otvorí e-mail; `Super + Shift + Alt + E` začnete nový
+- `Super + F` prejde na celú obrazovku; `Super + Alt + F` prejde na celú šírku
+- `Super + Ctrl + C` otvorí ponuku snímania; `Super + Ctrl + Alt + C` ponuku preskočí a urobí snímku obrazovky
+
+Pri pridávaní klávesovej skratky:
+
+1. Najprv vyberte rovinu podľa toho, čo robí, potom vyberte kláves.
+2. Nepremiestňujte existujúcu skratku, aby ste uvoľnili miesto. Nájdite voľný kláves na správnej rovine.
+3. `Alt` používajte iba pre variant skratky bez neho.
+
+Niekoľko klávesových skratiek tieto pravidlá porušuje, pretože sú pohodlné. `Shift` so šípkou alebo `Tab` presúva alebo obracia smer namiesto otvárania aplikácie a `Print`, multimediálne klávesy, `Alt + Tab` a `Ctrl + Alt + Del` fungujú tak, ako všade inde. Sú to výnimky, nie vzory na kopírovanie.
+
+Ak vám predvolená skratka nevyhovuje (povedzme, že chcete `Super + Shift + S` pre snímky obrazovky ako vo Windowse), premapujte ju v `~/.config/hypr/bindings.lua`.
 
 ## Navigácia
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
 | `Super + Space`           | Ponuka Omarchy (aplikácie a všetko ostatné)    |
 | `Super + Alt + Space` | Mriežka aplikácií |
-| `Super + Escape` | Systémová ponuka (uspanie, reštart atď.)  |
+| `Super + Escape` | Systémová ponuka (uspať, reštartovať atď.)  |
 | `Super + Ctrl + L` | Zamknúť počítač |
-| `Super + W` or `Super + Q` | Zavrieť okno             |
-| `Ctrl + Alt + Del` | Zavrieť všetky okná |
+| `Super + W` or `Super + Q` | Zatvoriť okno             |
+| `Ctrl + Alt + Del` | Zatvoriť všetky okná |
+| `Super + K` | Zobraziť všetky klávesové skratky |
+| `Super + Alt + K` | Zobraziť klávesové skratky tmuxu |
+| `Super + Ctrl + K` | Zobraziť klávesové skratky herdru |
+| `Super + M` | Minimalizovať okno do doku |
 | `Super + T`               | Prepnúť okno medzi dlaždicovým/plávajúcim režimom             |
 | `Super + J` | Prepnúť polohu okna (horizontálna/vertikálna) |
-| `Super + O`               | Prepnúť vyskakovanie okna do režimu sticky'n'floating |
-| `Super + L`               | Prepínať medzi rozloženiami dwindle, scrolling a floating |
-| `Super + Alt + L`         | Prepínať medzi rozloženiami v opačnom poradí |
-| `Super + P`               | Prepnúť štýl pseudo okna (prirodzený v roztiahnutý) |
+| `Super + O`               | Prepnúť vyskakovanie okna do sticky'n'floating |
+| `Super + L`               | Prechádzať rozloženiami dwindle, scrolling a floating |
+| `Super + Alt + L`         | Prechádzať rozloženiami v opačnom poradí |
+| `Super + P`               | Prepnúť štýl pseudo okna (natural v stretch) |
 | `Super + F`                 | Prejsť na celú obrazovku              |
 | `Super + Alt + F`                 | Prejsť na celú šírku              |
 | `Super + Ctrl + F`                 | Prejsť na celú obrazovku vnútri okna              |
-| `Super + 1/2/3/4`         | Prejsť na konkrétny pracovný priestor na zameranom monitore |
-| `Super + Tab` | Prejsť na ďalší pracovný priestor na zameranom monitore |
-| `Super + Shift + Tab` | Prejsť na predchádzajúci pracovný priestor na zameranom monitore |
-| `Super + Ctrl + Tab` | Prejsť na predchádzajúci pracovný priestor na zameranom monitore |
-| `Super + Shift + 1/2/3/4` | Presunúť okno na pracovný priestor na zameranom monitore |
-| `Super + Shift + Alt + 1/2/3/4` | Presunúť okno na pracovný priestor na zameranom monitore bez nasledovania |
-| `Super + S` | Prepnúť celý scratchpad |
-| `Super + Alt + S` | Presunúť okno do celého scratchpadu |
-| `Super + Grave` | Prepnúť konzolu Quake |
-| `Super + Shift + Grave` | Presunúť okno do konzoly Quake |
+| `Super + 1…9/0`         | Skočiť na konkrétnu pracovnú plochu (0 je 10) na zameranom monitore |
+| `Super + Tab` | Skočiť na ďalšiu pracovnú plochu na zameranom monitore |
+| `Super + Shift + Tab` | Skočiť na predchádzajúcu pracovnú plochu na zameranom monitore |
+| `Super + Ctrl + Tab` | Skočiť na bývalú pracovnú plochu na zameranom monitore |
+| `Super + Shift + 1…9/0` | Presunúť okno na pracovnú plochu na zameranom monitore |
+| `Super + Shift + Alt + 1…9/0` | Presunúť okno na pracovnú plochu na zameranom monitore bez nasledovania |
+| `Super + S` | Prepnúť úplný scratchpad |
+| `Super + Alt + S` | Presunúť okno do úplného scratchpadu |
+| `Super + Grave` | Prepnúť Quake konzolu |
+| `Super + Shift + Grave` | Presunúť okno do Quake konzoly |
 | `Super + Shift + Ctrl + Arrows` | Presunúť okno na monitor v danom smere |
-| `Super + Shift + Alt + Arrows` | Presunúť pracovný priestor na monitor v danom smere |
-| `Super + Arrow`  | Presunúť zameranie na okno v smere šípky, na okraji obrazovky prejsť na monitor na danej strane |
-| `Super + Shift + Arrow`  | Vymeniť okno s iným v smere šípky vrátane okna na monitore na danej strane |
+| `Super + Shift + Alt + Arrows` | Presunúť pracovnú plochu na monitor v danom smere |
+| `Super + Arrow`  | Presunúť zameranie na okno v smere šípky, na okraji obrazovky prejsť na monitor na tej strane |
+| `Super + Shift + Arrow`  | Vymeniť okno s iným v smere šípky, vrátane okna na monitore na tej strane |
 | `Super + Minus` | Rozšíriť okno doľava |
 | `Super + Equal` | Zúžiť okno doľava |
 | `Super + Shift + Minus` | Zúžiť okno nahor |
@@ -43,76 +75,92 @@ Všetky hlavné klávesové skratky si môžete pozrieť pomocou `Super + K` (sk
 | `Super + Ctrl + Minus/Equal` | Rovnaká zmena veľkosti vo väčších krokoch |
 | `Super + Alt + Home` | Uložiť šírku okna |
 | `Super + Home` | Obnoviť uloženú šírku okna |
-| `Super + Left Mouse` | Ťahať okno |
+| `Super + Left Mouse` | Ťahať okno myšou |
 | `Super + Right Mouse` | Meniť veľkosť okna |
-| `Super + Scroll Wheel` | Prechádzať pracovnými priestormi na zameranom monitore |
+| `Super + Scroll Wheel` | Rolovať cez pracovné plochy na zameranom monitore |
 | `Super + G`               | Prepnúť zoskupovanie okien      |
-| `Super + Alt + G`               | Presunúť okno von zo zoskupenia      |
-| `Super + Alt + Tab`               | Prepínať medzi oknami v zoskupení      |
-| `Super + Alt + Shift + Tab`               | Prepínať dozadu medzi oknami v zoskupení      |
-| `Super + Alt + Scroll Wheel` | Prepínať medzi oknami v zoskupení |
-| `Super + Alt + 1/2/3/4/5`               | Prejsť na konkrétne okno v zoskupení      |
-| `Super + Alt + Arrow`  | Presunúť okno do zoskupenia v smere šípky vrátane okna na monitore na danej strane |
-| `Super + Ctrl + Left/Right`  | Prechádzať medzi oknami vnútri dlaždicovej skupiny |
+| `Super + Alt + G`               | Presunúť okno zo zoskupenia      |
+| `Super + Alt + Tab`               | Prechádzať oknami v zoskupení      |
+| `Super + Alt + Shift + Tab`               | Prechádzať oknami v zoskupení dozadu      |
+| `Super + Alt + Scroll Wheel` | Prechádzať oknami v zoskupení |
+| `Super + Alt + 1/2/3/4/5`               | Skočiť na konkrétne okno v zoskupení      |
+| `Super + Alt + Arrow`  | Presunúť okno do zoskupenia v smere šípky, vrátane okna na monitore na tej strane |
+| `Super + Ctrl + Left/Right`  | Pohybovať sa medzi oknami vnútri dlaždicovej skupiny |
 | `Super + Ctrl + Z` | Priblížiť obrazovku (opakovaním priblížite viac) |
 | `Super + Ctrl + Alt + Z` | Úplne oddialiť obrazovku |
-| `Super + /` | Krokovať dopredu medzi možnosťami škálovania monitora |
-| `Super + Alt + /` | Krokovať dozadu medzi možnosťami škálovania monitora |
-| `Alt + Tab` | Prepínať dopredu medzi oknami na aktívnom pracovnom priestore |
-| `Alt + Shift + Tab` | Prepínať dozadu medzi oknami na aktívnom pracovnom priestore |
-| `Ctrl + Alt + Tab`| Prepínať zameranie dopredu medzi monitormi |
-| `Ctrl + Alt + Shift + Tab`| Prepínať zameranie dozadu medzi monitormi |
+| `Super + /` | Krokovanie dopredu cez možnosti škálovania monitora |
+| `Super + Alt + /` | Krokovanie dozadu cez možnosti škálovania monitora |
+| `Alt + Tab` | Prechádzať dopredu oknami na aktívnej pracovnej ploche |
+| `Alt + Shift + Tab` | Prechádzať dozadu oknami na aktívnej pracovnej ploche |
+| `Ctrl + Alt + Tab`| Prechádzať zameranie dopredu cez monitory |
+| `Ctrl + Alt + Shift + Tab`| Prechádzať zameranie dozadu cez monitory |
+| `Super + I` | Prepnúť vstupný jazyk (pri viac než jednom rozložení alebo metóde vstupu) |
+| `Super + Shift + I` | Prepnúť vstupný jazyk späť |
+
+Na touchpade prepínajú pracovné plochy, presúvajú okná a otvárajú ponuku a Quake konzolu potiahnutia tromi a štyrmi prstami; gestá nájdete v [klávesnica, myš a trackpad](34-keyboard-mouse-trackpad.md).
+
+Skratky na zmenu veľkosti používajú fyzické klávesy `code:20` a `code:21` (XKB `<AE11>` a `<AE12>`) bez ohľadu na znaky vytlačené na klávesnici. Na amerických klávesniciach sú to klávesy `-` a `=`; na japonských (JIS) klávesniciach `-` a `^`; na španielskych klávesniciach `'` a `¡`. Na JIS je `Super + ^` vlastne `Super + Equal`, zatiaľ čo `Super + Shift + -` (ktoré píše `=`) je `Super + Shift + Minus`.
 
 ## Systémové ovládanie
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | Panel zvuku    |
 | `Super + Ctrl + B`           | Panel Bluetooth    |
 | `Super + Ctrl + N`           | Panel Wi-Fi/siete    |
 | `Super + Ctrl + D`           | Panel displeja    |
 | `Super + Ctrl + P`           | Panel napájania    |
+| `Super + Ctrl + X`           | Panel agentov    |
+| `Super + Ctrl + Alt + X`           | Panel lokálnych modelov    |
 | `Super + Ctrl + Alt + D`           | Panel kalendára    |
-| `Super + Ctrl + Alt + E`           | Panel svetového času    |
-| `Super + Ctrl + 1-9`           | Prepnúť panel lišty podľa polohy    |
+| `Super + Ctrl + Alt + E`           | Panel svetových hodín    |
+| `Super + Ctrl + 1-9`           | Prepnúť panel lišty podľa pozície    |
 | `Super + Ctrl + S` | Ponuka zdieľania (cez LocalSend) |
-| `Super + Ctrl + C` | Ovládanie snímania (snímka obrazovky/nahrávanie/výber farby) |
+| `Super + Ctrl + C` | Ovládanie snímania (snímka obrazovky/nahrávanie/obrazovky/výber farby) |
 | `Super + Ctrl + O` | Prepnúť ponuku |
 | `Super + Ctrl + H` | Ponuka hardvéru |
 | `Super + Ctrl + E` | Výber emoji |
 | `Super + Ctrl + .` | Prekódovať médiá |
 | `Super + Shift + Ctrl + A` | Vybrať AI agenta |
+| `Power` key | Systémová ponuka |
+| `Super + Shift + Copilot` key | Ponuka Omarchy |
 
 ## Úpravy
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
 | `Shift + Brightness Up` | Maximálny jas obrazovky |
 | `Shift + Brightness Down` | Minimálny jas obrazovky |
 | `Alt + Brightness Up/Down` | Presné zmeny jasu o 1 % |
 | `Alt + Volume Up/Down` | Presné zmeny hlasitosti o 1 % |
-| `Keyboard Brightness Up/Down` | Jasnejšie/slabšie podsvietenie klávesnice |
-| `Keyboard Backlight` | Prepínať medzi úrovňami podsvietenia klávesnice |
+| `Keyboard Brightness Up/Down` | Jasnejšie/stmievanie podsvietenia klávesnice |
+| `Keyboard Backlight` | Prechádzať úrovňami podsvietenia klávesnice |
+| `Ctrl + Brightness Up/Down` | Jasnejšie/stmievanie podsvietenia klávesnice na klávesniciach bez vlastných klávesov |
+| `Mic Mute` | Stlmiť mikrofón |
+| `Shift + Mute` | Prepnúť zvukový výstup |
+| `Touchpad Toggle` | Zapnúť alebo vypnúť touchpad |
+| `Display` key | Prechádzať rozložením pracovnej plochy |
 | `Alt + Play` | Ďalšia skladba |
 | `Alt + Shift + Play` | Predchádzajúca skladba |
 
 ## Spúšťanie aplikácií
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
 | `Super + Return`           | Terminál    |
-| `Super + Alt + Return` | Terminál Tmux |
+| `Super + Alt + Return` | Tmux terminál |
 | `Super + Ctrl + Return` | Herdr (správca agentov) |
-| `Super + Shift + Return`           | Prehliadač    |
+| `Super + Shift + Return` or `Super + Shift + B`  | Prehliadač    |
 | `Super + Shift + Alt + B`           | Prehliadač (súkromný/inkognito)    |
 | `Super + Shift + F`           | Správca súborov    |
 | `Super + Shift + Alt + F`           | Správca súborov v cwd terminálu    |
 | `Super + Shift + M`           | Hudba (Spotify)    |
 | `Super + Shift + Alt + M`           | Hudba (cliamp)    |
 | `Super + Shift + /`           | Správca hesiel (1password)    |
-| `Super + Shift + Q`           | Kalkulačka (Omacalc)    |
+| `Super + Shift + Q` or `Calculator` key  | Kalkulačka (Omacalc)    |
+| `Super + Shift + D`           | Docker (lazydocker, po nainštalovaní)    |
 | `Super + Shift + T`           | Aktivita (btop)    |
-| `Super + Shift + N`           | Editor (Neovim)  |
+| `Super + Shift + N`           | Editor (Plain alebo váš zvolený predvolený)  |
 | `Super + Shift + C`           | Kalendár ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | E-mail ([HEY](https://hey.com/))  |
 | `Super + Shift + Alt + E`           | Nový e-mail ([HEY](https://hey.com/))  |
@@ -126,141 +174,143 @@ Všetky hlavné klávesové skratky si môžete pozrieť pomocou `Super + K` (sk
 | `Super + Shift + O`           | Obsidian  |
 | `Super + Shift + W`           | Písanie (Omawrite)  |
 | `Super + Shift + X`           | X |
-| `Super + Shift + Alt + X`           | X Compose |
+| `Super + Shift + Alt + X`           | X (nový príspevok) |
 | `Super + Shift + Y`           | YouTube |
 
-Skratky môžete meniť/pridávať v `~/.config/hypr/bindings.lua`.
+Zmeňte/pridajte skratky v `~/.config/hypr/bindings.lua`.
 
 ## Univerzálna schránka
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
+| `Super + A`           | Vybrať všetko v aplikáciách, ktoré podporujú `Ctrl + A`    |
 | `Super + C`           | Kopírovať    |
 | `Super + X`           | Vystrihnúť (nie v termináli)    |
 | `Super + V`           | Prilepiť    |
 | `Super + Ctrl + V`           | Správca schránky    |
 
-Na Linuxe zvyčajne potrebujete `Ctrl + Shift + C/V` na kopírovanie a prilepovanie v termináli a `Ctrl + C/V` všade inde. Tieto zjednotené klávesové skratky schránky v Omarchy fungujú všade.
+V Linuxe zvyčajne potrebujete `Ctrl + Shift + C/V` na kopírovanie a prilepenie v termináli a `Ctrl + C/V` na to všade inde. Tieto zjednotené klávesové skratky schránky v Omarchy fungujú všade.
 
 ## Snímanie
 
-| Hotkey              | Function                       |
+| Klávesová skratka              | Funkcia                       |
 | ------------------- | ------------------------------ |
 | `Print Screen`            | Snímka obrazovky                      |
-| `Super + Ctrl + Alt + C`            | Snímka obrazovky (ten istý záber, pre klávesnice bez klávesu Print Screen) |
+| `Super + Ctrl + Alt + C`            | Snímka obrazovky (rovnaká snímka, pre klávesnice bez klávesu Print Screen) |
 | `Super + Ctrl + C` | Ponuka snímania |
 | `Alt + Print Screen`            | Nahrávanie obrazovky                     |
+| `Super + Shift + Ctrl + Alt + C` | Nahrávanie obrazovky bez zvuku, s preskočením ponuky (opätovným stlačením zastavíte) |
 | `Super + Print Screen` | Výber farby |
 | `Super + Ctrl + Print Screen` | Extrakcia textu do schránky |
 | `Super + Alt + [` | Zmenšiť prekrytie webkamery počas nahrávania |
 | `Super + Alt + ]` | Zväčšiť prekrytie webkamery počas nahrávania |
-| `Alt + Shift + L` | Skopírovať aktuálnu URL z webovej aplikácie alebo Chromium |
+| `Alt + Shift + L` | Skopírovať aktuálnu URL z webovej aplikácie alebo prehliadača |
 | `Alt + Shift + D` | Stiahnuť video na aktuálnej stránke do `~/Videos` |
-| `Super + Ctrl + X` | Spustiť/zastaviť diktovanie (vyžaduje _Setup > Defaults > Dictation_) |
-| `Right Alt` / `F9` | Diktovanie push-to-talk (vyžaduje Voxtype alebo Superwhisper) |
+| `Alt + Space` | Spustiť/zastaviť diktovanie (vyžaduje _Setup > Defaults > Dictation_) |
+| `Right Alt` | Podržaním diktovať (vyžaduje _Setup > Defaults > Dictation_) |
 
-Pri nahrávaní obrazovky sa skratka najprv spýta, ktorý zvuk chcete, a potom spustí nahrávanie. Stlačte ju znova na zastavenie. Podrobnosti nájdete v časti [snímky obrazovky a nahrávanie](12-screenshots-recording.md).
+Pri nahrávaní obrazovky sa skratka najprv spýta, ktorý zvuk chcete, potom začne nahrávať. Opätovným stlačením nahrávanie zastavíte. Podrobnosti nájdete v [snímky obrazovky a nahrávanie](12-screenshots-recording.md).
 
-Všetky možnosti snímania sú dostupné aj v ponuke Omarchy (`Super + Space`) v časti _Trigger > Capture_.
+Všetky možnosti snímania sú dostupné aj v ponuke Omarchy (`Super + Space`) pod _Trigger > Capture_.
 
-## Upozornenia
+## Oznámenia
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Vykonať akciu pri najnovšom upozornení: otvoriť ho alebo stlačiť jeho jediné tlačidlo, vybrať z jeho možností, alebo ho zrušiť, keď žiadne nemá  |
-| `Super + Shift + ,` | Zrušiť všetky upozornenia |
-| `Super + Ctrl + ,` | Ovládať upozornenia klávesnicou  |
-| `Super + Alt + ,` | Zrušiť najnovšie upozornenie  |
-| `Super + Shift + Alt + ,` | Otvoriť históriu upozornení  |
-| `Super + Ctrl + Alt + ,` | Prepnúť stíšenie upozornení  |
+| `Super + ,` | Vykonať akciu na najnovšom oznámení: otvoriť ho alebo stlačiť jeho jediné tlačidlo, vybrať z jeho možností, alebo ho zrušiť, keď žiadne nemá  |
+| `Super + Shift + ,` | Zrušiť všetky oznámenia |
+| `Super + Ctrl + ,` | Ovládať oznámenia klávesnicou  |
+| `Super + Alt + ,` | Zrušiť najnovšie oznámenie  |
+| `Super + Shift + Alt + ,` | Otvoriť históriu oznámení  |
+| `Super + Ctrl + Alt + ,` | Prepnúť stíšenie oznámení  |
 
 ## Štýl
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + T` | Vybrať novú tému (tiež `Super + Ctrl + Shift + Space`) |
 | `Super + Ctrl + W` | Vybrať pozadie témy (tiež `Super + Ctrl + Space`) |
 | `Super + Backspace` | Prepnúť priehľadnosť okna |
-| `Super + Ctrl + Backspace` | Prepnúť štvorcový pomer strán pre jedno okno |
+| `Super + Ctrl + Backspace` | Prepnúť štvorcový pomer strán jedného okna |
 
 Ďalšie obrázky pozadia sa nachádzajú v `~/.config/omarchy/backgrounds/<theme name>`. Dostupné aj cez _Install > Style > Background_ v ponuke Omarchy.
 
-Všetky možnosti štýlu sú dostupné aj v ponuke Omarchy (`Super + Space`) v časti _Style_.
+Všetky možnosti štýlu sú dostupné aj v ponuke Omarchy (`Super + Space`) pod _Appearance_.
 
 ## Prepínače
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + I` | Prepnúť zamykanie pri nečinnosti |
-| `Super + Ctrl + Delete` | Prepnúť zapnutie/vypnutie displeja notebooku |
+| `Super + Ctrl + Delete` | Zapnúť/vypnúť displej notebooku |
 | `Super + Ctrl + Alt + Delete` | Prepnúť zrkadlenie displeja notebooku |
 | `Super + Shift + Space` | Prepnúť hornú lištu  |
 | `Shift + Mute` | Prepnúť na ďalší zvukový výstup |
 | `Shift + Play` | Prepnúť na ďalší zdroj médií |
 | `Super + Shift + Backspace` | Prepnúť medzery medzi oknami |
-| `Super + Ctrl + Alt + F` | Prepnúť počítač na celú obrazovku (horná lišta + medzery medzi oknami) |
+| `Super + Ctrl + Alt + F` | Prepnúť pracovnú plochu na celú obrazovku (horná lišta + medzery medzi oknami) |
 
 ## Pripomienky
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + R` | Nastaviť pripomienku  |
 | `Super + Ctrl + Alt + R` | Zobraziť všetky pripomienky  |
 | `Super + Ctrl + Shift + R` | Vymazať všetky pripomienky  |
 
-## Oznamy
+## Upozornenia
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Alt + T` | Zobraziť čas ako upozornenie  |
-| `Super + Ctrl + Alt + B` | Zobraziť batériu ako upozornenie  |
-| `Super + Ctrl + Alt + W` | Prepnúť počasie ako upozornenie  |
+| `Super + Ctrl + Alt + T` | Zobraziť čas ako oznámenie  |
+| `Super + Ctrl + Alt + B` | Zobraziť batériu ako oznámenie  |
+| `Super + Ctrl + Alt + W` | Prepnúť počasie ako oznámenie  |
 
 ## Tmux
 
-Prefixový kláves je `Ctrl + Space` (funguje aj `Ctrl + B`). Tieto skratky môžete zmeniť v `~/.config/tmux/tmux.conf`.
+Kláves prefixu je `Ctrl + Space` (funguje aj `Ctrl + B`). Tieto skratky môžete zmeniť v `~/.config/tmux/tmux.conf`.
 
 ### Panely
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
 | `Prefix + v` | Rozdeliť panel vedľa (vertikálne) |
-| `Prefix + h` | Rozdeliť panel nižšie (horizontálne) |
+| `Prefix + h` | Rozdeliť panel pod (horizontálne) |
 | `Prefix + x` | Zabiť panel |
 | `Prefix + z` | Prepnúť priblíženie panela (celá obrazovka) |
-| `Alt + Enter` | Rozdeliť panel nižšie (bez prefixu) |
+| `Alt + Enter` | Rozdeliť panel pod (bez prefixu) |
 | `Alt + Shift + Enter` | Rozdeliť panel vedľa (bez prefixu) |
 | `Alt + Escape` | Zabiť panel (bez prefixu) |
-| `Ctrl + Alt + Arrows` | Prechádzať medzi panelmi |
+| `Ctrl + Alt + Arrows` | Pohybovať sa medzi panelmi |
 | `Ctrl + Alt + Shift + Arrows` | Meniť veľkosť panelov |
 
 ### Okná
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Nové okno |
 | `Prefix + k` | Zabiť okno |
 | `Prefix + r` | Premenovať okno |
 | `Alt + 1-9` | Prejsť na konkrétne okno |
-| `Alt + Arrow Left/Right` | Prechádzať medzi oknami |
+| `Alt + Arrow Left/Right` | Pohybovať sa medzi oknami |
 | `Alt + Shift + Arrow Left/Right` | Presunúť okno doľava/doprava |
 
 ### Relácie
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Nová relácia |
 | `Prefix + K` | Zabiť reláciu |
 | `Prefix + R` | Premenovať reláciu |
 | `Prefix + N` | Ďalšia relácia |
 | `Prefix + P` | Predchádzajúca relácia |
-| `Alt + Arrow Up/Down` | Prechádzať medzi reláciami |
-| `Prefix + s` | Zobraziť zoznam relácií |
+| `Alt + Arrow Up/Down` | Pohybovať sa medzi reláciami |
+| `Prefix + s` | Zoznam relácií |
 | `Prefix + d` | Odpojiť sa od relácie |
 
 ### Režim kopírovania (v štýle vi)
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
 | `Prefix + [` | Vstúpiť do režimu kopírovania |
 | `v` | Začať výber (v režime kopírovania) |
@@ -268,17 +318,17 @@ Prefixový kláves je `Ctrl + Space` (funguje aj `Ctrl + B`). Tieto skratky mô�
 
 ### Všeobecné
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Znova načítať konfiguráciu |
-| `Prefix + ?` | Zobraziť klávesové skratky Tmux |
+| `Prefix + ?` | Zobraziť klávesové skratky Tmuxu |
 | `Prefix + :` | Príkazový riadok |
 
-### Funkcie rozloženia Tmux
+### Funkcie rozloženia Tmuxu
 
-Tieto funkcie sa musia spúšťať vnútri relácie Tmux.
+Tieto funkcie sa musia spúšťať vnútri relácie Tmuxu.
 
-| Command | Function |
+| Príkaz | Funkcia |
 | ------- | -------- |
 | `tdl <ai> [<second_ai>]` | Vytvoriť vývojové rozloženie s editorom, AI a terminálom |
 | `tdlm <ai> [<second_ai>]` | Vytvoriť vývojové rozloženie pre každý podadresár |
@@ -286,49 +336,49 @@ Tieto funkcie sa musia spúšťať vnútri relácie Tmux.
 
 ## Terminál Ghostty
 
-Terminál Ghostty sa inštaluje cez _Install > Terminal_ v ponuke Omarchy.
+Terminál Ghostty sa inštaluje pomocou _Install > Terminal_ cez ponuku Omarchy.
 
-| Hotkey                  | Function              |
+| Klávesová skratka                  | Funkcia              |
 | ----------------------- | --------------------- |
-| `Ctrl + Shift + E` | Nové rozdelenie nižšie |
+| `Ctrl + Shift + E` | Nové rozdelenie pod |
 | `Ctrl + Shift + O` | Nové rozdelenie vedľa |
-| `Ctrl + Alt + Arrows` | Prechádzať medzi rozdeleniami |
+| `Ctrl + Alt + Arrows` | Pohybovať sa medzi rozdeleniami |
 | `Super + Ctrl + Shift + Arrows` | Zmeniť veľkosť rozdelenia o 10 riadkov |
 | `Super + Ctrl + Shift + Alt + Arrows` | Zmeniť veľkosť rozdelenia o 100 riadkov |
 | `Ctrl + Shift + T` | Nová karta  |
-| `Ctrl + Shift + Arrows` | Prechádzať medzi kartami |
+| `Ctrl + Shift + Arrows` | Pohybovať sa medzi kartami |
 | `Alt + Numbers` | Prejsť na konkrétnu kartu |
-| `Shift + Pg Up/Down` | Posúvať históriu |
+| `Shift + Pg Up/Down` | Rolovať históriou |
 | `Ctrl + Left mouse` | Otvoriť odkaz v prehliadači |
 
 ## Správca súborov
 
-| Hotkey              | Function                       |
+| Klávesová skratka              | Funkcia                       |
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Prejsť na cestu                     |
-| `Space`               | Ukážka súboru (šípky navigujú) |
-| `Backspace`      | Vrátiť sa o jeden priečinok späť             |
+| `Space`               | Náhľad súboru (šípky navigujú) |
+| `Alt + Up`       | Prejsť hore do nadradeného priečinka        |
 
 ## Neovim (s lazyvim)
 
 ### Navigácia
 
-| Hotkey                   | Function                        |
+| Klávesová skratka                   | Funkcia                        |
 | ------------------------ | ------------------------------- |
 | `Space`                    | Zobraziť možnosti príkazov            |
 | `Space Space`              | Otvoriť súbor cez fuzzy vyhľadávanie      |
 | `Space E`                  | Prepnúť bočný panel                  |
-| `Space G G`                | Zobraziť ovládanie git               |
-| `Space S G`                | Vyhľadávať v obsahu súboru             |
-| `Ctrl + W W`               | Preskakovať medzi bočným panelom a editorom |
+| `Space G G`                | Zobraziť ovládanie gitu               |
+| `Space S G`                | Hľadať v obsahu súboru             |
+| `Ctrl + W W`               | Skočiť medzi bočným panelom a editorom |
 | `Ctrl + Left/right arrow`  | Zmeniť veľkosť bočného panela          |
 | `Shift + H`                      | Prejsť na ľavú kartu súboru             |
 | `Shift + L`                      | Prejsť na pravú kartu súboru            |
-| `Space B D`                | Zavrieť kartu súboru                  |
+| `Space B D`                | Zatvoriť kartu súboru                  |
 
 ### V bočnom paneli
 
-| Hotkey                   | Function                        |
+| Klávesová skratka                   | Funkcia                        |
 | ------------------------ | ------------------------------- |
 | `A`                        | Pridať nový súbor v nadradenom adresári      |
 | `Shift + A`                | Pridať nový podadresár v nadradenom adresári    |
@@ -337,13 +387,13 @@ Terminál Ghostty sa inštaluje cez _Install > Terminal_ v ponuke Omarchy.
 | `R`                        | Premenovať zvýraznený súbor/adresár     |
 | `?`                        | Zobraziť pomoc pre všetky príkazy      |
 
-[Pozrite si všetky klávesové skratky Neovim nakonfigurované LazyVim](https://www.lazyvim.org/keymaps).
+[Pozrite si všetky klávesové skratky Neovimu nakonfigurované pomocou LazyVim](https://www.lazyvim.org/keymaps).
 
 ## Rýchle emoji
 
-Pomocou `Super + Ctrl + E` môžete zobraziť kompletný výber emoji, ktorý vloží výber do schránky, alebo môžete použiť tieto možnosti rýchleho prístupu.
+Pomocou `Super + Ctrl + E` si môžete zobraziť kompletný výber emoji, ktorý výber umiestni do schránky, alebo môžete použiť tieto možnosti rýchleho prístupu.
 
-| Hotkey       | EM | Clue       |
+| Klávesová skratka       | EM | Nápoveda       |
 | ------------ | -- | ---------- |
 | `Shift + CapsLock M S` | 😄 | úsmev      |
 | `Shift + CapsLock M C` | 😂 | plač        |
@@ -353,7 +403,7 @@ Pomocou `Super + Ctrl + E` môžete zobraziť kompletný výber emoji, ktorý vl
 | `Shift + CapsLock M Y` | 👍 | áno        |
 | `Shift + CapsLock M N` | 👎 | nie         |
 | `Shift + CapsLock M F` | 🖕 | fuck       |
-| `Shift + CapsLock M W` | 🤞 | želanie       |
+| `Shift + CapsLock M W` | 🤞 | prianie       |
 | `Shift + CapsLock M R` | 🤘 | rock       |
 | `Shift + CapsLock M K` | 😘 | bozk       |
 | `Shift + CapsLock M E` | 🙄 | prevrátenie očí    |
@@ -366,15 +416,15 @@ Pomocou `Super + Ctrl + E` môžete zobraziť kompletný výber emoji, ktorý vl
 | `Shift + CapsLock M T` | 🥂 | prípitok      |
 | `Shift + CapsLock M O` |👌 | ok |
 | `Shift + CapsLock M G` |👋 | pozdrav |
-| `Shift + CapsLock M A` |💪 | ruka |
-| `Shift + CapsLock M B` |🤯 | výbuch |
+| `Shift + CapsLock M A` |💪 | rameno |
+| `Shift + CapsLock M B` |🤯 | vybuchnutie |
 
 ## Rýchle dopĺňanie
 
-| Hotkey       | Completion       |
+| Klávesová skratka       | Dopĺňanie       |
 | ------------ |  ---------- |
 | `Shift + CapsLock Space Space` | — (mdash)   |
 | `Shift + CapsLock Space N` | Vaše meno (ako bolo zadané pri nastavení)  |
 | `Shift + CapsLock Space E` | Váš e-mail (ako bol zadaný pri nastavení)  |
 
-Ďalšie vlastné môžete pridať úpravou `~/.XCompose` a následným spustením `omarchy-restart-xcompose` v termináli, aby sa zmeny načítali.
+Ďalšie vlastné môžete pridať úpravou `~/.XCompose`, potom spustením `omarchy restart xcompose` v termináli, aby sa zmeny načítali.

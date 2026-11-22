@@ -1,12 +1,12 @@
 # Temaer
 
-Omarchy kommer med tjueto vakre temaer. Du kan velge mellom dem via _Utseende > Tema_ i Omarchy-menyen (`Super + Space`) eller hoppe rett til temavelgeren med `Super + Ctrl + T`.
+Omarchy leveres med tjuetre vakre temaer. Du kan velge mellom dem via _Utseende > Tema_ i Omarchy-menyen (`Super + Space`) eller hoppe rett til temavelgeren med `Super + Ctrl + T`.
 
-Hvert tema styler skrivebordet, terminalen, neovim, aktivitetsskjermen (btop), Chromium og hele Omarchy-skallet: topplinjen, menyen, varsler, OSD og låseskjermen. (For Obsidian må du manuelt velge Omarchy-temaet via _Utseende > Temaer_ inne i appen).
+Hvert tema styler skrivebordet, terminalen, neovim, aktivitetskjermen (btop), nettleseren din (Chrome, Chromium, Edge eller Brave) og hele Omarchy-skallet: toppbjelken, menyen, varsler, OSD og låseskjermen. (For Obsidian må du manuelt velge Omarchy-temaet via _Utseende > Temaer_ inne i appen).
 
 Temaer har et sett med bakgrunnsbilder som du kan velge mellom med `Super + Ctrl + W`.
 
-Du finner enda flere temaer på [siden med ekstra temaer](https://omarchy.org/themes/) eller til og med [lage ditt eget tema](43-making-your-own-theme.md).
+Du kan finne enda flere temaer på [siden med ekstra temaer](https://omarchy.org/themes/) eller til og med [lage ditt eget tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,6 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
+
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
+### Appikoner
+
+Ikonene i appstarteren og dokken tegnes i fargene til temaet ditt, så de endrer seg sammen med det. De kommer fra et ikonsett, som du velger separat fra temaet under _Utseende > Ikoner_, fra forhåndsvisninger av hvert sett, på samme måte som du velger et tema:
+
+- _Papercraft_ er standarden: alt som leveres installert, tegnet i én stil. Apper som er kjent for logoen sin, som Chrome, HEY eller YouTube, beholder formen sin og får fargene til temaet.
+- _Arcade_ tegner de samme appene som 8-bit pikselkunst, slik en gammel spillkonsoll ville gjort det.
+- _Original_ viser hver app med ikonet skaperen ga den.
+
+Du kan installere et ikonsett noen andre har laget med _Installer > Stil > Ikoner_ (eller `omarchy icons install <git url>`), og fjerne det igjen under _Fjern > Ikoner_. _Oppdater > Ekstra ikoner_ henter den nyeste versjonen av settene du har installert.
+
+For å lage ditt eget, legg ikonene dine i `~/.config/omarchy/icons/<name>/`, én fil per app, oppkalt etter `Icon=`-linjen i appens `.desktop`-fil. En fil som slutter på `.svg`, vises som den er. En fil som slutter på `.svg.tpl`, tegnes i fargene til temaet: skriv `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` eller `{{ icon_shadow }}` der en farge skal være. Standardsettet i `/usr/share/omarchy/icons/papercraft/` er et godt sted å starte fra. Legg til en `preview.png` for å vise settet ditt i velgeren; uten en slik tegner Omarchy en forhåndsvisning fra ikonene dine. For å endre ett enkelt ikon i standardsettet, legg din versjon i `~/.config/omarchy/icons/papercraft/`.
+
 ### Opplåsinger
 
 Temaer kan også ha et tilpasset opplåsingsdesign, som brukes til dekrypteringsprosessen ved oppstart. Du kan velge ett av disse under _Utseende > Opplåsing_. De ser slik ut:
@@ -96,8 +120,14 @@ _Jade Horse_
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -116,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_
