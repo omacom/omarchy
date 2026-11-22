@@ -280,6 +280,15 @@ OMARCHY_TEST_MONITORS_JSON="$stack" run_scaling --monitor DP-1 2.5
   fail "monitor shrink keeps the stacked row touching" "actual: $(<"$eval_out")"
 pass "monitor shrink keeps the stacked row touching"
 
+# A screen beyond the stacked display can share only a short part of its
+# edge; moving sideways must not leave that screen touching nothing.
+fresh
+stack='[{"name":"DP-1","x":0,"y":0,"width":3840,"height":2160,"scale":2.5,"refreshRate":60},{"name":"eDP-1","x":256,"y":864,"width":2560,"height":1664,"scale":2},{"name":"DP-2","x":-500,"y":1696,"width":1920,"height":1080,"scale":2}]'
+OMARCHY_TEST_MONITORS_JSON="$stack" run_scaling --monitor DP-1 2
+[[ $(setting eDP-1) == "|256x1080|2" && $(setting DP-2) == "|-500x1912|2" ]] ||
+  fail "monitor growth keeps the screen beyond its stacked neighbour connected" "actual: $(<"$eval_out")"
+pass "monitor growth keeps the screen beyond its stacked neighbour connected"
+
 # In a row of three, the far screen moves out of the way before the middle one
 # moves into its spot, and on the way back the middle one closes in first.
 fresh
