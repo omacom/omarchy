@@ -20,6 +20,8 @@ It runs on these Macs:
 
 M4 and newer Macs aren't supported yet. M4 support is in testing on the edge channel and comes next. The installer checks your Mac before it changes anything.
 
+On any Apple Silicon Mac, including M4 and newer, you can run Omarchy in a virtual machine with [Try Omarchy](https://github.com/omacom/try-omarchy).
+
 ### What you need
 
 - macOS 15 Sequoia or later, and an administrator account
