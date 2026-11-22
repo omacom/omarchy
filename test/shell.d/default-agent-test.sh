@@ -62,9 +62,6 @@ cat >"$mock_bin/opencode" <<'SH'
 printf '%s\0' opencode "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
 SH
 
-# Pi is a package on every install, so it is always on PATH.
-printf '#!/bin/bash\n' >"$mock_bin/pi"
-
 cat >"$mock_bin/omarchy-mise-install" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_STUB_LOG"
@@ -1012,18 +1009,13 @@ mapfile -d '' -t launch_args <"$launch_log"
 rm "$mock_bin/omarchy-models-warmup"
 pass "a stopped local model is started in the agent's terminal before the agent opens"
 
-# A default that can't take the overlay, with no pi or OpenCode to stand in,
-# still opens rather than failing as --local would.
+# A default that can't take the overlay hands the local model to pi.
 printf '%s\n' "codex" >"$agent_file"
-: >"$notification_history"
-printf '#!/bin/bash\nexit 1\n' >"$mock_bin/omarchy-cmd-present"
-chmod +x "$mock_bin/omarchy-cmd-present"
 prefer_local_launch '{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}'
-[[ ${launch_args[*]} == *"codex --approve-for-me" && ${launch_args[*]} != *overlays* ]] ||
-  fail "--prefer-local falls back to a default that can't take the overlay: ${launch_args[*]}"
-[[ ! -s $notification_history ]] || fail "--prefer-local falling back raises no notification"
+[[ ${launch_args[*]} == *"pi --extension /overlays/pi-big.config"* ]] ||
+  fail "a default that can't take the overlay opens the local model in pi: ${launch_args[*]}"
 printf '%s\n' "opencode" >"$agent_file"
-rm "$mock_bin/omarchy-models" "$mock_bin/omarchy-cmd-present"
+rm "$mock_bin/omarchy-models"
 pass "--prefer-local opens the running local model, and the usual agent otherwise"
 
 : >"$launch_log"

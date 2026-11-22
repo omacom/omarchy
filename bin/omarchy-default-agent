@@ -31,7 +31,7 @@ if (($# == 0)); then
 fi
 
 case "$1" in
-pi) agent="pi"; name="Pi"; agent_system_package="pi-coding-agent" ;;
+pi) agent="pi"; name="Pi" ;;
 omp | oh-my-pi) agent="omp"; name="Oh My Pi"; agent_package="oh-my-pi" ;;
 opencode | open-code) agent="opencode"; name="OpenCode" ;;
 ori | openrouter) agent="ori"; name="Ori"; agent_package="ori" ;;
@@ -95,11 +95,10 @@ if [[ -n ${agent_installer:-} ]]; then
   # minutes-long install inside the menu action instead.
   agent_present() { "$agent_installer" --check; }
   agent_install() { "$agent_installer" --now; }
-elif [[ -n ${agent_system_package:-} ]]; then
-  # Pi is a package every install has, so it is only missing for a user who
-  # removed the preinstalls. A pi of their own on PATH counts as installed.
-  agent_present() { omarchy-cmd-present "$agent"; }
-  agent_install() { agent_present || omarchy-pkg-add "$agent_system_package"; }
+elif [[ $agent == "pi" ]]; then
+  # Pi is one of Omarchy's base packages, so there is nothing to install.
+  agent_present() { true; }
+  agent_install() { true; }
 else
   # omarchy-mise-install's wrappers run `mise use` and `mise x`, current ones on
   # lines of their own and older ones after an inline variable; either way
@@ -154,7 +153,7 @@ if [[ $installing == "false" ]] && ! agent_present; then
 fi
 
 if ! agent_install; then
-  if [[ $installing == "true" && -n ${agent_installer:-}${agent_system_package:-} ]]; then
+  if [[ $installing == "true" && -n ${agent_installer:-} ]]; then
     echo "Could not install $name" >&2
   elif [[ $installing == "true" ]]; then
     echo "Could not install $name with mise" >&2

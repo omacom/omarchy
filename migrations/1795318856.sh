@@ -7,9 +7,7 @@ if omarchy-mise-default-tools list | grep -qx pi; then
   exit 1
 fi
 
-if [[ ! -f $HOME/.local/state/omarchy/preinstalls-removed ]]; then
-  omarchy-pkg-add pi-coding-agent
-fi
+omarchy-pkg-add pi-coding-agent
 
 # mise's shims come before /usr/bin on PATH, and the shim left by the dropped
 # declaration fails rather than falling through to the package. A Pi the user
