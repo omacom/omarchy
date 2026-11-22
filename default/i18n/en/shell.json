@@ -1,6 +1,7 @@
 {
   "agents.addKinds": "Subscription, per use, or local",
   "agents.addTitle": "Add an agent",
+  "agents.blockNetworkModel": "USE A NETWORK MODEL",
   "agents.blockOwnModel": "USE A LOCAL MODEL",
   "agents.blockProviders": "USE PAY AS YOU GO",
   "agents.blockSubscriptions": "USE A SUBSCRIPTION",
@@ -82,6 +83,10 @@
   "agents.editInstructions": "Edit AGENTS.md, the instructions every agent follows",
   "agents.forgetAccountConfirm": "Remove %1? Its sign-in is deleted from this machine, so adding it back means signing in again.",
   "agents.removeFailed": "Couldn't remove %1",
+  "agents.removeDefaultLocalModelConfirm": "Remove %1 from the panel? It keeps running, + adds it back, and the agent at the top becomes the default.",
+  "agents.removeLocalModelConfirm": "Remove %1 from the panel? It keeps running, and + adds it back.",
+  "agents.unlink": "Unlink",
+  "agents.unlinkModelConfirm": "Unlink %1 from %2? You can always add it back with +.",
   "agents.hideProviderConfirm": "Hide %1 from the panel? Credentials and sign-in will be kept.",
   "agents.isDefault": "Your default agent",
   "agents.launchHarness": "Start %1",

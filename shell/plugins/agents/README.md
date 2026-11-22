@@ -40,9 +40,17 @@ per local coding model that is running and ready.
   into these; each is keyed by the account's email, or its id without one,
   so a renamed account keeps its place. Click an account's name to rename it
   in place. Only the account in use can turn the bar icon urgent.
-- **Local models** — each coding model running and ready on this machine, or
-  on a paired machine that's online, gets a line: its maker's mark, its name,
-  the machine for a paired one, and its speed, context, and memory where a
+- **Local models** — each coding model added from the add screen that's
+  running and ready on this machine, or on a paired machine that's online,
+  gets a line, as does the one a default of "local" opens. The models added
+  are kept in `~/.local/state/omarchy/agents/local-models.json`. Delete on
+  a model's line takes it off the panel and back to the add screen, the model
+  still running, and the default's hands the default to the highest line
+  that can take it, or stays when none can; removing a model from this
+  machine in
+  the local models panel does the same. A line shows
+  its maker's mark, its name, the machine for a paired one, and its memory,
+  speed, and context where a
   subscription shows limits. Its terminal button opens Pi on it (`omarchy
   agent --local-model`). Starting, stopping, and removing models belong to
   the local models panel.
@@ -95,13 +103,16 @@ per local coding model that is running and ready.
   _Use pay as you go_ (Fireworks, OpenCode Zen and Go, and OpenRouter, all
   run in OpenCode, and More: DeepSeek, then OpenCode's own sign-in for any
   other provider; every key is checked like Fireworks'), each a
-  large mark four across, and _Use a local model_: a line for each coding model a paired,
-  online machine is running, then one for the best coding model for this
-  computer when the local models catalog has one that fits. The first one is
-  focused and the hero reads Add an agent. A model that's ready opens the
-  agent on it; one to set up hands its setup to the local models panel, which
-  follows the download. With no default agent yet, the local model becomes it
-  once the chosen model is ready, as the first sign-in does. Copilot, Cursor, and Muse are added with `omarchy
+  large mark four across, then _Use a network model_: a line for each coding model not added yet
+  that a paired, online machine is running, and _Use a local model_: one for
+  each this machine is running, then one for the best coding model for this
+  computer when the local models catalog has one that fits and it isn't
+  added. The first one is focused and the hero reads Add an agent.
+  Choosing a model adds it. One that's ready opens the agent on it; one to set
+  up stays on the add screen, with its installing, download, and loading
+  under it as the local models panel would show them, until it runs and the
+  add screen steps back to the panel. With no default agent yet, the local
+  model becomes it once the chosen model is ready, as the first sign-in does. Copilot, Cursor, and Muse are added with `omarchy
   agent account add`, and a lapsed sign-in of theirs still gets its link here. The + becomes
   the X that goes back. A further Claude, Codex, or Grok account asks for a
   name first, and Enter signs it in; the others keep one sign-in each, which

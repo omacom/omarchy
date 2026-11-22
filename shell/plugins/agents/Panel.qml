@@ -45,17 +45,44 @@ Panel {
     return !!line && !!line.account && line.account.primary !== true
   }
 
+  // A local model's line goes back to the add screen; the default's hands
+  // the default on, since the default always has its line, and stays when
+  // no other line could take it.
   function removable(line) {
-    if (!line || line.localModel) return false
+    if (!line) return false
+    if (line.localModel) return !opensByDefault(line) || !!defaultSuccessor(line)
     return !line.account || (forgets(line) && line.account.active !== true)
   }
 
+  function opensByDefault(line) {
+    return !!line && !!line.localModel && usage.defaultAgent === "local" && line.localModel.target === localDefaultTarget
+  }
+
+  // The highest line but this one that can be the default.
+  function defaultSuccessor(line) {
+    return usage.panelProviders.find(function(other) {
+      return usage.lineId(other) !== usage.lineId(line) && defaultIdFor(other) !== ""
+    }) || null
+  }
+
   // Forgets an added account, or hides the agent from the panel; a hidden
-  // one comes back from settings, or by signing in again.
+  // one comes back from settings, or by signing in again. A local model
+  // keeps running, and the add screen offers it again.
   function confirmDelete() {
     var target = deleteTarget
     deleteTarget = null
     if (!target) return
+    if (target.localModel) {
+      // The default's line hands the default to the highest line left that
+      // can take it, as if its star were pressed.
+      if (opensByDefault(target)) {
+        var next = defaultSuccessor(target)
+        if (!next) return
+        makeDefault(next, next.account || null)
+      }
+      usage.removeLocalModels([target.localModel.target])
+      return
+    }
     if (forgets(target)) {
       Util.execArgv(["bash", "-c", 'out=$(omarchy-agent-account-remove "$1" "$2" </dev/null 2>&1) || omarchy-notification-send -u critical "$3" "$out"',
                      "remove-account", target.providerId, String(target.account.id), Commons.I18n.t("agents.removeFailed").arg(lineName(target))])
@@ -398,34 +425,100 @@ Panel {
   // download, so choosing it hands over there.
   readonly property var localModelsService: bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.local-models") : null
 
-  // What the local block offers: a paired machine's coding model that's
-  // running now, ready at once, then the best one for this computer.
+  // What the network and local blocks offer: each coding model running now,
+  // ready at once, a paired machine's before this one's, then the best one
+  // for this computer. One already added has its line in the panel instead.
   readonly property var ownModelOffers: {
     var offers = []
-    var lines = localModelLines
+    var lines = localModelLines.filter(function(line) { return !usage.localModelAdded(line) })
+    lines.sort(function(a, b) { return (a.localModel.host === "") - (b.localModel.host === "") })
     for (var i = 0; i < lines.length; i++)
-      if (lines[i].localModel.host !== "")
-        offers.push({ target: lines[i].localModel.target, name: lines[i].providerName, vendor: lines[i].iconId,
-                      host: lines[i].localModel.host, facts: lines[i].localModel, ready: true })
+      offers.push({ target: lines[i].localModel.target, name: lines[i].providerName, vendor: lines[i].iconId,
+                    host: lines[i].localModel.host, facts: lines[i].localModel, ready: true })
+    lines = localModelLines
     var recipes = localModelsService ? localModelsService.localRecipes || [] : []
     var recipe = recipes.find(function(r) { return r.kind === "text" && r.best && r.available })
-    if (recipe)
+    var running = lines.some(function(line) { return recipe && line.localModel.target === String(recipe.id) })
+    if (recipe && !running && (usage.addedLocalModels.indexOf(String(recipe.id)) < 0 || settingUpLocal === String(recipe.id)))
       offers.push({ target: String(recipe.id), name: recipe.name || String(recipe.id), vendor: recipe.vendor || "local",
                     host: "", facts: recipe, ready: recipe.installed === true, recipe: recipe })
     return offers
   }
 
-  // A model set up from here becomes the default once it's running, if
-  // nothing else was finished first.
-  property string pendingLocalDefault: ""
+  // The network block's share of the offers, which come first.
+  readonly property int networkOfferCount: ownModelOffers.filter(function(offer) { return offer.host !== "" }).length
+
+  // A model removed from this machine is no longer added, so set up again
+  // it's offered on the add screen first. One still being set up or
+  // downloaded isn't installed yet either, and stays.
+  readonly property var removedLocalModels: {
+    if (!localModelsService) return []
+    var recipes = localModelsService.localRecipes || []
+    var models = (localModelsService.localModel || {}).models || {}
+    var setups = localModelsService.setupRows()
+    return usage.addedLocalModels.filter(function(target) {
+      return target.indexOf("/") < 0 && !models[target] && !setups.some(function(row) { return row.recipe === target })
+        && recipes.some(function(recipe) { return String(recipe.id) === target && recipe.installed === false })
+    })
+  }
+  onRemovedLocalModelsChanged: if (removedLocalModels.length > 0) usage.removeLocalModels(removedLocalModels)
+
+  // A model set up from here keeps its row on the add screen, showing how
+  // the setup goes, until it runs. Then it becomes the default if nothing
+  // else was finished first, and the add screen steps back to the panel,
+  // where it now has its line.
+  property string settingUpLocal: ""
   onLocalModelLinesChanged: {
-    if (pendingLocalDefault === "") return
+    if (settingUpLocal === "") return
     for (var i = 0; i < localModelLines.length; i++) {
-      if (localModelLines[i].localModel.target !== pendingLocalDefault) continue
-      if (usage.defaultAgent === "") selectLocalDefault(pendingLocalDefault)
-      pendingLocalDefault = ""
+      if (localModelLines[i].localModel.target !== settingUpLocal) continue
+      if (usage.defaultAgent === "") selectLocalDefault(settingUpLocal)
+      settingUpLocal = ""
+      if (addStage === "pick") cancelAdd()
       return
     }
+  }
+
+  // Where that setup is: the model as the local models service has it
+  // (installing, then loading), or, before it lists it, the setup starting,
+  // waiting its turn, or failed.
+  readonly property var localSetup: {
+    if (settingUpLocal === "" || !localModelsService) return null
+    var model = ((localModelsService.localModel || {}).models || {})[settingUpLocal]
+    if (model) return model
+    return localModelsService.setupRows().find(function(row) { return row.recipe === settingUpLocal }) || null
+  }
+
+  // Its meter: what it's doing, how far along (by the download's bytes, or by
+  // time against what a load usually takes), and the download's speed.
+  readonly property var localSetupMeter: {
+    var model = localSetup
+    if (!model) return null
+    var install = model.install || {}
+    var elapsed = Math.max(0, (nowMs - Number(model.since_ms || nowMs)) / 1000)
+    var creep = function(expected) { return elapsed <= expected ? 0.9 * elapsed / expected : 0.9 + 0.08 * (1 - Math.exp(-(elapsed - expected) / expected)) }
+    // Set up but stopped: failed, or too big for the memory free. Stopped
+    // without either is the moment between download and start.
+    if (model.unit === "inactive" && model.fits === false && !model.error)
+      return { title: Commons.I18n.t("localModels.notEnoughMemory"), value: -1, rate: "", failed: true }
+    if ((model.unit === "installing" && install.phase === "failed") || model.unit === "failed" || (model.unit === "inactive" && !!model.error))
+      return { title: String(model.error || "") || Commons.I18n.t("localModels.setupFailed"), value: -1, rate: "", failed: true }
+    if (model.unit === "installing" && install.phase === "dependencies")
+      return { title: Commons.I18n.t("localModels.installingMeter"), value: creep(30), rate: "" }
+    if (model.unit === "installing") {
+      var total = Number(install.total_bytes) || 0
+      return { title: Commons.I18n.t("localModels.downloadingMeter"), value: total > 0 ? (Number(install.done_bytes) || 0) / total : 0,
+               rate: downloadRate(Number(install.rate_bytes_s) || 0) }
+    }
+    return { title: Commons.I18n.t("localModels.loadingMeter"), value: creep(Number(model.expected_load_seconds) || 60), rate: "" }
+  }
+
+  // The setup's meter moves by the second, so the clock ticks while it shows.
+  Timer {
+    interval: 250
+    running: root.opened && root.picking && root.localSetupMeter !== null && !root.localSetupMeter.failed
+    repeat: true
+    onTriggered: root.nowMs = Date.now()
   }
 
   function selectLocalDefault(target) {
@@ -491,16 +584,18 @@ Panel {
 
   function chooseOwnModel(index) {
     var offer = ownModelOffers[index]
-    if (!offer) return
-    root.close()
+    // A setup underway goes on; one that failed, or whose password prompt
+    // was dismissed, is tried again.
+    if (!offer || (offer.target === settingUpLocal && localSetupMeter && !localSetupMeter.failed)) return
+    usage.addLocalModel(offer.target)
     if (offer.ready) {
+      root.close()
       // Ready now, so it's the first one finished when nothing else is.
       if (usage.defaultAgent === "") selectLocalDefault(offer.target)
       Util.execArgv(["omarchy-agent", "--local-model", offer.target])
     } else {
-      if (usage.defaultAgent === "") pendingLocalDefault = offer.target
+      settingUpLocal = offer.target
       localModelsService.setUp(offer.recipe)
-      Util.execArgv(["omarchy-shell", "omarchy.local-models", "open"])
     }
   }
 
@@ -1525,6 +1620,7 @@ Panel {
     id: usage
     settings: root.settings
     localModelLines: root.localModelLines
+    localDefaultTarget: root.localDefaultTarget
   }
 
   Process {
@@ -1645,7 +1741,13 @@ Panel {
           handleKey(event)
           event.accepted = true
         }
+        // A paired machine's model is unlinked, whatever else follows.
+        readonly property bool unlinks: !!root.deleteTarget && !!root.deleteTarget.localModel && root.deleteTarget.localModel.host !== ""
+        confirmText: unlinks ? Commons.I18n.t("agents.unlink") : Commons.I18n.t("common.confirm")
         message: !root.deleteTarget ? ""
+          : unlinks ? Commons.I18n.t("agents.unlinkModelConfirm").arg(root.deleteTarget.providerName).arg(root.deleteTarget.localModel.host)
+          : root.opensByDefault(root.deleteTarget) ? Commons.I18n.t("agents.removeDefaultLocalModelConfirm").arg(root.deleteTarget.providerName)
+          : root.deleteTarget.localModel ? Commons.I18n.t("agents.removeLocalModelConfirm").arg(root.deleteTarget.providerName)
           : root.forgets(root.deleteTarget) ? Commons.I18n.t("agents.forgetAccountConfirm").arg(root.lineName(root.deleteTarget))
           : Commons.I18n.t("agents.hideProviderConfirm").arg(root.deleteTarget.providerName)
         foreground: root.foreground
@@ -1977,8 +2079,29 @@ Panel {
         }
       }
 
+      // A model from a paired machine, in a block of its own above this
+      // machine's.
       Column {
-        visible: root.ownModelOffers.length > 0
+        visible: root.networkOfferCount > 0
+        width: parent.width
+        spacing: Style.space(10)
+
+        PanelSeparator { foreground: root.foreground }
+
+        PanelSectionHeader {
+          text: Commons.I18n.t("agents.blockNetworkModel")
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+        }
+
+        Repeater {
+          model: root.ownModelOffers.slice(0, root.networkOfferCount)
+          delegate: ownModelRow
+        }
+      }
+
+      Column {
+        visible: root.ownModelOffers.length > root.networkOfferCount
         width: parent.width
         spacing: Style.space(10)
 
@@ -1991,72 +2114,121 @@ Panel {
         }
 
         Repeater {
-          model: root.ownModelOffers
+          model: root.ownModelOffers.slice(root.networkOfferCount)
+          delegate: ownModelRow
+        }
+      }
 
-          Item {
-            id: ownModel
-            required property var modelData
-            required property int index
-            readonly property bool hasCursor: root.hasKey("ownModel", index)
-            width: parent.width
-            implicitHeight: ownModelText.implicitHeight + Style.space(16)
-            onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
+      // One offered model; its place among all the offers, network ones
+      // first, is what the keys and choosing go by.
+      Component {
+        id: ownModelRow
 
-            CursorSurface {
-              anchors.fill: parent
-              hasCursor: ownModel.hasCursor || ownModelMouse.containsMouse
-              foreground: root.foreground
+        Item {
+          id: ownModel
+          required property var modelData
+          required property int index
+          readonly property int offerIndex: index + (modelData.host !== "" ? 0 : root.networkOfferCount)
+          readonly property bool hasCursor: root.hasKey("ownModel", offerIndex)
+          width: parent.width
+          implicitHeight: ownModelText.implicitHeight + Style.space(16)
+          onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
+
+          CursorSurface {
+            anchors.fill: parent
+            hasCursor: ownModel.hasCursor || ownModelMouse.containsMouse
+            foreground: root.foreground
+          }
+
+          // The maker's mark, as the local models panel draws it.
+          ProviderIcon {
+            id: ownModelMark
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            provider: ({ providerId: String(ownModel.modelData.vendor || "local") })
+            size: Style.font.display
+          }
+
+          Column {
+            id: ownModelText
+            anchors.left: ownModelMark.right
+            anchors.leftMargin: Style.space(12)
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(2)
+
+            Text {
+              width: parent.width
+              text: ownModel.modelData.name
+              textFormat: Text.PlainText
+              color: ownModel.hasCursor ? Commons.Color.accent : root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              font.bold: true
+              elide: Text.ElideRight
             }
 
-            // The maker's mark, as the local models panel draws it.
-            ProviderIcon {
-              id: ownModelMark
-              anchors.left: parent.left
-              anchors.leftMargin: Style.space(8)
-              anchors.verticalCenter: parent.verticalCenter
-              provider: ({ providerId: String(ownModel.modelData.vendor || "local") })
-              size: Style.font.display
+            // A paired machine's model says whose it is before its facts.
+            Text {
+              width: parent.width
+              text: [ownModel.modelData.host, root.ownModelFacts(ownModel.modelData.facts)].filter(function(part) { return part !== "" }).join(" · ")
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
             }
 
-            Column {
-              id: ownModelText
-              anchors.left: ownModelMark.right
-              anchors.leftMargin: Style.space(12)
-              anchors.right: parent.right
-              anchors.verticalCenter: parent.verticalCenter
-              spacing: Style.space(2)
+            // The setup started here, as the local models panel would show
+            // it: installing, downloading, then loading.
+            Item {
+              readonly property var meter: ownModel.modelData.target === root.settingUpLocal ? root.localSetupMeter : null
+              visible: !!meter
+              width: parent.width
+              implicitHeight: visible ? Math.max(setupTitle.implicitHeight, setupRate.implicitHeight) + Style.space(6) : 0
 
               Text {
-                width: parent.width
-                text: ownModel.modelData.name
+                id: setupTitle
+                width: parent.meter && parent.meter.failed ? parent.width : parent.width * 0.3
+                anchors.bottom: parent.bottom
                 textFormat: Text.PlainText
-                color: ownModel.hasCursor ? Commons.Color.accent : root.foreground
+                text: parent.meter ? parent.meter.title : ""
+                color: parent.meter && parent.meter.failed ? root.urgent : root.foreground
                 font.family: root.fontFamily
-                font.pixelSize: Style.font.body
-                font.bold: true
-                elide: Text.ElideRight
+                font.pixelSize: Style.font.bodySmall
               }
 
-              // A paired machine's model says whose it is before its facts.
+              Meter {
+                visible: !!parent.meter && !parent.meter.failed
+                anchors.left: setupTitle.right
+                anchors.right: setupRate.left
+                anchors.rightMargin: Style.space(20)
+                anchors.verticalCenter: setupTitle.verticalCenter
+                value: parent.meter ? parent.meter.value : 0
+              }
+
               Text {
-                width: parent.width
-                text: [ownModel.modelData.host, root.ownModelFacts(ownModel.modelData.facts)].filter(function(part) { return part !== "" }).join(" · ")
+                id: setupRate
+                anchors.right: parent.right
+                anchors.verticalCenter: setupTitle.verticalCenter
                 textFormat: Text.PlainText
+                horizontalAlignment: Text.AlignRight
+                text: parent.meter ? parent.meter.rate : ""
                 color: root.dim
                 font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-                elide: Text.ElideRight
+                font.pixelSize: Style.font.bodySmall
               }
             }
+          }
 
-            MouseArea {
-              id: ownModelMouse
-              anchors.fill: parent
-              hoverEnabled: true
-              cursorShape: Qt.PointingHandCursor
-              onEntered: root.pointAt("ownModel", ownModel.index)
-              onClicked: root.chooseOwnModel(ownModel.index)
-            }
+          MouseArea {
+            id: ownModelMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onEntered: root.pointAt("ownModel", ownModel.offerIndex)
+            onClicked: root.chooseOwnModel(ownModel.offerIndex)
           }
         }
       }
