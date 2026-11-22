@@ -23,7 +23,6 @@
   "agents.editInstructions": "Editar o AGENTS.md, as instruções que todos os agentes seguem",
   "agents.enterApiKey": "Cole sua chave de API",
   "agents.firstBecomesDefault": "O primeiro é seu padrão",
-  "agents.forgetAccount": "Remover %1",
   "agents.forgetAccountConfirm": "Remover %1? O login será excluído desta máquina, então para adicioná-lo de volta será preciso entrar novamente.",
   "agents.freeResets": {
     "many": "%1 redefinições gratuitas",
@@ -44,7 +43,6 @@
   "agents.helpSignInExpired": "O login salvo de %1 expirou. Inicie %1 para atualizá-lo.",
   "agents.helpStartOrRunToSignIn": "Inicie %1 ou execute %2 para entrar.",
   "agents.helpStartToSeeLimits": "Inicie %1 para ver seus limites; não é preciso entrar novamente.",
-  "agents.hideProvider": "Remover %1 do painel",
   "agents.hideProviderConfirm": "Ocultar %1 do painel? As credenciais e o login serão mantidos.",
   "agents.installingMeter": "Instalando",
   "agents.isDefault": "Seu agente padrão",

@@ -23,7 +23,6 @@
   "agents.editInstructions": "すべてのエージェントが従う指示、AGENTS.md を編集",
   "agents.enterApiKey": "APIキーを貼り付け",
   "agents.firstBecomesDefault": "最初のがデフォルトになります",
-  "agents.forgetAccount": "%1 を削除",
   "agents.forgetAccountConfirm": "%1 を削除しますか？このマシンからサインイン情報が削除されるため、再追加するには再度サインインが必要です。",
   "agents.freeResets": {
     "other": "%1 回の無料リセット"
@@ -40,7 +39,6 @@
   "agents.helpSignInExpired": "%1 の保存済みサインインの期限が切れました。更新するには %1 を起動してください。",
   "agents.helpStartOrRunToSignIn": "サインインするには %1 を起動するか、%2 を実行してください。",
   "agents.helpStartToSeeLimits": "上限を確認するには %1 を起動してください。再度のサインインは不要です。",
-  "agents.hideProvider": "パネルから %1 を非表示",
   "agents.hideProviderConfirm": "パネルから %1 を非表示にしますか？認証情報とサインインは保持されます。",
   "agents.installingMeter": "インストール中",
   "agents.isDefault": "デフォルトのエージェント",

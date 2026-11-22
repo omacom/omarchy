@@ -23,7 +23,6 @@
   "agents.editInstructions": "ویرایش AGENTS.md، دستورالعمل‌هایی که همهٔ عامل‌ها دنبال می‌کنند",
   "agents.enterApiKey": "کلید API خود را بچسبانید",
   "agents.firstBecomesDefault": "اولی پیش‌فرض شماست",
-  "agents.forgetAccount": "حذف %1",
   "agents.forgetAccountConfirm": "%1 حذف شود؟ ورود آن از این دستگاه حذف می‌شود، پس افزودن دوبارهٔ آن یعنی ورود دوباره.",
   "agents.freeResets": {
     "one": "%1 بازنشانی رایگان",
@@ -42,7 +41,6 @@
   "agents.helpSignInExpired": "ورود ذخیره‌شدهٔ %1 منقضی شده است. برای تازه‌سازی، %1 را شروع کنید.",
   "agents.helpStartOrRunToSignIn": "برای ورود، %1 را شروع کنید یا %2 را اجرا کنید.",
   "agents.helpStartToSeeLimits": "برای مشاهدهٔ محدودیت‌ها %1 را شروع کنید؛ نیازی به ورود دوباره نیست.",
-  "agents.hideProvider": "حذف %1 از پنل",
   "agents.hideProviderConfirm": "%1 از پنل پنهان شود؟ اعتبارنامه‌ها و ورود حفظ می‌شود.",
   "agents.installingMeter": "در حال نصب",
   "agents.isDefault": "عامل پیش‌فرض شما",

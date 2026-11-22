@@ -23,7 +23,6 @@
   "agents.editInstructions": "Edita AGENTS.md, les instruccions que segueixen tots els agents",
   "agents.enterApiKey": "Enganxa la clau API",
   "agents.firstBecomesDefault": "El primer és el teu predeterminat",
-  "agents.forgetAccount": "Elimina %1",
   "agents.forgetAccountConfirm": "Elimina %1? El seu inici de sessió s'esborrarà d'aquest equip, així que per tornar-lo a afegir hauràs de tornar a iniciar sessió.",
   "agents.freeResets": {
     "many": "%1 restabliments gratuïts",
@@ -44,7 +43,6 @@
   "agents.helpSignInExpired": "L'inici de sessió desat de %1 ha caducat. Inicia %1 per actualitzar-lo.",
   "agents.helpStartOrRunToSignIn": "Inicia %1 o executa %2 per iniciar sessió.",
   "agents.helpStartToSeeLimits": "Inicia %1 per veure'n els límits; no cal tornar a iniciar sessió.",
-  "agents.hideProvider": "Elimina %1 del panell",
   "agents.hideProviderConfirm": "Amaga %1 del panell? Es conservaran les credencials i l'inici de sessió.",
   "agents.installingMeter": "Instal·lant",
   "agents.isDefault": "El teu agent predeterminat",

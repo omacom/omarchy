@@ -23,7 +23,6 @@
   "agents.editInstructions": "Επεξεργάσου το AGENTS.md, τις οδηγίες που ακολουθεί κάθε agent",
   "agents.enterApiKey": "Επικόλλησε το κλειδί API σου",
   "agents.firstBecomesDefault": "Το πρώτο γίνεται το προεπιλεγμένο σου",
-  "agents.forgetAccount": "Αφαίρεσε το %1",
   "agents.forgetAccountConfirm": "Αφαίρεση του %1; Η σύνδεσή του διαγράφεται από αυτό το μηχάνημα, οπότε για να το ξαναπροσθέσεις πρέπει να συνδεθείς ξανά.",
   "agents.freeResets": {
     "one": "%1 δωρεάν επαναφορά",
@@ -42,7 +41,6 @@
   "agents.helpSignInExpired": "Η αποθηκευμένη σύνδεση του %1 έληξε. Ξεκίνα το %1 για να την ανανεώσεις.",
   "agents.helpStartOrRunToSignIn": "Ξεκίνα το %1 ή εκτέλεσε το %2 για να συνδεθείς.",
   "agents.helpStartToSeeLimits": "Ξεκίνα το %1 για να δεις τα όριά του· δεν χρειάζεται να συνδεθείς ξανά.",
-  "agents.hideProvider": "Αφαίρεσε το %1 από το πάνελ",
   "agents.hideProviderConfirm": "Απόκρυψη του %1 από το πάνελ; Τα διαπιστευτήρια και η σύνδεση θα διατηρηθούν.",
   "agents.installingMeter": "Εγκατάσταση",
   "agents.isDefault": "Ο προεπιλεγμένος σου agent",

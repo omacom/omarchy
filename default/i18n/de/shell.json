@@ -23,7 +23,6 @@
   "agents.editInstructions": "Bearbeite AGENTS.md, die Anweisungen, die jeder Agent befolgt",
   "agents.enterApiKey": "Füge deinen API-Schlüssel ein",
   "agents.firstBecomesDefault": "Der erste ist dein Standard",
-  "agents.forgetAccount": "%1 entfernen",
   "agents.forgetAccountConfirm": "%1 entfernen? Die gespeicherte Anmeldung wird von diesem Computer gelöscht, sodass du dich beim erneuten Hinzufügen wieder anmelden musst.",
   "agents.freeResets": {
     "one": "%1 kostenloser Reset",
@@ -42,7 +41,6 @@
   "agents.helpSignInExpired": "Die gespeicherte Anmeldung von %1 ist abgelaufen. Starte %1, um sie zu aktualisieren.",
   "agents.helpStartOrRunToSignIn": "Starte %1 oder führe %2 aus, um dich anzumelden.",
   "agents.helpStartToSeeLimits": "Starte %1, um seine Limits zu sehen; eine erneute Anmeldung ist nicht nötig.",
-  "agents.hideProvider": "%1 aus dem Panel ausblenden",
   "agents.hideProviderConfirm": "%1 aus dem Panel ausblenden? Zugangsdaten und Anmeldung bleiben erhalten.",
   "agents.installingMeter": "Wird installiert",
   "agents.isDefault": "Dein Standardagent",

@@ -23,7 +23,6 @@
   "agents.editInstructions": "عدّل AGENTS.md، التعليمات التي يتبعها كل وكيل",
   "agents.enterApiKey": "الصق مفتاح API",
   "agents.firstBecomesDefault": "الأول هو وكيلك الافتراضي",
-  "agents.forgetAccount": "إزالة %1",
   "agents.forgetAccountConfirm": "إزالة %1؟ سيُحذف تسجيل دخوله من هذا الجهاز، فتتطلب إعادته تسجيل الدخول مجددًا.",
   "agents.freeResets": {
     "few": "%1 عمليات إعادة تعيين مجانية",
@@ -50,7 +49,6 @@
   "agents.helpSignInExpired": "انتهى تسجيل دخول %1 المحفوظ. شغّل %1 لتجديده.",
   "agents.helpStartOrRunToSignIn": "شغّل %1، أو نفّذ %2، لتسجيل الدخول.",
   "agents.helpStartToSeeLimits": "شغّل %1 لعرض حدوده؛ لا حاجة لتسجيل الدخول مجددًا.",
-  "agents.hideProvider": "إزالة %1 من اللوحة",
   "agents.hideProviderConfirm": "إخفاء %1 من اللوحة؟ ستُحفظ بيانات الاعتماد وتسجيل الدخول.",
   "agents.installingMeter": "جارٍ التثبيت",
   "agents.isDefault": "وكيلك الافتراضي",

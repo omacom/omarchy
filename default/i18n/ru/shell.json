@@ -23,7 +23,6 @@
   "agents.editInstructions": "Изменить AGENTS.md — инструкции для всех агентов",
   "agents.enterApiKey": "Вставьте API-ключ",
   "agents.firstBecomesDefault": "Первый станет вашим агентом по умолчанию",
-  "agents.forgetAccount": "Удалить %1",
   "agents.forgetAccountConfirm": "Удалить %1? Вход будет удалён с этого компьютера, и при повторном добавлении придётся войти снова.",
   "agents.freeResets": {
     "few": "%1 бесплатных сброса",
@@ -46,7 +45,6 @@
   "agents.helpSignInExpired": "Сохранённый вход в %1 истёк. Запустите %1, чтобы обновить его.",
   "agents.helpStartOrRunToSignIn": "Запустите %1 или выполните %2, чтобы войти.",
   "agents.helpStartToSeeLimits": "Запустите %1, чтобы увидеть его лимиты; входить заново не нужно.",
-  "agents.hideProvider": "Скрыть %1 из панели",
   "agents.hideProviderConfirm": "Скрыть %1 из панели? Учётные данные и вход будут сохранены.",
   "agents.installingMeter": "Установка",
   "agents.isDefault": "Ваш агент по умолчанию",

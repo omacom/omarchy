@@ -23,7 +23,6 @@
   "agents.editInstructions": "Rediger AGENTS.md, instruktionerne alle agenter følger",
   "agents.enterApiKey": "Indsæt din API-nøgle",
   "agents.firstBecomesDefault": "Den første er din standardagent",
-  "agents.forgetAccount": "Fjern %1",
   "agents.forgetAccountConfirm": "Fjern %1? Dens login slettes fra denne maskine, så du skal logge ind igen for at tilføje den på ny.",
   "agents.freeResets": {
     "one": "%1 gratis nulstilling",
@@ -42,7 +41,6 @@
   "agents.helpSignInExpired": "Det gemte login for %1 er udløbet. Start %1 for at opdatere det.",
   "agents.helpStartOrRunToSignIn": "Start %1, eller kør %2, for at logge ind.",
   "agents.helpStartToSeeLimits": "Start %1 for at se dets grænser; du behøver ikke logge ind igen.",
-  "agents.hideProvider": "Fjern %1 fra panelet",
   "agents.hideProviderConfirm": "Skjul %1 fra panelet? Loginoplysninger og login bevares.",
   "agents.installingMeter": "Installerer",
   "agents.isDefault": "Din standardagent",

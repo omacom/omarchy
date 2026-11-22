@@ -23,7 +23,6 @@
   "agents.editInstructions": "Уреди AGENTS.md, упутства која прати сваки агент",
   "agents.enterApiKey": "Налепи API кључ",
   "agents.firstBecomesDefault": "Први је ваш подразумевани агент",
-  "agents.forgetAccount": "Уклони %1",
   "agents.forgetAccountConfirm": "Уклонити %1? Његова пријава се брише са овог рачунара, па поновно додавање значи поновну пријаву.",
   "agents.freeResets": {
     "few": "%1 бесплатна ресетовања",
@@ -44,7 +43,6 @@
   "agents.helpSignInExpired": "Сачувана пријава за %1 је истекла. Покрените %1 да је освежите.",
   "agents.helpStartOrRunToSignIn": "Покрените %1 или извршите %2 да се пријавите.",
   "agents.helpStartToSeeLimits": "Покрените %1 да видите ограничења; поновна пријава није потребна.",
-  "agents.hideProvider": "Уклони %1 са панела",
   "agents.hideProviderConfirm": "Сакрити %1 са панела? Акредитиви и пријава остају сачувани.",
   "agents.installingMeter": "Инсталирање",
   "agents.isDefault": "Ваш подразумевани агент",
