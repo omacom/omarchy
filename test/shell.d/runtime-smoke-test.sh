@@ -508,6 +508,30 @@ scratch_ipc_quiet image-selector cancel "$selector_done_file" >/dev/null
 rm -f "$selector_selection_file" "$selector_done_file"
 pass "image selector IPC survives plugin rescan"
 
+# Large collections must reach the real picker without one oversized argument.
+large_rows_file="$SCRATCH_DIR/selector-large-rows"
+for i in {1..800}; do
+  printf '%s/backgrounds/a-wallpaper-with-a-long-descriptive-name-%04d.jpg\t%s/thumbnails/%032d.jpg\n' "$SCRATCH_DIR" "$i" "$SCRATCH_DIR" "$i"
+done >"$large_rows_file"
+(( $(stat -c %s "$large_rows_file") > 110000 )) || fail "large image rows fixture exceeds the old argument limit"
+large_rows_last=$(printf '%s/backgrounds/a-wallpaper-with-a-long-descriptive-name-%04d.jpg' "$SCRATCH_DIR" 800)
+large_done_file=$(mktemp "$SCRATCH_DIR/selector-done.XXXXXX")
+rm -f "$large_done_file"
+[[ $(OMARCHY_SHELL_IPC_TIMEOUT=5s scratch_ipc image-selector openFile "$large_rows_file" "$large_rows_last" "$SCRATCH_DIR/selector-large-selection" "$large_done_file" false false) == "ok" ]] ||
+  fail_with_log "image selector accepts rows from a few hundred images"
+rm -f "$large_rows_file"
+# Selecting the last row proves the picker received the complete list.
+large_current=""
+for _ in {1..80}; do
+  large_current=$(scratch_ipc shell call omarchy.image-picker currentPath "" 2>/dev/null || true)
+  [[ $large_current == "$large_rows_last" ]] && break
+  sleep 0.1
+done
+scratch_ipc_quiet image-selector cancel "$large_done_file" >/dev/null
+[[ $large_current == "$large_rows_last" ]] ||
+  fail_with_log "image selector loads all rows from a few hundred images"
+pass "image selector loads rows from a few hundred images"
+
 lock_status_after=$(scratch_ipc lock status) || fail_with_log "lock IPC answers after plugin rescan"
 jq -e '.locked | type == "boolean"' <<<"$lock_status_after" >/dev/null || fail_with_log "lock IPC survives plugin rescan"
 lock_event_after=$(jq -r '.lastEvent // empty' <<<"$lock_status_after")

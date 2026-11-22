@@ -54,7 +54,12 @@ export TRANSPORT_BASE64="$base64_binary"
 
 cache_dir="$tmp/cache/omarchy/image-selector"
 key=$(printf '%s\n%s' "$images" "$second" | md5sum | cut -d ' ' -f 1)
-printf 'v3\n%s:%s\n%s:%s\n' "$images" "$(stat -Lc '%Y' "$images")" "$second" "$(stat -Lc '%Y' "$second")" >"$cache_dir/$key.fast-signature"
+{
+  printf 'v4\n'
+  for dir in "$images" "$second"; do
+    printf '%s\n%s\n' "$dir" "$(find -L "$dir" -maxdepth 1 -type f -printf '%f:%s:%T@\n')"
+  done
+} >"$cache_dir/$key.fast-signature"
 rows_file="$cache_dir/$key.rows"
 printf '%s\t%s\n' "$selected" "$tmp/cache/selected preview.jpg" >"$rows_file"
 for (( i = 0; i < 1500; i++ )); do

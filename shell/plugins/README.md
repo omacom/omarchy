@@ -59,17 +59,16 @@ Fullscreen image-grid selector overlay. Used by `omarchy-menu-images`
 (wallpaper picker) and `omarchy-theme-switcher` (theme picker) and any
 other caller that wants to present a directory of images with previews.
 
-Two ways to drive it:
+Three ways to drive it:
 
 - Shell-level summon: `omarchy-shell shell summon omarchy.image-picker '<jsonPayload>'`.
   The payload can carry `imageDirs`, `imageRows`, `selectedImage`,
   `selectionFile`, `doneFile`, `showLabels`, `filterable`. Best for
   in-shell callers that already speak JSON.
-- Direct IPC target: `omarchy-shell image-selector open <imageDirs> <imageRowsB64> <selectedImage> <selectionFile> <doneFile> <showLabels> <filterable>`.
-  Positional args; `imageRowsB64` is base64-encoded so embedded newlines /
-  tabs survive the bash argv handoff. This is what `omarchy-menu-images`
-  uses. Colors come from the central shell theme singleton; there is no
-  per-call override surface.
+- Direct IPC target: `omarchy-shell image-selector open <imageDirs> <imageRowsB64> <selectedImage> <selectionFile> <doneFile> <showLabels> <filterable>`. `imageRowsB64` is base64-encoded so embedded newlines and tabs survive the argument handoff. `preload <imageRowsB64> <selectedImage> <showLabels> <filterable>` warms the picker without opening it.
+- File IPC: `omarchy-shell image-selector openFile <imageRowsFile> <selectedImage> <selectionFile> <doneFile> <showLabels> <filterable>` and `preloadFile <imageRowsFile> <selectedImage> <showLabels> <filterable>`. The file holds the same original/thumbnail rows. Both methods consume it before returning, so the caller can remove it after the reply, even if the plugin loads later. `omarchy-menu-images` uses these methods above 72 KiB of raw rows to avoid oversized IPC arguments and retains base64 IPC for smaller lists.
+
+Colors come from the central shell theme singleton; there is no per-call override surface.
 
 The selection round-trip remains file-based: callers create a
 `selection_file` and `done_file` (both `mktemp`), pass the paths, and
