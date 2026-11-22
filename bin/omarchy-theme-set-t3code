@@ -21,7 +21,12 @@ T3CODE_THEME_PATH="$T3CODE_STATE_DIR/themes/omarchy.json"
 # change runs this one on its own. Hold it through publication so a switch
 # cannot swap the theme between reading its JSON and its CSS, and an older run
 # cannot publish after a newer one.
-exec {theme_lock}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
+lock_dir="${XDG_RUNTIME_DIR:-$HOME/.local/state/omarchy}"
+mkdir -p "$lock_dir" || exit 1
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  chmod 700 "$lock_dir" || exit 1
+fi
+exec {theme_lock}>"$lock_dir/omarchy-theme-set.lock"
 flock "$theme_lock"
 
 [[ -f $T3CODE_SOURCE_PATH ]] || exit 0

@@ -78,25 +78,32 @@ exec 7>&-
 (( status == 124 )) || fail "theme set waits on the lock beside its state" "exit $status, expected a timeout"
 pass "theme set waits on the lock beside its state"
 
-# A window transparency change writes into the current theme, so it waits on
-# the same lock.
+# Every writer and palette publisher must wait before touching shared state.
 stub_dir="$test_tmp/bin"
-mkdir -p "$stub_dir"
+mkdir -p "$stub_dir" "$test_home/.config/herdr-app" "$test_home/.t3/userdata"
 for command in hyprctl omarchy-notification-send omarchy-restart-terminal omarchy-theme-set-foot omarchy-restart-btop; do
   printf '#!/bin/bash\n' >"$stub_dir/$command"
 done
 chmod +x "$stub_dir"/*
-exec 7>"$state_lock"
-flock 7
-status=0
-env -u XDG_RUNTIME_DIR \
-  HOME="$test_home" XDG_STATE_HOME="$test_tmp/state" XDG_CONFIG_HOME="$test_home/.config" \
-  OMARCHY_PATH="$ROOT" PATH="$stub_dir:$ROOT/bin:$PATH" \
-  timeout 3 omarchy-hyprland-window-transparency opaque >/dev/null 2>&1 || status=$?
-flock -u 7
-exec 7>&-
-(( status == 124 )) || fail "window transparency waits on the theme set lock" "exit $status, expected a timeout"
-pass "window transparency waits on the theme set lock"
+touch "$test_tmp/background.png"
+for command in omarchy-hyprland-window-transparency omarchy-theme-bg-set omarchy-theme-set-herdr-app omarchy-theme-set-t3code; do
+  case $command in
+    omarchy-hyprland-window-transparency) arguments=(opaque) ;;
+    omarchy-theme-bg-set) arguments=("$test_tmp/background.png") ;;
+    *) arguments=() ;;
+  esac
+  status=0
+  (
+    flock 7
+    env -u XDG_RUNTIME_DIR \
+      HOME="$test_home" XDG_STATE_HOME="$test_tmp/state" XDG_CONFIG_HOME="$test_home/.config" \
+      HERDR_APP_HOME="$test_home/.config/herdr-app" T3CODE_HOME="$test_home/.t3" \
+      OMARCHY_PATH="$ROOT" PATH="$stub_dir:$ROOT/bin:$PATH" \
+      timeout 1 "$command" "${arguments[@]}" 7>&- >/dev/null 2>&1
+  ) 7>"$state_lock" || status=$?
+  (( status == 124 )) || fail "$command waits on the theme set lock" "exit $status, expected a timeout"
+  pass "$command waits on the theme set lock"
+done
 
 # Another account that can reach the lock can hold it, read-only or not.
 chmod 755 "$test_home/.local/state/omarchy"
