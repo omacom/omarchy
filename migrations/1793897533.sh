@@ -18,20 +18,27 @@ if [[ ! -f $limine_conf ]]; then
   # The ESP is often mounted umask=0077, so an unreadable menu is not a
   # missing one; and a denied prompt must leave this migration pending,
   # not done, so authentication failure stops it here.
-  sudo -v
+  sudo true
   sudo test -f "$limine_conf" || exit 0
 fi
 
 sudo flock /run/lock/boot-partition.lock bash -c '
   conf=$1
-  grep -Eqi "^[[:space:]]*(timeout|quiet):" "$conf" && exit 0
-  # Both lines in one rewrite, so an interrupted run leaves neither.
-  if grep -Eqi "^[[:space:]]*#timeout:" "$conf"; then
-    sed -i -E "0,/^[[:space:]]*#timeout:.*/I s//timeout: 1\nquiet: yes/" "$conf"
-  else
-    sed -i "1i timeout: 1\nquiet: yes" "$conf"
+  if ! grep -Eqi "^[[:space:]]*(timeout|quiet):" "$conf"; then
+    # Both lines in one rewrite, so an interrupted run leaves neither.
+    if grep -Eqi "^[[:space:]]*#timeout:" "$conf"; then
+      sed -i -E "0,/^[[:space:]]*#timeout:.*/I s//timeout: 1\nquiet: yes/" "$conf"
+    else
+      sed -i "1i timeout: 1\nquiet: yes" "$conf"
+    fi
+    grep -Eqi "^[[:space:]]*timeout:" "$conf" && grep -Eqi "^[[:space:]]*quiet:" "$conf" || exit 1
   fi
-  grep -Eqi "^[[:space:]]*timeout:" "$conf" && grep -Eqi "^[[:space:]]*quiet:" "$conf"
+
+  # Retry enrollment even when a previous run already repaired the menu.
+  enroll=$(sed -nE "s/^[[:space:]]*ENABLE_ENROLL_LIMINE_CONFIG[[:space:]]*=[[:space:]]*//p" /etc/default/limine 2>/dev/null | tail -n 1)
+  if [[ $enroll =~ ^\"?yes\"?$ ]]; then
+    limine-enroll-config
+  fi
 ' _ "$limine_conf" || {
   echo "Could not set the quiet boot menu in $limine_conf; it will be retried on the next update" >&2
   exit 1
