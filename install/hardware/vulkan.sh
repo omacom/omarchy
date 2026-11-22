@@ -9,11 +9,18 @@ declare -A VULKAN_DRIVERS=(
 
 PACKAGES=()
 
+pci_devices=$(lspci || true)
+
 for vendor in "${!VULKAN_DRIVERS[@]}"; do
-  if lspci | grep -iE "(VGA|Display).*$vendor" > /dev/null; then
+  if grep -qiE "(VGA|Display).*$vendor" <<<"$pci_devices"; then
     PACKAGES+=("${VULKAN_DRIVERS[$vendor]}")
   fi
 done
+
+# Adreno GPUs are platform devices, so lspci never sees them.
+if omarchy-hw-aarch64-qualcomm; then
+  PACKAGES+=(vulkan-freedreno)
+fi
 
 if (( ${#PACKAGES[@]} > 0 )); then
   omarchy-pkg-add "${PACKAGES[@]}"

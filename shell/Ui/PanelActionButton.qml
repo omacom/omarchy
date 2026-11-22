@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 
 // Small (22×22 by default) icon button used at the right edge of panel rows
 // for inline actions — forget network, confirm passphrase, unpair device,
@@ -28,12 +29,16 @@ BorderSurface {
   id: root
 
   property string iconText: ""
+  // An app's own icon in place of the glyph, when it has one.
+  property string iconSource: ""
   property string tooltipText: ""
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property color hoverColor: foreground
   property string fontFamily: Style.font.family
   property real fontSize: Style.font.icon
-  property real size: Math.max(Style.space(22), fontSize + Style.spacing.sm * 2)
+  // Whole and odd, so an icon glyph (usually an odd number of pixels wide)
+  // has the same space on both sides instead of one pixel more on one side.
+  property real size: Math.round(Math.max(Style.space(22), fontSize + Style.spacing.sm * 2)) | 1
 
   property bool focusable: false
   property bool hasCursor: false
@@ -57,7 +62,7 @@ BorderSurface {
     ? Border.controlSpec("focus", hoverColor, hoverColor)
     : (_hot && bordered
       ? Border.controlSpec("hover-cursor", hoverColor, hoverColor)
-      : (bordered ? Border.controlSpec("normal", foreground, Color.accent) : Border.none()))
+      : (bordered ? Border.controlSpec("normal", foreground, Commons.Color.accent) : Border.none()))
 
   color: _showFocusRing
     ? Style.focusFillFor(hoverColor, hoverColor)
@@ -66,11 +71,26 @@ BorderSurface {
       : "transparent")
   borderSpec: _borderSpec
 
-  Behavior on color { ColorAnimation { duration: 60 } }
+  Behavior on color { ColorAnimation { duration: Style.duration(60) } }
+
+  Image {
+    visible: root.iconSource !== ""
+    anchors.centerIn: parent
+    width: Math.round(root.fontSize * 1.15)
+    height: width
+    sourceSize: Qt.size(width * 2, height * 2)
+    source: root.iconSource
+    fillMode: Image.PreserveAspectFit
+    smooth: true
+    opacity: root.enabled ? 1 : 0.5
+  }
 
   Text {
+    visible: root.iconSource === ""
     textFormat: Text.PlainText
-    anchors.centerIn: parent
+    // Snap to whole pixels so the glyph doesn't round away from the fill's center.
+    x: Math.round((root.width - width) / 2)
+    y: Math.round((root.height - height) / 2)
     text: root.iconText
     color: root.enabled
       ? (root._hot ? root.hoverColor : root.foreground)

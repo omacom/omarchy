@@ -32,24 +32,30 @@ test_run_id="test-$BASHPID-$RANDOM"
 state_dir="$runtime_dir/omarchy-update-stay-awake-$test_run_id"
 state_hardlink="$runtime_dir/.omarchy-update-stay-awake-hardlink-$test_run_id"
 inhibitor_log="$test_tmp/inhibitors"
-mkdir -p "$stub_bin" "$test_home" "$mapped_root/bin" "$mapped_root/default/omarchy/sudo-no-update"
+mkdir -p "$stub_bin" "$test_home" "$mapped_root/bin"
 : >"$inhibitor_log"
 
 cat >"$stub_bin/pkexec" <<'SH'
 #!/bin/bash
+[[ -z ${SUDO_EVENT_LOG:-} ]] || printf 'pkexec\n' >>"$SUDO_EVENT_LOG"
 exec "$@"
 SH
 
 cat >"$stub_bin/sudo" <<'SH'
 #!/bin/bash
 case ${1:-} in
-  -h) echo 'usage: sudo [-bHkNnPS] command'; exit 0 ;;
-  -k|-K|-v) exit 0 ;;
+  -k|-K|-v)
+    [[ -z ${SUDO_EVENT_LOG:-} ]] || printf 'sudo %s\n' "$1" >>"$SUDO_EVENT_LOG"
+    exit 0
+    ;;
 esac
+[[ -z ${SUDO_EVENT_LOG:-} ]] || printf 'sudo %s\n' "$*" >>"$SUDO_EVENT_LOG"
+# Non-interactive sudo cannot authenticate without a cached credential.
+[[ ${1:-} != "-n" || -z ${SUDO_COLD:-} ]] || exit 1
 background=0
 while (( $# )); do
   case "$1" in
-    -N|-n) shift ;;
+    -n) shift ;;
     -b) background=1; shift ;;
     --) shift; break ;;
     *) break ;;
@@ -105,11 +111,9 @@ ln -s "$stub_bin/omarchy-toggle-idle" "$mapped_root/bin/omarchy-toggle-idle"
 mapped_helper="$mapped_root/bin/omarchy-update-stay-awake"
 cp "$ROOT/bin/omarchy-update-stay-awake" "$mapped_helper"
 cp "$ROOT/bin/omarchy-security-functions" "$mapped_root/bin/omarchy-security-functions"
-cp "$ROOT/default/omarchy/sudo-no-update/sudo" "$mapped_root/default/omarchy/sudo-no-update/sudo"
 for mapped_file in \
   "$mapped_helper" \
-  "$mapped_root/bin/omarchy-security-functions" \
-  "$mapped_root/default/omarchy/sudo-no-update/sudo"; do
+  "$mapped_root/bin/omarchy-security-functions"; do
   sed -i \
     -e "s#/usr/bin/sudo#$stub_bin/sudo#g" \
     -e "s#/usr/bin/pkexec#$stub_bin/pkexec#g" \
@@ -118,7 +122,7 @@ for mapped_file in \
     -e 's#state_dir="$state_base/omarchy-update-stay-awake"#state_dir="$state_base/omarchy-update-stay-awake-${OMARCHY_TEST_RUN_ID:?}"#' \
     "$mapped_file"
 done
-chmod +x "$mapped_helper" "$mapped_root/default/omarchy/sudo-no-update/sudo"
+chmod +x "$mapped_helper"
 
 run_helper() {
   HOME="$test_home" \
@@ -173,8 +177,33 @@ read -r version valid_pid valid_start valid_owner valid_token <"$state_dir/inhib
   fail "inhibitor state is private, caller-owned, and singly linked"
 run_helper stop
 wait_dead "$valid_pid" || fail "valid inhibitor identity is stopped"
+
 [[ ! -e $state_dir ]] || fail "valid state is cleaned after stop"
 pass "valid XDG runtime uses private atomic inhibitor state"
+
+# Root holds the inhibitor directly, so only other accounts authenticate.
+if (( EUID == 0 )); then
+  skip "inhibitor authentication paths do not apply to root"
+else
+  # Without a terminal, the inhibitor reuses a cached authorization, such as the
+  # update's own, non-interactively instead of asking again through polkit.
+  sudo_events="$test_tmp/sudo-events"
+  : >"$sudo_events"
+  SUDO_EVENT_LOG="$sudo_events" run_helper start </dev/null
+  SUDO_EVENT_LOG="$sudo_events" run_helper stop </dev/null
+  grep -q -- '^sudo -n -b -- ' "$sudo_events" || fail "inhibitor without a terminal did not reuse sudo" "$(<"$sudo_events")"
+  ! grep -qx pkexec "$sudo_events" || fail "inhibitor without a terminal asked polkit" "$(<"$sudo_events")"
+  ! grep -qx 'sudo -k' "$sudo_events" || fail "inhibitor revoked the caller's authorization" "$(<"$sudo_events")"
+  pass "inhibitor without a terminal reuses a cached authorization instead of polkit"
+
+  # With nothing cached it asks through polkit rather than failing.
+  : >"$sudo_events"
+  SUDO_COLD=1 SUDO_EVENT_LOG="$sudo_events" run_helper start </dev/null
+  SUDO_COLD=1 SUDO_EVENT_LOG="$sudo_events" run_helper stop </dev/null
+  grep -qx pkexec "$sudo_events" || fail "inhibitor without a terminal or cached authorization did not use polkit" "$(<"$sudo_events")"
+  ! grep -q -- '^sudo -n -b ' "$sudo_events" || fail "inhibitor ran sudo without an authorization" "$(<"$sudo_events")"
+  pass "inhibitor without a terminal or cached authorization uses polkit"
+fi
 
 permissive_runtime="$test_tmp/permissive-runtime"
 mkdir -m 755 "$permissive_runtime"
@@ -419,8 +448,8 @@ pause = ': >"$TEST_CANCEL_READY"; while :; do /usr/bin/sleep 0.02; done'
 if sys.argv[2] == 'published':
     anchor = '  while :; do\n    inhibit_record='
     edits = [(anchor, '  ' + pause + '\n' + anchor),
-             ('      exec -a "$expected"',
-              '      while [[ ! -e $TEST_RELEASE_CHILD ]]; do /usr/bin/sleep 0.02; done\n      exec -a "$expected"')]
+             ('      trap "kill \\$!; exit 0" TERM',
+              '      while [[ ! -e $TEST_RELEASE_CHILD ]]; do /usr/bin/sleep 0.02; done\n      trap "kill \\$!; exit 0" TERM')]
 elif sys.argv[2] == 'idle-temporary':
     anchor = '  temporary=$(mktemp "$state_dir/.${state_file##*/}.XXXXXXXX") || return 1'
     edits = [(anchor, anchor + '\n  if [[ $state_file == "$idle_owner_file" ]]; then ' + pause + '; fi')]
