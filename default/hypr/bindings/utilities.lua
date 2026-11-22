@@ -122,6 +122,7 @@ o.bind("SUPER + CTRL + ALT + E", "World clock", { panel = "omarchy.elsewhen" })
 o.bind("SUPER + CTRL + N", "Network", { panel = "omarchy.network" })
 o.bind("SUPER + CTRL + P", "Power", { panel = "omarchy.power" })
 o.bind("SUPER + CTRL + X", "Agents", { panel = "omarchy.agents" })
+o.bind("SUPER + CTRL + ALT + X", "Local models", { panel = "omarchy.local-models" })
 o.bind("SUPER + SHIFT + T", "Activity", { tui = "btop" })
 
 -- The letters above name a panel; the numbers count them. 1 is the leftmost
