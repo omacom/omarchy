@@ -389,6 +389,17 @@ mapfile -d '' -t menu_args <"$menu_log"
 [[ ! -s $launch_log ]] || fail "--pick starts nothing when no agent is set"
 pass "--pick opens the agent defaults menu when none is set"
 
+# The AI hotkey opens the region's AI web app until an agent is chosen.
+cat >"$mock_bin/omarchy-launch-webapp" <<'SH'
+#!/bin/bash
+printf 'webapp %s\n' "$*" >"$OMARCHY_TEST_STUB_LOG"
+SH
+chmod +x "$mock_bin/omarchy-launch-webapp"
+: >"$stub_log"
+omarchy-agent --or-webapp https://chatgpt.com
+[[ $(<"$stub_log") == "webapp https://chatgpt.com" && ! -s $launch_log ]] || fail "the AI hotkey opens the web app without a default agent"
+pass "the AI hotkey opens the web app without a default agent"
+
 # The menu starts the chosen agent itself, so a prompt waits on the clipboard.
 : >"$clipboard_log"
 : >"$notification_history"
