@@ -778,10 +778,11 @@ Panel {
       Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-models link setup"])
       return
     }
-    // A setup or start underway goes on; one that failed, or whose password
-    // prompt was dismissed, is tried again.
+    // A setup or start underway from here goes on; one that failed, or
+    // whose password prompt was dismissed, is tried again. One downloading
+    // from a terminal is added and followed.
     var meter = offerMeter(offer)
-    if (meter && !meter.failed) return
+    if (meter && !meter.failed && usage.addedLocalModels.indexOf(offer.target) >= 0) return
     var local = { target: offer.target, host: offer.host }
     var model = localModelState(local)
     usage.addLocalModel(offer.target)
