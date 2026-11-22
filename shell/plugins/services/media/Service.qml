@@ -254,9 +254,8 @@ Item {
 
     var player = playerForKey(pending.playerKey) || pending.player
     // Players like Chromium blank the track metadata for a moment while
-    // switching tracks, so a track change only counts once the new title has
-    // arrived. The timer force-flushes for players that never deliver one.
-    if (!force && !(MediaModel.trackChanged(pending.before, player) && MediaModel.hasTrackTitle(player)))
+    // switching tracks. The timer force-flushes if no new title arrives.
+    if (!force && !MediaModel.newTrackArrived(pending.before, player))
       return
 
     showPendingTrackOsd(player)

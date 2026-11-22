@@ -152,6 +152,10 @@ function trackChanged(previousSignature, player) {
   return trackSignature(player) !== String(previousSignature || "")
 }
 
+function newTrackArrived(previousSignature, player) {
+  return hasTrackTitle(player) && trackChanged(previousSignature, player)
+}
+
 function labelFor(player) {
   if (!player) return ""
   return player.trackTitle || player.identity || player.desktopEntry || ""
@@ -198,6 +202,7 @@ if (typeof module !== "undefined") {
     playerKey: playerKey,
     trackSignature: trackSignature,
     trackChanged: trackChanged,
+    newTrackArrived: newTrackArrived,
     labelFor: labelFor,
     osdMessage: osdMessage,
     volumeKeyStep: volumeKeyStep,

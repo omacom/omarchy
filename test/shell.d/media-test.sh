@@ -54,9 +54,45 @@ const track = { trackTitle: 'Song', trackArtist: 'Artist', trackAlbum: 'Album', 
 const trackSignature = media.trackSignature(track)
 assert(!media.trackChanged(trackSignature, { ...track }), 'media detects unchanged track metadata')
 assert(media.trackChanged(trackSignature, { ...track, trackTitle: 'Next song' }), 'media detects changed track metadata')
+assert(media.newTrackArrived(trackSignature, { ...track, trackTitle: 'Next song' }), 'media detects the next track arriving')
+assert(!media.newTrackArrived(trackSignature, { trackArtUrl: '' }), 'media waits through blank metadata mid-skip')
+assert(!media.newTrackArrived(trackSignature, { ...track }), 'media does not treat an unchanged track as arrived')
 assertEqual(media.labelFor({ trackTitle: 'Song', identity: 'Spotify' }), 'Song', 'media labels players by track first')
 assertEqual(media.osdMessage({ trackTitle: 'Song', trackArtist: 'Artist' }, 'Fallback'), 'Song - Artist', 'media builds OSD messages')
 assertEqual(media.osdMessage(null, 'Fallback'), 'Fallback', 'media falls back OSD messages')
+
+// Run the service's OSD flow so a blank update cannot consume pending feedback.
+const vm = require('node:vm')
+const fs = require('node:fs')
+const service = fs.readFileSync(path.join(root, 'shell/plugins/services/media/Service.qml'), 'utf8')
+const messages = []
+const player = { dbusName: 'org.mpris.MediaPlayer2.chromium', identity: 'Chromium', ...track }
+const timer = () => ({ running: false, restart() { this.running = true }, stop() { this.running = false } })
+const context = vm.createContext({
+  MediaModel: media, pendingTrackOsd: null, trackOsdTimer: timer(), trackRestartTimer: timer(),
+  playerForKey: () => player,
+  shell: { summon: (id, payload) => messages.push(JSON.parse(payload)) }
+})
+context.root = context
+for (const name of ['playerKey', 'osdMessage', 'showOsd', 'scheduleOsd', 'showPendingTrackOsd', 'flushPendingTrackOsd']) {
+  const fn = service.match(new RegExp('^  function ' + name + '\\([^]*?^  }', 'm'))
+  if (!fn) throw new Error('Missing media service function: ' + name)
+  vm.runInContext(fn[0], context)
+}
+const trackHandler = service.match(/function onPostTrackChanged\(\) \{[^\n]+\}/)
+if (!trackHandler) throw new Error('Missing media track-change handler')
+vm.runInContext(trackHandler[0], context)
+context.scheduleOsd('next', 'Next', 'media-next', player, true, media.trackSignature(player))
+player.trackTitle = ''
+player.trackArtist = ''
+context.onPostTrackChanged()
+assertEqual(messages.length, 0, 'blank metadata does not show the player name in the OSD')
+assert(context.pendingTrackOsd && context.trackOsdTimer.running, 'blank metadata keeps skip feedback pending')
+player.trackTitle = 'Next song'
+player.trackArtist = 'Next artist'
+context.onPostTrackChanged()
+assertEqual(messages[0].message, 'Next song - Next artist', 'arriving metadata shows the new title and artist')
+assert(!context.pendingTrackOsd && !context.trackOsdTimer.running && !context.trackRestartTimer.running, 'showing the new track clears pending feedback and timers')
 
 // The in-shell volume keys follow omarchy-audio-output-volume's rules.
 assertDeepEqual(media.volumeKeyStep('raise', 43, true), { percent: 48, muted: false }, 'volume raise steps 5 and unmutes')
