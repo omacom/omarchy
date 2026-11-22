@@ -79,6 +79,7 @@ assertEqual(audio.routeLabel({ id: 999 }, routeSinks, null, routeTargets), 'Foll
 assertEqual(audio.routeLabel({ id: 120 }, routeSinks, null, routeTargets), 'Speakers', 'audio labels a pinned stream by device')
 assertEqual(audio.routeLabel({ id: 999 }, routeSinks, routeSinks[1], routeTargets), 'HDMI', 'audio prefers the linked output over the pin')
 assertEqual(audio.routeLabel({ id: 120 }, routeSinks, null, { '120': '101' }), 'Speakers', 'audio resolves serial targets to device labels')
+assertEqual(audio.routeLabel({ id: 120 }, routeSinks, null, { '120': '303' }), 'Output unavailable', 'audio labels a disconnected pinned output')
 
 {
   const fs = require('fs')

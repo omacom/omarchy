@@ -375,7 +375,7 @@ function routeLabel(node, sinks, linkedSink, targets, tr) {
   var target = routeTargetOf(node, targets)
   if (target === DEFAULT_ROUTE) return t("audio.route.followDefault", "Follow default output")
   var sink = sinkNamed(sinks, target)
-  return sink ? nodeLabel(sink, tr) : String(target)
+  return sink ? nodeLabel(sink, tr) : t("audio.route.outputUnavailable", "Output unavailable")
 }
 
 function routeIsPinned(node, targets) {
