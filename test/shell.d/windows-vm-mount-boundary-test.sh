@@ -224,6 +224,7 @@ export HOME=$test_home
 set -- help
 source "$windows_vm_command" >/dev/null
 sleep() { :; }
+inotifywait() { return 2; }
 docker() { echo "Error: No such object: omarchy-windows" >&2; return 1; }
 watch_share_privacy "\$HOME/Windows"
 EOF

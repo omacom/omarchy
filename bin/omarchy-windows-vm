@@ -722,15 +722,18 @@ container_gone() {
 # Unprivileged: samba.sh runs only after dockur's ISO download (10-15 minutes
 # on a fresh install). Do not hold a polkit session open for that. Watch the
 # caller's own share and chmod it as the owner once it becomes 2777.
+#
+# React to the permission change instead of polling: inotifywait blocks until
+# the directory's attributes change. The timeout bounds how long we wait
+# before checking the container (and re-reading the mode, which also catches
+# a path swapped for a new inode). The total budget is hours because a slow
+# download can outlast any fixed short wait; leave only once the share is
+# fixed, the container is gone, or the budget ends.
 watch_share_privacy() {
-  local dir="$1" i mode result
+  local dir="$1" mode result deadline iteration=0
   [[ -e $dir ]] || return 0
-  # Twice the documented download is a thin margin on a slow link, so budget
-  # hours rather than minutes — and stop depending on the clock alone. A
-  # download slower than any fixed budget would outlast the watcher while
-  # samba can still flip the share later, so leave only once the share is
-  # fixed, the container is gone, or the budget ends.
-  for i in {1..21600}; do
+  deadline=$((SECONDS + 21600))
+  while ((SECONDS < deadline)); do
     mode=$(stat -Lc '%a' "$dir" 2>/dev/null) || mode=""
     if [[ $mode == 2777 || $mode == 777 ]]; then
       chmod_private_dir "$dir" 2>/dev/null || true
@@ -739,10 +742,22 @@ watch_share_privacy() {
       # share is still exposed. Leave only once the mode is really 700.
       [[ $(stat -Lc '%a' "$dir" 2>/dev/null) == 700 ]] && return 0
     fi
-    if ((i % 60 == 0)) && container_gone; then
+    # Block on the next attribute change. The timeout only wakes us to
+    # re-read the mode, which also catches a path swapped for a new inode.
+    inotifywait -q -t 5 -e attrib -- "$dir" >/dev/null 2>&1
+    [[ -e $dir ]] || break
+    mode=$(stat -Lc '%a' "$dir" 2>/dev/null) || mode=""
+    if [[ $mode == 2777 || $mode == 777 ]]; then
+      chmod_private_dir "$dir" 2>/dev/null || true
+      [[ $(stat -Lc '%a' "$dir" 2>/dev/null) == 700 ]] && return 0
+    fi
+    # Container liveness has no change signal of its own. Checking it once a
+    # minute is enough; a permission failure to inspect it is not proof it is
+    # gone, so container_gone keeps watching in that case.
+    if ((iteration % 12 == 11)) && container_gone; then
       break
     fi
-    sleep 1
+    iteration=$((iteration + 1))
   done
   mode=$(stat -Lc '%a' "$dir" 2>/dev/null) || mode=""
   if [[ $mode == 2777 || $mode == 777 ]]; then
