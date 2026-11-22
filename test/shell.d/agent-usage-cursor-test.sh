@@ -196,22 +196,25 @@ stub = home() / "bin" / "secret-tool"
 stub.parent.mkdir(parents=True, exist_ok=True)
 stub.write_text('#!/bin/bash\ncat "$HOME/cursor-keyring.json"\n')
 stub.chmod(0o755)
+busctl = stub.parent / "busctl"
+busctl.write_text("""#!/bin/bash
+printf '%s\n' "$*" > "$HOME/keyring-search"
+echo '{"type":"aoao","data":[["/unlocked/item"],[]]}'
+""")
+busctl.chmod(0o755)
 os.environ["PATH"] = f"{stub.parent}:{REAL_PATH}"
 write_json(config_home() / "cursor" / "auth.json", {"storedIn": "os-secret-store"})
 write_json(home() / "cursor-keyring.json", {"accessToken": jwt({"sub": "u-keyring", "exp": time.time() + 3600})})
 record = cursor()
 expect("a Secret Service CLI sign-in reaches the dashboard like auth.json did",
-       [record["ready"], record["tierLabel"], record["usageStatusText"], len(record["limits"]) > 0],
-       [True, "Ultra", "", True], record)
+       [record["ready"], record["tierLabel"], record["usageStatusText"], len(record["limits"]) > 0,
+        (home() / "keyring-search").read_text().strip().endswith("SearchItems a{ss} 2 service cursor-credentials account cursor-user")],
+       [True, "Ultra", "", True, True], record)
 
 # A locked item is never looked up: secret-tool would open an unlock dialog.
 lookup = home() / "keyring-looked-up"
 stub.write_text('#!/bin/bash\ntouch "$HOME/keyring-looked-up"\ncat "$HOME/cursor-keyring.json"\n')
-busctl = stub.parent / "busctl"
-busctl.write_text("""#!/bin/bash
-echo '{"type":"aoao","data":[[],["/locked/item"]]}'
-""")
-busctl.chmod(0o755)
+busctl.write_text(busctl.read_text().replace('[["/unlocked/item"],[]]', '[[],["/locked/item"]]'))
 record = cursor()
 os.environ["PATH"] = REAL_PATH
 expect("a locked Secret Service item is left alone without prompting",
