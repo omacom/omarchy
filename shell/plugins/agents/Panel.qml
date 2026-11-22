@@ -292,6 +292,8 @@ Panel {
   // a prepaid balance is down to its last 10%, or monthly spend is near its cap.
   readonly property bool alarming: {
     for (var i = 0; i < providers.length; i++) {
+      // An account not in use limits nothing until it's switched to.
+      if (providers[i].account && providers[i].account.active !== true) continue
       var window = bindingWindow(providers[i])
       if (window && window.percent >= 0.9) return true
       if (balanceAlarming(providers[i].balance)) return true
@@ -412,15 +414,19 @@ Panel {
     var models = (service.localModel || {}).models || {}
     for (var id in models) add(models[id], "")
     var network = service.networkModels || {}
-    for (var nid in network) add(network[nid], network[nid].host)
+    for (var nid in network)
+      if (network[nid].paired === true && String(network[nid].offline || "") === "") add(network[nid], network[nid].host)
     return out
   }
 
   // The local model the default opens: the pinned one, else the one started
   // last.
-  readonly property string localDefaultTarget: usage.localPin !== ""
-    ? usage.localPin
-    : String(localModelsService && localModelsService.localModel ? localModelsService.localModel.last || "" : "")
+  readonly property string localDefaultTarget: {
+    var local = localModelsService && localModelsService.localModel ? localModelsService.localModel : {}
+    var pin = usage.localPin
+    if (pin !== "" && (pin.indexOf("/") >= 0 || (local.models || {})[pin])) return pin
+    return String(local.last || "")
+  }
 
   function chooseOwnModel() {
     var recipe = ownModelRecipe
@@ -902,13 +908,15 @@ Panel {
       if (starred(provider, null)) return
       usage.defaultAgent = "local"
       usage.localPin = provider.localModel.target
-      Util.execArgv(["omarchy-default-agent", "--select", "local", provider.localModel.target])
+      selectDefault.command = ["omarchy-default-agent", "--select", "local", provider.localModel.target]
+      selectDefault.running = true
       return
     }
     if (account && !account.active) useAccount(provider, account)
     if (usage.defaultAgent === id) return
     usage.defaultAgent = id
-    Util.execArgv(["omarchy-default-agent", "--select", id])
+    selectDefault.command = ["omarchy-default-agent", "--select", id]
+    selectDefault.running = true
   }
 
   // Filled on the default agent, and with several accounts on the one in use.
@@ -1178,8 +1186,11 @@ Panel {
   // on the collector's today, the last of the record's recent days.
   function spendDayText(s, recentDays, index) {
     if (!s || !(index >= 0 && index < s.days.length)) return ""
-    var recent = recentDays || []
-    var day = new Date(recent.length > 0 ? String(recent[recent.length - 1].date) + "T12:00:00" : nowMs)
+    // Tokens are counted in local days, so a record dated in UTC days has
+    // none to pair with its bars.
+    var recent = s.utc ? [] : (recentDays || [])
+    var last = s.through !== "" ? s.through : recent.length > 0 ? String(recent[recent.length - 1].date) : ""
+    var day = new Date(last !== "" ? last + "T12:00:00" : nowMs)
     if (isNaN(day.getTime())) day = new Date(nowMs)
     day.setDate(day.getDate() - (s.days.length - 1 - index))
     var date = Qt.formatDate(day, "yyyy-MM-dd")
@@ -1372,6 +1383,17 @@ Panel {
     usage.reloadDefaultAgent()
     usage.reloadLocalPin()
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
+  }
+
+  // Choosing a default from a star. The star fills at once, and once the
+  // choice is saved the default is read back, so one the command refused
+  // (an agent whose CLI isn't installed here) doesn't stay starred.
+  Process {
+    id: selectDefault
+    onExited: {
+      usage.reloadDefaultAgent()
+      usage.reloadLocalPin()
+    }
   }
 
   Main {
@@ -2030,6 +2052,7 @@ Panel {
             id: pasteField
             width: parent.width
             placeholderText: root.addPasteHint === "" ? Commons.I18n.t("agents.placeholderCode") : ""
+            password: root.addKeyEntry
             foreground: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body

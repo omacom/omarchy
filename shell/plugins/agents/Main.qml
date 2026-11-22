@@ -294,7 +294,7 @@ Item {
       for (var j = 0; j < accounts.length; j++) {
         var a = accounts[j]
         out.push(Object.assign({}, p, {
-          lineId: p.providerId + "/" + a.id,
+          lineId: p.providerId + "/" + (a.email || a.id),
           account: a,
           accounts: [],
           limits: a.limits || [],
@@ -419,6 +419,10 @@ Item {
       cap: isFinite(cap) && cap > 0 ? cap : 0,
       currency: String(raw.currency || "USD"),
       days: days,
+      // The last day's date, and whether the days are UTC ones: Fireworks
+      // counts in UTC, the estimates in local days.
+      through: String(raw.through || ""),
+      utc: raw.utc === true,
       // Counted from this machine's sessions, not rated by the provider.
       estimated: raw.estimated === true
     }

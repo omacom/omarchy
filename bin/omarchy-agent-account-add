@@ -273,7 +273,16 @@ key_login() {
     key=$(gum input --password --prompt "$name API key: ")
   fi
   [[ -n $key ]] || return 1
-  env "${provider^^}_API_KEY=$key" "omarchy-agent-usage-$provider" --force | jq -e '.usageStatusText != "Sign-in expired"' >/dev/null || return 2
+  # The provider has to answer for the key: a refusal returns 2, and a check
+  # that couldn't reach it returns 3, so it can be tried again rather than
+  # saving a key nobody has vouched for.
+  local status
+  status=$(env "${provider^^}_API_KEY=$key" "omarchy-agent-usage-$provider" --force | jq -r '.usageStatusText // "unreadable"') || return 3
+  if [[ $status == "Sign-in expired" ]]; then
+    return 2
+  elif [[ -n $status ]]; then
+    return 3
+  fi
 
   # OpenCode imports a credential as inactive when it already has one.
   id="omarchy-$EPOCHSECONDS"
@@ -300,6 +309,8 @@ if [[ $accounts == "false" ]]; then
   login_status=$?
   if (( login_status == 2 )) && [[ $by_key == "true" ]]; then
     fail "$(omarchy-i18n agents.keyRefused "$name")"
+  elif (( login_status == 3 )) && [[ $by_key == "true" ]]; then
+    fail "$(omarchy-i18n agents.keyUnchecked "$name")"
   elif (( login_status != 0 )); then
     fail "$(omarchy-i18n agents.signInFailed "$name")"
   fi

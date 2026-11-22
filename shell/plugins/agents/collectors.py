@@ -524,7 +524,7 @@ class Stats:
     days = [round(self.spend_costs[d], 4) for d in self.spend_days]
     if not any(days):
       return None
-    return {"amount": round(sum(days), 4), "cap": 0.0, "currency": "USD", "days": days, "estimated": True}
+    return {"amount": round(sum(days), 4), "cap": 0.0, "currency": "USD", "days": days, "estimated": True, "through": self.spend_days[-1]}
 
   def snapshot_with_spend(self) -> dict[str, Any]:
     """snapshot(), plus `spend` when the last 30 days had any, for a pay-as-you-go
@@ -1184,6 +1184,33 @@ def opencode_db() -> Path:
   normal = root / "opencode.db"
   legacy = root / "opencode-v2.db"
   return legacy if not normal.is_file() and legacy.is_file() else normal
+
+
+def opencode_credential_key(integration: str) -> str:
+  """The key of opencode's active credential for an integration ("fireworks-ai",
+  "openrouter"), from the credential table in its database, where opencode 2
+  keeps what `opencode auth login` and `opencode auth import` save. Empty when
+  there is none or the database can't be read."""
+  path = opencode_db()
+  if not path.is_file():
+    return ""
+  try:
+    with contextlib.closing(sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2)) as conn:
+      row = conn.execute(
+        "SELECT value FROM credential WHERE integration_id = ? AND active = 1 ORDER BY time_updated DESC LIMIT 1",
+        (integration,),
+      ).fetchone()
+  except sqlite3.Error:
+    return ""
+  if not row:
+    return ""
+  try:
+    value = json.loads(row[0])
+  except (TypeError, ValueError):
+    return ""
+  if not isinstance(value, dict) or value.get("type") != "key":
+    return ""
+  return str(value.get("key") or "").strip()
 
 
 def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:

@@ -494,7 +494,11 @@ fireworks_bin="$test_tmp/fireworks-bin"
 mkdir -p "$fireworks_bin"
 cat >"$fireworks_bin/omarchy-agent-usage-fireworks" <<'SH'
 #!/bin/bash
-[[ $FIREWORKS_API_KEY == "fw_good" ]] && echo '{"usageStatusText":""}' || echo '{"usageStatusText":"Sign-in expired"}'
+case $FIREWORKS_API_KEY in
+fw_good) echo '{"usageStatusText":""}' ;;
+fw_offline) echo '{"usageStatusText":"Fireworks unavailable"}' ;;
+*) echo '{"usageStatusText":"Sign-in expired"}' ;;
+esac
 SH
 cat >"$fireworks_bin/mise" <<'SH'
 #!/bin/bash
@@ -512,6 +516,14 @@ if PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"
   fail "a key Fireworks refuses is not saved, and says so" "$(cat "$test_tmp/fireworks-refused")"
 fi
 pass "a key Fireworks refuses is not saved, and says so"
+
+# A key Fireworks couldn't be asked about isn't saved either, and says to retry.
+if PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"fw_offline" >"$test_tmp/fireworks-unchecked" 2>&1 ||
+  [[ -e $test_tmp/fireworks-opencode ]] ||
+  ! grep -qx "@@omarchy error Couldn't reach Fireworks to check that key. Try again in a moment." "$test_tmp/fireworks-unchecked"; then
+  fail "a key that couldn't be checked is not saved" "$(cat "$test_tmp/fireworks-unchecked")"
+fi
+pass "a key that couldn't be checked is not saved"
 
 PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"fw_good" >"$test_tmp/fireworks-output"
 [[ ! -e $HOME/.pi/agent/auth.json ]] || fail "a Fireworks key is not saved for pi"
