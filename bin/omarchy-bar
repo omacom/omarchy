@@ -2,7 +2,7 @@
 
 # omarchy:summary=Configure the bar and its widget layout
 # omarchy:group=bar
-# omarchy:args=use <id> | reset | defaults | position [top|bottom|left|right] | background [opaque|glassy|none|cycle] | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement] | get <id> <key>
+# omarchy:args=use <id> | reset | defaults | position [top|bottom|left|right] | background [opaque|glassy|none|cycle] | lock [on|off|toggle] | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement] | get <id> <key>
 # omarchy:examples=omarchy bar use local.neon-bar | omarchy bar put omarchy.keyboard-layout --after omarchy.clock | omarchy bar move omarchy.weather --section centerBegin --index 0 | omarchy bar set omarchy.clock format HH:mm
 
 set -euo pipefail
@@ -23,6 +23,10 @@ Usage: omarchy bar <command> [args...]
                                        behind the bar blurred, cycle steps
                                        none, glassy, opaque; prints the
                                        current one when given none
+  lock [on|off|toggle]                 Lock the bar so nothing on it can be
+                                       dragged about or off it, and the bar
+                                       itself stays at its edge; prints on or
+                                       off when given none
   put <id> [placement]                 Put a widget on the bar, leaving one
                                        that is already there where it is
   move <id> [placement]                Move a widget within or between sections
@@ -253,6 +257,35 @@ cmd_background() {
     fail "could not change the blur behind the bar"
   fi
   echo "Bar background set to $background"
+}
+
+# A locked bar ignores drags: widgets stay where they are and on the bar, and
+# the bar stays at its edge. Commands still change it.
+current_lock() {
+  jq -r 'if .bar.locked == true then "on" else "off" end' "$(source_file)"
+}
+
+cmd_lock() {
+  if (( $# == 0 )); then
+    current_lock
+    return
+  fi
+
+  local lock="$1"
+  (( $# == 1 )) || fail "lock takes a single value"
+  [[ $lock =~ ^(on|off|toggle)$ ]] || fail "lock must be on, off, or toggle"
+
+  if [[ $lock == "toggle" ]]; then
+    [[ $(current_lock) == "on" ]] && lock="off" || lock="on"
+  fi
+
+  if [[ $lock == "on" ]]; then
+    commit "$NORMALIZE | .bar.locked = true"
+    echo "Bar locked"
+  else
+    commit "$NORMALIZE | del(.bar.locked)"
+    echo "Bar unlocked"
+  fi
 }
 
 # The older on/off form of the background, kept for scripts and dotfiles:
@@ -494,6 +527,9 @@ case "$command" in
     ;;
   background)
     cmd_background "$@"
+    ;;
+  lock)
+    cmd_lock "$@"
     ;;
   # Internal: the shell runs this when it loads a bar background, so one set
   # by editing shell.json gets its blur too.
