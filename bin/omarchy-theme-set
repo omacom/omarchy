@@ -517,7 +517,8 @@ if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
       # Only a cover for now: the palette is not ready until the theme is
       # published, and a failure cancels the cover by this token.
       PREPARED_INTRO_TOKEN=$(stat -Lc '%d:%i' "$NEXT_THEME_PATH")
-      shell_ipc shell prepareThemeIntroCover "$OLD_BACKGROUND_SNAPSHOT" "$PREPARED_INTRO_TOKEN" || true
+      shell_ipc shell prepareThemeIntroCover "$OLD_BACKGROUND_SNAPSHOT" "$PREPARED_INTRO_TOKEN" ||
+        shell_ipc shell prepareThemeIntro "$OLD_BACKGROUND_SNAPSHOT" "$PREPARED_INTRO_TOKEN" "" "" || true
     elif background_transition_uses_snapshots "$CHOSEN_THEME_BACKGROUND"; then
       OLD_BACKGROUND_SNAPSHOT=$(snapshot_current_background)
 
