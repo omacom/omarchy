@@ -23,10 +23,12 @@ Every subscription on one page, limits first.
   limit) is a tick on that window's meter rather than a line of its own; the
   row's tooltip names it. A lapsed or missing Claude, Codex, or Grok sign-in
   shows a _Sign-in required_ link that signs that account in again from the
-  panel. Any other trouble — a paused token, another agent's sign-in, an
-  endpoint that didn't answer — leaves the last known limits on show, with a
-  small info mark beside the name whose tooltip says why they aren't current
-  and what to do; each meter's tooltip says how old it is.
+  panel. Any other trouble leaves the last known limits on show. A status the
+  collector reports, such as a paused token or another agent's sign-in, is
+  said beside the name in the urgent color, with a tooltip on why the numbers
+  aren't current and what to do. An endpoint that didn't answer, with no
+  status, gets a small info mark with the same tooltip. Each meter's tooltip
+  says how old it is.
 - **Accounts** — an agent with more than one subscription account (see
   `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
   lines. An _ACTIVE_ label marks the account sessions use (running Claude

@@ -625,6 +625,15 @@ Panel {
     return helpDisplayText(item.authHelpText) || statusDisplayText(status)
   }
 
+  // The status itself, for the cases where the numbers on show are not
+  // current and nothing else on the page says so. A mark that only explains
+  // itself on hover goes unseen for days while the meters read as live. A
+  // failed refresh that kept its limits has no status, so it keeps the mark.
+  function usageNoteLabel(item) {
+    if (!item || needsSignIn(item)) return ""
+    return statusDisplayText(String(item.usageStatusText || ""))
+  }
+
   // Sign an account that's already here in again, following along in the
   // add view just like adding one.
   function signInAgain(p, account) {
@@ -2243,8 +2252,8 @@ Panel {
         }
       }
 
-      // Bounded by the actions on the right: the plan shortens first, and the
-      // Sign-in required link keeps its whole width.
+      // Bounded by the actions on the right: the plan shortens first, then the
+      // status, and the Sign-in required link keeps its whole width.
       Row {
         id: detailRow
         visible: !head.editing
@@ -2256,9 +2265,9 @@ Panel {
 
         Text {
           textFormat: Text.PlainText
-          visible: text !== ""
+          visible: text !== "" && width > 0
           width: Math.max(0, Math.min(implicitWidth, detailRow.width
-            - (accountNote.visible ? accountNote.implicitWidth + detailRow.spacing : 0)
+            - (accountNote.visible ? accountNote.width + detailRow.spacing : 0)
             - (signInDot.visible ? signInDot.implicitWidth + detailRow.spacing : 0)
             - (signInLink.visible ? signInLink.implicitWidth + detailRow.spacing : 0)))
           elide: Text.ElideRight
@@ -2274,6 +2283,7 @@ Panel {
         UsageNote {
           id: accountNote
           record: head.account
+          width: Math.min(implicitWidth, detailRow.width)
         }
 
         // The dot is punctuation, not part of the link.
@@ -2351,18 +2361,21 @@ Panel {
     }
   }
 
-  // A mark beside the name when the numbers aren't current, with why and
-  // what to do on hover.
+  // Beside the name when the numbers aren't current: the status in the urgent
+  // color, or a mark where the collector gave none, with why and what to do
+  // on hover.
   component UsageNote: Text {
     id: noteMark
     property var record: null
     readonly property string message: root.usageNote(record)
+    readonly property string label: root.usageNoteLabel(record)
     visible: message !== ""
-    text: "󰋽"
+    text: label !== "" ? label : "󰋽"
     textFormat: Text.PlainText
-    color: root.dim
+    color: label !== "" ? root.urgent : root.dim
     font.family: root.fontFamily
     font.pixelSize: Style.font.caption
+    elide: Text.ElideRight
 
     HoverHandler { id: noteHover }
 
