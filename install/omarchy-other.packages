@@ -107,6 +107,10 @@ linux-t2
 linux-t2-headers
 t2fanrd
 
+# FaceTime HD camera on Intel Macs
+facetimehd-dkms
+facetimehd-firmware-fetcher
+
 # Framework 16
 qmk-hid
 

@@ -95,11 +95,17 @@ It is necessary to disable Apple's Secure Boot in order to boot the bootable USB
 3. Select the orange EFI Boot device
 4. Proceed with the [install as normal](02-getting-started.md)
 
-The installer detects Mac hardware and applies the needed fixes automatically: Broadcom Wi-Fi drivers and firmware, the SPI keyboard driver on the MacBook models that need it, and an NVMe suspend fix for those same models.
+The installer detects Mac hardware and applies the needed fixes automatically: Broadcom Wi-Fi drivers and firmware, the FaceTime HD camera driver on machines with a Broadcom 1570 (its firmware is downloaded from Apple once the Mac is online, since the installer works offline), the SPI keyboard driver on the MacBook models that need it, and an NVMe suspend fix for those same models.
 
 ### Known Limitations
 
 Members of the community are constantly working on solutions to these challenges so if these are problematic for you, join #omarchy-on-other in our [Discord](https://discord.gg/tXFUdasqhY) and see if there's any up-to-date methods for resolving these.
+
+#### FaceTime HD Camera
+
+The camera driver hangs the machine if it is loaded when the Mac hibernates, so it is unloaded first. It cannot be unloaded while an app has the camera open, so hibernation is cancelled with a notification naming the app: close it and hibernate again. That includes hibernating automatically on a critical battery, and suspend-then-hibernate, which is refused before it suspends. Ordinary suspend is refused by the driver itself while the camera is open, without a notification.
+
+The camera's firmware is downloaded from Apple, so the camera works only once the Mac has been online. The download starts at boot and is retried every 15 minutes while the network is the problem; if Apple's file has changed, it stops and waits for an Omarchy update. If the camera does not appear, `journalctl -u facetimehd-firmware-fetcher` says why, `sudo systemctl restart facetimehd-firmware-fetcher` tries again, and a reboot loads the driver if the download finished but the camera still is not there.
 
 #### Devices with T1 Chip
 
