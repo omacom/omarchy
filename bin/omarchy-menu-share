@@ -27,8 +27,11 @@ elif (($# > 0)); then
       omarchy-notification-send -g "" -u critical "$(omarchy-i18n share.couldNot)" "$message"
       exit 1
     fi
-    # LocalSend runs as a user service from $HOME, not from this directory
-    FILE_ARRAY+=("$(realpath -- "$path")")
+    # Keep symlink names while making paths absolute for the user service.
+    if [[ $path != /* ]]; then
+      path=$PWD/$path
+    fi
+    FILE_ARRAY+=("$path")
   done
 else
   if [[ $MODE == "folder" ]]; then

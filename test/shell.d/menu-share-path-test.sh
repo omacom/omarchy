@@ -26,6 +26,12 @@ pass "a missing path is refused before LocalSend launches"
 
 touch "$tmp/work/note.txt"
 share note.txt || fail "a relative path is shared"
-grep -Fqx -- "--user --quiet --collect localsend --headless send $(realpath "$tmp/work/note.txt")" "$tmp/log" ||
+grep -Fqx -- "--user --quiet --collect localsend --headless send $tmp/work/note.txt" "$tmp/log" ||
   fail "a relative path reaches LocalSend as an absolute path" "$(cat "$tmp/log")"
 pass "a relative path reaches LocalSend as an absolute path"
+
+ln -s note.txt "$tmp/work/shared-note.txt"
+share "$tmp/work/shared-note.txt" || fail "a symlink is shared"
+grep -Fqx -- "--user --quiet --collect localsend --headless send $tmp/work/shared-note.txt" "$tmp/log" ||
+  fail "a symlink keeps its shared name" "$(cat "$tmp/log")"
+pass "a symlink keeps its shared name"
