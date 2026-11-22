@@ -35,6 +35,15 @@ ShellRoot {
     return null
   }
 
+  // The idle blank countdown is the timer with an idle run-up of its own.
+  function idleBlank(service) {
+    var objects = service.data || []
+    for (var i = 0; i < objects.length; i++) {
+      if (objects[i].idleMs !== undefined && objects[i].resumeMs !== undefined) return objects[i]
+    }
+    return null
+  }
+
   function load(path) {
     var component = Qt.createComponent("file://" + rootPath + path, Component.PreferSynchronous)
     if (component.status !== Component.Ready) throw new Error(component.errorString())
@@ -135,6 +144,38 @@ ShellRoot {
       service.pauseFingerprint()
       check(!service.fingerprintRejected, "blanking the displays ends the rejection")
       service.resumeFingerprint()
+
+      // A finger on the reader holds the idle blank, and so does the moment
+      // after a rejection; lifting it, the verdict or the moment passing
+      // starts a fresh run-up. Nothing here lets the blank fire: it would
+      // drive this machine's real displays.
+      var blank = idleBlank(service)
+      check(blank !== null, "the service has its idle blank countdown")
+      if (blank) {
+        service.clearFingerprintReject()
+        service.fingerprintAuthenticating = true
+        service.armBlankTimer()
+        check(blank.running, "the countdown runs while the lock waits")
+        service.applyFingerprintMonitorLine(root.presentLine)
+        check(!blank.running, "a finger on the reader holds the countdown")
+        service.applyFingerprintMonitorLine(root.absentLine)
+        check(blank.running, "the finger lifting starts a fresh run-up")
+        service.applyFingerprintMonitorLine(root.presentLine)
+        service.applyFingerprintMonitorLine(root.rejectedLine)
+        service.applyFingerprintMonitorLine(root.absentLine)
+        check(!blank.running, "the moment after a rejection keeps holding it")
+        findByObjectName(service, "fingerprintRejectTimer").triggered()
+        check(blank.running, "the rejection's moment passing starts a fresh run-up")
+        service.applyFingerprintMonitorLine(root.presentLine)
+        service.pauseFingerprint()
+        check(!blank.running, "a hold ending in a blank arms nothing while the displays are off")
+        service.resumeFingerprint()
+        service.applyFingerprintMonitorLine(root.presentLine)
+        service.lockRequested = false
+        service.resetAuthenticationState()
+        check(!blank.running, "a hold ending in an unlock arms nothing")
+        blank.stop()
+      }
       service.lockRequested = false
     } finally {
       service.lockRequested = false

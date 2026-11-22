@@ -30,6 +30,10 @@ Item {
   // so one wrong finger otherwise goes quietly back to waiting; only the
   // final lockout showed.
   property bool fingerprintRejected: false
+  // A finger on the reader, or the moment after a rejection, holds the idle
+  // blank as a password check does: the countdown otherwise ran on through
+  // the match and the retry, and the panel went dark under the finger.
+  readonly property bool fingerprintHoldsDisplay: fingerprintScanning || fingerprintRejected
   // fprintd is watched for that while the lock can take a touch: locked, a
   // reader enrolled, and the displays on.
   readonly property bool fingerprintMonitoring: lockRequested && fingerprintConfigured && !fingerprintPaused
@@ -886,7 +890,7 @@ Item {
       // Only a password check in flight should hold the display up. The
       // fingerprint PAM stays armed for the whole lock, so gating on
       // `authenticating` here would keep the panel lit until unlock.
-      if (root.lockRequested && !root.authenticatingPassword) root.runBlank()
+      if (root.lockRequested && !root.authenticatingPassword && !root.fingerprintHoldsDisplay) root.runBlank()
     }
   }
 
@@ -944,6 +948,14 @@ Item {
     if (!lockRequested) return
     if (authenticatingPassword) idleBlankTimer.stop()
     else armBlankTimer()
+  }
+
+  // The hold ends with a fresh run-up, unless the lock is gone, the displays
+  // are already off, or a password check holds them in its own right.
+  onFingerprintHoldsDisplayChanged: {
+    if (!lockRequested) return
+    if (fingerprintHoldsDisplay) idleBlankTimer.stop()
+    else if (!fingerprintPaused && !authenticatingPassword) armBlankTimer()
   }
 
   FileView {
