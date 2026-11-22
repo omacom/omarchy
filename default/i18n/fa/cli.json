@@ -457,6 +457,7 @@
   "update.kernelReboot": "هسته Linux به‌روز شد. راه‌اندازی مجدد؟",
   "update.keysCorrect": "کلیدها درست‌اند",
   "update.migration": "در حال اجرای مهاجرت (%1)",
+  "update.migrationDeferred": "مهاجرت %1 در انتظار به‌روزرسانی بسته است؛ این مهاجرت و مهاجرت‌های پس از آن در به‌روزرسانی یا ورود بعدی اجرا خواهند شد.",
   "update.migrationsDeferred": "تراکنش pacman هنوز در حال اجراست؛ مهاجرت‌های Omarchy در ورود بعدی دوباره تلاش می‌شوند.",
   "update.migrationsWaiting": "در انتظار پایان تراکنش pacman برای اجرای مهاجرت‌های Omarchy...",
   "update.mise": "به‌روزرسانی ابزارهای mise",

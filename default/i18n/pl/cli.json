@@ -471,6 +471,7 @@
   "update.kernelReboot": "Jądro Linux zaktualizowane. Uruchomić ponownie?",
   "update.keysCorrect": "Klucze są poprawne",
   "update.migration": "Uruchamianie migracji (%1)",
+  "update.migrationDeferred": "Migracja %1 oczekuje na aktualizację pakietu; ona i kolejne migracje zostaną uruchomione przy następnej aktualizacji lub logowaniu.",
   "update.migrationsDeferred": "Transakcja pacman nadal trwa; migracje Omarchy zostaną ponowione przy następnym logowaniu.",
   "update.migrationsWaiting": "Oczekiwanie na zakończenie transakcji pacman przed uruchomieniem migracji Omarchy...",
   "update.mise": "Aktualizacja narzędzi mise",

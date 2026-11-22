@@ -464,6 +464,7 @@
   "update.kernelReboot": "Linux језгро је ажурирано. Поново покренути?",
   "update.keysCorrect": "Кључеви су исправни",
   "update.migration": "Покретање миграције (%1)",
+  "update.migrationDeferred": "Миграција %1 чека ажурирање пакета; она и миграције након ње покренуће се при следећем ажурирању или пријави.",
   "update.migrationsDeferred": "Pacman трансакција је још у току; Omarchy миграције ће се поново покушати при следећој пријави.",
   "update.migrationsWaiting": "Чека се да се pacman трансакција заврши пре покретања Omarchy миграција...",
   "update.mise": "Ажурирање mise алата",

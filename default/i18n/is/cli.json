@@ -457,6 +457,7 @@
   "update.kernelReboot": "Linux-kjarninn hefur verið uppfærður. Endurræsa?",
   "update.keysCorrect": "Lyklar eru réttir",
   "update.migration": "Keyri flutning (%1)",
+  "update.migrationDeferred": "Flutningur %1 bíður eftir pakkauppfærslu; hann og flutningarnir á eftir honum munu keyra við næstu uppfærslu eða innskráningu.",
   "update.migrationsDeferred": "Pacman-færsla er enn í gangi; Omarchy-flutningar munu reyna aftur við næstu innskráningu.",
   "update.migrationsWaiting": "Beðið eftir að pacman-færslu ljúki áður en Omarchy-flutningar keyra...",
   "update.mise": "Uppfæra mise-verkfæri",

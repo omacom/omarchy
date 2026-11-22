@@ -464,6 +464,7 @@
   "update.kernelReboot": "El kernel de Linux se actualizó. ¿Reiniciar?",
   "update.keysCorrect": "Las claves son correctas",
   "update.migration": "Ejecutando migración (%1)",
+  "update.migrationDeferred": "La migración %1 está esperando una actualización de paquete; esta y las migraciones posteriores se ejecutarán en la próxima actualización o inicio de sesión.",
   "update.migrationsDeferred": "La transacción de pacman sigue en curso; las migraciones de Omarchy se reintentarán en el próximo inicio de sesión.",
   "update.migrationsWaiting": "Esperando a que termine la transacción de pacman antes de ejecutar las migraciones de Omarchy...",
   "update.mise": "Actualizar herramientas de mise",

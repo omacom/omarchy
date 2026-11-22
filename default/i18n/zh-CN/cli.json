@@ -450,6 +450,7 @@
   "update.kernelReboot": "Linux 内核已更新。重启？",
   "update.keysCorrect": "密钥正确",
   "update.migration": "正在运行迁移 (%1)",
+  "update.migrationDeferred": "迁移 %1 正在等待软件包更新；它及其后的迁移将在下次更新或登录时运行。",
   "update.migrationsDeferred": "pacman 事务仍在运行；Omarchy 迁移将在下次登录时重试。",
   "update.migrationsWaiting": "正在等待 pacman 事务完成，随后运行 Omarchy 迁移...",
   "update.mise": "更新 mise 工具",

@@ -478,6 +478,7 @@
   "update.kernelReboot": "Tá eithne Linux nuashonraithe. Aththosú?",
   "update.keysCorrect": "Tá na heochracha ceart",
   "update.migration": "Ag rith aistrithe (%1)",
+  "update.migrationDeferred": "Tá aistriú %1 ag fanacht le nuashonrú pacáiste; rithfear é agus na haistrithe ina dhiaidh ag an gcéad nuashonrú nó logáil isteach eile.",
   "update.migrationsDeferred": "Tá idirbheart pacman ar siúl fós; déanfaidh aistrithe Omarchy iarracht eile ag an gcéad logáil isteach eile.",
   "update.migrationsWaiting": "Ag fanacht go gcríochnóidh idirbheart pacman sula rithfear aistrithe Omarchy...",
   "update.mise": "Nuashonraigh uirlisí mise",

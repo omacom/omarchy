@@ -450,6 +450,7 @@
   "update.kernelReboot": "Nhân Linux đã được cập nhật. Khởi động lại?",
   "update.keysCorrect": "Khóa đã đúng",
   "update.migration": "Đang chạy di trú (%1)",
+  "update.migrationDeferred": "Di trú %1 đang chờ cập nhật gói; nó và các di trú sau đó sẽ chạy ở lần cập nhật hoặc đăng nhập tiếp theo.",
   "update.migrationsDeferred": "Giao dịch pacman vẫn đang chạy; di trú Omarchy sẽ thử lại ở lần đăng nhập tiếp theo.",
   "update.migrationsWaiting": "Đang chờ giao dịch pacman hoàn tất trước khi chạy di trú Omarchy...",
   "update.mise": "Cập nhật công cụ mise",
