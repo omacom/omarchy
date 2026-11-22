@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Choose which Claude, Codex, or Grok account new sessions use
+# omarchy:summary=Choose which Claude, Codex, or Grok account sessions use
 # omarchy:args=[claude|codex|grok] [account|next]
 # omarchy:examples=omarchy agent account use work | omarchy agent account use main | omarchy agent account use codex next
 
@@ -25,17 +25,32 @@ esac
 
 result=$(omarchy-agent-account-state use "$1" "${2:-next}") || exit 1
 
-previous=$(jq -r .previous.label <<<"$result")
+# Who running sessions are on, which differs from the previous choice while an
+# earlier switch is still held back.
+running=$(jq -r '.running // .previous.label' <<<"$result")
 active=$(jq -r '.active.label + (if (.active.plan // "") != "" then " (" + .active.plan + ")" else "" end)' <<<"$result")
 label=$(jq -r .active.label <<<"$result")
+seated=$(jq -r .seated <<<"$result")
+moved=$(jq -r .moved <<<"$result")
 
-if [[ $(jq -r .previous.id <<<"$result") == "$(jq -r .active.id <<<"$result")" ]]; then
+if [[ $(jq -r .previous.id <<<"$result") == "$(jq -r .active.id <<<"$result")" && $moved != "true" ]]; then
   echo "New $name sessions already use $active."
+elif [[ $seated == "true" ]]; then
+  # The login moved into the home every session runs in, so running sessions
+  # pick it up on their next message.
+  echo "$name sessions now use $active, running ones included."
+  omarchy-notification-send -g 󰚩 "$(omarchy-i18n agents.sessionsUse "$name" "$label")" "$(omarchy-i18n agents.runningFollow)"
+  omarchy-agent-usage-update --limits-only "$1" >/dev/null 2>&1 &
 else
-  message="Running sessions stay on $previous."
-  echo "New $name sessions now use $active. $message"
+  echo "New $name sessions now use $active. Running sessions stay on $running."
+  holders=$(jq -r '.holders | map(tostring) | join(" ")' <<<"$result")
+  if [[ -n $holders ]]; then
+    # Its login can't leave its own home while sessions started there still
+    # hold it; once they've quit, the next usage check moves it.
+    echo "Sessions started as $label still hold its login (pid $holders). Once they quit, running sessions move to it too."
+  fi
   # The headline leaves out the plan, so it stays on one line.
-  omarchy-notification-send -g 󰚩 "$(omarchy-i18n agents.newSessionsUse "$name" "$label")" "$(omarchy-i18n agents.runningStayOn "$previous")"
+  omarchy-notification-send -g 󰚩 "$(omarchy-i18n agents.newSessionsUse "$name" "$label")" "$(omarchy-i18n agents.runningStayOn "$running")"
   # The usage record's own limits describe the active account.
   omarchy-agent-usage-update --limits-only "$1" >/dev/null 2>&1 &
 fi

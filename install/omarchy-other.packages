@@ -30,8 +30,6 @@ nvidia-open-dkms
 linux-omarchy-nvidia-open
 nvidia-580xx-utils
 nvidia-utils
-lib32-nvidia-580xx-utils
-lib32-nvidia-utils
 nvidia-container-toolkit
 pipewire
 pipewire-alsa
@@ -70,6 +68,9 @@ microsoft-surface-snapdragon-addresses
 # Surface Laptop 8 (Snapdragon) support packages
 microsoft-surface-laptop-8-support
 
+# Samsung Galaxy Book4 Edge 14 (Snapdragon) support packages
+samsung-galaxy-book4-edge-14-support
+
 # Raspberry Pi 4 support packages
 raspberry-pi-4-bluetooth-firmware
 
@@ -103,6 +104,10 @@ apple-t2-audio-config
 linux-t2
 linux-t2-headers
 t2fanrd
+
+# FaceTime HD camera on Intel Macs
+facetimehd-dkms
+facetimehd-firmware-fetcher
 
 # Framework 16
 qmk-hid

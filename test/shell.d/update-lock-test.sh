@@ -79,6 +79,7 @@ for command in \
   write_stub "$command" 'exit 0'
 done
 write_stub omarchy-update-available 'exit 1'
+write_stub omarchy-done 'exit 0'
 write_stub pkexec 'exec "$@"'
 ln -s ../bin/pkexec "$SUDO_TEST_ROOT/mock/pkexec"
 write_stub systemd-inhibit 'while [[ $1 == --* ]]; do shift; done; exec "$@"'
