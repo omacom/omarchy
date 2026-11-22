@@ -92,9 +92,19 @@ grep -q 'uv' "$mise_log" && fail "Python removal does not remove the independent
   fail "Python removal preserves uv commands"
 pass "Python removal preserves the default uv tool"
 
-mkdir -p "$test_home/.mix/archives/phx_new-1.8.0"
+archive_roots=(
+  "$test_home/.mix/archives"
+  "$test_home/.local/share/mise/installs/elixir/1.19/.mix/archives"
+  "$test_home/.local/share/mise/installs/elixir/1.20/.mix/archives"
+)
+for archives in "${archive_roots[@]}"; do
+  mkdir -p "$archives/phx_new-1.8.0" "$archives/hex-2.7.0"
+done
 : >"$mise_log"
 bash "$ROOT/bin/omarchy-remove-dev-env" phoenix >/dev/null
-[[ ! -e $test_home/.mix/archives/phx_new-1.8.0 ]] || fail "Phoenix removal drops the phx_new archive"
+for archives in "${archive_roots[@]}"; do
+  [[ ! -e $archives/phx_new-1.8.0 ]] || fail "Phoenix removal drops the phx_new archive" "$archives"
+  [[ -d $archives/hex-2.7.0 ]] || fail "Phoenix removal preserves Hex" "$archives"
+done
 [[ -s $mise_log ]] && fail "Phoenix removal leaves Elixir and Erlang installed" "$(<"$mise_log")"
 pass "Phoenix removal leaves Elixir and Erlang installed"
