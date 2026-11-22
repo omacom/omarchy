@@ -417,7 +417,7 @@
   "localModels.removingMeter": "Usuwanie",
   "localModels.setupFailed": "Konfiguracja nie powiodła się",
   "localModels.showLogsTip": "Otwórz logi tego modelu w terminalu",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "Uruchom",
   "localModels.stop": "Zatrzymaj",
   "localModels.stoppingMeter": "Zatrzymywanie",

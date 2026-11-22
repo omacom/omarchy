@@ -393,7 +393,7 @@
   "localModels.removingMeter": "ہٹایا جا رہا ہے",
   "localModels.setupFailed": "سیٹ اپ ناکام رہا",
   "localModels.showLogsTip": "اس ماڈل کے لاگز ٹرمینل میں کھولیں",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "شروع کریں",
   "localModels.stop": "روکیں",
   "localModels.stoppingMeter": "رک رہا ہے",

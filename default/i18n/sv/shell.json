@@ -393,7 +393,7 @@
   "localModels.removingMeter": "Tar bort",
   "localModels.setupFailed": "Konfigurationen misslyckades",
   "localModels.showLogsTip": "Öppna den här modellens loggar i en terminal",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "Starta",
   "localModels.stop": "Stoppa",
   "localModels.stoppingMeter": "Stoppar",

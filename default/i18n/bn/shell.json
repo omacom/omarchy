@@ -393,7 +393,7 @@
   "localModels.removingMeter": "সরানো হচ্ছে",
   "localModels.setupFailed": "সেট আপ ব্যর্থ হয়েছে",
   "localModels.showLogsTip": "টার্মিনালে এই মডেলের লগ খুলুন",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "চালু করুন",
   "localModels.stop": "বন্ধ করুন",
   "localModels.stoppingMeter": "বন্ধ হচ্ছে",

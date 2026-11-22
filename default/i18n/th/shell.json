@@ -381,7 +381,7 @@
   "localModels.removingMeter": "กำลังลบ",
   "localModels.setupFailed": "ตั้งค่าล้มเหลว",
   "localModels.showLogsTip": "เปิดล็อกของโมเดลนี้ในเทอร์มินัล",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "เริ่ม",
   "localModels.stop": "หยุด",
   "localModels.stoppingMeter": "กำลังหยุด",

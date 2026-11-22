@@ -393,7 +393,7 @@
   "localModels.removingMeter": "Verwijderen",
   "localModels.setupFailed": "Installatie mislukt",
   "localModels.showLogsTip": "Open de logs van dit model in een terminal",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "Starten",
   "localModels.stop": "Stoppen",
   "localModels.stoppingMeter": "Stoppen",

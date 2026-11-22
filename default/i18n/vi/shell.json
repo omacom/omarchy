@@ -381,7 +381,7 @@
   "localModels.removingMeter": "Đang xóa",
   "localModels.setupFailed": "Thiết lập thất bại",
   "localModels.showLogsTip": "Mở nhật ký của mô hình này trong terminal",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "Khởi động",
   "localModels.stop": "Dừng",
   "localModels.stoppingMeter": "Đang dừng",

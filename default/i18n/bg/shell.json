@@ -393,7 +393,7 @@
   "localModels.removingMeter": "Премахване",
   "localModels.setupFailed": "Настройката се провали",
   "localModels.showLogsTip": "Отвори логовете на този модел в терминал",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 токена/с",
   "localModels.start": "Стартирай",
   "localModels.stop": "Спри",
   "localModels.stoppingMeter": "Спиране",

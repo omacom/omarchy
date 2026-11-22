@@ -393,7 +393,7 @@
   "localModels.removingMeter": "Fjerner",
   "localModels.setupFailed": "Opsætning mislykkedes",
   "localModels.showLogsTip": "Åbn denne models logfiler i en terminal",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "Start",
   "localModels.stop": "Stop",
   "localModels.stoppingMeter": "Stopper",

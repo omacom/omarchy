@@ -381,7 +381,7 @@
   "localModels.removingMeter": "削除中",
   "localModels.setupFailed": "セットアップに失敗しました",
   "localModels.showLogsTip": "このモデルのログをターミナルで開く",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "起動",
   "localModels.stop": "停止",
   "localModels.stoppingMeter": "停止中",

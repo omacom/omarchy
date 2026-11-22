@@ -405,7 +405,7 @@
   "localModels.removingMeter": "Noņem",
   "localModels.setupFailed": "Iestatīšana neizdevās",
   "localModels.showLogsTip": "Atvērt šī modeļa žurnālus terminālī",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "Palaist",
   "localModels.stop": "Apturēt",
   "localModels.stoppingMeter": "Aptur",

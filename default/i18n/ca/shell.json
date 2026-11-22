@@ -405,7 +405,7 @@
   "localModels.removingMeter": "Eliminant",
   "localModels.setupFailed": "La configuració ha fallat",
   "localModels.showLogsTip": "Obre els registres d'aquest model en un terminal",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "Inicia",
   "localModels.stop": "Atura",
   "localModels.stoppingMeter": "Aturant",

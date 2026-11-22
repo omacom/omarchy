@@ -405,7 +405,7 @@
   "localModels.removingMeter": "Šalinama",
   "localModels.setupFailed": "Sąranka nepavyko",
   "localModels.showLogsTip": "Atidaryti šio modelio žurnalus terminale",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "Paleisti",
   "localModels.stop": "Sustabdyti",
   "localModels.stoppingMeter": "Stabdoma",

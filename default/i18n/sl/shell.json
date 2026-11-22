@@ -417,7 +417,7 @@
   "localModels.removingMeter": "Odstranjevanje",
   "localModels.setupFailed": "Nastavitev ni uspela",
   "localModels.showLogsTip": "Odpri dnevnike tega modela v terminalu",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "Zaženi",
   "localModels.stop": "Ustavi",
   "localModels.stoppingMeter": "Ustavljanje",

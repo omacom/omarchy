@@ -405,7 +405,7 @@
   "localModels.removingMeter": "Odstraňování",
   "localModels.setupFailed": "Nastavení selhalo",
   "localModels.showLogsTip": "Otevřít logy tohoto modelu v terminálu",
-  "localModels.speedFact": "%1 TPS",
+  "localModels.speedFact": "%1 tok/s",
   "localModels.start": "Spustit",
   "localModels.stop": "Zastavit",
   "localModels.stoppingMeter": "Zastavování",
