@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Sign in to an agent subscription
-# omarchy:args=[--check] [--events] [--reauth <account>] [agy|claude|codex|copilot|cursor|fireworks|grok|muse|opencode|openrouter] [label]
+# omarchy:args=[--check] [--events] [--reauth <account>] [agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai] [label]
 # omarchy:examples=omarchy agent account add claude | omarchy agent account add Work | omarchy agent account add codex Side | omarchy agent account add muse
 
 set -uo pipefail
@@ -24,7 +24,7 @@ while [[ ${1:-} == --* ]]; do
   --reauth)
     reauth="${2:-}"
     if [[ -z $reauth || $reauth == --* ]]; then
-      echo "Usage: omarchy-agent-account-add --reauth <account> [agy|claude|codex|copilot|cursor|fireworks|grok|muse|opencode|openrouter]" >&2
+      echo "Usage: omarchy-agent-account-add --reauth <account> [agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai]" >&2
       exit 1
     fi
     shift
@@ -49,13 +49,13 @@ if [[ $check == "true" ]]; then
     fi
   done
   # The rest keep one sign-in each, which signing in again replaces.
-  printf '%s first\n' agy copilot cursor fireworks muse opencode openrouter
+  printf '%s first\n' agy copilot cursor deepseek fireworks minimax muse opencode openrouter synthetic zai
   exit 0
 fi
 
 # The provider can be left out when it's your default agent:
 # `omarchy agent account add Work`.
-if [[ ! ${1:-} =~ ^(agy|gemini|claude|codex|copilot|cursor|cursor-agent|fireworks|grok|muse|opencode|openrouter)$ ]]; then
+if [[ ! ${1:-} =~ ^(agy|gemini|claude|codex|copilot|cursor|cursor-agent|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai)$ ]]; then
   default=$(omarchy-default-agent)
   [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
 fi
@@ -79,8 +79,14 @@ cursor | cursor-agent) provider="cursor"; harness="cursor-agent"; name="Cursor";
 # No CLI of their own: an API key is the sign-in, and OpenCode runs on it.
 fireworks) provider="fireworks"; harness="opencode"; name="Fireworks"; app="OpenCode"; package="opencode"; by_key=true; login_command=(key_login fireworks-ai) ;;
 openrouter) provider="openrouter"; harness="opencode"; name="OpenRouter"; app="OpenCode"; package="opencode"; by_key=true; login_command=(key_login openrouter) ;;
+# The panel's More list: providers whose usage Omarchy reads, so their keys
+# can be checked before they're saved.
+deepseek) provider="deepseek"; harness="opencode"; name="DeepSeek"; app="OpenCode"; package="opencode"; by_key=true; login_command=(key_login deepseek) ;;
+minimax) provider="minimax"; harness="opencode"; name="MiniMax"; app="OpenCode"; package="opencode"; by_key=true; login_command=(key_login minimax) ;;
+synthetic) provider="synthetic"; harness="opencode"; name="Synthetic"; app="OpenCode"; package="opencode"; by_key=true; login_command=(key_login synthetic) ;;
+zai) provider="zai"; harness="opencode"; name="Z.ai"; app="OpenCode"; package="opencode"; by_key=true; login_command=(key_login zai) ;;
 *)
-  echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [agy|claude|codex|copilot|cursor|fireworks|grok|muse|opencode|openrouter] [label]" >&2
+  echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai] [label]" >&2
   exit 1
   ;;
 esac
@@ -278,11 +284,15 @@ key_login() {
   # saving a key nobody has vouched for.
   local status
   status=$(env "${provider^^}_API_KEY=$key" "omarchy-agent-usage-$provider" --force | jq -r '.usageStatusText // "unreadable"') || return 3
-  if [[ $status == "Sign-in expired" ]]; then
-    return 2
-  elif [[ -n $status ]]; then
-    return 3
-  fi
+  # A key the provider answered for is fine even when the account is empty,
+  # and OpenRouter says its balance is unavailable only after the key itself
+  # was accepted; any other status means the provider wasn't reached.
+  case $status in
+  "" | "Out of credits") ;;
+  "Sign-in expired") return 2 ;;
+  "Balance unavailable") [[ $provider == "openrouter" ]] || return 3 ;;
+  *) return 3 ;;
+  esac
 
   # OpenCode imports a credential as inactive when it already has one.
   id="omarchy-$EPOCHSECONDS"

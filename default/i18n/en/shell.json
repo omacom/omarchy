@@ -84,6 +84,8 @@
   "agents.hideProviderConfirm": "Hide %1 from the panel? Credentials and sign-in will be kept.",
   "agents.isDefault": "Your default agent",
   "agents.launchHarness": "Start %1",
+  "agents.more": "More",
+  "agents.moreInOpenCode": "Another provider in OpenCode…",
   "agents.makeWith": "Make a new %1 with %2",
   "agents.makeDefault": "Make %1 your default agent",
   "agents.spendDay": "%1: %2",

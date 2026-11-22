@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick] [--or-webapp <url>] [--local] [--local-model <recipe>] [--agent <id>] [--provider <fireworks|openrouter>] [--app-id=<app-id>]
+# omarchy:args=[--inline] [--pick] [--or-webapp <url>] [--local] [--local-model <recipe>] [--agent <id>] [--provider <fireworks|openrouter|deepseek|minimax|synthetic|zai>] [--app-id=<app-id>]
 # omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --local | omarchy agent --agent codex | omarchy agent --provider fireworks
 
 inline=false
@@ -84,7 +84,8 @@ else
 fi
 
 # --provider opens a pay-as-you-go provider with no harness of its own
-# (Fireworks, OpenRouter) in OpenCode, where the panel's sign-in saves its key.
+# (Fireworks, OpenRouter, and the agents panel's More list) in OpenCode, where
+# the panel's sign-in saves its key.
 [[ -n $provider ]] && agent=opencode
 
 # A default of "local" is the local model. It opens in pi, as --local does

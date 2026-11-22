@@ -484,7 +484,7 @@ pass "a Grok settings cache of the wrong shape reads as no plan"
 
 # ------------------------------------------------------------ panel add flow
 
-[[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional\nagy first\ncopilot first\ncursor first\nfireworks first\nmuse first\nopencode first\nopenrouter first' ]] ||
+[[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional\nagy first\ncopilot first\ncursor first\ndeepseek first\nfireworks first\nminimax first\nmuse first\nopencode first\nopenrouter first\nsynthetic first\nzai first' ]] ||
   fail "--check says what adding would mean for each provider" "$(omarchy-agent-account-add --check)"
 pass "--check says what adding would mean for each provider"
 

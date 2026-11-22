@@ -82,8 +82,10 @@ per local coding model that is running and ready.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
   three blocks: _Sign in to a subscription_ (Claude, Codex, Grok, and Gemini,
   signed in through Antigravity), _Pay as you go_ (Fireworks, OpenCode
-  Zen and Go, and OpenRouter, all run in OpenCode), each a large mark four
-  across, and _Use a local model_: a line for each coding model a paired,
+  Zen and Go, and OpenRouter, all run in OpenCode, and More: a list of
+  DeepSeek, MiniMax, Synthetic, and Z.ai, whose keys are checked like
+  Fireworks', then OpenCode's own sign-in for any other provider), each a
+  large mark four across, and _Use a local model_: a line for each coding model a paired,
   online machine is running, then one for the best coding model for this
   computer when the local models catalog has one that fits. The first one is
   focused and the hero reads Add an agent. A model that's ready opens the

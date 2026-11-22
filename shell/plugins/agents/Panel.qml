@@ -86,6 +86,10 @@ Panel {
         if (choices.length > 0) rows.push(choices)
       }
       for (var o = 0; o < ownModelOffers.length; o++) rows.push([{ kind: "ownModel", index: o }])
+    } else if (addStage === "more") {
+      var more = addGroup("more")
+      for (var r = 0; r < more.length; r++) rows.push([{ kind: "moreChoice", index: r }])
+      rows.push([{ kind: "moreOpenCode", index: 0 }])
     } else if (addStage === "running") {
       if (pasteLinkShown) rows.push([{ kind: "pasteCode", index: 0 }])
       if (addUrl !== "") rows.push([{ kind: "reopenSignIn", index: 0 }])
@@ -337,6 +341,13 @@ Panel {
     { providerId: "fireworks", providerName: "Fireworks", group: "provider" },
     { providerId: "opencode", providerName: "OpenCode", group: "provider", printsPage: true },
     { providerId: "openrouter", providerName: "OpenRouter", group: "provider" },
+    { providerId: "more", providerName: Commons.I18n.t("agents.more"), group: "provider", more: true },
+    // Behind More: providers whose usage Omarchy reads, so their keys can be
+    // checked before they're saved in OpenCode.
+    { providerId: "deepseek", providerName: "DeepSeek", group: "more" },
+    { providerId: "minimax", providerName: "MiniMax", group: "more" },
+    { providerId: "synthetic", providerName: "Synthetic", group: "more" },
+    { providerId: "zai", providerName: "Z.ai", group: "more" },
     { providerId: "copilot", providerName: "Copilot", limitsElsewhere: true },
     { providerId: "cursor", providerName: "Cursor" },
     { providerId: "muse", providerName: "Muse", printsPage: true }
@@ -552,6 +563,10 @@ Panel {
   }
 
   function chooseAddProvider(id) {
+    if (id === "more") {
+      addStage = "more"
+      return
+    }
     var state = addChecks[id] || ""
     if (state === "") return
     addProvider = id
@@ -582,10 +597,21 @@ Panel {
   }
 
   function cancelAdd() {
+    // The More list steps back to the add screen it came from.
+    if (addStage === "more") {
+      addStage = "pick"
+      return
+    }
     if (addProcess.running) addProcess.signal(15)
     addFetchTimer.stop()
     addStage = ""
     root.focusKeys()
+  }
+
+  // Every other provider OpenCode signs in to, in its own picker.
+  function openOpenCodeLogin() {
+    root.close()
+    Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "opencode auth login"])
   }
 
   function submitPaste(code) {
@@ -775,6 +801,8 @@ Panel {
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
     else if (target.kind === "ownModel") chooseOwnModel(target.index)
+    else if (target.kind === "moreChoice") chooseAddProvider(addGroup("more")[target.index].providerId)
+    else if (target.kind === "moreOpenCode") openOpenCodeLogin()
     else if (target.kind === "pasteCode") openPasteField()
     else if (target.kind === "reopenSignIn") reopenSignIn()
     else if (target.kind === "providerLaunch") launchLine(providers[target.index])
@@ -912,7 +940,7 @@ Panel {
 
   // The providers whose key or plan the panel saves in OpenCode open there,
   // on the model they've used most.
-  readonly property var keyProviders: ["fireworks", "openrouter"]
+  readonly property var keyProviders: ["fireworks", "openrouter", "deepseek", "minimax", "synthetic", "zai"]
 
   function opensInAgent(provider) {
     return !!provider && keyProviders.indexOf(provider.providerId) >= 0
@@ -1628,7 +1656,7 @@ Panel {
             id: hero
             width: parent.width
             title: root.setupShown ? root.addProviderEntry.providerName
-              : root.picking ? (root.blankSlate ? Commons.I18n.t("agents.setUpTitle") : Commons.I18n.t("agents.addTitle"))
+              : root.picking || root.addStage === "more" ? (root.blankSlate ? Commons.I18n.t("agents.setUpTitle") : Commons.I18n.t("agents.addTitle"))
               : Commons.I18n.t("agents.title")
             meta: root.heroPhrase
             foreground: root.foreground
@@ -1761,7 +1789,7 @@ Panel {
     property var entry: ({})
     property int index: -1
     readonly property string state: root.addChecks[entry.providerId] || ""
-    readonly property bool available: state === "first" || state === "additional"
+    readonly property bool available: entry.more === true || state === "first" || state === "additional"
     readonly property bool hasCursor: root.hasKey("choice", index)
     implicitHeight: choiceBody.implicitHeight + Style.space(16)
     onHasCursorChanged: if (hasCursor) root.revealItem(choice)
@@ -1771,7 +1799,18 @@ Panel {
       anchors.centerIn: parent
       spacing: Style.space(10)
 
+      Text {
+        visible: choice.entry.more === true
+        anchors.horizontalCenter: parent.horizontalCenter
+        text: "󰇘"
+        textFormat: Text.PlainText
+        color: choice.hasCursor ? Commons.Color.accent : root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.display * 1.6
+      }
+
       ProviderIcon {
+        visible: choice.entry.more !== true
         anchors.horizontalCenter: parent.horizontalCenter
         provider: choice.entry
         size: Style.font.display * 1.6
@@ -1941,6 +1980,72 @@ Panel {
               onEntered: root.pointAt("ownModel", ownModel.index)
               onClicked: root.chooseOwnModel(ownModel.index)
             }
+          }
+        }
+      }
+    }
+
+    // More: the providers behind the More tile, each to the key step, then
+    // OpenCode's own sign-in for the rest.
+    Column {
+      visible: root.addStage === "more"
+      width: parent.width
+      spacing: Style.space(4)
+
+      PanelSectionHeader {
+        text: Commons.I18n.t("agents.blockProviders")
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+      }
+
+      Repeater {
+        model: root.addStage === "more" ? root.addGroup("more").concat([{ providerId: "", providerName: Commons.I18n.t("agents.moreInOpenCode"), opencode: true }]) : []
+
+        Item {
+          id: moreRow
+          required property var modelData
+          required property int index
+          readonly property bool hasCursor: modelData.opencode ? root.hasKey("moreOpenCode", 0) : root.hasKey("moreChoice", index)
+          width: parent.width
+          implicitHeight: Style.space(36)
+          onHasCursorChanged: if (hasCursor) root.revealItem(moreRow)
+
+          CursorSurface {
+            anchors.fill: parent
+            hasCursor: moreRow.hasCursor || moreMouse.containsMouse
+            foreground: root.foreground
+          }
+
+          ProviderIcon {
+            id: moreMark
+            visible: !moreRow.modelData.opencode
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            provider: moreRow.modelData
+          }
+
+          Text {
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(8) + moreMark.width + Style.space(10)
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: moreRow.modelData.providerName
+            textFormat: Text.PlainText
+            color: moreRow.hasCursor ? Commons.Color.accent : root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            font.bold: !moreRow.modelData.opencode
+            elide: Text.ElideRight
+          }
+
+          MouseArea {
+            id: moreMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onEntered: moreRow.modelData.opencode ? root.pointAt("moreOpenCode", 0) : root.pointAt("moreChoice", moreRow.index)
+            onClicked: moreRow.modelData.opencode ? root.openOpenCodeLogin() : root.chooseAddProvider(moreRow.modelData.providerId)
           }
         }
       }
