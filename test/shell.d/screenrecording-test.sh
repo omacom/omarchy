@@ -22,6 +22,12 @@ case "$1" in
   printf '\t%s\n' "/dev/video0"
   printf '\t%s\n' "/dev/video1"
 
+  # A Snapdragon's camera subsystem: raw I/O MC capture nodes of a media
+  # pipeline, listed ahead of the cameras apps can open.
+  printf '\n%s\n' "Qualcomm Camera Subsystem (platform:acb7000.isp):"
+  printf '\t%s\n' "/dev/video20"
+  printf '\t%s\n' "/dev/video21"
+
   if [[ ${OMARCHY_TEST_RAW_WEBCAM:-false} != "true" ]]; then
     printf '\n%s\n' "Built-in Webcam: Integrated Camera"
     printf '\t%s\n' "/dev/video42"
@@ -43,6 +49,7 @@ case "$1" in
   /dev/video0) device_capability="Video Output" ;;
   /dev/video1) device_capability="Metadata Capture" ;;
   /dev/video7 | /dev/video9) device_capability="Video Output" ;;
+  /dev/video20 | /dev/video21) device_capability="Video Capture Multiplanar" ;;
   *) device_capability="Video Capture" ;;
   esac
 
@@ -52,6 +59,10 @@ case "$1" in
     $'\t\tVideo Capture' \
     $'\tDevice Caps      : 0x04200001' \
     $'\t\t'"$device_capability"
+
+  case "$2" in
+  /dev/video20 | /dev/video21) printf '%s\n' $'\t\tI/O MC' ;;
+  esac
   ;;
 esac
 SH
@@ -131,6 +142,31 @@ if OMARCHY_TEST_NO_WEBCAM=true "$ROOT/bin/omarchy-hw-webcam"; then
   fail "webcam hardware detection fails when no video device is available"
 else
   pass "webcam hardware detection fails when no video device is available"
+fi
+
+# udev records :capture: for a Snapdragon camera subsystem's raw nodes, but they
+# are no camera for an app: with nothing else listed they must not answer yes.
+raw_v4l="$tmp_dir/v4l-camss"
+raw_udev="$tmp_dir/udev-camss"
+raw_dev="$tmp_dir/dev-camss"
+mkdir -p "$raw_v4l/video20/device" "$raw_udev" "$raw_dev"
+echo 81:20 >"$raw_v4l/video20/dev"
+ln -s "../../../../bus/platform/drivers/qcom-camss" "$raw_v4l/video20/device/driver"
+touch "$raw_dev/video20"
+printf '%s\n' "E:ID_V4L_CAPABILITIES=:capture:" >"$raw_udev/c81:20"
+
+if OMARCHY_TEST_NO_WEBCAM=true OMARCHY_V4L_CLASS_PATH="$raw_v4l" OMARCHY_UDEV_DATA_PATH="$raw_udev" OMARCHY_DEV_PATH="$raw_dev" "$ROOT/bin/omarchy-hw-webcam"; then
+  fail "webcam hardware detection ignores a camera subsystem's raw capture nodes"
+else
+  pass "webcam hardware detection ignores a camera subsystem's raw capture nodes"
+fi
+
+rm "$raw_v4l/video20/device/driver"
+ln -s "../../../../bus/usb/drivers/uvcvideo" "$raw_v4l/video20/device/driver"
+if OMARCHY_TEST_NO_WEBCAM=true OMARCHY_V4L_CLASS_PATH="$raw_v4l" OMARCHY_UDEV_DATA_PATH="$raw_udev" OMARCHY_DEV_PATH="$raw_dev" "$ROOT/bin/omarchy-hw-webcam"; then
+  pass "webcam hardware detection still takes a recorded capture node of another driver"
+else
+  fail "webcam hardware detection still takes a recorded capture node of another driver"
 fi
 
 # With udev's record available the guard answers from it and opens no device.
