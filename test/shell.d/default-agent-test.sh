@@ -979,6 +979,15 @@ mapfile -d '' -t launch_args <"$launch_log"
   fail "agent launcher starts the selected agent without an initial prompt"
 pass "agent launcher starts the selected agent without an initial prompt"
 
+# A make icon on one of the agents panel's lines starts that line's agent on
+# the task, not the default.
+: >"$launch_log"
+omarchy-agent-make --agent claude theme
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *"claude"*"Make me a new Omarchy theme."* && ${launch_args[*]} != *opencode* ]] ||
+  fail "make starts the named agent on the task: ${launch_args[*]}"
+pass "make starts the named agent on the task"
+
 omarchy-agent-prompt --inline "Review this project"
 mapfile -d '' -t inline_args <"$inline_log"
 [[ ${inline_args[*]} == "opencode --auto --prompt Review this project" ]] ||

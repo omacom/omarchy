@@ -94,9 +94,12 @@ Panel {
         // Every line is a stop, so Ctrl+Up/Down can move it: its terminal
         // button when it has a harness of its own, else its mark. One that
         // doesn't hold the star offers it, and a lapsed sign-in follows.
-        var line = [{ kind: lineStop(p), index: p }]
+        var line = []
         if (defaultIdFor(providers[p]) !== "" && !starred(providers[p], providers[p].account || null))
-          line.unshift({ kind: "providerStar", index: p })
+          line.push({ kind: "providerStar", index: p })
+        if (launches(providers[p]))
+          for (var m = 0; m < starterPrompts.length; m++) line.push({ kind: "make:" + starterPrompts[m].kind, index: p })
+        line.push({ kind: lineStop(p), index: p })
         rows.push(line)
         if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
       }
@@ -175,7 +178,7 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch", "providerStar"].indexOf(target.kind) >= 0) return target.index
+    if (["provider", "providerSignin", "providerLaunch", "providerStar"].indexOf(target.kind) >= 0 || target.kind.indexOf("make:") === 0) return target.index
     return -1
   }
 
@@ -682,6 +685,21 @@ Panel {
     return line.account ? line.providerName + " " + String(line.account.label || line.account.id || "") : line.providerName
   }
 
+  function makeOnLine(line, kind) {
+    if (!line || !launches(line)) return
+    if (line.localModel) {
+      Util.execArgv(["omarchy-agent-make", "--local-model", line.localModel.target, kind])
+    } else if (opensInAgent(line)) {
+      Util.execArgv(["omarchy-agent-make", "--provider", line.providerId, kind])
+    } else if (line.account && !line.account.active) {
+      Util.execArgv(["bash", "-c", 'omarchy-agent-account-use "$1" "$2" >/dev/null && exec omarchy-agent-make --agent "$3" "$4"',
+                     "make-on-account", line.providerId, String(line.account.id), harnessFor(line), kind])
+    } else {
+      Util.execArgv(["omarchy-agent-make", "--agent", harnessFor(line), kind])
+    }
+    root.close()
+  }
+
   function launchLine(line) {
     if (line && line.localModel) {
       Util.execArgv(["omarchy-agent", "--local-model", line.localModel.target])
@@ -716,6 +734,7 @@ Panel {
     else if (target.kind === "reopenSignIn") reopenSignIn()
     else if (target.kind === "providerLaunch") launchLine(providers[target.index])
     else if (target.kind === "providerStar") makeDefault(providers[target.index], providers[target.index].account || null)
+    else if (target.kind.indexOf("make:") === 0) makeOnLine(providers[target.index], target.kind.slice(5))
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], providers[target.index].account || null)
   }
@@ -2223,6 +2242,8 @@ Panel {
         anchors.leftMargin: Style.space(8)
         anchors.baseline: sectionName.baseline
         visible: !section.editingName && text !== ""
+        width: Math.max(0, Math.min(implicitWidth, (sectionStar.visible ? sectionStar.x : sectionMakes.visible ? sectionMakes.x : sectionLaunch.x) - x - Style.space(8)))
+        elide: Text.ElideRight
         textFormat: Text.PlainText
         text: {
           var plan = root.planLabel(section.provider)
@@ -2245,8 +2266,8 @@ Panel {
       // accounts the one in use. Another line's makes it the default.
       PanelActionButton {
         id: sectionStar
-        anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
-        anchors.rightMargin: sectionLaunch.visible ? Style.space(6) : 0
+        anchors.right: sectionMakes.visible ? sectionMakes.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
+        anchors.rightMargin: sectionMakes.visible || sectionLaunch.visible ? Style.space(6) : 0
         anchors.verticalCenter: parent.verticalCenter
         visible: root.defaultIdFor(section.provider) !== ""
         readonly property bool on: root.starred(section.provider, section.account)
@@ -2263,6 +2284,31 @@ Panel {
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("providerStar", section.providerIndex)
         onClicked: root.makeDefault(section.provider, section.account)
+      }
+
+      // Making something with this line's agent, as the starter tiles do with
+      // the default: shown on the line in use.
+      Row {
+        id: sectionMakes
+        anchors.right: sectionLaunch.left
+        anchors.rightMargin: Style.space(6)
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.launches(section.provider) && section.engaged
+        spacing: Style.space(2)
+
+        Repeater {
+          model: root.starterPrompts
+
+          PanelActionButton {
+            required property var modelData
+            iconText: modelData.glyph
+            tooltipText: Commons.I18n.t("agents.makeWith").arg(modelData.label.toLowerCase()).arg(root.lineName(section.provider))
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            hasCursor: root.hasKey("make:" + modelData.kind, section.providerIndex)
+            onClicked: root.makeOnLine(section.provider, modelData.kind)
+          }
+        }
       }
 
       // Opens the coding agent made for this subscription: Codex for OpenAI,
