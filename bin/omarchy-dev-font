@@ -643,7 +643,6 @@ def main():
     if readme:
         print('  - check the new line in %s' % os.path.relpath(readme))
     print('  - point a menu entry at it: "icon":"%s","iconFont":"omarchy"' % chr(cp))
-    print('  - bump the charset range in test/shell.d/menu-test.sh to e900-%x' % cp)
     print('  - the font is package-owned, so it reaches the desktop through an')
     print('    omarchy-settings release, not through omarchy update')
 

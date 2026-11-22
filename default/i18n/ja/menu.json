@@ -26,11 +26,11 @@
   "update": {
     "label": "更新"
   },
-  "about": {
-    "label": "情報"
-  },
   "system": {
     "label": "システム"
+  },
+  "system.about": {
+    "label": "情報"
   },
   "system.screensaver": {
     "label": "スクリーンセーバー"
@@ -357,26 +357,14 @@
   "trigger.tests.disk-speedtest": {
     "label": "ディスク速度テスト"
   },
-  "setup.monitors": {
-    "label": "ディスプレイ"
-  },
-  "setup.keybindings": {
-    "label": "キーバインド"
-  },
   "setup.input": {
     "label": "入力"
   },
-  "setup.typing": {
-    "label": "タイピング"
-  },
-  "setup.typing.keyboard": {
-    "label": "キーボード配列"
-  },
-  "setup.typing.input": {
-    "label": "入力方法"
-  },
-  "setup.language": {
+  "setup.region.language": {
     "label": "言語"
+  },
+  "setup.region.timezone": {
+    "label": "タイムゾーン"
   },
   "setup.network": {
     "label": "ネットワーク"
@@ -402,53 +390,52 @@
   "setup.default": {
     "label": "既定アプリ"
   },
-  "setup.default.agent": {
-    "label": "エージェント",
-    "title": "既定のエージェント"
+  "agent": {
+    "label": "エージェント"
   },
-  "setup.default.agent.agy": {
+  "agent.harness.agy": {
     "label": "Antigravity"
   },
-  "setup.default.agent.claude": {
+  "agent.harness.claude": {
     "label": "Claude"
   },
-  "setup.default.agent.codex": {
+  "agent.harness.codex": {
     "label": "Codex"
   },
-  "setup.default.agent.copilot": {
+  "agent.harness.copilot": {
     "label": "Copilot"
   },
-  "setup.default.agent.crush": {
+  "agent.harness.crush": {
     "label": "Crush"
   },
-  "setup.default.agent.cursor-agent": {
+  "agent.harness.cursor-agent": {
     "label": "Cursor CLI"
   },
-  "setup.default.agent.grok": {
+  "agent.harness.grok": {
     "label": "Grok"
   },
-  "setup.default.agent.hermes": {
+  "agent.harness.hermes": {
     "label": "Hermes"
   },
-  "setup.default.agent.kimi": {
+  "agent.harness.kimi": {
     "label": "Kimi"
   },
-  "setup.default.agent.muse": {
+  "agent.harness.muse": {
     "label": "Muse Code"
   },
-  "setup.default.agent.omp": {
+  "agent.harness.omp": {
     "label": "omp"
   },
-  "setup.default.agent.openclaw": {
+  "agent.harness.openclaw": {
     "label": "OpenClaw"
   },
-  "setup.default.agent.opencode": {
+  "agent.harness.opencode": {
     "label": "OpenCode"
   },
-  "setup.default.agent.ori": {
+  "agent.harness.ori": {
     "label": "Ori"
   },
-  "setup.default.agent.pi": {
+  "agent.harness.pi": {
     "label": "Pi"
   },
   "setup.default.browser": {
@@ -581,11 +568,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "ダイレクトブート"
-  },
-  "setup.reset": {
-    "label": "コンピュータをリセット"
+  "remove.factory-reset": {
+    "label": "工場出荷時リセット"
   },
   "install.package": {
     "label": "パッケージ"
@@ -680,9 +664,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -703,9 +684,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromiumアカウント"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1103,9 +1081,6 @@
   "update.password": {
     "label": "パスワード"
   },
-  "update.timezone": {
-    "label": "タイムゾーン"
-  },
   "update.time": {
     "label": "時刻"
   },
@@ -1160,7 +1135,247 @@
   "update.password.user": {
     "label": "ユーザー"
   },
-  "system.reboot-boot-menu": {
-    "label": "ブートメニューで再起動"
+  "appearance.windows.gaps-on": {
+    "label": "ウィンドウ間隔 オン"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "ウィンドウ間隔 オフ"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1ウィンドウ比率 オン"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1ウィンドウ比率 オフ"
+  },
+  "appearance.branding": {
+    "label": "ブランディング"
+  },
+  "appearance.animations-on": {
+    "label": "アニメーション オン"
+  },
+  "appearance.animations-off": {
+    "label": "アニメーション オフ"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "スリープ防止"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "スリープ許可"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "通知 オン"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "通知をミュート"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "ナイトライト オン"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "ナイトライト オフ"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "スクリーンセーバー オン"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "スクリーンセーバー オフ"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "クラッシュキャプチャ オン"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "クラッシュキャプチャ オフ"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "ノートPC画面 オン"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "ノートPC画面 オフ"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "ディスプレイミラーリング オン"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "バッテリー % を表示"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "バッテリー % を非表示"
+  },
+  "appearance.windows": {
+    "label": "ウィンドウ"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "ミラーリングをオフ"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "ハイブリッドGPUに切替"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "内蔵GPUに切替"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "タッチパッドを有効化"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "タッチパッドを無効化"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "タッチスクリーンを有効化"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "タッチスクリーンを無効化"
+  },
+  "agent.harness.amp": {
+    "label": "Amp"
+  },
+  "agent.harness.commandcode": {
+    "label": "Command Code"
+  },
+  "agent.harness.devin": {
+    "label": "Devin CLI"
+  },
+  "agent.harness.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "agent.harness.freebuff": {
+    "label": "Freebuff"
+  },
+  "agent.harness.kilo": {
+    "label": "Kilo"
+  },
+  "agent.harness.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "agent.harness.mcode": {
+    "label": "MiniMax Code"
+  },
+  "agent.harness.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "カーネル"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "キーボード"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "キーバインド"
+  },
+  "setup.keyboard.inputs": {
+    "label": "キーボード入力"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "入力メソッド"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "プレーン"
+  },
+  "agent.harness": {
+    "label": "ハーネス",
+    "title": "デフォルトのハーネス"
+  },
+  "agent.instructions": {
+    "label": "指示"
+  },
+  "agent.make": {
+    "label": "何か作る"
+  },
+  "agent.make.theme": {
+    "label": "テーマを作る"
+  },
+  "agent.make.plugin": {
+    "label": "プラグインを作る"
+  },
+  "agent.make.app": {
+    "label": "アプリを作る"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "アイコン"
+  },
+  "install.style.icons": {
+    "label": "アイコン"
+  },
+  "remove.icons": {
+    "label": "アイコン"
+  },
+  "update.icons": {
+    "label": "追加アイコン"
+  },
+  "system.firmware": {
+    "label": "BIOSへ再起動",
+    "description": "UEFIファームウェア設定で再起動"
+  },
+  "setup.region": {
+    "label": "地域"
+  },
+  "setup.region.formats": {
+    "label": "書式",
+    "description": "日付、時刻、数値、単位の表記方法"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "agent.make.game": {
+    "label": "ゲームを作る"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "ホスト名"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

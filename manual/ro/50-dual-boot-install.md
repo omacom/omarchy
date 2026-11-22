@@ -1,44 +1,48 @@
-# Instalare cu pornire duală
+# Instalare în Dual Boot
 
-Poți instala Omarchy pe o singură partiție alături de Windows sau de alte instalări.
+Puteți instala Omarchy pe o singură partiție, alături de Windows sau de alte instalări.
 
-Această metodă de instalare vine în continuare cu criptare LUKS pentru partiție implicit, așa că, în mod efectiv, nu este diferită de unitatea completă și necesită pur și simplu spațiu liber disponibil pe disc.
+Această metodă de instalare vine în continuare cu criptare LUKS pentru partiție în mod implicit, așa că, efectiv, nu este cu nimic diferită de instalarea pe întreg discul și necesită pur și simplu spațiu liber disponibil pe disc.
 
-## Crearea spațiului pe Windows
+## Eliberarea spațiului pe Windows
 
-Ca să instalezi alături de Windows, tastează `disk management` în meniul Start și selectează opțiunea **Create and format hard disk partitions**.
+Pentru a instala alături de Windows, tastați `disk management` în meniul Start și selectați opțiunea **Create and format hard disk partitions**.
 
  ![dual-boot-1](images/dual-boot-1.webp)
 
-Găsește partiția potrivită, fă clic dreapta și alege **Shrink Volume**.
+Găsiți partiția corespunzătoare, faceți clic dreapta și alegeți **Shrink Volume**.
 
 ![dual-boot-2](images/dual-boot-2.webp)
 
- Introdu cantitatea cu care ai vrea să micșorezi volumul. Reține că aceasta va fi dimensiunea viitoarei tale instalări Omarchy, incluzând partiția de pornire.
+ Introduceți dimensiunea cu care doriți să micșorați volumul. Rețineți că aceasta va fi dimensiunea viitoarei instalări Omarchy, inclusiv partiția de boot.
 
  ![dual-boot-3](images/dual-boot-3.webp)
 
-Când ai terminat, ar trebui să vezi ceva de genul acesta, unde secțiunea de 50GB este locul în care vom instala Omarchy în acest exemplu.
+Când ați terminat, ar trebui să vedeți ceva de genul acesta, unde secțiunea de 50GB este cea în care vom instala Omarchy în acest exemplu.
 
  ![dual-boot-4](images/dual-boot-4.webp)
 
 ## Instalarea Omarchy
 
-Procesul de instalare pentru Omarchy este, în mod efectiv, același ca de obicei. După ce îți selectezi discul, ți se va oferi opțiunea **Free space install**. Selectează acea opțiune ca să împiedici ștergerea întregului disc.
+Procesul de instalare pentru Omarchy este, efectiv, același ca în mod normal. După ce selectați discul, vi se va oferi opțiunea **Free space install**. Selectați acea opțiune pentru a împiedica ștergerea întregului disc.
 
  ![dual-boot-5](images/dual-boot-5.webp)
 
-Confirmă că totul arată bine și așteaptă ca instalarea să se termine ca de obicei. Aici ai putea alege și să instalezi necriptat (nerecomandat), la fel ca la o instalare pe unitate completă.
+Confirmați că totul arată bine și așteptați finalizarea instalării ca în mod normal. Tot aici puteți alege să instalați fără criptare (nerecomandat), la fel ca la o instalare pe întreg discul.
  ![dual-boot-6](images/dual-boot-6.webp)
 
-## Adăugarea altor instalări în încărcătorul de pornire
+## Adăugarea altor instalări în bootloader
 
-Când termini instalarea Omarchy, vei observa că încărcătorul de pornire Limine este acum implicitul. Cu acesta, poți adăuga și opțiuni la Limine pentru celelalte instalări ale tale, precum Windows.
+Când terminați instalarea Omarchy, veți observa că bootloaderul Limine este acum cel implicit. Cu acesta, puteți adăuga și opțiuni în Limine pentru celelalte instalări ale dumneavoastră, cum ar fi Windows.
 
-Ca să faci asta, rulează `limine-scan` și urmează solicitările ca să adaugi la configurația ta limine elementele pe care le vrei. Apoi, când pornești, vei vedea opțiunile tale normale pentru Omarchy, precum și Windows Boot Manager sau altele.
+Pentru a adăuga alte sisteme de operare, rulați `limine-scan` și urmați instrucțiunile pentru a adăuga intrările dorite în configurația Limine. Meniul de boot rămâne ascuns în mod implicit și pornește Omarchy după o secundă. Pentru a alege Windows sau altă intrare, apăsați orice tastă imediat ce pornește Limine; când apare meniul, folosiți tastele săgeată pentru a selecta o intrare și apăsați Enter. Dacă Omarchy pornește înainte să apăsați o tastă, reporniți și încercați din nou.
 
 ## Bitlocker
 
-Este important de reținut că această metodă de instalare nu este compatibilă cu Bitlocker, deoarece criptează întreaga unitate, nu doar partiția. Dacă întâmpini o eroare care afirmă că Bitlocker este activat, pornește în Windows, mergi la **Settings -> Privacy & Security -> Device encryption** și dezactivează Bitlocker. Decriptarea unității poate dura ceva timp.
+Este important de reținut că această metodă de instalare nu este compatibilă cu Bitlocker, deoarece acesta criptează întregul disc, nu doar partiția. Dacă întâlniți o eroare care indică faptul că Bitlocker este activat, porniți în Windows, accesați **Settings -> Privacy & Security -> Device encryption** și dezactivați Bitlocker. Decriptarea discului poate dura ceva timp.
 
  ![dual-boot-7](images/dual-boot-7.webp)
+
+## Reinstalarea Windows
+
+Dacă acest computer a fost livrat cu Windows, cheia sa de produs este stocată în firmware. Rulați `omarchy windows key` pentru a o afișa, astfel încât să puteți activa Windows din nou dacă îl reinstalați vreodată pe această mașină.

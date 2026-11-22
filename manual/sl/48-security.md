@@ -1,35 +1,35 @@
 # Varnost
 
-Omarchy jemlje varnost izjemno resno. To naj bi bil operacijski sistem, ki ga lahko uporabite za _pravo delo_ v _pravem svetu_. Kjer izguba prenosnika ne more voditi v varnostno izredno stanje. Tukaj je torej, kaj počnemo:
+Omarchy jemlje varnost izjemno resno. To naj bi bil operacijski sistem, ki ga lahko uporabljaš za _resnično delo_ v _resničnem svetu_. Kjer izguba prenosnika ne more povzročiti varnostne krize. Takole torej ravnamo:
 
-1. *Šifriranje celotnega diska je obvezno*: To je najpomembnejši korak k zavarovanju fizične zaščite vaših podatkov. Če je vaš računalnik izgubljen ali ukraden, so podatki popolnoma šifrirani s standardnim LUKS (Linux Unified Key Setup).
-2. *Požarni zid je privzeto omogočen*: Ves dohodni promet je privzeto blokiran, razen vrat 53317 za [LocalSend](https://localsend.org/). Celo ssh je izklopljen, dokler ga ne vklopite prek _Nastavitve > Security > SSHD_, kar odpre vrata 22 (z omejitvijo hitrosti proti napadom s surovo silo) kot del namestitve. Z nastavitvijo [ufw-docker](https://github.com/chaifeng/ufw-docker) celo zaklenemo dostop Docker, da preprečimo, da bi bili vaši vsebniki pomotoma izpostavljeni svetu.
-3. *Arch ima vedno najnovejše posodobitve*: Arch, temeljna distribucija, na kateri je zgrajen Omarchy, je sprotna distribucija. To pomeni, da je vsaka varnostna ranljivost, ki je odkrita in popravljena v katerem koli paketu, hitro na voljo za namestitev z `omarchy-update`. Tako vedno uporabljate najnovejše, najbolj varne različice vsega.
-4. *Omarchy vzdržuje svoje lastne pakete in zrcalo*: Omarchy se privzeto zanaša le na pakete iz Archovih repozitorijev core/extra/multilib in svojega lastnega repozitorija paketov Omarchy. Programsko opremo lahko namestite neposredno iz AUR, vendar osnovna namestitev tega ne stori — le nekaj izbirnih namestitev, kot so brskalniki tretjih oseb, vleče iz AUR.
-5. *Cloudflare nas ščiti pred DDoS*: Vsa infrastruktura distribucije Omarchy — ISO-ji, paketi Omarchy, zrcalo Arch — je zaščitena za mogočnim DDoS ščitom Cloudflare in gostuje na njihovem CDN. To zagotavlja vrhunsko razpoložljivost.
+1. *Šifriranje celotnega diska je privzeto vklopljeno*: To je najpomembnejši korak za fizično zaščito tvojih podatkov. Če računalnik izgubiš ali ti ga ukradejo, so podatki v celoti šifrirani s standardnim LUKS (Linux Unified Key Setup). Namestitveni program ti omogoča izklop za naprave za enkratno uporabo (glej [Začetek uporabe](02-getting-started.md)); namestitev brez šifriranja te zaščite nima in vsak, ki ima disk, ga lahko prebere.
+2. *Požarni zid je privzeto omogočen*: Ves dohodni promet je privzeto blokiran, z nekaj izjemami: vrata 53317 za [LocalSend](https://localsend.org/); poizvedbe DNS do lastnega razločevalnika računalnika na naslovu premostitve Docker (172.17.0.1), sprejete iz zasebnih obsegov naslovov, ki jih Docker dodeli svojim vsebnikom; in večvrstni DNS (vrata 5353), ki tiskalnikom in drugim napravam v tvojem omrežju omogoča, da se med seboj najdejo, tam pa tudi objavi ime tvojega računalnika. Poleg teh požarni zid obdrži standardna dovoljenja UFW za ping, pridobivanje naslova od usmerjevalnika (DHCP) in odkrivanje UPnP. Celo ssh je izklopljen, dokler ga ne vklopiš prek _Nastavitve > Varnost > SSHD_, kar avtorizira tvoj ključ SSH, izklopi prijave z geslom in šele nato odpre vrata 22 (z omejitvijo hitrosti proti napadom s surovo silo). Z namestitvijo [ufw-docker](https://github.com/chaifeng/ufw-docker) celo zaklenemo dostop do Dockerja, da preprečimo, da bi bili tvoji vsebniki po nesreči izpostavljeni svetu.
+3. *Arch ima vedno najnovejše posodobitve*: Arch, temeljna distribucija, na kateri je zgrajen Omarchy, je sprotno posodabljana distribucija. To pomeni, da je vsaka varnostna ranljivost, ki je odkrita in popravljena v kateremkoli paketu, hitro na voljo za namestitev z `omarchy-update`. Tako vedno uporabljaš najnovejše, najbolj varne različice vsega.
+4. *Omarchy vzdržuje lastne pakete in zrcalo*: Omarchy se privzeto zanaša samo na pakete iz Archovih lastnih repozitorijev core/extra/multilib (na napravah ARM iz repozitorijev Arch Linux ARM, na Apple Silicon pa še Asahi ALARM) in na lastni Omarchy Package Repository. Programsko opremo lahko namestiš neposredno iz AUR, vendar osnovna namestitev tega ne počne — le nekaj izbirnih namestitev, kot so brskalniki tretjih oseb, črpa iz AUR.
+5. *Cloudflare nas ščiti pred DDoS*: Distribucijska infrastruktura Omarchy — slike ISO, paketi Omarchy, zrcalo Arch — je zaščitena za mogočnim ščitom Cloudflare proti DDoS in gostuje na njihovem CDN. To zagotavlja vrhunsko razpoložljivost.
 
-## Spreminjanje vaših gesel
+## Spreminjanje tvojih gesel
 
-Na šifrirani namestitvi imate dve gesli: tistega, ki ob zagonu odklene pogon, in tistega, s katerim se prijavite in izvajate `sudo`. Namestitev ju naredi enaki. Obe lahko spremenite pod _Posodobi > Password_ v meniju Omarchy — _Drive Encryption_ za prvo, _User_ za drugo. Spreminjanje gesla pogona najprej zahteva trenutnega, zato ga imejte pri roki. Če je sprememba prekinjena, znova zaženite _Drive Encryption_: zahteva geslo, ki pogon odklene zdaj, in dokonča spremembo.
+Na šifrirani namestitvi imaš dve gesli: eno, ki ob zagonu odklene disk, in eno, s katerim se prijaviš in uporabljaš `sudo`. Namestitev ju nastavi na isto. Obe lahko spremeniš v meniju Omarchy pod _Posodobitev > Geslo_ — _Šifriranje diska_ za prvo, _Uporabnik_ za drugo. Pri spreminjanju gesla diska moraš najprej vnesti trenutno, zato ga imej pri roki. Če je sprememba prekinjena, znova zaženi _Šifriranje diska_: vpraša po geslu, ki zdaj odklene disk, in dokonča spremembo.
 
-## Predaja računalnika, ki ste ga že uporabljali
+## Predaja naprave, ki si jo že uporabljal
 
-Če predajate svoj računalnik nekomu drugemu, ga ni treba znova namestiti. V meniju Omarchy zaženite _Nastavitve > Reset Computer_, vnesite `reset` za potrditev in znova zaženite. To izbriše vsak uporabniški račun in vse v `/home`, zavrže vse pakete in sistemske spremembe, ki ste jih naredili od namestitve, in počisti identiteto računalnika — omrežne povezave, gostiteljske ključe in vse. Kar se vrne, je čarovnik za namestitev od prvega zagona, pripravljen, da njegov novi lastnik vnese svoje ime, geslo in geslo za šifriranje.
+Če napravo predajaš nekomu drugemu, je ni treba znova namestiti. V meniju Omarchy zaženi _Odstrani > Ponastavitev na tovarniške nastavitve_, vtipkaj `reset` za potrditev, vnesi geslo za šifriranje diska, če si k temu pozvan, in znova zaženi. To izbriše vsak uporabniški račun in vse v `/home`, zavrže vse pakete in sistemske spremembe, ki si jih naredil od namestitve, in počisti identiteto naprave — omrežne povezave, gostiteljske ključe in vse. Kar se znova zažene, je čarovnik za namestitev od prvega zagona, pripravljen, da novi lastnik vnese svoje ime, geslo in geslo za šifriranje.
 
-Deluje tako, da obnovi temeljni posnetek, ki ga naredi namestitveni program, zato je na voljo samo na računalnikih, nameščenih iz ISO-ja Omarchy. In na pogonu brez šifriranja je ponastavitev brisanje in ne varno brisanje, zato če so bili podatki občutljivi, namesto tega naredite svežo namestitev.
+Deluje tako, da obnovi osnovni posnetek, ki ga naredi namestitveni program, zato je na voljo samo na napravah, nameščenih z Omarchy ISO. Na disku brez šifriranja pa je ponastavitev brisanje in ne varno prepisovanje, zato, če so bili podatki občutljivi, raje naredi svežo namestitev.
 
-## sudo brez gesla
+## Sudo brez gesla
 
-Včasih želite, da `sudo` neha spraševati, najpogosteje, ko agent AI za vas opravlja dolg odsek sistemskega dela. _Nastavitve > Security > Passwordless Sudo_ vpraša, kako dolgo dovoliti dostop: **15 minutes**, **1 Hour**, **1 Day** ali **Permanently**. Medtem ko je dostop dejaven, se ob drugih kazalnikih v vrstici prikaže rdeča ikona opozorila. Kliknite jo ali znova zaženite ukaz, da dostop izklopite. S `omarchy-sudo-passwordless 30` lahko podate tudi svoje število minut (od 1 do 1440) ali uporabite `omarchy-sudo-passwordless permanent`.
+Včasih želiš, da `sudo` neha spraševati, najpogosteje, ko agent z umetno inteligenco zate opravlja daljši sklop sistemskega dela. _Nastavitve > Varnost > Sudo brez gesla_ vpraša, kako dolgo naj bo dostop dovoljen: **15 minut**, **1 ura**, **1 dan** ali **Trajno**. Medtem ko je dostop aktiven, se poleg drugih kazalnikov v menijski vrstici prikaže rdeča opozorilna ikona. Klikni jo ali znova zaženi ukaz, da dostop izklopiš. Svoje število minut (od 1 do 1440) lahko podaš tudi z `omarchy-sudo-passwordless 30` ali uporabiš `omarchy-sudo-passwordless permanent`.
 
-Časovni dostop samodejno poteče, vključno takoj po prebujanju iz Spanja, ki je prestopilo rok. Ponovni zagon računalnika ga konča predčasno. Trajni dostop preživi ponovne zagone in ostane omogočen, dokler ga ne onemogočite.
+Časovno omejen dostop samodejno poteče, tudi takoj po prebujanju iz stanja pripravljenosti, med katerim je rok potekel. Ponovni zagon računalnika ga konča predčasno. Trajni dostop preživi ponovne zagone in ostane omogočen, dokler ga ne onemogočiš.
 
-Posodobitev ali odstranitev paketa z nastavitvami Omarchyja konča vsako začasno dodelitev, preden se njena podpora za potek spremeni. Če ukaz sporoči napako avtorizacije ali čiščenja, jo odpravite, preden poskušate omogočiti drugo dodelitev; napaka ne pomeni, da je dostop brez gesla nedejaven.
+Posodobitev ali odstranitev paketa z nastavitvami Omarchy konča vsako začasno dovoljenje, preden se spremeni njegova podpora za potek. Če ukaz sporoči napako pri avtorizaciji ali čiščenju, jo odpravi, preden poskusiš omogočiti drugo dovoljenje; napaka ne pomeni, da dostop brez gesla ni aktiven.
 
-Bodite trezne glave glede tega: medtem ko je vklopljeno, lahko vse, kar se izvaja kot vaš uporabnik, naredi kar koli kot root, ne da bi ga vprašali. To je ves smisel in to je tudi vse tveganje.
+Pri tem imej odprte oči: ko je vklopljeno, lahko vse, kar teče kot tvoj uporabnik, brez vprašanja naredi karkoli kot root. To je celoten smisel, in to je tudi celotno tveganje.
 
-## Podpisni ključi
+## Ključi za podpisovanje
 
-Javni ključ za vse podpise ISO in paket repo Omarchy je `40DFB630FF42BCFFB047046CF0134EE680CAC571` ([preverite na openpgp.org](https://keys.openpgp.org/search?q=pkgs%40omarchy.org)). Paket `omarchy/omarchy-keyring` to prav tako vsebuje in bo uporabljen za brezhibno uvajanje morebitnih posodobitev.
+Javni ključ za vse podpise ISO in pakete repozitorija Omarchy je `40DFB630FF42BCFFB047046CF0134EE680CAC571` ([preveri na openpgp.org](https://keys.openpgp.org/search?q=pkgs%40omarchy.org)). Paket `omarchy/omarchy-keyring` ga prav tako vsebuje in bo uporabljen za brezšivno uvajanje vseh morebitnih posodobitev.
 
-Podpis za katero koli izdajo ISO najdete tako, da URL-ju dodate .sig. Kot https://iso.omarchy.org/omarchy-x.x.x.iso.sig.
+Podpis za katerokoli izdajo ISO najdeš tako, da njenemu URL dodaš `.sig`, na primer `https://iso.omarchy.org/omarchy-x.x.x.iso.sig`.
