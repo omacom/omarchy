@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# omarchy:summary=Detect a dual-GPU Intel Mac whose internal panel is driven by the Intel iGPU.
+
+# Dual-GPU Intel MacBook Pros route the internal panel through Apple's gmux to
+# either the Intel iGPU or the discrete GPU. Once the firmware hands the panel to
+# Intel at boot (see install/hardware/apple/fix-dual-gpu-intel-panel.sh),
+# Hyprland still opens the discrete card first and renders the whole desktop on
+# it. This succeeds only when an i915 card has a connected eDP connector, so
+# pointing Hyprland at the iGPU never leaves the panel without a GPU behind it.
+#
+# Read sysfs rather than lspci, which reads PCI config space and resumes a
+# runtime-suspended discrete GPU.
+#
+# The iGPU symlink is required too: single-GPU Intel Macs also have an i915
+# eDP panel, and Hyprland must not be pointed at a device that doesn't exist.
+drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
+dmi_vendor="${OMARCHY_DMI_VENDOR:-/sys/class/dmi/id/sys_vendor}"
+igpu_link="${OMARCHY_APPLE_IGPU:-/dev/dri/omarchy-apple-igpu}"
+
+[[ $(cat "$dmi_vendor" 2>/dev/null) == Apple* ]] || exit 1
+[[ -e $igpu_link ]] || exit 1
+
+shopt -s nullglob
+
+for card in "$drm_path"/card[0-9]; do
+  [[ $(basename "$(readlink -f "$card/device/driver")") == "i915" ]] || continue
+
+  for connector in "$card"-eDP-*; do
+    if [[ $(cat "$connector/status" 2>/dev/null) == "connected" ]]; then
+      exit 0
+    fi
+  done
+done
+
+exit 1
