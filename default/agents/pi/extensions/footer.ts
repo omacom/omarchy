@@ -40,7 +40,7 @@ export default function (pi: ExtensionAPI) {
         const label = ` ${place(ctx)} `;
         const rest = width - visibleWidth(label) - 1;
         if (rest < 20) return super.renderTopBorder(width, hiddenLineCount);
-        return super.renderTopBorder(rest, hiddenLineCount) + ctx.ui.theme.fg("dim", label) + this.borderColor("─");
+        return super.renderTopBorder(rest, hiddenLineCount) + this.borderColor(`${label}─`);
       }
     }
     ctx.ui.setEditorComponent((tui, theme, keybindings) => new PlaceEditor(tui, theme, keybindings, { embedWorkingStatus: true }));
