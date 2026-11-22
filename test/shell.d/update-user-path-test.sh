@@ -69,13 +69,13 @@ done
 # old updater installs it mid-run and still uses the legacy path.
 analyzer="$boundary_tmp/analyze-logs"
 sed "s#/tmp/omarchy-update\.log#$boundary_tmp/legacy.log#" "$ROOT/bin/omarchy-update-analyze-logs" >"$analyzer"
-printf 'Updating linux initcpios\n' >"$boundary_tmp/current.log"
+printf '(1/1) Updating linux initcpios...\n' >"$boundary_tmp/current.log"
 output=$(OMARCHY_UPDATE_LOG_FILE="$boundary_tmp/current.log" bash "$analyzer")
 [[ $output == *"Initramfs generation may have failed"* ]] || fail "analyzer reads the current transcript"
 printf 'Initcpio image generation successful\n' >>"$boundary_tmp/current.log"
 output=$(OMARCHY_UPDATE_LOG_FILE="$boundary_tmp/current.log" bash "$analyzer")
 [[ -z $output ]] || fail "analyzer accepts a successful initramfs"
-printf 'Updating linux initcpios\n' >"$boundary_tmp/legacy.log"
+printf '(1/1) Updating linux initcpios...\n' >"$boundary_tmp/legacy.log"
 output=$(env -u OMARCHY_UPDATE_LOG_FILE bash "$analyzer")
 [[ $output == *"Initramfs generation may have failed"* ]] || fail "analyzer supports the updater that installs it"
 pass "analyzer reads the current and legacy update transcripts"
