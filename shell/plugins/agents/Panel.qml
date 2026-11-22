@@ -35,16 +35,33 @@ Panel {
   property var deleteTarget: null
   function deleteSelected() {
     var target = keyTarget
-    if (!target || ["provider", "providerLaunch"].indexOf(target.kind) < 0) return
-    if (providers[target.index].localModel) return
-    deleteTarget = providers[target.index]
+    if (!target || ["provider", "providerLaunch", "providerRemove"].indexOf(target.kind) < 0) return
+    if (removable(providers[target.index])) deleteTarget = providers[target.index]
   }
 
-  // Hides the agent from the panel; it comes back from settings.
+  // An added account is forgotten, its sign-in deleted here. Any other line
+  // is hidden, its sign-in kept: the login a machine started with holds what
+  // its added accounts link to, so it, and the account in use, stay.
+  function forgets(line) {
+    return !!line && !!line.account && line.account.primary !== true
+  }
+
+  function removable(line) {
+    if (!line || line.localModel) return false
+    return !line.account || (forgets(line) && line.account.active !== true)
+  }
+
+  // Forgets an added account, or hides the agent from the panel; a hidden
+  // one comes back from settings, or by signing in again.
   function confirmDelete() {
     var target = deleteTarget
     deleteTarget = null
     if (!target) return
+    if (forgets(target)) {
+      Util.execArgv(["bash", "-c", 'out=$(omarchy-agent-account-remove "$1" "$2" </dev/null 2>&1) || omarchy-notification-send -u critical "$3" "$out"',
+                     "remove-account", target.providerId, String(target.account.id), Commons.I18n.t("agents.removeFailed").arg(lineName(target))])
+      return
+    }
     if (bar && bar.shell) {
       var next = JSON.parse(JSON.stringify(settings || {}))
       if (!next.providers) next.providers = {}
@@ -77,7 +94,10 @@ Panel {
   // is lit.
   readonly property var keyRows: {
     var rows = []
-    if (addButtonShown) rows.push([{ kind: "add", index: 0 }])
+    var hero = []
+    if (instructionsShown) hero.push({ kind: "instructions", index: 0 })
+    if (addButtonShown) hero.push({ kind: "add", index: 0 })
+    if (hero.length > 0) rows.push(hero)
     if (picking) {
       var blocks = [addGroup("subscription"), addGroup("provider")]
       // A block wraps at addColumns, and so do its rows.
@@ -97,6 +117,7 @@ Panel {
         // button when it has a harness of its own, else its mark. One that
         // doesn't hold the star offers it, and a lapsed sign-in follows.
         var line = []
+        if (removable(providers[p])) line.push({ kind: "providerRemove", index: p })
         if (defaultIdFor(providers[p]) !== "" && !starred(providers[p], providers[p].account || null))
           line.push({ kind: "providerStar", index: p })
         if (makesOpenIndex === p)
@@ -178,7 +199,7 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch", "providerStar", "makeToggle", "providerDesktop"].indexOf(target.kind) >= 0 || target.kind.indexOf("make:") === 0) return target.index
+    if (["provider", "providerSignin", "providerLaunch", "providerStar", "makeToggle", "providerDesktop", "providerRemove"].indexOf(target.kind) >= 0 || target.kind.indexOf("make:") === 0) return target.index
     return -1
   }
 
@@ -811,6 +832,7 @@ Panel {
     var target = keyTarget
     if (!target) refreshNow()
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
+    else if (target.kind === "instructions") editInstructions()
     else if (target.kind === "choice") chooseAddProvider(target.index)
     else if (target.kind === "ownModel") chooseOwnModel(target.index)
     else if (target.kind === "pasteCode") openPasteField()
@@ -818,6 +840,7 @@ Panel {
     else if (target.kind === "providerLaunch") runLine(providers[target.index])
     else if (target.kind === "providerStar") makeDefault(providers[target.index], providers[target.index].account || null)
     else if (target.kind === "makeToggle") openMakes(target.index)
+    else if (target.kind === "providerRemove") deleteTarget = providers[target.index]
     else if (target.kind === "providerDesktop") launchDesktop(providers[target.index])
     else if (target.kind.indexOf("make:") === 0) runLine(providers[target.index], target.kind.slice(5))
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind)
@@ -1403,6 +1426,13 @@ Panel {
   // The + in the hero turns into the X that leaves adding. A first setup has
   // nothing to go back to until an agent is chosen.
   readonly property bool addButtonShown: !blankSlate || !picking
+  // Beside the + on the main list: the instructions every agent follows.
+  readonly property bool instructionsShown: addButtonShown && addStage === ""
+
+  function editInstructions() {
+    root.close()
+    Util.execArgv(["omarchy-agent-instructions", "--edit"])
+  }
 
   // Adding takes over the hero's line, and the cursor starts over.
   readonly property string addHeading: setupShown
@@ -1607,7 +1637,9 @@ Panel {
           handleKey(event)
           event.accepted = true
         }
-        message: root.deleteTarget ? Commons.I18n.t("agents.hideProviderConfirm").arg(root.deleteTarget.providerName) : ""
+        message: !root.deleteTarget ? ""
+          : root.forgets(root.deleteTarget) ? Commons.I18n.t("agents.forgetAccountConfirm").arg(root.lineName(root.deleteTarget))
+          : Commons.I18n.t("agents.hideProviderConfirm").arg(root.deleteTarget.providerName)
         foreground: root.foreground
         background: root.surface
         fontFamily: root.fontFamily
@@ -1712,6 +1744,18 @@ Panel {
               Row {
                 spacing: Style.space(6)
                 visible: root.addButtonShown
+
+                HeroButton {
+                  id: instructionsButton
+                  visible: root.instructionsShown
+                  hasCursor: root.hasKey("instructions")
+                  onHasCursorChanged: if (hasCursor) root.revealItem(instructionsButton)
+                  fontFamily: root.fontFamily
+                  onHovered: root.pointAt("instructions")
+                  glyph: "󰈙"
+                  tooltip: Commons.I18n.t("agents.editInstructions")
+                  onClicked: root.editInstructions()
+                }
 
                 HeroButton {
                   id: addButton
@@ -2475,7 +2519,7 @@ Panel {
       }
 
       // The line's buttons, from the right: its terminal, its desktop app,
-      // its makes, and its star. Hidden ones take no room, but an unlit star
+      // its makes, its star, and its trash. Hidden ones take no room, but an unlit star
       // keeps its place so the others don't move.
       Row {
         id: sectionActions
@@ -2573,6 +2617,22 @@ Panel {
           hasCursor: root.hasKey("providerStar", section.providerIndex)
           onHovered: function(isHovered) { if (isHovered) root.pointAt("providerStar", section.providerIndex) }
           onClicked: root.makeDefault(section.provider, section.account)
+        }
+
+        // Removing the line: on the line in use, left of its star.
+        PanelActionButton {
+          id: sectionRemove
+          anchors.verticalCenter: parent.verticalCenter
+          visible: section.engaged && root.removable(section.provider)
+          iconText: "󰩹"
+          tooltipText: root.forgets(section.provider)
+            ? Commons.I18n.t("agents.forgetAccount").arg(root.lineName(section.provider))
+            : Commons.I18n.t("agents.hideProvider").arg(section.provider ? section.provider.providerName : "")
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          hasCursor: root.hasKey("providerRemove", section.providerIndex)
+          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerRemove", section.providerIndex) }
+          onClicked: root.deleteTarget = section.provider
         }
       }
     }
