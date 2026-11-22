@@ -23,7 +23,6 @@
   "agents.editInstructions": "Редагувати AGENTS.md — інструкції, яких дотримуються всі агенти",
   "agents.enterApiKey": "Вставте ключ API",
   "agents.firstBecomesDefault": "Перший стане агентом за замовчуванням",
-  "agents.forgetAccount": "Видалити %1",
   "agents.forgetAccountConfirm": "Видалити %1? Його вхід буде видалено з цього комп’ютера, тож для повторного додавання доведеться ввійти знову.",
   "agents.freeResets": {
     "few": "%1 безкоштовні скидання",
@@ -46,7 +45,6 @@
   "agents.helpSignInExpired": "Збережений вхід до %1 закінчився. Запустіть %1, щоб оновити його.",
   "agents.helpStartOrRunToSignIn": "Запустіть %1 або виконайте %2, щоб увійти.",
   "agents.helpStartToSeeLimits": "Запустіть %1, щоб побачити його ліміти; входити знову не потрібно.",
-  "agents.hideProvider": "Сховати %1 з панелі",
   "agents.hideProviderConfirm": "Сховати %1 з панелі? Облікові дані та вхід буде збережено.",
   "agents.installingMeter": "Встановлення",
   "agents.isDefault": "Ваш агент за замовчуванням",

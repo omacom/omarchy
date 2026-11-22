@@ -23,7 +23,6 @@
   "agents.editInstructions": "Breyta AGENTS.md, leiðbeiningunum sem allir umboðsmenn fylgja",
   "agents.enterApiKey": "Límdu API-lykilinn þinn",
   "agents.firstBecomesDefault": "Sá fyrsti verður sjálfgefinn",
-  "agents.forgetAccount": "Fjarlægja %1",
   "agents.forgetAccountConfirm": "Fjarlægja %1? Innskráningu þess verður eytt af þessari vél, svo til að bæta því við aftur þarftu að skrá þig inn á ný.",
   "agents.freeResets": {
     "one": "%1 ókeypis endurstilling",
@@ -42,7 +41,6 @@
   "agents.helpSignInExpired": "Vistaða innskráning %1 er útrunnin. Ræstu %1 til að endurnýja hana.",
   "agents.helpStartOrRunToSignIn": "Ræstu %1, eða keyrðu %2, til að skrá þig inn.",
   "agents.helpStartToSeeLimits": "Ræstu %1 til að sjá takmarkanir þess; ekki þarf að skrá sig inn aftur.",
-  "agents.hideProvider": "Fela %1 á spjaldinu",
   "agents.hideProviderConfirm": "Fela %1 á spjaldinu? Auðkenni og innskráning verða varðveitt.",
   "agents.installingMeter": "Setur upp",
   "agents.isDefault": "Sjálfgefni umboðsmaðurinn þinn",

@@ -23,7 +23,6 @@
   "agents.editInstructions": "ஒவ்வொரு ஏஜென்டும் பின்பற்றும் வழிமுறைகளான AGENTS.md ஐத் திருத்தவும்",
   "agents.enterApiKey": "உங்கள் API விசையை ஒட்டவும்",
   "agents.firstBecomesDefault": "முதலாவதே உங்கள் இயல்புநிலை",
-  "agents.forgetAccount": "%1 ஐ நீக்கவும்",
   "agents.forgetAccountConfirm": "%1 ஐ நீக்கவா? அதன் உள்நுழைவு இந்தக் கணினியிலிருந்து நீக்கப்படும், எனவே மீண்டும் சேர்க்க மீண்டும் உள்நுழைய வேண்டும்.",
   "agents.freeResets": {
     "one": "%1 இலவச மீட்டமைப்பு",
@@ -42,7 +41,6 @@
   "agents.helpSignInExpired": "%1 இன் சேமித்த உள்நுழைவு காலாவதியானது. அதைப் புதுப்பிக்க %1 ஐத் தொடங்கவும்.",
   "agents.helpStartOrRunToSignIn": "உள்நுழைய %1 ஐத் தொடங்கவும், அல்லது %2 ஐ இயக்கவும்.",
   "agents.helpStartToSeeLimits": "அதன் வரம்புகளைக் காண %1 ஐத் தொடங்கவும்; மீண்டும் உள்நுழையத் தேவையில்லை.",
-  "agents.hideProvider": "%1 ஐப் பேனலிலிருந்து நீக்கவும்",
   "agents.hideProviderConfirm": "%1 ஐப் பேனலிலிருந்து மறைக்கவா? சான்றுகளும் உள்நுழைவும் தக்கவைக்கப்படும்.",
   "agents.installingMeter": "நிறுவுகிறது",
   "agents.isDefault": "உங்கள் இயல்புநிலை ஏஜென்ட்",

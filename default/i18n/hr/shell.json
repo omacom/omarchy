@@ -23,7 +23,6 @@
   "agents.editInstructions": "Uredite AGENTS.md, upute koje slijedi svaki agent",
   "agents.enterApiKey": "Zalijepite API ključ",
   "agents.firstBecomesDefault": "Prvi postaje vaš zadani",
-  "agents.forgetAccount": "Uklonite %1",
   "agents.forgetAccountConfirm": "Ukloniti %1? Njegova prijava briše se s ovog računala, pa ponovno dodavanje znači novu prijavu.",
   "agents.freeResets": {
     "few": "%1 besplatna resetiranja",
@@ -44,7 +43,6 @@
   "agents.helpSignInExpired": "Spremljena prijava za %1 istekla je. Pokrenite %1 za osvježavanje.",
   "agents.helpStartOrRunToSignIn": "Pokrenite %1 ili pokrenite %2 za prijavu.",
   "agents.helpStartToSeeLimits": "Pokrenite %1 za prikaz ograničenja; ponovna prijava nije potrebna.",
-  "agents.hideProvider": "Uklonite %1 s ploče",
   "agents.hideProviderConfirm": "Sakriti %1 s ploče? Vjerodajnice i prijava bit će zadržani.",
   "agents.installingMeter": "Instaliranje",
   "agents.isDefault": "Vaš zadani agent",

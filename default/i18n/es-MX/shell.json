@@ -23,7 +23,6 @@
   "agents.editInstructions": "Edita AGENTS.md, las instrucciones que siguen todos los agentes",
   "agents.enterApiKey": "Pega tu clave de API",
   "agents.firstBecomesDefault": "El primero es tu predeterminado",
-  "agents.forgetAccount": "Eliminar %1",
   "agents.forgetAccountConfirm": "¿Eliminar %1? Se borrará su sesión de esta computadora y tendrás que iniciar sesión de nuevo para volver a agregarla.",
   "agents.freeResets": {
     "many": "%1 reinicios gratuitos",
@@ -44,7 +43,6 @@
   "agents.helpSignInExpired": "La sesión guardada de %1 venció. Inicia %1 para renovarla.",
   "agents.helpStartOrRunToSignIn": "Inicia %1 o ejecuta %2 para iniciar sesión.",
   "agents.helpStartToSeeLimits": "Inicia %1 para ver sus límites; no es necesario volver a iniciar sesión.",
-  "agents.hideProvider": "Ocultar %1 del panel",
   "agents.hideProviderConfirm": "¿Ocultar %1 del panel? Se conservarán las credenciales y la sesión.",
   "agents.installingMeter": "Instalando",
   "agents.isDefault": "Tu agente predeterminado",

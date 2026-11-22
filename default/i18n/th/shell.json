@@ -23,7 +23,6 @@
   "agents.editInstructions": "แก้ไข AGENTS.md คำสั่งที่เอเจนต์ทุกตัวทำตาม",
   "agents.enterApiKey": "วางคีย์ API ของคุณ",
   "agents.firstBecomesDefault": "อันแรกจะเป็นค่าเริ่มต้นของคุณ",
-  "agents.forgetAccount": "ลบ %1",
   "agents.forgetAccountConfirm": "ลบ %1 หรือไม่? ข้อมูลเข้าสู่ระบบจะถูกลบจากเครื่องนี้ การเพิ่มกลับมาต้องเข้าสู่ระบบอีกครั้ง",
   "agents.freeResets": {
     "other": "รีเซ็ตฟรี %1 ครั้ง"
@@ -40,7 +39,6 @@
   "agents.helpSignInExpired": "การเข้าสู่ระบบของ %1 ที่บันทึกไว้หมดอายุแล้ว เริ่ม %1 เพื่อต่ออายุ",
   "agents.helpStartOrRunToSignIn": "เริ่ม %1 หรือรัน %2 เพื่อเข้าสู่ระบบ",
   "agents.helpStartToSeeLimits": "เริ่ม %1 เพื่อดูขีดจำกัด ไม่ต้องเข้าสู่ระบบอีกครั้ง",
-  "agents.hideProvider": "นำ %1 ออกจากแผง",
   "agents.hideProviderConfirm": "ซ่อน %1 จากแผงหรือไม่? ข้อมูลรับรองและการเข้าสู่ระบบจะยังคงอยู่",
   "agents.installingMeter": "กำลังติดตั้ง",
   "agents.isDefault": "เอเจนต์เริ่มต้นของคุณ",

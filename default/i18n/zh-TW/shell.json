@@ -23,7 +23,6 @@
   "agents.editInstructions": "編輯 AGENTS.md，所有代理遵循的指示",
   "agents.enterApiKey": "貼上你的 API 金鑰",
   "agents.firstBecomesDefault": "第一個即為你的預設",
-  "agents.forgetAccount": "移除 %1",
   "agents.forgetAccountConfirm": "要移除 %1 嗎？其登入資訊將從這台裝置刪除，重新加入時需再次登入。",
   "agents.freeResets": {
     "other": "%1 次免費重置"
@@ -40,7 +39,6 @@
   "agents.helpSignInExpired": "%1 已儲存的登入已過期。啟動 %1 以更新。",
   "agents.helpStartOrRunToSignIn": "啟動 %1，或執行 %2 以登入。",
   "agents.helpStartToSeeLimits": "啟動 %1 以查看用量限制；無需再次登入。",
-  "agents.hideProvider": "將 %1 從面板隱藏",
   "agents.hideProviderConfirm": "將 %1 從面板隱藏？憑證與登入狀態將保留。",
   "agents.installingMeter": "安裝中",
   "agents.isDefault": "你的預設代理",

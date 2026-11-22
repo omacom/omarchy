@@ -23,7 +23,6 @@
   "agents.editInstructions": "编辑 AGENTS.md，即所有智能体遵循的说明",
   "agents.enterApiKey": "粘贴 API 密钥",
   "agents.firstBecomesDefault": "第一个将设为默认",
-  "agents.forgetAccount": "移除 %1",
   "agents.forgetAccountConfirm": "移除 %1？其登录信息将从本机删除，重新添加时需要再次登录。",
   "agents.freeResets": {
     "other": "%1 次免费重置"
@@ -40,7 +39,6 @@
   "agents.helpSignInExpired": "%1 已保存的登录已过期。启动 %1 以刷新。",
   "agents.helpStartOrRunToSignIn": "启动 %1，或运行 %2 以登录。",
   "agents.helpStartToSeeLimits": "启动 %1 以查看其额度；无需重新登录。",
-  "agents.hideProvider": "从面板中移除 %1",
   "agents.hideProviderConfirm": "从面板中隐藏 %1？凭据和登录状态将保留。",
   "agents.installingMeter": "安装中",
   "agents.isDefault": "你的默认智能体",

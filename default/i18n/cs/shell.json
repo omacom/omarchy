@@ -23,7 +23,6 @@
   "agents.editInstructions": "Upravit AGENTS.md, pokyny, kterými se řídí každý agent",
   "agents.enterApiKey": "Vložte svůj API klíč",
   "agents.firstBecomesDefault": "První bude vaším výchozím agentem",
-  "agents.forgetAccount": "Odebrat %1",
   "agents.forgetAccountConfirm": "Odebrat %1? Jeho přihlášení bude z tohoto počítače smazáno, takže při opětovném přidání se budete muset znovu přihlásit.",
   "agents.freeResets": {
     "few": "%1 resety zdarma",
@@ -44,7 +43,6 @@
   "agents.helpSignInExpired": "Uložené přihlášení %1 vypršelo. Spusťte %1 pro obnovení.",
   "agents.helpStartOrRunToSignIn": "Pro přihlášení spusťte %1 nebo %2.",
   "agents.helpStartToSeeLimits": "Spusťte %1 pro zobrazení limitů; opětovné přihlášení není potřeba.",
-  "agents.hideProvider": "Skrýt %1 z panelu",
   "agents.hideProviderConfirm": "Skrýt %1 z panelu? Přihlašovací údaje i přihlášení zůstanou zachovány.",
   "agents.installingMeter": "Instalace",
   "agents.isDefault": "Váš výchozí agent",

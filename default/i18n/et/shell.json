@@ -23,7 +23,6 @@
   "agents.editInstructions": "Muuda AGENTS.md, juhiseid, mida iga agent järgib",
   "agents.enterApiKey": "Kleebi oma API võti",
   "agents.firstBecomesDefault": "Esimesest saab sinu vaikeagent",
-  "agents.forgetAccount": "Eemalda %1",
   "agents.forgetAccountConfirm": "Eemalda %1? Selle sisselogimine kustutatakse sellest masinast, nii et tagasi lisamiseks tuleb uuesti sisse logida.",
   "agents.freeResets": {
     "one": "%1 tasuta lähtestamine",
@@ -42,7 +41,6 @@
   "agents.helpSignInExpired": "%1 salvestatud sisselogimine aegus. Värskendamiseks käivita %1.",
   "agents.helpStartOrRunToSignIn": "Sisselogimiseks käivita %1 või %2.",
   "agents.helpStartToSeeLimits": "Käivita %1, et näha selle limiite; uuesti sisselogimist pole vaja.",
-  "agents.hideProvider": "Eemalda %1 paneelilt",
   "agents.hideProviderConfirm": "Peida %1 paneelilt? Sisselogimisandmed ja sisselogimine säilitatakse.",
   "agents.installingMeter": "Installimine",
   "agents.isDefault": "Sinu vaikeagent",
