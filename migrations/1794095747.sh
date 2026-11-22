@@ -8,7 +8,7 @@ echo "Point menu overrides and Hyprland bindings at omarchy-system for logout, r
 # rest of each file, including a user's own command or script whose name merely
 # contains one.
 name='(^|[^[:alnum:]_.-])omarchy-system-(logout|reboot|shutdown)'
-legacy="$name([^[:alnum:]_.-]|\$)"
+legacy="$name([^[:alnum:]_.\/-]|\$)"
 
 for file in "$HOME/.config/omarchy/extensions/omarchy-menu.jsonc" "$HOME"/.config/hypr/*.lua "$HOME"/.config/hypr/*.conf; do
   [[ -f $file ]] || continue
