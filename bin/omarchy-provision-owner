@@ -488,6 +488,21 @@ greeter_screen() {
     # above. --canvas-width is cols-2, not cols-1: ttfx centres its text two
     # columns right of plain centering, so cols-1 lands the animated logo a
     # column off the static one and it jumps when the effect starts.
+    #
+    # kmscon draws 256-colour codes as xterm's own colours, not the palette's,
+    # and draws 24-bit ones as given: there the stops are the palette's colours.
+    local stops=("${BRAND_SHIMMER[@]}" "$BRAND_LOGO_COLOR") indexed=(--xterm-colors) i
+    if [[ ${OMARCHY_KMSCON:-} == 1 ]]; then
+      indexed=()
+      for i in "${!stops[@]}"; do
+        case ${stops[i]} in
+          6) stops[i]=7dcfff ;;
+          9) stops[i]=${OMARCHY_OEM_COLOR#\#} ;;
+          15) stops[i]=c0caf5 ;;
+          *) stops[i]=9ece6a ;;
+        esac
+      done
+    fi
     printf '%s%d;1H\0337' "$CSI" "$((logo_row + BRAND_LOGO_HEIGHT))"
     # Run ttfx directly (not inside a `while` subshell) so $anim is ttfx's own
     # PID: killing a wrapping subshell would orphan ttfx, which then keeps
@@ -498,12 +513,12 @@ greeter_screen() {
       --anchor-text c \
       --frame-rate 60 \
       --reuse-canvas \
-      --xterm-colors \
+      "${indexed[@]}" \
       colorshift \
-      --gradient-stops "${BRAND_SHIMMER[@]}" \
+      --gradient-stops "${stops[@]:0:${#BRAND_SHIMMER[@]}}" \
       --gradient-frames 3 \
       --cycles 1000 \
-      --final-gradient-stops "$BRAND_LOGO_COLOR" \
+      --final-gradient-stops "${stops[-1]}" \
       </dev/null >/dev/tty 2>/dev/null &
     anim=$!
   }
