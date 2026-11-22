@@ -1,5 +1,4 @@
 {
-  "agents.active": "ACTIVE",
   "agents.addAnother": "Add another",
   "agents.letTheTokensFlow": "Let the tokens flow",
   "agents.addProviderAccount": "Add %1 account",
@@ -77,7 +76,9 @@
   "agents.downloadRate": "%1 MB/s",
   "agents.loginBrowser": "Log in through your browser",
   "agents.hideProviderConfirm": "Hide %1 from the panel? Credentials and sign-in will be kept.",
+  "agents.isDefault": "Your default agent",
   "agents.launchHarness": "Start %1",
+  "agents.makeDefault": "Make %1 your default agent",
   "agents.spendEstimated": "≈ %1",
   "agents.spendLast30Days": "Last 30 days",
   "agents.spendOfCap": "%1 of %2",
@@ -101,7 +102,6 @@
     "other": "%1 tokens today"
   },
   "agents.unknownModel": "Unknown",
-  "agents.use": "Use",
   "agents.waitingForAuth": "Waiting for auth",
   "agents.windowLimit": "Limit",
   "agents.windowMonthly": "Monthly",

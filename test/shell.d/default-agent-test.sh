@@ -499,6 +499,16 @@ pass "each installed harness gets a launcher with its icon in the icon sets"
   fail "default agent stores its selection in Omarchy user config"
 pass "default agent stores its selection in Omarchy user config"
 
+# The agents panel's star selects without opening, and only what is installed.
+: >"$agent_open_log"
+OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent --select codex
+[[ $(omarchy-default-agent) == "codex" && ! -s $agent_open_log ]] || fail "--select makes an agent the default without opening it"
+if OMARCHY_TEST_AGENT_INSTALLED=false omarchy-default-agent --select claude 2>/dev/null; then
+  fail "--select refuses an agent that isn't installed"
+fi
+[[ $(omarchy-default-agent) == "codex" && ! -s $terminal_log ]] || fail "a refused --select changes nothing and installs nothing"
+pass "--select makes an installed agent the default without opening it"
+
 OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent pi
 : >"$agent_open_log"
 OMARCHY_TEST_AGENT_INSTALLED=true OMARCHY_TEST_EXTENSION_FAIL=true omarchy-default-agent claude >"$test_tmp/extension-failure" 2>&1

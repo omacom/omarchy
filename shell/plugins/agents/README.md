@@ -29,9 +29,14 @@ Every subscription on one page, limits first.
   and what to do; each meter's tooltip says how old it is.
 - **Accounts** — an agent with more than one subscription account (see
   `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
-  lines. An _ACTIVE_ label marks the account sessions use (running Claude
-  sessions included, new ones only for Codex and Grok); the
-  others get a _Use_ link. Click a name to rename the account in place.
+  lines. A filled star marks the account the default agent uses (running
+  Claude sessions included, new ones only for Codex and Grok); a hollow one
+  on any other account makes it the one in use, and its agent the default.
+  Click a name to rename the account in place.
+- **Default** — each agent that can be the default carries a star beside its
+  terminal button, filled on the default agent (`omarchy default agent`,
+  `local` for the local model). A hollow star makes that agent the default
+  without opening it, through `omarchy default agent --select`.
 - **Balance** — prepaid agents show a credit ledger instead of limits: a
   fuel-gauge meter that drains toward empty, the remaining credit, and
   funded-versus-spent detail.

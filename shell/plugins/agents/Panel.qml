@@ -92,13 +92,17 @@ Panel {
       if (addUrl !== "") rows.push([{ kind: "reopenSignIn", index: 0 }])
     } else if (addStage === "") {
       // Accounts count in the same order as accountEntries. Only what can be
-      // done is a stop: one that isn't active offers Use, a lapsed sign-in
-      // comes first, and the active account with nothing to fix is skipped.
+      // done is a stop: one that doesn't hold the star offers it, a lapsed
+      // sign-in comes first, and the starred account with nothing to fix is
+      // skipped.
       var entry = 0
       for (var p = 0; p < providers.length; p++) {
         // Every agent's line is a stop, so Ctrl+Up/Down can move it: its
         // terminal button when it has a harness of its own, else its mark.
-        rows.push([{ kind: lineStop(p), index: p }])
+        var line = [{ kind: lineStop(p), index: p }]
+        if (providerAccounts(providers[p]).length < 2 && defaultIdFor(providers[p]) !== "" && !isDefault(providers[p]))
+          line.unshift({ kind: "providerStar", index: p })
+        rows.push(line)
         var accounts = providerAccounts(providers[p])
         if (accounts.length < 2) {
           if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
@@ -107,7 +111,7 @@ Panel {
         for (var a = 0; a < accounts.length; a++, entry++) {
           var row = []
           if (needsSignIn(accounts[a])) row.push({ kind: "signin", index: entry })
-          if (!accounts[a].active) row.push({ kind: "account", index: entry })
+          if (!starred(providers[p], accounts[a])) row.push({ kind: "account", index: entry })
           if (row.length > 0) rows.push(row)
         }
       }
@@ -184,7 +188,7 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch"].indexOf(target.kind) >= 0) return target.index
+    if (["provider", "providerSignin", "providerLaunch", "providerStar"].indexOf(target.kind) >= 0) return target.index
     if (["account", "signin"].indexOf(target.kind) < 0) return -1
     var entry = accountEntries[target.index]
     return entry ? providers.indexOf(entry.provider) : -1
@@ -576,10 +580,11 @@ Panel {
     else if (target.kind === "pasteCode") openPasteField()
     else if (target.kind === "reopenSignIn") reopenSignIn()
     else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
+    else if (target.kind === "providerStar") makeDefault(providers[target.index], null)
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
     else if (target.kind === "signin") signInAgain(pickedEntry.provider, pickedEntry.account)
-    else if (pickedEntry && !pickedEntry.account.active) useAccount(pickedEntry.provider, pickedEntry.account)
+    else if (pickedEntry && !starred(pickedEntry.provider, pickedEntry.account)) makeDefault(pickedEntry.provider, pickedEntry.account)
   }
 
   function isPicked(p, account) {
@@ -704,6 +709,35 @@ Panel {
 
   function harnessFor(provider) {
     return provider && harnesses[provider.providerId] ? harnesses[provider.providerId] : ""
+  }
+
+  // What choosing this agent as the default writes: its harness, or "local"
+  // for models on hardware you own. Empty for one that can't be the default.
+  function defaultIdFor(provider) {
+    if (!provider) return ""
+    if (provider.providerId === "local") return "local"
+    return harnessFor(provider)
+  }
+
+  function isDefault(provider) {
+    var id = defaultIdFor(provider)
+    return id !== "" && usage.defaultAgent === id
+  }
+
+  // The star: the agent becomes the default without opening, and with several
+  // accounts the one starred becomes the one sessions use.
+  function makeDefault(provider, account) {
+    var id = defaultIdFor(provider)
+    if (id === "") return
+    if (account && !account.active) useAccount(provider, account)
+    if (usage.defaultAgent === id) return
+    usage.defaultAgent = id
+    Util.execArgv(["omarchy-default-agent", "--select", id])
+  }
+
+  // Filled on the default agent, and with several accounts on the one in use.
+  function starred(provider, account) {
+    return isDefault(provider) && (!account || account.active === true)
   }
 
   function launchHarness(provider) {
@@ -1135,6 +1169,7 @@ Panel {
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
     usage.refreshLimits()
+    usage.reloadDefaultAgent()
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
 
@@ -1816,6 +1851,24 @@ Panel {
         record: section.provider
       }
 
+      // The default agent's star is filled; any other's makes it the default.
+      // With several accounts each one carries its own.
+      PanelActionButton {
+        id: sectionStar
+        anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
+        anchors.rightMargin: sectionLaunch.visible ? Style.space(6) : 0
+        anchors.verticalCenter: parent.verticalCenter
+        visible: !section.multi && root.defaultIdFor(section.provider) !== ""
+        iconText: root.isDefault(section.provider) ? "󰓎" : "󰓒"
+        tooltipText: root.isDefault(section.provider)
+          ? Commons.I18n.t("agents.isDefault")
+          : Commons.I18n.t("agents.makeDefault").arg(section.provider ? section.provider.providerName : "")
+        foreground: root.isDefault(section.provider) ? Commons.Color.accent : root.foreground
+        fontFamily: root.fontFamily
+        hasCursor: root.hasKey("providerStar", section.providerIndex)
+        onClicked: root.makeDefault(section.provider, null)
+      }
+
       // Opens the coding agent made for this subscription: Codex for OpenAI,
       // Claude Code for Anthropic.
       PanelActionButton {
@@ -2325,32 +2378,21 @@ Panel {
       id: headAction
       anchors.right: parent.right
       anchors.top: parent.top
-      implicitWidth: head.isActive ? headActive.implicitWidth : useRow.implicitWidth
-      implicitHeight: head.isActive ? headActive.implicitHeight : useRow.implicitHeight
+      implicitWidth: accountStar.implicitWidth
+      implicitHeight: accountStar.implicitHeight
 
-      Text {
-        id: headActive
-        visible: head.isActive
+      PanelActionButton {
+        id: accountStar
         anchors.right: parent.right
-        text: Commons.I18n.t("agents.active")
-        textFormat: Text.PlainText
-        color: Commons.Color.accent
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        font.bold: true
-      }
-
-      Row {
-        id: useRow
-        visible: !head.isActive
-        anchors.right: parent.right
-        spacing: Style.space(12)
-
-        TextLink {
-          text: Commons.I18n.t("agents.use") + (head.pickedKind === "account" ? " ⏎" : "")
-          picked: head.pickedKind === "account"
-          onClicked: root.useAccount(head.owner, head.account)
-        }
+        readonly property bool on: root.starred(head.owner, head.account)
+        iconText: on ? "󰓎" : "󰓒"
+        tooltipText: on
+          ? Commons.I18n.t("agents.isDefault")
+          : Commons.I18n.t("agents.makeDefault").arg(head.label)
+        foreground: on ? Commons.Color.accent : root.foreground
+        fontFamily: root.fontFamily
+        hasCursor: head.pickedKind === "account"
+        onClicked: root.makeDefault(head.owner, head.account)
       }
     }
   }
