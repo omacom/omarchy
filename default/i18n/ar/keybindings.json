@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "النشاط",
   "Agent": "الوكيل",
   "Agents": "الوكلاء",
@@ -20,7 +21,6 @@
   "Calculator": "الحاسبة",
   "Calendar": "التقويم",
   "Capture menu": "قائمة الالتقاط",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "مسح التذكيرات",
   "Clipboard manager": "مدير الحافظة",
   "Close all windows": "إغلاق كل النوافذ",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "التحكم بالإشعارات من لوحة المفاتيح",
   "Cycle workspace layout": "تبديل تخطيط مساحة العمل",
   "Cycle workspace layout back": "تبديل تخطيط مساحة العمل للخلف",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "إدخال مباشر لبادئة الطرفية",
   "Disable touchpad": "تعطيل لوحة اللمس",
   "Dismiss all notifications": "تجاهل كل الإشعارات",

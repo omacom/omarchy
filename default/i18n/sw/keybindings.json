@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "Shughuli",
   "Agent": "Agent",
   "Agents": "Agents",
@@ -20,7 +21,6 @@
   "Calculator": "Kikokotoo",
   "Calendar": "Kalenda",
   "Capture menu": "Menyu ya kunasa",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "Futa vikumbusho",
   "Clipboard manager": "Kidhibiti ubao wa kunakili",
   "Close all windows": "Funga madirisha yote",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "Dhibiti arifa kwa kibodi",
   "Cycle workspace layout": "Zungusha mpangilio wa nafasi-kazi",
   "Cycle workspace layout back": "Zungusha nyuma mpangilio wa nafasi-kazi",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Ingizo la moja kwa moja la kiambishi cha terminali",
   "Disable touchpad": "Lemaza touchpad",
   "Dismiss all notifications": "Ondoa arifa zote",

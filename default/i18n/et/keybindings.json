@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "Tegevus",
   "Agent": "Agent",
   "Agents": "Agendid",
@@ -20,7 +21,6 @@
   "Calculator": "Kalkulaator",
   "Calendar": "Kalender",
   "Capture menu": "Jäädvustusmenüü",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "Tühjenda meeldetuletused",
   "Clipboard manager": "Lõikepuhvri haldur",
   "Close all windows": "Sulge kõik aknad",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "Halda teavitusi klaviatuuriga",
   "Cycle workspace layout": "Järgmine tööala paigutus",
   "Cycle workspace layout back": "Eelmine tööala paigutus",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Terminali prefiksi otsesisend",
   "Disable touchpad": "Lülita puuteplaat välja",
   "Dismiss all notifications": "Sulge kõik teavitused",

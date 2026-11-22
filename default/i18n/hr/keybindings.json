@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "Aktivnost",
   "Agent": "Agent",
   "Agents": "Agenti",
@@ -20,7 +21,6 @@
   "Calculator": "Kalkulator",
   "Calendar": "Kalendar",
   "Capture menu": "Izbornik snimanja",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "Izbriši podsjetnike",
   "Clipboard manager": "Upravitelj međuspremnika",
   "Close all windows": "Zatvori sve prozore",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "Upravljaj obavijestima tipkovnicom",
   "Cycle workspace layout": "Sljedeći raspored radnog prostora",
   "Cycle workspace layout back": "Prethodni raspored radnog prostora",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Izravni unos prefiksa terminala",
   "Disable touchpad": "Onemogući dodirnu plohu",
   "Dismiss all notifications": "Odbaci sve obavijesti",

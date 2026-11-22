@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "กิจกรรม",
   "Agent": "เอเจนต์",
   "Agents": "เอเจนต์",
@@ -20,7 +21,6 @@
   "Calculator": "เครื่องคิดเลข",
   "Calendar": "ปฏิทิน",
   "Capture menu": "เมนูจับภาพ",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "ล้างการเตือน",
   "Clipboard manager": "ตัวจัดการคลิปบอร์ด",
   "Close all windows": "ปิดหน้าต่างทั้งหมด",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "ควบคุมการแจ้งเตือนด้วยคีย์บอร์ด",
   "Cycle workspace layout": "วนรูปแบบพื้นที่ทำงาน",
   "Cycle workspace layout back": "วนรูปแบบพื้นที่ทำงานกลับ",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "ป้อนตรงคำนำหน้าเทอร์มินัล",
   "Disable touchpad": "ปิดทัชแพด",
   "Dismiss all notifications": "ปิดการแจ้งเตือนทั้งหมด",

@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "செயல்பாடு",
   "Agent": "ஏஜென்ட்",
   "Agents": "ஏஜென்ட்கள்",
@@ -20,7 +21,6 @@
   "Calculator": "கணிப்பான்",
   "Calendar": "நாட்காட்டி",
   "Capture menu": "பிடிப்பு மெனு",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "நினைவூட்டல்களை அழி",
   "Clipboard manager": "கிளிப்போர்டு மேலாளர்",
   "Close all windows": "எல்லாச் சாளரங்களையும் மூடு",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "விசைப்பலகையால் அறிவிப்புகளைக் கட்டுப்படுத்து",
   "Cycle workspace layout": "பணியிட அமைப்பைச் சுழற்று",
   "Cycle workspace layout back": "பணியிட அமைப்பைப் பின்னோக்கிச் சுழற்று",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "முனைய முன்னொட்டிற்கு நேரடி உள்ளீடு",
   "Disable touchpad": "தொடுதளத்தை முடக்கு",
   "Dismiss all notifications": "எல்லா அறிவிப்புகளையும் அகற்று",

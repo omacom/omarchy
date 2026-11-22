@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "Aktivitāte",
   "Agent": "Aģents",
   "Agents": "Aģenti",
@@ -20,7 +21,6 @@
   "Calculator": "Kalkulators",
   "Calendar": "Kalendārs",
   "Capture menu": "Uzņemšanas izvēlne",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "Notīrīt atgādinājumus",
   "Clipboard manager": "Starpliktuves pārvaldnieks",
   "Close all windows": "Aizvērt visus logus",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "Pārvaldīt paziņojumus ar tastatūru",
   "Cycle workspace layout": "Mainīt darbvietas izkārtojumu",
   "Cycle workspace layout back": "Mainīt darbvietas izkārtojumu atpakaļ",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Tieša ievade termināļa prefiksam",
   "Disable touchpad": "Atspējot skārienpaliktni",
   "Dismiss all notifications": "Noraidīt visus paziņojumus",

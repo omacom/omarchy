@@ -393,51 +393,6 @@
   "agent": {
     "label": "ஏஜென்ட்"
   },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
-  },
   "setup.default.browser": {
     "label": "உலாவி",
     "title": "இயல்புநிலை உலாவி"
@@ -1210,33 +1165,6 @@
   "trigger.hardware.touchscreen-off": {
     "label": "தொடுதிரையை முடக்கு"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
   "setup.git": {
     "label": "Git"
   },
@@ -1294,25 +1222,6 @@
   "setup.default.editor.plain": {
     "label": "எளிய உரை"
   },
-  "agent.harness": {
-    "label": "ஹார்னெஸ்",
-    "title": "இயல்புநிலை ஹார்னெஸ்"
-  },
-  "agent.instructions": {
-    "label": "வழிமுறைகள்"
-  },
-  "agent.make": {
-    "label": "ஏதாவது உருவாக்கு"
-  },
-  "agent.make.theme": {
-    "label": "தீம் உருவாக்கு"
-  },
-  "agent.make.plugin": {
-    "label": "பிளகின் உருவாக்கு"
-  },
-  "agent.make.app": {
-    "label": "செயலி உருவாக்கு"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
@@ -1350,9 +1259,6 @@
   },
   "update.games": {
     "label": "Game Vibes விளையாட்டுகள்"
-  },
-  "agent.make.game": {
-    "label": "விளையாட்டு உருவாக்கு"
   },
   "install.ai.antigravity": {
     "label": "Antigravity Desktop"
