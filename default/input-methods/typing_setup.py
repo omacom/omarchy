@@ -207,6 +207,8 @@ def save_keyboard(selected):
     setup.live_set(group, group_layout, after)
     if setup.live_group() != (group, group_layout, after):
       raise RuntimeError("Fcitx did not retain the keyboard selection")
+    # Dictation bindings also read Fcitx's saved profile.
+    setup.run(["hyprctl", "reload"])
   except BaseException:
     if original is None:
       path.resolve().unlink(missing_ok=True)

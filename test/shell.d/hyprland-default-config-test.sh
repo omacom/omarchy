@@ -1,6 +1,7 @@
 #!/bin/bash
 
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
+unset FCITX_CONFIG_HOME
 
 require_command lua
 
@@ -141,7 +142,8 @@ pass "default binding variable disables all Omarchy bindings"
 
 dictation_home="$tmpdir/dictation-home"
 missing_bin="$tmpdir/missing-bin"
-mkdir -p "$dictation_home" "$missing_bin"
+mkdir -p "$dictation_home/.config/omarchy" "$missing_bin"
+printf 'XKBLAYOUT=us\n' > "$dictation_home/.config/omarchy/keyboard-layouts"
 ln -s "$(command -v lua)" "$missing_bin/lua"
 ln -s "$(command -v lspci)" "$missing_bin/lspci"
 ln -s "$(command -v sort)" "$missing_bin/sort"

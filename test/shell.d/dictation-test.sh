@@ -2,6 +2,7 @@
 
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
+unset FCITX_CONFIG_HOME
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
