@@ -4,7 +4,7 @@ echo "Install Pi as a package instead of a mise tool"
 # the declaration would only install Pi through mise again.
 if omarchy-mise-default-tools list | grep -qx pi; then
   echo "Waiting for the omarchy-settings package that drops Pi from the default mise tools" >&2
-  exit 1
+  exit 75
 fi
 
 omarchy-pkg-add pi-coding-agent
