@@ -47,6 +47,7 @@ pack_count=0
 while read -r candidate; do
   [[ -n $candidate ]] || continue
   candidate_info=$(LC_ALL=C upower -i "$candidate" 2>/dev/null) || continue
+  grep -qE '^\s*present:\s+no' <<<"$candidate_info" && continue
   if grep -qE '^\s*power supply:\s+yes' <<<"$candidate_info"; then
     (( ++pack_count ))
     if [[ -z $pack ]]; then

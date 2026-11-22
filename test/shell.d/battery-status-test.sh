@@ -290,6 +290,16 @@ if [[ $1 == "-i" ]]; then
   time to empty:        2.0 hours
   percentage:           37%
 INFO
+  elif [[ $2 == */battery_CMB1 ]]; then
+    cat <<'INFO'
+  native-path:          CMB1
+  power supply:         yes
+  state:                discharging
+  energy:               1.26 Wh
+  energy-full:          42.01 Wh
+  energy-rate:          12.0 W
+  percentage:           3%
+INFO
   else
     cat <<'INFO'
   native-path:          CMB0
@@ -320,6 +330,21 @@ grep -Fx $'threshold\t60%' <<<"$shell_output" >/dev/null ||
 grep -Fx $'cycles\t48' <<<"$shell_output" >/dev/null ||
   fail "battery status reads cycle count from the first pack under DisplayDevice" "$shell_output"
 pass "battery status uses UPower DisplayDevice on dual-battery systems"
+
+# An enumerated but removed pack must not hide the remaining pack's live rate
+# or select the removed pack's cycle count and charge limit.
+mkdir -p "$tmp_dir/power/CMB1"
+printf '9000000\n' >"$tmp_dir/power/CMB1/power_now"
+printf '202\n' >"$tmp_dir/power/CMB1/cycle_count"
+sed -i '/native-path:          CMB0/a\  present:              no' "$tmp_dir/bin/upower"
+remaining_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'percentage\t3%' <<<"$remaining_output" >/dev/null ||
+  fail "battery status skips the removed pack" "$remaining_output"
+grep -Fx $'rate\t9W' <<<"$remaining_output" >/dev/null ||
+  fail "one present pack keeps its live sysfs rate" "$remaining_output"
+grep -Fx $'cycles\t202' <<<"$remaining_output" >/dev/null ||
+  fail "battery status reads the remaining pack's cycle count" "$remaining_output"
+pass "battery status ignores removed battery packs"
 
 # Packs under DisplayDevice can each stop at their own limit, so a combined
 # charge keeps UPower's time to full rather than the first pack's 60%.
