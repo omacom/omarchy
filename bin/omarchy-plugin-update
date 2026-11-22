@@ -56,7 +56,7 @@ validate_update() (
   fi
   tar -C "$dir" --exclude='./.git' -cf - . | tar -C "$checkout" -xf - || return 1
 
-  git -C "$checkout" -c core.hooksPath=/dev/null merge --quiet --ff-only --no-autostash "$incoming" || return 1
+  git -C "$checkout" -c core.hooksPath=/dev/null merge --quiet --ff-only --no-autostash --no-overwrite-ignore "$incoming" || return 1
   omarchy-plugin-validate "$checkout"
 )
 
@@ -91,12 +91,12 @@ update_one() {
   fi
 
   if ! validate_update "$dir" "$current" "$incoming"; then
-    echo "omarchy-plugin-update: update of '$id' failed validation; keeping the installed version" >&2
+    echo "omarchy-plugin-update: refusing update of '$id'; keeping the installed version" >&2
     return 1
   fi
 
   if [[ $(git -C "$dir" rev-parse HEAD) != "$current" ]] ||
-    ! git -C "$dir" merge --ff-only --no-autostash "$incoming" >/dev/null 2>&1; then
+    ! git -C "$dir" merge --ff-only --no-autostash --no-overwrite-ignore "$incoming" >/dev/null 2>&1; then
     echo "omarchy-plugin-update: cannot fast-forward '$id'; you have local changes in $dir" >&2
     return 1
   fi

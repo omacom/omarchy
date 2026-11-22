@@ -194,3 +194,18 @@ run_update >"$fixture/valid.log" 2>&1 || fail "plugin update accepts a valid fas
 [[ $(git -C "$installed" worktree list --porcelain | grep -c '^worktree ') == 1 ]] ||
   fail "the plugin updater cleans up its temporary checkouts"
 pass "a valid plugin update fast-forwards and preserves unrelated edits"
+
+# An upstream tracked file must not overwrite ignored local runtime data.
+before=$(git -C "$installed" rev-parse HEAD)
+printf 'runtime-cache\n' >>"$installed/.git/info/exclude"
+printf 'local cache\n' >"$installed/runtime-cache"
+printf 'upstream file\n' >"$upstream/runtime-cache"
+commit tracks-cache
+if run_update >"$fixture/ignored.log" 2>&1; then
+  fail "plugin update refuses to overwrite an ignored local file"
+fi
+[[ $(git -C "$installed" rev-parse HEAD) == "$before" ]] ||
+  fail "an ignored file collision leaves the installed revision unchanged"
+[[ $(<"$installed/runtime-cache") == "local cache" ]] ||
+  fail "an ignored file collision preserves local runtime data"
+pass "an update refuses to overwrite an ignored local file"
