@@ -8,7 +8,12 @@ require_quickshell "plugin registry contract test"
 
 run_qml_fixture plugin-registry "plugin registry contract checks pass" services Commons
 
-watcher=$(pgrep -P "$QML_FIXTURE_PID" -x inotifywait) || fail "fixture starts a plugin watcher"
+watcher=""
+for _ in {1..30}; do
+  watcher=$(pgrep -P "$QML_FIXTURE_PID" -x inotifywait) && break
+  sleep 0.1
+done
+[[ -n $watcher ]] || fail "fixture starts a plugin watcher"
 # A stopped child cannot handle TERM, so cleanup must also reach its KILL fallback.
 kill -STOP "$watcher"
 kill -KILL "$QML_FIXTURE_PID"
