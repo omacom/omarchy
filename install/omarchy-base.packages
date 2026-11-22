@@ -75,6 +75,7 @@ inxi
 networkmanager
 jq
 kernel-modules-hook
+kmscon
 lazygit
 less
 libsecret
@@ -90,7 +91,7 @@ mise-bin
 monologue
 gnome-disk-utility
 noto-fonts
-noto-fonts-cjk
+noto-fonts-cjk-vf
 noto-fonts-emoji
 nss-mdns
 nvim
@@ -115,6 +116,7 @@ owe
 pacman-contrib
 pamixer
 papers
+pi-coding-agent
 pinta
 plain
 plocate

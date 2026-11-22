@@ -30,8 +30,6 @@ nvidia-open-dkms
 linux-omarchy-nvidia-open
 nvidia-580xx-utils
 nvidia-utils
-lib32-nvidia-580xx-utils
-lib32-nvidia-utils
 nvidia-container-toolkit
 pipewire
 pipewire-alsa
@@ -106,6 +104,10 @@ apple-t2-audio-config
 linux-t2
 linux-t2-headers
 t2fanrd
+
+# FaceTime HD camera on Intel Macs
+facetimehd-dkms
+facetimehd-firmware-fetcher
 
 # Framework 16
 qmk-hid

@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "Aktivitet",
   "Agent": "Agent",
   "Agents": "Agenter",
@@ -20,7 +21,6 @@
   "Calculator": "Kalkylator",
   "Calendar": "Kalender",
   "Capture menu": "Skärmfångstmeny",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "Rensa påminnelser",
   "Clipboard manager": "Urklippshanterare",
   "Close all windows": "Stäng alla fönster",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "Styr aviseringar med tangentbordet",
   "Cycle workspace layout": "Växla arbetsytans layout",
   "Cycle workspace layout back": "Växla arbetsytans layout bakåt",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Direktinmatning för terminalprefix",
   "Disable touchpad": "Inaktivera styrplatta",
   "Dismiss all notifications": "Avfärda alla aviseringar",

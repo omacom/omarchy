@@ -1,4 +1,5 @@
 {
+  "AI": "DI",
   "Activity": "Veikla",
   "Agent": "Agentas",
   "Agents": "Agentai",
@@ -20,7 +21,6 @@
   "Calculator": "Skaičiuotuvas",
   "Calendar": "Kalendorius",
   "Capture menu": "Fiksavimo meniu",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "Išvalyti priminimus",
   "Clipboard manager": "Iškarpinės tvarkyklė",
   "Close all windows": "Uždaryti visus langus",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "Valdyti pranešimus klaviatūra",
   "Cycle workspace layout": "Perjungti darbo srities išdėstymą",
   "Cycle workspace layout back": "Perjungti darbo srities išdėstymą atgal",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Tiesioginė terminalo prefikso įvestis",
   "Disable touchpad": "Išjungti jutiklinį kilimėlį",
   "Dismiss all notifications": "Atmesti visus pranešimus",

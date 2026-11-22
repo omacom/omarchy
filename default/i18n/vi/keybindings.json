@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "Hoạt động",
   "Agent": "Agent",
   "Agents": "Agent",
@@ -20,7 +21,6 @@
   "Calculator": "Máy tính",
   "Calendar": "Lịch",
   "Capture menu": "Menu chụp màn hình",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "Xóa nhắc nhở",
   "Clipboard manager": "Quản lý clipboard",
   "Close all windows": "Đóng tất cả cửa sổ",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "Điều khiển thông báo bằng bàn phím",
   "Cycle workspace layout": "Chuyển bố cục không gian làm việc",
   "Cycle workspace layout back": "Chuyển bố cục không gian làm việc ngược lại",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Nhập trực tiếp cho tiền tố terminal",
   "Disable touchpad": "Tắt bàn di chuột",
   "Dismiss all notifications": "Bỏ qua tất cả thông báo",

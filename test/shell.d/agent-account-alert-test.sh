@@ -35,8 +35,7 @@ registry() {
   cat >"$accounts/claude.json" <<JSON
 {
   "active": "$1",
-  "switch": "$2",
-  "threshold": ${3:-95},
+  "threshold": ${2:-95},
   "alert": "",
   "accounts": [
     {"id": "main", "label": "Main", "home": "", "primary": true},
@@ -57,66 +56,61 @@ record() {
   }' >"$usage/claude.json"
 }
 
-autoswitch() {
+alert() {
   : >"$notifications"
-  omarchy-agent-account-state autoswitch claude
+  omarchy-agent-account-state alert claude
+}
+
+# The account the notification's click would switch to.
+offered() {
+  sed -n 's/.*--exec omarchy-agent-account-use claude //p' "$notifications"
 }
 
 active() {
   jq -r .active "$accounts/claude.json"
 }
 
-# ---------------------------------------------------------------- manual mode
+# -------------------------------------------------------------------- the offer
 
-registry main manual
+registry main
 record 0.97 "$soon" 0.12 "$later"
-[[ -z $(autoswitch) && $(active) == "main" ]] || fail "manual mode never moves the active account"
+alert
+[[ $(active) == "main" ]] || fail "an alert never moves the active account"
 grep -q "Main is at 97% of a Claude limit Work is at 12%. Click to switch new sessions to it. --exec omarchy-agent-account-use claude work" "$notifications" ||
-  fail "manual mode offers the switch as the notification's click" "$(cat "$notifications")"
-pass "manual mode notifies with a one-click switch"
+  fail "the alert offers the switch as the notification's click" "$(cat "$notifications")"
+pass "an account at its threshold notifies with a one-click switch"
 
-autoswitch >/dev/null
-[[ ! -s $notifications ]] || fail "manual mode says it once" "$(cat "$notifications")"
-pass "manual mode doesn't repeat itself"
+alert
+[[ ! -s $notifications ]] || fail "the alert is said once" "$(cat "$notifications")"
+pass "the alert doesn't repeat itself"
 
-# ------------------------------------------------------------------ auto mode
-
-registry main auto
+registry main
 record 0.949 "$soon" 0.12 "$later"
-[[ -z $(autoswitch) && ! -s $notifications ]] || fail "an account under the threshold stays put"
-pass "an account under the threshold stays put"
-
-record 0.96 "$soon" 0.12 "$later"
-[[ $(autoswitch) == "claude" && $(active) == "work" ]] || fail "auto mode moves to the account with headroom"
-grep -q "New Claude sessions now use Work (12%)\.$" "$notifications" && grep -qx "Running sessions stay on Main." "$notifications" ||
-  fail "auto mode says where new sessions went" "$(cat "$notifications")"
-pass "auto mode switches at the threshold"
-
-# Main is still at 96%, but only the active account crossing starts anything.
-record 0.96 "$soon" 0.30 "$later"
-[[ -z $(autoswitch) && $(active) == "work" && ! -s $notifications ]] || fail "auto mode never flaps back"
-pass "auto mode leaves a healthy active account alone"
+alert
+[[ ! -s $notifications ]] || fail "an account under the threshold says nothing"
+pass "an account under the threshold says nothing"
 
 # A stale 99% whose window already reset is an untouched allowance.
-registry main auto
+registry main
 record 0.97 "$soon" 0.99 "$gone"
-[[ $(autoswitch) == "claude" && $(active) == "work" ]] || fail "a window past its reset counts as empty"
+alert
+[[ $(offered) == "work" ]] || fail "a window past its reset counts as empty" "$(cat "$notifications")"
 pass "a window past its reset counts as empty"
 
 # ------------------------------------------------------------------- exhausted
 
-registry main auto
+registry main
 record 0.97 "$later" 0.98 "$soon"
-[[ -z $(autoswitch) && $(active) == "main" ]] || fail "with nowhere to go, auto mode stays put"
+alert
 grep -q "All Claude accounts are over 95% Staying on Main. Work resets in 1h 1[12]m." "$notifications" ||
   fail "exhaustion names the account that frees up first" "$(cat "$notifications")"
-autoswitch >/dev/null
+alert
 [[ ! -s $notifications ]] || fail "exhaustion is said once"
 pass "all accounts over the threshold is said once"
 
 # Work's session is nearly empty and resets soon, but its full weekly window
 # is what holds it over the threshold, so that reset is when it frees up.
-registry main auto
+registry main
 jq -nc --arg later "$later" --arg soon "$soon" --arg week "$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=6)).isoformat())')" '{
   id: "claude",
   accounts: [
@@ -124,35 +118,37 @@ jq -nc --arg later "$later" --arg soon "$soon" --arg week "$(python3 -c 'import 
     {id: "work", limits: [{label: "Session (5-hour)", percent: 0.10, resetsAt: $soon}, {label: "Weekly (7-day)", percent: 1.0, resetsAt: $week}]}
   ]
 }' >"$usage/claude.json"
-autoswitch >/dev/null
+alert
 grep -q "Main resets in 3h 5[89]m." "$notifications" || fail "exhaustion ignores a reset that doesn't free the account" "$(cat "$notifications")"
 pass "exhaustion names when an account actually frees up"
 
 record 0.20 "$later" 0.98 "$soon"
-autoswitch >/dev/null
+alert
 [[ $(jq -r .alert "$accounts/claude.json") == "" ]] || fail "dropping back under the threshold re-arms the alert"
 pass "dropping back under the threshold re-arms the alert"
 
-registry main auto 80
+registry main 80
 record 0.85 "$soon" 0.12 "$later"
-[[ $(autoswitch) == "claude" ]] || fail "the threshold is configurable"
+alert
+[[ $(offered) == "work" ]] || fail "the threshold is configurable"
 pass "the threshold is configurable"
 
-# An account nobody is signed in to is never switched to, however much room
-# its old numbers show.
-registry main auto
+# An account nobody is signed in to is never offered, however much room its
+# old numbers show.
+registry main
 record 0.97 "$soon" 0.10 "$later"
 jq '.accounts[1].usageStatusText = "Waiting for auth"' "$usage/claude.json" >"$test_tmp/record.json"
 mv "$test_tmp/record.json" "$usage/claude.json"
-[[ -z $(autoswitch) && $(active) == "main" ]] || fail "a signed-out account is never switched to"
-pass "a signed-out account is never switched to"
+alert
+[[ -z $(offered) ]] || fail "a signed-out account is never offered" "$(cat "$notifications")"
+pass "a signed-out account is never offered"
 
 # With another account unknown, nobody can say every account is over.
-registry main auto
+registry main
 record 0.97 "$later" 0.98 "$soon"
 jq '.accounts[1].usageStatusText = "Waiting for auth"' "$usage/claude.json" >"$test_tmp/record.json"
 mv "$test_tmp/record.json" "$usage/claude.json"
-autoswitch >/dev/null
+alert
 [[ ! -s $notifications ]] || fail "an unknown account keeps exhaustion unsaid" "$(cat "$notifications")"
 pass "exhaustion is only said when every account is known to be over"
 
@@ -163,7 +159,6 @@ mkdir -p "$accounts/claude/side"
 cat >"$accounts/claude.json" <<JSON
 {
   "active": "main",
-  "switch": "auto",
   "threshold": 95,
   "alert": "",
   "accounts": [
@@ -181,8 +176,8 @@ jq -nc --arg later "$later" '{
     {id: "side", stale: false, limits: [{label: "Session (5-hour)", percent: 0.40, resetsAt: $later}]}
   ]
 }' >"$usage/claude.json"
-autoswitch >/dev/null
-[[ $(active) == "side" ]] || fail "an account checked just now wins over a stale one" "$(active)"
+alert
+[[ $(offered) == "side" ]] || fail "an account checked just now wins over a stale one" "$(offered)"
 pass "an account checked just now wins over a stale one"
 
 # Room comes first: a fresh account within 15 points of the threshold loses to
@@ -197,72 +192,57 @@ jq -nc --arg later "$later" '{
     {id: "side", stale: false, limits: [{label: "Session (5-hour)", percent: 0.94, resetsAt: $later}]}
   ]
 }' >"$usage/claude.json"
-autoswitch >/dev/null
-[[ $(active) == "work" ]] || fail "a stale account with room wins over a fresh one near the limit" "$(active)"
+alert
+[[ $(offered) == "work" ]] || fail "a stale account with room wins over a fresh one near the limit" "$(offered)"
 pass "a stale account with room wins over a fresh one near the limit"
 
 # ------------------------------------------------------------- chosen by hand
 
-# Choosing an account by hand overrules auto mode, however full it is: the
-# usage refresh that follows the choice must not switch straight back.
-registry work auto
+# An account chosen by hand is a choice made knowing how full it is: the
+# usage refresh that follows must not offer to switch straight back.
+registry work
 record 0.99 "$later" 0.12 "$soon"
 omarchy-agent-account-state use claude main >/dev/null
-[[ -z $(autoswitch) && $(active) == "main" && ! -s $notifications ]] || fail "an account chosen by hand stays, however full" "$(active) $(cat "$notifications")"
-pass "an account chosen by hand stays, however full"
+alert
+[[ $(active) == "main" && ! -s $notifications ]] || fail "an account chosen by hand is left alone, however full" "$(active) $(cat "$notifications")"
+pass "an account chosen by hand is left alone, however full"
 
-# The hold lasts until the account has room again, then auto mode resumes.
+# The hold lasts until the account has room again, then alerts resume.
 record 0.20 "$later" 0.12 "$soon"
-autoswitch >/dev/null
+alert
 [[ $(jq -r .held "$accounts/claude.json") == "" ]] || fail "room again releases the hold"
 record 0.97 "$later" 0.12 "$soon"
-[[ $(autoswitch) == "claude" && $(active) == "work" ]] || fail "auto mode resumes once the hold is released" "$(active)"
+alert
+[[ $(offered) == "work" ]] || fail "alerts resume once the hold is released" "$(cat "$notifications")"
 pass "the hold lasts only until the account has room again"
 
 # A signed-out or unchecked account says nothing about room, so it keeps the hold.
-registry work auto
+registry work
 omarchy-agent-account-state use claude main >/dev/null
 record 0.99 "$later" 0.12 "$soon"
 jq '.accounts[0].limits = null' "$usage/claude.json" >"$test_tmp/record.json"
 mv "$test_tmp/record.json" "$usage/claude.json"
-autoswitch >/dev/null
+alert
 [[ $(jq -r .held "$accounts/claude.json") == "main" ]] || fail "unknown usage keeps the hold"
 pass "unknown usage keeps the hold"
 
 # A stale reading may predate the choice, so only a fresh one releases the hold.
-registry work auto
+registry work
 omarchy-agent-account-state use claude main >/dev/null
 record 0.20 "$later" 0.12 "$soon"
 jq '.accounts[0].stale = true' "$usage/claude.json" >"$test_tmp/record.json"
 mv "$test_tmp/record.json" "$usage/claude.json"
-autoswitch >/dev/null
+alert
 [[ $(jq -r .held "$accounts/claude.json") == "main" ]] || fail "a stale reading keeps the hold"
 pass "only a fresh reading releases the hold"
 
 # Renaming the held account keeps it held.
-registry work auto
+registry work
 omarchy-agent-account-state use claude work >/dev/null
 omarchy-agent-account-state rename claude work Office >/dev/null
 record 0.12 "$soon" 0.99 "$later"
 jq '.accounts[1].id = "office"' "$usage/claude.json" >"$test_tmp/record.json"
 mv "$test_tmp/record.json" "$usage/claude.json"
-[[ -z $(autoswitch) && $(active) == "office" ]] || fail "renaming the held account keeps it held" "$(active)"
+alert
+[[ $(active) == "office" && ! -s $notifications ]] || fail "renaming the held account keeps it held" "$(active) $(cat "$notifications")"
 pass "renaming the held account keeps it held"
-
-# ------------------------------------------------------ running sessions follow
-
-# With both accounts signed in, switching moves Work's login into ~/.claude,
-# where every session runs, so running sessions follow it.
-signed_in() {
-  echo "{\"claudeAiOauth\":{\"accessToken\":\"token-$3\"}}" >"$1/.credentials.json"
-  echo "{\"oauthAccount\":{\"accountUuid\":\"$3\"}}" >"$2"
-}
-signed_in "$HOME/.claude" "$HOME/.claude.json" u-main
-signed_in "$accounts/claude/work" "$accounts/claude/work/.claude.json" u-work
-registry main auto
-record 0.96 "$soon" 0.12 "$later"
-[[ $(autoswitch) == "claude" && $(jq -r .seated "$accounts/claude.json") == work ]] || fail "an auto switch seats the account it switched to"
-[[ $(jq -r .claudeAiOauth.accessToken "$HOME/.claude/.credentials.json") == token-u-work && $(jq -r .claudeAiOauth.accessToken "$accounts/claude/.primary/.credentials.json") == token-u-main ]] ||
-  fail "an auto switch moves Work's login into ~/.claude and Main's to its own home"
-grep -q "Claude sessions now use Work (12%), running ones included." "$notifications" || fail "an auto switch says running sessions moved" "$(cat "$notifications")"
-pass "an auto switch moves running sessions too"

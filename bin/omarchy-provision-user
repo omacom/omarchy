@@ -85,6 +85,9 @@ fi
 # point at a dev checkout (omarchy dev link) where the target differs.
 "$OMARCHY_PATH/bin/omarchy-agent-skills-link"
 
+# Pi's extensions link the same way, dev-aware, beside Pi's own defaults.
+"$OMARCHY_PATH/bin/omarchy-agent-pi-defaults"
+
 # Personal agent rules live in ~/.agents/AGENTS.md beside the skills, linked
 # into each harness that reads its own global instructions file.
 "$OMARCHY_PATH/bin/omarchy-agent-instructions" >/dev/null || true

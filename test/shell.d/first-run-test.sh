@@ -49,14 +49,18 @@ enable_user_units() {
 enable_user_units no-such-unit || fail "first-run enables its user units"
 clean_run=$(<"$test_tmp/calls")
 grep -Fq 'hook theme-set' <<<"$clean_run" || fail "first-run installs the theme hook"
-mapfile -t units < <(sed -n 's/^--user enable --now //p' <<<"$clean_run")
+(( $(grep -Fxc -- "--user daemon-reload" <<<"$clean_run") == 1 )) || fail "first-run reloads systemd user manager once"
+mapfile -t units < <(sed -n '1,/^--user daemon-reload$/s/^--user enable --no-reload //p' <<<"$clean_run")
+mapfile -t started < <(sed -n '/^--user daemon-reload$/,$s/^--user start //p' <<<"$clean_run")
+[[ ${started[*]} == "${units[*]}" ]] || fail "first-run starts every enabled unit after reloading"
 
 for unit in "${units[@]}"; do
   [[ $unit != *" "* ]] || fail "first-run enables each unit on its own" "$unit"
   if enable_user_units "$unit"; then
     fail "first-run reports a unit it could not enable" "$unit"
   fi
-  [[ $(<"$test_tmp/calls") == "$(grep -Fvx -- "--user enable --now $unit" <<<"$clean_run")" ]] ||
+  expected=$(grep -Fvx -e "--user enable --no-reload $unit" -e "--user start $unit" <<<"$clean_run")
+  [[ $(<"$test_tmp/calls") == "$expected" ]] ||
     fail "a unit missing from the build costs first-run only that unit" "$unit"
 done
 (( ${#units[@]} > 1 )) || fail "first-run enables each unit on its own"
@@ -92,7 +96,7 @@ cat >"$mock_bin/omarchy-done" <<'SH'
 SH
 chmod +x "$mock_bin/omarchy-default-agent" "$mock_bin/omarchy-done"
 run_first_run_network
-grep -Fq -- '--exec omarchy menu summon agent.harness' "$test_tmp/calls" ||
+grep -Fq -- '--exec omarchy-shell omarchy.agents open' "$test_tmp/calls" ||
   fail "first run invites a default agent once there is a connection"
 pass "first run invites a default agent once there is a connection"
 

@@ -1,7 +1,11 @@
 #!/bin/bash
 
 # omarchy:summary=Manage the speaker tuning for this laptop
-# omarchy:args=<on|off|status|match|fronted-sink> [--force]
+# omarchy:subcommand=on [--force] — Play the speakers through the tuning matched to this laptop
+# omarchy:subcommand=off — Remove the speaker tuning
+# omarchy:subcommand=status — Show whether a tuning is installed and running
+# omarchy:subcommand=match — Print the tuning that matches this laptop, if any
+# omarchy:subcommand=fronted-sink — Print the speaker sink the tuning sits in front of
 # omarchy:group=audio
 # omarchy:examples=omarchy audio tuning status | omarchy audio tuning on | omarchy audio tuning off
 
