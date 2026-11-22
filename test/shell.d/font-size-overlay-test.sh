@@ -136,6 +136,90 @@ grep -qx 'size = 12' "$per/.config/alacritty/local.toml" ||
   fail "migration does not substitute omarchy-font-current for Foot" "$(cat "$per/.config/foot/local.ini")"
 pass "migration keeps each terminal's own size"
 
+# The upgrade copies the packaged overlays, which ship at size 9, before this
+# migration. Those copies are byte-identical to $OMARCHY_PATH/config, which the
+# harness points at this repo. They must not hide the size still in the shared
+# config. A second run must not then eat a Foot fallback's size.
+stock="$tmpdir/stock-home"
+mkdir -p "$stock/.config/ghostty" "$stock/.config/kitty" "$stock/.config/foot" "$stock/.config/alacritty"
+cp "$ROOT/config/ghostty/local" "$stock/.config/ghostty/local"
+cp "$ROOT/config/kitty/local.conf" "$stock/.config/kitty/local.conf"
+cp "$ROOT/config/foot/local.ini" "$stock/.config/foot/local.ini"
+cp "$ROOT/config/alacritty/local.toml" "$stock/.config/alacritty/local.toml"
+cp "$ROOT/config/ghostty/config" "$stock/.config/ghostty/config"
+cp "$ROOT/config/kitty/kitty.conf" "$stock/.config/kitty/kitty.conf"
+cp "$ROOT/config/foot/foot.ini" "$stock/.config/foot/foot.ini"
+cp "$ROOT/config/alacritty/alacritty.toml" "$stock/.config/alacritty/alacritty.toml"
+printf 'font-size = 14\n' >>"$stock/.config/ghostty/config"
+printf 'font_size 14\n' >>"$stock/.config/kitty/kitty.conf"
+sed -i 's/^font=JetBrainsMono Nerd Font$/font=JetBrainsMono Nerd Font:size=14, Noto Color Emoji:size=10/' \
+  "$stock/.config/foot/foot.ini"
+sed -i '/^\[font\]$/a size = 14' "$stock/.config/alacritty/alacritty.toml"
+run_migration "$stock" "$stock/.config"
+grep -qx 'font-size = 14' "$stock/.config/ghostty/local" ||
+  fail "a stock Ghostty overlay takes the shared size" "$(cat "$stock/.config/ghostty/local")"
+grep -qx 'font_size 14.0' "$stock/.config/kitty/local.conf" ||
+  fail "a stock Kitty overlay takes the shared size" "$(cat "$stock/.config/kitty/local.conf")"
+grep -qx 'font=JetBrainsMono Nerd Font:size=14, Noto Color Emoji:size=10' \
+  "$stock/.config/foot/local.ini" ||
+  fail "a stock Foot overlay takes the shared size and keeps the fallback" "$(cat "$stock/.config/foot/local.ini")"
+grep -qx 'size = 14' "$stock/.config/alacritty/local.toml" ||
+  fail "a stock Alacritty overlay takes the shared size" "$(cat "$stock/.config/alacritty/local.toml")"
+grep -qx '# Machine-local Ghostty overrides. Not part of the shared desktop config.' \
+  "$stock/.config/ghostty/local" ||
+  fail "replacing a stock overlay keeps its other lines" "$(cat "$stock/.config/ghostty/local")"
+! grep -q '^font-size[[:space:]]*=' "$stock/.config/ghostty/config" ||
+  fail "migration still strips the shared Ghostty size after seeding a stock overlay" "$(cat "$stock/.config/ghostty/config")"
+! grep -q '^font_size[[:space:]]' "$stock/.config/kitty/kitty.conf" ||
+  fail "migration still strips the shared Kitty size after seeding a stock overlay" "$(cat "$stock/.config/kitty/kitty.conf")"
+grep -qx 'font=JetBrainsMono Nerd Font, Noto Color Emoji:size=10' "$stock/.config/foot/foot.ini" ||
+  fail "migration strips only Foot's primary size" "$(grep '^font=' "$stock/.config/foot/foot.ini")"
+! grep -q '^[[:space:]]*size[[:space:]]*=' "$stock/.config/alacritty/alacritty.toml" ||
+  fail "migration still strips the shared Alacritty size after seeding a stock overlay" "$(cat "$stock/.config/alacritty/alacritty.toml")"
+run_migration "$stock" "$stock/.config"
+grep -qx 'font=JetBrainsMono Nerd Font, Noto Color Emoji:size=10' "$stock/.config/foot/foot.ini" ||
+  fail "a second migration keeps the Foot fallback size" "$(grep '^font=' "$stock/.config/foot/foot.ini")"
+grep -qx 'font=JetBrainsMono Nerd Font:size=14, Noto Color Emoji:size=10' \
+  "$stock/.config/foot/local.ini" ||
+  fail "a second migration keeps the size already on the Foot overlay" "$(cat "$stock/.config/foot/local.ini")"
+pass "a stock overlay does not hide the shared font size"
+
+# An overlay the user has already changed is left alone. The shared size is
+# still removed, so the next sync does not put it back.
+edited="$tmpdir/edited-home"
+mkdir -p "$edited/.config/ghostty" "$edited/.config/kitty" "$edited/.config/foot" "$edited/.config/alacritty"
+cp "$ROOT/config/ghostty/local" "$edited/.config/ghostty/local"
+cp "$ROOT/config/kitty/local.conf" "$edited/.config/kitty/local.conf"
+cp "$ROOT/config/foot/local.ini" "$edited/.config/foot/local.ini"
+cp "$ROOT/config/alacritty/local.toml" "$edited/.config/alacritty/local.toml"
+sed -i 's/font-size = 9/font-size = 16/' "$edited/.config/ghostty/local"
+sed -i 's/font_size 9.0/font_size 16.0/' "$edited/.config/kitty/local.conf"
+sed -i 's/:size=9/:size=16/' "$edited/.config/foot/local.ini"
+sed -i 's/size = 9/size = 16/' "$edited/.config/alacritty/local.toml"
+cp "$ROOT/config/ghostty/config" "$edited/.config/ghostty/config"
+cp "$ROOT/config/kitty/kitty.conf" "$edited/.config/kitty/kitty.conf"
+cp "$ROOT/config/foot/foot.ini" "$edited/.config/foot/foot.ini"
+cp "$ROOT/config/alacritty/alacritty.toml" "$edited/.config/alacritty/alacritty.toml"
+printf 'font-size = 14\n' >>"$edited/.config/ghostty/config"
+printf 'font_size 14\n' >>"$edited/.config/kitty/kitty.conf"
+sed -i 's/^font=JetBrainsMono Nerd Font$/font=JetBrainsMono Nerd Font:size=14, Noto Color Emoji:size=10/' \
+  "$edited/.config/foot/foot.ini"
+sed -i '/^\[font\]$/a size = 14' "$edited/.config/alacritty/alacritty.toml"
+run_migration "$edited" "$edited/.config"
+grep -qx 'font-size = 16' "$edited/.config/ghostty/local" ||
+  fail "migration leaves a changed Ghostty overlay alone" "$(cat "$edited/.config/ghostty/local")"
+grep -qx 'font_size 16.0' "$edited/.config/kitty/local.conf" ||
+  fail "migration leaves a changed Kitty overlay alone" "$(cat "$edited/.config/kitty/local.conf")"
+grep -qx 'font=JetBrainsMono Nerd Font:size=16' "$edited/.config/foot/local.ini" ||
+  fail "migration leaves a changed Foot overlay alone" "$(cat "$edited/.config/foot/local.ini")"
+grep -qx 'size = 16' "$edited/.config/alacritty/local.toml" ||
+  fail "migration leaves a changed Alacritty overlay alone" "$(cat "$edited/.config/alacritty/local.toml")"
+! grep -q '^font-size[[:space:]]*=' "$edited/.config/ghostty/config" ||
+  fail "migration strips the shared Ghostty size when the overlay was already changed"
+grep -qx 'font=JetBrainsMono Nerd Font, Noto Color Emoji:size=10' "$edited/.config/foot/foot.ini" ||
+  fail "migration strips Foot's primary size when the overlay was already changed" "$(grep '^font=' "$edited/.config/foot/foot.ini")"
+pass "migration leaves a changed overlay alone"
+
 # --- Trailing whitespace, inline comment, and a non-number ---
 ws="$tmpdir/ws-home"
 mkdir -p "$ws/.config/ghostty"
@@ -270,6 +354,20 @@ grep -qx 'pad=2' "$keep/.config/foot/local.ini" ||
 grep -qx 'font=Iosevka Term:size=12' "$keep/.config/foot/local.ini" ||
   fail "font set updates the Foot family without dropping the size" "$(cat "$keep/.config/foot/local.ini")"
 pass "font set replaces only Foot's font line"
+
+# After the migration strips the primary size, the shared line is
+# "font=Old, Emoji:size=10". Replacing through the first colon would turn
+# that into "font=New:size=10" and drop the fallback.
+comma_font="$tmpdir/comma-font-home"
+mkdir -p "$comma_font/.config/foot"
+printf '[main]\nfont=Old, Emoji:size=10\n' >"$comma_font/.config/foot/foot.ini"
+printf '#!/bin/bash\necho "Test Font"\n' >"$bin/fc-list"
+chmod +x "$bin/fc-list"
+HOME="$comma_font" XDG_CONFIG_HOME="$comma_font/.config" PATH="$bin:$ROOT/bin:$PATH" \
+  omarchy-font-set "Test Font" >/dev/null
+grep -qx 'font=Test Font, Emoji:size=10' "$comma_font/.config/foot/foot.ini" ||
+  fail "font set keeps a Foot fallback that comes after a comma" "$(cat "$comma_font/.config/foot/foot.ini")"
+pass "font set keeps a Foot fallback that comes after a comma"
 
 # --- A fallback font keeps its own size ---
 fallback="$tmpdir/fallback-home"

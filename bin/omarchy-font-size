@@ -59,6 +59,31 @@ size_from_file() {
   fi
 }
 
+# The shared file only. A stock overlay seeded at size 9 is not the size the
+# user saved, and the ordinary read prefers that overlay.
+size_from_shared() {
+  local term="$1" size=""
+  case $term in
+    ghostty)
+      size=$(size_from_file "$ghostty_shared" 's/^[[:space:]]*font-size[[:space:]]*=[[:space:]]*//p')
+      ;;
+    kitty)
+      size=$(size_from_file "$kitty_shared" 's/^[[:space:]]*font_size[[:space:]]*//p')
+      ;;
+    foot)
+      size=$(size_from_file "$foot_shared" "$foot_primary_size_subst")
+      ;;
+    alacritty)
+      size=$(size_from_file "$alacritty_shared" 's/^[[:space:]]*size[[:space:]]*=[[:space:]]*//p')
+      ;;
+    *)
+      echo "Unknown terminal: $term" >&2
+      exit 1
+      ;;
+  esac
+  printf '%s' "$size"
+}
+
 size_from_terminal() {
   local term="$1" size=""
   case $term in
@@ -497,8 +522,8 @@ while (($#)); do
       query_what=${2:-}
       shift 2
       ;;
-    --read)
-      mode=read
+    --read | --read-shared)
+      mode=${1#--}
       read_term=${2:-}
       shift 2
       ;;
@@ -533,8 +558,12 @@ if [[ $mode == "query" ]]; then
   esac
 fi
 
-if [[ $mode == "read" ]]; then
-  size=$(size_from_terminal "$read_term")
+if [[ $mode == "read" || $mode == "read-shared" ]]; then
+  if [[ $mode == "read-shared" ]]; then
+    size=$(size_from_shared "$read_term")
+  else
+    size=$(size_from_terminal "$read_term")
+  fi
   if [[ -n $size ]]; then
     printf '%s\n' "$size"
   fi

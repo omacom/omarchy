@@ -54,7 +54,9 @@ if [[ -f $ghostty_config ]]; then
 fi
 
 if [[ -f $foot_config ]]; then
-  sed --follow-symlinks -i -E "s/^font=[^:]+/font=$font_name/" "$foot_config"
+  # The family ends at the first colon or the first comma. Stopping only at
+  # a colon turns "Old, Emoji:size=10" into "New:size=10" and drops the fallback.
+  sed --follow-symlinks -i -E "s/^font=[^:,]+/font=$font_name/" "$foot_config"
 fi
 
 # Foot's one font= key replaces the whole list, so the overlay keeps this
