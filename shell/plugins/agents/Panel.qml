@@ -491,7 +491,9 @@ Panel {
     var done = false
     if (finished(settingUpLocal)) { settingUpLocal = ""; done = true }
     if (finished(pairingLocal)) { pairingLocal = ""; done = true }
-    if (done && settingUpLocal === "" && pairingLocal === "" && addStage === "pick") cancelAdd()
+    // One cancelled or failed isn't going any more, though still remembered.
+    var going = function(meter) { return !!meter && !meter.failed }
+    if (done && !going(localSetupMeter) && !going(pairingMeter) && addStage === "pick") cancelAdd()
   }
 
   // The pairing's meter: under way, or why it failed.
