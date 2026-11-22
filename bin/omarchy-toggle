@@ -15,7 +15,7 @@ ACTION="${2:-toggle}"
 # config sources, not to the flat flags this script manages; route them to the
 # toggle that owns them so `omarchy toggle <name>` actually applies instead of
 # quietly writing a flag nothing reads.
-if [[ -f $OMARCHY_PATH/default/hypr/toggles/$FLAG_NAME.lua ]]; then
+if [[ $FLAG_NAME != "flags" && -f $OMARCHY_PATH/default/hypr/toggles/$FLAG_NAME.lua ]]; then
   exec omarchy-hyprland-toggle "$FLAG_NAME" "${ACTION:-toggle}"
 else
   FLAG="$HOME/.local/state/omarchy/toggles/$FLAG_NAME"
