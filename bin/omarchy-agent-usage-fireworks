@@ -419,7 +419,7 @@ def tier_label(account: dict[str, Any]) -> str:
 # What each of the last 30 days cost and, against a monthly cap the tier
 # sets, what the account has spent this month; with no cap, the amount is
 # the 30 days' total. With no quota to read, the 30 days stand uncapped.
-def current_spend(quota: dict[str, Any] | None, days: list[float], through: str = "") -> dict[str, Any]:
+def current_spend(quota: dict[str, Any] | None, days: list[float], through: str) -> dict[str, Any]:
   if quota is None:
     quota = {"usage": 0, "value": 0}
   try:

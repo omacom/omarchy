@@ -103,7 +103,7 @@ if [[ $agent == "local" ]]; then
       local_model=$pinned
     fi
   fi
-elif [[ $use_local == "true" && -z $agent_override ]]; then
+elif [[ $use_local == "true" ]]; then
   agent=pi
 fi
 
@@ -301,36 +301,15 @@ if [[ $use_local == "true" && $local_model != */* ]]; then
   fi
 fi
 
-# --local points the agent at the model `omarchy models use` runs, through
-# a launch-time overlay Omarchy owns, never by editing the agent's own config.
-# Only agents with such an overlay can be pointed there.
+# --local points pi at the model `omarchy models use` runs, through a
+# launch-time overlay Omarchy owns, never by editing pi's own config.
 if [[ $use_local == "true" ]]; then
-  mapfile -t overlay < <(omarchy-models overlay "$agent" ${local_model:+"$local_model"})
+  mapfile -t overlay < <(omarchy-models overlay pi ${local_model:+"$local_model"})
   if (( ${#overlay[@]} != 3 )); then
     omarchy-notification-send -u critical "$(omarchy-i18n agents.localMissing)" "$(omarchy-i18n agents.localMissingBody)"
     exit 1
   fi
-  case "$agent" in
-  opencode)
-    # The shared background service never sees the overlay, so run a private one.
-    model=$(jq -nc --arg model "${overlay[1]}/${overlay[2]}" '{model: $model}')
-    command=(env "OPENCODE_CONFIG=${overlay[0]}" "OPENCODE_CONFIG_CONTENT=$model" "${command[@]}" --standalone)
-    ;;
-  pi)
-    command+=(--extension "${overlay[0]}" --provider "${overlay[1]}" --model "${overlay[2]}")
-    ;;
-  qwen)
-    # Qwen Code takes the endpoint and model as flags and the key only from
-    # its environment. Terminals launched through uwsm don't inherit ours, and
-    # a key on the command line is anyone's to read, so the terminal's own
-    # shell reads it from its file just before Qwen Code starts.
-    base_url=$(jq -r '.baseUrl // empty' "${overlay[0]}")
-    key_file=$(jq -r '.keyFile // empty' "${overlay[0]}")
-    [[ -n $base_url && -n $key_file ]] || exit 1
-    command=(bash -c 'OPENAI_API_KEY=$(<"$1") || exit 1; export OPENAI_API_KEY; shift; exec "$@"' omarchy-agent-qwen "$key_file"
-      "${command[@]}" --auth-type openai --openai-base-url "$base_url" --model "${overlay[2]}")
-    ;;
-  esac
+  command+=(--extension "${overlay[0]}" --provider "${overlay[1]}" --model "${overlay[2]}")
 fi
 
 # --provider starts the session on one of the provider's models, passed at
@@ -343,7 +322,6 @@ fi
 # that lists no models for the provider opens as it was.
 if [[ -n $provider ]]; then
   provider_id=$provider
-  provider_last=""
   [[ $provider == "fireworks" ]] && provider_id="fireworks-ai"
   provider_models=$(opencode models 2>/dev/null | sed -n "s|^$provider_id/||p")
   # OpenCode keeps the models it used, latest first.

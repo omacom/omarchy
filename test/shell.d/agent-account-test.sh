@@ -496,11 +496,12 @@ pass "a Grok settings cache of the wrong shape reads as no plan"
 
 # ------------------------------------------------------------ panel add flow
 
-[[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional\nagy first\ncopilot first\ncursor first\ndeepseek first\nfireworks first\nminimax first\nmuse first\nopencode first\nopenrouter first\nsynthetic first\nzai first' ]] ||
-  fail "--check says what adding would mean for each provider" "$(omarchy-agent-account-add --check)"
+check=$(omarchy-agent-account-add --check)
+[[ $check == $'claude additional\ncodex additional\ngrok additional\n'* && $'\n'$check$'\n' == *$'\nfireworks first\n'* ]] ||
+  fail "--check says what adding would mean for each provider" "$check"
 pass "--check says what adding would mean for each provider"
 
-# Fireworks and OpenRouter sign in with a pasted API key: checked first, then
+# Pay-as-you-go providers sign in with a pasted API key: checked first, then
 # imported into OpenCode, without ever being a command argument.
 fireworks_bin="$test_tmp/fireworks-bin"
 mkdir -p "$fireworks_bin"

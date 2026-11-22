@@ -17,16 +17,18 @@ set -uo pipefail
 check=false
 events=false
 reauth=""
+usage() {
+  echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai] [label]" >&2
+  exit 1
+}
+
 while [[ ${1:-} == --* ]]; do
   case "$1" in
   --check) check=true ;;
   --events) events=true ;;
   --reauth)
     reauth="${2:-}"
-    if [[ -z $reauth || $reauth == --* ]]; then
-      echo "Usage: omarchy-agent-account-add --reauth <account> [agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai]" >&2
-      exit 1
-    fi
+    [[ -n $reauth && $reauth != --* ]] || usage
     shift
     ;;
   *) break ;;
@@ -64,7 +66,7 @@ fi
 # own. The rest keep the one sign-in their CLI does. `harness` is the command
 # that codes on the subscription, when it isn't the provider's own name.
 accounts=false
-by_key=false
+key_provider=""
 case "${1:-}" in
 claude) provider="claude"; name="Claude"; app="Claude Code"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR"; accounts=true ;;
 codex) provider="codex"; name="Codex"; app="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME"; accounts=true ;;
@@ -76,20 +78,21 @@ muse) provider="muse"; name="Muse"; app="Muse Code"; package="muse"; login_comma
 opencode) provider="opencode"; name="OpenCode"; app="OpenCode"; package="opencode"; login_command=(opencode auth login opencode --method device) ;;
 copilot) provider="copilot"; name="Copilot"; app="GitHub Copilot"; package="copilot"; login_command=(copilot login) ;;
 cursor | cursor-agent) provider="cursor"; harness="cursor-agent"; name="Cursor"; app="Cursor CLI"; package="cursor-agent"; login_command=(cursor-agent login) ;;
-# No CLI of their own: an API key is the sign-in, and OpenCode runs on it.
-fireworks) provider="fireworks"; harness="opencode"; name="Fireworks"; app="OpenCode"; package="opencode"; by_key=true; login_command=(key_login fireworks-ai) ;;
-openrouter) provider="openrouter"; harness="opencode"; name="OpenRouter"; app="OpenCode"; package="opencode"; by_key=true; login_command=(key_login openrouter) ;;
-# The panel's More list: providers whose usage Omarchy reads, so their keys
+# Pay as you go, with OpenCode's id for each: Fireworks and OpenRouter, and
+# the panel's More list, providers whose usage Omarchy reads, so their keys
 # can be checked before they're saved.
-deepseek) provider="deepseek"; harness="opencode"; name="DeepSeek"; app="OpenCode"; package="opencode"; by_key=true; login_command=(key_login deepseek) ;;
-minimax) provider="minimax"; harness="opencode"; name="MiniMax"; app="OpenCode"; package="opencode"; by_key=true; login_command=(key_login minimax) ;;
-synthetic) provider="synthetic"; harness="opencode"; name="Synthetic"; app="OpenCode"; package="opencode"; by_key=true; login_command=(key_login synthetic) ;;
-zai) provider="zai"; harness="opencode"; name="Z.ai"; app="OpenCode"; package="opencode"; by_key=true; login_command=(key_login zai) ;;
-*)
-  echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai] [label]" >&2
-  exit 1
-  ;;
+fireworks) provider="fireworks"; name="Fireworks"; key_provider="fireworks-ai" ;;
+openrouter) provider="openrouter"; name="OpenRouter"; key_provider="openrouter" ;;
+deepseek) provider="deepseek"; name="DeepSeek"; key_provider="deepseek" ;;
+minimax) provider="minimax"; name="MiniMax"; key_provider="minimax" ;;
+synthetic) provider="synthetic"; name="Synthetic"; key_provider="synthetic" ;;
+zai) provider="zai"; name="Z.ai"; key_provider="zai" ;;
+*) usage ;;
 esac
+# No CLI of their own: an API key is the sign-in, and OpenCode runs on it.
+if [[ -n $key_provider ]]; then
+  harness="opencode"; app="OpenCode"; package="opencode"; login_command=(key_login "$key_provider")
+fi
 harness=${harness-$provider}
 label="${2:-}"
 
@@ -104,7 +107,17 @@ say() {
 # A signed-in agent gets a launcher of its own beside Agent, drawn by the
 # icon set: Claude Code, Codex, or Grok Build, whatever the default agent is.
 install_launcher() {
-  [[ -z $harness ]] || omarchy-agent-launcher "$harness"
+  omarchy-agent-launcher "$harness"
+}
+
+# The first agent signed in on a machine with none chosen becomes the
+# default, so `omarchy agent` and the panel's starter prompts have one to run.
+# A default someone already picked is never touched.
+default_if_unset() {
+  if [[ -z $(omarchy-default-agent) ]]; then
+    mkdir -p "$HOME/.config/omarchy/defaults"
+    printf '%s\n' "$1" >"$HOME/.config/omarchy/defaults/agent"
+  fi
 }
 
 # A subscription's own desktop app comes with its first sign-in, beside the
@@ -274,7 +287,7 @@ cli_missing() {
   ! PATH=$path type -P "$harness" >/dev/null
 }
 
-if [[ -n $package ]] && cli_missing; then
+if cli_missing; then
   say "$(omarchy-i18n agents.installingCli "$name")"
   if omarchy-mise-default-tools declares "$package"; then
     install_cli env MISE_MINIMUM_RELEASE_AGE=0 mise install "$package"
@@ -292,7 +305,7 @@ private_browser() {
   chmod +x "$browser" || fail "$(omarchy-i18n agents.homeFailed)"
 }
 
-# Fireworks and OpenRouter have no login to run: an API key is the sign-in.
+# Pay-as-you-go providers have no login to run: an API key is the sign-in.
 # It's saved in OpenCode, which runs on it, and travels only through the
 # environment and stdin, never a command line. A key the provider refuses is
 # not saved, and says so by returning 2.
@@ -339,7 +352,7 @@ key_login() {
 if [[ $accounts == "false" ]]; then
   # Gemini's page ends on a code to paste back, and a key is all there is to
   # a key's sign-in; the panel shows a field for either, under what it's for.
-  if [[ $by_key == "false" ]]; then
+  if [[ -z $key_provider ]]; then
     say "$(omarchy-i18n agents.signInBrowser "$name")"
   elif [[ $events == "true" ]]; then
     printf '@@omarchy status %s\n@@omarchy key %s\n' "$(omarchy-i18n agents.apiKeyHint "$name")" "$(omarchy-i18n agents.apiKeyHint "$name")"
@@ -349,25 +362,17 @@ if [[ $accounts == "false" ]]; then
   fi
   interruptible "${login_command[@]}" 2>&1
   login_status=$?
-  if (( login_status == 2 )) && [[ $by_key == "true" ]]; then
+  if (( login_status == 2 )) && [[ -n $key_provider ]]; then
     fail "$(omarchy-i18n agents.keyRefused "$name")"
-  elif (( login_status == 3 )) && [[ $by_key == "true" ]]; then
+  elif (( login_status == 3 )) && [[ -n $key_provider ]]; then
     fail "$(omarchy-i18n agents.keyUnchecked "$name")"
   elif (( login_status != 0 )); then
     fail "$(omarchy-i18n agents.signInFailed "$name")"
   fi
 
   omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
-  if [[ -n $harness ]]; then
-    # As with the first Claude, Codex, or Grok sign-in below.
-    if [[ -z $(omarchy-default-agent) ]]; then
-      mkdir -p "$HOME/.config/omarchy/defaults"
-      printf '%s\n' "$harness" >"$HOME/.config/omarchy/defaults/agent"
-    fi
-    finish "$(omarchy-i18n agents.signedIn "$name")" ready
-  else
-    finish "$(omarchy-i18n agents.signedIn "$name")"
-  fi
+  default_if_unset "$harness"
+  finish "$(omarchy-i18n agents.signedIn "$name")" ready
   exit 0
 fi
 
@@ -423,13 +428,7 @@ fi
 if ! primary_signed_in "$provider"; then
   say "$(omarchy-i18n agents.signInBrowser "$name")"
   if login && primary_signed_in "$provider"; then
-    # The first agent signed in on a machine with none chosen becomes the
-    # default, so `omarchy agent` and the panel's starter prompts have one to
-    # run. A default someone already picked is never touched.
-    if [[ -z $(omarchy-default-agent) ]]; then
-      mkdir -p "$HOME/.config/omarchy/defaults"
-      printf '%s\n' "$provider" >"$HOME/.config/omarchy/defaults/agent"
-    fi
+    default_if_unset "$provider"
     omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
     finish "$(omarchy-i18n agents.signedIn "$name")" ready
   else

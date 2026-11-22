@@ -302,7 +302,7 @@ grep -Fq "Choose default agent with" "$test_tmp/no-agent-output" ||
 pass "agent launcher refuses to launch without a default"
 
 # The agents panel launches a running local model whether or not a default was
-# chosen; it opens in an agent with an overlay all the same.
+# chosen; it opens in pi, on pi's overlay, all the same.
 cat >"$mock_bin/omarchy-models" <<'SH'
 #!/bin/bash
 [[ $1 == "overlay" ]] && printf '%s\n' "/overlays/$2-local.config" omarchy-local test-model
@@ -312,9 +312,10 @@ chmod +x "$mock_bin/omarchy-models"
 omarchy-agent --local-model test-model >"$test_tmp/local-output" 2>&1 ||
   fail "agent launcher opens a local model without a default: $(<"$test_tmp/local-output")"
 mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == *"/overlays/"*"-local.config"* ]] ||
-  fail "agent launcher points the local model's agent at its overlay: ${launch_args[*]}"
+[[ ${launch_args[*]} == *"--extension /overlays/pi-local.config"* ]] ||
+  fail "agent launcher points pi at the local model's overlay: ${launch_args[*]}"
 rm "$mock_bin/omarchy-models"
+pass "agent launcher opens a local model without a default"
 
 # A provider with no harness of its own opens in OpenCode on the model its
 # usage record has used most, under the id OpenCode lists it by rather than the
@@ -348,35 +349,6 @@ mapfile -d '' -t launch_args <"$launch_log"
 [[ ${launch_args[*]} == *'"model":"fireworks-ai/accounts/fireworks/models/kimi-k3"'* ]] ||
   fail "agent launcher reopens a provider on the model OpenCode last used there: ${launch_args[*]}"
 pass "agent launcher reopens a provider on the model last used there"
-pass "agent launcher opens a local model without a default"
-
-# Qwen Code opens on a local model from an omarchy-local-ai that writes its
-# overlay: the endpoint and model as flags, the key read from its file inside
-# the terminal, never on a command line.
-printf 'local-secret-key' >"$test_tmp/local-key"
-cat >"$mock_bin/omarchy-models" <<'SH'
-#!/bin/bash
-if [[ $1 == "overlay" && $2 == "qwen" ]]; then
-  printf '{"baseUrl": "http://127.0.0.1:11435/v1", "model": "test-model", "keyFile": "%s"}\n' "$OMARCHY_TEST_KEY_FILE" >"$OMARCHY_TEST_QWEN_FILE"
-  printf '%s\n' "$OMARCHY_TEST_QWEN_FILE" omarchy-local test-model
-elif [[ $1 == "overlay" ]]; then
-  printf '%s\n' "/overlays/$2-local.config" omarchy-local test-model
-fi
-SH
-chmod +x "$mock_bin/omarchy-models"
-printf '#!/bin/bash\nprintf "key=%%s args=%%s\\n" "$OPENAI_API_KEY" "$*"\n' >"$mock_bin/qwen"
-chmod +x "$mock_bin/qwen"
-: >"$launch_log"
-OMARCHY_TEST_KEY_FILE="$test_tmp/local-key" OMARCHY_TEST_QWEN_FILE="$test_tmp/qwen-overlay.json" \
-  omarchy-agent --agent qwen --local-model test-model >"$test_tmp/qwen-local-output" 2>&1 ||
-  fail "agent launcher opens Qwen Code on a local model: $(<"$test_tmp/qwen-local-output")"
-mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} != *"local-secret-key"* ]] || fail "agent launcher keeps the local key off Qwen Code's command line"
-qwen_output=$("${launch_args[@]:1}")
-[[ $qwen_output == "key=local-secret-key args=--yolo --auth-type openai --openai-base-url http://127.0.0.1:11435/v1 --model test-model" ]] ||
-  fail "Qwen Code gets the local endpoint and model as flags and the key in its environment: $qwen_output"
-rm "$mock_bin/omarchy-models" "$mock_bin/qwen" "$test_tmp/local-key"
-pass "agent launcher opens Qwen Code on a local model, keeping its key off the command line"
 
 # The keybinding uses --pick, where an error on stderr nobody sees would make
 # the keypress look broken. It offers the choice instead.
@@ -1012,8 +984,9 @@ mapfile -d '' -t launch_args <"$launch_log"
 [[ ! -s $menu_log ]] || fail "--pick opens no menu once an agent is chosen"
 pass "--pick launches once an agent is chosen"
 
-# A default of "local" is the local model, which opens in pi. The mock reports whatever status the test
-# writes to OMARCHY_TEST_LOCAL_STATUS, and no status at all when it is unset.
+# A default of "local" is the local model, which opens in pi. The mock reports
+# whatever status the test writes to OMARCHY_TEST_LOCAL_STATUS, and no status
+# at all when it is unset.
 cat >"$mock_bin/omarchy-models" <<'SH'
 #!/bin/bash
 case $1 in

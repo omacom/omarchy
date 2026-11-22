@@ -142,12 +142,12 @@ def api_key():
   explicit = str(os.environ.get("SYNTHETIC_API_KEY", "")).strip()
   if explicit:
     return explicit
-  # The default pi and omp sign-ins, then opencode's, then each named profile's:
-  # a profile's sessions are counted, so a sign-in made only there must read
-  # its quotas too, without outranking the defaults.
   # The key opencode keeps in its database, as the agents panel saves it.
   if key := opencode_credential_key("synthetic"):
     return key
+  # The default pi and omp sign-ins, then opencode's, then each named profile's:
+  # a profile's sessions are counted, so a sign-in made only there must read
+  # its quotas too, without outranking the defaults.
   agent_dirs = pi_agent_dirs()
   paths = [agent_dir / "auth.json" for agent_dir in agent_dirs[:2]]
   paths.append(data_home() / "opencode" / "auth.json")
