@@ -506,6 +506,10 @@ ShellRoot {
     if (_pluginFirstPartyServiceApis[proxyKey]) return _pluginFirstPartyServiceApis[proxyKey]
 
     function service() {
+      var owner = shell.pluginRegistry.installedPlugins[pluginId]
+      if (!owner || !shell.pluginRegistry.isEnabled(pluginId)
+          || (!shell.pluginHasBarCapabilities(owner)
+              && shell.pluginCloneFirstPartyServices(owner).indexOf(id) === -1)) return null
       return shell.serviceFor(shell.pluginRegistry.resolveEnabledId(id))
     }
     var api = pluginFirstPartyServiceApiComponent.createObject(null, {
