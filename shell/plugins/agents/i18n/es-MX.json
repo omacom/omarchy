@@ -1,0 +1,5 @@
+{
+  "agents.balanceResets": "Se renueva el %1",
+  "agents.modelsAccount": "Tokens por modelo · últimos 30 días (UTC)",
+  "agents.modelsLocal": "Tokens por modelo · este equipo"
+}

@@ -41,6 +41,7 @@ assertEqual(subscribed(historyOnly), false, 'an agent with only local history ge
 assertEqual(subscribed({ ...historyOnly, tierLabel: 'X Premium+' }), true, 'a plan earns a section before its limits arrive')
 assertEqual(subscribed({ ...historyOnly, limits: [{ label: 'Weekly', percent: 0.04 }] }), true, 'kept limits earn a section')
 assertEqual(subscribed({ ...historyOnly, spend: { amount: 1.25, days: [] } }), true, 'spend alone earns a section')
+assertEqual(subscribed({ ...historyOnly, tokenPass: { remaining: 0 } }), true, 'an exhausted Token Pass retains its section')
 
 // A reworded collector line would silently fall back to English, so every
 // fixed help line the collectors cache must still be one the panel maps.
@@ -49,6 +50,24 @@ for (const name of ['claude', 'codex', 'grok', 'fireworks']) {
   const help = collector.match(/^AUTH_HELP = "([^"]+)"$/m)
   assert(help && panelSource.includes('case ' + JSON.stringify(help[1]) + ':'), name + ' auth help is translated in the panel')
 }
+JS
+
+# Unknown subscription credit must never become zero, and model details
+# must use disjoint token buckets while keeping markup inert in PlainText.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const normalize = new Function(source.match(/function tokenPassValue\([^]*?\n  \}/)[0] + '\nreturn tokenPassValue')()
+assertDeepEqual(normalize({remaining: null, resetsAt: '2027-01-01T00:00:00Z'}), {remaining: null, resetsAt: '2027-01-01T00:00:00Z'}, 'unknown pass credit stays unknown')
+assertEqual(normalize({remaining: 0}).remaining, 0, 'an exhausted pass stays present')
+assertEqual(normalize({remaining: true}), null, 'a boolean is no balance')
+assertEqual(normalize({remaining: -1}), null, 'negative pass credit is rejected')
+const panel = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const rows = new Function(panel.match(/function modelRows\([^]*?\n  \}/)[0] + '\nreturn modelRows')()
+const model = '<img src="https://example.invalid/tracker">'
+assertDeepEqual(rows({showModelUsage: true, modelUsage: {[model]: {inputTokens: 10, outputTokens: 4, cacheReadInputTokens: 6}}, modelCosts: {[model]: 0}}),
+  [{model, tokens: 20, cost: 0}], 'model rows preserve plain model text and include free reported usage')
+assertEqual(rows({showModelUsage: true, modelUsage: {m: {inputTokens: 4}}})[0].cost, null, 'local tokens carry no invented model cost')
 JS
 
 # The panel reads a window out of a label, and that guess cannot survive a

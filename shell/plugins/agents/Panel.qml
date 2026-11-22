@@ -13,6 +13,8 @@ Panel {
   ipcTarget: "omarchy.agents"
   manageIpc: false
 
+  Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
+
   // Items inside the panel's lazily built content, null until it first
   // opens. Code inside the content reaches its own ids directly.
   readonly property Item panelFlick: panel.loadedContent ? panel.loadedContent.panelFlick : null
@@ -308,6 +310,7 @@ Panel {
       var window = bindingWindow(providers[i])
       if (window && window.percent >= 0.9) return true
       if (balanceAlarming(providers[i].balance)) return true
+      if (providers[i].tokenPass && providers[i].tokenPass.remaining === 0) return true
       if (spendAlarming(providers[i].spend)) return true
     }
     return false
@@ -950,6 +953,23 @@ Panel {
     return b.estimated
       ? Commons.I18n.t("agents.balanceSpentEstimated").arg(spent).arg(funded)
       : Commons.I18n.t("agents.balanceSpent").arg(spent).arg(funded)
+  }
+
+  function modelRows(provider) {
+    if (!provider || provider.showModelUsage !== true) return []
+    var rows = []
+    var models = provider.modelUsage || {}
+    var costs = provider.modelCosts || {}
+    for (var model in models) {
+      var bucket = models[model] || {}
+      var tokens = Number(bucket.inputTokens || 0) + Number(bucket.outputTokens || 0)
+        + Number(bucket.cacheReadInputTokens || 0) + Number(bucket.cacheCreationInputTokens || 0)
+      if (!(tokens > 0) || !isFinite(tokens)) continue
+      var cost = Object.prototype.hasOwnProperty.call(costs, model) ? Number(costs[model]) : null
+      rows.push({ model: model, tokens: tokens, cost: cost !== null && isFinite(cost) && cost >= 0 ? cost : null })
+    }
+    rows.sort(function(a, b) { return b.tokens - a.tokens || a.model.localeCompare(b.model) })
+    return rows
   }
 
   // A balance or spend row's amount is as wide as a limit row's time left
@@ -1741,6 +1761,7 @@ Panel {
     readonly property var windows: root.displayWindows(provider)
     readonly property var balance: provider ? (provider.balance || null) : null
     readonly property var spend: provider ? (provider.spend || null) : null
+    readonly property var tokenPass: provider ? (provider.tokenPass || null) : null
     spacing: Style.space(16)
     readonly property bool dragged: root.dragIndex === providerIndex
     z: dragged ? 2 : 0
@@ -1950,6 +1971,48 @@ Panel {
       }
     }
 
+    Column {
+      visible: !!section.tokenPass
+      width: parent.width
+      spacing: Style.space(6)
+
+      Item {
+        width: parent.width
+        implicitHeight: passTitle.implicitHeight
+
+        Text {
+          id: passTitle
+          textFormat: Text.PlainText
+          text: "Token Pass"
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+        }
+
+        Text {
+          anchors.right: parent.right
+          textFormat: Text.PlainText
+          text: !section.tokenPass || section.tokenPass.remaining === null
+            ? Commons.I18n.t("agents.balanceUnavailable")
+            : root.formatMoney(section.tokenPass.remaining, "USD")
+          color: section.tokenPass && section.tokenPass.remaining === 0 ? root.urgent : root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+        }
+      }
+
+      Text {
+        width: parent.width
+        textFormat: Text.PlainText
+        text: section.tokenPass && section.tokenPass.resetsAt
+          ? strings.t("agents.balanceResets").arg(new Date(section.tokenPass.resetsAt).toLocaleString(Qt.locale(Commons.I18n.formatLocale), Locale.ShortFormat)) : ""
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.WordWrap
+      }
+    }
+
     // Against a real monthly cap the spend is this month's meter; without
     // one, a bar for each of the last 30 days, scaled to the busiest, shows
     // where it went.
@@ -2023,6 +2086,58 @@ Panel {
         color: root.spendAlarming(section.spend) ? root.urgent : root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
+      }
+    }
+
+    Column {
+      width: parent.width
+      visible: rows.length > 0
+      readonly property var rows: root.modelRows(section.provider)
+      spacing: Style.space(8)
+
+      Text {
+        width: parent.width
+        textFormat: Text.PlainText
+        text: section.provider && section.provider.modelHistoryDays > 0
+          ? strings.t("agents.modelsAccount") : strings.t("agents.modelsLocal")
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.WordWrap
+      }
+
+      Repeater {
+        model: parent.rows
+
+        Item {
+          required property var modelData
+          width: section.width
+          implicitHeight: modelName.implicitHeight
+
+          Text {
+            id: modelName
+            anchors.left: parent.left
+            anchors.right: modelAmount.left
+            anchors.rightMargin: Style.space(12)
+            textFormat: Text.PlainText
+            text: usage.friendlyModelName(modelData.model.split("/").pop())
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            elide: Text.ElideRight
+          }
+
+          Text {
+            id: modelAmount
+            anchors.right: parent.right
+            textFormat: Text.PlainText
+            text: usage.formatTokenCount(modelData.tokens)
+              + (modelData.cost === null ? "" : " · " + root.formatMoney(modelData.cost, "USD"))
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+        }
       }
     }
 

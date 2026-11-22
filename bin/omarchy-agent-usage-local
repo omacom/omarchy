@@ -102,6 +102,7 @@ CLAIMED_PROVIDERS = {
   "openai", "openai-codex",  # codex
   "opencode", "opencode-go",  # opencode
   "openrouter",  # openrouter
+  "vercel", "vercel-ai-gateway",  # vercel
   "alibaba-coding-plan", "alibaba-coding-plan-cn", "alibaba-token-plan", "alibaba-token-plan-cn",  # qwen
   "qwen-token-plan", "qwen-token-plan-cn", "qwen-token-plan-individual", "qwen-portal",  # qwen
   "synthetic",  # synthetic

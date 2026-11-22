@@ -245,7 +245,7 @@ Item {
 
   function providerHasSubscription(p) {
     return (p.limits && p.limits.length > 0) || (p.accounts && p.accounts.length > 0)
-      || !!p.balance || !!p.spend || p.tierLabel !== ""
+      || !!p.balance || !!p.spend || !!p.tokenPass || p.showModelUsage === true || p.tierLabel !== ""
   }
 
   // ----------------------------------------------------------------- order
@@ -308,7 +308,7 @@ Item {
     return numberValue(p.totalPrompts) > 0 || numberValue(p.totalSessions) > 0
       || numberValue(p.activeDays) > 0 || numberValue(p.todayPrompts) > 0
       || numberValue(p.todaySessions) > 0 || (p.limits && p.limits.length > 0)
-      || (p.accounts && p.accounts.length > 0) || !!p.balance || !!p.spend
+      || (p.accounts && p.accounts.length > 0) || !!p.balance || !!p.spend || !!p.tokenPass || p.showModelUsage === true
       || (p.ready === true && p.tierLabel !== "")
   }
 
@@ -318,7 +318,7 @@ Item {
     if (!raw || typeof raw !== "object") return null
     var remaining = Number(raw.remaining)
     var funded = Number(raw.funded)
-    if (!isFinite(remaining) || remaining < 0) return null
+    if (raw.remaining === null || raw.remaining === undefined || typeof raw.remaining === "boolean" || !isFinite(remaining)) return null
     return {
       remaining: remaining,
       funded: isFinite(funded) && funded > 0 ? funded : 0,
@@ -347,6 +347,17 @@ Item {
     }
   }
 
+  // A subscription may share its provider with an independent prepaid
+  // balance. Unknown credit is distinct from an exhausted subscription.
+  function tokenPassValue(raw) {
+    if (!raw || typeof raw !== "object") return null
+    var remaining = raw.remaining === null ? null : Number(raw.remaining)
+    if (raw.remaining === undefined || typeof raw.remaining === "boolean"
+        || (remaining !== null && (!isFinite(remaining) || remaining < 0))) return null
+    var resetsAt = String(raw.resetsAt || "")
+    return { remaining: remaining, resetsAt: isFinite(Date.parse(resetsAt)) ? resetsAt : "" }
+  }
+
   function displayProvider(record) {
     var stats = syncedStatsFor(String(record.id))
     var synced = !!stats
@@ -372,6 +383,10 @@ Item {
       resetCredits: record.resetCredits || null,
       balance: balanceValue(record.balance),
       spend: spendValue(record.spend),
+      tokenPass: tokenPassValue(record.tokenPass),
+      showModelUsage: record.showModelUsage === true,
+      modelCosts: record.modelCosts || ({}),
+      modelHistoryDays: Number(record.modelHistoryDays || 0),
 
       todayPrompts: synced ? numberValue(stats.todayPrompts) : numberValue(record.todayPrompts),
       todaySessions: synced ? numberValue(stats.todaySessions) : numberValue(record.todaySessions),

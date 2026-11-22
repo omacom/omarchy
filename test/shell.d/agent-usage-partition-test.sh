@@ -164,6 +164,8 @@ PROVIDERS = [
   ("minimax-coding-plan", "minimax-pt", "", "minimax", "minimax"),
   ("minimax-cn-coding-plan", "minimax-pt", "", "minimax", "minimax"),
   ("openrouter", "router-pt", "", "openrouter", "openrouter"),
+  ("vercel", "gateway-pt", "", "vercel", "vercel"),
+  ("vercel-ai-gateway", "gateway-pt", "", "vercel", "vercel"),
   ("google-antigravity", "antigravity-pt", "", "agy", "-"),
   ("google", "antigravity-pt", "", "-", "agy"),
   ("google-vertex", "antigravity-pt", "", "-", "agy"),

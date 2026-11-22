@@ -1491,6 +1491,7 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
 # The hosts a harness is pointed at in place of its own service, by the
 # collector that bills them. A subdomain of one is the same service.
 PROVIDER_HOSTS = {
+  "ai-gateway.vercel.sh": "vercel",
   "api.z.ai": "zai",
   "open.bigmodel.cn": "zai",
   "ollama.com": "ollama",
