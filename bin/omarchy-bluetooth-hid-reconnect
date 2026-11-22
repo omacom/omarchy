@@ -62,6 +62,7 @@ btctl() {
   shift
   # bluetoothctl colours some lines even when it writes to a pipe
   timeout "$seconds" "$BLUETOOTHCTL" "$@" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g'
+  return "${PIPESTATUS[0]}"
 }
 
 # 0: ready. 1: turned off by rfkill (unblocking raises an rfkill event).
@@ -108,9 +109,12 @@ power_cycle() {
 
 # One reconnect step for a device with no input device
 reconnect() {
-  local mac=$1 now out reason scan_pid
+  local mac=$1 info now out reason scan_pid
 
-  if btctl 5 info "$mac" | grep -q 'Connected: yes'; then
+  info=$(btctl 5 info "$mac")
+  [[ $info == *"Trusted: yes"* && $info == *"Blocked: no"* ]] || return
+
+  if [[ $info == *"Connected: yes"* ]]; then
     # Usually the input device is still being set up, so wait before calling it stale
     now=$(date +%s)
     if (( ${stale_since[$mac]:-0} == 0 )); then
@@ -147,6 +151,7 @@ reconnect() {
     fi
     sleep 2
   else
+    stuck=0
     reason=$(grep -oE 'Failed to connect: [^ ]+|not available' <<<"$out" | head -n 1)
     reason=${reason:-"no answer"}
     if [[ $reason != "${last_reason[$mac]:-}" ]]; then
@@ -179,7 +184,10 @@ reconnect_missing() {
 }
 
 start_monitor() {
-  coproc MONITOR { exec udevadm monitor --udev --subsystem-match=input --subsystem-match=rfkill --subsystem-match=bluetooth 2>/dev/null; }
+  if [[ -v monitor_fd ]]; then
+    exec {monitor_fd}<&-
+  fi
+  exec {monitor_fd}< <(exec udevadm monitor --udev --subsystem-match=input --subsystem-match=rfkill --subsystem-match=bluetooth 2>/dev/null)
 }
 
 # Sleep until an input device goes away, an rfkill switch or Bluetooth device
@@ -189,7 +197,7 @@ wait_for_change() {
   local line status deadline=$(( SECONDS + $1 ))
 
   while (( SECONDS < deadline )); do
-    read -r -t $(( deadline - SECONDS )) line <&"${MONITOR[0]}"
+    read -r -t $(( deadline - SECONDS )) line <&"$monitor_fd"
     status=$?
     if (( status > 128 )); then
       return

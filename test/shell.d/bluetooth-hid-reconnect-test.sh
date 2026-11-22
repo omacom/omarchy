@@ -29,16 +29,44 @@ setup() {
 #!/bin/bash
 echo "\$*" >>"$T/calls"
 case \$1 in
-  show) echo "Controller 38:F9:D3:D6:67:F7 (public)"; echo "	Powered: \$(<"$T/powered")" ;;
+  show)
+    [[ ! -f "$T/monitor-dies" ]] || /usr/bin/sleep 0.05
+    echo "Controller 38:F9:D3:D6:67:F7 (public)"; echo "	Powered: \$(<"$T/powered")" ;;
   devices) cat "$T/paired" ;;
   info) cat "$T/info_\$2" 2>/dev/null ;;
-  connect) cat "$T/connect_\$2" 2>/dev/null || echo "Failed to connect: org.bluez.Error.Failed" ;;
-  power|disconnect) echo "Changing \$* succeeded" ;;
+  connect)
+    if [[ -f "$T/untrust-on-connect" ]]; then
+      target=\$(<"$T/untrust-on-connect")
+      sed -i 's/Trusted: yes/Trusted: no/' "$T/info_\$target"
+    fi
+    if [[ -s "$T/sequence" ]]; then
+      IFS= read -r response <"$T/sequence"
+      sed -i '1d' "$T/sequence"
+      if [[ \$response == "Connection successful" ]]; then
+        printf 'U: Uniq=%s\n' "\$2" >>"$T/input"
+      fi
+      echo "\$response"
+    else
+      cat "$T/connect_\$2" 2>/dev/null || echo "Failed to connect: org.bluez.Error.Failed"
+    fi
+    ;;
+  power)
+    if [[ \$2 == "on" && -f "$T/power-on-fails" ]]; then
+      rm "$T/power-on-fails"
+      exit 1
+    fi
+    echo "Changing \$* succeeded" ;;
+  disconnect) echo "Changing \$* succeeded" ;;
 esac
 EOF
   # No real waiting in tests
   printf '#!/bin/bash\nexit 0\n' >"$T/bin/sleep"
-  chmod +x "$T/bin/bluetoothctl" "$T/bin/sleep"
+  cat >"$T/bin/udevadm" <<EOF
+#!/bin/bash
+[[ ! -f "$T/monitor-dies" ]] || exit 0
+exec /usr/bin/sleep 60
+EOF
+  chmod +x "$T/bin/bluetoothctl" "$T/bin/sleep" "$T/bin/udevadm"
 }
 
 # pair <address> <trusted> <blocked> <connected> <uuid>
@@ -81,6 +109,12 @@ output: $(tr '\n' '|' <"$T/out")"
 
 not() {
   ! "$@"
+}
+
+run_loop() {
+  local status=0
+  run timeout 3 env OMARCHY_BLUETOOTH_HID_RECONNECT_ONESHOT=0 || status=$?
+  expect "the reconnect loop stays running" test "$status" -eq 124
 }
 
 setup
@@ -149,11 +183,36 @@ expect "two InProgress results power the adapter back on" called "power on"
 
 setup
 pair $MAC yes no no $HOG
+printf '%s\n' 'Failed to connect: org.bluez.Error.InProgress' 'Failed to connect: org.bluez.Error.InProgress' 'Connection successful' >"$T/sequence"
+touch "$T/power-on-fails"
+run_loop
+expect "a failed power-on is retried during recovery" test "$(grep -cx 'power on' "$T/calls")" -eq 2
+
+setup
+pair $MAC yes no no $HOG
+printf '%s\n' 'Failed to connect: org.bluez.Error.InProgress' 'Failed to connect: org.bluez.Error.Failed' 'Failed to connect: org.bluez.Error.InProgress' 'Connection successful' >"$T/sequence"
+run_loop
+expect "an ordinary failure breaks the run of InProgress results" not called "power off"
+
+setup
+touch "$T/monitor-dies"
+run_loop
+expect "reconnect passes continue after the monitor exits" test "$(grep -cx 'show' "$T/calls")" -gt 1
+
+setup
+pair $MAC yes no no $HOG
 pair $MAC2 yes no no $HOG
 input_device $MAC "MX Master 3S"
 run env
 expect "with two devices, only the missing one gets a connect" called "connect $MAC2"
 expect "with two devices, the present one is left alone" not called "connect $MAC"
+
+setup
+pair $MAC yes no no $HOG
+pair $MAC2 yes no no $HOG
+echo "$MAC2" >"$T/untrust-on-connect"
+run env
+expect "a device untrusted during an earlier connect is skipped" not called "connect $MAC2"
 
 # The hardware predicate: an Apple vendor and a controller on hci_uart_bcm
 hw() {
