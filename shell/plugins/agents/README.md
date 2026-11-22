@@ -39,11 +39,10 @@ Every subscription on one page, limits first.
   funded-versus-spent detail.
 - **Terminal button** — beside a section's name, it opens the harness made
   for that subscription. Fireworks and OpenRouter have none of their own, so
-  theirs opens pi or OpenCode (the default agent when it's one of them) through
+  theirs opens OpenCode, where their key is saved, through
   `omarchy agent --provider`, always on one of that provider's models: the
-  one the harness last used there, so a switch made in a session sticks, else
-  the one the section's record has used most, else the first the harness
-  lists. In pi, model cycling is kept to that provider too.
+  one OpenCode last used there, so a switch made in a session sticks, else
+  the one the section's record has used most, else the first OpenCode lists.
 - **Spend** — pay-as-you-go agents show what the account spent in the last
   30 days, a bar a day, or, against a monthly cap when there is one, this
   month's spend as a meter. Hovering a bar lights it up and names its day,
@@ -55,10 +54,15 @@ Every subscription on one page, limits first.
 - **Make something cool** — starter prompts (a new theme, plugin, app, or game),
   two across, that start the agent on the task through `omarchy agent make`.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
-  Claude Code, Codex, Copilot, Cursor, Fireworks, Gemini (signed in through
-  Antigravity), Grok, Muse, OpenCode (Zen and Go), and OpenRouter as large marks
-  in alphabetical order, four across, with the first one focused, and the
-  hero's line reads Add an account. The + becomes
+  three blocks: _Sign in to a subscription_ (Claude, Codex, Grok, and Gemini,
+  signed in through Antigravity), _Use a model provider_ (Fireworks, OpenCode
+  Zen and Go, and OpenRouter, all run in OpenCode), each a large mark four
+  across, and _Use your own model_, a line for the best coding model for this
+  computer when the local models catalog has one that fits. The first one is
+  focused and the hero reads Add an agent. Choosing the model hands its setup
+  to the local models panel, which follows the download; one already set up
+  opens the agent on it. Copilot, Cursor, and Muse are added with `omarchy
+  agent account add`, and a lapsed sign-in of theirs still gets its link here. The + becomes
   the X that goes back. A further Claude, Codex, or Grok account asks for a
   name first, and Enter signs it in; the others keep one sign-in each, which
   signing in again replaces. The
@@ -68,7 +72,7 @@ Every subscription on one page, limits first.
   page shows one instead of finishing), and a link to
   reopen the sign-in page. Fireworks and OpenRouter have no login and open
   no browser: the panel asks for an API key, which is checked against the
-  provider, then saved for pi, and for opencode when it's installed. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
+  provider, then saved in OpenCode, which is installed first if it's missing. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
   carries on and its result arrives as a notification. Signing in to an
   agent that was hidden from the panel shows it again.
 

@@ -488,10 +488,10 @@ pass "a Grok settings cache of the wrong shape reads as no plan"
   fail "--check says what adding would mean for each provider" "$(omarchy-agent-account-add --check)"
 pass "--check says what adding would mean for each provider"
 
-# Fireworks and OpenRouter sign in with a pasted API key: checked first, then merged into
-# pi's keys and imported into opencode, without ever being a command argument.
+# Fireworks and OpenRouter sign in with a pasted API key: checked first, then
+# imported into OpenCode, without ever being a command argument.
 fireworks_bin="$test_tmp/fireworks-bin"
-mkdir -p "$fireworks_bin" "$HOME/.pi/agent"
+mkdir -p "$fireworks_bin"
 cat >"$fireworks_bin/omarchy-agent-usage-fireworks" <<'SH'
 #!/bin/bash
 [[ $FIREWORKS_API_KEY == "fw_good" ]] && echo '{"usageStatusText":""}' || echo '{"usageStatusText":"Sign-in expired"}'
@@ -505,23 +505,21 @@ cat >"$fireworks_bin/opencode" <<SH
 echo "\$* \$([[ \$2 == "import" ]] && jq -r '.[0].value.key')" >>"$test_tmp/fireworks-opencode"
 SH
 chmod +x "$fireworks_bin"/*
-echo '{"openrouter":{"type":"api_key","key":"or_kept"}}' >"$HOME/.pi/agent/auth.json"
 
 if PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"fw_bad" >"$test_tmp/fireworks-refused" 2>&1 ||
-  [[ $(jq -c 'keys' "$HOME/.pi/agent/auth.json") != '["openrouter"]' || -e $test_tmp/fireworks-opencode ]] ||
+  [[ -e $test_tmp/fireworks-opencode ]] ||
   ! grep -qx "@@omarchy error Fireworks didn't accept that key." "$test_tmp/fireworks-refused"; then
-  fail "a key Fireworks refuses is not saved, and says so" "$(cat "$test_tmp/fireworks-refused" "$HOME/.pi/agent/auth.json")"
+  fail "a key Fireworks refuses is not saved, and says so" "$(cat "$test_tmp/fireworks-refused")"
 fi
 pass "a key Fireworks refuses is not saved, and says so"
 
 PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"fw_good" >"$test_tmp/fireworks-output"
-[[ $(jq -c '[.fireworks.key, .openrouter.key]' "$HOME/.pi/agent/auth.json") == '["fw_good","or_kept"]' ]] ||
-  fail "a Fireworks key is saved beside pi's other keys" "$(cat "$HOME/.pi/agent/auth.json")"
+[[ ! -e $HOME/.pi/agent/auth.json ]] || fail "a Fireworks key is not saved for pi"
 grep -q "^auth import fw_good$" "$test_tmp/fireworks-opencode" && grep -q "^auth switch fireworks-ai omarchy-" "$test_tmp/fireworks-opencode" ||
   fail "a Fireworks key is made opencode's active one" "$(cat "$test_tmp/fireworks-opencode")"
 grep -q "^@@omarchy key " "$test_tmp/fireworks-output" && grep -qx "@@omarchy done Signed in to Fireworks." "$test_tmp/fireworks-output" ||
   fail "the panel is asked for the key and told the result" "$(cat "$test_tmp/fireworks-output")"
-pass "a Fireworks key is saved for pi and opencode"
+pass "a Fireworks key is saved in OpenCode"
 
 : >"$notifications"
 OMARCHY_TEST_LOGIN_UUID=u-events OMARCHY_TEST_LOGIN_EMAIL=events@example.com \

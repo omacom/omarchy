@@ -64,6 +64,7 @@ fi
 # own. The rest keep the one sign-in their CLI does. `harness` is the command
 # that codes on the subscription, when it isn't the provider's own name.
 accounts=false
+by_key=false
 case "${1:-}" in
 claude) provider="claude"; name="Claude"; app="Claude Code"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR"; accounts=true ;;
 codex) provider="codex"; name="Codex"; app="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME"; accounts=true ;;
@@ -75,10 +76,9 @@ muse) provider="muse"; name="Muse"; app="Muse Code"; package="muse"; login_comma
 opencode) provider="opencode"; name="OpenCode"; app="OpenCode"; package="opencode"; login_command=(opencode auth login opencode --method device) ;;
 copilot) provider="copilot"; name="Copilot"; app="GitHub Copilot"; package="copilot"; login_command=(copilot login) ;;
 cursor | cursor-agent) provider="cursor"; harness="cursor-agent"; name="Cursor"; app="Cursor CLI"; package="cursor-agent"; login_command=(cursor-agent login) ;;
-# No CLI or harness of their own: pi and opencode are what use the key, each
-# under its own name for the provider.
-fireworks) provider="fireworks"; harness=""; name="Fireworks"; package=""; login_command=(key_login fireworks fireworks-ai) ;;
-openrouter) provider="openrouter"; harness=""; name="OpenRouter"; package=""; login_command=(key_login openrouter openrouter) ;;
+# No CLI of their own: an API key is the sign-in, and OpenCode runs on it.
+fireworks) provider="fireworks"; harness="opencode"; name="Fireworks"; app="OpenCode"; package="opencode"; by_key=true; login_command=(key_login fireworks-ai) ;;
+openrouter) provider="openrouter"; harness="opencode"; name="OpenRouter"; app="OpenCode"; package="opencode"; by_key=true; login_command=(key_login openrouter) ;;
 *)
   echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [agy|claude|codex|copilot|cursor|fireworks|grok|muse|opencode|openrouter] [label]" >&2
   exit 1
@@ -261,13 +261,12 @@ private_browser() {
 }
 
 # Fireworks and OpenRouter have no login to run: an API key is the sign-in.
-# It's saved where pi keeps keys, and in opencode when that's installed, since
-# those are the agents that run on it. The key only travels through the
-# environment, never a command line. A key the provider refuses is not saved,
-# and says so by returning 2.
+# It's saved in OpenCode, which runs on it, and travels only through the
+# environment and stdin, never a command line. A key the provider refuses is
+# not saved, and says so by returning 2.
 key_login() {
-  local pi_provider=$1 opencode_provider=$2
-  local key auth saved id
+  local opencode_provider=$1
+  local key id
   if [[ $events == "true" ]]; then
     read -r key
   else
@@ -276,20 +275,11 @@ key_login() {
   [[ -n $key ]] || return 1
   env "${provider^^}_API_KEY=$key" "omarchy-agent-usage-$provider" --force | jq -e '.usageStatusText != "Sign-in expired"' >/dev/null || return 2
 
-  auth="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/auth.json"
-  mkdir -p "${auth%/*}" || return 1
-  [[ -s $auth ]] || echo '{}' >"$auth"
-  saved=$(KEY=$key jq --arg provider "$pi_provider" '.[$provider] = {type: "api_key", key: env.KEY}' "$auth") || return 1
-  (umask 077 && printf '%s\n' "$saved" >"$auth.new") && mv "$auth.new" "$auth" || return 1
-
-  # opencode imports a credential as inactive when it already has one.
-  if mise where opencode &>/dev/null; then
-    id="omarchy-$EPOCHSECONDS"
-    KEY=$key jq -n --arg id "$id" --arg provider "$opencode_provider" --arg label "$name" \
-      '[{id: $id, integrationID: $provider, label: $label, active: true, value: {type: "key", key: env.KEY}}]' |
-      opencode auth import >/dev/null 2>&1 && opencode auth switch "$opencode_provider" "$id" >/dev/null 2>&1
-  fi
-  return 0
+  # OpenCode imports a credential as inactive when it already has one.
+  id="omarchy-$EPOCHSECONDS"
+  KEY=$key jq -n --arg id "$id" --arg provider "$opencode_provider" --arg label "$name" \
+    '[{id: $id, integrationID: $provider, label: $label, active: true, value: {type: "key", key: env.KEY}}]' |
+    opencode auth import >/dev/null 2>&1 && opencode auth switch "$opencode_provider" "$id" >/dev/null 2>&1
 }
 
 # One sign-in, where the CLI always keeps it, through your normal browser:
@@ -298,7 +288,7 @@ key_login() {
 if [[ $accounts == "false" ]]; then
   # Gemini's page ends on a code to paste back, and a key is all there is to
   # a key's sign-in; the panel shows a field for either, under what it's for.
-  if [[ -n $harness ]]; then
+  if [[ $by_key == "false" ]]; then
     say "$(omarchy-i18n agents.signInBrowser "$name")"
   elif [[ $events == "true" ]]; then
     printf '@@omarchy status %s\n@@omarchy key %s\n' "$(omarchy-i18n agents.apiKeyHint "$name")" "$(omarchy-i18n agents.apiKeyHint "$name")"
@@ -308,7 +298,7 @@ if [[ $accounts == "false" ]]; then
   fi
   interruptible "${login_command[@]}" 2>&1
   login_status=$?
-  if (( login_status == 2 )) && [[ -z $harness ]]; then
+  if (( login_status == 2 )) && [[ $by_key == "true" ]]; then
     fail "$(omarchy-i18n agents.keyRefused "$name")"
   elif (( login_status != 0 )); then
     fail "$(omarchy-i18n agents.signInFailed "$name")"

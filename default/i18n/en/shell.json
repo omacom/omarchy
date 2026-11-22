@@ -1,7 +1,11 @@
 {
   "agents.active": "ACTIVE",
-  "agents.addAnother": "Add another",
-  "agents.letTheTokensFlow": "Let the tokens flow",
+  "agents.addKinds": "A subscription, a model provider, or a model of your own",
+  "agents.addTitle": "Add an agent",
+  "agents.blockOwnModel": "USE YOUR OWN MODEL",
+  "agents.blockProviders": "USE A MODEL PROVIDER",
+  "agents.blockSubscriptions": "SIGN IN TO A SUBSCRIPTION",
+  "agents.firstBecomesDefault": "The first one you finish becomes your default",
   "agents.addProviderAccount": "Add %1 account",
   "agents.app": "App",
   "agents.backToLimits": "Back to the limits",
@@ -99,7 +103,11 @@
   "agents.syncScanFailed": "Usage sync scan failed",
   "agents.theme": "Theme",
   "agents.tierPrepaid": "Prepaid",
+  "agents.ownModelDetail": "%1 · holds %2 GB",
+  "agents.runBestModel": "Run the best model for this computer",
+  "agents.setUpTitle": "Set up your agent",
   "agents.title": "Agents",
+  "agents.useOwnModel": "Use the model on this computer",
   "agents.tokensThisWeek": {
     "one": "%1 token this week",
     "other": "%1 tokens this week"

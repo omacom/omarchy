@@ -311,44 +311,37 @@ mapfile -d '' -t launch_args <"$launch_log"
   fail "agent launcher points the local model's agent at its overlay: ${launch_args[*]}"
 rm "$mock_bin/omarchy-models"
 
-# A provider with no harness of its own opens in pi on the model its usage
-# record has used most, under the id pi lists it by rather than the record's
-# short name for it.
+# A provider with no harness of its own opens in OpenCode on the model its
+# usage record has used most, under the id OpenCode lists it by rather than the
+# record's short name for it, and on the one OpenCode last used there when it
+# still lists it.
 provider_bin="$test_tmp/provider-bin"
-mkdir -p "$provider_bin" "$test_tmp/provider-state/omarchy/agents/usage"
-cat >"$provider_bin/pi" <<'SH'
+mkdir -p "$provider_bin" "$test_tmp/provider-state/omarchy/agents/usage" "$test_tmp/provider-state/opencode"
+cat >"$provider_bin/opencode" <<'SH'
 #!/bin/bash
-printf '%s\n' "provider model" "other fireworks/deepseek-v4p1-flash" \
-  "fireworks accounts/fireworks/models/kimi-k3" "fireworks accounts/fireworks/models/deepseek-v4p1-flash"
+if [[ $1 == "models" ]]; then
+  printf '%s\n' "openrouter/other" "fireworks-ai/accounts/fireworks/models/kimi-k3" "fireworks-ai/accounts/fireworks/models/deepseek-v4p1-flash"
+else
+  printf '%s\0' opencode "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
+fi
 SH
-chmod +x "$provider_bin/pi"
+chmod +x "$provider_bin/opencode"
 echo '{"modelUsage":{"kimi-k3":{"inputTokens":5},"deepseek-v4.1-flash":{"inputTokens":3,"cacheReadInputTokens":9}}}' \
   >"$test_tmp/provider-state/omarchy/agents/usage/fireworks.json"
 : >"$launch_log"
 PATH="$provider_bin:$PATH" XDG_STATE_HOME="$test_tmp/provider-state" omarchy-agent --provider fireworks
 mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == "--app-id=org.omarchy.agent pi --models fireworks/* --provider fireworks --model accounts/fireworks/models/deepseek-v4p1-flash" ]] ||
-  fail "agent launcher opens a provider in pi on its most-used model: ${launch_args[*]}"
-pass "agent launcher opens a provider in pi on its most-used model"
+[[ ${launch_args[*]} == *'OPENCODE_CONFIG_CONTENT={"model":"fireworks-ai/accounts/fireworks/models/deepseek-v4p1-flash"}'*"opencode --auto --standalone" ]] ||
+  fail "agent launcher opens a provider in OpenCode on its most-used model: ${launch_args[*]}"
+pass "agent launcher opens a provider in OpenCode on its most-used model"
 
-# A model switched to in pi's last session on the provider wins, while one it
-# no longer lists, or one of another provider's, is passed over.
-mkdir -p "$HOME/.pi/agent/sessions/work"
-echo '{"type":"message","message":{"role":"assistant","provider":"openrouter","model":"other/model"}}' >"$HOME/.pi/agent/sessions/work/new.jsonl"
-echo '{"type":"model_change","provider":"fireworks","modelId":"accounts/fireworks/models/kimi-k3"}' >"$HOME/.pi/agent/sessions/work/old.jsonl"
-touch -d '1 hour ago' "$HOME/.pi/agent/sessions/work/old.jsonl"
+echo '{"recent":[{"providerID":"openrouter","modelID":"other"},{"providerID":"fireworks-ai","modelID":"accounts/fireworks/models/kimi-k3"}]}' \
+  >"$test_tmp/provider-state/opencode/model.json"
 : >"$launch_log"
 PATH="$provider_bin:$PATH" XDG_STATE_HOME="$test_tmp/provider-state" omarchy-agent --provider fireworks
 mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == *"--provider fireworks --model accounts/fireworks/models/kimi-k3" ]] ||
-  fail "agent launcher reopens a provider on the model last used there: ${launch_args[*]}"
-echo '{"type":"model_change","provider":"fireworks","modelId":"accounts/fireworks/models/retired"}' >"$HOME/.pi/agent/sessions/work/new.jsonl"
-: >"$launch_log"
-PATH="$provider_bin:$PATH" XDG_STATE_HOME="$test_tmp/provider-state" omarchy-agent --provider fireworks
-mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == *"--provider fireworks --model accounts/fireworks/models/deepseek-v4p1-flash" ]] ||
-  fail "agent launcher passes over a last-used model the agent no longer lists: ${launch_args[*]}"
-rm -r "$HOME/.pi/agent/sessions"
+[[ ${launch_args[*]} == *'"model":"fireworks-ai/accounts/fireworks/models/kimi-k3"'* ]] ||
+  fail "agent launcher reopens a provider on the model OpenCode last used there: ${launch_args[*]}"
 pass "agent launcher reopens a provider on the model last used there"
 pass "agent launcher opens a local model without a default"
 

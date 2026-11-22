@@ -82,22 +82,8 @@ else
 fi
 
 # --provider opens a pay-as-you-go provider with no harness of its own
-# (Fireworks, OpenRouter) in pi or OpenCode, the agents the panel's sign-in
-# saves its key for: the default agent when it's one of them, else whichever
-# is there.
-if [[ -n $provider && $agent != "pi" && $agent != "opencode" ]]; then
-  agent=""
-  for candidate in pi opencode; do
-    if omarchy-cmd-present "$candidate"; then
-      agent=$candidate
-      break
-    fi
-  done
-  if [[ -z $agent ]]; then
-    omarchy-notification-send "$(omarchy-i18n agents.harnessMissing pi)" "$(omarchy-i18n agents.harnessMissingBody pi)"
-    exit 1
-  fi
-fi
+# (Fireworks, OpenRouter) in OpenCode, where the panel's sign-in saves its key.
+[[ -n $provider ]] && agent=opencode
 
 # --prefer-local takes the local model when one is up and the usual agent when
 # not, so the Quake console opens on whatever the machine is running. The model
@@ -344,20 +330,11 @@ fi
 if [[ -n $provider ]]; then
   provider_id=$provider
   provider_last=""
-  if [[ $agent == "pi" ]]; then
-    provider_models=$(pi --list-models "$provider" 2>/dev/null | awk -v provider="$provider" '$1 == provider { print $2 }')
-    # pi keeps the model on each reply and each switch of a session's log.
-    while IFS= read -r session; do
-      provider_last=$(grep -E "\"provider\" *: *\"$provider\"" "$session" | tail -1 | jq -r '.message.model // .modelId // empty' 2>/dev/null)
-      [[ -n $provider_last ]] && break
-    done < <(ls -t "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"/sessions/*/*.jsonl 2>/dev/null | head -20)
-  else
-    [[ $provider == "fireworks" ]] && provider_id="fireworks-ai"
-    provider_models=$(opencode models 2>/dev/null | sed -n "s|^$provider_id/||p")
-    # OpenCode keeps the models it used, latest first.
-    provider_last=$(jq -r --arg provider "$provider_id" 'first(.recent[]? | select(.providerID == $provider) | .modelID) // empty' \
-      "${XDG_STATE_HOME:-$HOME/.local/state}/opencode/model.json" 2>/dev/null)
-  fi
+  [[ $provider == "fireworks" ]] && provider_id="fireworks-ai"
+  provider_models=$(opencode models 2>/dev/null | sed -n "s|^$provider_id/||p")
+  # OpenCode keeps the models it used, latest first.
+  provider_last=$(jq -r --arg provider "$provider_id" 'first(.recent[]? | select(.providerID == $provider) | .modelID) // empty' \
+    "${XDG_STATE_HOME:-$HOME/.local/state}/opencode/model.json" 2>/dev/null)
 
   provider_record="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage/$provider.json"
   provider_model=$(awk -v last="$provider_last" '
@@ -379,10 +356,7 @@ if [[ -n $provider ]]; then
   ' <(jq -r '.modelUsage // {} | to_entries | sort_by(-([.value[]? | numbers] | add // 0)) | .[].key' "$provider_record" 2>/dev/null) \
     <(printf '%s\n' "$provider_models"))
 
-  if [[ -n $provider_model && $agent == "pi" ]]; then
-    # Cycling models stays on the provider too.
-    command+=(--models "$provider/*" --provider "$provider" --model "$provider_model")
-  elif [[ -n $provider_model ]]; then
+  if [[ -n $provider_model ]]; then
     # The shared background service never sees the choice, so run a private one.
     model=$(jq -nc --arg model "$provider_id/$provider_model" '{model: $model}')
     command=(env "OPENCODE_CONFIG_CONTENT=$model" "${command[@]}" --standalone)

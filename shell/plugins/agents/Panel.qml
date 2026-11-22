@@ -94,11 +94,13 @@ Panel {
     if (addButtonShown) hero.push({ kind: "add", index: 0 })
     if (hero.length > 0) rows.push(hero)
     if (picking) {
-      for (var c = 0; c < addProviders.length; c += addColumns) {
+      var blocks = [addGroup("subscription"), addGroup("provider")]
+      for (var b = 0; b < blocks.length; b++) {
         var choices = []
-        for (var k = c; k < Math.min(c + addColumns, addProviders.length); k++) choices.push({ kind: "choice", index: k })
-        rows.push(choices)
+        for (var k = 0; k < blocks[b].length; k++) choices.push({ kind: "choice", index: addProviders.indexOf(blocks[b][k]) })
+        if (choices.length > 0) rows.push(choices)
       }
+      if (ownModelRecipe) rows.push([{ kind: "ownModel", index: 0 }])
     } else if (addStage === "running") {
       if (pasteLinkShown) rows.push([{ kind: "pasteCode", index: 0 }])
       if (addUrl !== "") rows.push([{ kind: "reopenSignIn", index: 0 }])
@@ -342,23 +344,55 @@ Panel {
   // close the panel; the login carries on, and its result arrives as a
   // notification too.
 
-  // In alphabetical order. Muse and OpenCode print their sign-in page rather
-  // than opening it, so the panel opens it for them. Copilot's limits are
-  // asked with gh's sign-in, which its own login doesn't renew, so trouble
-  // there keeps its help text instead of a Sign-in required link.
-  readonly property var addProviders: [
-    { providerId: "claude", providerName: "Claude" },
-    { providerId: "codex", providerName: "Codex" },
+  // Every agent the panel can sign in to, and so offer to sign in to again.
+  // The add picker shows those with a group, in its blocks: the four
+  // subscriptions, then the model providers whose key or plan runs in
+  // OpenCode. Copilot, Cursor, and Muse are added with `omarchy agent account
+  // add`. Muse and OpenCode print their sign-in page rather than opening it,
+  // so the panel opens it for them. Copilot's limits are asked with gh's
+  // sign-in, which its own login doesn't renew, so trouble there keeps its
+  // help text instead of a Sign-in required link.
+  readonly property var signInProviders: [
+    { providerId: "claude", providerName: "Claude", group: "subscription" },
+    { providerId: "codex", providerName: "Codex", group: "subscription" },
+    { providerId: "grok", providerName: "Grok", group: "subscription" },
+    { providerId: "agy", providerName: "Gemini", group: "subscription" },
+    { providerId: "fireworks", providerName: "Fireworks", group: "provider" },
+    { providerId: "opencode", providerName: "OpenCode", group: "provider", printsPage: true },
+    { providerId: "openrouter", providerName: "OpenRouter", group: "provider" },
     { providerId: "copilot", providerName: "Copilot", limitsElsewhere: true },
     { providerId: "cursor", providerName: "Cursor" },
-    { providerId: "fireworks", providerName: "Fireworks" },
-    { providerId: "agy", providerName: "Gemini" },
-    { providerId: "grok", providerName: "Grok" },
-    { providerId: "muse", providerName: "Muse", printsPage: true },
-    { providerId: "opencode", providerName: "OpenCode", printsPage: true },
-    { providerId: "openrouter", providerName: "OpenRouter" }
+    { providerId: "muse", providerName: "Muse", printsPage: true }
   ]
+  readonly property var addProviders: addGroup("subscription").concat(addGroup("provider"))
   readonly property int addColumns: 4
+
+  function addGroup(group) {
+    return signInProviders.filter(function(p) { return p.group === group })
+  }
+
+  // The third block: the best coding model for this computer, when one fits.
+  // Setting it up belongs to the local models panel, which follows the
+  // download, so choosing it hands over there.
+  readonly property var localModelsService: bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.local-models") : null
+  readonly property var ownModelRecipe: {
+    var recipes = localModelsService ? localModelsService.localRecipes || [] : []
+    for (var i = 0; i < recipes.length; i++)
+      if (recipes[i].kind === "text" && recipes[i].best && recipes[i].available) return recipes[i]
+    return null
+  }
+
+  function chooseOwnModel() {
+    var recipe = ownModelRecipe
+    if (!recipe) return
+    root.close()
+    if (recipe.installed) {
+      Util.execArgv(["omarchy-agent", "--local-model", String(recipe.id)])
+    } else {
+      localModelsService.setUp(recipe)
+      Util.execArgv(["omarchy-shell", "omarchy.local-models", "open"])
+    }
+  }
 
   // The CLI's download while a first sign-in installs it: its speed beside
   // its bar, in the decimal units downloads are counted in.
@@ -408,8 +442,8 @@ Panel {
   // being set up below.
   readonly property bool setupShown: addStage === "running" && addProviderEntry !== null
   readonly property var addProviderEntry: {
-    for (var i = 0; i < addProviders.length; i++)
-      if (addProviders[i].providerId === addProvider) return addProviders[i]
+    for (var i = 0; i < signInProviders.length; i++)
+      if (signInProviders[i].providerId === addProvider) return signInProviders[i]
     return null
   }
   // Claude only needs a code pasted back when its page shows one, so the
@@ -420,8 +454,8 @@ Panel {
   property bool addPrivate: false
 
   function addProviderName(id) {
-    for (var i = 0; i < addProviders.length; i++)
-      if (addProviders[i].providerId === id) return addProviders[i].providerName
+    for (var i = 0; i < signInProviders.length; i++)
+      if (signInProviders[i].providerId === id) return signInProviders[i].providerName
     return id
   }
 
@@ -606,6 +640,7 @@ Panel {
     if (!target) refreshNow()
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
+    else if (target.kind === "ownModel") chooseOwnModel()
     else if (target.kind === "pasteCode") openPasteField()
     else if (target.kind === "reopenSignIn") reopenSignIn()
     else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
@@ -636,8 +671,8 @@ Panel {
   // Only the agents `omarchy-agent-account-add` signs in get the link; any
   // other agent's sign-in trouble stays text, with its own help to follow.
   function supportsSignIn(p) {
-    for (var i = 0; i < addProviders.length; i++)
-      if (p && addProviders[i].providerId === p.providerId) return !addProviders[i].limitsElsewhere
+    for (var i = 0; i < signInProviders.length; i++)
+      if (p && signInProviders[i].providerId === p.providerId) return !signInProviders[i].limitsElsewhere
     return false
   }
 
@@ -741,8 +776,8 @@ Panel {
     return provider && harnesses[provider.providerId] ? harnesses[provider.providerId] : ""
   }
 
-  // The providers whose key the panel saves for pi and OpenCode open in one
-  // of those, on the model they've used most.
+  // The providers whose key or plan the panel saves in OpenCode open there,
+  // on the model they've used most.
   readonly property var keyProviders: ["fireworks", "openrouter"]
 
   function opensInAgent(provider) {
@@ -1171,7 +1206,7 @@ Panel {
   readonly property string addHeading: setupShown
     ? (addReauth ? Commons.I18n.t("agents.signingInAgain") : Commons.I18n.t("agents.settingUp"))
     : picking || addProvider === ""
-    ? (blankSlate ? Commons.I18n.t("agents.letTheTokensFlow") : Commons.I18n.t("agents.addAnother"))
+    ? (blankSlate ? Commons.I18n.t("agents.firstBecomesDefault") : Commons.I18n.t("agents.addKinds"))
     : Commons.I18n.t("agents.addProviderAccount").arg(addProviderName(addProvider))
   onAddStageChanged: {
     phraseSwap.stop()
@@ -1396,7 +1431,9 @@ Panel {
           PanelHero {
             id: hero
             width: parent.width
-            title: root.setupShown ? root.addProviderEntry.providerName : Commons.I18n.t("agents.title")
+            title: root.setupShown ? root.addProviderEntry.providerName
+              : root.picking ? (root.blankSlate ? Commons.I18n.t("agents.setUpTitle") : Commons.I18n.t("agents.addTitle"))
+              : Commons.I18n.t("agents.title")
             meta: root.heroPhrase
             foreground: root.foreground
             fontFamily: root.fontFamily
@@ -1439,7 +1476,7 @@ Panel {
                   onHovered: root.pointAt("add")
                   readonly property bool adding: root.addStage !== ""
                   glyph: adding ? "󰅖" : "󰐕"
-                  tooltip: adding ? Commons.I18n.t("agents.backToLimits") : Commons.I18n.t("agents.addAnother")
+                  tooltip: adding ? Commons.I18n.t("agents.backToLimits") : Commons.I18n.t("agents.addTitle")
                   onClicked: adding ? root.cancelAdd() : root.addAccount()
                 }
               }
@@ -1522,64 +1559,177 @@ Panel {
   }
 
   // Adding a subscription, in place of the list: pick, name, sign in.
+  // One agent to add: a large mark over its name.
+  component AddChoice: Item {
+    id: choice
+    property var entry: ({})
+    property int index: -1
+    readonly property string state: root.addChecks[entry.providerId] || ""
+    readonly property bool available: state === "first" || state === "additional"
+    readonly property bool hasCursor: root.hasKey("choice", index)
+    implicitHeight: choiceBody.implicitHeight + Style.space(16)
+    onHasCursorChanged: if (hasCursor) root.revealItem(choice)
+
+    Column {
+      id: choiceBody
+      anchors.centerIn: parent
+      spacing: Style.space(10)
+
+      ProviderIcon {
+        anchors.horizontalCenter: parent.horizontalCenter
+        provider: choice.entry
+        size: Style.font.display * 1.6
+        scale: choice.hasCursor ? 1.08 : 1.0
+        Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutQuad } }
+      }
+
+      Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        textFormat: Text.PlainText
+        text: choice.entry.providerName || ""
+        color: choice.hasCursor ? Commons.Color.accent : root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+        font.bold: true
+      }
+    }
+
+    MouseArea {
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: choice.available ? Qt.PointingHandCursor : Qt.ArrowCursor
+      onEntered: root.pointAt("choice", choice.index)
+      onClicked: root.chooseAddProvider(choice.entry.providerId)
+    }
+  }
+
   component AddView: Column {
     id: add
     spacing: Style.space(14)
 
     PanelSeparator { foreground: root.foreground }
 
-    // Pick: each agent by a large mark over its name, four across.
-    Grid {
-      id: choiceRow
+    // Pick, in three blocks: a subscription, a model provider, or a model of
+    // your own. Each agent is a large mark over its name, four across.
+    Column {
       visible: root.picking
       width: parent.width
-      columns: root.addColumns
-      spacing: Style.space(10)
+      spacing: Style.space(14)
 
       Repeater {
-        model: root.picking ? root.addProviders : []
+        model: root.picking ? [
+          { group: "subscription", label: Commons.I18n.t("agents.blockSubscriptions") },
+          { group: "provider", label: Commons.I18n.t("agents.blockProviders") }
+        ] : []
 
-        Item {
-          id: choice
+        Column {
+          id: block
           required property var modelData
-          required property int index
-          readonly property string state: root.addChecks[modelData.providerId] || ""
-          readonly property bool available: state === "first" || state === "additional"
-          readonly property bool hasCursor: root.hasKey("choice", index)
-          width: (choiceRow.width - choiceRow.spacing * (root.addColumns - 1)) / root.addColumns
-          implicitHeight: choiceBody.implicitHeight + Style.space(16)
-          onHasCursorChanged: if (hasCursor) root.revealItem(choice)
+          width: parent.width
+          spacing: Style.space(10)
 
-          Column {
-            id: choiceBody
-            anchors.centerIn: parent
+          PanelSectionHeader {
+            text: block.modelData.label
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+          }
+
+          Grid {
+            id: choiceRow
+            width: parent.width
+            columns: root.addColumns
             spacing: Style.space(10)
 
-            ProviderIcon {
-              anchors.horizontalCenter: parent.horizontalCenter
-              provider: choice.modelData
-              size: Style.font.display * 1.6
-              scale: choice.hasCursor ? 1.08 : 1.0
-              Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutQuad } }
+            Repeater {
+              model: root.addGroup(block.modelData.group)
+
+              AddChoice {
+                required property var modelData
+                entry: modelData
+                index: root.addProviders.indexOf(modelData)
+                width: (choiceRow.width - choiceRow.spacing * (root.addColumns - 1)) / root.addColumns
+              }
             }
+          }
+        }
+      }
+
+      Column {
+        visible: root.ownModelRecipe !== null
+        width: parent.width
+        spacing: Style.space(10)
+
+        PanelSectionHeader {
+          text: Commons.I18n.t("agents.blockOwnModel")
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+        }
+
+        Item {
+          id: ownModel
+          readonly property bool hasCursor: root.hasKey("ownModel", 0)
+          readonly property var recipe: root.ownModelRecipe || ({})
+          width: parent.width
+          implicitHeight: ownModelText.implicitHeight + Style.space(16)
+          onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
+
+          CursorSurface {
+            anchors.fill: parent
+            hasCursor: ownModel.hasCursor || ownModelMouse.containsMouse
+            foreground: root.foreground
+          }
+
+          Text {
+            id: ownModelGlyph
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            text: "󰙴"
+            textFormat: Text.PlainText
+            color: ownModel.hasCursor ? Commons.Color.accent : root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.display
+          }
+
+          Column {
+            id: ownModelText
+            anchors.left: ownModelGlyph.right
+            anchors.leftMargin: Style.space(12)
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(2)
 
             Text {
-              anchors.horizontalCenter: parent.horizontalCenter
+              width: parent.width
+              text: ownModel.recipe.installed ? Commons.I18n.t("agents.useOwnModel") : Commons.I18n.t("agents.runBestModel")
               textFormat: Text.PlainText
-              text: choice.modelData.providerName
-              color: choice.hasCursor ? Commons.Color.accent : root.foreground
+              color: ownModel.hasCursor ? Commons.Color.accent : root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
               font.bold: true
+              elide: Text.ElideRight
+            }
+
+            Text {
+              width: parent.width
+              text: Commons.I18n.t("agents.ownModelDetail")
+                .arg(ownModel.recipe.name || String(ownModel.recipe.id || ""))
+                .arg(Commons.I18n.formatNumber(Math.round(Number(ownModel.recipe.memory_gib || 0)), 0))
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
             }
           }
 
           MouseArea {
+            id: ownModelMouse
             anchors.fill: parent
             hoverEnabled: true
-            cursorShape: choice.available ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onEntered: root.pointAt("choice", choice.index)
-            onClicked: root.chooseAddProvider(choice.modelData.providerId)
+            cursorShape: Qt.PointingHandCursor
+            onEntered: root.pointAt("ownModel", 0)
+            onClicked: root.chooseOwnModel()
           }
         }
       }
