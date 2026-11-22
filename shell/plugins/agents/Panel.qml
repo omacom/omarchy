@@ -1447,7 +1447,18 @@ Panel {
     usage.refreshLimits()
     usage.reloadDefaultAgent()
     usage.reloadLocalPin()
+    if (localModelsService) localModelsService.refreshNetwork()
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
+  }
+
+  // The tailnet has no change signal, so while the panel is open the paired
+  // machines' models are surveyed again every 2 seconds, as the local models
+  // panel does; never while it's closed. A survey never overlaps the last.
+  Timer {
+    interval: 2000
+    running: root.opened && !!root.localModelsService
+    repeat: true
+    onTriggered: root.localModelsService.refreshNetwork()
   }
 
   // Choosing a default from a star. The star fills at once, and once the
@@ -2473,6 +2484,7 @@ Panel {
         foreground: on ? Commons.Color.accent : root.foreground
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("providerStar", section.providerIndex)
+        onHovered: function(isHovered) { if (isHovered) root.pointAt("providerStar", section.providerIndex) }
         onClicked: root.makeDefault(section.provider, section.account)
       }
 
