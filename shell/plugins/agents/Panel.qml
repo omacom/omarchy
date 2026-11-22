@@ -45,12 +45,16 @@ Panel {
     return !!line && !!line.account && line.account.primary !== true
   }
 
-  // A local model's line goes back to the add screen, except the one the
-  // default opens, which keeps its line as the account in use does.
+  // A local model's line goes back to the add screen; the default's hands
+  // the default on, since the default always has its line.
   function removable(line) {
     if (!line) return false
-    if (line.localModel) return !(usage.defaultAgent === "local" && line.localModel.target === localDefaultTarget)
+    if (line.localModel) return true
     return !line.account || (forgets(line) && line.account.active !== true)
+  }
+
+  function opensByDefault(line) {
+    return !!line && !!line.localModel && usage.defaultAgent === "local" && line.localModel.target === localDefaultTarget
   }
 
   // Forgets an added account, or hides the agent from the panel; a hidden
@@ -61,6 +65,12 @@ Panel {
     deleteTarget = null
     if (!target) return
     if (target.localModel) {
+      // The default's line takes the default with it, to whichever line is
+      // then at the top of the panel, as if its star were pressed.
+      if (opensByDefault(target)) {
+        var next = usage.panelProviders.find(function(line) { return usage.lineId(line) !== usage.lineId(target) })
+        if (next) makeDefault(next, next.account || null)
+      }
       usage.removeLocalModels([target.localModel.target])
       return
     }
@@ -1711,6 +1721,7 @@ Panel {
           event.accepted = true
         }
         message: !root.deleteTarget ? ""
+          : root.opensByDefault(root.deleteTarget) ? Commons.I18n.t("agents.removeDefaultLocalModelConfirm").arg(root.deleteTarget.providerName)
           : root.deleteTarget.localModel ? Commons.I18n.t("agents.removeLocalModelConfirm").arg(root.deleteTarget.providerName)
           : root.forgets(root.deleteTarget) ? Commons.I18n.t("agents.forgetAccountConfirm").arg(root.lineName(root.deleteTarget))
           : Commons.I18n.t("agents.hideProviderConfirm").arg(root.deleteTarget.providerName)
