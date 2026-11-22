@@ -1,12 +1,10 @@
 echo "Stop starting Sunshine twice at login"
 
-# The installer used to enable the systemd user unit and also append
-# o.launch_on_start("sunshine"), so login started two copies and the extra
-# process SIGABRTed. Autostart is the user unit alone now; strip the leftover
-# Hyprland line from existing installs. Removal already deletes this line.
+# Keep a user's sole launcher when they disabled the unit to avoid the double start.
+# An explicit reinstall enables the unit and removes the legacy launcher instead.
 file="$HOME/.config/hypr/autostart.lua"
 entry='o.launch_on_start("sunshine")'
 
-[[ -f $file ]] || exit 0
-grep -Fxq "$entry" "$file" || exit 0
-sed -i "\|^$entry$|d" "$file"
+if [[ -f $file ]] && grep -Fxq "$entry" "$file" && systemctl --user is-enabled --quiet app-dev.lizardbyte.app.Sunshine.service; then
+  sed -i "\|^$entry$|d" "$file"
+fi

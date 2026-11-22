@@ -54,6 +54,7 @@ uses_alias() {
 }
 
 reset_home
+printf '%s\n' "$entry" >>"$autostart"
 HOME="$home" bash "$ROOT/bin/omarchy-install-service-sunshine" >/dev/null
 
 # The installer backgrounds the web app launch; wait for the mock to run, or cleanup could let it find the real one.
@@ -70,9 +71,9 @@ fi
 pass "Sunshine installer enables the canonical user unit"
 grep -Fq 'o.launch_on_start("my-service")' "$autostart" || fail "Sunshine installer leaves other autostart entries"
 if grep -Fq "$entry" "$autostart"; then
-  fail "Sunshine installer does not add a Hyprland autostart copy"
+  fail "Sunshine installer removes the legacy Hyprland autostart copy"
 fi
-pass "Sunshine installer does not add a Hyprland autostart copy"
+pass "Sunshine installer removes the legacy Hyprland autostart copy"
 
 reset_home
 OMARCHY_TEST_ENABLE_STATUS=1
