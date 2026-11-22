@@ -160,3 +160,26 @@ assertEqual(writes.length, 1, 'cancel saves no order')
 assertDeepEqual([0, 1, 2].map(i => Reorder.rowShift(i, state.dragIndex, state.dragTarget, state.dragOffset, 60)), [0, 0, 0], 'cancel clears every offset')
 JS
 
+
+# Go renders its own sign-in form: Console instructions stay visible, the
+# field asks for an API key, and the key is masked. Rendered, not grepped:
+# the fixture instantiates the real panel with a stubbed add command and
+# inspects the controls it builds.
+require_quickshell "agents Go add view"
+qml_fixture_scratch
+cat >"$QML_FIXTURE_TMP/bin/omarchy-agent-account-add" <<'SH'
+#!/bin/bash
+if [[ " $* " == *" --check "* ]]; then
+  printf 'claude first\ncodex first\ngrok first\nopencode first\n'
+  exit 0
+fi
+msg=$(omarchy-i18n agents.goConsoleOpened)
+printf '@@omarchy status %s\n' "$msg"
+sleep 30
+SH
+chmod +x "$QML_FIXTURE_TMP/bin/omarchy-agent-account-add"
+for stub in omarchy-agent-usage-update omarchy-launch-browser omarchy-notification-send; do
+  printf '#!/bin/bash\nexit 0\n' >"$QML_FIXTURE_TMP/bin/$stub"
+  chmod +x "$QML_FIXTURE_TMP/bin/$stub"
+done
+run_qml_fixture agents-add-view "agents Go add view renders its API-key form" Ui Commons

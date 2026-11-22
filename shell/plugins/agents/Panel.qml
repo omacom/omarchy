@@ -334,7 +334,8 @@ Panel {
   readonly property var addProviders: [
     { providerId: "claude", providerName: "Claude" },
     { providerId: "codex", providerName: "Codex" },
-    { providerId: "grok", providerName: "Grok" }
+    { providerId: "grok", providerName: "Grok" },
+    { providerId: "opencode", providerName: "OpenCode Go" }
   ]
 
   // The CLI's download while a first sign-in installs it: its speed beside
@@ -377,6 +378,7 @@ Panel {
     addPhase = "signin"
   }
   property bool addReauth: false
+  readonly property bool addIsApiKey: addProvider === "opencode"
   // Signing in takes over the hero: the provider's mark and name, with what's
   // being set up below.
   readonly property bool setupShown: addStage === "running" && addProviderEntry !== null
@@ -421,7 +423,8 @@ Panel {
     // Claude's login usually finishes on its own once the browser hands back
     // to it. When its page shows a code instead, its prompt for it has no
     // newline to read it by, so the field stays a link away the whole time.
-    addNeedsPaste = false
+    // OpenCode Go's sign-in is a pasted Console API key from the start.
+    addNeedsPaste = addIsApiKey
     addDownloading = false
     addPhase = ""
     addFetched = false
@@ -443,7 +446,7 @@ Panel {
   function submitPaste(code) {
     if (!addProcess.running || code.trim() === "") return
     addProcess.write(code.trim() + "\n")
-    addStatus = Commons.I18n.t("agents.checkingCode")
+    addStatus = addIsApiKey ? Commons.I18n.t("agents.checkingApiKey") : Commons.I18n.t("agents.checkingCode")
   }
 
   // The add command's own lines are tagged; everything else is the CLI
@@ -637,7 +640,8 @@ Panel {
     // Claude's login usually finishes on its own once the browser hands back
     // to it. When its page shows a code instead, its prompt for it has no
     // newline to read it by, so the field stays a link away the whole time.
-    addNeedsPaste = false
+    // OpenCode Go's re-authentication is a fresh pasted key from the start.
+    addNeedsPaste = addIsApiKey
     addDownloading = false
     addPhase = ""
     addFetched = false
@@ -888,6 +892,8 @@ Panel {
       return Commons.I18n.t("agents.helpNotInPath").arg("codex")
     case "Fireworks usage scan failed":
       return Commons.I18n.t("agents.helpScanFailed").arg("Fireworks")
+    case "Add an OpenCode Go API key with `omarchy agent account add opencode`.":
+      return Commons.I18n.t("agents.helpGoAddKey").arg("`omarchy agent account add opencode`")
     }
     return value
   }
@@ -1598,9 +1604,10 @@ Panel {
         spacing: Style.space(10)
 
         Text {
+          objectName: "signInHeading"
           width: parent.width
           textFormat: Text.PlainText
-          text: Commons.I18n.t("agents.loginBrowser")
+          text: root.addIsApiKey ? Commons.I18n.t("agents.connectApiKey") : Commons.I18n.t("agents.loginBrowser")
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -1609,9 +1616,10 @@ Panel {
         }
 
         // Only what the plain line doesn't say: which window to use when it's
-        // a private one, or that a pasted code is being checked.
+        // private, Go's API-key instructions, or that a paste is being checked.
         Text {
-          visible: root.addPrivate || root.addStatus === Commons.I18n.t("agents.checkingCode")
+          objectName: "signInStatus"
+          visible: root.addPrivate || root.addIsApiKey || root.addStatus === Commons.I18n.t("agents.checkingCode") || root.addStatus === Commons.I18n.t("agents.checkingApiKey")
           width: parent.width
           textFormat: Text.PlainText
           text: root.addStatus
@@ -1651,8 +1659,9 @@ Panel {
           spacing: Style.space(6)
 
           Text {
+            objectName: "pasteInstructions"
             width: parent.width
-            text: Commons.I18n.t("agents.pasteCode")
+            text: root.addIsApiKey ? Commons.I18n.t("agents.pasteApiKey") : Commons.I18n.t("agents.pasteCode")
             textFormat: Text.PlainText
             color: root.dim
             font.family: root.fontFamily
@@ -1662,8 +1671,10 @@ Panel {
 
           TextField {
             id: pasteField
+            objectName: "pasteField"
             width: parent.width
-            placeholderText: Commons.I18n.t("agents.placeholderCode")
+            placeholderText: root.addIsApiKey ? Commons.I18n.t("agents.placeholderApiKey") : Commons.I18n.t("agents.placeholderCode")
+            password: root.addIsApiKey
             foreground: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
