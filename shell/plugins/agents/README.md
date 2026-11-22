@@ -144,7 +144,7 @@ Expired tokens are refreshed under the current CLI's renewable directory lock at
 
 ### Cursor
 
-Cursor keeps no token counts on disk, so everything comes from the dashboard RPCs the Cursor CLI itself calls, asked with `CURSOR_AUTH_TOKEN`, else, with `CURSOR_API_KEY` exported, the access token the CLI traded that key for (the key itself is never sent), else the sign-in `cursor-agent login` stores in `~/.config/cursor/auth.json`, else the editor's in `~/.config/Cursor/User/globalStorage/state.vscdb` (read-only); `CURSOR_API_ENDPOINT` moves the endpoint, over https only (plain http only to this machine). A sign-in that has lapsed gives way to the next one that hasn't; with all of them lapsed the limits read "Limits paused" until the CLI or editor renews its token. A machine with Cursor installed but signed in nowhere says it is waiting for a sign-in; one without Cursor stays out of the panel.
+Cursor keeps no token counts on disk, so everything comes from the dashboard RPCs the Cursor CLI itself calls, asked with `CURSOR_AUTH_TOKEN`, else, with `CURSOR_API_KEY` exported, the access token the CLI traded that key for (the key itself is never sent), else the sign-in `cursor-agent login` stores in `~/.config/cursor/auth.json` (or, when that file only says `storedIn: os-secret-store`, the same login in the Secret Service under service `cursor-credentials` / account `cursor-user`), else the editor's in `~/.config/Cursor/User/globalStorage/state.vscdb` (read-only); `CURSOR_API_ENDPOINT` moves the endpoint, over https only (plain http only to this machine). A sign-in that has lapsed gives way to the next one that hasn't; with all of them lapsed the limits read "Limits paused" until the CLI or editor renews its token. A machine with Cursor installed but signed in nowhere says it is waiting for a sign-in; one without Cursor stays out of the panel.
 
 The week of tokens is reused for 20 seconds (15 minutes on a near-limit refresh). A failed check keeps the account's last good meters, plan, and week of tokens. Tokens by day and by model cover the last seven local days, one aggregation call per day.
 
@@ -152,7 +152,7 @@ The meters are Cursor's own percentages, so they always agree with the Cursor da
 
 ### Grok Bot
 
-Grok Bot runs on a Cursor account, but its weekly allowance is metered apart from Cursor's plan: the dashboard's `GetSandUsageStatus` RPC says how much of this week's included usage is gone, when it resets, and the Grok plan. It is asked as the same account the Cursor collector reads, found the same way (`CURSOR_AUTH_TOKEN`, the token traded for `CURSOR_API_KEY`, then the CLI's `auth.json`, then the editor's `state.vscdb`, read-only). Grok Bot keeps nothing countable on disk, so the record carries the limit alone, and an account without a Grok Bot allowance, or a machine without a Cursor sign-in, stays out of the panel.
+Grok Bot runs on a Cursor account, but its weekly allowance is metered apart from Cursor's plan: the dashboard's `GetSandUsageStatus` RPC says how much of this week's included usage is gone, when it resets, and the Grok plan. It is asked as the same account the Cursor collector reads, found the same way (`CURSOR_AUTH_TOKEN`, the token traded for `CURSOR_API_KEY`, then the CLI's `auth.json` or its Secret Service copy, then the editor's `state.vscdb`, read-only). Grok Bot keeps nothing countable on disk, so the record carries the limit alone, and an account without a Grok Bot allowance, or a machine without a Cursor sign-in, stays out of the panel.
 
 ### Copilot
 
