@@ -10,21 +10,22 @@ current=$(omarchy-region-formats)
 icon=󰃰
 
 # Each row shows a sample, so the choice is made by what it looks like.
-mark() {
+append_row() {
+  local row_icon=$icon
   if [[ $1 == "$current" ]]; then
-    echo "✓"
-  else
-    echo "$icon"
+    row_icon=✓
   fi
+  rows+=("$row_icon"$'\t'"$2"$'\t'"$3")
 }
 
 same_label=$(omarchy-i18n region.sameAsLanguage)
 same_sample=$(jq -r --arg locale "$(omarchy-language locale)" '.[$locale] // empty' "$OMARCHY_PATH/default/i18n/format-samples.json")
 
-rows=("$(mark default)"$'\t'"$same_label"$'\t'"$same_sample")
+rows=()
+append_row default "$same_label" "$same_sample"
 declare -A codes
 while IFS=$'\t' read -r code name sample; do
-  rows+=("$(mark "$code")"$'\t'"$name"$'\t'"$sample")
+  append_row "$code" "$name" "$sample"
   codes["$name"$'\t'"$sample"]=$code
 done < <(omarchy-region-formats list)
 
