@@ -174,6 +174,12 @@ echo 50 >"$work/volume"
   fail 'audio-output-volume applies every step of a held key' "ten -1 steps from 50 left $(<"$work/volume")"
 pass 'audio-output-volume applies every step of a held key'
 
+echo 120 >"$work/volume"
+PATH="$work/slow:$PATH" VOLUME="$work/volume" omarchy-audio-output-volume -1 >/dev/null 2>&1
+[[ $(<"$work/volume") == 119 ]] ||
+  fail 'audio-output-volume lowers boosted volume gradually' "expected 119, got $(<"$work/volume")"
+pass 'audio-output-volume lowers boosted volume gradually'
+
 # The pending total is read back from a file; only a plain number may reach
 # arithmetic, which would otherwise run a command substitution inside it.
 printf 'a[$(touch %s)]\n' "$work/ran" >"$work/omarchy-audio-output-volume.alsa_output.speakers.pending"

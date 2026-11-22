@@ -115,8 +115,11 @@ elif [[ $action =~ ^[+-][0-9]+$ ]]; then
       fi
 
       next=$((current + step))
-      ((next <= 100)) || next=100
-      ((next >= 0)) || next=0
+      if ((step > 0)); then
+        ((next <= 100)) || next=100
+      else
+        ((next >= 0)) || next=0
+      fi
 
       pactl set-sink-mute "$sink" 0
       pactl set-sink-volume "$sink" "${next}%"
