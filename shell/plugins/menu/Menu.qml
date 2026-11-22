@@ -1305,6 +1305,9 @@ Item {
       root.checkedResults = nextChecked
       root.disabledResults = nextDisabled
       if (root.opened) root.rebuildDisplay()
+      // Search skips the provider of a submenu it can't reach, and that may
+      // have been decided on the last open's answers. Start any it reaches now.
+      if (root.opened && !root.dmenuActive && root.filterText.trim()) root.loadProvidersForSearch()
       // Run the evaluation that had to stand aside. Deferred by a turn so the
       // process is settled before its command is set again.
       if (root.guardsPending) Qt.callLater(function() { root.evaluateGuards() })
