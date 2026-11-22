@@ -171,6 +171,7 @@ Panel {
 
   // The first arrow only shows where the cursor is, as in the other panels.
   function moveKey(dx, dy) {
+    pointerLine = -1
     if (keyRows.length === 0) return
     if (!cursorActive) {
       keyRow = clamp(keyRow, 0, keyRows.length - 1)
@@ -847,6 +848,25 @@ Panel {
   // The cursor's place on a line: its terminal button, or its mark.
   function pointAtProvider(i) {
     pointAt(lineStop(i), i)
+  }
+
+  // The line the mouse last moved onto, or -1 once the keys take over:
+  // whichever was used last engages a line, never both. The keyboard's
+  // cursor follows the mouse unseen, so the next arrow starts from there.
+  property int pointerLine: -1
+  function pointerMovedOnto(i) {
+    if (pointerLine === i) return
+    pointerLine = i
+    var row = keyRows[keyRow]
+    if (!row || row[0].index !== i || row[0].kind === "providerSignin") pointAtProvider(i)
+    cursorActive = false
+  }
+
+  // A control under the mouse draws its own hover; the keyboard's cursor
+  // only moves there, out of sight, for the next arrow to start from.
+  function hoverAt(kind, index) {
+    pointAt(kind, index)
+    cursorActive = false
   }
 
   // Hands the keyboard back to the panel after an inline edit.
@@ -1650,7 +1670,7 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "r" || t === "R") root.refreshNow()
-        else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.providers.length) root.pointAtProvider(Number(t) - 1)
+        else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.providers.length) { root.pointerLine = -1; root.pointAtProvider(Number(t) - 1) }
       }
 
       Flickable {
@@ -1731,7 +1751,7 @@ Panel {
                   hasCursor: root.hasKey("instructions")
                   onHasCursorChanged: if (hasCursor) root.revealItem(instructionsButton)
                   fontFamily: root.fontFamily
-                  onHovered: root.pointAt("instructions")
+                  onHovered: root.hoverAt("instructions")
                   glyph: "󰈙"
                   tooltip: Commons.I18n.t("agents.editInstructions")
                   onClicked: root.editInstructions()
@@ -1743,7 +1763,7 @@ Panel {
                   hasCursor: root.hasKey("add")
                   onHasCursorChanged: if (hasCursor) root.revealItem(addButton)
                   fontFamily: root.fontFamily
-                  onHovered: root.pointAt("add")
+                  onHovered: root.hoverAt("add")
                   readonly property bool adding: root.addStage !== ""
                   glyph: adding ? "󰅖" : "󰐕"
                   tooltip: adding ? Commons.I18n.t("agents.backToLimits") : Commons.I18n.t("agents.addTitle")
@@ -1801,7 +1821,7 @@ Panel {
                   required property var modelData
                   required property int index
                   hasCursor: root.hasKey("starter", index)
-                  onHovered: root.pointAt("starter", index)
+                  onHovered: root.hoverAt("starter", index)
                   width: (tileGrid.width - tileGrid.spacing * (tileGrid.columns - 1)) / tileGrid.columns
                   glyph: modelData.glyph
                   title: modelData.label
@@ -2338,11 +2358,15 @@ Panel {
     readonly property var spend: provider ? (provider.spend || null) : null
     spacing: Style.space(16)
     readonly property bool dragged: root.dragIndex === providerIndex
-    // The pointer or the keyboard is on this agent, which shows its hollow star.
-    readonly property bool engaged: sectionHover.hovered || root.providerIndexOfKey() === providerIndex
+    // The pointer or the keyboard, whichever moved last, is on this agent.
+    readonly property bool engaged: root.pointerLine >= 0 ? root.pointerLine === providerIndex : root.providerIndexOfKey() === providerIndex
     readonly property bool makesOpen: root.makesOpenIndex === providerIndex
     onEngagedChanged: if (!engaged && makesOpen) root.makesOpenIndex = -1
-    HoverHandler { id: sectionHover }
+    HoverHandler {
+      id: sectionHover
+      onPointChanged: if (hovered) root.pointerMovedOnto(section.providerIndex)
+      onHoveredChanged: if (!hovered && root.pointerLine === section.providerIndex) root.pointerLine = -1
+    }
     z: dragged ? 2 : 0
     opacity: dragged ? 0.9 : 1
     transform: Translate {
@@ -2520,7 +2544,7 @@ Panel {
           foreground: root.foreground
           fontFamily: root.fontFamily
           hasCursor: root.hasKey("providerLaunch", section.providerIndex)
-          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerLaunch", section.providerIndex) }
+          onHovered: function(isHovered) { if (isHovered) root.hoverAt("providerLaunch", section.providerIndex) }
           onClicked: root.runLine(section.provider)
         }
 
@@ -2536,7 +2560,7 @@ Panel {
           foreground: root.foreground
           fontFamily: root.fontFamily
           hasCursor: root.hasKey("providerDesktop", section.providerIndex)
-          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerDesktop", section.providerIndex) }
+          onHovered: function(isHovered) { if (isHovered) root.hoverAt("providerDesktop", section.providerIndex) }
           onClicked: root.launchDesktop(section.provider)
         }
 
@@ -2553,7 +2577,7 @@ Panel {
           foreground: root.foreground
           fontFamily: root.fontFamily
           hasCursor: root.hasKey("makeToggle", section.providerIndex)
-          onHovered: function(isHovered) { if (isHovered) root.pointAt("makeToggle", section.providerIndex) }
+          onHovered: function(isHovered) { if (isHovered) root.hoverAt("makeToggle", section.providerIndex) }
           onClicked: root.openMakes(section.providerIndex)
         }
 
@@ -2575,7 +2599,7 @@ Panel {
               foreground: root.foreground
               fontFamily: root.fontFamily
               hasCursor: root.hasKey("make:" + modelData.kind, section.providerIndex)
-              onHovered: function(isHovered) { if (isHovered) root.pointAt("make:" + modelData.kind, section.providerIndex) }
+              onHovered: function(isHovered) { if (isHovered) root.hoverAt("make:" + modelData.kind, section.providerIndex) }
               onClicked: root.runLine(section.provider, modelData.kind)
             }
           }
@@ -2602,7 +2626,7 @@ Panel {
           foreground: on ? Commons.Color.accent : root.foreground
           fontFamily: root.fontFamily
           hasCursor: root.hasKey("providerStar", section.providerIndex)
-          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerStar", section.providerIndex) }
+          onHovered: function(isHovered) { if (isHovered) root.hoverAt("providerStar", section.providerIndex) }
           onClicked: root.makeDefault(section.provider, section.account)
         }
       }
