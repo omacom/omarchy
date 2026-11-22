@@ -231,7 +231,7 @@ minimize
 [[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows on a tiled workspace alone" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize leaves windows on a tiled workspace alone"
 
-require_compositor "app grid pointer selection"
+require_quickshell "app grid pointer selection"
 qml_fixture_scratch
 trap 'rm -rf "$TMPDIR"; qml_fixture_cleanup' EXIT
 run_qml_fixture app-grid-pointer "app grid keeps keyboard selection until the pointer moves" Ui Commons
