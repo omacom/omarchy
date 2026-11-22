@@ -417,11 +417,14 @@ pass "restart stops a wedged shell and its supervisor and reclaims dead runtime 
 : >"$restart_state.fixtures"
 "$wedged_bin/quickshell" --path "$worktree_root/shell" >/dev/null 2>&1 &
 restart_pid_one=$!
+"$wedged_bin/quickshell" -p "$other_root/shell" >/dev/null 2>&1 &
+restart_pid_two=$!
 for (( attempt = 0; attempt < 100; attempt++ )); do
-  [[ -s $restart_state.fixtures && $(awk '{ print $3 }' "/proc/$restart_pid_one/stat") == "T" ]] && break
+  [[ $(awk '{ print $3 }' "/proc/$restart_pid_one/stat") == "T" && $(awk '{ print $3 }' "/proc/$restart_pid_two/stat") == "T" ]] && break
   sleep 0.01
 done
 [[ $(awk '{ print $3 }' "/proc/$restart_pid_one/stat") == "T" ]] || fail "worktree shell fixture stops itself"
+[[ $(awk '{ print $3 }' "/proc/$restart_pid_two/stat") == "T" ]] || fail "non-Omarchy shell fixture stops itself"
 : >"$restart_state"
 run_recovery_restart || fail "restart recovers an unregistered worktree shell"
 if [[ -d /proc/$restart_pid_one && $(awk '{ print $3 }' "/proc/$restart_pid_one/stat") != "Z" ]]; then
@@ -430,6 +433,11 @@ fi
 wait "$restart_pid_one" 2>/dev/null || true
 restart_pid_one=""
 pass "restart recovers an unregistered worktree shell using --path"
+[[ -r /proc/$restart_pid_two/stat && $(awk '{ print $3 }' "/proc/$restart_pid_two/stat") == "T" ]] || fail "signal recovery leaves a non-Omarchy Quickshell config running"
+kill -KILL "$restart_pid_two" 2>/dev/null || true
+wait "$restart_pid_two" 2>/dev/null || true
+restart_pid_two=""
+pass "signal recovery leaves a non-Omarchy Quickshell config running"
 
 # Model a kernel that refuses signals, so success cannot rest on kill's return
 # code or on a replacement answering while the old instance is still alive.
