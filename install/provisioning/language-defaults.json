@@ -24,6 +24,7 @@
   "it": {"keyboard": "Italian", "timezone": "Europe/Rome"},
   "ja": {"keyboard": "Japanese", "timezone": "Asia/Tokyo"},
   "ko": {"keyboard": "Korean", "timezone": "Asia/Seoul"},
+  "ky": {"keyboard": "Kyrgyz", "timezone": "Asia/Bishkek"},
   "lt": {"keyboard": "Lithuanian", "timezone": "Europe/Vilnius"},
   "lv": {"keyboard": "Latvian", "timezone": "Europe/Riga"},
   "ms": {"keyboard": "English (US)", "timezone": "Asia/Kuala_Lumpur"},
