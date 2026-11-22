@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# omarchy:summary=Set which coding agent the local models open in
+# omarchy:args=[pi|opencode|qwen]
+# omarchy:examples=omarchy models harness | omarchy models harness opencode
+
+# Only these agents take the launch-time overlay that points one at a local
+# model. Pi is a base package, so the default is always there to open.
+harness_file="$HOME/.config/omarchy/defaults/models-harness"
+
+case "${1:-}" in
+"")
+  harness="pi"
+  if [[ -f $harness_file ]]; then
+    read -r harness <"$harness_file"
+  fi
+  echo "$harness"
+  ;;
+pi | opencode | qwen)
+  mkdir -p "${harness_file%/*}"
+  echo "$1" >"$harness_file"
+  ;;
+*)
+  echo "Usage: omarchy models harness [pi|opencode|qwen]" >&2
+  exit 1
+  ;;
+esac

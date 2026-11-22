@@ -27,6 +27,7 @@ elif omarchy-cmd-present omarchy-nvim-setup; then
   omarchy-nvim-setup --force
 fi
 
-# /etc/skel holds the shared defaults, so put the Snapdragon video decoding
-# settings back.
+# /etc/skel holds the shared defaults, so put the Snapdragon camera and video
+# decoding settings back.
+omarchy-install-camera
 omarchy-install-video-decode

@@ -161,3 +161,8 @@ write_sep 396400000 not-ready
 assert_detects "a USB reader found by vendor is detected while Touch ID reads not-ready"
 
 rm -f "$platform_root/fingerprint-readers"
+
+# FocalTech match-on-chip readers name no function in their product string, so
+# the vendor list is the only way to find them.
+write_usb_devices '2808:a57a:FocalTech FT9365 ESS'
+assert_detects "a FocalTech match-on-chip reader is detected by vendor"
