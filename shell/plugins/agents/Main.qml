@@ -16,71 +16,6 @@ Item {
   readonly property string home: Quickshell.env("HOME") || ""
   readonly property string usageDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/usage"
 
-  // Server lifecycle is independent of the local usage collector. Keep the
-  // watch alive even before the panel's content has been built.
-  property var localModel: ({})
-
-  FileView {
-    id: localModelFile
-    path: root.home + "/.local/state/omarchy/agent-local/status.json"
-    watchChanges: true
-    printErrors: false
-    onFileChanged: reload()
-    onLoaded: root.parseLocalModel(text())
-  }
-
-  // The catalog's recipes as this machine sees them (fits, best, installed),
-  // which Add another › Local AI offers from.
-  property var localRecipes: []
-
-  FileView {
-    id: localRecipesFile
-    path: root.home + "/.local/state/omarchy/agent-local/list.json"
-    watchChanges: true
-    printErrors: false
-    onFileChanged: reload()
-    onLoaded: {
-      try {
-        var parsed = JSON.parse(text())
-        if (Array.isArray(parsed)) root.localRecipes = parsed
-      } catch (e) {
-        // A half-written listing keeps the last good one.
-      }
-    }
-  }
-
-  // Rewrites the listing and status, which a package upgrade may have
-  // changed. On a fresh account neither file exists until this first run, and
-  // a missing file can't be watched, so both are loaded once it finishes.
-  function refreshLocal() {
-    if (!localRefresh.running) localRefresh.running = true
-  }
-
-  Process {
-    id: localRefresh
-    command: ["omarchy-agent-local", "refresh", "--quiet"]
-    onExited: {
-      localRecipesFile.reload()
-      localModelFile.reload()
-    }
-  }
-
-  function parseLocalModel(content) {
-    try {
-      var parsed = JSON.parse(content)
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return
-      if (!parsed.models || typeof parsed.models !== "object" || Array.isArray(parsed.models)) return
-      for (var id in parsed.models) {
-        var model = parsed.models[id]
-        if (!model || model.recipe !== id || id === "") return
-        if (["active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
-      }
-      root.localModel = parsed
-    } catch (e) {
-      // A missing or partially written file leaves the last good state intact.
-    }
-  }
-
   // ------------------------------------------------------------- discovery
 
   property var agentIds: []
@@ -304,13 +239,13 @@ Item {
   }
 
   // The panel gives a section only to an agent with a subscription to show:
-  // limits, a balance, a plan, or accounts. Local history alone still counts
+  // limits, a balance, spend, a plan, or accounts. Local history alone still counts
   // toward the summary, but would leave an empty section.
   readonly property var subscribedProviders: enabledProviders.filter(providerHasSubscription)
 
   function providerHasSubscription(p) {
     return (p.limits && p.limits.length > 0) || (p.accounts && p.accounts.length > 0)
-      || !!p.balance || p.tierLabel !== ""
+      || !!p.balance || !!p.spend || p.tierLabel !== ""
   }
 
   // ----------------------------------------------------------------- order
@@ -321,26 +256,124 @@ Item {
   readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/order.json"
   property var providerOrder: []
 
-  readonly property var panelProviders: {
-    var list = subscribedProviders.slice()
-    var models = localModel.models || {}
-    for (var id in models)
-      list.push({ providerId: "local:" + id, localModel: models[id] })
-    return orderedProviders(list)
+  readonly property var panelProviders: orderedProviders(accountLines(subscribedProviders).concat(localModelLines.filter(localModelAdded)))
+
+  // A line for each coding model you can open, here or on a paired machine,
+  // built by the panel from the local models service.
+  property var localModelLines: []
+
+  // The local models added from the add screen, by target (the recipe, or
+  // host/recipe for a paired machine's). Only these get a line, and the one
+  // a default of "local" opens, so the default never goes missing.
+  property var addedLocalModels: []
+
+  function localModelAdded(line) {
+    var target = line.localModel.target
+    return addedLocalModels.indexOf(target) >= 0 || (defaultAgent === "local" && target === localDefaultTarget)
   }
 
+  function addLocalModel(target) {
+    if (addedLocalModels.indexOf(target) >= 0) return
+    saveLocalModels(addedLocalModels.concat([target]))
+  }
+
+  // A model taken off the panel, or removed from this machine, is offered
+  // on the add screen again.
+  function removeLocalModels(targets) {
+    var kept = addedLocalModels.filter(function(target) { return targets.indexOf(target) < 0 })
+    if (kept.length !== addedLocalModels.length) saveLocalModels(kept)
+  }
+
+  function saveLocalModels(targets) {
+    addedLocalModels = targets
+    addedLocalModelsFile.setText(JSON.stringify(targets) + "\n")
+  }
+
+  // Set by the panel, which knows what is running.
+  property string localDefaultTarget: ""
+
+  FileView {
+    id: addedLocalModelsFile
+    path: (Quickshell.env("XDG_STATE_HOME") || root.home + "/.local/state") + "/omarchy/agents/local-models.json"
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      var parsed = []
+      try { parsed = JSON.parse(text()) } catch (e) { parsed = [] }
+      root.addedLocalModels = Array.isArray(parsed) ? parsed.map(String) : []
+    }
+    onLoadFailed: root.addedLocalModels = []
+    onFileChanged: reload()
+  }
+
+  // The local model a default of "local" opens, as `omarchy default agent
+  // local <model>` pins it. Empty when none is: it opens the one started last.
+  property string localPin: ""
+
+  FileView {
+    id: localPinFile
+    path: root.home + "/.config/omarchy/defaults/local-model"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.localPin = text().trim()
+    onLoadFailed: root.localPin = ""
+    onFileChanged: reload()
+  }
+
+  // The panel shows a line for each subscription account: an agent with
+  // several is split into one per account, carrying that account's limits,
+  // plan and sign-in, so each is ordered, dragged, starred and opened on its
+  // own.
+  function accountLines(list) {
+    var out = []
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i]
+      var accounts = p.accounts || []
+      if (accounts.length < 2) {
+        out.push(p)
+        continue
+      }
+      for (var j = 0; j < accounts.length; j++) {
+        var a = accounts[j]
+        out.push(Object.assign({}, p, {
+          lineId: p.providerId + "/" + (a.email || a.id),
+          account: a,
+          accounts: [],
+          limits: a.limits || [],
+          limitsStale: a.stale === true,
+          limitsFetchedAt: Number(a.fetchedAt || 0),
+          tierLabel: String(a.plan || ""),
+          resetCredits: a.resetCredits || null,
+          usageStatusText: String(a.usageStatusText || ""),
+          authHelpText: String(a.authHelpText || "")
+        }))
+      }
+    }
+    return out
+  }
+
+  function lineId(p) {
+    return p.lineId || p.providerId
+  }
+
+  // Where each line was put, and the ones never moved after them in the
+  // order they arrive.
   function orderedProviders(list) {
     var order = providerOrder
     var rank = function(p) {
-      var i = order.indexOf(p.providerId)
+      var i = order.indexOf(lineId(p))
+      if (i < 0) i = order.indexOf(p.providerId)
       return i < 0 ? order.length : i
     }
-    return list.slice().sort(function(a, b) { return rank(a) - rank(b) })
+    var lines = list.map(function(p, at) { return { p: p, at: at } })
+    lines.sort(function(a, b) { return rank(a.p) - rank(b.p) || a.at - b.at })
+    return lines.map(function(line) { return line.p })
   }
 
   // Moves one agent to a position among the ones shown, and saves the result.
   function moveProvider(id, to) {
-    var ids = panelProviders.map(function(p) { return p.providerId })
+    var ids = panelProviders.map(lineId)
     var from = ids.indexOf(id)
     if (from < 0) return
     to = Math.max(0, Math.min(ids.length - 1, to))
@@ -350,6 +383,26 @@ Item {
       if (ids.indexOf(providerOrder[i]) < 0) ids.push(providerOrder[i])
     providerOrder = ids
     orderFile.setText(JSON.stringify(ids) + "\n")
+  }
+
+  // The default agent, as `omarchy default agent` keeps it: a harness id, or
+  // "local" for the local model. Empty until one is chosen.
+  property string defaultAgent: ""
+
+  // The default and the local model pin, read again after they're written.
+  function reloadDefaults() {
+    defaultAgentFile.reload()
+    localPinFile.reload()
+  }
+
+  FileView {
+    id: defaultAgentFile
+    path: root.home + "/.config/omarchy/defaults/agent"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.defaultAgent = text().trim()
+    onLoadFailed: root.defaultAgent = ""
+    onFileChanged: reload()
   }
 
   FileView {
@@ -379,7 +432,7 @@ Item {
     return numberValue(p.totalPrompts) > 0 || numberValue(p.totalSessions) > 0
       || numberValue(p.activeDays) > 0 || numberValue(p.todayPrompts) > 0
       || numberValue(p.todaySessions) > 0 || (p.limits && p.limits.length > 0)
-      || (p.accounts && p.accounts.length > 0) || !!p.balance
+      || (p.accounts && p.accounts.length > 0) || !!p.balance || !!p.spend
       || (p.ready === true && p.tierLabel !== "")
   }
 
@@ -395,6 +448,29 @@ Item {
       funded: isFinite(funded) && funded > 0 ? funded : 0,
       spent: Math.max(0, Number(raw.spent) || 0),
       currency: String(raw.currency || "USD"),
+      estimated: raw.estimated === true
+    }
+  }
+
+  // A pay-as-you-go agent's spend over the last 30 days, or this month's
+  // against the monthly cap when the account has one. Per-account, like
+  // the balance.
+  function spendValue(raw) {
+    if (!raw || typeof raw !== "object") return null
+    var amount = Number(raw.amount)
+    var cap = Number(raw.cap)
+    if (!isFinite(amount) || amount < 0) return null
+    var days = Array.isArray(raw.days) ? raw.days.map(function(d) { return Math.max(0, Number(d) || 0) }) : []
+    return {
+      amount: amount,
+      cap: isFinite(cap) && cap > 0 ? cap : 0,
+      currency: String(raw.currency || "USD"),
+      days: days,
+      // The last day's date, and whether the days are UTC ones: Fireworks
+      // counts in UTC, the estimates in local days.
+      through: String(raw.through || ""),
+      utc: raw.utc === true,
+      // Counted from this machine's sessions, not rated by the provider.
       estimated: raw.estimated === true
     }
   }
@@ -419,10 +495,11 @@ Item {
       tierLabel: String(record.tierLabel || ""),
       // Every subscription account's own limits, once there's more than one.
       accounts: Array.isArray(record.accounts) ? record.accounts : [],
-      accountSwitch: record.accountSwitch || ({ mode: "manual", threshold: 95 }),
+      accountSwitch: record.accountSwitch || ({ threshold: 95 }),
       // Codex's free full resets of its rate limits, when it has any.
       resetCredits: record.resetCredits || null,
       balance: balanceValue(record.balance),
+      spend: spendValue(record.spend),
 
       todayPrompts: synced ? numberValue(stats.todayPrompts) : numberValue(record.todayPrompts),
       todaySessions: synced ? numberValue(stats.todaySessions) : numberValue(record.todaySessions),

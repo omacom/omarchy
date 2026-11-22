@@ -38,7 +38,7 @@ registry("claude", [
   {"id": "main", "label": "Main", "home": "", "primary": True, "email": "me@example.com"},
   {"id": "work", "label": "Work", "home": str(accounts / "claude" / "work"), "primary": False, "email": "work@example.com", "accountId": "u-work"},
   {"id": "old", "label": "Old", "home": str(accounts / "claude" / "old"), "primary": False, "email": "old@example.com"},
-], active="work", switch="auto", threshold=95)
+], active="work", threshold=95)
 
 # Anthropic answers per token, so each account's probe is told apart by the
 # credential it carried.
@@ -68,6 +68,21 @@ expect("a lapsed account keeps its last-known limits and says why", record["acco
 expect("the record's own limits describe the active account", [record["tierLabel"], record["limits"][0]["percent"]], ["Max 5x", 0.12], record)
 expect("each account keeps its own limits cache, keyed by subscription",
        [(cache_root() / name).is_file() for name in ("claude-limits.json", "claude-limits-u-work.json")], [True, True])
+
+# A switch moves logins holding the registry lock, so a collection waits for
+# it rather than reading where a login was and then what is there now.
+import fcntl, threading
+(accounts / ".claude.lock").touch()
+with open(accounts / ".claude.lock") as switching:
+  fcntl.flock(switching, fcntl.LOCK_EX)
+  waited = {}
+  collector = threading.Thread(target=lambda: waited.update(record=claude()))
+  collector.start()
+  collector.join(1.5)
+  mid_switch = collector.is_alive()
+  fcntl.flock(switching, fcntl.LOCK_UN)
+collector.join(10)
+check("a collection waits for a switch in progress", mid_switch and "record" in waited, waited)
 
 # Once every window a lapsed account last saw has reset, it has its whole
 # allowance back: that reads as 0%, not as nothing known.
@@ -101,7 +116,7 @@ check("a primary home signed in to another subscription doesn't inherit its limi
 (home() / ".claude.json").unlink()
 
 # A registry with one account changes nothing about the record.
-registry("claude", [{"id": "main", "label": "Main", "home": "", "primary": True, "email": "me@example.com"}], active="main", switch="auto", threshold=95)
+registry("claude", [{"id": "main", "label": "Main", "home": "", "primary": True, "email": "me@example.com"}], active="main", threshold=95)
 record = claude(ANY)
 expect("a single account record is unchanged, and limits checked just now aren't stale",
        ["accounts" in record, record["limits"][0]["percent"], record["limitsStale"], record["limitsFetchedAt"] > 0], [False, 0.3, False, True], record)
@@ -156,15 +171,22 @@ expect_jq "Codex record's own limits describe the active account" '.limits[0].pe
 record=$(run_collector "$home" codex CODEX_HOME="$accounts/codex/side")
 expect_jq "Main's Codex limits come from ~/.codex whatever CODEX_HOME says" '[.accounts[] | .limits[0].percent]' '[0.4,0.91]' "$record"
 
-# A disabled paid-usage budget must not switch away from a usable subscription.
-jq '.active = "side" | .switch = "auto" | .threshold = 95' "$accounts/codex.json" >"$home/automatic.json"
-mv "$home/automatic.json" "$accounts/codex.json"
+# A disabled paid-usage budget must not offer a switch away from usable quota.
+jq '.active = "side" | .threshold = 95' "$accounts/codex.json" >"$home/selected.json"
+mv "$home/selected.json" "$accounts/codex.json"
 record=$(run_collector "$home" codex)
 mkdir -p "$home/.local/state/omarchy/agents/usage"
 printf '%s\n' "$record" >"$home/.local/state/omarchy/agents/usage/codex.json"
-HOME="$home" XDG_STATE_HOME="$home/.local/state" "$ROOT/bin/omarchy-agent-account-state" autoswitch codex >/dev/null
-[[ $(jq -r .active "$accounts/codex.json") == "side" ]] || fail "a zero credit allocation must not switch away from the selected account"
-pass "a zero credit allocation does not undo account selection in automatic mode"
+stub_cli "$home" omarchy-notification-send >/dev/null <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$PR18065_NOTIFICATION_LOG"
+SH
+HOME="$home" XDG_STATE_HOME="$home/.local/state" PATH="$home/bin:$PATH" PR18065_NOTIFICATION_LOG="$home/notifications" \
+  "$ROOT/bin/omarchy-agent-account-state" alert codex >/dev/null
+expect_jq "a zero credit allocation leaves the selected account below its alert threshold" \
+  '[.active, .alert]' '["side", ""]' "$(cat "$accounts/codex.json")"
+[[ ! -e $home/notifications ]] || fail "a zero credit allocation must not send a limit notification"
+pass "a zero credit allocation sends no limit notification"
 
 jq '.active = "main"' "$accounts/codex.json" >"$home/main.json"
 mv "$home/main.json" "$accounts/codex.json"
