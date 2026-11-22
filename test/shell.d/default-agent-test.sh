@@ -204,7 +204,7 @@ for tool in "$ori_package" basecamp; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
     fail "user setup declares $tool as a native lazy tool"
 done
-for tool in codex claude copilot opencode pi "\"$kimi_package\""; do
+for tool in codex claude copilot opencode "\"$kimi_package\""; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, auto_update = \"4h\", " "$lazy_config" ||
     fail "user setup declares $tool as a self-updating native lazy tool"
 done
@@ -242,12 +242,12 @@ for agent in "${!declared_option_bins[@]}"; do
       fail "user setup declares ${!tool_var} with ${option%%=*} inside its table"
   done
 done
-[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 21 ]] || fail "only the agent CLIs update themselves"
+[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 20 ]] || fail "only the agent CLIs update themselves"
 for tool in node uv; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
     fail "user setup declares $tool as a native lazy tool"
 done
-[[ $(grep -c 'lazy = true' "$lazy_config") == 31 ]] || fail "user setup declares every default mise tool as lazy"
+[[ $(grep -c 'lazy = true' "$lazy_config") == 30 ]] || fail "user setup declares every default mise tool as lazy"
 grep -Fx "reshim --system" "$mise_history" >/dev/null || fail "user setup builds the system lazy bootstrap shims"
 pass "user setup configures system lazy tools from registry shorthands"
 : >"$stub_log"
@@ -419,7 +419,6 @@ declare -A expected_agents=(
 )
 
 declare -A expected_packages=(
-  [pi]="pi"
   [omp]="$omp_package"
   [opencode]="opencode"
   [ori]="$ori_package"
@@ -447,6 +446,7 @@ for selection in "${!expected_agents[@]}"; do
   expected=${expected_agents[$selection]}
   : >"$agent_open_log"
   : >"$stub_log"
+  : >"$mise_log"
   OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent "$selection"
   [[ $(omarchy-default-agent) == $expected ]] || fail "default agent canonicalizes $selection"
 
@@ -456,13 +456,17 @@ for selection in "${!expected_agents[@]}"; do
     [[ ! -s $stub_log ]] || fail "other agents do not install the Claude extension"
   fi
 
-  mapfile -d '' -t mise_args <"$mise_log"
-  [[ ${mise_args[0]} == "use" && ${mise_args[1]} == "-g" ]] ||
-    fail "default agent installs $selection globally through mise"
-  case ${mise_args[2]} in
-    "${expected_packages[$expected]}") ;;
-    *) fail "default agent preserves $selection backend options" ;;
-  esac
+  if [[ $expected == "pi" ]]; then
+    [[ ! -s $mise_log ]] || fail "Pi comes from its package, not through mise"
+  else
+    mapfile -d '' -t mise_args <"$mise_log"
+    [[ ${mise_args[0]} == "use" && ${mise_args[1]} == "-g" ]] ||
+      fail "default agent installs $selection globally through mise"
+    case ${mise_args[2]} in
+      "${expected_packages[$expected]}") ;;
+      *) fail "default agent preserves $selection backend options" ;;
+    esac
+  fi
 
   mapfile -d '' -t agent_open_args <"$agent_open_log"
   [[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
@@ -948,6 +952,8 @@ prefer_local_launch() {
   mapfile -d '' -t launch_args <"$launch_log"
 }
 
+omarchy-models-harness codex 2>/dev/null && fail "only a harness that can take a local model is accepted"
+omarchy-models-harness opencode
 prefer_local_launch '{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}'
 [[ ${launch_args[*]} == *"OPENCODE_CONFIG=/overlays/opencode-big.config"*"opencode --auto --standalone" ]] ||
   fail "--prefer-local opens the running local model: ${launch_args[*]}"
@@ -1005,18 +1011,12 @@ mapfile -d '' -t launch_args <"$launch_log"
 rm "$mock_bin/omarchy-models-warmup"
 pass "a stopped local model is started in the agent's terminal before the agent opens"
 
-# A default that can't take the overlay, with no pi or OpenCode to stand in,
-# still opens rather than failing as --local would.
-printf '%s\n' "codex" >"$agent_file"
-: >"$notification_history"
-printf '#!/bin/bash\nexit 1\n' >"$mock_bin/omarchy-cmd-present"
-chmod +x "$mock_bin/omarchy-cmd-present"
+# With no harness chosen the local model opens in pi, whatever the default agent.
+rm "${agent_file%/*}/models-harness"
 prefer_local_launch '{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}'
-[[ ${launch_args[*]} == *"codex --approve-for-me" && ${launch_args[*]} != *overlays* ]] ||
-  fail "--prefer-local falls back to a default that can't take the overlay: ${launch_args[*]}"
-[[ ! -s $notification_history ]] || fail "--prefer-local falling back raises no notification"
-printf '%s\n' "opencode" >"$agent_file"
-rm "$mock_bin/omarchy-models" "$mock_bin/omarchy-cmd-present"
+[[ ${launch_args[*]} == *"pi --extension /overlays/pi-big.config"* ]] ||
+  fail "the local model opens in pi by default: ${launch_args[*]}"
+rm "$mock_bin/omarchy-models"
 pass "--prefer-local opens the running local model, and the usual agent otherwise"
 
 : >"$launch_log"

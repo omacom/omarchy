@@ -90,33 +90,11 @@ if [[ $prefer_local == "true" && $use_local != "true" ]]; then
   fi
 fi
 
-# Only agents with a launch-time overlay can be pointed at the local model. When
-# the default can't, or none is set, the local model opens in pi, or OpenCode
-# without pi: the agents panel launches it whether or not a default was chosen.
-local_capable() {
-  case "$1" in
-  pi | opencode | qwen) return 0 ;;
-  *) return 1 ;;
-  esac
-}
-if [[ $use_local == "true" ]] && ! local_capable "$agent"; then
-  local_agent=""
-  for candidate in pi opencode; do
-    if omarchy-cmd-present "$candidate"; then
-      local_agent=$candidate
-      break
-    fi
-  done
-  if [[ -z $local_agent && $prefer_local == "true" ]]; then
-    # Preferred, not asked for: without an agent that can take the overlay,
-    # open the usual one rather than nothing.
-    use_local=false
-  elif [[ -z $local_agent ]]; then
-    omarchy-notification-send -u critical "$(omarchy-i18n agents.localUnsupported)" "$(omarchy-i18n agents.localUnsupportedBody)"
-    exit 1
-  else
-    agent=$local_agent
-  fi
+# The local model opens in the harness `omarchy models harness` names, whatever
+# the default agent is: the agents panel launches it whether or not a default
+# was chosen. An agent asked for by name is opened as asked.
+if [[ $use_local == "true" && -z $agent_override ]]; then
+  agent=$(omarchy-models-harness)
 fi
 
 # Omarchy ships without a default, so there is nothing to launch until one is
