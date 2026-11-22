@@ -46,8 +46,6 @@
   "agents.signedInAgain": "已再次登录 %1。",
   "agents.stayingOn": "继续使用 %1。",
   "agents.stayingOnUntil": "继续使用 %1。%2 将在 %3 后重置。",
-  "agents.switchedAllBody": "%1 会话现在使用 %2（%3%），包括正在运行的会话。",
-  "agents.switchedBody": "新的 %1 会话现在使用 %2（%3%）。\n正在运行的会话继续使用 %4。",
   "agents.wrongAccount": "这是 %1，而不是 %2。请重试，并以 %2 身份登录。",
   "animations.disabled": "动画已禁用",
   "animations.enabled": "动画已启用",

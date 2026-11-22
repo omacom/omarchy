@@ -46,8 +46,6 @@
   "agents.signedInAgain": "เข้าสู่ระบบ %1 อีกครั้งแล้ว",
   "agents.stayingOn": "ยังคงใช้ %1 ต่อไป",
   "agents.stayingOnUntil": "ยังคงใช้ %1 ต่อไป %2 จะรีเซ็ตในอีก %3",
-  "agents.switchedAllBody": "เซสชัน %1 ใช้ %2 (%3%) แล้ว รวมถึงเซสชันที่กำลังทำงานด้วย",
-  "agents.switchedBody": "เซสชัน %1 ใหม่ใช้ %2 (%3%) แล้ว\nเซสชันที่กำลังทำงานยังใช้ %4 ต่อไป",
   "agents.wrongAccount": "นั่นคือ %1 ไม่ใช่ %2 ลองอีกครั้ง และเข้าสู่ระบบเป็น %2",
   "animations.disabled": "ปิดแอนิเมชันแล้ว",
   "animations.enabled": "เปิดแอนิเมชันแล้ว",

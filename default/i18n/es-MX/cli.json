@@ -48,8 +48,6 @@
   "agents.signedInAgain": "Volviste a iniciar sesión en %1.",
   "agents.stayingOn": "Sigues en %1.",
   "agents.stayingOnUntil": "Sigues en %1. %2 se restablece en %3.",
-  "agents.switchedAllBody": "Las sesiones de %1 ahora usan %2 (%3%), incluidas las en curso.",
-  "agents.switchedBody": "Las nuevas sesiones de %1 ahora usan %2 (%3%).\nLas sesiones en curso siguen en %4.",
   "agents.wrongAccount": "Esa es %1, no %2. Inténtalo de nuevo e inicia sesión como %2.",
   "animations.disabled": "Animaciones desactivadas",
   "animations.enabled": "Animaciones activadas",

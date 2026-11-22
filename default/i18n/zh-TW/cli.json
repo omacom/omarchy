@@ -46,8 +46,6 @@
   "agents.signedInAgain": "已再次登入 %1。",
   "agents.stayingOn": "繼續使用 %1。",
   "agents.stayingOnUntil": "繼續使用 %1。%2 將於 %3 後重置。",
-  "agents.switchedAllBody": "%1 工作階段現改用 %2 (%3%)，包含執行中的工作階段。",
-  "agents.switchedBody": "新的 %1 工作階段現改用 %2 (%3%)。\n進行中的工作階段仍使用 %4。",
   "agents.wrongAccount": "這是 %1，不是 %2。請重試，並以 %2 登入。",
   "animations.disabled": "動畫已停用",
   "animations.enabled": "動畫已啟用",

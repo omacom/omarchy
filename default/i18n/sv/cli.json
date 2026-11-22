@@ -47,8 +47,6 @@
   "agents.signedInAgain": "Inloggad på %1 igen.",
   "agents.stayingOn": "Stannar på %1.",
   "agents.stayingOnUntil": "Stannar på %1. %2 återställs om %3.",
-  "agents.switchedAllBody": "%1-sessioner använder nu %2 (%3%), inklusive pågående.",
-  "agents.switchedBody": "Nya %1-sessioner använder nu %2 (%3%).\nPågående sessioner stannar på %4.",
   "agents.wrongAccount": "Det är %1, inte %2. Försök igen och logga in som %2.",
   "animations.disabled": "Animeringar inaktiverade",
   "animations.enabled": "Animeringar aktiverade",

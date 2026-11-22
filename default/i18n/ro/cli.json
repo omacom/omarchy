@@ -48,8 +48,6 @@
   "agents.signedInAgain": "Conectat din nou la %1.",
   "agents.stayingOn": "Rămâne pe %1.",
   "agents.stayingOnUntil": "Rămâne pe %1. %2 se resetează în %3.",
-  "agents.switchedAllBody": "Sesiunile %1 folosesc acum %2 (%3%), inclusiv cele în curs.",
-  "agents.switchedBody": "Sesiunile noi %1 folosesc acum %2 (%3%).\nSesiunile în curs rămân pe %4.",
   "agents.wrongAccount": "Acesta este %1, nu %2. Încearcă din nou și conectează-te cu contul %2.",
   "animations.disabled": "Animații dezactivate",
   "animations.enabled": "Animații activate",

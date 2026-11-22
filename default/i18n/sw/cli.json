@@ -47,8 +47,6 @@
   "agents.signedInAgain": "Umeingia tena kwenye %1.",
   "agents.stayingOn": "Unabaki kwenye %1.",
   "agents.stayingOnUntil": "Unabaki kwenye %1. %2 itawekwa upya baada ya %3.",
-  "agents.switchedAllBody": "Vipindi vya %1 sasa vinatumia %2 (%3%), pamoja na vinavyoendelea.",
-  "agents.switchedBody": "Vipindi vipya vya %1 sasa vinatumia %2 (%3%).\nVipindi vinavyoendelea hubaki kwenye %4.",
   "agents.wrongAccount": "Hiyo ni %1, si %2. Jaribu tena, na uingie kama %2.",
   "animations.disabled": "Uhuishaji umezimwa",
   "animations.enabled": "Uhuishaji umewashwa",

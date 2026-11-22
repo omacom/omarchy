@@ -3809,7 +3809,7 @@ def cursor_token(auth_path: Path | None = None, state_db: Path | None = None) ->
 def registered_accounts(agent_id: str) -> list[dict[str, Any]]:
   """The accounts `omarchy agent account` registered for the agent, read
   straight from its registry, each marked `active` and carrying the
-  registry's `switch` settings. Only a registry holding a second account
+  registry's alert threshold as `switch`. Only a registry holding a second account
   matters: with one, the record is exactly what it always was."""
   state = Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state"))
   registry = read_json(state / "omarchy" / "agents" / "accounts" / f"{agent_id}.json")
@@ -3827,10 +3827,7 @@ def registered_accounts(agent_id: str) -> list[dict[str, Any]]:
     threshold = 95
   for account in accounts:
     account["active"] = account["id"] == active_id
-    account["switch"] = {
-      "mode": "auto" if registry.get("switch") == "auto" else "manual",
-      "threshold": threshold,
-    }
+    account["switch"] = {"threshold": threshold}
   return accounts
 
 

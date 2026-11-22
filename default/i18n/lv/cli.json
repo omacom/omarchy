@@ -48,8 +48,6 @@
   "agents.signedInAgain": "Atkārtota pierakstīšanās pakalpojumā %1 veiksmīga.",
   "agents.stayingOn": "Turpina izmantot %1.",
   "agents.stayingOnUntil": "Turpina izmantot %1. %2 atiestatās pēc %3.",
-  "agents.switchedAllBody": "%1 sesijas tagad izmanto %2 (%3%), ieskaitot aktīvās.",
-  "agents.switchedBody": "Jaunas %1 sesijas tagad izmanto %2 (%3%).\nAktīvās sesijas turpina izmantot %4.",
   "agents.wrongAccount": "Tas ir %1, nevis %2. Mēģiniet vēlreiz un pierakstieties kā %2.",
   "animations.disabled": "Animācijas izslēgtas",
   "animations.enabled": "Animācijas ieslēgtas",

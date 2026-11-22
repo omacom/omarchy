@@ -48,8 +48,6 @@
   "agents.signedInAgain": "Sessió iniciada de nou a %1.",
   "agents.stayingOn": "Es manté a %1.",
   "agents.stayingOnUntil": "Es manté a %1. %2 es restableix d'aquí a %3.",
-  "agents.switchedAllBody": "Les sessions de %1 ara fan servir %2 (%3%), incloses les en curs.",
-  "agents.switchedBody": "Les sessions noves de %1 ara fan servir %2 (%3%).\nLes sessions en curs es mantenen a %4.",
   "agents.wrongAccount": "És %1, no %2. Torna-ho a provar i inicia la sessió com a %2.",
   "animations.disabled": "Animacions desactivades",
   "animations.enabled": "Animacions activades",

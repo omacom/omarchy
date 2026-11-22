@@ -46,8 +46,6 @@
   "agents.signedInAgain": "Sudah masuk lagi ke %1.",
   "agents.stayingOn": "Tetap di %1.",
   "agents.stayingOnUntil": "Tetap di %1. %2 direset dalam %3.",
-  "agents.switchedAllBody": "Sesi %1 kini menggunakan %2 (%3%), termasuk yang sedang berjalan.",
-  "agents.switchedBody": "Sesi %1 baru kini menggunakan %2 (%3%).\nSesi yang berjalan tetap di %4.",
   "agents.wrongAccount": "Itu %1, bukan %2. Coba lagi, dan masuk sebagai %2.",
   "animations.disabled": "Animasi dinonaktifkan",
   "animations.enabled": "Animasi diaktifkan",

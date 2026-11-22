@@ -31,11 +31,7 @@ Every subscription on one page, limits first.
   `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
   lines. An _ACTIVE_ label marks the account sessions use (running Claude
   sessions included, new ones only for Codex and Grok); the
-  others get a _Use_ link. Hovering the line also reveals Autoswitch, which
-  moves sessions over on their own once the active account reaches its
-  threshold; while it's on it stands in for Use, which shows only when you're
-  on the line, and clicking it again goes back to notifying. Click a name to
-  rename the account in place.
+  others get a _Use_ link. Click a name to rename the account in place.
 - **Balance** — prepaid agents show a credit ledger instead of limits: a
   fuel-gauge meter that drains toward empty, the remaining credit, and
   funded-versus-spent detail.
@@ -104,7 +100,7 @@ Adding an agent needs no QML changes: ship a collector that follows the contract
 
 Every collector follows the same rules, so the same situation reads the same for every agent: a recent answer is reused for 15 seconds unless refresh is pressed, each credential or account keeps its own last good answer, a failed check keeps it with its age on hover and windows that have since reset back at zero, an endpoint that can't be reached is retried soon, and an agent the machine doesn't use stays out of the panel. Tokens are counted once, under the provider that bills them: pi, omp, and opencode sessions are split by provider into the matching collector. A pi compaction's usage counts, but omp records only the context's size before and after one, not what its summary request used, so omp's compactions are missing from the tokens. pi and omp sessions are read from every profile, and from `PI_CODING_AGENT_DIR`, `PI_CODING_AGENT_SESSION_DIR`, and a `settings.json` `sessionDir` as well as the defaults when set, a forked session's copied messages once; opencode is read from both its `message` and V2 `session_message` stores in the database `OPENCODE_DB` names, a message migrated into both once and a fork's copied history not at all. A machine with none of an agent's home, CLI, or usage prints an empty record the panel skips; one that has them but no sign-in says it is waiting for one. The sections below cover where each agent's sign-in and data come from.
 
-When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json` registers more than one account, the `claude`, `codex`, and `grok` records also carry `accounts: [{ id, label, email, plan, active, primary, limits, stale, fetchedAt, retryAdvised, usageStatusText, authHelpText }]`, each account probed with its own sign-in (each account caches its own last limits; Codex runs one app-server per account home), and `accountSwitch: { mode, threshold }`. The record's top-level `limits` and `tierLabel` keep describing the active account, and local stats stay one set, since every account shares the primary home's history. After each run, `omarchy-agent-usage-update` hands the fresh limits to `omarchy-agent-account-state autoswitch`, which notifies or switches when the active account crosses its threshold, and re-collects the record if the active account changed.
+When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json` registers more than one account, the `claude`, `codex`, and `grok` records also carry `accounts: [{ id, label, email, plan, active, primary, limits, stale, fetchedAt, retryAdvised, usageStatusText, authHelpText }]`, each account probed with its own sign-in (each account caches its own last limits; Codex runs one app-server per account home), and `accountSwitch: { threshold }`. The record's top-level `limits` and `tierLabel` keep describing the active account, and local stats stay one set, since every account shares the primary home's history. After each run, `omarchy-agent-usage-update` hands the fresh limits to `omarchy-agent-account-state alert`, which notifies when the active account crosses its threshold and offers the switch as the notification's click.
 
 ### Claude Code
 
@@ -290,7 +286,7 @@ It is the exact complement of the provider collectors: a provider id another col
   prepaid balance is down to its last 10%.
 - Panel: the arrows (or `h`/`j`/`k`/`l`) walk a cursor over everything that
   does something, row by row: the hero's buttons, each agent's header, each
-  switchable account (landing on Use, with Autoswitch to its left), and the
+  switchable account (landing on Use), and the
   starter tiles, or the agents to add. Ctrl+Up/Down (or Ctrl+`k`/`j`) moves the
   agent the cursor is in up or down the page; dragging an agent by its mark
   does the same, lighting the header it will land on. The order is kept in
@@ -298,10 +294,9 @@ It is the exact complement of the provider collectors: a provider id another col
   refreshes when nothing is lit; `r` refreshes, Tab moves to the neighboring
   bar panel, Esc closes.
 - Accounts: `1`–`9` jump to an account across every agent, and Enter makes it
-  active (picking alone never switches). `m` toggles automatic switching for
-  the picked account's agent. While an agent
-  with several accounts has its active one within 15 points of its switch
-  threshold (80% at the default), the limits refresh every three minutes.
+  active (picking alone never switches). While an agent with several accounts
+  has its active one within 15 points of its alert threshold (80% at the
+  default), the limits refresh every three minutes.
 - IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh>`.
 
 ## Settings

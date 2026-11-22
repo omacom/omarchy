@@ -47,8 +47,6 @@
   "agents.signedInAgain": "Skráð aftur inn á %1.",
   "agents.stayingOn": "Haldið áfram á %1.",
   "agents.stayingOnUntil": "Haldið áfram á %1. %2 endurstillist eftir %3.",
-  "agents.switchedAllBody": "%1-lotur nota nú %2 (%3%), þær í gangi líka.",
-  "agents.switchedBody": "Nýjar %1-lotur nota nú %2 (%3%).\nLotur í gangi halda áfram á %4.",
   "agents.wrongAccount": "Það er %1, ekki %2. Reyndu aftur og skráðu þig inn sem %2.",
   "animations.disabled": "Hreyfingar slökktar",
   "animations.enabled": "Hreyfingar virkjaðar",

@@ -48,8 +48,6 @@
   "agents.signedInAgain": "Dar kartą prisijungta prie %1.",
   "agents.stayingOn": "Lieka su %1.",
   "agents.stayingOnUntil": "Lieka su %1. %2 atsinaujins po %3.",
-  "agents.switchedAllBody": "%1 seansai dabar naudoja %2 (%3%), įskaitant veikiančius.",
-  "agents.switchedBody": "Nauji %1 seansai dabar naudoja %2 (%3%).\nVeikiantys seansai lieka su %4.",
   "agents.wrongAccount": "Tai %1, o ne %2. Bandykite dar kartą ir prisijunkite kaip %2.",
   "animations.disabled": "Animacijos išjungtos",
   "animations.enabled": "Animacijos įjungtos",

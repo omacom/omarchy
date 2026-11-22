@@ -1327,17 +1327,17 @@ registry.parent.mkdir(parents=True)
 registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}], "active": "main"}))
 check("a registry with one account adds nothing to the record", collectors.registered_accounts("demo") == [])
 check("no registry at all adds nothing either", collectors.registered_accounts("nothing") == [])
-registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}, {"id": "work", "label": "Work"}, {"label": "no id"}, "junk"], "active": "gone", "switch": "auto", "threshold": 80}))
+registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}, {"id": "work", "label": "Work"}, {"label": "no id"}, "junk"], "active": "gone", "threshold": 80}))
 accounts = collectors.registered_accounts("demo")
 check(
-  "registered accounts carry which is active (the first when the registry names none it has) and the switch settings",
-  [(a["id"], a["active"], a["switch"]) for a in accounts] == [("main", True, {"mode": "auto", "threshold": 80}), ("work", False, {"mode": "auto", "threshold": 80})],
+  "registered accounts carry which is active (the first when the registry names none it has) and the alert threshold",
+  [(a["id"], a["active"], a["switch"]) for a in accounts] == [("main", True, {"threshold": 80}), ("work", False, {"threshold": 80})],
   json.dumps(accounts),
 )
 for raw, held in ((20, 50), (180, 100), ("x", 95), (None, 95), (85.7, 85)):
   registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}, {"id": "work"}], "threshold": raw}))
   check(f"a registry threshold of {raw!r} reads as {held}, as account state holds it", collectors.registered_accounts("demo")[0]["switch"]["threshold"] == held)
-registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}, {"id": "work", "label": "Work"}], "active": "gone", "switch": "auto", "threshold": 80}))
+registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}, {"id": "work", "label": "Work"}], "active": "gone", "threshold": 80}))
 limits = {"limits": [{"label": "Weekly", "percent": 0.5, "resetsAt": ""}], "live": False, "fetchedAtMs": 5, "usageStatusText": "", "authHelpText": "help"}
 entry = collectors.account_entry(accounts[1], limits, "", resetCredits=None)
 check(
