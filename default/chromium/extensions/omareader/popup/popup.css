@@ -118,10 +118,6 @@ header { padding: 2px 2px 10px; }
 .modes button:focus-visible { outline: 1px dashed var(--accent); outline-offset: 1px; }
 .modes button:disabled { opacity: 0.4; cursor: default; }
 
-/* The palette as a terminal color test. */
-.swatches { display: flex; gap: 2px; margin-top: 10px; height: 8px; }
-.swatches i { flex: 1; }
-
 footer {
   margin: 10px -10px -10px;
   padding: 5px 10px;

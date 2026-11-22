@@ -17,15 +17,6 @@ function paint(palette) {
   root.setProperty('--ok', palette.green || palette.accent);
   root.setProperty('--fail', palette.red || palette.accent);
   document.documentElement.style.colorScheme = palette.mode;
-  const keys = ['bg', 'fg', 'accent', 'red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'magenta'];
-  $('swatches').replaceChildren(
-    ...keys.filter((k) => palette[k]).map((k) => {
-      const i = document.createElement('i');
-      i.style.background = palette[k];
-      i.title = k;
-      return i;
-    }),
-  );
 }
 
 async function save() {
@@ -50,7 +41,6 @@ async function render() {
   toggle.disabled = !hostname;
   toggle.setAttribute('aria-checked', String(on));
   toggle.textContent = on ? 'on' : 'off';
-  $('swatches').hidden = mode === 'normal';
 
   if (mode === 'dark') paint(DARK);
   else if (st.active) paint(st.active.palette);
