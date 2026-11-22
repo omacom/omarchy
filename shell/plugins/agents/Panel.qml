@@ -398,34 +398,77 @@ Panel {
   // download, so choosing it hands over there.
   readonly property var localModelsService: bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.local-models") : null
 
-  // What the local block offers: a paired machine's coding model that's
-  // running now, ready at once, then the best one for this computer.
+  // What the local block offers: each coding model running now, here or on a
+  // paired machine, ready at once, then the best one for this computer. One
+  // already added has its line in the panel instead.
   readonly property var ownModelOffers: {
     var offers = []
     var lines = localModelLines
     for (var i = 0; i < lines.length; i++)
-      if (lines[i].localModel.host !== "")
+      if (!usage.localModelAdded(lines[i]))
         offers.push({ target: lines[i].localModel.target, name: lines[i].providerName, vendor: lines[i].iconId,
                       host: lines[i].localModel.host, facts: lines[i].localModel, ready: true })
     var recipes = localModelsService ? localModelsService.localRecipes || [] : []
     var recipe = recipes.find(function(r) { return r.kind === "text" && r.best && r.available })
-    if (recipe)
+    var running = lines.some(function(line) { return recipe && line.localModel.target === String(recipe.id) })
+    if (recipe && !running && (usage.addedLocalModels.indexOf(String(recipe.id)) < 0 || settingUpLocal === String(recipe.id)))
       offers.push({ target: String(recipe.id), name: recipe.name || String(recipe.id), vendor: recipe.vendor || "local",
                     host: "", facts: recipe, ready: recipe.installed === true, recipe: recipe })
     return offers
   }
 
-  // A model set up from here becomes the default once it's running, if
-  // nothing else was finished first.
-  property string pendingLocalDefault: ""
+  // A model set up from here keeps its row on the add screen, showing how
+  // the setup goes, until it runs. Then it becomes the default if nothing
+  // else was finished first, and the add screen steps back to the panel,
+  // where it now has its line.
+  property string settingUpLocal: ""
   onLocalModelLinesChanged: {
-    if (pendingLocalDefault === "") return
+    if (settingUpLocal === "") return
     for (var i = 0; i < localModelLines.length; i++) {
-      if (localModelLines[i].localModel.target !== pendingLocalDefault) continue
-      if (usage.defaultAgent === "") selectLocalDefault(pendingLocalDefault)
-      pendingLocalDefault = ""
+      if (localModelLines[i].localModel.target !== settingUpLocal) continue
+      if (usage.defaultAgent === "") selectLocalDefault(settingUpLocal)
+      settingUpLocal = ""
+      if (addStage === "pick") cancelAdd()
       return
     }
+  }
+
+  // Where that setup is: the model as the local models service has it
+  // (installing, then loading), or, before it lists it, the setup starting,
+  // waiting its turn, or failed.
+  readonly property var localSetup: {
+    if (settingUpLocal === "" || !localModelsService) return null
+    var model = ((localModelsService.localModel || {}).models || {})[settingUpLocal]
+    if (model) return model
+    return localModelsService.setupRows().find(function(row) { return row.recipe === settingUpLocal }) || null
+  }
+
+  // Its meter: what it's doing, how far along (by the download's bytes, or by
+  // time against what a load usually takes), and the download's speed.
+  readonly property var localSetupMeter: {
+    var model = localSetup
+    if (!model) return null
+    var install = model.install || {}
+    var elapsed = Math.max(0, (nowMs - Number(model.since_ms || nowMs)) / 1000)
+    var creep = function(expected) { return elapsed <= expected ? 0.9 * elapsed / expected : 0.9 + 0.08 * (1 - Math.exp(-(elapsed - expected) / expected)) }
+    if (model.unit === "installing" && install.phase === "failed")
+      return { title: String(model.error || "") || Commons.I18n.t("localModels.setupFailed"), value: -1, rate: "", failed: true }
+    if (model.unit === "installing" && install.phase === "dependencies")
+      return { title: Commons.I18n.t("localModels.installingMeter"), value: creep(30), rate: "" }
+    if (model.unit === "installing") {
+      var total = Number(install.total_bytes) || 0
+      return { title: Commons.I18n.t("localModels.downloadingMeter"), value: total > 0 ? (Number(install.done_bytes) || 0) / total : 0,
+               rate: downloadRate(Number(install.rate_bytes_s) || 0) }
+    }
+    return { title: Commons.I18n.t("localModels.loadingMeter"), value: creep(Number(model.expected_load_seconds) || 60), rate: "" }
+  }
+
+  // The setup's meter moves by the second, so the clock ticks while it shows.
+  Timer {
+    interval: 250
+    running: root.opened && root.addStage === "pick" && root.localSetupMeter !== null && !root.localSetupMeter.failed
+    repeat: true
+    onTriggered: root.nowMs = Date.now()
   }
 
   function selectLocalDefault(target) {
@@ -491,16 +534,17 @@ Panel {
 
   function chooseOwnModel(index) {
     var offer = ownModelOffers[index]
-    if (!offer) return
-    root.close()
+    // A setup underway goes on; one that failed is tried again.
+    if (!offer || (offer.target === settingUpLocal && !(localSetupMeter && localSetupMeter.failed))) return
+    usage.addLocalModel(offer.target)
     if (offer.ready) {
+      root.close()
       // Ready now, so it's the first one finished when nothing else is.
       if (usage.defaultAgent === "") selectLocalDefault(offer.target)
       Util.execArgv(["omarchy-agent", "--local-model", offer.target])
     } else {
-      if (usage.defaultAgent === "") pendingLocalDefault = offer.target
+      settingUpLocal = offer.target
       localModelsService.setUp(offer.recipe)
-      Util.execArgv(["omarchy-shell", "omarchy.local-models", "open"])
     }
   }
 
@@ -1525,6 +1569,7 @@ Panel {
     id: usage
     settings: root.settings
     localModelLines: root.localModelLines
+    localDefaultTarget: root.localDefaultTarget
   }
 
   Process {
@@ -2046,6 +2091,47 @@ Panel {
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
                 elide: Text.ElideRight
+              }
+
+              // The setup started here, as the local models panel would show
+              // it: installing, downloading, then loading.
+              Item {
+                readonly property var meter: ownModel.modelData.target === root.settingUpLocal ? root.localSetupMeter : null
+                visible: !!meter
+                width: parent.width
+                implicitHeight: visible ? Math.max(setupTitle.implicitHeight, setupRate.implicitHeight) + Style.space(6) : 0
+
+                Text {
+                  id: setupTitle
+                  width: parent.meter && parent.meter.failed ? parent.width : parent.width * 0.3
+                  anchors.bottom: parent.bottom
+                  textFormat: Text.PlainText
+                  text: parent.meter ? parent.meter.title : ""
+                  color: parent.meter && parent.meter.failed ? root.urgent : root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                }
+
+                Meter {
+                  visible: !!parent.meter && !parent.meter.failed
+                  anchors.left: setupTitle.right
+                  anchors.right: setupRate.left
+                  anchors.rightMargin: Style.space(20)
+                  anchors.verticalCenter: setupTitle.verticalCenter
+                  value: parent.meter ? parent.meter.value : 0
+                }
+
+                Text {
+                  id: setupRate
+                  anchors.right: parent.right
+                  anchors.verticalCenter: setupTitle.verticalCenter
+                  textFormat: Text.PlainText
+                  horizontalAlignment: Text.AlignRight
+                  text: parent.meter ? parent.meter.rate : ""
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                }
               }
             }
 
