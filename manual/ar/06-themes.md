@@ -1,12 +1,12 @@
 # السمات
 
-يأتي Omarchy مع اثنتين وعشرين سمة جميلة. يمكنك الاختيار بينها عبر _المظهر > السمة_ في قائمة Omarchy (`Super + Space`) أو الانتقال مباشرة إلى منتقي السمات باستخدام `Super + Ctrl + T`.
+يأتي Omarchy مع ثلاث وعشرين سمة جميلة. يمكنك الاختيار بينها عبر _المظهر > السمة_ في قائمة Omarchy (`Super + Space`) أو الانتقال مباشرة إلى منتقي السمات باستخدام `Super + Ctrl + T`.
 
-تُنسّق كل سمة سطح المكتب والطرفية وneovim وشاشة النشاط (btop) وChromium وواجهة Omarchy بالكامل: الشريط العلوي والقائمة والإشعارات وOSD وشاشة القفل. (بالنسبة إلى Obsidian، يجب عليك اختيار سمة Omarchy يدويًا عبر _المظهر > السمات_ داخل التطبيق).
+تُنسّق كل سمة سطح المكتب والطرفية وneovim وشاشة النشاط (btop) ومتصفحك (Chrome أو Chromium أو Edge أو Brave) وصدفة Omarchy بأكملها: الشريط العلوي والقائمة والإشعارات وOSD وشاشة القفل. (بالنسبة إلى Obsidian، يجب عليك اختيار سمة Omarchy يدويًا عبر _المظهر > السمات_ داخل التطبيق).
 
 تحتوي السمات على مجموعة من صور الخلفية يمكنك الاختيار بينها باستخدام `Super + Ctrl + W`.
 
-يمكنك العثور على مزيد من السمات على [صفحة السمات الإضافية](https://omarchy.org/themes/) أو حتى [صنع سمتك الخاصة](43-making-your-own-theme.md).
+يمكنك العثور على المزيد من السمات في [صفحة السمات الإضافية](https://omarchy.org/themes/) أو حتى [إنشاء سمتك الخاصة](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,21 +65,33 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
+
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
 ### أيقونات التطبيقات
 
-تُرسم الأيقونات في مشغّل التطبيقات والرصيف بألوان سمتك، لذا تتغير معها. وهي تأتي من مجموعة أيقونات تختارها بشكل منفصل عن السمة ضمن _المظهر > الأيقونات_، من معاينات لكل مجموعة، بالطريقة نفسها التي تختار بها سمة:
+تُرسم الأيقونات في مشغّل التطبيقات والرصيف بألوان سمتك، لذلك تتغير معها. وهي تأتي من مجموعة أيقونات تختارها بشكل منفصل عن السمة ضمن _المظهر > الأيقونات_، من معاينات لكل مجموعة، بالطريقة نفسها التي تختار بها سمة:
 
-- _Papercraft_ هي الافتراضية: كل ما يأتي مثبّتًا، مرسوم بأسلوب واحد. التطبيقات المعروفة بشعارها، مثل Chrome وHEY وYouTube، تحتفظ بشكلها وتكتسب ألوان السمة.
+- _Papercraft_ هي الافتراضية: كل ما يأتي مثبّتًا، مرسوم بأسلوب واحد. التطبيقات المعروفة بشعارها، مثل Chrome أو HEY أو YouTube، تحتفظ بشكلها وتكتسب ألوان السمة.
 - _Arcade_ ترسم التطبيقات نفسها كفن بكسل 8-bit، كما كانت ستفعل وحدة تحكّم ألعاب قديمة.
-- _Original_ تعرض كل تطبيق بالأيقونة التي منحه إياها صانعه.
+- _Original_ تُظهر كل تطبيق بالأيقونة التي أعطاه إياها صانعه.
 
-يمكنك تثبيت مجموعة أيقونات صنعها شخص آخر عبر _تثبيت > النمط > الأيقونات_ (أو `omarchy icons install <git url>`)، وإزالتها مجددًا ضمن _إزالة > الأيقونات_. يجلب _تحديث > أيقونات إضافية_ أحدث إصدار من المجموعات التي ثبّتها.
+يمكنك تثبيت مجموعة أيقونات صنعها شخص آخر عبر _تثبيت > النمط > الأيقونات_ (أو `omarchy icons install <git url>`)، وإزالتها مرة أخرى ضمن _إزالة > الأيقونات_. يجلب _تحديث > الأيقونات الإضافية_ أحدث إصدار من المجموعات التي ثبّتها.
 
-لصنع مجموعتك الخاصة، ضع أيقوناتك في `~/.config/omarchy/icons/<name>/`، ملفًا واحدًا لكل تطبيق، مسمّى تسمية سطر `Icon=` في ملف `.desktop` الخاص بالتطبيق. يُعرض الملف الذي ينتهي بـ `.svg` كما هو. أما الملف الذي ينتهي بـ `.svg.tpl` فيُرسم بألوان السمة: اكتب `{{ icon_main }}` أو `{{ icon_mark }}` أو `{{ icon_paper }}` أو `{{ icon_body }}` أو `{{ icon_edge }}` أو `{{ icon_ink }}` أو `{{ icon_shadow }}` حيث يوضع لون. المجموعة الافتراضية في `/usr/share/omarchy/icons/papercraft/` مكان جيد لتبدأ منه. أضف `preview.png` لعرض مجموعتك في المنتقي؛ وبدونه، يرسم Omarchy معاينة من أيقوناتك. لتغيير أيقونة واحدة من المجموعة الافتراضية، ضع نسختك في `~/.config/omarchy/icons/papercraft/`.
+لصنع مجموعتك الخاصة، ضع أيقوناتك في `~/.config/omarchy/icons/<name>/`، ملف واحد لكل تطبيق، مسمّى على اسم سطر `Icon=` في ملف `.desktop` الخاص بالتطبيق. يُعرض الملف الذي ينتهي بـ `.svg` كما هو. أما الملف الذي ينتهي بـ `.svg.tpl` فيُرسم بألوان السمة: اكتب `{{ icon_main }}` أو `{{ icon_mark }}` أو `{{ icon_paper }}` أو `{{ icon_body }}` أو `{{ icon_edge }}` أو `{{ icon_ink }}` أو `{{ icon_shadow }}` حيث يوضع اللون. المجموعة الافتراضية في `/usr/share/omarchy/icons/papercraft/` مكان جيد للبدء منه. أضف `preview.png` لعرض مجموعتك في المنتقي؛ وبدونه، يرسم Omarchy معاينة من أيقوناتك. لتغيير أيقونة واحدة من المجموعة الافتراضية، ضع نسختك في `~/.config/omarchy/icons/papercraft/`.
 
 ### تصاميم إلغاء القفل
 
-يمكن أن تحتوي السمات أيضًا على تصميم مخصص لإلغاء القفل، يُستخدم في عملية فك تشفير الإقلاع. يمكنك اختيار أحدها ضمن _المظهر > إلغاء القفل_. وهي تبدو هكذا:
+يمكن أن تحتوي السمات أيضًا على تصميم مخصّص لإلغاء القفل، يُستخدم لعملية فك تشفير الإقلاع. يمكنك اختيار أحدها ضمن _المظهر > إلغاء القفل_. تبدو هكذا:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -108,8 +120,14 @@ _Jade Horse_
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -128,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_
