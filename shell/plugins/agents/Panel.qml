@@ -171,7 +171,7 @@ Panel {
 
   // The first arrow only shows where the cursor is, as in the other panels.
   function moveKey(dx, dy) {
-    pointerLine = -1
+    pointerActive = false
     if (keyRows.length === 0) return
     if (!cursorActive) {
       keyRow = clamp(keyRow, 0, keyRows.length - 1)
@@ -850,21 +850,31 @@ Panel {
     pointAt(lineStop(i), i)
   }
 
-  // The line the mouse last moved onto, or -1 once the keys take over:
-  // whichever was used last engages a line, never both. The keyboard's
-  // cursor follows the mouse unseen, so the next arrow starts from there.
-  property int pointerLine: -1
-  function pointerMovedOnto(i) {
-    if (pointerLine === i) return
-    pointerLine = i
+  // Whichever moved last, the mouse or the keys, engages a line, never
+  // both. Only the pointer really moving counts: the keys reflow the panel
+  // under a parked one, which reads as hovering whatever lands beneath it.
+  property bool pointerActive: false
+  property point pointerSpot: Qt.point(-1, -1)
+  function pointerMoved(spot) {
+    if (spot.x === pointerSpot.x && spot.y === pointerSpot.y) return
+    pointerSpot = spot
+    if (pointerActive) return
+    pointerActive = true
+    cursorActive = false
+  }
+
+  // The keyboard's cursor follows the mouse unseen, so the next arrow
+  // starts from there.
+  function pointerOnLine(i) {
+    if (!pointerActive) return
     var row = keyRows[keyRow]
     if (!row || row[0].index !== i || row[0].kind === "providerSignin") pointAtProvider(i)
     cursorActive = false
   }
 
-  // A control under the mouse draws its own hover; the keyboard's cursor
-  // only moves there, out of sight, for the next arrow to start from.
+  // A control under the mouse draws its own hover.
   function hoverAt(kind, index) {
+    if (!pointerActive) return
     pointAt(kind, index)
     cursorActive = false
   }
@@ -1617,6 +1627,7 @@ Panel {
 
     content: PanelKeyCatcher {
       id: keyCatcher
+      HoverHandler { onPointChanged: if (hovered) root.pointerMoved(point.scenePosition) }
       property alias panelFlick: panelFlick
       property alias hero: hero
       property alias column: column
@@ -1670,7 +1681,7 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "r" || t === "R") root.refreshNow()
-        else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.providers.length) { root.pointerLine = -1; root.pointAtProvider(Number(t) - 1) }
+        else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.providers.length) { root.pointerActive = false; root.pointAtProvider(Number(t) - 1) }
       }
 
       Flickable {
@@ -2359,14 +2370,13 @@ Panel {
     spacing: Style.space(16)
     readonly property bool dragged: root.dragIndex === providerIndex
     // The pointer or the keyboard, whichever moved last, is on this agent.
-    readonly property bool engaged: root.pointerLine >= 0 ? root.pointerLine === providerIndex : root.providerIndexOfKey() === providerIndex
+    readonly property bool engaged: root.pointerActive ? sectionHover.hovered : root.providerIndexOfKey() === providerIndex
     readonly property bool makesOpen: root.makesOpenIndex === providerIndex
-    onEngagedChanged: if (!engaged && makesOpen) root.makesOpenIndex = -1
-    HoverHandler {
-      id: sectionHover
-      onPointChanged: if (hovered) root.pointerMovedOnto(section.providerIndex)
-      onHoveredChanged: if (!hovered && root.pointerLine === section.providerIndex) root.pointerLine = -1
+    onEngagedChanged: {
+      if (!engaged && makesOpen) root.makesOpenIndex = -1
+      if (engaged) root.pointerOnLine(providerIndex)
     }
+    HoverHandler { id: sectionHover }
     z: dragged ? 2 : 0
     opacity: dragged ? 0.9 : 1
     transform: Translate {
