@@ -200,7 +200,7 @@ Item {
   // asks for the password and installs Podman, waits on a line of its own.
   function setUp(recipe) {
     if (!recipe) return
-    var setup = { recipe: String(recipe.id), name: recipe.name || String(recipe.id), vendor: recipe.vendor || "", since_ms: Date.now(), installing: false }
+    var setup = { recipe: String(recipe.id), name: recipe.name || String(recipe.id), vendor: recipe.vendor || "", kind: recipe.kind || "text", since_ms: Date.now(), installing: false }
     if (!settingUp) {
       startSetup(setup)
     } else if (setup.recipe !== settingUp.recipe && !setupQueue.some(function(queued) { return queued.recipe === setup.recipe })) {
@@ -252,7 +252,7 @@ Item {
     var rows = []
     var row = function(setup, phase) {
       return {
-        recipe: setup.recipe, name: setup.name, vendor: setup.vendor, unit: "installing", fits: true,
+        recipe: setup.recipe, name: setup.name, vendor: setup.vendor, kind: setup.kind, unit: "installing", fits: true,
         since_ms: setup.since_ms, error: phase === "failed" ? setup.message : "", output: phase === "failed" ? setup.output : "",
         panelSetup: true, install: { phase: phase }
       }
