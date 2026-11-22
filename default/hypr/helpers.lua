@@ -10,6 +10,14 @@ end
 
 o.shell_quote = shell_quote
 
+-- Chromium-based browsers. Rule classes match the whole name, so their web apps
+-- (chrome-<host>_<path>-<profile>) aren't included.
+o.chromium_browsers = "((google-)?[cC]hrom(e|ium)|[bB]rave-browser|[mM]icrosoft-edge|Vivaldi-stable|helium)"
+
+-- Browsers, Obsidian and GNOME header-bar apps already draw their own controls.
+-- Web apps keep the titlebar because they have no tab strip to drag.
+o.self_framed_apps = "(" .. o.chromium_browsers .. "|org\\.gnome\\.(DiskUtility|Papers)|[oO]bsidian)"
+
 local function file_exists(path)
   local file = io.open(path, "r")
   if file then
