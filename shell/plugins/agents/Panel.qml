@@ -80,11 +80,13 @@ Panel {
     if (addButtonShown) rows.push([{ kind: "add", index: 0 }])
     if (picking) {
       var blocks = [addGroup("subscription"), addGroup("provider")]
+      // A block wraps at addColumns, and so do its rows.
       for (var b = 0; b < blocks.length; b++)
-        rows.push(blocks[b].map(function(choice) { return { kind: "choice", index: choice.providerId } }))
+        for (var c = 0; c < blocks[b].length; c += addColumns)
+          rows.push(blocks[b].slice(c, c + addColumns).map(function(choice) { return { kind: "choice", index: choice.providerId } }))
       for (var o = 0; o < ownModelOffers.length; o++) rows.push([{ kind: "ownModel", index: o }])
     } else if (addStage === "more") {
-      var more = addGroup("more").concat([{ providerId: otherInOpenCode }])
+      var more = moreChoices
       for (var r = 0; r < more.length; r++) rows.push([{ kind: "choice", index: more[r].providerId }])
     } else if (addStage === "running") {
       if (pasteLinkShown) rows.push([{ kind: "pasteCode", index: 0 }])
@@ -332,23 +334,32 @@ Panel {
     { providerId: "codex", providerName: "Codex", group: "subscription" },
     { providerId: "grok", providerName: "Grok", group: "subscription" },
     { providerId: "agy", providerName: "Gemini", group: "subscription" },
+    { providerId: "cursor", providerName: "Cursor", group: "subscription" },
+    { providerId: "muse", providerName: "Muse", group: "subscription", printsPage: true },
+    { providerId: "copilot", providerName: "Copilot", group: "subscription", limitsElsewhere: true },
+    { providerId: "more-subscriptions", providerName: Commons.I18n.t("agents.more"), group: "subscription", more: "moreSubscriptions" },
     { providerId: "fireworks", providerName: "Fireworks", group: "provider" },
     { providerId: "opencode", providerName: "OpenCode", group: "provider", printsPage: true },
     { providerId: "openrouter", providerName: "OpenRouter", group: "provider" },
-    { providerId: "more", providerName: Commons.I18n.t("agents.more"), group: "provider", more: true },
+    { providerId: "more-providers", providerName: Commons.I18n.t("agents.more"), group: "provider", more: "moreProviders" },
     // Behind More: providers whose usage Omarchy reads, so their keys can be
     // checked before they're saved in OpenCode.
-    { providerId: "deepseek", providerName: "DeepSeek", group: "more" },
-    { providerId: "minimax", providerName: "MiniMax", group: "more" },
-    { providerId: "synthetic", providerName: "Synthetic", group: "more" },
-    { providerId: "zai", providerName: "Z.ai", group: "more" },
-    { providerId: "copilot", providerName: "Copilot", limitsElsewhere: true },
-    { providerId: "cursor", providerName: "Cursor" },
-    { providerId: "muse", providerName: "Muse", printsPage: true }
+    // Monthly coding plans that sign in with a key, then DeepSeek, which
+    // charges per use.
+    { providerId: "minimax", providerName: "MiniMax", group: "moreSubscriptions" },
+    { providerId: "synthetic", providerName: "Synthetic", group: "moreSubscriptions" },
+    { providerId: "zai", providerName: "Z.ai", group: "moreSubscriptions" },
+    { providerId: "deepseek", providerName: "DeepSeek", group: "moreProviders" }
   ]
   readonly property int addColumns: 4
   // The More list's last row, which hands any other provider to OpenCode.
   readonly property string otherInOpenCode: "opencode-other"
+
+  // The More list a More tile opened: its group's providers, and for pay as
+  // you go, OpenCode's own sign-in for the rest.
+  property string addMore: ""
+  readonly property var moreChoices: addGroup(addMore).concat(addMore === "moreProviders"
+    ? [{ providerId: otherInOpenCode, providerName: Commons.I18n.t("agents.moreInOpenCode"), opencode: true }] : [])
 
   function addGroup(group) {
     return signInProviders.filter(function(p) { return p.group === group })
@@ -538,7 +549,9 @@ Panel {
   }
 
   function chooseAddProvider(id) {
-    if (id === "more") {
+    var tile = signInProviders.find(function(p) { return p.providerId === id })
+    if (tile && tile.more) {
+      addMore = tile.more
       addStage = "more"
       return
     }
@@ -1794,7 +1807,7 @@ Panel {
     id: choice
     property var entry: ({})
     readonly property string state: root.addChecks[entry.providerId] || ""
-    readonly property bool available: entry.more === true || state === "first" || state === "additional"
+    readonly property bool available: !!entry.more || state === "first" || state === "additional"
     readonly property bool hasCursor: root.hasKey("choice", entry.providerId)
     implicitHeight: choiceBody.implicitHeight + Style.space(16)
     onHasCursorChanged: if (hasCursor) root.revealItem(choice)
@@ -1806,7 +1819,7 @@ Panel {
 
       // The same square a mark fills, so More's name lines up with theirs.
       Item {
-        visible: choice.entry.more === true
+        visible: !!choice.entry.more
         anchors.horizontalCenter: parent.horizontalCenter
         width: Style.font.display * 1.6
         height: width
@@ -1824,7 +1837,7 @@ Panel {
       }
 
       ProviderIcon {
-        visible: choice.entry.more !== true
+        visible: !choice.entry.more
         anchors.horizontalCenter: parent.horizontalCenter
         provider: choice.entry
         size: Style.font.display * 1.6
@@ -2003,13 +2016,13 @@ Panel {
       spacing: Style.space(4)
 
       PanelSectionHeader {
-        text: Commons.I18n.t("agents.blockProviders")
+        text: root.addMore === "moreSubscriptions" ? Commons.I18n.t("agents.blockSubscriptions") : Commons.I18n.t("agents.blockProviders")
         foreground: root.foreground
         fontFamily: root.fontFamily
       }
 
       Repeater {
-        model: root.addStage === "more" ? root.addGroup("more").concat([{ providerId: root.otherInOpenCode, providerName: Commons.I18n.t("agents.moreInOpenCode"), opencode: true }]) : []
+        model: root.addStage === "more" ? root.moreChoices : []
 
         Item {
           id: moreRow
