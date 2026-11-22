@@ -36,7 +36,7 @@ Motion goes wrong in a frame or two, too fast to see at full speed: two texts sh
 
 Run the branch's shell, not the installed one. The running shell loads plugins from `$OMARCHY_PATH`, and its launcher relaunches it if killed, so stop it and start the worktree's through Hyprland. Put the worktree's `bin/` first on `PATH` too: the shell runs `omarchy-*` commands, and an installed copy older than the branch can misread a flag it doesn't know yet — an installed `omarchy-capture-screenrecording` without `--status` starts an interactive region capture every time the bar polls it, freezing the screen. This takes over the desktop, so tell whoever is at it first with `omarchy-notification-send` and wait a few seconds.
 
-Put their shell back with `omarchy-restart-shell` as soon as the check is done, before you turn to anything else, and never end a turn with the worktree's shell running. While it runs, `omarchy-shell` cannot reach the desktop, so theme switches and updates fail without a word, and the user cannot tell why. `omarchy-restart-shell` stops every Omarchy shell, the worktree's included, and starts the session's own. A check usually spans several tool calls, so a `trap` in one of them does not cover it; relaunching between edits is fine, but the restore is yours to run.
+Put their shell back with the worktree's `omarchy-restart-shell` as soon as the check is done, before you turn to anything else, and never end a turn with the worktree's shell running. While it runs, `omarchy-shell` cannot reach the desktop, so theme switches and updates fail without a word, and the user cannot tell why. `omarchy-restart-shell` stops every Omarchy shell, the worktree's included, and starts the session's own; an installed copy from before the checkout sweep leaves the worktree's shell running beside the new one. A check usually spans several tool calls, so a `trap` in one of them does not cover it; relaunching between edits is fine, but the restore is yours to run.
 
 ```bash
 WT=/path/to/worktree
@@ -48,7 +48,7 @@ hyprctl dispatch "hl.dsp.exec_cmd([[env OMARCHY_PATH=\"$WT\" PATH=\"$WT/bin:\$PA
 # wait for several answers in a row, a second apart.
 OMARCHY_PATH=$WT PATH=$WT/bin:$PATH omarchy-shell shell ping
 # ... record ...
-omarchy-restart-shell
+"$WT/bin/omarchy-restart-shell"
 ```
 
 Drive it without touching the mouse:
