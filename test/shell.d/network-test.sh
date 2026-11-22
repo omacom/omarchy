@@ -280,3 +280,33 @@ PATH="$tmpdir/bin:$PATH" HARD_BLOCKS=$'unblocked\nblocked' "$ROOT/bin/omarchy-re
 (( status == 1 )) && grep -q "still hardware-blocked" "$tmpdir/output" ||
   fail "Wi-Fi restart reports a remaining hardware block" "status=$status: $(cat "$tmpdir/output")"
 pass "Wi-Fi restart distinguishes unblocked and hardware-blocked radios"
+
+# Exercise the ownership guard without running the migration's privileged repairs.
+cat >"$tmpdir/bin/systemctl" <<'SH'
+#!/bin/bash
+exit "${NETWORK_TEST_NM_INACTIVE:-0}"
+SH
+cat >"$tmpdir/bin/ip" <<'SH'
+#!/bin/bash
+[[ $NETWORK_TEST_ROUTE == "none" ]] && exit 0
+printf 'default via 192.0.2.1 dev %s proto dhcp metric 600\n' "$NETWORK_TEST_ROUTE"
+SH
+cat >"$tmpdir/bin/nmcli" <<'SH'
+#!/bin/bash
+printf '%s\n' "$NETWORK_TEST_STATES"
+SH
+chmod +x "$tmpdir/bin/"*
+
+managed_default_route() {
+  local route=$1 states=$2 expected=$3 status=0
+  NETWORK_TEST_ROUTE=$route NETWORK_TEST_STATES=$states PATH="$tmpdir/bin:$PATH" \
+    "$ROOT/bin/omarchy-network-managed-default-route" || status=$?
+  (( status == expected )) || fail "default route $route with $states returns $expected" "status=$status"
+}
+
+managed_default_route wlan0 $'eth0:connected\nwlan0:unmanaged' 1
+managed_default_route none 'wlan0:connected' 1
+managed_default_route wlan0 $'wlan0:connected\nlo:unmanaged' 0
+managed_default_route wlan0 'wlan0:connected (externally)' 1
+NETWORK_TEST_NM_INACTIVE=1 managed_default_route wlan0 'wlan0:connected' 1
+pass "NetworkManager must manage the default-route device before networkd is stopped"

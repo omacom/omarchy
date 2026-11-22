@@ -41,25 +41,12 @@ networkd_units=(
   systemd-networkd-resolve-hook.socket
 )
 
-networkmanager_carries_default_route() {
-  local dev
-
-  systemctl is-active --quiet NetworkManager.service 2>/dev/null || return 1
-  command -v nmcli >/dev/null 2>&1 || return 1
-
-  dev=$(ip route show default 2>/dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "dev") { print $(i + 1); exit }}')
-  [[ -n $dev ]] || return 1
-
-  nmcli -t -f DEVICE,STATE device 2>/dev/null | grep -Fxq "$dev:connected"
-}
-
 if [[ ${OMARCHY_UPGRADE_TO_QUATTRO_LIVE:-0} == "1" ]]; then
   as_root systemctl enable NetworkManager.service >/dev/null 2>&1 || true
 
-  if networkmanager_carries_default_route; then
-    # NetworkManager itself has the default-route device connected (it may
-    # merely be running because a package pulled it in); only then is it safe
-    # to stop networkd now so the rest of the upgrade no longer has competing DHCP.
+  if omarchy-network-managed-default-route; then
+    # An active service alone does not mean NetworkManager owns the link.
+    # Stop networkd only after NetworkManager has connected the route device.
     for unit in "${networkd_units[@]}"; do
       as_root systemctl disable --now "$unit" >/dev/null 2>&1 || true
     done
