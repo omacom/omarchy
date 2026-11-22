@@ -256,7 +256,43 @@ Item {
   readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/order.json"
   property var providerOrder: []
 
-  readonly property var panelProviders: orderedProviders(subscribedProviders)
+  readonly property var panelProviders: orderedProviders(accountLines(subscribedProviders))
+
+  // The panel shows a line for each subscription account: an agent with
+  // several is split into one per account, carrying that account's limits,
+  // plan and sign-in, so each is ordered, dragged, starred and opened on its
+  // own.
+  function accountLines(list) {
+    var out = []
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i]
+      var accounts = p.accounts || []
+      if (accounts.length < 2) {
+        out.push(p)
+        continue
+      }
+      for (var j = 0; j < accounts.length; j++) {
+        var a = accounts[j]
+        out.push(Object.assign({}, p, {
+          lineId: p.providerId + "/" + a.id,
+          account: a,
+          accounts: [],
+          limits: a.limits || [],
+          limitsStale: a.stale === true,
+          limitsFetchedAt: Number(a.fetchedAt || 0),
+          tierLabel: String(a.plan || ""),
+          resetCredits: a.resetCredits || null,
+          usageStatusText: String(a.usageStatusText || ""),
+          authHelpText: String(a.authHelpText || "")
+        }))
+      }
+    }
+    return out
+  }
+
+  function lineId(p) {
+    return p.lineId || p.providerId
+  }
 
   // The panel lists agents in three groups, the ones its add screen offers:
   // a plan with limits, a prepaid balance or a bill by use, and the models
@@ -273,16 +309,19 @@ Item {
   function orderedProviders(list) {
     var order = providerOrder
     var rank = function(p) {
-      var i = order.indexOf(p.providerId)
+      var i = order.indexOf(lineId(p))
+      if (i < 0) i = order.indexOf(p.providerId)
       return i < 0 ? order.length : i
     }
     var group = function(p) { return providerGroups.indexOf(providerGroup(p)) }
-    return list.slice().sort(function(a, b) { return group(a) - group(b) || rank(a) - rank(b) })
+    var lines = list.map(function(p, at) { return { p: p, at: at } })
+    lines.sort(function(a, b) { return group(a.p) - group(b.p) || rank(a.p) - rank(b.p) || a.at - b.at })
+    return lines.map(function(line) { return line.p })
   }
 
   // Moves one agent to a position among the ones shown, and saves the result.
   function moveProvider(id, to) {
-    var ids = panelProviders.map(function(p) { return p.providerId })
+    var ids = panelProviders.map(lineId)
     var from = ids.indexOf(id)
     if (from < 0) return
     to = Math.max(0, Math.min(ids.length - 1, to))

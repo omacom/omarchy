@@ -110,7 +110,7 @@ JS
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const functions = ['providerGroup', 'orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+const functions = ['lineId', 'providerGroup', 'orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
 const providerGroups = ['subscription', 'payg', 'local']
 let providerOrder = ['codex', 'kimi', 'claude', 'hidden']
 let panelProviders = [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'kimi'}, {providerId: 'grok'}]
@@ -127,6 +127,14 @@ assertDeepEqual(JSON.parse(saved), ['grok', 'codex', 'kimi', 'claude', 'hidden']
 providerOrder = ['local', 'fireworks', 'claude']
 const grouped = orderedProviders([{providerId: 'claude'}, {providerId: 'local'}, {providerId: 'fireworks', spend: {}}, {providerId: 'codex'}])
 assertDeepEqual(grouped.map(p => p.providerId), ['claude', 'codex', 'fireworks', 'local'], 'agents are grouped as the add screen offers them')
+
+// Each account is a line of its own: its lines take the place saved for the
+// agent until one is moved, and then that line moves alone.
+providerOrder = ['codex', 'claude']
+panelProviders = orderedProviders([{providerId: 'claude', lineId: 'claude/main'}, {providerId: 'claude', lineId: 'claude/work'}, {providerId: 'codex'}])
+assertDeepEqual(panelProviders.map(lineId), ['codex', 'claude/main', 'claude/work'], 'account lines keep the place saved for their agent')
+moveProvider('claude/work', 0)
+assertDeepEqual(JSON.parse(saved).slice(0, 3), ['claude/work', 'codex', 'claude/main'], 'an account line moves on its own')
 JS
 
 # Exercise the panel's drag lifecycle with Elsewhen's real variable-height math.

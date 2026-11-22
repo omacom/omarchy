@@ -66,21 +66,6 @@ Panel {
   // panel keeps telling the truth while it sits open.
   property double nowMs: Date.now()
 
-  // Every account of every provider that has more than one, in page order.
-  // The keyboard picks one by its position; picking only looks, and Enter on
-  // a picked account is what moves new sessions to it.
-  readonly property var accountEntries: {
-    var out = []
-    for (var i = 0; i < providers.length; i++) {
-      var list = providerAccounts(providers[i])
-      if (list.length < 2) continue
-      for (var j = 0; j < list.length; j++) out.push({ provider: providers[i], account: list[j] })
-    }
-    return out
-  }
-  readonly property var pickedEntry: keyTarget && ["account", "accountLaunch", "signin"].indexOf(keyTarget.kind) >= 0
-    ? accountEntries[keyTarget.index] || null
-    : null
 
   // The keyboard walks everything on the page that does something, in
   // reading order, one row at a time: the hero's buttons, then each agent's
@@ -104,30 +89,15 @@ Panel {
       if (pasteLinkShown) rows.push([{ kind: "pasteCode", index: 0 }])
       if (addUrl !== "") rows.push([{ kind: "reopenSignIn", index: 0 }])
     } else if (addStage === "") {
-      // Accounts count in the same order as accountEntries. Only what can be
-      // done is a stop: one that doesn't hold the star offers it, a lapsed
-      // sign-in comes first, and the starred account with nothing to fix is
-      // skipped.
-      var entry = 0
       for (var p = 0; p < providers.length; p++) {
-        // Every agent's line is a stop, so Ctrl+Up/Down can move it: its
-        // terminal button when it has a harness of its own, else its mark.
-        var accounts = providerAccounts(providers[p])
-        if (accounts.length < 2) {
-          var line = [{ kind: lineStop(p), index: p }]
-          if (defaultIdFor(providers[p]) !== "" && !isDefault(providers[p]))
-            line.unshift({ kind: "providerStar", index: p })
-          rows.push(line)
-          if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
-          continue
-        }
-        for (var a = 0; a < accounts.length; a++, entry++) {
-          var row = []
-          if (needsSignIn(accounts[a])) row.push({ kind: "signin", index: entry })
-          if (!starred(providers[p], accounts[a])) row.push({ kind: "account", index: entry })
-          if (launches(providers[p])) row.push({ kind: "accountLaunch", index: entry })
-          if (row.length > 0) rows.push(row)
-        }
+        // Every line is a stop, so Ctrl+Up/Down can move it: its terminal
+        // button when it has a harness of its own, else its mark. One that
+        // doesn't hold the star offers it, and a lapsed sign-in follows.
+        var line = [{ kind: lineStop(p), index: p }]
+        if (defaultIdFor(providers[p]) !== "" && !starred(providers[p], providers[p].account || null))
+          line.unshift({ kind: "providerStar", index: p })
+        rows.push(line)
+        if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
       }
       if (starterShown) {
         for (var j = 0; j < starterPrompts.length; j += starterColumns) {
@@ -189,8 +159,8 @@ Panel {
       var row = keyRows[keyRow]
       var launch = -1
       for (var c = 0; c < row.length; c++)
-        if (row[c].kind === "providerLaunch" || row[c].kind === "accountLaunch") launch = c
-      var line = ["provider", "providerStar", "account"].indexOf(row[0].kind) >= 0
+        if (row[c].kind === "providerLaunch") launch = c
+      var line = ["provider", "providerStar"].indexOf(row[0].kind) >= 0
       keyColumn = launch >= 0 ? launch : line ? row.length - 1 : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
       // A row can go while the cursor is on it, like the starters when the
@@ -205,9 +175,7 @@ Panel {
     var target = keyTarget
     if (!target) return -1
     if (["provider", "providerSignin", "providerLaunch", "providerStar"].indexOf(target.kind) >= 0) return target.index
-    if (["account", "accountLaunch", "signin"].indexOf(target.kind) < 0) return -1
-    var entry = accountEntries[target.index]
-    return entry ? providers.indexOf(entry.provider) : -1
+    return -1
   }
 
   // Ctrl+Up/Down carries the agent the cursor is in up or down the page, and
@@ -218,7 +186,7 @@ Panel {
     if (from < 0) return
     var to = clamp(from + dy, 0, providers.length - 1)
     if (to === from) return
-    usage.moveProvider(providers[from].providerId, to)
+    usage.moveProvider(usage.lineId(providers[from]), to)
     Qt.callLater(function() { pointAtProvider(to) })
   }
 
@@ -241,7 +209,7 @@ Panel {
     rowPitches = pitches
     // Keep the same model object so grabbing does not rebuild the delegates.
     dragProviders = providers
-    dragProviderId = providers[index].providerId
+    dragProviderId = usage.lineId(providers[index])
     dragPressY = y
     dragOffset = 0
     dragTarget = index
@@ -334,9 +302,6 @@ Panel {
   // A provider's accounts, when it has any. The list arrives as a sequence
   // rather than a JS array once it has passed through a model, so it's
   // judged by its length.
-  function providerAccounts(p) {
-    return p && p.accounts && p.accounts.length > 0 ? p.accounts : []
-  }
 
   function refreshNow() {
     usage.refreshAll(true)
@@ -660,6 +625,17 @@ Panel {
     Util.execArgv(["omarchy-agent-account-rename", p.providerId, String(account.id), label])
   }
 
+  // A line's name: the agent's, and its account's when it's one of several.
+  function lineName(line) {
+    if (!line) return ""
+    return line.account ? line.providerName + " " + String(line.account.label || line.account.id || "") : line.providerName
+  }
+
+  function launchLine(line) {
+    if (line && line.account) launchAccount(line, line.account)
+    else launchHarness(line)
+  }
+
   function launchAccount(p, account) {
     if (!launches(p)) return
     if (!account || account.active) {
@@ -684,33 +660,15 @@ Panel {
     else if (target.kind === "ownModel") chooseOwnModel()
     else if (target.kind === "pasteCode") openPasteField()
     else if (target.kind === "reopenSignIn") reopenSignIn()
-    else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
-    else if (target.kind === "providerStar") makeDefault(providers[target.index], null)
+    else if (target.kind === "providerLaunch") launchLine(providers[target.index])
+    else if (target.kind === "providerStar") makeDefault(providers[target.index], providers[target.index].account || null)
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind)
-    else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
-    else if (target.kind === "signin") signInAgain(pickedEntry.provider, pickedEntry.account)
-    else if (target.kind === "accountLaunch") launchAccount(pickedEntry.provider, pickedEntry.account)
-    else if (pickedEntry && !starred(pickedEntry.provider, pickedEntry.account)) makeDefault(pickedEntry.provider, pickedEntry.account)
+    else if (target.kind === "providerSignin") signInAgain(providers[target.index], providers[target.index].account || null)
   }
 
-  // The cursor's place on an agent: its line, or with several accounts the
-  // first of them.
+  // The cursor's place on a line: its terminal button, or its mark.
   function pointAtProvider(i) {
-    if (providerAccounts(providers[i]).length < 2) {
-      pointAt(lineStop(i), i)
-      return
-    }
-    for (var e = 0; e < accountEntries.length; e++) {
-      if (accountEntries[e].provider.providerId === providers[i].providerId) {
-        pointAt(launches(providers[i]) ? "accountLaunch" : "account", e)
-        return
-      }
-    }
-  }
-
-  function isPicked(p, account) {
-    return !!pickedEntry && !!p && !!account
-      && pickedEntry.provider.providerId === p.providerId && pickedEntry.account.id === account.id
+    pointAt(lineStop(i), i)
   }
 
   // Hands the keyboard back to the panel after an inline edit.
@@ -1485,7 +1443,7 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "r" || t === "R") root.refreshNow()
-        else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.accountEntries.length) root.pointAt("account", Number(t) - 1)
+        else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.providers.length) root.pointAtProvider(Number(t) - 1)
       }
 
       Flickable {
@@ -2032,8 +1990,31 @@ Panel {
     id: section
     property var provider: null
     property int providerIndex: -1
-    readonly property var accounts: root.providerAccounts(provider)
-    readonly property bool multi: accounts.length > 1
+    // An account's line: its account, renamed in place by clicking its name.
+    readonly property var account: provider ? (provider.account || null) : null
+    property bool editingName: false
+    property string renamedTo: ""
+    readonly property string accountLabel: renamedTo !== "" ? renamedTo : account ? String(account.label || account.id || "") : ""
+    onAccountChanged: renamedTo = ""
+    onEditingNameChanged: root.renaming = editingName
+
+    function startRename() {
+      editingName = true
+      nameField.text = accountLabel
+      nameField.forceActiveFocus()
+      nameField.selectAll()
+    }
+
+    function finishRename(save) {
+      if (!editingName) return
+      var value = nameField.text.trim()
+      editingName = false
+      root.focusKeys()
+      if (save && value !== "" && value !== accountLabel) {
+        renamedTo = value
+        root.renameAccount(provider, account, value)
+      }
+    }
     readonly property var windows: root.displayWindows(provider)
     readonly property var balance: provider ? (provider.balance || null) : null
     readonly property var spend: provider ? (provider.spend || null) : null
@@ -2071,10 +2052,8 @@ Panel {
       fontFamily: root.fontFamily
     }
 
-    // With several accounts each is a line of its own, so the agent has none.
     Item {
       id: sectionHead
-      visible: !section.multi
       width: parent.width
       implicitHeight: Math.max(sectionMark.height, sectionName.implicitHeight)
       // Lit for the keyboard, and as the drop spot while an agent is dragged.
@@ -2127,15 +2106,67 @@ Panel {
         font.bold: true
       }
 
-      // The plan reads as part of the name: Claude Max 20x.
+      // An account's name reads like its plan, before it: Claude Work · Max 20x.
       Text {
-        id: sectionPlan
+        id: sectionAccount
         anchors.left: sectionName.right
         anchors.leftMargin: Style.space(8)
         anchors.baseline: sectionName.baseline
-        visible: !section.multi && text !== ""
+        visible: !!section.account && !section.editingName
         textFormat: Text.PlainText
-        text: root.planLabel(section.provider)
+        text: section.accountLabel
+        color: sectionHead.lit ? Commons.Color.accent : root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.underline: accountNameMouse.containsMouse
+
+        MouseArea {
+          id: accountNameMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.IBeamCursor
+          onClicked: section.startRename()
+        }
+
+        PanelToolTip {
+          visible: accountNameMouse.containsMouse && !!section.account && String(section.account.email || "") !== ""
+          text: section.account ? String(section.account.email || "") : ""
+        }
+      }
+
+      TextField {
+        id: nameField
+        visible: section.editingName
+        anchors.left: sectionName.right
+        anchors.leftMargin: Style.space(8)
+        anchors.right: sectionStar.left
+        anchors.rightMargin: Style.space(8)
+        anchors.verticalCenter: sectionName.verticalCenter
+        foreground: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+        horizontalPadding: Style.space(4)
+        verticalPadding: Style.space(1)
+        onAccepted: section.finishRename(true)
+        onActiveFocusChanged: if (!activeFocus) section.finishRename(false)
+        Keys.onEscapePressed: function(event) {
+          section.finishRename(false)
+          event.accepted = true
+        }
+      }
+
+      // The plan reads as part of the name: Claude Max 20x.
+      Text {
+        id: sectionPlan
+        anchors.left: sectionAccount.visible ? sectionAccount.right : sectionName.right
+        anchors.leftMargin: Style.space(8)
+        anchors.baseline: sectionName.baseline
+        visible: !section.editingName && text !== ""
+        textFormat: Text.PlainText
+        text: {
+          var plan = root.planLabel(section.provider)
+          return plan !== "" && section.account ? "· " + plan : plan
+        }
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -2145,31 +2176,32 @@ Panel {
         anchors.left: sectionPlan.visible ? sectionPlan.right : sectionName.right
         anchors.leftMargin: Style.space(8)
         anchors.verticalCenter: sectionName.verticalCenter
-        visible: !section.multi && message !== ""
+        visible: !section.editingName && message !== ""
         record: section.provider
       }
 
-      // The default agent's star is filled; any other's makes it the default.
-      // With several accounts each one carries its own.
+      // The default's star is filled: the default agent, and with several
+      // accounts the one in use. Another line's makes it the default.
       PanelActionButton {
         id: sectionStar
         anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
         anchors.rightMargin: sectionLaunch.visible ? Style.space(6) : 0
         anchors.verticalCenter: parent.verticalCenter
-        visible: !section.multi && root.defaultIdFor(section.provider) !== ""
+        visible: root.defaultIdFor(section.provider) !== ""
+        readonly property bool on: root.starred(section.provider, section.account)
         // Only the default's star stays; another shows when it's engaged. It
         // keeps its place either way, so the terminal button doesn't move.
-        readonly property bool shown: root.isDefault(section.provider) || section.engaged
+        readonly property bool shown: on || section.engaged
         opacity: shown ? 1 : 0
         enabled: shown
-        iconText: root.isDefault(section.provider) ? "󰓎" : "󰓒"
-        tooltipText: root.isDefault(section.provider)
+        iconText: on ? "󰓎" : "󰓒"
+        tooltipText: on
           ? Commons.I18n.t("agents.isDefault")
-          : Commons.I18n.t("agents.makeDefault").arg(section.provider ? section.provider.providerName : "")
-        foreground: root.isDefault(section.provider) ? Commons.Color.accent : root.foreground
+          : Commons.I18n.t("agents.makeDefault").arg(root.lineName(section.provider))
+        foreground: on ? Commons.Color.accent : root.foreground
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("providerStar", section.providerIndex)
-        onClicked: root.makeDefault(section.provider, null)
+        onClicked: root.makeDefault(section.provider, section.account)
       }
 
       // Opens the coding agent made for this subscription: Codex for OpenAI,
@@ -2180,33 +2212,32 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         visible: root.launches(section.provider)
         iconText: "󰞷"
-        tooltipText: Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
+        tooltipText: Commons.I18n.t("agents.launchHarness").arg(root.lineName(section.provider))
         foreground: root.foreground
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("providerLaunch", section.providerIndex)
-        onClicked: root.launchHarness(section.provider)
+        onClicked: root.launchLine(section.provider)
       }
     }
 
-    // A sign-in to redo for a single-account provider; with several, each
-    // account says so on its own line.
+    // A sign-in to redo, for the line's account when it's one of several.
     TextLink {
-      visible: !section.multi && root.needsSignIn(section.provider)
+      visible: root.needsSignIn(section.provider)
       picked: root.hasKey("providerSignin", section.providerIndex)
       text: Commons.I18n.t("agents.signInRequired")
       idleColor: root.urgent
       tooltip: Commons.I18n.t("agents.signInAgainProvider").arg(section.provider ? section.provider.providerName : "")
-      onClicked: root.signInAgain(section.provider, null)
+      onClicked: root.signInAgain(section.provider, section.account)
     }
 
 
     Column {
-      visible: !section.multi && section.windows.length > 0
+      visible: section.windows.length > 0
       width: parent.width
       spacing: Style.space(12)
 
       Repeater {
-        model: section.multi ? [] : section.windows
+        model: section.windows
 
         CompactLimit {
           required property var modelData
@@ -2374,52 +2405,6 @@ Panel {
       }
     }
 
-    Repeater {
-      model: section.multi ? section.accounts : []
-
-      Column {
-        id: accountBlock
-        required property var modelData
-        required property int index
-        width: section.width
-        spacing: Style.space(16)
-
-        // A line between accounts, as between agents; the first sits under
-        // the agent's own.
-        PanelSeparator {
-          visible: accountBlock.index > 0
-          foreground: root.foreground
-        }
-
-        HoverHandler { id: accountHover }
-
-        AccountHeader {
-          width: parent.width
-          account: accountBlock.modelData
-          owner: section.provider
-          providerIndex: section.providerIndex
-          hovered: accountHover.hovered
-          picked: root.isPicked(section.provider, accountBlock.modelData)
-        }
-
-        Column {
-          width: parent.width
-          spacing: Style.space(12)
-
-          Repeater {
-            model: root.displayWindows({ limits: accountBlock.modelData.limits || [] })
-
-            CompactLimit {
-              required property var modelData
-              width: accountBlock.width
-              window: modelData
-              stale: accountBlock.modelData.stale === true
-              fetchedAt: Number(accountBlock.modelData.fetchedAt || 0)
-            }
-          }
-        }
-      }
-    }
   }
 
   // A provider's mark, falling back to the bar glyph when it ships none.
@@ -2550,235 +2535,6 @@ Panel {
   // An account's name, email and plan, with ACTIVE or a Use link on the
   // right. Clicking the name edits it in place: Enter renames, Esc or
   // clicking away leaves it as it was.
-  component AccountHeader: Item {
-    id: head
-    property var account: ({})
-    property var owner: null
-    property int providerIndex: -1
-    property bool hovered: false
-    property bool picked: false
-    property bool editing: false
-    // The new name shows at once; the record catches up a moment later.
-    property string renamedTo: ""
-    readonly property bool isActive: account.active === true
-    // Which of the row's links the keyboard is on, when it's on this row.
-    readonly property string pickedKind: picked && root.keyTarget ? root.keyTarget.kind : ""
-    readonly property string label: renamedTo !== "" ? renamedTo : String(account.label || account.id || "")
-
-    onAccountChanged: renamedTo = ""
-    onEditingChanged: root.renaming = editing
-    onPickedChanged: if (picked) root.revealItem(head)
-
-    implicitHeight: Math.max(accountMark.height, headText.implicitHeight, headAction.implicitHeight)
-
-    // The agent's mark, which drags the whole agent, its accounts together.
-    ProviderIcon {
-      id: accountMark
-      anchors.left: parent.left
-      anchors.verticalCenter: parent.verticalCenter
-      provider: head.owner
-
-      MouseArea {
-        anchors.fill: parent
-        anchors.margins: -Style.space(4)
-        hoverEnabled: true
-        preventStealing: true
-        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-        onPressed: function(mouse) {
-          root.beginProviderDrag(head.providerIndex, mapToItem(root.column, mouse.x, mouse.y).y)
-        }
-        onPositionChanged: function(mouse) {
-          if (pressed) root.dragProviderOver(mapToItem(root.column, mouse.x, mouse.y).y)
-        }
-        onReleased: root.dropProvider()
-        onCanceled: root.settleProviderDrag(true)
-      }
-    }
-
-    function startRename() {
-      editing = true
-      nameField.text = label
-      nameField.forceActiveFocus()
-      nameField.selectAll()
-    }
-
-    function finishRename(save) {
-      if (!editing) return
-      var value = nameField.text.trim()
-      editing = false
-      root.focusKeys()
-      if (save && value !== "" && value !== label) {
-        renamedTo = value
-        root.renameAccount(owner, account, value)
-      }
-    }
-
-    // One line: the name, then its plan and any caveats, quieter. The
-    // email is the name's tooltip.
-    Item {
-      id: headText
-      anchors.left: accountMark.right
-      anchors.leftMargin: Style.space(10)
-      anchors.verticalCenter: parent.verticalCenter
-      anchors.right: headAction.left
-      anchors.rightMargin: Style.spacing.sm
-      implicitHeight: head.editing ? nameField.implicitHeight : nameText.implicitHeight
-
-      Text {
-        id: ownerText
-        textFormat: Text.PlainText
-        visible: !head.editing
-        anchors.left: parent.left
-        anchors.verticalCenter: parent.verticalCenter
-        text: head.owner ? head.owner.providerName : ""
-        color: head.picked ? Commons.Color.accent : root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.body
-        font.bold: true
-      }
-
-      Text {
-        id: nameText
-        textFormat: Text.PlainText
-        visible: !head.editing
-        anchors.left: ownerText.right
-        anchors.leftMargin: Style.space(8)
-        anchors.baseline: ownerText.baseline
-        width: Math.min(implicitWidth, parent.width * 0.6 - ownerText.width - Style.space(8))
-        text: head.label
-        color: head.picked ? Commons.Color.accent : root.dim
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        font.underline: nameMouse.containsMouse
-        elide: Text.ElideRight
-
-        MouseArea {
-          id: nameMouse
-          anchors.fill: parent
-          hoverEnabled: true
-          cursorShape: Qt.IBeamCursor
-          onClicked: head.startRename()
-        }
-
-        PanelToolTip {
-          visible: nameMouse.containsMouse && String(head.account.email || "") !== ""
-          text: String(head.account.email || "")
-        }
-      }
-
-      // Bounded by the actions on the right: the plan shortens first, and the
-      // Sign-in required link keeps its whole width.
-      Row {
-        id: detailRow
-        visible: !head.editing
-        anchors.left: nameText.right
-        anchors.leftMargin: Style.space(8)
-        anchors.verticalCenter: nameText.verticalCenter
-        width: Math.max(0, parent.width - ownerText.width - nameText.width - Style.space(16))
-        spacing: Style.space(8)
-
-        Text {
-          textFormat: Text.PlainText
-          visible: text !== ""
-          width: Math.max(0, Math.min(implicitWidth, detailRow.width
-            - (accountNote.visible ? accountNote.implicitWidth + detailRow.spacing : 0)
-            - (signInDot.visible ? signInDot.implicitWidth + detailRow.spacing : 0)
-            - (signInLink.visible ? signInLink.implicitWidth + detailRow.spacing : 0)))
-          elide: Text.ElideRight
-          text: {
-            var detail = root.accountDetail(head.account)
-            return detail !== "" ? "· " + detail : ""
-          }
-          color: root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-        }
-
-        UsageNote {
-          id: accountNote
-          record: head.account
-        }
-
-        // The dot is punctuation, not part of the link.
-        Text {
-          id: signInDot
-          visible: root.needsSignIn(head.account)
-          text: "·"
-          color: root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-        }
-
-        TextLink {
-          id: signInLink
-          visible: root.needsSignIn(head.account)
-          picked: head.pickedKind === "signin"
-          text: Commons.I18n.t("agents.signInRequired")
-          idleColor: root.urgent
-          tooltip: Commons.I18n.t("agents.signInAgainAccount")
-          onClicked: root.signInAgain(head.owner, head.account)
-        }
-      }
-
-      TextField {
-        id: nameField
-        visible: head.editing
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        foreground: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.body
-        horizontalPadding: Style.space(4)
-        verticalPadding: Style.space(1)
-        onAccepted: head.finishRename(true)
-        onActiveFocusChanged: if (!activeFocus) head.finishRename(false)
-        Keys.onEscapePressed: function(event) {
-          head.finishRename(false)
-          event.accepted = true
-        }
-      }
-    }
-
-    Item {
-      id: headAction
-      anchors.right: parent.right
-      anchors.verticalCenter: parent.verticalCenter
-      implicitWidth: accountStar.implicitWidth + (accountLaunch.visible ? accountLaunch.implicitWidth + Style.space(6) : 0)
-      implicitHeight: accountStar.implicitHeight
-
-      PanelActionButton {
-        id: accountStar
-        anchors.right: accountLaunch.visible ? accountLaunch.left : parent.right
-        anchors.rightMargin: accountLaunch.visible ? Style.space(6) : 0
-        readonly property bool on: root.starred(head.owner, head.account)
-        readonly property bool shown: on || head.hovered || head.picked
-        opacity: shown ? 1 : 0
-        enabled: shown
-        iconText: on ? "󰓎" : "󰓒"
-        tooltipText: on
-          ? Commons.I18n.t("agents.isDefault")
-          : Commons.I18n.t("agents.makeDefault").arg(head.label)
-        foreground: on ? Commons.Color.accent : root.foreground
-        fontFamily: root.fontFamily
-        hasCursor: head.pickedKind === "account"
-        onClicked: root.makeDefault(head.owner, head.account)
-      }
-
-      PanelActionButton {
-        id: accountLaunch
-        anchors.right: parent.right
-        visible: root.launches(head.owner)
-        iconText: "󰞷"
-        tooltipText: Commons.I18n.t("agents.launchHarness").arg(head.owner ? head.owner.providerName + " · " + head.label : "")
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        hasCursor: head.pickedKind === "accountLaunch"
-        onClicked: root.launchAccount(head.owner, head.account)
-      }
-    }
-  }
-
   // A mark beside the name when the numbers aren't current, with why and
   // what to do on hover.
   component UsageNote: Text {
