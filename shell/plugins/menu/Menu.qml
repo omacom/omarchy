@@ -587,11 +587,24 @@ Item {
     return MenuModel.isDisabled(root.disabledResults, entry)
   }
 
+  // Search reaches rows inside submenus that browsing would not show, so a
+  // row's own visibility is not enough: a submenu a `when:` guard hides still
+  // hides everything under it, including provider rows the guard never
+  // touches (provider rows carry no guard of their own, and a provider-backed
+  // menu itself stays visible). A row is searchable only when every ancestor
+  // above it is visible too.
+  function isReachable(entry) {
+    for (var e = entry; e && e.id && e.id !== "root"; e = root.item(e.parent)) {
+      if (!root.isVisible(e)) return false
+    }
+    return true
+  }
+
   // A disabled row earns its place in the submenu it belongs to, where the
   // list around it is the point. Search is a list of what you can do, so it
   // leaves them out.
   function matchesQuery(entry, query) {
-    return MenuModel.matchesQuery(entry, query, root.isVisible(entry) && !root.isDisabled(entry))
+    return MenuModel.matchesQuery(entry, query, root.isReachable(entry) && !root.isDisabled(entry))
   }
 
   function searchScore(entry, query) {

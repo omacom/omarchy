@@ -443,3 +443,55 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
+
+# Search reaches rows inside submenus that browsing would not show, so a row's
+# own visibility is not enough: provider rows carry no `when:` of their own,
+# and a provider-backed submenu stays visible even when a guard hides it. The
+# linux-omarchy row leaked into results under Update › Kernel while the Kernel
+# submenu itself was hidden, and selecting it ran the command anyway.
+run_node_test <<'JS'
+const fs = require('fs')
+const menuModel = requireFromRoot('shell/plugins/menu/MenuModel.js')
+const qml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
+
+function extractFunction(name) {
+  const start = qml.indexOf('function ' + name + '(')
+  if (start < 0) return null
+  const end = qml.indexOf('\n  }', start)
+  return qml.slice(start, end + 4)
+}
+
+const matchesQueryText = extractFunction('matchesQuery')
+assert(matchesQueryText, 'menu keeps the search row filter in Menu.qml')
+const isReachableText = extractFunction('isReachable')
+if (!isReachableText) fail('menu search checks every ancestor above a row (no isReachable in Menu.qml)')
+
+const searchItems = {}
+const entry = (id, props) => { searchItems[id] = menuModel.normalizeItem(id, props) }
+entry('root', { label: 'Go' })
+entry('update', { label: 'Update' })
+entry('update.kernel', { label: 'Kernel', provider: 'omarchy-kernel list', when: 'multi-kernel' })
+entry('update.kernel.linux-omarchy', { label: 'linux-omarchy', action: 'omarchy-kernel set linux-omarchy' })
+entry('update.mirrors', { label: 'Refresh mirrors', action: 'omarchy-update-mirrors' })
+const searchOrder = Object.keys(searchItems)
+
+// The provider row shape swapProviderRows stores: no guard of its own, and
+// isVisible keeps a provider-backed submenu visible even when its when: ran
+// false — so only an ancestor walk can keep the row out.
+function makeMenu(whenResults) {
+  const scope = {
+    item: id => menuModel.item(searchItems, id),
+    isVisible: e => menuModel.isVisible(searchItems, searchOrder, whenResults, e),
+    isDisabled: e => menuModel.isDisabled({}, e)
+  }
+  scope.isReachable = new Function('root', 'MenuModel', 'return (' + isReachableText + ')')(scope, menuModel)
+  scope.matchesQuery = new Function('root', 'MenuModel', 'return (' + matchesQueryText + ')')(scope, menuModel)
+  return scope
+}
+
+const hiddenKernel = makeMenu({ 'update.kernel': false })
+assert(!hiddenKernel.isReachable(searchItems['update.kernel.linux-omarchy']), 'menu search marks a row under a hidden submenu unreachable')
+assert(!hiddenKernel.matchesQuery(searchItems['update.kernel.linux-omarchy'], 'linux-omarchy'), 'menu search leaves out a provider row whose submenu a when: guard hides')
+assert(hiddenKernel.matchesQuery(searchItems['update.mirrors'], 'mirrors'), 'menu search keeps rows whose ancestors are all visible')
+assert(makeMenu({}).matchesQuery(searchItems['update.kernel.linux-omarchy'], 'linux-omarchy'), 'menu search lists the provider row once its submenu is visible')
+JS
