@@ -114,6 +114,7 @@ declare -F luks_boot_layout >/dev/null
 PROVISIONING_DIR=$TMP/provisioning
 REKEY_STATE=$PROVISIONING_DIR/luks-rekey.state
 LOG_FILE=$TMP/log
+KMSCON_RESUME=$TMP/no-kmscon-resume
 password=$PASSWORD
 
 log_step() { printf '%s\n' "$*" >>"$LOG_FILE"; }

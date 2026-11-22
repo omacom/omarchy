@@ -798,6 +798,23 @@ assert_output_contains "partial metadata command dispatches" "$output" "partial-
 output=$("$TMPDIR/omarchy" body metadata test)
 assert_output_contains "body metadata command dispatches by filename" "$output" "body-metadata-ok"
 
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Subcommand metadata test\n'
+  printf '# omarchy:subcommand=use <id> — Use a thing\n'
+  printf '# omarchy:subcommand=reset — Reset the thing\n'
+  printf 'echo subcmd-ran\n'
+} >"$TMPDIR/omarchy-subcmd"
+chmod +x "$TMPDIR/omarchy-subcmd"
+
+output=$("$TMPDIR/omarchy" subcmd --help)
+assert_output_contains "each subcommand gets its own row and summary" "$output" "omarchy subcmd use <id>  Use a thing"
+assert_output_contains "a bare subcommand gets its own row and summary" "$output" "omarchy subcmd reset     Reset the thing"
+
+output=$("$TMPDIR/omarchy" subcmd 2>&1) || true
+[[ $output != *"subcmd-ran"* ]] || fail "subcommands make a bare invocation show help"
+pass "subcommands make a bare invocation show help"
+
 # A trailing --help must render help even when the route only partially
 # resolves, leaving unresolved words ahead of the flag (e.g. `update aur --help`
 # used to start a real update because only the first leftover token was checked).

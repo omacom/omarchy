@@ -1,16 +1,16 @@
-# Häufige Anpassungen
+# Gängige Anpassungen
 
-Dies ist eine Sammlung häufiger Anpassungen am Omarchy-Setup. Sei dir bewusst, dass Systemupdates gelegentlich bestimmte Konfigurationen in ihren Ursprungszustand zurückversetzen müssen. Wenn das passiert, gehen deine Änderungen nicht verloren, sondern landen in einer `.bak`-Datei im selben Verzeichnis.
+Dies ist eine Sammlung gängiger Anpassungen an der Omarchy-Einrichtung. Beachte, dass es gelegentlich notwendig sein kann, dass Systemaktualisierungen bestimmte Konfigurationen in ihren ursprünglichen Zustand zurückversetzen. Wenn das geschieht, gehen deine Änderungen nicht verloren, sondern werden in einer `.bak.<timestamp>`-Datei neben dem Original abgelegt.
 
-Wenn du etwas vermasselst, kannst du einzelne Konfigurationen über _Aktualisieren > Config_ im Omarchy-Menü auf ihr ursprüngliches Setup zurücksetzen. Wenn du _wirklich_ alles vermasselst, kannst du alle Konfigurationen mit `omarchy-reinstall` zurücksetzen.
+Wenn du etwas vermasselst, kannst du einzelne Konfigurationen über _Update > Config_ im Omarchy-Menü auf ihre ursprüngliche Einrichtung zurücksetzen. Wenn du _wirklich_ alles vermasselst, kannst du alle Konfigurationen mit `omarchy reinstall configs` zurücksetzen oder mit `omarchy reinstall` jedes Standardpaket und jede Konfiguration neu installieren.
 
-### Alle Tray-Symbole immer anzeigen
+### Alle Tray-Icons jederzeit anzeigen
 
-Standardmäßig verstecken sich Tray-Symbole wie Dropbox, 1Password oder Steam hinter dem Pfeil zum Erweitern der Ablage, der sie zeigt, wenn du mit der Maus darüberfährst. Wenn du sie immer sichtbar haben willst, klicke mit der rechten Maustaste auf den Erweiterungs-Pfeil, um den Tray-Symbol-Manager zu öffnen, und hefte dann die Symbole an, die sichtbar bleiben sollen (du kannst auch die verstecken, die du nie sehen willst).
+Standardmäßig sind Tray-Icons wie Dropbox, 1password oder Steam hinter dem Pfeil zum Ausklappen der Tray verborgen, der sie anzeigt, wenn du mit der Maus darüberfährst. Wenn du sie lieber jederzeit sichtbar haben möchtest, klicke mit der rechten Maustaste auf den Ausklapp-Pfeil, um den Tray-Icon-Manager zu öffnen, und pinne dann die Icons, die du sichtbar halten möchtest (du kannst auch diejenigen ausblenden, die du nie sehen willst).
 
 ### Abgerundete Fensterecken
 
-Omarchys Standard-Design setzt auf eckige Ecken, aber wenn du das etwas abmildern willst, kannst du `~/.config/hypr/looknfeel.lua` so ändern, dass die Rundung nicht mehr auskommentiert ist:
+Omarchys Standarddesign hat eckige Ecken, aber wenn du das ein bisschen weicher machen möchtest, wähle _Appearance > Windows > Window Corners > Rounded Corners_ im Omarchy-Menü oder führe `omarchy hyprland corners rounded` aus. _Theme Corners_ kehrt zu dem zurück, was das Theme verwendet. Um deinen eigenen Radius zu wählen, bleibe bei _Theme Corners_ (`omarchy hyprland corners theme`), da Rounded und Sharp nach deiner Konfiguration geladen werden und sie überschreiben, und entferne die Kommentarzeichen bei der Rundung in `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({
@@ -23,7 +23,7 @@ hl.config({
 
 ### Fensterabstände entfernen
 
-Auf Laptop-Displays verschwenden manche lieber kein Pixel für Fensterabstände (oder sogar eine Menüleiste, die du mit `Super + Shift + Space` ausschalten kannst). Alle Abstände und Rahmen schaltest du mit `Super + Shift + Backspace` um, oder du entfernst sie dauerhaft, indem du die Kommentare in diesem Abschnitt von `~/.config/hypr/looknfeel.lua` entfernst:
+Auf Laptop-Displays ziehen es manche Leute vor, keine Pixel für Fensterabstände zu verschwenden (oder sogar für eine obere Leiste, die du mit `Super + Shift + Space` ein- und ausblenden kannst). Du kannst alle Abstände und Rahmen mit `Super + Shift + Backspace` deaktivieren oder sie dauerhaft entfernen, indem du die Kommentare in diesem Abschnitt von `~/.config/hypr/looknfeel.lua` entfernst:
 
 ```
 hl.config({
