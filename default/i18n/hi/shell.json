@@ -23,7 +23,6 @@
   "agents.editInstructions": "AGENTS.md संपादित करें, हर एजेंट द्वारा पालन किए जाने वाले निर्देश",
   "agents.enterApiKey": "अपनी API कुंजी चिपकाएं",
   "agents.firstBecomesDefault": "पहला वाला आपका डिफ़ॉल्ट होगा",
-  "agents.forgetAccount": "%1 हटाएं",
   "agents.forgetAccountConfirm": "%1 हटाएं? इसका साइन-इन इस मशीन से मिट जाएगा, इसलिए दोबारा जोड़ने पर फिर से साइन इन करना होगा।",
   "agents.freeResets": {
     "one": "%1 मुफ़्त रीसेट",
@@ -42,7 +41,6 @@
   "agents.helpSignInExpired": "%1 का सहेजा गया साइन-इन समाप्त हो गया। इसे रिफ़्रेश करने के लिए %1 शुरू करें।",
   "agents.helpStartOrRunToSignIn": "साइन इन करने के लिए %1 शुरू करें, या %2 चलाएं।",
   "agents.helpStartToSeeLimits": "इसकी सीमाएँ देखने के लिए %1 शुरू करें; दोबारा साइन इन करने की ज़रूरत नहीं है।",
-  "agents.hideProvider": "%1 को पैनल से हटाएं",
   "agents.hideProviderConfirm": "%1 को पैनल से छिपाएं? क्रेडेंशियल और साइन-इन बने रहेंगे।",
   "agents.installingMeter": "इंस्टॉल हो रहा है",
   "agents.isDefault": "आपका डिफ़ॉल्ट एजेंट",

@@ -23,7 +23,6 @@
   "agents.editInstructions": "모든 에이전트가 따르는 지침인 AGENTS.md 편집",
   "agents.enterApiKey": "API 키 붙여넣기",
   "agents.firstBecomesDefault": "첫 번째가 기본 에이전트가 됩니다",
-  "agents.forgetAccount": "%1 제거",
   "agents.forgetAccountConfirm": "%1을 제거할까요? 이 기기에서 로그인이 삭제되므로, 다시 추가하려면 다시 로그인해야 합니다.",
   "agents.freeResets": {
     "other": "무료 초기화 %1회"
@@ -40,7 +39,6 @@
   "agents.helpSignInExpired": "%1의 저장된 로그인이 만료되었습니다. %1을 시작하여 갱신하세요.",
   "agents.helpStartOrRunToSignIn": "%1을 시작하거나 %2를 실행하여 로그인하세요.",
   "agents.helpStartToSeeLimits": "%1을 시작하여 한도를 확인하세요. 다시 로그인할 필요가 없습니다.",
-  "agents.hideProvider": "패널에서 %1 제거",
   "agents.hideProviderConfirm": "패널에서 %1을 숨길까요? 자격 증명과 로그인은 유지됩니다.",
   "agents.installingMeter": "설치 중",
   "agents.isDefault": "기본 에이전트",

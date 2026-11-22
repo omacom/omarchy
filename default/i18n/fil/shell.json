@@ -23,7 +23,6 @@
   "agents.editInstructions": "I-edit ang AGENTS.md, ang mga tagubiling sinusunod ng bawat agent",
   "agents.enterApiKey": "I-paste ang API key mo",
   "agents.firstBecomesDefault": "Ang una ang default mo",
-  "agents.forgetAccount": "Alisin ang %1",
   "agents.forgetAccountConfirm": "Alisin ang %1? Mabubura ang sign-in nito sa makinang ito, kaya kailangang mag-sign in muli para maibalik ito.",
   "agents.freeResets": {
     "one": "%1 libreng reset",
@@ -42,7 +41,6 @@
   "agents.helpSignInExpired": "Nag-expire ang naka-save na sign-in ng %1. Simulan ang %1 upang i-refresh ito.",
   "agents.helpStartOrRunToSignIn": "Simulan ang %1, o patakbuhin ang %2, upang mag-sign in.",
   "agents.helpStartToSeeLimits": "Simulan ang %1 upang makita ang mga limitasyon nito; hindi na kailangang mag-sign in muli.",
-  "agents.hideProvider": "Alisin ang %1 sa panel",
   "agents.hideProviderConfirm": "Itago ang %1 mula sa panel? Pananatilihin ang credentials at sign-in.",
   "agents.installingMeter": "Nag-i-install",
   "agents.isDefault": "Ang default mong agent",

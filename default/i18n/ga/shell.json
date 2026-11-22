@@ -23,7 +23,6 @@
   "agents.editInstructions": "Cuir AGENTS.md in eagar, na treoracha a leanann gach gníomhaire",
   "agents.enterApiKey": "Greamaigh d'eochair API",
   "agents.firstBecomesDefault": "Is é an chéad cheann do réamhshocrú",
-  "agents.forgetAccount": "Bain %1",
   "agents.forgetAccountConfirm": "Bain %1? Scriosfar a shíniú isteach ón meaisín seo, mar sin beidh ort síniú isteach arís chun é a chur ar ais.",
   "agents.freeResets": {
     "few": "%1 athshocrú in aisce",
@@ -48,7 +47,6 @@
   "agents.helpSignInExpired": "Tá síniú isteach sábháilte %1 imithe in éag. Tosaigh %1 chun é a athnuachan.",
   "agents.helpStartOrRunToSignIn": "Tosaigh %1, nó rith %2, chun síniú isteach.",
   "agents.helpStartToSeeLimits": "Tosaigh %1 chun a theorainneacha a fheiceáil; ní gá síniú isteach arís.",
-  "agents.hideProvider": "Bain %1 den phainéal",
   "agents.hideProviderConfirm": "Folaigh %1 ón bpainéal? Coimeádfar dintiúir agus síniú isteach.",
   "agents.installingMeter": "Ag suiteáil",
   "agents.isDefault": "Do ghníomhaire réamhshocraithe",

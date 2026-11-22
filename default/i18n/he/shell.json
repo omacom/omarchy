@@ -23,7 +23,6 @@
   "agents.editInstructions": "עריכת AGENTS.md, ההנחיות שכל סוכן פועל לפיהן",
   "agents.enterApiKey": "הדביקו את מפתח ה-API",
   "agents.firstBecomesDefault": "הראשון הוא ברירת המחדל שלך",
-  "agents.forgetAccount": "הסרת %1",
   "agents.forgetAccountConfirm": "להסיר את %1? ההתחברות שלו תימחק ממכשיר זה, ולכן הוספתו מחדש תצריך התחברות חוזרת.",
   "agents.freeResets": {
     "one": "איפוס חינמי אחד",
@@ -44,7 +43,6 @@
   "agents.helpSignInExpired": "ההתחברות השמורה של %1 פגה. הפעילו את %1 כדי לרענן אותה.",
   "agents.helpStartOrRunToSignIn": "הפעילו את %1, או הריצו את %2, כדי להתחבר.",
   "agents.helpStartToSeeLimits": "הפעילו את %1 כדי לראות את מגבלותיו; אין צורך להתחבר שוב.",
-  "agents.hideProvider": "הסרת %1 מהפאנל",
   "agents.hideProviderConfirm": "להסתיר את %1 מהפאנל? האישורים וההתחברות יישמרו.",
   "agents.installingMeter": "מתקין",
   "agents.isDefault": "סוכן ברירת המחדל שלך",

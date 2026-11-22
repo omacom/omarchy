@@ -23,7 +23,6 @@
   "agents.editInstructions": "Muokkaa AGENTS.md:tä, kaikkien agenttien noudattamia ohjeita",
   "agents.enterApiKey": "Liitä API-avaimesi",
   "agents.firstBecomesDefault": "Ensimmäinen on oletusagenttisi",
-  "agents.forgetAccount": "Poista %1",
   "agents.forgetAccountConfirm": "Poista %1? Sen kirjautuminen poistetaan tältä koneelta, joten uudelleen lisääminen vaatii kirjautumisen uudelleen.",
   "agents.freeResets": {
     "one": "%1 ilmainen nollaus",
@@ -42,7 +41,6 @@
   "agents.helpSignInExpired": "Tallennettu %1-kirjautuminen vanheni. Käynnistä %1 uudistaaksesi sen.",
   "agents.helpStartOrRunToSignIn": "Kirjaudu käynnistämällä %1 tai suorittamalla %2.",
   "agents.helpStartToSeeLimits": "Käynnistä %1 nähdäksesi sen käyttörajat; uudelleenkirjautumista ei tarvita.",
-  "agents.hideProvider": "Poista %1 paneelista",
   "agents.hideProviderConfirm": "Piilota %1 paneelista? Tunnistetiedot ja kirjautuminen säilytetään.",
   "agents.installingMeter": "Asennetaan",
   "agents.isDefault": "Oletusagenttisi",

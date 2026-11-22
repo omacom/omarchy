@@ -83,11 +83,11 @@ done
   fail "a Pi extension of the user's own named omarchy stays"
 pass "omarchy-agent-pi-defaults links Omarchy's Pi package to the tree in use and keeps the user's"
 
-[[ -L $test_tmp/pi-moved/.pi/agent/settings.json && $(jq -c '[.theme, .collapseChangelog]' "$test_tmp/pi-moved/dotfiles/pi-settings.json") == '["light",true]' ]] ||
-  fail "Pi's changelog is condensed by default, through a settings file linked from dotfiles"
-[[ $(jq -c '[.theme, .collapseChangelog]' "$test_tmp/pi-theirs/.pi/agent/settings.json") == '["dark",false]' ]] ||
-  fail "a user's own changelog choice and other Pi settings stay" "$(cat "$test_tmp/pi-theirs/.pi/agent/settings.json")"
-pass "omarchy-agent-pi-defaults condenses Pi's changelog unless the user chose otherwise"
+[[ -L $test_tmp/pi-moved/.pi/agent/settings.json && $(jq -c '[.theme, .collapseChangelog, .quietStartup]' "$test_tmp/pi-moved/dotfiles/pi-settings.json") == '["light",true,"header"]' ]] ||
+  fail "Pi's changelog is condensed and its startup listing left out by default, through a settings file linked from dotfiles"
+[[ $(jq -c '[.theme, .collapseChangelog, .quietStartup]' "$test_tmp/pi-theirs/.pi/agent/settings.json") == '["dark",false,"header"]' ]] ||
+  fail "a user's own changelog choice and other Pi settings stay, and the startup default still fills in" "$(cat "$test_tmp/pi-theirs/.pi/agent/settings.json")"
+pass "omarchy-agent-pi-defaults fills in Pi's changelog and startup defaults the user hasn't chosen"
 
 # The Agent Skills spec caps a description at 1024 characters, and harnesses
 # such as pi flag a longer one. Descriptions are folded YAML, so the lines

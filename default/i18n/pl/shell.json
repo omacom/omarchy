@@ -23,7 +23,6 @@
   "agents.editInstructions": "Edytuj AGENTS.md, instrukcje dla wszystkich agentów",
   "agents.enterApiKey": "Wklej klucz API",
   "agents.firstBecomesDefault": "Pierwszy zostanie domyślnym",
-  "agents.forgetAccount": "Usuń %1",
   "agents.forgetAccountConfirm": "Usunąć %1? Logowanie zostanie usunięte z tego urządzenia, a ponowne dodanie będzie wymagać zalogowania się od nowa.",
   "agents.freeResets": {
     "few": "%1 darmowe resety",
@@ -46,7 +45,6 @@
   "agents.helpSignInExpired": "Zapisane logowanie %1 wygasło. Uruchom %1, aby je odnowić.",
   "agents.helpStartOrRunToSignIn": "Uruchom %1 lub %2, aby się zalogować.",
   "agents.helpStartToSeeLimits": "Uruchom %1, aby zobaczyć jego limity; ponowne logowanie nie jest potrzebne.",
-  "agents.hideProvider": "Ukryj %1 z panelu",
   "agents.hideProviderConfirm": "Ukryć %1 z panelu? Dane logowania i sesja zostaną zachowane.",
   "agents.installingMeter": "Instalowanie",
   "agents.isDefault": "Twój domyślny agent",

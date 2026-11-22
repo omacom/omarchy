@@ -23,7 +23,6 @@
   "agents.editInstructions": "Rediger AGENTS.md, instruksjonene alle agenter følger",
   "agents.enterApiKey": "Lim inn API-nøkkelen din",
   "agents.firstBecomesDefault": "Den første blir standardagenten din",
-  "agents.forgetAccount": "Fjern %1",
   "agents.forgetAccountConfirm": "Fjerne %1? Innloggingen slettes fra denne maskinen, så du må logge inn på nytt for å legge den til igjen.",
   "agents.freeResets": {
     "one": "%1 gratis tilbakestilling",
@@ -42,7 +41,6 @@
   "agents.helpSignInExpired": "Lagret innlogging for %1 har utløpt. Start %1 for å fornye den.",
   "agents.helpStartOrRunToSignIn": "Start %1, eller kjør %2, for å logge inn.",
   "agents.helpStartToSeeLimits": "Start %1 for å se grensene; innlogging på nytt er ikke nødvendig.",
-  "agents.hideProvider": "Fjern %1 fra panelet",
   "agents.hideProviderConfirm": "Skjule %1 fra panelet? Påloggingsinformasjon og innlogging blir beholdt.",
   "agents.installingMeter": "Installerer",
   "agents.isDefault": "Standardagenten din",
