@@ -1528,6 +1528,10 @@ Item {
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
               readonly property bool isApp: row.kind === "app"
               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
+              // A label cut off with dots scrolls to show the rest while its row has
+              // the cursor, whether the pointer or the arrow keys put it there.
+              readonly property real labelOverflow: Math.max(0, labelText.implicitWidth - labelBox.width)
+              readonly property bool marquee: row.hasCursor && row.labelOverflow > 0 && !Style.reduceMotion
 
               width: ListView.view.width
               height: root.rowHeightForDetail(row.detail)
@@ -1594,16 +1598,46 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Style.space(3)
 
-                Text {
-                  id: labelText
-                  textFormat: Text.PlainText
+                Item {
+                  id: labelBox
                   width: parent.width
-                  text: row.altVariant ? root.labelFor(row.altVariant) : row.label
-                  color: row.hasCursor ? root.selectedText : root.foreground
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.heading
-                  font.weight: Font.Medium
-                  elide: Text.ElideRight
+                  height: labelText.height
+                  clip: row.marquee
+
+                  Text {
+                    id: labelText
+                    textFormat: Text.PlainText
+                    width: row.marquee ? implicitWidth : parent.width
+                    text: row.altVariant ? root.labelFor(row.altVariant) : row.label
+                    color: row.hasCursor ? root.selectedText : root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.heading
+                    font.weight: Font.Medium
+                    elide: row.marquee ? Text.ElideNone : Text.ElideRight
+
+                    // Right-to-left text starts at its right edge, so it scrolls the
+                    // other way. The scroll is constant motion, hence linear; the
+                    // way back is quick and eases out.
+                    SequentialAnimation on x {
+                      running: row.marquee
+                      loops: Animation.Infinite
+                      onRunningChanged: if (!running) labelText.x = 0
+                      PropertyAction { value: Commons.I18n.rightToLeft ? -row.labelOverflow : 0 }
+                      PauseAnimation { duration: Style.duration(700) }
+                      NumberAnimation {
+                        to: Commons.I18n.rightToLeft ? 0 : -row.labelOverflow
+                        duration: Style.duration(Math.max(600, row.labelOverflow * 12))
+                        easing.type: Easing.Linear
+                      }
+                      PauseAnimation { duration: Style.duration(1500) }
+                      NumberAnimation {
+                        to: Commons.I18n.rightToLeft ? -row.labelOverflow : 0
+                        duration: Style.duration(250)
+                        easing.type: Easing.Bezier
+                        easing.bezierCurve: Style.easeOut
+                      }
+                    }
+                  }
                 }
 
                 Text {
