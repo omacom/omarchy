@@ -450,7 +450,7 @@ Panel {
   function submitPaste(code) {
     if (!addProcess.running || code.trim() === "") return
     addProcess.write(code.trim() + "\n")
-    addStatus = Commons.I18n.t(addIsApiKey ? "agents.checkingApiKey" : "agents.checkingCode")
+    addStatus = addIsApiKey ? Commons.I18n.t("agents.checkingApiKey") : Commons.I18n.t("agents.checkingCode")
   }
 
   // The add command's own lines are tagged; everything else is the CLI
@@ -1631,9 +1631,10 @@ Panel {
         spacing: Style.space(10)
 
         Text {
+          objectName: "signInHeading"
           width: parent.width
           textFormat: Text.PlainText
-          text: Commons.I18n.t(root.addIsApiKey ? "agents.connectApiKey" : "agents.loginBrowser")
+          text: root.addIsApiKey ? Commons.I18n.t("agents.connectApiKey") : Commons.I18n.t("agents.loginBrowser")
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -1644,6 +1645,7 @@ Panel {
         // Only what the plain line doesn't say: which window to use when it's
         // private, Go's API-key instructions, or that a paste is being checked.
         Text {
+          objectName: "signInStatus"
           visible: root.addPrivate || root.addIsApiKey || root.addStatus === Commons.I18n.t("agents.checkingCode") || root.addStatus === Commons.I18n.t("agents.checkingApiKey")
           width: parent.width
           textFormat: Text.PlainText
@@ -1684,8 +1686,9 @@ Panel {
           spacing: Style.space(6)
 
           Text {
+            objectName: "pasteInstructions"
             width: parent.width
-            text: Commons.I18n.t(root.addIsApiKey ? "agents.pasteApiKey" : "agents.pasteCode")
+            text: root.addIsApiKey ? Commons.I18n.t("agents.pasteApiKey") : Commons.I18n.t("agents.pasteCode")
             textFormat: Text.PlainText
             color: root.dim
             font.family: root.fontFamily
@@ -1695,8 +1698,9 @@ Panel {
 
           TextField {
             id: pasteField
+            objectName: "pasteField"
             width: parent.width
-            placeholderText: Commons.I18n.t(root.addIsApiKey ? "agents.placeholderApiKey" : "agents.placeholderCode")
+            placeholderText: root.addIsApiKey ? Commons.I18n.t("agents.placeholderApiKey") : Commons.I18n.t("agents.placeholderCode")
             password: root.addIsApiKey
             foreground: root.foreground
             font.family: root.fontFamily
