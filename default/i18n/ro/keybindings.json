@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "Activitate",
   "Agent": "Agent",
   "Agents": "Agenți",
@@ -20,7 +21,6 @@
   "Calculator": "Calculator",
   "Calendar": "Calendar",
   "Capture menu": "Meniu captură",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "Șterge mementourile",
   "Clipboard manager": "Manager clipboard",
   "Close all windows": "Închide toate ferestrele",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "Controlează notificările cu tastatura",
   "Cycle workspace layout": "Comută aranjamentul spațiului",
   "Cycle workspace layout back": "Comută aranjamentul spațiului înapoi",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Intrare directă pentru prefix terminal",
   "Disable touchpad": "Dezactivează touchpad-ul",
   "Dismiss all notifications": "Respinge toate notificările",

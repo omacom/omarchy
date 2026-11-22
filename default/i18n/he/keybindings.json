@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "פעילות",
   "Agent": "סוכן",
   "Agents": "סוכנים",
@@ -20,7 +21,6 @@
   "Calculator": "מחשבון",
   "Calendar": "לוח שנה",
   "Capture menu": "תפריט צילום",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "ניקוי תזכורות",
   "Clipboard manager": "מנהל לוח העתקה",
   "Close all windows": "סגור את כל החלונות",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "שלוט בהתראות במקלדת",
   "Cycle workspace layout": "החלף פריסת מרחב עבודה",
   "Cycle workspace layout back": "החלף פריסת מרחב עבודה לאחור",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "קלט ישיר לקידומת המסוף",
   "Disable touchpad": "השבת משטח מגע",
   "Dismiss all notifications": "סגור את כל ההתראות",

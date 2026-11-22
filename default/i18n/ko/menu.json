@@ -393,51 +393,6 @@
   "agent": {
     "label": "에이전트"
   },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
-  },
   "setup.default.browser": {
     "label": "브라우저",
     "title": "기본 브라우저"
@@ -1219,33 +1174,6 @@
   "trigger.hardware.touchscreen-off": {
     "label": "터치스크린 끄기"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
   "setup.git": {
     "label": "Git"
   },
@@ -1294,25 +1222,6 @@
   "setup.default.editor.plain": {
     "label": "일반"
   },
-  "agent.harness": {
-    "label": "하네스",
-    "title": "기본 하네스"
-  },
-  "agent.instructions": {
-    "label": "지침"
-  },
-  "agent.make": {
-    "label": "무언가 만들기"
-  },
-  "agent.make.theme": {
-    "label": "테마 만들기"
-  },
-  "agent.make.plugin": {
-    "label": "플러그인 만들기"
-  },
-  "agent.make.app": {
-    "label": "앱 만들기"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
@@ -1350,9 +1259,6 @@
   },
   "update.games": {
     "label": "Game Vibes 게임"
-  },
-  "agent.make.game": {
-    "label": "게임 만들기"
   },
   "install.ai.antigravity": {
     "label": "Antigravity Desktop"

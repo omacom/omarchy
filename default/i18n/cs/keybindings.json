@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "Aktivita",
   "Agent": "Agent",
   "Agents": "Agenti",
@@ -20,7 +21,6 @@
   "Calculator": "Kalkulačka",
   "Calendar": "Kalendář",
   "Capture menu": "Nabídka zachycení",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "Vymazat připomínky",
   "Clipboard manager": "Správce schránky",
   "Close all windows": "Zavřít všechna okna",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "Ovládat oznámení klávesnicí",
   "Cycle workspace layout": "Další rozložení plochy",
   "Cycle workspace layout back": "Předchozí rozložení plochy",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Přímé zadání pro prefix terminálu",
   "Disable touchpad": "Vypnout touchpad",
   "Dismiss all notifications": "Zrušit všechna oznámení",

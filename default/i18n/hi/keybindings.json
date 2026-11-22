@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "गतिविधि",
   "Agent": "एजेंट",
   "Agents": "एजेंट्स",
@@ -20,7 +21,6 @@
   "Calculator": "कैलकुलेटर",
   "Calendar": "कैलेंडर",
   "Capture menu": "कैप्चर मेनू",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "रिमाइंडर साफ़ करें",
   "Clipboard manager": "क्लिपबोर्ड प्रबंधक",
   "Close all windows": "सभी विंडो बंद करें",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "कीबोर्ड से सूचनाएँ नियंत्रित करें",
   "Cycle workspace layout": "अगला वर्कस्पेस लेआउट",
   "Cycle workspace layout back": "पिछला वर्कस्पेस लेआउट",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "टर्मिनल प्रीफ़िक्स के लिए सीधा इनपुट",
   "Disable touchpad": "टचपैड बंद करें",
   "Dismiss all notifications": "सभी सूचनाएँ खारिज करें",

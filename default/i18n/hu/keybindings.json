@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "Tevékenység",
   "Agent": "Ügynök",
   "Agents": "Ügynökök",
@@ -20,7 +21,6 @@
   "Calculator": "Számológép",
   "Calendar": "Naptár",
   "Capture menu": "Rögzítési menü",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "Emlékeztetők törlése",
   "Clipboard manager": "Vágólapkezelő",
   "Close all windows": "Összes ablak bezárása",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "Értesítések vezérlése billentyűzettel",
   "Cycle workspace layout": "Következő munkaterület-elrendezés",
   "Cycle workspace layout back": "Előző munkaterület-elrendezés",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Terminál-előtag közvetlen bevitele",
   "Disable touchpad": "Érintőpad letiltása",
   "Dismiss all notifications": "Összes értesítés bezárása",

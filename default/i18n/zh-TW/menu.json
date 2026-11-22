@@ -393,51 +393,6 @@
   "agent": {
     "label": "代理程式"
   },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
-  },
   "setup.default.browser": {
     "label": "瀏覽器",
     "title": "預設瀏覽器"
@@ -1219,33 +1174,6 @@
   "trigger.hardware.touchscreen-off": {
     "label": "停用觸控螢幕"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
   "setup.git": {
     "label": "Git"
   },
@@ -1294,25 +1222,6 @@
   "setup.default.editor.plain": {
     "label": "純文字"
   },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "預設 Harness"
-  },
-  "agent.instructions": {
-    "label": "指令"
-  },
-  "agent.make": {
-    "label": "製作"
-  },
-  "agent.make.theme": {
-    "label": "製作主題"
-  },
-  "agent.make.plugin": {
-    "label": "製作外掛程式"
-  },
-  "agent.make.app": {
-    "label": "製作應用程式"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
@@ -1350,9 +1259,6 @@
   },
   "update.games": {
     "label": "Game Vibes 遊戲"
-  },
-  "agent.make.game": {
-    "label": "製作遊戲"
   },
   "install.ai.antigravity": {
     "label": "Antigravity Desktop"

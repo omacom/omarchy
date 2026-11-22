@@ -393,51 +393,6 @@
   "agent": {
     "label": "Agente"
   },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
-  },
   "setup.default.browser": {
     "label": "Browser",
     "title": "Browser predefinito"
@@ -1162,33 +1117,6 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Disattiva touchscreen"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
   "setup.git": {
     "label": "Git"
   },
@@ -1294,25 +1222,6 @@
   "setup.default.editor.plain": {
     "label": "Semplice"
   },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "Harness predefinito"
-  },
-  "agent.instructions": {
-    "label": "Istruzioni"
-  },
-  "agent.make": {
-    "label": "Crea qualcosa"
-  },
-  "agent.make.theme": {
-    "label": "Crea un tema"
-  },
-  "agent.make.plugin": {
-    "label": "Crea un plugin"
-  },
-  "agent.make.app": {
-    "label": "Crea un'app"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
@@ -1350,9 +1259,6 @@
   },
   "update.games": {
     "label": "Giochi Game Vibes"
-  },
-  "agent.make.game": {
-    "label": "Crea un gioco"
   },
   "install.ai.antigravity": {
     "label": "Antigravity Desktop"
