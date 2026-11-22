@@ -286,9 +286,9 @@ Item {
     if (lockRequested && fingerprintConfigured && !fingerprintAuthenticating) fingerprintRetryTimer.restart()
   }
 
-  // A resume can light the panel with no input to wake the lock, so after a
-  // lock request the reader comes back once a sleep is seen; the blank
-  // countdown then pauses it again if nothing else happens. The idle service
+  // A resume brings no input to wake the lock, so after a lock request the
+  // panel and the reader come back once a sleep is seen; the blank countdown
+  // then takes both away again if nothing else happens. The idle service
   // repeats the same request without sleeping, so the sleep has to be seen.
   function noteSleepRequested() {
     if (!lockRequested || !fingerprintPaused) return
@@ -669,6 +669,9 @@ Item {
       if (slept && root.lockRequested && root.fingerprintPaused) {
         stop()
         root.fingerprintSleptWhilePaused = true
+        // A panel blanked before the sleep stays dark through the resume, and
+        // opening the lid is no input that would light it.
+        if (!wakeProcess.running) wakeProcess.running = true
         root.resumeFingerprint()
         root.armBlankTimer(idleBlankTimer.resumeMs)
       } else if (slept || !root.fingerprintPaused || --ticksLeft <= 0) {
