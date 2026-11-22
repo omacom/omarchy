@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick] [--or-webapp <url>] [--local] [--local-model <recipe>] [--agent <id>] [--provider <fireworks|openrouter|deepseek|minimax|synthetic|zai>] [--app-id=<app-id>]
-# omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --local | omarchy agent --agent codex | omarchy agent --provider fireworks
+# omarchy:args=[--inline] [--pick] [--or-webapp <url>] [--local-model <recipe>] [--agent <id>] [--provider <fireworks|openrouter|deepseek|minimax|synthetic|zai>] [--app-id=<app-id>]
+# omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --agent codex | omarchy agent --provider fireworks
 
 inline=false
 pick=false
@@ -31,10 +31,6 @@ while (($#)); do
     --or-webapp)
       or_webapp=${2:?--or-webapp needs a URL}
       shift 2
-      ;;
-    --local)
-      use_local=true
-      shift
       ;;
     --local-model)
       use_local=true
@@ -88,8 +84,8 @@ fi
 # the panel's sign-in saves its key.
 [[ -n $provider ]] && agent=opencode
 
-# A default of "local" is the local model. It opens in pi, as --local does
-# whatever the default agent is: the local models panel launches a model
+# A default of "local" is the local model. It opens in pi, as --local-model
+# does whatever the default agent is: the local models panel launches a model
 # whether or not a default was chosen. An agent asked for by name is opened
 # as asked.
 if [[ $agent == "local" ]]; then
@@ -302,7 +298,7 @@ if [[ $use_local == "true" && $local_model != */* ]]; then
   fi
 fi
 
-# --local points pi at the model `omarchy models use` runs, through a
+# A local model points pi at the model `omarchy models use` runs, through a
 # launch-time overlay Omarchy owns, never by editing pi's own config.
 if [[ $use_local == "true" ]]; then
   mapfile -t overlay < <(omarchy-models overlay pi ${local_model:+"$local_model"})

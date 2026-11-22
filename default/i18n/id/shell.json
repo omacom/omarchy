@@ -5,8 +5,6 @@
   "agents.app": "Aplikasi",
   "agents.backToLimits": "Kembali ke batas",
   "agents.balance": "Saldo",
-  "agents.balanceSpent": "%1 terpakai dari %2 yang didanai",
-  "agents.balanceSpentEstimated": "%1 terpakai dari %2 yang didanai · perkiraan",
   "agents.balanceUnavailable": "Saldo tidak tersedia",
   "agents.blockOwnModel": "GUNAKAN MODEL LOKAL",
   "agents.blockProviders": "GUNAKAN BAYAR SESUAI PEMAKAIAN",
@@ -23,7 +21,6 @@
   "agents.editInstructions": "Edit AGENTS.md, instruksi yang diikuti setiap agen",
   "agents.enterApiKey": "Tempel kunci API Anda",
   "agents.firstBecomesDefault": "Yang pertama menjadi default Anda",
-  "agents.forgetAccount": "Hapus %1",
   "agents.forgetAccountConfirm": "Hapus %1? Sesi masuknya akan dihapus dari perangkat ini, jadi untuk menambahkannya kembali Anda harus masuk lagi.",
   "agents.freeResets": {
     "other": "%1 reset gratis"
@@ -40,7 +37,6 @@
   "agents.helpSignInExpired": "Sesi masuk %1 yang tersimpan telah kedaluwarsa. Mulai %1 untuk memperbaruinya.",
   "agents.helpStartOrRunToSignIn": "Mulai %1, atau jalankan %2, untuk masuk.",
   "agents.helpStartToSeeLimits": "Mulai %1 untuk melihat batasnya; tidak perlu masuk lagi.",
-  "agents.hideProvider": "Hapus %1 dari panel",
   "agents.hideProviderConfirm": "Sembunyikan %1 dari panel? Kredensial dan sesi masuk akan tetap disimpan.",
   "agents.installingMeter": "Menginstal",
   "agents.isDefault": "Agen default Anda",

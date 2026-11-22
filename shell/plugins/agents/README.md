@@ -59,8 +59,7 @@ per local coding model that is running and ready.
   start that line's agent on the task through `omarchy agent make`, as the
   starter tiles do with the default. They fold back when the line is left.
 - **Balance** — prepaid agents show a credit ledger instead of limits: a
-  fuel-gauge meter that drains toward empty, the remaining credit, and
-  funded-versus-spent detail.
+  meter that fills as the funded credit is spent, and the remaining credit.
 - **Terminal button** — at the end of a line, it opens the harness made for
   that subscription, switching to an account first when it isn't the one in
   use. Pay-as-you-go providers have none of their own, so theirs opens
@@ -85,6 +84,7 @@ per local coding model that is running and ready.
   report the account's own figures; DeepSeek, Kimchi, Ollama Cloud, and
   OpenRouter without a management key add up the costs pi and opencode wrote
   beside each reply on this machine, and mark the amount ≈ as an estimate.
+  A section with a balance shows the balance alone, without the spend.
 - **Make something cool** — starter prompts (a new theme, plugin, app, or game),
   two across, that start the default agent on the task through `omarchy agent make`.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
@@ -315,7 +315,7 @@ Without a management key, tokens come from the local opencode database (`provide
 
 ### DeepSeek
 
-DeepSeek reads `DEEPSEEK_API_KEY` first, then the key pi stores in `~/.pi/agent/auth.json` (under `PI_CODING_AGENT_DIR` when set), then omp's `~/.omp/agent/auth.json`, never a `!command` or `$VAR` entry, then the key opencode stores in its own `auth.json` when DeepSeek is signed in there, and last the key DeepSeek Harness keeps in `$DSH_HOME/.credentials.yaml` (or the `.env` beside it; `$DSH_HOME` defaults to `~/.dsh`). Each key keeps its own last balance. DeepSeek answers one balance per currency (CNY or USD), and the panel shows the one holding credit, or the first when none does. When DeepSeek says the balance no longer covers API calls (`is_available` false), or it is spent, the status reads Out of credits in the urgent color. Local usage also counts dsh's own session logs under `$DSH_HOME/sessions` on its DeepSeek routes (`deepseek-official`, `deepseek-account`, and its pi-ai adapter's `deepseek` route), leaving out the history a forked session inherits, and Claude Code turns sent to `api.deepseek.com` or answered by a `deepseek-*` model, by the [Claude Code](#claude-code) rule. dsh's other pi-ai routes are billed by that provider: its `openrouter` route counts under OpenRouter, and a hand-declared gateway counts nowhere. DeepSeek says what is left but never what was bought, so the balance shows the remaining credit without a meter; what was spent shows below it as the last 30 days' spend, a bar a day, from the costs pi and opencode wrote beside each DeepSeek reply on this machine, its amount marked ≈ as an estimate.
+DeepSeek reads `DEEPSEEK_API_KEY` first, then the key pi stores in `~/.pi/agent/auth.json` (under `PI_CODING_AGENT_DIR` when set), then omp's `~/.omp/agent/auth.json`, never a `!command` or `$VAR` entry, then the key opencode stores in its own `auth.json` when DeepSeek is signed in there, and last the key DeepSeek Harness keeps in `$DSH_HOME/.credentials.yaml` (or the `.env` beside it; `$DSH_HOME` defaults to `~/.dsh`). Each key keeps its own last balance. DeepSeek answers one balance per currency (CNY or USD), and the panel shows the one holding credit, or the first when none does. When DeepSeek says the balance no longer covers API calls (`is_available` false), or it is spent, the status reads Out of credits in the urgent color. Local usage also counts dsh's own session logs under `$DSH_HOME/sessions` on its DeepSeek routes (`deepseek-official`, `deepseek-account`, and its pi-ai adapter's `deepseek` route), leaving out the history a forked session inherits, and Claude Code turns sent to `api.deepseek.com` or answered by a `deepseek-*` model, by the [Claude Code](#claude-code) rule. dsh's other pi-ai routes are billed by that provider: its `openrouter` route counts under OpenRouter, and a hand-declared gateway counts nowhere. DeepSeek says what is left but never what was bought, so the balance shows the remaining credit without a meter.
 
 ### Fireworks
 
