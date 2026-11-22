@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Generate the system locale for an Omarchy language
+# omarchy:summary=Generate the system locale for an Omarchy language or region
 # omarchy:args=<code>
 # omarchy:hidden=true
 
@@ -17,12 +17,15 @@ if (( EUID == 0 )); then
   cd /
 fi
 
-# Root reads only the packaged registry and the real locale.gen; the
-# overrides are for unprivileged tests (same convention as omarchy-language).
+# Root reads only the packaged registries (languages, and the regions that
+# Setup > Region > Formats adds) and the real locale.gen; the overrides are for
+# unprivileged tests (same convention as omarchy-language).
 registry=/usr/share/omarchy/default/i18n/locales.json
+regions=/usr/share/omarchy/default/i18n/regions.json
 locale_gen=/etc/locale.gen
 if (( EUID != 0 )); then
   registry=${OMARCHY_LOCALE_REGISTRY:-$registry}
+  regions=${OMARCHY_REGION_REGISTRY:-$regions}
   locale_gen=${OMARCHY_LOCALE_GEN:-$locale_gen}
 fi
 
@@ -32,11 +35,14 @@ if (( $# != 1 )) || [[ ! $code =~ ^[a-z]{2,3}(-[A-Za-z]{2})?$ ]]; then
   exit 1
 fi
 
-# The code only selects a locale from the registry; nothing the caller passes
-# reaches locale.gen or localedef itself.
-locale=$(jq -r --arg code "$code" '.[$code].locale // empty' "$registry")
+# The code only selects a locale from the registries; nothing the caller
+# passes reaches locale.gen or localedef itself. An installed package older
+# than the region registry, under a dev checkout's helper, has only languages.
+[[ -e $regions ]] || regions=/dev/null
+locale=$(jq -nr --arg code "$code" --slurpfile languages "$registry" --slurpfile regions "$regions" \
+  '($languages[0] + ($regions[0] // {}))[$code].locale // empty')
 if [[ ! $locale =~ ^[a-z]{2,3}_[A-Z]{2}\.UTF-8$ ]]; then
-  echo "Unknown language code: $code" >&2
+  echo "Unknown language or region code: $code" >&2
   exit 1
 fi
 
