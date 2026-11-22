@@ -299,9 +299,9 @@ chmod +x "$tmpdir/bin/"*
 
 managed_default_route() {
   local route=$1 states=$2 expected=$3 status=0
-  NETWORK_TEST_ROUTE=$route NETWORK_TEST_STATES=$states PATH="$tmpdir/bin:$PATH" \
+  NETWORK_TEST_ROUTE=$route NETWORK_TEST_STATES=$states PATH="$tmpdir/bin:$ROOT/bin:$PATH" \
     "$ROOT/bin/omarchy-network-managed-default-route" || status=$?
-  (( status == expected )) || fail "default route $route with $states returns $expected" "status=$status"
+  (( status == expected )) || fail "default route $route with ${states:0:80} returns $expected" "status=$status"
 }
 
 managed_default_route wlan0 $'eth0:connected\nwlan0:unmanaged' 1
@@ -309,4 +309,6 @@ managed_default_route none 'wlan0:connected' 1
 managed_default_route wlan0 $'wlan0:connected\nlo:unmanaged' 0
 managed_default_route wlan0 'wlan0:connected (externally)' 1
 NETWORK_TEST_NM_INACTIVE=1 managed_default_route wlan0 'wlan0:connected' 1
+printf -v crowded '%s:unmanaged\n' {1..5000}
+managed_default_route wlan0 $'wlan0:connected\n'"$crowded" 0
 pass "NetworkManager must manage the default-route device before networkd is stopped"
