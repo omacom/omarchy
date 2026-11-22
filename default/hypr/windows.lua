@@ -20,7 +20,7 @@ require("default.hypr.apps")
 
 -- Terminals (including TUIs) and these desktop apps opt in to transparency.
 o.transparent_window({ tag = "terminal" })
-o.transparent_window("(omawrite|1[pP]assword|com\\.onepassword\\.OnePassword|org\\.gnome\\.Nautilus)")
+o.transparent_window("(omawrite|1[pP]assword|com\\.onepassword\\.OnePassword|org\\.gnome\\.Nautilus|folio)")
 
 -- The transparency hotkey opts otherwise opaque windows in with this tag.
 o.transparent_window({ tag = "transparent" })

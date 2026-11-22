@@ -59,12 +59,20 @@ shell_ipc_socket() {
   printf '%s/omarchy-shell-%s.sock\n' "${XDG_RUNTIME_DIR:-/run/user/$UID}" "${id:0:16}"
 }
 
-# Quickshell exits on SIGTERM without reaping its children, so a test starts it
-# under setsid and stops the whole group, or its inotifywait outlives the test.
+# A fixture can leave children behind after Quickshell exits; its setsid group
+# still reaches them, including children that need KILL after a TERM grace period.
 stop_process_group() {
-  local pid="$1"
+  local pid="$1" attempt
 
-  kill -- "-$pid" 2>/dev/null || true
+  kill -TERM -- "-$pid" 2>/dev/null || true
+  for attempt in {1..20}; do
+    if ! pgrep -g "$pid" >/dev/null 2>&1; then
+      wait "$pid" 2>/dev/null || true
+      return 0
+    fi
+    sleep 0.1
+  done
+  kill -KILL -- "-$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
 }
 
@@ -140,9 +148,17 @@ QML_FIXTURE_PID=""
 QML_FIXTURE_LOG=""
 
 qml_fixture_cleanup() {
+  local attempt
   [[ -n $QML_FIXTURE_PID ]] && stop_process_group "$QML_FIXTURE_PID"
   QML_FIXTURE_PID=""
-  [[ -n $QML_FIXTURE_TMP && -d $QML_FIXTURE_TMP ]] && rm -rf "$QML_FIXTURE_TMP"
+  if [[ -n $QML_FIXTURE_TMP && -d $QML_FIXTURE_TMP ]]; then
+    # A child that was mid-write when it got the signal can still add a file.
+    for attempt in {1..20}; do
+      rm -rf "$QML_FIXTURE_TMP" 2>/dev/null && break
+      sleep 0.1
+    done
+    [[ ! -e $QML_FIXTURE_TMP ]] || echo "Could not remove $QML_FIXTURE_TMP" >&2
+  fi
   return 0
 }
 
