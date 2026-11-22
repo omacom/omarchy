@@ -3771,6 +3771,32 @@ def _cursor_ide_token(state_db: Path) -> str:
   return str(value or "").strip()
 
 
+def _cursor_secret_store_token() -> str:
+  # Recent Cursor CLIs keep the same sign-in in the Secret Service
+  # (service cursor-credentials, account cursor-user) and leave auth.json as
+  # only {"storedIn": "os-secret-store"}. Read-only, the way agy reads its
+  # keyring login; missing secret-tool or an empty/malformed secret is none.
+  try:
+    raw = subprocess.check_output(
+      ["secret-tool", "lookup", "service", "cursor-credentials", "account", "cursor-user"],
+      text=True,
+      stderr=subprocess.DEVNULL,
+      timeout=3,
+    )
+  except (OSError, subprocess.SubprocessError):
+    return ""
+  raw = raw.strip()
+  if not raw:
+    return ""
+  try:
+    data = json.loads(raw)
+  except json.JSONDecodeError:
+    return raw
+  if isinstance(data, dict):
+    return str(data.get("accessToken") or "").strip()
+  return ""
+
+
 def cursor_token(auth_path: Path | None = None, state_db: Path | None = None) -> str:
   """The token the user exported, the credential the Cursor CLI stores, or
   the editor's sign-in, in that order.
@@ -3780,9 +3806,12 @@ def cursor_token(auth_path: Path | None = None, state_db: Path | None = None) ->
   file, so the stored token stands for the key only while it was traded for
   this one. The key itself never goes out as a bearer.
 
-  A sign-in that has lapsed gives way to the next one that hasn't: someone
-  who ran the CLI once and now lives in the editor would otherwise wait on a
-  token nothing renews. With all of them lapsed, the first one decides.
+  The CLI's credential is `accessToken` in auth.json when present; when that
+  file only says `storedIn: os-secret-store`, the same login is read from the
+  Secret Service instead. A sign-in that has lapsed gives way to the next one
+  that hasn't: someone who ran the CLI once and now lives in the editor would
+  otherwise wait on a token nothing renews. With all of them lapsed, the first
+  one decides.
   """
   bearer = str(os.environ.get("CURSOR_AUTH_TOKEN") or "").strip()
   if bearer:
@@ -3794,13 +3823,16 @@ def cursor_token(auth_path: Path | None = None, state_db: Path | None = None) ->
     # With no token traded for this key, any other sign-in is someone else's
     # account than the one the CLI runs as.
     return traded if str(auth.get("apiKey") or "").strip() == key else ""
-  cli = traded
-  if cli and not token_lapsed(cli):
-    return cli
+  secret = ""
+  if str(auth.get("storedIn") or "").strip() == "os-secret-store":
+    secret = _cursor_secret_store_token()
+  for cli in (traded, secret):
+    if cli and not token_lapsed(cli):
+      return cli
   ide = _cursor_ide_token(state_db or cursor_state_db())
   if ide and not token_lapsed(ide):
     return ide
-  return cli or ide
+  return traded or secret or ide
 
 
 # ---------------------------------------------------------------- accounts

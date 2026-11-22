@@ -189,6 +189,22 @@ record = cursor()
 expect("Cursor installed but signed in nowhere waits for a sign-in",
        [record["ready"], record["usageStatusText"], record["limits"], record["authHelpText"] != ""], [True, "Waiting for auth", [], True], record)
 
+# auth.json that only points at the Secret Service still reaches the dashboard.
+sandbox()
+REAL_PATH = os.environ["PATH"]
+stub = home() / "bin" / "secret-tool"
+stub.parent.mkdir(parents=True, exist_ok=True)
+stub.write_text('#!/bin/bash\ncat "$HOME/cursor-keyring.json"\n')
+stub.chmod(0o755)
+os.environ["PATH"] = f"{stub.parent}:{REAL_PATH}"
+write_json(config_home() / "cursor" / "auth.json", {"storedIn": "os-secret-store"})
+write_json(home() / "cursor-keyring.json", {"accessToken": jwt({"sub": "u-keyring", "exp": time.time() + 3600})})
+record = cursor()
+os.environ["PATH"] = REAL_PATH
+expect("a Secret Service CLI sign-in reaches the dashboard like auth.json did",
+       [record["ready"], record["tierLabel"], record["usageStatusText"], len(record["limits"]) > 0],
+       [True, "Ultra", "", True], record)
+
 # A lapsed sign-in isn't sent: the CLI or editor renews it when it runs.
 sandbox()
 cli_signed_in()

@@ -1314,6 +1314,31 @@ check(
 for name in ("CURSOR_API_KEY", "CURSOR_AUTH_PATH"):
   os.environ.pop(name)
 
+# Recent Cursor CLIs leave auth.json as only {"storedIn": "os-secret-store"}
+# and keep the access token in the Secret Service. Stub secret-tool the way
+# the Antigravity tests do, so a developer's own keyring never answers.
+bin_dir = work / "bin"
+bin_dir.mkdir(exist_ok=True)
+secret_tool = bin_dir / "secret-tool"
+secret_tool.write_text('#!/bin/bash\n[[ $1 == lookup && $2 == service && $3 == cursor-credentials && $4 == account && $5 == cursor-user ]] || exit 1\ncat "$HOME/cursor-keyring.json" 2>/dev/null\n')
+secret_tool.chmod(0o755)
+os.environ["PATH"] = f"{bin_dir}:{os.environ.get('PATH', '')}"
+os.environ["HOME"] = str(home)
+cli.write_text(json.dumps({"storedIn": "os-secret-store"}))
+(home / "cursor-keyring.json").write_text(json.dumps({"accessToken": jwt({"sub": "keyring", "exp": later})}))
+check("a CLI sign-in kept in the Secret Service stands when auth.json only points there",
+      collectors.account_key(collectors.cursor_token()) == "keyring")
+(home / "cursor-keyring.json").write_text(json.dumps({"accessToken": jwt({"sub": "keyring", "exp": time.time() - 5})}))
+check("a lapsed Secret Service sign-in gives way to the editor's", collectors.account_key(collectors.cursor_token()) == "ide")
+(home / "cursor-keyring.json").unlink()
+check("Secret Service pointed at with nothing stored is no CLI token", collectors.account_key(collectors.cursor_token()) == "ide")
+cli.write_text(json.dumps({"accessToken": jwt({"sub": "cli", "exp": later}), "storedIn": "os-secret-store"}))
+(home / "cursor-keyring.json").write_text(json.dumps({"accessToken": jwt({"sub": "keyring", "exp": later})}))
+check("an accessToken still in auth.json comes before the Secret Service copy",
+      collectors.account_key(collectors.cursor_token()) == "cli")
+cli.write_text("{}")
+check("auth.json without storedIn never asks the Secret Service", collectors.account_key(collectors.cursor_token()) == "ide")
+
 deep_header = work / "deep-header.jsonl"
 deep_header.write_text("[" * 200_000 + "\n")
 check("a session header nested deeper than the parser goes names no parent instead of stopping the scan",
