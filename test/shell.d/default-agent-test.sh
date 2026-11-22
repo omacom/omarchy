@@ -952,6 +952,8 @@ prefer_local_launch() {
   mapfile -d '' -t launch_args <"$launch_log"
 }
 
+omarchy-models-harness codex 2>/dev/null && fail "only a harness that can take a local model is accepted"
+omarchy-models-harness opencode
 prefer_local_launch '{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}'
 [[ ${launch_args[*]} == *"OPENCODE_CONFIG=/overlays/opencode-big.config"*"opencode --auto --standalone" ]] ||
   fail "--prefer-local opens the running local model: ${launch_args[*]}"
@@ -1009,12 +1011,11 @@ mapfile -d '' -t launch_args <"$launch_log"
 rm "$mock_bin/omarchy-models-warmup"
 pass "a stopped local model is started in the agent's terminal before the agent opens"
 
-# A default that can't take the overlay hands the local model to pi.
-printf '%s\n' "codex" >"$agent_file"
+# With no harness chosen the local model opens in pi, whatever the default agent.
+rm "${agent_file%/*}/models-harness"
 prefer_local_launch '{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}'
 [[ ${launch_args[*]} == *"pi --extension /overlays/pi-big.config"* ]] ||
-  fail "a default that can't take the overlay opens the local model in pi: ${launch_args[*]}"
-printf '%s\n' "opencode" >"$agent_file"
+  fail "the local model opens in pi by default: ${launch_args[*]}"
 rm "$mock_bin/omarchy-models"
 pass "--prefer-local opens the running local model, and the usual agent otherwise"
 
