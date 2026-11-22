@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "سرگرمی",
   "Agent": "ایجنٹ",
   "Agents": "ایجنٹس",
@@ -20,7 +21,6 @@
   "Calculator": "کیلکولیٹر",
   "Calendar": "کیلنڈر",
   "Capture menu": "کیپچر مینو",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "یاد دہانیاں صاف کریں",
   "Clipboard manager": "کلپ بورڈ مینیجر",
   "Close all windows": "تمام ونڈوز بند کریں",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "کی بورڈ سے اطلاعات کنٹرول کریں",
   "Cycle workspace layout": "ورک سپیس لے آؤٹ بدلیں",
   "Cycle workspace layout back": "ورک سپیس لے آؤٹ واپس بدلیں",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "ٹرمینل پریفکس کے لیے براہ راست ان پٹ",
   "Disable touchpad": "ٹچ پیڈ غیر فعال کریں",
   "Dismiss all notifications": "تمام اطلاعات ہٹائیں",

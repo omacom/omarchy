@@ -96,13 +96,15 @@ omarchy_kmscon() {
     # C.UTF-8: bash string lengths count characters, and gum's width tables
     # stay on narrow ambiguous-width glyphs, as kmscon draws them. The
     # console's size would stand in for kmscon's grid: tput reads COLUMNS and
-    # LINES first. The palette is Tokyo Night.
+    # LINES first. The palette is Tokyo Night. --no-issue: kmscon would
+    # print /etc/issue, a line naming the system, ahead of the command.
     export LANG=C.UTF-8
     unset LC_ALL COLUMNS LINES
     exec kmscon \
       --vt="$(tty)" \
       --oneshot \
       --no-reset-env \
+      --no-issue \
       --no-mouse \
       --dpms-timeout=0 \
       --font-engine=pango \

@@ -57,10 +57,10 @@
           "id": "omarchy.bluetooth"
         },
         {
-          "id": "omarchy.network"
+          "id": "omarchy.audio"
         },
         {
-          "id": "omarchy.audio"
+          "id": "omarchy.network"
         },
         {
           "id": "omarchy.monitor"

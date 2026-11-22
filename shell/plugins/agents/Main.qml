@@ -256,11 +256,56 @@ Item {
   readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/order.json"
   property var providerOrder: []
 
-  readonly property var panelProviders: orderedProviders(accountLines(subscribedProviders).concat(localModelLines))
+  readonly property var panelProviders: orderedProviders(accountLines(subscribedProviders).concat(localModelLines.filter(localModelAdded)))
 
   // A line for each coding model you can open, here or on a paired machine,
   // built by the panel from the local models service.
   property var localModelLines: []
+
+  // The local models added from the add screen, by target (the recipe, or
+  // host/recipe for a paired machine's). Only these get a line, and the one
+  // a default of "local" opens, so the default never goes missing.
+  property var addedLocalModels: []
+
+  function localModelAdded(line) {
+    var target = line.localModel.target
+    return addedLocalModels.indexOf(target) >= 0 || (defaultAgent === "local" && target === localDefaultTarget)
+  }
+
+  function addLocalModel(target) {
+    if (addedLocalModels.indexOf(target) >= 0) return
+    saveLocalModels(addedLocalModels.concat([target]))
+  }
+
+  // A model taken off the panel, or removed from this machine, is offered
+  // on the add screen again.
+  function removeLocalModels(targets) {
+    var kept = addedLocalModels.filter(function(target) { return targets.indexOf(target) < 0 })
+    if (kept.length !== addedLocalModels.length) saveLocalModels(kept)
+  }
+
+  function saveLocalModels(targets) {
+    addedLocalModels = targets
+    addedLocalModelsFile.setText(JSON.stringify(targets) + "\n")
+  }
+
+  // Set by the panel, which knows what is running.
+  property string localDefaultTarget: ""
+
+  FileView {
+    id: addedLocalModelsFile
+    path: (Quickshell.env("XDG_STATE_HOME") || root.home + "/.local/state") + "/omarchy/agents/local-models.json"
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      var parsed = []
+      try { parsed = JSON.parse(text()) } catch (e) { parsed = [] }
+      root.addedLocalModels = Array.isArray(parsed) ? parsed.map(String) : []
+    }
+    onLoadFailed: root.addedLocalModels = []
+    onFileChanged: reload()
+  }
 
   // The local model a default of "local" opens, as `omarchy default agent
   // local <model>` pins it. Empty when none is: it opens the one started last.

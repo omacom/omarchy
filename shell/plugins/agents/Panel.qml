@@ -34,9 +34,8 @@ Panel {
 
   property var deleteTarget: null
   function deleteSelected() {
-    var target = keyTarget
-    if (!target || ["provider", "providerLaunch", "providerRemove"].indexOf(target.kind) < 0) return
-    if (removable(providers[target.index])) deleteTarget = providers[target.index]
+    var i = providerIndexOfKey()
+    if (i >= 0 && removable(providers[i])) deleteTarget = providers[i]
   }
 
   // An added account is forgotten, its sign-in deleted here. Any other line
@@ -46,17 +45,44 @@ Panel {
     return !!line && !!line.account && line.account.primary !== true
   }
 
+  // A local model's line goes back to the add screen; the default's hands
+  // the default on, since the default always has its line, and stays when
+  // no other line could take it.
   function removable(line) {
-    if (!line || line.localModel) return false
+    if (!line) return false
+    if (line.localModel) return !opensByDefault(line) || !!defaultSuccessor(line)
     return !line.account || (forgets(line) && line.account.active !== true)
   }
 
+  function opensByDefault(line) {
+    return !!line && !!line.localModel && usage.defaultAgent === "local" && line.localModel.target === localDefaultTarget
+  }
+
+  // The highest line but this one that can be the default.
+  function defaultSuccessor(line) {
+    return usage.panelProviders.find(function(other) {
+      return usage.lineId(other) !== usage.lineId(line) && defaultIdFor(other) !== ""
+    }) || null
+  }
+
   // Forgets an added account, or hides the agent from the panel; a hidden
-  // one comes back from settings, or by signing in again.
+  // one comes back from settings, or by signing in again. A local model
+  // keeps running, and the add screen offers it again.
   function confirmDelete() {
     var target = deleteTarget
     deleteTarget = null
     if (!target) return
+    if (target.localModel) {
+      // The default's line hands the default to the highest line left that
+      // can take it, as if its star were pressed.
+      if (opensByDefault(target)) {
+        var next = defaultSuccessor(target)
+        if (!next) return
+        makeDefault(next, next.account || null)
+      }
+      usage.removeLocalModels([target.localModel.target])
+      return
+    }
     if (forgets(target)) {
       Util.execArgv(["bash", "-c", 'out=$(omarchy-agent-account-remove "$1" "$2" </dev/null 2>&1) || omarchy-notification-send -u critical "$3" "$out"',
                      "remove-account", target.providerId, String(target.account.id), Commons.I18n.t("agents.removeFailed").arg(lineName(target))])
@@ -117,7 +143,6 @@ Panel {
         // button when it has a harness of its own, else its mark. One that
         // doesn't hold the star offers it, and a lapsed sign-in follows.
         var line = []
-        if (removable(providers[p])) line.push({ kind: "providerRemove", index: p })
         if (defaultIdFor(providers[p]) !== "" && !starred(providers[p], providers[p].account || null))
           line.push({ kind: "providerStar", index: p })
         if (makesOpenIndex === p)
@@ -141,14 +166,16 @@ Panel {
   }
   property int keyRow: 0
   property int keyColumn: 0
+  // What the keys act on: the cursor, shown or, while the mouse leads,
+  // following it unseen, so Enter and Delete still work on what it's over.
   readonly property var keyTarget: {
-    if (!cursorActive || keyRow < 0 || keyRow >= keyRows.length) return null
+    if (!(cursorActive || pointerActive) || keyRow < 0 || keyRow >= keyRows.length) return null
     var row = keyRows[keyRow]
     return row[Math.min(keyColumn, row.length - 1)]
   }
 
   function hasKey(kind, index) {
-    return !!keyTarget && keyTarget.kind === kind && keyTarget.index === (index || 0)
+    return cursorActive && !!keyTarget && keyTarget.kind === kind && keyTarget.index === (index || 0)
   }
 
   function pointAt(kind, index) {
@@ -172,6 +199,7 @@ Panel {
 
   // The first arrow only shows where the cursor is, as in the other panels.
   function moveKey(dx, dy) {
+    pointerActive = false
     if (keyRows.length === 0) return
     if (!cursorActive) {
       keyRow = clamp(keyRow, 0, keyRows.length - 1)
@@ -197,9 +225,13 @@ Panel {
 
   // The agent the cursor is in, by its position on the page.
   function providerIndexOfKey() {
-    var target = keyTarget
+    return lineOf(keyTarget)
+  }
+
+  // The agent a cursor stop belongs to, or -1.
+  function lineOf(target) {
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch", "providerStar", "makeToggle", "providerDesktop", "providerRemove"].indexOf(target.kind) >= 0 || target.kind.indexOf("make:") === 0) return target.index
+    if (["provider", "providerSignin", "providerLaunch", "providerStar", "makeToggle", "providerDesktop"].indexOf(target.kind) >= 0 || target.kind.indexOf("make:") === 0) return target.index
     return -1
   }
 
@@ -393,34 +425,100 @@ Panel {
   // download, so choosing it hands over there.
   readonly property var localModelsService: bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.local-models") : null
 
-  // What the local block offers: a paired machine's coding model that's
-  // running now, ready at once, then the best one for this computer.
+  // What the network and local blocks offer: each coding model running now,
+  // ready at once, a paired machine's before this one's, then the best one
+  // for this computer. One already added has its line in the panel instead.
   readonly property var ownModelOffers: {
     var offers = []
-    var lines = localModelLines
+    var lines = localModelLines.filter(function(line) { return !usage.localModelAdded(line) })
+    lines.sort(function(a, b) { return (a.localModel.host === "") - (b.localModel.host === "") })
     for (var i = 0; i < lines.length; i++)
-      if (lines[i].localModel.host !== "")
-        offers.push({ target: lines[i].localModel.target, name: lines[i].providerName, vendor: lines[i].iconId,
-                      host: lines[i].localModel.host, facts: lines[i].localModel, ready: true })
+      offers.push({ target: lines[i].localModel.target, name: lines[i].providerName, vendor: lines[i].iconId,
+                    host: lines[i].localModel.host, facts: lines[i].localModel, ready: true })
+    lines = localModelLines
     var recipes = localModelsService ? localModelsService.localRecipes || [] : []
     var recipe = recipes.find(function(r) { return r.kind === "text" && r.best && r.available })
-    if (recipe)
+    var running = lines.some(function(line) { return recipe && line.localModel.target === String(recipe.id) })
+    if (recipe && !running && (usage.addedLocalModels.indexOf(String(recipe.id)) < 0 || settingUpLocal === String(recipe.id)))
       offers.push({ target: String(recipe.id), name: recipe.name || String(recipe.id), vendor: recipe.vendor || "local",
                     host: "", facts: recipe, ready: recipe.installed === true, recipe: recipe })
     return offers
   }
 
-  // A model set up from here becomes the default once it's running, if
-  // nothing else was finished first.
-  property string pendingLocalDefault: ""
+  // The network block's share of the offers, which come first.
+  readonly property int networkOfferCount: ownModelOffers.filter(function(offer) { return offer.host !== "" }).length
+
+  // A model removed from this machine is no longer added, so set up again
+  // it's offered on the add screen first. One still being set up or
+  // downloaded isn't installed yet either, and stays.
+  readonly property var removedLocalModels: {
+    if (!localModelsService) return []
+    var recipes = localModelsService.localRecipes || []
+    var models = (localModelsService.localModel || {}).models || {}
+    var setups = localModelsService.setupRows()
+    return usage.addedLocalModels.filter(function(target) {
+      return target.indexOf("/") < 0 && !models[target] && !setups.some(function(row) { return row.recipe === target })
+        && recipes.some(function(recipe) { return String(recipe.id) === target && recipe.installed === false })
+    })
+  }
+  onRemovedLocalModelsChanged: if (removedLocalModels.length > 0) usage.removeLocalModels(removedLocalModels)
+
+  // A model set up from here keeps its row on the add screen, showing how
+  // the setup goes, until it runs. Then it becomes the default if nothing
+  // else was finished first, and the add screen steps back to the panel,
+  // where it now has its line.
+  property string settingUpLocal: ""
   onLocalModelLinesChanged: {
-    if (pendingLocalDefault === "") return
+    if (settingUpLocal === "") return
     for (var i = 0; i < localModelLines.length; i++) {
-      if (localModelLines[i].localModel.target !== pendingLocalDefault) continue
-      if (usage.defaultAgent === "") selectLocalDefault(pendingLocalDefault)
-      pendingLocalDefault = ""
+      if (localModelLines[i].localModel.target !== settingUpLocal) continue
+      if (usage.defaultAgent === "") selectLocalDefault(settingUpLocal)
+      settingUpLocal = ""
+      if (addStage === "pick") cancelAdd()
       return
     }
+  }
+
+  // Where that setup is: the model as the local models service has it
+  // (installing, then loading), or, before it lists it, the setup starting,
+  // waiting its turn, or failed.
+  readonly property var localSetup: {
+    if (settingUpLocal === "" || !localModelsService) return null
+    var model = ((localModelsService.localModel || {}).models || {})[settingUpLocal]
+    if (model) return model
+    return localModelsService.setupRows().find(function(row) { return row.recipe === settingUpLocal }) || null
+  }
+
+  // Its meter: what it's doing, how far along (by the download's bytes, or by
+  // time against what a load usually takes), and the download's speed.
+  readonly property var localSetupMeter: {
+    var model = localSetup
+    if (!model) return null
+    var install = model.install || {}
+    var elapsed = Math.max(0, (nowMs - Number(model.since_ms || nowMs)) / 1000)
+    var creep = function(expected) { return elapsed <= expected ? 0.9 * elapsed / expected : 0.9 + 0.08 * (1 - Math.exp(-(elapsed - expected) / expected)) }
+    // Set up but stopped: failed, or too big for the memory free. Stopped
+    // without either is the moment between download and start.
+    if (model.unit === "inactive" && model.fits === false && !model.error)
+      return { title: Commons.I18n.t("localModels.notEnoughMemory"), value: -1, rate: "", failed: true }
+    if ((model.unit === "installing" && install.phase === "failed") || model.unit === "failed" || (model.unit === "inactive" && !!model.error))
+      return { title: String(model.error || "") || Commons.I18n.t("localModels.setupFailed"), value: -1, rate: "", failed: true }
+    if (model.unit === "installing" && install.phase === "dependencies")
+      return { title: Commons.I18n.t("localModels.installingMeter"), value: creep(30), rate: "" }
+    if (model.unit === "installing") {
+      var total = Number(install.total_bytes) || 0
+      return { title: Commons.I18n.t("localModels.downloadingMeter"), value: total > 0 ? (Number(install.done_bytes) || 0) / total : 0,
+               rate: downloadRate(Number(install.rate_bytes_s) || 0) }
+    }
+    return { title: Commons.I18n.t("localModels.loadingMeter"), value: creep(Number(model.expected_load_seconds) || 60), rate: "" }
+  }
+
+  // The setup's meter moves by the second, so the clock ticks while it shows.
+  Timer {
+    interval: 250
+    running: root.opened && root.picking && root.localSetupMeter !== null && !root.localSetupMeter.failed
+    repeat: true
+    onTriggered: root.nowMs = Date.now()
   }
 
   function selectLocalDefault(target) {
@@ -432,9 +530,9 @@ Panel {
 
   function ownModelFacts(recipe) {
     var facts = []
+    if (recipe.memory_gib != null) facts.push(Commons.I18n.t("localModels.memoryFact").arg(Commons.I18n.formatNumber(recipe.memory_gib, 0)))
     if (recipe.decode_tok_s != null) facts.push(Commons.I18n.t("localModels.speedFact").arg(Commons.I18n.formatNumber(Math.round(recipe.decode_tok_s), 0)))
     if (recipe.context != null) facts.push(Commons.I18n.t("localModels.contextFact").arg(Commons.I18n.formatNumber(Math.round(Number(recipe.context) / 1024), 0)))
-    if (recipe.memory_gib != null) facts.push(Commons.I18n.t("localModels.memoryFact").arg(Commons.I18n.formatNumber(recipe.memory_gib, 0)))
     return facts.join(" · ")
   }
 
@@ -486,16 +584,18 @@ Panel {
 
   function chooseOwnModel(index) {
     var offer = ownModelOffers[index]
-    if (!offer) return
-    root.close()
+    // A setup underway goes on; one that failed, or whose password prompt
+    // was dismissed, is tried again.
+    if (!offer || (offer.target === settingUpLocal && localSetupMeter && !localSetupMeter.failed)) return
+    usage.addLocalModel(offer.target)
     if (offer.ready) {
+      root.close()
       // Ready now, so it's the first one finished when nothing else is.
       if (usage.defaultAgent === "") selectLocalDefault(offer.target)
       Util.execArgv(["omarchy-agent", "--local-model", offer.target])
     } else {
-      if (usage.defaultAgent === "") pendingLocalDefault = offer.target
+      settingUpLocal = offer.target
       localModelsService.setUp(offer.recipe)
-      Util.execArgv(["omarchy-shell", "omarchy.local-models", "open"])
     }
   }
 
@@ -839,7 +939,6 @@ Panel {
     else if (target.kind === "providerLaunch") runLine(providers[target.index])
     else if (target.kind === "providerStar") makeDefault(providers[target.index], providers[target.index].account || null)
     else if (target.kind === "makeToggle") openMakes(target.index)
-    else if (target.kind === "providerRemove") deleteTarget = providers[target.index]
     else if (target.kind === "providerDesktop") launchDesktop(providers[target.index])
     else if (target.kind.indexOf("make:") === 0) runLine(providers[target.index], target.kind.slice(5))
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind)
@@ -849,6 +948,35 @@ Panel {
   // The cursor's place on a line: its terminal button, or its mark.
   function pointAtProvider(i) {
     pointAt(lineStop(i), i)
+  }
+
+  // Whichever moved last, the mouse or the keys, engages a line, never
+  // both. Only the pointer really moving counts: the keys reflow the panel
+  // under a parked one, which reads as hovering whatever lands beneath it.
+  property bool pointerActive: false
+  property point pointerSpot: Qt.point(-1, -1)
+  function pointerMoved(spot) {
+    if (spot.x === pointerSpot.x && spot.y === pointerSpot.y) return
+    pointerSpot = spot
+    if (pointerActive) return
+    pointerActive = true
+    cursorActive = false
+  }
+
+  // The keyboard's cursor follows the mouse unseen, so the next arrow
+  // starts from there.
+  function pointerOnLine(i) {
+    if (!pointerActive) return
+    var row = keyRows[keyRow]
+    if (!row || lineOf(row[Math.min(keyColumn, row.length - 1)]) !== i) pointAtProvider(i)
+    cursorActive = false
+  }
+
+  // A control under the mouse draws its own hover.
+  function hoverAt(kind, index) {
+    if (!pointerActive) return
+    pointAt(kind, index)
+    cursorActive = false
   }
 
   // Hands the keyboard back to the panel after an inline edit.
@@ -1227,15 +1355,6 @@ Panel {
     return currencyPrefix(currency) + Commons.I18n.formatNumber(amount, 2)
   }
 
-  function balanceDetailText(b) {
-    if (!b || !(b.funded > 0)) return ""
-    var spent = formatMoney(b.spent, b.currency)
-    var funded = formatMoney(b.funded, b.currency)
-    return b.estimated
-      ? Commons.I18n.t("agents.balanceSpentEstimated").arg(spent).arg(funded)
-      : Commons.I18n.t("agents.balanceSpent").arg(spent).arg(funded)
-  }
-
   // A balance or spend row's amount is as wide as a limit row's time left
   // ("19h 40m"), so every line ends where the limit meters do.
   TextMetrics {
@@ -1453,6 +1572,7 @@ Panel {
   // rows follow the same stage change, so the cursor waits a tick for them.
   function resetKeys() {
     cursorActive = false
+    pointerActive = false
     keyRow = 0
     keyColumn = 0
     Qt.callLater(function() { if (picking) pointAt("choice", "claude") })
@@ -1500,6 +1620,7 @@ Panel {
     id: usage
     settings: root.settings
     localModelLines: root.localModelLines
+    localDefaultTarget: root.localDefaultTarget
   }
 
   Process {
@@ -1599,6 +1720,7 @@ Panel {
 
     content: PanelKeyCatcher {
       id: keyCatcher
+      HoverHandler { onPointChanged: if (hovered) root.pointerMoved(point.scenePosition) }
       property alias panelFlick: panelFlick
       property alias hero: hero
       property alias column: column
@@ -1619,7 +1741,13 @@ Panel {
           handleKey(event)
           event.accepted = true
         }
+        // A paired machine's model is unlinked, whatever else follows.
+        readonly property bool unlinks: !!root.deleteTarget && !!root.deleteTarget.localModel && root.deleteTarget.localModel.host !== ""
+        confirmText: unlinks ? Commons.I18n.t("agents.unlink") : Commons.I18n.t("common.confirm")
         message: !root.deleteTarget ? ""
+          : unlinks ? Commons.I18n.t("agents.unlinkModelConfirm").arg(root.deleteTarget.providerName).arg(root.deleteTarget.localModel.host)
+          : root.opensByDefault(root.deleteTarget) ? Commons.I18n.t("agents.removeDefaultLocalModelConfirm").arg(root.deleteTarget.providerName)
+          : root.deleteTarget.localModel ? Commons.I18n.t("agents.removeLocalModelConfirm").arg(root.deleteTarget.providerName)
           : root.forgets(root.deleteTarget) ? Commons.I18n.t("agents.forgetAccountConfirm").arg(root.lineName(root.deleteTarget))
           : Commons.I18n.t("agents.hideProviderConfirm").arg(root.deleteTarget.providerName)
         foreground: root.foreground
@@ -1652,7 +1780,7 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "r" || t === "R") root.refreshNow()
-        else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.providers.length) root.pointAtProvider(Number(t) - 1)
+        else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.providers.length) { root.pointerActive = false; root.pointAtProvider(Number(t) - 1) }
       }
 
       Flickable {
@@ -1733,7 +1861,7 @@ Panel {
                   hasCursor: root.hasKey("instructions")
                   onHasCursorChanged: if (hasCursor) root.revealItem(instructionsButton)
                   fontFamily: root.fontFamily
-                  onHovered: root.pointAt("instructions")
+                  onHovered: root.hoverAt("instructions")
                   glyph: "󰈙"
                   tooltip: Commons.I18n.t("agents.editInstructions")
                   onClicked: root.editInstructions()
@@ -1745,7 +1873,7 @@ Panel {
                   hasCursor: root.hasKey("add")
                   onHasCursorChanged: if (hasCursor) root.revealItem(addButton)
                   fontFamily: root.fontFamily
-                  onHovered: root.pointAt("add")
+                  onHovered: root.hoverAt("add")
                   readonly property bool adding: root.addStage !== ""
                   glyph: adding ? "󰅖" : "󰐕"
                   tooltip: adding ? Commons.I18n.t("agents.backToLimits") : Commons.I18n.t("agents.addTitle")
@@ -1803,7 +1931,7 @@ Panel {
                   required property var modelData
                   required property int index
                   hasCursor: root.hasKey("starter", index)
-                  onHovered: root.pointAt("starter", index)
+                  onHovered: root.hoverAt("starter", index)
                   width: (tileGrid.width - tileGrid.spacing * (tileGrid.columns - 1)) / tileGrid.columns
                   glyph: modelData.glyph
                   title: modelData.label
@@ -1951,8 +2079,29 @@ Panel {
         }
       }
 
+      // A model from a paired machine, in a block of its own above this
+      // machine's.
       Column {
-        visible: root.ownModelOffers.length > 0
+        visible: root.networkOfferCount > 0
+        width: parent.width
+        spacing: Style.space(10)
+
+        PanelSeparator { foreground: root.foreground }
+
+        PanelSectionHeader {
+          text: Commons.I18n.t("agents.blockNetworkModel")
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+        }
+
+        Repeater {
+          model: root.ownModelOffers.slice(0, root.networkOfferCount)
+          delegate: ownModelRow
+        }
+      }
+
+      Column {
+        visible: root.ownModelOffers.length > root.networkOfferCount
         width: parent.width
         spacing: Style.space(10)
 
@@ -1965,73 +2114,121 @@ Panel {
         }
 
         Repeater {
-          model: root.ownModelOffers
+          model: root.ownModelOffers.slice(root.networkOfferCount)
+          delegate: ownModelRow
+        }
+      }
 
-          Item {
-            id: ownModel
-            required property var modelData
-            required property int index
-            readonly property bool hasCursor: root.hasKey("ownModel", index)
-            width: parent.width
-            implicitHeight: ownModelText.implicitHeight + Style.space(16)
-            onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
+      // One offered model; its place among all the offers, network ones
+      // first, is what the keys and choosing go by.
+      Component {
+        id: ownModelRow
 
-            CursorSurface {
-              anchors.fill: parent
-              hasCursor: ownModel.hasCursor || ownModelMouse.containsMouse
-              foreground: root.foreground
+        Item {
+          id: ownModel
+          required property var modelData
+          required property int index
+          readonly property int offerIndex: index + (modelData.host !== "" ? 0 : root.networkOfferCount)
+          readonly property bool hasCursor: root.hasKey("ownModel", offerIndex)
+          width: parent.width
+          implicitHeight: ownModelText.implicitHeight + Style.space(16)
+          onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
+
+          CursorSurface {
+            anchors.fill: parent
+            hasCursor: ownModel.hasCursor || ownModelMouse.containsMouse
+            foreground: root.foreground
+          }
+
+          // The maker's mark, as the local models panel draws it.
+          ProviderIcon {
+            id: ownModelMark
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            provider: ({ providerId: String(ownModel.modelData.vendor || "local") })
+            size: Style.font.display
+          }
+
+          Column {
+            id: ownModelText
+            anchors.left: ownModelMark.right
+            anchors.leftMargin: Style.space(12)
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(2)
+
+            Text {
+              width: parent.width
+              text: ownModel.modelData.name
+              textFormat: Text.PlainText
+              color: ownModel.hasCursor ? Commons.Color.accent : root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              font.bold: true
+              elide: Text.ElideRight
             }
 
-            // The maker's mark, as the local models panel draws it.
-            ProviderIcon {
-              id: ownModelMark
-              anchors.left: parent.left
-              anchors.leftMargin: Style.space(8)
-              anchors.verticalCenter: parent.verticalCenter
-              provider: ({ providerId: String(ownModel.modelData.vendor || "local") })
-              size: Style.font.display
+            // A paired machine's model says whose it is before its facts.
+            Text {
+              width: parent.width
+              text: [ownModel.modelData.host, root.ownModelFacts(ownModel.modelData.facts)].filter(function(part) { return part !== "" }).join(" · ")
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
             }
 
-            Column {
-              id: ownModelText
-              anchors.left: ownModelMark.right
-              anchors.leftMargin: Style.space(12)
-              anchors.right: parent.right
-              anchors.verticalCenter: parent.verticalCenter
-              spacing: Style.space(2)
+            // The setup started here, as the local models panel would show
+            // it: installing, downloading, then loading.
+            Item {
+              readonly property var meter: ownModel.modelData.target === root.settingUpLocal ? root.localSetupMeter : null
+              visible: !!meter
+              width: parent.width
+              implicitHeight: visible ? Math.max(setupTitle.implicitHeight, setupRate.implicitHeight) + Style.space(6) : 0
 
               Text {
-                width: parent.width
-                text: ownModel.modelData.name
+                id: setupTitle
+                width: parent.meter && parent.meter.failed ? parent.width : parent.width * 0.3
+                anchors.bottom: parent.bottom
                 textFormat: Text.PlainText
-                color: ownModel.hasCursor ? Commons.Color.accent : root.foreground
+                text: parent.meter ? parent.meter.title : ""
+                color: parent.meter && parent.meter.failed ? root.urgent : root.foreground
                 font.family: root.fontFamily
-                font.pixelSize: Style.font.body
-                font.bold: true
-                elide: Text.ElideRight
+                font.pixelSize: Style.font.bodySmall
               }
 
-              // A paired machine's model ends on whose it is, where this
-              // machine's says the memory it takes.
+              Meter {
+                visible: !!parent.meter && !parent.meter.failed
+                anchors.left: setupTitle.right
+                anchors.right: setupRate.left
+                anchors.rightMargin: Style.space(20)
+                anchors.verticalCenter: setupTitle.verticalCenter
+                value: parent.meter ? parent.meter.value : 0
+              }
+
               Text {
-                width: parent.width
-                text: [root.ownModelFacts(ownModel.modelData.facts), ownModel.modelData.host].filter(function(part) { return part !== "" }).join(" · ")
+                id: setupRate
+                anchors.right: parent.right
+                anchors.verticalCenter: setupTitle.verticalCenter
                 textFormat: Text.PlainText
+                horizontalAlignment: Text.AlignRight
+                text: parent.meter ? parent.meter.rate : ""
                 color: root.dim
                 font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-                elide: Text.ElideRight
+                font.pixelSize: Style.font.bodySmall
               }
             }
+          }
 
-            MouseArea {
-              id: ownModelMouse
-              anchors.fill: parent
-              hoverEnabled: true
-              cursorShape: Qt.PointingHandCursor
-              onEntered: root.pointAt("ownModel", ownModel.index)
-              onClicked: root.chooseOwnModel(ownModel.index)
-            }
+          MouseArea {
+            id: ownModelMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onEntered: root.pointAt("ownModel", ownModel.offerIndex)
+            onClicked: root.chooseOwnModel(ownModel.offerIndex)
           }
         }
       }
@@ -2272,6 +2469,7 @@ Panel {
         TextLink {
           visible: root.pasteLinkShown
           picked: root.hasKey("pasteCode")
+          onHovered: root.hoverAt("pasteCode")
           text: Commons.I18n.t("agents.pasteCodeLink")
           onClicked: root.openPasteField()
         }
@@ -2279,6 +2477,7 @@ Panel {
         TextLink {
           visible: root.addUrl !== ""
           picked: root.hasKey("reopenSignIn")
+          onHovered: root.hoverAt("reopenSignIn")
           text: Commons.I18n.t("agents.reopenSignIn")
           onClicked: root.reopenSignIn()
         }
@@ -2309,7 +2508,6 @@ Panel {
     readonly property var account: provider ? (provider.account || null) : null
     // A local model's line: where it runs and what it is.
     readonly property var local: provider ? (provider.localModel || null) : null
-    readonly property string localHost: local ? local.host : ""
     property bool editingName: false
     property string renamedTo: ""
     readonly property string accountLabel: renamedTo !== "" ? renamedTo : account ? String(account.label || account.id || "") : ""
@@ -2341,10 +2539,13 @@ Panel {
     readonly property var spend: provider ? (provider.spend || null) : null
     spacing: Style.space(16)
     readonly property bool dragged: root.dragIndex === providerIndex
-    // The pointer or the keyboard is on this agent, which shows its hollow star.
-    readonly property bool engaged: sectionHover.hovered || root.providerIndexOfKey() === providerIndex
+    // The pointer or the keyboard, whichever moved last, is on this agent.
+    readonly property bool engaged: root.pointerActive ? sectionHover.hovered : root.providerIndexOfKey() === providerIndex
     readonly property bool makesOpen: root.makesOpenIndex === providerIndex
-    onEngagedChanged: if (!engaged && makesOpen) root.makesOpenIndex = -1
+    onEngagedChanged: {
+      if (!engaged && makesOpen) root.makesOpenIndex = -1
+      if (engaged) root.pointerOnLine(providerIndex)
+    }
     HoverHandler { id: sectionHover }
     z: dragged ? 2 : 0
     opacity: dragged ? 0.9 : 1
@@ -2427,11 +2628,11 @@ Panel {
         anchors.left: sectionName.right
         anchors.leftMargin: Style.space(8)
         anchors.baseline: sectionName.baseline
-        visible: (!!section.account || section.localHost !== "") && !section.editingName
+        visible: !!section.account && !section.editingName
         width: Math.max(0, Math.min(implicitWidth, sectionHead.textEnd - x))
         elide: Text.ElideRight
         textFormat: Text.PlainText
-        text: section.account ? section.accountLabel : section.localHost
+        text: section.accountLabel
         color: sectionHead.lit ? Commons.Color.accent : root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -2501,7 +2702,7 @@ Panel {
       }
 
       // The line's buttons, from the right: its terminal, its desktop app,
-      // its makes, its star, and its trash. Hidden ones take no room, but an unlit star
+      // its makes, and its star. Hidden ones take no room, but an unlit star
       // keeps its place so the others don't move.
       Row {
         id: sectionActions
@@ -2511,18 +2712,19 @@ Panel {
         spacing: Style.space(6)
 
         // Opens the coding agent made for this subscription: Codex for OpenAI,
-        // Claude Code for Anthropic.
+        // Claude Code for Anthropic. The default's line shows its star here
+        // instead until it's engaged.
         PanelActionButton {
           outlined: true
           id: sectionLaunch
           anchors.verticalCenter: parent.verticalCenter
-          visible: root.launches(section.provider)
+          visible: root.launches(section.provider) && (section.engaged || !sectionStar.on)
           iconText: "󰞷"
           tooltipText: Commons.I18n.t("agents.launchHarness").arg(root.lineName(section.provider))
           foreground: root.foreground
           fontFamily: root.fontFamily
           hasCursor: root.hasKey("providerLaunch", section.providerIndex)
-          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerLaunch", section.providerIndex) }
+          onHovered: function(isHovered) { if (isHovered) root.hoverAt("providerLaunch", section.providerIndex) }
           onClicked: root.runLine(section.provider)
         }
 
@@ -2538,7 +2740,7 @@ Panel {
           foreground: root.foreground
           fontFamily: root.fontFamily
           hasCursor: root.hasKey("providerDesktop", section.providerIndex)
-          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerDesktop", section.providerIndex) }
+          onHovered: function(isHovered) { if (isHovered) root.hoverAt("providerDesktop", section.providerIndex) }
           onClicked: root.launchDesktop(section.provider)
         }
 
@@ -2555,7 +2757,7 @@ Panel {
           foreground: root.foreground
           fontFamily: root.fontFamily
           hasCursor: root.hasKey("makeToggle", section.providerIndex)
-          onHovered: function(isHovered) { if (isHovered) root.pointAt("makeToggle", section.providerIndex) }
+          onHovered: function(isHovered) { if (isHovered) root.hoverAt("makeToggle", section.providerIndex) }
           onClicked: root.openMakes(section.providerIndex)
         }
 
@@ -2577,7 +2779,7 @@ Panel {
               foreground: root.foreground
               fontFamily: root.fontFamily
               hasCursor: root.hasKey("make:" + modelData.kind, section.providerIndex)
-              onHovered: function(isHovered) { if (isHovered) root.pointAt("make:" + modelData.kind, section.providerIndex) }
+              onHovered: function(isHovered) { if (isHovered) root.hoverAt("make:" + modelData.kind, section.providerIndex) }
               onClicked: root.runLine(section.provider, modelData.kind)
             }
           }
@@ -2589,10 +2791,11 @@ Panel {
           outlined: true
           id: sectionStar
           anchors.verticalCenter: parent.verticalCenter
-          visible: root.defaultIdFor(section.provider) !== ""
+          visible: root.defaultIdFor(section.provider) !== "" && !(on && section.engaged)
           readonly property bool on: root.starred(section.provider, section.account)
-          // Only the default's star stays; another shows when it's engaged. It
-          // keeps its place either way, so the terminal button doesn't move.
+          // The default's star shows only at rest, in place of its buttons;
+          // another shows when it's engaged, and keeps its place either way so
+          // the terminal button doesn't move.
           readonly property bool shown: on || section.engaged
           opacity: shown ? 1 : 0
           enabled: shown
@@ -2603,36 +2806,19 @@ Panel {
           foreground: on ? Commons.Color.accent : root.foreground
           fontFamily: root.fontFamily
           hasCursor: root.hasKey("providerStar", section.providerIndex)
-          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerStar", section.providerIndex) }
+          onHovered: function(isHovered) { if (isHovered) root.hoverAt("providerStar", section.providerIndex) }
           onClicked: root.makeDefault(section.provider, section.account)
-        }
-
-        // Removing the line: on the line in use, left of its star.
-        PanelActionButton {
-          outlined: true
-          id: sectionRemove
-          anchors.verticalCenter: parent.verticalCenter
-          visible: section.engaged && root.removable(section.provider)
-          iconText: "󰩹"
-          tooltipText: root.forgets(section.provider)
-            ? Commons.I18n.t("agents.forgetAccount").arg(root.lineName(section.provider))
-            : Commons.I18n.t("agents.hideProvider").arg(section.provider ? section.provider.providerName : "")
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          hasCursor: root.hasKey("providerRemove", section.providerIndex)
-          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerRemove", section.providerIndex) }
-          onClicked: root.deleteTarget = section.provider
         }
       }
     }
 
-    // A local model's speed, context, and memory, as the local models panel
-    // says them.
+    // The machine a local model runs on when that isn't this one, then its
+    // memory, speed, and context, as the local models panel says them.
     Text {
       visible: !!section.local && text !== ""
       width: parent.width
       textFormat: Text.PlainText
-      text: section.local ? root.ownModelFacts(section.local) : ""
+      text: section.local ? [section.local.host, root.ownModelFacts(section.local)].filter(function(part) { return part !== "" }).join(" · ") : ""
       color: root.dim
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
@@ -2643,6 +2829,7 @@ Panel {
     TextLink {
       visible: root.needsSignIn(section.provider)
       picked: root.hasKey("providerSignin", section.providerIndex)
+      onHovered: root.hoverAt("providerSignin", section.providerIndex)
       text: Commons.I18n.t("agents.signInRequired")
       idleColor: root.urgent
       tooltip: section.account
@@ -2682,69 +2869,54 @@ Panel {
       }
     }
 
-    // The meter shows what is left, not what is used: a prepaid account
-    // drains toward empty rather than filling toward a cap.
-    Column {
+    // The meter fills with what has been spent, the way a limit window fills
+    // toward its cap.
+    Item {
       visible: !!section.balance
       width: parent.width
-      spacing: Style.space(6)
+      implicitHeight: balanceTitle.implicitHeight
 
-      Item {
-        width: parent.width
-        implicitHeight: balanceTitle.implicitHeight
+      Text {
+        id: balanceTitle
+        textFormat: Text.PlainText
+        width: parent.width * 0.3
+        anchors.verticalCenter: parent.verticalCenter
+        text: Commons.I18n.t("agents.balance")
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+      }
 
-        Text {
-          id: balanceTitle
-          textFormat: Text.PlainText
-          width: parent.width * 0.3
-          anchors.verticalCenter: parent.verticalCenter
-          text: Commons.I18n.t("agents.balance")
-          color: root.foreground
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall
-        }
-
-        // Without a funded figure there is nothing to drain from, so no meter.
-        Meter {
-          visible: !!section.balance && section.balance.funded > 0
-          anchors.left: balanceTitle.right
-          anchors.right: balanceValue.left
-          anchors.rightMargin: Style.space(20)
-          anchors.verticalCenter: parent.verticalCenter
-          value: visible ? section.balance.remaining / section.balance.funded : -1
-          alarming: root.balanceAlarming(section.balance)
-        }
-
-        Text {
-          id: balanceValue
-          textFormat: Text.PlainText
-          width: Math.max(root.valueColumnWidth, implicitWidth)
-          anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
-          horizontalAlignment: Text.AlignRight
-          text: section.balance ? root.formatMoney(section.balance.remaining, section.balance.currency) : ""
-          color: root.balanceAlarming(section.balance) ? root.urgent : root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall
-        }
+      // Without a funded figure there is nothing to fill toward, so no meter.
+      Meter {
+        visible: !!section.balance && section.balance.funded > 0
+        anchors.left: balanceTitle.right
+        anchors.right: balanceValue.left
+        anchors.rightMargin: Style.space(20)
+        anchors.verticalCenter: parent.verticalCenter
+        value: visible ? 1 - section.balance.remaining / section.balance.funded : -1
+        alarming: root.balanceAlarming(section.balance)
       }
 
       Text {
+        id: balanceValue
         textFormat: Text.PlainText
-        visible: text !== ""
-        width: parent.width
-        text: root.balanceDetailText(section.balance)
-        color: root.dim
+        width: Math.max(root.valueColumnWidth, implicitWidth)
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        horizontalAlignment: Text.AlignRight
+        text: section.balance ? root.formatMoney(section.balance.remaining, section.balance.currency) : ""
+        color: root.balanceAlarming(section.balance) ? root.urgent : root.dim
         font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
+        font.pixelSize: Style.font.bodySmall
       }
     }
 
     // Against a real monthly cap the spend is this month's meter; without
     // one, a bar for each of the last 30 days, scaled to the busiest, shows
-    // where it went.
+    // where it went. A section with a balance shows that alone.
     Item {
-      visible: !!section.spend
+      visible: !!section.spend && !section.balance
       width: parent.width
       implicitHeight: spendTitle.implicitHeight
 
@@ -2776,8 +2948,9 @@ Panel {
         anchors.left: spendTitle.right
         anchors.right: spendValue.left
         anchors.rightMargin: Style.space(20)
-        anchors.verticalCenter: parent.verticalCenter
-        height: spendTitle.implicitHeight
+        // The bars stand on the title's baseline, as tall as its letters rise.
+        anchors.bottom: spendTitle.baseline
+        height: spendTitle.baselineOffset
         readonly property var days: section.spend ? section.spend.days : []
         readonly property real busiest: Math.max.apply(null, days.concat([0]))
         readonly property real gap: Style.space(2)
@@ -2876,9 +3049,10 @@ Panel {
     property string glyph: ""
     property string title: ""
     property bool hasCursor: false
+    readonly property bool hot: hasCursor || tileMouse.containsMouse
     implicitHeight: tileBody.implicitHeight + Style.space(20)
     radius: Style.cornerRadius
-    color: hasCursor ? root.alpha(Commons.Color.accent, 0.14) : root.alpha(root.foreground, 0.05)
+    color: hot ? root.alpha(Commons.Color.accent, 0.14) : root.alpha(root.foreground, 0.05)
     onHasCursorChanged: if (hasCursor) root.revealItem(tile)
 
     Row {
@@ -2899,7 +3073,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         text: tile.title
-        color: tile.hasCursor ? Commons.Color.accent : root.foreground
+        color: tile.hot ? Commons.Color.accent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: true
@@ -2926,6 +3100,7 @@ Panel {
   component TextLink: Text {
     id: link
     signal clicked()
+    signal hovered()
     property bool current: false
     property bool picked: false
     property string tooltip: ""
@@ -2946,6 +3121,7 @@ Panel {
       anchors.margins: -Style.space(4)
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
+      onEntered: link.hovered()
       onClicked: link.clicked()
     }
 

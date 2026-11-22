@@ -358,7 +358,6 @@ printf "%%s" "$*" >"$OMARCHY_TEST_SHELL_LOG"
 ' >"$mock_bin/omarchy-shell"
 chmod +x "$mock_bin/omarchy-shell"
 OMARCHY_TEST_SHELL_LOG="$test_tmp/shell" omarchy-agent --pick
-rm "$mock_bin/omarchy-shell"
 [[ $(<"$test_tmp/shell") == "omarchy.agents open" ]] ||
   fail "--pick opens the agents panel when none is set" "$(<"$shell_log")"
 [[ ! -s $launch_log ]] || fail "--pick starts nothing when no agent is set"
@@ -375,10 +374,11 @@ omarchy-agent --or-webapp https://chatgpt.com
 [[ $(<"$stub_log") == "webapp https://chatgpt.com" && ! -s $launch_log ]] || fail "the AI hotkey opens the web app without a default agent"
 pass "the AI hotkey opens the web app without a default agent"
 
-# The menu starts the chosen agent itself, so a prompt waits on the clipboard.
+# The agents panel starts the chosen agent itself, so a prompt waits on the clipboard.
 : >"$clipboard_log"
 : >"$notification_history"
-omarchy-agent --pick --prompt "Diagnose this crash"
+OMARCHY_TEST_SHELL_LOG="$test_tmp/shell" omarchy-agent --pick --prompt "Diagnose this crash"
+rm "$mock_bin/omarchy-shell"
 [[ $(<"$clipboard_log") == "Diagnose this crash" ]] || fail "a prompt is kept on the clipboard while an agent is chosen"
 grep -q "Choose an agent for this task" "$notification_history" || fail "choosing an agent for a prompt says where the prompt went"
 [[ ! -s $launch_log ]] || fail "a prompt starts nothing before an agent is chosen"
@@ -1037,10 +1037,12 @@ mapfile -d '' -t launch_args <"$launch_log"
   fail "a stopped local model is opened by rerunning the launch inside its terminal: ${launch_args[*]}"
 
 : >"$launch_log"
-OMARCHY_TEST_LOCAL_STATUS=$stopped omarchy-agent --local
+printf '%s\n' "local" >"$agent_file"
+OMARCHY_TEST_LOCAL_STATUS=$stopped omarchy-agent
 mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-agent --inline --local" ]] ||
-  fail "--local on a stopped model starts the one last used: ${launch_args[*]}"
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-agent --inline" ]] ||
+  fail "a default of local with a stopped model starts the one last used: ${launch_args[*]}"
+printf '%s\n' "opencode" >"$agent_file"
 
 printf '#!/bin/bash\nprintf "%%s\\n" "warmup $*" >>"$OMARCHY_TEST_WARMUP_LOG"\nexit "${OMARCHY_TEST_WARMUP_STATUS:-0}"\n' >"$mock_bin/omarchy-models-warmup"
 chmod +x "$mock_bin/omarchy-models-warmup"
