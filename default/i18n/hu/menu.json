@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Érintőpad"
   },
-  "update.password.drive": {
-    "label": "Meghajtótitkosítás"
-  },
-  "update.password.user": {
-    "label": "Felhasználó"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Összeomlásrögzítés ki"
   },

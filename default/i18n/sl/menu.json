@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Sledilna ploščica"
   },
-  "update.password.drive": {
-    "label": "Šifriranje pogona"
-  },
-  "update.password.user": {
-    "label": "Uporabnik"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Izklopi zajem zrušitev"
   },

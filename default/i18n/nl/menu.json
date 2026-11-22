@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Trackpad"
   },
-  "update.password.drive": {
-    "label": "Schijfversleuteling"
-  },
-  "update.password.user": {
-    "label": "Gebruiker"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Accupercentage tonen"
   },

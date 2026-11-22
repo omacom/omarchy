@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Skārienpaliktnis"
   },
-  "update.password.drive": {
-    "label": "Diska šifrēšana"
-  },
-  "update.password.user": {
-    "label": "Lietotājs"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Rādīt akumulatora %"
   },

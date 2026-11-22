@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Panel táctil"
   },
-  "update.password.drive": {
-    "label": "Cifrado de unidad"
-  },
-  "update.password.user": {
-    "label": "Usuario"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Captura de fallos desactivada"
   },

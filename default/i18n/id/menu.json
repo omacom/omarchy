@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Trackpad"
   },
-  "update.password.drive": {
-    "label": "Enkripsi Drive"
-  },
-  "update.password.user": {
-    "label": "Pengguna"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Rekam Crash Nonaktif"
   },

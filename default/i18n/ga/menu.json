@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Ceap rianaithe"
   },
-  "update.password.drive": {
-    "label": "Criptiú tiomántáin"
-  },
-  "update.password.user": {
-    "label": "Úsáideoir"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Taispeáin % Ceallra"
   },

@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Trackpad"
   },
-  "update.password.drive": {
-    "label": "Criptare disc"
-  },
-  "update.password.user": {
-    "label": "Utilizator"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Dezactivează captura de blocări"
   },

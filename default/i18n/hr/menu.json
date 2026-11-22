@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Dodirna ploha"
   },
-  "update.password.drive": {
-    "label": "Šifriranje diska"
-  },
-  "update.password.user": {
-    "label": "Korisnik"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Prikaži % baterije"
   },

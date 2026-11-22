@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Gładzik"
   },
-  "update.password.drive": {
-    "label": "Szyfrowanie dysku"
-  },
-  "update.password.user": {
-    "label": "Użytkownik"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Wyłącz przechwytywanie awarii"
   },

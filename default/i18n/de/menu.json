@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "Trackpad"
   },
-  "update.password.drive": {
-    "label": "Laufwerksverschlüsselung"
-  },
-  "update.password.user": {
-    "label": "Benutzer"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Absturzerfassung aus"
   },

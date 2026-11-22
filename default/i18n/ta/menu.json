@@ -1129,12 +1129,6 @@
   "update.hardware.trackpad": {
     "label": "தொடுதளம்"
   },
-  "update.password.drive": {
-    "label": "இயக்கக குறியாக்கம்"
-  },
-  "update.password.user": {
-    "label": "பயனர்"
-  },
   "appearance.windows.gaps-on": {
     "label": "சாளர இடைவெளி இயக்கு"
   },
