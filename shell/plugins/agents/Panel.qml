@@ -140,14 +140,16 @@ Panel {
   }
   property int keyRow: 0
   property int keyColumn: 0
+  // What the keys act on: the cursor, shown or, while the mouse leads,
+  // following it unseen, so Enter and Delete still work on what it's over.
   readonly property var keyTarget: {
-    if (!cursorActive || keyRow < 0 || keyRow >= keyRows.length) return null
+    if (!(cursorActive || pointerActive) || keyRow < 0 || keyRow >= keyRows.length) return null
     var row = keyRows[keyRow]
     return row[Math.min(keyColumn, row.length - 1)]
   }
 
   function hasKey(kind, index) {
-    return !!keyTarget && keyTarget.kind === kind && keyTarget.index === (index || 0)
+    return cursorActive && !!keyTarget && keyTarget.kind === kind && keyTarget.index === (index || 0)
   }
 
   function pointAt(kind, index) {
@@ -2892,9 +2894,10 @@ Panel {
     property string glyph: ""
     property string title: ""
     property bool hasCursor: false
+    readonly property bool hot: hasCursor || tileMouse.containsMouse
     implicitHeight: tileBody.implicitHeight + Style.space(20)
     radius: Style.cornerRadius
-    color: hasCursor ? root.alpha(Commons.Color.accent, 0.14) : root.alpha(root.foreground, 0.05)
+    color: hot ? root.alpha(Commons.Color.accent, 0.14) : root.alpha(root.foreground, 0.05)
     onHasCursorChanged: if (hasCursor) root.revealItem(tile)
 
     Row {
@@ -2915,7 +2918,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         text: tile.title
-        color: tile.hasCursor ? Commons.Color.accent : root.foreground
+        color: tile.hot ? Commons.Color.accent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: true
