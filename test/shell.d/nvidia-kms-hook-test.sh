@@ -78,7 +78,7 @@ resolved_hooks() {
   KERNELVERSION=6.99.0-test KERNEL_MODULES="${KERNEL_MODULES-thunderbolt i915 amdgpu}" \
     OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" OMARCHY_PROC_ROOT="$tmp_dir/generic/proc" \
     OMARCHY_DRM_CLASS_PATH="$tmp_dir/drm" \
-    OMARCHY_MKINITCPIO_CONF_DIR="${conf%/*}" PATH="$tmp_dir/generic/bin:$ROOT/bin:$PATH" bash -uc "
+    OMARCHY_MKINITCPIO_CONF_DIR="${OMARCHY_MKINITCPIO_CONF_DIR-${conf%/*}}" PATH="$tmp_dir/generic/bin:$ROOT/bin:$PATH" bash -uc "
     FILES=()
     XKBLAYOUT=us
     source '$baseline_conf'
@@ -202,6 +202,12 @@ write_pci_devices 0x8086:0x030000:boot_vga,output 0x10de:0x030200:drm
 assert_hooks "iGPU without a bound driver keeps kms" \
   "$nvidia_modules" "$with_kms"
 
+write_pci_devices 0x8086:0x030000:boot_vga,module=i915 0x10de:0x030200:drm
+assert_hooks "a loadable module without an iGPU DRM card keeps kms" \
+  "$nvidia_modules" "$with_kms"
+assert_modules "a loadable module without an iGPU DRM card keeps the nvidia modules" \
+  "$nvidia_modules" "$nvidia_modules"
+
 write_pci_devices "${offload_only[@]}"
 mkdir -p "$tmp_dir/devices/0000:0f:00.0"
 assert_hooks "unreadable device beside an offload-only NVIDIA keeps kms" \
@@ -227,3 +233,13 @@ pass "a later MODULES reset keeps kms"
 printf 'MODULES+=(thunderbolt)\n' >"$tmp_dir/conf.d/surface_device_modules.conf"
 assert_modules "a later MODULES append still trades the nvidia modules" \
   "$nvidia_modules" "i915" "$tmp_dir/conf.d/omarchy_hooks.conf"
+
+mkdir -p "$tmp_dir/alternate.conf.d"
+cp "$hooks_conf" "$tmp_dir/alternate.conf.d/omarchy_hooks.conf"
+OMARCHY_MKINITCPIO_CONF_DIR="" MKINITCPIO_CONF="$tmp_dir/alternate.conf" \
+  assert_modules "a relocated mkinitcpio config uses its own drop-in directory" \
+  "$nvidia_modules" "i915" "$tmp_dir/alternate.conf.d/omarchy_hooks.conf"
+printf 'MODULES=(pinctrl_tigerlake surface_aggregator)\n' >"$tmp_dir/alternate.conf.d/surface_device_modules.conf"
+OMARCHY_MKINITCPIO_CONF_DIR="" MKINITCPIO_CONF="$tmp_dir/alternate.conf" \
+  assert_modules "a relocated config detects its later MODULES reset" \
+  "$nvidia_modules" "$nvidia_modules" "$tmp_dir/alternate.conf.d/omarchy_hooks.conf"

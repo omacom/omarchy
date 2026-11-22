@@ -245,7 +245,7 @@ assert_composed "a Surface is unchanged" x86 \
 offload_only_devices() {
   pci_devices 0x8086:0x030000 0x10de:0x030200
   printf '1\n' >"$devices/0000:00:00.0/boot_vga"
-  mkdir -p "$devices/0000:00:00.0/driver" "$devices/0000:01:00.0/drm/card1"
+  mkdir -p "$devices/0000:00:00.0/driver" "$devices/0000:00:00.0/drm/card0" "$devices/0000:01:00.0/drm/card1"
   ln -s ../../../module/i915 "$devices/0000:00:00.0/driver/module"
 }
 
