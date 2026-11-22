@@ -3,6 +3,7 @@
 set -euo pipefail
 
 source "$(dirname "$0")/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
 
 generator="$ROOT/bin/omarchy-locale-generate"
 registry="$ROOT/default/i18n/locales.json"
@@ -60,6 +61,16 @@ for status in 1 4 135; do
   [[ $(cat "$LOCALE_GEN_LOG") == *" da_DK.UTF-8" ]] || fail "the failure is localedef's, not an earlier refusal" "$(cat "$LOCALE_GEN_LOG")"
 done
 pass "omarchy-locale-generate fails when the locale is not generated"
+
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
+if turkish_locale "$work/locales"; then
+  : >"$LOCALE_GEN_LOG"
+  in_turkish run it || fail "locale-generate accepts a language code under tr_TR.UTF-8"
+  grep -qx 'it_IT.UTF-8 UTF-8' "$OMARCHY_LOCALE_GEN" || fail "Italian locale entry is enabled under tr_TR.UTF-8"
+  pass "locale-generate accepts ASCII codes under tr_TR.UTF-8"
+else
+  skip "Turkish locale collation case unavailable; skipping locale-generate locale test"
+fi
 
 for bad in "" "xx" "en-ZZ" "../da" "da;id" "da sv" "DA"; do
   : >"$LOCALE_GEN_LOG"

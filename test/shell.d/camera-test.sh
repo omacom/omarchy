@@ -3,6 +3,7 @@
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
 
 helper="$ROOT/bin/omarchy-install-camera"
 leaf="$ROOT/install/hardware/qualcomm/camera.sh"
@@ -67,6 +68,20 @@ if HOME=$home bash "$ROOT/bin/omarchy-chromium-add-feature" 'Foo/Bar' 2>/dev/nul
   fail "the feature helper refuses a name that isn't a Chromium feature"
 fi
 pass "the feature helper refuses a name that isn't a Chromium feature"
+
+# The feature name is an ASCII identifier; its range check must survive tr_TR.
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
+if turkish_locale "$test_tmp/locales"; then
+  home=$(new_home turkish)
+  printf '%s\n' '--enable-features=Foo' >"$home/.config/chromium-flags.conf"
+  HOME=$home in_turkish bash "$ROOT/bin/omarchy-chromium-add-feature" VaapiVideoDecoder ||
+    fail "feature helper accepts an ASCII name with i under tr_TR.UTF-8"
+  [[ $(cat "$home/.config/chromium-flags.conf") == '--enable-features=Foo,VaapiVideoDecoder' ]] ||
+    fail "feature name is appended under tr_TR.UTF-8"
+  pass "feature helper accepts ASCII names under tr_TR.UTF-8"
+else
+  skip "Turkish locale collation case unavailable; skipping feature locale test"
+fi
 
 # Whatever writes a fresh flags file has to put the camera back, as it does the
 # video decoding settings.
