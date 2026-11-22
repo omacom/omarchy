@@ -98,10 +98,43 @@ mise_retired() {
   ! mise where "$legacy_tool" >/dev/null 2>&1 && ! grep -qE '"pipx:hermes-agent(\[|")' <<<"$requested"
 }
 
+# The gateway unit upstream's `hermes gateway install` writes starts the mise
+# build by path -- `ExecStart=~/.local/share/mise/installs/pipx-hermes-agent/...`
+# with `Restart=always` and no start-rate limit -- so once the environment is
+# gone it fails 203/EXEC every five seconds, forever. A unit whose ExecStart
+# runs the installs of this tool is the retired environment's own, whatever
+# home it serves, and goes with it the way the ~/.hermes runtime's gateway does
+# in omarchy-remove-ai-hermes: stopped first, since systemd would start it
+# again the moment it was killed. Matched as a plain string, so the installs
+# directory is found wherever MISE_DATA_DIR or XDG_DATA_HOME put it.
+unit_dir=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user
+
+retire_mise_gateway_units() {
+  local unit_file unit state
+  for unit_file in "$unit_dir"/hermes-gateway*.service; do
+    [[ -f $unit_file ]] || continue
+    [[ $(grep '^ExecStart=' "$unit_file") == *'mise/installs/pipx-hermes-agent'* ]] || continue
+    unit=${unit_file##*/}
+    state=$(systemctl --user is-active "$unit" 2>/dev/null) || true
+    if [[ $state == active ]] && ! systemctl --user disable --now "$unit" 2>/dev/null; then
+      echo "Could not stop $unit, which runs the Hermes that mise built. Stop it by hand (systemctl --user disable --now \"$unit\"), then run omarchy-install-hermes-cli --retire-mise again." >&2
+      return 1
+    fi
+    # .bak is what `gateway install --force` leaves behind when it rewrites a
+    # unit, so it goes with the unit.
+    rm -f "$unit_file" "$unit_file.bak" "$unit_dir/default.target.wants/$unit"
+    systemctl --user daemon-reload 2>/dev/null || true
+    # A unit that had been failing stays listed as "not-found failed" after
+    # its file is gone until its failed state is reset.
+    systemctl --user reset-failed "$unit" 2>/dev/null || true
+  done
+}
+
 # Removes the environment the retired wrapper built, judged by what is left
 # rather than by what the commands claimed. Only for a caller that has proved
 # it Omarchy's.
 retire_mise() {
+  retire_mise_gateway_units || return 1
   if mise_retired; then
     return 0
   fi
