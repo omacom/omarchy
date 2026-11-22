@@ -46,15 +46,23 @@ Panel {
   }
 
   // A local model's line goes back to the add screen; the default's hands
-  // the default on, since the default always has its line.
+  // the default on, since the default always has its line, and stays when
+  // no other line could take it.
   function removable(line) {
     if (!line) return false
-    if (line.localModel) return true
+    if (line.localModel) return !opensByDefault(line) || !!defaultSuccessor(line)
     return !line.account || (forgets(line) && line.account.active !== true)
   }
 
   function opensByDefault(line) {
     return !!line && !!line.localModel && usage.defaultAgent === "local" && line.localModel.target === localDefaultTarget
+  }
+
+  // The highest line but this one that can be the default.
+  function defaultSuccessor(line) {
+    return usage.panelProviders.find(function(other) {
+      return usage.lineId(other) !== usage.lineId(line) && defaultIdFor(other) !== ""
+    }) || null
   }
 
   // Forgets an added account, or hides the agent from the panel; a hidden
@@ -65,11 +73,12 @@ Panel {
     deleteTarget = null
     if (!target) return
     if (target.localModel) {
-      // The default's line takes the default with it, to whichever line is
-      // then at the top of the panel, as if its star were pressed.
+      // The default's line hands the default to the highest line left that
+      // can take it, as if its star were pressed.
       if (opensByDefault(target)) {
-        var next = usage.panelProviders.find(function(line) { return usage.lineId(line) !== usage.lineId(target) })
-        if (next) makeDefault(next, next.account || null)
+        var next = defaultSuccessor(target)
+        if (!next) return
+        makeDefault(next, next.account || null)
       }
       usage.removeLocalModels([target.localModel.target])
       return

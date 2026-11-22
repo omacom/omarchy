@@ -45,8 +45,9 @@ per local coding model that is running and ready.
   gets a line, as does the one a default of "local" opens. The models added
   are kept in `~/.local/state/omarchy/agents/local-models.json`. Delete on
   a model's line takes it off the panel and back to the add screen, the model
-  still running, and the default's hands the default to the line then at the
-  top; removing a model from this machine in
+  still running, and the default's hands the default to the highest line
+  that can take it, or stays when none can; removing a model from this
+  machine in
   the local models panel does the same. A line shows
   its maker's mark, its name, the machine for a paired one, and its memory,
   speed, and context where a
