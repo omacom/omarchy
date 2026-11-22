@@ -1725,10 +1725,12 @@ Panel {
           id: column
           // The overhang sits on the start side, which is the right when
           // mirrored; there the scroll bar takes the left instead.
-          x: LayoutMirroring.enabled ? (panelFlick.interactive ? panelScroll.width + Style.space(6) : 0) : panelFlick.overhang
-          // When the panel scrolls, the bar gets its own strip rather than
-          // sitting on top of the right-aligned numbers.
-          width: panelFlick.width - panelFlick.overhang - (panelFlick.interactive ? panelScroll.width + Style.space(6) : 0)
+          x: LayoutMirroring.enabled ? panelScroll.width + Style.space(6) : panelFlick.overhang
+          // The scroll bar gets its own strip rather than sitting on top of
+          // the right-aligned numbers, and keeps it on every page, so the
+          // list, which scrolls, and the add screen, which fits, share one
+          // right edge.
+          width: panelFlick.width - panelFlick.overhang - panelScroll.width - Style.space(6)
           spacing: Style.space(16)
 
           // ---------- Hero: agents · rotating summary · add ----------
