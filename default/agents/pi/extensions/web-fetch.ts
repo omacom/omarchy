@@ -84,11 +84,14 @@ function saveToTemp(name: string, data: Buffer | string): string {
   return file;
 }
 
+// A name for a saved download, kept well under the 255-byte filename limit
+// however long the URL's last segment is.
 function fileNameFor(url: URL, contentType: string): string {
   const base = path.basename(url.pathname).replace(/[^\w.-]+/g, "_");
-  if (base && base.includes(".")) return base;
-  const extension = contentType.split("/")[1]?.split(/[+;]/)[0] || "bin";
-  return `${base || "download"}.${extension}`;
+  const known = base.includes(".") ? path.extname(base).slice(1, 17) : "";
+  const extension = known || contentType.split("/")[1]?.split(/[+;]/)[0]?.slice(0, 16) || "bin";
+  const stem = (known ? base.slice(0, -known.length - 1) : base).slice(0, 100) || "download";
+  return `${stem}.${extension}`;
 }
 
 // The PDF's text, or undefined when pdftotext isn't installed or can't read it.

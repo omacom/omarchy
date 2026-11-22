@@ -71,6 +71,9 @@ mkdir -p "$test_tmp/pi-moved/.pi/agent/extensions" "$test_tmp/pi-theirs/.pi/agen
 ln -s "$test_tmp/package/default/agents/pi" "$test_tmp/pi-moved/.pi/agent/extensions/omarchy"
 ln -s /opt/elsewhere/pi-package "$test_tmp/pi-theirs/.pi/agent/extensions/omarchy"
 printf '{"theme": "dark", "collapseChangelog": false}\n' >"$test_tmp/pi-theirs/.pi/agent/settings.json"
+mkdir -p "$test_tmp/pi-moved/dotfiles"
+printf '{"theme": "light"}\n' >"$test_tmp/pi-moved/dotfiles/pi-settings.json"
+ln -s "$test_tmp/pi-moved/dotfiles/pi-settings.json" "$test_tmp/pi-moved/.pi/agent/settings.json"
 for home in pi-moved pi-theirs; do
   HOME="$test_tmp/$home" "$ROOT/bin/omarchy-agent-pi-defaults" "$ROOT" || fail "omarchy-agent-pi-defaults sets up Pi in $home"
 done
@@ -80,8 +83,8 @@ done
   fail "a Pi extension of the user's own named omarchy stays"
 pass "omarchy-agent-pi-defaults links Omarchy's Pi package to the tree in use and keeps the user's"
 
-[[ $(jq -r .collapseChangelog "$test_tmp/pi-moved/.pi/agent/settings.json") == "true" ]] ||
-  fail "Pi's changelog is condensed by default"
+[[ -L $test_tmp/pi-moved/.pi/agent/settings.json && $(jq -c '[.theme, .collapseChangelog]' "$test_tmp/pi-moved/dotfiles/pi-settings.json") == '["light",true]' ]] ||
+  fail "Pi's changelog is condensed by default, through a settings file linked from dotfiles"
 [[ $(jq -c '[.theme, .collapseChangelog]' "$test_tmp/pi-theirs/.pi/agent/settings.json") == '["dark",false]' ]] ||
   fail "a user's own changelog choice and other Pi settings stay" "$(cat "$test_tmp/pi-theirs/.pi/agent/settings.json")"
 pass "omarchy-agent-pi-defaults condenses Pi's changelog unless the user chose otherwise"

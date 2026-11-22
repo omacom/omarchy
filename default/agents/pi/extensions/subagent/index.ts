@@ -768,7 +768,8 @@ export default function (pi: ExtensionAPI) {
 
         for (let i = 0; i < params.chain.length; i++) {
           const step = params.chain[i];
-          const taskWithContext = step.task.replace(/\{previous\}/g, previousOutput);
+          // A function, so a $& or $1 in the previous answer stays literal.
+        const taskWithContext = step.task.replace(/\{previous\}/g, () => previousOutput);
 
           // Create update callback that includes all previous results
           const chainUpdate: OnUpdateCallback | undefined = onUpdate

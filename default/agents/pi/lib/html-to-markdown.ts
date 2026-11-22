@@ -115,9 +115,24 @@ function convert(source: string, baseUrl: string | undefined): string {
   let preDepth = 0;
   const lists: Array<{ ordered: boolean; index: number }> = [];
   const links: Array<{ href: string; start: number }> = [];
+  let fenceAt = 0;
   let cellsInRow = 0;
   let rowsInTable = 0;
+  let rowOpen = false;
   let inCell = false;
+
+  const endRow = () => {
+    inCell = false;
+    if (!rowOpen) return;
+    rowOpen = false;
+    if (cellsInRow === 0) return;
+    out = out.replace(/[ \t]+$/, "") + " |";
+    rowsInTable++;
+    // Markdown takes a table's first row as its header, whatever its cells are.
+    if (rowsInTable === 1) out += `\n|${" --- |".repeat(cellsInRow)}`;
+    out += "\n";
+    cellsInRow = 0;
+  };
 
   // A table cell or a link's text has to stay on one line, so blocks inside
   // one (a heading in a cell, a paragraph in a link) run on with a space.
@@ -222,13 +237,19 @@ function convert(source: string, baseUrl: string | undefined): string {
         if (tag.closing) {
           if (preDepth > 0) preDepth--;
           if (preDepth === 0) {
-            out = out.replace(/\n*$/, "") + "\n```";
+            // The fence has to outrun any backticks in the code, such as a
+            // Markdown example's own fences.
+            const code = out.slice(out.indexOf("\n", fenceAt) + 1);
+            const longest = Math.max(0, ...(code.match(/`+/g) ?? []).map((run) => run.length));
+            const fence = "`".repeat(Math.max(3, longest + 1));
+            out = out.slice(0, fenceAt) + fence + out.slice(fenceAt + 3).replace(/\n*$/, "") + "\n" + fence;
             ensureBreak(2);
           }
         } else {
           if (preDepth === 0) {
             ensureBreak(2);
             const language = /(?:language|lang)-([\w+-]+)/.exec(tag.attrs.class ?? "")?.[1] ?? "";
+            fenceAt = out.length;
             out += "```" + language + "\n";
           }
           preDepth++;
@@ -296,22 +317,18 @@ function convert(source: string, baseUrl: string | undefined): string {
         ensureBreak(2);
         if (!tag.closing) out += "> ";
         continue;
+      // HTML may leave out </tr> (and </td>), so a row also ends when the next
+      // one starts or the table closes.
       case "table":
+        endRow();
         ensureBreak(2);
         rowsInTable = 0;
         continue;
       case "tr":
-        inCell = false;
-        if (tag.closing) {
-          if (cellsInRow === 0) continue;
-          out = out.replace(/[ \t]+$/, "") + " |";
-          rowsInTable++;
-          // Markdown takes a table's first row as its header, whatever its cells are.
-          if (rowsInTable === 1) out += `\n|${" --- |".repeat(cellsInRow)}`;
-          out += "\n";
-        } else {
+        endRow();
+        if (!tag.closing) {
           ensureBreak(1);
-          cellsInRow = 0;
+          rowOpen = true;
         }
         continue;
       case "th":
@@ -319,6 +336,10 @@ function convert(source: string, baseUrl: string | undefined): string {
         if (tag.closing) {
           inCell = false;
         } else {
+          if (!rowOpen) {
+            ensureBreak(1);
+            rowOpen = true;
+          }
           out = out.replace(/[ \t]+$/, "") + (cellsInRow === 0 ? "| " : " | ");
           cellsInRow++;
           inCell = true;
@@ -329,10 +350,20 @@ function convert(source: string, baseUrl: string | undefined): string {
     if (BLOCK.has(name)) ensureBreak(name === "div" || name === "dt" || name === "dd" ? 1 : 2);
   }
 
-  return out
-    .split("\n")
-    .map((line) => line.replace(/[ \t]+$/, ""))
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  endRow();
+
+  // Tidy the prose, but leave code blocks exactly as they came.
+  const tidy = (prose: string) =>
+    prose
+      .split("\n")
+      .map((line) => line.replace(/[ \t]+$/, ""))
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n");
+  let markdown = "";
+  let at = 0;
+  for (const block of out.matchAll(/^(`{3,})[^\n]*\n[\s\S]*?\n\1$/gm)) {
+    markdown += tidy(out.slice(at, block.index)) + block[0];
+    at = block.index + block[0].length;
+  }
+  return (markdown + tidy(out.slice(at))).trim();
 }

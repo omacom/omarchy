@@ -53,5 +53,14 @@ import(path.join(root, 'default/agents/pi/lib/html-to-markdown.ts')).then(({ htm
   // <base href> sets what relative links resolve against.
   const based = htmlToMarkdown('<head><base href="https://docs.example.com/v2/"></head><body><a href="intro">Intro</a></body>', 'https://example.com/x')
   assertEqual(based, '[Intro](https://docs.example.com/v2/intro)', 'relative links resolve against <base href>')
+
+  // Code comes through exactly: trailing spaces and blank lines kept, and a
+  // fence longer than any backticks inside, such as a Markdown example's own.
+  const code = htmlToMarkdown('<body><pre>a  \n\n\n\nb\n```\nc\n```</pre></body>')
+  assertEqual(code, '````\na  \n\n\n\nb\n```\nc\n```\n````', 'code blocks keep their whitespace and fence around inner backticks')
+
+  // HTML may leave out </tr> and </td>.
+  const loose = htmlToMarkdown('<body><table><tr><td>A<td>B<tr><td>C<td>D</table></body>')
+  assertEqual(loose, '| A | B |\n| --- | --- |\n| C | D |', 'table rows end without </tr>')
 })
 JS
