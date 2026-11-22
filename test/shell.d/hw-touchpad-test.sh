@@ -95,3 +95,14 @@ pass "an ordinary mouse is not mistaken for a touchpad"
 [[ -z $(detected "") ]] ||
   fail "no touchpad answers with an empty detection" "$(detected "")"
 pass "no touchpad answers with an empty detection"
+
+# iptsd takes a Surface's raw SPI touchpad and moves the pointer through its own
+# virtual one; the raw one stays silent, so the virtual one is the one to toggle.
+iptsd_mice="spi-045e:0c77-mouse spi-045e:0c77-touchpad iptsd-virtual-touchpad-045e:0c77"
+[[ $(detected "$iptsd_mice") == "iptsd-virtual-touchpad-045e:0c77" ]] ||
+  fail "the iptsd virtual touchpad is preferred over the raw one" "$(detected "$iptsd_mice")"
+[[ $(detected "spi-045e:0c77-touchpad iptsd-virtual-touchpad-045e:0c77") == "iptsd-virtual-touchpad-045e:0c77" ]] ||
+  fail "the iptsd virtual touchpad is preferred when the raw one is listed first" "$(detected "spi-045e:0c77-touchpad iptsd-virtual-touchpad-045e:0c77")"
+[[ $(detected "spi-045e:0c77-touchpad") == "spi-045e:0c77-touchpad" ]] ||
+  fail "without iptsd the raw touchpad is still found" "$(detected "spi-045e:0c77-touchpad")"
+pass "the iptsd virtual touchpad is preferred over the raw one"
