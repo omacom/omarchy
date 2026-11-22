@@ -168,6 +168,37 @@ finally:
   child.terminate()
   child.wait()
 
+# A HOME-less process still protects its owner's login, and an unknown owner
+# never hides an explicit home pin.
+child = subprocess.Popen([sys.executable, "-c", code], env={}, stdout=subprocess.PIPE, text=True)
+previous_cwd = os.getcwd()
+real_getpwuid = transfer.pwd.getpwuid
+try:
+  assert child.stdout.readline().strip() == "ready"
+  os.chdir(Path.home())
+  assert not transfer.home_in_use("claude", state.primary_home("claude"))
+  class Owner:
+    pw_dir = str(Path.home())
+  transfer.pwd.getpwuid = lambda uid: Owner
+  assert transfer.home_in_use("claude", state.primary_home("claude"))
+  def missing_owner(uid):
+    raise KeyError(uid)
+  transfer.pwd.getpwuid = missing_owner
+  assert not transfer.home_in_use("claude", state.primary_home("claude"))
+  for variable in ["CLAUDE_CONFIG_DIR", "OMARCHY_AGENT_CLAUDE_HOME"]:
+    pinned = subprocess.Popen([sys.executable, "-c", code], env={variable: str(state.primary_home("claude"))}, stdout=subprocess.PIPE, text=True)
+    try:
+      assert pinned.stdout.readline().strip() == "ready"
+      assert transfer.home_in_use("claude", state.primary_home("claude")), variable
+    finally:
+      pinned.terminate()
+      pinned.wait()
+finally:
+  transfer.pwd.getpwuid = real_getpwuid
+  os.chdir(previous_cwd)
+  child.terminate()
+  child.wait()
+
 # Native release names and interpreter-hosted CLIs are also recognized.
 child_env = dict(os.environ)
 for key in ["OMARCHY_AGENT_CLAUDE_HOME", "OMARCHY_AGENT_CODEX_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME"]:
@@ -224,6 +255,10 @@ for backend_check in [current_home_in_use, older_home_in_use]:
       for checked_from in [Path.home(), Path("/")]:
         os.chdir(checked_from)
         assert transfer.home_in_use("claude", target) == expected, (backend_check.__name__, extra, cwd, str(checked_from))
+        if backend_check is current_home_in_use and extra.get("CLAUDE_CONFIG_DIR"):
+          assert state.home_in_use("claude", target) == expected, (extra, cwd, str(checked_from))
+          if expected:
+            assert child.pid in state.home_users("claude", target)
     finally:
       child.terminate()
       child.wait()

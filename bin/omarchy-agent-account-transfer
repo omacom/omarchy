@@ -198,6 +198,13 @@ def cleanup_transfers(parent: Path) -> None:
         path.unlink(missing_ok=True)
 
 
+def owner_home(proc: Path) -> str:
+  try:
+    return pwd.getpwuid(proc.stat().st_uid).pw_dir
+  except (OSError, KeyError):
+    return ""
+
+
 def session_path(proc: Path, value: str) -> Path:
   # A relative path is the session's own, read from its working directory.
   path = Path(value)
@@ -229,12 +236,15 @@ def home_in_use(provider: str, home: Path) -> bool:
       if not pinned and not native and not script:
         continue
       selected_pin = next((v[len(pinned_key):].decode() for v in env if v.startswith(pinned_key)), "")
-      # Without a HOME, the CLI falls back to the account's home directory.
-      process_home = next((v[5:].decode() for v in env if v.startswith(b"HOME=")), "") or pwd.getpwuid(proc.stat().st_uid).pw_dir
-      selected = configured or selected_pin or str(Path(process_home) / f".{provider}")
+      selected = configured or selected_pin
+      if not selected:
+        process_home = next((v[5:].decode() for v in env if v.startswith(b"HOME=")), "") or owner_home(proc)
+        if not process_home:
+          continue
+        selected = str(Path(process_home) / f".{provider}")
       if session_path(proc, selected).resolve() == resolved:
         return True
-    except (OSError, UnicodeError, KeyError):
+    except (OSError, UnicodeError):
       continue
   return False
 
