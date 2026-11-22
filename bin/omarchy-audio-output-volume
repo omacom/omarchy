@@ -111,6 +111,10 @@ elif [[ $action =~ ^[+-][0-9]+$ ]]; then
       current="$(volume_percent)"
       if [[ -z $current ]]; then
         echo "Could not read volume for $sink." >&2
+        flock "$pending_fd"
+        printf '0\n' >"$pending_file"
+        flock -u "$apply_fd"
+        flock -u "$pending_fd"
         exit 1
       fi
 

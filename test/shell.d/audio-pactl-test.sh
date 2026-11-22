@@ -155,7 +155,17 @@ cat >"$work/slow/pactl" <<'SH'
 sleep 0.02
 case "$*" in
   "get-default-sink") echo "alsa_output.speakers" ;;
-  "get-sink-volume "*) echo "Volume: front-left: 0 /  $(<"$VOLUME")% / 0 dB" ;;
+  "get-sink-volume "*)
+    if [[ -n ${READ_GATE:-} ]]; then
+      touch "$READ_GATE/entered"
+      for ((i = 0; i < 500; i++)); do
+        [[ ! -e $READ_GATE/release ]] || exit 1
+        sleep 0.01
+      done
+      exit 1
+    fi
+    echo "Volume: front-left: 0 /  $(<"$VOLUME")% / 0 dB"
+    ;;
   "set-sink-volume "*) echo "${3%\%}" >"$VOLUME" ;;
   "get-sink-mute "*) echo "Mute: no" ;;
 esac
@@ -173,6 +183,33 @@ echo 50 >"$work/volume"
 [[ $(<"$work/volume") == 40 ]] ||
   fail 'audio-output-volume applies every step of a held key' "ten -1 steps from 50 left $(<"$work/volume")"
 pass 'audio-output-volume applies every step of a held key'
+
+# A failed holder must not leave other presses queued for an unrelated key.
+echo 50 >"$work/volume"
+mkdir "$work/read-gate"
+(
+  export PATH="$work/slow:$PATH" VOLUME="$work/volume"
+  READ_GATE="$work/read-gate" omarchy-audio-output-volume -1 >/dev/null 2>&1 &
+  holder=$!
+  for ((i = 0; i < 500; i++)); do
+    [[ ! -e $work/read-gate/entered ]] || break
+    sleep 0.01
+  done
+  if [[ ! -e $work/read-gate/entered ]]; then
+    touch "$work/read-gate/release"
+    wait "$holder" || true
+    fail 'audio-output-volume reaches the failed read'
+  fi
+  omarchy-audio-output-volume -5 >/dev/null 2>&1
+  touch "$work/read-gate/release"
+  if wait "$holder"; then
+    fail 'audio-output-volume reports a failed volume read'
+  fi
+  omarchy-audio-output-volume +1 >/dev/null 2>&1
+)
+[[ $(<"$work/volume") == 51 ]] ||
+  fail 'audio-output-volume discards stale steps after a failed read' "expected 51, got $(<"$work/volume")"
+pass 'audio-output-volume discards stale steps after a failed read'
 
 echo 120 >"$work/volume"
 PATH="$work/slow:$PATH" VOLUME="$work/volume" omarchy-audio-output-volume -1 >/dev/null 2>&1
