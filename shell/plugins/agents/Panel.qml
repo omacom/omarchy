@@ -477,17 +477,33 @@ Panel {
   // A model set up from here keeps its row on the add screen, showing how
   // the setup goes, until it runs. Then it becomes the default if nothing
   // else was finished first, and the add screen steps back to the panel,
-  // where it now has its line.
+  // where it now has its line. A tailnet model being paired with does the
+  // same, tracked apart so a download underway keeps its row meanwhile; the
+  // add screen steps back once neither is still going.
   property string settingUpLocal: ""
+  property string pairingLocal: ""
   onLocalModelLinesChanged: {
-    if (settingUpLocal === "") return
-    for (var i = 0; i < localModelLines.length; i++) {
-      if (localModelLines[i].localModel.target !== settingUpLocal) continue
-      if (usage.defaultAgent === "") selectLocalDefault(settingUpLocal)
-      settingUpLocal = ""
-      if (addStage === "pick") cancelAdd()
-      return
+    var finished = function(target) {
+      if (target === "" || !localModelLines.some(function(line) { return line.localModel.target === target })) return false
+      if (usage.defaultAgent === "") selectLocalDefault(target)
+      return true
     }
+    var done = false
+    if (finished(settingUpLocal)) { settingUpLocal = ""; done = true }
+    if (finished(pairingLocal)) { pairingLocal = ""; done = true }
+    if (done && settingUpLocal === "" && pairingLocal === "" && addStage === "pick") cancelAdd()
+  }
+
+  // The pairing's meter: under way, or why it failed.
+  readonly property var pairingMeter: {
+    if (pairingLocal === "" || !localModelsService) return null
+    var host = pairingLocal.split("/")[0]
+    if (localModelsService.pairingId === pairingLocal)
+      return { title: Commons.I18n.t("localModels.networkPairing").arg(host), value: -1, rate: "" }
+    var failure = localModelsService.pairFailures[pairingLocal]
+    if (failure)
+      return { title: failure.message || Commons.I18n.t("localModels.networkPairFailed").arg(host), value: -1, rate: "", failed: true }
+    return null
   }
 
   // Where that setup is: the model as the local models service has it
@@ -503,16 +519,6 @@ Panel {
   // Its meter: what it's doing, how far along (by the download's bytes, or by
   // time against what a load usually takes), and the download's speed.
   readonly property var localSetupMeter: {
-    // A tailnet model being paired with, or whose pairing failed.
-    if (settingUpLocal.indexOf("/") >= 0 && localModelsService) {
-      var host = settingUpLocal.split("/")[0]
-      if (localModelsService.pairingId === settingUpLocal)
-        return { title: Commons.I18n.t("localModels.networkPairing").arg(host), value: -1, rate: "" }
-      var failure = localModelsService.pairFailures[settingUpLocal]
-      if (failure)
-        return { title: failure.message || Commons.I18n.t("localModels.networkPairFailed").arg(host), value: -1, rate: "", failed: true }
-      return null
-    }
     var model = localSetup
     if (!model) return null
     var install = model.install || {}
@@ -613,7 +619,7 @@ Panel {
     if (offer.pair) {
       if (localModelsService.pairingId !== "") return
       usage.addLocalModel(offer.target)
-      settingUpLocal = offer.target
+      pairingLocal = offer.target
       localModelsService.pair(offer.pair)
       return
     }
@@ -2213,7 +2219,8 @@ Panel {
             // The setup started here, as the local models panel would show
             // it: installing, downloading, then loading.
             Item {
-              readonly property var meter: ownModel.modelData.target === root.settingUpLocal ? root.localSetupMeter : null
+              readonly property var meter: ownModel.modelData.target === root.pairingLocal ? root.pairingMeter
+                                        : ownModel.modelData.target === root.settingUpLocal ? root.localSetupMeter : null
               visible: !!meter
               width: parent.width
               implicitHeight: visible ? Math.max(setupTitle.implicitHeight, setupRate.implicitHeight) + Style.space(6) : 0
