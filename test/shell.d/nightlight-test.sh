@@ -13,6 +13,9 @@ assertEqual(nightlight.isNightlight(4000), true, 'nightlight reports warm temper
 assertEqual(nightlight.isNightlight(5999), true, 'nightlight reports warmer-than-identity values as enabled')
 assertEqual(nightlight.isNightlight(6000), false, 'nightlight reports identity temperature as disabled')
 assertEqual(nightlight.isNightlight(null), false, 'nightlight reports unknown temperature as disabled')
+assertEqual(nightlight.isNightlight(4000, true), false, 'nightlight reports a warm temperature under identity as disabled')
+assertEqual(nightlight.identityFromOutput('true\n'), true, 'nightlight parses identity on')
+assertEqual(nightlight.identityFromOutput('false\n'), false, 'nightlight parses identity off')
 JS
 
 TMPDIR=$(mktemp -d)
@@ -21,9 +24,12 @@ trap 'rm -rf "$TMPDIR"' EXIT
 mkdir -p "$TMPDIR/bin"
 STATE="$TMPDIR/hyprsunset-temp"
 SHELL_LOG="$TMPDIR/omarchy-shell-log"
+HYPRCTL_LOG="$TMPDIR/hyprctl-log"
 
 cat >"$TMPDIR/bin/hyprctl" <<'SH'
 #!/bin/bash
+
+printf '%s\n' "$*" >>"$HYPRCTL_LOG"
 
 if [[ ${1:-} == "hyprsunset" && ${2:-} == "temperature" ]]; then
   if [[ -n ${3:-} ]]; then
@@ -36,7 +42,11 @@ if [[ ${1:-} == "hyprsunset" && ${2:-} == "temperature" ]]; then
 fi
 
 if [[ ${1:-} == "hyprsunset" && ${2:-} == "identity" ]]; then
-  printf 'true\n' >"$HYPRSUNSET_STATE.identity"
+  if [[ ${3:-} == "get" ]]; then
+    cat "$HYPRSUNSET_STATE.identity" 2>/dev/null || echo false
+  else
+    printf 'true\n' >"$HYPRSUNSET_STATE.identity"
+  fi
   exit 0
 fi
 
@@ -58,12 +68,14 @@ chmod +x "$TMPDIR/bin/hyprctl" "$TMPDIR/bin/pgrep" "$TMPDIR/bin/omarchy-shell"
 nightlight_cli() {
   PATH="$TMPDIR/bin:$PATH" \
   HYPRSUNSET_STATE="$STATE" \
+  HYPRCTL_LOG="$HYPRCTL_LOG" \
   OMARCHY_SHELL_LOG="$SHELL_LOG" \
     "$ROOT/bin/omarchy-toggle-nightlight" "$@"
 }
 
 nightlight_status() {
   printf '%s\n' "$1" >"$STATE"
+  printf '%s\n' "${2:-false}" >"$STATE.identity"
   nightlight_cli --status
 }
 
@@ -79,6 +91,9 @@ pass "nightlight status reports identity temperature as disabled"
 [[ $(nightlight_status 6500 | jq -r .enabled) == "false" ]] || fail "nightlight status reports daylight temperature as disabled"
 pass "nightlight status reports daylight temperature as disabled"
 
+[[ $(nightlight_status 4000 true | jq -r .enabled) == "false" ]] || fail "nightlight status reports a warm temperature under identity as disabled"
+pass "nightlight status reports a warm temperature under identity as disabled"
+
 printf '6500\n' >"$STATE"
 : >"$SHELL_LOG"
 nightlight_cli >/dev/null
@@ -91,22 +106,26 @@ pass "nightlight toggle nudges the shell nightlight service"
 [[ $(<"$STATE.identity") == "false" ]] || fail "nightlight toggle leaves identity when warming the screen"
 pass "nightlight toggle leaves identity when warming the screen"
 
+: >"$HYPRCTL_LOG"
 nightlight_cli >/dev/null
-[[ $(<"$STATE") == 6500 ]] || fail "nightlight toggle restores daylight from night light"
-pass "nightlight toggle restores daylight from night light"
-
 [[ $(<"$STATE.identity") == "true" ]] || fail "nightlight toggle resets to the identity matrix when turning off"
 pass "nightlight toggle resets to the identity matrix when turning off"
+
+# A second request restarts Hyprland's fade from the first one's target, so
+# stepping through daylight on the way off snaps instead of fading.
+! grep -q '^hyprsunset temperature [0-9]' "$HYPRCTL_LOG" ||
+  fail "nightlight toggle turns off in a single identity request" "$(<"$HYPRCTL_LOG")"
+pass "nightlight toggle turns off in a single identity request"
+
+nightlight_cli >/dev/null
+[[ $(<"$STATE") == 4000 && $(<"$STATE.identity") == "false" ]] || fail "nightlight toggle turns back on from identity"
+pass "nightlight toggle turns back on from identity"
 
 # hyprsunset's own default, as the shipped identity profile starts it
 printf '6000\n' >"$STATE"
 nightlight_cli >/dev/null
 [[ $(<"$STATE") == 4000 ]] || fail "nightlight toggle warms the screen from hyprsunset's default"
 pass "nightlight toggle warms the screen from hyprsunset's default"
-
-rg -F '(temp === dayTemperature ? " && hyprctl hyprsunset identity" : "")' "$ROOT/shell/plugins/services/nightlight/Service.qml" >/dev/null ||
-  fail "nightlight service resets to the identity matrix when turning off"
-pass "nightlight service resets to the identity matrix when turning off"
 
 # hyprsunset reports its age through ps. A boot still in progress applies its
 # default temperature on the first wait, overriding whatever was set before.
