@@ -104,14 +104,17 @@ per local coding model that is running and ready.
   run in OpenCode, and More: DeepSeek, then OpenCode's own sign-in for any
   other provider; every key is checked like Fireworks'), each a
   large mark four across, then _Use a network model_: a line for each coding model not added yet
-  that a paired, online machine is running, and _Use a local model_: one for
+  that a paired, online machine is running, then one for each a machine on
+  the tailnet shares but isn't paired with yet, and _Use a local model_: one for
   each this machine is running, then one for the best coding model for this
   computer when the local models catalog has one that fits and it isn't
   added. The first one is focused and the hero reads Add an agent.
   Choosing a model adds it. One that's ready opens the agent on it; one to set
   up stays on the add screen, with its installing, download, and loading
   under it as the local models panel would show them, until it runs and the
-  add screen steps back to the panel. With no default agent yet, the local
+  add screen steps back to the panel. One not paired yet is paired with in
+  the background the same way, its row saying so, or why pairing failed, and
+  choosing it again retries. With no default agent yet, the local
   model becomes it once the chosen model is ready, as the first sign-in does. Copilot, Cursor, and Muse are added with `omarchy
   agent account add`, and a lapsed sign-in of theirs still gets its link here. The + becomes
   the X that goes back. A further Claude, Codex, or Grok account asks for a
