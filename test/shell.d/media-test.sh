@@ -82,7 +82,8 @@ for (const name of ['playerKey', 'osdMessage', 'showOsd', 'scheduleOsd', 'showPe
 const trackHandler = service.match(/function onPostTrackChanged\(\) \{[^\n]+\}/)
 if (!trackHandler) throw new Error('Missing media track-change handler')
 vm.runInContext(trackHandler[0], context)
-context.scheduleOsd('next', 'Next', 'media-next', player, true, media.trackSignature(player))
+context.scheduleOsd('previous', 'Previous', 'media-previous', player, true, media.trackSignature(player))
+context.trackRestartTimer.restart()
 player.trackTitle = ''
 player.trackArtist = ''
 context.onPostTrackChanged()
