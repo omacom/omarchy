@@ -367,7 +367,7 @@ Item {
       tierLabel: String(record.tierLabel || ""),
       // Every subscription account's own limits, once there's more than one.
       accounts: Array.isArray(record.accounts) ? record.accounts : [],
-      accountSwitch: record.accountSwitch || ({ mode: "manual", threshold: 95 }),
+      accountSwitch: record.accountSwitch || ({ threshold: 95 }),
       // Codex's free full resets of its rate limits, when it has any.
       resetCredits: record.resetCredits || null,
       balance: balanceValue(record.balance),

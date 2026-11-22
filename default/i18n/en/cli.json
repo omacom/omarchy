@@ -47,8 +47,6 @@
   "agents.sessionsUse": "%1 sessions now use %2",
   "agents.stayingOn": "Staying on %1.",
   "agents.stayingOnUntil": "Staying on %1. %2 resets in %3.",
-  "agents.switchedBody": "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.",
-  "agents.switchedAllBody": "%1 sessions now use %2 (%3%), running ones included.",
   "agents.wrongAccount": "That's %1, not %2. Try again, and sign in as %2.",
   "animations.disabled": "Animations disabled",
   "animations.enabled": "Animations enabled",

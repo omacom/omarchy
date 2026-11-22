@@ -70,7 +70,7 @@ Panel {
     }
     return out
   }
-  readonly property var pickedEntry: keyTarget && ["account", "autoswitch", "signin"].indexOf(keyTarget.kind) >= 0
+  readonly property var pickedEntry: keyTarget && ["account", "signin"].indexOf(keyTarget.kind) >= 0
     ? accountEntries[keyTarget.index] || null
     : null
 
@@ -93,9 +93,8 @@ Panel {
       if (addUrl !== "") rows.push([{ kind: "reopenSignIn", index: 0 }])
     } else if (addStage === "") {
       // Accounts count in the same order as accountEntries. Only what can be
-      // done is a stop: one that isn't active offers Autoswitch beside Use, a
-      // lapsed sign-in comes first, and the active account with nothing to
-      // fix is skipped.
+      // done is a stop: one that isn't active offers Use, a lapsed sign-in
+      // comes first, and the active account with nothing to fix is skipped.
       var entry = 0
       for (var p = 0; p < providers.length; p++) {
         // Every agent's line is a stop, so Ctrl+Up/Down can move it: its
@@ -109,10 +108,7 @@ Panel {
         for (var a = 0; a < accounts.length; a++, entry++) {
           var row = []
           if (needsSignIn(accounts[a])) row.push({ kind: "signin", index: entry })
-          if (!accounts[a].active) {
-            row.push({ kind: "autoswitch", index: entry })
-            row.push({ kind: "account", index: entry })
-          }
+          if (!accounts[a].active) row.push({ kind: "account", index: entry })
           if (row.length > 0) rows.push(row)
         }
       }
@@ -170,8 +166,8 @@ Panel {
     }
     if (dy !== 0) {
       keyRow = clamp(keyRow + dy, 0, keyRows.length - 1)
-      // Arriving on an account lands on Use; left reaches Autoswitch. Arriving
-      // on an agent's line lands on its rightmost button.
+      // Arriving on an account lands on Use, and on an agent's line on its
+      // rightmost button.
       var row = keyRows[keyRow]
       var use = -1
       for (var c = 0; c < row.length; c++) if (row[c].kind === "account") use = c
@@ -190,7 +186,7 @@ Panel {
     var target = keyTarget
     if (!target) return -1
     if (["provider", "providerSignin", "providerLaunch"].indexOf(target.kind) >= 0) return target.index
-    if (["account", "autoswitch", "signin"].indexOf(target.kind) < 0) return -1
+    if (["account", "signin"].indexOf(target.kind) < 0) return -1
     var entry = accountEntries[target.index]
     return entry ? providers.indexOf(entry.provider) : -1
   }
@@ -565,27 +561,6 @@ Panel {
     Util.execArgv(["omarchy-agent-account-use", p.providerId, String(account.id)])
   }
 
-  function autoSwitchFor(p) {
-    return !!p && !!p.accountSwitch && p.accountSwitch.mode === "auto"
-  }
-
-  function switchThreshold(p) {
-    return p && p.accountSwitch ? Number(p.accountSwitch.threshold || 95) : 95
-  }
-
-  function setSwitchMode(p, mode) {
-    if (!p || providerAccounts(p).length < 2 || mode === (autoSwitchFor(p) ? "auto" : "manual")) return
-    Util.execArgv(["bash", "-c", 'omarchy-agent-account-mode "$1" "$2" >/dev/null && omarchy-agent-usage-update --limits-only "$1"',
-                   "omarchy-agent-account-mode", p.providerId, mode])
-  }
-
-  // `m` flips autoswitch for the picked account's provider, or the first
-  // provider with several accounts when nothing is picked.
-  function toggleSwitchMode() {
-    var p = pickedEntry ? pickedEntry.provider : (accountEntries.length > 0 ? accountEntries[0].provider : null)
-    if (p) setSwitchMode(p, autoSwitchFor(p) ? "manual" : "auto")
-  }
-
   function activateSelection(modifiers) {
     var target = keyTarget
     if (!target) refreshNow()
@@ -597,7 +572,6 @@ Panel {
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind, modifiers)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
     else if (target.kind === "signin") signInAgain(pickedEntry.provider, pickedEntry.account)
-    else if (target.kind === "autoswitch") setSwitchMode(pickedEntry.provider, autoSwitchFor(pickedEntry.provider) ? "manual" : "auto")
     else if (pickedEntry && !pickedEntry.account.active) useAccount(pickedEntry.provider, pickedEntry.account)
   }
 
@@ -1310,7 +1284,6 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "r" || t === "R") root.refreshNow()
-        else if (t === "m" || t === "M") root.toggleSwitchMode()
         else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.accountEntries.length) root.pointAt("account", Number(t) - 1)
       }
 
@@ -2204,7 +2177,6 @@ Panel {
     // The new name shows at once; the record catches up a moment later.
     property string renamedTo: ""
     readonly property bool isActive: account.active === true
-    readonly property bool autoOn: root.autoSwitchFor(owner)
     // Which of the row's links the keyboard is on, when it's on this row.
     readonly property string pickedKind: picked && root.keyTarget ? root.keyTarget.kind : ""
     readonly property string label: renamedTo !== "" ? renamedTo : String(account.label || account.id || "")
@@ -2213,8 +2185,6 @@ Panel {
     onEditingChanged: root.renaming = editing
     onPickedChanged: if (picked) root.revealItem(head)
 
-    // Anywhere on the line counts, so Use can show up when it's hidden.
-    HoverHandler { id: useHover }
     implicitHeight: Math.max(headText.implicitHeight, headAction.implicitHeight)
 
     function startRename() {
@@ -2366,10 +2336,6 @@ Panel {
         font.bold: true
       }
 
-      // Switching now is Use. Hovering it also offers Autoswitch: move new
-      // sessions over by themselves once the active account reaches the
-      // threshold. While that's on it stays in view in place of Use, and
-      // clicking it again goes back to only being notified.
       Row {
         id: useRow
         visible: !head.isActive
@@ -2377,19 +2343,6 @@ Panel {
         spacing: Style.space(12)
 
         TextLink {
-          visible: head.autoOn || useHover.hovered || head.picked
-          text: Commons.I18n.t("agents.autoswitch") + (head.pickedKind === "autoswitch" ? " ⏎" : "")
-          picked: head.pickedKind === "autoswitch"
-          current: head.autoOn
-          tooltip: head.autoOn
-            ? Commons.I18n.t("agents.stopAutoSwitch")
-            : Commons.I18n.t("agents.switchAutoAt").arg(Commons.I18n.formatNumber(root.switchThreshold(head.owner)))
-          onClicked: root.setSwitchMode(head.owner, head.autoOn ? "manual" : "auto")
-        }
-
-        // With Autoswitch on, Use waits until the line is hovered or picked.
-        TextLink {
-          visible: !head.autoOn || useHover.hovered || head.picked
           text: Commons.I18n.t("agents.use") + (head.pickedKind === "account" ? " ⏎" : "")
           picked: head.pickedKind === "account"
           onClicked: root.useAccount(head.owner, head.account)
