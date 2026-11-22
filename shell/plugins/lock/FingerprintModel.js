@@ -88,15 +88,6 @@ function parseFingerPresent(line) {
   return match[1] === "true"
 }
 
-// fprintd's verdict on a finger, as `gdbus monitor` prints the signal:
-//   /net/reactivated/Fprint/Device/0: net.reactivated.Fprint.Device.VerifyStatus ('verify-no-match', true)
-// The result's name ("verify-match", "verify-no-match", "verify-retry-scan",
-// ...) for a VerifyStatus line, null for any other.
-function parseVerifyStatus(line) {
-  var match = /\.VerifyStatus \('([a-z-]+)',/.exec(String(line || ""))
-  return match ? match[1] : null
-}
-
 if (typeof module !== "undefined") {
   module.exports = {
     MATCH_RETRY_MS: MATCH_RETRY_MS,
@@ -114,7 +105,6 @@ if (typeof module !== "undefined") {
     SCAN_TIMEOUT_MS: SCAN_TIMEOUT_MS,
     REJECT_SHOW_MS: REJECT_SHOW_MS,
     parseFingerPresent: parseFingerPresent,
-    parseVerifyStatus: parseVerifyStatus,
     spannedSleep: spannedSleep,
     classifyProbe: classifyProbe,
     inResumeGrace: inResumeGrace,

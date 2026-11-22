@@ -438,31 +438,38 @@ Item {
     fingerprintReachTimer.stop()
   }
 
-  // The reader's finger status arrives through fprintd's D-Bus property, which
-  // the monitor process prints a line for, and its verdicts through the
-  // VerifyStatus signal on the same watch. Only a finger during the lock's
-  // own attempt is a scan: fprintd reports one for any claimant's operation.
-  // A rejection shows whatever the attempt's state, since pam_fprintd's last
-  // try can end the attempt before its verdict's line is read, and for its
-  // whole moment: pam_fprintd retries at once, and a finger left on the
-  // reader is matched again within milliseconds, so a rejection the next
-  // scan ended was never seen.
+  // The reader's finger status arrives through fprintd's D-Bus property,
+  // which the monitor process prints a line for. Only a finger during the
+  // lock's own attempt, with the watch on, is a scan: fprintd reports one for
+  // any claimant's operation, and a line already in the pipe when a blank
+  // stopped the watch would otherwise start one under the dark panel.
   function applyFingerprintMonitorLine(line) {
     var present = FingerprintModel.parseFingerPresent(line)
-    if (present !== null) {
-      if (present && fingerprintAuthenticating) {
-        fingerprintScanning = true
-        fingerprintScanTimer.restart()
-      } else if (!present) {
-        clearFingerprintScan()
-      }
-      return
+    if (present === null) return
+    if (present && fingerprintAuthenticating && fingerprintMonitoring) {
+      fingerprintScanning = true
+      fingerprintScanTimer.restart()
+    } else if (!present) {
+      clearFingerprintScan()
     }
-    if (FingerprintModel.parseVerifyStatus(line) === "verify-no-match") {
-      fingerprintRejected = true
-      fingerprintRejectCount += 1
-      fingerprintRejectTimer.restart()
-    }
+  }
+
+  // pam_fprintd tells the lock a finger didn't take with an error message in
+  // the lock's own conversation: the no-match before it retries or ends the
+  // attempt, and the reader's asks to scan again. Either ends the scan, which
+  // a reader that keeps reporting the finger on it would otherwise leave
+  // pulsing, and shows for a moment: pam_fprintd retries at once, and a
+  // finger left on the reader is matched again within milliseconds, so a
+  // rejection the next scan ended was never seen. Each one counts, so a
+  // rejection while the last one's red is still up shows too. The message's
+  // text is translated, so it isn't read.
+  function noteFingerprintRejected() {
+    logEvent("fingerprint-rejected")
+    clearFingerprintScan()
+    if (!lockRequested || fingerprintPaused) return
+    fingerprintRejected = true
+    fingerprintRejectCount += 1
+    fingerprintRejectTimer.restart()
   }
 
   function clearFingerprintScan() {
@@ -659,7 +666,8 @@ Item {
     user: root.userName
 
     onPamMessage: {
-      if (!messageIsError) root.noteFingerprintReachedDevice()
+      if (messageIsError) root.noteFingerprintRejected()
+      else root.noteFingerprintReachedDevice()
     }
 
     onCompleted: function(result) {

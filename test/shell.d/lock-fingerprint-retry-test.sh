@@ -206,21 +206,6 @@ assertEqual(model.parseFingerPresent(undefined), null, 'no line is not a finger'
 // time to return its verdict first.
 assert(model.SCAN_TIMEOUT_MS >= 2000, 'the scan bound leaves a slow reader time to match')
 
-// The verdicts: a rejected finger is shown, a matched one unlocks, and the
-// reader's asks to retry are neither.
-const rejected = "/net/reactivated/Fprint/Device/0: net.reactivated.Fprint.Device.VerifyStatus ('verify-no-match', true)"
-const rejectedRetrying = "/net/reactivated/Fprint/Device/0: net.reactivated.Fprint.Device.VerifyStatus ('verify-no-match', false)"
-const retryScan = "/net/reactivated/Fprint/Device/0: net.reactivated.Fprint.Device.VerifyStatus ('verify-retry-scan', false)"
-const selected = "/net/reactivated/Fprint/Device/0: net.reactivated.Fprint.Device.VerifyFingerSelected ('right-index-finger',)"
-assertEqual(model.parseVerifyStatus(verdict), 'verify-match', 'a match reads as the match verdict')
-assertEqual(model.parseVerifyStatus(rejected), 'verify-no-match', 'a rejected finger reads as the no-match verdict')
-assertEqual(model.parseVerifyStatus(rejectedRetrying), 'verify-no-match', 'a rejected finger the daemon will retry still reads as no-match')
-assertEqual(model.parseVerifyStatus(retryScan), 'verify-retry-scan', "the reader's ask to scan again reads as its own result")
-assertEqual(model.parseVerifyStatus(selected), null, 'the finger selected signal is not a verdict')
-assertEqual(model.parseVerifyStatus(present), null, 'a finger status change is not a verdict')
-assertEqual(model.parseVerifyStatus(header), null, "the monitor's own header is not a verdict")
-assertEqual(model.parseVerifyStatus(''), null, 'an empty line is not a verdict')
-
 // A rejection shows long enough to be seen after the hand lifts.
 assert(model.REJECT_SHOW_MS >= 800, 'a rejection shows long enough to be seen after the hand lifts')
 JS

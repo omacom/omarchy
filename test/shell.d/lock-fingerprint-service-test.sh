@@ -17,4 +17,11 @@ run_qml_fixture lock-fingerprint-service "fingerprint service handles enrollment
 printf '#!/bin/bash\nprintf "Fingerprints for user %%s on Stub:\\n - #0: right-index-finger\\n" "$1"\n' >"$QML_FIXTURE_TMP/bin/fprintd-list"
 chmod +x "$QML_FIXTURE_TMP/bin/fprintd-list"
 
+# The scan fixture locks with a reader enrolled, which starts the lock's watch
+# on fprintd. The real gdbus would put it on this machine's system bus, where
+# it can start the host's fprintd. A stub prints the monitor's header, then
+# waits until the lock stops it or the shell is gone.
+printf '#!/bin/bash\necho "Monitoring signals from all objects owned by net.reactivated.Fprint"\nwhile kill -0 "$PPID" 2>/dev/null; do sleep 0.2; done\n' >"$QML_FIXTURE_TMP/bin/gdbus"
+chmod +x "$QML_FIXTURE_TMP/bin/gdbus"
+
 run_qml_fixture lock-fingerprint-scan "fingerprint service shows the reader matching a finger" Ui Commons
