@@ -26,17 +26,19 @@ Example `shell.json` (bar subtree only shown):
   "bar": {
     "position": "top",
     "background": "opaque",
-    "centerAnchor": "omarchy.clock",
     "layout": {
       "left": [
         { "id": "omarchy.menu" },
         { "id": "omarchy.spacer", "size": 12 },
         { "id": "omarchy.workspaces" }
       ],
+      "centerBegin": [
+        { "id": "omarchy.media" }
+      ],
       "center": [
-        { "id": "omarchy.media" },
         { "id": "omarchy.clock", "format": "HH:mm" }
       ],
+      "centerEnd": [],
       "right": [
         { "id": "omarchy.audio" },
         { "id": "omarchy.power" }
@@ -46,7 +48,7 @@ Example `shell.json` (bar subtree only shown):
 }
 ```
 
-`centerAnchor` pins one center module to the exact horizontal/vertical center and flanks others around it. Set to an empty string to disable anchoring (the center list is centered as a group).
+`center` is a box in the middle of the bar whose modules are centered as one group on the exact horizontal/vertical center. `centerBegin` and `centerEnd` hang off the box's two edges and move out as it grows; with the box empty they meet in the middle of the bar.
 
 ## Module catalogue
 
@@ -68,6 +70,7 @@ Example `shell.json` (bar subtree only shown):
 | `omarchy.network` | Wi-Fi/Ethernet icon + popup with Wi-Fi scan, signal, connect, DNS provider selection | left = popup |
 | `omarchy.tailscale` | Tailscale status, connection switcher, machine browser, and copy actions | left = popup · right = toggle · middle = refresh |
 | `omarchy.agents` | AI coding agent limits with pace, today, last week, and all-time model breakdown | left = panel · right = launch agent · middle = next subscription |
+| `omarchy.local-models` | Models running on this machine and the tailnet, and the RAM they run in; shown only where a model runs or fits | left = panel · middle = refresh |
 | `omarchy.power` | Battery/AC icon + popup with battery stats, power profiles, and system info | left = popup · right = toggle percentage |
 | `omarchy.bluetooth` | Bluetooth icon + popup with device list, connect/disconnect, battery | left = popup · right = toggle radio |
 | `omarchy.monitor` | Brightness and laptop display controls | left = popup |
@@ -165,7 +168,7 @@ Item {
 
 ## Bar properties available to widgets
 
-Widgets receive `bar` (the shell root), `moduleName` (string), and `settings` (object) injected at load time. The bar exposes:
+Widgets receive `bar` (the shell root), `moduleName` (string), and `settings` (object) injected at load time. A widget that declares `fixedEdge` also gets the edge of it that stays put when it grows: `"start"` (left, or top on a vertical bar), `"end"`, or `"center"` when it grows both ways, following the section it sits in. When the center box holds more than one widget, its first gets `"end"` and its last `"start"`, like `centerBegin`'s and `centerEnd`'s. A widget that grows, like the tray's drawer or the indicator peek, can lay its content out against that edge so it doesn't shift. A widget moved to another section keeps running, and its `fixedEdge` and `settings` change in place, so bind to them rather than reading them once. The bar exposes:
 
 - `bar.foreground`, `bar.background`, `bar.urgent` — theme colors (live-updated)
 - `bar.fontFamily` — current monospace family

@@ -6,9 +6,11 @@
 colors_toml=$HOME/.local/state/omarchy/current/theme/colors.toml
 foot_ini=$HOME/.local/state/omarchy/current/theme/foot.ini
 
-if [[ ! -f $colors_toml ]] || ! pgrep -x foot >/dev/null; then
-  exit 0
-fi
+[[ -f $colors_toml ]] || exit 0
+
+# Theme switches wait on this retint, and pgrep scans every process, so it runs
+# once; each terminal's shells come from the kernel's list of its children.
+foot_pids=$(pgrep -x foot) || exit 0
 
 foot_osc=$(omarchy-theme-osc "$colors_toml")
 [[ -n $foot_osc ]] || exit 0
@@ -23,8 +25,15 @@ if [[ -n $background ]]; then
   foot_osc+=$(printf '\033]11;[%d]%s\007' "$percent" "$background")
 fi
 
-for foot_pid in $(pgrep -x foot); do
-  for child_pid in $(pgrep -P "$foot_pid"); do
+for foot_pid in $foot_pids; do
+  children="/proc/$foot_pid/task/$foot_pid/children"
+  if [[ -e $children ]]; then
+    { child_pids=$(<"$children"); } 2>/dev/null || continue
+  else
+    # A kernel built without CONFIG_PROC_CHILDREN keeps no such list.
+    child_pids=$(pgrep -P "$foot_pid")
+  fi
+  for child_pid in $child_pids; do
     tty=$(readlink "/proc/$child_pid/fd/1" 2>/dev/null)
     if [[ $tty == /dev/pts/* ]]; then
       printf '%b' "$foot_osc" >"$tty"

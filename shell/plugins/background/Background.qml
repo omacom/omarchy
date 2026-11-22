@@ -119,7 +119,14 @@ Item {
     failedBackground = ""
     revealStartedVersion = -1
 
+    // OWE draws a video background and fades the last still into it. That
+    // still stays on screen until OWE has the first frame and suspends this
+    // layer, so the desktop does not show an empty background meanwhile. A
+    // running reveal finishes on its incoming still, which OWE fades from.
+    if (!instant && !root.suspended && displayedBackground && isVideo(path) && !isVideo(displayedBackground)) return
+
     revealAnimation.stop()
+    revealGraceTimer.stop()
     finishingTransition = false
 
     // Video frames are not fed through the image-only reveal stack. Switching
@@ -166,14 +173,49 @@ Item {
     if (!incomingBackground || revealProgress >= 1) applyPendingTheme()
   }
 
+  // Every screen slides together, so the reveal waits until each one has
+  // decoded its incoming frame. A screen that cannot decode in time, or at
+  // all, does not hold the others past a short grace; it joins the running
+  // reveal once its frame is ready.
   function startReveal(panel) {
     if (!incomingBackground) return
-    panel.maskReady = true
-    if (revealStartedVersion === backgroundVersion) return
+    if (revealStartedVersion === backgroundVersion) {
+      panel.maskReady = true
+      return
+    }
+    for (var other of backgrounds.instances) {
+      if (!other.incomingReady()) {
+        revealGraceTimer.start()
+        return
+      }
+    }
+    beginReveal()
+  }
+
+  function beginReveal() {
+    if (!incomingBackground || revealStartedVersion === backgroundVersion) return
+    revealGraceTimer.stop()
     revealStartedVersion = backgroundVersion
+    for (var panel of backgrounds.instances) {
+      if (panel.incomingReady()) panel.maskReady = true
+    }
     applyPendingTheme()
     revealAnimation.restart()
   }
+
+  // The incoming frame stays over the base until the base has drawn the new
+  // background on every screen. Ending it when the first screen is ready
+  // left a larger screen, still decoding, black for a moment.
+  function maybeFinishTransition() {
+    if (!finishingTransition || !ready) return
+    incomingBackground = ""
+    oldBackground = ""
+    preparedBackground = ""
+    finishingTransition = false
+    pruneNativeSizes()
+  }
+
+  onReadyChanged: maybeFinishTransition()
 
   function prepareBackground(path) {
     path = String(path || "").trim()
@@ -221,10 +263,11 @@ Item {
       Util.execArgv(["omarchy-shell", "shell", "summon", "omarchy.image-picker", payload])
   }
 
+  // omarchy-theme-bg-set tells this service of the new background itself. A
+  // refresh here would start an ordinary transition under an intro's cover.
   Process {
     id: bgSwitchProc
     command: ["bash", "-c", "background=$(omarchy-theme-bg-switcher); [[ -n $background ]] && omarchy-theme-bg-set \"$background\""]
-    onExited: root.refreshBackground()
   }
 
   Process {
@@ -309,6 +352,13 @@ Item {
   }
 
   Timer {
+    id: revealGraceTimer
+    interval: 250
+    repeat: false
+    onTriggered: root.beginReveal()
+  }
+
+  Timer {
     id: pendingThemeFallbackTimer
     interval: 300
     repeat: false
@@ -325,10 +375,16 @@ Item {
     easing.type: Easing.OutCubic
     onFinished: {
       if (root.incomingBackground) {
-        root.displayedBackground = root.currentBackground || root.incomingBackground
+        // After a video was chosen during the reveal, the incoming still
+        // stays until OWE takes the background.
+        root.displayedBackground = root.currentBackground && !root.isVideo(root.currentBackground)
+          ? root.currentBackground : root.incomingBackground
         root.finishingTransition = true
       }
       root.revealProgress = 1
+      // A base already holding the new background stays ready, so no
+      // change of ready would end the transition.
+      Qt.callLater(root.maybeFinishTransition)
     }
   }
 
@@ -343,13 +399,9 @@ Item {
       required property var modelData
 
       screen: modelData
-      visible: !remapGuard.remapping && !root.suspended
+      visible: !root.suspended
       anchors { top: true; bottom: true; left: true; right: true }
 
-      ScreenMoveRemap {
-        id: remapGuard
-        window: panel
-      }
       color: "transparent"
       // Keep render updates enabled. The background layer has been observed to
       // lose its committed buffer while parked with updatesEnabled=false,
@@ -358,6 +410,11 @@ Item {
       updatesEnabled: true
 
       property bool maskReady: false
+      // A function, not a binding: onStatusChanged can run before a binding
+      // on the same status has caught up.
+      function incomingReady() {
+        return root.incomingBackground !== "" && incomingFrame.status === Image.Ready
+      }
       property int readyFrames: 0
       readonly property bool backgroundReady: base.ready && readyFrames >= 2
 
@@ -388,11 +445,9 @@ Item {
       }
 
       function maybeStartReveal() {
-        if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
-        if (incomingFrame.status !== Image.Ready) return
+        if (!incomingReady() || root.revealProgress >= 1 || maskReady) return
         Qt.callLater(function() {
-          if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
-          if (incomingFrame.status !== Image.Ready) return
+          if (!incomingReady() || root.revealProgress >= 1 || maskReady) return
           root.startReveal(panel)
         })
       }
@@ -413,16 +468,7 @@ Item {
         constrainDecode: true
         decodeSize: panel.decodeSize(root.displayedBackground)
         onFailedChanged: if (failed) root.recoverBackground(path)
-        onReadyChanged: {
-          panel.readyFrames = 0
-          if (ready && root.finishingTransition) {
-            root.incomingBackground = ""
-            root.oldBackground = ""
-            root.preparedBackground = ""
-            root.finishingTransition = false
-            root.pruneNativeSizes()
-          }
-        }
+        onReadyChanged: panel.readyFrames = 0
       }
 
       Image {
@@ -445,7 +491,9 @@ Item {
         id: incomingLayer
         anchors.fill: parent
         visible: root.incomingBackground !== "" && incomingFrame.status === Image.Ready && (root.revealProgress >= 1 || panel.maskReady)
-        layer.enabled: root.incomingBackground !== "" && root.revealProgress < 1
+        // The mask stays on until the base takes over: turning the layer off
+        // as the reveal ends redraws the frame unmasked mid-transition.
+        layer.enabled: root.incomingBackground !== "" && panel.maskReady
         layer.smooth: true
         layer.effect: MultiEffect {
           maskEnabled: true
@@ -509,15 +557,41 @@ Item {
         }
       }
 
-      MouseArea {
-        anchors.fill: parent
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        onDoubleClicked: function(mouse) {
-          if (mouse.button === Qt.RightButton) root.openThemeSwitcher()
-          else root.openSelector()
-          mouse.accepted = true
-        }
-      }
+      DesktopClicks { service: root }
+    }
+  }
+
+  // OWE's video layer takes no clicks, and this service's own layer is hidden
+  // under it while a video plays. A clear layer above the video and below
+  // every window keeps the desktop's double-clicks working meanwhile.
+  Variants {
+    model: Quickshell.screens
+
+    PanelWindow {
+      required property var modelData
+
+      screen: modelData
+      visible: root.suspended
+      color: "transparent"
+      anchors { top: true; bottom: true; left: true; right: true }
+      exclusionMode: ExclusionMode.Ignore
+      WlrLayershell.namespace: "omarchy-background"
+      WlrLayershell.layer: WlrLayer.Bottom
+      WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+      DesktopClicks { service: root }
+    }
+  }
+
+  // Inline components do not see this file's ids, so each one is handed the service.
+  component DesktopClicks: MouseArea {
+    required property var service
+    anchors.fill: parent
+    acceptedButtons: Qt.LeftButton | Qt.RightButton
+    onDoubleClicked: function(mouse) {
+      if (mouse.button === Qt.RightButton) service.openThemeSwitcher()
+      else service.openSelector()
+      mouse.accepted = true
     }
   }
 }
