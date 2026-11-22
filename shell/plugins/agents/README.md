@@ -9,13 +9,15 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
 
 ## Panel
 
-Every subscription on one page, limits first.
+Every agent you use on one page, as one list of lines in the order you drag
+them into: a line per subscription account, per pay-as-you-go provider, and
+per local coding model that is running and ready.
 
 - **Hero** — the agents robot, and a line that rotates through what the
   token counts add up to across every agent: tokens this week and today, the
   most used model, the busiest day, and today's prompts and sessions. Its
   corner has + to add a subscription and >_ to start the default agent.
-- **One section per subscription** — an agent with limits, a balance, a plan,
+- **One line per subscription** — an agent with limits, a balance, a plan,
   or accounts to show gets one; local history alone only feeds the hero's
   line. Its mark, name, and plan, then a compact line
   per limit window: its meter and the time until it resets (the exact percentage
@@ -27,23 +29,40 @@ Every subscription on one page, limits first.
   shows a _Sign-in required_ link that signs that account in again from the
   panel. Any other trouble — a paused token, another agent's sign-in, an
   endpoint that didn't answer — leaves the last known limits on show, with a
-  small info mark beside the name whose tooltip says why they aren't current
-  and what to do; each meter's tooltip says how old it is.
+  small info mark whose tooltip says why they aren't current and what to do:
+  in the first limit row's empty time-left slot when it has no time to show,
+  else beside the name. Each meter's tooltip says how old it is. The name,
+  account, and plan stop short of the line's controls and shorten to fit.
 - **Accounts** — an agent with more than one subscription account (see
-  `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
-  lines. A filled star marks the account the default agent uses (running
-  Claude sessions included, new ones only for Codex and Grok); a hollow one
-  on any other account makes it the one in use, and its agent the default.
-  Click a name to rename the account in place.
-- **Default** — each agent that can be the default carries a star beside its
-  terminal button, filled on the default agent (`omarchy default agent`,
-  `local` for the local model). A hollow star makes that agent the default
-  without opening it, through `omarchy default agent --select`.
+  `omarchy agent account`) gets a line for each, read as the agent's name and
+  then the account's beside its plan, Claude Work · Max 20x (the email on
+  hover), with its own limits. `Main.qml`'s `accountLines` splits the record
+  into these; each is keyed by the account's email, or its id without one,
+  so a renamed account keeps its place. Click an account's name to rename it
+  in place. Only the account in use can turn the bar icon urgent.
+- **Local models** — each coding model running and ready on this machine, or
+  on a paired machine that's online, gets a line: its maker's mark, its name,
+  the machine for a paired one, and its speed, context, and memory where a
+  subscription shows limits. Its terminal button opens Pi on it (`omarchy
+  agent --local-model`). Starting, stopping, and removing models belong to
+  the local models panel.
+- **Default** — each line that can be the default carries a star, filled on
+  the default agent (`omarchy default agent`) and, for an agent with several
+  accounts, on the account in use. Any other line's star shows while the line
+  is hovered or the keyboard is on it, and makes it the default without
+  opening it, through `omarchy default agent --select`: starring an account
+  also switches to it, starring Fireworks or OpenRouter chooses OpenCode, and
+  starring a local model pins it (`omarchy default agent local <model>`),
+  which the default then opens instead of the model started last.
+- **Make icons** — the line in use also shows a theme, plugin, app, and game
+  icon beside its terminal button, which start that line's agent on the task
+  through `omarchy agent make`, as the starter tiles do with the default.
 - **Balance** — prepaid agents show a credit ledger instead of limits: a
   fuel-gauge meter that drains toward empty, the remaining credit, and
   funded-versus-spent detail.
-- **Terminal button** — beside a section's name, it opens the harness made
-  for that subscription. Fireworks and OpenRouter have none of their own, so
+- **Terminal button** — at the end of a line, it opens the harness made for
+  that subscription, switching to an account first when it isn't the one in
+  use. Fireworks and OpenRouter have none of their own, so
   theirs opens OpenCode, where their key is saved, through
   `omarchy agent --provider`, always on one of that provider's models: the
   one OpenCode last used there, so a switch made in a session sticks, else
@@ -52,12 +71,14 @@ Every subscription on one page, limits first.
   30 days, a bar a day, or, against a monthly cap when there is one, this
   month's spend as a meter. Hovering a bar lights it up and names its day,
   what it cost, and the tokens it took when they're among the last week's the
-  record keeps. Fireworks and OpenRouter with a management key
+  record keeps. Days are the ones the record dates them by (`spend.through`):
+  Fireworks counts in UTC days (`spend.utc`), which aren't paired with the
+  local days tokens are counted in. Fireworks and OpenRouter with a management key
   report the account's own figures; DeepSeek, Kimchi, Ollama Cloud, and
   OpenRouter without a management key add up the costs pi and opencode wrote
   beside each reply on this machine, and mark the amount ≈ as an estimate.
 - **Make something cool** — starter prompts (a new theme, plugin, app, or game),
-  two across, that start the agent on the task through `omarchy agent make`.
+  two across, that start the default agent on the task through `omarchy agent make`.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
   three blocks: _Sign in to a subscription_ (Claude, Codex, Grok, and Gemini,
   signed in through Antigravity), _Pay as you go_ (Fireworks, OpenCode
@@ -296,7 +317,7 @@ Synthetic reads `SYNTHETIC_API_KEY` first, then the key pi stores in `~/.pi/agen
 
 ### Local models
 
-The Local models section counts work that ran on hardware you own: Codex rollouts, pi and omp sessions, and opencode messages whose provider is a well-known local runtime (Ollama, LM Studio, llama.cpp, vLLM, ...), a provider named in `~/.config/omarchy/agents/local.json`, or a Codex `model_providers` entry whose `base_url` is on a loopback, private, link-local or LAN address:
+The `local` record counts work that ran on hardware you own: Codex rollouts, pi and omp sessions, and opencode messages whose provider is a well-known local runtime (Ollama, LM Studio, llama.cpp, vLLM, ...), a provider named in `~/.config/omarchy/agents/local.json`, or a Codex `model_providers` entry whose `base_url` is on a loopback, private, link-local or LAN address:
 
 ```json
 { "providers": ["homelab", "my-gateway"] }
@@ -312,18 +333,18 @@ It is the exact complement of the provider collectors: a provider id another col
   urgent when any account new sessions use is at 90% of a window, or a
   prepaid balance is down to its last 10%.
 - Panel: the arrows (or `h`/`j`/`k`/`l`) walk a cursor over everything that
-  does something, row by row: the hero's buttons, each agent's header, each
-  switchable account (landing on Use), and the
-  starter tiles, or the agents to add. Ctrl+Up/Down (or Ctrl+`k`/`j`) moves the
-  agent the cursor is in up or down the page; dragging an agent by its mark
-  does the same, lighting the header it will land on. The order is kept in
-  `~/.local/state/omarchy/agents/order.json`. Hovering moves the same cursor. Enter acts on it, or
-  refreshes when nothing is lit; `r` refreshes, Tab moves to the neighboring
-  bar panel, Esc closes.
-- Accounts: `1`–`9` jump to an account across every agent, and Enter makes it
-  active (picking alone never switches). While an agent with several accounts
-  has its active one within 15 points of its alert threshold (80% at the
-  default), the limits refresh every three minutes.
+  does something, row by row: the hero's buttons, each line's star, make
+  icons, and terminal button, and the starter tiles, or the agents to add.
+  Up and Down land on a line's terminal button, so Down then Enter starts the
+  next one. Ctrl+Up/Down (or Ctrl+`k`/`j`) moves the line the cursor is in up
+  or down the page; dragging a line by its mark does the same, lighting the
+  line it will land on. The order is kept by line in
+  `~/.local/state/omarchy/agents/order.json`. Hovering moves the same cursor.
+  Enter acts on it, or refreshes when nothing is lit; `1`–`9` jump to that
+  line, `r` refreshes, Tab moves to the neighboring bar panel, Esc closes.
+- Accounts: while an agent with several accounts has its active one within
+  15 points of its alert threshold (80% at the default), the limits refresh
+  every three minutes.
 - IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh>`.
 
 ## Settings
