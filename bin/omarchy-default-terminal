@@ -88,6 +88,15 @@ if omarchy-cmd-missing "$terminal"; then
   fi
 fi
 
+# WezTerm installed outside Omarchy still needs its launch arguments.
+if [[ $terminal == "wezterm" ]]; then
+  applications_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+  if [[ ! -e $applications_dir/$desktop_id && ! -L $applications_dir/$desktop_id ]]; then
+    mkdir -p "$applications_dir" &&
+      cp "$OMARCHY_PATH/applications/$desktop_id" "$applications_dir/" || exit 1
+  fi
+fi
+
 cat >~/.config/xdg-terminals.list <<EOF
 # Terminal emulator preference order for xdg-terminal-exec
 # The first found and valid terminal will be used

@@ -315,6 +315,19 @@ grep -Fq 'Installing Chromium' "$test_tmp/browser-install-failure" ||
   fail "failed Chromium setup keeps progress visible in the terminal"
 pass "failed Chromium setup preserves the current default"
 
+# A package installed outside Omarchy has no per-user launch entry yet.
+touch "$installed_dir/wezterm"
+: >"$install_log"
+wezterm_entry="$XDG_DATA_HOME/applications/org.wezfurlong.wezterm.desktop"
+omarchy-default-terminal wezterm
+cmp -s "$ROOT/applications/org.wezfurlong.wezterm.desktop" "$wezterm_entry" ||
+  fail "selecting an already-installed WezTerm supplies its launch entry"
+[[ ! -s $install_log ]] || fail "selecting an already-installed WezTerm skips package installation"
+printf 'custom desktop\n' >"$wezterm_entry"
+omarchy-default-terminal wezterm
+[[ $(<"$wezterm_entry") == "custom desktop" ]] || fail "selecting WezTerm preserves a custom desktop entry"
+pass "selecting an already-installed WezTerm fills the missing launch entry and preserves overrides"
+
 for entry in "${terminal_cases[@]}"; do
   read -r selection desktop_id <<<"$entry"
   rm -f "$installed_dir/$selection"
