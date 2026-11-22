@@ -13,12 +13,15 @@ if (( EUID == 0 )); then
 fi
 
 # ggml carries the CPU backend itself, so a machine without a GPU needs only
-# llama-cpp. The probe matches the one the Ollama install uses.
+# llama-cpp. Vulkan covers the GPUs that CUDA and ROCm leave out. A single GPU
+# backend is installed, so one GPU is never seen twice.
 packages=(llama-cpp)
 if omarchy-cmd-present nvidia-smi; then
   packages+=(ggml-cuda)
 elif omarchy-cmd-present rocminfo; then
   packages+=(ggml-hip)
+elif omarchy-hw-vulkan; then
+  packages+=(ggml-vulkan)
 fi
 
 echo "Installing Llama.cpp..."
