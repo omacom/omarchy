@@ -78,7 +78,7 @@ end
 -- the one it is leaving, so the window is placed a loop later. A mouse drag has already
 -- landed.
 hl.on("window.move_to_workspace", function(window, workspace)
-  if not (window and workspace and window.monitor and workspace.monitor) then return end
+  if not (window and workspace and window.monitor and workspace.monitor) or workspace.special then return end
 
   local target = "address:" .. window.address
   local moved_monitor = window.monitor.id ~= workspace.monitor.id
@@ -88,9 +88,13 @@ hl.on("window.move_to_workspace", function(window, workspace)
       return
     end
 
-    local landed = hl.get_window(target)
-    if landed then
-      keep_on_screen(landed, moved_monitor)
-    end
+    -- Workspace modes arrange on their own deferred handler; let the destination
+    -- apply its floating state and titlebar tag before measuring the window.
+    hl.timer(function()
+      local landed = hl.get_window(target)
+      if landed then
+        keep_on_screen(landed, moved_monitor)
+      end
+    end, { timeout = 1, type = "oneshot" })
   end, { timeout = 1, type = "oneshot" })
 end)

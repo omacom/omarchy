@@ -30,14 +30,17 @@ require("default.hypr.pop")
 local portrait = { id = 0, x = 0, y = 0, width = 1920, height = 1080, scale = 1, transform = 1 }
 local landscape = { id = 1, x = 1080, y = 684, width = 1920, height = 1080, scale = 1, transform = 0, reserved = { top = 26 } }
 
-local function move(window, from, to)
+local function move(window, from, to, options)
   timers, dispatched = {}, {}
   window.address = "0xabc"
   window.floating = window.floating ~= false
   window.size = window.size or { x = 1100, y = 734 }
   landed = window
   landed.monitor = to
-  handlers["window.move_to_workspace"]({ address = window.address, tags = window.tags, monitor = from }, { monitor = to })
+  handlers["window.move_to_workspace"]({ address = window.address, tags = window.tags, monitor = from }, { monitor = to, special = options and options.special })
+  if options and options.arrange then
+    table.insert(timers, { run = function() options.arrange(window) end })
+  end
   for _, timer in ipairs(timers) do timer.run() end
   return dispatched
 end
@@ -64,7 +67,18 @@ assert(moved[1].move.x == 1082 and moved[1].move.y == 712, "a window larger than
 hl.plugin.hyprbars, config["plugin.hyprbars.bar_height"] = {}, 30
 moved = move({ tags = { "omarchy-floating-workspace" }, at = { x = 1500, y = 600 } }, portrait, landscape)
 assert(moved[1].move.x == 1500 and moved[1].move.y == 742, "a window with a titlebar lands with the titlebar below the bar")
+moved = move({ at = { x = 1500, y = 600 } }, portrait, landscape, {
+  arrange = function(window) window.tags = { "omarchy-floating-workspace" } end,
+})
+assert(moved[1].move.y == 742, "a window entering a floating workspace waits for its titlebar tag")
 hl.plugin.hyprbars, config["plugin.hyprbars.bar_height"] = nil, nil
+
+assert(#move({ at = { x = 2121, y = 2243 } }, portrait, landscape, { special = true }) == 0,
+  "minimizing to a store on another monitor preserves the window's position")
+
+local scaled_portrait = { id = 2, x = -800, y = 0, width = 1600, height = 1000, scale = 1.25, transform = 1, reserved = { top = 26 } }
+moved = move({ at = { x = 800, y = 2000 }, size = { x = 400, y = 300 } }, landscape, scaled_portrait)
+assert(moved[1].move.x == -402 and moved[1].move.y == 978, "a scaled, rotated destination is measured in logical pixels")
 
 assert(#move({ at = { x = 1500, y = 800 } }, portrait, landscape) == 0, "a window already on screen stays where it landed")
 assert(#move({ at = { x = 2121, y = 2243 }, fullscreen = 1 }, portrait, landscape) == 0, "a maximized window is left to Hyprland")
