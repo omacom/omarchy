@@ -118,14 +118,14 @@ Panel {
         // doesn't hold the star offers it, and a lapsed sign-in follows.
         var line = []
         if (removable(providers[p])) line.push({ kind: "providerRemove", index: p })
-        if (defaultIdFor(providers[p]) !== "" && !starred(providers[p], providers[p].account || null))
-          line.push({ kind: "providerStar", index: p })
         if (makesOpenIndex === p)
           for (var m = 0; m < starterPrompts.length; m++) line.push({ kind: "make:" + starterPrompts[m].kind, index: p })
         else if (launches(providers[p]))
           line.push({ kind: "makeToggle", index: p })
         if (desktopFor(providers[p])) line.push({ kind: "providerDesktop", index: p })
         line.push({ kind: lineStop(p), index: p })
+        if (defaultIdFor(providers[p]) !== "" && !starred(providers[p], providers[p].account || null))
+          line.push({ kind: "providerStar", index: p })
         rows.push(line)
         if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
       }
@@ -164,8 +164,8 @@ Panel {
     }
   }
 
-  // A line's rightmost button, where the cursor lands on it: its terminal,
-  // or the mark for a line with no button.
+  // Where the cursor lands on a line: its terminal, or the mark for a line
+  // with no button.
   function lineStop(p) {
     return launches(providers[p]) ? "providerLaunch" : "provider"
   }
@@ -183,10 +183,10 @@ Panel {
       keyRow = clamp(keyRow + dy, 0, keyRows.length - 1)
       // Arriving on an agent or account lands on its terminal button, so
       // Down then Enter starts the next one; a line without one lands on its
-      // rightmost stop.
+      // mark.
       var row = keyRows[keyRow]
-      var last = row[row.length - 1].kind
-      keyColumn = last === "providerLaunch" || last === "provider" ? row.length - 1 : Math.min(keyColumn, row.length - 1)
+      var stop = row.findIndex(function(t) { return t.kind === "providerLaunch" || t.kind === "provider" })
+      keyColumn = stop >= 0 ? stop : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
       // A row can go while the cursor is on it, like the starters when the
       // last agent stops.
@@ -432,9 +432,9 @@ Panel {
 
   function ownModelFacts(recipe) {
     var facts = []
+    if (recipe.memory_gib != null) facts.push(Commons.I18n.t("localModels.memoryFact").arg(Commons.I18n.formatNumber(recipe.memory_gib, 0)))
     if (recipe.decode_tok_s != null) facts.push(Commons.I18n.t("localModels.speedFact").arg(Commons.I18n.formatNumber(Math.round(recipe.decode_tok_s), 0)))
     if (recipe.context != null) facts.push(Commons.I18n.t("localModels.contextFact").arg(Commons.I18n.formatNumber(Math.round(Number(recipe.context) / 1024), 0)))
-    if (recipe.memory_gib != null) facts.push(Commons.I18n.t("localModels.memoryFact").arg(Commons.I18n.formatNumber(recipe.memory_gib, 0)))
     return facts.join(" · ")
   }
 
@@ -2309,7 +2309,6 @@ Panel {
     readonly property var account: provider ? (provider.account || null) : null
     // A local model's line: where it runs and what it is.
     readonly property var local: provider ? (provider.localModel || null) : null
-    readonly property string localHost: local ? local.host : ""
     property bool editingName: false
     property string renamedTo: ""
     readonly property string accountLabel: renamedTo !== "" ? renamedTo : account ? String(account.label || account.id || "") : ""
@@ -2427,11 +2426,11 @@ Panel {
         anchors.left: sectionName.right
         anchors.leftMargin: Style.space(8)
         anchors.baseline: sectionName.baseline
-        visible: (!!section.account || section.localHost !== "") && !section.editingName
+        visible: !!section.account && !section.editingName
         width: Math.max(0, Math.min(implicitWidth, sectionHead.textEnd - x))
         elide: Text.ElideRight
         textFormat: Text.PlainText
-        text: section.account ? section.accountLabel : section.localHost
+        text: section.accountLabel
         color: sectionHead.lit ? Commons.Color.accent : root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -2500,9 +2499,8 @@ Panel {
         record: section.provider
       }
 
-      // The line's buttons, from the right: its terminal, its desktop app,
-      // its makes, its star, and its trash. Hidden ones take no room, but an unlit star
-      // keeps its place so the others don't move.
+      // The line's buttons, from the right: its star, its terminal, its
+      // desktop app, its makes, and its trash. Hidden ones take no room.
       Row {
         id: sectionActions
         anchors.right: parent.right
@@ -2510,13 +2508,34 @@ Panel {
         layoutDirection: Qt.RightToLeft
         spacing: Style.space(6)
 
+        // The default's star is filled: the default agent, and with several
+        // accounts the one in use. Another line's makes it the default.
+        PanelActionButton {
+          outlined: true
+          id: sectionStar
+          anchors.verticalCenter: parent.verticalCenter
+          // Only the default's star stays; another shows when it's engaged.
+          visible: root.defaultIdFor(section.provider) !== "" && (on || section.engaged)
+          readonly property bool on: root.starred(section.provider, section.account)
+          iconText: on ? "󰓎" : "󰓒"
+          tooltipText: on
+            ? Commons.I18n.t("agents.isDefault")
+            : Commons.I18n.t("agents.makeDefault").arg(root.lineName(section.provider))
+          foreground: on ? Commons.Color.accent : root.foreground
+          fontFamily: root.fontFamily
+          hasCursor: root.hasKey("providerStar", section.providerIndex)
+          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerStar", section.providerIndex) }
+          onClicked: root.makeDefault(section.provider, section.account)
+        }
+
         // Opens the coding agent made for this subscription: Codex for OpenAI,
-        // Claude Code for Anthropic.
+        // Claude Code for Anthropic. The default's line shows only its star
+        // until it's engaged.
         PanelActionButton {
           outlined: true
           id: sectionLaunch
           anchors.verticalCenter: parent.verticalCenter
-          visible: root.launches(section.provider)
+          visible: root.launches(section.provider) && (section.engaged || !sectionStar.on)
           iconText: "󰞷"
           tooltipText: Commons.I18n.t("agents.launchHarness").arg(root.lineName(section.provider))
           foreground: root.foreground
@@ -2583,31 +2602,7 @@ Panel {
           }
         }
 
-        // The default's star is filled: the default agent, and with several
-        // accounts the one in use. Another line's makes it the default.
-        PanelActionButton {
-          outlined: true
-          id: sectionStar
-          anchors.verticalCenter: parent.verticalCenter
-          visible: root.defaultIdFor(section.provider) !== ""
-          readonly property bool on: root.starred(section.provider, section.account)
-          // Only the default's star stays; another shows when it's engaged. It
-          // keeps its place either way, so the terminal button doesn't move.
-          readonly property bool shown: on || section.engaged
-          opacity: shown ? 1 : 0
-          enabled: shown
-          iconText: on ? "󰓎" : "󰓒"
-          tooltipText: on
-            ? Commons.I18n.t("agents.isDefault")
-            : Commons.I18n.t("agents.makeDefault").arg(root.lineName(section.provider))
-          foreground: on ? Commons.Color.accent : root.foreground
-          fontFamily: root.fontFamily
-          hasCursor: root.hasKey("providerStar", section.providerIndex)
-          onHovered: function(isHovered) { if (isHovered) root.pointAt("providerStar", section.providerIndex) }
-          onClicked: root.makeDefault(section.provider, section.account)
-        }
-
-        // Removing the line: on the line in use, left of its star.
+        // Removing the line: on the line in use, leftmost.
         PanelActionButton {
           outlined: true
           id: sectionRemove
@@ -2626,13 +2621,13 @@ Panel {
       }
     }
 
-    // A local model's speed, context, and memory, as the local models panel
-    // says them.
+    // A local model's memory, speed, and context, as the local models panel
+    // says them, then the machine it runs on when that isn't this one.
     Text {
       visible: !!section.local && text !== ""
       width: parent.width
       textFormat: Text.PlainText
-      text: section.local ? root.ownModelFacts(section.local) : ""
+      text: section.local ? [root.ownModelFacts(section.local), section.local.host].filter(function(part) { return part !== "" }).join(" · ") : ""
       color: root.dim
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
