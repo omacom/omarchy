@@ -145,6 +145,33 @@ grep -qx 'C pactl get-sink-mute alsa_output.speakers' "$CALLS" ||
   fail 'audio-output-volume reads sink mute in the C locale' "$(calls)"
 pass 'audio-output-volume reads pactl outputs in the C locale'
 
+# Key repeat starts runs faster than one finishes. A pactl that keeps the volume
+# in a file, and is slow like the real one, shows whether every step lands.
+mkdir -p "$work/slow"
+cat >"$work/slow/pactl" <<'SH'
+#!/bin/bash
+sleep 0.02
+case "$*" in
+  "get-default-sink") echo "alsa_output.speakers" ;;
+  "get-sink-volume "*) echo "Volume: front-left: 0 /  $(<"$VOLUME")% / 0 dB" ;;
+  "set-sink-volume "*) echo "${3%\%}" >"$VOLUME" ;;
+  "get-sink-mute "*) echo "Mute: no" ;;
+esac
+SH
+chmod +x "$work/slow/pactl"
+echo 50 >"$work/volume"
+(
+  export PATH="$work/slow:$PATH" VOLUME="$work/volume" XDG_RUNTIME_DIR="$work"
+  for _ in {1..10}; do
+    omarchy-audio-output-volume -1 >/dev/null 2>&1 &
+    sleep 0.01
+  done
+  wait
+)
+[[ $(<"$work/volume") == 40 ]] ||
+  fail 'audio-output-volume applies every step of a held key' "ten -1 steps from 50 left $(<"$work/volume")"
+pass 'audio-output-volume applies every step of a held key'
+
 : >"$CALLS"
 (
   eval "$(sed -n '/^app_streams() {/,/^}/p' "$ROOT/bin/omarchy-audio-tuning")"
