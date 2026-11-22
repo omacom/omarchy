@@ -35,7 +35,7 @@ You can see all the possible commands on [the LazyVim Keymaps page](https://www.
 
 ## Starting Neovim
 
-`Super + Shift + N` launches your default editor, which is Plain on new installs; pick Neovim under _Setup > Defaults > Editor_ to have it launch Neovim instead. But it's usually easier to drive it from the terminal by navigating to the directory you wish to work in and typing `n`. The `n` is the alias for `nvim`, which will use the the present directory to open by default. You can open a single file with `n myfile.txt`.
+`Super + Shift + N` launches your default editor, which is Plain on new installs; pick Neovim under _Setup > Defaults > Editor_ to have it launch Neovim instead. In the terminal, `e myfile.txt` opens a file in that same default editor. But it's usually easier to drive it from the terminal by navigating to the directory you wish to work in and typing `n`. The `n` is the alias for `nvim`, which will use the the present directory to open by default. You can open a single file with `n myfile.txt`.
 
 ## Using Neovim for sudo edits
 
