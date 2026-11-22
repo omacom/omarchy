@@ -65,7 +65,11 @@ commit() {
   _SHELL_CONFIG_TMP=$(mktemp -p "$(dirname "$target")" .shell.json.XXXXXX) || fail "could not stage shell config"
   jq -S -e "$@" "$program" "$(source_file)" >"$_SHELL_CONFIG_TMP" || fail "could not update shell config"
   # mktemp creates 0600; keep the mode the config already had (0644 for a new one).
-  chmod --reference="$target" "$_SHELL_CONFIG_TMP" 2>/dev/null || chmod 644 "$_SHELL_CONFIG_TMP"
+  if [[ -e $target ]]; then
+    chmod --reference="$target" "$_SHELL_CONFIG_TMP" || fail "could not preserve shell config mode"
+  else
+    chmod 644 "$_SHELL_CONFIG_TMP"
+  fi
   mv -- "$_SHELL_CONFIG_TMP" "$target"
   _SHELL_CONFIG_TMP=""
   refresh_shell_config
