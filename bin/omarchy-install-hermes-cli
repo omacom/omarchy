@@ -109,14 +109,22 @@ mise_retired() {
 # directory is found wherever MISE_DATA_DIR or XDG_DATA_HOME put it.
 unit_dir=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user
 
+# Only systemd's own word counts as "stopped": a non-zero exit from is-active
+# also covers an unreachable user manager, which says nothing about whether
+# the process is alive.
+unit_stopped() {
+  local state
+  state=$(systemctl --user is-active "$1" 2>/dev/null) || true
+  [[ $state == "inactive" || $state == "failed" ]]
+}
+
 retire_mise_gateway_units() {
-  local unit_file unit state
+  local unit_file unit
   for unit_file in "$unit_dir"/hermes-gateway*.service; do
     [[ -f $unit_file ]] || continue
     [[ $(grep '^ExecStart=' "$unit_file") == *'mise/installs/pipx-hermes-agent'* ]] || continue
     unit=${unit_file##*/}
-    state=$(systemctl --user is-active "$unit" 2>/dev/null) || true
-    if [[ $state == active ]] && ! systemctl --user disable --now "$unit" 2>/dev/null; then
+    if ! systemctl --user disable --now "$unit" 2>/dev/null && ! unit_stopped "$unit"; then
       echo "Could not stop $unit, which runs the Hermes that mise built. Stop it by hand (systemctl --user disable --now \"$unit\"), then run omarchy-install-hermes-cli --retire-mise again." >&2
       return 1
     fi
@@ -374,7 +382,11 @@ case "$mode" in
 --retire-mise)
   # The migration's whole job. The environment goes before the wrapper, since
   # once the wrapper is gone nothing marks the environment as Omarchy's and a
-  # rerun could not finish what a failed removal left behind.
+  # rerun could not finish what a failed removal left behind. A gateway unit
+  # whose ExecStart runs the mise installs of this tool is its own proof --
+  # nothing else writes that path -- so it goes even on a machine where the
+  # earlier migration already removed the environment and wrapper.
+  retire_mise_gateway_units || exit 1
   if legacy_owned; then
     retire_mise || exit 1
     forget_legacy

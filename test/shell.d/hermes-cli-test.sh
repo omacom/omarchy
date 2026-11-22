@@ -263,16 +263,16 @@ pass "a mise tool named like the retired one does not keep the migration pending
 # build by path with Restart=always and no start-rate limit: after the
 # environment is removed the unit fails 203/EXEC every five seconds forever.
 # Retiring the environment therefore takes the unit with it. The stub answers
-# active unless a test marks the unit dead, and can be told to refuse a stop,
+# active unless a test sets another state, and can be told to refuse a stop,
 # which is what the removal must not paper over.
 cat >"$mock_bin/systemctl" <<'SH'
 #!/bin/bash
 printf 'systemctl %s\n' "$*" >>"$OMARCHY_TEST_SYSTEMCTL_LOG"
-if [[ ${OMARCHY_TEST_DISABLE_FAILS:-0} == 1 && ${2:-} == disable ]]; then
+if [[ ${OMARCHY_TEST_DISABLE_FAILS:-0} == "1" && ${2:-} == "disable" ]]; then
   exit 1
 fi
-case "$2" in
-  is-active) echo active ;;
+case "${2:-}" in
+  is-active) echo "${OMARCHY_TEST_UNIT_STATE:-active}" ;;
 esac
 exit 0
 SH
@@ -311,6 +311,64 @@ grep -qxF 'systemctl --user disable --now hermes-gateway.service' "$systemctl_lo
 grep -qxF 'systemctl --user reset-failed hermes-gateway.service' "$systemctl_log" ||
   fail "the failed state of the removed unit is reset" "$(cat "$systemctl_log")"
 pass "--retire-mise stops and removes the gateway unit that ran the mise environment"
+
+# A crash-looping gateway with Restart=always reports "activating" between tries
+# rather than "active"; it must still be disabled and stopped, and if stopping
+# it fails while it stays activating, retirement must abort rather than delete
+# the unit or environment under it.
+write_legacy_stub "$hermes"
+: >"$mise_log"; rm -f "$mise_log.removed" "$mise_log.unrequested"
+: >"$systemctl_log"
+write_gateway_unit "$mise_gateway_exec"
+XDG_CONFIG_HOME="$test_home/.config" OMARCHY_TEST_SYSTEMCTL_LOG="$systemctl_log" OMARCHY_TEST_MISE_BUILT=1 OMARCHY_TEST_UNIT_STATE=activating OMARCHY_TEST_DISABLE_FAILS=1 run_installer --retire-mise &&
+  fail "--retire-mise does not skip stopping a unit in activating state" "$(cat "$test_tmp/output")"
+grep -qxF 'systemctl --user disable --now hermes-gateway.service' "$systemctl_log" ||
+  fail "an activating gateway unit is still asked to disable --now" "$(cat "$systemctl_log")"
+grep -q '^mise rm' "$mise_log" && fail "the mise environment is not removed while an activating gateway refuses to stop"
+[[ -f $unit_dir/hermes-gateway.service ]] || fail "an activating gateway unit that refuses to stop is kept for the retry"
+: >"$systemctl_log"
+XDG_CONFIG_HOME="$test_home/.config" OMARCHY_TEST_SYSTEMCTL_LOG="$systemctl_log" OMARCHY_TEST_MISE_BUILT=1 OMARCHY_TEST_UNIT_STATE=activating run_installer --retire-mise ||
+  fail "--retire-mise stops and retires an activating gateway unit" "$(cat "$test_tmp/output")"
+grep -qxF 'systemctl --user disable --now hermes-gateway.service' "$systemctl_log" ||
+  fail "an activating gateway unit is disabled and stopped" "$(cat "$systemctl_log")"
+[[ ! -e $unit_dir/hermes-gateway.service ]] || fail "an activating gateway unit is removed once stopped"
+pass "--retire-mise stops a crash-looping gateway unit reported as activating"
+
+# A user manager that refuses the disable of a unit already inactive or failed
+# does not block retirement: systemd's own word that the unit is stopped counts.
+write_legacy_stub "$hermes"
+: >"$mise_log"; rm -f "$mise_log.removed" "$mise_log.unrequested"
+: >"$systemctl_log"
+write_gateway_unit "$mise_gateway_exec"
+XDG_CONFIG_HOME="$test_home/.config" OMARCHY_TEST_SYSTEMCTL_LOG="$systemctl_log" OMARCHY_TEST_MISE_BUILT=1 OMARCHY_TEST_DISABLE_FAILS=1 OMARCHY_TEST_UNIT_STATE=inactive run_installer --retire-mise ||
+  fail "--retire-mise succeeds when disable fails on an already inactive unit" "$(cat "$test_tmp/output")"
+grep -qxF 'systemctl --user disable --now hermes-gateway.service' "$systemctl_log" ||
+  fail "disable --now is still attempted first" "$(cat "$systemctl_log")"
+grep -qxF 'systemctl --user is-active hermes-gateway.service' "$systemctl_log" ||
+  fail "systemd is asked whether the unit is stopped after disable fails" "$(cat "$systemctl_log")"
+[[ ! -e $unit_dir/hermes-gateway.service ]] || fail "an inactive unit whose disable failed is still removed"
+grep -qF "mise uninstall --all pipx:hermes-agent[extras=all]" "$mise_log" ||
+  fail "the mise environment is retired once systemd confirms the unit is inactive" "$(cat "$mise_log")"
+pass "a gateway unit already inactive goes even when systemd refuses the disable"
+
+# A machine where migration 1790017600 already removed the mise environment and
+# wrapper has no legacy_owned proof left, while its gateway unit is still
+# crash-looping on the deleted mise install path. --retire-mise sweeps that
+# unit by its ExecStart path without touching mise.
+rm -f "$hermes"
+: >"$mise_log"; rm -f "$mise_log.removed" "$mise_log.unrequested"
+: >"$systemctl_log"
+write_gateway_unit "$mise_gateway_exec"
+printf 'x' >"$unit_dir/hermes-gateway.service.bak"
+ln -sf ../hermes-gateway.service "$unit_dir/default.target.wants/hermes-gateway.service"
+XDG_CONFIG_HOME="$test_home/.config" OMARCHY_TEST_SYSTEMCTL_LOG="$systemctl_log" OMARCHY_TEST_UNIT_STATE=activating run_installer --retire-mise ||
+  fail "--retire-mise sweeps a leftover mise gateway unit without the wrapper" "$(cat "$test_tmp/output")"
+grep -qxF 'systemctl --user disable --now hermes-gateway.service' "$systemctl_log" ||
+  fail "a leftover mise gateway unit is stopped even after the wrapper is gone" "$(cat "$systemctl_log")"
+[[ ! -e $unit_dir/hermes-gateway.service && ! -e $unit_dir/hermes-gateway.service.bak && ! -L $unit_dir/default.target.wants/hermes-gateway.service ]] ||
+  fail "a leftover mise gateway unit, its backup and enablement go without the wrapper"
+[[ ! -s $mise_log ]] || fail "--retire-mise without the wrapper still leaves mise untouched" "$(cat "$mise_log")"
+pass "--retire-mise sweeps a leftover mise gateway unit even after the wrapper is gone"
 
 # A gateway unit running a Hermes kept elsewhere is somebody else's arrangement
 # and stays, exactly as in omarchy-remove-ai-hermes.
