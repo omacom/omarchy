@@ -102,9 +102,20 @@ for (let i = 0; i < 1000; i++) {
     assert.equal(lift('https://example.com:8443/', 'example.com:9999').source, '')
   }
   { // A click on a site toast opens the origin the anchor named, port included.
-    const a = (href) => '<a href="' + href + '">x</a>\n\nbody'
-    assert.equal(M.sourceUrl({ source: 'example.com', rawBody: a('http://example.com:8080/') }), 'http://example.com:8080/')
-    assert.equal(M.sourceUrl({ source: 'example.com', rawBody: a('https://other.example:8443/') }), 'https://example.com/')
+    const a = (href, label = 'example.com') => '<a href="' + href + '">' + label + '</a>\n\nbody'
+    const row = id('Chromium', a('http://example.com:8080/'))
+    assert.equal(M.sourceUrl(Store.restored(Store.persistable(row))), 'http://example.com:8080/')
+    assert.equal(M.sourceUrl({ app: 'Chromium', source: 'example.com', rawBody: a('https://other.example:8443/') }), 'https://example.com/')
+    assert.equal(M.sourceUrl(id('example.com', a('http://example.com:8080/'))), 'https://example.com/')
+    assert.equal(M.sourceUrl({ app: 'Chromium', source: 'example.com', rawBody: a('http://example.com:8080/', 'Read more') }), 'https://example.com/')
+  }
+  { // Identical messages from different ports keep their separate click targets.
+    const row = port => id('Chromium', '<a href="https://example.com:' + port + '/">example.com:' + port + '</a>\n\nbody')
+    const first = row(8443)
+    assert.equal(first.groupKey, 'web:example.com')
+    assert.equal(first.bodyLine, 'body')
+    assert.equal(Store.isDuplicate(first, row(9443)), false)
+    assert.equal(Store.isDuplicate(first, row(8443)), true)
   }
   // A restored row cannot claim a site either unless it came from a browser.
   assert.equal(Store.restored({ key: 'r', app: 'Chat', source: 'bank.example' }).groupKey, 'app:chat')

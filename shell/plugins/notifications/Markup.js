@@ -93,7 +93,8 @@ function liftSource(body) {
 function sourceUrl(row) {
   var host = hostname(row.source)
   if (!host) return ""
-  var m = leadingAnchor(Security.bounded(row.rawBody, Security.MAX_BODY))
+  var raw = Security.bounded(row.rawBody, Security.MAX_BODY)
+  var m = isBrowser(row.app) && liftSource(raw).source === host && leadingAnchor(raw)
   var o = m && Security.safeHttpUrl(m[1]).match(/^(https?:\/\/([^/:?#]+)(?::\d+)?)/)
   return o && o[2] === host ? o[1] + "/" : "https://" + host + "/"
 }
