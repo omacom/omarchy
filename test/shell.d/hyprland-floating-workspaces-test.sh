@@ -237,7 +237,8 @@ function window(address, workspace, options)
     address = address,
     floating = options.floating or false,
     fullscreen = options.fullscreen or 0,
-    pinned = false,
+    pinned = options.pinned or false,
+    allowed_over_fullscreen = true,
     tags = options.tags or {},
     workspace = { id = workspace },
     monitor = monitor,
@@ -301,6 +302,14 @@ hl = {
         target.fullscreen = action.action == "unset" and 0 or 2
       end
     elseif action.kind == "alter_zorder" then
+      for index, candidate in ipairs(all) do
+        if candidate == target then
+          table.remove(all, index)
+          break
+        end
+      end
+      table.insert(all, action.mode == "top" and #all + 1 or 1, target)
+      target.allowed_over_fullscreen = action.mode == "top"
       target.zorder = action.mode
       table.insert(lowered, { address = target.address, mode = action.mode })
       focused = steal or focused
@@ -578,8 +587,8 @@ assert(full.zorder == nil, "the fullscreen window itself was lowered")
 assert(other_ws.zorder == nil, "a window on another workspace was lowered")
 
 local lowered_count = #s.lowered
-s.subscriptions["window.active"][1](normal1)
-assert(#s.lowered == lowered_count, "a normal non-fullscreen window altered sibling z-orders")
+s.subscriptions["window.active"][1](other_ws)
+assert(#s.lowered == lowered_count, "a normal window on a tiled workspace altered sibling z-orders")
 
 local tiled_full = window("0x5", 2, { fullscreen = 2 })
 s.subscriptions["window.active"][1](tiled_full)
@@ -588,6 +597,43 @@ assert(#s.lowered == lowered_count, "a fullscreen window on a tiled workspace al
   fail "focusing a fullscreen window on a floating workspace lowers sibling windows"
 fi
 pass "focusing a fullscreen window on a floating workspace lowers sibling windows"
+
+# Focus alone lets a floating window over fullscreen without raising its click target.
+if ! run_lua '
+require("default.hypr.workspace-layouts")
+local overlay = window("0x1", 1, { floating = true })
+local full = window("0x2", 1, { floating = true, fullscreen = 1 })
+local pinned = window("0x3", 1, { floating = true, pinned = true })
+local s = state()
+local function picked()
+  local windows = hl.get_workspace_windows("1")
+  for index = #windows, 1, -1 do
+    local candidate = windows[index]
+    if not candidate.pinned and (candidate == full or candidate.allowed_over_fullscreen) then
+      return candidate
+    end
+  end
+end
+assert(picked() == full, "the fixture did not reproduce the mismatched click order")
+s.set_focused(overlay)
+s.set_steal(full)
+s.subscriptions["window.active"][1](overlay)
+s.set_steal(nil)
+assert(picked() == overlay and s.focused() == overlay, "the visible focused overlay would pass its click underneath")
+assert(full.fullscreen == 1 and pinned.zorder == nil, "raising the overlay changed another window")
+full.fullscreen = 2
+hl.dispatch(hl.dsp.window.alter_zorder({ mode = "top", window = full }))
+s.subscriptions["window.active"][1](overlay)
+assert(picked() == overlay, "a visible overlay over true fullscreen would pass its click underneath")
+full.fullscreen = 0
+local count = #s.lowered
+s.subscriptions["window.active"][1](overlay)
+s.subscriptions["window.active"][1](pinned)
+assert(#s.lowered == count, "ordinary focus without fullscreen or pinned focus changed stacking")
+'; then
+  fail "a visible focused overlay receives its own clicks over fullscreen"
+fi
+pass "a visible focused overlay receives its own clicks over fullscreen"
 
 # Apps with float rules of their own keep them on a floating workspace: the
 # open rule passes them over, so they open at their own size and the mode never

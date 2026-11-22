@@ -369,11 +369,10 @@ local function watch()
     end, { type = "oneshot", timeout = 1 })
   end)
 
-  -- When a fullscreen or maximized window on a floating workspace gains focus, lower
-  -- the rest of its workspace so it is drawn in front, clearing m_allowedOverFullscreen
-  -- on siblings while preserving their relative stacking order.
+  -- Clear sibling fullscreen flags when focusing fullscreen, and raise visible overlays on focus.
+  -- Hyprland otherwise draws them above fullscreen but can send their clicks underneath.
   hl.on("window.active", function(window)
-    if not window or (window.fullscreen or 0) == 0 or not window.workspace then
+    if not window or not window.workspace then
       return
     end
 
@@ -382,15 +381,24 @@ local function watch()
       return
     end
 
-    local windows = hl.get_windows()
-    for i = #windows, 1, -1 do
-      local other = windows[i]
-      if other.address ~= window.address and other.workspace and tostring(other.workspace.id) == tostring(id) then
-        hl.dispatch(hl.dsp.window.alter_zorder({ mode = "bottom", window = other }))
+    local windows = hl.get_workspace_windows(tostring(id))
+    if (window.fullscreen or 0) > 0 then
+      for i = #windows, 1, -1 do
+        local other = windows[i]
+        if other.address ~= window.address then
+          hl.dispatch(hl.dsp.window.alter_zorder({ mode = "bottom", window = other }))
+        end
+      end
+    elseif window.floating and not window.pinned then
+      for _, other in ipairs(windows) do
+        if (other.fullscreen or 0) > 0 then
+          hl.dispatch(hl.dsp.window.alter_zorder({ mode = "top", window = window }))
+          break
+        end
       end
     end
 
-    -- Each lower replays the pointer, which can focus a sibling under it before that one is lowered too.
+    -- Restacking replays the pointer, which can focus a sibling underneath it.
     local active = hl.get_active_window()
     if not active or active.address ~= window.address then
       hl.dispatch(hl.dsp.focus({ window = "address:" .. window.address }))
