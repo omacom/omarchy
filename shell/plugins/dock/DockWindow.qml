@@ -55,6 +55,12 @@ PanelWindow {
   readonly property int slotSize: iconSize + iconInset * 2
   // An app that is starting pulses down to this.
   readonly property real pulseOpacity: 0.7
+  // An open app has a short line under its icon, on the side facing the
+  // screen edge, whether its windows are showing or minimized, as on the
+  // Windows taskbar. The app in focus gets a longer line in the accent colour.
+  readonly property int openMarkThickness: Math.max(2, Style.space(2))
+  readonly property int openMarkLength: Math.round(iconSize * 0.18)
+  readonly property int focusedMarkLength: Math.round(iconSize * 0.45)
   // Room inward of the dock for its menus: the tallest, the apps button's,
   // has five rows.
   readonly property int popupRoom: Style.spacing.popupRowHeight * 5 + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
@@ -407,6 +413,10 @@ PanelWindow {
     required property string key
     readonly property var modelData: window.dock ? window.dock.itemFor(key) : null
     readonly property bool launching: !!window.dock && window.dock.isLaunching(key)
+    readonly property bool open: !!appSlot.modelData && appSlot.modelData.windows.length > 0
+    readonly property bool focused: appSlot.open && appSlot.modelData.windows.some(function(app) {
+      return !app.minimized && app.toplevel.activated
+    })
     readonly property bool lifted: window.dragIndex === index
     property point pressPoint
     property bool dragged: false
@@ -506,6 +516,36 @@ PanelWindow {
       transformOrigin: window.popOrigin
 
       Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
+    }
+
+    // Drawn in the gap between the icon and the screen edge, and carried
+    // along with the icon while it is dragged.
+    Rectangle {
+      id: openMark
+
+      readonly property int length: appSlot.focused ? window.focusedMarkLength : window.openMarkLength
+
+      visible: appSlot.open && !!window.dock && window.dock.indicators
+      width: window.vertical ? window.openMarkThickness : openMark.length
+      height: window.vertical ? openMark.length : window.openMarkThickness
+      radius: window.openMarkThickness / 2
+      color: appSlot.focused ? Commons.Color.accent : Qt.alpha(Commons.Color.bar.text, 0.6)
+
+      // Focus moving between apps grows one line as the other shrinks, so the
+      // change reads as focus passing rather than a jump.
+      Behavior on width { NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
+      Behavior on height { NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
+      Behavior on color { ColorAnimation { duration: Style.duration(150); easing.type: Easing.InOutQuad } }
+      x: window.position === "left" ? Math.round((window.iconInset - width) / 2)
+        : window.position === "right" ? window.iconInset + window.iconSize + Math.round((window.iconInset - width) / 2)
+        : Math.round((window.slotSize - width) / 2)
+      y: window.position === "top" ? Math.round((window.iconInset - height) / 2)
+        : window.position === "bottom" ? window.iconInset + window.iconSize + Math.round((window.iconInset - height) / 2)
+        : Math.round((window.slotSize - height) / 2)
+      transform: Translate {
+        x: window.vertical ? 0 : appSlot.displayedShift
+        y: window.vertical ? appSlot.displayedShift : 0
+      }
     }
 
     // With animations off it holds still rather than spinning through
