@@ -337,3 +337,19 @@ run_leaf user/hardware/fix-nouveau-cursor.sh >/dev/null
 (( $(grep -c 'no_hardware_cursors = true' "$root/home/.config/hypr/looknfeel.lua") == 1 )) ||
   fail "nouveau cursor setup enables software cursors once however often it runs"
 pass "nouveau cursor setup is idempotent"
+
+# Exercise the installed unit's shell command against switcheroo state files.
+power_off=$(sed -n "s/^ExecStart=\/bin\/sh -c '\(.*\)'$/\1/p" "$ROOT/install/hardware/apple/fix-dual-gpu-intel-panel.sh")
+switch_file="$test_tmp/switch"
+power_off=${power_off//\/sys\/kernel\/debug\/vgaswitcheroo\/switch/$switch_file}
+for state in " :Pwr" "+:Pwr" " :Off" " :DynPwr"; do
+  printf '1:DIS:%s:0000:01:00.0\n' "$state" >"$switch_file"
+  before=$(cat "$switch_file")
+  /bin/sh -c "$power_off"
+  if [[ $state == " :Pwr" ]]; then
+    [[ $(cat "$switch_file") == "OFF" ]] || fail "the power-off unit powers down an inactive discrete GPU"
+  else
+    [[ $(cat "$switch_file") == "$before" ]] || fail "the power-off unit leaves an active, off, or driver-managed GPU alone" "$state"
+  fi
+done
+pass "the power-off unit only targets an inactive discrete GPU under manual power control"

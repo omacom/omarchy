@@ -8,7 +8,7 @@ omarchy-hw-match "MacBookPro11,3" || exit 0
 [[ -d /sys/firmware/efi/efivars ]] || exit 0
 systemctl is-enabled --quiet omarchy-apple-dgpu-off.service && exit 0
 
-sudo bash "$OMARCHY_PATH/install/hardware/apple/fix-dual-gpu-intel-panel.sh"
+sudo bash -e "$OMARCHY_PATH/install/hardware/apple/fix-dual-gpu-intel-panel.sh"
 
 # The firmware reads gpu-power-prefs only at power-on.
 omarchy-state set reboot-required

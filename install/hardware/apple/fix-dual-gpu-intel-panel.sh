@@ -44,7 +44,7 @@ After=systemd-modules-load.service display-manager.service suspend.target hibern
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'grep -q "^[0-9]*:DIS:.*Pwr" /sys/kernel/debug/vgaswitcheroo/switch && echo OFF > /sys/kernel/debug/vgaswitcheroo/switch || true'
+ExecStart=/bin/sh -c 'grep -q "^[0-9]*:DIS: :Pwr" /sys/kernel/debug/vgaswitcheroo/switch && echo OFF > /sys/kernel/debug/vgaswitcheroo/switch || true'
 
 [Install]
 WantedBy=graphical.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
