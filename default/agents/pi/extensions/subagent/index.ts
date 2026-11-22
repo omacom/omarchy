@@ -4,10 +4,9 @@
  * Spawns a separate `pi` process for each subagent invocation,
  * giving it an isolated context window.
  *
- * Supports three modes:
+ * Supports two modes:
  *   - Single: { agent: "name", task: "..." }
  *   - Parallel: { tasks: [{ agent: "name", task: "..." }, ...] }
- *   - Chain: { chain: [{ agent: "name", task: "... {previous} ..." }, ...] }
  *
  * Uses JSON mode to capture structured output from subagents.
  *
@@ -15,6 +14,8 @@
  * own agents (see agents.ts), tells the model which agents there are and when
  * to delegate, adds what the subagents spent to the session's usage, and
  * doesn't offer itself inside a subagent, so delegation stays one level deep.
+ * It drops the example's chain mode and its scope, confirmation and working
+ * directory parameters, so the tool is lean enough for small local models.
  */
 
 import { spawn } from "node:child_process";
@@ -23,14 +24,11 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { AgentToolResult, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Message } from "@earendil-works/pi-ai";
-import { StringEnum } from "@earendil-works/pi-ai";
 import {
-  CONFIG_DIR_NAME,
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   type ExtensionAPI,
   formatReadLineRange,
-  getAgentDir,
   getMarkdownTheme,
   type JsonAgentSessionEvent,
   truncateHead,
@@ -176,7 +174,7 @@ interface SingleResult {
 }
 
 interface SubagentDetails {
-  mode: "single" | "parallel" | "chain";
+  mode: "single" | "parallel";
   results: SingleResult[];
   isError: boolean;
 }
@@ -336,13 +334,12 @@ interface ResolvedAgent {
   cwd: string;
 }
 
-function resolveAgent(defaultCwd: string, scope: AgentScope, name: string, cwd?: string): ResolvedAgent {
-  const effectiveCwd = path.resolve(defaultCwd, cwd ?? ".");
-  const discovery = discoverAgents(effectiveCwd, scope);
+function resolveAgent(cwd: string, scope: AgentScope, name: string): ResolvedAgent {
+  const discovery = discoverAgents(cwd, scope);
   return {
     agent: discovery.agents.find((candidate) => candidate.name === name),
     available: discovery.agents,
-    cwd: effectiveCwd,
+    cwd,
   };
 }
 
@@ -589,33 +586,20 @@ async function runSingleAgent(
   }
 }
 
+// One agent, or several in parallel. Pi's example also chains agents and
+// takes a scope and working directory per call; the model can sequence calls
+// itself, and project agents follow Pi's project trust instead.
 const TaskItem = Type.Object({
-  agent: Type.String({ description: "Name of the agent to invoke" }),
-  task: Type.String({ description: "Task to delegate to the agent" }),
-  cwd: Type.Optional(Type.String({ description: "Working directory for the agent process" })),
-});
-
-const ChainItem = Type.Object({
-  agent: Type.String({ description: "Name of the agent to invoke" }),
-  task: Type.String({ description: "Task with optional {previous} placeholder for prior output" }),
-  cwd: Type.Optional(Type.String({ description: "Working directory for the agent process" })),
-});
-
-const AgentScopeSchema = StringEnum(["user", "project", "both"] as const, {
-  description: 'Which agent directories to use. Default: "user". Use "both" to include project-local agents.',
-  default: "user",
+  agent: Type.String({ description: "Agent name" }),
+  task: Type.String({ description: "The complete task" }),
 });
 
 const SubagentParams = Type.Object({
-  agent: Type.Optional(Type.String({ description: "Name of the agent to invoke (for single mode)" })),
-  task: Type.Optional(Type.String({ description: "Task to delegate (for single mode)" })),
-  tasks: Type.Optional(Type.Array(TaskItem, { description: "Array of {agent, task} for parallel execution" })),
-  chain: Type.Optional(Type.Array(ChainItem, { description: "Array of {agent, task} for sequential execution" })),
-  agentScope: Type.Optional(AgentScopeSchema),
-  confirmProjectAgents: Type.Optional(
-    Type.Boolean({ description: "Prompt before running project-local agents. Default: true.", default: true }),
+  agent: Type.Optional(Type.String({ description: "Agent name, for one task" })),
+  task: Type.Optional(Type.String({ description: "The complete task, for one task" })),
+  tasks: Type.Optional(
+    Type.Array(TaskItem, { description: `Several {agent, task} to run in parallel, at most ${MAX_PARALLEL_TASKS}` }),
   ),
-  cwd: Type.Optional(Type.String({ description: "Working directory for the agent process (single mode)" })),
 });
 
 // What the subagents' own model calls spent, in the shape a tool result's
@@ -670,11 +654,9 @@ export default function (pi: ExtensionAPI) {
     label: "Subagent",
     description: [
       "Delegate tasks to subagents, each a separate pi process with its own context window, which returns only its final answer.",
-      "Modes: single (agent + task), parallel (tasks array), chain (sequential with {previous} placeholder).",
+      "Give agent and task for one, or tasks for several in parallel.",
       `Agents: ${roster}.`,
       "A subagent sees none of this conversation, so the task must say everything it needs: goal, paths, constraints, and what to report back.",
-      `Default agent scope is "user": Omarchy's agents and those in ${path.join(getAgentDir(), "agents")}.`,
-      `To enable project-local agents in ${CONFIG_DIR_NAME}/agents, set agentScope: "both" (or "project").`,
     ].join(" "),
     promptSnippet: "Delegate research or self-contained work to subagents with their own context",
     promptGuidelines: [
@@ -684,22 +666,21 @@ export default function (pi: ExtensionAPI) {
     parameters: SubagentParams,
 
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
-      const agentScope: AgentScope = params.agentScope ?? "user";
+      // A project's own agents (.pi/agents) are code its authors control, so
+      // they load only once Pi trusts the project, as its other resources do.
+      const agentScope: AgentScope = ctx.isProjectTrusted() ? "both" : "user";
       const dispatchDefaults: DispatchDefaults = {
         model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined,
         thinkingLevel: ctx.thinkingLevel,
       };
-      const discovery = discoverAgents(ctx.cwd, agentScope);
-      const agents = discovery.agents;
-      const confirmProjectAgents = params.confirmProjectAgents ?? true;
+      const agents = discoverAgents(ctx.cwd, agentScope).agents;
 
-      const hasChain = (params.chain?.length ?? 0) > 0;
       const hasTasks = (params.tasks?.length ?? 0) > 0;
       const hasSingle = Boolean(params.agent && params.task);
-      const modeCount = Number(hasChain) + Number(hasTasks) + Number(hasSingle);
+      const modeCount = Number(hasTasks) + Number(hasSingle);
 
       const makeDetails =
-        (mode: "single" | "parallel" | "chain", forceError = false) =>
+        (mode: "single" | "parallel", forceError = false) =>
         (results: SingleResult[]): SubagentDetails => ({
           mode,
           results,
@@ -719,110 +700,8 @@ export default function (pi: ExtensionAPI) {
         };
       }
 
-      const resolvedChain = (params.chain ?? []).map((step) =>
-        resolveAgent(ctx.cwd, agentScope, step.agent, step.cwd),
-      );
-      const resolvedTasks = (params.tasks ?? []).map((task) =>
-        resolveAgent(ctx.cwd, agentScope, task.agent, task.cwd),
-      );
-      const resolvedSingle = params.agent ? resolveAgent(ctx.cwd, agentScope, params.agent, params.cwd) : undefined;
-
-      if ((agentScope === "project" || agentScope === "both") && confirmProjectAgents && ctx.hasUI) {
-        let selectedAgents: ResolvedAgent[] = [];
-        if (hasChain) selectedAgents = resolvedChain;
-        else if (hasTasks) selectedAgents = resolvedTasks;
-        else if (resolvedSingle) selectedAgents = [resolvedSingle];
-        const projectAgentsByPath = new Map<string, AgentConfig>();
-        for (const resolved of selectedAgents) {
-          if (resolved.agent?.source === "project") {
-            projectAgentsByPath.set(resolved.agent.filePath, resolved.agent);
-          }
-        }
-
-        const trustedProjectAgentsDir =
-          ctx.isProjectTrusted() && discovery.projectAgentsDir
-            ? fs.realpathSync(discovery.projectAgentsDir)
-            : undefined;
-        const projectAgentsRequested = Array.from(projectAgentsByPath.values()).filter(
-          (agent) =>
-            !trustedProjectAgentsDir || fs.realpathSync(path.dirname(agent.filePath)) !== trustedProjectAgentsDir,
-        );
-        if (projectAgentsRequested.length > 0) {
-          const sources = projectAgentsRequested.map((agent) => `- ${agent.name}: ${agent.filePath}`).join("\n");
-          const ok = await ctx.ui.confirm(
-            "Run project-local agents?",
-            `Sources:\n${sources}\n\nProject agents are repo-controlled. Only continue for trusted repositories.`,
-          );
-          if (!ok) {
-            return {
-              content: [{ type: "text", text: "Canceled: project-local agents not approved." }],
-              details: makeDetails(hasChain ? "chain" : hasTasks ? "parallel" : "single")([]),
-            };
-          }
-        }
-      }
-
-      if (params.chain && params.chain.length > 0) {
-        const results: SingleResult[] = [];
-        let previousOutput = "";
-
-        for (let i = 0; i < params.chain.length; i++) {
-          const step = params.chain[i];
-          // A function, so a $& or $1 in the previous answer stays literal.
-        const taskWithContext = step.task.replace(/\{previous\}/g, () => previousOutput);
-
-          // Create update callback that includes all previous results
-          const chainUpdate: OnUpdateCallback | undefined = onUpdate
-            ? (partial) => {
-                // Combine completed results with current streaming result
-                const currentResult = partial.details?.results[0];
-                if (currentResult) {
-                  const allResults = [...results, currentResult];
-                  onUpdate({
-                    content: partial.content,
-                    details: makeDetails("chain")(allResults),
-                  });
-                }
-              }
-            : undefined;
-
-          const result = await runSingleAgent(
-            dispatchDefaults,
-            resolvedChain[i],
-            step.agent,
-            taskWithContext,
-            i + 1,
-            signal,
-            chainUpdate,
-            makeDetails("chain"),
-          );
-          results.push(result);
-
-          const isError = isFailedResult(result);
-          if (isError) {
-            const errorMsg = getResultOutput(result);
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: truncateModelOutput(`Chain stopped at step ${i + 1} (${step.agent}): ${errorMsg}`),
-                },
-              ],
-              details: makeDetails("chain")(results),
-            };
-          }
-          previousOutput = getFinalOutput(result.messages);
-        }
-        return {
-          content: [
-            {
-              type: "text",
-              text: truncateModelOutput(getFinalOutput(results[results.length - 1].messages) || "(no output)"),
-            },
-          ],
-          details: makeDetails("chain")(results),
-        };
-      }
+      const resolvedTasks = (params.tasks ?? []).map((task) => resolveAgent(ctx.cwd, agentScope, task.agent));
+      const resolvedSingle = params.agent ? resolveAgent(ctx.cwd, agentScope, params.agent) : undefined;
 
       if (params.tasks && params.tasks.length > 0) {
         if (params.tasks.length > MAX_PARALLEL_TASKS)
@@ -955,32 +834,10 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(args, theme, _context) {
-      const scope: AgentScope = args.agentScope ?? "user";
-      if (args.chain && args.chain.length > 0) {
-        let text =
-          theme.fg("toolTitle", theme.bold("subagent ")) +
-          theme.fg("accent", `chain (${args.chain.length} steps)`) +
-          theme.fg("muted", ` [${scope}]`);
-        for (let i = 0; i < Math.min(args.chain.length, 3); i++) {
-          const step = args.chain[i];
-          // Clean up {previous} placeholder for display
-          const cleanTask = step.task.replace(/\{previous\}/g, "").trim();
-          const preview = cleanTask.length > 40 ? `${cleanTask.slice(0, 40)}...` : cleanTask;
-          text +=
-            "\n  " +
-            theme.fg("muted", `${i + 1}.`) +
-            " " +
-            theme.fg("accent", step.agent) +
-            theme.fg("dim", ` ${preview}`);
-        }
-        if (args.chain.length > 3) text += `\n  ${theme.fg("muted", `... +${args.chain.length - 3} more`)}`;
-        return new Text(text, 0, 0);
-      }
       if (args.tasks && args.tasks.length > 0) {
         let text =
           theme.fg("toolTitle", theme.bold("subagent ")) +
-          theme.fg("accent", `parallel (${args.tasks.length} tasks)`) +
-          theme.fg("muted", ` [${scope}]`);
+          theme.fg("accent", `parallel (${args.tasks.length} tasks)`);
         for (const t of args.tasks.slice(0, 3)) {
           const preview = t.task.length > 40 ? `${t.task.slice(0, 40)}...` : t.task;
           text += `\n  ${theme.fg("accent", t.agent)}${theme.fg("dim", ` ${preview}`)}`;
@@ -990,10 +847,7 @@ export default function (pi: ExtensionAPI) {
       }
       const agentName = args.agent || "...";
       const preview = args.task ? (args.task.length > 60 ? `${args.task.slice(0, 60)}...` : args.task) : "...";
-      let text =
-        theme.fg("toolTitle", theme.bold("subagent ")) +
-        theme.fg("accent", agentName) +
-        theme.fg("muted", ` [${scope}]`);
+      let text = theme.fg("toolTitle", theme.bold("subagent ")) + theme.fg("accent", agentName);
       text += `\n  ${theme.fg("dim", preview)}`;
       return new Text(text, 0, 0);
     },
@@ -1115,104 +969,6 @@ export default function (pi: ExtensionAPI) {
         }
         return total;
       };
-
-      if (details.mode === "chain") {
-        const successCount = details.results.filter((result) => result.status === "completed").length;
-        const hasActive = details.results.some(
-          (result) => result.status === "pending" || result.status === "running",
-        );
-        let icon = theme.fg("error", "✗");
-        if (hasActive) icon = theme.fg("warning", "⏳");
-        else if (successCount === details.results.length) icon = theme.fg("success", "✓");
-
-        if (expanded) {
-          const container = new Container();
-          container.addChild(
-            new Text(
-              icon +
-                " " +
-                theme.fg("toolTitle", theme.bold("chain ")) +
-                theme.fg("accent", `${successCount}/${details.results.length} steps`),
-              0,
-              0,
-            ),
-          );
-
-          for (const r of details.results) {
-            const rIcon = resultIcon(r);
-            const displayItems = getDisplayItems(r.messages);
-            const finalOutput = getFinalOutput(r.messages);
-
-            container.addChild(new Spacer(1));
-            container.addChild(
-              new Text(
-                `${theme.fg("muted", `─── Step ${r.step}: `) + theme.fg("accent", r.agent)} ${rIcon}`,
-                0,
-                0,
-              ),
-            );
-            container.addChild(new Text(theme.fg("muted", "Task: ") + theme.fg("dim", r.task), 0, 0));
-            if (isFailedResult(r) && r.errorMessage)
-              container.addChild(new Text(theme.fg("error", `Error: ${r.errorMessage}`), 0, 0));
-            if (r.terminationSignal)
-              container.addChild(new Text(theme.fg("error", `Signal: ${r.terminationSignal}`), 0, 0));
-            if (r.stderr.trim())
-              container.addChild(new Text(theme.fg("error", `stderr: ${r.stderr.trim()}`), 0, 0));
-
-            // Show tool calls
-            for (const item of displayItems) {
-              if (item.type === "toolCall") {
-                container.addChild(
-                  new Text(
-                    theme.fg("muted", "→ ") + formatToolCall(item.name, item.args, theme.fg.bind(theme)),
-                    0,
-                    0,
-                  ),
-                );
-              }
-            }
-
-            // Show final output as markdown
-            if (finalOutput) {
-              container.addChild(new Spacer(1));
-              container.addChild(new Markdown(finalOutput.trim(), 0, 0, mdTheme));
-            }
-
-            const stepUsage = formatUsageStats(r.usage, r.model);
-            if (stepUsage) container.addChild(new Text(theme.fg("dim", stepUsage), 0, 0));
-          }
-
-          const usageStr = formatUsageStats(aggregateUsage(details.results));
-          if (usageStr) {
-            container.addChild(new Spacer(1));
-            container.addChild(new Text(theme.fg("dim", `Total: ${usageStr}`), 0, 0));
-          }
-          return container;
-        }
-
-        // Collapsed view
-        let text =
-          icon +
-          " " +
-          theme.fg("toolTitle", theme.bold("chain ")) +
-          theme.fg("accent", `${successCount}/${details.results.length} steps`);
-        for (const r of details.results) {
-          const rIcon = resultIcon(r);
-          const displayItems = getDisplayItems(r.messages);
-          text += `\n\n${theme.fg("muted", `─── Step ${r.step}: `)}${theme.fg("accent", r.agent)} ${rIcon}`;
-          if (displayItems.length === 0) {
-            const failed = isFailedResult(r);
-            const summary = failed ? getFailureSummary(r) : "(no output)";
-            text += `\n${theme.fg(failed ? "error" : "muted", summary)}`;
-          } else {
-            text += `\n${renderDisplayItems(displayItems, 5)}`;
-          }
-        }
-        const usageStr = formatUsageStats(aggregateUsage(details.results));
-        if (usageStr) text += `\n\n${theme.fg("dim", `Total: ${usageStr}`)}`;
-        text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
-        return new Text(text, 0, 0);
-      }
 
       if (details.mode === "parallel") {
         const running = details.results.filter((result) => result.status === "running").length;
