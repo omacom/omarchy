@@ -485,6 +485,7 @@
   "update.kernelReboot": "تم تحديث نواة Linux. إعادة التشغيل؟",
   "update.keysCorrect": "المفاتيح صحيحة",
   "update.migration": "تشغيل الترحيل (%1)",
+  "update.migrationDeferred": "الترحيل %1 بانتظار تحديث حزمة؛ سيتم تشغيله والترحيلات التي تليه في التحديث القادم أو عند تسجيل الدخول التالي.",
   "update.migrationsDeferred": "معاملة pacman ما زالت قيد التشغيل؛ ستُعاد محاولة ترحيلات Omarchy عند تسجيل الدخول التالي.",
   "update.migrationsWaiting": "بانتظار انتهاء معاملة pacman قبل تشغيل ترحيلات Omarchy...",
   "update.mise": "تحديث أدوات mise",

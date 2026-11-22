@@ -464,6 +464,7 @@
   "update.kernelReboot": "Le noyau Linux a été mis à jour. Redémarrer ?",
   "update.keysCorrect": "Les clés sont correctes",
   "update.migration": "Exécution de la migration (%1)",
+  "update.migrationDeferred": "La migration %1 attend une mise à jour des paquets ; elle et les suivantes s’exécuteront lors de la prochaine mise à jour ou connexion.",
   "update.migrationsDeferred": "La transaction Pacman est toujours en cours ; les migrations d’Omarchy réessaieront à la prochaine connexion.",
   "update.migrationsWaiting": "Attente de la fin de la transaction pacman avant d’exécuter les migrations d’Omarchy...",
   "update.mise": "Mise à jour des outils mise",

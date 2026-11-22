@@ -457,6 +457,7 @@
   "update.kernelReboot": "Linuxi tuum on uuendatud. Taaskäivitada?",
   "update.keysCorrect": "Võtmed on õiged",
   "update.migration": "Käivitan migratsiooni (%1)",
+  "update.migrationDeferred": "Migratsioon %1 ootab paketi uuendamist; see ja sellele järgnevad migratsioonid käivituvad järgmisel uuendamisel või sisselogimisel.",
   "update.migrationsDeferred": "Pacman-i tehing käib endiselt; Omarchy migratsioonid proovivad järgmisel sisselogimisel uuesti.",
   "update.migrationsWaiting": "Ootan, kuni pacman-i tehing lõpeb, enne Omarchy migratsioonide käivitamist...",
   "update.mise": "Uuenda mise tööriistu",

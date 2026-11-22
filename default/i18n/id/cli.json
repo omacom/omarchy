@@ -450,6 +450,7 @@
   "update.kernelReboot": "Kernel Linux telah diperbarui. Mulai ulang?",
   "update.keysCorrect": "Kunci sudah benar",
   "update.migration": "Menjalankan migrasi (%1)",
+  "update.migrationDeferred": "Migrasi %1 menunggu pembaruan paket; migrasi ini dan migrasi setelahnya akan dijalankan pada pembaruan atau login berikutnya.",
   "update.migrationsDeferred": "Transaksi pacman masih berjalan; migrasi Omarchy akan dicoba lagi saat login berikutnya.",
   "update.migrationsWaiting": "Menunggu transaksi pacman selesai sebelum menjalankan migrasi Omarchy...",
   "update.mise": "Perbarui alat mise",

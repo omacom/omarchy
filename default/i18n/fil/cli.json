@@ -457,6 +457,7 @@
   "update.kernelReboot": "Na-update na ang Linux kernel. Mag-reboot?",
   "update.keysCorrect": "Tama ang mga key",
   "update.migration": "Pinapatakbo ang migration (%1)",
+  "update.migrationDeferred": "Naghihintay ang migration %1 ng package update; tatakbo ito at ang mga susunod na migration sa susunod na update o pag-login.",
   "update.migrationsDeferred": "Tumatakbo pa rin ang pacman transaction; susubukang muli ang mga Omarchy migration sa susunod na pag-login.",
   "update.migrationsWaiting": "Naghihintay na matapos ang pacman transaction bago patakbuhin ang mga Omarchy migration...",
   "update.mise": "I-update ang mise tools",

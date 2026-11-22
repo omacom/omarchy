@@ -471,6 +471,7 @@
   "update.kernelReboot": "Ядро Linux обновлено. Перезагрузить?",
   "update.keysCorrect": "Ключи корректны",
   "update.migration": "Выполнение миграции (%1)",
+  "update.migrationDeferred": "Миграция %1 ожидает обновления пакетов; она и следующие за ней миграции будут выполнены при следующем обновлении или входе.",
   "update.migrationsDeferred": "Транзакция pacman всё ещё выполняется; миграции Omarchy будут повторены при следующем входе.",
   "update.migrationsWaiting": "Ожидание завершения транзакции pacman перед выполнением миграций Omarchy...",
   "update.mise": "Обновить инструменты mise",

@@ -464,6 +464,7 @@
   "update.kernelReboot": "Linux kodols atjaunināts. Pārstartēt?",
   "update.keysCorrect": "Atslēgas ir pareizas",
   "update.migration": "Palaiž migrāciju (%1)",
+  "update.migrationDeferred": "Migrācija %1 gaida pakotnes atjaunināšanu; tā un visas migrācijas pēc tās tiks palaistas nākamajā atjaunināšanas vai pieteikšanās reizē.",
   "update.migrationsDeferred": "Pacman transakcija joprojām notiek; Omarchy migrācijas tiks atkārtotas nākamajā pieteikšanās reizē.",
   "update.migrationsWaiting": "Gaidām, līdz pacman transakcija beigsies, pirms palaist Omarchy migrācijas...",
   "update.mise": "Atjaunināt mise rīkus",

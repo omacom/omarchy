@@ -457,6 +457,7 @@
   "update.kernelReboot": "Linux kernel යාවත්කාලීනයි. නැවත ආරම්භ කරමුද?",
   "update.keysCorrect": "යතුරු නිවැරදියි",
   "update.migration": "Migration ධාවනය කරමින් (%1)",
+  "update.migrationDeferred": "Migration %1 පැකේජ යාවත්කාලීනයක් සඳහා රැඳී සිටියි; එය සහ එයින් පසු migrations ඊළඟ යාවත්කාලීනයේදී හෝ පිවිසුමේදී ධාවනය වේ.",
   "update.migrationsDeferred": "Pacman transaction එක තවමත් ධාවනය වේ; Omarchy migrations ඊළඟ පිවිසුමේදී නැවත උත්සාහ කරයි.",
   "update.migrationsWaiting": "Omarchy migrations ධාවනයට පෙර pacman transaction එක අවසන් වන තෙක් රැඳී සිටියි...",
   "update.mise": "mise මෙවලම් යාවත්කාලීන කරන්න",

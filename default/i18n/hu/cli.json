@@ -457,6 +457,7 @@
   "update.kernelReboot": "A Linux-kernel frissült. Újraindítod?",
   "update.keysCorrect": "A kulcsok megfelelőek",
   "update.migration": "Migráció futtatása (%1)",
+  "update.migrationDeferred": "A %1 migráció csomagfrissítésre vár; ez és az azt követő migrációk a következő frissítéskor vagy bejelentkezéskor futnak majd.",
   "update.migrationsDeferred": "A pacman-tranzakció még fut; az Omarchy-migrációk a következő bejelentkezéskor újrapróbálkoznak.",
   "update.migrationsWaiting": "Várakozás a pacman-tranzakció befejezésére az Omarchy-migrációk futtatása előtt...",
   "update.mise": "mise eszközök frissítése",

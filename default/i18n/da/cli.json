@@ -457,6 +457,7 @@
   "update.kernelReboot": "Linux-kernen er blevet opdateret. Genstart?",
   "update.keysCorrect": "Nøglerne er korrekte",
   "update.migration": "Kører migration (%1)",
+  "update.migrationDeferred": "Migration %1 venter på en pakkeopdatering; den og de efterfølgende migrationer køres ved næste opdatering eller login.",
   "update.migrationsDeferred": "Pacman-transaktionen kører stadig; Omarchy-migrationer prøver igen ved næste login.",
   "update.migrationsWaiting": "Venter på, at pacman-transaktionen afsluttes, før Omarchy-migrationer køres...",
   "update.mise": "Opdater mise-værktøjer",

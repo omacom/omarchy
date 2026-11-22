@@ -464,6 +464,7 @@
   "update.kernelReboot": "ליבת Linux עודכנה. להפעיל מחדש?",
   "update.keysCorrect": "המפתחות תקינים",
   "update.migration": "מפעיל מיגרציה (%1)",
+  "update.migrationDeferred": "מיגרציה %1 ממתינה לעדכון חבילה; היא והמיגרציות שאחריה יופעלו בעדכון הבא או בהתחברות הבאה.",
   "update.migrationsDeferred": "עסקת pacman עדיין פועלת; המיגרציות של Omarchy יתבצעו שוב בהתחברות הבאה.",
   "update.migrationsWaiting": "ממתין לסיום עסקת pacman לפני הפעלת המיגרציות של Omarchy...",
   "update.mise": "עדכון כלי mise",

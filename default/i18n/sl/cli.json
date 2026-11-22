@@ -471,6 +471,7 @@
   "update.kernelReboot": "Jedro Linuxa je posodobljeno. Znova zagnati?",
   "update.keysCorrect": "Ključi so pravilni",
   "update.migration": "Izvajanje migracije (%1)",
+  "update.migrationDeferred": "Migracija %1 čaka na posodobitev paketa; ta in naslednje migracije se bodo izvedle ob naslednji posodobitvi ali prijavi.",
   "update.migrationsDeferred": "Transakcija pacman še poteka; migracije Omarchy se bodo znova poskusile ob naslednji prijavi.",
   "update.migrationsWaiting": "Čakanje na konec transakcije pacman pred zagonom migracij Omarchy...",
   "update.mise": "Posodobiti orodja mise",

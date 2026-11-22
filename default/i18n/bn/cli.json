@@ -457,6 +457,7 @@
   "update.kernelReboot": "Linux কার্নেল আপডেট হয়েছে। রিবুট করবেন?",
   "update.keysCorrect": "কীগুলো সঠিক আছে",
   "update.migration": "মাইগ্রেশন চলছে (%1)",
+  "update.migrationDeferred": "মাইগ্রেশন %1 একটি প্যাকেজ আপডেটের জন্য অপেক্ষা করছে; এটি এবং এর পরের মাইগ্রেশনগুলো পরের আপডেট বা লগইনে চলবে।",
   "update.migrationsDeferred": "Pacman ট্রানজ্যাকশন এখনও চলছে; পরের লগইনে Omarchy মাইগ্রেশন আবার চেষ্টা করা হবে।",
   "update.migrationsWaiting": "Omarchy মাইগ্রেশন চালানোর আগে pacman ট্রানজ্যাকশন শেষ হওয়ার জন্য অপেক্ষা করা হচ্ছে...",
   "update.mise": "mise টুল আপডেট করুন",

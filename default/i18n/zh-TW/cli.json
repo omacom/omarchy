@@ -450,6 +450,7 @@
   "update.kernelReboot": "Linux 核心已更新。要重新啟動嗎？",
   "update.keysCorrect": "金鑰正確",
   "update.migration": "正在執行遷移（%1）",
+  "update.migrationDeferred": "遷移 %1 正在等待套件更新；它與後續遷移將於下次更新或登入時執行。",
   "update.migrationsDeferred": "Pacman 交易仍在進行；Omarchy 遷移將於下次登入時重試。",
   "update.migrationsWaiting": "正在等待 pacman 交易完成，之後才執行 Omarchy 遷移...",
   "update.mise": "更新 mise 工具",

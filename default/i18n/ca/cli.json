@@ -464,6 +464,7 @@
   "update.kernelReboot": "El nucli de Linux s'ha actualitzat. Reiniciar?",
   "update.keysCorrect": "Les claus són correctes",
   "update.migration": "Executant la migració (%1)",
+  "update.migrationDeferred": "La migració %1 està esperant una actualització de paquets; aquesta i les migracions posteriors s'executaran en la propera actualització o inici de sessió.",
   "update.migrationsDeferred": "La transacció de pacman encara està en curs; les migracions d'Omarchy es tornaran a provar al proper inici de sessió.",
   "update.migrationsWaiting": "S'està esperant que acabi la transacció de pacman abans d'executar les migracions d'Omarchy...",
   "update.mise": "Actualitzar les eines de mise",

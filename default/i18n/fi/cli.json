@@ -457,6 +457,7 @@
   "update.kernelReboot": "Linux-ydin on päivitetty. Käynnistetäänkö uudelleen?",
   "update.keysCorrect": "Avaimet ovat oikein",
   "update.migration": "Suoritetaan migraatiota (%1)",
+  "update.migrationDeferred": "Migraatio %1 odottaa pakettipäivitystä; se ja sitä seuraavat migraatiot suoritetaan seuraavan päivityksen tai kirjautumisen yhteydessä.",
   "update.migrationsDeferred": "Pacman-transaktio on edelleen käynnissä; Omarchyn migraatiot yritetään uudelleen seuraavan kirjautumisen yhteydessä.",
   "update.migrationsWaiting": "Odotetaan pacman-transaktion valmistumista ennen Omarchyn migraatioiden suorittamista...",
   "update.mise": "Päivitetään mise-työkalut",

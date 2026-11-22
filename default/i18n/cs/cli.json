@@ -464,6 +464,7 @@
   "update.kernelReboot": "Jádro Linuxu bylo aktualizováno. Restartovat?",
   "update.keysCorrect": "Klíče jsou správné",
   "update.migration": "Spouštění migrace (%1)",
+  "update.migrationDeferred": "Migrace %1 čeká na aktualizaci balíčku; ona i následující migrace se spustí při příští aktualizaci nebo přihlášení.",
   "update.migrationsDeferred": "Transakce pacman stále probíhá; migrace Omarchy se zkusí znovu při příštím přihlášení.",
   "update.migrationsWaiting": "Čekání na dokončení transakce pacman před spuštěním migrací Omarchy...",
   "update.mise": "Aktualizovat nástroje mise",
