@@ -328,11 +328,9 @@ transaction in the already-visible update terminal, then runs
 
 ## First-run (`omarchy-provision-first-run`)
 
-Runs once on first interactive login, after the user manager is live. It
-first runs `omarchy-provision-user || true` so finalize catches up if it
-never ran, then handles the steps that need a running graphical session
-and/or a working user systemd instance:
+Runs once on first interactive login, after the user manager is live. Every step below runs through the same wrapper: it logs the step, and a failure is recorded and lets the remaining steps run rather than aborting the sequence.
 
+- `omarchy-provision-user`, so finalize catches up if it never ran.
 - `install/user/first-run/enable-user-units.sh` — daemon-reload, then
   `systemctl --user enable --now` the shipped user units (`bt-agent`,
   `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`,
