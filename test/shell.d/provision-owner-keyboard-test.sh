@@ -879,59 +879,6 @@ omarchy_console_font /dev/pts/3 || status=$?
 (( status == 1 )) || fail "a pseudoterminal cannot have its console font changed"
 pass "console font rejects non-VT paths"
 
-# Opening a readable VT supplies only the redirect; every console command is fake.
-font_tty=""
-for candidate in /dev/tty[0-9]*; do
-  if [[ -r $candidate ]] && ( : <"$candidate" ) 2>/dev/null; then
-    font_tty=$candidate
-    break
-  fi
-done
-if [[ -z $font_tty ]]; then
-  skip "no readable VT without root; skipping console font sizing and build failure"
-  exit 0
-fi
-
-mkdir -p "$lang/bin"
-cat >"$lang/bin/stty" <<'EOF'
-#!/bin/bash
-printf '%s\n' "$FONT_ROWS $FONT_COLS"
-EOF
-cat >"$lang/bin/showconsolefont" <<'EOF'
-#!/bin/bash
-printf '%sx%s\n' "$FONT_WIDTH" "$FONT_HEIGHT"
-EOF
-cat >"$lang/bin/python3" <<'EOF'
-#!/bin/bash
-printf 'build %s\n' "$2" >>"$FONT_CALLS"
-[[ ${FONT_BUILD_FAIL:-0} == 0 ]] || exit 1
-printf 'built font\n' >"$3"
-EOF
-cat >"$lang/bin/setfont" <<'EOF'
-#!/bin/bash
-printf 'set %s\n' "$*" >>"$FONT_CALLS"
-EOF
-chmod +x "$lang/bin/"*
-export PATH="$lang/bin:$PATH" FONT_CALLS=$lang/font-calls OMARCHY_CONSOLE_FONT_DIR=$lang/fonts
-# The last two are one 2560x1104 display in either font: the answer must not depend on which.
-for geometry in '50 160 8 16 ter-v16b' '100 320 8 16 ter-v32b' '50 160 16 32 ter-v32b' '69 320 8 16 ter-v16b' '34 160 16 32 ter-v16b'; do
-  read -r FONT_ROWS FONT_COLS FONT_WIDTH FONT_HEIGHT expected <<<"$geometry"
-  export FONT_ROWS FONT_COLS FONT_WIDTH FONT_HEIGHT
-  rm -rf "$OMARCHY_CONSOLE_FONT_DIR"
-  : >"$FONT_CALLS"
-  omarchy_console_font "$font_tty" || fail "console font can be built for $geometry"
-  [[ $(<"$FONT_CALLS") == "build /usr/share/kbd/consolefonts/$expected.psf.gz"$'\n'"set -C $font_tty $OMARCHY_CONSOLE_FONT_DIR/$expected.psf" ]] ||
-    fail "console font sizes from pixels for $geometry" "$(cat "$FONT_CALLS")"
-done
-pass "console font uses 16px for 160x50 and 32px for large displays, and one display gets one size from either font"
-
-rm -rf "$OMARCHY_CONSOLE_FONT_DIR"
-: >"$FONT_CALLS"
-status=0
-FONT_BUILD_FAIL=1 omarchy_console_font "$font_tty" || status=$?
-(( status == 1 )) && ! grep -q '^set ' "$FONT_CALLS" || fail "a font that cannot be built fails without applying it"
-pass "console font reports a failed build without calling setfont"
-
 # First-boot setup is drawn in kmscon (install/provisioning/kmscon.sh), which
 # takes its keyboard layout and font once, at its start. The password is typed
 # at boot in the layout /etc/vconsole.conf names, so setup must have kmscon
@@ -952,6 +899,7 @@ kmscon_stub() {
   printf '#!/bin/bash\n%s\n' "$2" >"$kms/bin/$1"
   chmod +x "$kms/bin/$1"
 }
+kmscon_path=$PATH
 export PATH="$kms/bin:$ROOT/bin:$PATH"
 
 # ── Where kmscon is tried ────────────────────────────────────────────────────
@@ -1054,3 +1002,58 @@ kmscon_form ja us || status=$?
 kmscon_form en de "" || fail "on the console a new layout needs no relaunch"
 [[ $out == *"password form" && ! -e $kms/resume ]] || fail "the console carries on to the password form" "$out"
 pass "the keyboard step has kmscon started again for a new layout or other Han forms, with the answers saved"
+
+PATH=$kmscon_path
+
+# Opening a readable VT supplies only the redirect; every console command is fake.
+font_tty=""
+for candidate in /dev/tty[0-9]*; do
+  if [[ -r $candidate ]] && ( : <"$candidate" ) 2>/dev/null; then
+    font_tty=$candidate
+    break
+  fi
+done
+if [[ -z $font_tty ]]; then
+  skip "no readable VT without root; skipping console font sizing and build failure"
+  exit 0
+fi
+
+mkdir -p "$lang/bin"
+cat >"$lang/bin/stty" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$FONT_ROWS $FONT_COLS"
+EOF
+cat >"$lang/bin/showconsolefont" <<'EOF'
+#!/bin/bash
+printf '%sx%s\n' "$FONT_WIDTH" "$FONT_HEIGHT"
+EOF
+cat >"$lang/bin/python3" <<'EOF'
+#!/bin/bash
+printf 'build %s\n' "$2" >>"$FONT_CALLS"
+[[ ${FONT_BUILD_FAIL:-0} == 0 ]] || exit 1
+printf 'built font\n' >"$3"
+EOF
+cat >"$lang/bin/setfont" <<'EOF'
+#!/bin/bash
+printf 'set %s\n' "$*" >>"$FONT_CALLS"
+EOF
+chmod +x "$lang/bin/"*
+export PATH="$lang/bin:$PATH" FONT_CALLS=$lang/font-calls OMARCHY_CONSOLE_FONT_DIR=$lang/fonts
+# The last two are one 2560x1104 display in either font: the answer must not depend on which.
+for geometry in '50 160 8 16 ter-v16b' '100 320 8 16 ter-v32b' '50 160 16 32 ter-v32b' '69 320 8 16 ter-v16b' '34 160 16 32 ter-v16b'; do
+  read -r FONT_ROWS FONT_COLS FONT_WIDTH FONT_HEIGHT expected <<<"$geometry"
+  export FONT_ROWS FONT_COLS FONT_WIDTH FONT_HEIGHT
+  rm -rf "$OMARCHY_CONSOLE_FONT_DIR"
+  : >"$FONT_CALLS"
+  omarchy_console_font "$font_tty" || fail "console font can be built for $geometry"
+  [[ $(<"$FONT_CALLS") == "build /usr/share/kbd/consolefonts/$expected.psf.gz"$'\n'"set -C $font_tty $OMARCHY_CONSOLE_FONT_DIR/$expected.psf" ]] ||
+    fail "console font sizes from pixels for $geometry" "$(cat "$FONT_CALLS")"
+done
+pass "console font uses 16px for 160x50 and 32px for large displays, and one display gets one size from either font"
+
+rm -rf "$OMARCHY_CONSOLE_FONT_DIR"
+: >"$FONT_CALLS"
+status=0
+FONT_BUILD_FAIL=1 omarchy_console_font "$font_tty" || status=$?
+(( status == 1 )) && ! grep -q '^set ' "$FONT_CALLS" || fail "a font that cannot be built fails without applying it"
+pass "console font reports a failed build without calling setfont"
