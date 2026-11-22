@@ -1354,12 +1354,6 @@
   "update.hardware.trackpad": {
     "label": "Trackpad"
   },
-  "update.password.drive": {
-    "label": "Drive Encryption"
-  },
-  "update.password.user": {
-    "label": "User"
-  },
   "agent.instructions": {
     "label": "Instructions"
   },

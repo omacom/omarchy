@@ -473,7 +473,7 @@
   "update.process": {"icon":"","label":"Process","title":"Restart"},
   "update.hardware": {"icon":"󰇅","label":"Hardware","title":"Restart"},
   "update.firmware": {"icon":"","label":"Firmware","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update-firmware"},
-  "update.password": {"icon":"","label":"Password"},
+  "update.password": {"icon":"","label":"Password","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-drive-password --login'"},
   "update.time": {"icon":"","label":"Time","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update-time"},
   "update.channel.stable": {"icon":"🟢","label":"Stable","checked":"[[ \"$(omarchy-channel-current)\" == \"stable\" ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-channel-set stable'"},
   "update.channel.rc": {"icon":"🟡","label":"RC","checked":"[[ \"$(omarchy-channel-current)\" == \"rc\" ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-channel-set rc'"},
@@ -490,6 +490,4 @@
   "update.hardware.wifi": {"icon":"󱚾","label":"Wi-Fi","action":"omarchy-launch-floating-terminal-with-presentation omarchy-restart-wifi"},
   "update.hardware.bluetooth": {"icon":"󰂯","label":"Bluetooth","action":"omarchy-launch-floating-terminal-with-presentation omarchy-restart-bluetooth"},
   "update.hardware.trackpad": {"icon":"󰟸","label":"Trackpad","action":"omarchy-launch-floating-terminal-with-presentation omarchy-restart-trackpad"},
-  "update.password.drive": {"icon":"","label":"Drive Encryption","action":"omarchy-launch-floating-terminal-with-presentation omarchy-drive-password"},
-  "update.password.user": {"icon":"","label":"User","action":"omarchy-launch-floating-terminal-with-presentation passwd"},
 }
