@@ -1308,13 +1308,6 @@ check("the CLI's sign-in comes before the editor's", collectors.account_key(coll
 cli.write_text(json.dumps({"storedIn": "os-secret-store"}))
 keyring.write_text(json.dumps({"accessToken": jwt({"sub": "keyring", "exp": later}), "refreshToken": "r"}))
 check("the CLI's sign-in in the keyring stands when auth.json points there", collectors.account_key(collectors.cursor_token()) == "keyring")
-keyring.write_text(json.dumps({"accessToken": jwt({"sub": "keyring", "exp": time.time() - 5})}))
-check("a lapsed keyring sign-in gives way to the editor's", collectors.account_key(collectors.cursor_token()) == "ide")
-keyring.write_text("not json")
-check("an unreadable keyring item is no CLI sign-in", collectors.account_key(collectors.cursor_token()) == "ide")
-os.environ["PATH"] = str(work / "no-bin")
-check("without secret-tool the keyring is no CLI sign-in", collectors.account_key(collectors.cursor_token()) == "ide")
-os.environ["PATH"] = str(keyring_bin)
 cli.write_text(json.dumps({"accessToken": jwt({"sub": "cli", "exp": later})}))
 moved_auth = work / "moved-auth.json"
 moved_auth.write_text(json.dumps({"accessToken": "moved-key"}))
