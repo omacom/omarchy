@@ -67,15 +67,25 @@ end
 -- need for @ and the rest of level 3.
 local altgr_layouts = {
   ad = true, al = true, at = true, ba = true, be = true, br = true, ca = true,
-  ch = true, cz = true, de = true, dk = true, ee = true, es = true, fi = true,
+  ch = true, cz = true, de = true, dk = true, ee = true, es = true, eu = true, fi = true,
   fo = true, fr = true, gb = true, hr = true, hu = true, ie = true, is = true,
   it = true, latam = true, lt = true, lv = true, nl = true, no = true, pl = true,
   pt = true, ro = true, se = true, si = true, sk = true, tr = true,
 }
 
-function keyboard.layout_uses_altgr(layout)
-  local code = tostring(layout or ""):match("^([%a]+)")
+local altgr_us_variants = {
+  ["alt-intl"] = true, ["altgr-intl"] = true, colemak = true, colemak_dh = true,
+  colemak_dh_iso = true, colemak_dh_ortho = true, colemak_dh_wide = true,
+  colemak_dh_wide_iso = true, ["dvorak-alt-intl"] = true, ["dvorak-intl"] = true,
+  ["dvorak-mac"] = true, ["dvorak-mac-iso"] = true, euro = true, haw = true,
+  hbs = true, intl = true, mac = true, ["mac-iso"] = true, norman = true,
+  olpc2 = true, rus = true, symbolic = true, ["workman-intl"] = true,
+}
+
+function keyboard.layout_uses_altgr(layout, variant)
+  local code, suffix = tostring(layout or ""):match("^([%a]+)%-?(.*)$")
   return altgr_layouts[code or ""] == true
+    or code == "us" and altgr_us_variants[variant or suffix or ""] == true
 end
 
 function keyboard.fcitx_keyboard_layouts()
@@ -88,7 +98,7 @@ function keyboard.fcitx_keyboard_layouts()
   end
 
   local layouts = {}
-  for name in file:read("a"):gmatch("Name%s*=%s*keyboard%-([%a]+)") do
+  for name in file:read("a"):gmatch("Name%s*=%s*keyboard%-(%S+)") do
     layouts[#layouts + 1] = name
   end
   file:close()
@@ -96,9 +106,15 @@ function keyboard.fcitx_keyboard_layouts()
 end
 
 function keyboard.right_alt_is_altgr()
-  local selected = keyboard.selected().XKBLAYOUT or "us"
-  for layout in (selected .. ","):gmatch("([^,]*),") do
-    if keyboard.layout_uses_altgr(layout) then
+  local selected = keyboard.selected()
+  local variants = {}
+  for variant in ((selected.XKBVARIANT or "") .. ","):gmatch("([^,]*),") do
+    variants[#variants + 1] = variant
+  end
+  local index = 0
+  for layout in ((selected.XKBLAYOUT or "us") .. ","):gmatch("([^,]*),") do
+    index = index + 1
+    if keyboard.layout_uses_altgr(layout, variants[index]) then
       return true
     end
   end

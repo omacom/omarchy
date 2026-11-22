@@ -350,6 +350,18 @@ fcitx_se=$(altgr_bindings $'XKBLAYOUT=us\n')
 rm -f "$XDG_CONFIG_HOME/fcitx5/profile"
 pass "Fcitx Swedish leaves Right Alt to AltGr and keeps Alt + Space"
 
+for variant in intl colemak; do
+  saved=$(altgr_bindings $'XKBLAYOUT=us,us\nXKBVARIANT=,'"$variant"$'\n')
+  [[ $saved == *"ALT + SPACE omarchy-dictation toggle"* && $saved != *"Alt_R"* ]] ||
+    fail "saved US $variant keeps AltGr available" "$saved"
+  printf '[Groups/0/Items/0]\nName=keyboard-us-%s\n' "$variant" > "$XDG_CONFIG_HOME/fcitx5/profile"
+  fcitx=$(altgr_bindings $'XKBLAYOUT=us\n')
+  rm -f "$XDG_CONFIG_HOME/fcitx5/profile"
+  [[ $fcitx == *"ALT + SPACE omarchy-dictation toggle"* && $fcitx != *"Alt_R"* ]] ||
+    fail "Fcitx US $variant keeps AltGr available" "$fcitx"
+done
+pass "saved and Fcitx US variants keep AltGr available"
+
 # Fresh users receive the backend choice through the settings package's skel.
 cp "$ROOT/config/omarchy/defaults/dictation" "$config"
 [[ $(omarchy-default-dictation) == "superwhisper" ]] || fail "fresh users default to Superwhisper"
