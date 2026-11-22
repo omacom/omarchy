@@ -15,12 +15,12 @@ printf '  %s\n' "${orphans[@]}"
 echo
 
 if [[ ${1:-} != "-y" && ( ! -t 0 || ! -t 1 ) ]]; then
-  echo "$(omarchy-i18n --count "${#orphans[@]}" update.orphansFound "${#orphans[@]}" omarchy-update-orphan-pkgs)"
+  echo "$(omarchy-i18n --count "${#orphans[@]}" update.orphansFound "$(omarchy-i18n --number "${#orphans[@]}")" omarchy-update-orphan-pkgs)"
   echo
   exit 0
 fi
 
-if [[ ${1:-} != "-y" ]] && ! gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n --count "${#orphans[@]}" update.removeOrphans "${#orphans[@]}")"; then
+if [[ ${1:-} != "-y" ]] && ! gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n --count "${#orphans[@]}" update.removeOrphans "$(omarchy-i18n --number "${#orphans[@]}")")"; then
   echo "$(omarchy-i18n update.keepingOrphans)"
   echo
   exit 0
