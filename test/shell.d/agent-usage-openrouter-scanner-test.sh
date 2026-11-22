@@ -210,6 +210,19 @@ expect("pi's and omp's saved OpenRouter key is used", saved + [openrouter.asked,
 opencode_auth(None, "openrouter", "sk-opencode")
 record = openrouter()
 expect("opencode's saved OpenRouter key comes before pi's", openrouter.asked, ["/credits=sk-opencode", "/key=sk-opencode"], record)
+# OpenCode V2 keeps the key in its database and leaves V1's auth.json
+# behind, so the database's active key wins over it.
+conn = sqlite3.connect(opencode_db(tables=()))
+conn.execute("CREATE TABLE credential (id text, integration_id text, active integer, time_updated integer, value text)")
+conn.executemany("INSERT INTO credential VALUES (?, ?, ?, ?, ?)", [
+  ("c1", "openrouter", 0, 9, json.dumps({"type": "key", "key": "sk-retired"})),
+  ("c2", "openrouter", 1, 5, json.dumps({"type": "key", "key": "sk-opencode-v2"})),
+  ("c3", "opencode-go", 1, 7, json.dumps({"type": "key", "key": "sk-go"})),
+])
+conn.commit()
+conn.close()
+record = openrouter()
+expect("opencode V2's active OpenRouter key comes before auth.json's", openrouter.asked, ["/credits=sk-opencode-v2", "/key=sk-opencode-v2"], record)
 
 # A "management" key that /activity refuses (an inference key, or one
 # revoked) falls back to the local scan: machine numbers with prompt counts,
