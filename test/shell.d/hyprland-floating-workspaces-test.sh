@@ -232,6 +232,7 @@ function window(address, workspace, options)
   options = options or {}
   local created = {
     address = address,
+    mapped = true,
     floating = options.floating or false,
     fullscreen = options.fullscreen or 0,
     pinned = false,
@@ -322,6 +323,7 @@ hl = {
     table.insert(subscriptions[event], callback)
   end,
   timer = function(callback) callback() end,
+  get_active_window = function() end,
   get_active_workspace = function() return active end,
   get_config = function(key) return config[key] end,
   config = function(values)
@@ -540,12 +542,13 @@ pass "a new window on a floating workspace brings a maximized one back to size"
 # it, not when its app takes back the focus it just lost, and not after the
 # other was brought back to its own size by hand.
 if ! run_lua '
+local previous = window("0x0", 1, { floating = true, tags = { "omarchy-maximized" } })
+local focused = previous
+hl.get_active_window = function() return focused end
 require("default.hypr.workspace-layouts")
 local events = state().subscriptions
 local queued = {}
 hl.timer = function(callback) table.insert(queued, callback) end
-local focused = nil
-hl.get_active_window = function() return focused end
 local function settle()
   while #queued > 0 do
     table.remove(queued, 1)()
@@ -555,6 +558,16 @@ local first = window("0x1", 1, { floating = true, fullscreen = 1 })
 local second = window("0x2", 1, { floating = true })
 events["window.fullscreen"][1](first)
 settle()
+-- The first focus change after a reload still remembers the window left behind.
+focused = first
+for _, handler in ipairs(events["window.active"]) do handler(first) end
+settle()
+focused = previous
+events["window.urgent"][1](previous)
+events["window.active"][1](previous)
+settle()
+assert(previous.fullscreen == 0, "a window took its maximize back immediately after a reload")
+previous.tags = {}
 first.fullscreen = 0
 events["window.fullscreen"][1](first)
 second.fullscreen = 1
@@ -590,6 +603,17 @@ settle()
 events["window.active"][1](first)
 settle()
 assert(first.fullscreen == 0, "a window was maximized again after the one in front was brought back to its own size")
+-- Closing the maximized window keeps the maximize memory of the waiting one.
+first.tags = { "omarchy-maximized" }
+second.fullscreen = 0
+events["window.fullscreen"][1](second)
+second.mapped = false
+settle()
+focused = first
+events["window.active"][1](first)
+settle()
+assert(first.fullscreen == 1, "closing a maximized window forgot the maximize of the waiting one")
+first.fullscreen, first.tags, second.mapped = 0, {}, true
 -- One that never held the focus is sent for by another app, as the browser is
 -- when a link is opened from a chat, and comes forward as the user asked.
 local sent = window("0x3", 1, { floating = true, tags = { "omarchy-maximized" } })

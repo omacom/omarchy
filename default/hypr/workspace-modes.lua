@@ -460,6 +460,9 @@ local function watch()
 
   watching = true
 
+  local active = hl.get_active_window()
+  focused = active and active.address
+
   input.follow_mouse = hl.get_config("input.follow_mouse")
 
   hl.on("window.open", function(window)
@@ -482,7 +485,7 @@ local function watch()
     local left = (window.fullscreen or 0) == 0 and window.workspace and window.workspace.id
     hl.timer(function()
       arrange({ window })
-      if left then
+      if left and window.mapped then
         forget_maximized(left)
       end
     end, { type = "oneshot", timeout = 1 })
