@@ -1,0 +1,73 @@
+#!/bin/bash
+
+# omarchy:summary=Show, list, or set how much RAM the firmware sets aside as AMD GPU VRAM
+# omarchy:args=[list|set]
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# An AMD APU's firmware carves dedicated VRAM out of RAM before Linux boots.
+# Omarchy shrinks it to the smallest option, so the GPU can map the rest of RAM
+# on demand for large local models; see omarchy-apply-amd-gpu-memory. If that
+# leaves a game or driver short of VRAM, pick a larger carveout here from the
+# sizes the firmware offers; it accepts no other. Only firmware that lets Linux
+# change it offers any, and a new size, along with the GPU memory cap sized for
+# it, applies from the next boot.
+
+usage() {
+  echo "Usage: omarchy-device-gpu-vram [list|set]" >&2
+  exit 1
+}
+
+case ${1:-} in
+  "") (( $# == 0 )) || usage ;;
+  list | set) (( $# == 1 )) || usage ;;
+  *) usage ;;
+esac
+
+# This boot's VRAM, the next boot's, then every size the firmware offers.
+mapfile -t options < <(sudo env PATH="$PATH" omarchy-apply-amd-gpu-memory --options)
+if (( ${#options[@]} < 3 )); then
+  exit 1
+fi
+current=${options[1]}
+sizes=("${options[@]:2}")
+
+case ${1:-} in
+  "")
+    echo "Dedicated VRAM this boot: ${options[0]}"
+    echo "Dedicated VRAM from the next boot: $current"
+    ;;
+  list)
+    for size in "${sizes[@]}"; do
+      if [[ $size == "$current" ]]; then
+        echo "* $size"
+      else
+        echo "  $size"
+      fi
+    done
+    ;;
+  set)
+    choice=$(gum choose --header "Dedicated VRAM from the next boot" --selected "$current" "${sizes[@]}") || exit 1
+
+    sudo env PATH="$PATH" omarchy-apply-amd-gpu-memory "$choice"
+
+    log=$(mktemp)
+    trap 'rm -f "$log"' EXIT
+    rebuilt=true
+    sudo limine-mkinitcpio 2>&1 | tee "$log" || rebuilt=false
+
+    # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
+    if [[ $rebuilt == "false" ]] || grep -q 'mkinitcpio failed for kernel' "$log"; then
+      echo "Could not rebuild the boot image; run omarchy-device-gpu-vram set again once that is fixed." >&2
+      exit 1
+    fi
+
+    omarchy-state set reboot-required
+    echo "The GPU gets $choice of dedicated VRAM from the next boot."
+
+    if gum confirm "Reboot to apply new VRAM limit?"; then
+      omarchy-system reboot
+    fi
+    ;;
+esac
