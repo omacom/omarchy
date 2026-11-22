@@ -1,39 +1,41 @@
 # 浏览器
 
-Omarchy 默认自带 [Chromium](https://www.chromium.org/) 作为默认浏览器。它是普通的开源构建，经过主题化以匹配你的系统其他部分，也是 `Super + Shift + Return` 打开的浏览器，也是每个[网页应用](25-web-apps.md)运行的地方。
+Omarchy 默认自带 [Google Chrome](https://www.google.com/chrome/) 作为默认浏览器。它已适配主题，与系统的其余部分保持一致，`Super + Shift + Return`（或 `Super + Shift + B`）打开的就是它，`Super + Shift + Alt + B` 则打开隐私窗口，所有 [网页应用](25-web-apps.md) 也都在它里面运行。它会直接打开浏览器窗口：没有欢迎界面或登录提示，不会向 Google 发送使用情况统计和崩溃报告，广告隐私提示也已关闭。只要你想同步，随时仍可通过个人资料按钮登录你的 Google 账户。
 
-如果 Chromium 不合你的口味，你也不会被它困住。在 Omarchy 菜单的 _安装 > Browser_ 下，你会找到 Chrome、Edge、Brave、Brave Origin、Firefox 和 [Zen](https://zen-browser.app/)。选择一个，Omarchy 会安装它，设置其策略目录，并将你当前的主题应用到它上面。
+如果 Chrome 不合你的口味，你也不必被它绑住。在 Omarchy 菜单的 _安装 > 浏览器_ 下，你会找到 [Chromium](https://www.chromium.org/)（构建 Chrome 所基于的纯净开源版本）、Edge、Brave、Brave Origin、Firefox 和 [Zen](https://zen-browser.app/)（Edge 仅适用于 x86 机器）。选一个，Omarchy 就会安装它、设置好它的策略目录，并将你当前的主题应用到它上。
 
 ## 将某个浏览器设为默认
 
-安装浏览器不会提升它。一旦它在机器上，进入 _Setup > Defaults > Browser_ 并选择它——菜单只列出你实际已安装的浏览器，并用一个勾号标记当前的默认浏览器。
+安装浏览器并不会把它提升为默认浏览器。要切换，请前往 _设置 > 默认应用 > 浏览器_ 并选择一个。当前默认浏览器会以对勾标记，选择一个你尚未安装的浏览器会先安装它。
 
-从终端执行是：
+在终端中运行：
 
 ```bash
 omarchy default browser firefox
 ```
 
-不带参数运行它，它会告诉你当前的默认浏览器。这设置了 XDG 处理程序，所以不只是 Omarchy 的快捷键会跟随——任何打开链接的东西，从聊天应用到终端命令，都会去到你选择的浏览器。
+不带参数运行它，它会告诉你当前的默认浏览器。这会设置 XDG 处理程序，所以不只是 Omarchy 的快捷键会跟着变——从聊天应用到终端命令，任何打开链接的操作都会前往你选择的浏览器。
 
-## 复制 URL 和下载视频
+## Copy URL 和 Download Video
 
-Chromium 家族的浏览器（Chromium 本身、Chrome、Edge 和 Brave）带有两个 Omarchy 扩展，它们能走出浏览器进入你的系统其他部分。
+Chromium 家族浏览器（Chromium 本身、Chrome、Edge、Brave 和 Brave Origin）附带三个 Omarchy 扩展：其中两个能突破浏览器、联动到你系统的其余部分，还有一个负责优化 WhatsApp。
 
-**Copy URL** 用 `Alt + Shift + L` 将当前标签页的地址放到你的剪贴板上。这比点进地址栏并复制要快，而且因为它经过系统剪贴板而非浏览器的剪贴板，你会得到一个 Omarchy 通知确认它，并且该 URL 会立即在[剪贴板历史](08-unified-clipboard-history.md)和每个其他应用中可用。如果你更喜欢点击，也有一个工具栏按钮。
+**Copy URL** 通过 `Alt + Shift + L` 将当前标签页的地址放到你的剪贴板上。这比点进地址栏再复制更快，而且因为它经由系统剪贴板而非浏览器的剪贴板，你会收到一条 Omarchy 通知确认操作，URL 也会立即出现在 [统一剪贴板历史](08-unified-clipboard-history.md) 和其他每个应用中。如果你更喜欢点击，工具栏上也有一个按钮。
 
-**Download Video** 用 `Alt + Shift + D` 抓取你正在看的页面上播放的视频。它将 URL 交给 [yt-dlp](https://github.com/yt-dlp/yt-dlp)，所以它适用于远不止 YouTube 的站点，下载会落到 `~/Videos` 中。进度会显示在与音量和亮度相同的屏幕显示中，就地更新，而不是堆积通知。如果你想让文件去别处，设置 `OMARCHY_YTDLP_DIR`——有关在哪里放置环境变量，见 [FAQ](46-faq.md)。
+**Download Video** 通过 `Alt + Shift + D` 抓取你正在查看的页面上播放的视频。它将 URL 交给 [yt-dlp](https://github.com/yt-dlp/yt-dlp)，所以它远不止适用于 YouTube，下载内容会落到 `~/Videos` 中。进度会显示在与音量和亮度相同的屏幕显示中，就地更新，而不是堆积通知。如果你想让文件放到别处，请设置 `OMARCHY_YTDLP_DIR`——环境变量应放在何处请参阅 [FAQ](46-faq.md)。
 
-这两个扩展都通过一个小型原生消息主机与 Omarchy 通信，它会随浏览器一起为你安装。这是让网页视频最终落到你的主目录、让 URL 最终落到你的剪贴板管理器中的部件，而普通的扩展靠自己是做不到这一点的。
+这两个扩展都通过一个小型原生消息传递宿主与 Omarchy 通信，该宿主会随浏览器一同为你安装。正是这个组件，让网页上的视频最终能进入你的主目录，让 URL 能进入你的剪贴板管理器，而这正是普通扩展单独无法做到的。
 
-这些仅适用于 Chromium 家族。Firefox 和 Zen 没有它们。
+**WhatsApp Slim** 让 WhatsApp Web 跟随你的系统主题，并在窗口较窄时折叠其聊天列表。
+
+这些仅适用于 Chromium 家族。Firefox 和 Zen 无法获得它们。
 
 ## Firefox 和 Zen
 
-Firefox 和 Zen 是另一个家族，所以它们得到的待遇不同：Omarchy 为合理的默认设置安装一个策略文件，并将它们切换到原生 Wayland 模式，这正是你想要的分数缩放和流畅的触控板滚动。
+Firefox 和 Zen 属于不同的家族，因此处理方式也不同：Omarchy 会为它们安装一个策略文件以设定合理的默认设置，并将它们切换到原生 Wayland 模式，这正是你在分数缩放和平滑触控板滚动时所需要的。
 
-它们没有上面的 Chromium 扩展，也不会被 Omarchy 主题化，所以这些体验部分需要你自己设置。
+它们无法获得上述 Chromium 扩展，也不会由 Omarchy 进行主题适配，所以体验的那些部分需要你自己设置。
 
-## 再次删除某个浏览器
+## 再次移除某个浏览器
 
-你在这里安装的任何东西都可以在 _移除 > Browser_ 下删除。Chromium 不在该列表中——它是基础系统的一部分。
+这些浏览器中的任意一个，包括 Chrome，都可以在 _移除 > 浏览器_ 下卸载。如果另一个浏览器仍已安装，链接随后会前往 Chrome 或 Chromium。

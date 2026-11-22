@@ -8,11 +8,11 @@ run_node_test <<'JS'
 const fs = require('fs')
 const panelSource = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
 
-const signInFunctions = ['supportsSignIn', 'needsSignIn', 'usageNote'].map(name => {
+const signInFunctions = ['supportsSignIn', 'signedOut', 'needsSignIn', 'usageNote'].map(name => {
   const match = panelSource.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))
   return match ? match[0] : ''
 }).join('\n')
-const signIn = new Function('addProviders', 'helpDisplayText', 'statusDisplayText', signInFunctions + '\nreturn {needsSignIn, usageNote}')(
+const signIn = new Function('signInProviders', 'helpDisplayText', 'statusDisplayText', signInFunctions + '\nreturn {needsSignIn, signedOut, usageNote}')(
   [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'grok'}], text => text, status => status
 )
 for (const id of ['claude', 'codex', 'grok']) {
@@ -22,6 +22,7 @@ for (const id of ['claude', 'codex', 'grok']) {
 assert(signIn.needsSignIn({usageStatusText: 'Sign-in expired'}), 'account rows keep their sign-in link')
 for (const status of ['Sign-in expired', 'Waiting for auth']) {
   assert(!signIn.needsSignIn({providerId: 'agy', usageStatusText: status}), 'an agent the panel cannot sign in gets no link for ' + status)
+  assert(signIn.signedOut({providerId: 'agy', usageStatusText: status}), 'an agent the panel cannot sign in still counts as signed out for ' + status)
   assertEqual(signIn.usageNote({providerId: 'agy', usageStatusText: status}), status, 'an agent the panel cannot sign in still notes ' + status)
 }
 assertEqual(signIn.usageNote({providerId: 'grok', usageStatusText: 'Limits paused', authHelpText: 'Start Grok to refresh it.'}),
@@ -39,6 +40,7 @@ const historyOnly = { limits: [], accounts: [], balance: null, tierLabel: '', to
 assertEqual(subscribed(historyOnly), false, 'an agent with only local history gets no section')
 assertEqual(subscribed({ ...historyOnly, tierLabel: 'X Premium+' }), true, 'a plan earns a section before its limits arrive')
 assertEqual(subscribed({ ...historyOnly, limits: [{ label: 'Weekly', percent: 0.04 }] }), true, 'kept limits earn a section')
+assertEqual(subscribed({ ...historyOnly, spend: { amount: 1.25, days: [] } }), true, 'spend alone earns a section')
 
 // A reworded collector line would silently fall back to English, so every
 // fixed help line the collectors cache must still be one the panel maps.
@@ -104,39 +106,29 @@ assertDeepEqual(
 )
 JS
 
-# A rewrite may briefly leave an incomplete file; lifecycle state must survive it.
+# The saved order keeps agents where they were put, including ones hidden now.
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const state = { localModel: {} }
-const parse = new Function('root', source.match(/function parseLocalModel\([^]*?\n  \}/)[0] + '\nreturn parseLocalModel')(state)
-const running = { models: { 'model-a': { recipe: 'model-a', unit: 'active', endpoint: 'http://127.0.0.1:11435/v1' }, 'model-b': { recipe: 'model-b', unit: 'activating' } }, ram_total_gib: 125.1 }
-parse(JSON.stringify(running))
-assertDeepEqual(state.localModel, running, 'lifecycle state loads without any usage record')
-for (const raw of ['{', 'null', '[]', '{}', '{"models":[]}', '{"models":{"model-a":{"recipe":false,"unit":"active"}}}', '{"models":{"model-a":{"recipe":"model-a","unit":"unknown"}}}']) {
-  parse(raw)
-  assertDeepEqual(state.localModel, running, 'invalid lifecycle state keeps the last good value: ' + raw)
-}
-parse('{"models":{"model-a":{"recipe":"model-a","unit":"failed","result":"exit-code"}}}')
-assertEqual(state.localModel.models['model-a'].result, 'exit-code', 'a server failure replaces the running state')
-parse('{"models":{}}')
-assertDeepEqual(state.localModel.models, {}, 'an empty models map clears the local lines')
-JS
-
-# Hosted and local rows share ordering, including positions saved while hidden.
-run_node_test <<'JS'
-const fs = require('fs')
-const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const functions = ['orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
-let providerOrder = ['codex', 'local:a', 'claude', 'hidden']
-let panelProviders = [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'local:a'}, {providerId: 'local:b'}]
+const functions = ['lineId', 'orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+let providerOrder = ['codex', 'kimi', 'claude', 'hidden']
+let panelProviders = [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'kimi'}, {providerId: 'grok'}]
 let saved = ''
 const orderFile = {setText: text => { saved = text }}
 eval(functions)
 panelProviders = orderedProviders(panelProviders)
-assertDeepEqual(panelProviders.map(p => p.providerId), ['codex', 'local:a', 'claude', 'local:b'], 'saved order interleaves local models and puts new models last')
-moveProvider('local:b', 0)
-assertDeepEqual(JSON.parse(saved), ['local:b', 'codex', 'local:a', 'claude', 'hidden'], 'moving a local model saves the shared order and retains hidden ids')
+assertDeepEqual(panelProviders.map(p => p.providerId), ['codex', 'kimi', 'claude', 'grok'], 'saved order keeps its agents in place and puts new ones last')
+moveProvider('grok', 0)
+assertDeepEqual(JSON.parse(saved), ['grok', 'codex', 'kimi', 'claude', 'hidden'], 'moving an agent saves the order and retains hidden ids')
+
+
+// Each account is a line of its own: its lines take the place saved for the
+// agent until one is moved, and then that line moves alone.
+providerOrder = ['codex', 'claude']
+panelProviders = orderedProviders([{providerId: 'claude', lineId: 'claude/main'}, {providerId: 'claude', lineId: 'claude/work'}, {providerId: 'codex'}])
+assertDeepEqual(panelProviders.map(lineId), ['codex', 'claude/main', 'claude/work'], 'account lines keep the place saved for their agent')
+moveProvider('claude/work', 0)
+assertDeepEqual(JSON.parse(saved).slice(0, 3), ['claude/work', 'codex', 'claude/main'], 'an account line moves on its own')
 JS
 
 # Exercise the panel's drag lifecycle with Elsewhen's real variable-height math.
@@ -148,7 +140,7 @@ const Reorder = {}
 vm.runInNewContext(fs.readFileSync(root + '/shell/plugins/panels/elsewhen/Model.js', 'utf8').replace(/^\.pragma.*$/mg, ''), Reorder)
 const state = {
   dragIndex: 0, dragTarget: 0, dragOffset: 0, dragPressY: 100,
-  rowPitches: [80, 140, 60], providers: [{providerId: 'codex'}, {providerId: 'local:a'}, {providerId: 'claude'}],
+  rowPitches: [80, 140, 60], providers: [{providerId: 'codex'}, {providerId: 'kimi'}, {providerId: 'claude'}],
   dragProviderId: 'codex', dragProviders: [], settling: false
 }
 let writes = []
@@ -177,12 +169,3 @@ assertEqual(writes.length, 1, 'cancel saves no order')
 assertDeepEqual([0, 1, 2].map(i => Reorder.rowShift(i, state.dragIndex, state.dragTarget, state.dragOffset, 60)), [0, 0, 0], 'cancel clears every offset')
 JS
 
-# A start that runs past its last duration must keep moving, never fill up.
-run_node_test <<'JS'
-const fs = require('fs')
-const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
-const progress = new Function(source.match(/function phaseProgress\([^]*?\n  \}/)[0] + '\nreturn phaseProgress')()
-assertEqual(progress(10, 10), 0.9, 'a start reaches 90% at the time the last one took')
-assert(progress(20, 10) > progress(15, 10) && progress(15, 10) > 0.9, 'a start that runs long keeps creeping')
-assert(progress(1000, 10) < 0.99, 'the bar never fills before the model is ready')
-JS

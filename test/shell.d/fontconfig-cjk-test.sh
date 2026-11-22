@@ -6,8 +6,10 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 unset FONTCONFIG_FILE FONTCONFIG_PATH
 
-if ! command -v fc-match >/dev/null || [[ $(fc-list : file) != *NotoSansCJK-Regular.ttc* ]]; then
-  skip "fontconfig CJK variants need fc-match and noto-fonts-cjk"
+# Either build of the fonts: noto-fonts-cjk-vf, which Omarchy installs, or
+# Arch's noto-fonts-cjk, which machines installed before it still have.
+if ! command -v fc-match >/dev/null || [[ $(fc-list : file) != *NotoSansCJK-*.ttc* ]]; then
+  skip "fontconfig CJK variants need fc-match and noto-fonts-cjk-vf"
   exit 0
 fi
 
