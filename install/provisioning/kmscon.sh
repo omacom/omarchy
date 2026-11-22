@@ -104,7 +104,7 @@ omarchy_kmscon() {
       --no-mouse \
       --dpms-timeout=0 \
       --font-engine=pango \
-      --font-name="Adwaita Mono,$OMARCHY_KMSCON_FACE,monospace" \
+      --font-name="JetBrainsMono Nerd Font,$OMARCHY_KMSCON_FACE,monospace" \
       --font-size="$(omarchy_kmscon_font_size)" \
       --xkb-layout="$layout" \
       ${model:+--xkb-model="$model"} \

@@ -919,7 +919,7 @@ chmod +x "$kms/bin/kmscon"
 PATH="$kms/bin:$PATH" omarchy_kmscon "$kms/log" de-latin1-nodeadkeys ja "#00ff80" /usr/bin/setup --attempt
 grep -qx -- '--xkb-layout=de' "$kms/args" && grep -qx -- '--xkb-variant=nodeadkeys' "$kms/args" && grep -qx -- '--xkb-model=pc105' "$kms/args" ||
   fail "kmscon is started with the keymap's layout" "$(cat "$kms/args")"
-grep -qx -- '--font-name=Adwaita Mono,Noto Sans Mono CJK JP,monospace' "$kms/args" || fail "kmscon is started with the language's font" "$(cat "$kms/args")"
+grep -qx -- '--font-name=JetBrainsMono Nerd Font,Noto Sans Mono CJK JP,monospace' "$kms/args" || fail "kmscon is started with the language's font" "$(cat "$kms/args")"
 grep -qx -- '--palette-light-red=0, 255, 128' "$kms/args" || fail "an OEM's colour is the palette's bright red" "$(cat "$kms/args")"
 [[ $(tail -n2 "$kms/args") == $'/usr/bin/setup\n--attempt' ]] || fail "kmscon runs the command it was given" "$(cat "$kms/args")"
 grep -qx 'OMARCHY_KMSCON=1' "$kms/env" && grep -qx 'OMARCHY_KMSCON_XKB=de pc105 nodeadkeys terminate:ctrl_alt_bksp' "$kms/env" &&
