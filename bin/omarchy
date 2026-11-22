@@ -102,30 +102,35 @@ GROUP_DESCRIPTIONS[webapp]="Web app launchers"
 GROUP_DESCRIPTIONS[wifi]="Wi-Fi helpers"
 GROUP_DESCRIPTIONS[windows]="Windows VM management"
 
+# Helpers below assign their result to the variable named by the first argument
+# instead of printing it, so callers avoid a $(...) subshell fork per call.
 join_words() {
-  local separator="$1"
-  shift
-  local joined=""
+  local _join_out="$1"
+  local _join_separator="$2"
+  shift 2
+  local _join_joined=""
+  local _join_word=""
 
-  for word in "$@"; do
-    if [[ -z $joined ]]; then
-      joined="$word"
+  for _join_word in "$@"; do
+    if [[ -z $_join_joined ]]; then
+      _join_joined="$_join_word"
     else
-      joined+="$separator$word"
+      _join_joined+="$_join_separator$_join_word"
     fi
   done
 
-  printf '%s' "$joined"
+  printf -v "$_join_out" '%s' "$_join_joined"
 }
 
 append_pipe_value() {
-  local current="$1"
-  local addition="$2"
+  local _append_out="$1"
+  local _append_current="$2"
+  local _append_addition="$3"
 
-  if [[ -z $current ]]; then
-    printf '%s' "$addition"
+  if [[ -z $_append_current ]]; then
+    printf -v "$_append_out" '%s' "$_append_addition"
   else
-    printf '%s|%s' "$current" "$addition"
+    printf -v "$_append_out" '%s|%s' "$_append_current" "$_append_addition"
   fi
 }
 
@@ -237,11 +242,11 @@ register_command() {
         ;;
       requires-sudo)
         requires_sudo="$metadata_value"
-        [[ $metadata_value == "true" ]] || metadata_errors=$(append_pipe_value "$metadata_errors" "requires-sudo must be omitted or true")
+        [[ $metadata_value == "true" ]] || append_pipe_value metadata_errors "$metadata_errors" "requires-sudo must be omitted or true"
         ;;
       hidden)
         hidden="$metadata_value"
-        [[ $metadata_value == "true" ]] || metadata_errors=$(append_pipe_value "$metadata_errors" "hidden must be omitted or true")
+        [[ $metadata_value == "true" ]] || append_pipe_value metadata_errors "$metadata_errors" "hidden must be omitted or true"
         ;;
       *)
         ;;
@@ -307,13 +312,15 @@ register_command() {
 
   local old_ifs="$IFS"
   local alias_route=""
+  local alias_list=""
   IFS='|'
   for alias_route in $aliases; do
     alias_route="${alias_route# }"
     alias_route="${alias_route% }"
     [[ -z $alias_route || $alias_route == "$route" ]] && continue
     register_route "$alias_route" "$key" true
-    COMMAND_ALIASES["$key"]=$(append_pipe_value "${COMMAND_ALIASES[$key]}" "$alias_route")
+    append_pipe_value alias_list "${COMMAND_ALIASES[$key]}" "$alias_route"
+    COMMAND_ALIASES["$key"]="$alias_list"
   done
   IFS="$old_ifs"
 }
@@ -467,9 +474,11 @@ resolve_direct_route() {
   local candidate=""
 
   for (( prefix_count = argc; prefix_count >= 1; prefix_count-- )); do
-    route="omarchy $(join_words " " "${args[@]:0:prefix_count}")"
+    join_words route " " "${args[@]:0:prefix_count}"
+    route="omarchy $route"
 
-    binary="omarchy-$(join_words "-" "${args[@]:0:prefix_count}")"
+    join_words binary "-" "${args[@]:0:prefix_count}"
+    binary="omarchy-$binary"
     candidate="$OMARCHY_BIN_DIR/$binary"
     if [[ -f $candidate && -x $candidate ]]; then
       DIRECT_RESOLVED_BINARY="$binary"
@@ -495,34 +504,39 @@ sorted_keys() {
 }
 
 fallback_group_for_key() {
-  local key="$1"
-  local fallback="${COMMAND_FALLBACK_ROUTE[$key]#omarchy }"
+  local _fallback_out="$1"
+  local _fallback_key="$2"
+  local _fallback_route="${COMMAND_FALLBACK_ROUTE[$_fallback_key]#omarchy }"
 
-  printf '%s' "${fallback%% *}"
+  printf -v "$_fallback_out" '%s' "${_fallback_route%% *}"
 }
 
 command_route_for_group() {
-  local key="$1"
-  local group="$2"
+  local _route_out="$1"
+  local _route_key="$2"
+  local _route_group="$3"
+  local _route_fallback_group=""
 
-  if [[ $(fallback_group_for_key "$key") == "$group" && ${COMMAND_GROUP[$key]} != "$group" ]]; then
-    printf '%s' "${COMMAND_FALLBACK_ROUTE[$key]}"
+  fallback_group_for_key _route_fallback_group "$_route_key"
+  if [[ $_route_fallback_group == "$_route_group" && ${COMMAND_GROUP[$_route_key]} != "$_route_group" ]]; then
+    printf -v "$_route_out" '%s' "${COMMAND_FALLBACK_ROUTE[$_route_key]}"
   else
-    printf '%s' "${COMMAND_ROUTE[$key]}"
+    printf -v "$_route_out" '%s' "${COMMAND_ROUTE[$_route_key]}"
   fi
 }
 
 command_usage_for_group() {
-  local key="$1"
-  local group="$2"
-  local route=""
+  local _usage_out="$1"
+  local _usage_key="$2"
+  local _usage_group="$3"
+  local _usage_route=""
 
-  route=$(command_route_for_group "$key" "$group")
-  if [[ -n ${COMMAND_ARGS[$key]} ]]; then
-    route+=" ${COMMAND_ARGS[$key]}"
+  command_route_for_group _usage_route "$_usage_key" "$_usage_group"
+  if [[ -n ${COMMAND_ARGS[$_usage_key]} ]]; then
+    _usage_route+=" ${COMMAND_ARGS[$_usage_key]}"
   fi
 
-  printf '%s' "$route"
+  printf -v "$_usage_out" '%s' "$_usage_route"
 }
 
 sorted_group_keys() {
@@ -537,12 +551,12 @@ sorted_group_keys() {
       continue
     fi
 
-    fallback_group=$(fallback_group_for_key "$key")
+    fallback_group_for_key fallback_group "$key"
     if [[ ${COMMAND_GROUP[$key]} != "$group" && $fallback_group != "$group" ]]; then
       continue
     fi
 
-    route=$(command_route_for_group "$key" "$group")
+    command_route_for_group route "$key" "$group"
     printf '%s\t%s\n' "$route" "$key"
   done | sort -u | cut -f2-
 }
@@ -694,25 +708,22 @@ show_commands() {
   fi
 }
 
-markdown_escape() {
-  local value="$1"
-  value="${value//|/\\|}"
-  printf '%s' "$value"
-}
-
 show_commands_markdown() {
   local include_all="$1"
   local key=""
+  local usage=""
+  local binary=""
+  local summary=""
 
   echo "| Command | Binary | Summary |"
   echo "| --- | --- | --- |"
 
   while IFS= read -r key; do
     [[ -n $key ]] || continue
-    printf '| `%s` | `%s` | %s |\n' \
-      "$(markdown_escape "${COMMAND_USAGE[$key]}")" \
-      "$(markdown_escape "${COMMAND_BINARY[$key]}")" \
-      "$(markdown_escape "${COMMAND_SUMMARY[$key]}")"
+    usage="${COMMAND_USAGE[$key]}"
+    binary="${COMMAND_BINARY[$key]}"
+    summary="${COMMAND_SUMMARY[$key]}"
+    printf '| `%s` | `%s` | %s |\n' "${usage//|/\\|}" "${binary//|/\\|}" "${summary//|/\\|}"
   done < <(sorted_keys "$include_all")
 }
 
@@ -876,6 +887,7 @@ show_group_help() {
   local include_all="${2:-false}"
   local key=""
   local rows=""
+  local usage=""
   local title="${GROUP_DESCRIPTIONS[$group]}"
 
   if [[ -n $title ]]; then
@@ -886,7 +898,8 @@ show_group_help() {
 
   while IFS= read -r key; do
     [[ -n $key ]] || continue
-    rows+="$(command_usage_for_group "$key" "$group")"$'\t'$'\t'"${COMMAND_SUMMARY[$key]}"$'\n'
+    command_usage_for_group usage "$key" "$group"
+    rows+="$usage"$'\t'$'\t'"${COMMAND_SUMMARY[$key]}"$'\n'
   done < <(sorted_group_keys "$group" "$include_all")
 
   if [[ -n $rows ]]; then
@@ -920,12 +933,14 @@ show_related_commands() {
   local group="${COMMAND_GROUP[$key]}"
   local child_key=""
   local rows=""
+  local usage=""
 
   [[ -z ${COMMAND_NAME[$key]} ]] || return
 
   while IFS= read -r child_key; do
     [[ -n $child_key && $child_key != "$key" ]] || continue
-    rows+="$(command_usage_for_group "$child_key" "$group")"$'\t'$'\t'"${COMMAND_SUMMARY[$child_key]}"$'\n'
+    command_usage_for_group usage "$child_key" "$group"
+    rows+="$usage"$'\t'$'\t'"${COMMAND_SUMMARY[$child_key]}"$'\n'
   done < <(sorted_group_keys "$group" false)
 
   if [[ -n $rows ]]; then
@@ -992,7 +1007,8 @@ resolve_route() {
   local key=""
 
   for (( prefix_count = argc; prefix_count >= 1; prefix_count-- )); do
-    route="omarchy $(join_words " " "${args[@]:0:prefix_count}")"
+    join_words route " " "${args[@]:0:prefix_count}"
+    route="omarchy $route"
     key="${ROUTE_TO_KEY[$route]}"
 
     if [[ -n $key ]]; then
