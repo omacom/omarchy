@@ -19,6 +19,18 @@ cat >"$mock_bin/omarchy-notification-send" <<'SH'
 printf '%s\n' "$*" >>"$OMARCHY_TEST_NOTIFICATIONS"
 SH
 
+# A first sign-in installs the subscription's desktop app. These stand in for
+# the package tools ahead of every PATH the tests use, so nothing real installs
+# and no password dialog opens.
+pkg_bin="$test_tmp/pkg-bin"
+export OMARCHY_TEST_PKG_LOG="$test_tmp/pkg-log"
+mkdir -p "$pkg_bin"
+printf '#!/bin/bash\necho "pkexec $*" >>"$OMARCHY_TEST_PKG_LOG"\n' >"$pkg_bin/pkexec"
+printf '#!/bin/bash\necho "pkg-add $*" >>"$OMARCHY_TEST_PKG_LOG"\n' >"$pkg_bin/omarchy-pkg-add"
+printf '#!/bin/bash\nexit 1\n' >"$pkg_bin/omarchy-pkg-present"
+printf '#!/bin/bash\nexit 0\n' >"$pkg_bin/omarchy-region-global"
+chmod +x "$pkg_bin"/*
+
 # The CLIs report which home they were started in, and a login writes the
 # identity a real one would into whichever home it was given.
 cat >"$mock_bin/claude" <<'SH'
@@ -95,7 +107,7 @@ chmod +x "$mock_bin"/*
 
 export HOME="$test_tmp/home"
 export XDG_STATE_HOME="$test_tmp/state"
-export PATH="$mock_bin:$ROOT/bin:$PATH"
+export PATH="$pkg_bin:$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_NOTIFICATIONS="$notifications"
 export OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser"
@@ -587,7 +599,7 @@ pass "an added account that can't be selected says so"
 # needs are on this PATH, not the mock Codex itself.
 lazy_data="$test_tmp/lazy-mise"
 lazy_bin="$test_tmp/lazy-bin"
-lazy_path="$lazy_data/command-wrappers/bin:$lazy_bin:$ROOT/bin:/usr/bin"
+lazy_path="$pkg_bin:$lazy_data/command-wrappers/bin:$lazy_bin:$ROOT/bin:/usr/bin"
 mkdir -p "$lazy_data/command-wrappers/bin" "$lazy_data/shims" "$lazy_bin"
 for helper in omarchy-notification-send omarchy-agent-usage-update omarchy-default-agent omarchy-launch-browser; do
   ln -s "$mock_bin/$helper" "$lazy_bin/$helper"
@@ -787,3 +799,9 @@ omarchy-agent-account-state refresh claude
 [[ $(jq -r '.accounts[] | select(.id == "events") | .email' "$accounts/claude.json") == "switched@example.com" ]] ||
   fail "refresh saves who each home is signed in as now"
 pass "refresh saves who each home is signed in as now"
+
+# A first sign-in installs the subscription's desktop app, once: Codex's and
+# Grok's here, from a terminal. Adding another account installs nothing more.
+[[ $(cat "$OMARCHY_TEST_PKG_LOG" 2>/dev/null) == $'pkg-add openai-codex-desktop\npkg-add grok-bot' ]] ||
+  fail "a first sign-in installs its subscription's desktop app, and only that" "$(cat "$OMARCHY_TEST_PKG_LOG" 2>/dev/null)"
+pass "a first sign-in installs its subscription's desktop app"
