@@ -1708,8 +1708,13 @@ Panel {
         // content shifted back, so the box around a lit agent mark isn't
         // clipped where it overhangs the content's edge.
         readonly property real overhang: Style.space(8)
+        // Reaches into the padding on the right too, where the scroll bar
+        // sits just inside the frame, so the content keeps its full width
+        // whether the page scrolls or fits.
+        readonly property real reach: panel.padding - Style.space(4)
         anchors.fill: parent
         anchors.leftMargin: -overhang
+        anchors.rightMargin: -reach
         contentWidth: width
         contentHeight: column.implicitHeight
         clip: true
@@ -1725,12 +1730,8 @@ Panel {
           id: column
           // The overhang sits on the start side, which is the right when
           // mirrored; there the scroll bar takes the left instead.
-          x: LayoutMirroring.enabled ? panelScroll.width + Style.space(6) : panelFlick.overhang
-          // The scroll bar gets its own strip rather than sitting on top of
-          // the right-aligned numbers, and keeps it on every page, so the
-          // list, which scrolls, and the add screen, which fits, share one
-          // right edge.
-          width: panelFlick.width - panelFlick.overhang - panelScroll.width - Style.space(6)
+          x: LayoutMirroring.enabled ? panelFlick.reach : panelFlick.overhang
+          width: panelFlick.width - panelFlick.overhang - panelFlick.reach
           spacing: Style.space(16)
 
           // ---------- Hero: agents · rotating summary · add ----------
