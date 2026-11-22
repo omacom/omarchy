@@ -239,6 +239,12 @@ Item {
     return true
   }
 
+  // A repeated lock still blanks the displays, unless a password check is in flight.
+  function relock() {
+    noteSleepRequested()
+    if (lockRequested && !authenticatingPassword) armBlankTimer()
+  }
+
   function finishUnlock() {
     if (!root.currentlyLocked()) return
 
@@ -895,10 +901,7 @@ Item {
     function lock(): string {
       if (!root.passwordPamConfigured) return "missing-pam"
       // omarchy-system-sleep-lock asks for the lock before every suspend.
-      if (root.currentlyLocked()) root.noteSleepRequested()
-      // Nothing else blanks displays lit behind the lock's back, so every
-      // request turns them off again, as the first one did.
-      if (root.lockRequested) root.armBlankTimer()
+      if (root.currentlyLocked()) root.relock()
       if (!root.currentlyLocked() && !root.beginLock()) return "failed"
       return "ok"
     }

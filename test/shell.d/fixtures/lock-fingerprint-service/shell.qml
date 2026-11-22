@@ -10,6 +10,9 @@ ShellRoot {
   readonly property string resultPath: Quickshell.env("OMARCHY_QML_TEST_RESULT")
   property var failures: []
   property int checks: 0
+  property var blankService: null
+  property var blankProcess: null
+  property int blankStep: 0
 
   Item { id: host }
 
@@ -246,10 +249,65 @@ ShellRoot {
       check(!service.fingerprintPaused, "unlock reset clears a pause so the next lock starts the reader")
       service.applyFingerprintProbe("Daemon is restarting")
       check(!recheck.running, "an unknown probe outside the lock cannot restart it")
+
+      service.lockRequested = true
+      blankTimer.stop()
+      service.relock()
+      check(blankTimer.running, "a lock request on a locked session blanks the displays again")
+      blankTimer.stop()
+      service.authenticatingPassword = true
+      service.relock()
+      check(!blankTimer.running, "a repeated lock request leaves a password check lit")
+      service.authenticatingPassword = false
+      blankTimer.stop()
+
+      // Run the real blank/wake logic; the runner shadows only its hardware commands.
+      var blank = null
+      for (var index = 0; index < service.data.length; index++) {
+        var child = service.data[index]
+        if (child.command && String(child.command).indexOf("omarchy-brightness-display off") !== -1) blank = child
+      }
+      if (!blank) throw new Error("Missing blank process")
+      root.blankService = service
+      root.blankProcess = blank
+      blankSequence.start()
     } finally {
-      service.lockRequested = false
-      service.resetAuthenticationState()
-      service.destroy()
+      if (!root.blankService) {
+        service.lockRequested = false
+        service.resetAuthenticationState()
+        service.destroy()
+      }
+    }
+  }
+
+  function writeResult() {
+    var payload = JSON.stringify({ ok: failures.length === 0, checks: checks, failures: failures })
+    var quoted = "'" + payload.replace(/'/g, "'\\''") + "'"
+    Quickshell.execDetached(["bash", "-c", "printf '%s' " + quoted + " > \"$1\"", "_", resultPath])
+  }
+
+  Timer {
+    id: blankSequence
+    interval: 20
+    repeat: true
+    onTriggered: {
+      if (root.blankProcess.running) return
+      var service = root.blankService
+      if (root.blankStep < 3) {
+        if (root.blankStep === 2) service.runWake()
+        service.runBlank()
+        var command = String(root.blankProcess.command)
+        root.check(command.indexOf("omarchy-brightness-display off") !== -1, "every blank turns off displays")
+        root.check((command.indexOf("omarchy-brightness-keyboard off") !== -1) === (root.blankStep !== 1), "only the first blank since a wake saves keyboard brightness (step " + root.blankStep + ")")
+        root.blankStep += 1
+      } else {
+        stop()
+        service.lockRequested = false
+        service.resetAuthenticationState()
+        service.destroy()
+        root.blankService = null
+        root.writeResult()
+      }
     }
   }
 
@@ -262,9 +320,7 @@ ShellRoot {
       } catch (error) {
         root.failures.push(String(error))
       }
-      var payload = JSON.stringify({ ok: root.failures.length === 0, checks: root.checks, failures: root.failures })
-      var quoted = "'" + payload.replace(/'/g, "'\\''") + "'"
-      Quickshell.execDetached(["bash", "-c", "printf '%s' " + quoted + " > \"$1\"", "_", root.resultPath])
+      if (!root.blankService) root.writeResult()
     }
   }
 }
