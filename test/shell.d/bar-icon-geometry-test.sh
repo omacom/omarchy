@@ -125,6 +125,12 @@ ShellRoot {
       return false
     }
     if (!checkFigures(clockLabel, findItem(clockLabel, function(item) { return item.font !== undefined }), "clock")) return false
+    if (!checkFigures(captionLabel, findItem(captionLabel, function(item) { return item.textFormat !== undefined }), "caption label")) return false
+    var boxedText = findItem(boxedLabel, function(item) { return item.textFormat !== undefined })
+    if (!boxedText || Math.abs(boxedText.y + boxedText.height / 2 - boxedLabel.height / 2) > 0.05) {
+      fail("a label that opts out of figure centering keeps its line box centered")
+      return false
+    }
     if (customRenderType !== Text.CurveRendering) {
       fail("custom glyphs do not use the scalable renderer")
       return false
@@ -193,6 +199,7 @@ ShellRoot {
       return false
     }
     if (!checkFigures(labelledPower, percentLabel, "battery percentage")) return false
+    if (!checkFigures(labelledCaption, findItem(labelledCaption, function(item) { return item.text === "12%" && item.textFormat !== undefined }), "caption percentage")) return false
     if (vector.implicitWidth !== Style.bar.iconSlot || vector.opticalSize !== Style.bar.iconCanvas) {
       fail("vector icon does not share glyph geometry")
       return false
@@ -321,6 +328,8 @@ ShellRoot {
   WidgetButton { id: legacyIcon; bar: testBar; text: "󰍹"; fontSize: 15 }
   WidgetButton { id: textLabel; bar: testBar; text: "GPU"; fontSize: 15 }
   WidgetButton { id: clockLabel; bar: testBar; text: "12:45" }
+  WidgetButton { id: captionLabel; bar: testBar; text: "EN"; fontSize: Style.font.caption }
+  WidgetButton { id: boxedLabel; bar: testBar; text: "EN"; fontSize: Style.font.caption; centerFigures: false }
   TextMetrics { id: figureProbe; text: "0" }
   BarIconButton {
     id: customBox
@@ -453,6 +462,7 @@ ShellRoot {
     }
   }
   BarIconButton { id: labelledPower; bar: testBar; text: "󰁹"; labelText: "100%"; slotSize: Style.bar.iconSlot * 2 }
+  BarIconButton { id: labelledCaption; bar: testBar; text: "󰁹"; labelText: "12%"; fontSize: Style.font.caption; slotSize: Style.bar.iconSlot * 2 }
   BarIconButton { id: rotatedIcon; bar: verticalBar; text: "\uf053"; textRotation: 90 }
   OpticalGlyph { id: plainLabel; width: 30; height: 20; text: "12"; fontSize: 12 }
   DropboxIcon { id: dropbox; iconSize: Style.bar.iconSize / aspectRatio; artworkScale: 1 }
