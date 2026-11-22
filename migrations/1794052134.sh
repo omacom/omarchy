@@ -10,6 +10,7 @@ fan_conf="${OMARCHY_T2_FAN_CONF:-/etc/t2fand.conf}"
 if [[ -f $fan_conf ]]; then
   for fan in 1 2 3 4; do
     if ! grep -Eq "^[[:space:]]*\[Fan${fan}\][[:space:]]*$" "$fan_conf"; then
+      # omarchy:heredoc-expands paths=none -- fan is limited to the literal values 1 through 4
       sudo tee -a "$fan_conf" >/dev/null <<EOF
 
 [Fan${fan}]
