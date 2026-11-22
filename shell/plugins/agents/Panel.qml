@@ -101,8 +101,10 @@ Panel {
         var line = []
         if (defaultIdFor(providers[p]) !== "" && !starred(providers[p], providers[p].account || null))
           line.push({ kind: "providerStar", index: p })
-        if (launches(providers[p]))
+        if (launches(providers[p]) && makesOpenIndex === p)
           for (var m = 0; m < starterPrompts.length; m++) line.push({ kind: "make:" + starterPrompts[m].kind, index: p })
+        else if (launches(providers[p]))
+          line.push({ kind: "makeToggle", index: p })
         line.push({ kind: lineStop(p), index: p })
         rows.push(line)
         if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
@@ -182,7 +184,7 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch", "providerStar"].indexOf(target.kind) >= 0 || target.kind.indexOf("make:") === 0) return target.index
+    if (["provider", "providerSignin", "providerLaunch", "providerStar", "makeToggle"].indexOf(target.kind) >= 0 || target.kind.indexOf("make:") === 0) return target.index
     return -1
   }
 
@@ -757,6 +759,15 @@ Panel {
     return line.account ? line.providerName + " " + String(line.account.label || line.account.id || "") : line.providerName
   }
 
+  // The line whose sparkles were opened into its four make icons; folded
+  // again when the line is left or the panel closes.
+  property int makesOpenIndex: -1
+
+  function openMakes(index) {
+    makesOpenIndex = index
+    Qt.callLater(function() { pointAt("make:" + starterPrompts[0].kind, index) })
+  }
+
   function makeOnLine(line, kind) {
     if (!line || !launches(line)) return
     if (line.localModel) {
@@ -808,6 +819,7 @@ Panel {
     else if (target.kind === "reopenSignIn") reopenSignIn()
     else if (target.kind === "providerLaunch") launchLine(providers[target.index])
     else if (target.kind === "providerStar") makeDefault(providers[target.index], providers[target.index].account || null)
+    else if (target.kind === "makeToggle") openMakes(target.index)
     else if (target.kind.indexOf("make:") === 0) makeOnLine(providers[target.index], target.kind.slice(5))
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], providers[target.index].account || null)
@@ -1440,6 +1452,7 @@ Panel {
 
   onOpenedChanged: if (!opened) {
     resetProviderDrag()
+    makesOpenIndex = -1
   } else {
     deleteTarget = null
     if (addStage !== "running") addStage = ""
@@ -2322,6 +2335,8 @@ Panel {
     readonly property bool dragged: root.dragIndex === providerIndex
     // The pointer or the keyboard is on this agent, which shows its hollow star.
     readonly property bool engaged: sectionHover.hovered || root.providerIndexOfKey() === providerIndex
+    readonly property bool makesOpen: root.makesOpenIndex === providerIndex
+    onEngagedChanged: if (!engaged && makesOpen) root.makesOpenIndex = -1
     HoverHandler { id: sectionHover }
     z: dragged ? 2 : 0
     opacity: dragged ? 0.9 : 1
@@ -2347,6 +2362,7 @@ Panel {
       // terminal button, whichever is leftmost.
       readonly property real textEnd: (sectionStar.visible ? sectionStar.x
         : sectionMakes.visible ? sectionMakes.x
+      : sectionSparkles.visible ? sectionSparkles.x
         : sectionLaunch.visible ? sectionLaunch.x
         : width) - Style.space(8)
       implicitHeight: Math.max(sectionMark.height, sectionName.implicitHeight)
@@ -2485,8 +2501,8 @@ Panel {
       // accounts the one in use. Another line's makes it the default.
       PanelActionButton {
         id: sectionStar
-        anchors.right: sectionMakes.visible ? sectionMakes.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
-        anchors.rightMargin: sectionMakes.visible || sectionLaunch.visible ? Style.space(6) : 0
+        anchors.right: sectionMakes.visible ? sectionMakes.left : sectionSparkles.visible ? sectionSparkles.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
+        anchors.rightMargin: sectionMakes.visible || sectionSparkles.visible || sectionLaunch.visible ? Style.space(6) : 0
         anchors.verticalCenter: parent.verticalCenter
         visible: root.defaultIdFor(section.provider) !== ""
         readonly property bool on: root.starred(section.provider, section.account)
@@ -2507,13 +2523,29 @@ Panel {
       }
 
       // Making something with this line's agent, as the starter tiles do with
-      // the default: shown on the line in use.
+      // the default: one sparkles icon on the line in use, which opens into
+      // the four.
+      PanelActionButton {
+        id: sectionSparkles
+        anchors.right: sectionLaunch.left
+        anchors.rightMargin: Style.space(6)
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.launches(section.provider) && section.engaged && !section.makesOpen
+        iconText: "󰙴"
+        tooltipText: Commons.I18n.t("agents.makeSomethingWith").arg(root.lineName(section.provider))
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        hasCursor: root.hasKey("makeToggle", section.providerIndex)
+        onHovered: function(isHovered) { if (isHovered) root.pointAt("makeToggle", section.providerIndex) }
+        onClicked: root.openMakes(section.providerIndex)
+      }
+
       Row {
         id: sectionMakes
         anchors.right: sectionLaunch.left
         anchors.rightMargin: Style.space(6)
         anchors.verticalCenter: parent.verticalCenter
-        visible: root.launches(section.provider) && section.engaged
+        visible: root.launches(section.provider) && section.makesOpen
         spacing: Style.space(2)
 
         Repeater {
