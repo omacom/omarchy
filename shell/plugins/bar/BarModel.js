@@ -14,6 +14,42 @@ function normalizePosition(value) {
   return /^(top|bottom|left|right)$/.test(next) ? next : "top"
 }
 
+// The bar's cap along its edge in whole pixels, or 0 for the whole edge:
+// what shell.json's bar.maxWidth says, with anything that is not a positive
+// number meaning no cap.
+function normalizeMaxWidth(value) {
+  if (typeof value !== "number" && typeof value !== "string") return 0
+  var cap = Math.round(Number(value))
+  return isFinite(cap) && cap > 0 ? cap : 0
+}
+
+// How far in from each end of a screen edge `length` long a bar capped at
+// `maxWidth` starts, so the strip sits centered. Zero with no cap, or one
+// the edge already fits inside.
+function stripInset(length, maxWidth) {
+  var available = Number(length)
+  var cap = normalizeMaxWidth(maxWidth)
+  if (!isFinite(available) || cap <= 0 || cap >= available) return 0
+  return Math.round((available - cap) / 2)
+}
+
+// Which of the screens, by their edge lengths, a transparent bar's wallpaper
+// sample is taken from, or -1 for each whole edge. The one text color serves
+// every screen's bar, so the sample must cover them all: while any bar runs
+// its whole edge it is the whole edge, and once every bar is a capped strip
+// it is the strip covering the largest share of its edge, the shortest edge,
+// which as the strips are all centered covers every other one.
+function capSampleScreen(edges, maxWidth) {
+  var cap = normalizeMaxWidth(maxWidth)
+  if (cap <= 0 || !Array.isArray(edges) || edges.length === 0) return -1
+  var shortest = -1
+  for (var i = 0; i < edges.length; i++) {
+    if (stripInset(edges[i], cap) === 0) return -1
+    if (shortest < 0 || Number(edges[i]) < Number(edges[shortest])) shortest = i
+  }
+  return shortest
+}
+
 function entrySettings(entry) {
   if (!isPlainObject(entry)) return {}
   var copy = {}
@@ -697,6 +733,9 @@ if (typeof module !== "undefined") {
     slotEdge: slotEdge,
     sections: sections,
     normalizePosition: normalizePosition,
+    normalizeMaxWidth: normalizeMaxWidth,
+    stripInset: stripInset,
+    capSampleScreen: capSampleScreen,
     entrySettings: entrySettings,
     entryId: entryId,
     moduleString: moduleString,

@@ -26,6 +26,18 @@ result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --back
 [[ $result == "#ffffff" ]] || fail "transparent bar text keeps text color on dark wallpaper" "expected #ffffff, got $result"
 pass "transparent bar text keeps text color on dark wallpaper"
 
+# A bar capped along its edge (bar.maxWidth) covers only a centered strip of
+# the wallpaper, and the sample is that strip: light under the strip and dark
+# beside it, the text turns dark only with the cap.
+light_middle="$TMPDIR/light-middle.png"
+magick -size 100x100 xc:'#000000' -fill '#f5f5f5' -draw 'rectangle 35,0 64,19' "$light_middle"
+
+result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$light_middle" --screen 100x100)
+[[ $result == "#ffffff" ]] || fail "an uncapped bar samples its whole edge" "expected #ffffff, got $result"
+result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$light_middle" --screen 100x100 --max-width 30)
+[[ $result == "#101010" ]] || fail "a capped bar samples only its centered strip" "expected #101010, got $result"
+pass "transparent bar text follows the wallpaper under a capped bar's strip"
+
 result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$TMPDIR/missing.png" --screen 100x100)
 [[ $result == "#ffffff" ]] || fail "transparent bar text falls back to text color when sampling fails" "expected #ffffff, got $result"
 pass "transparent bar text falls back to text color when sampling fails"
