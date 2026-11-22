@@ -331,6 +331,49 @@ ShellRoot {
       })
     }
 
+    function checkCenteredSibling(tray, pool) {
+      bar.clearIndicatorBarPeek(pool)
+      tray.setIndicatorAreaHovered(false)
+      tray.setIndicatorItemHovered(false)
+      sectionPeekHost.mutateShellConfig(function(config) {
+        config.bar.layout.center = config.bar.layout.right
+        config.bar.layout.right = []
+      })
+
+      function awaitCenter(tries) {
+        var indicators = slotsNamed("omarchy.indicators", "center")
+        var siblings = slotsNamed("test.sibling", "center")
+        if (indicators.length !== 1 || siblings.length !== 1 || indicators[0].activeItem !== tray ||
+            !tray.sectionItem || tray.sectionItem.fixedEdge !== "center" || tray.implicitWidth !== 0) {
+          if (tries <= 0) {
+            fail("center peek: indicators did not settle hidden beside a centered sibling")
+            finish()
+            return
+          }
+          root.after(150, function() { awaitCenter(tries - 1) })
+          return
+        }
+
+        var sibling = siblings[0]
+        var surface = tray.sectionItem.parent
+        root.layOut(surface)
+        var before = sibling.mapToItem(surface, 0, 0)
+        var probe = sibling.mapToItem(surface, sibling.width / 2, sibling.height / 2)
+        bar.syncIndicatorBarPeek(indicators[0].pool, surface, probe)
+        root.assertTrue(!tray.indicatorBarHovered,
+          "center peek: hovering a centered sibling does not reveal indicators")
+        root.after(200, function() {
+          root.layOut(surface)
+          var after = sibling.mapToItem(surface, 0, 0)
+          root.assertTrue(tray.implicitWidth === 0 && Math.abs(after.x - before.x) < 1,
+            "center peek: hovering the sibling keeps its click target still")
+          finish()
+        })
+      }
+
+      root.after(150, function() { awaitCenter(12) })
+    }
+
     function awaitPlacement(tries) {
       var indicators = slotsNamed("omarchy.indicators", "centerBegin")
       var siblings = slotsNamed("test.sibling", "right")
@@ -439,7 +482,7 @@ ShellRoot {
             Qt.callLater(function() {
               root.layOut(tray)
               root.assertTrue(tray.implicitWidth > 0, "section peek: the right-section hover grows the hidden indicators, got width " + tray.implicitWidth)
-              finish()
+              checkCenteredSibling(tray, moved.pool)
             })
             return
           }

@@ -117,6 +117,9 @@ BarWidget {
   function sectionSpanIn(target) {
     var list = sectionItem
     if (!list || !target) return null
+    // The centered box moves every sibling by half the added width. Only
+    // sections anchored to the widget's own fixed edge have a still side.
+    if (list.fixedEdge === "center" || list.fixedEdge !== fixedEdge) return null
     var extent = vertical ? list.height : list.width
     if (!(extent > 0)) return null
     var origin = list.mapToItem(target, 0, 0)
