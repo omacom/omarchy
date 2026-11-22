@@ -35,5 +35,7 @@ The private-use glyphs in `omarchy.ttf` are:
 - `U+E91E` — Crush, the heartbit from <https://github.com/charmbracelet/crush/blob/main/internal/oauth/callback/heartbit.svg>, its eyes and mouth cut out
 - `U+E91F` — Muse Code, from <https://simpleicons.org/icons/meta.svg>: Meta publishes no separate Muse mark and dev.meta.ai uses this one
 
+`U+100000` maps to the same Omarchy glyph as `U+E900`, at a codepoint no Nerd Font uses. Nerd Fonts 3.5 put a COBOL devicon at `U+E900`, so terminal text such as fastfetch's OS line uses `U+100000` to fall back to the mark.
+
 The agent marks are monochrome so the menu can render them using the active
 theme's foreground and selection colors.
