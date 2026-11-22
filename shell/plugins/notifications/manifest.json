@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "omarchy.notifications",
   "name": "Notifications",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "author": "Omarchy",
-  "description": "Notification daemon, popups, DND, and history",
+  "description": "Notification daemon: grouped stacks, inline actions, Do Not Disturb, and history",
   "kinds": [
     "service"
   ],

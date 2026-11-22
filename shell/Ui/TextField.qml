@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import qs.Commons
+import qs.Commons as Commons
 
 // Single-line text input with the kit's focus + selection styling. Inherits
 // from Qt Quick Controls TextField so the underlying type's API (text,
@@ -18,10 +19,12 @@ import qs.Commons
 TextField {
   id: root
 
-  property color foreground: Color.foreground
-  property color accent: Color.accent
+  property color foreground: Commons.Color.foreground
+  property color accent: Commons.Color.accent
   property color selectionTint: Style.selectionFillFor(foreground, accent)
   property bool password: false
+  // Shows a password field's text in the clear (a "show password" toggle).
+  property bool revealed: false
   property real horizontalPadding: Style.spacing.controlPaddingX
   property real verticalPadding: Style.spacing.inputPaddingY
 
@@ -36,9 +39,16 @@ TextField {
   readonly property bool _hot: hovered || hasCursor
   readonly property var _borderSpec: Border.controlSpec(_focused ? "focus" : (_hot ? "hover-cursor" : "normal"), root.foreground, root.accent)
 
-  echoMode: password ? TextInput.Password : TextInput.Normal
+  readonly property bool _masked: password && !revealed
+
+  // The password dot (U+25CF) is wider than a monospace cell, so masked
+  // text runs together. Space the dots apart, as the lock screen does, but
+  // only while there are dots so the placeholder keeps its normal spacing.
+  echoMode: _masked ? TextInput.Password : TextInput.Normal
+  passwordCharacter: "\u25CF"
   font.family: Style.font.family
   font.pixelSize: Style.font.body
+  font.letterSpacing: _masked && text.length > 0 ? Math.round(font.pixelSize * 0.25) : 0
   color: foreground
   selectionColor: selectionTint
   selectedTextColor: foreground

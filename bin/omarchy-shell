@@ -42,9 +42,16 @@ fi
 
 # qs matches instances by display, and a caller from outside the session (an
 # ssh or TTY omarchy-restart-shell, and the migrations it runs for) has none,
-# so recover it from the compositor socket.
-if [[ -z ${WAYLAND_DISPLAY:-} ]]; then
-  socket=$(ls -t "${XDG_RUNTIME_DIR:-/run/user/$UID}"/wayland-[0-9]* 2>/dev/null | grep -v '\.lock$' | head -n1)
+# so recover it from the compositor socket. A display whose socket is gone is
+# no better: a second Hyprland session, say one started from a TTY, leaves its
+# own in the systemd user environment, and services started after it would
+# otherwise never reach the shell.
+# A display may also be an absolute path to its socket.
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}"
+display_socket=${WAYLAND_DISPLAY:-}
+[[ $display_socket == /* ]] || display_socket="$runtime_dir/$display_socket"
+if [[ -z ${WAYLAND_DISPLAY:-} || ! -e $display_socket ]]; then
+  socket=$(ls -t "$runtime_dir"/wayland-[0-9]* 2>/dev/null | grep -v '\.lock$' | head -n1)
   [[ -n $socket ]] && export WAYLAND_DISPLAY=${socket##*/}
 fi
 

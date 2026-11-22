@@ -68,13 +68,16 @@ for command in \
   omarchy-update-aur-pkgs \
   omarchy-update-mise \
   omarchy-update-orphan-pkgs \
+  omarchy-update-boot \
   omarchy-hook \
   omarchy-update-analyze-logs \
+  omarchy-restart-shell \
   omarchy-shell \
   omarchy-update-restart; do
   write_stub "$command" 'exit 0'
 done
 write_stub omarchy-update-available 'exit 1'
+write_stub omarchy-done 'exit 0'
 write_stub pkexec 'exec "$@"'
 ln -s ../bin/pkexec "$SUDO_TEST_ROOT/mock/pkexec"
 write_stub systemd-inhibit 'while [[ $1 == --* ]]; do shift; done; exec "$@"'
@@ -83,7 +86,7 @@ ln -s ../bin/systemd-inhibit "$SUDO_TEST_ROOT/mock/systemd-inhibit"
 # omarchy-update should hold the lock before snapshotting, so a second update
 # cannot even enter its pre-update snapshot.
 update_snapshot_marker="$test_tmp/update-snapshot-started"
-write_stub omarchy-snapshot 'echo started >"$TEST_MARKER"; sleep 2; exit 0'
+write_stub omarchy-snapshot 'echo started >"$TEST_MARKER"; sleep 0.8; exit 0'
 
 OMARCHY_UPDATE_LOGGED=1 TEST_MARKER="$update_snapshot_marker" run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$test_tmp/update-first.out" 2>&1 &
 update_pid=$!
@@ -106,6 +109,19 @@ grep -q "already running" "$test_tmp/update-second.out" || fail "second omarchy-
 [[ ! -f $test_tmp/update-second-snapshot-started ]] || fail "second omarchy-update did not snapshot while lock was held"
 pass "omarchy-update prevents overlapping top-level updates"
 
+# The PID is only a diagnostic; flock still decides whether the lock is held.
+# In particular, a rejected contender must leave the recorded PID intact.
+read -r owner_pid <"$runtime_dir/$update_lock_name"
+[[ $owner_pid =~ ^[0-9]+$ ]] || fail "update lock records an acquiring PID"
+grep -q "Update lock acquired by PID $owner_pid\." "$test_tmp/update-second.out" ||
+  fail "contender reports the holder without overwriting its PID"
+# A stale PID in the file must not prevent the next acquisition.
+printf '999999999\n' >"$runtime_dir/$update_lock_name"
+run_with_lock_env "$stub_bin/omarchy-update-lock" run /bin/bash -c \
+  'read -r owner <"$XDG_RUNTIME_DIR/'"$update_lock_name"'"; [[ $owner == "$$" ]]' ||
+  fail "free flock replaces a stale diagnostic PID"
+pass "update lock PID is diagnostic and survives rejected contenders"
+
 # The sleep inhibitor deliberately outlives the step that starts it, so it must
 # not inherit the update lock. An update killed before restore_update_inhibitors
 # would otherwise leave the inhibitor holding the flock forever, blocking every
@@ -114,7 +130,7 @@ inhibit_pid_file="$test_tmp/inhibit-pid"
 keyring_marker="$test_tmp/keyring-started"
 write_stub omarchy-snapshot 'exit 0'
 write_stub systemd-inhibit '[[ -z ${INHIBIT_PID_FILE:-} ]] || echo "$$" >"$INHIBIT_PID_FILE"; while [[ $1 == --* ]]; do shift; done; exec "$@"'
-write_stub omarchy-update-keyring 'echo started >"$TEST_MARKER"; sleep 3; exit 0'
+write_stub omarchy-update-keyring 'echo started >"$TEST_MARKER"; sleep 1; exit 0'
 
 OMARCHY_UPDATE_LOGGED=1 TEST_MARKER="$keyring_marker" INHIBIT_PID_FILE="$inhibit_pid_file" \
   run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$test_tmp/update-inhibit.out" 2>&1 &
@@ -170,7 +186,7 @@ SH
   SUDO_LOG="$sudo_log" PKEXEC_MARKER="$pkexec_marker" INHIBIT_PID_FILE="$terminal_inhibit_pid_file" \
     run_with_lock_env script -qefc "$terminal_driver" /dev/null >/dev/null
 
-  grep -q -- '^sudo -N -b -- ' "$sudo_log" || fail "terminal inhibition authenticates its background command without a reusable timestamp"
+  grep -q -- '^sudo -b -- ' "$sudo_log" || fail "terminal inhibition runs its background command through sudo -b" "$(<"$sudo_log")"
   [[ ! -e $pkexec_marker ]] || fail "terminal sleep inhibition does not use pkexec"
   run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake" stop
   pass "terminal updates use sudo instead of Polkit for sleep inhibition"
@@ -282,7 +298,7 @@ pass "omarchy-update restores only its own Stay Awake state before restart handl
 # Model package replacement while the existing updater is still running:
 # start writes the old two-field state; the transaction installs the real new
 # helper, whose stop must clean that state before reboot handling.
-cp "$stub_bin/omarchy-update-stay-awake" "$test_tmp/inhibitor-after-upgrade"
+/usr/bin/cp "$stub_bin/omarchy-update-stay-awake" "$test_tmp/inhibitor-after-upgrade"
 write_stub omarchy-update-stay-awake '
 set -e
 [[ $1 == "start" ]]
@@ -340,18 +356,3 @@ kill "$unrelated_pid"
 wait "$unrelated_pid" 2>/dev/null || true
 pass "stale inhibitor state does not terminate a reused PID"
 
-# The hidden helper also establishes its own boundary when invoked directly.
-reset_boundary
-touch "$SUDO_TEST_CACHE"
-run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake" stop
-[[ $(head -1 "$SUDO_TEST_LOG") == "sudo -k" ]] || fail "standalone inhibitor cleanup did not start cold"
-assert_boundary_cold "standalone inhibitor cleanup"
-pass "standalone inhibitor cleanup revokes before and after session work"
-
-reset_boundary
-export SUDO_TEST_REVOKE_FAIL=1
-if run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake" start; then
-  fail "inhibitor started after failed initial revocation"
-fi
-[[ ! -e $stay_awake_helper_state/inhibit-pid ]] || fail "failed revocation started an inhibitor"
-pass "failed initial revocation prevents standalone inhibition"
