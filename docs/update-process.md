@@ -244,6 +244,7 @@ omarchy-update-available
 - new upstream commits for the active dev-linked checkout
 - `omarchy-dev`, when installed
 - otherwise `omarchy`, when installed
+- any repository package, until this user's first `omarchy update` has upgraded the system (the `first-update` done marker). A machine installed from older media needs that first update even when Omarchy's own package is current, so this is how first boot prompts for it instead of a toast.
 
 The dev check fetches the checkout's configured upstream before comparing it
 with `HEAD`. A failed fetch is quiet and falls back to the existing remote-

@@ -1,10 +1,10 @@
 # Ühtne lõikelaud ja ajalugu
 
-Tavaliselt pead Linuxis terminalis kopeerimiseks ja kleepimiseks kasutama `Ctrl + Shift + C/V` ning kõikjal mujal `Ctrl + C/V`. Sellega on raske harjuda kõigil, kes ei ole Linuxi peal sündinud ja üles kasvanud! Sama raske on ka üleminek Super-klahvilt Ctrl-klahvile, kui tuled Maci pealt.
+Tavaliselt tuleb Linuxis terminalis kopeerimiseks ja kleepimiseks kasutada `Ctrl + Shift + C/V` ja kõikjal mujal `Ctrl + C/V`. Sellega on raske harjuda igaühel, kes pole Linuxi peal sündinud ja üles kasvanud! Sama kehtib ka Superilt Ctrlile ülemineku kohta, kui tuled Macilt.
 
 Omarchy lahendab mõlemad probleemid ühtsete lõikelaua kiirklahvidega, mis töötavad (peaaegu) kõikjal. Need on:
 
-| Kiirklahv | Käsk |
+| Hotkey | Command |
 | ------- | ----------- |
 | Super + A | Vali kõik |
 | Super + C | Kopeeri |
@@ -12,16 +12,16 @@ Omarchy lahendab mõlemad probleemid ühtsete lõikelaua kiirklahvidega, mis tö
 | Super + V | Kleebi |
 | Super + Ctrl + V | Lõikelaua ajalugu |
 
-_Pane tähele, et enamik agendiharness'e kasutab piltide kleepimiseks `Ctrl + V`, kuid teksti kleepimiseks `Super + V`._
+_Pane tähele, et enamik agendiraamistikke kasutab piltide kleepimiseks `Ctrl + V`, aga teksti kleepimiseks `Super + V`._
 
-Kopeerimaks kõike fokuseeritud tekstiväljal või muus rakenduses, mis toetab `Ctrl + A`, kasuta `Super + A` ja seejärel `Super + C`. Terminalis viib `Ctrl + A` teksti valimise asemel käsurea algusesse.
+Kasuta `Super + A` ja seejärel `Super + C`, et kopeerida kõik fokuseeritud tekstiväljal või muus rakenduses, mis toetab `Ctrl + A`. Terminalis viib `Ctrl + A` teksti valimise asemel käsurea algusesse.
 
 ### Lõikelaua ajalugu
 
-Lõikelaua ajalugu pakub Omarchy kest ning see töötab nii teksti kui ka piltidega. Avad selle `Super + Ctrl + V` abil, valid kirje Return-klahviga ning seejärel asetatakse see lõikelauale, valmis kleepimiseks `Super + V` abil.
+Lõikelaua ajaloo tagab Omarchy kest ja see töötab nii teksti kui ka piltidega. Käivitad selle `Super + Ctrl + V` abil ja valid kirje Returniga, mis kleebib selle otse rakendusse, milles olid. Kasuta `Shift + Return`, et see ainult lõikelauale kopeerida, `Alt + Return`, et see avada, `Delete`, et see ajaloost eemaldada, ja `Shift + Delete`, et kogu ajalugu tühjendada.
 
  ![clipboard-history](images/clipboard-history.webp)
 
-Otsida saad ajaloost ka lihtsalt tippima hakates:
+Ajalugu saad otsida ka lihtsalt kirjutama hakates:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)
