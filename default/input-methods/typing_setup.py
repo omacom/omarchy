@@ -215,10 +215,10 @@ def save_keyboard(selected):
     else:
       setup.atomic_write(path, original)
     try:
-      setup.run(["hyprctl", "reload"])
-    finally:
       if group_changed:
         setup.live_set(group, old_layout, before)
+    finally:
+      setup.run(["hyprctl", "reload"])
     raise
 
 
