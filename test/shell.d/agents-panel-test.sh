@@ -118,9 +118,12 @@ assertEqual(prediction(weekly(0.05, 167)), null, 'a window that has barely start
 assertEqual(prediction(limitWindow('Opus 5 (1M context)', 0.3, new Date(panelRoot.nowMs + 5 * hour).toISOString(), 'Opus 5 (1M context)')), null, 'a window of unknown length predicts nothing')
 assertEqual(Math.round(prediction(weekly(0.3, 96), panelRoot.nowMs - 24 * hour).percent * 100), 105,
   'a reading kept through a failed refresh keeps the rate it was measured at')
-assertEqual(Math.round(limitWindow('Monthly allowance', 0.2, '2027-03-01T00:00:00').spanMs / (24 * hour)), 28,
+// Billing dates are UTC: west of it, a reset at midnight on 1 March falls on
+// 28 February locally, and must still count back to 1 February.
+process.env.TZ = 'America/New_York'
+assertEqual(Math.round(limitWindow('Monthly allowance', 0.2, '2027-03-01T00:00:00Z').spanMs / (24 * hour)), 28,
   'a monthly allowance spans the calendar month before its reset')
-assertEqual(Math.round(limitWindow('Monthly allowance', 0.2, '2027-03-31T00:00:00').spanMs / (24 * hour)), 31,
+assertEqual(Math.round(limitWindow('Monthly allowance', 0.2, '2027-03-31T00:00:00Z').spanMs / (24 * hour)), 31,
   'a reset on the 31st starts its month at the end of the shorter one before')
 JS
 
