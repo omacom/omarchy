@@ -294,6 +294,12 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.ok(!Delivery.matchesDropPrefix({ summary: 'Ghostty', body: 'Lane message' }, []))
   assert.ok(!Delivery.matchesDropPrefix({ summary: 'Ghostty', body: 'Lane message' }, ['', 'Other', 5]))
   assert.ok(!Delivery.matchesDropPrefix({ summary: 'Ghostty' }, 'Lane message'))
+  // Senders wrap the very text the user prefixed in markup and entities, so
+  // the match reads the plain text, not the raw payload.
+  assert.ok(Delivery.matchesDropPrefix({ summary: 'Ghostty', body: '<b>Lane message from</b> w86: ready' }, ['Lane message from']))
+  assert.ok(Delivery.matchesDropPrefix({ summary: '<i>Automated</i> alert' }, ['Automated alert']))
+  assert.ok(Delivery.matchesDropPrefix({ body: '&lt;b&gt;Lane message&lt;/b&gt;' }, ['Lane message']))
+  assert.equal(Delivery.quietReason({ app: 'Ghostty', body: '<b>Lane message from</b> w86: ready' }, false, ['Lane message from']), 'filtered')
   // The number keys count buttons in the order the card draws them: codes, --action, the sender's.
   const deeds = Delivery.deeds({ codes: '482913 771204', execActions: JSON.stringify([{ label: 'Edit', argv: ['omasnap'] }]) },
                                [{ id: 'join', text: 'Join call' }])

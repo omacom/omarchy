@@ -2,6 +2,7 @@
 // functions over a snapshot row (Store.snapshot).
 .pragma library
 .import "Security.js" as Security
+.import "Markup.js" as Markup
 
 var CRITICAL = 2
 
@@ -42,11 +43,12 @@ function isEphemeral(row) {
 
 // A summary or body opening with one of the configured prefixes, after
 // trimming leading whitespace. Case-sensitive; empty and non-string entries
-// never match.
+// never match. Both fields may carry the markup the spec allows, so the match
+// reads the plain text oneLine() produces, not the raw payload.
 function matchesDropPrefix(row, dropPrefixes) {
   if (!Array.isArray(dropPrefixes)) return false
-  var summary = String((row && row.summary) || "").replace(/^\s+/, "")
-  var body = String((row && row.body) || "").replace(/^\s+/, "")
+  var summary = Markup.oneLine((row && row.summary) || "")
+  var body = Markup.oneLine((row && row.body) || "")
   for (var i = 0; i < dropPrefixes.length; i++) {
     var prefix = dropPrefixes[i]
     if (typeof prefix === "string" && prefix.length > 0 &&
