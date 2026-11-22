@@ -112,14 +112,15 @@ grep -Fx "drop brave-bin alive=" "$log" >/dev/null ||
 pass "a browser running from a deleted binary is closed"
 stop_fakes
 
-# One that ignores SIGTERM is killed.
-start_fake brave-bin /usr/bin/bash -c 'trap "" TERM; : >"$1"; while :; do :; done' bash "$test_tmp/term-ready"
+# One that handles SIGTERM without exiting is killed after receiving it.
+start_fake brave-bin /usr/bin/bash -c 'trap '\''echo term >"$2"'\'' TERM; : >"$1"; while :; do :; done' bash "$test_tmp/term-ready" "$test_tmp/term-seen"
 for _ in {1..100}; do
   [[ -f $test_tmp/term-ready ]] && break
   /usr/bin/sleep 0.01
 done
 [[ -f $test_tmp/term-ready ]] || fail "the fake browser installs its SIGTERM trap"
 remove brave
+[[ -f $test_tmp/term-seen ]] || fail "the fake browser receives SIGTERM before it is killed"
 grep -Fx "drop brave-bin alive=" "$log" >/dev/null ||
   fail "a browser that ignores SIGTERM is killed" "$(cat "$log")"
 pass "a browser that ignores SIGTERM is killed before removal"
