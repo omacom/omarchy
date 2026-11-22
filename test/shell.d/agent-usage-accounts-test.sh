@@ -143,6 +143,8 @@ for line in sys.stdin:
   result = {}
   if message["method"] == "account/rateLimits/read":
     result = {"rateLimits": {"planType": "pro", "primary": {"usedPercent": used, "windowDurationMins": 300}}}
+    if os.environ.get("CODEX_HOME", "").endswith("/side"):
+      result["rateLimits"]["individualLimit"] = {"limit": "0", "used": "0", "remainingPercent": 0}
   print(json.dumps({"id": message["id"], "result": result}), flush=True)
 PY
 
@@ -153,6 +155,19 @@ expect_jq "Codex record's own limits describe the active account" '.limits[0].pe
 
 record=$(run_collector "$home" codex CODEX_HOME="$accounts/codex/side")
 expect_jq "Main's Codex limits come from ~/.codex whatever CODEX_HOME says" '[.accounts[] | .limits[0].percent]' '[0.4,0.91]' "$record"
+
+# A disabled paid-usage budget must not switch away from a usable subscription.
+jq '.active = "side" | .switch = "auto" | .threshold = 95' "$accounts/codex.json" >"$home/automatic.json"
+mv "$home/automatic.json" "$accounts/codex.json"
+record=$(run_collector "$home" codex)
+mkdir -p "$home/.local/state/omarchy/agents/usage"
+printf '%s\n' "$record" >"$home/.local/state/omarchy/agents/usage/codex.json"
+HOME="$home" XDG_STATE_HOME="$home/.local/state" "$ROOT/bin/omarchy-agent-account-state" autoswitch codex >/dev/null
+[[ $(jq -r .active "$accounts/codex.json") == "side" ]] || fail "a zero credit allocation must not switch away from the selected account"
+pass "a zero credit allocation does not undo account selection in automatic mode"
+
+jq '.active = "main"' "$accounts/codex.json" >"$home/main.json"
+mv "$home/main.json" "$accounts/codex.json"
 
 # A secondary home nobody signed in to is waiting for auth, even while
 # ~/.codex holds a login, and its app-server is never started.
