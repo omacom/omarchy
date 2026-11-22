@@ -519,6 +519,9 @@
     "label": "Harness",
     "title": "Default Harness"
   },
+  "agent.harness.local": {
+    "label": "Local model"
+  },
   "agent.harness.agy": {
     "label": "Antigravity"
   },

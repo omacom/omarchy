@@ -39,6 +39,7 @@
   "agent.make.app": {"icon":"󰣆","label":"Make an app","action":"omarchy-agent-make app"},
   "agent.make.game": {"icon":"󰊴","label":"Make a game","action":"omarchy-agent-make game"},
   "agent.harness": {"icon":"󰆍","label":"Harness","title":"Default Harness"},
+  "agent.harness.local": {"icon":"󰙴","label":"Local model","when":"grep -qs '\"kind\": *\"text\"' \"$HOME/.local/state/omarchy/agent-local/status.json\"","checked":"[[ \"$(omarchy-default-agent)\" == \"local\" ]]","action":"omarchy-default-agent local"},
   "agent.harness.amp": {"icon":"","iconFont":"omarchy","label":"Amp","when":"omarchy-region-global","checked":"[[ \"$(omarchy-default-agent)\" == \"amp\" ]]","action":"omarchy-default-agent amp"},
   "agent.harness.agy": {"icon":"","iconFont":"omarchy","label":"Antigravity","when":"omarchy-region-global","checked":"[[ \"$(omarchy-default-agent)\" == \"agy\" ]]","action":"omarchy-default-agent agy"},
   "agent.harness.claude": {"icon":"","iconFont":"omarchy","label":"Claude","when":"omarchy-region-global","checked":"[[ \"$(omarchy-default-agent)\" == \"claude\" ]]","action":"omarchy-default-agent claude"},

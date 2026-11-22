@@ -1,5 +1,4 @@
 {
-  "agents.active": "ACTIVE",
   "agents.addKinds": "Subscription, per use, or local",
   "agents.addTitle": "Add an agent",
   "agents.blockOwnModel": "USE A LOCAL MODEL",
@@ -83,7 +82,9 @@
   "agents.downloadRate": "%1 MB/s",
   "agents.loginBrowser": "Log in through your browser",
   "agents.hideProviderConfirm": "Hide %1 from the panel? Credentials and sign-in will be kept.",
+  "agents.isDefault": "Your default agent",
   "agents.launchHarness": "Start %1",
+  "agents.makeDefault": "Make %1 your default agent",
   "agents.spendDay": "%1: %2",
   "agents.spendDayTokens": {
     "one": "%1: %2 for %3 token",
@@ -94,7 +95,6 @@
   "agents.spendOfCap": "%1 of %2",
   "agents.spendThisMonth": "This month",
   "agents.startOnNew": "Start your default agent on a new %1",
-  "agents.startLocalOnNew": "Start %2 on a new %1",
   "agents.settingUp": "Setting up",
   "agents.signingInAgain": "Signing in again",
   "agents.starting": "Starting…",
@@ -114,7 +114,6 @@
     "other": "%1 tokens today"
   },
   "agents.unknownModel": "Unknown",
-  "agents.use": "Use",
   "agents.waitingForAuth": "Waiting for auth",
   "agents.windowLimit": "Limit",
   "agents.windowMonthly": "Monthly",

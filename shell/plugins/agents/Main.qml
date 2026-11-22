@@ -281,6 +281,22 @@ Item {
     orderFile.setText(JSON.stringify(ids) + "\n")
   }
 
+  // The default agent, as `omarchy default agent` keeps it: a harness id, or
+  // "local" for the local model. Empty until one is chosen.
+  property string defaultAgent: ""
+
+  function reloadDefaultAgent() { defaultAgentFile.reload() }
+
+  FileView {
+    id: defaultAgentFile
+    path: root.home + "/.config/omarchy/defaults/agent"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.defaultAgent = text().trim()
+    onLoadFailed: root.defaultAgent = ""
+    onFileChanged: reload()
+  }
+
   FileView {
     id: orderFile
     path: root.orderPath
