@@ -524,15 +524,28 @@ pass "Lua bind scan ends an indexed walk over a stub collection and keeps the bi
 # that source is where a __lua bind's command comes from. A rebuilt cache
 # replaces the old file, so its name is what tells the two apart.
 reload_cache="$tmpdir/cache-reload"
+for dispatcher in "__lua" "HL.Dispatcher(exec_cmd)" "function: 0x"; do
+  cached=()
+  for callback in 66 64; do
+    reported=$dispatcher
+    [[ $dispatcher == "function: 0x" ]] && reported+=$callback
+    stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + RETURN" "Terminal" | sed -e "s/^\tdispatcher: .*/\tdispatcher: $reported/" -e "s/^\targ: \$/\targ: $callback/")
+BINDS
+    keybindings "$menu" "$reload_cache" >/dev/null
+    cached+=("$(basename "$reload_cache"/omarchy/keybindings-*.records)")
+  done
+  [[ ${cached[0]} == "${cached[1]}" ]] || fail "a reload of $dispatcher binds keeps the keybindings cache" "${cached[*]}"
+done
 cached=()
-for callback in 66 64; do
+for dispatcher in exec_cmd global; do
   stub_hyprctl <<BINDS
-$(lua_bind 64 "SUPER + RETURN" "Terminal" | sed "s/^\targ: \$/\targ: $callback/")
+$(lua_bind 64 "SUPER + RETURN" "Terminal" | sed "s/^\tdispatcher: .*/\tdispatcher: HL.Dispatcher($dispatcher)/")
 BINDS
   keybindings "$menu" "$reload_cache" >/dev/null
   cached+=("$(basename "$reload_cache"/omarchy/keybindings-*.records)")
 done
-[[ ${cached[0]} == "${cached[1]}" ]] || fail "a reload that renumbers __lua binds keeps the keybindings cache" "${cached[*]}"
+[[ ${cached[0]} != "${cached[1]}" ]] || fail "a changed named Lua dispatcher refreshes the keybindings cache"
 printf -- '-- edited\n' >>"$home/.config/hypr/hyprland.lua"
 keybindings "$menu" "$reload_cache" >/dev/null
 cached+=("$(basename "$reload_cache"/omarchy/keybindings-*.records)")
@@ -587,3 +600,37 @@ if compgen -G "$tmpdir/cache-timeout/omarchy/keybindings-*.records" >/dev/null; 
   fail "a scan stopped by its timeout is not cached" "$(ls "$tmpdir/cache-timeout/omarchy")"
 fi
 pass "a scan stopped by its timeout shows the menu without caching it"
+
+# An edit after the race check must not file old records under the new source.
+{
+  echo '#!/bin/bash'
+  cat <<HOOK
+if [[ \$1 == "binds" ]]; then
+  count=0
+  [[ -f "$tmpdir/late-edit-count" ]] && read -r count <"$tmpdir/late-edit-count"
+  (( count += 1 ))
+  echo "\$count" >"$tmpdir/late-edit-count"
+  if (( count == 3 )); then
+    sed -i 's/third-thing/fourth-thing/' "$home/.config/override/my_binds.lua"
+  fi
+fi
+HOOK
+  tail -n +2 "$stub_bin/hyprctl"
+} >"$stub_bin/hyprctl-late"
+chmod +x "$stub_bin/hyprctl-late"
+mv "$stub_bin/hyprctl-late" "$stub_bin/hyprctl"
+keybindings "$menu" "$tmpdir/cache-late-edit" >/dev/null
+keybindings "$menu" "$tmpdir/cache-late-edit" >/dev/null
+grep -qP '→ My own thing\texec\tfourth-thing$' "$tmpdir/cache-late-edit"/omarchy/keybindings-*.records ||
+  fail "an edit during cache key generation refreshes the next menu" "$(cat "$tmpdir/cache-late-edit"/omarchy/keybindings-*.records)"
+pass "an edit during cache key generation refreshes the next menu"
+
+printf 'local extra = require("default.hypr.require_optional").module("extra")\nhl.bind("SUPER + X", hl.dsp.exec_cmd(extra or "optional-default"), { description = "My own thing" })\n' >>"$home/.config/hypr/hyprland.lua"
+keybindings "$menu" "$tmpdir/cache-optional" >/dev/null
+grep -qP '→ My own thing\texec\toptional-default$' "$tmpdir/cache-optional"/omarchy/keybindings-*.records ||
+  fail "an absent optional module uses the fallback command"
+printf 'return "optional-new"\n' >"$home/.config/extra.lua"
+keybindings "$menu" "$tmpdir/cache-optional" >/dev/null
+grep -qP '→ My own thing\texec\toptional-new$' "$tmpdir/cache-optional"/omarchy/keybindings-*.records ||
+  fail "creating an optional module refreshes the cached command" "$(cat "$tmpdir/cache-optional"/omarchy/keybindings-*.records)"
+pass "creating an optional module refreshes the cached command"

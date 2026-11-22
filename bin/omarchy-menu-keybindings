@@ -355,20 +355,32 @@ local function note(path)
   end
 end
 local real_require, real_dofile, real_loadfile = require, dofile, loadfile
+local real_searchpath = package.searchpath
 -- A module is noted with every place package.path looks before the one that
 -- has it, so a file added earlier on the path, overriding it, changes the key.
+local function note_searchpath(name, path, sep, rep)
+  local separator = sep or "."
+  local base = tostring(name)
+  if separator ~= "" then
+    base = base:gsub(separator:gsub("(%W)", "%%%1"), function() return rep or "/" end)
+  end
+  for template in string.gmatch(path, "[^;]+") do
+    local candidate = template:gsub("%?", function() return base end)
+    note(candidate)
+    local found = io.open(candidate, "r")
+    if found then
+      found:close()
+      break
+    end
+  end
+end
+package.searchpath = function(name, path, sep, rep)
+  note_searchpath(name, path, sep, rep)
+  return real_searchpath(name, path, sep, rep)
+end
 require = function(name, ...)
   if not package.loaded[name] then
-    local base = tostring(name):gsub("%.", "/")
-    for template in string.gmatch(package.path, "[^;]+") do
-      local candidate = template:gsub("%?", function() return base end)
-      note(candidate)
-      local found = io.open(candidate, "r")
-      if found then
-        found:close()
-        break
-      end
-    end
+    note_searchpath(name, package.path)
   end
   return real_require(name, ...)
 end
@@ -742,7 +754,7 @@ lua_files_state() {
 }
 
 lua_files_newest() {
-  lua_files_state | awk 'NF == 3 && $3 > newest { newest = $3 } END { print newest }'
+  awk 'NF >= 3 && $NF + 0 > newest { newest = $NF } END { print newest }' <<<"$1"
 }
 
 keybindings_cache_key() {
@@ -753,12 +765,16 @@ keybindings_cache_key() {
     cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     cat "$key_names_file" 2>/dev/null
-    # A __lua bind's arg is a callback id Hyprland renumbers on every reload,
-    # and the menu never reads it: its command comes from the Lua source scan.
-    # Keying on it would throw the cache away after each reload, so the key
-    # takes the Lua files the last scan loaded instead.
-    hyprctl binds 2>/dev/null | awk '/^\tdispatcher: / { lua = ($2 == "__lua") } !(lua && /^\targ: /)'
-    lua_files_state
+    # Lua dispatcher addresses and callback ids change on reload; the menu
+    # takes their commands from the source files tracked below instead.
+    hyprctl binds 2>/dev/null | awk '
+      /^\tdispatcher: / {
+        lua = ($2 == "__lua" || $2 ~ /^HL\.Dispatcher\(/ || $0 ~ /^\tdispatcher: function: 0x/)
+        if ($2 == "function:") $0 = "\tdispatcher: function"
+      }
+      !(lua && /^\targ: /)
+    '
+    printf '%s\n' "${1-$(lua_files_state)}"
   } | sha256sum | awk '{ print $1 }'
 }
 
@@ -768,7 +784,7 @@ refresh_keybindings_cache() {
   local cache_dir="$1"
   local cache_file cache_name tmp_file
 
-  local started newest
+  local started newest lua_state
   started=$(date +%s.%N)
   tmp_file=$(mktemp "$cache_dir/keybindings.XXXXXX") || return 1
   # The scan writes the list of Lua files it loaded only once it finishes.
@@ -778,14 +794,15 @@ refresh_keybindings_cache() {
     # A Lua file edited while the scan ran may be newer than what the records
     # say about it, and a scan the timeout stopped left no list for the key to
     # track, so either way those records are shown once but not kept.
-    newest=$(lua_files_newest)
+    lua_state=$(lua_files_state)
+    newest=$(lua_files_newest "$lua_state")
     if { omarchy-cmd-present lua && [[ ! -e $keybindings_lua_files ]]; } ||
       awk -v newest="$newest" -v started="$started" 'BEGIN { exit !(newest != "" && newest + 0 >= started + 0) }'; then
       cat "$tmp_file"
       rm -f "$tmp_file"
       return 0
     fi
-    cache_name="keybindings-$(keybindings_cache_key).records"
+    cache_name="keybindings-$(keybindings_cache_key "$lua_state").records"
     cache_file="$cache_dir/$cache_name"
     mv "$tmp_file" "$cache_file"
     cat "$cache_file"
