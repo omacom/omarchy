@@ -43,6 +43,12 @@ copy_boundary_file install/helpers/pacman.sh
 # Channel changes copy the platform's templates; the copy itself is a stand-in.
 cp -r "$ROOT/default/pacman" "$SUDO_TEST_ROOT/default/"
 
+# The update prints its messages through omarchy-i18n, in English here.
+copy_boundary_file bin/omarchy-i18n
+mkdir -p "$SUDO_TEST_ROOT/default/i18n/en"
+cp "$ROOT/default/i18n/en/cli.json" "$SUDO_TEST_ROOT/default/i18n/en/"
+cp "$ROOT/default/i18n/plural.jq" "$ROOT/default/i18n/locales.json" "$SUDO_TEST_ROOT/default/i18n/"
+
 # Channel changes ask for the platform. x86 unless a test says otherwise, so no
 # test reads the host's hardware.
 cat >"$SUDO_TEST_ROOT/bin/omarchy-hw-platform" <<'STUB'
@@ -123,7 +129,7 @@ case "$step" in
 esac
 STUB
 chmod +x "$SUDO_TEST_ROOT/bin/test-step"
-for step in omarchy-update-lock omarchy-update-requires-free-space omarchy-update-confirm omarchy-update-pkg-prune omarchy-snapshot omarchy-update-stay-awake omarchy-update-dev omarchy-update-boot omarchy-update-keyring omarchy-update-system-pkgs omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-mise omarchy-update-orphan-pkgs omarchy-update-analyze-logs omarchy-shell omarchy-update-restart omarchy-pkg-aur-accessible omarchy-notification-dismiss pacman systemd-run cp yay; do
+for step in omarchy-update-lock omarchy-update-requires-free-space omarchy-update-confirm omarchy-update-pkg-prune omarchy-snapshot omarchy-update-stay-awake omarchy-update-dev omarchy-update-boot omarchy-update-keyring omarchy-update-system-pkgs omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-mise omarchy-update-orphan-pkgs omarchy-update-analyze-logs omarchy-shell omarchy-update-restart omarchy-pkg-aur-accessible omarchy-notification-dismiss omarchy-restart-shell pacman systemd-run cp yay; do
   ln -s test-step "$SUDO_TEST_ROOT/bin/$step"
 done
 ln -s ../bin/test-step "$SUDO_TEST_ROOT/mock/pacman"
