@@ -531,20 +531,23 @@ command_route_for_group() {
   fi
 }
 
-# Table rows for a command under the given route: one per declared subcommand,
-# each with its own summary, or a single row with the full usage.
-command_rows() {
-  local key="$1"
-  local route="$2"
+# Appends a command's table rows under the given route to the named variable:
+# one per declared subcommand, each with its own summary, or a single row with
+# the full usage. Appending in place keeps full listings free of a subshell per
+# command.
+append_command_rows() {
+  local -n command_rows_ref="$1"
+  local key="$2"
+  local route="$3"
   local subcommand_args=""
   local subcommand_summary=""
 
   if [[ -n ${COMMAND_SUBCOMMANDS[$key]} ]]; then
     while IFS=$'\t' read -r subcommand_args subcommand_summary; do
-      printf '%s %s\t%s\n' "$route" "$subcommand_args" "$subcommand_summary"
+      command_rows_ref+="$route $subcommand_args"$'\t'"$subcommand_summary"$'\n'
     done <<<"${COMMAND_SUBCOMMANDS[$key]}"
   else
-    printf '%s%s\t%s\n' "$route" "${COMMAND_ARGS[$key]:+ ${COMMAND_ARGS[$key]}}" "${COMMAND_SUMMARY[$key]}"
+    command_rows_ref+="$route${COMMAND_ARGS[$key]:+ ${COMMAND_ARGS[$key]}}"$'\t'"${COMMAND_SUMMARY[$key]}"$'\n'
   fi
 }
 
@@ -695,7 +698,7 @@ show_commands() {
 
   while IFS= read -r key; do
     [[ -n $key ]] || continue
-    rows+="$(command_rows "$key" "${COMMAND_ROUTE[$key]}")"$'\n'
+    append_command_rows rows "$key" "${COMMAND_ROUTE[$key]}"
   done < <(sorted_keys "$include_all")
 
   print_command_table "$rows"
@@ -724,16 +727,23 @@ markdown_escape() {
 show_commands_markdown() {
   local include_all="$1"
   local key=""
+  local rows=""
+  local usage=""
+  local summary=""
 
   echo "| Command | Binary | Summary |"
   echo "| --- | --- | --- |"
 
   while IFS= read -r key; do
     [[ -n $key ]] || continue
-    printf '| `%s` | `%s` | %s |\n' \
-      "$(markdown_escape "${COMMAND_USAGE[$key]}")" \
-      "$(markdown_escape "${COMMAND_BINARY[$key]}")" \
-      "$(markdown_escape "${COMMAND_SUMMARY[$key]}")"
+    rows=""
+    append_command_rows rows "$key" "${COMMAND_ROUTE[$key]}"
+    while IFS=$'\t' read -r usage summary; do
+      printf '| `%s` | `%s` | %s |\n' \
+        "$(markdown_escape "$usage")" \
+        "$(markdown_escape "${COMMAND_BINARY[$key]}")" \
+        "$(markdown_escape "$summary")"
+    done <<<"${rows%$'\n'}"
   done < <(sorted_keys "$include_all")
 }
 
@@ -907,7 +917,7 @@ show_group_help() {
 
   while IFS= read -r key; do
     [[ -n $key ]] || continue
-    rows+="$(command_rows "$key" "$(command_route_for_group "$key" "$group")")"$'\n'
+    append_command_rows rows "$key" "$(command_route_for_group "$key" "$group")"
   done < <(sorted_group_keys "$group" "$include_all")
 
   if [[ -n $rows ]]; then
@@ -926,7 +936,7 @@ show_prefix_help() {
   while IFS= read -r key; do
     [[ -n $key ]] || continue
     if [[ ${COMMAND_USAGE[$key]} == $prefix_with_space* ]]; then
-      rows+="$(command_rows "$key" "${COMMAND_ROUTE[$key]}")"$'\n'
+      append_command_rows rows "$key" "${COMMAND_ROUTE[$key]}"
     fi
   done < <(sorted_keys false)
 
@@ -946,7 +956,7 @@ show_related_commands() {
 
   while IFS= read -r child_key; do
     [[ -n $child_key && $child_key != "$key" ]] || continue
-    rows+="$(command_rows "$child_key" "$(command_route_for_group "$child_key" "$group")")"$'\n'
+    append_command_rows rows "$child_key" "$(command_route_for_group "$child_key" "$group")"
   done < <(sorted_group_keys "$group" false)
 
   if [[ -n $rows ]]; then
@@ -963,10 +973,12 @@ show_command_help() {
   local args="${COMMAND_ARGS[$key]}"
   local example=""
   local alias=""
+  local rows=""
 
   echo "Usage:"
   if [[ -n ${COMMAND_SUBCOMMANDS[$key]} ]]; then
-    print_command_table "$(command_rows "$key" "${COMMAND_ROUTE[$key]}")"
+    append_command_rows rows "$key" "${COMMAND_ROUTE[$key]}"
+    print_command_table "$rows"
   else
     echo "  ${COMMAND_USAGE[$key]}"
   fi
