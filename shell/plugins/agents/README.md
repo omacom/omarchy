@@ -90,7 +90,8 @@ per local coding model that is running and ready.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
   three blocks: _Use a subscription_ (Claude, Codex, Grok, Gemini,
   signed in through Antigravity, Muse, Cursor, Copilot, and More: the
-  coding plans that sign in with a key, MiniMax, Synthetic, and Z.ai),
+  coding plans: OpenCode Go, on the OpenCode sign-in, and MiniMax, Synthetic,
+  and Z.ai, which sign in with a key),
   _Use pay as you go_ (Fireworks, OpenCode Zen and Go, and OpenRouter, all
   run in OpenCode, and More: DeepSeek, then OpenCode's own sign-in for any
   other provider; every key is checked like Fireworks'), each a

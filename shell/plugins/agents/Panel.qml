@@ -344,8 +344,10 @@ Panel {
     { providerId: "more-providers", providerName: Commons.I18n.t("agents.more"), group: "provider", more: "moreProviders" },
     // Behind More: providers whose usage Omarchy reads, so their keys can be
     // checked before they're saved in OpenCode.
-    // Monthly coding plans that sign in with a key, then DeepSeek, which
-    // charges per use.
+    // Monthly coding plans: OpenCode Go, on the same OpenCode sign-in as the
+    // pay-as-you-go tile, and those that sign in with a key; then DeepSeek,
+    // which charges per use.
+    { providerId: "opencode-go", providerName: "OpenCode Go", group: "moreSubscriptions", iconId: "opencode", signsInAs: "opencode" },
     { providerId: "minimax", providerName: "MiniMax", group: "moreSubscriptions" },
     { providerId: "synthetic", providerName: "Synthetic", group: "moreSubscriptions" },
     { providerId: "zai", providerName: "Z.ai", group: "moreSubscriptions" },
@@ -559,6 +561,7 @@ Panel {
       openOpenCodeLogin()
       return
     }
+    if (tile && tile.signsInAs) id = tile.signsInAs
     var state = addChecks[id] || ""
     if (state === "") return
     addProvider = id
