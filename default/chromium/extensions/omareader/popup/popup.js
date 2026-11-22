@@ -59,7 +59,9 @@ async function render() {
   const live = mode === 'omarchy' && !!(st.host && st.host.connected);
   status.hidden = live;
   status.dataset.state = mode === 'omarchy' ? (live ? 'live' : 'offline') : mode;
-  if (mode === 'normal') {
+  if (live) {
+    status.textContent = '';
+  } else if (mode === 'normal') {
     status.textContent = 'Pages shown as they are';
   } else if (mode === 'dark') {
     status.textContent = 'Pitch black · page hues kept';
