@@ -195,16 +195,23 @@ SH
 chmod +x "$real_bin/mise"
 select_account grok side
 declarations="$ROOT/etc/mise/conf.d/omarchy-tools.toml"
-output=$(run_isolated env OMARCHY_MISE_CONFIG_PATH="$declarations" OMARCHY_TEST_EXPECTED_INSTALL="install --quiet grok" PATH="$ROOT/bin:$real_bin:/usr/bin" omarchy-agent-account-exec grok)
-[[ $output == "$test_tmp/accounts/grok side" ]] || fail "a dispatcher without a CLI installs Omarchy's declared agent and uses the selected account" "$output"
-pass "a dispatcher without a CLI installs Omarchy's declared agent and uses the selected account"
+for release_age in unset 86400 0; do
+  release_settings=(OMARCHY_TEST_RELEASE_AGE="$release_age")
+  if [[ $release_age != "unset" ]]; then
+    release_settings+=(MISE_MINIMUM_RELEASE_AGE="$release_age")
+  fi
 
-rm "$real_bin/grok"
-output=$(run_isolated env OMARCHY_MISE_CONFIG_PATH="$test_tmp/no-declarations.toml" OMARCHY_TEST_EXPECTED_INSTALL="use -g --quiet grok" PATH="$ROOT/bin:$real_bin:/usr/bin" omarchy-agent-account-exec grok)
-[[ $output == "$test_tmp/accounts/grok side" ]] || fail "a dispatcher without Omarchy's declaration selects the agent in the user config" "$output"
-pass "a dispatcher without Omarchy's declaration selects the agent in the user config"
+  output=$(run_isolated env "${release_settings[@]}" OMARCHY_MISE_CONFIG_PATH="$declarations" OMARCHY_TEST_EXPECTED_INSTALL="install --quiet grok" PATH="$ROOT/bin:$real_bin:/usr/bin" omarchy-agent-account-exec grok)
+  [[ $output == "$test_tmp/accounts/grok side" ]] || fail "a dispatcher without a CLI preserves cooldown $release_age and installs the declared agent with the selected account" "$output"
+  pass "a dispatcher without a CLI preserves cooldown $release_age and installs the declared agent with the selected account"
 
-rm "$real_bin/grok"
+  rm "$real_bin/grok"
+  output=$(run_isolated env "${release_settings[@]}" OMARCHY_MISE_CONFIG_PATH="$test_tmp/no-declarations.toml" OMARCHY_TEST_EXPECTED_INSTALL="use -g --quiet grok" PATH="$ROOT/bin:$real_bin:/usr/bin" omarchy-agent-account-exec grok)
+  [[ $output == "$test_tmp/accounts/grok side" ]] || fail "a dispatcher without Omarchy's declaration preserves cooldown $release_age and selects the agent in the user config" "$output"
+  pass "a dispatcher without Omarchy's declaration preserves cooldown $release_age and selects the agent in the user config"
+  rm "$real_bin/grok"
+done
+
 status=0
 run_isolated env OMARCHY_MISE_CONFIG_PATH="$declarations" OMARCHY_TEST_EXPECTED_INSTALL="install --quiet grok" OMARCHY_TEST_INSTALL_FAIL=yes PATH="$ROOT/bin:$real_bin:/usr/bin" omarchy-agent-account-exec grok >/dev/null || status=$?
 (( status == 42 )) || fail "a failed first-run install stops dispatch" "$status"
