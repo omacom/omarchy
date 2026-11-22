@@ -50,7 +50,9 @@ enable_user_units no-such-unit || fail "first-run enables its user units"
 clean_run=$(<"$test_tmp/calls")
 grep -Fq 'hook theme-set' <<<"$clean_run" || fail "first-run installs the theme hook"
 (( $(grep -Fxc -- "--user daemon-reload" <<<"$clean_run") == 1 )) || fail "first-run reloads systemd user manager once"
-mapfile -t units < <(sed -n 's/^--user enable --no-reload //p' <<<"$clean_run")
+mapfile -t units < <(sed -n '1,/^--user daemon-reload$/s/^--user enable --no-reload //p' <<<"$clean_run")
+mapfile -t started < <(sed -n '/^--user daemon-reload$/,$s/^--user start //p' <<<"$clean_run")
+[[ ${started[*]} == "${units[*]}" ]] || fail "first-run starts every enabled unit after reloading"
 
 for unit in "${units[@]}"; do
   [[ $unit != *" "* ]] || fail "first-run enables each unit on its own" "$unit"
