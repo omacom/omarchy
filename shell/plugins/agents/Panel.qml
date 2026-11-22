@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -105,6 +106,7 @@ Panel {
           for (var m = 0; m < starterPrompts.length; m++) line.push({ kind: "make:" + starterPrompts[m].kind, index: p })
         else if (launches(providers[p]))
           line.push({ kind: "makeToggle", index: p })
+        if (desktopFor(providers[p])) line.push({ kind: "providerDesktop", index: p })
         line.push({ kind: lineStop(p), index: p })
         rows.push(line)
         if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
@@ -184,7 +186,7 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch", "providerStar", "makeToggle"].indexOf(target.kind) >= 0 || target.kind.indexOf("make:") === 0) return target.index
+    if (["provider", "providerSignin", "providerLaunch", "providerStar", "makeToggle", "providerDesktop"].indexOf(target.kind) >= 0 || target.kind.indexOf("make:") === 0) return target.index
     return -1
   }
 
@@ -768,6 +770,46 @@ Panel {
     Qt.callLater(function() { pointAt("make:" + starterPrompts[0].kind, index) })
   }
 
+  // The desktop app a subscription has, when it's installed: the terminal
+  // button starts the coding agent, this opens the app, which keeps its own
+  // sign-in.
+  readonly property var desktopApps: ({
+    agy: "antigravity",
+    claude: "com.anthropic.Claude",
+    codex: "chatgpt",
+    cursor: "cursor",
+    grok: "grok-bot",
+    grokbot: "grok-bot",
+    hermes: "hermes-desktop",
+    opencode: "ai.opencode.desktop"
+  })
+  readonly property var desktopWindows: ToplevelManager.toplevels.values
+
+  function desktopFor(provider) {
+    var id = provider && desktopApps[provider.providerId]
+    if (typeof id !== "string" || !DesktopEntries.applications.values.length) return null
+    return DesktopEntries.byId(id)
+  }
+
+  // Focuses the app's window when it's open, else launches it.
+  function launchDesktop(provider) {
+    var entry = desktopFor(provider)
+    if (!entry) return
+    root.close()
+    var id = entry.id.toLowerCase()
+    var startupClass = entry.startupClass.toLowerCase()
+    for (var win of desktopWindows) {
+      var appId = win.appId.toLowerCase()
+      // ChatGPT also uses the Codex app id. The harness lives in a terminal
+      // with its own id (org.omarchy.codex), which must never claim this.
+      if (!win.parent && appId && (appId === id || appId === startupClass || (id === "chatgpt" && appId === "codex"))) {
+        win.activate()
+        return
+      }
+    }
+    Util.execArgv(["uwsm-app", "--", "gtk-launch", entry.id + ".desktop"])
+  }
+
   function makeOnLine(line, kind) {
     if (!line || !launches(line)) return
     if (line.localModel) {
@@ -820,6 +862,7 @@ Panel {
     else if (target.kind === "providerLaunch") launchLine(providers[target.index])
     else if (target.kind === "providerStar") makeDefault(providers[target.index], providers[target.index].account || null)
     else if (target.kind === "makeToggle") openMakes(target.index)
+    else if (target.kind === "providerDesktop") launchDesktop(providers[target.index])
     else if (target.kind.indexOf("make:") === 0) makeOnLine(providers[target.index], target.kind.slice(5))
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], providers[target.index].account || null)
@@ -2363,6 +2406,7 @@ Panel {
       readonly property real textEnd: (sectionStar.visible ? sectionStar.x
         : sectionMakes.visible ? sectionMakes.x
       : sectionSparkles.visible ? sectionSparkles.x
+      : sectionDesktop.visible ? sectionDesktop.x
         : sectionLaunch.visible ? sectionLaunch.x
         : width) - Style.space(8)
       implicitHeight: Math.max(sectionMark.height, sectionName.implicitHeight)
@@ -2526,8 +2570,24 @@ Panel {
       // the default: one sparkles icon on the line in use, which opens into
       // the four.
       PanelActionButton {
-        id: sectionSparkles
+        id: sectionDesktop
+        readonly property var entry: root.desktopFor(section.provider)
         anchors.right: sectionLaunch.left
+        anchors.rightMargin: Style.space(6)
+        anchors.verticalCenter: parent.verticalCenter
+        visible: !!entry && section.engaged
+        iconText: "󰍹"
+        tooltipText: entry ? Commons.I18n.t("agents.openDesktopApp").arg(entry.name) : ""
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        hasCursor: root.hasKey("providerDesktop", section.providerIndex)
+        onHovered: function(isHovered) { if (isHovered) root.pointAt("providerDesktop", section.providerIndex) }
+        onClicked: root.launchDesktop(section.provider)
+      }
+
+      PanelActionButton {
+        id: sectionSparkles
+        anchors.right: sectionDesktop.visible ? sectionDesktop.left : sectionLaunch.left
         anchors.rightMargin: Style.space(6)
         anchors.verticalCenter: parent.verticalCenter
         visible: root.launches(section.provider) && section.engaged && !section.makesOpen
@@ -2542,7 +2602,7 @@ Panel {
 
       Row {
         id: sectionMakes
-        anchors.right: sectionLaunch.left
+        anchors.right: sectionDesktop.visible ? sectionDesktop.left : sectionLaunch.left
         anchors.rightMargin: Style.space(6)
         anchors.verticalCenter: parent.verticalCenter
         visible: root.launches(section.provider) && section.makesOpen

@@ -86,6 +86,7 @@
   "agents.launchHarness": "Start %1",
   "agents.more": "More",
   "agents.moreInOpenCode": "Another provider in OpenCode…",
+  "agents.openDesktopApp": "Open %1",
   "agents.makeSomethingWith": "Make something with %1",
   "agents.makeWith": "Make a new %1 with %2",
   "agents.makeDefault": "Make %1 your default agent",

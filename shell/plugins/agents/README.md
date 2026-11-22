@@ -63,7 +63,14 @@ per local coding model that is running and ready.
   funded-versus-spent detail.
 - **Terminal button** — at the end of a line, it opens the harness made for
   that subscription, switching to an account first when it isn't the one in
-  use. Fireworks and OpenRouter have none of their own, so
+  use.
+- **Desktop app** — on the line in use, a monitor icon beside the terminal
+  button opens the subscription's desktop app when it's installed (Claude,
+  ChatGPT for Codex, Grok Bot, Antigravity, Cursor, Hermes, OpenCode),
+  focusing its window when one is already open. The app keeps its own
+  sign-in. A first sign-in to Claude, Codex, Grok, or Gemini installs its
+  desktop app where it's offered: through `omarchy-pkg-add` in a terminal,
+  and through polkit from the panel, which has none. Fireworks and OpenRouter have none of their own, so
   theirs opens OpenCode, where their key is saved, through
   `omarchy agent --provider`, always on one of that provider's models: the
   one OpenCode last used there, so a switch made in a session sticks, else
