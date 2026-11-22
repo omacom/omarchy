@@ -370,6 +370,8 @@ assertEqual(M.zoneTabCoords(tab, M.fallbackZone('Pacific/Truk', 'Pacific/Port_Mo
 assertEqual(M.fallbackZone('Asia/Calcutta', 'Asia/Kolkata', country), 'Asia/Kolkata', 'elsewhen uses a rename\'s canonical coordinates')
 assertEqual(M.fallbackZone('Asia/Kolkata', 'Asia/Kolkata', country), 'Asia/Kolkata', 'elsewhen leaves a canonical zone alone in the fallback')
 assertEqual(M.fallbackZone('Etc/GMT+5', 'Etc/GMT+5', country), 'Etc/GMT+5', 'elsewhen falls back for a zone without a country')
+const countryFor = requireFromRoot('shell/plugins/panels/elsewhen/Greetings.js').countryFor
+assertEqual(M.zoneTabCoords('DE\t+5230+01322\tEurope/Berlin\n', M.fallbackZone('Atlantic/Jan_Mayen', 'Europe/Berlin', countryFor)), null, 'elsewhen never places Jan Mayen in Berlin through its shared clock')
 assert(M.geocodeUrl('São Paulo').endsWith('name=S%C3%A3o%20Paulo'), 'elsewhen URL-encodes the geocoded label')
 
 assertEqual(M.forecastUrl([{ lat: 1, lon: 2 }, { lat: 3, lon: 4 }]).split('&').filter(p => /^l(at|ong)itude=/.test(p)).join('&'), 'latitude=1,3&longitude=2,4', 'elsewhen batches every point into one forecast')
