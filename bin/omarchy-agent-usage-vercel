@@ -1,0 +1,263 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Vercel AI Gateway usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""AI Gateway credits, automatically discovered Token Pass, and model usage.
+
+/credits is independent of /report: Token Pass-scoped keys can read their
+balance even when reporting is forbidden. Reports replace local stats, never
+add to them, and are account-scoped. Without reporting, only requests routed
+through AI Gateway in pi/omp, opencode, Claude Code and Codex count here.
+"""
+
+from __future__ import annotations
+
+import argparse
+import math
+import os
+import sys
+import urllib.parse
+import urllib.request
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  HttpError,
+  LimitsCache,
+  Stats,
+  base_record,
+  cached_scan,
+  config_home,
+  data_home,
+  emit,
+  local_day,
+  open_json,
+  opencode_db,
+  pi_session_roots,
+  read_json,
+  routed_match,
+  routed_sources,
+  scan_max_age,
+  scan_opencode,
+  scan_pi_sessions,
+  scan_routed,
+  warn,
+)
+
+AGENT_ID = "vercel"
+AGENT_NAME = "Vercel AI Gateway"
+API_BASE = "https://ai-gateway.vercel.sh/v1"
+PROVIDERS = ("vercel", "vercel-ai-gateway")
+REPORT_HELP = "AI Gateway reports are unavailable for this key or team. Showing this machine's usage when no report is cached."
+
+
+def literal_key(value: Any) -> str:
+  if isinstance(value, dict):
+    value = value.get("key") or value.get("apiKey")
+  key = value.strip() if isinstance(value, str) else ""
+  return "" if key.startswith(("!", "$", "{")) else key
+
+
+def api_key() -> str:
+  key = literal_key(os.environ.get("AI_GATEWAY_API_KEY"))
+  if key:
+    return key
+  pi = Path(os.path.expanduser(os.environ.get("PI_CODING_AGENT_DIR") or "~/.pi/agent"))
+  for path in (data_home() / "opencode/auth.json", pi / "auth.json", Path.home() / ".omp/agent/auth.json"):
+    auth = read_json(path)
+    for provider in PROVIDERS:
+      key = literal_key(auth.get(provider))
+      if key:
+        return key
+  return literal_key(read_json(config_home() / "omarchy/agents/vercel.json").get("apiKey"))
+
+
+def amount(value: Any, signed: bool = False) -> float:
+  if value is None or isinstance(value, bool) or not isinstance(value, (int, float, str)) or value == "":
+    raise ValueError("missing amount")
+  result = float(value)
+  if not math.isfinite(result) or (not signed and result < 0):
+    raise ValueError("invalid amount")
+  return result
+
+
+def get(path: str, key: str) -> dict:
+  request = urllib.request.Request(API_BASE + path, headers={"Authorization": "Bearer " + key, "Accept": "application/json"})
+  payload = open_json(request, timeout=15)
+  if not isinstance(payload, dict):
+    raise ValueError("expected an object")
+  return payload
+
+
+def parse_credits(payload: dict) -> dict:
+  # Gateway can report a small negative balance after settling a request.
+  # Lifetime total_used is neither this month's spend nor pass consumption.
+  balance = {"remaining": amount(payload.get("balance"), signed=True), "funded": 0, "spent": 0, "currency": "USD", "estimated": False}
+  result: dict[str, Any] = {"balance": balance}
+  if "token_pass" not in payload:
+    raise ValueError("missing Token Pass status")
+  token_pass = payload["token_pass"]
+  if token_pass is not None:
+    if not isinstance(token_pass, dict):
+      raise ValueError("invalid Token Pass")
+    resets = token_pass.get("resets_at")
+    if not isinstance(resets, str) or len(resets) > 40:
+      raise ValueError("missing Token Pass reset")
+    reset_time = datetime.fromisoformat(resets.replace("Z", "+00:00"))
+    if reset_time.tzinfo is None or not 2000 <= reset_time.year <= 2100:
+      raise ValueError("invalid Token Pass reset")
+    remaining = token_pass.get("remaining")
+    if "remaining" not in token_pass:
+      raise ValueError("missing Token Pass balance")
+    result["tokenPass"] = {"remaining": None if remaining is None else amount(remaining), "resetsAt": resets}
+  return result
+
+
+def credits(key: str, force: bool) -> dict:
+  cache = LimitsCache(AGENT_ID, key)
+  if cache.data.get("credits") is not None and cache.fresh(force, allow_empty=True):
+    return dict(cache.data["credits"], limitsFetchedAt=cache.fetched_at, limitsStale=False)
+  try:
+    part = parse_credits(get("/credits", key))
+    fetched = cache.save([], only_if_newer=True, credits=part)
+    return dict(part, limitsFetchedAt=fetched, limitsStale=False)
+  except (HttpError, ValueError, TypeError, OverflowError) as error:
+    kept = cache.data.get("credits") or {}
+    refused = isinstance(error, HttpError) and error.status == 401
+    detail = "AI Gateway rejected the key. Set AI_GATEWAY_API_KEY to a current key." if refused else "Couldn't read AI Gateway credits. The last known balance is kept when available."
+    return dict(kept,
+      limitsFetchedAt=cache.fetched_at,
+      limitsStale=bool(kept),
+      usageStatusText="Sign-in expired" if refused else ("" if kept else "Balance unavailable"),
+      authHelpText=detail,
+      retryAdvised=isinstance(error, HttpError) and error.transport,
+    )
+
+
+def billed_here(provider: str, model: str, entry: dict) -> bool:
+  return provider in PROVIDERS
+
+
+def local_stats(max_age: float) -> dict:
+  def scan():
+    stats = Stats()
+    pi_rows, pi_complete = scan_pi_sessions(r'"provider"\s*:\s*"(?:vercel|vercel-ai-gateway)"', billed_here)
+    db_rows, db_complete = scan_opencode([p + '"' for p in PROVIDERS], billed_here)
+    routed_rows, routed_complete = scan_routed(AGENT_ID, reuse=max_age > 0)
+    for row in [*pi_rows, *db_rows, *routed_rows]:
+      stats.add_row(row, row.model or AGENT_ID)
+    return stats.snapshot_with_spend(), pi_complete and db_complete and routed_complete
+
+  return cached_scan(AGENT_ID, [opencode_db(), *pi_session_roots(), *routed_sources()], max_age, scan, match=routed_match())
+
+
+def token_bucket(row: dict) -> dict:
+  # Cached input is part of input; reasoning is part of output. Preserve the
+  # total while splitting input into the panel's disjoint cache buckets.
+  values = {name: amount(row.get(name, 0)) for name in ("input_tokens", "output_tokens", "cached_input_tokens", "cache_creation_input_tokens")}
+  if any(value != int(value) or value > 1e15 for value in values.values()):
+    raise ValueError("invalid token count")
+  cached, written = values["cached_input_tokens"], values["cache_creation_input_tokens"]
+  if cached + written > values["input_tokens"]:
+    raise ValueError("cache exceeds input")
+  return dict(inputTokens=int(values["input_tokens"] - cached - written), outputTokens=int(values["output_tokens"]), cacheReadInputTokens=int(cached), cacheCreationInputTokens=int(written))
+
+
+def report_rows(payload: dict) -> list:
+  rows = payload.get("results")
+  if not isinstance(rows, list) or len(rows) > 5000 or any(not isinstance(row, dict) for row in rows):
+    raise ValueError("invalid report")
+  return rows
+
+
+def fetch_report(key: str) -> dict:
+  utc_today = datetime.now(timezone.utc).date()
+  start = utc_today - timedelta(days=29)
+  query = urllib.parse.urlencode({"start_date": start.isoformat(), "end_date": utc_today.isoformat()})
+  models = report_rows(get("/report?" + query + "&group_by=model", key))
+  hours = report_rows(get("/report?" + query + "&group_by=day&date_part=hour", key))
+  stats = Stats()
+  usage: dict[str, dict] = {}
+  costs: dict[str, float] = {}
+  for row in models:
+    model = row.get("model")
+    if not isinstance(model, str) or not model or len(model) > 256 or model in usage:
+      raise ValueError("invalid model")
+    usage[model] = token_bucket(row)
+    costs[model] = amount(row.get("total_cost"))
+  for row in hours:
+    hour = row.get("hour")
+    if not isinstance(hour, str) or len(hour) != 13:
+      raise ValueError("invalid report hour")
+    day = local_day(hour + ":00:00Z")
+    if day is None:
+      raise ValueError("invalid report day")
+    b = token_bucket(row)
+    stats.add(day, None, "gateway", b["inputTokens"], b["outputTokens"], b["cacheReadInputTokens"], b["cacheCreationInputTokens"], prompts=0, cost=amount(row.get("total_cost")))
+  result = stats.snapshot_with_spend()
+  result.update(modelUsage=usage, todayTokensByModel={}, scope="account", hasPromptStats=False, hasLocalStats=False, modelCosts=costs, modelHistoryDays=30)
+  # This is the provider's rating, including usage outside this machine.
+  result["spend"] = dict(result.get("spend") or {"cap": 0, "currency": "USD", "days": [0] * 30}, amount=sum(costs.values()), estimated=False)
+  return result
+
+
+def report(key: str, max_age: float, force: bool) -> tuple[dict | None, str]:
+  cache = LimitsCache(AGENT_ID, key, kind="report")
+  today = date.today().isoformat()
+  # A permission refusal gets a 15-minute backoff; pressing refresh retries.
+  seconds = 900 if cache.data.get("denied") else max_age
+  if cache.data.get("date") == today and cache.fresh(force, seconds=seconds, allow_empty=True):
+    return cache.data.get("stats"), REPORT_HELP if cache.data.get("denied") else ""
+  try:
+    stats = fetch_report(key)
+    cache.save([], only_if_newer=True, stats=stats, date=today, denied=False)
+    return stats, ""
+  except (HttpError, ValueError, TypeError, OverflowError) as error:
+    # A reporting refusal doesn't invalidate a key that just read /credits.
+    # Keep a complete report rather than adding local usage to the same work.
+    kept = cache.data.get("stats")
+    denied = isinstance(error, HttpError) and error.status == 403
+    if denied:
+      cache.save([], only_if_newer=True, stats=kept, date=today, denied=True)
+    return kept, REPORT_HELP
+
+
+def collect(force: bool, limits_only: bool) -> dict:
+  record = base_record(AGENT_ID, AGENT_NAME)
+  key = api_key()
+  max_age = scan_max_age(force, limits_only)
+  billing = credits(key, force) if key else {}
+  remote, note = report(key, max_age, force) if key and billing.get("usageStatusText") != "Sign-in expired" else (None, "")
+  stats = remote if remote is not None else local_stats(max_age)
+  record.update(stats, ready=bool(key) or bool(stats.get("modelUsage")) or stats.get("totalPrompts", 0) > 0)
+  if remote is None:
+    record["hasLocalStats"] = bool(stats.get("modelUsage")) or stats.get("totalSessions", 0) > 0
+  if key:
+    record.update(billing)
+    record["tierLabel"] = "Token Pass" if billing.get("tokenPass") is not None else ""
+    if not record["authHelpText"]:
+      record["authHelpText"] = note
+  record["showModelUsage"] = record["ready"]
+  return record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the Vercel AI Gateway usage record as JSON")
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+  try:
+    record = collect(args.force, args.limits_only)
+  except Exception as error:
+    record = base_record(AGENT_ID, AGENT_NAME)
+    # Never include a request, response body or credential in diagnostics.
+    warn("Vercel usage collection failed (" + type(error).__name__ + ")")
+  emit(record)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

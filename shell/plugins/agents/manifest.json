@@ -38,6 +38,7 @@
         "ollama": { "enabled": true },
         "minimax": { "enabled": true },
         "openrouter": { "enabled": true },
+        "vercel": { "enabled": true },
         "deepseek": { "enabled": true },
         "fireworks": { "enabled": true },
         "synthetic": { "enabled": true },

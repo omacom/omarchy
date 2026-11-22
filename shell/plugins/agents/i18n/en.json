@@ -1,0 +1,5 @@
+{
+  "agents.balanceResets": "Resets %1",
+  "agents.modelsAccount": "Tokens by model · last 30 days (UTC)",
+  "agents.modelsLocal": "Tokens by model · this machine"
+}
