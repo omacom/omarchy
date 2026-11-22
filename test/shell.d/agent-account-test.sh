@@ -349,7 +349,7 @@ use_output=$(omarchy-agent-account-use claude work)
 kill "$legacy"
 wait "$legacy" 2>/dev/null || true
 : >"$notifications"
-omarchy-agent-account-state autoswitch claude >/dev/null
+omarchy-agent-account-state alert claude >/dev/null
 [[ -z $(omarchy-agent-account-home claude) && $(claude_account) == u-work && ! -e $work/.credentials.json ]] ||
   fail "once those sessions quit, the next check moves the login into ~/.claude"
 grep -q "Running sessions on Main moved over too." "$notifications" || fail "catching up says running sessions moved" "$(cat "$notifications")"
@@ -408,14 +408,14 @@ fi
 omarchy-agent-account-use claude main >/dev/null
 pass "a correction survives the command that made it failing"
 
-# ------------------------------------------------------------ mode and remove
+# ------------------------------------------------------- threshold and remove
 
-OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent-account-mode auto 90 >/dev/null
-[[ $(jq -c '{switch, threshold}' "$accounts/claude.json") == '{"switch":"auto","threshold":90}' ]] || fail "mode sets switching and threshold"
-if omarchy-agent-account-mode claude sometimes >/dev/null 2>&1; then
-  fail "mode refuses an unknown switch mode"
+OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent-account-threshold 90 >/dev/null
+[[ $(jq -r .threshold "$accounts/claude.json") == 90 ]] || fail "threshold sets when an account is announced"
+if omarchy-agent-account-threshold claude soon >/dev/null 2>&1; then
+  fail "threshold refuses anything but a percentage"
 fi
-pass "mode sets how switching happens"
+pass "threshold sets when an account is announced"
 
 if omarchy-agent-account-remove claude main </dev/null >/dev/null 2>&1; then
   fail "the primary account can't be removed"
