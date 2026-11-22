@@ -1,43 +1,45 @@
 # Első lépések
 
-Az Omarchy egy ISO segítségével telepíthető. Választhatsz a teljes lemezes telepítés, amely átveszi az egész meghajtót, vagy a szabad helyre történő telepítés között, amely az Omarchy-t a meghajtón lévő lefoglalatlan helyre teszi — így tudsz dual bootolni Windows vagy egy másik OS mellett (lásd [dual-boot telepítés](50-dual-boot-install.md) — vedd figyelembe, hogy először ki kell kapcsolnod a BitLockert a Windowsban). Akárhogy is, a telepítés alapértelmezetten teljes titkosítást használ, és a teljes lemezes opció törölni fogja a kiválasztott meghajtót, úgyhogy mindenképpen készíts biztonsági másolatot, mielőtt egy meglévőt használnál!
+Az Omarchy egy ISO segítségével telepíthető. Választhatsz a teljes lemezes telepítés között, amely átveszi az egész meghajtót, vagy a szabad helyre történő telepítés között, amely az Omarchyt a meghajtó lefoglalatlan területére helyezi — így dual bootolsz a Windows vagy egy másik OS mellett (lásd: [dual-boot telepítés](50-dual-boot-install.md) — vedd figyelembe, hogy előbb ki kell kapcsolnod a BitLockert a Windowsban). Akárhogy is, a telepítés alapértelmezetten teljes titkosítást használ, és a teljes lemezes opció törölni fogja a kiválasztott meghajtót, ezért mindenképpen készíts biztonsági mentést, mielőtt egy meglévőt használnál!
 
-Először [töltsd le az Omarchy ISO-t](https://omarchy.org/), tedd rá egy USB-meghajtóra (használd a [Rufus](https://rufus.ie/) programot Windowson, a [balenaEtcher](https://etcher.balena.io/) programot Macen, vagy a [caligula](https://github.com/ifd3f/caligula) programot Linuxon), és bootolj a meghajtóról.
+Először [töltsd le az Omarchy ISO-t](https://omarchy.org/), tedd egy USB-stickre (használj [Rufus](https://rufus.ie/)-t Windowson, [balenaEtcher](https://etcher.balena.io/)-t Macen vagy [caligula](https://github.com/ifd3f/caligula)-t Linuxon), és bootolj a stickről.
 
-_Ki kell kapcsolnod a Secure Bootot és/vagy a TPM-et a BIOS-ban. Ki kell kapcsolnod ezeket ahhoz, hogy telepíteni tudd az Omarchy-t. Ezek Microsoft biztonsági sémák, amelyek a Windowshoz és a Microsofthoz kapcsolódó Linux disztribúciókhoz készültek._
+_Ki kell kapcsolnod a Secure Bootot és/vagy a TPM-et a BIOS-ban. Ki kell kapcsolnod ezeket ahhoz, hogy telepíteni tudd az Omarchyt. Ezek Microsoft biztonsági sémák, amelyek Windowshoz és Microsofthoz kapcsolódó Linux-disztribúciókhoz készültek._
 
 Ezután válaszolj a konfigurációs kérdésekre, és erősítsd meg őket így:
 
  ![install-config](images/install-config.webp)
 
-Ezután válassz ki egy meghajtót a telepítéshez, és dőlj hátra, és nézd a telepítési show-t. A leggyorsabb modern gépeken egy perc alatt kész lehet, de még egy régebbi számítógépen sem tarthat tovább 5 percnél.
+Ezután válassz ki egy meghajtót a telepítéshez, dőlj hátra, és nézd a telepítés show-ját. A leggyorsabb modern gépeken egy perc alatt kész lehet, de még egy régebbi számítógépen sem tarthat tovább 5 percnél.
 
  ![install-done](images/install-done.webp)
 
-Most már készen állsz az Omarchy-ra!
+Most már készen állsz az Omarchyra!
 
 ### Használj vezetékes vagy 2.4ghz-es billentyűzetet!
 
-A teljes lemezes titkosítás nem engedi, hogy Bluetooth billentyűzetről add meg a jelszót indításkor. Ahogy a BIOS-ba sem tudsz belépni Bluetooth billentyűzettel egy PC-n. Olyan billentyűzetre lesz szükséged, amely vagy 2.4ghz-es dongle-t használ, vagy kábeles (ami amúgy is sokkal jobb a késleltetés szempontjából!). Én személy szerint imádom a [Lofree Flow84](https://www.lofree.co/products/lofree-flow-the-smoothest-mechanical-keyboard) billentyűzetet!
+A teljes lemezes titkosítás nem engedi, hogy Bluetooth-billentyűzetről add meg a jelszót indításkor. Ahogy egy PC-n Bluetooth-billentyűzettel a BIOS-ba sem tudsz belépni. Olyan billentyűzetre lesz szükséged, amely vagy 2.4ghz-es dongle-t használ, vagy kábelt (ami latency szempontjából amúgy is sokkal jobb!). Én személy szerint imádom a [Lofree Flow84](https://www.lofree.co/products/lofree-flow-the-smoothest-mechanical-keyboard)-et!
 
 ### Telepítés másik tulajdonos számára
 
-Ha valaki másnak állítasz be egy gépet — egy családtagnak, egy új alkalmazottnak, egy vevőnek — nem neked kellene megválaszolnod helyettük a személyes kérdéseket. Nyomd meg a `Ctrl + C` billentyűkombinációt a telepítő legelső képernyőjén (a billentyűzet kiválasztásánál), és az Omarchy felajánlja, hogy inkább egy másik tulajdonos számára készíti elő a gépet. A rendszer azonnal települ, de minden személyes beállítás — billentyűzetkiosztás, felhasználónév, jelszó — addig halasztódik, amíg a gép először el nem indul. A meghajtó továbbra is alapértelmezetten titkosított, és az a jelszó, amelyet az új tulajdonos azon az első indításkor választ, lesz a titkosítási jelszó is. (Egy már használt gépet újratelepítés nélkül is át lehet adni — lásd [a számítógép visszaállítása](48-security.md).)
+Ha valaki más számára állítasz be egy gépet — egy családtag, egy új alkalmazott, egy vevő számára —, nem neked kellene megválaszolnod a személyes kérdéseket helyettük. Nyomd meg a `Ctrl + C`-t a telepítő legelső képernyőjén (a billentyűzet kiválasztásánál), és az Omarchy felajánlja, hogy ehelyett másik tulajdonos számára készíti elő a gépet. A rendszer azonnal települ, de minden személyes beállítás — billentyűzetkiosztás, felhasználónév, jelszó — addig halasztódik, amíg a gép először el nem indul. A meghajtó továbbra is alapértelmezetten titkosított, és az új tulajdonos által az első induláskor választott jelszó lesz a titkosítási jelszó is. (Egy már használt gép újratelepítés nélkül is átadható — lásd: [a számítógép visszaállítása](48-security.md).)
 
 ### Felügyelet nélküli telepítések
 
-Az ISO teljesen önállóan is tud telepíteni — billentyűzet nélkül, varázsló nélkül — ha egy második meghajtón megkapja a konfigurációját. Így érdemes az Omarchy-t alap image-ként kezelni VM-ekhez és flottagépekhez. Lásd [felügyelet nélküli telepítések](51-unattended-installs.md).
+Az ISO teljesen önállóan is tud telepíteni — billentyűzet nélkül, varázsló nélkül —, amikor egy második meghajtón megkapja a konfigurációját. Így érdemes az Omarchyt VM-ek és flottagépek alap image-eként kezelni. Lásd: [felügyelet nélküli telepítések](51-unattended-installs.md).
 
 ### Titkosítás nélküli telepítések
 
-Az Omarchy alapértelmezetten titkosítással települ. Ez a biztonságos, felelős választás minden olyan számítógéphez, amely esetleg elveszhet vagy ellophatják. Nem akarod, hogy bárki, aki hozzáfér a hardveredhez, hozzá tudjon férni az adataidhoz!
+Az Omarchy alapértelmezetten titkosítással települ. Ez a biztonságos, felelősségteljes választás minden olyan számítógép esetében, amely esetleg elveszhet vagy ellophatják. Nem akarod, hogy bárki, aki hozzáfér a hardveredhez, hozzáférhessen az adataidhoz!
 
-De különleges körülmények között, például védett számítógépekre történő távoli Omarchy telepítéseknél vagy érzékeny adatok nélküli eldobható telepítéseknél, előfordulhat, hogy titkosítás nélkül szeretnél telepíteni. A lemezformázás megerősítésénél megnyomhatod a `Ctrl + C` billentyűkombinációt, hogy titkosítás nélküli telepítésre válts.
+De különleges körülmények között, például védett számítógépeken történő távoli Omarchy-telepítések vagy érzékeny adatok nélküli, eldobható telepítések esetén érdemes lehet titkosítás nélkül telepíteni. A lemezformázás megerősítésénél megnyomhatod a `Ctrl + C`-t, hogy titkosítás nélküli telepítésre válts.
 
 ### Nyelv
 
-Az Omarchy 50 nyelven beszél — ugyanazon a készleten, mint az omarchy.org — és az alapértelmezett az angol. A váltáshoz nyisd meg az Omarchy menüt, és menj a _Setup > Language_ menüpontra, vagy futtasd az `omarchy language <code>` parancsot egy terminálban (az `omarchy language list` mutatja a kódokat). A menü, az asztal és az Omarchy saját értesítései azonnal nyelvet váltanak, és minden utána megnyitott alkalmazás is követi őket. A már megnyitott alkalmazások akkor váltanak, amikor újraindítod őket.
+Az Omarchy 50 nyelven beszél — ugyanazon a készleten, mint az omarchy.org —, és az angol az alapértelmezett. A váltáshoz nyisd meg az Omarchy menüt, és menj a _Setup > Region > Language_ menüpontra, vagy futtasd az `omarchy language <code>` parancsot egy terminálban (az `omarchy language list` mutatja a kódokat). A menü, az asztal és az Omarchy saját értesítései azonnal nyelvet váltanak, és minden utána megnyitott alkalmazás is követi őket. A már megnyitott appok akkor váltanak, amikor újraindítod őket.
 
-### Segítség, ha elakadtál
+Ha meg akarod tartani a nyelvet, de a dátumokat, időket, számokat, pénzt, mértékegységeket és papírméreteket úgy akarod írni, ahogy egy másik régió teszi (például angolul európai dátumokkal és 24-hour clockkal), válassz egy régiót a _Setup > Region > Formats_ alatt, ahol minden választás mintát mutat, vagy futtasd az `omarchy region formats <code>` parancsot (az `omarchy region formats list` mutatja a kódokat). A _Same as language_ visszaállít a nyelv saját formátumaira. A nyelvváltáshoz hasonlóan ez is az utána megnyitott appokat éri el.
 
-Ha elakadsz, általában találsz valakit, aki szívesen segít a _#omarchy-help_ csatornán [a közösségi Discordon](https://omarchy.org/discord).
+### Segítség, ha elakadsz
+
+Ha elakadsz, általában találsz valakit, aki hajlandó segíteni a _#omarchy-help_ csatornán [a közösségi Discordon](https://omarchy.org/discord).

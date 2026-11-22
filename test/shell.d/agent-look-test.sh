@@ -92,16 +92,16 @@ output=$(look_page "$test_tmp/keys.html" --keys "ArrowLeft ArrowRight" --out "$t
   fail "each key is pressed once, held across frames, and released" "$output"
 pass "look page presses each key once, holds it across frames, and releases it"
 
-# A file keeps its fragment, and --theme adds that theme's palette to it, as
-# omarchy-games-launch does for the current theme.
+# A file keeps its fragment, and --theme puts that theme's palette in it, in
+# place of one already there, as omarchy-games-vibes-launch does for the current theme.
 cat >"$test_tmp/hash.html" <<'EOF'
 <!doctype html><html><body><script>
 const hash = new URLSearchParams(location.hash.slice(1));
 console.error(`error seed=${hash.get("seed")} mode=${JSON.parse(hash.get("palette")).mode}`);
 </script></body></html>
 EOF
-output=$(look_page "$test_tmp/hash.html#seed=1" --theme catppuccin-latte --after 0 --out "$test_tmp/hash.png") || true
-[[ $output == *"seed=1 mode=light"* ]] || fail "look page passes a file's fragment and the theme's palette" "$output"
+output=$(look_page "$test_tmp/hash.html#palette=%7B%22mode%22%3A%22dark%22%7D&seed=1" --theme catppuccin-latte --after 0 --out "$test_tmp/hash.png") || true
+[[ $output == *"seed=1 mode=light"* ]] || fail "look page keeps a file's fragment and puts the theme's palette in place of its own" "$output"
 pass "look page shows a page in another theme's palette"
 
 # When the browser fails, an image left at --out by an earlier look must not

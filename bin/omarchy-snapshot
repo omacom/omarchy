@@ -29,19 +29,19 @@ create)
   # reads as a successful snapshot, so the next update looks recoverable when
   # nothing has ever been captured.
   if (( ${#CONFIGS[@]} == 0 )); then
-    echo -e "\e[33mNo Snapper configs found, so no snapshot was created.\e[0m" >&2
-    echo "Configure Snapper with: sudo bash -euo pipefail \"$OMARCHY_PATH/install/config/snapper.sh\"" >&2
+    echo -e "\e[33m$(omarchy-i18n snapshot.noConfigs)\e[0m" >&2
+    echo "$(omarchy-i18n snapshot.configure "sudo bash -euo pipefail \"$OMARCHY_PATH/install/config/snapper.sh\"")" >&2
     exit 1
   fi
 
-  echo -e "\e[32mCreate system snapshot\e[0m"
+  echo -e "\e[32m$(omarchy-i18n snapshot.create)\e[0m"
 
   for config in "${CONFIGS[@]}"; do
     sudo snapper -c "$config" create -c number -d "$DESC"
     sudo snapper -c "$config" cleanup number
   done
 
-  echo "Snapshots can be selected during boot."
+  echo "$(omarchy-i18n snapshot.bootSelectable)"
   ;;
 restore)
   sudo limine-snapper-restore

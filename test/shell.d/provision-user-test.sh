@@ -27,7 +27,7 @@ HOME="$test_tmp/home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
   OMARCHY_INSTALL="$test_tmp/install" bash "$ROOT/bin/omarchy-provision-user" >/dev/null ||
   fail "omarchy-provision-user finishes"
 
-for skill in omarchy diagnose-crash; do
+for skill in omarchy omarchy-diagnose-crash; do
   link="$test_tmp/home/.gemini/config/skills/$skill"
   [[ -L $link && $(readlink "$link") == "$ROOT/default/agents/skills/$skill" ]] ||
     fail "omarchy-provision-user provisions the $skill skill for Antigravity"
@@ -49,20 +49,30 @@ mkdir -p "$test_tmp/relink/.claude/skills" "$test_tmp/package/default/agents/ski
 ln -s "$test_tmp/package/default/agents/skills/omarchy" "$test_tmp/relink/.claude/skills/omarchy"
 ln -s "$test_tmp/package/default/agents/skills/retired" "$test_tmp/relink/.claude/skills/retired"
 ln -s /opt/elsewhere/skill "$test_tmp/relink/.claude/skills/theirs"
-ln -s /opt/elsewhere/game "$test_tmp/relink/.claude/skills/web-game"
-mkdir -p "$test_tmp/relink/.claude/skills/omarchy-app"
+ln -s /opt/elsewhere/game "$test_tmp/relink/.claude/skills/omarchy-make-game"
+mkdir -p "$test_tmp/relink/.claude/skills/omarchy-make-app"
 HOME="$test_tmp/relink" "$ROOT/bin/omarchy-agent-skills-link" "$ROOT" || fail "omarchy-agent-skills-link links a checkout"
 [[ $(readlink "$test_tmp/relink/.claude/skills/omarchy") == "$ROOT/default/agents/skills/omarchy" ]] ||
   fail "a skill linked from the package now links to the checkout" "$(readlink "$test_tmp/relink/.claude/skills/omarchy")"
 [[ ! -L $test_tmp/relink/.claude/skills/retired ]] || fail "a link to a skill the checkout doesn't have is removed"
 [[ $(readlink "$test_tmp/relink/.claude/skills/theirs") == "/opt/elsewhere/skill" ]] || fail "a link to the user's own skill stays"
-[[ $(readlink "$test_tmp/relink/.claude/skills/web-game") == "/opt/elsewhere/game" ]] ||
-  fail "a link of the user's own named like an Omarchy skill stays" "$(readlink "$test_tmp/relink/.claude/skills/web-game")"
-[[ -d $test_tmp/relink/.claude/skills/omarchy-app && ! -L $test_tmp/relink/.claude/skills/omarchy-app && ! -e $test_tmp/relink/.claude/skills/omarchy-app/omarchy-app ]] ||
+[[ $(readlink "$test_tmp/relink/.claude/skills/omarchy-make-game") == "/opt/elsewhere/game" ]] ||
+  fail "a link of the user's own named like an Omarchy skill stays" "$(readlink "$test_tmp/relink/.claude/skills/omarchy-make-game")"
+[[ -d $test_tmp/relink/.claude/skills/omarchy-make-app && ! -L $test_tmp/relink/.claude/skills/omarchy-make-app && ! -e $test_tmp/relink/.claude/skills/omarchy-make-app/omarchy-make-app ]] ||
   fail "a folder of the user's own named like an Omarchy skill stays, with no link put inside it"
-[[ $(readlink "$test_tmp/relink/.agents/skills/web-game") == "$ROOT/default/agents/skills/web-game" ]] ||
+[[ $(readlink "$test_tmp/relink/.agents/skills/omarchy-make-game") == "$ROOT/default/agents/skills/omarchy-make-game" ]] ||
   fail "every skill in the checkout is linked, including ones the package lacks"
 pass "omarchy-agent-skills-link moves Omarchy's skill links to the tree in use and keeps the user's"
+
+# The Agent Skills spec caps a description at 1024 characters, and harnesses
+# such as pi flag a longer one. Descriptions are folded YAML, so the lines
+# join with single spaces.
+for skill in "$ROOT"/default/agents/skills/*/SKILL.md; do
+  description=$(awk '/^description:/ { f = 1; next } /^---/ { if (f) exit } f' "$skill" | sed 's/^ *//' | paste -sd ' ')
+  (( ${#description} > 0 && ${#description} <= 1024 )) ||
+    fail "${skill#"$ROOT"/} has a description of 1-1024 characters" "${#description} characters"
+done
+pass "every Omarchy skill's description fits the Agent Skills limit"
 
 for dir in DOWNLOAD:Downloads PICTURES:Pictures VIDEOS:Videos DOCUMENTS:Documents MUSIC:Music; do
   grep -qxF "xdg-user-dirs-update --set ${dir%%:*} $test_tmp/home/${dir#*:}" "$TEST_COMMAND_LOG" ||

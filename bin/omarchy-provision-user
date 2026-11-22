@@ -110,9 +110,15 @@ done
 
 source "$OMARCHY_INSTALL/user/all.sh"
 
+# /etc/skel seeds every shipped launcher before the region is known, so a new
+# home starts over from the region's list.
+if (( first_install )); then
+  for launcher in "$OMARCHY_PATH"/applications/*.desktop; do
+    rm -f ~/.local/share/applications/"${launcher##*/}"
+  done
+fi
 omarchy-refresh-applications
 env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser google-chrome.desktop
-xdg-mime default HEY.desktop x-scheme-handler/mailto
 
 if (( first_install )); then
   mkdir -p "$state_dir/migrations"

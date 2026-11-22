@@ -44,6 +44,7 @@ fcitx5-table-extra
 fd
 ffmpeg
 ffmpegthumbnailer
+flowtunes
 folio
 fontconfig
 foot
@@ -107,6 +108,7 @@ omarchy-local-ai
 omarchy-power-profiles-daemon
 omarchy-screensaver
 omarchy-themes-intros
+omarchy-themes-loops
 omasnap
 # OWE owns desktop video backgrounds and feeds the lock screen its frames.
 owe
@@ -149,7 +151,6 @@ tldr
 tree-sitter-cli
 tmux
 tobi-try
-ttf-ia-writer
 ttf-jetbrains-mono-nerd-basic
 tzupdate
 udiskie

@@ -159,7 +159,10 @@ Panel {
   readonly property bool speedHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === speedHeaderIndex
   readonly property bool toggleHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === toggleHeaderIndex
   readonly property string toggleHint: Networking.wifiEnabled ? Commons.I18n.t("network.turnWifiOff") : Commons.I18n.t("network.turnWifiOn")
-  readonly property var dnsProviders: ["DHCP", "Cloudflare", "Google", "Custom"]
+  // China offers Alibaba's resolver in place of Cloudflare's and Google's
+  // (docs/regions.md); the region comes with the DNS reading.
+  property string region: "global"
+  readonly property var dnsProviders: region === "cn" ? ["DHCP", "AliDNS", "Custom"] : ["DHCP", "Cloudflare", "Google", "Custom"]
   property int dnsIndex: 0
   // ["2.4", "5", ...], or empty when there is nothing to choose between.
   // Wi-Fi only: on Ethernet the band of a secondary radio is not what the
@@ -612,7 +615,7 @@ Panel {
     if (scanWifi === undefined) scanWifi = false
     if (!detailsProc.running) detailsProc.running = true
     if (!dnsProc.running) {
-      dnsProc.command = ["bash", "-c", root.dnsCommand("")]
+      dnsProc.command = ["bash", "-c", root.dnsCommand("") + "; omarchy-region"]
       dnsProc.running = true
     }
     if (!bandProc.running) {
@@ -766,9 +769,11 @@ Panel {
     return Model.wifiIconFor(strength)
   }
 
+  // The provider on the first line, the region on the second.
   function updateDns(raw) {
-    var value = String(raw || "").trim()
-    dnsProvider = value || "DHCP"
+    var lines = String(raw || "").trim().split("\n")
+    dnsProvider = lines[0].trim() || "DHCP"
+    region = (lines[1] || "").trim() || "global"
   }
 
   function updateBand(raw) {
@@ -1658,39 +1663,21 @@ Panel {
           width: parent.width
           spacing: Style.space(6)
 
-          readonly property int count: 4
+          readonly property int count: root.dnsProviders.length
           readonly property real cellWidth: (width - spacing * (count - 1)) / count
 
-          DnsProviderPill {
-            provider: "DHCP"
-            index: 0
-            tooltipText: Commons.I18n.t("network.dnsFromDhcp")
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
+          Repeater {
+            model: root.dnsProviders
 
-          DnsProviderPill {
-            provider: "Cloudflare"
-            index: 1
-            tooltipText: Commons.I18n.t("network.setDnsTo").arg("Cloudflare")
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
-
-          DnsProviderPill {
-            provider: "Google"
-            index: 2
-            tooltipText: Commons.I18n.t("network.setDnsTo").arg("Google")
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
-
-          DnsProviderPill {
-            provider: "Custom"
-            index: 3
-            tooltipText: Commons.I18n.t("network.setCustomDns")
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
+            DnsProviderPill {
+              required property string modelData
+              provider: modelData
+              tooltipText: modelData === "DHCP" ? Commons.I18n.t("network.dnsFromDhcp")
+                : modelData === "Custom" ? Commons.I18n.t("network.setCustomDns")
+                : Commons.I18n.t("network.setDnsTo").arg(modelData)
+              width: dnsRow.cellWidth
+              onClicked: root.setDns(provider)
+            }
           }
         }
       }
