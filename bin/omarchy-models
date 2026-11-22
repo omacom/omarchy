@@ -1,0 +1,77 @@
+#!/bin/bash
+
+# omarchy:summary=Run open models on this machine for your agents
+# omarchy:subcommand=use <best|recipe> [text|image|video|music] — Set up and run a model, best for this machine or a named recipe
+# omarchy:subcommand=list [--json] — List recipes and which fit this machine
+# omarchy:subcommand=status [--json] — Show the models that are set up, and whether a better one is recommended
+# omarchy:subcommand=start [recipe] — Start a model that's set up, the last one started by default
+# omarchy:subcommand=stop [recipe] — Stop a model, or every running one
+# omarchy:subcommand=update [recipe] — Update a model to the catalog's runtime, weights and settings
+# omarchy:subcommand=remove <recipe> — Remove a model's weights, manifests and unused image
+# omarchy:subcommand=share [--off] [recipe] — Share a model with the other machines on your tailnet
+# omarchy:subcommand=network [--json] — List the models shared on your tailnet
+# omarchy:subcommand=pair <host> [recipe] — Pair with a machine over SSH to use the models it shares
+# omarchy:subcommand=forget <host> — Unpair a machine and drop its models
+# omarchy:subcommand=logs [-n <lines>] [recipe] — Show a model's logs
+# omarchy:subcommand=link [setup <peer>] — Show the Spark cabled to this one, or prepare both
+# omarchy:examples=omarchy models use best text | omarchy models use best image | omarchy models use qwen3.8-27b-gufo | omarchy models stop | omarchy-models use --help
+
+# The engine and its recipes come in omarchy-local-ai, on every machine so the
+# local models panel knows which models fit. Podman, which runs them, is a base
+# package too, and an NVIDIA machine gets nvidia-container-toolkit with its
+# driver; a machine installed without them gets what's missing when a model is
+# first set up. An NVIDIA GPU reaches the containers through the CDI spec the
+# toolkit writes on install and again at every boot.
+run=(omarchy-local-ai "$@")
+
+if [[ ${1:-} == "use" ]]; then
+  packages=(podman crun)
+  if omarchy-hw-nvidia; then
+    packages+=(nvidia-container-toolkit)
+  fi
+
+  if [[ " $* " == *" --detach "* ]]; then
+    # The local models panel starts a setup in the background, with no terminal to
+    # ask for a password in, so polkit asks for it instead. The panel shows
+    # the setup's line while this runs and reads the reason from the Error
+    # line; pkexec's 126 is the password dialog dismissed, passed on as is.
+    if omarchy-pkg-missing "${packages[@]}"; then
+      echo "Installing ${packages[*]}"
+      pkexec /usr/bin/pacman -S --noconfirm --needed -- "${packages[@]}"
+      status=$?
+      if (( status == 126 )); then
+        echo "Error: Authentication was cancelled"
+        exit 126
+      elif (( status != 0 )) || omarchy-pkg-missing "${packages[@]}"; then
+        echo "Error: Couldn't install ${packages[*]}"
+        exit 1
+      fi
+    fi
+  else
+    omarchy-pkg-add "${packages[@]}" || exit 1
+  fi
+fi
+
+# Other machines pair with a shared model over SSH and start and stop it the
+# same way, so sharing first needs this machine's SSH server set up. The panel
+# has no terminal for its key prompts and sudo, so it gets one that sets the
+# server up and then shares; a share typed in a terminal sets it up in place.
+if [[ ${1:-} == "share" && -n ${2:-} && ${2:-} != -* && " $* " != *" --off "* ]] && ! systemctl is-active --quiet sshd.service; then
+  if [[ -t 0 ]]; then
+    omarchy-setup-security-sshd || exit 1
+  else
+    run=(omarchy-launch-floating-terminal-with-presentation "omarchy-setup-security-sshd && omarchy-local-ai ${*@Q}")
+  fi
+fi
+
+# A model set up here gets a launcher of its own, and loses it when removed.
+# A setup handed to the background isn't done yet: the local models panel adds its
+# launcher once it is.
+if [[ ${1:-} == "use" || ${1:-} == "remove" ]]; then
+  "${run[@]}"
+  status=$?
+  omarchy-models-launchers
+  exit "$status"
+else
+  exec "${run[@]}"
+fi

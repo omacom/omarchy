@@ -38,7 +38,7 @@ EOF
 record=$(run_collector "$home" agy)
 expect_jq "Antigravity collector counts today's prompts and only the tokens transcripts report, inventing no plan or limits" \
   '{name, tierLabel, todayPrompts, todayTotalTokens, limits, usageStatusText, model: (.modelUsage["gemini-3.8-flash-high"] | {inputTokens, outputTokens})}' \
-  '{"name":"Antigravity","tierLabel":"","todayPrompts":1,"todayTotalTokens":165,"limits":[],"usageStatusText":"Waiting for auth","model":{"inputTokens":120,"outputTokens":45}}' "$record"
+  '{"name":"Gemini","tierLabel":"","todayPrompts":1,"todayTotalTokens":165,"limits":[],"usageStatusText":"Waiting for auth","model":{"inputTokens":120,"outputTokens":45}}' "$record"
 
 # Transcripts in both shapes agy writes: Gemini's counts nested under usage,
 # with the cached part inside the prompt count, and the four flat counts on
