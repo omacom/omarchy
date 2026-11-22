@@ -9,4 +9,5 @@ What it does beyond following the files:
 - **Setups** — `setUp(recipe)` runs `omarchy-models use --detach`, which installs Podman through polkit first on a machine without it. One runs at a time; others chosen meanwhile wait their turn. Until `status.json` lists a setup, `setupRows()` stands in for it: starting, installing, waiting, or failed with the reason the command gave.
 - **Ready to code** — a coding model set up here sends a notification once it has downloaded and loaded, whose click opens an agent on it.
 - **Launchers** — every model set up gets an app launcher, drawn by `omarchy-models-launchers`, run again when a setup finishes in the background or a model goes.
+- **Memory** — `readMemory()` asks `omarchy-models memory --json` what each running model holds now, into `modelMemory`; nothing reads it until a panel showing memory calls it.
 - **Tailnet** — `refreshNetwork()` surveys the models paired machines share, which the agents panel runs while it's open; `shareClients` counts the machines using each model this one shares.

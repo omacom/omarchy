@@ -330,6 +330,40 @@ Item {
 
 
 
+  // What each running model holds now, by recipe, as the engine measures it:
+  // an idle model may hold much less than it took to load. Empty where the
+  // engine can't say. Memory has no change signal, so it's read only when a
+  // panel showing it asks, while that panel is open.
+  property var modelMemory: ({})
+
+  function readMemory() {
+    var models = localModel.models || {}
+    var running = Object.keys(models).some(function(id) { return ["active", "activating", "deactivating"].indexOf(models[id].unit) >= 0 })
+    if (!running) modelMemory = ({})
+    else if (!memoryProcess.running) memoryProcess.running = true
+  }
+
+  Process {
+    id: memoryProcess
+    command: ["omarchy-models", "memory", "--json"]
+    stdout: StdioCollector {
+      onStreamFinished: root.modelMemory = root.parseModelMemory(text)
+    }
+  }
+
+  function parseModelMemory(content) {
+    try {
+      var parsed = JSON.parse(content)
+      var held = {}
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+        for (var id in parsed)
+          if (typeof parsed[id] === "number" && parsed[id] >= 0) held[id] = parsed[id]
+      return held
+    } catch (e) {
+      return {}
+    }
+  }
+
   // The listing is read fresh as the shell starts: a fresh account doesn't
   // have one yet, and an upgrade may have changed it.
   Component.onCompleted: refreshLocal()
