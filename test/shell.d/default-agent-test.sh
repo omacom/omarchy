@@ -62,6 +62,9 @@ cat >"$mock_bin/opencode" <<'SH'
 printf '%s\0' opencode "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
 SH
 
+# Pi is a package on every install, so it is always on PATH.
+printf '#!/bin/bash\n' >"$mock_bin/pi"
+
 cat >"$mock_bin/omarchy-mise-install" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_STUB_LOG"
@@ -204,7 +207,7 @@ for tool in "$ori_package" basecamp; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
     fail "user setup declares $tool as a native lazy tool"
 done
-for tool in codex claude copilot opencode pi "\"$kimi_package\""; do
+for tool in codex claude copilot opencode "\"$kimi_package\""; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, auto_update = \"4h\", " "$lazy_config" ||
     fail "user setup declares $tool as a self-updating native lazy tool"
 done
@@ -242,12 +245,12 @@ for agent in "${!declared_option_bins[@]}"; do
       fail "user setup declares ${!tool_var} with ${option%%=*} inside its table"
   done
 done
-[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 21 ]] || fail "only the agent CLIs update themselves"
+[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 20 ]] || fail "only the agent CLIs update themselves"
 for tool in node uv; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
     fail "user setup declares $tool as a native lazy tool"
 done
-[[ $(grep -c 'lazy = true' "$lazy_config") == 31 ]] || fail "user setup declares every default mise tool as lazy"
+[[ $(grep -c 'lazy = true' "$lazy_config") == 30 ]] || fail "user setup declares every default mise tool as lazy"
 grep -Fx "reshim --system" "$mise_history" >/dev/null || fail "user setup builds the system lazy bootstrap shims"
 pass "user setup configures system lazy tools from registry shorthands"
 : >"$stub_log"
@@ -419,7 +422,6 @@ declare -A expected_agents=(
 )
 
 declare -A expected_packages=(
-  [pi]="pi"
   [omp]="$omp_package"
   [opencode]="opencode"
   [ori]="$ori_package"
@@ -447,6 +449,7 @@ for selection in "${!expected_agents[@]}"; do
   expected=${expected_agents[$selection]}
   : >"$agent_open_log"
   : >"$stub_log"
+  : >"$mise_log"
   OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent "$selection"
   [[ $(omarchy-default-agent) == $expected ]] || fail "default agent canonicalizes $selection"
 
@@ -456,13 +459,17 @@ for selection in "${!expected_agents[@]}"; do
     [[ ! -s $stub_log ]] || fail "other agents do not install the Claude extension"
   fi
 
-  mapfile -d '' -t mise_args <"$mise_log"
-  [[ ${mise_args[0]} == "use" && ${mise_args[1]} == "-g" ]] ||
-    fail "default agent installs $selection globally through mise"
-  case ${mise_args[2]} in
-    "${expected_packages[$expected]}") ;;
-    *) fail "default agent preserves $selection backend options" ;;
-  esac
+  if [[ $expected == "pi" ]]; then
+    [[ ! -s $mise_log ]] || fail "Pi comes from its package, not through mise"
+  else
+    mapfile -d '' -t mise_args <"$mise_log"
+    [[ ${mise_args[0]} == "use" && ${mise_args[1]} == "-g" ]] ||
+      fail "default agent installs $selection globally through mise"
+    case ${mise_args[2]} in
+      "${expected_packages[$expected]}") ;;
+      *) fail "default agent preserves $selection backend options" ;;
+    esac
+  fi
 
   mapfile -d '' -t agent_open_args <"$agent_open_log"
   [[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||

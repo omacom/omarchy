@@ -44,6 +44,7 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
     cliamp \
     libreoffice-fresh \
     pinta \
+    pi-coding-agent \
     obsidian \
     omacut \
     monologue \
