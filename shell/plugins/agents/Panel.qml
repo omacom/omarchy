@@ -2500,7 +2500,8 @@ Panel {
       }
 
       // The line's buttons, from the right: its star, its terminal, its
-      // desktop app, its makes, and its trash. Hidden ones take no room.
+      // desktop app, its makes, and its trash. Hidden ones take no room, but an
+      // unlit star keeps its place.
       Row {
         id: sectionActions
         anchors.right: parent.right
@@ -2514,9 +2515,14 @@ Panel {
           outlined: true
           id: sectionStar
           anchors.verticalCenter: parent.verticalCenter
-          // Only the default's star stays; another shows when it's engaged.
-          visible: root.defaultIdFor(section.provider) !== "" && (on || section.engaged)
+          visible: root.defaultIdFor(section.provider) !== ""
           readonly property bool on: root.starred(section.provider, section.account)
+          // Only the default's star stays; another shows when it's engaged. It
+          // keeps its place either way, so the terminal doesn't move under the
+          // pointer arriving on the line.
+          readonly property bool shown: on || section.engaged
+          opacity: shown ? 1 : 0
+          enabled: shown
           iconText: on ? "󰓎" : "󰓒"
           tooltipText: on
             ? Commons.I18n.t("agents.isDefault")
