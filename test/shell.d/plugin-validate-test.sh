@@ -115,3 +115,23 @@ output=$(validate "$dir") && fail "validate refuses an entry point file that is 
 grep -qF "entry point file not found" <<<"$output" \
   || fail "validate reports a missing file as a missing file" "$output"
 pass "validate refuses an entry point file that is not there"
+
+# The validator must override a caller's collation: Turkish omits i/I from
+# [A-Za-z] ranges, while plugin ids remain ASCII by definition.
+dir=$(write_plugin "locale-id" '["bar-widget"]' '{"barWidget":"Panel.qml"}')
+jq '.id = "io.github.woogy7.vitals"' "$dir/manifest.json" >"$dir/manifest.tmp"
+mv "$dir/manifest.tmp" "$dir/manifest.json"
+
+for locale in tr_TR.UTF-8 lv_LV.UTF-8; do
+  installed=$(locale -a 2>/dev/null | grep -ixF -e "$locale" -e "${locale/UTF-8/utf8}" | head -n1) || true
+  [[ -n $installed ]] || continue
+  LC_ALL="$installed" validate "$dir" >/dev/null ||
+    fail "validate accepts an ASCII id under $installed"
+  pass "validate accepts an ASCII id under $installed"
+done
+
+jq '.id = "acme.ıd"' "$dir/manifest.json" >"$dir/manifest.tmp"
+mv "$dir/manifest.tmp" "$dir/manifest.json"
+validate "$dir" >/dev/null &&
+  fail "validate rejects a non-ASCII id regardless of locale"
+pass "validate rejects a non-ASCII id regardless of locale"

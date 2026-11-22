@@ -11,6 +11,9 @@
 
 set -o pipefail
 
+# Plugin ids are ASCII. Keep bracket ranges stable without changing callers.
+export LC_ALL=C
+
 fail() {
   echo "omarchy-plugin-validate: $*" >&2
   exit 1
