@@ -125,7 +125,8 @@ install_desktop_app() {
   omarchy-pkg-present "$package" && return 0
   say "$(omarchy-i18n agents.installingDesktop "$name")"
   if [[ $events == "true" ]]; then
-    pkexec /usr/bin/pacman -S --noconfirm --needed -- "$package" >/dev/null 2>&1 || true
+    # Cancel while polkit asks stops pkexec, which takes its dialog with it.
+    interruptible pkexec /usr/bin/pacman -S --noconfirm --needed -- "$package" >/dev/null 2>&1 || true
   else
     omarchy-pkg-add "$package" || true
   fi
