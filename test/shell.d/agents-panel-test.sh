@@ -110,8 +110,7 @@ JS
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const functions = ['lineId', 'providerGroup', 'orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
-const providerGroups = ['subscription', 'payg', 'local']
+const functions = ['lineId', 'orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
 let providerOrder = ['codex', 'kimi', 'claude', 'hidden']
 let panelProviders = [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'kimi'}, {providerId: 'grok'}]
 let saved = ''
@@ -122,11 +121,6 @@ assertDeepEqual(panelProviders.map(p => p.providerId), ['codex', 'kimi', 'claude
 moveProvider('grok', 0)
 assertDeepEqual(JSON.parse(saved), ['grok', 'codex', 'kimi', 'claude', 'hidden'], 'moving an agent saves the order and retains hidden ids')
 
-// Subscriptions come first, then what bills by use, then local models,
-// however the saved order has them.
-providerOrder = ['local', 'fireworks', 'claude']
-const grouped = orderedProviders([{providerId: 'claude'}, {providerId: 'local'}, {providerId: 'fireworks', spend: {}}, {providerId: 'codex'}])
-assertDeepEqual(grouped.map(p => p.providerId), ['claude', 'codex', 'fireworks', 'local'], 'agents are grouped as the add screen offers them')
 
 // Each account is a line of its own: its lines take the place saved for the
 // agent until one is moved, and then that line moves alone.
