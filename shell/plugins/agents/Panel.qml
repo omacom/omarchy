@@ -1728,7 +1728,11 @@ Panel {
           handleKey(event)
           event.accepted = true
         }
+        // A paired machine's model is unlinked, whatever else follows.
+        readonly property bool unlinks: !!root.deleteTarget && !!root.deleteTarget.localModel && root.deleteTarget.localModel.host !== ""
+        confirmText: unlinks ? Commons.I18n.t("agents.unlink") : Commons.I18n.t("common.confirm")
         message: !root.deleteTarget ? ""
+          : unlinks ? Commons.I18n.t("agents.unlinkModelConfirm").arg(root.deleteTarget.providerName).arg(root.deleteTarget.localModel.host)
           : root.opensByDefault(root.deleteTarget) ? Commons.I18n.t("agents.removeDefaultLocalModelConfirm").arg(root.deleteTarget.providerName)
           : root.deleteTarget.localModel ? Commons.I18n.t("agents.removeLocalModelConfirm").arg(root.deleteTarget.providerName)
           : root.forgets(root.deleteTarget) ? Commons.I18n.t("agents.forgetAccountConfirm").arg(root.lineName(root.deleteTarget))

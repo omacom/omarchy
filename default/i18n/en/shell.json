@@ -84,6 +84,8 @@
   "agents.removeFailed": "Couldn't remove %1",
   "agents.removeDefaultLocalModelConfirm": "Remove %1 from the panel? It keeps running, + adds it back, and the agent at the top becomes the default.",
   "agents.removeLocalModelConfirm": "Remove %1 from the panel? It keeps running, and + adds it back.",
+  "agents.unlink": "Unlink",
+  "agents.unlinkModelConfirm": "Unlink %1 on %2? You can always add it back with +.",
   "agents.hideProviderConfirm": "Hide %1 from the panel? Credentials and sign-in will be kept.",
   "agents.isDefault": "Your default agent",
   "agents.launchHarness": "Start %1",
