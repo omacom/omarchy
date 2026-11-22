@@ -76,7 +76,13 @@ On current Omarchy, choose scale 1 in the top bar's monitor panel, or use the CL
 omarchy hyprland monitor scaling --monitor Virtual-1 1
 ```
 
-The panel saves the choice and adjusts GTK scaling. If the resolution is also too small, choose a supported mode in the panel; `hyprctl monitors all` lists the guest's modes. Do not assume every guest supports the same mode or output name. Applications already running may need to be reopened to adopt GTK scaling changes, and a floating window may need to be moved back on-screen.
+The panel saves the choice and adjusts GTK scaling. If the resolution is also too small, choose a supported mode in the panel. For a mode the panel does not offer, use the CLI with an output name and mode listed by `hyprctl monitors all`:
+
+```bash
+omarchy hyprland monitor resolution --monitor Virtual-1 1600x900
+```
+
+Replace `Virtual-1` and `1600x900` with values your guest advertises. Applications already running may need to be reopened to adopt GTK scaling changes, and a floating window may need to be moved back on-screen.
 
 If your older configuration explicitly sets `omarchy_gdk_scale = 2` or `GDK_SCALE` to 2 in `~/.config/hypr/monitors.lua`, back up the file and adjust that override as well. Avoid copying old wlroots environment-variable recipes into the current Lua configuration.
 
