@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Set and launch the default coding agent
-# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|qwen|dsh|mcode|kiro-cli|freebuff|kilo|devin|amp|commandcode]
-# omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
+# omarchy:args=[local|pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|qwen|dsh|mcode|kiro-cli|freebuff|kilo|devin|amp|commandcode]
+# omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent local
 
 installing=false
 checking=false
@@ -31,6 +31,7 @@ if (($# == 0)); then
 fi
 
 case "$1" in
+local) agent="local"; name="Local model" ;;
 pi) agent="pi"; name="Pi" ;;
 omp | oh-my-pi) agent="omp"; name="Oh My Pi"; agent_package="oh-my-pi" ;;
 opencode | open-code) agent="opencode"; name="OpenCode" ;;
@@ -72,7 +73,7 @@ devin | devin-cli)
 amp | ampcode) agent="amp"; name="Amp" ;;
 commandcode | command-code | cmdc) agent="commandcode"; name="Command Code"; agent_package="npm:command-code" ;;
 *)
-  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|qwen|dsh|mcode|kiro-cli|freebuff|kilo|devin|amp|commandcode>"
+  echo "Usage: omarchy-default-agent <local|pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|qwen|dsh|mcode|kiro-cli|freebuff|kilo|devin|amp|commandcode>"
   exit 1
   ;;
 esac
@@ -95,8 +96,9 @@ if [[ -n ${agent_installer:-} ]]; then
   # minutes-long install inside the menu action instead.
   agent_present() { "$agent_installer" --check; }
   agent_install() { "$agent_installer" --now; }
-elif [[ $agent == "pi" ]]; then
-  # Pi is one of Omarchy's base packages, so there is nothing to install.
+elif [[ $agent == "pi" || $agent == "local" ]]; then
+  # Pi is one of Omarchy's base packages, and the local model opens in it, so
+  # there is nothing to install.
   agent_present() { true; }
   agent_install() { true; }
 else
@@ -209,7 +211,7 @@ fi
 # agent then takes its place in the console as the tiled window the console is
 # shaped around, rather than running inline in a floating terminal over it.
 if [[ $installing == "true" && ${installer#* } == "special:qconsole" ]]; then
-  hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-agent --prefer-local", { workspace = "special:qconsole silent" })' >/dev/null
+  hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-agent", { workspace = "special:qconsole silent" })' >/dev/null
   hyprctl dispatch "hl.dsp.window.close({ window = \"address:${installer%% *}\" })" >/dev/null
 elif [[ $installing == "true" ]]; then
   printf '\033[2J\033[3J\033[H'

@@ -19,7 +19,6 @@ Panel {
   readonly property Item hero: panel.loadedContent ? panel.loadedContent.hero : null
   readonly property Item column: panel.loadedContent ? panel.loadedContent.column : null
   readonly property Item providerSections: panel.loadedContent ? panel.loadedContent.providerSections : null
-  readonly property bool shiftHeld: panel.loadedContent ? panel.loadedContent.shiftHeld : false
 
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
@@ -526,9 +525,8 @@ Panel {
   // Two across, so a label in a long language still fits its tile.
   readonly property int starterColumns: 2
 
-  // The local model a starter opens on, picked as omarchy-agent --prefer-local
-  // picks it: the last one started when it's running, any other running one
-  // otherwise.
+  // A local model that is up: the last one started when it's running, any
+  // other running one otherwise.
   readonly property var starterLocalModel: {
     var service = bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.local-models") : null
     var local = service ? service.localModel : {}
@@ -549,10 +547,9 @@ Panel {
   })
   readonly property bool starterShown: addStage === "" && !blankSlate && starterAgentReady
 
-  function startPrompt(kind, modifiers) {
+  function startPrompt(kind) {
     root.close()
-    var useDefault = !!(modifiers & Qt.ShiftModifier)
-    Util.execArgv(["omarchy-agent-make"].concat(useDefault ? ["--default"] : [], [kind]))
+    Util.execArgv(["omarchy-agent-make", kind])
   }
 
   function renameAccount(p, account, label) {
@@ -594,7 +591,7 @@ Panel {
     else if (target.kind === "pasteCode") openPasteField()
     else if (target.kind === "reopenSignIn") reopenSignIn()
     else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
-    else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind, modifiers)
+    else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
     else if (target.kind === "signin") signInAgain(pickedEntry.provider, pickedEntry.account)
     else if (target.kind === "autoswitch") setSwitchMode(pickedEntry.provider, autoSwitchFor(pickedEntry.provider) ? "manual" : "auto")
@@ -1449,7 +1446,7 @@ Panel {
                   width: (tileGrid.width - tileGrid.spacing * (tileGrid.columns - 1)) / tileGrid.columns
                   glyph: modelData.glyph
                   title: modelData.label
-                  onClicked: function(modifiers) { root.startPrompt(modelData.kind, modifiers) }
+                  onClicked: root.startPrompt(modelData.kind)
                 }
               }
             }
@@ -2151,10 +2148,7 @@ Panel {
 
     PanelToolTip {
       visible: tileMouse.containsMouse
-      // Shift-click takes the default agent, so holding Shift says so.
-      text: root.starterLocalModel && !root.shiftHeld
-        ? Commons.I18n.t("agents.startLocalOnNew").arg(tile.title.toLowerCase()).arg(root.starterLocalModel.name || root.starterLocalModel.recipe)
-        : Commons.I18n.t("agents.startOnNew").arg(tile.title.toLowerCase())
+      text: Commons.I18n.t("agents.startOnNew").arg(tile.title.toLowerCase())
     }
   }
 

@@ -1,13 +1,12 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick] [--local] [--local-model <recipe>] [--prefer-local] [--agent <id>] [--app-id=<app-id>]
+# omarchy:args=[--inline] [--pick] [--local] [--local-model <recipe>] [--agent <id>] [--app-id=<app-id>]
 # omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --local | omarchy agent --agent codex
 
 inline=false
 pick=false
 use_local=false
-prefer_local=false
 local_model=""
 agent_override=""
 app_id="org.omarchy.agent"
@@ -33,10 +32,6 @@ while (($#)); do
       use_local=true
       local_model=${2:?--local-model needs a recipe id}
       shift 2
-      ;;
-    --prefer-local)
-      prefer_local=true
-      shift
       ;;
     --agent)
       agent_override=${2:?--agent needs an agent id}
@@ -76,25 +71,15 @@ else
   agent=$(omarchy-default-agent)
 fi
 
-# --prefer-local takes the local model when one is up and the usual agent when
-# not, so the Quake console opens on whatever the machine is running. The model
-# last started wins when it is running; any other running one will do. One
-# still loading is not up yet, and opening an agent on it would only error.
-if [[ $prefer_local == "true" && $use_local != "true" ]]; then
-  local_model=$(omarchy-models status --json 2>/dev/null | jq -r '
-    [.models // {} | to_entries[] | select(.value.unit == "active" and .value.sub_state == "running") | .key] as $up
-    | if (.last as $last | $up | index($last)) != null then .last else ($up[0] // empty) end' 2>/dev/null)
-  if [[ -n $local_model ]]; then
-    use_local=true
-    local_running=true
-  fi
-fi
-
-# The local model opens in the harness `omarchy models harness` names, whatever
-# the default agent is: the agents panel launches it whether or not a default
-# was chosen. An agent asked for by name is opened as asked.
-if [[ $use_local == "true" && -z $agent_override ]]; then
-  agent=$(omarchy-models-harness)
+# A default of "local" is the local model. It opens in pi, as --local does
+# whatever the default agent is: the local models panel launches a model
+# whether or not a default was chosen. An agent asked for by name is opened
+# as asked.
+if [[ $agent == "local" ]]; then
+  use_local=true
+  agent=pi
+elif [[ $use_local == "true" && -z $agent_override ]]; then
+  agent=pi
 fi
 
 # Omarchy ships without a default, so there is nothing to launch until one is
@@ -268,7 +253,7 @@ esac
 # minute or so, and omarchy-models-warmup puts on a show for it there. So
 # a launch from outside a terminal reruns itself inside one. A model on a
 # paired machine is that machine's to start.
-if [[ $use_local == "true" && ${local_running:-} != "true" && $local_model != */* ]]; then
+if [[ $use_local == "true" && $local_model != */* ]]; then
   local_state=$(omarchy-models status --json 2>/dev/null | jq -r --arg recipe "$local_model" '
     (if $recipe == "" then .last // "" else $recipe end) as $recipe
     | .models[$recipe] // empty | "\(.unit)/\(.sub_state)"' 2>/dev/null)
@@ -286,7 +271,10 @@ fi
 # Only agents with such an overlay can be pointed there.
 if [[ $use_local == "true" ]]; then
   mapfile -t overlay < <(omarchy-models overlay "$agent" ${local_model:+"$local_model"})
-  (( ${#overlay[@]} == 3 )) || exit 1
+  if (( ${#overlay[@]} != 3 )); then
+    omarchy-notification-send -u critical "$(omarchy-i18n agents.localMissing)" "$(omarchy-i18n agents.localMissingBody)"
+    exit 1
+  fi
   case "$agent" in
   opencode)
     # The shared background service never sees the overlay, so run a private one.
