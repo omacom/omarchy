@@ -5,8 +5,6 @@
   "agents.app": "Lietotne",
   "agents.backToLimits": "Atpakaļ uz limitiem",
   "agents.balance": "Bilance",
-  "agents.balanceSpent": "Iztērēts %1 no %2 iemaksātajiem",
-  "agents.balanceSpentEstimated": "Iztērēts %1 no %2 iemaksātajiem · aplēsts",
   "agents.balanceUnavailable": "Bilance nav pieejama",
   "agents.blockOwnModel": "IZMANTOT LOKĀLU MODELI",
   "agents.blockProviders": "IZMANTOT MAKSU PĒC PATĒRIŅA",

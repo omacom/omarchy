@@ -5,8 +5,6 @@
   "agents.app": "App",
   "agents.backToLimits": "Tilbake til grensene",
   "agents.balance": "Saldo",
-  "agents.balanceSpent": "%1 brukt av %2 innbetalt",
-  "agents.balanceSpentEstimated": "%1 brukt av %2 innbetalt · estimert",
   "agents.balanceUnavailable": "Saldo utilgjengelig",
   "agents.blockOwnModel": "BRUK EN LOKAL MODELL",
   "agents.blockProviders": "BRUK BETALING PER BRUK",

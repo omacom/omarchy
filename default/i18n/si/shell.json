@@ -5,8 +5,6 @@
   "agents.app": "යෙදුම",
   "agents.backToLimits": "සීමාවන් වෙත ආපසු",
   "agents.balance": "ශේෂය",
-  "agents.balanceSpent": "අරමුදල් ලද %2 න් %1 වැයයි",
-  "agents.balanceSpentEstimated": "අරමුදල් ලද %2 න් %1 වැයයි · ඇස්තමේන්තුවක්",
   "agents.balanceUnavailable": "ශේෂය ලබාගත නොහැක",
   "agents.blockOwnModel": "දේශීය මොඩලයක් භාවිත කරන්න",
   "agents.blockProviders": "භාවිතයට ගෙවා භාවිත කරන්න",

@@ -5,8 +5,6 @@
   "agents.app": "App",
   "agents.backToLimits": "Bumalik sa mga limitasyon",
   "agents.balance": "Balanse",
-  "agents.balanceSpent": "%1 nagastos mula sa %2 pondo",
-  "agents.balanceSpentEstimated": "%1 nagastos mula sa %2 pondo · tinantya",
   "agents.balanceUnavailable": "Hindi available ang balanse",
   "agents.blockOwnModel": "GUMAMIT NG LOKAL NA MODEL",
   "agents.blockProviders": "GUMAMIT NG BAYAD KADA GAMIT",

@@ -5,8 +5,6 @@
   "agents.app": "ऐप",
   "agents.backToLimits": "सीमाओं पर वापस",
   "agents.balance": "शेष",
-  "agents.balanceSpent": "वित्तपोषित %2 में से %1 खर्च",
-  "agents.balanceSpentEstimated": "वित्तपोषित %2 में से %1 खर्च · अनुमानित",
   "agents.balanceUnavailable": "शेष अनुपलब्ध है",
   "agents.blockOwnModel": "स्थानीय मॉडल उपयोग करें",
   "agents.blockProviders": "उपयोग-अनुसार भुगतान करें",

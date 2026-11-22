@@ -5,8 +5,6 @@
   "agents.app": "אפליקציה",
   "agents.backToLimits": "חזרה למגבלות",
   "agents.balance": "יתרה",
-  "agents.balanceSpent": "%1 נוצל מתוך %2 שמומן",
-  "agents.balanceSpentEstimated": "%1 נוצל מתוך %2 שמומן · מוערך",
   "agents.balanceUnavailable": "היתרה אינה זמינה",
   "agents.blockOwnModel": "שימוש במודל מקומי",
   "agents.blockProviders": "שימוש בתשלום לפי שימוש",

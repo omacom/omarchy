@@ -5,8 +5,6 @@
   "agents.app": "App",
   "agents.backToLimits": "Terug naar de limieten",
   "agents.balance": "Saldo",
-  "agents.balanceSpent": "%1 besteed van %2 gestort",
-  "agents.balanceSpentEstimated": "%1 besteed van %2 gestort · geschat",
   "agents.balanceUnavailable": "Saldo niet beschikbaar",
   "agents.blockOwnModel": "GEBRUIK EEN LOKAAL MODEL",
   "agents.blockProviders": "GEBRUIK BETALEN PER GEBRUIK",

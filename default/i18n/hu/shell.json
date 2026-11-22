@@ -5,8 +5,6 @@
   "agents.app": "Alkalmazás",
   "agents.backToLimits": "Vissza a korlátokhoz",
   "agents.balance": "Egyenleg",
-  "agents.balanceSpent": "%1 elköltve %2 feltöltésből",
-  "agents.balanceSpentEstimated": "%1 elköltve %2 feltöltésből · becsült",
   "agents.balanceUnavailable": "Egyenleg nem elérhető",
   "agents.blockOwnModel": "HASZNÁLJ HELYI MODELLT",
   "agents.blockProviders": "HASZNÁLJ HASZNÁLATALAPÚ FIZETÉST",

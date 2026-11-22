@@ -5,8 +5,6 @@
   "agents.app": "앱",
   "agents.backToLimits": "한도로 돌아가기",
   "agents.balance": "잔액",
-  "agents.balanceSpent": "%2 충전 중 %1 지출",
-  "agents.balanceSpentEstimated": "%2 충전 중 %1 지출 · 추정",
   "agents.balanceUnavailable": "잔액 확인 불가",
   "agents.blockOwnModel": "로컬 모델 사용",
   "agents.blockProviders": "종량제 사용",

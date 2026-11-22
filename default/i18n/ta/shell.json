@@ -5,8 +5,6 @@
   "agents.app": "செயலி",
   "agents.backToLimits": "வரம்புகளுக்குத் திரும்பு",
   "agents.balance": "இருப்பு",
-  "agents.balanceSpent": "%2 நிதியளிக்கப்பட்டதில் %1 செலவிடப்பட்டது",
-  "agents.balanceSpentEstimated": "%2 நிதியளிக்கப்பட்டதில் %1 செலவிடப்பட்டது · மதிப்பிடப்பட்டது",
   "agents.balanceUnavailable": "இருப்பு கிடைக்கவில்லை",
   "agents.blockOwnModel": "உள்ளூர் மாடலைப் பயன்படுத்துங்கள்",
   "agents.blockProviders": "பயன்படுத்தும் அளவுக்கு செலுத்துங்கள்",

@@ -5,8 +5,6 @@
   "agents.app": "Programa",
   "agents.backToLimits": "Grįžti prie limitų",
   "agents.balance": "Likutis",
-  "agents.balanceSpent": "%1 išleista iš %2 įneštų",
-  "agents.balanceSpentEstimated": "%1 išleista iš %2 įneštų · apytiksliai",
   "agents.balanceUnavailable": "Likutis nepasiekiamas",
   "agents.blockOwnModel": "NAUDOKITE VIETINĮ MODELĮ",
   "agents.blockProviders": "MOKĖKITE PAGAL NAUDOJIMĄ",

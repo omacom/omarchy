@@ -5,8 +5,6 @@
   "agents.app": "التطبيق",
   "agents.backToLimits": "العودة إلى الحدود",
   "agents.balance": "الرصيد",
-  "agents.balanceSpent": "أُنفق %1 من أصل %2 مموَّل",
-  "agents.balanceSpentEstimated": "أُنفق %1 من أصل %2 مموَّل · تقديري",
   "agents.balanceUnavailable": "الرصيد غير متاح",
   "agents.blockOwnModel": "استخدم نموذجًا محليًا",
   "agents.blockProviders": "استخدم الدفع حسب الاستخدام",
