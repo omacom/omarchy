@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.local-models",
+  "name": "Local Models",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "license": "MIT",
+  "description": "Models running on hardware you own, and the memory they run in, in a native Omarchy bar panel.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "activation": "on-demand",
+  "entryPoints": {
+    "service": "Models.qml",
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Local Models",
+    "description": "One bar icon and one panel: this machine's memory split between Omarchy and running models, and a line per model to start, stop, share, update or open.",
+    "category": "AI",
+    "allowMultiple": false,
+    "defaults": {
+      "hidden": []
+    }
+  }
+}
