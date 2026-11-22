@@ -9,8 +9,6 @@
   "agents.app": "App",
   "agents.backToLimits": "Back to the limits",
   "agents.balance": "Balance",
-  "agents.balanceSpent": "%1 spent of %2 funded",
-  "agents.balanceSpentEstimated": "%1 spent of %2 funded · estimated",
   "agents.balanceUnavailable": "Balance unavailable",
   "agents.busiestDay": "Busiest day: %1",
   "agents.checkingCode": "Checking the code…",

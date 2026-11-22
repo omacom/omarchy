@@ -59,8 +59,7 @@ per local coding model that is running and ready.
   start that line's agent on the task through `omarchy agent make`, as the
   starter tiles do with the default. They fold back when the line is left.
 - **Balance** — prepaid agents show a credit ledger instead of limits: a
-  fuel-gauge meter that drains toward empty, the remaining credit, and
-  funded-versus-spent detail.
+  meter that fills as the funded credit is spent, and the remaining credit.
 - **Terminal button** — at the end of a line, it opens the harness made for
   that subscription, switching to an account first when it isn't the one in
   use. Pay-as-you-go providers have none of their own, so theirs opens
