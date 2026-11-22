@@ -48,6 +48,10 @@ BorderSurface {
   property bool outlined: false
 
   signal clicked()
+  // A right click, for a button that offers more behind it; set
+  // `rightClickable` to take one.
+  signal rightClicked()
+  property bool rightClickable: false
   signal hovered(bool isHovered)
 
   activeFocusOnTab: focusable
@@ -111,7 +115,12 @@ BorderSurface {
     cursorShape: root.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
     enabled: root.enabled
     onContainsMouseChanged: root.hovered(containsMouse)
-    onClicked: {
+    acceptedButtons: root.rightClickable ? Qt.LeftButton | Qt.RightButton : Qt.LeftButton
+    onClicked: function(mouse) {
+      if (mouse.button === Qt.RightButton) {
+        root.rightClicked()
+        return
+      }
       if (root.focusable) root.forceActiveFocus()
       root.clicked()
     }

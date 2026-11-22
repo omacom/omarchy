@@ -88,6 +88,8 @@
   "agents.removeFailed": "Couldn't remove %1",
   "agents.hideProviderConfirm": "Hide %1 from the panel? Credentials and sign-in will be kept.",
   "agents.isDefault": "Your default agent",
+  "agents.launchHarnessIn": "Start %1 in %2",
+  "agents.viaOri": "%1 via Ori",
   "agents.launchHarness": "Start %1",
   "agents.more": "More",
   "agents.moreInOpenCode": "Another provider in OpenCode…",
