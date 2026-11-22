@@ -25,27 +25,24 @@ body {
 header { padding: 2px 2px 10px; }
 /* The wordmark's O is the toolbar icon itself, masked so it takes the same color as the letters beside it. */
 .wordmark { display: flex; align-items: center; gap: 0.7ch; margin: 0; font: 9.15px/1.15 monospace, monospace; }
-.logo-o {
-  position: relative;
-  flex: none;
-  width: 3.36em;
-  height: 3.36em;
-  overflow: hidden;
+.logo-o { position: relative; flex: none; width: 3.36em; height: 3.36em; }
+.logo-o::before,
+.logo-o::after { content: ''; position: absolute; inset: 0; }
+.logo-o::before {
   background: var(--fg);
   -webkit-mask: url(../icon-128.png) center / contain no-repeat;
   mask: url(../icon-128.png) center / contain no-repeat;
 }
-/* One glint across the shades when the popup opens. */
+/* When the popup opens, one glint sweeps across the shades alone (icon-shades.svg is
+   the shades cut from the same grid as the icon). */
 .logo-o::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(105deg, transparent 35%, var(--accent) 50%, transparent 65%);
-  opacity: 0.75;
-  transform: translateX(-110%);
-  animation: glint 0.9s 0.25s ease-out forwards;
+  background: linear-gradient(105deg, transparent 42%, var(--accent) 50%, transparent 58%) 100% 0 / 300% 100% no-repeat;
+  opacity: 0.8;
+  -webkit-mask: url(../icon-shades.svg) center / contain no-repeat;
+  mask: url(../icon-shades.svg) center / contain no-repeat;
+  animation: glint 0.7s 0.25s ease-in-out forwards;
 }
-@keyframes glint { to { transform: translateX(110%); } }
+@keyframes glint { to { background-position: 0 0; } }
 @media (prefers-reduced-motion: reduce) { .logo-o::after { animation: none; } }
 .banner {
   margin: 0;
