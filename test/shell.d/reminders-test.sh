@@ -79,3 +79,12 @@ env -u XDG_RUNTIME_DIR HOME="$work/home" XDG_STATE_HOME="$work/state" \
 [[ -f $reminder_dir/omarchy-reminder-active.message ]] || fail "active reminder text is retained"
 [[ -f $reminder_dir/omarchy-reminder-unknown.message ]] || fail "a failed unit query retains reminder text"
 pass "only confirmed orphaned reminder text is removed"
+
+printf '#!/bin/bash\nexit 1\n' >"$work/bin/systemd-run"
+if env -u XDG_RUNTIME_DIR HOME="$work/home" XDG_STATE_HOME="$work/failed-state" \
+  PATH="$work/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-reminder" 5 "unscheduled reminder" >/dev/null; then
+  fail "failed timer registration is reported"
+fi
+[[ -z $(find "$work/failed-state" -name '*.message' -print -quit) ]] ||
+  fail "failed timer registration removes its reminder text"
+pass "failed timer registration removes its reminder text"

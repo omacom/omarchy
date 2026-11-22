@@ -234,8 +234,13 @@ if [[ -n $custom_message ]]; then
   confirmation_title=$(omarchy-i18n --count "$minutes" reminder.customInMinutes "$custom_message" "$minutes")
 fi
 
-systemd-run --user --quiet --collect --on-active="${minutes}m" --unit="$unit" \
-  bash -c 'omarchy-notification-send -g 󰢌 "$(omarchy-i18n reminder.title)" "$1"; rm -f "$2"; omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true' bash "$message" "$message_file" 8>&-
+if ! systemd-run --user --quiet --collect --on-active="${minutes}m" --unit="$unit" \
+  bash -c 'omarchy-notification-send -g 󰢌 "$(omarchy-i18n reminder.title)" "$1"; rm -f "$2"; omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true' bash "$message" "$message_file" 8>&-; then
+  if [[ -n $custom_message ]]; then
+    rm -f -- "$message_file"
+  fi
+  exit 1
+fi
 
 refresh_indicator
 omarchy-notification-send -g 󰢌 "$confirmation_title" "$confirmation"
