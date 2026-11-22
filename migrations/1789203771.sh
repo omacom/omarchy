@@ -12,6 +12,13 @@ rebuild_marker=/var/lib/omarchy/migrations/1789203771
 # records completion so another user's run does not repeat it.
 [[ ! -e $rebuild_marker ]] || exit 0
 
+# Theme colours may be customised; the rest must match before a rebuild can
+# deliver this checkout's fix and safely record completion.
+if ! diff -I '^Window\.SetBackground' "$OMARCHY_PATH/default/plymouth/omarchy.script" /usr/share/plymouth/themes/omarchy/omarchy.script >/dev/null; then
+  echo "Waiting for omarchy-settings to provide the current Plymouth script." >&2
+  exit 75
+fi
+
 # A failed rebuild leaves the old script in the boot image, so the migration
 # stays pending; omarchy-boot-rebuild reports one as a non-zero exit on both
 # boot backends.
