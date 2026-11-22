@@ -2768,8 +2768,9 @@ Panel {
         anchors.left: spendTitle.right
         anchors.right: spendValue.left
         anchors.rightMargin: Style.space(20)
-        anchors.verticalCenter: parent.verticalCenter
-        height: spendTitle.implicitHeight
+        // The bars stand on the title's baseline, as tall as its letters rise.
+        anchors.bottom: spendTitle.baseline
+        height: spendTitle.baselineOffset
         readonly property var days: section.spend ? section.spend.days : []
         readonly property real busiest: Math.max.apply(null, days.concat([0]))
         readonly property real gap: Style.space(2)
