@@ -20,6 +20,7 @@ WORK="$WORK" python3 - <<'PY'
 import contextlib
 import json
 import os
+import shutil
 import sqlite3
 import sys
 import time
@@ -1275,6 +1276,18 @@ config = work / "config"
 os.environ["XDG_CONFIG_HOME"] = str(config)
 for name in ("CURSOR_API_KEY", "CURSOR_AUTH_PATH", "CURSOR_AUTH_TOKEN"):
   os.environ.pop(name, None)
+# The keyring is only ever this fake secret-tool, never the real one, which
+# answers for Cursor's item with whatever the test leaves in keyring.json.
+keyring_bin = work / "keyring-bin"
+keyring_bin.mkdir()
+keyring = work / "keyring.json"
+(keyring_bin / "secret-tool").write_text(f"""#!/bin/sh
+[ "$*" = "lookup service cursor-credentials account cursor-user" ] && exec {shutil.which("cat")} {keyring}
+exit 1
+""")
+(keyring_bin / "secret-tool").chmod(0o755)
+real_path = os.environ["PATH"]
+os.environ["PATH"] = str(keyring_bin)
 check("no Cursor sign-in anywhere is no token", collectors.cursor_token() == "")
 state_db = collectors.cursor_state_db()
 state_db.parent.mkdir(parents=True)
@@ -1291,6 +1304,17 @@ cli.write_text(json.dumps({"accessToken": jwt({"sub": "cli", "exp": time.time() 
 check("a lapsed CLI sign-in gives way to the editor's", collectors.account_key(collectors.cursor_token()) == "ide")
 cli.write_text(json.dumps({"accessToken": jwt({"sub": "cli", "exp": later})}))
 check("the CLI's sign-in comes before the editor's", collectors.account_key(collectors.cursor_token()) == "cli")
+cli.write_text(json.dumps({"storedIn": "os-secret-store"}))
+keyring.write_text(json.dumps({"accessToken": jwt({"sub": "keyring", "exp": later}), "refreshToken": "r"}))
+check("the CLI's sign-in in the keyring stands when auth.json points there", collectors.account_key(collectors.cursor_token()) == "keyring")
+keyring.write_text(json.dumps({"accessToken": jwt({"sub": "keyring", "exp": time.time() - 5})}))
+check("a lapsed keyring sign-in gives way to the editor's", collectors.account_key(collectors.cursor_token()) == "ide")
+keyring.write_text("not json")
+check("an unreadable keyring item is no CLI sign-in", collectors.account_key(collectors.cursor_token()) == "ide")
+os.environ["PATH"] = str(work / "no-bin")
+check("without secret-tool the keyring is no CLI sign-in", collectors.account_key(collectors.cursor_token()) == "ide")
+os.environ["PATH"] = str(keyring_bin)
+cli.write_text(json.dumps({"accessToken": jwt({"sub": "cli", "exp": later})}))
 moved_auth = work / "moved-auth.json"
 moved_auth.write_text(json.dumps({"accessToken": "moved-key"}))
 os.environ["CURSOR_AUTH_PATH"] = str(moved_auth)
@@ -1313,6 +1337,7 @@ check(
 )
 for name in ("CURSOR_API_KEY", "CURSOR_AUTH_PATH"):
   os.environ.pop(name)
+os.environ["PATH"] = real_path
 
 deep_header = work / "deep-header.jsonl"
 deep_header.write_text("[" * 200_000 + "\n")

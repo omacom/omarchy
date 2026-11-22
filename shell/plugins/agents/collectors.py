@@ -3771,9 +3771,27 @@ def _cursor_ide_token(state_db: Path) -> str:
   return str(value or "").strip()
 
 
+def _cursor_keyring_token() -> str:
+  # Newer CLI builds keep their sign-in in the Secret Service keyring and
+  # leave only {"storedIn": "os-secret-store"} in auth.json. A missing
+  # secret-tool, a locked keyring or an unreadable item is no sign-in.
+  secret_tool = find_command("secret-tool")
+  if not secret_tool:
+    return ""
+  try:
+    raw = subprocess.check_output(
+      [secret_tool, "lookup", "service", "cursor-credentials", "account", "cursor-user"],
+      text=True, stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3, env=runtime_env(),
+    )
+    return str(obj(json.loads(raw)).get("accessToken") or "").strip()
+  except (OSError, subprocess.SubprocessError, ValueError):
+    return ""
+
+
 def cursor_token(auth_path: Path | None = None, state_db: Path | None = None) -> str:
-  """The token the user exported, the credential the Cursor CLI stores, or
-  the editor's sign-in, in that order.
+  """The token the user exported, the credential the Cursor CLI stores (in
+  its auth file, or the keyring when the file points there), or the editor's
+  sign-in, in that order.
 
   CURSOR_AUTH_TOKEN is a bearer as it stands. CURSOR_API_KEY is not: the CLI
   trades it for an access token and keeps that beside the key in its auth
@@ -3795,6 +3813,8 @@ def cursor_token(auth_path: Path | None = None, state_db: Path | None = None) ->
     # account than the one the CLI runs as.
     return traded if str(auth.get("apiKey") or "").strip() == key else ""
   cli = traded
+  if not cli and auth.get("storedIn") == "os-secret-store":
+    cli = _cursor_keyring_token()
   if cli and not token_lapsed(cli):
     return cli
   ide = _cursor_ide_token(state_db or cursor_state_db())
