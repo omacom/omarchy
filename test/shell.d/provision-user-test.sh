@@ -64,6 +64,19 @@ HOME="$test_tmp/relink" "$ROOT/bin/omarchy-agent-skills-link" "$ROOT" || fail "o
   fail "every skill in the checkout is linked, including ones the package lacks"
 pass "omarchy-agent-skills-link moves Omarchy's skill links to the tree in use and keeps the user's"
 
+# Pi's extension package follows the same rules as the skills.
+mkdir -p "$test_tmp/pi-moved/.pi/agent/extensions" "$test_tmp/pi-theirs/.pi/agent/extensions"
+ln -s "$test_tmp/package/default/agents/pi" "$test_tmp/pi-moved/.pi/agent/extensions/omarchy"
+ln -s /opt/elsewhere/pi-package "$test_tmp/pi-theirs/.pi/agent/extensions/omarchy"
+for home in pi-moved pi-theirs; do
+  HOME="$test_tmp/$home" "$ROOT/bin/omarchy-agent-skills-link" "$ROOT" || fail "omarchy-agent-skills-link links Pi's package in $home"
+done
+[[ $(readlink "$test_tmp/pi-moved/.pi/agent/extensions/omarchy") == "$ROOT/default/agents/pi" ]] ||
+  fail "Pi's package linked from the package now links to the checkout" "$(readlink "$test_tmp/pi-moved/.pi/agent/extensions/omarchy")"
+[[ $(readlink "$test_tmp/pi-theirs/.pi/agent/extensions/omarchy") == "/opt/elsewhere/pi-package" ]] ||
+  fail "a Pi extension of the user's own named omarchy stays"
+pass "omarchy-agent-skills-link links Omarchy's Pi package to the tree in use and keeps the user's"
+
 # The Agent Skills spec caps a description at 1024 characters, and harnesses
 # such as pi flag a longer one. Descriptions are folded YAML, so the lines
 # join with single spaces.
