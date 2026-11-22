@@ -66,6 +66,9 @@
           "id": "omarchy.monitor"
         },
         {
+          "id": "omarchy.system"
+        },
+        {
           "id": "omarchy.power"
         }
       ]
