@@ -89,7 +89,7 @@ per local coding model that is running and ready.
   two across, that start the default agent on the task through `omarchy agent make`.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
   three blocks: _Use a subscription_ (Claude, Codex, Grok, Gemini,
-  signed in through Antigravity, Cursor, Muse, Copilot, and More: the
+  signed in through Antigravity, Muse, Cursor, Copilot, and More: the
   coding plans that sign in with a key, MiniMax, Synthetic, and Z.ai),
   _Use pay as you go_ (Fireworks, OpenCode Zen and Go, and OpenRouter, all
   run in OpenCode, and More: DeepSeek, then OpenCode's own sign-in for any
