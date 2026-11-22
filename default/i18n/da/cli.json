@@ -22,8 +22,6 @@
   "agents.installCliFailed": "Installationen af %1 CLI blev ikke fuldført.",
   "agents.installingCli": "Installerer %1 CLI…",
   "agents.instructionsBackedUp": "Beholdt dine gamle agentinstruktioner som sikkerhedskopier",
-  "agents.localUnsupported": "Ingen agent kan bruge den lokale model",
-  "agents.localUnsupportedBody": "Installer pi eller OpenCode for at bruge den lokale model.",
   "agents.loginUnfinished": "Loginnet blev ikke fuldført, så ingen konto blev tilføjet.",
   "agents.newSessionsUse": "Nye %1-sessioner bruger nu %2",
   "agents.noAccountNamed": "Ingen %1-konto med navnet %2.",

@@ -24,8 +24,6 @@
   "agents.installCliFailed": "Namestitev %1 CLI se ni končala.",
   "agents.installingCli": "Nameščanje %1 CLI…",
   "agents.instructionsBackedUp": "Stara navodila agenta so ohranjena kot varnostne kopije",
-  "agents.localUnsupported": "Noben agent ne more uporabljati lokalnega modela",
-  "agents.localUnsupportedBody": "Za uporabo lokalnega modela namestite pi ali OpenCode.",
   "agents.loginUnfinished": "Prijava se ni končala, zato račun ni bil dodan.",
   "agents.newSessionsUse": "Nove seje %1 zdaj uporabljajo %2",
   "agents.noAccountNamed": "Ni računa %1 z imenom %2.",

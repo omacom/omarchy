@@ -23,8 +23,6 @@
   "agents.installCliFailed": "Instalarea CLI-ului %1 nu s-a finalizat.",
   "agents.installingCli": "Se instalează CLI-ul %1…",
   "agents.instructionsBackedUp": "Instrucțiunile vechi ale agentului au fost păstrate ca copii de rezervă",
-  "agents.localUnsupported": "Niciun agent nu poate folosi modelul local",
-  "agents.localUnsupportedBody": "Instalează pi sau OpenCode pentru a folosi modelul local.",
   "agents.loginUnfinished": "Autentificarea nu s-a finalizat, deci nu s-a adăugat niciun cont.",
   "agents.newSessionsUse": "Sesiunile noi %1 folosesc acum %2",
   "agents.noAccountNamed": "Nu există niciun cont %1 numit %2.",

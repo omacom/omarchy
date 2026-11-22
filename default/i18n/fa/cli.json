@@ -22,8 +22,6 @@
   "agents.installCliFailed": "نصب CLI %1 تمام نشد.",
   "agents.installingCli": "در حال نصب CLI %1…",
   "agents.instructionsBackedUp": "دستورالعمل‌های قدیمی عاملتان به‌عنوان پشتیبان نگه داشته شد",
-  "agents.localUnsupported": "هیچ عاملی نمی‌تواند از مدل محلی استفاده کند",
-  "agents.localUnsupportedBody": "برای استفاده از مدل محلی، pi یا OpenCode را نصب کنید.",
   "agents.loginUnfinished": "ورود تمام نشد، پس حسابی اضافه نشد.",
   "agents.newSessionsUse": "نشست‌های جدید %1 اکنون از %2 استفاده می‌کنند",
   "agents.noAccountNamed": "هیچ حساب %1 به نام %2 نیست.",

@@ -23,8 +23,6 @@
   "agents.installCliFailed": "Instalace %1 CLI se nedokončila.",
   "agents.installingCli": "Instalace %1 CLI…",
   "agents.instructionsBackedUp": "Staré pokyny pro agenta jsme ponechali jako zálohy",
-  "agents.localUnsupported": "Žádný agent nemůže používat lokální model",
-  "agents.localUnsupportedBody": "Pro použití lokálního modelu nainstalujte pi nebo OpenCode.",
   "agents.loginUnfinished": "Přihlášení se nedokončilo, účet nebyl přidán.",
   "agents.newSessionsUse": "Nové relace %1 nyní používají %2",
   "agents.noAccountNamed": "Účet %1 s názvem %2 neexistuje.",
