@@ -469,7 +469,7 @@ pass "language configuration generates before it persists, forgets an earlier at
 
 (
   clear_logo() { :; }
-step() { :; }
+  step() { :; }
   say() { printf '%s\n' "$*" >>"$lang/screen"; }
   log_step() { :; }
   notice() { fail "keyboard prompt unexpectedly failed" "$*"; }
@@ -715,7 +715,7 @@ agreement_form() {
   agreement_form
   fit_console_font() { :; }
   clear_logo() { :; }
-step() { :; }
+  step() { :; }
   say() { :; }
   answers=("$OMARCHY_OEM_DECLINED" "$OMARCHY_OEM_DECLINED" 0)
   omarchy_oem_eula() {
@@ -744,7 +744,7 @@ step() { :; }
   agreement_form
   fit_console_font() { :; }
   clear_logo() { :; }
-step() { :; }
+  step() { :; }
   say() { :; }
   omarchy_oem_eula() { return "$OMARCHY_OEM_DECLINED"; }
   gum() { return 0; }
