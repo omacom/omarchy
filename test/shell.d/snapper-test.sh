@@ -11,6 +11,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 
 fake_bin="$test_tmp/bin"
 mkdir -p "$fake_bin"
+cp "$ROOT/bin/omarchy-cmd-missing" "$fake_bin/"
 
 cat >"$fake_bin/snapper" <<'STUB'
 #!/bin/bash
@@ -48,6 +49,7 @@ pass "snapshot configure normalizes Snapper policy and services"
 # exit 0 instead of failing with 127 and aborting `omarchy apply system`.
 skip_bin="$test_tmp/skip-bin"
 mkdir -p "$skip_bin" "$test_tmp/skip/etc/snapper/configs"
+cp "$fake_bin/systemctl" "$ROOT/bin/omarchy-cmd-missing" "$skip_bin/"
 cat >"$skip_bin/findmnt" <<'STUB'
 #!/bin/bash
 printf 'btrfs\n'
@@ -73,7 +75,7 @@ pass "a missing snapper binary skips the step cleanly"
 # then fail snapper-cleanup.service daily.
 ext4_bin="$test_tmp/ext4-bin"
 mkdir -p "$ext4_bin" "$test_tmp/ext4/etc/snapper/configs"
-cp "$fake_bin/snapper" "$fake_bin/systemctl" "$fake_bin/findmnt" "$ext4_bin/"
+cp "$fake_bin/snapper" "$fake_bin/systemctl" "$fake_bin/findmnt" "$ROOT/bin/omarchy-cmd-missing" "$ext4_bin/"
 cat >"$ext4_bin/findmnt" <<'STUB'
 #!/bin/bash
 printf 'ext4\n'

@@ -5,12 +5,12 @@ template="${OMARCHY_SNAPPER_TEMPLATE:-${OMARCHY_PATH:-/usr/share/omarchy}/defaul
 # Snapshots of / only work on a btrfs root, and snapper is only a dependency on
 # x86_64 (limine-snapper-sync pulls it in there). Without either, this step
 # would fail and abort `omarchy apply system` before the leaves after it run.
-if ! command -v snapper >/dev/null 2>&1; then
+if omarchy-cmd-missing snapper; then
   echo "snapper is not installed; skipping Omarchy Snapper configuration"
   exit 0
 fi
 root_fstype=$(findmnt -no FSTYPE / 2>/dev/null || true)
-if [[ ${root_fstype:-} != btrfs ]]; then
+if [[ ${root_fstype:-} != "btrfs" ]]; then
   echo "Root filesystem is ${root_fstype:-unknown}, not btrfs; skipping Omarchy Snapper configuration"
   exit 0
 fi
