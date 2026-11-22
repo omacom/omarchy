@@ -79,7 +79,7 @@ You start Signed via the application launcher (`Super + Space`), or open a PDF w
 
 [Fantasi](https://github.com/omacom/fantasi) is Omarchy's own dead-simple image maker. Describe an image and watch it sharpen, then change it by saying what should change, start from a picture of your own, or combine up to four. It runs on the image model [omarchy-local-ai](https://github.com/omacom/omarchy-local-ai) serves on your own machine, and offers to start or set one up when none is running. Every image is kept in `~/Pictures/Generated` with its prompt.
 
-You start Fantasi via the application launcher (`Super + Space`), or from an image model's line in the agents panel. Press `F1` inside it to see every shortcut.
+You start Fantasi via the application launcher (`Super + Space`), or from an image model's line in the local models panel. Press `F1` inside it to see every shortcut.
 
 ## Game Vibes
 
