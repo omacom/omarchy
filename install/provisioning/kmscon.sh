@@ -62,14 +62,16 @@ omarchy_kmscon_face() {
   esac
 }
 
-# Pixel height for about 100 columns (cells are ~0.6 of the height wide) and no
-# more than 36 rows, so the 81-column logo fits and a 4K panel isn't 300 columns
-# of tiny text.
+# Pixel height for about 180 columns (cells are 0.6 of the height wide), as
+# many as the console's own font gives a laptop panel: the 81-column logo then
+# spans under half the screen, as it did there. At least 44 rows (a row is 1.33
+# of the height), so an ultrawide panel is sized by its height, and never under
+# 14 px, which a small screen stays readable at.
 omarchy_kmscon_font_size() {
   local w h size
   { IFS=, read -r w h </sys/class/graphics/fb0/virtual_size; } 2>/dev/null || { w=1280 h=800; }
-  size=$((h / 36))
-  ((w * 10 / 6 / 100 < size)) && size=$((w * 10 / 6 / 100))
+  size=$((w / 108))
+  ((h / 58 < size)) && size=$((h / 58))
   ((size < 14)) && size=14
   printf '%s' "$size"
 }
