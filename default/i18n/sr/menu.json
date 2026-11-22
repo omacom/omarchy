@@ -26,11 +26,11 @@
   "update": {
     "label": "Ажурирај"
   },
-  "about": {
-    "label": "О програму"
-  },
   "system": {
     "label": "Систем"
+  },
+  "system.about": {
+    "label": "О програму"
   },
   "system.screensaver": {
     "label": "Чувар екрана"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Унос"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Језик"
+  },
+  "setup.region.timezone": {
+    "label": "Временска зона"
   },
   "setup.network": {
     "label": "Мрежа"
@@ -387,54 +390,8 @@
   "setup.default": {
     "label": "Подразумевано"
   },
-  "setup.default.agent": {
-    "label": "Агент",
-    "title": "Подразумевани агент"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
+  "agent": {
+    "label": "Агент"
   },
   "setup.default.browser": {
     "label": "Прегледач",
@@ -566,11 +523,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Директно покретање"
-  },
-  "setup.reset": {
-    "label": "Ресетуј рачунар"
+  "remove.factory-reset": {
+    "label": "Фабричко ресетовање"
   },
   "install.package": {
     "label": "Пакет"
@@ -665,9 +619,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -688,9 +639,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium налог"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1088,9 +1036,6 @@
   "update.password": {
     "label": "Лозинка"
   },
-  "update.timezone": {
-    "label": "Временска зона"
-  },
   "update.time": {
     "label": "Време"
   },
@@ -1138,12 +1083,6 @@
   },
   "update.hardware.trackpad": {
     "label": "Тачпед"
-  },
-  "update.password.drive": {
-    "label": "Шифровање диска"
-  },
-  "update.password.user": {
-    "label": "Корисник"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Прикажи % батерије"
@@ -1235,34 +1174,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Искључи екран на додир"
   },
-  "setup.default.agent.amp": {
-    "label": "Amp"
-  },
-  "setup.default.agent.commandcode": {
-    "label": "Command Code"
-  },
-  "setup.default.agent.devin": {
-    "label": "Devin CLI"
-  },
-  "setup.default.agent.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "setup.default.agent.freebuff": {
-    "label": "Freebuff"
-  },
-  "setup.default.agent.kilo": {
-    "label": "Kilo"
-  },
-  "setup.default.agent.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "setup.default.agent.mcode": {
-    "label": "MiniMax Code"
-  },
-  "setup.default.agent.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1300,5 +1212,70 @@
   },
   "install.service.notion": {
     "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Обичан"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Иконе"
+  },
+  "install.style.icons": {
+    "label": "Иконе"
+  },
+  "remove.icons": {
+    "label": "Иконе"
+  },
+  "update.icons": {
+    "label": "Додатне иконе"
+  },
+  "system.firmware": {
+    "label": "Поновно покретање у BIOS",
+    "description": "Поново покрени у подешавања UEFI фирмвера"
+  },
+  "setup.region": {
+    "label": "Регион"
+  },
+  "setup.region.formats": {
+    "label": "Формати",
+    "description": "Како се пишу датуми, време, бројеви и јединице"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Име хоста"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

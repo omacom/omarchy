@@ -125,8 +125,16 @@ for provider in claude codex grok; do
   pass "$provider new sessions preserve explicit account overrides"
 
   select_account "$provider" side
-  output=$(run_isolated omarchy-agent-account-add --reauth :primary "$provider" </dev/null)
-  grep -Fxq default <<<"$output" || fail "$provider primary reauthentication bypasses the active side account" "$output"
+  if [[ $provider == "claude" ]]; then
+    # Claude signs in to a scratch home, then installs the login where the
+    # account's is; this fake CLI saves none, so the install refuses.
+    output=$(run_isolated omarchy-agent-account-add --reauth :primary "$provider" </dev/null 2>&1 || true)
+    grep -q "/claude/.pending/login-" <<<"$output" && ! grep -Fq "$account_dir" <<<"$output" ||
+      fail "$provider primary reauthentication bypasses the active side account" "$output"
+  else
+    output=$(run_isolated omarchy-agent-account-add --reauth :primary "$provider" </dev/null)
+    grep -Fxq default <<<"$output" || fail "$provider primary reauthentication bypasses the active side account" "$output"
+  fi
   pass "$provider primary reauthentication bypasses the active side account"
 
   rm "$registry_dir/$provider.json"
