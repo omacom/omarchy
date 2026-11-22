@@ -200,10 +200,22 @@ os.environ["PATH"] = f"{stub.parent}:{REAL_PATH}"
 write_json(config_home() / "cursor" / "auth.json", {"storedIn": "os-secret-store"})
 write_json(home() / "cursor-keyring.json", {"accessToken": jwt({"sub": "u-keyring", "exp": time.time() + 3600})})
 record = cursor()
-os.environ["PATH"] = REAL_PATH
 expect("a Secret Service CLI sign-in reaches the dashboard like auth.json did",
        [record["ready"], record["tierLabel"], record["usageStatusText"], len(record["limits"]) > 0],
        [True, "Ultra", "", True], record)
+
+# A locked item is never looked up: secret-tool would open an unlock dialog.
+lookup = home() / "keyring-looked-up"
+stub.write_text('#!/bin/bash\ntouch "$HOME/keyring-looked-up"\ncat "$HOME/cursor-keyring.json"\n')
+busctl = stub.parent / "busctl"
+busctl.write_text("""#!/bin/bash
+echo '{"type":"aoao","data":[[],["/locked/item"]]}'
+""")
+busctl.chmod(0o755)
+record = cursor()
+os.environ["PATH"] = REAL_PATH
+expect("a locked Secret Service item is left alone without prompting",
+       [record["usageStatusText"], lookup.exists()], ["Waiting for auth", False], record)
 
 # A lapsed sign-in isn't sent: the CLI or editor renews it when it runs.
 sandbox()

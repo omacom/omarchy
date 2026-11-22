@@ -111,6 +111,39 @@ def find_command(name: str) -> str | None:
   return shutil.which(name, path=runtime_env().get("PATH"))
 
 
+# SearchItems lists credentials without prompting to unlock their collection.
+# A background collector leaves a locked credential alone until its next run.
+def secret_bus(*args: str) -> str:
+  busctl = find_command("busctl")
+  if not busctl:
+    return ""
+  try:
+    result = subprocess.run(
+      [busctl, "--user", "--timeout=2", *args],
+      capture_output=True,
+      text=True,
+      timeout=3,
+      check=False,
+    )
+  except (OSError, subprocess.SubprocessError):
+    return ""
+  return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def secret_locked(**attributes: str) -> bool:
+  """Whether every matching credential sits in a locked collection."""
+  pairs = [part for item in attributes.items() for part in item]
+  answer = secret_bus(
+    "--json=short", "--", "call", "org.freedesktop.secrets", "/org/freedesktop/secrets",
+    "org.freedesktop.Secret.Service", "SearchItems", "a{ss}", str(len(attributes)), *pairs,
+  )
+  try:
+    unlocked, locked = json.loads(answer)["data"]
+  except (ValueError, KeyError, TypeError):
+    return False
+  return bool(locked) and not unlocked
+
+
 # --------------------------------------------------------- untrusted values
 
 
@@ -3772,11 +3805,10 @@ def _cursor_ide_token(state_db: Path) -> str:
 
 
 def _cursor_keyring_token() -> str:
-  # Newer CLI builds keep their sign-in in the Secret Service keyring and
-  # leave only {"storedIn": "os-secret-store"} in auth.json. A missing
-  # secret-tool, a locked keyring or an unreadable item is no sign-in.
+  # The CLI leaves only {"storedIn": "os-secret-store"} in auth.json.
+  # A missing, locked or unreadable keyring item is no sign-in.
   secret_tool = find_command("secret-tool")
-  if not secret_tool:
+  if not secret_tool or secret_locked(service="cursor-credentials", account="cursor-user"):
     return ""
   try:
     raw = subprocess.check_output(
