@@ -208,6 +208,34 @@ function pickClickWindow(mode, windows, workspaceId) {
   return picked < 0 ? -1 : candidates[picked]
 }
 
+// What a click on an app does. With minimizes set, as on the Windows taskbar,
+// the app in focus is put away once the click has been through its windows. Clicks cycle through
+// the app's windows as pickWindow orders them, and the one on the last window
+// showing on its workspace minimizes it; a single window minimizes at once. An
+// app that asks for new windows keeps opening them. Answers { action, index },
+// where action is "minimize", "focus" or "launch". Without minimizes a click
+// only ever focuses or launches, as pickClickWindow decides.
+function clickAction(mode, windows, workspaceId, minimizes) {
+  var list = windows || []
+  var focused = -1
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].activated && !list[i].minimized) focused = i
+  }
+
+  // Only a window on the dock's own workspace is put away: the dock takes no
+  // keyboard focus, so the app can be in focus on another screen's workspace.
+  if (minimizes && focused >= 0 && mode !== "new" && list[focused].workspaceId === workspaceId) {
+    var last = -1
+    for (var j = 0; j < list.length; j++) {
+      if (!list[j].minimized && list[j].workspaceId === workspaceId) last = j
+    }
+    if (last === focused) return { action: "minimize", index: focused }
+  }
+
+  var index = pickClickWindow(mode, list, workspaceId)
+  return index < 0 ? { action: "launch", index: -1 } : { action: "focus", index: index }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     normalizePosition: normalizePosition,
@@ -224,6 +252,7 @@ if (typeof module !== "undefined") {
     dropIndex: dropIndex,
     pinsInOrder: pinsInOrder,
     pickWindow: pickWindow,
-    pickClickWindow: pickClickWindow
+    pickClickWindow: pickClickWindow,
+    clickAction: clickAction
   }
 }
