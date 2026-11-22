@@ -5,8 +5,6 @@
   "agents.app": "App",
   "agents.backToLimits": "Zurück zu den Limits",
   "agents.balance": "Guthaben",
-  "agents.balanceSpent": "%1 von %2 ausgegeben",
-  "agents.balanceSpentEstimated": "%1 von %2 ausgegeben · geschätzt",
   "agents.balanceUnavailable": "Guthaben nicht verfügbar",
   "agents.blockOwnModel": "LOKALES MODELL VERWENDEN",
   "agents.blockProviders": "NUTZUNGSBASIERTE ABRECHNUNG VERWENDEN",

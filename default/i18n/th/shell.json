@@ -5,8 +5,6 @@
   "agents.app": "แอป",
   "agents.backToLimits": "กลับไปขีดจำกัด",
   "agents.balance": "ยอดคงเหลือ",
-  "agents.balanceSpent": "ใช้ไป %1 จากที่เติมไว้ %2",
-  "agents.balanceSpentEstimated": "ใช้ไป %1 จากที่เติมไว้ %2 · โดยประมาณ",
   "agents.balanceUnavailable": "ไม่ทราบยอดคงเหลือ",
   "agents.blockOwnModel": "ใช้โมเดลในเครื่อง",
   "agents.blockProviders": "ใช้แบบจ่ายตามใช้",

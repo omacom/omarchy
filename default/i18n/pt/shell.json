@@ -5,8 +5,6 @@
   "agents.app": "Aplicação",
   "agents.backToLimits": "Voltar aos limites",
   "agents.balance": "Saldo",
-  "agents.balanceSpent": "%1 gastos de %2 financiados",
-  "agents.balanceSpentEstimated": "%1 gastos de %2 financiados · estimado",
   "agents.balanceUnavailable": "Saldo indisponível",
   "agents.blockOwnModel": "USA UM MODELO LOCAL",
   "agents.blockProviders": "USA PAGAMENTO POR UTILIZAÇÃO",

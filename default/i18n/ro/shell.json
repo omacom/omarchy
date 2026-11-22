@@ -5,8 +5,6 @@
   "agents.app": "Aplicație",
   "agents.backToLimits": "Înapoi la limite",
   "agents.balance": "Sold",
-  "agents.balanceSpent": "%1 cheltuit din %2 alimentat",
-  "agents.balanceSpentEstimated": "%1 cheltuit din %2 alimentat · estimat",
   "agents.balanceUnavailable": "Sold indisponibil",
   "agents.blockOwnModel": "FOLOSEȘTE UN MODEL LOCAL",
   "agents.blockProviders": "FOLOSEȘTE PLATA PE UTILIZARE",

@@ -5,8 +5,6 @@
   "agents.app": "Aplikácia",
   "agents.backToLimits": "Späť na limity",
   "agents.balance": "Zostatok",
-  "agents.balanceSpent": "%1 minutých z %2 financovaných",
-  "agents.balanceSpentEstimated": "%1 minutých z %2 financovaných · odhad",
   "agents.balanceUnavailable": "Zostatok nedostupný",
   "agents.blockOwnModel": "POUŽIŤ LOKÁLNY MODEL",
   "agents.blockProviders": "POUŽIŤ PLATBU ZA POUŽITIE",

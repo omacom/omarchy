@@ -5,8 +5,6 @@
   "agents.app": "Forrit",
   "agents.backToLimits": "Til baka í takmarkanirnar",
   "agents.balance": "Staða",
-  "agents.balanceSpent": "%1 eytt af %2 fjármögnuðu",
-  "agents.balanceSpentEstimated": "%1 eytt af %2 fjármögnuðu · áætlað",
   "agents.balanceUnavailable": "Staða ekki tiltæk",
   "agents.blockOwnModel": "NOTAÐU STAÐBUNDIÐ LÍKAN",
   "agents.blockProviders": "NOTAÐU GREIÐSLU EFTIR NOTKUN",

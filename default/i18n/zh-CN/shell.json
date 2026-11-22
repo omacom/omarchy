@@ -5,8 +5,6 @@
   "agents.app": "应用",
   "agents.backToLimits": "返回额度",
   "agents.balance": "余额",
-  "agents.balanceSpent": "已花费 %1，共充值 %2",
-  "agents.balanceSpentEstimated": "已花费 %1，共充值 %2 · 估算",
   "agents.balanceUnavailable": "余额不可用",
   "agents.blockOwnModel": "使用本地模型",
   "agents.blockProviders": "使用按量付费",

@@ -5,8 +5,6 @@
   "agents.app": "Aip",
   "agents.backToLimits": "Ar ais go dtí na teorainneacha",
   "agents.balance": "Iarmhéid",
-  "agents.balanceSpent": "%1 caite de %2 maoinithe",
-  "agents.balanceSpentEstimated": "%1 caite de %2 maoinithe · measta",
   "agents.balanceUnavailable": "Iarmhéid gan fáil",
   "agents.blockOwnModel": "ÚSÁID SAMHAIL ÁITIÚIL",
   "agents.blockProviders": "ÚSÁID ÍOC DE RÉIR ÚSÁIDE",

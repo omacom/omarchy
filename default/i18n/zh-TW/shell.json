@@ -5,8 +5,6 @@
   "agents.app": "應用程式",
   "agents.backToLimits": "回到用量限制",
   "agents.balance": "餘額",
-  "agents.balanceSpent": "已用 %1，共儲值 %2",
-  "agents.balanceSpentEstimated": "已用 %1，共儲值 %2 · 估算",
   "agents.balanceUnavailable": "餘額無法取得",
   "agents.blockOwnModel": "使用本機模型",
   "agents.blockProviders": "使用按量付費",

@@ -5,8 +5,6 @@
   "agents.app": "Sovellus",
   "agents.backToLimits": "Takaisin käyttörajoihin",
   "agents.balance": "Saldo",
-  "agents.balanceSpent": "%1 käytetty / %2 rahoitettu",
-  "agents.balanceSpentEstimated": "%1 käytetty / %2 rahoitettu · arvioitu",
   "agents.balanceUnavailable": "Saldo ei saatavilla",
   "agents.blockOwnModel": "KÄYTÄ PAIKALLISTA MALLIA",
   "agents.blockProviders": "MAKSA KÄYTÖN MUKAAN",

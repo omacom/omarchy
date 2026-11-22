@@ -5,8 +5,6 @@
   "agents.app": "Апликација",
   "agents.backToLimits": "Назад на ограничења",
   "agents.balance": "Стање",
-  "agents.balanceSpent": "%1 потрошено од %2 уплаћеног",
-  "agents.balanceSpentEstimated": "%1 потрошено од %2 уплаћеног · процењено",
   "agents.balanceUnavailable": "Стање није доступно",
   "agents.blockOwnModel": "КОРИСТИ ЛОКАЛНИ МОДЕЛ",
   "agents.blockProviders": "КОРИСТИ ПЛАЋАЊЕ ПО УПОТРЕБИ",

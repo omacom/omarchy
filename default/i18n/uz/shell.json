@@ -5,8 +5,6 @@
   "agents.app": "Ilova",
   "agents.backToLimits": "Limitlarga qaytish",
   "agents.balance": "Balans",
-  "agents.balanceSpent": "%2 ajratilganidan %1 sarflandi",
-  "agents.balanceSpentEstimated": "%2 ajratilganidan %1 sarflandi · taxminiy",
   "agents.balanceUnavailable": "Balans maʼlumoti yoʻq",
   "agents.blockOwnModel": "MAHALLIY MODELDAN FOYDALANING",
   "agents.blockProviders": "ISHLATGANINGIZCHA TOʻLANG",

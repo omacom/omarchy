@@ -5,8 +5,6 @@
   "agents.app": "Εφαρμογή",
   "agents.backToLimits": "Πίσω στα όρια",
   "agents.balance": "Υπόλοιπο",
-  "agents.balanceSpent": "%1 ξοδεμένα από %2 χρηματοδοτούμενα",
-  "agents.balanceSpentEstimated": "%1 ξοδεμένα από %2 χρηματοδοτούμενα · κατ' εκτίμηση",
   "agents.balanceUnavailable": "Το υπόλοιπο δεν είναι διαθέσιμο",
   "agents.blockOwnModel": "ΧΡΗΣΙΜΟΠΟΙΗΣΕ ΤΟΠΙΚΟ ΜΟΝΤΕΛΟ",
   "agents.blockProviders": "ΧΡΗΣΙΜΟΠΟΙΗΣΕ ΠΛΗΡΩΜΗ ΑΝΑ ΧΡΗΣΗ",

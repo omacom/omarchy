@@ -5,8 +5,6 @@
   "agents.app": "ایپ",
   "agents.backToLimits": "حدود پر واپس",
   "agents.balance": "بیلنس",
-  "agents.balanceSpent": "%2 فنڈ شدہ میں سے %1 خرچ",
-  "agents.balanceSpentEstimated": "%2 فنڈ شدہ میں سے %1 خرچ · تخمینی",
   "agents.balanceUnavailable": "بیلنس دستیاب نہیں",
   "agents.blockOwnModel": "لوکل ماڈل استعمال کریں",
   "agents.blockProviders": "فی استعمال ادائیگی",

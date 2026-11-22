@@ -5,8 +5,6 @@
   "agents.app": "Ứng dụng",
   "agents.backToLimits": "Quay lại giới hạn",
   "agents.balance": "Số dư",
-  "agents.balanceSpent": "Đã chi %1 trên %2 đã nạp",
-  "agents.balanceSpentEstimated": "Đã chi %1 trên %2 đã nạp · ước tính",
   "agents.balanceUnavailable": "Chưa có số dư",
   "agents.blockOwnModel": "DÙNG MÔ HÌNH CỤC BỘ",
   "agents.blockProviders": "DÙNG TRẢ THEO MỨC DÙNG",

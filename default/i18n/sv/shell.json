@@ -5,8 +5,6 @@
   "agents.app": "App",
   "agents.backToLimits": "Tillbaka till gränserna",
   "agents.balance": "Saldo",
-  "agents.balanceSpent": "%1 spenderat av %2 insatt",
-  "agents.balanceSpentEstimated": "%1 spenderat av %2 insatt · uppskattat",
   "agents.balanceUnavailable": "Saldo otillgängligt",
   "agents.blockOwnModel": "ANVÄND EN LOKAL MODELL",
   "agents.blockProviders": "ANVÄND BETALA PER ANVÄNDNING",

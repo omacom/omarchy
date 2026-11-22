@@ -5,8 +5,6 @@
   "agents.app": "Appli",
   "agents.backToLimits": "Retour aux limites",
   "agents.balance": "Solde",
-  "agents.balanceSpent": "%1 dépensés sur %2 crédités",
-  "agents.balanceSpentEstimated": "%1 dépensés sur %2 crédités · estimation",
   "agents.balanceUnavailable": "Solde indisponible",
   "agents.blockOwnModel": "UTILISER UN MODÈLE LOCAL",
   "agents.blockProviders": "UTILISER LE PAIEMENT À L'USAGE",

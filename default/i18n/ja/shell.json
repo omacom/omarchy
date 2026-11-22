@@ -5,8 +5,6 @@
   "agents.app": "アプリ",
   "agents.backToLimits": "上限に戻る",
   "agents.balance": "残高",
-  "agents.balanceSpent": "%2 のうち %1 を使用済み",
-  "agents.balanceSpentEstimated": "%2 のうち %1 を使用済み · 推定値",
   "agents.balanceUnavailable": "残高を取得できません",
   "agents.blockOwnModel": "ローカルモデルを使う",
   "agents.blockProviders": "従量課金を使う",

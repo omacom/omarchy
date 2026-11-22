@@ -5,8 +5,6 @@
   "agents.app": "Rakendus",
   "agents.backToLimits": "Tagasi limiitide juurde",
   "agents.balance": "Saldo",
-  "agents.balanceSpent": "Kulutatud %1, rahastatud %2",
-  "agents.balanceSpentEstimated": "Kulutatud %1, rahastatud %2 · hinnanguline",
   "agents.balanceUnavailable": "Saldo pole saadaval",
   "agents.blockOwnModel": "KASUTA KOHALIKKU MUDELIT",
   "agents.blockProviders": "MAKSA KASUTUSE EEST",

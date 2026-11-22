@@ -5,8 +5,6 @@
   "agents.app": "برنامه",
   "agents.backToLimits": "بازگشت به محدودیت‌ها",
   "agents.balance": "موجودی",
-  "agents.balanceSpent": "%1 از %2 شارژ خرج شده",
-  "agents.balanceSpentEstimated": "%1 از %2 شارژ خرج شده · تخمینی",
   "agents.balanceUnavailable": "موجودی در دسترس نیست",
   "agents.blockOwnModel": "استفاده از مدل محلی",
   "agents.blockProviders": "پرداخت به‌ازای مصرف",

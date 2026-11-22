@@ -5,8 +5,6 @@
   "agents.app": "Uygulama",
   "agents.backToLimits": "Limitlere dön",
   "agents.balance": "Bakiye",
-  "agents.balanceSpent": "%1 harcandı / %2 yüklendi",
-  "agents.balanceSpentEstimated": "%1 harcandı / %2 yüklendi · tahmini",
   "agents.balanceUnavailable": "Bakiye kullanılamıyor",
   "agents.blockOwnModel": "YEREL MODEL KULLAN",
   "agents.blockProviders": "KULLANDIKÇA ÖDE KULLAN",

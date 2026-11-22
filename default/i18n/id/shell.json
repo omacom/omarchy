@@ -5,8 +5,6 @@
   "agents.app": "Aplikasi",
   "agents.backToLimits": "Kembali ke batas",
   "agents.balance": "Saldo",
-  "agents.balanceSpent": "%1 terpakai dari %2 yang didanai",
-  "agents.balanceSpentEstimated": "%1 terpakai dari %2 yang didanai · perkiraan",
   "agents.balanceUnavailable": "Saldo tidak tersedia",
   "agents.blockOwnModel": "GUNAKAN MODEL LOKAL",
   "agents.blockProviders": "GUNAKAN BAYAR SESUAI PEMAKAIAN",

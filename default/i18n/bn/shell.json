@@ -5,8 +5,6 @@
   "agents.app": "অ্যাপ",
   "agents.backToLimits": "সীমাতে ফিরে যান",
   "agents.balance": "ব্যালান্স",
-  "agents.balanceSpent": "%2 তহবিলের মধ্যে %1 খরচ",
-  "agents.balanceSpentEstimated": "%2 তহবিলের মধ্যে %1 খরচ · আনুমানিক",
   "agents.balanceUnavailable": "ব্যালান্স পাওয়া যাচ্ছে না",
   "agents.blockOwnModel": "লোকাল মডেল ব্যবহার করুন",
   "agents.blockProviders": "ব্যবহার অনুযায়ী পে করুন",

@@ -5,8 +5,6 @@
   "agents.app": "Приложение",
   "agents.backToLimits": "Обратно към лимитите",
   "agents.balance": "Баланс",
-  "agents.balanceSpent": "%1 похарчени от %2 внесени",
-  "agents.balanceSpentEstimated": "%1 похарчени от %2 внесени · приблизително",
   "agents.balanceUnavailable": "Балансът не е наличен",
   "agents.blockOwnModel": "ИЗПОЛЗВАЙ ЛОКАЛЕН МОДЕЛ",
   "agents.blockProviders": "ИЗПОЛЗВАЙ ПЛАЩАНЕ СПОРЕД ПОЛЗВАНЕТО",
