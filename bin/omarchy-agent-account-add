@@ -282,8 +282,14 @@ key_login() {
   # The provider has to answer for the key: a refusal returns 2, and a check
   # that couldn't reach it returns 3, so it can be tried again rather than
   # saving a key nobody has vouched for.
-  local status
-  status=$(env "${provider^^}_API_KEY=$key" "omarchy-agent-usage-$provider" --force | jq -r '.usageStatusText // "unreadable"') || return 3
+  local status check_home
+  check_home=$(mktemp -d) || return 3
+  status=$(env HOME="$check_home" XDG_CONFIG_HOME="$check_home/.config" XDG_DATA_HOME="$check_home/.local/share" \
+    XDG_STATE_HOME="$check_home/.local/state" XDG_CACHE_HOME="$check_home/.cache" "${provider^^}_API_KEY=$key" \
+    "omarchy-agent-usage-$provider" --force | jq -r '.usageStatusText // "unreadable"')
+  local check_status=$?
+  rm -rf "$check_home"
+  (( check_status == 0 )) || return 3
   # A key the provider answered for is fine even when the account is empty,
   # and OpenRouter says its balance is unavailable only after the key itself
   # was accepted; any other status means the provider wasn't reached.

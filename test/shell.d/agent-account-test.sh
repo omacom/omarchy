@@ -494,6 +494,12 @@ fireworks_bin="$test_tmp/fireworks-bin"
 mkdir -p "$fireworks_bin"
 cat >"$fireworks_bin/omarchy-agent-usage-fireworks" <<'SH'
 #!/bin/bash
+# A key saved elsewhere, as Z.ai's config file can hold one, would vouch for
+# any key it was checked beside.
+if [[ -f ${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/agents/fireworks.json ]]; then
+  echo '{"usageStatusText":""}'
+  exit
+fi
 case $FIREWORKS_API_KEY in
 fw_good) echo '{"usageStatusText":""}' ;;
 fw_offline) echo '{"usageStatusText":"Fireworks unavailable"}' ;;
@@ -516,6 +522,15 @@ if PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"
   fail "a key Fireworks refuses is not saved, and says so" "$(cat "$test_tmp/fireworks-refused")"
 fi
 pass "a key Fireworks refuses is not saved, and says so"
+
+# The check sees only the pasted key, not one saved elsewhere.
+mkdir -p "$HOME/.config/omarchy/agents"
+echo '{"apiKey":"fw_saved"}' >"$HOME/.config/omarchy/agents/fireworks.json"
+if PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"fw_bad" >/dev/null 2>&1 || [[ -e $test_tmp/fireworks-opencode ]]; then
+  fail "a saved key can't vouch for a pasted one"
+fi
+rm "$HOME/.config/omarchy/agents/fireworks.json"
+pass "a saved key can't vouch for a pasted one"
 
 # A key Fireworks couldn't be asked about isn't saved either, and says to retry.
 if PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"fw_offline" >"$test_tmp/fireworks-unchecked" 2>&1 ||

@@ -611,7 +611,8 @@ Panel {
   // Every other provider OpenCode signs in to, in its own picker.
   function openOpenCodeLogin() {
     root.close()
-    Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "opencode auth login"])
+    Util.execArgv(["omarchy-launch-floating-terminal-with-presentation",
+                   'opencode auth login && { [[ -n $(omarchy-default-agent) ]] || omarchy-default-agent --select opencode; }'])
   }
 
   function submitPaste(code) {
@@ -1603,7 +1604,7 @@ Panel {
       onMoveRequested: function(dx, dy) {
         // Naming has its own field; there the arrows scroll. Signing in walks
         // its links, and a code field takes its own keys once it's open.
-        if (root.addStage === "" || root.addStage === "running" || root.picking) root.moveKey(dx, dy)
+        if (root.addStage === "" || root.addStage === "running" || root.addStage === "more" || root.picking) root.moveKey(dx, dy)
         else if (dy !== 0)
           panelFlick.contentY = root.clamp(panelFlick.contentY + dy * Style.space(56), 0,
                                            Math.max(0, panelFlick.contentHeight - panelFlick.height))
@@ -2495,6 +2496,7 @@ Panel {
             foreground: root.foreground
             fontFamily: root.fontFamily
             hasCursor: root.hasKey("make:" + modelData.kind, section.providerIndex)
+            onHovered: function(isHovered) { if (isHovered) root.pointAt("make:" + modelData.kind, section.providerIndex) }
             onClicked: root.makeOnLine(section.provider, modelData.kind)
           }
         }
