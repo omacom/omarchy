@@ -76,24 +76,24 @@ chrt --idle -p 0 $$
 ionice -c 3 -p $$
 max_jobs=4
 
-status=0
-running=0
+# wait -n only makes room for the next collector; each one's status is read
+# from its own PID below, which bash keeps after wait -n has reaped it.
+pids=()
 for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
   [[ -x $collector ]] || continue
   agent="${collector##*/omarchy-agent-usage-}"
   [[ $agent == "update" ]] && continue
   wanted "$agent" || continue
-  if (( running >= max_jobs )); then
-    wait -n || status=1
-    (( running-- ))
-  fi
+  while (( $(jobs -rp | wc -l) >= max_jobs )); do
+    wait -n
+  done
   collect "$collector" "$agent" &
-  (( running++ ))
+  pids+=($!)
 done
 
-while (( running > 0 )); do
-  wait -n || status=1
-  (( running-- ))
+status=0
+for pid in "${pids[@]}"; do
+  wait "$pid" || status=1
 done
 
 # Fresh limits are when an account near a limit gets announced.
