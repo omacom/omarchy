@@ -42,6 +42,13 @@ for name in opencode opencode.exe; do
   done
 done
 
+# Keep signals inside this test, including if the command regresses to killall.
+test_pid=$$
+pgrep() { command pgrep --parent "$test_pid" "$@"; }
+killall() { return 1; }
+export test_pid
+export -f pgrep killall
+
 "$ROOT/bin/omarchy-restart-opencode"
 
 for name in opencode opencode.exe; do
