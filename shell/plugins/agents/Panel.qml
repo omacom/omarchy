@@ -1490,11 +1490,20 @@ Panel {
   function limitWindow(label, percent, resetAt, title) {
     var reset = new Date(String(resetAt || "")).getTime()
     var expired = isFinite(reset) && reset <= root.nowMs
+    // A monthly allowance renews on a calendar date, so its window is the
+    // month before the reset (28 days in February), not a fixed 30 days.
+    var span = windowSpanMs(label)
+    if (isFinite(reset) && String(label || "").toLowerCase().indexOf("month") >= 0) {
+      var start = new Date(reset)
+      start.setMonth(start.getMonth() - 1)
+      if (start.getDate() !== new Date(reset).getDate()) start.setDate(0)
+      span = reset - start.getTime()
+    }
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: expired ? 0 : Number(percent),
       resetAt: expired ? "" : String(resetAt || ""),
-      spanMs: windowSpanMs(label)
+      spanMs: span
     }
   }
 
@@ -1561,24 +1570,26 @@ Panel {
   }
 
   // Where a window ends up if the rest of it is spent at the rate so far:
-  // the share used by the reset, and how long until it runs out when that
-  // comes first. Null for a window of unknown length, and until a tenth of
-  // it has passed: an hour of heavy use after a reset is not the week's rate.
-  function prediction(w) {
-    var left = resetMsFor(w)
+  // the share used by the reset, and when it runs out if that comes first.
+  // The rate is taken when the usage was measured, so a reading kept through
+  // a failed refresh doesn't drift toward looking safer. Null for a window of
+  // unknown length, and until a tenth of it has passed: an hour of heavy use
+  // after a reset is not the week's rate.
+  function prediction(w, measuredAt) {
+    var reset = w ? new Date(w.resetAt).getTime() : NaN
+    var at = measuredAt > 0 && measuredAt < root.nowMs ? measuredAt : root.nowMs
     var span = w ? Number(w.spanMs) : 0
-    if (!(span > 0) || !(left > 0) || left > span) return null
-    var elapsed = span - left
-    if (elapsed < span * 0.1 || !(w.percent > 0) || w.percent >= 1) return null
+    var elapsed = span - (reset - at)
+    if (!(span > 0) || !(elapsed >= span * 0.1) || elapsed >= span || !(w.percent > 0) || w.percent >= 1) return null
     var percent = w.percent * span / elapsed
-    return { percent: percent, runsOutMs: percent > 1 ? (1 - w.percent) * elapsed / w.percent : -1 }
+    return { percent: percent, runsOutAt: percent > 1 ? at + (1 - w.percent) * elapsed / w.percent : 0 }
   }
 
   function predictionText(p) {
     if (!p) return ""
     var share = Commons.I18n.formatNumber(Math.round(p.percent * 100))
-    if (!(p.runsOutMs > 0)) return Commons.I18n.t("agents.predictedEnds").arg(share)
-    var at = new Date(root.nowMs + p.runsOutMs)
+    if (!(p.runsOutAt > 0)) return Commons.I18n.t("agents.predictedEnds").arg(share)
+    var at = new Date(p.runsOutAt)
     var locale = Qt.locale(Commons.I18n.formatLocale)
     return Commons.I18n.t("agents.predictedRunsOut").arg(share)
       .arg(locale.dayName(at.getDay(), Locale.ShortFormat) + " " + at.toLocaleTimeString(locale, Locale.ShortFormat))
@@ -3740,7 +3751,7 @@ Panel {
     readonly property var scoped: window && window.scoped ? window.scoped : []
     readonly property bool alarming: window && window.percent >= 0.9
     readonly property real resetMs: root.resetMsFor(window)
-    readonly property var prediction: root.prediction(window)
+    readonly property var prediction: root.prediction(window, fetchedAt)
     implicitHeight: Math.max(compactTitle.implicitHeight, compactValue.implicitHeight)
       + (compactPrediction.visible ? compactPrediction.anchors.topMargin + compactPrediction.implicitHeight : 0)
 

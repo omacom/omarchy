@@ -107,15 +107,21 @@ assertDeepEqual(
 
 // A prediction is the rate so far carried to the reset, and an hour of heavy
 // use right after a reset is not yet a rate.
-eval(['resetMsFor', 'prediction'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n').replaceAll('root.', 'panelRoot.'))
+eval(source.match(/function prediction\([^]*?\n  \}/)[0].replaceAll('root.', 'panelRoot.'))
 const hour = 3600000
 const weekly = (percent, hoursLeft) => limitWindow('Weekly (7-day)', percent, new Date(panelRoot.nowMs + hoursLeft * hour).toISOString())
 const ahead = prediction(weekly(0.3, 120))
 assertEqual(Math.round(ahead.percent * 100), 105, 'a limit ahead of the clock is predicted past its allowance')
-assertEqual(Math.round(ahead.runsOutMs / hour), 112, 'and runs out before its reset')
-assertEqual(prediction(weekly(0.2, 72)).runsOutMs, -1, 'a limit behind the clock lasts until its reset')
+assertEqual(Math.round((ahead.runsOutAt - panelRoot.nowMs) / hour), 112, 'and runs out before its reset')
+assertEqual(prediction(weekly(0.2, 72)).runsOutAt, 0, 'a limit behind the clock lasts until its reset')
 assertEqual(prediction(weekly(0.05, 167)), null, 'a window that has barely started predicts nothing')
 assertEqual(prediction(limitWindow('Opus 5 (1M context)', 0.3, new Date(panelRoot.nowMs + 5 * hour).toISOString(), 'Opus 5 (1M context)')), null, 'a window of unknown length predicts nothing')
+assertEqual(Math.round(prediction(weekly(0.3, 96), panelRoot.nowMs - 24 * hour).percent * 100), 105,
+  'a reading kept through a failed refresh keeps the rate it was measured at')
+assertEqual(Math.round(limitWindow('Monthly allowance', 0.2, '2027-03-01T00:00:00').spanMs / (24 * hour)), 28,
+  'a monthly allowance spans the calendar month before its reset')
+assertEqual(Math.round(limitWindow('Monthly allowance', 0.2, '2027-03-31T00:00:00').spanMs / (24 * hour)), 31,
+  'a reset on the 31st starts its month at the end of the shorter one before')
 JS
 
 # The saved order keeps agents where they were put, including ones hidden now.
