@@ -6,5 +6,5 @@
 # before command substitution can strip a trailing newline and make one look safe.
 hyprctl monitors all -j | jq -er '
   ([.[] | select((.name | type) == "string" and (.name | test("^(eDP|LVDS|DSI)-")))][0].name // "")
-  | select(type == "string" and test("^[A-Za-z0-9._-]+$"))
+  | select(type == "string" and test("\\A[A-Za-z0-9._-]+\\z"))
 '
