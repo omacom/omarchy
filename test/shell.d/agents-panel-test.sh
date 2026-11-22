@@ -12,7 +12,7 @@ const signInFunctions = ['supportsSignIn', 'signedOut', 'needsSignIn', 'usageNot
   const match = panelSource.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))
   return match ? match[0] : ''
 }).join('\n')
-const signIn = new Function('addProviders', 'helpDisplayText', 'statusDisplayText', signInFunctions + '\nreturn {needsSignIn, signedOut, usageNote}')(
+const signIn = new Function('signInProviders', 'helpDisplayText', 'statusDisplayText', signInFunctions + '\nreturn {needsSignIn, signedOut, usageNote}')(
   [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'grok'}], text => text, status => status
 )
 for (const id of ['claude', 'codex', 'grok']) {
@@ -110,7 +110,7 @@ JS
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const functions = ['orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+const functions = ['lineId', 'orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
 let providerOrder = ['codex', 'kimi', 'claude', 'hidden']
 let panelProviders = [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'kimi'}, {providerId: 'grok'}]
 let saved = ''
@@ -120,6 +120,15 @@ panelProviders = orderedProviders(panelProviders)
 assertDeepEqual(panelProviders.map(p => p.providerId), ['codex', 'kimi', 'claude', 'grok'], 'saved order keeps its agents in place and puts new ones last')
 moveProvider('grok', 0)
 assertDeepEqual(JSON.parse(saved), ['grok', 'codex', 'kimi', 'claude', 'hidden'], 'moving an agent saves the order and retains hidden ids')
+
+
+// Each account is a line of its own: its lines take the place saved for the
+// agent until one is moved, and then that line moves alone.
+providerOrder = ['codex', 'claude']
+panelProviders = orderedProviders([{providerId: 'claude', lineId: 'claude/main'}, {providerId: 'claude', lineId: 'claude/work'}, {providerId: 'codex'}])
+assertDeepEqual(panelProviders.map(lineId), ['codex', 'claude/main', 'claude/work'], 'account lines keep the place saved for their agent')
+moveProvider('claude/work', 0)
+assertDeepEqual(JSON.parse(saved).slice(0, 3), ['claude/work', 'codex', 'claude/main'], 'an account line moves on its own')
 JS
 
 # Exercise the panel's drag lifecycle with Elsewhen's real variable-height math.

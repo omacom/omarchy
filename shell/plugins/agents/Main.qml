@@ -256,20 +256,79 @@ Item {
   readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/order.json"
   property var providerOrder: []
 
-  readonly property var panelProviders: orderedProviders(subscribedProviders)
+  readonly property var panelProviders: orderedProviders(accountLines(subscribedProviders).concat(localModelLines))
 
+  // A line for each coding model you can open, here or on a paired machine,
+  // built by the panel from the local models service.
+  property var localModelLines: []
+
+  // The local model a default of "local" opens, as `omarchy default agent
+  // local <model>` pins it. Empty when none is: it opens the one started last.
+  property string localPin: ""
+
+  FileView {
+    id: localPinFile
+    path: root.home + "/.config/omarchy/defaults/local-model"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.localPin = text().trim()
+    onLoadFailed: root.localPin = ""
+    onFileChanged: reload()
+  }
+
+  // The panel shows a line for each subscription account: an agent with
+  // several is split into one per account, carrying that account's limits,
+  // plan and sign-in, so each is ordered, dragged, starred and opened on its
+  // own.
+  function accountLines(list) {
+    var out = []
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i]
+      var accounts = p.accounts || []
+      if (accounts.length < 2) {
+        out.push(p)
+        continue
+      }
+      for (var j = 0; j < accounts.length; j++) {
+        var a = accounts[j]
+        out.push(Object.assign({}, p, {
+          lineId: p.providerId + "/" + (a.email || a.id),
+          account: a,
+          accounts: [],
+          limits: a.limits || [],
+          limitsStale: a.stale === true,
+          limitsFetchedAt: Number(a.fetchedAt || 0),
+          tierLabel: String(a.plan || ""),
+          resetCredits: a.resetCredits || null,
+          usageStatusText: String(a.usageStatusText || ""),
+          authHelpText: String(a.authHelpText || "")
+        }))
+      }
+    }
+    return out
+  }
+
+  function lineId(p) {
+    return p.lineId || p.providerId
+  }
+
+  // Where each line was put, and the ones never moved after them in the
+  // order they arrive.
   function orderedProviders(list) {
     var order = providerOrder
     var rank = function(p) {
-      var i = order.indexOf(p.providerId)
+      var i = order.indexOf(lineId(p))
+      if (i < 0) i = order.indexOf(p.providerId)
       return i < 0 ? order.length : i
     }
-    return list.slice().sort(function(a, b) { return rank(a) - rank(b) })
+    var lines = list.map(function(p, at) { return { p: p, at: at } })
+    lines.sort(function(a, b) { return rank(a.p) - rank(b.p) || a.at - b.at })
+    return lines.map(function(line) { return line.p })
   }
 
   // Moves one agent to a position among the ones shown, and saves the result.
   function moveProvider(id, to) {
-    var ids = panelProviders.map(function(p) { return p.providerId })
+    var ids = panelProviders.map(lineId)
     var from = ids.indexOf(id)
     if (from < 0) return
     to = Math.max(0, Math.min(ids.length - 1, to))
@@ -279,6 +338,26 @@ Item {
       if (ids.indexOf(providerOrder[i]) < 0) ids.push(providerOrder[i])
     providerOrder = ids
     orderFile.setText(JSON.stringify(ids) + "\n")
+  }
+
+  // The default agent, as `omarchy default agent` keeps it: a harness id, or
+  // "local" for the local model. Empty until one is chosen.
+  property string defaultAgent: ""
+
+  // The default and the local model pin, read again after they're written.
+  function reloadDefaults() {
+    defaultAgentFile.reload()
+    localPinFile.reload()
+  }
+
+  FileView {
+    id: defaultAgentFile
+    path: root.home + "/.config/omarchy/defaults/agent"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.defaultAgent = text().trim()
+    onLoadFailed: root.defaultAgent = ""
+    onFileChanged: reload()
   }
 
   FileView {
@@ -342,6 +421,10 @@ Item {
       cap: isFinite(cap) && cap > 0 ? cap : 0,
       currency: String(raw.currency || "USD"),
       days: days,
+      // The last day's date, and whether the days are UTC ones: Fireworks
+      // counts in UTC, the estimates in local days.
+      through: String(raw.through || ""),
+      utc: raw.utc === true,
       // Counted from this machine's sessions, not rated by the provider.
       estimated: raw.estimated === true
     }

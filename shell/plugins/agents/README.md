@@ -9,54 +9,116 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
 
 ## Panel
 
-Every subscription on one page, limits first.
+Every agent you use on one page, as one list of lines in the order you drag
+them into: a line per subscription account, per pay-as-you-go provider, and
+per local coding model that is running and ready.
 
 - **Hero** — the agents robot, and a line that rotates through what the
   token counts add up to across every agent: tokens this week and today, the
   most used model, the busiest day, and today's prompts and sessions. Its
   corner has + to add a subscription and >_ to start the default agent.
-- **One section per subscription** — an agent with limits, a balance, a plan,
+- **One line per subscription** — an agent with limits, a balance, a plan,
   or accounts to show gets one; local history alone only feeds the hero's
   line. Its mark, name, and plan, then a compact line
   per limit window: its meter and the time until it resets (the exact percentage
   on hover). A model-scoped allowance on the same clock (Claude's Fable weekly
   limit) is a tick on that window's meter rather than a line of its own; the
-  row's tooltip names it. A lapsed or missing Claude, Codex, or Grok sign-in
+  row's tooltip names it. A lapsed or missing sign-in of an agent the panel
+  can add (see Adding a subscription; all but Copilot, whose limits are asked
+  with `gh`'s sign-in)
   shows a _Sign-in required_ link that signs that account in again from the
   panel. Any other trouble — a paused token, another agent's sign-in, an
   endpoint that didn't answer — leaves the last known limits on show, with a
-  small info mark beside the name whose tooltip says why they aren't current
-  and what to do; each meter's tooltip says how old it is.
+  small info mark whose tooltip says why they aren't current and what to do:
+  in the first limit row's empty time-left slot when it has no time to show,
+  else beside the name. Each meter's tooltip says how old it is. The name,
+  account, and plan stop short of the line's controls and shorten to fit.
 - **Accounts** — an agent with more than one subscription account (see
-  `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
-  lines. An _ACTIVE_ label marks the account sessions use (running Claude
-  sessions included, new ones only for Codex and Grok); the
-  others get a _Use_ link. Click a name to rename the account in place.
+  `omarchy agent account`) gets a line for each, read as the agent's name and
+  then the account's beside its plan, Claude Work · Max 20x (the email on
+  hover), with its own limits. `Main.qml`'s `accountLines` splits the record
+  into these; each is keyed by the account's email, or its id without one,
+  so a renamed account keeps its place. Click an account's name to rename it
+  in place. Only the account in use can turn the bar icon urgent.
+- **Local models** — each coding model running and ready on this machine, or
+  on a paired machine that's online, gets a line: its maker's mark, its name,
+  the machine for a paired one, and its speed, context, and memory where a
+  subscription shows limits. Its terminal button opens Pi on it (`omarchy
+  agent --local-model`). Starting, stopping, and removing models belong to
+  the local models panel.
+- **Default** — each line that can be the default carries a star, filled on
+  the default agent (`omarchy default agent`) and, for an agent with several
+  accounts, on the account in use. Any other line's star shows while the line
+  is hovered or the keyboard is on it, and makes it the default without
+  opening it, through `omarchy default agent --select`: starring an account
+  also switches to it, starring a pay-as-you-go provider chooses OpenCode, and
+  starring a local model pins it (`omarchy default agent local <model>`),
+  which the default then opens instead of the model started last.
+- **Make icons** — the line in use also shows a sparkles icon beside its
+  terminal button, which opens into a theme, plugin, app, and game icon that
+  start that line's agent on the task through `omarchy agent make`, as the
+  starter tiles do with the default. They fold back when the line is left.
 - **Balance** — prepaid agents show a credit ledger instead of limits: a
   fuel-gauge meter that drains toward empty, the remaining credit, and
   funded-versus-spent detail.
+- **Terminal button** — at the end of a line, it opens the harness made for
+  that subscription, switching to an account first when it isn't the one in
+  use. Pay-as-you-go providers have none of their own, so theirs opens
+  OpenCode, where their key is saved, through `omarchy agent --provider`,
+  always on one of that provider's models: the one OpenCode last used there,
+  so a switch made in a session sticks, else the one the section's record has
+  used most, else the first OpenCode lists.
+- **Desktop app** — on the line in use, a monitor icon beside the terminal
+  button opens the subscription's desktop app when it's installed (Claude,
+  ChatGPT for Codex, Grok Bot, Antigravity, Cursor, Hermes, OpenCode),
+  focusing its window when one is already open. The app keeps its own
+  sign-in. A first sign-in to Claude, Codex, Grok, or Gemini installs its
+  desktop app where it's offered: through `omarchy-pkg-add` in a terminal,
+  and through polkit from the panel, which has none.
 - **Spend** — pay-as-you-go agents show what the account spent in the last
   30 days, a bar a day, or, against a monthly cap when there is one, this
-  month's spend as a meter. Fireworks and OpenRouter with a management key
+  month's spend as a meter. Hovering a bar lights it up and names its day,
+  what it cost, and the tokens it took when they're among the last week's the
+  record keeps. Days are the ones the record dates them by (`spend.through`):
+  Fireworks counts in UTC days (`spend.utc`), which aren't paired with the
+  local days tokens are counted in. Fireworks and OpenRouter with a management key
   report the account's own figures; DeepSeek, Kimchi, Ollama Cloud, and
   OpenRouter without a management key add up the costs pi and opencode wrote
   beside each reply on this machine, and mark the amount ≈ as an estimate.
 - **Make something cool** — starter prompts (a new theme, plugin, app, or game),
-  two across, that start the agent on the task through `omarchy agent make`.
+  two across, that start the default agent on the task through `omarchy agent make`.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
-  Claude Code, Codex, and Grok as large marks, three across, with the first
-  one focused, and the hero's line reads Add an account. The + becomes the
-  X that goes back. An agent that can't be added is dimmed and says why on
-  hover. A further account asks for a name first, and Enter signs it in. The
+  three blocks: _Use a subscription_ (Claude, Codex, Grok, Gemini,
+  signed in through Antigravity, Muse, Cursor, Copilot, and More: the
+  coding plans: OpenCode Go, on the OpenCode sign-in, and MiniMax, Synthetic,
+  and Z.ai, which sign in with a key),
+  _Use pay as you go_ (Fireworks, OpenCode Zen and Go, and OpenRouter, all
+  run in OpenCode, and More: DeepSeek, then OpenCode's own sign-in for any
+  other provider; every key is checked like Fireworks'), each a
+  large mark four across, and _Use a local model_: a line for each coding model a paired,
+  online machine is running, then one for the best coding model for this
+  computer when the local models catalog has one that fits. The first one is
+  focused and the hero reads Add an agent. A model that's ready opens the
+  agent on it; one to set up hands its setup to the local models panel, which
+  follows the download. With no default agent yet, the local model becomes it
+  once the chosen model is ready, as the first sign-in does. Copilot, Cursor, and Muse are added with `omarchy
+  agent account add`, and a lapsed sign-in of theirs still gets its link here. The + becomes
+  the X that goes back. A further Claude, Codex, or Grok account asks for a
+  name first, and Enter signs it in; the others keep one sign-in each, which
+  signing in again replaces. The
   panel then runs `omarchy-agent-account-add --events` and follows it: the
-  status, the code Grok asks you to confirm in the browser, a field to paste
-  Claude's code back if its page shows one instead of finishing, and a link to
-  reopen the sign-in page. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
-  carries on and its result arrives as a notification.
+  status, the code Grok, Muse, or OpenCode asks you to confirm in the browser,
+  a field to paste back the code Gemini's page shows (or Claude's, if its
+  page shows one instead of finishing), and a link to
+  reopen the sign-in page. Fireworks and OpenRouter have no login and open
+  no browser: the panel asks for an API key, which is checked against the
+  provider, then saved in OpenCode, which is installed first if it's missing. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
+  carries on and its result arrives as a notification. Signing in to an
+  agent that was hidden from the panel shows it again.
 
 The icon is always in the bar. On a machine with no agent yet, the panel is
-the blank slate for setting one up: it opens on the same choice of Claude,
-Codex, or Grok, and the first agent signed in becomes the default agent if
+the blank slate for setting one up: it opens on the same choice of agents,
+and the first one signed in that has a harness of its own becomes the default agent if
 none was picked. An agent appears once it is enabled in settings and has
 recorded usage, on this machine or a synced one; a CLI installed
 mid-session shows up at the next refresh. Drop the widget with
@@ -173,9 +235,9 @@ A session's subagent logs roll up into it. Every billed call a child agent made 
 
 The collector asks the client's own key endpoint for the subscription's session and weekly percents with reset times — the same figures the TUI's `/usage` overlay shows. Minting is idempotent (the same Model API key comes back every call), so polling is safe; the token travels only in the `Authorization` header and neither it nor the returned key is persisted. `MUSE_KEY_ENDPOINT` moves the endpoint, over https only (plain http only to this machine). Pay-as-you-go accounts have no subscription windows and no plan name, so the tab shows measured local usage with no meters — never estimated, never zeroed. An active plan that returns no `subs_usage` (Muse Code Power Usage answers this way on every probe) behaves the same way, except the tab keeps the plan name.
 
-### Antigravity
+### Gemini
 
-The record's id is `agy`, the name the default agent knows it by. The plan and limits are asked of Google's Cloud Code API with whichever Antigravity sign-in is on the machine: the one `agy` keeps in the Secret Service keyring (service `gemini`, username `antigravity`) or, without a keyring, in `antigravity-oauth-token` under `AGY_DIR`; omp's `google-antigravity` sign-in in `~/.omp/agent/agent.db`; pi's in `auth.json` (under `PI_CODING_AGENT_DIR` when set); and opencode's `google` sign-in, only when the Antigravity plugin's `antigravity-accounts.json` is there. The token refreshed most recently is asked first, and one Google refuses gives way to the next. Those stores are only ever read. A lapsed token shows the last limits as paused until the harness that owns it runs again; a lapsed omp sign-in is asked through `omp usage`, which renews it. Each Google account keeps its own last answer, so another account's limits never stand in. `CLOUD_CODE_URL` moves the endpoint, over https only.
+The panel names the section for the subscription, Gemini; Antigravity is the harness that codes on it. The record's id is `agy`, the name the default agent knows it by. The plan and limits are asked of Google's Cloud Code API with whichever Antigravity sign-in is on the machine: the one `agy` keeps in the Secret Service keyring (service `gemini`, username `antigravity`) or, without a keyring, in `antigravity-oauth-token` under `AGY_DIR`; omp's `google-antigravity` sign-in in `~/.omp/agent/agent.db`; pi's in `auth.json` (under `PI_CODING_AGENT_DIR` when set); and opencode's `google` sign-in, only when the Antigravity plugin's `antigravity-accounts.json` is there. The token refreshed most recently is asked first, and one Google refuses gives way to the next. Those stores are only ever read. A lapsed token shows the last limits as paused until the harness that owns it runs again; a lapsed omp sign-in is asked through `omp usage`, which renews it. Each Google account keeps its own last answer, so another account's limits never stand in. `CLOUD_CODE_URL` moves the endpoint, over https only.
 
 Local stats count `agy`'s history prompts, its conversations (a subagent's conversation counts toward the one that spawned it), and the tokens each transcript step reports, under the model the step or the last Model Selection names. Antigravity answers that pi, omp, OpenClaw (`OPENCLAW_STATE_DIR`), and opencode's plugin recorded count too, a forked copy once. No other collector counts these.
 
@@ -269,7 +331,7 @@ Synthetic reads `SYNTHETIC_API_KEY` first, then the key pi stores in `~/.pi/agen
 
 ### Local models
 
-The Local models section counts work that ran on hardware you own: Codex rollouts, pi and omp sessions, and opencode messages whose provider is a well-known local runtime (Ollama, LM Studio, llama.cpp, vLLM, ...), a provider named in `~/.config/omarchy/agents/local.json`, or a Codex `model_providers` entry whose `base_url` is on a loopback, private, link-local or LAN address:
+The `local` record counts work that ran on hardware you own: Codex rollouts, pi and omp sessions, and opencode messages whose provider is a well-known local runtime (Ollama, LM Studio, llama.cpp, vLLM, ...), a provider named in `~/.config/omarchy/agents/local.json`, or a Codex `model_providers` entry whose `base_url` is on a loopback, private, link-local or LAN address:
 
 ```json
 { "providers": ["homelab", "my-gateway"] }
@@ -285,18 +347,19 @@ It is the exact complement of the provider collectors: a provider id another col
   urgent when any account new sessions use is at 90% of a window, or a
   prepaid balance is down to its last 10%.
 - Panel: the arrows (or `h`/`j`/`k`/`l`) walk a cursor over everything that
-  does something, row by row: the hero's buttons, each agent's header, each
-  switchable account (landing on Use), and the
-  starter tiles, or the agents to add. Ctrl+Up/Down (or Ctrl+`k`/`j`) moves the
-  agent the cursor is in up or down the page; dragging an agent by its mark
-  does the same, lighting the header it will land on. The order is kept in
-  `~/.local/state/omarchy/agents/order.json`. Hovering moves the same cursor. Enter acts on it, or
-  refreshes when nothing is lit; `r` refreshes, Tab moves to the neighboring
-  bar panel, Esc closes.
-- Accounts: `1`–`9` jump to an account across every agent, and Enter makes it
-  active (picking alone never switches). While an agent with several accounts
-  has its active one within 15 points of its alert threshold (80% at the
-  default), the limits refresh every three minutes.
+  does something, row by row: the hero's button, each line's star, sparkles
+  (or make icons once opened), desktop app, and terminal button, and the
+  starter tiles, or the agents to add.
+  Up and Down land on a line's terminal button, so Down then Enter starts the
+  next one. Ctrl+Up/Down (or Ctrl+`k`/`j`) moves the line the cursor is in up
+  or down the page; dragging a line by its mark does the same, lighting the
+  line it will land on. The order is kept by line in
+  `~/.local/state/omarchy/agents/order.json`. Hovering moves the same cursor.
+  Enter acts on it, or refreshes when nothing is lit; `1`–`9` jump to that
+  line, `r` refreshes, Tab moves to the neighboring bar panel, Esc closes.
+- Accounts: while an agent with several accounts has its active one within
+  15 points of its alert threshold (80% at the default), the limits refresh
+  every three minutes.
 - IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh>`.
 
 ## Settings

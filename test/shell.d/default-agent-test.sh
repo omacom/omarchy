@@ -62,6 +62,11 @@ cat >"$mock_bin/opencode" <<'SH'
 printf '%s\0' opencode "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
 SH
 
+cat >"$mock_bin/pi" <<'SH'
+#!/bin/bash
+printf '%s\0' pi "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
+SH
+
 cat >"$mock_bin/omarchy-mise-install" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_STUB_LOG"
@@ -297,7 +302,7 @@ grep -Fq "Choose default agent with" "$test_tmp/no-agent-output" ||
 pass "agent launcher refuses to launch without a default"
 
 # The agents panel launches a running local model whether or not a default was
-# chosen; it opens in an agent with an overlay all the same.
+# chosen; it opens in pi, on pi's overlay, all the same.
 cat >"$mock_bin/omarchy-models" <<'SH'
 #!/bin/bash
 [[ $1 == "overlay" ]] && printf '%s\n' "/overlays/$2-local.config" omarchy-local test-model
@@ -307,49 +312,77 @@ chmod +x "$mock_bin/omarchy-models"
 omarchy-agent --local-model test-model >"$test_tmp/local-output" 2>&1 ||
   fail "agent launcher opens a local model without a default: $(<"$test_tmp/local-output")"
 mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == *"/overlays/"*"-local.config"* ]] ||
-  fail "agent launcher points the local model's agent at its overlay: ${launch_args[*]}"
+[[ ${launch_args[*]} == *"--extension /overlays/pi-local.config"* ]] ||
+  fail "agent launcher points pi at the local model's overlay: ${launch_args[*]}"
 rm "$mock_bin/omarchy-models"
 pass "agent launcher opens a local model without a default"
 
-# Qwen Code opens on a local model from an omarchy-local-ai that writes its
-# overlay: the endpoint and model as flags, the key read from its file inside
-# the terminal, never on a command line.
-printf 'local-secret-key' >"$test_tmp/local-key"
-cat >"$mock_bin/omarchy-models" <<'SH'
+# A provider with no harness of its own opens in OpenCode on the model its
+# usage record has used most, under the id OpenCode lists it by rather than the
+# record's short name for it, and on the one OpenCode last used there when it
+# still lists it.
+provider_bin="$test_tmp/provider-bin"
+mkdir -p "$provider_bin" "$test_tmp/provider-state/omarchy/agents/usage" "$test_tmp/provider-state/opencode"
+cat >"$provider_bin/opencode" <<'SH'
 #!/bin/bash
-if [[ $1 == "overlay" && $2 == "qwen" ]]; then
-  printf '{"baseUrl": "http://127.0.0.1:11435/v1", "model": "test-model", "keyFile": "%s"}\n' "$OMARCHY_TEST_KEY_FILE" >"$OMARCHY_TEST_QWEN_FILE"
-  printf '%s\n' "$OMARCHY_TEST_QWEN_FILE" omarchy-local test-model
-elif [[ $1 == "overlay" ]]; then
-  printf '%s\n' "/overlays/$2-local.config" omarchy-local test-model
+if [[ $1 == "models" ]]; then
+  printf '%s\n' "openrouter/other" "fireworks-ai/accounts/fireworks/models/kimi-k3" "fireworks-ai/accounts/fireworks/models/deepseek-v4p1-flash"
+else
+  printf '%s\0' opencode "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
 fi
 SH
-chmod +x "$mock_bin/omarchy-models"
-printf '#!/bin/bash\nprintf "key=%%s args=%%s\\n" "$OPENAI_API_KEY" "$*"\n' >"$mock_bin/qwen"
-chmod +x "$mock_bin/qwen"
+chmod +x "$provider_bin/opencode"
+echo '{"modelUsage":{"kimi-k3":{"inputTokens":5},"deepseek-v4.1-flash":{"inputTokens":3,"cacheReadInputTokens":9}}}' \
+  >"$test_tmp/provider-state/omarchy/agents/usage/fireworks.json"
 : >"$launch_log"
-OMARCHY_TEST_KEY_FILE="$test_tmp/local-key" OMARCHY_TEST_QWEN_FILE="$test_tmp/qwen-overlay.json" \
-  omarchy-agent --agent qwen --local-model test-model >"$test_tmp/qwen-local-output" 2>&1 ||
-  fail "agent launcher opens Qwen Code on a local model: $(<"$test_tmp/qwen-local-output")"
+PATH="$provider_bin:$PATH" XDG_STATE_HOME="$test_tmp/provider-state" omarchy-agent --provider fireworks
 mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} != *"local-secret-key"* ]] || fail "agent launcher keeps the local key off Qwen Code's command line"
-qwen_output=$("${launch_args[@]:1}")
-[[ $qwen_output == "key=local-secret-key args=--yolo --auth-type openai --openai-base-url http://127.0.0.1:11435/v1 --model test-model" ]] ||
-  fail "Qwen Code gets the local endpoint and model as flags and the key in its environment: $qwen_output"
-rm "$mock_bin/omarchy-models" "$mock_bin/qwen" "$test_tmp/local-key"
-pass "agent launcher opens Qwen Code on a local model, keeping its key off the command line"
+[[ ${launch_args[*]} == *'OPENCODE_CONFIG_CONTENT={"model":"fireworks-ai/accounts/fireworks/models/deepseek-v4p1-flash"}'*"opencode --auto --standalone" ]] ||
+  fail "agent launcher opens a provider in OpenCode on its most-used model: ${launch_args[*]}"
+pass "agent launcher opens a provider in OpenCode on its most-used model"
 
-# The keybinding uses --pick, where an error on stderr nobody sees would make
-# the keypress look broken. It offers the choice instead.
+echo '{"recent":[{"providerID":"openrouter","modelID":"other"},{"providerID":"fireworks-ai","modelID":"accounts/fireworks/models/kimi-k3"}]}' \
+  >"$test_tmp/provider-state/opencode/model.json"
 : >"$launch_log"
-: >"$menu_log"
-omarchy-agent --pick
-mapfile -d '' -t menu_args <"$menu_log"
-[[ ${menu_args[*]} == "summon agent.harness" ]] ||
-  fail "--pick opens the agent defaults menu when none is set"
+PATH="$provider_bin:$PATH" XDG_STATE_HOME="$test_tmp/provider-state" omarchy-agent --provider fireworks
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *'"model":"fireworks-ai/accounts/fireworks/models/kimi-k3"'* ]] ||
+  fail "agent launcher reopens a provider on the model OpenCode last used there: ${launch_args[*]}"
+pass "agent launcher reopens a provider on the model last used there"
+
+# --pick is for callers with nowhere to show an error, where stderr nobody sees
+# would make them look broken. It opens the agents panel to set one up instead.
+: >"$launch_log"
+printf '#!/bin/bash
+printf "%%s" "$*" >"$OMARCHY_TEST_SHELL_LOG"
+' >"$mock_bin/omarchy-shell"
+chmod +x "$mock_bin/omarchy-shell"
+OMARCHY_TEST_SHELL_LOG="$test_tmp/shell" omarchy-agent --pick
+rm "$mock_bin/omarchy-shell"
+[[ $(<"$test_tmp/shell") == "omarchy.agents open" ]] ||
+  fail "--pick opens the agents panel when none is set" "$(<"$shell_log")"
 [[ ! -s $launch_log ]] || fail "--pick starts nothing when no agent is set"
-pass "--pick opens the agent defaults menu when none is set"
+pass "--pick opens the agents panel when none is set"
+
+# The AI hotkey opens the region's AI web app until an agent is chosen.
+cat >"$mock_bin/omarchy-launch-webapp" <<'SH'
+#!/bin/bash
+printf 'webapp %s\n' "$*" >"$OMARCHY_TEST_STUB_LOG"
+SH
+chmod +x "$mock_bin/omarchy-launch-webapp"
+: >"$stub_log"
+omarchy-agent --or-webapp https://chatgpt.com
+[[ $(<"$stub_log") == "webapp https://chatgpt.com" && ! -s $launch_log ]] || fail "the AI hotkey opens the web app without a default agent"
+pass "the AI hotkey opens the web app without a default agent"
+
+# The menu starts the chosen agent itself, so a prompt waits on the clipboard.
+: >"$clipboard_log"
+: >"$notification_history"
+omarchy-agent --pick --prompt "Diagnose this crash"
+[[ $(<"$clipboard_log") == "Diagnose this crash" ]] || fail "a prompt is kept on the clipboard while an agent is chosen"
+grep -q "Choose an agent for this task" "$notification_history" || fail "choosing an agent for a prompt says where the prompt went"
+[[ ! -s $launch_log ]] || fail "a prompt starts nothing before an agent is chosen"
+pass "a prompt is kept on the clipboard while an agent is chosen"
 
 source "$ROOT/default/bash/aliases"
 [[ $(alias a) == "alias a='omarchy-agent --inline'" ]] ||
@@ -485,6 +518,16 @@ pass "each installed harness gets a launcher with its icon in the icon sets"
   fail "default agent stores its selection in Omarchy user config"
 pass "default agent stores its selection in Omarchy user config"
 
+# The agents panel's star selects without opening, and only what is installed.
+: >"$agent_open_log"
+OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent --select codex
+[[ $(omarchy-default-agent) == "codex" && ! -s $agent_open_log ]] || fail "--select makes an agent the default without opening it"
+if OMARCHY_TEST_AGENT_INSTALLED=false omarchy-default-agent --select claude 2>/dev/null; then
+  fail "--select refuses an agent that isn't installed"
+fi
+[[ $(omarchy-default-agent) == "codex" && ! -s $terminal_log ]] || fail "a refused --select changes nothing and installs nothing"
+pass "--select makes an installed agent the default without opening it"
+
 OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent pi
 : >"$agent_open_log"
 OMARCHY_TEST_AGENT_INSTALLED=true OMARCHY_TEST_EXTENSION_FAIL=true omarchy-default-agent claude >"$test_tmp/extension-failure" 2>&1
@@ -531,7 +574,7 @@ chmod +x "$mock_bin/hyprctl"
 : >"$agent_open_log"
 omarchy-default-agent --install github-copilot >/dev/null
 [[ ! -s $agent_open_log ]] || fail "an install from the Quake console leaves its floating terminal"
-grep -qF 'hl.dsp.exec_cmd("omarchy-agent --prefer-local", { workspace = "special:qconsole silent" })' "$test_tmp/dispatch" ||
+grep -qF 'hl.dsp.exec_cmd("omarchy-agent", { workspace = "special:qconsole silent" })' "$test_tmp/dispatch" ||
   fail "an install from the Quake console opens the agent tiled in the console"
 grep -qF 'window = "address:0xc0ffee"' "$test_tmp/dispatch" ||
   fail "an install from the Quake console closes its floating terminal"
@@ -911,6 +954,15 @@ mapfile -d '' -t launch_args <"$launch_log"
   fail "agent launcher starts the selected agent without an initial prompt"
 pass "agent launcher starts the selected agent without an initial prompt"
 
+# A make icon on one of the agents panel's lines starts that line's agent on
+# the task, not the default.
+: >"$launch_log"
+omarchy-agent-make --agent claude theme
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *"claude"*"Make me a new Omarchy theme."* && ${launch_args[*]} != *opencode* ]] ||
+  fail "make starts the named agent on the task: ${launch_args[*]}"
+pass "make starts the named agent on the task"
+
 omarchy-agent-prompt --inline "Review this project"
 mapfile -d '' -t inline_args <"$inline_log"
 [[ ${inline_args[*]} == "opencode --auto --prompt Review this project" ]] ||
@@ -935,9 +987,9 @@ mapfile -d '' -t launch_args <"$launch_log"
 [[ ! -s $menu_log ]] || fail "--pick opens no menu once an agent is chosen"
 pass "--pick launches once an agent is chosen"
 
-# The Quake console seeds with --prefer-local: the local model when one is
-# running, the usual agent otherwise. The mock reports whatever status the test
-# writes to OMARCHY_TEST_LOCAL_STATUS, and no status at all when it is unset.
+# A default of "local" is the local model, which opens in pi. The mock reports
+# whatever status the test writes to OMARCHY_TEST_LOCAL_STATUS, and no status
+# at all when it is unset.
 cat >"$mock_bin/omarchy-models" <<'SH'
 #!/bin/bash
 case $1 in
@@ -946,29 +998,32 @@ overlay) printf '%s\n' "/overlays/$2-${3:-last}.config" omarchy-local "${3:-last
 esac
 SH
 chmod +x "$mock_bin/omarchy-models"
-prefer_local_launch() {
-  : >"$launch_log"
-  OMARCHY_TEST_LOCAL_STATUS=$1 omarchy-agent --pick --prefer-local
-  mapfile -d '' -t launch_args <"$launch_log"
-}
+# Selecting it installs nothing: pi is a base package.
+: >"$mise_log"
+omarchy-default-agent local
+[[ $(omarchy-default-agent) == "local" && ! -s $mise_log ]] || fail "the local model is a default agent that needs no install"
+: >"$launch_log"
+OMARCHY_TEST_LOCAL_STATUS='{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}' omarchy-agent --pick
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *"pi --extension /overlays/pi-last.config --provider omarchy-local --model last" ]] ||
+  fail "a default of local opens the last local model in pi: ${launch_args[*]}"
 
-omarchy-models-harness codex 2>/dev/null && fail "only a harness that can take a local model is accepted"
-omarchy-models-harness opencode
-prefer_local_launch '{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}'
-[[ ${launch_args[*]} == *"OPENCODE_CONFIG=/overlays/opencode-big.config"*"opencode --auto --standalone" ]] ||
-  fail "--prefer-local opens the running local model: ${launch_args[*]}"
-
-prefer_local_launch '{"last":"big","models":{"big":{"unit":"inactive","sub_state":"dead"},"small":{"unit":"active","sub_state":"running"}}}'
-[[ ${launch_args[*]} == *"/overlays/opencode-small.config"* ]] ||
-  fail "--prefer-local opens whichever model is running when the last one is stopped: ${launch_args[*]}"
-
-prefer_local_launch '{"last":"big","models":{"big":{"unit":"activating","sub_state":"start"}}}'
-[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] ||
-  fail "--prefer-local opens the usual agent while the model is still loading: ${launch_args[*]}"
-
-prefer_local_launch ''
-[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] ||
-  fail "--prefer-local opens the usual agent without a local model: ${launch_args[*]}"
+# A pinned model is the one it opens, while this machine still has it.
+running='{"last":"small","models":{"big":{"unit":"active","sub_state":"running"},"small":{"unit":"active","sub_state":"running"}}}'
+omarchy-default-agent --select local big
+[[ $(<"${agent_file%/*}/local-model") == "big" ]] || fail "starring a local model pins it"
+: >"$launch_log"
+OMARCHY_TEST_LOCAL_STATUS=$running omarchy-agent --pick
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *"--model big" ]] || fail "a default of local opens the pinned model: ${launch_args[*]}"
+: >"$launch_log"
+OMARCHY_TEST_LOCAL_STATUS='{"last":"small","models":{"small":{"unit":"active","sub_state":"running"}}}' omarchy-agent --pick
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *"--model last" ]] || fail "a pin to a removed model opens the last one instead: ${launch_args[*]}"
+omarchy-default-agent --select local
+[[ ! -e ${agent_file%/*}/local-model ]] || fail "choosing local alone clears the pin"
+printf '%s\n' "opencode" >"$agent_file"
+pass "a default of local opens the local model in pi"
 
 # A model that is set up but stopped, as one opened from its launcher may be,
 # is started in the agent's own terminal, where its loading shows: the launch
@@ -993,7 +1048,7 @@ export OMARCHY_TEST_WARMUP_LOG="$test_tmp/warmup"
 : >"$inline_log"
 OMARCHY_TEST_LOCAL_STATUS=$stopped omarchy-agent --inline --local-model big
 mapfile -d '' -t inline_args <"$inline_log"
-[[ $(<"$OMARCHY_TEST_WARMUP_LOG") == "warmup big" && ${inline_args[*]} == "opencode --auto --standalone" ]] ||
+[[ $(<"$OMARCHY_TEST_WARMUP_LOG") == "warmup big" && ${inline_args[*]} == "pi --extension /overlays/pi-big.config --provider omarchy-local --model big" ]] ||
   fail "an inline launch warms a stopped model up, then opens the agent on it: $(<"$OMARCHY_TEST_WARMUP_LOG") / ${inline_args[*]}"
 
 : >"$inline_log"
@@ -1006,18 +1061,12 @@ fi
 : >"$launch_log"
 OMARCHY_TEST_LOCAL_STATUS='{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}' omarchy-agent --local-model big
 mapfile -d '' -t launch_args <"$launch_log"
-[[ ! -s $OMARCHY_TEST_WARMUP_LOG && ${launch_args[*]} == *"/overlays/opencode-big.config"*"opencode --auto --standalone" ]] ||
+[[ ! -s $OMARCHY_TEST_WARMUP_LOG && ${launch_args[*]} == *"pi --extension /overlays/pi-big.config"* ]] ||
   fail "a running local model opens at once: ${launch_args[*]}"
 rm "$mock_bin/omarchy-models-warmup"
 pass "a stopped local model is started in the agent's terminal before the agent opens"
 
-# With no harness chosen the local model opens in pi, whatever the default agent.
-rm "${agent_file%/*}/models-harness"
-prefer_local_launch '{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}'
-[[ ${launch_args[*]} == *"pi --extension /overlays/pi-big.config"* ]] ||
-  fail "the local model opens in pi by default: ${launch_args[*]}"
 rm "$mock_bin/omarchy-models"
-pass "--prefer-local opens the running local model, and the usual agent otherwise"
 
 : >"$launch_log"
 omarchy agent prompt "Review this project"
