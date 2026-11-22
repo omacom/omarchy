@@ -26,11 +26,11 @@
   "update": {
     "label": "Aggiorna"
   },
-  "about": {
-    "label": "Info"
-  },
   "system": {
     "label": "Sistema"
+  },
+  "system.about": {
+    "label": "Info"
   },
   "system.screensaver": {
     "label": "Salvaschermo"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Input"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Lingua"
+  },
+  "setup.region.timezone": {
+    "label": "Fuso orario"
   },
   "setup.network": {
     "label": "Rete"
@@ -387,54 +390,8 @@
   "setup.default": {
     "label": "Predefiniti"
   },
-  "setup.default.agent": {
-    "label": "Agente",
-    "title": "Agente predefinito"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
+  "agent": {
+    "label": "Agente"
   },
   "setup.default.browser": {
     "label": "Browser",
@@ -566,11 +523,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Avvio diretto"
-  },
-  "setup.reset": {
-    "label": "Reimposta computer"
+  "remove.factory-reset": {
+    "label": "Ripristino di fabbrica"
   },
   "install.package": {
     "label": "Pacchetto"
@@ -665,9 +619,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -688,9 +639,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Account Chromium"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1088,9 +1036,6 @@
   "update.password": {
     "label": "Password"
   },
-  "update.timezone": {
-    "label": "Fuso orario"
-  },
   "update.time": {
     "label": "Ora"
   },
@@ -1139,12 +1084,6 @@
   "update.hardware.trackpad": {
     "label": "Touchpad"
   },
-  "update.password.drive": {
-    "label": "Crittografia disco"
-  },
-  "update.password.user": {
-    "label": "Utente"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Disattiva registrazione crash"
   },
@@ -1178,34 +1117,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Disattiva touchscreen"
   },
-  "setup.default.agent.amp": {
-    "label": "Amp"
-  },
-  "setup.default.agent.commandcode": {
-    "label": "Command Code"
-  },
-  "setup.default.agent.devin": {
-    "label": "Devin CLI"
-  },
-  "setup.default.agent.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "setup.default.agent.freebuff": {
-    "label": "Freebuff"
-  },
-  "setup.default.agent.kilo": {
-    "label": "Kilo"
-  },
-  "setup.default.agent.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "setup.default.agent.mcode": {
-    "label": "MiniMax Code"
-  },
-  "setup.default.agent.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1300,5 +1212,70 @@
   },
   "install.service.notion": {
     "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Semplice"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Icone"
+  },
+  "install.style.icons": {
+    "label": "Icone"
+  },
+  "remove.icons": {
+    "label": "Icone"
+  },
+  "update.icons": {
+    "label": "Icone aggiuntive"
+  },
+  "system.firmware": {
+    "label": "Riavvia nel BIOS",
+    "description": "Riavvia nelle impostazioni del firmware UEFI"
+  },
+  "setup.region": {
+    "label": "Regione"
+  },
+  "setup.region.formats": {
+    "label": "Formati",
+    "description": "Come vengono scritti date, orari, numeri e unità"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Gioco Game Vibes"
+  },
+  "update.games": {
+    "label": "Giochi Game Vibes"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Nome host"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
