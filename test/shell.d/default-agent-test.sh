@@ -146,8 +146,6 @@ export OMARCHY_TEST_MISE_HISTORY="$mise_history"
 export OMARCHY_TEST_STUB_LOG="$stub_log"
 export OMARCHY_TEST_AGENT_TERMINAL_LOG="$terminal_log"
 export OMARCHY_TEST_AGENT_MENU_LOG="$menu_log"
-export XDG_RUNTIME_DIR="$test_tmp/run"
-mkdir -p "$XDG_RUNTIME_DIR"
 export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
 export OMARCHY_TEST_CLIPBOARD="$clipboard_log"
 export OMARCHY_PATH="$ROOT"
@@ -358,20 +356,14 @@ mapfile -d '' -t menu_args <"$menu_log"
 [[ ! -s $launch_log ]] || fail "--pick starts nothing when no agent is set"
 pass "--pick opens the agent defaults menu when none is set"
 
-# The menu starts the chosen agent itself, so a prompt waits for that launch.
+# The menu starts the chosen agent itself, so a prompt waits on the clipboard.
+: >"$clipboard_log"
+: >"$notification_history"
 omarchy-agent --pick --prompt "Diagnose this crash"
-mkdir -p "${agent_file%/*}"
-printf '%s\n' "opencode" >"$agent_file"
-omarchy-agent
-mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto --prompt Diagnose this crash" ]] ||
-  fail "a prompt is kept through choosing an agent: ${launch_args[*]}"
-: >"$launch_log"
-omarchy-agent
-mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] || fail "a kept prompt is used once: ${launch_args[*]}"
-rm "$agent_file"
-pass "a prompt is kept through choosing an agent"
+[[ $(<"$clipboard_log") == "Diagnose this crash" ]] || fail "a prompt is kept on the clipboard while an agent is chosen"
+grep -q "Choose an agent for this task" "$notification_history" || fail "choosing an agent for a prompt says where the prompt went"
+[[ ! -s $launch_log ]] || fail "a prompt starts nothing before an agent is chosen"
+pass "a prompt is kept on the clipboard while an agent is chosen"
 
 source "$ROOT/default/bash/aliases"
 [[ $(alias a) == "alias a='omarchy-agent --inline'" ]] ||

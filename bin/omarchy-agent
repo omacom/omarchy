@@ -55,18 +55,6 @@ while (($#)); do
   esac
 done
 
-# A launch that had to ask which agent first leaves its prompt here, since the
-# menu starts the chosen agent itself. One left for longer than a few minutes
-# belongs to a choice that was never made.
-pending_prompt="${XDG_RUNTIME_DIR:-/tmp}/omarchy-agent-prompt"
-if [[ -z ${prompt:-} && -f $pending_prompt ]]; then
-  if [[ -n $(find "$pending_prompt" -mmin -15) ]]; then
-    prompt=$(<"$pending_prompt")
-    launch_args+=(--prompt "$prompt")
-  fi
-  rm -f "$pending_prompt"
-fi
-
 # Agents refuse to remember trust for $HOME, so launches from the keybinding or
 # menu start in the work directory instead of re-asking on every session.
 [[ $PWD == "$HOME" && -d $HOME/Work ]] && cd "$HOME/Work"
@@ -99,7 +87,12 @@ fi
 # keybinding wants: a keypress that opens nothing explains nothing.
 if [[ -z $agent ]]; then
   if [[ $pick == "true" ]]; then
-    [[ -n ${prompt:-} ]] && printf '%s' "$prompt" >"$pending_prompt"
+    # The menu starts the chosen agent itself, so a prompt (a crash report, a
+    # Make something task) waits on the clipboard to paste into it.
+    if [[ -n ${prompt:-} ]]; then
+      printf '%s' "$prompt" | wl-copy
+      omarchy-notification-send -g 󰅇 "$(omarchy-i18n agents.chooseForPrompt)" "$(omarchy-i18n agents.promptOnClipboardBody)"
+    fi
     exec omarchy-menu summon agent.harness
   fi
   echo "Choose default agent with: omarchy default agent <name>" >&2
