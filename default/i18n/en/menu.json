@@ -497,8 +497,14 @@
   "setup.network.dns.google": {
     "label": "Google"
   },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
   "setup.network.dns.custom": {
     "label": "Custom"
+  },
+  "setup.network.hostname": {
+    "label": "Hostname"
   },
   "setup.network.qr": {
     "label": "QR Code"
@@ -826,6 +832,9 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
+  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -834,6 +843,9 @@
   },
   "install.service.tailscale": {
     "label": "Tailscale"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
   },
   "install.service.nordvpn": {
     "label": "NordVPN"
@@ -885,6 +897,9 @@
   },
   "install.ai.amp": {
     "label": "Amp Desktop"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
   },
   "install.ai.chatgpt": {
     "label": "ChatGPT Desktop"
@@ -1119,6 +1134,9 @@
   },
   "remove.ai.amp": {
     "label": "Amp Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
   },
   "remove.ai.chatgpt": {
     "label": "ChatGPT Desktop"
