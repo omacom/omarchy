@@ -354,13 +354,15 @@ pass "an unlisted passwordless rule is found by running status without the times
 
 # `Defaults:<user> !authenticate` with a plain `<user> ALL=(ALL:ALL) ALL` rule:
 # the command's listing omits the inherited Default.
-for args in --disable ''; do
-  : >"$test_tmp/commands"
-  rc=0
-  TEST_STATUS=3 TEST_DEFAULTS='!authenticate' /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" ${args:+"$args"} >"$test_tmp/public.log" 2>&1 || rc=$?
-  (( rc == 1 )) && grep -q 'still enabled by a Defaults !authenticate setting' "$test_tmp/public.log" &&
-    ! grep -q 'DISABLED\|^gum\|__enable \|__disable ' "$test_tmp/public.log" "$test_tmp/commands" ||
-    fail "${args:-the toggle} must report a Default that turns authentication off" "$(cat "$test_tmp/public.log")"
+for probe_status in 2 3; do
+  for args in --disable ''; do
+    : >"$test_tmp/commands"
+    rc=0
+    TEST_STATUS=3 TEST_STATUS_KN=$probe_status TEST_DEFAULTS='!authenticate' /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" ${args:+"$args"} >"$test_tmp/public.log" 2>&1 || rc=$?
+    (( rc == 1 )) && grep -q 'still enabled by a Defaults !authenticate setting' "$test_tmp/public.log" &&
+      ! grep -q 'DISABLED\|^gum\|__enable \|__disable ' "$test_tmp/public.log" "$test_tmp/commands" ||
+      fail "${args:-the toggle} must report a Default that turns authentication off" "$(cat "$test_tmp/public.log")"
+  done
 done
 : >"$test_tmp/commands"
 rc=0
