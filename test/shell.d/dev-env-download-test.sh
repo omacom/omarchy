@@ -15,7 +15,9 @@ while (($#)); do
   if [[ $1 == "-o" ]]; then output=$2; shift; fi
   shift
 done
-script='printf "installer:%s\n" "$*" >>"$INSTALL_LOG"'
+script='printf "installer:%s\n" "$*" >>"$INSTALL_LOG"
+if [[ ${INTERRUPT_INSTALLER:-0} == 1 ]]; then kill -TERM "$PPID"; fi
+exit "${INSTALLER_STATUS:-0}"'
 if [[ -n $output ]]; then printf '%s\n' "$script" >"$output"; else printf '%s\n' "$script"; fi
 exit "${DOWNLOAD_STATUS:-0}"
 SH
@@ -40,3 +42,18 @@ bash "$ROOT/bin/omarchy-install-dev-env" rust >"$scratch/out" 2>&1 || fail "the 
 grep -qx 'installer:-y' "$INSTALL_LOG" || fail "Rust keeps its install argument"
 [[ -z $(ls -A "$TMPDIR") ]] || fail "a successful download leaves no installer"
 pass "a complete Rust installer receives its arguments and is removed afterwards"
+
+for environment in rust ocaml; do
+  : >"$INSTALL_LOG"
+  if INSTALLER_STATUS=7 bash "$ROOT/bin/omarchy-install-dev-env" "$environment" >"$scratch/out" 2>&1; then
+    fail "a failed $environment installer fails setup"
+  fi
+  ! grep -q '^opam:' "$INSTALL_LOG" || fail "a failed installer stops OCaml setup"
+  [[ -z $(ls -A "$TMPDIR") ]] || fail "a failed installer leaves no file"
+
+  if INTERRUPT_INSTALLER=1 bash "$ROOT/bin/omarchy-install-dev-env" "$environment" >"$scratch/out" 2>&1; then
+    fail "an interrupted $environment installer fails setup"
+  fi
+  [[ -z $(ls -A "$TMPDIR") ]] || fail "an interrupted installer leaves no file"
+done
+pass "failed and interrupted installers fail setup and remove their files"

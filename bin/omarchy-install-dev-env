@@ -31,18 +31,21 @@ install_node() {
 
 # A failed command substitution still hands its partial stdout to bash -c.
 # Finish the download before running any of it, and keep redirects on TLS.
-run_downloaded_installer() {
+run_downloaded_installer() (
   local url=$1 installer status=0
   shift
   installer=$(mktemp) || return 1
+  trap 'rm -f -- "$installer"' EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   if curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL "$url" -o "$installer"; then
     bash "$installer" "$@" || status=$?
   else
     status=$?
   fi
-  rm -f -- "$installer"
   return "$status"
-}
+)
 
 case "$1" in
 ruby)
