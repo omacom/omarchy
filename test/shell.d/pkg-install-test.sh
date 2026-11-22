@@ -13,11 +13,15 @@ mkdir -p "$mock_path"
 cat >"$mock_path/pacman" <<'MOCK'
 #!/bin/bash
 if [[ $1 == "-Sl" ]]; then
+  marker=installed
+  if [[ ${LANGUAGE:-} == "de" && ${LC_ALL:-} != "C" ]]; then
+    marker=Installiert
+  fi
   printf '%s\n' \
-    "extra ripgrep 15.0.0-1 [installed]" \
-    "extra fd 10.3.0-1 [installed: 10.2.0-1]" \
+    "extra ripgrep 15.0.0-1 [$marker]" \
+    "extra fd 10.3.0-1 [$marker: 10.2.0-1]" \
     "extra bat 0.26.0-1" \
-    "omarchy quickshell 0.3.2-1 [installed]" \
+    "omarchy quickshell 0.3.2-1 [$marker]" \
     "omarchy omarchy-fonts 1.0-1"
   exit 0
 fi
@@ -48,11 +52,11 @@ MOCK
 
 chmod +x "$mock_path/pacman" "$mock_path/fzf" "$mock_path/sudo" "$mock_path/omarchy-show-done"
 
-PATH="$mock_path:$PATH" TEST_TMP="$test_tmp" "$ROOT/bin/omarchy-pkg-install"
+LANGUAGE=de LC_ALL=en_US.UTF-8 PATH="$mock_path:$PATH" TEST_TMP="$test_tmp" "$ROOT/bin/omarchy-pkg-install"
 
 [[ $(<"$test_tmp/fzf-input") == $'bat\nomarchy-fonts' ]] ||
   fail "package picker lists installed packages: $(tr '\n' ' ' <"$test_tmp/fzf-input")"
-pass "package picker lists only packages that are not installed"
+pass "package picker excludes installed packages with a translated pacman locale"
 
 [[ $(<"$test_tmp/pkg-install-command") == "pacman -S --noconfirm --needed bat" ]] ||
   fail "package install must pass --needed: $(<"$test_tmp/pkg-install-command")"

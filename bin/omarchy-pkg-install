@@ -17,7 +17,7 @@ fzf_args=(
 
 # pacman -Sl marks installed packages; leave them out so picking one can't
 # upgrade it outside omarchy update.
-pkg_names=$(pacman -Sl | awk '$4 !~ /^\[installed/ { print $2 }' | fzf "${fzf_args[@]}")
+pkg_names=$(LC_ALL=C pacman -Sl | awk '$4 !~ /^\[installed/ { print $2 }' | fzf "${fzf_args[@]}")
 
 if [[ -n $pkg_names ]]; then
   source omarchy-sudo-keepalive
