@@ -49,6 +49,18 @@ source "$OMARCHY_PATH/install/provisioning/setup-form.sh"
 # The installer's console font, from the same file the ISO vendors.
 source "$OMARCHY_PATH/install/provisioning/console-font.sh"
 
+# Setup is drawn in kmscon, as the installer is, and on the console in that
+# font only where kmscon cannot show it. kmscon takes its keyboard layout and
+# font once, at its start: when the keyboard step changes either, the attempt
+# saves its answers to KMSCON_RESUME and exits KMSCON_RELAUNCH, and main
+# starts kmscon again to carry on from the account step.
+source "$OMARCHY_PATH/install/provisioning/kmscon.sh"
+KMSCON_STATE=/run/omarchy-provision-owner
+KMSCON_RESUME=$KMSCON_STATE/resume
+KMSCON_RELAUNCH=75
+# kmscon's fonts draw what the console's cannot.
+[[ ${OMARCHY_KMSCON:-} != 1 ]] || OMARCHY_FORM_CONSOLE_LANGUAGES+=" ja ko zh-CN zh-TW"
+
 # What the OEM that prepared this machine left for its owner, if one did.
 source "$OMARCHY_PATH/install/provisioning/oem.sh"
 omarchy_oem_load
@@ -620,6 +632,17 @@ keyboard_form() {
   done
 
   omarchy_persist_input_selection
+
+  # The password ahead is typed under the layout just picked, and the language
+  # reads in its own Han forms: both need kmscon started again.
+  if [[ ${OMARCHY_KMSCON:-} == 1 ]] &&
+    [[ $(omarchy_kmscon_xkb) != "$OMARCHY_KMSCON_XKB" || $(omarchy_kmscon_face "$language") != "$OMARCHY_KMSCON_FACE" ]]; then
+    (
+      umask 077
+      declare -p language keyboard keyboard_label keyboard_input_method keyboard_xkb_layout 2>/dev/null >"$KMSCON_RESUME"
+    )
+    exit $KMSCON_RELAUNCH
+  fi
 }
 
 confirm_reboot() {
@@ -1330,9 +1353,19 @@ run_setup() {
 
   # Each attempt is its own process, so it learns for itself what the font draws.
   fit_console_font
-  initial_language
-  language_form
-  keyboard_form || return 1
+  if [[ -r $KMSCON_RESUME ]]; then
+    # shellcheck disable=SC1090
+    source "$KMSCON_RESUME"
+    rm -f "$KMSCON_RESUME"
+    omarchy_form_use_language "$language"
+    # Back on the console after kmscon failed: the layout picked in kmscon was
+    # never loaded here, and the password ahead must be typed under it.
+    [[ $(tty 2>/dev/null) != /dev/tty[0-9]* ]] || loadkeys "$keyboard" >>"$LOG_FILE" 2>&1 || true
+  else
+    initial_language
+    language_form
+    keyboard_form || return 1
+  fi
 
   while true; do
     user_form && status=0 || status=$?
@@ -1429,13 +1462,32 @@ if [[ ${1:-} == "--attempt" ]]; then
 fi
 
 main() {
+  local status
+
+  # The whole of setup in kmscon, started again for as long as an attempt asks
+  # for it. When kmscon cannot show setup, it carries on here on the console,
+  # with the answers a relaunch was asked with if there are any.
+  if [[ ${OMARCHY_KMSCON:-} != 1 ]] && omarchy_kmscon_wanted; then
+    # A dark, empty console behind kmscon, for the moments it is not drawing.
+    set_tokyo_night_colors
+    while true; do
+      initial_language
+      omarchy_kmscon_show "$KMSCON_STATE" "$language" "$OMARCHY_OEM_COLOR" "$0" || break
+      [[ -e $KMSCON_RESUME ]] || exit 0
+    done
+  fi
+  [[ ${OMARCHY_KMSCON:-} != 1 ]] || touch "$KMSCON_STATE/started"
+
   # Font sizing waits for the console to settle, so it lives inside
   # greeter_screen (which owns that settle) rather than running here on a VT
   # that may still be in a transitional mode this early in first boot.
   set_tokyo_night_colors
-  greeter_screen
+  # A relaunch of kmscon is the same setup carrying on, not a new start.
+  [[ -e $KMSCON_RESUME ]] || greeter_screen
 
-  while ! "$0" --attempt; do
+  while true; do
+    "$0" --attempt && break || status=$?
+    ((status == KMSCON_RELAUNCH)) && [[ -e $KMSCON_RESUME ]] && exit 0
     # In the language the failed attempt was in.
     initial_language
     clear_logo

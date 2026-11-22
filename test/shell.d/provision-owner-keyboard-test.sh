@@ -398,6 +398,8 @@ lang=$tmp/language
 mkdir -p "$lang"
 export OMARCHY_FORM_DEFAULTS=$lang/no-defaults
 source "$ROOT/install/provisioning/setup-form.sh"
+# No kmscon here: setup is on the console, with no relaunch to carry on from.
+KMSCON_RESUME=$tmp/no-kmscon-resume
 source <(sed -n '/^fit_console_font() {/,/^}/p; /^initial_language() {/,/^}/p; /^configure_language() {/,/^}/p; /^keyboard_form() {/,/^}/p; /^user_form() {/,/^}/p; /^clear_logo() {/,/^}/p; /^brand_logo() {/,/^}/p; /^brand_console_font() {/,/^}/p; /^confirm_shutdown() {/,/^}/p; /^eula_form() {/,/^}/p; /^run_setup() {/,/^}/p' \
   "$ROOT/bin/omarchy-provision-owner")
 
