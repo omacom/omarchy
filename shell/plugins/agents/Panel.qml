@@ -2037,11 +2037,10 @@ Panel {
                 elide: Text.ElideRight
               }
 
-              // A paired machine's model ends on whose it is, where this
-              // machine's says the memory it takes.
+              // A paired machine's model says whose it is before its facts.
               Text {
                 width: parent.width
-                text: [root.ownModelFacts(ownModel.modelData.facts), ownModel.modelData.host].filter(function(part) { return part !== "" }).join(" · ")
+                text: [ownModel.modelData.host, root.ownModelFacts(ownModel.modelData.facts)].filter(function(part) { return part !== "" }).join(" · ")
                 textFormat: Text.PlainText
                 color: root.dim
                 font.family: root.fontFamily
@@ -2641,13 +2640,13 @@ Panel {
       }
     }
 
-    // A local model's memory, speed, and context, as the local models panel
-    // says them, then the machine it runs on when that isn't this one.
+    // The machine a local model runs on when that isn't this one, then its
+    // memory, speed, and context, as the local models panel says them.
     Text {
       visible: !!section.local && text !== ""
       width: parent.width
       textFormat: Text.PlainText
-      text: section.local ? [root.ownModelFacts(section.local), section.local.host].filter(function(part) { return part !== "" }).join(" · ") : ""
+      text: section.local ? [section.local.host, root.ownModelFacts(section.local)].filter(function(part) { return part !== "" }).join(" · ") : ""
       color: root.dim
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
