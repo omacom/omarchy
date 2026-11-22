@@ -14,8 +14,6 @@ bluez-utils
 bolt
 brightnessctl
 btop
-cards
-checkmate
 cliamp
 cmake
 crun
@@ -33,6 +31,7 @@ exfatprogs
 expac
 eza
 fakeroot
+fantasi
 fastfetch
 fcitx5
 fcitx5-chewing
@@ -45,6 +44,7 @@ fcitx5-table-extra
 fd
 ffmpeg
 ffmpegthumbnailer
+flowtunes
 folio
 fontconfig
 foot
@@ -90,7 +90,7 @@ mise-bin
 monologue
 gnome-disk-utility
 noto-fonts
-noto-fonts-cjk
+noto-fonts-cjk-vf
 noto-fonts-emoji
 nss-mdns
 nvim
@@ -107,12 +107,15 @@ omarchy-local-ai
 # on ARM laptops. Back to stock once upstream merges MR !236 and !239.
 omarchy-power-profiles-daemon
 omarchy-screensaver
+omarchy-themes-intros
+omarchy-themes-loops
 omasnap
 # OWE owns desktop video backgrounds and feeds the lock screen its frames.
 owe
 pacman-contrib
 pamixer
 papers
+pi-coding-agent
 pinta
 plain
 plocate
@@ -149,7 +152,6 @@ tldr
 tree-sitter-cli
 tmux
 tobi-try
-ttf-ia-writer
 ttf-jetbrains-mono-nerd-basic
 tzupdate
 udiskie
