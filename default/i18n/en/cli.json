@@ -363,6 +363,7 @@
   "share.couldNot": "Could not share",
   "share.filesTitle": "Share files",
   "share.folderTitle": "Share folder",
+  "sikemux.deleteData": "Also delete your Sikemux data (%1: chats, settings, mods and the sign-ins the core keeps)?",
   "sshd.githubUserPrompt": "GitHub username> ",
   "sshd.howToAddKey": "How would you like to add your SSH key?",
   "sshd.keyFromGithub": "Grab key from GitHub",

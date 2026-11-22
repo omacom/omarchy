@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Install the Sikemux desktop app from its official installer
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+# Sikemux's official installer installs the signed Arch package (sikemux-bin) on
+# x86_64 and the guarded AppImage on arm64, with its background core service.
+# Downloaded whole before running so a dropped connection never runs half a script.
+installer=$(mktemp)
+trap 'rm -f "$installer"' EXIT
+curl -fsSL --retry 3 https://sikemux.com/install -o "$installer"
+sh "$installer" --app --yes
+
+echo "Opening Sikemux..."
+if command -v gtk-launch >/dev/null 2>&1 && [[ -f /usr/share/applications/com.nodelike.sikemux.desktop || -f $HOME/.local/share/applications/com.nodelike.sikemux.desktop ]]; then
+  setsid uwsm-app -- gtk-launch com.nodelike.sikemux >/dev/null 2>&1 &
+else
+  setsid uwsm-app -- sikemux >/dev/null 2>&1 &
+fi
+
+echo ""
+echo "Sikemux has been installed. It updates itself."

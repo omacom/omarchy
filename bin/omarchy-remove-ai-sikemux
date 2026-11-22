@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Sikemux along with its core service
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+systemctl --user disable --now com.nodelike.sikemux.core.service &>/dev/null || true
+rm -f "$HOME/.config/systemd/user/com.nodelike.sikemux.core.service"
+systemctl --user daemon-reload &>/dev/null || true
+sikemux-host stop &>/dev/null || pkill -x sikemux-host || true
+pkill -x sikemux || true
+
+omarchy-pkg-drop sikemux-bin sikemux-nightly-bin
+rm -f "$HOME/.local/share/applications/com.nodelike.sikemux.desktop"
+
+data_removed=false
+if [[ -t 0 && -t 2 ]]; then
+  size=$(du -shc "$HOME/.local/share/com.nodelike.sikemux" "$HOME/.config/com.nodelike.sikemux" "$HOME/.config/sikemux" 2>/dev/null | tail -1 | cut -f1 || true)
+  if [[ $size =~ ^([0-9]+([.,][0-9]+)?)([A-Za-z]*)$ ]] && number=$(omarchy-i18n --number "${BASH_REMATCH[1]/,/.}"); then
+    size="$number${BASH_REMATCH[3]}"
+  fi
+  if gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n sikemux.deleteData "$size")"; then
+    rm -rf \
+      "$HOME/.local/share/com.nodelike.sikemux" \
+      "$HOME/.config/com.nodelike.sikemux" \
+      "$HOME/.config/sikemux"
+    sudo rm -rf "/var/lib/sikemux/$(id -u)"
+    data_removed=true
+  fi
+fi
+
+echo ""
+echo "Sikemux has been removed."
+if [[ $data_removed == "true" ]]; then
+  echo "Its chats, settings, mods and saved sign-ins are gone too."
+else
+  echo "Nothing of yours was touched: not the chats and settings in ~/.local/share/com.nodelike.sikemux"
+  echo "and ~/.config/sikemux, nor the sign-ins the core kept in /var/lib/sikemux."
+fi
