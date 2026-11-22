@@ -3319,6 +3319,7 @@ Panel {
           visible: !!entry && section.engaged
           iconText: "󰍹"
           tooltipText: entry ? Commons.I18n.t("agents.openDesktopApp").arg(entry.name) : ""
+          accessibleName: Commons.I18n.t("agents.openDesktopApp").arg(entry ? entry.name : "")
           foreground: root.foreground
           fontFamily: root.fontFamily
           hasCursor: root.hasKey("providerDesktop", section.providerIndex)
