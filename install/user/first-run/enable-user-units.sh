@@ -28,6 +28,13 @@ units=(
 failed=0
 enabled=()
 for unit in "${units[@]}"; do
+  # A masked unit was switched off on purpose. Enabling it can only fail, and
+  # that failure made first-run retry on every login and repeat its welcome
+  # notifications each time.
+  if [[ $(systemctl --user is-enabled "$unit" 2>/dev/null) == masked* ]]; then
+    continue
+  fi
+
   if systemctl --user enable --no-reload "$unit"; then
     enabled+=("$unit")
   else
