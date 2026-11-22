@@ -1799,7 +1799,7 @@ Panel {
     Item {
       id: sectionHead
       width: parent.width
-      implicitHeight: Math.max(sectionMark.height, labels.implicitHeight)
+      implicitHeight: Math.max(sectionMark.height, sectionName.implicitHeight)
       // Lit for the keyboard, and as the drop spot while an agent is dragged.
       readonly property bool lit: root.dragProviderId !== "" ? root.dragTarget === section.providerIndex : root.hasKey("provider", section.providerIndex)
       onLitChanged: if (lit && root.dragProviderId === "") root.revealItem(sectionHead)
@@ -1847,6 +1847,7 @@ Panel {
         spacing: Style.space(8)
 
         Text {
+          id: sectionName
           Layout.minimumWidth: 0
           Layout.alignment: Qt.AlignBaseline
           elide: Text.ElideRight
