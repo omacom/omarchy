@@ -158,6 +158,11 @@ finally:
   child.terminate()
   child.wait()
 
+# The receiver's own configured home must not make it block itself.
+self_check = 'import os,runpy; from pathlib import Path; transfer = runpy.run_path(str(Path(os.environ["OMARCHY_PATH"]) / "bin/omarchy-agent-account-transfer")); assert not transfer["home_in_use"]("claude", Path.home() / ".claude")'
+result = subprocess.run([sys.executable, "-c", self_check], env=dict(os.environ, CLAUDE_CONFIG_DIR=str(state.primary_home("claude"))), capture_output=True, text=True)
+assert result.returncode == 0, result.stderr
+
 # A pinned primary session is detected even with an unrelated process name.
 child_env = dict(os.environ, OMARCHY_AGENT_CLAUDE_HOME="")
 child = subprocess.Popen([sys.executable, "-c", 'import time; print("ready",flush=True); time.sleep(30)'], env=child_env, stdout=subprocess.PIPE, text=True)
