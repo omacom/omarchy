@@ -30,5 +30,15 @@ modules=$(OMARCHY_MKINITCPIO_CONF_DIR="${hooks_conf%/*}" bash -c 'if [[ -f $1 ]]
 [[ $modules != *" nvidia_drm "* ]] || exit 0
 
 echo "This hybrid laptop no longer needs NVIDIA in the initramfs; rebuilding it"
-sudo limine-mkinitcpio
+rebuild_log=$(mktemp)
+trap 'rm -f "$rebuild_log"' EXIT
+sudo limine-mkinitcpio 2>&1 | tee "$rebuild_log"
+
+# Older limine-mkinitcpio versions report a failed kernel but still exit zero.
+# Leave the migration pending until every boot image has been rebuilt.
+if grep -q 'mkinitcpio failed for kernel' "$rebuild_log"; then
+  echo "A boot image was not rebuilt. Fix the error above, then run omarchy-migrate again before rebooting." >&2
+  exit 1
+fi
+
 sudo install -Dm644 /dev/null "$rebuild_marker"
