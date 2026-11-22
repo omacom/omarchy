@@ -2639,6 +2639,7 @@ Panel {
         foreground: root.foreground
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("providerLaunch", section.providerIndex)
+        onHovered: function(isHovered) { if (isHovered) root.pointAt("providerLaunch", section.providerIndex) }
         onClicked: root.launchLine(section.provider)
       }
     }
