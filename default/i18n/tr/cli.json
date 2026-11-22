@@ -47,8 +47,6 @@
   "agents.signedInAgain": "%1 hesabına yeniden giriş yapıldı.",
   "agents.stayingOn": "%1 hesabında kalınıyor.",
   "agents.stayingOnUntil": "%1 hesabında kalınıyor. %2, %3 sonra sıfırlanıyor.",
-  "agents.switchedAllBody": "%1 oturumları artık %2 kullanıyor (%%3), çalışanlar da dahil.",
-  "agents.switchedBody": "Yeni %1 oturumları artık %2 kullanıyor (%%3).\nÇalışan oturumlar %4 hesabında kalıyor.",
   "agents.wrongAccount": "Bu %1, %2 değil. Tekrar deneyin ve %2 olarak oturum açın.",
   "animations.disabled": "Animasyonlar devre dışı",
   "animations.enabled": "Animasyonlar etkin",

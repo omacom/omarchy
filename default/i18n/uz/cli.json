@@ -47,8 +47,6 @@
   "agents.signedInAgain": "%1 ga yana kirdingiz.",
   "agents.stayingOn": "%1 da qolamiz.",
   "agents.stayingOnUntil": "%1 da qolamiz. %2 %3 dan soʻng tiklanadi.",
-  "agents.switchedAllBody": "%1 sessiyalari endi %2 dan foydalanadi (%3%), ishlayotganlari ham shu jumladan.",
-  "agents.switchedBody": "Yangi %1 sessiyalari endi %2 dan foydalanadi (%3%).\nIshlab turgan sessiyalar %4 da qoladi.",
   "agents.wrongAccount": "Bu %1, %2 emas. Qayta urinib koʻring va %2 sifatida kiring.",
   "animations.disabled": "Animatsiyalar oʻchirildi",
   "animations.enabled": "Animatsiyalar yoqildi",

@@ -47,8 +47,6 @@
   "agents.signedInAgain": "Újra bejelentkezve: %1.",
   "agents.stayingOn": "Továbbra is ezt használjuk: %1.",
   "agents.stayingOnUntil": "Továbbra is ezt használjuk: %1. %2 %3 múlva áll vissza.",
-  "agents.switchedAllBody": "%1 munkamenetek mostantól ezt használják: %2 (%3%), a futók is.",
-  "agents.switchedBody": "Az új %1 munkamenetek mostantól ezt használják: %2 (%3%).\nA futó munkamenetek ennél maradnak: %4.",
   "agents.wrongAccount": "Ez %1, nem %2. Próbáld újra, és jelentkezz be %2 fiókkal.",
   "animations.disabled": "Animációk kikapcsolva",
   "animations.enabled": "Animációk bekapcsolva",

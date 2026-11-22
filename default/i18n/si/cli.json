@@ -47,8 +47,6 @@
   "agents.signedInAgain": "%1 වෙත නැවත පිවිසුණි.",
   "agents.stayingOn": "%1 මතම පවතී.",
   "agents.stayingOnUntil": "%1 මතම පවතී. %2 තව %3 කින් යළි සැකෙසේ.",
-  "agents.switchedAllBody": "%1 සැසි දැන් %2 (%3%) භාවිතා කරයි, ධාවනය වන ඒවා ද ඇතුළුව.",
-  "agents.switchedBody": "අලුත් %1 සැසි දැන් %2 (%3%) භාවිතා කරයි.\nධාවනය වන සැසි %4 මතම පවතී.",
   "agents.wrongAccount": "එය %1 ය, %2 නොවේ. නැවත උත්සාහ කර, %2 ලෙස පිවිසෙන්න.",
   "animations.disabled": "සජීවිකරණ අක්‍රිය කළා",
   "animations.enabled": "සජීවිකරණ සක්‍රිය කළා",

@@ -47,8 +47,6 @@
   "agents.signedInAgain": "%1 میں دوبارہ سائن ان ہو گیا۔",
   "agents.stayingOn": "%1 پر ہی رہیں گے۔",
   "agents.stayingOnUntil": "%1 پر ہی رہیں گے۔ %2 %3 میں ری سیٹ ہوگا۔",
-  "agents.switchedAllBody": "%1 سیشنز اب %2 (%3%) استعمال کرتے ہیں، چل رہے سیشنز بھی شامل ہیں۔",
-  "agents.switchedBody": "نئے %1 سیشنز اب %2 (%3%) استعمال کرتے ہیں۔\nچلتے سیشنز %4 پر رہیں گے۔",
   "agents.wrongAccount": "یہ %1 ہے، %2 نہیں۔ دوبارہ کوشش کریں، اور %2 کے طور پر سائن ان کریں۔",
   "animations.disabled": "اینیمیشنز بند",
   "animations.enabled": "اینیمیشنز آن",

@@ -47,8 +47,6 @@
   "agents.signedInAgain": "Kirjautunut uudelleen palveluun %1.",
   "agents.stayingOn": "Jatketaan tilillä %1.",
   "agents.stayingOnUntil": "Jatketaan tilillä %1. %2 nollautuu %3 kuluttua.",
-  "agents.switchedAllBody": "%1-istunnot käyttävät nyt valintaa %2 (%3%), myös käynnissä olevat.",
-  "agents.switchedBody": "Uudet %1-istunnot käyttävät nyt valintaa %2 (%3%).\nKäynnissä olevat istunnot pysyvät tilillä %4.",
   "agents.wrongAccount": "Se on %1, ei %2. Yritä uudelleen ja kirjaudu tilillä %2.",
   "animations.disabled": "Animaatiot pois käytöstä",
   "animations.enabled": "Animaatiot käytössä",

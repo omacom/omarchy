@@ -47,8 +47,6 @@
   "agents.signedInAgain": "Отново влязохте в %1.",
   "agents.stayingOn": "Оставате на %1.",
   "agents.stayingOnUntil": "Оставате на %1. %2 се нулира след %3.",
-  "agents.switchedAllBody": "%1 сесии вече използват %2 (%3%), включително работещите.",
-  "agents.switchedBody": "Новите %1 сесии вече използват %2 (%3%).\nАктивните сесии остават на %4.",
   "agents.wrongAccount": "Това е %1, а не %2. Опитайте отново и влезте като %2.",
   "animations.disabled": "Анимациите са изключени",
   "animations.enabled": "Анимациите са включени",

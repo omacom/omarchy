@@ -47,8 +47,6 @@
   "agents.signedInAgain": "Logget ind på %1 igen.",
   "agents.stayingOn": "Bliver på %1.",
   "agents.stayingOnUntil": "Bliver på %1. %2 nulstilles om %3.",
-  "agents.switchedAllBody": "%1-sessioner bruger nu %2 (%3%), også de kørende.",
-  "agents.switchedBody": "Nye %1-sessioner bruger nu %2 (%3%).\nKørende sessioner bliver på %4.",
   "agents.wrongAccount": "Det er %1, ikke %2. Prøv igen, og log ind som %2.",
   "animations.disabled": "Animationer deaktiveret",
   "animations.enabled": "Animationer aktiveret",

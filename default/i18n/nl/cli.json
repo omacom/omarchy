@@ -47,8 +47,6 @@
   "agents.signedInAgain": "Opnieuw aangemeld bij %1.",
   "agents.stayingOn": "Blijft op %1.",
   "agents.stayingOnUntil": "Blijft op %1. %2 reset over %3.",
-  "agents.switchedAllBody": "%1-sessies gebruiken nu %2 (%3%), ook de actieve.",
-  "agents.switchedBody": "Nieuwe %1-sessies gebruiken nu %2 (%3%).\nActieve sessies blijven op %4.",
   "agents.wrongAccount": "Dat is %1, niet %2. Probeer opnieuw en meld je aan als %2.",
   "animations.disabled": "Animaties uitgeschakeld",
   "animations.enabled": "Animaties ingeschakeld",
