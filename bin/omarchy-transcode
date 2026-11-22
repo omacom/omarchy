@@ -88,20 +88,17 @@ transcode_picture() {
   esac
 }
 
-# iPhone recordings mark spatial audio (apple_apac) as the default track and
-# keep a stereo AAC track beside it. FFmpeg has no decoder for apple_apac, so
-# taking the default track aborts the whole transcode. Prefer the default
-# track when it can be decoded, otherwise the first track that can.
-# Prints the stream index. Returns 2 when every audio track is undecodable,
-# 3 when the file has no audio, and 1 when probing fails.
+# Skip audio codecs without a decoder, keeping FFmpeg's default/channel preference.
+# Prints an index; returns 1 on probe errors, 2 for unusable audio, 3 for no audio.
 decodable_audio_index() {
   local input="$1"
   local -A decoders=()
-  local probe flags name rest index codec is_default chosen="" fallback=""
+  local probe flags name rest index codec channels is_default chosen="" fallback=""
+  local chosen_channels=-1 fallback_channels=-1
   local saw_audio=0
 
   probe=$(ffprobe -v error -select_streams a \
-    -show_entries stream=index,codec_name:stream_disposition=default \
+    -show_entries stream=index,codec_name,channels:stream_disposition=default \
     -of csv=p=0 -- "$input") || return 1
 
   # ffprobe's codec name and ffmpeg's decoder name are not always the same.
@@ -117,16 +114,18 @@ decodable_audio_index() {
     fi
   done < <(ffmpeg -hide_banner -decoders)
 
-  while IFS=',' read -r index codec is_default; do
+  while IFS=',' read -r index codec channels is_default; do
     [[ -n $index ]] || continue
     saw_audio=1
     if [[ -z ${decoders[$codec]:-} ]]; then
       continue
     fi
-    if [[ -z $chosen && $is_default == "1" ]]; then
+    if [[ $is_default == "1" ]] && (( ${channels:-0} > chosen_channels )); then
+      chosen_channels=${channels:-0}
       chosen=$index
     fi
-    if [[ -z $fallback ]]; then
+    if (( ${channels:-0} > fallback_channels )); then
+      fallback_channels=${channels:-0}
       fallback=$index
     fi
   done <<<"$probe"
@@ -142,16 +141,12 @@ decodable_audio_index() {
   fi
 }
 
-# Prints the video stream ffmpeg chooses when no -map is given.
-# A default disposition outranks the other tracks. Among the tracks that
-# remain, the largest frame wins, and an earlier track wins a tie. An
-# attached picture is skipped while a real video track exists.
-# Returns 3 when the file has no video, and 1 when probing fails.
+# Match FFmpeg's frame-area/default scoring, with cover art as a last resort.
+# Prints an index; returns 1 on probe errors and 3 when the file has no video.
 video_stream_index() {
   local input="$1"
-  local probe index width height is_default attached area
-  local best_index="" best_area=-1 default_index="" default_area=-1
-  local has_real=0 saw_video=0 saw_default=0
+  local probe index width height is_default attached score
+  local best_index="" best_score=0
 
   probe=$(ffprobe -v error -select_streams v \
     -show_entries stream=index,width,height:stream_disposition=default,attached_pic \
@@ -159,37 +154,21 @@ video_stream_index() {
 
   while IFS=',' read -r index width height is_default attached; do
     [[ -n $index ]] || continue
-    [[ $attached == "1" ]] && continue
-    has_real=1
-  done <<<"$probe"
-
-  while IFS=',' read -r index width height is_default attached; do
-    [[ -n $index ]] || continue
-    if (( has_real == 1 )) && [[ $attached == "1" ]]; then
-      continue
+    if [[ $attached == "1" ]]; then
+      score=1
+    else
+      score=$(( ${width:-0} * ${height:-0} + 5000000 * ${is_default:-0} ))
     fi
-    saw_video=1
-    area=$(( ${width:-0} * ${height:-0} ))
-    if [[ $is_default == "1" ]]; then
-      saw_default=1
-      if (( area > default_area )); then
-        default_area=$area
-        default_index=$index
-      fi
-    fi
-    if (( area > best_area )); then
-      best_area=$area
+    if (( score > best_score )); then
+      best_score=$score
       best_index=$index
     fi
   done <<<"$probe"
 
-  if (( saw_video == 0 )); then
-    return 3
-  fi
-  if (( saw_default == 1 )); then
-    printf '%s\n' "$default_index"
-  else
+  if [[ -n $best_index ]]; then
     printf '%s\n' "$best_index"
+  else
+    return 3
   fi
 }
 

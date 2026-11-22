@@ -123,3 +123,32 @@ fi
 width=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$test_tmp/preview-720p.mp4")
 [[ $width == "1440" ]] || fail "transcode keeps the larger video track when it is not first" "$width"
 pass "transcode keeps the larger video track when it is not first"
+
+# Without a default, keep FFmpeg's preference for the audio with most channels.
+ffmpeg -y -hide_banner -loglevel error \
+  -f lavfi -i "color=c=black:s=32x32:r=10:d=1" \
+  -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=1" \
+  -map 0:v:0 -map 1:a:0 -map 1:a:0 \
+  -c:v libx264 -pix_fmt yuv420p -c:a aac -ac:a:1 2 \
+  -disposition:a:0 0 -disposition:a:1 0 \
+  "$test_tmp/channels.mkv"
+if ! PATH="$test_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-transcode" "$test_tmp/channels.mkv" mp4 720p >"$test_tmp/log" 2>&1; then
+  fail "transcode keeps the audio with most channels" "$(cat "$test_tmp/log")"
+fi
+channels=$(ffprobe -v error -select_streams a -show_entries stream=channels -of csv=p=0 "$test_tmp/channels-720p.mp4")
+[[ $channels == "2" ]] || fail "transcode keeps stereo audio instead of an earlier mono track" "$channels"
+pass "transcode keeps stereo audio instead of an earlier mono track"
+
+# A default flag adds a bonus; a sufficiently larger video still wins.
+ffmpeg -y -hide_banner -loglevel error \
+  -f lavfi -i "color=c=red:s=1920x1080:r=1:d=1" \
+  -f lavfi -i "color=c=blue:s=4096x2160:r=1:d=1" \
+  -map 0:v:0 -map 1:v:0 -disposition:v:0 default -disposition:v:1 0 \
+  -c:v libx264 -preset ultrafast -pix_fmt yuv420p \
+  "$test_tmp/default-preview.mkv"
+if ! PATH="$test_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-transcode" "$test_tmp/default-preview.mkv" mp4 720p >"$test_tmp/log" 2>&1; then
+  fail "transcode keeps a larger video over a smaller default track" "$(cat "$test_tmp/log")"
+fi
+width=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$test_tmp/default-preview-720p.mp4")
+[[ $width == "1366" ]] || fail "transcode keeps the 4096x2160 video rather than the 1920x1080 default" "$width"
+pass "transcode keeps a larger video over a smaller default track"
