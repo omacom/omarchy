@@ -1,0 +1,11 @@
+// Omarchy Fabric menu entries (merged into ~/.config/omarchy/extensions/omarchy-menu.jsonc).
+// Only whole-line comments are allowed in this format.
+{
+  "fabric": { "icon": "󰒍", "label": "Fabric", "description": "Agents and physical devices" },
+  "fabric.approvals": { "icon": "󰄬", "label": "Approvals", "description": "Agent actions waiting for you", "action": "omarchy-launch-floating-terminal-with-presentation 'ofab approvals'" },
+  "fabric.status": { "icon": "󰋽", "label": "Status", "action": "omarchy-launch-floating-terminal-with-presentation 'ofab status'" },
+  "fabric.events": { "icon": "󰦪", "label": "Live events", "action": "omarchy-launch-tui ofab events --follow" },
+  "fabric.freeze": { "icon": "󰜺", "label": "Emergency stop", "description": "Freeze every agent action", "action": "ofab freeze from the Omarchy menu" },
+  "fabric.thaw": { "icon": "󰐊", "label": "Resume agents", "action": "ofab thaw" },
+  "fabric.audit": { "icon": "󰙅", "label": "Verify audit log", "action": "omarchy-launch-floating-terminal-with-presentation 'ofab audit verify'" },
+}

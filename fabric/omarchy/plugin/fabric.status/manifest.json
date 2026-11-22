@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "fabric.status",
+  "name": "Fabric",
+  "version": "0.1.0",
+  "author": "omarchy-fabric",
+  "description": "Agent actions on physical devices that are waiting for you, and whether the fabric is frozen",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "BarWidget.qml" },
+  "barWidget": {
+    "displayName": "Fabric",
+    "description": "Pending agent approvals for physical devices",
+    "category": "Tools",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

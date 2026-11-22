@@ -1,0 +1,14 @@
+{
+  "title": "Fabric",
+  "tooltip.idle": "Fabric: nothing is waiting for you",
+  "tooltip.disconnected": "Fabric: not connected",
+  "tooltip.frozen": "Fabric is frozen: agents cannot act",
+  "tooltip.pending": { "one": "%1 agent action is waiting for you", "other": "%1 agent actions are waiting for you" },
+  "popup.none": "No agent actions are waiting.",
+  "popup.frozen": "Frozen: agents cannot act until you resume them.",
+  "action.approve": "Approve",
+  "action.deny": "Deny",
+  "action.presence": "Approve at the node's button",
+  "action.freeze": "Emergency stop",
+  "action.thaw": "Resume agents"
+}

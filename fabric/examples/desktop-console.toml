@@ -1,0 +1,25 @@
+# Omarchy desktop as a console for a fabric node on a Raspberry Pi.
+# The daemon, the radios and the physical approve button live on the Pi; this
+# machine shows approvals and the bar widget, and its agents connect over SSH.
+#
+# ~/.ssh/config needs one host alias per identity (each key gets a forced command
+# on the Pi, see deploy/pi5/authorized_keys.example):
+#
+#   Host fabric-console
+#     HostName pi5.local
+#     User fabric
+#     IdentityFile ~/.ssh/fabric_console
+#     IdentitiesOnly yes
+#
+#   Host fabric-claude
+#     HostName pi5.local
+#     User fabric
+#     IdentityFile ~/.ssh/fabric_claude
+#     IdentitiesOnly yes
+#
+# Then register the agent:  claude mcp add --scope user fabric -- ofab mcp --connect ssh://fabric-claude
+
+[console]
+connect = "@NODE@"            # e.g. ssh://fabric-console
+notify = true
+notify_executed_from = "T2"   # also tell me when an agent ran something T2 or riskier

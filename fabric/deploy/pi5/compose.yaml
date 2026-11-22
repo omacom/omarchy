@@ -1,0 +1,62 @@
+# Device stack for the Pi 5 fabric node: Home Assistant + the OHF Matter Server.
+# Optional profiles: `zigbee` (Mosquitto + Zigbee2MQTT, for a Zigbee radio).
+#
+#   docker compose up -d                       # HA + Matter
+#   docker compose --profile zigbee up -d      # + Zigbee
+#
+# The fabric daemon itself runs natively (omarchy-fabric-node.service), not in a
+# container: it owns the GPIO approve button and the audit key.
+#
+# Neither the Matter Server's WebSocket nor Mosquitto here has authentication, so both
+# listen on localhost only. HA and the fabric reach them over the host network.
+name: fabric-node
+
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+    volumes:
+      - ./data/homeassistant:/config
+      - /run/dbus:/run/dbus:ro   # Bluetooth
+
+  matter-server:
+    # Drop-in successor of the archived python-matter-server, same WebSocket API.
+    # Pin a minor version (e.g. :1.6) once your setup works.
+    image: ghcr.io/matter-js/matterjs-server:stable
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      STORAGE_PATH: /data
+      LISTEN_ADDRESS: 127.0.0.1           # unauthenticated API: never expose it to the LAN
+      PRIMARY_INTERFACE: ${MATTER_INTERFACE:-eth0}   # wlan0 if the Pi is on Wi-Fi
+      # BLUETOOTH_ADAPTER: "0"            # BLE commissioning with the Pi's own radio; see
+                                          # matterjs-server docs/docker.md about host BLE first
+    volumes:
+      - ./data/matter-server:/data
+      - /run/dbus:/run/dbus:ro
+
+  mosquitto:
+    profiles: [zigbee]
+    image: eclipse-mosquitto:2
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./data/mosquitto:/mosquitto/data
+
+  zigbee2mqtt:
+    profiles: [zigbee]
+    image: koenkk/zigbee2mqtt:latest       # pin the major you test with
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+    volumes:
+      - ./data/zigbee2mqtt:/app/data
+      - /run/udev:/run/udev:ro
+    devices:
+      # ls -l /dev/serial/by-id/ to find your radio (ZBT-2 / Sonoff dongle flashed for Zigbee)
+      - ${ZIGBEE_RADIO:-/dev/ttyACM0}:/dev/ttyACM0

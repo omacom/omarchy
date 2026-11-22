@@ -1,0 +1,28 @@
+[Unit]
+Description=Omarchy Fabric node (agents to physical devices, through policy)
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+User=fabric
+Group=fabric
+SupplementaryGroups=gpio
+Environment=OFAB_CONFIG=/etc/omarchy-fabric/node.toml
+ExecStart=/usr/local/bin/ofab serve
+RuntimeDirectory=omarchy-fabric
+RuntimeDirectoryMode=0750
+StateDirectory=omarchy-fabric
+StateDirectoryMode=0750
+Restart=on-failure
+RestartSec=3
+
+# The code lives in a root-owned venv and the config is root-owned: the fabric user
+# (and any agent behind an SSH forced command) can run ofab but not change it.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/omarchy-fabric /run/omarchy-fabric
+
+[Install]
+WantedBy=multi-user.target

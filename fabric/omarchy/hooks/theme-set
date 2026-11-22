@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Omarchy theme-set hook: paint the lights you choose in the new theme's accent color.
+# Installed as ~/.config/omarchy/hooks/theme-set.d/50-omarchy-fabric and called by
+# omarchy-hook with the theme name. List thing ids, one per line, in
+# ~/.config/omarchy-fabric/theme-lights.
+#
+# It acts as the agent "omarchy-theme", so it goes through policy like any agent:
+# a light someone just switched by hand is left alone (human hold).
+
+lights="$HOME/.config/omarchy-fabric/theme-lights"
+colors="$HOME/.local/state/omarchy/current/theme/colors.toml"
+
+if [[ ! -f $lights || ! -f $colors ]]; then
+  exit 0
+fi
+
+accent=$(sed -n 's/^accent[[:space:]]*=[[:space:]]*"\(#[0-9a-fA-F]\{6\}\)".*/\1/p' "$colors" | head -n 1)
+if [[ -z $accent ]]; then
+  exit 0
+fi
+
+# Run in the background: a theme switch must never wait on the network.
+(
+  while read -r thing; do
+    if [[ -z $thing || $thing == \#* ]]; then
+      continue
+    fi
+    ofab do --as omarchy-theme "$thing" set_color "rgb=$accent" --reason "Omarchy theme set to ${1:-a new theme}" >/dev/null 2>&1
+  done <"$lights"
+) &
+disown

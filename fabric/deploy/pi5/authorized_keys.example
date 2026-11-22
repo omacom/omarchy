@@ -1,0 +1,10 @@
+# /home/fabric/.ssh/authorized_keys on the Pi (mode 0600, owned by fabric).
+#
+# One key per identity. The forced command pins the role and agent name whatever the
+# client asks for, and `restrict` disables shells, PTYs and forwarding. Generate keys
+# on the desktop with: ssh-keygen -t ed25519 -f ~/.ssh/fabric_claude -C fabric-claude
+#
+# The console key approves T2 requests from the desktop. T3 still needs the button.
+command="/usr/local/bin/ofab -c /etc/omarchy-fabric/node.toml rpc-stdio --role console --agent desktop",restrict ssh-ed25519 AAAA_REPLACE_WITH_fabric_console.pub fabric-console
+command="/usr/local/bin/ofab -c /etc/omarchy-fabric/node.toml rpc-stdio --role agent --agent claude-code",restrict ssh-ed25519 AAAA_REPLACE_WITH_fabric_claude.pub fabric-claude
+command="/usr/local/bin/ofab -c /etc/omarchy-fabric/node.toml rpc-stdio --role agent --agent codex",restrict ssh-ed25519 AAAA_REPLACE_WITH_fabric_codex.pub fabric-codex

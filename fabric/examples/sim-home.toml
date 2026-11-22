@@ -1,0 +1,37 @@
+# Single machine: a fabric on your Omarchy laptop driving the built-in simulated home.
+# Copy to ~/.config/omarchy-fabric/config.toml (omarchy-install-fabric does this).
+
+[fabric]
+name = "laptop-sim"
+
+[[adapters]]
+type = "simulator"
+id = "sim"
+
+[policy]
+approval_timeout_s = 120
+human_hold_s = 600
+# Without a Pi there is no physical approve button, so T3 accepts the desktop console here.
+# `ofab status` warns about it. On a real lock, use examples/../deploy/pi5/node.toml instead.
+assurance = { T2 = "desktop", T3 = "desktop" }
+quiet_hours = { start = "23:00", end = "07:00", escalate_from = "T1" }
+
+[[policy.bounds]]
+capability = "thermostat"
+param = "temperature"
+min = 16
+max = 24
+note = "comfort band"
+
+[agents.claude-code]
+max_tier = "T3"
+
+[agents.codex]
+max_tier = "T2"
+
+[agents.omarchy-theme]
+max_tier = "T1"
+things = ["kind:light"]
+
+[agents."*"]
+max_tier = "T1"

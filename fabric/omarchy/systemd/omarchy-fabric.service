@@ -1,0 +1,11 @@
+[Unit]
+Description=Omarchy Fabric daemon (agents to physical devices, through policy)
+After=network-online.target
+
+[Service]
+ExecStart=%h/.local/bin/ofab serve
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

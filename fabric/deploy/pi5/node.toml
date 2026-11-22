@@ -1,0 +1,103 @@
+# Raspberry Pi 5 fabric node: the radios, the physical approve button, the audit
+# key, and the trust boundary. Agents reach it only through SSH forced commands
+# (authorized_keys.example), so they can never act as a console.
+# Installed to /etc/omarchy-fabric/node.toml by bootstrap.sh.
+
+[fabric]
+name = "pi5-node"
+state_dir = "/var/lib/omarchy-fabric"
+
+[audit]
+path = "audit.jsonl"
+hmac_key_file = "/etc/omarchy-fabric/audit.key"   # root:fabric 0640, created by bootstrap.sh
+
+[rpc]
+socket = "/run/omarchy-fabric/fabric.sock"
+local_assurance = "desktop"   # approvals from a console session (SSH console key or sudo -u fabric)
+
+# --- Home Assistant (container on this Pi). Everything except Matter comes through HA.
+[[adapters]]
+type = "homeassistant"
+id = "ha"
+url = "ws://127.0.0.1:8123/api/websocket"
+token_file = "/etc/omarchy-fabric/ha.token"       # long-lived token of a dedicated "omarchy-fabric" HA user
+include_domains = ["light", "switch", "fan", "lock", "cover", "climate", "sensor", "binary_sensor", "valve"]
+exclude_integrations = ["matter"]                 # Matter devices come straight from the Matter server below
+
+# --- Matter, direct to the OHF Matter Server (matterjs-server) that HA shares.
+[[adapters]]
+type = "matter"
+id = "matter"
+url = "ws://127.0.0.1:5580/ws"
+
+# --- Rehearse T3 flows (unlock, garage, heater, water main) on simulated devices first.
+# Uncomment while testing the approve button and kill switch; remove before real locks.
+# [[adapters]]
+# type = "simulator"
+# id = "sim"
+
+# --- The node's own physical controls. BCM pin numbers; each button's other leg goes to GND.
+[[adapters]]
+type = "gpio"
+id = "node"
+
+[[adapters.devices]]
+id = "approve"
+kind = "button"
+pin = 17          # header pin 11; GND on pin 9
+role = "approve"  # short press approves the single pending request; hold 2 s denies all
+hold_s = 2
+
+[[adapters.devices]]
+id = "kill"
+kind = "button"
+pin = 27          # header pin 13; GND on pin 14. Use a big red one.
+role = "kill_switch"
+
+[[adapters.devices]]
+id = "status"
+kind = "led"
+pin = 22          # header pin 15, through a 330 ohm resistor to the LED, LED to GND (pin 20)
+role = "status"
+
+# --- What the devices really are. Unknown plugs default to T2; say what they power.
+# [things."ha:switch.bedroom_heater"]
+# kind = "heater"            # turning it on becomes T3
+# [things."ha:switch.freezer"]
+# kind = "critical_load"     # turning it off becomes T3
+# [things."ha:cover.office_blinds"]
+# kind = "blind"             # HA covers without a device class are treated as garage doors
+
+[policy]
+assurance = { T2 = "desktop", T3 = "presence" }
+approval_timeout_s = 120
+human_hold_s = 900
+quiet_hours = { start = "23:00", end = "07:00", escalate_from = "T1" }
+rate = { per_agent_per_minute = 20, per_thing_per_minute = 4, suspend_after_denials_per_minute = 8 }
+
+[[policy.bounds]]
+capability = "thermostat"
+param = "temperature"
+min = 16
+max = 24
+note = "comfort band"
+
+# Example of a hard rule that no approval can override:
+# [[policy.rules]]
+# thing = "kind:garage_door"
+# command = "open"
+# effect = "deny"
+# note = "the garage only opens by hand"
+
+[agents.claude-code]
+max_tier = "T3"
+
+[agents.codex]
+max_tier = "T2"
+
+[agents.omarchy-theme]
+max_tier = "T1"
+things = ["kind:light"]
+
+[agents."*"]
+max_tier = "T1"

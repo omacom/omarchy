@@ -1,0 +1,122 @@
+#!/bin/bash
+
+# omarchy:summary=Install Omarchy Fabric so your agents can use physical devices, through policy and approvals
+# omarchy:args=[--node <ssh://fabric@host>] [--from <path-or-git-url>]
+# omarchy:examples=omarchy install fabric | omarchy install fabric --node ssh://fabric@pi5.local
+
+# Written to Omarchy's conventions so it can move upstream as bin/omarchy-install-fabric.
+# Without --node it runs a local fabric on the built-in simulator; with --node the
+# daemon lives on the Pi and this machine only runs the console (notifications + bar).
+
+set -euo pipefail
+
+REPO_ROOT=$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)
+NODE=""
+FROM=$REPO_ROOT
+
+while (( $# > 0 )); do
+  case $1 in
+  --node)
+    NODE=$2
+    shift 2
+    ;;
+  --from)
+    FROM=$2
+    shift 2
+    ;;
+  *)
+    echo "Usage: omarchy-install-fabric [--node ssh://fabric@host] [--from <path-or-git-url>]" >&2
+    exit 1
+    ;;
+  esac
+done
+
+if [[ -d $FROM ]]; then
+  SPEC="omarchy-fabric[mcp] @ file://$(cd "$FROM" && pwd)"
+else
+  SPEC="omarchy-fabric[mcp] @ $FROM"
+fi
+
+echo -e "\nInstalling ofab..."
+omarchy-pkg-add uv
+uv tool install --force "$SPEC"
+
+echo -e "\nWriting ~/.config/omarchy-fabric/config.toml..."
+CONFIG_DIR="$HOME/.config/omarchy-fabric"
+mkdir -p "$CONFIG_DIR"
+if [[ -f $CONFIG_DIR/config.toml ]]; then
+  echo "Keeping your existing config."
+elif [[ -n $NODE ]]; then
+  sed "s|@NODE@|$NODE|" "$REPO_ROOT/examples/desktop-console.toml" >"$CONFIG_DIR/config.toml"
+else
+  cp "$REPO_ROOT/examples/sim-home.toml" "$CONFIG_DIR/config.toml"
+fi
+
+echo -e "\nStarting the fabric services..."
+mkdir -p "$HOME/.config/systemd/user"
+cp "$REPO_ROOT/omarchy/systemd/omarchy-fabric-console.service" "$HOME/.config/systemd/user/"
+if [[ -z $NODE ]]; then
+  cp "$REPO_ROOT/omarchy/systemd/omarchy-fabric.service" "$HOME/.config/systemd/user/"
+fi
+systemctl --user daemon-reload
+if [[ -z $NODE ]]; then
+  systemctl --user enable --now omarchy-fabric.service
+fi
+systemctl --user enable --now omarchy-fabric-console.service
+
+echo -e "\nAdding Fabric to the bar..."
+PLUGIN_DIR="$HOME/.config/omarchy/plugins/fabric.status"
+mkdir -p "$PLUGIN_DIR"
+cp -r "$REPO_ROOT/omarchy/plugin/fabric.status/." "$PLUGIN_DIR/"
+omarchy-plugin-enable fabric.status --section right
+
+echo -e "\nAdding Fabric to the Omarchy menu..."
+MENU_EXT="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
+mkdir -p "${MENU_EXT%/*}"
+if [[ ! -f $MENU_EXT || -z $(grep -v '^[[:space:]]*//' "$MENU_EXT" | tr -d '[:space:]') ]]; then
+  {
+    if [[ -f $MENU_EXT ]]; then
+      cat "$MENU_EXT"
+    fi
+    cat "$REPO_ROOT/omarchy/menu/fabric.jsonc"
+  } >"$MENU_EXT.new"
+  mv "$MENU_EXT.new" "$MENU_EXT"
+else
+  echo "Your menu extension already has entries; merge $REPO_ROOT/omarchy/menu/fabric.jsonc into it by hand."
+fi
+
+echo -e "\nSyncing chosen lights with your theme..."
+mkdir -p "$HOME/.config/omarchy/hooks/theme-set.d"
+cp "$REPO_ROOT/omarchy/hooks/theme-set" "$HOME/.config/omarchy/hooks/theme-set.d/50-omarchy-fabric"
+if [[ ! -f $CONFIG_DIR/theme-lights ]]; then
+  printf '# Thing ids to paint in the theme accent color, one per line, e.g.\n# ha:light.desk_strip\n' >"$CONFIG_DIR/theme-lights"
+fi
+
+echo -e "\nTeaching your agents about the fabric..."
+for dir in "$HOME/.agents/skills" "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.pi/agent/skills"; do
+  if [[ $dir == "$HOME/.agents/skills" || -d ${dir%/skills} ]]; then
+    mkdir -p "$dir/omarchy-fabric"
+    cp "$REPO_ROOT/omarchy/skills/omarchy-fabric/SKILL.md" "$dir/omarchy-fabric/SKILL.md"
+  fi
+done
+
+echo -e "\nRegistering the fabric's MCP server with your agents..."
+if [[ -n $NODE ]]; then
+  # On a node each agent needs its own SSH key and host alias, so the Pi can pin its identity.
+  echo "Give each agent its own SSH host alias (see $REPO_ROOT/examples/desktop-console.toml), then e.g.:"
+  echo "  claude mcp add --scope user fabric -- ofab mcp --connect ssh://fabric-claude"
+else
+  if omarchy-cmd-present claude; then
+    claude mcp add --scope user fabric -- ofab mcp --agent claude-code >/dev/null 2>&1 || echo "Claude Code already has a 'fabric' MCP server."
+  fi
+  if omarchy-cmd-present codex; then
+    codex mcp add fabric -- ofab mcp --agent codex >/dev/null 2>&1 || echo "Codex already has a 'fabric' MCP server."
+  fi
+fi
+
+echo -e "\nOmarchy Fabric is installed."
+if [[ -n $NODE ]]; then
+  echo "This machine is a console for $NODE. Try: ofab status"
+else
+  echo "A simulated home is running locally. Try: ofab things, then ask your agent to dim the living room lamp."
+fi

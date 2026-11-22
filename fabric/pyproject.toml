@@ -1,0 +1,43 @@
+[project]
+name = "omarchy-fabric"
+version = "0.1.0"
+description = "Agent-to-physical fabric for Omarchy: a policy-governed bridge between AI agents (MCP) and Matter / Home Assistant devices."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "omarchy-fabric contributors" }]
+keywords = ["omarchy", "mcp", "matter", "home-assistant", "iot", "agents", "raspberry-pi"]
+dependencies = [
+  "websockets>=13",
+]
+
+[project.optional-dependencies]
+# MCP server for agents (desktop / console side).
+mcp = ["mcp>=1.12,<2"]
+# Raspberry Pi 5 GPIO (buttons, LEDs, relays). lgpio is the Pi 5 backend for gpiozero.
+pi = [
+  "gpiozero>=2.0",
+  "lgpio>=0.2.2; sys_platform == 'linux' and platform_machine == 'aarch64'",
+]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "gpiozero>=2.0", "mcp>=1.12,<2"]
+
+[project.scripts]
+ofab = "omarchy_fabric.cli:main"
+
+[project.urls]
+Homepage = "https://omarchy.org"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/omarchy_fabric"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+markers = [
+  "scenario(id): maps a test to a scenario in docs/04-scenarios.md",
+]
