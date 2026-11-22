@@ -691,9 +691,11 @@ Panel {
     }
   }
 
+  // Through requeryBlocked, so an adapter leaving while an earlier answer is
+  // still on its way asks again instead of settling for that stale answer.
   onAdapterChanged: {
     if (adapter !== null) radioPresent = true
-    else blockedQuery.running = true
+    else requeryBlocked()
   }
 
   // A radio already blocked when the shell starts never fires the change above.
