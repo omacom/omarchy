@@ -1,3 +1,3 @@
-echo "Leave the loaded-resource listing out of Pi's startup, under the Omarchy header"
+echo "Start Pi straight at the editor, without its header or loaded-resource listing"
 
 "$OMARCHY_PATH/bin/omarchy-agent-pi-defaults"

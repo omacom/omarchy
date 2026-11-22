@@ -33,9 +33,9 @@ export default function (pi: ExtensionAPI) {
   }
 
   function install(ctx: ExtensionContext) {
-    // Pi draws its border, spinner and "↑ N more" in the width left of the
-    // folder, and the folder goes on the right when there's room for both.
-    class PlaceEditor extends CustomEditor {
+    class OmarchyEditor extends CustomEditor {
+      // Pi draws its border, spinner and "↑ N more" in the width left of the
+      // folder, and the folder goes on the right when there's room for both.
       renderTopBorder(width: number, hiddenLineCount: number): string {
         const label = ` ${place(ctx)} `;
         const rest = width - visibleWidth(label) - 1;
@@ -43,7 +43,7 @@ export default function (pi: ExtensionAPI) {
         return super.renderTopBorder(rest, hiddenLineCount) + this.borderColor(`${label}─`);
       }
     }
-    ctx.ui.setEditorComponent((tui, theme, keybindings) => new PlaceEditor(tui, theme, keybindings, { embedWorkingStatus: true }));
+    ctx.ui.setEditorComponent((tui, theme, keybindings) => new OmarchyEditor(tui, theme, keybindings, { embedWorkingStatus: true }));
 
     ctx.ui.setFooter((tui, theme, footerData) => {
       requestRender = () => tui.requestRender();
