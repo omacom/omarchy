@@ -1,32 +1,54 @@
-# First-boot owner setup (omarchy-provision-owner) drawn in kmscon, the way the
-# installer is: real fonts in place of the console's one bitmap font, so setup
-# reads the same on every machine and in Chinese, Japanese and Korean too.
+# The installer and first-boot owner setup (omarchy-provision-owner) are drawn
+# in kmscon: real fonts in place of the console's one bitmap font, so both read
+# the same on every machine and in Chinese, Japanese and Korean too. The ISO
+# vendors this very file beside its copy of setup-form.sh, so an install and
+# the first boot that finishes it are drawn and typed in alike.
 #
-# kmscon takes its keyboard layout and its font once, at its start. Setup asks
-# for both, so it has kmscon started again once they change: see
-# omarchy_kmscon_show's caller.
+# kmscon takes its keyboard layout and its font once, at its start. Both
+# callers ask for a layout and a language, so they have kmscon started again
+# once either changes what kmscon was started with: OMARCHY_KMSCON_XKB and
+# OMARCHY_KMSCON_FACE, which the command it runs finds in its environment
+# beside OMARCHY_KMSCON=1.
 #
-#   omarchy_kmscon_wanted          0 where setup should try kmscon
-#   omarchy_kmscon_xkb             the machine's XKB "layout model variant options"
-#   omarchy_kmscon_face <lang>     the font family Han characters are drawn in
-#   omarchy_kmscon_show <state dir> <lang> <#rrggbb or ""> <command...>
-#       run command in kmscon on this VT and return when kmscon ends: 0 if the
-#       command touched <state dir>/started, 1 if kmscon never showed it
+#   omarchy_keymap_xkb_extra <keymap>
+#       XKB "layout variant options" ("-" for none) for a keymap of the form
+#       that systemd's kbd-model-map lacks; 1 for any other keymap
+#   omarchy_keymap_xkb <keymap>      XKB "layout model variant options" for a
+#                                    console keymap, us for one nobody knows
+#   omarchy_kmscon_face <lang>       the font family Han characters are drawn in
+#   omarchy_kmscon <log> <keymap> <lang> <#rrggbb or ""> <command...>
+#       run command in kmscon on this VT; returns when kmscon ends
 
-# Not when it is turned off (omarchy.kmscon=0 on the kernel command line, for a
-# machine whose display kmscon gets wrong), and not without a VT to take over
-# and a DRM device to draw on.
-omarchy_kmscon_wanted() {
-  ! grep -qw 'omarchy.kmscon=0' /proc/cmdline 2>/dev/null &&
-    [[ $(tty 2>/dev/null) == /dev/tty[0-9]* ]] &&
-    omarchy-cmd-present kmscon && compgen -G '/dev/dri/card*' >/dev/null
+# The form's keymaps that kbd-model-map lacks, as its rows for the nearest
+# keymap give them, so kmscon and the desktop type what the console does:
+# kbd's cz is QWERTY and bg-cp1251 phonetic. Non-Latin layouts keep a US layout
+# to switch to, so the shared password stays typeable.
+omarchy_keymap_xkb_extra() {
+  local layout variant=- options=- switch=grp:shifts_toggle,grp_led:scroll
+  case $1 in
+    colemak) layout=us variant=colemak ;;
+    bg-cp1251) layout=bg,us variant=phonetic, options=$switch ;;
+    cz) layout=cz,us variant=qwerty, options=$switch ;;
+    de_CH-latin1) layout=ch ;;
+    kyrgyz) layout=kg,us options=$switch ;;
+    no-latin1) layout=no ;;
+    pl) layout=pl ;;
+    ua) layout=ua,us options=$switch ;;
+    *) return 1 ;;
+  esac
+  printf '%s %s %s\n' "$layout" "$variant" "$options"
 }
 
-# kmscon reads keys through XKB, not the console keymap: the layout
-# /etc/vconsole.conf names beside that keymap, which the desktop types in too.
-omarchy_kmscon_xkb() {
-  env -i /bin/bash --noprofile --norc -c \
-    '. /etc/vconsole.conf 2>/dev/null; printf "%s %s %s %s\n" "${XKBLAYOUT:-us}" "${XKBMODEL:--}" "${XKBVARIANT:--}" "${XKBOPTIONS:--}"'
+# kmscon reads keys through XKB, not the console keymap, and the password
+# typed in it is typed again at boot under that keymap: the layouts must place
+# keys alike. From systemd's table, the one localectl and the installed system
+# use.
+omarchy_keymap_xkb() {
+  local keymap=${1:-us} layout="" model=- variant=- options=-
+  if ! read -r layout variant options < <(omarchy_keymap_xkb_extra "$keymap"); then
+    read -r layout model variant options < <(awk -v k="$keymap" '$1 == k { print $2, $3, $4, $5; exit }' /usr/share/systemd/kbd-model-map 2>/dev/null) || true
+  fi
+  printf '%s %s %s %s\n' "${layout:-us}" "${model:--}" "${variant:--}" "${options:--}"
 }
 
 # Han characters take a different form in each CJK language, and Noto's
@@ -52,41 +74,29 @@ omarchy_kmscon_font_size() {
   printf '%s' "$size"
 }
 
-omarchy_kmscon_show() {
-  local state=$1 language=$2 color=${3#\#} watchdog
+omarchy_kmscon() {
+  local log=$1 keymap=$2 language=$3 color=${4#\#}
   local layout model variant options bright_red="247, 118, 142"
-  shift 3
+  shift 4
 
-  export OMARCHY_KMSCON_XKB OMARCHY_KMSCON_FACE
-  OMARCHY_KMSCON_XKB=$(omarchy_kmscon_xkb)
-  OMARCHY_KMSCON_FACE=$(omarchy_kmscon_face "$language")
-  read -r layout model variant options <<<"$OMARCHY_KMSCON_XKB"
-  [[ $model == "-" ]] && model=""
-  [[ $variant == "-" ]] && variant=""
-  [[ $options == "-" ]] && options=""
-  # An OEM's colour stands in for the palette's bright red, as on the console.
+  # An OEM's colour stands in for the palette's bright red.
   [[ $color =~ ^[0-9a-fA-F]{6}$ ]] && bright_red="$((16#${color:0:2})), $((16#${color:2:2})), $((16#${color:4:2}))"
 
-  mkdir -p "$state"
-  rm -f "$state/started" "$state/kmscon.pid"
-
-  # kmscon with no display it can drive waits for one and draws nothing, so one
-  # that has not started the command within 15 s is stopped.
   (
-    sleep 15
-    [[ -e $state/started ]] || kill "$(<"$state/kmscon.pid")"
-  ) &>/dev/null &
-  watchdog=$!
+    export OMARCHY_KMSCON=1 OMARCHY_KMSCON_XKB OMARCHY_KMSCON_FACE
+    OMARCHY_KMSCON_XKB=$(omarchy_keymap_xkb "$keymap")
+    OMARCHY_KMSCON_FACE=$(omarchy_kmscon_face "$language")
+    read -r layout model variant options <<<"$OMARCHY_KMSCON_XKB"
+    [[ $model == "-" ]] && model=""
+    [[ $variant == "-" ]] && variant=""
+    [[ $options == "-" ]] && options=""
 
-  # C.UTF-8: bash string lengths count characters, and gum's width tables stay
-  # on narrow ambiguous-width glyphs, as kmscon draws them. The console's size
-  # would stand in for kmscon's grid: tput reads COLUMNS and LINES first.
-  # Tokyo Night, as the installer and the console setup are drawn in.
-  {
-    (
-    export OMARCHY_KMSCON=1 LANG=C.UTF-8
+    # C.UTF-8: bash string lengths count characters, and gum's width tables
+    # stay on narrow ambiguous-width glyphs, as kmscon draws them. The
+    # console's size would stand in for kmscon's grid: tput reads COLUMNS and
+    # LINES first. The palette is Tokyo Night.
+    export LANG=C.UTF-8
     unset LC_ALL COLUMNS LINES
-    echo "$BASHPID" >"$state/kmscon.pid"
     exec kmscon \
       --vt="$(tty)" \
       --oneshot \
@@ -119,10 +129,6 @@ omarchy_kmscon_show() {
       --palette-white="192, 202, 245" \
       --palette-foreground="169, 177, 214" \
       --palette-background="26, 27, 38" \
-      --login -- "$@" >>"$state/kmscon.log" 2>&1
-    )
-  } 2>/dev/null || true
-
-  kill "$watchdog" 2>/dev/null || true
-  [[ -e $state/started ]]
+      --login -- "$@" >>"$log" 2>&1
+  ) || true
 }
