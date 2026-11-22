@@ -73,6 +73,7 @@ from collectors import (  # noqa: E402
   open_json,
   read_json,
   scan_max_age,
+  secret_service_locked,
   stamp,
   token_count,
   write_json,
@@ -573,10 +574,21 @@ def env_token() -> str:
   return ""
 
 
-def gh_token() -> str:
+def gh_keyring_locked() -> bool:
+  """Whether `gh auth token` would prompt to unlock the keyring. gh asks the
+  keyring to unlock before it looks, whether or not a token is there, unless
+  it signed in with --insecure-storage, which keeps the token in hosts.yml."""
+  return not gh_host_setting("oauth_token") and secret_service_locked()
+
+
+def gh_token() -> str | None:
+  """gh's github.com token; "" when gh has none to give, and None when it
+  wasn't asked because the keyring holding it is locked."""
   exe = find_command("gh")
   if not exe:
     return ""
+  if gh_keyring_locked():
+    return None
   try:
     result = subprocess.run(
       # gh follows GH_HOST without --hostname, and an Enterprise token must
@@ -593,11 +605,16 @@ def gh_token() -> str:
 
 
 def gh_user() -> str:
-  """Who `gh` is signed in to github.com as, from its hosts.yml.
+  """Who `gh` is signed in to github.com as, from its hosts.yml, so a reused
+  answer never has to run `gh` to know whose it is."""
+  return gh_host_setting("user")
 
-  Read as plain lines rather than YAML: only the host's own `user:` key
-  matters, and reading it costs no process, so a reused answer never has to
-  run `gh` to know whose it is.
+
+def gh_host_setting(key: str) -> str:
+  """One of github.com's own keys in gh's hosts.yml.
+
+  Read as plain lines rather than YAML: only the host's direct keys matter,
+  and reading them costs no process.
   """
   config = os.environ.get("GH_CONFIG_DIR") or str(Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")) / "gh")
   try:
@@ -616,7 +633,7 @@ def gh_user() -> str:
     if not in_host:
       continue
     child_indent = indent if child_indent is None else child_indent
-    if indent == child_indent and stripped.startswith("user:"):
+    if indent == child_indent and stripped.startswith(f"{key}:"):
       return stripped.split(":", 1)[1].strip().strip("'\"")
   return ""
 
@@ -760,7 +777,7 @@ def fetch_remote_quota(force: bool = False) -> dict[str, Any]:
   # stands, stale, like any other failed check.
   token = token or gh_token()
   if not token:
-    quota = {"available": False, "reason": "no-token"}
+    quota = {"available": False, "reason": "keyring-locked" if token is None else "no-token"}
   else:
     if not cached:
       cached = adopt_legacy_cache(cache.path, token)
@@ -792,6 +809,8 @@ def quota_trouble(reason: str) -> str:
     return "Couldn't reach GitHub's Copilot quota endpoint. Retrying shortly."
   if reason == "no-token":
     return "The gh CLI didn't hand over its GitHub token; check `gh auth status`."
+  if reason == "keyring-locked":
+    return "The keyring holding gh's GitHub token is locked. Retrying once it's unlocked."
   if reason in ("http-401", "http-403"):
     return "GitHub refused the token for Copilot's quota. " + AUTH_HELP
   if reason.startswith("http-"):
@@ -827,7 +846,7 @@ def allowance_limits(
   }
   remote = remote if isinstance(remote, dict) else {}
   reason = str(remote.get("failure") or remote.get("reason") or "")
-  result["retryAdvised"] = reason == "unreachable"
+  result["retryAdvised"] = reason in ("unreachable", "keyring-locked")
 
   if remote.get("available"):
     result["tierLabel"] = str(remote.get("planLabel") or "")

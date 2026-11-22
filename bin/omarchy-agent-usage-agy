@@ -54,11 +54,13 @@ from collectors import (  # noqa: E402
   scan_max_age,
   scan_opencode,
   scan_pi_sessions,
+  secret_locked,
 )
 
 AGENT_ID = "agy"
 AGENT_NAME = "Antigravity"
 AUTH_HELP = "Run `agy` to sign in, or sign in to Antigravity in omp, pi, or opencode."
+KEYRING_HELP = "The keyring holding agy's sign-in is locked. Retrying once it's unlocked."
 # How each source of a sign-in is named when it needs attention.
 SOURCE_NAMES = {"agy": "`agy`", "omp": "omp", "pi": "pi", "opencode": "opencode"}
 DEFAULT_CLOUD_CODE_URL = "https://daily-cloudcode-pa.googleapis.com"
@@ -107,15 +109,18 @@ def local_day(value):
 # The sign-in agy keeps in the keyring: its access token, when that lapses,
 # whether a refresh token stands behind it, and which kind of account it is.
 # Without a Secret Service, agy keeps the same sign-in in a file of its own.
-def login():
-  try:
-    raw = subprocess.check_output(
-      ["secret-tool", "lookup", "service", "gemini", "username", "antigravity"],
-      text=True, stderr=subprocess.DEVNULL, timeout=3,
-    )
-    data = json.loads(raw) if raw.strip() else None
-  except Exception:
-    data = None
+# A sign-in in a locked keyring is left alone rather than prompted open.
+def login(locked):
+  data = None
+  if not locked:
+    try:
+      raw = subprocess.check_output(
+        ["secret-tool", "lookup", "service", "gemini", "username", "antigravity"],
+        text=True, stderr=subprocess.DEVNULL, timeout=3,
+      )
+      data = json.loads(raw) if raw.strip() else None
+    except Exception:
+      data = None
   if not isinstance(data, dict):
     data = read_json(app_root() / "antigravity-oauth-token") or None
   if not isinstance(data, dict):
@@ -200,8 +205,8 @@ def opencode_logins():
   return [entry] if entry else []
 
 
-def logins():
-  entry = login()
+def logins(locked):
+  entry = login(locked)
   return ([entry] if entry else []) + omp_logins() + pi_logins() + opencode_logins()
 
 
@@ -371,7 +376,7 @@ def refused_help(entry):
 # The plan and limits, asked of Google with one sign-in after another until
 # one answers. Each account keeps its own last good answer, which stands in,
 # marked stale, when its check fails.
-def collect_limits(entries, force):
+def collect_limits(entries, force, locked):
   result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False}
   now = time.time()
   # Each harness refreshes its own token while it runs, so the one lapsing
@@ -403,7 +408,10 @@ def collect_limits(entries, force):
 
   keep(lead)
   if not lead or not lead["accessToken"]:
-    result.update(usageStatusText="Waiting for auth", authHelpText=AUTH_HELP)
+    if locked:
+      result.update(usageStatusText="Antigravity limits unavailable", authHelpText=KEYRING_HELP)
+    else:
+      result.update(usageStatusText="Waiting for auth", authHelpText=AUTH_HELP)
     return result
 
   # A panel that is opened and shut repeatedly must not turn into a request
@@ -742,11 +750,16 @@ def main():
 
   # Nobody signed in to Antigravity here and no local history: no limits and
   # no plan, and the panel skips the record.
-  entries = logins()
-  ready = bool(entries) or bool(stats.get("hasLocalStats"))
-  limits = collect_limits(entries, args.force) if ready else {
+  locked = secret_locked(service="gemini", username="antigravity")
+  entries = logins(locked)
+  ready = bool(entries) or bool(stats.get("hasLocalStats")) or locked
+  limits = collect_limits(entries, args.force, locked) if ready else {
     "limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False,
   }
+  # agy's own sign-in may answer where the others couldn't, so anything short
+  # of a live answer is checked again once its keyring is unlocked.
+  if locked and not limits["live"]:
+    limits["retryAdvised"] = True
   tier = limits["tierLabel"]
   agy = next((e for e in entries if e["source"] == "agy"), None)
   if not tier and agy and agy["authMethod"] == "enterprise":
