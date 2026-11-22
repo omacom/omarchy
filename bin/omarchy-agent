@@ -88,6 +88,18 @@ fi
 # the panel's sign-in saves its key.
 [[ -n $provider ]] && agent=opencode
 
+# A subscription opens in the harness chosen for it in the agents panel
+# (omarchy agent harness): Codex in OpenCode or Pi on its ChatGPT sign-in,
+# ranked by Codex's own usage, and OpenRouter through Ori.
+subscription=${provider:-$agent}
+if [[ $subscription == "codex" || $subscription == "openrouter" ]]; then
+  case "$subscription:$(omarchy-agent-harness "$subscription")" in
+  codex:opencode) agent=opencode; provider=openai; usage_record=codex ;;
+  codex:pi) agent=pi; provider=openai-codex; usage_record=codex ;;
+  openrouter:ori-*) agent=ori; provider="" ;;
+  esac
+fi
+
 # A default of "local" is the local model. It opens in pi, as --local does
 # whatever the default agent is: the local models panel launches a model
 # whether or not a default was chosen. An agent asked for by name is opened
@@ -203,11 +215,11 @@ omp)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 ori)
-  # Ori is a harness launcher, and `ori code` is the agent it runs itself.
-  # A prompt alone means one headless turn there, printed after the turn ends,
-  # so --interactive is what seeds the session with it and keeps the window.
-  command=(ori code)
-  [[ -n ${prompt:-} ]] && command+=(--interactive --prompt "$prompt")
+  # Ori runs another harness through OpenRouter: the one chosen for the
+  # OpenRouter subscription, else OpenCode.
+  ori_harness=$(omarchy-agent-harness openrouter)
+  command=(ori "${ori_harness#ori-}")
+  prompt_via_clipboard="Ori"
   ;;
 pi)
   command=(pi)
@@ -315,7 +327,7 @@ fi
 
 # --provider starts the session on one of the provider's models, passed at
 # launch rather than written to the agent's config, so it never opens on
-# another provider: the model the agent last used there, so a switch made in
+# another provider: the model OpenCode last used there, so a switch made in
 # a session sticks; else the one the provider's usage record has spent most
 # tokens on; else the first the agent lists. The record names a model by its
 # short name ("deepseek-v4.1-flash"), so the agent's own list supplies the id
@@ -324,12 +336,17 @@ fi
 if [[ -n $provider ]]; then
   provider_id=$provider
   [[ $provider == "fireworks" ]] && provider_id="fireworks-ai"
-  provider_models=$(opencode models 2>/dev/null | sed -n "s|^$provider_id/||p")
-  # OpenCode keeps the models it used, latest first.
-  provider_last=$(jq -r --arg provider "$provider_id" 'first(.recent[]? | select(.providerID == $provider) | .modelID) // empty' \
-    "${XDG_STATE_HOME:-$HOME/.local/state}/opencode/model.json" 2>/dev/null)
+  if [[ $agent == "pi" ]]; then
+    provider_models=$(pi --list-models 2>/dev/null | awk -v provider="$provider_id" '$1 == provider { print $2 }')
+    provider_last=""
+  else
+    provider_models=$(opencode models 2>/dev/null | sed -n "s|^$provider_id/||p")
+    # OpenCode keeps the models it used, latest first.
+    provider_last=$(jq -r --arg provider "$provider_id" 'first(.recent[]? | select(.providerID == $provider) | .modelID) // empty' \
+      "${XDG_STATE_HOME:-$HOME/.local/state}/opencode/model.json" 2>/dev/null)
+  fi
 
-  provider_record="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage/$provider.json"
+  provider_record="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage/${usage_record:-$provider}.json"
   provider_model=$(awk -v last="$provider_last" '
     FILENAME == ARGV[1] { used[++count] = $0; next }
     $0 == "" { next }
@@ -349,7 +366,9 @@ if [[ -n $provider ]]; then
   ' <(jq -r '.modelUsage // {} | to_entries | sort_by(-([.value[]? | numbers] | add // 0)) | .[].key' "$provider_record" 2>/dev/null) \
     <(printf '%s\n' "$provider_models"))
 
-  if [[ -n $provider_model ]]; then
+  if [[ -n $provider_model && $agent == "pi" ]]; then
+    command+=(--model "$provider_id/$provider_model")
+  elif [[ -n $provider_model ]]; then
     # The shared background service never sees the choice, so run a private one.
     model=$(jq -nc --arg model "$provider_id/$provider_model" '{model: $model}')
     command=(env "OPENCODE_CONFIG_CONTENT=$model" "${command[@]}" --standalone)

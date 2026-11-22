@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# omarchy:summary=Choose the harness a subscription opens in
+# omarchy:args=<codex|openrouter> [harness]
+# omarchy:examples=omarchy agent harness codex | omarchy agent harness codex opencode | omarchy agent harness openrouter ori-claude
+
+# A subscription opens in the harness made for it unless another one that
+# signs in to it is chosen: Codex in OpenCode or Pi, and OpenRouter through Ori
+# in Claude Code, Codex, or Pi. With only a subscription, prints its harness.
+# Choosing one signs it in first when it isn't, in a terminal of its own when
+# there's none here, and is only kept once it is.
+
+set -uo pipefail
+
+choices="$HOME/.config/omarchy/defaults/harnesses.json"
+subscription=${1:-}
+harness=${2:-}
+
+case "$subscription" in
+codex) harnesses=(codex opencode pi) ;;
+openrouter) harnesses=(opencode ori-claude ori-codex ori-pi) ;;
+*)
+  echo "Usage: omarchy-agent-harness <codex|openrouter> [harness]" >&2
+  exit 1
+  ;;
+esac
+
+if [[ -z $harness ]]; then
+  chosen=$(jq -r --arg subscription "$subscription" '.[$subscription] // empty' "$choices" 2>/dev/null)
+  [[ " ${harnesses[*]} " == *" $chosen "* ]] || chosen=${harnesses[0]}
+  echo "$chosen"
+  exit 0
+fi
+
+if [[ " ${harnesses[*]} " != *" $harness "* ]]; then
+  echo "$subscription opens in: ${harnesses[*]}" >&2
+  exit 1
+fi
+
+# Whether the harness is signed in to the subscription, and how to sign it in.
+# The one made for it is signed in where the subscription is.
+case "$subscription:$harness" in
+codex:opencode)
+  signed_in() { opencode auth list 2>/dev/null | grep -q '^OpenAI '; }
+  login=(opencode auth login openai)
+  ;;
+codex:pi)
+  signed_in() { pi auth check --provider openai-codex >/dev/null 2>&1; }
+  login=(pi auth login openai-codex)
+  ;;
+openrouter:ori-*)
+  signed_in() { ORI_TELEMETRY=0 ori auth >/dev/null 2>&1; }
+  login=(ori login)
+  ;;
+*)
+  signed_in() { true; }
+  login=()
+  ;;
+esac
+
+if ! signed_in; then
+  if [[ ! -t 0 ]]; then
+    exec omarchy-launch-floating-terminal-with-presentation omarchy-agent-harness "$subscription" "$harness"
+  fi
+  "${login[@]}" && signed_in || exit 1
+fi
+
+mkdir -p "$(dirname "$choices")"
+next=$(jq --arg subscription "$subscription" --arg harness "$harness" '. + {($subscription): $harness}' "$choices" 2>/dev/null ||
+  jq -n --arg subscription "$subscription" --arg harness "$harness" '{($subscription): $harness}')
+printf '%s\n' "$next" >"$choices"
