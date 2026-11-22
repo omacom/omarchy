@@ -2,12 +2,11 @@
   "name": "omarchy",
   "private": true,
   "type": "module",
-  "description": "Omarchy's defaults for pi: web_fetch, todo_write, subagents, and an Omarchy header and footer",
+  "description": "Omarchy's defaults for pi: web_fetch, todo_write, subagents, and the folder in the editor border and a one-line footer",
   "pi": {
     "extensions": [
       "./extensions/web-fetch.ts",
       "./extensions/todo.ts",
-      "./extensions/header.ts",
       "./extensions/footer.ts",
       "./extensions/subagent/index.ts"
     ],
