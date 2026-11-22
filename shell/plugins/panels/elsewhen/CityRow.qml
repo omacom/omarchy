@@ -134,9 +134,8 @@ Rectangle {
     }
 
     onReleased: {
-      // End the gesture before telling the panel: focusOn/releaseRowDrag rebuild
-      // this row's delegate, and calling a component function afterwards lands in
-      // an invalid QML context (QQmlVMEMetaObject warning + TypeError).
+      // With animations off, releasing the drag rebuilds this delegate
+      // synchronously, so finish while its QML context is still alive.
       var wasArmed = armed
       finish()
       if (wasArmed) row.panel.releaseRowDrag()
