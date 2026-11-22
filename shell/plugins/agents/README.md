@@ -83,11 +83,13 @@ per local coding model that is running and ready.
   three blocks: _Sign in to a subscription_ (Claude, Codex, Grok, and Gemini,
   signed in through Antigravity), _Pay as you go_ (Fireworks, OpenCode
   Zen and Go, and OpenRouter, all run in OpenCode), each a large mark four
-  across, and _Use a local model_, a line for the best coding model for this
+  across, and _Use a local model_: a line for each coding model a paired,
+  online machine is running, then one for the best coding model for this
   computer when the local models catalog has one that fits. The first one is
-  focused and the hero reads Add an agent. Choosing the model hands its setup
-  to the local models panel, which follows the download; one already set up
-  opens the agent on it. Copilot, Cursor, and Muse are added with `omarchy
+  focused and the hero reads Add an agent. A model that's ready opens the
+  agent on it; one to set up hands its setup to the local models panel, which
+  follows the download. With no default agent yet, the local model becomes it
+  once the chosen model is ready, as the first sign-in does. Copilot, Cursor, and Muse are added with `omarchy
   agent account add`, and a lapsed sign-in of theirs still gets its link here. The + becomes
   the X that goes back. A further Claude, Codex, or Grok account asks for a
   name first, and Enter signs it in; the others keep one sign-in each, which

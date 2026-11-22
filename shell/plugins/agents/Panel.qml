@@ -85,7 +85,7 @@ Panel {
         for (var k = 0; k < blocks[b].length; k++) choices.push({ kind: "choice", index: addIndexOf(blocks[b][k].providerId) })
         if (choices.length > 0) rows.push(choices)
       }
-      if (ownModelRecipe) rows.push([{ kind: "ownModel", index: 0 }])
+      for (var o = 0; o < ownModelOffers.length; o++) rows.push([{ kind: "ownModel", index: o }])
     } else if (addStage === "running") {
       if (pasteLinkShown) rows.push([{ kind: "pasteCode", index: 0 }])
       if (addUrl !== "") rows.push([{ kind: "reopenSignIn", index: 0 }])
@@ -367,6 +367,42 @@ Panel {
     return null
   }
 
+  // What the local block offers: a paired machine's coding model that's
+  // running now, ready at once, then the best one for this computer.
+  readonly property var ownModelOffers: {
+    var offers = []
+    var lines = localModelLines
+    for (var i = 0; i < lines.length; i++)
+      if (lines[i].localModel.host !== "")
+        offers.push({ target: lines[i].localModel.target, name: lines[i].providerName, vendor: lines[i].iconId,
+                      host: lines[i].localModel.host, facts: lines[i].localModel, ready: true })
+    var recipe = ownModelRecipe
+    if (recipe)
+      offers.push({ target: String(recipe.id), name: recipe.name || String(recipe.id), vendor: recipe.vendor || "local",
+                    host: "", facts: recipe, ready: recipe.installed === true, recipe: recipe })
+    return offers
+  }
+
+  // A model set up from here becomes the default once it's running, if
+  // nothing else was finished first.
+  property string pendingLocalDefault: ""
+  onLocalModelLinesChanged: {
+    if (pendingLocalDefault === "") return
+    for (var i = 0; i < localModelLines.length; i++) {
+      if (localModelLines[i].localModel.target !== pendingLocalDefault) continue
+      if (usage.defaultAgent === "") selectLocalDefault(pendingLocalDefault)
+      pendingLocalDefault = ""
+      return
+    }
+  }
+
+  function selectLocalDefault(target) {
+    usage.defaultAgent = "local"
+    usage.localPin = target
+    selectDefault.command = ["omarchy-default-agent", "--select", "local", target]
+    selectDefault.running = true
+  }
+
   function ownModelFacts(recipe) {
     var facts = []
     if (recipe.decode_tok_s != null) facts.push(Commons.I18n.t("localModels.speedFact").arg(Commons.I18n.formatNumber(Math.round(recipe.decode_tok_s), 0)))
@@ -428,14 +464,17 @@ Panel {
     return String(local.last || "")
   }
 
-  function chooseOwnModel() {
-    var recipe = ownModelRecipe
-    if (!recipe) return
+  function chooseOwnModel(index) {
+    var offer = ownModelOffers[index]
+    if (!offer) return
     root.close()
-    if (recipe.installed) {
-      Util.execArgv(["omarchy-agent", "--local-model", String(recipe.id)])
+    if (offer.ready) {
+      // Ready now, so it's the first one finished when nothing else is.
+      if (usage.defaultAgent === "") selectLocalDefault(offer.target)
+      Util.execArgv(["omarchy-agent", "--local-model", offer.target])
     } else {
-      localModelsService.setUp(recipe)
+      if (usage.defaultAgent === "") pendingLocalDefault = offer.target
+      localModelsService.setUp(offer.recipe)
       Util.execArgv(["omarchy-shell", "omarchy.local-models", "open"])
     }
   }
@@ -735,7 +774,7 @@ Panel {
     if (!target) refreshNow()
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
-    else if (target.kind === "ownModel") chooseOwnModel()
+    else if (target.kind === "ownModel") chooseOwnModel(target.index)
     else if (target.kind === "pasteCode") openPasteField()
     else if (target.kind === "reopenSignIn") reopenSignIn()
     else if (target.kind === "providerLaunch") launchLine(providers[target.index])
@@ -906,10 +945,7 @@ Panel {
     // A local model's star pins it as the one the default opens.
     if (provider.localModel) {
       if (starred(provider, null)) return
-      usage.defaultAgent = "local"
-      usage.localPin = provider.localModel.target
-      selectDefault.command = ["omarchy-default-agent", "--select", "local", provider.localModel.target]
-      selectDefault.running = true
+      selectLocalDefault(provider.localModel.target)
       return
     }
     if (account && !account.active) useAccount(provider, account)
@@ -1817,7 +1853,7 @@ Panel {
       }
 
       Column {
-        visible: root.ownModelRecipe !== null
+        visible: root.ownModelOffers.length > 0
         width: parent.width
         spacing: Style.space(10)
 
@@ -1829,67 +1865,77 @@ Panel {
           fontFamily: root.fontFamily
         }
 
-        Item {
-          id: ownModel
-          readonly property bool hasCursor: root.hasKey("ownModel", 0)
-          readonly property var recipe: root.ownModelRecipe || ({})
-          width: parent.width
-          implicitHeight: ownModelText.implicitHeight + Style.space(16)
-          onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
+        Repeater {
+          model: root.ownModelOffers
 
-          CursorSurface {
-            anchors.fill: parent
-            hasCursor: ownModel.hasCursor || ownModelMouse.containsMouse
-            foreground: root.foreground
-          }
+          Item {
+            id: ownModel
+            required property var modelData
+            required property int index
+            readonly property bool hasCursor: root.hasKey("ownModel", index)
+            width: parent.width
+            implicitHeight: ownModelText.implicitHeight + Style.space(16)
+            onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
 
-          // The maker's mark, as the local models panel draws it.
-          ProviderIcon {
-            id: ownModelMark
-            anchors.left: parent.left
-            anchors.leftMargin: Style.space(8)
-            anchors.verticalCenter: parent.verticalCenter
-            provider: ({ providerId: String(ownModel.recipe.vendor || "local") })
-            size: Style.font.display
-          }
-
-          Column {
-            id: ownModelText
-            anchors.left: ownModelMark.right
-            anchors.leftMargin: Style.space(12)
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(2)
-
-            Text {
-              width: parent.width
-              text: ownModel.recipe.name || String(ownModel.recipe.id || "")
-              textFormat: Text.PlainText
-              color: ownModel.hasCursor ? Commons.Color.accent : root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              font.bold: true
-              elide: Text.ElideRight
+            CursorSurface {
+              anchors.fill: parent
+              hasCursor: ownModel.hasCursor || ownModelMouse.containsMouse
+              foreground: root.foreground
             }
 
-            Text {
-              width: parent.width
-              text: root.ownModelFacts(ownModel.recipe)
-              textFormat: Text.PlainText
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-              elide: Text.ElideRight
+            // The maker's mark, as the local models panel draws it.
+            ProviderIcon {
+              id: ownModelMark
+              anchors.left: parent.left
+              anchors.leftMargin: Style.space(8)
+              anchors.verticalCenter: parent.verticalCenter
+              provider: ({ providerId: String(ownModel.modelData.vendor || "local") })
+              size: Style.font.display
             }
-          }
 
-          MouseArea {
-            id: ownModelMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onEntered: root.pointAt("ownModel", 0)
-            onClicked: root.chooseOwnModel()
+            Column {
+              id: ownModelText
+              anchors.left: ownModelMark.right
+              anchors.leftMargin: Style.space(12)
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.space(2)
+
+              Text {
+                width: parent.width
+                text: ownModel.modelData.name
+                textFormat: Text.PlainText
+                color: ownModel.hasCursor ? Commons.Color.accent : root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+                elide: Text.ElideRight
+              }
+
+              // A paired machine's model says whose it is before its facts.
+              Text {
+                width: parent.width
+                text: {
+                  var facts = root.ownModelFacts(ownModel.modelData.facts)
+                  var host = ownModel.modelData.host
+                  return host !== "" && facts !== "" ? host + " · " + facts : host !== "" ? host : facts
+                }
+                textFormat: Text.PlainText
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                elide: Text.ElideRight
+              }
+            }
+
+            MouseArea {
+              id: ownModelMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onEntered: root.pointAt("ownModel", ownModel.index)
+              onClicked: root.chooseOwnModel(ownModel.index)
+            }
           }
         }
       }
