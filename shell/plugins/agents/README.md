@@ -88,8 +88,8 @@ per local coding model that is running and ready.
 - **Make something cool** — starter prompts (a new theme, plugin, app, or game),
   two across, that start the default agent on the task through `omarchy agent make`.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
-  three blocks: _Sign in to a subscription_ (Claude, Codex, Grok, and Gemini,
-  signed in through Antigravity), _Pay as you go_ (Fireworks, OpenCode
+  three blocks: _Use a subscription_ (Claude, Codex, Grok, and Gemini,
+  signed in through Antigravity), _Use pay as you go_ (Fireworks, OpenCode
   Zen and Go, and OpenRouter, all run in OpenCode, and More: a list of
   DeepSeek, MiniMax, Synthetic, and Z.ai, whose keys are checked like
   Fireworks', then OpenCode's own sign-in for any other provider), each a
