@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "Aktivitet",
   "Agent": "Agent",
   "Agents": "Agenter",
@@ -20,7 +21,6 @@
   "Calculator": "Lommeregner",
   "Calendar": "Kalender",
   "Capture menu": "Optagemenu",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "Ryd påmindelser",
   "Clipboard manager": "Udklipsholder",
   "Close all windows": "Luk alle vinduer",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "Styr notifikationer med tastaturet",
   "Cycle workspace layout": "Skift arbejdsområdelayout",
   "Cycle workspace layout back": "Skift arbejdsområdelayout tilbage",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Direkte input til terminalpræfiks",
   "Disable touchpad": "Deaktivér touchpad",
   "Dismiss all notifications": "Afvis alle notifikationer",

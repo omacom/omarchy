@@ -19,6 +19,18 @@ cat >"$mock_bin/omarchy-notification-send" <<'SH'
 printf '%s\n' "$*" >>"$OMARCHY_TEST_NOTIFICATIONS"
 SH
 
+# A first sign-in installs the subscription's desktop app. These stand in for
+# the package tools ahead of every PATH the tests use, so nothing real installs
+# and no password dialog opens.
+pkg_bin="$test_tmp/pkg-bin"
+export OMARCHY_TEST_PKG_LOG="$test_tmp/pkg-log"
+mkdir -p "$pkg_bin"
+printf '#!/bin/bash\necho "pkexec $*" >>"$OMARCHY_TEST_PKG_LOG"\n' >"$pkg_bin/pkexec"
+printf '#!/bin/bash\necho "pkg-add $*" >>"$OMARCHY_TEST_PKG_LOG"\n' >"$pkg_bin/omarchy-pkg-add"
+printf '#!/bin/bash\nexit 1\n' >"$pkg_bin/omarchy-pkg-present"
+printf '#!/bin/bash\nexit 0\n' >"$pkg_bin/omarchy-region-global"
+chmod +x "$pkg_bin"/*
+
 # The CLIs report which home they were started in, and a login writes the
 # identity a real one would into whichever home it was given.
 cat >"$mock_bin/claude" <<'SH'
@@ -95,7 +107,7 @@ chmod +x "$mock_bin"/*
 
 export HOME="$test_tmp/home"
 export XDG_STATE_HOME="$test_tmp/state"
-export PATH="$mock_bin:$ROOT/bin:$PATH"
+export PATH="$pkg_bin:$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_NOTIFICATIONS="$notifications"
 export OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser"
@@ -349,7 +361,7 @@ use_output=$(omarchy-agent-account-use claude work)
 kill "$legacy"
 wait "$legacy" 2>/dev/null || true
 : >"$notifications"
-omarchy-agent-account-state autoswitch claude >/dev/null
+omarchy-agent-account-state alert claude >/dev/null
 [[ -z $(omarchy-agent-account-home claude) && $(claude_account) == u-work && ! -e $work/.credentials.json ]] ||
   fail "once those sessions quit, the next check moves the login into ~/.claude"
 grep -q "Running sessions on Main moved over too." "$notifications" || fail "catching up says running sessions moved" "$(cat "$notifications")"
@@ -408,14 +420,14 @@ fi
 omarchy-agent-account-use claude main >/dev/null
 pass "a correction survives the command that made it failing"
 
-# ------------------------------------------------------------ mode and remove
+# ------------------------------------------------------- threshold and remove
 
-OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent-account-mode auto 90 >/dev/null
-[[ $(jq -c '{switch, threshold}' "$accounts/claude.json") == '{"switch":"auto","threshold":90}' ]] || fail "mode sets switching and threshold"
-if omarchy-agent-account-mode claude sometimes >/dev/null 2>&1; then
-  fail "mode refuses an unknown switch mode"
+OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent-account-threshold 90 >/dev/null
+[[ $(jq -r .threshold "$accounts/claude.json") == 90 ]] || fail "threshold sets when an account is announced"
+if omarchy-agent-account-threshold claude soon >/dev/null 2>&1; then
+  fail "threshold refuses anything but a percentage"
 fi
-pass "mode sets how switching happens"
+pass "threshold sets when an account is announced"
 
 if omarchy-agent-account-remove claude main </dev/null >/dev/null 2>&1; then
   fail "the primary account can't be removed"
@@ -484,9 +496,70 @@ pass "a Grok settings cache of the wrong shape reads as no plan"
 
 # ------------------------------------------------------------ panel add flow
 
-[[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional' ]] ||
-  fail "--check says what adding would mean for each provider" "$(omarchy-agent-account-add --check)"
+check=$(omarchy-agent-account-add --check)
+[[ $check == $'claude additional\ncodex additional\ngrok additional\n'* && $'\n'$check$'\n' == *$'\nfireworks first\n'* ]] ||
+  fail "--check says what adding would mean for each provider" "$check"
 pass "--check says what adding would mean for each provider"
+
+# Pay-as-you-go providers sign in with a pasted API key: checked first, then
+# imported into OpenCode, without ever being a command argument.
+fireworks_bin="$test_tmp/fireworks-bin"
+mkdir -p "$fireworks_bin"
+cat >"$fireworks_bin/omarchy-agent-usage-fireworks" <<'SH'
+#!/bin/bash
+# A key saved elsewhere, as Z.ai's config file can hold one, would vouch for
+# any key it was checked beside.
+if [[ -f ${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/agents/fireworks.json ]]; then
+  echo '{"usageStatusText":""}'
+  exit
+fi
+case $FIREWORKS_API_KEY in
+fw_good) echo '{"usageStatusText":""}' ;;
+fw_offline) echo '{"usageStatusText":"Fireworks unavailable"}' ;;
+*) echo '{"usageStatusText":"Sign-in expired"}' ;;
+esac
+SH
+cat >"$fireworks_bin/mise" <<'SH'
+#!/bin/bash
+[[ $* == "where opencode" ]]
+SH
+cat >"$fireworks_bin/opencode" <<SH
+#!/bin/bash
+echo "\$* \$([[ \$2 == "import" ]] && jq -r '.[0].value.key')" >>"$test_tmp/fireworks-opencode"
+SH
+chmod +x "$fireworks_bin"/*
+
+if PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"fw_bad" >"$test_tmp/fireworks-refused" 2>&1 ||
+  [[ -e $test_tmp/fireworks-opencode ]] ||
+  ! grep -qx "@@omarchy error Fireworks didn't accept that key." "$test_tmp/fireworks-refused"; then
+  fail "a key Fireworks refuses is not saved, and says so" "$(cat "$test_tmp/fireworks-refused")"
+fi
+pass "a key Fireworks refuses is not saved, and says so"
+
+# The check sees only the pasted key, not one saved elsewhere.
+mkdir -p "$HOME/.config/omarchy/agents"
+echo '{"apiKey":"fw_saved"}' >"$HOME/.config/omarchy/agents/fireworks.json"
+if PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"fw_bad" >/dev/null 2>&1 || [[ -e $test_tmp/fireworks-opencode ]]; then
+  fail "a saved key can't vouch for a pasted one"
+fi
+rm "$HOME/.config/omarchy/agents/fireworks.json"
+pass "a saved key can't vouch for a pasted one"
+
+# A key Fireworks couldn't be asked about isn't saved either, and says to retry.
+if PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"fw_offline" >"$test_tmp/fireworks-unchecked" 2>&1 ||
+  [[ -e $test_tmp/fireworks-opencode ]] ||
+  ! grep -qx "@@omarchy error Couldn't reach Fireworks to check that key. Try again in a moment." "$test_tmp/fireworks-unchecked"; then
+  fail "a key that couldn't be checked is not saved" "$(cat "$test_tmp/fireworks-unchecked")"
+fi
+pass "a key that couldn't be checked is not saved"
+
+PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"fw_good" >"$test_tmp/fireworks-output"
+[[ ! -e $HOME/.pi/agent/auth.json ]] || fail "a Fireworks key is not saved for pi"
+grep -q "^auth import fw_good$" "$test_tmp/fireworks-opencode" && grep -q "^auth switch fireworks-ai omarchy-" "$test_tmp/fireworks-opencode" ||
+  fail "a Fireworks key is made opencode's active one" "$(cat "$test_tmp/fireworks-opencode")"
+grep -q "^@@omarchy key " "$test_tmp/fireworks-output" && grep -qx "@@omarchy done Signed in to Fireworks." "$test_tmp/fireworks-output" ||
+  fail "the panel is asked for the key and told the result" "$(cat "$test_tmp/fireworks-output")"
+pass "a Fireworks key is saved in OpenCode"
 
 : >"$notifications"
 OMARCHY_TEST_LOGIN_UUID=u-events OMARCHY_TEST_LOGIN_EMAIL=events@example.com \
@@ -527,7 +600,7 @@ pass "an added account that can't be selected says so"
 # needs are on this PATH, not the mock Codex itself.
 lazy_data="$test_tmp/lazy-mise"
 lazy_bin="$test_tmp/lazy-bin"
-lazy_path="$lazy_data/command-wrappers/bin:$lazy_bin:$ROOT/bin:/usr/bin"
+lazy_path="$pkg_bin:$lazy_data/command-wrappers/bin:$lazy_bin:$ROOT/bin:/usr/bin"
 mkdir -p "$lazy_data/command-wrappers/bin" "$lazy_data/shims" "$lazy_bin"
 for helper in omarchy-notification-send omarchy-agent-usage-update omarchy-default-agent omarchy-launch-browser; do
   ln -s "$mock_bin/$helper" "$lazy_bin/$helper"
@@ -727,3 +800,9 @@ omarchy-agent-account-state refresh claude
 [[ $(jq -r '.accounts[] | select(.id == "events") | .email' "$accounts/claude.json") == "switched@example.com" ]] ||
   fail "refresh saves who each home is signed in as now"
 pass "refresh saves who each home is signed in as now"
+
+# A first sign-in installs the subscription's desktop app, once: Codex's and
+# Grok's here, from a terminal. Adding another account installs nothing more.
+[[ $(cat "$OMARCHY_TEST_PKG_LOG" 2>/dev/null) == $'pkg-add openai-codex-desktop\npkg-add grok-bot' ]] ||
+  fail "a first sign-in installs its subscription's desktop app, and only that" "$(cat "$OMARCHY_TEST_PKG_LOG" 2>/dev/null)"
+pass "a first sign-in installs its subscription's desktop app"

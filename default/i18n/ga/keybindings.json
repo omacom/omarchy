@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "Gníomhaíocht",
   "Agent": "Gníomhaire",
   "Agents": "Gníomhairí",
@@ -20,7 +21,6 @@
   "Calculator": "Áireamhán",
   "Calendar": "Féilire",
   "Capture menu": "Roghchlár gabhála",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "Glan meabhrúcháin",
   "Clipboard manager": "Bainisteoir gearrthaisce",
   "Close all windows": "Dún gach fuinneog",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "Rialaigh fógraí leis an méarchlár",
   "Cycle workspace layout": "Rothlaigh leagan amach an spáis oibre",
   "Cycle workspace layout back": "Rothlaigh leagan amach an spáis oibre ar ais",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Ionchur díreach réimír an teirminéil",
   "Disable touchpad": "Díchumasaigh an ceap tadhaill",
   "Dismiss all notifications": "Díbhe gach fógra",

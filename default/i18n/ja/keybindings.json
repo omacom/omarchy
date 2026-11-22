@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "アクティビティ",
   "Agent": "エージェント",
   "Agents": "エージェント",
@@ -20,7 +21,6 @@
   "Calculator": "電卓",
   "Calendar": "カレンダー",
   "Capture menu": "キャプチャメニュー",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "リマインダーをクリア",
   "Clipboard manager": "クリップボードマネージャー",
   "Close all windows": "すべてのウィンドウを閉じる",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "通知をキーボードで操作",
   "Cycle workspace layout": "ワークスペースレイアウトを次に切り替え",
   "Cycle workspace layout back": "ワークスペースレイアウトを前に切り替え",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "ターミナルプレフィックスの直接入力",
   "Disable touchpad": "タッチパッドを無効化",
   "Dismiss all notifications": "すべての通知を閉じる",

@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "Activiteit",
   "Agent": "Agent",
   "Agents": "Agents",
@@ -20,7 +21,6 @@
   "Calculator": "Rekenmachine",
   "Calendar": "Agenda",
   "Capture menu": "Opnamemenu",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "Herinneringen wissen",
   "Clipboard manager": "Klembordbeheer",
   "Close all windows": "Alle vensters sluiten",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "Meldingen met toetsenbord bedienen",
   "Cycle workspace layout": "Volgende werkruimte-indeling",
   "Cycle workspace layout back": "Vorige werkruimte-indeling",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Directe invoer voor de terminalprefix",
   "Disable touchpad": "Touchpad uitschakelen",
   "Dismiss all notifications": "Alle meldingen sluiten",

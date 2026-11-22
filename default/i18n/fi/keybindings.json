@@ -1,4 +1,5 @@
 {
+  "AI": "Tekoäly",
   "Activity": "Toiminnot",
   "Agent": "Agentti",
   "Agents": "Agentit",
@@ -20,7 +21,6 @@
   "Calculator": "Laskin",
   "Calendar": "Kalenteri",
   "Capture menu": "Kaappausvalikko",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "Tyhjennä muistutukset",
   "Clipboard manager": "Leikepöydänhallinta",
   "Close all windows": "Sulje kaikki ikkunat",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "Hallitse ilmoituksia näppäimistöllä",
   "Cycle workspace layout": "Kierrä työtilan asettelua",
   "Cycle workspace layout back": "Kierrä työtilan asettelua taaksepäin",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Suorasyöttö päätteen etuliitteelle",
   "Disable touchpad": "Poista kosketuslevy käytöstä",
   "Dismiss all notifications": "Hylkää kaikki ilmoitukset",
