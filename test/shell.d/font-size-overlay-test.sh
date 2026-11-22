@@ -271,6 +271,19 @@ grep -qx 'font=Iosevka Term:size=12' "$keep/.config/foot/local.ini" ||
   fail "font set updates the Foot family without dropping the size" "$(cat "$keep/.config/foot/local.ini")"
 pass "font set replaces only Foot's font line"
 
+# --- A fallback font keeps its own size ---
+fallback="$tmpdir/fallback-home"
+mkdir -p "$fallback/.config/foot"
+printf '[main]\nfont=JetBrainsMono Nerd Font:size=12, Noto Color Emoji:size=10\n' \
+  >"$fallback/.config/foot/foot.ini"
+read_out=$(run_size "$fallback" "$fallback/.config" --read foot)
+[[ $read_out == 12 ]] || fail "foot size is the primary font, not the emoji fallback" "$read_out"
+run_size "$fallback" "$fallback/.config" --quiet --only foot 11 >/dev/null
+grep -qx 'font=JetBrainsMono Nerd Font:size=11, Noto Color Emoji:size=10' \
+  "$fallback/.config/foot/local.ini" ||
+  fail "foot size change keeps the fallback list" "$(cat "$fallback/.config/foot/local.ini")"
+pass "foot size stays on the primary font"
+
 # --- Alacritty import: trailing comma, [general] table, and no import ---
 comma="$tmpdir/comma-home"
 mkdir -p "$comma/.config/alacritty"

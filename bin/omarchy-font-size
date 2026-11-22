@@ -71,8 +71,8 @@ size_from_terminal() {
       [[ -n $size ]] || size=$(size_from_file "$kitty_shared" 's/^[[:space:]]*font_size[[:space:]]*//p')
       ;;
     foot)
-      size=$(size_from_file "$foot_local" 's/^[[:space:]]*font[[:space:]]*=.*:size=\([0-9.][0-9.]*\).*/\1/p')
-      [[ -n $size ]] || size=$(size_from_file "$foot_shared" 's/^[[:space:]]*font[[:space:]]*=.*:size=\([0-9.][0-9.]*\).*/\1/p')
+      size=$(size_from_file "$foot_local" "$foot_primary_size_subst")
+      [[ -n $size ]] || size=$(size_from_file "$foot_shared" "$foot_primary_size_subst")
       ;;
     alacritty)
       size=$(size_from_file "$alacritty_local" 's/^[[:space:]]*size[[:space:]]*=[[:space:]]*//p')
@@ -92,19 +92,24 @@ read_size() {
   # Kitty and Foot, matching the order this command has always reported.
   size=$(size_from_file "$ghostty_local" 's/^[[:space:]]*font-size[[:space:]]*=[[:space:]]*//p')
   [[ -n $size ]] || size=$(size_from_file "$kitty_local" 's/^[[:space:]]*font_size[[:space:]]*//p')
-  [[ -n $size ]] || size=$(size_from_file "$foot_local" 's/^[[:space:]]*font[[:space:]]*=.*:size=\([0-9.][0-9.]*\).*/\1/p')
+  [[ -n $size ]] || size=$(size_from_file "$foot_local" "$foot_primary_size_subst")
   [[ -n $size ]] || size=$(size_from_file "$alacritty_local" 's/^[[:space:]]*size[[:space:]]*=[[:space:]]*//p')
   [[ -n $size ]] || size=$(size_from_file "$ghostty_shared" 's/^[[:space:]]*font-size[[:space:]]*=[[:space:]]*//p')
   [[ -n $size ]] || size=$(size_from_file "$alacritty_shared" 's/^[[:space:]]*size[[:space:]]*=[[:space:]]*//p')
   [[ -n $size ]] || size=$(size_from_file "$kitty_shared" 's/^[[:space:]]*font_size[[:space:]]*//p')
-  [[ -n $size ]] || size=$(size_from_file "$foot_shared" 's/^[[:space:]]*font[[:space:]]*=.*:size=\([0-9.][0-9.]*\).*/\1/p')
+  [[ -n $size ]] || size=$(size_from_file "$foot_shared" "$foot_primary_size_subst")
   printf '%s\n' "${size:-9}"
 }
 
-# Foot has one font= key. A later font= replaces the whole list, so the overlay
-# has to repeat the shared family. Never ask omarchy-font-current: that is this
+# Size belongs to the first font. The comma starts a fallback, and a greedy
+# :size= match would report that fallback's size instead of the text size.
+foot_primary_size_subst='s/^[[:space:]]*font[[:space:]]*=[^,]*:size=\([0-9.][0-9.]*\).*/\1/p'
+
+# The font= value the overlay has to repeat. Foot's one font= key replaces the
+# whole list, so a later local line must carry the shared family and its
+# fallbacks. Shared wins. Never ask omarchy-font-current: that is this
 # machine's fontconfig match, not the family in the shared config.
-foot_family() {
+foot_font_value() {
   local line=""
   if [[ -f $foot_shared ]]; then
     line=$(grep -E '^[[:space:]]*font[[:space:]]*=' "$foot_shared" | head -1 || true)
@@ -113,11 +118,30 @@ foot_family() {
     line=$(grep -E '^[[:space:]]*font[[:space:]]*=' "$foot_local" | head -1 || true)
   fi
   line=${line#*=}
-  line=$(printf '%s\n' "$line" | sed -E 's/:size=[0-9.]+//g; s/^[[:space:]]+//; s/[[:space:]]+$//')
+  line=$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
   if [[ -z $line ]]; then
     line="JetBrainsMono Nerd Font"
   fi
   printf '%s\n' "$line"
+}
+
+# Put size on the first font only. "Family:size=12, Emoji:size=10" at 11
+# becomes "Family:size=11, Emoji:size=10", not "Family, Emoji:size=11".
+foot_with_primary_size() {
+  local value=$1 size=$2 first rest
+  if [[ $value == *,* ]]; then
+    first=${value%%,*}
+    rest=",${value#*,}"
+  else
+    first=$value
+    rest=""
+  fi
+  if [[ $first =~ :size=[0-9]+([.][0-9]+)? ]]; then
+    first=$(printf '%s\n' "$first" | sed -E "s/:size=[0-9]+([.][0-9]+)?/:size=${size}/")
+  else
+    first="${first}:size=${size}"
+  fi
+  printf '%s%s\n' "$first" "$rest"
 }
 
 # Replace the first matching line and drop duplicates. Other lines stay.
@@ -175,13 +199,13 @@ write_terminal() {
       fi
       ;;
     foot)
-      family=$(foot_family)
+      family=$(foot_with_primary_size "$(foot_font_value)" "$size")
       if [[ -e $foot_local ]]; then
-        upsert_line "$foot_local" '^[[:space:]]*font[[:space:]]*=' "font=$family:size=$size"
+        upsert_line "$foot_local" '^[[:space:]]*font[[:space:]]*=' "font=$family"
       else
         write_new_overlay "$foot_local" \
           "# Machine-local Foot overrides. Not part of the shared desktop config." \
-          "font=$family:size=$size"
+          "font=$family"
       fi
       ;;
     alacritty)
@@ -539,9 +563,9 @@ fi
 if pgrep -x ghostty >/dev/null 2>&1; then
   pkill -SIGUSR2 ghostty 2>/dev/null || true
   if (( ! quiet )); then
-    omarchy-notification-send -g "$(omarchy-i18n font.restartToSeeChange Ghostty)" || true
+    omarchy-notification-send -g  "$(omarchy-i18n font.restartToSeeChange Ghostty)"
   fi
 fi
 if (( ! quiet )) && pgrep -x foot >/dev/null 2>&1; then
-  omarchy-notification-send -g "$(omarchy-i18n font.restartToSeeChange Foot)" || true
+  omarchy-notification-send -g  "$(omarchy-i18n font.restartToSeeChange Foot)"
 fi

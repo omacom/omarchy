@@ -58,14 +58,31 @@ if [[ -f $foot_config ]]; then
 fi
 
 # Foot's one font= key replaces the whole list, so the overlay keeps this
-# family. Replace only that line; other machine-local settings stay.
+# family and its fallbacks. Change the primary family only. A later fallback's
+# size is not this machine's text size.
 if [[ -f $foot_local ]]; then
-  size=$(sed -n 's/^[[:space:]]*font[[:space:]]*=.*:size=\([0-9.][0-9.]*\).*/\1/p' "$foot_local" | head -1 || true)
+  size=$(sed -n 's/^[[:space:]]*font[[:space:]]*=[^,]*:size=\([0-9.][0-9.]*\).*/\1/p' "$foot_local" | head -1 || true)
   size=${size:-9}
   size=${size%.0}
   if grep -qE '^[[:space:]]*font[[:space:]]*=' "$foot_local"; then
+    value=$(grep -E '^[[:space:]]*font[[:space:]]*=' "$foot_local" | head -1 || true)
+    value=${value#*=}
+    value=$(printf '%s\n' "$value" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+    if [[ $value == *,* ]]; then
+      first=${value%%,*}
+      rest=",${value#*,}"
+    else
+      first=$value
+      rest=""
+    fi
+    if [[ $first == *:* ]]; then
+      attrs=":${first#*:}"
+    else
+      attrs=""
+    fi
+    [[ $attrs == *:size=* ]] || attrs="${attrs}:size=${size}"
     tmp=$(mktemp)
-    awk -v line="font=$font_name:size=$size" '
+    awk -v line="font=${font_name}${attrs}${rest}" '
       /^[[:space:]]*font[[:space:]]*=/ { if (!done) print line; done = 1; next }
       { print }
     ' "$foot_local" >"$tmp"
