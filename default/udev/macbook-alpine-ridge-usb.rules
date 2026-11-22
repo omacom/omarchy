@@ -1,0 +1,6 @@
+# MacBookPro14,1: the Alpine Ridge USB-C xHCI (8086:15d4) misses a plug while it is
+# runtime-suspended. Its root hubs have remote wakeup disabled, so a device can
+# take VBUS while the controller never sees the connect. Keep the controller and
+# those hubs awake. See install/hardware/apple/fix-alpine-ridge-usb.sh.
+ACTION=="add|bind", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x15d4", TEST=="power/control", ATTR{power/control}="on"
+ACTION=="add|bind", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="1d6b", ATTRS{vendor}=="0x8086", ATTRS{device}=="0x15d4", TEST=="power/control", ATTR{power/control}="on"
