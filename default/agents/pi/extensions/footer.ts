@@ -1,6 +1,7 @@
-// Pi's footer, trimmed to one line with tokens per second for each reply as
-// OpenCode shows it. The folder and branch move into the editor's top border,
-// and cost, the cache counters and the auto-compaction marker are dropped, so the
+// Pi's footer, trimmed to one line: how much of the context window the
+// conversation fills, and tokens per second for each reply as OpenCode shows
+// it. The folder and branch move into the editor's top border, and the token
+// counts, cost, cache counters and auto-compaction marker are dropped, so the
 // footer keeps the same height from the first prompt on. The clock starts at
 // the first streamed token, so the prompt processing before it doesn't count:
 // the number is how fast the model writes. Replies that error, abort or arrive
@@ -11,8 +12,8 @@ import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 function formatTokens(count: number): string {
   if (count < 1000) return `${count}`;
-  if (count < 10_000) return `${(count / 1000).toFixed(1)}k`;
-  if (count < 1_000_000) return `${Math.round(count / 1000)}k`;
+  if (count < 10_000) return `${(count / 1000).toFixed(1)}K`;
+  if (count < 1_000_000) return `${Math.round(count / 1000)}K`;
   return `${(count / 1_000_000).toFixed(1)}M`;
 }
 
@@ -55,26 +56,14 @@ export default function (pi: ExtensionAPI) {
         render(width: number): string[] {
           const dim = (text: string) => theme.fg("dim", text);
 
-          let input = 0;
-          let output = 0;
-          for (const entry of ctx.sessionManager.getEntries()) {
-            const usage = entry.type === "message" ? entry.message.usage : entry.usage;
-            if (!usage) continue;
-            input += usage.input;
-            output += usage.output;
-          }
-
           const stats: string[] = [];
-          if (input) stats.push(`↑${formatTokens(input)}`);
-          if (output) stats.push(`↓${formatTokens(output)}`);
           const context = ctx.getContextUsage();
-          const window = context?.contextWindow ?? ctx.model?.contextWindow ?? 0;
-          const percent = context?.percent;
-          stats.push(`${percent == null ? "?" : percent.toFixed(1)}%/${formatTokens(window)}`);
+          const percent = context?.percent ?? 0;
+          if (context?.tokens != null) stats.push(`${formatTokens(context.tokens)} (${percent.toFixed(1)}%)`);
           if (tps !== undefined) stats.push(`${Math.round(tps)} tok/s`);
-          let left = dim(stats.join(" "));
-          if ((percent ?? 0) > 90) left = theme.fg("error", stats.join(" "));
-          else if ((percent ?? 0) > 70) left = theme.fg("warning", stats.join(" "));
+          let left = dim(stats.join(" • "));
+          if (percent > 90) left = theme.fg("error", stats.join(" • "));
+          else if (percent > 70) left = theme.fg("warning", stats.join(" • "));
 
           let model = ctx.model?.id ?? "no-model";
           if (ctx.model?.reasoning) {
