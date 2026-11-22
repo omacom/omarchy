@@ -23,9 +23,33 @@ body {
 }
 
 header { padding: 2px 2px 10px; }
+/* The wordmark's O is the toolbar icon itself, masked so it takes the same color as the letters beside it. */
+.wordmark { display: flex; align-items: center; gap: 0.7ch; margin: 0; font: 9.15px/1.15 monospace, monospace; }
+.logo-o {
+  position: relative;
+  flex: none;
+  width: 3.36em;
+  height: 3.36em;
+  overflow: hidden;
+  background: var(--fg);
+  -webkit-mask: url(../icon-128.png) center / contain no-repeat;
+  mask: url(../icon-128.png) center / contain no-repeat;
+}
+/* One glint across the shades when the popup opens. */
+.logo-o::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, var(--accent) 50%, transparent 65%);
+  opacity: 0.75;
+  transform: translateX(-110%);
+  animation: glint 0.9s 0.25s ease-out forwards;
+}
+@keyframes glint { to { transform: translateX(110%); } }
+@media (prefers-reduced-motion: reduce) { .logo-o::after { animation: none; } }
 .banner {
   margin: 0;
-  font: 9.4px/1.12 monospace, monospace;
+  font: inherit;
   color: var(--fg);
   white-space: pre;
   overflow: hidden;
