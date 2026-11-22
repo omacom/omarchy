@@ -622,15 +622,12 @@ pass "vscode generated theme clears obsolete extension marker"
 jq -e '.[] | select(.identifier.id == "local.omarchy-theme" and .relativeLocation == "omarchy-theme")' "$PI_TMPDIR/.vscode/extensions/extensions.json" >/dev/null || fail "vscode generated theme registers local extension"
 pass "vscode generated theme registers local extension"
 
-for binary in \
-  omarchy-update \
-  omarchy-theme-set \
-  omarchy-capture-screenshot \
-  omarchy-system-reboot \
-  omarchy-pkg-add; do
-  [[ -x $ROOT/bin/$binary ]] || fail "binary is executable: $binary"
-  pass "binary is executable: $binary"
-done
+# The router and the metadata scan below only see executable files, so a
+# command committed without its exec bit silently disappears from both.
+while IFS= read -r binary_path; do
+  fail "binary is executable: ${binary_path#"$ROOT"/}"
+done < <(find "$ROOT/bin" -maxdepth 1 -type f -name 'omarchy-*' ! -executable)
+pass "all bins are executable"
 
 while IFS= read -r binary_path; do
   header=$(awk '
