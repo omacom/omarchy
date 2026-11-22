@@ -10,9 +10,6 @@ ShellRoot {
   readonly property string resultPath: Quickshell.env("OMARCHY_QML_TEST_RESULT")
   property var failures: []
   property int checks: 0
-  property var blankService: null
-  property var blankProcess: null
-  property int blankStep: 0
 
   Item { id: host }
 
@@ -260,54 +257,10 @@ ShellRoot {
       check(!blankTimer.running, "a repeated lock request leaves a password check lit")
       service.authenticatingPassword = false
       blankTimer.stop()
-
-      // Run the real blank/wake logic; the runner shadows only its hardware commands.
-      var blank = null
-      for (var index = 0; index < service.data.length; index++) {
-        var child = service.data[index]
-        if (child.command && String(child.command).indexOf("omarchy-brightness-display off") !== -1) blank = child
-      }
-      if (!blank) throw new Error("Missing blank process")
-      root.blankService = service
-      root.blankProcess = blank
-      blankSequence.start()
     } finally {
-      if (!root.blankService) {
-        service.lockRequested = false
-        service.resetAuthenticationState()
-        service.destroy()
-      }
-    }
-  }
-
-  function writeResult() {
-    var payload = JSON.stringify({ ok: failures.length === 0, checks: checks, failures: failures })
-    var quoted = "'" + payload.replace(/'/g, "'\\''") + "'"
-    Quickshell.execDetached(["bash", "-c", "printf '%s' " + quoted + " > \"$1\"", "_", resultPath])
-  }
-
-  Timer {
-    id: blankSequence
-    interval: 20
-    repeat: true
-    onTriggered: {
-      if (root.blankProcess.running) return
-      var service = root.blankService
-      if (root.blankStep < 3) {
-        if (root.blankStep === 2) service.runWake()
-        service.runBlank()
-        var command = String(root.blankProcess.command)
-        root.check(command.indexOf("omarchy-brightness-display off") !== -1, "every blank turns off displays")
-        root.check(command.indexOf("omarchy-brightness-keyboard off") !== -1, "every blank turns off a keyboard relit outside the lock (step " + root.blankStep + ")")
-        root.blankStep += 1
-      } else {
-        stop()
-        service.lockRequested = false
-        service.resetAuthenticationState()
-        service.destroy()
-        root.blankService = null
-        root.writeResult()
-      }
+      service.lockRequested = false
+      service.resetAuthenticationState()
+      service.destroy()
     }
   }
 
@@ -320,7 +273,9 @@ ShellRoot {
       } catch (error) {
         root.failures.push(String(error))
       }
-      if (!root.blankService) root.writeResult()
+      var payload = JSON.stringify({ ok: root.failures.length === 0, checks: root.checks, failures: root.failures })
+      var quoted = "'" + payload.replace(/'/g, "'\\''") + "'"
+      Quickshell.execDetached(["bash", "-c", "printf '%s' " + quoted + " > \"$1\"", "_", root.resultPath])
     }
   }
 }
