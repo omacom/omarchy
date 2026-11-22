@@ -4,9 +4,9 @@
 
 Omarchy for Apple Silicon runs on M1, M2 and M3 Macs and installs next to macOS. See [Omarchy for Apple Silicon](44-mac-support.md#omarchy-for-apple-silicon) in the Mac support chapter.
 
-### Apple Virtual Machine
+### Try Omarchy on a Mac
 
-You can also install Omarchy inside a Parallels VM. Quite the cumbersome process, but there's [a user-driven guide](https://github.com/omacom/omarchy/discussions/452) for that.
+[Try Omarchy](https://github.com/omacom/try-omarchy) runs Omarchy in a virtual machine on any Apple Silicon Mac with macOS 15 or newer, with nothing to partition or install beside macOS.
 
 ### VirtualBox
 
