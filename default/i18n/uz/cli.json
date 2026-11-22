@@ -457,6 +457,7 @@
   "update.kernelReboot": "Linux yadrosi yangilandi. Qayta yuklansinmi?",
   "update.keysCorrect": "Kalitlar toʻgʻri",
   "update.migration": "Migratsiya bajarilmoqda (%1)",
+  "update.migrationDeferred": "%1 migratsiyasi paket yangilanishini kutmoqda; u va undan keyingi migratsiyalar keyingi yangilanish yoki kirishda bajariladi.",
   "update.migrationsDeferred": "Pacman tranzaksiyasi hali ham davom etmoqda; Omarchy migratsiyalari keyingi kirishda qayta bajariladi.",
   "update.migrationsWaiting": "Omarchy migratsiyalarini ishga tushirishdan oldin pacman tranzaksiyasi tugashi kutilmoqda...",
   "update.mise": "mise vositalarini yangilash",

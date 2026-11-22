@@ -457,6 +457,7 @@
   "update.kernelReboot": "Linux कर्नेल अपडेट हो गया है। रीबूट करें?",
   "update.keysCorrect": "कुंजियाँ सही हैं",
   "update.migration": "माइग्रेशन चल रहा है (%1)",
+  "update.migrationDeferred": "माइग्रेशन %1 पैकेज अपडेट की प्रतीक्षा कर रहा है; यह और इसके बाद के माइग्रेशन अगले अपडेट या लॉगिन पर चलेंगे।",
   "update.migrationsDeferred": "Pacman ट्रांज़ैक्शन अभी भी चल रहा है; Omarchy माइग्रेशन अगले लॉगिन पर पुनः प्रयास करेंगे।",
   "update.migrationsWaiting": "Omarchy माइग्रेशन चलाने से पहले pacman ट्रांज़ैक्शन के समाप्त होने की प्रतीक्षा...",
   "update.mise": "mise टूल अपडेट करें",

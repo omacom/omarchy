@@ -450,6 +450,7 @@
   "update.kernelReboot": "Linux カーネルが更新されました。再起動しますか？",
   "update.keysCorrect": "キーは正常です",
   "update.migration": "マイグレーションを実行中 (%1)",
+  "update.migrationDeferred": "マイグレーション %1 はパッケージ更新待ちです。これと後続のマイグレーションは、次回の更新またはログイン時に実行されます。",
   "update.migrationsDeferred": "Pacman トランザクションがまだ実行中です。Omarchy マイグレーションは次回ログイン時に再試行します。",
   "update.migrationsWaiting": "pacman トランザクションの終了を待ってから Omarchy マイグレーションを実行します...",
   "update.mise": "mise ツールを更新",

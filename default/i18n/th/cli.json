@@ -450,6 +450,7 @@
   "update.kernelReboot": "เคอร์เนล Linux อัปเดตแล้ว รีบูตไหม?",
   "update.keysCorrect": "คีย์ถูกต้องแล้ว",
   "update.migration": "กำลังเรียกใช้ไมเกรชัน (%1)",
+  "update.migrationDeferred": "ไมเกรชัน %1 กำลังรอการอัปเดตแพ็กเกจ ไมเกรชันนี้และไมเกรชันถัดไปจะทำงานในการอัปเดตหรือการเข้าสู่ระบบครั้งถัดไป",
   "update.migrationsDeferred": "ธุรกรรมของ pacman ยังทำงานอยู่ ไมเกรชันของ Omarchy จะลองอีกครั้งเมื่อเข้าสู่ระบบครั้งถัดไป",
   "update.migrationsWaiting": "กำลังรอให้ธุรกรรมของ pacman เสร็จสิ้นก่อนเรียกใช้ไมเกรชันของ Omarchy...",
   "update.mise": "อัปเดตเครื่องมือ mise",

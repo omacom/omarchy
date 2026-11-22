@@ -11,14 +11,24 @@ page_kib=$(( $(getconf PAGESIZE) / 1024 ))
 
 gpu() { mkdir -p "$OMARCHY_PCI_DEVICES_PATH/$1"; echo "$2" > "$OMARCHY_PCI_DEVICES_PATH/$1/vendor"; echo "$3" > "$OMARCHY_PCI_DEVICES_PATH/$1/class"; }
 ram_gib() { echo "MemTotal:       $(( $1 * 1024 * 1024 )) kB" > "$OMARCHY_MEMINFO"; }
-apply() { "$ROOT/bin/omarchy-apply-amd-gpu-memory" >/dev/null; }
+driver() { mkdir -p "$tmp_dir/drivers/$2"; ln -sfn "$tmp_dir/drivers/$2" "$OMARCHY_PCI_DEVICES_PATH/$1/driver"; }
+apply() { "$ROOT/bin/omarchy-apply-gpu-memory" >/dev/null; }
 
 ram_gib 64
 gpu 0000:00:02.0 0x8086 0x030000
+driver 0000:00:02.0 i915
 gpu 0000:c3:00.1 0x1002 0x040300
 apply
-[[ ! -e $OMARCHY_AMD_GPU_MEMORY_CONF ]] || fail "a machine without an AMD GPU is left alone"
-pass "a machine without an AMD GPU, even with AMD audio, is left alone"
+[[ ! -e $OMARCHY_AMD_GPU_MEMORY_CONF ]] || fail "Intel graphics on i915 and AMD audio are left alone"
+pass "Intel graphics on i915 and AMD audio are left alone"
+
+driver 0000:00:02.0 xe
+apply
+grep -Fxq "KERNEL_CMDLINE[default]+=\" ttm.pages_limit=$(( 56 * 1024 * 1024 / page_kib ))\"" "$OMARCHY_AMD_GPU_MEMORY_CONF" ||
+  fail "a 64 GB machine with Intel graphics on xe lets the GPU map 56 GiB" "$(cat "$OMARCHY_AMD_GPU_MEMORY_CONF")"
+pass "a 64 GB machine with Intel graphics on xe lets the GPU map 56 GiB"
+rm "$OMARCHY_AMD_GPU_MEMORY_CONF"
+driver 0000:00:02.0 i915
 
 gpu 0000:c3:00.0 0x1002 0x038000
 ram_gib 16

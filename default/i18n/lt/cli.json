@@ -464,6 +464,7 @@
   "update.kernelReboot": "Linux branduolys atnaujintas. Paleisti iš naujo?",
   "update.keysCorrect": "Raktai teisingi",
   "update.migration": "Vykdoma migracija (%1)",
+  "update.migrationDeferred": "Migracija %1 laukia paketų atnaujinimo; ji ir po jos sekančios migracijos bus vykdomos kito atnaujinimo arba prisijungimo metu.",
   "update.migrationsDeferred": "Pacman operacija vis dar vyksta; Omarchy migracijos bus pakartotos kito prisijungimo metu.",
   "update.migrationsWaiting": "Laukiama, kol baigsis pacman operacija, prieš vykdant Omarchy migracijas...",
   "update.mise": "Atnaujinti mise įrankius",

@@ -105,7 +105,7 @@ default/applications/*.desktop
 applications/icons/*           ──►  omarchy-settings    /usr/share/icons/hicolor/{48,256,scalable}/apps/
 
 etc/**                         ──►  omarchy-settings    /etc/**           (drop-ins we own outright)
-  ├─ mkinitcpio.conf.d/{00-omarchy-hooks,omarchy_compression,omarchy_hooks,thunderbolt_module}.conf
+  ├─ mkinitcpio.conf.d/{00-omarchy-hooks,omarchy_compression,omarchy_hooks,omarchy_mount_events,thunderbolt_module}.conf
   ├─ limine-entry-tool.d/{omarchy-defaults,omarchy-uki}.conf
   ├─ mise/conf.d/{omarchy,omarchy-tools,omarchy-agent-accounts}.toml
   ├─ NetworkManager/, sudoers.d/, sysctl.d/, tmpfiles.d/,
@@ -333,14 +333,7 @@ first runs `omarchy-provision-user || true` so finalize catches up if it
 never ran, then handles the steps that need a running graphical session
 and/or a working user systemd instance:
 
-- `install/user/first-run/enable-user-units.sh` — daemon-reload, then
-  `systemctl --user enable --now` the shipped user units (`bt-agent`,
-  `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`,
-  `omarchy-migrate-notify.service`, `omarchy-fcitx5.service`,
-  `omarchy-crash-watch.service`) so they run in the first session too.
-  Done here, not at finalize, because
-  the user manager isn't reachable from the ISO chroot; `ConditionPath*`
-  in the unit files keeps services inert when they don't apply.
+- `install/user/first-run/enable-user-units.sh` — enables the shipped user units (`bt-agent`, `owed`, `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`, `omarchy-migrate-notify.service`, `omarchy-fcitx5.service`, `omarchy-crash-watch.service`) with `--no-reload`, runs a single `systemctl --user daemon-reload`, and starts each enabled unit so they run in the first session too. Done here, not at finalize, because the user manager isn't reachable from the ISO chroot; `ConditionPath*` in the unit files keeps services inert when they don't apply.
 - `omarchy-lifecycle-dispatch setup-user` — the platform's own user setup,
   now with the session up (a no-op where the platform registers none; see
   [lifecycle-dispatch.md](lifecycle-dispatch.md)).

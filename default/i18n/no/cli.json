@@ -457,6 +457,7 @@
   "update.kernelReboot": "Linux-kjernen er oppdatert. Start på nytt?",
   "update.keysCorrect": "Nøklene er korrekte",
   "update.migration": "Kjører migrering (%1)",
+  "update.migrationDeferred": "Migrering %1 venter på en pakkeoppdatering; den og migreringene etter den vil kjøre ved neste oppdatering eller innlogging.",
   "update.migrationsDeferred": "Pacman-transaksjonen kjører fortsatt; Omarchy-migreringer prøves på nytt ved neste innlogging.",
   "update.migrationsWaiting": "Venter på at pacman-transaksjonen skal fullføre før Omarchy-migreringer kjøres...",
   "update.mise": "Oppdater mise-verktøy",

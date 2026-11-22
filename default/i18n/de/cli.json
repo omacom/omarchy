@@ -457,6 +457,7 @@
   "update.kernelReboot": "Linux-Kernel wurde aktualisiert. Neustarten?",
   "update.keysCorrect": "Schlüssel sind korrekt",
   "update.migration": "Migration wird ausgeführt (%1)",
+  "update.migrationDeferred": "Migration %1 wartet auf ein Paket-Update; sie und die folgenden Migrationen werden beim nächsten Update oder bei der nächsten Anmeldung ausgeführt.",
   "update.migrationsDeferred": "Die Pacman-Transaktion läuft noch; Omarchy-Migrationen werden bei der nächsten Anmeldung erneut versucht.",
   "update.migrationsWaiting": "Warten, bis die Pacman-Transaktion beendet ist, bevor Omarchy-Migrationen ausgeführt werden...",
   "update.mise": "mise-Tools aktualisieren",

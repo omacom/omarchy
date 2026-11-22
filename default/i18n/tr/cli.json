@@ -457,6 +457,7 @@
   "update.kernelReboot": "Linux çekirdeği güncellendi. Yeniden başlatılsın mı?",
   "update.keysCorrect": "Anahtarlar doğru",
   "update.migration": "Geçiş çalıştırılıyor (%1)",
+  "update.migrationDeferred": "%1 geçişi bir paket güncellemesini bekliyor; bu geçiş ve sonrakiler bir sonraki güncellemede veya oturum açışta çalıştırılacak.",
   "update.migrationsDeferred": "Pacman işlemi hâlâ çalışıyor; Omarchy geçişleri bir sonraki oturum açışta yeniden denenecek.",
   "update.migrationsWaiting": "Omarchy geçişleri çalıştırılmadan önce pacman işleminin bitmesi bekleniyor...",
   "update.mise": "mise araçları güncelleniyor",

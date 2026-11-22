@@ -464,6 +464,7 @@
   "update.kernelReboot": "Linux kernel je ažuriran. Ponovno pokrenuti?",
   "update.keysCorrect": "Ključevi su ispravni",
   "update.migration": "Pokretanje migracije (%1)",
+  "update.migrationDeferred": "Migracija %1 čeka ažuriranje paketa; ona i migracije nakon nje pokrenut će se pri sljedećem ažuriranju ili prijavi.",
   "update.migrationsDeferred": "Pacman transakcija još je u tijeku; Omarchy migracije ponovno će se pokušati pri sljedećoj prijavi.",
   "update.migrationsWaiting": "Čekanje da pacman transakcija završi prije pokretanja Omarchy migracija...",
   "update.mise": "Ažuriranje mise alata",

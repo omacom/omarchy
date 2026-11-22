@@ -450,6 +450,7 @@
   "update.kernelReboot": "Linux 커널이 업데이트되었습니다. 재부팅할까요?",
   "update.keysCorrect": "키가 올바릅니다",
   "update.migration": "마이그레이션 실행 중 (%1)",
+  "update.migrationDeferred": "마이그레이션 %1이 패키지 업데이트를 기다리고 있습니다. 해당 마이그레이션과 이후 마이그레이션은 다음 업데이트나 로그인 때 실행됩니다.",
   "update.migrationsDeferred": "Pacman 트랜잭션이 아직 실행 중입니다. Omarchy 마이그레이션은 다음 로그인 때 다시 시도합니다.",
   "update.migrationsWaiting": "Omarchy 마이그레이션을 실행하기 전에 pacman 트랜잭션이 끝나기를 기다리는 중...",
   "update.mise": "mise 도구 업데이트",

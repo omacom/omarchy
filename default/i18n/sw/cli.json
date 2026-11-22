@@ -457,6 +457,7 @@
   "update.kernelReboot": "Kernel ya Linux imesasishwa. Anzisha upya?",
   "update.keysCorrect": "Funguo ni sahihi",
   "update.migration": "Inaendesha uhamiaji (%1)",
+  "update.migrationDeferred": "Uhamiaji %1 unasubiri sasisho la kifurushi; huo na uhamiaji unaofuata utaendeshwa kwenye sasisho lijalo au utakapoingia mara ijayo.",
   "update.migrationsDeferred": "Muamala wa pacman bado unaendelea; uhamiaji wa Omarchy utajaribu tena utakapoingia mara ijayo.",
   "update.migrationsWaiting": "Inasubiri muamala wa pacman ukamilike kabla ya kuendesha uhamiaji wa Omarchy...",
   "update.mise": "Sasisha zana za mise",

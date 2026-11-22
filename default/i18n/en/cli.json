@@ -472,6 +472,7 @@
   "update.migrationsWaiting": "Waiting for pacman transaction to finish before running Omarchy migrations...",
   "update.migrationsDeferred": "Pacman transaction is still running; Omarchy migrations will retry on next login.",
   "update.migration": "Running migration (%1)",
+  "update.migrationDeferred": "Migration %1 is waiting for a package update; it and the migrations after it will run on the next update or login.",
   "update.orphans": "Orphan system packages",
   "update.orphansFound": {
     "one": "%1 orphaned package found. Re-run %2 in a terminal to review or remove it.",

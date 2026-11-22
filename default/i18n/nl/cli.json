@@ -457,6 +457,7 @@
   "update.kernelReboot": "Linux-kernel is bijgewerkt. Herstarten?",
   "update.keysCorrect": "Sleutels zijn correct",
   "update.migration": "Migratie uitvoeren (%1)",
+  "update.migrationDeferred": "Migratie %1 wacht op een pakketupdate; deze en de daaropvolgende migraties worden uitgevoerd bij de volgende update of aanmelding.",
   "update.migrationsDeferred": "Pacman-transactie is nog bezig; Omarchy-migraties worden bij de volgende aanmelding opnieuw geprobeerd.",
   "update.migrationsWaiting": "Wachten tot de pacman-transactie is voltooid voordat Omarchy-migraties worden uitgevoerd...",
   "update.mise": "mise-tools bijwerken",

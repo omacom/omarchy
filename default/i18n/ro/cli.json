@@ -464,6 +464,7 @@
   "update.kernelReboot": "Kernelul Linux a fost actualizat. Repornești?",
   "update.keysCorrect": "Cheile sunt corecte",
   "update.migration": "Se rulează migrarea (%1)",
+  "update.migrationDeferred": "Migrarea %1 așteaptă o actualizare de pachet; aceasta și migrările următoare vor rula la următoarea actualizare sau autentificare.",
   "update.migrationsDeferred": "Tranzacția pacman încă rulează; migrările Omarchy vor fi reîncercate la următoarea autentificare.",
   "update.migrationsWaiting": "Se așteaptă finalizarea tranzacției pacman înainte de rularea migrărilor Omarchy...",
   "update.mise": "Se actualizează instrumentele mise",
