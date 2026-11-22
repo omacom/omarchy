@@ -8,6 +8,11 @@ TMPDIRS=()
 
 export PATH="$ROOT/bin:$PATH"
 
+# Tests point HOME at a scratch directory, but a desktop session also exports
+# the XDG base directories, which would keep pointing at the real home. Unset,
+# they follow HOME, as in test/shell.d/base-test.sh.
+unset XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME
+
 # Assigns a fresh temporary directory to the named variable and registers it for
 # removal on exit, so every scratch directory this suite makes is cleaned up.
 make_tmpdir() {
@@ -62,6 +67,13 @@ pass "main help does not show group counts"
 
 output=$("$CLI" commands)
 assert_output_contains "commands lists documented commands" "$output" "omarchy theme set <theme-name>"
+
+row=$(grep -m1 '^  omarchy theme set <theme-name> ' <<<"$output")
+if [[ $row =~ ^("  omarchy theme set <theme-name>"[ ]+) ]] && (( ${#BASH_REMATCH[1]} <= 52 )); then
+  pass "commands pads the usage column to at most 48 characters"
+else
+  fail "commands pads the usage column to at most 48 characters"
+fi
 
 "$CLI" commands --json | jq -e '.ok == true and (.commands | length >= 200)' >/dev/null
 pass "commands --json is valid JSON with full bin coverage"
@@ -150,11 +162,17 @@ assert_output_contains "the flags-only command keeps its own help" "$output" "om
 output=$("$CLI" menu --help)
 assert_output_contains "menu group includes share fallback route" "$output" "omarchy menu share"
 
-output=$("$CLI" share)
+status=0
+output=$("$CLI" share) || status=$?
+(( status == 1 )) || fail "bare required-arg alias exits 1"
+pass "bare required-arg alias exits 1"
 assert_output_contains "bare required-arg alias renders CLI help" "$output" "Usage:"
 assert_output_contains "bare share help uses canonical route" "$output" "omarchy share <clipboard|file|folder> [path...]"
 
-output=$("$CLI" menu share)
+status=0
+output=$("$CLI" menu share) || status=$?
+(( status == 1 )) || fail "bare required-arg filename route exits 1"
+pass "bare required-arg filename route exits 1"
 assert_output_contains "bare required-arg filename route renders CLI help" "$output" "omarchy share <clipboard|file|folder> [path...]"
 
 CLI="$CLI" python3 <<'PY'
@@ -417,7 +435,6 @@ pass "theme template semantic aliases expose legacy palette helpers"
 LEGACY_COLORS_FILE="$PI_TMPDIR/legacy-colors.toml"
 cat >"$LEGACY_COLORS_FILE" <<'EOF'
 mode = "dark"
-accent = "#336699"
 selection = "#292929"
 muted = "#404040"
 bg = "#101010"
@@ -431,7 +448,7 @@ bright_fg = "#ffffff"
 red = "#ff0000"
 green = "#00ff00"
 yellow = "#ffff00"
-blue = "#0000ff"
+color4 = "#0000ff"
 magenta = "#ff00ff"
 cyan = "#00ffff"
 bright_red = "#ff1111"
@@ -454,8 +471,9 @@ foreground #f0f0f0
 dark_foreground #d0d0d0
 light_foreground #e0e0e0
 bright_foreground #ffffff
+accent #0000ff
 EOF
-pass "legacy short palette resolves every canonical neutral color"
+pass "legacy palette resolves canonical colors and an ANSI accent fallback"
 
 LEGACY_THEME_HOME="$PI_TMPDIR/legacy-theme-home"
 LEGACY_NEXT_THEME="$LEGACY_THEME_HOME/.local/state/omarchy/current/next-theme"
@@ -473,6 +491,13 @@ if rg -q '\{\{[^}]+\}\}' "$LEGACY_NEXT_THEME"; then
 fi
 pass "legacy short palette renders the complete generated theme"
 
+touch "$PI_TMPDIR/1-my-background.jpg"
+ln -s "$PI_TMPDIR/1-my-background.jpg" "$PI_TMPDIR/.local/state/omarchy/current/background"
+# The marker keeps the final newline, which $(...) would otherwise strip.
+bg_current=$(HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-bg-current"; printf 'x')
+[[ $bg_current == $'My Background\nx' ]] || fail "theme bg current prints the background name on its own line"
+pass "theme bg current prints the background name on its own line"
+
 osc_summary=$("$ROOT/bin/omarchy-theme-osc" "$NEXT_THEME/colors.toml" | python -c 'import sys; data = sys.stdin.buffer.read(); print(data.count(b"]4;"), b"]4;1;#ff0000" in data, b"]4;7;#ffffff" in data, b"]4;15;#eeeeee" in data, b"]12;#eeeeee" in data, b"]17;#808080" in data, b"]19;#eeeeee" in data)')
 [[ $osc_summary == "16 True True True True True True" ]] || fail "theme OSC aliases semantic colors to ANSI palette"
 pass "theme OSC aliases semantic colors to ANSI palette"
@@ -484,6 +509,11 @@ assert_output_contains "theme preview includes dark background slots" "$preview_
 assert_output_contains "theme preview shows selected text sample" "$preview_output" "This is some [selected text] in a sentence"
 assert_output_contains "theme preview shows practical terminal samples" "$preview_output" "Terminal/UI samples"
 assert_output_contains "theme preview shows ANSI palette strips" "$preview_output" "ANSI palette strips"
+
+mkdir -p "$PI_TMPDIR/.config/omarchy/themes/Walk Handmade Theme"
+cp "$NEXT_THEME/colors.toml" "$PI_TMPDIR/.config/omarchy/themes/Walk Handmade Theme/"
+preview_output=$(OMARCHY_PATH="$ROOT" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-dev-theme-preview" "Walk Handmade Theme" --no-color --no-osc)
+assert_output_contains "theme preview finds a hand-made theme by its folder name" "$preview_output" "themes/Walk Handmade Theme/colors.toml"
 
 tokyo_fg=$(awk -F'"' '/^foreground =/ { print $2; exit }' "$ROOT/themes/tokyo-night/colors.toml")
 tokyo_light_fg=$(awk -F'"' '/^light_foreground =/ { print $2; exit }' "$ROOT/themes/tokyo-night/colors.toml")
@@ -644,9 +674,27 @@ echo "$*" >>"${GSETTINGS_LOG:-/dev/null}"
 EOF
 chmod +x "$FAKE_BIN/gsettings"
 
+# Every theme gets the Adwaita icons, whatever an old theme's icons.theme names.
+printf 'Yaru-blue\n' >"$CURRENT_THEME/icons.theme"
 GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
+rm "$CURRENT_THEME/icons.theme"
 grep -q 'org.gnome.desktop.interface color-scheme prefer-light' "$PI_TMPDIR/gsettings.log" || fail "gnome sync reads mode from colors.toml"
 pass "gnome sync reads mode from colors.toml"
+grep -qx 'set org.gnome.desktop.interface icon-theme Adwaita' "$PI_TMPDIR/gsettings.log" ||
+  fail "gnome sync gives every theme the Adwaita icons"
+pass "gnome sync gives every theme the Adwaita icons"
+
+qt_home="$PI_TMPDIR/qt-home"
+mkdir -p "$qt_home/.local/state/omarchy/current/theme" "$qt_home/dotfiles" "$qt_home/.config/qtengine"
+jq '.theme.font.family = "Inter"' "$ROOT/config/qtengine/config.json" >"$qt_home/dotfiles/qtengine.json"
+ln -s "$qt_home/dotfiles/qtengine.json" "$qt_home/.config/qtengine/config.json"
+
+jq '.theme.iconTheme = "Yaru-blue"' "$qt_home/dotfiles/qtengine.json" >"$qt_home/dotfiles/qtengine.tmp" && mv "$qt_home/dotfiles/qtengine.tmp" "$qt_home/dotfiles/qtengine.json"
+HOME="$qt_home" XDG_CONFIG_HOME="$qt_home/.config" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-set-qt"
+[[ -L $qt_home/.config/qtengine/config.json ]] || fail "qt sync writes through a symlinked config"
+jq -e '.theme.iconTheme == "Adwaita" and .theme.font.family == "Inter"' "$qt_home/dotfiles/qtengine.json" >/dev/null ||
+  fail "qt sync changes only the icon theme in the user's config, to Adwaita"
+pass "qt sync changes only the icon theme in the user's config, to Adwaita"
 
 cat >"$FAKE_BIN/omarchy-cmd-present" <<'EOF'
 #!/bin/bash
@@ -749,6 +797,23 @@ assert_output_contains "partial metadata command dispatches" "$output" "partial-
 
 output=$("$TMPDIR/omarchy" body metadata test)
 assert_output_contains "body metadata command dispatches by filename" "$output" "body-metadata-ok"
+
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Subcommand metadata test\n'
+  printf '# omarchy:subcommand=use <id> — Use a thing\n'
+  printf '# omarchy:subcommand=reset — Reset the thing\n'
+  printf 'echo subcmd-ran\n'
+} >"$TMPDIR/omarchy-subcmd"
+chmod +x "$TMPDIR/omarchy-subcmd"
+
+output=$("$TMPDIR/omarchy" subcmd --help)
+assert_output_contains "each subcommand gets its own row and summary" "$output" "omarchy subcmd use <id>  Use a thing"
+assert_output_contains "a bare subcommand gets its own row and summary" "$output" "omarchy subcmd reset     Reset the thing"
+
+output=$("$TMPDIR/omarchy" subcmd 2>&1) || true
+[[ $output != *"subcmd-ran"* ]] || fail "subcommands make a bare invocation show help"
+pass "subcommands make a bare invocation show help"
 
 # A trailing --help must render help even when the route only partially
 # resolves, leaving unresolved words ahead of the flag (e.g. `update aur --help`
@@ -891,14 +956,16 @@ cp -a "$ROOT/bin/." "$ROUTER_BIN/"
   printf 'echo screenshot-stub-ran\n'
 } >"$ROUTER_BIN/omarchy-capture-screenshot"
 
+# Timed on /proc/uptime, which counts from boot: this suite runs in the first
+# minute of a CI VM, when time sync can step the wall clock EPOCHREALTIME reads.
 fastest_ms() {
   local best="" start end elapsed
 
   for _ in 1 2 3 4 5; do
-    start=$EPOCHREALTIME
+    read -r start _ </proc/uptime
     "$@" >/dev/null 2>&1
-    end=$EPOCHREALTIME
-    elapsed=$(( (${end/[.,]/} - ${start/[.,]/}) / 1000 ))
+    read -r end _ </proc/uptime
+    elapsed=$(( (${end/./} - ${start/./}) * 10 ))
     if [[ -z $best ]] || (( elapsed < best )); then
       best=$elapsed
     fi
