@@ -85,7 +85,7 @@ fi
 [[ -n $provider ]] && agent=opencode
 
 # A default of "local" is the local model. It opens in pi, as --local-model
-# does whatever the default agent is: the local models panel launches a model
+# does whatever the default agent is: the agents panel launches a model
 # whether or not a default was chosen. An agent asked for by name is opened
 # as asked.
 if [[ $agent == "local" ]]; then
