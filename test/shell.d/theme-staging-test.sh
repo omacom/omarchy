@@ -8,6 +8,7 @@ set -euo pipefail
 # is not filtered at all.
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -204,6 +205,19 @@ done
 pass "a theme name cannot climb out of the theme directories"
 
 # omarchy-theme-list shows a folder's own name when it has capitals or spaces, and the picker passes folder names.
+if turkish_locale "$test_tmp/locales"; then
+  mkdir -p "$themes/nord-ikigai"
+  printf 'nord-ikigai\n' >"$state/theme.name"
+  current=$(HOME="$home" in_turkish "$ROOT/bin/omarchy-theme-current")
+  [[ $current == "Nord Ikigai" ]] || fail "current theme capitalizes an i-bearing name under tr_TR.UTF-8" "$current"
+  listing=$(HOME="$home" OMARCHY_PATH="$ROOT" in_turkish "$ROOT/bin/omarchy-theme-list")
+  [[ $listing == *"Nord Ikigai"* && $listing == *"Tokyo Night"* ]] ||
+    fail "theme list capitalizes i-bearing names under tr_TR.UTF-8" "$listing"
+  pass "theme names capitalize i-bearing names under tr_TR.UTF-8"
+else
+  skip "no tr_TR.UTF-8 locale that misses i in [a-z] can be built here; skipping theme locale check"
+fi
+
 for folder in "Walk Handmade Theme" "Gruvbox"; do
   mkdir -p "$themes/$folder"
   write_colors "$themes/$folder/colors.toml"

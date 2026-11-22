@@ -2,6 +2,7 @@
 
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -41,4 +42,15 @@ if omarchy-font-cjk cn 2>/dev/null; then
   fail "an unknown variant is refused"
 fi
 pass "an unknown variant is refused"
+
+if turkish_locale "$work/locales"; then
+  mkdir -p "$(dirname "$preference")"
+  printf '<family>Noto Sans CJK JP</family>\n' >"$preference"
+  in_turkish env HOME="$HOME" XDG_CONFIG_HOME="$XDG_CONFIG_HOME" \
+    OMARCHY_PATH="$ROOT" PATH="$PATH" "$ROOT/bin/omarchy-font-cjk" | grep -qx jp ||
+    fail "font-cjk reads the saved variant under tr_TR.UTF-8"
+  pass "font-cjk reads the saved variant under tr_TR.UTF-8"
+else
+  skip "no tr_TR.UTF-8 locale that misses i in [a-z] can be built here; skipping font locale check"
+fi
 

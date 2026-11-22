@@ -3,6 +3,7 @@
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
 
 require_command lua
 
@@ -500,6 +501,26 @@ toggle
 grep -q "set to tiling" "$notification_log" && ! grep -q "dwindle" "$notification_log" ||
   fail "the notification calls dwindle tiling" "$(cat "$notification_log")"
 pass "the notification calls dwindle tiling"
+
+# Saved mode names contain `i`; sed bracket ranges can drop it under Turkish.
+if turkish_locale "$tmpdir/locales"; then
+  locale_state="$tmpdir/turkish-state"
+  locale_modes="$locale_state/omarchy/workspace-layouts"
+  mkdir -p "$locale_modes"
+  printf 'o.workspace_mode({ workspace = "3", mode = "floating" })\n' >"$locale_modes/3.lua"
+  printf 'o.workspace_mode({ default = "scrolling" })\n' >"$locale_modes/default.lua"
+  in_turkish env HOME="$home_dir" XDG_STATE_HOME="$locale_state" \
+    HYPRCTL_LOG="$log_file" PATH="$stub_dir:$ROOT/bin:$PATH" \
+    "$ROOT/bin/omarchy-hyprland-workspace-layout-current" 3 | grep -qx floating ||
+    fail "workspace layout reads floating under tr_TR.UTF-8"
+  in_turkish env HOME="$home_dir" XDG_STATE_HOME="$locale_state" \
+    HYPRCTL_LOG="$log_file" PATH="$stub_dir:$ROOT/bin:$PATH" \
+    "$ROOT/bin/omarchy-hyprland-workspace-layout-default" | grep -qx scrolling ||
+    fail "default workspace layout reads scrolling under tr_TR.UTF-8"
+  pass "workspace layout modes keep their i under tr_TR.UTF-8"
+else
+  skip "no tr_TR.UTF-8 locale that misses i in [a-z] can be built here; skipping layout locale check"
+fi
 
 # Layout names registered from Lua contain punctuation, so saved modes must be
 # read up to their closing quote rather than through an alphabetic range.

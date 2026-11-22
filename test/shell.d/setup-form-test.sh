@@ -306,12 +306,28 @@ catalogs="$tmp_dir/omarchy/default/i18n"
 mkdir -p "$catalogs/en" "$catalogs/da"
 jq '{"setupForm.usernamePrompt": .["setupForm.usernamePrompt"], "setupForm.usernameInvalid": .["setupForm.usernameInvalid"]}' "$ROOT/default/i18n/en/cli.json" >"$catalogs/en/cli.json"
 printf '{"setupForm.usernamePrompt": "Brugernavn> "}\n' >"$catalogs/da/cli.json"
+mkdir -p "$catalogs/it"
+printf '{"setupForm.usernamePrompt": "Utente> "}\n' >"$catalogs/it/cli.json"
 OMARCHY_PATH="$tmp_dir/omarchy" OMARCHY_FORM_LANGUAGE=da run_prompt omarchy_prompt_username "0:Bad Name" "0:dhh"
 grep -qF -- '--prompt Brugernavn> ' "$GUM_ARGS" || fail "the form speaks the caller's language" "$(cat "$GUM_ARGS")"
 assert_notices "a string the language lacks falls back to English" "Username must be alphanumeric with no spaces"
 OMARCHY_PATH="$tmp_dir/omarchy" OMARCHY_FORM_LANGUAGE=../da run_prompt omarchy_prompt_username "0:dhh"
 grep -qF -- '--prompt Username> ' "$GUM_ARGS" || fail "a language that is not a registry code means English" "$(cat "$GUM_ARGS")"
 pass "the form's text comes from Omarchy's catalogs in the caller's language, English filling in"
+
+# The language code and its catalog must still be accepted under a locale
+# whose collation treats [a-z] differently.
+if turkish_locale "$tmp_dir/locales"; then
+  LOCPATH="$TURKISH_LOCPATH" LC_ALL=tr_TR.UTF-8 \
+    OMARCHY_PATH="$tmp_dir/omarchy" OMARCHY_FORM_LANGUAGE=it \
+    run_prompt omarchy_prompt_username "0:gianni"
+  grep -qF -- '--prompt Utente> ' "$GUM_ARGS" ||
+    fail "the form reads an i-bearing language under tr_TR.UTF-8" "$(cat "$GUM_ARGS")"
+  [[ $(field username) == gianni ]] || fail "the form accepts an i-bearing username under tr_TR.UTF-8"
+  pass "the form reads an i-bearing language under tr_TR.UTF-8"
+else
+  skip "no tr_TR.UTF-8 locale that misses i in [a-z] can be built here; skipping the language-catalog locale check"
+fi
 
 # Timezone
 
