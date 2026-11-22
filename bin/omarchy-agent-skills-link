@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Link Omarchy's agent skills into every agent harness, and set up Pi's extensions and defaults
+# omarchy:summary=Link Omarchy's agent skills into every agent harness
 # omarchy:args=[omarchy-root]
 # omarchy:hidden=true
 
@@ -44,27 +44,3 @@ for dir in "${dirs[@]}"; do
     ln -sfn "$skill" "$link"
   done
 done
-
-# Pi also gets Omarchy's package of extensions (web_fetch, todo_write and
-# subagents), which it discovers as a folder in its extensions directory. The
-# same rules apply: it follows the tree in use, and a folder or a link of the
-# user's own by that name wins.
-pi_package="$root/default/agents/pi"
-pi_link=~/.pi/agent/extensions/omarchy
-if [[ -L $pi_link && $(readlink "$pi_link") == */default/agents/pi ]]; then
-  rm "$pi_link"
-fi
-if [[ -d $pi_package && ! -e $pi_link && ! -L $pi_link ]]; then
-  mkdir -p "${pi_link%/*}"
-  ln -s "$pi_package" "$pi_link"
-fi
-
-# Pi shows its whole changelog after every update, and Omarchy keeps Pi
-# updated, so it is condensed to one line unless the user has chosen.
-pi_settings=~/.pi/agent/settings.json
-if [[ ! -e $pi_settings ]]; then
-  printf '{\n  "collapseChangelog": true\n}\n' >"$pi_settings"
-elif jq -e 'type == "object" and (has("collapseChangelog") | not)' "$pi_settings" &>/dev/null; then
-  tmp=$(mktemp "$pi_settings.XXXXXX")
-  jq '.collapseChangelog = true' "$pi_settings" >"$tmp" && mv "$tmp" "$pi_settings"
-fi
