@@ -58,9 +58,10 @@ export default function (pi: ExtensionAPI) {
         if (ctx.sessionManager.getEntries().some((entry) => entry.type === "message")) return [];
 
         const room = tui.terminal.rows - BELOW;
-        const unit = Math.min(6, Math.floor((room * 0.5 * 4) / MARK.length));
+        // Half the free height at most, and no wider than the window.
+        const unit = Math.min(6, Math.floor((room * 0.5 * 4) / MARK.length), Math.floor((width * 2) / MARK.length));
+        if (unit < 2) return [];
         const mark = braille(unit);
-        if (unit < 2 || mark[0].length > width) return [];
 
         const top = Math.floor((room - mark.length) / 2);
         const left = " ".repeat(Math.floor((width - mark[0].length) / 2));
