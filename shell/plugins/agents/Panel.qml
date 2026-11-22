@@ -2513,6 +2513,7 @@ Panel {
         // Opens the coding agent made for this subscription: Codex for OpenAI,
         // Claude Code for Anthropic.
         PanelActionButton {
+          outlined: true
           id: sectionLaunch
           anchors.verticalCenter: parent.verticalCenter
           visible: root.launches(section.provider)
@@ -2527,6 +2528,7 @@ Panel {
 
           // The subscription's desktop app, when it's installed.
         PanelActionButton {
+          outlined: true
           id: sectionDesktop
           readonly property var entry: root.desktopFor(section.provider)
           anchors.verticalCenter: parent.verticalCenter
@@ -2544,6 +2546,7 @@ Panel {
           // with the default: one sparkles icon on the line in use, which opens
           // into the four.
         PanelActionButton {
+          outlined: true
           id: sectionSparkles
           anchors.verticalCenter: parent.verticalCenter
           visible: root.launches(section.provider) && section.engaged && !section.makesOpen
@@ -2566,6 +2569,8 @@ Panel {
             model: root.starterPrompts
 
             PanelActionButton {
+
+              outlined: true
               required property var modelData
               iconText: modelData.glyph
               tooltipText: Commons.I18n.t("agents.makeWith").arg(modelData.label.toLowerCase()).arg(root.lineName(section.provider))
@@ -2581,6 +2586,7 @@ Panel {
         // The default's star is filled: the default agent, and with several
         // accounts the one in use. Another line's makes it the default.
         PanelActionButton {
+          outlined: true
           id: sectionStar
           anchors.verticalCenter: parent.verticalCenter
           visible: root.defaultIdFor(section.provider) !== ""
@@ -2603,6 +2609,7 @@ Panel {
 
         // Removing the line: on the line in use, left of its star.
         PanelActionButton {
+          outlined: true
           id: sectionRemove
           anchors.verticalCenter: parent.verticalCenter
           visible: section.engaged && root.removable(section.provider)

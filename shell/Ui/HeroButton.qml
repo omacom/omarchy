@@ -3,8 +3,7 @@ import qs.Commons
 import qs.Commons as Commons
 
 // The square in a panel hero's corner, such as the agents panel's +: grey
-// until hovered or reached by the keyboard, then the accent. The keyboard
-// cursor needs more than a shade deeper to read on it.
+// until hovered or reached by the keyboard, then outlined in the accent.
 Rectangle {
   id: heroButton
   signal clicked()
@@ -19,9 +18,8 @@ Rectangle {
   implicitWidth: Style.space(34)
   implicitHeight: implicitWidth
   radius: Style.cornerRadius
-  color: hot ? Util.alpha(Commons.Color.accent, hasCursor ? 0.3 : 0.12) : Util.alpha(grey, 0.12)
-  Behavior on color { ColorAnimation { duration: Style.duration(60) } }
-  border.width: hasCursor ? Math.max(1, Style.hoverBorderWidth) : 0
+  color: Util.alpha(grey, 0.12)
+  border.width: hot ? Math.max(1, Style.hoverBorderWidth) : 0
   border.color: Commons.Color.accent
 
   Text {
