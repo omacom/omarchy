@@ -264,6 +264,22 @@ grep -F 'hl.monitor({ output = "eDP-1", position = "640x1080" })' "$eval_out" >/
   fail "monitor scaling saves the right-aligned position" "actual: $(setting eDP-1)"
 pass "monitor scaling keeps a stacked neighbour touching and right-aligned"
 
+# A stacked display with a screen touching its left edge keeps that shared
+# edge, rather than opening a gap or falling back to its old vertical position.
+fresh
+stack='[{"name":"DP-1","x":0,"y":0,"width":3840,"height":2160,"scale":2.5,"refreshRate":60},{"name":"eDP-1","x":256,"y":864,"width":2560,"height":1664,"scale":2},{"name":"HDMI-A-1","x":-1664,"y":864,"width":1920,"height":1080,"scale":1}]'
+OMARCHY_TEST_MONITORS_JSON="$stack" run_scaling --monitor DP-1 2
+[[ $(setting eDP-1) == "|256x1080|2" && $(setting HDMI-A-1) == "|-1664x1080|1" ]] ||
+  fail "monitor growth keeps the stacked row touching" "actual: $(<"$eval_out")"
+pass "monitor growth keeps the stacked row touching"
+
+fresh
+stack='[{"name":"DP-1","x":0,"y":0,"width":3840,"height":2160,"scale":2,"refreshRate":60},{"name":"eDP-1","x":640,"y":1080,"width":2560,"height":1664,"scale":2},{"name":"HDMI-A-1","x":-1280,"y":1080,"width":1920,"height":1080,"scale":1}]'
+OMARCHY_TEST_MONITORS_JSON="$stack" run_scaling --monitor DP-1 2.5
+[[ $(setting eDP-1) == "|640x864|2" && $(setting HDMI-A-1) == "|-1280x864|1" ]] ||
+  fail "monitor shrink keeps the stacked row touching" "actual: $(<"$eval_out")"
+pass "monitor shrink keeps the stacked row touching"
+
 # In a row of three, the far screen moves out of the way before the middle one
 # moves into its spot, and on the way back the middle one closes in first.
 fresh

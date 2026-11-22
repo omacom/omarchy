@@ -71,9 +71,14 @@ if [[ ${1:-} == "--resized" ]]; then
       | logical($nw; $nh; $ns; $m.transform // 0) as $new
       | ($m.x + $old[0]) as $right
       | ($m.y + $old[1]) as $bottom
+      | . as $monitors
       | [.[] | select((.mirrorOf // "none") == "none")
+        | . as $monitor
         | (if .name == $name then $new else logical(.width; .height; .scale; .transform // 0) end) as $size
-        | (.x != $m.x and .x + $size[0] == $right and (.y == $bottom or .y + $size[1] == $m.y)) as $right_aligned
+        | (.x != $m.x and .x + $size[0] == $right and (.y == $bottom or .y + $size[1] == $m.y)
+           and all($monitors[] | select((.mirrorOf // "none") == "none");
+             logical(.width; .height; .scale; .transform // 0) as $left
+             | .x + $left[0] != $monitor.x or .y >= $monitor.y + $size[1] or .y + $left[1] <= $monitor.y)) as $right_aligned
         | {name, ox: .x, oy: .y, w: $size[0], h: $size[1],
            x: (if .name != $name and (.x >= $right or $right_aligned) then .x + $new[0] - $old[0] else .x end),
            y: (if .name != $name and .y >= $bottom then .y + $new[1] - $old[1] else .y end)}]
