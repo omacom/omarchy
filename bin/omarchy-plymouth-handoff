@@ -482,6 +482,11 @@ def main():
       log("Plymouth would not deactivate")
       return
     deactivated = time.monotonic()
+    if server:
+      # Late callers wait for deactivation, but never for the scanout poll.
+      server.close()
+      os.unlink(SOCKET)
+      server = None
 
     splash = {crtc: fb for crtc, fb in scanout(cards).items() if fb}
     progress = record_bar(cards, splash, deactivated) if client else None

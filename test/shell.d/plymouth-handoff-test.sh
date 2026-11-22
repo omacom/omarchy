@@ -139,5 +139,32 @@ ask(b"release\n").join(timeout=0)
 assert m.wait_for_release(server, {os.getuid() + 1}, timeout=1) is None, "another user's request is not the compositor's"
 assert m.wait_for_release(server, {os.getuid()}, timeout=0.3) is None, "nobody asks"
 server.close()
+
+# A late compositor may wait through deactivate, but not through the scanout
+# poll: closing the listener releases any connection queued after the wait.
+from unittest.mock import patch
+with tempfile.TemporaryDirectory(prefix="plymouth-handoff-") as temporary, socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as late:
+  m.SOCKET = temporary + "/handoff.sock"
+  wait = m.wait_for_release
+  reached = []
+  def plymouth(*args):
+    if args == ("deactivate",):
+      reached.append("deactivate")
+      late.connect(m.SOCKET)
+    return True
+  def scanout(cards):
+    reached.append("scanout")
+    late.setblocking(False)
+    try:
+      assert late.recv(1) == b"", "the late compositor received an unexpected reply"
+    except ConnectionResetError:
+      pass
+    return {}
+  with patch.multiple(m, open_cards=lambda: {}, gated=lambda: True,
+                      asker_uids=lambda: {os.getuid()}, notify_ready=lambda: None,
+                      wait_for_release=lambda server, uids: wait(server, uids, timeout=0.01),
+                      plymouth=plymouth, scanout=scanout, TIMEOUT=0):
+    m.main()
+  assert reached == ["deactivate", "scanout"], reached
 PY
 pass "the handoff reads Plymouth's bar and waits for an Omarchy compositor to ask"
