@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# omarchy:summary=Sign in to a Claude, Codex, or Grok subscription
-# omarchy:args=[--check] [--events] [--reauth <account>] [claude|codex|grok] [label]
-# omarchy:examples=omarchy agent account add claude | omarchy agent account add Work | omarchy agent account add codex Side
+# omarchy:summary=Sign in to an agent subscription
+# omarchy:args=[--check] [--events] [--reauth <account>] [agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai] [label]
+# omarchy:examples=omarchy agent account add claude | omarchy agent account add Work | omarchy agent account add codex Side | omarchy agent account add muse
 
 set -uo pipefail
 
@@ -17,16 +17,18 @@ set -uo pipefail
 check=false
 events=false
 reauth=""
+usage() {
+  echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai] [label]" >&2
+  exit 1
+}
+
 while [[ ${1:-} == --* ]]; do
   case "$1" in
   --check) check=true ;;
   --events) events=true ;;
   --reauth)
     reauth="${2:-}"
-    if [[ -z $reauth || $reauth == --* ]]; then
-      echo "Usage: omarchy-agent-account-add --reauth <account> [claude|codex|grok]" >&2
-      exit 1
-    fi
+    [[ -n $reauth && $reauth != --* ]] || usage
     shift
     ;;
   *) break ;;
@@ -35,8 +37,9 @@ while [[ ${1:-} == --* ]]; do
 done
 
 # Whether a provider's own home (~/.claude, ~/.codex, ~/.grok) is signed in.
+# For Claude that's whichever account sessions use, not always the primary.
 primary_signed_in() {
-  omarchy-agent-account-state list "$1" | jq -e '.[0].accounts | any(.primary and .signedIn)' >/dev/null
+  omarchy-agent-account-state list "$1" | jq -e --arg home "$HOME/.$1" '.[0].accounts | any(.home == $home and .signedIn)' >/dev/null
 }
 
 if [[ $check == "true" ]]; then
@@ -47,25 +50,50 @@ if [[ $check == "true" ]]; then
       echo "$p first"
     fi
   done
+  # The rest keep one sign-in each, which signing in again replaces.
+  printf '%s first\n' agy copilot cursor deepseek fireworks minimax muse opencode openrouter synthetic zai
   exit 0
 fi
 
 # The provider can be left out when it's your default agent:
 # `omarchy agent account add Work`.
-if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
+if [[ ! ${1:-} =~ ^(agy|gemini|claude|codex|copilot|cursor|cursor-agent|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai)$ ]]; then
   default=$(omarchy-default-agent)
   [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
 fi
 
+# Claude, Codex, and Grok can hold several accounts, each in a home of its
+# own. The rest keep the one sign-in their CLI does. `harness` is the command
+# that codes on the subscription, when it isn't the provider's own name.
+accounts=false
+key_provider=""
 case "${1:-}" in
-claude) provider="claude"; name="Claude"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR" ;;
-codex) provider="codex"; name="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME" ;;
-grok) provider="grok"; name="Grok"; site="x.ai"; package="grok"; home_env="GROK_HOME" ;;
-*)
-  echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [claude|codex|grok] [label]" >&2
-  exit 1
-  ;;
+claude) provider="claude"; name="Claude"; app="Claude Code"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR"; accounts=true ;;
+codex) provider="codex"; name="Codex"; app="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME"; accounts=true ;;
+grok) provider="grok"; name="Grok"; app="Grok Build"; site="x.ai"; package="grok"; home_env="GROK_HOME"; accounts=true ;;
+# A Gemini subscription is signed in to through Antigravity, its harness.
+agy | gemini) provider="agy"; name="Gemini"; app="Antigravity"; package="antigravity-cli"; login_command=(agy acp --login) ;;
+muse) provider="muse"; name="Muse"; app="Muse Code"; package="muse"; login_command=(muse login) ;;
+# One OpenCode Console sign-in covers Zen and Go.
+opencode) provider="opencode"; name="OpenCode"; app="OpenCode"; package="opencode"; login_command=(opencode auth login opencode --method device) ;;
+copilot) provider="copilot"; name="Copilot"; app="GitHub Copilot"; package="copilot"; login_command=(copilot login) ;;
+cursor | cursor-agent) provider="cursor"; harness="cursor-agent"; name="Cursor"; app="Cursor CLI"; package="cursor-agent"; login_command=(cursor-agent login) ;;
+# Pay as you go, with OpenCode's id for each: Fireworks and OpenRouter, and
+# the panel's More list, providers whose usage Omarchy reads, so their keys
+# can be checked before they're saved.
+fireworks) provider="fireworks"; name="Fireworks"; key_provider="fireworks-ai" ;;
+openrouter) provider="openrouter"; name="OpenRouter"; key_provider="openrouter" ;;
+deepseek) provider="deepseek"; name="DeepSeek"; key_provider="deepseek" ;;
+minimax) provider="minimax"; name="MiniMax"; key_provider="minimax" ;;
+synthetic) provider="synthetic"; name="Synthetic"; key_provider="synthetic" ;;
+zai) provider="zai"; name="Z.ai"; key_provider="zai" ;;
+*) usage ;;
 esac
+# No CLI of their own: an API key is the sign-in, and OpenCode runs on it.
+if [[ -n $key_provider ]]; then
+  harness="opencode"; app="OpenCode"; package="opencode"; login_command=(key_login "$key_provider")
+fi
+harness=${harness-$provider}
 label="${2:-}"
 
 say() {
@@ -76,20 +104,99 @@ say() {
   fi
 }
 
+# A signed-in agent gets a launcher of its own beside Agent, drawn by the
+# icon set: Claude Code, Codex, or Grok Build, whatever the default agent is.
+install_launcher() {
+  omarchy-agent-launcher "$harness"
+}
+
+# The first agent signed in on a machine with none chosen becomes the
+# default, so `omarchy agent` and the panel's starter prompts have one to run.
+# A default someone already picked is never touched.
+default_if_unset() {
+  if [[ -z $(omarchy-default-agent) ]]; then
+    mkdir -p "$HOME/.config/omarchy/defaults"
+    printf '%s\n' "$1" >"$HOME/.config/omarchy/defaults/agent"
+  fi
+}
+
+# A subscription's own desktop app comes with its first sign-in, beside the
+# coding agent: Claude's, ChatGPT for Codex, Grok Bot, and Antigravity for
+# Gemini, where those are offered. The panel has no terminal to ask for a
+# password in, so polkit asks for it there. Not getting the app leaves the
+# sign-in as it is.
+install_desktop_app() {
+  local package
+  case $provider in
+  claude) package=claude-desktop ;;
+  codex) package=openai-codex-desktop ;;
+  grok) package=grok-bot ;;
+  agy) package=antigravity ;;
+  *) return 0 ;;
+  esac
+  omarchy-region-global || return 0
+  omarchy-pkg-present "$package" && return 0
+  say "$(omarchy-i18n agents.installingDesktop "$name")"
+  if [[ $events == "true" ]]; then
+    # Cancel while polkit asks stops pkexec, which takes its dialog with it.
+    interruptible pkexec /usr/bin/pacman -S --noconfirm --needed -- "$package" >/dev/null 2>&1 || true
+  else
+    omarchy-pkg-add "$package" || true
+  fi
+}
+
+# A first sign-in announces the agent as ready, and an added account that it's
+# ready for more; clicking either starts one. Any other says which account it was.
 finish() {
+  install_launcher
+  [[ ${2:-} == "ready" ]] && install_desktop_app
   if [[ $events == "true" ]]; then
     printf '@@omarchy done %s\n' "$1"
-    omarchy-notification-send -g 󰚩 "$1"
+    if [[ ${2:-} == "ready" ]]; then
+      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
+        "$(omarchy-i18n agents.readyToCode "$app")" "$(omarchy-i18n agents.readyToCodeBody)" \
+        --exec omarchy-agent --agent "$harness" --app-id="org.omarchy.$harness"
+    elif [[ ${2:-} == "more" ]]; then
+      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
+        "$(omarchy-i18n agents.readyForMore "$app")" "$(omarchy-i18n agents.readyForMoreBody "$3")" \
+        --exec omarchy-agent --agent "$harness" --app-id="org.omarchy.$harness"
+    else
+      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" "$1"
+    fi
   else
     echo
     echo "$1"
   fi
 }
 
+# Accounts just added, fresh or recovered, are the ones you want tokens from
+# next, so sessions switch to the newest: running Claude sessions too, and new
+# ones for the others. If the choice can't be saved, the accounts are still
+# added and say so.
+announce_added() {
+  local added newest used
+  added=$(jq -r 'map(.label + (if .email != "" then " (" + .email + ")" else "" end)) | join(", ")' <<<"$1")
+  newest=$(jq -c 'last' <<<"$1")
+  if used=$(omarchy-agent-account-state use "$provider" "$(jq -r .id <<<"$newest")"); then
+    omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+    finish "$(omarchy-i18n agents.added "$added")" more "$(jq -r .label <<<"$newest")"
+    if [[ $events != "true" ]]; then
+      if [[ $(jq -r .seated <<<"$used") == "true" ]]; then
+        echo "$name sessions now use $(jq -r .label <<<"$newest"), running ones included."
+      else
+        echo "New $name sessions now use $(jq -r .label <<<"$newest")."
+      fi
+    fi
+  else
+    omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+    finish "$(omarchy-i18n agents.addedNotSelected "$added")"
+  fi
+}
+
 fail() {
   if [[ $events == "true" ]]; then
     printf '@@omarchy error %s\n' "$1"
-    omarchy-notification-send -g 󰚩 -u critical "$(omarchy-i18n agents.addFailed "$name")" "$1"
+    omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" -u critical "$(omarchy-i18n agents.addFailed "$name")" "$1"
   else
     echo "$1" >&2
   fi
@@ -116,13 +223,77 @@ interruptible() {
   wait $!
 }
 
-if omarchy-cmd-missing "$provider"; then
-  say "$(omarchy-i18n agents.installingCli "$name")"
-  if [[ $events == "true" ]]; then
-    mise use -g "$package" >/dev/null 2>&1 || fail "$(omarchy-i18n agents.installCliFailed "$name")"
-  else
-    mise use -g "$package" || exit 1
+# The panel follows a CLI's download as `@@omarchy progress <done> <total>
+# <rate>` lines, in bytes and bytes a second, read off mise's own progress,
+# which it keeps printing every few seconds without a terminal too, as
+# `… 12.3/166.8 MB · 6.1 MB/s`.
+# Nothing between mise and awk may buffer, or the lines all arrive at the end.
+# The install runs in the background behind a `wait`, like a login, so Cancel
+# stops it at once; the parser is waited for so its last line lands before
+# the next status does.
+install_cli() {
+  if [[ $events != "true" ]]; then
+    "$@"
+    return
   fi
+
+  local progress progress_pid status
+  printf '@@omarchy progress 0 0 0\n'
+  exec {progress}> >(awk -v RS='[\r\n]+' '
+    function bytes(n, unit) {
+      return n * (unit == "GB" ? 1e9 : unit == "MB" ? 1e6 : unit ~ /^[kK]B$/ ? 1e3 : 1)
+    }
+    match($0, /[0-9.]+( [kKMG]?B)?\/[0-9.]+ [kKMG]?B/) {
+      n = split(substr($0, RSTART, RLENGTH), part, /[\/ ]/)
+      unit = part[n]
+      done = n == 4 ? bytes(part[1], part[2]) : bytes(part[1], unit)
+      total = bytes(part[n - 1], unit)
+      rate = 0
+      if (match($0, /[0-9.]+ [kKMG]?B\/s/)) {
+        split(substr($0, RSTART, RLENGTH), speed, /[ \/]/)
+        rate = bytes(speed[1], speed[2])
+      }
+      printf "@@omarchy progress %d %d %d\n", done, total, rate
+      fflush()
+    }')
+  progress_pid=$!
+  "$@" >&"$progress" 2>&1 </dev/null &
+  wait $!
+  status=$?
+  exec {progress}>&-
+  wait "$progress_pid"
+  return "$status"
+}
+
+# Omarchy declares the agent CLIs as lazy mise tools, and wraps their commands
+# to run the selected account, so a command on PATH says nothing about whether
+# the CLI is there: the first run of a lazy tool downloads it, silently. Left
+# to the login, that download looks like the sign-in hanging, so it happens
+# here, where the panel can show it. A CLI counts as there when mise has it,
+# or when one is on PATH outside mise's wrappers and shims (installed some
+# other way). Installing a declared tool leaves the user's config alone; a
+# user who opted out of the defaults selects it instead.
+cli_missing() {
+  mise where "$package" &>/dev/null && return 1
+
+  local mise_data=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
+  local dir path=""
+  local IFS=:
+  for dir in $PATH; do
+    if [[ $dir != "$mise_data/command-wrappers/bin" && $dir != "$mise_data/shims" ]]; then
+      path+="${path:+:}$dir"
+    fi
+  done
+  ! PATH=$path type -P "$harness" >/dev/null
+}
+
+if cli_missing; then
+  say "$(omarchy-i18n agents.installingCli "$name")"
+  if omarchy-mise-default-tools declares "$package"; then
+    install_cli env MISE_MINIMUM_RELEASE_AGE=0 mise install "$package"
+  else
+    install_cli env MISE_MINIMUM_RELEASE_AGE=0 mise use -g "$package"
+  fi || fail "$(omarchy-i18n agents.installCliFailed "$name")"
 fi
 
 # Your main browser is almost certainly signed in to the account you already
@@ -133,6 +304,77 @@ private_browser() {
   printf '#!/bin/bash\nexec omarchy-launch-browser --private "$1"\n' >"$browser" || fail "$(omarchy-i18n agents.homeFailed)"
   chmod +x "$browser" || fail "$(omarchy-i18n agents.homeFailed)"
 }
+
+# Pay-as-you-go providers have no login to run: an API key is the sign-in.
+# It's saved in OpenCode, which runs on it, and travels only through the
+# environment and stdin, never a command line. A key the provider refuses is
+# not saved, and says so by returning 2.
+key_login() {
+  local opencode_provider=$1
+  local key id
+  if [[ $events == "true" ]]; then
+    read -r key
+  else
+    key=$(gum input --password --prompt "$name API key: ")
+  fi
+  [[ -n $key ]] || return 1
+  # The provider has to answer for the key: a refusal returns 2, and a check
+  # that couldn't reach it returns 3, so it can be tried again rather than
+  # saving a key nobody has vouched for.
+  local status check_home
+  check_home=$(mktemp -d) || return 3
+  status=$(env HOME="$check_home" XDG_CONFIG_HOME="$check_home/.config" XDG_DATA_HOME="$check_home/.local/share" \
+    XDG_STATE_HOME="$check_home/.local/state" XDG_CACHE_HOME="$check_home/.cache" "${provider^^}_API_KEY=$key" \
+    "omarchy-agent-usage-$provider" --force | jq -r '.usageStatusText // "unreadable"')
+  local check_status=$?
+  rm -rf "$check_home"
+  (( check_status == 0 )) || return 3
+  # A key the provider answered for is fine even when the account is empty,
+  # and OpenRouter says its balance is unavailable only after the key itself
+  # was accepted; any other status means the provider wasn't reached.
+  case $status in
+  "" | "Out of credits") ;;
+  "Sign-in expired") return 2 ;;
+  "Balance unavailable") [[ $provider == "openrouter" ]] || return 3 ;;
+  *) return 3 ;;
+  esac
+
+  # OpenCode imports a credential as inactive when it already has one.
+  id="omarchy-$EPOCHSECONDS"
+  KEY=$key jq -n --arg id "$id" --arg provider "$opencode_provider" --arg label "$name" \
+    '[{id: $id, integrationID: $provider, label: $label, active: true, value: {type: "key", key: env.KEY}}]' |
+    opencode auth import >/dev/null 2>&1 && opencode auth switch "$opencode_provider" "$id" >/dev/null 2>&1
+}
+
+# One sign-in, where the CLI always keeps it, through your normal browser:
+# adding it and signing in again are the same login. The CLI's whole output
+# goes to the panel, which shows the code it prints to confirm in the browser.
+if [[ $accounts == "false" ]]; then
+  # Gemini's page ends on a code to paste back, and a key is all there is to
+  # a key's sign-in; the panel shows a field for either, under what it's for.
+  if [[ -z $key_provider ]]; then
+    say "$(omarchy-i18n agents.signInBrowser "$name")"
+  elif [[ $events == "true" ]]; then
+    printf '@@omarchy status %s\n@@omarchy key %s\n' "$(omarchy-i18n agents.apiKeyHint "$name")" "$(omarchy-i18n agents.apiKeyHint "$name")"
+  fi
+  if [[ $events == "true" && $provider == "agy" ]]; then
+    printf '@@omarchy paste %s\n' "$(omarchy-i18n agents.pasteSignInCode)"
+  fi
+  interruptible "${login_command[@]}" 2>&1
+  login_status=$?
+  if (( login_status == 2 )) && [[ -n $key_provider ]]; then
+    fail "$(omarchy-i18n agents.keyRefused "$name")"
+  elif (( login_status == 3 )) && [[ -n $key_provider ]]; then
+    fail "$(omarchy-i18n agents.keyUnchecked "$name")"
+  elif (( login_status != 0 )); then
+    fail "$(omarchy-i18n agents.signInFailed "$name")"
+  fi
+
+  omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+  default_if_unset "$harness"
+  finish "$(omarchy-i18n agents.signedIn "$name")" ready
+  exit 0
+fi
 
 case "$provider" in
 claude) login_command=(claude auth login) ;;
@@ -145,24 +387,35 @@ login() {
   interruptible env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME "OMARCHY_AGENT_${provider^^}_HOME=" "${login_command[@]}"
 }
 
-# Signing an account that's already here in again, where it lives: the
-# primary home through the normal browser, an added one through a private
-# window. Its home is never recreated or removed.
+# Signing an account that's already here in again: the primary through the
+# normal browser, an added one through a private window. Its home is never
+# recreated or removed.
 if [[ -n $reauth ]]; then
-  if [[ $reauth == ":primary" ]]; then
-    account_home="$HOME/.$provider"
-  else
-    account_home=$(omarchy-agent-account-state homes "$provider" | awk -F'\t' -v id="$reauth" '$1 == id { print $2 }')
-  fi
+  found=$(omarchy-agent-account-state homes "$provider" | awk -F'\t' -v id="$reauth" '$1 == id || (id == ":primary" && $4 == "1")' | head -1)
+  account_home=$(cut -f2 <<<"$found")
   [[ -n $account_home ]] || fail "$(omarchy-i18n agents.noAccountNamed "$name" "$reauth")"
 
-  if [[ $account_home == "$HOME/.$provider" ]]; then
+  # A Claude login can move while the browser is open, so it signs in to a
+  # scratch home and is installed wherever the account's login is by then.
+  if [[ $provider == "claude" ]]; then
+    home=$(omarchy-agent-account-state begin "$provider" "" "$$") || fail "$(omarchy-i18n agents.homeFailed)"
+    target="$home"
+  else
+    target="$account_home"
+  fi
+  where=(env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME "OMARCHY_AGENT_${provider^^}_HOME=")
+  [[ $target != "$HOME/.$provider" ]] && where+=("$home_env=$target")
+
+  if [[ $(cut -f4 <<<"$found") == "1" ]]; then
     say "$(omarchy-i18n agents.signInAgainBrowser "$name")"
-    login || fail "$(omarchy-i18n agents.signInFailed "$name")"
+    interruptible "${where[@]}" "${login_command[@]}" || fail "$(omarchy-i18n agents.signInFailed "$name")"
   else
     say "$(omarchy-i18n agents.signInAgainPrivate)"
     private_browser
-    interruptible env BROWSER="$browser" "$home_env=$account_home" "${login_command[@]}" || fail "$(omarchy-i18n agents.signInFailed "$name")"
+    interruptible "${where[@]}" BROWSER="$browser" "${login_command[@]}" || fail "$(omarchy-i18n agents.signInFailed "$name")"
+  fi
+  if [[ $provider == "claude" ]]; then
+    installed=$(omarchy-agent-account-state relogin "$provider" "$(cut -f1 <<<"$found")" "$home" 2>&1) || fail "$installed"
   fi
 
   omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
@@ -175,15 +428,9 @@ fi
 if ! primary_signed_in "$provider"; then
   say "$(omarchy-i18n agents.signInBrowser "$name")"
   if login && primary_signed_in "$provider"; then
-    # The first agent signed in on a machine with none chosen becomes the
-    # default, so `omarchy agent` and the panel's starter prompts have one to
-    # run. A default someone already picked is never touched.
-    if [[ -z $(omarchy-default-agent) ]]; then
-      mkdir -p "$HOME/.config/omarchy/defaults"
-      printf '%s\n' "$provider" >"$HOME/.config/omarchy/defaults/agent"
-    fi
+    default_if_unset "$provider"
     omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
-    finish "$(omarchy-i18n agents.signedIn "$name")"
+    finish "$(omarchy-i18n agents.signedIn "$name")" ready
   else
     fail "$(omarchy-i18n agents.signInFailed "$name")"
   fi
@@ -192,9 +439,7 @@ else
   # asking for another browser login. Live sign-ins are never recovered.
   if recovered=$(omarchy-agent-account-state recover "$provider"); then
     if [[ $(jq 'length' <<<"$recovered") != "0" ]]; then
-      added=$(jq -r 'map(.label + (if .email != "" then " (" + .email + ")" else "" end)) | join(", ")' <<<"$recovered")
-      omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
-      finish "$(omarchy-i18n agents.added "$added")"
+      announce_added "$recovered"
       exit 0
     fi
   else
@@ -225,14 +470,7 @@ EOF
 
   if account=$(omarchy-agent-account-state register "$provider" "$label" "$home" 2>&1); then
     home=""
-    added=$(jq -r '.label + (if .email != "" then " (" + .email + ")" else "" end)' <<<"$account")
-    omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
-    if [[ $events == "true" ]]; then
-      finish "$(omarchy-i18n agents.added "$added")"
-    else
-      finish "$(omarchy-i18n agents.added "$added")"
-      echo "Switch to it with: omarchy agent account use $provider $(jq -r .id <<<"$account")"
-    fi
+    announce_added "[$account]"
   else
     registration_status=$?
     # Keep the home for cleanup when registration was explicitly interrupted.

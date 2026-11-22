@@ -19,6 +19,16 @@ ShellRoot {
     if (!condition) fail(message)
   }
 
+  function after(interval, callback) {
+    var timer = Qt.createQmlObject("import QtQuick; Timer {}", root)
+    timer.interval = interval
+    timer.triggered.connect(function() {
+      timer.destroy()
+      callback()
+    })
+    timer.start()
+  }
+
   QtObject {
     id: notificationService
     property bool doNotDisturb: false
@@ -72,8 +82,6 @@ ShellRoot {
     property color barForeground: "white"
     property color urgent: "red"
     property bool foregroundAnimationEnabled: false
-    property bool centerSectionRevealHeld: false
-    property bool centerHoverRevealSuppressed: false
     property var shell: mockShell
     function run(command) {
       root.commands.push(String(command))
@@ -165,13 +173,13 @@ ShellRoot {
 
     Qt.callLater(function() {
       root.assertTrue(tray.implicitWidth === 0, "inactive indicator tray starts collapsed")
-      mockBar.centerSectionRevealHeld = true
+      tray.setIndicatorAreaHovered(true)
 
       Qt.callLater(function() {
-        root.assertTrue(tray.implicitWidth > 0, "inactive indicator tray expands on center hover")
-        mockBar.centerSectionRevealHeld = false
+        root.assertTrue(tray.implicitWidth > 0, "inactive indicator tray expands on hover")
+        tray.setIndicatorAreaHovered(false)
 
-        Qt.callLater(function() {
+        root.after(200, function() {
           root.assertTrue(tray.implicitWidth === 0, "inactive indicator tray collapses after hover")
           tray.destroy()
           root.checkFixedEdges([["start", false], ["end", false], ["start", true], ["end", true]])
@@ -211,7 +219,7 @@ ShellRoot {
 
   function checkInactiveOrders(cases) {
     if (cases.length === 0) {
-      checkHostTeardown()
+      checkTraySection(checkHostTeardown)
       return
     }
     checkInactiveOrder(cases[0], function() {
@@ -255,6 +263,35 @@ ShellRoot {
     }
   }
 
+  // In the tray's drawer, an idle widget with its icons hidden takes no room,
+  // leaving nothing to hover, so there it shows them without one.
+  function checkTraySection(done) {
+    notificationService.doNotDisturb = false
+    remoteSessionService.active = false
+    nightlightService.setNightlight(false)
+    idleService.setIdleEnabled(true)
+
+    var component = Qt.createComponent("file://" + rootPath + "/shell/plugins/bar/widgets/Indicators.qml")
+    var tray = component.createObject(root)
+    if (!tray) {
+      fail("tray section: Indicators failed to instantiate: " + component.errorString())
+      done()
+      return
+    }
+    tray.fixedEdge = "start"
+    tray.inTraySection = true
+    tray.bar = mockBar
+    tray.moduleName = "omarchy.indicators"
+    tray.settings = { items: ["Dnd", "NightLight"] }
+
+    Qt.callLater(function() {
+      root.layOut(tray)
+      root.assertTrue(tray.implicitWidth > 0, "tray section: idle indicators show without a hover, got width " + tray.implicitWidth)
+      tray.destroy()
+      done()
+    })
+  }
+
   // Facing the other way, the widget mirrors its inactive icons along with its
   // blocks, so they read outward from the active block from either side.
   // Turning around moves the icons; it builds none of them again.
@@ -265,7 +302,6 @@ ShellRoot {
     remoteSessionService.active = false
     nightlightService.setNightlight(false)
     idleService.setIdleEnabled(true)
-    mockBar.centerSectionRevealHeld = true
     mockBar.vertical = vertical
 
     var component = Qt.createComponent("file://" + rootPath + "/shell/plugins/bar/widgets/Indicators.qml")
@@ -280,6 +316,7 @@ ShellRoot {
     tray.bar = mockBar
     tray.moduleName = "omarchy.indicators"
     tray.settings = { items: ids }
+    tray.setIndicatorAreaHovered(true)
 
     function slots() {
       return ids.map(function(id) { return root.indicatorSlot(tray, "inactive", id) })
@@ -296,7 +333,6 @@ ShellRoot {
     }
 
     function finish() {
-      mockBar.centerSectionRevealHeld = false
       mockBar.vertical = false
       tray.destroy()
       done()
@@ -330,7 +366,6 @@ ShellRoot {
     remoteSessionService.active = false
     nightlightService.setNightlight(true)
     idleService.setIdleEnabled(false)
-    mockBar.centerSectionRevealHeld = false
     mockBar.vertical = vertical
 
     var component = Qt.createComponent("file://" + rootPath + "/shell/plugins/bar/widgets/Indicators.qml")
@@ -363,8 +398,21 @@ ShellRoot {
       return edge === "start" ? slotSpan.start : extent() - slotSpan.end
     }
 
+    // A span as distances from the fixed edge, which holds still on the bar
+    // while the widget grows.
+    function fromEdge(itemSpan) {
+      return edge === "start" ? itemSpan : { start: extent() - itemSpan.end, end: extent() - itemSpan.start }
+    }
+
+    function hiddenBlockZone() {
+      var children = tray.children || []
+      for (var i = 0; i < children.length; i++) {
+        if (children[i].objectName === "hiddenBlockZone") return children[i]
+      }
+      return null
+    }
+
     function finish() {
-      mockBar.centerSectionRevealHeld = false
       mockBar.vertical = false
       idleService.setIdleEnabled(true)
       tray.destroy()
@@ -386,12 +434,21 @@ ShellRoot {
         }
         var collapsedExtent = extent()
         var collapsedDistance = distance(nightLight)
-        mockBar.centerSectionRevealHeld = true
+        var zone = hiddenBlockZone()
+        var hiddenZone = zone ? fromEdge(span(zone)) : null
+        root.assertTrue(!!zone, label + ": the widget has a hover zone for its hidden icons")
+        tray.setIndicatorAreaHovered(true)
 
         Qt.callLater(function() {
           root.layOut(tray)
           var stayAwake = root.indicatorSlot(tray, "inactive", "StayAwake")
           var revealedDistance = distance(nightLight)
+          if (hiddenZone && stayAwake) {
+            var revealedAt = fromEdge(span(stayAwake))
+            root.assertTrue(hiddenZone.start <= revealedAt.start && hiddenZone.end >= revealedAt.end,
+              label + ": hovering where a hidden icon reveals reaches the zone (zone " + hiddenZone.start + "-" + hiddenZone.end +
+              ", icon " + revealedAt.start + "-" + revealedAt.end + " from the fixed edge)")
+          }
           root.assertTrue(extent() > collapsedExtent, label + ": revealing grows the widget")
           root.assertTrue(revealedDistance === collapsedDistance,
             label + ": revealing keeps the active icon " + collapsedDistance + "px from the fixed edge, got " + revealedDistance)
@@ -404,7 +461,7 @@ ShellRoot {
           } else {
             root.fail(label + ": Stay Awake shows in the revealed inactive block")
           }
-          mockBar.centerSectionRevealHeld = false
+          tray.setIndicatorAreaHovered(false)
           idleService.setIdleEnabled(false)
 
           Qt.callLater(function() {
