@@ -43,7 +43,10 @@ per local coding model that is running and ready.
 - **Local models** — each coding model added from the add screen that's
   running and ready on this machine, or on a paired machine that's online,
   gets a line, as does the one a default of "local" opens. The models added
-  are kept in `~/.local/state/omarchy/agents/local-models.json`. A line shows
+  are kept in `~/.local/state/omarchy/agents/local-models.json`. Delete on
+  a model's line, but the default's, takes it off the panel and back to the
+  add screen, the model still running; removing a model from this machine in
+  the local models panel does the same. A line shows
   its maker's mark, its name, the machine for a paired one, and its memory,
   speed, and context where a
   subscription shows limits. Its terminal button opens Pi on it (`omarchy

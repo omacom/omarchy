@@ -274,8 +274,19 @@ Item {
 
   function addLocalModel(target) {
     if (addedLocalModels.indexOf(target) >= 0) return
-    addedLocalModels = addedLocalModels.concat([target])
-    addedLocalModelsFile.setText(JSON.stringify(addedLocalModels) + "\n")
+    saveLocalModels(addedLocalModels.concat([target]))
+  }
+
+  // A model taken off the panel, or removed from this machine, is offered
+  // on the add screen again.
+  function removeLocalModels(targets) {
+    var kept = addedLocalModels.filter(function(target) { return targets.indexOf(target) < 0 })
+    if (kept.length !== addedLocalModels.length) saveLocalModels(kept)
+  }
+
+  function saveLocalModels(targets) {
+    addedLocalModels = targets
+    addedLocalModelsFile.setText(JSON.stringify(targets) + "\n")
   }
 
   // Set by the panel, which knows what is running.

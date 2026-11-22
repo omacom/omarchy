@@ -45,17 +45,25 @@ Panel {
     return !!line && !!line.account && line.account.primary !== true
   }
 
+  // A local model's line goes back to the add screen, except the one the
+  // default opens, which keeps its line as the account in use does.
   function removable(line) {
-    if (!line || line.localModel) return false
+    if (!line) return false
+    if (line.localModel) return !(usage.defaultAgent === "local" && line.localModel.target === localDefaultTarget)
     return !line.account || (forgets(line) && line.account.active !== true)
   }
 
   // Forgets an added account, or hides the agent from the panel; a hidden
-  // one comes back from settings, or by signing in again.
+  // one comes back from settings, or by signing in again. A local model
+  // keeps running, and the add screen offers it again.
   function confirmDelete() {
     var target = deleteTarget
     deleteTarget = null
     if (!target) return
+    if (target.localModel) {
+      usage.removeLocalModels([target.localModel.target])
+      return
+    }
     if (forgets(target)) {
       Util.execArgv(["bash", "-c", 'out=$(omarchy-agent-account-remove "$1" "$2" </dev/null 2>&1) || omarchy-notification-send -u critical "$3" "$out"',
                      "remove-account", target.providerId, String(target.account.id), Commons.I18n.t("agents.removeFailed").arg(lineName(target))])
@@ -416,6 +424,18 @@ Panel {
                     host: "", facts: recipe, ready: recipe.installed === true, recipe: recipe })
     return offers
   }
+
+  // A model removed from this machine is no longer added, so set up again
+  // it's offered on the add screen first. The one being set up isn't
+  // installed yet, and stays.
+  readonly property var removedLocalModels: {
+    var recipes = localModelsService ? localModelsService.localRecipes || [] : []
+    return usage.addedLocalModels.filter(function(target) {
+      return target.indexOf("/") < 0 && target !== settingUpLocal
+        && recipes.some(function(recipe) { return String(recipe.id) === target && recipe.installed === false })
+    })
+  }
+  onRemovedLocalModelsChanged: if (removedLocalModels.length > 0) usage.removeLocalModels(removedLocalModels)
 
   // A model set up from here keeps its row on the add screen, showing how
   // the setup goes, until it runs. Then it becomes the default if nothing
@@ -1691,6 +1711,7 @@ Panel {
           event.accepted = true
         }
         message: !root.deleteTarget ? ""
+          : root.deleteTarget.localModel ? Commons.I18n.t("agents.removeLocalModelConfirm").arg(root.deleteTarget.providerName)
           : root.forgets(root.deleteTarget) ? Commons.I18n.t("agents.forgetAccountConfirm").arg(root.lineName(root.deleteTarget))
           : Commons.I18n.t("agents.hideProviderConfirm").arg(root.deleteTarget.providerName)
         foreground: root.foreground
