@@ -69,3 +69,59 @@ if "$ROOT/bin/omarchy-cmd-present" kitty && kitty --version >/dev/null 2>&1; the
 else
   skip "Kitty not installed; skipping native config parser checks"
 fi
+
+# A font choice must leave explicitly named mono families ahead of the generic.
+(
+  unset FONTCONFIG_FILE FONTCONFIG_PATH
+  packaged_family="JetBrainsMono Nerd Font"
+
+  if ! command -v fc-match >/dev/null || [[ ! -r /etc/fonts/conf.d/48-guessfamily.conf ]]; then
+    skip "font set resolution needs fc-match and the system fontconfig"
+    exit 0
+  fi
+
+  chosen="Adwaita Mono"
+  named="Liberation Mono"
+  files_of() {
+    fc-list ":family=$1" file | sort
+  }
+
+  if [[ -z $(files_of "$chosen") || -z $(files_of "$named") || -z $(files_of "$packaged_family") ]]; then
+    skip "font set resolution needs $chosen, $named and $packaged_family"
+    exit 0
+  fi
+  if [[ -n $(comm -12 <(files_of "$chosen") <(files_of "$named")) || -n $(comm -12 <(files_of "$chosen") <(files_of "$packaged_family")) ]]; then
+    skip "font set resolution needs distinct chosen, named and packaged fonts"
+    exit 0
+  fi
+
+  mkdir -p "$test_dir/conf.d" "$test_dir/cache"
+  rm -f "$test_home/.config/fontconfig/fonts.conf"
+  printf '#!/bin/bash\nprintf "%s\\n"\n' "$chosen" >"$test_dir/bin/fc-list"
+
+  for file in /etc/fonts/conf.d/*.conf; do
+    ln -s "$file" "$test_dir/conf.d/${file##*/}"
+  done
+  rm -f "$test_dir/conf.d/50-omarchy.conf"
+  cp "$ROOT/default/fontconfig/conf.avail/50-omarchy.conf" "$test_dir/conf.d/"
+  sed "s#<include ignore_missing=\"yes\">conf.d</include>#<include ignore_missing=\"yes\">$test_dir/conf.d</include>#" \
+    /etc/fonts/fonts.conf >"$test_dir/fonts.conf"
+  grep -Fq "$test_dir/conf.d</include>" "$test_dir/fonts.conf" || fail "fontconfig fixture loads the rules under test"
+
+  # Match every family name the resolved font carries, including alternate names.
+  resolves_to() {
+    local answer
+    answer=$(FONTCONFIG_FILE="$test_dir/fonts.conf" XDG_CONFIG_HOME="$test_home/.config" \
+      XDG_CACHE_HOME="$test_dir/cache" fc-match "$1" family)
+    [[ ,$answer, == *",$2,"* ]] || fail "$3" "$1 -> $answer, wanted $2"
+    pass "$3"
+  }
+
+  resolves_to monospace "$packaged_family" "with no font chosen, monospace resolves to the packaged family"
+
+  run_command omarchy-font-set "$chosen" >/dev/null
+
+  resolves_to monospace "$chosen" "monospace follows the chosen $chosen"
+  resolves_to "$named" "$named" "$named remains itself after choosing $chosen"
+  resolves_to "$packaged_family" "$packaged_family" "$packaged_family remains itself after choosing $chosen"
+)
