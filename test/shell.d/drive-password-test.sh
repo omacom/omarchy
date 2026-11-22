@@ -110,6 +110,7 @@ SH
 cat >"$tmp/bin/chpasswd" <<'SH'
 #!/bin/bash
 source "$TEST_TMP/crash.sh"
+[[ -z ${TEST_CHPASSWD_FAIL:-} ]] || exit 1
 IFS= read -r line
 name=${line%%:*}
 {
@@ -318,7 +319,7 @@ volume() {
 fixture() {
   run_args=()
   rm -rf "$tmp/state" "$tmp/output" "$tmp/trace" "$tmp/passwd-called" "$tmp/offered" "$tmp"/dev/* "$tmp/slot-record" "$tmp/record-fail" "$tmp/owner-slot" "$tmp/owner-query-fail" "$tmp/owner-query-garbage" "$tmp/owner-unrecorded"
-  unset TEST_ENROLL_AT_PROMPT TEST_ENROLL_DEVICE TEST_OPEN_FAIL TEST_CHANGE_FAIL TEST_CHANGE_PARTIAL TEST_KILL_FAIL TEST_FINDMNT_FAIL TEST_TOKEN_SLOT CRASH_ORPHAN
+  unset TEST_CHPASSWD_FAIL TEST_ENROLL_AT_PROMPT TEST_ENROLL_DEVICE TEST_OPEN_FAIL TEST_CHANGE_FAIL TEST_CHANGE_PARTIAL TEST_KILL_FAIL TEST_FINDMNT_FAIL TEST_TOKEN_SLOT CRASH_ORPHAN
   system=$tmp/dev/system
   recovery=${1-$recovery_key}
   volume "$system" "$old_password" "$recovery"
@@ -754,6 +755,24 @@ attempt 0 "$new_password" "$new_password" "$old_password" || fail "--login: the 
 [[ ! -e $journal && $(account owner) == "$new_password" && $(account root) == "$old_password" ]] ||
   fail "--login: the rerun sets the login password to the disk's" "$(cat "$tmp/accounts" "$tmp/output")"
 pass "--login: an interrupted change sets the login password once a rerun finishes the disk's"
+
+# A login password that fails to follow keeps the journal, and the next run,
+# with or without --login, sets it from the disk's new password.
+fixture
+run_args=(--login)
+export TEST_CHPASSWD_FAIL=1
+if attempt 0 "$old_password" "$new_password" "$new_password"; then fail "--login: a failed login password change fails the command"; fi
+unset TEST_CHPASSWD_FAIL
+[[ -n $(opens "$system" "$new_password") && $(account owner) == "$old_password" ]] && grep -qx 'phase=login' "$journal" ||
+  fail "--login: the disk keeps its new key and the journal waits for the login password" "$(cat "$journal" "$tmp/output" 2>&1)"
+no_secrets "--login: login password pending"
+run_args=()
+if attempt 0 "$old_password"; then fail "--login: the old password does not finish a confirmed change"; fi
+[[ $(account owner) == "$old_password" && -e $journal ]] || fail "--login: a refused rerun keeps the login password and the journal"
+attempt 0 "$new_password" || fail "--login: a rerun finishes the login password" "$(cat "$tmp/output")"
+[[ ! -e $journal && $(account owner) == "$new_password" && $(account root) == "$old_password" ]] ||
+  fail "--login: a rerun sets the pending login password" "$(cat "$tmp/accounts" "$tmp/output")"
+pass "--login: a login password that failed to follow is set by the next run"
 
 fixture
 printf '/dev/mapper/root part ext4\n/dev/fake-disk disk \n' >"$tmp/root-ancestry"
