@@ -7,6 +7,22 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 require_command magick
 require_command ffmpeg
 
+# libwebp-utils (cwebp) and libavif (avifenc) are in neither default package
+# list, and the command refuses those two picture formats with an install hint
+# when the encoder is absent. Checks that encode one skip that format instead of
+# failing the file on a stock install, the way a missing compositor is handled.
+picture_formats=(jpg png)
+if command -v cwebp >/dev/null; then
+  picture_formats+=(webp)
+else
+  skip "cwebp is not installed; skipping the WebP picture checks"
+fi
+if command -v avifenc >/dev/null; then
+  picture_formats+=(avif)
+else
+  skip "avifenc is not installed; skipping the AVIF picture checks"
+fi
+
 test_tmp=$(mktemp -d)
 export OMARCHY_PATH="$ROOT"
 trap 'rm -rf "$test_tmp"' EXIT
@@ -51,7 +67,7 @@ for tag in 6 2 1 0; do
   esac
   magick "$test_tmp/orientation-raw.jpg" "${transform[@]}" -resize '64x64>' -strip "$test_tmp/orientation-expected.png"
   expected=$(magick identify -format '%w,%h' "$test_tmp/orientation-expected.png")
-  for format in jpg png webp avif; do
+  for format in "${picture_formats[@]}"; do
     run_transcode "$input" "$format" high 64 cpu >"$test_tmp/orientation-$tag-$format.log" 2>&1 \
       || fail "EXIF orientation $tag exports as $format" "$(cat "$test_tmp/orientation-$tag-$format.log")"
     output="$test_tmp/orientation-$tag-64-high.$format"
@@ -185,31 +201,35 @@ pass "cropped VP9 converts to MP4 at native size, the native numeric rung and an
 
 # Four real still-image routes: AVIF/WebP -> AVIF/WebP. Compare decoded alpha
 # pixels after an arbitrary resize, not just the presence of an alpha tag.
-require_command avifenc
-require_command cwebp
-magick -size 192x256 xc:none -fill '#ff000080' -draw 'rectangle 32,32 95,223' \
-  -fill red -draw 'rectangle 96,32 159,223' "$test_tmp/still.png"
-avifenc --codec aom --yuv 444 --min 20 --max 20 --qalpha 100 "$test_tmp/still.png" "$test_tmp/still.avif" >"$test_tmp/still-avif.log" 2>&1
-cwebp -q 90 -alpha_q 100 -m 6 "$test_tmp/still.png" -o "$test_tmp/still.webp" >"$test_tmp/still-webp.log" 2>&1
-for input_format in avif webp; do
-  magick "$test_tmp/still.$input_format[0]" -resize '128x128>' -alpha extract "$test_tmp/expected-alpha.png"
-  for output_format in avif webp; do
-    # Separate input stems prevent a same-format run from replacing a fixture.
-    cp "$test_tmp/still.$input_format" "$test_tmp/from-$input_format.$input_format"
-    run_transcode "$test_tmp/from-$input_format.$input_format" "$output_format" high 128 cpu \
-      >"$test_tmp/alpha-$input_format-$output_format.log" 2>&1 \
-      || fail "still $input_format -> $output_format resizes" "$(cat "$test_tmp/alpha-$input_format-$output_format.log")"
-    output="$test_tmp/from-$input_format-128-high.$output_format"
-    dims=$(magick identify -format '%w %h' "$output[0]")
-    [[ $dims == "96 128" ]] || fail "still $input_format -> $output_format respects the portrait long edge" "$dims"
-    magick "$output[0]" -alpha extract "$test_tmp/actual-alpha.png"
-    error=$(magick compare -metric RMSE "$test_tmp/expected-alpha.png" "$test_tmp/actual-alpha.png" null: 2>&1 || true)
-    error=$(awk -F '[()]' '{ print $2 }' <<<"$error")
-    awk -v e="$error" 'BEGIN { exit (e != "" && e + 0 <= 0.004) ? 0 : 1 }' \
-      || fail "still $input_format -> $output_format preserves transparent and semitransparent pixels" "$error"
-    pass "still $input_format -> $output_format preserves alpha pixels at an arbitrary portrait resize"
+# Each route builds one of its fixtures with an optional encoder, so the whole
+# block waits for both and skips, rather than failing, without them.
+if command -v avifenc >/dev/null && command -v cwebp >/dev/null; then
+  magick -size 192x256 xc:none -fill '#ff000080' -draw 'rectangle 32,32 95,223' \
+    -fill red -draw 'rectangle 96,32 159,223' "$test_tmp/still.png"
+  avifenc --codec aom --yuv 444 --min 20 --max 20 --qalpha 100 "$test_tmp/still.png" "$test_tmp/still.avif" >"$test_tmp/still-avif.log" 2>&1
+  cwebp -q 90 -alpha_q 100 -m 6 "$test_tmp/still.png" -o "$test_tmp/still.webp" >"$test_tmp/still-webp.log" 2>&1
+  for input_format in avif webp; do
+    magick "$test_tmp/still.$input_format[0]" -resize '128x128>' -alpha extract "$test_tmp/expected-alpha.png"
+    for output_format in avif webp; do
+      # Separate input stems prevent a same-format run from replacing a fixture.
+      cp "$test_tmp/still.$input_format" "$test_tmp/from-$input_format.$input_format"
+      run_transcode "$test_tmp/from-$input_format.$input_format" "$output_format" high 128 cpu \
+        >"$test_tmp/alpha-$input_format-$output_format.log" 2>&1 \
+        || fail "still $input_format -> $output_format resizes" "$(cat "$test_tmp/alpha-$input_format-$output_format.log")"
+      output="$test_tmp/from-$input_format-128-high.$output_format"
+      dims=$(magick identify -format '%w %h' "$output[0]")
+      [[ $dims == "96 128" ]] || fail "still $input_format -> $output_format respects the portrait long edge" "$dims"
+      magick "$output[0]" -alpha extract "$test_tmp/actual-alpha.png"
+      error=$(magick compare -metric RMSE "$test_tmp/expected-alpha.png" "$test_tmp/actual-alpha.png" null: 2>&1 || true)
+      error=$(awk -F '[()]' '{ print $2 }' <<<"$error")
+      awk -v e="$error" 'BEGIN { exit (e != "" && e + 0 <= 0.004) ? 0 : 1 }' \
+        || fail "still $input_format -> $output_format preserves transparent and semitransparent pixels" "$error"
+      pass "still $input_format -> $output_format preserves alpha pixels at an arbitrary portrait resize"
+    done
   done
-done
+else
+  skip "cwebp and avifenc are not both installed; skipping the still WebP/AVIF routes"
+fi
 
 # Hardware is a protocol fixture here, not a claim to have these GPUs in CI.
 # Run the real vendor/node selection and gates; only ffmpeg's hardware
