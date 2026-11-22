@@ -54,9 +54,10 @@ per local coding model that is running and ready.
   also switches to it, starring Fireworks or OpenRouter chooses OpenCode, and
   starring a local model pins it (`omarchy default agent local <model>`),
   which the default then opens instead of the model started last.
-- **Make icons** — the line in use also shows a theme, plugin, app, and game
-  icon beside its terminal button, which start that line's agent on the task
-  through `omarchy agent make`, as the starter tiles do with the default.
+- **Make icons** — the line in use also shows a sparkles icon beside its
+  terminal button, which opens into a theme, plugin, app, and game icon that
+  start that line's agent on the task through `omarchy agent make`, as the
+  starter tiles do with the default. They fold back when the line is left.
 - **Balance** — prepaid agents show a credit ledger instead of limits: a
   fuel-gauge meter that drains toward empty, the remaining credit, and
   funded-versus-spent detail.
