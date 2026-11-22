@@ -1,16 +1,16 @@
 # Yaygın ince ayarlar
 
-Bu, Omarchy kurulumuna yapılan yaygın kişiselleştirmelerin bir koleksiyonudur. Şunu bilin ki sistem güncelleştirmelerinin zaman zaman belirli yapılandırmaları özgün durumlarına geri yüklemesi gerekebilir. Bu olursa, değişiklikleriniz kaybolmaz, aynı dizinde bir `.bak` dosyasına konur.
+Bu, Omarchy kurulumuna yönelik yaygın özelleştirmelerin bir derlemesidir. Bilin ki sistem güncellemelerinin zaman zaman bazı yapılandırmaları özgün hallerine geri getirmesi gerekebilir. Bu olursa, değişiklikleriniz kaybolmaz, ancak orijinalin yanındaki bir `.bak.<timestamp>` dosyasına konur.
 
-Bir şeyi bozarsanız, tek tek yapılandırmaları Omarchy menüsündeki _Güncelle > Yapılandırma_ aracılığıyla özgün kurulumlarına geri yükleyebilirsiniz. Her şeyi _gerçekten_ bozarsanız, tüm yapılandırmaları `omarchy-reinstall` aracılığıyla sıfırlayabilirsiniz.
+Bir şeyleri berbat ederseniz, Omarchy menüsündeki _Update > Config_ aracılığıyla tek tek yapılandırmaları özgün kurulumlarına geri getirebilirsiniz. Eğer her şeyi _gerçekten_ berbat ederseniz, `omarchy reinstall configs` ile tüm yapılandırmaları sıfırlayabilir veya `omarchy reinstall` ile her varsayılan paketi ve yapılandırmayı yeniden kurabilirsiniz.
 
 ### Tüm tepsi simgelerini her zaman göster
 
-Varsayılan olarak, Dropbox, 1password veya Steam gibi tepsi simgeleri, üzerinize geldiğinizde onları ortaya çıkaran tepsi genişletici okunun arkasına gizlenir. Onları her zaman açıkta görmek isterseniz, genişletici oka sağ tıklayarak tepsi simgesi yöneticisini açın, ardından görünür tutmak istediğiniz simgeleri sabitleyin (asla görmek istemediklerinizi de gizleyebilirsiniz).
+Varsayılan olarak, Dropbox, 1password veya Steam gibi tepsi simgeleri, üzerine geldiğinizde onları gösteren tepsi genişletme okunun arkasında gizlenir. Onları her zaman açıkta tutmak isterseniz, tepsi simgesi yöneticisini açmak için genişletme okuna sağ tıklayın, ardından görünür tutmak istediğiniz simgeleri sabitleyin (hiç görmek istemediklerinizi de gizleyebilirsiniz).
 
-### Yuvarlak pencere köşeleri
+### Yuvarlatılmış pencere köşeleri
 
-Omarchy'nin varsayılan tasarımı kare köşelerden oluşur, ancak bunu biraz yumuşatmayı seviyorsanız, `~/.config/hypr/looknfeel.lua` dosyasını yuvarlatma artık yorum dışı olmayacak şekilde değiştirebilirsiniz:
+Omarchy'nin varsayılan tasarımı kare köşelerdir, ancak bunu biraz yumuşatmak isterseniz, Omarchy menüsünde _Appearance > Windows > Window Corners > Rounded Corners_ seçeneğini seçin veya `omarchy hyprland corners rounded` komutunu çalıştırın. _Theme Corners_, temanın kullandığı şeye geri döner. Kendi yarıçapınızı seçmek için _Theme Corners_ (`omarchy hyprland corners theme`) üzerinde kalın, çünkü Rounded ve Sharp yapılandırmanızdan sonra yüklenir ve onu geçersiz kılar, ve `~/.config/hypr/looknfeel.lua` içinde rounding satırındaki yorum işaretlerini kaldırın:
 
 ```
 hl.config({
@@ -23,7 +23,7 @@ hl.config({
 
 ### Pencere boşluklarını kaldır
 
-Dizüstü bilgisayar ekranlarında bazı kişiler hiçbir pikseli pencere boşluklarına (veya `Super + Shift + Space` ile kapatabileceğiniz bir üst çubuğa bile) harcamamayı tercih eder. Tüm boşlukları ve kenarlıkları `Super + Shift + Backspace` ile kapatabilir veya `~/.config/hypr/looknfeel.lua` dosyasının bu bölümündeki yorumları kaldırarak kalıcı olarak kaldırabilirsiniz:
+Dizüstü bilgisayar ekranlarında, bazı kişiler pencere boşluklarına (veya `Super + Shift + Space` ile kapatıp açabileceğiniz bir üst çubuğa bile) hiç piksel harcamamayı tercih eder. `Super + Shift + Backspace` ile tüm boşlukları ve kenarlıkları kapatıp açabilir veya `~/.config/hypr/looknfeel.lua` dosyasının bu bölümündeki yorumları kaldırarak onları kalıcı olarak kaldırabilirsiniz:
 
 ```
 hl.config({

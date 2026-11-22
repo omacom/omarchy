@@ -30,7 +30,7 @@ On some laptops, Omarchy automatically applies a speaker tuning that corrects th
 
 ### Why can't I login or sudo with my password?
 
-You probably typed it wrong too many times and got locked out. If this is happening on the lock screen, you can hit `CTRL + ALT + F2` to start a new TTY where you can login as root, then run `faillock --reset --user [your-username]`. That'll reset the lockout, and you're good to go.
+You probably typed it wrong ten times and got locked out. The lockout clears on its own after two minutes. If you can't wait, and this is happening on the lock screen, you can hit `CTRL + ALT + F2` to start a new TTY where you can login as root, then run `faillock --reset --user [your-username]`. That'll reset the lockout, and you're good to go.
 
 ### My password is accepted, but I return to the login screen
 
