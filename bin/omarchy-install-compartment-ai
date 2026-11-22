@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# omarchy:summary=Set up private AI compartments on Omarchy (idempotent)
+
+# Installs the compartment payload (shipped in $OMARCHY_PATH/compartment),
+# then runs the privileged setup steps. All privileged code is Omarchy's own —
+# nothing is fetched or executed from external repositories.
+
+set -euo pipefail
+
+echo "==> compartment-ai setup"
+echo "    bases:    Whonix-CLI (verified) + Whonix-AI template"
+echo "    weights:  llm-weights-data/verity (dm-verity RO)"
+echo "    intents:  forced-command vm-exec + host policy gate"
+echo
+
+echo "==> [1/6] host hardening"
+omarchy-compartment-setup
+
+echo "==> [2/6] weights disk (model + manifest + verity)"
+if [[ ! -f /var/lib/libvirt/images/whonix/llm-weights-data.qcow2 ]]; then
+  omarchy-compartment-weights
+else
+  echo "weights disk exists — skipping"
+fi
+
+echo "==> [3/6] AI template (Whonix-CLI base + payload)"
+omarchy-compartment-template
+
+echo "==> [4/6] first compartment (hermes-coding)"
+if ! sudo virsh -c qemu:///system dominfo hermes-coding >/dev/null 2>&1; then
+  omarchy-compartment-mk coding
+else
+  echo "hermes-coding exists — skipping"
+fi
+
+echo "==> [5/6] boot + register"
+omarchy-compartment-up hermes-coding
+
+echo "==> [6/6] vault-signer (optional — networkless signing VM)"
+if ! sudo virsh -c qemu:///system dominfo vault-signer >/dev/null 2>&1; then
+  omarchy-compartment-vault
+else
+  echo "vault-signer exists — skipping"
+fi
+
+echo
+echo "done. manage with: omarchy compartment <name> <intent>"
+echo "pick a default for 'omarchy agent' with: omarchy default compartment <name>"

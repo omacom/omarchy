@@ -1,0 +1,7 @@
+table inet compartment {
+  chain input {
+    type filter hook input priority -10; policy accept;
+    ip saddr 10.152.152.222 tcp dport 22 accept
+    ip saddr 10.152.152.222 tcp dport 8765 accept
+  }
+}

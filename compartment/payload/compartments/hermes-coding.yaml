@@ -1,0 +1,29 @@
+# compartment.yaml — hermes-coding policy
+name: hermes-coding
+persistence: persistent
+workspace: /home/agent/workspace
+
+intents:
+  - hermes
+  - agent
+  - attach
+  - devin          # external agent allowed HERE ONLY
+  - attach-devin
+  - status
+  - push
+  - pull
+  - git
+  - prompt
+  - prompt-resp
+  - attest
+  - seal
+  - wipe-memory
+
+egress:
+  tor: true
+  pinholes:
+    - api.devin.ai   # gateway pinhole if Tor exits blocked (impl-time)
+
+rules:
+  devin_workspace_hygiene: "never push what you wouldn't send to Cognition"
+  devin_is_egress: true

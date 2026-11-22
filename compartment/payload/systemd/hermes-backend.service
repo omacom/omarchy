@@ -1,0 +1,21 @@
+[Unit]
+Description=Hermes agent backend (localhost :8765, for host-desktop remote attach)
+After=context-firewall.service
+Wants=context-firewall.service
+
+[Service]
+Type=simple
+User=agent
+Group=agent
+WorkingDirectory=/home/agent
+Environment=HOME=/home/agent
+ExecStart=/usr/bin/firejail --quiet --profile=/etc/firejail/agent.profile \
+    /home/agent/hermes-agent/venv/bin/hermes serve --host 127.0.0.1 --port 8765
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+ProtectHome=read-only
+ReadWritePaths=/home/agent/workspace /home/agent/.hermes /run
+
+[Install]
+WantedBy=multi-user.target

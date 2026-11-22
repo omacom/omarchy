@@ -1,0 +1,13 @@
+[Unit]
+Description=Mount dm-verity weights disk at /opt/models
+Before=llama-server.service context-firewall.service hermes-backend.service
+DefaultDependencies=no
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/mount-models.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# omarchy:summary=Create a new AI compartment (thin fork of Whonix-AI)
+# omarchy:args=<name>
+# omarchy:examples=omarchy compartment mk research | omarchy compartment mk trading
+
+set -euo pipefail
+
+NAME="hermes-${1:?usage: omarchy compartment mk <name>}"
+IMGDIR="${COMPARTMENT_IMGDIR:-/var/lib/libvirt/images/whonix}"
+TEMPLATE_BASE="$IMGDIR/Whonix-AI.qcow2"
+REG="$HOME/.config/vmctl/vms"
+KEYDIR="$HOME/.ssh/vmctl"
+: "${OMARCHY_PATH:?OMARCHY_PATH is not set}"
+POLICIES="$OMARCHY_PATH/compartment/payload/compartments"
+
+[[ -f $TEMPLATE_BASE ]] || { echo "missing $TEMPLATE_BASE — run: omarchy install compartment-ai" >&2; exit 1; }
+[[ $NAME =~ ^[a-z0-9-]+$ ]] || { echo "invalid compartment name: $1" >&2; exit 2; }
+
+mkdir -p "$HOME/.config/vmctl" "$KEYDIR"
+echo "[1/4] overlay"
+sudo qemu-img create -f qcow2 -b "$TEMPLATE_BASE" -F qcow2 "$IMGDIR/$NAME.qcow2"
+
+echo "[2/4] domain XML (clone of template with new name/mac/uuid)"
+sudo mkdir -p "/var/lib/swtpm-$NAME"
+sudo virsh -c qemu:///system dumpxml Whonix-AI-Template > "/tmp/$NAME.xml"
+sed -e "s|<name>.*</name>|<name>$NAME</name>|" \
+    -e '/<uuid>/d' \
+    -e '/<mac address/d' \
+    "/tmp/$NAME.xml" > "/tmp/$NAME.new.xml" && mv "/tmp/$NAME.new.xml" "/tmp/$NAME.xml"
+sed -i -e "s|$TEMPLATE_BASE|$IMGDIR/$NAME.qcow2|" \
+       -e "s|volume='Whonix-AI.qcow2'|volume='$NAME.qcow2'|" \
+       -e "s|volume='Whonix-Workstation.qcow2'|volume='$NAME.qcow2'|" "/tmp/$NAME.xml"
+virt-xml "/tmp/$NAME.xml" --add-device --network network=whonix-int,model=virtio 2>/dev/null \
+  || sed -i "s|</devices>|  <interface type='network'><source network='whonix-int'/><model type='virtio'/></interface>\n  </devices>|" "/tmp/$NAME.xml"
+sudo virsh -c qemu:///system define "/tmp/$NAME.xml"
+
+echo "[3/4] coordinator keypair + compartment policy"
+[[ ! -f $KEYDIR/$NAME ]] && \
+  ssh-keygen -t ed25519 -N '' -C "vmctl-$NAME" -f "$KEYDIR/$NAME" -q
+PUB=$(cat "$KEYDIR/$NAME.pub")
+sudo virt-customize -a "$IMGDIR/$NAME.qcow2" \
+  --mkdir /home/agent/.ssh \
+  --append-line "/home/agent/.ssh/authorized_keys:command=\"/usr/local/bin/vm-exec\",no-agent-forwarding,no-X11-forwarding $PUB"
+
+# per-compartment policy: prefer an exact-name yaml, else the unprefixed stem
+POLICY=""
+for cand in "$POLICIES/$NAME.yaml" "$POLICIES/${NAME#hermes-}.yaml"; do
+  [[ -f $cand ]] && { POLICY="$cand"; break; }
+done
+if [[ -n $POLICY ]]; then
+  sudo virt-customize -a "$IMGDIR/$NAME.qcow2" \
+    --upload "$POLICY:/etc/compartment/compartment.yaml"
+  echo "  policy: $(basename "$POLICY")"
+fi
+
+echo "[4/4] register"
+IP=$(sudo virsh -c qemu:///system domifaddr "$NAME" --source agent 2>/dev/null | awk 'NR==3{split($4,a,"/");print a[1]}') || IP=""
+[[ -z $IP ]] && IP="PENDING-BOOT"
+echo "$NAME $IP agent $KEYDIR/$NAME" >> "$REG"
+echo "created $NAME (ip: $IP)"

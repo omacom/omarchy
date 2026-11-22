@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# omarchy:summary=Apply host hardening for AI compartments (sysctl, auditd, ufw, usbguard)
+# omarchy:hidden=true
+
+# Re-runs safely (idempotent). Installs compartment host configs from
+# $OMARCHY_PATH/compartment/host into /etc, expands __HOME__/__COMPARTMENT__.
+
+set -euo pipefail
+
+: "${OMARCHY_PATH:?OMARCHY_PATH is not set — run inside an Omarchy session}"
+
+if [[ ${EUID} -ne 0 ]]; then
+  exec sudo env OMARCHY_PATH="$OMARCHY_PATH" \
+    COMPARTMENT_HOME="$HOME" SUDO_USER_NAME="${SUDO_USER:-$USER}" bash "$0" "$@"
+fi
+
+OMARCHY_PATH="${OMARCHY_PATH%/}"
+COMP="$OMARCHY_PATH/compartment"
+REAL_HOME="${COMPARTMENT_HOME:-/root}"
+LEDGER_DIR="/var/lib/omarchy-compartment/ledger"
+
+echo "[1/8] sysctl hardening"
+install -m644 "$COMP/host/sysctl/90-compartment-ai.conf" /etc/sysctl.d/90-compartment-ai.conf
+install -m644 "$COMP/host/sysctl/99-hardening.conf" /etc/sysctl.d/99-hardening.conf
+sysctl --system >/dev/null 2>&1 || true
+
+echo "[2/8] auditd watchpoints"
+omarchy-pkg-present audit || omarchy-pkg-add audit
+install -m640 "$COMP/host/audit/hardening.rules" /etc/audit/rules.d/hardening.rules
+sed -e "s|__HOME__|$REAL_HOME|g" -e "s|__COMPARTMENT__|$COMP|g" \
+  "$COMP/host/audit/compartment-ai.rules" > /etc/audit/rules.d/compartment-ai.rules
+chmod 640 /etc/audit/rules.d/compartment-ai.rules
+systemctl enable --now auditd 2>/dev/null || true
+augenrules --load 2>/dev/null || true
+
+echo "[3/8] AIDE (file integrity) — init DB on first run"
+omarchy-pkg-present aide || omarchy-pkg-add aide || echo "install aide manually"
+if ! ls /var/lib/aide/aide.db* >/dev/null 2>&1; then
+  echo "  initializing AIDE database (first run is slow)"
+  aide --init >/dev/null 2>&1 || aideinit || true
+  for f in /var/lib/aide/aide.db.new*; do [[ -e $f ]] && mv "$f" "${f/new/db}"; done 2>/dev/null || true
+fi
+
+echo "[4/8] usbguard — allow current devices, block new ones"
+omarchy-pkg-present usbguard || omarchy-pkg-add usbguard || echo "install usbguard manually"
+install -m644 "$COMP/host/usbguard/compartment-ai.conf" /etc/usbguard/rules.d/compartment-ai.conf 2>/dev/null || true
+if [[ ! -s /etc/usbguard/rules.conf ]]; then
+  usbguard generate-policy > /etc/usbguard/rules.conf 2>/dev/null || true
+  echo "  generated /etc/usbguard/rules.conf — REVIEW before enabling"
+fi
+systemctl enable --now usbguard 2>/dev/null || true
+
+echo "[5/8] ufw: deny whonix-int -> host NEW connections"
+ufw deny in on virbr-whx comment 'whonix compartments cannot initiate to host' 2>/dev/null || true
+ufw allow in on virbr-whx to any port 53 proto udp comment 'dnsmasq for whonix' 2>/dev/null || true
+ufw allow in on virbr-whx to any port 67 proto udp comment 'dhcp for whonix' 2>/dev/null || true
+
+echo "[6/8] host-seal.sh (Wazuh AR target) + ledger dir"
+install -m755 "$COMP/payload/bin/host-seal.sh" /usr/local/bin/host-seal.sh
+install -d -m755 /var/lib/omarchy-compartment
+if [[ -n ${SUDO_USER_NAME:-} && $SUDO_USER_NAME != "root" ]]; then
+  install -d -m755 -o "$SUDO_USER_NAME" -g "$SUDO_USER_NAME" "$LEDGER_DIR"
+else
+  install -d -m755 "$LEDGER_DIR"
+fi
+
+echo "[7/8] AppArmor"
+omarchy-pkg-present apparmor || omarchy-pkg-add apparmor || true
+if grep -qw apparmor /sys/kernel/security/lsm 2>/dev/null; then
+  systemctl enable --now apparmor && aa-status | head -5 || true
+else
+  echo "  apparmor not in LSM list — add 'lsm=landlock,lockdown,yama,integrity,apparmor,bpf'"
+  echo "  and 'apparmor=1' to kernel cmdline, reboot, then: sudo systemctl enable --now apparmor"
+fi
+
+echo "[8/8] wazuh-agent AR snippets"
+if systemctl list-unit-files wazuh-agent.service >/dev/null 2>&1 \
+   && systemctl is-enabled wazuh-agent >/dev/null 2>&1; then
+  echo "  wazuh-agent installed — merge $COMP/host/wazuh/ossec-ar-snippets.conf"
+  echo "  into /var/ossec/etc/ossec.conf (see docs/compartments.md), then:"
+  echo "  sudo systemctl restart wazuh-agent"
+else
+  echo "  wazuh-agent not installed — snippets at $COMP/host/wazuh/ossec-ar-snippets.conf"
+fi
+
+echo "done. Remaining manual steps in docs/compartments.md"
