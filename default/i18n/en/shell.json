@@ -84,9 +84,6 @@
   "agents.hideProviderConfirm": "Hide %1 from the panel? Credentials and sign-in will be kept.",
   "agents.isDefault": "Your default agent",
   "agents.launchHarness": "Start %1",
-  "agents.localRunning": "Running",
-  "agents.localStarting": "Starting",
-  "agents.localStopped": "Stopped",
   "agents.makeDefault": "Make %1 your default agent",
   "agents.spendDay": "%1: %2",
   "agents.spendDayTokens": {

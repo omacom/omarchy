@@ -370,9 +370,10 @@ Panel {
     return facts.join(" · ")
   }
 
-  // A line for each coding model set up here or shared by a paired machine,
-  // under Local models. Its target is what opens it: the recipe, or
-  // host/recipe for a paired machine's.
+  // A line for each coding model running and ready, here or on a paired
+  // machine; starting and stopping them is the local models panel's. Its
+  // target is what opens it: the recipe, or host/recipe for a paired
+  // machine's.
   readonly property var localModelLines: {
     var service = localModelsService
     if (!service) return []
@@ -381,7 +382,7 @@ Panel {
     for (var r = 0; r < list.length; r++) recipes[list[r].id] = list[r]
     var out = []
     var add = function(model, host) {
-      if (!model || model.kind !== "text" || ["installing", "removing"].indexOf(model.unit) >= 0) return
+      if (!model || model.kind !== "text" || model.unit !== "active" || (!host && model.sub_state !== "running")) return
       var target = host ? host + "/" + model.recipe : model.recipe
       var recipe = host ? {} : (recipes[model.recipe] || {})
       out.push({
@@ -392,8 +393,6 @@ Panel {
         localModel: {
           target: target,
           host: host || "",
-          unit: model.unit,
-          running: model.unit === "active" && (host || model.sub_state === "running"),
           decode_tok_s: model.decode_tok_s != null ? model.decode_tok_s : recipe.decode_tok_s,
           context: model.ctx != null ? model.ctx : recipe.context,
           memory_gib: recipe.memory_gib
@@ -419,12 +418,6 @@ Panel {
   readonly property string localDefaultTarget: usage.localPin !== ""
     ? usage.localPin
     : String(localModelsService && localModelsService.localModel ? localModelsService.localModel.last || "" : "")
-
-  function localState(model) {
-    if (model.running) return Commons.I18n.t("agents.localRunning")
-    if (model.unit === "activating") return Commons.I18n.t("agents.localStarting")
-    return Commons.I18n.t("agents.localStopped")
-  }
 
   function chooseOwnModel() {
     var recipe = ownModelRecipe
@@ -2232,8 +2225,8 @@ Panel {
         visible: !section.editingName && text !== ""
         textFormat: Text.PlainText
         text: {
-          var plan = section.local ? root.localState(section.local) : root.planLabel(section.provider)
-          return plan !== "" && (section.account || section.localHost !== "") ? "· " + plan : plan
+          var plan = root.planLabel(section.provider)
+          return plan !== "" && section.account ? "· " + plan : plan
         }
         color: root.dim
         font.family: root.fontFamily
