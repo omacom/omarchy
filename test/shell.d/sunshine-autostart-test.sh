@@ -76,11 +76,13 @@ fi
 pass "Sunshine installer removes the legacy Hyprland autostart copy"
 
 reset_home
+printf '%s\n' "$entry" >>"$autostart"
 OMARCHY_TEST_ENABLE_STATUS=1
 if HOME="$home" bash "$ROOT/bin/omarchy-install-service-sunshine" >"$test_tmp/output" 2>&1; then
   fail "Sunshine installer fails when the unit cannot be enabled"
 fi
 grep -Fxq "systemctl --user enable --now $unit" "$OMARCHY_TEST_LOG" || fail "Sunshine installer tries to enable the canonical user unit"
+grep -Fxq "$entry" "$autostart" || fail "Sunshine installer keeps the legacy launcher when enable fails"
 if grep -Eq '^(sudo|omarchy-cmd-missing|omarchy-webapp-install|omarchy-launch-webapp) ' "$OMARCHY_TEST_LOG"; then
   fail "Sunshine installer skips firewall and web-app setup when enable fails"
 fi
