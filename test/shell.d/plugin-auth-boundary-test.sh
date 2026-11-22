@@ -142,3 +142,225 @@ pass "service facades resolve enabled clones without widening replacement-bar ac
 require_quickshell "plugin authentication boundary runtime test"
 
 run_qml_fixture plugin-auth-boundary "plugin authentication boundary runtime behavior" services
+
+run_node_test <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+const shellQml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
+const storeSource = fs.readFileSync(path.join(root, 'shell/services/AuthServiceStore.js'), 'utf8')
+
+function bodyOf(src, name, label) {
+  const start = src.indexOf(`function ${name}(`)
+  if (start === -1) fail(`${label}: source defines ${name}()`)
+  const open = src.indexOf('{', start)
+  let depth = 0
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '{') depth += 1
+    else if (src[i] === '}') {
+      depth -= 1
+      if (depth === 0) return src.slice(open + 1, i)
+    }
+  }
+  fail(`${label}: ${name}() has balanced braces`)
+}
+
+// Run the host's real lifecycle functions with observable service objects.
+function lifecycle() {
+  const store = vm.createContext({})
+  vm.runInContext(storeSource, store)
+  const host = vm.createContext({
+    _services: {}, _serviceFamilies: {}, _familyMountDeferred: false,
+    pluginReloading: false, AuthServiceStore: store,
+    pluginRegistry: {
+      installedPlugins: {}, disabled: new Set(),
+      isEnabled(id) { return !this.disabled.has(id) },
+      entryPointUrl(manifest) { return manifest.id },
+    },
+    Util: { isPlainObject: value => !!value, canonicalWidgetId: value => value },
+    Component: { Ready: 1, Loading: 2, PreferSynchronous: 0 },
+    created: {}, pending: [],
+    publicPluginManifest: manifest => manifest,
+  })
+  host.shell = host
+  host.Qt = {
+    callLater(fn) { host.pending.push(fn) },
+    createComponent(url) {
+      return { status: 1, createObject() {
+        const callbacks = []
+        const inst = {
+          sessionLockOwned: false, destroyed: false,
+          unlockSettled: { connect(fn) { callbacks.push(fn) } },
+          unlock() {
+            this.sessionLockOwned = false
+            callbacks.forEach(fn => fn())
+          },
+          destroy() { this.destroyed = true },
+        }
+        host.created[url] = inst
+        return inst
+      } }
+    },
+  }
+  for (const name of ['isAuthenticationService', 'sessionLockHeldByFamily', 'ensureService',
+      '_syncServices', 'serviceKeepLoaded', 'unloadPluginServices', 'syncServicesAfterUnlock']) {
+    const args = shellQml.match(new RegExp(`function ${name}\\(([^)]*)\\)`))[1]
+    vm.runInContext(`function ${name}(${args}) {${bodyOf(shellQml, name, name)}}`, host)
+  }
+  host.install = (id, authentication, family) => {
+    host.pluginRegistry.installedPlugins[id] = {
+      id, kinds: ['service'], entryPoints: { service: 'Service.qml' },
+      __hostCapabilities: authentication ? ['authentication'] : [],
+      omarchy: family ? { clonedFrom: family } : {},
+    }
+  }
+  host.drain = () => { while (host.pending.length) host.pending.shift()() }
+  return host
+}
+
+for (const authentication of [false, true]) {
+  for (const change of ['disable', 'remove', 'drop-service']) {
+    const host = lifecycle()
+    const id = 'user.lock-copy'
+    host.install(id, authentication)
+    host._syncServices()
+    const lock = host.created[id]
+    lock.sessionLockOwned = true
+    if (change === 'disable') host.pluginRegistry.disabled.add(id)
+    if (change === 'remove') delete host.pluginRegistry.installedPlugins[id]
+    if (change === 'drop-service') host.pluginRegistry.installedPlugins[id].kinds = ['panel']
+    host._syncServices()
+    host.unloadPluginServices()
+    host.unloadPluginServices()
+    assert(!lock.destroyed, `${authentication ? 'private' : 'published'} owner survives ${change} and repeated reloads`)
+    lock.unlock()
+    host.drain()
+    assert(lock.destroyed, `${authentication ? 'private' : 'published'} owner is collected after ${change} and unlock`)
+  }
+  const host = lifecycle()
+  host.install('user.unlocked', authentication)
+  host._syncServices()
+  const unlocked = host.created['user.unlocked']
+  delete host.pluginRegistry.installedPlugins['user.unlocked']
+  host._syncServices()
+  assert(unlocked.destroyed, 'an unlocked removed service is collected without waiting')
+  host.install('user.keep', authentication)
+  host.pluginRegistry.installedPlugins['user.keep'].keepLoaded = true
+  host._syncServices()
+  host.unloadPluginServices()
+  assert(!host.created['user.keep'].destroyed, 'reload still retains a keepLoaded service without lock ownership')
+}
+
+const moving = lifecycle()
+moving.install('user.moving', false)
+moving._syncServices()
+const published = moving.created['user.moving']
+published.sessionLockOwned = true
+moving.pluginRegistry.installedPlugins['user.moving'].__hostCapabilities = ['authentication']
+moving._syncServices()
+assert(!published.destroyed && !moving.AuthServiceStore.has('user.moving'), 'gaining authentication defers migration while locked')
+published.unlock()
+moving.drain()
+assert(published.destroyed && moving.AuthServiceStore.has('user.moving') && !moving._services['user.moving'], 'unlock moves the service into private storage')
+
+for (const authentication of [false, true]) {
+  const host = lifecycle()
+  host.install('user.holder', authentication, 'omarchy.lock')
+  host._syncServices()
+  const holder = host.created['user.holder']
+  holder.sessionLockOwned = true
+  host.install('user.waiting', authentication, 'omarchy.lock')
+  host._syncServices()
+  assert(!host.created['user.waiting'] && host._familyMountDeferred, 'a sibling is not created while its family owns the lock')
+  holder.unlock()
+  host.drain()
+  assert(!!host.created['user.waiting'] && !host._familyMountDeferred, 'unlock retries the refused sibling even when the holder stays enabled')
+  host.unloadPluginServices()
+  assert(host.created['user.waiting'].destroyed, 'reload collects an unlocked service without keepLoaded')
+}
+
+const store = lifecycle().AuthServiceStore
+store.put('legacy.locked', { locked: true })
+store.put('legacy.unlocked', { locked: false })
+store.put('current.released', { sessionLockOwned: false, locked: true })
+assert(store.ownsSessionLock('legacy.locked'), 'a legacy clone can report ownership through locked')
+assert(!store.ownsSessionLock('legacy.unlocked'), 'an unlocked legacy clone reports no ownership')
+assert(!store.ownsSessionLock('current.released'), 'explicit ownership outranks legacy locked state')
+assert(!store.ownsSessionLock('missing'), 'an absent service owns no lock')
+
+const resync = new Function(
+  'pluginId', 'authenticationService', 'pluginRegistry', 'shell', 'Qt',
+  bodyOf(shellQml, 'syncServicesAfterUnlock', 'unlock re-sync')
+)
+function resyncs(opts) {
+  let scheduled = false
+  const registry = {
+    installedPlugins: opts.installed === false ? {} : {
+      'omarchy.lock': opts.serviceDropped === true
+        ? { kinds: ['bar-widget'], entryPoints: {} }
+        : { kinds: ['service'], entryPoints: { service: 'Service.qml' } },
+    },
+    isEnabled: () => opts.enabled !== false,
+  }
+  const host = {
+    pluginReloading: opts.reloading === true,
+    _familyMountDeferred: opts.familyMountDeferred === true,
+    isAuthenticationService: () => opts.nowAuthentication !== false,
+    _syncServices() {},
+  }
+  resync('omarchy.lock', opts.placedAsAuthentication !== false, registry, host, {
+    callLater(fn) { scheduled = fn === host._syncServices },
+  })
+  return scheduled
+}
+assert(!resyncs({}), 'an unlock of a service still wanted where it is does not re-sync')
+assert(resyncs({ enabled: false }), 'an unlock of a disabled lock service re-syncs')
+assert(resyncs({ installed: false }), 'an unlock of a removed lock service re-syncs')
+assert(resyncs({ serviceDropped: true }), 'an unlock of a lock plugin that no longer declares a service re-syncs')
+assert(resyncs({ placedAsAuthentication: false }), 'an unlock of a lock service that gained the capability re-syncs')
+assert(!resyncs({ enabled: false, reloading: true }), 'an unlock during a reload leaves the re-sync to the reload')
+assert(
+  resyncs({ familyMountDeferred: true }),
+  'an unlock of a service still wanted re-syncs when a family member was refused while it held the lock'
+)
+
+const heldByFamily = new Function(
+  'pluginId', 'family', '_services', 'AuthServiceStore', '_serviceFamilies',
+  bodyOf(shellQml, 'sessionLockHeldByFamily', 'family guard')
+)
+function held(pluginId, family, opts) {
+  const auth = opts.auth || {}
+  const store = {
+    ids: () => Object.keys(auth),
+    ownsSessionLock: (id) => auth[id] === true,
+  }
+  return heldByFamily(pluginId, family, opts.services || {}, store, opts.families || {})
+}
+assert(
+  held('user.lock-clone', 'omarchy.lock', { auth: { 'omarchy.lock': true }, families: { 'omarchy.lock': 'omarchy.lock' } }),
+  'a clone enabled while its source holds the lock waits'
+)
+assert(
+  held('omarchy.lock', 'omarchy.lock', { auth: { 'user.lock-clone': true }, families: { 'user.lock-clone': 'omarchy.lock' } }),
+  'a source restored while its clone holds the lock waits, even once the clone is removed'
+)
+assert(
+  held('omarchy.lock', 'omarchy.lock', {
+    services: { 'user.lock-copy': { sessionLockOwned: true } },
+    families: { 'user.lock-copy': 'omarchy.lock' },
+  }),
+  'a published family member holding the lock blocks the rest of the family'
+)
+assert(
+  !held('omarchy.polkit', 'omarchy.polkit', { auth: { 'omarchy.lock': true }, families: { 'omarchy.lock': 'omarchy.lock' } }),
+  'a plugin outside the family is not held back'
+)
+assert(
+  !held('omarchy.lock', 'omarchy.lock', { auth: { 'omarchy.lock': true }, families: { 'omarchy.lock': 'omarchy.lock' } }),
+  'a service does not block itself'
+)
+assert(
+  !held('user.lock-clone', 'omarchy.lock', { auth: { 'omarchy.lock': false }, families: { 'omarchy.lock': 'omarchy.lock' } }),
+  'a family member that has let go of the lock blocks nothing'
+)
+
+JS
