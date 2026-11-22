@@ -185,7 +185,8 @@ vm.createContext(scope)
 for (const name of ['manifestHasKind', 'pluginHasBarCapabilities', 'pluginCloneFirstPartyServices', 'pluginFirstPartyServiceFor',
   'pluginShellCapabilityProfile', 'createScopedPluginShell', 'cacheWithoutKey', 'cacheWithoutPrefix', 'revokePluginShellApi', 'pluginApiActive', 'prunePluginApis']) {
   const fn = source.match(new RegExp('  function ' + name + String.raw`\([^]*?\n  \}`))
-  if (fn) vm.runInContext(fn[0], scope)
+  assert(fn, 'production function exists: ' + name)
+  vm.runInContext(fn[0], scope)
 }
 const api = scope.createScopedPluginShell(clone, clone.id, true, false)
 for (const id of ['omarchy.idle', 'omarchy.nightlight', 'omarchy.notifications', 'omarchy.remote-session']) {
@@ -212,15 +213,24 @@ assert(!api.destroyed && !dnd.destroyed, 'normal pruning keeps the indicator ser
 enabled = false
 dnd._setDoNotDisturb(false)
 assert(services['omarchy.notifications'].doNotDisturb, 'a retained proxy cannot act while its owner is disabled')
+assertEqual(dnd.doNotDisturb, false, 'a retained proxy hides state while its owner is disabled')
 enabled = true
 scope.pluginRegistry.installedPlugins[clone.id] = {...clone, omarchy: undefined}
 assertEqual(api._firstPartyServiceLookup('omarchy.notifications'), null, 'withdrawing clone metadata revokes new lookups immediately')
 dnd._setDoNotDisturb(false)
 assert(services['omarchy.notifications'].doNotDisturb, 'a retained proxy cannot act after clone metadata is withdrawn')
+assertEqual(dnd.doNotDisturb, false, 'a retained proxy hides state after clone metadata is withdrawn')
 scope.prunePluginApis()
 assert(api.destroyed && dnd.destroyed, 'pruning destroys facades whose clone service scope changed')
 const ordinary = scope.createScopedPluginShell(scope.pluginRegistry.installedPlugins[clone.id], clone.id, true, false)
 assertEqual(ordinary._firstPartyServiceLookup('omarchy.nightlight'), null, 'ordinary bar widgets receive no indicator services')
+const audio = {id: 'tester.audio', kinds: ['panel'], omarchy: {clonedFrom: 'omarchy.audio'}}
+scope.pluginRegistry.installedPlugins[audio.id] = audio
+const audioApi = scope.createScopedPluginShell(audio, audio.id, true, false)
+assert(audioApi._firstPartyServiceLookup('omarchy.media'), 'audio clones receive their media proxy')
+for (const id of ['omarchy.idle', 'omarchy.nightlight', 'omarchy.notifications', 'omarchy.remote-session', 'omarchy.lock', 'omarchy.polkit']) {
+  assertEqual(audioApi._firstPartyServiceLookup(id), null, 'audio clones cannot reach ' + id)
+}
 const bar = {id: 'tester.bar', kinds: ['bar']}
 scope.pluginRegistry.installedPlugins[bar.id] = bar
 const barApi = scope.createScopedPluginShell(bar, bar.id, true, true)
