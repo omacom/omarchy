@@ -88,11 +88,16 @@ Panel {
         makeDefault(next, next.account || null)
       }
       var model = localModelState(target.localModel)
-      // A setup the service still owns has nothing on disk: a failure is
-      // forgotten, and one waiting its turn is dropped.
-      if (model && model.panelSetup && model.install.phase === "failed") localModelsService.dismissSetupFailure()
-      else if (model && model.panelSetup) localModelsService.unqueueSetup(model.recipe)
-      else if (model) Util.execArgv(["omarchy-models", "remove", model.recipe])
+      // One on this machine keeps its line, removing, until it's gone, and
+      // the listing written again then says it's no longer installed, which
+      // takes it off the panel. A setup the service still owns has nothing
+      // on disk: a failure is forgotten, and one waiting its turn dropped.
+      if (model && !model.panelSetup) {
+        Util.execArgv(["bash", "-c", 'omarchy-models remove "$1"; omarchy-models refresh --quiet', "remove", model.recipe])
+        return
+      }
+      if (model && model.install.phase === "failed") localModelsService.dismissSetupFailure()
+      else if (model) localModelsService.unqueueSetup(model.recipe)
       usage.removeLocalModels([target.localModel.target])
       return
     }
@@ -509,11 +514,14 @@ Panel {
   // What the network and local blocks of the add screen offer: each coding
   // model without a line, a paired machine's before this one's. This
   // machine's are those set up here, then every recipe that fits and isn't,
-  // recommended first, then another DGX Spark cabled to this one. The one
-  // being set up or started from here stays, showing how that goes.
+  // recommended first, then another DGX Spark cabled to this one. Those
+  // being set up, and the one being started from here, stay, showing how
+  // that goes.
   readonly property var ownModelOffers: {
     var offers = []
-    var lines = localModelLines.filter(function(line) { return !usage.localModelAdded(line) || line.localModel.target === settingUpLocal })
+    var lines = localModelLines.filter(function(line) {
+      return !usage.localModelAdded(line) || line.localModel.target === settingUpLocal || localSettingUp(localModelState(line.localModel))
+    })
     lines.sort(function(a, b) { return (a.localModel.host === "") - (b.localModel.host === "") })
     for (var i = 0; i < lines.length; i++) {
       var model = localModelState(lines[i].localModel)
@@ -559,7 +567,18 @@ Panel {
   // panel, where it has its line.
   property string settingUpLocal: ""
   readonly property var localSetup: settingUpLocal === "" ? null : localModelState({ target: settingUpLocal, host: "" })
-  readonly property var localSetupMeter: localMeter(localSetup, true)
+
+  function localSettingUp(model) {
+    return !!model && (model.panelSetup === true || model.unit === "installing")
+  }
+
+  // An offer's setup, or its start from here, as its row shows it.
+  function offerMeter(offer) {
+    if (!offer || offer.host !== "" || offer.target === "") return null
+    var model = localModelState(offer)
+    var starting = offer.target === settingUpLocal
+    return starting || localSettingUp(model) ? localMeter(model, starting) : null
+  }
   onLocalSetupChanged: {
     if (!localSetup || localSetup.unit !== "active" || localSetup.sub_state !== "running") return
     var target = settingUpLocal
@@ -761,7 +780,8 @@ Panel {
     }
     // A setup or start underway goes on; one that failed, or whose password
     // prompt was dismissed, is tried again.
-    if (offer.target === settingUpLocal && localSetupMeter && !localSetupMeter.failed) return
+    var meter = offerMeter(offer)
+    if (meter && !meter.failed) return
     var local = { target: offer.target, host: offer.host }
     var model = localModelState(local)
     usage.addLocalModel(offer.target)
@@ -1785,6 +1805,10 @@ Panel {
     usage.refreshLimits()
     usage.reloadDefaults()
     if (localModelsService) localModelsService.refreshNetwork()
+    // Whether a stopped model fits is as the engine last judged it; memory
+    // freed since lets it start, so it's judged again.
+    if (Object.keys(localModels).some(function(id) { return localModels[id].fits === false }))
+      Util.execArgv(["omarchy-models", "status", "--write"])
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
 
@@ -2379,7 +2403,7 @@ Panel {
             // The setup or start begun here: installing, downloading, then
             // loading, as its line will show it.
             LocalMeterRow {
-              meter: ownModel.modelData.target !== "" && ownModel.modelData.target === root.settingUpLocal ? root.localSetupMeter : null
+              meter: root.offerMeter(ownModel.modelData)
               visible: !!meter
               width: parent.width
               topPadding: Style.space(6)
