@@ -13,6 +13,22 @@ export TEST_LOG="$test_tmp/log"
 export TEST_RELEASES="$releases"
 mkdir -p "$mock_bin" "$releases"
 
+if command -v unshare >/dev/null && unshare -Ur true 2>/dev/null; then
+  mkdir -p "$test_tmp/root-bin" "$test_tmp/root-home"
+  # A missing root guard must stop at package work, not touch the host.
+  printf '#!/bin/bash\nexit 99\n' >"$test_tmp/root-bin/omarchy-pkg-add"
+  cp "$test_tmp/root-bin/omarchy-pkg-add" "$test_tmp/root-bin/omarchy-i18n"
+  chmod +x "$test_tmp/root-bin/"*
+  status=0
+  unshare -Ur env HOME="$test_tmp/root-home" PATH="$test_tmp/root-bin:/usr/bin:/bin" \
+    /bin/bash "$ROOT/bin/omarchy-install-t3code-app" stable >"$test_tmp/root.log" 2>&1 || status=$?
+  (( status == 1 )) && grep -q 'Run this command as your desktop user, without sudo.' "$test_tmp/root.log" ||
+    fail "T3 AppImage installer refuses root at its entrypoint" "$(cat "$test_tmp/root.log")"
+  pass "T3 AppImage installer refuses root before package or vendor work"
+else
+  skip "T3 AppImage installer root refusal (needs unprivileged user namespaces)"
+fi
+
 # A stand-in AppImage that extracts upstream's desktop entry and icons the
 # way the real runtime does: into squashfs-root under the working directory.
 make_appimage() {

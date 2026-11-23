@@ -2,9 +2,13 @@
 
 # omarchy:summary=Install T3 Code and point it at the Omarchy palette
 # omarchy:args=[stable|nightly] [--no-launch]
-# omarchy:requires-sudo=true
 
 set -e
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
 
 T3CODE_HOME="${T3CODE_HOME:-$HOME/.t3}"
 T3CODE_STATE_DIR="$T3CODE_HOME/userdata"
