@@ -162,7 +162,14 @@ set_terminal_size() {
     # but reuse the same notification id (freedesktop replaces_id) so dragging
     # through several sizes refreshes one toast instead of stacking a pile.
     if pgrep -x foot >/dev/null 2>&1; then
-      local id_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-display-text-size.foot-notif-id"
+      # The replaces_id must not live at a fixed /tmp name. Another local
+      # account can plant that file and the next open follows it.
+      local state_dir="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}"
+      if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+        mkdir -p "$state_dir" || return 0
+        chmod 700 "$state_dir" || return 0
+      fi
+      local id_file="$state_dir/omarchy-display-text-size.foot-notif-id"
       local prev_id=""
       [[ -f $id_file ]] && read -r prev_id <"$id_file" 2>/dev/null
       local replace=()

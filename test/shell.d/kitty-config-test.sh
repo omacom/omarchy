@@ -62,6 +62,23 @@ run_command omarchy-display-text-size 16
 grep -qx 'font_size 12.0' "$kitty_config" || fail "size command handles absent config"
 pass "font controls create missing Kitty overrides without restoring the theme include"
 
+# Foot is running, so a size change records the notification id. That id must
+# not be a fixed name in /tmp.
+printf '#!/bin/bash\nexit 0\n' >"$test_dir/bin/pgrep"
+cat >"$test_dir/bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf '42\n'
+SH
+chmod +x "$test_dir/bin/omarchy-notification-send"
+foot_config="$test_home/.config/foot/foot.ini"
+mkdir -p "$(dirname "$foot_config")"
+printf 'font=monospace:size=9\n' >"$foot_config"
+env -u XDG_RUNTIME_DIR HOME="$test_home" XDG_STATE_HOME="$test_dir/state" OMARCHY_PATH="$ROOT" \
+  PATH="$test_dir/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-display-text-size" 16 >/dev/null
+id_file="$test_dir/state/omarchy/omarchy-display-text-size.foot-notif-id"
+[[ $(cat "$id_file") == "42" && ! -L $id_file ]] || fail "foot notification id is kept in the private state dir"
+pass "foot notification id stays out of /tmp"
+
 # try-omarchy VMs put a wrapper named kitty on PATH that exits 127 until Kitty
 # is installed, so a command on PATH is not enough: ask Kitty itself.
 if "$ROOT/bin/omarchy-cmd-present" kitty && kitty --version >/dev/null 2>&1; then
