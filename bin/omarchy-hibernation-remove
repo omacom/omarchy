@@ -4,6 +4,8 @@
 # omarchy:requires-sudo=true
 
 MKINITCPIO_CONF="/etc/mkinitcpio.conf.d/omarchy_resume.conf"
+RESUME_DROP_IN="/etc/limine-entry-tool.d/resume.conf"
+RESUME_REBUILD_PENDING="/var/lib/omarchy/hibernation-resume-rebuild"
 
 # Check if hibernation is configured
 if [[ ! -f $MKINITCPIO_CONF ]] || ! grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
@@ -44,9 +46,9 @@ if grep -Fq "$SWAP_FILE" /etc/fstab; then
   sudo sed -i '/^# Btrfs swapfile for system hibernation$/d' /etc/fstab
 fi
 
-# Remove mkinitcpio resume hook
+# Remove mkinitcpio resume hook and Limine resume kernel parameters
 echo "Removing resume hook"
-sudo rm "$MKINITCPIO_CONF"
+sudo rm -f "$MKINITCPIO_CONF" "$RESUME_DROP_IN" "$RESUME_REBUILD_PENDING"
 
 echo "Regenerating initramfs..."
 sudo limine-mkinitcpio

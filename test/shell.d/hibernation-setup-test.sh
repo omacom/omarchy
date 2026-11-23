@@ -159,6 +159,26 @@ SWAP_SOURCE="/dev/mapper/root[/@]" setup --force --no-rebuild ||
   fail "a factory reset keeps an ARM computer's hibernation set up" "$(<"$rtmp/out")"
 printf '#!/bin/bash\nexit 1\n' >"$rtmp/bin/omarchy-hw-aarch64"
 pass "an ARM computer gets hibernation only when asked with --experimental"
+
+# Removing hibernation must also drop the Limine resume drop-in and pending
+# rebuild marker so a later setup writes a fresh offset for the new swapfile.
+sed -e "s|/etc/mkinitcpio.conf.d|$rtmp/mkinitcpio.conf.d|g" \
+  -e "s|/etc/limine-entry-tool.d|$rtmp/limine-entry-tool.d|g" \
+  -e "s|/etc/fstab|$rtmp/fstab|g" \
+  -e "s|SWAP_SUBVOLUME=\"/swap\"|SWAP_SUBVOLUME=\"$rtmp/swap\"|g" \
+  -e "s|/var/lib/omarchy|$rtmp/var-lib|g" \
+  "$ROOT/bin/omarchy-hibernation-remove" >"$rtmp/remove"
+printf '#!/bin/bash\nexit 0\n' >"$rtmp/bin/gum"
+printf '#!/bin/bash\nexit 0\n' >"$rtmp/bin/swapoff"
+chmod +x "$rtmp/bin/gum" "$rtmp/bin/swapoff"
+machine "$uuid_line"
+mkdir -p "$rtmp/var-lib"
+: >"$rtmp/var-lib/hibernation-resume-rebuild"
+env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  bash "$rtmp/remove" >"$rtmp/out" 2>&1 || fail "hibernation remove succeeds" "$(<"$rtmp/out")"
+[[ ! -e $rtmp/mkinitcpio.conf.d/omarchy_resume.conf && ! -e $drop_in && ! -e $rtmp/var-lib/hibernation-resume-rebuild ]] ||
+  fail "hibernation remove deletes resume hook, Limine drop-in, and pending rebuild marker"
+pass "hibernation remove cleans up the Limine resume drop-in and rebuild marker"
 rm -rf "$rtmp"
 
 if [[ ! -f /sys/power/image_size ]]; then
