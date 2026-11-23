@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import subprocess
 import sys
 import urllib.request
 from datetime import datetime, timezone
@@ -121,6 +122,26 @@ def read_config() -> dict[str, Any]:
   return read_json(config_home() / "omarchy" / "agents" / "zai.json")
 
 
+def command_key(command: str) -> str:
+  # `apiKeyCommand` in zai.json, for a key kept in a password manager or
+  # secret store (`pass show zai`, `fnox get ZAI_API_KEY`). The user wrote it
+  # into Omarchy's own config, so it runs; pi's `!command` entries never do.
+  try:
+    result = subprocess.run(
+      ["/bin/sh", "-c", command],
+      stdin=subprocess.DEVNULL,
+      stdout=subprocess.PIPE,
+      stderr=subprocess.DEVNULL,
+      timeout=10,
+      check=False,
+    )
+  except (OSError, subprocess.TimeoutExpired):
+    return ""
+  if result.returncode != 0:
+    return ""
+  return result.stdout.decode("utf-8", "replace").strip()
+
+
 def pi_agent_dir() -> Path:
   configured = os.environ.get("PI_CODING_AGENT_DIR", "").strip()
   return Path(os.path.expanduser(configured)) if configured else Path.home() / ".pi" / "agent"
@@ -143,6 +164,8 @@ def credentials() -> tuple[str, str]:
   # An explicit config file wins, then live env, then whatever omp/pi stored.
   key = str(config.get("apiKey") or "").strip()
   platform = str(config.get("platform") or "").strip().lower()
+  if not key and str(config.get("apiKeyCommand") or "").strip():
+    key = command_key(str(config["apiKeyCommand"]))
 
   if not key:
     if os.environ.get("ZAI_API_KEY"):
