@@ -67,7 +67,7 @@ sleep 0.15
 if [[ $use_universal == "true" ]]; then
   hyprctl dispatch 'o.universal_paste' >/dev/null 2>&1 || true
 elif [[ $use_shift_insert == "true" ]]; then
-  wtype -M shift -k Insert -m shift 2>/dev/null || true
+  omarchy-hyprland-send-shortcut SHIFT Insert 2>/dev/null || true
 else
   wtype "$text" 2>/dev/null || true
 fi
