@@ -152,7 +152,8 @@ function restored(entry) {
   var found = Detect.scan(row.summary, row.body)
   row.link = found.link
   row = normalise(row)
-  row.duration = row.urgency === 2 ? 0 : RESTORE_GRACE
+  // A critical card, or a sticky one, still waits for whoever comes back.
+  row.duration = row.urgency === 2 || row.sticky ? 0 : RESTORE_GRACE
   row.restored = true
   return row
 }
@@ -178,7 +179,7 @@ var HISTORY_ROW_CHARS = 4096
 // What a stored row keeps. Derived text is recomputed on restore; codes,
 // links and images never persist, so a stored row cannot assert a
 // capability.
-var STORED = ["key", "originalId", "senderPid", "execArgv", "execActions", "glyph", "app", "appIcon", "summary", "body",
+var STORED = ["key", "originalId", "senderPid", "execArgv", "execActions", "glyph", "sticky", "app", "appIcon", "summary", "body",
               "rawBody", "source", "groupKey", "urgency", "expireTimeout", "duration", "ts"]
 
 function storedSize(row) { return JSON.stringify(row).length }
