@@ -317,7 +317,7 @@ chmod +x "$FONT_TMPDIR/fake-bin/fc-list"
 PATH="$FONT_TMPDIR/fake-bin:$ROOT/bin:$PATH" HOME="$FONT_TMPDIR" \
   "$ROOT/bin/omarchy-font-set" "Test Font" >/dev/null
 
-grep -qx 'font=Test Font:size=12' "$FONT_TMPDIR/.config/foot/foot.ini" || fail "font set preserves the Foot size set by omarchy display text size"
+grep -qx 'font=Test Font:size=12, Noto Color Emoji:size=10' "$FONT_TMPDIR/.config/foot/foot.ini" || fail "font set preserves the Foot size set by omarchy display text size"
 pass "font set preserves the Foot size set by omarchy display text size"
 grep -qx 'font_size 12.0' "$FONT_TMPDIR/.config/kitty/kitty.conf" || fail "font set preserves kitty size"
 pass "font set preserves kitty size"

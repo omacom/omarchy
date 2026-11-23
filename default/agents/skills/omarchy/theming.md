@@ -57,8 +57,13 @@ omarchy theme set catppuccin-custom
 omarchy font list               # Available fonts
 omarchy font current            # Current font
 omarchy font set <name>         # Change the monospace font used everywhere
+omarchy font size               # Show this machine's terminal font size
+omarchy font size 11            # Set this machine's terminal font size
+omarchy display text size 14    # Shell + GTK + terminal, still per-machine for the terminal
 omarchy font cjk [jp|kr|sc|tc|hk|default]  # Glyph forms for Chinese, Japanese, and Korean text
 ```
+
+Family is shared. Terminal size is per-machine: `~/.config/ghostty/local`, `kitty/local.conf`, `foot/local.ini`, `alacritty/local.toml`.
 
 `omarchy font list` shows installed Nerd Fonts; a new one comes from the menu's Install > Style > Font, or `omarchy install font <display-name> <package> <family>`.
 
