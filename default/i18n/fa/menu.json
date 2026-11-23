@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "پیش‌فرض‌ها"
   },
-  "agent": {
-    "label": "عامل"
-  },
   "setup.default.browser": {
     "label": "مرورگر",
     "title": "مرورگر پیش‌فرض"

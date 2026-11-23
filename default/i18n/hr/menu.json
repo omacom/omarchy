@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Zadane postavke"
   },
-  "agent": {
-    "label": "Agent"
-  },
   "setup.default.browser": {
     "label": "Preglednik",
     "title": "Zadani preglednik"

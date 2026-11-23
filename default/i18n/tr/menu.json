@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Varsayılanlar"
   },
-  "agent": {
-    "label": "Ajan"
-  },
   "setup.default.browser": {
     "label": "Tarayıcı",
     "title": "Varsayılan Tarayıcı"

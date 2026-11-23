@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Noklusējumi"
   },
-  "agent": {
-    "label": "Aģents"
-  },
   "setup.default.browser": {
     "label": "Pārlūks",
     "title": "Noklusējuma pārlūks"

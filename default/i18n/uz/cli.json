@@ -285,6 +285,7 @@
   "plugin.removeTitle": "Plaginni olib tashlash",
   "plugin.removeWhich": "Qaysi plagin olib tashlansin?",
   "plugin.replacedByClone": "Asl plagin klon bilan almashtirildi.",
+  "polkit.authorizeInstalling": "%1 ni o‘rnatishga ruxsat bering",
   "preinstalls.confirmRemove": "Barcha oldindan oʻrnatilgan veb ilovalar, TUI oʻramlari va ish stoli ilovalarini olib tashlashga ishonchingiz komilmi?",
   "preinstalls.confirmRestore": "Barcha oldindan oʻrnatilgan veb ilovalar, TUI oʻramlari va ish stoli ilovalarini tiklashga ishonchingiz komilmi?",
   "region.changed": "Sanalar va raqamlar endi %1 dagidek yoziladi",

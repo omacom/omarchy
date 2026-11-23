@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Vaikimisi"
   },
-  "agent": {
-    "label": "Agent"
-  },
   "setup.default.browser": {
     "label": "Brauser",
     "title": "Vaikebrauser"

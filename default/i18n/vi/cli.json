@@ -283,6 +283,7 @@
   "plugin.removeTitle": "Gỡ plugin",
   "plugin.removeWhich": "Gỡ plugin nào?",
   "plugin.replacedByClone": "Plugin gốc đã bị thay bằng bản nhân bản.",
+  "polkit.authorizeInstalling": "Ủy quyền cài đặt %1",
   "preinstalls.confirmRemove": "Bạn có chắc muốn gỡ mọi ứng dụng web, wrapper TUI và ứng dụng máy tính để bàn đã cài sẵn không?",
   "preinstalls.confirmRestore": "Bạn có chắc muốn khôi phục mọi ứng dụng web, wrapper TUI và ứng dụng máy tính để bàn đã cài sẵn không?",
   "region.changed": "Ngày tháng và số giờ được viết theo kiểu %1",

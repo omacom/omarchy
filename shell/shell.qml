@@ -1651,7 +1651,7 @@ ShellRoot {
     var lines = String(raw || "").split("\n")
     for (var i = 0; i < lines.length; i++) {
       var match = /^([A-Za-z]+)\s+(\S+)\s*$/.exec(lines[i])
-      if (match && ["menu", "panel", "audio", "brightness", "ipc"].indexOf(match[1]) !== -1)
+      if (match && ["menu", "panel", "panelAt", "audio", "brightness", "ipc"].indexOf(match[1]) !== -1)
         entries.push({ kind: match[1], target: match[2], name: match[1] + "." + match[2] })
     }
     return entries
@@ -1664,13 +1664,28 @@ ShellRoot {
     if (entry.kind === "menu") {
       shell.toggle("omarchy.menu", JSON.stringify({ menu: entry.target }))
     } else if (entry.kind === "ipc") {
-      // "media.next" runs the media service's own IPC handler for next.
-      var dot = entry.target.indexOf(".")
+      // "media.next" runs the media service's own IPC handler for next;
+      // dotted plugin targets like "omarchy.dock.apps" dispatch through
+      // IpcRegistry in-process.
+      var dot = entry.target.lastIndexOf(".")
       var target = entry.target.slice(0, dot)
       var method = entry.target.slice(dot + 1)
       var service = shell.serviceFor(shell.ipcShortcutServices[target] || "")
-      if (!service || !service.runShortcut(method))
-        Util.execArgv(["omarchy-shell", target, method])
+      if (service && service.runShortcut(method)) {
+        if (target === "notifications" && method === "toggleDnd")
+          IpcRegistry.call("omarchy.indicators", "refresh", [])
+        return
+      }
+      if (IpcRegistry.call(target, method, []).ran) return
+      Util.execArgv(["omarchy-shell", target, method])
+    } else if (entry.kind === "panelAt") {
+      var colon = entry.target.indexOf(":")
+      var section = colon >= 0 ? entry.target.slice(0, colon) : "right"
+      var index = colon >= 0 ? entry.target.slice(colon + 1) : entry.target
+      var id = shell.bar && typeof shell.bar.panelWidgetIdAt === "function"
+        ? shell.bar.panelWidgetIdAt(section, index)
+        : ""
+      if (id) shell.toggle(id, "{}")
     } else if (entry.kind === "brightness") {
       if (!shell.brightnessKeys.handle(entry.target))
         Util.execArgv(["omarchy-brightness-display", entry.target === "raise" ? "+5%" : "5%-"])

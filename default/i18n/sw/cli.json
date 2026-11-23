@@ -285,6 +285,7 @@
   "plugin.removeTitle": "Ondoa programu-jalizi",
   "plugin.removeWhich": "Ondoa programu-jalizi gani?",
   "plugin.replacedByClone": "Programu-jalizi asilia imebadilishwa na nakala.",
+  "polkit.authorizeInstalling": "Idhinisha kusakinisha %1",
   "preinstalls.confirmRemove": "Una uhakika unataka kuondoa programu zote za wavuti, vifungashio vya TUI, na programu za eneo-kazi zilizosakinishwa awali?",
   "preinstalls.confirmRestore": "Una uhakika unataka kurejesha programu zote za wavuti, vifungashio vya TUI, na programu za eneo-kazi zilizosakinishwa awali?",
   "region.changed": "Tarehe na nambari sasa zinaandikwa kama katika %1",

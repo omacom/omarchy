@@ -287,6 +287,7 @@
   "plugin.removeTitle": "Noņemt spraudni",
   "plugin.removeWhich": "Kuru spraudni noņemt?",
   "plugin.replacedByClone": "Oriģinālais spraudnis ir aizstāts ar klonu.",
+  "polkit.authorizeInstalling": "Atļaut instalēt %1",
   "preinstalls.confirmRemove": "Vai tiešām noņemt visas sākotnēji instalētās tīmekļa lietotnes, TUI apvalkus un darbvirsmas lietotnes?",
   "preinstalls.confirmRestore": "Vai tiešām atjaunot visas sākotnēji instalētās tīmekļa lietotnes, TUI apvalkus un darbvirsmas lietotnes?",
   "region.changed": "Datumi un skaitļi tagad tiek rakstīti kā %1",

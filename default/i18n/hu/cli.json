@@ -285,6 +285,7 @@
   "plugin.removeTitle": "Bővítmény eltávolítása",
   "plugin.removeWhich": "Melyik bővítményt távolítod el?",
   "plugin.replacedByClone": "Az eredeti bővítményt felváltotta a klón.",
+  "polkit.authorizeInstalling": "Telepítés engedélyezése: %1",
   "preinstalls.confirmRemove": "Biztosan eltávolítod az összes előre telepített webalkalmazást, TUI-csomagolót és asztali alkalmazást?",
   "preinstalls.confirmRestore": "Biztosan visszaállítod az összes előre telepített webalkalmazást, TUI-csomagolót és asztali alkalmazást?",
   "region.changed": "A dátumok és számok mostantól %1 szerint íródnak",

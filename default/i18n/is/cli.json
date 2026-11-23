@@ -285,6 +285,7 @@
   "plugin.removeTitle": "Fjarlægja viðbót",
   "plugin.removeWhich": "Fjarlægja hvaða viðbót?",
   "plugin.replacedByClone": "Klóinn hefur leyst upphaflegu viðbótina af hólmi.",
+  "polkit.authorizeInstalling": "Heimila uppsetningu á %1",
   "preinstalls.confirmRemove": "Ertu viss um að þú viljir fjarlægja öll fyrirfram uppsett vefforrit, TUI-umbúðir og skjáborðsforrit?",
   "preinstalls.confirmRestore": "Ertu viss um að þú viljir endurheimta öll fyrirfram uppsett vefforrit, TUI-umbúðir og skjáborðsforrit?",
   "region.changed": "Dagsetningar og tölur eru nú skrifaðar eins og í %1",

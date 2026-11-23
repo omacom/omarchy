@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Domyślne"
   },
-  "agent": {
-    "label": "Agent"
-  },
   "setup.default.browser": {
     "label": "Przeglądarka",
     "title": "Domyślna przeglądarka"

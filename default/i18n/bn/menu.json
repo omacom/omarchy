@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "ডিফল্টসমূহ"
   },
-  "agent": {
-    "label": "এজেন্ট"
-  },
   "setup.default.browser": {
     "label": "ব্রাউজার",
     "title": "ডিফল্ট ব্রাউজার"

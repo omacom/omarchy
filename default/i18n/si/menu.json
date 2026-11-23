@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "පෙරනිමි"
   },
-  "agent": {
-    "label": "ඒජන්ට්"
-  },
   "setup.default.browser": {
     "label": "බ්‍රවුසරය",
     "title": "පෙරනිමි බ්‍රවුසරය"

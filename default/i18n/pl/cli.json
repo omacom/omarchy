@@ -289,6 +289,7 @@
   "plugin.removeTitle": "Usuń wtyczkę",
   "plugin.removeWhich": "Którą wtyczkę usunąć?",
   "plugin.replacedByClone": "Oryginalna wtyczka została zastąpiona klonem.",
+  "polkit.authorizeInstalling": "Autoryzuj instalację %1",
   "preinstalls.confirmRemove": "Czy na pewno chcesz usunąć wszystkie preinstalowane aplikacje internetowe, nakładki TUI i aplikacje pulpitu?",
   "preinstalls.confirmRestore": "Czy na pewno chcesz przywrócić wszystkie preinstalowane aplikacje internetowe, nakładki TUI i aplikacje pulpitu?",
   "region.changed": "Daty i liczby są teraz zapisywane jak w %1",

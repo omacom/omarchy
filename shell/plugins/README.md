@@ -30,7 +30,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | System        | `omarchy.system`          | `bar-widget`            | `panels/system/Panel.qml`             |
 | Tailscale     | `omarchy.tailscale`       | `bar-widget`            | `panels/tailscale/Panel.qml`          |
 | Agents   | `omarchy.agents`     | `bar-widget`            | `agents/Panel.qml`               |
-| Local models | `omarchy.local-models` | `bar-widget`        | `local-models/Panel.qml`              |
+| Local models | `omarchy.local-models` | `service`           | `local-models/Models.qml`             |
 | Weather       | `omarchy.weather`         | `bar-widget`            | `panels/weather/BarWidget.qml`        |
 | Media         | `omarchy.media`           | `service`, `bar-widget` | `services/media/Service.qml`, `services/media/BarWidget.qml` |
 | Battery       | `omarchy.battery`         | `service`               | `services/battery/Service.qml`        |

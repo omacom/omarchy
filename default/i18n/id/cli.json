@@ -283,6 +283,7 @@
   "plugin.removeTitle": "Hapus Plugin",
   "plugin.removeWhich": "Hapus plugin yang mana?",
   "plugin.replacedByClone": "Plugin asli telah digantikan oleh kloning.",
+  "polkit.authorizeInstalling": "Izinkan pemasangan %1",
   "preinstalls.confirmRemove": "Anda yakin ingin menghapus semua aplikasi web, pembungkus TUI, dan aplikasi desktop bawaan?",
   "preinstalls.confirmRestore": "Anda yakin ingin memulihkan semua aplikasi web, pembungkus TUI, dan aplikasi desktop bawaan?",
   "region.changed": "Tanggal dan angka kini ditulis seperti di %1",

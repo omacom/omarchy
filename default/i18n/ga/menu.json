@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Réamhshocruithe"
   },
-  "agent": {
-    "label": "Gníomhaire"
-  },
   "setup.default.browser": {
     "label": "Brabhsálaí",
     "title": "Brabhsálaí réamhshocraithe"

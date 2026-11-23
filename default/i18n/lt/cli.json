@@ -287,6 +287,7 @@
   "plugin.removeTitle": "Pašalinti įskiepį",
   "plugin.removeWhich": "Kurį įskiepį pašalinti?",
   "plugin.replacedByClone": "Originalus įskiepis pakeistas klonu.",
+  "polkit.authorizeInstalling": "Leisti įdiegti %1",
   "preinstalls.confirmRemove": "Ar tikrai norite pašalinti visas iš anksto įdiegtas žiniatinklio programas, TUI apvalkalus ir darbalaukio programas?",
   "preinstalls.confirmRestore": "Ar tikrai norite atkurti visas iš anksto įdiegtas žiniatinklio programas, TUI apvalkalus ir darbalaukio programas?",
   "region.changed": "Datos ir skaičiai dabar rašomi kaip %1",
