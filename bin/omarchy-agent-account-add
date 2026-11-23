@@ -89,9 +89,13 @@ synthetic) provider="synthetic"; name="Synthetic"; key_provider="synthetic" ;;
 zai) provider="zai"; name="Z.ai"; key_provider="zai" ;;
 *) usage ;;
 esac
+# What's ready once signed in: the agent's own app, or for a key, the
+# provider, which OpenCode only runs.
+ready_name=${app-}
 # No CLI of their own: an API key is the sign-in, and OpenCode runs on it.
 if [[ -n $key_provider ]]; then
   harness="opencode"; app="OpenCode"; package="opencode"; login_command=(key_login "$key_provider")
+  ready_name=$name
 fi
 harness=${harness-$provider}
 label="${2:-}"
@@ -162,11 +166,11 @@ finish() {
     printf '@@omarchy done %s\n' "$1"
     if [[ ${2:-} == "ready" ]]; then
       omarchy-notification-send --sticky -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
-        "$(omarchy-i18n agents.readyToCode "$app")" "$(omarchy-i18n agents.readyToCodeBody)" \
+        "$(omarchy-i18n agents.readyToCode "$ready_name")" "$(omarchy-i18n agents.readyToCodeBody)" \
         --exec omarchy-agent --agent "$harness" --app-id="org.omarchy.$harness"
     elif [[ ${2:-} == "more" ]]; then
       omarchy-notification-send --sticky -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
-        "$(omarchy-i18n agents.readyForMore "$app")" "$(omarchy-i18n agents.readyForMoreBody "$3")" \
+        "$(omarchy-i18n agents.readyForMore "$ready_name")" "$(omarchy-i18n agents.readyForMoreBody "$3")" \
         --exec omarchy-agent --agent "$harness" --app-id="org.omarchy.$harness"
     else
       omarchy-notification-send --sticky -g 󰚩 --image "$(omarchy-agent-logo "$provider")" "$1"
@@ -329,11 +333,14 @@ key_login() {
   # The provider has to answer for the key: a refusal returns 2, and a check
   # that couldn't reach it returns 3, so it can be tried again rather than
   # saving a key nobody has vouched for.
-  local status check_home
+  local status check_home check_args=(--force)
+  # Fireworks answers for a key in a second, but its full usage takes about
+  # twenty, so it only checks the key.
+  [[ $provider == "fireworks" ]] && check_args=(--check-key)
   check_home=$(mktemp -d) || return 3
   status=$(env HOME="$check_home" XDG_CONFIG_HOME="$check_home/.config" XDG_DATA_HOME="$check_home/.local/share" \
     XDG_STATE_HOME="$check_home/.local/state" XDG_CACHE_HOME="$check_home/.cache" "${provider^^}_API_KEY=$key" \
-    "omarchy-agent-usage-$provider" --force | jq -r '.usageStatusText // "unreadable"')
+    "omarchy-agent-usage-$provider" "${check_args[@]}" | jq -r '.usageStatusText // "unreadable"')
   local check_status=$?
   rm -rf "$check_home"
   (( check_status == 0 )) || return 3

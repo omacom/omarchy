@@ -532,8 +532,11 @@ pass "--check says what adding would mean for each provider"
 # imported into OpenCode, without ever being a command argument.
 fireworks_bin="$test_tmp/fireworks-bin"
 mkdir -p "$fireworks_bin"
-cat >"$fireworks_bin/omarchy-agent-usage-fireworks" <<'SH'
+cat >"$fireworks_bin/omarchy-agent-usage-fireworks" <<SH
 #!/bin/bash
+echo "\$*" >>"$test_tmp/fireworks-check-args"
+SH
+cat >>"$fireworks_bin/omarchy-agent-usage-fireworks" <<'SH'
 # A key saved elsewhere, as Z.ai's config file can hold one, would vouch for
 # any key it was checked beside.
 if [[ -f ${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/agents/fireworks.json ]]; then
@@ -580,12 +583,18 @@ if PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"
 fi
 pass "a key that couldn't be checked is not saved"
 
+: >"$notifications"
+: >"$test_tmp/fireworks-check-args"
 PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"fw_good" >"$test_tmp/fireworks-output"
 [[ ! -e $HOME/.pi/agent/auth.json ]] || fail "a Fireworks key is not saved for pi"
 grep -q "^auth import fw_good$" "$test_tmp/fireworks-opencode" && grep -q "^auth switch fireworks-ai omarchy-" "$test_tmp/fireworks-opencode" ||
   fail "a Fireworks key is made opencode's active one" "$(cat "$test_tmp/fireworks-opencode")"
 grep -q "^@@omarchy key " "$test_tmp/fireworks-output" && grep -qx "@@omarchy done Signed in to Fireworks." "$test_tmp/fireworks-output" ||
   fail "the panel is asked for the key and told the result" "$(cat "$test_tmp/fireworks-output")"
+[[ $(head -1 "$test_tmp/fireworks-check-args") == "--check-key" ]] ||
+  fail "a Fireworks key is only checked, not read for its usage" "$(cat "$test_tmp/fireworks-check-args")"
+grep -q "Fireworks is ready" "$notifications" && ! grep -q "OpenCode is ready" "$notifications" ||
+  fail "a key's sign-in says the provider is ready, not OpenCode" "$(cat "$notifications")"
 pass "a Fireworks key is saved in OpenCode"
 
 # Removing a key's sign-in logs out each of the provider's OpenCode

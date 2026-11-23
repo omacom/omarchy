@@ -570,16 +570,46 @@ def scan(api_base_url: str, auth_path: Path, force: bool = False, limits_only: b
   return record
 
 
+def check_key(api_base_url: str, auth_path: Path) -> dict[str, Any]:
+  """Whether Fireworks takes the key, from finding its account alone, as
+  a sign-in checks one before saving it: the spend and usage a scan reads
+  take seconds more, the daily costs most of them."""
+  api_key, account_id = credentials(auth_path)
+  if not api_key:
+    return base_record()
+  record = base_record(ready=True)
+  client = FireworksClient(api_key, api_base_url)
+  try:
+    # A configured account is the one the key must reach, as a scan reads
+    # it: discovery would refuse a key that reaches several.
+    account_id = normalize_account_id(account_id) if account_id else ""
+    if account_id:
+      client.account(account_id)
+    else:
+      client.discover_account()
+  except FireworksAuthError:
+    record["usageStatusText"] = "Sign-in expired"
+    record["authHelpText"] = "Fireworks rejected the API key. " + AUTH_HELP
+  except FireworksError as error:
+    record["usageStatusText"] = "Fireworks unavailable"
+    record["authHelpText"] = str(error)
+  return record
+
+
 def main() -> int:
   parser = argparse.ArgumentParser(description="Print the Fireworks usage record as JSON")
   parser.add_argument("--force", action="store_true", help="re-fetch usage and spend, ignoring caches")
   parser.add_argument("--limits-only", action="store_true", help="reuse any recent usage answer; only the spend must be fresh")
+  parser.add_argument("--check-key", action="store_true", help="only check that Fireworks takes the key, reading no usage or spend")
   parser.add_argument("--auth-path", default=os.environ.get("FIREWORKS_AUTH_PATH", "~/.fireworks/auth.ini"))
   parser.add_argument("--api-base-url", default=os.environ.get("FIREWORKS_API_BASE_URL", API_BASE_URL))
   args = parser.parse_args()
 
   try:
-    record = scan(args.api_base_url, Path(args.auth_path).expanduser(), args.force, args.limits_only)
+    if args.check_key:
+      record = check_key(args.api_base_url, Path(args.auth_path).expanduser())
+    else:
+      record = scan(args.api_base_url, Path(args.auth_path).expanduser(), args.force, args.limits_only)
   except Exception as error:
     record = base_record(usageStatusText="Fireworks unavailable", authHelpText="Fireworks usage scan failed")
     print(f"omarchy-agent-usage-fireworks: {type(error).__name__}", file=sys.stderr)
