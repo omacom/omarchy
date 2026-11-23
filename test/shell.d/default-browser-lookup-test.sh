@@ -43,7 +43,7 @@ cat >"$XDG_CONFIG_HOME/mimeapps.list" <<'EOF'
 [Added Associations]
 x-scheme-handler/http=firefox.desktop;
 
-[Default Applications]
+[Default Applications]   
 text/html=firefox.desktop
 x-scheme-handler/http=missing.desktop;removed.desktop;chromium.desktop;
 EOF
