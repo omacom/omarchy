@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy juhtimine käib tavaliselt kiirklahvide ja Omarchy menüü (`Super + Space`) kaudu. Aga seda saab juhtida ka `omarchy` CLI kaudu. See on eriti abiks siis, kui AI agent töötab koos sinuga kohanduste või seadistuste kallal.
+Omarchyt juhitakse tavaliselt kiirklahvide ja Omarchy menüü (`Super + Space`) kaudu. Aga seda saab juhtida ka `omarchy` CLI kaudu. See on eriti abiks siis, kui lased AI agendil endaga koos kohandusi või seadistusi teha.
 
-CLI kaudu on ligipääs kõigile sisemistele tööriistadele, mida kasutatakse nii menüü kaudu kui ka muul viisil. Kõike, mis on saadaval, näed, kui käivitad terminalis `omarchy`.
+CLI-l on juurdepääs kõigile sisemistele tööriistadele, mida kasutatakse nii menüü kaudu kui ka muul viisil. Kõike saadaolevat näed, kui käivitad terminalis `omarchy`.
 
-See näeb välja umbes selline:
+See näeb välja umbes nii:
 
 ```
 ~ ❯ omarchy
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -41,23 +42,23 @@ Groups:
   ...
 ```
 
-Diagnostikaks käivita otse `omarchy-debug --no-sudo --print`. See prindib diagnostika ja kirjutab `/tmp/omarchy-debug.log` ilma sudo parooli küsimata, ka pakettide installide korral, kus `omarchy debug` võib nurjuda veaga "Unknown Omarchy command".
+Diagnostika jaoks käivita otse `omarchy-debug --no-sudo --print`. See prindib diagnostika ja kirjutab `/tmp/omarchy-debug.log` ilma sudo parooli küsimata, ka pakettide installide puhul, kus `omarchy debug` võib nurjuda veaga "Unknown Omarchy command".
 
-Ja igasse rühma saad süveneda:
+Ja iga rühma saad lähemalt uurida:
 
 ```
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Iga käsk toetab ka `--help` valikut, olenemata sellest, kas küsid tervet rühma (`omarchy capture --help`) või ühte käsku (`omarchy capture screenshot --help`).
+Iga käsk võtab ka `--help`, olgu selleks terve rühm (`omarchy capture --help`) või üksikkäsk (`omarchy capture screenshot --help`).
 
 ### Menüü avamine terminalist
 
-Omarchy menüü on samuti skriptitav, mis on mugav oma klahviseadete jaoks. `omarchy menu` avab selle juurtasemel ja saad hüpata otse ükskõik millisesse kohta puus, kui selle nimetad: `omarchy menu summon appearance.theme` viib otse teemavalijasse, `omarchy menu toggle system` avab süsteemimenüü ja sulgeb selle uuesti, kui see on juba avatud, ning `omarchy menu close` peidab selle.
+Omarchy menüü on samuti skriptitav, mis on mugav oma kiirklahvide jaoks. `omarchy menu` avab selle juurest ja sa saad hüpata otse ükskõik millisesse puu punkti, nimetades selle: `omarchy menu summon appearance.theme` läheb otse teemavalijasse, `omarchy menu toggle system` avab süsteemimenüü ja sulgeb selle uuesti, kui see on juba lahti, ning `omarchy menu close` paneb selle ära.
