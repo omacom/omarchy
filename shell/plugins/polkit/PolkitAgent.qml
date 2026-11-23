@@ -56,8 +56,10 @@ Item {
   // just frames the centered sensor icon.
   readonly property int cardWidth: fingerprintMode ? cardHeight : Math.min(Style.space(312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
 
+  // A command's label never stands in for what pkexec runs: the program
+  // stays at the end, which the line keeps in view however it's cut.
   function authorizationLabel(message) {
-    if (currentLabel !== "") return currentLabel
+    if (currentLabel !== "") return currentLabel + " · " + PolkitModel.promptProgram(message)
     return message ? PolkitModel.authorizationLabel(message, I18n.t) : I18n.t("polkit.authenticationNeeded")
   }
 
@@ -113,6 +115,8 @@ Item {
 
   function beginFlow() {
     closeTimer.stop()
+    // A request arriving while the last one's dialog closes is its own.
+    currentLabel = ""
     closing = false
     submitted = false
     passwordInput.text = ""

@@ -31,6 +31,7 @@ assertEqual(polkit.expectedLabel("Authentication is needed to run `/usr/bin/true
 assertEqual(polkit.expectedLabel('Authentication is required to change system settings', expected, 500), '', 'a prompt that names no program keeps its own label')
 assertEqual(polkit.expectedLabel(pacman, expected, 1001), '', 'a label not used within its minute is dropped')
 assertEqual(polkit.expectedLabel(pacman, null, 500), '', 'with nothing expected a prompt keeps its own label')
+assertEqual(polkit.promptProgram(pacman), '/usr/bin/pacman', 'a pkexec prompt names the program it runs, which a label never hides')
 
 assert(
   polkit.fingerprintConfiguredFromPamConfig(`

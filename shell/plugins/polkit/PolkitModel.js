@@ -45,6 +45,7 @@ if (typeof module !== "undefined") {
     promptLooksFingerprint: promptLooksFingerprint,
     fingerprintConfiguredFromPamConfig: fingerprintConfiguredFromPamConfig,
     authorizationLabel: authorizationLabel,
+    promptProgram: promptProgram,
     expectedLabel: expectedLabel
   }
 }
