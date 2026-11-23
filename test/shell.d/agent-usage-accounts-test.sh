@@ -113,6 +113,32 @@ USAGE.pop("token-main")
 record = claude()
 check("a primary home signed in to another subscription doesn't inherit its limits",
       0.55 not in [entry["percent"] for entry in record["accounts"][0]["limits"]], record)
+
+# An account whose sign-in lapsed but that has an API key reads as the key: no
+# plan, whatever the registry kept from before, and nothing to sign in to.
+write_json(accounts / "claude" / "old" / ".claude.json", {"primaryApiKey": "sk-ant-test"})
+registry("claude", [
+  {"id": "main", "label": "Main", "home": "", "primary": True, "email": "me@example.com"},
+  {"id": "old", "label": "Old", "home": str(accounts / "claude" / "old"), "primary": False, "email": "old@example.com", "plan": "Max 5x"},
+], active="old", switch="auto", threshold=95)
+record = claude()
+expect("an account on its API key has no plan and nothing to sign in to",
+       [record["accounts"][1]["plan"], record["accounts"][1]["usageStatusText"], record["tierLabel"], record["ready"]], ["", "", "", True], record)
+
+# An active login moves to the primary home; its parked home no longer has it.
+credentials_file = home() / ".claude" / ".credentials.json"
+saved_credentials = credentials_file.read_bytes()
+credentials_file.unlink()
+(accounts / "claude" / "old" / ".claude.json").unlink()
+write_json(home() / ".claude.json", {"primaryApiKey": "sk-ant-test"})
+registry("claude", [
+  {"id": "main", "label": "Main", "home": "", "login": str(accounts / "claude" / "main"), "primary": True},
+  {"id": "old", "label": "Old", "home": str(accounts / "claude" / "old"), "login": str(home() / ".claude"), "primary": False, "plan": "Max 5x"},
+], active="old")
+record = claude()
+expect("an active account reads its API key where the login moved",
+       [record["accounts"][1]["plan"], record["accounts"][1]["usageStatusText"], record["tierLabel"]], ["", "", ""], record)
+credentials_file.write_bytes(saved_credentials)
 (home() / ".claude.json").unlink()
 
 # A registry with one account changes nothing about the record.
