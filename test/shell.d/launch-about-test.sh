@@ -29,8 +29,28 @@ source "$tmp_dir/about.bash"
 [[ $(type -t sheen_build) == "function" ]] || fail "the launcher finds the sheen it sources"
 pass "the launcher finds the sheen it sources"
 
+[[ $(type -t about_fastfetch) == "function" ]] || fail "About has its own fastfetch so it can draw the branding file"
+pass "About has its own fastfetch so it can draw the branding file"
+[[ $(declare -f about_fastfetch) == *"--logo-type file"* && $(declare -f about_fastfetch) == *'"$LOGO_FILE"'* ]] ||
+  fail "About draws the branding file rather than the terminal wordmark"
+pass "About draws the branding file rather than the terminal wordmark"
+[[ $(declare -f measure_layout) == *"about_fastfetch"* ]] || fail "layout measurement draws the branding file"
+pass "layout measurement draws the branding file"
+
 # Kept before the stubs replace it, so the real one can be exercised below.
 real_measure_layout=$(declare -f measure_layout)
+
+# BSD wc -L counts bytes for the block art; GNU wc -L counts cells. The fit
+# below asks for a 10-column logo, so count characters the way the sheen does.
+display_columns() {
+  local line max=0
+  while IFS= read -r line || [[ -n $line ]]; do
+    if (( ${#line} > max )); then
+      max=${#line}
+    fi
+  done
+  printf '%s' "$max"
+}
 
 # Stand in for the terminal, and for the fastfetch run that measures the layout.
 rows_by_cols="45 140"
@@ -178,6 +198,14 @@ painted=$(play_sheen || true)
 [[ $painted == "firstsecondthird" ]] || fail "an undisturbed sweep writes every frame" "$(printf '%q' "$painted")"
 pass "an undisturbed sweep writes every frame"
 
+# Every builder above can be exercised while nothing on screen ever animates, so
+# check that the render loop is what calls them.
+render_block=$(sed -n '/--render/,$p' "$about")
+for called in build_sheen play_sheen rest_sheen about_fastfetch; do
+  [[ $render_block == *"$called"* ]] || fail "the render loop plays the sheen" "it never calls $called"
+done
+pass "the render loop plays the sheen"
+
 measure_layout() { return 1; }
 refuses "a layout fastfetch cannot be measured from leaves it still"
 
@@ -193,11 +221,13 @@ measure_layout() {
   LOGO_COLOR=$logo_color
 }
 fastfetch() {
-  case ${1:-} in
-    --list-config-paths) printf '%s\n' "${config_paths[@]}" ;;
-    --logo) for i in $(seq 29); do printf '%065d\n' 0; done ;;
-    *) return 1 ;;
-  esac
+  if [[ ${1:-} == --list-config-paths ]]; then
+    printf '%s\n' "${config_paths[@]}"
+  elif [[ " $* " == *" --logo none "* ]]; then
+    for i in $(seq 29); do printf '%065d\n' 0; done
+  else
+    return 1
+  fi
 }
 hyprctl() {
   [[ $1 == "clients" ]] && printf '[{"class":"org.omarchy.about","address":"0x1","size":[800,600]}]\n'
@@ -261,6 +291,35 @@ if measure_layout; then
 else
   pass "a render without the logo in it is not measured"
 fi
+
+fastfetch() {
+  if [[ ${1:-} == --list-config-paths ]]; then
+    printf '%s\n' "$HOME/.config/fastfetch/" "$OMARCHY_FASTFETCH_DIR/ (*)"
+  else
+    printf '%s\0' "$@" >"$tmp_dir/fastfetch-args"
+  fi
+}
+mkdir -p "$HOME/.config/fastfetch"
+touch "$HOME/.config/fastfetch/config.jsonc"
+about_fastfetch --pipe false
+mapfile -d '' -t fetched_args <"$tmp_dir/fastfetch-args"
+[[ ${#fetched_args[@]} == 2 && ${fetched_args[0]} == --pipe && ${fetched_args[1]} == false ]] ||
+  fail "custom fastfetch configs retain control of their logo"
+pass "About preserves custom fastfetch logo configuration"
+rm "$HOME/.config/fastfetch/config.jsonc"
+about_fastfetch --pipe false
+mapfile -d '' -t fetched_args <"$tmp_dir/fastfetch-args"
+[[ ${#fetched_args[@]} == 6 && ${fetched_args[0]} == --logo-type && ${fetched_args[1]} == file && ${fetched_args[3]} == "$LOGO_FILE" ]] ||
+  fail "the default About config still receives the branding file"
+pass "default About configuration still uses its branding file"
+
+mkdir -p "${ABOUT_CONFIG%/*}"
+printf '%s\n' '{"modules":["title"]}' > "$ABOUT_CONFIG"
+about_fastfetch --pipe false
+mapfile -d '' -t fetched_args <"$tmp_dir/fastfetch-args"
+[[ "${fetched_args[*]}" == "--logo-type file --logo $LOGO_FILE -c $ABOUT_CONFIG --pipe false" ]] ||
+  fail "the translated About configuration retains its branding file"
+pass "the translated About configuration retains its branding file"
 
 # The CPU row splits in two only when the whole line would overrun the box, and
 # the continuation row prints nothing otherwise, which fastfetch hides.
