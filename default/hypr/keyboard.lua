@@ -60,4 +60,31 @@ function keyboard.jis()
   return layout:match("^[^,]*") == "jp"
 end
 
+-- Hyprland matches a keysym bind against what a key types without Shift, so a
+-- bind on / never fires on the layouts below, which type / only with Shift.
+-- They put punctuation on the key US types / on, so bind that key instead.
+-- Period has the same problem on the French-derived layouts.
+local needs_shift = {
+  SLASH = { code = 61, layouts = " at az ba be cd ch cz de dk dz ee es fi fo fr hr hu it latam me ml no pt se si sk sn tg tr " },
+  PERIOD = { code = 60, layouts = " be cd dz fr ml sn tg " },
+}
+
+-- Variants that move the letters around can put one on that key: F on bépo.
+local function moves_letters(variant)
+  return variant:find("dvorak") or variant:find("bepo") or variant:find("colemak") or variant:find("neo") or variant:find("workman")
+end
+
+function keyboard.key(keysym)
+  local selected = keyboard.selected()
+  local layout = (selected.XKBLAYOUT or "us"):match("^[^,]*")
+  local variant = (selected.XKBVARIANT or ""):match("^[^,]*")
+  local symbol = needs_shift[keysym]
+
+  if symbol and symbol.layouts:find(" " .. layout .. " ", 1, true) and not moves_letters(variant) then
+    return "code:" .. symbol.code
+  end
+
+  return keysym
+end
+
 return keyboard

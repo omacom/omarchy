@@ -1,3 +1,5 @@
+local keyboard = require("default.hypr.keyboard")
+
 o.bind("SUPER + W", "Close window", hl.dsp.window.close())
 o.bind("SUPER + Q", "Close window", hl.dsp.window.close())
 o.bind("CTRL + ALT + DELETE", "Close all windows", "omarchy-hyprland-window-close-all")
@@ -105,5 +107,6 @@ for index = 1, 5 do
   o.bind("SUPER + ALT + code:" .. tostring(index + 9), "Switch to group window " .. index, hl.dsp.group.active({ index = index }))
 end
 
-o.bind("SUPER + SLASH", "Monitor scaling up", "omarchy-hyprland-monitor-scaling up")
-o.bind("SUPER + ALT + SLASH", "Monitor scaling down", "omarchy-hyprland-monitor-scaling down")
+local slash = keyboard.key("SLASH")
+o.bind("SUPER + " .. slash, "Monitor scaling up", "omarchy-hyprland-monitor-scaling up")
+o.bind("SUPER + ALT + " .. slash, "Monitor scaling down", "omarchy-hyprland-monitor-scaling down")
