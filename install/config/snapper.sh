@@ -27,7 +27,7 @@ fi
 theirs=""
 for name in "${listed[@]}"; do
   if grep -qx "SUBVOLUME=\"$SNAPPER_HOME\"" "$SNAPPER_CONFIG_DIR/$name" &&
-    { [[ $name != "home" ]] || ! grep -qF "$(head -n 1 "$home_template")" "$SNAPPER_CONFIG_DIR/$name"; }; then
+    { [[ $name != "home" ]] || ! grep -qxF "$(head -n 1 "$home_template")" "$SNAPPER_CONFIG_DIR/$name"; }; then
     theirs="$name"
   fi
 done
@@ -35,8 +35,11 @@ done
 create_config root / || { echo "Could not create the Snapper config for /" >&2; exit 1; }
 install -m 0644 "$template" "$SNAPPER_CONFIG_DIR/root"
 configs=(root)
+omarchy_home=$(head -n 1 "$home_template")
 for name in "${listed[@]}"; do
-  [[ $name != "home" || $theirs == "home" ]] && configs+=("$name")
+  # Omarchy's own home config is added back below, where /home still has one.
+  [[ $name == "home" ]] && grep -qxF "$omarchy_home" "$SNAPPER_CONFIG_DIR/home" && continue
+  configs+=("$name")
 done
 
 ours=0

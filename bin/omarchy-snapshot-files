@@ -25,7 +25,7 @@ import time
 
 SNAPSHOTS = os.environ.get("OMARCHY_SNAPSHOTS_DIR", "/home/.snapshots")
 SUBVOLUME = os.environ.get("OMARCHY_SNAPSHOTS_SUBVOLUME", "/home")
-CACHE_VERSION = 3
+CACHE_VERSION = 4
 
 # Churn rather than anything a person deleted: dependencies and bytecode come
 # back on their own, hidden folders are mostly caches, and editors and office
@@ -254,10 +254,10 @@ class Comparison:
       for entry in entries:
         if entry.is_dir(follow_symlinks=False) or skipped(entry.name, False):
           continue
-        if entry.name.startswith("."):
-          hidden = True
-        elif entry.inode() in self.gained:
+        if entry.inode() in self.gained:
           moved = True
+        elif entry.name.startswith("."):
+          hidden = True
         else:
           return False
     return moved or not hidden

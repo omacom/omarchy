@@ -153,3 +153,13 @@ grep -qF 'Could not set up Snapper for /home' "$machine/stderr" || fail "snapsho
 ! grep -q 'snapper-timeline.timer' "$machine/calls.log" || fail "snapshot configure leaves the timeline timer off without a /home it set up"
 pass "snapshot configure carries on, and says so, when /home/.snapshots can't be made"
 
+# Two configs of someone's own for /home both stay listed.
+machine="$test_tmp/two-of-theirs"
+mkdir -p "$machine/etc/snapper/configs" "$machine/etc/conf.d"
+printf 'SUBVOLUME="%s"\n' "$machine/home" >"$machine/etc/snapper/configs/home"
+printf 'SUBVOLUME="%s"\n' "$machine/home" >"$machine/etc/snapper/configs/data"
+printf 'SNAPPER_CONFIGS="root home data"\n' >"$machine/etc/conf.d/snapper"
+configure "$machine" yes
+grep -Fx 'SNAPPER_CONFIGS="root home data"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure keeps both of someone's own /home configs listed" "$(cat "$machine/etc/conf.d/snapper")"
+pass "snapshot configure keeps every config of someone's own listed"
+

@@ -282,3 +282,13 @@ rm -r ~/keys
 [[ $(deleted) == "keys/" ]] || fail "a deleted folder of only hidden files is listed" "$(deleted)"
 pass "a deleted folder of only hidden files is listed"
 
+# A folder whose only file, a hidden one, was moved out was emptied, not deleted.
+reset
+mkdir -p ~/keys ~/app
+echo secret >~/keys/.env
+snapshot 1 1
+mv ~/keys/.env ~/app/
+rmdir ~/keys
+[[ -z $(deleted) ]] || fail "a folder emptied of its hidden files by moves isn't listed" "$(deleted)"
+pass "a folder emptied of its hidden files by moves isn't listed"
+
