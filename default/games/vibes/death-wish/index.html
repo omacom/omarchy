@@ -1,0 +1,1263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Death Wish</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--background); color: var(--foreground); font-family: ui-monospace, "JetBrainsMono Nerd Font", monospace; }
+  canvas { display: block; }
+  #hud { position: fixed; inset: 16px 20px auto 20px; display: flex; justify-content: space-between; font-size: 20px; pointer-events: none; }
+  .screen { position: fixed; inset: 0; display: none; place-items: center; text-align: center; pointer-events: none; background: color-mix(in srgb, var(--background) 45%, transparent); }
+  .screen.show { display: grid; }
+  .screen > div { padding: 28px 44px; border-radius: 14px; background: color-mix(in srgb, var(--background) 88%, transparent); border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent); }
+  .screen button, .screen [data-click] { pointer-events: auto; }
+  .screen h1 { margin: 0 0 16px; font-size: 64px; letter-spacing: 4px; color: var(--accent); }
+  .screen p { margin: 8px 0; font-size: 18px; }
+  .key { color: var(--accent); }
+  .dim { color: color-mix(in srgb, var(--foreground) 55%, var(--background)); }
+  #hud #info { color: color-mix(in srgb, var(--foreground) 75%, var(--background)); }
+  #banner { position: fixed; inset: 22% 0 auto 0; text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.5s; text-shadow: 0 2px 0 var(--background), 0 0 14px var(--background); }
+  #banner.show { opacity: 1; transition: opacity 0.15s; }
+  #banner h2 { margin: 0; font-size: 54px; letter-spacing: 6px; color: var(--accent); }
+  #banner p { margin: 8px 0; font-size: 18px; }
+  #toast { position: fixed; inset: 64px 0 auto 0; text-align: center; pointer-events: none; font-size: 20px; opacity: 0; transition: opacity 0.4s; text-shadow: 0 2px 0 var(--background); }
+  #toast.show { opacity: 1; transition: opacity 0.1s; }
+  #toast.best { color: var(--green); }
+  body[data-state="title"] #hud, body[data-state="title"] #banner, body[data-state="title"] #toast { visibility: hidden; }
+  #title { background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--background) 62%, transparent), color-mix(in srgb, var(--background) 92%, transparent)); }
+  #title > div { width: min(90vw, 1040px); padding: 0; border: none; background: none; }
+  #logo { display: flex; justify-content: center; align-items: flex-start; gap: 1.6vw; }
+  #logo canvas { image-rendering: pixelated; height: clamp(54px, 11.5vw, 138px); }
+  #logo #logo-saw { height: clamp(38px, 8vw, 96px); margin-top: clamp(-4px, -0.6vw, -8px); animation: spin 1.4s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #title .spikes { height: 12px; margin: 6px auto 0; width: min(80vw, 760px); background-repeat: repeat-x; background-size: 24px 12px; image-rendering: pixelated; }
+  #title .ground { height: 4px; margin: 0 auto 18px; width: min(80vw, 760px); background: var(--muted); }
+  #title .tag { font-size: 19px; margin: 0 0 20px; }
+  #rooms { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 0 auto 18px; }
+  #rooms button { all: unset; pointer-events: auto; cursor: pointer; box-sizing: border-box; padding: 6px 6px 8px; border-radius: 8px; border: 2px solid color-mix(in srgb, var(--foreground) 16%, transparent); background: color-mix(in srgb, var(--background) 80%, transparent); font-size: 12px; line-height: 1.45; transition: transform 0.08s; }
+  #rooms canvas { display: block; width: 100%; image-rendering: pixelated; border-radius: 4px; margin-bottom: 6px; }
+  #rooms .name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #rooms .time { display: block; color: var(--green); }
+  #rooms .sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--background)); transform: scale(1.07); box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 45%, transparent); }
+  #rooms .sel .name { color: var(--accent); }
+  #rooms .locked { cursor: default; }
+  #rooms .locked canvas { opacity: 0.16; filter: grayscale(1); }
+  #rooms .locked .name, #rooms .locked .time { color: color-mix(in srgb, var(--foreground) 35%, var(--background)); }
+  #title .go { font-size: 22px; animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 55% { opacity: 0.35; } }
+  @media (max-width: 620px) { #rooms button { font-size: 10px; padding: 4px; } #rooms { gap: 6px; } }
+  #help table { margin: 12px auto; border-spacing: 20px 6px; font-size: 18px; text-align: left; }
+</style>
+<!-- three.js 0.180 and its bloom passes, as one global THREE. Game Vibes keeps
+     three.min.js beside the games, since a page opened from a file can load a
+     script next to it but not a module. -->
+<script src="../three.min.js"></script>
+</head>
+<body>
+<div id="hud"><span id="score">0</span><span id="info"></span><span class="dim">ROOM <span id="room-best">—</span> · RUN <span id="best">—</span></span></div>
+<div id="toast"></div>
+
+<div id="banner"><h2 id="banner-title"></h2><p id="banner-hint"></p></div>
+
+<div id="title" class="screen show"><div>
+  <div id="logo"><canvas id="logo-a"></canvas><canvas id="logo-saw"></canvas><canvas id="logo-b"></canvas></div>
+  <div class="spikes"></div><div class="ground"></div>
+  <p class="tag">Ten rooms of spikes and saws. You will die. A lot.</p>
+  <div id="rooms"></div>
+  <p class="go"><span class="key">Space</span> to enter room <span id="title-room" class="key"></span></p>
+  <p id="title-run"></p>
+  <p class="dim"><span class="key">← →</span> pick a room · <span class="key">A D</span> run · <span class="key">Space</span> jump and wall-jump · <span class="key">?</span> all controls</p>
+</div></div>
+
+<div id="paused" class="screen"><div>
+  <h1>PAUSED</h1>
+  <p>Press <span class="key">Esc</span> to resume</p>
+  <p class="leave">Press <span class="key">Q</span> to go back to Game Vibes</p>
+</div></div>
+
+<div id="over" class="screen"><div>
+  <h1 id="over-title">GAME OVER</h1>
+  <p id="over-detail"></p>
+  <p id="over-best" class="key"></p>
+  <p>Press <span class="key">Space</span> to play again · <span class="key">← →</span> to pick a room</p>
+</div></div>
+
+<div id="help" class="screen"><div>
+  <h1>CONTROLS</h1>
+  <table>
+    <tr><td class="key">← → / A D</td><td>Run</td></tr>
+    <tr><td class="key">Space / ↑ / W / X</td><td>Jump — hold to go higher, tap for a hop</td></tr>
+    <tr><td class="key">Jump on a wall</td><td>Wall-jump; you slide slowly while touching one</td></tr>
+    <tr><td class="key">R</td><td>Restart the room</td></tr>
+    <tr><td class="key">← → ↑ ↓</td><td>Pick a room on the title screen</td></tr>
+    <tr><td class="key">Space</td><td>Start, play again</td></tr>
+    <tr><td class="key">Esc / P</td><td>Pause, resume, back to all games</td></tr>
+    <tr><td class="key">M</td><td>Sound on or off</td></tr>
+    <tr><td class="key">?</td><td>This help</td></tr>
+  </table>
+  <p class="dim">Press any key to close</p>
+</div></div>
+
+<script type="module">
+
+// =============================================================================
+// SETTINGS — change these.
+// NAME namespaces saved data. PALETTE is the Omarchy theme the game was made in, from
+// `omarchy-theme-color --all`. Launched from the app launcher, themed() swaps in the
+// desktop's current theme, so take every colour from PALETTE and keep themed() around it.
+// =============================================================================
+const NAME = 'death-wish';
+const PALETTE = themed({
+  mode: 'dark',
+  background: '#1a1b26', foreground: '#a9b1d6', accent: '#7aa2f7', muted: '#414868',
+  red: '#f7768e', green: '#9ece6a', yellow: '#e0af68', blue: '#7aa2f7', magenta: '#ad8ee6', cyan: '#449dab', orange: '#eb927b',
+});
+const BEST_IS = 'lower';                  // 'lower' for times and move counts: then only a won round can set it
+const formatScore = value => `${Math.floor(value / 60)}:${(Math.floor(value % 60 * 10) / 10).toFixed(1).padStart(4, '0')}`;
+const KEY_REPEAT = false;                 // true: a held move key repeats, for cursors on boards and cards
+
+// =============================================================================
+// THE FRAME, PART ONE: what the game builds on. Keep it; change only ACTIONS, the camera,
+// the lights and the fog. The game may use: renderer, scene, camera, sun, fitCamera, saved,
+// random, isHeld, wasPressed, pointer, wasClicked, pick, pickPlane, sound, noise,
+// score, best, state, shake, $. Names starting with _ are the frame's alone.
+// =============================================================================
+
+// omarchy-games-launch opens the game as index.html#palette=<the current theme as JSON>, and
+// `omarchy agent look page --theme` does the same for another theme. #seed=1 replays the same round.
+function launchParam(name) {
+  return new URLSearchParams(location.hash.slice(1)).get(name);
+}
+
+function themed(fallback) {
+  let current = {};
+  try { current = JSON.parse(launchParam('palette') ?? '{}'); } catch {}
+  const palette = { ...fallback };
+  for (const key of Object.keys(fallback)) {
+    const value = current[key];
+    if (key === 'mode' ? value === 'light' || value === 'dark' : /^#[0-9a-f]{6}$/i.test(value ?? '')) palette[key] = value;
+  }
+  return palette;
+}
+
+for (const [key, value] of Object.entries(PALETTE)) document.documentElement.style.setProperty(`--${key}`, value);
+
+// Saved data. Storage can fail or hold junk; the game must still run.
+const saved = {
+  get(key, fallback) { try { const v = JSON.parse(localStorage.getItem(`omarchy-game:${NAME}:${key}`)); return v ?? fallback; } catch { return fallback; } },
+  set(key, value) { try { localStorage.setItem(`omarchy-game:${NAME}:${key}`, JSON.stringify(value)); } catch {} },
+};
+
+// Seeded randomness, so #seed=1 plays the same round on every run.
+let _seed = Number(launchParam('seed') ?? Date.now()) >>> 0;
+function random() {
+  _seed = (_seed + 0x6d2b79f5) >>> 0;
+  let t = Math.imul(_seed ^ (_seed >>> 15), _seed | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+// Without WebGL nothing can draw, so say so in the window rather than show a title screen that never starts.
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+} catch (error) {
+  for (const screen of document.querySelectorAll('.screen, #hud')) screen.remove();
+  document.body.insertAdjacentHTML('beforeend', '<div class="screen show"><div><h1>NO 3D</h1><p>This game needs WebGL, and the browser could not start it on this computer.</p><p class="dim"></p></div></div>');
+  document.querySelector('.screen .dim').textContent = error.message;
+  throw error;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(PALETTE.background);
+scene.fog = null;                         // a flat pixel world: nothing fades with distance
+
+const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 200);
+
+// Lit this way, a MeshStandardMaterial shows close to its PALETTE colour in dark and light themes alike.
+const _light = PALETTE.mode === 'light';
+scene.add(new THREE.HemisphereLight('#ffffff', PALETTE.background, _light ? 0.7 : 0.9));
+const sun = new THREE.DirectionalLight('#ffffff', _light ? 1.2 : 1.5);
+sun.position.set(6, 15, 8);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 50 });
+scene.add(sun);
+
+// Aim the camera down at a width × depth area around target, tilted from the horizontal, and back it
+// off until all four corners of the area are inside the window with a margin. Call it from resized().
+function fitCamera(width, depth, { tilt = 0.9, target = [0, 0, 0], margin = 0.9 } = {}) {
+  const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([x, z]) => new THREE.Vector3(target[0] + x * width / 2, target[1], target[2] + z * depth / 2));
+  const place = distance => {
+    camera.position.set(target[0], target[1] + distance * Math.sin(tilt), target[2] + distance * Math.cos(tilt));
+    camera.lookAt(...target);
+    camera.updateMatrixWorld();
+  };
+  const fits = () => corners.every(corner => {
+    if (corner.clone().applyMatrix4(camera.matrixWorldInverse).z >= 0) return false;   // behind the camera
+    const p = corner.clone().project(camera);
+    return Math.abs(p.x) <= margin && Math.abs(p.y) <= margin;
+  });
+  let near = 0.5, far = 1000;
+  for (let i = 0; i < 40; i++) {
+    const distance = (near + far) / 2;
+    place(distance);
+    if (fits()) far = distance; else near = distance;
+  }
+  place(far);
+}
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  if (typeof resized === 'function') resized();
+});
+
+// Keys. isHeld() is what is down now. wasPressed() is what went down since it was last asked: once per
+// frame for the screens, and once per simulation step inside update(), so a press is never lost or doubled.
+const ACTIONS = {
+  left: ['ArrowLeft', 'KeyA'], right: ['ArrowRight', 'KeyD'], up: ['ArrowUp', 'KeyW'], down: ['ArrowDown', 'KeyS'],
+  action: ['Space', 'Enter'], jump: ['Space', 'ArrowUp', 'KeyW', 'KeyX'], restart: ['KeyR'], pause: ['Escape', 'KeyP'], leave: ['KeyQ'], mute: ['KeyM'], help: ['Slash'],
+};
+const _held = new Set(), _pressed = new Set(), _stepPressed = new Set();
+let _inStep = false;
+const isHeld = action => ACTIONS[action].some(code => _held.has(code));
+const wasPressed = action => ACTIONS[action].some(code => (_inStep ? _stepPressed : _pressed).has(code));
+addEventListener('keydown', event => {
+  if (Object.values(ACTIONS).flat().includes(event.code)) event.preventDefault();
+  const moving = ['left', 'right', 'up', 'down'].some(action => ACTIONS[action].includes(event.code));
+  if (!event.repeat || (KEY_REPEAT && moving)) { _pressed.add(event.code); _stepPressed.add(event.code); }
+  _held.add(event.code);
+  _unlockSound();
+});
+addEventListener('keyup', event => _held.delete(event.code));
+addEventListener('blur', () => { _held.clear(); if (state === 'playing') show('paused'); });
+
+// The mouse, for games that want it. pointer.x/y run -1..1 across the window; wasClicked(button) works
+// like wasPressed (0 left, 1 middle, 2 right); pick(objects) is the nearest hit under the pointer, or null.
+const pointer = new THREE.Vector2(), _clicks = new Set(), _stepClicks = new Set(), _raycaster = new THREE.Raycaster();
+const wasClicked = (button = 0) => (_inStep ? _stepClicks : _clicks).has(button);
+renderer.domElement.addEventListener('pointermove', event => pointer.set(event.clientX / innerWidth * 2 - 1, -(event.clientY / innerHeight) * 2 + 1));
+renderer.domElement.addEventListener('pointerdown', event => { _clicks.add(event.button); _stepClicks.add(event.button); _unlockSound(); });
+renderer.domElement.addEventListener('contextmenu', event => event.preventDefault());
+document.addEventListener('mousedown', event => { if (event.target.closest('button')) event.preventDefault(); });  // a clicked button must not keep focus for Space
+function pick(objects) {
+  _raycaster.setFromCamera(pointer, camera);
+  return _raycaster.intersectObjects(objects, true)[0] ?? null;
+}
+function pickPlane(y = 0) {
+  _raycaster.setFromCamera(pointer, camera);
+  return _raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), new THREE.Vector3());
+}
+
+// Sound, synthesized so the game stays one file. Browsers allow it only after a key press or click.
+let _audio = null, _muted = saved.get('muted', false);
+function _unlockSound() {
+  try { _audio ??= new AudioContext(); _audio.resume(); } catch {}
+}
+function sound(freq = 440, seconds = 0.1, type = 'square', slideTo = freq, volume = 0.15) {
+  if (_muted || _audio?.state !== 'running') return;
+  const t = _audio.currentTime, osc = _audio.createOscillator(), gain = _audio.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(1, slideTo), t + seconds);
+  gain.gain.setValueAtTime(volume, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
+  osc.connect(gain).connect(_audio.destination);
+  osc.start(t);
+  osc.stop(t + seconds);
+}
+// Noise for knocks, thuds, explosions and mechanical clicks: lower `tone` sounds duller.
+function noise(seconds = 0.15, volume = 0.2, tone = 2000) {
+  if (_muted || _audio?.state !== 'running') return;
+  const t = _audio.currentTime, buffer = _audio.createBuffer(1, Math.ceil(_audio.sampleRate * seconds), _audio.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  const source = _audio.createBufferSource(), filter = _audio.createBiquadFilter(), gain = _audio.createGain();
+  source.buffer = buffer;
+  filter.type = 'lowpass';
+  filter.frequency.value = tone;
+  gain.gain.setValueAtTime(volume, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
+  source.connect(filter).connect(gain).connect(_audio.destination);
+  source.start(t);
+}
+
+const $ = id => document.getElementById(id);
+let state = 'title', score = 0, best = saved.get('best', null), shake = 0;
+let _helpFrom = 'title';
+
+// =============================================================================
+// THE GAME — replace this whole section with your game, keeping its shape:
+//   build()            once, at load: meshes, materials, lights, anything reused
+//   reset()            before every round: put everything back to the start
+//   update(dt)         every fixed step while playing: input, movement, rules
+//   draw(dt, alpha)    optional, every frame in every state: animation and effects that change no rules
+//   resized()          optional, at load and when the window changes: fit the camera
+//   screenInput(code)  optional, keys on the title and end screens; return true to keep a key from starting
+//   score              what the HUD shows; set it as the game goes
+//   random()           use instead of Math.random(), so #seed=1 plays the same round every time
+//   endRound(won, { title, detail })   call when the round is lost (false) or won (true)
+// =============================================================================
+// <PHYSICS> — pure rules with no drawing in them, so a solver can prove every level can be beaten.
+const PH = {
+  W: 0.6, H: 0.8,                       // the player's box, in tiles
+  RUN: 10, ACC: 80, FRIC: 70, AIR: 50, DRAG: 15,
+  GRAV: 62, JUMP: 19.5, CUT: 2.6,       // letting go of jump early cuts it short
+  WJX: 9.5, WJY: 17.5, LOCK: 0.11,      // wall jump: kick away, and a moment before steering back
+  SLIDE: 5, FALL: 26, COYOTE: 0.09, BUFFER: 0.11,
+};
+const EV_JUMP = 1, EV_WALL = 2, EV_LAND = 4;
+
+// Maps: # wall, ^ v < > spikes, P start, G goal. Saws: [x, row, x2, row2, radius, period, phase],
+// measured in tiles from the top-left corner; a saw with no period stays put, and one marked
+// 'orbit' circles its first point, starting from its second.
+const LEVELS = [
+  {
+    name: 'BABY STEPS', hint: 'Hold jump to go higher. Slide down walls and jump off them.', tint: 'blue',
+    map: [
+      '################################',
+      '#..............................#',
+      '#..............................#',
+      '#..............................#',
+      '#..............................#',
+      '#..............................#',
+      '#..............................#',
+      '#.G.......^^.........^^........#',
+      '#######.######..###..#####.....#',
+      '#.........................#....#',
+      '#.........................#....#',
+      '#.........................#....#',
+      '#.........................#....#',
+      '#..............................#',
+      '#................###...........#',
+      '#.P....^^........###^^^........#',
+      '###########...##################',
+      '###########...##################',
+    ],
+    saws: [
+    ],
+  },
+  {
+    name: 'FIRST CUT', hint: 'Saws spin. Do not touch.', tint: 'cyan',
+    map: [
+      '################################',
+      '#..............................#',
+      '#..............................#',
+      '#..............................#',
+      '#..............................#',
+      '#..............................#',
+      '#..............................#',
+      '#............................G.#',
+      '#..........................#####',
+      '#..............................#',
+      '#...........####..#..####......#',
+      '#..............................#',
+      '#.......###....................#',
+      '#..............................#',
+      '#....##........................#',
+      '#.P..##........................#',
+      '################################',
+      '################################',
+    ],
+    saws: [
+      [18.5, 9, 18.5, 6.4, 0.8, 4, 0, 'orbit'],
+      [14.5, 16, 14.5, 16, 1.0],
+      [18, 16, 25, 16, 1.0, 4, 0],
+    ],
+  },
+  {
+    name: 'UP AND OVER', hint: 'Kick from wall to wall to climb. Mind the spikes.', tint: 'green',
+    map: [
+      '################################',
+      '#..............................#',
+      '#..............................#',
+      '#..............................#',
+      '#...........#..................#',
+      '#...........#..................#',
+      '#...........#....#...^^^.......#',
+      '#...........#....###########...#',
+      '#...........#....###########...#',
+      '#...........#>...###########..<#',
+      '#...........#....###########..<#',
+      '#...........#...<###########...#',
+      '#...........#....###########...#',
+      '#...........#....#.............#',
+      '#................#.............#',
+      '#.P....^^........#.G.........^^#',
+      '################################',
+      '################################',
+    ],
+    saws: [
+    ],
+  },
+  {
+    name: 'CAROUSEL', hint: 'Wait for the gap.', tint: 'magenta',
+    map: [
+      '################################',
+      '################################',
+      '################################',
+      '################################',
+      '################################',
+      '################################',
+      '#..............................#',
+      '#..............................#',
+      '#..............................#',
+      '#..............................#',
+      '#..............................#',
+      '#......###....###....###.......#',
+      '#.P..........................G.#',
+      '####........................####',
+      '####........................####',
+      '####^^^^^^^^^^^^^^^^^^^^^^^^####',
+      '################################',
+      '################################',
+    ],
+    saws: [
+      [8.5, 11.5, 8.5, 8.9, 0.7, 4, 0, 'orbit'],
+      [15.5, 11.5, 15.5, 8.9, 0.7, 4, 0.33, 'orbit'],
+      [22.5, 11.5, 22.5, 8.9, 0.7, 4, 0.66, 'orbit'],
+      [8.5, 11.5, 8.5, 8.9, 0.7, 4, 0.5, 'orbit'],
+      [15.5, 11.5, 15.5, 8.9, 0.7, 4, 0.83, 'orbit'],
+      [22.5, 11.5, 22.5, 8.9, 0.7, 4, 0.16, 'orbit'],
+    ],
+  },
+  {
+    name: 'LADDER', hint: 'Up, down, up, down.', tint: 'blue',
+    map: [
+      '################################',
+      '#..............##..............#',
+      '#..............##..............#',
+      '#..............##..............#',
+      '#......##......##......##......#',
+      '#......##......##...#..##......#',
+      '###....##......##..<#..##......#',
+      '#......##......##...#..##......#',
+      '#......##......##...#..##......#',
+      '#....####......##>..#..##......#',
+      '#......##......##...#..##......#',
+      '#......##......##...#..##......#',
+      '###....##......##...#..##......#',
+      '#......##..............##......#',
+      '#......##..............##......#',
+      '#.P.^^^##^^..........^^##^^..G.#',
+      '################################',
+      '################################',
+    ],
+    saws: [
+      [4, 5.5, 4, 11.5, 0.9, 2, 0],
+      [10, 6, 14, 6, 1.0, 2, 0],
+      [10, 9, 14, 9, 1.0, 2, 0.5],
+      [10, 12, 14, 12, 1.0, 2, 0],
+      [28, 9, 28, 7, 0.9, 2, 0, 'orbit'],
+    ],
+  },
+  {
+    name: 'SAWMILL', hint: 'Saws keep time. Watch, then go.', tint: 'cyan',
+    map: [
+      '################################',
+      '#.........vvvvvvvvvvvvvv.......#',
+      '#..............................#',
+      '#..............................#',
+      '#............................G.#',
+      '#....###########################',
+      '#....#.........................#',
+      '#....#.........................#',
+      '#....#.........................#',
+      '#..............................#',
+      '#................^^^...........#',
+      '###########################....#',
+      '#.........................#....#',
+      '#.........................#....#',
+      '#..............................#',
+      '#.P............................#',
+      '################################',
+      '################################',
+    ],
+    saws: [
+      [8.5, 16, 8.5, 16, 1.0],
+      [13, 16, 22, 16, 1.0, 4, 0],
+      [21.5, 6.8, 21.5, 10.2, 0.9, 2, 0],
+      [14.5, 6.8, 14.5, 10.2, 0.9, 2, 0.5],
+      [8.5, 11, 8.5, 11, 1.1],
+      [9, 5, 15, 5, 1.0, 4, 0],
+      [18, 5, 24, 5, 1.0, 4, 0.5],
+    ],
+  },
+  {
+    name: 'THE DROP', hint: 'What goes up.', tint: 'green',
+    map: [
+      '################################',
+      '#..............................#',
+      '#..............................#',
+      '#.P.....^^.....^^..............#',
+      '##########################.....#',
+      '#..............................#',
+      '#..............................#',
+      '#...........................^^^#',
+      '#.....##########################',
+      '#..............................#',
+      '#..............................#',
+      '#^^.......^^....^^....^^.......#',
+      '##########################.....#',
+      '#..............................#',
+      '#..............................#',
+      '#.G.........................^^^#',
+      '################################',
+      '################################',
+    ],
+    saws: [
+      [20.5, 8, 20.5, 8, 1.0],
+      [8, 8, 16, 8, 0.9, 4, 0],
+      [8, 9, 24, 9, 0.7, 4, 0.25],
+      [6, 16, 13, 16, 0.9, 4, 0],
+      [15, 16, 22, 16, 0.9, 4, 0.5],
+    ],
+  },
+  {
+    name: 'NARROWS', hint: 'Tap jump for a short hop.', tint: 'magenta',
+    map: [
+      '################################',
+      '#..............................#',
+      '#........^....^....^....^....G.#',
+      '#..#############################',
+      '#..............................#',
+      '#..............................#',
+      '#############################..#',
+      '#...........vv......vv.........#',
+      '#.......^.......^.......^......#',
+      '#..#############################',
+      '#..............................#',
+      '#.......^......^......^........#',
+      '#############################..#',
+      '#...........vv.....vv..........#',
+      '#..............................#',
+      '#.P.....^^.....^^.....^^.......#',
+      '################################',
+      '################################',
+    ],
+    saws: [
+      [16.8, 12, 20.8, 12, 0.6, 4, 0],
+      [8, 6, 14, 6, 0.6, 4, 0],
+      [18, 6, 24, 6, 0.6, 4, 0.5],
+    ],
+  },
+  {
+    name: 'SPIRAL', hint: 'Round and round.', tint: 'blue',
+    map: [
+      '################################',
+      '#............vv....vv..........#',
+      '#..............................#',
+      '#.........^^....^^....^^.......#',
+      '#...#######################....#',
+      '#...#######################...<#',
+      '#...#######################....#',
+      '#...#######################>...#',
+      '#...#######################>...#',
+      '#.........................#....#',
+      '#.........................#...<#',
+      '#^......^^....^^....^^..G.#...<#',
+      '###########################....#',
+      '#.........vv.......vv..........#',
+      '#..............................#',
+      '#.P............................#',
+      '################################',
+      '################################',
+    ],
+    saws: [
+      [6, 16, 14, 16, 0.9, 4, 0],
+      [16, 16, 24, 16, 0.9, 4, 0.5],
+      [12, 1, 20, 1, 0.8, 4, 0],
+      [1.6, 6.5, 3.4, 6.5, 0.6, 2, 0],
+      [11.5, 9, 11.5, 9, 0.9],
+      [17.5, 9, 17.5, 9, 0.9],
+    ],
+  },
+  {
+    name: 'DEATH WISH', hint: 'You asked for it.', tint: 'orange',
+    map: [
+      '################################',
+      '#..............................#',
+      '#..............................#',
+      '#..............................#',
+      '#..............................#',
+      '#..............................#',
+      '#........###...###...###.......#',
+      '#.G...^^^^^^^^^^^^^^^^^^^......#',
+      '###########################....#',
+      '#.........................#>...#',
+      '#.........................#....#',
+      '#.........................#...<#',
+      '#.........................#...<#',
+      '#............#.........#.......#',
+      '#.......#....#....#....#.......#',
+      '#.P..^^^#^^^^#^^^^#^^^^#.......#',
+      '################################',
+      '################################',
+    ],
+    saws: [
+      [11, 10.5, 11, 14.5, 1.0, 2, 0],
+      [16, 10.5, 16, 14.5, 1.0, 2, 0.5],
+      [21, 10.5, 21, 14.5, 1.0, 2, 0.25],
+      [19.5, 2.5, 19.5, 7, 1.0, 2, 0],
+      [13.5, 2.5, 13.5, 7, 1.0, 2, 0.5],
+      [7.5, 2.5, 7.5, 7, 1.0, 2, 0.25],
+      [27.8, 6.5, 30.2, 6.5, 0.6, 2, 0],
+    ],
+  },
+];
+
+function spikeBox(ch, c, y) {
+  if (ch === '^') return { x0: c + 0.2, x1: c + 0.8, y0: y, y1: y + 0.55 };
+  if (ch === 'v') return { x0: c + 0.2, x1: c + 0.8, y0: y + 0.45, y1: y + 1 };
+  if (ch === '>') return { x0: c, x1: c + 0.55, y0: y + 0.2, y1: y + 0.8 };
+  return { x0: c + 0.45, x1: c + 1, y0: y + 0.2, y1: y + 0.8 };
+}
+
+function parseLevel(def) {
+  const h = def.map.length, w = def.map[0].length;
+  const L = { w, h, name: def.name, hint: def.hint, tint: def.tint, rows: def.map, solid: new Uint8Array(w * h), spikes: [], saws: [], start: null, goal: null };
+  def.map.forEach((row, r) => {
+    for (let c = 0; c < w; c++) {
+      const ch = row[c], y = h - 1 - r;
+      if (ch === '#') L.solid[r * w + c] = 1;
+      else if (ch === 'P') L.start = { x: c + 0.5 - PH.W / 2, y };
+      else if (ch === 'G') L.goal = { x: c, y };
+      else if ('^v<>'.includes(ch)) L.spikes.push(spikeBox(ch, c, y));
+    }
+  });
+  for (const [x1, r1, x2, r2, r, period = 0, phase = 0, orbit] of def.saws) L.saws.push({ x1, y1: h - r1, x2, y2: h - r2, r, period, phase, orbit: !!orbit });
+  return L;
+}
+
+function solidAt(L, x, y) {
+  const c = Math.floor(x), ty = Math.floor(y);
+  if (c < 0 || c >= L.w) return true;
+  if (ty < 0 || ty >= L.h) return false;
+  return L.solid[(L.h - 1 - ty) * L.w + c] === 1;
+}
+
+function sawAt(s, t) {
+  if (!s.period) return [s.x1, s.y1];
+  if (s.orbit) {
+    const a = 2 * Math.PI * (t / s.period + s.phase), dx = s.x2 - s.x1, dy = s.y2 - s.y1;
+    return [s.x1 + dx * Math.cos(a) - dy * Math.sin(a), s.y1 + dx * Math.sin(a) + dy * Math.cos(a)];
+  }
+  const u = 0.5 - 0.5 * Math.cos(2 * Math.PI * (t / s.period + s.phase));
+  return [s.x1 + (s.x2 - s.x1) * u, s.y1 + (s.y2 - s.y1) * u];
+}
+
+function newPlayer(L) {
+  return { x: L.start.x, y: L.start.y, vx: 0, vy: 0, ground: true, wall: 0, coyote: 0, buffer: 0, lock: 0, grace: 0, side: 0, face: 1, jumpHeld: true, ev: 0 };
+}
+
+function stepPlayer(p, dir, jump, L, dt) {
+  p.ev = 0;
+  const pressed = jump && !p.jumpHeld;
+  p.jumpHeld = jump;
+  p.buffer = pressed ? PH.BUFFER : Math.max(0, p.buffer - dt);
+  p.coyote = p.ground ? PH.COYOTE : Math.max(0, p.coyote - dt);
+  if (p.wall && !p.ground) { p.grace = PH.COYOTE; p.side = p.wall; } else p.grace = Math.max(0, p.grace - dt);
+  p.lock = Math.max(0, p.lock - dt);
+  if (dir) p.face = dir;
+
+  const rate = p.ground ? (dir ? PH.ACC : PH.FRIC) : (dir ? (p.lock > 0 ? PH.AIR * 0.2 : PH.AIR) : PH.DRAG);
+  p.vx += Math.max(-rate * dt, Math.min(rate * dt, dir * PH.RUN - p.vx));
+
+  if (p.buffer > 0) {
+    if (p.coyote > 0) {
+      p.vy = PH.JUMP; p.buffer = 0; p.coyote = 0; p.ev |= EV_JUMP;
+    } else if (p.grace > 0) {
+      p.vy = PH.WJY; p.vx = -p.side * PH.WJX; p.face = -p.side; p.lock = PH.LOCK; p.buffer = 0; p.grace = 0; p.ev |= EV_WALL;
+    }
+  }
+
+  p.vy -= PH.GRAV * (p.vy > 0 && !jump ? PH.CUT : 1) * dt;
+  if (p.wall && !p.ground && p.vy < -PH.SLIDE) p.vy = -PH.SLIDE;
+  if (p.vy < -PH.FALL) p.vy = -PH.FALL;
+
+  const e = 0.001;
+  p.x += p.vx * dt;
+  if (p.vx > 0 && (solidAt(L, p.x + PH.W, p.y + e) || solidAt(L, p.x + PH.W, p.y + PH.H - e))) { p.x = Math.floor(p.x + PH.W) - PH.W; p.vx = 0; }
+  else if (p.vx < 0 && (solidAt(L, p.x, p.y + e) || solidAt(L, p.x, p.y + PH.H - e))) { p.x = Math.floor(p.x) + 1; p.vx = 0; }
+
+  const was = p.ground;
+  p.ground = false;
+  p.y += p.vy * dt;
+  if (p.vy <= 0 && (solidAt(L, p.x + e, p.y) || solidAt(L, p.x + PH.W - e, p.y))) {
+    p.y = Math.floor(p.y) + 1; p.vy = 0; p.ground = true;
+    if (!was) p.ev |= EV_LAND;
+  } else if (p.vy > 0 && (solidAt(L, p.x + e, p.y + PH.H) || solidAt(L, p.x + PH.W - e, p.y + PH.H))) {
+    p.y = Math.floor(p.y + PH.H) - PH.H; p.vy = 0;
+  }
+
+  p.wall = 0;
+  if (!p.ground) {
+    if (solidAt(L, p.x - 0.04, p.y + 0.15) || solidAt(L, p.x - 0.04, p.y + PH.H - 0.15)) p.wall = -1;
+    else if (solidAt(L, p.x + PH.W + 0.04, p.y + 0.15) || solidAt(L, p.x + PH.W + 0.04, p.y + PH.H - 0.15)) p.wall = 1;
+  }
+}
+
+// 'dead', 'goal' or null. pad makes every hazard bigger, for the solver to prove there is room to spare.
+function status(p, L, t, pad = 0) {
+  if (p.y < -1.5) return 'dead';
+  const x0 = p.x, x1 = p.x + PH.W, y0 = p.y, y1 = p.y + PH.H;
+  for (const s of L.spikes) if (x0 < s.x1 + pad && x1 > s.x0 - pad && y0 < s.y1 + pad && y1 > s.y0 - pad) return 'dead';
+  for (const s of L.saws) {
+    const [sx, sy] = sawAt(s, t);
+    const dx = sx - Math.max(x0, Math.min(x1, sx)), dy = sy - Math.max(y0, Math.min(y1, sy)), r = s.r * 0.88 + pad;
+    if (dx * dx + dy * dy < r * r) return 'dead';
+  }
+  const g = L.goal;
+  if (x0 < g.x + 0.9 && x1 > g.x + 0.1 && y0 < g.y + 1 && y1 > g.y) return 'goal';
+  return null;
+}
+// </PHYSICS>
+
+const LW = 32, LH = 18, TS = 8;        // every level is 32 × 18 tiles, painted at 8 pixels a tile
+const mix = (a, b, t) => '#' + new THREE.Color(a).lerp(new THREE.Color(b), t).getHexString();
+const C = {
+  player: PALETTE.yellow, scarf: PALETTE.accent, eye: mix(PALETTE.yellow, '#000000', 0.8),
+  hazard: PALETTE.red, tip: PALETTE.mode === 'light' ? mix(PALETTE.red, '#000000', 0.4) : mix(PALETTE.red, '#ffffff', 0.55), goal: PALETTE.green,
+  stain: mix(PALETTE.yellow, PALETTE.background, 0.25),
+};
+const levels = LEVELS.map(parseLevel);
+// index.html#replay=<what `node solve.js --replay` prints> plays the solver's inputs instead of the
+// keyboard, to watch every room being beaten in the real game. A replay never saves a best time.
+const REPLAY = launchParam('replay')?.split('.') ?? null;
+let replayStep = 0;
+
+let cur = 0, L = levels[0], p = newPlayer(L);
+let phase = 'play', timer = 0, levelT = 0, deaths = 0, animT = 0, camDist = 40, bannerT = 0, dustT = 0;
+let groups = [], canvases = [], playerMesh, playerFrames, particles;
+
+// Progress: the furthest room reached, and the best time through each room (the winning attempt only).
+// A run's total time, deaths included, is the frame's `best`, and only a run begun in room 1 can set it.
+const _rooms = saved.get('rooms', null) ?? {};
+const times = levels.map((_, i) => Number.isFinite(_rooms.times?.[i]) ? _rooms.times[i] : null);
+let unlocked = THREE.MathUtils.clamp(Math.floor(Number(_rooms.unlocked) || 0), 0, levels.length - 1);
+let selected = times.every(time => time !== null) ? 0 : unlocked, startRoom = 0, toastT = 0, tiles = [];
+const look = { sx: 1, sy: 1, spin: 0, camX: 0, camY: 0 };
+const P_MAX = 320, pPos = new Float32Array(P_MAX * 3), pCol = new Float32Array(P_MAX * 3), pVel = new Float32Array(P_MAX * 2), pLife = new Float32Array(P_MAX);
+let pNext = 0, loaded = false;
+
+function hash(a, b, k) {
+  let n = Math.imul(a, 374761393) + Math.imul(b, 668265263) + Math.imul(k, 1274126177) | 0;
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
+
+function pixelTexture(width, height, paint) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  const g = canvas.getContext('2d');
+  paint(g);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function spriteTexture(rows, colours) {
+  return pixelTexture(rows[0].length, rows.length, g => rows.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) if (colours[row[x]]) { g.fillStyle = colours[row[x]]; g.fillRect(x, y, 1, 1); }
+  }));
+}
+
+const SPIKE = ['........', '........', '........', '........', '.TT..TT.', '.RR..RR.', 'RRRRRRRR', 'RRRRRRRR'];
+
+function paintLevel(level, g) {
+  const tint = PALETTE[level.tint] ?? PALETTE.accent;
+  const base = mix(mix(PALETTE.muted, tint, 0.35), PALETTE.background, 0.2);
+  const lit = mix(mix(PALETTE.muted, tint, 0.5), PALETTE.foreground, 0.5);
+  const edge = mix(base, PALETTE.foreground, 0.25);
+  const dark = mix(base, PALETTE.background, 0.45);
+  const far = mix(PALETTE.background, PALETTE.muted, 0.3);
+  const solid = (c, r) => c < 0 || c >= LW || r < 0 || r >= LH || level.solid[r * LW + c] === 1;
+
+  g.fillStyle = PALETTE.background;
+  g.fillRect(0, 0, LW * TS, LH * TS);
+
+  // A faint backdrop of bricks and specks, so the empty space is a place.
+  g.fillStyle = far;
+  for (let r = 0; r < LH; r++) for (let c = 0; c < LW; c++) {
+    if (solid(c, r)) continue;
+    if (hash(c, r, 1) < 0.14) { g.fillRect(c * TS + 1, r * TS + 1, 6, 1); g.fillRect(c * TS + 1, r * TS + 5, 6, 1); g.fillRect(c * TS + 1, r * TS + 1, 1, 5); g.fillRect(c * TS + 6, r * TS + 1, 1, 5); }
+    else if (hash(c, r, 2) < 0.3) g.fillRect(c * TS + Math.floor(hash(c, r, 3) * 8), r * TS + Math.floor(hash(c, r, 4) * 8), 1, 1);
+  }
+
+  // The rail each moving saw rides.
+  for (const s of level.saws) {
+    if (!s.period) continue;
+    const n = Math.ceil(Math.hypot(s.x2 - s.x1, s.y2 - s.y1) * (s.orbit ? Math.PI * 2 : 1) * TS / 2);
+    for (let i = 0; i <= n; i++) {
+      const [x, y] = sawAt(s, s.period * (s.orbit ? i / n : Math.acos(1 - 2 * i / n) / (2 * Math.PI)) - s.phase * s.period);
+      g.fillRect(Math.floor(x * TS), Math.floor((LH - y) * TS), 1, 1);
+    }
+  }
+
+  for (let r = 0; r < LH; r++) for (let c = 0; c < LW; c++) {
+    const x = c * TS, y = r * TS, ch = level.rows[r][c];
+    if (solid(c, r)) {
+      g.fillStyle = base; g.fillRect(x, y, TS, TS);
+      g.fillStyle = dark;
+      for (let k = 0; k < 3; k++) g.fillRect(x + Math.floor(hash(c, r, 5 + k) * 8), y + Math.floor(hash(c, r, 9 + k) * 8), 1, 1);
+      if (!solid(c, r + 1)) g.fillRect(x, y + 7, TS, 1);
+      g.fillStyle = edge;
+      if (!solid(c - 1, r)) g.fillRect(x, y, 1, TS);
+      if (!solid(c + 1, r)) g.fillRect(x + 7, y, 1, TS);
+      if (!solid(c, r - 1)) { g.fillRect(x, y + 1, TS, 1); g.fillStyle = lit; g.fillRect(x, y, TS, 1); }
+    } else if ('^v<>'.includes(ch)) {
+      for (let v = 0; v < 8; v++) for (let u = 0; u < 8; u++) {
+        const cell = SPIKE[v][u];
+        if (cell === '.') continue;
+        const [px, py] = ch === '^' ? [u, v] : ch === 'v' ? [u, 7 - v] : ch === '>' ? [7 - v, u] : [v, u];
+        g.fillStyle = cell === 'T' ? C.tip : C.hazard;
+        g.fillRect(x + px, y + py, 1, 1);
+      }
+    }
+  }
+}
+
+function build() {
+  const paintSaw = g => {
+    const body = mix(PALETTE.red, PALETTE.background, 0.4);
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      const dx = x - 7.5, dy = y - 7.5, d = Math.hypot(dx, dy), tooth = Math.cos(Math.atan2(dy, dx) * 8) > 0;
+      if (d > (tooth ? 8.2 : 6.2)) continue;
+      g.fillStyle = d < 1.6 ? PALETTE.background : d < 4.6 ? body : d < 6.2 ? C.hazard : C.tip;
+      g.fillRect(x, y, 1, 1);
+    }
+  };
+  const sawTexture = pixelTexture(16, 16, paintSaw);
+  const sawMaterial = new THREE.MeshBasicMaterial({ map: sawTexture, transparent: true, alphaTest: 0.5 });
+  const goalTexture = spriteTexture(
+    ['...GG...', '..GWWG..', '.GW..WG.', 'GW....WG', 'GW....WG', '.GW..WG.', '..GWWG..', '...GG...'],
+    { G: C.goal, W: mix(C.goal, '#ffffff', 0.6) });
+  const goalMaterial = new THREE.MeshBasicMaterial({ map: goalTexture, transparent: true, alphaTest: 0.5 });
+  const quad = new THREE.PlaneGeometry(1, 1);
+
+  levels.forEach((level, i) => {
+    const group = new THREE.Group();
+    const texture = pixelTexture(LW * TS, LH * TS, g => paintLevel(level, g));
+    canvases.push({ g: texture.image.getContext('2d'), texture });
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(LW, LH), new THREE.MeshBasicMaterial({ map: texture }));
+    plane.position.set(LW / 2, LH / 2, 0);
+    group.add(plane);
+    group.userData.saws = level.saws.map(s => {
+      const mesh = new THREE.Mesh(quad, sawMaterial);
+      mesh.scale.setScalar(s.r * 2);
+      mesh.position.set(s.x1, s.y1, 0.05);
+      group.add(mesh);
+      return mesh;
+    });
+    const goal = new THREE.Mesh(quad, goalMaterial);
+    goal.position.set(level.goal.x + 0.5, level.goal.y + 0.5, 0.04);
+    group.add(goal);
+    group.userData.goal = goal;
+    group.visible = false;
+    scene.add(group);
+    groups.push(group);
+  });
+
+  const skin = { B: C.player, E: C.eye, S: C.scarf };
+  playerFrames = [
+    ['..BBBB..', '.BBBBBB.', '.BBEBEB.', '.BBEBEB.', 'SSSSSSS.', 'SBBBBBB.', '.BBBBBB.', '.B....B.'],
+    ['..BBBB..', '.BBBBBB.', '.BBEBEB.', '.BBEBEB.', 'SSSSSSS.', '.BBBBBB.', '.BBBBBB.', '..B..B..'],
+  ].map(rows => spriteTexture(rows, skin));
+  const body = new THREE.PlaneGeometry(1, 1);
+  body.translate(0, 0.5, 0);           // the feet are the origin, so squash and stretch stay on the ground
+  playerMesh = new THREE.Mesh(body, new THREE.MeshBasicMaterial({ map: playerFrames[0], transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }));
+  scene.add(playerMesh);
+
+  pPos.fill(-999);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+  particles = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.2, vertexColors: true }));
+  particles.frustumCulled = false;
+  scene.add(particles);
+
+  buildTitle(paintSaw);
+  loadLevel(0);
+}
+
+// The title screen: a pixel logo, and a tile for every room with its map and best time.
+const FONT = {
+  D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+  E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+  A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+  T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
+  H: ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
+  W: ['10001', '10001', '10001', '10101', '10101', '11011', '10001'],
+  I: ['11111', '00100', '00100', '00100', '00100', '00100', '11111'],
+  S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
+};
+
+function paintLogo(canvas, word, seed) {
+  canvas.width = word.length * 6; canvas.height = 12;
+  const g = canvas.getContext('2d'), top = new THREE.Color(PALETTE.yellow), bottom = new THREE.Color(PALETTE.red);
+  const lit = (x, y) => FONT[word[Math.floor(x / 6)]]?.[y]?.[x % 6] === '1';
+  g.fillStyle = mix(PALETTE.background, '#000000', PALETTE.mode === 'light' ? 0.25 : 0.6);
+  for (let y = 0; y < 7; y++) for (let x = 0; x < canvas.width; x++) if (lit(x, y)) g.fillRect(x + 1, y + 1, 1, 1);
+  for (let y = 0; y < 7; y++) {
+    g.fillStyle = '#' + top.clone().lerp(bottom, y / 6).getHexString();
+    for (let x = 0; x < canvas.width; x++) if (lit(x, y)) g.fillRect(x, y, 1, 1);
+  }
+  g.fillStyle = PALETTE.red;             // it drips
+  for (let x = 0; x < canvas.width; x++) if (lit(x, 6) && !lit(x - 1, 6) && hash(x, seed, 7) < 0.6) g.fillRect(x, 7, 1, 1 + Math.floor(hash(x, seed, 8) * 3));
+}
+
+function buildTitle(paintSaw) {
+  paintLogo($('logo-a'), 'DEATH', 1);
+  paintLogo($('logo-b'), 'WISH', 2);
+  const saw = $('logo-saw');
+  saw.width = saw.height = 16;
+  paintSaw(saw.getContext('2d'));
+
+  const strip = document.createElement('canvas');
+  strip.width = 8; strip.height = 4;
+  const g = strip.getContext('2d');
+  for (let v = 4; v < 8; v++) for (let u = 0; u < 8; u++) if (SPIKE[v][u] !== '.') { g.fillStyle = SPIKE[v][u] === 'T' ? C.tip : C.hazard; g.fillRect(u, v - 4, 1, 1); }
+  document.querySelector('#title .spikes').style.backgroundImage = `url(${strip.toDataURL()})`;
+
+  tiles = levels.map((level, i) => {
+    const tile = document.createElement('button'), map = document.createElement('canvas');
+    map.width = LW * 4; map.height = LH * 4;
+    const mg = map.getContext('2d');
+    mg.imageSmoothingEnabled = false;
+    mg.drawImage(canvases[i].texture.image, 0, 0, map.width, map.height);
+    tile.append(map, Object.assign(document.createElement('span'), { className: 'name', textContent: `${i + 1} ${level.name}` }), Object.assign(document.createElement('span'), { className: 'time' }));
+    tile.addEventListener('click', () => { if (state === 'title' && i <= unlocked) { selectRoom(i); startRound(); } });
+    $('rooms').append(tile);
+    return tile;
+  });
+  refreshTitle();
+}
+
+function refreshTitle() {
+  tiles.forEach((tile, i) => {
+    tile.classList.toggle('sel', i === selected);
+    tile.classList.toggle('locked', i > unlocked);
+    tile.querySelector('.time').textContent = i > unlocked ? 'LOCKED' : times[i] === null ? '—' : formatScore(times[i]);
+  });
+  $('title-room').textContent = `${selected + 1} · ${levels[selected].name}`;
+  $('title-run').textContent = best === null ? 'Clear all ten in one go from room 1 to set a run time' : `Best run through all ten: ${formatScore(best)}`;
+}
+
+function selectRoom(i) {
+  selected = THREE.MathUtils.clamp(i, 0, unlocked);
+  loadLevel(selected);
+  respawn();
+  hud();
+  refreshTitle();
+}
+
+function toast(text, isBest) {
+  $('toast').textContent = text;
+  $('toast').className = isBest ? 'show best' : 'show';
+  toastT = 2.2;
+}
+
+function screenInput(code) {
+  const step = { ArrowLeft: -1, KeyA: -1, ArrowRight: 1, KeyD: 1, ArrowUp: -5, KeyW: -5, ArrowDown: 5, KeyS: 5 }[code];
+  if (!step) return false;
+  if (state !== 'title') { show('title'); selectRoom(selected); return true; }   // from an end screen, back to the rooms
+  const next = selected + step;
+  if (next < 0 || next > unlocked) return true;
+  selectRoom(next);
+  sound(660, 0.04, 'square', 880, 0.05);
+  return true;
+}
+
+function emit(x, y, count, colour, speed, lift = 0, life = 0.6) {
+  const c = new THREE.Color(colour);
+  for (let i = 0; i < count; i++) {
+    const k = pNext; pNext = (pNext + 1) % P_MAX;
+    const angle = Math.random() * Math.PI * 2, v = speed * (0.3 + Math.random() * 0.7);
+    pPos[k * 3] = x; pPos[k * 3 + 1] = y; pPos[k * 3 + 2] = 0.2;
+    pVel[k * 2] = Math.cos(angle) * v; pVel[k * 2 + 1] = Math.sin(angle) * v + lift;
+    pCol[k * 3] = c.r; pCol[k * 3 + 1] = c.g; pCol[k * 3 + 2] = c.b;
+    pLife[k] = life * (0.5 + Math.random() * 0.5);
+  }
+}
+
+function loadLevel(i) {
+  cur = i; L = levels[i];
+  groups.forEach((group, k) => group.visible = k === i);
+}
+
+function banner(title, hint) {
+  $('banner-title').textContent = title;
+  $('banner-hint').textContent = hint;
+  $('banner').classList.add('show');
+  bannerT = 2.6;
+}
+
+function hud() {
+  $('room-best').textContent = times[cur] === null ? '—' : formatScore(times[cur]);
+}
+
+function respawn() {
+  p = newPlayer(L);
+  phase = 'play'; levelT = 0; replayStep = 0;
+  look.sx = 0.6; look.sy = 1.4; look.spin = 0;
+}
+
+function die() {
+  phase = 'dead'; timer = 0.4; deaths++; shake = 0.35;
+  const x = p.x + PH.W / 2, y = p.y + PH.H / 2;
+  emit(x, y, 36, C.player, 11, 4, 0.9);
+  emit(x, y, 10, C.scarf, 8, 4, 0.8);
+  noise(0.25, 0.3, 900);
+  sound(220, 0.25, 'sawtooth', 50, 0.12);
+  // Every death leaves its mark on the walls until the run is over.
+  const { g, texture } = canvases[cur];
+  g.fillStyle = C.stain;
+  for (let i = 0; i < 22; i++) {
+    const sx = x + (Math.random() * 2 - 1) * 1.3, sy = y + (Math.random() * 2 - 1) * 1.3;
+    if (sx > 0 && sx < LW && sy > 0 && sy < LH && solidAt(L, sx, sy)) g.fillRect(Math.floor(sx * TS), Math.floor((LH - sy) * TS), 1, 1);
+  }
+  texture.needsUpdate = true;
+  hud();
+}
+
+function clearLevel() {
+  phase = 'clear'; timer = 0.7;
+  const last = cur === levels.length - 1;
+  if (!REPLAY) {
+    const isBest = times[cur] === null || levelT < times[cur];
+    if (isBest) times[cur] = levelT;
+    unlocked = Math.max(unlocked, Math.min(cur + 1, levels.length - 1));
+    saved.set('rooms', { unlocked, times });
+    toast(`${L.name} ${formatScore(levelT)}${isBest ? ' · ROOM BEST' : ''}`, isBest);
+  }
+  emit(L.goal.x + 0.5, L.goal.y + 0.5, 30, C.goal, 9, 3, 0.9);
+  [523, 659, 784, ...(last ? [1047, 1319] : [])].forEach((freq, i) => setTimeout(() => sound(freq, 0.14, 'square', freq, 0.09), i * 85));
+}
+
+function resized() {
+  const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  camDist = Math.max((LH / 2 + 1.2) / t, (LW / 2 + 0.5) / (t * camera.aspect));
+  camera.position.set(LW / 2 + look.camX, LH / 2 + look.camY, camDist);
+}
+
+function reset() {
+  levels.forEach((level, i) => { paintLevel(level, canvases[i].g); canvases[i].texture.needsUpdate = true; });
+  pPos.fill(-999); pLife.fill(0);
+  score = 0; deaths = 0;
+  startRoom = REPLAY ? Number(launchParam('from') ?? 1) - 1 : selected;   // #from=6 starts a replay at room 6
+  loadLevel(startRoom);
+  respawn();
+  hud();
+  if (loaded) banner(L.name, L.hint);   // not at load, when reset() runs behind the title screen
+  loaded = true;
+}
+
+function update(dt) {
+  if (phase === 'dead') {
+    score += dt;
+    if ((timer -= dt) <= 0) respawn();
+    return;
+  }
+  if (phase === 'replayed') return;
+  if (phase === 'clear') {
+    if ((timer -= dt) > 0) return;
+    if (cur === levels.length - 1 && REPLAY) {
+      phase = 'replayed';
+      banner('REPLAY OVER', `All ${levels.length} rooms in ${formatScore(score)} with ${deaths} ${deaths === 1 ? 'death' : 'deaths'}`);
+      bannerT = Infinity;
+      return;
+    }
+    if (cur === levels.length - 1) {
+      const rooms = startRoom === 0 ? 'All ten rooms' : startRoom === cur ? `Room ${cur + 1}` : `Rooms ${startRoom + 1}–${cur + 1}`;
+      const fullRun = startRoom === 0;     // only a run from room 1 is a run time; endRound(false) saves nothing
+      endRound(fullRun, {
+        title: deaths === 0 ? 'DEATHLESS' : 'YOU LIVED',
+        detail: `${rooms} in ${formatScore(score)} with ${deaths} ${deaths === 1 ? 'death' : 'deaths'}`,
+      });
+      selected = 0;
+      refreshTitle();
+      return;
+    }
+    loadLevel(cur + 1);
+    respawn();
+    hud();
+    banner(L.name, L.hint);
+    return;
+  }
+  if (wasPressed('restart')) return respawn();
+
+  score += dt;
+  levelT += dt;
+  let dir = (isHeld('right') ? 1 : 0) - (isHeld('left') ? 1 : 0), jump = isHeld('jump');
+  if (wasPressed('jump')) {            // a tap shorter than a frame is already released: it still jumps, as a short hop
+    p.jumpHeld = false;
+    jump = true;
+  }
+  if (REPLAY) {                        // one digit every tenth of a second: 0-5 is left, none or right, odd with jump
+    const action = Number(REPLAY[cur]?.[Math.floor(replayStep++ / 12)] ?? 2);
+    dir = Math.floor(action / 2) - 1; jump = action % 2 === 1;
+  }
+  stepPlayer(p, dir, jump, L, dt);
+
+  const x = p.x + PH.W / 2;
+  if (p.ev & EV_JUMP) { sound(330, 0.09, 'square', 560, 0.06); emit(x, p.y, 5, PALETTE.foreground, 3, 1, 0.3); look.sx = 0.7; look.sy = 1.35; }
+  if (p.ev & EV_WALL) { sound(440, 0.09, 'square', 700, 0.06); emit(x + p.side * 0.3, p.y + 0.3, 6, PALETTE.foreground, 3, 1, 0.3); look.sx = 0.7; look.sy = 1.35; }
+  if (p.ev & EV_LAND) { noise(0.05, 0.1, 500); emit(x, p.y, 4, PALETTE.foreground, 2.5, 1, 0.25); look.sx = 1.35; look.sy = 0.7; }
+
+  const result = status(p, L, levelT);
+  if (result === 'dead') die();
+  else if (result === 'goal') clearLevel();
+}
+
+function draw(dt) {
+  document.body.dataset.state = state;
+  if (state === 'paused' || state === 'help') return;
+  animT += dt;
+  if (state === 'playing') $('info').textContent = `${cur + 1}/${levels.length} · ${L.name} · ${formatScore(levelT)} · ${deaths} ${deaths === 1 ? 'DEATH' : 'DEATHS'}`;
+  if (toastT > 0 && (toastT -= dt) <= 0) $('toast').className = '';
+
+  const group = groups[cur];
+  L.saws.forEach((s, i) => {
+    const [x, y] = sawAt(s, state === 'title' ? animT : levelT);   // on the title screen the room is alive behind the list
+    group.userData.saws[i].position.set(x, y, 0.05);
+    group.userData.saws[i].rotation.z = -animT * 9 * (i % 2 ? -1 : 1);
+  });
+  const goal = group.userData.goal;
+  goal.rotation.z = animT * 1.5;
+  goal.scale.setScalar(1.15 + Math.sin(animT * 5) * 0.12);
+  goal.position.y = L.goal.y + 0.5 + Math.sin(animT * 2.5) * 0.08;
+
+  // The player: squash and stretch ease back to rest, the legs run, and the goal swallows it whole.
+  look.sx = THREE.MathUtils.damp(look.sx, 1, 14, dt);
+  look.sy = THREE.MathUtils.damp(look.sy, 1, 14, dt);
+  playerMesh.visible = phase !== 'dead';
+  const running = p.ground && Math.abs(p.vx) > 1;
+  playerMesh.material.map = playerFrames[!p.ground || (running && Math.floor(animT * 14) % 2) ? 1 : 0];
+  let size = 0.9;
+  if (phase === 'clear') { look.spin += dt * 16; size *= Math.max(0, timer / 0.7); }
+  const face = p.wall && !p.ground ? -p.wall : p.face;
+  playerMesh.scale.set(size * look.sx * face, size * look.sy, 1);
+  playerMesh.rotation.z = look.spin;
+  playerMesh.position.set(p.x + PH.W / 2, p.y, 0.1);
+
+  if (state === 'playing' && phase === 'play' && (dustT -= dt) <= 0) {
+    dustT = 0.06;
+    if (p.wall && !p.ground && p.vy < 0) emit(p.x + PH.W / 2 + p.wall * 0.3, p.y + 0.6, 1, PALETTE.foreground, 1, 1, 0.3);
+    else if (running && Math.abs(p.vx) > 7) emit(p.x + PH.W / 2 - p.face * 0.2, p.y + 0.05, 1, PALETTE.foreground, 1, 1.5, 0.25);
+  }
+
+  for (let k = 0; k < P_MAX; k++) {
+    if (pLife[k] <= 0) continue;
+    if ((pLife[k] -= dt) <= 0) { pPos[k * 3 + 1] = -999; continue; }
+    pVel[k * 2 + 1] -= 30 * dt;
+    pPos[k * 3] += pVel[k * 2] * dt;
+    pPos[k * 3 + 1] += pVel[k * 2 + 1] * dt;
+  }
+  particles.geometry.attributes.position.needsUpdate = true;
+  particles.geometry.attributes.color.needsUpdate = true;
+
+  // The camera leans a little toward the player.
+  look.camX = THREE.MathUtils.damp(look.camX, (p.x - LW / 2) * 0.035, 4, dt);
+  look.camY = THREE.MathUtils.damp(look.camY, (p.y - LH / 2) * 0.035, 4, dt);
+  camera.position.set(LW / 2 + look.camX, LH / 2 + look.camY, camDist);
+
+  if (bannerT > 0 && (bannerT -= dt) <= 0) $('banner').classList.remove('show');
+}
+
+// =============================================================================
+// THE FRAME, PART TWO: screens, rounds and the loop. Keep it.
+// =============================================================================
+$('best').textContent = best === null ? '—' : formatScore(best);
+
+function show(next) {
+  state = next;
+  for (const id of ['title', 'paused', 'over', 'help']) $(id).classList.toggle('show', id === next || (id === 'over' && next === 'won'));
+}
+
+function startRound() {
+  reset();
+  _stepPressed.clear();               // the key that started the round is not its first move
+  _stepClicks.clear();
+  show('playing');
+  sound(440, 0.12, 'square', 880);
+}
+
+function endRound(won, { title, detail } = {}) {
+  if (state !== 'playing') return;
+  const isBest = BEST_IS === 'lower' ? won && (best === null || score < best) : best === null || score > best;
+  if (isBest) { best = score; saved.set('best', best); $('best').textContent = formatScore(best); }
+  $('over-title').textContent = title ?? (won ? 'YOU WIN' : 'GAME OVER');
+  $('over-detail').textContent = detail ?? `Score ${formatScore(score)}`;
+  $('over-best').textContent = isBest ? 'New best!' : '';
+  show(won ? 'won' : 'over');
+}
+
+for (const line of document.querySelectorAll('.leave')) line.hidden = history.length <= 1;
+
+// The loop: keys → fixed-step simulation → draw → render. Game rules never run in draw.
+const STEP = 1 / 120, _clock = new THREE.Clock();
+let _accumulator = 0;
+
+function frame() {
+  const dt = Math.min(_clock.getDelta(), 0.1);       // a hidden window must not leap ahead
+
+  if (wasPressed('mute')) { _muted = !_muted; saved.set('muted', _muted); }
+  if (state === 'help') {
+    if (_pressed.size) show(_helpFrom);
+  } else if (wasPressed('help') && state !== 'playing') {
+    _helpFrom = state;
+    show('help');
+  } else if ((state === 'title' || state === 'over' || state === 'won') && wasPressed('pause') && history.length > 1) {
+    history.back();                                      // back to Game Vibes, which opened the game
+  } else if (state === 'title' || state === 'over' || state === 'won') {
+    const kept = typeof screenInput === 'function' && [..._pressed].some(code => screenInput(code));
+    if (!kept && (wasPressed('action') || wasClicked(0))) startRound();
+  } else if (state === 'paused') {
+    if (wasPressed('pause')) show('playing');
+    else if (wasPressed('leave') && history.length > 1) history.back();   // back to Game Vibes, mid-round
+  } else if (wasPressed('pause')) {
+    show('paused');
+  } else {
+    _accumulator += dt;
+    for (let steps = 0; _accumulator >= STEP && steps < 12 && state === 'playing'; steps++) {
+      _inStep = true;
+      update(STEP);
+      _inStep = false;
+      _stepPressed.clear();
+      _stepClicks.clear();
+      _accumulator -= STEP;
+    }
+  }
+  if (state !== 'playing') { _accumulator = 0; _stepPressed.clear(); _stepClicks.clear(); }
+  _pressed.clear();
+  _clicks.clear();
+
+  if (typeof draw === 'function') draw(dt, _accumulator / STEP);
+  $('score').textContent = formatScore(score);
+  shake = Math.max(0, shake - dt);
+  const shakeX = (Math.random() - 0.5) * shake, shakeY = (Math.random() - 0.5) * shake;
+  camera.position.x += shakeX;
+  camera.position.y += shakeY;
+  renderer.render(scene, camera);
+  camera.position.x -= shakeX;
+  camera.position.y -= shakeY;
+}
+
+build();
+if (typeof resized === 'function') resized();
+reset();
+renderer.setAnimationLoop(frame);
+</script>
+</body>
+</html>

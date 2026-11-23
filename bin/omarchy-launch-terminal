@@ -9,4 +9,110 @@ if [[ ${1:-} == --pid=* ]]; then
   shift
 fi
 
-exec setsid uwsm-app -- xdg-terminal-exec --dir="$(omarchy-cmd-terminal-cwd "$pid")" "$@"
+cwd=$(omarchy-cmd-terminal-cwd "$pid")
+
+executable_present() {
+  if [[ $1 == */* ]]; then
+    [[ -x $1 ]]
+  else
+    type -P "$1" >/dev/null 2>&1
+  fi
+}
+
+# Resolve the default terminal directly from xdg-terminals.list on a plain
+# launch (Super+Return) to avoid xdg-terminal-exec's ~10ms shell scan.
+# Custom options, command arguments, or non-simple desktop entries fall through
+# to xdg-terminal-exec.
+resolve_plain_terminal() {
+  local list_dir desktop list line desktop_id data_dir desktop_file
+  local in_entry try_exec exec_line dir_arg
+  local -a config_dirs data_dirs desktops list_dirs
+  local -A excluded=()
+
+  IFS=: read -ra config_dirs <<<"${XDG_CONFIG_HOME:-$HOME/.config}:${XDG_CONFIG_DIRS:-/etc/xdg}"
+  IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  IFS=: read -ra desktops <<<"${XDG_CURRENT_DESKTOP:-}"
+
+  list_dirs=("${config_dirs[@]}")
+  for data_dir in "${data_dirs[@]}"; do
+    [[ -n $data_dir ]] && list_dirs+=("$data_dir/xdg-terminal-exec")
+  done
+
+  for list_dir in "${list_dirs[@]}"; do
+    [[ -n $list_dir ]] || continue
+    for desktop in "${desktops[@]}" ""; do
+      list="$list_dir/${desktop:+${desktop,,}-}xdg-terminals.list"
+      [[ -r $list ]] || continue
+
+      while IFS= read -r line || [[ -n $line ]]; do
+        line=${line%$'\r'}
+        if [[ $line == -* ]]; then
+          excluded[${line#-}]=1
+          continue
+        fi
+        [[ -n $line && $line != \#* && $line != /* ]] || continue
+        # Desktop actions (foo.desktop:Action) and un-exclusions (+foo.desktop)
+        # fall through to xdg-terminal-exec.
+        [[ $line != *:* && $line != +* ]] || return 1
+        desktop_id=$line
+        [[ -z ${excluded[$desktop_id]:-} ]] || continue
+
+        for data_dir in "${data_dirs[@]}"; do
+          desktop_file="$data_dir/applications/$desktop_id"
+          [[ -r $desktop_file ]] || continue
+
+          in_entry=0
+          try_exec=""
+          exec_line=""
+          dir_arg=""
+          while IFS= read -r line || [[ -n $line ]]; do
+            line=${line%$'\r'}
+            if [[ $line =~ ^\[Desktop\ Entry\][[:blank:]]*$ ]]; then
+              in_entry=1
+            elif [[ $line == "["* ]]; then
+              (( in_entry )) && break
+            elif (( in_entry )); then
+              case "$line" in
+                Hidden=true | DBusActivatable=true | OnlyShowIn=* | NotShowIn=*) return 1 ;;
+                TryExec=*) try_exec=${line#TryExec=} ;;
+                Exec=*) exec_line=${line#Exec=} ;;
+                X-TerminalArgDir=*) dir_arg=${line#X-TerminalArgDir=} ;;
+                TerminalArgDir=*) [[ -z $dir_arg ]] && dir_arg=${line#TerminalArgDir=} ;;
+              esac
+            fi
+          done <"$desktop_file"
+
+          # Only fast-path simple single-token Exec= and simple dir arg (no args,
+          # quotes, escapes, or field codes)
+          [[ -n $exec_line && $exec_line != *[[:space:]\"\'\\\%]* ]] || return 1
+          [[ $dir_arg != *[[:space:]\"\'\\]* ]] || return 1
+          if [[ -n $try_exec ]] && ! executable_present "$try_exec"; then
+            break
+          fi
+          executable_present "$exec_line" || break
+
+          TERMINAL_EXEC=$exec_line
+          TERMINAL_DIR_ARG=$dir_arg
+          return 0
+        done
+      done <"$list"
+    done
+  done
+
+  return 1
+}
+
+if (($# == 0)) && resolve_plain_terminal; then
+  if [[ -n $TERMINAL_DIR_ARG ]]; then
+    if [[ $TERMINAL_DIR_ARG == *= ]]; then
+      exec setsid uwsm-app -- "$TERMINAL_EXEC" "${TERMINAL_DIR_ARG}${cwd}"
+    else
+      exec setsid uwsm-app -- "$TERMINAL_EXEC" "$TERMINAL_DIR_ARG" "$cwd"
+    fi
+  else
+    cd "$cwd" || true
+    exec setsid uwsm-app -- "$TERMINAL_EXEC"
+  fi
+else
+  exec setsid uwsm-app -- xdg-terminal-exec --dir="$cwd" "$@"
+fi

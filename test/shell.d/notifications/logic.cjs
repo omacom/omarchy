@@ -98,6 +98,9 @@ for (let i = 0; i < 1000; i++) {
   // A restored row cannot claim a site either unless it came from a browser.
   assert.equal(Store.restored({ key: 'r', app: 'Chat', source: 'bank.example' }).groupKey, 'app:chat')
   assert.equal(Store.restored({ key: 'r', app: 'Chromium', source: 'app.slack.com' }).groupKey, 'web:app.slack.com')
+  // An unnamed sender's toasts each stand alone rather than stacking.
+  for (const app of ['omarchy-action', 'notify-send'])
+    assert.notEqual(Store.restored({ key: 'a', app }).groupKey, Store.restored({ key: 'b', app }).groupKey, app)
 }
 
 { // `-i name` is an icon name, not a picture; only the strict charset is kept.
@@ -138,6 +141,14 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
     assert.equal(saved.body, '[redacted]')
     assert.ok(!JSON.stringify(saved).includes('938271'))
   }
+}
+
+{ // A code is read whole across its keyword's window, and counts only when it starts inside it.
+  for (const [summary, body, codes] of [['123456', 'Your verification code is 123456', '123456'],
+      ['AB12CD34', 'Use the sign-in code AB12CD34', 'AB12CD34'],
+      ['Sign in', 'Your code is below. It expires in ten minutes, so please use it right away: 48291375', '48291375'],
+      ['Sign in', '12345678' + '.'.repeat(20) + 'code A9F3K2', 'A9F3K2']])
+    assert.equal(D.scan(summary, body).codes, codes, summary + ' / ' + body)
 }
 
 { // Restore recomputes the link from the text under today's policy, never
@@ -238,6 +249,9 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   // A hostname-looking app is not a site unless a browser lifted it.
   same(Icons.candidates({ app: 'example.com', source: 'example.com', groupKey: 'app:example-com' }).themed, ['example.com'])
   same(Icons.candidates({}), { themed: [], entries: [] })
+  // An anonymous sender names no app, so its glyph is not covered by the logo.
+  same(Icons.candidates(snap({ appName: 'omarchy-action', summary: 'Reminder', hints: { 'omarchy-glyph': '\u{f088c}' } })), { themed: [], entries: [] })
+  same(Icons.candidates(snap({ appName: 'notify-send', appIcon: 'dialog-information', summary: 'Hi' })).themed, ['dialog-information'])
   assert.equal(Icons.slug('  Google Chrome!! '), 'google-chrome')
   assert.equal(Icons.slug('../../etc/passwd'), 'etc-passwd')
   // One-colour icons go by their freedesktop name, as a theme name or a file.
@@ -325,12 +339,25 @@ function runIn(scope, ...names) {
   assert.deepEqual(calls, ['hl.dsp.focus({window = hl.get_window("address:0x123abc")})'])
 }
 
+{ // An app name of several words finds the class that ends in them, and only that.
+  // The decoy was focused last, so it would win any match it wrongly made.
+  const windows = ['telegram-desktop-notes', 'org.telegram.desktop', 'brave-browser', 'desktop']
+    .map((c, i) => ({ lastIpcObject: { class: c, title: '', address: '0x' + (i + 1), pid: 0, focusHistoryID: i } }))
+  const s = runIn({ Hyprland: { toplevels: { values: windows } } }, 'openWindows', 'mostRecent', 'windowForSource')
+  const at = name => (s.windowForSource(name) || {}).wmClass
+  assert.equal(at('Telegram Desktop'), 'org.telegram.desktop')
+  assert.equal(at('Brave Browser'), 'brave-browser')
+  assert.equal(at('Desktop'), 'desktop')
+  assert.equal(at('Notes Desktop'), undefined)
+}
+
 // Admission, close and replay run for real; only the ListModel, QObject
 // signals, the deferred event loop and external effects are faked.
 const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
-  'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
-  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
+  'nextKey', 'rowIndexFor', 'keyForOriginal', 'keyForDuplicate', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
+  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'senderActions', 'dismissOne',
+  'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
   'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
 
 function newCapacityScope() {
@@ -353,7 +380,7 @@ function newCapacityScope() {
     displayNames: ['fixture-display'], focusedDisplayName: 'fixture-display',
     Quickshell: { screens: [] }, Hyprland: { monitorFor: screen => screen.monitor },
     lowDuration: 5000, normalDuration: 8000, maxDuration: 30000,
-    Security: S, Delivery, Store,
+    Security: S, Delivery, Store, Markup: M,
     NotificationUrgency: { Critical: 2, Normal: 1, Low: 0 },
     Qt: { callLater: f => later.push(f),
       md5: value => require('node:crypto').createHash('md5').update(value).digest('hex') },
@@ -366,6 +393,9 @@ function newCapacityScope() {
   s.service = s
   runIn(s, ...capacityFunctions)
   s.drainCallLater = () => { while (later.length) later.shift()() }
+  // Each fake says something of its own: word for word the same, two arriving
+  // together would be one card.
+  let serial = 0
   s.fakeNotification = (id = 0, summary = 'Synthetic', urgency = 1) => {
     let tracked = false, destroyed = false
     const signal = () => {
@@ -381,7 +411,7 @@ function newCapacityScope() {
       else n.dismissals++
       n.closed.emit()
     }
-    const n = { id, summary, body: 'Synthetic body: ' + summary, urgency, appName: 'Fixture',
+    const n = { id, summary, body: 'Synthetic body ' + (++serial) + ': ' + summary, urgency, appName: 'Fixture',
       actions: [{ identifier: 'open', text: summary }], dismissals: 0, expiries: 0,
       closeAttempts: 0, destroyedCloseAttempts: 0, closed: signal(),
       get tracked() { return tracked },
@@ -434,6 +464,58 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.equal(senders[3].expiries, 1)
   for (const sender of senders.slice(0, 3)) assert.equal(sender.dismissals, 1)
   for (const sender of senders) assert.equal(sender.closeAttempts, 1)
+}
+
+{ // Acting on the newest card dismisses it bare, presses its lone button, or picks among several.
+  const s = newCapacityScope()
+  const picking = []
+  s.startKeyboard = key => { picking.push(key); return true }
+  assert.equal(s.act(), 'none')
+  const bare = s.fakeNotification(1), single = s.fakeNotification(2), several = s.fakeNotification(3)
+  let pressed = 0
+  bare.actions = []
+  single.actions = [{ identifier: 'open', text: 'Open', invoke: () => { pressed += 1 } }]
+  several.actions = [{ identifier: 'reply', text: 'Reply' }, { identifier: 'archive', text: 'Archive' }]
+  s.admit(bare, single, several)
+  const [severalKey, singleKey, bareKey] = s.toasts.rows.map(row => row.key)
+  assert.equal(s.act(), 'ok')
+  assert.deepEqual(picking, [severalKey], 'several buttons hand that card the keyboard')
+  assert.equal(s.leaving[severalKey], undefined)
+  s.closeToast(severalKey, 'dismissed')
+  assert.equal(s.act(), 'ok')
+  assert.equal(pressed, 1, 'a lone button is pressed')
+  assert.equal(s.leaving[singleKey], 'activated')
+  assert.equal(s.act(), 'ok')
+  assert.equal(s.leaving[bareKey], 'dismissed', 'a card with no buttons is dismissed')
+
+  // A web notification's only action is its click: it opens rather than going away.
+  const web = s.fakeNotification(4)
+  let opened = 0
+  web.actions = [{ identifier: 'default', text: 'Activate', invoke: () => { opened += 1 } }]
+  s.admit(web)
+  const webKey = s.toasts.get(0).key
+  assert.equal(s.act(), 'ok')
+  assert.equal(opened, 1, 'a card whose one action is its click is clicked')
+  assert.equal(s.leaving[webKey], 'activated')
+
+  // Its click and a button make two things to choose from.
+  const both = s.fakeNotification(5)
+  both.actions = [{ identifier: 'default', text: 'Activate' }, { identifier: 'reply', text: 'Reply' }]
+  s.admit(both)
+  assert.equal(s.act(), 'ok')
+  assert.deepEqual(picking, [severalKey, s.toasts.get(0).key], 'a click and a button hand the card the keyboard')
+
+  // A native app with no actions at all still has its own window to go to.
+  const focused = []
+  s.Hyprland.toplevels = { values: [{ lastIpcObject: { class: 'signal', pid: 42, address: '0xabc' } }] }
+  s.Hyprland.dispatch = x => focused.push(x)
+  const native = s.fakeNotification(6)
+  native.actions = []
+  native.hints = { 'sender-pid': 42 }
+  s.admit(native)
+  assert.equal(s.act(), 'ok')
+  assert.equal(focused.length, 1, "a card from an app with a window open focuses that window")
+  assert.equal(s.leaving[s.toasts.get(0).key], 'activated')
 }
 
 { // A clicked card rises out before it goes; a keypress clears every card with one jump.
@@ -744,12 +826,13 @@ for (const replay of [false, true]) { // Replay and startup restore share held r
 
 { // Repeated replay creates distinct cards; restore cannot overwrite an admitted key.
   const s = newCapacityScope()
-  s.restoreRows([{ key: 'same', summary: 'Original' }], true)
-  s.restoreRows([{ key: 'same', summary: 'Replay' }], true)
-  s.restoreRows([{ key: 'same', summary: 'Stale startup' }], false)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Original' }], true)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Replay' }], true)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Stale startup' }], false)
   s.drainCallLater()
   assert.deepEqual(summaries(s.toasts.rows), ['Replay', 'Original'])
   assert.equal(new Set(s.toasts.rows.map(r => r.key)).size, 2)
+  assert.equal(new Set(s.toasts.rows.map(r => r.groupKey)).size, 2, 'the replayed card is its own deck')
 }
 
 { // Clearing pending rows cancels their callbacks even if replay reuses the exact key.
@@ -934,6 +1017,74 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   eq(s.historyEntries.map(e => e.summary + ':' + e.closed_reason), ['Silenced:silenced', 'Shown:expired'])
   assert.equal(s.liveEntries.length, 0)
   assert.ok(s.unsaved.live && s.unsaved.history)
+}
+
+{ // A transient card is shown but never stored, so the next login does not
+  // restore it next to the sender's fresh copy; it leaves no history either.
+  const s = newCapacityScope()
+  const reminder = () => Object.assign(s.fakeNotification(0, 'Pending migrations', 2), { hints: { transient: true } })
+  s.admit(reminder())
+  eq([s.toasts.count, s.liveEntries.length], [1, 0])
+  s.finishClose(s.toasts.get(0).key, 'dismissed')
+  eq([s.liveEntries.length, s.historyEntries.length], [0, 0])
+  // An update that turns a stored card transient takes its row out.
+  const update = s.fakeNotification(5, 'Stored')
+  s.admit(update)
+  assert.equal(s.liveEntries.length, 1)
+  update.replace({ hints: { transient: true } })
+  s.drainCallLater()
+  assert.equal(s.liveEntries.length, 0)
+}
+
+{ // One reminder from a web app open in two tabs arrives as two notifications
+  // in the same moment, each with its own id and its own copy of the picture.
+  // It is one card: the copy takes over the slot, like a replaces_id update.
+  const s = newCapacityScope()
+  const reminder = (id, site = 'app.hey.com') => Object.assign(s.fakeNotification(id, 'Træning', 2), { appName: 'Chromium',
+    body: '<a href="https://' + site + '/">' + site + '</a>\n\nToday, 10:00 AM', image: '/tmp/.org.chromium.Chromium.' + id + '/icon.png' })
+  const first = reminder(9), second = reminder(10), third = reminder(11)
+  // The second lands while the first still waits to be shown; the third, on the shown card.
+  s.handleNotification(first)
+  s.handleNotification(second)
+  s.drainCallLater()
+  eq([s.toasts.count, s.liveCount(), s.liveEntries.length, s.toasts.get(0).originalId], [1, 1, 1, 10])
+  const key = s.toasts.get(0).key
+  s.admit(third)
+  eq([s.toasts.count, s.liveCount(), s.liveEntries.length, s.toasts.get(0).originalId], [1, 1, 1, 11])
+  assert.equal(s.toasts.get(0).key, key)
+  // The copies it superseded are closed at the sender; the last one answers a click.
+  eq([first, second, third].map(n => [n.tracked, n.dismissals]), [[false, 1], [false, 1], [true, 0]])
+  assert.equal(s.refs[key], third)
+  // Another site saying the same, or the same toast opening another file, is its own card.
+  s.admit(reminder(12, 'calendar.example.com'))
+  assert.equal(s.toasts.count, 2)
+  const shot = file => Object.assign(s.fakeNotification(0, 'Screenshot saved'), { appName: 'omarchy-action', body: '3,840 × 2,160',
+    hints: { 'omarchy-exec-argv': JSON.stringify(['xdg-open', file]) } })
+  s.admit(shot('/tmp/one.png'), shot('/tmp/two.png'))
+  assert.equal(s.toasts.count, 4)
+  // Each of those unnamed toasts is its own deck, grouped by the key it ended up with.
+  eq(s.toasts.rows.slice(0, 2).map(r => r.groupKey), s.toasts.rows.slice(0, 2).map(r => 'toast:' + r.key))
+  // The same words after the moment has passed are a second message, not a copy.
+  s.toasts.get(s.rowIndexFor(key)).ts -= 10
+  s.admit(reminder(13))
+  assert.equal(s.toasts.count, 5)
+  // A card on its way out is not brought back by a copy of itself.
+  const leavingKey = s.toasts.get(0).key
+  s.closeToast(leavingKey, 'dismissed')
+  s.admit(reminder(14))
+  eq([s.toasts.count, s.rowIndexFor(leavingKey) >= 0, !!s.leaving[leavingKey]], [6, true, true])
+  // The same words offering different buttons are two cards, each keeping its own.
+  const call = (id, button) => Object.assign(s.fakeNotification(id, 'Standup'), { body: 'Starting now',
+    actions: [{ identifier: button.toLowerCase(), text: button }] })
+  const before = s.toasts.count
+  s.admit(call(20, 'Reply'), call(21, 'Join'), call(22, 'Join'))
+  assert.equal(s.toasts.count, before + 2)
+  eq(s.toasts.rows.slice(0, 2).map(r => [r.originalId, s.actionsOf(r.key).map(a => a.text)]), [[22, ['Join']], [20, ['Reply']]])
+  // One card, one history entry.
+  const t = newCapacityScope()
+  t.admit(Object.assign(t.fakeNotification(1, 'Twice'), { body: 'Same' }), Object.assign(t.fakeNotification(2, 'Twice'), { body: 'Same' }))
+  t.finishClose(t.toasts.get(0).key, 'dismissed')
+  eq([t.toasts.count, t.liveEntries.length, t.historyEntries.length], [0, 0, 1])
 }
 
 { // A pending card silenced before it showed leaves nothing to restore.

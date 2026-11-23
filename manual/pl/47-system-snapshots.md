@@ -1,25 +1,21 @@
 # Migawki systemu
 
-Migawki tworzymy automatycznie przy każdej aktualizacji Omarchy, ale gdybyś chciał utworzyć własną, możesz użyć `omarchy-snapshot create`.
+Tworzymy migawki automatycznie przy każdej aktualizacji Omarchy, ale jeśli chcesz utworzyć własną, możesz użyć `omarchy-snapshot create`.
 
-Aby uruchomić i przywrócić migawkę, wybierasz ją z programu rozruchowego Limine. (Jeśli obecnie uruchamiasz się wprost do ekranu odszyfrowywania Omarchy, najpierw musisz wybrać Limine jako opcję rozruchu w BIOS-ie).
+Aby uruchomić system z migawki i ją przywrócić, wybierasz ją z boot loadera Limine. Menu rozruchu domyślnie pozostaje ukryte, więc naciśnij dowolny klawisz, gdy tylko uruchomi się Limine, aby je wyświetlić.
 
-Na tym ekranie wybierz migawkę, którą chcesz uruchomić, na podstawie daty i wersji. Wersję Omarchy z chwili utworzenia migawki widać w lewym dolnym rogu.
+Na tym ekranie wybierz migawkę, z której chcesz uruchomić system, na podstawie daty i wersji. Wersję Omarchy z czasu utworzenia migawki widać w lewym dolnym rogu.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Gdy znajdziesz się w środku, wyskoczy powiadomienie informujące cię, że jesteś w startowej migawce, a jeśli je klikniesz, rozpocznie proces przywracania. Alternatywnie możesz skorzystać z `omarchy-snapshot restore`.
+Kiedy już znajdziesz się w środku, wyskoczy powiadomienie informujące, że jesteś w rozruchowej migawce, a kliknięcie go rozpocznie proces przywracania. Alternatywnie możesz skorzystać z `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Przywróci to twój główny system plików, ale nie twój `/home`. Działa więc przy wycofywaniu zepsutej aktualizacji systemu, ale nie przy odzyskiwaniu utraconych plików osobistych.
+Przywróci to Twój główny system plików, ale nie Twój `/home`. Działa to więc przy cofaniu zepsutej aktualizacji systemu, ale nie przy odzyskiwaniu utraconych plików osobistych.
 
-Oznacza to też, że twój katalog `~/.config` pozostaje bez zmian. Więc jeśli wycofujesz się do wcześniejszej wersji biblioteki albo aplikacji, która przechowuje pliki konfiguracyjne w nowym formacie, będziesz musiał uporać się z tym ręcznie.
+Oznacza to również, że Twój katalog `~/.config` pozostaje bez zmian. Jeśli więc wracasz do wcześniejszej wersji biblioteki lub aplikacji, która przechowuje pliki konfiguracyjne w nowym formacie, będziesz musiał zająć się tym ręcznie.
 
-_Uwaga: Ta funkcja jest dostępna tylko w instalacjach używających programu rozruchowego Limine, który jest domyślny od Omarchy 2.0. Nie jest dostępna, jeśli używasz GRUB-a albo systemd-boot._
+To samo dotyczy własnego rejestru Omarchy dotyczącego tego, które migracje zostały już uruchomione: znajduje się on w Twoim katalogu domowym, więc przetrwa przywracanie. Migracje uruchomione po utworzeniu migawki pozostają oznaczone jako wykonane, mimo że zmiany, które wprowadziły w głównym systemie plików, zostały cofnięte, a następne `omarchy update` nie uruchomi ich ponownie. Jeśli więc po przywróceniu ponownie dokonasz aktualizacji i nadal będzie brakować czegoś, co skonfigurowała wcześniejsza aktualizacja, to prawdopodobnie właśnie z tego powodu.
 
-### Pomijanie menu rozruchowego
-
-Jeśli nigdy nie dotykasz menu rozruchowego i chcesz tylko, aby komputer przechodził wprost do ekranu odszyfrowywania, uruchom _Ustawienia > Bezpośredni rozruch_ w menu Omarchy. Dodaje to wpis EFI wskazujący wprost na Omarchy, więc oprogramowanie sprzętowe uruchamia je bez zatrzymywania się na Limine.
-
-Kompromis jest ten wspomniany na górze: przy włączonym bezpośrednim rozruchu dostanie się do migawki oznacza najpierw wybranie Limine z menu rozruchowego BIOS-u. Uruchom _Ustawienia > Bezpośredni rozruch_ ponownie, aby usunąć wpis i wrócić do uruchamiania przez Limine. Niektóre oprogramowanie sprzętowe nie znosi dobrze niestandardowych wpisów EFI, więc konfiguracja odmawia działania na oprogramowaniu sprzętowym American Megatrends i Apple.
+_Uwaga: Ta funkcja jest dostępna tylko w instalacjach korzystających z boot loadera Limine, który jest domyślny od Omarchy 2.0. Nie jest dostępna, jeśli korzystasz z GRUB lub systemd-boot._

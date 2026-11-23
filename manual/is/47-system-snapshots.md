@@ -1,25 +1,21 @@
-# Kerfisaugnablik
+# Augnabliksmyndir af kerfinu
 
-Við búum til augnablik sjálfkrafa við hverja Omarchy-uppfærslu, en ef þú vilt búa til þín eigin geturðu notað `omarchy-snapshot create`.
+Við búum til augnabliksmyndir sjálfkrafa við hverja Omarchy uppfærslu, en ef þú vilt búa til þína eigin geturðu notað `omarchy-snapshot create`.
 
-Til að ræsa og endurheimta augnablik velurðu það í Limine ræsiforritinu. (Ef þú ert núna að ræsa beint inn á Omarchy afkóðunarskjáinn þarftu fyrst að velja Limine sem ræsivalkost í BIOS).
+Til að ræsa og endurheimta augnabliksmynd velurðu hana úr Limine boot loader. Ræsivalmyndin er sjálfgefið falin, svo ýttu á hvaða takka sem er um leið og Limine ræsist til að kalla hana fram.
 
-Á þeim skjá skaltu velja augnablikið sem þú vilt ræsa í, byggt á dagsetningu og útgáfu. Útgáfu Omarchy á tíma augnabliksins má sjá neðst í vinstra horni.
+Á þeim skjá velurðu augnabliksmyndina sem þú vilt ræsa í, eftir dagsetningu og útgáfu. Útgáfu Omarchy á þeim tíma sem augnabliksmyndin var tekin má sjá í neðra vinstra horninu.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Þegar þú kemur inn mun tilkynning birtast sem lætur þig vita að þú sért í ræsanlegu augnabliki og ef þú smellir á hana mun hún byrja endurheimtarferlið. Að öðrum kosti geturðu notað `omarchy-snapshot restore`.
+Þegar þú ert kominn inn birtist tilkynning sem lætur þig vita að þú sért í ræsanlegri augnabliksmynd og ef þú smellir á hana hefst endurheimtarferlið. Að öðrum kosti geturðu notað `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Þetta mun endurheimta rótaskráarkerfið þitt, en ekki `/home` þitt. Svo það virkar til að snúa við bilaðri kerfisuppfærslu, en ekki til að endurheimta tapaðar persónulegar skrár.
+Þetta endurheimtir rótarskráarkerfið þitt, en ekki `/home`. Það virkar því til að afturkalla bilaða kerfisuppfærslu, en ekki til að endurheimta týnd persónuleg skjöl.
 
-Þetta þýðir líka að `~/.config` möppan þín helst óbreytt. Svo ef þú ert að snúa aftur í eldri útgáfu af bókasafni eða forriti sem geymir stillingarskrár á nýju sniði þarftu að leysa það handvirkt.
+Þetta þýðir líka að `~/.config` mappan þín helst óbreytt. Ef þú ert því að fara aftur í eldri útgáfu af safni eða forriti sem geymir stillingarskrár á nýju sniði þarftu að leysa úr því handvirkt.
 
-_Athugaðu: Þessi eiginleiki er aðeins tiltækur á uppsetningum sem nota Limine ræsiforritið, sem hefur verið sjálfgildið frá Omarchy 2.0. Hann er ekki tiltækur ef þú ert á GRUB eða systemd-boot._
+Sama gildir um eigin skrá Omarchy yfir hvaða flutningar hafa þegar keyrt: hún býr í heimamöppunni þinni, svo hún lifir endurheimtina af. Flutningar sem keyrðu eftir að augnabliksmyndin var tekin haldast merktir sem kláraðir, jafnvel þótt breytingarnar sem þeir gerðu á rótarskráarkerfinu hafi verið afturkallaðar, og næsta `omarchy update` keyrir þá ekki aftur. Ef þú uppfærir því aftur eftir endurheimt og eitthvað sem fyrri uppfærsla hafði sett upp vantar enn, þá er það sennileg ástæða.
 
-### Að sleppa ræsivalmyndinni
-
-Ef þú snertir aldrei ræsivalmyndina og vilt bara að vélin fari beint á afkóðunarskjáinn skaltu keyra _Uppsetning > Bein ræsing_ í Omarchy-valmyndinni. Það bætir við EFI-færslu sem bendir beint á Omarchy, svo fastbúnaðurinn ræsir það án þess að stoppa við Limine.
-
-Gagnkvæmnið er það sem nefnt er efst: með beina ræsingu á þýðir það að ná til augnabliks að velja Limine úr BIOS ræsivalmyndinni þinni fyrst. Keyrðu _Uppsetning > Bein ræsing_ aftur til að fjarlægja færsluna og fara aftur að ræsa gegnum Limine. Sumir fastbúnaðar taka ekki vel í sérsniðnar EFI-færslur, svo uppsetningin neitar að keyra á American Megatrends og Apple fastbúnaði.
+_Athugið: Þessi eiginleiki er aðeins í boði á uppsetningum sem nota Limine boot loader, sem hefur verið sjálfgefinn síðan Omarchy 2.0. Hann er ekki í boði ef þú ert á GRUB eða systemd-boot._

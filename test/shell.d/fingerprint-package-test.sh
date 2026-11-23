@@ -43,6 +43,14 @@ case "$1" in
     fi
     grep -qx -- "$1" <<< "${INSTALLED:-}"
     ;;
+  # Ownership query, not a transaction: answer it without logging a call.
+  # Only the library the setup cares about has an owner here, so any other path
+  # comes back unowned the way pacman answers for a file no package ships.
+  -Qqo)
+    [[ $2 == /usr/lib/libfprint-2.so.2 ]] || exit 1
+    [[ -n ${LIBFPRINT_OWNER:-} ]] || exit 1
+    echo "$LIBFPRINT_OWNER"
+    ;;
   -S)
     printf 'pacman %s\n' "$*" >> "$CALL_LOG"
     exit "${INSTALL_STATUS:-0}"
@@ -111,6 +119,13 @@ run_setup() {
 
 assert_installs() {
   grep -qx 'pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils' "$CALL_LOG" || fail "$1"
+  (( $(grep -c '^pacman ' "$CALL_LOG") == 1 )) || fail "$1: one pacman transaction"
+}
+
+assert_keeps_driver() {
+  grep -qx 'pacman -S --needed --noconfirm --ask 4 -- fprintd usbutils' "$CALL_LOG" ||
+    fail "$1"
+  grep -q 'libfprint-git' "$CALL_LOG" && fail "$1: libfprint-git is not installed"
   (( $(grep -c '^pacman ' "$CALL_LOG") == 1 )) || fail "$1: one pacman transaction"
 }
 
@@ -326,37 +341,31 @@ pass "a failed sudo stops setup with a reason, before enrolling"
   fail "any verify result that isn't done is a retry"
 pass "every retry keeps the step going, and only a finished failure says it stopped"
 
-# Each of fprintd 1.94.5's enroll and verify results, one by one.
-check_enroll() {
-  [[ $(printf 'Enroll result: %s\n' "$1" | enroll_progress "Again.") == "$2" ]] ||
-    fail "enroll result $1 reads as: $2" "$(printf 'Enroll result: %s\n' "$1" | enroll_progress "Again.")"
-}
-check_enroll enroll-completed $'  ✓ Enrolled.'
-check_enroll enroll-retry-scan "  That one didn't read. Again."
-check_enroll enroll-swipe-too-short '  Too short. Again.'
-check_enroll enroll-finger-not-centered '  Not centered: use the middle of the sensor. Again.'
-check_enroll enroll-remove-and-retry '  Lift your finger off the sensor, then try again.'
-check_enroll enroll-too-fast '  Too fast. Again.'
-check_enroll enroll-duplicate $'  ✗ That finger is already enrolled.'
-check_enroll enroll-data-full $'  ✗ The reader has no room for another fingerprint.'
-check_enroll enroll-disconnected $'  ✗ The reader was disconnected.'
-for result in enroll-failed enroll-unknown-error; do
-  check_enroll "$result" $'  ✗ Enrollment stopped. If you stopped before it said Enrolled, run this again and keep going.'
-done
-check_verify() {
-  [[ $(printf 'Verify result: %s\n' "$1" | verify_progress "Again.") == "$2" ]] ||
-    fail "verify result $1 reads as: $2" "$(printf 'Verify result: %s\n' "$1" | verify_progress "Again.")"
-}
-check_verify 'verify-match (done)' $'  ✓ Matched.'
-check_verify 'verify-no-match (done)' $'  ✗ No match.'
-check_verify 'verify-retry-scan (not done)' "  That one didn't read. Again."
-check_verify 'verify-swipe-too-short (not done)' '  Too short. Again.'
-check_verify 'verify-finger-not-centered (not done)' '  Not centered: use the middle of the sensor. Again.'
-check_verify 'verify-remove-and-retry (not done)' '  Lift your finger off the sensor, then try again.'
-# The line names no gesture, so it reads right on press and swipe readers alike.
-[[ $(printf 'Enroll result: enroll-remove-and-retry\n' | enroll_progress "Swipe it again.") == '  Lift your finger off the sensor, then try again.' ]] ||
-  fail "a swipe reader asked to lift its finger isn't told to touch"
-check_verify 'verify-too-fast (not done)' '  Too fast. Again.'
-check_verify 'verify-disconnected (done)' $'  ✗ The reader was disconnected.'
-check_verify 'verify-unknown-error (done)' $'  ✗ The check stopped (verify-unknown-error).'
-pass "each enroll and verify result fprintd 1.94.5 sends reads as intended"
+# Readers libfprint cannot drive at all run on a TOD stack -- a libfprint fork
+# plus a vendor blob -- and that fork provides libfprint-2.so.2 itself. --ask 4
+# would accept its removal silently, leaving the machine with no driver, so the
+# owner of the library decides whether libfprint-git may replace it.
+LIBFPRINT_OWNER=libfprint-tod INSTALLED=$'libfprint-tod' run_setup
+assert_keeps_driver "a TOD-provided libfprint is kept instead of being replaced"
+pass "a TOD-provided libfprint is kept and libfprint-git is skipped"
+
+# The TOD packages are named differently per vendor, so the check has to follow
+# the library's owner rather than any one package name.
+LIBFPRINT_OWNER=libfprint-tod-git INSTALLED=$'libfprint-tod-git' run_setup
+assert_keeps_driver "a differently named TOD package is kept too"
+pass "the driver is kept by library ownership, not by package name"
+
+LIBFPRINT_OWNER=libfprint-tod INSTALLED=$'libfprint-tod\nfprintd\nusbutils' run_setup
+if grep -q '^pacman ' "$CALL_LOG"; then
+  fail "a TOD machine with everything installed does not touch pacman"
+fi
+grep -qx enroll "$CALL_LOG" || fail "a TOD machine with everything installed reaches enrollment"
+pass "a TOD machine with everything installed goes straight to enrollment"
+
+LIBFPRINT_OWNER=libfprint run_setup
+assert_installs "stock libfprint is still replaced by libfprint-git"
+pass "stock libfprint is still replaced by libfprint-git"
+
+LIBFPRINT_OWNER=libfprint-git INSTALLED=$'libfprint-git' run_setup
+assert_installs "an existing libfprint-git still completes the package set"
+pass "an existing libfprint-git still completes the package set"

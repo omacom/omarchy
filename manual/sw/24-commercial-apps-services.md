@@ -1,41 +1,47 @@
 # Programu/huduma za kibiashara
 
-Omarchy inalenga zaidi kutoa programu huria, ya chanzo huria, lakini si ya kidini kuhusu hilo. Wakati mwingine suluhisho bora zaidi ni toleo la kibiashara, na hilo ni sawa kabisa. Hizi hapa ni baadhi ya chaguo tunazotoa usakinishaji rahisi kwake.
+Omarchy inalenga zaidi kutoa programu huria na za wazi, lakini haishiki dini kuhusu hilo. Wakati mwingine suluhisho bora ni huduma ya kibiashara, na hilo ni sawa kabisa. Hapa kuna baadhi ya chaguo ambazo tunatoa usakinishaji rahisi kwa ajili yake.
 
 ## 1Password
 
-Kuweka manenosiri yako katika meneja wa manenosiri ni tabia bora. Mara mbili zaidi kama unafanya kazi na timu. Na [1password](https://1password.com/) ni suluhisho bora, ambalo pia huja na zana ya mstari wa amri ya kuunganisha utafutaji wa funguo katika hati.
+Kuweka manenosiri yako katika kidhibiti cha manenosiri ni mbinu bora. Zaidi sana ikiwa unafanya kazi na timu. Na [1password](https://1password.com/) ni suluhisho zuri, ambalo pia huja na zana ya mstari wa amri kwa ajili ya kuunganisha utafutaji wa funguo katika hati.
 
-Unaanzisha 1Password kwa `Super + Shift + /`. Kama haijasakinishwa bado, mkato huo huanzisha usakinishaji kwanza (unaweza pia kutumia _Sakinisha > Huduma > 1Password_ kutoka menyu ya Omarchy). Kisakinishi husanidi kiendelezi cha 1Password kwa Chromium pia.
+Unaianzisha 1Password kwa `Super + Shift + /`. Ikiwa bado haijasakinishwa, kitufe hicho cha mkato huanzisha usakinishaji kwanza (unaweza pia kutumia _Install > Service > 1Password_ kutoka kwenye menyu ya Omarchy). Kisakinishaji pia huleta zana ya mstari wa amri ya 1Password na kuweka kiendelezi cha 1Password kwa ajili ya Chrome na Chromium; anzisha upya kivinjari chako ili kukipakia.
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/) ni mbadala wa chanzo huria katika nafasi ya meneja wa manenosiri, wenye kiwango cha bure kinachofunika matumizi mengi ya kibinafsi. Isakinishe kwa _Sakinisha > Huduma > Bitwarden_ kutoka menyu ya Omarchy, ambayo huleta pia zana ya mstari wa amri ya Bitwarden.
+[Bitwarden](https://bitwarden.com/) ni mbadala wa programu huria katika eneo la vidhibiti vya manenosiri, ikiwa na daraja la bure linalokidhi matumizi mengi ya kibinafsi. Isakinishe kwa _Install > Service > Bitwarden_ kutoka kwenye menyu ya Omarchy, ambayo pia huleta zana ya mstari wa amri ya Bitwarden.
 
 ## Spotify
 
-[Spotify](https://spotify.com/) ni huduma maarufu zaidi duniani ya kutiririsha muziki. Na programu ya Linux hutoa kila kitu ambacho ungetarajia, ikiwa ni pamoja na kucheza nje ya mtandao.
-
-Unaanzisha Spotify kwa kutumia `Super + Shift + M`. Kama 1Password, mkato huanzisha usakinishaji kwanza kama Spotify haijasakinishwa bado (au tumia _Sakinisha > Huduma > Spotify_ kutoka menyu ya Omarchy).
+[Spotify](https://spotify.com/) ndiyo huduma maarufu zaidi duniani ya kutiririsha muziki. Omarchy huileta kama programu ya wavuti, ambayo hukupa kichezaji kamili, vitufe vya midia, na Spotify Connect, lakini si upakuaji wa nje ya mtandao. Ianzishe kwa `Super + Shift + M`.
 
 ## Slack
 
-[Slack](https://slack.com/) ni mahali ambapo timu nyingi hufanya gumzo zao, ndani ya kampuni na na washirika wa nje. Isakinishe kwa _Sakinisha > Huduma > Slack_ kutoka menyu ya Omarchy, na itafunguka mara itakapokuwa tayari.
+[Slack](https://slack.com/) ndipo timu nyingi hufanyia mazungumzo yao, ndani ya kampuni na na washirika wa nje. Isakinishe kwa _Install > Service > Slack_ kutoka kwenye menyu ya Omarchy, na itafunguka mara tu itakapokuwa tayari.
+
+## Notion
+
+[Notion](https://www.notion.com/) ni nafasi ya kazi kwa ajili ya madokezo, nyaraka, na miradi. Sakinisha programu yake ya eneo-kazi kwa _Install > Service > Notion_ kutoka kwenye menyu ya Omarchy.
+
+## WeChat
+
+[WeChat](https://www.wechat.com/) ni programu ya kutuma ujumbe ambayo sehemu kubwa ya China inaitumia, kwa kuzungumza, kupiga simu, na kuwasiliana na mtu yeyote anayeishi huko. Sakinisha programu rasmi ya Linux ya Tencent kwa _Install > Service > WeChat_ kutoka kwenye menyu ya Omarchy, na itafunguka mara tu itakapokuwa tayari. Inapatikana tu kwenye kompyuta za x86.
 
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/) ni njia bora ya kusawazisha faili kati ya mashine huku ukiweka nakala rudufu katika wingu. Ili kuisanidi, chagua _Sakinisha > Huduma > Dropbox_ kutoka menyu ya Omarchy. Mara inapoendeshwa, elea juu ya trei katika sehemu ya juu kulia ya upau na ubofye kulia aikoni ya Dropbox kumalizia usanidi.
+[Dropbox](https://www.dropbox.com/) ni njia nzuri ya kusawazisha faili kati ya mashine huku ukiweka nakala rudufu kwenye wingu. Ili kuiweka, chagua _Install > Service > Dropbox_ kutoka kwenye menyu ya Omarchy. Inaongeza aikoni ya Dropbox kwenye upau: ibofye ili kuingia, kisha tumia paneli hiyo hiyo kuangalia hifadhi yako na kufungua faili zilizosawazishwa hivi karibuni.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) ni VPN ya matundu inayofanya kupata ufikiaji wa kompyuta na seva zako zote kupitia mtandao kwa usalama kuwa rahisi sana. Ili kuisanidi, chagua _Sakinisha > Huduma > Tailscale_ kutoka menyu ya Omarchy.
+[Tailscale](https://tailscale.com/) ni VPN ya mesh inayorahisisha sana kupata ufikiaji salama wa kompyuta na seva zako zote kupitia intaneti. Ili kuiweka, chagua _Install > Service > Tailscale_ kutoka kwenye menyu ya Omarchy.
 
-Inapata paneli katika upau, programu ya wavuti kwa dashibodi ya msimamizi, na Taildrop kwa kutuma faili kati ya mashine zako — tazama [mtandao](35-networking.md).
+Inapata paneli kwenye upau, programu ya wavuti kwa ajili ya dashibodi ya msimamizi, na Taildrop kwa ajili ya kutuma faili kati ya mashine zako — tazama [mtandao](35-networking.md).
 
 ## ONCE
 
-[ONCE](https://once.com/) ni mstari wa programu za 37signals unazozinunua mara moja na kuziendesha kwenye seva yako mwenyewe, kama mfumo wa gumzo wa Campfire. Chagua _Sakinisha > Huduma > ONCE_ kutoka menyu ya Omarchy kuisakinisha, ambayo huwasha huduma yake ya nyuma na kukupeleka katika kiolesura cha terminali cha ONCE kuendelea kutoka hapo.
+[ONCE](https://once.com/) ni mfululizo wa programu za 37signals unazonunua mara moja na kuziendesha kwenye seva yako mwenyewe, kama mfumo wa mazungumzo wa Campfire. Chagua _Install > Service > ONCE_ kutoka kwenye menyu ya Omarchy ili kuisakinisha, ambayo huwasha huduma yake ya usuli na kukupeleka kwenye kiolesura cha terminali cha ONCE ili uendelee kutoka hapo.
 
 ## NordVPN
 
-[NordVPN](https://nordvpn.com/) ni huduma ya kawaida ya VPN inayokuwezesha kutoa trafiki yako kutoka maeneo mengi duniani. Ili kuisanidi, chagua _Sakinisha > Huduma > NordVPN_ kutoka menyu ya Omarchy. Baada ya kuwashwa upya inayokuomba, endesha `nordvpn login` kujithibitisha.
+[NordVPN](https://nordvpn.com/) ni huduma ya kawaida ya VPN inayokuruhusu kutoa trafiki yako kupitia maeneo mengi duniani kote. Ili kuiweka, chagua _Install > Service > NordVPN_ kutoka kwenye menyu ya Omarchy. Baada ya kuwasha upya inakoomba, endesha `nordvpn login` ili kujithibitisha.

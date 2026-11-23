@@ -26,11 +26,11 @@
   "update": {
     "label": "Yangilash"
   },
-  "about": {
-    "label": "Haqida"
-  },
   "system": {
     "label": "Tizim"
+  },
+  "system.about": {
+    "label": "Haqida"
   },
   "system.screensaver": {
     "label": "Ekran saqlagich"
@@ -357,26 +357,14 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disk tezligi testi"
   },
-  "setup.monitors": {
-    "label": "Monitorlar"
-  },
-  "setup.keybindings": {
-    "label": "Tugmalar birikmasi"
-  },
   "setup.input": {
     "label": "Kiritish"
   },
-  "setup.typing": {
-    "label": "Yozish"
-  },
-  "setup.typing.keyboard": {
-    "label": "Klaviatura tartibi"
-  },
-  "setup.typing.input": {
-    "label": "Kiritish usullari"
-  },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Til"
+  },
+  "setup.region.timezone": {
+    "label": "Vaqt mintaqasi"
   },
   "setup.network": {
     "label": "Tarmoq"
@@ -401,55 +389,6 @@
   },
   "setup.default": {
     "label": "Standartlar"
-  },
-  "setup.default.agent": {
-    "label": "Agent",
-    "title": "Standart agent"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Brauzer",
@@ -581,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Toʻgʻridan yuklash"
-  },
-  "setup.reset": {
-    "label": "Kompyuterni tiklash"
+  "remove.factory-reset": {
+    "label": "Zavod holatiga qaytarish"
   },
   "install.package": {
     "label": "Paket"
@@ -680,9 +616,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -703,9 +636,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium hisobi"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1103,9 +1033,6 @@
   "update.password": {
     "label": "Parol"
   },
-  "update.timezone": {
-    "label": "Vaqt mintaqasi"
-  },
   "update.time": {
     "label": "Vaqt"
   },
@@ -1154,13 +1081,198 @@
   "update.hardware.trackpad": {
     "label": "Trekpad"
   },
-  "update.password.drive": {
-    "label": "Disk shifrlash"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Batareya % koʻrsatish"
   },
-  "update.password.user": {
-    "label": "Foydalanuvchi"
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Batareya % yashirish"
   },
-  "system.reboot-boot-menu": {
-    "label": "Yuklanish menyusiga qayta yuklash"
+  "appearance.windows": {
+    "label": "Oynalar"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Oyna oraliqlari yoniq"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Oyna oraliqlari oʻchiq"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-oyna nisbati yoniq"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-oyna nisbati oʻchiq"
+  },
+  "appearance.branding": {
+    "label": "Brending"
+  },
+  "appearance.animations-on": {
+    "label": "Animatsiyalar yoniq"
+  },
+  "appearance.animations-off": {
+    "label": "Animatsiyalar oʻchiq"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Uygʻoq turish"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Uyquga ruxsat berish"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Bildirishnomalar yoniq"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Bildirishnomalarni jim qilish"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Tungi yorugʻlik yoniq"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Tungi yorugʻlik oʻchiq"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Ekran saqlagich yoniq"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Ekran saqlagich oʻchiq"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Nosozlik yozuvi yoniq"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Nosozlik qaydini oʻchirish"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Noutbuk ekranini yoqish"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Noutbuk ekranini oʻchirish"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Ekran aksini yoqish"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Ekran aksini oʻchirish"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Gibrid GPUga oʻtish"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Integratsiyalangan GPUga oʻtish"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Tachpadni yoqish"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Tachpadni oʻchirish"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Sensor ekranni yoqish"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Sensor ekranni oʻchirish"
+  },
+  "setup.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Yadro"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Klaviatura"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Tugmalar birikmalari"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Klaviatura kirishlari"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Kiritish usullari"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Oddiy"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikonkalar"
+  },
+  "install.style.icons": {
+    "label": "Ikonkalar"
+  },
+  "remove.icons": {
+    "label": "Ikonkalar"
+  },
+  "update.icons": {
+    "label": "Qo‘shimcha ikonkalar"
+  },
+  "system.firmware": {
+    "label": "BIOSga qayta yuklash",
+    "description": "UEFI firmware sozlamalariga qayta yuklash"
+  },
+  "setup.region": {
+    "label": "Mintaqa"
+  },
+  "setup.region.formats": {
+    "label": "Formatlar",
+    "description": "Sana, vaqt, raqam va birliklar yozilishi"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes o'yini"
+  },
+  "update.games": {
+    "label": "Game Vibes o'yinlari"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Kompyuter nomi"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

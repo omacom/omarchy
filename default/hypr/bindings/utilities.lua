@@ -1,5 +1,7 @@
+local keyboard = require("default.hypr.keyboard")
+
 o.bind("SUPER + SPACE", "Omarchy menu", { menu = "root" })
-o.bind("SUPER + ALT + SPACE", "Apps", "omarchy-shell omarchy.dock apps")
+o.bind("SUPER + ALT + SPACE", "Apps", { ipc = "omarchy.dock.apps" })
 o.bind("SUPER + CTRL + E", "Emojis", { panel = "omarchy.emojis" })
 o.bind("SUPER + CTRL + C", "Capture menu", { menu = "capture" })
 o.bind("SUPER + CTRL + O", "Toggle menu", { menu = "toggle" })
@@ -7,7 +9,7 @@ o.bind("SUPER + CTRL + H", "Hardware menu", { menu = "hardware" })
 o.bind("SUPER + SHIFT + code:201", "Omarchy menu", { menu = "root" })
 o.bind("SUPER + ESCAPE", "System menu", { menu = "system" })
 o.bind("XF86PowerOff", "Power menu", { menu = "system" }, { locked = true })
-o.bind("SUPER + K", "Keybindings", "omarchy-menu-keybindings")
+o.bind("SUPER + K", "Keybindings", { menu = "learn.keybindings" })
 o.bind("SUPER + ALT + K", "Tmux keybindings", "omarchy-menu-tmux-keybindings")
 o.bind("SUPER + CTRL + K", "Herdr keybindings", "omarchy-menu-herdr-keybindings")
 o.bind_toggle("SUPER + SHIFT + SPACE", "Toggle top bar", "bar")
@@ -21,12 +23,12 @@ o.bind("SUPER + CTRL + BACKSPACE", "Toggle single-window square aspect", "omarch
 o.bind_toggle("SUPER + CTRL + ALT + F", "Toggle full screen desktop", "fullscreen-desktop")
 
 -- xkbcommon names the comma keysym "comma"; the upper-case "COMMA" does not match.
-o.bind("SUPER + comma", "Dismiss last notification", { ipc = "notifications.dismissOne" })
+o.bind("SUPER + comma", "Dismiss, invoke, or focus last notification", { ipc = "notifications.act" })
 o.bind("SUPER + SHIFT + comma", "Dismiss all notifications", { ipc = "notifications.dismissAll" })
 o.bind("SUPER + CTRL + comma", "Control notifications with the keyboard", { ipc = "notifications.keyboard" })
-o.bind("SUPER + ALT + comma", "Invoke last notification", { ipc = "notifications.invokeLast" })
+o.bind("SUPER + ALT + comma", "Dismiss last notification", { ipc = "notifications.dismissOne" })
 o.bind("SUPER + SHIFT + ALT + comma", "Open notification history", { ipc = "notifications.showHistory" })
-o.bind_toggle("SUPER + CTRL + ALT + comma", "Toggle silencing notifications", "notification-silencing")
+o.bind("SUPER + CTRL + ALT + comma", "Toggle silencing notifications", { ipc = "notifications.toggleDnd" })
 
 o.bind_toggle("SUPER + CTRL + I", "Toggle locking on idle", "idle")
 o.bind("SUPER + CTRL + Delete", "Toggle laptop display", "omarchy-hyprland-monitor-internal toggle")
@@ -36,9 +38,13 @@ o.bind("switch:off:Lid Switch", nil, "omarchy-hyprland-monitor-clamshell", { loc
 -- Apple Silicon reports its lid through the SMC, under its own switch name.
 o.bind("switch:on:Apple SMC power/lid events", nil, "omarchy-system-lid-close", { locked = true })
 o.bind("switch:off:Apple SMC power/lid events", nil, "omarchy-hyprland-monitor-clamshell", { locked = true })
+-- ChromeOS EC laptops (Googlebooks, Chromebooks) report their lid through cros_ec_buttons.
+o.bind("switch:on:cros_ec_buttons", nil, "omarchy-system-lid-close", { locked = true })
+o.bind("switch:off:cros_ec_buttons", nil, "omarchy-hyprland-monitor-clamshell", { locked = true })
 
 o.bind("PRINT", "Screenshot", "omarchy-capture-screenshot")
 o.bind("SUPER + CTRL + ALT + C", "Screenshot", "omarchy-capture-screenshot")
+o.bind("SUPER + SHIFT + CTRL + ALT + C", "Screenrecording with no audio", "omarchy-capture-screenrecording")
 o.bind("ALT + PRINT", "Screenrecording", "omarchy-capture-screenrecording --stop-recording || omarchy-menu toggle trigger.capture.screenrecord")
 o.bind("SUPER + ALT + code:34", "Make webcam overlay smaller", "omarchy-capture-webcam-resize smaller")
 o.bind("SUPER + ALT + code:35", "Make webcam overlay larger", "omarchy-capture-webcam-resize larger")
@@ -46,28 +52,39 @@ o.bind("SUPER + PRINT", "Color picker", "pkill hyprpicker || hyprpicker -a")
 o.bind("SUPER + CTRL + PRINT", "Extract text (OCR) from screenshot", "omarchy-capture-text")
 
 -- Keyboard control for the slurp region picker (see omarchy-capture-region).
--- The binds live exactly as long as a selection layer is on screen (slurp
--- opens one per monitor), so they cannot leak or get stuck.
--- Unbinding by key would take a same-key binding out of the user's own config
--- with it, so each handle is kept and removed individually.
+-- The binds are enabled exactly as long as a selection layer is on screen
+-- (slurp opens one per monitor), so they cannot leak or get stuck.
+-- They are disabled rather than unbound, since Hyprland's unbind() removes every
+-- bind on the chord, the user's own included. Without descriptions, the
+-- keybindings menu leaves them out.
 local selection_layers = 0
+local selection_keys = {
+  ["RETURN"] = "--take-window",
+  ["CTRL + RETURN"] = "--take-fullscreen",
+  ["TAB"] = "--select-window next",
+  ["CTRL + TAB"] = "--select-window prev",
+  ["LEFT"] = "--select-window left",
+  ["RIGHT"] = "--select-window right",
+  ["UP"] = "--select-window up",
+  ["DOWN"] = "--select-window down",
+}
 local selection_binds = {}
+
+-- Any unbind of the chord expires the handle, and Hyprland 0.56 dereferences an
+-- expired handle in every method but tostring().
+local function selection_bind_alive(keybind)
+  return keybind ~= nil and tostring(keybind) ~= "HL.Keybind(expired)"
+end
 
 hl.on("layer.opened", function(layer)
   if layer.namespace == "selection" then
     selection_layers = selection_layers + 1
     if selection_layers == 1 then
-      selection_binds = {
-        hl.bind("RETURN", hl.dsp.exec_cmd("omarchy-capture-region --take-window"), { description = "Capture highlighted window" }),
-        hl.bind("CTRL + RETURN", hl.dsp.exec_cmd("omarchy-capture-region --take-fullscreen"), { description = "Capture entire screen" }),
-        hl.bind("TAB", hl.dsp.exec_cmd("omarchy-capture-region --select-window next"), { description = "Select next window to capture" }),
-        hl.bind("CTRL + TAB", hl.dsp.exec_cmd("omarchy-capture-region --select-window prev"), { description = "Select previous window to capture" }),
-      }
-      for _, direction in ipairs({ "left", "right", "up", "down" }) do
-        table.insert(
-          selection_binds,
-          hl.bind(direction:upper(), hl.dsp.exec_cmd("omarchy-capture-region --select-window " .. direction), { description = "Select window to capture" })
-        )
+      for keys, mode in pairs(selection_keys) do
+        if not selection_bind_alive(selection_binds[keys]) then
+          selection_binds[keys] = hl.bind(keys, hl.dsp.exec_cmd("omarchy-capture-region " .. mode))
+        end
+        selection_binds[keys]:set_enabled(true)
       end
     end
   end
@@ -77,17 +94,18 @@ hl.on("layer.closed", function(layer)
   if layer.namespace == "selection" and selection_layers > 0 then
     selection_layers = selection_layers - 1
     if selection_layers == 0 then
-      for _, keybind in ipairs(selection_binds) do
-        keybind:unbind()
+      for _, keybind in pairs(selection_binds) do
+        if selection_bind_alive(keybind) then
+          keybind:set_enabled(false)
+        end
       end
-      selection_binds = {}
     end
   end
 end)
 
 o.bind("SUPER + CTRL + S", "Share", { menu = "share" })
 
-o.bind("SUPER + CTRL + PERIOD", "Transcode", "omarchy-transcode")
+o.bind("SUPER + CTRL + " .. keyboard.key("PERIOD"), "Transcode", "omarchy-transcode")
 
 o.bind("SUPER + CTRL + R", "Set reminder", { menu = "reminder-set" })
 o.bind("SUPER + CTRL + ALT + R", "Show reminders", "omarchy-reminder show")
@@ -105,6 +123,7 @@ o.bind("SUPER + CTRL + ALT + D", "Calendar", { panel = "omarchy.clock" })
 o.bind("SUPER + CTRL + ALT + E", "World clock", { panel = "omarchy.elsewhen" })
 o.bind("SUPER + CTRL + N", "Network", { panel = "omarchy.network" })
 o.bind("SUPER + CTRL + P", "Power", { panel = "omarchy.power" })
+o.bind("SUPER + CTRL + X", "Agents", { panel = "omarchy.agents" })
 o.bind("SUPER + SHIFT + T", "Activity", { tui = "btop" })
 
 -- The letters above name a panel; the numbers count them. 1 is the leftmost
@@ -115,7 +134,7 @@ for panel = 1, 9 do
   o.bind(
     "SUPER + CTRL + code:" .. tostring(panel + 9),
     "Bar panel " .. panel,
-    "omarchy-shell -q shell togglePanelAt right " .. panel
+    { panel_at = "right:" .. panel }
   )
 end
 
