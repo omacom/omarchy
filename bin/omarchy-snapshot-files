@@ -202,7 +202,7 @@ class Comparison:
         if not is_dir:
           # Under any name, a new one or one it was renamed over.
           self.gained.add(entry.inode())
-        elif not skipped(name, True) and not (name in a_entries and a_entries[name].is_dir(follow_symlinks=False)):
+        elif not skipped(name, True) and not (name in a_entries and a_entries[name].is_dir(follow_symlinks=False)) and self.ours(entry.path):
           self.new_folders[entry.inode()] = os.path.join(b_path, name)
 
     for name, a_entry in a_entries.items():
@@ -222,10 +222,23 @@ class Comparison:
       else:
         self.gone.append((os.path.join(a_path, name), a_entry.inode()))
 
+  def ours(self, path):
+    try:
+      return os.lstat(path).st_dev == self.device
+    except OSError:
+      return False
+
   def gather(self, path):
     """What a new folder holds: files that came from somewhere, and folders
-    that may have been moved in whole."""
-    for entries in walk(os.path.join(self.newer, path)):
+    that may have been moved in whole, itself included."""
+    full = os.path.join(self.newer, path)
+    if not self.ours(full):
+      return
+    try:
+      self.nested[os.lstat(full).st_ino] = path
+    except OSError:
+      return
+    for entries in walk(full):
       for entry in entries:
         if not entry.is_dir(follow_symlinks=False):
           self.gained.add(entry.inode())
@@ -234,14 +247,20 @@ class Comparison:
 
   def emptied(self, path):
     """Whether a gone folder's files all turn up on the newer side, moved out
-    before it went. A hidden file left behind (.DS_Store) doesn't count."""
+    before it went. A hidden file left behind (.DS_Store) doesn't count, but a
+    folder of nothing but hidden files (.env, .bashrc) was deleted, not emptied."""
+    moved = hidden = False
     for entries in walk(path):
       for entry in entries:
-        if entry.is_dir(follow_symlinks=False) or entry.name.startswith(".") or skipped(entry.name, False):
+        if entry.is_dir(follow_symlinks=False) or skipped(entry.name, False):
           continue
-        if entry.inode() not in self.gained:
+        if entry.name.startswith("."):
+          hidden = True
+        elif entry.inode() in self.gained:
+          moved = True
+        else:
           return False
-    return True
+    return moved or not hidden
 
 
 def cache_dir():
@@ -331,7 +350,11 @@ def deleted(folder, budget):
   for relative, (is_dir, older, until) in sorted(lost.items()):
     path = os.path.join(home(), relative)
     if not os.path.lexists(path):
-      add(relative, is_dir, older, until)
+      if inside(folder, relative):
+        add(relative, is_dir, older, until)
+      elif os.path.isdir(os.path.join(older.root, folder)) and not through_link(older.root, folder + "/x"):
+        # Asked about a folder inside one that went whole: that folder went with it.
+        add(folder, True, older, until)
     elif is_dir and os.path.isdir(path) and not os.path.islink(path):
       # Back, but maybe not whole: one file restored out of it, say.
       for inner, inner_is_dir in Comparison(os.path.join(older.root, relative), path).run():
@@ -429,9 +452,11 @@ def restore(path, as_json):
   while not os.path.lexists(parent):
     missing.append(parent)
     parent = os.path.dirname(parent)
+  modes = {folder: stat.S_IMODE(os.stat(os.path.join(source.root, os.path.relpath(folder, base))).st_mode) for folder in missing}
   for folder in reversed(missing):
     os.mkdir(folder, 0o700)
   parent = os.path.dirname(target)
+  restored = False
 
   # Copied beside it under a hidden name and renamed into place, so a half
   # copied folder never looks restored. Reflinks make it instant, and free.
@@ -444,11 +469,18 @@ def restore(path, as_json):
       rename_noreplace(copied, target)
     except FileExistsError:
       raise Failure(f"{shown(target)} is already there")
+    restored = True
   finally:
     remove(copied)
+    if not restored:
+      for folder in missing:
+        try:
+          os.rmdir(folder)
+        except OSError:
+          break
 
   for folder in missing:
-    os.chmod(folder, stat.S_IMODE(os.stat(os.path.join(source.root, os.path.relpath(folder, base))).st_mode))
+    os.chmod(folder, modes[folder])
 
   if as_json:
     json.dump({"path": target, "snapshot": source.number, "seen": source.taken}, sys.stdout)

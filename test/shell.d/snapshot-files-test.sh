@@ -128,6 +128,7 @@ pass "deleted reports a machine without snapshots of /home"
 
 # A fresh home and snapshots, for each case below.
 reset() {
+  chmod -R u+w "$OMARCHY_SNAPSHOTS_DIR" "$HOME" 2>/dev/null || true
   rm -rf "$OMARCHY_SNAPSHOTS_DIR" "$HOME"
   mkdir -p "$OMARCHY_SNAPSHOTS_DIR" "$HOME"
 }
@@ -249,11 +250,14 @@ reset
 mkdir -p ~/Pictures/trip
 echo a >~/Pictures/trip/a.jpg
 echo b >~/Pictures/trip/b.jpg
-snapshot 1 1
+snapshot 1 2
 rm -r ~/Pictures
+# A snapshot after it went, so only the comparison of the two snapshots knows.
+snapshot 2 1
+[[ $(deleted ~/Pictures/trip) == "Pictures/trip/" ]] || fail "deleted answers for a folder inside one that went whole" "$(deleted ~/Pictures/trip)"
 "$files" restore ~/Pictures/trip/a.jpg >/dev/null
 [[ $(deleted ~/Pictures/trip) == "Pictures/trip/b.jpg" ]] || fail "deleted narrows to a folder inside one that's partly back" "$(deleted ~/Pictures/trip)"
-pass "deleted narrows to a folder inside one that's partly back"
+pass "deleted narrows to a folder inside one that went whole, or is partly back"
 
 # Read-only folders come back, as read-only as they were.
 reset
@@ -268,4 +272,13 @@ chmod -R u+w ~/go && rm -r ~/go
 ! compgen -G "$HOME/go/pkg/mod/.*restoring*" >/dev/null || fail "restore leaves no partial copy beside a read-only folder"
 chmod -R u+w ~/go
 pass "restore brings back read-only folders as they were"
+
+# A folder of nothing but hidden files was deleted, not emptied by moves.
+reset
+mkdir -p ~/keys
+echo secret >~/keys/.env
+snapshot 1 1
+rm -r ~/keys
+[[ $(deleted) == "keys/" ]] || fail "a deleted folder of only hidden files is listed" "$(deleted)"
+pass "a deleted folder of only hidden files is listed"
 
