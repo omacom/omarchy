@@ -72,6 +72,42 @@ Panel {
     cpuStat = next
   }
 
+  // What the hover on the CPU row adds: the load average, and the busiest core.
+  readonly property string cpuDetail: {
+    var lines = []
+    if (loadAverage.length === 3)
+      lines.push(Commons.I18n.t("system.load").arg(Commons.I18n.formatNumber(loadAverage[0], 2))
+        .arg(Commons.I18n.formatNumber(loadAverage[1], 2)).arg(Commons.I18n.formatNumber(loadAverage[2], 2)))
+    var busiest = -1
+    for (var i = 0; i < coreUsage.length; i++) if (busiest < 0 || coreUsage[i] > coreUsage[busiest]) busiest = i
+    if (busiest >= 0) lines.push(Commons.I18n.t("system.busiestCore").arg(Commons.I18n.formatNumber(busiest)).arg(percent(coreUsage[busiest])))
+    return lines.join("\n")
+  }
+
+  // ------------------------------------------------------------------- gpu
+  //
+  // Found when the panel opens: AMD's busy percent and Intel's idle time are
+  // files, read each second like /proc; NVIDIA's comes from one nvidia-smi
+  // while the panel is open, and never from a GPU asleep, which it would wake.
+  property string gpuKind: ""
+  property string gpuPath: ""
+  property real gpuNow: -1
+  property var gpuHistory: []
+  property var gpuIdle: null
+
+  function takeGpu(fraction) {
+    if (!(fraction >= 0)) return
+    gpuNow = Math.min(1, fraction)
+    gpuHistory = gpuHistory.concat([gpuNow]).slice(-historyLength)
+  }
+
+  function takeGpuIdle(raw) {
+    var next = { idleMs: Number(String(raw).trim()), atMs: Date.now() }
+    if (!isFinite(next.idleMs)) return
+    takeGpu(Model.gpuBusyFromIdle(gpuIdle, next))
+    gpuIdle = next
+  }
+
   // ------------------------------------------------------------------ disk
 
   property var disks: []
@@ -104,6 +140,7 @@ Panel {
     statFile.reload()
     loadFile.reload()
     uptimeFile.reload()
+    if (gpuKind === "amd" || gpuKind === "idle") gpuFile.reload()
   }
 
   function sampleSlow() {
@@ -114,11 +151,15 @@ Panel {
   onOpenedChanged: {
     if (opened) {
       sampleSlow()
+      if (!gpuFind.running) gpuFind.running = true
     } else {
       // A minute's history with a gap in it would read as an idle spell.
       cpuStat = []
       cpuNow = []
       cpuHistory = []
+      gpuNow = -1
+      gpuHistory = []
+      gpuIdle = null
       hoveredSegment = -1
     }
   }
@@ -150,6 +191,42 @@ Panel {
     path: root.opened ? "/proc/uptime" : ""
     printErrors: false
     onLoaded: root.uptimeSeconds = Number(text().trim().split(/\s+/)[0]) || 0
+  }
+
+  FileView {
+    id: gpuFile
+    path: root.opened && (root.gpuKind === "amd" || root.gpuKind === "idle") ? root.gpuPath : ""
+    printErrors: false
+    onLoaded: root.gpuKind === "amd" ? root.takeGpu(Number(text().trim()) / 100) : root.takeGpuIdle(text())
+  }
+
+  // Once per opening. A discrete NVIDIA GPU that's runtime-suspended is left
+  // asleep: asking it would wake it, and it's doing nothing anyway.
+  Process {
+    id: gpuFind
+    command: ["bash", "-c", "shopt -s nullglob\n"
+      + "for f in /sys/class/drm/card[0-9]*/device/gpu_busy_percent; do echo \"amd $f\"; exit; done\n"
+      + "if [[ -d /proc/driver/nvidia ]] && command -v nvidia-smi >/dev/null; then\n"
+      + "  for d in /sys/bus/pci/drivers/nvidia/0000:*; do [[ $(<$d/power/runtime_status) == suspended ]] && exit; done\n"
+      + "  echo nvidia; exit\n"
+      + "fi\n"
+      + "for f in /sys/class/drm/card[0-9]*/device/tile0/gt0/gtidle/idle_residency_ms /sys/class/drm/card[0-9]*/gt/gt0/rc6_residency_ms; do echo \"idle $f\"; exit; done"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var source = Model.gpuSource(text)
+        root.gpuKind = source.kind
+        root.gpuPath = source.path
+      }
+    }
+  }
+
+  // One reading a second for as long as the panel is open; the busiest GPU's.
+  Process {
+    id: nvidiaSmi
+    running: root.opened && root.gpuKind === "nvidia"
+    command: ["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits", "-lms", "1000"]
+    stdout: SplitParser { onRead: function(line) { root.takeGpu(Number(String(line).trim()) / 100) } }
   }
 
   // -l keeps a stalled network mount from hanging the read.
@@ -256,33 +333,27 @@ Panel {
           }
         }
 
-        // ----------------------------------------------------------- cpu
+        // ------------------------------------------------------ cpu, gpu
         PanelSeparator { foreground: root.foreground }
 
         Column {
           width: parent.width
           spacing: Style.space(10)
 
-          SectionHeading {
+          LoadRow {
+            width: parent.width
             title: Commons.I18n.t("system.cpu")
-            value: root.cpuNow.length > 0 ? root.percent(root.cpuNow[0]) : ""
+            history: root.cpuHistory
+            now: root.cpuNow.length > 0 ? root.cpuNow[0] : -1
+            detail: root.cpuDetail
           }
 
-          CpuHistory { width: parent.width; height: Style.space(40) }
-
-          CoreStrip { width: parent.width; height: Style.space(18) }
-
-          Text {
-            visible: root.loadAverage.length === 3
+          LoadRow {
+            visible: root.gpuKind !== ""
             width: parent.width
-            textFormat: Text.PlainText
-            text: visible ? Commons.I18n.t("system.load")
-              .arg(Commons.I18n.formatNumber(root.loadAverage[0], 2))
-              .arg(Commons.I18n.formatNumber(root.loadAverage[1], 2))
-              .arg(Commons.I18n.formatNumber(root.loadAverage[2], 2)) : ""
-            color: root.dim
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
+            title: Commons.I18n.t("system.gpu")
+            history: root.gpuHistory
+            now: root.gpuNow
           }
         }
 
@@ -452,84 +523,90 @@ Panel {
     }
   }
 
-  // The whole CPU's load over the last minute, a bar a second, newest at the
-  // trailing edge; seconds not seen yet stand as stubs.
-  component CpuHistory: Item {
-    id: history
-    readonly property real gap: Style.space(2)
+  // A processor's load as one row, lined up with the disk rows: its name, the
+  // last minute as a thin line of bars, a bar a second with the newest at the
+  // trailing edge and seconds not seen yet as stubs, and its load now.
+  component LoadRow: Item {
+    id: loadRow
+    property string title: ""
+    property var history: []
+    property real now: -1
+    property string detail: ""
+    readonly property real gap: Style.space(1)
     readonly property real stub: Math.max(Style.space(2), Math.round(Style.spacing.controlHeight * 0.07))
-    readonly property real barWidth: Math.max(1, (width - gap * (root.historyLength - 1)) / root.historyLength)
+    implicitHeight: Math.max(loadTitle.implicitHeight, Style.space(16))
 
-    Row {
+    Text {
+      id: loadTitle
+      width: parent.width * 0.3
       anchors.left: parent.left
-      anchors.right: parent.right
-      anchors.bottom: parent.bottom
-      spacing: history.gap
-
-      Repeater {
-        model: root.historyLength
-
-        Rectangle {
-          required property int index
-          readonly property int sampleIndex: index - (root.historyLength - root.cpuHistory.length)
-          readonly property bool seen: sampleIndex >= 0
-          anchors.bottom: parent.bottom
-          width: history.barWidth
-          height: seen ? Math.max(history.stub, history.height * root.cpuHistory[sampleIndex]) : history.stub
-          radius: Math.min(width / 2, Style.cornerRadius)
-          color: seen ? root.foreground : root.track
-          opacity: seen && sampleIndex < root.cpuHistory.length - 1 ? 0.55 : 1
-        }
-      }
+      anchors.verticalCenter: parent.verticalCenter
+      textFormat: Text.PlainText
+      text: loadRow.title
+      color: root.foreground
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      elide: Text.ElideRight
     }
-  }
 
-  // Each core's load now, side by side, with its number and load on hover.
-  component CoreStrip: Item {
-    id: strip
-    readonly property int count: root.coreUsage.length
-    readonly property real gap: count > 64 ? Style.space(1) : Style.space(2)
-    readonly property real barWidth: count > 0 ? Math.max(1, (width - gap * (count - 1)) / count) : 0
-    readonly property int hoveredCore: coreHover.hovered && count > 0
-      ? Math.max(0, Math.min(count - 1, Math.floor((LayoutMirroring.enabled ? width - coreHover.point.position.x : coreHover.point.position.x) / (barWidth + gap))))
-      : -1
+    Item {
+      id: spark
+      anchors.left: loadTitle.right
+      anchors.right: loadValue.left
+      anchors.rightMargin: Style.space(20)
+      anchors.verticalCenter: parent.verticalCenter
+      height: Style.space(16)
+      readonly property real barWidth: Math.max(1, (width - loadRow.gap * (root.historyLength - 1)) / root.historyLength)
 
-    Row {
-      anchors.fill: parent
-      spacing: strip.gap
+      Row {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        spacing: loadRow.gap
 
-      Repeater {
-        model: strip.count
-
-        Item {
-          required property int index
-          width: strip.barWidth
-          height: strip.height
+        Repeater {
+          model: root.historyLength
 
           Rectangle {
-            anchors.fill: parent
-            radius: Math.min(width / 2, Style.cornerRadius)
-            color: root.track
-          }
-
-          Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
+            required property int index
+            readonly property int sampleIndex: index - (root.historyLength - loadRow.history.length)
+            readonly property bool seen: sampleIndex >= 0
             anchors.bottom: parent.bottom
-            height: parent.height * (root.coreUsage[index] || 0)
+            width: spark.barWidth
+            height: seen ? Math.max(loadRow.stub, spark.height * loadRow.history[sampleIndex]) : loadRow.stub
             radius: Math.min(width / 2, Style.cornerRadius)
-            color: strip.hoveredCore === index ? Commons.Color.accent : root.foreground
-
-            Behavior on height { NumberAnimation { duration: Style.duration(240); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
+            color: seen ? root.foreground : root.track
+            opacity: seen && sampleIndex < loadRow.history.length - 1 ? 0.55 : 1
           }
         }
       }
     }
 
-    HoverHandler { id: coreHover }
+    // As wide as a disk row's figure, so the lines end where the meters do.
+    TextMetrics {
+      id: loadValueMetrics
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      text: Commons.I18n.t("system.diskFree").arg(root.size(999))
+    }
+
+    Text {
+      id: loadValue
+      width: Math.max(Math.ceil(loadValueMetrics.advanceWidth), implicitWidth)
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      horizontalAlignment: Text.AlignRight
+      textFormat: Text.PlainText
+      text: loadRow.now >= 0 ? root.percent(loadRow.now) : ""
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+    }
+
+    HoverHandler { id: loadHover }
     PanelToolTip {
-      visible: strip.hoveredCore >= 0
-      text: visible ? Commons.I18n.t("system.coreUsage").arg(Commons.I18n.formatNumber(strip.hoveredCore)).arg(root.percent(root.coreUsage[strip.hoveredCore] || 0)) : ""
+      visible: loadHover.hovered && loadRow.detail !== ""
+      text: loadRow.detail
       fontFamily: root.fontFamily
     }
   }

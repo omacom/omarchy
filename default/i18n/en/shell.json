@@ -535,8 +535,8 @@
   "speedtest.runAgain": "Run Again",
   "speedtest.upload": "UPLOAD",
   "system.apps": "Apps & system",
+  "system.busiestCore": "Busiest: core %1 · %2",
   "system.cache": "Cache",
-  "system.coreUsage": "Core %1 · %2",
   "system.cores": {
     "one": "%1 core",
     "other": "%1 cores"
@@ -548,6 +548,7 @@
   "system.diskSystem": "System",
   "system.diskTooltip": "%1 of %2 used · %3 (%4)",
   "system.free": "Free",
+  "system.gpu": "GPU",
   "system.load": "Load average %1 · %2 · %3",
   "system.memory": "Memory",
   "system.ofTotal": "%1 of %2",

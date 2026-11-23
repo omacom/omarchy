@@ -43,4 +43,15 @@ const df = system.parseDf([
 ].join('\n'))
 assertDeepEqual(df.map(d => d.target), ['/', '/run/media/me/My Drive'], 'system shows each real disk once, at its shortest mount')
 assertEqual(df[0].fraction, 2 / 3, 'system reads disk use as df does, leaving out the reserve')
+
+// The GPU's load comes from what the panel finds: a busy-percent file, an
+// idle-time counter, or nvidia-smi; a GPU asleep, or none, has no row.
+assertDeepEqual(system.gpuSource('amd /sys/class/drm/card1/device/gpu_busy_percent\n'), { kind: 'amd', path: '/sys/class/drm/card1/device/gpu_busy_percent' }, 'an AMD GPU reads its busy-percent file')
+assertDeepEqual(system.gpuSource('idle /sys/class/drm/card0/device/tile0/gt0/gtidle/idle_residency_ms'), { kind: 'idle', path: '/sys/class/drm/card0/device/tile0/gt0/gtidle/idle_residency_ms' }, 'an Intel GPU reads its idle time')
+assertDeepEqual(system.gpuSource('nvidia'), { kind: 'nvidia', path: '' }, 'an awake NVIDIA GPU reads through nvidia-smi')
+assertDeepEqual(system.gpuSource(''), { kind: '', path: '' }, 'no GPU to read, or one asleep, has no row')
+assertDeepEqual(system.gpuSource('amd /etc/passwd'), { kind: '', path: '' }, 'only a sysfs file is ever read')
+assertEqual(system.gpuBusyFromIdle({ idleMs: 1000, atMs: 0 }, { idleMs: 1250, atMs: 1000 }), 0.75, 'an idle counter that moved a quarter of the time means three quarters busy')
+assertEqual(system.gpuBusyFromIdle(null, { idleMs: 0, atMs: 0 }), -1, 'one idle reading alone says nothing yet')
+assertEqual(system.gpuBusyFromIdle({ idleMs: 0, atMs: 0 }, { idleMs: 5000, atMs: 1000 }), 0, 'an idle counter ahead of the clock reads as idle, not below zero')
 JS

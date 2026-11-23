@@ -151,8 +151,30 @@ function formatSize(gib, fmt, tr) {
   return t("system.sizeGB", "%1 GB").replace("%1", value >= 10 ? f(Math.round(value)) : f(value, 1))
 }
 
+// Where the GPU's load can be read, as the panel finds it when it opens:
+// "amd <file>" (its busy percent), "idle <file>" (Intel's idle time in ms),
+// "nvidia" (nvidia-smi, only when the GPU is awake), or nothing for none.
+function gpuSource(raw) {
+  var line = String(raw || "").split("\n")[0].trim()
+  var match = line.match(/^(amd|idle) (\/sys\/\S+)$/)
+  if (match) return { kind: match[1], path: match[2] }
+  return line === "nvidia" ? { kind: "nvidia", path: "" } : { kind: "", path: "" }
+}
+
+// Busy share between two readings of an idle-time counter: whatever of the
+// time between them the GPU wasn't idle. -1 until there are two readings.
+function gpuBusyFromIdle(previous, next) {
+  if (!previous || !next) return -1
+  var elapsed = next.atMs - previous.atMs
+  if (!(elapsed > 0)) return -1
+  var idle = next.idleMs - previous.idleMs
+  return Math.max(0, Math.min(1, 1 - idle / elapsed))
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
+    gpuSource: gpuSource,
+    gpuBusyFromIdle: gpuBusyFromIdle,
     parseMeminfo: parseMeminfo,
     memoryBreakdown: memoryBreakdown,
     runningModels: runningModels,
