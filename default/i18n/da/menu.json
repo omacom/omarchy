@@ -26,11 +26,11 @@
   "update": {
     "label": "Opdater"
   },
-  "about": {
-    "label": "Om"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "Om"
   },
   "system.screensaver": {
     "label": "Pauseskærm"
@@ -357,26 +357,14 @@
   "trigger.tests.disk-speedtest": {
     "label": "Diskhastighedstest"
   },
-  "setup.monitors": {
-    "label": "Skærme"
-  },
-  "setup.keybindings": {
-    "label": "Tastaturgenveje"
-  },
   "setup.input": {
     "label": "Input"
   },
-  "setup.typing": {
-    "label": "Skrivning"
-  },
-  "setup.typing.keyboard": {
-    "label": "Tastaturlayout"
-  },
-  "setup.typing.input": {
-    "label": "Inputmetoder"
-  },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Sprog"
+  },
+  "setup.region.timezone": {
+    "label": "Tidszone"
   },
   "setup.network": {
     "label": "Netværk"
@@ -401,55 +389,6 @@
   },
   "setup.default": {
     "label": "Standarder"
-  },
-  "setup.default.agent": {
-    "label": "Agent",
-    "title": "Standardagent"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Browser",
@@ -581,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direkte opstart"
-  },
-  "setup.reset": {
-    "label": "Nulstil computer"
+  "remove.factory-reset": {
+    "label": "Fabriksnulstilling"
   },
   "install.package": {
     "label": "Pakke"
@@ -680,9 +616,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -703,9 +636,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium-konto"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1103,9 +1033,6 @@
   "update.password": {
     "label": "Adgangskode"
   },
-  "update.timezone": {
-    "label": "Tidszone"
-  },
   "update.time": {
     "label": "Tid"
   },
@@ -1154,13 +1081,198 @@
   "update.hardware.trackpad": {
     "label": "Pegefelt"
   },
-  "update.password.drive": {
-    "label": "Drevkryptering"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Nedbrudsregistrering fra"
   },
-  "update.password.user": {
-    "label": "Bruger"
+  "trigger.hardware.laptop-display-on": {
+    "label": "Bærbar skærm til"
   },
-  "system.reboot-boot-menu": {
-    "label": "Genstart til opstartsmenu"
+  "trigger.hardware.laptop-display-off": {
+    "label": "Bærbar skærm fra"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Skærmspejling til"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Skærmspejling fra"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Skift til hybrid-GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Skift til integreret GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Aktivér touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Deaktiver touchpad"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Aktivér touchskærm"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Deaktiver touchskærm"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Vis batteri %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Skjul batteri %"
+  },
+  "appearance.windows": {
+    "label": "Vinduer"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Vinduesmellemrum til"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Vinduesmellemrum fra"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-vinduesforhold til"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-vinduesforhold fra"
+  },
+  "appearance.branding": {
+    "label": "Branding"
+  },
+  "appearance.animations-on": {
+    "label": "Animationer til"
+  },
+  "appearance.animations-off": {
+    "label": "Animationer fra"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Hold vågen"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Tillad dvale"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Notifikationer til"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Slå notifikationer fra"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Natlys til"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Natlys fra"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Pauseskærm til"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Pauseskærm fra"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Nedbrudsopsamling til"
+  },
+  "setup.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kerne"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Tastatur"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Tastaturgenveje"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Tastaturinput"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Inputmetoder"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Almindelig"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikoner"
+  },
+  "install.style.icons": {
+    "label": "Ikoner"
+  },
+  "remove.icons": {
+    "label": "Ikoner"
+  },
+  "update.icons": {
+    "label": "Ekstra ikoner"
+  },
+  "system.firmware": {
+    "label": "Genstart til BIOS",
+    "description": "Genstart til UEFI-firmwareopsætningen"
+  },
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.formats": {
+    "label": "Formater",
+    "description": "Hvordan datoer, tidspunkter, tal og enheder skrives"
+  },
+  "install.gaming.vibes": {
+    "label": "Spilvibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Spilvibes-spil"
+  },
+  "update.games": {
+    "label": "Spilvibes-spil"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Værtsnavn"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
