@@ -68,7 +68,8 @@ run_panel() {
   local output
   # A runtime dir of its own keeps the host's VPN snapshot out; the Wayland
   # socket is then named by its full path.
-  local wayland="${XDG_RUNTIME_DIR:-}/${WAYLAND_DISPLAY:-}"
+  local wayland=${WAYLAND_DISPLAY:-}
+  [[ $wayland == /* ]] || wayland="${XDG_RUNTIME_DIR:-}/$wayland"
   output=$(HOME="$stage/home" WAYLAND_DISPLAY="$wayland" XDG_RUNTIME_DIR="$stage/runtime" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
     NETWORK_TEST_BROWSER_LOG="$stage/browser.log" NETWORK_TEST_NMCLI_LOG="$stage/nmcli.log" \
     timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "$1 fixture exits cleanly" "$output"
