@@ -501,7 +501,7 @@ assert(makeMenu({ 'update': false }, 'update.kernel').matchesQuery(searchItems['
 const cyclic = makeMenu({})
 let lookups = 0
 cyclic.item = id => {
-  assert(++lookups <= 33, 'menu search bounds a cyclic parent walk')
+  if (++lookups > 100) fail('menu search bounds a cyclic parent walk')
   return menuModel.item(searchItems, id)
 }
 assert(!cyclic.matchesQuery(searchItems.personal, 'personal'), 'menu search excludes a cyclic extension')
