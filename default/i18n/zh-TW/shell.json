@@ -22,7 +22,7 @@
   "agents.editInstructions": "編輯 AGENTS.md，所有代理遵循的指示",
   "agents.enterApiKey": "貼上你的 API 金鑰",
   "agents.firstBecomesDefault": "第一個即為你的預設",
-  "agents.forgetAccountConfirm": "要移除 %1 嗎？其登入資訊將從這台裝置刪除，重新加入時需再次登入。",
+  "agents.forgetAccountConfirm": "移除 %1？",
   "agents.freeResets": {
     "other": "%1 次免費重置"
   },

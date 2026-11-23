@@ -22,7 +22,7 @@
   "agents.editInstructions": "Szerkeszd az AGENTS.md-t, az utasításokat, amelyeket minden ügynök követ",
   "agents.enterApiKey": "Illeszd be az API-kulcsodat",
   "agents.firstBecomesDefault": "Az első lesz az alapértelmezetted",
-  "agents.forgetAccountConfirm": "Eltávolítod a(z) %1 fiókot? A bejelentkezése törlődik erről a gépről, így ha újra hozzáadod, ismét be kell jelentkezned.",
+  "agents.forgetAccountConfirm": "Eltávolítod: %1?",
   "agents.freeResets": {
     "one": "%1 ingyenes visszaállítás",
     "other": "%1 ingyenes visszaállítás"

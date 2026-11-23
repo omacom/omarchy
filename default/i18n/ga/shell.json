@@ -22,7 +22,7 @@
   "agents.editInstructions": "Cuir AGENTS.md in eagar, na treoracha a leanann gach gníomhaire",
   "agents.enterApiKey": "Greamaigh d'eochair API",
   "agents.firstBecomesDefault": "Is é an chéad cheann do réamhshocrú",
-  "agents.forgetAccountConfirm": "Bain %1? Scriosfar a shíniú isteach ón meaisín seo, mar sin beidh ort síniú isteach arís chun é a chur ar ais.",
+  "agents.forgetAccountConfirm": "Bain %1?",
   "agents.freeResets": {
     "few": "%1 athshocrú in aisce",
     "many": "%1 n-athshocrú in aisce",

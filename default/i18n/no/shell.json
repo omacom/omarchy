@@ -22,7 +22,7 @@
   "agents.editInstructions": "Rediger AGENTS.md, instruksjonene alle agenter følger",
   "agents.enterApiKey": "Lim inn API-nøkkelen din",
   "agents.firstBecomesDefault": "Den første blir standardagenten din",
-  "agents.forgetAccountConfirm": "Fjerne %1? Innloggingen slettes fra denne maskinen, så du må logge inn på nytt for å legge den til igjen.",
+  "agents.forgetAccountConfirm": "Fjerne %1?",
   "agents.freeResets": {
     "one": "%1 gratis tilbakestilling",
     "other": "%1 gratis tilbakestillinger"

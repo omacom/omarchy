@@ -22,7 +22,7 @@
   "agents.editInstructions": "Redigera AGENTS.md, instruktionerna alla agenter följer",
   "agents.enterApiKey": "Klistra in din API-nyckel",
   "agents.firstBecomesDefault": "Den första blir din standard",
-  "agents.forgetAccountConfirm": "Ta bort %1? Inloggningen raderas från den här datorn, så du måste logga in igen om du lägger till den på nytt.",
+  "agents.forgetAccountConfirm": "Ta bort %1?",
   "agents.freeResets": {
     "one": "%1 gratis återställning",
     "other": "%1 gratis återställningar"

@@ -22,7 +22,7 @@
   "agents.editInstructions": "עריכת AGENTS.md, ההנחיות שכל סוכן פועל לפיהן",
   "agents.enterApiKey": "הדביקו את מפתח ה-API",
   "agents.firstBecomesDefault": "הראשון הוא ברירת המחדל שלך",
-  "agents.forgetAccountConfirm": "להסיר את %1? ההתחברות שלו תימחק ממכשיר זה, ולכן הוספתו מחדש תצריך התחברות חוזרת.",
+  "agents.forgetAccountConfirm": "להסיר את %1?",
   "agents.freeResets": {
     "one": "איפוס חינמי אחד",
     "other": "%1 איפוסים חינמיים",

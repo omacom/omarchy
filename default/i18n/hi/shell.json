@@ -22,7 +22,7 @@
   "agents.editInstructions": "AGENTS.md संपादित करें, हर एजेंट द्वारा पालन किए जाने वाले निर्देश",
   "agents.enterApiKey": "अपनी API कुंजी चिपकाएं",
   "agents.firstBecomesDefault": "पहला वाला आपका डिफ़ॉल्ट होगा",
-  "agents.forgetAccountConfirm": "%1 हटाएं? इसका साइन-इन इस मशीन से मिट जाएगा, इसलिए दोबारा जोड़ने पर फिर से साइन इन करना होगा।",
+  "agents.forgetAccountConfirm": "%1 हटाएं?",
   "agents.freeResets": {
     "one": "%1 मुफ़्त रीसेट",
     "other": "%1 मुफ़्त रीसेट"

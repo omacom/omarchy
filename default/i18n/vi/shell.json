@@ -22,7 +22,7 @@
   "agents.editInstructions": "Sửa AGENTS.md, hướng dẫn mà mọi agent tuân theo",
   "agents.enterApiKey": "Dán khóa API của bạn",
   "agents.firstBecomesDefault": "Agent đầu tiên sẽ là mặc định của bạn",
-  "agents.forgetAccountConfirm": "Xóa %1? Đăng nhập của nó sẽ bị xóa khỏi máy này, nên khi thêm lại bạn phải đăng nhập lại.",
+  "agents.forgetAccountConfirm": "Xóa %1?",
   "agents.freeResets": {
     "other": "%1 lần đặt lại miễn phí"
   },

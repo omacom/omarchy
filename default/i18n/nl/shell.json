@@ -22,7 +22,7 @@
   "agents.editInstructions": "Bewerk AGENTS.md, de instructies die elke agent volgt",
   "agents.enterApiKey": "Plak je API-sleutel",
   "agents.firstBecomesDefault": "De eerste is je standaardagent",
-  "agents.forgetAccountConfirm": "%1 verwijderen? De aanmelding wordt van deze machine verwijderd, dus opnieuw toevoegen betekent opnieuw aanmelden.",
+  "agents.forgetAccountConfirm": "%1 verwijderen?",
   "agents.freeResets": {
     "one": "%1 gratis reset",
     "other": "%1 gratis resets"

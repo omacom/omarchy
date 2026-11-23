@@ -22,7 +22,7 @@
   "agents.editInstructions": "ஒவ்வொரு ஏஜென்டும் பின்பற்றும் வழிமுறைகளான AGENTS.md ஐத் திருத்தவும்",
   "agents.enterApiKey": "உங்கள் API விசையை ஒட்டவும்",
   "agents.firstBecomesDefault": "முதலாவதே உங்கள் இயல்புநிலை",
-  "agents.forgetAccountConfirm": "%1 ஐ நீக்கவா? அதன் உள்நுழைவு இந்தக் கணினியிலிருந்து நீக்கப்படும், எனவே மீண்டும் சேர்க்க மீண்டும் உள்நுழைய வேண்டும்.",
+  "agents.forgetAccountConfirm": "%1 ஐ நீக்கவா?",
   "agents.freeResets": {
     "one": "%1 இலவச மீட்டமைப்பு",
     "other": "%1 இலவச மீட்டமைப்புகள்"

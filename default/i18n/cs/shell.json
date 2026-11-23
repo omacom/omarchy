@@ -22,7 +22,7 @@
   "agents.editInstructions": "Upravit AGENTS.md, pokyny, kterými se řídí každý agent",
   "agents.enterApiKey": "Vložte svůj API klíč",
   "agents.firstBecomesDefault": "První bude vaším výchozím agentem",
-  "agents.forgetAccountConfirm": "Odebrat %1? Jeho přihlášení bude z tohoto počítače smazáno, takže při opětovném přidání se budete muset znovu přihlásit.",
+  "agents.forgetAccountConfirm": "Odebrat %1?",
   "agents.freeResets": {
     "few": "%1 resety zdarma",
     "one": "%1 reset zdarma",

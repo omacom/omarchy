@@ -22,7 +22,7 @@
   "agents.editInstructions": "Редагувати AGENTS.md — інструкції, яких дотримуються всі агенти",
   "agents.enterApiKey": "Вставте ключ API",
   "agents.firstBecomesDefault": "Перший стане агентом за замовчуванням",
-  "agents.forgetAccountConfirm": "Видалити %1? Його вхід буде видалено з цього комп’ютера, тож для повторного додавання доведеться ввійти знову.",
+  "agents.forgetAccountConfirm": "Видалити %1?",
   "agents.freeResets": {
     "few": "%1 безкоштовні скидання",
     "many": "%1 безкоштовних скидань",

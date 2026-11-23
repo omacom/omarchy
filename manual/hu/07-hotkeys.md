@@ -1,34 +1,34 @@
 # Gyorsbillentyűk
 
-Az összes fő billentyűkiosztást megtekintheted a `Super + K` billentyűkombinációval (a Tmux kiosztásait a `Super + Alt + K`, a Herdr kiosztásait pedig a `Super + Ctrl + K` kombinációval).
+Az összes fő billentyűkombinációt a `Super + K` paranccsal tekintheted meg (a Tmux kötéseit a `Super + Alt + K`, a Herdr kötéseit pedig a `Super + Ctrl + K` paranccsal).
 
 ## Hogyan épülnek fel a gyorsbillentyűk
 
-Minden gyorsbillentyű egy síkon helyezkedik el, amelyet a módosítóbillentyűi határoznak meg, és minden síknak egy feladata van. Ettől nem mosódnak össze a gyorsbillentyűk, és általában ki is tudod találni, hol keresd az adott funkciót.
+Minden gyorsbillentyű egy síkon helyezkedik el, amelyet a módosítói határoznak meg, és minden síknak egy feladata van. Ez tartja távol egymástól a gyorsbillentyűket, és ennek köszönhetően általában kitalálhatod, hol található valami.
 
-| Sík | Mi tartozik ide | Példák |
+| Sík | Mi található rajta | Példák |
 | --- | --- | --- |
-| `Super + key` | A rendszer: ablakok, munkaterületek, elrendezések és alapvető menük | `Super + Space` Omarchy menü, `Super + W` ablak bezárása, `Super + F` teljes képernyő |
+| `Super + key` | A rendszer: ablakok, munkaterületek, elrendezések és alapmenük | `Super + Space` Omarchy menü, `Super + W` ablak bezárása, `Super + F` teljes képernyő |
 | `Super + Shift + key` | Alkalmazások | `Super + Shift + B` böngésző, `Super + Shift + E` e-mail, `Super + Shift + N` szerkesztő |
-| `Super + Ctrl + key` | Panelek és rendszermenük | `Super + Ctrl + A` hang, `Super + Ctrl + N` hálózat, `Super + Ctrl + C` rögzítési menü |
-| `Super + Ctrl + Alt + key` | Gyorsműveletek és jelzések | `Super + Ctrl + Alt + T` idő megjelenítése, `Super + Ctrl + Alt + B` akkumulátor, `Super + Ctrl + Alt + C` képernyőkép |
+| `Super + Ctrl + key` | Panelek és rendszermenük | `Super + Ctrl + A` hang, `Super + Ctrl + N` hálózat, `Super + Ctrl + C` rögzítés menü |
+| `Super + Ctrl + Alt + key` | Gyorsműveletek és értesítések | `Super + Ctrl + Alt + T` idő megjelenítése, `Super + Ctrl + Alt + B` akkumulátor, `Super + Ctrl + Alt + C` képernyőkép |
 
-Ha egy gyorsbillentyűhöz hozzáadod az `Alt` billentyűt, ugyanannak a dolognak egy változatát kapod, soha nem valami teljesen mást:
+Ha egy gyorsbillentyűhöz hozzáadod az `Alt` billentyűt, ugyanannak a dolognak egy változatát kapod, sosem valami teljesen mást:
 
 - A `Super + Shift + B` megnyitja a böngészőt; a `Super + Shift + Alt + B` privát ablakot nyit
-- A `Super + Shift + E` megnyitja az e-mailt; a `Super + Shift + Alt + E` újat indít
+- A `Super + Shift + E` megnyitja az e-mailt; a `Super + Shift + Alt + E` új e-mail írását kezdi meg
 - A `Super + F` teljes képernyőre vált; a `Super + Alt + F` teljes szélességre vált
-- A `Super + Ctrl + C` megnyitja a rögzítési menüt; a `Super + Ctrl + Alt + C` kihagyja a menüt, és képernyőképet készít
+- A `Super + Ctrl + C` megnyitja a rögzítés menüt; a `Super + Ctrl + Alt + C` kihagyja a menüt és képernyőképet készít
 
 Gyorsbillentyű hozzáadásakor:
 
-1. Először a funkciója alapján válaszd ki a síkot, aztán válaszd ki a billentyűt.
-2. Ne mozgass át meglévő gyorsbillentyűt, hogy helyet csinálj neki. Keress szabad billentyűt a megfelelő síkon.
-3. Az `Alt` billentyűt csak az nélküle használt gyorsbillentyű változatához használd.
+1. A működése alapján válaszd ki a síkot, majd válaszd ki a billentyűt.
+2. Ne mozdíts el egy meglévő gyorsbillentyűt, hogy helyet csinálj. Keress szabad billentyűt a megfelelő síkon.
+3. Az `Alt` billentyűt csak a nélküle használt gyorsbillentyű változatához használd.
 
-Néhány gyorsbillentyű megszegi ezeket a szabályokat, mert úgy kényelmes. A `Shift` nyílbillentyűvel vagy a `Tab` billentyűvel együtt mozgat vagy visszafelé lép ahelyett, hogy alkalmazást nyitna, a `Print`, a médiabillentyűk, az `Alt + Tab` és a `Ctrl + Alt + Del` pedig úgy működnek, ahogy mindenhol máshol is. Ezek kivételek, nem követendő minták.
+Néhány gyorsbillentyű megszegi ezeket a szabályokat, mert úgy kényelmes. A `Shift` egy nyíllal vagy a `Tab` billentyűvel mozgat vagy visszafelé működik ahelyett, hogy alkalmazást nyitna meg, a `Print`, a médiabillentyűk, az `Alt + Tab` és a `Ctrl + Alt + Del` pedig úgy működnek, ahogy mindenhol máshol. Ezek kivételek, nem követendő minták.
 
-Ha egy alapértelmezés nem felel meg neked (mondjuk a képernyőképekhez a Windowson megszokott `Super + Shift + S` kombinációt szeretnéd), kösd át a `~/.config/hypr/bindings.lua` fájlban.
+Ha egy alapértelmezett beállítás nem felel meg neked (mondjuk a Windowson megszokott módon `Super + Shift + S` kombinációt szeretnél a képernyőképekhez), kösd újra a `~/.config/hypr/bindings.lua` fájlban.
 
 ## Navigálás
 
@@ -45,11 +45,11 @@ Ha egy alapértelmezés nem felel meg neked (mondjuk a képernyőképekhez a Win
 | `Super + Ctrl + K` | Herdr gyorsbillentyűk megjelenítése |
 | `Super + M` | Ablak minimalizálása a dokkra |
 | `Super + T` | Ablak váltása csempézett/lebegő mód között |
-| `Super + J` | Ablak pozíciójának váltása (vízszintes/függőleges) |
-| `Super + O` | Ablak átváltása rögzített és lebegő módba |
+| `Super + J` | Ablakpozíció váltása (vízszintes/függőleges) |
+| `Super + O` | Ablak sticky'n'floating módba helyezésének ki-/bekapcsolása |
 | `Super + L` | Váltás a dwindle, scrolling és floating elrendezések között |
-| `Super + Alt + L` | Elrendezések közötti váltás fordított irányban |
-| `Super + P` | Pseudo ablakstílus váltása (natural és stretch között) |
+| `Super + Alt + L` | Váltás az elrendezések között fordított sorrendben |
+| `Super + P` | Pseudo ablakstílus ki-/bekapcsolása (természetes és nyújtott) |
 | `Super + F` | Teljes képernyő |
 | `Super + Alt + F` | Teljes szélesség |
 | `Super + Ctrl + F` | Teljes képernyő az ablakon belül |
@@ -58,70 +58,70 @@ Ha egy alapértelmezés nem felel meg neked (mondjuk a képernyőképekhez a Win
 | `Super + Shift + Tab` | Ugrás az előző munkaterületre a fókuszban lévő monitoron |
 | `Super + Ctrl + Tab` | Ugrás a korábbi munkaterületre a fókuszban lévő monitoron |
 | `Super + Shift + 1…9/0` | Ablak áthelyezése munkaterületre a fókuszban lévő monitoron |
-| `Super + Shift + Alt + 1…9/0` | Ablak áthelyezése munkaterületre a fókuszban lévő monitoron, követés nélkül |
-| `Super + S` | Teljes scratchpad be-/kikapcsolása |
-| `Super + Alt + S` | Ablak áthelyezése a teljes scratchpadra |
-| `Super + the key above Tab` (grave on US layouts) | Quake konzol be-/kikapcsolása |
+| `Super + Shift + Alt + 1…9/0` | Ablak áthelyezése munkaterületre a fókuszban lévő monitoron követés nélkül |
+| `Super + S` | Teljes scratchpad ki-/bekapcsolása |
+| `Super + Alt + S` | Ablak áthelyezése a teljes scratchpadre |
+| `Super + the key above Tab` (grave on US layouts) | Quake konzol ki-/bekapcsolása |
 | `Super + Shift + the key above Tab` (grave on US layouts) | Ablak áthelyezése a Quake konzolra |
 | `Super + Shift + Ctrl + Arrows` | Ablak áthelyezése az adott irányban lévő monitorra |
 | `Super + Shift + Alt + Arrows` | Munkaterület áthelyezése az adott irányban lévő monitorra |
 | `Super + Arrow` | Fókusz áthelyezése a nyíl irányában lévő ablakra, a képernyő szélén átlépve az azon az oldalon lévő monitorra |
-| `Super + Shift + Arrow` | Ablak cseréje a nyíl irányában lévő másik ablakkal, beleértve az azon az oldalon lévő monitoron lévőt is |
-| `Super + Minus` | Ablak kiszélesítése balra |
+| `Super + Shift + Arrow` | Ablak cseréje a nyíl irányában lévő másikkal, beleértve az azon az oldalon lévő monitoron lévőt is |
+| `Super + Minus` | Ablak szélesítése balra |
 | `Super + Equal` | Ablak keskenyítése balra |
-| `Super + Shift + Minus` | Ablak kicsinyítése felfelé |
-| `Super + Shift + Equal` | Ablak nagyítása lefelé |
-| `Super + Alt + Minus/Equal` | Ugyanaz az átméretezés kisebb lépésekben |
-| `Super + Ctrl + Minus/Equal` | Ugyanaz az átméretezés nagyobb lépésekben |
-| `Super + Alt + Home` | Ablak szélességének mentése |
+| `Super + Shift + Minus` | Ablak keskenyítése felfelé |
+| `Super + Shift + Equal` | Ablak szélesítése lefelé |
+| `Super + Alt + Minus/Equal` | Ugyanez az átméretezés kisebb lépésekben |
+| `Super + Ctrl + Minus/Equal` | Ugyanez az átméretezés nagyobb lépésekben |
+| `Super + Alt + Home` | Ablakszélesség mentése |
 | `Super + Home` | Mentett ablakszélesség visszaállítása |
 | `Super + Left Mouse` | Ablak húzása |
 | `Super + Right Mouse` | Ablak átméretezése |
-| `Super + Scroll Wheel` | Görgetés a fókuszban lévő monitor munkaterületei között |
-| `Super + G` | Ablakcsoportosítás be-/kikapcsolása |
-| `Super + Alt + G` | Ablak kiemelése a csoportból |
-| `Super + Alt + Tab` | Váltás a csoportban lévő ablakok között |
-| `Super + Alt + Shift + Tab` | Váltás visszafelé a csoportban lévő ablakok között |
-| `Super + Alt + Scroll Wheel` | Váltás a csoportban lévő ablakok között |
-| `Super + Alt + 1/2/3/4/5` | Ugrás adott ablakra a csoportban |
-| `Super + Alt + Arrow` | Ablak áthelyezése csoportba a nyíl irányában, beleértve az azon az oldalon lévő monitoron lévőt is |
-| `Super + Ctrl + Left/Right` | Mozgás az ablakok között egy csempézett csoporton belül |
-| `Super + Ctrl + Z` | Nagyítás a képernyőn (ismétléssel tovább nagyít) |
+| `Super + Scroll Wheel` | Görgetés a munkaterületek között a fókuszban lévő monitoron |
+| `Super + G` | Ablakcsoportosítás ki-/bekapcsolása |
+| `Super + Alt + G` | Ablak kivétele a csoportosításból |
+| `Super + Alt + Tab` | Váltás a csoportosításban lévő ablakok között |
+| `Super + Alt + Shift + Tab` | Váltás visszafelé a csoportosításban lévő ablakok között |
+| `Super + Alt + Scroll Wheel` | Váltás a csoportosításban lévő ablakok között |
+| `Super + Alt + 1/2/3/4/5` | Ugrás adott ablakra a csoportosításban |
+| `Super + Alt + Arrow` | Ablak áthelyezése a csoportosításba a nyíl irányában, beleértve az azon az oldalon lévő monitoron lévőt is |
+| `Super + Ctrl + Left/Right` | Mozgás a csempézett csoporton belüli ablakok között |
+| `Super + Ctrl + Z` | Nagyítás a képernyőn (ismételd a nagyobb nagyításhoz) |
 | `Super + Ctrl + Alt + Z` | Teljes kicsinyítés a képernyőről |
-| `Super + /` | Lépés előre a monitor méretezési beállításai között |
-| `Super + Alt + /` | Lépés visszafelé a monitor méretezési beállításai között |
-| `Alt + Tab` | Váltás előre az aktív munkaterület ablakai között |
-| `Alt + Shift + Tab` | Váltás visszafelé az aktív munkaterület ablakai között |
+| `Super + /` | Lépés előre a monitor méretezési lehetőségei között |
+| `Super + Alt + /` | Lépés visszafelé a monitor méretezési lehetőségei között |
+| `Alt + Tab` | Váltás előre az aktív munkaterületen lévő ablakok között |
+| `Alt + Shift + Tab` | Váltás visszafelé az aktív munkaterületen lévő ablakok között |
 | `Ctrl + Alt + Tab` | Fókusz váltása előre a monitorok között |
 | `Ctrl + Alt + Shift + Tab` | Fókusz váltása visszafelé a monitorok között |
-| `Super + I` | Beviteli nyelv váltása (több kiosztás vagy beviteli mód esetén) |
-| `Super + Shift + I` | Beviteli nyelv visszaváltása |
+| `Super + I` | Beviteli nyelv váltása (egynél több kiosztás vagy beviteli mód esetén) |
+| `Super + Shift + I` | Beviteli nyelv visszafelé váltása |
 
-Érintőpadon a három- és négyujjas húzások munkaterületeket váltanak, ablakokat mozgatnak, és megnyitják a menüt és a Quake konzolt; a mozdulatokért lásd a [billentyűzet, egér és érintőpad](34-keyboard-mouse-trackpad.md) fejezetet.
+Érintőpadon a három- és négyujjas simítások munkaterületeket váltanak, ablakokat mozgatnak, és megnyitják a menüt és a Quake konzolt; a mozdulatokért lásd: [keyboard, mouse, and trackpad](34-keyboard-mouse-trackpad.md).
 
-Az átméretező gyorsbillentyűk a `code:20` és `code:21` fizikai billentyűket használják (XKB `<AE11>` és `<AE12>`), függetlenül a billentyűkre nyomtatott karakterektől. US billentyűzeteken ezek a `-` és `=` billentyűk; japán (JIS) billentyűzeteken a `-` és `^`; spanyol billentyűzeteken a `'` és `¡`. JIS kiosztáson a `Super + ^` a `Super + Equal`, míg a `Super + Shift + -` (amely `=` jelet ír) a `Super + Shift + Minus`.
+Az átméretezés a 0-tól jobbra lévő két billentyűt használja, bármit is nyomtattak rájuk a billentyűzeteden: `-` és `=` az amerikai billentyűzeteken, `+` és `´` a dán és svéd billentyűzeteken, `+` és `\` a norvég billentyűzeteken, `ß` és `´` a német billentyűzeteken, `'` és `¡` a spanyol billentyűzeteken, valamint `-` és `^` a japán (JIS) billentyűzeteken. A `Super + K` úgy sorolja fel őket, ahogy a billentyűzetedre nyomtatták őket. JIS esetén a `Super + ^` a `Super + Equal`, míg a `Super + Shift + -` (amely `=` jelet ír) a `Super + Shift + Minus`. A monitor méretezése és a jelszókezelő a `/` billentyűt használja; azokon a kiosztásokon, amelyek a `/` jelet csak a Shift billentyűvel írják, ahogy a legtöbb európai is, ehelyett a jobb Shift billentyűtől balra lévő billentyűt használják (dán és német kiosztáson a `-` billentyűt).
 
-## Rendszervezérlés
+## Rendszervezérlők
 
 | Gyorsbillentyű | Funkció |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A` | Hangpanel |
 | `Super + Ctrl + B` | Bluetooth panel |
-| `Super + Ctrl + N` | Wi-Fi/hálózati panel |
+| `Super + Ctrl + N` | Wifi/hálózati panel |
 | `Super + Ctrl + D` | Kijelzőpanel |
 | `Super + Ctrl + P` | Energiapanel |
-| `Super + Ctrl + X` | Ügynökök panel |
-| `Super + Ctrl + Alt + X` | Helyi modellek panel |
+| `Super + Ctrl + X` | Agents panel |
+| `Super + Ctrl + Alt + X` | Helyi modellek panelje |
 | `Super + Ctrl + Alt + D` | Naptárpanel |
-| `Super + Ctrl + Alt + E` | Világórapanel |
-| `Super + Ctrl + 1-9` | Sávpanel be-/kikapcsolása pozíció szerint |
-| `Super + Ctrl + S` | Megosztás menü (LocalSend használatával) |
-| `Super + Ctrl + C` | Rögzítésvezérlés (képernyőkép/-felvétel/választó) |
-| `Super + Ctrl + O` | Menü be-/kikapcsolása |
-| `Super + Ctrl + H` | Hardvermenü |
-| `Super + Ctrl + E` | Emojiválasztó |
+| `Super + Ctrl + Alt + E` | Világóra panel |
+| `Super + Ctrl + 1-9` | Sávpanel ki-/bekapcsolása pozíció szerint |
+| `Super + Ctrl + S` | Megosztás menü (a LocalSend alkalmazáson keresztül) |
+| `Super + Ctrl + C` | Rögzítési vezérlők (képernyőkép/-felvétel/választó) |
+| `Super + Ctrl + O` | Menü ki-/bekapcsolása |
+| `Super + Ctrl + H` | Hardver menü |
+| `Super + Ctrl + E` | Emoji-választó |
 | `Super + Ctrl + .` | Média átkódolása |
-| `Super + Shift + Ctrl + A` | Alapértelmezett ügynök indítása |
+| `Super + Shift + Ctrl + A` | Alapértelmezett ágens indítása |
 | `Power` key | Rendszermenü |
 | `Super + Shift + Copilot` key | Omarchy menü |
 
@@ -131,15 +131,15 @@ Az átméretező gyorsbillentyűk a `code:20` és `code:21` fizikai billentyűke
 | ----------------------- | --------------------- |
 | `Shift + Brightness Up` | Maximális képernyő-fényerő |
 | `Shift + Brightness Down` | Minimális képernyő-fényerő |
-| `Alt + Brightness Up/Down` | Pontos, 1%-os fényerő-változtatás |
-| `Alt + Volume Up/Down` | Pontos, 1%-os hangerő-változtatás |
+| `Alt + Brightness Up/Down` | Pontos, 1%-os fényerő-módosítások |
+| `Alt + Volume Up/Down` | Pontos, 1%-os hangerő-módosítások |
 | `Keyboard Brightness Up/Down` | Billentyűzet-háttérvilágítás erősebb/gyengébb |
-| `Keyboard Backlight` | Billentyűzet-háttérvilágítás szintjeinek váltása |
+| `Keyboard Backlight` | Billentyűzet-háttérvilágítás szintjeinek váltogatása |
 | `Ctrl + Brightness Up/Down` | Billentyűzet-háttérvilágítás erősebb/gyengébb, saját billentyűk nélküli billentyűzeteken |
 | `Mic Mute` | Mikrofon némítása |
 | `Shift + Mute` | Hangkimenet váltása |
 | `Touchpad Toggle` | Érintőpad be- vagy kikapcsolása |
-| `Display` key | Munkaterület-elrendezés váltása |
+| `Display` key | Munkaterület-elrendezés váltogatása |
 | `Alt + Play` | Következő szám |
 | `Alt + Shift + Play` | Előző szám |
 
@@ -149,7 +149,7 @@ Az átméretező gyorsbillentyűk a `code:20` és `code:21` fizikai billentyűke
 | ----------------------- | --------------------- |
 | `Super + Return` | Terminál |
 | `Super + Alt + Return` | Tmux terminál |
-| `Super + Ctrl + Return` | Herdr (ügynökkezelő) |
+| `Super + Ctrl + Return` | Herdr (agent manager) |
 | `Super + Shift + Return` or `Super + Shift + B` | Böngésző |
 | `Super + Shift + Alt + B` | Böngésző (privát/inkognitó) |
 | `Super + Shift + F` | Fájlkezelő |
@@ -158,13 +158,13 @@ Az átméretező gyorsbillentyűk a `code:20` és `code:21` fizikai billentyűke
 | `Super + Shift + Alt + M` | Zene (cliamp) |
 | `Super + Shift + /` | Jelszókezelő (1password) |
 | `Super + Shift + Q` or `Calculator` key | Számológép (Omacalc) |
-| `Super + Shift + D` | Docker (lazydocker, ha telepítve van) |
-| `Super + Shift + T` | Aktivitás (btop) |
+| `Super + Shift + D` | Docker (lazydocker, telepítés után) |
+| `Super + Shift + T` | Tevékenység (btop) |
 | `Super + Shift + N` | Szerkesztő (Plain, vagy a választott alapértelmezett) |
 | `Super + Shift + C` | Naptár ([HEY](https://hey.com/)) |
 | `Super + Shift + E` | E-mail ([HEY](https://hey.com/)) |
 | `Super + Shift + Alt + E` | Új e-mail ([HEY](https://hey.com/)) |
-| `Super + Shift + A` | Az alapértelmezett ügynököd, vagy a ChatGPT, amíg nem választasz egyet |
+| `Super + Shift + A` | Az alapértelmezett ágensed, vagy a ChatGPT, amíg nem választasz egyet |
 | `Super + Shift + Alt + A` | AI (Grok) |
 | `Super + Shift + G` | Üzenetküldő (Signal) |
 | `Super + Shift + P` | Google Photos |
@@ -177,7 +177,7 @@ Az átméretező gyorsbillentyűk a `code:20` és `code:21` fizikai billentyűke
 | `Super + Shift + Alt + X` | X (új bejegyzés) |
 | `Super + Shift + Y` | YouTube |
 
-A kiosztásokat a `~/.config/hypr/bindings.lua` fájlban módosíthatod vagy egészítheted ki.
+A kötéseket a `~/.config/hypr/bindings.lua` fájlban módosíthatod/adhatsz hozzá.
 
 ## Univerzális vágólap
 
@@ -189,7 +189,7 @@ A kiosztásokat a `~/.config/hypr/bindings.lua` fájlban módosíthatod vagy eg�
 | `Super + V` | Beillesztés |
 | `Super + Ctrl + V` | Vágólapkezelő |
 
-Linuxon általában a `Ctrl + Shift + C/V` kell a terminálban való másoláshoz és beillesztéshez, a `Ctrl + C/V` pedig mindenhol máshol. Ezek az Omarchy egységes vágólap-gyorsbillentyűi mindenhol működnek.
+Linuxon általában `Ctrl + Shift + C/V` kell a másoláshoz és beillesztéshez a terminálban, és `Ctrl + C/V` mindenhol máshol. Ezek az Omarchy egyesített vágólapos gyorsbillentyűi mindenhol működnek.
 
 ## Rögzítés
 
@@ -197,58 +197,58 @@ Linuxon általában a `Ctrl + Shift + C/V` kell a terminálban való másolásho
 | ------------------- | ------------------------------ |
 | `Print Screen` | Képernyőkép |
 | `Super + Ctrl + Alt + C` | Képernyőkép (ugyanaz a felvétel, Print Screen billentyű nélküli billentyűzetekhez) |
-| `Super + Ctrl + C` | Rögzítési menü |
+| `Super + Ctrl + C` | Rögzítés menü |
 | `Alt + Print Screen` | Képernyőfelvétel |
 | `Super + Shift + Ctrl + Alt + C` | Képernyőfelvétel hang nélkül, a menü kihagyásával (a leállításhoz nyomd meg újra) |
 | `Super + Print Screen` | Színválasztó |
 | `Super + Ctrl + Print Screen` | Szöveg kinyerése a vágólapra |
-| `Super + Alt + [` | Webkamera-fedvény kisebbé tétele felvétel közben |
-| `Super + Alt + ]` | Webkamera-fedvény nagyobbá tétele felvétel közben |
+| `Super + Alt + [` | Webkamera-fedvény kicsinyítése felvétel közben |
+| `Super + Alt + ]` | Webkamera-fedvény nagyítása felvétel közben |
 | `Alt + Shift + L` | Aktuális URL másolása webalkalmazásból vagy böngészőből |
 | `Alt + Shift + D` | Az aktuális oldalon lévő videó letöltése a `~/Videos` mappába |
-| `Alt + Space` | Diktálás indítása/leállítása (szükséges hozzá: _Setup > Defaults > Dictation_) |
-| `Right Alt` | Tartsd lenyomva a diktáláshoz (szükséges hozzá: _Setup > Defaults > Dictation_) |
+| `Alt + Space` | Diktálás indítása/leállítása (_Setup > Defaults > Dictation_ szükséges hozzá) |
+| `Right Alt` | Tartsd nyomva a diktáláshoz (_Setup > Defaults > Dictation_ szükséges hozzá) |
 
-Képernyőfelvételeknél a gyorsbillentyű először megkérdezi, milyen hangot szeretnél, majd elindítja a felvételt. A leállításhoz nyomd meg újra. A részletekért lásd a [képernyőképek és rögzítés](12-screenshots-recording.md) fejezetet.
+Képernyőfelvételeknél a gyorsbillentyű először megkérdezi, milyen hangot szeretnél, majd elindítja a felvételt. A leállításhoz nyomd meg újra. A részletekért lásd: [screenshots and recording](12-screenshots-recording.md).
 
-Az összes rögzítési lehetőség az Omarchy menü (`Super + Space`) _Trigger > Capture_ pontjában is elérhető.
+Minden rögzítési lehetőség elérhető az Omarchy menü (`Super + Space`) _Trigger > Capture_ pontja alatt is.
 
 ## Értesítések
 
 | Gyorsbillentyű | Funkció |
 | ----------------------- | --------------------- |
-| `Super + ,` | Művelet a legutóbbi értesítésen: megnyitása vagy egyetlen gombjának megnyomása, választás a lehetőségei közül, vagy elvetése, ha egy sem van |
+| `Super + ,` | Művelet a legutóbbi értesítésen: megnyitja, vagy megnyomja az egyetlen gombját, választ a lehetőségei közül, vagy elveti, ha nincs neki |
 | `Super + Shift + ,` | Összes értesítés elvetése |
-| `Super + Ctrl + ,` | Értesítések vezérlése billentyűzettel |
+| `Super + Ctrl + ,` | Értesítések vezérlése a billentyűzettel |
 | `Super + Alt + ,` | Legutóbbi értesítés elvetése |
 | `Super + Shift + Alt + ,` | Értesítési előzmények megnyitása |
-| `Super + Ctrl + Alt + ,` | Értesítések némításának be-/kikapcsolása |
+| `Super + Ctrl + Alt + ,` | Értesítések némításának ki-/bekapcsolása |
 
 ## Stílus
 
 | Gyorsbillentyű | Funkció |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + T` | Új téma választása (másként `Super + Ctrl + Shift + Space` is) |
-| `Super + Ctrl + W` | Témaháttér választása (másként `Super + Ctrl + Space` is) |
-| `Super + Backspace` | Ablak átlátszóságának be-/kikapcsolása |
-| `Super + Ctrl + Backspace` | Egyablakos négyzetes képarány be-/kikapcsolása |
+| `Super + Ctrl + T` | Új téma választása (akkor is `Super + Ctrl + Shift + Space`) |
+| `Super + Ctrl + W` | Témaháttér választása (akkor is `Super + Ctrl + Space`) |
+| `Super + Backspace` | Ablak átlátszóságának ki-/bekapcsolása |
+| `Super + Ctrl + Backspace` | Egyablakos négyzetes képarány ki-/bekapcsolása |
 
-További háttérképek a `~/.config/omarchy/backgrounds/<theme name>` mappában találhatók. Az Omarchy menü _Install > Style > Background_ pontján keresztül is elérhetők.
+További háttérképek a `~/.config/omarchy/backgrounds/<theme name>` helyen találhatók. Az Omarchy menü _Install > Style > Background_ pontján keresztül is elérhető.
 
-Az összes stílusbeállítás az Omarchy menü (`Super + Space`) _Appearance_ pontjában is elérhető.
+Minden stílusbeállítás elérhető az Omarchy menü (`Super + Space`) _Appearance_ pontja alatt is.
 
-## Kapcsolók
+## Ki-/bekapcsolások
 
 | Gyorsbillentyű | Funkció |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + I` | Üresjárati zárolás be-/kikapcsolása |
+| `Super + Ctrl + I` | Tétlenség esetén történő zárolás ki-/bekapcsolása |
 | `Super + Ctrl + Delete` | Laptopkijelző be-/kikapcsolása |
-| `Super + Ctrl + Alt + Delete` | Laptopkijelző tükrözésének be-/kikapcsolása |
-| `Super + Shift + Space` | Felső sáv be-/kikapcsolása |
+| `Super + Ctrl + Alt + Delete` | Laptopkijelző tükrözésének ki-/bekapcsolása |
+| `Super + Shift + Space` | Felső sáv ki-/bekapcsolása |
 | `Shift + Mute` | Váltás a következő hangkimenetre |
 | `Shift + Play` | Váltás a következő médiaforrásra |
-| `Super + Shift + Backspace` | Ablakhézagok be-/kikapcsolása |
-| `Super + Ctrl + Alt + F` | Teljes képernyős asztal be-/kikapcsolása (felső sáv + ablakhézagok) |
+| `Super + Shift + Backspace` | Ablakrések ki-/bekapcsolása |
+| `Super + Ctrl + Alt + F` | Teljes képernyős asztal ki-/bekapcsolása (felső sáv + ablakrések) |
 
 ## Emlékeztetők
 
@@ -258,17 +258,17 @@ Az összes stílusbeállítás az Omarchy menü (`Super + Space`) _Appearance_ p
 | `Super + Ctrl + Alt + R` | Összes emlékeztető megtekintése |
 | `Super + Ctrl + Shift + R` | Összes emlékeztető törlése |
 
-## Jelzések
+## Figyelmeztetések
 
 | Gyorsbillentyű | Funkció |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + Alt + T` | Idő megjelenítése értesítésként |
 | `Super + Ctrl + Alt + B` | Akkumulátor megjelenítése értesítésként |
-| `Super + Ctrl + Alt + W` | Időjárás értesítésként való megjelenítésének be-/kikapcsolása |
+| `Super + Ctrl + Alt + W` | Időjárás értesítésként történő megjelenítésének ki-/bekapcsolása |
 
 ## Tmux
 
-Az előtagbillentyű a `Ctrl + Space` (a `Ctrl + B` is működik). Ezeket a kiosztásokat a `~/.config/tmux/tmux.conf` fájlban módosíthatod.
+Az előtagbillentyű a `Ctrl + Space` (a `Ctrl + B` is működik). Ezeket a kötéseket a `~/.config/tmux/tmux.conf` fájlban módosíthatod.
 
 ### Panelek
 
@@ -277,7 +277,7 @@ Az előtagbillentyű a `Ctrl + Space` (a `Ctrl + B` is működik). Ezeket a kios
 | `Prefix + v` | Panel felosztása mellé (függőleges) |
 | `Prefix + h` | Panel felosztása alá (vízszintes) |
 | `Prefix + x` | Panel megszüntetése |
-| `Prefix + z` | Panelnagyítás be-/kikapcsolása (teljes képernyő) |
+| `Prefix + z` | Panelnagyítás ki-/bekapcsolása (teljes képernyő) |
 | `Alt + Enter` | Panel felosztása alá (előtag nélkül) |
 | `Alt + Shift + Enter` | Panel felosztása mellé (előtag nélkül) |
 | `Alt + Escape` | Panel megszüntetése (előtag nélkül) |
@@ -308,20 +308,20 @@ Az előtagbillentyű a `Ctrl + Space` (a `Ctrl + B` is működik). Ezeket a kios
 | `Prefix + s` | Munkamenetek listázása |
 | `Prefix + d` | Leválás a munkamenetről |
 
-### Másolási mód (vi-stílusú)
+### Másolás mód (vi-stílusú)
 
 | Gyorsbillentyű | Funkció |
 | ----------------------- | --------------------- |
-| `Prefix + [` | Belépés másolási módba |
-| `v` | Kijelölés megkezdése (másolási módban) |
-| `y` | Kijelölés másolása (másolási módban) |
+| `Prefix + [` | Belépés másolás módba |
+| `v` | Kijelölés megkezdése (másolás módban) |
+| `y` | Kijelölés másolása (másolás módban) |
 
 ### Általános
 
 | Gyorsbillentyű | Funkció |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Konfiguráció újratöltése |
-| `Prefix + ?` | Tmux billentyűkiosztások megjelenítése |
+| `Prefix + ?` | Tmux billentyűkötések megjelenítése |
 | `Prefix + :` | Parancssor |
 
 ### Tmux elrendezési függvények
@@ -336,7 +336,7 @@ Ezeket a függvényeket Tmux munkameneten belül kell futtatni.
 
 ## Ghostty Terminal
 
-A Ghostty terminál az Omarchy menü _Install > Terminal_ pontján keresztül telepíthető.
+A Ghostty terminal az Omarchy menü _Install > Terminal_ pontjával telepíthető.
 
 | Gyorsbillentyű | Funkció |
 | ----------------------- | --------------------- |
@@ -348,15 +348,15 @@ A Ghostty terminál az Omarchy menü _Install > Terminal_ pontján keresztül te
 | `Ctrl + Shift + T` | Új lap |
 | `Ctrl + Shift + Arrows` | Mozgás a lapok között |
 | `Alt + Numbers` | Ugrás adott lapra |
-| `Shift + Pg Up/Down` | Előzmények görgetése |
-| `Ctrl + Left mouse` | Hivatkozás megnyitása böngészőben |
+| `Shift + Pg Up/Down` | Az előzmények görgetése |
+| `Ctrl + Left mouse` | Hivatkozás megnyitása a böngészőben |
 
-## File Manager
+## Fájlkezelő
 
 | Gyorsbillentyű | Funkció |
 | ------------------- | ------------------------------ |
 | `Ctrl + L` | Ugrás útvonalra |
-| `Space` | Fájl előnézete (a nyilakkal lehet navigálni) |
+| `Space` | Fájl előnézete (a nyilakkal navigálhatsz) |
 | `Alt + Up` | Fel a szülőmappába |
 
 ## Neovim (w/ lazyvim)
@@ -365,11 +365,11 @@ A Ghostty terminál az Omarchy menü _Install > Terminal_ pontján keresztül te
 
 | Gyorsbillentyű | Funkció |
 | ------------------------ | ------------------------------- |
-| `Space` | Parancsbeállítások megjelenítése |
+| `Space` | Parancslehetőségek megjelenítése |
 | `Space Space` | Fájl megnyitása fuzzy kereséssel |
-| `Space E` | Oldalsáv be-/kikapcsolása |
-| `Space G G` | Git vezérlők megjelenítése |
-| `Space S G` | Fájltartalom keresése |
+| `Space E` | Oldalsáv ki-/bekapcsolása |
+| `Space G G` | Git-vezérlők megjelenítése |
+| `Space S G` | Keresés a fájltartalomban |
 | `Ctrl + W W` | Ugrás az oldalsáv és a szerkesztő között |
 | `Ctrl + Left/right arrow` | Oldalsáv méretének módosítása |
 | `Shift + H` | Ugrás a bal oldali fájllapra |
@@ -387,13 +387,13 @@ A Ghostty terminál az Omarchy menü _Install > Terminal_ pontján keresztül te
 | `R` | Kiemelt fájl/könyvtár átnevezése |
 | `?` | Súgó megjelenítése az összes parancshoz |
 
-[Tekintsd meg a LazyVim által beállított összes Neovim gyorsbillentyűt](https://www.lazyvim.org/keymaps).
+[Nézd meg a LazyVim által beállított összes Neovim-gyorsbillentyűt](https://www.lazyvim.org/keymaps).
 
 ## Gyors emojik
 
-A `Super + Ctrl + E` billentyűkombinációval megjeleníthetsz egy teljes emojiválasztót, amely a kiválasztott elemet a vágólapra helyezi, vagy használhatod ezeket a gyorselérési lehetőségeket.
+A `Super + Ctrl + E` kombinációval megjeleníthetsz egy teljes emoji-választót, amely a kiválasztott elemet a vágólapra teszi, vagy használhatod ezeket a gyors elérési lehetőségeket.
 
-| Gyorsbillentyű | EM | Tipp |
+| Gyorsbillentyű | EM | Nyom |
 | ------------ | -- | ---------- |
 | `Shift + CapsLock M S` | 😄 | mosoly |
 | `Shift + CapsLock M C` | 😂 | sírás |
@@ -402,29 +402,29 @@ A `Super + Ctrl + E` billentyűkombinációval megjeleníthetsz egy teljes emoji
 | `Shift + CapsLock M H` | ❤️ | szív |
 | `Shift + CapsLock M Y` | 👍 | igen |
 | `Shift + CapsLock M N` | 👎 | nem |
-| `Shift + CapsLock M F` | 🖕 | baszd meg |
+| `Shift + CapsLock M F` | 🖕 | fuck |
 | `Shift + CapsLock M W` | 🤞 | kívánság |
 | `Shift + CapsLock M R` | 🤘 | rock |
 | `Shift + CapsLock M K` | 😘 | csók |
 | `Shift + CapsLock M E` | 🙄 | szemforgatás |
 | `Shift + CapsLock M I` | 😉 | kacsintás |
-| `Shift + CapsLock M P` | 🙏 | imádkozás |
+| `Shift + CapsLock M P` | 🙏 | ima |
 | `Shift + CapsLock M D` | 🤤 | nyálcsorgatás |
 | `Shift + CapsLock M M` | 💰 | pénz |
-| `Shift + CapsLock M X` | 🎉 | ünneplés |
+| `Shift + CapsLock M X` | 🎉 | xellebrate |
 | `Shift + CapsLock M 1` | 💯 | 100% |
 | `Shift + CapsLock M T` | 🥂 | koccintás |
 | `Shift + CapsLock M O` |👌 | oké |
 | `Shift + CapsLock M G` |👋 | üdvözlés |
 | `Shift + CapsLock M A` |💪 | kar |
-| `Shift + CapsLock M B` |🤯 | robbanó fej |
+| `Shift + CapsLock M B` |🤯 | felrobbanó |
 
 ## Gyors kiegészítések
 
 | Gyorsbillentyű | Kiegészítés |
-| ------------ | ---------- |
-| `Shift + CapsLock Space Space` | — (gondolatjel) |
+| ------------ |  ---------- |
+| `Shift + CapsLock Space Space` | — (mdash) |
 | `Shift + CapsLock Space N` | A neved (ahogy a beállításkor megadtad) |
-| `Shift + CapsLock Space E` | Az e-mail címed (ahogy a beállításkor megadtad) |
+| `Shift + CapsLock Space E` | Az e-mailed (ahogy a beállításkor megadtad) |
 
-Továbbiakat is hozzáadhatsz a `~/.XCompose` szerkesztésével, majd futtasd a terminálban az `omarchy restart xcompose` parancsot, hogy a változások érvénybe lépjenek.
+Továbbiakat is hozzáadhatsz a `~/.XCompose` szerkesztésével, majd futtasd a terminálban az `omarchy restart xcompose` parancsot, hogy a módosítások érvénybe lépjenek.

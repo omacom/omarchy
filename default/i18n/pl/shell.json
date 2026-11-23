@@ -22,7 +22,7 @@
   "agents.editInstructions": "Edytuj AGENTS.md, instrukcje dla wszystkich agentów",
   "agents.enterApiKey": "Wklej klucz API",
   "agents.firstBecomesDefault": "Pierwszy zostanie domyślnym",
-  "agents.forgetAccountConfirm": "Usunąć %1? Logowanie zostanie usunięte z tego urządzenia, a ponowne dodanie będzie wymagać zalogowania się od nowa.",
+  "agents.forgetAccountConfirm": "Usunąć %1?",
   "agents.freeResets": {
     "few": "%1 darmowe resety",
     "many": "%1 darmowych resetów",
