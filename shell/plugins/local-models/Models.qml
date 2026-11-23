@@ -370,7 +370,7 @@ Item {
 
   function notifyModelReady(model) {
     Util.execArgv(["bash", "-c",
-      'exec omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$1")" "$(omarchy-i18n agents.readyToCode "$2")" "$(omarchy-i18n agents.readyToCodeBody)" --exec omarchy-agent --local-model "$3"',
+      'exec omarchy-notification-send --sticky -g 󰚩 --image "$(omarchy-agent-logo "$1")" "$(omarchy-i18n agents.readyToCode "$2")" "$(omarchy-i18n agents.readyToCodeBody)" --exec omarchy-agent --local-model "$3"',
       "notify", String(model.vendor || "local"), String(model.name || model.recipe), String(model.recipe)])
   }
 
