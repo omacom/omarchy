@@ -78,12 +78,40 @@ if ! prefix_running; then
   match_dpi_to_monitor_scale
 fi
 
+# DXVK rejects devices below Vulkan 1.3, even when newer extensions are present.
+# Probe only when available; unknown capabilities leave Proton's default alone.
+needs_wined3d() {
+  local summary
+  summary=$(LC_ALL=C vulkaninfo --summary 2>/dev/null) || return 1
+  awk '
+    function device() {
+      if (!gpu || type == "PHYSICAL_DEVICE_TYPE_CPU") return
+      if (type !~ /^PHYSICAL_DEVICE_TYPE_(INTEGRATED_GPU|DISCRETE_GPU|VIRTUAL_GPU|OTHER)$/ || version !~ /^[1-9][0-9]*\.[0-9]+\.[0-9]+$/) {
+        unknown = 1
+      } else {
+        split(version, parts, /[.]/)
+        seen = 1
+        if (parts[1] > 1 || (parts[1] == 1 && parts[2] >= 3)) capable = 1
+      }
+    }
+    /^GPU[0-9]+:[[:space:]]*$/ { device(); gpu = 1; type = version = ""; next }
+    gpu && $1 == "apiVersion" && $2 == "=" { version = $3 }
+    gpu && $1 == "deviceType" && $2 == "=" { type = $3 }
+    END { device(); exit !(seen && !unknown && !capable) }
+  ' <<<"$summary"
+}
+
 env_args=(
   WINEPREFIX="$PREFIX"
   PROTONPATH=GE-Proton
   GAMEID=umu-battlenet
   PROTON_VERB=run
 )
+if [[ -v PROTON_USE_WINED3D ]]; then
+  env_args+=(PROTON_USE_WINED3D="$PROTON_USE_WINED3D")
+elif omarchy-cmd-present vulkaninfo && needs_wined3d; then
+  env_args+=(PROTON_USE_WINED3D=1)
+fi
 (( with_mangohud )) && env_args+=(MANGOHUD=1)
 
 env "${env_args[@]}" umu-run "$LAUNCHER"
