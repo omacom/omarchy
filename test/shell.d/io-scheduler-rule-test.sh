@@ -20,7 +20,7 @@ write=$(sed -n "s|.*RUN+=\"/usr/bin/sh -c '\(.*\)'\"\$|\1|p" "$rule")
 # until the sibling's switch is done.
 disk=$test_tmp/disk
 mkdir -p "$disk/queue/scheduler"
-(sleep 0.5; rmdir "$disk/queue/scheduler"; : >"$disk/queue/scheduler") &
+(sleep 0.5; rmdir "$disk/queue/scheduler") &
 sh -c "${write//\$devpath//..$disk}" 2>/dev/null || fail "the kyber write succeeds once the sibling disk has switched"
 wait
 [[ $(<"$disk/queue/scheduler") == kyber ]] || fail "the retried write sets kyber"
