@@ -4,7 +4,11 @@
 # v4l2-relayd re-exposes it at 1280x720 under the same name.
 
 if omarchy-hw-elgato-camlink-4k; then
-  omarchy-pkg-add v4l2loopback-dkms v4l2loopback-utils v4l2-relayd
+  if omarchy-pkg-present linux-omarchy; then
+    omarchy-pkg-add linux-omarchy-v4l2loopback v4l2loopback-utils v4l2-relayd
+  else
+    omarchy-pkg-add v4l2loopback-dkms v4l2loopback-utils v4l2-relayd
+  fi
 
   sudo install -Dm644 "$OMARCHY_PATH/default/udev/elgato-camlink-4k.rules" /etc/udev/rules.d/71-elgato-camlink-4k.rules
   sudo install -Dm644 "$OMARCHY_PATH/default/v4l2-relayd/camlink.conf" /etc/v4l2-relayd.d/camlink.conf
