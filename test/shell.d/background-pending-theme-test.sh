@@ -2,6 +2,39 @@
 
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+
+# Exercise the real handler and monitor lookup with two screens; a global guard
+# would also disable desktop shortcuts on the screen without a special workspace.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(path.join(root, 'shell/plugins/background/Background.qml'), 'utf8')
+const guard = source.match(/^  function specialWorkspaceOpen\(screen\) \{[\s\S]*?^  }/m)
+const handler = source.match(/onDoubleClicked: function\(mouse\) \{([\s\S]*?)^    }/m)
+const monitors = {
+  primary: { lastIpcObject: { specialWorkspace: { name: 'special:qconsole' } } },
+  secondary: { lastIpcObject: { specialWorkspace: { name: '' } } }
+}
+const Hyprland = { monitorFor: screen => monitors[screen.name] }
+const actions = []
+const service = {
+  specialWorkspaceOpen: guard ? new Function('Hyprland', `return (${guard[0]})`)(Hyprland) : null,
+  openSelector: () => actions.push('background'),
+  openThemeSwitcher: () => actions.push('theme')
+}
+const click = new Function('service', 'screen', 'Qt', 'mouse', handler[1])
+const Qt = { LeftButton: 1, RightButton: 2 }
+function doubleClick(screen, button) {
+  click(service, { name: screen }, Qt, { button, accepted: false })
+}
+for (const button of [Qt.LeftButton, Qt.RightButton]) doubleClick('primary', button)
+assertDeepEqual(actions, [], 'neither desktop picker opens under a special workspace')
+for (const button of [Qt.LeftButton, Qt.RightButton]) doubleClick('secondary', button)
+assertDeepEqual(actions, ['background', 'theme'], 'the other monitor retains both desktop shortcuts')
+monitors.primary.lastIpcObject.specialWorkspace.name = ''
+for (const button of [Qt.LeftButton, Qt.RightButton]) doubleClick('primary', button)
+assertDeepEqual(actions, ['background', 'theme', 'background', 'theme'], 'closing the special workspace restores both shortcuts')
+JS
+
 require_compositor "pending background theme cancellation"
 require_command quickshell
 require_command python3
