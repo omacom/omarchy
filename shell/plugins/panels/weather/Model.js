@@ -267,6 +267,27 @@ function iconForOpenMeteoCode(code, night) {
   return iconForCode(119, night)
 }
 
+// Width of the hero row so the temperature block and the stats column do not
+// meet: left margin, temperature, the gap between the halves, the stats
+// column, right margin. Labels such as Russian ОЩУЩАЕТСЯ are much wider than
+// FEELS, and at the 480px floor they land on top of the °C.
+function heroNeededWidth(leftMargin, temperatureWidth, gap, statsWidth, rightMargin) {
+  return leftMargin + temperatureWidth + gap + statsWidth + rightMargin
+}
+
+// Card content width before KeyboardPanel.fittedContentWidth caps it to the
+// screen. Short labels stay at the floor; longer ones grow the card by the
+// hero width plus the card's own chrome.
+function heroContentWidth(baseWidth, neededWidth, chrome) {
+  return Math.max(baseWidth, neededWidth + chrome)
+}
+
+// Place name drawn inside the stats column. A name wider than the column
+// elides; a shorter one keeps its own width.
+function locationLabelWidth(textWidth, columnWidth, pinWidth, spacing) {
+  return Math.min(textWidth, columnWidth - pinWidth - spacing)
+}
+
 function iconForCode(code, night) {
   var c = parseInt(String(code || "0"), 10)
   switch (c) {
@@ -312,6 +333,9 @@ if (typeof module !== "undefined") {
     bareTempForDay: bareTempForDay,
     dayIcon: dayIcon,
     iconForOpenMeteoCode: iconForOpenMeteoCode,
-    iconForCode: iconForCode
+    iconForCode: iconForCode,
+    heroNeededWidth: heroNeededWidth,
+    heroContentWidth: heroContentWidth,
+    locationLabelWidth: locationLabelWidth
   }
 }
