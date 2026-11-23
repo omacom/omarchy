@@ -1953,6 +1953,7 @@ Panel {
     horizontalPadding: Style.spacing.controlPaddingX
     verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
     bordered: true
+    selectable: true
 
     // Map the panel's domain semantics onto Button's structural props:
     // `current DNS` is the pill's `active` fill; the keyboard cursor lights
