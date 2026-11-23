@@ -47,29 +47,41 @@ fi
 exit "${DICTATION_EXIT:-0}"
 SH
 done
-# Like Hex: control commands exit 3 until `hex start` brings it up, and
-# `stop --print` hands back the transcript instead of pasting it.
+# Like Hex: control commands exit 3 until `hex start` brings it up,
+# `stop --print` hands back the transcript instead of pasting it and exits 1
+# when nothing is recording, and `status --json` reports a recording a moment
+# after it starts (HEX_STATUS_LAG keeps it reporting idle; HEX_STATUS_EXIT
+# makes it fail to answer).
 export HEX_STATE="$test_tmp/hex-state"
-echo listening > "$HEX_STATE"
+echo idle > "$HEX_STATE"
 cat > "$test_tmp/bin/hex" <<'SH'
 #!/bin/bash
 [[ $1 == "status" ]] || printf 'hex %s\n' "$*" >> "$DICTATION_LOG"
 if [[ $1 == "model" ]]; then
   exit "${HEX_MODEL_EXIT:-0}"
 elif [[ $1 == "start" ]]; then
-  echo listening > "$HEX_STATE"
+  echo idle > "$HEX_STATE"
 elif [[ ! -e $HEX_STATE ]]; then
   exit 3
-elif [[ $1 == "status" ]]; then
-  printf '{"desktop":{"activity":{"state":"%s"}}}\n' "$(< "$HEX_STATE")"
+elif [[ $* == "status --json" ]]; then
+  [[ -z ${HEX_STATUS_EXIT:-} ]] || exit "$HEX_STATUS_EXIT"
+  if [[ $(< "$HEX_STATE") == "dictating" && -z ${HEX_STATUS_LAG:-} ]]; then
+    echo '{"capture":{"state":"recording","recording":"dictation"}}'
+  else
+    echo '{"capture":{"state":"idle","recording":null}}'
+  fi
 elif [[ $* == "dictation start" ]]; then
   echo dictating > "$HEX_STATE"
 elif [[ $* == "dictation stop --print" ]]; then
-  echo listening > "$HEX_STATE"
+  if [[ $(< "$HEX_STATE") != "dictating" ]]; then
+    echo "hex: dictation isn't recording; nothing to print" >&2
+    exit 1
+  fi
+  echo idle > "$HEX_STATE"
   echo hello
 fi
 SH
-for command in omarchy-pkg-add omarchy-clipboard-paste-text omarchy-notification-send hyprctl omarchy-restart-shell; do
+for command in omarchy-pkg-add omarchy-clipboard-paste-text omarchy-notification-send hyprctl omarchy-restart-hyprctl omarchy-restart-shell; do
   cat > "$test_tmp/bin/$command" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >> "$DICTATION_LOG"
@@ -127,7 +139,7 @@ for backend in voxtype superwhisper hex; do
   elif [[ $backend == "superwhisper" ]]; then
     expected=$'superwhisper start\nsuperwhisper stop\nsuperwhisper record'
   else
-    expected=$'hex dictation start\nhex dictation stop --print\nomarchy-clipboard-paste-text hello\nhex dictation start'
+    expected=$'hex dictation start\nhex dictation stop --print\nomarchy-clipboard-paste-text --universal hello\nhex dictation start'
   fi
   [[ $(cat "$DICTATION_LOG") == "$expected" ]] || fail "adapter dispatches recording for $backend"
 done
@@ -135,15 +147,25 @@ pass "built-in adapters implement start stop and toggle"
 
 : > "$DICTATION_LOG"
 omarchy-dictation-hex toggle
-[[ $(cat "$DICTATION_LOG") == $'hex dictation stop --print\nomarchy-clipboard-paste-text hello' ]] || fail "toggling a recording Hex types its transcript"
+[[ $(cat "$DICTATION_LOG") == $'hex dictation stop --print\nomarchy-clipboard-paste-text --universal hello' ]] || fail "toggling a recording Hex pastes its transcript"
 : > "$DICTATION_LOG"
-omarchy-dictation-hex stop || fail "stopping an idle Hex succeeds"
+omarchy-dictation-hex start
+HEX_STATUS_LAG=1 omarchy-dictation-hex stop
+[[ $(cat "$DICTATION_LOG") == $'hex dictation start\nhex dictation stop --print\nomarchy-clipboard-paste-text --universal hello' ]] || fail "a quick push-to-talk tap stops Hex before its status reports the recording"
+output=$(omarchy-dictation-hex stop 2>&1) && [[ -z $output ]] || fail "stopping an idle Hex succeeds quietly"
+if HEX_STATUS_EXIT=5 omarchy-dictation-hex stop 2>/dev/null; then
+  fail "a failed stop is reported when Hex can't confirm nothing is recording"
+fi
+: > "$DICTATION_LOG"
+omarchy-dictation-hex start
+TMPDIR="$test_tmp/missing" omarchy-dictation-hex stop 2>/dev/null
+[[ $(cat "$DICTATION_LOG") == $'hex dictation start\nhex dictation stop --print\nomarchy-clipboard-paste-text --universal hello' ]] || fail "Hex still stops when no temporary file can be made"
 rm "$HEX_STATE"
 omarchy-dictation-hex stop || fail "stopping Hex succeeds when it is not running, so switching away works"
-[[ ! -e $HEX_STATE && ! -s $DICTATION_LOG ]] || fail "stopping an idle or stopped Hex sends nothing"
+: > "$DICTATION_LOG"
 omarchy-dictation-hex start
 [[ $(cat "$DICTATION_LOG") == $'hex dictation start\nhex start\nhex dictation start' ]] || fail "starting launches a stopped Hex, then records"
-pass "Hex types its transcript itself, stops quietly when idle, and starts Hex to record"
+pass "Hex pastes its transcript itself, stops quietly when idle, and starts Hex to record"
 
 cat > "$test_tmp/bin/omarchy-dictation-future-backend" <<'SH'
 #!/bin/bash
@@ -252,10 +274,15 @@ wait "$reader" || fail "concurrent readers always see a complete selection"
 printf '%s\n' voxtype > "$config"
 pass "selection updates are atomic for concurrent readers"
 
+mkdir -p "$XDG_CONFIG_HOME/omarchy"
+printf 'XKBLAYOUT=us\n' > "$XDG_CONFIG_HOME/omarchy/keyboard-layouts"
 lua - <<'LUA' || fail "dictation shortcuts require a selection without limiting backend names"
 local root = os.getenv("ROOT")
+package.path = root .. "/?.lua;" .. package.path
 local selected, installed, bindings = nil, true, {}
-io.popen = function(command)
+local popen = io.popen
+io.popen = function(command, mode)
+  if command:find("^xkbcli") then return popen(command, mode) end
   assert(command == "omarchy-default-dictation 2>/dev/null")
   return { read = function() return selected end, close = function() end }
 end
@@ -290,6 +317,41 @@ assert(#bindings == 0, "a selected backend that is not installed leaves applicat
 assert(not o.dictation_installed(), "personal dictation keys release their keys once the backend is gone")
 LUA
 pass "Alt + Space toggles dictation and Right Alt records while held, once a backend is installed"
+
+# Hyprland resolves binds against the first layout, so Right Alt is Alt_R when
+# US leads and ISO_Level3_Shift when an AltGr layout does. Where any layout
+# types with AltGr, Right Alt records only once held alone, so AltGr + 2 still
+# types @. Prints each push-to-talk key, and "hold" when it waits like that.
+push_to_talk() {
+  printf 'XKBLAYOUT=%s\nXKBVARIANT=%s\n' "$1" "${2:-}" > "$XDG_CONFIG_HOME/omarchy/keyboard-layouts"
+  lua - <<'LUA'
+local root = os.getenv("ROOT")
+package.path = root .. "/?.lua;" .. package.path
+local popen = io.popen
+io.popen = function(command, mode)
+  if command:find("^xkbcli") then return popen(command, mode) end
+  return { read = function() return "some-backend" end, close = function() end }
+end
+o = {
+  cmd_missing = function() return false end,
+  bind = function() end,
+  bind_hold = function(keys, _, _, _, _, options)
+    local alone = options.long_press and options.non_consuming
+    print(keys .. (alone and " hold" or ""))
+  end,
+}
+dofile(root .. "/default/hypr/bindings/dictation.lua")
+LUA
+}
+[[ $(push_to_talk us) == "ALT + Alt_R" ]] || fail "US keeps the instant Right Alt hold" "$(push_to_talk us)"
+[[ $(push_to_talk dk) == $'ALT + Alt_R hold\nISO_Level3_Shift hold' ]] || fail "a leading AltGr layout holds AltGr alone to dictate" "$(push_to_talk dk)"
+[[ $(push_to_talk us,se) == $'ALT + Alt_R hold\nISO_Level3_Shift hold' ]] || fail "AltGr behind US keeps typing @" "$(push_to_talk us,se)"
+[[ $(push_to_talk us intl) == $'ALT + Alt_R hold\nISO_Level3_Shift hold' ]] || fail "US International keeps AltGr for typing" "$(push_to_talk us intl)"
+mkdir -p "$XDG_CONFIG_HOME/fcitx5"
+printf '[Groups/0/Items/0]\nName=keyboard-us\n[Groups/0/Items/1]\nName=keyboard-se\n' > "$XDG_CONFIG_HOME/fcitx5/profile"
+[[ $(push_to_talk us) == $'ALT + Alt_R hold\nISO_Level3_Shift hold' ]] || fail "Fcitx Swedish keeps AltGr for typing" "$(push_to_talk us)"
+rm -r "$XDG_CONFIG_HOME/fcitx5" "$XDG_CONFIG_HOME/omarchy/keyboard-layouts"
+pass "Right Alt records at once on US and once held alone where it is AltGr"
 
 # Fresh users receive the backend choice through the settings package's skel.
 cp "$ROOT/config/omarchy/defaults/dictation" "$config"

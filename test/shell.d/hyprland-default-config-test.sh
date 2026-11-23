@@ -4,11 +4,36 @@ source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
 require_command lua
 
+for bell_supported in false true; do
+  OMARCHY_BELL_SUPPORTED="$bell_supported" lua - <<'LUA' || fail "look and feel loads before and after a Hyprland upgrade"
+local supported = os.getenv("OMARCHY_BELL_SUPPORTED") == "true"
+local bell
+hl = {
+  get_config = function(key)
+    assert(key == "misc.bell_sound")
+    if supported then return "default" end
+    return nil, "unknown config key 'misc.bell_sound'"
+  end,
+  config = function(config)
+    if config.misc then
+      bell = config.misc.bell_sound
+      assert(supported or bell == nil, "unknown config key 'misc.bell_sound'")
+    end
+  end,
+  curve = function() end,
+  animation = function() end,
+}
+dofile(os.getenv("ROOT") .. "/default/hypr/looknfeel.lua")
+assert(bell == (supported and "none" or nil))
+LUA
+done
+pass "look and feel mutes bells only when the running compositor supports it"
+
 run_application_bindings() {
   local home="$1"
   local prelude="${2:-}"
 
-  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
+  OMARCHY_REGION_FILE="${OMARCHY_REGION_FILE:-$tmpdir/no-region}" HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
 package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local prelude = os.getenv("OMARCHY_BINDING_PRELUDE") or ""
@@ -39,7 +64,7 @@ run_omarchy_bindings() {
   local home="$1"
   local prelude="${2:-}"
 
-  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
+  OMARCHY_REGION_FILE="${OMARCHY_REGION_FILE:-$tmpdir/no-region}" HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
 package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local function proxy()
@@ -102,7 +127,7 @@ fresh_home="$tmpdir/fresh-home"
 mkdir -p "$fresh_home"
 fresh_output=$(run_application_bindings "$fresh_home")
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$fresh_output" || fail "default application bindings include essentials"
-grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$fresh_output" || fail "default application bindings include preinstalled web apps"
+grep -Fq $'SUPER + SHIFT + ALT + A	Grok' <<<"$fresh_output" || fail "default application bindings include preinstalled web apps"
 grep -Fq $'SUPER + SHIFT + Q	Calculator' <<<"$fresh_output" || fail "default application bindings include the preinstalled calculator"
 grep -Fq $'XF86Calculator	Calculator' <<<"$fresh_output" || fail "default application bindings include the calculator hardware key"
 pass "default application bindings load from package defaults"
@@ -112,7 +137,7 @@ mkdir -p "$removed_home/.local/state/omarchy"
 touch "$removed_home/.local/state/omarchy/preinstalls-removed"
 removed_output=$(run_omarchy_bindings "$removed_home")
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$removed_output" || fail "preinstall removal keeps essential bindings"
-if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$removed_output"; then
+if grep -Fq $'SUPER + SHIFT + ALT + A	Grok' <<<"$removed_output"; then
   fail "preinstall removal skips preinstalled web app bindings"
 fi
 if grep -Fq $'	Calculator' <<<"$removed_output"; then
@@ -124,13 +149,22 @@ variable_home="$tmpdir/variable-home"
 mkdir -p "$variable_home"
 variable_output=$(run_omarchy_bindings "$variable_home" 'omarchy_preinstalled_bindings = false')
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$variable_output" || fail "preinstalled binding variable keeps essential bindings"
-if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$variable_output"; then
+if grep -Fq $'SUPER + SHIFT + ALT + A	Grok' <<<"$variable_output"; then
   fail "preinstalled binding variable skips optional application bindings"
 fi
 if grep -Fq $'	Calculator' <<<"$variable_output"; then
   fail "preinstalled binding variable skips calculator bindings"
 fi
 pass "preinstalled binding variable skips optional application bindings"
+
+echo cn >"$tmpdir/region-cn"
+region_output=$(OMARCHY_REGION_FILE="$tmpdir/region-cn" run_application_bindings "$fresh_home")
+grep -Fq $'SUPER + SHIFT + Q	Calculator' <<<"$region_output" || fail "a region keeps the hotkeys that aren't web apps"
+grep -Fq $'SUPER + SHIFT + Y	Bilibili' <<<"$region_output" || fail "China binds its own web apps"
+for binding in $'SUPER + SHIFT + ALT + A	Grok' $'SUPER + SHIFT + E	Email' $'SUPER + SHIFT + Y	YouTube' $'SUPER + SHIFT + M	Music' $'SUPER + SHIFT + G	Signal'; do
+  if grep -Fq "$binding" <<<"$region_output"; then fail "China binds none of the global web app hotkeys" "$binding"; fi
+done
+pass "the region picks its web app hotkeys file"
 
 no_bindings_home="$tmpdir/no-bindings-home"
 mkdir -p "$no_bindings_home"
@@ -190,13 +224,27 @@ mkdir -p "$scratchpad_home"
 scratchpad_output=$(run_omarchy_bindings "$scratchpad_home")
 grep -Fqx $'SUPER + S	Toggle scratchpad' <<<"$scratchpad_output" ||
   fail "scratchpad keeps its existing toggle binding"
-grep -Fqx $'SUPER + grave	Toggle Quake console' <<<"$scratchpad_output" ||
+grep -Fqx $'SUPER + code:49	Toggle Quake console' <<<"$scratchpad_output" ||
   fail "Quake console has its own toggle binding"
 grep -Fqx $'SUPER + ALT + S	Move window to scratchpad' <<<"$scratchpad_output" ||
   fail "scratchpad keeps its existing move binding"
-grep -Fqx $'SUPER + SHIFT + grave	Move window to Quake console' <<<"$scratchpad_output" ||
+grep -Fqx $'SUPER + SHIFT + code:49	Move window to Quake console' <<<"$scratchpad_output" ||
   fail "Quake console has its own move binding"
 pass "scratchpad and Quake console have separate bindings"
+
+# Hyprland matches a keysym bind against what a key types without Shift, so a
+# bind on / moves to the key US types / on where / needs Shift, unless that key
+# types a letter there instead: F on bépo, where it would take Super + F.
+passwords_key() {
+  local home="$tmpdir/layout-$1-$2"
+  mkdir -p "$home/.config/omarchy"
+  printf 'XKBLAYOUT=%s\nXKBVARIANT=%s\n' "$1" "$2" >"$home/.config/omarchy/keyboard-layouts"
+  run_omarchy_bindings "$home" | awk -F '\t' '$2 == "Passwords" { print $1 }'
+}
+[[ $(passwords_key us "") == "SUPER + SHIFT + SLASH" ]] || fail "/ binds stay on / where it types without Shift" "$(passwords_key us "")"
+[[ $(passwords_key dk "") == "SUPER + SHIFT + code:61" ]] || fail "/ binds move to the key left of right Shift where / needs Shift" "$(passwords_key dk "")"
+[[ $(passwords_key fr bepo) == "SUPER + SHIFT + SLASH" ]] || fail "/ binds never move onto a letter" "$(passwords_key fr bepo)"
+pass "/ binds follow the leading keyboard layout"
 
 # The panel hotkeys claim a row of keys that workspace switching already uses
 # under other modifiers, so the count matters as much as the bindings: a tenth
