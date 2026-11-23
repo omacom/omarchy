@@ -137,7 +137,67 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "appearance.font" || root.activeMenu === "update.kernel") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
+  // Search and provider labels are open-ended; only authored menus grow.
+  readonly property int fittedLabelWidth: {
+    root.layoutSerial
+    rowLabelMetrics.font
+    return root.measureLabels()
+  }
+
+  FontMetrics {
+    id: rowLabelMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.heading
+    font.weight: Font.Medium
+  }
+
+  function labelSlotChrome(row) {
+    var hasIcon = String(row.icon || "").length > 0 || row.kind === "app"
+    var leading = hasIcon ? Style.space(8) + Style.space(36) + Style.space(6) : Style.space(18)
+    return Border.left(root.borderSpec) + Border.right(root.borderSpec)
+      + root.contentMargin * 2
+      + root.rowReservedBorderLeft + root.rowReservedBorderRight
+      + leading + Style.space(6) + Style.space(14) + Style.space(8)
+  }
+
+  function measureLabels() {
+    if (!root.cardUsesLabelWidth()) return 0
+    var widest = 0
+    for (var i = 0; i < displayModel.count; i++) {
+      var row = displayModel.get(i)
+      var advance = rowLabelMetrics.advanceWidth(String(row.label || ""))
+      var alt = row.kind === "action" ? root.altVariantFor(row.itemId) : null
+      if (alt) advance = Math.max(advance, rowLabelMetrics.advanceWidth(root.labelFor(alt)))
+      widest = Math.max(widest, advance + root.labelSlotChrome(row))
+    }
+    return Math.ceil(widest)
+  }
+
+  function menuUsesWideCard() {
+    return root.activeMenu === "trigger.capture.screenrecord"
+      || root.activeMenu === "appearance.font"
+      || root.activeMenu === "update.kernel"
+  }
+
+  // cardWidth grows from the measured labels only for a closed authored menu.
+  function cardUsesLabelWidth() {
+    if (root.dmenuActive || root.menuUsesWideCard()) return false
+    var entry = root.item(root.activeMenu)
+    return !String(root.filterText || "").trim() && !(entry && entry.provider)
+  }
+
+  // Leave two pixels beyond the advance so boundary rounding does not elide.
+  property int cardWidth: {
+    var screenCap = Math.max(1, panel.width - Style.gapsOut * 2)
+    if (root.dmenuActive)
+      return Math.min(Style.space(root.dmenuWidth), screenCap)
+    var floor = Style.space(300)
+    var cap = Style.space(520)
+    if (!root.cardUsesLabelWidth())
+      return Math.min(root.menuUsesWideCard() ? cap : floor, screenCap)
+    var wanted = Math.max(floor, root.fittedLabelWidth + 2)
+    return Math.min(wanted, cap, screenCap)
+  }
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
