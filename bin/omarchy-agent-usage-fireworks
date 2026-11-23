@@ -574,12 +574,19 @@ def check_key(api_base_url: str, auth_path: Path) -> dict[str, Any]:
   """Whether Fireworks takes the key, from finding its account alone, as
   a sign-in checks one before saving it: the spend and usage a scan reads
   take seconds more, the daily costs most of them."""
-  api_key, _ = credentials(auth_path)
+  api_key, account_id = credentials(auth_path)
   if not api_key:
     return base_record()
   record = base_record(ready=True)
+  client = FireworksClient(api_key, api_base_url)
   try:
-    FireworksClient(api_key, api_base_url).discover_account()
+    # A configured account is the one the key must reach, as a scan reads
+    # it: discovery would refuse a key that reaches several.
+    account_id = normalize_account_id(account_id) if account_id else ""
+    if account_id:
+      client.account(account_id)
+    else:
+      client.discover_account()
   except FireworksAuthError:
     record["usageStatusText"] = "Sign-in expired"
     record["authHelpText"] = "Fireworks rejected the API key. " + AUTH_HELP
