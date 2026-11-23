@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Подразумевано"
   },
-  "agent": {
-    "label": "Агент"
-  },
   "setup.default.browser": {
     "label": "Прегледач",
     "title": "Подразумевани прегледач"

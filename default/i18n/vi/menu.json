@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Mặc định"
   },
-  "agent": {
-    "label": "Agent"
-  },
   "setup.default.browser": {
     "label": "Trình duyệt",
     "title": "Trình duyệt mặc định"

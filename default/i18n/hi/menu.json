@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "डिफ़ॉल्ट"
   },
-  "agent": {
-    "label": "एजेंट"
-  },
   "setup.default.browser": {
     "label": "ब्राउज़र",
     "title": "डिफ़ॉल्ट ब्राउज़र"

@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "طے شدہ"
   },
-  "agent": {
-    "label": "ایجنٹ"
-  },
   "setup.default.browser": {
     "label": "براؤزر",
     "title": "طے شدہ براؤزر"
