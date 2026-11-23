@@ -16,6 +16,8 @@ as_root() {
 }
 
 if ! systemctl is-enabled --quiet omarchy-shutdown-ramfs.timer 2>/dev/null; then
-  as_root systemctl enable --now omarchy-shutdown-ramfs.timer >/dev/null 2>&1 ||
-    echo "Could not enable omarchy-shutdown-ramfs.timer; shutdown-ramfs will keep generating during shutdown."
+  if ! as_root systemctl enable --now omarchy-shutdown-ramfs.timer; then
+    echo "Could not enable omarchy-shutdown-ramfs.timer; shutdown-ramfs will keep generating during shutdown." >&2
+    exit 1
+  fi
 fi
