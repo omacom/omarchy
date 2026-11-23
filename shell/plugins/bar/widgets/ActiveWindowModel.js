@@ -58,18 +58,24 @@ function resolveAppName(appId, desktopEntries, terminalEntries) {
   var id = cleanAppId(appId)
   if (!id) return ""
 
-  // 1. Quickshell DesktopEntries heuristic lookup
-  if (desktopEntries && typeof desktopEntries.heuristicLookup === "function") {
-    var entry = desktopEntries.heuristicLookup(id)
-    var name = appNameFromEntry(entry)
-    if (name) return name
-  }
+  // Try the ID as given first: a .desktop suffix can be part of the real ID
+  // (org.telegram.desktop), so strip it only as a fallback.
+  var rawId = String(appId).trim()
+  var lookupIds = rawId === id ? [id] : [rawId, id]
+  for (var k = 0; k < lookupIds.length; k++) {
+    // 1. Quickshell DesktopEntries heuristic lookup
+    if (desktopEntries && typeof desktopEntries.heuristicLookup === "function") {
+      var entry = desktopEntries.heuristicLookup(lookupIds[k])
+      var name = appNameFromEntry(entry)
+      if (name) return name
+    }
 
-  // 2. Direct byId lookup
-  if (desktopEntries && typeof desktopEntries.byId === "function") {
-    var entryById = desktopEntries.byId(id)
-    var nameById = appNameFromEntry(entryById)
-    if (nameById) return nameById
+    // 2. Direct byId lookup
+    if (desktopEntries && typeof desktopEntries.byId === "function") {
+      var entryById = desktopEntries.byId(lookupIds[k])
+      var nameById = appNameFromEntry(entryById)
+      if (nameById) return nameById
+    }
   }
 
   // 3. Claiming entry for terminal apps or --app-id

@@ -26,6 +26,7 @@ const mockEntries = {
     if (id === 'code') return { name: 'Visual Studio Code' }
     if (id === 'org.gnome.Nautilus') return { name: 'Files' }
     if (id === 'nvim') return { name: 'Neovim' }
+    if (id === 'org.telegram.desktop') return { name: 'Telegram Desktop' }
     return null
   },
   heuristicLookup: id => {
@@ -42,6 +43,7 @@ const mockTerminalEntries = [
 
 assertEqual(model.resolveAppName('code', mockEntries, []), 'Visual Studio Code', 'finds by heuristic lookup')
 assertEqual(model.resolveAppName('code.desktop', mockEntries, []), 'Visual Studio Code', 'cleans .desktop before lookup')
+assertEqual(model.resolveAppName('org.telegram.desktop', mockEntries, []), 'Telegram Desktop', 'keeps a .desktop suffix that is part of the real ID')
 assertEqual(model.resolveAppName('chromium-browser', mockEntries, []), 'Chromium', 'finds browser entry')
 assertEqual(model.resolveAppName('org.gnome.Nautilus', mockEntries, []), 'Files', 'resolves reverse DNS by last segment')
 assertEqual(model.resolveAppName('org.omarchy.nvim', mockEntries, mockTerminalEntries), 'Neovim', 'resolves terminal app via claiming entry')
