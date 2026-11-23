@@ -109,7 +109,9 @@ rust)
   # Crates that generate C bindings with bindgen, including Ruby gems built
   # with rb-sys, load libclang from clang.
   omarchy-pkg-add clang
-  bash -c "$(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs)" -- -y
+  # mise's rust backend drives rustup itself, honors CARGO_HOME/RUSTUP_HOME,
+  # and runs rustup-init with --no-modify-path, so no shell profile is edited.
+  mise use --global rust@latest
   ;;
 java)
   echo -e "Installing Java...\n"
