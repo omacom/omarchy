@@ -5,8 +5,15 @@ set -euo pipefail
 source "$(dirname "$0")/base-test.sh"
 
 test_tmp=$(mktemp -d)
-# A failed race assertion leaves its runners blocked; let them finish first.
-trap 'touch "$test_tmp/race-release"; wait; rm -rf "$test_tmp"' EXIT
+cleanup() {
+  touch "$test_tmp/race-release"
+  if [[ -s ${child_pid_file:-} ]]; then
+    kill "$(<"$child_pid_file")" 2>/dev/null || true
+  fi
+  wait
+  rm -rf "$test_tmp"
+}
+trap cleanup EXIT
 
 test_root="$test_tmp/omarchy"
 test_home="$test_tmp/home"
@@ -232,7 +239,7 @@ child_pid_file="$test_tmp/child-pid"
 mkdir -p "$child_root/migrations" "$child_home"
 
 cat >"$child_root/migrations/100-daemon.sh" <<'SH'
-sleep 3 &
+sleep 60 &
 echo $! >"$TEST_CHILD_PID"
 SH
 
@@ -242,8 +249,8 @@ cat >"$child_root/migrations/200-later.sh" <<'SH'
 echo later >>"$TEST_CALLS"
 SH
 
-TEST_CALLS="$child_calls" run_migrate "$child_home" "$child_root" >"$test_tmp/child-second.out"
+TEST_CALLS="$child_calls" run_migrate "$child_home" "$child_root" >"$test_tmp/child-second.out" ||
+  fail "a later runner does not wait for the background child" "$(<"$test_tmp/child-second.out")"
 grep -q '^later$' "$child_calls" || fail "a later runner runs new migrations"
 kill -0 "$(<"$child_pid_file")" 2>/dev/null || fail "a migration's background child does not hold the lock"
-kill "$(<"$child_pid_file")"
 pass "a migration's background child does not hold the lock"
