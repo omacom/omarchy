@@ -589,9 +589,6 @@ Panel {
       .arg(Commons.I18n.formatNumber(shortfall.free, shortfall.free < 10 ? 1 : 0))
   }
 
-  // Free memory is read again each time the add screen offers models.
-  onPickingChanged: if (picking && localModelsService) localModelsService.readFreeMemory()
-
   // The network block's share of the offers, which come first.
   readonly property int networkOfferCount: ownModelOffers.filter(function(offer) { return offer.host !== "" }).length
 
@@ -1858,8 +1855,12 @@ Panel {
   }
 
   // A first setup ends when the records land, which swaps the rows under the
-  // cursor without any stage change.
-  onPickingChanged: resetKeys()
+  // cursor without any stage change. Free memory is read again each time the
+  // add screen offers models.
+  onPickingChanged: {
+    resetKeys()
+    if (picking && localModelsService) localModelsService.readFreeMemory()
+  }
 
   // Picking an agent to add starts on the first one, ready for Enter. The
   // rows follow the same stage change, so the cursor waits a tick for them.
