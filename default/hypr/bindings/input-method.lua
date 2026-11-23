@@ -1,4 +1,4 @@
--- Same terminal tag test as clipboard.lua.
+-- Same terminal tag test as helpers.lua.
 local function active_window_is_terminal()
   local window = hl.get_active_window()
   if not window then

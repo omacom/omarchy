@@ -7,7 +7,7 @@ if not keyboard.jis() then
   return
 end
 
--- Same down/up split as the universal clipboard shortcuts in clipboard.lua.
+-- Same down/up split as the universal clipboard shortcuts in helpers.lua.
 local function send_shortcut_once(mods, key)
   hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "down" }))
 

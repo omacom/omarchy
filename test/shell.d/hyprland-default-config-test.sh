@@ -173,6 +173,27 @@ no_bindings_output=$(run_omarchy_bindings "$no_bindings_home" 'omarchy_default_b
 [[ -z $no_bindings_output ]] || fail "default binding variable disables all Omarchy bindings" "$no_bindings_output"
 pass "default binding variable disables all Omarchy bindings"
 
+HOME="$no_bindings_home" XDG_CONFIG_HOME="$no_bindings_home/.config" XDG_STATE_HOME="$no_bindings_home/.local/state" OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "universal paste works when default bindings are disabled"
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+hl = setmetatable({}, { __index = function() return function() return {} end end })
+_G.omarchy_default_bindings = false
+require("default.hypr.omarchy")
+local sent, window = {}, nil
+hl.get_active_window = function() return window end
+hl.dsp = { send_key_state = function(chord) return chord end }
+hl.dispatch = function(chord) table.insert(sent, chord) end
+hl.timer = function(callback) callback() end
+for _, tags in ipairs({ {}, { "terminal" }, { "terminal*" } }) do
+  window = { tags = tags }
+  o.universal_paste()
+  local down, up = sent[#sent - 1], sent[#sent]
+  assert(down.mods == (#tags == 0 and "CTRL" or "CTRL SHIFT"))
+  assert(down.key == "V" and down.state == "down")
+  assert(up.mods == down.mods and up.key == "V" and up.state == "up")
+end
+LUA
+pass "universal paste works when default bindings are disabled"
+
 dictation_home="$tmpdir/dictation-home"
 missing_bin="$tmpdir/missing-bin"
 mkdir -p "$dictation_home" "$missing_bin"
