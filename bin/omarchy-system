@@ -26,28 +26,40 @@ case $action in
 esac
 
 # Each action has whole sentences of its own, so a translation can inflect it.
-case $action in
-  logout)
-    message_key=system.loggingOut
-    failed_title_key=system.logoutFailed
-    failed_body_key=system.logoutRetry
-    ;;
-  reboot)
-    message_key=system.rebooting
-    failed_title_key=system.rebootFailed
-    failed_body_key=system.rebootRetry
-    ;;
-  firmware)
-    message_key=system.rebootingToFirmware
-    failed_title_key=system.firmwareFailed
-    failed_body_key=system.firmwareRetry
-    ;;
-  shutdown)
-    message_key=system.shuttingDown
-    failed_title_key=system.shutdownFailed
-    failed_body_key=system.shutdownRetry
-    ;;
-esac
+# Keep literal omarchy-i18n calls inside helpers so they only run when the
+# delayed OSD or a failure notification is actually shown, while staying visible
+# to the static i18n key check.
+exit_message() {
+  case $action in
+    logout) omarchy-i18n system.loggingOut ;;
+    reboot) omarchy-i18n system.rebooting ;;
+    firmware) omarchy-i18n system.rebootingToFirmware ;;
+    shutdown) omarchy-i18n system.shuttingDown ;;
+  esac
+}
+
+notify_failure() {
+  local title body
+  case $action in
+    logout)
+      title=$(omarchy-i18n system.logoutFailed)
+      body=$(omarchy-i18n system.logoutRetry)
+      ;;
+    reboot)
+      title=$(omarchy-i18n system.rebootFailed)
+      body=$(omarchy-i18n system.rebootRetry)
+      ;;
+    firmware)
+      title=$(omarchy-i18n system.firmwareFailed)
+      body=$(omarchy-i18n system.firmwareRetry)
+      ;;
+    shutdown)
+      title=$(omarchy-i18n system.shutdownFailed)
+      body=$(omarchy-i18n system.shutdownRetry)
+      ;;
+  esac
+  omarchy-notification-send -u critical "$title" "$body"
+}
 
 exit_session() {
   # systemctl only finds out the firmware can't do it after the apps are gone.
@@ -60,7 +72,7 @@ exit_session() {
   fi
 
   # Only show the OSD once the exit has taken 2 seconds, so a quick one doesn't flash it.
-  { sleep 2; omarchy-osd -i "${action/firmware/reboot}" -m "$(omarchy-i18n "$message_key")" -d 0; } &
+  { sleep 2; omarchy-osd -i "${action/firmware/reboot}" -m "$(exit_message)" -d 0; } &
   local osd_pid=$!
 
   if [[ $action != "logout" ]]; then
@@ -93,7 +105,7 @@ elif [[ ${2:-} == "--execute" ]]; then
   fi
   status=$?
   if (( status != 0 )); then
-    omarchy-notification-send -u critical "$(omarchy-i18n "$failed_title_key")" "$(omarchy-i18n "$failed_body_key")"
+    notify_failure
     exit "$status"
   fi
 elif [[ -z ${2:-} ]]; then
