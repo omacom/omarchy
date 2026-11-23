@@ -1,12 +1,11 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick] [--or-webapp <url>] [--local-model <recipe>] [--agent <id>] [--provider <fireworks|openrouter|deepseek|minimax|synthetic|zai>] [--app-id=<app-id>]
+# omarchy:args=[--inline] [--pick] [--local-model <recipe>] [--agent <id>] [--provider <fireworks|openrouter|deepseek|minimax|synthetic|zai>] [--app-id=<app-id>]
 # omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --agent codex | omarchy agent --provider fireworks
 
 inline=false
 pick=false
-or_webapp=""
 use_local=false
 local_model=""
 agent_override=""
@@ -25,12 +24,6 @@ while (($#)); do
     --pick)
       pick=true
       shift
-      ;;
-    # The AI hotkey: the default agent once one is chosen, and until then the
-    # region's AI web app, as the key opened before agents had a default.
-    --or-webapp)
-      or_webapp=${2:?--or-webapp needs a URL}
-      shift 2
       ;;
     --local-model)
       use_local=true
@@ -106,9 +99,7 @@ fi
 # Omarchy ships without a default, so there is nothing to launch until one is
 # picked. --pick offers the choice instead of the error, which is what the
 # keybinding wants: a keypress that opens nothing explains nothing.
-if [[ -z $agent && -n $or_webapp ]]; then
-  exec omarchy-launch-webapp "$or_webapp"
-elif [[ -z $agent ]]; then
+if [[ -z $agent ]]; then
   if [[ $pick == "true" ]]; then
     # The agents panel sets one up, and its agent is started from there, so a
     # prompt (a crash report, a Make something task) waits on the clipboard
