@@ -258,8 +258,8 @@ Item {
 
   readonly property var panelProviders: orderedProviders(accountLines(subscribedProviders).concat(localModelLines.filter(localModelAdded)))
 
-  // A line for each coding model you can open, here or on a paired machine,
-  // built by the panel from the local models service.
+  // A line for each coding model set up here or running on a paired
+  // machine, built by the panel from the local models service.
   property var localModelLines: []
 
   // The local models added from the add screen, by target (the recipe, or

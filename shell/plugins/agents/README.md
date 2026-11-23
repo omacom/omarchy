@@ -11,7 +11,7 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
 
 Every agent you use on one page, as one list of lines in the order you drag
 them into: a line per subscription account, per pay-as-you-go provider, and
-per local coding model that is running and ready.
+per local coding model added.
 
 - **Hero** — the agents robot, and a line that rotates through what the
   token counts add up to across every agent: tokens this week and today, the
@@ -40,20 +40,26 @@ per local coding model that is running and ready.
   into these; each is keyed by the account's email, or its id without one,
   so a renamed account keeps its place. Click an account's name to rename it
   in place. Only the account in use can turn the bar icon urgent.
-- **Local models** — each coding model added from the add screen that's
-  running and ready on this machine, or on a paired machine that's online,
-  gets a line, as does the one a default of "local" opens. The models added
-  are kept in `~/.local/state/omarchy/agents/local-models.json`. Delete on
-  a model's line takes it off the panel and back to the add screen, the model
-  still running, and the default's hands the default to the highest line
-  that can take it, or stays when none can; removing a model from this
-  machine in
-  the local models panel does the same. A line shows
-  its maker's mark, its name, the machine for a paired one, and its memory,
-  speed, and context where a
-  subscription shows limits. Its terminal button opens Pi on it (`omarchy
-  agent --local-model`). Starting, stopping, and removing models belong to
-  the local models panel.
+- **Local models** — each coding model added from the add screen gets a
+  line: one set up on this machine, in whatever state, or one a paired
+  machine that's online is running, as does the one a default of "local"
+  opens. The models added are kept in
+  `~/.local/state/omarchy/agents/local-models.json`. A line shows its
+  maker's mark, its name, the machine for a paired one, and its memory,
+  speed, and context where a subscription shows limits. While it runs, its
+  terminal button opens Pi on it (`omarchy agent --local-model`); until
+  then the play button is its only one. A model on this machine has a play or pause button to start
+  or stop it (greyed out, saying so, when there isn't the memory to start
+  it), the Tailscale mark to share it on the tailnet while it runs, and an
+  update button when the catalog has a newer version, and under its name
+  the download, load, stop, update, or removal as it goes, an error that
+  opens its logs, or why sharing failed. Stopped, it steps back. Delete on
+  a model on this machine removes it, download and all
+  (`omarchy-models remove`), after asking, and + can set it up again; on a
+  paired machine's, it unlinks it from the panel, still running there. The
+  default's line hands the default to the highest line that can take it,
+  or stays when none can. Pairing is `omarchy models pair`'s; image, video
+  and music models aren't shown.
 - **Default** — each line that can be the default carries a star, filled on
   the default agent (`omarchy default agent`) and, for an agent with several
   accounts, on the account in use. Any other line's star shows while the line
@@ -105,13 +111,18 @@ per local coding model that is running and ready.
   other provider; every key is checked like Fireworks'), each a
   large mark four across, then _Use a network model_: a line for each coding model not added yet
   that a paired, online machine is running, then one for each a machine on
-  the tailnet shares but isn't paired with yet, and _Use a local model_: one for
-  each this machine is running, then one for the best coding model for this
-  computer when the local models catalog has one that fits and it isn't
-  added. The first one is focused and the hero reads Add an agent.
-  Choosing a model adds it. One that's ready opens the agent on it; one to set
-  up stays on the add screen, with its installing, download, and loading
-  under it as the local models panel would show them, until it runs and the
+  the tailnet shares but isn't paired with yet, and _Use a local model_: each
+  coding model set up on this machine and not added, then every one in the
+  local models catalog that fits this computer and isn't set up, the
+  recommended one first, then another DGX Spark cabled to this one, which
+  sets both up in a terminal (`omarchy models link setup`). The first one is
+  focused and the hero reads Add an agent. A model on this machine the
+  memory free now can't start, set up or not, is dimmed, says so (what it
+  needs and what's free, from `/proc/meminfo` read as the add screen opens),
+  and can't be chosen, so one that couldn't run is never downloaded.
+  Choosing a model adds it. One that's running opens the agent on it; one
+  stopped starts, and one to set up is set up, staying on the add screen
+  with its installing, download, and loading under it until it runs and the
   add screen steps back to the panel. One not paired yet is paired with in
   the background the same way, its row saying so, or why pairing failed, and
   choosing it again retries. With no default agent yet, the local
@@ -362,9 +373,10 @@ It is the exact complement of the provider collectors: a provider id another col
   urgent when any account new sessions use is at 90% of a window, or a
   prepaid balance is down to its last 10%.
 - Panel: the arrows (or `h`/`j`/`k`/`l`) walk a cursor over everything that
-  does something, row by row: the hero's button, each line's star, sparkles
-  (or make icons once opened), desktop app, and terminal button, and the
-  starter tiles, or the agents to add.
+  does something, row by row: the hero's button, each line's star, a local
+  model's update, share, and play or pause, sparkles (or make icons once
+  opened), desktop app, and terminal button, a local model's error link,
+  and the starter tiles, or the agents to add.
   Up and Down land on a line's terminal button, so Down then Enter starts the
   next one. Ctrl+Up/Down (or Ctrl+`k`/`j`) moves the line the cursor is in up
   or down the page; dragging a line by its mark does the same, lighting the

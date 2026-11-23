@@ -28,7 +28,6 @@ panel omarchy.elsewhen
 panel omarchy.network
 panel omarchy.power
 panel omarchy.agents
-panel omarchy.local-models
 audio raise
 audio lower
 audio mute-toggle

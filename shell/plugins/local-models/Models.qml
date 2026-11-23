@@ -3,12 +3,11 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 
-// The plugin's service, one for the whole shell: everything the panel shows,
-// followed from the files omarchy-models
-// writes under ~/.local/state/omarchy/agent-local/: this machine's models, the
-// catalog's recipes, and the models other machines share on the tailnet. The
-// commands that set models up and pair with them run from here too, so they
-// carry on while the panel is closed.
+// The plugin's service, one for the whole shell: the coding models the agents
+// panel shows, followed from the files omarchy-models writes under
+// ~/.local/state/omarchy/agent-local/: this machine's models, the catalog's
+// recipes, and the models other machines share on the tailnet. Setups started
+// from the agents panel run from here too, so they carry on while it's closed.
 Item {
   id: root
   visible: false
@@ -20,7 +19,7 @@ Item {
   // The states the engine writes a model in; a file with any other is half written.
   readonly property var units: ["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"]
 
-  // What omarchy-models runs here, followed even before the panel's
+  // What omarchy-models runs here, followed even before the agents panel's
   // content has been built.
   property var localModel: ({})
 
@@ -34,10 +33,8 @@ Item {
   }
 
   // The catalog's recipes as this machine sees them (fits, best, installed),
-  // which the panel's + offers from, and whether the startup refresh has
-  // written them yet: until then, no machine can be told it runs no model.
+  // which the agents panel's + offers from.
   property var localRecipes: []
-  property bool listed: false
 
   FileView {
     id: localRecipesFile
@@ -68,16 +65,16 @@ Item {
     onExited: {
       localRecipesFile.reload()
       localModelFile.reload()
-      root.listed = true
     }
   }
 
   // Models other machines share on the tailnet, as omarchy-models
   // network last surveyed them: running, stopped, or offline with the host
-  // away. The survey runs while the panel is open; this only follows its file.
+  // away. The survey runs while the agents panel is open; this only follows
+  // its file.
   property var networkModels: ({})
   // The last survey's models, but for when each was last seen, which every
-  // survey moves on: an unchanged tailnet leaves the panel's lines alone.
+  // survey moves on: an unchanged tailnet leaves the agents panel's lines alone.
   property string networkKey: ""
   // Whether this machine can share its own models: Tailscale running with
   // MagicDNS and HTTPS certificates, as the last survey found it.
@@ -133,16 +130,15 @@ Item {
   }
 
   // Pairing with a model another machine shares runs here, not in a terminal,
-  // so the panel stays open on it: with no terminal, omarchy-models pair
-  // trusts a host met for the first time and asks nothing, so it pairs or
-  // fails with a reason. One at a time; the model being paired, while it runs.
+  // so the agents panel stays open on it: with no terminal, omarchy-models
+  // pair trusts a host met for the first time and asks nothing, so it pairs
+  // or fails with a reason. One at a time; the model being paired, while it
+  // runs.
   property string pairingId: ""
-  // A pairing that failed, by model: the reason's first line, which the
-  // model's line shows, and all that pair printed, which that line opens.
-  // Kept until the model is paired again or the shell restarts.
+  // A pairing that failed, by model: the reason's first line and all that
+  // pair printed. Kept until the model is paired again or the shell restarts.
   property var pairFailures: ({})
 
-  // Forgotten once its output has been read, or when pairing is tried again.
   function dismissPairFailure(id) {
     if (!pairFailures[id]) return
     var failures = Object.assign({}, pairFailures)
@@ -161,15 +157,6 @@ Item {
     pairProcess.running = true
   }
 
-  // The reason omarchy-models gives, which it prints as "Error: " and
-  // a first line saying what went wrong; empty when it gave none.
-  function pairFailureMessage(output) {
-    var lines = String(output || "").split("\n")
-    for (var i = lines.length - 1; i >= 0; i--)
-      if (lines[i].indexOf("Error: ") === 0) return lines[i].slice(7).trim()
-    return ""
-  }
-
   Process {
     id: pairProcess
     stdout: StdioCollector { id: pairOutput; waitForEnd: true }
@@ -177,7 +164,7 @@ Item {
       var id = root.pairingId
       if (exitCode !== 0) {
         var failures = Object.assign({}, root.pairFailures)
-        failures[id] = { message: root.pairFailureMessage(pairOutput.text), output: pairOutput.text }
+        failures[id] = { message: root.errorMessage(pairOutput.text), output: pairOutput.text }
         root.pairFailures = failures
       }
       root.pairingId = ""
@@ -185,10 +172,19 @@ Item {
     }
   }
 
+  // The reason omarchy-models gives, which it prints as "Error: " and
+  // a first line saying what went wrong; empty when it gave none.
+  function errorMessage(output) {
+    var lines = String(output || "").split("\n")
+    for (var i = lines.length - 1; i >= 0; i--)
+      if (lines[i].indexOf("Error: ") === 0) return lines[i].slice(7).trim()
+    return ""
+  }
+
   // Setting a model up runs here too, never in a terminal: a first one
   // installs Podman, asking for the password through polkit, before its
   // download starts in the background. Until status.json lists the setup,
-  // the panel draws its line from this: installing, or why it failed.
+  // the agents panel draws its setup from this: installing, or why it failed.
   property var settingUp: null
   property var setupFailure: null
   // Setups chosen while another was still starting, which run in turn.
@@ -200,7 +196,7 @@ Item {
   // asks for the password and installs Podman, waits on a line of its own.
   function setUp(recipe) {
     if (!recipe) return
-    var setup = { recipe: String(recipe.id), name: recipe.name || String(recipe.id), vendor: recipe.vendor || "", since_ms: Date.now(), installing: false }
+    var setup = { recipe: String(recipe.id), name: recipe.name || String(recipe.id), vendor: recipe.vendor || "", kind: recipe.kind || "text", since_ms: Date.now(), installing: false }
     if (!settingUp) {
       startSetup(setup)
     } else if (setup.recipe !== settingUp.recipe && !setupQueue.some(function(queued) { return queued.recipe === setup.recipe })) {
@@ -234,7 +230,7 @@ Item {
   // off to the background, the next one starts. Returns that next one.
   function finishSetup(exitCode) {
     if (exitCode !== 0 && exitCode !== 126 && settingUp)
-      setupFailure = Object.assign({}, settingUp, { message: pairFailureMessage(setupOutput) || I18n.t("localModels.setupFailed"), output: setupOutput })
+      setupFailure = Object.assign({}, settingUp, { message: errorMessage(setupOutput) || I18n.t("localModels.setupFailed"), output: setupOutput })
     settingUp = null
     var next = exitCode === 0 ? setupQueue[0] || null : null
     setupQueue = next ? setupQueue.slice(1) : []
@@ -252,7 +248,7 @@ Item {
     var rows = []
     var row = function(setup, phase) {
       return {
-        recipe: setup.recipe, name: setup.name, vendor: setup.vendor, unit: "installing", fits: true,
+        recipe: setup.recipe, name: setup.name, vendor: setup.vendor, kind: setup.kind, unit: "installing", fits: true,
         since_ms: setup.since_ms, error: phase === "failed" ? setup.message : "", output: phase === "failed" ? setup.output : "",
         panelSetup: true, install: { phase: phase }
       }
@@ -315,10 +311,11 @@ Item {
     }
   }
 
-  // A model set up here says so once it has downloaded and loaded, as an
-  // agent does once it's signed in, and clicking it opens an agent on it. Only
-  // a model seen installing counts, so starting one already set up is quiet;
-  // one that ends stopped (no memory to start it now) or failed isn't ready.
+  // A coding model set up here says so once it has downloaded and loaded, as
+  // an agent does once it's signed in, and clicking it opens an agent on it.
+  // Only a model seen installing counts, so starting one already set up is
+  // quiet; one that ends stopped (no memory to start it now) or failed isn't
+  // ready. An image, video or music model isn't for coding, so says nothing.
   property var installingModels: ({})
 
   function noteReadyModels(models) {
@@ -326,7 +323,7 @@ Item {
     for (var id in installingModels) {
       var model = models[id]
       if (!model) continue
-      if (model.unit === "active" && model.sub_state === "running") notifyModelReady(model)
+      if (model.unit === "active" && model.sub_state === "running" && model.kind === "text") notifyModelReady(model)
       else if (model.unit === "installing" || model.unit === "activating") installing[id] = true
     }
     for (var next in models)
@@ -375,119 +372,14 @@ Item {
   }
 
 
-  // ------------------------------------------------------------------ lines
-  //
-  // The panel's lines: this machine's models and the setups on their way, then
-  // the tailnet's, then the recommended model while none is set up, in the
-  // order someone dragged them into. A line keeps its place when its model
-  // starts or stops, so the keyboard cursor stays on the model it was on.
-  readonly property var lines: {
-    var list = []
-    var models = localModel.models || {}
-    for (var id in models)
-      list.push({ id: "local:" + id, model: models[id] })
-    var setups = setupRows()
-    for (var s = 0; s < setups.length; s++) {
-      var setup = setups[s]
-      if (models[setup.recipe]) continue
-      list.push({ id: "local:" + setup.recipe, model: setup })
-      // A setup under way is this machine's model already: no offer beside it.
-      models = Object.assign({}, models)
-      models[setup.recipe] = setup
-    }
-    // The tailnet's models follow this machine's own.
-    var network = networkModels || {}
-    for (var nid in network)
-      list.push({ id: "net:" + nid, model: network[nid] })
-    var offer = localOffer(localRecipes, models)
-    if (offer) list.push({ id: "local:" + offer.id, name: offer.name || offer.id, offer: offer })
-    list = orderedLines(list)
-    // Another DGX Spark cabled to this one and not set up yet (omarchy-models's status.json
-    // `link`) is offered like a recommended model, always first: its line opens link setup.
-    var link = localModel.link
-    if (link && link.state === "available")
-      list.unshift({ id: "local:link", name: link.host || "DGX Spark", offer: { id: "link", vendor: "nvidia", link: link } }) // i18n: ignore
-    return list
-  }
 
-  // A machine with no local model yet is offered the one the catalog
-  // recommends for it, ready to download. It shares its id with the model it
-  // becomes, and hiding it hides the offer, not the model.
-  function localOffer(recipes, models) {
-    if (Object.keys(models || {}).length > 0) return null
-    for (var i = 0; i < (recipes || []).length; i++) {
-      var recipe = recipes[i]
-      if (recipe && recipe.best && recipe.available && !recipe.installed) return recipe
-    }
-    return null
-  }
-
-  // The order lines were dragged into, by line id. A line the order doesn't
-  // name yet keeps its place after the ones it does.
-  readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/local-models-order.json"
-  property var lineOrder: []
-
-  function orderedLines(list) {
-    var order = lineOrder
-    var rank = function(line) {
-      var i = order.indexOf(line.id)
-      return i < 0 ? order.length : i
-    }
-    return list.slice().sort(function(a, b) { return rank(a) - rank(b) })
-  }
-
-  // Saves the order of the lines a panel shows, keeping the places of lines
-  // hidden or gone for now after them.
-  function saveOrder(ids) {
-    var order = ids.concat(lineOrder.filter(function(id) { return ids.indexOf(id) < 0 }))
-    lineOrder = order
-    orderFile.setText(JSON.stringify(order) + "\n")
-  }
-
-  FileView {
-    id: orderFile
-    path: root.orderPath
-    watchChanges: true
-    atomicWrites: true
-    printErrors: false
-    onLoaded: {
-      var parsed = []
-      try { parsed = JSON.parse(text()) } catch (e) { parsed = [] }
-      root.lineOrder = Array.isArray(parsed) ? parsed.map(String) : []
-    }
-    onFileChanged: reload()
-  }
-
-  // Whether the panel is offered at all: only on a machine that can run a
-  // model itself (see the README).
-  readonly property bool relevant: canRunModels(localRecipes, localModel.models, localModel.link)
-
-  function canRunModels(recipes, models, link) {
-    return (recipes || []).some(function(recipe) { return recipe && recipe.available === true })
-      || Object.keys(models || {}).length > 0
-      || (!!link && link.state === "available")
-  }
-
-  // Whether the icon shows rests on the listing, which a fresh account doesn't
-  // have yet and an upgrade may have changed, so the shell reads it fresh as
-  // it starts. The tailnet is surveyed while the panel is open.
-  Component.onCompleted: refreshLocal()
-
-  // ----------------------------------------------------------------- memory
-  //
-  // What's free for a model to load into, read the way omarchy-local-ai
-  // decides whether one fits: available memory plus the pages a GPU driver
-  // keeps pooled (GPUReclaim), which the kernel hands back under pressure.
-  // Memory has no change signal, so the panel reads it while it's open.
-  property real memoryTotalGib: 0
-  property real memoryFreeGib: 0
   // What each running model holds now, by recipe, as the engine measures it:
   // an idle model may hold much less than it took to load. Empty where the
-  // engine can't say, and the panel falls back to what it took.
+  // engine can't say. Memory has no change signal, so it's read only when a
+  // panel showing it asks, while that panel is open.
   property var modelMemory: ({})
 
   function readMemory() {
-    meminfoFile.reload()
     var models = localModel.models || {}
     var running = Object.keys(models).some(function(id) { return ["active", "activating", "deactivating"].indexOf(models[id].unit) >= 0 })
     if (!running) modelMemory = ({})
@@ -515,27 +407,34 @@ Item {
     }
   }
 
-  function parseMeminfo(content) {
+  // The memory free for a model to start in, as the engine judges it:
+  // what's available plus the GPU memory the driver can reclaim. Read only
+  // when asked, by a panel offering models while it's open; -1 until then.
+  property real memoryFreeGib: -1
+
+  function readFreeMemory() {
+    meminfoFile.reload()
+  }
+
+  function parseFreeMemory(content) {
     var fields = {}
     var rows = String(content || "").split("\n")
     for (var i = 0; i < rows.length; i++) {
       var match = rows[i].match(/^(\w+):\s+(\d+) kB/)
       if (match) fields[match[1]] = Number(match[2])
     }
-    if (!(fields.MemTotal > 0) || fields.MemAvailable === undefined) return null
-    var kibPerGib = 1024 * 1024
-    return { total: fields.MemTotal / kibPerGib, free: (fields.MemAvailable + (fields.GPUReclaim || 0)) / kibPerGib }
+    if (fields.MemAvailable === undefined) return -1
+    return (fields.MemAvailable + (fields.GPUReclaim || 0)) / (1024 * 1024)
   }
 
   FileView {
     id: meminfoFile
     path: "/proc/meminfo"
     printErrors: false
-    onLoaded: {
-      var memory = root.parseMeminfo(text())
-      if (!memory) return
-      root.memoryTotalGib = memory.total
-      root.memoryFreeGib = memory.free
-    }
+    onLoaded: root.memoryFreeGib = root.parseFreeMemory(text())
   }
+
+  // The listing is read fresh as the shell starts: a fresh account doesn't
+  // have one yet, and an upgrade may have changed it.
+  Component.onCompleted: refreshLocal()
 }
