@@ -169,7 +169,7 @@ Panel {
       for (var r = 0; r < more.length; r++) rows.push([{ kind: "choice", index: more[r].providerId }])
     } else if (addStage === "running") {
       if (pasteLinkShown) rows.push([{ kind: "pasteCode", index: 0 }])
-      if (addUrl !== "") rows.push([{ kind: "reopenSignIn", index: 0 }])
+      if (addUrl !== "" && !addCheckingCode) rows.push([{ kind: "reopenSignIn", index: 0 }])
     } else if (addStage === "") {
       for (var p = 0; p < providers.length; p++) {
         // Every line is a stop, so Ctrl+Up/Down can move it: its terminal
@@ -904,6 +904,7 @@ Panel {
   property string addPasteHint: ""
   // An API key is the whole sign-in, with no browser login to speak of.
   property bool addKeyEntry: false
+  property bool addCheckingCode: false
   property string addResult: ""
   // The CLI's own download, when it isn't installed yet: the first sign-in
   // installs it before the browser opens.
@@ -932,8 +933,8 @@ Panel {
   }
   property bool addReauth: false
   // Signing in takes over the hero: the provider's mark and name, with what's
-  // being set up below.
-  readonly property bool setupShown: addStage === "running" && addProviderEntry !== null
+  // being set up below, from naming through sign-in or failure.
+  readonly property bool setupShown: (addStage === "name" || addStage === "running" || addStage === "error") && addProviderEntry !== null
   readonly property var addProviderEntry: {
     for (var i = 0; i < signInProviders.length; i++)
       if (signInProviders[i].providerId === addProvider) return signInProviders[i]
@@ -941,19 +942,15 @@ Panel {
   }
   // Claude only needs a code pasted back when its page shows one, so the
   // field waits behind a link until then.
-  readonly property bool pasteLinkShown: addProvider === "claude" && !addNeedsPaste && !addDownloading
+  readonly property bool pasteLinkShown: addProvider === "claude" && !addNeedsPaste && !addDownloading && !addCheckingCode
   // Whether the sign-in in progress opened a private window, so reopening its
   // page does too.
   property bool addPrivate: false
 
-  function addProviderName(id) {
-    for (var i = 0; i < signInProviders.length; i++)
-      if (signInProviders[i].providerId === id) return signInProviders[i].providerName
-    return id
-  }
-
   function addAccount() {
     if (addStage === "running") return
+    addProvider = ""
+    addReauth = false
     addStage = "pick"
     addChecks = ({})
     if (!checkProcess.running) checkProcess.running = true
@@ -980,8 +977,9 @@ Panel {
     else startAdd("")
   }
 
-  function startAdd(label) {
-    addPrivate = (addChecks[addProvider] || "") === "additional"
+  function beginAdd(providerId, isPrivate, isReauth, command) {
+    addProvider = providerId
+    addPrivate = isPrivate
     addStatus = Commons.I18n.t("agents.starting")
     addCode = ""
     addUrl = ""
@@ -991,15 +989,22 @@ Panel {
     addNeedsPaste = false
     addPasteHint = ""
     addKeyEntry = false
+    addCheckingCode = false
     addDownloading = false
     addPhase = ""
     addFetched = false
     addFetchTimer.stop()
-    addReauth = false
+    addReauth = isReauth
     addResult = ""
     addStage = "running"
-    addProcess.command = ["omarchy-agent-account-add", "--events", addProvider].concat(label !== "" ? [label] : [])
+    addProcess.command = command
     addProcess.running = true
+    root.focusKeys()
+  }
+
+  function startAdd(label) {
+    beginAdd(addProvider, (addChecks[addProvider] || "") === "additional", false,
+      ["omarchy-agent-account-add", "--events", addProvider].concat(label !== "" ? [label] : []))
   }
 
   function cancelAdd() {
@@ -1010,6 +1015,9 @@ Panel {
     }
     if (addProcess.running) addProcess.signal(15)
     addFetchTimer.stop()
+    addCheckingCode = false
+    addProvider = ""
+    addReauth = false
     addStage = ""
     root.focusKeys()
   }
@@ -1024,9 +1032,9 @@ Panel {
   function submitPaste(code) {
     if (!addProcess.running || code.trim() === "") return
     addProcess.write(code.trim() + "\n")
-    // A code or key that was asked for is the one answer, so its field goes.
-    if (addPasteHint !== "") addNeedsPaste = false
-    if (!addKeyEntry) addStatus = Commons.I18n.t("agents.checkingCode")
+    addNeedsPaste = false
+    if (!addKeyEntry) addCheckingCode = true
+    root.focusKeys()
   }
 
   // The add command's own lines are tagged; everything else is the CLI
@@ -1040,6 +1048,7 @@ Panel {
         addPasteHint = tagged[2]
         addNeedsPaste = true
         addKeyEntry = tagged[1] === "key"
+        addCheckingCode = false
       } else if (tagged[1] === "progress") {
         var bytes = tagged[2].split(" ")
         addDoneBytes = Number(bytes[0]) || 0
@@ -1063,27 +1072,33 @@ Panel {
         addFetchTimer.stop()
         addFetched = false
         addDownloading = false
+        addCheckingCode = false
         addResult = tagged[2]
         // A sign-in that finishes goes straight back to the page, where the
         // account shows once its limits arrive.
         addStage = tagged[1] === "done" ? "" : tagged[1]
         if (tagged[1] === "done") {
           setProviderShown(addProvider, true)
+          addProvider = ""
+          addReauth = false
           usage.refreshLimits()
-          root.focusKeys()
           // Nothing to show yet means the sign-in is what counts as set up.
           if (usage.enabledProviders.length === 0 && !checkProcess.running) {
             addChecks = ({})
             checkProcess.running = true
           }
         }
+        root.focusKeys()
       }
       return
     }
     // On a line of its own, or after OpenCode's "Enter code:".
     var code = text.match(/(?:^|code:)\s*([A-Z0-9]{4}-[A-Z0-9]{4})\s*$/)
     if (code) addCode = code[1]
-    if (/paste code/i.test(text)) addNeedsPaste = true
+    if (/paste code/i.test(text)) {
+      addCheckingCode = false
+      addNeedsPaste = true
+    }
     var url = text.match(/(https:\/\/\S+)/)
     if (url && addUrl === "") {
       addUrl = url[1]
@@ -1093,6 +1108,7 @@ Panel {
 
   // The field takes the keys from here, so the cursor lets go of the links.
   function openPasteField() {
+    addCheckingCode = false
     addNeedsPaste = true
     cursorActive = false
   }
@@ -1313,27 +1329,9 @@ Panel {
   // add view just like adding one.
   function signInAgain(p, account) {
     if (!supportsSignIn(p) || addStage === "running") return
-    addProvider = p.providerId
-    addPrivate = !!account && account.primary !== true
-    addStatus = Commons.I18n.t("agents.starting")
-    addCode = ""
-    addUrl = ""
-    // Claude's login usually finishes on its own once the browser hands back
-    // to it. When its page shows a code instead, its prompt for it has no
-    // newline to read it by, so the field stays a link away the whole time.
-    addNeedsPaste = false
-    addPasteHint = ""
-    addKeyEntry = false
-    addDownloading = false
-    addPhase = ""
-    addFetched = false
-    addFetchTimer.stop()
-    addReauth = true
-    addResult = ""
-    addStage = "running"
-    addProcess.command = ["omarchy-agent-account-add", "--events", "--reauth",
-      account && account.primary !== true ? String(account.id) : ":primary", p.providerId]
-    addProcess.running = true
+    beginAdd(p.providerId, !!account && account.primary !== true, true,
+      ["omarchy-agent-account-add", "--events", "--reauth",
+        account && account.primary !== true ? String(account.id) : ":primary", p.providerId])
   }
 
   function resetCreditsText(credits) {
@@ -1852,9 +1850,7 @@ Panel {
   // Adding takes over the hero's line, and the cursor starts over.
   readonly property string addHeading: setupShown
     ? (addReauth ? Commons.I18n.t("agents.signingInAgain") : Commons.I18n.t("agents.settingUp"))
-    : picking || addProvider === ""
-    ? (blankSlate ? Commons.I18n.t("agents.firstBecomesDefault") : Commons.I18n.t("agents.addKinds"))
-    : Commons.I18n.t("agents.addProviderAccount").arg(addProviderName(addProvider))
+    : (blankSlate ? Commons.I18n.t("agents.firstBecomesDefault") : Commons.I18n.t("agents.addKinds"))
   onAddStageChanged: {
     phraseSwap.stop()
     if (hero) hero.metaOpacity = 1.0
@@ -1892,7 +1888,11 @@ Panel {
     makesOpenIndex = -1
   } else {
     deleteTarget = null
-    if (addStage !== "running") addStage = ""
+    if (addStage !== "running") {
+      addStage = ""
+      addProvider = ""
+      addReauth = false
+    }
     resetKeys()
     if (usage.enabledProviders.length === 0 && !checkProcess.running) checkProcess.running = true
     nowMs = Date.now()
@@ -1956,8 +1956,10 @@ Panel {
     stdout: SplitParser { onRead: function(line) { root.handleAddLine(line) } }
     onExited: {
       if (root.addStage === "running") {
+        root.addCheckingCode = false
         root.addResult = Commons.I18n.t("agents.signInUnfinished")
         root.addStage = "error"
+        root.focusKeys()
       }
     }
   }
@@ -2086,10 +2088,10 @@ Panel {
                                            Math.max(0, panelFlick.contentHeight - panelFlick.height))
       }
       onDeleteRequested: root.deleteSelected()
-      // A code field keeps its own keys: Qt passes Return on after accepting
-      // it, and here that would press the Cancel under the cursor too,
-      // stopping the sign-in just handed its code.
-      blocked: root.renaming || root.deleteTarget !== null || addView.pasteFocused
+      // A text field keeps its own keys: Qt passes Return on after accepting
+      // it, and here that would press the Cancel under the cursor too, or
+      // steal letters like j/k/x from an account name.
+      blocked: root.renaming || root.deleteTarget !== null || addView.inputFocused
       onActivateRequested: root.activateSelection()
       onCloseRequested: {
         if (root.dragIndex >= 0) root.settleProviderDrag(true)
@@ -2346,7 +2348,7 @@ Panel {
     id: add
     spacing: Style.space(14)
     // The panel's key catcher can't see inside this component, so it asks here.
-    readonly property bool pasteFocused: pasteField.activeFocus
+    readonly property bool inputFocused: pasteField.activeFocus || addNameField.activeFocus
 
     PanelSeparator { foreground: root.foreground }
 
@@ -2690,8 +2692,9 @@ Panel {
         Text {
           width: parent.width
           textFormat: Text.PlainText
-          text: !root.addKeyEntry ? Commons.I18n.t("agents.loginBrowser")
-            : root.addNeedsPaste ? Commons.I18n.t("agents.enterApiKey") : Commons.I18n.t("agents.checkingKey")
+          text: root.addKeyEntry
+            ? (root.addNeedsPaste ? Commons.I18n.t("agents.enterApiKey") : Commons.I18n.t("agents.checkingKey"))
+            : (root.addCheckingCode ? Commons.I18n.t("agents.checkingCode") : Commons.I18n.t("agents.loginBrowser"))
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -2700,9 +2703,9 @@ Panel {
         }
 
         // Only what the plain line doesn't say: which window to use when it's
-        // a private one, or that a pasted code is being checked.
+        // a private one.
         Text {
-          visible: root.addPrivate || root.addStatus === Commons.I18n.t("agents.checkingCode")
+          visible: root.addPrivate && !root.addCheckingCode
           width: parent.width
           textFormat: Text.PlainText
           text: root.addStatus
@@ -2754,8 +2757,8 @@ Panel {
           TextField {
             id: pasteField
             width: parent.width
-            placeholderText: root.addPasteHint === "" ? Commons.I18n.t("agents.placeholderCode") : ""
-            password: root.addKeyEntry
+            placeholderText: root.addKeyEntry ? Commons.I18n.t("agents.placeholderApiKey") : Commons.I18n.t("agents.placeholderCode")
+            password: true
             foreground: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
@@ -2766,6 +2769,11 @@ Panel {
             onVisibleChanged: {
               root.pasteFieldItem = visible ? pasteField : null
               if (visible) forceActiveFocus()
+            }
+            Connections {
+              target: root
+              function onAddStageChanged() { if (root.addStage !== "running") pasteField.text = "" }
+              function onAddNeedsPasteChanged() { if (!root.addNeedsPaste) pasteField.text = "" }
             }
             Component.onDestruction: if (root.pasteFieldItem === pasteField) root.pasteFieldItem = null
             Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
@@ -2781,7 +2789,7 @@ Panel {
         }
 
         TextLink {
-          visible: root.addUrl !== ""
+          visible: root.addUrl !== "" && !root.addCheckingCode
           picked: root.hasKey("reopenSignIn")
           onHovered: root.hoverAt("reopenSignIn")
           text: Commons.I18n.t("agents.reopenSignIn")
