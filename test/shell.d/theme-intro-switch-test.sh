@@ -246,3 +246,11 @@ OMARCHY_PACKAGED_THEMES_PATH="$packaged" set_theme solitude
 [[ -f $state/theme/backgrounds/intros/1-on-pole.mp4 ]] || fail "a checkout's theme stages the packaged intro"
 [[ -f $state/theme/backgrounds/loops/1-on-pole.mp4 ]] || fail "a checkout's theme stages the packaged loop"
 pass "themes staged from a checkout take their intros and loops from the package"
+fallback_home="$test_tmp/fallback-home"
+mkdir -p "$fallback_home"
+printf 'x\n' >"$fallback_home/pic.png"
+env -u XDG_RUNTIME_DIR HOME="$fallback_home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" \
+  /bin/bash "$ROOT/bin/omarchy-theme-bg-set" "$fallback_home/pic.png" >/dev/null 2>&1 || true
+[[ -e $fallback_home/.local/state/omarchy/omarchy-theme-set.lock && ! -L $fallback_home/.local/state/omarchy/omarchy-theme-set.lock ]] ||
+  fail "background selection lock is kept in the private state dir"
+pass "background selection lock stays out of /tmp"
