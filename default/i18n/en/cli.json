@@ -290,11 +290,14 @@
   "region.followsLanguage": "Dates and numbers are now written as in your language",
   "region.formatsTitle": "Formats",
   "region.sameAsLanguage": "Same as language",
+  "reminder.atLabel": "%1 reminder",
+  "reminder.atUp": "Your %1 reminder is up",
   "reminder.cleared": "All reminders have been cleared",
   "reminder.count": {
     "one": "%1 reminder",
     "other": "%1 reminders"
   },
+  "reminder.customAtTime": "%1 at %2",
   "reminder.customInMinutes": {
     "one": "%1 in %2 minute",
     "other": "%1 in %2 minutes"
@@ -312,10 +315,12 @@
     "one": "Reminder set for %1 minute",
     "other": "Reminder set for %1 minutes"
   },
+  "reminder.setForTime": "Reminder set for %1",
   "reminder.setTooltip": "Set Reminder",
   "reminder.title": "Reminder",
   "reminder.upcoming": "Upcoming reminders",
   "reminder.willRemindAt": "You'll be reminded at %1",
+  "reminder.willRemindAtTomorrow": "You'll be reminded tomorrow at %1",
   "reset.confirmPassphrase": "Confirm your disk encryption passphrase to authorize the re-key.",
   "reset.eraseAccounts": "All user accounts and everything in /home",
   "reset.eraseIdentity": "Machine identity (network connections, host keys, machine-id)",

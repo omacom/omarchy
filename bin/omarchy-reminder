@@ -2,10 +2,11 @@
 
 # omarchy:summary=Set and show lightweight desktop notification reminders
 # omarchy:subcommand=<minutes> [message] — Remind after the given number of minutes
-# omarchy:subcommand=-i|--interactive — Ask for the minutes and message
+# omarchy:subcommand=<HH:MM|H(:MM)AM|PM> [message] — Remind at a clock time
+# omarchy:subcommand=-i|--interactive — Ask for the minutes or time and message
 # omarchy:subcommand=show [-j|--json] — Show the pending reminders
 # omarchy:subcommand=clear — Cancel all pending reminders
-# omarchy:examples=omarchy reminder -i | omarchy reminder 5 | omarchy reminder 30 "Check the oven" | omarchy reminder show | omarchy reminder show --json | omarchy reminder clear
+# omarchy:examples=omarchy reminder -i | omarchy reminder 5 | omarchy reminder 30 "Check the oven" | omarchy reminder 14:30 "Standup" | omarchy reminder 2:30pm "Pick up kids" | omarchy reminder show | omarchy reminder show --json | omarchy reminder clear
 
 set -euo pipefail
 
@@ -46,6 +47,53 @@ open_interactive() {
   omarchy-shell shell summon omarchy.reminders "{}"
 }
 
+# A clock time: "14:30", "2:30pm", "2pm". Bare digits stay minutes, so this
+# only matches inputs with a colon or an am/pm suffix.
+is_clock_time() {
+  [[ ${1:-} =~ ^([0-9]{1,2}:[0-9]{2}|[0-9]{1,2}:[0-9]{2}[[:space:]]*[aApP][mM]\.?|[0-9]{1,2}[[:space:]]*[aApP][mM]\.?)$ ]]
+}
+
+# Normalize a clock-time argument to 24h "HH:MM", or print nothing when the
+# value is not a real time (hour > 23, minutes > 59, 12h hour out of 1-12).
+normalize_clock_time() {
+  local input="$1"
+  local hours minutes meridiem=""
+
+  input=$(printf '%s' "$input" | sed -E 's/[[:space:]]+//g; s/\.//g')
+
+  if [[ $input =~ ^([0-9]{1,2}):([0-9]{2})$ ]]; then
+    hours=${BASH_REMATCH[1]}
+    minutes=${BASH_REMATCH[2]}
+  elif [[ $input =~ ^([0-9]{1,2}):([0-9]{2})([aApP])[mM]$ ]]; then
+    hours=${BASH_REMATCH[1]}
+    minutes=${BASH_REMATCH[2]}
+    meridiem=${BASH_REMATCH[3],,}
+  elif [[ $input =~ ^([0-9]{1,2})([aApP])[mM]$ ]]; then
+    hours=${BASH_REMATCH[1]}
+    minutes="00"
+    meridiem=${BASH_REMATCH[2],,}
+  else
+    return 0
+  fi
+
+  hours=$((10#$hours))
+  minutes=$((10#$minutes))
+
+  if [[ -n $meridiem ]]; then
+    ((hours >= 1 && hours <= 12)) || return 0
+    if [[ $meridiem == "a" ]]; then
+      hours=$((hours % 12))
+    else
+      hours=$((hours % 12 + 12))
+    fi
+  else
+    ((hours <= 23)) || return 0
+  fi
+  ((minutes <= 59)) || return 0
+
+  printf "%02d:%02d" "$hours" "$minutes"
+}
+
 show_reminders() {
   local timer next remaining reminder reminder_minutes body=""
   local reminder_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders"
@@ -60,7 +108,13 @@ show_reminders() {
     reminder_message=""
     [[ -f $reminder_dir/${timer%.timer}.message ]] && reminder_message=$(<"$reminder_dir/${timer%.timer}.message")
 
-    [[ -n $reminder_message ]] || reminder_message=$(omarchy-i18n reminder.minuteLabel "$reminder_minutes")
+    if [[ -z $reminder_message ]]; then
+      if [[ $reminder == at* ]]; then
+        reminder_message=$(omarchy-i18n reminder.atLabel "$(date -d "@$next" +%-H:%M)")
+      else
+        reminder_message=$(omarchy-i18n reminder.minuteLabel "$reminder_minutes")
+      fi
+    fi
     body+="$(omarchy-i18n reminder.inRemaining "$reminder_message" "$(format_remaining $remaining)" "$(date -d "@$next" +%-H:%M)")"$'\n'
   done < <(active_reminder_timers "$now")
 
@@ -90,8 +144,14 @@ show_json() {
     reminder_message=""
     [[ -f $reminder_dir/$unit.message ]] && reminder_message=$(<"$reminder_dir/$unit.message")
 
+    if [[ $reminder == at* ]]; then
+      reminder_minutes=null
+    fi
+
     if [[ -n $reminder_message ]]; then
       label=$reminder_message
+    elif [[ $reminder == at* ]]; then
+      label=$(omarchy-i18n reminder.atLabel "$(date -d "@$next" +%-H:%M)")
     else
       label=$(omarchy-i18n reminder.minuteLabel "$reminder_minutes")
     fi
@@ -127,48 +187,102 @@ clear_reminders() {
     xargs -r systemctl --user stop <<<"$units" || true
   fi
 
-  rm -f "$reminder_dir"/omarchy-reminder-*.message 2>/dev/null || true
+  rm -f "$reminder_dir"/omarchy-reminder-*.message "$reminder_dir"/omarchy-reminder-*.at 2>/dev/null || true
   refresh_indicator
   omarchy-notification-send -g 󰢌 "$(omarchy-i18n reminder.cleared)"
 }
 
 usage() {
   echo "Usage: omarchy-reminder [-i|--interactive]"
-  echo "       omarchy-reminder <minutes> [message]"
-  echo "       omarchy-reminder show [-j|--json]"
-  echo "       omarchy-reminder clear"
+  echo " omarchy-reminder <minutes> [message]"
+  echo " omarchy-reminder <HH:MM|H(:MM)AM|PM> [message]"
+  echo " omarchy-reminder show [-j|--json]"
+  echo " omarchy-reminder clear"
 }
 
 case ${1:-} in
--i | --interactive)
-  open_interactive
-  exit 0
-  ;;
-show | list)
-  case ${2:-} in
-  -j | --json)
-    show_json
+  -i | --interactive)
+    open_interactive
+    exit 0
     ;;
-  "")
-    show_reminders
+  show | list)
+    case ${2:-} in
+      -j | --json)
+        show_json
+        ;;
+      "")
+        show_reminders
+        ;;
+      *)
+        usage
+        exit 1
+        ;;
+    esac
+    exit 0
     ;;
-  *)
-    usage
-    exit 1
+  clear)
+    clear_reminders
+    exit 0
     ;;
-  esac
-  exit 0
-  ;;
-clear)
-  clear_reminders
-  exit 0
-  ;;
 esac
 
-minutes=${1:-}
+first=${1:-}
 shift || true
 message="$*"
 custom_message="$message"
+
+if is_clock_time "$first"; then
+  clock=$(normalize_clock_time "$first")
+  if [[ -z $clock ]]; then
+    usage
+    exit 1
+  fi
+
+  now=$(date +%s)
+  target=$(date -d "today $clock" +%s)
+  if ((target <= now)); then
+    target=$(date -d "tomorrow $clock" +%s)
+    tomorrow=1
+  else
+    tomorrow=0
+  fi
+  delta=$((target - now))
+
+  unit="omarchy-reminder-at${clock//:/}-$now"
+  reminder_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders"
+  message_file="$reminder_dir/$unit.message"
+  at_file="$reminder_dir/$unit.at"
+
+  if [[ -z $message ]]; then
+    message=$(omarchy-i18n reminder.atUp "$clock")
+  fi
+
+  if ((tomorrow)); then
+    confirmation=$(omarchy-i18n reminder.willRemindAtTomorrow "$clock")
+  else
+    confirmation=$(omarchy-i18n reminder.willRemindAt "$clock")
+  fi
+  confirmation_title=$(omarchy-i18n reminder.setForTime "$clock")
+  if [[ -n $custom_message ]]; then
+    confirmation_title=$(omarchy-i18n reminder.customAtTime "$custom_message" "$clock")
+  fi
+
+  mkdir -p "$reminder_dir"
+  printf "%s" "$target" >"$at_file"
+
+  if [[ -n $custom_message ]]; then
+    printf "%s" "$custom_message" >"$message_file"
+  fi
+
+  systemd-run --user --quiet --collect --on-active="${delta}s" --unit="$unit" \
+    bash -c 'omarchy-notification-send -g 󰢌 "$(omarchy-i18n reminder.title)" "$1"; rm -f "$2" "$3"; omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true' bash "$message" "$message_file" "$at_file"
+
+  refresh_indicator
+  omarchy-notification-send -g 󰢌 "$confirmation_title" "$confirmation"
+  exit 0
+fi
+
+minutes=$first
 
 if [[ -z $minutes ]] || [[ ! $minutes =~ ^[0-9]+$ ]] || ((minutes == 0)); then
   usage

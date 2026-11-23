@@ -14,8 +14,8 @@ Item {
   property var manifest: null
 
   property bool opened: false
-  property string step: "minutes"
-  property string minutes: ""
+  property string step: "first"
+  property string firstStep: ""
   property string filterText: ""
   property string fontFamily: Style.font.menuFamily
 
@@ -29,7 +29,7 @@ Item {
   property int headerHeight: Math.max(Style.space(34), Style.font.title + Style.spacing.controlPaddingY * 2)
   property int cardWidth: Math.min(Style.space(300), panel.width - Style.gapsOut * 2)
   property int cardHeight: Math.min(contentMargin * 2 + headerHeight, panel.height - Style.gapsOut * 2)
-  readonly property string promptText: root.step === "message" ? I18n.t("reminders.messagePrompt") : I18n.t("reminders.minutesPrompt")
+  readonly property string promptText: root.step === "message" ? I18n.t("reminders.messagePrompt") : I18n.t("reminders.firstPrompt")
 
   function open(payloadJson) {
     var payload = ({})
@@ -37,8 +37,8 @@ Item {
     if (payload.fontFamily) root.fontFamily = payload.fontFamily
 
     root.opened = true
-    root.step = "minutes"
-    root.minutes = ""
+    root.step = "first"
+    root.firstStep = ""
     root.filterText = ""
 
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -66,20 +66,20 @@ Item {
   function submit() {
     var selection = root.filterText
 
-    if (root.step === "minutes") {
-      var nextMinutes = ReminderFlowModel.validMinutes(selection)
+    if (root.step === "first") {
+      var parsed = ReminderFlowModel.parseFirstStep(selection)
 
       if (!selection.trim()) {
         root.dismiss()
         return
       }
 
-      if (!nextMinutes) {
+      if (!parsed) {
         Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-notification-send", I18n.t("reminders.invalidTitle"), I18n.t("reminders.invalidBody")])
         return
       }
 
-      root.minutes = nextMinutes
+      root.firstStep = parsed.arg
       root.step = "message"
       root.filterText = ""
       Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -87,7 +87,7 @@ Item {
     }
 
     if (root.step === "message") {
-      var args = [root.omarchyPath + "/bin/omarchy-reminder"].concat(ReminderFlowModel.reminderArgs(root.minutes, selection))
+      var args = [root.omarchyPath + "/bin/omarchy-reminder"].concat(ReminderFlowModel.reminderArgs(root.firstStep, selection))
       root.dismiss()
       Quickshell.execDetached(args)
     }
