@@ -6,7 +6,7 @@
 # omarchy:requires-sudo=true
 
 if [[ ${OMARCHY_PKG_DEFER:-} == "1" && -n ${OMARCHY_PKG_QUEUE_FILE:-} ]]; then
-  printf '%s\n' "$@" >>"$OMARCHY_PKG_QUEUE_FILE"
+  printf '%s\n' "$@" >>"$OMARCHY_PKG_QUEUE_FILE" || exit 1
   exit 0
 fi
 
