@@ -15,6 +15,301 @@ else
 fi
 export OMARCHY_PATH
 
+# Plain `su` changes HOME and keeps the previous account's exported environment.
+# uwsm and this file record which home that environment belongs to. On the next
+# account, drop XDG and mise paths under the previous home before mise starts:
+# mise creates files under XDG_STATE_HOME on startup and on every prompt.
+# Intentional overrides outside the previous home stay. Writability is the wrong
+# check: root can write the previous user's directories and would leave
+# root-owned files there. XDG_RUNTIME_DIR is the session's runtime directory,
+# not a home path, so `su` is left to pass it through unchanged.
+omarchy_home=${HOME:-}
+omarchy_home=${omarchy_home%/}
+if [ -n "$omarchy_home" ]; then
+  omarchy_prev_home=${OMARCHY_XDG_HOME:-}
+  omarchy_prev_home=${omarchy_prev_home%/}
+  omarchy_foreign_homes=
+  omarchy_cleaned=
+
+  # No recorded owner yet (a shell started before this was tracked). A standard
+  # XDG default is a candidate only when its root is the passwd home of the uid
+  # that owns that root. A shared directory owned by root is not root's home, so an
+  # override there stays. State, cache, and data under a foreign account home
+  # are previous-account state on their own. Config is previous-account state
+  # only when that home also has state, cache, or data, or when PATH or a mise
+  # path points under it. A lone config override stays. Every qualifying home
+  # is cleaned. Passwd data comes from /etc/passwd, then the default-PATH
+  # getent. Nothing in this file reads a path out of the environment.
+  if [ -z "$omarchy_prev_home" ]; then
+    # Bash imports BASH_FUNC_*%% from the caller's environment before startup
+    # files run, and functions win over regular builtins such as command and
+    # unset. In POSIX mode unset is a special builtin and wins over an imported
+    # unset function, so scrub those names and restore the previous mode first.
+    if [ -n "${BASH_VERSION:-}" ]; then
+      omarchy_was_posix=
+      omarchy_had_inherit_errexit=
+      # shellcheck disable=SC3028
+      case ":${SHELLOPTS:-}:" in
+        *:posix:*) omarchy_was_posix=1 ;;
+      esac
+      # shellcheck disable=SC3028
+      case ":${BASHOPTS:-}:" in
+        *:inherit_errexit:*) omarchy_had_inherit_errexit=1 ;;
+      esac
+      # shellcheck disable=SC3040
+      set -o posix
+      unset -f unset shopt command builtin 2>/dev/null || :
+      if [ -z "$omarchy_was_posix" ]; then
+        # shellcheck disable=SC3040
+        set +o posix
+        if [ -z "$omarchy_had_inherit_errexit" ]; then
+          # shellcheck disable=SC3044
+          shopt -u inherit_errexit 2>/dev/null || :
+        fi
+      fi
+      unset omarchy_was_posix omarchy_had_inherit_errexit
+    fi
+    omarchy_capture_stat() {
+      omarchy_stat_uid=
+      omarchy_stat_spec=
+      # GNU stat follows symlinks. BSD stat does not, unless -L is set. -L is
+      # valid for both. A 0700 home reached through a symlink still has to
+      # report the target owner's uid and inode. command -p ignores an imported
+      # stat function and a caller-controlled PATH entry. Plain su keeps both.
+      omarchy_stat_line=$(command -p stat -L -c '%u %d:%i' "$1" 2>/dev/null) || omarchy_stat_line=$(command -p stat -L -f '%u %d:%i' "$1" 2>/dev/null) || return 1
+      omarchy_stat_uid=${omarchy_stat_line%% *}
+      omarchy_stat_spec=${omarchy_stat_line#* }
+      [ -n "$omarchy_stat_uid" ] && [ -n "$omarchy_stat_spec" ]
+    }
+    omarchy_home_for_uid() {
+      omarchy_uid_home=
+      if [ -f /etc/passwd ] && [ -r /etc/passwd ]; then
+        while IFS=: read -r _ _ omarchy_pw_uid _ _ omarchy_pw_home _; do
+          if [ "$omarchy_pw_uid" = "$1" ]; then
+            omarchy_uid_home=${omarchy_pw_home%/}
+            return 0
+          fi
+        done </etc/passwd
+      fi
+      # command -v would succeed for an imported BASH_FUNC_getent%% function
+      # and then the bare name would run it. command -p never does that.
+      omarchy_getent_line=$(command -p getent passwd "$1" 2>/dev/null) || return 1
+      case "$omarchy_getent_line" in
+        *:*:*:*:*:*:*) ;;
+        *) return 1 ;;
+      esac
+      omarchy_getent_rest=${omarchy_getent_line#*:*:*:*:*:}
+      omarchy_uid_home=${omarchy_getent_rest%%:*}
+      omarchy_uid_home=${omarchy_uid_home%/}
+      [ -n "$omarchy_uid_home" ]
+    }
+    omarchy_same_dir() {
+      if [ "$1" = "$2" ]; then
+        return 0
+      fi
+      omarchy_capture_stat "$1" || return 1
+      omarchy_stat_spec_a=$omarchy_stat_spec
+      if [ -z "$omarchy_stat_spec_a" ]; then
+        return 1
+      fi
+      omarchy_capture_stat "$2" || return 1
+      [ -n "$omarchy_stat_spec" ] && [ "$omarchy_stat_spec_a" = "$omarchy_stat_spec" ]
+    }
+    omarchy_root_is_account_home() {
+      omarchy_capture_stat "$1" || return 1
+      omarchy_home_for_uid "$omarchy_stat_uid" || return 1
+      if [ -z "$omarchy_uid_home" ] || [ "$omarchy_uid_home" = "/" ]; then
+        return 1
+      fi
+      omarchy_same_dir "$1" "$omarchy_uid_home"
+    }
+    omarchy_foreign_xdg_root() {
+      omarchy_xdg_value=${1%/}
+      omarchy_xdg_suffix=$2
+      case "$omarchy_xdg_value" in
+        *"$omarchy_xdg_suffix") ;;
+        *) return 0 ;;
+      esac
+      omarchy_xdg_root=${omarchy_xdg_value%"$omarchy_xdg_suffix"}
+      if [ -z "$omarchy_xdg_root" ] || [ "$omarchy_xdg_root" = "/" ] || [ "$omarchy_xdg_root" = "$omarchy_home" ]; then
+        return 0
+      fi
+      if [ "$omarchy_xdg_value" != "${omarchy_xdg_root}${omarchy_xdg_suffix}" ]; then
+        return 0
+      fi
+      omarchy_xdg_check=$omarchy_xdg_value
+      if [ ! -d "$omarchy_xdg_check" ]; then
+        omarchy_xdg_check=${omarchy_xdg_value%/*}
+      fi
+      if [ ! -d "$omarchy_xdg_check" ]; then
+        omarchy_xdg_check=$omarchy_xdg_root
+      fi
+      if [ ! -d "$omarchy_xdg_check" ] || [ -O "$omarchy_xdg_check" ]; then
+        return 0
+      fi
+      omarchy_root_is_account_home "$omarchy_xdg_root" || return 0
+      printf '%s\n' "$omarchy_xdg_root"
+    }
+    omarchy_value_under_home() {
+      case "$2" in
+        "$1"|"$1"/*) return 0 ;;
+        *) return 1 ;;
+      esac
+    }
+    omarchy_list_has_home() {
+      omarchy_remaining=$2
+      while [ -n "$omarchy_remaining" ]; do
+        omarchy_entry=${omarchy_remaining%%:*}
+        if omarchy_value_under_home "$1" "$omarchy_entry"; then
+          return 0
+        fi
+        case "$omarchy_remaining" in
+          *:*) omarchy_remaining=${omarchy_remaining#*:} ;;
+          *) return 1 ;;
+        esac
+      done
+      return 1
+    }
+    omarchy_path_corroborates() {
+      if omarchy_list_has_home "$1" "${PATH:-}"; then
+        return 0
+      fi
+      if omarchy_value_under_home "$1" "${MISE_DATA_DIR:-}"; then
+        return 0
+      fi
+      if omarchy_value_under_home "$1" "${MISE_CONFIG_DIR:-}"; then
+        return 0
+      fi
+      if omarchy_value_under_home "$1" "${MISE_CACHE_DIR:-}"; then
+        return 0
+      fi
+      if omarchy_value_under_home "$1" "${MISE_STATE_DIR:-}"; then
+        return 0
+      fi
+      if omarchy_value_under_home "$1" "${__MISE_EXE:-}"; then
+        return 0
+      fi
+      omarchy_list_has_home "$1" "${__MISE_ORIG_PATH:-}"
+    }
+    omarchy_root_is_inherited() {
+      # State, cache, and data are the account's writable XDG roots. One of
+      # them under a foreign passwd home is enough, even with PATH=/usr/bin
+      # and no mise variable pointing there.
+      if [ "$omarchy_state_root" = "$1" ] || [ "$omarchy_cache_root" = "$1" ] || [ "$omarchy_data_root" = "$1" ]; then
+        return 0
+      fi
+      # Config alone is an intentional override. It qualifies when this home
+      # also has state, cache, or data (the test above) or when PATH or a
+      # mise path still points under it.
+      if [ "$omarchy_config_root" != "$1" ]; then
+        return 1
+      fi
+      omarchy_path_corroborates "$1"
+    }
+    omarchy_note_inherited_home() {
+      if [ -z "$1" ]; then
+        return 0
+      fi
+      omarchy_root_is_inherited "$1" || return 0
+      case ":${omarchy_foreign_homes}:" in
+        *":$1:"*) return 0 ;;
+      esac
+      if [ -n "$omarchy_foreign_homes" ]; then
+        omarchy_foreign_homes="${omarchy_foreign_homes}:$1"
+      else
+        omarchy_foreign_homes=$1
+      fi
+    }
+    omarchy_config_root=$(omarchy_foreign_xdg_root "${XDG_CONFIG_HOME:-}" /.config)
+    omarchy_cache_root=$(omarchy_foreign_xdg_root "${XDG_CACHE_HOME:-}" /.cache)
+    omarchy_data_root=$(omarchy_foreign_xdg_root "${XDG_DATA_HOME:-}" /.local/share)
+    omarchy_state_root=$(omarchy_foreign_xdg_root "${XDG_STATE_HOME:-}" /.local/state)
+    omarchy_note_inherited_home "$omarchy_config_root"
+    omarchy_note_inherited_home "$omarchy_cache_root"
+    omarchy_note_inherited_home "$omarchy_data_root"
+    omarchy_note_inherited_home "$omarchy_state_root"
+    unset -f omarchy_capture_stat omarchy_home_for_uid omarchy_same_dir omarchy_root_is_account_home omarchy_foreign_xdg_root omarchy_value_under_home omarchy_list_has_home omarchy_path_corroborates omarchy_root_is_inherited omarchy_note_inherited_home
+  elif [ "$omarchy_prev_home" != "/" ] && [ "$omarchy_prev_home" != "$omarchy_home" ]; then
+    omarchy_foreign_homes=$omarchy_prev_home
+  fi
+
+  omarchy_drop_prev_home_var() {
+    case "$1" in
+      "$omarchy_home"|"$omarchy_home"/*) ;;
+      "$omarchy_prev_home"|"$omarchy_prev_home"/*) unset "$2" ;;
+    esac
+  }
+  omarchy_homes_left=$omarchy_foreign_homes
+  while [ -n "$omarchy_homes_left" ]; do
+    omarchy_prev_home=${omarchy_homes_left%%:*}
+    case "$omarchy_homes_left" in
+      *:*) omarchy_homes_left=${omarchy_homes_left#*:} ;;
+      *) omarchy_homes_left= ;;
+    esac
+    if [ -z "$omarchy_prev_home" ] || [ "$omarchy_prev_home" = "/" ] || [ "$omarchy_prev_home" = "$omarchy_home" ]; then
+      continue
+    fi
+    omarchy_cleaned=1
+    omarchy_drop_prev_home_var "${XDG_CONFIG_HOME:-}" XDG_CONFIG_HOME
+    omarchy_drop_prev_home_var "${XDG_CACHE_HOME:-}" XDG_CACHE_HOME
+    omarchy_drop_prev_home_var "${XDG_DATA_HOME:-}" XDG_DATA_HOME
+    omarchy_drop_prev_home_var "${XDG_STATE_HOME:-}" XDG_STATE_HOME
+    omarchy_drop_prev_home_var "${MISE_DATA_DIR:-}" MISE_DATA_DIR
+    omarchy_drop_prev_home_var "${MISE_CONFIG_DIR:-}" MISE_CONFIG_DIR
+    omarchy_drop_prev_home_var "${MISE_CACHE_DIR:-}" MISE_CACHE_DIR
+    omarchy_drop_prev_home_var "${MISE_STATE_DIR:-}" MISE_STATE_DIR
+
+    # Drop the previous account's private entries, including mise install bins
+    # hook-env prepended. Leave every other entry where `su` put it, then let
+    # the PATH logic below add this account's shims. Each qualifying home is
+    # stripped. The mise session is cleared once, after the loop, so activate
+    # snapshots this PATH instead of replaying __MISE_ORIG_PATH and __MISE_DIFF.
+    if [ -n "${PATH:-}" ]; then
+      omarchy_clean_path=
+      omarchy_seen=
+      omarchy_remaining_path="$PATH"
+      while :; do
+        omarchy_path_entry=${omarchy_remaining_path%%:*}
+        case "$omarchy_path_entry" in
+          "$omarchy_prev_home"|"$omarchy_prev_home"/*)
+            case "$omarchy_path_entry" in
+              "$omarchy_home"|"$omarchy_home"/*)
+                if [ -n "$omarchy_seen" ]; then
+                  omarchy_clean_path="$omarchy_clean_path:$omarchy_path_entry"
+                else
+                  omarchy_clean_path="$omarchy_path_entry"
+                  omarchy_seen=1
+                fi
+                ;;
+            esac
+            ;;
+          *)
+            if [ -n "$omarchy_seen" ]; then
+              omarchy_clean_path="$omarchy_clean_path:$omarchy_path_entry"
+            else
+              omarchy_clean_path="$omarchy_path_entry"
+              omarchy_seen=1
+            fi
+            ;;
+        esac
+        case "$omarchy_remaining_path" in
+          *:*) omarchy_remaining_path=${omarchy_remaining_path#*:} ;;
+          *) break ;;
+        esac
+      done
+      PATH="$omarchy_clean_path"
+    fi
+  done
+  unset -f omarchy_drop_prev_home_var
+  if [ -n "$omarchy_cleaned" ]; then
+    unset MISE_SHELL __MISE_DIFF __MISE_ORIG_PATH __MISE_SESSION __MISE_EXE
+  fi
+
+  OMARCHY_XDG_HOME="$omarchy_home"
+  export OMARCHY_XDG_HOME
+fi
+unset omarchy_home omarchy_prev_home omarchy_foreign_homes omarchy_homes_left omarchy_cleaned omarchy_xdg_value omarchy_xdg_suffix omarchy_xdg_root omarchy_xdg_check omarchy_clean_path omarchy_seen omarchy_stat_uid omarchy_stat_spec omarchy_stat_spec_a omarchy_stat_line omarchy_uid_home omarchy_pw_uid omarchy_pw_home omarchy_getent_line omarchy_getent_rest omarchy_config_root omarchy_cache_root omarchy_data_root omarchy_state_root omarchy_remaining omarchy_entry
+
 # Only prepend in dev-link mode. On a production install, the binaries are
 # already on PATH as /usr/bin/omarchy-* via the omarchy package — prepending
 # /usr/share/omarchy/bin would just be noise.
