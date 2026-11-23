@@ -24,6 +24,7 @@ if [[ -d $PREFIX && ! -f $LAUNCHER ]]; then
   echo "Battle.net's installer can't resume from this state."
   if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n battlenet.wipePartial)"; then
     pkill -f "$PREFIX" 2>/dev/null || true
+    pkill -f "$HOME/.cache/omarchy/Battle.net-Setup.exe" 2>/dev/null || true
     sleep 1
     rm -rf "$PREFIX"
   else
