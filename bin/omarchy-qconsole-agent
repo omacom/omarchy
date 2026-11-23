@@ -7,8 +7,8 @@
 [[ -n ${HERDR_WORKSPACE_ID:-} ]] &&
   herdr workspace rename "$HERDR_WORKSPACE_ID" qconsole >/dev/null 2>&1 || true
 
-# Every pane starts a fresh agent, falling back to a shell when none is set.
-# --pick offers the agent choice instead of an error on a fresh install, and
-# --prefer-local takes the local model when one is running; both are what the
-# console asked of omarchy-agent before it became a Herdr session.
-omarchy-agent --inline --pick --prefer-local || exec "${SHELL:-/bin/sh}"
+# Every pane starts a fresh agent, falling back to a shell when it does not
+# start, so the console never comes up empty. --pick offers the agent choice
+# instead of an error on a fresh install, which is what the console asked of
+# omarchy-agent before it became a Herdr session.
+omarchy-agent --inline --pick || exec "${SHELL:-/bin/sh}"

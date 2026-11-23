@@ -332,9 +332,9 @@ run_qconsole_launcher() {
 
 run_qconsole_launcher
 
-# --pick keeps a fresh install from getting an empty console that explains
-# nothing, and --prefer-local takes the local model when one is running.
-[[ $(<"$agent_log") == "--inline --pick --prefer-local" ]] ||
+# --pick offers the agent choice instead of an error on a fresh install, so a
+# console opened before an agent was chosen still leads somewhere.
+[[ $(<"$agent_log") == "--inline --pick" ]] ||
   fail "a qconsole pane starts the default agent inline" "$(<"$agent_log")"
 pass "a qconsole pane starts the default agent inline"
 
