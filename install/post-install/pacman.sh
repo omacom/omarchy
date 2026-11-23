@@ -1,10 +1,12 @@
 # Configure pacman after package installation completes. Offline target package
 # installs use the live ISO's offline pacman.conf until this final restore,
-# which copies the platform's channel templates (install/helpers/pacman.sh). A
-# Mac's image brings its keyrings, as the ISO does on x86; every other aarch64
-# platform installs Arch Linux ARM's before its repositories replace the
-# offline ones, and trust every installed keyring before the first signed sync.
+# which copies the platform's channel templates (install/helpers/pacman.sh) plus
+# this machine's regional additions (omarchy-apply-pacman). A Mac's image brings
+# its keyrings, as the ISO does on x86; every other aarch64 platform installs
+# Arch Linux ARM's before its repositories replace the offline ones, and trust
+# every installed keyring before the first signed sync.
 source "$OMARCHY_PATH/install/helpers/pacman.sh"
+source "$OMARCHY_PATH/install/helpers/pacman-keyring.sh"
 source "$OMARCHY_PATH/install/helpers/image-target.sh"
 platform=$(omarchy-hw-platform)
 templates=$(omarchy_pacman_templates "$platform")
@@ -21,17 +23,17 @@ fi
 # rc on aarch64) gets the platform's default channel instead.
 channel=${OMARCHY_MIRROR:-}
 [[ -n $channel && -f $templates/pacman-$channel.conf ]] || channel=$(omarchy_pacman_default_channel "$platform")
-cp -f "$templates/pacman-$channel.conf" /etc/pacman.conf
-cp -f "$templates/mirrorlist-$channel" /etc/pacman.d/mirrorlist
+"$OMARCHY_PATH/bin/omarchy-apply-pacman" "$channel"
 
 # An image build leaves the keyring to each machine's first boot, so no two
-# share a master key (install/helpers/image-target.sh).
+# share a master key (install/helpers/image-target.sh). An install's keyring
+# was started at the beginning of system setup (config/pacman-keyring.sh) and
+# lands here, or is made here when it wasn't.
 if (( alarm_keyring )); then
   if omarchy_image_init && omarchy_image_manifest_present; then
     install -m 0644 /dev/null "$omarchy_image_keyring_request"
   else
-    pacman-key --init
-    pacman-key --populate
+    omarchy_pacman_keyring_finish
   fi
 fi
 
@@ -41,5 +43,3 @@ if [[ -f $OMARCHY_PATH/etc-overrides/cups-cups-files.conf && -f /etc/cups/cups-f
   install -m 0640 -o root -g cups "$OMARCHY_PATH/etc-overrides/cups-cups-files.conf" /etc/cups/cups-files.conf
   rm -f /etc/cups/cups-files.conf.pacnew
 fi
-
-source "$OMARCHY_INSTALL/hardware/pacman.sh"

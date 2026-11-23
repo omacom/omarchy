@@ -26,11 +26,11 @@
   "update": {
     "label": "更新"
   },
-  "about": {
-    "label": "关于"
-  },
   "system": {
     "label": "系统"
+  },
+  "system.about": {
+    "label": "关于"
   },
   "system.screensaver": {
     "label": "屏保"
@@ -357,26 +357,14 @@
   "trigger.tests.disk-speedtest": {
     "label": "磁盘测速"
   },
-  "setup.monitors": {
-    "label": "显示器"
-  },
-  "setup.keybindings": {
-    "label": "快捷键"
-  },
   "setup.input": {
     "label": "输入"
   },
-  "setup.typing": {
-    "label": "打字"
-  },
-  "setup.typing.keyboard": {
-    "label": "键盘布局"
-  },
-  "setup.typing.input": {
-    "label": "输入法"
-  },
-  "setup.language": {
+  "setup.region.language": {
     "label": "语言"
+  },
+  "setup.region.timezone": {
+    "label": "时区"
   },
   "setup.network": {
     "label": "网络"
@@ -402,54 +390,8 @@
   "setup.default": {
     "label": "默认项"
   },
-  "setup.default.agent": {
-    "label": "智能体",
-    "title": "默认智能体"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
+  "agent": {
+    "label": "智能体"
   },
   "setup.default.browser": {
     "label": "浏览器",
@@ -581,11 +523,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "直接启动"
-  },
-  "setup.reset": {
-    "label": "重置电脑"
+  "remove.factory-reset": {
+    "label": "恢复出厂设置"
   },
   "install.package": {
     "label": "软件包"
@@ -680,9 +619,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -703,9 +639,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium 账户"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1103,9 +1036,6 @@
   "update.password": {
     "label": "密码"
   },
-  "update.timezone": {
-    "label": "时区"
-  },
   "update.time": {
     "label": "时间"
   },
@@ -1154,13 +1084,198 @@
   "update.hardware.trackpad": {
     "label": "触控板"
   },
-  "update.password.drive": {
-    "label": "磁盘加密"
+  "appearance.windows.gaps-on": {
+    "label": "窗口间距开"
   },
-  "update.password.user": {
-    "label": "用户"
+  "appearance.windows.gaps-off": {
+    "label": "窗口间距关"
   },
-  "system.reboot-boot-menu": {
-    "label": "重启到启动菜单"
+  "appearance.windows.one-window-ratio-on": {
+    "label": "单窗口比例开"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "单窗口比例关"
+  },
+  "appearance.branding": {
+    "label": "品牌标识"
+  },
+  "appearance.animations-on": {
+    "label": "动画开"
+  },
+  "appearance.animations-off": {
+    "label": "动画关"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "保持唤醒"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "允许睡眠"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "通知开"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "静默通知"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "夜灯开"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "夜灯关"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "屏保开"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "屏保关"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "崩溃捕获开"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "崩溃捕获关"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "笔记本屏幕开"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "笔记本屏幕关"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "屏幕镜像开"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "显示电池 %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "隐藏电池 %"
+  },
+  "appearance.windows": {
+    "label": "窗口"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "关闭镜像显示"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "切换至 Hybrid GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "切换至集成 GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "启用触控板"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "禁用触控板"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "启用触摸屏"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "禁用触摸屏"
+  },
+  "setup.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "内核"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "键盘"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "快捷键"
+  },
+  "setup.keyboard.inputs": {
+    "label": "键盘输入"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "输入法"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "纯文本"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "图标"
+  },
+  "install.style.icons": {
+    "label": "图标"
+  },
+  "remove.icons": {
+    "label": "图标"
+  },
+  "update.icons": {
+    "label": "额外图标"
+  },
+  "system.firmware": {
+    "label": "重启到 BIOS",
+    "description": "重启进入 UEFI 固件设置"
+  },
+  "setup.region": {
+    "label": "区域"
+  },
+  "setup.region.formats": {
+    "label": "格式",
+    "description": "日期、时间、数字和单位的显示方式"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes 游戏"
+  },
+  "update.games": {
+    "label": "Game Vibes 游戏"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "主机名"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

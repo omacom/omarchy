@@ -1,15 +1,17 @@
 # Foni
 
-Katrai tēmai ir savs fonu komplekts, un savējos varat pievienot mapē `~/.config/omarchy/backgrounds/[theme]`. Ja vēlaties, piemēram, nord tēmai pievienot papildu fona attēlu, vienkārši ielieciet failu mapē `~/.config/omarchy/backgrounds/nord`.
+Katrai tēmai ir savs fonu komplekts, un jūs varat pievienot savus papildu fonus mapē `~/.config/omarchy/backgrounds/[theme]`. Ja vēlaties pievienot papildu fona attēlu, piemēram, nord tēmai, vienkārši ielieciet failu mapē `~/.config/omarchy/backgrounds/nord`.
 
-Visvieglāk to izdarīt, Omarchy izvēlnē atverot _Instalēt > Stils > Fons_. Tas atvērs mapi, kur glabājas šīs tēmas foni. Nospiediet `Super + Shift + F`, lai palaistu vēl vienu failu pārvaldnieku, atrodiet savu fonu un iekopējiet to. Tagad tas būs iekļauts fonos, starp kuriem varat izvēlēties ar `Super + Ctrl + Space`.
+Visvienkāršāk to var izdarīt, Omarchy Menu dodoties uz _Install > Style > Background_. Tiks atvērta mape, kurā tiek glabāti attiecīgās tēmas foni. Nospiediet `Super + Shift + F`, lai palaistu vēl vienu failu pārvaldnieku, atrodiet savu fonu un pārkopējiet to. Tagad tas būs iekļauts fonu izvēlē, starp kuriem varat izvēlēties, izmantojot `Super + Ctrl + W`.
 
-Foni var būt tikpat labi video kā nekustīgi attēli. Ievietojiet `mp4`, `m4v`, `mov`, `webm`, `mkv` vai `avi` failu tajā pašā mapē, un tas parādīsies blakus attēliem. Video atskaņo OWE tapešu dzinējs. Tas dekodē video vienu reizi visiem monitoriem un atskaņo tā skaņu caur noklusējuma audio izvadi, un aptur atskaņošanu vienmēr, kad nekas to nevar redzēt. Bloķēšanas ekrāns zīmē to pašu dekodējumu, izslēgtu, caur OWE. Video tapete joprojām patērē daudz vairāk enerģijas nekā nekustīga.
+Foni var būt arī video, ne tikai nekustīgi attēli. Iemetiet `mp4`, `m4v`, `mov`, `webm`, `mkv` vai `avi` failu tajā pašā mapē, un tas parādīsies līdzās attēliem. Video atskaņo OWE tapešu dzinis. Tas dekodē video vienreiz visiem monitoriem un atskaņo tā skaņu caur noklusējuma audio izvadi, un tas aptur atskaņošanu ikreiz, kad nekas to nevar redzēt. Video fons joprojām patērē daudz vairāk enerģijas nekā nekustīgs fons.
 
-Tēmās nekustīgam fonam var būt īss ievads. Failam `backgrounds/road.webp` atbilstošais video atrodas vietā `backgrounds/intros/road.mp4`. Tas automātiski atskaņojas sāknēšanas laikā un pārslēdzoties uz tēmu ar šo fonu, pēc tam atgriežas pie nekustīgā attēla. Ievada video neietilpst fonu atlasītājā un nekad neatkārtojas cilpā.
+Tēmas var ietvert īsu ievadu nekustīgam fonam. Failam `backgrounds/road.webp` atbilstošais video atrodas `backgrounds/intros/road.mp4`. Tas tiek atskaņots automātiski sāknēšanas laikā, pārslēdzoties uz tēmu ar izvēlētu šo fonu un izvēloties šo fonu, un pēc tam atgriežas pie nekustīgā attēla. Ievada video neparādās fonu atlasītājā un nekad netiek cilpoti.
 
-Izslēdzot _Palaist > Izskats > Animācijas_, tiek izslēgti arī fonu ievadi. Omarchy to pēc noklusējuma dara virtuālajā mašīnā. Komanda `omarchy theme bg intro toggle` var ievadus pārslēgt atsevišķi. Tēmas atsvaidzināšana vai cita fona izvēle tajā pašā tēmā ievadu neatskaņo.
+Izvēloties _Appearance > Animations Off_, tiek izslēgti arī fonu ievadi. Omarchy virtuālajā mašīnā (VM) to pēc noklusējuma dara. Ar komandu `omarchy theme bg intro toggle` ievadus var pārslēgt atsevišķi. Atsvaidzinot tēmu, ievads netiek atskaņots.
 
-Milzīgu foršu atlasītu fonu kolekciju atradīsiet vietnē https://github.com/dharmx/walls.
+Nekustīgam attēlam var būt arī cilpa — klusa tās pašas bildes versija, kas turpina kustēties — `backgrounds/loops/road.mp4`. Tā tiek atskaņota nekustīgā attēla vietā, pēc tā ievada, ja tam tāds ir, un apstājas, kad animācijas ir izslēgtas. Darbojoties ar akumulatoru, tā vietā tiek rādīts nekustīgais attēls, un cilpa atgriežas, tiklīdz pievienojaties strāvas padevei. Cilpas neparādās fonu atlasītājā.
 
-Video foni, kamēr atskaņošana ir apturēta vai nav pieejama, bloķēšanas ekrānā saglabā kešotu nekustīgu attēlu. Animēti GIF tiek atskaņoti uz darbvirsmas un bloķēšanas ekrānā rāda nekustīgu kadru.
+Lielu kolekciju ar foršiem atlasītiem foniem varat atrast [dharmx/walls](https://github.com/dharmx/walls).
+
+Bloķēšanas ekrāns rāda video fona nekustīgu kadru, tāpat kā tas rāda animēta GIF nekustīgu kadru.

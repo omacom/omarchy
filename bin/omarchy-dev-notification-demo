@@ -1,301 +1,94 @@
 #!/usr/bin/python3
 # omarchy:summary=Play a realistic run of notifications to look at the notification UI
-# omarchy:args=[--scene <name>]... [--fast] [--gap <seconds>] [--timeout <ms>] [--loop] [--shuffle] [--keep] [--list] [--replay <count> [--match <text>]]
-# omarchy:examples=omarchy dev notification demo --list | omarchy dev notification demo --scene interactive | omarchy dev notification demo --replay 10 --match basecamp
 # omarchy:hidden=true
 """A realistic run of notifications, sent straight onto the session bus as an
-app would. The senders mimic what really notifies this desktop (Chrome web
-apps, chat apps, a terminal); the words are invented, the only people named
-are Omarchy's own, and phone numbers are 555 ones."""
-import argparse
-import json
-import os
-import random
+app would: a stack building, a code to copy, a link to open, and the apps this
+desktop has icons for. The senders mimic what really notifies this desktop
+(Chrome web apps, chat apps, a terminal); the words are invented and the only
+people named are Omarchy's own."""
 import subprocess
-import sys
 import time
 
 from gi.repository import Gio, GLib
 
 BUS_NAME = "org.freedesktop.Notifications"
 BUS_PATH = "/org/freedesktop/Notifications"
-URGENCY = {"low": 0, "normal": 1, "critical": 2}
-FALLBACK_APP = "omarchy-dev-notification-demo"
+GAP = 3.2
 
-SCENES = {
-  # Chrome sends every web app as "Google Chrome"; the leading origin anchor is
-  # what tells the sites apart. The Campfire burst arrives faster than the pace
-  # so a stack builds.
-  "chat": [
-    dict(web="3.basecamp.com", summary="Omarchy",
-         body="DHH: notification decks just landed on edge, worth a look before the call"),
-    dict(app="Signal", icon="signal-desktop", summary="Ryan Hughes",
-         body="I have to show you the new notifications, are you around later?"),
-    dict(web="app.hey.com", summary="New Email in Imbox",
-         body="Re: Omarchy 4.5 release notes"),
-    dict(web="x.com", summary="DHH",
-         body="replied to your post: this is the part everyone gets wrong"),
-    dict(web="3.basecamp.com", summary="Omarchy", gap=0.7,
-         body="Ryan Hughes: pushed the spacing pass, take a look"),
-    dict(web="3.basecamp.com", summary="Omarchy", gap=0.7,
-         body="DHH: the two-line ones finally breathe"),
-    dict(web="3.basecamp.com", summary="Omarchy", gap=0.7,
-         body="Ryan Hughes: one more go at the icon size and I think that is it"),
-    dict(web="3.basecamp.com", summary="Omarchy",
-         body="DHH: ship it"),
-  ],
-  "work": [
-    dict(app="Grok Bot", icon="grok-bot", summary="Grok Bot", actions=["default=View"],
-         body="2 things need you since lunch: DHH asked about the 4.5 release notes, "
-              "and the Omapager PR has a new review waiting on you."),
-    dict(web="3.basecamp.com", summary="DHH assigned you a to-do",
-         body="Record the notifications demo for the 4.5 release notes"),
-    dict(web="app.hey.com", summary="New Email in Imbox",
-         body="[omacom/omarchy] <b>Replace the notification engine with Omapager</b> (PR #15932)"),
-    dict(app="foot", icon="foot", summary="Tests passed",
-         body="412 passed, 0 failed in <b>2m 14s</b>"),
-    dict(app="Omarchy", icon="omarchy", summary="Omarchy 4.5 is out",
-         body="Notification decks, one-click codes, and a lot more"),
-  ],
-  # Apps this desktop has icons for, so a letter tile here means a bug.
-  "system": [
-    dict(app="Omarchy", icon="system-software-update", summary="Updates available",
-         body="14 packages, including linux 7.2.8 and hyprland 0.56.2"),
-    dict(app="Snapshots", icon="LimineSnapperSync", summary="Snapshot complete",
-         body="pre-update root snapshot written in 4s"),
-    dict(app="ApexShot", icon="apexshot", summary="Screenshot saved",
-         body="~/Screenshots/ApexShot-2026-09-03_22-41-08.png"),
-  ],
-  "personal": [
-    dict(app="Spotify", icon="spotify", summary="Now playing",
-         body="Money for Nothing - Dire Straits"),
-    dict(web="x.com", summary="3 people liked your post",
-         body="“the notification daemon is the whole desktop in miniature”"),
-    dict(app="Signal", icon="signal-desktop", summary="DHH",
-         body="seriously, you are going to want to see this one"),
-  ],
-  # Every offer a card can make, then shapes that must stay plain (a test
-  # count, an issue reference). Numbers are 555 ones, so nobody gets called.
-  "interactive": [
-    dict(web="3.basecamp.com", summary="Omarchy",
-         body="DHH: latest build is up, take a look https://omarchy.org"),
-    dict(web="app.hey.com", summary="New Email in Imbox",
-         body="Your Basecamp verification code is 482913"),
-    dict(app="Signal", icon="signal-desktop", summary="DHH", body="are you around later?",
-         actions=["read=Mark as read"]),
-    dict(web="messages.google.com", summary="Messages",
-         body="G-728341 is your Google verification code"),
-    dict(app="Discord", icon="discord", summary="Ryan Hughes",
-         body="new number for the group chat, (555) 555-5555",
-         actions=["read=Mark as read"]),
-    dict(app="foot", icon="foot", summary="Tests passed",
-         body="412 passed, 0 failed in 2m 14s"),
-    dict(web="app.hey.com", summary="New Email in Imbox",
-         body="[omacom/omarchy] Replace the notification engine with Omapager (PR #15932)"),
-  ],
-  # Persistent cards with a live default action: each Close must dismiss
-  # without the pointer moving, and never open the card.
-  "close": [
-    dict(app="hi", summary="Close without opening %d" % i,
-         body="Keep the pointer on Close as the next card moves up.",
-         urgency="critical", actions=["default=Open"], report_action=True, gap=0.1)
-    for i in range(1, 4)
-  ],
-  # Built at run time.
-  "routing": [],
-}
-DEFAULT = ["chat", "work", "personal", "system"]
-
-# Candidates for the "no window open" routing case, in preference order.
-CLOSED_CANDIDATES = ("app.hey.com", "3.basecamp.com", "github.com", "x.com", "app.slack.com")
-
-# Written by the shell, newest first.
-HISTORY = os.path.expanduser("~/.local/state/omarchy/notifications/history.json")
+# Chrome sends every web app as "Google Chrome"; the leading origin anchor is
+# what tells the sites apart. The Campfire burst arrives faster than the pace
+# so a stack builds. The system apps are ones this desktop has icons for, so a
+# letter tile there means a bug.
+NOTIFICATIONS = [
+  dict(web="3.basecamp.com", summary="Omarchy",
+       body="DHH: notification decks just landed on edge, worth a look before the call"),
+  dict(app="Signal", icon="signal-desktop", summary="Ryan Hughes",
+       body="I have to show you the new notifications, are you around later?"),
+  dict(web="app.hey.com", summary="New Email in Imbox",
+       body="Re: Omarchy 4.5 release notes"),
+  dict(web="x.com", summary="DHH",
+       body="replied to your post: this is the part everyone gets wrong"),
+  dict(web="3.basecamp.com", summary="Omarchy", gap=0.7,
+       body="Ryan Hughes: pushed the spacing pass, take a look"),
+  dict(web="3.basecamp.com", summary="Omarchy", gap=0.7,
+       body="DHH: the two-line ones finally breathe"),
+  dict(web="3.basecamp.com", summary="Omarchy", gap=0.7,
+       body="Ryan Hughes: one more go at the icon size and I think that is it"),
+  dict(web="3.basecamp.com", summary="Omarchy",
+       body="DHH: ship it, latest build is up at https://omarchy.org"),
+  dict(app="Grok Bot", icon="grok-bot", summary="Grok Bot", actions=["default=View"],
+       body="2 things need you since lunch: DHH asked about the 4.5 release notes, "
+            "and the Omapager PR has a new review waiting on you."),
+  dict(web="3.basecamp.com", summary="DHH assigned you a to-do",
+       body="Record the notifications demo for the 4.5 release notes"),
+  dict(web="app.hey.com", summary="New Email in Imbox",
+       body="Your Basecamp verification code is 482913"),
+  dict(app="foot", icon="foot", summary="Tests passed",
+       body="412 passed, 0 failed in <b>2m 14s</b>"),
+  dict(app="Omarchy", icon="omarchy", summary="Omarchy 4.5 is out",
+       body="Notification decks, one-click codes, and a lot more"),
+  dict(app="Spotify", icon="spotify", summary="Now playing",
+       body="Money for Nothing - Dire Straits"),
+  dict(web="x.com", summary="3 people liked your post",
+       body="“the notification daemon is the whole desktop in miniature”"),
+  dict(app="Signal", icon="signal-desktop", summary="DHH",
+       body="seriously, you are going to want to see this one"),
+  dict(app="Omarchy", icon="system-software-update", summary="Updates available",
+       body="14 packages, including linux 7.2.8 and hyprland 0.56.2"),
+  dict(app="Snapshots", icon="LimineSnapperSync", summary="Snapshot complete",
+       body="pre-update root snapshot written in 4s"),
+  dict(app="ApexShot", icon="apexshot", summary="Screenshot saved",
+       body="~/Screenshots/ApexShot-2026-09-03_22-41-08.png"),
+]
 
 
-def identity(n):
-  """The app name and icon hint a sender like this one gives."""
+def send(bus, n):
+  app, icon, body = n.get("app", ""), n.get("icon", ""), n["body"]
   if n.get("web"):
-    return dict(app="Google Chrome", icon="google-chrome")
-  return dict(app=n.get("app") or FALLBACK_APP, icon=n.get("icon") or "")
-
-
-class Bus:
-  """Sends notifications like any app. Cards marked report_action print the
-  action key when invoked, so a Close that opened the card shows up here."""
-
-  def __init__(self):
-    self.connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-    self.reporting = set()
-    self.connection.signal_subscribe(BUS_NAME, BUS_NAME, None, BUS_PATH, None,
-                                     Gio.DBusSignalFlags.NONE, self.signal)
-
-  def signal(self, _connection, _sender, _path, _interface, name, parameters):
-    if name == "ActionInvoked":
-      notification, action = parameters.unpack()
-      if notification in self.reporting:
-        print(action, flush=True)
-        self.reporting.discard(notification)
-    elif name == "NotificationClosed":
-      self.reporting.discard(parameters.unpack()[0])
-
-  def send(self, n, timeout=None):
-    who = identity(n)
-    body = n.get("body", "")
-    if n.get("web"):
-      body = '<a href="https://%s/">%s</a>\n\n%s' % (n["web"], n["web"], body)
-    actions = []
-    for action in n.get("actions", []):
-      key, _, label = action.partition("=")
-      actions += [key, label or key]
-    hints = {}
-    if who["icon"]:
-      hints["desktop-entry"] = GLib.Variant("s", who["icon"])
-    if n.get("urgency"):
-      hints["urgency"] = GLib.Variant("y", URGENCY[n["urgency"]])
-    parameters = GLib.Variant("(susssasa{sv}i)", (
-      who["app"], 0, who["icon"], n.get("summary", ""), body, actions, hints,
-      -1 if timeout is None else timeout))
-    reply = self.connection.call_sync(BUS_NAME, BUS_PATH, BUS_NAME, "Notify", parameters,
-                                      GLib.VariantType("(u)"), Gio.DBusCallFlags.NONE, 5000, None)
-    if n.get("report_action"):
-      self.reporting.add(reply.unpack()[0])
-
-  def pump(self, seconds):
-    """Wait while still hearing the shell's signals."""
-    loop = GLib.MainLoop()
-    GLib.timeout_add(max(1, int(seconds * 1000)), lambda: loop.quit() or False)
-    loop.run()
-
-  def play(self, items, gap, timeout):
-    for n in items:
-      self.send(n, timeout)
-      self.pump(min(gap, n["gap"]) if "gap" in n else gap)
-    while self.reporting:
-      self.pump(0.2)
-
-
-def replay(limit, match):
-  """The last `limit` notifications from history, oldest first."""
-  try:
-    with open(HISTORY, encoding="utf-8") as f:
-      rows = json.loads(f.read(2 * 1024 * 1024) or "[]")
-  except (OSError, ValueError, RecursionError):
-    rows = []
-  if not isinstance(rows, list):
-    rows = []
-  rows = rows[:max(0, limit)]
-  needle = (match or "").lower()
-  out = []
-  for r in reversed(rows):
-    if not isinstance(r, dict):
-      continue
-    if needle not in " ".join(str(r.get(k) or "") for k in ("app", "source", "summary", "body")).lower():
-      continue
-    # rawBody keeps the source anchor the stored body has lost, so web
-    # notifications replay as their site rather than as Chrome.
-    out.append(dict(app=r.get("app") or FALLBACK_APP, icon=r.get("appIcon") or "",
-                    summary=r.get("summary") or "", body=r.get("rawBody") or r.get("body") or ""))
-  return out
-
-
-def routing_scene():
-  """One card per click route, built from the web-app windows open now
-  (their Hyprland class is "chrome-<host>__-Default")."""
-  try:
-    clients = json.loads(subprocess.run(["hyprctl", "-j", "clients"], capture_output=True,
-                                        text=True, check=False, timeout=5).stdout or "[]")
-  except (OSError, ValueError, subprocess.TimeoutExpired):
-    clients = []
-  live = []
-  for c in clients:
-    wm = str(c.get("class") or "")
-    host = wm[len("chrome-"):].split("__")[0]
-    if wm.startswith("chrome-") and "." in host and host not in live:
-      live.append(host)
-  items = [dict(web=host, summary=host.split(".")[0].title(),
-                body="click me: the window showing %s should come forward" % host,
-                expect="focus the existing %s window" % host)
-           for host in live[:2]]
-  closed = next((h for h in CLOSED_CANDIDATES if h not in live), "example.com")
-  items.append(dict(web=closed, summary=closed.split(".")[0].title(),
-                    body="click me: nothing is showing %s, so it should open" % closed,
-                    expect="open https://%s/ (no window for it)" % closed))
-  items.append(dict(app="foot", icon="foot", summary="Tests passed",
-                    body="click me: a local app, so its own default action runs",
-                    expect="the sender's own default action"))
-  return items
-
-
-def say(*lines):
-  for line in lines:
-    print(line, file=sys.stderr)
+    app, icon = "Google Chrome", "google-chrome"
+    body = '<a href="https://%s/">%s</a>\n\n%s' % (n["web"], n["web"], body)
+  actions = []
+  for action in n.get("actions", []):
+    key, _, label = action.partition("=")
+    actions += [key, label]
+  hints = {"desktop-entry": GLib.Variant("s", icon)}
+  bus.call_sync(BUS_NAME, BUS_PATH, BUS_NAME, "Notify",
+                GLib.Variant("(susssasa{sv}i)", (app, 0, icon, n["summary"], body, actions, hints, -1)),
+                GLib.VariantType("(u)"), Gio.DBusCallFlags.NONE, 5000, None)
 
 
 def main():
-  ap = argparse.ArgumentParser(prog="omarchy-dev-notification-demo")
-  ap.add_argument("--scene", action="append", choices=sorted(SCENES),
-                  help="just this one (repeatable); default is %s" % ", ".join(DEFAULT))
-  ap.add_argument("--fast", action="store_true", help="tighter pacing, for recording")
-  ap.add_argument("--gap", type=float, help="seconds between notifications")
-  ap.add_argument("--timeout", type=int, help="how long each stays up, ms")
-  ap.add_argument("--loop", action="store_true", help="keep going until interrupted")
-  ap.add_argument("--shuffle", action="store_true")
-  ap.add_argument("--keep", action="store_true", help="do not clear first")
-  ap.add_argument("--list", action="store_true", help="list the scenes")
-  ap.add_argument("--replay", type=int, metavar="N", help="re-send the last N notifications from history")
-  ap.add_argument("--match", help="only replay ones mentioning this")
-  args = ap.parse_args()
-
-  if args.list:
-    for name, items in sorted(SCENES.items()):
-      print("%-11s %s" % (name, "%d notifications" % len(items) if items else "built when run"))
-    return 0
-
-  gap = args.gap if args.gap is not None else (0.9 if args.fast else 3.2)
-  scenes = args.scene or DEFAULT
-
-  if "close" in scenes:
-    say("hover Close on the front card, then click it three times, waiting for each move "
-        "to finish without moving the pointer.",
-        "each card should dismiss; any 'default' printed here means a card was opened instead.")
-  if "routing" in scenes:
-    SCENES["routing"] = routing_scene()
-    say("what each one should do when you click it:",
-        *("   %-22s %s" % (n["summary"], n["expect"]) for n in SCENES["routing"]))
-
-  bus = Bus()
-  if args.replay:
-    items = replay(args.replay, args.match)
-    if not items:
-      say("nothing in the notification history matches")
-      return 1
-
-  if not args.keep:
-    # dismissAll takes cards off screen; `clear` would forget history.
-    subprocess.run(["omarchy-shell", "-q", "notifications", "dismissAll"], check=False)
-    time.sleep(0.4)
-
+  bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+  # Off screen, not forgotten: history keeps what was there.
+  subprocess.run(["omarchy-shell", "-q", "notifications", "dismissAll"], check=False)
+  time.sleep(0.4)
   try:
-    if args.replay:
-      print("replaying %d" % len(items))
-      bus.play(items, gap, args.timeout)
-      return 0
-    while True:
-      items = []
-      for name in scenes:
-        scene = list(SCENES[name])
-        if args.shuffle:
-          random.shuffle(scene)
-        items += scene
-      bus.play(items, gap, args.timeout)
-      if not args.loop:
-        break
-      bus.pump(gap * 2)
+    for n in NOTIFICATIONS:
+      send(bus, n)
+      time.sleep(n.get("gap", GAP))
   except KeyboardInterrupt:
     pass
-  return 0
 
 
 if __name__ == "__main__":
-  sys.exit(main())
+  main()

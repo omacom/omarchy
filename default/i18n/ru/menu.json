@@ -26,11 +26,11 @@
   "update": {
     "label": "Обновление"
   },
-  "about": {
-    "label": "О программе"
-  },
   "system": {
     "label": "Система"
+  },
+  "system.about": {
+    "label": "О программе"
   },
   "system.screensaver": {
     "label": "Заставка"
@@ -357,26 +357,14 @@
   "trigger.tests.disk-speedtest": {
     "label": "Тест скорости диска"
   },
-  "setup.monitors": {
-    "label": "Мониторы"
-  },
-  "setup.keybindings": {
-    "label": "Сочетания клавиш"
-  },
   "setup.input": {
     "label": "Ввод"
   },
-  "setup.typing": {
-    "label": "Ввод текста"
-  },
-  "setup.typing.keyboard": {
-    "label": "Раскладки клавиатуры"
-  },
-  "setup.typing.input": {
-    "label": "Методы ввода"
-  },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Язык"
+  },
+  "setup.region.timezone": {
+    "label": "Часовой пояс"
   },
   "setup.network": {
     "label": "Сеть"
@@ -402,54 +390,8 @@
   "setup.default": {
     "label": "По умолчанию"
   },
-  "setup.default.agent": {
-    "label": "Агент",
-    "title": "Агент по умолчанию"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
+  "agent": {
+    "label": "Агент"
   },
   "setup.default.browser": {
     "label": "Браузер",
@@ -581,11 +523,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Прямая загрузка"
-  },
-  "setup.reset": {
-    "label": "Сбросить компьютер"
+  "remove.factory-reset": {
+    "label": "Сброс к заводским"
   },
   "install.package": {
     "label": "Пакет"
@@ -680,9 +619,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -703,9 +639,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Аккаунт Chromium"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1103,9 +1036,6 @@
   "update.password": {
     "label": "Пароль"
   },
-  "update.timezone": {
-    "label": "Часовой пояс"
-  },
   "update.time": {
     "label": "Время"
   },
@@ -1154,13 +1084,198 @@
   "update.hardware.trackpad": {
     "label": "Трекпад"
   },
-  "update.password.drive": {
-    "label": "Шифрование диска"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Показать % батареи"
   },
-  "update.password.user": {
-    "label": "Пользователь"
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Скрыть % батареи"
   },
-  "system.reboot-boot-menu": {
-    "label": "Перезагрузка в меню загрузки"
+  "appearance.windows": {
+    "label": "Окна"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Зазоры окон: вкл."
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Зазоры окон: выкл."
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Пропорции 1 окна: вкл."
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Пропорции 1 окна: выкл."
+  },
+  "appearance.branding": {
+    "label": "Брендинг"
+  },
+  "appearance.animations-on": {
+    "label": "Анимации: вкл."
+  },
+  "appearance.animations-off": {
+    "label": "Анимации: выкл."
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Не спать"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Разрешить сон"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Уведомления: вкл."
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Заглушить уведомления"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Ночной свет: вкл."
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Ночной свет: выкл."
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Заставка: вкл."
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Заставка: выкл."
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Захват сбоев: вкл."
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Выключить захват сбоев"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Включить экран ноутбука"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Выключить экран ноутбука"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Включить дублирование экрана"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Выключить дублирование экрана"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Перейти на гибридный GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Перейти на встроенный GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Включить тачпад"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Выключить тачпад"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Включить сенсорный экран"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Выключить сенсорный экран"
+  },
+  "setup.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Ядро"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Клавиатура"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Сочетания клавиш"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Клавиатурный ввод"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Методы ввода"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Обычный"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Значки"
+  },
+  "install.style.icons": {
+    "label": "Значки"
+  },
+  "remove.icons": {
+    "label": "Значки"
+  },
+  "update.icons": {
+    "label": "Дополнительные значки"
+  },
+  "system.firmware": {
+    "label": "Перезагрузка в BIOS",
+    "description": "Перезагрузка в настройки прошивки UEFI"
+  },
+  "setup.region": {
+    "label": "Регион"
+  },
+  "setup.region.formats": {
+    "label": "Форматы",
+    "description": "Как отображаются даты, время, числа и единицы измерения"
+  },
+  "install.gaming.vibes": {
+    "label": "Игровой вайб"
+  },
+  "remove.gaming.vibes": {
+    "label": "Игра «Игровой вайб»"
+  },
+  "update.games": {
+    "label": "Игры «Игровой вайб»"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Имя хоста"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

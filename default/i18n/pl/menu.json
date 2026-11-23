@@ -26,11 +26,11 @@
   "update": {
     "label": "Aktualizuj"
   },
-  "about": {
-    "label": "Informacje"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "Informacje"
   },
   "system.screensaver": {
     "label": "Wygaszacz"
@@ -357,26 +357,14 @@
   "trigger.tests.disk-speedtest": {
     "label": "Test prędkości dysku"
   },
-  "setup.monitors": {
-    "label": "Monitory"
-  },
-  "setup.keybindings": {
-    "label": "Skróty"
-  },
   "setup.input": {
     "label": "Wejście"
   },
-  "setup.typing": {
-    "label": "Pisanie"
-  },
-  "setup.typing.keyboard": {
-    "label": "Układy klawiatury"
-  },
-  "setup.typing.input": {
-    "label": "Metody wprowadzania"
-  },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Język"
+  },
+  "setup.region.timezone": {
+    "label": "Strefa czasowa"
   },
   "setup.network": {
     "label": "Sieć"
@@ -402,54 +390,8 @@
   "setup.default": {
     "label": "Domyślne"
   },
-  "setup.default.agent": {
-    "label": "Agent",
-    "title": "Domyślny agent"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
+  "agent": {
+    "label": "Agent"
   },
   "setup.default.browser": {
     "label": "Przeglądarka",
@@ -581,11 +523,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Bezpośredni rozruch"
-  },
-  "setup.reset": {
-    "label": "Resetuj komputer"
+  "remove.factory-reset": {
+    "label": "Reset fabryczny"
   },
   "install.package": {
     "label": "Pakiet"
@@ -680,9 +619,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -703,9 +639,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Konto Chromium"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1103,9 +1036,6 @@
   "update.password": {
     "label": "Hasło"
   },
-  "update.timezone": {
-    "label": "Strefa czasowa"
-  },
   "update.time": {
     "label": "Czas"
   },
@@ -1154,13 +1084,198 @@
   "update.hardware.trackpad": {
     "label": "Gładzik"
   },
-  "update.password.drive": {
-    "label": "Szyfrowanie dysku"
+  "trigger.toggle.crash-capture-off": {
+    "label": "Wyłącz przechwytywanie awarii"
   },
-  "update.password.user": {
-    "label": "Użytkownik"
+  "trigger.hardware.laptop-display-on": {
+    "label": "Włącz ekran laptopa"
   },
-  "system.reboot-boot-menu": {
-    "label": "Uruchom ponownie do menu rozruchowego"
+  "trigger.hardware.laptop-display-off": {
+    "label": "Wyłącz ekran laptopa"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Włącz klonowanie ekranu"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Wyłącz klonowanie ekranu"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Przełącz na hybrydowe GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Przełącz na zintegrowane GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Włącz touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Wyłącz touchpad"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Włącz ekran dotykowy"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Wyłącz ekran dotykowy"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Pokaż % baterii"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Ukryj % baterii"
+  },
+  "appearance.windows": {
+    "label": "Okna"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Włącz odstępy okien"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Wyłącz odstępy okien"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Włącz proporcje 1 okna"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Wyłącz proporcje 1 okna"
+  },
+  "appearance.branding": {
+    "label": "Branding"
+  },
+  "appearance.animations-on": {
+    "label": "Włącz animacje"
+  },
+  "appearance.animations-off": {
+    "label": "Wyłącz animacje"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Nie usypiaj"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Zezwól na uśpienie"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Włącz powiadomienia"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Wycisz powiadomienia"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Włącz światło nocne"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Wyłącz światło nocne"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Włącz wygaszacz ekranu"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Wyłącz wygaszacz ekranu"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Włącz przechwytywanie awarii"
+  },
+  "setup.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Jądro"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Klawiatura"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Skróty klawiszowe"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Wejścia klawiatury"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Metody wprowadzania"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Zwykły"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikony"
+  },
+  "install.style.icons": {
+    "label": "Ikony"
+  },
+  "remove.icons": {
+    "label": "Ikony"
+  },
+  "update.icons": {
+    "label": "Dodatkowe ikony"
+  },
+  "system.firmware": {
+    "label": "Uruchom ponownie do BIOS",
+    "description": "Uruchom ponownie w ustawieniach oprogramowania układowego UEFI"
+  },
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.formats": {
+    "label": "Formaty",
+    "description": "Jak zapisywane są daty, godziny, liczby i jednostki"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Gra Game Vibes"
+  },
+  "update.games": {
+    "label": "Gry Game Vibes"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Nazwa hosta"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
