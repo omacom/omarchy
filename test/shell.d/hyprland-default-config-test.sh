@@ -301,7 +301,10 @@ LUA
 keys=$(clipboard_keys ru,us ,)
 [[ $keys == "CTRL+code:38 CTRL+code:54 CTRL+code:55 CTRL+code:53 CTRL SHIFT+code:54" ]] ||
   fail "clipboard shortcuts send US keycodes when a non-Latin layout is selected first" "$keys"
-keys=$(clipboard_keys us dvorak)
+keys=$(clipboard_keys ru,us ,dvorak)
 [[ $keys == "CTRL+code:38 CTRL+code:31 CTRL+code:60 CTRL+code:56 CTRL SHIFT+code:31" ]] ||
   fail "clipboard shortcuts send the keycodes of the leading layout's letters" "$keys"
+keys=$(clipboard_keys us,fr ,)
+[[ $keys == "CTRL+A CTRL+C CTRL+V CTRL+X CTRL SHIFT+C" ]] ||
+  fail "clipboard shortcuts send letter names when every layout is Latin" "$keys"
 pass "clipboard shortcuts send keycodes that type their letters on the leading layout"

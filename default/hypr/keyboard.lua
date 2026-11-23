@@ -107,9 +107,16 @@ end
 -- Hyprland looks a sent key name up in the active layout group only, so sending
 -- C fails while a non-Latin group is active. Sending the keycode the letter sits
 -- on in the leading layout works in every group, and keeps Dvorak's or AZERTY's
--- letters where they are. Falls back to the name if the lookup fails.
+-- letters where they are. Falls back to the name if the lookup fails. Without a
+-- non-Latin group the name works, and follows whichever Latin layout is active.
 function keyboard.letter(letter)
   local layout, variant = keyboard.layouts()
+  local non_latin = false
+  for name in layout:gmatch("[^,]+") do
+    if keyboard.non_latin(name) then non_latin = true end
+  end
+  if not non_latin then return letter end
+
   local output = io.popen(string.format(
     "xkbcli how-to-type --disable-compose --layout %s --variant %s %s 2>/dev/null",
     o.shell_quote(layout:match("^[^,]*")),
