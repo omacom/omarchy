@@ -175,6 +175,7 @@ def identity(provider: str, home: Path) -> dict[str, str]:
     login = (read_json(home / ".credentials.json") or {}).get("claudeAiOauth") or {}
     return {
       "accountId": str(account.get("accountUuid") or ""),
+      "orgId": str(account.get("organizationUuid") or ""),
       "email": str(account.get("emailAddress") or ""),
       "org": str(account.get("organizationName") or ""),
       "plan": plan_label(str(login.get("rateLimitTier") or ""), str(login.get("subscriptionType") or "")),
@@ -211,6 +212,19 @@ def grok_identity(home: Path) -> dict[str, str]:
     "org": "",
     "plan": str((settings if isinstance(settings, dict) else {}).get("subscription_tier_display") or ""),
   }
+
+
+# A subscription is the login plus, for Claude, the organization it belongs
+# to: one claude.ai user can hold several organizations, each with its own
+# limits and billing. Registries written before the organization was recorded
+# have no orgId, and those keep matching on the user alone so an existing
+# login is never orphaned.
+def same_account(left: dict[str, Any], right: dict[str, Any]) -> bool:
+  if str(left.get("accountId") or "") != str(right.get("accountId") or ""):
+    return False
+  left_org = str(left.get("orgId") or "")
+  right_org = str(right.get("orgId") or "")
+  return not left_org or not right_org or left_org == right_org
 
 
 # ---------------------------------------------------------------- registry
@@ -415,7 +429,7 @@ def register(provider: str, label: str, pending: Path) -> dict[str, Any]:
     for account in registry["accounts"]:
       account.update(identity(provider, login_home(provider, registry, account)))
     for account in registry["accounts"]:
-      if account.get("accountId") == found["accountId"]:
+      if same_account(account, found):
         shutil.rmtree(pending, ignore_errors=True)
         if found["email"]:
           raise AccountError(tr("omarchy-i18n agents.sameAccountEmail", "That's %1 (%2). Try again, and sign in as the other account in the private window.", account["label"], found["email"]))
@@ -488,7 +502,7 @@ def recover_home(provider: str, home: Path) -> dict[str, Any] | None:
     entry = receipt.get("entry")
     if not isinstance(entry, dict) or entry.get("home") != str(home) or entry.get("id") != home.name:
       return None
-    if any(identity(provider, login_home(provider, registry, a))["accountId"] == found["accountId"] for a in registry["accounts"]):
+    if any(same_account(identity(provider, login_home(provider, registry, a)), found) for a in registry["accounts"]):
       # A retry may already have registered this login under another home.
       shutil.rmtree(home)
       return None
@@ -789,7 +803,7 @@ def settle(provider: str, registry: dict[str, Any]) -> None:
   profile = account_config(claude_account_file(store)).get("oauthAccount")
   path = claude_account_file(primary)
   config = account_config(path)
-  if isinstance(profile, dict) and (config.get("oauthAccount") or {}).get("accountUuid") != profile.get("accountUuid"):
+  if isinstance(profile, dict) and config.get("oauthAccount") != profile:
     with LockDirs(claude_locks([])):
       config = account_config(path)
       config["oauthAccount"] = profile
@@ -801,6 +815,20 @@ def settle(provider: str, registry: dict[str, Any]) -> None:
     save(provider, registry)
   if not home_in_use(provider, store):
     (store / ".credentials.json").unlink(missing_ok=True)
+
+
+# A legacy registry can still name its organization in the saved profile,
+# even when its credentials are damaged and identity() cannot read them.
+def recorded_org(provider: str, registry: dict[str, Any], account: dict[str, Any]) -> str:
+  if account.get("orgId"):
+    return str(account["orgId"])
+  if provider != "claude":
+    return ""
+  profile = read_json(claude_account_file(login_home(provider, registry, account)))
+  oauth = profile.get("oauthAccount") if isinstance(profile, dict) else None
+  if isinstance(oauth, dict) and str(oauth.get("accountUuid") or "") == str(account.get("accountId") or ""):
+    return str(oauth.get("organizationUuid") or "")
+  return ""
 
 
 # A Claude account signed in again in a scratch home, installed where its login
@@ -818,8 +846,14 @@ def relogin(provider: str, target: str, pending: Path) -> dict[str, Any]:
       account = find(registry, target)
       if not account:
         raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
-      if account.get("accountId") and account["accountId"] != found["accountId"]:
+      known = {**account, "orgId": recorded_org(provider, registry, account)}
+      if account.get("accountId") and (not same_account(known, found) or (known["orgId"] and not found.get("orgId"))):
         raise AccountError(tr("omarchy-i18n agents.wrongAccount", "That's %1, not %2. Try again, and sign in as %2.", found["email"] or found["accountId"], label_of(account)))
+      for other in registry["accounts"]:
+        if other is not account:
+          org = recorded_org(provider, registry, other)
+          if org and same_account({**other, "orgId": org}, found):
+            raise AccountError(tr("omarchy-i18n agents.wrongAccount", "That's %1, not %2. Try again, and sign in as %2.", label_of(other), label_of(account)))
       home = login_home(provider, registry, account)
       if home != primary_home(provider):
         prepare_store(provider, account)
