@@ -2,7 +2,7 @@
 name: omarchy
 description: >
   REQUIRED for end-user customization of an Omarchy desktop, and when editing ANY file in ~/.config/
-  (hypr, omarchy, alacritty, foot, kitty, ghostty). Triggers: Hyprland, keybindings, monitors, window
+  (hypr, omarchy, alacritty, foot, kitty, ghostty, rio). Triggers: Hyprland, keybindings, monitors, window
   rules, gaps, borders, blur, opacity, animations, workspaces, the bar, dock and widgets, themes, fonts,
   backgrounds, terminal config, default apps (browser, terminal, editor), web apps, installing software,
   environment variables, keyboard layouts, language, power profiles, night light, idle, lock screen,
@@ -89,7 +89,7 @@ Omarchy is built on:
 | **Hyprland** | Wayland compositor/WM | `~/.config/hypr/` |
 | **Omarchy shell** | Bar, dock, notifications, panels, OSD (Quickshell) | `~/.config/omarchy/shell.json` |
 | **Launcher/menus** | Quickshell menu | `~/.config/omarchy/extensions/omarchy-menu.jsonc` |
-| **foot** (default), Alacritty, Kitty, Ghostty | Terminals | `~/.config/<terminal>/` |
+| **foot** (default), Alacritty, Kitty, Ghostty, Rio | Terminals | `~/.config/<terminal>/` |
 | **UWSM** | Session and its environment | `~/.config/uwsm/env.d/` |
 
 The default apps are foot, Google Chrome, Plain (editor), Folio (files), and Omaview (images, video, music); [`apps.md`](apps.md) has the full list and how to change each.

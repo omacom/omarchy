@@ -566,6 +566,9 @@
   "setup.default.terminal.kitty": {
     "label": "Kitty"
   },
+  "setup.default.terminal.rio": {
+    "label": "Rio"
+  },
   "setup.default.editor": {
     "label": "Editor",
     "title": "Default Editor"
@@ -815,6 +818,9 @@
   },
   "install.terminal.kitty": {
     "label": "Kitty"
+  },
+  "install.terminal.rio": {
+    "label": "Rio"
   },
   "install.ai.amp": {
     "label": "Amp Desktop"
