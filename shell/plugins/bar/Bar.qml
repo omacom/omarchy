@@ -2966,9 +2966,10 @@ Item {
     property string fixedEdge: "center"
     // Whether that slot is in the tray's drawer.
     property bool inTraySection: false
-    // Its length the last time it sat in a side section, before a fold moved
-    // it into the drawer. The overflow budget measures a folded widget by
-    // this, so a widget that grows in the drawer does not keep itself folded.
+    // Its bar-mode length, kept while it sits in a side section and refreshed
+    // when its content changes in the drawer. The overflow budget measures a
+    // folded widget by this, so a widget that grows only in the drawer does
+    // not keep itself folded, and one that shrinks can come back.
     property real sideLength: 0
     readonly property string moduleName: root.entryId(entry)
     readonly property var moduleSettings: root.entrySettings(entry)
@@ -2992,6 +2993,16 @@ Item {
       if (registered) return registryLoader.item
       if (qmlCustom) return qmlLoader.item
       return componentLoader.item
+    }
+    // The part of the widget that exists only while a drawer reveals it.
+    // `barLength()` subtracts it so a folded widget is measured as it sits on
+    // the bar; a setting that makes the reveal permanent changes this and
+    // refreshes the saved side length below.
+    readonly property real revealExtent: activeItem && "revealExtent" in activeItem ? activeItem.revealExtent : 0
+    onRevealExtentChanged: {
+      if (!inTraySection) return
+      rememberSideLength()
+      if (pool) pool.hostSizeChanged()
     }
     readonly property real widgetWidth: activeItem && activeItem.visible ? (root.vertical ? root.barSize : activeItem.implicitWidth) : 0
     readonly property real widgetHeight: activeItem && activeItem.visible ? activeItem.implicitHeight : 0
@@ -3040,8 +3051,7 @@ Item {
     // it folded; the drawer's own reveal is subtracted separately.
     function barLength() {
       var length = root.vertical ? widgetHeight : widgetWidth
-      var item = activeItem
-      if (item && item.revealExtent > 0) length -= item.revealExtent
+      if (revealExtent > 0) length -= revealExtent
       return Math.max(0, length)
     }
 

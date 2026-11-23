@@ -452,7 +452,6 @@ function sectionRows(keys, places, memo, savedKeys) {
     position[s] = shown
     if (s < saved.length && list.indexOf(saved[s]) !== -1) shown++
   }
-  position[saved.length] = list.length
   var gaps = (Array.isArray(places) ? places : []).map(function(place) {
     var index = Math.max(0, Math.min(saved.length, Number(place) || 0))
     return { place: place, at: position[index] !== undefined ? position[index] : list.length }

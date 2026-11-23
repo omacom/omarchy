@@ -489,6 +489,16 @@ assertDeepEqual(
   ['widget:tray', 'widget:c', 'spacer:4', 'widget:d'],
   'a room before a drawn widget after a folded span keeps its saved place'
 )
+assertDeepEqual(
+  bar.sectionRows(['tray', 'fold1', 'fold2'], [1], {}, ['tray']).map(row => row.kind + ':' + (row.place === undefined ? row.key : row.place)),
+  ['widget:tray', 'spacer:1', 'widget:fold1', 'widget:fold2'],
+  'the saved tray end previews before the folded widgets appended after it'
+)
+assertDeepEqual(
+  bar.sectionRows(['fold1', 'fold2'], [0], {}, []).map(row => row.kind + ':' + (row.place === undefined ? row.key : row.place)),
+  ['spacer:0', 'widget:fold1', 'widget:fold2'],
+  'an empty saved tray previews its end before the folded widgets'
+)
 const foldedSections = { left: [], centerBegin: [], center: [], centerEnd: [], right: ['tray', 'a', 'b', 'c'], tray: [] }
 assertDeepEqual(
   bar.dropRoom({ slot: { widgetKey: 'c', region: 'right' }, after: true }, { key: 'x', region: 'right' }, foldedSections, { tray: true, c: true }),
