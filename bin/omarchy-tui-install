@@ -12,7 +12,11 @@ safe_icon_name() {
   name=$(printf '%s\n' "$1" \
     | tr '[:upper:]' '[:lower:]' \
     | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//')
-  printf '%s\n' "${name:-tui}"
+  if [[ -n $name ]]; then
+    printf '%s\n' "$name"
+  else
+    printf 'tui-%s\n' "$(printf '%s' "$1" | sha256sum | cut -c1-12)"
+  fi
 }
 
 require_plain_name() {
@@ -59,11 +63,15 @@ install_user_icon() {
 }
 
 download_icon() {
-  if curl -fsSL --max-time 10 -o "$2" -- "$1" 2>/dev/null &&
-    [[ -s $2 && $(file -b --mime-type "$2") == image/* ]]; then
+  local tmp
+  tmp=$(mktemp "$(dirname "$2")/.icon.XXXXXX") || return 1
+  if curl -fsSL --max-time 10 -o "$tmp" -- "$1" 2>/dev/null &&
+    [[ -s $tmp && $(file -b --mime-type "$tmp") == image/* ]]; then
+    chmod 644 "$tmp"
+    mv -f "$tmp" "$2"
     return 0
   else
-    rm -f "$2"
+    rm -f "$tmp"
     return 1
   fi
 }

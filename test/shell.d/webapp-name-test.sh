@@ -156,7 +156,29 @@ if HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=false \
 fi
 [[ -f "$tmp_dir/home/.local/share/victim.desktop" ]] ||
   fail "tui remove does not delete files outside the applications directory"
-pass "tui install and remove guard against path traversal and desktop key injection"
+
+# Punctuation-only TUI names share a deterministic fallback icon name across
+# install and remove, and a failed icon download leaves any existing icon intact.
+HOME="$tmp_dir/home" PATH="$tmp_dir/ibin:$PATH" \
+  "$ROOT/bin/omarchy-tui-install" "!!!" "btop" tile "https://example.test/icon.png" >/dev/null
+punct_icon=$(sed -n 's/^Icon=//p' "$apps_dir/!!!.desktop")
+[[ $punct_icon == tui-* && -f "$icons_dir/$punct_icon.png" ]] ||
+  fail "tui install stores a deterministic fallback icon for punctuation-only names" "$punct_icon"
+mkdir -p "$tmp_dir/failbin"
+cp "$tmp_dir/bin"/* "$tmp_dir/failbin/"
+printf '#!/bin/bash\nexit 22\n' >"$tmp_dir/failbin/curl"
+chmod +x "$tmp_dir/failbin/curl"
+if HOME="$tmp_dir/home" PATH="$tmp_dir/failbin:$PATH" \
+  "$ROOT/bin/omarchy-tui-install" "!!!" "btop" tile "https://example.test/fail.png" >/dev/null 2>&1; then
+  fail "tui install fails when icon download fails"
+fi
+[[ -f "$icons_dir/$punct_icon.png" ]] ||
+  fail "failed tui icon download preserves the existing installed icon"
+HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=false \
+  "$ROOT/bin/omarchy-tui-remove" "!!!" >/dev/null
+[[ ! -e "$apps_dir/!!!.desktop" && ! -e "$icons_dir/$punct_icon.png" ]] ||
+  fail "tui remove deletes both launcher and fallback icon for punctuation-only names"
+pass "tui install and remove guard against path traversal, key injection, and icon clobbering"
 
 # RetroArch launcher escapes special characters in ROM paths and resolves relative paths.
 rom_dir="$tmp_dir/roms"

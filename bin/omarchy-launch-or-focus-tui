@@ -8,10 +8,93 @@ if (($# == 0)); then
   exit 1
 fi
 
+split_command_string() {
+  local s="$1" i=0 len=${#1} ch next quote="" token="" in_token=0
+  SPLIT_ARGS=()
+
+  while (( i < len )); do
+    ch=${s:i:1}
+    if [[ -n $quote ]]; then
+      if [[ $quote == "'" ]]; then
+        if [[ $ch == "'" ]]; then
+          quote=""
+        else
+          token+=$ch
+        fi
+      elif [[ $ch == '"' ]]; then
+        quote=""
+      elif [[ $ch == '\' ]] && (( i + 1 < len )); then
+        next=${s:i+1:1}
+        if [[ $next == '"' || $next == '\' ]]; then
+          token+=$next
+          (( i++ ))
+        else
+          token+=$ch
+        fi
+      else
+        token+=$ch
+      fi
+      in_token=1
+    else
+      case "$ch" in
+        [[:space:]])
+          if (( in_token )); then
+            SPLIT_ARGS+=("$token")
+            token=""
+            in_token=0
+          fi
+          ;;
+        "'"|'"')
+          quote=$ch
+          in_token=1
+          ;;
+        '\')
+          if (( i + 1 < len )); then
+            (( i++ ))
+            token+=${s:i:1}
+            in_token=1
+          fi
+          ;;
+        *)
+          token+=$ch
+          in_token=1
+          ;;
+      esac
+    fi
+    (( i++ ))
+  done
+
+  [[ -z $quote ]] || return 1
+  if (( in_token )); then
+    SPLIT_ARGS+=("$token")
+  fi
+  (( ${#SPLIT_ARGS[@]} > 0 ))
+}
+
+APP_ID=""
+APP_ID_ARGS=()
 if [[ ${1:-} == --app-id=* ]]; then
   APP_ID="${1#--app-id=}"
-else
-  APP_ID="org.omarchy.$(basename -- "$1")"
+  APP_ID_ARGS=("$1")
+  shift
 fi
 
-exec omarchy-launch-or-focus "$APP_ID" -- omarchy-launch-tui "$@"
+if (($# == 0)); then
+  echo "Usage: omarchy-launch-or-focus-tui [--app-id=<app-id>] <command> [args...]" >&2
+  exit 1
+fi
+
+CMD_ARGS=("$@")
+# Support legacy single-string command invocations (e.g. "zsh -c 'fastfetch; read -k 1'")
+# by tokenizing quotes/spaces without invoking a shell or expanding metacharacters.
+if (($# == 1)) && [[ $1 == *[[:space:]]* && ! -x $1 ]]; then
+  if split_command_string "$1"; then
+    CMD_ARGS=("${SPLIT_ARGS[@]}")
+  fi
+fi
+
+if [[ -z $APP_ID ]]; then
+  APP_ID="org.omarchy.$(basename -- "${CMD_ARGS[0]}")"
+fi
+
+exec omarchy-launch-or-focus "$APP_ID" -- omarchy-launch-tui "${APP_ID_ARGS[@]}" "${CMD_ARGS[@]}"

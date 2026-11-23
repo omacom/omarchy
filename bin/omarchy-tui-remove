@@ -51,9 +51,21 @@ if [[ -z $desktop_file && ( $APP_NAME == */* || $APP_NAME == "." || $APP_NAME ==
   exit 1
 fi
 
-icon_name=$(printf '%s\n' "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//')
+safe_icon_name() {
+  local name
+  name=$(printf '%s\n' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//')
+  if [[ -n $name ]]; then
+    printf '%s\n' "$name"
+  else
+    printf 'tui-%s\n' "$(printf '%s' "$1" | sha256sum | cut -c1-12)"
+  fi
+}
+
+icon_name=$(safe_icon_name "$APP_NAME")
 rm -f "${desktop_file:-$DESKTOP_DIR/$APP_NAME.desktop}"
-[[ -n $icon_name ]] && rm -f "$ICON_DIR/$icon_name.png"
+rm -f "$ICON_DIR/$icon_name.png"
 if [[ $APP_NAME != */* && $APP_NAME != "." && $APP_NAME != ".." ]]; then
   rm -f "$ICON_DIR/$APP_NAME.png" "$OLD_ICON_DIR/$APP_NAME.png"
 fi
