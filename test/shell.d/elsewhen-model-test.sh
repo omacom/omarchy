@@ -338,14 +338,32 @@ assertDeepEqual(M.pickGeocode(geocoded, 'America/New_York'), { place: { lat: 26.
 // first and never Kolkata, so a row whose zone the geocoder does not echo gets
 // nothing here and falls back to the zone table.
 const calcutta = JSON.stringify({ results: [
-  { latitude: -24.98317, longitude: 31.23485, timezone: 'Africa/Johannesburg' },
-  { latitude: 40.6734, longitude: -80.57646, timezone: 'America/New_York' }
+  { name: 'Calcutta', latitude: -24.98317, longitude: 31.23485, timezone: 'Africa/Johannesburg' },
+  { name: 'Calcutta', latitude: 40.6734, longitude: -80.57646, timezone: 'America/New_York' }
 ] })
-assertDeepEqual(M.pickGeocode(calcutta, 'Asia/Calcutta'), { place: null, answered: true }, 'elsewhen adopts no geocode kept in another timezone')
+assertDeepEqual(M.pickGeocode(calcutta, 'Asia/Calcutta', 'Calcutta'), { place: null, answered: true }, 'elsewhen adopts no geocode kept in another timezone')
 assertDeepEqual(M.pickGeocode(geocoded, 'Asia/Tokyo'), { place: null, answered: true }, 'elsewhen keeps no place when every geocode is in another zone')
 assertDeepEqual(M.pickGeocode('{}', 'Asia/Tokyo'), { place: null, answered: true }, 'elsewhen treats no results as an answer')
 assertDeepEqual(M.pickGeocode('', 'Asia/Tokyo'), { place: null, answered: false }, 'elsewhen treats a failed request as unanswered')
 assert(M.geocodeUrl('São Paulo').endsWith('name=S%C3%A3o%20Paulo'), 'elsewhen URL-encodes the geocoded label')
+const seattle = JSON.stringify({ results: [
+  { name: 'Seattle', latitude: 47.61, longitude: -122.33, timezone: 'America/Los_Angeles' }
+] })
+assertDeepEqual(M.pickGeocode(seattle, 'US/Pacific', 'Seattle'), { place: { lat: 47.61, lon: -122.33 }, answered: true }, 'elsewhen adopts a geocode kept in the zone the row\'s legacy id renames to')
+const ordered = JSON.stringify({ results: [
+  { name: 'Los Angeles', latitude: 34.05, longitude: -118.24, timezone: 'America/Los_Angeles' },
+  { name: 'Seattle', latitude: 47.61, longitude: -122.33, timezone: 'US/Pacific' }
+] })
+assertDeepEqual(M.pickGeocode(ordered, 'US/Pacific', 'Seattle').place, { lat: 47.61, lon: -122.33 }, 'elsewhen prefers the row\'s own zone over an alias earlier in the list')
+const canberra = JSON.stringify({ results: [
+  { name: 'Canberra', latitude: -35.28, longitude: 149.13, timezone: 'Australia/Sydney' }
+] })
+assertDeepEqual(M.pickGeocode(canberra, 'Australia/Canberra', 'Canberra'), { place: { lat: -35.28, lon: 149.13 }, answered: true }, 'elsewhen adopts a geocode that names the row\'s place when the zone has no same-place mapping')
+assertDeepEqual(M.pickGeocode(canberra, 'Australia/Canberra'), { place: null, answered: true }, 'elsewhen adopts no place by name alone without the row\'s label')
+const kampala = JSON.stringify({ results: [
+  { name: 'Mbale', latitude: 0.95, longitude: 34.17, timezone: 'Africa/Nairobi' }
+] })
+assertDeepEqual(M.pickGeocode(kampala, 'Africa/Kampala', 'Kampala'), { place: null, answered: true }, 'elsewhen adopts no geocode for a differently named place in another zone')
 
 assertEqual(M.forecastUrl([{ lat: 1, lon: 2 }, { lat: 3, lon: 4 }]).split('&').filter(p => /^l(at|ong)itude=/.test(p)).join('&'), 'latitude=1,3&longitude=2,4', 'elsewhen batches every point into one forecast')
 assertDeepEqual(M.parseForecast('{"current":{"temperature_2m":14.33,"weather_code":3}}', ['a'], 5), { a: { c: 14.3, w: 3, at: 5 } }, 'elsewhen reads a single-point forecast')

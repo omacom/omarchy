@@ -932,17 +932,33 @@ function geocodeUrl(label) {
     + encodeURIComponent(label)
 }
 
-// { place, answered }: only a result the geocoder itself keeps in the row's
-// zone is adopted. The top result may be a same-named town on another
-// continent - a geocode search for "Calcutta" answers Calcutta, South Africa
-// first, and never Kolkata - so a row whose zone id the geocoder does not echo
-// gets no coordinates here and falls back to the zone table. `answered` is
-// false when the request itself failed.
-function pickGeocode(text, zone) {
+// { place, answered }: a result is adopted when the geocoder keeps it in the
+// row's own zone; then when it keeps it in the zone the row's legacy id
+// renames to (LEGACY_ZONE_PLACES - the same place under its canonical id);
+// then, only for a zone that is not a known pure rename and only when the
+// geocoder itself names the place, a result named exactly like the row. The
+// top result may be a same-named town on another continent - a geocode search
+// for "Calcutta" answers Calcutta, South Africa first, and never Kolkata - so
+// a row whose zone the geocoder does not echo gets no coordinates here and
+// falls back to the zone table. `answered` is false when the request itself
+// failed.
+function pickGeocode(text, zone, label) {
   var results = geocodeResults(text)
   if (!results) return { place: null, answered: false }
+  var want = String(zone || "")
+  var alias = LEGACY_ZONE_PLACES[want]
+  if (typeof alias !== "string") alias = ""
+  var wantName = cleanLabel(label).toLowerCase()
   var best = null
-  for (var i = 0; i < results.length && !best; i++) if (results[i] && results[i].timezone === zone) best = results[i]
+  var i, r
+  for (i = 0; i < results.length && !best; i++) if ((r = results[i]) && r.timezone === want) best = r
+  for (i = 0; !best && alias !== "" && i < results.length; i++) if ((r = results[i]) && r.timezone === alias) best = r
+  if (!best && alias === "" && wantName !== "") {
+    for (i = 0; i < results.length && !best; i++) {
+      r = results[i]
+      if (r && cleanLabel(r.name).toLowerCase() === wantName) best = r
+    }
+  }
   return { place: best ? { lat: best.latitude, lon: best.longitude } : null, answered: true }
 }
 
