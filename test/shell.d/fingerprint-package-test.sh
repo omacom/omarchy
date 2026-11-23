@@ -58,17 +58,29 @@ case "$1" in
   *) printf 'pacman %s\n' "$*" >> "$CALL_LOG"; exit 99 ;;
 esac
 STUB
+cat > "$scratch/bin/fprintd-list" <<'STUB'
+#!/bin/bash
+printf '%s\n' "${ENROLLED_FINGERS:-}"
+STUB
 # Both fail unless ENROLL_STATUS or VERIFY_STATUS says otherwise, stopping
 # before PAM. ENROLL_OUTPUT is what fprintd-enroll prints first.
 cat > "$scratch/bin/fprintd-enroll" <<'STUB'
 #!/bin/bash
-echo enroll >> "$CALL_LOG"
+if (( $# > 0 )) && [[ $1 == "-f" ]]; then
+  printf 'enroll %s\n' "$*" >> "$CALL_LOG"
+else
+  echo enroll >> "$CALL_LOG"
+fi
 [[ -z ${ENROLL_OUTPUT:-} ]] || printf '%s\n' "$ENROLL_OUTPUT"
 exit "${ENROLL_STATUS:-1}"
 STUB
 cat > "$scratch/bin/fprintd-verify" <<'STUB'
 #!/bin/bash
-echo verify >> "$CALL_LOG"
+if (( $# > 0 )) && [[ $1 == "-f" ]]; then
+  printf 'verify %s\n' "$*" >> "$CALL_LOG"
+else
+  echo verify >> "$CALL_LOG"
+fi
 exit "${VERIFY_STATUS:-1}"
 STUB
 # fprintd on D-Bus: SCAN_TYPE is the default reader's scan type and READER_NAME
@@ -369,3 +381,22 @@ pass "stock libfprint is still replaced by libfprint-git"
 LIBFPRINT_OWNER=libfprint-git INSTALLED=$'libfprint-git' run_setup
 assert_installs "an existing libfprint-git still completes the package set"
 pass "an existing libfprint-git still completes the package set"
+
+# A named enrollment must verify the same finger, even when other prints exist.
+: > "$CALL_LOG"
+OMARCHY_PATH="$scratch" ENROLL_STATUS=0 VERIFY_STATUS=0 ENROLLED_FINGERS=' - #0: right-index-finger' \
+  "$setup_script" left-index-finger > "$scratch/output" 2>&1 ||
+  fail "setup can add the left index finger alongside a right index finger"
+grep -Fxq "enroll -f left-index-finger $USER" "$CALL_LOG" &&
+  grep -Fxq 'verify -f left-index-finger' "$CALL_LOG" ||
+  fail "enrollment and verification select the same finger"
+pass "setup enrolls and verifies the requested finger"
+
+: > "$CALL_LOG"
+if OMARCHY_PATH="$scratch" ENROLL_STATUS=0 VERIFY_STATUS=0 ENROLLED_FINGERS=' - #1: left-index-finger' \
+  "$setup_script" left-index-finger > "$scratch/output" 2>&1; then
+  fail "setup refuses to replace an existing enrollment"
+fi
+! grep -Eq '^(enroll|verify)' "$CALL_LOG" && grep -q 'already enrolled' "$scratch/output" ||
+  fail "setup leaves the existing print enrolled and explains why"
+pass "setup protects an existing enrollment for the requested finger"

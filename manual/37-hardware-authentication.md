@@ -10,6 +10,8 @@ Once the lock screen has turned the display off, the sensor rests to save power,
 
 When your laptop lid is closed, the fingerprint prompt is automatically skipped, so you go straight to the password prompt instead of waiting on a sensor you can't reach. If you otherwise need to work on an external keyboard that doesn't have a sensor, just hit `CTRL + C`, when you're prompted for your fingerprint during `sudo`.
 
+To enroll another finger, run `omarchy setup security fingerprint left-index-finger` in a terminal. Replace `left-index-finger` with the finger you want to add.
+
 You can remove the fingerprint authentication under _Remove > Security > Fingerprint_ in the Omarchy menu.
 
 ### Fido2 authentication

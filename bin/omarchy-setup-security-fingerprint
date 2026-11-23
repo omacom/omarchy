@@ -1,6 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Set up fingerprint authentication for sudo, polkit, and lock screen
+# omarchy:args=[finger]
+# omarchy:examples=omarchy setup security fingerprint left-index-finger
 # omarchy:requires-sudo=true
 
 set -e
@@ -138,6 +140,15 @@ verify_progress() {
   done
 }
 
+finger_args=()
+if (( $# > 0 )); then
+  if (( $# != 1 )) || [[ ! $1 =~ ^(left|right)-(thumb|(index|middle|ring|little)-finger)$ ]]; then
+    echo "Choose a left or right thumb, index, middle, ring, or little finger (for example, left-index-finger or right-thumb)." >&2
+    exit 1
+  fi
+  finger_args=(-f "$1")
+fi
+
 echo -e "\e[32mSetting up fingerprint scanner for authentication.\n\e[0m"
 
 # Bail before installing anything if there's no reader to talk to.
@@ -168,7 +179,6 @@ if omarchy-pkg-missing "${packages[@]}"; then
   sudo pacman -S --needed --noconfirm --ask 4 -- "${packages[@]}"
 fi
 
-# Enroll first fingerprint
 # Authenticate sudo first, and say so: with fingerprint sudo already set up it
 # asks for a touch of its own, which must not pass for the first sample.
 authenticate() {
@@ -202,7 +212,19 @@ if [[ -n $enable_hook ]]; then
   authenticate "Confirm it's you again."
 fi
 
-echo -e "\e[32m\nLet's set up your right index finger as the first fingerprint.\e[0m"
+if (( ${#finger_args[@]} )); then
+  if ! enrolled=$(fprintd-list "$USER"); then
+    echo "Could not check for existing fingerprints." >&2
+    exit 1
+  fi
+  if grep -Eq "^[[:space:]]*-[[:space:]]*#[0-9]+:[[:space:]]+$1$" <<< "$enrolled"; then
+    echo "The ${1//-/ } is already enrolled."
+    exit 1
+  fi
+  echo -e "\e[32m\n󰈷  Let's enroll your ${1//-/ }.\e[0m"
+else
+  echo -e "\e[32m\nLet's set up your right index finger as the first fingerprint.\e[0m"
+fi
 # A press sensor needs a touch for each sample; a swipe sensor a moving finger.
 # When fprintd can't say which, the prompts name neither. Each line stays short,
 # since the setup terminal wraps a long one mid-word.
@@ -232,14 +254,14 @@ if [[ $(fingerprint_reader name) == "Apple secure enclave fingerprint sensor" ]]
   duplicate_check=1
 fi
 # The filters only print; the exit status is fprintd's.
-sudo fprintd-enroll "$USER" | enroll_progress "$again" "$duplicate_check"
+sudo fprintd-enroll "${finger_args[@]}" "$USER" | enroll_progress "$again" "$duplicate_check"
 enroll_status=${PIPESTATUS[0]}
 if (( enroll_status == 0 )); then
   echo -e "\e[32m\nFingerprint enrolled successfully!\e[0m"
 
   # Verify
   echo -e "\nNow let's verify that it's working correctly. $start\n"
-  fprintd-verify | verify_progress "$again"
+  fprintd-verify "${finger_args[@]}" | verify_progress "$again"
   verify_status=${PIPESTATUS[0]}
   if (( verify_status == 0 )); then
     # PAM comes last, once a print is enrolled and verified. Detection only
