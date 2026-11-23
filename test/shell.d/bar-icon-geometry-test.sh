@@ -65,6 +65,20 @@ ShellRoot {
     return true
   }
 
+  // A text label's figures sit on the bar's middle. Measured a hundred times
+  // larger, since whole-pixel tight bounds at bar sizes put them low.
+  function checkFigures(button, label, name) {
+    figureProbe.font.family = label.font.family
+    figureProbe.font.pixelSize = label.font.pixelSize * 100
+    var ink = figureProbe.tightBoundingRect
+    var error = label.mapToItem(button, 0, label.baselineOffset + (ink.y + ink.height / 2) / 100).y - button.height / 2
+    if (Math.abs(error) > 0.05) {
+      fail(name + " figures sit " + error + "px off the bar's middle")
+      return false
+    }
+    return true
+  }
+
   function checkIcon(icon, name) {
     if (icon.implicitWidth !== Style.bar.iconSlot) {
       fail(name + " slot width is " + icon.implicitWidth)
@@ -108,6 +122,13 @@ ShellRoot {
     }
     if (textLabel.iconLabel || textLabel.fontSize !== 15) {
       fail("icon normalization changes an ordinary text label")
+      return false
+    }
+    if (!checkFigures(clockLabel, findItem(clockLabel, function(item) { return item.font !== undefined }), "clock")) return false
+    if (!checkFigures(captionLabel, findItem(captionLabel, function(item) { return item.textFormat !== undefined }), "caption label")) return false
+    var boxedText = findItem(boxedLabel, function(item) { return item.textFormat !== undefined })
+    if (!boxedText || Math.abs(boxedText.y + boxedText.height / 2 - boxedLabel.height / 2) > 0.05) {
+      fail("a label that opts out of figure centering keeps its line box centered")
       return false
     }
     if (customRenderType !== Text.CurveRendering) {
@@ -177,6 +198,8 @@ ShellRoot {
       fail("the battery percentage ends at " + labelRight + ", past the icon's left edge at " + glyphLeft)
       return false
     }
+    if (!checkFigures(labelledPower, percentLabel, "battery percentage")) return false
+    if (!checkFigures(labelledCaption, findItem(labelledCaption, function(item) { return item.text === "12%" && item.textFormat !== undefined }), "caption percentage")) return false
     if (vector.implicitWidth !== Style.bar.iconSlot || vector.opticalSize !== Style.bar.iconCanvas) {
       fail("vector icon does not share glyph geometry")
       return false
@@ -304,6 +327,10 @@ ShellRoot {
   BarIconButton { id: smallCanvas; bar: testBar; text: "󰍹"; opticalSize: 8 }
   WidgetButton { id: legacyIcon; bar: testBar; text: "󰍹"; fontSize: 15 }
   WidgetButton { id: textLabel; bar: testBar; text: "GPU"; fontSize: 15 }
+  WidgetButton { id: clockLabel; bar: testBar; text: "12:45" }
+  WidgetButton { id: captionLabel; bar: testBar; text: "EN"; fontSize: Style.font.caption }
+  WidgetButton { id: boxedLabel; bar: testBar; text: "EN"; fontSize: Style.font.caption; centerFigures: false }
+  TextMetrics { id: figureProbe; text: "0" }
   BarIconButton {
     id: customBox
     bar: testBar
@@ -435,6 +462,7 @@ ShellRoot {
     }
   }
   BarIconButton { id: labelledPower; bar: testBar; text: "󰁹"; labelText: "100%"; slotSize: Style.bar.iconSlot * 2 }
+  BarIconButton { id: labelledCaption; bar: testBar; text: "󰁹"; labelText: "12%"; fontSize: Style.font.caption; slotSize: Style.bar.iconSlot * 2 }
   BarIconButton { id: rotatedIcon; bar: verticalBar; text: "\uf053"; textRotation: 90 }
   OpticalGlyph { id: plainLabel; width: 30; height: 20; text: "12"; fontSize: 12 }
   DropboxIcon { id: dropbox; iconSize: Style.bar.iconSize / aspectRatio; artworkScale: 1 }

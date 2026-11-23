@@ -118,13 +118,15 @@ Item {
     id: label
     textFormat: Text.PlainText
     visible: root.labelVisible && !root.iconLabel
-    anchors.centerIn: parent
+    anchors.horizontalCenter: parent.horizontalCenter
     // Centering the line box puts the figures above the bar's middle, since
-    // the box keeps room for descenders. Center the figure height instead, so
-    // labels line up with the icons beside them.
-    anchors.verticalCenterOffset: !root.centerFigures || root.vertical || root.text.indexOf("\n") !== -1
-      ? 0
-      : (labelMetrics.descent - labelMetrics.ascent + labelMetrics.tightBoundingRect("0").height) / 2
+    // the box keeps room for descenders. Center the figures' ink instead, so
+    // labels line up with the icons beside them. Placed by y rather than a
+    // centered anchor, which moves an odd-height label up half a pixel.
+    y: !root.centerFigures || root.vertical || root.text.indexOf("\n") !== -1
+      ? (root.height - height) / 2
+      : root.height / 2 - baselineOffset
+        - (figureMetrics.tightBoundingRect.y + figureMetrics.tightBoundingRect.height / 2) / figureMetrics.metricsScale
     text: root.text
     color: root.active && root.useActiveColor ? root.activeColor : root.foreground
     font.family: root.fontFamily
@@ -141,9 +143,16 @@ Item {
     }
   }
 
-  FontMetrics {
-    id: labelMetrics
-    font: label.font
+  // Tight bounds come back rounded out to whole pixels, which at bar sizes
+  // makes the figures taller than their ink and puts them low. Measure a
+  // hundred times larger, as OpticalGlyph does.
+  TextMetrics {
+    id: figureMetrics
+    readonly property int metricsScale: 100
+    text: "0"
+    font.family: label.font.family
+    font.weight: label.font.weight
+    font.pixelSize: label.font.pixelSize * metricsScale
   }
 
   Loader {
