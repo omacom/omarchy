@@ -285,6 +285,7 @@
   "plugin.removeTitle": "Plugini eemaldamine",
   "plugin.removeWhich": "Milline plugin eemaldada?",
   "plugin.replacedByClone": "Originaalplugin on asendatud klooniga.",
+  "polkit.authorizeInstalling": "Luba %1 installimine",
   "preinstalls.confirmRemove": "Kas eemaldada kindlasti kõik eelpaigaldatud veebirakendused, TUI-ümbrisprogrammid ja töölauarakendused?",
   "preinstalls.confirmRestore": "Kas taastada kindlasti kõik eelpaigaldatud veebirakendused, TUI-ümbrisprogrammid ja töölauarakendused?",
   "region.changed": "Kuupäevad ja numbrid kirjutatakse nüüd %1 tavade järgi",

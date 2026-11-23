@@ -287,6 +287,7 @@
   "plugin.removeTitle": "Retirar el complement",
   "plugin.removeWhich": "Quin complement vols eliminar?",
   "plugin.replacedByClone": "El complement original s'ha substituït pel clon.",
+  "polkit.authorizeInstalling": "Autoritza la instal·lació de %1",
   "preinstalls.confirmRemove": "Segur que vols eliminar totes les aplicacions web, embolcalls TUI i aplicacions d'escriptori preinstal·lades?",
   "preinstalls.confirmRestore": "Segur que vols restaurar totes les aplicacions web, embolcalls TUI i aplicacions d'escriptori preinstal·lades?",
   "region.changed": "Les dates i els números ara segueixen el format de %1",

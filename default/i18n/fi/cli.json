@@ -285,6 +285,7 @@
   "plugin.removeTitle": "Poista lisäosa",
   "plugin.removeWhich": "Mikä lisäosa poistetaan?",
   "plugin.replacedByClone": "Alkuperäinen lisäosa on korvattu kloonilla.",
+  "polkit.authorizeInstalling": "Valtuuta %1:n asentaminen",
   "preinstalls.confirmRemove": "Haluatko varmasti poistaa kaikki valmiiksi asennetut verkkosovellukset, TUI-kääreet ja työpöytäsovellukset?",
   "preinstalls.confirmRestore": "Haluatko varmasti palauttaa kaikki valmiiksi asennetut verkkosovellukset, TUI-kääreet ja työpöytäsovellukset?",
   "region.changed": "Päivämäärät ja numerot kirjoitetaan nyt kuten kohteessa %1",

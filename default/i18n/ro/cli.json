@@ -287,6 +287,7 @@
   "plugin.removeTitle": "Elimină pluginul",
   "plugin.removeWhich": "Pe care plugin îl elimini?",
   "plugin.replacedByClone": "Pluginul original a fost înlocuit de clonă.",
+  "polkit.authorizeInstalling": "Autorizează instalarea %1",
   "preinstalls.confirmRemove": "Sigur vrei să elimini toate aplicațiile web preinstalate, wrapper-ele TUI și aplicațiile desktop?",
   "preinstalls.confirmRestore": "Sigur vrei să restaurezi toate aplicațiile web preinstalate, wrapper-ele TUI și aplicațiile desktop?",
   "region.changed": "Datele și numerele se scriu acum ca în %1",

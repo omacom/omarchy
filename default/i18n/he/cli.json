@@ -287,6 +287,7 @@
   "plugin.removeTitle": "הסרת תוסף",
   "plugin.removeWhich": "איזה תוסף להסיר?",
   "plugin.replacedByClone": "התוסף המקורי הוחלף בשיבוט.",
+  "polkit.authorizeInstalling": "אישור התקנת %1",
   "preinstalls.confirmRemove": "האם אתה בטוח שברצונך להסיר את כל אפליקציות הרשת, מעטפות TUI ויישומי שולחן העבודה המותקנים מראש?",
   "preinstalls.confirmRestore": "האם אתה בטוח שברצונך לשחזר את כל אפליקציות הרשת, מעטפות TUI ויישומי שולחן העבודה המותקנים מראש?",
   "region.changed": "תאריכים ומספרים נכתבים כעת כמו ב-%1",

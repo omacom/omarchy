@@ -283,6 +283,7 @@
   "plugin.removeTitle": "移除外掛",
   "plugin.removeWhich": "要移除哪個外掛？",
   "plugin.replacedByClone": "原始外掛已被複製版取代。",
+  "polkit.authorizeInstalling": "授權安裝 %1",
   "preinstalls.confirmRemove": "確定要移除所有預先安裝的網頁應用程式、TUI 包裝器和桌面應用程式嗎？",
   "preinstalls.confirmRestore": "確定要還原所有預先安裝的網頁應用程式、TUI 包裝器和桌面應用程式嗎？",
   "region.changed": "日期與數字現已改用 %1 的寫法",

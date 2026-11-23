@@ -293,6 +293,7 @@
   "plugin.removeTitle": "إزالة الإضافة",
   "plugin.removeWhich": "إزالة أي إضافة؟",
   "plugin.replacedByClone": "استُبدلت الإضافة الأصلية بالمستنسخة.",
+  "polkit.authorizeInstalling": "تفويض تثبيت %1",
   "preinstalls.confirmRemove": "هل أنت متأكد من إزالة جميع تطبيقات الويب المثبَّتة مسبقًا وأدوات TUI وتطبيقات سطح المكتب؟",
   "preinstalls.confirmRestore": "هل أنت متأكد من استعادة جميع تطبيقات الويب المثبَّتة مسبقًا وأدوات TUI وتطبيقات سطح المكتب؟",
   "region.changed": "تُكتب التواريخ والأرقام الآن كما في %1",
