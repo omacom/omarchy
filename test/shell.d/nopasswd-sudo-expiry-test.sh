@@ -371,6 +371,11 @@ assert_status 1 env TEST_POLICY=/usr/bin/omarchy-sudo-passwordless TEST_UNFILTER
   /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
 pass "active detection reads a sudo-rs grant from the unfiltered listing"
 
+assert_status 1 env TEST_POLICY=$'Sudoers entry:\n    RunAsUsers: ALL\n    Commands:\n\tALL' \
+  TEST_UNFILTERED_POLICY="$rs_entry$rs_grant" \
+  /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
+pass "classic sudo's filtered answer cannot be overridden by an unfiltered grant"
+
 : >"$test_tmp/commands"
 TEST_POLICY_FAILURE=1 TEST_STATUS=2 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
 grep -q '^sudo -kn -- .* __status ' "$test_tmp/commands" || fail "fallback probe must ignore cached credentials"

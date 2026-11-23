@@ -317,8 +317,8 @@ if [[ $1 == -n && $2 == -l && $3 == -l && $# -eq 3 ]]; then
   exit 0
 fi
 if [[ $1 == -n && $2 == -l ]]; then
-  printf 'filtered\n'
-  exit 0
+  printf '%s\n' "${STUB_FILTERED_LISTING:-filtered}"
+  exit "${STUB_FILTERED_STATUS:-0}"
 fi
 printf 'sudo %s\n' "$*" >"$ELEVATION_LOG"
 SH
@@ -354,6 +354,20 @@ STUB_SUDO_RS_LISTING="$rs_listing" ELEVATION_LOG="$test_tmp/elevation" PATH="$rs
 [[ $(<"$test_tmp/elevation") == "sudo /usr/bin/omarchy-theme-set-browser-policy 1c2027" ]] ||
   fail "omarchy-theme-set-browser-policy matches a sudo-rs glob grant" "got: $(<"$test_tmp/elevation")"
 pass "helpers read a sudo-rs passwordless grant from the unfiltered listing"
+
+for filtered_status in 0 1; do
+  filtered_listing=filtered
+  if (( filtered_status == 0 )); then
+    filtered_listing=$'Sudoers entry:\n    RunAsUsers: root\n    Commands:\n\tALL'
+  fi
+  : >"$test_tmp/elevation"
+  STUB_FILTERED_STATUS=$filtered_status STUB_FILTERED_LISTING="$filtered_listing" \
+    STUB_SUDO_RS_LISTING="$rs_excluded" ELEVATION_LOG="$test_tmp/elevation" PATH="$rs_bin:$PATH" \
+    bash "$ROOT/bin/omarchy-theme-set-browser-policy" 1c2027 </dev/null >/dev/null 2>&1 || true
+  [[ $(<"$test_tmp/elevation") == "pkexec /usr/bin/omarchy-theme-set-browser-policy 1c2027" ]] ||
+    fail "a classic filtered answer or a denied listing stays on polkit" "got: $(<"$test_tmp/elevation")"
+done
+pass "helpers preserve classic sudo policy and rejected command listings"
 
 # expect_rejected <drop-in> <command> [args...]
 expect_rejected() {

@@ -106,10 +106,13 @@ sudoers_listing_grants() {
 # instead of dying on a password prompt it has no terminal to show.
 sudo_grants_passwordless() {
   local listing
-  if listing=$(sudo -n -l -l "$PACKAGED_PATH" "$@" 2>/dev/null) && [[ $listing == *'!authenticate'* ]]; then
+  listing=$(LC_ALL=C sudo -n -l -l "$PACKAGED_PATH" "$@" 2>/dev/null) || return 1
+  if [[ $listing == *'!authenticate'* ]]; then
     return 0
   fi
-  listing=$(sudo -n -l -l 2>/dev/null) || return 1
+  # Classic sudo already evaluated the exact command, including expiry.
+  [[ $listing != *"Sudoers entry:"* ]] || return 1
+  listing=$(LC_ALL=C sudo -n -l -l 2>/dev/null) || return 1
   sudoers_listing_grants "$listing" "$PACKAGED_PATH $*"
 }
 
