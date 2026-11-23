@@ -918,6 +918,14 @@ pass "a first sign-in installs its subscription's desktop app"
   [[ $(jq -c '[.accounts[].id]' "$accounts/claude.json") == '["side"]' && ! -s $OMARCHY_TEST_LOGOUTS ]] ||
     fail "remove <name> takes the default agent's account by that name before another agent" "$(cat "$accounts/claude.json" "$OMARCHY_TEST_LOGOUTS" 2>/dev/null)"
 
+  # An account file that can't be read stops the sign-out before the login goes.
+  cp "$HOME/.claude.json" "$test_tmp/claude-json"
+  echo '{' >"$HOME/.claude.json"
+  if omarchy-agent-account-remove claude side </dev/null >/dev/null 2>&1 || [[ ! -e $HOME/.claude/.credentials.json ]]; then
+    fail "an unreadable ~/.claude.json fails the removal and keeps the login"
+  fi
+  mv "$test_tmp/claude-json" "$HOME/.claude.json"
+
   # The only account left is signed out here, and everything else stays.
   omarchy-agent-account-remove claude side </dev/null >/dev/null
   [[ ! -e $HOME/.claude/.credentials.json && $(jq -c '{oauthAccount, theme}' "$HOME/.claude.json") == '{"oauthAccount":null,"theme":"dark"}' && -f $HOME/.claude/settings.json ]] ||

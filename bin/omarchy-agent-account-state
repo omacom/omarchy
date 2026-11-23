@@ -884,9 +884,11 @@ LOGIN_FILES = {"codex": ["auth.json"], "grok": ["auth.json", "settings_cache.jso
 def forget_login(provider: str, home: Path) -> None:
   if provider == "claude":
     with LockDirs(claude_locks([home])):
-      (home / ".credentials.json").unlink(missing_ok=True)
+      # Read first: an account file that can't be read stops this before the
+      # credentials go.
       path = claude_account_file(home)
       config = account_config(path)
+      (home / ".credentials.json").unlink(missing_ok=True)
       if config.pop("oauthAccount", None) is not None:
         write_private(path, json.dumps(config, indent=2))
   else:
