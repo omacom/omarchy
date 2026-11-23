@@ -11,7 +11,7 @@ RECOVERY_STATE="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy-monitor-mirror-discon
 INTERNAL=$(omarchy-hyprland-monitor-laptop)
 # Every active external monitor shows the internal display, as a Mac mirrors
 # all its displays.
-mapfile -t EXTERNALS < <(hyprctl monitors -j | jq -r '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not).name')
+mapfile -t EXTERNALS < <(hyprctl monitors all -j | jq -r '.[] | select(.disabled != true and .name != "FALLBACK") | select(.name | test("^(eDP|LVDS|DSI)-") | not).name')
 
 on() {
   if (( ${#EXTERNALS[@]} == 0 )); then
@@ -36,12 +36,10 @@ on() {
   omarchy-hyprland-toggle $DISABLE_TOGGLE off
   rm -f "$RECOVERY_STATE"
 
-  if omarchy-hyprland-toggle-disabled $TOGGLE; then
-    for external in "${EXTERNALS[@]}"; do
-      printf 'hl.monitor({ output = "%s", mode = "preferred", position = "auto", scale = 1, mirror = "%s" })\n' "$external" "$INTERNAL"
-    done >"$TOGGLE_FLAG"
-    omarchy-restart-hyprctl
-  fi
+  for external in "${EXTERNALS[@]}"; do
+    printf 'hl.monitor({ output = "%s", mode = "preferred", position = "auto", scale = 1, mirror = "%s" })\n' "$external" "$INTERNAL"
+  done >"$TOGGLE_FLAG"
+  omarchy-restart-hyprctl
 }
 
 off() {

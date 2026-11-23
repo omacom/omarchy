@@ -10,7 +10,11 @@ external_tmp=$(mktemp -d)
 trap 'rm -rf "$external_tmp"' EXIT
 cat >"$external_tmp/hyprctl" <<'SH'
 #!/bin/bash
-printf '%s\n' "$OMARCHY_TEST_MONITORS"
+if [[ $* == "monitors -j" ]]; then
+  jq '[.[] | select(.disabled != true and (.mirrorOf // "none") == "none")]' <<<"$OMARCHY_TEST_MONITORS"
+else
+  printf '%s\n' "$OMARCHY_TEST_MONITORS"
+fi
 SH
 chmod +x "$external_tmp/hyprctl"
 
@@ -62,6 +66,16 @@ run_mirror "$connected" on
 run_mirror "$no_external"
 [[ -f $mirror_flag ]] || fail "explicit mirror on resets the next disconnect's grace period"
 pass "explicit mirror on cancels recovery when already mirrored"
+
+# A dock can return under a different connector while the old rule survives.
+replacement='[{"name":"eDP-1","disabled":false},{"name":"DP-2","disabled":false},{"name":"HDMI-A-2","disabled":false,"mirrorOf":"eDP-1"},{"name":"DP-3","disabled":true},{"name":"FALLBACK","disabled":false}]'
+run_mirror "$replacement"
+run_mirror "$replacement" on
+for output in DP-2 HDMI-A-2; do
+  grep -F "output = \"$output\"" "$mirror_flag" >/dev/null || fail "mirror on refreshes a retained rule for $output"
+done
+! grep -E 'HDMI-A-1|DP-3|FALLBACK' "$mirror_flag" >/dev/null || fail "mirror on drops absent and disabled outputs"
+pass "mirror on repairs a retained rule for the current active outputs"
 
 printf '%s\n' "$(( EPOCHSECONDS - 4 ))" >"$recovery_state"
 run_mirror "$no_external"
