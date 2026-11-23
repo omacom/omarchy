@@ -38,7 +38,7 @@
   "agents.sameAccountEmail": "That's %1 (%2). Try again, and sign in as the other account in the private window.",
   "agents.keyRefused": "%1 didn't accept that key.",
   "agents.keyUnchecked": "Couldn't reach %1 to check that key. Try again in a moment.",
-  "agents.apiKeyHint": "It's checked with %1, then saved for pi and opencode.",
+  "agents.apiKeyHint": "It's checked with %1, then saved in OpenCode.",
   "agents.pasteSignInCode": "Once you've signed in, paste the code the page shows here.",
   "agents.signInAgainBrowser": "Sign in to %1 again in the browser window that opens.",
   "agents.signInAgainPrivate": "Sign in again as this account in the private window that opens.",

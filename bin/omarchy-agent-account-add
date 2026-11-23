@@ -338,13 +338,13 @@ key_login() {
 if [[ $accounts == "false" ]]; then
   # Gemini's page ends on a code to paste back, and a key is all there is to
   # a key's sign-in; the panel shows a field for either, under what it's for.
+  if [[ $events == "true" && $provider == "agy" ]]; then
+    printf '@@omarchy paste %s\n' "$(omarchy-i18n agents.pasteSignInCode)"
+  fi
   if [[ -z $key_provider ]]; then
     say "$(omarchy-i18n agents.signInBrowser "$name")"
   elif [[ $events == "true" ]]; then
-    printf '@@omarchy status %s\n@@omarchy key %s\n' "$(omarchy-i18n agents.apiKeyHint "$name")" "$(omarchy-i18n agents.apiKeyHint "$name")"
-  fi
-  if [[ $events == "true" && $provider == "agy" ]]; then
-    printf '@@omarchy paste %s\n' "$(omarchy-i18n agents.pasteSignInCode)"
+    printf '@@omarchy key %s\n@@omarchy status %s\n' "$(omarchy-i18n agents.apiKeyHint "$name")" "$(omarchy-i18n agents.apiKeyHint "$name")"
   fi
   interruptible "${login_command[@]}" 2>&1
   login_status=$?
@@ -370,7 +370,7 @@ esac
 
 # The CLI's own home, whatever this shell has pointed it at.
 login() {
-  interruptible env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME "OMARCHY_AGENT_${provider^^}_HOME=" "${login_command[@]}"
+  interruptible env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME "OMARCHY_AGENT_${provider^^}_HOME=" "${login_command[@]}" 2>&1
 }
 
 # Signing an account that's already here in again: the primary through the
@@ -394,11 +394,11 @@ if [[ -n $reauth ]]; then
 
   if [[ $(cut -f4 <<<"$found") == "1" ]]; then
     say "$(omarchy-i18n agents.signInAgainBrowser "$name")"
-    interruptible "${where[@]}" "${login_command[@]}" || fail "$(omarchy-i18n agents.signInFailed "$name")"
+    interruptible "${where[@]}" "${login_command[@]}" 2>&1 || fail "$(omarchy-i18n agents.signInFailed "$name")"
   else
     say "$(omarchy-i18n agents.signInAgainPrivate)"
     private_browser
-    interruptible "${where[@]}" BROWSER="$browser" "${login_command[@]}" || fail "$(omarchy-i18n agents.signInFailed "$name")"
+    interruptible "${where[@]}" BROWSER="$browser" "${login_command[@]}" 2>&1 || fail "$(omarchy-i18n agents.signInFailed "$name")"
   fi
   if [[ $provider == "claude" ]]; then
     installed=$(omarchy-agent-account-state relogin "$provider" "$(cut -f1 <<<"$found")" "$home" 2>&1) || fail "$installed"
@@ -452,7 +452,7 @@ EOF
   home=$(omarchy-agent-account-state begin "$provider" "$label" "$$") || fail "$(omarchy-i18n agents.homeFailed)"
 
   private_browser
-  interruptible env BROWSER="$browser" "$home_env=$home" "${login_command[@]}"
+  interruptible env BROWSER="$browser" "$home_env=$home" "${login_command[@]}" 2>&1
 
   if account=$(omarchy-agent-account-state register "$provider" "$label" "$home" 2>&1); then
     home=""

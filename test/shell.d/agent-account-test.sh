@@ -592,6 +592,10 @@ grep -q "^auth import fw_good$" "$test_tmp/fireworks-opencode" && grep -q "^auth
   fail "a Fireworks key is made opencode's active one" "$(cat "$test_tmp/fireworks-opencode")"
 grep -q "^@@omarchy key " "$test_tmp/fireworks-output" && grep -qx "@@omarchy done Signed in to Fireworks." "$test_tmp/fireworks-output" ||
   fail "the panel is asked for the key and told the result" "$(cat "$test_tmp/fireworks-output")"
+key_line=$(grep -n "^@@omarchy key " "$test_tmp/fireworks-output" | cut -d: -f1 | head -1)
+status_line=$(grep -n "^@@omarchy status " "$test_tmp/fireworks-output" | cut -d: -f1 | tail -1)
+(( key_line < status_line )) ||
+  fail "key mode arrives before the sign-in status so the panel never flashes the browser prompt" "$(cat "$test_tmp/fireworks-output")"
 [[ $(head -1 "$test_tmp/fireworks-check-args") == "--check-key" ]] ||
   fail "a Fireworks key is only checked, not read for its usage" "$(cat "$test_tmp/fireworks-check-args")"
 grep -q "Fireworks is ready" "$notifications" && ! grep -q "OpenCode is ready" "$notifications" ||
