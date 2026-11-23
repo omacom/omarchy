@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Forget an added Claude, Codex, or Grok account
+# omarchy:summary=Forget a Claude, Codex, or Grok account, handing its sessions to another
 # omarchy:args=[claude|codex|grok] <account>
 # omarchy:examples=omarchy agent account remove work | omarchy agent account remove codex side
 

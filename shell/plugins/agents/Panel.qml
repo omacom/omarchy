@@ -38,11 +38,18 @@ Panel {
     if (i >= 0 && removable(providers[i])) deleteTarget = providers[i]
   }
 
-  // An added account is forgotten, its sign-in deleted here. Any other line
-  // is hidden, its sign-in kept: the login a machine started with holds what
-  // its added accounts link to, so it, and the account in use, stay.
+  // The account a subscription line removes: its own, or, where the agent
+  // has only the one, the login this machine started with.
+  function accountIdOf(line) {
+    if (!line || line.localModel) return ""
+    if (line.account) return String(line.account.id)
+    return ["claude", "codex", "grok"].indexOf(line.providerId) >= 0 ? "primary" : ""
+  }
+
+  // A subscription's account is forgotten, its sign-in deleted here; any
+  // other line is hidden, its sign-in kept.
   function forgets(line) {
-    return !!line && !!line.account && line.account.primary !== true
+    return accountIdOf(line) !== ""
   }
 
   // A local model's line goes back to the add screen; the default's hands
@@ -51,7 +58,7 @@ Panel {
   function removable(line) {
     if (!line) return false
     if (line.localModel) return !opensByDefault(line) || !!defaultSuccessor(line)
-    return !line.account || (forgets(line) && line.account.active !== true)
+    return true
   }
 
   function opensByDefault(line) {
@@ -83,9 +90,11 @@ Panel {
       usage.removeLocalModels([target.localModel.target])
       return
     }
+    // The account removes the way omarchy agent account remove does: one
+    // in use hands its sessions to another first, and the only one signs out.
     if (forgets(target)) {
       Util.execArgv(["bash", "-c", 'out=$(omarchy-agent-account-remove "$1" "$2" </dev/null 2>&1) || omarchy-notification-send -u critical "$3" "$out"',
-                     "remove-account", target.providerId, String(target.account.id), Commons.I18n.t("agents.removeFailed").arg(lineName(target))])
+                     "remove-account", target.providerId, accountIdOf(target), Commons.I18n.t("agents.removeFailed").arg(lineName(target))])
       return
     }
     if (bar && bar.shell) {

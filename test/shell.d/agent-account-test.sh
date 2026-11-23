@@ -221,15 +221,14 @@ OMARCHY_TEST_LOGIN_UUID=u-next OMARCHY_TEST_LOGIN_EMAIL=next@example.com \
   omarchy-agent-account-add claude Next </dev/null >/dev/null
 [[ $(omarchy-agent-account-list claude --json | jq -r '.[0].accounts[] | select(.label == "Next") | .id') == "next-2" ]] ||
   fail "an account label can't take an id that routing already answers to"
-# Its login is the one in ~/.claude now, so removing it would sign every
-# session out.
-if omarchy-agent-account-remove claude next-2 </dev/null >/dev/null 2>"$test_tmp/seated-remove"; then
-  fail "the account running sessions use can't be removed"
-fi
-grep -q "Switch to another account first" "$test_tmp/seated-remove" || fail "removing the seated account says what to do" "$(cat "$test_tmp/seated-remove")"
-omarchy-agent-account-use claude work >/dev/null
-omarchy-agent-account-remove claude next-2 </dev/null >/dev/null
 pass "account ids stay clear of routing keywords"
+
+# Its login is the one in ~/.claude now, so removing it hands sessions to the
+# primary first rather than signing them out.
+omarchy-agent-account-remove claude next-2 </dev/null >/dev/null
+[[ $(jq -r .oauthAccount.accountUuid "$HOME/.claude.json") == u-main && $(jq -r '.seated + " " + .active' "$accounts/claude.json") == "main main" && ! -e $accounts/claude/next-2 ]] ||
+  fail "removing the seated account moves sessions to the primary, then forgets it" "$(cat "$accounts/claude.json")"
+pass "removing the account sessions use hands them to another first"
 
 OMARCHY_TEST_LOGIN_UUID=acct-1 OMARCHY_TEST_LOGIN_EMAIL=me@example.com \
   omarchy-agent-account-add codex </dev/null >"$test_tmp/first-codex"
@@ -429,9 +428,6 @@ if omarchy-agent-account-threshold claude soon >/dev/null 2>&1; then
 fi
 pass "threshold sets when an account is announced"
 
-if omarchy-agent-account-remove claude main </dev/null >/dev/null 2>&1; then
-  fail "the primary account can't be removed"
-fi
 omarchy-agent-account-use claude main >/dev/null
 # A session still running in the account keeps its login until it quits.
 CLAUDE_CONFIG_DIR="$work" sleep 30 &
@@ -806,3 +802,38 @@ pass "refresh saves who each home is signed in as now"
 [[ $(cat "$OMARCHY_TEST_PKG_LOG" 2>/dev/null) == $'pkg-add openai-codex-desktop\npkg-add grok-bot' ]] ||
   fail "a first sign-in installs its subscription's desktop app, and only that" "$(cat "$OMARCHY_TEST_PKG_LOG" 2>/dev/null)"
 pass "a first sign-in installs its subscription's desktop app"
+
+# ------------------------------------------------------------ removing the primary
+
+# In a home of its own, so the accounts above stay as they are.
+(
+  export HOME="$test_tmp/rm-home" XDG_STATE_HOME="$test_tmp/rm-state"
+  accounts="$XDG_STATE_HOME/omarchy/agents/accounts"
+  mkdir -p "$HOME/.claude" "$HOME/.codex"
+  echo '{"oauthAccount":{"accountUuid":"u-main","emailAddress":"me@example.com"},"theme":"dark"}' >"$HOME/.claude.json"
+  echo '{"claudeAiOauth":{"refreshToken":"main"}}' >"$HOME/.claude/.credentials.json"
+  echo '{}' >"$HOME/.claude/settings.json"
+  OMARCHY_TEST_LOGIN_UUID=u-side OMARCHY_TEST_LOGIN_EMAIL=side@example.com omarchy-agent-account-add claude Side </dev/null >/dev/null
+
+  # Side is seated, so it takes over as primary where it is, and Main's
+  # parked login goes.
+  omarchy-agent-account-remove claude main </dev/null >/dev/null
+  [[ $(jq -c '[.accounts[] | {id, home, primary}]' "$accounts/claude.json") == '[{"id":"side","home":"","primary":true}]' ]] ||
+    fail "removing the primary makes the account in ~/.claude the primary" "$(cat "$accounts/claude.json")"
+  [[ $(jq -r .oauthAccount.accountUuid "$HOME/.claude.json") == u-side && ! -e $accounts/claude/.primary && ! -e $accounts/claude/side ]] ||
+    fail "removing the primary deletes its login and leaves the new primary's in ~/.claude"
+
+  # The only account left is signed out here, and everything else stays.
+  omarchy-agent-account-remove claude side </dev/null >/dev/null
+  [[ ! -e $HOME/.claude/.credentials.json && $(jq -c '{oauthAccount, theme}' "$HOME/.claude.json") == '{"oauthAccount":null,"theme":"dark"}' && -f $HOME/.claude/settings.json ]] ||
+    fail "removing the only account signs ~/.claude out and keeps the rest" "$(cat "$HOME/.claude.json")"
+
+  # Codex keeps every login in its own home, so the new primary's moves in.
+  CODEX_HOME="$HOME/.codex" OMARCHY_TEST_LOGIN_UUID=c-main OMARCHY_TEST_LOGIN_EMAIL=me@example.com codex login >/dev/null
+  OMARCHY_TEST_LOGIN_UUID=c-side OMARCHY_TEST_LOGIN_EMAIL=side@example.com omarchy-agent-account-add codex Side </dev/null >/dev/null
+  omarchy-agent-account-remove codex main </dev/null >/dev/null
+  [[ $(jq -r .tokens.account_id "$HOME/.codex/auth.json") == c-side && ! -e $accounts/codex/side ]] ||
+    fail "removing the Codex primary moves the next account's login into ~/.codex"
+  [[ $(omarchy-agent-account-exec codex) == "codex home=default args=" ]] || fail "Codex sessions start in ~/.codex as the new primary"
+)
+pass "any account can be removed, the primary handing its role on"

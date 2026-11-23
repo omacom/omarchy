@@ -840,26 +840,101 @@ def follow(provider: str, registry: dict[str, Any], account: dict[str, Any]) -> 
   return {"seated": registry["seated"] == account["id"], "moved": registry["seated"] != before, "holders": holders, "running": running}
 
 
+def refuse_in_use(provider: str, home: Path, account: dict[str, Any]) -> None:
+  if home_in_use(provider, home):
+    raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses {label_of(account)}. Quit it first, then remove the account.")
+
+
+# Only an account's own directory goes. Its links point into the primary home,
+# and rmtree removes a link without following it.
+def remove_home(provider: str, home: Path) -> None:
+  if home.resolve().parent == (accounts_root() / provider).resolve():
+    shutil.rmtree(home, ignore_errors=True)
+
+
+# The files a login is, in a home of Codex or Grok; Claude's is its
+# credentials plus the profile in its account file.
+LOGIN_FILES = {"codex": ["auth.json"], "grok": ["auth.json", "settings_cache.json"]}
+
+
+# Signs a home out here without logging out, which would revoke the sign-in
+# everywhere else it's used too.
+def forget_login(provider: str, home: Path) -> None:
+  if provider == "claude":
+    with LockDirs(claude_locks([home])):
+      (home / ".credentials.json").unlink(missing_ok=True)
+      path = claude_account_file(home)
+      config = account_config(path)
+      if config.pop("oauthAccount", None) is not None:
+        write_private(path, json.dumps(config, indent=2))
+  else:
+    for name in LOGIN_FILES[provider]:
+      (home / name).unlink(missing_ok=True)
+
+
+# The primary home is shared by every account, so it stays: the account taking
+# over as primary moves its login into it, and its own directory goes.
+def promote(provider: str, registry: dict[str, Any], old: dict[str, Any], successor: dict[str, Any]) -> None:
+  own = account_home(provider, successor)
+  refuse_in_use(provider, own, successor)
+  if provider in SEATED:
+    # Seated already, so its login is in ~/.claude and the old primary's in
+    # the store primaries keep theirs in, which goes with it.
+    parked = store_home(provider, old)
+    refuse_in_use(provider, parked, old)
+    shutil.rmtree(parked, ignore_errors=True)
+  else:
+    primary = primary_home(provider)
+    refuse_in_use(provider, primary, old)
+    for name in LOGIN_FILES[provider]:
+      if (own / name).exists():
+        os.replace(own / name, primary / name)
+      else:
+        (primary / name).unlink(missing_ok=True)
+  remove_home(provider, own)
+  successor.update({"home": "", "primary": True})
+
+
+# Forgets an account. One that sessions use hands them to another account
+# first, the primary hands that role on, and the only one is signed out here.
 def remove(provider: str, target: str) -> dict[str, Any]:
   with Locked(provider) as registry:
     settle(provider, registry)
     account = find(registry, target)
     if not account:
       raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
-    if account.get("primary"):
-      raise AccountError(f"{account['label']} is the login this machine started with; it can't be removed here.")
+    others = [a for a in registry["accounts"] if a["id"] != account["id"]]
+    if not others:
+      # The only account is the primary, its login in the primary home.
+      home = primary_home(provider)
+      forget_login(provider, home)
+      account.update(identity(provider, home))
+      registry.update({"alert": "", "held": ""})
+      return account
+
+    # The account seated in ~/.claude takes over, so no login moves twice;
+    # else the primary, else the next one.
+    successor = (next((a for a in others if provider in SEATED and a["id"] == registry["seated"]), None)
+                 or next((a for a in others if a.get("primary")), None) or others[0])
     if provider in SEATED and registry["seated"] == account["id"]:
-      raise AccountError(f"Running {PROVIDERS[provider]['name']} sessions use {account['label']}. Switch to another account first, then remove it.")
-    home = account_home(provider, account)
-    if home_in_use(provider, home):
-      raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses {account['label']}. Quit it first, then remove the account.")
-    # Only the account's own directory goes. Its links point into the primary
-    # home, and rmtree removes a link without following it.
-    if home.resolve().parent == (accounts_root() / provider).resolve():
-      shutil.rmtree(home, ignore_errors=True)
-    registry["accounts"] = [a for a in registry["accounts"] if a["id"] != account["id"]]
+      holders = seat(provider, registry, successor)
+      if registry["seated"] == account["id"]:
+        if holders:
+          raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses {label_of(successor)}, so sessions can't move to it. Quit it first, then remove {label_of(account)}.")
+        raise AccountError(f"{label_of(successor)} isn't signed in, so sessions can't move to it. Sign it in again first, then remove {label_of(account)}.")
+
+    if account.get("primary"):
+      promote(provider, registry, account, successor)
+    else:
+      home = account_home(provider, account)
+      refuse_in_use(provider, home, account)
+      remove_home(provider, home)
+    registry["accounts"] = others
     if registry["active"] == account["id"]:
-      registry["active"] = registry["accounts"][0]["id"]
+      registry["active"] = successor["id"]
+    registry["alert"] = ""
+    if registry["held"] == account["id"]:
+      registry["held"] = ""
     return account
 
 
