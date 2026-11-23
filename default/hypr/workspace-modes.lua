@@ -128,6 +128,7 @@ local function tile_for_mode(window)
 
   if window.pinned then
     hl.dispatch(hl.dsp.window.pin({ action = "off", window = window }))
+    hl.dispatch(hl.dsp.window.tag({ tag = "-pop", window = window }))
   end
   set_floating(window, false)
 end
