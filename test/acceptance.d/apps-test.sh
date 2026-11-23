@@ -16,7 +16,8 @@ launch_and_verify() {
   launch_app "$command"
   wait_until "$name opens a window" "$timeout" window_present "$class"
   sleep 1
-  screenshot "success-app-$name"
+  local capture_status=0
+  screenshot "success-app-$name" || capture_status=$?
 
   local deadline=$((SECONDS + 30))
   while window_present "$class" >/dev/null 2>&1; do
@@ -29,6 +30,7 @@ launch_and_verify() {
     sleep 2
   done
   pass "$name window closes"
+  return "$capture_status"
 }
 
 # Keep launch coverage to the primary daily-use paths. The system acceptance
