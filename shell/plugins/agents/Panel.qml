@@ -95,12 +95,12 @@ Panel {
     var args = signOutArgs(target)
     // Copilot signs out only inside a session of its own, in a terminal.
     if (target.providerId === "copilot") {
-      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-account-remove --yes copilot"])
+      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-account-remove --yes --agent copilot"])
       root.close()
       return
     }
     if (args.length > 0) {
-      Util.execArgv(["bash", "-c", 'out=$(omarchy-agent-account-remove --yes "${@:2}" </dev/null 2>&1) || omarchy-notification-send -u critical "$1" "$out"',
+      Util.execArgv(["bash", "-c", 'out=$(omarchy-agent-account-remove --yes --agent "${@:2}" </dev/null 2>&1) || omarchy-notification-send -u critical "$1" "$out"',
                      "remove-account", Commons.I18n.t("agents.removeFailed").arg(lineName(target))].concat(args))
       return
     }

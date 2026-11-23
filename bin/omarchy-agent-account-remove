@@ -1,17 +1,21 @@
 #!/bin/bash
 
 # omarchy:summary=Forget an agent sign-in, handing a Claude, Codex, or Grok account's sessions to another
-# omarchy:args=[--yes] [agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai] [account]
+# omarchy:args=[--yes] [--agent] [agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai] [account]
 # omarchy:examples=omarchy agent account remove work | omarchy agent account remove codex side | omarchy agent account remove openrouter
 
 set -uo pipefail
 
-# --yes skips the confirmation, for a caller that already asked.
+# --yes skips the confirmation, for a caller that already asked. --agent
+# says the first argument is the agent, never an account by that name, for a
+# caller that knows which it means.
 confirm=true
-if [[ ${1:-} == "--yes" ]]; then
-  confirm=false
+explicit=false
+while [[ ${1:-} == "--yes" || ${1:-} == "--agent" ]]; do
+  [[ $1 == "--yes" ]] && confirm=false
+  [[ $1 == "--agent" ]] && explicit=true
   shift
-fi
+done
 
 accounts_provider() {
   [[ $1 == "claude" || $1 == "codex" || $1 == "grok" ]]
@@ -25,8 +29,10 @@ has_account() {
 # `omarchy agent account remove work`. An account of the default agent named
 # like another agent (`cursor`) is still that account.
 default=$(omarchy-default-agent)
-if [[ ! ${1:-} =~ ^(agy|gemini|claude|codex|copilot|cursor|cursor-agent|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai)$ ]] ||
-  { (( $# == 1 )) && ! accounts_provider "$1" && accounts_provider "$default" && has_account "$default" "$1"; }; then
+if [[ $explicit == "false" ]] && {
+  [[ ! ${1:-} =~ ^(agy|gemini|claude|codex|copilot|cursor|cursor-agent|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai)$ ]] ||
+    { (( $# == 1 )) && ! accounts_provider "$1" && accounts_provider "$default" && has_account "$default" "$1"; }
+}; then
   accounts_provider "$default" && set -- "$default" "$@"
 fi
 
@@ -105,7 +111,7 @@ cursor) cursor-agent logout >/dev/null || exit 1 ;;
 copilot)
   # Copilot signs out only from inside a session, which needs a terminal.
   if [[ -t 0 ]]; then
-    copilot -i /logout
+    copilot -i /logout || exit 1
   else
     echo "Copilot signs out from its own session: run omarchy agent account remove copilot in a terminal." >&2
     exit 1

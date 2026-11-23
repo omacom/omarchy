@@ -886,6 +886,12 @@ pass "a first sign-in installs its subscription's desktop app"
 
   # An account named like another agent is still the default agent's.
   OMARCHY_TEST_LOGIN_UUID=u-cursor OMARCHY_TEST_LOGIN_EMAIL=cursor@example.com omarchy-agent-account-add claude Cursor </dev/null >/dev/null
+  # The panel names the agent outright, and means Cursor itself.
+  omarchy-agent-account-remove --yes --agent cursor </dev/null >/dev/null
+  [[ $(jq -c '[.accounts[].id]' "$accounts/claude.json") == '["side","cursor"]' && $(cat "$OMARCHY_TEST_LOGOUTS") == "cursor-agent logout" ]] ||
+    fail "--agent cursor signs Cursor out and leaves the account named cursor" "$(cat "$accounts/claude.json" "$OMARCHY_TEST_LOGOUTS" 2>/dev/null)"
+  : >"$OMARCHY_TEST_LOGOUTS"
+  : >"$OMARCHY_TEST_BAR_LOG"
   omarchy-agent-account-remove cursor </dev/null >/dev/null
   [[ $(jq -c '[.accounts[].id]' "$accounts/claude.json") == '["side"]' && ! -s $OMARCHY_TEST_LOGOUTS ]] ||
     fail "remove <name> takes the default agent's account by that name before another agent" "$(cat "$accounts/claude.json" "$OMARCHY_TEST_LOGOUTS" 2>/dev/null)"
