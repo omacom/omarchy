@@ -56,6 +56,35 @@ collect() {
   mv "$tmp" "$USAGE_DIR/$agent.json"
 }
 
+# Wait on each collector pid once. wait -n is not that wait: when several
+# have already finished it can return 127, and that 127 is not a collector
+# status. In posix mode it also consumes the status, so a second wait on the
+# pid is 127 too. A pid that has left the running set has finished, and its
+# status is still there for this one wait.
+reap_finished() {
+  local -A still_running=()
+  local alive pid
+  local pending=()
+  while IFS= read -r alive; do
+    if [[ -n $alive ]]; then
+      still_running[$alive]=1
+    fi
+  done < <(jobs -pr)
+  for pid in "${collector_pids[@]}"; do
+    if [[ -n ${still_running[$pid]} ]]; then
+      pending+=("$pid")
+    else
+      if ! builtin wait "$pid"; then
+        status=1
+      fi
+    fi
+  done
+  collector_pids=()
+  if (( ${#pending[@]} > 0 )); then
+    collector_pids=("${pending[@]}")
+  fi
+}
+
 # Accounts can be signed in to someone else since they were added; the
 # records name them from the registry, so bring it up to date first.
 accounts_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/accounts"
@@ -64,23 +93,45 @@ if [[ -d $accounts_dir ]]; then
 fi
 
 # Collectors forced together read the Codex rollouts they share once between
-# them, whenever each gets to them, by knowing when this refresh began.
-# EPOCHREALTIME uses the locale's decimal separator, a comma in many.
+# them, whenever each gets to them, by knowing when this refresh began and
+# that this process is still the one running them. A capped refresh can
+# outlast the stamp's own window; a stamp inherited from elsewhere stops
+# counting once this process is gone. EPOCHREALTIME uses the locale's
+# decimal separator, a comma in many.
 export OMARCHY_AGENT_USAGE_REFRESH_AT=${EPOCHREALTIME/,/.}
+export OMARCHY_AGENT_USAGE_REFRESH_PID=$$
 
-pids=()
+# A refresh starts every collector, and each one re-scans local session
+# stores. All at once, that pins every core for the whole scan. Two at a
+# time leaves the foreground its cores. OMARCHY_AGENT_USAGE_JOBS overrides
+# the width. The stamp and pid above are shared either way, so collectors
+# that read one store still scan it once between them, whenever each gets to it.
+collector_jobs=${OMARCHY_AGENT_USAGE_JOBS:-2}
+[[ $collector_jobs =~ ^[1-9][0-9]*$ ]] || collector_jobs=2
+
+collector_pids=()
+status=0
 for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
   [[ -x $collector ]] || continue
   agent="${collector##*/omarchy-agent-usage-}"
   [[ $agent == "update" ]] && continue
   wanted "$agent" || continue
+  # Sleep only while every slot is still busy, so a fast collector can take
+  # the slot a slow one is not using.
+  while (( ${#collector_pids[@]} >= collector_jobs )); do
+    reap_finished
+    if (( ${#collector_pids[@]} >= collector_jobs )); then
+      sleep 0.05
+    fi
+  done
   collect "$collector" "$agent" &
-  pids+=($!)
+  collector_pids+=("$!")
 done
-
-status=0
-for pid in "${pids[@]}"; do
-  wait "$pid" || status=1
+while (( ${#collector_pids[@]} > 0 )); do
+  reap_finished
+  if (( ${#collector_pids[@]} > 0 )); then
+    sleep 0.05
+  fi
 done
 
 # Fresh limits are when an account near a limit gets announced.
