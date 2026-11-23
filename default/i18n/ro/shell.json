@@ -22,7 +22,7 @@
   "agents.editInstructions": "Editează AGENTS.md, instrucțiunile urmate de toți agenții",
   "agents.enterApiKey": "Lipește cheia API",
   "agents.firstBecomesDefault": "Primul devine implicit",
-  "agents.forgetAccountConfirm": "Elimini %1? Autentificarea va fi ștearsă de pe acest dispozitiv, deci adăugarea din nou necesită o nouă autentificare.",
+  "agents.forgetAccountConfirm": "Elimini %1?",
   "agents.freeResets": {
     "few": "%1 resetări gratuite",
     "one": "%1 resetare gratuită",

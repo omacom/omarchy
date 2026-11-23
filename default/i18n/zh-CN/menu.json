@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "默认项"
   },
-  "agent": {
-    "label": "智能体"
-  },
   "setup.default.browser": {
     "label": "浏览器",
     "title": "默认浏览器"

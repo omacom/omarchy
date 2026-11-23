@@ -39,11 +39,19 @@ Panel {
     if (i >= 0 && removable(providers[i])) deleteTarget = providers[i]
   }
 
-  // An added account is forgotten, its sign-in deleted here. Any other line
-  // is hidden, its sign-in kept: the login a machine started with holds what
-  // its added accounts link to, so it, and the account in use, stay.
+  // What omarchy agent account remove takes to sign a line out: the
+  // provider, and for an agent with accounts, the line's own or, where it has
+  // only the one, the login this machine started with. Empty for a line with
+  // no sign-in of its own.
+  readonly property var signOutProviders: ["agy", "claude", "codex", "copilot", "cursor", "deepseek", "fireworks", "grok", "minimax", "muse", "opencode", "openrouter", "synthetic", "zai"]
+  function signOutArgs(line) {
+    if (!line || line.localModel || signOutProviders.indexOf(line.providerId) < 0) return []
+    if (line.account) return [line.providerId, String(line.account.id)]
+    return ["claude", "codex", "grok"].indexOf(line.providerId) >= 0 ? [line.providerId, "primary"] : [line.providerId]
+  }
+
   function forgets(line) {
-    return !!line && !!line.account && line.account.primary !== true
+    return signOutArgs(line).length > 0
   }
 
   // A local model's line goes back to the add screen; the default's hands
@@ -57,7 +65,7 @@ Panel {
       if (model && model.panelSetup && ["failed", "waiting"].indexOf(model.install.phase) < 0) return false
       return !opensByDefault(line) || !!defaultSuccessor(line)
     }
-    return !line.account || (forgets(line) && line.account.active !== true)
+    return true
   }
 
   function opensByDefault(line) {
@@ -71,10 +79,11 @@ Panel {
     }) || null
   }
 
-  // Forgets an added account, or hides the agent from the panel; a hidden
-  // one comes back from settings, or by signing in again. A model on this
-  // machine is removed from it, download and all, and a paired machine's is
-  // unlinked, still running there; the add screen offers either again.
+  // Signs the line out through omarchy agent account remove, which hides
+  // the agent once its last sign-in is gone; a line with no sign-in of its
+  // own is only hidden. A model on this machine is removed from it,
+  // download and all, and a paired machine's is unlinked, still running
+  // there; the add screen offers either again.
   function confirmDelete() {
     var target = deleteTarget
     deleteTarget = null
@@ -101,25 +110,31 @@ Panel {
       usage.removeLocalModels([target.localModel.target])
       return
     }
-    if (forgets(target)) {
-      Util.execArgv(["bash", "-c", 'out=$(omarchy-agent-account-remove "$1" "$2" </dev/null 2>&1) || omarchy-notification-send -u critical "$3" "$out"',
-                     "remove-account", target.providerId, String(target.account.id), Commons.I18n.t("agents.removeFailed").arg(lineName(target))])
+    var args = signOutArgs(target)
+    // Copilot signs out only inside a session of its own, in a terminal.
+    if (target.providerId === "copilot") {
+      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-account-remove --yes --agent copilot"])
+      root.close()
       return
     }
-    if (bar && bar.shell) {
-      var next = JSON.parse(JSON.stringify(settings || {}))
-      if (!next.providers) next.providers = {}
-      next.providers[target.providerId] = Object.assign({}, next.providers[target.providerId] || {}, { enabled: false })
-      bar.shell.updateEntryInline(moduleName, next)
+    if (args.length > 0) {
+      Util.execArgv(["bash", "-c", 'out=$(omarchy-agent-account-remove --yes --agent "${@:2}" </dev/null 2>&1) || omarchy-notification-send -u critical "$1" "$out"',
+                     "remove-account", Commons.I18n.t("agents.removeFailed").arg(lineName(target))].concat(args))
+      return
     }
+    setProviderShown(target.providerId, false)
   }
 
-  // Signing in to an agent that was hidden from the panel brings it back.
-  function showProvider(id) {
-    if (!bar || !bar.shell || !settings || !settings.providers || !settings.providers[id]
-        || settings.providers[id].enabled !== false) return
-    var next = JSON.parse(JSON.stringify(settings))
-    next.providers[id].enabled = true
+  // Hides an agent from the panel, or shows a hidden one again, as signing in
+  // to it does. The sign-in commands ask for this through showAgent, so the
+  // change is made here, one at a time, on the settings as they are now.
+  function setProviderShown(id, shown) {
+    if (!bar || !bar.shell || id === "") return
+    var current = settings && settings.providers && settings.providers[id]
+    if (shown && (!current || current.enabled !== false)) return
+    var next = JSON.parse(JSON.stringify(settings || {}))
+    if (!next.providers) next.providers = {}
+    next.providers[id] = Object.assign({}, next.providers[id] || {}, { enabled: shown })
     bar.shell.updateEntryInline(moduleName, next)
   }
 
@@ -512,23 +527,32 @@ Panel {
   }
 
   // What the network and local blocks of the add screen offer: each coding
-  // model without a line, a paired machine's before this one's. This
+  // model without a line, a paired machine's first, then one shared on the
+  // tailnet by a machine not paired yet, which choosing pairs with. This
   // machine's are those set up here, then every recipe that fits and isn't,
   // recommended first, then another DGX Spark cabled to this one. Those
-  // being set up, and the one being started from here, stay, showing how
-  // that goes.
+  // being set up or paired with, and the one being started from here, stay,
+  // showing how that goes.
   readonly property var ownModelOffers: {
     var offers = []
     var lines = localModelLines.filter(function(line) {
       return !usage.localModelAdded(line) || line.localModel.target === settingUpLocal || localSettingUp(localModelState(line.localModel))
     })
-    lines.sort(function(a, b) { return (a.localModel.host === "") - (b.localModel.host === "") })
-    for (var i = 0; i < lines.length; i++) {
-      var model = localModelState(lines[i].localModel)
-      if (model && model.unit === "removing") continue
-      offers.push({ target: lines[i].localModel.target, name: lines[i].providerName, vendor: lines[i].iconId,
-                    host: lines[i].localModel.host, facts: lines[i].localModel })
+    var offerLine = function(line) {
+      var model = localModelState(line.localModel)
+      if (model && model.unit === "removing") return
+      offers.push({ target: line.localModel.target, name: line.providerName, vendor: line.iconId,
+                    host: line.localModel.host, facts: line.localModel })
     }
+    lines.filter(function(line) { return line.localModel.host !== "" }).forEach(offerLine)
+    var network = localModelsService ? localModelsService.networkModels || {} : {}
+    for (var nid in network) {
+      var shared = network[nid]
+      if (shared.paired === true || String(shared.offline || "") !== "" || shared.kind !== "text" || shared.unit !== "active") continue
+      offers.push({ target: nid, name: shared.name || shared.recipe, vendor: shared.vendor || "local", host: shared.host,
+                    facts: { decode_tok_s: shared.decode_tok_s, context: shared.ctx }, pair: shared })
+    }
+    lines.filter(function(line) { return line.localModel.host === "" }).forEach(offerLine)
     var recipes = (localModelsService ? localModelsService.localRecipes || [] : []).filter(function(recipe) {
       return recipe.kind === "text" && recipe.available === true
         && !localModelLines.some(function(line) { return line.localModel.target === String(recipe.id) })
@@ -568,6 +592,29 @@ Panel {
   property string settingUpLocal: ""
   readonly property var localSetup: settingUpLocal === "" ? null : localModelState({ target: settingUpLocal, host: "" })
 
+  // A tailnet model being paired with keeps its row too, its meter saying
+  // how the pairing goes; once paired, it has its line in the panel and
+  // becomes the default if nothing else was finished first.
+  property string pairingLocal: ""
+  onLocalModelLinesChanged: {
+    if (pairingLocal === "" || !localModelLines.some(function(line) { return line.localModel.target === pairingLocal })) return
+    if (usage.defaultAgent === "") selectLocalDefault(pairingLocal)
+    pairingLocal = ""
+    if (settingUpLocal === "" && addStage === "pick") cancelAdd()
+  }
+
+  // The pairing's meter: under way, or why it failed.
+  readonly property var pairingMeter: {
+    if (pairingLocal === "" || !localModelsService) return null
+    var host = pairingLocal.split("/")[0]
+    if (localModelsService.pairingId === pairingLocal)
+      return { title: Commons.I18n.t("localModels.networkPairing").arg(host), value: -1, rate: "" }
+    var failure = localModelsService.pairFailures[pairingLocal]
+    if (failure)
+      return { title: failure.message || Commons.I18n.t("localModels.networkPairFailed").arg(host), value: -1, rate: "", failed: true }
+    return null
+  }
+
   function localSettingUp(model) {
     return !!model && (model.panelSetup === true || model.unit === "installing")
   }
@@ -584,7 +631,7 @@ Panel {
     var target = settingUpLocal
     settingUpLocal = ""
     if (usage.defaultAgent === "") selectLocalDefault(target)
-    if (addStage === "pick") cancelAdd()
+    if (pairingLocal === "" && addStage === "pick") cancelAdd()
   }
 
   // What a model on this machine is doing, as a meter: its title, how far
@@ -776,6 +823,15 @@ Panel {
     if (offer.link) {
       root.close()
       Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-models link setup"])
+      return
+    }
+    // A tailnet model not paired yet is paired with in the background, its
+    // row saying how that goes; once paired, it has its line in the panel.
+    if (offer.pair) {
+      if (localModelsService.pairingId !== "") return
+      usage.addLocalModel(offer.target)
+      pairingLocal = offer.target
+      localModelsService.pair(offer.pair)
       return
     }
     // A setup or start underway from here goes on; one that failed, or
@@ -983,7 +1039,7 @@ Panel {
         // account shows once its limits arrive.
         addStage = tagged[1] === "done" ? "" : tagged[1]
         if (tagged[1] === "done") {
-          showProvider(addProvider)
+          setProviderShown(addProvider, true)
           usage.refreshLimits()
           root.focusKeys()
           // Nothing to show yet means the sign-in is what counts as set up.
@@ -1792,6 +1848,12 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
+  // The code field while it shows, set by the field itself since it lives
+  // in the panel's content. A sign-in waiting on a code or key gives it the
+  // keyboard whenever the panel opens, so opening it and pasting is all it
+  // needs.
+  property Item pasteFieldItem: null
+  readonly property Item openFocusItem: addStage === "running" && addNeedsPaste && pasteFieldItem ? pasteFieldItem : panel.loadedContent
   onOpenedChanged: if (!opened) {
     resetProviderDrag()
     makesOpenIndex = -1
@@ -1809,7 +1871,7 @@ Panel {
     // freed since lets it start, so it's judged again.
     if (Object.keys(localModels).some(function(id) { return localModels[id].fits === false }))
       Util.execArgv(["omarchy-models", "status", "--write"])
-    Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
+    Qt.callLater(function() { if (root.openFocusItem) root.openFocusItem.forceActiveFocus() })
   }
 
   // The tailnet has no change signal, so while the panel is open the paired
@@ -1909,6 +1971,7 @@ Panel {
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
     function refresh(): string { root.refreshNow(); return "ok" }
+    function showAgent(id: string, shown: bool): string { root.setProviderShown(id, shown); return "ok" }
   }
 
   BarIconButton {
@@ -1930,7 +1993,7 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    focusTarget: panel.loadedContent
+    focusTarget: root.openFocusItem
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(860))
 
@@ -1988,7 +2051,10 @@ Panel {
                                            Math.max(0, panelFlick.contentHeight - panelFlick.height))
       }
       onDeleteRequested: root.deleteSelected()
-      blocked: root.renaming || root.deleteTarget !== null
+      // A code field keeps its own keys: Qt passes Return on after accepting
+      // it, and here that would press the Cancel under the cursor too,
+      // stopping the sign-in just handed its code.
+      blocked: root.renaming || root.deleteTarget !== null || addView.pasteFocused
       onActivateRequested: root.activateSelection()
       onCloseRequested: {
         if (root.dragIndex >= 0) root.settleProviderDrag(true)
@@ -2102,6 +2168,7 @@ Panel {
           }
 
           AddView {
+            id: addView
             visible: root.addStage !== "" || root.blankSlate
             width: column.width
           }
@@ -2243,6 +2310,8 @@ Panel {
   component AddView: Column {
     id: add
     spacing: Style.space(14)
+    // The panel's key catcher can't see inside this component, so it asks here.
+    readonly property bool pasteFocused: pasteField.activeFocus
 
     PanelSeparator { foreground: root.foreground }
 
@@ -2297,8 +2366,8 @@ Panel {
         }
       }
 
-      // A model from a paired machine, in a block of its own above this
-      // machine's.
+      // A model from a paired machine, or shared by one to pair with, in a
+      // block of its own above this machine's.
       Column {
         visible: root.networkOfferCount > 0
         width: parent.width
@@ -2401,9 +2470,9 @@ Panel {
             }
 
             // The setup or start begun here: installing, downloading, then
-            // loading, as its line will show it.
+            // loading, as its line will show it; or the pairing.
             LocalMeterRow {
-              meter: root.offerMeter(ownModel.modelData)
+              meter: ownModel.modelData.pair ? (ownModel.modelData.target === root.pairingLocal ? root.pairingMeter : null) : root.offerMeter(ownModel.modelData)
               visible: !!meter
               width: parent.width
               topPadding: Style.space(6)
@@ -2511,7 +2580,9 @@ Panel {
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         onVisibleChanged: if (visible) { text = ""; forceActiveFocus() }
-        onAccepted: root.startAdd(text.trim())
+        // Enter stops here, or the panel would press its cursor too.
+        Keys.onReturnPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
+        Keys.onEnterPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
         Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
       }
     }
@@ -2648,8 +2719,15 @@ Panel {
             foreground: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
-            onAccepted: { root.submitPaste(text); text = "" }
-            onVisibleChanged: if (visible) forceActiveFocus()
+            // Enter stops here, or the panel would press its cursor too.
+            function submit() { root.submitPaste(text); text = "" }
+            Keys.onReturnPressed: function(event) { submit(); event.accepted = true }
+            Keys.onEnterPressed: function(event) { submit(); event.accepted = true }
+            onVisibleChanged: {
+              root.pasteFieldItem = visible ? pasteField : null
+              if (visible) forceActiveFocus()
+            }
+            Component.onDestruction: if (root.pasteFieldItem === pasteField) root.pasteFieldItem = null
             Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
           }
         }
@@ -2771,7 +2849,9 @@ Panel {
     readonly property bool makesOpen: root.makesOpenIndex === providerIndex
     onEngagedChanged: {
       if (!engaged && makesOpen) root.makesOpenIndex = -1
-      if (engaged) root.pointerOnLine(providerIndex)
+      // Once the change settles: moving the cursor while keyTarget is being
+      // worked out is a binding loop, which can leave Delete with no line.
+      if (engaged) Qt.callLater(root.pointerOnLine, providerIndex)
     }
     HoverHandler { id: sectionHover }
     z: dragged ? 2 : 0
@@ -2895,7 +2975,9 @@ Panel {
         font.pixelSize: Style.font.body
         horizontalPadding: Style.space(4)
         verticalPadding: Style.space(1)
-        onAccepted: section.finishRename(true)
+        // Enter stops here, or the panel would press its cursor too.
+        Keys.onReturnPressed: function(event) { section.finishRename(true); event.accepted = true }
+        Keys.onEnterPressed: function(event) { section.finishRename(true); event.accepted = true }
         onActiveFocusChanged: if (!activeFocus) section.finishRename(false)
         Keys.onEscapePressed: function(event) {
           section.finishRename(false)
@@ -3452,11 +3534,13 @@ Panel {
     property var meter: null
     property real topPadding: 0
     readonly property bool failed: !!meter && meter.failed === true
+    // A step with no measure of its own, like a pairing, is its title alone.
+    readonly property bool barless: !meter || failed || meter.value < 0
     implicitHeight: Math.max(meterTitle.implicitHeight, meterRate.implicitHeight) + topPadding
 
     Text {
       id: meterTitle
-      width: meterRow.failed ? parent.width : parent.width * 0.3
+      width: meterRow.barless ? parent.width : parent.width * 0.3
       anchors.bottom: parent.bottom
       textFormat: Text.PlainText
       text: meterRow.meter ? meterRow.meter.title : ""
@@ -3468,7 +3552,7 @@ Panel {
     }
 
     Meter {
-      visible: !!meterRow.meter && !meterRow.failed
+      visible: !meterRow.barless
       anchors.left: meterTitle.right
       anchors.right: meterRate.left
       anchors.rightMargin: Style.space(20)

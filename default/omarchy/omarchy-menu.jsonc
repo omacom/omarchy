@@ -22,7 +22,6 @@
 
   // Root Menu
   "apps": {"icon":"󰀻","label":"Apps","aliases":["app","applications"],"provider":"apps","action":"omarchy-shell omarchy.dock apps"},
-  "agent": {"icon":"󰚩","label":"Agent","action":"omarchy-shell omarchy.agents open"},
   "appearance": {"icon":"󰏘","label":"Appearance","aliases":["style"]},
   "trigger": {"icon":"󱓞","label":"Trigger"},
   "setup": {"icon":"","label":"Setup","aliases":["settings"]},

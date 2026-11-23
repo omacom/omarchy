@@ -22,7 +22,7 @@
   "agents.editInstructions": "Уреди AGENTS.md, упутства која прати сваки агент",
   "agents.enterApiKey": "Налепи API кључ",
   "agents.firstBecomesDefault": "Први је ваш подразумевани агент",
-  "agents.forgetAccountConfirm": "Уклонити %1? Његова пријава се брише са овог рачунара, па поновно додавање значи поновну пријаву.",
+  "agents.forgetAccountConfirm": "Уклонити %1?",
   "agents.freeResets": {
     "few": "%1 бесплатна ресетовања",
     "one": "%1 бесплатно ресетовање",

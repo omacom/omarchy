@@ -22,7 +22,7 @@
   "agents.editInstructions": "编辑 AGENTS.md，即所有智能体遵循的说明",
   "agents.enterApiKey": "粘贴 API 密钥",
   "agents.firstBecomesDefault": "第一个将设为默认",
-  "agents.forgetAccountConfirm": "移除 %1？其登录信息将从本机删除，重新添加时需要再次登录。",
+  "agents.forgetAccountConfirm": "移除 %1？",
   "agents.freeResets": {
     "other": "%1 次免费重置"
   },

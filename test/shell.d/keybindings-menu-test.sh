@@ -175,6 +175,34 @@ grep -q 'SUPER + MINUS  *→ Expand window left' <<<"$rendered" &&
   fail "a keycode is named by what the leading layout prints on it" "$rendered"
 pass "a keycode is named by what the leading layout prints on it"
 
+# The Quake console is bound to the key left of 1, which most ISO layouts
+# print something other than ~ on: ½, ^, ², º, | or §, never the keysym name.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + code:49" "Toggle Quake console")
+BINDS
+for layout in dk:½ de:^ fr:² es:º no:"|" se:§ us:~; do
+  echo "{\"str\": \"${layout%%:*}\"}" >"$stub_bin/option-kb_layout"
+  rendered=$(keybindings "" "$tmpdir/cache-${layout%%:*}")
+  grep -qF "SUPER + ${layout#*:} " <<<"$rendered" ||
+    fail "the key left of 1 reads ${layout#*:} on ${layout%%:*}" "$rendered"
+done
+rm "$stub_bin/option-kb_layout"
+pass "the key left of 1 reads as the symbol printed on it on ISO layouts"
+
+# Resize sits on the two keys right of 0. German writes the first over several
+# lines, with its ß on a line of its own, and the US fallback would call it MINUS.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + code:20" "Expand window left")
+$(lua_bind 64 "SUPER + code:21" "Shrink window left")
+BINDS
+echo '{"str": "de"}' >"$stub_bin/option-kb_layout"
+rendered=$(keybindings "" "$tmpdir/cache-de-resize")
+rm "$stub_bin/option-kb_layout"
+grep -q 'SUPER + ß  *→ Expand window left' <<<"$rendered" &&
+  grep -q 'SUPER + ´  *→ Shrink window left' <<<"$rendered" ||
+  fail "the resize keys read as what German prints on them" "$rendered"
+pass "the resize keys read as what German prints on them"
+
 # A chord refused for width opens a row of its own, and the next chord tries
 # that row rather than reaching back past it and printing out of order.
 stub_hyprctl <<BINDS

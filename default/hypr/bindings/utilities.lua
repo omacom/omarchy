@@ -1,3 +1,5 @@
+local keyboard = require("default.hypr.keyboard")
+
 o.bind("SUPER + SPACE", "Omarchy menu", { menu = "root" })
 o.bind("SUPER + ALT + SPACE", "Apps", "omarchy-shell omarchy.dock apps")
 o.bind("SUPER + CTRL + E", "Emojis", { panel = "omarchy.emojis" })
@@ -103,7 +105,7 @@ end)
 
 o.bind("SUPER + CTRL + S", "Share", { menu = "share" })
 
-o.bind("SUPER + CTRL + PERIOD", "Transcode", "omarchy-transcode")
+o.bind("SUPER + CTRL + " .. keyboard.key("PERIOD"), "Transcode", "omarchy-transcode")
 
 o.bind("SUPER + CTRL + R", "Set reminder", { menu = "reminder-set" })
 o.bind("SUPER + CTRL + ALT + R", "Show reminders", "omarchy-reminder show")

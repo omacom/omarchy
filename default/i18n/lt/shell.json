@@ -22,7 +22,7 @@
   "agents.editInstructions": "Redaguokite AGENTS.md – nurodymus, kurių laikosi visi agentai",
   "agents.enterApiKey": "Įklijuokite API raktą",
   "agents.firstBecomesDefault": "Pirmasis yra numatytasis",
-  "agents.forgetAccountConfirm": "Pašalinti %1? Jo prisijungimas bus ištrintas iš šio įrenginio, todėl pridedant iš naujo reikės vėl prisijungti.",
+  "agents.forgetAccountConfirm": "Pašalinti %1?",
   "agents.freeResets": {
     "few": "%1 nemokami atstatymai",
     "one": "%1 nemokamas atstatymas",

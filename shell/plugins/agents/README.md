@@ -110,7 +110,8 @@ per local coding model added.
   run in OpenCode, and More: DeepSeek, then OpenCode's own sign-in for any
   other provider; every key is checked like Fireworks'), each a
   large mark four across, then _Use a network model_: a line for each coding model not added yet
-  that a paired, online machine is running, and _Use a local model_: each
+  that a paired, online machine is running, then one for each a machine on
+  the tailnet shares but isn't paired with yet, and _Use a local model_: each
   coding model set up on this machine and not added, then every one in the
   local models catalog that fits this computer and isn't set up, the
   recommended one first, then another DGX Spark cabled to this one, which
@@ -119,7 +120,9 @@ per local coding model added.
   Choosing a model adds it. One that's running opens the agent on it; one
   stopped starts, and one to set up is set up, staying on the add screen
   with its installing, download, and loading under it until it runs and the
-  add screen steps back to the panel. With no default agent yet, the local
+  add screen steps back to the panel. One not paired yet is paired with in
+  the background the same way, its row saying so, or why pairing failed, and
+  choosing it again retries. With no default agent yet, the local
   model becomes it once the chosen model is ready, as the first sign-in does. Copilot, Cursor, and Muse are added with `omarchy
   agent account add`, and a lapsed sign-in of theirs still gets its link here. The + becomes
   the X that goes back. A further Claude, Codex, or Grok account asks for a
@@ -134,6 +137,7 @@ per local coding model added.
   provider, then saved in OpenCode, which is installed first if it's missing. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
   carries on and its result arrives as a notification. Signing in to an
   agent that was hidden from the panel shows it again.
+- **Deleting** — Delete (or X) on a line forgets its sign-in through `omarchy agent account remove`, then hides the agent, so a key it still reads from the environment, pi, or omp doesn't bring it back. One of several Claude, Codex, or Grok accounts is only forgotten, its sessions moving to another account first when it's the one in use. Gemini's sign-in is cleared from the keyring and agy's token file, Cursor and Muse run their own logout, a key is logged out of OpenCode, and Copilot opens a terminal on its own `/logout`. An agent with no sign-in of its own is only hidden.
 
 The icon is always in the bar. On a machine with no agent yet, the panel is
 the blank slate for setting one up: it opens on the same choice of agents,

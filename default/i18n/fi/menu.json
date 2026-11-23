@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Oletukset"
   },
-  "agent": {
-    "label": "Agentti"
-  },
   "setup.default.browser": {
     "label": "Selain",
     "title": "Oletusselain"

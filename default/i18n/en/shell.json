@@ -81,7 +81,7 @@
   "agents.downloadRate": "%1 MB/s",
   "agents.loginBrowser": "Log in through your browser",
   "agents.editInstructions": "Edit AGENTS.md, the instructions every agent follows",
-  "agents.forgetAccountConfirm": "Remove %1? Its sign-in is deleted from this machine, so adding it back means signing in again.",
+  "agents.forgetAccountConfirm": "Remove %1?",
   "agents.removeFailed": "Couldn't remove %1",
   "agents.removeDefaultLocalModelConfirm": "Delete %1 from this machine? It stops, its download is deleted, + can set it up again, and the agent at the top becomes the default.",
   "agents.removeLocalModelConfirm": "Delete %1 from this machine? It stops, its download is deleted, and + can set it up again.",
@@ -141,6 +141,8 @@
   "localModels.linkSetUp": "Set both up to run models across them",
   "localModels.loadingMeter": "Loading",
   "localModels.memoryFact": "%1 GiB memory",
+  "localModels.networkPairFailed": "Couldn't pair with %1",
+  "localModels.networkPairing": "Pairing with %1…",
   "localModels.networkShare": "Share on your tailnet",
   "localModels.networkSharedUsers": {
     "one": "Shared with %1 user · stop sharing",

@@ -22,7 +22,7 @@
   "agents.editInstructions": "모든 에이전트가 따르는 지침인 AGENTS.md 편집",
   "agents.enterApiKey": "API 키 붙여넣기",
   "agents.firstBecomesDefault": "첫 번째가 기본 에이전트가 됩니다",
-  "agents.forgetAccountConfirm": "%1을 제거할까요? 이 기기에서 로그인이 삭제되므로, 다시 추가하려면 다시 로그인해야 합니다.",
+  "agents.forgetAccountConfirm": "%1을 제거할까요?",
   "agents.freeResets": {
     "other": "무료 초기화 %1회"
   },

@@ -22,7 +22,7 @@
   "agents.editInstructions": "Uredite AGENTS.md, navodila, ki jim sledijo vsi agenti",
   "agents.enterApiKey": "Prilepite ključ API",
   "agents.firstBecomesDefault": "Prvi je vaš privzeti agent",
-  "agents.forgetAccountConfirm": "Odstraniti %1? Prijava bo izbrisana s te naprave, zato bo ob ponovnem dodajanju potrebna nova prijava.",
+  "agents.forgetAccountConfirm": "Odstraniti %1?",
   "agents.freeResets": {
     "few": "%1 brezplačne ponastavitve",
     "one": "%1 brezplačna ponastavitev",

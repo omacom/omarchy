@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "இயல்புநிலைகள்"
   },
-  "agent": {
-    "label": "ஏஜென்ட்"
-  },
   "setup.default.browser": {
     "label": "உலாவி",
     "title": "இயல்புநிலை உலாவி"

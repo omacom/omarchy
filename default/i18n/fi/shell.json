@@ -22,7 +22,7 @@
   "agents.editInstructions": "Muokkaa AGENTS.md:tä, kaikkien agenttien noudattamia ohjeita",
   "agents.enterApiKey": "Liitä API-avaimesi",
   "agents.firstBecomesDefault": "Ensimmäinen on oletusagenttisi",
-  "agents.forgetAccountConfirm": "Poista %1? Sen kirjautuminen poistetaan tältä koneelta, joten uudelleen lisääminen vaatii kirjautumisen uudelleen.",
+  "agents.forgetAccountConfirm": "Poista %1?",
   "agents.freeResets": {
     "one": "%1 ilmainen nollaus",
     "other": "%1 ilmaista nollausta"
