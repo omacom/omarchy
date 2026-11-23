@@ -13,7 +13,7 @@ export SUDO_TEST_HOME="$boundary_tmp/home"
 # writes etc/omarchy/region here to model a regional install, never the host's.
 export SUDO_TEST_TARGET="$boundary_tmp/target"
 export OMARCHY_REGION_FILE="$SUDO_TEST_TARGET/etc/omarchy/region"
-mkdir -p "$SUDO_TEST_HOME" "$SUDO_TEST_TARGET/etc"
+mkdir -p "$SUDO_TEST_HOME" "$SUDO_TEST_TARGET/etc" "$SUDO_TEST_ROOT/run"
 mkdir -p "$SUDO_TEST_ROOT/bin" "$SUDO_TEST_ROOT/mock" "$SUDO_TEST_ROOT/default"
 : >"$SUDO_TEST_LOG"
 
@@ -32,6 +32,10 @@ if name.name == 'omarchy-apply-pacman':
  render_etc='etc="${4:-/}/etc"'
  assert s.count(render_etc)==1, 'render target lookup moved'
  s=s.replace(render_etc, 'etc="${4:-$SUDO_TEST_TARGET}/etc"')
+if name.name == 'omarchy-refresh-pacman':
+ render_root='/run/omarchy-render.XXXXXX'
+ assert s.count(render_root)==1, 'root staging path moved'
+ s=s.replace(render_root, str(target/'run'/'omarchy-render.XXXXXX'))
 p.write_text(s)
 p.chmod((source/name).stat().st_mode & 0o777)
 PY
