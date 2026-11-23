@@ -153,10 +153,8 @@ jobs:
 #include "translator.h"
 
 int main(int argc, char *argv[]) {
-    // Matches the window to <name>.desktop, so the compositor (Wayland app_id)
-    // and the launcher pick up the installed icon. Set before the app exists:
-    // the constructor already talks to xdg-desktop-portal, and a name set
-    // after it can no longer register the app there.
+    // Matches the Wayland app_id and launcher icon to <name>.desktop. Set before
+    // construction: a theme's portal settings read can block later registration.
     QGuiApplication::setDesktopFileName("<name>");
     QGuiApplication app(argc, argv);
     app.setApplicationName("<name>");
