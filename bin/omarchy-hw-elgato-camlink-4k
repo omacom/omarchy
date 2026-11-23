@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether an Elgato Cam Link 4K is plugged in.
+
+grep -qsx "Cam Link 4K" /sys/bus/usb/devices/*/product

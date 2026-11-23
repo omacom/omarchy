@@ -59,8 +59,7 @@ ShellRoot {
       props.barConfig = {
         position: "top",
         transparent: false,
-        centerAnchor: "",
-        layout: { left: [], center: [], right: [] }
+        layout: { left: [], centerBegin: [], center: [], centerEnd: [], right: [] }
       }
       props.shell = mockShell
     } else if (entry.kind === "bar-widget" || panelBarIds.indexOf(entry.id) !== -1) {
