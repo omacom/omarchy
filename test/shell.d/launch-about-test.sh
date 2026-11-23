@@ -403,3 +403,13 @@ presize_window
 [[ ${evals[-1]} != *'size ='* ]] ||
   fail "a custom launch does not trust an unmarked record either" "${evals[-1]}"
 pass "a custom launch does not trust an unmarked record either"
+
+fastfetch() {
+  case ${1:-} in
+    --list-config-paths) printf '%s\n' "${config_paths[@]}" ;;
+    --pipe) printf '\e[32m界\e[m\e[12Gvalue\e[3Cend\n' ;;
+    *) return 1 ;;
+  esac
+}
+[[ $(render_dimensions) == "22 1" ]] || fail "cursor alignment counts display columns, including wide glyphs"
+pass "cursor alignment counts display columns, including wide glyphs"

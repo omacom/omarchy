@@ -134,7 +134,7 @@ logo_dimensions() {
 # the logo out its own way, so a fit for that layout keys on this rather than on
 # the logo file's dimensions, which say nothing about it.
 render_dimensions() {
-  local rendered plain
+  local rendered plain line prefix suffix columns move direction padding
 
   # --pipe false for the reason measure_layout gives: fastfetch drops its
   # colours when it is not writing to a terminal, and the escapes have to be
@@ -143,7 +143,26 @@ render_dimensions() {
   rendered=${rendered%X}
   [[ -n $rendered ]] || return 1
 
-  plain=$(printf '%s' "$rendered" | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g')
+  # Fastfetch aligns fixed-width keys with cursor moves, which occupy columns.
+  plain=$(printf '%s' "$rendered" | sed 's/\x1b\[[0-9;?]*[a-zA-BD-FH-Z]//g')
+  plain=$(
+    while IFS= read -r line; do
+      while [[ $line =~ ^([^$ESC]*)$ESC\[([0-9]+)([CG])(.*)$ ]]; do
+        prefix=${BASH_REMATCH[1]}
+        move=$(( 10#${BASH_REMATCH[2]} ))
+        direction=${BASH_REMATCH[3]}
+        suffix=${BASH_REMATCH[4]}
+        columns=$(printf '%s' "$prefix" | display_columns)
+        (( move > 0 )) || move=1
+        padding=$move
+        [[ $direction == "G" ]] && padding=$(( move - 1 - columns ))
+        (( padding > 0 )) || padding=0
+        printf -v padding '%*s' "$padding" ""
+        line=$prefix$padding$suffix
+      done
+      printf '%s\n' "$line"
+    done <<<"$plain"
+  )
   printf '%s %s\n' "$(printf '%s\n' "$plain" | display_columns)" "$(printf '%s' "$rendered" | wc -l)"
 }
 
