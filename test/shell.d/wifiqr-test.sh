@@ -25,4 +25,12 @@ assertDeepEqual(
 assertDeepEqual(wifiqr.parseQrOutput('meta\twlan0\tWPA\tCafe\n01\n111\n').matrix, { rows: [], size: 0 }, 'wifiqr rejects ragged QR rows')
 assertDeepEqual(wifiqr.parseQrOutput('010\n101\n').matrix, { rows: [], size: 0 }, 'wifiqr rejects a non-square QR matrix')
 assertDeepEqual(wifiqr.parseQrOutput('010\n1x1\n010\n').matrix, { rows: [], size: 0 }, 'wifiqr rejects invalid QR modules')
+
+const panel = require('fs').readFileSync(path.join(root, 'shell/plugins/panels/wifiqr/Panel.qml'), 'utf8')
+const collectPassword = new Function('root', 'text', panel.match(/id: pwProc[\s\S]*?onStreamFinished: ([^\n]+)/)[1])
+for (const password of ['secret123', '  secret123  ', '        ']) {
+  const state = { opened: true, pwExpectedStop: false, password: '' }
+  collectPassword(state, password + '\n')
+  assertDeepEqual(state.password, password, 'password reveal preserves ' + JSON.stringify(password))
+}
 JS
