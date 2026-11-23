@@ -27,6 +27,11 @@ Item {
   property bool closing: false
   property bool submitted: false
   property string currentMessage: ""
+  // What a command asked its next prompt to say, as it knows what it's for
+  // and pkexec names only the program: one prompt, for that program, within
+  // a minute. Taken by the prompt it fits, which keeps it as currentLabel.
+  property var expected: null
+  property string currentLabel: ""
   property string currentPrompt: ""
   property string currentSupplementary: ""
   property bool responseRequired: false
@@ -52,7 +57,16 @@ Item {
   readonly property int cardWidth: fingerprintMode ? cardHeight : Math.min(Style.space(312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
 
   function authorizationLabel(message) {
+    if (currentLabel !== "") return currentLabel
     return message ? PolkitModel.authorizationLabel(message, I18n.t) : I18n.t("polkit.authenticationNeeded")
+  }
+
+  ShellIpc {
+    target: "omarchy.polkit"
+    function expect(program: string, label: string): string {
+      root.expected = { program: program, label: label, until: Date.now() + 60000 }
+      return "ok"
+    }
   }
 
   function loadPamConfig(raw) {
@@ -65,6 +79,7 @@ Item {
 
   function resetSnapshot() {
     currentMessage = ""
+    currentLabel = ""
     currentPrompt = ""
     currentSupplementary = ""
     responseRequired = false
@@ -80,6 +95,13 @@ Item {
     if (!flow) return
 
     currentMessage = String(flow.message || "")
+    if (currentLabel === "") {
+      var label = PolkitModel.expectedLabel(currentMessage, expected, Date.now())
+      if (label !== "") {
+        currentLabel = label
+        expected = null
+      }
+    }
     currentPrompt = String(flow.inputPrompt || "")
     currentSupplementary = String(flow.supplementaryMessage || "")
     responseRequired = !!flow.isResponseRequired

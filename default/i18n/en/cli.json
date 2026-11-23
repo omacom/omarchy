@@ -37,6 +37,7 @@
   "agents.sameAccount": "That's %1 (already added). Try again, and sign in as the other account in the private window.",
   "agents.sameAccountEmail": "That's %1 (%2). Try again, and sign in as the other account in the private window.",
   "agents.installingDesktop": "Installing the %1 desktop app",
+  "polkit.authorizeInstalling": "Authorize installing %1",
   "agents.keyRefused": "%1 didn't accept that key.",
   "agents.keyUnchecked": "Couldn't reach %1 to check that key. Try again in a moment.",
   "agents.apiKeyHint": "It's checked with %1, then saved for pi and opencode.",
