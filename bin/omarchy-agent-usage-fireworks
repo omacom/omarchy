@@ -42,6 +42,7 @@ from collectors import (  # noqa: E402
   data_home,
   emit,
   SPEND_DAYS,
+  opencode_credential_key,
   number,
   open_json,
   read_json,
@@ -230,6 +231,7 @@ def credentials(auth_path: Path) -> tuple[str, str]:
   api_key = (
     str(os.environ.get("FIREWORKS_API_KEY", "")).strip()
     or file_key
+    or opencode_credential_key("fireworks-ai")
     or read_pi_key(pi_auth_path())
     or read_opencode_key(opencode_auth_path())
   )
@@ -417,7 +419,7 @@ def tier_label(account: dict[str, Any]) -> str:
 # What each of the last 30 days cost and, against a monthly cap the tier
 # sets, what the account has spent this month; with no cap, the amount is
 # the 30 days' total. With no quota to read, the 30 days stand uncapped.
-def current_spend(quota: dict[str, Any] | None, days: list[float]) -> dict[str, Any]:
+def current_spend(quota: dict[str, Any] | None, days: list[float], through: str) -> dict[str, Any]:
   if quota is None:
     quota = {"usage": 0, "value": 0}
   try:
@@ -433,6 +435,9 @@ def current_spend(quota: dict[str, Any] | None, days: list[float]) -> dict[str, 
     "cap": cap,
     "currency": "USD",
     "days": days,
+    # Fireworks buckets days in UTC, so they are dated as UTC days ending here.
+    "through": through,
+    "utc": True,
   }
 
 
@@ -525,7 +530,7 @@ def scan(api_base_url: str, auth_path: Path, force: bool = False, limits_only: b
           # A refused quota can't say a cap the account had is gone: keep it, stale.
           if quota is None and known_cap(spend_part):
             raise FireworksDeniedError("The Fireworks API key cannot read billing data")
-          spend = current_spend(quota, client.daily_costs(account_id, now))
+          spend = current_spend(quota, client.daily_costs(account_id, now), now.date().isoformat())
           # The tier comes with the account, which a known account id skipped.
           tier = tier_label(account or client.account(account_id))
           spend_part = remember(spend_cache, accountId=account_id, spend=spend, tierLabel=tier)
