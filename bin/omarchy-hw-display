@@ -45,7 +45,7 @@ done < <(ls -1 "$backlight_path" 2>/dev/null)
 # dual-GPU Macs the GPU's own PWM stops driving the panel once that GPU suspends. The
 # platform's preferred backlights follow, then the GPU and ACPI ones.
 # Glob the candidates in the loop list: [[ ]] does not do pathname expansion.
-for candidate in "$backlight_path"/gmux_backlight "${prefers[@]/#/$backlight_path/}" "$backlight_path"/amdgpu_bl* "$backlight_path"/intel_backlight "$backlight_path"/acpi_video*; do
+for candidate in "$backlight_path"/gmux_backlight "${prefers[@]/#/$backlight_path/}" "$backlight_path"/apple-panel-bl "$backlight_path"/amdgpu_bl* "$backlight_path"/intel_backlight "$backlight_path"/acpi_video*; do
   if [[ -e $candidate ]] && usable "${candidate##*/}"; then
     device="${candidate##*/}"
     break
