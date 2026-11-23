@@ -439,9 +439,25 @@ function layoutWidgets(layout, memo) {
 // key and what kind it is, so a row comes back from `memo` as the same
 // object for as long as it is shown, and a rebuilt layout signals only the
 // rows added, moved and removed.
-function sectionRows(keys, places, memo) {
+function sectionRows(keys, places, memo, savedKeys) {
   var list = Array.isArray(keys) ? keys : []
-  var gaps = (Array.isArray(places) ? places : []).slice().sort(function(a, b) { return a - b })
+  var saved = Array.isArray(savedKeys) ? savedKeys : list
+  // A folded widget is absent from `list` but still holds its place in the
+  // saved layout, which is what drop rooms count. Map those saved indexes to
+  // the position among the widgets still drawn, so a spacer previews where
+  // releasing the widget will actually put it.
+  var position = Object.create(null)
+  var shown = 0
+  for (var s = 0; s <= saved.length; s++) {
+    position[s] = shown
+    if (s < saved.length && list.indexOf(saved[s]) !== -1) shown++
+  }
+  position[saved.length] = list.length
+  var gaps = (Array.isArray(places) ? places : []).map(function(place) {
+    var index = Math.max(0, Math.min(saved.length, Number(place) || 0))
+    return { place: place, at: position[index] !== undefined ? position[index] : list.length }
+  })
+  gaps.sort(function(a, b) { return a.at - b.at || a.place - b.place })
   var state = memo || {}
   var cache = state.rows || Object.create(null)
   var next = Object.create(null)
@@ -454,14 +470,14 @@ function sectionRows(keys, places, memo) {
 
   var g = 0
   for (var i = 0; i <= list.length; i++) {
-    for (; g < gaps.length && gaps[g] <= i; g++)
-      show("room:" + gaps[g], { key: "room:" + gaps[g], kind: "spacer", place: gaps[g] })
+    for (; g < gaps.length && gaps[g].at <= i; g++)
+      show("room:" + gaps[g].place, { key: "room:" + gaps[g].place, kind: "spacer", place: gaps[g].place })
     if (i === list.length) {
       // A folded span at the end of a section leaves the room's layout index
       // past the widgets actually drawn. Show it at the end rather than
       // dropping it, or a drop there has nowhere to land.
       for (; g < gaps.length; g++)
-        show("room:" + gaps[g], { key: "room:" + gaps[g], kind: "spacer", place: gaps[g] })
+        show("room:" + gaps[g].place, { key: "room:" + gaps[g].place, kind: "spacer", place: gaps[g].place })
       break
     }
     show(String(list[i]), { key: String(list[i]), kind: "widget" })

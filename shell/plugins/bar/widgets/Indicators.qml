@@ -21,6 +21,10 @@ BarWidget {
   // The tray's drawer already hides them until hovered, and an empty widget
   // there would leave no room to hover for a second reveal.
   readonly property bool revealInactiveIndicators: alwaysShowIndicators || inTraySection || hoverRevealHeld
+  // The inactive block is drawer-only, so a folded widget's bar length is
+  // measured without it while it waits there.
+  readonly property real revealExtent: inTraySection && orientationLoader.item
+    ? orientationLoader.item.inactiveLength : 0
   // The active block sits against the widget's fixed edge, and everything that
   // grows the widget (revealed inactive icons, newly active ones) goes on its
   // far side, so the icons already showing keep their click targets. A

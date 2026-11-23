@@ -469,6 +469,26 @@ assertDeepEqual(
   ['widget:tray', 'widget:c', 'spacer:4'],
   'a room past the last drawn widget still shows at the end'
 )
+assertDeepEqual(
+  bar.sectionRows(['tray', 'c', 'd'], [3], {}, ['a', 'b', 'tray', 'c', 'd']).map(row => row.kind + ':' + (row.place === undefined ? row.key : row.place)),
+  ['widget:tray', 'spacer:3', 'widget:c', 'widget:d'],
+  'a room indexed in a folded span previews before the next drawn widget'
+)
+assertDeepEqual(
+  bar.sectionRows(['tray', 'c', 'd'], [1], {}, ['a', 'b', 'tray', 'c', 'd']).map(row => row.kind + ':' + (row.place === undefined ? row.key : row.place)),
+  ['spacer:1', 'widget:tray', 'widget:c', 'widget:d'],
+  'a room before a folded span previews at the start of what is drawn'
+)
+assertDeepEqual(
+  bar.sectionRows(['tray', 'c', 'd'], [5], {}, ['a', 'b', 'tray', 'c', 'd']).map(row => row.kind + ':' + (row.place === undefined ? row.key : row.place)),
+  ['widget:tray', 'widget:c', 'widget:d', 'spacer:5'],
+  'a room at the saved end still previews past the last drawn widget'
+)
+assertDeepEqual(
+  bar.sectionRows(['tray', 'c', 'd'], [4], {}, ['a', 'b', 'tray', 'c', 'd']).map(row => row.kind + ':' + (row.place === undefined ? row.key : row.place)),
+  ['widget:tray', 'widget:c', 'spacer:4', 'widget:d'],
+  'a room before a drawn widget after a folded span keeps its saved place'
+)
 const foldedSections = { left: [], centerBegin: [], center: [], centerEnd: [], right: ['tray', 'a', 'b', 'c'], tray: [] }
 assertDeepEqual(
   bar.dropRoom({ slot: { widgetKey: 'c', region: 'right' }, after: true }, { key: 'x', region: 'right' }, foldedSections, { tray: true, c: true }),

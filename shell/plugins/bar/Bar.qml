@@ -2796,7 +2796,10 @@ Item {
     // Kept between updates, so a row stays the same object for as long as it
     // is shown (BarModel.sectionRows).
     property var rowMemo: ({})
-    readonly property var listRows: BarModel.sectionRows(keys, root.sectionSpacers(region, window), rowMemo)
+    // The layout's full list for this section, folded widgets included. A
+    // drop room counts saved indexes; sectionRows maps them onto `keys`.
+    readonly property var savedKeys: root.layoutWidgets.sections[region] || []
+    readonly property var listRows: BarModel.sectionRows(keys, root.sectionSpacers(region, window), rowMemo, savedKeys)
     // A section the open overflow drawer reaches blanks so its applets do not
     // draw through the drawer. The bar's own background shows instead. Keep it
     // laid out: collapsing it would move the drawer coverage and flicker.
@@ -3023,17 +3026,29 @@ Item {
       Qt.callLater(injectProps)
     }
     onWidgetWidthChanged: {
-      if (pool) pool.hostSizeChanged()
       rememberSideLength()
+      if (pool) pool.hostSizeChanged()
     }
     onWidgetHeightChanged: {
-      if (pool) pool.hostSizeChanged()
       rememberSideLength()
+      if (pool) pool.hostSizeChanged()
+    }
+
+    // The length this widget takes on a side of the bar, without the part a
+    // drawer reveals. A folded widget is measured by this, so content that
+    // shrinks or grows while it waits in the drawer can bring it back or keep
+    // it folded; the drawer's own reveal is subtracted separately.
+    function barLength() {
+      var length = root.vertical ? widgetHeight : widgetWidth
+      var item = activeItem
+      if (item && item.revealExtent > 0) length -= item.revealExtent
+      return Math.max(0, length)
     }
 
     function rememberSideLength() {
-      if (!owner || (owner.region !== "left" && owner.region !== "right")) return
-      var length = root.vertical ? widgetHeight : widgetWidth
+      if (!owner) return
+      if (owner.region !== "left" && owner.region !== "right" && !inTraySection) return
+      var length = barLength()
       if (length > 0) sideLength = length
     }
     // One no slot takes up again by the time the update is over, as one in
