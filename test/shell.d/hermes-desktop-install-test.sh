@@ -135,6 +135,7 @@ exec /usr/bin/git "$@"
 MOCK
 cat >"$test_tmp/bin/setsid" <<'MOCK'
 #!/bin/bash
+[[ $1 == -f ]] && shift
 exec "$@"
 MOCK
 cat >"$test_tmp/bin/cp" <<'MOCK'
@@ -240,7 +241,7 @@ new_home() {
 # The app opens in the background, so a run that got that far is joined to it
 # before anything is asserted; one that stopped earlier started nothing.
 run_installer() {
-  HOME="$test_home" HERMES_HOME="${OMARCHY_TEST_HOME:-$hermes_home}" PATH="$test_tmp/bin:$test_home/.local/bin:$PATH" npm_config_yes= \
+  HOME="$test_home" HERMES_HOME="${OMARCHY_TEST_HOME:-$hermes_home}" PATH="$test_tmp/bin:$test_home/.local/bin:$ROOT/bin:$PATH" npm_config_yes= \
     bash "$test_tmp/installer" >"$test_tmp/output" 2>&1 || return
   for (( attempt=0; attempt<200; attempt++ )); do
     if grep -q '^launch' "$test_tmp/events"; then return 0; fi
