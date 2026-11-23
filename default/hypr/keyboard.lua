@@ -60,8 +60,17 @@ local non_latin_layouts =
 -- us variants that can't type Latin letters either: Russian phonetic and Cherokee.
 local non_latin_us_variants = " chr rus "
 
-function keyboard.non_latin(layout)
+function keyboard.non_latin(layout, variant)
   return non_latin_layouts:find(" " .. layout .. " ", 1, true) ~= nil
+    or (layout == "us" and non_latin_us_variants:find(" " .. (variant or "") .. " ", 1, true) ~= nil)
+end
+
+local function split(list)
+  local items = {}
+  for item in (list .. ","):gmatch("([^,]*),") do
+    items[#items + 1] = item
+  end
+  return items
 end
 
 -- The selected layouts and variants as Hyprland gets them. Hyprland resolves
@@ -81,17 +90,11 @@ function keyboard.layouts()
   -- Variants pair with layouts by position. A list that already names us (as in
   -- "ru,us") moves that entry and its variant to the front rather than gaining a
   -- second us, which would make the toggle cycle through a duplicate.
-  local layouts, variants = {}, {}
-  for layout in (kb_layout .. ","):gmatch("([^,]*),") do
-    layouts[#layouts + 1] = layout
-  end
-  for variant in (kb_variant .. ","):gmatch("([^,]*),") do
-    variants[#variants + 1] = variant
-  end
+  local layouts, variants = split(kb_layout), split(kb_variant)
 
   local us_variant = ""
   for i, layout in ipairs(layouts) do
-    if layout == "us" and not non_latin_us_variants:find(" " .. (variants[i] or "") .. " ", 1, true) then
+    if layout == "us" and not keyboard.non_latin("us", variants[i]) then
       us_variant = variants[i] or ""
       table.remove(layouts, i)
       if variants[i] then table.remove(variants, i) end
@@ -104,30 +107,46 @@ function keyboard.layouts()
   return table.concat(layouts, ","), table.concat(variants, ",")
 end
 
+-- The first key that types the letter without modifiers on a layout.
+local function letter_code(letter, layout, variant)
+  local output = io.popen(string.format(
+    "xkbcli how-to-type --disable-compose --layout %s --variant %s %s 2>/dev/null",
+    o.shell_quote(layout),
+    o.shell_quote(variant),
+    o.shell_quote(letter:lower())
+  ))
+  if not output then return nil end
+
+  local code = output:read("*a"):match("\n(%d+)%s[^\n]-%[ %]")
+  output:close()
+  return code
+end
+
 -- Hyprland looks a sent key name up in the active layout group only, so sending
 -- C fails while a non-Latin group is active. Sending the keycode the letter sits
--- on in the leading layout works in every group, and keeps Dvorak's or AZERTY's
--- letters where they are. Falls back to the name if the lookup fails. Without a
--- non-Latin group the name works, and follows whichever Latin layout is active.
+-- on works in every group, but only types that letter on Latin layouts that put
+-- it on the same key, so the name stays otherwise: A on us,fr,ru, where it would
+-- type Q under French. Without a non-Latin group the name always works.
 function keyboard.letter(letter)
-  local layout, variant = keyboard.layouts()
-  local non_latin = false
-  for name in layout:gmatch("[^,]+") do
-    if keyboard.non_latin(name) then non_latin = true end
+  local kb_layout, kb_variant = keyboard.layouts()
+  local variants = split(kb_variant)
+  local latin, non_latin = {}, false
+  for i, layout in ipairs(split(kb_layout)) do
+    if keyboard.non_latin(layout, variants[i]) then
+      non_latin = true
+    else
+      latin[#latin + 1] = { layout, variants[i] or "" }
+    end
   end
   if not non_latin then return letter end
 
-  local output = io.popen(string.format(
-    "xkbcli how-to-type --disable-compose --layout %s --variant %s %s 2>/dev/null",
-    o.shell_quote(layout:match("^[^,]*")),
-    o.shell_quote(variant:match("^[^,]*")),
-    o.shell_quote(letter:lower())
-  ))
-  if not output then return letter end
+  local code
+  for _, entry in ipairs(latin) do
+    local entry_code = letter_code(letter, entry[1], entry[2])
+    if not entry_code or (code and entry_code ~= code) then return letter end
+    code = entry_code
+  end
 
-  -- The first key that types the letter without modifiers.
-  local code = output:read("*a"):match("\n(%d+)%s[^\n]-%[ %]")
-  output:close()
   return code and "code:" .. code or letter
 end
 

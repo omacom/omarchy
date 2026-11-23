@@ -307,4 +307,10 @@ keys=$(clipboard_keys ru,us ,dvorak)
 keys=$(clipboard_keys us,fr ,)
 [[ $keys == "CTRL+A CTRL+C CTRL+V CTRL+X CTRL SHIFT+C" ]] ||
   fail "clipboard shortcuts send letter names when every layout is Latin" "$keys"
+keys=$(clipboard_keys us,fr,ru ,,)
+[[ $keys == "CTRL+A CTRL+code:54 CTRL+code:55 CTRL+code:53 CTRL SHIFT+code:54" ]] ||
+  fail "clipboard shortcuts keep a letter's name where Latin layouts put it on different keys" "$keys"
+keys=$(clipboard_keys us,us ,rus)
+[[ $keys == "CTRL+code:38 CTRL+code:54 CTRL+code:55 CTRL+code:53 CTRL SHIFT+code:54" ]] ||
+  fail "clipboard shortcuts send keycodes when a non-Latin us variant is selected" "$keys"
 pass "clipboard shortcuts send keycodes that type their letters on the leading layout"
