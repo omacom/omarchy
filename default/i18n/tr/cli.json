@@ -338,7 +338,6 @@
   "reset.willErase": "Bu işlem kalıcı olarak silecek:",
   "screensaver.disabled": "Ekran koruyucu devre dışı",
   "screensaver.enabled": "Ekran koruyucu etkin",
-  "setupForm.accountIntro": "Kullanıcı hesabınızı kuralım...",
   "setupForm.confirmPlaceholder": "Az önce yazdığınız parolayla aynı olmalı",
   "setupForm.confirmPrompt": "Onayla> ",
   "setupForm.hostnameInvalid": "Bilgisayar adı 1-63 harf, rakam veya tire olmalı; tireyle başlayıp bitemez",

@@ -350,7 +350,6 @@
   "reset.willErase": "Це назавжди видалить:",
   "screensaver.disabled": "Заставку вимкнено",
   "screensaver.enabled": "Заставку ввімкнено",
-  "setupForm.accountIntro": "Налаштуймо ваш обліковий запис...",
   "setupForm.confirmPlaceholder": "Має збігатися з щойно введеним паролем",
   "setupForm.confirmPrompt": "Ще раз> ",
   "setupForm.hostnameInvalid": "Ім'я комп'ютера: 1–63 літери, цифри чи дефіси, без дефіса на початку й у кінці",

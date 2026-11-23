@@ -338,7 +338,6 @@
   "reset.willErase": "Dette slettes permanent:",
   "screensaver.disabled": "Skjermsparer deaktivert",
   "screensaver.enabled": "Skjermsparer aktivert",
-  "setupForm.accountIntro": "La oss sette opp brukerkontoen din...",
   "setupForm.confirmPlaceholder": "Må være likt passordet du nettopp skrev",
   "setupForm.confirmPrompt": "Bekreft> ",
   "setupForm.hostnameInvalid": "Vertsnavn: 1-63 bokstaver, tall eller bindestreker, ikke bindestrek først eller sist",

@@ -344,7 +344,6 @@
   "reset.willErase": "Esto borrará permanentemente:",
   "screensaver.disabled": "Protector de pantalla desactivado",
   "screensaver.enabled": "Protector de pantalla activado",
-  "setupForm.accountIntro": "Vamos a configurar tu cuenta de usuario...",
   "setupForm.confirmPlaceholder": "Debe coincidir con la contraseña que escribiste",
   "setupForm.confirmPrompt": "Confirmar> ",
   "setupForm.hostnameInvalid": "El nombre debe tener de 1 a 63 letras, números o guiones, sin guion al inicio ni al final",

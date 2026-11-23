@@ -338,7 +338,6 @@
   "reset.willErase": "Dit wist permanent:",
   "screensaver.disabled": "Schermbeveiliging uitgeschakeld",
   "screensaver.enabled": "Schermbeveiliging ingeschakeld",
-  "setupForm.accountIntro": "Laten we je gebruikersaccount instellen...",
   "setupForm.confirmPlaceholder": "Moet gelijk zijn aan het wachtwoord dat je net typte",
   "setupForm.confirmPrompt": "Bevestig> ",
   "setupForm.hostnameInvalid": "Computernaam: 1-63 letters, cijfers of streepjes, niet beginnend of eindigend met een streepje",

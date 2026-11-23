@@ -612,9 +612,9 @@ keyboard_form() {
   local status failures=0
 
   while true; do
-    # Under the heading of the steps that follow, so the screen does not
-    # shift when the keyboard gives way to them.
-    step "$(omarchy_form_text setupForm.accountIntro)"
+    # Every step sits under the one heading, so the screen does not shift
+    # from one to the next.
+    step "$(omarchy_form_text setupForm.machineIntro)"
     if ! omarchy_form_language_drawn "$language"; then
       # English on purpose: the console cannot draw this language to say it in.
       say --foreground 8 "Setup stays in English. Omarchy will be in $(omarchy_form_language_label "$language") once set up."
@@ -787,7 +787,7 @@ apply_keyboard() {
 # neutral placeholders for the hostname and timezone (omarchy/UTC); the owner
 # overwrites them here.
 user_form() {
-  step "$(omarchy_form_text setupForm.accountIntro)"
+  step "$(omarchy_form_text setupForm.machineIntro)"
 
   omarchy_prompt_timezone || return $?
 
@@ -806,7 +806,7 @@ user_form() {
 }
 
 confirm_form() {
-  step "$(omarchy_form_text setupForm.accountIntro)"
+  step "$(omarchy_form_text setupForm.machineIntro)"
   omarchy_form_review "$PADDING_LEFT_SPACES"
 }
 

@@ -350,7 +350,6 @@
   "reset.willErase": "To bo trajno izbrisalo:",
   "screensaver.disabled": "Ohranjevalnik onemogočen",
   "screensaver.enabled": "Ohranjevalnik omogočen",
-  "setupForm.accountIntro": "Nastavimo vaš uporabniški račun...",
   "setupForm.confirmPlaceholder": "Znova vnesite isto geslo",
   "setupForm.confirmPrompt": "Potrdite> ",
   "setupForm.hostnameInvalid": "Ime: 1-63 črk, številk ali vezajev, ne sme se začeti ali končati z vezajem",

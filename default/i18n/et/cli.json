@@ -338,7 +338,6 @@
   "reset.willErase": "See kustutab jäädavalt:",
   "screensaver.disabled": "Ekraanisäästja keelatud",
   "screensaver.enabled": "Ekraanisäästja lubatud",
-  "setupForm.accountIntro": "Seadistame sinu kasutajakonto...",
   "setupForm.confirmPlaceholder": "Peab kattuma äsja sisestatud parooliga",
   "setupForm.confirmPrompt": "Kinnita> ",
   "setupForm.hostnameInvalid": "Hostinimi: 1-63 tähte, numbrit või sidekriipsu, mitte sidekriips alguses ega lõpus",

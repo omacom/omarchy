@@ -344,7 +344,6 @@
   "reset.willErase": "Aceasta va șterge definitiv:",
   "screensaver.disabled": "Economizor ecran dezactivat",
   "screensaver.enabled": "Economizor ecran activat",
-  "setupForm.accountIntro": "Hai să-ți configurezi contul de utilizator...",
   "setupForm.confirmPlaceholder": "Tastează din nou aceeași parolă",
   "setupForm.confirmPrompt": "Confirmă> ",
   "setupForm.hostnameInvalid": "Numele gazdei: 1-63 litere, cifre sau cratime, fără cratimă la început sau sfârșit",

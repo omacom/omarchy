@@ -344,7 +344,6 @@
   "reset.willErase": "Toto natrvalo vymaže:",
   "screensaver.disabled": "Šetrič obrazovky vypnutý",
   "screensaver.enabled": "Šetrič obrazovky zapnutý",
-  "setupForm.accountIntro": "Nastavme váš používateľský účet...",
   "setupForm.confirmPlaceholder": "Zadajte rovnaké heslo ešte raz",
   "setupForm.confirmPrompt": "Potvrdenie> ",
   "setupForm.hostnameInvalid": "Názov: 1-63 písmen, číslic alebo pomlčiek, nesmie začínať ani končiť pomlčkou",

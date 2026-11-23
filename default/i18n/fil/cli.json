@@ -338,7 +338,6 @@
   "reset.willErase": "Permanente nitong buburahin:",
   "screensaver.disabled": "Naka-disable ang screensaver",
   "screensaver.enabled": "Naka-enable ang screensaver",
-  "setupForm.accountIntro": "I-setup natin ang user account mo...",
   "setupForm.confirmPlaceholder": "Dapat tugma sa password na kaka-type mo lang",
   "setupForm.confirmPrompt": "Kumpirmahin> ",
   "setupForm.hostnameInvalid": "Dapat 1-63 titik, numero, o gitling ang hostname, at hindi nagsisimula o nagtatapos sa gitling",

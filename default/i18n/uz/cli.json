@@ -338,7 +338,6 @@
   "reset.willErase": "Bu quyidagilarni butunlay oʻchiradi:",
   "screensaver.disabled": "Ekran saqlagich oʻchirildi",
   "screensaver.enabled": "Ekran saqlagich yoqildi",
-  "setupForm.accountIntro": "Keling, foydalanuvchi hisobingizni sozlaymiz...",
   "setupForm.confirmPlaceholder": "Hozir kiritgan parolingiz bilan bir xil bo‘lishi kerak",
   "setupForm.confirmPrompt": "Tasdiqlash> ",
   "setupForm.hostnameInvalid": "Kompyuter nomi: 1-63 harf, raqam yoki chiziqcha, chetlarida chiziqchasiz",
