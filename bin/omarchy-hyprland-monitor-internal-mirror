@@ -34,9 +34,9 @@ on() {
   done
 
   omarchy-hyprland-toggle $DISABLE_TOGGLE off
+  rm -f "$RECOVERY_STATE"
 
   if omarchy-hyprland-toggle-disabled $TOGGLE; then
-    rm -f "$RECOVERY_STATE"
     for external in "${EXTERNALS[@]}"; do
       printf 'hl.monitor({ output = "%s", mode = "preferred", position = "auto", scale = 1, mirror = "%s" })\n' "$external" "$INTERNAL"
     done >"$TOGGLE_FLAG"
@@ -65,8 +65,8 @@ recover() {
     return 0
   fi
 
-  # A short hotplug gap must not discard mirroring. The watcher's later syncs
-  # finish recovery without delaying its event loop or the laptop panel's wake.
+  # The watcher's ~4s retry clears a 3s absence; brief gaps keep mirroring
+  # without delaying its event loop or the laptop panel's wake.
   local disconnected_since=""
   [[ -f $RECOVERY_STATE ]] && read -r disconnected_since <"$RECOVERY_STATE"
 

@@ -35,28 +35,35 @@ mkdir -p "$(dirname "$mirror_flag")" "$mirror_runtime"
 printf '#!/bin/bash\nexit 0\n' >"$external_tmp/omarchy-restart-hyprctl"
 chmod +x "$external_tmp/omarchy-restart-hyprctl"
 
-recover_mirror() {
+run_mirror() {
   HOME="$mirror_home" XDG_RUNTIME_DIR="$mirror_runtime" OMARCHY_PATH="$ROOT" \
     PATH="$external_tmp:$ROOT/bin:$PATH" OMARCHY_TEST_MONITORS="$1" \
-    "$ROOT/bin/omarchy-hyprland-monitor-internal-mirror" recover
+    "$ROOT/bin/omarchy-hyprland-monitor-internal-mirror" "${2:-recover}"
 }
 
 no_external='[{"name":"eDP-1","disabled":false},{"name":"FALLBACK","disabled":false}]'
 connected='[{"name":"eDP-1","disabled":false},{"name":"HDMI-A-1","disabled":false}]'
 printf 'hl.monitor({ output = "HDMI-A-1", mirror = "eDP-1" })\n' >"$mirror_flag"
-recover_mirror "$no_external"
+run_mirror "$no_external"
 [[ -f $mirror_flag && -s $recovery_state ]] || fail "a brief disconnect preserves mirroring"
 pass "a brief disconnect preserves mirroring"
 
 # Reconnecting cancels the pending recovery even if its grace period elapsed.
 printf '%s\n' "$(( EPOCHSECONDS - 4 ))" >"$recovery_state"
-recover_mirror "$connected"
+run_mirror "$connected"
 [[ -f $mirror_flag && ! -f $recovery_state ]] || fail "reconnecting cancels mirror recovery"
-recover_mirror "$no_external"
+run_mirror "$no_external"
 [[ -f $mirror_flag ]] || fail "a later disconnect gets its own grace period"
 pass "reconnecting cancels mirror recovery and resets the grace period"
 
 printf '%s\n' "$(( EPOCHSECONDS - 4 ))" >"$recovery_state"
-recover_mirror "$no_external"
+run_mirror "$connected" on
+[[ -f $mirror_flag && ! -f $recovery_state ]] || fail "explicit mirror on cancels recovery when already mirrored"
+run_mirror "$no_external"
+[[ -f $mirror_flag ]] || fail "explicit mirror on resets the next disconnect's grace period"
+pass "explicit mirror on cancels recovery when already mirrored"
+
+printf '%s\n' "$(( EPOCHSECONDS - 4 ))" >"$recovery_state"
+run_mirror "$no_external"
 [[ ! -f $mirror_flag && ! -f $recovery_state ]] || fail "a lasting disconnect still clears mirroring"
 pass "a lasting disconnect still clears mirroring"
