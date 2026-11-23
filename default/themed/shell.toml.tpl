@@ -121,6 +121,8 @@ base-size = 12
 
 [popups]
 # Shared by every bar flyout (dropdowns, OSD, popup cards).
+# Popup cards and keyboard panels also accept a background gradient, e.g.
+# "#232936 #141820 90deg". Other color-only consumers use its first stop.
 # Border accepts either a solid color or a Hyprland-style gradient. Border
 # widths accept one CSS-style scalar/list: N, "Y X", "T X B", or "T R B L";
 # individual border-width-top/right/bottom/left keys override the list.
