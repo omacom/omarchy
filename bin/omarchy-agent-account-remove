@@ -85,21 +85,47 @@ hide_in_panel() {
   omarchy-shell omarchy.agents showAgent "$provider" false >/dev/null 2>&1
 }
 
+# Whether the keyring holds Gemini's sign-in: 0 when it does, 1 when it
+# doesn't, 2 when the keyring couldn't be asked. A missing entry is a quiet
+# miss, while a keyring that's unavailable or refuses says why. The secret
+# itself goes nowhere.
+gemini_in_keyring() {
+  local error
+  if error=$(secret-tool lookup service gemini username antigravity 2>&1 >/dev/null); then
+    return 0
+  elif [[ -z $error ]]; then
+    return 1
+  else
+    return 2
+  fi
+}
+
+gemini_gone_from_keyring() {
+  gemini_in_keyring
+  (( $? == 1 ))
+}
+
 hides=true
 case $provider in
 claude | codex | grok)
-  # One of several accounts goes alone, the agent staying.
-  count=$(omarchy-agent-account-list "$provider" --json 2>/dev/null | jq '.[0].accounts | length')
-  (( ${count:-0} > 1 )) && hides=false
+  # One of several accounts goes alone, the agent staying. The removal says
+  # which it was, under the registry's lock, so two at once can't both think
+  # another account is left.
   account=$(omarchy-agent-account-state remove "$provider" "$2") || exit 1
   name=$(jq -r .label <<<"$account")
+  [[ $(jq -r .last <<<"$account") == "true" ]] || hides=false
   ;;
 agy)
   # agy keeps its sign-in in the keyring, or in a file where there's none,
-  # and has no logout of its own. The lookup's secret goes nowhere.
-  if secret-tool lookup service gemini username antigravity >/dev/null 2>&1; then
+  # and has no logout of its own.
+  gemini_in_keyring
+  keyring=$?
+  if (( keyring == 2 )); then
+    echo "Couldn't check the keyring for Gemini's sign-in." >&2
+    exit 1
+  elif (( keyring == 0 )); then
     secret-tool clear service gemini username antigravity 2>/dev/null
-    if secret-tool lookup service gemini username antigravity >/dev/null 2>&1; then
+    if ! gemini_gone_from_keyring; then
       echo "Couldn't clear Gemini's sign-in from the keyring." >&2
       exit 1
     fi

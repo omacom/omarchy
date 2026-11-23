@@ -895,8 +895,10 @@ def forget_login(provider: str, home: Path) -> None:
 
 
 # The primary home is shared by every account, so it stays: the account taking
-# over as primary moves its login into it, and its own directory goes.
-def promote(provider: str, registry: dict[str, Any], old: dict[str, Any], successor: dict[str, Any]) -> None:
+# over as primary puts its login in it. Returns the homes to delete once the
+# registry is saved, so a save that fails leaves every login somewhere a
+# retry finds it.
+def promote(provider: str, registry: dict[str, Any], old: dict[str, Any], successor: dict[str, Any]) -> list[Path]:
   own = account_home(provider, successor)
   refuse_in_use(provider, own, successor)
   if provider in SEATED:
@@ -904,23 +906,30 @@ def promote(provider: str, registry: dict[str, Any], old: dict[str, Any], succes
     # the store primaries keep theirs in, which goes with it.
     parked = store_home(provider, old)
     refuse_in_use(provider, parked, old)
-    shutil.rmtree(parked, ignore_errors=True)
+    gone = [parked, own]
   else:
     primary = primary_home(provider)
     refuse_in_use(provider, primary, old)
     if primary_users(provider):
       raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses {label_of(old)}. Quit it first, then remove the account.")
+    # Copied, not moved: its own home keeps the login until the registry
+    # says the primary home holds it.
     for name in LOGIN_FILES[provider]:
+      target = (primary / name).resolve()
       if (own / name).exists():
-        os.replace(own / name, primary / name)
+        staged = target.with_name(f".{target.name}.omarchy")
+        shutil.copy2(own / name, staged)
+        os.replace(staged, target)
       else:
-        (primary / name).unlink(missing_ok=True)
-  remove_home(provider, own)
+        target.unlink(missing_ok=True)
+    gone = [own]
   successor.update({"home": "", "primary": True})
+  return gone
 
 
 # Forgets an account. One that sessions use hands them to another account
 # first, the primary hands that role on, and the only one is signed out here.
+# The account comes back with `last` saying whether it was the only one.
 def remove(provider: str, target: str) -> dict[str, Any]:
   with Locked(provider) as registry:
     settle(provider, registry)
@@ -934,7 +943,7 @@ def remove(provider: str, target: str) -> dict[str, Any]:
       forget_login(provider, home)
       account.update(identity(provider, home))
       registry.update({"alert": "", "held": ""})
-      return account
+      return dict(account, last=True)
 
     # The account seated in ~/.claude takes over, so no login moves twice;
     # else the primary, else the next one.
@@ -948,18 +957,21 @@ def remove(provider: str, target: str) -> dict[str, Any]:
         raise AccountError(f"{label_of(successor)} isn't signed in, so sessions can't move to it. Sign it in again first, then remove {label_of(account)}.")
 
     if account.get("primary"):
-      promote(provider, registry, account, successor)
+      gone = promote(provider, registry, account, successor)
     else:
       home = account_home(provider, account)
       refuse_in_use(provider, home, account)
-      remove_home(provider, home)
+      gone = [home]
     registry["accounts"] = others
     if registry["active"] == account["id"]:
       registry["active"] = successor["id"]
     registry["alert"] = ""
     if registry["held"] == account["id"]:
       registry["held"] = ""
-    return account
+    save(provider, registry)
+    for home in gone:
+      remove_home(provider, home)
+    return dict(account, last=False)
 
 
 def set_threshold(provider: str, threshold: str) -> dict[str, Any]:

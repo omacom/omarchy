@@ -111,9 +111,14 @@ echo "$*" >>"$OMARCHY_TEST_BAR_LOG"
 SH
 printf '#!/bin/bash\necho "$(basename "$0") $*" >>"$OMARCHY_TEST_LOGOUTS"\n' >"$mock_bin/cursor-agent"
 cp "$mock_bin/cursor-agent" "$mock_bin/muse"
-# The keyring holds an entry while its file exists, and can be made to refuse.
+# The keyring holds an entry while its file exists, and can be made to refuse
+# or to be unreachable, which it says on stderr as the real one does.
 cat >"$mock_bin/secret-tool" <<'SH'
 #!/bin/bash
+if [[ -e $OMARCHY_TEST_KEYRING.broken ]]; then
+  echo "secret-tool: Cannot autolaunch D-Bus without X11 \$DISPLAY" >&2
+  exit 1
+fi
 case $1 in
 lookup) [[ -e $OMARCHY_TEST_KEYRING ]] ;;
 clear) [[ -e $OMARCHY_TEST_KEYRING.stuck ]] || rm -f "$OMARCHY_TEST_KEYRING" ;;
@@ -618,6 +623,13 @@ if omarchy-agent-account-remove gemini </dev/null >/dev/null 2>&1 || grep -q " f
   fail "a keyring that keeps Gemini's sign-in fails the removal and hides nothing"
 fi
 rm "$OMARCHY_TEST_KEYRING.stuck"
+# A keyring that can't be asked isn't one without the sign-in.
+touch "$OMARCHY_TEST_KEYRING.broken"
+if omarchy-agent-account-remove gemini </dev/null >/dev/null 2>&1 || grep -q " false$" "$OMARCHY_TEST_BAR_LOG" ||
+  [[ ! -e $HOME/.gemini/antigravity-cli/antigravity-oauth-token ]]; then
+  fail "a keyring that can't be asked fails the Gemini removal and touches nothing"
+fi
+rm "$OMARCHY_TEST_KEYRING.broken"
 omarchy-agent-account-remove gemini </dev/null >/dev/null
 [[ ! -e $HOME/.gemini/antigravity-cli/antigravity-oauth-token && ! -e $OMARCHY_TEST_KEYRING ]] ||
   fail "removing Gemini clears agy's keyring entry and token file"
@@ -923,6 +935,29 @@ pass "a first sign-in installs its subscription's desktop app"
     fail "a session running as the Codex primary blocks replacing its login"
   fi
   kill "$session"; wait "$session" 2>/dev/null || true
+
+  # A registry that can't be saved leaves the next primary's login in its own
+  # home as well, so trying again still finds it.
+  STATE="$ROOT/bin/omarchy-agent-account-state" python3 - <<'PY' || fail "a failed save while promoting keeps the next primary's login"
+import importlib.machinery, importlib.util, json, os
+loader = importlib.machinery.SourceFileLoader("state", os.environ["STATE"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+state = importlib.util.module_from_spec(spec)
+loader.exec_module(state)
+
+def broken_save(provider, registry):
+  raise OSError("disk full")
+state.save = broken_save
+try:
+  state.remove("codex", "main")
+except OSError:
+  pass
+else:
+  raise SystemExit("remove should fail when the registry can't be saved")
+side = state.accounts_root() / "codex" / "side" / "auth.json"
+assert side.is_file(), "the next primary's own home keeps its login"
+assert json.loads(side.read_text())["tokens"]["account_id"] == "c-side"
+PY
   omarchy-agent-account-remove codex main </dev/null >/dev/null
   [[ $(jq -r .tokens.account_id "$HOME/.codex/auth.json") == c-side && ! -e $accounts/codex/side ]] ||
     fail "removing the Codex primary moves the next account's login into ~/.codex"
