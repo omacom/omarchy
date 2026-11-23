@@ -5,8 +5,9 @@ echo "Put the system icon between the display and battery icons"
 config_file="$HOME/.config/omarchy/shell.json"
 [[ -s $config_file ]] || exit 0
 
+# Written through, so a shell.json linked from dotfiles stays a link.
 tmp=$(mktemp)
-jq '
+if jq '
   def entry_id: if type == "object" then (.id // "") elif type == "string" then . else "" end;
 
   if [.bar.layout[]?[]? | entry_id] | (index("omarchy.system") != null or index("omarchy.power") == null) then
@@ -14,4 +15,7 @@ jq '
   else
     .bar.layout[] |= (if type == "array" then [.[] | if entry_id == "omarchy.power" then { id: "omarchy.system" }, . else . end] else . end)
   end
-' "$config_file" >"$tmp" && mv "$tmp" "$config_file"
+' "$config_file" >"$tmp"; then
+  cat "$tmp" >"$config_file"
+fi
+rm -f "$tmp"
