@@ -92,6 +92,6 @@ else
   source "$OMARCHY_INSTALL/hardware/all.sh"
 
   if [[ -s $OMARCHY_PKG_QUEUE_FILE ]]; then
-    OMARCHY_PKG_DEFER=0 omarchy-pkg-add
+    run_logged "$OMARCHY_INSTALL/helpers/flush-packages.sh"
   fi
 fi
