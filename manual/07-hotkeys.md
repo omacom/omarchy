@@ -88,8 +88,8 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Super + Ctrl + Left/Right`  | Move between windows inside a tiling group |
 | `Super + Ctrl + Z` | Zoom in on screen (repeat for more zoom) |
 | `Super + Ctrl + Alt + Z` | Zoom fully out from screen |
-| `Super + /` | Step forward through monitor scaling options |
-| `Super + Alt + /` | Step backward through monitor scaling options |
+| `Super + the key left of right Shift` (/ on US layouts) | Step forward through monitor scaling options |
+| `Super + Alt + the key left of right Shift` (/ on US layouts) | Step backward through monitor scaling options |
 | `Alt + Tab` | Cycle forward through windows on the active workspace |
 | `Alt + Shift + Tab` | Cycle backward through windows on the active workspace |
 | `Ctrl + Alt + Tab`| Cycle focus forward through monitors |
@@ -156,7 +156,7 @@ Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<A
 | `Super + Shift + Alt + F`           | File manager in cwd of terminal    |
 | `Super + Shift + M`           | Music (Spotify)    |
 | `Super + Shift + Alt + M`           | Music (cliamp)    |
-| `Super + Shift + /`           | Password manager (1password)    |
+| `Super + Shift + the key left of right Shift` (/ on US layouts) | Password manager (1password)    |
 | `Super + Shift + Q` or `Calculator` key  | Calculator (Omacalc)    |
 | `Super + Shift + D`           | Docker (lazydocker, once installed)    |
 | `Super + Shift + T`           | Activity (btop)    |
