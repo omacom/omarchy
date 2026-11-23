@@ -26,7 +26,7 @@ assert(badRegistry.length === 0, 'every registry entry is complete with a UTF-8 
 const enMenu = readJson('en/menu.json')
 const menuItems = MenuModel.parseMenuJsonc(fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8'))
 assertEqual(enMenu.root.label, 'Go', 'English menu catalog carries the injected root label')
-assert(menuItems.some((item) => item.id === 'setup.language' && item.provider === 'languages'), 'Setup > Language row uses the languages provider')
+assert(menuItems.some((item) => item.id === 'setup.region.language' && item.provider === 'languages'), 'Setup > Region > Language row uses the languages provider')
 const staleMenu = menuItems.filter((item) => !enMenu[item.id] || enMenu[item.id].label !== item.label || (item.title && enMenu[item.id].title !== item.title) || (item.description && enMenu[item.id].description !== item.description))
 assert(staleMenu.length === 0, 'English menu catalog mirrors the menu definition', JSON.stringify(staleMenu.map((i) => i.id)))
 const orphanMenu = Object.keys(enMenu).filter((id) => id !== 'root' && !menuItems.some((item) => item.id === id))
@@ -122,7 +122,9 @@ const cliKeys = collectKeys(path.join(root, 'bin'), [''], cliKeyPattern)
 for (const key of collectKeys(path.join(root, 'install'), ['.sh', '.hook'], cliKeyPattern)) cliKeys.add(key)
 for (const key of collectKeys(path.join(root, 'default'), ['.py'], cliKeyPattern)) cliKeys.add(key)
 for (const key of collectKeys(path.join(root, 'etc'), ['.jsonc'], cliKeyPattern)) cliKeys.add(key)
-for (const key of collectKeys(path.join(root, 'install/provisioning'), ['setup-form.sh'], /omarchy_form_text ([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g)) cliKeys.add(key)
+const formKeyPattern = /omarchy_form_text ([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g
+for (const key of collectKeys(path.join(root, 'install/provisioning'), ['setup-form.sh', 'oem.sh'], formKeyPattern)) cliKeys.add(key)
+for (const key of collectKeys(path.join(root, 'bin'), ['omarchy-provision-owner'], formKeyPattern)) cliKeys.add(key)
 const unreferencedCli = Object.keys(enCli).filter((key) => !cliKeys.has(key))
 assert(unreferencedCli.length === 0, 'every cli catalog key is referenced', JSON.stringify(unreferencedCli))
 const unknownCli = [...cliKeys].filter((key) => !Object.hasOwn(enCli, key))
@@ -286,16 +288,22 @@ export PATH="$ROOT/bin:$PATH"
 export OMARCHY_LANGUAGE_FILE=$work/language
 export OMARCHY_LOCALE_GEN=$work/locale.gen
 export OMARCHY_LOCALE_REGISTRY=$ROOT/default/i18n/locales.json
+export OMARCHY_REGION_REGISTRY=$ROOT/default/i18n/regions.json
 export XDG_CONFIG_HOME=$work/config
 session_env=$XDG_CONFIG_HOME/uwsm/env.d/50-omarchy-language
 printf '#da_DK.UTF-8 UTF-8\n' >"$OMARCHY_LOCALE_GEN"
 
-# Stub the outside world: locale-gen records its argument, notifications
-# record their text, and omarchy-language itself is the real one via PATH.
+# Stub the outside world: localedef records the locale it adds and lists those
+# as its archive, notifications record their text, and omarchy-language itself
+# is the real one via PATH.
 mkdir -p "$work/stubs"
-cat >"$work/stubs/locale-gen" <<'STUB'
+cat >"$work/stubs/localedef" <<'STUB'
 #!/bin/bash
-echo "$@" >>"$LOCALE_GEN_LOG"
+if [[ $1 == "--list-archive" ]]; then
+  sed 's/\.UTF-8$/.utf8/' "$LOCALE_GEN_LOG"
+  exit
+fi
+echo "${@: -1}" >>"$LOCALE_GEN_LOG"
 STUB
 cat >"$work/stubs/omarchy-notification-send" <<'STUB'
 #!/bin/bash
@@ -315,9 +323,11 @@ cat >"$work/stubs/omarchy-restart-shell" <<'STUB'
 #!/bin/bash
 echo "restart" >>"$SESSION_ENV_LOG"
 STUB
-# sudo and pkexec record which one elevated and what it ran, then run it
-# as-is. sudo answers the long listing (`sudo -n -l -l`) with the
-# passwordless grant only when TEST_SUDO_GRANT is set, the way a machine with
+# sudo and pkexec record which one elevated and what it ran, then run this
+# checkout's copy of it: omarchy-language asks for /usr/bin's, which is the
+# installed package's helper wherever Omarchy is installed. sudo answers the
+# long listing (`sudo -n -l -l`) with the passwordless grant only when
+# TEST_SUDO_GRANT is set, the way a machine with
 # etc/sudoers.d/omarchy-locale-generate installed does.
 cat >"$work/stubs/sudo" <<'STUB'
 #!/bin/bash
@@ -328,12 +338,12 @@ fi
 flag=""
 if [[ $1 == "-n" ]]; then flag=" -n"; shift; fi
 echo "sudo$flag $(basename "$1") $2" >>"$ELEVATE_LOG"
-exec "$@"
+exec "$OMARCHY_PATH/bin/$(basename "$1")" "${@:2}"
 STUB
 cat >"$work/stubs/pkexec" <<'STUB'
 #!/bin/bash
 echo "pkexec $(basename "$1") $2" >>"$ELEVATE_LOG"
-exec "$@"
+exec "$OMARCHY_PATH/bin/$(basename "$1")" "${@:2}"
 STUB
 chmod +x "$work/stubs/"*
 export PATH="$work/stubs:$PATH"
@@ -412,7 +422,7 @@ da_changed_raw=$(jq -r '."language.changed"' "$ROOT/default/i18n/da/cli.json")
 assert_bash_equal "$(omarchy-i18n language.changed 'Research & Development')" "${da_changed_raw//%1/"Research & Development"}" "omarchy-i18n keeps ampersands in arguments literal"
 
 # With the locale already generated, picking the language needs no
-# privilege at all: no password prompt, no locale-gen.
+# privilege at all: no password prompt, no localedef.
 cat >"$work/stubs/locale" <<'STUB'
 #!/bin/bash
 if [[ $1 == "-a" ]]; then printf 'en_US.utf8\nda_DK.utf8\n'; else echo "LANG=da_DK.UTF-8"; fi
@@ -456,11 +466,34 @@ cp "$work/stubs/busctl" "$work/stubs/fcitx5-remote"
 chmod +x "$work/stubs/busctl" "$work/stubs/fcitx5-remote"
 cjk_output=$(TEST_SUDO_GRANT=1 omarchy-language ja </dev/null 2>&1) || fail "a CJK language switches without a reachable Fcitx" "$cjk_output"
 assert_bash_equal "$(cat "$OMARCHY_LANGUAGE_FILE")" "ja" "a CJK language switches without a reachable Fcitx"
-[[ $cjk_output == *"Setup > Typing > Input Methods"* ]] && pass "an input method that could not be added is named with where to add it" || fail "an input method that could not be added is named with where to add it" "$cjk_output"
+[[ $cjk_output == *"Setup > Keyboard > Input Methods"* ]] && pass "an input method that could not be added is named with where to add it" || fail "an input method that could not be added is named with where to add it" "$cjk_output"
 grep -q 'Noto Sans CJK JP' "$cjk_font" && pass "Japanese seeds Japanese glyph forms" || fail "Japanese seeds Japanese glyph forms"
 TEST_SUDO_GRANT=1 omarchy-language ko </dev/null 2>/dev/null
 grep -q 'Noto Sans CJK JP' "$cjk_font" && pass "a second CJK language keeps the glyph forms already chosen" || fail "a second CJK language keeps the glyph forms already chosen"
 rm -f "$work/stubs/busctl" "$work/stubs/fcitx5-remote" "$cjk_font"
+
+# Formats set the categories that say how things are written, never the
+# language, from a region the passwordless helper generates; following the
+# language again takes them out of the session.
+region_env=$XDG_CONFIG_HOME/uwsm/env.d/51-omarchy-region
+formats="LC_TIME LC_NUMERIC LC_MONETARY LC_MEASUREMENT LC_PAPER"
+: >"$LOCALE_GEN_LOG"; : >"$ELEVATE_LOG"; : >"$SESSION_ENV_LOG"
+TEST_SUDO_GRANT=1 omarchy-region-formats en-DK </dev/null
+assert_bash_equal "$(cat "$ELEVATE_LOG") $(cat "$LOCALE_GEN_LOG")" "sudo -n omarchy-locale-generate en-DK en_DK.UTF-8" "a region generates its locale through the passwordless helper"
+assert_bash_equal "$(grep '^export' "$region_env" | tr '\n' ' ')" "$(printf 'export %s=en_DK.UTF-8 ' $formats)" "a region sets only the format categories for the next login"
+assert_bash_equal "$(grep -c 'hl.env("LC_[A-Z]*", "en_DK.UTF-8", true)' "$SESSION_ENV_LOG") $(tail -n 1 "$SESSION_ENV_LOG")" "5 restart" "a region hands the format categories to the running session"
+assert_bash_equal "$(omarchy-region-formats)" "en-DK" "omarchy-region-formats reads the region back"
+: >"$SESSION_ENV_LOG"
+omarchy-region-formats default </dev/null
+[[ ! -e $region_env ]] && pass "following the language removes the formats" || fail "following the language removes the formats"
+assert_bash_equal "$(grep -c 'hl.env("LC_[A-Z]*", "", true)' "$SESSION_ENV_LOG")" "5" "following the language clears the formats in the running session"
+assert_bash_equal "$(omarchy-region-formats)" "default" "omarchy-region-formats reports formats that follow the language"
+if omarchy-region-formats en-ZZ </dev/null 2>/dev/null; then
+  fail "omarchy-region-formats rejects unknown codes"
+else
+  pass "omarchy-region-formats rejects unknown codes"
+fi
+[[ ! -e $region_env ]] && pass "an unknown region writes nothing" || fail "an unknown region writes nothing"
 
 # A cancelled polkit prompt must not persist the choice, or the interface
 # would switch with LANG left behind.

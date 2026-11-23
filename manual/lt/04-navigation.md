@@ -1,48 +1,48 @@
 # Navigacija
 
-Visa Omarchy veikia klaviatūra — _VISA!_ Kai sistema pirmą kartą paleidžiama, vien pele tiesiog nieko negali padaryti. Bet gali paspausti `Super + Space`, kad atvertum Omarchy meniu, o iš čia gali padaryti beveik viską.
+Visa Omarchy valdoma klaviatūra — _VISKAS!_ Kai sistema paleidžiama pirmą kartą, vien pele tiesiog nieko negalite padaryti. Tačiau galite paspausti `Super + Space`, kad atvertumėte Omarchy meniu, o iš čia galite padaryti beveik viską.
 
-Tačiau Omarchy meniu net nėra skirtas būti pagrindiniu sistemos valdymo būdu didžiąją laiko dalį. Galime greičiau! Visos svarbiausios programos tiesiogiai susietos su atskirais sparčiaisiais klavišais. Terminalą paleidi su `Super + Return`, o naršyklę — su `Super + Shift + Return`. Pamėgink padaryti viena po kito ir pamatysi Hyprland išklotinio išdėstymo magiją veikime:
+Tačiau Omarchy meniu net nėra numatytas kaip pagrindinis sistemos valdymo būdas dažniausiai. Galime dar greičiau! Visos svarbiausios programos tiesiogiai susietos su atskirais sparčiaisiais klavišais. Terminalą paleidžiate su `Super + Return`, o naršyklę — su `Super + Shift + Return`. Pabandykite tai padaryti viena po kitos ir pamatysite Hyprland plytelių išdėstymo magiją:
 
  ![navigation-browser-terminal](images/navigation-browser-terminal.webp)
 
-Tada gali paspausti `Super + J`, kad sudėtum juos vieną ant kito, o ne greta:
+Tada galite paspausti `Super + J`, kad sudėtumėte juos vienas ant kito, o ne vieną šalia kito:
 
  ![navigation-stacked](images/navigation-stacked.webp)
 
-Paspausk `Super + J` dar kartą, kad grąžintum juos į padėtis greta. Tada, būdamas naršyklėje, pamėgink `Super + Shift + Arrow Right`, kad sukeistum langus vietomis.
+Dar kartą paspauskite `Super + J`, kad grąžintumėte juos į padėtį vieną šalia kito. Tada, būdami naršyklėje, pabandykite `Super + Shift + Arrow Right` langams sukeisti.
 
-Dabar pamėgink `Super + Shift + T`, kad paleistum Aktyvumo monitorių. Jis pasirodys kaip plaukiojantis langas. Gali jį paversti išklotiniu su `Super + T` (ir paspausti tai dar kartą, kad vėl taptų plaukiojantis). Dabar paspausk `Super + Shift + F`, kad atvertum failų tvarkytuvę. Turėsi dailią keturių dalių sąranką:
+Dabar pabandykite `Super + Shift + T`, kad paleistumėte aktyvumo stebėjimo priemonę Activity. Ji pasirodys kaip plaukiojantis langas. Galite jį paversti plytele naudodami `Super + T` (ir paspausti dar kartą, kad vėl būtų plaukiojantis). Dabar paspauskite `Super + Shift + F`, kad atvertumėte failų tvarkytuvę. Turėsite dailų keturių dalių išdėstymą:
 
  ![navigation-fourway-tiling](images/navigation-fourway-tiling.webp)
 
-Tarp langų, kurį nori padaryti aktyvų, naršai su `Super + Arrow`. Tai perjungs fokusą ir perkels žymeklį į naujos programos centrą. Ekrano krašte jis tęsiasi į monitorių toje pusėje.
+Tarp langų, kurį norite padaryti aktyvų, judate su `Super + Arrow`. Tai perkelia židinį ir perkelia žymeklį į naujos programos centrą. Ekrano krašte jis tęsiasi į monitorių toje pusėje.
 
-Jei paspausi `Super + Shift + 2`, perkelsi dabartinę fokusuotą programą į antrą darbo sritį. `Super + Shift + 1` perkelia ją atgal. (O `Super + Shift + Alt + 2` perkels dabartinę fokusuotą programą į antrą darbo sritį neperjungdamas į ją).
+Jei paspausite `Super + Shift + 2`, perkelsite šiuo metu sufokusuotą programą į antrą darbo erdvę. `Super + Shift + 1` ją grąžina atgal. (O `Super + Shift + Alt + 2` perkels šiuo metu sufokusuotą programą į antrą darbo erdvę nepersijungdamas į ją).
 
-Su daugiau nei vienu monitoriumi kiekvienas monitorius turi savo darbo sritis nuo 1 iki 10. `Super + 2` eina į antra to monitoriaus, kuriame esi, darbo sritį, o kiekvieno monitoriaus viršutinė juosta rodo jo darbo sritis ir tą, kurią jis rodo. `Super + Tab` cikliškai pereina darbo sritis monitoriuje, kuriame esi. `Super + Shift + Ctrl + Arrows` perkelia langą, kuriame esi, į monitorių ta kryptimi, į jo rodomą darbo sritį, o `Super + Shift + Alt + Arrows` perkelia darbo sritį, kurioje esi, į monitorių ta kryptimi, kur ji gauna tą patį numerį, jei jis laisvas. Monitorius išlaiko savo darbo sritis, kai jį atjungi: jos prisijungia prie kito ekrano, numeruojamos po tų, kurias jis jau turi, ir grįžta prie savo senų numerių, kai monitorius sugrįžta.
+Kai monitorių daugiau nei vienas, kiekvienas monitorius turi savo darbo erdves nuo 1 iki 10. `Super + 2` pereina į antrą monitoriaus, kuriame esate, darbo erdvę, o kiekvieno monitoriaus viršutinė juosta rodo savo darbo erdves ir tą, kurią rodo. `Super + Tab` cikliškai perjungia monitoriaus, kuriame esate, darbo erdves. `Super + Shift + Ctrl + Arrows` perkelia langą, kuriame esate, į monitorių ta kryptimi, į jo rodomą darbo erdvę, o `Super + Shift + Alt + Arrows` perkelia darbo erdvę, kurioje esate, į monitorių ta kryptimi, kur ji gauna tą patį numerį, jei jis laisvas. Monitorius išlaiko savo darbo erdves, kai jį atjungiate: jos prisijungia prie kito ekrano, sunumeruotos po tų, kurias jis jau turi, ir grįžta su senais numeriais, kai monitorius sugrįžta.
 
-Jei laikysi nuspaudęs `Super` ir pele spustelėsi langą, galėsi pertvarkyti, kur jis yra. Jei laikysi `Super` ir naudoji dešinį pelės mygtuką, gali laisvai keisti lango dydį.
+Jei laikysite nuspaudę `Super` ir pele spustelėsite langą, galėsite pertvarkyti, kur jis yra. Jei laikysite `Super` ir naudosite dešinįjį pelės mygtuką, galėsite laisvai keisti lango dydį.
 
-Langą uždarai su `Super + W` arba `Super + Q` (o visus langus uždarai su `Ctrl + Alt + Delete`).
+Langą uždarote su `Super + W` arba `Super + Q` (o visus langus uždarote su `Ctrl + Alt + Delete`).
 
-Taip pat gali eiti į visą ekraną su `Super + F` arba net tiesiog į visą plotį (išlaikydamas viršutinę juostą) su `Super + Alt + F` arba į visą ekraną lange su `Super + Ctrl + F` (puiku YouTube!).
+Taip pat galite pereiti į viso ekrano režimą su `Super + F` arba net tiesiog į viso pločio režimą (palikdami viršutinę juostą) su `Super + Alt + F`, arba į viso ekrano režimą lange su `Super + Ctrl + F` (tinka YouTube!).
 
-### Dwindle ir slenkamasis išdėstymas
+### „Dwindle“ ir slenkamasis išdėstymas
 
-Numatytasis Omarchy išdėstymas vadinasi dwindle. Jis visą laiką laiko visus langus, kuriuos atveri vienoje darbo srityje, matomus, net jei tenka juos sumažinti.
+Numatytasis Omarchy išdėstymas vadinamas dwindle. Jis visą laiką laiko visus langus, kuriuos atveriate vienoje darbo erdvėje, matomus, net jei turi juos sumažinti.
 
  ![navigation-dwindle-layout](images/navigation-dwindle-layout.webp)
 
-Bet taip pat gali pasirinkti darbo sritį paversti slenkamuoju išdėstymu, kur langai išrikiuoti greta, už matomo ekrano krašto. Vieną darbo sritį į šį išdėstymą paversti su `Super + L`.
+Tačiau taip pat galite pasirinkti darbo erdvę paversti slenkamuoju išdėstymu, kuriame langai išrikiuoti vienas šalia kito už matomo ekrano krašto. Vieną darbo erdvę į šį išdėstymą paverčiate naudodami `Super + L`.
 
-Paspaudus `Super + L` dar kartą, darbo sritis pavirsta plaukiojančia, kur langai laisvai persidengia ir juos išdėstai pats, o trečias paspaudimas grąžina ją į dwindle. `Super + Alt + L` pereina juos priešinga kryptimi. Langas, kuris bet kuriuo atveju plaukioja — kurį iškėlei su `Super + T` arba programa, kuri visada atsidaro plaukiojanti — lieka plaukiojantis, kai darbo sritis grįžta į išklotinį išdėstymą. Viršutinė juosta pažymi darbo sritį, kurioje esi, jos išdėstymu: kvadratas dwindle, apskritimas slenkamajam ir trikampis plaukiojančiam. Spustelėjus tą žymę, išdėstymas taip pat cikliškai keičiamas.
+Dar kartą paspaudus `Super + L`, darbo erdvė tampa plaukiojanti, kur langai laisvai persidengia ir jūs patys juos išdėstote, o trečias paspaudimas grąžina ją į dwindle. `Super + Alt + L` pereina per juos priešinga kryptimi. Langas, kuris bet kuriuo atveju plaukioja — toks, kurį iškėlėte su `Super + T`, arba programa, kuri visada atsidaro plaukiojanti — lieka plaukiojantis, kai darbo erdvė grįžta į plytelių režimą. Viršutinė juosta žymi darbo erdvę, kurioje esate, jos išdėstymu: kvadratas reiškia dwindle, apskritimas — slenkamąjį, o trikampis — plaukiojantį. Spustelėjus tą ženklą, išdėstymas taip pat keičiamas cikliškai, o taip pat tai daro ir ekrano klavišas nešiojamuosiuose kompiuteriuose, kurie jį turi.
 
  ![navigation-scrolling-layout](images/navigation-scrolling-layout.webp)
 
-Pasirinkimas yra kiekvienai darbo sričiai atskirai ir jis išlieka. Taigi gali darbo sritį 1 laikyti dwindle naršymui, o darbo sritį 2 — slenkamąją kodui, ir jos taip sugrįš po paleidimo iš naujo.
+Pasirinkimas yra kiekvienai darbo erdvei atskiras ir išlieka. Taigi darbo erdvę 1 galite laikyti dwindle režime naršymui, o darbo erdvę 2 — slenkamajame kodui, ir jos taip sugrįš po paleidimo iš naujo.
 
-Jei nori slenkamąjį išdėstymą naudoti kaip numatytąjį, gali tai nustatyti `~/.config/hypr/looknfeel.lua`:
+Jei norite slenkamąjį išdėstymą naudoti kaip numatytąjį, galite tai nustatyti faile `~/.config/hypr/looknfeel.lua`:
 
 ```lua
 hl.config({
@@ -52,40 +52,40 @@ hl.config({
 })
 ```
 
-### Plaukiojančios darbo sritys
+### Plaukiojančios darbo erdvės
 
-Plaukiojanti darbo sritis veikia kaip tradicinis darbalaukis: langai persidengia, o tu pats juos judi ir keiti dydį. Kiekvienas langas gauna pavadinimo juostą tavo temos spalvomis, su mygtukais sumažinti, padidinti ir uždaryti. `Super + M` taip pat sumažina fokusuotą langą. Sumažintas langas laukia doke; spustelėk jo programą, kad jį susigrąžintum. Spustelėk langą, kad iškeltum jį į priekį. Keisk jo dydį nuo bet kurio krašto ar kampo. Dukart spustelėk pavadinimo juostą, kad padidintum langą išlaikydamas viršutinę juostą matomą, ir dar kartą, kad susigrąžintum jo seną dydį.
+Plaukiojanti darbo erdvė veikia kaip tradicinis darbalaukis: langai persidengia, o jūs patys juos perkeliate ir keičiate jų dydį. Kiekvienas langas gauna pavadinimo juostą jūsų temos spalvomis su mygtukais sumažinti, padidinti ir uždaryti. `Super + M` taip pat sumažina sufokusuotą langą. Sumažintas langas laukia doke; spustelėkite jo programą, kad jį grąžintumėte. Spustelėkite langą, kad iškeltumėte jį į priekį. Keiskite jo dydį nuo bet kurio krašto ar kampo. Dukart spustelėkite pavadinimo juostą, kad padidintumėte langą palikdami viršutinę juostą matomą, ir dar kartą, kad grąžintumėte seną jo dydį. Chrome ir kitos Chromium pagrindu veikiančios naršyklės, Disks ir Document Viewer pavadinimo juostą praleidžia ir vietoj jos naudoja savo antraštę; `Super + Alt + F` jas padidina, o `Super + M` jas sumažina.
 
-Plaukiojanti darbo sritis taip pat rodo doką su tavo prisegtomis programomis, viskuo, kas veikia, ir visų programų tinkleliu už programų mygtuko, kurį taip pat atveria `Super + Alt + Space` ir _Apps_ Omarchy meniu. Dešiniuoju pelės mygtuku spustelėk programą tinklelyje arba paspausk `Delete`, kad ją pašalintum. Spustelėk programą, kad ją atvertum arba iškeltum jos langą į priekį; spustelėk dar kartą, kad cikliškai pereitum jos langus. Vidurinis spustelėjimas atveria naują langą. Vilk piktogramą išilgai doko, kad ją perkeltum; nutempus veikiančią programą tarp kitų, ji ten pasilieka. Dešiniuoju pelės mygtuku spustelėk, kad programą išlaikytum doke, išimtum ją arba ją uždarytum. Dokas pasitraukia iš kelio viso ekrano langui. Dešiniuoju pelės mygtuku spustelėk programų mygtuką, kad perkeltum doką į kitą kraštą arba jis slėptųsi, kol rodyklė pasieks jo kraštą. Padėtis taip pat yra _Appearance > Dock > Dock Position_, o `omarchy dock position left` ir `omarchy dock autohide on` abi nustato iš terminalo. Programos, kurias laikai doke, yra pritemdytos, kol jos neveikia.
+Plaukiojanti darbo erdvė taip pat rodo doką su jūsų prisegtomis programomis, viskuo, kas veikia, ir visų programų tinkleliu už programų mygtuko, kurį taip pat atveria `Super + Alt + Space` ir _Apps_ Omarchy meniu. Dešiniuoju pelės mygtuku spustelėkite programą tinklelyje arba paspauskite `Delete`, kad ją pašalintumėte. Spustelėkite programą, kad ją atvertumėte arba iškeltumėte jos langą į priekį; spustelėkite dar kartą, kad cikliškai pereitumėte per jos langus. Files grąžina langą tik iš darbo erdvės, kurioje esate, ir priešingu atveju atveria naują, o Terminal ir Agent visada paleidžia kitą, nors sumažintas langas grįžta pirmas. Viduriniuoju spustelėjimu atveriamas naujas langas. Vilkite piktogramą išilgai doko, kad ją perkeltumėte; įvilkus veikiančią programą tarp kitų, ji ten lieka. Dešiniuoju pelės mygtuku spustelėkite, kad programą paliktumėte doke, išimtumėte ją arba uždarytumėte. Dokas pasitraukia iš kelio viso ekrano langui. Dešiniuoju pelės mygtuku spustelėkite programų mygtuką, kad doką perkeltumėte į kitą kraštą arba kad jis slėptųsi, kol žymeklis pasieks jo kraštą. Padėtis taip pat yra skiltyje _Appearance > Dock > Dock Position_, o `omarchy dock position left` ir `omarchy dock autohide on` abi nustato iš terminalo. Programos, kurias laikote doke, yra pritemdytos, kol neveikia.
 
-Naujos darbo sritys ir bet kuri, kuriai nesuteikei savo išdėstymo su `Super + L`, naudoja numatytąjį išdėstymą. Pakeitus numatytąjį, kiekviena darbo sritis be langų nustatoma iš naujo į jį, o ta, kurioje yra langų, išlaiko išdėstymą, kurį turi. Į doką sumažintas langas vis tiek laikomas langu darbo srityje, kurią jis paliko. Pasirink jį _Appearance > Workspace Layout_: Tiling, Scrolling arba Floating. `omarchy-hyprland-workspace-layout-default scrolling` nustato jį iš terminalo.
+Naujos darbo erdvės ir visos, kurioms nesuteikėte savo išdėstymo su `Super + L`, naudoja numatytąjį išdėstymą. Pakeitus numatytąjį, kiekviena darbo erdvė be langų nustatoma iš naujo į jį, o ta, kurioje yra langų, išlaiko turimą išdėstymą. Į doką sumažintas langas vis tiek laikomas langu darbo erdvėje, kurią paliko. Pasirinkite jį skiltyje _Appearance > Workspace Layout_: Tiling, Scrolling arba Floating. `omarchy hyprland workspace layout default scrolling` nustato jį iš terminalo.
 
 ### Langų grupavimas
 
-Langus galima grupuoti naudojant `Super + G`. Kai esi grupėje, kiekvienas langas, kurį paleidi, kol ji aktyvi, priklausys grupei. Tarp šių sugrupuotų langų gali judėti naudodamas `Super + Ctrl + Arrow Left/Right` arba `Super + Alt + 1/2/3/4`, kad eitum tiesiai prie sugrupuoto lango eilės tvarka.
+Langus galima grupuoti naudojant `Super + G`. Kai esate grupėje, kiekvienas langas, kurį paleidžiate, kol ji aktyvi, priklausys grupei. Tarp šių sugrupuotų langų galite judėti naudodami `Super + Ctrl + Arrow Left/Right` arba `Super + Alt + 1/2/3/4`, kad pereitumėte tiesiai prie sugrupuotų langų eilės tvarka.
 
-Langą iš grupavimo gali perkelti su `Super + Alt + G` arba išardyti visą grupę dar kartą paspausdamas `Super + G`. Galiausiai langus, esančius už grupės ribų, į ją gali perkelti su `Super + Alt + Arrows`.
+Langą iš grupavimo galite perkelti naudodami `Super + Alt + G` arba išardyti visą grupę dar kartą paspausdami `Super + G`. Galiausiai langus už grupės ribų į ją galite perkelti su `Super + Alt + Arrows`.
 
 ### Langų iškėlimas
 
-Langą iš jo darbo srities paskyrimo gali iškelti su `Super + O`. Tai prisegs jį kaip plaukiojantį langą, kuris seka tave, į kurią darbo sritį beeitum. Puiku vaizdo grotuvams ir panašiems.
+Langą iš jo darbo erdvės paskirstymo galite iškelti su `Super + O`. Tai jį prisegs kaip plaukiojantį langą, kuris seka jus, į kurią darbo erdvę benueitumėte. Puikiai tinka vaizdo leistuvams ir panašiems dalykams.
 
  ![navigation-popped-window](images/navigation-popped-window.webp)
 
-### Scratchpad darbo sritis
+### Laikinosios darbo erdvės (scratchpad)
 
-Yra speciali viso dydžio scratchpad darbo sritis, kuri uždengia bet kurią darbo sritį, kurioje šiuo metu esi. Tai, kas joje yra, pasieki su `Super + S`, o langus ten dedi su `Super + Alt + S`.
+Yra speciali viso dydžio laikinoji darbo erdvė, kuri uždengia bet kurią darbo erdvę, kurioje šiuo metu esate. Kas joje yra, pasiekiate naudodami `Super + S`, o langus ten dedate naudodami `Super + Alt + S`.
 
-Ji puikiai tinka valdikliams ar terminalui, su kuriuo nori greitai sąveikauti nepalikdamas dabartinės darbo srities.
+Ji gerai tinka valdikliams ar terminalui, su kuriuo norite greitai sąveikauti nepalikdami dabartinės darbo erdvės.
 
-### Quake konsolė
+### „Quake“ konsolė
 
-Galiausiai yra pusės aukščio Quake konsolė, kuri nusileidžia ant bet kurios darbo srities, kurioje šiuo metu esi. Perjunk ją su `Super + Grave`, o langą ten padėk naudodamas `Super + Shift + Grave`.
+Galiausiai yra pusės aukščio „Quake“ konsolė, kuri nusileidžia virš bet kurios darbo erdvės, kurioje šiuo metu esate. Ją perjungiate su `Super + the key above Tab` (JAV išdėstymuose — grave), o langą ten dedate naudodami `Super + Shift + the key above Tab`.
 
-Ji atsidaro su tavo numatytuoju agentu, pasiruošusiu veikti. Kol konsolėje yra vienas langas, ji nusileidžia kaip centruotas skydelis, o ne driekiasi per ekraną. Padėk joje antrą programą ir ji grįš į visą plotį, kad abi turėtų vietos būti greta.
+Pirmą kartą atsidariusi ji paleidžia jūsų numatytąjį agentą arba paprašo pasirinkti vieną, jei dar nepasirinkote. Kol konsolėje yra vienas langas, ji nusileidžia kaip centre esantis skydelis, o ne per visą ekraną. Įdėkite į ją antrą programą ir ji grįžta į visą plotį, kad abi turėtų vietos būti viena šalia kitos.
 
-Norėdamas langą perkelti iš scratchpad arba konsolės, nusiųsk jį tiesiai į kitą darbo sritį su kažkuo panašiu į `Super + Shift + 1`.
+Norėdami langą perkelti iš laikinosios darbo erdvės ar konsolės, nusiųskite jį tiesiai į kitą darbo erdvę su kažkuo panašiu į `Super + Shift + 1`.
 
-### Reikia šiek tiek priprasti!
+### Priprasti prireiks laiko!
 
-Reikia šiek tiek laiko priprasti taip naršyti darbalaukyje, bet kai priprasi, bus sunku grįžti prie tradicinės pele valdomo darbalaukio patirties!
+Prireikia šiek tiek laiko priprasti taip naršyti darbalaukyje, bet kai priprasite, bus sunku grįžti prie tradicinės pele valdomos darbalaukio patirties!

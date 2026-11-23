@@ -22,13 +22,14 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
     libreoffice-fresh \
     pinta \
     obsidian \
-    moonlight-qt \
     omacut \
     monologue \
     omacalc \
     omawrite \
     hype \
-    signed; then
+    signed \
+    fantasi \
+    flowtunes; then
     echo -e "\nPreinstalls are still marked as removed. Fix the errors above and try again."
     exit 1
   fi
@@ -36,5 +37,5 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
   # Last, so a failure above leaves the opt-out intact rather than restoring
   # keybindings for apps that never came back
   rm -f ~/.local/state/omarchy/preinstalls-removed
-  hyprctl reload
+  omarchy-restart-hyprctl
 fi

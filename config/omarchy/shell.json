@@ -54,10 +54,10 @@
           "id": "omarchy.bluetooth"
         },
         {
-          "id": "omarchy.network"
+          "id": "omarchy.audio"
         },
         {
-          "id": "omarchy.audio"
+          "id": "omarchy.network"
         },
         {
           "id": "omarchy.monitor"
@@ -71,13 +71,14 @@
   "dock": {
     "position": "bottom",
     "pinned": [
-      "org.gnome.Nautilus",
-      "chromium",
-      "foot",
+      "folio",
+      "omarchy-browser",
+      "omarchy-terminal",
       "omacalc",
       "omawrite",
-      "X",
-      "YouTube"
+      "hype",
+      "monologue",
+      "cliamp"
     ]
   },
   "plugins": []
