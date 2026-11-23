@@ -283,6 +283,7 @@
   "plugin.removeTitle": "移除插件",
   "plugin.removeWhich": "移除哪个插件？",
   "plugin.replacedByClone": "原始插件已被克隆替换。",
+  "polkit.authorizeInstalling": "授权安装 %1",
   "preinstalls.confirmRemove": "确定要移除所有预装的 Web 应用、TUI 封装程序和桌面应用吗？",
   "preinstalls.confirmRestore": "确定要恢复所有预装的 Web 应用、TUI 封装程序和桌面应用吗？",
   "region.changed": "日期和数字现已按 %1 的格式书写",

@@ -287,6 +287,7 @@
   "plugin.removeTitle": "Remover plugin",
   "plugin.removeWhich": "Remover qual plugin?",
   "plugin.replacedByClone": "O plugin original foi substituído pelo clone.",
+  "polkit.authorizeInstalling": "Autorizar a instalação de %1",
   "preinstalls.confirmRemove": "Tem certeza de que deseja remover todos os aplicativos web, wrappers TUI e aplicativos de desktop pré-instalados?",
   "preinstalls.confirmRestore": "Tem certeza de que deseja restaurar todos os aplicativos web, wrappers TUI e aplicativos de desktop pré-instalados?",
   "region.changed": "Datas e números agora são escritos como em %1",

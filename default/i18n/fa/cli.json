@@ -285,6 +285,7 @@
   "plugin.removeTitle": "حذف افزونه",
   "plugin.removeWhich": "کدام افزونه حذف شود؟",
   "plugin.replacedByClone": "افزونهٔ اصلی با کپی جایگزین شد.",
+  "polkit.authorizeInstalling": "مجوز نصب %1",
   "preinstalls.confirmRemove": "مطمئنید که می‌خواهید همهٔ وب‌اپ‌ها، روکش‌های TUI و برنامه‌های دسکتاپ از پیش نصب‌شده را حذف کنید؟",
   "preinstalls.confirmRestore": "مطمئنید که می‌خواهید همهٔ وب‌اپ‌ها، روکش‌های TUI و برنامه‌های دسکتاپ از پیش نصب‌شده را بازیابی کنید؟",
   "region.changed": "تاریخ‌ها و اعداد اکنون مانند %1 نوشته می‌شوند",

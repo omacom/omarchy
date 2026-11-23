@@ -287,6 +287,7 @@
   "plugin.removeTitle": "Ukloni dodatak",
   "plugin.removeWhich": "Koji dodatak ukloniti?",
   "plugin.replacedByClone": "Izvorni dodatak zamijenjen je klonom.",
+  "polkit.authorizeInstalling": "Odobri instalaciju %1",
   "preinstalls.confirmRemove": "Jeste li sigurni da želite ukloniti sve unaprijed instalirane web-aplikacije, TUI omotače i aplikacije radne površine?",
   "preinstalls.confirmRestore": "Jeste li sigurni da želite vratiti sve unaprijed instalirane web-aplikacije, TUI omotače i aplikacije radne površine?",
   "region.changed": "Datumi i brojevi sada se pišu kao u %1",

@@ -285,6 +285,7 @@
   "plugin.removeTitle": "Fjern plugin",
   "plugin.removeWhich": "Hvilken plugin vil du fjerne?",
   "plugin.replacedByClone": "Den opprinnelige plugin-en er erstattet av klonen.",
+  "polkit.authorizeInstalling": "Godkjenn installering av %1",
   "preinstalls.confirmRemove": "Er du sikker på at du vil fjerne alle forhåndsinstallerte webapper, TUI-omslag og skrivebordsprogrammer?",
   "preinstalls.confirmRestore": "Er du sikker på at du vil gjenopprette alle forhåndsinstallerte webapper, TUI-omslag og skrivebordsprogrammer?",
   "region.changed": "Datoer og tall skrives nå som i %1",

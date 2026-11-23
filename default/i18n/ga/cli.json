@@ -291,6 +291,7 @@
   "plugin.removeTitle": "Bain forlíontán",
   "plugin.removeWhich": "Cén forlíontán le baint?",
   "plugin.replacedByClone": "Tá an clón curtha in ionad an fhorlíontáin bhunaidh.",
+  "polkit.authorizeInstalling": "Údaraigh suiteáil %1",
   "preinstalls.confirmRemove": "An bhfuil tú cinnte gur mhaith leat na haipeanna gréasáin, na fillteáin TUI agus na feidhmchláir deisce réamhshuiteáilte go léir a bhaint?",
   "preinstalls.confirmRestore": "An bhfuil tú cinnte gur mhaith leat na haipeanna gréasáin, na fillteáin TUI agus na feidhmchláir deisce réamhshuiteáilte go léir a athchóiriú?",
   "region.changed": "Scríobhtar dátaí agus uimhreacha mar i %1 anois",

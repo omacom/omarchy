@@ -285,6 +285,7 @@
   "plugin.removeTitle": "Eklentiyi Kaldır",
   "plugin.removeWhich": "Hangi eklenti kaldırılsın?",
   "plugin.replacedByClone": "Özgün eklenti klonla değiştirildi.",
+  "polkit.authorizeInstalling": "%1 kurulumunu yetkilendir",
   "preinstalls.confirmRemove": "Önceden yüklenmiş tüm web uygulamalarını, TUI sarmalayıcılarını ve masaüstü uygulamalarını kaldırmak istediğinizden emin misiniz?",
   "preinstalls.confirmRestore": "Önceden yüklenmiş tüm web uygulamalarını, TUI sarmalayıcılarını ve masaüstü uygulamalarını geri yüklemek istediğinizden emin misiniz?",
   "region.changed": "Tarih ve sayılar artık %1 biçiminde yazılıyor",

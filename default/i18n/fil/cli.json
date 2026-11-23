@@ -285,6 +285,7 @@
   "plugin.removeTitle": "Alisin ang plugin",
   "plugin.removeWhich": "Aling plugin ang aalisin?",
   "plugin.replacedByClone": "Napalitan na ng clone ang orihinal na plugin.",
+  "polkit.authorizeInstalling": "Pahintulutan ang pag-install ng %1",
   "preinstalls.confirmRemove": "Sigurado ka bang gusto mong alisin lahat ng preinstalled na web apps, TUI wrappers, at desktop applications?",
   "preinstalls.confirmRestore": "Sigurado ka bang gusto mong ibalik lahat ng preinstalled na web apps, TUI wrappers, at desktop applications?",
   "region.changed": "Isinusulat na ngayon ang mga petsa at numero gaya sa %1",

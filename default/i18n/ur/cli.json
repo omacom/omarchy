@@ -285,6 +285,7 @@
   "plugin.removeTitle": "پلگ ان ہٹائیں",
   "plugin.removeWhich": "کون سا پلگ ان ہٹائیں؟",
   "plugin.replacedByClone": "اصل پلگ ان کلون سے بدل گیا ہے۔",
+  "polkit.authorizeInstalling": "%1 کو انسٹال کرنے کی اجازت دیں",
   "preinstalls.confirmRemove": "کیا آپ کو یقین ہے کہ آپ تمام پہلے سے نصب ویب ایپس، TUI ریپرز اور ڈیسک ٹاپ ایپلیکیشنز ہٹانا چاہتے ہیں؟",
   "preinstalls.confirmRestore": "کیا آپ کو یقین ہے کہ آپ تمام پہلے سے نصب ویب ایپس، TUI ریپرز اور ڈیسک ٹاپ ایپلیکیشنز بحال کرنا چاہتے ہیں؟",
   "region.changed": "تاریخیں اور اعداد اب %1 کے انداز میں لکھے جاتے ہیں",

@@ -287,6 +287,7 @@
   "plugin.removeTitle": "Odebrat plugin",
   "plugin.removeWhich": "Který plugin odstranit?",
   "plugin.replacedByClone": "Původní plugin byl nahrazen klonem.",
+  "polkit.authorizeInstalling": "Povolit instalaci %1",
   "preinstalls.confirmRemove": "Opravdu chcete odstranit všechny předinstalované webové aplikace, TUI wrappery a desktopové aplikace?",
   "preinstalls.confirmRestore": "Opravdu chcete obnovit všechny předinstalované webové aplikace, TUI wrappery a desktopové aplikace?",
   "region.changed": "Data a čísla se nyní zapisují podle %1",
