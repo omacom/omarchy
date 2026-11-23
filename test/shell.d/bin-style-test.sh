@@ -12,3 +12,13 @@ pass "bin commands use command helpers"
 raw_notifications=$(rg -l -P '^[[:space:]]*[^#[:space:]].*\bnotify-send\b' "$ROOT/bin" || true)
 [[ -z $raw_notifications ]] || fail "bin commands use the notification helper, never notify-send" "$raw_notifications"
 pass "bin commands use the notification helper"
+
+# The router only loads executable files. Check committed modes too, since
+# filesystem permissions can differ from the index.
+if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  non_executable=$(git -C "$ROOT" ls-files -s -- 'bin/omarchy-*' | awk '$1 != "100755" { print $4 }')
+  [[ -z $non_executable ]] || fail "bin commands are committed executable" "$non_executable"
+  pass "bin commands are committed executable"
+else
+  skip "bin commands are committed executable (not a git checkout)"
+fi
