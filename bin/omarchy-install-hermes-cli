@@ -103,8 +103,10 @@ mise_retired() {
 # with `Restart=always` and no start-rate limit -- so once the environment is
 # gone it fails 203/EXEC every five seconds, forever. A unit whose ExecStart
 # runs the installs of this tool is the retired environment's own, whatever
-# home it serves, and goes with it the way the ~/.hermes runtime's gateway does
-# in omarchy-remove-ai-hermes: stopped first, since systemd would start it
+# home it serves, and goes with it unless the executable it starts still exists,
+# when the unit is the user's own running gateway and stays; otherwise it goes
+# the way the ~/.hermes runtime's gateway does in omarchy-remove-ai-hermes:
+# stopped first, since systemd would start it
 # again the moment it was killed. Matched as a plain string, so the installs
 # directory is found wherever MISE_DATA_DIR or XDG_DATA_HOME put it.
 unit_dir=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user
@@ -118,11 +120,45 @@ unit_stopped() {
   [[ $state == "inactive" || $state == "failed" ]]
 }
 
+# The executable an ExecStart= line runs: its first token, unquoted, with a
+# leading ~, $HOME or ${HOME} expanded to the real home. Read without eval, so
+# a unit file cannot make this run anything; empty when the unit has none.
+execstart_executable() {
+  local line token
+  line=$(grep -m1 '^ExecStart=' "$1") || return 0
+  token=${line#ExecStart=}
+  token=${token#"${token%%[![:space:]]*}"}
+  if [[ $token == \"* ]]; then
+    token=${token#\"}
+    token=${token%%\"*}
+  elif [[ $token == \'* ]]; then
+    token=${token#\'}
+    token=${token%%\'*}
+  else
+    token=${token%%[[:space:]]*}
+  fi
+  case $token in
+    '~') token=$HOME ;;
+    '~/'*) token=$HOME/${token#'~/'} ;;
+    '$HOME') token=$HOME ;;
+    '$HOME/'*) token=$HOME/${token#'$HOME/'} ;;
+    '${HOME}') token=$HOME ;;
+    '${HOME}/'*) token=$HOME/${token#'${HOME}/'} ;;
+  esac
+  printf '%s\n' "$token"
+}
+
 retire_mise_gateway_units() {
-  local unit_file unit
+  local unit_file unit executable
   for unit_file in "$unit_dir"/hermes-gateway*.service; do
     [[ -f $unit_file ]] || continue
     [[ $(grep '^ExecStart=' "$unit_file") == *'mise/installs/pipx-hermes-agent'* ]] || continue
+    executable=$(execstart_executable "$unit_file")
+    # A unit whose mise-built executable is still on disk is a live gateway the
+    # user runs themselves; leave it entirely alone — not even asked of systemd.
+    if [[ -n $executable && -f $executable ]]; then
+      continue
+    fi
     unit=${unit_file##*/}
     if ! systemctl --user disable --now "$unit" 2>/dev/null && ! unit_stopped "$unit"; then
       echo "Could not stop $unit, which runs the Hermes that mise built. Stop it by hand (systemctl --user disable --now \"$unit\"), then run omarchy-install-hermes-cli --retire-mise again." >&2
@@ -382,10 +418,10 @@ case "$mode" in
 --retire-mise)
   # The migration's whole job. The environment goes before the wrapper, since
   # once the wrapper is gone nothing marks the environment as Omarchy's and a
-  # rerun could not finish what a failed removal left behind. A gateway unit
-  # whose ExecStart runs the mise installs of this tool is its own proof --
-  # nothing else writes that path -- so it goes even on a machine where the
-  # earlier migration already removed the environment and wrapper.
+  # rerun could not finish what a failed removal left behind. Gateway units that
+  # run the mise installs of this tool are swept only when their executable is
+  # gone; a healthy unit stays, including on a machine where the earlier
+  # migration already removed the environment and wrapper.
   retire_mise_gateway_units || exit 1
   if legacy_owned; then
     retire_mise || exit 1

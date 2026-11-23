@@ -370,6 +370,64 @@ grep -qxF 'systemctl --user disable --now hermes-gateway.service' "$systemctl_lo
 [[ ! -s $mise_log ]] || fail "--retire-mise without the wrapper still leaves mise untouched" "$(cat "$mise_log")"
 pass "--retire-mise sweeps a leftover mise gateway unit even after the wrapper is gone"
 
+# A machine where the user's own mise-built Hermes still exists: the unit is
+# healthy and running, so retirement must not disable it, remove it, or ask
+# systemd anything at all about it.
+rm -f "$hermes"
+: >"$mise_log"; rm -f "$mise_log.removed" "$mise_log.unrequested"
+: >"$systemctl_log"
+live_exec="$test_home/.local/share/mise/installs/pipx-hermes-agent/0.19.0/hermes-agent/venv/bin/python"
+mkdir -p "$(dirname -- "$live_exec")"
+printf '#!/bin/bash\nexit 0\n' >"$live_exec"
+chmod +x "$live_exec"
+write_gateway_unit "$live_exec -m hermes_cli.main gateway run"
+XDG_CONFIG_HOME="$test_home/.config" OMARCHY_TEST_SYSTEMCTL_LOG="$systemctl_log" run_installer --retire-mise ||
+  fail "--retire-mise succeeds beside a healthy mise-built gateway" "$(cat "$test_tmp/output")"
+[[ ! -s $systemctl_log ]] || fail "a healthy mise-built gateway is never asked of systemd" "$(cat "$systemctl_log")"
+[[ -f $unit_dir/hermes-gateway.service ]] || fail "a healthy mise-built gateway unit is kept"
+[[ ! -s $mise_log ]] || fail "mise is not touched while its gateway is healthy" "$(cat "$mise_log")"
+pass "a gateway unit whose mise-built executable still exists is left entirely alone"
+
+: >"$systemctl_log"
+quoted_exec="$test_home/.local/share/mise/installs/pipx-hermes-agent/My Hermes venv/bin/python"
+mkdir -p "$(dirname -- "$quoted_exec")"
+printf '#!/bin/bash\nexit 0\n' >"$quoted_exec"
+chmod +x "$quoted_exec"
+write_gateway_unit "\"$quoted_exec\" -m hermes_cli.main gateway run"
+XDG_CONFIG_HOME="$test_home/.config" OMARCHY_TEST_SYSTEMCTL_LOG="$systemctl_log" run_installer --retire-mise ||
+  fail "--retire-mise succeeds beside a quoted-path gateway" "$(cat "$test_tmp/output")"
+[[ ! -s $systemctl_log ]] || fail "a quoted executable containing spaces is read whole" "$(cat "$systemctl_log")"
+[[ -f $unit_dir/hermes-gateway.service ]] || fail "a quoted-path gateway unit with a live executable is kept"
+pass "a quoted ExecStart path with spaces is parsed whole"
+
+rm -f "$quoted_exec"
+: >"$systemctl_log"
+printf 'x' >"$unit_dir/hermes-gateway.service.bak"
+ln -sf ../hermes-gateway.service "$unit_dir/default.target.wants/hermes-gateway.service"
+XDG_CONFIG_HOME="$test_home/.config" OMARCHY_TEST_SYSTEMCTL_LOG="$systemctl_log" run_installer --retire-mise ||
+  fail "--retire-mise sweeps a quoted-path gateway whose target is gone" "$(cat "$test_tmp/output")"
+grep -qxF 'systemctl --user disable --now hermes-gateway.service' "$systemctl_log" ||
+  fail "a quoted-path gateway with a missing executable is stopped" "$(cat "$systemctl_log")"
+[[ ! -e $unit_dir/hermes-gateway.service && ! -e $unit_dir/hermes-gateway.service.bak && ! -L $unit_dir/default.target.wants/hermes-gateway.service ]] ||
+  fail "a quoted-path gateway with a missing executable, its backup and enablement go"
+pass "a quoted ExecStart path with a missing executable is still swept"
+
+: >"$systemctl_log"
+write_gateway_unit "\$HOME/.local/share/mise/installs/pipx-hermes-agent/0.19.0/hermes-agent/venv/bin/python -m hermes_cli.main gateway run"
+XDG_CONFIG_HOME="$test_home/.config" OMARCHY_TEST_SYSTEMCTL_LOG="$systemctl_log" run_installer --retire-mise ||
+  fail "--retire-mise succeeds beside a \$HOME-path gateway" "$(cat "$test_tmp/output")"
+[[ ! -s $systemctl_log && -f $unit_dir/hermes-gateway.service ]] ||
+  fail "a \$HOME ExecStart expands to the live executable and the unit is kept" "$(cat "$systemctl_log")"
+pass "a \$HOME ExecStart is expanded without eval"
+
+: >"$systemctl_log"
+write_gateway_unit "~/.local/share/mise/installs/pipx-hermes-agent/0.19.0/hermes-agent/venv/bin/python -m hermes_cli.main gateway run"
+XDG_CONFIG_HOME="$test_home/.config" OMARCHY_TEST_SYSTEMCTL_LOG="$systemctl_log" run_installer --retire-mise ||
+  fail "--retire-mise succeeds beside a ~-path gateway" "$(cat "$test_tmp/output")"
+[[ ! -s $systemctl_log && -f $unit_dir/hermes-gateway.service ]] ||
+  fail "a ~ ExecStart expands to the live executable and the unit is kept" "$(cat "$systemctl_log")"
+pass "a ~ ExecStart is expanded to the home directory"
+
 # A gateway unit running a Hermes kept elsewhere is somebody else's arrangement
 # and stays, exactly as in omarchy-remove-ai-hermes.
 write_legacy_stub "$hermes"
