@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import errno
 import fcntl
 import hashlib
 import http.client
@@ -2074,6 +2075,15 @@ def _claude_code_index_fresh(index: dict[str, Any], files: list[Path]) -> bool:
   return True
 
 
+def _claude_code_listed(path: Path) -> bool:
+  """Whether `path` is a transcript to read: a link to nothing, or round a
+  loop, holds no usage, but one stat can't reach is the reader's to report."""
+  try:
+    return stat.S_ISREG(path.stat().st_mode)
+  except OSError as exc:
+    return exc.errno not in (errno.ENOENT, errno.ENOTDIR, errno.ELOOP)
+
+
 def _claude_code_read_transcripts(files: list[Path], previous: dict[str, Any]) -> tuple[dict[str, Any], list[str], bool]:
   """Each transcript's index entry, reusing `previous`, the order they were
   read in, and whether every one could be read."""
@@ -2155,7 +2165,7 @@ def claude_code_usage(
   # Directory order, as before: when one API message shows up in several
   # transcripts with the same output count, the last file visited wins, and
   # the numbers must not move because the scan got faster.
-  files = list(projects.rglob("*.jsonl")) if projects.is_dir() else []
+  files = [path for path in projects.rglob("*.jsonl") if _claude_code_listed(path)] if projects.is_dir() else []
   if not index_file:
     current, order, complete = _claude_code_read_transcripts(files, {})
   else:
