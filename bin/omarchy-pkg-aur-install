@@ -17,6 +17,8 @@ fzf_args=(
   --color 'pointer:green,marker:green'
 )
 
+omarchy-pkg-require-dbs || exit 1
+
 pkg_names=$(yay -Slqa | fzf "${fzf_args[@]}")
 
 if [[ -n $pkg_names ]]; then

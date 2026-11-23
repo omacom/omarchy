@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Require configured package databases before installing packages
+# omarchy:hidden=true
+
+# Offline installs initially have only the ISO repository database. Refreshing
+# the online databases alone could install newer packages against old libraries.
+# Leave synchronization and the matching system upgrade to omarchy update.
+sync_dir=$(pacman-conf DBPath) || exit 1
+repos=$(pacman-conf --repo-list) || exit 1
+if [[ -z $sync_dir || -z $repos ]]; then
+  echo "Could not determine the configured package databases." >&2
+  exit 1
+fi
+sync_dir="${sync_dir%/}/sync"
+
+while IFS= read -r repo; do
+  if [[ ! -f $sync_dir/$repo.db ]]; then
+    echo "Package database '$repo' is missing. Run 'omarchy update' successfully, then retry installing packages." >&2
+    exit 1
+  fi
+done <<< "$repos"
