@@ -1049,11 +1049,15 @@ Item {
   property bool stayAwakePicker: false
 
   function openStayAwakePicker() {
-    var labels = [["15-minutes","15 minutes"],["30-minutes","30 minutes"],["1-hour","1 hour"],["2-hours","2 hours"],["4-hours","4 hours"],["until-turned-off","Until turned off"],["allow-sleep","Allow Sleep Now"]]
-    var options = labels.map(function(pair) {
-      var entry = root.menuCatalog["stay-awake-picker." + pair[0]]
-      return entry && entry.label ? entry.label : pair[1]
-    })
+    var options = [
+      Commons.I18n.t("menu.stayAwake.fifteenMinutes"),
+      Commons.I18n.t("menu.stayAwake.thirtyMinutes"),
+      Commons.I18n.t("menu.stayAwake.oneHour"),
+      Commons.I18n.t("menu.stayAwake.twoHours"),
+      Commons.I18n.t("menu.stayAwake.fourHours"),
+      Commons.I18n.t("menu.stayAwake.untilTurnedOff"),
+      Commons.I18n.t("menu.stayAwake.allowSleep")
+    ]
     stayAwakePreference.reload()
     stayAwakePreference.waitForJob()
     var saved = stayAwakePreference.loaded ? Number(stayAwakePreference.text().trim()) : 15
