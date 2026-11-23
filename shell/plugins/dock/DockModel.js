@@ -96,7 +96,9 @@ function standInKey(key, categories, pinned) {
 // the entry that claims it.
 function buildItems(pinned, windows) {
   var items = []
-  var byKey = {}
+  // Maps keyed by id have no prototype, so an id like "constructor" is just an
+  // id.
+  var byKey = Object.create(null)
 
   function itemFor(key, isPinned) {
     if (!byKey[key]) {
@@ -123,10 +125,10 @@ function buildItems(pinned, windows) {
 // joins goes at the end. Items the order does not know yet follow in the order
 // buildItems gave them.
 function orderItems(items, order) {
-  var byKey = {}
+  var byKey = Object.create(null)
   for (var i = 0; i < (items || []).length; i++) byKey[items[i].key] = items[i]
   var result = []
-  var placed = {}
+  var placed = Object.create(null)
   for (var j = 0; j < (order || []).length; j++) {
     var key = order[j]
     if (byKey[key] && !placed[key]) {

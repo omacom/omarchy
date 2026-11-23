@@ -149,7 +149,7 @@ function friendlyStreamLabel(label) {
     "spotify": "Spotify"
   }
   var normalized = label.toLowerCase()
-  return known[normalized] || label
+  return Object.prototype.hasOwnProperty.call(known, normalized) ? known[normalized] : label
 }
 
 function streamLabelKey(label) {

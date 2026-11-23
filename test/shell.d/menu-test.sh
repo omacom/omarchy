@@ -443,3 +443,46 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
+
+# An id is chosen by outside files, so an id naming an Object.prototype member
+# is just an id. A plain map answers for those members, so the merge reads the
+# inherited constructor as an already-claimed id and never lists the row.
+run_node_test <<'JS'
+const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
+
+const emptyBase = menu.mergeMenuSources(
+  [menu.normalizeItem('notes', { label: 'Notes', parent: 'root', action: 'true' })],
+  []
+)
+assert(
+  !Object.hasOwn(emptyBase.items, 'constructor'),
+  'prototype-named ids are not present before an outside row supplies them'
+)
+
+const user = menu.parseMenuJsonc('{ "constructor": { "label": "Constructor", "action": "true" }, "notes": { "label": "Notes", "action": "true" } }')
+const merged = menu.mergeMenuSources([], user)
+assert(merged.itemOrder.indexOf('constructor') >= 0, 'menu lists a row whose id is "constructor"')
+assert(Object.hasOwn(merged.items, 'constructor'), 'menu keeps the constructor row behind its id')
+assertEqual(merged.items.constructor.label, 'Constructor', 'menu merge keeps the supplied constructor label')
+
+const appRow = { id: 'constructor', kind: 'app', parent: 'apps', label: 'Constructor App', order: 0 }
+const appMerge = menu.mergeAppRows(emptyBase.items, emptyBase.itemOrder, [appRow])
+assert(Object.hasOwn(appMerge.items, 'constructor'), 'mergeAppRows stores a new app row whose id is "constructor"')
+assertEqual(appMerge.items.constructor.label, 'Constructor App', 'mergeAppRows keeps the supplied constructor app row')
+assert(appMerge.itemOrder.indexOf('constructor') >= 0, 'mergeAppRows lists a new app row whose id is "constructor"')
+
+const providerRow = { id: 'constructor', kind: 'action', parent: 'root', label: 'Constructor Provider', action: 'true', order: 0 }
+const providerMerge = menu.swapProviderRows(emptyBase.items, emptyBase.itemOrder, 'test.provider', [providerRow])
+assert(Object.hasOwn(providerMerge.items, 'constructor'), 'swapProviderRows stores a new row whose id is "constructor"')
+assertEqual(providerMerge.items.constructor.label, 'Constructor Provider', 'swapProviderRows keeps the supplied constructor provider row')
+assert(providerMerge.itemOrder.indexOf('constructor') >= 0, 'swapProviderRows lists a new row whose id is "constructor"')
+
+const constructorEntry = merged.items.constructor
+constructorEntry.parent = 'root'
+const altVariants = menu.altVariantIds(merged.items, merged.itemOrder)
+assert(!altVariants['constructor'], 'altVariantIds does not treat "constructor" as a hidden alt stand-in')
+assert(
+  constructorEntry.parent === 'root' && !altVariants[constructorEntry.id],
+  'browse display keeps a merged row whose id is "constructor" when no entry declares alt'
+)
+JS

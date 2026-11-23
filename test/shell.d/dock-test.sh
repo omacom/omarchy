@@ -230,3 +230,24 @@ STUB
 minimize
 [[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows on a tiled workspace alone" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize leaves windows on a tiled workspace alone"
+
+# An app id is chosen by the client, so an id naming an Object.prototype
+# member is just an id. A plain map answers for those members, so the item
+# lookup finds the inherited constructor instead of creating the item and the
+# window push dies on the missing windows array.
+ROOT="$ROOT" run_node_test <<'JS'
+const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
+
+const items = dock.buildItems([], [{ key: 'constructor', minimized: true, hasEntry: false, workspaceId: -99 }])
+assert(items.some(item => item.key === 'constructor'), 'dock builds an item for a window whose app id is "constructor"')
+assert(items.find(item => item.key === 'constructor').windows.length === 1, 'dock groups the window under the constructor item')
+
+const pins = dock.buildItems(['constructor', 'firefox'], [])
+assertDeepEqual(
+  pins.map(item => [item.key, item.pinned]),
+  [['constructor', true], ['firefox', true]],
+  'dock keeps a pin named "constructor"'
+)
+
+assertDeepEqual(dock.orderItems(pins, ['firefox', 'constructor']).map(item => item.key), ['firefox', 'constructor'], 'dock orders a constructor-named pin by its saved order')
+JS
