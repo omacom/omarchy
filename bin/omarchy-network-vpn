@@ -2,7 +2,7 @@
 
 # omarchy:summary=List NetworkManager VPNs and switch them between off, split and full tunnel
 # omarchy:group=network
-# omarchy:args=[list] | mode <uuid> <off|split|full> | signin <uuid> [split|full] | add | import <file>
+# omarchy:args=[list | mode <uuid> <off|split|full> | signin <uuid> [split|full] | add | import <file>]
 # omarchy:examples=omarchy network vpn | omarchy network vpn mode 3f2504e0-4f89-11d3-9a0c-0305e82c3301 split | omarchy network vpn import ~/Downloads/office.conf
 
 # Every NetworkManager VPN (WireGuard, OpenVPN, OpenConnect, ...) gets three
@@ -12,7 +12,10 @@
 #   split  connected, but only the VPN's own networks go through it
 #          (never-default yes, for IPv4 and IPv6)
 #   full   connected, and all traffic goes through it (never-default no);
-#          only one VPN is in full at a time, the others drop to split
+#          only one VPN is in full at a time, the others drop to split.
+#          A WireGuard profile offers full only when a peer allows
+#          0.0.0.0/0 or ::/0, since NetworkManager routes only what the
+#          peers allow
 #
 # The mode lives in the profile itself, so nmcli, nm-applet and this command
 # always agree. `list` prints one tab-separated line per VPN:
@@ -65,13 +68,36 @@ needs_signin_clear() {
 }
 
 # Runs this command again in a floating terminal, where nmcli can ask for
-# secrets and pacman for a password.
+# secrets and pacman for a password. The terminal must not inherit the
+# switch lock, or the switch it runs would wait on itself.
 open_terminal() {
-  omarchy-launch-floating-terminal-with-presentation "$(printf '%q ' omarchy-network-vpn "$@")" >/dev/null 2>&1 &
+  omarchy-launch-floating-terminal-with-presentation "$(printf '%q ' omarchy-network-vpn "$@")" >/dev/null 2>&1 9>&- &
 }
 
-profile_mode() {
-  if [[ $(nmcli -g ipv4.never-default connection show uuid "$1" 2>/dev/null) == "no" ]]; then
+# Only one switch at a time, from any panel or terminal, so two VPNs can't
+# both end up carrying all traffic.
+lock_switches() {
+  runtime_dir_ready || return 0
+  exec 9>"$RUNTIME_DIR/network-vpn.lock"
+  flock -w 30 9 || fail "another VPN switch is still running"
+}
+
+# The runtime dir must be ours before anything is written into it.
+runtime_dir_ready() {
+  mkdir -p "$RUNTIME_DIR" 2>/dev/null && [[ -O $RUNTIME_DIR ]]
+}
+
+# A WireGuard profile carries all traffic only when a peer allows it.
+vpn_modes() { # <uuid> <type>
+  if [[ $2 == "wireguard" ]] && ! nmcli -g wireguard.peers connection show uuid "$1" 2>/dev/null | grep -qE '(=|,|;)(0\.0\.0\.0|::)/0([,; ]|$)'; then
+    echo "off,split"
+  else
+    echo "$MODES"
+  fi
+}
+
+profile_mode() { # <uuid> <modes>
+  if [[ ,$2, == *,full,* && $(nmcli -g ipv4.never-default connection show uuid "$1" 2>/dev/null) == "no" ]]; then
     echo "full"
   else
     echo "split"
@@ -81,7 +107,7 @@ profile_mode() {
 # `nmcli -t` escapes ':' in values as '\:', so the name goes last and is
 # unescaped; uuid and type never contain one.
 list_vpns() {
-  local active uuid type name kind state detail mode actions
+  local active uuid type name kind state detail mode modes actions
   active=$(nmcli -t -f UUID,STATE connection show --active 2>/dev/null)
 
   while IFS=: read -r uuid type name; do
@@ -95,6 +121,7 @@ list_vpns() {
       kind=${kind:-vpn}
     fi
 
+    modes=$(vpn_modes "$uuid" "$type")
     state=off
     detail=""
     mode=off
@@ -104,7 +131,7 @@ list_vpns() {
     esac
 
     if [[ $state != "off" ]]; then
-      mode=$(profile_mode "$uuid")
+      mode=$(profile_mode "$uuid" "$modes")
       # The live address lags a moment behind activation; the profile's own
       # address (WireGuard has one) stands in until then.
       detail=$(nmcli -g IP4.ADDRESS connection show uuid "$uuid" 2>/dev/null | head -1)
@@ -115,19 +142,31 @@ list_vpns() {
     actions=""
     [[ -f $(signin_flag "$uuid") ]] && actions=signin
 
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$uuid" "$(clean "$name")" "$kind" "$state" "$detail" "$mode" "$MODES" "$actions"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$uuid" "$(clean "$name")" "$kind" "$state" "$detail" "$mode" "$modes" "$actions"
   done < <(nmcli -t -f UUID,TYPE,NAME connection show 2>/dev/null)
 }
 
-# Writes the snapshot the bar watches. Atomic, so a reader never sees half a list.
+# Writes the snapshot the bar watches. Each writer gets its own temporary file
+# and renames it into place, so a reader never sees half a list and writers
+# running at once (one per monitor at startup) can't clobber each other.
 write_snapshot() {
-  mkdir -p "$RUNTIME_DIR"
-  list_vpns >"$SNAPSHOT.tmp" && mv -f "$SNAPSHOT.tmp" "$SNAPSHOT"
+  local tmp
+  runtime_dir_ready || return 1
+  tmp=$(mktemp "$SNAPSHOT.XXXXXX") || return 1
+  if list_vpns >"$tmp"; then
+    mv -f "$tmp" "$SNAPSHOT"
+  else
+    rm -f "$tmp"
+    return 1
+  fi
 }
 
 list() {
-  write_snapshot
-  cat "$SNAPSHOT"
+  if write_snapshot; then
+    cat "$SNAPSHOT"
+  else
+    list_vpns
+  fi
 }
 
 vpn_type() {
@@ -158,25 +197,27 @@ set_default_route() { # <uuid> <split|full>
 }
 
 # How nmcli reports a VPN it could not bring up without asking for a password,
-# token or login cookie.
+# token or login cookie. Callers run nmcli with LC_ALL=C so this matches in
+# every language.
 needs_secrets() {
   grep -qiE 'secret|password|no agents|authenticat' <<<"$1"
 }
 
 # Brings the VPN up with the profile as it is now. Without a terminal, a
-# failure for missing credentials opens one to sign in rather than failing.
+# failure for missing credentials opens one to sign in rather than failing,
+# and returns 1 because the VPN isn't up yet.
 connect() {
   local uuid=$1 mode=$2 name err
   name=$(vpn_name "$uuid")
 
   if [[ -t 0 ]]; then
     nmcli --ask connection up uuid "$uuid" || fail "could not connect $name"
-  elif ! err=$(nmcli connection up uuid "$uuid" 2>&1 >/dev/null); then
+  elif ! err=$(LC_ALL=C nmcli connection up uuid "$uuid" 2>&1 >/dev/null); then
     if needs_secrets "$err"; then
       needs_signin_set "$uuid"
       open_terminal signin "$uuid" "$mode"
       notify "$(omarchy-i18n vpn.signIn "$name")" "$(omarchy-i18n vpn.signInBody)"
-      return 0
+      return 1
     fi
     notify -u critical "$(omarchy-i18n vpn.connectFailed "$name")" "$(clean "$err")"
     fail "could not connect $name"
@@ -198,28 +239,33 @@ set_mode() {
     *) fail "unknown mode: $mode (use off, split or full)" ;;
   esac
 
+  [[ ,$(vpn_modes "$uuid" "$(vpn_type "$uuid")"), == *,$mode,* ]] ||
+    fail "$(vpn_name "$uuid") can't carry all traffic: none of its peers allows 0.0.0.0/0 or ::/0"
+
+  set_default_route "$uuid" "$mode" || fail "could not change the VPN profile"
+
+  # Re-activating an active VPN applies the new routing. It comes up before
+  # anything else changes, so a switch that fails or waits for sign-in
+  # leaves the VPN that carries all traffic now as it is.
+  connect "$uuid" "$mode" || return 0
+
   # Only one VPN carries all traffic.
   if [[ $mode == "full" ]]; then
     for other in $(active_full_vpns "$uuid"); do
       set_default_route "$other" split || continue
       # Reconnecting applies the change. A VPN whose token or login cookie
       # can't be reused drops here, so its row offers Sign in.
-      if ! err=$(nmcli connection up uuid "$other" 2>&1 >/dev/null) && needs_secrets "$err"; then
+      if ! err=$(LC_ALL=C nmcli connection up uuid "$other" 2>&1 >/dev/null) && needs_secrets "$err"; then
         needs_signin_set "$other"
       fi
     done
   fi
-
-  set_default_route "$uuid" "$mode" || fail "could not change the VPN profile"
-
-  # Re-activating an active VPN applies the new routing.
-  connect "$uuid" "$mode"
 }
 
 signin() {
   local uuid=$1 mode=${2:-}
   require_vpn "$uuid"
-  [[ $mode == "split" || $mode == "full" ]] || mode=$(profile_mode "$uuid")
+  [[ $mode == "split" || $mode == "full" ]] || mode=$(profile_mode "$uuid" "$(vpn_modes "$uuid" "$(vpn_type "$uuid")")")
 
   if [[ -t 0 ]]; then
     echo "Sign in to $(vpn_name "$uuid")"
@@ -316,10 +362,12 @@ case ${1:-list} in
     ;;
   mode)
     (($# == 3)) || fail "usage: omarchy-network-vpn mode <uuid> off|split|full"
+    lock_switches
     set_mode "$2" "$3"
     ;;
   signin)
     (($# >= 2)) || fail "usage: omarchy-network-vpn signin <uuid> [split|full]"
+    lock_switches
     signin "$2" "${3:-}"
     ;;
   add)

@@ -28,6 +28,7 @@ if [[ $1 == "-g" ]]; then
   case $field in
     ipv4.never-default) cat "$NM/nd-$uuid" 2>/dev/null || echo no ;;
     vpn.service-type) cat "$NM/svc-$uuid" 2>/dev/null ;;
+    wireguard.peers) cat "$NM/peers-$uuid" 2>/dev/null ;;
     connection.type) awk -F: -v u="$uuid" "\$1 == u {print \$2}" "$NM/connections" ;;
     connection.id) awk -F: -v u="$uuid" "\$1 == u {print \$3}" "$NM/connections" ;;
     IP4.ADDRESS) grep -q "^$uuid:activated" "$NM/active" 2>/dev/null && echo "10.8.0.2/24" ;;
@@ -44,7 +45,13 @@ case "$2 $3" in
     done ;;
   "up uuid")
     if (( ! ask )) && grep -qx "$4" "$NM/needs-secrets" 2>/dev/null; then
-      echo "Error: Connection activation failed: Secrets were required, but not provided" >&2; exit 4
+      # nmcli speaks the user language unless told otherwise.
+      if [[ ${LC_ALL:-} == "C" ]]; then
+        echo "Error: Connection activation failed: Secrets were required, but not provided" >&2
+      else
+        echo "Fehler: Aktivierung der Verbindung fehlgeschlagen: Geheimnisse wurden benötigt" >&2
+      fi
+      exit 4
     fi
     { grep -v "^$4:" "$NM/active" 2>/dev/null; echo "$4:activated"; } > "$NM/active.new"; mv "$NM/active.new" "$NM/active" ;;
   "down uuid")
@@ -72,6 +79,16 @@ $WIFI:802-11-wireless:Cafe
 $OTHER:wireguard:Travel
 EOF
   echo "org.freedesktop.NetworkManager.openvpn" > "$stage/nm/svc-$OVPN"
+  # Office allows everything through its peer; Travel only its own network.
+  echo "peerkey allowed-ips=10.8.0.0/24;0.0.0.0/0 endpoint=vpn.example.net:51820" > "$stage/nm/peers-$WG"
+  echo "peerkey allowed-ips=10.8.0.0/24 endpoint=vpn.example.net:51820" > "$stage/nm/peers-$OTHER"
+}
+
+# Travel as a second VPN that can carry all traffic, already doing so.
+travel_full() {
+  echo "peerkey allowed-ips=0.0.0.0/0" > "$stage/nm/peers-$OTHER"
+  echo no > "$stage/nm/nd-$OTHER"
+  echo "$OTHER:activated" > "$stage/nm/active"
 }
 
 vpn() {
@@ -86,17 +103,28 @@ listed=$(vpn list)
 row() { local IFS=$'\t'; echo "$*"; }
 expected=$(row "$WG" "Office:Berlin" wireguard up 10.8.0.2 split off,split,full ""
   row "$OVPN" Home openvpn off "" off off,split,full ""
-  row "$OTHER" Travel wireguard off "" off off,split,full "")
+  row "$OTHER" Travel wireguard off "" off off,split "")
 [[ $listed == "$expected" ]] || fail "lists only VPNs, with their plugin, state, address and mode" "$listed"
 pass "lists only VPNs, with their plugin, state, address and mode"
 [[ $(<"$stage/runtime/omarchy/network-vpn") == "$expected" ]] || fail "list writes the snapshot the bar watches" "$(cat "$stage/runtime/omarchy/network-vpn")"
 pass "list writes the snapshot the bar watches"
 
-# Only one VPN carries all traffic: the one in full drops to split.
+# WireGuard routes only what its peers allow, so full needs a peer that
+# allows everything.
 reset_nm
-echo no > "$stage/nm/nd-$OTHER"
-echo "$OTHER:activated" > "$stage/nm/active"
+if vpn mode "$OTHER" full 2>/dev/null; then fail "refuses full for WireGuard whose peers don't allow everything"; fi
+! grep -q "modify" "$stage/log" || fail "a refused full changes nothing" "$(<"$stage/log")"
+pass "refuses full for WireGuard whose peers don't allow everything"
+
+# Only one VPN carries all traffic: the one in full drops to split, but only
+# once the new one is up.
+reset_nm
+travel_full
 vpn mode "$WG" full
+new_up=$(grep -n -m1 "^connection up uuid $WG" "$stage/log" | cut -d: -f1)
+old_split=$(grep -n -m1 "^connection modify uuid $OTHER" "$stage/log" | cut -d: -f1)
+(( ${new_up:-0} > 0 && ${old_split:-0} > new_up )) || fail "the new VPN is up before the old one leaves full" "$(<"$stage/log")"
+pass "the new VPN is up before the old one leaves full"
 [[ $(<"$stage/nm/nd-$OTHER") == "yes" && $(<"$stage/nm/nd-$WG") == "no" ]] || fail "full moves the other full VPN to split" "$(<"$stage/log")"
 grep -qx "connection up uuid $OTHER" "$stage/log" || fail "the VPN moved to split reconnects to apply it" "$(<"$stage/log")"
 pass "full moves the other full VPN to split and reconnects it"
@@ -121,10 +149,18 @@ grep -q "^notify .*Sign in to Home" "$stage/log" || fail "a missing password say
 pass "a missing password opens a sign-in terminal and the row offers Sign in"
 rm "$stage/nm/needs-secrets"
 
+# A switch waiting for sign-in leaves the VPN carrying all traffic as it is.
+reset_nm
+travel_full
+echo "$WG" > "$stage/nm/needs-secrets"
+vpn mode "$WG" full
+[[ $(<"$stage/nm/nd-$OTHER") == "no" ]] && grep -q "^$OTHER:activated" "$stage/nm/active" ||
+  fail "a pending switch keeps the current full VPN" "$(<"$stage/log")"
+pass "a pending switch keeps the current full VPN"
+
 # A VPN pushed out of full whose token can't be reused offers Sign in.
 reset_nm
-echo no > "$stage/nm/nd-$OTHER"
-echo "$OTHER:activated" > "$stage/nm/active"
+travel_full
 echo "$OTHER" > "$stage/nm/needs-secrets"
 vpn mode "$WG" full
 [[ $(vpn list | awk -F'\t' -v u="$OTHER" '$1 == u {print $8}') == "signin" ]] || fail "a VPN dropped from full for a token offers Sign in" "$(<"$stage/log")"
