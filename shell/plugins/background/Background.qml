@@ -18,6 +18,16 @@ Item {
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
   readonly property string currentThemeBackgrounds: stateHome + "/omarchy/current/theme/backgrounds"
 
+  // How a still fills the screen: "cover" crops to fill (the default),
+  // "contain" shows the whole image on the theme background, "stretch" fits
+  // both axes. Set it with background.fill in shell.json.
+  readonly property var backgroundConfig: shell && shell.shellConfig && Util.isPlainObject(shell.shellConfig.background)
+    ? shell.shellConfig.background : ({})
+  readonly property string fill: backgroundConfig.fill === "contain" || backgroundConfig.fill === "stretch"
+    ? backgroundConfig.fill : "cover"
+  readonly property int imageFillMode: fill === "contain" ? Image.PreserveAspectFit
+    : fill === "stretch" ? Image.Stretch : Image.PreserveAspectCrop
+
   property string currentBackground: ""
   property string displayedBackground: ""
   property string incomingBackground: ""
@@ -440,6 +450,9 @@ Item {
         if (!sized || !path) return Qt.size(0, 0)
         var native = root.nativeSizes[path]
         if (native === undefined) return Qt.size(0, 0)
+        // Qt scales a sourceSize to both axes, which only PreserveAspectCrop
+        // special-cases, so the other fills decode at the file's own size.
+        if (root.fill !== "cover" && native.width > 0) return Qt.size(native.width, native.height)
         if (native.width > 0 && (native.width < decodeWidth || native.height < decodeHeight)) return Qt.size(native.width, native.height)
         return Qt.size(decodeWidth, decodeHeight)
       }
@@ -457,11 +470,19 @@ Item {
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       exclusionMode: ExclusionMode.Ignore
 
+      // The bars "contain" leaves around a wallpaper that does not match the screen.
+      Rectangle {
+        anchors.fill: parent
+        visible: root.fill === "contain" && !root.isVideo(root.displayedBackground)
+        color: Commons.Color.background
+      }
+
       // OWE owns video backgrounds. This layer draws stills, and stays empty
       // behind a video so OWE's own layer shows through.
       BackgroundMedia {
         id: base
         anchors.fill: parent
+        fillMode: root.imageFillMode
         path: root.displayedBackground
         version: root.reloadVersion
         cached: true
@@ -478,7 +499,7 @@ Item {
         source: decode.width > 0 ? root.imageUrl(root.oldBackground) : ""
         sourceSize.width: decode.width
         sourceSize.height: decode.height
-        fillMode: Image.PreserveAspectCrop
+        fillMode: root.imageFillMode
         asynchronous: true
         cache: false
         smooth: true
@@ -512,7 +533,7 @@ Item {
           source: decode.width > 0 ? root.imageUrl(framePath) : ""
           sourceSize.width: decode.width
           sourceSize.height: decode.height
-          fillMode: Image.PreserveAspectCrop
+          fillMode: root.imageFillMode
           asynchronous: true
           cache: false
           smooth: true

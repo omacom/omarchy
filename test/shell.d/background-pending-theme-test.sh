@@ -47,3 +47,20 @@ output=$(HOME="$reveal/home" timeout 10 quickshell -p "$reveal" --no-color 2>&1)
 [[ $output == *"RESULT pass"* && $output != *"RESULT fail"* ]] || fail "every screen slides together and keeps its frame until its new background is drawn" "$output"
 pass "every screen joins the reveal, also one that decoded after it started"
 pass "the reveal comes down only after every screen has drawn its new background"
+
+# background.fill picks how a still fills the screen. Only the default cover
+# decodes below the file's own size, since Qt special-cases PreserveAspectCrop.
+fill=$(mktemp -d)
+trap 'rm -rf "$stage" "$reveal" "$fill"' EXIT
+mkdir -p "$fill/home/.local/state/omarchy/current"
+ln -s "$ROOT/shell/plugins/background" "$fill/background"
+ln -s "$ROOT/shell/Commons" "$fill/Commons"
+ln -s "$ROOT/shell/Ui" "$fill/Ui"
+magick -size 4000x2500 gradient:magenta-navy "$fill/still.png"
+ln -s "$fill/still.png" "$fill/home/.local/state/omarchy/current/background"
+cp "$SHELL_TEST_DIR/fixtures/background-fill/shell.qml" "$fill/shell.qml"
+for setting in "" contain stretch; do
+  output=$(HOME="$fill/home" FILL_SETTING=$setting timeout 10 quickshell -p "$fill" --no-color 2>&1) || fail "background fill fixture exits cleanly" "$output"
+  [[ $output == *"RESULT pass"* && $output != *"RESULT fail"* ]] || fail "background.fill '${setting:-cover}' sets the fill and the decode size" "$output"
+done
+pass "background.fill selects cover, contain or stretch, and only cover decodes below native size"
