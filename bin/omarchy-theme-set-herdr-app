@@ -15,9 +15,11 @@ case "${1:-}" in
 esac
 (( $# <= 1 )) || exit 1
 
-source_path="$HOME/.local/state/omarchy/current/theme/herdr-app.json"
+theme_dir="$HOME/.local/state/omarchy/current/theme"
+source_path="$theme_dir/herdr-app.json"
 app_home="${HERDR_APP_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app}"
-theme_path="$app_home/themes/omarchy.json"
+# Appearances Omarchy was activated for that Herdr has not selected it in yet.
+pending_path="$HOME/.local/state/omarchy/herdr-app-pending"
 
 # Do not create state for an app the person has never opened.
 if [[ ! -d $app_home ]]; then
@@ -53,6 +55,14 @@ if [[ ! -f $source_path ]]; then
 fi
 palette=$(cat "$source_path")
 
+# Herdr keeps one theme choice for light and one for dark, and files a theme
+# under one of them by its colors. A single file would move between the two as
+# light and dark themes replace each other, so each mode gets its own.
+mode=$(omarchy-theme-color --file "$theme_dir/colors.toml" mode dark)
+[[ $mode == "light" ]] || mode=dark
+name="omarchy-$mode"
+theme_path="$app_home/themes/$name.json"
+
 if ! jq -e '
   def rgb: type == "string" and test("^#[0-9a-fA-F]{6}$");
   def color: type == "string" and test("^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$");
@@ -76,11 +86,38 @@ if ! cmp -s "$theme_tmp" "$theme_path"; then
   mv "$theme_tmp" "$theme_path"
 fi
 
+# Activating picks Omarchy for both appearances, but the other one has no file
+# until the first theme of that mode. Both are recorded before the lock is
+# released, so a switch during activation still finds its mode pending, and
+# each leaves the list only once Herdr has selected it. Otherwise a theme switch
+# never reselects, so a theme picked in Herdr stays picked.
+if (( activate == 1 )); then
+  mkdir -p "${pending_path%/*}"
+  printf '%s\n' light dark >"$pending_path"
+fi
+select=0
+if [[ -f $pending_path ]] && grep -qx "$mode" "$pending_path" && omarchy-cmd-present herdr-app; then
+  select=1
+fi
+
 # The app command can wait for a busy window. Do not hold up desktop theme
 # staging while it does; it selects whichever palette is current at that time.
 flock -u "$theme_lock"
-if (( activate == 1 )); then
-  if ! HERDR_APP_HOME="$app_home" herdr-app do app.theme --name omarchy; then
+
+if (( select == 1 )); then
+  if HERDR_APP_HOME="$app_home" herdr-app do app.theme --name "$name" >/dev/null 2>&1; then
+    flock "$theme_lock"
+    if [[ -f $pending_path ]]; then
+      pending=$(grep -vx "$mode" "$pending_path" || true)
+      if [[ -n $pending ]]; then
+        printf '%s\n' "$pending" >"$pending_path"
+      else
+        rm -f "$pending_path"
+      fi
+    fi
+    flock -u "$theme_lock"
+  elif (( activate == 1 )); then
+    # Still pending, so the next switch to a theme of this mode selects it.
     echo "Omarchy was published. Open Herdr and rerun with --activate to select it." >&2
     exit 1
   fi
