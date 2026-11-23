@@ -8,8 +8,9 @@ Cursor keeps no token counts on disk, so everything here comes from the same
 dashboard RPCs the Cursor CLI itself calls: the plan and the period meters
 from GetCurrentPeriodUsage and GetPlanInfo, tokens per model and per day from
 GetAggregatedUsageEvents. They are asked with the sign-in the Cursor CLI
-stores, or failing that the one the Cursor editor keeps in its state.vscdb.
-The agents panel only ever reads the JSON this prints.
+stores (auth.json, or the Secret Service when that file only says
+storedIn: os-secret-store), or failing that the one the Cursor editor keeps
+in its state.vscdb. The agents panel only ever reads the JSON this prints.
 """
 
 from __future__ import annotations
