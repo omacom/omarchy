@@ -1753,7 +1753,8 @@ ShellRoot {
                   selectionFile: string,
                   doneFile: string,
                   showLabels: string,
-                  filterable: string): string {
+                  filterable: string,
+                  background: string): string {
       var payload = JSON.stringify({
         imageDirs: imageDirs,
         imageRows: Util.decodeBase64(imageRowsB64),
@@ -1761,7 +1762,8 @@ ShellRoot {
         selectionFile: selectionFile,
         doneFile: doneFile,
         showLabels: showLabels,
-        filterable: filterable
+        filterable: filterable,
+        background: background
       })
       return shell.summon("omarchy.image-picker", payload) ? "ok" : "unknown"
     }

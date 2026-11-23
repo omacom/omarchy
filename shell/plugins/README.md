@@ -63,11 +63,12 @@ Two ways to drive it:
 
 - Shell-level summon: `omarchy-shell shell summon omarchy.image-picker '<jsonPayload>'`.
   The payload can carry `imageDirs`, `imageRows`, `selectedImage`,
-  `selectionFile`, `doneFile`, `showLabels`, `filterable`. Best for
+  `selectionFile`, `doneFile`, `showLabels`, `filterable`, `background`. Best for
   in-shell callers that already speak JSON.
-- Direct IPC target: `omarchy-shell image-selector open <imageDirs> <imageRowsB64> <selectedImage> <selectionFile> <doneFile> <showLabels> <filterable>`.
+- Direct IPC target: `omarchy-shell image-selector open <imageDirs> <imageRowsB64> <selectedImage> <selectionFile> <doneFile> <showLabels> <filterable> <background>`.
   Positional args; `imageRowsB64` is base64-encoded so embedded newlines /
-  tabs survive the bash argv handoff. This is what `omarchy-menu-images`
+  tabs survive the bash argv handoff. `background` is `true` only for the
+  desktop background picker. This is what `omarchy-menu-images`
   uses. Colors come from the central shell theme singleton; there is no
   per-call override surface.
 

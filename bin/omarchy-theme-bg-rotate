@@ -1,0 +1,101 @@
+#!/bin/bash
+
+# omarchy:summary=Enable or disable automatic background rotation
+# omarchy:args=<on|off|toggle|status>
+# omarchy:examples=omarchy theme bg rotate toggle | omarchy theme bg rotate on
+
+set -uo pipefail
+
+state_home="$HOME/.local/state/omarchy"
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+interval_file="$state_home/background-rotation.interval"
+last_file="$state_home/background-rotation.last"
+unit_name="omarchy-theme-bg-rotate"
+unit_dir="$config_home/systemd/user"
+unit_source="$OMARCHY_PATH/default/systemd/user"
+
+interval_minutes() {
+  local value minutes
+  value="$(cat "$interval_file" 2>/dev/null || true)"
+  minutes=30
+  if [[ $value =~ ^[0-9]+$ ]]; then
+    minutes=$((10#$value))
+  fi
+  if (( minutes < 1 )); then
+    minutes=30
+  fi
+  printf '%s\n' "$minutes"
+}
+
+install_units() {
+  mkdir -p "$unit_dir"
+  install -m644 "$unit_source/$unit_name.service" "$unit_dir/$unit_name.service"
+  install -m644 "$unit_source/$unit_name.timer" "$unit_dir/$unit_name.timer"
+}
+
+# The enabled timer is the on/off state: it only fires the tick while enabled,
+# and `status` reports from it rather than a second file that could drift.
+timer_enabled() {
+  systemctl --user is-enabled "$unit_name.timer" >/dev/null 2>&1
+}
+
+reset_clock() {
+  mkdir -p "$state_home"
+  printf '%s\n' "$(date +%s)" >"$last_file"
+}
+
+# The timer runs this every minute. Advance only when a full interval has passed
+# since the last automatic change; the timer itself fires on a fixed minute
+# boundary, so a changed interval takes effect on the next tick without
+# rewriting the unit.
+if [[ ${1:-} == "--tick" ]]; then
+  interval="$(interval_minutes)"
+  last="$(cat "$last_file" 2>/dev/null || echo 0)"
+  [[ $last =~ ^[0-9]+$ ]] || last=0
+  now="$(date +%s)"
+  if (( now - last >= interval * 60 )); then
+    omarchy theme bg next
+    reset_clock
+  fi
+  exit 0
+fi
+
+case ${1:-} in
+  on)
+    install_units
+    systemctl --user daemon-reload >/dev/null 2>&1
+    if ! systemctl --user enable --now "$unit_name.timer" >/dev/null 2>&1; then
+      printf 'Could not enable background rotation\n' >&2
+      exit 1
+    fi
+    reset_clock
+    omarchy-notification-send "$(omarchy-i18n theme.backgroundRotation)" "$(omarchy-i18n common.enabled)"
+    ;;
+  off)
+    if ! systemctl --user disable --now "$unit_name.timer" >/dev/null 2>&1; then
+      printf 'Could not disable background rotation\n' >&2
+      exit 1
+    fi
+    omarchy-notification-send "$(omarchy-i18n theme.backgroundRotation)" "$(omarchy-i18n common.disabled)"
+    ;;
+  toggle)
+    if timer_enabled; then
+      omarchy-theme-bg-rotate off
+    else
+      omarchy-theme-bg-rotate on
+    fi
+    ;;
+  status)
+    if timer_enabled; then
+      printf 'on\n'
+      exit 0
+    else
+      printf 'off\n'
+      exit 1
+    fi
+    ;;
+  *)
+    printf 'Usage: omarchy-theme-bg-rotate <on|off|toggle|status>\n' >&2
+    exit 1
+    ;;
+esac

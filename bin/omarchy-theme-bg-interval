@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=Set or show the background rotation interval
+# omarchy:args=[minutes|status]
+# omarchy:examples=omarchy theme bg interval 30 | omarchy theme bg interval status
+
+set -uo pipefail
+
+state_home="$HOME/.local/state/omarchy"
+interval_file="$state_home/background-rotation.interval"
+last_file="$state_home/background-rotation.last"
+
+# Values round-trip through base ten, so a typed 08 or 010 is saved as 8 or 10
+# rather than as Bash's octal reading of it.
+current_interval() {
+  local value minutes
+  value="$(cat "$interval_file" 2>/dev/null || true)"
+  minutes=30
+  if [[ $value =~ ^[0-9]+$ ]]; then
+    minutes=$((10#$value))
+  fi
+  if (( minutes < 1 )); then
+    minutes=30
+  fi
+  printf '%s\n' "$minutes"
+}
+
+case ${1:-} in
+  "" | status)
+    current_interval
+    ;;
+  *)
+    if [[ ! $1 =~ ^[0-9]+$ ]]; then
+      printf 'Interval must be a whole number of minutes between 1 and 1440\n' >&2
+      exit 1
+    fi
+    minutes=$((10#$1))
+    if (( minutes < 1 )) || (( minutes > 1440 )); then
+      printf 'Interval must be a whole number of minutes between 1 and 1440\n' >&2
+      exit 1
+    fi
+    mkdir -p "$state_home"
+    printf '%s\n' "$minutes" >"$interval_file"
+    # Restart the clock so the next rotation waits a full interval from now.
+    printf '%s\n' "$(date +%s)" >"$last_file"
+    omarchy-notification-send "$(omarchy-i18n theme.backgroundRotation)" "$(omarchy-i18n theme.backgroundInterval "$minutes")"
+    ;;
+esac
