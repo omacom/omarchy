@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:summary=Launch Foot via footclient when the server socket is up
+# omarchy:hidden=true
+
+# Ask systemd, not the filesystem: a stopped foot-server.socket leaves its
+# socket file behind. Starting it here, never enabling it, keeps the terminal
+# list the only setting, so nothing outlives a switch away from Foot. When the
+# socket cannot start (no WAYLAND_DISPLAY in the user manager), use plain foot.
+server_up() {
+  systemctl --user is-active --quiet foot-server.socket && return
+  systemctl --user start foot-server.socket >/dev/null 2>&1 &&
+    systemctl --user is-active --quiet foot-server.socket
+}
+
+if server_up; then
+  # New clients inherit the server's startup config. Re-apply the live theme
+  # include and font so a theme or font change reaches the next Super+Return.
+  overrides=()
+  theme_ini=$HOME/.local/state/omarchy/current/theme/foot.ini
+  [[ -f $theme_ini ]] && overrides+=(--override=include="$theme_ini")
+  if [[ -f $HOME/.config/foot/foot.ini ]]; then
+    font=$(grep -m1 '^font=' "$HOME/.config/foot/foot.ini" || true)
+    [[ -n $font ]] && overrides+=(--override=font="${font#font=}")
+  fi
+  # Tag the window and its shell alike, so omarchy-cmd-terminal-cwd can tell
+  # which of the server's shells belongs to the focused window.
+  tag="omarchy-foot-$(</proc/sys/kernel/random/uuid)"
+  overrides+=(--toplevel-tag="$tag" --override=environment.OMARCHY_FOOT_WINDOW="$tag")
+  exec footclient "${overrides[@]}" "$@"
+else
+  exec foot "$@"
+fi

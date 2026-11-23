@@ -198,7 +198,9 @@ o.bind_expressions = {}
 function o.launch_terminal()
   local function launch()
     local window = hl.get_active_window()
-    if window and window.pid then
+    if window and window.pid and window.xdg_tag and window.xdg_tag:match("^omarchy%-foot%-[%x%-]+$") then
+      hl.exec_cmd("omarchy-launch-terminal --pid=" .. window.pid .. " --tag=" .. window.xdg_tag)
+    elseif window and window.pid then
       hl.exec_cmd("omarchy-launch-terminal --pid=" .. window.pid)
     else
       hl.exec_cmd("omarchy-launch-terminal")
