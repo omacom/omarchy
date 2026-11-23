@@ -238,4 +238,11 @@ assertEqual(short('q', 42, { unit: 'active', fits: false }), null, 'a running mo
 assertDeepEqual(short('r', 42, null), { needs: 42, free: 18 }, 'a recipe needing more than is free can\'t be set up')
 assertEqual(short('r', 8, null), null, 'a recipe that fits can be set up')
 assertEqual(short('r', 42, { unit: 'installing' }), null, 'one already being set up goes on')
+
+// Up and Down land on a line's last stop, so a model that isn't running
+// yet ends on Play, which Enter starts, rather than its mark.
+const lineStop = (launches, actions) => new Function('providers', 'launches', 'localLineActions', fn('lineStop') + '\nreturn lineStop')([{}], () => launches, () => actions)(0)
+assertEqual(lineStop(true, ['share', 'toggle']), 'providerLaunch', 'a running model lands on its terminal button')
+assertEqual(lineStop(false, ['update', 'toggle']), 'localToggle', 'a stopped model lands on its play button')
+assertEqual(lineStop(false, []), 'provider', 'a line with nothing to press lands on its mark')
 JS

@@ -178,14 +178,16 @@ Panel {
         var line = []
         if (defaultIdFor(providers[p]) !== "" && !starred(providers[p], providers[p].account || null))
           line.push({ kind: "providerStar", index: p })
+        var stop = lineStop(p)
         var actions = localLineActions(providers[p])
-        for (var a = 0; a < actions.length; a++) line.push({ kind: localActionKinds[actions[a]], index: p })
+        for (var a = 0; a < actions.length; a++)
+          if (localActionKinds[actions[a]] !== stop) line.push({ kind: localActionKinds[actions[a]], index: p })
         if (makesOpenIndex === p)
           for (var m = 0; m < starterPrompts.length; m++) line.push({ kind: "make:" + starterPrompts[m].kind, index: p })
         else if (launches(providers[p]))
           line.push({ kind: "makeToggle", index: p })
         if (desktopFor(providers[p])) line.push({ kind: "providerDesktop", index: p })
-        line.push({ kind: lineStop(p), index: p })
+        line.push({ kind: stop, index: p })
         rows.push(line)
         if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
         if (localLogsShown(providers[p])) rows.push([{ kind: "localLogs", index: p }])
@@ -229,8 +231,11 @@ Panel {
 
   // A line's rightmost button, where the cursor lands on it: its terminal,
   // or the mark for a line with no button.
+  // A line's last stop, where Up and Down land: its terminal button, or for
+  // a local model that isn't running yet, its play button, else its mark.
   function lineStop(p) {
-    return launches(providers[p]) ? "providerLaunch" : "provider"
+    if (launches(providers[p])) return "providerLaunch"
+    return localLineActions(providers[p]).indexOf("toggle") >= 0 ? "localToggle" : "provider"
   }
 
   // The first arrow only shows where the cursor is, as in the other panels.
@@ -250,7 +255,7 @@ Panel {
       // rightmost stop.
       var row = keyRows[keyRow]
       var last = row[row.length - 1].kind
-      keyColumn = last === "providerLaunch" || last === "provider" ? row.length - 1 : Math.min(keyColumn, row.length - 1)
+      keyColumn = ["providerLaunch", "localToggle", "provider"].indexOf(last) >= 0 ? row.length - 1 : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
       // A row can go while the cursor is on it, like the starters when the
       // last agent stops.
