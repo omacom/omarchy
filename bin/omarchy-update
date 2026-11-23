@@ -10,6 +10,8 @@ set -e
 
 update_stay_awake_stopped=0
 sudo_keepalive_pid=""
+compat_directory=""
+unset OMARCHY_COMPAT_BUNDLE OMARCHY_COMPAT_SESSION OMARCHY_COMPAT_NATIVE
 
 # Ask for the password once, then keep sudo's timestamp fresh so long package
 # downloads, migrations, hooks, and mise never outlast it and prompt again.
@@ -47,6 +49,7 @@ cleanup_update() {
   local status=$?
   trap - EXIT HUP INT TERM
   end_update_authorization
+  [[ -z $compat_directory ]] || rm -rf -- "$compat_directory"
   if (( update_stay_awake_stopped == 0 )); then
     omarchy-update-stay-awake stop || status=1
   fi
@@ -104,10 +107,27 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   omarchy-update-dev
   omarchy-update-keyring
 
+  # Tracked applications opt into the packaged coordinator. Builds happen as
+  # the desktop user; the pacman helper owns the privileged artifact handoff.
+  if [[ -s $HOME/.config/omarchy/update-compat.toml ]]; then
+    if omarchy-cmd-missing omarchy-update-compat; then
+      echo "Install omarchy-update-compat to handle the tracked applications." >&2
+      exit 1
+    fi
+    compat_directory=$(mktemp -d)
+    export OMARCHY_COMPAT_SESSION="$compat_directory/plan.json"
+    omarchy-update-compat prepare-session "$OMARCHY_COMPAT_SESSION"
+    OMARCHY_COMPAT_BUNDLE=$(omarchy-update-compat session-bundle "$OMARCHY_COMPAT_SESSION")
+    export OMARCHY_COMPAT_BUNDLE OMARCHY_COMPAT_NATIVE=1
+  fi
+
   # Migrations ship with the packages installed here and are written against
   # them, so everything below waits on this finishing. An upgrade that stopped
   # takes the update with it rather than migrating against what is still on disk.
   omarchy-update-system-pkgs
+  if [[ ${OMARCHY_COMPAT_NATIVE:-} == "1" ]]; then
+    omarchy-update-compat verify-installed "$OMARCHY_COMPAT_SESSION"
+  fi
 
   # Migrations call the shell over IPC, so give them one running current code.
   if omarchy-migrate --pending >/dev/null; then

@@ -148,3 +148,25 @@ diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
   fail "a failed mise update skips later update steps" "$(cat "$test_tmp/order")"
 grep -q "omarchy update mise" "$test_tmp/err" || fail "the tool update failure has no retry guidance"
 pass "a mise failure still finishes the update, offers a reboot and explains how to retry"
+
+# Compatibility preparation must fail before any main package transaction or
+# migration. Only the user's explicit tracking config enables the phase.
+mkdir -p "$SUDO_TEST_HOME/.config/omarchy"
+printf '[applications]\ngaze = "prefer-upstream"\n' >"$SUDO_TEST_HOME/.config/omarchy/update-compat.toml"
+cat >"$stub_bin/omarchy-cmd-missing" <<'STUB'
+#!/bin/bash
+exit 1
+STUB
+cat >"$stub_bin/omarchy-update-compat" <<'STUB'
+#!/bin/bash
+printf 'compat:%s\n' "$1" >>"$STEP_LOG"
+exit 20
+STUB
+chmod +x "$stub_bin/omarchy-cmd-missing" "$stub_bin/omarchy-update-compat"
+if run_update -y; then
+  fail "a rejected compatibility plan must stop the update"
+fi
+if grep -qE '^omarchy-update-system-pkgs |^omarchy-migrate ' "$test_tmp/steps"; then
+  fail "a rejected compatibility plan still upgrades packages or migrates"
+fi
+pass "a rejected compatibility plan stops before system packages and migrations"
