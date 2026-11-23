@@ -1633,6 +1633,12 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
+  // The code field while it shows, set by the field itself since it lives
+  // in the panel's content. A sign-in waiting on a code or key gives it the
+  // keyboard whenever the panel opens, so opening it and pasting is all it
+  // needs.
+  property Item pasteFieldItem: null
+  readonly property Item openFocusItem: addStage === "running" && addNeedsPaste && pasteFieldItem ? pasteFieldItem : panel.loadedContent
   onOpenedChanged: if (!opened) {
     resetProviderDrag()
     makesOpenIndex = -1
@@ -1646,7 +1652,7 @@ Panel {
     usage.refreshLimits()
     usage.reloadDefaults()
     if (localModelsService) localModelsService.refreshNetwork()
-    Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
+    Qt.callLater(function() { if (root.openFocusItem) root.openFocusItem.forceActiveFocus() })
   }
 
   // The tailnet has no change signal, so while the panel is open the paired
@@ -1767,7 +1773,7 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    focusTarget: panel.loadedContent
+    focusTarget: root.openFocusItem
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(860))
 
@@ -2529,7 +2535,11 @@ Panel {
             function submit() { root.submitPaste(text); text = "" }
             Keys.onReturnPressed: function(event) { submit(); event.accepted = true }
             Keys.onEnterPressed: function(event) { submit(); event.accepted = true }
-            onVisibleChanged: if (visible) forceActiveFocus()
+            onVisibleChanged: {
+              root.pasteFieldItem = visible ? pasteField : null
+              if (visible) forceActiveFocus()
+            }
+            Component.onDestruction: if (root.pasteFieldItem === pasteField) root.pasteFieldItem = null
             Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
           }
         }
