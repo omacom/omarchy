@@ -673,7 +673,7 @@ Panel {
               id: locationField
               width: Style.space(190)
               enabled: !root.savingLocation
-              placeholderText: Commons.I18n.t("weather.searchCity")
+              placeholderText: root.reportLocation || Commons.I18n.t("weather.searchCity")
               foreground: root.bar.foreground
               font.family: root.bar.fontFamily
 
