@@ -233,6 +233,7 @@ end
 -- SUPER up). So a tap also needs SUPER to be the last key pressed before it is
 -- let go. Hyprland reports each key here before it handles the key's binds.
 function o.apps_on_super_tap()
+  local open = shell_dispatcher("ipc", "omarchy.dock.apps", "omarchy-shell omarchy.dock apps")
   local last_pressed, tapped = nil, false
   hl.on("input.keyboard.key", function(keycode, _, state)
     if state == 1 then
@@ -252,7 +253,11 @@ function o.apps_on_super_tap()
       return
     end
     if workspace and require("default.hypr.workspace-modes").floating(workspace.id) then
-      hl.exec_cmd("omarchy-shell omarchy.dock apps")
+      if type(open) == "string" then
+        hl.exec_cmd(open)
+      else
+        hl.dispatch(open)
+      end
     end
   end
 

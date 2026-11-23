@@ -775,6 +775,8 @@ local any = setmetatable({}, { __index = function(t) return t end, __call = func
 setmetatable(hl.dsp, { __index = function() return any end })
 hl.dsp.exec_cmd = function(command) return command end
 hl.exec_cmd = function(command) table.insert(ran, command) end
+-- The shell registers a global shortcut for the apps, so the tap spawns nothing.
+hl.dispatch = function(action) table.insert(ran, action) end
 local active_window = nil
 hl.get_active_window = function() return active_window end
 require("default.hypr.workspace-layouts")
@@ -788,7 +790,7 @@ local super_l, super_r, x = 133, 134, 53
 state().active.id = 1
 key(super_l, 1)
 key(super_l, 0, "SUPER + Super_L")
-assert(ran[1] == "omarchy-shell omarchy.dock apps", "a tap of Super on a floating workspace did not open the apps: " .. tostring(ran[1]))
+assert(ran[1] == "omarchy:ipc.omarchy.dock.apps", "a tap of Super on a floating workspace did not open the apps: " .. tostring(ran[1]))
 state().active.id = 2
 key(super_r, 1)
 key(super_r, 0, "SUPER + Super_R")
