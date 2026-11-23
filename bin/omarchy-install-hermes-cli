@@ -192,12 +192,19 @@ shadowing_hermes() {
 }
 
 # The installer writes the marker last, so it is the one thing that says a
-# runtime finished installing rather than merely started; the venv appears
-# several stages earlier. And a marker left behind by an install whose venv has
-# since gone answers for nothing, so the command has to run.
+# runtime finished installing rather than merely started. A marker left behind
+# by a broken runtime answers for nothing, so its command also has to run.
 runtime_ready() {
-  [[ -f $runtime/.hermes-bootstrap-complete && -f $runtime/venv/bin/hermes && -x $runtime/venv/bin/hermes && -f $runtime/venv/bin/python && -x $runtime/venv/bin/python ]] &&
-    timeout 15 "$runtime/venv/bin/hermes" --version >/dev/null 2>&1
+  local launcher="$runtime/.hermes/bin/hermes"
+  [[ -f $runtime/.hermes-bootstrap-complete ]] || return 1
+  # Managed Hermes generations publish their runtime through this launcher.
+  # Keep the legacy venv probe for installations made by older releases.
+  if [[ -f $launcher && -x $launcher ]]; then
+    timeout 15 "$launcher" --version >/dev/null 2>&1
+  else
+    [[ -f $runtime/venv/bin/hermes && -x $runtime/venv/bin/hermes && -f $runtime/venv/bin/python && -x $runtime/venv/bin/python ]] &&
+      timeout 15 "$runtime/venv/bin/hermes" --version >/dev/null 2>&1
+  fi
 }
 
 native_app_complete() {
