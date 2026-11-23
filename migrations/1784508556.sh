@@ -12,57 +12,15 @@ echo "Pin browser password store to gnome-libsecret (prevents cookie/login loss 
 # read - Brave Sync propagates the deletion to every synced device. Back up each browser's
 # logins and cookies right before appending its pin; if the backup cannot be made, defer the
 # whole migration (exit 75) so it retries on the next update instead of pinning unprotected.
-
-# Copies the password and cookie databases the coming password-store swap would destroy out of
-# every profile of $1 (chromium, brave, chrome or microsoft-edge-stable) that holds any:
-# 'Default', 'Profile N', or any directory with a 'Login Data' or 'Cookies' database, plus the
-# -wal/-journal sidecars. Prints the backup path when it backed anything up; returns non-zero
-# without touching the browser data when the backup cannot be completed.
-backup_browser_passwords() {
-  local browser="$1" data_dir backup_dir profile_dir profile_name file backed_up=0
-  local -a profile_files=()
-
-  case $browser in
-    chromium) data_dir="$HOME/.config/chromium" ;;
-    brave) data_dir="$HOME/.config/BraveSoftware/Brave-Browser" ;;
-    chrome) data_dir="$HOME/.config/google-chrome" ;;
-    microsoft-edge-stable) data_dir="$HOME/.config/microsoft-edge" ;;
-    *) return 0 ;;
-  esac
-
-  backup_dir="$HOME/.local/state/omarchy/migration-backups/1784508556-$browser-$(date +%Y%m%d%H%M%S)"
-
-  for profile_dir in "$data_dir"/*/; do
-    [[ -f "$profile_dir/Login Data" || -f "$profile_dir/Cookies" ]] || continue
-    profile_files=()
-    for file in "$profile_dir/Login Data" "$profile_dir/Login Data"-* "$profile_dir/Cookies" "$profile_dir/Cookies"-*; do
-      [[ -f $file ]] || continue
-      profile_files+=("$file")
-    done
-    (( ${#profile_files[@]} > 0 )) || continue
-
-    profile_name=$(basename "$profile_dir")
-    mkdir -p "$backup_dir/$profile_name" || return 1
-    for file in "${profile_files[@]}"; do
-      cp -a "$file" "$backup_dir/$profile_name/" || return 1
-    done
-    backed_up=1
-  done
-
-  if (( backed_up )); then
-    echo "Backed up $browser's saved logins and cookies to $backup_dir before pinning its password store:"
-    echo "the pin can leave those databases undecryptable, and the browser then deletes the logins it"
-    echo "cannot read (Brave Sync propagates the deletions to every synced device). If logins vanish,"
-    echo "quit the browser and restore the databases from that backup."
-  fi
-}
+# The backup logic lives in omarchy-browser-password-backup, which defers while the browser
+# runs or while a --user-data-dir override cannot be resolved, and prints each backup path.
 
 for conf in ~/.config/{chromium,brave,chrome,microsoft-edge-stable}-flags.conf; do
   if [[ -f $conf ]] && ! grep -q -- '--password-store=' "$conf"; then
     browser=${conf##*/}
     browser=${browser%.conf}
     browser=${browser%-flags}
-    if ! backup_browser_passwords "$browser"; then
+    if ! omarchy-browser-password-backup "$browser" "$conf"; then
       echo "Could not back up $browser's logins and cookies; leaving $conf unpinned so this migration retries on the next update" >&2
       exit 75
     fi
