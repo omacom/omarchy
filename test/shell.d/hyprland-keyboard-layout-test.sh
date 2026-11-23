@@ -157,10 +157,10 @@ XKBVARIANT=,chr
 '
 
 hooks_conf="$ROOT/etc/mkinitcpio.conf.d/omarchy_hooks.conf"
-keyboard_lua="$ROOT/default/hypr/keyboard.lua"
+input_lua="$ROOT/default/hypr/input.lua"
 
 hooks_layouts=$(awk -F')' '/\) ;;$/ { gsub(/[[:space:]|]+/, "\n", $1); print $1 }' "$hooks_conf" | grep '^[a-z]\+$' | sort)
-lua_layouts=$(sed -n '/^local non_latin_layouts =/,+1p' "$keyboard_lua" | grep -o '"[^"]*"' | tr -d '"' | tr ' ' '\n' | grep '^[a-z]\+$' | sort)
+lua_layouts=$(sed -n '/^local non_latin_layouts =/,+1p' "$input_lua" | grep -o '"[^"]*"' | tr -d '"' | tr ' ' '\n' | grep '^[a-z]\+$' | sort)
 
 [[ -n $hooks_layouts ]] || fail "non-latin layout list is readable from omarchy_hooks.conf"
 
@@ -174,6 +174,11 @@ sddm_layouts=$(sed -n '/^local non_latin_layouts =/,+1p' "$sddm_lua" | grep -o '
 [[ $hooks_layouts == "$sddm_layouts" ]] ||
   fail "greeter non-latin layout list stays in sync" "$(diff <(echo "$hooks_layouts") <(echo "$sddm_layouts"))"
 pass "greeter non-latin layout list stays in sync with the initramfs hook"
+
+keyboard_layouts=$(sed -n '/^local non_latin_layouts =/,+1p' "$ROOT/default/hypr/keyboard.lua" | grep -o '"[^"]*"' | tr -d '"' | tr ' ' '\n' | grep '^[a-z]\+$' | sort)
+[[ $hooks_layouts == "$keyboard_layouts" ]] ||
+  fail "clipboard non-latin layout list stays in sync" "$(diff <(echo "$hooks_layouts") <(echo "$keyboard_layouts"))"
+pass "clipboard non-latin layout list stays in sync with the initramfs hook"
 
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\n XKB_LAYOUT="kr" # desktop only\n' assert_input "Korean selection overrides its installer US layout" "[kr] [] [$base_options]" $'XKBLAYOUT=us\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\nXKB_LAYOUT=kr:kr104\n' assert_input "Korean Right Alt selection maps 한/영 and 한자 to Right Alt and Right Ctrl" "[kr] [kr104] [$base_options]" $'XKBLAYOUT=us\n'

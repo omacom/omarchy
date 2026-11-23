@@ -7,8 +7,9 @@ local keyboard = require("default.hypr.keyboard")
 -- The down/up split works around Hyprland send_shortcut sometimes leaving
 -- synthetic key state stuck/repeating.
 -- https://github.com/hyprwm/Hyprland/discussions/14099
-local function send_shortcut_once(mods, key)
+local function send_shortcut_once(mods, letter)
   return function()
+    local key = keyboard.letter(letter)
     hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "down" }))
 
     hl.timer(function()
@@ -44,12 +45,10 @@ local function universal_clipboard_shortcut(default_mods, default_key, terminal_
   end
 end
 
-local A, C, V, X = keyboard.letter("A"), keyboard.letter("C"), keyboard.letter("V"), keyboard.letter("X")
-
-o.bind("SUPER + A", "Select all", send_shortcut_once("CTRL", A))
-o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", C, "CTRL SHIFT", C))
+o.bind("SUPER + A", "Select all", send_shortcut_once("CTRL", "A"))
+o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "C", "CTRL SHIFT", "C"))
 -- Scripts paste the same way with `hyprctl dispatch 'o.universal_paste'`.
-o.universal_paste = universal_clipboard_shortcut("CTRL", V, "CTRL SHIFT", V)
+o.universal_paste = universal_clipboard_shortcut("CTRL", "V", "CTRL SHIFT", "V")
 o.bind("SUPER + V", "Universal paste", o.universal_paste)
-o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", X))
+o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", "X"))
 o.bind("SUPER + CTRL + V", "Clipboard manager", { panel = "omarchy.clipboard" })
