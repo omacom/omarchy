@@ -58,7 +58,7 @@ fi
 # falls through to this. A rule's bare path permits any arguments, ALL permits
 # any command, and otherwise the rule line is a glob over the whole command.
 sudoers_listing_grants() {
-  local command=$2 line runas root=0 passwordless=0 commands=0
+  local command=$2 line runas root=0 passwordless=0 commands=0 negated granted=0
   while IFS= read -r line; do
     if [[ $line == "Sudoers entry:"* ]]; then
       root=0 passwordless=0 commands=0
@@ -83,15 +83,22 @@ sudoers_listing_grants() {
         commands=1
         ;;
       *)
+        (( commands && root )) || continue
+        negated=0
+        if [[ $line == '!'* ]]; then
+          negated=1
+          line=${line#!}
+        fi
+        # sudo takes the last matching command, so an exclusion or a
+        # password-requiring entry after a grant overrides it.
         # shellcheck disable=SC2053 # the rule line is a sudoers glob
-        if (( commands && root && passwordless )) &&
-          [[ $line == "ALL" || $line == "${command%% *}" || $command == $line ]]; then
-          return 0
+        if [[ $line == "ALL" || $line == "${command%% *}" || $command == $line ]]; then
+          granted=$(( passwordless && !negated ))
         fi
         ;;
     esac
   done <<<"$1"
-  return 1
+  (( granted ))
 }
 
 # True when sudo would run this exact command without stopping for a password.
