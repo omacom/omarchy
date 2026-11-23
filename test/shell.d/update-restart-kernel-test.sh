@@ -62,8 +62,15 @@ grep -Fxq "prompt:confirm --affirmative Yes --negative No Linux kernel has been 
   fail "an updated kernel asks for a reboot"
 pass "an updated kernel asks for a reboot"
 
-kernel 7.2.8-1-aarch64-ARCH
+# An upgrade leaves the new release owned beside whatever of the running one is left unowned
+kernel 7.2.9-1-aarch64-ARCH modules.builtin
+mkdir -p "$tmp_dir/modules/7.2.8-1-aarch64-ARCH"
 touch "$tmp_dir/modules/7.2.8-1-aarch64-ARCH/modules.builtin"
 grep -Fxq "prompt:confirm --affirmative Yes --negative No Linux kernel has been updated. Reboot?" <<<"$(prompts 7.2.8-1-aarch64-ARCH)" ||
   fail "a leftover directory no package owns asks for a reboot"
 pass "a leftover directory no package owns asks for a reboot"
+
+kernel 6.6.87.2-microsoft-standard-WSL2
+touch "$tmp_dir/modules/6.6.87.2-microsoft-standard-WSL2/modules.builtin"
+[[ -z $(prompts 6.6.87.2-microsoft-standard-WSL2) ]] || fail "a system booting no package kernel, like WSL, asks for a reboot"
+pass "a system booting no package kernel does not ask for a reboot"
