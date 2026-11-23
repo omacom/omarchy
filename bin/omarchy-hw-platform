@@ -16,7 +16,7 @@
 #
 # The NVIDIA N1x laptops boot with ACPI and no device tree. They are the ARM
 # machines whose CPU-side I2C controllers are ACPI NVDA0200 (MediaTek MT8901 IP)
-# or whose on-package GPU is PCI 10de:2e06 (GB20B "RTX Spark N1X"); either one
+# or whose on-package GPU is PCI 10de:2e03 or 10de:2e06 (GB20B "RTX Spark N1X"); either one
 # is enough, so a firmware revision that renames one does not lose the platform.
 #
 # The NVIDIA GB10 desktops (the DGX Spark, and the ASUS Ascent GX10 and other
@@ -196,7 +196,7 @@ for source in "${sources[@]}"; do
   vendor_source=$source
 done
 
-# An NVIDIA N1x: ACPI NVDA0200, or PCI 10de:2e06.
+# An NVIDIA N1x: ACPI NVDA0200, or PCI 10de:2e03 / 10de:2e06.
 n1x_source=""
 if [[ -n $sys ]]; then
   for device in "$sys"/bus/acpi/devices/NVDA0200:*; do
@@ -207,7 +207,7 @@ if [[ -n $sys ]]; then
       [[ -r $device/vendor && -r $device/device ]] || continue
       read -r pci_vendor <"$device/vendor" || continue
       read -r pci_device <"$device/device" || continue
-      [[ $pci_vendor == "0x10de" && $pci_device == "0x2e06" ]] && { n1x_source=$device; break; }
+      [[ $pci_vendor == "0x10de" && ( $pci_device == "0x2e03" || $pci_device == "0x2e06" ) ]] && { n1x_source=$device; break; }
     done
   fi
 fi
