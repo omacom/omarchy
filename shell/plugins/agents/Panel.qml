@@ -585,8 +585,7 @@ Panel {
 
   function memoryShortText(shortfall) {
     if (shortfall.needs < 0 || shortfall.free < 0 || shortfall.needs <= shortfall.free) return Commons.I18n.t("localModels.notEnoughMemory")
-    return Commons.I18n.t("agents.memoryShort").arg(Commons.I18n.formatNumber(shortfall.needs, 0))
-      .arg(Commons.I18n.formatNumber(shortfall.free, shortfall.free < 10 ? 1 : 0))
+    return Commons.I18n.t("agents.memoryShort").arg(Commons.I18n.formatNumber(shortfall.free, shortfall.free < 10 ? 1 : 0))
   }
 
   // The network block's share of the offers, which come first.
@@ -2498,11 +2497,24 @@ Panel {
               elide: Text.ElideRight
             }
 
+            // Too big for the memory free now: the facts above say what it
+            // needs, this how much is free.
+            Text {
+              visible: !!ownModel.shortfall
+              width: parent.width
+              topPadding: Style.space(2)
+              text: ownModel.shortfall ? root.memoryShortText(ownModel.shortfall) : ""
+              textFormat: Text.PlainText
+              color: root.urgent
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
+            }
+
             // The setup or start begun here: installing, downloading, then
             // loading, as its line will show it; or the pairing.
             LocalMeterRow {
-              meter: ownModel.shortfall ? { title: root.memoryShortText(ownModel.shortfall), value: -1, rate: "", failed: true }
-                : ownModel.modelData.pair ? (ownModel.modelData.target === root.pairingLocal ? root.pairingMeter : null) : root.offerMeter(ownModel.modelData)
+              meter: ownModel.modelData.pair ? (ownModel.modelData.target === root.pairingLocal ? root.pairingMeter : null) : root.offerMeter(ownModel.modelData)
               visible: !!meter
               width: parent.width
               topPadding: Style.space(6)
