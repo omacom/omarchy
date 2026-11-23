@@ -150,6 +150,8 @@ install_desktop_app() {
 
 # A first sign-in announces the agent as ready, and an added account that it's
 # ready for more; clicking either starts one. Any other says which account it was.
+# Each stays up until it's clicked or closed: the sign-in finishes in the
+# browser, where a toast that leaves on its own goes unseen.
 finish() {
   # An agent hidden from the panel, as removing its sign-in does, shows again
   # however it was signed in to.
@@ -159,15 +161,15 @@ finish() {
   if [[ $events == "true" ]]; then
     printf '@@omarchy done %s\n' "$1"
     if [[ ${2:-} == "ready" ]]; then
-      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
+      omarchy-notification-send --sticky -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
         "$(omarchy-i18n agents.readyToCode "$app")" "$(omarchy-i18n agents.readyToCodeBody)" \
         --exec omarchy-agent --agent "$harness" --app-id="org.omarchy.$harness"
     elif [[ ${2:-} == "more" ]]; then
-      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
+      omarchy-notification-send --sticky -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
         "$(omarchy-i18n agents.readyForMore "$app")" "$(omarchy-i18n agents.readyForMoreBody "$3")" \
         --exec omarchy-agent --agent "$harness" --app-id="org.omarchy.$harness"
     else
-      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" "$1"
+      omarchy-notification-send --sticky -g 󰚩 --image "$(omarchy-agent-logo "$provider")" "$1"
     fi
   else
     echo
