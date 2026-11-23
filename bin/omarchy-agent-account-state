@@ -614,6 +614,28 @@ def home_users(provider: str, home: Path) -> list[int]:
   return users
 
 
+# The CLI's processes started as the primary, which name no home: they're
+# found by the program they run instead.
+def primary_users(provider: str) -> list[int]:
+  wanted = f"{PROVIDERS[provider]['home_env']}=".encode()
+  users = []
+  for cmdline in Path("/proc").glob("[0-9]*/cmdline"):
+    pid = int(cmdline.parent.name)
+    if pid == os.getpid():
+      continue
+    try:
+      args = cmdline.read_bytes().split(b"\0")[:2]
+      entries = (cmdline.parent / "environ").read_bytes().split(b"\0")
+    except OSError:
+      continue
+    if not any(arg and Path(arg.decode(errors="replace")).stem == provider for arg in args):
+      continue
+    if any(entry.startswith(wanted) and len(entry) > len(wanted) for entry in entries):
+      continue
+    users.append(pid)
+  return users
+
+
 def home_in_use(provider: str, home: Path) -> bool:
   return bool(home_users(provider, home))
 
@@ -886,6 +908,8 @@ def promote(provider: str, registry: dict[str, Any], old: dict[str, Any], succes
   else:
     primary = primary_home(provider)
     refuse_in_use(provider, primary, old)
+    if primary_users(provider):
+      raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses {label_of(old)}. Quit it first, then remove the account.")
     for name in LOGIN_FILES[provider]:
       if (own / name).exists():
         os.replace(own / name, primary / name)

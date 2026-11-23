@@ -59,6 +59,11 @@ SH
 
 cat >"$mock_bin/codex" <<'SH'
 #!/bin/bash
+# A session started as the primary, naming no home.
+if [[ ${1:-} == "--hold" ]]; then
+  sleep 30
+  exit
+fi
 if [[ ${1:-} == "login" ]]; then
   "${BROWSER:-omarchy-test-default-browser}" "https://auth.openai.com/oauth/authorize"
   claims=$(printf '{"email":"%s","https://api.openai.com/auth":{"chatgpt_plan_type":"pro"}}' "$OMARCHY_TEST_LOGIN_EMAIL" | base64 -w0 | tr '+/' '-_' | tr -d '=')
@@ -831,6 +836,13 @@ pass "a first sign-in installs its subscription's desktop app"
   # Codex keeps every login in its own home, so the new primary's moves in.
   CODEX_HOME="$HOME/.codex" OMARCHY_TEST_LOGIN_UUID=c-main OMARCHY_TEST_LOGIN_EMAIL=me@example.com codex login >/dev/null
   OMARCHY_TEST_LOGIN_UUID=c-side OMARCHY_TEST_LOGIN_EMAIL=side@example.com omarchy-agent-account-add codex Side </dev/null >/dev/null
+  # A session started as the primary keeps its login until it quits.
+  codex --hold &
+  session=$!
+  if omarchy-agent-account-remove codex main </dev/null >/dev/null 2>&1 || [[ $(jq -r .tokens.account_id "$HOME/.codex/auth.json") != c-main ]]; then
+    fail "a session running as the Codex primary blocks replacing its login"
+  fi
+  kill "$session"; wait "$session" 2>/dev/null || true
   omarchy-agent-account-remove codex main </dev/null >/dev/null
   [[ $(jq -r .tokens.account_id "$HOME/.codex/auth.json") == c-side && ! -e $accounts/codex/side ]] ||
     fail "removing the Codex primary moves the next account's login into ~/.codex"
