@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Remove the Hermes desktop app along with the Hermes runtime it installed.
+# omarchy:summary=Remove Hermes Desktop, with optional removal of the local Hermes runtime and data.
 # omarchy:requires-sudo=true
 
 # -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
@@ -167,58 +167,10 @@ systemctl --user stop omarchy-hermes-theme.service 2>/dev/null || true
 hermes_holders stop
 omarchy-pkg-drop hermes-desktop
 
-# Upstream's installer writes this when the runtime under ~/.hermes has landed,
-# whether Omarchy ran it for the app or the app's own first launch did, and it
-# is the only thing that tells that runtime apart from one the user installed
-# themselves -- the paths are the same either way. Without it the install never
-# got that far: a machine where the package landed but nothing set Hermes up
-# still has whatever was there before, and none of it is ours to delete unasked.
-if [[ -f $HOME/.hermes/hermes-agent/.hermes-bootstrap-complete ]]; then
-  # The checkout and venv, its own uv, its own node. None of it is any use once
-  # the app is gone, so it goes without asking; what the user made with the app
-  # is a different question, answered below.
-  rm -rf \
-    "$HOME/.hermes/hermes-agent" \
-    "$HOME/.hermes/bootstrap-cache" \
-    "$HOME/.hermes/bin" \
-    "$HOME/.hermes/node"
-
-  # Only the wrappers pointing into ~/.hermes, matched as a plain string: the
-  # path carries a dot, so an unanchored pattern would also claim a wrapper
-  # pointing at a sibling like ~/xhermes.
-  for command in hermes hermes-agent hermes-acp; do
-    wrapper="$HOME/.local/bin/$command"
-
-    if [[ -f $wrapper && ! -L $wrapper ]] && grep -qF "$HOME/.hermes" "$wrapper"; then
-      rm -f "$wrapper"
-    fi
-  done
-
-  # When Hermes brought its own Node it symlinked these next to its own commands,
-  # and they point at what we just deleted. Only the links into ~/.hermes: a
-  # system Node, or someone else's, lives somewhere else entirely.
-  for command in node npm npx; do
-    link="$HOME/.local/bin/$command"
-
-    if [[ -L $link && $(readlink "$link") == "$HOME/.hermes"/* ]]; then
-      rm -f "$link"
-    fi
-  done
-
-fi
-
-# What survives to here is the user's: the chats, memories and skills in
-# ~/.hermes, the connections and their encrypted tokens in ~/.config/Hermes.
-# Keeping them stays the default -- they are small, and finding them intact
-# after a reinstall is the better surprise -- but a removal meant to be
-# complete should not leave credentials behind either, so the choice is put in
-# front of the user with the size, default no. Asked whenever the directories
-# exist, marker or no marker: on a machine where the marker never appeared the
-# data came from the terminal CLI or an install the app never finished, and it
-# is still what removal is asked to clean up. Naming the paths keeps the
-# question honest there too -- ~/.hermes may still carry a runtime the app
-# never owned, a yes takes that with it, and saying so is the prompt's job.
-# Without a terminal to ask in, keeping everything is the answer.
+# The upstream bootstrap marker proves completion, not that Omarchy owns the
+# runtime: a standalone Hermes Agent install writes the same marker. Leave
+# the runtime and its launchers in place unless the user confirms removal of
+# the named directories. With no terminal, keep them.
 data_removed=false
 if [[ -d $HOME/.hermes || -d $HOME/.config/Hermes ]] && [[ -t 0 ]]; then
   # du answers non-zero when either directory is missing, and pipefail would
@@ -231,6 +183,26 @@ if [[ -d $HOME/.hermes || -d $HOME/.config/Hermes ]] && [[ -t 0 ]]; then
   fi
   if gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n hermes.deleteData "$size")"; then
     hermes_holders stop
+    # Clean up launchers only when their marked runtime is being deleted.
+    if [[ -f $HOME/.hermes/hermes-agent/.hermes-bootstrap-complete ]]; then
+      # Match the directory prefix literally, including its trailing slash.
+      for command in hermes hermes-agent hermes-acp; do
+        wrapper="$HOME/.local/bin/$command"
+
+        if [[ -f $wrapper && ! -L $wrapper ]] && grep -qF "$HOME/.hermes/" "$wrapper"; then
+          rm -f "$wrapper"
+        fi
+      done
+
+      # Leave Node links alone unless their targets are being deleted.
+      for command in node npm npx; do
+        link="$HOME/.local/bin/$command"
+
+        if [[ -L $link && $(readlink "$link") == "$HOME/.hermes"/* ]]; then
+          rm -f "$link"
+        fi
+      done
+    fi
     rm -rf "$HOME/.hermes" "$HOME/.config/Hermes"
     data_removed=true
   fi
@@ -239,8 +211,8 @@ fi
 echo ""
 echo "Hermes Desktop has been removed."
 if [[ $data_removed == true ]]; then
-  echo "Its chats, memories, and settings in ~/.hermes and ~/.config/Hermes are gone too."
+  echo "The local Hermes runtime and data in ~/.hermes and ~/.config/Hermes are gone too."
 elif [[ -d $HOME/.hermes || -d $HOME/.config/Hermes ]]; then
-  echo "Your chats, memories, and skills are still in ~/.hermes,"
+  echo "The local runtime, chats, memories, and skills are still in ~/.hermes,"
   echo "and your connections and settings in ~/.config/Hermes."
 fi

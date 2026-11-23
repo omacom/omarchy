@@ -58,6 +58,11 @@ fi
 exit 0
 SH
 
+cat >"$mock_bin/omarchy-i18n" <<'SH'
+#!/bin/bash
+printf '%s\n' "${2:-$1}"
+SH
+
 chmod +x "$mock_bin"/*
 
 seed_install() {
@@ -102,15 +107,17 @@ remove_tty() {
     script -qec "bash '$test_tmp/remover'" /dev/null >"$test_tmp/output" 2>&1
 }
 
-# The app brings its own uv and its own node; both are runtime, not data.
+# The upstream completion marker also exists on a standalone installation.
+# With no confirmation, the marked checkout, local edits and tools must stay.
 seed_install
+printf 'local change\n' >"$test_home/.hermes/hermes-agent/PATCH"
 printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes \"\$@\"" \
   >"$test_home/.local/bin/hermes"
 remove || fail "remove succeeds"
-[[ ! -d $test_home/.hermes/hermes-agent ]] || fail "the runtime checkout is removed"
-[[ ! -d $test_home/.hermes/bin ]] || fail "the uv the app installed is removed"
-[[ ! -d $test_home/.hermes/node ]] || fail "the node the app installed is removed"
-pass "removal takes the whole runtime the app installed"
+tr '\0' '\n' <"$test_tmp/drop-log" | grep -qx hermes-desktop || fail "the desktop package is dropped"
+[[ $(cat "$test_home/.hermes/hermes-agent/PATCH") == "local change" ]] || fail "marked runtime and its local changes survive"
+[[ -f $test_home/.hermes/bin/uv && -f $test_home/.hermes/node/bin/node ]] || fail "runtime tools survive"
+pass "removal preserves a marked runtime and its local changes without confirmation"
 
 grep -Fxq 'systemctl --user stop omarchy-hermes-theme.service' "$test_tmp/systemctl-log" ||
   fail "the unit the installer left waiting to hand over the theme is stopped" "$(cat "$test_tmp/systemctl-log")"
@@ -121,10 +128,10 @@ pass "removal stops the installer's theme hand-over"
 pass "removal keeps the app's connections and settings"
 
 # -L, not -e: a dangling symlink fails -e while very much still being there.
-[[ ! -L $test_home/.local/bin/node ]] || fail "a node symlink into ~/.hermes is removed"
-[[ ! -L $test_home/.local/bin/npm ]] || fail "an npm symlink into ~/.hermes is removed"
+[[ -L $test_home/.local/bin/node ]] || fail "a node symlink into the preserved runtime survives"
+[[ -L $test_home/.local/bin/npm ]] || fail "an npm symlink into the preserved runtime survives"
 [[ -L $test_home/.local/bin/npx ]] || fail "an npx symlink pointing elsewhere survives"
-pass "removal clears only the managed Node links it stranded"
+pass "removal keeps all Node links when the runtime survives"
 
 [[ -f $test_home/.hermes/sessions/one.json ]] || fail "chats survive removal"
 [[ -f $test_home/.hermes/memories/one.md ]] || fail "memories survive removal"
@@ -137,8 +144,8 @@ pass "removal keeps what belongs to the user"
   fail "removal does not ask about the user's data without a terminal"
 pass "removal keeps the user's data unasked when there is no terminal"
 
-[[ ! -e $test_home/.local/bin/hermes ]] || fail "the app's own hermes command is removed"
-pass "removal takes the command the app installed"
+[[ -f $test_home/.local/bin/hermes ]] || fail "the command for the preserved runtime survives"
+pass "removal keeps the command for the preserved runtime"
 
 # A hermes command the app did not write survives even when the app did install
 # a runtime of its own.
@@ -150,10 +157,7 @@ remove || fail "remove succeeds with a foreign hermes present"
   fail "a hermes command the app did not write survives removal"
 pass "removal leaves a hermes it does not own"
 
-# Installed but never launched. The app provisions its runtime on first launch
-# and marks it complete when it lands, so without that marker everything under
-# ~/.hermes predates the app -- an official install, or one built by hand -- and
-# the paths are identical either way. Dropping the package is the whole job.
+# A checkout without an upstream completion marker is also preserved.
 seed_install
 rm -f "$test_home/.hermes/hermes-agent/.hermes-bootstrap-complete"
 printf 'my local edit\n' >"$test_home/.hermes/hermes-agent/PATCH"
@@ -172,16 +176,15 @@ remove || fail "remove succeeds when the app never finished installing Hermes"
   fail "node links belonging to a runtime the app never installed survive removal"
 pass "removal leaves a Hermes the app never installed"
 
-# ~/.hermes carries a dot, so a pattern rather than a plain string would also
-# claim a wrapper pointing at a sibling directory that merely looks like it.
+# A similarly named sibling remains outside the confirmed paths.
 seed_install
-mkdir -p "$test_home/xhermes/bin"
+mkdir -p "$test_home/.hermes-old/bin"
 sibling_body="#!/bin/bash
-exec $test_home/xhermes/bin/hermes \"\$@\""
+exec $test_home/.hermes-old/bin/hermes \"\$@\""
 printf '%s\n' "$sibling_body" >"$test_home/.local/bin/hermes"
-remove || fail "remove succeeds with a wrapper pointing at a sibling directory"
+OMARCHY_TEST_GUM_STATUS=0 remove_tty || fail "remove succeeds with a wrapper pointing at a sibling directory"
 [[ -f $test_home/.local/bin/hermes && $(cat "$test_home/.local/bin/hermes") == "$sibling_body" ]] ||
-  fail "a wrapper pointing at ~/xhermes is not mistaken for one pointing into ~/.hermes"
+  fail "a wrapper pointing at ~/.hermes-old is not mistaken for one pointing into ~/.hermes"
 pass "removal matches the runtime path as a plain string"
 
 # On a terminal the user is asked, default no: declining leaves every piece of
@@ -190,15 +193,21 @@ seed_install
 remove_tty || fail "remove succeeds when the data question is declined"
 tr '\0' '\n' <"$test_tmp/gum-log" | grep -qx 'confirm' ||
   fail "removal asks about the user's data on a terminal"
-[[ -f $test_home/.hermes/sessions/one.json && -d $test_home/.config/Hermes ]] ||
+tr '\0' '\n' <"$test_tmp/gum-log" | grep -qx -- '--default=false' || fail "the confirmation defaults to no"
+[[ -f $test_home/.hermes/hermes-agent/.hermes-bootstrap-complete && -f $test_home/.hermes/sessions/one.json && -d $test_home/.config/Hermes ]] ||
   fail "declining the question keeps the user's data"
 pass "removal asks on a terminal and declining keeps the data"
 
 # An explicit yes is the one path that takes the data too.
 seed_install
+printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes \"\$@\"" \
+  >"$test_home/.local/bin/hermes"
 OMARCHY_TEST_GUM_STATUS=0 remove_tty || fail "remove succeeds when the data goes too"
 [[ ! -e $test_home/.hermes && ! -e $test_home/.config/Hermes ]] ||
   fail "a yes deletes ~/.hermes and ~/.config/Hermes"
+[[ ! -L $test_home/.local/bin/node && ! -L $test_home/.local/bin/npm && -L $test_home/.local/bin/npx ]] ||
+  fail "a yes removes links into the deleted runtime only"
+[[ ! -e $test_home/.local/bin/hermes ]] || fail "a yes removes the wrapper for the deleted runtime"
 pass "removal deletes the user's data only on an explicit yes"
 
 # Without the bootstrap marker the runtime is not the app's to take unasked,
@@ -223,9 +232,8 @@ OMARCHY_TEST_GUM_STATUS=0 remove_tty ||
   fail "a yes takes ~/.hermes whole when the marker never appeared"
 pass "removal honors a yes on the named paths without the marker"
 
-# The gateway unit upstream's `hermes gateway install` writes runs the runtime
-# being removed, so it is stopped first and goes with it: the unit file, the
-# .bak a forced reinstall leaves, and its enablement link.
+# Preserve existing gateway shutdown and unit cleanup on package removal,
+# while leaving the runtime itself intact without confirmation.
 seed_install
 unit_dir="$test_home/.config/systemd/user"
 mkdir -p "$unit_dir/default.target.wants"
@@ -244,15 +252,15 @@ grep -Fxq 'systemctl --user reset-failed hermes-gateway.service' "$test_tmp/syst
   fail "the gateway unit, its backup and its enablement link are removed"
 [[ -f $unit_dir/hermes-gateway-other.service ]] || fail "a gateway unit for a Hermes kept elsewhere survives"
 ! grep -q 'hermes-gateway-other' "$test_tmp/systemctl-log" || fail "a gateway unit for a Hermes kept elsewhere is not touched" "$(cat "$test_tmp/systemctl-log")"
-[[ ! -d $test_home/.hermes/hermes-agent ]] || fail "the runtime goes once its gateway is stopped"
-pass "removal stops the gateway unit and takes it with the runtime, leaving units for other homes alone"
+[[ -d $test_home/.hermes/hermes-agent ]] || fail "the runtime survives package-only removal"
+pass "removal stops its gateway unit without deleting the runtime or touching unrelated units"
 
 # A user manager that will not disable a unit already down is not in the way.
 seed_install
 mkdir -p "$unit_dir"
 printf '[Service]\nExecStart=%s/.hermes/hermes-agent/venv/bin/python %s/.hermes/hermes-agent/hermes gateway run\n' "$test_home" "$test_home" >"$unit_dir/hermes-gateway.service"
 OMARCHY_TEST_UNIT_DOWN=1 remove || fail "remove succeeds when disable fails on a unit that is already inactive" "$(cat "$test_tmp/output")"
-[[ ! -e $unit_dir/hermes-gateway.service && ! -d $test_home/.hermes/hermes-agent ]] || fail "an inactive unit whose disable failed still goes with the runtime"
+[[ ! -e $unit_dir/hermes-gateway.service && -d $test_home/.hermes/hermes-agent ]] || fail "an inactive unit still goes while the runtime is kept"
 pass "a unit already down goes even when systemd refuses the disable"
 
 # A gateway that will not stop keeps the removal from dropping the package
