@@ -105,6 +105,12 @@ def main():
   info = read_info()
   account = dropbox_account(info)
   account_path = account.get("path") if isinstance(account.get("path"), str) else ""
+  # A team account syncs into root_path; `path` is only the member folder, and
+  # team folders are its siblings. The member folder is empty whenever every
+  # subfolder of it is excluded by selective sync.
+  root_path = account.get("root_path") if isinstance(account.get("root_path"), str) else ""
+  if root_path and Path(root_path).exists():
+    account_path = root_path
   plan = account.get("subscription_type") if isinstance(account.get("subscription_type"), str) else ""
   quota = PLAN_QUOTAS.get(plan.lower(), 0)
   authenticated = account_path != "" and Path(account_path).exists()
