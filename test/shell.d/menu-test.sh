@@ -466,7 +466,7 @@ if (!isReachableText) fail('menu search checks every ancestor above a row (no is
 const searchItems = {}
 const entry = (id, props) => { searchItems[id] = menuModel.normalizeItem(id, props) }
 entry('root', { label: 'Go' })
-entry('update', { label: 'Update' })
+entry('update', { label: 'Update', when: 'has-update' })
 entry('update.kernel', { label: 'Kernel', provider: 'omarchy-kernel list', when: 'multi-kernel' })
 entry('update.kernel.linux-omarchy', { label: 'linux-omarchy', action: 'omarchy-kernel set linux-omarchy' })
 entry('update.mirrors', { label: 'Refresh mirrors', action: 'omarchy-update-mirrors' })
