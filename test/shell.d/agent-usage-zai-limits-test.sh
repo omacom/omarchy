@@ -148,7 +148,36 @@ expect("Z.ai collector reads the key pi saved in auth.json", list(load_collector
 pi_auth(home() / ".omp" / "agent", "zai", "omp-saved")
 expect("Z.ai collector prefers pi's auth.json to omp's", list(load_collector("zai").credentials()), ["pi-saved", "zai"])
 
+# OpenCode is a last fallback; each exact provider id keeps its own host.
+for provider, platform in (("zai-coding-plan", "zai"), ("zai", "zai"), ("zhipuai-coding-plan", "zhipu"), ("zhipuai", "zhipu")):
+  sandbox()
+  os.environ["XDG_DATA_HOME"] = str(home() / "data")
+  auth = data_home() / "opencode" / "auth.json"
+  write_json(auth, {provider: {"type": "api", "key": " opencode-key "}})
+  expect(f"Z.ai collector reads OpenCode's {provider} key under XDG_DATA_HOME",
+         list(load_collector("zai").credentials()), ["opencode-key", platform])
+
+for provider in ("zai-proxy", "zai-coding-plan-proxy", "https://api.z.ai"):
+  write_json(auth, {provider: {"type": "api", "key": "gateway-key"}})
+  expect("Z.ai collector does not borrow a custom OpenCode provider's key", list(load_collector("zai").credentials()), ["", "zai"])
+for entry in ({"type": "oauth", "key": "oauth-key"}, {"type": "api", "key": "$ZAI_KEY"}, {"type": "api", "key": "!pass show zai"}, {"type": "api", "key": 123}, {"type": "api", "key": " "}, "plain-key"):
+  write_json(auth, {"zai-coding-plan": entry})
+  expect("Z.ai collector takes only a literal OpenCode API key", list(load_collector("zai").credentials()), ["", "zai"])
+for raw in ("{", "[]"):
+  auth.write_text(raw)
+  expect("Z.ai collector ignores malformed OpenCode auth", list(load_collector("zai").credentials()), ["", "zai"])
+
+sandbox()
+write_json(data_home() / "opencode" / "auth.json", {"zai-coding-plan": {"type": "api", "key": "opencode-key"}})
+pi_auth(home() / ".omp" / "agent", "zhipu", "omp-key")
+expect("Z.ai collector prefers existing omp auth to OpenCode", list(load_collector("zai").credentials()), ["omp-key", "zhipu"])
+os.environ["ZAI_API_KEY"] = "env-key"
+expect("Z.ai collector prefers live env to OpenCode", list(load_collector("zai").credentials()), ["env-key", "zai"])
+write_json(config_home() / "omarchy" / "agents" / "zai.json", {"apiKey": "config-key", "platform": "zhipu"})
+expect("Z.ai collector keeps explicit config first", list(load_collector("zai").credentials()), ["config-key", "zhipu"])
+
 # A pi `$VAR` or `!command` entry is pi's to resolve, never a key to send.
+sandbox()
 pi_auth(None, "zai", "$ZAI_KEY")
 pi_auth(home() / ".omp" / "agent", "zai", "!pass show zai")
 expect("Z.ai collector never sends a pi $VAR or !command entry as a key", list(load_collector("zai").credentials()), ["", "zai"])
