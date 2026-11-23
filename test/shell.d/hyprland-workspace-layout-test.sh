@@ -73,6 +73,24 @@ applied() {
   grep -Fx "eval o.workspace_mode({ workspace = \"3\", mode = \"$1\" })" "$log_file" >/dev/null
 }
 
+# A restricted cycle skips disabled modes in both directions and becomes a
+# no-op once the workspace is already on its only enabled layout.
+cycle() {
+  env XDG_STATE_HOME="$home_dir/.local/state" "$ROOT/bin/omarchy-hyprland-workspace-layout-cycle" "$@"
+}
+
+cycle dwindle floating
+toggle
+[[ $(saved_mode) == "floating" ]] || fail "the cycle skips disabled scrolling"
+toggle_back back
+[[ ! -e $layout_file ]] || fail "the reverse cycle skips disabled scrolling"
+cycle dwindle
+: >"$log_file"
+toggle
+[[ ! -s $log_file ]] || fail "a single current layout needs no dispatch"
+cycle dwindle scrolling floating
+pass "the shortcut follows the enabled layouts"
+
 # Nothing saved yet, so the cycle starts from the layout Hyprland reports.
 : >"$notification_log"
 toggle

@@ -286,6 +286,9 @@
     "label": "Workspace Layout",
     "title": "Default Workspace Layout"
   },
+  "appearance.workspace-layout.cycle": {
+    "label": "Layouts in Cycle"
+  },
   "appearance.workspace-layout.dwindle": {
     "label": "Tiling"
   },

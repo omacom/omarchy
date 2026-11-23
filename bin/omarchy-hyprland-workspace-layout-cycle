@@ -1,0 +1,77 @@
+#!/bin/bash
+
+# omarchy:summary=Show or configure which workspace layouts the shortcut cycles through
+# omarchy:args=[choose|<layout>...]
+# omarchy:examples=omarchy hyprland workspace layout cycle scrolling floating
+
+set -euo pipefail
+
+state="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+file="$state/workspace-layout-cycle"
+layouts=(dwindle scrolling floating)
+
+read_cycle() {
+  local -a saved=()
+  local layout entry
+  if [[ -r $file ]]; then
+    mapfile -t saved <"$file"
+  fi
+  for layout in "${layouts[@]}"; do
+    for entry in "${saved[@]}"; do
+      if [[ $entry == "$layout" ]]; then
+        printf '%s\n' "$layout"
+        break
+      fi
+    done
+  done
+}
+
+if (( $# == 0 )); then
+  cycle=$(read_cycle)
+  if [[ -n $cycle ]]; then
+    printf '%s\n' "$cycle"
+  else
+    printf '%s\n' "${layouts[@]}"
+  fi
+  exit 0
+fi
+
+if [[ $1 == "choose" && $# == 1 ]]; then
+  labels=("$(omarchy-i18n layout.tiling)" "$(omarchy-i18n layout.scrolling)" "$(omarchy-i18n layout.floating)")
+  selected=()
+  cycle=$("$0")
+  for i in "${!layouts[@]}"; do
+    if [[ $'\n'$cycle$'\n' == *$'\n'"${layouts[i]}"$'\n'* ]]; then
+      selected+=(--selected "${labels[i]}")
+    fi
+  done
+
+  result=$(omarchy-menu-select "$(omarchy-i18n layout.cycleTitle)" "${labels[@]}" -- --multiple "${selected[@]}") || exit $?
+  set --
+  for i in "${!layouts[@]}"; do
+    if jq -e --arg label "${labels[i]}" 'index($label) != null' <<<"$result" >/dev/null; then
+      set -- "$@" "${layouts[i]}"
+    fi
+  done
+fi
+
+if (( $# == 0 )); then
+  omarchy-notification-send "$(omarchy-i18n layout.cycleRequired)"
+  exit 1
+fi
+
+for layout; do
+  case $layout in
+    dwindle|scrolling|floating) ;;
+    *)
+      echo "Unknown workspace layout: $layout" >&2
+      exit 1
+      ;;
+  esac
+done
+
+mkdir -p "$state"
+temp=$(mktemp "$file.XXXXXX")
+trap 'rm -f "$temp"' EXIT
+printf '%s\n' "$@" >"$temp"
+mv -fT "$temp" "$file"
