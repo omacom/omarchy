@@ -152,8 +152,9 @@ printf '#!/bin/bash\nexit 0\n' >"$mock_bin/omarchy-lifecycle-dispatch"
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
-# The user's own XDG dirs would win over HOME; keep every write in the test home.
-export XDG_CONFIG_HOME="$test_home/.config" XDG_DATA_HOME="$test_home/.local/share"
+# The user's and system's XDG dirs would win over HOME; keep every read and write in the test sandbox.
+export XDG_CONFIG_HOME="$test_home/.config" XDG_CONFIG_DIRS="$test_tmp/etc"
+export XDG_DATA_HOME="$test_home/.local/share" XDG_DATA_DIRS="$test_tmp/system"
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_INSTALLED_DIR="$installed_dir"
