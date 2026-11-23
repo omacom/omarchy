@@ -41,4 +41,16 @@ ipc notifications.act
 ipc notifications.dismissOne
 ipc notifications.dismissAll
 ipc notifications.invokeLast
+ipc notifications.keyboard
 ipc notifications.showHistory
+ipc notifications.toggleDnd
+ipc omarchy.dock.apps
+panelAt right:1
+panelAt right:2
+panelAt right:3
+panelAt right:4
+panelAt right:5
+panelAt right:6
+panelAt right:7
+panelAt right:8
+panelAt right:9

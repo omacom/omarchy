@@ -118,8 +118,11 @@ local function command_from(value, description)
     local step = value.brightness == "raise" and "+5%" or "5%-"
     return shell_dispatcher("brightness", value.brightness, "omarchy-brightness-display " .. step)
   elseif value.ipc then
-    local target, method = value.ipc:match("^([^.]+)%.(.+)$")
+    local target, method = value.ipc:match("^(.+)%.([^.]+)$")
     return shell_dispatcher("ipc", value.ipc, "omarchy-shell " .. shell_quote(target) .. " " .. shell_quote(method))
+  elseif value.panel_at then
+    local section, index = value.panel_at:match("^([^:]+):(.+)$")
+    return shell_dispatcher("panelAt", value.panel_at, "omarchy-shell -q shell togglePanelAt " .. shell_quote(section or "right") .. " " .. shell_quote(index or value.panel_at))
   elseif value.focus and value.launch then
     return o.launch_sole(value.focus, value.launch)
   elseif value.launch then
