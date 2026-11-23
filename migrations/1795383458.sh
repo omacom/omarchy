@@ -17,5 +17,10 @@ if jq '
   end
 ' "$config_file" >"$tmp"; then
   cat "$tmp" >"$config_file"
+else
+  # A shell.json jq can't read stays as it is, and the migration pending.
+  status=$?
+  rm -f "$tmp"
+  exit "$status"
 fi
 rm -f "$tmp"
