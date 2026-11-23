@@ -1,4 +1,5 @@
 {
+  "AI": "AI",
   "Activity": "Aktibidad",
   "Agent": "Ahente",
   "Agents": "Mga Ahente",
@@ -20,7 +21,6 @@
   "Calculator": "Kalkulador",
   "Calendar": "Kalendaryo",
   "Capture menu": "Menu ng Capture",
-  "ChatGPT": "ChatGPT",
   "Clear reminders": "Alisin ang mga paalala",
   "Clipboard manager": "Tagapamahala ng clipboard",
   "Close all windows": "Isara lahat ng bintana",
@@ -29,7 +29,6 @@
   "Control notifications with the keyboard": "Kontrolin ang mga notipikasyon gamit ang keyboard",
   "Cycle workspace layout": "Susunod na layout ng workspace",
   "Cycle workspace layout back": "Naunang layout ng workspace",
-  "DeepSeek": "DeepSeek",
   "Direct input for the terminal prefix": "Direktang input para sa terminal prefix",
   "Disable touchpad": "Huwag paganahin ang touchpad",
   "Dismiss all notifications": "Alisin lahat ng notipikasyon",

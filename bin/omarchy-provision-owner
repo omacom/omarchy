@@ -612,13 +612,14 @@ keyboard_form() {
   local status failures=0
 
   while true; do
-    clear_logo
-    echo
+    # Under the heading of the steps that follow, so the screen does not
+    # shift when the keyboard gives way to them.
+    step "$(omarchy_form_text setupForm.accountIntro)"
     if ! omarchy_form_language_drawn "$language"; then
       # English on purpose: the console cannot draw this language to say it in.
       say --foreground 8 "Setup stays in English. Omarchy will be in $(omarchy_form_language_label "$language") once set up."
+      echo
     fi
-    echo
 
     omarchy_prompt_keyboard && status=0 || status=$?
     if ((status == 0)); then
@@ -1377,8 +1378,9 @@ run_setup() {
       continue
     fi
 
-    # "No, change it" starts over from the keyboard, as in the installer.
+    # "No, change it" starts over from the language, as in the installer.
     if ! confirm_form; then
+      language_form
       keyboard_form || return 1
       continue
     fi
