@@ -542,6 +542,9 @@ local function watch()
 
   watching = true
 
+  local active = hl.get_active_window()
+  focused = active and active.address
+
   input.follow_mouse = hl.get_config("input.follow_mouse")
 
   hl.on("window.open", function(window)

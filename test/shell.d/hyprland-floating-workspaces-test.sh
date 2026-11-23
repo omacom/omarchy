@@ -264,6 +264,7 @@ io.open = function(path, mode)
 end
 
 hl = {
+  get_active_window = function() end,
   workspace_rule = function() end,
   window_rule = function(rule) table.insert(rules, rule) end,
   get_workspace_windows = function(selector)
