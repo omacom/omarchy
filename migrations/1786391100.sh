@@ -1,7 +1,7 @@
 echo "Run the WPA handshake in software on Macs with Broadcom Wi-Fi"
 
 # This quirk targets Intel Macs. Apple Silicon uses brcmfmac too and reports
-# "Apple Inc." with a listed part (BCM4387 is 14e4:4433), but disabling its
+# "Apple Inc." with a Broadcom part (BCM4387 is 14e4:4433), but disabling its
 # firmware supplicant makes firmware commands time out and breaks scanning
 # entirely. A fresh install marks this done only for its first user, so an
 # account added later still runs it.
@@ -17,15 +17,16 @@ conf="${OMARCHY_BRCMFMAC_CONF:-/etc/modprobe.d/brcmfmac.conf}"
 
 sys_vendor="$(cat "$dmi_vendor" 2>/dev/null || true)"
 
-if ! lspci -nn | grep "106b:180[12]" >/dev/null &&
+if lspci -nn | grep "106b:180[12]" >/dev/null ||
   ! { [[ $sys_vendor == Apple* ]] &&
-    lspci -nn | grep -E "14e4:(43ba|43bb|43bc|43a3|43dc|4464|4488|4425|4433)" >/dev/null; }; then
+    lspci -nn | grep -E "14e4:(43ba|43bb|43bc|43a3)" >/dev/null; }; then
   exit 0
 fi
 
-# T2 installs already carry this from the installer, so the common case is a
-# no-op for the first user and every user after them. Only an active options
-# line counts: someone who commented theirs out still needs this.
+# Only an active options line counts: someone who commented theirs out still
+# needs this. T2 installs no longer get the quirk from the installer; on the
+# pre-T2 Macs this migration targets, the installer covers new installs and
+# this covers existing ones.
 if [[ -f $conf ]] &&
   grep -Eq '^[[:space:]]*options[[:space:]]+brcmfmac[[:space:]].*feature_disable=0x82000' "$conf"; then
   exit 0
