@@ -1253,6 +1253,7 @@ Item {
     }
     onExited: function(exitCode, exitStatus) {
       if (exitCode === 0 && exitStatus === 0 && keybindingsProc.collected.length > 0) {
+        var firstLoad = !root.keybindingsLoaded
         if (keybindingsProc.collected !== root.keybindingsRaw) {
           var parsed = MenuModel.parseKeybindingsRecords(keybindingsProc.collected)
           root.keybindingsRaw = keybindingsProc.collected
@@ -1260,10 +1261,14 @@ Item {
           root.keybindingsOptions = parsed.options
           root.keybindingsLoaded = true
           if (root.opened && root.mode === "keybindings") {
+            if (firstLoad) {
+              panel.cardTop = -1
+              panel.maxRowsHeight = -1
+            }
             root.dmenuOptions = root.keybindingsOptions
             root.rebuildDisplay()
           }
-        } else if (!root.keybindingsLoaded) {
+        } else if (firstLoad) {
           root.keybindingsLoaded = true
         }
       }
@@ -1454,6 +1459,7 @@ Item {
     readonly property int centeredTop: Math.max(Style.gapsOut, Math.round((height - root.cardHeight) / 2))
     readonly property int effectiveCardTop: cardTop >= 0 ? cardTop : centeredTop
     function freezeCardTop() {
+      if (root.mode === "keybindings" && !root.keybindingsLoaded) return
       if (shown && cardTop < 0) {
         cardTop = effectiveCardTop
         maxRowsHeight = root.visibleRowsHeight
