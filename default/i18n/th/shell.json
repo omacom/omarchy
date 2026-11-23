@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "สมัครสมาชิก, จ่ายตามใช้ หรือในเครื่อง",
-  "agents.addProviderAccount": "เพิ่มบัญชี %1",
   "agents.addTitle": "เพิ่มเอเจนต์",
   "agents.app": "แอป",
   "agents.backToLimits": "กลับไปขีดจำกัด",
@@ -67,6 +66,7 @@
   "agents.outOfCredits": "เครดิตหมด",
   "agents.pasteCode": "หากหน้าเว็บแสดงรหัสแทนที่จะเสร็จสิ้น ให้วางรหัสที่นี่",
   "agents.pasteCodeLink": "หน้าเว็บแสดงโค้ดแทนใช่ไหม?",
+  "agents.placeholderApiKey": "คีย์ API",
   "agents.placeholderCode": "รหัส",
   "agents.placeholderWork": "งาน",
   "agents.plugin": "ปลั๊กอิน",

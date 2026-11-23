@@ -14,7 +14,7 @@
   "agents.added": "Imeongezwa %1.",
   "agents.addedNotSelected": "Imeongezwa %1, lakini imeshindwa kubadili vipindi vipya vitumie hiyo.",
   "agents.allOver": "Akaunti zote za %1 zimezidi %2%",
-  "agents.apiKeyHint": "Unaangaliwa kwa %1, kisha unahifadhiwa kwa pi na opencode.",
+  "agents.apiKeyHint": "Inakaguliwa kwa %1, kisha inahifadhiwa katika OpenCode.",
   "agents.atLimit": "%1 iko katika %2% ya kikomo cha %3",
   "agents.chooseForPrompt": "Chagua wakala wa kazi hii",
   "agents.durationDaysHours": "%1siku %2saa",

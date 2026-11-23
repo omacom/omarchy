@@ -14,7 +14,7 @@
   "agents.added": "%1 जोड़ा गया।",
   "agents.addedNotSelected": "%1 जोड़ा गया, लेकिन नए सत्रों को इस पर स्विच नहीं किया जा सका।",
   "agents.allOver": "सभी %1 खाते %2% से ऊपर हैं",
-  "agents.apiKeyHint": "इसे %1 से जाँचा जाता है, फिर pi और opencode के लिए सहेज लिया जाता है।",
+  "agents.apiKeyHint": "इसे %1 से जाँचा जाता है, फिर OpenCode में सहेजा जाता है।",
   "agents.atLimit": "%1 किसी %3 सीमा के %2% पर है",
   "agents.chooseForPrompt": "इस कार्य के लिए एजेंट चुनें",
   "agents.durationDaysHours": "%1दि %2घं",

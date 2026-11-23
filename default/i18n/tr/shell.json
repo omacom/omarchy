@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Abonelik, kullandıkça öde veya yerel",
-  "agents.addProviderAccount": "%1 hesabı ekleyin",
   "agents.addTitle": "Ajan ekle",
   "agents.app": "Uygulama",
   "agents.backToLimits": "Limitlere dön",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "Krediler bitti",
   "agents.pasteCode": "Sayfa bitirmek yerine bir kod gösteriyorsa buraya yapıştırın.",
   "agents.pasteCodeLink": "Bunun yerine kod gösteren sayfa mı?",
+  "agents.placeholderApiKey": "API anahtarı",
   "agents.placeholderCode": "Kod",
   "agents.placeholderWork": "İş",
   "agents.plugin": "Eklenti",

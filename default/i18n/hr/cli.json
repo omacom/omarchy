@@ -15,7 +15,7 @@
   "agents.added": "Dodano %1.",
   "agents.addedNotSelected": "Dodano %1, ali nije moguće prebaciti nove sesije na njega.",
   "agents.allOver": "Svi %1 računi prelaze %2%",
-  "agents.apiKeyHint": "Provjerava se s %1, a zatim sprema za pi i opencode.",
+  "agents.apiKeyHint": "Provjerava se s %1, zatim se sprema u OpenCode.",
   "agents.atLimit": "%1 je na %2% %3 ograničenja",
   "agents.chooseForPrompt": "Odaberi agenta za ovaj zadatak",
   "agents.durationDaysHours": "%1d %2h",

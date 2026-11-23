@@ -17,7 +17,7 @@
   "agents.added": "Cuireadh %1 leis.",
   "agents.addedNotSelected": "Cuireadh %1 leis, ach níorbh fhéidir seisiúin nua a athrú chuige.",
   "agents.allOver": "Tá gach cuntas %1 os cionn %2%",
-  "agents.apiKeyHint": "Seiceáiltear é le %1, ansin sábháiltear é do pi agus opencode.",
+  "agents.apiKeyHint": "Seiceáiltear é le %1, ansin sábháiltear é in OpenCode.",
   "agents.atLimit": "Tá %1 ag %2% de theorainn %3",
   "agents.chooseForPrompt": "Roghnaigh gníomhaire don tasc seo",
   "agents.durationDaysHours": "%1l %2u",

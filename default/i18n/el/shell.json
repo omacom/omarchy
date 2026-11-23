@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Συνδρομή, ανά χρήση ή τοπικό",
-  "agents.addProviderAccount": "Πρόσθεσε λογαριασμό %1",
   "agents.addTitle": "Πρόσθεσε έναν agent",
   "agents.app": "Εφαρμογή",
   "agents.backToLimits": "Πίσω στα όρια",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "Εξαντλήθηκαν οι πιστώσεις",
   "agents.pasteCode": "Αν η σελίδα δείχνει κωδικό αντί να ολοκληρώσει, επικόλλησέ τον εδώ.",
   "agents.pasteCodeLink": "Η σελίδα εμφανίζει κωδικό;",
+  "agents.placeholderApiKey": "Κλειδί API",
   "agents.placeholderCode": "Κωδικός",
   "agents.placeholderWork": "Εργασία",
   "agents.plugin": "Πρόσθετο",

@@ -14,7 +14,7 @@
   "agents.added": "%1 toegevoegd.",
   "agents.addedNotSelected": "%1 toegevoegd, maar nieuwe sessies konden niet hiernaar worden overgezet.",
   "agents.allOver": "Alle %1-accounts zitten boven %2%",
-  "agents.apiKeyHint": "Wordt gecontroleerd met %1 en vervolgens opgeslagen voor pi en opencode.",
+  "agents.apiKeyHint": "Wordt gecontroleerd met %1 en vervolgens opgeslagen in OpenCode.",
   "agents.atLimit": "%1 zit op %2% van een %3-limiet",
   "agents.chooseForPrompt": "Kies een agent voor deze taak",
   "agents.durationDaysHours": "%1d %2u",

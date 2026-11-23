@@ -14,7 +14,7 @@
   "agents.added": "%1 eklendi.",
   "agents.addedNotSelected": "%1 eklendi, ancak yeni oturumlar buna geçirilemedi.",
   "agents.allOver": "Tüm %1 hesapları %%2 seviyesinin üzerinde",
-  "agents.apiKeyHint": "%1 ile kontrol edilir, ardından pi ve opencode için kaydedilir.",
+  "agents.apiKeyHint": "%1 ile doğrulanır, ardından OpenCode'a kaydedilir.",
   "agents.atLimit": "%1, %3 sınırının %%2 seviyesinde",
   "agents.chooseForPrompt": "Bu görev için bir ajan seçin",
   "agents.durationDaysHours": "%1g %2sa",

@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Předplatné, platba za použití nebo místní",
-  "agents.addProviderAccount": "Přidat účet %1",
   "agents.addTitle": "Přidat agenta",
   "agents.app": "Aplikace",
   "agents.backToLimits": "Zpět na limity",
@@ -73,6 +72,7 @@
   "agents.outOfCredits": "Kredity vyčerpány",
   "agents.pasteCode": "Pokud stránka místo dokončení ukáže kód, vložte ho sem.",
   "agents.pasteCodeLink": "Vidíte místo toho stránku s kódem?",
+  "agents.placeholderApiKey": "API klíč",
   "agents.placeholderCode": "Kód",
   "agents.placeholderWork": "Práce",
   "agents.plugin": "Plugin",

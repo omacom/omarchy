@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Prenumerata, pagal naudojimą arba vietinis",
-  "agents.addProviderAccount": "Pridėti %1 paskyrą",
   "agents.addTitle": "Pridėti agentą",
   "agents.app": "Programa",
   "agents.backToLimits": "Grįžti prie limitų",
@@ -73,6 +72,7 @@
   "agents.outOfCredits": "Baigėsi kreditai",
   "agents.pasteCode": "Jei puslapis vietoj užbaigimo rodo kodą, įklijuokite jį čia.",
   "agents.pasteCodeLink": "Matote puslapį su kodu?",
+  "agents.placeholderApiKey": "API raktas",
   "agents.placeholderCode": "Kodas",
   "agents.placeholderWork": "Darbas",
   "agents.plugin": "Įskiepis",

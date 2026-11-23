@@ -14,7 +14,7 @@
   "agents.added": "Bætti %1 við.",
   "agents.addedNotSelected": "Bætti %1 við, en tókst ekki að færa nýjar lotur yfir á það.",
   "agents.allOver": "Allir %1-reikningar eru yfir %2%",
-  "agents.apiKeyHint": "Hann er athugaður með %1 og síðan vistaður fyrir pi og opencode.",
+  "agents.apiKeyHint": "Hann er athugaður með %1 og síðan vistaður í OpenCode.",
   "agents.atLimit": "%1 er í %2% af %3 mörkum",
   "agents.chooseForPrompt": "Veldu agent fyrir þetta verkefni",
   "agents.durationDaysHours": "%1d %2klst",

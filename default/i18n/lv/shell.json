@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Abonements, maksa pēc patēriņa vai lokāls",
-  "agents.addProviderAccount": "Pievienot %1 kontu",
   "agents.addTitle": "Pievienot aģentu",
   "agents.app": "Lietotne",
   "agents.backToLimits": "Atpakaļ uz limitiem",
@@ -73,6 +72,7 @@
   "agents.outOfCredits": "Nav kredītu",
   "agents.pasteCode": "Ja lapa pabeigšanas vietā parāda kodu, ielīmē to šeit.",
   "agents.pasteCodeLink": "Tā vietā lapā ir kods?",
+  "agents.placeholderApiKey": "API atslēga",
   "agents.placeholderCode": "Kods",
   "agents.placeholderWork": "Darbs",
   "agents.plugin": "Spraudnis",

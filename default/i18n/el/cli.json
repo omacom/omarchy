@@ -14,7 +14,7 @@
   "agents.added": "Προστέθηκε το %1.",
   "agents.addedNotSelected": "Προστέθηκε το %1, αλλά οι νέες συνεδρίες δεν πέρασαν σε αυτό.",
   "agents.allOver": "Όλοι οι λογαριασμοί %1 είναι πάνω από %2%",
-  "agents.apiKeyHint": "Ελέγχεται με %1 και στη συνέχεια αποθηκεύεται για pi και opencode.",
+  "agents.apiKeyHint": "Ελέγχεται με το %1 και έπειτα αποθηκεύεται στο OpenCode.",
   "agents.atLimit": "Το %1 είναι στο %2% ενός ορίου %3",
   "agents.chooseForPrompt": "Επιλέξτε έναν agent για αυτήν την εργασία",
   "agents.durationDaysHours": "%1ημ %2ώ",

@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "מנוי, לפי שימוש, או מקומי",
-  "agents.addProviderAccount": "הוספת חשבון %1",
   "agents.addTitle": "הוספת סוכן",
   "agents.app": "אפליקציה",
   "agents.backToLimits": "חזרה למגבלות",
@@ -73,6 +72,7 @@
   "agents.outOfCredits": "אזלו הקרדיטים",
   "agents.pasteCode": "אם הדף מציג קוד במקום לסיים, הדביקו אותו כאן.",
   "agents.pasteCodeLink": "הדף מציג קוד במקום?",
+  "agents.placeholderApiKey": "מפתח API",
   "agents.placeholderCode": "קוד",
   "agents.placeholderWork": "עבודה",
   "agents.plugin": "תוסף",

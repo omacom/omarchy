@@ -14,7 +14,7 @@
   "agents.added": "Lisatud %1.",
   "agents.addedNotSelected": "Lisatud %1, kuid uusi seansse ei õnnestunud sellele lülitada.",
   "agents.allOver": "Kõik %1-kontod on üle %2%",
-  "agents.apiKeyHint": "Seda kontrollitakse %1-ga ja salvestatakse seejärel pi ning opencode jaoks.",
+  "agents.apiKeyHint": "Seda kontrollitakse %1 abil, seejärel salvestatakse OpenCode'is.",
   "agents.atLimit": "%1 on %3 limiidist kasutanud %2%",
   "agents.chooseForPrompt": "Vali ülesande jaoks agent",
   "agents.durationDaysHours": "%1 p %2 t",

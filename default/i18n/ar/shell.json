@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "اشتراك، أو حسب الاستخدام، أو محلي",
-  "agents.addProviderAccount": "إضافة حساب %1",
   "agents.addTitle": "إضافة وكيل",
   "agents.app": "التطبيق",
   "agents.backToLimits": "العودة إلى الحدود",
@@ -82,6 +81,7 @@
   "agents.outOfCredits": "نفد الرصيد",
   "agents.pasteCode": "إذا أظهرت الصفحة رمزًا بدلًا من الإنهاء، الصقه هنا.",
   "agents.pasteCodeLink": "تعرض الصفحة رمزًا بدلًا من ذلك؟",
+  "agents.placeholderApiKey": "مفتاح API",
   "agents.placeholderCode": "الرمز",
   "agents.placeholderWork": "العمل",
   "agents.plugin": "الإضافة",

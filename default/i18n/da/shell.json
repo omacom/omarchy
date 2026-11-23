@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Abonnement, pr. brug eller lokal",
-  "agents.addProviderAccount": "Tilføj %1-konto",
   "agents.addTitle": "Tilføj en agent",
   "agents.app": "App",
   "agents.backToLimits": "Tilbage til grænserne",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "Kreditter opbrugt",
   "agents.pasteCode": "Hvis siden viser en kode i stedet for at fuldføre, så indsæt den her.",
   "agents.pasteCodeLink": "Viser siden en kode i stedet?",
+  "agents.placeholderApiKey": "API-nøgle",
   "agents.placeholderCode": "Kode",
   "agents.placeholderWork": "Arbejde",
   "agents.plugin": "Plugin",

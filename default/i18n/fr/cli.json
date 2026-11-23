@@ -15,7 +15,7 @@
   "agents.added": "%1 ajouté.",
   "agents.addedNotSelected": "%1 ajouté, mais impossible d'y basculer les nouvelles sessions.",
   "agents.allOver": "Tous les comptes %1 dépassent %2%",
-  "agents.apiKeyHint": "Elle est vérifiée avec %1, puis enregistrée pour pi et opencode.",
+  "agents.apiKeyHint": "Elle est vérifiée auprès de %1, puis enregistrée dans OpenCode.",
   "agents.atLimit": "%1 est à %2% d'une limite %3",
   "agents.chooseForPrompt": "Choisissez un agent pour cette tâche",
   "agents.durationDaysHours": "%1 j %2 h",

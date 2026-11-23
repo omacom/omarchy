@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Subskrypcja, płatność za użycie lub model lokalny",
-  "agents.addProviderAccount": "Dodaj konto %1",
   "agents.addTitle": "Dodaj agenta",
   "agents.app": "Aplikacja",
   "agents.backToLimits": "Wróć do limitów",
@@ -76,6 +75,7 @@
   "agents.outOfCredits": "Brak kredytów",
   "agents.pasteCode": "Jeśli strona pokazuje kod zamiast zakończyć, wklej go tutaj.",
   "agents.pasteCodeLink": "Strona pokazuje kod?",
+  "agents.placeholderApiKey": "Klucz API",
   "agents.placeholderCode": "Kod",
   "agents.placeholderWork": "Praca",
   "agents.plugin": "Wtyczka",
