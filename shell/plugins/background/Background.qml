@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
@@ -557,7 +558,7 @@ Item {
         }
       }
 
-      DesktopClicks { service: root }
+      DesktopClicks { service: root; screen: modelData }
     }
   }
 
@@ -579,16 +580,34 @@ Item {
       WlrLayershell.layer: WlrLayer.Bottom
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
-      DesktopClicks { service: root }
+      DesktopClicks { service: root; screen: modelData }
+    }
+  }
+
+  // While a special workspace such as the Quake console is open, Hyprland
+  // sends clicks outside it past the windows behind it to this layer, so they
+  // are not clicks on the desktop.
+  function specialWorkspaceOpen(screen) {
+    var monitor = Hyprland.monitorFor(screen)
+    return !!monitor?.lastIpcObject?.specialWorkspace?.name
+  }
+
+  Connections {
+    target: Hyprland
+    // Quickshell does not refresh the monitor's special workspace on its own.
+    function onRawEvent(event) {
+      if (event.name === "activespecial") Hyprland.refreshMonitors()
     }
   }
 
   // Inline components do not see this file's ids, so each one is handed the service.
   component DesktopClicks: MouseArea {
     required property var service
+    required property var screen
     anchors.fill: parent
     acceptedButtons: Qt.LeftButton | Qt.RightButton
     onDoubleClicked: function(mouse) {
+      if (service.specialWorkspaceOpen(screen)) return
       if (mouse.button === Qt.RightButton) service.openThemeSwitcher()
       else service.openSelector()
       mouse.accepted = true
