@@ -512,9 +512,6 @@
   "setup.default": {
     "label": "Defaults"
   },
-  "agent": {
-    "label": "Agent"
-  },
   "setup.default.browser": {
     "label": "Browser",
     "title": "Default Browser"
