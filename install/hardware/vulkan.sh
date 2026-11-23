@@ -1,21 +1,17 @@
 # Install Vulkan drivers matching detected GPU hardware
 # (NVIDIA Vulkan is handled by nvidia.sh via nvidia-utils)
 
-declare -A VULKAN_DRIVERS=(
-  [Intel]=vulkan-intel
-  [AMD]=vulkan-radeon
-  [Apple]=vulkan-asahi
-)
-
 PACKAGES=()
 
-pci_devices=$(lspci || true)
-
-for vendor in "${!VULKAN_DRIVERS[@]}"; do
-  if grep -qiE "(VGA|Display).*$vendor" <<<"$pci_devices"; then
-    PACKAGES+=("${VULKAN_DRIVERS[$vendor]}")
-  fi
-done
+if omarchy-hw-pci --class 03 8086:*; then
+  PACKAGES+=(vulkan-intel)
+fi
+if omarchy-hw-pci --class 03 1002:*; then
+  PACKAGES+=(vulkan-radeon)
+fi
+if omarchy-hw-pci --class 03 106b:*; then
+  PACKAGES+=(vulkan-asahi)
+fi
 
 # Adreno GPUs are platform devices, so lspci never sees them.
 if omarchy-hw-aarch64-qualcomm; then
