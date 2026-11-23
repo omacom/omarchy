@@ -1,41 +1,47 @@
-# Aplicacions i serveis comercials
+# Aplicacions/serveis comercials
 
-Omarchy se centra sobretot a oferir programari lliure i de codi obert, però no és pas religiós sobre això. De vegades la millor solució és una oferta comercial, i això està perfectament bé. Aquí tens algunes de les opcions per a les quals oferim una instal·lació fàcil.
+Omarchy se centra principalment a proporcionar programari lliure i de codi obert, però no en fa una qüestió de religió. De vegades la millor solució és una oferta comercial, i no hi ha cap problema. Aquí tens algunes de les opcions per a les quals oferim una instal·lació fàcil.
 
 ## 1Password
 
-Guardar les contrasenyes en un gestor de contrasenyes és una bona pràctica. Doblement si treballes en equip. I [1password](https://1password.com/) és una gran solució, que també ve amb una eina de línia d'ordres per integrar cerques de claus en scripts.
+Guardar les contrasenyes en un gestor de contrasenyes és una bona pràctica. I encara més si treballes en equip. I [1password](https://1password.com/) és una gran solució, que també inclou una eina de línia d'ordres per integrar la consulta de claus en els scripts.
 
-Inicies 1Password amb `Super + Shift + /`. Si encara no està instal·lat, aquella drecera engega primer la instal·lació (també pots fer servir _Instal·la > Servei > 1Password_ des del menú d'Omarchy). L'instal·lador també configura l'extensió de 1Password per a Chromium.
+Inicies 1Password amb `Super + Shift + /`. Si encara no està instal·lat, aquesta drecera de teclat inicia primer la instal·lació (també pots fer servir _Install > Service > 1Password_ des del menú d'Omarchy). L'instal·lador també inclou l'eina de línia d'ordres de 1Password i configura l'extensió de 1Password per a Chrome i Chromium; reinicia el navegador per carregar-la.
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/) és l'alternativa de codi obert en el món dels gestors de contrasenyes, amb un nivell gratuït que cobreix la major part de l'ús personal. Instal·la'l amb _Instal·la > Servei > Bitwarden_ des del menú d'Omarchy, que també porta l'eina de línia d'ordres de Bitwarden.
+[Bitwarden](https://bitwarden.com/) és l'alternativa de codi obert en l'àmbit dels gestors de contrasenyes, amb un nivell gratuït que cobreix la major part de l'ús personal. Instal·la'l amb _Install > Service > Bitwarden_ des del menú d'Omarchy, que també inclou l'eina de línia d'ordres de Bitwarden.
 
 ## Spotify
 
-[Spotify](https://spotify.com/) és el servei de música en streaming més popular del món. I l'aplicació de Linux ofereix tot el que t'esperaries, incloent-hi la reproducció fora de línia.
-
-Inicies Spotify amb `Super + Shift + M`. Com 1Password, la drecera engega primer la instal·lació si Spotify encara no està instal·lat (o fes servir _Instal·la > Servei > Spotify_ des del menú d'Omarchy).
+[Spotify](https://spotify.com/) és el servei de música en streaming més popular del món. Omarchy l'inclou com a aplicació web, que et proporciona el reproductor complet, les tecles multimèdia i Spotify Connect, però no les descàrregues sense connexió. Inicia'l amb `Super + Shift + M`.
 
 ## Slack
 
-[Slack](https://slack.com/) és on molts equips xategen, tant dins de l'empresa com amb col·laboradors externs. Instal·la'l amb _Instal·la > Servei > Slack_ des del menú d'Omarchy, i s'obrirà tan bon punt estigui a punt.
+[Slack](https://slack.com/) és on molts equips xategen, tant dins de l'empresa com amb col·laboradors externs. Instal·la'l amb _Install > Service > Slack_ des del menú d'Omarchy, i s'obrirà tan bon punt estigui llest.
+
+## Notion
+
+[Notion](https://www.notion.com/) és un espai de treball per a notes, documents i projectes. Instal·la'n l'aplicació d'escriptori amb _Install > Service > Notion_ des del menú d'Omarchy.
+
+## WeChat
+
+[WeChat](https://www.wechat.com/) és l'aplicació de missatgeria que fa servir la major part de la Xina, per xatejar, fer trucades i mantenir el contacte amb qualsevol persona que visqui allà. Instal·la el client oficial de Linux de Tencent amb _Install > Service > WeChat_ des del menú d'Omarchy, i s'obrirà tan bon punt estigui llest. Només està disponible en ordinadors x86.
 
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/) és una gran manera de sincronitzar fitxers entre màquines tot conservant una còpia de seguretat al núvol. Per configurar-lo, selecciona _Instal·la > Servei > Dropbox_ des del menú d'Omarchy. Un cop estigui en marxa, passa el ratolí per sobre de la safata a la part superior dreta de la barra i fes clic amb el botó dret a la icona de Dropbox per acabar la configuració.
+[Dropbox](https://www.dropbox.com/) és una manera excel·lent de sincronitzar fitxers entre màquines i alhora mantenir una còpia de seguretat al núvol. Per configurar-lo, selecciona _Install > Service > Dropbox_ des del menú d'Omarchy. Afegeix una icona de Dropbox a la barra: fes-hi clic per iniciar la sessió i després fes servir el mateix tauler per comprovar el teu emmagatzematge i obrir els fitxers sincronitzats recentment.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) és una VPN en malla que fa que obtenir accés a tots els teus ordinadors i servidors per internet de manera segura sigui súper senzill. Per configurar-lo, selecciona _Instal·la > Servei > Tailscale_ des del menú d'Omarchy.
+[Tailscale](https://tailscale.com/) és una VPN en malla que fa que sigui supersenzill accedir de forma segura a tots els teus ordinadors i servidors per Internet. Per configurar-lo, selecciona _Install > Service > Tailscale_ des del menú d'Omarchy.
 
-Rep un panell a la barra, una aplicació web per a la consola d'administració i Taildrop per enviar fitxers entre les teves màquines: consulta [xarxes](35-networking.md).
+Té un tauler a la barra, una aplicació web per a la consola d'administració i Taildrop per enviar fitxers entre les teves màquines — vegeu [xarxes](35-networking.md).
 
 ## ONCE
 
-[ONCE](https://once.com/) és la línia de programari de 37signals que compres una vegada i executes al teu propi servidor, com el sistema de xat Campfire. Selecciona _Instal·la > Servei > ONCE_ des del menú d'Omarchy per instal·lar-lo, cosa que n'habilita el servei en segon pla i et deixa a la interfície de terminal d'ONCE per continuar des d'allà.
+[ONCE](https://once.com/) és la línia de programari de 37signals que compres una vegada i executes en el teu propi servidor, com el sistema de xat Campfire. Selecciona _Install > Service > ONCE_ des del menú d'Omarchy per instal·lar-lo, la qual cosa activa el seu servei en segon pla i t'obre la interfície de terminal d'ONCE perquè continuïs des d'allà.
 
 ## NordVPN
 
-[NordVPN](https://nordvpn.com/) és un servei de VPN estàndard que et permet fer sortir el tràfic des de la major part de regions del món. Per configurar-lo, selecciona _Instal·la > Servei > NordVPN_ des del menú d'Omarchy. Després del reinici que demana, executa `nordvpn login` per autenticar-te.
+[NordVPN](https://nordvpn.com/) és un servei VPN estàndard que et permet fer sortir el trànsit des de la majoria de regions del món. Per configurar-lo, selecciona _Install > Service > NordVPN_ des del menú d'Omarchy. Després del reinici que demana, executa `nordvpn login` per autenticar-te.
