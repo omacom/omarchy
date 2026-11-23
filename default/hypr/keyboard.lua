@@ -60,6 +60,55 @@ function keyboard.jis()
   return layout:match("^[^,]*") == "jp"
 end
 
+-- Layouts that can't type Latin letters. Keep in sync with the list in
+-- etc/mkinitcpio.conf.d/omarchy_hooks.conf.
+local non_latin_layouts =
+  " af am ara bd bg by et ge gr il in iq ir kg kh kz la lk mk mm mn mv np rs ru sy th tj ua "
+-- us variants that can't type Latin letters either: Russian phonetic and Cherokee.
+local non_latin_us_variants = " chr rus "
+
+function keyboard.non_latin(layout)
+  return non_latin_layouts:find(" " .. layout .. " ", 1, true) ~= nil
+end
+
+-- The kb_layout and kb_variant Hyprland gets. Hyprland resolves keybindings against the first entry in kb_layout,
+-- not the layout that's currently active, so Omarchy's Latin-keysym bindings
+-- (SUPER + W and friends) only fire when a Latin layout leads. Installing with
+-- a non-Latin one would otherwise leave the desktop unusable.
+function keyboard.layouts()
+  local selected = keyboard.selected()
+  local kb_layout = selected.XKBLAYOUT or "us"
+  local kb_variant = selected.XKBVARIANT or ""
+  if not keyboard.non_latin(kb_layout:match("^[^,]*")) then
+    return kb_layout, kb_variant
+  end
+
+  -- Variants pair with layouts by position. A list that already names us (as in
+  -- "ru,us") moves that entry and its variant to the front rather than gaining a
+  -- second us, which would make the toggle cycle through a duplicate.
+  local layouts, variants = {}, {}
+  for layout in (kb_layout .. ","):gmatch("([^,]*),") do
+    layouts[#layouts + 1] = layout
+  end
+  for variant in (kb_variant .. ","):gmatch("([^,]*),") do
+    variants[#variants + 1] = variant
+  end
+
+  local us_variant = ""
+  for i, layout in ipairs(layouts) do
+    if layout == "us" and not non_latin_us_variants:find(" " .. (variants[i] or "") .. " ", 1, true) then
+      us_variant = variants[i] or ""
+      table.remove(layouts, i)
+      if variants[i] then table.remove(variants, i) end
+      break
+    end
+  end
+
+  table.insert(layouts, 1, "us")
+  table.insert(variants, 1, us_variant)
+  return table.concat(layouts, ","), table.concat(variants, ",")
+end
+
 -- What each key types without Shift on the leading layout: the keysyms it
 -- types anywhere, and the one on each keycode. Read once per config load.
 local unshifted
@@ -68,9 +117,9 @@ local function unshifted_keysyms()
   if unshifted then return unshifted end
   unshifted = { typed = {}, at = {} }
 
-  local selected = keyboard.selected()
-  local layout = (selected.XKBLAYOUT or "us"):match("^[^,]*")
-  local variant = (selected.XKBVARIANT or ""):match("^[^,]*")
+  local kb_layout, kb_variant = keyboard.layouts()
+  local layout = kb_layout:match("^[^,]*")
+  local variant = kb_variant:match("^[^,]*")
   if not layout:match("^[%w_-]+$") or not variant:match("^[%w_-]*$") then return unshifted end
 
   local command = "xkbcli compile-keymap --layout " .. layout
