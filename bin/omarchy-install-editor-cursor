@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Install Cursor and pin its password store to gnome-libsecret
+
+set -euo pipefail
+
+echo "Installing Cursor..."
+omarchy-pkg-add cursor-bin
+
+# argv.json is what Cursor reads on both x86_64 and aarch64. The x86 launcher
+# also honors electron flags; the aarch64 package keeps Cursor's bundled
+# launcher and does not.
+omarchy-cmd-cursor-password-store "$HOME/.cursor/argv.json"
+
+setsid uwsm-app -- gtk-launch cursor >/dev/null 2>&1 &
