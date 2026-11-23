@@ -524,8 +524,10 @@ fi
 # one, so an older theme never lands last. A hung visible retint (a frozen
 # terminal) would otherwise hold up every later switch, so give up waiting
 # after ten seconds and retint unordered, as before this lock.
-exec 7>"$THEME_VISIBLE_LOCK"
-flock -w 10 7 || true
+if [[ $THEME_HEADLESS != "1" ]]; then
+  exec 7>"$THEME_VISIBLE_LOCK"
+  flock -w 10 7 || true
+fi
 flock -u 9
 
 # What the user is looking at: the terminals and the programs drawn inside

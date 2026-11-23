@@ -358,3 +358,14 @@ wait_logged '^omarchy-theme-set-gnome$' "other apps retint when the switch token
 wait_for_detached_work
 rmdir "$state/theme.generation"
 pass "a switch whose token cannot be written still retints the other apps"
+
+# An upgrade refreshes files headlessly, without a visible batch to order.
+(
+  exec 7>"$test_tmp/omarchy-theme-set-visible.lock"
+  flock 7
+  HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" \
+    OMARCHY_THEME_HEADLESS=1 OMARCHY_THEME_SKIP_BACKGROUND=1 \
+    timeout 2 /bin/bash "$ROOT/bin/omarchy-theme-set" alpha >/dev/null 2>&1 ||
+    fail "a headless switch does not wait for visible retints"
+)
+pass "a headless switch does not wait for visible retints"
