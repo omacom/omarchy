@@ -110,12 +110,17 @@ JS
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const functions = ['lineId', 'orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+const functions = ['accountLines', 'lineId', 'orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
 let providerOrder = ['codex', 'kimi', 'claude', 'hidden']
 let panelProviders = [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'kimi'}, {providerId: 'grok'}]
 let saved = ''
 const orderFile = {setText: text => { saved = text }}
 eval(functions)
+const split = accountLines([{
+  providerId: 'claude', accountName: 'main@example.com',
+  accounts: [{id: 'main', email: 'main@example.com', plan: 'Max 20x'}, {id: 'side', email: '', plan: 'Pro'}]
+}])
+assertDeepEqual(split.map(p => p.accountName), ['main@example.com', ''], 'each split account line carries only its own email')
 panelProviders = orderedProviders(panelProviders)
 assertDeepEqual(panelProviders.map(p => p.providerId), ['codex', 'kimi', 'claude', 'grok'], 'saved order keeps its agents in place and puts new ones last')
 moveProvider('grok', 0)

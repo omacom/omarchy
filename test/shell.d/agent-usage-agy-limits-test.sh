@@ -143,7 +143,8 @@ def add_prompt():
 adapter = Adapter("agy", plant=sign_in, answer=ANSWER, requests_per_probe=2, grow=add_prompt,
                   pi_root=lambda: home() / ".pi" / "agent" / "sessions")
 fresh = check_limits_contract(adapter)
-expect("Antigravity collector reports its plan and live limits", [fresh["tierLabel"], fresh["limits"][0]["percent"]], ["Pro", 0.25], fresh)
+expect("Antigravity collector reports its plan, account, and live limits",
+       [fresh["tierLabel"], fresh.get("accountName"), fresh["limits"][0]["percent"]], ["Pro", "me@example.com", 0.25], fresh)
 check_scan_cache(adapter)
 
 record, http = agy()
@@ -215,6 +216,13 @@ os.environ["CLOUD_CODE_URL"] = "https://mirror.example"
 _, http = agy()
 expect("Antigravity collector honors an https destination", {r["url"].split("/")[2] for r in http.requests}, {"mirror.example"})
 del os.environ["CLOUD_CODE_URL"]
+
+# agy also stores the signed-in email directly as id_token_email without an id_token.
+write_json(home() / "keyring.json", {"auth_method": "consumer", "id_token_email": "direct@example.com",
+                                     "token": {"access_token": "token-direct", "refresh_token": "refresh-direct", "expiry": iso_in(3600)}})
+record, _ = agy()
+expect("Antigravity collector reads id_token_email for the account name", record.get("accountName"), "direct@example.com", record)
+sign_in()
 
 for path in limits_cache_files("agy"):
   path.unlink()

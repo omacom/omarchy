@@ -19,7 +19,7 @@ per local coding model added.
   corner has + to add a subscription and >_ to start the default agent.
 - **One line per subscription** — an agent with limits, a balance, a plan,
   or accounts to show gets one; local history alone only feeds the hero's
-  line. Its mark, name, and plan, then a compact line
+  line. Its mark, name, and plan (the account name or email on hover when known), then a compact line
   per limit window: its meter and the time until it resets (the exact percentage
   on hover). A model-scoped allowance on the same clock (Claude's Fable weekly
   limit) is a tick on that window's meter rather than a line of its own; the

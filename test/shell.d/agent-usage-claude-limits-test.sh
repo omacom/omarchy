@@ -151,15 +151,16 @@ for ago, age, live in ((60, "a minute", True), (1800, "half an hour", False)):
 # it in to another account never shows the last one's, stale or current.
 sandbox()
 signed_in()
-write_json(home() / ".claude.json", {"oauthAccount": {"accountUuid": "acct-A"}})
+write_json(home() / ".claude.json", {"oauthAccount": {"accountUuid": "acct-A", "emailAddress": "a@example.com"}})
 record, _ = claude()
-expect("Claude's single home reads account A's limits", [entry["percent"] for entry in record["limits"]], [0.4, 0.1], record)
+expect("Claude's single home reads account A's limits and email",
+       [[entry["percent"] for entry in record["limits"]], record.get("accountName")], [[0.4, 0.1], "a@example.com"], record)
 signed_in(token="token-b")
-write_json(home() / ".claude.json", {"oauthAccount": {"accountUuid": "acct-B"}})
+write_json(home() / ".claude.json", {"oauthAccount": {"accountUuid": "acct-B", "emailAddress": "b@example.com"}})
 for mode in ("down", 429):
   record, _ = claude(mode=mode)
   expect(f"account B signed in to the same home never shows account A's limits ({mode})",
-         [record["limits"], record["usageStatusText"]], [[], "Claude limits unavailable"], record)
+         [record["limits"], record["usageStatusText"], record.get("accountName")], [[], "Claude limits unavailable", "b@example.com"], record)
 
 # ------------------------------------------------------------ the sign-in
 
