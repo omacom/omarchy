@@ -407,6 +407,33 @@ Item {
     }
   }
 
+  // The memory free for a model to start in, as the engine judges it:
+  // what's available plus the GPU memory the driver can reclaim. Read only
+  // when asked, by a panel offering models while it's open; -1 until then.
+  property real memoryFreeGib: -1
+
+  function readFreeMemory() {
+    meminfoFile.reload()
+  }
+
+  function parseFreeMemory(content) {
+    var fields = {}
+    var rows = String(content || "").split("\n")
+    for (var i = 0; i < rows.length; i++) {
+      var match = rows[i].match(/^(\w+):\s+(\d+) kB/)
+      if (match) fields[match[1]] = Number(match[2])
+    }
+    if (fields.MemAvailable === undefined) return -1
+    return (fields.MemAvailable + (fields.GPUReclaim || 0)) / (1024 * 1024)
+  }
+
+  FileView {
+    id: meminfoFile
+    path: "/proc/meminfo"
+    printErrors: false
+    onLoaded: root.memoryFreeGib = root.parseFreeMemory(text())
+  }
+
   // The listing is read fresh as the shell starts: a fresh account doesn't
   // have one yet, and an upgrade may have changed it.
   Component.onCompleted: refreshLocal()

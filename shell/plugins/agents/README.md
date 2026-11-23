@@ -116,7 +116,10 @@ per local coding model added.
   local models catalog that fits this computer and isn't set up, the
   recommended one first, then another DGX Spark cabled to this one, which
   sets both up in a terminal (`omarchy models link setup`). The first one is
-  focused and the hero reads Add an agent.
+  focused and the hero reads Add an agent. A model on this machine the
+  memory free now can't start, set up or not, is dimmed, says so (what it
+  needs and what's free, from `/proc/meminfo` read as the add screen opens),
+  and can't be chosen, so one that couldn't run is never downloaded.
   Choosing a model adds it. One that's running opens the agent on it; one
   stopped starts, and one to set up is set up, staying on the add screen
   with its installing, download, and loading under it until it runs and the

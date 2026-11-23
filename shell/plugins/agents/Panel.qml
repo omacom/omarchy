@@ -542,7 +542,8 @@ Panel {
       var model = localModelState(line.localModel)
       if (model && model.unit === "removing") return
       offers.push({ target: line.localModel.target, name: line.providerName, vendor: line.iconId,
-                    host: line.localModel.host, facts: line.localModel })
+                    host: line.localModel.host, facts: line.localModel,
+                    shortfall: memoryShort(line.localModel.target, line.localModel.memory_gib, model) })
     }
     lines.filter(function(line) { return line.localModel.host !== "" }).forEach(offerLine)
     var network = localModelsService ? localModelsService.networkModels || {} : {}
@@ -560,13 +561,36 @@ Panel {
     recipes.sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
     for (var r = 0; r < recipes.length; r++)
       offers.push({ target: String(recipes[r].id), name: recipes[r].name || String(recipes[r].id), vendor: recipes[r].vendor || "local",
-                    host: "", facts: recipes[r], recipe: recipes[r] })
+                    host: "", facts: recipes[r], recipe: recipes[r], shortfall: memoryShort(String(recipes[r].id), recipes[r].memory_gib, null) })
     var link = localModelsService && localModelsService.localModel ? localModelsService.localModel.link : null
     if (link && link.state === "available")
       offers.push({ target: "", name: link.host ? Commons.I18n.t("localModels.linkOffer").arg(link.host) : Commons.I18n.t("localModels.linkOfferUnnamed"),
                     vendor: "nvidia", host: "", facts: {}, link: link })
     return offers
   }
+
+  // A model on this machine that the memory free now can't start: one set up
+  // that the engine judged too big, or a recipe needing more than is free,
+  // which isn't set up then, as it couldn't run. What it needs and what's
+  // free, either -1 where unknown; null when it fits, or when it's already
+  // being set up or started from here.
+  function memoryShort(target, needsGib, model) {
+    if (target === settingUpLocal || localSettingUp(model)) return null
+    var free = localModelsService ? localModelsService.memoryFreeGib : -1
+    var needs = needsGib != null ? Number(needsGib) : -1
+    var stopped = !!model && (model.unit === "inactive" || model.unit === "failed")
+    if (stopped ? model.fits !== false : (!!model || needs < 0 || free < 0 || needs <= free)) return null
+    return { needs: needs, free: free }
+  }
+
+  function memoryShortText(shortfall) {
+    if (shortfall.needs < 0 || shortfall.free < 0 || shortfall.needs <= shortfall.free) return Commons.I18n.t("localModels.notEnoughMemory")
+    return Commons.I18n.t("agents.memoryShort").arg(Commons.I18n.formatNumber(shortfall.needs, 0))
+      .arg(Commons.I18n.formatNumber(shortfall.free, shortfall.free < 10 ? 1 : 0))
+  }
+
+  // Free memory is read again each time the add screen offers models.
+  onPickingChanged: if (picking && localModelsService) localModelsService.readFreeMemory()
 
   // The network block's share of the offers, which come first.
   readonly property int networkOfferCount: ownModelOffers.filter(function(offer) { return offer.host !== "" }).length
@@ -819,7 +843,8 @@ Panel {
   // for the other machine's password once.
   function chooseOwnModel(index) {
     var offer = ownModelOffers[index]
-    if (!offer) return
+    // One the memory free can't start is neither started nor set up.
+    if (!offer || offer.shortfall) return
     if (offer.link) {
       root.close()
       Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-models link setup"])
@@ -2417,6 +2442,8 @@ Panel {
           required property int index
           readonly property int offerIndex: index + (modelData.host !== "" ? 0 : root.networkOfferCount)
           readonly property bool hasCursor: root.hasKey("ownModel", offerIndex)
+          // Too big for the memory free now: dimmed, saying so, and not chosen.
+          readonly property var shortfall: modelData.shortfall || null
           width: parent.width
           implicitHeight: ownModelText.implicitHeight + Style.space(16)
           onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
@@ -2429,6 +2456,7 @@ Panel {
 
           // The maker's mark.
           ProviderIcon {
+            opacity: ownModel.shortfall ? 0.5 : 1
             id: ownModelMark
             anchors.left: parent.left
             anchors.leftMargin: Style.space(8)
@@ -2449,7 +2477,7 @@ Panel {
               width: parent.width
               text: ownModel.modelData.name
               textFormat: Text.PlainText
-              color: ownModel.hasCursor ? Commons.Color.accent : root.foreground
+              color: ownModel.shortfall ? root.dim : ownModel.hasCursor ? Commons.Color.accent : root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
               font.bold: true
@@ -2472,7 +2500,8 @@ Panel {
             // The setup or start begun here: installing, downloading, then
             // loading, as its line will show it; or the pairing.
             LocalMeterRow {
-              meter: ownModel.modelData.pair ? (ownModel.modelData.target === root.pairingLocal ? root.pairingMeter : null) : root.offerMeter(ownModel.modelData)
+              meter: ownModel.shortfall ? { title: root.memoryShortText(ownModel.shortfall), value: -1, rate: "", failed: true }
+                : ownModel.modelData.pair ? (ownModel.modelData.target === root.pairingLocal ? root.pairingMeter : null) : root.offerMeter(ownModel.modelData)
               visible: !!meter
               width: parent.width
               topPadding: Style.space(6)
@@ -2483,7 +2512,7 @@ Panel {
             id: ownModelMouse
             anchors.fill: parent
             hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
+            cursorShape: ownModel.shortfall ? Qt.ArrowCursor : Qt.PointingHandCursor
             onEntered: root.pointAt("ownModel", ownModel.offerIndex)
             onClicked: root.chooseOwnModel(ownModel.offerIndex)
           }

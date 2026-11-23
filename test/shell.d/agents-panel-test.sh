@@ -228,4 +228,14 @@ const fetched = update({ unit: 'active', update_progress: { phase: 'downloading'
 const stopping = update({ unit: 'deactivating', since_ms: now - 1000, expected_stop_seconds: 2 })
 const loading = update({ unit: 'activating', since_ms: now - 30000, expected_load_seconds: 60 })
 assert(waiting > 0 && waiting < half && half < fetched && fetched <= stopping && stopping < loading && loading < 1, 'an update fills one way through its phases', [waiting, half, fetched, stopping, loading])
+
+// A model the memory free can't start is held back: one set up when the
+// engine says so, a recipe when it needs more than is free.
+const short = new Function('settingUpLocal', 'localModelsService', fn('localSettingUp') + fn('memoryShort') + '\nreturn memoryShort')('', { memoryFreeGib: 18 })
+assertDeepEqual(short('q', 42, { unit: 'inactive', fits: false }), { needs: 42, free: 18 }, 'a stopped model the engine says won\'t fit is short')
+assertEqual(short('q', 42, { unit: 'inactive', fits: true }), null, 'a stopped model the engine says fits can start')
+assertEqual(short('q', 42, { unit: 'active', fits: false }), null, 'a running model is never short')
+assertDeepEqual(short('r', 42, null), { needs: 42, free: 18 }, 'a recipe needing more than is free can\'t be set up')
+assertEqual(short('r', 8, null), null, 'a recipe that fits can be set up')
+assertEqual(short('r', 42, { unit: 'installing' }), null, 'one already being set up goes on')
 JS
