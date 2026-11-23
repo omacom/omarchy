@@ -32,9 +32,13 @@
 # the caller stays pending until a run that has it, such as omarchy update.
 # Anything it cannot inspect is a failure, never "nothing to do".
 
-proc_root=${OMARCHY_PROC_ROOT:-/proc}
-pending=${OMARCHY_REALTIME_REPAIR_PENDING:-/var/lib/omarchy/realtime-repair-pending}
-lock=${OMARCHY_REALTIME_REPAIR_LOCK:-/run/omarchy-realtime-repair.lock}
+# Fixed machine paths. This script runs privileged file operations through
+# sudo, so taking them from the caller's environment let a user-directed chmod,
+# install or rm run against any root file. Shell tests run a copy with these
+# literals redirected to their scratch tree.
+proc_root=/proc
+pending=/var/lib/omarchy/realtime-repair-pending
+lock=/run/omarchy-realtime-repair.lock
 
 fail() {
   echo "$1" >&2
