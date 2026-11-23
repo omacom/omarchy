@@ -335,6 +335,7 @@ Item {
 
         Item {
           width: parent.width - Style.space(40)
+                 - (layoutIndicator.visible ? layoutIndicator.implicitWidth + cardRow.spacing : 0)
           height: root.fieldHeight
 
           TextInput {
@@ -391,6 +392,22 @@ Item {
             enabled: passwordInput.visible
             onClicked: passwordInput.forceActiveFocus()
           }
+        }
+
+        // The layout the password is being typed in (EN, RU), so it isn't typed
+        // blind in the wrong one. Hidden on a seat with one layout.
+        Text {
+          id: layoutIndicator
+          textFormat: Text.PlainText
+          visible: text !== ""
+          text: Commons.KeyboardLayoutState.passwordLabel
+          color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
+          opacity: root.errorFlash ? 1 : 0.6
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.iconLarge
+          font.bold: true
+          height: root.fieldHeight
+          verticalAlignment: Text.AlignVCenter
         }
       }
     }

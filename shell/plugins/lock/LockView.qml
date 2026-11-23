@@ -12,6 +12,9 @@ Item {
   property int backgroundVersion: 0
   property bool fingerprintConfigured: false
   property bool fingerprintUnavailable: false
+  // Short code of the keyboard layout being typed in (EN, RU), shown at the
+  // field's leading edge; empty on a seat with one layout.
+  property string layoutLabel: ""
   property bool authenticatingPassword: false
   property string failureMessage: ""
   property int failedAttempts: 0
@@ -29,7 +32,10 @@ Item {
   readonly property int passwordDotLetterSpacing: Math.round(Style.font.heading * 0.19)
   // Space to keep clear on each side of the field for the fingerprint icon
   // (icon width plus a gap) so the centered dots never run under it.
-  readonly property real fingerprintReserve: fingerprintConfigured ? Math.round(fingerprintIcon.implicitWidth + 12) : 0
+  // Room kept on both sides of the dots so they stay centered: the fingerprint
+  // icon sits at the trailing edge and the layout label at the leading one.
+  readonly property real fingerprintReserve: Math.max(fingerprintConfigured ? Math.round(fingerprintIcon.implicitWidth + 12) : 0,
+                                                     layoutIndicator.visible ? Math.round(layoutIndicator.implicitWidth + 12) : 0)
   // Shrink the dots to fit once the password outgrows the field, so every
   // keystroke stays visible — otherwise long passwords clip with no feedback.
   readonly property real passwordDotScale: dotMetrics.advanceWidth > 0
@@ -219,6 +225,26 @@ Item {
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
+      }
+
+      // The layout the password is being typed in, pinned inside the field's
+      // left edge opposite the fingerprint hint, so a password isn't typed
+      // blind in the wrong one.
+      Text {
+        id: layoutIndicator
+        objectName: "layoutIndicator"
+        textFormat: Text.PlainText
+        anchors.left: parent.left
+        anchors.leftMargin: inputField.borderLeft + 18
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.layoutLabel !== ""
+        text: root.layoutLabel
+        color: Commons.Color.lock.placeholder
+        font.family: Style.font.family
+        font.pixelSize: root.fieldFontSize
+        font.bold: true
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
       }
 
       // Fingerprint hint pinned inside the field's right edge when a sensor is

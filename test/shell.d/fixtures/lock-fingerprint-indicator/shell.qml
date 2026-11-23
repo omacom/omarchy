@@ -98,6 +98,19 @@ ShellRoot {
           view.fingerprintConfigured = false
           root.assertTrue(view.fingerprintReserve === 0, "no space is reserved when no sensor is configured")
 
+          // The keyboard layout label sits at the opposite edge and holds the
+          // dots clear of itself the same way, with or without a sensor.
+          var layout = findByObjectName(view, "layoutIndicator")
+          root.assertTrue(layout !== null, "layout indicator exists in the lock view")
+          if (layout) {
+            root.assertTrue(!layout.visible, "layout indicator is hidden on a seat with one layout")
+            view.layoutLabel = "RU"
+            root.assertTrue(layout.visible, "layout indicator shows the active layout")
+            root.assertTrue(view.fingerprintReserve > layout.width,
+              "reserved space exceeds the layout label, got reserve " + view.fingerprintReserve + " vs label " + layout.width)
+            view.layoutLabel = ""
+          }
+
           // An unreachable reader must announce itself instead of silently
           // inviting touches that can never unlock.
           view.fingerprintConfigured = true

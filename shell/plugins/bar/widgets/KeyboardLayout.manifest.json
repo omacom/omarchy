@@ -17,13 +17,5 @@
     "category": "Compositor",
     "defaultSection": "right",
     "allowMultiple": false
-  },
-  "omarchy": {
-    "clonePaths": [
-      {
-        "source": "KeyboardLayoutModel.js",
-        "target": "KeyboardLayoutModel.js"
-      }
-    ]
   }
 }

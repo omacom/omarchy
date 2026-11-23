@@ -513,6 +513,7 @@ Item {
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
         fingerprintUnavailable: root.fingerprintUnavailable
+        layoutLabel: Commons.KeyboardLayoutState.passwordLabel
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -549,6 +550,7 @@ Item {
       backgroundVersion: root.backgroundVersion
       fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
       fingerprintUnavailable: root.fingerprintUnavailable
+      layoutLabel: Commons.KeyboardLayoutState.passwordLabel
       authenticatingPassword: false
       failureMessage: ""
       failedAttempts: 0
