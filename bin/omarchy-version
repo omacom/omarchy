@@ -5,7 +5,7 @@
 omarchy_path=${OMARCHY_PATH:-/usr/share/omarchy}
 omarchy_path=${omarchy_path%/}
 
-if [[ $omarchy_path != "/usr/share/omarchy" ]]; then
+if [[ $omarchy_path != "/usr/share/omarchy" && ${OMARCHY_PATH_TYPE:-} != "flavor" ]]; then
   hash=$(git -C "$omarchy_path" rev-parse --short HEAD 2>/dev/null || true)
 
   if [[ -n $hash ]]; then

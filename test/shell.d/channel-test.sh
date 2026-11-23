@@ -60,6 +60,7 @@ for arg in "$@"; do printf "\t%s" "$arg" >>"$OMARCHY_CHANNEL_TEST_LOG"; done
 printf "\tOMARCHY_PATH=%s" "$OMARCHY_PATH" >>"$OMARCHY_CHANNEL_TEST_LOG"
 printf "\n" >>"$OMARCHY_CHANNEL_TEST_LOG"
 printf "path-at-update\t%s\n" "$PATH" >>"$OMARCHY_CHANNEL_TEST_LOG"
+printf "type-at-update\t%s\n" "${OMARCHY_PATH_TYPE:-}" >>"$OMARCHY_CHANNEL_TEST_LOG"
 '
 
 write_stub gum '#!/bin/bash
@@ -152,6 +153,18 @@ fi
 pass "leaving dev hands the update a PATH without the unlinked checkout"
 pass "edge defers the reboot prompt until the update restart stage"
 
+# A flavor's tree is rebuilt from the package the switch installs, so the
+# switch keeps its path: no unlink, no reboot, and the update runs from it.
+flavor_tree="$test_tmp/flavor-tree"
+/usr/bin/cp -a "$package_root" "$flavor_tree"
+OMARCHY_PATH_TYPE=flavor OMARCHY_TEST_PATH="$flavor_tree" run_channel edge
+assert_log_line $'sudo\tenv\tOMARCHY_UPDATE_PACMAN=1\tpacman\t-S\t--needed\t--noconfirm\t--ask\t4\tomarchy-dev\tomarchy-settings-dev' "a flavor switches packages like any install"
+assert_log_line $'update\t-y\tOMARCHY_PATH='"$flavor_tree" "a flavor runs the update from its tree"
+if grep -E $'^(unlink|state)\t' "$log_file" >/dev/null; then
+  fail "a flavor keeps its path across a channel switch" "$(cat "$log_file")"
+fi
+pass "a flavor keeps its path across a channel switch"
+
 checkout="$test_tmp/home/omarchy"
 mkdir -p "$checkout"
 if run_channel dev >"$test_tmp/occupied.out" 2>"$test_tmp/occupied.err"; then
@@ -187,6 +200,10 @@ if grep -q $'^git\tclone\t' "$log_file"; then
 fi
 assert_log_line $'link\t'"$checkout"$'\t--no-reboot' "switching back to dev links ~/omarchy"
 pass "switching back to dev reuses the existing ~/omarchy checkout"
+
+# The update after the switch must pull the checkout, not skip it as a flavor.
+OMARCHY_PATH_TYPE=flavor OMARCHY_TEST_PATH="$flavor_tree" run_channel dev
+assert_log_line $'type-at-update\tdev' "switching from a flavor to dev updates the checkout as dev"
 
 printf 'cn\n' >"$test_tmp/region"
 if OMARCHY_TEST_REGION_FILE="$test_tmp/region" run_channel dev >"$test_tmp/region.out" 2>"$test_tmp/region.err"; then

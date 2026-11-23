@@ -74,6 +74,12 @@ run_dev_update /usr/share/omarchy
 [[ ! -s $git_log ]] || fail "package-backed updates do not invoke git" "$(cat "$git_log")"
 pass "package-backed updates skip the dev checkout step"
 
+# A flavor's tree is no checkout: the package upgrade already rebuilt it.
+: >"$git_log"
+OMARCHY_PATH_TYPE=flavor TEST_GIT_CHECKOUT=no run_dev_update "$checkout"
+[[ ! -s $git_log ]] || fail "flavor updates do not invoke git" "$(cat "$git_log")"
+pass "flavor updates skip the dev checkout step"
+
 : >"$git_log"
 run_dev_update "$checkout"
 grep -Fx -- "-C $checkout pull --ff-only" "$git_log" >/dev/null ||

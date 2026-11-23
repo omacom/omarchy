@@ -46,6 +46,11 @@ pass "version reports the edge package"
 [[ $(version "" "$test_tmp/checkout") == "dev" ]] || fail "version reports a dev checkout"
 pass "version reports a dev checkout"
 
+# A flavor is built from the package, so it reports the package's version.
+[[ $(OMARCHY_PATH_TYPE=flavor version omarchy "$test_tmp/flavor") == "4.0.0-1" ]] ||
+  fail "version reports the package under a flavor"
+pass "version reports the package under a flavor"
+
 if version "" >/dev/null 2>&1; then
   fail "version fails when no Omarchy package is installed"
 fi
