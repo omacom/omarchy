@@ -10,7 +10,7 @@
 # XWayland clients never load: they read its keys as Escape, digits and
 # letters, so wtype's Shift+Insert arrives as Shift+Escape. Omitting the window
 # target also reaches focused layer-shell surfaces, and the down/up split works
-# around Hyprland leaving synthetic keys stuck, as default/hypr/bindings/clipboard.lua does.
+# around Hyprland leaving synthetic keys stuck, as default/hypr/helpers.lua does.
 
 mods=${1:-}
 key=${2:-}
