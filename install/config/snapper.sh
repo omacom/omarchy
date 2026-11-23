@@ -22,12 +22,18 @@ if [[ -f $SNAPPER_CONF_PATH ]]; then
   done
 fi
 
+# Omarchy's home config is the one with the template's first line; without a
+# template to compare, no config is taken for Omarchy's.
+omarchy_home=$(head -n 1 "$home_template" 2>/dev/null || true)
+omarchys() {
+  [[ -n $omarchy_home ]] && grep -qxF "$omarchy_home" "$SNAPPER_CONFIG_DIR/$1"
+}
+
 # Someone's own config for /home: one under another name, or one called home
 # that isn't Omarchy's.
 theirs=""
 for name in "${listed[@]}"; do
-  if grep -qx "SUBVOLUME=\"$SNAPPER_HOME\"" "$SNAPPER_CONFIG_DIR/$name" &&
-    { [[ $name != "home" ]] || ! grep -qxF "$(head -n 1 "$home_template")" "$SNAPPER_CONFIG_DIR/$name"; }; then
+  if grep -qx "SUBVOLUME=\"$SNAPPER_HOME\"" "$SNAPPER_CONFIG_DIR/$name" && { [[ $name != "home" ]] || ! omarchys home; }; then
     theirs="$name"
   fi
 done
@@ -35,10 +41,9 @@ done
 create_config root / || { echo "Could not create the Snapper config for /" >&2; exit 1; }
 install -m 0644 "$template" "$SNAPPER_CONFIG_DIR/root"
 configs=(root)
-omarchy_home=$(head -n 1 "$home_template" 2>/dev/null || true)
 for name in "${listed[@]}"; do
   # Omarchy's own home config is added back below, where /home still has one.
-  [[ $name == "home" ]] && grep -qxF "$omarchy_home" "$SNAPPER_CONFIG_DIR/home" && continue
+  [[ $name == "home" ]] && omarchys home && continue
   configs+=("$name")
 done
 
@@ -48,8 +53,8 @@ ours=0
 if [[ -n $theirs ]]; then
   echo "Leaving /home to the Snapper config \"$theirs\" that already snapshots it"
 elif [[ " ${configs[*]} " == *" home "* ]]; then
-  # A config of theirs called home, for something else, keeps the name.
-  echo "Leaving the Snapper config \"home\" as it is, so /home is not snapshotted" >&2
+  # A config of theirs called home keeps the name, whatever it snapshots.
+  echo "Leaving the Snapper config \"home\" as it is"
 elif btrfs subvolume show "$SNAPPER_HOME" >/dev/null 2>&1; then
   if create_config home "$SNAPPER_HOME" &&
     install -m 0644 "$home_template" "$SNAPPER_CONFIG_DIR/home" &&

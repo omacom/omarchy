@@ -175,3 +175,12 @@ cmp -s "$test_tmp/home-elsewhere.conf" "$machine/etc/snapper/configs/home" || fa
 grep -Fx 'SNAPPER_CONFIGS="root home"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure lists a config called home once" "$(cat "$machine/etc/conf.d/snapper")"
 pass "snapshot configure leaves a config of someone's own called home, whatever it snapshots"
 
+# Without a template to tell Omarchy's config by, theirs is still theirs.
+machine="$test_tmp/no-template"
+mkdir -p "$machine/etc/snapper/configs" "$machine/etc/conf.d"
+printf 'SUBVOLUME="%s"\n\nTIMELINE_CREATE="yes"\n' "$machine/home" >"$machine/etc/snapper/configs/home"
+printf 'SNAPPER_CONFIGS="root home"\n' >"$machine/etc/conf.d/snapper"
+OMARCHY_SNAPPER_HOME_TEMPLATE="$test_tmp/missing" configure "$machine" yes || true
+grep -Fx 'SNAPPER_CONFIGS="root home"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure keeps someone's own home listed without a template" "$(cat "$machine/etc/conf.d/snapper")"
+pass "snapshot configure keeps someone's own home config when it can't read Omarchy's template"
+
