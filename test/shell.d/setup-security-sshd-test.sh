@@ -179,3 +179,22 @@ for bad_user in "alice/bob" "alice?x=1" "../etc" "alice..bob"; do
   [[ ! -s $test_dir/bad-gh.calls ]] || fail "invalid GitHub username '$bad_user' must fail before installing or changing system state"
 done
 pass "SSH setup rejects invalid GitHub usernames before installing packages"
+
+cat >"$stub_bin/curl" <<STUB
+#!/bin/bash
+printf '%s\r\nnot-a-valid-key\n' "$public_key"
+STUB
+chmod +x "$stub_bin/curl"
+
+mkdir -p "$test_dir/mixed-gh/home" "$test_dir/mixed-gh/root"
+: >"$test_dir/mixed-gh.calls"
+HOME="$test_dir/mixed-gh/home" TEST_ROOT="$test_dir/mixed-gh/root" CALL_LOG="$test_dir/mixed-gh.calls" \
+  PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-setup-security-sshd" --gh-keys octocat \
+  >"$test_dir/mixed-gh.output" 2>&1 || fail "SSH setup completes when GitHub returns a valid key alongside an invalid entry"
+grep -qxF -- "$public_key" "$test_dir/mixed-gh/home/.ssh/authorized_keys" ||
+  fail "SSH setup saves the valid key from a mixed GitHub key list"
+[[ $(stat -c %a "$test_dir/mixed-gh/home/.ssh/authorized_keys") == "600" ]] ||
+  fail "SSH setup keeps authorized_keys mode 600"
+grep -q "Password logins are off" "$test_dir/mixed-gh.output" ||
+  fail "SSH setup finishes hardening after authorizing valid GitHub keys"
+pass "SSH setup saves valid keys and completes when a GitHub key list contains an invalid entry"
