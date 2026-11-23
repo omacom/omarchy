@@ -200,6 +200,12 @@ machine() {
   dmi() { printf '%s\n' "$2" >"$hw/dmi/$1"; }
   xps13() { dmi sys_vendor "Dell Inc."; dmi product_name "XPS 13 ${1:-DX13260}"; dmi product_sku "${2:-0E53}"; }
   synaptics() { printf '%s\n' 'N: Name="SynPS/2 Synaptics TouchPad"' >"$hw/input-devices"; }
+  # family [acpi node] [touchpad PnP id]
+  thinkpad_14_amd() {
+    dmi sys_vendor LENOVO; dmi product_family "$1"
+    mkdir -p "$hw/acpi/${2-SMB0001:00}" "$hw/serio/serio1"
+    printf 'PNP: %s PNP0f13\n' "${3-LEN2073}" >"$hw/serio/serio1/firmware_id"
+  }
   surface() { dmi sys_vendor "Microsoft Corporation"; dmi product_name "$1"; }
   vivobook_s15() { dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_family "ASUS Vivobook S 15"; dmi product_name "ASUS Vivobook S 15 S5507QA_$1"; }
   vivobook_s16() { dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_family "ASUS Vivobook S 16"; dmi product_name "ASUS Vivobook S 16 S3607QA_S3607QA"; }
@@ -258,6 +264,12 @@ machine() {
     t14s-21n2) dmi product_name 21N20000US; FAKE_PLATFORM=aarch64-qualcomm ;;
     t14s-21n1-not-qualcomm) dmi product_name 21N10000US; FAKE_PLATFORM=aarch64 ;;
     t14-gen4) dmi product_name 21F60000US ;;
+    t14-gen2a) thinkpad_14_amd "ThinkPad T14 Gen 2a" ;;
+    p14s-gen2a) thinkpad_14_amd "ThinkPad P14s Gen 2a" ;;
+    t14-gen2a-pkg-add-fails) thinkpad_14_amd "ThinkPad T14 Gen 2a"; FAKE_PKG_ADD_STATUS=1 ;;
+    t14-gen2a-no-smb0001) thinkpad_14_amd "ThinkPad T14 Gen 2a" SMB0002:00 ;;
+    t14-gen2a-other-touchpad) thinkpad_14_amd "ThinkPad T14 Gen 2a" SMB0001:00 LEN0411 ;;
+    t14-gen2-intel) thinkpad_14_amd "ThinkPad T14 Gen 2" ;;
     yoga-slim7x) dmi product_name 83ED; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="lenovo,yoga-slim7x qcom,x1e80100" ;;
     zenbook-a16) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64-qualcomm ;;
     zenbook-a16-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64 ;;
@@ -343,6 +355,7 @@ run_leaf() {
     FAKE_HW="$hw" FAKE_ROOT="$root" FAKE_PROVIDERS="$test_tmp/providers" \
     OMARCHY_QCOM_FIRMWARE_MANIFEST="$hw/qcom-firmware-manifest" \
     OMARCHY_DMI_PRODUCT_SKU="$hw/dmi/product_sku" \
+    OMARCHY_ACPI_DEVICES="$hw/acpi" OMARCHY_SERIO_DEVICES="$hw/serio" \
     OMARCHY_SYNAPTIC_INPUT_DEVICES="$hw/input-devices" \
     OMARCHY_SURFACE_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ASPIRE_16_AI_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
@@ -382,6 +395,7 @@ leaves=(
   hardware/surface.sh
   hardware/fix-surface-keyboard.sh
   hardware/lenovo/thinkpad-t14s-camera.sh
+  hardware/lenovo/fix-t14-gen2-amd-touchpad.sh
   hardware/asus/fix-asus-zenbook-a16-speakers.sh
   hardware/asus/fix-asus-proart-pz13-speakers.sh
   hardware/acer/fix-acer-aspire-16-ai-speakers.sh
@@ -449,6 +463,14 @@ hardware/lenovo/thinkpad-t14s-camera.sh|t14s-21n1+unreadable|0
 hardware/lenovo/thinkpad-t14s-camera.sh|t14s-21n1-not-qualcomm|0
 hardware/lenovo/thinkpad-t14s-camera.sh|t14-gen4|0
 hardware/lenovo/thinkpad-t14s-camera.sh|yoga-slim7x|0
+# The DKMS package replaces psmouse, i2c-piix4 and rmi_smbus, so the family,
+# the FCH SMBus node and the LEN2073 pad must all match.
+hardware/lenovo/fix-t14-gen2-amd-touchpad.sh|t14-gen2a|0|pkg-add thinkpad-t14-amd-touchpad-dkms
+hardware/lenovo/fix-t14-gen2-amd-touchpad.sh|p14s-gen2a|0|pkg-add thinkpad-t14-amd-touchpad-dkms
+hardware/lenovo/fix-t14-gen2-amd-touchpad.sh|t14-gen2a-pkg-add-fails|1|pkg-add thinkpad-t14-amd-touchpad-dkms
+hardware/lenovo/fix-t14-gen2-amd-touchpad.sh|t14-gen2a-no-smb0001|0
+hardware/lenovo/fix-t14-gen2-amd-touchpad.sh|t14-gen2a-other-touchpad|0
+hardware/lenovo/fix-t14-gen2-amd-touchpad.sh|t14-gen2-intel|0
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16|0|pkg-add asus-zenbook-a16-audio
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16-not-qualcomm|0
