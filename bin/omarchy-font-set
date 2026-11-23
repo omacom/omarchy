@@ -55,6 +55,16 @@ if [[ -f ~/.config/foot/foot.ini ]]; then
   sed -i "s/^font=.*/font=$font_name:size=$foot_size/g" ~/.config/foot/foot.ini
 fi
 
+if [[ -f ~/.config/glass/glass.conf ]]; then
+  if grep -qE '^[[:space:]]*font_family[[:space:]]+' ~/.config/glass/glass.conf; then
+    glass_font_name=$(printf '%s' "$font_name" | sed 's/[\\&/]/\\&/g')
+    sed --follow-symlinks -i -E "s/^[[:space:]]*font_family[[:space:]]+.*/font_family $glass_font_name/" ~/.config/glass/glass.conf
+  else
+    printf '\nfont_family %s\n' "$font_name" >>~/.config/glass/glass.conf
+  fi
+  pkill -USR1 -x glass
+fi
+
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
 # and anything resolving "monospace" all read from here. This file is loaded
 # after the package-owned default, and prepend_first puts the chosen family at

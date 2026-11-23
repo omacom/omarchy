@@ -563,6 +563,9 @@
   "setup.default.terminal.ghostty": {
     "label": "Ghostty"
   },
+  "setup.default.terminal.glass": {
+    "label": "Glass"
+  },
   "setup.default.terminal.kitty": {
     "label": "Kitty"
   },
@@ -812,6 +815,9 @@
   },
   "install.terminal.ghostty": {
     "label": "Ghostty"
+  },
+  "install.terminal.glass": {
+    "label": "Glass"
   },
   "install.terminal.kitty": {
     "label": "Kitty"
