@@ -26,7 +26,8 @@ while (( $# > 0 )); do
   esac
 done
 
-LOG_FILE="/tmp/omarchy-debug.log"
+LOG_FILE=$(mktemp --tmpdir omarchy-debug.XXXXXX.log)
+trap 'rm -f "$LOG_FILE"' EXIT
 
 if [[ $NO_SUDO = "true" ]]; then
   DMESG_OUTPUT="(skipped - --no-sudo flag used)"

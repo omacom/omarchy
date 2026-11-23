@@ -29,7 +29,7 @@ if [[ -n $OMARCHY_THEME_SYNC_FROM ]] || ! omarchy-toggle-enabled herdr-theme-syn
 fi
 
 theme=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
-control_dir="$XDG_RUNTIME_DIR/omarchy-theme-sync"
+control_dir="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}/omarchy-theme-sync"
 mkdir -m 700 -p "$control_dir"
 
 # Runs on the remote machine under a login shell, so OMARCHY_PATH and PATH are set there.
@@ -75,6 +75,6 @@ for target in $targets; do
   result=$(printf 'theme=%q from=%q\n%s\n' "$theme" "$(hostname)" "$REMOTE_SCRIPT" |
     timeout 60 ssh -o BatchMode=yes -o ConnectTimeout=5 \
       -o ControlMaster=auto -o ControlPersist=600 -o "ControlPath=$control_dir/%C" \
-      "$target" bash -l -s 2>&1 | tail -n 1)
+      -- "$target" bash -l -s 2>&1 | tail -n 1)
   echo "$(date '+%F %T') $target: ${result:-unreachable}"
 done
