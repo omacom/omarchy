@@ -453,8 +453,8 @@ for module in Commons Ui services plugins; do
 done
 cp "$SHELL_TEST_DIR/fixtures/menu-label-fit/shell.qml" "$stage/shell.qml"
 cat >"$stage/menu.json" <<'JSON'
-{"items":{"root":{"label":"Go"},"fit":{"label":"Fit"},"fit.long":{"label":"MMMMMMMMMMMMMMMMMMMMMMMM","action":"true"}}}
+{"items":{"root":{"label":"Go"},"fit":{"label":"Fit"},"fit.long":{"label":"MMMMMMMMMMMMMMMMMMMMMMMM","action":"true"},"altfit":{"label":"Alt"},"altfit.short":{"label":"Short","alt":"altfit.long","action":"true"},"altfit.long":{"label":"MMMMMMMMMMMMMMMMMMMMMMMM","action":"true"}}}
 JSON
 output=$(MENU_LABEL_FIT_FILE="$stage/menu.json" OMARCHY_PATH="$ROOT" HOME="$QML_FIXTURE_TMP/home" timeout 15 quickshell -p "$stage" --no-color 2>&1) || fail "menu label fixture exits cleanly" "$output"
-[[ $output == *"RESULT pass"* && $output != *"RESULT fail"* ]] || fail "menu fits iconless rows and remeasures an open menu after changing fonts" "$output"
-pass "menu fits iconless rows and remeasures an open menu after changing fonts"
+[[ $output == *"RESULT pass"* && $output != *"RESULT fail"* ]] || fail "menu fits iconless and Alt labels and remeasures after changing fonts" "$output"
+pass "menu fits iconless and Alt labels and remeasures after changing fonts"

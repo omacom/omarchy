@@ -41,7 +41,10 @@ ShellRoot {
           console.log("RESULT fail", test.step, label ? label.width : "no label", label ? label.implicitWidth : "")
         }
         if (test.step === 1) menu.fontFamily = "DejaVu Sans"
-        else {
+        else if (test.step === 2) {
+          menu.open('{"menu":"altfit"}')
+          menu.altHeld = true
+        } else {
           console.log(test.failed ? "RESULT fail" : "RESULT pass")
           Qt.quit()
         }

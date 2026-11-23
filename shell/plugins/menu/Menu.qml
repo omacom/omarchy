@@ -165,7 +165,10 @@ Item {
     var widest = 0
     for (var i = 0; i < displayModel.count; i++) {
       var row = displayModel.get(i)
-      widest = Math.max(widest, rowLabelMetrics.advanceWidth(String(row.label || "")) + root.labelSlotChrome(row))
+      var advance = rowLabelMetrics.advanceWidth(String(row.label || ""))
+      var alt = row.kind === "action" ? root.altVariantFor(row.itemId) : null
+      if (alt) advance = Math.max(advance, rowLabelMetrics.advanceWidth(root.labelFor(alt)))
+      widest = Math.max(widest, advance + root.labelSlotChrome(row))
     }
     return Math.ceil(widest)
   }
