@@ -367,7 +367,7 @@ def keybinding_descriptions(root):
     """Every description the shipped Hyprland bindings show in the
     keybindings menu (Super+K), in English."""
     found = set()
-    for path in sorted((root / "default/hypr/bindings").glob("*.lua")):
+    for path in sorted((root / "default/hypr/bindings").rglob("*.lua")):
         source = path.read_text(encoding="utf-8")
         source = re.sub(r"--[^\n]*", "", source)
         for match in BIND_CALL.finditer(source):

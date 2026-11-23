@@ -1,0 +1,12 @@
+[Unit]
+Description=Pre-generate shutdown-ramfs after boot
+ConditionPathExists=/run/initramfs/mkinitcpio-shutdown.conf
+ConditionFileIsExecutable=!/run/initramfs/shutdown
+
+[Timer]
+OnBootSec=30s
+AccuracySec=5s
+Unit=mkinitcpio-generate-shutdown-ramfs.service
+
+[Install]
+WantedBy=timers.target

@@ -7,13 +7,13 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 test_dir=$(mktemp -d)
 trap 'rm -rf "$test_dir"' EXIT
 mkdir -p "$test_dir/test/shell.d"
-cp "$ROOT/test/"{shell,all} "$test_dir/test/"
+cp "$ROOT/test/"{shell,all,headless} "$test_dir/test/"
 cp "$SHELL_TEST_DIR/base-test.sh" "$test_dir/test/shell.d/"
 
 # Run the real runners in a tiny fixture tree, without recursing into this test.
 run_suite() {
   status=0
-  output=$(bash "$test_dir/test/${1:-shell}" 2>&1) || status=$?
+  output=$(WAYLAND_DISPLAY="" bash "$test_dir/test/${1:-shell}" 2>&1) || status=$?
 }
 
 run_suite
@@ -127,3 +127,34 @@ pass "the overlap file runs beside the pool and is reported in order"
 stdin_lua=$(rg -l -P '\blua[[:space:]]*<<' "$SHELL_TEST_DIR" || true)
 [[ -z $stdin_lua ]] || fail "shell tests run Lua heredocs as scripts" "$stdin_lua"
 pass "shell tests run Lua heredocs as scripts"
+
+# test/headless must fail closed when a live Wayland socket exists and the
+# private compositor cannot be probed, rather than running against the desktop.
+fake_rt="$test_dir/rt"
+fake_bin="$test_dir/bin"
+mkdir -p "$fake_rt" "$fake_bin"
+python3 -c 'import socket, sys; s = socket.socket(socket.AF_UNIX); s.bind(sys.argv[1])' "$fake_rt/wayland-1"
+cat >"$fake_bin/hyprctl" <<SH
+#!/bin/bash
+echo x >>"$test_dir/hyprctl-calls"
+exit 1
+SH
+printf '#!/bin/bash\nexit 0\n' >"$fake_bin/Hyprland"
+printf '#!/bin/bash\nexit 0\n' >"$fake_bin/jq"
+chmod +x "$fake_bin/hyprctl" "$fake_bin/Hyprland" "$fake_bin/jq"
+
+headless_status=0
+headless_out=$(
+  PATH="$fake_bin:$PATH" \
+  XDG_RUNTIME_DIR="$fake_rt" \
+  WAYLAND_DISPLAY="wayland-1" \
+  HYPRLAND_INSTANCE_SIGNATURE="fake" \
+  OMARCHY_TEST_HEADLESS_ACTIVE=0 \
+  OMARCHY_TEST_USE_LIVE_COMPOSITOR=0 \
+    "$ROOT/test/headless" echo "ran-on-live" 2>&1
+) || headless_status=$?
+(( headless_status == 1 )) && [[ $headless_out != *"ran-on-live"* && $headless_out == *"OMARCHY_TEST_USE_LIVE_COMPOSITOR=1"* ]] ||
+  fail "test/headless fails closed when hyprctl cannot reach the host compositor" "$headless_out"
+(( $(wc -l <"$test_dir/hyprctl-calls") == 3 )) ||
+  fail "test/headless retries the initial hyprctl probe before failing closed"
+pass "test/headless retries the host probe and fails closed instead of touching the active desktop"
