@@ -842,24 +842,37 @@ assert not state.same_account({"accountId": "u-shared", "orgId": "org-a"}, {"acc
 
 # Relogin cannot replace a subscription with another organization of its user,
 # including when only an old profile records the organization.
+def refused_relogin(org):
+  pending = state.begin("claude")
+  state.claude_account_file(pending).write_text(json.dumps({"oauthAccount": {"accountUuid": "u-shared", "organizationUuid": org}}))
+  (pending / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {"accessToken": "wrong-token"}}))
+  before = (Path(first["home"]) / ".credentials.json").read_text()
+  try:
+    state.relogin("claude", first["id"], pending)
+  except state.AccountError:
+    pass
+  else:
+    raise AssertionError("another or unknown organization must not replace the login")
+  assert (Path(first["home"]) / ".credentials.json").read_text() == before
+
+
 registry = state.load("claude")
 for legacy in (False, True):
-  account = state.find(registry, first["id"])
   if legacy:
-    account.pop("orgId", None)
+    state.find(registry, first["id"]).pop("orgId", None)
     state.save("claude", registry)
-  for org in ("org-b", ""):
-    pending = state.begin("claude")
-    state.claude_account_file(pending).write_text(json.dumps({"oauthAccount": {"accountUuid": "u-shared", "organizationUuid": org}}))
-    (pending / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {"accessToken": "wrong-token"}}))
-    before = (Path(first["home"]) / ".credentials.json").read_text()
-    try:
-      state.relogin("claude", first["id"], pending)
-    except state.AccountError:
-      pass
-    else:
-      raise AssertionError("another or unknown organization must not replace the login")
-    assert (Path(first["home"]) / ".credentials.json").read_text() == before
+  for org in ("org-b", "org-c", ""):
+    refused_relogin(org)
+
+# With no organization left on the target, only the other account's identity
+# prevents its login from being installed twice.
+profile = state.claude_account_file(Path(first["home"]))
+original = profile.read_text()
+data = json.loads(original)
+data["oauthAccount"].pop("organizationUuid")
+profile.write_text(json.dumps(data))
+refused_relogin("org-b")
+profile.write_text(original)
 
 # After a move died between writing the token and its profile, recovery must
 # restore the other organization's profile even though the user is unchanged.
