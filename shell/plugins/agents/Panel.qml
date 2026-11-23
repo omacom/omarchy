@@ -2390,8 +2390,7 @@ Panel {
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         onVisibleChanged: if (visible) { text = ""; forceActiveFocus() }
-        // Enter stops here: a field passes it on after accepting, and the
-        // panel would act on it too, cancelling the sign-in just started.
+        // Enter stops here, or the panel would press its cursor too.
         Keys.onReturnPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
         Keys.onEnterPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
         Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
@@ -2530,9 +2529,7 @@ Panel {
             foreground: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
-            // Enter stops here: a field passes it on after accepting, and
-            // the panel would act on it too, cancelling the sign-in the code
-            // was for.
+            // Enter stops here, or the panel would press its cursor too.
             function submit() { root.submitPaste(text); text = "" }
             Keys.onReturnPressed: function(event) { submit(); event.accepted = true }
             Keys.onEnterPressed: function(event) { submit(); event.accepted = true }
@@ -2747,7 +2744,7 @@ Panel {
         font.pixelSize: Style.font.body
         horizontalPadding: Style.space(4)
         verticalPadding: Style.space(1)
-        // Enter stops here, rather than going on to the panel's cursor.
+        // Enter stops here, or the panel would press its cursor too.
         Keys.onReturnPressed: function(event) { section.finishRename(true); event.accepted = true }
         Keys.onEnterPressed: function(event) { section.finishRename(true); event.accepted = true }
         onActiveFocusChanged: if (!activeFocus) section.finishRename(false)

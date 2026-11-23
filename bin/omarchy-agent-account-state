@@ -933,7 +933,7 @@ def promote(provider: str, registry: dict[str, Any], old: dict[str, Any], succes
 # first, the primary hands that role on, and the only one is signed out here.
 # The account comes back with `last` saying whether it was the only one.
 def remove(provider: str, target: str) -> dict[str, Any]:
-  with Locked(provider) as registry:
+  with Locked(provider, save_on_exit=False) as registry:
     settle(provider, registry)
     account = find(registry, target)
     if not account:
@@ -945,6 +945,7 @@ def remove(provider: str, target: str) -> dict[str, Any]:
       forget_login(provider, home)
       account.update(identity(provider, home))
       registry.update({"alert": "", "held": ""})
+      save(provider, registry)
       return dict(account, last=True)
 
     # The account seated in ~/.claude takes over, so no login moves twice;

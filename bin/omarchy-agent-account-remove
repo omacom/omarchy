@@ -22,7 +22,7 @@ accounts_provider() {
 }
 
 has_account() {
-  omarchy-agent-account-list "$1" --json 2>/dev/null | jq -e --arg id "$2" '.[0].accounts[]? | select(.id == $id)' >/dev/null
+  omarchy-agent-account-state registry "$1" 2>/dev/null | jq -e --arg id "$2" '.accounts[] | select(.id == $id)' >/dev/null
 }
 
 # The provider can be left out when it's your default agent:
@@ -77,18 +77,8 @@ if [[ $confirm == "true" && -t 0 ]] && ! gum confirm "Forget $name? You'd have t
   exit 130
 fi
 
-# Hides the agent in the panel once its last sign-in is gone, so a key it
-# still reads from the environment, pi, or omp doesn't bring it back. Signing
-# in again shows it. The panel makes the change, so removals running at once
-# can't undo each other's.
-hide_in_panel() {
-  omarchy-shell omarchy.agents showAgent "$provider" false >/dev/null 2>&1
-}
-
-# Whether the keyring holds Gemini's sign-in: 0 when it does, 1 when it
-# doesn't, 2 when the keyring couldn't be asked. A missing entry is a quiet
-# miss, while a keyring that's unavailable or refuses says why. The secret
-# itself goes nowhere.
+# 0 when the keyring holds Gemini's sign-in, 1 when it doesn't (a quiet
+# miss), 2 when the keyring couldn't be asked (it says why on stderr).
 gemini_in_keyring() {
   local error
   if error=$(secret-tool lookup service gemini username antigravity 2>&1 >/dev/null); then
@@ -100,17 +90,10 @@ gemini_in_keyring() {
   fi
 }
 
-gemini_gone_from_keyring() {
-  gemini_in_keyring
-  (( $? == 1 ))
-}
-
 hides=true
 case $provider in
 claude | codex | grok)
-  # One of several accounts goes alone, the agent staying. The removal says
-  # which it was, under the registry's lock, so two at once can't both think
-  # another account is left.
+  # The removal says, under the registry's lock, whether it was the last.
   account=$(omarchy-agent-account-state remove "$provider" "$2") || exit 1
   name=$(jq -r .label <<<"$account")
   [[ $(jq -r .last <<<"$account") == "true" ]] || hides=false
@@ -125,7 +108,8 @@ agy)
     exit 1
   elif (( keyring == 0 )); then
     secret-tool clear service gemini username antigravity 2>/dev/null
-    if ! gemini_gone_from_keyring; then
+    gemini_in_keyring
+    if (( $? != 1 )); then
       echo "Couldn't clear Gemini's sign-in from the keyring." >&2
       exit 1
     fi
@@ -150,7 +134,9 @@ zai) opencode_logout zai zhipuai || exit 1 ;;
 *) opencode_logout "$provider" || exit 1 ;;
 esac
 
-[[ $hides == "false" ]] || hide_in_panel
+# Hidden once its last sign-in is gone, so a key it still reads from the
+# environment, pi, or omp doesn't bring it back. Signing in again shows it.
+[[ $hides == "false" ]] || omarchy-shell omarchy.agents showAgent "$provider" false >/dev/null 2>&1
 echo "Forgot $name."
 # The panel reads which sign-ins exist from the usage record.
 omarchy-agent-usage-update --limits-only "$provider" >/dev/null 2>&1 &
