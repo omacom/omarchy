@@ -11,6 +11,7 @@ ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 SHELL_TEST_DIR="$ROOT/test/shell.d"
 
 export ROOT
+export OMARCHY_TESTING=1
 
 # Commands under test belong to this checkout, never to the one the running
 # session points OMARCHY_PATH at; the agent usage collectors load their
