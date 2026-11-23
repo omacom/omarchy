@@ -1,10 +1,10 @@
 # Preklopi, nedejavnost in ohranjevalnik zaslona
 
-Veliko tega, kar spreminjaš iz dneva v dan, pravzaprav ni nastavitev. Je način, ki ga vklopiš za eno uro in nato znova izklopiš: nočna svetloba, ko delaš pozno, ne moti, ko predstavljaš, ostani buden, ko nekaj gledaš. Omarchy jim pravi preklopi in vsi delujejo na enak način — bližnjica, vnos v meniju in ukaz, vsi zadenejo isto stikalo.
+Veliko tega, kar spreminjaš iz dneva v dan, v resnici ni nastavitev. Je način, ki ga vklopiš za eno uro in nato spet izklopiš: nočna svetloba, ko delaš pozno, ne moti, ko predstavljaš, ostani buden, ko nekaj gledaš. Omarchy jim pravi preklopi in vsi delujejo na enak način — bližnjica, vnos v meniju in ukaz, vsi zadenejo isto stikalo.
 
 ### Meni preklopov
 
-`Super + Ctrl + O` neposredno odpre _Trigger > Toggle_ ali pa tja prideš iz menija Omarchy (`Super + Space`). Vse na tem seznamu je stikalo, ki ga lahko preklopiš, ne da bi razmišljal, kje živi stanje. Stikala za videz namizja so zraven, pod _Appearance_.
+`Super + Ctrl + O` neposredno odpre _Sprožilec > Preklop_, ali pa se tja sprehodiš iz menija Omarchy (`Super + Space`). Vse na tem seznamu je stikalo, ki ga lahko preklopiš, ne da bi razmišljal, kje živi stanje. Stikala za videz namizja sedijo zraven, pod _Videz_.
 
 Iz terminala so ista stikala `omarchy toggle <thing>`. Zaženi samo `omarchy toggle`, da vidiš celotno skupino.
 
@@ -13,22 +13,24 @@ Iz terminala so ista stikala `omarchy toggle <thing>`. Zaženi samo `omarchy tog
 | Nočna svetloba | — | `omarchy toggle nightlight` |
 | Utišanje obvestil | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
 | Ostani buden (brez zaklepanja ob nedejavnosti) | `Super + Ctrl + I` | `omarchy toggle idle` |
-| Zajem ob sesutju | — | `omarchy toggle crash-capture` |
+| Zajem zrušitve | — | `omarchy toggle crash-capture` |
 | Ohranjevalnik zaslona | — | `omarchy toggle screensaver` |
-| Sinhronizacija teme [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
-| Menijska vrstica | `Super + Shift + Space` | `omarchy toggle bar` |
+| [Herdr](https://herdr.dev) sinhronizacija teme | — | `omarchy toggle theme sync` |
+| Vrstica menija | `Super + Shift + Space` | `omarchy toggle bar` |
+| Namizje na cel zaslon (brez vrstice, brez vrzeli) | `Super + Ctrl + Alt + F` | `omarchy toggle fullscreen desktop` |
+| Animacije, zameglitev in sence | — | `omarchy toggle animations` |
 | Sledilna ploščica | `XF86TouchpadToggle` | `omarchy device touchpad` |
 | Zaslon na dotik | — | `omarchy device touchscreen` |
-| Zaustavitev | — | `omarchy toggle suspend` |
-| Hibridni GPU | — | `omarchy toggle hybrid gpu` |
+| Začasna zaustavitev | — | `omarchy toggle suspend` |
+| Hibridni GPU | — | `omarchy device gpu hybrid` |
 
-Preklopi za sledilno ploščico, zaslon na dotik in hibridni GPU so pod _Trigger > Hardware_ (`Super + Ctrl + H`) in ne pod Toggle, ker se prikažejo le, če to strojno opremo dejansko imaš. Preklopa za sledilno ploščico in zaslon na dotik preživita ponovno nalaganje Hyprlanda — ime onemogočene naprave se shrani v majhno datoteko stanja, ki jo Hyprland ob zagonu prebere in napravo znova onemogoči.
+Stikala za sledilno ploščico, zaslon na dotik in hibridni GPU živijo pod _Sprožilec > Strojna oprema_ (`Super + Ctrl + H`) in ne pod Preklop, saj se pokažejo le, ko to strojno opremo dejansko imaš. Preklopa za sledilno ploščico in zaslon na dotik preživita ponovno nalaganje Hyprland — ime onemogočene naprave se shrani v majhno datoteko stanja, ki jo Hyprland prebere ob zagonu, da jo znova onemogoči.
 
-_Appearance_ vsebuje menijsko vrstico in animacije ter nekaj stvari, ki niso ukazi `omarchy toggle`, a se obnašajo enako: odstotek baterije v vrstici, privzeto postavitev delovnih prostorov in pod _Windows_ razmike med okni (`Super + Shift + Backspace`) ter kvadratno razmerje pri 1 oknu (`Super + Ctrl + Backspace`).
+_Videz_ hrani vrstico menija in animacije ter nekaj stvari, ki niso ukazi `omarchy toggle`, a se obnašajo enako: odstotek baterije v vrstici, privzeto postavitev delovnih prostorov in pod _Okna_, vrzeli med okni (`Super + Shift + Backspace`) ter kvadratno razmerje 1 okna (`Super + Ctrl + Backspace`).
 
-Kadar Hyprland nima GPU, s katerim bi risal, in namesto tega upodablja s CPU (llvmpipe), kot na Macih, katerih GPU še ni podprt, v večini VM ali kadar se grafični gonilnik ne naloži, Omarchy za to sejo izklopi animacije, zameglitev in sence ter ti to enkrat pove z obvestilom. _Appearance > Animations On_ jih vrne nazaj, Omarchy pa si to zapomni tudi za poznejše seje.
+Ko Hyprland nima GPU za risanje in namesto tega upodablja s CPU (llvmpipe), kot na Macih, katerih GPU še ni podprt, v večini virtualnih strojev ali ko se grafični gonilnik ne naloži, Omarchy za to sejo izklopi animacije, zameglitev in sence in ti to enkrat pove z obvestilom. _Videz > Animacije vključene_ jih prikliče nazaj in Omarchy si to zapomni tudi za kasnejše seje.
 
-Večina teh je le datoteka z zastavico pod `~/.local/state/omarchy/toggles/`. Če želiš v skripti vejiti glede na enega od njih, ti `omarchy-toggle-enabled` da izhodno kodo, namesto da bi jo moral iskati sam:
+Večina teh je le datoteka zastavice pod `~/.local/state/omarchy/toggles/`. Če se želiš v skripti vejiti na eno od njih, ti `omarchy-toggle-enabled` da izhodno kodo, namesto da bi moral iti iskat:
 
 ```bash
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
@@ -36,17 +38,17 @@ omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
 
 Zastavice so poimenovane po izklopljenem stanju — `screensaver-off`, `suspend-off`, `bar-off` — zato njihova prisotnost pomeni, da je funkcija onemogočena.
 
-### Indikatorji v vrstici
+### Kazalniki v vrstici
 
-Ko je način vklopljen, dobiš majhen glif na sredini zgornje vrstice ob uri. To je gradnik indikatorjev in vsebuje narekovanje, snemanje zaslona, čakajoče opomnike, nočno svetlobo, ne moti in ostani buden.
+Ko je način vklopljen, dobiš majhen glif na sredini zgornje vrstice ob uri. To je gradnik kazalnikov in nosi snemanje zaslona, čakajoče opomnike, nočno svetlobo, ne moti in ostani buden ter opozorila, ko je vklopljeno sudo brez gesla ali ko je nekdo povezan z oddaljeno sejo.
 
-Neaktivni indikatorji so skriti. Z miško se pomakni kamorkoli na vrstico in prikazali se bodo zatemnjeni, da lahko enega klikneš in ga vklopiš, ne da bi poznal njegovo bližnjico. Klik na aktivnega ga znova izklopi. Če želiš vse videti ves čas, nastavi `alwaysShow` na `true` pri vnosu `omarchy.indicators` v `~/.config/omarchy/shell.json` — glej [zgornjo vrstico](05-the-top-bar.md) za to, kako se gradniki vrstice konfigurirajo.
+Neaktivni kazalniki so skriti. Z miško se pomakni kamorkoli nad vrstico in pojavili se bodo zatemnjeni, tako da lahko klikneš enega in ga vklopiš, ne da bi poznal njegovo bližnjico. Klik na aktivnega ga znova izklopi. Če jih raje vidiš vse ves čas, nastavi `alwaysShow` na `true` pri vnosu `omarchy.indicators` v `~/.config/omarchy/shell.json` — glej [zgornjo vrstico](05-the-top-bar.md) za to, kako se gradniki vrstice konfigurirajo.
 
 ### Nočna svetloba
 
-Nočna svetloba segreje zaslon na 4000K, ponovni preklop pa ga vrne na 6500K. Preklopiš jo iz menija preklopov (`Super + Ctrl + O`) ali z `omarchy toggle nightlight`. Poganja jo hyprsunset, ki ga preklop zažene zate, če še ne teče.
+Nočna svetloba segreje zaslon na 4000K, ponovni preklop pa ga vrne na 6500K. Preklopi jo iz menija preklopov (`Super + Ctrl + O`) ali z `omarchy toggle nightlight`. Poganja jo hyprsunset, ki ga preklop zažene zate, če še ne teče.
 
-Privzeto hyprsunset tvojemu zaslonu ne naredi prav nič. `~/.config/hypr/hyprsunset.conf` je dobavljen z identitetnim profilom prav zato, da zaslon ostane nedotaknjen, dokler ne zahtevaš topline. Če želiš, da preklaplja po uri, ga zamenjaj s časovnim profilom:
+Privzeto hyprsunset tvojemu zaslonu sploh ne stori ničesar. `~/.config/hypr/hyprsunset.conf` je dobavljen z identitetnim profilom prav zato, da zaslon ostane nedotaknjen, dokler ne zahtevaš topline. Če raje preklaplja po uri, to zamenjaj s časovnim profilom:
 
 ```
 profile {
@@ -55,15 +57,15 @@ profile {
 }
 ```
 
-Nato hyprsunset zaženi ob prijavi tako, da v `~/.config/hypr/autostart.lua` dodaš `o.launch_on_start("hyprsunset")`. Par 4000K/6500K, ki ga uporablja preklop, je fiksen, zato je konfiguracijska datoteka kraj, kamor greš, če želiš drugačno temperaturo.
+Nato zaženi hyprsunset ob prijavi tako, da dodaš `o.launch_on_start("hyprsunset")` v `~/.config/hypr/autostart.lua`. Par 4000K/6500K, ki ga uporablja preklop, je fiksen, zato greš v konfiguracijsko datoteko, če želiš drugačno temperaturo.
 
 ### Ne moti
 
-`Super + Ctrl + Alt + ,` utiša obvestila. Medtem ko je vklopljeno, se ne prikazujejo nobena pojavna obvestila, indikator prečrtanega zvonca v vrstici pa te opominja, zakaj je namizje utihnilo.
+`Super + Ctrl + Alt + ,` utiša obvestila. Medtem ko je vklopljeno, se ne pojavljajo nobena pojavna obvestila, prečrtan zvonec kot kazalnik pa sedi v vrstici, da te opomni, zakaj je namizje utihnilo.
 
-Nič ni izgubljenega. Utišana obvestila so zadržana: zadnjih nekaj jih vrneš na zaslon s `Super + Shift + Alt + ,`. Za ostalo glej [obvestila](10-notices.md).
+Nič pa ni izgubljeno. Utišana obvestila se zadržijo: zadnjih nekaj vrni na zaslon s `Super + Shift + Alt + ,`. Glej [obvestila](10-notices.md) za ostalo.
 
-Dve vrsti sporočil vseeno prodreta: Omarchyjeva lastna potrditvena pojavna obvestila za nekaj, kar si pravkar naredil ("Tema spremenjena", "Posnetek zaslona shranjen"), in kritična opozorila, poslana iz ukazne vrstice. Klepetalne aplikacije, ki vse označijo za kritično, da se na silo postavijo predte, ne štejejo.
+Tri vrste sporočil še vedno pridejo skozi: lastna potrditvena pojavna obvestila Omarchy za nekaj, kar si pravkar storil ("Tema spremenjena", "Posnetek zaslona shranjen"), kritična opozorila, poslana iz ukazne vrstice, in kode za preverjanje. Aplikacije za klepet, ki vse označijo kot kritično, da se ti na silo postavijo v ospredje, se ne kvalificirajo.
 
 ### Nedejavnost
 
@@ -79,26 +81,26 @@ Lupina Omarchy ima v lasti vedenje ob nedejavnosti, časovne nastavitve pa so bl
 }
 ```
 
-Obe številki sta sekundi, šteti od trenutka, ko si postal nedejaven — ne ena od druge. S privzetimi nastavitvami se tako ohranjevalnik zaslona prikaže po dveh minutah in pol, zaklenjeni zaslon pa prevzame pri petih minutah, ne glede na to, ali je ohranjevalnik zaslona tekel ali ne. Shrani datoteko in lupina nove časovne nastavitve prevzame takoj.
+Obe številki sta sekundi, šteti od trenutka, ko si postal nedejaven — ne ena od druge. Torej se s privzetimi nastavitvami ohranjevalnik zaslona pojavi po dveh minutah in pol, zaklenjeni zaslon pa prevzame pri petih minutah, ne glede na to, ali se je ohranjevalnik zagnal ali ne. Shrani datoteko in lupina bo nove časovne nastavitve prevzela takoj.
 
-Če ohranjevalnik zaslona zavrneš pred rokom za zaklepanje, to šteje kot dejavnost in čakajoče zaklepanje je preklicano. Ne bo te zaklenilo ven samo zato, ker si pogledal svoj računalnik.
+Če ohranjevalnik opustiš pred rokom za zaklepanje, to šteje kot dejavnost in čakajoče zaklepanje se prekliče. Ne boš zaklenjen ven zato, ker si pogledal svoj stroj.
 
-Za popolno prenehanje zaklepanja ob nedejavnosti `Super + Ctrl + I` — ali `omarchy toggle idle` — vklopi ostani buden in v vrstici se prikaže indikator skodelice kave. Tega pritisni pred dolgo predstavitvijo ali gradnjo, ki jo želiš opazovati. Znova ga pritisni za vrnitev na običajno. `omarchy toggle idle status` izpiše trenutno stanje kot JSON, če ga potrebuješ iz skripte.
+Če želiš zaklepanje ob nedejavnosti popolnoma ustaviti, `Super + Ctrl + I` — ali `omarchy toggle idle` — vklopi ostani buden in v vrstici se pojavi kazalnik skodelice kave. To je tisti, ki ga pritisni pred dolgo predstavitvijo ali gradnjo, ki jo želiš opazovati. Pritisni ga znova, da se vrneš v normalno stanje. `omarchy toggle idle status` izpiše trenutno stanje kot JSON, če ga potrebuješ iz skripte.
 
-Tu gre za zaklepanje in ohranjevalnik zaslona, ne za napajanje. Zaustavitev in hibernacija imata svojo nastavitev v [spanju sistema](36-system-sleep.md).
+Tu gre za zaklepanje in ohranjevalnik zaslona, ne za napajanje. Začasna zaustavitev in hibernacija imata svojo nastavitev v [spanju sistema](36-system-sleep.md).
 
 ### Ohranjevalnik zaslona
 
-Omarchyjev ohranjevalnik zaslona je ASCII umetnost, ki teče skozi naključne besedilne učinke, en primerek na monitor. Katerakoli tipka ali premik miške ga zapre.
+Ohranjevalnik zaslona Omarchy je ASCII umetnost, ki teče skozi naključne besedilne učinke, en primerek na monitor. Vsaka tipka ali premik miške ga zapre.
 
-Zaženeš ga lahko na zahtevo iz _System > Screensaver_ (`Super + Esc`), kar ga prisilno prikaže, tudi če si ohranjevalnik zaslona ob nedejavnosti izklopil. Privzeto zanj ni vezane nobene bližnjice.
+Zagnati ga lahko na zahtevo iz _Sistem > Ohranjevalnik zaslona_ (`Super + Esc`), kar ga vsili navzgor, tudi če si nedejavni ohranjevalnik izklopil. Privzeto nanj ni vezane nobene bližnjice.
 
-`omarchy toggle screensaver` izklopi tistega ob nedejavnosti, če greš raje naravnost od dela do zaklenjenosti. Zapre ga katerakoli tipka, klik, drsenje ali premik miške.
+`omarchy toggle screensaver` je tisto, kar izklopi nedejavnega, če raje greš naravnost od dela do zaklenjenega. Vsaka tipka, klik, pomik ali premik miške ga zapre.
 
-Logotip, ki ga riše, lahko spremeniš pod _Appearance > Branding > Screensaver_. Naloži png ali svg in Omarchy ga bo pretvoril v ASCII. Glej [znamko](41-branding.md).
+Logotip, ki ga riše, lahko spremeniš pod _Videz > Blagovna znamka > Ohranjevalnik zaslona_. Naloži png ali svg in Omarchy ga bo pretvoril v ASCII. Glej [blagovno znamko](41-branding.md).
 
 ### Zaklenjeni zaslon
 
-`Super + Ctrl + L` zaklene računalnik. To zažene zaklenjeni zaslon iz lupine Omarchy, počrni zaslon, ponastavi postavitev tipkovnice na prvo, da gesla ne tipkaš v napačni abecedi, in — če ga imaš zagnanega — ob izhodu zaklene 1Password.
+`Super + Ctrl + L` zaklene stroj. To zažene zaklenjeni zaslon iz lupine Omarchy, zatemi zaslon, ponastavi postavitev tipkovnice na prvo, da gesla ne tipkaš v napačni abecedi, in — če ga imaš zagnanega — ob odhodu zaklene 1Password.
 
-Zaklenjeni zaslon sprejme geslo, sprejel pa bo tudi prstni odtis, ko ga nastaviš. To in drugi načini preverjanja pristnosti so opisani v [preverjanju pristnosti s strojno opremo](37-hardware-authentication.md).
+Zaklenjeni zaslon sprejme geslo, sprejel pa bo tudi prstni odtis, ko ga nastaviš. To in druge načine preverjanja pristnosti pokriva [strojno preverjanje pristnosti](37-hardware-authentication.md).

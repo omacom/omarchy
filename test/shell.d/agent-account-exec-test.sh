@@ -58,6 +58,7 @@ cp "$ROOT/etc/mise/conf.d/omarchy-agent-accounts.toml" "$mise_system_config/conf
 run_isolated() {
   env -i HOME="$account_test_home" \
     XDG_CONFIG_HOME="$test_tmp/config" XDG_DATA_HOME="$test_tmp/data" XDG_CACHE_HOME="$test_tmp/cache" \
+    XDG_RUNTIME_DIR="$test_tmp/runtime" \
     MISE_DATA_DIR="$mise_data" MISE_SYSTEM_CONFIG_DIR="$mise_system_config" MISE_OFFLINE=1 \
     OMARCHY_PATH="$ROOT" PATH="$mise_data/command-wrappers/bin:$ROOT/bin:$real_bin:/usr/bin" \
     "$@"

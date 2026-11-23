@@ -1,16 +1,16 @@
 # Grafični vmesniki
 
-## Datoteke
+## Files
 
-Datoteke (Folio) so grafični upravitelj datotek. `Super + Shift + F` ga odpre, `Super + Shift + Alt + F` pa ga odpre v imeniku, v katerem je trenutno vaš terminal, kar prihrani veliko klikanja. S `Ctrl + L` lahko vnesete pot, z `Space` na kateri koli datoteki pa jo predogledate v polni velikosti, ne da bi jo odprli.
+Files (Folio) je grafični upravitelj datotek. `Super + Shift + F` ga odpre, `Super + Shift + Alt + F` pa ga odpre v imeniku, v katerem je trenutno tvoj terminal, kar prihrani veliko klikanja. S `Ctrl + L` lahko vtipkaš pot, s pritiskom na `Space` na kateri koli datoteki pa si jo ogledaš v polni velikosti, ne da bi jo odprl.
 
-Vstavite ključ USB ali kartico SD in samodejno se priklopi, tako da se preprosto pokaže v stranski vrstici. Za kaj zahtevnejšega — formatiranje pogona, preverjanje zdravja SMART, ustvarjanje particij — zaženite _Disks_ iz zaganjalnika aplikacij (`Super + Space`).
+Priključi ključ USB ali kartico SD in samodejno se priklopi, tako da se kar pojavi v stranski vrstici. Za kaj zahtevnejšega — formatiranje pogona, preverjanje zdravja SMART, ustvarjanje particij — zaženi _Disks_ iz zaganjalnika aplikacij (`Super + Space`).
 
-Dvoklik sledi smiselnim privzetim nastavitvam: slike, videi in glasba se odprejo v Omaview, PDF-ji v Document Viewer, Markdown v Omawrite, navadno besedilo pa v urejevalniku, izbranem pod _Setup > Default > Editor_.
+Dvoklik sledi smiselnim privzetim nastavitvam: slike, videi in glasba se odprejo v Omaview, dokumenti PDF v Document Viewer, Markdown v Omawrite, navadno besedilo pa v tvojem urejevalniku, Plain, razen če pod _Setup > Defaults > Editor_ izbereš drugega.
 
 ## Disktree
 
-Ko se pogon napolni in nimate pojma, kaj ga žre, zaženite [Disktree](https://github.com/tobi/disktree) iz zaganjalnika aplikacij (`Super + Space`). Prikazuje grafični drevesni zemljevid vašega domačega imenika. Večji bloki zavzamejo več prostora; po imenikih se sprehajajte s tipkovnico ali miško, označite, kaj mora iti, in preglejte svoje izbire, preden karkoli odstranite. Zaženite `disktree --disk`, da pregledate celoten disk.
+Ko se pogon napolni in nimaš pojma, kaj ga žre, zaženi [Disktree](https://github.com/tobi/disktree) iz zaganjalnika aplikacij (`Super + Space`). Pokaže grafični drevesni zemljevid tvojega domačega imenika. Večji bloki zavzamejo več prostora; po imenikih se sprehodi s tipkovnico ali miško, označi, kaj mora iti, in preglej svoje izbire, preden kar koli odstraniš. Zaženi `disktree --disk`, da pregledaš celoten disk.
 
 ## Obsidian
 
@@ -18,99 +18,99 @@ Ko se pogon napolni in nimate pojma, kaj ga žre, zaženite [Disktree](https://g
 
 Obsidian je brezplačen za vse namene, vključno z osebno, komercialno in neprofitno uporabo.
 
-Obsidian ponuja tudi [komercialni dodatek za sinhronizacijo](https://obsidian.md/sync) z mobilnimi aplikacijami za iOS in Android. (https://obsidian.md/pricing).
+Obsidian ponuja tudi [komercialni dodatek za sinhronizacijo](https://obsidian.md/sync) z mobilnimi aplikacijami v sistemih iOS in Android. (https://obsidian.md/pricing).
 
-Obsidian zaženete s `Super + Shift + O`. Če želite uporabljati sinhronizacijo tem, morate v nastavitvah izbrati temo `Omarchy`.
+Obsidian zaženeš s `Super + Shift + O`. Za uporabo sinhronizacije tem moraš v nastavitvah izbrati temo `Omarchy`.
 
 ## Omawrite
 
-[Omawrite](https://github.com/omacom-io/omawrite) je Omarchyjeva lastna izjemno preprosta aplikacija za pisanje v Markdownu. Brez trezorjev, brez vtičnikov, samo vi in besede.
+[Omawrite](https://github.com/omacom-io/omawrite) je Omarchyjeva lastna izjemno preprosta aplikacija za pisanje v Markdownu. Brez trezorjev, brez vtičnikov, samo ti in besede.
 
-Omawrite zaženete s `Super + Shift + W`.
+Omawrite zaženeš s `Super + Shift + W`.
 
 ## Pinta
 
-[Pinta](https://www.pinta-project.com/) je osnovno orodje za urejanje slik, odlično za obrezovanje, spreminjanje velikosti in druge osnovne posege. Le ne pričakujte alternative za Photoshop. Pa še vedno ima čarobno palico in plasti!
+[Pinta](https://www.pinta-project.com/) je osnovno orodje za urejanje slik, ki je odlično za obrezovanje, spreminjanje velikosti in druge osnovne obdelave. Samo ne pričakuj alternative za Photoshop. Ampak ima vseeno Magic Wand in plasti!
 
-Pinto zaženete prek zaganjalnika aplikacij (`Super + Space`).
+Pinto zaženeš prek zaganjalnika aplikacij (`Super + Space`).
 
 ## Aether
 
-[Aether](https://github.com/bjarneo/aether) je aplikacija za teme, ki lahko iz ozadne slike izvleče barve in jih spremeni v celovito, skladno temo. To je najlažji način, da [izdelate svojo temo](43-making-your-own-theme.md).
+[Aether](https://github.com/bjarneo/aether) je aplikacija za teme, ki lahko iz slike ozadja izvleče barve in jih spremeni v popolno, skladno temo. To je najlažji način, da [izdelaš svojo temo](43-making-your-own-theme.md).
 
-Aether zaženete prek zaganjalnika aplikacij (`Super + Space`).
+Aether zaženeš prek zaganjalnika aplikacij (`Super + Space`).
 
 ## LocalSend
 
-[LocalSend](https://localsend.org/) vam omogoča pošiljanje datotek drugim napravam v istem omrežju, v katerih teče aplikacija, podobno kot Applov AirDrop. Je pa medplatformska, tako da lahko datoteke pošiljate v Windows, macOS, Android, iOS in seveda Linux ter iz njih.
+[LocalSend](https://localsend.org/) ti omogoča pošiljanje datotek drugim napravam v istem omrežju, v katerih teče aplikacija, kot Apple AirDrop. Je pa medplatformski, tako da lahko datoteke pošiljaš v Windows, macOS, Android, iOS in seveda Linux ter z njih.
 
-Meni Deli odprete s `Super + Ctrl + S` ali pod _Trigger > Share_ v meniju Omarchy. Ponuja vam štiri možnosti:
+Meni Share lahko odpreš s `Super + Ctrl + S` ali pod _Trigger > Share_ v meniju Omarchy. Ponudi ti štiri možnosti:
 
-- **Clipboard** pošlje vse, kar ste kopirali, kot besedilno datoteko. Odlično, če želite povezavo ali izrezek prenesti na telefon, ne da bi si pošiljali e-pošto.
-- **File** odpre izbirnik datotek, kjer lahko izberete več hkrati.
+- **Clipboard** pošlje vse, kar si kopiral, kot besedilno datoteko. Odlično za to, da povezavo ali izsek spraviš na telefon, ne da bi si pošiljal e-pošto.
+- **File** odpre izbirnik datotek, kjer lahko naenkrat izbereš več datotek.
 - **Folder** pošlje celoten imenik.
-- **Receive** odpre pravi LocalSend, da vam lahko druga naprava nekaj pošlje.
+- **Receive** odpre pravi LocalSend, da ti lahko druga naprava kaj pošlje.
 
-Isto deluje iz terminala z `omarchy share clipboard`, `omarchy share file [path]` in `omarchy share folder [path]`. Če izpustite pot, dobite izbirnik.
+Enako deluje iz terminala z `omarchy share clipboard`, `omarchy share file [path]` in `omarchy share folder [path]`. Če pot izpustiš, dobiš izbirnik.
 
-Pošiljate lahko tudi neposredno iz upravitelja datotek: z desno tipko kliknite poljubno izbiro v Datotekah in jo delite z LocalSend.
+Pošiljaš lahko tudi neposredno iz upravitelja datotek: v Files z desno tipko klikni katero koli izbiro in jo deli z LocalSend.
 
-Požarni zid v Omarchyju je privzeto zaprt, razen za vrata LocalSend, tako da to na sveži namestitvi deluje takoj. Glejte [varnost](48-security.md).
+Požarni zid v Omarchy je privzeto zaprt, razen za vrata LocalSend, zato to deluje takoj po sveži namestitvi. Glej [varnost](48-security.md).
 
 ## LibreOffice
 
-[LibreOffice](https://www.libreoffice.org/) je celoten pisarniški paket z urejevalnikom besedil, preglednicami, predstavitvami, aplikacijo za risanje in še čem. Združljiv je z datotekami iz Microsoft Office, tako da je to odličen način za odpiranje tistih Wordovih dokumentov.
+[LibreOffice](https://www.libreoffice.org/) je popoln pisarniški paket z urejevalnikom besedil, preglednicami, predstavitvami, aplikacijo za risanje in še več. Združljiv je z datotekami iz Microsoft Office, zato je to odličen način, da lahko odpreš tiste dokumente Word.
 
-LibreOffice zaženete prek zaganjalnika aplikacij (`Super + Space`).
+LibreOffice zaženeš prek zaganjalnika aplikacij (`Super + Space`).
 
 ## Hype
 
-[Hype](https://github.com/omacom/hype) je Omarchyjeva lastna izjemno preprosta aplikacija za predstavitve. Vaša predstavitev je ena sama datoteka Markdown s slikami in videi ob njej: vsak diapozitiv napišite pod živim predogledom, diapozitive povlecite v vrstni red, nato predstavite čez cel zaslon ali izvozite v PDF in PowerPoint. Prevzame celo vašo temo Omarchy.
+[Hype](https://github.com/omacom/hype) je Omarchyjeva lastna izjemno preprosta aplikacija za predstavitve. Tvoja predstavitev je ena sama datoteka Markdown, ob njej pa so njene slike in videi: vsak diapozitiv napiši pod predogledom v živo, diapozitive povleci v vrstni red, nato predstavljaj čez cel zaslon ali izvozi v PDF in PowerPoint. Prevzame celo tvojo temo Omarchy.
 
-Hype zaženete prek zaganjalnika aplikacij (`Super + Space`). V njem pritisnite `?`, da vidite vse bližnjice.
+Hype zaženeš prek zaganjalnika aplikacij (`Super + Space`). V njem pritisni `?`, da vidiš vse bližnjice.
 
 ## Signed
 
-[Signed](https://github.com/omacom/signed) je Omarchyjev lastni izjemno preprost način za podpisovanje PDF-jev in njihovo izpolnjevanje. Shranjeni podpis, besedilo in današnji datum postavite kamor koli na stran, nato pa podpisano kopijo shranite ob izvirniku. Kako to storite, glejte [Izpolnjevanje PDF-jev](27-filling-out-pdfs.md).
+[Signed](https://github.com/omacom/signed) je Omarchyjev lastni izjemno preprost način za podpisovanje dokumentov PDF in njihovo izpolnjevanje. Svoj shranjeni podpis, besedilo in današnji datum postavi kamor koli na stran, nato shrani podpisano kopijo ob izvirnik. Kako to gre, glej [Izpolnjevanje dokumentov PDF](27-filling-out-pdfs.md).
 
-Signed zaženete prek zaganjalnika aplikacij (`Super + Space`) ali pa z njim odprete PDF iz upravitelja datotek.
+Signed zaženeš prek zaganjalnika aplikacij (`Super + Space`) ali z njim odpreš PDF iz upravitelja datotek.
 
 ## Game Vibes
 
-Game Vibes v zaganjalniku aplikacij (`Super + Space`) je kraj, kjer živijo Omarchyjeve majhne igre: Checkmate, 3D igra šaha proti prijatelju ali vgrajenemu nasprotniku; Cards, pasjansa Klondike; in Neon Swarm, arkadna streljačina. Vsaka je ena sama spletna stran, ki sledi vaši temi. Eno izberite s puščicami in `Enter`, nazaj na seznam pa se vrnete s `Esc` z naslovnega zaslona igre ali s `Q`, ko je ustavljena. Odpre se čez cel zaslon: s `Super + F` postane okno, s `Super + W` pa jo zaprete.
+Game Vibes je v zaganjalniku aplikacij (`Super + Space`) kraj, kjer živijo Omarchyjeve majhne igre: Checkmate, 3D igra šaha proti prijatelju ali vgrajenemu nasprotniku; Cards, pasjansa Klondike; Death Wish, na piksel natančna ploščadna igra z desetimi sobami, polnimi konic in žag; in Neon Swarm, arkadna streljačina. Vsaka je ena sama spletna stran, ki sledi tvoji temi. Eno izberi s puščicami in `Enter`, na seznam pa se vrni z `Esc` z naslovnega zaslona igre ali s `Q`, ko je začasno ustavljena. Odpre se čez cel zaslon: s `Super + F` postane okno, s `Super + W` pa jo zapreš.
 
-Tu se pokažejo tudi igre, ki jih naredite z agentom: v plošči agentov izberite _Make something cool → Game_ in eno opišite ali poimenujte igro, ki je že v Game Vibes, da nadaljujete delo na njej. Agent jo kopira v `~/Games/vibes`, kjer je vaša in jo lahko spreminjate, ter jo odpre, ko konča. To kopijo lahko naredite sami z `omarchy games vibes copy <game>`. Igro, ki jo deli nekdo drug, namestite kot temo: izberite _Install > Gaming > Game Vibes_ in prilepite njen naslov git ali zaženite `omarchy games vibes install <git-repo-url>`. _Remove > Gaming_ eno spet odstrani, _Update > Game Vibes Games_ pa prenese nove različice. Igre naložijo three.js s spleta, zato za zagon potrebujejo povezavo.
+Tudi igre, ki jih narediš z agentom, se pokažejo tukaj: v plošči z agenti izberi _Make something cool → Game_ in eno opiši ali pa poimenuj igro, ki je že v Game Vibes, da nadaljuješ delo na njej. Agent jo kopira v `~/Games/vibes`, kjer je tvoja, da jo spreminjaš, in jo odpre, ko je končana. To kopijo lahko narediš sam z `omarchy games vibes copy <game>`. Igra, ki jo deli nekdo drug, se namesti kot tema: izberi _Install > Gaming > Game Vibes_ in prilepi njen naslov git ali zaženi `omarchy games vibes install <git-repo-url>`. _Remove > Gaming_ eno spet odstrani, _Update > Game Vibes Games_ pa prenese nove različice. Igre naložijo three.js s spleta, zato za zagon potrebujejo povezavo.
 
 ## Omacalc
 
-[Omacalc](https://github.com/omacom-io/omacalc) je Omarchyjev lastni izjemno preprost kalkulator, ki se odpre v lebdečem oknu.
+[Omacalc](https://github.com/omacom-io/omacalc) je Omarchyjev lastni izjemno preprost kalkulator, ki se odpre v plavajočem oknu.
 
-Omacalc zaženete s `Super + Shift + Q` (ali s tipko za kalkulator, če jo vaša tipkovnica ima).
+Omacalc zaženeš s `Super + Shift + Q` (ali s tipko za kalkulator, če jo tvoja tipkovnica ima).
 
 ## Signal
 
-[Signal](https://signal.org/) je pionir šifriranega sporočanja E2E in odlična komunikacijska možnost za vsakogar, ki raje ne bi šel prek enega od velikih tehnoloških konglomeratov.
+[Signal](https://signal.org/) je pionir sporočanja s šifriranjem E2E in odlična možnost komunikacije za vsakogar, ki raje ne bi šel prek enega od velikih tehnoloških konglomeratov.
 
-Signal zaženete s `Super + Shift + G`. Ni del osnovne namestitve, zato vam bo Omarchy ob prvem pritisku te kombinacije ponudil, da ga namesti za vas (je tudi pod _Install > Service_ v meniju Omarchy).
+Signal zaženeš s `Super + Shift + G`. Ni del osnovne namestitve, zato ti bo Omarchy ob prvem pritisku te kombinacije ponudil, da ga namesti zate (najdeš ga tudi pod _Install > Service_ v meniju Omarchy).
 
 ## Omaview
 
-[Omaview](https://github.com/omacom/omaview) je Omarchyjev lastni izjemno preprost pregledovalnik slik in predvajalnik medijev: eno okno za vaše fotografije, videe in glasbo. Odprite fotografijo in puščične tipke korakajo skozi preostanek njene mape, `N` in `P` to storita za kar koli, `Ctrl + M` pa pokaže celotno mapo kot mrežo. Prikazuje tudi fotografije HEIC, AVIF in JPEG XL ter nadaljuje tam, kjer ste končali pri vsem dolgem.
+[Omaview](https://github.com/omacom/omaview) je Omarchyjev lastni izjemno preprost pregledovalnik slik in predvajalnik medijev: eno okno za tvoje fotografije, videe in glasbo. Odpri fotografijo in puščične tipke te pomikajo po preostalih datotekah v njeni mapi, `N` in `P` to naredita za kar koli, `Ctrl + M` pa pokaže celotno mapo kot mrežo. Pokaže tudi fotografije HEIC, AVIF in JPEG XL ter nadaljuje tam, kjer si končal pri čem dolgem.
 
-Pritisnite `F` za celozaslonski način, `E` za urejanje slike v Omasnap ali obrezovanje videa v Omacut, `Ctrl + P` za tiskanje slike in `Delete`, da datoteko premaknete v koš (`Ctrl + Z` jo pripelje nazaj). V njem pritisnite `?`, da vidite vse bližnjice.
+Pritisni `F` za celozaslonski način, `E` za urejanje slike v Omasnap ali obrezovanje videa v Omacut, `Ctrl + P` za tiskanje slike in `Delete`, da datoteko premakneš v Trash (`Ctrl + Z` jo vrne nazaj). V njem pritisni `?`, da vidiš vse bližnjice.
 
-Omaview zaženete kot _Media Viewer_ prek zaganjalnika aplikacij (`Super + Space`) ali preprosto dvokliknete sliko, video ali pesem v upravitelju datotek.
+Omaview zaženeš kot _Media Viewer_ prek zaganjalnika aplikacij (`Super + Space`) ali pa preprosto dvoklikneš sliko, video ali pesem v upravitelju datotek.
 
 ## Omacut
 
-[Omacut](https://github.com/omacom-io/omacut) je Omarchyjev lastni izjemno preprost obrezovalnik videov. Ko morate posnetku le odrezati začetek in konec, premaga zagon polnega urejevalnika videov.
+[Omacut](https://github.com/omacom-io/omacut) je Omarchyjev lastni izjemno preprost obrezovalnik videov. Kadar potrebuješ le odrezati začetek in konec posnetka, premaga zaganjanje polnega urejevalnika videov.
 
-Omacut zaženete prek zaganjalnika aplikacij (`Super + Space`).
+Omacut zaženeš prek zaganjalnika aplikacij (`Super + Space`).
 
 ## Monologue
 
-[Monologue](https://github.com/omacom/monologue) je Omarchyjev lastni izjemno preprost snemalnik spletne kamere. Kamero in mikrofon izberite enkrat, nato pritisnite `Space` za snemanje in spet za premor in nadaljevanje istega posnetka. Vedno snema v najvišji ločljivosti vaše kamere, z živim merilnikom mikrofona, da lahko pred začetkom preverite svoje ravni.
+[Monologue](https://github.com/omacom/monologue) je Omarchyjev lastni izjemno preprost snemalnik s spletno kamero. Enkrat izberi kamero in mikrofon, nato pritisni `Space` za snemanje in znova za premor ter nadaljevanje istega posnetka. Vedno snema v najvišji ločljivosti tvoje kamere, z merilnikom mikrofona v živo, da lahko pred začetkom preveriš svoje ravni.
 
-Ko posnetek ustavite, se takoj odpre v vgrajenem urejevalniku. Dvokliknite posnetek, da ga razdelite, povlecite ročice, da obrežete vsak del, in odstranite dele, ki jih ne želite. Nato ga shranite kot MP4. Vaš izvirni posnetek se hrani, dokler ga ne zavržete, tako da se lahko vedno vrnete in ga obrežete drugače.
+Ustavi posnetek in takoj se odpre v vgrajenem urejevalniku. Dvoklikni posnetek, da ga razdeliš, povleci ročice, da obrežeš vsak kos, in odstrani dele, ki jih nočeš. Nato ga shrani kot MP4. Tvoj izvirni posnetek se hrani, dokler ga ne zavržeš, zato se lahko vedno vrneš in ga odrežeš drugače.
 
-Monologue zaženete prek zaganjalnika aplikacij (`Super + Space`).
+Monologue zaženeš prek zaganjalnika aplikacij (`Super + Space`).

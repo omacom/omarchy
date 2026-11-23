@@ -49,6 +49,17 @@ source "$OMARCHY_PATH/install/provisioning/setup-form.sh"
 # The installer's console font, from the same file the ISO vendors.
 source "$OMARCHY_PATH/install/provisioning/console-font.sh"
 
+# Setup is drawn in kmscon, as the installer is. kmscon takes its keyboard
+# layout and font once, at its start: when the keyboard step changes either,
+# the attempt saves its answers to KMSCON_RESUME and exits KMSCON_RELAUNCH, and
+# main starts kmscon again to carry on from the account step.
+source "$OMARCHY_PATH/install/provisioning/kmscon.sh"
+KMSCON_STATE=/run/omarchy-provision-owner
+KMSCON_RESUME=$KMSCON_STATE/resume
+KMSCON_RELAUNCH=75
+# kmscon's fonts draw what the console's cannot.
+[[ ${OMARCHY_KMSCON:-} != 1 ]] || OMARCHY_FORM_CONSOLE_LANGUAGES+=" ja ko zh-CN zh-TW"
+
 # What the OEM that prepared this machine left for its owner, if one did.
 source "$OMARCHY_PATH/install/provisioning/oem.sh"
 omarchy_oem_load
@@ -476,6 +487,21 @@ greeter_screen() {
     # above. --canvas-width is cols-2, not cols-1: ttfx centres its text two
     # columns right of plain centering, so cols-1 lands the animated logo a
     # column off the static one and it jumps when the effect starts.
+    #
+    # kmscon draws 256-colour codes as xterm's own colours, not the palette's,
+    # and draws 24-bit ones as given: there the stops are the palette's colours.
+    local stops=("${BRAND_SHIMMER[@]}" "$BRAND_LOGO_COLOR") indexed=(--xterm-colors) i
+    if [[ ${OMARCHY_KMSCON:-} == 1 ]]; then
+      indexed=()
+      for i in "${!stops[@]}"; do
+        case ${stops[i]} in
+          6) stops[i]=7dcfff ;;
+          9) stops[i]=${OMARCHY_OEM_COLOR#\#} ;;
+          15) stops[i]=c0caf5 ;;
+          *) stops[i]=9ece6a ;;
+        esac
+      done
+    fi
     printf '%s%d;1H\0337' "$CSI" "$((logo_row + BRAND_LOGO_HEIGHT))"
     # Run ttfx directly (not inside a `while` subshell) so $anim is ttfx's own
     # PID: killing a wrapping subshell would orphan ttfx, which then keeps
@@ -486,12 +512,12 @@ greeter_screen() {
       --anchor-text c \
       --frame-rate 60 \
       --reuse-canvas \
-      --xterm-colors \
+      "${indexed[@]}" \
       colorshift \
-      --gradient-stops "${BRAND_SHIMMER[@]}" \
+      --gradient-stops "${stops[@]:0:${#BRAND_SHIMMER[@]}}" \
       --gradient-frames 3 \
       --cycles 1000 \
-      --final-gradient-stops "$BRAND_LOGO_COLOR" \
+      --final-gradient-stops "${stops[-1]}" \
       </dev/null >/dev/tty 2>/dev/null &
     anim=$!
   }
@@ -586,13 +612,14 @@ keyboard_form() {
   local status failures=0
 
   while true; do
-    clear_logo
-    echo
+    # Under the heading of the steps that follow, so the screen does not
+    # shift when the keyboard gives way to them.
+    step "$(omarchy_form_text setupForm.accountIntro)"
     if ! omarchy_form_language_drawn "$language"; then
       # English on purpose: the console cannot draw this language to say it in.
       say --foreground 8 "Setup stays in English. Omarchy will be in $(omarchy_form_language_label "$language") once set up."
+      echo
     fi
-    echo
 
     omarchy_prompt_keyboard && status=0 || status=$?
     if ((status == 0)); then
@@ -620,6 +647,17 @@ keyboard_form() {
   done
 
   omarchy_persist_input_selection
+
+  # The password ahead is typed under the layout just picked, and the language
+  # reads in its own Han forms: both need kmscon started again.
+  if [[ ${OMARCHY_KMSCON:-} == 1 ]] &&
+    [[ $(omarchy_keymap_xkb "$keyboard") != "$OMARCHY_KMSCON_XKB" || $(omarchy_kmscon_face "$language") != "$OMARCHY_KMSCON_FACE" ]]; then
+    (
+      umask 077
+      declare -p language keyboard keyboard_label keyboard_input_method keyboard_xkb_layout 2>/dev/null >"$KMSCON_RESUME"
+    )
+    exit $KMSCON_RELAUNCH
+  fi
 }
 
 confirm_reboot() {
@@ -688,29 +726,16 @@ record_eula() {
     '{oem: $oem, sha256: $sha256, accepted_by: $user, accepted_at: $at}' >/var/lib/omarchy/oem/eula-accepted.json
 }
 
-# XKB settings for the form's keymaps that kbd-model-map lacks, as its rows for
-# the nearest keymap give them, so the desktop types what the console does:
-# kbd's cz is QWERTY and bg-cp1251 phonetic. Non-Latin layouts keep a US layout
-# to switch to, so the shared password stays typeable.
+# /etc/vconsole.conf's XKB settings for the form's keymaps that kbd-model-map
+# lacks (omarchy_keymap_xkb_extra), so the desktop types what the console does.
 keyboard_xkb_settings() {
-  local layout variant="" options=terminate:ctrl_alt_bksp
-  local switch=terminate:ctrl_alt_bksp,grp:shifts_toggle,grp_led:scroll
-
-  case $1 in
-    colemak) layout=us variant=colemak ;;
-    bg-cp1251) layout=bg,us variant=phonetic, options=$switch ;;
-    cz) layout=cz,us variant=qwerty, options=$switch ;;
-    de_CH-latin1) layout=ch ;;
-    kyrgyz) layout=kg,us options=$switch ;;
-    no-latin1) layout=no ;;
-    pl) layout=pl ;;
-    ua) layout=ua,us options=$switch ;;
-    *) return 1 ;;
-  esac
+  local layout variant options
+  read -r layout variant options < <(omarchy_keymap_xkb_extra "$1") || return 1
 
   printf 'XKBLAYOUT=%s\nXKBMODEL=pc105\n' "$layout"
-  [[ -z $variant ]] || printf 'XKBVARIANT=%s\n' "$variant"
-  printf 'XKBOPTIONS=%s\n' "$options"
+  [[ $variant == "-" ]] || printf 'XKBVARIANT=%s\n' "$variant"
+  [[ $options != "-" ]] || options=""
+  printf 'XKBOPTIONS=terminate:ctrl_alt_bksp%s\n' "${options:+,$options}"
 }
 
 # Load the layout on the live VT and persist it for the installed system, or
@@ -777,7 +802,7 @@ user_form() {
   fi
 
   omarchy_prompt_password || return $?
-  omarchy_prompt_hostname || return $?
+  omarchy_generate_hostname
 }
 
 confirm_form() {
@@ -995,6 +1020,8 @@ configure_region() {
   else
     printf '%s\n' "$region" >"$marker"
   fi
+  # The region's Node and npm mirrors, as an install would have set them.
+  PATH="$OMARCHY_PATH/bin:$PATH" bash "$OMARCHY_PATH/install/config/region.sh" 2>&1 || true
   # Re-render pacman for the region with the channel this machine installed.
   channel=$(sed -n 's|^Server = https://pkgs\.omarchy\.[a-z]*/\([a-z]*\)/.*|\1|p' "$pacman_conf" | head -1)
   if [[ -n $channel && -x $OMARCHY_PATH/bin/omarchy-apply-pacman ]]; then
@@ -1328,9 +1355,16 @@ run_setup() {
 
   # Each attempt is its own process, so it learns for itself what the font draws.
   fit_console_font
-  initial_language
-  language_form
-  keyboard_form || return 1
+  if [[ -r $KMSCON_RESUME ]]; then
+    # shellcheck disable=SC1090
+    source "$KMSCON_RESUME"
+    rm -f "$KMSCON_RESUME"
+    omarchy_form_use_language "$language"
+  else
+    initial_language
+    language_form
+    keyboard_form || return 1
+  fi
 
   while true; do
     user_form && status=0 || status=$?
@@ -1344,8 +1378,9 @@ run_setup() {
       continue
     fi
 
-    # "No, change it" starts over from the keyboard, as in the installer.
+    # "No, change it" starts over from the language, as in the installer.
     if ! confirm_form; then
+      language_form
       keyboard_form || return 1
       continue
     fi
@@ -1427,13 +1462,36 @@ if [[ ${1:-} == "--attempt" ]]; then
 fi
 
 main() {
+  local status keymap
+
+  # The whole of setup runs in kmscon on this VT, started again for as long as
+  # setup is not done: an attempt asks for that with KMSCON_RESUME, and SDDM
+  # must not start on a machine that still has no owner. Leaving for the root
+  # shell or a reboot ends it.
+  if [[ ${OMARCHY_KMSCON:-} != 1 ]]; then
+    # A dark, empty console behind kmscon, for the moments it is not drawing.
+    set_tokyo_night_colors
+    mkdir -p "$KMSCON_STATE"
+    while [[ -f $PROVISIONING_DIR/pending && ! -e $KMSCON_STATE/shell ]] &&
+      [[ $(systemctl is-system-running 2>/dev/null) != stopping ]]; do
+      initial_language
+      # The keymap the console is in: the image's, or the one setup just set.
+      keymap=$(. /etc/vconsole.conf 2>/dev/null; printf '%s' "${KEYMAP:-us}")
+      omarchy_kmscon "$KMSCON_STATE/kmscon.log" "$keymap" "$language" "$OMARCHY_OEM_COLOR" "$0"
+    done
+    exit 0
+  fi
+
   # Font sizing waits for the console to settle, so it lives inside
   # greeter_screen (which owns that settle) rather than running here on a VT
   # that may still be in a transitional mode this early in first boot.
   set_tokyo_night_colors
-  greeter_screen
+  # A relaunch of kmscon is the same setup carrying on, not a new start.
+  [[ -e $KMSCON_RESUME ]] || greeter_screen
 
-  while ! "$0" --attempt; do
+  while true; do
+    "$0" --attempt && break || status=$?
+    ((status == KMSCON_RELAUNCH)) && [[ -e $KMSCON_RESUME ]] && exit 0
     # In the language the failed attempt was in.
     initial_language
     clear_logo
@@ -1447,6 +1505,7 @@ main() {
       # is locked — so exiting would strand the machine with no way in. Exec a
       # root shell on tty1; SDDM starts once it exits.
       say "Dropping to a root shell. Run 'omarchy-provision-owner' to retry setup."
+      touch "$KMSCON_STATE/shell"
       exec /bin/bash
     fi
   done
