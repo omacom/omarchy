@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Alapértelmezések"
   },
-  "agent": {
-    "label": "Ügynök"
-  },
   "setup.default.browser": {
     "label": "Böngésző",
     "title": "Alapértelmezett böngésző"

@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Mga Default"
   },
-  "agent": {
-    "label": "Agent"
-  },
   "setup.default.browser": {
     "label": "Browser",
     "title": "Default na Browser"

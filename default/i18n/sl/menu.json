@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Privzeto"
   },
-  "agent": {
-    "label": "Agent"
-  },
   "setup.default.browser": {
     "label": "Brskalnik",
     "title": "Privzeti brskalnik"
