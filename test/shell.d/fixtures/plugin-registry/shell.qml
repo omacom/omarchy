@@ -176,6 +176,7 @@ ShellRoot {
     root.assertTrue(!has("omarchy.reserved"), "third-party omarchy namespace ids are rejected")
     root.assertTrue(!has("omarchy.injected-auth"), "third-party manifests cannot inject first-party scan headers")
     root.assertTrue(!has("omarchy.outside-first"), "first-party manifests outside firstPartyDir are rejected")
+    root.assertTrue(!registry.isWithinDir("/first/widget", ""), "isWithinDir fails closed when firstPartyDir is empty")
     root.assertTrue(!has("third.unsafe"), "unsafe entry points are rejected")
     root.assertTrue(!has("third.missing"), "incomplete manifests are rejected")
     root.assertTrue(!has("third.bad-section"), "invalid default bar widget sections are rejected")

@@ -965,13 +965,20 @@ ShellRoot {
       }
       var currentManifest = pluginRegistry && pluginRegistry.installedPlugins
         ? pluginRegistry.installedPlugins[key] : null
-      if (!currentManifest || !pluginRegistry.isEnabled(key) || shell.pluginReloading) {
+      var stillService = currentManifest
+        && Array.isArray(currentManifest.kinds)
+        && currentManifest.kinds.indexOf("service") !== -1
+        && currentManifest.entryPoints
+        && currentManifest.entryPoints.service
+        && pluginRegistry.entryPointUrl(currentManifest, "service") === url
+      if (!stillService || !pluginRegistry.isEnabled(key) || shell.pluginReloading) {
         comp.destroy()
         return
       }
       manifest = currentManifest
       authenticationService = shell.isAuthenticationService(manifest, key)
-      if (authenticationService && AuthServiceStore.has(key)) {
+      if ((authenticationService && AuthServiceStore.has(key))
+          || (!authenticationService && _services[key])) {
         comp.destroy()
         return
       }
@@ -1062,6 +1069,20 @@ ShellRoot {
       var next = ({})
       for (var k in _services) if (k !== existingId) next[k] = _services[k]
       _services = next
+    }
+    // Cancel pending async loads for services that are no longer enabled or declared.
+    var pendingIds = Object.keys(_pendingServices)
+    for (var pi = 0; pi < pendingIds.length; pi++) {
+      var pendingId = pendingIds[pi]
+      var pendingManifest = plugins[pendingId]
+      var stillPendingService = pendingManifest
+        && Array.isArray(pendingManifest.kinds)
+        && pendingManifest.kinds.indexOf("service") !== -1
+        && pendingManifest.entryPoints
+        && pendingManifest.entryPoints.service
+        && pluginRegistry.isEnabled(pendingId)
+        && pluginRegistry.entryPointUrl(pendingManifest, "service") === _pendingServices[pendingId].url
+      if (!stillPendingService) delete _pendingServices[pendingId]
     }
     // Authentication services are retained outside the root object graph, so
     // reconcile their disable/remove lifecycle separately from _services.
@@ -1536,18 +1557,20 @@ ShellRoot {
       loadPluginWidget(registryKey, url, meta)
     }
 
-    // Drop registrations for plugins that are no longer present or enabled.
-    var allIds = shell.barWidgetRegistry.availableIds()
-    for (var i = 0; i < allIds.length; i++) {
-      var id = allIds[i]
-      if (!pluginWidgetComponents[id]) continue
-      if (!seen[id]) {
-        shell.barWidgetRegistry.unregister(id)
-        var next = ({})
-        for (var k in pluginWidgetComponents) if (k !== id) next[k] = pluginWidgetComponents[k]
-        pluginWidgetComponents = next
+    // Drop registrations and in-flight loads for plugins that are no longer present or enabled.
+    var trackedIds = Object.keys(pluginWidgetComponents)
+    var nextWidgets = null
+    for (var i = 0; i < trackedIds.length; i++) {
+      var id = trackedIds[i]
+      if (seen[id]) continue
+      if (shell.barWidgetRegistry.has(id)) shell.barWidgetRegistry.unregister(id)
+      if (!nextWidgets) {
+        nextWidgets = ({})
+        for (var k in pluginWidgetComponents) nextWidgets[k] = pluginWidgetComponents[k]
       }
+      delete nextWidgets[id]
     }
+    if (nextWidgets) pluginWidgetComponents = nextWidgets
   }
 
   function unloadPluginWidgets() {
@@ -1655,7 +1678,14 @@ ShellRoot {
     var comp = Qt.createComponent(url, Component.Asynchronous)
     function finalize() {
       if (comp.status === Component.Loading) return
-      if (pluginWidgetComponents[registryKey] !== token) {
+      var currentManifest = shell.pluginRegistry.installedPlugins[registryKey]
+      var stillWidget = currentManifest
+        && Array.isArray(currentManifest.kinds)
+        && currentManifest.kinds.indexOf("bar-widget") !== -1
+        && shell.pluginRegistry.isEnabled(registryKey)
+        && shell.pluginRegistry.entryPointUrl(currentManifest, "barWidget") === url
+      if (pluginWidgetComponents[registryKey] !== token || !stillWidget || shell.pluginReloading) {
+        if (pluginWidgetComponents[registryKey] === token) shell.setPluginWidgetComponent(registryKey, null)
         comp.destroy()
         return
       }

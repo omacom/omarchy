@@ -609,7 +609,7 @@ QtObject {
   // (repeating for every manifest found)
   function isWithinDir(path, rootDir) {
     var base = String(rootDir || "").replace(/\/+$/, "")
-    if (!base) return true
+    if (!base) return false
     var candidate = String(path || "").replace(/\/+$/, "")
     if (candidate.split("/").indexOf("..") !== -1) return false
     return candidate.indexOf(base + "/") === 0
