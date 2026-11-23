@@ -6,6 +6,17 @@ function clamp(value, min, max) {
 // column to it so the bar keeps its place as the icon changes.
 var widestIcon = ""
 
+function inputLanguage(selection, localeFor) {
+  if (!selection) return ""
+  var code = String(selection.language || "")
+  if (code && /^[a-z]{2,3}(?:[_-][A-Za-z0-9]+)*$/.test(code)) {
+    // A language-only English code should use the generic CLDR name.
+    var locale = localeFor(code === "en" || code === "eng" ? "en_001" : code)
+    if (locale.name !== "C" && locale.nativeLanguageName) return locale.nativeLanguageName
+  }
+  return String(selection.name || "")
+}
+
 function iconFor(name, percent) {
   var n = String(name || "").toLowerCase()
   if (n === "volume-muted" || n === "volume-mute" || n === "muted" || n === "mute") return ""
@@ -59,6 +70,7 @@ function stateForShow(iconName, rawMessage, rawValue, rawMax, rawProgressText, r
 if (typeof module !== "undefined") {
   module.exports = {
     widestIcon: widestIcon,
+    inputLanguage: inputLanguage,
     iconFor: iconFor,
     stateForShow: stateForShow
   }

@@ -19,3 +19,5 @@
 
 [Behavior]
 ActiveByDefault=False
+ShowInputMethodInformation=False
+showInputMethodInformationWhenFocusIn=False

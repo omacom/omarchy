@@ -65,6 +65,8 @@ class InputMethodTest(unittest.TestCase):
         self.assertEqual(data["Groups/0/Items/0"]["Name"], "keyboard-kr" if method == "hangul" else "keyboard-us")
         keys = setup.sections((self.config / "fcitx5/config").read_text())
         self.assertEqual(keys["Behavior"]["ActiveByDefault"], "False")
+        self.assertEqual(keys["Behavior"]["ShowInputMethodInformation"], "False")
+        self.assertEqual(keys["Behavior"]["showInputMethodInformationWhenFocusIn"], "False")
         self.assertNotIn("Control+space", keys["Hotkey/TriggerKeys"].values())
         self.assertEqual(set(keys["Hotkey/TriggerKeys"].values()), {"Zenkaku_Hankaku", "Hangul"})
         self.assertEqual(keys["Hotkey/AltTriggerKeys"], {"0": "Shift_L"})
