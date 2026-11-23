@@ -41,7 +41,7 @@ run_migrate() {
   TEST_EXPECTED_OMARCHY_PATH="$root" \
   TEST_CALLS="${TEST_CALLS:-$calls}" \
   TEST_DISMISSALS="$dismissals" \
-    "$ROOT/bin/omarchy-migrate" "$@"
+    timeout --kill-after=5 30 "$ROOT/bin/omarchy-migrate" "$@"
 }
 
 if ! run_migrate "$test_home" "$test_root" --pending >"$test_tmp/pending.out"; then
@@ -156,15 +156,14 @@ for _ in {1..500}; do
 done
 SH
 
-# $! is the runner itself, so a signal reaches only it. A background job starts
-# with SIGINT ignored, which would stop the runner from trapping it.
+# Reset SIGINT for background runners; timeout bounds a stuck lock wait.
 start_racer() {
   local name="$1"
   shift
   env --default-signal=INT -u OMARCHY_UPDATE_LOCK_FD HOME="$race_home" OMARCHY_PATH="$race_root" \
     PATH="$stub_bin:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" TEST_RUNNER="$name" \
     TEST_CALLS="$race_calls" TEST_DISMISSALS="$dismissals" TEST_STARTED="$race_started" \
-    TEST_RELEASE="$race_release" "$@" "$ROOT/bin/omarchy-migrate" >"$test_tmp/$name.out" 2>&1 &
+    TEST_RELEASE="$race_release" timeout --kill-after=5 30 "$@" "$ROOT/bin/omarchy-migrate" >"$test_tmp/$name.out" 2>&1 &
 }
 
 wait_until() {
@@ -188,6 +187,7 @@ start_blocked_first() {
   start_racer first "$@"
   first_pid=$!
   wait_until test -f "$race_started"
+  first_runner_pid=$(pgrep -P "$first_pid")
 }
 
 # The pause gives a runner that only printed the message time to run the migration.
@@ -213,9 +213,9 @@ pass "concurrent runners take turns, inside and outside the update lock"
 
 for signal_name in HUP INT TERM; do
   start_blocked_first
-  kill -"$signal_name" "$first_pid"
+  kill -"$signal_name" "$first_runner_pid"
   start_blocked_second
-  kill -0 "$first_pid" 2>/dev/null || fail "$signal_name keeps the lock until the active migration exits"
+  kill -0 "$first_runner_pid" 2>/dev/null || fail "$signal_name keeps the lock until the active migration exits"
   touch "$race_release"
   first_status=0
   wait "$first_pid" || first_status=$?
