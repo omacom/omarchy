@@ -71,6 +71,9 @@ Item {
 
   function isHiddenEntry(entry) {
     var id = String((entry && entry.id) || "")
+    // Hermes registers its own launcher. Suppress that duplicate only while
+    // the packaged launcher exists, so source installs keep their only entry.
+    if (id === "hermes" && DesktopEntries.byId("hermes-desktop")) return true
     return root.configuredHiddenEntryIds[id] === true || root.desktopHiddenEntryIds[id] === true
   }
 
