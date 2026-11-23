@@ -131,7 +131,7 @@ def login():
     "expiresAt": expires.timestamp() if expires else 0,
     "refresh": str(token.get("refresh_token") or data.get("refresh_token") or ""),
     "authMethod": str(data.get("auth_method") or "consumer"),
-    "email": email_of(data.get("id_token")),
+    "email": str(data.get("id_token_email") or "") or email_of(data.get("id_token")),
   }
 
 
@@ -376,7 +376,7 @@ def refused_help(entry):
 # one answers. Each account keeps its own last good answer, which stands in,
 # marked stale, when its check fails.
 def collect_limits(entries, force):
-  result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False}
+  result = {"limits": [], "tierLabel": "", "accountName": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False}
   now = time.time()
   # Each harness refreshes its own token while it runs, so the one lapsing
   # last was refreshed most recently. A token of unknown expiry comes after
@@ -393,16 +393,17 @@ def collect_limits(entries, force):
     # untouched, not unknown, so it reads zero until Google names the next
     # reset.
     cache = limits_cache(entry) if entry else None
+    account_name = str((entry or {}).get("email") or "")
     if cache:
-      result.update(limits=cache.limits, tierLabel=str(cache.data.get("tierLabel") or ""), fetchedAtMs=cache.fetched_at)
+      result.update(limits=cache.limits, tierLabel=str(cache.data.get("tierLabel") or ""), accountName=account_name, fetchedAtMs=cache.fetched_at)
     else:
-      result.update(limits=[], tierLabel="", fetchedAtMs=0)
+      result.update(limits=[], tierLabel="", accountName=account_name, fetchedAtMs=0)
 
   def answered(entry, tier, limits):
     # A plan with no quota windows to report is healthy, with no meters.
     cache = limits_cache(entry)
     fetched = cache.save(limits, tierLabel=tier) if cache else now_ms()
-    result.update(limits=limits, tierLabel=tier, live=True, fetchedAtMs=fetched)
+    result.update(limits=limits, tierLabel=tier, accountName=str((entry or {}).get("email") or ""), live=True, fetchedAtMs=fetched)
     return result
 
   keep(lead)
@@ -749,7 +750,7 @@ def main():
   entries = logins()
   ready = bool(entries) or bool(stats.get("hasLocalStats"))
   limits = collect_limits(entries, args.force) if ready else {
-    "limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False,
+    "limits": [], "tierLabel": "", "accountName": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False,
   }
   tier = limits["tierLabel"]
   agy = next((e for e in entries if e["source"] == "agy"), None)
@@ -771,6 +772,8 @@ def main():
     limitsFetchedAt=limits["fetchedAtMs"],
     retryAdvised=limits["retryAdvised"],
   )
+  if limits["accountName"]:
+    record["accountName"] = limits["accountName"]
   record.update(stats)
   emit(record)
 

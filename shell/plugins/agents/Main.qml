@@ -340,6 +340,7 @@ Item {
           lineId: p.providerId + "/" + (a.email || a.id),
           account: a,
           accounts: [],
+          accountName: String(a.email || ""),
           limits: a.limits || [],
           limitsStale: a.stale === true,
           limitsFetchedAt: Number(a.fetchedAt || 0),
@@ -493,6 +494,7 @@ Item {
       limitsStale: record.limitsStale === true,
       limitsFetchedAt: numberValue(record.limitsFetchedAt),
       tierLabel: String(record.tierLabel || ""),
+      accountName: String(record.accountName || ""),
       // Every subscription account's own limits, once there's more than one.
       accounts: Array.isArray(record.accounts) ? record.accounts : [],
       accountSwitch: record.accountSwitch || ({ threshold: 95 }),

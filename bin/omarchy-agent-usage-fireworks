@@ -532,8 +532,10 @@ def scan(api_base_url: str, auth_path: Path, force: bool = False, limits_only: b
             raise FireworksDeniedError("The Fireworks API key cannot read billing data")
           spend = current_spend(quota, client.daily_costs(account_id, now), now.date().isoformat())
           # The tier comes with the account, which a known account id skipped.
-          tier = tier_label(account or client.account(account_id))
-          spend_part = remember(spend_cache, accountId=account_id, spend=spend, tierLabel=tier)
+          acct = account or client.account(account_id)
+          tier = tier_label(acct)
+          account_name = str(acct.get("email") or account_id)
+          spend_part = remember(spend_cache, accountId=account_id, spend=spend, tierLabel=tier, accountName=account_name)
         except FireworksError as error:
           errors.append(error)
           failed.add("spend")
@@ -548,6 +550,9 @@ def scan(api_base_url: str, auth_path: Path, force: bool = False, limits_only: b
   if spend_part is not None and isinstance(spend_part.get("spend"), dict):
     record["spend"] = spend_part["spend"]
     record["tierLabel"] = str(spend_part.get("tierLabel") or "")
+  account_name = str((spend_part or {}).get("accountName") or (spend_part or {}).get("accountId") or account_id or "")
+  if account_name:
+    record["accountName"] = account_name
   kept = [part for part in (usage_part, spend_part) if part is not None]
   if kept:
     record["limitsFetchedAt"] = min(part["fetchedAtMs"] for part in kept)
