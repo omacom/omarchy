@@ -29,6 +29,87 @@ backlight_brightness() {
   brightnessctl -d "$1" -m 2>/dev/null | awk -F, '{ gsub("%", "", $4); print $4; found=1 } END{ exit !found }'
 }
 
+# hyprsunset's gamma filter can keep dimming below the panel's own floor, but
+# it applies to every output: only use it while the laptop panel is the sole
+# active display, or an external monitor would dim along with it.
+gamma_state_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.gamma"
+gamma_default=100
+gamma_min=30
+
+hyprsunset_pid() {
+  pgrep -u "$UID" -nx hyprsunset 2>/dev/null
+}
+
+gamma_value() {
+  local gamma
+  gamma=$(hyprctl hyprsunset gamma 2>/dev/null) || return 1
+  [[ $gamma =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "$gamma"
+}
+
+ensure_hyprsunset() {
+  [[ -n $(hyprsunset_pid) ]] && return 0
+
+  setsid uwsm-app -- hyprsunset >/dev/null 2>&1 &
+  local attempt
+  for attempt in {1..20}; do
+    hyprctl hyprsunset gamma >/dev/null 2>&1 && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+# A gamma this script set on the hyprsunset process it set it on is ours to
+# reset; one the user configured stays untouched. The state also records the
+# gamma the user had before dimming, so resetting restores that instead of
+# assuming a neutral 100.
+gamma_owned() {
+  local pid baseline gamma
+  [[ -r $gamma_state_file ]] || return 1
+  read -r pid baseline gamma <"$gamma_state_file" || return 1
+  [[ $pid =~ ^[0-9]+$ && $baseline =~ ^[0-9]+$ && $gamma =~ ^[0-9]+$ ]] || return 1
+  [[ $(hyprsunset_pid) == "$pid" ]] || return 1
+  [[ $(gamma_value) == "$gamma" ]]
+}
+
+gamma_baseline() {
+  local pid baseline gamma
+  [[ -r $gamma_state_file ]] || return 1
+  read -r pid baseline gamma <"$gamma_state_file" || return 1
+  [[ $baseline =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "$baseline"
+}
+
+reset_gamma() {
+  local baseline
+  if gamma_owned; then
+    baseline=$(gamma_baseline) || baseline=$gamma_default
+    hyprctl hyprsunset gamma "$baseline" >/dev/null 2>&1
+  fi
+  rm -f "$gamma_state_file"
+}
+
+# gamma is the level to apply; baseline is the user's gamma before this script
+# started dimming, and returning to it hands the filter back to them.
+set_gamma() {
+  local gamma=$1 baseline=$2 pid
+  (( gamma < gamma_min )) && gamma=$gamma_min
+  (( gamma > baseline )) && gamma=$baseline
+  pid=$(hyprsunset_pid) || return 1
+  hyprctl hyprsunset gamma "$gamma" >/dev/null || return 1
+  if (( gamma >= baseline )); then
+    rm -f "$gamma_state_file"
+  else
+    printf '%s %s %s\n' "$pid" "$baseline" "$gamma" >"$gamma_state_file"
+  fi
+  printf '%s\n' "$gamma"
+}
+
+gamma_dim_allowed() {
+  hyprctl monitors -j 2>/dev/null |
+    jq -e 'any(.[]; .disabled == false and (.name | test("^(eDP|LVDS|DSI)-") | not)) | not' >/dev/null
+}
+
 [[ -n $monitor ]] || monitor="$(omarchy-hyprland-monitor-focused 2>/dev/null || true)"
 
 monitor_is_internal() {
@@ -102,12 +183,16 @@ exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
 flock -n "$lock_fd" || exit 0
 
 if use_apple_display; then
+  # Adjusting another display lifts a gamma this script set, so it does not
+  # stay dim behind the user's back.
+  reset_gamma
   if (( no_osd )); then
     omarchy-brightness-display-apple --no-osd "$step"
   else
     omarchy-brightness-display-apple "$step"
   fi
 elif use_ddc_display; then
+  reset_gamma
   brightness="$(omarchy-brightness-display-ddc "$monitor" "$step")" || exit 1
   (( no_osd )) || omarchy-osd -i brightness -p "$brightness"
 elif ! use_backlight_display; then
@@ -119,31 +204,102 @@ else
   # Current brightness percentage
   current=$(backlight_brightness "$device") || exit 1
 
-  # Apply non-uniform step size: 1% steps if at or below 5%, otherwise set an
-  # absolute target percentage to avoid raw backlight rounding causing uneven OSD steps.
-  if [[ $step == "+5%" ]]; then
-    if (( current < 5 )); then
-      (( target = current + 1 ))
-    else
-      (( target = current + 5 ))
-    fi
+  # Relative steps can drive the gamma range once the panel is at its floor.
+  delta=0
+  if [[ $step == "+5%" || $step == "5%-" ]]; then
+    delta=5
+  elif [[ $step == "+1%" || $step == "1%-" ]]; then
+    delta=1
+  fi
+  [[ $step == "5%-" || $step == "1%-" ]] && (( delta = -delta ))
 
-    (( target > 100 )) && target=100
-    step="$target%"
-  elif [[ $step == "5%-" ]]; then
-    if (( current <= 5 )); then
-      (( target = current - 1 ))
-    else
-      (( target = current - 5 ))
-    fi
+  gamma_step=""
+  gamma_handled=0
+  new_brightness=""
+  baseline=""
 
-    (( target < 1 )) && target=1
-    step="$target%"
+  if (( delta < 0 )) && (( current <= 1 )); then
+    if gamma_dim_allowed; then
+      if ensure_hyprsunset; then
+        gamma="$(gamma_value)" || gamma=$gamma_default
+        if gamma_owned; then
+          baseline=$(gamma_baseline) || baseline=$gamma
+        else
+          baseline=$gamma
+        fi
+        if (( gamma <= gamma_min )); then
+          gamma_step=$gamma
+        else
+          (( gamma += delta ))
+          gamma_step="$(set_gamma "$gamma" "$baseline")" || gamma_step=""
+        fi
+        gamma_handled=1
+      fi
+    else
+      # An external display would dim along with the panel.
+      reset_gamma
+    fi
+  elif (( delta > 0 )) && (( current <= 1 )) && gamma_owned; then
+    gamma="$(gamma_value)" || gamma=$gamma_default
+    baseline=$(gamma_baseline) || baseline=$gamma
+    (( gamma += delta ))
+    gamma_step="$(set_gamma "$gamma" "$baseline")" || gamma_step=""
+    if (( gamma_step >= baseline )); then
+      if (( baseline >= gamma_default )); then
+        gamma_step=""
+      else
+        gamma_step=$baseline
+      fi
+    fi
+    gamma_handled=1
   fi
 
-  # Set brightness of the display device.
-  brightnessctl -d "$device" set "$step" >/dev/null
+  if (( ! gamma_handled )); then
+    # Apply non-uniform step size: 1% steps if at or below 5%, otherwise set an
+    # absolute target percentage to avoid raw backlight rounding causing uneven OSD steps.
+    if [[ $step == "+5%" ]]; then
+      if (( current < 5 )); then
+        (( target = current + 1 ))
+      else
+        (( target = current + 5 ))
+      fi
+
+      (( target > 100 )) && target=100
+      step="$target%"
+    elif [[ $step == "5%-" ]]; then
+      if (( current <= 5 )); then
+        (( target = current - 1 ))
+      else
+        (( target = current - 5 ))
+      fi
+
+      (( target < 1 )) && target=1
+      step="$target%"
+    elif [[ $step == "1%-" ]] && (( current <= 1 )); then
+      # Keep the panel at its floor: some panels blank at raw 0.
+      step="1%"
+    fi
+
+    # Set brightness of the display device.
+    brightnessctl -d "$device" set "$step" >/dev/null
+
+    # A backlight above its floor means the gamma range is over. Only clear a
+    # gamma this script set; a user's own filter stays untouched.
+    new_brightness=$(backlight_brightness "$device") || exit 1
+    if (( new_brightness > 1 )); then
+      reset_gamma
+    fi
+  fi
+
+  # A filter this script still owns is the real level at the backlight floor.
+  if [[ -z $gamma_step ]] && gamma_owned; then
+    gamma_step="$(gamma_value)" || gamma_step=""
+  fi
 
   # Show the new brightness in OSD
-  (( no_osd )) || omarchy-osd -i brightness -p "$(backlight_brightness "$device")"
+  if [[ -n $gamma_step ]]; then
+    (( no_osd )) || omarchy-osd -i brightness -m "$(omarchy-i18n brightness.dim "$gamma_step")"
+  else
+    (( no_osd )) || omarchy-osd -i brightness -p "${new_brightness:-$(backlight_brightness "$device")}"
+  fi
 fi
