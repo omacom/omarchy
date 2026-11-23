@@ -22,8 +22,9 @@ create)
   # The description is just a label, so never let it abort the snapshot.
   DESC="$(omarchy-version 2>/dev/null || echo unknown)"
 
-  # Get existing snapper config names from CSV output
-  mapfile -t CONFIGS < <(sudo snapper --csvout list-configs | awk -F, 'NR>1 {print $1}')
+  # Every config but /home's, which snapshots itself hourly; a pre-update
+  # snapshot of it would be the /home rollback Omarchy deliberately left out.
+  mapfile -t CONFIGS < <(sudo snapper --csvout list-configs | awk -F, 'NR>1 && $1 != "home" {print $1}')
 
   # Snapper installed but unconfigured snapshots nothing. Staying quiet here
   # reads as a successful snapshot, so the next update looks recoverable when

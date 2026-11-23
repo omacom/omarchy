@@ -1,0 +1,17 @@
+# Omarchy snapshots /home hourly to bring back deleted files, never to roll it back.
+# No quotas: below FREE_LIMIT, cleanup thins each range to its minimum.
+SUBVOLUME="/home"
+FSTYPE="btrfs"
+
+FREE_LIMIT="0.2"
+
+NUMBER_CLEANUP="no"
+
+TIMELINE_CREATE="yes"
+TIMELINE_CLEANUP="yes"
+TIMELINE_LIMIT_HOURLY="6-24"
+TIMELINE_LIMIT_DAILY="2-7"
+TIMELINE_LIMIT_WEEKLY="0-4"
+TIMELINE_LIMIT_MONTHLY="0"
+TIMELINE_LIMIT_QUARTERLY="0"
+TIMELINE_LIMIT_YEARLY="0"

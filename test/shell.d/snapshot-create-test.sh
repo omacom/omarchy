@@ -62,6 +62,8 @@ printf 'snapper %s\n' "$*" >>"$TEST_LOG"
 if [[ "$*" == *"list-configs"* ]]; then
   echo "config,subvolume"
   echo "root,/"
+  echo "home,/home"
+  echo "data,/data"
 fi
 STUB
 chmod +x "$fake_bin/snapper"
@@ -70,11 +72,19 @@ chmod +x "$fake_bin/snapper"
 TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
   bash "$snapshot" create >/dev/null
 
-grep -qFx 'snapper -c root create -c number -d 4.0.0' "$test_tmp/calls.log" ||
-  fail "snapshot create snapshots each configured subvolume" "$(cat "$test_tmp/calls.log")"
-grep -qFx 'snapper -c root cleanup number' "$test_tmp/calls.log" ||
-  fail "snapshot create prunes older snapshots"
+for config in root data; do
+  grep -qFx "snapper -c $config create -c number -d 4.0.0" "$test_tmp/calls.log" ||
+    fail "snapshot create snapshots each configured subvolume" "$(cat "$test_tmp/calls.log")"
+  grep -qFx "snapper -c $config cleanup number" "$test_tmp/calls.log" ||
+    fail "snapshot create prunes older snapshots"
+done
 pass "snapshot create snapshots every configured Snapper config"
+
+# /home snapshots itself hourly to bring back files; an update snapshotting it
+# too would bring back the /home rollback Omarchy dropped.
+! grep -q '^snapper -c home ' "$test_tmp/calls.log" ||
+  fail "snapshot create leaves /home's hourly snapshots alone" "$(cat "$test_tmp/calls.log")"
+pass "snapshot create takes no pre-update snapshot of /home"
 
 # Snapper being deliberately absent is the one skip that stays quiet, and the
 # update has to keep treating it as such.
