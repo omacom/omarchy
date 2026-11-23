@@ -241,12 +241,14 @@ write_terminal() {
           "size = $size"
       elif grep -qE '^[[:space:]]*size[[:space:]]*=' "$alacritty_local"; then
         upsert_line "$alacritty_local" '^[[:space:]]*size[[:space:]]*=' "size = $size"
-      elif grep -qE '^\[font\][[:space:]]*$' "$alacritty_local"; then
+      elif grep -qE '^\[font\][[:space:]]*(#.*)?$' "$alacritty_local"; then
+        # "[font] # laptop" is still the font table. A second [font]
+        # makes the overlay invalid TOML.
         local tmp
         tmp=$(mktemp)
         awk -v line="size = $size" '
           { print }
-          /^\[font\][[:space:]]*$/ && !done { print line; done = 1 }
+          /^\[font\][[:space:]]*(#.*)?$/ && !done { print line; done = 1 }
         ' "$alacritty_local" >"$tmp"
         cat "$tmp" >"$alacritty_local"
         rm -f "$tmp"

@@ -12,8 +12,12 @@ alacritty="$config_home/alacritty/alacritty.toml"
 #
 # The upgrade copies the new overlay files, which ship at size 9, before this
 # runs. --read would then report that 9 and throw away the size still in the
-# shared config. The size being moved is the shared one. An overlay the user
-# has already changed is left alone.
+# shared config. The size being moved is the shared one. An overlay that
+# already has its own size is left alone. One that is missing, still the
+# packaged file, or present with other settings and no size gets the shared
+# size. A stock Foot overlay names JetBrainsMono at size 9, and Foot's later
+# font= replaces the shared line, so that file is rewritten from the shared
+# family even when the shared line has no size.
 OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 
 overlay_path() {
@@ -41,13 +45,34 @@ overlay_is_stock() {
   [[ -f $overlay && -f $stock ]] && cmp -s "$overlay" "$stock"
 }
 
+overlay_has_size() {
+  local overlay
+  overlay=$(overlay_path "$1")
+  [[ -f $overlay ]] || return 1
+  case $1 in
+    ghostty) grep -qE '^[[:space:]]*font-size[[:space:]]*=' "$overlay" ;;
+    kitty) grep -qE '^[[:space:]]*font_size[[:space:]]' "$overlay" ;;
+    foot) grep -qE '^[[:space:]]*font[[:space:]]*=[^,]*:size=[0-9.]' "$overlay" ;;
+    alacritty) grep -qE '^[[:space:]]*size[[:space:]]*=' "$overlay" ;;
+  esac
+}
+
 apply_terminal() {
-  local term="$1" size overlay
+  local term="$1" size
   size=$(omarchy-font-size --read-shared "$term")
-  overlay=$(overlay_path "$term")
-  if [[ -n $size ]] && { [[ ! -e $overlay ]] || overlay_is_stock "$term"; }; then
-    omarchy-font-size --quiet --only "$term" "$size"
+  # A size already on a file the user changed wins. Stock still loses,
+  # because its size is the packaged 9, not one the user chose.
+  if overlay_has_size "$term" && ! overlay_is_stock "$term"; then
+    return 0
   fi
+  if [[ -z $size ]]; then
+    if [[ $term == foot ]] && overlay_is_stock "$term"; then
+      size=9
+    else
+      return 0
+    fi
+  fi
+  omarchy-font-size --quiet --only "$term" "$size"
 }
 
 apply_terminal ghostty

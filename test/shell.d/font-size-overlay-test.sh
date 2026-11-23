@@ -220,6 +220,40 @@ grep -qx 'font=JetBrainsMono Nerd Font, Noto Color Emoji:size=10' "$edited/.conf
   fail "migration strips Foot's primary size when the overlay was already changed" "$(grep '^font=' "$edited/.config/foot/foot.ini")"
 pass "migration leaves a changed overlay alone"
 
+# Other machine settings do not count as a chosen size. The shared size
+# still has to land on that overlay, and the other settings stay.
+nosize="$tmpdir/nosize-home"
+mkdir -p "$nosize/.config/ghostty"
+cat >"$nosize/.config/ghostty/local" <<'EOF'
+# keep
+window-padding-x = 4
+EOF
+printf 'font-family = "JetBrainsMono Nerd Font"\nfont-size = 14\n' >"$nosize/.config/ghostty/config"
+run_migration "$nosize" "$nosize/.config"
+grep -qx 'font-size = 14' "$nosize/.config/ghostty/local" ||
+  fail "an overlay with no size takes the shared size" "$(cat "$nosize/.config/ghostty/local")"
+grep -qx 'window-padding-x = 4' "$nosize/.config/ghostty/local" ||
+  fail "an overlay with no size keeps its other settings" "$(cat "$nosize/.config/ghostty/local")"
+! grep -q '^font-size[[:space:]]*=' "$nosize/.config/ghostty/config" ||
+  fail "migration strips the shared Ghostty size after copying it onto an overlay that had none"
+pass "an overlay with no size takes the shared size"
+
+# The packaged Foot overlay is JetBrainsMono at size 9. Foot loads it after
+# the shared font line, so a shared family with no size would disappear.
+stockfoot="$tmpdir/stock-foot-family"
+mkdir -p "$stockfoot/.config/foot"
+cp "$ROOT/config/foot/local.ini" "$stockfoot/.config/foot/local.ini"
+printf '[main]\nfont=Iosevka Term\n' >"$stockfoot/.config/foot/foot.ini"
+run_migration "$stockfoot" "$stockfoot/.config"
+grep -qx 'font=Iosevka Term:size=9' "$stockfoot/.config/foot/local.ini" ||
+  fail "a stock Foot overlay takes the shared family" "$(cat "$stockfoot/.config/foot/local.ini")"
+grep -qx '# Machine-local Foot overrides. Not part of the shared desktop config.' \
+  "$stockfoot/.config/foot/local.ini" ||
+  fail "rewriting a stock Foot overlay keeps its other lines" "$(cat "$stockfoot/.config/foot/local.ini")"
+grep -qx 'font=Iosevka Term' "$stockfoot/.config/foot/foot.ini" ||
+  fail "a shared Foot family with no size stays in the shared file" "$(grep '^font=' "$stockfoot/.config/foot/foot.ini")"
+pass "a stock Foot overlay takes the shared family"
+
 # --- Trailing whitespace, inline comment, and a non-number ---
 ws="$tmpdir/ws-home"
 mkdir -p "$ws/.config/ghostty"
@@ -381,6 +415,27 @@ grep -qx 'font=JetBrainsMono Nerd Font:size=11, Noto Color Emoji:size=10' \
   "$fallback/.config/foot/local.ini" ||
   fail "foot size change keeps the fallback list" "$(cat "$fallback/.config/foot/local.ini")"
 pass "foot size stays on the primary font"
+
+# A comment on the [font] header is still that table.
+font_comment="$tmpdir/font-comment-home"
+mkdir -p "$font_comment/.config/alacritty"
+cat >"$font_comment/.config/alacritty/local.toml" <<'EOF'
+[font] # laptop
+offset = { x = 1, y = 1 }
+EOF
+run_size "$font_comment" "$font_comment/.config" --quiet --only alacritty 14 >/dev/null
+(( $(grep -c '^\[font\]' "$font_comment/.config/alacritty/local.toml") == 1 )) ||
+  fail "a commented [font] header stays one table" "$(cat "$font_comment/.config/alacritty/local.toml")"
+grep -qxF '[font] # laptop' "$font_comment/.config/alacritty/local.toml" ||
+  fail "a commented [font] header keeps its comment" "$(cat "$font_comment/.config/alacritty/local.toml")"
+python3 - "$font_comment/.config/alacritty/local.toml" <<'PY' ||
+import sys, tomllib
+font = tomllib.load(open(sys.argv[1], "rb")).get("font", {})
+if font.get("size") != 14 or font.get("offset") != {"x": 1, "y": 1}:
+    raise SystemExit(repr(font))
+PY
+  fail "a commented [font] header receives the size" "$(cat "$font_comment/.config/alacritty/local.toml")"
+pass "a commented Alacritty [font] header stays one table"
 
 # --- Alacritty import: trailing comma, [general] table, and no import ---
 comma="$tmpdir/comma-home"
