@@ -291,6 +291,13 @@ grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
 
+records_out=$(env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+  bash "$menu" --records)
+grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' <<<"$records_out" ||
+  fail "--records prints tab-separated display, dispatcher, and arg" "$records_out"
+pass "--records prints tab-separated display, dispatcher, and arg"
+
 # Hyprland 0.57 names a Lua bind by what it was bound to, HL.Dispatcher(<name>)
 # or function: 0x..., with a display-only number as its arg, so picking a row
 # has to run what the Lua source says, never that name and number.

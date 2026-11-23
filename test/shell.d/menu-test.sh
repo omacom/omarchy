@@ -430,6 +430,28 @@ assert(
   'provider merge leaves rows belonging to another provider alone'
 )
 
+assertDeepEqual(
+  menu.parseKeybindingsRecords(
+    'SUPER + K                           → Keybindings\tlua\thl.dsp.global("omarchy:menu.learn.keybindings")\n'
+    + 'SUPER + RETURN                      → Terminal\texec\tprintf "a\tb"\n'
+    + 'SUPER + Z                           → Zoom in\t\t\n'
+    + '\n'
+  ),
+  {
+    entries: [
+      { label: 'SUPER + K                           → Keybindings', dispatcher: 'lua', arg: 'hl.dsp.global("omarchy:menu.learn.keybindings")' },
+      { label: 'SUPER + RETURN                      → Terminal', dispatcher: 'exec', arg: 'printf "a\tb"' },
+      { label: 'SUPER + Z                           → Zoom in', dispatcher: '', arg: '' }
+    ],
+    options: [
+      'SUPER + K                           → Keybindings',
+      'SUPER + RETURN                      → Terminal',
+      'SUPER + Z                           → Zoom in'
+    ]
+  },
+  'keybindings record parser keeps tabs inside command arguments and skips blank lines'
+)
+
 // Every glyph the menu draws in the Omarchy font is one the font carries. The
 // ranges come from the font itself, so a new glyph needs no edit here.
 const fontRanges = require('child_process')

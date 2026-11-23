@@ -46,7 +46,7 @@
   "system.shutdown": {"icon":"󰐥","label":"Shutdown","action":"omarchy-system shutdown"},
 
   // Learn
-  "learn.keybindings": {"icon":"","label":"Keybindings","action":"omarchy-menu-keybindings"},
+  "learn.keybindings": {"icon":"","label":"Keybindings","action":"omarchy-shell shell summon omarchy.menu '{\"mode\":\"keybindings\"}'"},
   "learn.omarchy": {"icon":"","label":"Omarchy","action":"omarchy-launch-manual"},
   "learn.hyprland": {"icon":"","label":"Hyprland","action":"omarchy-launch-webapp 'https://wiki.hypr.land/'"},
   "learn.arch": {"icon":"󰣇","label":"Arch","action":"omarchy-launch-webapp 'https://wiki.archlinux.org/title/Main_page'"},
