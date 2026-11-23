@@ -43,11 +43,19 @@ Item {
   property int cellHeight: Math.max(Style.space(44), Style.font.display + Style.spacing.md)
   property int columns: Math.floor((cardWidth - contentMargin * 2) / cellWidth)
 
+  // { emoji: useCount } — the most used fill the first rows when not filtering.
+  property var usage: ({})
+  property int topRows: 4
+  // The card is measured only once visible; rebuild so the top rows fit.
+  onColumnsChanged: if (opened) rebuildDisplay()
+
   function open(payloadJson) {
     root.opened = true
     root.filterText = ""
     root.selectedIndex = 0
     root.cursorActive = true
+    // Read on every open so hand edits to the usage file show up.
+    usageFile.reload()
     root.rebuildDisplay()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -72,18 +80,26 @@ Item {
     if (root.opened) root.rebuildDisplay()
   }
 
+  // The reload on open finishes after the first rebuild; refresh once it lands.
+  function loadUsage(raw) {
+    root.usage = EmojiSearch.parseUsage(raw)
+    if (root.opened) root.rebuildDisplay()
+  }
+
   function rebuildDisplay() {
     var out = EmojiSearch.filterEmojis(root.emojis, root.filterText, 1000)
     root.filteredEmojis = out
 
     displayModel.clear()
-    for (var j = 0; j < out.length; j++) {
-      displayModel.append({ emoji: out[j].e, index: j })
+    var frequent = root.filterText ? [] : EmojiSearch.mostUsed(root.emojis, root.usage, root.columns * root.topRows)
+    if (frequent.length > 0) {
+      root.appendEmojis(frequent)
+      root.appendHeading("All")
     }
+    root.appendEmojis(out.map(function(item) { return item.e }))
 
-    if (displayModel.count === 0) selectedIndex = 0
-    else if (selectedIndex >= displayModel.count) selectedIndex = displayModel.count - 1
-    else if (selectedIndex < 0) selectedIndex = 0
+    if (selectedIndex >= displayModel.count) selectedIndex = displayModel.count - 1
+    selectedIndex = Math.max(0, skipHeadings(selectedIndex, 1))
     cursorActive = displayModel.count > 0
 
     Qt.callLater(function() {
@@ -91,46 +107,48 @@ Item {
     })
   }
 
-  function select(delta) {
+  // A heading fills a whole grid row; only its first cell draws the text.
+  function appendHeading(text) {
+    for (var i = 0; i < root.columns; i++) displayModel.append({ emoji: "", heading: i === 0 ? text : "" })
+  }
+
+  function appendEmojis(list) {
+    for (var i = 0; i < list.length; i++) displayModel.append({ emoji: list[i], heading: "" })
+  }
+
+  // Walks past heading cells; -1 when that runs off the grid.
+  function skipHeadings(index, step) {
+    while (index >= 0 && index < displayModel.count && !displayModel.get(index).emoji) index += step
+    return index < displayModel.count ? index : -1
+  }
+
+  function moveTo(index, step) {
     if (displayModel.count === 0) return
-    if (!cursorActive) {
-      cursorActive = true
-      selectedIndex = delta < 0 ? displayModel.count - 1 : 0
-    } else {
-      selectedIndex = (selectedIndex + delta + displayModel.count) % displayModel.count
-    }
-    resultGrid.positionViewAtIndex(selectedIndex, GridView.Contain)
+    index = Math.max(0, Math.min(displayModel.count - 1, index))
+    // Nothing past the heading in that direction; settle on the emoji after it.
+    var next = skipHeadings(index, step)
+    index = next >= 0 ? next : skipHeadings(index, 1)
+    cursorActive = true
+    selectedIndex = index
+    resultGrid.positionViewAtIndex(index, GridView.Contain)
+  }
+
+  function select(delta) {
+    if (!cursorActive) return moveTo(delta < 0 ? displayModel.count - 1 : 0, delta)
+    // Wrap around: stepping left off the first emoji lands on the last one.
+    var next = skipHeadings((selectedIndex + delta + displayModel.count) % displayModel.count, delta)
+    moveTo(next < 0 ? displayModel.count - 1 : next, delta)
   }
 
   function selectRow(delta) {
-    if (displayModel.count === 0) return
-    if (!cursorActive) {
-      cursorActive = true
-      selectedIndex = delta < 0 ? displayModel.count - 1 : 0
-      resultGrid.positionViewAtIndex(selectedIndex, GridView.Contain)
-      return
-    }
-    var newIndex = selectedIndex + delta * columns
-    if (newIndex < 0) newIndex = 0
-    if (newIndex >= displayModel.count) newIndex = displayModel.count - 1
-    selectedIndex = newIndex
-    resultGrid.positionViewAtIndex(selectedIndex, GridView.Contain)
+    if (!cursorActive) moveTo(delta < 0 ? displayModel.count - 1 : 0, delta)
+    else moveTo(selectedIndex + delta * columns, delta * columns)
   }
 
   function selectPage(delta) {
-    if (displayModel.count === 0) return
-    if (!cursorActive) {
-      cursorActive = true
-      selectedIndex = delta < 0 ? displayModel.count - 1 : 0
-      resultGrid.positionViewAtIndex(selectedIndex, GridView.Contain)
-      return
-    }
     var visibleRows = Math.max(1, Math.floor(resultGrid.height / cellHeight))
-    var newIndex = selectedIndex + delta * columns * visibleRows
-    if (newIndex < 0) newIndex = 0
-    if (newIndex >= displayModel.count) newIndex = displayModel.count - 1
-    selectedIndex = newIndex
-    resultGrid.positionViewAtIndex(selectedIndex, GridView.Contain)
+    if (!cursorActive) moveTo(delta < 0 ? displayModel.count - 1 : 0, delta)
+    else moveTo(selectedIndex + delta * columns * visibleRows, delta * columns)
   }
 
   function setFilter(nextFilter) {
@@ -148,11 +166,22 @@ Item {
 
   function applySelected(emoji) {
     if (!emoji) return
+    root.usage[emoji] = (root.usage[emoji] || 0) + 1
+    usageFile.setText(JSON.stringify(root.usage) + "\n")
     root.dismiss()
     Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-menu-emoji-insert", emoji])
   }
 
   ListModel { id: displayModel }
+
+  FileView {
+    id: usageFile
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/emoji-usage.json"
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.loadUsage(text())
+    onLoadFailed: root.loadUsage("")
+  }
 
   FileView {
     path: root.omarchyPath + "/shell/plugins/emojis/emojis.json"
@@ -272,8 +301,9 @@ Item {
             delegate: Rectangle {
               required property int index
               required property string emoji
+              required property string heading
 
-              readonly property bool hasCursor: root.cursorActive && index === root.selectedIndex
+              readonly property bool hasCursor: root.cursorActive && index === root.selectedIndex && emoji !== ""
 
               width: root.cellWidth
               height: root.cellHeight
@@ -290,9 +320,24 @@ Item {
                 verticalAlignment: Text.AlignVCenter
               }
 
+              Text {
+                textFormat: Text.PlainText
+                visible: parent.heading !== ""
+                text: parent.heading
+                width: resultGrid.width
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: Style.spacing.sm
+                leftPadding: Style.spacing.md
+                color: root.foreground
+                opacity: 0.58
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.title
+              }
+
               MouseArea {
                 id: mouseArea
                 anchors.fill: parent
+                enabled: parent.emoji !== ""
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onContainsMouseChanged: if (containsMouse) {
