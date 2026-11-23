@@ -62,6 +62,8 @@ printf 'snapper %s\n' "$*" >>"$TEST_LOG"
 if [[ "$*" == *"list-configs"* ]]; then
   echo "config,subvolume"
   echo "root,/"
+  echo "home,/home"
+  echo "data,/data"
 fi
 STUB
 chmod +x "$fake_bin/snapper"
@@ -70,11 +72,35 @@ chmod +x "$fake_bin/snapper"
 TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
   bash "$snapshot" create >/dev/null
 
-grep -qFx 'snapper -c root create -c number -d 4.0.0' "$test_tmp/calls.log" ||
-  fail "snapshot create snapshots each configured subvolume" "$(cat "$test_tmp/calls.log")"
-grep -qFx 'snapper -c root cleanup number' "$test_tmp/calls.log" ||
-  fail "snapshot create prunes older snapshots"
+for config in root data; do
+  grep -qFx "snapper -c $config create -c number -d 4.0.0" "$test_tmp/calls.log" ||
+    fail "snapshot create snapshots each configured subvolume" "$(cat "$test_tmp/calls.log")"
+  grep -qFx "snapper -c $config cleanup number" "$test_tmp/calls.log" ||
+    fail "snapshot create prunes older snapshots"
+done
 pass "snapshot create snapshots every configured Snapper config"
+
+# Omarchy's /home config snapshots itself hourly to bring back files; an update
+# snapshotting it too would bring back the /home rollback Omarchy dropped.
+configs="$test_tmp/configs"
+mkdir -p "$configs"
+cp "$ROOT/default/snapper/home" "$configs/home"
+: >"$test_tmp/calls.log"
+OMARCHY_SNAPPER_CONFIG_DIR="$configs" TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
+  bash "$snapshot" create >/dev/null
+! grep -q '^snapper -c home ' "$test_tmp/calls.log" ||
+  fail "snapshot create leaves Omarchy's hourly /home snapshots alone" "$(cat "$test_tmp/calls.log")"
+grep -qFx 'snapper -c root create -c number -d 4.0.0' "$test_tmp/calls.log" || fail "snapshot create still snapshots root beside Omarchy's /home"
+pass "snapshot create takes no pre-update snapshot of Omarchy's /home"
+
+# Someone's own config called home gets its pre-update snapshots as before.
+printf 'SUBVOLUME="/home"\n' >"$configs/home"
+: >"$test_tmp/calls.log"
+OMARCHY_SNAPPER_CONFIG_DIR="$configs" TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
+  bash "$snapshot" create >/dev/null
+grep -qFx 'snapper -c home create -c number -d 4.0.0' "$test_tmp/calls.log" ||
+  fail "snapshot create snapshots someone's own config called home" "$(cat "$test_tmp/calls.log")"
+pass "snapshot create snapshots someone's own config called home"
 
 # Snapper being deliberately absent is the one skip that stays quiet, and the
 # update has to keep treating it as such.
