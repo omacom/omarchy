@@ -44,8 +44,11 @@ CONF
   # laptop's own addresses: without it Wi-Fi takes a new placeholder address on
   # every boot and Bluetooth has no controller. iptsd gives the touchpad
   # two-finger scroll, pinch and two-finger tap, which the kernel alone, running
-  # the pad as a mouse, does not; pressing the pad stops registering as a click.
-  omarchy-pkg-add microsoft-surface-snapdragon-addresses iptsd
+  # the pad as a mouse, does not, and since 3.1.0-5 it reads the pad's press as
+  # a click. microsoft-surface-laptop-7-support reads the battery pack's cycle
+  # count from the Surface controller and keeps the infrared camera out of
+  # camera pickers.
+  omarchy-pkg-add microsoft-surface-snapdragon-addresses iptsd microsoft-surface-laptop-7-support
 fi
 
 # The 13.8" model's keyboard is a HID device behind the Surface Aggregator

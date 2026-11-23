@@ -32,8 +32,8 @@ compatible() {
 matching="$scratch/matching"
 compatible "$matching" 'microsoft,romulus15\0qcom,x1e80100\0'
 run_setup "$matching" >/dev/null
-[[ $(<"$matching/packages.log") == 'add microsoft-surface-snapdragon-addresses iptsd' ]] ||
-  fail "Surface Laptop 7 15\" setup adds its Wi-Fi and Bluetooth addresses and iptsd"
+[[ $(<"$matching/packages.log") == 'add microsoft-surface-snapdragon-addresses iptsd microsoft-surface-laptop-7-support' ]] ||
+  fail "Surface Laptop 7 15\" setup adds its Wi-Fi and Bluetooth addresses, iptsd and its support package"
 
 (
   firmware_root="$scratch/firmware"
