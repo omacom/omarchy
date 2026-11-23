@@ -46,9 +46,9 @@ per local coding model added.
   opens. The models added are kept in
   `~/.local/state/omarchy/agents/local-models.json`. A line shows its
   maker's mark, its name, the machine for a paired one, and its memory,
-  speed, and context where a subscription shows limits. Its terminal button
-  opens Pi on it (`omarchy agent --local-model`), starting it first when
-  it's stopped. A model on this machine has a play or pause button to start
+  speed, and context where a subscription shows limits. While it runs, its
+  terminal button opens Pi on it (`omarchy agent --local-model`); until
+  then the play button is its only one. A model on this machine has a play or pause button to start
   or stop it (greyed out, saying so, when there isn't the memory to start
   it), the Tailscale mark to share it on the tailnet while it runs, and an
   update button when the catalog has a newer version, and under its name

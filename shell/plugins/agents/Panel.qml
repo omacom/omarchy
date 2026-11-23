@@ -1310,10 +1310,9 @@ Panel {
 
   // A local model opens once it's set up, starting first when it's stopped.
   function launches(provider) {
-    if (provider && provider.localModel) {
-      var model = localModelState(provider.localModel)
-      return !model || ["installing", "removing"].indexOf(model.unit) < 0
-    }
+    // A local model opens an agent only while it runs; until then its line
+    // has the play button alone.
+    if (provider && provider.localModel) return localRunning(provider.localModel)
     return harnessFor(provider) !== "" || opensInAgent(provider)
   }
 
