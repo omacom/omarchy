@@ -56,12 +56,12 @@ run_setup "$matching" >/dev/null
     fail "early firmware prefers extracted copies and skips what is missing"
 )
 
-# The 13.8" model gets its keyboard at disk unlock and nothing else
+# The 13.8" model gets its keyboard at disk unlock, its addresses and iptsd
 smaller="$scratch/smaller"
 compatible "$smaller" 'microsoft,romulus13\0qcom,x1e80100\0'
 run_setup "$smaller" >/dev/null
-[[ ! -e $smaller/packages.log ]] ||
-  fail "Surface Laptop 7 13.8\" setup adds no packages, as the 15\" model's are untried on it"
+[[ $(<"$smaller/packages.log") == 'add microsoft-surface-snapdragon-addresses iptsd microsoft-surface-laptop-7-support' ]] ||
+  fail "Surface Laptop 7 13.8\" setup adds its Wi-Fi and Bluetooth addresses, iptsd and its support package"
 (
   MODULES=() FILES=()
   source "$smaller/mkinitcpio.conf.d/surface-laptop-7-initramfs.conf"
@@ -78,4 +78,4 @@ run_setup "$other" >/dev/null
 [[ ! -e $other/packages.log && ! -e $other/mkinitcpio.conf.d ]] ||
   fail "another Snapdragon X laptop is left alone"
 
-pass "Surface Laptop 7 setup configures the 15\" model, and the keyboard of the 13.8\" one"
+pass "Surface Laptop 7 setup configures the 15\" and 13.8\" models"

@@ -1,6 +1,6 @@
 # Microsoft Surface Laptop 7 (Snapdragon X Elite) board-specific setup. The 15"
 # model gets all of it. The 13.8" model runs another device tree and gets its
-# keyboard at disk unlock, the one part an owner has reported on.
+# keyboard at disk unlock, its Wi-Fi and Bluetooth addresses and iptsd.
 
 mkinitcpio_dir=${OMARCHY_SURFACE_LAPTOP7_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}
 
@@ -53,14 +53,22 @@ fi
 
 # The 13.8" model's keyboard is a HID device behind the Surface Aggregator
 # Module too, and its unlock prompt takes no keys from it until that loads
-# early. Its screen comes up through qualcomm/hamoa-display.sh. The 15" model's
-# addresses and touchpad setup has not been tried on it.
+# early. Its screen comes up through qualcomm/hamoa-display.sh.
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree microsoft,romulus13; then
-  echo "Detected Microsoft Surface Laptop 7 13.8\", loading its keyboard for disk unlock..."
+  echo "Detected Microsoft Surface Laptop 7 13.8\", applying board-specific support..."
 
   mkdir -p "$mkinitcpio_dir"
   cat >"$mkinitcpio_dir/surface-laptop-7-initramfs.conf" <<'CONF'
 MODULES+=(surface_aggregator? surface_aggregator_registry? surface_hid_core?
   surface_hid?)
 CONF
+
+  # As on the 15" model: without microsoft-surface-snapdragon-addresses
+  # Bluetooth has no controller and Wi-Fi takes a new address on every boot.
+  # The touchpad and touchscreen are the 15" model's digitizers (045E:0C77 and
+  # 045E:0C6E), and iptsd gives them two-finger scroll, pinch and tap, and runs
+  # the touchscreen. microsoft-surface-laptop-7-support relays the front camera,
+  # which only libcamera can run, to a regular webcam device for apps that read
+  # V4L2 cameras only.
+  omarchy-pkg-add microsoft-surface-snapdragon-addresses iptsd microsoft-surface-laptop-7-support
 fi
