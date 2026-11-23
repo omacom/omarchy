@@ -439,7 +439,8 @@ Item {
       // A window being mapped passes through a placeholder size and scale
       // first, so wait until it fills its screen. Width and height are one
       // value: as two, a remap briefly asked for 1920x0 and decoded twice.
-      readonly property size decodePixels: width > 0 && height > 0 && width === screen.width && height === screen.height
+      // Fractionally positioned outputs can round one logical pixel apart.
+      readonly property size decodePixels: width > 0 && height > 0 && Math.abs(width - screen.width) <= 1 && Math.abs(height - screen.height) <= 1
         ? Qt.size(Util.devicePixels(width, devicePixelRatio), Util.devicePixels(height, devicePixelRatio))
         : Qt.size(0, 0)
 

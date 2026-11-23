@@ -355,7 +355,8 @@ Item {
       property size screenPixels: Qt.size(0, 0)
       property bool measured: false
       function measure() {
-        if (width <= 0 || height <= 0 || width !== modelData.width || height !== modelData.height) return
+        // Qt and the compositor can round a centered output one pixel apart.
+        if (width <= 0 || height <= 0 || Math.abs(width - modelData.width) > 1 || Math.abs(height - modelData.height) > 1) return
         screenPixels = Qt.size(Util.devicePixels(width, devicePixelRatio), Util.devicePixels(height, devicePixelRatio))
         measured = true
       }
