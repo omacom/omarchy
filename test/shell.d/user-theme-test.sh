@@ -1,9 +1,17 @@
 #!/bin/bash
 
+set -euo pipefail
+
 source "$(dirname "$0")/base-test.sh"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
+
+# The seeded theme follows the install region. Pin this test to the global
+# default so a machine installed for another region (for example China, which
+# seeds Jade Horse) does not change what the test expects.
+export OMARCHY_REGION_FILE="$test_tmp/region"
+printf 'global\n' >"$OMARCHY_REGION_FILE"
 
 mock_bin="$test_tmp/bin"
 theme_dir="$test_tmp/home/.local/state/omarchy/current/theme"
