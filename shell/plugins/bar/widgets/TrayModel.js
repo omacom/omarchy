@@ -49,6 +49,15 @@ function ownedByOmarchy(item, layout) {
   return false
 }
 
+// Whether a double-click's second click activates the item again. Wine turns
+// two activates in quick succession into a double-click, which Windows apps
+// like Battle.net need before they reopen, so Wine items (Ids "wine-...") get
+// it. A native app that toggles its window on each activate, like qBittorrent,
+// would open and hide again, so it gets one.
+function activatesOnDoubleClick(item) {
+  return !!item && !item.onlyMenu && String(item.id || "").indexOf("wine-") === 0
+}
+
 // The stretch of the tray section, from `start` and `length` long along the
 // bar, that the drawer's clip, from `clipStart` and `clipLength` long, shows:
 // { start, length }, or null while it shows none of it. An empty section
@@ -70,6 +79,7 @@ if (typeof module !== "undefined") {
     itemNamed: itemNamed,
     entryId: entryId,
     layoutHasWidget: layoutHasWidget,
-    ownedByOmarchy: ownedByOmarchy
+    ownedByOmarchy: ownedByOmarchy,
+    activatesOnDoubleClick: activatesOnDoubleClick
   }
 }

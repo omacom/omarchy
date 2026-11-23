@@ -10,23 +10,30 @@ omarchy_log_line() {
   fi
 }
 
+omarchy_log_timestamp() {
+  printf -v "$1" '%(%Y-%m-%d %H:%M:%S)T' -1
+}
+
 start_install_log() {
+  local start_time
+
   if ! omarchy_log_to_stdout; then
     mkdir -p "$(dirname "$OMARCHY_INSTALL_LOG_FILE")"
     touch "$OMARCHY_INSTALL_LOG_FILE"
     chmod 666 "$OMARCHY_INSTALL_LOG_FILE" 2>/dev/null || true
   fi
 
-  export OMARCHY_START_TIME="${OMARCHY_START_TIME:-$(date '+%Y-%m-%d %H:%M:%S')}"
-  export OMARCHY_START_EPOCH="${OMARCHY_START_EPOCH:-$(date +%s)}"
+  omarchy_log_timestamp start_time
+  export OMARCHY_START_TIME="${OMARCHY_START_TIME:-$start_time}"
+  export OMARCHY_START_EPOCH="${OMARCHY_START_EPOCH:-$EPOCHSECONDS}"
 
   omarchy_log_line "=== Omarchy Setup Started: $OMARCHY_START_TIME ==="
 }
 
 stop_install_log() {
   local end_time end_epoch duration mins secs
-  end_time=$(date '+%Y-%m-%d %H:%M:%S')
-  end_epoch=$(date +%s)
+  omarchy_log_timestamp end_time
+  end_epoch=$EPOCHSECONDS
 
   omarchy_log_line "=== Omarchy Setup Completed: $end_time ==="
 
@@ -40,9 +47,10 @@ stop_install_log() {
 
 run_logged() {
   local script="$1"
-  local exit_code errexit_was_set=0
+  local exit_code errexit_was_set=0 ts
 
-  omarchy_log_line "[$(date '+%Y-%m-%d %H:%M:%S')] Starting: $script"
+  omarchy_log_timestamp ts
+  omarchy_log_line "[$ts] Starting: $script"
 
   case $- in
     *e*)
@@ -67,10 +75,11 @@ run_logged() {
   exit_code=$?
   (( errexit_was_set )) && set -e
 
+  omarchy_log_timestamp ts
   if (( exit_code == 0 )); then
-    omarchy_log_line "[$(date '+%Y-%m-%d %H:%M:%S')] Completed: $script"
+    omarchy_log_line "[$ts] Completed: $script"
   else
-    omarchy_log_line "[$(date '+%Y-%m-%d %H:%M:%S')] Failed: $script (exit code: $exit_code)"
+    omarchy_log_line "[$ts] Failed: $script (exit code: $exit_code)"
   fi
 
   return $exit_code

@@ -21,7 +21,7 @@ ShellRoot {
   // own empty copies.
   property PluginRegistry pluginRegistry: PluginRegistry { }
   property BarWidgetRegistry barWidgetRegistry: BarWidgetRegistry { }
-  property AppLibrary appLibrary: AppLibrary { }
+  property AppLibrary appLibrary: AppLibrary { shell: shell }
   property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
   property BackgroundIntro bootIntro: BackgroundIntro { host: shell }
   property BackgroundSwitch backgroundSwitch: BackgroundSwitch { intro: shell.bootIntro }
@@ -66,11 +66,19 @@ ShellRoot {
   property bool userConfigUnreadable: false
   property bool pluginReloading: false
   property bool pluginReloadPending: false
+  property bool localPluginNeedsReload: false
 
   Timer {
     id: localPluginReloadTimer
     interval: 150
-    onTriggered: shell.reloadPlugins()
+    onTriggered: {
+      if (shell.localPluginNeedsReload) {
+        shell.localPluginNeedsReload = false
+        shell.reloadPlugins()
+      } else {
+        shell.rescanPlugins()
+      }
+    }
   }
 
   onShellConfigChanged: {
@@ -1098,6 +1106,10 @@ ShellRoot {
       for (var id in shell._pluginAppLibraryApis)
         shell._pluginAppLibraryApis[id].appsChanged()
     }
+    function onRemovalNeedsTerminal() {
+      for (var id in shell._pluginAppLibraryApis)
+        shell._pluginAppLibraryApis[id].removalNeedsTerminal()
+    }
   }
 
   // Writes inline settings to a bar layout entry or top-level plugin entry in
@@ -1515,6 +1527,34 @@ ShellRoot {
     pluginWidgetComponents = ({})
   }
 
+  // A rescan asked for while another scan ran; it stays a rescan.
+  property bool pluginRescanPending: false
+
+  // The watcher names a plugin by its folder, which need not be its manifest
+  // id (Superwhisper's superwhisper-panel folder holds superwhisper.panel).
+  function localPluginLoaded(dirName) {
+    var dir = String(shell.pluginRegistry.pluginsDir || "").replace(/\/+$/, "") + "/" + dirName
+    var installed = shell.pluginRegistry.installedPlugins || ({})
+    for (var id in installed) {
+      var source = String((installed[id] && installed[id].__sourceDir) || "").replace(/\/+$/, "")
+      if (source === dir) return true
+    }
+    return false
+  }
+
+  // Rescan without closing anything: the syncs after the scan add, update and
+  // drop plugins in place. Only fresh code needs the full reload, which closes
+  // every panel and unloads every service. A first login linking a new
+  // plugin's panel (Superwhisper's setup) otherwise closed the menu and
+  // blanked the wallpaper.
+  function rescanPlugins() {
+    if (shell.pluginReloading || shell.pluginRegistry.scanning) {
+      shell.pluginRescanPending = true
+      return
+    }
+    shell.pluginRegistry.rescan()
+  }
+
   function reloadPlugins() {
     if (shell.pluginReloading || shell.pluginRegistry.scanning) {
       shell.pluginReloadPending = true
@@ -1540,13 +1580,18 @@ ShellRoot {
   Connections {
     target: shell.pluginRegistry
     function onLocalPluginChanged(pluginId) {
-      console.log("Local plugin changed, reloading:", pluginId)
+      // An edit to a plugin the shell already runs needs its fresh code; a
+      // plugin that just appeared only needs adding.
+      if (shell.localPluginLoaded(pluginId))
+        shell.localPluginNeedsReload = true
+      console.log("Local plugin changed:", pluginId)
       localPluginReloadTimer.restart()
     }
     function onScanFinished() {
       if (shell.pluginReloadPending) {
         shell.pluginReloadPending = false
         shell.pluginReloading = false
+        shell.pluginRescanPending = false
         Qt.callLater(shell.reloadPlugins)
         return
       }
@@ -1554,6 +1599,10 @@ ShellRoot {
       shell._syncServices()
       shell.syncPanelEntries()
       shell.syncPluginWidgets()
+      if (shell.pluginRescanPending) {
+        shell.pluginRescanPending = false
+        Qt.callLater(shell.rescanPlugins)
+      }
     }
   }
 
@@ -1602,7 +1651,7 @@ ShellRoot {
     var lines = String(raw || "").split("\n")
     for (var i = 0; i < lines.length; i++) {
       var match = /^([A-Za-z]+)\s+(\S+)\s*$/.exec(lines[i])
-      if (match && ["menu", "panel", "audio", "brightness", "ipc"].indexOf(match[1]) !== -1)
+      if (match && ["menu", "panel", "panelAt", "audio", "brightness", "ipc"].indexOf(match[1]) !== -1)
         entries.push({ kind: match[1], target: match[2], name: match[1] + "." + match[2] })
     }
     return entries
@@ -1615,13 +1664,28 @@ ShellRoot {
     if (entry.kind === "menu") {
       shell.toggle("omarchy.menu", JSON.stringify({ menu: entry.target }))
     } else if (entry.kind === "ipc") {
-      // "media.next" runs the media service's own IPC handler for next.
-      var dot = entry.target.indexOf(".")
+      // "media.next" runs the media service's own IPC handler for next;
+      // dotted plugin targets like "omarchy.dock.apps" dispatch through
+      // IpcRegistry in-process.
+      var dot = entry.target.lastIndexOf(".")
       var target = entry.target.slice(0, dot)
       var method = entry.target.slice(dot + 1)
       var service = shell.serviceFor(shell.ipcShortcutServices[target] || "")
-      if (!service || !service.runShortcut(method))
-        Util.execArgv(["omarchy-shell", target, method])
+      if (service && service.runShortcut(method)) {
+        if (target === "notifications" && method === "toggleDnd")
+          IpcRegistry.call("omarchy.indicators", "refresh", [])
+        return
+      }
+      if (IpcRegistry.call(target, method, []).ran) return
+      Util.execArgv(["omarchy-shell", target, method])
+    } else if (entry.kind === "panelAt") {
+      var colon = entry.target.indexOf(":")
+      var section = colon >= 0 ? entry.target.slice(0, colon) : "right"
+      var index = colon >= 0 ? entry.target.slice(colon + 1) : entry.target
+      var id = shell.bar && typeof shell.bar.panelWidgetIdAt === "function"
+        ? shell.bar.panelWidgetIdAt(section, index)
+        : ""
+      if (id) shell.toggle(id, "{}")
     } else if (entry.kind === "brightness") {
       if (!shell.brightnessKeys.handle(entry.target))
         Util.execArgv(["omarchy-brightness-display", entry.target === "raise" ? "+5%" : "5%-"])
@@ -1813,7 +1877,13 @@ ShellRoot {
       return Commons.InputMethodState.cycle(direction === "back") ? "ok" : "not running"
     }
 
+    // Adds, updates and drops plugins in place, leaving running ones alone.
     function rescanPlugins(): void {
+      shell.rescanPlugins()
+    }
+
+    // Rebuilds every plugin from fresh code, for an update that kept its manifest.
+    function reloadPlugins(): void {
       shell.reloadPlugins()
     }
 

@@ -31,12 +31,21 @@ case "${1:-}" in
     fi
 
     mkdir -p "$lock_dir" 2>/dev/null || true
-    exec {OMARCHY_UPDATE_LOCK_FD}>"$lock_path"
+    # Opening a contender must not erase the holder's diagnostic PID.
+    exec {OMARCHY_UPDATE_LOCK_FD}<>"$lock_path"
     if ! flock -n "$OMARCHY_UPDATE_LOCK_FD"; then
-      echo "An Omarchy update is already running."
+      echo "$(omarchy-i18n update.alreadyRunning)"
+      owner_pid=""
+      read -r owner_pid <"$lock_path" || true
+      if [[ $owner_pid =~ ^[0-9]+$ ]]; then
+        echo "Update lock acquired by PID $owner_pid."
+      fi
       exit 1
     fi
 
+    # Informational only: children can inherit the flock and PIDs can be reused.
+    # Never use this value (or the file's existence) to decide to unlock.
+    printf '%s\n' "$$" >"$lock_path"
     export OMARCHY_UPDATE_LOCK_FD
     exec "$@"
     ;;

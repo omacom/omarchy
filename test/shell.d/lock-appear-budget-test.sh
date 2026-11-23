@@ -101,6 +101,7 @@ done
 for _ in 1 2; do
   elapsed=$(appear_ms) || { sed -n '1,120p' "$SCRATCH_LOG" >&2; fail "lock preview appears and hides cleanly"; }
   if [[ -z $reopen_best ]] || (( elapsed < reopen_best )); then reopen_best=$elapsed; fi
+  (( reopen_best <= REOPEN_BUDGET_MS )) && break
 done
 
 # The preview must never have engaged the real session lock.
