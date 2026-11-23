@@ -47,6 +47,7 @@ STUB
 cat >"$commands/omarchy-shell" <<'STUB'
 #!/bin/bash
 printf 'shell: %s\n' "$*" >>"$TEST_LOG"
+if [[ ${TEST_OLD_SHELL:-false} == true && ( $2 == "prepareThemeIntroCover" || $2 == "cancelThemeIntro" ) ]]; then exit 1; fi
 # A shell from before the handover knows neither call.
 if [[ $2 == "switchBackground" || $2 == "playThemeIntro" || $2 == "selectedBackground" ]]; then
   [[ ${TEST_OLD_SHELL:-false} != true ]] || exit 1
@@ -166,7 +167,7 @@ pass "older OWE keeps the ordinary intro startup path"
 
 printf '%s\n' "$road" >"$home/.local/state/omarchy/theme-backgrounds/beta"
 TEST_LIVE_FRAME=true set_theme beta
-cover=$(awk '/^shell: shell prepareThemeIntro / { print $4; exit }' "$log")
+cover=$(awk '/^shell: shell prepareThemeIntroCover / { print $4; exit }' "$log")
 [[ -f $cover && $(<"$cover") == "live video frame" ]] || fail "an interrupted video supplies the outgoing cover instead of its final still"
 pass "interrupted playback uses its current frame as the outgoing cover"
 
@@ -180,6 +181,7 @@ pass "rapid switches present the outgoing cover before replacing its still"
 # A shell an update could not restart only knows to drop the cover, so the
 # switch takes the ordinary transition and reloads Hyprland itself.
 TEST_OLD_SHELL=true set_theme beta
+awk '$2 == "shell" && $3 == "prepareThemeIntro" && NF == 5 { found = 1 } END { exit !found }' "$log" || fail "an older shell prepares its cover before rendering"
 grep -q '^shell: shell finishThemeIntro ' "$log" || fail "an older shell drops its cover"
 grep -q '^shell: background themeTransition ' "$log" || fail "an older shell takes the ordinary transition"
 grep -q '^hypr-reload$' "$log" || fail "an older shell's switch reloads Hyprland itself"
