@@ -12,6 +12,10 @@ function hasTrackMetadata(player) {
   return !!(player && (player.trackTitle || player.trackArtist || player.trackAlbum || player.trackArtUrl))
 }
 
+function hasTrackTitle(player) {
+  return !!(player && player.trackTitle)
+}
+
 // What the bar widget needs before it shows a player at all.
 function hasShownTrack(player) {
   return !!(player && (player.trackTitle || player.trackArtist))
@@ -148,6 +152,10 @@ function trackChanged(previousSignature, player) {
   return trackSignature(player) !== String(previousSignature || "")
 }
 
+function newTrackArrived(previousSignature, player) {
+  return hasTrackTitle(player) && trackChanged(previousSignature, player)
+}
+
 function labelFor(player) {
   if (!player) return ""
   return player.trackTitle || player.identity || player.desktopEntry || ""
@@ -179,6 +187,7 @@ if (typeof module !== "undefined") {
     isProxyPlayer: isProxyPlayer,
     hasMetadata: hasMetadata,
     hasTrackMetadata: hasTrackMetadata,
+    hasTrackTitle: hasTrackTitle,
     hasShownTrack: hasShownTrack,
     idlePlayer: idlePlayer,
     playerCanControl: playerCanControl,
@@ -193,6 +202,7 @@ if (typeof module !== "undefined") {
     playerKey: playerKey,
     trackSignature: trackSignature,
     trackChanged: trackChanged,
+    newTrackArrived: newTrackArrived,
     labelFor: labelFor,
     osdMessage: osdMessage,
     volumeKeyStep: volumeKeyStep,
