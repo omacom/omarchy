@@ -2953,7 +2953,7 @@ Panel {
             rightPadding: pasteSubmit.width + pasteSubmit.inset * 2
             placeholderText: root.addKeyEntry ? Commons.I18n.t("agents.placeholderApiKey") : Commons.I18n.t("agents.placeholderCode")
             password: true
-            accessibleName: Commons.I18n.t("agents.placeholderCode")
+            accessibleName: root.addKeyEntry ? Commons.I18n.t("agents.enterApiKey") : Commons.I18n.t("agents.placeholderCode")
             foreground: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
