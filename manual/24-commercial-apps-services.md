@@ -6,7 +6,7 @@ Omarchy is mostly focused on providing free, open source software, but it's not 
 
 Keeping your passwords in a password manager is a best practice. Doubly so if you're working with a team. And [1password](https://1password.com/) is a great solution, which also comes with a command line tool for integrating key lookups in scripts.
 
-You start 1Password with `Super + Shift + the key left of right Shift` (/ on US layouts). If it isn't installed yet, that hotkey kicks off the installation first (you can also use _Install > Service > 1Password_ from the Omarchy menu). The installer also brings the 1Password command line tool and sets up the 1Password extension for Chrome and Chromium; restart your browser to load it.
+You start 1Password with `Super + Shift + /`. If it isn't installed yet, that hotkey kicks off the installation first (you can also use _Install > Service > 1Password_ from the Omarchy menu). The installer also brings the 1Password command line tool and sets up the 1Password extension for Chrome and Chromium; restart your browser to load it.
 
 ## Bitwarden
 
