@@ -32,8 +32,8 @@ Item {
   property double fingerprintLastSettleMs: 0
   property double fingerprintResumedAtMs: 0
   property int fingerprintProbeStreak: 0
-  // While the lock has the displays off no new attempt starts, so the reader
-  // isn't held awake all night; any wake starts it again.
+  // Once the lock has had the displays off for BLANK_LISTEN_MS no new attempt
+  // starts, so the reader isn't held awake all night; any wake starts it again.
   property bool fingerprintPaused: false
   // The sleep watch is stopped while paused, so a sleep seen after the
   // pre-suspend lock request is marked here instead.
@@ -210,6 +210,7 @@ Item {
     fingerprintRetryTimer.stop()
     fingerprintReachTimer.stop()
     fingerprintResumeTimer.stop()
+    fingerprintBlankPauseTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
   }
@@ -257,6 +258,7 @@ Item {
   function runWake() {
     if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
+    fingerprintBlankPauseTimer.stop()
     resumeFingerprint()
     nudgeFingerprint()
   }
@@ -291,7 +293,7 @@ Item {
   // countdown then pauses it again if nothing else happens. The idle service
   // repeats the same request without sleeping, so the sleep has to be seen.
   function noteSleepRequested() {
-    if (!lockRequested || !fingerprintPaused) return
+    if (!lockRequested || !(fingerprintPaused || fingerprintBlankPauseTimer.running)) return
     // logind holds a suspend for its inhibitor delay, at most 15 seconds here.
     fingerprintResumeTimer.ticksLeft = 20
     fingerprintResumeTimer.lastTickMs = Date.now()
@@ -349,7 +351,7 @@ Item {
   }
 
   function runBlank() {
-    pauseFingerprint()
+    if (!fingerprintPaused && !fingerprintBlankPauseTimer.running) fingerprintBlankPauseTimer.restart()
     if (!blankProcess.running) blankProcess.running = true
   }
 
@@ -630,6 +632,14 @@ Item {
     }
   }
 
+  // A touch on a dark lock screen still unlocks for a while after it blanks.
+  Timer {
+    id: fingerprintBlankPauseTimer
+    interval: FingerprintModel.BLANK_LISTEN_MS
+    repeat: false
+    onTriggered: if (root.lockRequested) root.pauseFingerprint()
+  }
+
   Timer {
     id: fingerprintRetryTimer
     interval: FingerprintModel.MATCH_RETRY_MS
@@ -666,12 +676,16 @@ Item {
       var now = Date.now()
       var slept = FingerprintModel.spannedSleep(now - lastTickMs, interval)
       lastTickMs = now
-      if (slept && root.lockRequested && root.fingerprintPaused) {
+      // Blank also while the reader still listens after blanking, so the panel
+      // a resume lights goes dark again; the sleep watch restarts that attempt.
+      var blanked = root.fingerprintPaused || fingerprintBlankPauseTimer.running
+      if (slept && root.lockRequested && blanked) {
         stop()
-        root.fingerprintSleptWhilePaused = true
+        fingerprintBlankPauseTimer.stop()
+        if (root.fingerprintPaused) root.fingerprintSleptWhilePaused = true
         root.resumeFingerprint()
         root.armBlankTimer(idleBlankTimer.resumeMs)
-      } else if (slept || !root.fingerprintPaused || --ticksLeft <= 0) {
+      } else if (slept || !blanked || --ticksLeft <= 0) {
         stop()
       }
     }
@@ -841,6 +855,7 @@ Item {
     function onScreensChanged() {
       var screens = root.realScreenCount()
       if (screens > root.knownScreenCount) {
+        fingerprintBlankPauseTimer.stop()
         root.resumeFingerprint()
         if (root.lockRequested) root.armBlankTimer()
       }
