@@ -61,136 +61,19 @@ for test in "${tests[@]}"; do
   fi
 done
 
-# Start a private, headless nested Hyprland compositor when running inside an
-# active Hyprland desktop session so compositor/Quickshell tests never appear
-# on or steal focus from the user's active screen. Fails closed if the live
-# desktop is present but the headless compositor cannot be established; set
-# OMARCHY_TEST_USE_LIVE_COMPOSITOR=1 to use the live session directly (e.g.
-# inside a disposable CI VM).
-HEADLESS_DIR=""
-HEADLESS_PID=""
-HEADLESS_RT=""
-HEADLESS_WL=""
-HEADLESS_SIG=""
-HEADLESS_DBUS=""
-
-cleanup_headless() {
-  if [[ -n $HEADLESS_DIR && -z $HEADLESS_PID && -s $HEADLESS_DIR/hypr.pid ]]; then
-    HEADLESS_PID=$(<"$HEADLESS_DIR/hypr.pid")
-  fi
-  if [[ -n $HEADLESS_PID ]]; then
-    kill -TERM -- "-$HEADLESS_PID" "$HEADLESS_PID" 2>/dev/null || true
-    for _ in {1..30}; do
-      kill -0 "$HEADLESS_PID" 2>/dev/null || break
-      sleep 0.05
-    done
-    kill -KILL -- "-$HEADLESS_PID" "$HEADLESS_PID" 2>/dev/null || true
-  fi
-  [[ -n $HEADLESS_DIR && -d $HEADLESS_DIR ]] && rm -rf "$HEADLESS_DIR"
-  return 0
-}
-trap cleanup_headless EXIT
+# Share the headless nested Hyprland lifecycle with test/headless so
+# compositor/Quickshell tests never appear on or steal focus from the user's
+# active screen. Fails closed if a live Wayland socket is present and the
+# private compositor cannot be established; set OMARCHY_TEST_USE_LIVE_COMPOSITOR=1
+# to use the live session directly (e.g. inside a disposable CI VM).
+source "$ROOT/test/headless"
+trap headless_cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-fail_headless() {
-  echo "test/shell: $1 (pass OMARCHY_TEST_USE_LIVE_COMPOSITOR=1 to run against the live desktop)" >&2
-  if [[ -n $HEADLESS_DIR && -s $HEADLESS_DIR/hypr.log ]]; then
-    tail -40 "$HEADLESS_DIR/hypr.log" >&2
-  fi
-  exit 1
-}
-
-start_headless_compositor() {
-  (( need_compositor )) || return 0
-  [[ ${OMARCHY_TEST_USE_LIVE_COMPOSITOR:-0} != "1" ]] || return 0
-  [[ ${OMARCHY_TEST_HEADLESS_ACTIVE:-0} != "1" ]] || return 0
-  [[ -n ${WAYLAND_DISPLAY:-} && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] || return 0
-  command -v Hyprland >/dev/null 2>&1 && command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || return 0
-
-  local outer_rt="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-  local outer_wl="$WAYLAND_DISPLAY"
-  [[ $outer_wl == /* ]] || outer_wl="$outer_rt/$outer_wl"
-  [[ -S $outer_wl ]] && hyprctl -j monitors >/dev/null 2>&1 || return 0
-
-  # Short path so $XDG_RUNTIME_DIR/hypr/<sig>/.socket2.sock stays under the 108-byte Unix sun_path limit.
-  HEADLESS_DIR=$(mktemp -d /tmp/oh.XXXXXX)
-  mkdir -p "$HEADLESS_DIR/rt" "$HEADLESS_DIR/cfg"
-  local sock
-  for sock in bus pipewire-0 pulse; do
-    [[ -e $outer_rt/$sock ]] && ln -s "$outer_rt/$sock" "$HEADLESS_DIR/rt/$sock"
-  done
-
-  cat >"$HEADLESS_DIR/cfg/hyprland.lua" <<'EOF'
-hl.config({
-  misc = {
-    disable_hyprland_logo = true,
-    disable_splash_rendering = true,
-  },
-  animations = {
-    enabled = false,
-  },
-})
-EOF
-
-  cat >"$HEADLESS_DIR/run-hypr.sh" <<SH
-#!/bin/bash
-export XDG_RUNTIME_DIR=$(printf '%q' "$HEADLESS_DIR/rt")
-export WAYLAND_DISPLAY=$(printf '%q' "$outer_wl")
-unset HYPRLAND_INSTANCE_SIGNATURE DISPLAY
-export HYPRLAND_NO_CRASHREPORTER=1
-export HYPRLAND_NO_SD_NOTIFY=1
-export HYPRLAND_NO_SD_VARS=1
-export HYPRLAND_NO_RT=1
-ulimit -c 0
-exec setsid /bin/bash -c 'echo \$\$ >"\$1"; exec Hyprland -c "\$2"' _ \
-  $(printf '%q' "$HEADLESS_DIR/hypr.pid") \
-  $(printf '%q' "$HEADLESS_DIR/cfg/hyprland.lua") \
-  >$(printf '%q' "$HEADLESS_DIR/hypr.log") 2>&1
-SH
-  chmod +x "$HEADLESS_DIR/run-hypr.sh"
-
-  hyprctl dispatch "hl.dsp.exec_cmd($(jq -Rn --arg c "$HEADLESS_DIR/run-hypr.sh" '$c'), { workspace = \"special:omarchy-test silent\", float = true, no_initial_focus = true, size = \"1920 1080\" })" >/dev/null 2>&1 ||
-    fail_headless "could not launch nested Hyprland"
-
-  local sig="" wl="" ready=0
-  for _ in {1..80}; do
-    [[ -s $HEADLESS_DIR/hypr.pid ]] && HEADLESS_PID=$(<"$HEADLESS_DIR/hypr.pid")
-    sig=$(ls "$HEADLESS_DIR/rt/hypr" 2>/dev/null | head -1 || true)
-    wl=$(ls "$HEADLESS_DIR/rt" 2>/dev/null | grep -E '^wayland-[0-9]+$' | head -1 || true)
-    if [[ -n $sig && -n $wl ]] &&
-       XDG_RUNTIME_DIR="$HEADLESS_DIR/rt" HYPRLAND_INSTANCE_SIGNATURE="$sig" hyprctl -j monitors >/dev/null 2>&1; then
-      ready=1
-      break
-    fi
-    sleep 0.05
-  done
-
-  (( ready )) || fail_headless "nested Hyprland did not become ready"
-
-  XDG_RUNTIME_DIR="$HEADLESS_DIR/rt" HYPRLAND_INSTANCE_SIGNATURE="$sig" hyprctl output create headless HEADLESS-1 >/dev/null 2>&1 ||
-    fail_headless "could not create HEADLESS-1 output"
-
-  local out
-  local -a host_outputs=()
-  mapfile -t host_outputs < <(XDG_RUNTIME_DIR="$HEADLESS_DIR/rt" HYPRLAND_INSTANCE_SIGNATURE="$sig" hyprctl -j monitors 2>/dev/null | jq -r '.[] | select(.name | startswith("WAYLAND-")) | .name')
-  for out in "${host_outputs[@]}"; do
-    XDG_RUNTIME_DIR="$HEADLESS_DIR/rt" HYPRLAND_INSTANCE_SIGNATURE="$sig" hyprctl output remove "$out" >/dev/null 2>&1 ||
-      fail_headless "could not remove host-backed output $out"
-  done
-
-  local monitors_json
-  monitors_json=$(XDG_RUNTIME_DIR="$HEADLESS_DIR/rt" HYPRLAND_INSTANCE_SIGNATURE="$sig" hyprctl -j monitors 2>/dev/null || true)
-  jq -e 'any(.[]; .name == "HEADLESS-1" and .width > 0 and .height > 0) and all(.[]; (.name | startswith("WAYLAND-")) | not)' <<<"$monitors_json" >/dev/null 2>&1 ||
-    fail_headless "headless output verification failed (monitors: $monitors_json)"
-
-  HEADLESS_RT="$HEADLESS_DIR/rt"
-  HEADLESS_WL="$wl"
-  HEADLESS_SIG="$sig"
-  HEADLESS_DBUS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$outer_rt/bus}"
-}
-
-start_headless_compositor
+if (( need_compositor )); then
+  headless_start "test/shell"
+fi
 
 # Every file's output is kept after the run, so a failure can be read from
 # its log rather than found by running the suite again.
