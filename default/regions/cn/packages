@@ -1,0 +1,4 @@
+# Packages a machine in this region gets once it is online, from the repositories
+# every install uses (bin/omarchy-region-packages), one per line. QQ, Feishu,
+# DingTalk and WPS Office stay optional under Install > Service.
+wechat-bin

@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# omarchy:summary=Install this machine's regional default packages once it is online
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# omarchy-region-packages.service runs this until it succeeds once
+# (docs/regions.md). The ISO carries none of these packages, so it stays the same
+# for every region.
+done_file=${OMARCHY_REGION_PACKAGES_DONE:-/var/lib/omarchy/region-packages-installed}
+list="$OMARCHY_PATH/default/regions/$(omarchy-region)/packages"
+
+packages=()
+if [[ -r $list ]]; then
+  mapfile -t packages < <(sed -e 's/[[:space:]]*#.*//' -e 's/[[:space:]]//g' -e '/^$/d' "$list")
+fi
+
+if (( ${#packages[@]} )); then
+  # No -y: the image ships the package indexes its packages were installed
+  # from, so these come at the installed system's versions, as any other
+  # install would. When the repositories have moved past those, this fails
+  # until omarchy update refreshes the indexes with the system, and the
+  # service tries again later.
+  pacman -Slq omarchy >/dev/null 2>&1 || { echo "No package indexes yet" >&2; exit 1; }
+
+  available=()
+  for package in "${packages[@]}"; do
+    if pacman -Si -- "$package" >/dev/null 2>&1; then
+      available+=("$package")
+    else
+      echo "Skipping $package: no configured repository offers it for this architecture"
+    fi
+  done
+
+  if (( ${#available[@]} )); then
+    omarchy-pkg-add "${available[@]}"
+  fi
+fi
+
+# Initial defaults: once installed, a package the owner removes stays removed.
+mkdir -p "${done_file%/*}"
+touch "$done_file"

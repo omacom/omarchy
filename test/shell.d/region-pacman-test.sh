@@ -194,3 +194,40 @@ if tzdata.is_file():
 assert not listed & never, sorted(listed & never)
 PY
 pass "Hong Kong, Macau and Taiwan belong to no region"
+
+# Region packages come from the package indexes the image shipped, never a
+# refreshed one (no partial upgrade), and are recorded only once installed, so
+# the service retries otherwise.
+cat >"$scratch/bin/pacman" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$PACMAN_LOG"
+[[ $1 == "-Slq" ]] && exit "${PACMAN_INDEX_STATUS:-0}"
+[[ $1 == "-Si" ]] && { [[ $3 != "x86-only" ]]; exit; }
+exit 0
+SH
+cat >"$scratch/bin/omarchy-pkg-add" <<'SH'
+#!/bin/bash
+printf 'add %s\n' "$*" >>"$PACMAN_LOG"
+exit "${PKG_ADD_STATUS:-0}"
+SH
+chmod +x "$scratch/bin/pacman" "$scratch/bin/omarchy-pkg-add"
+export PACMAN_LOG="$scratch/pacman.log" OMARCHY_REGION_PACKAGES_DONE="$scratch/region-packages-done"
+export OMARCHY_REGION_FILE="$TARGET_ROOT/etc/omarchy/region"
+printf 'cn\n' >"$OMARCHY_REGION_FILE"
+printf '# comment\nwechat-bin\nx86-only  # left out\n' >"$OMARCHY_PATH/default/regions/cn/packages"
+region_packages() { PATH="$PATH:$ROOT/bin" "$ROOT/bin/omarchy-region-packages"; }
+
+for failure in PACMAN_INDEX_STATUS PKG_ADD_STATUS; do
+  env "$failure=1" bash -c "$(declare -f region_packages); region_packages" >/dev/null 2>&1 && fail "$failure fails the run"
+  [[ ! -e $OMARCHY_REGION_PACKAGES_DONE ]] || fail "a failed run leaves the packages pending"
+done
+: >"$PACMAN_LOG"
+region_packages >/dev/null
+grep -qxF "add wechat-bin" "$PACMAN_LOG" || fail "region packages install what the repositories offer" "$(<"$PACMAN_LOG")"
+! grep -qE '^-S[a-z]*y' "$PACMAN_LOG" || fail "region packages never refresh the package indexes" "$(<"$PACMAN_LOG")"
+[[ -e $OMARCHY_REGION_PACKAGES_DONE ]] || fail "a successful run is recorded"
+rm "$OMARCHY_REGION_PACKAGES_DONE" "$OMARCHY_REGION_FILE"
+: >"$PACMAN_LOG"
+region_packages >/dev/null
+[[ ! -s $PACMAN_LOG ]] || fail "a global machine installs no region packages"
+pass "region packages install once from the shipped indexes, skipping packages this architecture lacks"
