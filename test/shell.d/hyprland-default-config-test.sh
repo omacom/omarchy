@@ -232,6 +232,20 @@ grep -Fqx $'SUPER + SHIFT + code:49	Move window to Quake console' <<<"$scratchpa
   fail "Quake console has its own move binding"
 pass "scratchpad and Quake console have separate bindings"
 
+# Hyprland matches a keysym bind against what a key types without Shift, so a
+# bind on / moves to the key US types / on where / needs Shift, unless that key
+# types a letter there instead: F on bépo, where it would take Super + F.
+passwords_key() {
+  local home="$tmpdir/layout-$1-$2"
+  mkdir -p "$home/.config/omarchy"
+  printf 'XKBLAYOUT=%s\nXKBVARIANT=%s\n' "$1" "$2" >"$home/.config/omarchy/keyboard-layouts"
+  run_omarchy_bindings "$home" | awk -F '\t' '$2 == "Passwords" { print $1 }'
+}
+[[ $(passwords_key us "") == "SUPER + SHIFT + SLASH" ]] || fail "/ binds stay on / where it types without Shift" "$(passwords_key us "")"
+[[ $(passwords_key dk "") == "SUPER + SHIFT + code:61" ]] || fail "/ binds move to the key left of right Shift where / needs Shift" "$(passwords_key dk "")"
+[[ $(passwords_key fr bepo) == "SUPER + SHIFT + SLASH" ]] || fail "/ binds never move onto a letter" "$(passwords_key fr bepo)"
+pass "/ binds follow the leading keyboard layout"
+
 # The panel hotkeys claim a row of keys that workspace switching already uses
 # under other modifiers, so the count matters as much as the bindings: a tenth
 # claim on SUPER + CTRL + a number is a collision with one of these.

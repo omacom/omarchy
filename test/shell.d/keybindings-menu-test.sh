@@ -189,6 +189,20 @@ done
 rm "$stub_bin/option-kb_layout"
 pass "the key left of 1 reads as the symbol printed on it on ISO layouts"
 
+# Resize sits on the two keys right of 0. German writes the first over several
+# lines, with its ß on a line of its own, and the US fallback would call it MINUS.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + code:20" "Expand window left")
+$(lua_bind 64 "SUPER + code:21" "Shrink window left")
+BINDS
+echo '{"str": "de"}' >"$stub_bin/option-kb_layout"
+rendered=$(keybindings "" "$tmpdir/cache-de-resize")
+rm "$stub_bin/option-kb_layout"
+grep -q 'SUPER + ß  *→ Expand window left' <<<"$rendered" &&
+  grep -q 'SUPER + ´  *→ Shrink window left' <<<"$rendered" ||
+  fail "the resize keys read as what German prints on them" "$rendered"
+pass "the resize keys read as what German prints on them"
+
 # A chord refused for width opens a row of its own, and the next chord tries
 # that row rather than reaching back past it and printing out of order.
 stub_hyprctl <<BINDS
@@ -276,6 +290,13 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+records_out=$(env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+  bash "$menu" --records)
+grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' <<<"$records_out" ||
+  fail "--records prints tab-separated display, dispatcher, and arg" "$records_out"
+pass "--records prints tab-separated display, dispatcher, and arg"
 
 # Hyprland 0.57 names a Lua bind by what it was bound to, HL.Dispatcher(<name>)
 # or function: 0x..., with a display-only number as its arg, so picking a row

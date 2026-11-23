@@ -18,9 +18,13 @@ key_names_file=/usr/share/omarchy-platform/key-names
 # The leading layout and variant, which Hyprland resolves bindings against.
 # Only names XKB could know pass, since they end up on a command line.
 leading_keyboard() {
-  local option value
+  local option raw value
   for option in kb_layout kb_variant; do
-    value=$(hyprctl -j getoption "input:$option" 2>/dev/null | jq -r '.str // empty' 2>/dev/null)
+    raw=$(hyprctl -j getoption "input:$option" 2>/dev/null)
+    value=""
+    if [[ $raw =~ \"str\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
+      value=${BASH_REMATCH[1]}
+    fi
     value=${value%%,*}
     [[ $value =~ ^[A-Za-z0-9_-]*$ ]] || value=""
     printf '%s\n' "$value"
@@ -62,7 +66,21 @@ parse_keycodes() {
         if (line ~ /xkb_keycodes/) { section = "codes"; continue }
         if (line ~ /xkb_symbols/)  { section = "syms";  continue }
         if (section == "codes" && match(line, /<([A-Za-z0-9_]+)>\s*=\s*([0-9]+)\s*;/, m)) code_by_name[m[1]] = m[2]
-        if (section == "syms" && match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{\s*\[\s*([^, \]]+)/, m)) sym_by_name[m[1]] = m[2]
+
+        # A key whose type xkbcli spells out puts its symbols on a line of
+        # their own, so remember the key the block opened on and read them off
+        # when they arrive: the German ß right of 0 is written that way.
+        if (section == "syms") {
+          if (match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{\s*\[\s*([^, \]]+)/, m)) {
+            sym_by_name[m[1]] = m[2]
+            open_key = ""
+          } else if (match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{/, m)) {
+            open_key = m[1]
+          } else if (open_key != "" && match(line, /symbols\[[^\]]*\]\s*=\s*\[\s*([^, \]]+)/, m)) {
+            sym_by_name[open_key] = m[1]
+            open_key = ""
+          }
+        }
       }
       close(keymap_cmd)
 
@@ -76,7 +94,7 @@ parse_keycodes() {
       # as the symbol printed on it whichever key the active layout puts it on.
       # Plain punctuation words like MINUS stay; keysym names nobody would
       # recognize on their keyboard, like TWOSUPERIOR, read as the symbol.
-      split("GRAVE=~ DEAD_GRAVE=~ ASCIICIRCUM=^ DEAD_CIRCUMFLEX=^ ONEHALF=½ SECTION=§ TWOSUPERIOR=² MASCULINE=º BAR=|", printed_symbols, " ")
+      split("GRAVE=~ DEAD_GRAVE=~ ASCIICIRCUM=^ DEAD_CIRCUMFLEX=^ ONEHALF=½ SECTION=§ TWOSUPERIOR=² MASCULINE=º BAR=| PLUS=+ ASTERISK=* PARENRIGHT=) DEAD_ACUTE=´ EXCLAMDOWN=¡ GUILLEMOTLEFT=« SSHARP=ß IGRAVE=Ì UDIAERESIS=Ü OACUTE=Ó EXCLAM=!", printed_symbols, " ")
       for (i in printed_symbols) {
         separator = index(printed_symbols[i], "=")
         printed[substr(printed_symbols[i], 1, separator - 1)] = substr(printed_symbols[i], separator + 1)
@@ -368,26 +386,27 @@ LUA
   )
 }
 
+declare -A MODMASK_TEXT=(
+  [0]=""
+  [1]="SHIFT"
+  [4]="CTRL"
+  [5]="SHIFT CTRL"
+  [8]="ALT"
+  [9]="SHIFT ALT"
+  [12]="CTRL ALT"
+  [13]="SHIFT CTRL ALT"
+  [64]="SUPER"
+  [65]="SUPER SHIFT"
+  [68]="SUPER CTRL"
+  [69]="SUPER SHIFT CTRL"
+  [72]="SUPER ALT"
+  [73]="SUPER SHIFT ALT"
+  [76]="SUPER CTRL ALT"
+  [77]="SUPER SHIFT CTRL ALT"
+)
+
 modmask_to_text() {
-  case "$1" in
-    0)  printf '' ;;
-    1)  printf 'SHIFT' ;;
-    4)  printf 'CTRL' ;;
-    5)  printf 'SHIFT CTRL' ;;
-    8)  printf 'ALT' ;;
-    9)  printf 'SHIFT ALT' ;;
-    12) printf 'CTRL ALT' ;;
-    13) printf 'SHIFT CTRL ALT' ;;
-    64) printf 'SUPER' ;;
-    65) printf 'SUPER SHIFT' ;;
-    68) printf 'SUPER CTRL' ;;
-    69) printf 'SUPER SHIFT CTRL' ;;
-    72) printf 'SUPER ALT' ;;
-    73) printf 'SUPER SHIFT ALT' ;;
-    76) printf 'SUPER CTRL ALT' ;;
-    77) printf 'SUPER SHIFT CTRL ALT' ;;
-    *)  printf '%s' "$1" ;;
-  esac
+  printf '%s' "${MODMASK_TEXT[$1]-$1}"
 }
 
 # Fetch dynamic keybindings from Hyprland.
@@ -450,7 +469,7 @@ dynamic_bindings() {
         slash) key="SLASH" ;;
       esac
 
-      modifiers=$(modmask_to_text "$modmask")
+      modifiers=${MODMASK_TEXT[$modmask]-$modmask}
       arg="${arg//~\/.local\/share\/omarchy\/bin\//}"
 
       printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\n' "$modifiers" "$key" "$description" "$dispatcher" "$arg"
@@ -688,15 +707,21 @@ output_binding_records_uncached() {
 }
 
 keybindings_cache_key() {
-  {
-    printf 'v21\n'
-    leading_keyboard
-    omarchy-language 2>/dev/null
-    cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null
-    hyprctl devices 2>/dev/null | grep -F 'active keymap:'
-    cat "$key_names_file" 2>/dev/null
-    hyprctl binds 2>/dev/null
-  } | sha256sum | awk '{ print $1 }'
+  local lang hash _
+  lang=$(omarchy-language 2>/dev/null) || lang=""
+
+  read -r hash _ < <(
+    {
+      printf 'v22\n'
+      leading_keyboard
+      printf '%s\n' "$lang"
+      [[ -n $lang ]] && cat "$OMARCHY_PATH/default/i18n/$lang/keybindings.json" 2>/dev/null
+      hyprctl devices 2>/dev/null | grep -F 'active keymap:'
+      cat "$key_names_file" 2>/dev/null
+      hyprctl binds 2>/dev/null
+    } | sha256sum
+  )
+  printf '%s\n' "$hash"
 }
 
 refresh_keybindings_cache() {
@@ -815,8 +840,14 @@ dispatch_binding() {
   esac
 }
 
-if [[ $1 == "--print" || $1 == "-p" ]]; then
+if [[ ${1:-} == "--print" || ${1:-} == "-p" ]]; then
   output_keybindings
+elif [[ ${1:-} == "--records" ]]; then
+  output_binding_records
+elif [[ ${1:-} == "--dispatch" ]]; then
+  dispatch_binding "${2:-}" "${3:-}"
+elif omarchy-shell shell toggle omarchy.menu '{"mode":"keybindings"}' >/dev/null 2>&1; then
+  :
 else
   records=$(output_binding_records)
   selection=$(cut -f1 <<<"$records" |

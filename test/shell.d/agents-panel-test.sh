@@ -110,12 +110,17 @@ JS
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const functions = ['lineId', 'orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+const functions = ['accountLines', 'lineId', 'orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
 let providerOrder = ['codex', 'kimi', 'claude', 'hidden']
 let panelProviders = [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'kimi'}, {providerId: 'grok'}]
 let saved = ''
 const orderFile = {setText: text => { saved = text }}
 eval(functions)
+const split = accountLines([{
+  providerId: 'claude', accountName: 'main@example.com',
+  accounts: [{id: 'main', email: 'main@example.com', plan: 'Max 20x'}, {id: 'side', email: '', plan: 'Pro'}]
+}])
+assertDeepEqual(split.map(p => p.accountName), ['main@example.com', ''], 'each split account line carries only its own email')
 panelProviders = orderedProviders(panelProviders)
 assertDeepEqual(panelProviders.map(p => p.providerId), ['codex', 'kimi', 'claude', 'grok'], 'saved order keeps its agents in place and puts new ones last')
 moveProvider('grok', 0)
@@ -169,3 +174,108 @@ assertEqual(writes.length, 1, 'cancel saves no order')
 assertDeepEqual([0, 1, 2].map(i => Reorder.rowShift(i, state.dragIndex, state.dragTarget, state.dragOffset, 60)), [0, 0, 0], 'cancel clears every offset')
 JS
 
+
+# Local coding models: a line for each set up here in any state, or set up
+# from the panel, and each a paired, online machine runs; never a media model.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const fn = name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]
+const build = new Function(fn('buildLocalModelLines') + '\nreturn buildLocalModelLines')()
+const targets = (models, setups, network) => build(models, setups, network, []).map(line => line.localModel.target)
+assertDeepEqual(targets({
+  q: { recipe: 'q', kind: 'text', unit: 'inactive' },
+  f: { recipe: 'f', kind: 'text', unit: 'failed' },
+  pic: { recipe: 'pic', kind: 'image', unit: 'active' }
+}, [{ recipe: 'n', kind: 'text', unit: 'installing' }, { recipe: 'q', kind: 'text', unit: 'installing' }], {
+  'box/d': { recipe: 'd', host: 'box', kind: 'text', unit: 'active', paired: true, offline: '' },
+  'box/s': { recipe: 's', host: 'box', kind: 'text', unit: 'inactive', paired: true, offline: '' },
+  'box/u': { recipe: 'u', host: 'box', kind: 'text', unit: 'active', paired: false, offline: '' },
+  'away/a': { recipe: 'a', host: 'away', kind: 'text', unit: 'active', paired: true, offline: 'offline' }
+}), ['q', 'f', 'n', 'box/d'], 'every coding model here and each setup gets a line, a paired machine\'s only while it runs there')
+
+const localActions = new Function(fn('localActions') + '\nreturn localActions')()
+assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, true), ['share', 'toggle'], 'a running model can be shared and stopped')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, false), ['toggle'], 'without Tailscale set up, sharing is not offered')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'active', shared: true }, false), ['share', 'toggle'], 'a running shared model can always stop sharing')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', shared: true }, true), ['toggle'], 'a stopped model is not offered for sharing')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'installing' }, true), [], 'a model being set up offers nothing yet')
+const stale = { image: true, weights: false, settings: false }
+assertDeepEqual(localActions({ recipe: 'm', unit: 'active', update: stale }, true), ['update', 'share', 'toggle'], 'a model the catalog has moved on from offers its update')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'activating', update: stale }, true), ['toggle'], 'a model that is loading does not offer its update')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', update: stale, updating: true }, true), ['toggle'], 'a model being updated does not offer its update again')
+
+const updateTip = new Function('Commons', fn('updateTip') + '\nreturn updateTip')({ I18n: { t: (key) => ({ arg: (value) => key + ' ' + value, toString: () => key }), formatNumber: (value, decimals) => value.toFixed(decimals) } })
+assertEqual(String(updateTip({ update: Object.assign({ download_bytes: 601000000 }, stale) })), 'localModels.updateDownloadGb 0.6', 'an update says how much it downloads')
+assertEqual(String(updateTip({ update: Object.assign({ download_bytes: 42000000 }, stale) })), 'localModels.updateDownloadMb 42', 'a small update is sized in megabytes')
+assertEqual(String(updateTip({ update: Object.assign({ download_bytes: null }, stale) })), 'localModels.update', 'an update not sized yet names no size')
+
+// Opening a failure's logs dismisses it once printed; a setup that failed
+// before its download has only what it printed.
+const showLocalLogs = new Function('Util', 'root', fn('showLocalLogs') + '\nreturn showLocalLogs')
+const runs = []
+const logs = showLocalLogs({ shellQuote: text => "'" + text + "'", execArgv: argv => runs.push(argv[1]) }, { close() {} })
+logs({ recipe: 'm', unit: 'failed', error: 'Stopped unexpectedly' })
+logs({ recipe: 'n', unit: 'installing', panelSetup: true, output: 'refused' })
+assertDeepEqual(runs, ["omarchy-models logs 'm'; logs=$?; omarchy-models dismiss 'm' >/dev/null 2>&1; (exit $logs)", "printf %s 'refused'; false"],
+  'a model\'s logs print its failure before it is dismissed, and a failed setup prints what it said')
+
+// A start that runs long keeps creeping, and an update's bar runs one way:
+// its turn, its download, then the old model stopping and the new one loading.
+const progress = new Function(['phaseProgress', 'expectedLoadSeconds', 'expectedStopSeconds', 'updateProgress'].map(fn).join('\n') + '\nreturn { phaseProgress, updateProgress }')()
+assertEqual(progress.phaseProgress(10, 10), 0.9, 'a start reaches 90% at the time the last one took')
+assert(progress.phaseProgress(20, 10) > progress.phaseProgress(15, 10) && progress.phaseProgress(1000, 10) < 0.99, 'a start that runs long keeps creeping, never filling')
+const now = 100000
+const update = model => progress.updateProgress(Object.assign({ updating: true }, model), now - 5000, now)
+const waiting = update({ unit: 'active', update_progress: { phase: 'waiting' } })
+const half = update({ unit: 'active', update_progress: { phase: 'downloading', done_bytes: 5, total_bytes: 10 } })
+const fetched = update({ unit: 'active', update_progress: { phase: 'downloading', done_bytes: 10, total_bytes: 10 } })
+const stopping = update({ unit: 'deactivating', since_ms: now - 1000, expected_stop_seconds: 2 })
+const loading = update({ unit: 'activating', since_ms: now - 30000, expected_load_seconds: 60 })
+assert(waiting > 0 && waiting < half && half < fetched && fetched <= stopping && stopping < loading && loading < 1, 'an update fills one way through its phases', [waiting, half, fetched, stopping, loading])
+
+// A model the memory free can't start is held back: one set up when the
+// engine says so, a recipe when it needs more than is free.
+const short = new Function('settingUpLocal', 'localModelsService', fn('localSettingUp') + fn('memoryShort') + '\nreturn memoryShort')('', { memoryFreeGib: 18 })
+assertDeepEqual(short('q', 42, { unit: 'inactive', fits: false }), { needs: 42, free: 18 }, 'a stopped model the engine says won\'t fit is short')
+assertEqual(short('q', 42, { unit: 'inactive', fits: true }), null, 'a stopped model the engine says fits can start')
+assertEqual(short('q', 42, { unit: 'active', fits: false }), null, 'a running model is never short')
+assertDeepEqual(short('r', 42, null), { needs: 42, free: 18 }, 'a recipe needing more than is free can\'t be set up')
+assertEqual(short('r', 8, null), null, 'a recipe that fits can be set up')
+assertEqual(short('r', 42, { unit: 'installing' }), null, 'one already being set up goes on')
+
+// Up and Down land on a line's last stop, so a model that isn't running
+// yet ends on Play, which Enter starts, rather than its mark.
+const lineStop = (launches, actions) => new Function('providers', 'launches', 'localLineActions', fn('lineStop') + '\nreturn lineStop')([{}], () => launches, () => actions)(0)
+assertEqual(lineStop(true, ['share', 'toggle']), 'providerLaunch', 'a running model lands on its terminal button')
+assertEqual(lineStop(false, ['update', 'toggle']), 'localToggle', 'a stopped model lands on its play button')
+assertEqual(lineStop(false, []), 'provider', 'a line with nothing to press lands on its mark')
+
+// Adding a running network model returns to the panel index instead of
+// closing the panel and launching a terminal.
+const added = []
+const execs = []
+let closed = false, cancelled = false, focused = false, selectedDefault = ''
+const chooseModel = new Function(
+  'ownModelOffers', 'offerMeter', 'localModelState', 'localRunning', 'usage', 'selectLocalDefault',
+  'settingUpLocal', 'pairingLocal', 'addStage', 'cancelAdd', 'root', 'Util',
+  fn('chooseOwnModel') + '\nreturn chooseOwnModel'
+)(
+  [{ target: 'spark/deepseek', host: 'spark' }],
+  () => null,
+  () => null,
+  () => true,
+  { addedLocalModels: [], defaultAgent: 'codex', addLocalModel: t => added.push(t) },
+  t => { selectedDefault = t },
+  '', '', 'pick',
+  () => { cancelled = true },
+  { close: () => { closed = true }, focusKeys: () => { focused = true } },
+  { execArgv: argv => execs.push(argv) }
+)
+chooseModel(0)
+assertDeepEqual(added, ['spark/deepseek'], 'choosing a network model adds it to the panel')
+assertEqual(cancelled, true, 'choosing a network model returns to the panel index')
+assertEqual(closed, false, 'choosing a network model keeps the panel open')
+assertDeepEqual(execs, [], 'choosing a network model does not launch a terminal')
+assertEqual(selectedDefault, '', 'choosing a network model leaves an existing default agent alone')
+JS
