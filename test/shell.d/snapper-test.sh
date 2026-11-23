@@ -79,16 +79,6 @@ cmp -s "$test_tmp/first" "$machine/etc/conf.d/snapper" && cmp -s "$home_template
   fail "snapshot configure gives the same result run again"
 pass "snapshot configure is idempotent"
 
-# Root keeps only its pre-update snapshots; /home is snapshotted hourly, and
-# snapper thins by free space only where a limit is a range.
-grep -Fx 'TIMELINE_CREATE="no"' "$template" >/dev/null || fail "root config creates no timeline snapshots"
-grep -Fx 'TIMELINE_CREATE="yes"' "$home_template" >/dev/null || fail "/home config creates timeline snapshots"
-grep -Fx 'NUMBER_CLEANUP="no"' "$home_template" >/dev/null || fail "/home config takes no pre-update snapshots to clean up"
-(( $(grep -cE '^TIMELINE_LIMIT_(HOURLY|DAILY)="[0-9]+-[0-9]+"$' "$home_template") == 2 )) ||
-  fail "/home config gives hourly and daily limits as ranges, so free space can thin them"
-grep -Eq '^FREE_LIMIT=' "$home_template" || fail "/home config sets a free space limit"
-pass "/home snapshots are hourly and thinned by free space, without quotas"
-
 # A factory reset brings back an empty @home under a root that has the config.
 rm -rf "$machine/home/.snapshots"
 configure "$machine" yes

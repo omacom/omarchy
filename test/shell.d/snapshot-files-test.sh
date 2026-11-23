@@ -292,3 +292,28 @@ rmdir ~/keys
 "$files" deleted --json | jq -e '.files == []' >/dev/null || fail "a folder emptied of its hidden files by moves isn't listed" "$(deleted)"
 pass "a folder emptied of its hidden files by moves isn't listed"
 
+# The cache only saves time: one that can't be written still gets the answer.
+reset
+echo gone >~/gone.txt
+snapshot 1 2
+snapshot 2 1
+rm ~/gone.txt
+chmod 0500 ~/.cache 2>/dev/null || { mkdir -p ~/.cache && chmod 0500 ~/.cache; }
+[[ $(deleted) == "gone.txt" ]] || fail "deleted answers when its cache can't be written" "$(deleted)"
+chmod 0700 ~/.cache
+pass "deleted answers when its cache can't be written"
+
+# A folder that can't be read makes the answer partial, and says so. Root
+# reads it anyway, so this only shows as anyone else.
+if (( EUID != 0 )); then
+reset
+mkdir -p ~/Locked
+echo a >~/Locked/a.txt
+snapshot 1 1
+echo b >~/Locked/b.txt
+chmod 0000 ~/Locked
+[[ $("$files" deleted --json | jq -r '.complete') == "false" ]] || fail "deleted says when a folder couldn't be read"
+chmod 0700 ~/Locked
+pass "deleted says when a folder couldn't be read"
+fi
+

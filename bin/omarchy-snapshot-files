@@ -182,6 +182,8 @@ class Comparison:
     try:
       b_stat = os.lstat(b)
     except OSError:
+      # Listed a moment ago, so it went mid-walk or can't be reached now.
+      self.complete = False
       return
 
     if "CACHEDIR.TAG" in a_entries or b_stat.st_dev != self.device:
@@ -196,6 +198,7 @@ class Comparison:
       try:
         b_entries = listing(b)
       except OSError:
+        self.complete = False
         return
       for name, entry in b_entries.items():
         is_dir = entry.is_dir(follow_symlinks=False)
@@ -284,13 +287,20 @@ def cached_removed(older, newer):
 
 
 def store_removed(older, newer, entries):
+  # The cache only saves time, so a full disk or an unwritable one costs that and nothing else.
   directory = cache_dir()
-  os.makedirs(directory, exist_ok=True)
   path = os.path.join(directory, cache_name(older, newer))
   partial = f"{path}.{os.getpid()}"
-  with open(partial, "w") as cached:
-    json.dump({"version": CACHE_VERSION, "home": home_in_snapshots(), "removed": entries}, cached)
-  os.replace(partial, path)
+  try:
+    os.makedirs(directory, exist_ok=True)
+    with open(partial, "w") as cached:
+      json.dump({"version": CACHE_VERSION, "home": home_in_snapshots(), "removed": entries}, cached)
+    os.replace(partial, path)
+  except OSError:
+    try:
+      os.unlink(partial)
+    except OSError:
+      pass
 
 
 def prune_cache(pairs):
@@ -324,7 +334,9 @@ def deleted(folder, budget):
         lost[relative] = (is_dir, older, newer_taken)
 
   if found:
-    note(Comparison(found[-1].root, home()).run(), found[-1], None)
+    live = Comparison(found[-1].root, home())
+    note(live.run(), found[-1], None)
+    complete = complete and live.complete
 
   for older, newer in reversed(pairs):
     entries = cached_removed(older, newer)
@@ -337,6 +349,8 @@ def deleted(folder, budget):
       # A snapshot cleaned up mid-walk, say, leaves a comparison to redo.
       if comparison.complete:
         store_removed(older, newer, entries)
+      else:
+        complete = False
     note(entries, older, newer.taken)
 
   prune_cache(pairs)
@@ -389,7 +403,7 @@ def print_deleted(result, as_json):
     seen = time.strftime("%Y-%m-%d %H:%M", time.localtime(file["seen"]))
     print(f"{seen}  {shown(file['path'])}{'/' if file['folder'] else ''}")
   if not result["complete"]:
-    print("Older snapshots weren't compared yet; run it again for the rest.", file=sys.stderr)
+    print("Some snapshots or folders couldn't be compared, so this may not be everything; run it again for the rest.", file=sys.stderr)
 
 
 def through_link(root, relative):
