@@ -702,6 +702,21 @@ else
 fi
 [[ -f $fix/default/i18n/en/shell.json && ! -e $fix/default/i18n/da/moved.json ]] || fail "rejected rename patch leaves tree unchanged"
 
+# A valid non-empty patch combining regular-file edit, creation, and deletion
+# passes validate_patch and applies cleanly.
+printf '{\n  "a.one": "En opdateret"\n}\n' >"$fix/default/i18n/da/shell.json"
+printf '# Ny\n' >"$fix/manual/da/02-new.md"
+rm "$fix/manual/da/01-hello.md"
+python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" pack da "$work/artifacts" >/dev/null
+git -C "$fix" reset --hard -q HEAD
+if python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" collect "$work/artifacts" --expected da >/dev/null 2>&1; then
+  pass "collect accepts a valid patch with regular-file edit, creation, and deletion"
+else
+  fail "collect accepts a valid patch with regular-file edit, creation, and deletion"
+fi
+assert_bash_equal "$(jq -r '."a.one"' "$fix/default/i18n/da/shell.json")" "En opdateret" "valid edit patch updates existing translation"
+[[ -f $fix/manual/da/02-new.md && ! -e $fix/manual/da/01-hello.md ]] || fail "valid create and delete hunks apply cleanly"
+
 # Every registry locale must be one glibc can actually generate.
 if [[ -f /usr/share/i18n/SUPPORTED ]]; then
   unsupported=""
