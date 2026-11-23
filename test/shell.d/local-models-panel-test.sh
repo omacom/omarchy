@@ -192,6 +192,11 @@ pass "a detached setup with its packages starts without a terminal"
 calls=$(run_wrapper 1 use nemotron-3.5-bolt-tensorfold)
 [[ $calls == $'omarchy-pkg-add podman crun\nomarchy-local-ai use nemotron-3.5-bolt-tensorfold\nomarchy-models-launchers ' ]] || fail "a setup in a terminal installs its packages there" "$calls"
 pass "a setup in a terminal installs its packages there"
+for args in "use --help" "use -h" "use nemotron-3.5-bolt-tensorfold --help" "use --detach nemotron-3.5-bolt-tensorfold -h"; do
+  calls=$(run_wrapper 0 $args)
+  [[ $calls == $'omarchy-local-ai '"$args"$'\nomarchy-models-launchers ' ]] || fail "$args shows help without installing anything" "$calls"
+done
+pass "use --help shows help without installing anything"
 
 # A model set up gets a launcher of its own and one removed loses it, so the
 # launchers are brought up to date after either; the other commands leave them.
