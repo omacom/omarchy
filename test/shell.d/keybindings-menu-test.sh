@@ -175,6 +175,20 @@ grep -q 'SUPER + MINUS  *→ Expand window left' <<<"$rendered" &&
   fail "a keycode is named by what the leading layout prints on it" "$rendered"
 pass "a keycode is named by what the leading layout prints on it"
 
+# The Quake console is bound to the key left of 1, which Nordic ISO layouts
+# print ½ on and German ^, not their keysym names.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + code:49" "Toggle Quake console")
+BINDS
+for layout in dk:½ de:^; do
+  echo "{\"str\": \"${layout%%:*}\"}" >"$stub_bin/option-kb_layout"
+  rendered=$(keybindings "" "$tmpdir/cache-${layout%%:*}")
+  grep -qF "SUPER + ${layout#*:} " <<<"$rendered" ||
+    fail "the key left of 1 reads ${layout#*:} on ${layout%%:*}" "$rendered"
+done
+rm "$stub_bin/option-kb_layout"
+pass "the key left of 1 reads as the symbol printed on it on ISO layouts"
+
 # A chord refused for width opens a row of its own, and the next chord tries
 # that row rather than reaching back past it and printing out of order.
 stub_hyprctl <<BINDS
