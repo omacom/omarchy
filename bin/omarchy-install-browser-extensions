@@ -16,6 +16,7 @@
 set -euo pipefail
 
 source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+source "$OMARCHY_PATH/install/helpers/browser-flags.sh"
 
 check=false
 if [[ ${1:-} == "--check" ]]; then
@@ -57,71 +58,17 @@ hosts_current() {
   done
 }
 
-# The --load-extension value Chromium honors: the last such switch outside a
-# comment, which may share its line with other switches. A comment starts at a
-# # that begins a line or follows whitespace, as omarchy-install-video-decode
-# reads the same files.
-loaded_flag_extensions() {
-  awk '{ sub(/(^|[[:space:]])#.*$/, ""); for (i = 1; i <= NF; i++) if ($i ~ /^--load-extension=/) last = substr($i, 18) } END { print last }' "$flags_file"
-}
-
-# The extensions the flags file loads but doesn't list yet, one per line.
-missing_flag_extensions() {
-  local loaded extension
-
-  loaded=$(loaded_flag_extensions | tr ',' '\n')
-  while read -r extension; do
-    grep -Fxq -- "$extension" <<<"$loaded" || printf '%s\n' "$extension"
-  done < <(tr ',' '\n' <<<"$shipped_extensions")
-}
-
 flags_current() {
-  [[ -z $flags ]] || [[ -f $flags_file && -z $(missing_flag_extensions) ]]
+  [[ -z $flags ]] || [[ -f $flags_file && -z $(browser_flags_missing_extensions "$flags_file" "$shipped_extensions") ]]
 }
 
 # Add only the missing extensions, keeping the user's own flags and extensions.
 repair_flags() {
-  local missing repaired
-
-  if [[ ! -f $flags_file ]]; then
+  if [[ -f $flags_file ]]; then
+    browser_flags_add_extensions "$flags_file" "$shipped_extensions"
+  else
     mkdir -p "$(dirname "$flags_file")"
     cp "$OMARCHY_PATH/config/chromium-flags.conf" "$flags_file"
-    return
-  fi
-
-  missing=$(missing_flag_extensions | paste -sd,)
-  [[ -n $missing ]] || return 0
-
-  # Extend the last active --load-extension switch in place, leaving comments
-  # and any other switches on its line alone. A comment only ever ends a line,
-  # so offsets into the uncommented part hold for the whole line. Writing
-  # through the redirect keeps a symlinked flags file a symlink.
-  if repaired=$(awk -v missing="$missing" '
-    function active(line) {
-      sub(/(^|[[:space:]])#.*$/, "", line)
-      return line
-    }
-    FNR == NR {
-      if (active($0) ~ /(^|[[:space:]])--load-extension=/) target = FNR
-      next
-    }
-    FNR == target {
-      line = active($0)
-      rest = line
-      offset = 0
-      while (match(rest, /(^|[[:space:]])--load-extension=[^[:space:]]*/)) {
-        offset += RSTART + RLENGTH - 1
-        rest = substr(line, offset + 1)
-      }
-      $0 = substr($0, 1, offset) "," missing substr($0, offset + 1)
-    }
-    { print }
-    END { exit !target }
-  ' "$flags_file" "$flags_file"); then
-    printf '%s\n' "$repaired" >"$flags_file"
-  else
-    [[ -z $(tail -c1 "$flags_file") ]] || echo >>"$flags_file"
-    echo "--load-extension=$missing" >>"$flags_file"
   fi
 }
 
@@ -134,6 +81,7 @@ if [[ $check == "true" ]]; then
 else
   omarchy-install-chromium-copy-url
   omarchy-install-chromium-ytdlp
+  omarchy-install-chromium-omareader
 
   if [[ $browser == "chrome" ]]; then
     if ! chrome_policy_current; then
