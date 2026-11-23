@@ -16,16 +16,16 @@ import fnmatch
 import json
 import os
 import re
+import secrets
 import shutil
 import stat
 import subprocess
 import sys
-import tempfile
 import time
 
 SNAPSHOTS = os.environ.get("OMARCHY_SNAPSHOTS_DIR", "/home/.snapshots")
 SUBVOLUME = os.environ.get("OMARCHY_SNAPSHOTS_SUBVOLUME", "/home")
-CACHE_VERSION = 2
+CACHE_VERSION = 3
 
 # Churn rather than anything a person deleted: dependencies and bytecode come
 # back on their own, hidden folders are mostly caches, and editors and office
@@ -97,24 +97,35 @@ def listing(path):
 
 
 def walk(path):
-  """os.walk, leaving out what the comparison leaves out."""
+  """os.walk on one filesystem, leaving out what the comparison leaves out: a
+  mount or another subvolume in home isn't in its snapshots, and its inode
+  numbers mean something else."""
+  try:
+    device = os.lstat(path).st_dev
+  except OSError:
+    return
   for root, folders, files in os.walk(path):
     if "CACHEDIR.TAG" in files:
       folders[:] = []
       continue
-    folders[:] = [name for name in folders if not skipped(name, True)]
-    yield root, folders, files
-
-
-def file_identity(entry):
-  info = entry.stat(follow_symlinks=False)
-  return (info.st_size, info.st_mtime_ns)
+    kept = []
+    for name in folders:
+      try:
+        if not skipped(name, True) and os.lstat(os.path.join(root, name)).st_dev == device:
+          kept.append(name)
+      except OSError:
+        pass
+    folders[:] = kept
+    try:
+      yield list(os.scandir(root))
+    except OSError:
+      pass
 
 
 class Comparison:
   """What older holds that newer doesn't, a folder as one entry. Folders are
-  paired by inode, so a renamed one is compared under its new name, and a name
-  whose inode, size and mtime newer still has elsewhere was moved, not deleted."""
+  paired by inode, so a renamed or moved one is compared where it is now, and a
+  file whose inode newer still has under any name was moved, not deleted."""
 
   def __init__(self, older, newer):
     self.older = older
@@ -123,26 +134,41 @@ class Comparison:
     self.gone = []
     self.gone_folders = {}
     self.new_folders = {}
-    self.gained = {}
+    self.nested = {}
+    self.gained = set()
+    self.device = None
 
   def run(self):
+    try:
+      self.device = os.lstat(self.newer).st_dev
+    except OSError:
+      self.complete = False
+      return []
+
     pending = [("", "")]
     while pending:
       while pending:
         self.compare(*pending.pop(), pending)
-      # A folder gone under one name and new under another was renamed.
-      for inode in self.gone_folders.keys() & self.new_folders.keys():
-        pending.append((self.gone_folders.pop(inode), self.new_folders.pop(inode)))
+      self.pair(pending)
+      if not pending:
+        # A new folder that isn't a renamed one came from somewhere, and may
+        # hold a folder moved in from elsewhere.
+        for inode in list(self.new_folders):
+          self.gather(self.new_folders.pop(inode))
+        self.pair(pending)
 
-    for path in self.new_folders.values():
-      self.gather(os.path.join(self.newer, path))
-
-    entries = [(path, is_dir) for path, is_dir, inode, identity in self.gone if self.gained.get(inode) != identity]
+    entries = [(path, False) for path, inode in self.gone if inode not in self.gained]
     for path in self.gone_folders.values():
       full = os.path.join(self.older, path)
       if not os.path.lexists(os.path.join(full, "CACHEDIR.TAG")) and not self.emptied(full):
         entries.append((path, True))
     return sorted(entries)
+
+  def pair(self, pending):
+    # A folder gone under one name and new under another was renamed or moved.
+    for found in (self.new_folders, self.nested):
+      for inode in self.gone_folders.keys() & found.keys():
+        pending.append((self.gone_folders.pop(inode), found.pop(inode)))
 
   def compare(self, a_path, b_path, pending):
     a = os.path.join(self.older, a_path)
@@ -158,7 +184,7 @@ class Comparison:
     except OSError:
       return
 
-    if "CACHEDIR.TAG" in a_entries:
+    if "CACHEDIR.TAG" in a_entries or b_stat.st_dev != self.device:
       return
 
     # A folder's mtime and ctime move whenever a name is added or removed, and
@@ -173,12 +199,11 @@ class Comparison:
         return
       for name, entry in b_entries.items():
         is_dir = entry.is_dir(follow_symlinks=False)
-        if name in a_entries and a_entries[name].is_dir(follow_symlinks=False) == is_dir:
-          continue
-        if is_dir and not skipped(name, True):
+        if not is_dir:
+          # Under any name, a new one or one it was renamed over.
+          self.gained.add(entry.inode())
+        elif not skipped(name, True) and not (name in a_entries and a_entries[name].is_dir(follow_symlinks=False)):
           self.new_folders[entry.inode()] = os.path.join(b_path, name)
-        elif not is_dir:
-          self.gain(entry)
 
     for name, a_entry in a_entries.items():
       is_dir = a_entry.is_dir(follow_symlinks=False)
@@ -195,36 +220,26 @@ class Comparison:
       elif is_dir:
         self.gone_folders[a_entry.inode()] = os.path.join(a_path, name)
       else:
-        try:
-          self.gone.append((os.path.join(a_path, name), False, a_entry.inode(), file_identity(a_entry)))
-        except OSError:
-          self.complete = False
-
-  def gain(self, entry):
-    try:
-      self.gained[entry.inode()] = file_identity(entry)
-    except OSError:
-      pass
+        self.gone.append((os.path.join(a_path, name), a_entry.inode()))
 
   def gather(self, path):
-    """Everything in a folder that is new on the newer side, whose files came
-    from somewhere."""
-    for root, folders, files in walk(path):
-      for entry in os.scandir(root):
+    """What a new folder holds: files that came from somewhere, and folders
+    that may have been moved in whole."""
+    for entries in walk(os.path.join(self.newer, path)):
+      for entry in entries:
         if not entry.is_dir(follow_symlinks=False):
-          self.gain(entry)
+          self.gained.add(entry.inode())
+        elif not skipped(entry.name, True):
+          self.nested[entry.inode()] = os.path.relpath(entry.path, self.newer)
 
   def emptied(self, path):
-    """Whether everything in a gone folder turns up on the newer side: its
-    files were moved out before it went."""
-    for root, folders, files in walk(path):
-      for entry in os.scandir(root):
-        if entry.is_dir(follow_symlinks=False) or skipped(entry.name, False):
+    """Whether a gone folder's files all turn up on the newer side, moved out
+    before it went. A hidden file left behind (.DS_Store) doesn't count."""
+    for entries in walk(path):
+      for entry in entries:
+        if entry.is_dir(follow_symlinks=False) or entry.name.startswith(".") or skipped(entry.name, False):
           continue
-        try:
-          if self.gained.get(entry.inode()) != file_identity(entry):
-            return False
-        except OSError:
+        if entry.inode() not in self.gained:
           return False
     return True
 
@@ -284,8 +299,9 @@ def deleted(folder, budget):
 
   def note(entries, older, newer_taken):
     for relative, is_dir in entries:
-      # Newest comparison first, so the latest copy is the one kept.
-      if relative not in lost and inside(folder, relative):
+      # Newest comparison first, so the latest copy is the one kept. A folder
+      # holding the one asked about counts too, in case it's back but not whole.
+      if relative not in lost and (inside(folder, relative) or is_dir and inside(relative, folder)):
         lost[relative] = (is_dir, older, newer_taken)
 
   if found:
@@ -306,17 +322,22 @@ def deleted(folder, budget):
 
   prune_cache(pairs)
 
-  files = []
+  files = {}
+
+  def add(relative, is_dir, older, until):
+    if inside(folder, relative) and (relative not in files or files[relative]["seen"] < older.taken):
+      files[relative] = {"path": os.path.join(home(), relative), "folder": is_dir, "snapshot": older.number, "seen": older.taken, "until": until}
+
   for relative, (is_dir, older, until) in sorted(lost.items()):
     path = os.path.join(home(), relative)
     if not os.path.lexists(path):
-      files.append({"path": path, "folder": is_dir, "snapshot": older.number, "seen": older.taken, "until": until})
+      add(relative, is_dir, older, until)
     elif is_dir and os.path.isdir(path) and not os.path.islink(path):
       # Back, but maybe not whole: one file restored out of it, say.
       for inner, inner_is_dir in Comparison(os.path.join(older.root, relative), path).run():
-        files.append({"path": os.path.join(path, inner), "folder": inner_is_dir, "snapshot": older.number, "seen": older.taken, "until": until})
+        add(os.path.join(relative, inner), inner_is_dir, older, until)
 
-  files.sort(key=lambda file: (-file["seen"], file["path"]))
+  files = sorted(files.values(), key=lambda file: (-file["seen"], file["path"]))
   return {"snapshots": len(found), "complete": complete, "files": files}
 
 
@@ -334,7 +355,10 @@ def print_deleted(result, as_json):
     return
 
   if result["snapshots"] == 0:
-    print(f"No snapshots of your home folder in {SNAPSHOTS} yet.")
+    if os.path.isdir(SNAPSHOTS) and not os.access(SNAPSHOTS, os.R_OK | os.X_OK):
+      print(f"Can't read {SNAPSHOTS}, so its snapshots can't be searched.")
+    else:
+      print(f"No snapshots of your home folder in {SNAPSHOTS} yet.")
     return
   if not result["files"]:
     print("Nothing deleted that a snapshot still holds.")
@@ -371,6 +395,16 @@ def rename_noreplace(source, target):
   os.rename(source, target)
 
 
+def remove(path):
+  """Removes a partial copy, read-only folders and all."""
+  if os.path.isdir(path) and not os.path.islink(path):
+    for root, folders, files in os.walk(path):
+      os.chmod(root, 0o700)
+    shutil.rmtree(path, ignore_errors=True)
+  elif os.path.lexists(path):
+    os.unlink(path)
+
+
 def restore(path, as_json):
   target = os.path.normpath(os.path.abspath(os.path.expanduser(path)))
   base = home()
@@ -388,22 +422,21 @@ def restore(path, as_json):
   if source is None:
     raise Failure(f"No snapshot holds {shown(target)}")
 
-  # Folders it was in that are gone too come back as they were.
+  # Folders it was in that are gone too come back, with their permissions set
+  # once it's in place, since a read-only one would keep it out.
   parent = os.path.dirname(target)
   missing = []
   while not os.path.lexists(parent):
     missing.append(parent)
     parent = os.path.dirname(parent)
   for folder in reversed(missing):
-    os.mkdir(folder)
-    os.chmod(folder, stat.S_IMODE(os.stat(os.path.join(source.root, os.path.relpath(folder, base))).st_mode))
+    os.mkdir(folder, 0o700)
   parent = os.path.dirname(target)
 
-  # Copied into a folder of its own beside it and renamed into place, so a half
+  # Copied beside it under a hidden name and renamed into place, so a half
   # copied folder never looks restored. Reflinks make it instant, and free.
-  scratch = tempfile.mkdtemp(prefix=f".{os.path.basename(target)}.restoring-", dir=parent)
+  copied = os.path.join(parent, f".{os.path.basename(target)}.restoring-{secrets.token_hex(4)}")
   try:
-    copied = os.path.join(scratch, os.path.basename(target))
     copy = subprocess.run(["cp", "-a", "--reflink=auto", "--", os.path.join(source.root, relative), copied], stderr=subprocess.PIPE, text=True)
     if copy.returncode != 0:
       raise Failure(copy.stderr.strip() or f"Couldn't copy {shown(target)} out of its snapshot")
@@ -412,7 +445,10 @@ def restore(path, as_json):
     except FileExistsError:
       raise Failure(f"{shown(target)} is already there")
   finally:
-    shutil.rmtree(scratch, ignore_errors=True)
+    remove(copied)
+
+  for folder in missing:
+    os.chmod(folder, stat.S_IMODE(os.stat(os.path.join(source.root, os.path.relpath(folder, base))).st_mode))
 
   if as_json:
     json.dump({"path": target, "snapshot": source.number, "seen": source.taken}, sys.stdout)

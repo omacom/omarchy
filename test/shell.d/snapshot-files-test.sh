@@ -9,7 +9,8 @@ require_command jq
 files="$ROOT/bin/omarchy-snapshot-files"
 
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+# Read-only folders are restored below, so their copies need writing to go.
+trap 'chmod -R u+w "$test_tmp"; rm -rf "$test_tmp"' EXIT
 
 export OMARCHY_SNAPSHOTS_SUBVOLUME="$test_tmp/home"
 export OMARCHY_SNAPSHOTS_DIR="$test_tmp/home/.snapshots"
@@ -183,6 +184,16 @@ rm -r ~/Work
 ln -s "$test_tmp/elsewhere" ~/Work
 expect_refusal "restore refuses a path through a symbolic link" "through a symbolic link" restore ~/Work/x.txt
 [[ ! -e $test_tmp/elsewhere/x.txt ]] || fail "restore writes nothing through a symbolic link"
+pass "restore writes nothing through a symbolic link"
+
+# Nor does it copy out through one a snapshot holds, which would read the live disk.
+reset
+mkdir -p "$test_tmp/live-elsewhere"
+echo live >"$test_tmp/live-elsewhere/y.txt"
+ln -s "$test_tmp/live-elsewhere" ~/Link
+snapshot 1 1
+rm ~/Link
+expect_refusal "restore copies nothing out through a link a snapshot holds" "No snapshot holds" restore ~/Link/y.txt
 
 # Snapper gives a deleted newest snapshot's number to the next one, which must
 # not be answered from the first one's cache.
@@ -201,4 +212,60 @@ snapshot 2 0
 rm ~/one.txt
 [[ $(deleted) == $'one.txt\ntwo.txt' ]] || fail "a reused snapshot number isn't answered from the old cache" "$(deleted)"
 pass "a reused snapshot number isn't answered from the old cache"
+
+
+
+# Renamed over an existing name, or a download renamed once it's done, is a
+# rename, not a deletion.
+reset
+mkdir -p ~/Docs ~/Downloads
+echo v1 >~/Docs/report.pdf
+echo v2 >~/Docs/report-v2.pdf
+echo part >~/Downloads/movie.mkv.crdownload
+snapshot 1 1
+mv ~/Docs/report-v2.pdf ~/Docs/report.pdf
+echo more >>~/Downloads/movie.mkv.crdownload
+mv ~/Downloads/movie.mkv.crdownload ~/Downloads/movie.mkv
+# report.pdf is still there, overwritten rather than deleted, which isn't listed.
+[[ -z $(deleted) ]] || fail "neither a file renamed over another nor a finished download is listed as deleted" "$(deleted)"
+pass "a file renamed over another, or a finished download, isn't listed as deleted"
+
+# A .DS_Store left behind doesn't make a folder whose files were all moved out
+# a deleted one. (Folders moved whole are paired by inode, which only btrfs
+# snapshots keep, so that is proved on a real one, not with these hard links.)
+reset
+mkdir -p ~/Old
+echo c >~/Old/c.txt
+echo junk >~/Old/.DS_Store
+snapshot 1 1
+mkdir ~/Archive
+mv ~/Old/c.txt ~/Archive/
+rm -r ~/Old
+[[ -z $(deleted) ]] || fail "a folder emptied but for a hidden file isn't listed as deleted" "$(deleted)"
+pass "a folder emptied but for a hidden file isn't listed as deleted"
+
+# Asked about a folder inside one that's back but not whole, it still answers.
+reset
+mkdir -p ~/Pictures/trip
+echo a >~/Pictures/trip/a.jpg
+echo b >~/Pictures/trip/b.jpg
+snapshot 1 1
+rm -r ~/Pictures
+"$files" restore ~/Pictures/trip/a.jpg >/dev/null
+[[ $(deleted ~/Pictures/trip) == "Pictures/trip/b.jpg" ]] || fail "deleted narrows to a folder inside one that's partly back" "$(deleted ~/Pictures/trip)"
+pass "deleted narrows to a folder inside one that's partly back"
+
+# Read-only folders come back, as read-only as they were.
+reset
+mkdir -p ~/go/pkg/mod/lib
+echo code >~/go/pkg/mod/lib/lib.go
+chmod 0555 ~/go/pkg/mod/lib ~/go/pkg/mod
+snapshot 1 1
+chmod -R u+w ~/go && rm -r ~/go
+"$files" restore ~/go/pkg/mod/lib >/dev/null
+[[ $(cat ~/go/pkg/mod/lib/lib.go) == "code" && $(stat -c %a ~/go/pkg/mod) == "555" && $(stat -c %a ~/go/pkg/mod/lib) == "555" ]] ||
+  fail "restore brings back read-only folders as they were" "$(stat -c '%a %n' ~/go/pkg/mod ~/go/pkg/mod/lib)"
+! compgen -G "$HOME/go/pkg/mod/.*restoring*" >/dev/null || fail "restore leaves no partial copy beside a read-only folder"
+chmod -R u+w ~/go
+pass "restore brings back read-only folders as they were"
 
