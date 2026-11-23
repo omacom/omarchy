@@ -26,6 +26,17 @@ ShellRoot {
   property BackgroundIntro bootIntro: BackgroundIntro { host: shell }
   property BackgroundSwitch backgroundSwitch: BackgroundSwitch { intro: shell.bootIntro }
 
+  Connections {
+    target: Hyprland
+
+    function onRawEvent(event) {
+      if (event.name !== "changefloatingmode") return
+      const change = event.data.match(/^(?:0x)?([a-fA-F0-9]+),1$/)
+      if (change)
+        Quickshell.execDetached(["hyprctl", "eval", 'if o and o.enforce_tiled_window then o.enforce_tiled_window("address:0x' + change[1] + '") end'])
+    }
+  }
+
   property string home: Quickshell.env("HOME")
 
   // The omarchy-shell host is the long-running entry point. Plugins live in

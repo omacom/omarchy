@@ -52,6 +52,11 @@ if [[ $pinned == "true" ]]; then
     exit 1
   fi
 else
+  workspace=$(hyprctl activewindow -j | jq -r '.workspace.id // 0')
+  if (( workspace > 0 )) && [[ $(omarchy-hyprland-workspace-layout-current "$workspace") != "floating" ]]; then
+    exit 0
+  fi
+
   if [[ -n $x && -n $y ]]; then
     move_lua="hl.dsp.window.move({ window = \"$window\", x = $x, y = $y })"
   else
