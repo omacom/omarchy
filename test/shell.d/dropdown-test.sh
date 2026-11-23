@@ -26,7 +26,7 @@ cp "$ROOT/shell/Ui/Dropdown.qml" "$ROOT/shell/Ui/BorderSurface.qml" "$ROOT/shell
 cp "$SHELL_TEST_DIR/dropdown/qml/"* "$fixture/"
 
 output=$(HOME="$fixture/home" XDG_CONFIG_HOME="$fixture/home/.config" XDG_STATE_HOME="$fixture/home/.state" \
-  QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QUICK_CONTROLS_STYLE=Basic \
+  QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software QT_QUICK_CONTROLS_STYLE=Basic \
   "$qml_test_runner" -import "$fixture" -input "$fixture" -o -,txt 2>&1) ||
   fail "dropdown popup fits short lists and preserves capped scrolling" "$output"
 printf '%s\n' "$output" | sed -n '/^Totals:/p'

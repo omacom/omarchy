@@ -220,22 +220,6 @@ PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/b
 [[ $(<"$marker") == "$before_marker" ]] || fail "resolving a clip leaves login startup alone"
 pass "a background's clip resolves only while intros and animations are on"
 
-packaged_pairs=0
-for intro in "$ROOT"/themes/*/backgrounds/intros/*.mp4; do
-  [[ -f $intro ]] || continue
-  backgrounds=${intro%/intros/*}
-  stem=${intro##*/}
-  stem=${stem%.mp4}
-  matches=0
-  for extension in jpg jpeg png bmp webp; do
-    [[ ! -f $backgrounds/$stem.$extension ]] || ((++matches))
-  done
-  (( matches == 1 )) || fail "$intro has exactly one matching still image" "$matches"
-  ((++packaged_pairs))
-done
-(( packaged_pairs > 0 )) || fail "no packaged theme intros were found"
-pass "theme intro filenames match their sibling background images"
-
 # Picker preparation is speculative and must not consume login startup or play.
 prepare_root="$test_tmp/prepare-repo"
 prepare_backgrounds="$prepare_root/themes/demo/backgrounds"

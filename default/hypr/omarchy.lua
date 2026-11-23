@@ -5,6 +5,8 @@ local require_optional = require("default.hypr.require_optional")
 
 -- Use Omarchy defaults, but don't edit these directly.
 require("default.hypr.autostart")
+-- Before any monitor rule, so every one of them passes through it.
+require("default.hypr.wide-gamut")
 require("default.hypr.monitors")
 require("default.hypr.monitor-workspaces")
 require("default.hypr.window-switcher")
@@ -32,3 +34,6 @@ require("default.hypr.dictation-backend")
 
 -- Current theme overrides.
 require_optional.module("omarchy.current.theme.hyprland")
+
+-- Lighter defaults for a session that renders on the CPU, over the theme's.
+require("default.hypr.software-rendering")

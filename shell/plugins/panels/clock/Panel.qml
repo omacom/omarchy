@@ -95,18 +95,9 @@ Panel {
   function open() {
     refresh()
     root.controller.show()
-    // Set after showing, not before: showing hands the popout coordinator
-    // over, which closes whichever panel was open, and that close clears the
-    // shared flag. Deferring means the panel taking over always wins, while
-    // a handoff to a panel that does not manage the flag still leaves it
-    // cleared rather than stuck on.
-    Qt.callLater(function() {
-      if (root.opened) setCenterHoverRevealSuppressed(true)
-    })
   }
 
   function close() {
-    setCenterHoverRevealSuppressed(false)
     // Dismissing the panel mid-edit would otherwise leave the inputs up,
     // waiting behind a closed popup for the next time it opens.
     if (root.editingLife) root.cancelEditingLife()
@@ -122,15 +113,6 @@ Panel {
     if (root.bar && typeof root.bar.switchPanelFrom === "function")
       return root.bar.switchPanelFrom(root.barIdentity, direction)
     return false
-  }
-
-  // Summoning by hotkey moves no pointer, so a hover the bar was still
-  // holding must not keep the center indicators revealed behind the panel.
-  function setCenterHoverRevealSuppressed(value) {
-    if (root.bar && typeof root.bar.setCenterHoverRevealSuppressed === "function")
-      root.bar.setCenterHoverRevealSuppressed(value)
-    else if (root.bar && "centerHoverRevealSuppressed" in root.bar)
-      root.bar.centerHoverRevealSuppressed = value
   }
 
   function refresh() {

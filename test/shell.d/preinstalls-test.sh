@@ -174,3 +174,36 @@ touch "$mise_config"
 "$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
 [[ -f $mise_config ]] || fail "Remove Preinstalls leaves the package-owned mise declarations in place"
 pass "Remove Preinstalls leaves the package-owned mise declarations in place"
+
+# The real launcher refresh, with only the desktop database stubbed.
+refresh_bin="$test_tmp/refresh-bin"
+mkdir -p "$refresh_bin"
+printf '#!/bin/bash\nexit 0\n' >"$refresh_bin/update-desktop-database"
+printf '#!/bin/bash\nexit 1\n' >"$refresh_bin/omarchy-cmd-present"
+chmod +x "$refresh_bin"/*
+echo cn >"$test_tmp/region"
+region_home="$test_tmp/region-home"
+launchers="$region_home/.local/share/applications"
+mkdir -p "$launchers"
+cp "$ROOT/applications/YouTube.desktop" "$launchers/" # as /etc/skel seeds it
+refresh_region() {
+  HOME="$region_home" PATH="$refresh_bin:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_REGION_FILE="$test_tmp/region" "$ROOT/bin/omarchy-refresh-applications" "$@"
+}
+refresh_region
+[[ -f "$launchers/Bilibili.desktop" && -f "$launchers/Zoom.desktop" ]] || fail "a region installs the launchers on its list"
+for missing in X "Google Maps" Spotify HEY; do
+  [[ ! -e "$launchers/$missing.desktop" ]] || fail "a region installs no launcher its list leaves off" "$missing"
+done
+[[ -f "$launchers/YouTube.desktop" ]] || fail "a region refresh keeps launchers an existing home already has"
+pass "a region installs exactly the launchers on its list"
+
+# Every shipped launcher is on some region's list, and every list names only
+# shipped launchers, so a new launcher can't silently never install.
+shipped=$(cd "$ROOT/applications" && ls -- *.desktop | sed 's/\.desktop$//' | sort)
+listed() { sed -e 's/[[:space:]]*#.*//' -e '/^[[:space:]]*$/d' "$1" | sort; }
+[[ $(cat "$ROOT"/default/regions/*/applications | listed /dev/stdin | uniq) == "$shipped" ]] || fail "every shipped launcher is on some region's list"
+for list in "$ROOT"/default/regions/*/applications; do
+  unknown=$(comm -13 <(echo "$shipped") <(listed "$list"))
+  [[ -z $unknown ]] || fail "a regional launcher list names only shipped launchers" "$list: $unknown"
+done
+pass "launcher lists match the shipped launchers"
