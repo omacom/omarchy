@@ -1811,7 +1811,7 @@ Panel {
       // A code field keeps its own keys: Qt passes Return on after accepting
       // it, and here that would press the Cancel under the cursor too,
       // stopping the sign-in just handed its code.
-      blocked: root.renaming || root.deleteTarget !== null || pasteField.activeFocus
+      blocked: root.renaming || root.deleteTarget !== null || addView.pasteFocused
       onActivateRequested: root.activateSelection()
       onCloseRequested: {
         if (root.dragIndex >= 0) root.settleProviderDrag(true)
@@ -1925,6 +1925,7 @@ Panel {
           }
 
           AddView {
+            id: addView
             visible: root.addStage !== "" || root.blankSlate
             width: column.width
           }
@@ -2066,6 +2067,8 @@ Panel {
   component AddView: Column {
     id: add
     spacing: Style.space(14)
+    // The panel's key catcher can't see inside this component, so it asks here.
+    readonly property bool pasteFocused: pasteField.activeFocus
 
     PanelSeparator { foreground: root.foreground }
 
