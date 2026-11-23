@@ -108,7 +108,7 @@ jobs:
               trap - EXIT
               # Keep only the current release in the cache volume.
               for entry in "$cache_root"/*; do
-                [[ -d $entry && $(basename "$entry") != "$sha" ]] && rm -rf "$entry"
+                [[ -d $entry && $(basename "$entry") != $sha ]] && rm -rf "$entry"
               done
             fi
             image_dir="$cache_dir"

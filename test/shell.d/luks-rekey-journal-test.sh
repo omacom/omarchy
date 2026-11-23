@@ -551,6 +551,16 @@ for run_spec in "${matrix[@]}"; do
     done
   }
 
+  assert_platform_dispatch() {
+    if [[ $platform == "x86" ]]; then
+      [[ ! -e $tmp/mac-boot-ran ]] || fail "x86 $backend: no Mac boot entrypoint runs" "$(cat "$tmp/mac-boot-ran")"
+    else
+      [[ ! -e $tmp/limine-ran ]] || fail "apple $backend: the Limine UKI path never runs on Apple"
+      grep -qx provision-commit "$tmp/mac-boot-ran" && grep -qx provision-verify "$tmp/mac-boot-ran" ||
+        fail "apple $backend: the boot package commits and verifies the unlock"
+    fi
+  }
+
   if [[ $backend == "fake" ]]; then
     step_pids=()
     step_logs=()
@@ -565,6 +575,7 @@ for run_spec in "${matrix[@]}"; do
         sed "s|$parent_tmp/etc/|$tmp/etc/|g" "$parent_tmp/provision.sh" >"$tmp/provision.sh"
         install_mac_boot "$tmp"
         run_step_case "$step"
+        assert_platform_dispatch
         rm -rf "$tmp"
       ) >"$step_log" 2>&1 &
       step_pids+=("$!")
@@ -589,13 +600,10 @@ for run_spec in "${matrix[@]}"; do
     pass "x86 $backend: killed after each of $total_steps steps, setup resumes to a disk that opens with the account's password"
   fi
 
+  assert_platform_dispatch
   if [[ $platform == "x86" ]]; then
-    [[ ! -e $tmp/mac-boot-ran ]] || fail "x86 $backend: no Mac boot entrypoint runs" "$(cat "$tmp/mac-boot-ran")"
     pass "x86 $backend: dispatch is a no-op and the Limine UKI path runs unchanged"
   else
-    [[ ! -e $tmp/limine-ran ]] || fail "apple $backend: the Limine UKI path never runs on Apple"
-    grep -qx provision-commit "$tmp/mac-boot-ran" && grep -qx provision-verify "$tmp/mac-boot-ran" ||
-      fail "apple $backend: the boot package commits and verifies the unlock"
     pass "apple $backend: the boot package owns the boot-time unlock through dispatch"
   fi
 done
