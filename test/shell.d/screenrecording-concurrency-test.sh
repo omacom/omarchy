@@ -23,7 +23,15 @@ if [[ ${1:-} != "--pid" || $2 == "123" ]]; then
   exit 1
 fi
 [[ -f $TEST_STATE/recorder-pid && $2 == "$(<"$TEST_STATE/recorder-pid")" ]] || exit 1
-if [[ ${3:-} == "--signal" ]]; then kill -TERM "$2"; else kill -0 "$2" 2>/dev/null; fi
+if [[ ${3:-} == "--signal" ]]; then
+  if [[ ${TEST_ROLE:-} == "draining-stop" ]]; then
+    touch "$TEST_STATE/checked"
+    read -r _ <"$TEST_STATE/release"
+  fi
+  kill -TERM "$2"
+else
+  kill -0 "$2" 2>/dev/null
+fi
 SH
 cat >"$tmp/bin/wf-recorder" <<'SH'
 #!/bin/bash
@@ -55,6 +63,10 @@ cat >"$tmp/bin/flock" <<'SH'
 #!/bin/bash
 [[ ${TEST_ROLE:-} == "new-start" ]] && touch "$TEST_STATE/lock-attempted"
 if [[ ${1:-} == "-w" && ${2:-} == "1" ]]; then
+  if [[ -n ${TEST_FINISH_PROCESSING:-} ]]; then
+    echo release >"$TEST_STATE/release"
+    while [[ -e $XDG_RUNTIME_DIR/omarchy-screenrecord-processing ]]; do sleep 0.01; done
+  fi
   shift 2
   set -- -w 0.2 "$@"
 fi
@@ -89,13 +101,17 @@ echo Virtual-1
 SH
 cat >"$tmp/bin/ffmpeg" <<'SH'
 #!/bin/bash
-if [[ ${TEST_ROLE:-} == "old-stop" && ! -e $TEST_STATE/checked ]]; then
+if [[ ${TEST_ROLE:-} == "old-stop" && ${@: -3:1} == *-processed.mp4 ]]; then
   touch "$TEST_STATE/checked"
   read -r _ <"$TEST_STATE/release"
 fi
 touch "${@: -3:1}"
 SH
-for command in omarchy-shell omarchy-notification-send ffprobe pkill; do
+cat >"$tmp/bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$TEST_STATE/notifications"
+SH
+for command in omarchy-shell ffprobe pkill; do
   printf '#!/bin/bash\nexit 0\n' >"$tmp/bin/$command"
 done
 cat >"$tmp/bin/omarchy-shell" <<'SH'
@@ -164,24 +180,60 @@ pass "stale status cleanup cannot unload a concurrent new recording's audio"
 rm -f "$tmp/checked" "$tmp/lock-attempted"
 TEST_ROLE=old-stop "$record" --stop-recording >/dev/null 2>&1 & old=$!
 wait_for "$tmp/checked"
+grep -q 'Processing screen recording' "$tmp/notifications" || fail "stopping announces processing before ffmpeg finishes"
+rm "$tmp/notifications"
 rm "$tmp/recorder-pid"
-stop_locked=0
-if ! /usr/bin/flock -n "$XDG_RUNTIME_DIR/omarchy-screenrecord.lock" true; then stop_locked=1; fi
 TEST_ROLE=new-start "$record" --fullscreen --resolution=1280x800 --with-desktop-audio --with-microphone-audio >/dev/null 2>&1 & new=$!
 wait_for "$tmp/lock-attempted" "$tmp/recorder-pid"
-if (( ! stop_locked )); then
-  wait "$new" || fail "the concurrent recording starts while the old stop is paused"
-  new=""
-fi
+timeout 5 tail --pid="$new" -f /dev/null || fail "a toggle during processing returns without queueing"
+wait "$new" || fail "a toggle during processing reports the busy state"
+grep -q 'Please wait until processing finishes' "$tmp/notifications" || fail "a rejected toggle explains why recording cannot start"
+[[ ! -e $tmp/recorder-pid ]] || fail "a toggle during processing does not start a recorder"
+[[ ! -e $XDG_RUNTIME_DIR/omarchy-screenrecord-cancel ]] || fail "processing does not leave a queued cancellation"
+timeout 5 "$record" --stop-recording >/dev/null 2>&1 || fail "a repeated stop during processing returns"
+status=0
+timeout 5 "$record" --status >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "processing is not reported as active capture"
 echo release >"$tmp/release"
 wait "$old" || fail "the old recording stops"
-if [[ -n $new ]]; then
-  wait "$new" || fail "another recording starts after stop"
-fi
+[[ ! -e $tmp/recorder-pid ]] || fail "no delayed recording starts after processing"
+[[ ! -e $XDG_RUNTIME_DIR/omarchy-screenrecord-processing ]] || fail "processing state is cleared"
+"$record" --fullscreen --resolution=1280x800 --with-desktop-audio --with-microphone-audio >/dev/null 2>&1 || fail "an explicit recording starts after processing"
 assert_recording
-pass "a finishing stop cannot remove a concurrent new recording's state"
+pass "processing rejects queued toggles and repeated stops without losing saved state"
 
 "$record" --stop-recording >/dev/null 2>&1 || fail "the earlier recording stops"
+
+# Finish processing before the timed lock acquisition, or hold the recorder's
+# shutdown itself: requests in either window must not become later actions.
+for phase in processing draining; do
+  for second in toggle stop; do
+    rm -f "$tmp/checked" "$tmp/recorder-pid" "$tmp/recordings/"*
+    "$record" --fullscreen --resolution=1280x800 >/dev/null 2>&1 || fail "the recording before $phase starts"
+    role=old-stop
+    [[ $phase == "draining" ]] && role=draining-stop
+    TEST_ROLE=$role "$record" --stop-recording >/dev/null 2>&1 & old=$!
+    wait_for "$tmp/checked"
+    args=(--fullscreen --resolution=1280x800)
+    [[ $second == "stop" ]] && args=(--stop-recording)
+    finish=""
+    [[ $phase == "processing" ]] && finish=1
+    TEST_FINISH_PROCESSING=$finish "$record" "${args[@]}" >/dev/null 2>&1 & request=$!
+    timeout 5 tail --pid="$request" -f /dev/null || fail "a $second during $phase returns without waiting for the stop"
+    wait "$request" || fail "a $second during $phase does not open the menu"
+    if kill -0 "$old" 2>/dev/null; then echo release >"$tmp/release"; fi
+    wait "$old" || fail "the $phase stop finishes"
+    ! "$record" --status >/dev/null 2>&1 || fail "a $second during $phase does not start a later recording"
+    [[ ! -e $XDG_RUNTIME_DIR/omarchy-screenrecord-cancel ]] || fail "a $second during $phase leaves no queued cancellation"
+    pass "a $second during $phase is consumed even when the lock wait could succeed"
+  done
+done
+
+echo $$ >"$XDG_RUNTIME_DIR/omarchy-screenrecord-processing"
+"$record" --fullscreen --resolution=1280x800 >/dev/null 2>&1 || fail "a free lock permits a new recording with a leftover processing marker"
+[[ ! -e $XDG_RUNTIME_DIR/omarchy-screenrecord-processing ]] || fail "a free lock discards a leftover processing marker even when its PID is live"
+"$record" --stop-recording >/dev/null 2>&1 || fail "the recording after a leftover processing marker stops"
+pass "a leftover processing marker with a reused PID does not swallow a later toggle"
 
 # A recorder that never creates its file keeps the start waiting. Another
 # toggle, or a stop, cancels that start instead of queueing a new one behind it.
