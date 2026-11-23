@@ -74,10 +74,15 @@ parse_keycodes() {
 
       # Read off the keysym rather than the keycode, so the key left of 1 reads
       # as the symbol printed on it whichever key the active layout puts it on.
+      # Plain punctuation words like MINUS stay; keysym names nobody would
+      # recognize on their keyboard, like TWOSUPERIOR, read as the symbol.
+      split("GRAVE=~ DEAD_GRAVE=~ ASCIICIRCUM=^ DEAD_CIRCUMFLEX=^ ONEHALF=½ SECTION=§ TWOSUPERIOR=² MASCULINE=º BAR=|", printed_symbols, " ")
+      for (i in printed_symbols) {
+        separator = index(printed_symbols[i], "=")
+        printed[substr(printed_symbols[i], 1, separator - 1)] = substr(printed_symbols[i], separator + 1)
+      }
       for (code in keycode_symbol) {
-        if (keycode_symbol[code] == "GRAVE") keycode_symbol[code] = "~"
-        if (keycode_symbol[code] == "ASCIICIRCUM" || keycode_symbol[code] == "DEAD_CIRCUMFLEX") keycode_symbol[code] = "^"
-        if (keycode_symbol[code] == "ONEHALF") keycode_symbol[code] = "½"
+        if (keycode_symbol[code] in printed) keycode_symbol[code] = printed[keycode_symbol[code]]
       }
 
       mouse_symbol["272"] = "LEFT MOUSE BUTTON"
