@@ -84,7 +84,8 @@ done
 cat >"$trusted_root_bin/tee" <<'EOF'
 #!/bin/bash
 if [[ -n ${TEST_PAM_TEE_FAIL:-} ]] && [[ "$1" == "$TEST_PAM_TEE_FAIL" ]]; then
-  echo "tee: $1: cannot create: Input/output error" >&2
+  /usr/bin/head -c 12 >"$1"
+  echo "tee: $1: Input/output error" >&2
   exit 1
 fi
 exec /usr/bin/tee "$@"
