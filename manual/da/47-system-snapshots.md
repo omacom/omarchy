@@ -1,25 +1,21 @@
 # Systemsnapshots
 
-Vi opretter snapshots automatisk ved hver Omarchy-opdatering, men skulle du ønske at oprette dine egne, kan du bruge `omarchy-snapshot create`.
+Vi opretter automatisk snapshots ved hver Omarchy-opdatering, men hvis du vil oprette dine egne, kan du bruge `omarchy-snapshot create`.
 
-For at boote og gendanne et snapshot vælger du det fra Limine-bootloaderen. (Hvis du aktuelt booter direkte til Omarchy-dekrypteringsskærmen, skal du først vælge Limine som en bootmulighed via BIOS.)
+For at starte op fra og gendanne et snapshot vælger du det i Limine-bootloaderen. Opstartsmenuen er skjult som standard, så tryk på en vilkårlig tast, så snart Limine starter, for at få den frem.
 
-Fra den skærm vælger du det snapshot, du gerne vil boote ind i, baseret på dato og version. Versionen af Omarchy på snapshot-tidspunktet kan ses i nederste venstre hjørne.
+På den skærm vælger du det snapshot, du vil starte op i, ud fra dato og version. Den version af Omarchy, der var aktiv, da snapshottet blev taget, kan ses i nederste venstre hjørne.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Når du ankommer indeni, vil en notifikation dukke op og underrette dig om, at du er i et bootbart snapshot, og hvis du klikker på den, vil det starte gendannelsesprocessen. Alternativt kan du benytte `omarchy-snapshot restore`.
+Når du er kommet ind, dukker der en notifikation op, der fortæller dig, at du er i et snapshot, der kan startes op fra, og hvis du klikker på den, starter gendannelsesprocessen. Alternativt kan du bruge `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Dette vil gendanne dit rodfilsystem, men ikke dit `/home`. Så det virker til at fortryde en ødelagt systemopdatering, men ikke til at gendanne mistede personlige filer.
+Dette gendanner dit rodfilsystem, men ikke dit `/home`. Så det virker til at rulle en ødelagt systemopdatering tilbage, men ikke til at gendanne mistede personlige filer.
 
-Det betyder også, at din `~/.config`-mappe beholdes, som den er. Så hvis du ruller tilbage til en tidligere version af et bibliotek eller en app, der gemmer konfigurationsfiler i et nyt format, skal du sortere det manuelt.
+Det betyder også, at dit `~/.config`-bibliotek forbliver, som det er. Så hvis du ruller tilbage til en tidligere version af et bibliotek eller en applikation, der gemmer konfigurationsfiler i et nyt format, må du selv ordne det manuelt.
 
-_Bemærk: Denne funktion er kun tilgængelig på installationer, der bruger Limine-bootloaderen, som har været standarden siden Omarchy 2.0. Den er ikke tilgængelig, hvis du er på GRUB eller systemd-boot._
+Det samme gælder Omarchys egen registrering af, hvilke migrationer der allerede har kørt: den ligger i dit hjemmebibliotek, så den overlever gendannelsen. Migrationer, der kørte, efter snapshottet blev taget, forbliver markeret som færdige, selvom de ændringer, de lavede i rodfilsystemet, er blevet rullet tilbage, og den næste `omarchy update` vil ikke køre dem igen. Så hvis du opdaterer igen efter en gendannelse, og noget, som en tidligere opdatering havde sat op, stadig mangler, er det den sandsynlige årsag.
 
-### Spring bootmenuen over
-
-Hvis du aldrig rører bootmenuen og bare vil have maskinen til at gå direkte til dekrypteringsskærmen, så kør _Opsætning > Direkte opstart_ i Omarchy-menuen. Det tilføjer en EFI-post, der peger direkte på Omarchy, så firmwaren booter den uden at stoppe ved Limine.
-
-Kompromiset er det, der nævnes øverst: med direkte opstart tændt betyder det at komme til et snapshot først at vælge Limine fra din BIOS-bootmenu. Kør _Opsætning > Direkte opstart_ igen for at fjerne posten og gå tilbage til at boote gennem Limine. Nogle firmware tager ikke venligt imod brugerdefinerede EFI-poster, så opsætningen nægter at køre på American Megatrends- og Apple-firmware.
+_Bemærk: Denne funktion er kun tilgængelig på installationer, der bruger Limine-bootloaderen, som har været standarden siden Omarchy 2.0. Den er ikke tilgængelig, hvis du bruger GRUB eller systemd-boot._

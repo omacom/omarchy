@@ -1,25 +1,21 @@
-# Rendszer-pillanatképek
+# Rendszerpillanatképek
 
-Minden Omarchy-frissítéskor automatikusan létrehozunk pillanatképeket, de ha sajátot szeretnél létrehozni, használhatod az `omarchy-snapshot create` parancsot.
+Minden Omarchy frissítéskor automatikusan létrehozunk pillanatképeket, de ha sajátot szeretnél készíteni, használhatod az `omarchy-snapshot create` parancsot.
 
-Egy pillanatkép indításához és visszaállításához a Limine rendszerbetöltőből választod ki. (Ha jelenleg egyenesen az Omarchy dekódolási képernyőjére indulsz, először a BIOS-ból kell a Limine-t rendszerindítási lehetőségként kiválasztanod).
+Pillanatkép indításához és visszaállításához a Limine rendszerbetöltőből kell kiválasztanod. A rendszerindító menü alapértelmezés szerint rejtve marad, ezért nyomj meg bármilyen billentyűt, amint a Limine elindul, hogy megjelenjen.
 
-Arról a képernyőről válaszd ki azt a pillanatképet, amelybe be szeretnél indulni, a dátum és a verzió alapján. Az Omarchy verziója a pillanatkép időpontjában a bal alsó sarokban látható.
+Ezen a képernyőn a dátum és a verzió alapján válaszd ki azt a pillanatképet, amelyet el szeretnél indítani. A pillanatkép készítésekor használt Omarchy verziója a bal alsó sarokban látható.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Amikor beérsz, egy értesítés ugrik fel, jelezve, hogy egy indítható pillanatképben vagy, és ha rákattintasz, elindítja a visszaállítási folyamatot. Alternatívaként használhatod az `omarchy-snapshot restore` parancsot.
+Amikor bejutottál, egy értesítés jelenik meg, amely tájékoztat arról, hogy indítható pillanatképben vagy, és ha rákattintasz, elindul a visszaállítási folyamat. Alternatívaként használhatod az `omarchy-snapshot restore` parancsot.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Ez visszaállítja a gyökér fájlrendszered, de a `/home` mappádat nem. Így működik egy tört rendszerfrissítés visszavonásához, de elveszett személyes fájlok visszaállításához nem.
+Ez visszaállítja a gyökér fájlrendszeredet, de a `/home` könyvtáradat nem. Tehát működik egy hibás rendszerfrissítés visszaállítására, de elveszett személyes fájlok helyreállítására nem.
 
-Ez azt is jelenti, hogy a `~/.config` könyvtárad változatlanul megmarad. Így ha egy olyan könyvtár vagy alkalmazás korábbi verziójára állsz vissza, amely új formátumban tárol konfigurációs fájlokat, azt kézzel kell rendezned.
+Ez azt is jelenti, hogy a `~/.config` könyvtárad változatlan marad. Tehát ha visszaállsz egy olyan könyvtár vagy alkalmazás korábbi verziójára, amely új formátumban tárolja a konfigurációs fájljait, ezt manuálisan kell majd rendezned.
 
-_Megjegyzés: Ez a funkció csak a Limine rendszerbetöltőt használó telepítéseken érhető el, amely az Omarchy 2.0 óta az alapértelmezett. Nem érhető el, ha GRUB-on vagy systemd-booton vagy._
+Ugyanez vonatkozik az Omarchy saját nyilvántartására arról, hogy mely migrációk futottak már le: ez a saját könyvtáradban él, így túléli a visszaállítást. Azok a migrációk, amelyek a pillanatkép készítése után futottak, továbbra is végrehajtottként maradnak megjelölve, annak ellenére, hogy a gyökér fájlrendszeren végrehajtott módosításaikat visszavontuk, és a következő `omarchy update` nem futtatja őket újra. Tehát ha egy visszaállítás után újra frissítesz, és valami, amit egy korábbi frissítés beállított, továbbra is hiányzik, valószínűleg ez az oka.
 
-### A rendszerindítási menü átugrása
-
-Ha soha nem nyúlsz a rendszerindítási menühöz, és csak azt akarod, hogy a gép egyenesen a dekódolási képernyőre menjen, futtasd az Omarchy menü _Beállítás > Közvetlen indítás_ pontját. Ez egy EFI-bejegyzést ad hozzá, amely közvetlenül az Omarchyra mutat, így a firmware anélkül indítja, hogy megállna a Limine-nál.
-
-A kompromisszum az a fejezet elején említett: bekapcsolt közvetlen indítással egy pillanatképhez jutáshoz először a BIOS rendszerindítási menüjéből kell a Limine-t kiválasztani. Futtasd újra a _Beállítás > Közvetlen indítás_ pontot a bejegyzés eltávolításához és a Limine-on keresztüli indításra való visszatéréshez. Egyes firmware-ek nem viselik jól az egyéni EFI-bejegyzéseket, így a beállítás nem fut le American Megatrends és Apple firmware-en.
+_Megjegyzés: Ez a funkció csak olyan telepítéseken érhető el, amelyek a Limine rendszerbetöltőt használják, amely az Omarchy 2.0 óta az alapértelmezett. Nem érhető el, ha GRUB vagy systemd-boot rendszerbetöltőt használsz._

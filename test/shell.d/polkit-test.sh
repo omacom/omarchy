@@ -22,6 +22,17 @@ assertEqual(
   'polkit preserves custom authorization messages'
 )
 
+// A command that knows what its pkexec is for labels the prompt for that
+// program once, within its minute; any other prompt keeps its own.
+const pacman = "Authentication is needed to run `/usr/bin/pacman' as the super user"
+const expected = { program: '/usr/bin/pacman', label: 'Authorize installing ChatGPT Desktop', until: 1000 }
+assertEqual(polkit.expectedLabel(pacman, expected, 500), 'Authorize installing ChatGPT Desktop', 'a prompt for the program a command expected says what it asked')
+assertEqual(polkit.expectedLabel("Authentication is needed to run `/usr/bin/true' as the super user", expected, 500), '', 'a prompt for another program keeps its own label')
+assertEqual(polkit.expectedLabel('Authentication is required to change system settings', expected, 500), '', 'a prompt that names no program keeps its own label')
+assertEqual(polkit.expectedLabel(pacman, expected, 1001), '', 'a label not used within its minute is dropped')
+assertEqual(polkit.expectedLabel(pacman, null, 500), '', 'with nothing expected a prompt keeps its own label')
+assertEqual(polkit.promptProgram(pacman), '/usr/bin/pacman', 'a pkexec prompt names the program it runs, which a label never hides')
+
 assert(
   polkit.fingerprintConfiguredFromPamConfig(`
 # comment

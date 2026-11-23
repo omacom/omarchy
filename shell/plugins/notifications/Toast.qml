@@ -125,12 +125,11 @@ Item {
     return out
   }
 
-  // Marks on the headline rather than buttons: buttons cost height, and a
-  // collapsed deck draws every card at the tallest one's height.
+  // Marks on the headline. Buttons say for themselves that a card can be
+  // acted on; a verification code is marked even where they are hidden.
   readonly property var marks: {
     var out = []
     if (String(row.code || "")) out.push("\u{f0306}")
-    if (actions.length > 0 || execActions.length > 0) out.push("\u{f0cfd}")
     return out
   }
 
@@ -521,15 +520,16 @@ Item {
 
     // The buttons, as a bar along the card's bottom edge: a hairline above,
     // equal segments split by hairlines, three to a line, and a short last line
-    // stretched across. Drawn in the card because the surface is clipped, and
-    // only under the pointer, or the keyboard, in an open deck.
+    // stretched across. Drawn in the card because the surface is clipped. In
+    // an open deck only the card under the pointer, or the keyboard, has them;
+    // otherwise the front card of each deck does.
     Item {
       id: deedArea
       anchors { left: parent.left; right: parent.right; bottom: parent.bottom
                 leftMargin: plate.borderLeft; rightMargin: plate.borderRight
                 bottomMargin: plate.borderBottom }
 
-      readonly property bool shown: card.hovered && card.expanded && card.allDeeds.length > 0
+      readonly property bool shown: card.allDeeds.length > 0 && (card.expanded ? card.hovered : card.place.front)
       readonly property int columns: Math.max(1, Math.min(3, card.allDeeds.length))
       readonly property int rows: Math.ceil(card.allDeeds.length / columns)
       readonly property real rule: 1

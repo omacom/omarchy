@@ -1,25 +1,21 @@
 # Mga snapshot ng sistema
 
-Awtomatiko kaming gumagawa ng mga snapshot sa bawat update ng Omarchy, pero kung gusto mong gumawa ng sarili mo, maaari mong gamitin ang `omarchy-snapshot create`.
+Awtomatikong gumagawa kami ng mga snapshot sa bawat update ng Omarchy, ngunit kung gusto mong gumawa ng sarili mo, maaari mong gamitin ang `omarchy-snapshot create`.
 
-Para i-boot at ibalik ang isang snapshot, pipiliin mo ito mula sa boot loader na Limine. (Kung kasalukuyan kang dumidiretso sa screen ng pag-decrypt ng Omarchy, kakailanganin mong piliin ang Limine bilang opsyon sa pag-boot sa pamamagitan ng BIOS muna).
+Para mag-boot at mag-restore ng snapshot, piliin ito mula sa Limine boot loader. Nananatiling nakatago ang boot menu bilang default, kaya pindutin ang anumang key sa sandaling magsimula ang Limine para ipakita ito.
 
-Mula sa screen na iyon, piliin ang snapshot na gusto mong i-boot batay sa petsa at bersyon. Ang bersyon ng Omarchy sa oras ng snapshot ay makikita sa kaliwang sulok sa ibaba.
+Mula sa screen na iyon, piliin ang snapshot na gusto mong i-boot batay sa petsa at bersyon. Makikita ang bersyon ng Omarchy noong ginawa ang snapshot sa kaliwang ibabang sulok.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Kapag nakapasok ka na sa loob, lalabas ang isang notipikasyon na nagpapaalam sa iyo na nasa isang bootable na snapshot ka at kung i-click mo ito, sisimulan nito ang proseso ng pagbabalik. Bilang alternatibo, maaari mong gamitin ang `omarchy-snapshot restore`.
+Pagdating mo sa loob, may lalabas na notification na nagpapaalam sa iyo na nasa isang bootable na snapshot ka at kung iki-click mo ito, magsisimula ang proseso ng pag-restore. Bilang alternatibo, maaari mong gamitin ang `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Ibabalik nito ang root filesystem mo, pero hindi ang `/home` mo. Kaya gumagana ito para sa pagbabalik ng isang sirang update ng sistema, pero hindi para sa pagbawi ng nawawalang personal na file.
+Ire-restore nito ang root filesystem mo, ngunit hindi ang `/home` mo. Kaya gumagana ito para i-revert ang isang nasirang update ng sistema, ngunit hindi para mabawi ang mga nawalang personal na file.
 
-Ibig sabihin din nito na ang direktoryo mong `~/.config` ay pinapanatili kung ano ito. Kaya kung nagro-rollback ka sa mas naunang bersyon ng isang library o aplikasyon na nag-iimbak ng mga file ng konpigurasyon sa bagong format, kakailanganin mong ayusin iyon nang mano-mano.
+Nangangahulugan din ito na mananatili ang `~/.config` directory mo kung ano ito. Kaya kung magro-roll back ka sa mas lumang bersyon ng isang library o application na nag-iimbak ng mga configuration file sa bagong format, kailangan mong ayusin iyon nang manu-mano.
 
-_Tandaan: Ang tampok na ito ay available lang sa mga pag-install na gumagamit ng boot loader na Limine, na siyang default mula pa noong Omarchy 2.0. Hindi ito available kung nasa GRUB o systemd-boot ka._
+Ganito rin ang nangyayari sa sariling talaan ng Omarchy kung aling mga migration ang naisagawa na: nasa home directory mo ito, kaya nananatili ito pagkatapos ng restore. Ang mga migration na tumakbo pagkatapos kunin ang snapshot ay mananatiling nakamarka bilang tapos na, kahit na na-roll back na ang mga pagbabagong ginawa nila sa root filesystem, at hindi na sila muling patatakbuhin ng susunod na `omarchy update`. Kaya kung mag-update ka ulit pagkatapos ng isang restore at may kulang pa ring isang bagay na itinakda ng isang naunang update, iyon ang malamang na dahilan.
 
-### Paglaktaw sa menu ng boot
-
-Kung hindi mo kailanman ginagalaw ang menu ng boot at gusto mo lang dumiretso ang makina sa screen ng pag-decrypt, patakbuhin ang _Pag-setup > Direktang Boot_ sa menu ng Omarchy. Nagdadagdag iyon ng isang entry ng EFI na direktang nakaturo sa Omarchy, kaya ibo-boot ito ng firmware nang hindi humihinto sa Limine.
-
-Ang kapalit ay ang nabanggit sa itaas: kapag naka-on ang direktang boot, ang pagpunta sa isang snapshot ay nangangahulugang pipiliin mo muna ang Limine mula sa menu ng boot ng BIOS mo. Patakbuhin ulit ang _Pag-setup > Direktang Boot_ para alisin ang entry at bumalik sa pag-boot sa pamamagitan ng Limine. Ang ilang firmware ay hindi mahilig sa mga custom na entry ng EFI, kaya tumatanggi ang setup na tumakbo sa firmware ng American Megatrends at Apple.
+_Tandaan: Available lang ang feature na ito sa mga installation na gumagamit ng Limine boot loader, na naging default mula pa noong Omarchy 2.0. Hindi ito available kung nasa GRUB o systemd-boot ka._
