@@ -12,7 +12,7 @@ You can then hit `Super + J` to stack them on top of each other instead of side 
 
 Hit `Super + J` again to return them to their side-by-side positions. Then try `Super + Shift + Arrow Right` while in the browser to swap the windows.
 
-Now try `Super + Shift + T` to start the Activity monitor. That will appear as a floating window. You can tile it using `Super + T` (and hit that again to make it floating again). Now press `Super + Shift + F` to open the file manager. You'll have a neat four-way setup:
+Now try `Super + Shift + T` to tile the Activity monitor next to your other windows. Then press `Super + Shift + F` to open the file manager for a four-way setup:
 
  ![navigation-fourway-tiling](images/navigation-fourway-tiling.webp)
 
@@ -68,7 +68,7 @@ You can move a window out of the grouping with `Super + Alt + G` or disassemble 
 
 ### Popping windows
 
-You can pop a window out of its workspace allocation with `Super + O`. That'll pin it as a floating window that follows you on whatever workspace you go to. Great for video players and the like.
+In Floating mode, press `Super + O` to pin a window so it follows you between floating workspaces. Press it again to unpin the window. If you switch to a Tiling or Scrolling workspace, the window joins that workspace's tiles.
 
  ![navigation-popped-window](images/navigation-popped-window.webp)
 
