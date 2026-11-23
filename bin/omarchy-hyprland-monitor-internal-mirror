@@ -5,7 +5,6 @@
 
 TOGGLE="internal-monitor-mirror"
 TOGGLE_FLAG="$HOME/.local/state/omarchy/toggles/hypr/$TOGGLE.lua"
-DISABLE_TOGGLE="internal-monitor-disable"
 
 INTERNAL=$(omarchy-hyprland-monitor-laptop)
 # Every active external monitor shows the internal display, as a Mac mirrors
@@ -32,7 +31,7 @@ on() {
     fi
   done
 
-  omarchy-hyprland-toggle $DISABLE_TOGGLE off
+  omarchy-hyprland-monitor-internal on
 
   if omarchy-hyprland-toggle-disabled $TOGGLE; then
     for external in "${EXTERNALS[@]}"; do
