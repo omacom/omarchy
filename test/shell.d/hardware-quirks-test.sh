@@ -112,12 +112,22 @@ SH
 cat >"$stub_bin/omarchy-pkg-add" <<'SH'
 #!/bin/bash
 printf 'pkg-add %s\n' "$*" >>"$CALLS"
+case " ${FAKE_PKG_ADD_FAIL:-} " in
+  *" $* "*) exit 1 ;;
+esac
 exit "$FAKE_PKG_ADD_STATUS"
 SH
 
 cat >"$stub_bin/omarchy-pkg-drop" <<'SH'
 #!/bin/bash
 printf 'pkg-drop %s\n' "$*" >>"$CALLS"
+SH
+
+cat >"$stub_bin/omarchy-pkg-present" <<'SH'
+#!/bin/bash
+for package in "$@"; do
+  [[ " ${FAKE_INSTALLED_PKGS:-} " == *" $package "* ]] || exit 1
+done
 SH
 
 # The firmware the device tree names that is not installed yet.
@@ -137,6 +147,7 @@ cat >"$stub_bin/pacman" <<'SH'
 name=${!#}
 providers=$(awk -v name="$name" '$1 == name { print $2 }' "$FAKE_PROVIDERS")
 case $1 in
+  -Si) [[ " ${FAKE_AVAILABLE_PKGS:-} " == *" $name "* ]] ;;
   -T)
     for package in $providers; do
       grep -qx "pkg-add $package" "$CALLS" && exit 0
@@ -194,7 +205,8 @@ machine() {
   printf '%s\n' '-- User look and feel' >"$root/home/.config/hypr/looknfeel.lua"
   : >"$hw/input-devices"
   FAKE_PLATFORM=x86 FAKE_LSMOD="" FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Alder Lake\n\tKernel driver in use: i915"
-  FAKE_MODPROBE_RESOLVES=0 FAKE_MODPROBE_STATUS=0 FAKE_PKG_ADD_STATUS=0 FAKE_APPLY_STATUS=0 FAKE_MISSING_FIRMWARE="" FAKE_COMPATIBLE=""
+  FAKE_MODPROBE_RESOLVES=0 FAKE_MODPROBE_STATUS=0 FAKE_PKG_ADD_STATUS=0 FAKE_PKG_ADD_FAIL="" FAKE_APPLY_STATUS=0 FAKE_MISSING_FIRMWARE="" FAKE_COMPATIBLE=""
+  FAKE_AVAILABLE_PKGS="" FAKE_INSTALLED_PKGS=""
   unset OMARCHY_IMAGE_DEFERRED_HARDWARE
 
   dmi() { printf '%s\n' "$2" >"$hw/dmi/$1"; }
@@ -317,6 +329,18 @@ machine() {
     wcn6855-card) ath12k 1103 ;;
     wcn6855-card-first-boot) ath12k 1103 board-data; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
     qualcomm-no-wifi) FAKE_LSPCI="0004:00:00.0 PCI bridge [0604]: Qualcomm Technologies, Inc SC8380XP PCIe Root Complex [17cb:0111]" ;;
+    # The wl parts these Macs carry. Package availability is what separates a
+    # patched BCM4360 from the stock fallback.
+    bcm4360) FAKE_LSPCI="03:00.0 Network controller [0280]: Broadcom Inc. BCM4360 [14e4:43a0]"; FAKE_AVAILABLE_PKGS=broadcom-wl-wpa3-dkms ;;
+    bcm4360-package-missing) machine bcm4360; FAKE_AVAILABLE_PKGS="" ;;
+    bcm4360-install-fails) machine bcm4360; FAKE_PKG_ADD_FAIL=broadcom-wl-wpa3-dkms ;;
+    bcm4360-stock-installed) machine bcm4360; FAKE_INSTALLED_PKGS=broadcom-wl-dkms ;;
+    bcm4360-patched-installed) machine bcm4360; FAKE_INSTALLED_PKGS=broadcom-wl-wpa3-dkms ;;
+    bcm4360-aarch64) machine bcm4360; FAKE_PLATFORM=aarch64 ;;
+    bcm4331) FAKE_LSPCI="03:00.0 Network controller [0280]: Broadcom Inc. BCM4331 [14e4:4331]" ;;
+    bcm-mixed) FAKE_LSPCI="03:00.0 Network controller [0280]: Broadcom Inc. BCM4360 [14e4:43a0]\n04:00.0 Network controller [0280]: Broadcom Inc. BCM4331 [14e4:4331]" ;;
+    bcm4331-stock-installed|bcm-mixed-stock-installed) machine "${name%-stock-installed}"; FAKE_INSTALLED_PKGS=broadcom-wl-dkms ;;
+    bcm4331-patched-installed|bcm-mixed-patched-installed) machine "${name%-patched-installed}"; FAKE_INSTALLED_PKGS=broadcom-wl-wpa3-dkms ;;
     nouveau) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau" ;;
     nouveau-proprietary) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau"; : >"$hw/nvidia.conf" ;;
     *) fail "hardware-quirks-test knows the machine '$name'" ;;
@@ -325,7 +349,8 @@ machine() {
   if [[ $1 == *+unreadable ]]; then
     chmod 000 "$hw/dmi"/*
   fi
-  export FAKE_PLATFORM FAKE_LSMOD FAKE_LSPCI FAKE_MODPROBE_RESOLVES FAKE_MODPROBE_STATUS FAKE_PKG_ADD_STATUS FAKE_APPLY_STATUS FAKE_MISSING_FIRMWARE FAKE_COMPATIBLE
+  export FAKE_PLATFORM FAKE_LSMOD FAKE_LSPCI FAKE_MODPROBE_RESOLVES FAKE_MODPROBE_STATUS FAKE_PKG_ADD_STATUS FAKE_PKG_ADD_FAIL FAKE_APPLY_STATUS FAKE_MISSING_FIRMWARE FAKE_COMPATIBLE
+  export FAKE_AVAILABLE_PKGS FAKE_INSTALLED_PKGS
 }
 
 snapshot() {
@@ -567,6 +592,19 @@ hardware/intel/video-acceleration.sh|nouveau|0
 user/hardware/fix-nouveau-cursor.sh|nouveau|0|wrote home/.config/hypr/looknfeel.lua
 # Supported GPUs still use nouveau during installation before switching drivers on reboot.
 user/hardware/fix-nouveau-cursor.sh|nouveau-proprietary|0
+hardware/fix-bcm43xx.sh|bcm4360|0|pkg-add broadcom-wl-wpa3-dkms
+hardware/fix-bcm43xx.sh|bcm4360-package-missing|0|pkg-add broadcom-wl-dkms
+hardware/fix-bcm43xx.sh|bcm4360-install-fails|1|pkg-add broadcom-wl-wpa3-dkms
+hardware/fix-bcm43xx.sh|bcm4360-stock-installed|0
+hardware/fix-bcm43xx.sh|bcm4360-patched-installed|0
+hardware/fix-bcm43xx.sh|bcm4360-aarch64|0
+hardware/fix-bcm43xx.sh|bcm4331|0|pkg-add broadcom-wl-dkms
+hardware/fix-bcm43xx.sh|bcm-mixed|0|pkg-add broadcom-wl-dkms
+hardware/fix-bcm43xx.sh|bcm4331-stock-installed|0
+hardware/fix-bcm43xx.sh|bcm4331-patched-installed|0
+hardware/fix-bcm43xx.sh|bcm-mixed-stock-installed|0
+hardware/fix-bcm43xx.sh|bcm-mixed-patched-installed|0
+hardware/fix-bcm43xx.sh|plain|0
 ROWS
 pass "hardware quirks apply on their own hardware and nowhere else"
 
