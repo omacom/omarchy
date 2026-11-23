@@ -7,6 +7,7 @@ import QtQuick.Shapes
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "BackgroundVariants.js" as BackgroundVariants
 
 Item {
   id: root
@@ -20,6 +21,7 @@ Item {
 
   property string currentBackground: ""
   property string displayedBackground: ""
+  property int displayedVersion: 0
   property string incomingBackground: ""
   property string oldBackground: ""
   // A theme switch names its next background before it has staged the rest of
@@ -40,7 +42,6 @@ Item {
   property var sizeQueue: []
   property bool finishingTransition: false
   property int backgroundVersion: 0
-  property int reloadVersion: 0
   property int revealStartedVersion: -1
   property int pendingThemeVersion: -1
   property string pendingColorsRaw: ""
@@ -48,11 +49,44 @@ Item {
   property real revealProgress: 1
   readonly property bool ready: {
     if (isVideo(displayedBackground)) return true
-    if (backgrounds.instances.length === 0) return false
+    // A scan clears busy before onResolved installs its dimensions and paths.
+    // Keep startup covered until those candidates and every output settle.
+    if (variantCatalog.busy || resolvedVariantGeneration !== variantCatalog.generation || backgrounds.instances.length === 0) return false
     for (var panel of backgrounds.instances) {
       if (!panel.backgroundReady) return false
     }
     return true
+  }
+  property var displayedCandidates: []
+  // What the variant catalog scans. A video held behind the last still is
+  // OWE's to draw, so it must not replace the candidates of the stills this
+  // layer still shows or is revealing.
+  property string catalogBackground: ""
+  property int catalogVersion: 0
+  property int resolvedVariantGeneration: -1
+  // A change that arrives while a reveal is on screen waits for it to end.
+  // Starting over at once would capture each base, which still holds the
+  // image from before that reveal, and step the desktop back to it.
+  property var queuedTransition: null
+  // The latest selection, ahead of currentBackground while a change is queued.
+  readonly property string selectedBackground: queuedTransition ? queuedTransition.finalPath : currentBackground
+  signal captureBackground()
+
+  BackgroundVariantCatalog {
+    id: variantCatalog
+    path: root.catalogBackground
+    revision: root.catalogVersion
+    onResolved: {
+      // Variant paths must have a native size before any frame can load them.
+      var known = Object.assign({}, root.nativeSizes)
+      for (var i = 0; i < candidates.length; i++) {
+        var candidate = candidates[i]
+        known[candidate.path] = { width: candidate.width, height: candidate.height }
+      }
+      root.nativeSizes = known
+      if (!root.incomingBackground) root.displayedCandidates = candidates
+      root.resolvedVariantGeneration = variantCatalog.generation
+    }
   }
 
   function isVideo(path) {
@@ -98,7 +132,6 @@ Item {
   }
 
   function setBackground(path, instant) {
-    if (instant) reloadVersion += 1
     transitionBackground("", path, path, instant, instant)
   }
 
@@ -106,7 +139,23 @@ Item {
     path = String(path || "").trim()
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
-    if (!path || (!force && finalPath === currentBackground)) return
+    if (!path) return false
+    // Reselecting what is already coming in withdraws a change queued behind it.
+    if (!force && finalPath === currentBackground) {
+      discardQueuedTransition()
+      return false
+    }
+    if (!instant && !isVideo(path) && (revealAnimation.running || finishingTransition)) {
+      // The theme files are not watched, so a queued theme's palette passes
+      // on to the change that replaces it.
+      var theme = queuedTransition ? queuedTransition.theme : null
+      queuedTransition = { fromPath: fromPath, path: path, finalPath: finalPath, force: force, theme: theme }
+      queuedTransitionTimer.restart()
+      return true
+    }
+    discardQueuedTransition()
+    // Capture each output's actual variant before theme paths are replaced.
+    captureBackground()
     if (path !== preparedBackground) preparedBackground = ""
     preparedBackgroundTimer.stop()
     lastTransitionPath = path
@@ -123,8 +172,10 @@ Item {
     // still stays on screen until OWE has the first frame and suspends this
     // layer, so the desktop does not show an empty background meanwhile. A
     // running reveal finishes on its incoming still, which OWE fades from.
-    if (!instant && !root.suspended && displayedBackground && isVideo(path) && !isVideo(displayedBackground)) return
+    if (!instant && !root.suspended && displayedBackground && isVideo(path) && !isVideo(displayedBackground)) return false
 
+    catalogBackground = finalPath
+    catalogVersion = backgroundVersion
     revealAnimation.stop()
     revealGraceTimer.stop()
     finishingTransition = false
@@ -135,14 +186,40 @@ Item {
       oldBackground = ""
       incomingBackground = ""
       preparedBackground = ""
+      displayedCandidates = []
+      displayedVersion = backgroundVersion
       displayedBackground = finalPath
       revealProgress = 1
-      return
+      return false
     }
 
     oldBackground = fromPath || displayedBackground
     incomingBackground = path
     revealProgress = 0
+    return false
+  }
+
+  function takeQueuedTransition() {
+    var queued = queuedTransition
+    queuedTransitionTimer.stop()
+    queuedTransition = null
+    return queued
+  }
+
+  // A queued change that will not run still owes its theme's palette. It is
+  // applied at once: left pending, it could land after a newer theme's.
+  function discardQueuedTransition() {
+    var queued = takeQueuedTransition()
+    if (!queued || !queued.theme) return
+    setPendingTheme(queued.theme.colors, queued.theme.shell)
+    applyPendingTheme()
+  }
+
+  function runQueuedTransition() {
+    var queued = takeQueuedTransition()
+    if (!queued) return
+    if (queued.theme) transitionBackgroundWithTheme(queued.fromPath, queued.path, queued.finalPath, queued.theme.colors, queued.theme.shell)
+    else transitionBackground(queued.fromPath, queued.path, queued.finalPath, false, queued.force)
   }
 
   function setPendingTheme(colorsB64, shellB64) {
@@ -168,7 +245,11 @@ Item {
   }
 
   function transitionBackgroundWithTheme(fromPath, path, finalPath, colorsB64, shellB64) {
-    transitionBackground(fromPath, path, finalPath, false, true)
+    // A queued switch keeps its palette, so the colors still turn with its reveal.
+    if (transitionBackground(fromPath, path, finalPath, false, true)) {
+      queuedTransition.theme = { colors: colorsB64, shell: shellB64 }
+      return
+    }
     setPendingTheme(colorsB64, shellB64)
     if (!incomingBackground || revealProgress >= 1) applyPendingTheme()
   }
@@ -213,6 +294,7 @@ Item {
     preparedBackground = ""
     finishingTransition = false
     pruneNativeSizes()
+    runQueuedTransition()
   }
 
   onReadyChanged: maybeFinishTransition()
@@ -244,6 +326,7 @@ Item {
   function pruneNativeSizes() {
     var kept = {}
     var paths = [displayedBackground, incomingBackground, oldBackground, preparedBackground]
+    for (var c = 0; c < displayedCandidates.length; c++) paths.push(displayedCandidates[c].path)
     for (var i = 0; i < paths.length; i++) {
       if (paths[i] && nativeSizes[paths[i]] !== undefined) kept[paths[i]] = nativeSizes[paths[i]]
     }
@@ -358,6 +441,18 @@ Item {
     onTriggered: root.beginReveal()
   }
 
+  // A reveal that an output never completes must not hold later changes back.
+  Timer {
+    id: queuedTransitionTimer
+    interval: 2000
+    repeat: false
+    onTriggered: {
+      revealAnimation.stop()
+      root.finishingTransition = false
+      root.runQueuedTransition()
+    }
+  }
+
   Timer {
     id: pendingThemeFallbackTimer
     interval: 300
@@ -375,6 +470,8 @@ Item {
     easing.type: Easing.OutCubic
     onFinished: {
       if (root.incomingBackground) {
+        root.displayedCandidates = variantCatalog.candidates
+        root.displayedVersion = root.backgroundVersion
         // After a video was chosen during the reveal, the incoming still
         // stays until OWE takes the background.
         root.displayedBackground = root.currentBackground && !root.isVideo(root.currentBackground)
@@ -413,7 +510,7 @@ Item {
       // A function, not a binding: onStatusChanged can run before a binding
       // on the same status has caught up.
       function incomingReady() {
-        return root.incomingBackground !== "" && incomingFrame.status === Image.Ready
+        return root.incomingBackground !== "" && !variantCatalog.busy && incomingFrame.status === Image.Ready
       }
       property int readyFrames: 0
       readonly property bool backgroundReady: base.ready && readyFrames >= 2
@@ -421,6 +518,21 @@ Item {
       FrameAnimation {
         running: base.ready && panel.readyFrames < 2
         onTriggered: panel.readyFrames += 1
+      }
+
+      property var failedVariants: []
+      // ShellScreen's ratio is rounded up on Wayland; the window follows
+      // wp_fractional_scale_v1 and reports the actual output scale.
+      readonly property real pixelScale: panel.devicePixelRatio
+      readonly property string displayedPath: BackgroundVariants.choose(
+        root.displayedCandidates.filter(function(candidate) { return panel.failedVariants.indexOf(candidate.path) === -1 }),
+        root.displayedBackground, width, height, pixelScale)
+      readonly property string incomingPath: BackgroundVariants.choose(
+        variantCatalog.candidates.filter(function(candidate) { return panel.failedVariants.indexOf(candidate.path) === -1 }),
+        root.incomingBackground, width, height, pixelScale)
+
+      function rejectVariant(path) {
+        if (failedVariants.indexOf(path) === -1) failedVariants = failedVariants.concat([path])
       }
 
       // Decode the wallpaper at the size this screen can show, not the size
@@ -433,8 +545,8 @@ Item {
       // decoded at native size first, and a wallpaper smaller than the screen
       // is decoded at its own size rather than scaled up to cover the screen.
       readonly property bool sized: width > 0 && height > 0
-      readonly property int decodeWidth: sized ? Math.ceil(width * screen.devicePixelRatio) : 0
-      readonly property int decodeHeight: sized ? Math.ceil(height * screen.devicePixelRatio) : 0
+      readonly property int decodeWidth: sized ? Math.ceil(width * pixelScale) : 0
+      readonly property int decodeHeight: sized ? Math.ceil(height * pixelScale) : 0
 
       function decodeSize(path) {
         if (!sized || !path) return Qt.size(0, 0)
@@ -462,29 +574,37 @@ Item {
       BackgroundMedia {
         id: base
         anchors.fill: parent
-        path: root.displayedBackground
-        version: root.reloadVersion
+        path: panel.displayedPath
+        version: root.displayedVersion
+        // Versioned URLs invalidate replaced files without disabling sharing
+        // between outputs that use the same path and decode size.
         cached: true
         constrainDecode: true
-        decodeSize: panel.decodeSize(root.displayedBackground)
-        onFailedChanged: if (failed) root.recoverBackground(path)
+        decodeSize: panel.decodeSize(panel.displayedPath)
+        onFailedChanged: {
+          if (!failed) return
+          var failedPath = path
+          // Changing the chosen variant synchronously reenters Image.failed.
+          Qt.callLater(function() {
+            if (!base.failed || base.path !== failedPath) return
+            // A broken alternative is local to this output. Only a failed
+            // default should resolve the shared selection from the state link.
+            if (failedPath === root.displayedBackground) root.recoverBackground(failedPath)
+            else panel.rejectVariant(failedPath)
+          })
+        }
         onReadyChanged: panel.readyFrames = 0
       }
 
-      Image {
+      ShaderEffectSource {
         id: oldFrame
         anchors.fill: parent
-        readonly property size decode: panel.decodeSize(root.oldBackground)
-        source: decode.width > 0 ? root.imageUrl(root.oldBackground) : ""
-        sourceSize.width: decode.width
-        sourceSize.height: decode.height
-        fillMode: Image.PreserveAspectCrop
-        asynchronous: true
-        cache: false
+        sourceItem: root.oldBackground !== "" ? base : null
+        live: false
         smooth: true
-        mipmap: true
-        visible: root.oldBackground !== "" && root.revealProgress < 1
-        onStatusChanged: panel.maybeStartReveal()
+        // Another output can finish the shared reveal before this one's
+        // incoming image decodes, including with animations disabled.
+        visible: root.oldBackground !== "" && (root.revealProgress < 1 || incomingFrame.status !== Image.Ready)
       }
 
       Item {
@@ -508,8 +628,11 @@ Item {
           // The same URL and size as a prepared frame keeps its decoded
           // image, so a transition to it can reveal at once.
           readonly property string framePath: root.incomingBackground || root.preparedBackground
-          readonly property size decode: panel.decodeSize(framePath)
-          source: decode.width > 0 ? root.imageUrl(framePath) : ""
+          readonly property string resolvedPath: root.incomingBackground && !variantCatalog.busy ? panel.incomingPath : framePath
+          readonly property size decode: panel.decodeSize(resolvedPath)
+          // Keep a prepared default decoded while the catalog scans. Only
+          // maybeStartReveal is gated; a flat background retains its frame.
+          source: decode.width > 0 ? root.imageUrl(resolvedPath) : ""
           sourceSize.width: decode.width
           sourceSize.height: decode.height
           fillMode: Image.PreserveAspectCrop
@@ -517,7 +640,10 @@ Item {
           cache: false
           smooth: true
           mipmap: true
-          onStatusChanged: panel.maybeStartReveal()
+          onStatusChanged: {
+            if (status === Image.Error && root.incomingBackground) panel.rejectVariant(resolvedPath)
+            panel.maybeStartReveal()
+          }
         }
       }
 
@@ -551,10 +677,19 @@ Item {
 
       Connections {
         target: root
+        function onCaptureBackground() {
+          oldFrame.scheduleUpdate()
+          panel.failedVariants = []
+        }
         function onIncomingBackgroundChanged() {
           panel.maskReady = false
           panel.maybeStartReveal()
         }
+      }
+
+      Connections {
+        target: variantCatalog
+        function onResolved() { panel.maybeStartReveal() }
       }
 
       DesktopClicks { service: root }
