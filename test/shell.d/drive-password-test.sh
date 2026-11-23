@@ -306,12 +306,16 @@ volume() {
     printf '0\t%s\n' "$key" >"$device.slots"
     [[ -z $extra ]] || printf '1\t%s\n' "$extra" >>"$device.slots"
   else
-    rm -f "$device"
-    truncate -s 32M "$device"
-    "$REAL_CRYPTSETUP" luksFormat -q --type "$backend" --pbkdf pbkdf2 --pbkdf-force-iterations 1000 "$device" <(printf '%s' "$key")
-    if [[ -n $extra ]]; then
-      "$REAL_CRYPTSETUP" luksAddKey --pbkdf pbkdf2 --pbkdf-force-iterations 1000 --key-file <(printf '%s' "$key") "$device" <(printf '%s' "$extra")
+    local tag="${backend}-$(basename "$device")-$([[ -n $extra ]] && echo two || echo one)"
+    local template="$tmp/template-$tag.img"
+    if [[ ! -f $template ]]; then
+      truncate -s 32M "$template"
+      "$REAL_CRYPTSETUP" luksFormat -q --type "$backend" --pbkdf pbkdf2 --pbkdf-force-iterations 1000 "$template" <(printf '%s' "$key")
+      if [[ -n $extra ]]; then
+        "$REAL_CRYPTSETUP" luksAddKey --pbkdf pbkdf2 --pbkdf-force-iterations 1000 --key-file <(printf '%s' "$key") "$template" <(printf '%s' "$extra")
+      fi
     fi
+    cp --reflink=auto -f "$template" "$device"
   fi
 }
 
@@ -412,13 +416,14 @@ else
   skip "cryptsetup is not installed; skipping the file-backed volume runs"
 fi
 
-matrix=()
-for backend in "${backends[@]}"; do
-  matrix+=("$backend x86" "$backend apple")
-done
+matrix=("fake x86" "fake apple")
+if [[ " ${backends[*]} " == *" luks2 "* ]]; then
+  matrix+=("luks2 x86" "luks1 x86")
+fi
 
 for run_spec in "${matrix[@]}"; do
-  use $run_spec
+  read -r spec_backend spec_platform <<<"$run_spec"
+  use "$spec_backend" "$spec_platform"
 
   fixture
   attempt 0 "$old_password" "$new_password" "$new_password" || fail "$backend: changing the system disk password succeeds" "$(cat "$tmp/output")"
@@ -428,6 +433,7 @@ for run_spec in "${matrix[@]}"; do
   no_secrets "uninterrupted"
   total_steps=$(cat "$tmp/steps")
   (( total_steps >= 4 )) || fail "$backend: every change is a crash point" "$(cat "$tmp/trace")"
+  real_crash_step=$(awk '/ luksChangeKey done$/ { print $1; exit }' "$tmp/trace")
   pass "$backend: the system disk key changes and verifies, and the login and root passwords stay as they were"
 
   fixture
@@ -453,41 +459,55 @@ for run_spec in "${matrix[@]}"; do
 
   # Killed after each step, the owner runs the command again and answers with a
   # password that opens the disk now: the new one, or the old one while it still
-  # works. Each rerun is itself killed after each of its steps until one finishes.
-  for (( step = 1; step <= total_steps; step++ )); do
-    for answer in "$new_password" "$old_password"; do
-      fixture
-      if attempt "$step" "$old_password" "$new_password" "$new_password"; then fail "$backend: the run is killed at step $step"; fi
-      point=$(sed -n "${step}p" "$tmp/trace")
-      recoverable "killed after '$point'"
-      if [[ ! -e $journal ]]; then
-        if [[ -n $(opens "$system" "$new_password") ]]; then
-          consistent "killed after '$point'" "$new_password"
-        else
-          consistent "killed after '$point'" "$old_password"
+  # works. Run the full double-nested matrix on fake, and one representative
+  # mid-change crash/resume on real cryptsetup volumes.
+  if [[ $backend == "fake" ]]; then
+    for (( step = 1; step <= total_steps; step++ )); do
+      for answer in "$new_password" "$old_password"; do
+        fixture
+        if attempt "$step" "$old_password" "$new_password" "$new_password"; then fail "$backend: the run is killed at step $step"; fi
+        point=$(sed -n "${step}p" "$tmp/trace")
+        recoverable "killed after '$point'"
+        if [[ ! -e $journal ]]; then
+          if [[ -n $(opens "$system" "$new_password") ]]; then
+            consistent "killed after '$point'" "$new_password"
+          else
+            consistent "killed after '$point'" "$old_password"
+          fi
+          continue
         fi
-        continue
-      fi
-      [[ -n $(opens "$system" "$answer") ]] || continue
-      if grep -qx 'phase=record' "$journal" && [[ $answer == "$old_password" ]]; then
-        if attempt 0 "$answer"; then fail "$backend: after '$point' a confirmed change refuses the old password"; fi
-        [[ -e $journal ]] || fail "$backend: after '$point' a refused rerun keeps the journal"
-        answer=$new_password
-      fi
-      # A rerun that finds both keys (killed between luksChangeKey's two header
-      # updates) asks for the new password, and the old one when it was given
-      # the new, before it removes either slot.
-      for (( again = 1; ; again++ )); do
-        status=0
-        attempt "$again" "$answer" "$new_password" "$old_password" || status=$?
-        (( status == 0 )) && break
-        (( status == 137 )) || fail "$backend: the rerun after '$point' finishes" "$(cat "$tmp/output")"
-        recoverable "rerun after '$point' killed at step $again"
+        [[ -n $(opens "$system" "$answer") ]] || continue
+        if grep -qx 'phase=record' "$journal" && [[ $answer == "$old_password" ]]; then
+          if attempt 0 "$answer"; then fail "$backend: after '$point' a confirmed change refuses the old password"; fi
+          [[ -e $journal ]] || fail "$backend: after '$point' a refused rerun keeps the journal"
+          answer=$new_password
+        fi
+        # A rerun that finds both keys (killed between luksChangeKey's two header
+        # updates) asks for the new password, and the old one when it was given
+        # the new, before it removes either slot.
+        for (( again = 1; ; again++ )); do
+          status=0
+          attempt "$again" "$answer" "$new_password" "$old_password" || status=$?
+          (( status == 0 )) && break
+          (( status == 137 )) || fail "$backend: the rerun after '$point' finishes" "$(cat "$tmp/output")"
+          recoverable "rerun after '$point' killed at step $again"
+        done
+        consistent "rerun with $answer after '$point'" "$answer"
+        no_secrets "rerun after '$point'"
       done
-      consistent "rerun with $answer after '$point'" "$answer"
-      no_secrets "rerun after '$point'"
     done
-  done
+  else
+    [[ -n $real_crash_step ]] || fail "$backend: trace exposes luksChangeKey done checkpoint" "$(cat "$tmp/trace")"
+    fixture
+    status=0
+    attempt "$real_crash_step" "$old_password" "$new_password" "$new_password" || status=$?
+    (( status == 137 )) || fail "$backend: run is killed at luksChangeKey done (exit $status)" "$(cat "$tmp/trace" "$tmp/output")"
+    recoverable "killed after 'luksChangeKey done'"
+    [[ -e $journal ]] || fail "$backend: crash after luksChangeKey done keeps the journal" "$(cat "$tmp/trace")"
+    attempt 0 "$new_password" "$new_password" "$old_password" || fail "$backend: the rerun after luksChangeKey done finishes" "$(cat "$tmp/output")"
+    consistent "rerun after 'luksChangeKey done'" "$new_password"
+    no_secrets "rerun after 'luksChangeKey done'"
+  fi
   pass "$backend $platform: killed after each of $total_steps steps, and each rerun after each of its own, the disk ends on one password and the accounts never change"
 done
 

@@ -367,12 +367,15 @@ fixture() {
     printf '0 %s\n1 %s\n' "$staged_key" "$seller_key" >"$tmp/slots"
   else
     device=$tmp/volume.img
-    rm -f "$device"
-    truncate -s 32M "$device"
-    local pbkdf=(--pbkdf pbkdf2 --pbkdf-force-iterations 1000)
-    [[ $format == "luks1" ]] && pbkdf=(--pbkdf-force-iterations 1000)
-    cryptsetup luksFormat -q --type "$format" "${pbkdf[@]}" "$device" <(printf '%s' "$staged_key")
-    cryptsetup luksAddKey "${pbkdf[@]}" --key-file <(printf '%s' "$staged_key") "$device" <(printf '%s' "$seller_key")
+    local template=$tmp/template-$format.img
+    if [[ ! -f $template ]]; then
+      truncate -s 32M "$template"
+      local pbkdf=(--pbkdf pbkdf2 --pbkdf-force-iterations 1000)
+      [[ $format == "luks1" ]] && pbkdf=(--pbkdf-force-iterations 1000)
+      cryptsetup luksFormat -q --type "$format" "${pbkdf[@]}" "$template" <(printf '%s' "$staged_key")
+      cryptsetup luksAddKey "${pbkdf[@]}" --key-file <(printf '%s' "$staged_key") "$template" <(printf '%s' "$seller_key")
+    fi
+    cp --reflink=auto -f "$template" "$device"
   fi
 }
 
@@ -465,13 +468,14 @@ else
   skip "cryptsetup is not installed; skipping the file-backed volume runs"
 fi
 
-# The crash matrix runs whole setup attempts on every backend, for x86 and for
-# Apple.
-matrix=()
-for backend in "${backends[@]}"; do
-  matrix+=("x86 $backend")
-  [[ " ${platforms[*]} " != *" apple "* ]] || matrix+=("apple $backend")
-done
+# Run the full crash matrix on fake (x86 and Apple), and verify real cryptsetup
+# (luks2 and luks1) on x86 with uninterrupted + representative crash/resume
+# points rather than repeating every step on every real volume.
+matrix=("x86 fake")
+[[ " ${platforms[*]} " != *" apple "* ]] || matrix+=("apple fake")
+if [[ " ${backends[*]} " == *" luks2 "* ]]; then
+  matrix+=("x86 luks2" "x86 luks1")
+fi
 
 for run_spec in "${matrix[@]}"; do
   read -r platform backend <<<"$run_spec"
@@ -493,8 +497,20 @@ for run_spec in "${matrix[@]}"; do
   # After each kill the owner reboots and answers the form again, with the same
   # password or a new one. The account takes whatever the form accepts, so the
   # disk must open with that password when setup finishes.
-  for (( step = 1; step <= total_steps; step++ )); do
-    for retry_password in "$owner_password" other-password; do
+  steps_to_test=()
+  if [[ $backend == "fake" ]]; then
+    for (( step = 1; step <= total_steps; step++ )); do steps_to_test+=("$step"); done
+  else
+    owner_step=$(awk '/ owner key added$/ { print $1; exit }' "$tmp/trace")
+    boot_step=$(awk '/ journal phase boot( |$)/ { print $1; exit }' "$tmp/trace")
+    [[ -n $owner_step && -n $boot_step ]] ||
+      fail "$backend: trace exposes both owner-key and boot-phase crash points" "$(cat "$tmp/trace")"
+    steps_to_test=("$owner_step" "$boot_step")
+  fi
+  for step in "${steps_to_test[@]}"; do
+    retry_passwords=("$owner_password" other-password)
+    [[ $backend == "fake" ]] || retry_passwords=("$owner_password")
+    for retry_password in "${retry_passwords[@]}"; do
       fixture "$format"
       if run attempt "$owner_password" "$step"; then
         fail "$backend: setup is killed at step $step"

@@ -19,9 +19,8 @@ cat >"$mock_bin/omarchy-notification-send" <<'SH'
 printf '%s\n' "$*" >>"$OMARCHY_TEST_NOTIFICATIONS"
 SH
 
-# A first sign-in installs the subscription's desktop app. These stand in for
-# the package tools ahead of every PATH the tests use, so nothing real installs
-# and no password dialog opens.
+# Guard against any package install during sign-in, ahead of every PATH the
+# tests use, so nothing real installs and we can assert the log stays empty.
 pkg_bin="$test_tmp/pkg-bin"
 export OMARCHY_TEST_PKG_LOG="$test_tmp/pkg-log"
 mkdir -p "$pkg_bin"
@@ -61,8 +60,10 @@ cat >"$mock_bin/codex" <<'SH'
 #!/bin/bash
 # A session started as the primary, naming no home.
 if [[ ${1:-} == "--hold" ]]; then
-  sleep 30
-  exit
+  sleep 30 &
+  trap 'kill $! 2>/dev/null || true' TERM EXIT
+  wait $!
+  exit 0
 fi
 if [[ ${1:-} == "login" ]]; then
   "${BROWSER:-omarchy-test-default-browser}" "https://auth.openai.com/oauth/authorize"
@@ -405,7 +406,7 @@ omarchy-agent-account-use claude main >/dev/null
 [[ $(claude_account) == u-main && ! -e $HOME/.claude/.oauth_refresh.lock ]] || fail "a stale refresh lock is taken over and released"
 mkdir "$HOME/.claude/.oauth_refresh.lock"
 (
-  sleep 1
+  sleep 0.5
   claude_account >"$test_tmp/during-refresh"
   rmdir "$HOME/.claude/.oauth_refresh.lock"
 ) &
@@ -532,8 +533,11 @@ pass "--check says what adding would mean for each provider"
 # imported into OpenCode, without ever being a command argument.
 fireworks_bin="$test_tmp/fireworks-bin"
 mkdir -p "$fireworks_bin"
-cat >"$fireworks_bin/omarchy-agent-usage-fireworks" <<'SH'
+cat >"$fireworks_bin/omarchy-agent-usage-fireworks" <<SH
 #!/bin/bash
+echo "\$*" >>"$test_tmp/fireworks-check-args"
+SH
+cat >>"$fireworks_bin/omarchy-agent-usage-fireworks" <<'SH'
 # A key saved elsewhere, as Z.ai's config file can hold one, would vouch for
 # any key it was checked beside.
 if [[ -f ${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/agents/fireworks.json ]]; then
@@ -580,12 +584,18 @@ if PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"
 fi
 pass "a key that couldn't be checked is not saved"
 
+: >"$notifications"
+: >"$test_tmp/fireworks-check-args"
 PATH="$fireworks_bin:$PATH" omarchy-agent-account-add --events fireworks <<<"fw_good" >"$test_tmp/fireworks-output"
 [[ ! -e $HOME/.pi/agent/auth.json ]] || fail "a Fireworks key is not saved for pi"
 grep -q "^auth import fw_good$" "$test_tmp/fireworks-opencode" && grep -q "^auth switch fireworks-ai omarchy-" "$test_tmp/fireworks-opencode" ||
   fail "a Fireworks key is made opencode's active one" "$(cat "$test_tmp/fireworks-opencode")"
 grep -q "^@@omarchy key " "$test_tmp/fireworks-output" && grep -qx "@@omarchy done Signed in to Fireworks." "$test_tmp/fireworks-output" ||
   fail "the panel is asked for the key and told the result" "$(cat "$test_tmp/fireworks-output")"
+[[ $(head -1 "$test_tmp/fireworks-check-args") == "--check-key" ]] ||
+  fail "a Fireworks key is only checked, not read for its usage" "$(cat "$test_tmp/fireworks-check-args")"
+grep -q "Fireworks is ready" "$notifications" && ! grep -q "OpenCode is ready" "$notifications" ||
+  fail "a key's sign-in says the provider is ready, not OpenCode" "$(cat "$notifications")"
 pass "a Fireworks key is saved in OpenCode"
 
 # Removing a key's sign-in logs out each of the provider's OpenCode
@@ -827,7 +837,10 @@ pass "--reauth signs an existing account in again where it lives"
 # away, and leaves no half-made account behind.
 OMARCHY_TEST_LOGIN_HANGS="$test_tmp/login.pid" omarchy-agent-account-add --events claude Slow </dev/null >/dev/null 2>&1 &
 adding=$!
-sleep 1
+for _ in {1..40}; do
+  [[ -s $test_tmp/login.pid ]] && break
+  sleep 0.05
+done
 started=$(date +%s)
 kill -TERM "$adding"
 wait "$adding" || true
@@ -875,11 +888,19 @@ omarchy-agent-account-state refresh claude
   fail "refresh saves who each home is signed in as now"
 pass "refresh saves who each home is signed in as now"
 
-# A first sign-in installs the subscription's desktop app, once: Codex's and
-# Grok's here, from a terminal. Adding another account installs nothing more.
-[[ $(cat "$OMARCHY_TEST_PKG_LOG" 2>/dev/null) == $'pkg-add openai-codex-desktop\npkg-add grok-bot' ]] ||
-  fail "a first sign-in installs its subscription's desktop app, and only that" "$(cat "$OMARCHY_TEST_PKG_LOG" 2>/dev/null)"
-pass "a first sign-in installs its subscription's desktop app"
+# Signing in never installs desktop apps on its own, whether from a terminal
+# or from the panel (--events).
+(
+  export HOME="$test_tmp/events-first-home" XDG_STATE_HOME="$test_tmp/events-first-state"
+  mkdir -p "$HOME/.codex"
+  OMARCHY_TEST_LOGIN_UUID=acct-fast OMARCHY_TEST_LOGIN_EMAIL=fast@example.com \
+    omarchy-agent-account-add --events codex </dev/null >"$test_tmp/events-first-output"
+  grep -qx "@@omarchy done Signed in to Codex." "$test_tmp/events-first-output" ||
+    fail "a panel first sign-in reports done" "$(cat "$test_tmp/events-first-output")"
+)
+[[ ! -s $OMARCHY_TEST_PKG_LOG ]] ||
+  fail "signing in does not install desktop apps" "$(cat "$OMARCHY_TEST_PKG_LOG" 2>/dev/null)"
+pass "signing in does not install desktop apps"
 
 # ------------------------------------------------------------ removing the primary
 
@@ -937,7 +958,7 @@ pass "a first sign-in installs its subscription's desktop app"
   CODEX_HOME="$HOME/.codex" OMARCHY_TEST_LOGIN_UUID=c-main OMARCHY_TEST_LOGIN_EMAIL=me@example.com codex login >/dev/null
   OMARCHY_TEST_LOGIN_UUID=c-side OMARCHY_TEST_LOGIN_EMAIL=side@example.com omarchy-agent-account-add codex Side </dev/null >/dev/null
   # A session started as the primary keeps its login until it quits.
-  codex --hold &
+  codex --hold >/dev/null 2>&1 &
   session=$!
   if omarchy-agent-account-remove codex main </dev/null >/dev/null 2>&1 || [[ $(jq -r .tokens.account_id "$HOME/.codex/auth.json") != c-main ]]; then
     fail "a session running as the Codex primary blocks replacing its login"

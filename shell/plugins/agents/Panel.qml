@@ -7,6 +7,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "../panels/elsewhen/Model.js" as Reorder
+import "../panels/tailscale" as Tailscale
 
 Panel {
   id: root
@@ -55,10 +56,15 @@ Panel {
 
   // A local model's line goes back to the add screen; the default's hands
   // the default on, since the default always has its line, and stays when
-  // no other line could take it.
+  // no other line could take it. A setup can't be stopped while it installs
+  // what it runs in.
   function removable(line) {
     if (!line) return false
-    if (line.localModel) return !opensByDefault(line) || !!defaultSuccessor(line)
+    if (line.localModel) {
+      var model = localModelState(line.localModel)
+      if (model && model.panelSetup && ["failed", "waiting"].indexOf(model.install.phase) < 0) return false
+      return !opensByDefault(line) || !!defaultSuccessor(line)
+    }
     return true
   }
 
@@ -75,8 +81,9 @@ Panel {
 
   // Signs the line out through omarchy agent account remove, which hides
   // the agent once its last sign-in is gone; a line with no sign-in of its
-  // own is only hidden. A local model keeps running, and the add screen
-  // offers it again.
+  // own is only hidden. A model on this machine is removed from it,
+  // download and all, and a paired machine's is unlinked, still running
+  // there; the add screen offers either again.
   function confirmDelete() {
     var target = deleteTarget
     deleteTarget = null
@@ -89,6 +96,17 @@ Panel {
         if (!next) return
         makeDefault(next, next.account || null)
       }
+      var model = localModelState(target.localModel)
+      // One on this machine keeps its line, removing, until it's gone, and
+      // the listing written again then says it's no longer installed, which
+      // takes it off the panel. A setup the service still owns has nothing
+      // on disk: a failure is forgotten, and one waiting its turn dropped.
+      if (model && !model.panelSetup) {
+        Util.execArgv(["bash", "-c", 'omarchy-models remove "$1"; omarchy-models refresh --quiet', "remove", model.recipe])
+        return
+      }
+      if (model && model.install.phase === "failed") localModelsService.dismissSetupFailure()
+      else if (model) localModelsService.unqueueSetup(model.recipe)
       usage.removeLocalModels([target.localModel.target])
       return
     }
@@ -160,14 +178,19 @@ Panel {
         var line = []
         if (defaultIdFor(providers[p]) !== "" && !starred(providers[p], providers[p].account || null))
           line.push({ kind: "providerStar", index: p })
+        var stop = lineStop(p)
+        var actions = localLineActions(providers[p])
+        for (var a = 0; a < actions.length; a++)
+          if (localActionKinds[actions[a]] !== stop) line.push({ kind: localActionKinds[actions[a]], index: p })
         if (makesOpenIndex === p)
           for (var m = 0; m < starterPrompts.length; m++) line.push({ kind: "make:" + starterPrompts[m].kind, index: p })
         else if (launches(providers[p]))
           line.push({ kind: "makeToggle", index: p })
         if (desktopFor(providers[p])) line.push({ kind: "providerDesktop", index: p })
-        line.push({ kind: lineStop(p), index: p })
+        line.push({ kind: stop, index: p })
         rows.push(line)
         if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
+        if (localLogsShown(providers[p])) rows.push([{ kind: "localLogs", index: p }])
       }
       if (starterShown) {
         for (var j = 0; j < starterPrompts.length; j += starterColumns) {
@@ -208,8 +231,11 @@ Panel {
 
   // A line's rightmost button, where the cursor lands on it: its terminal,
   // or the mark for a line with no button.
+  // A line's last stop, where Up and Down land: its terminal button, or for
+  // a local model that isn't running yet, its play button, else its mark.
   function lineStop(p) {
-    return launches(providers[p]) ? "providerLaunch" : "provider"
+    if (launches(providers[p])) return "providerLaunch"
+    return localLineActions(providers[p]).indexOf("toggle") >= 0 ? "localToggle" : "provider"
   }
 
   // The first arrow only shows where the cursor is, as in the other panels.
@@ -229,7 +255,7 @@ Panel {
       // rightmost stop.
       var row = keyRows[keyRow]
       var last = row[row.length - 1].kind
-      keyColumn = last === "providerLaunch" || last === "provider" ? row.length - 1 : Math.min(keyColumn, row.length - 1)
+      keyColumn = ["providerLaunch", "localToggle", "provider"].indexOf(last) >= 0 ? row.length - 1 : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
       // A row can go while the cursor is on it, like the starters when the
       // last agent stops.
@@ -246,7 +272,8 @@ Panel {
   // The agent a cursor stop belongs to, or -1.
   function lineOf(target) {
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch", "providerStar", "makeToggle", "providerDesktop"].indexOf(target.kind) >= 0 || target.kind.indexOf("make:") === 0) return target.index
+    if (["provider", "providerSignin", "providerLaunch", "providerStar", "makeToggle", "providerDesktop",
+         "localUpdate", "localShare", "localToggle", "localLogs"].indexOf(target.kind) >= 0 || target.kind.indexOf("make:") === 0) return target.index
     return -1
   }
 
@@ -435,22 +462,93 @@ Panel {
     return signInProviders.filter(function(p) { return p.group === group })
   }
 
-  // The third block: the best coding model for this computer, when one fits.
-  // Setting it up belongs to the local models panel, which follows the
-  // download, so choosing it hands over there.
+  // ---------------------------------------------------------- local models
+  //
+  // The coding models that run on hardware you own: this machine's, which
+  // their lines start, stop, share, update and remove, and those a paired
+  // machine runs. The local models service follows omarchy-models and runs
+  // the setups started from the add screen.
   readonly property var localModelsService: bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.local-models") : null
+  readonly property var localModels: localModelsService && localModelsService.localModel ? localModelsService.localModel.models || {} : {}
 
-  // What the network and local blocks offer: each coding model running now,
-  // ready at once, a paired machine's before this one's; then one shared on
-  // the tailnet by a machine not paired yet, which choosing pairs with; then
-  // the best one for this computer. One already added has its line in the
-  // panel instead.
+  // A line for each coding model set up on this machine, in whatever state,
+  // and for each one a paired machine that's online is running. Its target
+  // is what opens it: the recipe, or host/recipe for a paired machine's. The
+  // lines carry only what names a model, so the status omarchy-models
+  // rewrites twice a second while one downloads or loads doesn't rebuild
+  // them: a line reads its model's state through localModelState.
+  readonly property string localModelLinesKey: JSON.stringify(buildLocalModelLines(localModels,
+    localModelsService ? localModelsService.setupRows() : [],
+    localModelsService ? localModelsService.networkModels || {} : {},
+    localModelsService ? localModelsService.localRecipes || [] : []))
+  readonly property var localModelLines: JSON.parse(localModelLinesKey)
+
+  function buildLocalModelLines(models, setups, network, list) {
+    var recipes = {}
+    for (var r = 0; r < list.length; r++) recipes[list[r].id] = list[r]
+    var out = []
+    var add = function(model, host) {
+      var target = host ? host + "/" + model.recipe : model.recipe
+      var recipe = host ? {} : (recipes[model.recipe] || {})
+      out.push({
+        providerId: "local",
+        providerName: model.name || model.recipe,
+        lineId: "local/" + target,
+        iconId: model.vendor || "local",
+        localModel: {
+          target: target,
+          host: host || "",
+          decode_tok_s: model.decode_tok_s != null ? model.decode_tok_s : recipe.decode_tok_s,
+          context: model.ctx != null ? model.ctx : recipe.context,
+          memory_gib: recipe.memory_gib
+        }
+      })
+    }
+    for (var id in models)
+      if (models[id].kind === "text") add(models[id], "")
+    // A setup started from here, before status.json lists it.
+    for (var s = 0; s < setups.length; s++)
+      if (!models[setups[s].recipe] && setups[s].kind === "text") add(setups[s], "")
+    for (var nid in network) {
+      var shared = network[nid]
+      if (shared.kind === "text" && shared.unit === "active" && shared.paired === true && String(shared.offline || "") === "") add(shared, shared.host)
+    }
+    return out
+  }
+
+  // A line's model on this machine as it is now: as status.json has it, or,
+  // before that lists it, the setup starting, waiting its turn, or failed.
+  // Null for a paired machine's, which has a line only while it runs.
+  function localModelState(local) {
+    if (!local || local.host !== "" || !localModelsService) return null
+    return localModels[local.target] || localModelsService.setupRows().find(function(row) { return row.recipe === local.target }) || null
+  }
+
+  function localRunning(local) {
+    if (!local) return false
+    if (local.host !== "") return true
+    var model = localModelState(local)
+    return !!model && model.unit === "active" && model.sub_state === "running"
+  }
+
+  // What the network and local blocks of the add screen offer: each coding
+  // model without a line, a paired machine's first, then one shared on the
+  // tailnet by a machine not paired yet, which choosing pairs with. This
+  // machine's are those set up here, then every recipe that fits and isn't,
+  // recommended first, then another DGX Spark cabled to this one. Those
+  // being set up or paired with, and the one being started from here, stay,
+  // showing how that goes.
   readonly property var ownModelOffers: {
     var offers = []
-    var lines = localModelLines.filter(function(line) { return !usage.localModelAdded(line) })
+    var lines = localModelLines.filter(function(line) {
+      return !usage.localModelAdded(line) || line.localModel.target === settingUpLocal || localSettingUp(localModelState(line.localModel))
+    })
     var offerLine = function(line) {
+      var model = localModelState(line.localModel)
+      if (model && model.unit === "removing") return
       offers.push({ target: line.localModel.target, name: line.providerName, vendor: line.iconId,
-                    host: line.localModel.host, facts: line.localModel, ready: true })
+                    host: line.localModel.host, facts: line.localModel,
+                    shortfall: memoryShort(line.localModel.target, line.localModel.memory_gib, model) })
     }
     lines.filter(function(line) { return line.localModel.host !== "" }).forEach(offerLine)
     var network = localModelsService ? localModelsService.networkModels || {} : {}
@@ -458,17 +556,42 @@ Panel {
       var shared = network[nid]
       if (shared.paired === true || String(shared.offline || "") !== "" || shared.kind !== "text" || shared.unit !== "active") continue
       offers.push({ target: nid, name: shared.name || shared.recipe, vendor: shared.vendor || "local", host: shared.host,
-                    facts: { decode_tok_s: shared.decode_tok_s, context: shared.ctx }, ready: false, pair: shared })
+                    facts: { decode_tok_s: shared.decode_tok_s, context: shared.ctx }, pair: shared })
     }
     lines.filter(function(line) { return line.localModel.host === "" }).forEach(offerLine)
-    lines = localModelLines
-    var recipes = localModelsService ? localModelsService.localRecipes || [] : []
-    var recipe = recipes.find(function(r) { return r.kind === "text" && r.best && r.available })
-    var running = lines.some(function(line) { return recipe && line.localModel.target === String(recipe.id) })
-    if (recipe && !running && (usage.addedLocalModels.indexOf(String(recipe.id)) < 0 || settingUpLocal === String(recipe.id)))
-      offers.push({ target: String(recipe.id), name: recipe.name || String(recipe.id), vendor: recipe.vendor || "local",
-                    host: "", facts: recipe, ready: recipe.installed === true, recipe: recipe })
+    var recipes = (localModelsService ? localModelsService.localRecipes || [] : []).filter(function(recipe) {
+      return recipe.kind === "text" && recipe.available === true
+        && !localModelLines.some(function(line) { return line.localModel.target === String(recipe.id) })
+    })
+    recipes.sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
+    for (var r = 0; r < recipes.length; r++)
+      offers.push({ target: String(recipes[r].id), name: recipes[r].name || String(recipes[r].id), vendor: recipes[r].vendor || "local",
+                    host: "", facts: recipes[r], recipe: recipes[r], shortfall: memoryShort(String(recipes[r].id), recipes[r].memory_gib, null) })
+    var link = localModelsService && localModelsService.localModel ? localModelsService.localModel.link : null
+    if (link && link.state === "available")
+      offers.push({ target: "", name: link.host ? Commons.I18n.t("localModels.linkOffer").arg(link.host) : Commons.I18n.t("localModels.linkOfferUnnamed"),
+                    vendor: "nvidia", host: "", facts: {}, link: link })
     return offers
+  }
+
+  // A model on this machine that the memory free now can't start: one set up
+  // that the engine judged too big, or a recipe needing more than is free,
+  // which isn't set up then, as it couldn't run. What it needs and what's
+  // free, either -1 where unknown; null when it fits, or when it's already
+  // being set up or started from here.
+  function memoryShort(target, needsGib, model) {
+    if (target === settingUpLocal || localSettingUp(model)) return null
+    var free = localModelsService ? localModelsService.memoryFreeGib : -1
+    var needs = needsGib != null ? Number(needsGib) : -1
+    var stopped = !!model && (model.unit === "inactive" || model.unit === "failed")
+    if (stopped ? model.fits !== false : (!!model || needs < 0 || free < 0 || needs <= free)) return null
+    return { needs: needs, free: free }
+  }
+
+  function memoryShortText(shortfall) {
+    if (shortfall.needs < 0 || shortfall.free < 0 || shortfall.needs <= shortfall.free) return Commons.I18n.t("localModels.notEnoughMemory")
+    return Commons.I18n.t("agents.memoryShort").arg(Commons.I18n.formatNumber(shortfall.needs, 0))
+      .arg(Commons.I18n.formatNumber(shortfall.free, shortfall.free < 10 ? 1 : 0))
   }
 
   // The network block's share of the offers, which come first.
@@ -480,35 +603,30 @@ Panel {
   readonly property var removedLocalModels: {
     if (!localModelsService) return []
     var recipes = localModelsService.localRecipes || []
-    var models = (localModelsService.localModel || {}).models || {}
     var setups = localModelsService.setupRows()
     return usage.addedLocalModels.filter(function(target) {
-      return target.indexOf("/") < 0 && !models[target] && !setups.some(function(row) { return row.recipe === target })
+      return target.indexOf("/") < 0 && !localModels[target] && !setups.some(function(row) { return row.recipe === target })
         && recipes.some(function(recipe) { return String(recipe.id) === target && recipe.installed === false })
     })
   }
   onRemovedLocalModelsChanged: if (removedLocalModels.length > 0) usage.removeLocalModels(removedLocalModels)
 
-  // A model set up from here keeps its row on the add screen, showing how
-  // the setup goes, until it runs. Then it becomes the default if nothing
-  // else was finished first, and the add screen steps back to the panel,
-  // where it now has its line. A tailnet model being paired with does the
-  // same, tracked apart so a download underway keeps its row meanwhile; the
-  // add screen steps back once neither is still going.
+  // A model set up or started from the add screen keeps its row there,
+  // showing how that goes, until it runs. Then it becomes the default if
+  // nothing else was finished first, and the add screen steps back to the
+  // panel, where it has its line.
   property string settingUpLocal: ""
+  readonly property var localSetup: settingUpLocal === "" ? null : localModelState({ target: settingUpLocal, host: "" })
+
+  // A tailnet model being paired with keeps its row too, its meter saying
+  // how the pairing goes; once paired, it has its line in the panel and
+  // becomes the default if nothing else was finished first.
   property string pairingLocal: ""
   onLocalModelLinesChanged: {
-    var finished = function(target) {
-      if (target === "" || !localModelLines.some(function(line) { return line.localModel.target === target })) return false
-      if (usage.defaultAgent === "") selectLocalDefault(target)
-      return true
-    }
-    var done = false
-    if (finished(settingUpLocal)) { settingUpLocal = ""; done = true }
-    if (finished(pairingLocal)) { pairingLocal = ""; done = true }
-    // One cancelled or failed isn't going any more, though still remembered.
-    var going = function(meter) { return !!meter && !meter.failed }
-    if (done && !going(localSetupMeter) && !going(pairingMeter) && addStage === "pick") cancelAdd()
+    if (pairingLocal === "" || !localModelLines.some(function(line) { return line.localModel.target === pairingLocal })) return
+    if (usage.defaultAgent === "") selectLocalDefault(pairingLocal)
+    pairingLocal = ""
+    if (settingUpLocal === "" && addStage === "pick") cancelAdd()
   }
 
   // The pairing's meter: under way, or why it failed.
@@ -523,46 +641,178 @@ Panel {
     return null
   }
 
-  // Where that setup is: the model as the local models service has it
-  // (installing, then loading), or, before it lists it, the setup starting,
-  // waiting its turn, or failed.
-  readonly property var localSetup: {
-    if (settingUpLocal === "" || !localModelsService) return null
-    var model = ((localModelsService.localModel || {}).models || {})[settingUpLocal]
-    if (model) return model
-    return localModelsService.setupRows().find(function(row) { return row.recipe === settingUpLocal }) || null
+  function localSettingUp(model) {
+    return !!model && (model.panelSetup === true || model.unit === "installing")
   }
 
-  // Its meter: what it's doing, how far along (by the download's bytes, or by
-  // time against what a load usually takes), and the download's speed.
-  readonly property var localSetupMeter: {
-    var model = localSetup
+  // An offer's setup, or its start from here, as its row shows it.
+  function offerMeter(offer) {
+    if (!offer || offer.host !== "" || offer.target === "") return null
+    var model = localModelState(offer)
+    var starting = offer.target === settingUpLocal
+    return starting || localSettingUp(model) ? localMeter(model, starting) : null
+  }
+  onLocalSetupChanged: {
+    if (!localSetup || localSetup.unit !== "active" || localSetup.sub_state !== "running") return
+    var target = settingUpLocal
+    settingUpLocal = ""
+    if (usage.defaultAgent === "") selectLocalDefault(target)
+    if (pairingLocal === "" && addStage === "pick") cancelAdd()
+  }
+
+  // What a model on this machine is doing, as a meter: its title, how far
+  // along (by the download's bytes, or by time against what that took last
+  // time), and the download's speed. Failed, the title says why, and the
+  // logs say more when there are any. Null for a model running or at rest,
+  // but one just asked to start, `starting`, is already loading.
+  function localMeter(model, starting) {
     if (!model) return null
     var install = model.install || {}
     var elapsed = Math.max(0, (nowMs - Number(model.since_ms || nowMs)) / 1000)
-    var creep = function(expected) { return elapsed <= expected ? 0.9 * elapsed / expected : 0.9 + 0.08 * (1 - Math.exp(-(elapsed - expected) / expected)) }
-    // Set up but stopped: failed, or too big for the memory free. Stopped
-    // without either is the moment between download and start.
-    if (model.unit === "inactive" && model.fits === false && !model.error)
+    var timed = function(title, expected) { return { title: title, value: phaseProgress(elapsed, expected), rate: "" } }
+    if (model.unit === "removing") return timed(Commons.I18n.t("localModels.removingMeter"), Number(model.expected_remove_seconds) || 10)
+    if ((model.unit === "installing" && install.phase === "failed") || (["active", "activating", "deactivating"].indexOf(model.unit) < 0 && String(model.error || "") !== ""))
+      return { title: String(model.error || "") || Commons.I18n.t("localModels.setupFailed"), value: -1, rate: "", failed: true, logs: true }
+    // Stopped, and too big for the memory free now.
+    if ((model.unit === "inactive" || model.unit === "failed") && model.fits === false)
       return { title: Commons.I18n.t("localModels.notEnoughMemory"), value: -1, rate: "", failed: true }
-    if ((model.unit === "installing" && install.phase === "failed") || model.unit === "failed" || (model.unit === "inactive" && !!model.error))
-      return { title: String(model.error || "") || Commons.I18n.t("localModels.setupFailed"), value: -1, rate: "", failed: true }
-    if (model.unit === "installing" && install.phase === "dependencies")
-      return { title: Commons.I18n.t("localModels.installingMeter"), value: creep(30), rate: "" }
+    if (model.unit === "installing" && install.phase === "dependencies") return timed(Commons.I18n.t("localModels.installingMeter"), 30)
     if (model.unit === "installing") {
       var total = Number(install.total_bytes) || 0
       return { title: Commons.I18n.t("localModels.downloadingMeter"), value: total > 0 ? (Number(install.done_bytes) || 0) / total : 0,
                rate: downloadRate(Number(install.rate_bytes_s) || 0) }
     }
-    return { title: Commons.I18n.t("localModels.loadingMeter"), value: creep(Number(model.expected_load_seconds) || 60), rate: "" }
+    if (model.unit === "activating") return timed(Commons.I18n.t("localModels.loadingMeter"), expectedLoadSeconds(model))
+    if (model.unit === "deactivating") return timed(Commons.I18n.t("localModels.stoppingMeter"), expectedStopSeconds(model))
+    // Between the press and the engine saying it's loading.
+    if (starting && model.unit !== "active") return { title: Commons.I18n.t("localModels.loadingMeter"), value: 0, rate: "" }
+    return null
   }
 
-  // The setup's meter moves by the second, so the clock ticks while it shows.
+  // A start or stop runs steadily to 90% at the time the last one took, then
+  // keeps creeping toward 98%, so one that runs long reads as slow, not stuck.
+  function phaseProgress(elapsed, expected) {
+    if (!(expected > 0)) return 0
+    if (elapsed <= expected) return 0.9 * elapsed / expected
+    return 0.9 + 0.08 * (1 - Math.exp(-(elapsed - expected) / expected))
+  }
+
+  // How far an update is, as one bar from the press until the model is
+  // updated: waiting its turn, its download (the engine's bytes, or time where
+  // an engine reports none), then, when it ran, the old one stopping and the
+  // new one loading. A model that was stopped is stopped again at the end.
+  function updateProgress(model, startedMs, nowMs) {
+    var seconds = function(fromMs) { return Math.max(0, (nowMs - (fromMs || nowMs)) / 1000) }
+    var share = function(elapsed, expected) { return phaseProgress(elapsed, expected) / 0.98 }
+    if (model.updating === true && model.unit === "deactivating")
+      return 0.7 + 0.05 * share(seconds(Number(model.since_ms)), expectedStopSeconds(model))
+    if (model.updating === true && model.unit === "activating")
+      return 0.75 + 0.23 * share(seconds(Number(model.since_ms)), expectedLoadSeconds(model))
+    var progress = model.update_progress
+    if (!progress) return 0.7 * share(seconds(startedMs), 120)
+    if (progress.phase === "downloading" && Number(progress.total_bytes) > 0)
+      return 0.05 + 0.65 * Math.min(1, Number(progress.done_bytes) / Number(progress.total_bytes))
+    return 0.05 * share(seconds(startedMs), 10)
+  }
+
+  // How long a start or stop took last time, or a guess where none has run.
+  function expectedLoadSeconds(model) {
+    return Number(model && model.expected_load_seconds) || 60
+  }
+
+  function expectedStopSeconds(model) {
+    return Number(model && model.expected_stop_seconds) || 10
+  }
+
+  // A line's meters move by the second, so the clock ticks while one shows.
+  readonly property bool localBusy: settingUpLocal !== "" || localModelLines.some(function(line) {
+    var model = localModelState(line.localModel)
+    return !!model && (["installing", "activating", "deactivating", "removing"].indexOf(model.unit) >= 0 || model.updating === true)
+  })
   Timer {
     interval: 250
-    running: root.opened && root.picking && root.localSetupMeter !== null && root.localSetupMeter.value >= 0
+    running: root.opened && root.localBusy
     repeat: true
     onTriggered: root.nowMs = Date.now()
+  }
+
+  // What a model on this machine offers on its line. One the catalog has
+  // moved on from offers its update, running or stopped, but not while it
+  // loads, stops or is updated already. Sharing shows only while it runs:
+  // where Tailscale can serve it, or where it's shared already, so it can
+  // always be stopped. A stopped model stays shared and is served again when
+  // it starts.
+  function localActions(model, canShare) {
+    if (!model || model.unit === "removing" || model.unit === "installing") return []
+    var actions = []
+    if (model.update && model.updating !== true && ["active", "inactive", "failed"].indexOf(model.unit) >= 0) actions.push("update")
+    if (model.unit === "active" && (canShare || model.shared === true)) actions.push("share")
+    if (model.unit !== "deactivating") actions.push("toggle")
+    return actions
+  }
+
+  readonly property var localActionKinds: ({ update: "localUpdate", share: "localShare", toggle: "localToggle" })
+
+  // A line's own buttons, in the order they show: none but on a model on
+  // this machine.
+  function localLineActions(line) {
+    if (!line || !line.localModel) return []
+    return localActions(localModelState(line.localModel), !!localModelsService && localModelsService.canShare)
+  }
+
+  // A failure with logs to read, which the line links to.
+  function localLogsShown(line) {
+    var meter = line && line.localModel ? localMeter(localModelState(line.localModel), false) : null
+    return !!meter && meter.logs === true
+  }
+
+  function localStartBlocked(model) {
+    return !!model && model.unit !== "active" && model.unit !== "activating" && model.fits === false
+  }
+
+  // Starting, stopping, sharing and updating run in the background, and the
+  // line follows what omarchy-models writes. The panel has no terminal: a
+  // start that fails records its reason, which the line shows.
+  function runLocalAction(local, action) {
+    var model = localModelState(local)
+    if (!model) return
+    if (action === "toggle") {
+      var running = model.unit === "active" || model.unit === "activating"
+      // Greyed out means not startable by any route: click, Return or Enter.
+      if (!running && localStartBlocked(model)) return
+      Util.execArgv(["omarchy-models", running ? "stop" : "start", model.recipe])
+    } else if (action === "share") {
+      Util.execArgv(["omarchy-models", "share", model.recipe].concat(model.shared ? ["--off"] : []))
+    } else if (action === "update") {
+      // Its bar starts at the press, before the engine has said a word, and
+      // runs until the model is updated.
+      for (var i = 0; providerSections && i < providerSections.count; i++) {
+        var section = providerSections.itemAt(i)
+        if (section && section.local && section.local.target === local.target) section.askUpdate()
+      }
+      Util.execArgv(["omarchy-models", "update", "--detach", model.recipe])
+    }
+  }
+
+  // What pressing update means: how much it downloads, once the engine has
+  // sized it, and that the model restarts.
+  function updateTip(model) {
+    var bytes = Number(model && model.update && model.update.download_bytes) || 0
+    if (bytes >= 1e8) return Commons.I18n.t("localModels.updateDownloadGb").arg(Commons.I18n.formatNumber(bytes / 1e9, 1))
+    if (bytes > 0) return Commons.I18n.t("localModels.updateDownloadMb").arg(Commons.I18n.formatNumber(Math.max(1, Math.round(bytes / 1e6)), 0))
+    return Commons.I18n.t("localModels.update")
+  }
+
+  // The logs of a model that failed. A setup that failed before its
+  // download began has only what it printed, so the terminal shows that and
+  // closes as failed. The engine forgets a model's failure once its logs
+  // have printed it, keeping their status for the terminal's last line.
+  function showLocalLogs(model) {
+    var recipe = Util.shellQuote(String(model.recipe))
+    var command = model.panelSetup ? "printf %s " + Util.shellQuote(String(model.output)) + "; false"
+      : "omarchy-models logs " + recipe + "; logs=$?; omarchy-models dismiss " + recipe + " >/dev/null 2>&1; (exit $logs)"
+    Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", command])
+    root.close()
   }
 
   function selectLocalDefault(target) {
@@ -580,57 +830,28 @@ Panel {
     return facts.join(" · ")
   }
 
-  // A line for each coding model running and ready, here or on a paired
-  // machine; starting and stopping them is the local models panel's. Its
-  // target is what opens it: the recipe, or host/recipe for a paired
-  // machine's.
-  readonly property var localModelLines: {
-    var service = localModelsService
-    if (!service) return []
-    var recipes = {}
-    var list = service.localRecipes || []
-    for (var r = 0; r < list.length; r++) recipes[list[r].id] = list[r]
-    var out = []
-    var add = function(model, host) {
-      if (!model || model.kind !== "text" || model.unit !== "active" || (!host && model.sub_state !== "running")) return
-      var target = host ? host + "/" + model.recipe : model.recipe
-      var recipe = host ? {} : (recipes[model.recipe] || {})
-      out.push({
-        providerId: "local",
-        providerName: model.name || model.recipe,
-        lineId: "local/" + target,
-        iconId: model.vendor || "local",
-        localModel: {
-          target: target,
-          host: host || "",
-          decode_tok_s: model.decode_tok_s != null ? model.decode_tok_s : recipe.decode_tok_s,
-          context: model.ctx != null ? model.ctx : recipe.context,
-          memory_gib: recipe.memory_gib
-        }
-      })
-    }
-    var models = (service.localModel || {}).models || {}
-    for (var id in models) add(models[id], "")
-    var network = service.networkModels || {}
-    for (var nid in network)
-      if (network[nid].paired === true && String(network[nid].offline || "") === "") add(network[nid], network[nid].host)
-    return out
-  }
-
   // The local model the default opens: the pinned one, else the one started
   // last.
   readonly property string localDefaultTarget: {
     var local = localModelsService && localModelsService.localModel ? localModelsService.localModel : {}
     var pin = usage.localPin
-    if (pin !== "" && (pin.indexOf("/") >= 0 || (local.models || {})[pin])) return pin
+    if (pin !== "" && (pin.indexOf("/") >= 0 || localModels[pin])) return pin
     return String(local.last || "")
   }
 
+  // Choosing a model adds it. One already running steps straight back to the
+  // panel, where it has its line; one set up here and stopped starts, and one
+  // not set up is set up, its row following that until it runs. A cabled Spark
+  // is set up in a terminal, which asks for the other machine's password once.
   function chooseOwnModel(index) {
     var offer = ownModelOffers[index]
-    // A setup underway goes on; one that failed, or whose password prompt
-    // was dismissed, is tried again.
-    if (!offer || (offer.target === settingUpLocal && localSetupMeter && !localSetupMeter.failed)) return
+    // One the memory free can't start is neither started nor set up.
+    if (!offer || offer.shortfall) return
+    if (offer.link) {
+      root.close()
+      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-models link setup"])
+      return
+    }
     // A tailnet model not paired yet is paired with in the background, its
     // row saying how that goes; once paired, it has its line in the panel.
     if (offer.pair) {
@@ -640,15 +861,29 @@ Panel {
       localModelsService.pair(offer.pair)
       return
     }
+    // A setup or start underway from here goes on; one that failed, or
+    // whose password prompt was dismissed, is tried again. One downloading
+    // from a terminal is added and followed.
+    var meter = offerMeter(offer)
+    if (meter && !meter.failed && usage.addedLocalModels.indexOf(offer.target) >= 0) return
+    var local = { target: offer.target, host: offer.host }
+    var model = localModelState(local)
     usage.addLocalModel(offer.target)
-    if (offer.ready) {
-      root.close()
+    if (localRunning(local)) {
       // Ready now, so it's the first one finished when nothing else is.
       if (usage.defaultAgent === "") selectLocalDefault(offer.target)
-      Util.execArgv(["omarchy-agent", "--local-model", offer.target])
-    } else {
-      settingUpLocal = offer.target
-      localModelsService.setUp(offer.recipe)
+      if (settingUpLocal === "" && pairingLocal === "") {
+        if (addStage === "pick") cancelAdd()
+        else root.focusKeys()
+      }
+      return
+    }
+    settingUpLocal = offer.target
+    if (!model || model.panelSetup || (model.unit === "installing" && (model.install || {}).phase === "failed")) {
+      var recipe = offer.recipe || (localModelsService.localRecipes || []).find(function(r) { return String(r.id) === offer.target })
+      if (recipe) localModelsService.setUp(recipe)
+    } else if ((model.unit === "inactive" || model.unit === "failed") && !localStartBlocked(model)) {
+      Util.execArgv(["omarchy-models", "start", model.recipe])
     }
   }
 
@@ -722,6 +957,8 @@ Panel {
     addStage = "pick"
     addChecks = ({})
     if (!checkProcess.running) checkProcess.running = true
+    // A package upgrade may have brought new models to set up.
+    if (localModelsService) localModelsService.refreshLocal()
   }
 
   function chooseAddProvider(id) {
@@ -878,9 +1115,8 @@ Panel {
 
   // A local model that's running, and a coding model that's set up but
   // stopped, which takes a task too: opening the agent on it starts it first.
-  readonly property var localModels: localModelsService && localModelsService.localModel ? localModelsService.localModel.models || {} : {}
   readonly property bool localModelRunning: Object.keys(localModels).some(function(id) {
-    return localModels[id] && localModels[id].unit === "active" && localModels[id].sub_state === "running"
+    return localModels[id] && localModels[id].kind === "text" && localModels[id].unit === "active" && localModels[id].sub_state === "running"
   })
   readonly property bool localModelStopped: Object.keys(localModels).some(function(id) {
     return localModels[id] && localModels[id].kind === "text" && localModels[id].unit === "inactive"
@@ -996,6 +1232,10 @@ Panel {
     else if (target.kind.indexOf("make:") === 0) runLine(providers[target.index], target.kind.slice(5))
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], providers[target.index].account || null)
+    else if (target.kind === "localUpdate") runLocalAction(providers[target.index].localModel, "update")
+    else if (target.kind === "localShare") runLocalAction(providers[target.index].localModel, "share")
+    else if (target.kind === "localToggle") runLocalAction(providers[target.index].localModel, "toggle")
+    else if (target.kind === "localLogs") showLocalLogs(localModelState(providers[target.index].localModel))
   }
 
   // The cursor's place on a line: its terminal button, or its mark.
@@ -1153,8 +1393,12 @@ Panel {
     return !!provider && keyProviders.indexOf(provider.providerId) >= 0
   }
 
+  // A local model opens once it's set up, starting first when it's stopped.
   function launches(provider) {
-    return harnessFor(provider) !== "" || opensInAgent(provider) || !!(provider && provider.localModel)
+    // A local model opens an agent only while it runs; until then its line
+    // has the play button alone.
+    if (provider && provider.localModel) return localRunning(provider.localModel)
+    return harnessFor(provider) !== "" || opensInAgent(provider)
   }
 
   // What choosing this agent as the default writes: its harness, OpenCode for
@@ -1618,8 +1862,12 @@ Panel {
   }
 
   // A first setup ends when the records land, which swaps the rows under the
-  // cursor without any stage change.
-  onPickingChanged: resetKeys()
+  // cursor without any stage change. Free memory is read again each time the
+  // add screen offers models.
+  onPickingChanged: {
+    resetKeys()
+    if (picking && localModelsService) localModelsService.readFreeMemory()
+  }
 
   // Picking an agent to add starts on the first one, ready for Enter. The
   // rows follow the same stage change, so the cursor waits a tick for them.
@@ -1652,6 +1900,10 @@ Panel {
     usage.refreshLimits()
     usage.reloadDefaults()
     if (localModelsService) localModelsService.refreshNetwork()
+    // Whether a stopped model fits is as the engine last judged it; memory
+    // freed since lets it start, so it's judged again.
+    if (Object.keys(localModels).some(function(id) { return localModels[id].fits === false }))
+      Util.execArgv(["omarchy-models", "status", "--write"])
     Qt.callLater(function() { if (root.openFocusItem) root.openFocusItem.forceActiveFocus() })
   }
 
@@ -1752,7 +2004,9 @@ Panel {
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
     function refresh(): string { root.refreshNow(); return "ok" }
-    function showAgent(id: string, shown: bool): string { root.setProviderShown(id, shown); return "ok" }
+    // Shown as "true" or "false": omarchy-shell hands every argument over as
+    // text, and a bool parameter takes the text "false" as true.
+    function showAgent(id: string, shown: string): string { root.setProviderShown(id, shown === "true"); return "ok" }
   }
 
   BarIconButton {
@@ -1801,11 +2055,13 @@ Panel {
           handleKey(event)
           event.accepted = true
         }
-        // A paired machine's model is unlinked, whatever else follows.
+        // A paired machine's model is unlinked, and this machine's removed.
         readonly property bool unlinks: !!root.deleteTarget && !!root.deleteTarget.localModel && root.deleteTarget.localModel.host !== ""
-        confirmText: unlinks ? Commons.I18n.t("agents.unlink") : Commons.I18n.t("common.confirm")
+        confirmText: unlinks ? Commons.I18n.t("agents.unlink")
+          : !!root.deleteTarget && !!root.deleteTarget.localModel ? Commons.I18n.t("common.delete")
+          : Commons.I18n.t("common.confirm")
         message: !root.deleteTarget ? ""
-          : unlinks ? Commons.I18n.t("agents.unlinkModelConfirm").arg(root.deleteTarget.providerName).arg(root.deleteTarget.localModel.host)
+          : unlinks ? Commons.I18n.t("agents.unlinkModelConfirm").arg(root.deleteTarget.providerName)
           : root.opensByDefault(root.deleteTarget) ? Commons.I18n.t("agents.removeDefaultLocalModelConfirm").arg(root.deleteTarget.providerName)
           : root.deleteTarget.localModel ? Commons.I18n.t("agents.removeLocalModelConfirm").arg(root.deleteTarget.providerName)
           : root.forgets(root.deleteTarget) ? Commons.I18n.t("agents.forgetAccountConfirm").arg(root.lineName(root.deleteTarget))
@@ -2196,6 +2452,8 @@ Panel {
           required property int index
           readonly property int offerIndex: index + (modelData.host !== "" ? 0 : root.networkOfferCount)
           readonly property bool hasCursor: root.hasKey("ownModel", offerIndex)
+          // Too big for the memory free now: dimmed, saying so, and not chosen.
+          readonly property var shortfall: modelData.shortfall || null
           width: parent.width
           implicitHeight: ownModelText.implicitHeight + Style.space(16)
           onHasCursorChanged: if (hasCursor) root.revealItem(ownModel)
@@ -2206,8 +2464,9 @@ Panel {
             foreground: root.foreground
           }
 
-          // The maker's mark, as the local models panel draws it.
+          // The maker's mark.
           ProviderIcon {
+            opacity: ownModel.shortfall ? 0.5 : 1
             id: ownModelMark
             anchors.left: parent.left
             anchors.leftMargin: Style.space(8)
@@ -2228,64 +2487,35 @@ Panel {
               width: parent.width
               text: ownModel.modelData.name
               textFormat: Text.PlainText
-              color: ownModel.hasCursor ? Commons.Color.accent : root.foreground
+              color: ownModel.shortfall ? root.dim : ownModel.hasCursor ? Commons.Color.accent : root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
               font.bold: true
               elide: Text.ElideRight
             }
 
-            // A paired machine's model says whose it is before its facts.
+            // A paired machine's model says whose it is before its facts; a
+            // cabled Spark, what setting it up does; one too big for the
+            // memory free now, in red, why it can't start.
             Text {
               width: parent.width
-              text: [ownModel.modelData.host, root.ownModelFacts(ownModel.modelData.facts)].filter(function(part) { return part !== "" }).join(" · ")
+              text: ownModel.shortfall ? root.memoryShortText(ownModel.shortfall)
+                : ownModel.modelData.link ? Commons.I18n.t("localModels.linkSetUp")
+                : [ownModel.modelData.host, root.ownModelFacts(ownModel.modelData.facts)].filter(function(part) { return part !== "" }).join(" · ")
               textFormat: Text.PlainText
-              color: root.dim
+              color: ownModel.shortfall ? root.urgent : root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
               elide: Text.ElideRight
             }
 
-            // The setup started here, as the local models panel would show
-            // it: installing, downloading, then loading.
-            Item {
-              readonly property var meter: ownModel.modelData.target === root.pairingLocal ? root.pairingMeter
-                                        : ownModel.modelData.target === root.settingUpLocal ? root.localSetupMeter : null
+            // The setup or start begun here: installing, downloading, then
+            // loading, as its line will show it; or the pairing.
+            LocalMeterRow {
+              meter: ownModel.modelData.pair ? (ownModel.modelData.target === root.pairingLocal ? root.pairingMeter : null) : root.offerMeter(ownModel.modelData)
               visible: !!meter
               width: parent.width
-              implicitHeight: visible ? Math.max(setupTitle.implicitHeight, setupRate.implicitHeight) + Style.space(6) : 0
-
-              Text {
-                id: setupTitle
-                width: parent.meter && parent.meter.value < 0 ? parent.width : parent.width * 0.3
-                anchors.bottom: parent.bottom
-                textFormat: Text.PlainText
-                text: parent.meter ? parent.meter.title : ""
-                color: parent.meter && parent.meter.failed ? root.urgent : root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-              }
-
-              Meter {
-                visible: !!parent.meter && parent.meter.value >= 0
-                anchors.left: setupTitle.right
-                anchors.right: setupRate.left
-                anchors.rightMargin: Style.space(20)
-                anchors.verticalCenter: setupTitle.verticalCenter
-                value: parent.meter ? parent.meter.value : 0
-              }
-
-              Text {
-                id: setupRate
-                anchors.right: parent.right
-                anchors.verticalCenter: setupTitle.verticalCenter
-                textFormat: Text.PlainText
-                horizontalAlignment: Text.AlignRight
-                text: parent.meter ? parent.meter.rate : ""
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-              }
+              topPadding: Style.space(6)
             }
           }
 
@@ -2293,7 +2523,7 @@ Panel {
             id: ownModelMouse
             anchors.fill: parent
             hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
+            cursorShape: ownModel.shortfall ? Qt.ArrowCursor : Qt.PointingHandCursor
             onEntered: root.pointAt("ownModel", ownModel.offerIndex)
             onClicked: root.chooseOwnModel(ownModel.offerIndex)
           }
@@ -2582,11 +2812,51 @@ Panel {
     property int providerIndex: -1
     // An account's line: its account, renamed in place by clicking its name.
     readonly property var account: provider ? (provider.account || null) : null
-    // A local model's line: where it runs and what it is.
+    // A local model's line: where it runs and what it is, and, on this
+    // machine, how it is now and what it's doing.
     readonly property var local: provider ? (provider.localModel || null) : null
+    readonly property var localState: local ? root.localModelState(local) : null
+    readonly property var localActions: root.localLineActions(provider)
+    // Stopped, it steps back, so the one running stands out.
+    readonly property bool resting: !!localState && ["active", "activating", "installing"].indexOf(localState.unit) < 0
+    // An update has one bar of its own from the press to the end, through
+    // the reload of a model that ran, and never runs back. The press counts
+    // until the engine says it's updating, which takes a moment; one that
+    // never does (the command failed) lets the bar go after 20 seconds.
+    property bool updateAsked: false
+    readonly property bool updating: !!localState && ["installing", "removing"].indexOf(localState.unit) < 0 && (localState.updating === true || updateAsked)
+    property double updateStartedMs: 0
+    property real updateFill: 0
+    readonly property real updateTarget: updating ? root.updateProgress(localState, updateStartedMs, root.nowMs) : 0
+    onUpdateTargetChanged: updateFill = Math.max(updateFill, updateTarget)
+    function askUpdate() {
+      updateAsked = true
+      askTimer.restart()
+    }
+    Timer {
+      id: askTimer
+      interval: 20000
+      onTriggered: section.updateAsked = false
+    }
+    onLocalStateChanged: if (updateAsked && !!localState && localState.updating === true) {
+      updateAsked = false
+      askTimer.stop()
+    }
+    onUpdatingChanged: if (updating) {
+      updateStartedMs = Date.now()
+      updateFill = 0
+    }
+    Component.onCompleted: if (updating) updateStartedMs = Date.now()
+    readonly property var localMeter: {
+      if (!updating) return root.localMeter(localState, false)
+      var progress = localState.update_progress
+      return { title: Commons.I18n.t("localModels.updating"), value: updateFill,
+               rate: progress && progress.phase === "downloading" ? root.downloadRate(Number(progress.rate_bytes_s) || 0) : "" }
+    }
     property bool editingName: false
     property string renamedTo: ""
     readonly property string accountLabel: renamedTo !== "" ? renamedTo : account ? String(account.label || account.id || "") : ""
+    readonly property string accountName: provider ? String((provider.account && provider.account.email) || provider.accountName || "") : ""
     onAccountChanged: renamedTo = ""
     onEditingNameChanged: root.renaming = editingName
 
@@ -2666,6 +2936,7 @@ Panel {
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         provider: section.provider
+        opacity: section.resting ? 0.45 : 1
 
         // The mark is the handle for dragging the agent up or down the page.
         MouseArea {
@@ -2695,6 +2966,7 @@ Panel {
         width: Math.max(0, Math.min(implicitWidth, sectionHead.textEnd - x))
         elide: Text.ElideRight
         color: root.foreground
+        opacity: section.resting ? 0.45 : 1
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: true
@@ -2726,8 +2998,8 @@ Panel {
         }
 
         PanelToolTip {
-          visible: accountNameMouse.containsMouse && !!section.account && String(section.account.email || "") !== ""
-          text: section.account ? String(section.account.email || "") : ""
+          visible: accountNameMouse.containsMouse && !!section.account && section.accountName !== ""
+          text: section.accountName
         }
       }
 
@@ -2771,6 +3043,13 @@ Panel {
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
+
+        HoverHandler { id: planHover }
+
+        PanelToolTip {
+          visible: planHover.hovered && sectionPlan.visible && section.accountName !== ""
+          text: section.accountName
+        }
       }
 
       UsageNote {
@@ -2865,6 +3144,75 @@ Panel {
           }
         }
 
+        // A model on this machine starts and stops here: play, or pause.
+        // Greyed out, not disabled, where it won't fit, so the reason still
+        // shows on hover.
+        PanelActionButton {
+          outlined: true
+          id: localToggle
+          anchors.verticalCenter: parent.verticalCenter
+          visible: section.localActions.indexOf("toggle") >= 0
+          readonly property bool stops: !!section.localState && ["active", "activating"].indexOf(section.localState.unit) >= 0
+          readonly property bool blocked: root.localStartBlocked(section.localState)
+          iconText: stops ? "󰏤" : "󰐊"
+          tooltipText: blocked ? Commons.I18n.t("localModels.notEnoughMemory")
+            : stops ? Commons.I18n.t("localModels.stop") : Commons.I18n.t("localModels.start")
+          foreground: blocked ? root.dim : root.foreground
+          opacity: blocked ? 0.5 : 1
+          fontFamily: root.fontFamily
+          hasCursor: root.hasKey("localToggle", section.providerIndex)
+          onHovered: function(isHovered) { if (isHovered) root.hoverAt("localToggle", section.providerIndex) }
+          onClicked: root.runLocalAction(section.local, "toggle")
+        }
+
+        // Shares the running model with the tailnet, or stops sharing it: the
+        // Tailscale mark, dim while private, and in the icons' color while
+        // shared, when its tooltip counts the machines using it.
+        PanelActionButton {
+          outlined: true
+          id: localShare
+          anchors.verticalCenter: parent.verticalCenter
+          visible: section.localActions.indexOf("share") >= 0
+          readonly property bool shared: !!section.localState && section.localState.shared === true
+          readonly property int users: shared && root.localModelsService ? (root.localModelsService.shareClients[section.localState.recipe] || 0) : 0
+          tooltipText: users > 0 ? Commons.I18n.tn("localModels.networkSharedUsers", users).arg(Commons.I18n.formatNumber(users))
+            : shared ? Commons.I18n.t("localModels.networkStopSharing") : Commons.I18n.t("localModels.networkShare")
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          hasCursor: root.hasKey("localShare", section.providerIndex)
+          onHovered: function(isHovered) { if (isHovered) root.hoverAt("localShare", section.providerIndex) }
+          onClicked: root.runLocalAction(section.local, "share")
+
+          Tailscale.TailscaleIcon {
+            anchors.centerIn: parent
+            // The mark fills its box where a font glyph leaves padding around
+            // its ink, so it's drawn smaller to sit no larger than the pause.
+            iconSize: Math.round(Style.font.icon * 0.7)
+            color: localShare.shared || localShare._hot ? root.foreground : root.dim
+          }
+        }
+
+        // The catalog has a newer runtime, weights or settings for this model
+        // than it was set up with. Updating restarts it, so it's offered,
+        // never done on its own; while it runs the button stays, dimmed.
+        PanelActionButton {
+          outlined: true
+          id: localUpdate
+          anchors.verticalCenter: parent.verticalCenter
+          visible: section.updating || section.localActions.indexOf("update") >= 0
+          // The arrows the bar's system update shows, drawn to the play's
+          // size: this glyph fills more of its box than the play and pause do.
+          iconText: ""
+          fontSize: Math.round(Style.font.icon * 0.8)
+          tooltipText: section.updating ? Commons.I18n.t("localModels.updating") : root.updateTip(section.localState)
+          foreground: section.updating ? root.dim : root.foreground
+          opacity: section.updating ? 0.5 : 1
+          fontFamily: root.fontFamily
+          hasCursor: root.hasKey("localUpdate", section.providerIndex)
+          onHovered: function(isHovered) { if (isHovered) root.hoverAt("localUpdate", section.providerIndex) }
+          onClicked: if (!section.updating) root.runLocalAction(section.local, "update")
+        }
+
         // The default's star is filled: the default agent, and with several
         // accounts the one in use. Another line's makes it the default.
         PanelActionButton {
@@ -2893,16 +3241,66 @@ Panel {
     }
 
     // The machine a local model runs on when that isn't this one, then its
-    // memory, speed, and context, as the local models panel says them.
+    // memory, speed, and context.
     Text {
       visible: !!section.local && text !== ""
       width: parent.width
       textFormat: Text.PlainText
       text: section.local ? [section.local.host, root.ownModelFacts(section.local)].filter(function(part) { return part !== "" }).join(" · ") : ""
       color: root.dim
+      opacity: section.resting ? 0.6 : 1
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
       elide: Text.ElideRight
+    }
+
+    // A model on this machine at work: its download, load, stop, update or
+    // removal, against how long that took last time.
+    LocalMeterRow {
+      visible: !!section.localMeter && !section.localMeter.failed
+      width: parent.width
+      meter: section.localMeter
+    }
+
+    // Why a model on this machine stopped or its setup failed, which opens
+    // its logs.
+    TextLink {
+      visible: !!section.localMeter && section.localMeter.logs === true
+      width: Math.min(implicitWidth, parent.width)
+      text: visible ? section.localMeter.title : ""
+      idleColor: root.urgent
+      hotColor: root.urgent
+      wrapMode: Text.Wrap
+      picked: root.hasKey("localLogs", section.providerIndex)
+      onHovered: root.hoverAt("localLogs", section.providerIndex)
+      tooltip: Commons.I18n.t("localModels.showLogsTip")
+      onClicked: root.showLocalLogs(section.localState)
+    }
+
+    // A stopped model too big for the memory free now.
+    Text {
+      visible: !!section.localMeter && section.localMeter.failed === true && section.localMeter.logs !== true
+      width: parent.width
+      textFormat: Text.PlainText
+      text: visible ? section.localMeter.title : ""
+      color: Commons.Color.warning
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      wrapMode: Text.Wrap
+    }
+
+    // Sharing that Tailscale refused, with the way to fix it.
+    Text {
+      readonly property string error: section.localState && section.localState.shared === true && root.localModelsService
+        ? String(root.localModelsService.localModel.share_error || "") : ""
+      visible: error !== ""
+      width: parent.width
+      textFormat: Text.PlainText
+      text: error
+      color: root.urgent
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      wrapMode: Text.Wrap
     }
 
     // A sign-in to redo, for the line's account when it's one of several.
@@ -3177,6 +3575,52 @@ Panel {
 
   // A plain-text control: dim until hovered or picked, accent when it's the
   // current choice. Stands in for bordered buttons, which pile up here.
+  // How a model's setup, start, stop, update or removal goes: what it's
+  // doing, a meter, and a download's speed; or, failed, why.
+  component LocalMeterRow: Item {
+    id: meterRow
+    property var meter: null
+    property real topPadding: 0
+    readonly property bool failed: !!meter && meter.failed === true
+    // A step with no measure of its own, like a pairing, is its title alone.
+    readonly property bool barless: !meter || failed || meter.value < 0
+    implicitHeight: Math.max(meterTitle.implicitHeight, meterRate.implicitHeight) + topPadding
+
+    Text {
+      id: meterTitle
+      width: meterRow.barless ? parent.width : parent.width * 0.3
+      anchors.bottom: parent.bottom
+      textFormat: Text.PlainText
+      text: meterRow.meter ? meterRow.meter.title : ""
+      color: meterRow.failed ? root.urgent : root.foreground
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: meterRow.failed ? Text.Wrap : Text.NoWrap
+      elide: meterRow.failed ? Text.ElideNone : Text.ElideRight
+    }
+
+    Meter {
+      visible: !meterRow.barless
+      anchors.left: meterTitle.right
+      anchors.right: meterRate.left
+      anchors.rightMargin: Style.space(20)
+      anchors.verticalCenter: meterTitle.verticalCenter
+      value: meterRow.meter ? meterRow.meter.value : 0
+    }
+
+    Text {
+      id: meterRate
+      anchors.right: parent.right
+      anchors.verticalCenter: meterTitle.verticalCenter
+      textFormat: Text.PlainText
+      horizontalAlignment: Text.AlignRight
+      text: meterRow.meter && !meterRow.failed ? meterRow.meter.rate : ""
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+    }
+  }
+
   component TextLink: Text {
     id: link
     signal clicked()

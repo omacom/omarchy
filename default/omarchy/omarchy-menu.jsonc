@@ -46,7 +46,7 @@
   "system.shutdown": {"icon":"󰐥","label":"Shutdown","action":"omarchy-system shutdown"},
 
   // Learn
-  "learn.keybindings": {"icon":"","label":"Keybindings","action":"omarchy-menu-keybindings"},
+  "learn.keybindings": {"icon":"","label":"Keybindings","action":"omarchy-shell shell summon omarchy.menu '{\"mode\":\"keybindings\"}'"},
   "learn.omarchy": {"icon":"","label":"Omarchy","action":"omarchy-launch-manual"},
   "learn.hyprland": {"icon":"","label":"Hyprland","action":"omarchy-launch-webapp 'https://wiki.hypr.land/'"},
   "learn.arch": {"icon":"󰣇","label":"Arch","action":"omarchy-launch-webapp 'https://wiki.archlinux.org/title/Main_page'"},
@@ -58,7 +58,7 @@
 
   // Appearance
   "appearance.theme": {"icon":"󰸌","label":"Theme","aliases":["theme","themes"],"action":"omarchy-shell shell summon omarchy.image-picker '{\"source\":\"themes\"}'"},
-  "appearance.background": {"icon":"","label":"Background","aliases":["background","wallpaper"],"action":"background=$(omarchy-theme-bg-switcher); [[ -n $background ]] && omarchy-theme-bg-set \"$background\""},
+  "appearance.background": {"icon":"","label":"Background","aliases":["background","wallpaper"],"action":"omarchy-shell shell summon omarchy.image-picker '{\"source\":\"backgrounds\"}'"},
   "appearance.font": {"icon":"","label":"Font","provider":"fonts"},
   "appearance.icons": {"icon":"󰠱","label":"Icons","action":"icons=$(omarchy-icons-switcher); [[ -n $icons ]] && omarchy-icons-set \"$icons\""},
   "appearance.top-bar": {"icon":"󰍜","label":"Menu Bar"},
