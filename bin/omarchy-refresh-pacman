@@ -58,11 +58,20 @@ omarchy-hook pre-refresh-pacman
 # A stable or rc repository can still list an old -dev build (stable's listed
 # 4.0.0.r1832 from August to October 2026), and -uu would move an edge machine
 # onto it here, before omarchy-channel-set swaps the pair, and leave the
-# machine on that old build. The -dev pair is left to the swap.
+# machine on that old build. --ignore keeps the -dev pair at its own version.
 ignore=()
+targets=()
 if [[ $channel == "stable" || $channel == "rc" ]]; then
   ignore=(--ignore omarchy-dev,omarchy-settings-dev)
+  # The ignored pair's dependencies still gate the downgrade: an edge
+  # omarchy-dev requires a newer omarchy-themes-intros than stable publishes,
+  # and pacman checks the ignored package's dependencies before preparing, so
+  # the whole transaction refuses to run (#19955). The release pair conflicts
+  # with the -dev pair, so naming it here removes the dev build in the same
+  # transaction and nothing ignored is left behind to gate the downgrade;
+  # channel-set's swap afterwards is then a no-op.
+  targets=(omarchy omarchy-settings)
 fi
 
 # Reset all package DBs and then update
-omarchy-update-pacman -Syyuu --noconfirm "${ignore[@]}"
+omarchy-update-pacman -Syyuu --noconfirm "${ignore[@]}" "${targets[@]}"

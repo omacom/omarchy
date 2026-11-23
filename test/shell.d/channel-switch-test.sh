@@ -60,10 +60,34 @@ run_channel() {
 }
 for channel in stable rc edge dev; do
   reset_boundary
-  run_channel "$channel" || fail "$channel failed" "$(<"$boundary_tmp/output")"
+  run_channel "$channel" || fail "$channel failed" "$(cat "$boundary_tmp/output")"
   assert_channel_order
   pass "$channel runs the refresh hook before the transaction and hands off to one update authorization"
 done
+
+# A switch to stable or rc downgrades while the -dev pair is still installed,
+# and the ignored pair's dependencies gate the transaction: edge's omarchy-dev
+# requires a newer omarchy-themes-intros than stable publishes, so the
+# downgrade must carry the release pair in the same transaction (#19955).
+for channel in stable rc edge dev; do
+  reset_boundary
+  run_channel "$channel" || fail "$channel failed for the transaction shape" "$(cat "$boundary_tmp/output")"
+  transaction=$(grep -m1 '^step:pacman ' "$SUDO_TEST_LOG") ||
+    fail "$channel: no downgrade transaction ran" "$(grep '^step:pacman' "$SUDO_TEST_LOG" || true)"
+  case $channel in
+    stable | rc)
+      if [[ $transaction != *'--ignore omarchy-dev,omarchy-settings-dev omarchy omarchy-settings'* ]]; then
+        fail "$channel downgrade does not carry the release pair beside the ignored dev pair" "$transaction"
+      fi
+      ;;
+    *)
+      if [[ $transaction != 'step:pacman -Syyuu --noconfirm' ]]; then
+        fail "$channel downgrade gained targets" "$transaction"
+      fi
+      ;;
+  esac
+done
+pass "a stable or rc downgrade carries the release pair so the ignored dev build leaves with it"
 
 # Every aarch64 platform switches to all four channels, copying its own
 # templates.

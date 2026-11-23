@@ -188,8 +188,10 @@ hook = events.index('step:omarchy-hook pre-refresh-pacman')
 upgrade = 'step:pacman -Syyuu --noconfirm'
 if channel in ('stable', 'rc'):
   # The -dev pair is edge's: an old build of it in a stable or rc repository is
-  # left to the channel switch's swap.
-  upgrade += ' --ignore omarchy-dev,omarchy-settings-dev'
+  # kept at its own version, and the release pair conflicts with the dev build,
+  # so the release pair is named in the same downgrade and the ignored pair's
+  # dependencies no longer gate it (#19955).
+  upgrade += ' --ignore omarchy-dev,omarchy-settings-dev omarchy omarchy-settings'
 transaction = events.index(upgrade)
 assert events.index(expected[-1]) < hook < transaction, events
 PY
