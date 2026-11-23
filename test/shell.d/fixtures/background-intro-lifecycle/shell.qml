@@ -29,12 +29,7 @@ ShellRoot {
     command: ["touch", Quickshell.env("INTRO_TEST_FRAME_READY")]
   }
 
-  // Each step runs a set delay after the one before it ran, always in order;
-  // see switch-sequence.qml. A step with `until` then waits, up to 3 s, for the
-  // state it checks: how long a cover takes to decode and present depends on
-  // the machine's screens and renderer.
-  property int step: 0
-  property double stepDeadline: 0
+  // Wait for the outgoing cover before hiding the retained background.
   readonly property var steps: [
     { delay: 300, run: function() {
       test.check(intro.checked, "startup runs even when OWE left the background disabled for a video")
@@ -46,7 +41,8 @@ ShellRoot {
       intro.finishTheme("superseded-theme")
       test.check(intro.themeToken === "theme-one", "an older intro cannot release the pending handoff")
     } },
-    { delay: 200, until: function() { return intro.themeCoverStatus("theme-one") !== "loading" }, run: function() {
+    { until: function() { return intro.themeCoverStatus("theme-one") !== "loading" },
+      waitFor: "the outgoing cover to be presented", run: function() {
       test.check(intro.cover, "the still stays covered while the launcher waits")
       test.check(intro.themeCoverStatus("theme-one") === "ready", "the outgoing cover is presented before the shell is hidden")
       retainedBackground.suspended = true
@@ -59,25 +55,7 @@ ShellRoot {
       handoff.start()
     } }
   ]
-  Timer {
-    interval: test.steps[0].delay
-    running: true
-    onTriggered: {
-      var current = test.steps[test.step]
-      if (current.until && !current.until() && Date.now() < test.stepDeadline) {
-        interval = 16
-        start()
-        return
-      }
-      current.run()
-      test.step++
-      if (test.step < test.steps.length) {
-        interval = test.steps[test.step].delay
-        test.stepDeadline = Date.now() + interval + 3000
-        start()
-      }
-    }
-  }
+  StepSequence { steps: test.steps }
   property double handoffDeadline: 0
   property bool openingFadeObserved: false
   Connections {
