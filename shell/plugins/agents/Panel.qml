@@ -1808,7 +1808,10 @@ Panel {
                                            Math.max(0, panelFlick.contentHeight - panelFlick.height))
       }
       onDeleteRequested: root.deleteSelected()
-      blocked: root.renaming || root.deleteTarget !== null
+      // A code field keeps its own keys: Qt passes Return on after accepting
+      // it, and here that would press the Cancel under the cursor too,
+      // stopping the sign-in just handed its code.
+      blocked: root.renaming || root.deleteTarget !== null || pasteField.activeFocus
       onActivateRequested: root.activateSelection()
       onCloseRequested: {
         if (root.dragIndex >= 0) root.settleProviderDrag(true)
