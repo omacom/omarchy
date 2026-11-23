@@ -22,7 +22,7 @@
   "agents.editInstructions": "Επεξεργάσου το AGENTS.md, τις οδηγίες που ακολουθεί κάθε agent",
   "agents.enterApiKey": "Επικόλλησε το κλειδί API σου",
   "agents.firstBecomesDefault": "Το πρώτο γίνεται το προεπιλεγμένο σου",
-  "agents.forgetAccountConfirm": "Αφαίρεση του %1; Η σύνδεσή του διαγράφεται από αυτό το μηχάνημα, οπότε για να το ξαναπροσθέσεις πρέπει να συνδεθείς ξανά.",
+  "agents.forgetAccountConfirm": "Αφαίρεση του %1;",
   "agents.freeResets": {
     "one": "%1 δωρεάν επαναφορά",
     "other": "%1 δωρεάν επαναφορές"

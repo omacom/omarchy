@@ -22,7 +22,7 @@
   "agents.editInstructions": "AGENTS.md සංස්කරණය කරන්න, සෑම ඒජන්තයෙකුම අනුගමනය කරන උපදෙස්",
   "agents.enterApiKey": "ඔබේ API යතුර අලවන්න",
   "agents.firstBecomesDefault": "පළමුවැන්න ඔබේ පෙරනිමියයි",
-  "agents.forgetAccountConfirm": "%1 ඉවත් කරන්නද? එහි පුරනය මෙම යන්ත්‍රයෙන් මකා දමනු ලැබේ, එබැවින් නැවත එක් කිරීමට නැවත පුරනය වීමට සිදුවේ.",
+  "agents.forgetAccountConfirm": "%1 ඉවත් කරන්නද?",
   "agents.freeResets": {
     "one": "%1 නොමිලේ යළි පිහිටුවීම",
     "other": "%1 නොමිලේ යළි පිහිටුවීම්"

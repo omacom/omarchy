@@ -22,7 +22,7 @@
   "agents.editInstructions": "AGENTS.md ni tahrirlash — barcha agentlar amal qiladigan koʻrsatmalar",
   "agents.enterApiKey": "API kalitingizni joylashtiring",
   "agents.firstBecomesDefault": "Birinchisi standart agentingiz boʻladi",
-  "agents.forgetAccountConfirm": "%1 olib tashlansinmi? Kirish maʼlumotlari ushbu qurilmadan oʻchiriladi, qayta qoʻshish uchun yana kirishingiz kerak boʻladi.",
+  "agents.forgetAccountConfirm": "%1 olib tashlansinmi?",
   "agents.freeResets": {
     "one": "%1 ta bepul tiklash",
     "other": "%1 ta bepul tiklash"

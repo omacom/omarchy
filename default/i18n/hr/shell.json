@@ -22,7 +22,7 @@
   "agents.editInstructions": "Uredite AGENTS.md, upute koje slijedi svaki agent",
   "agents.enterApiKey": "Zalijepite API ključ",
   "agents.firstBecomesDefault": "Prvi postaje vaš zadani",
-  "agents.forgetAccountConfirm": "Ukloniti %1? Njegova prijava briše se s ovog računala, pa ponovno dodavanje znači novu prijavu.",
+  "agents.forgetAccountConfirm": "Ukloniti %1?",
   "agents.freeResets": {
     "few": "%1 besplatna resetiranja",
     "one": "%1 besplatno resetiranje",

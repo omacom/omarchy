@@ -22,7 +22,7 @@
   "agents.editInstructions": "Rediģēt AGENTS.md, instrukcijas, ko ievēro visi aģenti",
   "agents.enterApiKey": "Ielīmē API atslēgu",
   "agents.firstBecomesDefault": "Pirmais kļūst par noklusējumu",
-  "agents.forgetAccountConfirm": "Noņemt %1? Tā pierakstīšanās tiks dzēsta no šīs ierīces, tāpēc pievienošanai atpakaļ būs jāpierakstās vēlreiz.",
+  "agents.forgetAccountConfirm": "Noņemt %1?",
   "agents.freeResets": {
     "one": "%1 bezmaksas atiestatīšana",
     "other": "%1 bezmaksas atiestatīšanas",

@@ -22,7 +22,7 @@
   "agents.editInstructions": "I-edit ang AGENTS.md, ang mga tagubiling sinusunod ng bawat agent",
   "agents.enterApiKey": "I-paste ang API key mo",
   "agents.firstBecomesDefault": "Ang una ang default mo",
-  "agents.forgetAccountConfirm": "Alisin ang %1? Mabubura ang sign-in nito sa makinang ito, kaya kailangang mag-sign in muli para maibalik ito.",
+  "agents.forgetAccountConfirm": "Alisin ang %1?",
   "agents.freeResets": {
     "one": "%1 libreng reset",
     "other": "%1 libreng reset"

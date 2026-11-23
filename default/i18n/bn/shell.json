@@ -22,7 +22,7 @@
   "agents.editInstructions": "AGENTS.md সম্পাদনা করুন, সব এজেন্ট যে নির্দেশনা মানে",
   "agents.enterApiKey": "আপনার API কী পেস্ট করুন",
   "agents.firstBecomesDefault": "প্রথমটিই আপনার ডিফল্ট",
-  "agents.forgetAccountConfirm": "%1 সরাবেন? এই মেশিন থেকে এর সাইন-ইন মুছে যাবে, তাই আবার যোগ করতে আবার সাইন-ইন করতে হবে।",
+  "agents.forgetAccountConfirm": "%1 সরাবেন?",
   "agents.freeResets": {
     "one": "%1টি ফ্রি রিসেট",
     "other": "%1টি ফ্রি রিসেট"

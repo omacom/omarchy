@@ -22,7 +22,7 @@
   "agents.editInstructions": "Editar o AGENTS.md, as instruções que todos os agentes seguem",
   "agents.enterApiKey": "Cole sua chave de API",
   "agents.firstBecomesDefault": "O primeiro é seu padrão",
-  "agents.forgetAccountConfirm": "Remover %1? O login será excluído desta máquina, então para adicioná-lo de volta será preciso entrar novamente.",
+  "agents.forgetAccountConfirm": "Remover %1?",
   "agents.freeResets": {
     "many": "%1 redefinições gratuitas",
     "one": "%1 redefinição gratuita",

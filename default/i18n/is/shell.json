@@ -22,7 +22,7 @@
   "agents.editInstructions": "Breyta AGENTS.md, leiðbeiningunum sem allir umboðsmenn fylgja",
   "agents.enterApiKey": "Límdu API-lykilinn þinn",
   "agents.firstBecomesDefault": "Sá fyrsti verður sjálfgefinn",
-  "agents.forgetAccountConfirm": "Fjarlægja %1? Innskráningu þess verður eytt af þessari vél, svo til að bæta því við aftur þarftu að skrá þig inn á ný.",
+  "agents.forgetAccountConfirm": "Fjarlægja %1?",
   "agents.freeResets": {
     "one": "%1 ókeypis endurstilling",
     "other": "%1 ókeypis endurstillingar"

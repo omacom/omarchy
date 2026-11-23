@@ -22,7 +22,7 @@
   "agents.editInstructions": "Her ajanın uyduğu talimatlar olan AGENTS.md dosyasını düzenleyin",
   "agents.enterApiKey": "API anahtarınızı yapıştırın",
   "agents.firstBecomesDefault": "İlk eklediğiniz varsayılanınız olur",
-  "agents.forgetAccountConfirm": "%1 kaldırılsın mı? Girişi bu makineden silinir; geri eklemek için tekrar giriş yapmanız gerekir.",
+  "agents.forgetAccountConfirm": "%1 kaldırılsın mı?",
   "agents.freeResets": {
     "one": "%1 ücretsiz sıfırlama",
     "other": "%1 ücretsiz sıfırlama"

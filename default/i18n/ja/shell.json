@@ -22,7 +22,7 @@
   "agents.editInstructions": "すべてのエージェントが従う指示、AGENTS.md を編集",
   "agents.enterApiKey": "APIキーを貼り付け",
   "agents.firstBecomesDefault": "最初のがデフォルトになります",
-  "agents.forgetAccountConfirm": "%1 を削除しますか？このマシンからサインイン情報が削除されるため、再追加するには再度サインインが必要です。",
+  "agents.forgetAccountConfirm": "%1 を削除しますか？",
   "agents.freeResets": {
     "other": "%1 回の無料リセット"
   },
