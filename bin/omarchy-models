@@ -5,7 +5,8 @@
 # omarchy:subcommand=list [--json] — List recipes and which fit this machine
 # omarchy:subcommand=status [--json] — Show the models that are set up, and whether a better one is recommended
 # omarchy:subcommand=start [recipe] — Start a model that's set up, the last one started by default
-# omarchy:subcommand=stop [recipe] — Stop a model, or every running one
+# omarchy:subcommand=stop [--unless-used] [recipe...] — Stop models, or every running one; --unless-used leaves those in use
+# omarchy:subcommand=hold <recipe...> — Hold models as in use until standard input closes
 # omarchy:subcommand=update [recipe] — Update a model to the catalog's runtime, weights and settings
 # omarchy:subcommand=remove <recipe> — Remove a model's weights, manifests and unused image
 # omarchy:subcommand=share [--off] [recipe] — Share a model with the other machines on your tailnet
