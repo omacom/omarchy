@@ -40,6 +40,10 @@ stub_rebuild() {
   cat >"$stub_bin/$1" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >>"$REBUILDS"
+if [[ ${0##*/} == "limine-mkinitcpio" ]]; then
+  printf '%s\n' 'Building UKI for linux (7.2.15)' '==> Initcpio image generation successful' \
+    '==> Unified kernel image generation successful'
+fi
 SH
   chmod +x "$stub_bin/$1"
 }
@@ -246,7 +250,7 @@ output=$(first_boot "$root") || fail "the first boot finishes the deferred hardw
 [[ ! -L $root/etc/systemd/system/multi-user.target.wants/$unit_name && -f $root/etc/systemd/system/$unit_name ]] ||
   fail "the first boot disables its service and keeps the unit, so a start job already queued is skipped rather than failed"
 [[ $(cat "$REBUILDS") == "mkinitcpio -P" ]] ||
-  fail "the first boot rebuilds the initramfs once after a leaf changed it" "$(cat "$REBUILDS" 2>/dev/null)"
+  fail "the first boot rebuilds the boot image once after the last leaf" "$(cat "$REBUILDS" 2>/dev/null)"
 [[ ! -e $root/var/lib/omarchy/image/initramfs-inputs ]] || fail "the first boot clears the rebuild it owed"
 grep -q 'Completed: .*/install/hardware/c.sh' "$root/var/log/omarchy-install.log" ||
   fail "the first boot logs each step to the install log"
@@ -293,8 +297,10 @@ output=$(first_boot "$root" 2>&1) || status=$?
   fail "the failed step and those after it stay queued" "$(queue_of "$root")"
 [[ -f $root/var/lib/omarchy/image/target.booted && ! -e $root/var/lib/omarchy/image/target ]] ||
   fail "the machine stops being an image build once its first boot starts"
-[[ -L $root/etc/systemd/system/multi-user.target.wants/$unit_name && -e $root/var/lib/omarchy/image/initramfs-inputs && ! -e $REBUILDS ]] ||
-  fail "the service stays armed and the initramfs rebuild stays owed until the queue is empty"
+[[ -L $root/etc/systemd/system/multi-user.target.wants/$unit_name && -e $root/var/lib/omarchy/image/initramfs-inputs &&
+  -e $root/var/lib/omarchy/image/boot-rebuild && ! -e $REBUILDS &&
+  ! -e $root/var/lib/omarchy/image/boot-image-rebuilt ]] ||
+  fail "the service stays armed and the boot image rebuild stays owed until the queue is empty"
 [[ ! -e $LEAF_CALLS ]] || fail "a failed step fetches no package databases" "$(cat "$LEAF_CALLS")"
 pass "a failed step stays queued with the steps after it"
 
@@ -563,16 +569,96 @@ output=$(first_boot "$root") || fail "a step no longer shipped does not block th
   fail "a step no longer shipped is skipped and the rest run" "$output"
 pass "a deferred step Omarchy no longer ships is skipped"
 
-# A step that would build the boot image itself asks for the rebuild after the
-# last step instead: one rebuild, even when no
-# initramfs input changed, and the request outlives a run that stopped early.
+# The boot image an image carries was built for the machine that built the
+# image, so its modules describe that machine and not this one: the first boot
+# rebuilds it for the hardware here, even when no leaf changed anything.
 reset_logs
-root=$(new_root request)
+root=$(new_root machine)
 write_manifest "$root"
 build "$root" >/dev/null || fail "the fixture image builds"
 printf '%s\n' install/hardware/c.sh >"$root/var/lib/omarchy/image/deferred-steps"
-first_boot "$root" >/dev/null || fail "a step that asks for nothing finishes"
-[[ ! -e $REBUILDS ]] || fail "no rebuild without a changed input or a request" "$(cat "$REBUILDS")"
+first_boot "$root" >/dev/null || fail "the first boot finishes the deferred hardware setup"
+[[ $(cat "$REBUILDS" 2>/dev/null) == "mkinitcpio -P" ]] ||
+  fail "the first boot of an image rebuilds the boot image for the machine" "$(cat "$REBUILDS" 2>/dev/null)"
+[[ ! -e $root/var/lib/omarchy/image/boot-rebuild ]] || fail "the first boot clears the rebuild it owed"
+[[ -e $root/var/lib/omarchy/image/boot-image-rebuilt ]] ||
+  fail "the first boot records that the boot image is the machine's own"
+pass "the first boot of an image rebuilds the boot image for the machine"
+
+# A first boot that stopped between retiring the manifest and asking for the
+# rebuild still owes it: the machine booted an image, so the boot image it
+# carries is the builder's until a rebuild lands.
+reset_logs
+root=$(new_root interrupted)
+write_manifest "$root"
+build "$root" >/dev/null || fail "the fixture image builds"
+printf '%s\n' install/hardware/c.sh >"$root/var/lib/omarchy/image/deferred-steps"
+# The interruption: the manifest is retired and the request that follows it is lost.
+mv "$root/var/lib/omarchy/image/target" "$root/var/lib/omarchy/image/target.booted"
+rm -f "$root/var/lib/omarchy/image/boot-rebuild"
+first_boot "$root" >/dev/null || fail "the next boot finishes the deferred hardware setup"
+[[ $(cat "$REBUILDS" 2>/dev/null) == "mkinitcpio -P" ]] ||
+  fail "a first boot that lost its rebuild request still rebuilds the boot image" "$(cat "$REBUILDS" 2>/dev/null)"
+[[ -e $root/var/lib/omarchy/image/boot-image-rebuilt ]] ||
+  fail "the rebuild that landed records the boot image as the machine's own"
+pass "a first boot that lost its rebuild request still rebuilds the boot image"
+
+# A rebuild that reports a kernel it could not build is no rebuild, even
+# though the command says nothing wrong with its exit status: the machine
+# keeps the boot image it had, and the rebuild stays owed.
+stub_failed_rebuild() {
+  cat >"$stub_bin/$1" <<'SH'
+#!/bin/bash
+printf '%s %s\n' "${0##*/}" "$*" >>"$REBUILDS"
+printf '%s\n' "${REBUILD_FAILURE-==> ERROR: mkinitcpio failed for kernel 7.2.15-1-omarchy, skipping.}" >&2
+SH
+  chmod +x "$stub_bin/$1"
+}
+
+reset_logs
+stub_failed_rebuild limine-mkinitcpio
+root=$(new_root failed)
+write_manifest "$root"
+build "$root" >/dev/null || fail "the fixture image builds"
+printf '%s\n' install/hardware/c.sh >"$root/var/lib/omarchy/image/deferred-steps"
+status=0
+first_boot "$root" >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "a rebuild that failed stops the run" "status $status"
+[[ ! -e $root/var/lib/omarchy/image/boot-image-rebuilt ]] ||
+  fail "a rebuild that failed does not record the boot image as the machine's own"
+[[ -e $root/var/lib/omarchy/image/boot-rebuild ]] || fail "a rebuild that failed stays owed"
+[[ -e $root/var/lib/omarchy/image/deferred-steps ]] || fail "a rebuild that failed keeps the queue"
+rm -f "$stub_bin/limine-mkinitcpio"
+pass "a rebuild that failed leaves the boot image owed"
+
+build_output=$'Building UKI for linux (7.2.15)\n==> Initcpio image generation successful\n==> Unified kernel image generation successful'
+for failure in \
+  "$build_output"$'\n\e[31mFailed to copy: linux.efi -> /boot/EFI/Linux/linux.efi (No space left on device)\e[0m' \
+  "$build_output"$'\nThe file: /tmp/linux.efi not found' \
+  "$build_output"$'\nException in thread "main" java.nio.charset.MalformedInputException' \
+  "$build_output"$'\n/usr/bin/limine-entry-tool: line 116: 123 Killed java' \
+  "$build_output"$'\nBuilding UKI for linux-lts (6.12.0)' \
+  ''; do
+  reset_logs
+  export REBUILD_FAILURE=$failure
+  stub_failed_rebuild limine-mkinitcpio
+  root=$(new_root unconfirmed)
+  write_manifest "$root"
+  build "$root" >/dev/null || fail "the fixture image builds"
+  status=0
+  first_boot "$root" >/dev/null 2>&1 || status=$?
+  (( status == 1 )) && [[ ! -e $root/var/lib/omarchy/image/boot-image-rebuilt &&
+    -e $root/var/lib/omarchy/image/boot-rebuild && -e $root/var/lib/omarchy/image/deferred-steps &&
+    -L $root/etc/systemd/system/multi-user.target.wants/$unit_name ]] ||
+    fail "an unconfirmed Limine rebuild stays owed" "status $status: $failure"
+done
+unset REBUILD_FAILURE
+rm -f "$stub_bin/limine-mkinitcpio"
+pass "entry-tool failures, incomplete builds and empty Limine runs never record completion"
+
+# A step that would build the boot image itself asks for the rebuild after the
+# last step instead: one rebuild covers it and the machine's own hardware, and
+# the request outlives a run that stopped early.
 reset_logs
 root=$(new_root request)
 write_manifest "$root"
@@ -616,7 +702,8 @@ pass "the first boot runs only hardware setup leaves from its queue"
 reset_logs
 root=$(new_root nothing)
 output=$(first_boot "$root") || fail "the first-boot hardware setup succeeds with nothing deferred"
-[[ -z $output && ! -e $root/var/lib/omarchy ]] || fail "the first-boot hardware setup does nothing with nothing deferred" "$output"
+[[ -z $output && ! -e $root/var/lib/omarchy && ! -e $REBUILDS ]] ||
+  fail "the first-boot hardware setup does nothing with nothing deferred" "$output"
 pass "with nothing deferred the first-boot hardware setup does nothing"
 
 if env -u OMARCHY_IMAGE_ROOT OMARCHY_PATH="$fixture" PATH="$base_path" "$ROOT/bin/omarchy-provision-hardware" >/dev/null 2>&1; then
