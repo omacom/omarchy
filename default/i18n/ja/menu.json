@@ -26,11 +26,11 @@
   "update": {
     "label": "更新"
   },
-  "about": {
-    "label": "情報"
-  },
   "system": {
     "label": "システム"
+  },
+  "system.about": {
+    "label": "情報"
   },
   "system.screensaver": {
     "label": "スクリーンセーバー"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "入力"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "言語"
+  },
+  "setup.region.timezone": {
+    "label": "タイムゾーン"
   },
   "setup.network": {
     "label": "ネットワーク"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "既定アプリ"
-  },
-  "agent": {
-    "label": "エージェント"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "ブラウザ",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "ダイレクトブート"
-  },
-  "setup.reset": {
-    "label": "コンピュータをリセット"
+  "remove.factory-reset": {
+    "label": "工場出荷時リセット"
   },
   "install.package": {
     "label": "パッケージ"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "パスワード"
   },
-  "update.timezone": {
-    "label": "タイムゾーン"
-  },
   "update.time": {
     "label": "時刻"
   },
@@ -1131,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "トラックパッド"
-  },
-  "update.password.drive": {
-    "label": "ドライブ暗号化"
-  },
-  "update.password.user": {
-    "label": "ユーザー"
   },
   "appearance.windows.gaps-on": {
     "label": "ウィンドウ間隔 オン"
@@ -1228,34 +1171,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "タッチスクリーンを無効化"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "プレーン"
   },
-  "agent.harness": {
-    "label": "ハーネス",
-    "title": "デフォルトのハーネス"
-  },
-  "agent.instructions": {
-    "label": "指示"
-  },
-  "agent.make": {
-    "label": "何か作る"
-  },
-  "agent.make.theme": {
-    "label": "テーマを作る"
-  },
-  "agent.make.plugin": {
-    "label": "プラグインを作る"
-  },
-  "agent.make.app": {
-    "label": "アプリを作る"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "アイコン"
+  },
+  "install.style.icons": {
+    "label": "アイコン"
+  },
+  "remove.icons": {
+    "label": "アイコン"
+  },
+  "update.icons": {
+    "label": "追加アイコン"
+  },
+  "system.firmware": {
+    "label": "BIOSへ再起動",
+    "description": "UEFIファームウェア設定で再起動"
+  },
+  "setup.region": {
+    "label": "地域"
+  },
+  "setup.region.formats": {
+    "label": "書式",
+    "description": "日付、時刻、数値、単位の表記方法"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "ホスト名"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

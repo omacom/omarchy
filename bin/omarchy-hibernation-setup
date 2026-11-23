@@ -2,14 +2,16 @@
 
 # omarchy:summary=Set up hibernation with swap and boot resume configuration
 # omarchy:requires-sudo=true
-# omarchy:args=[--force] [--no-rebuild]
+# omarchy:args=[--force] [--no-rebuild] [--experimental]
 
 FORCE=false
 NO_REBUILD=false
+EXPERIMENTAL=false
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE=true ;;
     --no-rebuild) NO_REBUILD=true ;;
+    --experimental) EXPERIMENTAL=true ;;
   esac
 done
 
@@ -41,6 +43,22 @@ MKINITCPIO_CONF="/etc/mkinitcpio.conf.d/omarchy_resume.conf"
 SWAP_FILE="/swap/swapfile"
 RESUME_DROP_IN="/etc/limine-entry-tool.d/resume.conf"
 RESUME_REBUILD_PENDING="/var/lib/omarchy/hibernation-resume-rebuild"
+
+# On the ARM computers hibernation is still being brought up: on most models the
+# machine resets when it resumes and the session is lost. So the installer does
+# not set it up there, whatever the kernel offers. An owner who wants to try it
+# asks with --experimental, and a machine set up that way is kept up by later
+# runs without the flag. A factory reset removes the resume hook before it calls
+# setup and expects the swap file back, so the swap file's line in /etc/fstab
+# counts as set up too.
+arm_set_up_before() {
+  [[ -f $MKINITCPIO_CONF ]] || grep -Fq "$SWAP_FILE" /etc/fstab 2>/dev/null
+}
+
+if omarchy-hw-aarch64 && ! $EXPERIMENTAL && ! arm_set_up_before; then
+  echo "Skipping hibernation setup (still experimental on ARM computers; omarchy-hibernation-setup --experimental sets it up)"
+  exit 0
+fi
 
 install_root_file() {
   local source="$1"

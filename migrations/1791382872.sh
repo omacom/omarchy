@@ -52,7 +52,7 @@ remove_legacy_wrapper() {
 # and leave the old wrappers working.
 if [[ ! -f ${OMARCHY_MISE_CONFIG_PATH:-/etc/mise/conf.d/omarchy-tools.toml} ]]; then
   echo "Waiting for the omarchy-settings package that declares the default mise tools" >&2
-  exit 1
+  exit 75
 fi
 
 # The declarations reach every user, so keep them out for a user who removed the

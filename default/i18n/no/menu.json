@@ -26,11 +26,11 @@
   "update": {
     "label": "Oppdater"
   },
-  "about": {
-    "label": "Om"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "Om"
   },
   "system.screensaver": {
     "label": "Skjermsparer"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Inndata"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Språk"
+  },
+  "setup.region.timezone": {
+    "label": "Tidssone"
   },
   "setup.network": {
     "label": "Nettverk"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "Standarder"
-  },
-  "agent": {
-    "label": "Agent"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Nettleser",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direkte oppstart"
-  },
-  "setup.reset": {
-    "label": "Nullstill datamaskin"
+  "remove.factory-reset": {
+    "label": "Fabrikkinnstillinger"
   },
   "install.package": {
     "label": "Pakke"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "Passord"
   },
-  "update.timezone": {
-    "label": "Tidssone"
-  },
   "update.time": {
     "label": "Tid"
   },
@@ -1131,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "Styreflate"
-  },
-  "update.password.drive": {
-    "label": "Diskkryptering"
-  },
-  "update.password.user": {
-    "label": "Bruker"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Vis batteri %"
@@ -1195,7 +1138,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Krasjopptak på"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1237,33 +1180,6 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Deaktiver berøringsskjerm"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
   "setup.default.dictation.hex": {
     "label": "Hex"
   },
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "Vanlig"
   },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "Standard Harness"
-  },
-  "agent.instructions": {
-    "label": "Instruksjoner"
-  },
-  "agent.make": {
-    "label": "Lag noe"
-  },
-  "agent.make.theme": {
-    "label": "Lag et tema"
-  },
-  "agent.make.plugin": {
-    "label": "Lag en plugin"
-  },
-  "agent.make.app": {
-    "label": "Lag en app"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikoner"
+  },
+  "install.style.icons": {
+    "label": "Ikoner"
+  },
+  "remove.icons": {
+    "label": "Ikoner"
+  },
+  "update.icons": {
+    "label": "Ekstra ikoner"
+  },
+  "system.firmware": {
+    "label": "Omstart til BIOS",
+    "description": "Start på nytt til UEFI-fastvareoppsettet"
+  },
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.formats": {
+    "label": "Formater",
+    "description": "Hvordan datoer, klokkeslett, tall og enheter skrives"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes-spill"
+  },
+  "update.games": {
+    "label": "Game Vibes-spill"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Vertsnavn"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
