@@ -333,7 +333,7 @@ local function show(monitor, id)
   end
 
   if workspace then
-    monitor:set_workspace(tostring(id))
+    monitor:set_workspace({ workspace = tostring(id) })
   else
     hl.dispatch(hl.dsp.focus({ monitor = monitor.name }))
     hl.dispatch(hl.dsp.focus({ workspace = tostring(id) }))

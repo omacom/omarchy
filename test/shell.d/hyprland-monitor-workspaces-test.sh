@@ -99,7 +99,8 @@ function workspace_object(workspace)
   if not workspace then return nil end
   return setmetatable({}, { __index = function(_, key)
     if key == "id" then return workspace.id end
-    if key == "name" then return tostring(workspace.id) end
+    -- Hyprland's object for a workspace whose id changed has no name yet.
+    if key == "name" then return not workspace.renumbered and tostring(workspace.id) or nil end
     if key == "special" then return false end
     if key == "windows" then return windows_on(workspace.id) end
     if key == "monitor" then return monitor_object(monitor_named(workspace.monitor)) end
@@ -109,10 +110,10 @@ end
 function monitor_object(monitor)
   if not monitor then return nil end
   return setmetatable({
-    set_workspace = function(_, selector)
-      if type(selector) ~= "string" then error("HLMonitor.set_workspace: expected a workspace object or selector") end
+    set_workspace = function(_, spec)
+      if type(spec.workspace) ~= "string" then error("HLMonitor.set_workspace: expected a workspace object or selector") end
       world.calls = world.calls + 1
-      local workspace = workspace_numbered(tonumber(selector))
+      local workspace = workspace_numbered(tonumber(spec.workspace))
       if workspace and workspace.monitor == monitor.name then
         monitor.active = workspace.id
         world.focused = monitor.name
@@ -205,6 +206,7 @@ hl = {
           local workspace = workspace_numbered(tonumber(spec.workspace))
           local old = workspace.id
           workspace.id = spec.id
+          workspace.renumbered = true
           for _, monitor in ipairs(world.monitors) do
             if monitor.active == old then monitor.active = spec.id end
           end
