@@ -82,6 +82,24 @@ sys.exit(module.main(["import", *sys.argv[1:]]))
 '''.replace("__MAX_BUNDLE__", str(MAX_BUNDLE))
 
 
+# The receiver can run beside a destination's older account backend, which
+# keeps every login in its account's own home and has no seating to put right.
+def login_home(provider: str, registry: dict[str, Any], account: dict[str, Any]) -> Path:
+  if hasattr(accounts, "login_home"):
+    return accounts.login_home(provider, registry, account)
+  return accounts.account_home(provider, account)
+
+
+def settle(provider: str, registry: dict[str, Any]) -> None:
+  if hasattr(accounts, "settle"):
+    accounts.settle(provider, registry)
+
+
+def prepare_store(provider: str, account: dict[str, Any]) -> None:
+  if hasattr(accounts, "prepare_store"):
+    accounts.prepare_store(provider, account)
+
+
 def login_files(provider: str, home: Path) -> dict[str, Any]:
   if provider == "claude":
     identity = (accounts.read_json(accounts.claude_account_file(home)) or {}).get("oauthAccount")
@@ -144,7 +162,7 @@ def export_accounts(providers: list[str]) -> dict[str, Any]:
     registry = accounts.load(provider)
     entries = []
     for account in registry["accounts"]:
-      home = accounts.account_home(provider, account)
+      home = login_home(provider, registry, account)
       found = accounts.identity(provider, home)
       files = login_files(provider, home)
       if found["accountId"] and files:
@@ -153,7 +171,9 @@ def export_accounts(providers: list[str]) -> dict[str, Any]:
           entry["orgId"] = found["orgId"]
         entries.append(entry)
     if entries:
-      payload["providers"][provider] = {"active": registry["active"] if any(a["id"] == registry["active"] for a in entries) else entries[0]["id"], "switch": registry["switch"], "threshold": registry["threshold"], "accounts": entries}
+      # "switch" is for an Omarchy from before automatic switching was removed,
+      # which refuses a transfer without it.
+      payload["providers"][provider] = {"active": registry["active"] if any(a["id"] == registry["active"] for a in entries) else entries[0]["id"], "switch": "manual", "threshold": registry["threshold"], "accounts": entries}
   if not payload["providers"]:
     raise accounts.AccountError("No signed-in subscription accounts to copy")
   return payload
@@ -165,7 +185,7 @@ def validate(payload: Any) -> None:
   for provider, registry in payload["providers"].items():
     if provider not in FILES or not isinstance(registry, dict) or not isinstance(registry.get("accounts"), list) or not registry["accounts"]:
       raise accounts.AccountError("Invalid account transfer provider")
-    if not isinstance(registry.get("active"), str) or registry.get("switch") not in accounts.SWITCH_MODES or type(registry.get("threshold")) is not int or not 50 <= registry["threshold"] <= 100:
+    if not isinstance(registry.get("active"), str) or type(registry.get("threshold")) is not int or not 50 <= registry["threshold"] <= 100:
       raise accounts.AccountError("Invalid account transfer preferences")
     ids = set()
     identities = []
@@ -273,6 +293,7 @@ def unique_label(registry: dict[str, Any], label: str) -> str:
 
 def match_source_names(provider: str, registry: dict[str, Any], copied: list[tuple[dict[str, Any], dict[str, Any]]]) -> None:
   active = accounts.active(registry)
+  seated = accounts.find(registry, registry["seated"]) if "seated" in registry else None
   copied_objects = {id(account) for _, account in copied}
   source_ids = {entry["id"] for entry, _ in copied}
   source_labels = {entry["label"] for entry, _ in copied}
@@ -295,8 +316,11 @@ def match_source_names(provider: str, registry: dict[str, Any], copied: list[tup
       account["id"] = candidate
   for entry, account in copied:
     account["id"] = entry["id"]
-  # The selected account stays selected, even when its id changes.
+  # The selected account stays selected, and the seated one seated, even when
+  # its id changes.
   registry["active"] = active["id"]
+  if seated is not None:
+    registry["seated"] = seated["id"]
 
 
 def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> list[str]:
@@ -308,26 +332,29 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
   copied = []
   try:
     with accounts.Locked(provider) as registry:
+      settle(provider, registry)
       for a in registry["accounts"]:
         for name in FILES[provider]:
-          cleanup_transfers(file_path(provider, accounts.account_home(provider, a), name).parent)
-      was_empty = not any(accounts.identity(provider, accounts.account_home(provider, a))["accountId"] and login_files(provider, accounts.account_home(provider, a)) for a in registry["accounts"])
+          cleanup_transfers(file_path(provider, login_home(provider, registry, a), name).parent)
+      was_empty = not any(accounts.identity(provider, login_home(provider, registry, a))["accountId"] and login_files(provider, login_home(provider, registry, a)) for a in registry["accounts"])
       for entry in incoming["accounts"]:
         incoming_identity = entry_identity(provider, entry)
-        existing = next((a for a in registry["accounts"] if same_identity(home_identity(provider, accounts.account_home(provider, a)), incoming_identity)), None)
+        existing = next((a for a in registry["accounts"] if same_identity(home_identity(provider, login_home(provider, registry, a)), incoming_identity)), None)
         # A login here with no organization matches each of its user's
         # organizations, so two copied accounts could otherwise land on it.
         if existing is not None and any(account is existing for _, account in copied):
           raise accounts.AccountError(f"Two copied accounts match {existing['label']} here; copy with --replace to replace its login")
-        if existing and login_files(provider, accounts.account_home(provider, existing)) and not replace:
+        if existing and login_files(provider, login_home(provider, registry, existing)) and not replace:
           copied.append((entry, existing))
           results.append(("kept", existing))
           continue
         primary = next(a for a in registry["accounts"] if a.get("primary"))
-        if existing is None and entry.get("primary") and not saved_credentials(provider, accounts.primary_home(provider)):
+        if existing is None and entry.get("primary") and not saved_credentials(provider, login_home(provider, registry, primary)):
           existing = primary
         if existing:
-          home = accounts.account_home(provider, existing)
+          home = login_home(provider, registry, existing)
+          if not home.exists():
+            prepare_store(provider, existing)
           if home_in_use(provider, home):
             raise accounts.AccountError(f"Quit the running {accounts.PROVIDERS[provider]['name']} sessions for {existing['label']} before replacing its login")
           account = existing
@@ -367,7 +394,9 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
         found = home_identity(provider, home)
         if not same_identity(found, incoming_identity) or not login_files(provider, home):
           raise accounts.AccountError("Transferred credentials do not match their account identity")
-        if not account.get("primary"):
+        # ~/.claude can hold an added account's login, and links into itself
+        # would loop.
+        if not account.get("primary") and home != accounts.primary_home(provider):
           accounts.link_shared(provider, home)
           accounts.carry_settings(provider, home)
         account.update(found)
@@ -377,8 +406,6 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
       mapped = {entry["id"]: account["id"] for entry, account in copied}
       if was_empty:
         registry["active"] = mapped.get(incoming.get("active"), registry["active"])
-        if incoming.get("switch") in accounts.SWITCH_MODES:
-          registry["switch"] = incoming["switch"]
         registry["threshold"] = max(50, min(100, int(incoming.get("threshold", 95))))
       registry["alert"] = ""
   except BaseException:

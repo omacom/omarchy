@@ -21,7 +21,7 @@ ShellRoot {
   // own empty copies.
   property PluginRegistry pluginRegistry: PluginRegistry { }
   property BarWidgetRegistry barWidgetRegistry: BarWidgetRegistry { }
-  property AppLibrary appLibrary: AppLibrary { }
+  property AppLibrary appLibrary: AppLibrary { shell: shell }
   property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
   property BackgroundIntro bootIntro: BackgroundIntro { host: shell }
   property BackgroundSwitch backgroundSwitch: BackgroundSwitch { intro: shell.bootIntro }
@@ -1105,6 +1105,10 @@ ShellRoot {
     function onAppsChanged() {
       for (var id in shell._pluginAppLibraryApis)
         shell._pluginAppLibraryApis[id].appsChanged()
+    }
+    function onRemovalNeedsTerminal() {
+      for (var id in shell._pluginAppLibraryApis)
+        shell._pluginAppLibraryApis[id].removalNeedsTerminal()
     }
   }
 

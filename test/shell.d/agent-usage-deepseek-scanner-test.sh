@@ -84,7 +84,8 @@ opencode_db(tables=("message",), message=[
 ])
 record = deepseek()
 expect("DeepSeek adds up the last 30 days' local reply costs, by day, as an estimate", record.get("spend"),
-       {"amount": 0.75, "cap": 0.0, "currency": "USD", "days": [0.0] * 29 + [0.75], "estimated": True}, record)
+       {"amount": 0.75, "cap": 0.0, "currency": "USD", "days": [0.0] * 29 + [0.75], "estimated": True,
+        "through": __import__("datetime").date.today().isoformat()}, record)
 
 # -------------------------------------------------------- DeepSeek Harness
 

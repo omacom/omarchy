@@ -8,12 +8,27 @@ firmware_setup="$ROOT/install/hardware/qualcomm/firmware.sh"
 dtb_setup="$ROOT/install/hardware/qualcomm/dtb-uki.sh"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
+# Every case runs without systemd-stub-omarchy unless it names a stub, also on
+# a Snapdragon machine that has the package installed.
+export OMARCHY_QUALCOMM_UKI_STUB="$scratch/no-stub/linuxaa64.efi.stub"
 
 for script in "$firmware_setup" "$dtb_setup"; do
   bash -n "$script" || fail "Snapdragon hardware scripts have valid syntax"
 done
 
-(
+# A root disk in a USB enclosure, behind the controller at $1 with compatible $2,
+# as sysfs shows it.
+usb_root_sysfs() {
+  local sysfs="$scratch/sys-$1" controller="$scratch/sys-$1/devices/platform/soc@0/$1.usb"
+  local disk="$controller/xhci-hcd.2.auto/usb4/4-1/4-1.2/4-1.2:1.0/host0/target0:0:0/0:0:0:0/block/sda"
+  mkdir -p "$controller/of_node" "$disk/sda2" "$sysfs/class/block"
+  printf '%s\0qcom,snps-dwc3\0' "$2" >"$controller/of_node/compatible"
+  ln -sfn "$disk" "$sysfs/class/block/sda"
+  ln -sfn "$disk/sda2" "$sysfs/class/block/sda2"
+  printf '%s\n' "$sysfs"
+}
+
+run_usb_root_firmware_setup() (
   omarchy-hw-aarch64-qualcomm() { return 0; }
   omarchy-pkg-add() { :; }
   qcom-firmware-extract() {
@@ -29,15 +44,22 @@ done
   }
   lsblk() {
     [[ ${!#} == "/dev/mapper/root" ]] || fail "Snapdragon firmware setup passes a resolvable root device to lsblk"
-    printf 'usb\n'
+    printf 'root \nsda2 \nsda usb\n'
   }
 
+  OMARCHY_QUALCOMM_SYSFS=$1
   OMARCHY_QUALCOMM_MODPROBE_DIR="$scratch/modprobe.d"
   source "$firmware_setup"
 )
 
+run_usb_root_firmware_setup "$(usb_root_sysfs a600000 qcom,x1e80100-dwc3)"
 [[ -f $scratch/modprobe.d/qualcomm-adsp-nofw.conf ]] ||
-  fail "Snapdragon firmware setup protects a USB-backed root disk"
+  fail "Snapdragon firmware setup protects a root disk on a USB-C port"
+
+# The IdeaCentre Mini x keeps running from a USB-A disk with the DSPs started.
+run_usb_root_firmware_setup "$(usb_root_sysfs a400000 qcom,x1e80100-dwc3-mp)"
+[[ ! -f $scratch/modprobe.d/qualcomm-adsp-nofw.conf ]] ||
+  fail "Snapdragon firmware setup lets the DSPs start with the root disk on a USB-A port"
 
 run_internal_firmware_setup() (
   omarchy-hw-aarch64-qualcomm() { return 0; }
@@ -67,6 +89,14 @@ mkdir -p "$scratch/dtbs"
 : >"$scratch/dtbs/kalambo-test.dtb"
 : >"$scratch/dtbs/purwa-test.dtb"
 : >"$scratch/dtbs/sc8180x-test.dtb"
+: >"$scratch/dtbs/sdm850-test.dtb"
+: >"$scratch/dtbs/msm8998-lenovo-test.dtb"
+: >"$scratch/dtbs/sc7180-acer-test.dtb"
+: >"$scratch/dtbs/sc7180-samsung-test.dtb"
+: >"$scratch/dtbs/sc7180-tcl-test.dtb"
+: >"$scratch/dtbs/sc7180-trogdor-test.dtb"
+: >"$scratch/dtbs/sc7280-samsung-test.dtb"
+: >"$scratch/dtbs/sc7280-herobrine-test.dtb"
 cat >"$scratch/uki.conf" <<'CONF'
 [UKI]
 SecureBootPrivateKey=/secure/db.key
@@ -107,6 +137,13 @@ grep -Fq "$scratch/dtbs/kalambo-test.dtb" "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup lists the Kalambo device trees"
 grep -Fq "$scratch/dtbs/sc8180x-test.dtb" "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup lists the 8cx device trees"
+for family in sdm850 msm8998-lenovo sc7180-acer sc7180-samsung sc7180-tcl sc7280-samsung; do
+  grep -Fq "$scratch/dtbs/$family-test.dtb" "$scratch/uki.conf" ||
+    fail "Snapdragon DTB setup lists the $family device trees"
+done
+! grep -Fq "$scratch/dtbs/sc7180-trogdor-test.dtb" "$scratch/uki.conf" &&
+  ! grep -Fq "$scratch/dtbs/sc7280-herobrine-test.dtb" "$scratch/uki.conf" ||
+  fail "Snapdragon DTB setup leaves out the 7c Chromebooks' trees"
 if grep -Fq 'x1e80100-test-el2.dtb' "$scratch/uki.conf"; then
   fail "Snapdragon DTB setup excludes EL2-only device trees"
 fi
@@ -233,6 +270,15 @@ run_own_dtb_setup
 grep -q '^DeviceTreeAuto=' "$own/uki.conf" && ! grep -q '^DeviceTree=' "$own/uki.conf" ||
   fail "two trees with the machine's compatible leave the choice to systemd-stub"
 rm "$own/dtbs/x1e78100-lenovo-thinkpad-t14s-copy.dtb"
+
+# The UKI uses systemd-stub-omarchy's stub when it is installed, whose header
+# holds every tree's section, and systemd's own otherwise.
+grep -q '^Stub=' "$own/uki.conf" &&
+  fail "the UKI keeps systemd's stub when systemd-stub-omarchy isn't installed"
+: >"$own/linuxaa64.efi.stub"
+OMARCHY_QUALCOMM_UKI_STUB="$own/linuxaa64.efi.stub" run_own_dtb_setup
+grep -qx "Stub=$own/linuxaa64.efi.stub" "$own/uki.conf" ||
+  fail "the UKI uses systemd-stub-omarchy's stub when it is installed"
 fake_dtb "$own/dtbs/x1e80100-microsoft-denali-oled.dtb" 'microsoft,denali-oled\0microsoft,denali\0qcom,x1e80100\0'
 printf 'microsoft,denali\0qcom,x1e80100\0' >"$own/proc/device-tree/compatible"
 run_own_dtb_setup
@@ -370,6 +416,7 @@ run_slim5x_setup() (
   OMARCHY_PROC_ROOT="$dir/proc" \
     OMARCHY_IDEAPAD_SLIM5X_DRM_ROOT="$dir/drm" \
     OMARCHY_IDEAPAD_SLIM5X_UKI_CONFIG="$dir/kernel/uki.conf" \
+    OMARCHY_IDEAPAD_SLIM5X_MKINITCPIO_DIR="$dir/mkinitcpio.conf.d" \
     OMARCHY_QUALCOMM_DTB_ROOT="$dir/dtbs" \
     source "$slim5x_setup"
 )
@@ -422,5 +469,7 @@ cp -p "$other/kernel/uki.conf" "$scratch/other-uki.conf"
 run_slim5x_setup "$other" >/dev/null
 cmp -s "$scratch/other-uki.conf" "$other/kernel/uki.conf" ||
   fail "other boards are left unchanged, even with the same panel"
+[[ ! -e $other/mkinitcpio.conf.d/ideapad-slim-5x-initramfs.conf ]] ||
+  fail "other boards get no Slim 5x initramfs drop-in"
 
 pass "IdeaPad Slim 5x setup boots the LCD model on the LCD tree"

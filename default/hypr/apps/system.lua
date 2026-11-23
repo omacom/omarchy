@@ -41,6 +41,7 @@ o.window("omacalc", { float = true })
 -- centers without the standard float's fixed size.
 o.window("omaview", { float = true })
 o.window("omaview", { center = true })
+o.window("omaview", { no_anim = true })
 
 -- Popped window rounding.
 o.window({ tag = "pop" }, { rounding = 8 })
