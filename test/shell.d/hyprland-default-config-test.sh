@@ -161,6 +161,8 @@ echo cn >"$tmpdir/region-cn"
 region_output=$(OMARCHY_REGION_FILE="$tmpdir/region-cn" run_application_bindings "$fresh_home")
 grep -Fq $'SUPER + SHIFT + Q	Calculator' <<<"$region_output" || fail "a region keeps the hotkeys that aren't web apps"
 grep -Fq $'SUPER + SHIFT + Y	Bilibili' <<<"$region_output" || fail "China binds its own web apps"
+grep -Fq $'SUPER + SHIFT + M	NetEase Cloud Music' <<<"$region_output" || fail "China binds its music service on the Music key"
+grep -Fq $'SUPER + SHIFT + G	WeChat' <<<"$region_output" || fail "China binds WeChat on the Signal key"
 for binding in $'SUPER + SHIFT + A	ChatGPT' $'SUPER + SHIFT + E	Email' $'SUPER + SHIFT + Y	YouTube' $'SUPER + SHIFT + M	Music' $'SUPER + SHIFT + G	Signal'; do
   if grep -Fq "$binding" <<<"$region_output"; then fail "China binds none of the global web app hotkeys" "$binding"; fi
 done

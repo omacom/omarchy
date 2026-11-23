@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=NetEase Cloud Music
+Name[zh_CN]=网易云音乐
+Exec=omarchy-launch-webapp https://music.163.com/
+StartupWMClass=chrome-music.163.com__-Default
+Terminal=false
+Type=Application
+Icon=netease-cloud-music
+StartupNotify=true

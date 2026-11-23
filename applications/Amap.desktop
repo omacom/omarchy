@@ -1,6 +1,7 @@
 [Desktop Entry]
 Version=1.0
 Name=Amap
+Name[zh_CN]=高德地图
 Exec=omarchy-launch-webapp https://www.amap.com/
 StartupWMClass=chrome-www.amap.com__-Default
 Terminal=false

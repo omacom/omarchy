@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=Doubao
+Name[zh_CN]=豆包
+Exec=omarchy-launch-webapp https://www.doubao.com/
+StartupWMClass=chrome-www.doubao.com__-Default
+Terminal=false
+Type=Application
+Icon=doubao
+StartupNotify=true
