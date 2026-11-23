@@ -158,6 +158,8 @@ for line in sys.stdin:
   result = {}
   if message["method"] == "account/rateLimits/read":
     result = {"rateLimits": {"planType": "pro", "primary": {"usedPercent": used, "windowDurationMins": 300}}}
+    if os.environ.get("CODEX_HOME", "").endswith("/side"):
+      result["rateLimits"]["individualLimit"] = {"limit": "0", "used": "0", "remainingPercent": 0}
   print(json.dumps({"id": message["id"], "result": result}), flush=True)
 PY
 
@@ -168,6 +170,26 @@ expect_jq "Codex record's own limits describe the active account" '.limits[0].pe
 
 record=$(run_collector "$home" codex CODEX_HOME="$accounts/codex/side")
 expect_jq "Main's Codex limits come from ~/.codex whatever CODEX_HOME says" '[.accounts[] | .limits[0].percent]' '[0.4,0.91]' "$record"
+
+# A disabled paid-usage budget must not offer a switch away from usable quota.
+jq '.active = "side" | .threshold = 95' "$accounts/codex.json" >"$home/selected.json"
+mv "$home/selected.json" "$accounts/codex.json"
+record=$(run_collector "$home" codex)
+mkdir -p "$home/.local/state/omarchy/agents/usage"
+printf '%s\n' "$record" >"$home/.local/state/omarchy/agents/usage/codex.json"
+stub_cli "$home" omarchy-notification-send >/dev/null <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$PR18065_NOTIFICATION_LOG"
+SH
+HOME="$home" XDG_STATE_HOME="$home/.local/state" PATH="$home/bin:$PATH" PR18065_NOTIFICATION_LOG="$home/notifications" \
+  "$ROOT/bin/omarchy-agent-account-state" alert codex >/dev/null
+expect_jq "a zero credit allocation leaves the selected account below its alert threshold" \
+  '[.active, .alert]' '["side",""]' "$(cat "$accounts/codex.json")"
+[[ ! -e $home/notifications ]] || fail "a zero credit allocation must not send a limit notification"
+pass "a zero credit allocation sends no limit notification"
+
+jq '.active = "main"' "$accounts/codex.json" >"$home/main.json"
+mv "$home/main.json" "$accounts/codex.json"
 
 # A secondary home nobody signed in to is waiting for auth, even while
 # ~/.codex holds a login, and its app-server is never started.
