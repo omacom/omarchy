@@ -1851,9 +1851,39 @@ Panel {
           fontFamily: root.bar.fontFamily
         }
 
-        Repeater {
+        // Capped and scrollable like the Wi-Fi list, so many VPNs can't push
+        // Add VPN and Wi-Fi off-screen; the keyboard cursor stays in view.
+        ListView {
+          id: vpnListView
+          visible: count > 0
+          width: parent.width
+          height: Math.min(contentHeight, Style.space(200))
+          spacing: Style.space(10)
+          clip: true
+          boundsBehavior: Flickable.StopAtBounds
+          interactive: contentHeight > height
+
+          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
           model: root.vpnList
-          delegate: VpnRow {}
+          currentIndex: root.vpnRowIndex < root.vpnList.length ? root.vpnRowIndex : -1
+          onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+
+          // Same wrapper as the Wi-Fi list: ListView's delegate context
+          // doesn't bind into the nested VpnRow component.
+          delegate: Item {
+            id: vpnDelegate
+            required property var modelData
+            required property int index
+            width: ListView.view.width
+            height: vpnDelegateRow.implicitHeight
+
+            VpnRow {
+              id: vpnDelegateRow
+              modelData: vpnDelegate.modelData
+              index: vpnDelegate.index
+            }
+          }
         }
 
         Text {
