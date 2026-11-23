@@ -68,19 +68,28 @@ fi
 # EPOCHREALTIME uses the locale's decimal separator, a comma in many.
 export OMARCHY_AGENT_USAGE_REFRESH_AT=${EPOCHREALTIME/,/.}
 
-pids=()
+# Every collector started at once is a burst across all cores that the
+# desktop feels; a few at a time take longer and stay out of the way.
+MAX_COLLECTORS=3
+
+status=0
+running=0
 for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
   [[ -x $collector ]] || continue
   agent="${collector##*/omarchy-agent-usage-}"
   [[ $agent == "update" ]] && continue
   wanted "$agent" || continue
+  if (( running >= MAX_COLLECTORS )); then
+    wait -n || status=1
+    running=$((running - 1))
+  fi
   collect "$collector" "$agent" &
-  pids+=($!)
+  running=$((running + 1))
 done
 
-status=0
-for pid in "${pids[@]}"; do
-  wait "$pid" || status=1
+while (( running > 0 )); do
+  wait -n || status=1
+  running=$((running - 1))
 done
 
 # Fresh limits are when an account near a limit gets announced.

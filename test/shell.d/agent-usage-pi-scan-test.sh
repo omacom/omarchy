@@ -5,7 +5,8 @@
 # collector on every refresh. A file holding none of a collector's lines
 # must cost it nothing beyond rg's search: its prompts, tool results and
 # compactions are never parsed, and no file is read again for the model a
-# summary ran on. A count, the same on every machine, rather than a time.
+# summary ran on. A refresh reads only the files that changed since the last
+# one. Counts, the same on every machine, rather than times.
 
 set -euo pipefail
 
@@ -20,7 +21,9 @@ trap 'rm -rf "$WORK"' EXIT
 WORK="$WORK" python3 - <<'PY'
 import json
 import os
+import shutil
 import sys
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -212,4 +215,262 @@ for provider in ("alpha", "beta"):
   completes.append(complete)
 check("a prompt two forks of a deleted session copied and answered on different providers counts once",
       all(completes) and prompts == 1, json.dumps({"prompts": prompts, "complete": completes}))
+
+# A refresh reads only the sessions that changed since the last one, and only
+# what a grown one gained, and still answers as a scan with nothing indexed.
+# An rg on PATH logs what each run was asked to read, and how many bytes a run
+# reading stdin was fed; a run given the path RG_FAIL names then fails on it
+# the way rg reports a file it couldn't read, having read the others.
+log = work / "rg.log"
+spy = work / "spy"
+spy.mkdir()
+(spy / "rg").write_text(f"""#!/bin/bash
+printf '%s\\x1f' "$@" >> {log}
+if [[ ${{@: -1}} == - ]]; then
+  tmp=$(mktemp -p {work}); cat > "$tmp"
+  printf 'stdin=%s' "$(wc -c < "$tmp")" >> {log}; printf '\\n' >> {log}
+  {shutil.which("rg")} "$@" < "$tmp"; code=$?; rm -f "$tmp"; exit $code
+fi
+printf '\\n' >> {log}
+if [[ -n ${{RG_FAIL:-}} && " $* " == *" $RG_FAIL "* ]]; then
+  {shutil.which("rg")} "$@"
+  echo "rg: $RG_FAIL: Input/output error (os error 5)" >&2
+  exit 2
+fi
+exec {shutil.which("rg")} "$@"
+""")
+(spy / "rg").chmod(0o755)
+os.environ["PATH"] = f"{spy}:{os.environ['PATH']}"
+os.environ["XDG_CACHE_HOME"] = str(work / "cache")
+
+
+def reads():
+  """The session files rg read since the last call, by name, and the sizes of
+  what it was fed on stdin."""
+  text = log.read_text() if log.exists() else ""
+  log.write_text("")
+  names, fed = set(), []
+  for run in ([part for part in line.split("\x1f") if part] for line in text.splitlines() if line):
+    if run[-1].startswith("stdin="):
+      fed.append(int(run[-1].removeprefix("stdin=")))
+    elif "--files" not in run:
+      names.update(Path(arg).name for arg in run[run.index("--") + 1:])
+  return names, fed
+
+
+def index_scan(provider, root):
+  rows, complete = collectors.scan_pi_sessions(r'"provider"\s*:\s*"' + provider + '"', lambda name, model, entry: name == provider, [root])
+  return sorted(rows), complete
+
+
+def demo_index(root):
+  return collectors.pi_session_index_path(r'"provider"\s*:\s*"demo"', collectors.canonical_roots([root]))
+
+
+def written(path):
+  # The index is replaced whole, so a write gives it another inode.
+  info = path.stat()
+  return info.st_ino, info.st_mtime_ns
+
+
+def same(provider, root):
+  """Whether a scan answers as a scan with nothing indexed does, and what it
+  read."""
+  reads()
+  got = index_scan(provider, root)
+  read = reads()
+  saved = os.environ["XDG_CACHE_HOME"]
+  os.environ["XDG_CACHE_HOME"] = tempfile.mkdtemp(dir=work)
+  try:
+    want = index_scan(provider, root)
+  finally:
+    os.environ["XDG_CACHE_HOME"] = saved
+  reads()
+  return got == want and got[1], *read
+
+
+def exchange(tag, provider, tokens=100):
+  return [{"type": "message", "id": f"iu{tag}", "timestamp": stamp, "message": {"role": "user", "content": "go", "timestamp": 1}},
+          {"type": "message", "id": f"ia{tag}", "timestamp": stamp, "message": {"role": "assistant", "provider": provider, "model": f"{provider}-model", "responseId": f"r{tag}", "usage": usage(tokens), "timestamp": 2}}]
+
+
+def session(name, provider, *lines, parent=None):
+  head = {"type": "session", "version": 3, "id": f"is{name}", "timestamp": stamp, "cwd": "/proj", **({"parentSession": str(parent)} if parent else {})}
+  return [head, {"type": "model_change", "id": f"im{name}", "timestamp": stamp, "provider": provider, "modelId": f"{provider}-model"}, *lines]
+
+
+def append(path, text):
+  with path.open("a") as handle:
+    handle.write(text)
+
+
+indexed = work / "indexed"
+write(indexed / "a.jsonl", session("a", "demo", *exchange("a1", "demo")))
+write(indexed / "b.jsonl", session("b", "demo", *exchange("b1", "demo", 200)))
+write(indexed / "c.jsonl", session("c", "demo", *exchange("c1", "demo", 300)))
+write(indexed / "other.jsonl", session("o", "other", *exchange("o1", "other", 400)))
+ok, names, _ = same("demo", indexed)
+check("a first scan reads every file holding the collector's lines", ok and {"a.jsonl", "b.jsonl", "c.jsonl"} <= names, json.dumps(sorted(names)))
+
+ok, names, fed = same("demo", indexed)
+want = index_scan("demo", indexed)
+for path in indexed.iterdir():
+  path.chmod(0)
+try:
+  unreadable = index_scan("demo", indexed)
+finally:
+  for path in indexed.iterdir():
+    path.chmod(0o644)
+check("an unchanged history opens no session file, and answers the same",
+      ok and not names and not fed and unreadable == want, json.dumps({"names": sorted(names), "fed": fed, "complete": unreadable[1]}))
+
+grown = "".join(json.dumps(line) + "\n" for line in exchange("a2", "demo", 50))
+append(indexed / "a.jsonl", grown)
+ok, names, fed = same("demo", indexed)
+check("a file that grew is read only for what it gained", ok and not names and fed == [len(grown)], json.dumps({"names": sorted(names), "fed": fed}))
+
+# A last line rg reads before its newline is written counts as it stands, and
+# is read again with what follows it once it is whole.
+first, second = (json.dumps(line) for line in exchange("b2", "demo", 70))
+append(indexed / "b.jsonl", first + "\n" + second)
+unfinished, _, _ = same("demo", indexed)
+append(indexed / "b.jsonl", "\n" + "".join(json.dumps(line) + "\n" for line in exchange("b3", "demo", 80)))
+ok, names, fed = same("demo", indexed)
+check("a line still being written counts as it stands and again once whole", unfinished and ok and not names and len(fed) == 1,
+      json.dumps({"names": sorted(names), "fed": fed}))
+
+# Anything that isn't an append is read from the start: a file rewritten in
+# place at the same size (only its mtime says so), one rewritten larger, which
+# only the bytes already read tell from an append, and one cut short.
+size = (indexed / "c.jsonl").stat().st_size
+for change, lines in (("rewritten at the same size", session("c", "demo", *exchange("c1", "demo", 399))),
+                      ("rewritten larger", session("c", "demo", *exchange("c8", "demo", 888), *exchange("c7", "demo", 777))),
+                      ("cut short", session("c", "demo"))):
+  write(indexed / "c.jsonl", lines)
+  info = (indexed / "c.jsonl").stat()
+  os.utime(indexed / "c.jsonl", ns=(info.st_atime_ns, info.st_mtime_ns + 1_000_000_000))
+  ok, names, _ = same("demo", indexed)
+  check(f"a file {change} is read again from the start", ok and "c.jsonl" in names and (change != "rewritten at the same size" or info.st_size == size),
+        json.dumps({"names": sorted(names), "size": [size, info.st_size]}))
+
+(indexed / "b.jsonl").unlink()
+ok, _, _ = same("demo", indexed)
+check("a deleted file's rows are gone", ok)
+(indexed / "moved").mkdir()
+os.rename(indexed / "c.jsonl", indexed / "moved" / "c.jsonl")
+ok, names, fed = same("demo", indexed)
+check("a moved file counts under its new path without being read", ok and not names and not fed, json.dumps({"names": sorted(names), "fed": fed}))
+
+# A fork tree's rows depend on every file in it, and only some of them change.
+tree = work / "indexed-forks"
+history = [line for n in range(5) for line in exchange(f"h{n}", "busy")]
+asked = {"type": "message", "id": "iq", "timestamp": stamp, "message": {"role": "user", "content": "left", "timestamp": 1}}
+write(tree / "parent.jsonl", session("p", "busy", *history, asked))
+write(tree / "fork-a.jsonl", session("fa", "busy", *history, asked, {"type": "model_change", "id": "ifa", "timestamp": stamp, "provider": "late", "modelId": "late-model"},
+                                     *exchange("fa", "late")[1:], parent=tree / "parent.jsonl"))
+write(tree / "fork-b.jsonl", session("fb", "busy", *history, asked, parent=tree / "parent.jsonl"))
+steps = (("built", lambda: None), ("unchanged", lambda: None),
+         ("with a fork answering its parent's last prompt", lambda: append(tree / "fork-b.jsonl", "".join(json.dumps(line) + "\n" for line in exchange("fb", "busy")[1:]))),
+         ("with the parent growing under its forks", lambda: append(tree / "parent.jsonl", "".join(json.dumps(line) + "\n" for line in exchange("p9", "late")))),
+         ("with the parent deleted under its forks", lambda: (tree / "parent.jsonl").unlink()))
+for step, change in steps:
+  change()
+  answers = [same(provider, tree)[0] for provider in ("busy", "late")]
+  check(f"a fork tree {step} gives every provider a cold scan's rows", all(answers), json.dumps(answers))
+
+# An index that isn't JSON, or holds an entry of the wrong shape (as another
+# build of the same version could write), is read again, never trusted.
+index_file = demo_index(indexed)
+index_file.write_text("{not json")
+ok, names, _ = same("demo", indexed)
+check("an index that isn't JSON is a full scan", ok and {"a.jsonl", "c.jsonl"} <= names, json.dumps(sorted(names)))
+data = json.loads(index_file.read_text())
+next(entry for name, entry in data["files"].items() if name.endswith("/a.jsonl"))["lines"][0][0] = "first"
+index_file.write_text(json.dumps(data))
+ok, names, _ = same("demo", indexed)
+check("an index entry of the wrong shape has its file alone read again", ok and names == {"a.jsonl"}, json.dumps(sorted(names)))
+
+# A file this user can't read (another's, mode 600) is tried on every scan,
+# which leaves the index as it was.
+locked = indexed / "locked.jsonl"
+write(locked, session("l", "demo", *exchange("l1", "demo")))
+locked.chmod(0)
+try:
+  _, first = index_scan("demo", indexed)
+  before = written(index_file)
+  _, again = index_scan("demo", indexed)
+finally:
+  locked.unlink()
+check("an unreadable file leaves the index unwritten on the next scan", not first and not again and written(index_file) == before)
+
+# A file rg could not read in full still counts what was read, but the scan
+# is incomplete, so it is never cached, and the next one reads that file
+# again: that file alone, not the others rg read in the same run.
+write(indexed / "d.jsonl", session("d", "demo", *exchange("d1", "demo", 500)))
+write(indexed / "e.jsonl", session("e", "demo", *exchange("e1", "demo", 600)))
+os.environ["RG_FAIL"] = os.path.realpath(indexed / "d.jsonl")
+try:
+  _, complete = index_scan("demo", indexed)
+finally:
+  del os.environ["RG_FAIL"]
+ok, names, _ = same("demo", indexed)
+check("a failed read makes an incomplete scan, and the next one reads that file alone", not complete and ok and names == {"d.jsonl"}, json.dumps(sorted(names)))
+
+# A listing rg could not finish (a directory this user can't open) keeps the
+# entries of the files it missed, but not of those that are gone.
+partial = work / "indexed-partial"
+write(partial / "kept.jsonl", session("k", "demo", *exchange("k1", "demo")))
+write(partial / "gone.jsonl", session("g", "demo", *exchange("g1", "demo")))
+index_scan("demo", partial)
+(partial / "closed").mkdir()
+(partial / "closed").chmod(0)
+(partial / "gone.jsonl").unlink()
+try:
+  _, complete = index_scan("demo", partial)
+finally:
+  (partial / "closed").chmod(0o755)
+entries = json.loads(demo_index(partial).read_text())["files"]
+check("an unfinished listing drops the entries of files that are gone",
+      not complete and not any(name.endswith("/gone.jsonl") for name in entries) and any(name.endswith("/kept.jsonl") for name in entries), json.dumps(sorted(entries)))
+
+# The fork tree above, where `late` owns one fork's reply and no other file
+# holds its prompt: those files' lines are neither parsed nor kept, and the
+# next scan still reads no file to tell.
+late = r'"provider"\s*:\s*"late"'
+index_scan("late", forks)
+entries = json.loads(collectors.pi_session_index_path(late, collectors.canonical_roots([forks])).read_text())["files"]
+with_lines = sorted(Path(name).name for name, entry in entries.items() if entry["lines"] is not None)
+ok, names, fed = same("late", forks)
+check("a fork tree's files holding none of a collector's prompts keep no lines in its index",
+      with_lines == ["fork-5.jsonl"] and ok and not names and not fed, json.dumps({"with_lines": with_lines, "names": sorted(names), "fed": fed}))
+
+# Nowhere to keep rg's messages costs a failed run its batch, never the scan.
+saved = tempfile.tempdir
+tempfile.tempdir = str(work / "no-tmp")
+try:
+  ok, names, _ = same("demo", indexed)
+except OSError as exc:
+  ok, names = False, {repr(exc)}
+finally:
+  tempfile.tempdir = saved
+check("a scan with no temp directory still answers", ok and not names, json.dumps(sorted(names)))
+
+# A reply whose cost no float holds costs its row, read whole or appended,
+# never the scan; its prompt still counts, unanswered, on its model.
+def damaged(tag):
+  prompt, reply = exchange(tag, "demo", 900)
+  reply["message"]["usage"]["cost"]["total"] = 10 ** 400
+  return [prompt, reply]
+
+
+costly = work / "indexed-costly"
+write(costly / "s.jsonl", session("s", "demo", *damaged("x1"), *exchange("x2", "demo", 200)))
+try:
+  first, _ = index_scan("demo", costly)
+  append(costly / "s.jsonl", "".join(json.dumps(line) + "\n" for line in damaged("x3")))
+  rows, complete = index_scan("demo", costly)
+  got = sorted((row.input_tokens, row.prompts) for row in rows)
+except OverflowError as exc:
+  first, got, complete = [], repr(exc), False
+check("a damaged cost costs only its row", complete and len(first) == 2 and got == [(0, 1), (0, 1), (200, 1)], json.dumps(got))
 PY

@@ -670,8 +670,11 @@ class UsageRow(NamedTuple):
 
 
 # accept(provider, model, entry) decides whether a reply bills this collector.
-# `entry` is the pi/omp message object, or the opencode row's data, for a
-# collector whose filter needs more than the provider and model.
+# `entry` is the opencode row's data, or for pi/omp what the session index
+# keeps of the message: its provider, model and api. A collector whose filter
+# needs more than that adds the field to _pi_parse() and _pi_reference(), to
+# the line's length in _PI_LINE_SIZES and its check in _pi_index_line_valid(),
+# and bumps PI_SESSION_INDEX_VERSION.
 Accept = Callable[[str, str, dict], bool]
 
 
@@ -719,6 +722,11 @@ def canonical_roots(roots: Iterable[Path]) -> list[Path]:
 
 def pi_parent_session(path: str) -> str | None:
   """The session file a fork was cut from, as its header line names it."""
+  return _pi_resolve_parent(_pi_header_parent(path))
+
+
+def _pi_header_parent(path: str) -> str | None:
+  """The parentSession a session's header line names, as it is written."""
   try:
     # A header can name any path; opening a FIFO or a device there would
     # hang the scan, so only a regular file is read.
@@ -730,12 +738,14 @@ def pi_parent_session(path: str) -> str | None:
     # RecursionError: a damaged header nested deeper than the parser goes.
     return None
   parent = header.get("parentSession") if isinstance(header, dict) else None
-  if not isinstance(parent, str) or not parent:
-    return None
+  return parent if isinstance(parent, str) and parent else None
+
+
+def _pi_resolve_parent(parent: str | None) -> str | None:
   # pi deletes a session from /resume, leaving its forks naming it. A parent
   # that is gone still ties its forks together, so a prompt they both copied
   # counts once; only reading it is skipped.
-  return os.path.realpath(os.path.expanduser(parent))
+  return os.path.realpath(os.path.expanduser(parent)) if parent else None
 
 
 def _rg_text(field: Any) -> str:
@@ -753,31 +763,44 @@ def _rg_text(field: Any) -> str:
 _PI_SUMMARIES = ("compaction", "branch_summary")
 
 
-def _pi_line(entry: Any) -> tuple | None:
-  """What one session line says, for the reader to fold in file order:
-  ("model", provider, model, reference) for a model switch, ("reply", ...)
-  for an assistant message, which also names the model the session is on,
-  ("spent", provider, model, entry, usage) for usage with its own provider,
-  ("summary", usage) for usage spent on the session's model, ("prompt",)
-  for a typed prompt, or None."""
+def _pi_parse(entry: Any) -> list | None:
+  """What one session line says, for the reader to fold in file order, as
+  plain JSON so the session index can keep it in place of the line:
+
+  - ["m", provider, model] for a model switch;
+  - ["p", key, time] for a typed prompt;
+  - ["r", provider, model, api, key, time, tokens, cost, unsent] for an
+    assistant message, which also names the model the session is on;
+  - ["s", provider, model, api, key, time, tokens, cost] for usage with a
+    provider of its own;
+  - ["u", key, time, tokens, cost] for usage spent on the session's model;
+  - None for any other line.
+
+  `key` is _pi_key_spec()'s, `time` the line's own or else its message's,
+  `tokens` [input, output, cacheRead, cacheWrite] or None when it spent
+  none, `cost` the dollars it was billed, and `unsent` whether omp refused
+  the request before sending it. Only what a collector's filter reads (the
+  provider, model and api) is kept of a reply, never its text.
+  """
   if not isinstance(entry, dict):
     return None
   kind = entry.get("type")
+  message = obj(entry.get("message"))
+  timestamp = entry.get("timestamp")
+  if timestamp is None:
+    timestamp = message.get("timestamp")
   if kind == "message":
-    message = obj(entry.get("message"))
     role = message.get("role")
     if role == "assistant":
       provider = str(message.get("provider") or "")
       model = str(message.get("model") or "")
-      # Only what a collector's filter reads is kept, not the reply's text.
-      reference = {key: value for key, value in message.items() if key != "content"}
-      return "reply", provider, model, reference, obj(message.get("usage"))
+      return ["r", provider, model, message.get("api"), _pi_key_spec(entry, timestamp), timestamp, *_pi_spent(obj(message.get("usage"))), _pi_unsent(message)]
     if role == "toolResult" and isinstance(message.get("usage"), dict):
-      return "summary", message["usage"]
+      return ["u", _pi_key_spec(entry, timestamp), timestamp, *_pi_spent(message["usage"])]
     # omp marks the user messages it writes itself (a handoff, a compaction
     # summary) as the agent's.
     if role == "user" and message.get("attribution") != "agent" and message.get("synthetic") is not True:
-      return ("prompt",)
+      return ["p", _pi_key_spec(entry, timestamp), timestamp]
     return None
   if kind == "model_change":
     # pi names the provider and model apart; omp joins them as provider/model.
@@ -785,12 +808,40 @@ def _pi_line(entry: Any) -> tuple | None:
     model = str(entry.get("modelId") or "")
     if not provider and isinstance(entry.get("model"), str):
       provider, _, model = entry["model"].partition("/")
-    return ("model", provider, model, {"provider": provider, "model": model}) if provider else None
+    return ["m", provider, model] if provider else None
   if kind == "usage":
-    return "spent", str(entry.get("provider") or ""), str(entry.get("model") or ""), entry, obj(entry.get("usage"))
+    return ["s", str(entry.get("provider") or ""), str(entry.get("model") or ""), entry.get("api"), _pi_key_spec(entry, timestamp), timestamp, *_pi_spent(obj(entry.get("usage")))]
   if kind in _PI_SUMMARIES and isinstance(entry.get("usage"), dict):
-    return "summary", entry["usage"]
+    return ["u", _pi_key_spec(entry, timestamp), timestamp, *_pi_spent(entry["usage"])]
   return None
+
+
+def _pi_spent(usage: dict) -> list:
+  """[tokens, cost] one session line's usage spent: tokens [input, output,
+  cacheRead, cacheWrite], or None when it spent none, and the cost, None
+  when it can't be read."""
+  input_tokens = usage_tokens(usage, "input", "inputTokens", "input_tokens")
+  # pi's `reasoning` and omp's `reasoningTokens` are the part of output that
+  # was thinking, already in it, so they are never added again.
+  output_tokens = usage_tokens(usage, "output", "outputTokens", "output_tokens")
+  cache_read = usage_tokens(usage, "cacheRead", "cacheReadTokens", "cache_read", "cache_read_input_tokens")
+  cache_write = usage_tokens(usage, "cacheWrite", "cacheWriteTokens", "cache_write", "cache_creation_input_tokens")
+  tokens: list[int] | None = [input_tokens, output_tokens, cache_read, cache_write]
+  if not (input_tokens or output_tokens or cache_read or cache_write):
+    # Some writers keep only the total; it was still spent.
+    input_tokens = usage_tokens(usage, "totalTokens", "total_tokens")
+    tokens = [input_tokens, 0, 0, 0] if input_tokens else None
+  try:
+    cost = dollars(obj(usage.get("cost")).get("total"))
+  except OverflowError:
+    # An integer too large for a float: _pi_rows() skips the line's row.
+    cost = None
+  return [tokens, cost]
+
+
+def _pi_reference(provider: str, model: str, api: Any) -> dict[str, Any]:
+  """What `accept` is handed of a reply or a usage entry."""
+  return {"provider": provider, "model": model} if api is None else {"provider": provider, "model": model, "api": api}
 
 
 def _pi_unsent(message: dict) -> bool:
@@ -804,8 +855,8 @@ def _pi_unsent(message: dict) -> bool:
   return message.get("stopReason") == "error" and "errorId" in message and not any(key in message for key in ("duration", "errorStatus", "responseId"))
 
 
-def _pi_key(entry: dict, timestamp: Any, path: str) -> tuple:
-  """The dedup key of one session line.
+def _pi_key_spec(entry: dict, timestamp: Any) -> list:
+  """The dedup key of one session line, as _pi_key() completes it.
 
   A reply with a response id is that response, at the time it came. A
   fork copies its parent's entries with their id and timestamp, so the
@@ -819,41 +870,44 @@ def _pi_key(entry: dict, timestamp: Any, path: str) -> tuple:
     # omp writes a reply that overflowed the model's context window twice,
     # as siblings with new ids; the response they repeat, and a fork's copy
     # of it, is the one request the provider served.
-    return ("response", str(message.get("provider") or ""), response, str(message["timestamp"]))
+    return ["R", response, str(message["timestamp"])]
   message_id = str(entry.get("id") or "")
   if message_id and timestamp:
-    return ("entry", message_id, str(timestamp))
+    return ["E", message_id, str(timestamp)]
   if message_id:
-    return ("path", path, message_id)
+    return ["P", message_id]
+  return ["L"]
+
+
+def _pi_key(spec: list, provider: str, path: str) -> tuple:
+  """The dedup key a _pi_key_spec() names, for a line of `path` billed to
+  `provider`."""
+  if spec[0] == "R":
+    return ("response", provider, spec[1], spec[2])
+  if spec[0] == "E":
+    return ("entry", spec[1], spec[2])
+  if spec[0] == "P":
+    return ("path", path, spec[1])
   return ("line", path, object())
 
 
-def _pi_row(entry: dict, timestamp: Any, path: str, provider: str, model: str, usage: dict, prompts: int) -> tuple[tuple, UsageRow] | None:
+def _pi_row(spec: list, timestamp: Any, path: str, provider: str, model: str, tokens: list[int] | None, cost: float, prompts: int) -> tuple[tuple, UsageRow] | None:
   """(dedup key, row) for usage one session line spent, or None."""
-  input_tokens = usage_tokens(usage, "input", "inputTokens", "input_tokens")
-  # pi's `reasoning` and omp's `reasoningTokens` are the part of output that
-  # was thinking, already in it, so they are never added again.
-  output_tokens = usage_tokens(usage, "output", "outputTokens", "output_tokens")
-  cache_read = usage_tokens(usage, "cacheRead", "cacheReadTokens", "cache_read", "cache_read_input_tokens")
-  cache_write = usage_tokens(usage, "cacheWrite", "cacheWriteTokens", "cache_write", "cache_creation_input_tokens")
-  if not (input_tokens or output_tokens or cache_read or cache_write):
-    # Some writers keep only the total; it was still spent.
-    input_tokens = usage_tokens(usage, "totalTokens", "total_tokens")
-    if not input_tokens:
-      return None
+  if tokens is None:
+    return None
   # The first time present decides: none at all is today's, and an untrusted
   # one, zero included, skips only this line.
   day = local_day(timestamp)
   if day is None:
     return None
-  cost = dollars(obj(usage.get("cost")).get("total"))
-  return _pi_key(entry, timestamp, path), UsageRow(day, path, provider, model, input_tokens, output_tokens, cache_read, cache_write, prompts, cost)
+  return _pi_key(spec, provider, path), UsageRow(day, path, provider, model, *tokens, prompts, cost)
 
 
-def _pi_rows(path: str, lines: list[tuple[int, Any]], accept: Accept) -> Iterator[tuple[int, tuple, UsageRow, tuple, bool]]:
-  """(line number, dedup key, row, prompt keys, whether `accept` takes it)
-  for each (line number, entry) of one session file, in order, whoever's,
-  the prompt keys naming the typed prompts the row's `prompts` count.
+def _pi_rows(path: str, lines: list[tuple[int, list]], accept: Accept) -> Iterator[tuple[int, tuple, UsageRow, tuple, bool]]:
+  """(position, dedup key, row, prompt keys, whether `accept` takes it) for
+  each (position, line) of one session file, in order, whoever's, the
+  prompt keys naming the typed prompts the row's `prompts` count. A line is
+  what _pi_parse() makes of it, and its position orders it in the file.
 
   `lines` hold every model switch, user and assistant message in the file.
   Usage with no provider of its own bills the model the session was on: the
@@ -871,12 +925,11 @@ def _pi_rows(path: str, lines: list[tuple[int, Any]], accept: Accept) -> Iterato
   with no user messages at all, as only a writer copying pi's format leaves,
   keeps a prompt per reply.
   """
-  parsed = [(line_number, entry, _pi_line(entry)) for line_number, entry in lines]
-  typed = any(line == ("prompt",) for _, _, line in parsed)
+  typed = any(line[0] == "p" for _, line in lines)
   # The model the session is on, from the last switch or reply.
   context: tuple | None = None
-  # Each typed prompt no reply has answered yet: (line number, dedup key,
-  # day or None for an untrusted time, the model the session was on).
+  # Each typed prompt no reply has answered yet: (position, dedup key, day
+  # or None for an untrusted time, the model the session was on).
   asked: list[tuple[int, tuple, str | None, tuple | None]] = []
   # The first reply since those prompts that spent nothing: a failed request,
   # or () for one omp refused before sending it.
@@ -896,19 +949,13 @@ def _pi_rows(path: str, lines: list[tuple[int, Any]], accept: Accept) -> Iterato
       provider, model, reference = target
       yield line_number, ("asked", *key), UsageRow(day, path, provider, model, 0, 0, 0, 0, 1), (key,), takes(provider, model, reference)
 
-  for line_number, entry, line in parsed:
+  for line_number, line in lines:
     try:
-      if line is None:
-        continue
       kind = line[0]
-      if kind == "model":
-        context = tuple(line[1:4])
+      if kind == "m":
+        context = (line[1], line[2], {"provider": line[1], "model": line[2]})
         continue
-      # The entry's own time, else the message's.
-      timestamp = entry.get("timestamp")
-      if timestamp is None:
-        timestamp = obj(entry.get("message")).get("timestamp")
-      if kind == "prompt":
+      if kind == "p":
         # Only a prompt no reply answered is still asked: it is its own row,
         # so a fork that copies it books it under the same key. One with no
         # model known yet rides on the next reply, as before.
@@ -916,24 +963,29 @@ def _pi_rows(path: str, lines: list[tuple[int, Any]], accept: Accept) -> Iterato
           yield from unanswered()
           asked = [prompt for prompt in asked if failed is None and prompt[3] is None]
           failed = None
-        asked.append((line_number, _pi_key(entry, timestamp, path), local_day(timestamp), context))
+        asked.append((line_number, _pi_key(line[1], "", path), local_day(line[2]), context))
         continue
-      if kind == "summary":
+      if kind == "u":
         if context is None:
           continue
         provider, model, reference = context
-        usage = line[1]
+        spec, timestamp, tokens, cost = line[1:5]
       else:
-        provider, model, reference, usage = line[1:]
-        if kind == "reply":
+        provider, model, api, spec, timestamp, tokens, cost = line[1:8]
+        reference = _pi_reference(provider, model, api)
+        if kind == "r":
           context = (provider, model, reference)
-      counted = _pi_row(entry, timestamp, path, provider, model, obj(usage), int(kind == "reply" and not typed))
+      if cost is None:
+        # A cost that can't be read costs the line its row, though a reply
+        # still says the model the session is on.
+        continue
+      counted = _pi_row(spec, timestamp, path, provider, model, tokens, cost, int(kind == "r" and not typed))
       answered: list[tuple] = []
-      if kind == "reply":
+      if kind == "r":
         if counted is not None:
           answered, asked, failed = asked, [], None
         elif asked and failed is None:
-          failed = () if _pi_unsent(reference) else (provider, model, reference)
+          failed = () if line[8] else (provider, model, reference)
     except Exception:
       # One odd line costs that line, never the scan.
       continue
@@ -954,6 +1006,214 @@ def _pi_rows(path: str, lines: list[tuple[int, Any]], accept: Accept) -> Iterato
   yield from unanswered()
 
 
+# pi and omp only append to a session, and most of the history never changes
+# between refreshes, so a scan keeps an index of the files it read: what
+# _pi_parse() made of their lines, by byte position, with the stat and the
+# offset they were read to. A file whose size, mtime and inode match is not
+# opened; one that grew with what was read still in place (its first and last
+# 4 KB, as the Claude Code index checks them) is read on from that offset;
+# anything else is read from the start, and a file that only moved is picked
+# up where it went. Which lines and files a scan reads depends on its
+# pattern, so each pattern and set of roots keeps an index of its own: one
+# collector's share of the history then costs another nothing to load. The
+# lines hold no local day, so the index stays true across timezones, and
+# forks are resolved from them over the whole tree on every scan, since a
+# change to one file can move rows in another.
+PI_SESSION_INDEX_VERSION = 1
+
+# Usage that names no provider of its own, spent on the session's model, the
+# prompts the replies answer, every reply, since one another provider gave
+# still answers the prompt before it, and every model switch, which says
+# whose a summary or a prompt no reply answered is.
+_PI_SWITCH = r'"type"\s*:\s*"model_change"'
+_PI_CONTEXT = r'"type"\s*:\s*"(compaction|branch_summary)"|"role"\s*:\s*"toolResult".*"usage"\s*:\s*\{|"role"\s*:\s*"(user|assistant)"|' + _PI_SWITCH
+# The typed prompts, whose ids say whether a fork tree's other file holds a
+# copy of one a collector booked.
+_PI_PROMPT = r'"role"\s*:\s*"user"'
+
+# The length of each kind of line _pi_parse() makes and of each dedup key, so
+# an index line of another shape is never folded.
+_PI_LINE_SIZES = {"m": 3, "p": 3, "r": 9, "s": 8, "u": 5}
+_PI_KEY_SIZES = {"R": 3, "E": 3, "P": 2, "L": 1}
+
+
+def pi_session_index_path(pattern: str, roots: Iterable[Path]) -> Path:
+  """The session index of a scan of `roots` for `pattern`."""
+  identity = "\0".join([pattern, *(str(root) for root in roots)])
+  digest = hashlib.sha1(identity.encode("utf-8", "surrogatepass")).hexdigest()[:16]
+  return cache_root() / f"pi-sessions-{digest}.json"
+
+
+def _pi_index_line_valid(item: Any) -> bool:
+  """Whether an index item is [position, line] as _pi_parse() made it."""
+  if type(item) is not list or len(item) != 2 or type(item[0]) is not int or type(item[1]) is not list or not item[1]:
+    return False
+  line = item[1]
+  kind = line[0]
+  if _PI_LINE_SIZES.get(kind) != len(line):
+    return False
+  if kind == "m":
+    return type(line[1]) is str and type(line[2]) is str
+  spec = line[1] if kind in ("p", "u") else line[4]
+  if type(spec) is not list or not spec or _PI_KEY_SIZES.get(spec[0]) != len(spec) or not all(type(part) is str for part in spec[1:]):
+    return False
+  if kind == "p":
+    return True
+  if kind != "u" and not (type(line[1]) is str and type(line[2]) is str):
+    return False
+  tokens, cost = (line[6], line[7]) if kind != "u" else (line[3], line[4])
+  if tokens is not None and not (type(tokens) is list and len(tokens) == 4 and all(type(n) is int for n in tokens)):
+    return False
+  return (cost is None or type(cost) is float) and (kind != "r" or type(line[8]) is bool)
+
+
+def _pi_index_entry_valid(entry: Any) -> bool:
+  try:
+    return (
+      type(entry["size"]) is int and type(entry["mtime"]) is int and type(entry["offset"]) is int
+      and 0 <= entry["offset"] <= entry["size"]
+      and type(entry["file"]) is list and len(entry["file"]) == 2 and all(type(n) is int for n in entry["file"])
+      and type(entry["head"]) is str and type(entry["match"]) is bool
+      and (entry["parent"] is None or type(entry["parent"]) is str)
+      and all(items is None or (type(items) is list and all(_pi_index_line_valid(item) for item in items)) for items in (entry["switches"], entry["lines"]))
+      and (entry["prompts"] is None or (type(entry["prompts"]) is list and all(type(prompt) is str for prompt in entry["prompts"])))
+    )
+  except (KeyError, TypeError):
+    return False
+
+
+def _pi_load_index(index_file: Path, pattern: str) -> dict[str, Any]:
+  """The entries of a session index, {} for one of another version or
+  pattern, or one that isn't JSON; an entry of the wrong shape is dropped,
+  so its file is read again."""
+  data = read_json(index_file)
+  if data.get("version") != PI_SESSION_INDEX_VERSION or data.get("pattern") != pattern or not isinstance(data.get("files"), dict):
+    return {}
+  entries = {path: entry for path, entry in data["files"].items() if _pi_index_entry_valid(entry)}
+  # A long history names a few providers, models and apis on every one of
+  # its lines, and JSON makes each a string of its own.
+  for entry in entries.values():
+    for items in (entry["switches"], entry["lines"]):
+      for _, line in items or ():
+        for at in (1, 2, 3) if line[0] in ("r", "s") else (1, 2) if line[0] == "m" else ():
+          if type(line[at]) is str:
+            line[at] = sys.intern(line[at])
+  return entries
+
+
+def _pi_read_through(path: str, size: int) -> int:
+  """Where the last whole line of the first `size` bytes of `path` ends: a
+  line still being written is read again once it is whole."""
+  with open(path, "rb") as handle:
+    end = size
+    while end > 0:
+      start = max(0, end - 65536)
+      handle.seek(start)
+      at = handle.read(end - start).rfind(b"\n")
+      if at >= 0:
+        return start + at + 1
+      end = start
+  return 0
+
+
+def _pi_rg(rg: str, args: list[str], targets: list[bytes], broke: Callable[[list[bytes]], None], start: int | None = None) -> Iterator[bytes]:
+  """rg's output lines for `args` over `targets`, a batch of them at a time
+  so a long list of files stays under the argument limit. `broke` hears of
+  the targets rg could not read in full: those it names, else its whole
+  batch. With `start`, the one target is read from that byte on, through
+  rg's stdin."""
+  batches: list[list[bytes]] = [[]]
+  size = 0
+  for target in targets:
+    if batches[-1] and size + len(target) > 100_000:
+      batches.append([])
+      size = 0
+    batches[-1].append(target)
+    size += len(target) + 1
+  for batch in batches:
+    if not batch:
+      continue
+    stdin = None
+    # A file, not a pipe: rg can name more unreadable files than a pipe holds
+    # while this reads its output. Without one, a failure costs its batch.
+    errors: Any = None
+    try:
+      errors = tempfile.TemporaryFile()
+    except OSError:
+      pass
+    try:
+      if start is not None:
+        stdin = open(batch[0], "rb")
+        stdin.seek(start)
+      # --no-ignore: these are data files, not a source tree. When $HOME is
+      # itself a git checkout (a common dotfiles setup), its ignore rules
+      # would otherwise hide every session file and count zero usage.
+      proc = subprocess.Popen(
+        [rg, "--no-ignore", "--hidden", *args, "--", *([b"-"] if stdin else batch)],
+        stdin=stdin or subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=errors or subprocess.DEVNULL, env=runtime_env(),
+      )
+    except OSError:
+      for handle in (stdin, errors):
+        if handle:
+          handle.close()
+      broke(batch)
+      continue
+    assert proc.stdout is not None
+    try:
+      with proc.stdout:
+        yield from proc.stdout
+    finally:
+      if stdin:
+        stdin.close()
+    try:
+      # rg exits 1 for no match and 2 when it couldn't read something,
+      # which it names as "rg: <path>: <why>" and reads every other file.
+      if proc.wait(timeout=5) not in (0, 1):
+        said = b""
+        if errors and not stdin:
+          errors.seek(0)
+          said = errors.read()
+        broke([target for target in batch if b"rg: " + target + b": " in said] or batch)
+    except subprocess.TimeoutExpired:
+      proc.kill()
+      broke(batch)
+    finally:
+      if errors:
+        errors.close()
+
+
+def _pi_events(rg: str, patterns: list[str], targets: list[bytes], broke: Callable[[list[bytes]], None], start: int | None = None) -> Iterator[tuple[str, int, Any]]:
+  """(path, byte position, entry) for each line of `targets` matching any of
+  `patterns`; with `start`, of the one target from that byte on."""
+  args = ["--json"] + [arg for pattern in patterns for arg in ("-e", pattern)]
+  for raw in _pi_rg(rg, args, targets, broke, start):
+    try:
+      event = json.loads(raw)
+      if event.get("type") != "match":
+        continue
+      data = event["data"]
+      path = os.fsdecode(targets[0]) if start is not None else os.path.realpath(_rg_text(data.get("path")))
+      yield path, (start or 0) + number(data.get("absolute_offset")), json.loads(_rg_text(data.get("lines")))
+    except Exception:
+      # One odd line costs that line, never the scan.
+      continue
+
+
+def _pi_matching(rg: str, patterns: list[str], targets: list[bytes], broke: Callable[[list[bytes]], None], start: int | None = None) -> set[str]:
+  """The realpaths of `targets` with a line matching any of `patterns`; with
+  `start`, the one target when what follows that byte holds one."""
+  args = ["--files-with-matches", "--null"] + [arg for pattern in patterns for arg in ("-e", pattern)]
+  names = [name for name in b"".join(_pi_rg(rg, args, targets, broke, start)).split(b"\0") if name]
+  if start is not None:
+    return {os.fsdecode(targets[0])} if names else set()
+  return {os.path.realpath(os.fsdecode(name)) for name in names}
+
+
+class _PiIndexStale(Exception):
+  """The scan needs to read a file or change the index, which it does under
+  the index's lock."""
+
+
 def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None = None) -> tuple[list[UsageRow], bool]:
   """Every pi/omp reply `accept` takes, each counted once, and whether every
   root was read in full.
@@ -969,8 +1229,18 @@ def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None 
   omp's with another beside them). They are read as canonical_roots() gives
   them, so a message copied between any of them still counts once. A
   collector that passes roots keys its scan cache by those same roots.
+
+  What each file holds is kept in the session index pi_session_index_path()
+  names for the pattern and roots, so a file read before is read again only
+  when it changed, and only what it gained when it grew. Collectors run at
+  once (the update command backgrounds one per agent), so a scan that needs
+  to read anything does it under the index's `.lock`, and one finding the
+  index current for every file reads it without the lock. A file rg could
+  not read in full still counts what was read, but is not kept, so the next
+  scan reads it again.
   """
-  roots = [root for root in canonical_roots(pi_session_roots() if roots is None else roots) if root.is_dir()]
+  named = canonical_roots(pi_session_roots() if roots is None else roots)
+  roots = [root for root in named if root.is_dir()]
   if not roots:
     return [], True
   rg = find_command("rg")
@@ -978,38 +1248,232 @@ def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None 
     warn("rg is missing; pi and omp sessions were not scanned")
     return [], False
 
-  # Usage that names no provider of its own, spent on the session's model,
-  # the prompts the replies answer, every reply, since one another provider
-  # gave still answers the prompt before it, and every model switch, which
-  # says whose a summary or a prompt no reply answered is.
-  switch = r'"type"\s*:\s*"model_change"'
-  context = r'"type"\s*:\s*"(compaction|branch_summary)"|"role"\s*:\s*"toolResult".*"usage"\s*:\s*\{|"role"\s*:\s*"(user|assistant)"|' + switch
+  try:
+    index_file: Path | None = pi_session_index_path(pattern, named)
+  except OSError as exc:
+    warn(f"scan index unavailable ({exc})")
+    index_file = None
+  if index_file is None:
+    return _pi_scan(rg, pattern, accept, roots, {}, True)[:2]
 
-  # (root, path, line) of every counted line, so the rows come back in one
-  # order however rg's threads interleave the files.
-  found: list[tuple[int, str, int, tuple, UsageRow, tuple]] = []
+  loaded = _claude_code_index_stamp(index_file)
+  previous = _pi_load_index(index_file, pattern)
+  try:
+    return _pi_scan(rg, pattern, accept, roots, previous, False)[:2]
+  except _PiIndexStale:
+    pass
+  with exclusive_lock(index_file.with_name(index_file.name + ".lock")):
+    # Whoever held the lock meanwhile most likely read what this scan is after.
+    if _claude_code_index_stamp(index_file) != loaded:
+      previous = _pi_load_index(index_file, pattern)
+    rows, complete, files, changed = _pi_scan(rg, pattern, accept, roots, previous, True)
+    if changed:
+      try:
+        write_json(index_file, {"version": PI_SESSION_INDEX_VERSION, "pattern": pattern, "files": files})
+      except Exception as exc:
+        warn(f"could not write the pi session index {index_file} ({exc})")
+  return rows, complete
+
+
+def _pi_scan(
+  rg: str,
+  pattern: str,
+  accept: Accept,
+  roots: list[Path],
+  previous: dict[str, Any],
+  may_read: bool,
+) -> tuple[list[UsageRow], bool, dict[str, Any], bool]:
+  """scan_pi_sessions() over the index entries in `previous`: the rows,
+  whether every root was read in full, the index entries to keep, and
+  whether they differ from `previous`. Without `may_read`, a scan that
+  would read a session's lines or change the index raises _PiIndexStale
+  instead."""
   complete = True
-  # Each file's lines, folded in order when rg finishes the file.
-  pending: dict[str, list[tuple[int, Any]]] = {}
+  changed = False
+  # The entries this scan checked against the files, and the paths whose
+  # read failed, which count this time but are not kept.
+  current: dict[str, Any] = {}
+  unkept: set[str] = set()
+
+  def stale(change: bool = True) -> None:
+    nonlocal changed
+    if not may_read:
+      raise _PiIndexStale
+    changed = changed or change
+
+  def broke(batch: list[bytes]) -> None:
+    nonlocal complete
+    complete = False
+    unkept.update(os.fsdecode(target) for target in batch)
+
+  # Every session file under each root, by realpath, as rg's search walks them.
+  listed: list[tuple[int, str]] = []
+  listing_complete = True
+
+  def unlisted(_: list[bytes]) -> None:
+    nonlocal complete, listing_complete
+    complete = listing_complete = False
+
+  for index, root in enumerate(roots):
+    for name in b"".join(_pi_rg(rg, ["--files", "--null", "--glob", "*.jsonl"], [os.fsencode(root)], unlisted)).split(b"\0"):
+      if name:
+        listed.append((index, os.path.realpath(os.fsdecode(name))))
+  listed = list(dict.fromkeys(listed))
+  paths = {path for _, path in listed}
+
+  # A file that moved keeps its stat, and what it holds says nothing of
+  # where it is, so its entry goes with it.
+  moved: dict[tuple, dict[str, Any]] = {}
+  # A listing that missed files says nothing of the entries it didn't list,
+  # so those are kept while their file is still there.
+  unlisted_kept: dict[str, Any] = {}
+  for path, entry in previous.items():
+    if path in paths:
+      continue
+    if listing_complete:
+      stale()
+      moved[(entry["size"], entry["mtime"], *entry["file"])] = entry
+    elif os.path.isfile(path):
+      unlisted_kept[path] = entry
+    else:
+      stale()
+
+  full: list[str] = []
+  grown: list[tuple[str, dict[str, Any]]] = []
+  for _, path in listed:
+    try:
+      info = os.stat(path)
+    except OSError:
+      # Gone since rg listed it.
+      continue
+    old = previous.get(path)
+    identity = [info.st_dev, info.st_ino]
+    if old and (old["size"], old["mtime"], old["file"]) == (info.st_size, info.st_mtime_ns, identity):
+      current[path] = old
+      continue
+    if not old and (info.st_size, info.st_mtime_ns, *identity) in moved:
+      stale()
+      current[path] = moved.pop((info.st_size, info.st_mtime_ns, *identity))
+      continue
+    try:
+      offset = _pi_read_through(path, info.st_size)
+      entry = {
+        "size": info.st_size, "mtime": info.st_mtime_ns, "file": identity, "head": _claude_code_digest(Path(path), offset), "offset": offset,
+        "parent": _pi_header_parent(path), "match": False, "switches": None, "lines": None, "prompts": None,
+      }
+      # Only the same file, grown past what was read with what was read
+      # still in place, is an append.
+      appended = bool(old and old["file"] == identity and info.st_size > old["size"] and old["offset"] > 0 and old["head"] == _claude_code_digest(Path(path), old["offset"]))
+    except OSError:
+      # A file this user can't read (another's, say) counts nowhere, and is
+      # tried again next time; only dropping the entry it had changes the
+      # index.
+      complete = False
+      if old:
+        stale()
+      continue
+    stale()
+    current[path] = entry
+    if appended:
+      grown.append((path, old))
+    else:
+      full.append(path)
+
+  # Whether a file holds a line `pattern` matches, and its model switches
+  # while it doesn't, which say whether it holds the lines of a session on a
+  # model `accept` takes.
+  if full:
+    targets = sorted(os.fsencode(path) for path in full)
+    matched = _pi_matching(rg, [pattern], targets, broke)
+    for path in full:
+      current[path]["match"] = path in matched
+      if path not in matched:
+        current[path]["switches"] = []
+    for path, position, entry in _pi_events(rg, [_PI_SWITCH], [target for target in targets if os.fsdecode(target) not in matched], broke):
+      line = _pi_parse(entry)
+      if line is not None and line[0] == "m" and current.get(path, {}).get("switches") is not None:
+        current[path]["switches"].append([position, line])
+  for path, old in grown:
+    # A file that grew keeps what the last read made of it, and only what it
+    # gained since that read's offset is searched, as a whole file would be.
+    entry, start, target = current[path], old["offset"], [os.fsencode(path)]
+    entry["match"] = old["match"] or bool(_pi_matching(rg, [pattern], target, broke, start))
+    if not entry["match"]:
+      entry["switches"] = [item for item in old["switches"] or [] if item[0] < start]
+      for _, position, line_entry in _pi_events(rg, [_PI_SWITCH], target, broke, start):
+        line = _pi_parse(line_entry)
+        if line is not None and line[0] == "m":
+          entry["switches"].append([position, line])
+    if old["lines"] is not None:
+      entry["lines"] = [item for item in old["lines"] if item[0] < start]
+      for _, position, line_entry in _pi_events(rg, [pattern, _PI_CONTEXT], target, broke, start):
+        line = _pi_parse(line_entry)
+        if line is not None:
+          entry["lines"].append([position, line])
+    elif old["prompts"] is not None:
+      entry["prompts"] = list(old["prompts"])
+      for _, _, line_entry in _pi_events(rg, [_PI_PROMPT], target, broke, start):
+        line = _pi_parse(line_entry)
+        if line is not None and line[0] == "p" and line[1][0] == "E":
+          entry["prompts"].append(line[1][1])
+
+  def read_lines(wanted: list[str]) -> None:
+    """Read in the lines of the files in `wanted` the index lacks, every one
+    `pattern` or the context matches: for a file `pattern` matches nowhere
+    in, the context alone."""
+    missing = [path for path in wanted if current[path]["lines"] is None]
+    if not missing:
+      return
+    stale()
+    lines: dict[str, list[list]] = {path: [] for path in missing}
+    for path, position, entry in _pi_events(rg, [pattern, _PI_CONTEXT], sorted(os.fsencode(path) for path in missing), broke):
+      line = _pi_parse(entry)
+      if line is not None and path in lines:
+        lines[path].append([position, line])
+    for path in missing:
+      current[path] = {**current[path], "lines": lines[path]}
+
+  def takes_switch(line: list) -> bool:
+    try:
+      return bool(accept(line[1], line[2], {"provider": line[1], "model": line[2]}))
+    except Exception:
+      return False
+
+  # Only a file holding this collector's lines can hold its rows: one with a
+  # line `pattern` matches, or a model switch `accept` takes, which says
+  # whose a summary or an unanswered prompt there is (omp names the switch's
+  # provider/model, which `pattern` doesn't see). Every other file's prompts
+  # and summaries belong to another collector, and are never parsed here.
+  owned = [(index, path) for index, path in listed if path in current and (current[path]["match"] or any(takes_switch(line) for _, line in current[path]["switches"] or ()))]
+  read_lines([path for _, path in owned])
+
+  # (root, path, position) of every counted line, so the rows come back in
+  # one order however the files were read.
+  found: list[tuple[int, str, int, tuple, UsageRow, tuple]] = []
   # Every booking of each typed prompt, whichever provider took it, so one a
   # fork answered on another provider books under one collector alone.
   bookings: dict[tuple, list[tuple]] = {}
   read: set[str] = set()
   parents: dict[str, str | None] = {}
 
+  def parent_of(path: str) -> str | None:
+    if path not in parents:
+      parents[path] = _pi_resolve_parent(current[path]["parent"]) if path in current else pi_parent_session(path)
+    return parents[path]
+
   def ancestors(path: str) -> set[str]:
     found: set[str] = set()
-    parent = parents.setdefault(path, pi_parent_session(path))
+    parent = parent_of(path)
     while parent and parent not in found and parent != path:
       found.add(parent)
-      parent = parents.setdefault(parent, pi_parent_session(parent))
+      parent = parent_of(parent)
     return found
 
-  def fold(index: int | None, path: str) -> None:
+  def fold(index: int | None, path: str, lines: list[list]) -> None:
     # `index` None reads a file for its bookings alone.
     read.add(path)
     depth = len(ancestors(path))
-    for line_number, key, row, asks, taken in _pi_rows(path, sorted(pending.pop(path, []), key=lambda line: line[0]), accept):
+    for line_number, key, row, asks, taken in _pi_rows(path, sorted(lines, key=lambda item: item[0]), accept):
       for ask in asks:
         # An answer before a prompt no reply answered, the oldest session's
         # first, as a fork copies its parent's.
@@ -1017,84 +1481,8 @@ def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None 
       if taken and index is not None:
         found.append((index, path, line_number, key, row, asks))
 
-  def run_rg(args: list[str], targets: list[bytes]) -> Iterator[bytes]:
-    """rg's output lines for `args` over `targets`, a batch of them at a time
-    so a long list of files stays under the argument limit."""
-    nonlocal complete
-    batches: list[list[bytes]] = [[]]
-    size = 0
-    for target in targets:
-      if batches[-1] and size + len(target) > 100_000:
-        batches.append([])
-        size = 0
-      batches[-1].append(target)
-      size += len(target) + 1
-    for batch in batches:
-      if not batch:
-        continue
-      try:
-        # --no-ignore: these are data files, not a source tree. When $HOME is
-        # itself a git checkout (a common dotfiles setup), its ignore rules
-        # would otherwise hide every session file and count zero usage.
-        proc = subprocess.Popen([rg, "--no-ignore", "--hidden", *args, "--", *batch], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=runtime_env())
-      except OSError:
-        complete = False
-        return
-      assert proc.stdout is not None
-      with proc.stdout:
-        yield from proc.stdout
-      try:
-        # rg exits 1 for no match and 2 when it couldn't read something.
-        if proc.wait(timeout=5) not in (0, 1):
-          complete = False
-      except subprocess.TimeoutExpired:
-        proc.kill()
-        complete = False
-
-  def match_events(targets: list[bytes], patterns: list[str]) -> Iterator[tuple[str, str, int, Any]]:
-    """(event type, path, line number, entry) for each rg match and file end."""
-    args = ["--json"] + [arg for pattern in patterns for arg in ("-e", pattern)]
-    for raw in run_rg(args, targets):
-      try:
-        event = json.loads(raw)
-        data = event["data"]
-        if event.get("type") == "end":
-          yield "end", os.path.realpath(_rg_text(data.get("path"))), 0, None
-        elif event.get("type") == "match":
-          yield "match", os.path.realpath(_rg_text(data.get("path"))), number(data.get("line_number")), json.loads(_rg_text(data.get("lines")))
-      except Exception:
-        # One odd line costs that line, never the scan.
-        continue
-
-  def matching_files(targets: list[bytes], patterns: list[str]) -> list[bytes]:
-    """The *.jsonl files under `targets` with a line matching any of `patterns`,
-    by realpath, as the scan names them."""
-    args = ["--files-with-matches", "--null", "--glob", "*.jsonl"] + [arg for pattern in patterns for arg in ("-e", pattern)]
-    return [os.fsencode(os.path.realpath(os.fsdecode(name))) for name in b"".join(run_rg(args, targets)).split(b"\0") if name]
-
-  for index, root in enumerate(roots):
-    # Only a file holding this collector's lines can hold its rows, so the
-    # files are picked first: those with a line `pattern` matches, and those
-    # with a model switch `accept` takes, which says whose a summary or an
-    # unanswered prompt there is (omp names the switch's provider/model,
-    # which `pattern` doesn't see). Every other file's prompts and summaries
-    # belong to another collector, and are never parsed here.
-    owned = matching_files([os.fsencode(root)], [pattern])
-    switched = set(matching_files([os.fsencode(root)], [switch])) - set(owned)
-    for _, path, _, entry in match_events(sorted(switched), [switch]):
-      line = _pi_line(entry)
-      try:
-        if line is not None and line[0] == "model" and accept(*line[1:4]):
-          owned.append(os.fsencode(path))
-      except Exception:
-        continue
-    for kind, path, line_number, entry in match_events(sorted(set(owned)), [pattern, context]):
-      if kind == "end":
-        fold(index, path)
-      else:
-        pending.setdefault(path, []).append((line_number, entry))
-    for path in list(pending):
-      fold(index, path)
+  for index, path in owned:
+    fold(index, path, current[path]["lines"])
 
   # A prompt's copies live in the forks of the session it was typed in, so
   # the other files of those fork trees holding a prompt this collector
@@ -1102,9 +1490,8 @@ def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None 
   # same one among them. Only a prompt with an entry id has copies elsewhere.
   ids = {ask[1] for *_, asks in found for ask in asks if ask[0] == "entry"}
   children: dict[str, list[str]] = {}
-  for name in matching_files([os.fsencode(root) for root in roots], [r'"parentSession"']) if ids else ():
-    path = os.fsdecode(name)
-    parent = parents.setdefault(path, pi_parent_session(path))
+  for _, path in listed if ids else ():
+    parent = parent_of(path) if path in current else None
     if parent:
       children.setdefault(parent, []).append(path)
   family: set[str] = set()
@@ -1115,25 +1502,40 @@ def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None 
       continue
     family.add(path)
     queue.extend(ancestors(path) | set(children.get(path, ())))
-  others = sorted(os.fsencode(path) for path in family - read if os.path.isfile(path) and any(Path(path).is_relative_to(root) for root in roots))
-  if others and all(re.fullmatch(r"[A-Za-z0-9_.:-]+", key) for key in ids):
-    # Such an id is written as itself, quoted, so a file holding none of
-    # them quoted holds no copy, and is never parsed.
-    try:
-      with tempfile.NamedTemporaryFile("w", suffix=".ids") as quoted:
-        quoted.write("".join(f'"{key}"\n' for key in sorted(ids)))
-        quoted.flush()
-        others = sorted({os.fsencode(os.path.realpath(os.fsdecode(name))) for name in b"".join(run_rg(["--files-with-matches", "--null", "--fixed-strings", "-f", quoted.name], others)).split(b"\0") if name})
-    except OSError:
-      # With nowhere to write the ids, every file of the family is read.
-      pass
-  for kind, path, line_number, entry in match_events(others, [context]):
-    if kind == "end":
-      fold(None, path)
-    else:
-      pending.setdefault(path, []).append((line_number, entry))
-  for path in list(pending):
-    fold(None, path)
+  others = sorted(path for path in family - read if os.path.isfile(path) and any(Path(path).is_relative_to(root) for root in roots))
+
+  def books(lines: list[list]) -> bool:
+    return any(line[0] == "p" and line[1][0] == "E" and line[1][1] in ids for _, line in lines)
+
+  # A file holding none of those prompts holds no copy, and is not parsed:
+  # the index keeps the ids of its typed prompts instead of its lines, so
+  # another scan, booking other prompts, still reads nothing to tell.
+  indexed = [path for path in others if path in current]
+  unknown = [path for path in indexed if current[path]["lines"] is None and current[path]["prompts"] is None]
+  if unknown:
+    stale()
+    typed: dict[str, list[str]] = {path: [] for path in unknown}
+    for path, _, entry in _pi_events(rg, [_PI_PROMPT], sorted(os.fsencode(path) for path in unknown), broke):
+      line = _pi_parse(entry)
+      if line is not None and line[0] == "p" and line[1][0] == "E" and path in typed:
+        typed[path].append(line[1][1])
+    for path in unknown:
+      current[path] = {**current[path], "prompts": typed[path]}
+  read_lines([path for path in indexed if current[path]["lines"] is None and ids.intersection(current[path]["prompts"])])
+  outside: dict[str, list[list]] = {}
+  if any(path not in current for path in others):
+    # A parent the listing doesn't hold (one not named *.jsonl) is read every
+    # time, as no index keeps it: a read, so under the lock, that leaves the
+    # index as it was.
+    stale(change=False)
+    for path, position, entry in _pi_events(rg, [_PI_CONTEXT], [os.fsencode(path) for path in others if path not in current], broke):
+      line = _pi_parse(entry)
+      if line is not None:
+        outside.setdefault(path, []).append([position, line])
+  for path in others:
+    lines = (current[path]["lines"] or []) if path in current else outside.get(path, [])
+    if books(lines):
+      fold(None, path, lines)
   owner = {ask: min(candidates, key=lambda candidate: candidate[:4])[-1] for ask, candidates in bookings.items()}
 
   first: dict[tuple, UsageRow] = {}
@@ -1151,8 +1553,8 @@ def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None 
     if path not in holders.setdefault(key, []):
       holders[key].append(path)
 
-  # Resolved after the scan, so rg's file order cannot decide which copy of
-  # a forked message counts toward which session.
+  # Resolved after the scan, so the order files were read in cannot decide
+  # which copy of a forked message counts toward which session.
   rows = []
   for key, row in first.items():
     if not (row.prompts or row.input_tokens or row.output_tokens or row.cache_read or row.cache_write):
@@ -1162,7 +1564,10 @@ def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None 
       roots_of_copy = [path for path in paths if not ancestors(path) & set(paths)]
       row = row._replace(session=min(roots_of_copy or paths))
     rows.append(row)
-  return rows, complete
+
+  kept = unlisted_kept
+  kept.update((path, entry) for path, entry in current.items() if path not in unkept)
+  return rows, complete, kept, changed
 
 
 # ---------------------------------------------------------------- opencode
