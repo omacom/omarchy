@@ -7,8 +7,8 @@
 # Mistral's models. How pi and opencode
 # stores are read (roots, forks, both opencode stores, PI_CODING_AGENT_DIR,
 # untrusted values) is held by the shared and partition tests, as is the
-# unused-machine record; the scan cache goes through the contract check.
-# Mistral publishes no limits, so there is no limits contract to hold.
+# unused-machine record; the scan cache and the billing API's limits go through
+# the contract checks.
 
 set -euo pipefail
 
@@ -314,6 +314,94 @@ expect("Vibe names the newest cached plan as Vibe does, with no local stats whil
 write_json(home() / ".vibe" / "whoami_cache.json", {"a": {"stored_at_timestamp": 1, "payload": {"plan_type": "chat", "plan_name": "MYSTERY"}}})
 record = vibe()
 expect("Vibe leaves a plan Vibe cannot name unnamed", [record["ready"], record["tierLabel"]], [False, ""], record)
+
+# ------------------------------------------------------------------- limits
+
+BUDGET = "api.mistral.ai/v1/billing/budget"
+RESET = iso_in(20 * 86400)
+
+
+def pool(used, budget, reset=RESET):
+  return {"usage_percentage": used, "initial_budget": budget, "currency": "EUR", "reset_at": reset, "payg_enabled": True}
+
+
+def budget_answer(vibe_pool=None, api_pool=None):
+  return {"vibe_budget": vibe_pool or pool(25.0, 510.0), "api_budget": api_pool or pool(0.0, 51.0)}
+
+
+def keyed(key="token"):
+  os.environ["MISTRAL_API_KEY"] = key
+
+
+def vibe_budget(answer, mode="up"):
+  with FakeHttp({BUDGET: answer}, mode=mode) as http:
+    return vibe(), http
+
+
+sandbox()
+fresh = check_limits_contract(Adapter("vibe", plant=keyed, answer={BUDGET: budget_answer()}))
+expect("Vibe meters both allowances from the billing API",
+       [(entry["title"], entry["percent"], entry["resetsAt"]) for entry in fresh["limits"]],
+       [("Vibe", 0.25, RESET), ("API", 0.0, RESET)], fresh)
+
+expect("Vibe's balance is the Vibe Code allowance, in its own currency", fresh["balance"],
+       {"remaining": 382.5, "funded": 510.0, "spent": 127.5, "currency": "EUR", "estimated": False}, fresh)
+
+sandbox()
+keyed()
+vibe_budget(budget_answer())
+record, _ = vibe_budget(None, mode=500)
+expect("Vibe keeps the balance past a failed check", [record["limitsStale"], record["balance"]["spent"]], [True, 127.5], record)
+
+edit_limits_cache("vibe", resets_past=True)
+record, _ = vibe_budget(None, mode=500)
+expect("Vibe's spend starts over once the allowance has reset", [record["balance"]["spent"], record["balance"]["remaining"]], [0.0, 510.0], record)
+
+sandbox()
+keyed()
+record, _ = vibe_budget(budget_answer(pool(25.0, 510.0) | {"currency": "<b>EUR</b>"}))
+check("Vibe shows no balance in a currency it can't trust", len(record["limits"]) == 2 and not record.get("balance"), record)
+
+sandbox()
+os.environ.pop("MISTRAL_API_KEY", None)
+(home() / ".vibe").mkdir(parents=True, exist_ok=True)
+(home() / ".vibe" / ".env").write_text("OTHER=1\nMISTRAL_API_KEY='from-dotenv'\n")
+record, http = vibe_budget(budget_answer())
+expect("Vibe asks with the key in Vibe's .env", [len(record["limits"]), http.requests[-1]["headers"].get("authorization")],
+       [2, "Bearer from-dotenv"], record)
+
+# As Vibe's own dotenv reads them: a working key isn't reported as refused.
+for line in ("MISTRAL_API_KEY=from-dotenv # personal key", "MISTRAL_API_KEY='from-dotenv' # personal key", 'export MISTRAL_API_KEY="from-dotenv"'):
+  (home() / ".vibe" / ".env").write_text(f"{line}\n")
+  _, http = vibe_budget(budget_answer())
+  expect(f"Vibe reads the key from: {line}", http.requests[-1]["headers"].get("authorization"), "Bearer from-dotenv")
+
+sandbox()
+os.environ.pop("MISTRAL_API_KEY", None)
+record, http = vibe_budget(budget_answer())
+expect("Vibe asks nothing with no key, and no key isn't trouble",
+       [len(http.requests), record["limits"], record["usageStatusText"]], [0, [], ""], record)
+
+sandbox()
+keyed()
+record, _ = vibe_budget({"vibe_budget": pool(12.0, 0.0), "api_budget": pool(50.0, 51.0)})
+expect("Vibe leaves out an allowance the plan doesn't have", [entry["title"] for entry in record["limits"]], ["API"], record)
+
+record, _ = vibe_budget(budget_answer(pool(140.0, 510.0)))
+expect("Vibe's meter stops at a full allowance", record["limits"][0]["percent"], 1.0, record)
+
+record, _ = vibe_budget(budget_answer(pool(float("nan"), 510.0), pool("<b>9</b>", 51.0)))
+expect("Vibe leaves out a meter whose percentage can't be trusted, never failing the record", record["limits"], [], record)
+
+record, _ = vibe_budget(budget_answer(pool(10.0, 510.0, "<img src=x>")))
+expect("Vibe keeps a meter without a reset that isn't a time", record["limits"][0]["resetsAt"], "", record)
+
+sandbox()
+keyed()
+vibe_budget(budget_answer())
+record, _ = vibe_budget(None, mode=403)
+expect("Vibe shows no meters for a member without the usage permission, which is no trouble",
+       [record["limits"], record["limitsStale"], record["usageStatusText"]], [[], False, ""], record)
 
 # ---------------------------------------------------- VIBE_HOME and save_dir
 
