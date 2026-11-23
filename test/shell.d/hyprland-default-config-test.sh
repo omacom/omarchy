@@ -260,3 +260,48 @@ number_claims=$(cut -f1 <<<"$panels_output" | grep -cE '^SUPER \+ CTRL \+ code:1
 (( number_claims == 9 )) ||
   fail "only the bar panel hotkeys bind SUPER + CTRL + a number" "$number_claims"
 pass "bar panel hotkeys bind SUPER + CTRL + a number without a collision"
+
+# Hyprland looks a sent key name up in the active layout group only, so the
+# clipboard shortcuts send the keycode each letter sits on in the leading layout.
+clipboard_keys() {
+  local home="$tmpdir/clipboard-$1-$2"
+  mkdir -p "$home/.config/omarchy"
+  printf 'XKBLAYOUT=%s\nXKBVARIANT=%s\n' "$1" "$2" >"$home/.config/omarchy/keyboard-layouts"
+
+  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_REGION_FILE="$tmpdir/no-region" OMARCHY_PATH="$ROOT" lua - <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+
+local binds, sent = {}, {}
+local terminal = false
+hl = {
+  dsp = {
+    exec_cmd = function(command) return command end,
+    global = function(name) return name end,
+    send_key_state = function(args) return args end,
+  },
+  bind = function(keys, dispatcher, opts) binds[opts.description] = dispatcher end,
+  dispatch = function(args)
+    if args.state == "down" then sent[#sent + 1] = args.mods .. "+" .. args.key end
+  end,
+  timer = function() end,
+  get_active_window = function() return terminal and { tags = { "terminal*" } } or {} end,
+}
+
+require("default.hypr.helpers")
+require("default.hypr.bindings.clipboard")
+binds["Select all"]()
+binds["Universal copy"]()
+binds["Universal paste"]()
+binds["Universal cut"]()
+terminal = true
+binds["Universal copy"]()
+print(table.concat(sent, " "))
+LUA
+}
+keys=$(clipboard_keys ru,us ,)
+[[ $keys == "CTRL+code:38 CTRL+code:54 CTRL+code:55 CTRL+code:53 CTRL SHIFT+code:54" ]] ||
+  fail "clipboard shortcuts send US keycodes when a non-Latin layout is selected first" "$keys"
+keys=$(clipboard_keys us dvorak)
+[[ $keys == "CTRL+code:38 CTRL+code:31 CTRL+code:60 CTRL+code:56 CTRL SHIFT+code:31" ]] ||
+  fail "clipboard shortcuts send the keycodes of the leading layout's letters" "$keys"
+pass "clipboard shortcuts send keycodes that type their letters on the leading layout"

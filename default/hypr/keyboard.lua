@@ -53,6 +53,77 @@ function keyboard.installed()
   return values
 end
 
+-- Layouts that can't type Latin letters. Keep in sync with the list in
+-- etc/mkinitcpio.conf.d/omarchy_hooks.conf.
+local non_latin_layouts =
+  " af am ara bd bg by et ge gr il in iq ir kg kh kz la lk mk mm mn mv np rs ru sy th tj ua "
+-- us variants that can't type Latin letters either: Russian phonetic and Cherokee.
+local non_latin_us_variants = " chr rus "
+
+function keyboard.non_latin(layout)
+  return non_latin_layouts:find(" " .. layout .. " ", 1, true) ~= nil
+end
+
+-- The selected layouts and variants as Hyprland gets them. Hyprland resolves
+-- keybindings against the first entry in kb_layout, not the layout that's
+-- currently active, so Omarchy's Latin-keysym bindings (SUPER + W and friends)
+-- only fire when a Latin layout leads. Installing with a non-Latin one would
+-- otherwise leave the desktop unusable, so us moves in front of it.
+function keyboard.layouts()
+  local selected = keyboard.selected()
+  local kb_layout = selected.XKBLAYOUT or "us"
+  local kb_variant = selected.XKBVARIANT or ""
+
+  if not keyboard.non_latin(kb_layout:match("^[^,]*")) then
+    return kb_layout, kb_variant
+  end
+
+  -- Variants pair with layouts by position. A list that already names us (as in
+  -- "ru,us") moves that entry and its variant to the front rather than gaining a
+  -- second us, which would make the toggle cycle through a duplicate.
+  local layouts, variants = {}, {}
+  for layout in (kb_layout .. ","):gmatch("([^,]*),") do
+    layouts[#layouts + 1] = layout
+  end
+  for variant in (kb_variant .. ","):gmatch("([^,]*),") do
+    variants[#variants + 1] = variant
+  end
+
+  local us_variant = ""
+  for i, layout in ipairs(layouts) do
+    if layout == "us" and not non_latin_us_variants:find(" " .. (variants[i] or "") .. " ", 1, true) then
+      us_variant = variants[i] or ""
+      table.remove(layouts, i)
+      if variants[i] then table.remove(variants, i) end
+      break
+    end
+  end
+
+  table.insert(layouts, 1, "us")
+  table.insert(variants, 1, us_variant)
+  return table.concat(layouts, ","), table.concat(variants, ",")
+end
+
+-- Hyprland looks a sent key name up in the active layout group only, so sending
+-- C fails while a non-Latin group is active. Sending the keycode the letter sits
+-- on in the leading layout works in every group, and keeps Dvorak's or AZERTY's
+-- letters where they are. Falls back to the name if the lookup fails.
+function keyboard.letter(letter)
+  local layout, variant = keyboard.layouts()
+  local output = io.popen(string.format(
+    "xkbcli how-to-type --disable-compose --layout %s --variant %s %s 2>/dev/null",
+    o.shell_quote(layout:match("^[^,]*")),
+    o.shell_quote(variant:match("^[^,]*")),
+    o.shell_quote(letter:lower())
+  ))
+  if not output then return letter end
+
+  -- The first key that types the letter without modifiers.
+  local code = output:read("*a"):match("\n(%d+)%s[^\n]-%[ %]")
+  output:close()
+  return code and "code:" .. code or letter
+end
+
 -- Japanese (JIS) keyboards put +, ^, and the Henkan/Muhenkan keys where US
 -- keyboards don't, so a few defaults only apply when that layout leads.
 function keyboard.jis()

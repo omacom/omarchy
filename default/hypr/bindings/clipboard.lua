@@ -1,3 +1,5 @@
+local keyboard = require("default.hypr.keyboard")
+
 -- Send with explicit mods to the focused surface by omitting the window target,
 -- so universal clipboard shortcuts reach both normal windows and focused
 -- layer-shell surfaces such as Omarchy panels. A virtual keyboard (wtype) won't
@@ -42,10 +44,12 @@ local function universal_clipboard_shortcut(default_mods, default_key, terminal_
   end
 end
 
-o.bind("SUPER + A", "Select all", send_shortcut_once("CTRL", "A"))
-o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "C", "CTRL SHIFT", "C"))
+local A, C, V, X = keyboard.letter("A"), keyboard.letter("C"), keyboard.letter("V"), keyboard.letter("X")
+
+o.bind("SUPER + A", "Select all", send_shortcut_once("CTRL", A))
+o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", C, "CTRL SHIFT", C))
 -- Scripts paste the same way with `hyprctl dispatch 'o.universal_paste'`.
-o.universal_paste = universal_clipboard_shortcut("CTRL", "V", "CTRL SHIFT", "V")
+o.universal_paste = universal_clipboard_shortcut("CTRL", V, "CTRL SHIFT", V)
 o.bind("SUPER + V", "Universal paste", o.universal_paste)
-o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", "X"))
+o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", X))
 o.bind("SUPER + CTRL + V", "Clipboard manager", { panel = "omarchy.clipboard" })

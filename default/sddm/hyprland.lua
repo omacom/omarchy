@@ -2,7 +2,7 @@
 -- SDDM starts the greeter itself after the compositor is ready.
 
 -- The layout resolution below is deliberately duplicated from
--- default/hypr/input.lua. The greeter runs as the sddm user and starts from
+-- default/hypr/keyboard.lua. The greeter runs as the sddm user and starts from
 -- this file directly, so it never goes through default/hypr/bootstrap.lua --
 -- which builds package.path from $HOME and therefore can't set up require()
 -- here. Keep the two in sync.
@@ -26,7 +26,7 @@ local function read_vconsole()
 end
 
 -- Layouts that can't type Latin letters. Keep in sync with the list in
--- etc/mkinitcpio.conf.d/omarchy_hooks.conf and default/hypr/input.lua.
+-- etc/mkinitcpio.conf.d/omarchy_hooks.conf and default/hypr/keyboard.lua.
 local non_latin_layouts =
   " af am ara bd bg by et ge gr il in iq ir kg kh kz la lk mk mm mn mv np rs ru sy th tj ua "
 -- us variants that can't type Latin letters either: Russian phonetic and Cherokee.
