@@ -81,7 +81,7 @@
   "agents.downloadRate": "%1 MB/s",
   "agents.loginBrowser": "Log in through your browser",
   "agents.editInstructions": "Edit AGENTS.md, the instructions every agent follows",
-  "agents.forgetAccountConfirm": "Remove %1? Its sign-in is deleted from this machine, so adding it back means signing in again.",
+  "agents.forgetAccountConfirm": "Remove %1?",
   "agents.removeFailed": "Couldn't remove %1",
   "agents.removeDefaultLocalModelConfirm": "Remove %1 from the panel? It keeps running, + adds it back, and the agent at the top becomes the default.",
   "agents.removeLocalModelConfirm": "Remove %1 from the panel? It keeps running, and + adds it back.",

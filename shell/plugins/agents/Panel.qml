@@ -38,18 +38,19 @@ Panel {
     if (i >= 0 && removable(providers[i])) deleteTarget = providers[i]
   }
 
-  // The account a subscription line removes: its own, or, where the agent
-  // has only the one, the login this machine started with.
-  function accountIdOf(line) {
-    if (!line || line.localModel) return ""
-    if (line.account) return String(line.account.id)
-    return ["claude", "codex", "grok"].indexOf(line.providerId) >= 0 ? "primary" : ""
+  // What omarchy agent account remove takes to sign a line out: the
+  // provider, and for an agent with accounts, the line's own or, where it has
+  // only the one, the login this machine started with. Empty for a line with
+  // no sign-in of its own.
+  readonly property var signOutProviders: ["agy", "claude", "codex", "copilot", "cursor", "deepseek", "fireworks", "grok", "minimax", "muse", "opencode", "openrouter", "synthetic", "zai"]
+  function signOutArgs(line) {
+    if (!line || line.localModel || signOutProviders.indexOf(line.providerId) < 0) return []
+    if (line.account) return [line.providerId, String(line.account.id)]
+    return ["claude", "codex", "grok"].indexOf(line.providerId) >= 0 ? [line.providerId, "primary"] : [line.providerId]
   }
 
-  // A subscription's account is forgotten, its sign-in deleted here; any
-  // other line is hidden, its sign-in kept.
   function forgets(line) {
-    return accountIdOf(line) !== ""
+    return signOutArgs(line).length > 0
   }
 
   // A local model's line goes back to the add screen; the default's hands
@@ -72,9 +73,10 @@ Panel {
     }) || null
   }
 
-  // Forgets an added account, or hides the agent from the panel; a hidden
-  // one comes back from settings, or by signing in again. A local model
-  // keeps running, and the add screen offers it again.
+  // Signs the line out through omarchy agent account remove, which hides
+  // the agent once its last sign-in is gone; a line with no sign-in of its
+  // own is only hidden. A local model keeps running, and the add screen
+  // offers it again.
   function confirmDelete() {
     var target = deleteTarget
     deleteTarget = null
@@ -90,19 +92,23 @@ Panel {
       usage.removeLocalModels([target.localModel.target])
       return
     }
-    // The account removes the way omarchy agent account remove does: one
-    // in use hands its sessions to another first, and the only one signs out.
-    if (forgets(target)) {
-      Util.execArgv(["bash", "-c", 'out=$(omarchy-agent-account-remove "$1" "$2" </dev/null 2>&1) || omarchy-notification-send -u critical "$3" "$out"',
-                     "remove-account", target.providerId, accountIdOf(target), Commons.I18n.t("agents.removeFailed").arg(lineName(target))])
+    var args = signOutArgs(target)
+    // Copilot signs out only inside a session of its own, in a terminal.
+    if (target.providerId === "copilot") {
+      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-account-remove --yes copilot"])
+      root.close()
       return
     }
-    if (bar && bar.shell) {
-      var next = JSON.parse(JSON.stringify(settings || {}))
-      if (!next.providers) next.providers = {}
-      next.providers[target.providerId] = Object.assign({}, next.providers[target.providerId] || {}, { enabled: false })
-      bar.shell.updateEntryInline(moduleName, next)
+    if (args.length > 0) {
+      Util.execArgv(["bash", "-c", 'out=$(omarchy-agent-account-remove --yes "${@:2}" </dev/null 2>&1) || omarchy-notification-send -u critical "$1" "$out"',
+                     "remove-account", Commons.I18n.t("agents.removeFailed").arg(lineName(target))].concat(args))
+      return
     }
+    if (!bar || !bar.shell) return
+    var hidden = JSON.parse(JSON.stringify(settings || {}))
+    if (!hidden.providers) hidden.providers = {}
+    hidden.providers[target.providerId] = Object.assign({}, hidden.providers[target.providerId] || {}, { enabled: false })
+    bar.shell.updateEntryInline(moduleName, hidden)
   }
 
   // Signing in to an agent that was hidden from the panel brings it back.

@@ -103,6 +103,24 @@ cat >"$mock_bin/omarchy-default-agent" <<'SH'
 echo "${OMARCHY_TEST_DEFAULT_AGENT-claude}"
 SH
 
+# Removing a sign-in hides the agent through the running shell and signs out
+# through the CLIs and the keyring, none of which a test may reach.
+cat >"$mock_bin/omarchy-bar" <<'SH'
+#!/bin/bash
+[[ $1 == "set" ]] && echo "$*" >>"$OMARCHY_TEST_BAR_LOG"
+exit 1
+SH
+printf '#!/bin/bash\necho "$(basename "$0") $*" >>"$OMARCHY_TEST_LOGOUTS"\n' >"$mock_bin/cursor-agent"
+cp "$mock_bin/cursor-agent" "$mock_bin/muse"
+# The keyring holds an entry while its file exists, and can be made to refuse.
+cat >"$mock_bin/secret-tool" <<'SH'
+#!/bin/bash
+case $1 in
+lookup) [[ -e $OMARCHY_TEST_KEYRING ]] ;;
+clear) [[ -e $OMARCHY_TEST_KEYRING.stuck ]] || rm -f "$OMARCHY_TEST_KEYRING" ;;
+esac
+SH
+
 cat >"$mock_bin/omarchy-launch-browser" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_BROWSER_LOG"
@@ -116,6 +134,7 @@ export PATH="$pkg_bin:$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_NOTIFICATIONS="$notifications"
 export OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser"
+export OMARCHY_TEST_BAR_LOG="$test_tmp/bar" OMARCHY_TEST_LOGOUTS="$test_tmp/logouts" OMARCHY_TEST_KEYRING="$test_tmp/keyring"
 # A session started by an account launch pins its home through these, and
 # a run from inside one (an agent working on Omarchy) must not inherit it.
 unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME BROWSER
@@ -562,6 +581,41 @@ grep -q "^@@omarchy key " "$test_tmp/fireworks-output" && grep -qx "@@omarchy do
   fail "the panel is asked for the key and told the result" "$(cat "$test_tmp/fireworks-output")"
 pass "a Fireworks key is saved in OpenCode"
 
+# Removing a key's sign-in logs out each of the provider's OpenCode
+# credentials, and only those.
+remove_bin="$test_tmp/remove-bin"
+mkdir -p "$remove_bin"
+cat >"$remove_bin/opencode" <<SH
+#!/bin/bash
+case "\$1 \$2" in
+"auth export") echo '[{"id":"omarchy-1","integrationID":"fireworks-ai","value":{"type":"key","key":"fw_secret"}},{"id":"or-1","integrationID":"openrouter","value":{"type":"key","key":"or_secret"}}]' ;;
+"auth logout") echo "\$*" >>"$test_tmp/opencode-logout" ;;
+esac
+SH
+chmod +x "$remove_bin"/*
+PATH="$remove_bin:$PATH" omarchy-agent-account-remove fireworks </dev/null >"$test_tmp/fireworks-removed" 2>&1 ||
+  fail "removing Fireworks works" "$(cat "$test_tmp/fireworks-removed")"
+[[ $(cat "$test_tmp/opencode-logout") == "auth logout fireworks-ai omarchy-1" ]] && ! grep -q secret "$test_tmp/fireworks-removed" ||
+  fail "removing Fireworks logs out its OpenCode key alone, printing no key" "$(cat "$test_tmp/opencode-logout" "$test_tmp/fireworks-removed")"
+
+grep -qx 'set omarchy.agents providers {"fireworks":{"enabled":false}} --json' "$OMARCHY_TEST_BAR_LOG" ||
+  fail "removing Fireworks hides it, so a key read elsewhere doesn't bring it back" "$(cat "$OMARCHY_TEST_BAR_LOG")"
+
+# Gemini has no logout, so its sign-in is cleared where agy keeps it, and a
+# keyring that won't let it go fails the removal, hiding nothing.
+mkdir -p "$HOME/.gemini/antigravity-cli"
+echo '{}' >"$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
+touch "$OMARCHY_TEST_KEYRING" "$OMARCHY_TEST_KEYRING.stuck"
+: >"$OMARCHY_TEST_BAR_LOG"
+if omarchy-agent-account-remove gemini </dev/null >/dev/null 2>&1 || [[ -s $OMARCHY_TEST_BAR_LOG ]]; then
+  fail "a keyring that keeps Gemini's sign-in fails the removal and hides nothing"
+fi
+rm "$OMARCHY_TEST_KEYRING.stuck"
+omarchy-agent-account-remove gemini </dev/null >/dev/null
+[[ ! -e $HOME/.gemini/antigravity-cli/antigravity-oauth-token && ! -e $OMARCHY_TEST_KEYRING ]] ||
+  fail "removing Gemini clears agy's keyring entry and token file"
+pass "removing a sign-in without accounts forgets it where its CLI keeps it"
+
 : >"$notifications"
 OMARCHY_TEST_LOGIN_UUID=u-events OMARCHY_TEST_LOGIN_EMAIL=events@example.com \
   omarchy-agent-account-add --events claude Events </dev/null >"$test_tmp/events-output"
@@ -814,6 +868,7 @@ pass "a first sign-in installs its subscription's desktop app"
 (
   export HOME="$test_tmp/rm-home" XDG_STATE_HOME="$test_tmp/rm-state"
   accounts="$XDG_STATE_HOME/omarchy/agents/accounts"
+  : >"$OMARCHY_TEST_BAR_LOG"
   mkdir -p "$HOME/.claude" "$HOME/.codex"
   echo '{"oauthAccount":{"accountUuid":"u-main","emailAddress":"me@example.com"},"theme":"dark"}' >"$HOME/.claude.json"
   echo '{"claudeAiOauth":{"refreshToken":"main"}}' >"$HOME/.claude/.credentials.json"
@@ -827,11 +882,20 @@ pass "a first sign-in installs its subscription's desktop app"
     fail "removing the primary makes the account in ~/.claude the primary" "$(cat "$accounts/claude.json")"
   [[ $(jq -r .oauthAccount.accountUuid "$HOME/.claude.json") == u-side && ! -e $accounts/claude/.primary && ! -e $accounts/claude/side ]] ||
     fail "removing the primary deletes its login and leaves the new primary's in ~/.claude"
+  [[ ! -s $OMARCHY_TEST_BAR_LOG ]] || fail "removing one of several accounts keeps the agent on the panel"
+
+  # An account named like another agent is still the default agent's.
+  OMARCHY_TEST_LOGIN_UUID=u-cursor OMARCHY_TEST_LOGIN_EMAIL=cursor@example.com omarchy-agent-account-add claude Cursor </dev/null >/dev/null
+  omarchy-agent-account-remove cursor </dev/null >/dev/null
+  [[ $(jq -c '[.accounts[].id]' "$accounts/claude.json") == '["side"]' && ! -s $OMARCHY_TEST_LOGOUTS ]] ||
+    fail "remove <name> takes the default agent's account by that name before another agent" "$(cat "$accounts/claude.json" "$OMARCHY_TEST_LOGOUTS" 2>/dev/null)"
 
   # The only account left is signed out here, and everything else stays.
   omarchy-agent-account-remove claude side </dev/null >/dev/null
   [[ ! -e $HOME/.claude/.credentials.json && $(jq -c '{oauthAccount, theme}' "$HOME/.claude.json") == '{"oauthAccount":null,"theme":"dark"}' && -f $HOME/.claude/settings.json ]] ||
     fail "removing the only account signs ~/.claude out and keeps the rest" "$(cat "$HOME/.claude.json")"
+  grep -qx 'set omarchy.agents providers {"claude":{"enabled":false}} --json' "$OMARCHY_TEST_BAR_LOG" ||
+    fail "removing the only account hides the agent" "$(cat "$OMARCHY_TEST_BAR_LOG")"
 
   # Codex keeps every login in its own home, so the new primary's moves in.
   CODEX_HOME="$HOME/.codex" OMARCHY_TEST_LOGIN_UUID=c-main OMARCHY_TEST_LOGIN_EMAIL=me@example.com codex login >/dev/null

@@ -1,30 +1,121 @@
 #!/bin/bash
 
-# omarchy:summary=Forget a Claude, Codex, or Grok account, handing its sessions to another
-# omarchy:args=[claude|codex|grok] <account>
-# omarchy:examples=omarchy agent account remove work | omarchy agent account remove codex side
+# omarchy:summary=Forget an agent sign-in, handing a Claude, Codex, or Grok account's sessions to another
+# omarchy:args=[--yes] [agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai] [account]
+# omarchy:examples=omarchy agent account remove work | omarchy agent account remove codex side | omarchy agent account remove openrouter
 
 set -uo pipefail
 
-# The provider can be left out when it's your default agent:
-# `omarchy agent account use work`.
-if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
-  default=$(omarchy-default-agent)
-  [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
+# --yes skips the confirmation, for a caller that already asked.
+confirm=true
+if [[ ${1:-} == "--yes" ]]; then
+  confirm=false
+  shift
 fi
 
-if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]] || [[ -z ${2:-} ]]; then
-  echo "Usage: omarchy-agent-account-remove [claude|codex|grok] <account>" >&2
+accounts_provider() {
+  [[ $1 == "claude" || $1 == "codex" || $1 == "grok" ]]
+}
+
+has_account() {
+  omarchy-agent-account-list "$1" --json 2>/dev/null | jq -e --arg id "$2" '.[0].accounts[]? | select(.id == $id)' >/dev/null
+}
+
+# The provider can be left out when it's your default agent:
+# `omarchy agent account remove work`. An account of the default agent named
+# like another agent (`cursor`) is still that account.
+default=$(omarchy-default-agent)
+if [[ ! ${1:-} =~ ^(agy|gemini|claude|codex|copilot|cursor|cursor-agent|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai)$ ]] ||
+  { (( $# == 1 )) && ! accounts_provider "$1" && accounts_provider "$default" && has_account "$default" "$1"; }; then
+  accounts_provider "$default" && set -- "$default" "$@"
+fi
+
+provider=${1:-}
+case $provider in
+gemini) provider="agy" ;;
+cursor-agent) provider="cursor" ;;
+esac
+
+if [[ ! $provider =~ ^(agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai)$ ]] ||
+  { accounts_provider "$provider" && [[ -z ${2:-} ]]; }; then
+  echo "Usage: omarchy-agent-account-remove [agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|minimax|muse|opencode|openrouter|synthetic|zai] [account]" >&2
   exit 1
 fi
 
-# Removing only deletes the account's home here. It never logs out, which
-# would revoke the sign-in for every other copy of it too.
-if [[ -t 0 ]] && ! gum confirm "Forget the $1 account $2? You'd have to sign in again to add it back."; then
+# Every OpenCode credential for the integration, as `omarchy agent account
+# add` saves a key there. The export carries the secrets, which stay in the pipe.
+opencode_logout() {
+  local integration=$1 ids id
+  ids=$(opencode auth export 2>/dev/null | jq -r --arg integration "$integration" '.[]? | select(.integrationID == $integration) | .id') || return 1
+  for id in $ids; do
+    opencode auth logout "$integration" "$id" >/dev/null 2>&1 || return 1
+  done
+}
+
+case $provider in
+claude | codex | grok) name=$2 ;;
+agy) name="Gemini" ;;
+deepseek) name="DeepSeek" ;;
+minimax) name="MiniMax" ;;
+opencode) name="OpenCode" ;;
+openrouter) name="OpenRouter" ;;
+zai) name="Z.ai" ;;
+*) name=${provider^} ;;
+esac
+
+# Removing deletes the sign-in here. Where a CLI's logout would revoke it for
+# every other copy too, its saved credential is deleted instead.
+if [[ $confirm == "true" && -t 0 ]] && ! gum confirm "Forget $name? You'd have to sign in again to add it back."; then
   exit 130
 fi
 
-account=$(omarchy-agent-account-state remove "$1" "$2") || exit 1
-echo "Forgot $(jq -r .label <<<"$account")."
-# The panel reads which accounts exist from the usage record.
-omarchy-agent-usage-update --limits-only "$1" >/dev/null 2>&1 &
+# Hides the agent in the panel once its last sign-in is gone, so a key it
+# still reads from the environment, pi, or omp doesn't bring it back. Signing
+# in again shows it.
+hide_in_panel() {
+  local providers
+  providers=$(omarchy-bar get omarchy.agents providers 2>/dev/null) || providers="{}"
+  providers=$(jq -c --arg id "$provider" '.[$id] = ((.[$id] // {}) + {enabled: false})' <<<"$providers") &&
+    omarchy-bar set omarchy.agents providers "$providers" --json >/dev/null 2>&1
+}
+
+hides=true
+case $provider in
+claude | codex | grok)
+  # One of several accounts goes alone, the agent staying.
+  count=$(omarchy-agent-account-list "$provider" --json 2>/dev/null | jq '.[0].accounts | length')
+  (( ${count:-0} > 1 )) && hides=false
+  account=$(omarchy-agent-account-state remove "$provider" "$2") || exit 1
+  name=$(jq -r .label <<<"$account")
+  ;;
+agy)
+  # agy keeps its sign-in in the keyring, or in a file where there's none,
+  # and has no logout of its own. The lookup's secret goes nowhere.
+  if secret-tool lookup service gemini username antigravity >/dev/null 2>&1; then
+    secret-tool clear service gemini username antigravity 2>/dev/null
+    if secret-tool lookup service gemini username antigravity >/dev/null 2>&1; then
+      echo "Couldn't clear Gemini's sign-in from the keyring." >&2
+      exit 1
+    fi
+  fi
+  rm -f "${AGY_DIR:-$HOME/.gemini/antigravity-cli}/antigravity-oauth-token" || exit 1
+  ;;
+muse) muse logout >/dev/null || exit 1 ;;
+cursor) cursor-agent logout >/dev/null || exit 1 ;;
+copilot)
+  # Copilot signs out only from inside a session, which needs a terminal.
+  if [[ -t 0 ]]; then
+    copilot -i /logout
+  else
+    echo "Copilot signs out from its own session: run omarchy agent account remove copilot in a terminal." >&2
+    exit 1
+  fi
+  ;;
+fireworks) opencode_logout fireworks-ai || exit 1 ;;
+*) opencode_logout "$provider" || exit 1 ;;
+esac
+
+[[ $hides == "false" ]] || hide_in_panel
+echo "Forgot $name."
+# The panel reads which sign-ins exist from the usage record.
+omarchy-agent-usage-update --limits-only "$provider" >/dev/null 2>&1 &
