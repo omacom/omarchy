@@ -8,9 +8,32 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/bin"
 
+# The default source is a microphone muted or not as $MIC_STATE says, which
+# set-mute toggles. With no file wpctl answers as the real one does with no
+# microphone: an error on stderr, nothing on stdout, exit 0.
 cat >"$work/bin/wpctl" <<'SH'
 #!/bin/bash
 printf 'wpctl %s\n' "$*" >>"$CALLS"
+state=$(cat "$MIC_STATE" 2>/dev/null)
+case "$*" in
+  "get-volume @DEFAULT_AUDIO_SOURCE@")
+    if [[ -z $state ]]; then
+      echo "Translate ID error: '-1' is not a valid ID (returned by default-nodes-api)" >&2
+    elif [[ $state == "muted" ]]; then
+      echo "Volume: 1.00 [MUTED]"
+    else
+      echo "Volume: 1.00"
+    fi
+    ;;
+  "set-mute @DEFAULT_AUDIO_SOURCE@ toggle")
+    if [[ $state == "muted" ]]; then echo on >"$MIC_STATE"; else echo muted >"$MIC_STATE"; fi
+    ;;
+esac
+SH
+
+cat >"$work/bin/omarchy-brightness-keyboard-mute" <<'SH'
+#!/bin/bash
+printf 'omarchy-brightness-keyboard-mute %s\n' "$*" >>"$CALLS"
 SH
 
 cat >"$work/bin/omarchy-osd" <<'SH'
@@ -81,7 +104,7 @@ exit 0
 SH
 chmod +x "$work/bin"/*
 
-export CALLS="$work/calls" SOURCES="$work/sources" SINKS="$work/sinks" OUTPUTS="$work/outputs"
+export MIC_STATE="$work/mic" CALLS="$work/calls" SOURCES="$work/sources" SINKS="$work/sinks" OUTPUTS="$work/outputs"
 export PATH="$work/bin:$ROOT/bin:$PATH"
 
 calls() {
@@ -130,6 +153,35 @@ pass 'audio-output-volume reads pactl outputs in the C locale'
 grep -qx 'C pactl list sink-inputs' "$CALLS" ||
   fail 'audio-tuning app_streams reads sink-inputs in the C locale' "$(calls)"
 pass 'audio-tuning app_streams reads sink-inputs in the C locale'
+
+# --- omarchy-audio-input-mute ---
+
+rm -f "$MIC_STATE"
+: >"$CALLS"
+if omarchy-audio-input-mute 2>"$work/err"; then
+  fail 'input mute with no microphone fails' "$(calls)"
+fi
+grep -qx 'No microphone found.' "$work/err" || fail 'input mute with no microphone says so' "$(cat "$work/err")"
+grep -qx 'omarchy-osd -i microphone-off -m No microphone found' "$CALLS" ||
+  fail 'input mute with no microphone shows it' "$(calls)"
+! grep -qE 'set-mute|keyboard-mute' "$CALLS" ||
+  fail 'input mute with no microphone toggles nothing' "$(calls)"
+pass 'input mute says there is no microphone, and toggles nothing'
+
+echo on >"$MIC_STATE"
+: >"$CALLS"
+omarchy-audio-input-mute || fail 'input mute with a microphone succeeds' "$(calls)"
+[[ $(cat "$MIC_STATE") == "muted" ]] || fail 'input mute toggles the microphone' "$(calls)"
+grep -qx 'omarchy-brightness-keyboard-mute on' "$CALLS" &&
+  grep -qx 'omarchy-osd -i microphone-muted -m Microphone muted' "$CALLS" ||
+  fail 'input mute shows the microphone muted after muting it' "$(calls)"
+: >"$CALLS"
+omarchy-audio-input-mute || fail 'input mute with a muted microphone succeeds' "$(calls)"
+[[ $(cat "$MIC_STATE") == "on" ]] || fail 'input mute unmutes a muted microphone' "$(calls)"
+grep -qx 'omarchy-brightness-keyboard-mute off' "$CALLS" &&
+  grep -qx 'omarchy-osd -i microphone -m Microphone on' "$CALLS" ||
+  fail 'input mute shows the microphone on after unmuting it' "$(calls)"
+pass 'input mute still toggles a microphone and shows what it became'
 
 # --- omarchy-audio-sink-availability ---
 

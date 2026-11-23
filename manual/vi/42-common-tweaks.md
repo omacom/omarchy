@@ -1,16 +1,16 @@
 # Các tinh chỉnh phổ biến
 
-Đây là một bộ sưu tập các tùy chỉnh phổ biến cho thiết lập Omarchy. Hãy biết rằng đôi khi các bản cập nhật hệ thống có thể cần khôi phục một số cấu hình nhất định về trạng thái gốc của chúng. Nếu điều này xảy ra, các thay đổi của bạn sẽ không bị mất, mà được đặt vào một tệp `.bak` trong cùng thư mục.
+Đây là một tuyển tập các tùy biến thường gặp cho thiết lập Omarchy. Nên biết rằng đôi khi các bản cập nhật hệ thống có thể cần khôi phục một số cấu hình về trạng thái ban đầu. Nếu điều đó xảy ra, các thay đổi của bạn sẽ không bị mất, mà được đặt vào một tệp `.bak.<timestamp>` bên cạnh tệp gốc.
 
-Nếu bạn làm hỏng thứ gì đó, bạn có thể khôi phục từng cấu hình riêng lẻ về thiết lập gốc của chúng qua _Cập nhật > Cấu hình_ trong menu Omarchy. Nếu bạn _thực sự_ làm hỏng mọi thứ, bạn có thể đặt lại mọi cấu hình qua `omarchy-reinstall`.
+Nếu bạn làm hỏng thứ gì đó, bạn có thể khôi phục từng cấu hình riêng lẻ về thiết lập ban đầu của chúng thông qua _Update > Config_ trong menu Omarchy. Nếu bạn _thực sự_ làm hỏng mọi thứ, bạn có thể đặt lại tất cả các cấu hình bằng `omarchy reinstall configs`, hoặc cài đặt lại mọi gói và cấu hình mặc định bằng `omarchy reinstall`.
 
-### Luôn hiện mọi biểu tượng khay hệ thống
+### Luôn hiển thị tất cả các biểu tượng trên khay
 
-Theo mặc định, các biểu tượng khay hệ thống, như Dropbox, 1password hoặc Steam, bị ẩn sau mũi tên mở rộng khay, mũi tên này sẽ hiện chúng khi bạn di chuột lên. Nếu bạn muốn chúng luôn lộ ra, hãy nhấp chuột phải vào mũi tên mở rộng để mở trình quản lý biểu tượng khay, rồi ghim các biểu tượng bạn muốn giữ luôn hiển thị (bạn cũng có thể ẩn những biểu tượng bạn không bao giờ muốn thấy).
+Theo mặc định, các biểu tượng trên khay, như Dropbox, 1password hoặc Steam, được ẩn sau mũi tên mở rộng khay, mũi tên này sẽ hiển thị chúng khi bạn di chuột lên nó. Nếu bạn muốn chúng luôn hiển thị, hãy nhấp chuột phải vào mũi tên mở rộng để mở trình quản lý biểu tượng khay, sau đó ghim các biểu tượng mà bạn muốn giữ hiển thị (bạn cũng có thể ẩn những biểu tượng mà bạn không bao giờ muốn thấy).
 
-### Góc cửa sổ bo tròn
+### Các góc cửa sổ bo tròn
 
-Thiết kế mặc định của Omarchy là các góc vuông, nhưng nếu bạn thích làm mềm điều đó một chút, bạn có thể thay đổi `~/.config/hypr/looknfeel.lua` để rounding không còn bị chú thích tắt nữa:
+Thiết kế mặc định của Omarchy là các góc vuông, nhưng nếu bạn muốn làm mềm điều đó đi một chút, hãy chọn _Appearance > Windows > Window Corners > Rounded Corners_ trong menu Omarchy, hoặc chạy `omarchy hyprland corners rounded`. _Theme Corners_ quay trở lại bất kỳ kiểu nào mà chủ đề sử dụng. Để chọn bán kính của riêng bạn, hãy giữ nguyên _Theme Corners_ (`omarchy hyprland corners theme`), vì Rounded và Sharp tải sau cấu hình của bạn và ghi đè lên nó, đồng thời bỏ chú thích cho phần rounding trong `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({
@@ -21,9 +21,9 @@ hl.config({
 })
 ```
 
-### Loại bỏ khoảng cách cửa sổ
+### Loại bỏ khoảng trống giữa các cửa sổ
 
-Trên màn hình laptop, một số người thích không lãng phí bất kỳ pixel nào cho khoảng cách cửa sổ (hoặc thậm chí một thanh trên cùng, thứ bạn có thể tắt bằng `Super + Shift + Space`). Bạn có thể tắt mọi khoảng cách và viền bằng `Super + Shift + Backspace`, hoặc loại bỏ chúng vĩnh viễn bằng cách xóa các chú thích trong phần này của `~/.config/hypr/looknfeel.lua`:
+Trên các màn hình laptop, một số người thích không lãng phí bất kỳ pixel nào cho các khoảng trống giữa các cửa sổ (hoặc thậm chí cho thanh trên cùng, thanh mà bạn có thể bật/tắt bằng `Super + Shift + Space`). Bạn có thể bật/tắt tất cả các khoảng trống và đường viền bằng `Super + Shift + Backspace`, hoặc loại bỏ chúng vĩnh viễn bằng cách loại bỏ các chú thích trong phần này của `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({

@@ -72,7 +72,6 @@ Panel {
   }
 
   property var sinkAvailability: ({})
-  property bool sinkAvailabilityLoaded: false
   property var sourceAvailability: ({})
 
   // Identify true playback streams without reading node.properties here:
@@ -93,19 +92,8 @@ Panel {
   property var cachedAudioSinks: []
   property var cachedAudioSources: []
 
-  readonly property var rawAudioSinks: {
-    var list = []
-    for (var i = 0; i < candidateSinks.length; i++)
-      if (sinkAvailable(candidateSinks[i])) list.push(candidateSinks[i])
-    if (sink && list.indexOf(sink) < 0) list.unshift(sink)
-    return list
-  }
-
-  readonly property var rawAudioSources: {
-    var list = candidateSources.slice()
-    if (source && list.indexOf(source) < 0) list.unshift(source)
-    return list
-  }
+  readonly property var rawAudioSinks: Model.availableDevices(candidateSinks, sinkAvailability, sink)
+  readonly property var rawAudioSources: Model.availableDevices(candidateSources, sourceAvailability, source)
 
   readonly property var audioSinks: rawAudioSinks.length > 0 ? rawAudioSinks : cachedAudioSinks
   readonly property var audioSources: rawAudioSources.length > 0 ? rawAudioSources : cachedAudioSources
@@ -490,9 +478,8 @@ Panel {
     return inputMuted ? "󰍭" : "󰍬"
   }
 
-  // Playful mood-name for a given output volume. Mirrors the brightness
-  // panel's brightnessName ladder; bands are wide enough that small
-  // tweaks don't rename the room you're in.
+  // Playful mood-name for a given output volume; bands are wide enough
+  // that small tweaks don't rename the room you're in.
   function outputVolumeName(volume, muted) {
     return Model.outputVolumeName(volume, muted, Commons.I18n.t)
   }
@@ -567,16 +554,6 @@ Panel {
     }
   }
 
-  function sinkAvailable(node) {
-    if (!node || !node.name || !sinkAvailabilityLoaded) return true
-    var name = String(node.name)
-    return sinkAvailability[name] !== false
-  }
-
-  function updateSinkAvailability(raw) {
-    sinkAvailability = Model.parseSinkAvailability(raw)
-    sinkAvailabilityLoaded = true
-  }
 
   function friendlyDeviceLabel(text) {
     return Model.friendlyDeviceLabel(text)
@@ -674,7 +651,7 @@ Panel {
     command: ["omarchy-audio-sink-availability"]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.updateSinkAvailability(text)
+      onStreamFinished: root.sinkAvailability = Model.parseSinkAvailability(text)
     }
   }
 
