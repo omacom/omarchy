@@ -839,10 +839,10 @@ Panel {
     return String(local.last || "")
   }
 
-  // Choosing a model adds it. One running opens the agent on it; one set up
-  // here and stopped starts, and one not set up is set up, its row following
-  // that until it runs. A cabled Spark is set up in a terminal, which asks
-  // for the other machine's password once.
+  // Choosing a model adds it. One already running steps straight back to the
+  // panel, where it has its line; one set up here and stopped starts, and one
+  // not set up is set up, its row following that until it runs. A cabled Spark
+  // is set up in a terminal, which asks for the other machine's password once.
   function chooseOwnModel(index) {
     var offer = ownModelOffers[index]
     // One the memory free can't start is neither started nor set up.
@@ -870,10 +870,12 @@ Panel {
     var model = localModelState(local)
     usage.addLocalModel(offer.target)
     if (localRunning(local)) {
-      root.close()
       // Ready now, so it's the first one finished when nothing else is.
       if (usage.defaultAgent === "") selectLocalDefault(offer.target)
-      Util.execArgv(["omarchy-agent", "--local-model", offer.target])
+      if (settingUpLocal === "" && pairingLocal === "") {
+        if (addStage === "pick") cancelAdd()
+        else root.focusKeys()
+      }
       return
     }
     settingUpLocal = offer.target

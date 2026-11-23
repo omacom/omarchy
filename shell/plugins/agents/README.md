@@ -85,9 +85,7 @@ per local coding model added.
   button opens the subscription's desktop app when it's installed (Claude,
   ChatGPT for Codex, Grok Bot, Antigravity, Cursor, Hermes, OpenCode),
   focusing its window when one is already open. The app keeps its own
-  sign-in. A first sign-in to Claude, Codex, Grok, or Gemini installs its
-  desktop app where it's offered: through `omarchy-pkg-add` in a terminal,
-  and through polkit from the panel, which has none.
+  sign-in.
 - **Spend** — pay-as-you-go agents show what the account spent in the last
   30 days, a bar a day, or, against a monthly cap when there is one, this
   month's spend as a meter. Hovering a bar lights it up and names its day,
@@ -120,8 +118,8 @@ per local coding model added.
   memory free now can't start, set up or not, is dimmed, says so (what it
   needs and what's free, from `/proc/meminfo` read as the add screen opens),
   and can't be chosen, so one that couldn't run is never downloaded.
-  Choosing a model adds it. One that's running opens the agent on it; one
-  stopped starts, and one to set up is set up, staying on the add screen
+  Choosing a model adds it. One that's running steps straight back to the
+  panel; one stopped starts, and one to set up is set up, staying on the add screen
   with its installing, download, and loading under it until it runs and the
   add screen steps back to the panel. One not paired yet is paired with in
   the background the same way, its row saying so, or why pairing failed, and
