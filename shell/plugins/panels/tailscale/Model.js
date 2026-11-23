@@ -38,7 +38,6 @@ function peerAddress(peer) {
   if (!peer) return ""
   var dnsName = cleanDnsName(peer.DNSName)
   if (dnsName) return dnsName + "."
-  if (peer.HostName) return String(peer.HostName)
   var ips = filterIPv4(peer.TailscaleIPs || [])
   return ips.length > 0 ? ips[0] : ""
 }
