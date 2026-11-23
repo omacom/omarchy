@@ -157,10 +157,10 @@ XKBVARIANT=,chr
 '
 
 hooks_conf="$ROOT/etc/mkinitcpio.conf.d/omarchy_hooks.conf"
-keyboard_lua="$ROOT/default/hypr/keyboard.lua"
+input_lua="$ROOT/default/hypr/input.lua"
 
 hooks_layouts=$(awk -F')' '/\) ;;$/ { gsub(/[[:space:]|]+/, "\n", $1); print $1 }' "$hooks_conf" | grep '^[a-z]\+$' | sort)
-lua_layouts=$(sed -n '/^local non_latin_layouts =/,+1p' "$keyboard_lua" | grep -o '"[^"]*"' | tr -d '"' | tr ' ' '\n' | grep '^[a-z]\+$' | sort)
+lua_layouts=$(sed -n '/^local non_latin_layouts =/,+1p' "$input_lua" | grep -o '"[^"]*"' | tr -d '"' | tr ' ' '\n' | grep '^[a-z]\+$' | sort)
 
 [[ -n $hooks_layouts ]] || fail "non-latin layout list is readable from omarchy_hooks.conf"
 

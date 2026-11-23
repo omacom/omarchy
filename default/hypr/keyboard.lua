@@ -60,106 +60,31 @@ function keyboard.jis()
   return layout:match("^[^,]*") == "jp"
 end
 
--- Layouts that can't type Latin letters. Keep in sync with the list in
--- etc/mkinitcpio.conf.d/omarchy_hooks.conf.
-local non_latin_layouts =
-  " af am ara bd bg by et ge gr il in iq ir kg kh kz la lk mk mm mn mv np rs ru sy th tj ua "
--- us variants that can't type Latin letters either: Russian phonetic and Cherokee.
-local non_latin_us_variants = " chr rus "
+-- Hyprland matches a keysym bind against what a key types without Shift, so a
+-- bind on / never fires on the layouts below, which type / only with Shift.
+-- They put punctuation on the key US types / on, so bind that key instead.
+-- Period has the same problem on the French-derived layouts.
+local needs_shift = {
+  SLASH = { code = 61, layouts = " at az ba be cd ch cz de dk dz ee es fi fo fr hr hu it latam me ml no pt se si sk sn tg tr " },
+  PERIOD = { code = 60, layouts = " be cd dz fr ml sn tg " },
+}
 
-function keyboard.non_latin(layout)
-  return non_latin_layouts:find(" " .. layout .. " ", 1, true) ~= nil
+-- Variants that move the letters around can put one on that key: F on bépo.
+local function moves_letters(variant)
+  return variant:find("dvorak") or variant:find("bepo") or variant:find("colemak") or variant:find("neo") or variant:find("workman")
 end
 
--- The kb_layout and kb_variant Hyprland gets. Hyprland resolves keybindings against the first entry in kb_layout,
--- not the layout that's currently active, so Omarchy's Latin-keysym bindings
--- (SUPER + W and friends) only fire when a Latin layout leads. Installing with
--- a non-Latin one would otherwise leave the desktop unusable.
-function keyboard.layouts()
+function keyboard.key(keysym)
   local selected = keyboard.selected()
-  local kb_layout = selected.XKBLAYOUT or "us"
-  local kb_variant = selected.XKBVARIANT or ""
-  if not keyboard.non_latin(kb_layout:match("^[^,]*")) then
-    return kb_layout, kb_variant
+  local layout = (selected.XKBLAYOUT or "us"):match("^[^,]*")
+  local variant = (selected.XKBVARIANT or ""):match("^[^,]*")
+  local symbol = needs_shift[keysym]
+
+  if symbol and symbol.layouts:find(" " .. layout .. " ", 1, true) and not moves_letters(variant) then
+    return "code:" .. symbol.code
   end
 
-  -- Variants pair with layouts by position. A list that already names us (as in
-  -- "ru,us") moves that entry and its variant to the front rather than gaining a
-  -- second us, which would make the toggle cycle through a duplicate.
-  local layouts, variants = {}, {}
-  for layout in (kb_layout .. ","):gmatch("([^,]*),") do
-    layouts[#layouts + 1] = layout
-  end
-  for variant in (kb_variant .. ","):gmatch("([^,]*),") do
-    variants[#variants + 1] = variant
-  end
-
-  local us_variant = ""
-  for i, layout in ipairs(layouts) do
-    if layout == "us" and not non_latin_us_variants:find(" " .. (variants[i] or "") .. " ", 1, true) then
-      us_variant = variants[i] or ""
-      table.remove(layouts, i)
-      if variants[i] then table.remove(variants, i) end
-      break
-    end
-  end
-
-  table.insert(layouts, 1, "us")
-  table.insert(variants, 1, us_variant)
-  return table.concat(layouts, ","), table.concat(variants, ",")
-end
-
--- What each key types without Shift on the leading layout: the keysyms it
--- types anywhere, and the one on each keycode. Read once per config load.
-local unshifted
-
-local function unshifted_keysyms()
-  if unshifted then return unshifted end
-  unshifted = { typed = {}, at = {} }
-
-  local kb_layout, kb_variant = keyboard.layouts()
-  local layout = kb_layout:match("^[^,]*")
-  local variant = kb_variant:match("^[^,]*")
-  if not layout:match("^[%w_-]+$") or not variant:match("^[%w_-]*$") then return unshifted end
-
-  local command = "xkbcli compile-keymap --layout " .. layout
-  if variant ~= "" then command = command .. " --variant " .. variant end
-  local pipe = io.popen(command .. " </dev/null 2>/dev/null")
-  if not pipe then return unshifted end
-  local keymap = pipe:read("*a") or ""
-  pipe:close()
-
-  local codes = {}
-  for name, code in keymap:gmatch("<([%w_]+)>%s*=%s*(%d+)%s*;") do
-    codes[name] = tonumber(code)
-  end
-
-  -- Short entries read `{ [ minus, underscore ] }`; longer ones name a type and
-  -- then `symbols[1]= [ ssharp, ... ]` across several lines.
-  for name, body in keymap:gmatch("key%s+<([%w_]+)>%s*(%b{})") do
-    local keysym = body:match("symbols%[[^%]]*%]%s*=%s*%[%s*([%w_]+)") or body:match("[{,]%s*%[%s*([%w_]+)")
-    if keysym then
-      unshifted.typed[keysym:lower()] = true
-      if codes[name] then unshifted.at[codes[name]] = keysym:lower() end
-    end
-  end
-
-  return unshifted
-end
-
--- Hyprland matches a keysym bind against what the key types without Shift, so
--- a bind on / never fires where / needs Shift, as on most European layouts.
--- Those layouts get the key US keyboards type it on instead, as long as that
--- key types punctuation there rather than a letter (F on bépo, Z on Dvorak).
-local punctuation = { minus = true, equal = true, exclam = true, period = true, colon = true, semicolon = true, comma = true, apostrophe = true }
-
-function keyboard.key(keysym, code)
-  local keysyms = unshifted_keysyms()
-  if keysyms.typed[keysym:lower()] or not punctuation[keysyms.at[code]] then
-    return keysym
-  end
-
-  return "code:" .. code
+  return keysym
 end
 
 return keyboard

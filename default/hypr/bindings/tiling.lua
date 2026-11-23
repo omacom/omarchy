@@ -107,6 +107,6 @@ for index = 1, 5 do
   o.bind("SUPER + ALT + code:" .. tostring(index + 9), "Switch to group window " .. index, hl.dsp.group.active({ index = index }))
 end
 
-local slash = keyboard.key("SLASH", 61)
+local slash = keyboard.key("SLASH")
 o.bind("SUPER + " .. slash, "Monitor scaling up", "omarchy-hyprland-monitor-scaling up")
 o.bind("SUPER + ALT + " .. slash, "Monitor scaling down", "omarchy-hyprland-monitor-scaling down")

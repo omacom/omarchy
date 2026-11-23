@@ -244,8 +244,6 @@ passwords_key() {
 [[ $(passwords_key us "") == "SUPER + SHIFT + SLASH" ]] || fail "/ binds stay on / where it types without Shift" "$(passwords_key us "")"
 [[ $(passwords_key dk "") == "SUPER + SHIFT + code:61" ]] || fail "/ binds move to the key left of right Shift where / needs Shift" "$(passwords_key dk "")"
 [[ $(passwords_key fr bepo) == "SUPER + SHIFT + SLASH" ]] || fail "/ binds never move onto a letter" "$(passwords_key fr bepo)"
-# A non-Latin first layout leads with us, here Dvorak, which types / directly.
-[[ $(passwords_key rs,us ,dvorak) == "SUPER + SHIFT + SLASH" ]] || fail "/ binds read the layout Hyprland leads with" "$(passwords_key rs,us ,dvorak)"
 pass "/ binds follow the leading keyboard layout"
 
 # The panel hotkeys claim a row of keys that workspace switching already uses

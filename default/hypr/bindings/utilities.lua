@@ -105,7 +105,7 @@ end)
 
 o.bind("SUPER + CTRL + S", "Share", { menu = "share" })
 
-o.bind("SUPER + CTRL + " .. keyboard.key("PERIOD", 60), "Transcode", "omarchy-transcode")
+o.bind("SUPER + CTRL + " .. keyboard.key("PERIOD"), "Transcode", "omarchy-transcode")
 
 o.bind("SUPER + CTRL + R", "Set reminder", { menu = "reminder-set" })
 o.bind("SUPER + CTRL + ALT + R", "Show reminders", "omarchy-reminder show")
