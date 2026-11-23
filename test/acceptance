@@ -45,12 +45,20 @@ wait_for_session() {
   local signature
 
   while true; do
-    signature=$(ls -t "$XDG_RUNTIME_DIR/hypr" 2>/dev/null | head -1)
-
-    if [[ -n $signature ]]; then
-      export HYPRLAND_INSTANCE_SIGNATURE="$signature"
-      hyprctl -j monitors >/dev/null 2>&1 && return 0
+    # A nested compositor fixture can leave a newer directory after it exits.
+    # Keep the caller's live session, then discover only reachable instances.
+    if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] &&
+      hyprctl -i "$HYPRLAND_INSTANCE_SIGNATURE" -j monitors >/dev/null 2>&1; then
+      return 0
     fi
+
+    while IFS= read -r signature; do
+      [[ -n $signature && -d $XDG_RUNTIME_DIR/hypr/$signature ]] || continue
+      if hyprctl -i "$signature" -j monitors >/dev/null 2>&1; then
+        export HYPRLAND_INSTANCE_SIGNATURE="$signature"
+        return 0
+      fi
+    done < <(ls -t "$XDG_RUNTIME_DIR/hypr" 2>/dev/null)
 
     if ((SECONDS >= boot_deadline)); then
       echo "not ok - Hyprland session never came up" >&2
