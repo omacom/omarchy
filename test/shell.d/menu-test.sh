@@ -465,3 +465,60 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
+
+# Verify omarchy-menu-select and omarchy-menu-input serialize payloads faithfully
+# (including UTF-8, tabs, dash-prefixed options, multi-select, and dimensions).
+select_tmp=$(mktemp -d)
+trap 'rm -rf "$select_tmp"' EXIT
+mkdir -p "$select_tmp/bin"
+
+cat >"$select_tmp/bin/omarchy-shell" <<'SH'
+#!/bin/bash
+payload="$4"
+printf '%s\n' "$payload" >"$PAYLOAD_OUT"
+sel_file=$(jq -r '.selectionFile' <<<"$payload")
+done_file=$(jq -r '.doneFile' <<<"$payload")
+printf '%s\n' "$FAKE_ANSWER" >"$sel_file"
+: >"$done_file"
+SH
+chmod +x "$select_tmp/bin/omarchy-shell"
+
+select_answer=$(PATH="$select_tmp/bin:$PATH" PAYLOAD_OUT="$select_tmp/select.json" FAKE_ANSWER="-dash" \
+  "$ROOT/bin/omarchy-menu-select" "Pick (æøå)" "-dash" $'✓\tSecond\tsub' -- \
+  --multiple --selected "-dash" --selected $'Second\tsub' \
+  --on-change '["apply","--set"]' --change-key "k1" --width 640 --maxheight 480)
+[[ $select_answer == "-dash" ]] || fail "omarchy-menu-select returns the selected value" "$select_answer"
+jq -e '
+  .mode == "select"
+  and .prompt == "Pick (æøå)"
+  and .options == ["-dash", "✓\tSecond\tsub"]
+  and .multiple == true
+  and .selected == ["-dash", "Second\tsub"]
+  and .onChange == ["apply", "--set"]
+  and .changeKey == "k1"
+  and .width == 640
+  and .maxHeight == 480
+' "$select_tmp/select.json" >/dev/null || fail "omarchy-menu-select builds the expected JSON payload" "$(cat "$select_tmp/select.json")"
+pass "omarchy-menu-select builds the expected JSON payload"
+
+# Empty selected list and omitted dimensions stay clean (empty array, no null width/maxHeight).
+PATH="$select_tmp/bin:$PATH" PAYLOAD_OUT="$select_tmp/select-min.json" FAKE_ANSWER="One" \
+  "$ROOT/bin/omarchy-menu-select" "Simple" "One" >/dev/null
+jq -e '
+  .mode == "select"
+  and .multiple == false
+  and .selected == []
+  and (has("width") | not)
+  and (has("maxHeight") | not)
+' "$select_tmp/select-min.json" >/dev/null || fail "omarchy-menu-select omits unset dimensions and keeps selected empty" "$(cat "$select_tmp/select-min.json")"
+pass "omarchy-menu-select omits unset dimensions and keeps selected empty"
+
+input_answer=$(PATH="$select_tmp/bin:$PATH" PAYLOAD_OUT="$select_tmp/input.json" FAKE_ANSWER="15" \
+  "$ROOT/bin/omarchy-menu-input" "Reminder (æøå)" --width 400)
+[[ $input_answer == "15" ]] || fail "omarchy-menu-input returns the entered value" "$input_answer"
+jq -e '
+  .mode == "input"
+  and .prompt == "Reminder (æøå)"
+  and .width == 400
+' "$select_tmp/input.json" >/dev/null || fail "omarchy-menu-input builds the expected JSON payload" "$(cat "$select_tmp/input.json")"
+pass "omarchy-menu-input builds the expected JSON payload"
