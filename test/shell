@@ -166,10 +166,10 @@ if (( SHARD_TOTAL > 0 )); then
   if (( ${#parallel_noncomp_tests[@]} > 0 )); then
     mapfile -t parallel_noncomp_tests < <(select_shard "${parallel_noncomp_tests[@]}")
   fi
-  if [[ $GROUP == "comp" && ${#parallel_comp_tests[@]} -gt 0 ]]; then
+  if (( ${#parallel_comp_tests[@]} > 0 )); then
     mapfile -t parallel_comp_tests < <(select_shard "${parallel_comp_tests[@]}")
-    (( SHARD_INDEX == 1 )) || exclusive_tests=()
-  elif [[ $GROUP == "exclusive" && ${#exclusive_tests[@]} -gt 0 ]]; then
+  fi
+  if (( ${#exclusive_tests[@]} > 0 )); then
     mapfile -t exclusive_tests < <(select_shard "${exclusive_tests[@]}")
   fi
 fi

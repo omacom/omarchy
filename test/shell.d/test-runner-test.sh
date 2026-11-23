@@ -228,4 +228,14 @@ expected_files=$(printf '%s\n' \
   sleep-lock-test.sh)
 [[ $ran_files == "$expected_files" ]] ||
   fail "CI shards partition every shell test file exactly once" "got:\n$ran_files"
+
+a1=$(WAYLAND_DISPLAY="" bash "$shard_dir/test/shell" --shard=1/2 2>&1)
+a2=$(WAYLAND_DISPLAY="" bash "$shard_dir/test/shell" --shard=2/2 2>&1)
+all_sharded=$(
+  printf '%s\n%s\n' "$a1" "$a2" |
+    sed -n 's/^==> test\/shell\.d\///p' |
+    sort
+)
+[[ $all_sharded == "$expected_files" ]] ||
+  fail "default --group=all shards partition every shell test file exactly once" "got:\n$all_sharded"
 pass "CI group and shard filters partition every shell test file exactly once and report timings"

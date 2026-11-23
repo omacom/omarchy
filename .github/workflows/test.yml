@@ -156,6 +156,7 @@ jobs:
             --tmpfs "/tmp:rw,nosuid,nodev,size=$tmpfs_size" \
             -v "$PWD:/w" -v "$IMAGE_DIR:/image:ro" -w /w \
             -e VM_STATE_DIR=/tmp -e SMP="$smp" -e MEM="$mem" \
+            -e CI_VM_TIMEOUT=900 \
             -e OMARCHY_TEST_COMP_JOBS="$comp_jobs" \
             -e QEMU_PREBUILT="$QEMU_PREBUILT" \
             "$QEMU_IMAGE" bash -euo pipefail -c '
