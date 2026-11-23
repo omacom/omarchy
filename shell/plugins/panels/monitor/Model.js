@@ -63,6 +63,21 @@ function focusedBrightness(line, sameDisplay) {
   }
 }
 
+// The focused brightness fields after one state read. A read that started
+// before the latest write finished cannot change the level. If focus moved
+// during that write, the previous display's level is dropped anyway: the
+// next empty reading would otherwise see the same focused name and keep it.
+function focusedStateAfterRead(previousAvailable, previousPercent, previousFocused, nextFocused, line, accept) {
+  var focusChanged = String(nextFocused || "") !== String(previousFocused || "")
+  if (!accept) {
+    if (!focusChanged) return { available: !!previousAvailable, percent: previousPercent }
+    return { available: false, percent: 0 }
+  }
+  var focused = focusedBrightness(line, !focusChanged)
+  if (focused.keep) return { available: !!previousAvailable, percent: previousPercent }
+  return { available: focused.available, percent: focused.available ? focused.percent : 0 }
+}
+
 // How a relative step uses the external brightness read already under way.
 // `running` is that process, and `settled` means its stdout callback has run.
 // `accepted` means the read is still the one a result may apply. A canceled
@@ -464,6 +479,7 @@ if (typeof module !== "undefined") {
     brightnessStep: brightnessStep,
     parseBrightnessReading: parseBrightnessReading,
     focusedBrightness: focusedBrightness,
+    focusedStateAfterRead: focusedStateAfterRead,
     brightnessProbeAction: brightnessProbeAction,
     brightnessProbeCurrent: brightnessProbeCurrent,
     mergeBrightnessLevel: mergeBrightnessLevel,

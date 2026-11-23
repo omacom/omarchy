@@ -860,13 +860,16 @@ Panel {
         var lines = String(text || "").split("\n")
         var nextFocused = String(lines[5] || "").trim()
         var acceptBrightness = root.stateReadMayApplyBrightness()
-        if (acceptBrightness) {
-          var focused = Model.focusedBrightness(lines[0], nextFocused === root.focusedMonitor)
-          if (!focused.keep) {
-            root.brightnessAvailable = focused.available
-            root.brightnessPercent = focused.available ? focused.percent : 0
-          }
-        }
+        var focused = Model.focusedStateAfterRead(
+          root.brightnessAvailable,
+          root.brightnessPercent,
+          root.focusedMonitor,
+          nextFocused,
+          lines[0],
+          acceptBrightness
+        )
+        root.brightnessAvailable = focused.available
+        root.brightnessPercent = focused.percent
         root.internalMonitor = String(lines[1] || "").trim()
         root.externalMonitor = String(lines[2] || "").trim()
         root.internalEnabled = String(lines[3] || "").trim() !== ""
