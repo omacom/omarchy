@@ -390,54 +390,6 @@
   "setup.default": {
     "label": "الافتراضية"
   },
-  "agent": {
-    "label": "الوكيل"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
-  },
   "setup.default.browser": {
     "label": "المتصفح",
     "title": "المتصفح الافتراضي"
@@ -569,7 +521,7 @@
     "label": "XCompose"
   },
   "remove.factory-reset": {
-    "label": "إعادة تعيين الحاسوب"
+    "label": "إعادة ضبط المصنع"
   },
   "install.package": {
     "label": "الحزمة"
@@ -1129,12 +1081,6 @@
   "update.hardware.trackpad": {
     "label": "لوحة اللمس"
   },
-  "update.password.drive": {
-    "label": "تشفير القرص"
-  },
-  "update.password.user": {
-    "label": "المستخدم"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "إظهار نسبة البطارية %"
   },
@@ -1225,33 +1171,6 @@
   "trigger.hardware.touchscreen-off": {
     "label": "تعطيل شاشة اللمس"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
   "setup.git": {
     "label": "Git"
   },
@@ -1300,25 +1219,6 @@
   "setup.default.editor.plain": {
     "label": "عادي"
   },
-  "agent.harness": {
-    "label": "إطار التشغيل",
-    "title": "إطار التشغيل الافتراضي"
-  },
-  "agent.instructions": {
-    "label": "التعليمات"
-  },
-  "agent.make": {
-    "label": "اصنع شيئًا"
-  },
-  "agent.make.theme": {
-    "label": "اصنع سمة"
-  },
-  "agent.make.plugin": {
-    "label": "اصنع إضافة"
-  },
-  "agent.make.app": {
-    "label": "اصنع تطبيقًا"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
@@ -1340,5 +1240,39 @@
   "system.firmware": {
     "label": "إعادة التشغيل إلى BIOS",
     "description": "إعادة التشغيل إلى إعدادات برنامج UEFI الثابت"
+  },
+  "setup.region": {
+    "label": "المنطقة"
+  },
+  "setup.region.formats": {
+    "label": "التنسيقات",
+    "description": "طريقة كتابة التواريخ والأوقات والأرقام والوحدات"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "لعبة Game Vibes"
+  },
+  "update.games": {
+    "label": "ألعاب Game Vibes"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "اسم المضيف"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
