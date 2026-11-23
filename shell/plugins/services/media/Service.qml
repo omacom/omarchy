@@ -244,7 +244,7 @@ Item {
     if (!pending) return
 
     var player = playerForKey(pending.playerKey) || pending.player
-    if (force || MediaModel.trackChanged(pending.before, player) || pending.attempts >= 10) {
+    if (force || MediaModel.newTrackArrived(pending.before, player) || pending.attempts >= 10) {
       pendingTrackOsd = null
       trackOsdTimer.stop()
       root.showOsd(pending.actionLabel, pending.iconName, player)
