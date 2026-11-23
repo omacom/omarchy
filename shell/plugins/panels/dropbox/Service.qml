@@ -77,6 +77,13 @@ Item {
     statusProcess.running = true
   }
 
+  // Timer-driven refreshes walk the Dropbox folder only while the panel shows
+  // its results; otherwise they ask for status alone. Opening the panel does a
+  // full refresh.
+  function poll() {
+    refresh(!panelOpen)
+  }
+
   function applyStatus(raw) {
     var parsed = Model.parseStatus(raw)
     if (!parsed.ok) {
@@ -187,7 +194,7 @@ Item {
     repeat: true
     running: true
     triggeredOnStart: true
-    onTriggered: root.refresh()
+    onTriggered: root.poll()
   }
 
   Timer {
@@ -203,7 +210,7 @@ Item {
     onTriggered: {
       ticks += 1
       if (root.running || ticks >= 15) startupRamp.running = false
-      else root.refresh()
+      else root.poll()
     }
   }
 
@@ -211,7 +218,7 @@ Item {
     id: delayedRefresh
     interval: 1000
     repeat: false
-    onTriggered: root.refresh()
+    onTriggered: root.poll()
   }
 
   Timer {
@@ -232,7 +239,7 @@ Item {
     running: false
     onTriggered: {
       settleTimer.ticks += 1
-      root.refresh()
+      root.poll()
       if (settleTimer.ticks >= 4) {
         settleTimer.ticks = 0
         settleTimer.running = false
