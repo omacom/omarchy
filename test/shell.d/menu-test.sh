@@ -140,6 +140,32 @@ const entry = merged.items['style.theme']
 assert(menu.matchesQuery(entry, 'theme', true), 'menu matches labels and aliases')
 assert(menu.matchesQuery(entry, 'colors', true), 'menu matches aliases')
 assert(!menu.matchesQuery(entry, 'missing', true), 'menu rejects missing terms')
+assert(!menu.matchesQuery(entry, 'thene', true) && menu.matchesQueryWithTypos(entry, 'thene', true), 'menu forgives a typo only in the typo search')
+assert(menu.matchesQueryWithTypos(entry, 'pikcer', true) && menu.matchesQueryWithTypos(entry, 'pikc theme', true), 'menu counts swapped letters as one typo, mid-word and beside exact terms')
+assert(!menu.matchesQueryWithTypos(entry, 'thx', true) && !menu.matchesQueryWithTypos(entry, 'thene', false), 'menu forgives no typo under four letters, and none in a hidden row')
+const filesApp = Object.assign(menu.normalizeItem('apps.files', { label: 'Files', action: 'x' }), { order: 0 })
+const fontApp = Object.assign(menu.normalizeItem('apps.font', { label: 'Font', action: 'x' }), { order: 0 })
+const frontApp = Object.assign(menu.normalizeItem('apps.front', { label: 'Front', action: 'x' }), { order: 1 })
+assert(!menu.matchesQuery(filesApp, 'ffiles', true) && menu.matchesQueryWithTypos(filesApp, 'ffiles', true), 'menu doubled-letter fast path matches ffiles to Files')
+assert(menu.matchesQueryWithTypos(filesApp, 'ffil', true), 'menu doubled-letter fast path works on word prefixes')
+assert(
+  menu.searchScore({ 'apps.font': fontApp, 'apps.front': frontApp }, fontApp, 'ffont', true)
+    < menu.searchScore({ 'apps.font': fontApp, 'apps.front': frontApp }, frontApp, 'ffont', true),
+  'menu ranks doubled-letter matches above general one-edit typos'
+)
+const bluetooth = menu.normalizeItem('bluetooth', { label: 'Bluetooth', action: 'x' })
+assert(menu.matchesQueryWithTypos(bluetooth, 'bluetoxx', true) && !menu.matchesQueryWithTypos(bluetooth, 'bluetxx', true), 'menu forgives two typos from eight letters, and only one below')
+assert(menu.matchesQueryWithTypos(bluetooth, 'bluetoooth', true), 'menu doubled-letter fast path handles extra repeated letters')
+// Multilingual folding: Latin/Greek/Arabic diacritics, non-NFD Latin letters,
+// Korean Hangul Jamo typos, and CJK edit-distance exclusion.
+assert(menu.matchesQueryWithTypos(menu.normalizeItem('sv.settings', { label: 'Inställningar', action: 'x' }), 'installningar', true), 'menu folds Latin diacritics in typo search')
+assert(menu.matchesQueryWithTypos(menu.normalizeItem('vi.go', { label: 'Đi', action: 'x' }), 'di', true), 'menu folds non-NFD Latin letters like Vietnamese đ')
+assert(menu.matchesQueryWithTypos(menu.normalizeItem('pl.look', { label: 'Wygląd', action: 'x' }), 'wyglad', true), 'menu folds Polish ł and ogonek')
+assert(menu.matchesQueryWithTypos(menu.normalizeItem('tr.light', { label: 'Işık', action: 'x' }), 'isik', true), 'menu folds Turkish dotless ı and cedilla')
+assert(menu.matchesQueryWithTypos(menu.normalizeItem('el.go', { label: 'Μετάβαση', action: 'x' }), 'μεταβαση', true), 'menu folds Greek tonos')
+assert(menu.matchesQueryWithTypos(menu.normalizeItem('ar.learn', { label: 'تعلّم', action: 'x' }), 'تعلم', true), 'menu folds Arabic harakat')
+assert(menu.matchesQueryWithTypos(menu.normalizeItem('ko.learn', { label: '배우기', action: 'x' }), '배어기', true), 'menu decomposes Korean Hangul to Jamo for single-jamo typos')
+assert(!menu.matchesQueryWithTypos(menu.normalizeItem('zh.apps', { label: '应用', action: 'x' }), '应答', true), 'menu skips edit distance for CJK ideographs')
 assert(!menu.matchesQuery(entry, 'theme', false), 'menu hides invisible matches')
 assert(menu.searchScore(merged.items, entry, 'theme') < menu.searchScore(merged.items, entry, 'appearance'), 'menu scores name matches above description matches')
 
@@ -198,6 +224,50 @@ assert(
   rankScore('system.about', 'abou') < rankScore('appearance.branding.about', 'abou'),
   'menu ranks a shallower equal match above a deeper submenu'
 )
+
+// Runs Menu.qml's own two-pass search over the shipped menu.
+const menuQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
+const qmlFunction = (name, params) => new Function('root', 'MenuModel', 'displayModel', 'Qt', ...params,
+  `with (root) {${menuQml.match(new RegExp(`\\n  function ${name}\\(${params.join(', ')}\\) \\{([\\s\\S]*?)\\n  \\}\\n`))[1]}}`)
+const menuMatchesQuery = qmlFunction('matchesQuery', ['entry', 'query', 'typos'])
+const menuRebuildDisplay = qmlFunction('rebuildDisplay', ['typos'])
+const searchWithFiles = menu.mergeAppRows(ranked.items, ranked.itemOrder, [
+  { id: 'apps.files', parent: 'apps', kind: 'app', label: 'Files', description: '', aliases: [] },
+  { id: 'apps.foot', parent: 'apps', kind: 'app', label: 'Foot', description: '', aliases: [] }
+])
+const searchIds = query => {
+  const rows = []
+  const displayModel = { count: 0, clear: () => { rows.length = 0 }, append: row => rows.push(...(Array.isArray(row) ? row : [row])) }
+  const root = Object.assign({}, searchWithFiles, {
+    activeMenu: 'root', filterText: query, rowsLoaded: true, dmenuActive: false, searchDivider: false, layoutSerial: 0,
+    item: id => searchWithFiles.items[id] || null,
+    isDescendantOf: (id, ancestorId) => menu.isDescendantOf(searchWithFiles.items, id, ancestorId),
+    parentPathFor: id => menu.parentPathFor(searchWithFiles.items, id),
+    isVisible: () => true,
+    isDisabled: () => false,
+    searchScore: (entry, q, typos) => menu.searchScore(searchWithFiles.items, entry, q, typos),
+    displayRow: (entry, detail, score) => menu.displayRow(searchWithFiles.items, searchWithFiles.itemOrder, {}, {}, entry, detail, score),
+    settleCursor: () => {},
+    matchesQuery: (entry, q, typos) => menuMatchesQuery(root, menu, displayModel, null, entry, q, typos),
+    rebuildDisplay: typos => menuRebuildDisplay(root, menu, displayModel, { callLater: () => {} }, typos)
+  })
+  root.rebuildDisplay()
+  return rows.map(row => row.itemId)
+}
+assert(searchIds('ffiles')[0] === 'apps.files', 'menu search finds Files on ffiles via second-pass typo fallback')
+assert(searchIds('fnot').includes('appearance.font'), 'menu search retries a search that found nothing, forgiving typos')
+const fontIds = searchIds('font')
+assert(fontIds.includes('appearance.font') && !fontIds.includes('apps.foot'), 'menu search never adds typo matches when exact matches exist')
+
+// Prefilters must skip DP on pasted long strings so the shell never stalls.
+const vm = require('vm')
+const model = vm.createContext({})
+vm.runInContext(fs.readFileSync(path.join(root, 'shell/plugins/menu/MenuModel.js'), 'utf8'), model)
+const origPrefixDistances = model.prefixDistances
+let dpCalls = 0
+model.prefixDistances = (a, b) => (dpCalls++, origPrefixDistances(a, b))
+for (const id of searchWithFiles.itemOrder) model.matchesQueryWithTypos(searchWithFiles.items[id], 'a'.repeat(256), true)
+assertEqual(dpCalls, 0, 'menu typo search skips DP for words too short to match a pasted query')
 
 // Routing: htop ships `Keywords=system;...`, which app rows carry as aliases.
 // An installed app must never capture a menu route (SUPER+ESCAPE opens the
