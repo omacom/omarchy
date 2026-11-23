@@ -124,34 +124,6 @@ default_if_unset() {
   fi
 }
 
-# A subscription's own desktop app comes with its first sign-in, beside the
-# coding agent: Claude's, ChatGPT for Codex, Grok Bot, and Antigravity for
-# Gemini, where those are offered. The panel has no terminal to ask for a
-# password in, so polkit asks for it there. Not getting the app leaves the
-# sign-in as it is.
-install_desktop_app() {
-  local package app
-  case $provider in
-  claude) package=claude-desktop app="Claude Desktop" ;;
-  codex) package=openai-codex-desktop app="ChatGPT Desktop" ;;
-  grok) package=grok-bot app="Grok Bot" ;;
-  agy) package=antigravity app="Antigravity" ;;
-  *) return 0 ;;
-  esac
-  omarchy-region-global || return 0
-  omarchy-pkg-present "$package" && return 0
-  say "$(omarchy-i18n agents.installingDesktop "$name")"
-  if [[ $events == "true" ]]; then
-    # The password dialog says which app it installs, where pkexec alone would
-    # name only pacman.
-    omarchy-shell -q omarchy.polkit expect /usr/bin/pacman "$(omarchy-i18n polkit.authorizeInstalling "$app")" >/dev/null 2>&1 || true
-    # Cancel while polkit asks stops pkexec, which takes its dialog with it.
-    interruptible pkexec /usr/bin/pacman -S --noconfirm --needed -- "$package" >/dev/null 2>&1 || true
-  else
-    omarchy-pkg-add "$package" || true
-  fi
-}
-
 # A first sign-in announces the agent as ready, and an added account that it's
 # ready for more; clicking either starts one. Any other says which account it was.
 # Each stays up until it's clicked or closed: the sign-in finishes in the
@@ -161,7 +133,6 @@ finish() {
   # however it was signed in to.
   omarchy-shell omarchy.agents showAgent "$provider" true >/dev/null 2>&1
   install_launcher
-  [[ ${2:-} == "ready" ]] && install_desktop_app
   if [[ $events == "true" ]]; then
     printf '@@omarchy done %s\n' "$1"
     if [[ ${2:-} == "ready" ]]; then

@@ -19,9 +19,8 @@ cat >"$mock_bin/omarchy-notification-send" <<'SH'
 printf '%s\n' "$*" >>"$OMARCHY_TEST_NOTIFICATIONS"
 SH
 
-# A first sign-in installs the subscription's desktop app. These stand in for
-# the package tools ahead of every PATH the tests use, so nothing real installs
-# and no password dialog opens.
+# Guard against any package install during sign-in, ahead of every PATH the
+# tests use, so nothing real installs and we can assert the log stays empty.
 pkg_bin="$test_tmp/pkg-bin"
 export OMARCHY_TEST_PKG_LOG="$test_tmp/pkg-log"
 mkdir -p "$pkg_bin"
@@ -884,11 +883,19 @@ omarchy-agent-account-state refresh claude
   fail "refresh saves who each home is signed in as now"
 pass "refresh saves who each home is signed in as now"
 
-# A first sign-in installs the subscription's desktop app, once: Codex's and
-# Grok's here, from a terminal. Adding another account installs nothing more.
-[[ $(cat "$OMARCHY_TEST_PKG_LOG" 2>/dev/null) == $'pkg-add openai-codex-desktop\npkg-add grok-bot' ]] ||
-  fail "a first sign-in installs its subscription's desktop app, and only that" "$(cat "$OMARCHY_TEST_PKG_LOG" 2>/dev/null)"
-pass "a first sign-in installs its subscription's desktop app"
+# Signing in never installs desktop apps on its own, whether from a terminal
+# or from the panel (--events).
+(
+  export HOME="$test_tmp/events-first-home" XDG_STATE_HOME="$test_tmp/events-first-state"
+  mkdir -p "$HOME/.codex"
+  OMARCHY_TEST_LOGIN_UUID=acct-fast OMARCHY_TEST_LOGIN_EMAIL=fast@example.com \
+    omarchy-agent-account-add --events codex </dev/null >"$test_tmp/events-first-output"
+  grep -qx "@@omarchy done Signed in to Codex." "$test_tmp/events-first-output" ||
+    fail "a panel first sign-in reports done" "$(cat "$test_tmp/events-first-output")"
+)
+[[ ! -s $OMARCHY_TEST_PKG_LOG ]] ||
+  fail "signing in does not install desktop apps" "$(cat "$OMARCHY_TEST_PKG_LOG" 2>/dev/null)"
+pass "signing in does not install desktop apps"
 
 # ------------------------------------------------------------ removing the primary
 

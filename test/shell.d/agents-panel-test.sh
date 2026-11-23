@@ -245,4 +245,32 @@ const lineStop = (launches, actions) => new Function('providers', 'launches', 'l
 assertEqual(lineStop(true, ['share', 'toggle']), 'providerLaunch', 'a running model lands on its terminal button')
 assertEqual(lineStop(false, ['update', 'toggle']), 'localToggle', 'a stopped model lands on its play button')
 assertEqual(lineStop(false, []), 'provider', 'a line with nothing to press lands on its mark')
+
+// Adding a running network model returns to the panel index instead of
+// closing the panel and launching a terminal.
+const added = []
+const execs = []
+let closed = false, cancelled = false, focused = false, selectedDefault = ''
+const chooseModel = new Function(
+  'ownModelOffers', 'offerMeter', 'localModelState', 'localRunning', 'usage', 'selectLocalDefault',
+  'settingUpLocal', 'pairingLocal', 'addStage', 'cancelAdd', 'root', 'Util',
+  fn('chooseOwnModel') + '\nreturn chooseOwnModel'
+)(
+  [{ target: 'spark/deepseek', host: 'spark' }],
+  () => null,
+  () => null,
+  () => true,
+  { addedLocalModels: [], defaultAgent: 'codex', addLocalModel: t => added.push(t) },
+  t => { selectedDefault = t },
+  '', '', 'pick',
+  () => { cancelled = true },
+  { close: () => { closed = true }, focusKeys: () => { focused = true } },
+  { execArgv: argv => execs.push(argv) }
+)
+chooseModel(0)
+assertDeepEqual(added, ['spark/deepseek'], 'choosing a network model adds it to the panel')
+assertEqual(cancelled, true, 'choosing a network model returns to the panel index')
+assertEqual(closed, false, 'choosing a network model keeps the panel open')
+assertDeepEqual(execs, [], 'choosing a network model does not launch a terminal')
+assertEqual(selectedDefault, '', 'choosing a network model leaves an existing default agent alone')
 JS
