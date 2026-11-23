@@ -250,7 +250,7 @@
     "title": "Layout workspace predefinito"
   },
   "appearance.workspace-layout.cycle": {
-    "label": "Layout nel ciclo"
+    "label": "Layout abilitati"
   },
   "appearance.workspace-layout.dwindle": {
     "label": "Affiancamento"

@@ -458,6 +458,27 @@ assert(state().config["general.layout"] == "scrolling", "a scrolling default did
 fi
 pass "a scrolling default is Hyprland's default layout"
 
+# Disabling modes takes effect on reload even for workspaces that saved an
+# override before the selection, including saves from before workspace_mode.
+printf '%s\n' scrolling >"$state_home/omarchy/workspace-layout-cycle"
+printf 'o.workspace_mode({ default = "floating" })\n' >"$modes_dir/default.lua"
+printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
+printf 'hl.workspace_rule({ workspace = "2", layout = "dwindle" })\n' >"$modes_dir/2.lua"
+if ! run_lua '
+local first = window("0x1", 1)
+require("default.hypr.workspace-layouts")
+assert(state().config["general.layout"] == "scrolling", "a disabled default did not fall back")
+assert(not first.floating, "a disabled floating override remained active")
+'; then
+  fail "disabled modes fall back to the allowed default"
+fi
+[[ $(run omarchy-hyprland-workspace-layout-current 1) == "scrolling" ]] ||
+  fail "the CLI sees the same fallback for a disabled floating override"
+[[ $(run omarchy-hyprland-workspace-layout-current 2) == "scrolling" ]] ||
+  fail "the CLI falls back for a disabled legacy override"
+rm -f "$state_home/omarchy/workspace-layout-cycle"
+pass "disabled modes fall back to the allowed default"
+
 # Moving the default away from floating is a fresh start, and the windows it floated
 # have to be given back even though nothing names their workspace any more. With
 # no workspace given a layout of its own, no saved mode is left to start the mode.

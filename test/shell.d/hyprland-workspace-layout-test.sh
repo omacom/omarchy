@@ -76,7 +76,9 @@ applied() {
 # A restricted cycle skips disabled modes in both directions and becomes a
 # no-op once the workspace is already on its only enabled layout.
 cycle() {
-  env XDG_STATE_HOME="$home_dir/.local/state" "$ROOT/bin/omarchy-hyprland-workspace-layout-cycle" "$@"
+  env HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" \
+    HYPRCTL_LOG="$log_file" NOTIFICATION_LOG="$notification_log" \
+    PATH="$stub_dir:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hyprland-workspace-layout-cycle" "$@"
 }
 
 cycle dwindle floating

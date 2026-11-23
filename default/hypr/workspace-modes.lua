@@ -17,6 +17,7 @@
 
 require("default.hypr.helpers")
 local paths = require("default.hypr.paths")
+local selection = require("default.hypr.workspace-layout-selection")
 
 local FLOATED_TAG = "omarchy-mode-floated"
 local WORKSPACE_TAG = "omarchy-floating-workspace"
@@ -380,14 +381,18 @@ function o.workspace_mode(spec)
   -- Appearance > Workspace Layout. A tiled default is Hyprland's own
   -- layout; a floating one is arranged once the saved modes have all loaded.
   if spec.default then
-    default_mode = spec.default
-    if spec.default ~= "floating" then
-      hl.config({ general = { layout = spec.default } })
+    default_mode = selection.allows(spec.default) and spec.default or selection.fallback
+    if default_mode ~= "floating" then
+      hl.config({ general = { layout = default_mode } })
     end
     sync_open_rules()
     if anything_floats() then
       set_up_floating()
     end
+    return
+  end
+
+  if not selection.allows(spec.mode) then
     return
   end
 
@@ -523,6 +528,14 @@ local function titlebars_loaded()
   end
 
   return false
+end
+
+-- With a selection, the inherited default must also be one of the allowed
+-- modes. An explicit saved default can supersede it during restore.
+function M.prepare_default()
+  if selection.fallback and not selection.allows(hl.get_config("general.layout")) then
+    o.workspace_mode({ default = selection.fallback })
+  end
 end
 
 -- Runs once every saved mode has loaded. A reload is a fresh start on this side

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Show or configure which workspace layouts the shortcut cycles through
+# omarchy:summary=Show or configure which workspace layouts are enabled
 # omarchy:args=[choose|<layout>...]
 # omarchy:examples=omarchy hyprland workspace layout cycle scrolling floating
 
@@ -26,22 +26,33 @@ read_cycle() {
   done
 }
 
-if (( $# == 0 )); then
-  cycle=$(read_cycle)
-  if [[ -n $cycle ]]; then
-    printf '%s\n' "$cycle"
-  else
-    printf '%s\n' "${layouts[@]}"
-  fi
-  exit 0
-fi
+cycle=$(read_cycle)
+enabled=${cycle:-$(printf '%s\n' "${layouts[@]}")}
+
+case ${1-} in
+  "")
+    printf '%s\n' "$enabled"
+    exit 0
+    ;;
+  --allows)
+    [[ $'\n'$enabled$'\n' == *$'\n'"${2-}"$'\n'* ]]
+    exit
+    ;;
+  --resolve)
+    if [[ -z $cycle || $'\n'$cycle$'\n' == *$'\n'"${2-}"$'\n'* ]]; then
+      printf '%s\n' "${2-}"
+    else
+      printf '%s\n' "${cycle%%$'\n'*}"
+    fi
+    exit 0
+    ;;
+esac
 
 if [[ $1 == "choose" && $# == 1 ]]; then
   labels=("$(omarchy-i18n layout.tiling)" "$(omarchy-i18n layout.scrolling)" "$(omarchy-i18n layout.floating)")
   selected=()
-  cycle=$("$0")
   for i in "${!layouts[@]}"; do
-    if [[ $'\n'$cycle$'\n' == *$'\n'"${layouts[i]}"$'\n'* ]]; then
+    if [[ $'\n'$enabled$'\n' == *$'\n'"${layouts[i]}"$'\n'* ]]; then
       selected+=(--selected "${labels[i]}")
     fi
   done
@@ -75,3 +86,7 @@ temp=$(mktemp "$file.XXXXXX")
 trap 'rm -f "$temp"' EXIT
 printf '%s\n' "$@" >"$temp"
 mv -fT "$temp" "$file"
+
+omarchy-restart-hyprctl
+omarchy-shell -q omarchy.workspaces refresh || true
+omarchy-shell -q omarchy.dock refresh || true
