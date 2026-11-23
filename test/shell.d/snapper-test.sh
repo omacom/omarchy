@@ -13,9 +13,17 @@ trap 'rm -rf "$test_tmp"' EXIT
 fake_bin="$test_tmp/bin"
 mkdir -p "$fake_bin"
 
+# create-config writes the config and the subvolume's .snapshots, as snapper
+# does, except for /home when CREATE_FAILS (a .snapshots left from an earlier config).
 cat >"$fake_bin/snapper" <<'STUB'
 #!/bin/bash
 printf 'snapper %s\n' "$*" >>"$TEST_LOG"
+[[ $* == *create-config* ]] || exit 0
+name=$2
+[[ $1 == "--no-dbus" ]] && name=$3
+[[ ${CREATE_FAILS:-} == "1" && $name == "home" ]] && exit 1
+touch "$TEST_CONFIG_DIR/$name"
+[[ ${!#} == "/" ]] || install -d -m 0750 "${!#}/.snapshots"
 STUB
 chmod +x "$fake_bin/snapper"
 
@@ -29,39 +37,47 @@ chmod +x "$fake_bin/systemctl"
 cat >"$fake_bin/btrfs" <<'STUB'
 #!/bin/bash
 printf 'btrfs %s\n' "$*" >>"$TEST_LOG"
-[[ $HOME_SUBVOLUME == "yes" ]]
+case "$1 $2" in
+  "subvolume show") [[ $HOME_SUBVOLUME == "yes" ]] ;;
+  "subvolume create") install -d -m 0700 "$3" ;;
+esac
 STUB
 chmod +x "$fake_bin/btrfs"
 
+# Configures a machine kept under $1, whose /home is a subvolume when $2 says yes.
 configure() {
-  local etc="$1" home="$2" subvolume="$3"
+  local machine="$1" subvolume="$2"
 
+  mkdir -p "$machine/etc/snapper/configs" "$machine/home"
   HOME_SUBVOLUME="$subvolume" \
-  TEST_LOG="$etc/calls.log" \
+  TEST_LOG="$machine/calls.log" \
+  TEST_CONFIG_DIR="$machine/etc/snapper/configs" \
   PATH="$fake_bin:$PATH" \
-  OMARCHY_SNAPPER_CONFIGURE_TEST=1 \
   OMARCHY_PATH="$ROOT" \
-  OMARCHY_SNAPPER_CONFIG_PATH="$etc/snapper/configs/root" \
-  OMARCHY_SNAPPER_HOME_CONFIG_PATH="$etc/snapper/configs/home" \
-  OMARCHY_SNAPPER_CONF_PATH="$etc/conf.d/snapper" \
-  OMARCHY_SNAPPER_HOME="$home" \
-    bash -euo pipefail "$ROOT/install/config/snapper.sh" >/dev/null
+  OMARCHY_SNAPPER_CONFIG_DIR="$machine/etc/snapper/configs" \
+  OMARCHY_SNAPPER_CONF_PATH="$machine/etc/conf.d/snapper" \
+  OMARCHY_SNAPPER_HOME="$machine/home" \
+    bash -euo pipefail "$ROOT/install/config/snapper.sh" >/dev/null 2>"$machine/stderr"
 }
 
-etc="$test_tmp/etc"
-home="$test_tmp/home"
-mkdir -p "$etc" "$home/.snapshots"
-chmod 0750 "$home/.snapshots"
-configure "$etc" "$home" yes
+machine="$test_tmp/fresh"
+configure "$machine" yes
 
-cmp -s "$template" "$etc/snapper/configs/root" || fail "snapshot configure installs the Omarchy Snapper template"
-cmp -s "$home_template" "$etc/snapper/configs/home" || fail "snapshot configure installs the /home Snapper template"
-grep -Fx 'SNAPPER_CONFIGS="root home"' "$etc/conf.d/snapper" >/dev/null || fail "snapshot configure lists both configs in /etc/conf.d/snapper"
-[[ $(stat -c %a "$home/.snapshots") == "755" ]] || fail "snapshot configure lets people read /home/.snapshots" "$(stat -c %a "$home/.snapshots")"
-grep -Fx 'systemctl try-restart snapperd.service' "$etc/calls.log" >/dev/null || fail "snapshot configure restarts a running snapperd onto the new configs"
-grep -Fx 'systemctl enable --now snapper-timeline.timer snapper-cleanup.timer limine-snapper-sync.service' "$etc/calls.log" >/dev/null ||
-  fail "snapshot configure enables timeline snapshots, cleanup and Limine snapshot sync"
+cmp -s "$template" "$machine/etc/snapper/configs/root" || fail "snapshot configure installs the Omarchy Snapper template"
+cmp -s "$home_template" "$machine/etc/snapper/configs/home" || fail "snapshot configure installs the /home Snapper template"
+grep -Fx "SNAPPER_CONFIGS=\"root home\"" "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure lists both configs in /etc/conf.d/snapper"
+[[ $(stat -c %a "$machine/home/.snapshots") == "755" ]] || fail "snapshot configure lets people read /home/.snapshots" "$(stat -c %a "$machine/home/.snapshots")"
+grep -Fx 'systemctl try-restart snapperd.service' "$machine/calls.log" >/dev/null || fail "snapshot configure restarts a running snapperd onto the new configs"
+grep -Fx 'systemctl enable --now snapper-timeline.timer' "$machine/calls.log" >/dev/null || fail "snapshot configure enables timeline snapshots for /home"
+grep -Fx 'systemctl enable --now snapper-cleanup.timer limine-snapper-sync.service' "$machine/calls.log" >/dev/null ||
+  fail "snapshot configure enables cleanup and Limine snapshot sync"
 pass "snapshot configure normalizes Snapper policy and services"
+
+cp "$machine/etc/conf.d/snapper" "$test_tmp/first"
+configure "$machine" yes
+cmp -s "$test_tmp/first" "$machine/etc/conf.d/snapper" && cmp -s "$home_template" "$machine/etc/snapper/configs/home" ||
+  fail "snapshot configure gives the same result run again"
+pass "snapshot configure is idempotent"
 
 # Root keeps only its pre-update snapshots; /home is snapshotted hourly, and
 # snapper thins by free space only where a limit is a range.
@@ -73,11 +89,38 @@ grep -Fx 'NUMBER_CLEANUP="no"' "$home_template" >/dev/null || fail "/home config
 grep -Eq '^FREE_LIMIT=' "$home_template" || fail "/home config sets a free space limit"
 pass "/home snapshots are hourly and thinned by free space, without quotas"
 
-etc="$test_tmp/etc-flat"
-home="$test_tmp/home-flat"
-mkdir -p "$etc" "$home"
-configure "$etc" "$home" no
+# A factory reset brings back an empty @home under a root that has the config.
+rm -rf "$machine/home/.snapshots"
+configure "$machine" yes
+grep -Fx "btrfs subvolume create $machine/home/.snapshots" "$machine/calls.log" >/dev/null ||
+  fail "snapshot configure recreates a missing /home/.snapshots as a subvolume"
+[[ $(stat -c %a "$machine/home/.snapshots") == "755" ]] || fail "a recreated /home/.snapshots is readable"
+pass "snapshot configure repairs a /home config whose .snapshots is gone"
 
-[[ ! -e $etc/snapper/configs/home ]] || fail "snapshot configure leaves /home alone when it is not a subvolume"
-grep -Fx 'SNAPPER_CONFIGS="root"' "$etc/conf.d/snapper" >/dev/null || fail "snapshot configure lists only root when /home is part of /"
+machine="$test_tmp/flat"
+configure "$machine" no
+[[ ! -e $machine/etc/snapper/configs/home ]] || fail "snapshot configure leaves /home alone when it is not a subvolume"
+grep -Fx 'SNAPPER_CONFIGS="root"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure lists only root when /home is part of /"
+grep -Fx 'systemctl disable --now snapper-timeline.timer' "$machine/calls.log" >/dev/null || fail "snapshot configure leaves timeline snapshots off without /home"
 pass "snapshot configure snapshots /home only when it is a subvolume of its own"
+
+# Someone who already snapshots /home their own way keeps it.
+machine="$test_tmp/theirs"
+mkdir -p "$machine/etc/snapper/configs"
+printf 'SUBVOLUME="%s"\nTIMELINE_CREATE="yes"\n' "$machine/home" >"$machine/etc/snapper/configs/data"
+cp "$machine/etc/snapper/configs/data" "$test_tmp/data"
+configure "$machine" yes
+[[ ! -e $machine/etc/snapper/configs/home ]] || fail "snapshot configure adds no second config for /home"
+cmp -s "$test_tmp/data" "$machine/etc/snapper/configs/data" || fail "snapshot configure leaves someone's own /home config as it was"
+grep -Fx 'SNAPPER_CONFIGS="root data"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure keeps someone's own /home config listed"
+! grep -q 'snapper-timeline.timer' "$machine/calls.log" || fail "snapshot configure leaves their timeline timer as they set it"
+pass "snapshot configure leaves an existing /home config of someone's own alone"
+
+# A .snapshots left from an earlier config makes create-config refuse; that
+# must not stop the setup, or every later migration waits behind it.
+machine="$test_tmp/leftover"
+CREATE_FAILS=1 configure "$machine" yes || true
+[[ -e $machine/etc/conf.d/snapper ]] || fail "snapshot configure finishes when /home's config can't be created" "$(cat "$machine/stderr")"
+grep -Fx 'SNAPPER_CONFIGS="root"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure lists only root when /home's config can't be created"
+grep -qF 'Could not create a Snapper config for /home' "$machine/stderr" || fail "snapshot configure says /home isn't snapshotted"
+pass "snapshot configure carries on, and says so, when /home's config can't be created"

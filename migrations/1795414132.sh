@@ -15,7 +15,7 @@ as_root() {
 }
 
 # Machine-wide, so a second user on the same box finds it already done.
-if grep -qx 'SNAPPER_CONFIGS="root home"' /etc/conf.d/snapper 2>/dev/null && systemctl is-enabled --quiet snapper-timeline.timer 2>/dev/null; then
+if grep -qx 'SNAPPER_CONFIGS="root home"' /etc/conf.d/snapper 2>/dev/null && [[ -d /home/.snapshots ]] && systemctl is-enabled --quiet snapper-timeline.timer 2>/dev/null; then
   exit 0
 fi
 

@@ -11,7 +11,7 @@
 #
 # The root is already a fresh clone of @factory (staged by
 # omarchy-system-factory-reset); this deletes the previous root (@omarchy-old-*),
-# recreates @home/@log, and repairs /.snapshots. A reset staged by an older
+# recreates @home/@log, and repairs /.snapshots and /home/.snapshots. A reset staged by an older
 # Omarchy on a machine without @factory (wipe-degraded) kept its root instead,
 # and is scrubbed in place here.
 
@@ -121,6 +121,13 @@ repair_snapshots_dir() {
   fi
 }
 
+# The factory root configures /home's hourly snapshots, whose subvolume went
+# with the old @home; readable, as install/config/snapper.sh leaves it.
+repair_home_snapshots_dir() {
+  [[ -f /etc/snapper/configs/home ]] || return 0
+  btrfs subvolume create "$TOP_MNT/@home/.snapshots" && chmod 755 "$TOP_MNT/@home/.snapshots"
+}
+
 main() {
   local device
   device=$(root_device)
@@ -151,6 +158,7 @@ main() {
   recreate_subvolume @log || abort "could not recreate @log"
 
   repair_snapshots_dir
+  repair_home_snapshots_dir || log "could not recreate /home/.snapshots, so /home is not snapshotted until it is"
 
   umount "$TOP_MNT"
   rmdir "$TOP_MNT" 2>/dev/null || true
