@@ -12,6 +12,7 @@ if [[ ${OMARCHY_PKG_DEFER:-} == "1" && -n ${OMARCHY_PKG_QUEUE_FILE:-} ]]; then
 fi
 
 flushed_queue=0
+queued_missing=0
 packages=()
 if [[ -n ${OMARCHY_PKG_QUEUE_FILE:-} && -s $OMARCHY_PKG_QUEUE_FILE ]]; then
   flushed_queue=1
@@ -21,6 +22,7 @@ if [[ -n ${OMARCHY_PKG_QUEUE_FILE:-} && -s $OMARCHY_PKG_QUEUE_FILE ]]; then
     seen[$pkg]=1
     if ! pacman -Q -- "$pkg" &>/dev/null; then
       packages+=("$pkg")
+      queued_missing=1
     fi
   done <"$OMARCHY_PKG_QUEUE_FILE"
 
@@ -40,21 +42,21 @@ if (( ${#packages[@]} == 0 )); then
   exit 0
 fi
 
-if omarchy-pkg-missing "${packages[@]}"; then
+if (( queued_missing )) || omarchy-pkg-missing "${packages[@]}"; then
   if (( EUID == 0 )); then
     pacman -S --noconfirm --needed -- "${packages[@]}" || exit 1
   else
     sudo pacman -S --noconfirm --needed -- "${packages[@]}" || exit 1
   fi
-fi
 
-for pkg in "${packages[@]}"; do
-  # Secondary check to handle states where pacman doesn't actually register an error
-  if ! pacman -Q -- "$pkg" &>/dev/null; then
-    echo -e "\033[31mError: Package '$pkg' did not install\033[0m" >&2
-    exit 1
-  fi
-done
+  for pkg in "${packages[@]}"; do
+    # Secondary check to handle states where pacman doesn't actually register an error
+    if ! pacman -Q -- "$pkg" &>/dev/null; then
+      echo -e "\033[31mError: Package '$pkg' did not install\033[0m" >&2
+      exit 1
+    fi
+  done
+fi
 
 if (( flushed_queue )); then
   : >"$OMARCHY_PKG_QUEUE_FILE" || exit 1
