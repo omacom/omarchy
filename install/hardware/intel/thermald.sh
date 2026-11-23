@@ -1,7 +1,8 @@
 # Enable thermald for Intel laptops (Sandy Bridge and newer)
-# Thermald is useful for Intel Sandy Bridge (2nd gen Core, model 42/45) and newer CPUs.
+# Thermald is useful for Intel Sandy Bridge (2nd gen Core, model 42/45) and newer CPUs,
+# except ThinkPads with Lenovo DYTC lapmode where thermald refuses to run.
 
-if omarchy-hw-intel; then
+if omarchy-hw-intel && [[ ! -e /sys/devices/platform/thinkpad_acpi/dytc_lapmode ]]; then
   # Check if Sandy Bridge or newer (model >= 42). Sandy Bridge: model 42 (mobile), 45 (desktop)
   cpu_model=$(grep -m1 "^model\s*:" /proc/cpuinfo 2>/dev/null | cut -d: -f2 | tr -d ' ')
   cpu_model=${cpu_model:-0}

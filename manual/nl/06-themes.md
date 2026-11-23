@@ -1,12 +1,12 @@
 # Thema's
 
-Omarchy wordt geleverd met tweeëntwintig prachtige thema's. Je kunt ertussen kiezen via _Uiterlijk > Thema_ in het Omarchy Menu (`Super + Space`) of direct naar de themakiezer springen met `Super + Ctrl + T`.
+Omarchy wordt geleverd met drieëntwintig prachtige thema's. Je kunt ertussen kiezen via _Appearance > Theme_ in het Omarchy Menu (`Super + Space`) of direct naar de themakiezer springen met `Super + Ctrl + T`.
 
-Elk thema bepaalt de stijl van het bureaublad, de terminal, neovim, het activiteitenscherm (btop), Chromium en de volledige Omarchy-shell: bovenbalk, menu, meldingen, OSD en het vergrendelscherm. (Voor Obsidian moet je het Omarchy-thema handmatig selecteren via _Uiterlijk > Thema's_ in de app).
+Elk thema geeft stijl aan het bureaublad, de terminal, neovim, het activiteitenscherm (btop), je browser (Chrome, Chromium, Edge of Brave) en de volledige Omarchy-shell: bovenbalk, menu, meldingen, OSD en het vergrendelscherm. (Voor Obsidian moet je het Omarchy-thema handmatig selecteren via _Appearance > Themes_ in de app).
 
-Thema's hebben een set achtergrondafbeeldingen waaruit je kunt kiezen met `Super + Ctrl + W`.
+Thema's hebben een reeks achtergrondafbeeldingen waaruit je kunt kiezen met `Super + Ctrl + W`.
 
-Je vindt nog meer thema's op [de pagina met extra thema's](https://omarchy.org/themes/) of kunt zelfs [je eigen thema maken](43-making-your-own-theme.md).
+Je vindt nog meer thema's op [de pagina met extra thema's](https://omarchy.org/themes/) of je kunt zelfs [je eigen thema maken](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,21 +65,33 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### App-iconen
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-De iconen in de appstarter en het dock worden getekend in de kleuren van je thema, dus ze veranderen mee. Ze komen uit een iconenset, die je los van het thema kiest onder _Uiterlijk > Iconen_, via voorbeelden van elke set, op dezelfde manier als je een thema kiest:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
 
-- _Papercraft_ is de standaard: alles wat meegeleverd wordt geïnstalleerd, getekend in één stijl. Apps die bekendstaan om hun logo, zoals Chrome, HEY of YouTube, behouden hun vorm en nemen de kleuren van het thema over.
-- _Arcade_ tekent dezelfde apps als 8-bit pixelart, zoals een oude gameconsole dat zou doen.
-- _Original_ toont elke app met het icoon dat de maker eraan heeft gegeven.
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
 
-Je kunt een iconenset die iemand anders heeft gemaakt installeren met _Installeren > Stijl > Iconen_ (of `omarchy icons install <git url>`), en deze weer verwijderen onder _Verwijderen > Iconen_. _Bijwerken > Extra iconen_ haalt de nieuwste versie op van de sets die je hebt geïnstalleerd.
+ ![starship](../themes/starship/preview.png)
+_Starship_
 
-Om je eigen set te maken, plaats je je iconen in `~/.config/omarchy/icons/<name>/`, één bestand per app, genoemd naar de `Icon=`-regel van het `.desktop`-bestand van de app. Een bestand dat eindigt op `.svg` wordt getoond zoals het is. Een bestand dat eindigt op `.svg.tpl` wordt getekend in de kleuren van het thema: schrijf `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` of `{{ icon_shadow }}` waar een kleur moet komen. De standaardset in `/usr/share/omarchy/icons/papercraft/` is een goede plek om vanuit te vertrekken. Voeg een `preview.png` toe om je set in de kiezer te tonen; zonder zo'n bestand tekent Omarchy een voorbeeld op basis van je iconen. Om één enkel icoon van de standaardset te wijzigen, plaats je jouw versie in `~/.config/omarchy/icons/papercraft/`.
+### App-pictogrammen
 
-### Ontgrendelontwerpen
+De pictogrammen in de app-launcher en het dock worden getekend in de kleuren van je thema, dus ze veranderen mee. Ze komen uit een pictogrammenset, die je los van het thema kiest onder _Appearance > Icons_, aan de hand van voorbeelden van elke set, op dezelfde manier als waarop je een thema kiest:
 
-Thema's kunnen ook een aangepast ontgrendelontwerp hebben, dat wordt gebruikt voor het ontsleutelingsproces tijdens het opstarten. Je kunt er een selecteren onder _Uiterlijk > Ontgrendeling_. Ze zien er zo uit:
+- _Papercraft_ is de standaard: alles wat geïnstalleerd wordt meegeleverd, getekend in één stijl. Apps die bekend zijn om hun logo, zoals Chrome, HEY of YouTube, behouden hun vorm en nemen de kleuren van het thema aan.
+- _Arcade_ tekent dezelfde apps als 8-bit pixel art, zoals een oude spelconsole dat zou doen.
+- _Original_ toont elke app met het pictogram dat de maker ervan heeft gegeven.
+
+Je kunt een pictogrammenset die iemand anders heeft gemaakt installeren met _Install > Style > Icons_ (of `omarchy icons install <git url>`), en hem weer verwijderen onder _Remove > Icons_. _Update > Extra Icons_ haalt de nieuwste versie op van de sets die je hebt geïnstalleerd.
+
+Om je eigen set te maken, plaats je je pictogrammen in `~/.config/omarchy/icons/<name>/`, één bestand per app, vernoemd naar de `Icon=`-regel van het `.desktop`-bestand van de app. Een bestand dat eindigt op `.svg` wordt weergegeven zoals het is. Een bestand dat eindigt op `.svg.tpl` wordt getekend in de kleuren van het thema: schrijf `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` of `{{ icon_shadow }}` waar een kleur moet komen. De standaardset in `/usr/share/omarchy/icons/papercraft/` is een goed startpunt. Voeg een `preview.png` toe om je set in de kiezer te tonen; zonder zo'n bestand tekent Omarchy een voorbeeld op basis van je pictogrammen. Om één enkel pictogram van de standaardset te wijzigen, plaats je jouw versie in `~/.config/omarchy/icons/papercraft/`.
+
+### Ontgrendelingen
+
+Thema's kunnen ook een aangepast ontgrendelingsontwerp hebben, dat wordt gebruikt voor het ontsleutelingsproces tijdens het opstarten. Je kunt er een selecteren onder _Appearance > Unlock_. Ze zien er zo uit:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -108,8 +120,14 @@ _Jade Horse_
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -128,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_
