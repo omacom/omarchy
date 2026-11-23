@@ -6,8 +6,12 @@ config_file="$HOME/.config/omarchy/shell.json"
 [[ -s $config_file ]] || exit 0
 grep -q '"omarchy.local-models"' "$config_file" || exit 0
 
+# Written through, so a shell.json linked from dotfiles stays a link.
 tmp=$(mktemp)
-jq '
+if jq '
   def entry_id: if type == "object" then (.id // "") elif type == "string" then . else "" end;
   .bar.layout[]? |= (if type == "array" then [.[] | select(entry_id != "omarchy.local-models")] else . end)
-' "$config_file" >"$tmp" && mv "$tmp" "$config_file"
+' "$config_file" >"$tmp"; then
+  cat "$tmp" >"$config_file"
+fi
+rm -f "$tmp"
