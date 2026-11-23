@@ -646,11 +646,11 @@ function cutoutPending(cutouts, position, screenName, logicalWidth, logicalHeigh
 
 // The bar's thickness on the screen with this name, from the sizes a bar
 // publishes by screen name, or `fallback` (its configured size) for a screen
-// it has none for.
+// it has none for. A published 0 is a screen with no bar, and stays 0.
 function barSizeFor(sizes, screenName, fallback) {
   var name = String(screenName || "")
-  var size = sizes && Object.prototype.hasOwnProperty.call(sizes, name) ? Number(sizes[name]) : 0
-  return size > 0 ? size : fallback
+  var size = sizes && Object.prototype.hasOwnProperty.call(sizes, name) ? Number(sizes[name]) : NaN
+  return isFinite(size) && size >= 0 ? size : fallback
 }
 
 // Whether a workspace holds a real fullscreen window, which fades the bar out
