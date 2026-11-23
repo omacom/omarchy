@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # The OpenCode collector's limits: the Go plan's windows from the Zen gateway
-# in both shapes it answers, a key without a Go plan, every credential store
-# a key can come from, and its adapter for the contract checks. The
-# unused-machine record is held centrally by the partition test, the limits
-# cache's mechanics by the shared test, and the scan cache by the scanner
-# test.
+# in both shapes it answers, the plan it names (the answer's own, or the one
+# the user declares), a key without a Go plan, every credential store a key
+# can come from, and its adapter for the contract checks. The unused-machine
+# record is held centrally by the partition test, the limits cache's
+# mechanics by the shared test, and the scan cache by the scanner test.
 
 set -euo pipefail
 
@@ -48,8 +48,11 @@ def candidates():
 
 sandbox()
 fresh = check_limits_contract(Adapter("opencode", plant=keyed, answer={ZEN: USAGE}))
-expect("OpenCode collector maps every Zen usage window, under the Go plan",
-       [windows(fresh), fresh["tierLabel"]], [[("Rolling (5h)", 0.16), ("Weekly (7-day)", 0.06), ("Monthly", 0.29)], "Go"], fresh)
+# The Go meters answer with percentages and reset times and no plan at all —
+# Go, Go Plus and Go Teams read the same endpoint — so the record names none
+# rather than asserting the cheapest one.
+expect("OpenCode collector maps every Zen usage window and names no plan it wasn't told",
+       [windows(fresh), fresh["tierLabel"]], [[("Rolling (5h)", 0.16), ("Weekly (7-day)", 0.06), ("Monthly", 0.29)], ""], fresh)
 
 # An answer (limits, or no plan) never rolls back one another run stamped
 # while this one waited on the network.
@@ -63,9 +66,51 @@ for later_answer in (USAGE, 403):
   edit_limits_cache("opencode", fetched_ago=0)
 opencode(USAGE)
 
-# A failed check keeps the plan along with the windows.
+# A plan is read from the answer when it names one, wherever in the answer it
+# names it, and a number or a blank in that place names nothing.
+for payload, label in (
+  ({"plan": "Go Plus", "usage": USAGE["usage"]}, "Go Plus"),
+  ({"subscription": {"planName": "Go Teams"}, "usage": USAGE["usage"]}, "Go Teams"),
+  ({"usage": {"plan_type": "Go Plus", "rolling": {"percent": 16, "resetsAt": "2999-01-01T00:00:00.000Z"}}}, "Go Plus"),
+  ({"account": {"tier": "  "}, "plan": 7, "usage": USAGE["usage"]}, ""),
+):
+  record, _ = opencode(payload)
+  check(f"OpenCode collector reads the plan an answer names ({label or 'none'})",
+        record["tierLabel"] == label and bool(record["limits"]), record)
+
+# The plan is cached beside the windows, so a failed check and a reused answer
+# both still name it.
+record, _ = opencode({"plan": "Go Plus", "usage": USAGE["usage"]})
+expect("OpenCode collector names the plan the answer reports", [windows(record), record["tierLabel"]], [[("Rolling (5h)", 0.16), ("Weekly (7-day)", 0.06), ("Monthly", 0.29)], "Go Plus"], record)
 record, _ = opencode(mode=500)
-expect("OpenCode collector keeps the Go plan with the kept windows", [record["tierLabel"], record["limitsStale"]], ["Go", True], record)
+expect("OpenCode collector keeps the plan with the kept windows", [record["tierLabel"], record["limitsStale"]], ["Go Plus", True], record)
+record, http = opencode(USAGE, "up", "--limits-only")
+expect("OpenCode collector reuses the plan with the windows it kept", [record["tierLabel"], http.count], ["Go Plus", 0], record)
+
+# Which of the three plans an account is on is in no answer a key can ask for,
+# so a subscriber can declare it, and the declaration wins over the answer.
+settings = config_home() / "omarchy" / "agents" / "opencode.json"
+write_json(settings, {"plan": "Go Plus"})
+record, _ = opencode(USAGE)
+expect("OpenCode collector shows the plan the user declared", [windows(record), record["tierLabel"]], [[("Rolling (5h)", 0.16), ("Weekly (7-day)", 0.06), ("Monthly", 0.29)], "Go Plus"], record)
+record, _ = opencode({"plan": "Go Teams", "usage": USAGE["usage"]})
+expect("OpenCode collector prefers the declared plan to the answer's", record["tierLabel"], "Go Plus", record)
+record, _ = opencode(mode=500)
+expect("OpenCode collector keeps the declared plan with the kept windows", [record["tierLabel"], record["limitsStale"]], ["Go Plus", True], record)
+
+# A declaration that isn't a plan name is no declaration.
+for junk in ({"plan": 3}, {"plan": "   "}, {"plan": None}, {}):
+  write_json(settings, junk)
+  record, _ = opencode(USAGE)
+  expect(f"OpenCode collector ignores a declared plan of {junk.get('plan')!r}", record["tierLabel"], "", record)
+
+# Without a credential there are no meters for a plan to sit beside, so a
+# declaration alone doesn't put OpenCode in the panel.
+sandbox()
+write_json(config_home() / "omarchy" / "agents" / "opencode.json", {"plan": "Go Plus"})
+record, http = opencode(USAGE)
+expect("OpenCode collector names no plan without a credential",
+       [record["ready"], record["limits"], record["tierLabel"], http.count], [False, [], "", 0], record)
 
 # Another sign-in never shows this one's numbers.
 keyed("zen_other")
@@ -130,10 +175,10 @@ check("an OpenCode key with no sessions here has no local stats",
 record, http = opencode(None, 403, "--limits-only")
 check("OpenCode collector doesn't ask again about a key without a Go plan",
       record["usageStatusText"] == "" and record["limits"] == [] and http.count == 0, record)
-record, _ = opencode({"usage": {"weekly": {"percent": 10, "resetsAt": "2999-01-01T00:00:00.000Z"}}})
+record, _ = opencode({"plan": "Go", "usage": {"weekly": {"percent": 10, "resetsAt": "2999-01-01T00:00:00.000Z"}}})
 expect("OpenCode collector --force asks again after a Go plan appears", [windows(record), record["tierLabel"]], [[("Weekly (7-day)", 0.1)], "Go"], record)
 record, _ = opencode(None, 403)
-expect("OpenCode collector drops a cancelled plan's windows",
+expect("OpenCode collector drops a cancelled plan's name with its windows",
        [record["limits"], record["usageStatusText"], record["tierLabel"]], [[], "", ""], record)
 
 # Two ways in, each answering for itself: OPENCODE_API_KEY is asked first.
