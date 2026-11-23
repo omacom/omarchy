@@ -15,6 +15,7 @@ BarWidget {
   property bool expanded: false
   property bool managePopupOpen: false
   property bool trayMenuOpen: false
+  property int previousOverflowCount: 0
   // Injected by the bar. Widgets folded off a side section while the bar is
   // too short appear in this drawer after the tray section, so the chevron
   // reaches them in every bar position.
@@ -38,7 +39,13 @@ BarWidget {
   onDrawerCoverStartChanged: syncOverflowApi()
   onDrawerCoverLengthChanged: syncOverflowApi()
   Component.onCompleted: syncOverflowApi()
-  onOverflowCountChanged: syncOverflowApi()
+  onOverflowCountChanged: {
+    // A normal tray opened by hover must not stay open when folding starts;
+    // the overflow drawer opens by click instead.
+    if (previousOverflowCount === 0 && overflowCount > 0) expanded = false
+    previousOverflowCount = overflowCount
+    syncOverflowApi()
+  }
   Component.onDestruction: {
     if (!root.barOverflow) return
     root.barOverflow.drawerOpen = false
@@ -324,6 +331,13 @@ BarWidget {
         height: root.barSize
         visible: root.hasDrawer
 
+        HoverHandler {
+          // The normal tray keeps its hover reveal. An overflow drawer is
+          // large enough to cover the center, so it waits for a click.
+          enabled: root.overflowCount === 0
+          onHoveredChanged: if (enabled) root.expanded = hovered
+        }
+
         BarIconButton {
           id: expandIcon
           bar: root.bar
@@ -412,6 +426,13 @@ BarWidget {
         width: root.barSize
         height: verticalTrayRoot.chevronHeight + root.revealExtent
         visible: root.hasDrawer
+
+        HoverHandler {
+          // Same as the horizontal drawer: normal tray hovers, overflow
+          // waits for a click.
+          enabled: root.overflowCount === 0
+          onHoveredChanged: if (enabled) root.expanded = hovered
+        }
 
         BarIconButton {
           id: expandIcon
