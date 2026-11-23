@@ -290,7 +290,7 @@ end
 -- Overlapping windows are placed with the pointer, so a floating workspace
 -- focuses on click rather than on hover. Every other workspace keeps the user's
 -- own setting.
-local input = {}
+local input = { floating = false }
 
 local function update_input()
   local workspace = hl.get_active_workspace()
