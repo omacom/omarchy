@@ -424,6 +424,20 @@ assert_packaged_assets() {
   done
 }
 
+# Run independent publication scenario batches in parallel: each calls
+# setup_run/setup_fresh_run into its own mktemp directory and only batch 2
+# mutates the shared $test_tmp/logo.png and $secret fixtures.
+batch_pids=()
+batch_logs=()
+run_batch() {
+  local idx=$(( ${#batch_pids[@]} + 1 ))
+  local batch_log="$test_tmp/batch-$idx.log"
+  batch_logs+=("$batch_log")
+  "$1" >"$batch_log" 2>&1 &
+  batch_pids+=("$!")
+}
+
+batch_fresh_and_migrated() {
 for requested_umask in 022 077; do
   setup_fresh_run
   output=$(run_set "$requested_umask" env 2>&1)
@@ -490,6 +504,19 @@ if grep -Fq '__OMARCHY_SDDM_' "$sddm/Main.qml"; then
   fail "SDDM color substitution left an intermediate token behind"
 fi
 pass "White theme keeps a white SDDM background instead of becoming black-on-black"
+}
+
+batch_logo_swaps_and_bounds() {
+local batch_tmp=$test_tmp/logo-batch
+mkdir -p "$batch_tmp"
+local secret="$batch_tmp/secret"
+printf 'caller-selected logo\n' >"$batch_tmp/logo.png"
+run_set_colors() {
+  local requested_umask="$1" background="$2" text="$3"
+  shift 3
+  run_in_fake_root "$requested_umask" "$@" \
+    /bin/bash "$ROOT/bin/omarchy-plymouth-set" "$background" "$text" "$batch_tmp/logo.png"
+}
 
 # Swap the selected logo to an unreadable file in the DEBUG hook immediately
 # before Bash opens its descriptor. The caller-side open must fail, so sudo
@@ -516,8 +543,8 @@ SH
 output=$(TEST_PREOPEN_MARKER="$preopen_marker" TEST_SECRET="$secret" BASH_ENV="$preopen_hook" run_set 077 env 2>&1)
 status=$?
 chmod 0600 "$secret"
-rm -f "$test_tmp/logo.png"
-mv "$test_tmp/logo.png.before-preopen-swap" "$test_tmp/logo.png"
+rm -f "$batch_tmp/logo.png"
+mv "$batch_tmp/logo.png.before-preopen-swap" "$batch_tmp/logo.png"
 
 (( status != 0 )) || fail "an unreadable pre-open source swap aborts publication"
 [[ -s $preopen_marker ]] || fail "the pre-open source swap ran deterministically" "$output"
@@ -553,8 +580,8 @@ SH
 
 output=$(TEST_NONREGULAR_MARKER="$nonregular_marker" BASH_ENV="$nonregular_hook" run_set 077 env 2>&1)
 status=$?
-rmdir "$test_tmp/logo.png"
-mv "$test_tmp/logo.png.before-nonregular-swap" "$test_tmp/logo.png"
+rmdir "$batch_tmp/logo.png"
+mv "$batch_tmp/logo.png.before-nonregular-swap" "$batch_tmp/logo.png"
 
 (( status != 0 )) || fail "a non-regular opened logo descriptor aborts publication"
 [[ -s $nonregular_marker ]] || fail "the non-regular pre-open source swap ran deterministically" "$output"
@@ -567,6 +594,40 @@ assert_no_temporary_files "$fake_root"
 
 pass "the caller refuses an opened descriptor that is not a regular file"
 
+# The caller streams the logo to root over a descriptor, so root is the only
+# place its length can be judged. An empty selection must not become an empty
+# published logo.
+setup_run
+cp -- "$batch_tmp/logo.png" "$batch_tmp/logo.png.keep"
+: >"$batch_tmp/logo.png"
+output=$(run_set 022 env 2>&1)
+status=$?
+mv -f -- "$batch_tmp/logo.png.keep" "$batch_tmp/logo.png"
+
+(( status != 0 )) || fail "an empty logo is rejected" "$output"
+[[ $(cat "$theme/logo.png") == 'old plymouth logo.png' ]] || fail "an empty logo leaves the live logo unchanged"
+assert_no_temporary_files "$fake_root"
+
+pass "an empty logo cannot be published"
+
+# Bound the descriptor read as well as the final destination. A sparse file
+# makes the real 64 MiB + 1 byte boundary deterministic without storing a
+# large fixture in the repository.
+setup_run
+cp -- "$batch_tmp/logo.png" "$batch_tmp/logo.png.keep"
+truncate -s "$((64 * 1024 * 1024 + 1))" "$batch_tmp/logo.png"
+output=$(run_set 022 env 2>&1)
+status=$?
+mv -f -- "$batch_tmp/logo.png.keep" "$batch_tmp/logo.png"
+
+(( status != 0 )) || fail "an oversized logo is rejected" "$output"
+[[ $(cat "$theme/logo.png") == 'old plymouth logo.png' ]] || fail "an oversized logo leaves the live logo unchanged"
+assert_no_temporary_files "$fake_root"
+
+pass "a logo larger than the publication bound cannot be published"
+}
+
+batch_source_trust() {
 # Plant both a malicious script and a root-file symlink where the old
 # caller-owned stage lived. The privileged transaction must ignore that tree:
 # executable/config assets come only from its root-trusted source and are built
@@ -699,7 +760,9 @@ status=$?
 cmp -s "$ROOT/default/plymouth/bullet.png" "$theme/bullet.png" || fail "the authorized development checkout supplies the packaged assets"
 
 pass "only a regular root-owned authorization may name the exact development checkout"
+}
 
+batch_dest_and_asset_trust() {
 # Root rejects both a symlinked parent and a group/world-writable parent before
 # it creates a temporary file or touches the live destination.
 setup_run
@@ -806,39 +869,9 @@ status=$?
 assert_no_temporary_files "$fake_root"
 
 pass "root refuses a packaged asset its own mode leaves rewritable"
+}
 
-# The caller streams the logo to root over a descriptor, so root is the only
-# place its length can be judged. An empty selection must not become an empty
-# published logo.
-setup_run
-cp -- "$test_tmp/logo.png" "$test_tmp/logo.png.keep"
-: >"$test_tmp/logo.png"
-output=$(run_set 022 env 2>&1)
-status=$?
-mv -f -- "$test_tmp/logo.png.keep" "$test_tmp/logo.png"
-
-(( status != 0 )) || fail "an empty logo is rejected" "$output"
-[[ $(cat "$theme/logo.png") == 'old plymouth logo.png' ]] || fail "an empty logo leaves the live logo unchanged"
-assert_no_temporary_files "$fake_root"
-
-pass "an empty logo cannot be published"
-
-# Bound the descriptor read as well as the final destination. A sparse file
-# makes the real 64 MiB + 1 byte boundary deterministic without storing a
-# large fixture in the repository.
-setup_run
-cp -- "$test_tmp/logo.png" "$test_tmp/logo.png.keep"
-truncate -s "$((64 * 1024 * 1024 + 1))" "$test_tmp/logo.png"
-output=$(run_set 022 env 2>&1)
-status=$?
-mv -f -- "$test_tmp/logo.png.keep" "$test_tmp/logo.png"
-
-(( status != 0 )) || fail "an oversized logo is rejected" "$output"
-[[ $(cat "$theme/logo.png") == 'old plymouth logo.png' ]] || fail "an oversized logo leaves the live logo unchanged"
-assert_no_temporary_files "$fake_root"
-
-pass "a logo larger than the publication bound cannot be published"
-
+batch_refreshes_and_fresh_reset() {
 # Refresh uses the same publisher but its explicit contract includes the
 # packaged nested logos/oma.png asset. It must not touch the SDDM theme.
 setup_run
@@ -888,7 +921,9 @@ grep -Fq 'command mkinitcpio -P' "$sudo_log" || fail "fresh reset rebuilds the i
 assert_no_temporary_files "$fake_root"
 
 pass "reset is safe and idempotent on a fresh package installation"
+}
 
+batch_resets_and_refusals() {
 # Exercise an existing hostile state: destination symlinks stand in for an
 # upgraded machine that may already contain artifacts planted through the old
 # paths. Each refresh must replace its own entries without following them.
@@ -958,3 +993,20 @@ status=$?
 assert_no_temporary_files "$fake_root"
 
 pass "a reset refusal cannot fall through to an unhardened SDDM copy"
+}
+
+run_batch batch_fresh_and_migrated
+run_batch batch_logo_swaps_and_bounds
+run_batch batch_source_trust
+run_batch batch_dest_and_asset_trust
+run_batch batch_refreshes_and_fresh_reset
+run_batch batch_resets_and_refusals
+
+batch_failed=0
+for i in "${!batch_pids[@]}"; do
+  if ! wait "${batch_pids[$i]}"; then
+    batch_failed=1
+  fi
+  cat "${batch_logs[$i]}"
+done
+(( batch_failed == 0 )) || exit 1

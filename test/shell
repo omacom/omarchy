@@ -158,8 +158,9 @@ case "$GROUP" in
 esac
 
 if (( SHARD_TOTAL > 0 )); then
-  # Overlap tests watch the idle shell alongside the first shard only.
-  if (( SHARD_INDEX != 1 )); then
+  # Overlap tests watch the idle shell alongside the last shard (which does not
+  # receive the #1 largest noncomp file, keeping shard wall times balanced).
+  if (( SHARD_INDEX != SHARD_TOTAL )); then
     overlap_tests=()
   fi
   if (( ${#parallel_noncomp_tests[@]} > 0 )); then
