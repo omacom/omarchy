@@ -58,31 +58,52 @@ bar_position_is() {
   [[ $(jq -r '.bar.position // "top"' "$CONFIG_FILE") == $expected ]]
 }
 
+# Rows follow the hovered pointer, which can sit under the centred card (Hyprland
+# starts it mid-screen), so move it left of the card before driving by keys.
+park_pointer_off_menu() {
+  local x y
+
+  read -r x y < <(hyprctl -j monitors | jq -r '
+    .[] | select(.focused)
+    | [.x + (.width / .scale / 8 | floor), .y + (.height / .scale / 2 | floor)]
+    | @tsv
+  ') || return 0
+
+  if [[ $x =~ ^-?[0-9]+$ && $y =~ ^-?[0-9]+$ ]]; then
+    hyprctl eval "hl.dispatch(hl.dsp.cursor.move({ x = $x, y = $y }))" >/dev/null 2>&1 || true
+  fi
+}
+
 source_file=$DEFAULTS_FILE
 ((config_existed)) && source_file=$CONFIG_FILE
 original_position=$(jq -r '.bar.position // "top"' "$source_file")
 
+park_pointer_off_menu
 omarchy-shell shell summon omarchy.menu '{"menu":"root"}' >/dev/null
 wait_until "root menu opens" 15 layer_on_overlay "omarchy-menu"
 wait_until "root menu content is visible" 15 screen_contains "Apps"
 screenshot "success-menu-01-root"
 
-wtype -k Down -k Down -k Down
+# Root: Apps, Learn, Appearance.
+wtype -k Down -k Down
 sleep 1
-screenshot "success-menu-02-style-selected"
+screenshot "success-menu-02-appearance-selected"
 wtype -k Return
 
-wait_until "style submenu is visible" 15 screen_contains "Theme"
-screenshot "success-menu-03-style-submenu"
+wait_until "appearance submenu is visible" 15 screen_contains "Theme"
+screenshot "success-menu-03-appearance-submenu"
 
-wtype -k Down -k Down -k Down -k Down -k Return
-sleep 1
+# Appearance: Theme, Background, Font, Menu Bar.
+wtype -k Down -k Down -k Down -k Return
+wait_until "menu bar submenu is visible" 15 screen_contains "Position Bar"
 screenshot "success-menu-04-menu-bar-submenu"
 
-wtype -k Return
-sleep 1
+# Menu Bar: Hide Bar or Show Bar, Position Bar.
+wtype -k Down -k Return
+wait_until "position submenu is visible" 15 screen_contains "Left Bar"
 screenshot "success-menu-05-position-submenu"
 
+# Position: Top Bar, Bottom Bar, Left Bar.
 wtype -k Down -k Down -k Return
 wait_until "menu bar position changes to left" 20 bar_position_is "left"
 wait_until "menu bar becomes vertical" 20 bar_is_vertical
