@@ -25,7 +25,7 @@ WS=8
 KEEP=""
 VERBOSE=""
 
-while [[ $# -gt 0 ]]; do
+while (( $# > 0 )); do
   case "$1" in
   --site)
     shift
@@ -40,13 +40,6 @@ while [[ $# -gt 0 ]]; do
   *) OUTPUT="$1" ;;
   esac
   shift
-done
-
-for cmd in hyprctl grim magick jq fastfetch btop omarchy-dev-theme-preview xdg-terminal-exec; do
-  if ! command -v "$cmd" &>/dev/null; then
-    echo "omarchy-dev-theme-screenshot requires $cmd" >&2
-    exit 1
-  fi
 done
 
 THEME_NAME=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
@@ -93,16 +86,19 @@ sleep 0.3
 hypr_dispatch "hl.dsp.focus({ workspace = $WS })" workspace "$WS"
 sleep 0.4
 
+# A workspace that already lives on another monitor takes the focus there.
+SHOT_MON=$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')
+
 # Geometry in logical coordinates, clear of reserved areas (the bar).
-read -r MX MY MW MH RES_L RES_T < <(hyprctl monitors -j | jq -r --arg m "$SHOT_MON" \
-  '.[] | select(.name == $m) | "\(.x) \(.y) \((.width / .scale) | floor) \((.height / .scale) | floor) \(.reserved[0]) \(.reserved[1])"')
+read -r MX MY MW MH RES_L RES_T RES_R RES_B < <(hyprctl monitors -j | jq -r --arg m "$SHOT_MON" \
+  '.[] | select(.name == $m) | "\(.x) \(.y) \((.width / .scale) | floor) \((.height / .scale) | floor) \(.reserved[0]) \(.reserved[1]) \(.reserved[2]) \(.reserved[3])"')
 
 M=14
 LX=$((MX + RES_L + M))
 LY=$((MY + RES_T + M))
-AH=$((MH - RES_T - 2 * M))
-LW=$(((MW - RES_L - 3 * M) * 45 / 100))
-RW=$((MW - RES_L - 3 * M - LW))
+AH=$((MH - RES_T - RES_B - 2 * M))
+LW=$(((MW - RES_L - RES_R - 3 * M) * 45 / 100))
+RW=$((MW - RES_L - RES_R - 3 * M - LW))
 RX=$((LX + LW + M))
 PH=$(((AH - M) * 44 / 100))
 BH=$((AH - M - PH))
@@ -155,7 +151,9 @@ place() { # class x y w h — float it, size it, then position it, in that order
 # hidden after output so no pane shows a parked block.
 BACKGROUND=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
 if [[ -f $BACKGROUND ]]; then
-  FETCH_CMD="sleep 1.8; clear; printf '\n'; fastfetch --logo '$BACKGROUND' --logo-type sixel --logo-width 36 --logo-padding-top 1; printf '\033[?25l'; exec sleep 900"
+  # A downloaded theme names its own backgrounds, and this becomes shell code.
+  printf -v logo %q "$BACKGROUND"
+  FETCH_CMD="sleep 1.8; clear; printf '\n'; fastfetch --logo $logo --logo-type sixel --logo-width 36 --logo-padding-top 1; printf '\033[?25l'; exec sleep 900"
 else
   FETCH_CMD="sleep 1.8; clear; printf '\n'; fastfetch; printf '\033[?25l'; exec sleep 900"
 fi
@@ -188,15 +186,21 @@ hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprc
 hyprctl seterror disable >/dev/null 2>&1
 sleep 0.8
 
-grim -o "$SHOT_MON" "$OUTPUT"
+if ! grim -o "$SHOT_MON" "$OUTPUT"; then
+  echo "Could not save $OUTPUT" >&2
+  exit 1
+fi
 echo "Saved $OUTPUT ($(magick identify -format '%wx%h' "$OUTPUT"))"
 
 if [[ -n $SITE_OUTPUT ]]; then
   # The themes gallery recipe: 16:9 downscaled to 1200 wide, WebP, ~100 KB.
-  magick "$OUTPUT" -strip -resize '1200>' -quality 80 "$SITE_OUTPUT"
+  if ! magick "$OUTPUT" -strip -resize '1200x675^' -gravity center -extent 1200x675 -quality 80 "$SITE_OUTPUT"; then
+    echo "Could not save $SITE_OUTPUT" >&2
+    exit 1
+  fi
   bytes=$(stat -c %s "$SITE_OUTPUT")
   echo "Saved $SITE_OUTPUT ($(magick identify -format '%wx%h' "$SITE_OUTPUT"), $((bytes / 1024)) KB)"
-  if [[ $bytes -gt 102400 ]]; then
+  if (( bytes > 102400 )); then
     echo "Warning: $SITE_OUTPUT is over the ~100 KB gallery budget" >&2
   fi
 fi
