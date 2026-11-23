@@ -143,6 +143,7 @@ omarchy_image_defer_hardware() {
   local -a steps=()
 
   listing=$(
+    OMARCHY_IMAGE_ENUMERATING=1
     run_logged() {
       [[ $1 == "$OMARCHY_INSTALL"/hardware/*.sh && $1 != *..* ]] || {
         echo "Error: cannot defer a step outside the hardware setup: $1" >&2
