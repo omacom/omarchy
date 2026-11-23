@@ -293,7 +293,9 @@ def listed(data, key):
 # The Gemini group's 5-hour and weekly buckets are the plan's own limits; the
 # other groups (Claude and GPT models) are scoped allowances, shown once
 # they have been touched. An answer that lists its buckets without groups
-# lists the Gemini ones. An answer of another shape (not an object, an error,
+# lists the Gemini ones. One without a Gemini group (Ultra's lists only
+# Claude and GPT) puts no limit on Gemini: the plan has no windows of its
+# own, and those groups never stand in for them. An answer of another shape (not an object, an error,
 # groups or the Gemini buckets that aren't a list) is None, a failed check
 # rather than a plan without quotas; another group's buckets of the wrong
 # shape skip that group.
@@ -305,13 +307,13 @@ def extract_limits(data):
     groups = [{"displayName": "Gemini", "buckets": data["buckets"]}]
   if not groups:
     return []
-  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), groups[0])
-  if not listed(gemini, "buckets"):
+  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), None)
+  if gemini and not listed(gemini, "buckets"):
     return None
 
   limits = []
   session = weekly = None
-  for bucket in gemini.get("buckets") or []:
+  for bucket in (gemini or {}).get("buckets") or []:
     if not isinstance(bucket, dict) or used(bucket) is None:
       continue
     window = str(bucket.get("window") or "").lower()
