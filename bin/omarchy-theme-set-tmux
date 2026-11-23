@@ -80,7 +80,7 @@ load_theme_colors() {
 sync_theme_environment() {
   local key value
 
-  [[ -f $GUM_ENV ]] || return
+  [[ -f $GUM_ENV ]] || return 0
 
   while IFS=$'\t' read -r key value; do
     [[ -n $key && -n $value ]] || continue
@@ -109,7 +109,7 @@ sync_tmux_window_style() {
   local background="${THEME_COLORS[background]}"
   local cursor="${THEME_COLORS[cursor]}"
 
-  [[ -f $COLORS_TOML && -n $foreground && -n $background ]] || return
+  [[ -f $COLORS_TOML && -n $foreground && -n $background ]] || return 0
 
   queue_tmux_command set-option -g window-style "fg=$foreground,bg=$background"
   queue_tmux_command set-option -g window-active-style "fg=$foreground,bg=$background"
@@ -126,11 +126,11 @@ sync_tmux_window_style() {
 sync_tmux_pane_colors() {
   local pane_tty theme_osc
 
-  [[ -f $COLORS_TOML ]] || return
-  (( ${#TMUX_PANE_TTYS[@]} > 0 )) || return
+  [[ -f $COLORS_TOML ]] || return 0
+  (( ${#TMUX_PANE_TTYS[@]} > 0 )) || return 0
 
   theme_osc=$(theme_osc_sequences)
-  [[ -n $theme_osc ]] || return
+  [[ -n $theme_osc ]] || return 0
 
   for pane_tty in "${TMUX_PANE_TTYS[@]}"; do
     printf '%b' "$theme_osc" >"$pane_tty" 2>/dev/null || true
@@ -141,7 +141,7 @@ signal_tmux_panes() {
   local pane_tty tty tpgid
   local -A tty_tpgid=()
 
-  (( ${#TMUX_PANE_TTYS[@]} > 0 )) || return
+  (( ${#TMUX_PANE_TTYS[@]} > 0 )) || return 0
 
   # One process-table scan resolves every pane's foreground process group,
   # avoiding a ps + awk fork per pane.
