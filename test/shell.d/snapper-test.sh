@@ -163,3 +163,15 @@ configure "$machine" yes
 grep -Fx 'SNAPPER_CONFIGS="root home data"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure keeps both of someone's own /home configs listed" "$(cat "$machine/etc/conf.d/snapper")"
 pass "snapshot configure keeps every config of someone's own listed"
 
+# Theirs called home, but for something other than /home, keeps its name and
+# its settings; /home goes without rather than being listed twice.
+machine="$test_tmp/home-elsewhere"
+mkdir -p "$machine/etc/snapper/configs" "$machine/etc/conf.d"
+printf 'SUBVOLUME="/home/david"\n' >"$machine/etc/snapper/configs/home"
+cp "$machine/etc/snapper/configs/home" "$test_tmp/home-elsewhere.conf"
+printf 'SNAPPER_CONFIGS="root home"\n' >"$machine/etc/conf.d/snapper"
+configure "$machine" yes
+cmp -s "$test_tmp/home-elsewhere.conf" "$machine/etc/snapper/configs/home" || fail "snapshot configure leaves a config of theirs called home for something else as it was"
+grep -Fx 'SNAPPER_CONFIGS="root home"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure lists a config called home once" "$(cat "$machine/etc/conf.d/snapper")"
+pass "snapshot configure leaves a config of someone's own called home, whatever it snapshots"
+

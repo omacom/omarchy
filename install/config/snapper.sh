@@ -35,7 +35,7 @@ done
 create_config root / || { echo "Could not create the Snapper config for /" >&2; exit 1; }
 install -m 0644 "$template" "$SNAPPER_CONFIG_DIR/root"
 configs=(root)
-omarchy_home=$(head -n 1 "$home_template")
+omarchy_home=$(head -n 1 "$home_template" 2>/dev/null || true)
 for name in "${listed[@]}"; do
   # Omarchy's own home config is added back below, where /home still has one.
   [[ $name == "home" ]] && grep -qxF "$omarchy_home" "$SNAPPER_CONFIG_DIR/home" && continue
@@ -47,6 +47,9 @@ ours=0
 # lays it out; otherwise it is part of / and rolls back with it.
 if [[ -n $theirs ]]; then
   echo "Leaving /home to the Snapper config \"$theirs\" that already snapshots it"
+elif [[ " ${configs[*]} " == *" home "* ]]; then
+  # A config of theirs called home, for something else, keeps the name.
+  echo "Leaving the Snapper config \"home\" as it is, so /home is not snapshotted" >&2
 elif btrfs subvolume show "$SNAPPER_HOME" >/dev/null 2>&1; then
   if create_config home "$SNAPPER_HOME" &&
     install -m 0644 "$home_template" "$SNAPPER_CONFIG_DIR/home" &&

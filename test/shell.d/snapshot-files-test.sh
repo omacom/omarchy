@@ -289,6 +289,6 @@ echo secret >~/keys/.env
 snapshot 1 1
 mv ~/keys/.env ~/app/
 rmdir ~/keys
-[[ -z $(deleted) ]] || fail "a folder emptied of its hidden files by moves isn't listed" "$(deleted)"
+"$files" deleted --json | jq -e '.files == []' >/dev/null || fail "a folder emptied of its hidden files by moves isn't listed" "$(deleted)"
 pass "a folder emptied of its hidden files by moves isn't listed"
 
