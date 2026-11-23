@@ -120,10 +120,26 @@ $1 == "prefix2" && NF == 2 { prefix2 = $2; next }
 }'
 )
 
-# Skip caching when the config dynamically sources other files or runs shell
-# conditionals at load time, so external edits are never hidden behind a cache.
+# Skip caching when the config dynamically sources other files, uses tmux
+# preprocessor directives, or runs shell conditionals at load time (including
+# commands chained after an unescaped semicolon), so external edits are never
+# hidden behind a cache.
 config_cacheable() {
-  ! grep -qE '^[[:space:]]*(source(-file)?|if(-shell)?|run(-shell)?)[[:space:]]' "$config_file"
+  awk '
+    /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+    /^[[:space:]]*%/ { exit 1 }
+    {
+      line = $0
+      gsub(/\\;/, "\001", line)
+      n = split(line, cmds, ";")
+      for (i = 1; i <= n; i++) {
+        cmd = cmds[i]
+        sub(/^[[:space:]]+/, "", cmd)
+        if (cmd ~ /^(bind|bind-key)[[:space:]]/) continue
+        if (cmd ~ /^(source(-file)?|if(-shell)?|run(-shell)?)[[:space:]]/) exit 1
+      }
+    }
+  ' "$config_file"
 }
 
 output_keybindings() {
@@ -144,13 +160,13 @@ output_keybindings() {
   cache_name="tmux-keybindings-$hash.records"
   cache_file="$cache_dir/$cache_name"
 
-  if [[ -s $cache_file ]]; then
-    cat "$cache_file"
+  if [[ -s $cache_file ]] && cat "$cache_file" 2>/dev/null; then
+    return 0
   elif mkdir -p "$cache_dir" 2>/dev/null && tmp_file=$(mktemp "$cache_dir/tmux-keybindings.XXXXXX"); then
     if output_keybindings_uncached >"$tmp_file" && [[ -s $tmp_file ]]; then
-      mv "$tmp_file" "$cache_file"
-      find "$cache_dir" -maxdepth 1 -type f -name 'tmux-keybindings-*.records' ! -name "$cache_name" -delete 2>/dev/null || true
-      cat "$cache_file"
+      cat "$tmp_file"
+      mv -f "$tmp_file" "$cache_file"
+      find "$cache_dir" -maxdepth 1 -type f -name 'tmux-keybindings-*.records' ! -name "$cache_name" -mmin +1 -delete 2>/dev/null || true
     else
       rm -f "$tmp_file"
       return 1
