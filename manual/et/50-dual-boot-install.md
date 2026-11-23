@@ -1,12 +1,12 @@
-# Kahekordse alglaadimisega paigaldus
+# Kahekordse käivitusega paigaldamine
 
-Saad Omarchy paigaldada ühele partitsioonile Windowsi või muude paigalduste kõrvale.
+Sa saad paigaldada Omarchy ühele partitsioonile Windowsi või muude paigalduste kõrvale.
 
-See paigaldusmeetod sisaldab partitsiooni jaoks endiselt vaikimisi LUKS-krüptimist, nii et see ei erine tegelikult kogu ketta paigaldusest ja nõuab lihtsalt kettal vaba ruumi olemasolu.
+Selle paigaldusmeetodiga kaasneb partitsioonile vaikimisi endiselt LUKS-krüptimine, nii et see ei erine tegelikult täisketta paigaldusest ja nõuab lihtsalt kettal vaba ruumi olemasolu.
 
 ## Ruumi tegemine Windowsis
 
-Windowsi kõrvale paigaldamiseks sisesta käivitusmenüüsse `disk management` ja vali suvand **Create and format hard disk partitions**.
+Windowsi kõrvale paigaldamiseks kirjuta menüüs Start `disk management` ja vali suvand **Create and format hard disk partitions**.
 
  ![dual-boot-1](images/dual-boot-1.webp)
 
@@ -14,31 +14,35 @@ Leia sobiv partitsioon, tee sellel paremklõps ja vali **Shrink Volume**.
 
 ![dual-boot-2](images/dual-boot-2.webp)
 
- Sisesta maht, mille võrra soovid köidet kahandada. Pane tähele, et sellest saab sinu tulevase Omarchy paigalduse suurus koos alglaadimispartitsiooniga.
+ Sisesta maht, mille võrra soovid köidet kahandada. Pane tähele, et see saab olema sinu tulevase Omarchy paigalduse suurus koos alglaadimispartitsiooniga.
 
  ![dual-boot-3](images/dual-boot-3.webp)
 
-Kui oled lõpetanud, peaksid nägema midagi sellist, kus 50GB suurune osa on koht, kuhu me selles näites Omarchy paigaldame.
+Kui oled valmis, peaksid nägema midagi sellist, kus 50GB suurune osa on see, kuhu me selles näites Omarchy paigaldame.
 
  ![dual-boot-4](images/dual-boot-4.webp)
 
 ## Omarchy paigaldamine
 
-Omarchy paigaldusprotsess on tegelikult sama mis tavaliselt. Pärast ketta valimist pakutakse sulle suvandit **Free space install**. Vali see suvand, et vältida kogu ketta tühjendamist.
+Omarchy paigaldusprotsess on tegelikult sama mis tavaliselt. Pärast ketta valimist antakse sulle suvand **Free space install**. Vali see suvand, et vältida kogu ketta tühjendamist.
 
  ![dual-boot-5](images/dual-boot-5.webp)
 
-Kinnita, et kõik näeb hea välja, ja oota, kuni paigaldus lõpeb nagu tavaliselt. Siin saad samuti valida krüptimata paigalduse (ei ole soovitatav), täpselt nagu kogu ketta paigalduse korral.
+Veendu, et kõik näeb hea välja, ja oota nagu tavaliselt, kuni paigaldamine lõpeb. Siin saad samuti valida krüptimata paigaldamise (ei ole soovitatav), nagu täisketta paigalduse puhulgi.
  ![dual-boot-6](images/dual-boot-6.webp)
 
 ## Muude paigalduste lisamine alglaadurisse
 
-Kui Omarchy paigalduse lõpetad, märkad, et Limine alglaadur on nüüd vaikevalik. Sellega saad Limine'isse lisada ka suvandeid oma muude paigalduste, näiteks Windowsi jaoks.
+Kui oled Omarchy paigaldamise lõpetanud, märkad, et nüüd on vaikimisi alglaaduriks Limine. Sellega saad Limine'ile lisada ka suvandeid oma muude paigalduste, näiteks Windowsi jaoks.
 
-Muude operatsioonisüsteemide lisamiseks käivita `limine-scan` ja järgi juhiseid, et lisada soovitud kirjed oma Limine konfiguratsiooni. Alglaadimismenüü jääb vaikimisi peidetuks ja käivitab Omarchy ühe sekundi pärast. Windowsi või muu kirje valimiseks vajuta kohe Limine käivitumisel suvalist klahvi; kui menüü ilmub, kasuta kirje valimiseks nooleklahve ja vajuta Enter. Kui Omarchy käivitub enne, kui jõuad klahvi vajutada, taaskäivita seade ja proovi uuesti. Kui lülitasid sisse _Setup > Direct Boot_, jätab püsivara Limine täielikult vahele, nii et vali Limine oma BIOS-i alglaadimismenüüst või käivita kirje eemaldamiseks uuesti _Setup > Direct Boot_.
+Muude operatsioonisüsteemide lisamiseks käivita `limine-scan` ja järgi juhiseid, et lisada soovitud kirjed oma Limine'i konfiguratsiooni. Alglaadimismenüü jääb vaikimisi peidetuks ja käivitab Omarchy ühe sekundi pärast. Windowsi või mõne muu kirje valimiseks vajuta Limine'i käivitumisel kohe suvalist klahvi; kui menüü ilmub, kasuta kirje valimiseks nooleklahve ja vajuta Enter. Kui Omarchy käivitub enne, kui jõuad klahvi vajutada, taaskäivita arvuti ja proovi uuesti.
 
 ## Bitlocker
 
-Oluline on märkida, et see paigaldusmeetod ei ühildu Bitlockeriga, kuna see krüptib kogu ketta, mitte ainult partitsiooni. Kui näed viga, mis ütleb, et Bitlocker on lubatud, käivita Windows, mine jaotisse **Settings -> Privacy & Security -> Device encryption** ja lülita Bitlocker välja. Ketta dekrüptimine võib võtta veidi aega.
+Oluline on märkida, et see paigaldusmeetod ei ühildu Bitlockeriga, kuna see krüptib kogu ketta, mitte ainult partitsiooni. Kui näed veateadet, et Bitlocker on lubatud, käivita Windows, mine **Settings -> Privacy & Security -> Device encryption** ja lülita Bitlocker välja. Ketta dekrüptimine võib võtta aega.
 
  ![dual-boot-7](images/dual-boot-7.webp)
+
+## Windowsi uuesti paigaldamine
+
+Kui see arvuti tarniti koos Windowsiga, on selle tootevõti salvestatud püsivarasse. Käivita selle väljatrükkimiseks `omarchy windows key`, et saaksid Windowsi uuesti aktiveerida, kui selle kunagi sellesse arvutisse uuesti paigaldad.

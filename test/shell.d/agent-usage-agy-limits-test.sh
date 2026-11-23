@@ -220,5 +220,5 @@ for path in limits_cache_files("agy"):
   path.unlink()
 record, _ = agy("down")
 expect("Antigravity collector invents no limits when it has never reached Google",
-       [record["limits"], record["usageStatusText"], record["retryAdvised"]], [[], "Antigravity limits unavailable", True], record)
+       [record["limits"], record["usageStatusText"], record["retryAdvised"]], [[], "Gemini limits unavailable", True], record)
 PY

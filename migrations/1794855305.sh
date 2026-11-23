@@ -1,6 +1,6 @@
 echo "Let AMD GPUs map all of RAM but 8 GiB, not half"
 
-# See omarchy-apply-amd-gpu-memory. The cap is a kernel option, so it takes a
+# See omarchy-apply-gpu-memory. The cap is a kernel option, so it takes a
 # boot image rebuild and applies from the next boot. A machine-wide marker,
 # written only after the rebuild, records that this one is done, so a retry
 # after a failed rebuild writes and rebuilds again and a second user's run
@@ -10,7 +10,7 @@ if [[ -e $done_marker ]]; then
   exit 0
 fi
 
-sudo env PATH="$PATH" omarchy-apply-amd-gpu-memory || exit 1
+sudo env PATH="$PATH" omarchy-apply-gpu-memory || exit 1
 
 # No AMD GPU, or 16 GB or less where the kernel's default is as high.
 if [[ ! -f /etc/limine-entry-tool.d/amd-gpu-memory.conf ]]; then
