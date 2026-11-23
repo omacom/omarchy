@@ -1622,9 +1622,10 @@ Item {
             boundsBehavior: Flickable.StopAtBounds
 
             WheelHandler {
+              acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
               target: null
               onWheel: function(event) {
-                var delta = event.pixelDelta.y || event.angleDelta.y / 120 * root.rowHeightForDetail("") * 3
+                var delta = event.pixelDelta.y * Style.touchpadScrollFactor || event.angleDelta.y / 120 * root.rowHeightForDetail("") * 3
                 var bottom = resultList.originY + Math.max(0, resultList.contentHeight - resultList.height)
                 resultList.contentY = Math.max(resultList.originY, Math.min(bottom, resultList.contentY - delta))
                 event.accepted = true
