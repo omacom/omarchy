@@ -20,7 +20,9 @@ start_install_log() {
   if ! omarchy_log_to_stdout; then
     mkdir -p "$(dirname "$OMARCHY_INSTALL_LOG_FILE")"
     touch "$OMARCHY_INSTALL_LOG_FILE"
-    chmod 666 "$OMARCHY_INSTALL_LOG_FILE" 2>/dev/null || true
+    # Readable by the account watching setup, and not writable by every other
+    # account. 666 let anyone append lines a later root step might trust.
+    chmod 644 "$OMARCHY_INSTALL_LOG_FILE" 2>/dev/null || true
   fi
 
   omarchy_log_timestamp start_time
