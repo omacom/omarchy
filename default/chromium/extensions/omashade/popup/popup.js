@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const T = OmareaderTheme;
+const T = OmashadeTheme;
 const DARK = T.normalize(T.DARK);
 
 let settings = T.normalizeSettings();
@@ -56,7 +56,7 @@ async function render() {
   } else if (mode === 'dark') {
     status.textContent = 'Pitch black · page hues kept';
   } else {
-    status.textContent = 'Theme sync offline · run omarchy-install-chromium-omareader ';
+    status.textContent = 'Theme sync offline · run omarchy-install-chromium-omashade ';
     const retry = document.createElement('button');
     retry.textContent = 'retry';
     retry.onclick = () => chrome.runtime.sendMessage({ type: 'reconnect' });

@@ -2,17 +2,17 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
-for (const f of ['color.js', 'theme.js', 'transform.js', 'net.js']) require(path.join(__dirname, '../../../default/chromium/extensions/omareader/src', f));
-const C = globalThis.OmareaderColor;
-const T = globalThis.OmareaderTheme;
-const X = globalThis.OmareaderTransform;
+for (const f of ['color.js', 'theme.js', 'transform.js', 'net.js']) require(path.join(__dirname, '../../../default/chromium/extensions/omashade/src', f));
+const C = globalThis.OmashadeColor;
+const T = globalThis.OmashadeTheme;
+const X = globalThis.OmashadeTransform;
 
 // Run the cache's real lifecycle code with CSSOM-shaped sources. No DOM paint
 // stubs are involved: these checks concern which fetched resources stay owned.
 function remoteCacheHarness() {
   const fs = require('node:fs');
   const vm = require('node:vm');
-  const source = fs.readFileSync(path.join(__dirname, '../../../default/chromium/extensions/omareader/src/content.js'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '../../../default/chromium/extensions/omashade/src/content.js'), 'utf8');
   const names = ['readRules', 'splitImports', 'fetchRemote', 'pruneRemote'];
   const functions = names.map((name) => {
     const match = source.match(new RegExp(`  (?:async )?function ${name}\\([^]*?\\n  \\}`));
@@ -100,9 +100,9 @@ function shippedThemes() {
   const fs = require('node:fs');
   const os = require('node:os');
   const root = path.join(__dirname, '../../..');
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'omareader-test-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'omashade-test-'));
   try {
-    const out = execFileSync(path.join(root, 'bin/omarchy-chromium-omareader-host'), ['--dump'], {
+    const out = execFileSync(path.join(root, 'bin/omarchy-chromium-omashade-host'), ['--dump'], {
       env: { ...process.env, HOME: home, OMARCHY_PATH: root },
     });
     const themes = JSON.parse(out).themes;
@@ -247,18 +247,18 @@ test('transformValue rewrites colors inside arbitrary values', () => {
 
 test('variables are renamed per role with the original as fallback', () => {
   const c = ctx();
-  assert.equal(X.transformValue('var(--bg)', 'bg', c), 'var(--omareader-bg--bg, var(--bg))');
-  assert.equal(X.transformValue('var(--fg, #000)', 'text', c), 'var(--omareader-text--fg, var(--fg, #ece5d8))');
-  assert.equal(X.transformValue('hsl(var(--background))', 'bg', c), 'hsl(var(--omareader-bg--background, var(--background)))');
+  assert.equal(X.transformValue('var(--bg)', 'bg', c), 'var(--omashade-bg--bg, var(--bg))');
+  assert.equal(X.transformValue('var(--fg, #000)', 'text', c), 'var(--omashade-text--fg, var(--fg, #ece5d8))');
+  assert.equal(X.transformValue('hsl(var(--background))', 'bg', c), 'hsl(var(--omashade-bg--background, var(--background)))');
   assert.equal(
     X.transformValue('rgb(255 255 255 / var(--tw-bg-opacity))', 'bg', c),
-    'rgb(21 30 38 / var(--omareader-bg--tw-bg-opacity, var(--tw-bg-opacity)))',
+    'rgb(21 30 38 / var(--omashade-bg--tw-bg-opacity, var(--tw-bg-opacity)))',
   );
   assert.equal(
     X.transformValue('rgba(255,255,255,var(--a))', 'bg', c),
-    'rgb(21 30 38 / var(--omareader-bg--a, var(--a)))',
+    'rgb(21 30 38 / var(--omashade-bg--a, var(--a)))',
   );
-  assert.match(X.transformValue('color-mix(in srgb, white 50%, var(--x))', 'bg', c), /^color-mix\(in srgb, #151e26 50%, var\(--omareader-bg--x, var\(--x\)\)\)$/);
+  assert.match(X.transformValue('color-mix(in srgb, white 50%, var(--x))', 'bg', c), /^color-mix\(in srgb, #151e26 50%, var\(--omashade-bg--x, var\(--x\)\)\)$/);
 });
 
 test('picture samples average by alpha and report how much is opaque', () => {
@@ -276,7 +276,7 @@ test('channel-triple fallbacks inside rgb()/hsl() map like the color they render
   const m = c.mapper.map(C.parse('rgb(31,31,31)'), 'text');
   assert.equal(
     X.transformValue('rgba(var(--on-rgb,31,31,31),.38)', 'text', c),
-    `rgba(var(--omareader-text--on-rgb, var(--on-rgb,${[m.r, m.g, m.b].map(Math.round).join(',')})),.38)`,
+    `rgba(var(--omashade-text--on-rgb, var(--on-rgb,${[m.r, m.g, m.b].map(Math.round).join(',')})),.38)`,
   );
   assert.ok(C.toOklab(m).L > 0.8);
   const light = X.transformValue('rgb(var(--a, var(--b, 31 31 31)) / .5)', 'text', c).match(/var\(--b,(\d+) (\d+) (\d+)\)/);
@@ -290,23 +290,23 @@ test('channel-triple fallbacks inside rgb()/hsl() map like the color they render
   const want = c.mapper.map(C.parse('hsl(120 100% 50%)'), 'text');
   assert.ok(['r', 'g', 'b'].every((k) => Math.abs(got[k] - want[k]) < 1.5), `${hex(got)} vs ${hex(want)}`);
   // Outside a channel position the same text is not a color.
-  assert.equal(X.transformValue('var(--pad, 1 2 3)', 'text', c), 'var(--omareader-text--pad, var(--pad, 1 2 3))');
+  assert.equal(X.transformValue('var(--pad, 1 2 3)', 'text', c), 'var(--omashade-text--pad, var(--pad, 1 2 3))');
   assert.equal(X.transformValue('rgb(calc(var(--n, 1 2 3)) 0 0)', 'text', c).includes('var(--n, 1 2 3)'), true);
 });
 
 test('typed custom properties cover full colors, rgb triples and hsl triples', () => {
   const c = ctx();
   const plain = Object.fromEntries(X.typedVars('--surface', '#ffffff', c));
-  assert.equal(plain['--omareader-bg--surface'], '#151e26');
-  assert.equal(plain['--omareader-text--surface'], '#ece5d8');
+  assert.equal(plain['--omashade-bg--surface'], '#151e26');
+  assert.equal(plain['--omashade-text--surface'], '#ece5d8');
   const rgb = Object.fromEntries(X.typedVars('--bs-body-bg-rgb', '255, 255, 255', c));
-  assert.equal(rgb['--omareader-bg--bs-body-bg-rgb'], '21, 30, 38');
+  assert.equal(rgb['--omashade-bg--bs-body-bg-rgb'], '21, 30, 38');
   const hsl = Object.fromEntries(X.typedVars('--background', '0 0% 100%', c));
-  assert.match(hsl['--omareader-bg--background'], /^[\d.]+ [\d.]+% [\d.]+%$/);
-  assert.equal(hex(C.parse(`hsl(${hsl['--omareader-bg--background']})`)), '#151e26');
-  assert.equal(Object.fromEntries(X.typedVars('--radius', '4px', c))['--omareader-bg--radius'], '4px');
+  assert.match(hsl['--omashade-bg--background'], /^[\d.]+ [\d.]+% [\d.]+%$/);
+  assert.equal(hex(C.parse(`hsl(${hsl['--omashade-bg--background']})`)), '#151e26');
+  assert.equal(Object.fromEntries(X.typedVars('--radius', '4px', c))['--omashade-bg--radius'], '4px');
   const alias = Object.fromEntries(X.typedVars('--link', 'var(--blue)', c));
-  assert.equal(alias['--omareader-text--link'], 'var(--omareader-text--blue, var(--blue))');
+  assert.equal(alias['--omashade-text--link'], 'var(--omashade-text--blue, var(--blue))');
 });
 
 test('roles', () => {
@@ -353,15 +353,15 @@ test('ring shadows map as borders, soft shadows stay dark', () => {
 test('keyword redeclarations produce typed copies', () => {
   const c = ctx();
   assert.deepEqual(Object.fromEntries(X.typedVars('--btnbg', 'transparent', c)), {
-    '--omareader-bg--btnbg': 'transparent', '--omareader-text--btnbg': 'transparent',
-    '--omareader-border--btnbg': 'transparent', '--omareader-shadow--btnbg': 'transparent',
+    '--omashade-bg--btnbg': 'transparent', '--omashade-text--btnbg': 'transparent',
+    '--omashade-border--btnbg': 'transparent', '--omashade-shadow--btnbg': 'transparent',
   });
 });
 
 test('@property typed copies mirror inheritance and map initial values', () => {
   const c = ctx();
   const css = X.propertyRules({ name: '--pc', syntax: '<color>', inherits: false, initialValue: '#ffffff' }, c);
-  assert.match(css, /@property --omareader-text--pc\{syntax:"<color>";inherits:false;initial-value:#ece5d8;\}/);
+  assert.match(css, /@property --omashade-text--pc\{syntax:"<color>";inherits:false;initial-value:#ece5d8;\}/);
   assert.equal(X.propertyRules({ name: '--w', syntax: '<length>', inherits: true, initialValue: '1px' }, c), '');
 });
 
@@ -389,7 +389,7 @@ test('text keeps its contrast class on every installed theme', () => {
 });
 
 test('private-network classification covers canonical bypass forms', () => {
-  const N = globalThis.OmareaderNet;
+  const N = globalThis.OmashadeNet;
   const host = (u) => new URL(u).hostname;
   for (const u of [
     'http://localhost/', 'http://127.0.0.1/', 'http://2130706433/', 'http://0x7f.1/', 'http://127.0.0.1./',

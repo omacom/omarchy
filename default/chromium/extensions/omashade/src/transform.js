@@ -1,7 +1,7 @@
 // Rewrites CSS values and CSSOM rules so every color goes through the mapper.
 (function (root) {
   'use strict';
-  const C = root.OmareaderColor;
+  const C = root.OmashadeColor;
 
   const ROLES = ['bg', 'text', 'border', 'shadow'];
   const TEXT_PROPS = new Set([
@@ -29,7 +29,7 @@
   // paints its veil over it (content.js). Registered non-inherited, so an element never
   // sees an ancestor's. `none` and the other keywords become an empty shadow, which keeps
   // the scrim's shadow list valid; `inherit` takes the parent's, as box-shadow does.
-  const OWN_SHADOW = '--omareader-own-shadow';
+  const OWN_SHADOW = '--omashade-own-shadow';
   const OWN_SHADOW_PROPERTY = `@property ${OWN_SHADOW}{syntax:"*";inherits:false}`;
   function ownShadow(value) {
     const v = value.trim().toLowerCase();
@@ -75,7 +75,7 @@
     return [v, undefined];
   }
 
-  const typedName = (role, name) => `--omareader-${role}--${name.slice(2)}`;
+  const typedName = (role, name) => `--omashade-${role}--${name.slice(2)}`;
 
   function absolutize(inner, base) {
     const raw = inner.trim();
@@ -126,7 +126,7 @@
     if (fn === 'var') {
       const [first, fallback] = splitTopLevelComma(inner);
       const varName = first.trim();
-      if (!varName.startsWith('--') || varName.startsWith('--omareader-')) return `${name}(${inner})`;
+      if (!varName.startsWith('--') || varName.startsWith('--omashade-')) return `${name}(${inner})`;
       // rgba(var(--on-surface-rgb, 31,31,31), .38): while the variable is undefined, the
       // channel triple in its fallback is the color that renders.
       const triple = ctx.channelFn && fallback !== undefined && parseTriple(fallback.trim(), ctx.channelFn);
@@ -300,7 +300,7 @@
     return `${r1(hsl.h)}${t.deg}${t.sep}${r1(hsl.s * 100)}%${t.sep}${r1(hsl.l * 100)}%`;
   }
 
-  // [name, value] pairs for --omareader-<role>--name, one per role. Non-colors pass through
+  // [name, value] pairs for --omashade-<role>--name, one per role. Non-colors pass through
   // so redeclarations cannot inherit an ancestor's mapped color.
   function typedVars(name, value, ctx) {
     const raw = value.trim();
@@ -404,7 +404,7 @@
         continue;
       }
       if (prop.startsWith('--')) {
-        if (prop.startsWith('--omareader-')) continue;
+        if (prop.startsWith('--omashade-')) continue;
         if (all) out += `${prop}:${v}${important ? '!important' : ''};`;
         out += typedVarDecls(prop, v, ctx, important);
         continue;
@@ -613,7 +613,7 @@
     return out;
   }
 
-  root.OmareaderTransform = {
+  root.OmashadeTransform = {
     OWN_SHADOW,
     OWN_SHADOW_PROPERTY,
     ownShadow,

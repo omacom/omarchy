@@ -8,7 +8,7 @@ omarchy-refresh-config chromium-flags.conf
 # Install/refresh the native messaging hosts used by the bundled extensions
 omarchy-install-chromium-copy-url
 omarchy-install-chromium-ytdlp
-omarchy-install-chromium-omareader
+omarchy-install-chromium-omashade
 
 # Put the Snapdragon camera and video decoding settings back. Last, so a
 # failure of either is the command's result.

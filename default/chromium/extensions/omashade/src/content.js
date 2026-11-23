@@ -5,9 +5,9 @@
 // live and is screen-only.
 (() => {
   'use strict';
-  const C = globalThis.OmareaderColor;
-  const T = globalThis.OmareaderTheme;
-  const X = globalThis.OmareaderTransform;
+  const C = globalThis.OmashadeColor;
+  const T = globalThis.OmashadeTheme;
+  const X = globalThis.OmashadeTransform;
   const doc = document;
   if (!(doc instanceof HTMLDocument)) return;
 
@@ -20,14 +20,14 @@
   };
   // After an extension reload/update the previous instance may still sit in this world;
   // a live one wins, a dead one is retired so it cannot keep painting a stale palette.
-  const prior = globalThis.__omareader;
+  const prior = globalThis.__omashade;
   if (prior && prior.alive()) return;
   if (prior) {
     try {
       prior.stop();
     } catch {}
   }
-  globalThis.__omareader = { alive: extAlive, stop: () => stop() };
+  globalThis.__omashade = { alive: extAlive, stop: () => stop() };
 
   // Disabling or removing the extension leaves this instance in open tabs with nothing to
   // tell it. The page's next change, or the tab coming back into view, finds the runtime
@@ -68,13 +68,13 @@
     if (/^\/document\//.test(location.pathname)) return { sel: 'canvas.kix-canvas-tile-content', surface: 'field' };
     return null;
   })();
-  const RAMP_ID = 'omareader-ramp';
+  const RAMP_ID = 'omashade-ramp';
   const YOUTUBE_CANVAS = 'html,body,ytd-app,#page-manager,ytd-watch-flexy,ytd-watch-grid,#full-bleed-container';
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
   // A prefixed namespace is inert unless a selector uses it, and can precede the page's
   // own @namespace declarations. A @property marker would make those declarations invalid.
-  const MARK = '@namespace omareader-sheet "urn:omareader:sheet";';
+  const MARK = '@namespace omashade-sheet "urn:omashade:sheet";';
   const PLACEHOLDER = '@media not all{}';
   const PRES_SELECTOR =
     '[bgcolor],font[color],body[text],body[link],body[vlink],body[alink],[fill],[stroke],[stop-color],[flood-color]';
@@ -89,8 +89,8 @@
   // by this attribute (see placeVars). Inline declarations beat every normal author rule;
   // the rule gets an id-heavy specificity instead (an id no page uses), so it still beats
   // the mirrored page rules on the same element.
-  const VARS_ATTR = 'data-omareader-vars';
-  const VARS_SPEC = ':not(#--omareader)'.repeat(8);
+  const VARS_ATTR = 'data-omashade-vars';
+  const VARS_SPEC = ':not(#--omashade)'.repeat(8);
   const dom = (() => {
     try {
       return chrome.dom;
@@ -141,7 +141,7 @@
   const isMarked = (s) => {
     try {
       const r = s.cssRules[0];
-      return r instanceof CSSNamespaceRule && r.prefix === 'omareader-sheet' && r.namespaceURI === 'urn:omareader:sheet';
+      return r instanceof CSSNamespaceRule && r.prefix === 'omashade-sheet' && r.namespaceURI === 'urn:omashade:sheet';
     } catch {
       return false;
     }
@@ -634,7 +634,7 @@
       // Shared with every shadow root as well as the document. Multiply-blended product
       // pictures otherwise disappear into a recolored black background.
       const media = mapper.mode === 'dark' ? 'img,picture,video,canvas{mix-blend-mode:normal !important;}' : '';
-      presSheet.replaceSync(`${MARK}@layer omareader-base{${media}${siteCss()}${scrimCss()}${[...presRules].map(([sel, css]) => `${sel}{${css}}`).join('')}}`);
+      presSheet.replaceSync(`${MARK}@layer omashade-base{${media}${siteCss()}${scrimCss()}${[...presRules].map(([sel, css]) => `${sel}{${css}}`).join('')}}`);
       propSheet.replaceSync(MARK + X.OWN_SHADOW_PROPERTY + [...propRules.values()].join(''));
     });
   }
@@ -651,7 +651,7 @@
         root.addEventListener('load', onLoad, true);
         // Seen from the document, an event from inside a closed root is retargeted to
         // its host; each root listens itself so nested hosts are found.
-        root.addEventListener('omareader:shadow', onShadowEvent);
+        root.addEventListener('omashade:shadow', onShadowEvent);
       }
     }
 
@@ -683,7 +683,7 @@
       this.observer.disconnect();
       if (this.shadow) {
         this.root.removeEventListener('load', onLoad, true);
-        this.root.removeEventListener('omareader:shadow', onShadowEvent);
+        this.root.removeEventListener('omashade:shadow', onShadowEvent);
       }
       this.root.adoptedStyleSheets = this.root.adoptedStyleSheets.filter((s) => !isOurs(s));
     }
@@ -888,7 +888,7 @@
     let pending = false;
     for (let i = 0; i < style.length; i++) {
       const prop = style[i];
-      if (prop.startsWith('--omareader-')) continue;
+      if (prop.startsWith('--omashade-')) continue;
       const v = style.getPropertyValue(prop);
       if (prop.startsWith('--')) {
         const prio = style.getPropertyPriority(prop);
@@ -930,7 +930,7 @@
 
     const stale = [];
     for (let i = 0; i < style.length; i++) {
-      if (style[i].startsWith('--omareader-') && (!ownVars || !vars.has(style[i]))) stale.push(style[i]);
+      if (style[i].startsWith('--omashade-') && (!ownVars || !vars.has(style[i]))) stale.push(style[i]);
     }
     for (const k of stale) style.removeProperty(k);
     if (!ownVars) return vars;
@@ -947,7 +947,7 @@
     swapStyle(style, slot, false);
     if (!slot.vars.size) return;
     const own = [];
-    for (let i = 0; i < style.length; i++) if (style[i].startsWith('--omareader-')) own.push(style[i]);
+    for (let i = 0; i < style.length; i++) if (style[i].startsWith('--omashade-')) own.push(style[i]);
     for (const k of own) style.removeProperty(k);
   }
 
@@ -997,7 +997,7 @@
     // Player progress bars and other animations update transform/width every frame.
     // Those cannot change the page's colors and must not trigger background sampling.
     const source = JSON.stringify(Array.from(style).filter((prop) =>
-      !prop.startsWith('--omareader-') && (prop.startsWith('--') || X.roleOf(prop) || BACKGROUND_STATE.has(prop))).sort().map((prop) => {
+      !prop.startsWith('--omashade-') && (prop.startsWith('--') || X.roleOf(prop) || BACKGROUND_STATE.has(prop))).sort().map((prop) => {
       const value = style.getPropertyValue(prop);
       const rec = slot && slot.state.get(prop);
       return [prop, rec && value === rec.mapped ? rec.orig : value, style.getPropertyPriority(prop)];
@@ -1011,7 +1011,7 @@
     // The variable switches canvas backgrounds to black in fullscreen, including
     // inline !important backgrounds, without rewriting styles during playback.
     const canvasBackground = youtube && el.matches(YOUTUBE_CANVAS)
-      ? `var(--omareader-youtube-fullscreen-bg, ${mapper.swatch.bg})` : null;
+      ? `var(--omashade-youtube-fullscreen-bg, ${mapper.swatch.bg})` : null;
     placeVars(el, slot, mapStyle(style, slot, canvasBackground, false));
     if (slot.state.size || slot.rule) {
       if (fresh) {
@@ -1245,7 +1245,7 @@
   // directly over a covering, mostly opaque, light picture gets an inset scrim in the
   // palette background: box-shadow paints over the background and under the content,
   // changes no layout, and goes away with one attribute. Dark palettes only.
-  const SCRIM_ATTR = 'data-omareader-scrim';
+  const SCRIM_ATTR = 'data-omashade-scrim';
   const SCRIM_ALPHA = 0.8;
   const imageSelectors = new Set();
   const imageStats = new Map(); // absolute URL → stats, null (unusable) or a pending promise
@@ -1474,7 +1474,7 @@
     if (!rampEl) {
       // Built node by node: Trusted Types pages (Google Docs) refuse innerHTML strings.
       rampEl = doc.createElementNS(SVG_NS, 'svg');
-      rampEl.setAttribute('data-omareader', 'ramp');
+      rampEl.setAttribute('data-omashade', 'ramp');
       rampEl.setAttribute('aria-hidden', 'true');
       rampEl.setAttribute('style', 'position:absolute;width:0;height:0;overflow:hidden');
       const filter = doc.createElementNS(SVG_NS, 'filter');
@@ -1521,8 +1521,8 @@
     // black with every palette. CSS handles entry/exit and YouTube's player class.
     const fullscreen = ':fullscreen,.html5-video-player.ytp-fullscreen';
     const videoSurfaces = '#movie_player,.html5-video-container,video';
-    return `${YOUTUBE_CANVAS}{background-color:var(--omareader-youtube-fullscreen-bg, ${mapper.swatch.bg}) !important;}` +
-      `:is(${fullscreen}){--omareader-youtube-fullscreen-bg:#000 !important;background-color:#000 !important;}` +
+    return `${YOUTUBE_CANVAS}{background-color:var(--omashade-youtube-fullscreen-bg, ${mapper.swatch.bg}) !important;}` +
+      `:is(${fullscreen}){--omashade-youtube-fullscreen-bg:#000 !important;background-color:#000 !important;}` +
       `:is(${fullscreen}) :is(${videoSurfaces}){background-color:#000 !important;}` +
       ':fullscreen::backdrop{background-color:#000 !important;}#cinematics{display:none !important;}';
   }
@@ -1549,7 +1549,7 @@
     // document gets this scheme, so the elements embedding them get it too.
     // fill: SVG's initial fill is black and no page rule states it (Boozt's <svg><use>
     // logo), so like `color` it starts from the foreground; fills a page sets still win.
-    return `@layer omareader-base{
+    return `@layer omashade-base{
 :root{color-scheme:${mapper.mode} !important;${canvas}color:${s.fg};fill:${s.fg};scrollbar-color:${s.thumb} ${s.bg};accent-color:${s.accent}}
 iframe,frame{color-scheme:${mapper.mode} !important}
 input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file],[type=image],[type=button],[type=submit],[type=reset]),textarea,select{background-color:${s.field};color:${s.fg};border-color:${s.border}}
@@ -1568,7 +1568,7 @@ mark{background-color:${s.mark};color:${s.fg}}
     if (!rootEl) return;
     if (!baseEl) {
       baseEl = doc.createElement('style');
-      baseEl.setAttribute('data-omareader', 'base');
+      baseEl.setAttribute('data-omashade', 'base');
       baseEl.media = 'screen';
       baseEl.textContent = baseCss();
     }
@@ -1806,10 +1806,10 @@ mark{background-color:${s.mark};color:${s.fg}}
 
   function addListeners() {
     doc.addEventListener('load', onLoad, true);
-    doc.addEventListener('omareader:css', onCss);
-    doc.addEventListener('omareader:edit', onEdit);
-    doc.addEventListener('omareader:nav', onNav);
-    doc.addEventListener('omareader:shadow', onShadowEvent);
+    doc.addEventListener('omashade:css', onCss);
+    doc.addEventListener('omashade:edit', onEdit);
+    doc.addEventListener('omashade:nav', onNav);
+    doc.addEventListener('omashade:shadow', onShadowEvent);
     doc.addEventListener('visibilitychange', onVisibility);
     addEventListener('popstate', onNav);
     addEventListener('beforeprint', onBeforePrint);
@@ -1820,10 +1820,10 @@ mark{background-color:${s.mark};color:${s.fg}}
 
   function removeListeners() {
     doc.removeEventListener('load', onLoad, true);
-    doc.removeEventListener('omareader:css', onCss);
-    doc.removeEventListener('omareader:edit', onEdit);
-    doc.removeEventListener('omareader:nav', onNav);
-    doc.removeEventListener('omareader:shadow', onShadowEvent);
+    doc.removeEventListener('omashade:css', onCss);
+    doc.removeEventListener('omashade:edit', onEdit);
+    doc.removeEventListener('omashade:nav', onNav);
+    doc.removeEventListener('omashade:shadow', onShadowEvent);
     doc.removeEventListener('visibilitychange', onVisibility);
     removeEventListener('popstate', onNav);
     removeEventListener('beforeprint', onBeforePrint);
@@ -1838,7 +1838,7 @@ mark{background-color:${s.mark};color:${s.fg}}
       return;
     }
     running = true;
-    for (const stale of doc.querySelectorAll('style[data-omareader],svg[data-omareader]')) stale.remove();
+    for (const stale of doc.querySelectorAll('style[data-omashade],svg[data-omashade]')) stale.remove();
     mapper = T.createMapper(palette, { siteL });
     version++;
     ctx = newCtx();

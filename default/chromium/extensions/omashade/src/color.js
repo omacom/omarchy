@@ -353,7 +353,7 @@
     return { color, cover: a / n, width, height };
   }
 
-  root.OmareaderColor = {
+  root.OmashadeColor = {
     sampleStats,
     NAMED,
     parse,

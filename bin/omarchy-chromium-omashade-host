@@ -1,8 +1,8 @@
 #!/usr/bin/python3
-# omarchy:summary=Native messaging host: stream the Omarchy palette to the Omareader Chromium extension
+# omarchy:summary=Native messaging host: stream the Omarchy palette to the Omashade Chromium extension
 # omarchy:args=[--dump]
 # omarchy:hidden=true
-"""Omareader native messaging host.
+"""Omashade native messaging host.
 
 Streams the active Omarchy palette to the extension and pushes an update whenever the
 theme changes. `--dump` prints the current palette and every installed theme's once as JSON.

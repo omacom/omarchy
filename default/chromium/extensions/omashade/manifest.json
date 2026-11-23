@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Omareader",
+  "name": "Omashade",
   "version": "1.0",
   "description": "Repaint web pages in the current Omarchy theme, this extension is installed by Omarchy",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoOuy4Khi/9bgXTLtG9y+dFcNElG7Z9UKYwqQc14+wgZO+kHmIO3ybuPyI3EaAreJce0CUb72FgYMFwlWuVPWPMgmuv7wx9VGTsenZQFOAb4NdHhI47SwP4Dt8i3mE8mP1XX27bBFOMoUenUNVfTPxZaufZvMt6Pa/QsBPj3P6GIiHkNS0aC+IRqYwLO6EtKoV16x/WoPiQ26lwSb+pOi52ksZR18Fw8Q3mekZEzh3pXLwIvr5PMxqFFP4+DD1/W+pSBDLaI/c3HCZShyny6Q28Ruu6NEO1uTqUKYfTMF+X2xW1wHasaCzY9RVQJGHOlHOwwMUeODbPEJzhEb0nrX5wIDAQAB",
@@ -9,7 +9,7 @@
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },
   "action": {
-    "default_title": "Omareader",
+    "default_title": "Omashade",
     "default_popup": "popup/popup.html",
     "default_icon": { "16": "icon-16.png", "32": "icon-32.png" }
   },
@@ -17,7 +17,7 @@
   "commands": {
     "toggle-site": {
       "suggested_key": { "default": "Alt+Shift+O" },
-      "description": "Toggle Omareader on the current site"
+      "description": "Toggle Omashade on the current site"
     },
     "mode-normal": {
       "description": "All sites: Normal (pages untouched)"

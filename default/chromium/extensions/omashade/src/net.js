@@ -64,5 +64,5 @@
     return host !== '' && isPrivateHost(host);
   }
 
-  root.OmareaderNet = { isPrivateHost, isPrivateOrigin };
+  root.OmashadeNet = { isPrivateHost, isPrivateOrigin };
 })(globalThis);

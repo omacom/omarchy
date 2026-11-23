@@ -1,7 +1,7 @@
 // Omarchy palette normalization and the color mapper that projects page colors onto it.
 (function (root) {
   'use strict';
-  const C = root.OmareaderColor;
+  const C = root.OmashadeColor;
   const { clamp } = C;
 
   const HUES = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'magenta'];
@@ -314,7 +314,7 @@
     return withSiteMode(s, hostname, s.mode === 'normal' ? 'omarchy' : 'default');
   }
 
-  root.OmareaderTheme = {
+  root.OmashadeTheme = {
     normalize, createMapper, modeOf, siteKey, siteModeOf, normalizeSettings, withSiteMode, toggleSite,
     MODES, FALLBACK, DARK, HUES,
   };

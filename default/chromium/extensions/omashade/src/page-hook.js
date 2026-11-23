@@ -3,7 +3,7 @@
 // script what changed. Events carry only indices, never page objects.
 (() => {
   'use strict';
-  const MARK = Symbol.for('omareader.hooked');
+  const MARK = Symbol.for('omashade.hooked');
   if (CSSStyleSheet.prototype[MARK]) return;
   Object.defineProperty(CSSStyleSheet.prototype, MARK, { value: true });
 
@@ -20,8 +20,8 @@
     };
   };
 
-  const notify = later(() => document.dispatchEvent(new Event('omareader:css')));
-  const notifyNav = later(() => document.dispatchEvent(new Event('omareader:nav')));
+  const notify = later(() => document.dispatchEvent(new Event('omashade:css')));
+  const notifyNav = later(() => document.dispatchEvent(new Event('omashade:nav')));
 
   // Ops are reported in order as {k: 'd'|'a'|'x', s: sheet index, t, i: top-level rule
   // index}: t 'e' is an in-place edit, 'i'/'r' a top-level insert/delete. A burst beyond
@@ -48,7 +48,7 @@
     overflow = false;
     seen.clear();
     unlocated = false;
-    if (list.length) document.dispatchEvent(new CustomEvent('omareader:edit', { detail: JSON.stringify(list) }));
+    if (list.length) document.dispatchEvent(new CustomEvent('omashade:edit', { detail: JSON.stringify(list) }));
   });
 
   const located = new WeakMap();
@@ -225,7 +225,7 @@
   // Open and closed roots alike: the event goes to the host, which the page already
   // has; the root itself is never exposed (the isolated side reaches it via chrome.dom).
   const announceShadow = (host) => {
-    queueMicrotask(() => host.dispatchEvent(new Event('omareader:shadow', { bubbles: true, composed: true })));
+    queueMicrotask(() => host.dispatchEvent(new Event('omashade:shadow', { bubbles: true, composed: true })));
   };
   wrap(Element.prototype, 'attachShadow', announceShadow);
 

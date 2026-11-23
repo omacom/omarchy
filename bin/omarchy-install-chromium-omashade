@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# omarchy:summary=Install the native messaging host for the Omareader Chromium extension
+# omarchy:summary=Install the native messaging host for the Omashade Chromium extension
 
 set -euo pipefail
 
-HOST_NAME="com.omarchy.omareader"
-HOST_PATH="$OMARCHY_PATH/bin/omarchy-chromium-omareader-host"
+HOST_NAME="com.omarchy.omashade"
+HOST_PATH="$OMARCHY_PATH/bin/omarchy-chromium-omashade-host"
 TEMPLATE="$OMARCHY_PATH/default/chromium/native-messaging-hosts/$HOST_NAME.json"
 
 # Chromium-based browser profile roots that use the NativeMessagingHosts layout.

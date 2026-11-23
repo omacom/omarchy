@@ -6,14 +6,14 @@ let port = null;
 
 async function recompute() {
   const st = await chrome.storage.local.get(['settings', 'omarchy', 'active']);
-  const settings = OmareaderTheme.normalizeSettings(st.settings);
+  const settings = OmashadeTheme.normalizeSettings(st.settings);
   const current = st.omarchy;
   // Always the Omarchy palette, whatever the modes: Dark is a fixed palette that content
   // scripts and the popup build themselves, so sites can use different modes side by side.
   const active = {
     name: current ? current.name : 'fallback',
     follow: true,
-    palette: OmareaderTheme.normalize(current && current.colors),
+    palette: OmashadeTheme.normalize(current && current.colors),
   };
   const writes = {};
   if (JSON.stringify(active) !== JSON.stringify(st.active)) writes.active = active;
@@ -31,7 +31,7 @@ function queueRecompute() {
 function connect() {
   if (port) return;
   try {
-    port = chrome.runtime.connectNative('com.omarchy.omareader');
+    port = chrome.runtime.connectNative('com.omarchy.omashade');
   } catch (e) {
     port = null;
     chrome.storage.local.set({ host: { connected: false, error: String(e.message || e) } });
@@ -59,7 +59,7 @@ const CSS_TIMEOUT_MS = 10000;
 const CSS_MAX_BYTES = 5 * 1024 * 1024;
 const cssCache = new Map();
 
-const { isPrivateHost, isPrivateOrigin } = OmareaderNet;
+const { isPrivateHost, isPrivateOrigin } = OmashadeNet;
 
 // The body as UTF-8 text (as res.text() decodes it), or null once it passes `limit` bytes.
 async function readCapped(res, limit) {
@@ -140,7 +140,7 @@ async function imageStatsOnce(url, allowPrivate) {
     const canvas = new OffscreenCanvas(16, 16);
     const g = canvas.getContext('2d');
     g.drawImage(bitmap, 0, 0, 16, 16);
-    const stats = OmareaderColor.sampleStats(g.getImageData(0, 0, 16, 16).data, bitmap.width, bitmap.height);
+    const stats = OmashadeColor.sampleStats(g.getImageData(0, 0, 16, 16).data, bitmap.width, bitmap.height);
     bitmap.close();
     return { ok: true, stats };
   });
@@ -177,7 +177,7 @@ async function imageStats(url, sender) {
 async function toggleSite(hostname) {
   if (!hostname) return;
   const { settings } = await chrome.storage.local.get('settings');
-  await chrome.storage.local.set({ settings: OmareaderTheme.toggleSite(settings, hostname) });
+  await chrome.storage.local.set({ settings: OmashadeTheme.toggleSite(settings, hostname) });
 }
 
 async function injectIntoOpenTabs() {
@@ -223,7 +223,7 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
   if (GLOBAL_MODE_COMMANDS[command]) {
     const { settings } = await chrome.storage.local.get('settings');
     await chrome.storage.local.set({
-      settings: { ...OmareaderTheme.normalizeSettings(settings), mode: GLOBAL_MODE_COMMANDS[command] },
+      settings: { ...OmashadeTheme.normalizeSettings(settings), mode: GLOBAL_MODE_COMMANDS[command] },
     });
     return;
   }
