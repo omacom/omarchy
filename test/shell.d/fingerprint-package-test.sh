@@ -221,9 +221,9 @@ check_instruction() {
   output=$(<"$scratch/output")
   for text in "$press_text" "$swipe_text" "$unnamed_text"; do
     if [[ $text == "$2" ]]; then
-      [[ $output == *"$text"* ]] || fail "$3" "$output"
+      [[ $output == *"󰈷  $text"* ]] || fail "$3" "$output"
     else
-      [[ $output != *"$text"* ]] || fail "$3" "$output"
+      [[ $output != *"󰈷  $text"* ]] || fail "$3" "$output"
     fi
   done
 }
@@ -238,7 +238,7 @@ check_verify_prompt() {
   : > "$CALL_LOG"
   INSTALLED=$'libfprint-git\nfprintd\nusbutils' SCAN_TYPE=$1 ENROLL_STATUS=0 VERIFY_STATUS=1 \
     OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1 || true
-  grep -qF "Now let's verify that it's working correctly. $2" "$scratch/output" ||
+  grep -qF "Now let's verify that it's working correctly. 󰈷  $2" "$scratch/output" ||
     fail "a ${1:-unnamed} sensor is asked to verify with: $2" "$(cat "$scratch/output")"
 }
 check_verify_prompt press "Touch the sensor."
@@ -256,7 +256,7 @@ done
 INSTALLED=$'libfprint-git\nfprintd\nusbutils' SCAN_TYPE=press READER_NAME='Apple secure enclave fingerprint sensor' \
   ENROLL_OUTPUT=$enroll_lines run_setup
 expected=$'  ✓ Step 1 done. Keep lifting your finger and touching the sensor.
-  That one didn\'t read. Keep lifting your finger and touching the sensor.
+  󰈷  That one didn\'t read. Keep lifting your finger and touching the sensor.
   ✓ Step 2 done. Keep lifting your finger and touching the sensor.
   ✗ Enrollment stopped. If you stopped before it said Enrolled, run this again and keep going.'
 [[ $(grep -E '^  ' "$scratch/output") == "$expected" ]] ||
@@ -283,7 +283,7 @@ source <(sed -n '/^fprintd_chatter()/,/^}/p;/^enroll_progress()/,/^}/p;/^verify_
 [[ $(printf '%s\n' 'Using device /net/reactivated/Fprint/Device/0' 'Listing enrolled fingers:' ' - #0: right-index-finger' \
   'Verify started!' 'Verifying: right-index-finger' 'Verify result: verify-retry-scan (not done)' \
   'Verify result: verify-finger-not-centered (not done)' 'Verify result: verify-match (done)' |
-  verify_progress "Touch again.") == $'  That one didn\'t read. Touch again.\n  Not centered: use the middle of the sensor. Touch again.\n  ✓ Matched.' ]] ||
+  verify_progress "Touch again.") == $'  󰈷  That one didn\'t read. Touch again.\n  󰈷  Not centered: use the middle of the sensor. Touch again.\n  ✓ Matched.' ]] ||
   fail "verify results, retries included, read as instructions"
 [[ $(printf '%s\n' 'Verify result: verify-no-match (done)' | verify_progress "Touch again.") == $'  ✗ No match.' ]] ||
   fail "a failed verify says so"
@@ -334,10 +334,10 @@ pass "a failed sudo stops setup with a reason, before enrolling"
 # says it stopped, and a result fprintd adds later is shown, not called a stop.
 [[ $(printf '%s\n' 'Enrolling right-index-finger finger.' 'Enroll result: enroll-stage-passed' 'Enroll result: enroll-too-fast' \
   'Enroll result: enroll-swipe-too-short' 'Enroll result: enroll-stage-passed' 'Enroll result: enroll-some-new-result' \
-  'Enroll result: enroll-completed' | enroll_progress "Swipe it again." 1) == $'  Too fast. Swipe it again.\n  Too short. Swipe it again.\n  ✓ Step 1 done. Swipe it again.\n  enroll-some-new-result\n  ✓ Enrolled.' ]] ||
+  'Enroll result: enroll-completed' | enroll_progress "Swipe it again." 1) == $'  󰈷  Too fast. Swipe it again.\n  󰈷  Too short. Swipe it again.\n  ✓ Step 1 done. Swipe it again.\n  enroll-some-new-result\n  ✓ Enrolled.' ]] ||
   fail "enrollment retries keep going, and an unknown result is shown"
 [[ $(printf '%s\n' 'Verify result: verify-too-fast (not done)' 'Verify result: verify-some-new-retry (not done)' \
-  'Verify result: verify-unknown-error (done)' | verify_progress "Swipe it again.") == $'  Too fast. Swipe it again.\n  That one didn\'t read. Swipe it again.\n  ✗ The check stopped (verify-unknown-error).' ]] ||
+  'Verify result: verify-unknown-error (done)' | verify_progress "Swipe it again.") == $'  󰈷  Too fast. Swipe it again.\n  󰈷  That one didn\'t read. Swipe it again.\n  ✗ The check stopped (verify-unknown-error).' ]] ||
   fail "any verify result that isn't done is a retry"
 pass "every retry keeps the step going, and only a finished failure says it stopped"
 
