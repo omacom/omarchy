@@ -88,17 +88,18 @@ fi
 # the firmware framebuffer driver is blacklisted (as NVIDIA ships on the
 # Spark) so Hyprland sees exactly one DRM device. Verified 2026-09-11:
 # eDP-1 at 1920x1200@120 with nothing else configured.
+#
+# The Surface Laptop Ultra has release firmware but also resets the SoC without
+# n1x_carveout_memmap, so omarchy-n1x-gpu-modules fails there until it's built.
 bios_version=$(cat /sys/class/dmi/id/bios_version 2>/dev/null || true)
 rm -f /etc/modprobe.d/nvidia.conf /etc/mkinitcpio.conf.d/nvidia.conf /etc/modprobe.d/omarchy-n1x-nvidia-disable.conf
-if [[ ! $bios_version =~ ^0\. ]]; then
+if [[ ! $bios_version =~ ^0\. ]] && n1x_gpu_modules=$(omarchy-n1x-gpu-modules); then
   echo "N1x firmware $bios_version: GPU drives the panel"
   omarchy-pkg-add linux-omarchy-nvidia-open nvidia-utils libva-nvidia-driver nvidia-container-toolkit
   cat > /etc/modprobe.d/nvidia.conf <<'CONF'
 options nvidia_drm modeset=1 fbdev=1
 CONF
-  cat > /etc/mkinitcpio.conf.d/nvidia.conf <<'CONF'
-MODULES+=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
-CONF
+  printf 'MODULES+=(%s)\n' "$n1x_gpu_modules" > /etc/mkinitcpio.conf.d/nvidia.conf
   cat > /etc/mkinitcpio.conf.d/omarchy-n1x-nvidia-firmware.conf <<'CONF'
 # N1x: the Blackwell GPU boots its GSP from the ga10x firmware. The nvidia
 # module also lists Turing's (tu10x), which only Turing GPUs load: leave it out
@@ -174,7 +175,7 @@ HOOKS=("${_omarchy_n1x_hooks[@]}")
 unset _omarchy_n1x_hooks _omarchy_n1x_hook
 CONF
 else
-  echo "N1x firmware $bios_version: GPU firmware cannot boot on this BIOS; keeping the NVIDIA stack unloaded"
+  echo "N1x firmware $bios_version: GPU cannot run on this machine; keeping the NVIDIA stack unloaded"
   rm -f /etc/limine-entry-tool.d/00-omarchy-n1x-gpu.conf \
     /etc/mkinitcpio.conf.d/zz-omarchy-n1x-boot-brightness.conf \
     /etc/mkinitcpio.conf.d/omarchy-n1x-nvidia-firmware.conf

@@ -66,6 +66,37 @@ write_sysfs "" "0x8086:0x1234"
 assert_fails hw_n1x "an unrelated machine is not N1x"
 fi
 
+# Without n1x_carveout_memmap in the kernel it boots, the Surface Laptop Ultra's
+# GPU resets the SoC, so the helper has to fail and leave the stack unloaded.
+gpu_modules() {
+  local product=$1 shim="$tmp_dir/gpu-bin"
+  mkdir -p "$shim"
+  # omarchy-hw-match reads the fixed /sys/class/dmi/id.
+  printf '#!/bin/bash\ngrep -qi -- "$1" <<<%q\n' "$product" >"$shim/omarchy-hw-match"
+  chmod +x "$shim/omarchy-hw-match"
+  PATH="$shim:$ROOT/bin:$PATH" OMARCHY_KERNEL_MODULES_DIR="$tmp_dir/modules" "$ROOT/bin/omarchy-n1x-gpu-modules" 2>/dev/null
+}
+write_kernel() {
+  mkdir -p "$tmp_dir/modules/$1/updates/dkms"
+  printf '%s\n' "$2" >"$tmp_dir/modules/$1/pkgbase"
+}
+surface="Microsoft Surface Laptop Ultra"
+nvidia_stack="nvidia nvidia_modeset nvidia_uvm nvidia_drm"
+
+write_kernel 7.3-omarchy linux-omarchy
+write_kernel 7.3-other linux-other
+touch "$tmp_dir/modules/7.3-other/updates/dkms/n1x_carveout_memmap.ko.zst"
+assert_fails gpu_modules "$surface" "a Surface Laptop Ultra without n1x_carveout_memmap for linux-omarchy keeps the GPU off"
+
+[[ $(gpu_modules "XPS 16 DX16263") == "$nvidia_stack" ]] &&
+  pass "other N1x laptops load the NVIDIA stack alone" ||
+  fail "other N1x laptops load the NVIDIA stack alone"
+
+mv "$tmp_dir/modules/7.3-other/updates/dkms/n1x_carveout_memmap.ko.zst" "$tmp_dir/modules/7.3-omarchy/updates/dkms/"
+[[ $(gpu_modules "$surface") == "n1x_carveout_memmap $nvidia_stack" ]] &&
+  pass "a Surface Laptop Ultra loads n1x_carveout_memmap before the NVIDIA stack" ||
+  fail "a Surface Laptop Ultra loads n1x_carveout_memmap before the NVIDIA stack"
+
 hooks_conf="$ROOT/etc/mkinitcpio.conf.d/omarchy_hooks.conf"
 # mkinitcpio sources the platform's HOOKS baseline before the adjustments.
 hooks_have_plymouth() {
