@@ -531,6 +531,9 @@ local function watch()
 
   watching = true
 
+  local active = hl.get_active_window()
+  focused = active and active.address
+
   input.follow_mouse = hl.get_config("input.follow_mouse")
 
   hl.on("window.open", function(window)
@@ -687,6 +690,9 @@ local function titlebars()
     },
   })
 
+  -- A titlebar over an app's own frame would be a second header.
+  hl.window_rule({ match = { class = o.self_framed_apps }, ["hyprbars:no_bar"] = true })
+
   for _, button in ipairs({
     { icon = "×", action = "hyprctl dispatch 'hl.dsp.window.close({ " .. window .. " })'" },
     { icon = "□", action = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\", " .. window .. " })'" },
@@ -758,7 +764,13 @@ set_up_floating = function()
     o.window({ tag = WORKSPACE_TAG }, { no_shadow = false })
   end
 
-  o.window({ tag = WORKSPACE_TAG }, { opacity = "1.0 override 1.0 override" })
+  -- Glassy windows are see-through everywhere, floating workspaces included.
+  local glassy = io.open(paths.state_home .. "/omarchy/toggles/hypr/window-glassy.lua", "r")
+  if glassy then
+    glassy:close()
+  else
+    o.window({ tag = WORKSPACE_TAG }, { opacity = "1.0 override 1.0 override" })
+  end
 
   titlebars()
 end

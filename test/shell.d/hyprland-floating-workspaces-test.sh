@@ -4,6 +4,9 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
+# Reload this session's Hyprland, as a desktop does, even when run over ssh.
+export HYPRLAND_INSTANCE_SIGNATURE=test
+
 require_command lua
 require_command jq
 
@@ -261,6 +264,7 @@ io.open = function(path, mode)
 end
 
 hl = {
+  get_active_window = function() end,
   workspace_rule = function() end,
   window_rule = function(rule) table.insert(rules, rule) end,
   get_workspace_windows = function(selector)

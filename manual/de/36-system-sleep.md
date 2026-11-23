@@ -1,21 +1,21 @@
-# Ruhezustand des Systems
+# Ruhezustand
 
-Omarchy aktiviert standardmäßig den Bereitschaftsmodus und den Ruhezustand, aber wenn du Probleme mit einem von beiden auf deinem Rechner hast, kannst du sie deaktivieren.
+Omarchy aktiviert standardmäßig den Bereitschaftsmodus und den Ruhezustand, sobald er eingerichtet ist, aber wenn du mit einem der beiden auf deiner Maschine Probleme hast, kannst du sie deaktivieren.
 
-Auf NVIDIA GB10-Rechnern wie der DGX Spark und dem ASUS Ascent GX10 sind der Bereitschaftsmodus und der Ruhezustand deaktiviert, genau wie in NVIDIAs DGX OS, weil noch nicht nachgewiesen wurde, dass der Ruhezustand auf dieser Hardware funktioniert. Der Schalter für den Bereitschaftsmodus und die Einrichtung des Ruhezustands gelten dort nicht. Um den Ruhezustand wieder einzuschalten, entferne `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` mit `sudo rm`; Suspend erscheint dann wieder im Menü, und der Ruhezustand kann wie auf anderen Rechnern eingerichtet werden. Wenn du `sudo omarchy apply hardware --install-user "$USER"` ausführst, wird die Datei wiederhergestellt.
+Auf NVIDIA GB10-Maschinen wie dem DGX Spark und dem ASUS Ascent GX10 sind Bereitschaftsmodus und Ruhezustand deaktiviert, so wie in NVIDIAs DGX OS, weil der Ruhezustand auf dieser Hardware bislang nicht nachweislich funktioniert. Dasselbe gilt für das ASUS Zenbook A16 (UX3607OA), bei dem der Bereitschaftsmodus den Chip noch nicht vollständig in den Ruhezustand versetzt und über Nacht hängen bleiben kann. Der Umschalter für den Bereitschaftsmodus und die Einrichtung des Ruhezustands gelten dort nicht. Um den Ruhezustand wieder einzuschalten, entferne `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` mit `sudo rm`; Bereitschaft kehrt dann ins Menü zurück, und der Ruhezustand kann wie auf anderen Maschinen eingerichtet werden. Mit `sudo omarchy apply hardware --install-user "$USER"` wird die Datei wiederhergestellt.
 
 ### Energieprofile
 
-Auf einem Laptop merkt sich Omarchy dein Energieprofil getrennt für den Betrieb am Netzstrom und im Akkubetrieb und wechselt zwischen beiden, wenn du das Netzteil ein- oder aussteckst. Standardmäßig bedeutet das Leistung bei Netzstrom und Ausgewogen im Akkubetrieb.
+Auf einem Laptop merkt sich Omarchy dein Energieprofil getrennt für den Netzbetrieb und den Akkubetrieb und wechselt beim Einstecken und Abstecken zwischen beiden. Ab Werk bedeutet das Leistung im Netzbetrieb und ausgewogen im Akkubetrieb.
 
-Du kannst dir mit `omarchy powerprofiles list` anzeigen lassen, was dein Rechner anbietet, und mit `omarchy powerprofiles set autodetect power-saver` das gewünschte Profil für den Zustand festlegen, in dem du dich gerade befindest. Um den anderen Zustand festzulegen, ohne irgendetwas auszustecken, benenne ihn direkt: `omarchy powerprofiles set battery power-saver`. Was auch immer du auswählst, bekommst du beim nächsten Mal in diesem Zustand wieder.
+Du siehst, was deine Maschine anbietet, mit `omarchy powerprofiles list`, und legst das gewünschte Profil für den Zustand, in dem du dich gerade befindest, mit `omarchy powerprofiles set autodetect power-saver` fest. Um den anderen Zustand festzulegen, ohne irgendetwas abzustecken, nenne ihn direkt: `omarchy powerprofiles set battery power-saver`. Was auch immer du auswählst, bekommst du beim nächsten Mal in diesem Zustand auch wieder.
 
 ### Bereitschaftsmodus umschalten
 
-Du schaltest den Bereitschaftsmodus um, indem du `omarchy toggle suspend` im Terminal ausführst. Dadurch wird die Option unter _System_ (oder `Super + Esc`) nur ein- bzw. ausgeblendet, und dann kannst du sehen, ob sie auf deinem System zuverlässig funktioniert. Wenn nicht, kannst du sie mit demselben Befehl wieder ausblenden.
+Du schaltest den Bereitschaftsmodus um, indem du `omarchy toggle suspend` im Terminal ausführst. Das zeigt/verbirgt nur die Option unter _System_ (oder `Super + Esc`), und dann kannst du sehen, ob sie auf deinem System zuverlässig funktioniert. Wenn nicht, kannst du sie mit demselben Befehl wieder ausblenden.
 
 ### Ruhezustand umschalten
 
-Du richtest den Ruhezustand ein, indem du `omarchy hibernation setup` im Terminal ausführst. Der Ruhezustand erstellt ein /swap-Subvolume auf deinem Boot-Laufwerk in der Größe deiner physischen RAM-Ausstattung, also stelle sicher, dass du reichlich freien Platz hast. Auf einem 32GB-Rechner brauchst du für dieses Volume immer 32GB+ frei. Der Ruhezustand erfordert außerdem den standardmäßigen Limine-Bootloader.
+Du richtest den Ruhezustand ein, indem du `omarchy hibernation setup` im Terminal ausführst (auf Apple Silicon Macs ist er nicht verfügbar). Der Ruhezustand erstellt ein /swap-Subvolume auf deinem Boot-Laufwerk in der Größe deines physischen RAM, stelle also sicher, dass du reichlich Platz übrig hast. Auf einer 32GB-Maschine brauchst du für dieses Volume immer 32GB+ frei. Der Ruhezustand erfordert außerdem den standardmäßigen Limine-Bootloader.
 
-Wenn er eingerichtet ist, siehst du die Option für den Ruhezustand unter _System_ (oder `Super + Esc`), und dann kannst du sehen, ob er auf deinem System zuverlässig funktioniert. Wenn nicht, kannst du ihn wieder entfernen, indem du `omarchy hibernation remove` ausführst.
+Wenn er eingerichtet ist, siehst du die Ruhezustand-Option unter _System_ (oder `Super + Esc`), und dann kannst du sehen, ob sie auf deinem System zuverlässig funktioniert. Wenn nicht, kannst du ihn wieder entfernen, indem du `omarchy hibernation remove` ausführst.

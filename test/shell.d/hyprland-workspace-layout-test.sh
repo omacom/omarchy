@@ -223,6 +223,7 @@ hl = {
   dsp = { window = { float = function(spec) return spec end, tag = function(spec) return spec end } },
   on = function() end,
   bind = function() end,
+  get_active_window = function() end,
   get_active_workspace = function() return { id = 3 } end,
   get_config = function() end,
   config = function() end,
@@ -360,6 +361,7 @@ hl = {
   bind = function() end,
   -- The move handler waits for the move to land; here it lands at once.
   timer = function(callback) callback() end,
+  get_active_window = function() end,
   get_active_workspace = function() return { id = 3 } end,
   get_config = function(key) return config[key] end,
   config = function(values)
@@ -640,6 +642,11 @@ local function asks_for_focus(target)
   settle()
 end
 
+-- The maximized window has the focus when the mode starts watching, as it does
+-- after a reload.
+maximized = window("0xA", { fullscreen = 1 })
+active = maximized
+
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
 require("default.hypr.helpers")
 require("default.hypr.workspace-layouts")
@@ -649,9 +656,13 @@ settle()
 local bind = binds["mouse:272"]
 assert(not bind or bind.options.non_consuming, "watching clicks kept them from the window under the pointer")
 
-maximized = window("0xA", { fullscreen = 1 })
+-- A link opened from it sends for the browser, and the app taking the focus
+-- right back leaves the browser in front, though no focus change was seen
+-- before that one.
 browser = window("0xB", { tags = { "omarchy-mode-floated" } })
-active = browser
+asks_for_focus(browser)
+asks_for_focus(maximized)
+assert(browser.allowed_over_fullscreen, "an app focused since before a reload hid the browser it opened by taking the focus back")
 
 -- The browser brought up over the maximized window takes a click on itself.
 assert(click() == browser, "a click on the window over the maximized one missed it")
