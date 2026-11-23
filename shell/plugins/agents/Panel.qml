@@ -2051,7 +2051,7 @@ Panel {
           : !!root.deleteTarget && !!root.deleteTarget.localModel ? Commons.I18n.t("common.delete")
           : Commons.I18n.t("common.confirm")
         message: !root.deleteTarget ? ""
-          : unlinks ? Commons.I18n.t("agents.unlinkModelConfirm").arg(root.deleteTarget.providerName).arg(root.deleteTarget.localModel.host)
+          : unlinks ? Commons.I18n.t("agents.unlinkModelConfirm").arg(root.deleteTarget.providerName)
           : root.opensByDefault(root.deleteTarget) ? Commons.I18n.t("agents.removeDefaultLocalModelConfirm").arg(root.deleteTarget.providerName)
           : root.deleteTarget.localModel ? Commons.I18n.t("agents.removeLocalModelConfirm").arg(root.deleteTarget.providerName)
           : root.forgets(root.deleteTarget) ? Commons.I18n.t("agents.forgetAccountConfirm").arg(root.lineName(root.deleteTarget))
