@@ -76,7 +76,8 @@ parse_keycodes() {
       # as the symbol printed on it whichever key the active layout puts it on.
       for (code in keycode_symbol) {
         if (keycode_symbol[code] == "GRAVE") keycode_symbol[code] = "~"
-        if (keycode_symbol[code] == "ASCIICIRCUM") keycode_symbol[code] = "^"
+        if (keycode_symbol[code] == "ASCIICIRCUM" || keycode_symbol[code] == "DEAD_CIRCUMFLEX") keycode_symbol[code] = "^"
+        if (keycode_symbol[code] == "ONEHALF") keycode_symbol[code] = "½"
       }
 
       mouse_symbol["272"] = "LEFT MOUSE BUTTON"
