@@ -172,6 +172,16 @@ for zone in ZONES:
     expect(f"a quota window keeps an unknown or valid reset, and its meter, whatever the reset says ({zone})",
            seen, [(expected, [(expected, 0.25)]) for _, expected in RESETS])
 
+# An answer without a Gemini group, as Ultra's is, gives the plan no windows;
+# the Claude and GPT buckets never stand in for them.
+third_party = {"displayName": "Claude and GPT models", "buckets": [
+  {"bucketId": "3p-weekly", "window": "weekly", "remainingFraction": 0.5, "resetTime": "2026-10-02T11:00:00Z"},
+  {"bucketId": "3p-5h", "window": "5h", "remainingFraction": 1},
+]}
+expect("a quota answer without a Gemini group gives the plan no windows",
+       [(entry["title"], entry["percent"]) for entry in collector.extract_limits({"groups": [third_party]})],
+       [("Claude/GPT Weekly", 0.5)])
+
 # ------------------------------------------------------------ the command
 
 # The collector run as a command in each zone: local history alone puts

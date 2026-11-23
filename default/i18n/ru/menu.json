@@ -26,11 +26,11 @@
   "update": {
     "label": "Обновление"
   },
-  "about": {
-    "label": "О программе"
-  },
   "system": {
     "label": "Система"
+  },
+  "system.about": {
+    "label": "О программе"
   },
   "system.screensaver": {
     "label": "Заставка"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Ввод"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Язык"
+  },
+  "setup.region.timezone": {
+    "label": "Часовой пояс"
   },
   "setup.network": {
     "label": "Сеть"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "По умолчанию"
-  },
-  "agent": {
-    "label": "Агент"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Браузер",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Прямая загрузка"
-  },
-  "setup.reset": {
-    "label": "Сбросить компьютер"
+  "remove.factory-reset": {
+    "label": "Сброс к заводским"
   },
   "install.package": {
     "label": "Пакет"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "Пароль"
   },
-  "update.timezone": {
-    "label": "Часовой пояс"
-  },
   "update.time": {
     "label": "Время"
   },
@@ -1131,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "Трекпад"
-  },
-  "update.password.drive": {
-    "label": "Шифрование диска"
-  },
-  "update.password.user": {
-    "label": "Пользователь"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Показать % батареи"
@@ -1228,34 +1171,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Выключить сенсорный экран"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "Обычный"
   },
-  "agent.harness": {
-    "label": "Харнесс",
-    "title": "Харнесс по умолчанию"
-  },
-  "agent.instructions": {
-    "label": "Инструкции"
-  },
-  "agent.make": {
-    "label": "Создать что-то"
-  },
-  "agent.make.theme": {
-    "label": "Создать тему"
-  },
-  "agent.make.plugin": {
-    "label": "Создать плагин"
-  },
-  "agent.make.app": {
-    "label": "Создать приложение"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Значки"
+  },
+  "install.style.icons": {
+    "label": "Значки"
+  },
+  "remove.icons": {
+    "label": "Значки"
+  },
+  "update.icons": {
+    "label": "Дополнительные значки"
+  },
+  "system.firmware": {
+    "label": "Перезагрузка в BIOS",
+    "description": "Перезагрузка в настройки прошивки UEFI"
+  },
+  "setup.region": {
+    "label": "Регион"
+  },
+  "setup.region.formats": {
+    "label": "Форматы",
+    "description": "Как отображаются даты, время, числа и единицы измерения"
+  },
+  "install.gaming.vibes": {
+    "label": "Игровой вайб"
+  },
+  "remove.gaming.vibes": {
+    "label": "Игра «Игровой вайб»"
+  },
+  "update.games": {
+    "label": "Игры «Игровой вайб»"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Имя хоста"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

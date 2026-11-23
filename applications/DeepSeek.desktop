@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Name=DeepSeek
+Exec=omarchy-launch-webapp https://chat.deepseek.com/
+StartupWMClass=chrome-chat.deepseek.com__-Default
+Terminal=false
+Type=Application
+Icon=omarchy-agent-dsh
+StartupNotify=true

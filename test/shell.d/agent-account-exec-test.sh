@@ -58,6 +58,7 @@ cp "$ROOT/etc/mise/conf.d/omarchy-agent-accounts.toml" "$mise_system_config/conf
 run_isolated() {
   env -i HOME="$account_test_home" \
     XDG_CONFIG_HOME="$test_tmp/config" XDG_DATA_HOME="$test_tmp/data" XDG_CACHE_HOME="$test_tmp/cache" \
+    XDG_RUNTIME_DIR="$test_tmp/runtime" \
     MISE_DATA_DIR="$mise_data" MISE_SYSTEM_CONFIG_DIR="$mise_system_config" MISE_OFFLINE=1 \
     OMARCHY_PATH="$ROOT" PATH="$mise_data/command-wrappers/bin:$ROOT/bin:$real_bin:/usr/bin" \
     "$@"
@@ -125,8 +126,16 @@ for provider in claude codex grok; do
   pass "$provider new sessions preserve explicit account overrides"
 
   select_account "$provider" side
-  output=$(run_isolated omarchy-agent-account-add --reauth :primary "$provider" </dev/null)
-  grep -Fxq default <<<"$output" || fail "$provider primary reauthentication bypasses the active side account" "$output"
+  if [[ $provider == "claude" ]]; then
+    # Claude signs in to a scratch home, then installs the login where the
+    # account's is; this fake CLI saves none, so the install refuses.
+    output=$(run_isolated omarchy-agent-account-add --reauth :primary "$provider" </dev/null 2>&1 || true)
+    grep -q "/claude/.pending/login-" <<<"$output" && ! grep -Fq "$account_dir" <<<"$output" ||
+      fail "$provider primary reauthentication bypasses the active side account" "$output"
+  else
+    output=$(run_isolated omarchy-agent-account-add --reauth :primary "$provider" </dev/null)
+    grep -Fxq default <<<"$output" || fail "$provider primary reauthentication bypasses the active side account" "$output"
+  fi
   pass "$provider primary reauthentication bypasses the active side account"
 
   rm "$registry_dir/$provider.json"

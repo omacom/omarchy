@@ -12,6 +12,9 @@ Item {
   id: root
 
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
+  // The shell that owns this library; launch feedback drives the OSD plugin
+  // through it in-process rather than through a spawned omarchy-shell call.
+  property var shell: null
 
   property var configuredHiddenEntryIds: ({})
   property var desktopHiddenEntryIds: ({})
@@ -44,14 +47,19 @@ Item {
   property int launchToplevelCount: 0
   property var launchActiveToplevel: null
   // True while the launch OSD is on screen. It outlives the launch that opened
-  // it: the OSD shows with duration 0, so only closeLaunchFeedback() takes it
-  // down.
+  // it: closeLaunchFeedback() normally takes it down, and its own duration
+  // (the rest of launchTimeout) dismisses it if a show lands after that close.
   property bool launchOsdOpen: false
   property string launchOsdMessage: ""
 
   // Emitted whenever the visible application set may have changed: desktop
   // entries appeared or vanished, or the hidden-entry filters reloaded.
   signal appsChanged()
+
+  // Emitted when removing an entry has to open a terminal (a package
+  // uninstall asking for a password), so an open launcher can step aside.
+  // Other removals happen in place and the entry just drops out of the list.
+  signal removalNeedsTerminal()
 
   function entryName(entry) {
     return AppSearch.entryName(entry)
@@ -132,7 +140,22 @@ Item {
   function remove(desktopId, name) {
     var id = String(desktopId || "")
     if (!id) return
-    Util.execDetached(Util.shellQuote(root.omarchyPath + "/bin/omarchy-remove-launcher-entry") + " " + Util.shellQuote(id) + " " + Util.shellQuote(String(name || id)))
+    // The login shell gives the removal commands the session PATH.
+    removal.createObject(root, {
+      command: ["bash", "-lc", 'exec "$@"', "bash", root.omarchyPath + "/bin/omarchy-remove-launcher-entry", id, String(name || id)],
+      running: true
+    })
+  }
+
+  Component {
+    id: removal
+
+    Process {
+      stdout: SplitParser {
+        onRead: function(line) { if (line === "terminal") root.removalNeedsTerminal() }
+      }
+      onExited: destroy()
+    }
   }
 
   function normalizeDesktopId(id) {
@@ -227,7 +250,7 @@ Item {
     launchDelay.stop()
     launchTimeout.stop()
     if (root.launchOsdOpen) {
-      Quickshell.execDetached(["omarchy-shell", "osd", "close"])
+      root.shell.hide("omarchy.osd")
       root.launchOsdOpen = false
     }
   }
@@ -327,7 +350,7 @@ Item {
     onTriggered: {
       if (root.toplevelCount() > root.launchToplevelCount || ToplevelManager.activeToplevel !== root.launchActiveToplevel) return
       root.launchOsdOpen = true
-      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 0 })])
+      root.shell.summon("omarchy.osd", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: launchTimeout.interval - launchDelay.interval }))
     }
   }
 

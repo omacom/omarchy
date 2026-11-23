@@ -33,6 +33,8 @@ SPEND = {"name": "accounts/example/quotas/monthly-spend-usd", "usage": 7.5, "val
 # Today's rated cost, the only day this month with any.
 COSTS = {"rows": [{"dimensions": {"startTime": TODAY + "T00:00:00Z"}, "subtotal": {"units": "1", "nanos": 250000000}}]}
 DAYS = [0.0] * 29 + [1.25]
+# Fireworks counts its days in UTC, so its spend is dated through today in UTC.
+TODAY_UTC = datetime.now(timezone.utc).date().isoformat()
 # The bare account route goes last: routes match by substring, in order.
 ROUTES = {
   "/quotas/monthly-spend-usd": SPEND,
@@ -109,7 +111,7 @@ expect("the record is account-wide, on its rate-limit tier, with tokens and no p
        {key: fresh.get(key) for key in ("ready", "hasPromptStats", "scope", "tierLabel", "limits", "todayTotalTokens", "hasLocalStats")},
        {"ready": True, "hasPromptStats": False, "scope": "account", "tierLabel": "Tier 2", "limits": [], "todayTotalTokens": 120, "hasLocalStats": True}, fresh)
 expect("this month's spend is read against the tier's monthly cap, with each day's cost", fresh["spend"],
-       {"amount": 7.5, "cap": 50.0, "currency": "USD", "days": DAYS}, fresh)
+       {"amount": 7.5, "cap": 50.0, "currency": "USD", "days": DAYS, "through": TODAY_UTC, "utc": True}, fresh)
 
 # The usage rows are this record's stats, reused like a local scan: briefly
 # on a normal run and for 15 minutes on the near-limit refresh, which probes
@@ -130,21 +132,21 @@ expect("a minute-old answer serves --limits-only its usage but not its spend, an
 sandbox()
 signed_in()
 record = fireworks(routes=dict(ROUTES, **{"/quotas/monthly-spend-usd": dict(SPEND, value="9999999")}))
-expect("an uncapped account's spend is the last 30 days' total, with no cap", record["spend"], {"amount": 1.25, "cap": 0.0, "currency": "USD", "days": DAYS}, record)
+expect("an uncapped account's spend is the last 30 days' total, with no cap", record["spend"], {"amount": 1.25, "cap": 0.0, "currency": "USD", "days": DAYS, "through": TODAY_UTC, "utc": True}, record)
 
 # A quota that can't be read keeps the last good spend, stale; with nothing
 # kept there is no spend, and the tokens still show.
 record = fireworks(routes=dict(ROUTES, **{"/quotas/monthly-spend-usd": {"value": "50"}}))
 expect("an unreadable quota keeps the last spend, stale",
        [record["spend"], record["limitsStale"], record["usageStatusText"], "unreadable" in record["authHelpText"]],
-       [{"amount": 1.25, "cap": 0.0, "currency": "USD", "days": DAYS}, True, "", True], record)
+       [{"amount": 1.25, "cap": 0.0, "currency": "USD", "days": DAYS, "through": TODAY_UTC, "utc": True}, True, "", True], record)
 # A day's cost that can't be read is no answer, not a day that cost nothing.
 for subtotal in ({"units": "bad"}, {"units": "NaN"}, {"units": True}, {"units": False}, {"units": ""}, {"nanos": []}, {"units": 10 ** 400}, None):
   record = fireworks(routes=dict(ROUTES, **{"/quotas/monthly-spend-usd": dict(SPEND, value="9999999"),
                                             "/usageCosts:query": {"rows": [{"dimensions": {"startTime": TODAY + "T00:00:00Z"}, "subtotal": subtotal}]}}))
   expect(f"an unreadable day's cost ({subtotal}) keeps the last spend, stale",
          [record["spend"], record["limitsStale"], "unreadable" in record["authHelpText"]],
-         [{"amount": 1.25, "cap": 0.0, "currency": "USD", "days": DAYS}, True, True], record)
+         [{"amount": 1.25, "cap": 0.0, "currency": "USD", "days": DAYS, "through": TODAY_UTC, "utc": True}, True, True], record)
 for path in limits_cache_files("fireworks"):
   path.unlink()
 # A key refused the quota still reads its daily costs, so it gets the 30
@@ -152,13 +154,13 @@ for path in limits_cache_files("fireworks"):
 record = fireworks(routes=dict(ROUTES, **{"/quotas/monthly-spend-usd": 403}))
 expect("a key that can't read the quota shows the last 30 days with no cap",
        [record.get("spend"), record["limitsStale"], record["authHelpText"]],
-       [{"amount": 1.25, "cap": 0.0, "currency": "USD", "days": DAYS}, False, ""], record)
+       [{"amount": 1.25, "cap": 0.0, "currency": "USD", "days": DAYS, "through": TODAY_UTC, "utc": True}, False, ""], record)
 # A cap the account had is still its cap: a refused quota keeps it, stale.
 fireworks()
 record = fireworks(routes=dict(ROUTES, **{"/quotas/monthly-spend-usd": 403}))
 expect("a refused quota keeps a known cap, stale",
        [record.get("spend"), record["limitsStale"], record["authHelpText"]],
-       [{"amount": 7.5, "cap": 50.0, "currency": "USD", "days": DAYS}, True, "The Fireworks API key cannot read billing data"], record)
+       [{"amount": 7.5, "cap": 50.0, "currency": "USD", "days": DAYS, "through": TODAY_UTC, "utc": True}, True, "The Fireworks API key cannot read billing data"], record)
 # A kept answer is read back from disk: one whose cap is no positive number
 # is no cap, and never fails the record.
 module = load_collector("fireworks")

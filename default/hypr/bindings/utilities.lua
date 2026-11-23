@@ -1,3 +1,5 @@
+local keyboard = require("default.hypr.keyboard")
+
 o.bind("SUPER + SPACE", "Omarchy menu", { menu = "root" })
 o.bind("SUPER + ALT + SPACE", "Apps", "omarchy-shell omarchy.dock apps")
 o.bind("SUPER + CTRL + E", "Emojis", { panel = "omarchy.emojis" })
@@ -36,9 +38,13 @@ o.bind("switch:off:Lid Switch", nil, "omarchy-hyprland-monitor-clamshell", { loc
 -- Apple Silicon reports its lid through the SMC, under its own switch name.
 o.bind("switch:on:Apple SMC power/lid events", nil, "omarchy-system-lid-close", { locked = true })
 o.bind("switch:off:Apple SMC power/lid events", nil, "omarchy-hyprland-monitor-clamshell", { locked = true })
+-- ChromeOS EC laptops (Googlebooks, Chromebooks) report their lid through cros_ec_buttons.
+o.bind("switch:on:cros_ec_buttons", nil, "omarchy-system-lid-close", { locked = true })
+o.bind("switch:off:cros_ec_buttons", nil, "omarchy-hyprland-monitor-clamshell", { locked = true })
 
 o.bind("PRINT", "Screenshot", "omarchy-capture-screenshot")
 o.bind("SUPER + CTRL + ALT + C", "Screenshot", "omarchy-capture-screenshot")
+o.bind("SUPER + SHIFT + CTRL + ALT + C", "Screenrecording with no audio", "omarchy-capture-screenrecording")
 o.bind("ALT + PRINT", "Screenrecording", "omarchy-capture-screenrecording --stop-recording || omarchy-menu toggle trigger.capture.screenrecord")
 o.bind("SUPER + ALT + code:34", "Make webcam overlay smaller", "omarchy-capture-webcam-resize smaller")
 o.bind("SUPER + ALT + code:35", "Make webcam overlay larger", "omarchy-capture-webcam-resize larger")
@@ -99,7 +105,7 @@ end)
 
 o.bind("SUPER + CTRL + S", "Share", { menu = "share" })
 
-o.bind("SUPER + CTRL + PERIOD", "Transcode", "omarchy-transcode")
+o.bind("SUPER + CTRL + " .. keyboard.key("PERIOD"), "Transcode", "omarchy-transcode")
 
 o.bind("SUPER + CTRL + R", "Set reminder", { menu = "reminder-set" })
 o.bind("SUPER + CTRL + ALT + R", "Show reminders", "omarchy-reminder show")
@@ -118,6 +124,7 @@ o.bind("SUPER + CTRL + ALT + E", "World clock", { panel = "omarchy.elsewhen" })
 o.bind("SUPER + CTRL + N", "Network", { panel = "omarchy.network" })
 o.bind("SUPER + CTRL + P", "Power", { panel = "omarchy.power" })
 o.bind("SUPER + CTRL + X", "Agents", { panel = "omarchy.agents" })
+o.bind("SUPER + CTRL + ALT + X", "Local models", { panel = "omarchy.local-models" })
 o.bind("SUPER + SHIFT + T", "Activity", { tui = "btop" })
 
 -- The letters above name a panel; the numbers count them. 1 is the leftmost
