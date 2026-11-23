@@ -17,6 +17,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 # drop-in needs a row: the grant it carries is reviewed here or nowhere.
 declare -A expected=(
   [omarchy-dns]='%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-dns Cloudflare, /usr/bin/omarchy-dns Google, /usr/bin/omarchy-dns AliDNS, /usr/bin/omarchy-dns DHCP'
+  [omarchy-drop-caches]='%wheel ALL=(root) NOPASSWD: /usr/bin/sysctl vm.drop_caches\=3'
   [omarchy-locale-generate]="%wheel ALL=(root) NOPASSWD: $(jq -rs 'add | keys | map("/usr/bin/omarchy-locale-generate " + .) | join(", ")' "$registry" "$ROOT/default/i18n/regions.json")"
   [omarchy-passwd-tries]='Defaults passwd_tries=10'
   [omarchy-sudo-timeout]='Defaults timestamp_timeout=10'

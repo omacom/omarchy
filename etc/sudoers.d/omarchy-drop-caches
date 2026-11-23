@@ -1,0 +1,6 @@
+# Local models drop the page cache before a start that needs the memory it
+# holds (omarchy-local-ai's drop_page_cache), and the panel and apps start them
+# with no terminal to carry a password. The rule names the one setting and
+# value: sudoers matches arguments exactly, so it can't set any other sysctl.
+# The "=" is escaped because sudoers reads it as a separator.
+%wheel ALL=(root) NOPASSWD: /usr/bin/sysctl vm.drop_caches\=3
