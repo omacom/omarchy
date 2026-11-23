@@ -2049,6 +2049,119 @@ def read_claude_code_transcript(path: Path, entry: dict[str, Any] | None) -> dic
   }
 
 
+def _claude_code_owner_possible(owner: str, base_url: str) -> bool:
+  """Whether `claude_code_owner()` can return `owner` for any model under
+  `base_url`. When False, no reply or prompt in Claude Code can bill `owner`."""
+  endpoint = claude_code_endpoint(base_url)
+  if endpoint not in ("", "local", "other"):
+    return owner == endpoint
+  if owner in ("claude", "ollama"):
+    return True
+  if endpoint == "local":
+    return owner == "local"
+  if endpoint == "other":
+    return False
+  return any(mapped == owner for _, mapped in CLAUDE_CODE_MODEL_OWNERS)
+
+
+def _claude_code_meta_path(index_file: Path) -> Path:
+  """Small sidecar beside `index_file` holding the transcript stat digest and
+  distinct model names, so collectors with no models in Claude Code skip
+  parsing the full index."""
+  name = index_file.name
+  if name.startswith("claude-index-"):
+    return index_file.with_name(name.replace("claude-index-", "claude-models-", 1))
+  return index_file.with_name(name + ".models")
+
+
+def _claude_code_files_digest(files: list[Path]) -> str | None:
+  """Digest of every transcript's path, size, and mtime, or None when any
+  transcript cannot be stat'd."""
+  hasher = hashlib.sha1()
+  for path in sorted(files, key=str):
+    try:
+      info = path.stat()
+    except OSError:
+      return None
+    hasher.update(f"{path}\0{info.st_size}\0{info.st_mtime_ns}\n".encode("utf-8", "surrogatepass"))
+  return hasher.hexdigest()
+
+
+def _claude_code_index_digest(index: dict[str, Any]) -> str:
+  """Same digest as `_claude_code_files_digest()`, computed from the stat
+  entries stored in `index` so the sidecar matches exactly what was read."""
+  hasher = hashlib.sha1()
+  for key in sorted(index):
+    entry = index[key]
+    hasher.update(f"{key}\0{entry.get('size')}\0{entry.get('mtime')}\n".encode("utf-8", "surrogatepass"))
+  return hasher.hexdigest()
+
+
+def _claude_code_index_models(index: dict[str, Any]) -> tuple[list[str], bool]:
+  """Every distinct model name present in `index` (plus whether any prompt has
+  model None), covering every call `claude_code_usage()` makes to
+  `claude_code_owner()`."""
+  models: set[str] = set()
+  has_none = False
+  for entry in index.values():
+    for record in entry.get("records") or ():
+      model = record[1]
+      if model is None:
+        has_none = True
+      else:
+        models.add(model)
+    for prompt in entry.get("prompts") or ():
+      model = prompt[3]
+      if model is None:
+        has_none = True
+      else:
+        models.add(model)
+    for cost in entry.get("costs") or ():
+      for model in (cost[4] or ()):
+        if model is None:
+          has_none = True
+        else:
+          models.add(model)
+  return sorted(models), has_none
+
+
+def _claude_code_meta_matches(meta: dict[str, Any], index_stamp: tuple[int, int, int] | None, files_digest: str | None) -> bool:
+  return (
+    index_stamp is not None
+    and files_digest is not None
+    and meta.get("version") == CLAUDE_CODE_INDEX_VERSION
+    and meta.get("zone") == _claude_code_index_zone()
+    and meta.get("indexStamp") == list(index_stamp)
+    and meta.get("filesDigest") == files_digest
+    and isinstance(meta.get("models"), list)
+    and isinstance(meta.get("hasNone"), bool)
+  )
+
+
+def _claude_code_meta_has_owner(meta: dict[str, Any], owner: str, base_url: str) -> bool:
+  if meta.get("hasNone") and claude_code_owner(None, base_url) == owner:
+    return True
+  return any(claude_code_owner(model, base_url) == owner for model in meta.get("models") or ())
+
+
+def _claude_code_write_meta(meta_file: Path, index_file: Path, files_digest: str | None, index: dict[str, Any]) -> None:
+  stamp = _claude_code_index_stamp(index_file)
+  if stamp is None or files_digest is None:
+    return
+  models, has_none = _claude_code_index_models(index)
+  try:
+    write_json(meta_file, {
+      "version": CLAUDE_CODE_INDEX_VERSION,
+      "zone": _claude_code_index_zone(),
+      "indexStamp": list(stamp),
+      "filesDigest": files_digest,
+      "models": models,
+      "hasNone": has_none,
+    })
+  except Exception as exc:
+    warn(f"could not write the Claude scan summary {meta_file} ({exc})")
+
+
 def _claude_code_index_stamp(index_file: Path) -> tuple[int, int, int] | None:
   """Which index file is there now: a write replaces it whole."""
   try:
@@ -2142,6 +2255,8 @@ def claude_code_usage(
     projects = claude_code_dir() / "projects"
   if base_url is None:
     base_url = claude_code_base_url(projects.parent)
+  if not reread and not _claude_code_owner_possible(owner, base_url):
+    return [], True
   if index_file is _DEFAULT_INDEX:
     try:
       index_file = claude_code_index_path(projects)
@@ -2150,8 +2265,11 @@ def claude_code_usage(
       index_file = None
   # Every collector reading Claude Code runs at once (the update command
   # backgrounds one per agent), so one of them brings the index up to date
-  # while the others wait on its lock and then find nothing left to read. An
-  # index that already answers for every transcript is read without waiting.
+  # while the others wait on its lock and then find nothing left to read. A
+  # tiny sidecar beside the index carries the transcript stat digest and
+  # distinct model names so collectors with no models here skip loading the
+  # full index entirely, and writers lock before loading so waiting readers
+  # never deserialize a stale index twice.
   # Directory order, as before: when one API message shows up in several
   # transcripts with the same output count, the last file visited wins, and
   # the numbers must not move because the scan got faster.
@@ -2160,6 +2278,17 @@ def claude_code_usage(
     current, order, complete = _claude_code_read_transcripts(files, {})
   else:
     lock_file = index_file.with_name(index_file.name + ".lock")
+    meta_file = _claude_code_meta_path(index_file)
+
+    def meta_ready() -> tuple[bool, bool]:
+      if reread:
+        return False, True
+      digest = _claude_code_files_digest(files)
+      stamp = _claude_code_index_stamp(index_file)
+      meta = read_json(meta_file)
+      if not _claude_code_meta_matches(meta, stamp, digest):
+        return False, True
+      return True, _claude_code_meta_has_owner(meta, owner, base_url)
 
     def build(previous: dict[str, Any]) -> tuple[dict[str, Any], list[str], bool]:
       current, order, complete = _claude_code_read_transcripts(files, previous)
@@ -2168,24 +2297,31 @@ def claude_code_usage(
           write_json(index_file, {"version": CLAUDE_CODE_INDEX_VERSION, "zone": _claude_code_index_zone(), "files": current}, sort_keys=True)
         except Exception as exc:
           warn(f"could not write the Claude scan index {index_file} ({exc})")
+      if complete:
+        _claude_code_write_meta(meta_file, index_file, _claude_code_index_digest(current), current)
       return current, order, complete
 
-    loaded = _claude_code_index_stamp(index_file)
-    previous = {} if reread else _claude_code_load_index(index_file)
-    built = None
-    if reread or not _claude_code_index_fresh(previous, files):
+    fresh, has_owner = meta_ready()
+    if fresh and not has_owner:
+      return [], True
+    if fresh:
+      current, order, complete = _claude_code_load_index(index_file), [str(path) for path in files], True
+    else:
+      built = None
       with exclusive_lock(lock_file):
-        if reread or _claude_code_index_stamp(index_file) == loaded:
-          built = build(previous)
-      # Whoever held the lock wrote the index meanwhile, most likely all
-      # this reader needs.
-      if built is None:
-        previous = _claude_code_load_index(index_file)
-        if not _claude_code_index_fresh(previous, files):
-          with exclusive_lock(lock_file):
-            built = build(_claude_code_load_index(index_file))
-    # An index fresh for every transcript read them all.
-    current, order, complete = built or (previous, [str(path) for path in files], True)
+        # Whoever held the lock meanwhile most likely updated both the index
+        # and its small sidecar, so check the sidecar before loading the index.
+        fresh, has_owner = meta_ready()
+        if fresh and not has_owner:
+          return [], True
+        if not fresh:
+          previous = {} if reread else _claude_code_load_index(index_file)
+          if not reread and _claude_code_index_fresh(previous, files):
+            _claude_code_write_meta(meta_file, index_file, _claude_code_index_digest(previous), previous)
+            built = (previous, [str(path) for path in files], True)
+          else:
+            built = build(previous)
+      current, order, complete = built or (_claude_code_load_index(index_file), [str(path) for path in files], True)
 
   owners: dict[Any, str | None] = {}
 

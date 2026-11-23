@@ -734,4 +734,48 @@ if os.geteuid() != 0:
   expect("Claude does not cache a scan that missed a transcript", record["todayTokensByModel"], {"claude-sonnet-4-5": 340}, record)
 else:
   print("ok - Claude does not cache a scan that missed a transcript # SKIP root reads anything")
+
+# --------------------------------------------------------- owner sidecar
+
+# Routed collectors whose owner cannot be returned under ANTHROPIC_BASE_URL,
+# or whose owner has no models in the Claude index, must skip loading the
+# full index file so parallel collector refreshes do not deserialize it per
+# provider.
+sandbox()
+claude_code_session("only-claude", [("claude-sonnet-4-5", 120)])
+claude()
+proj_root = home() / ".claude" / "projects"
+idx_file = collectors.claude_code_index_path(proj_root)
+meta_file = collectors._claude_code_meta_path(idx_file)
+check("Claude writes a small models sidecar beside the scan index",
+      meta_file.exists() and "claude-sonnet-4-5" in json.loads(meta_file.read_text()).get("models", []),
+      meta_file.exists() and meta_file.read_text())
+
+loads = []
+real_load = collectors._claude_code_load_index
+
+
+def spy_load(path):
+  loads.append(path)
+  return real_load(path)
+
+
+collectors._claude_code_load_index = spy_load
+try:
+  rows_local, ok_local = collectors.claude_code_usage("qwen", proj_root, idx_file, base_url="http://127.0.0.1:8317")
+  rows_direct, ok_direct = collectors.claude_code_usage("deepseek", proj_root, idx_file, base_url="")
+finally:
+  collectors._claude_code_load_index = real_load
+
+expect("an impossible owner and an absent owner skip loading the Claude scan index",
+       [rows_local, ok_local, rows_direct, ok_direct, loads],
+       [[], True, [], True, []])
+
+# Adding a transcript with another provider's model invalidates the sidecar
+# so that collector reads the new rows on the next scan.
+claude_code_session("with-deepseek", [("deepseek-chat", 75)])
+ds_rows, ds_ok = collectors.claude_code_usage("deepseek", proj_root, idx_file, base_url="")
+expect("a new transcript invalidates the sidecar and counts the newly added owner",
+       [ds_ok, sum(r.input_tokens + r.output_tokens for r in ds_rows)],
+       [True, 75], ds_rows)
 PY
