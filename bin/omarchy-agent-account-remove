@@ -48,14 +48,16 @@ if [[ ! $provider =~ ^(agy|claude|codex|copilot|cursor|deepseek|fireworks|grok|m
   exit 1
 fi
 
-# Every OpenCode credential for the integration, as `omarchy agent account
-# add` saves a key there. The export carries the secrets, which stay in the pipe.
+# Every OpenCode credential under the integrations the agent's usage is read
+# from, as `omarchy agent account add` saves a key there. The export carries
+# the secrets, which stay in the pipe.
 opencode_logout() {
-  local integration=$1 ids id
-  ids=$(opencode auth export 2>/dev/null | jq -r --arg integration "$integration" '.[]? | select(.integrationID == $integration) | .id') || return 1
-  for id in $ids; do
+  local credentials integration id
+  credentials=$(opencode auth export 2>/dev/null | jq -r '.[]? | select(.integrationID == ($ARGS.positional[])) | "\(.integrationID)\t\(.id)"' --args "$@") || return 1
+  while IFS=$'\t' read -r integration id; do
+    [[ -n $id ]] || continue
     opencode auth logout "$integration" "$id" >/dev/null 2>&1 || return 1
-  done
+  done <<<"$credentials"
 }
 
 case $provider in
@@ -77,12 +79,10 @@ fi
 
 # Hides the agent in the panel once its last sign-in is gone, so a key it
 # still reads from the environment, pi, or omp doesn't bring it back. Signing
-# in again shows it.
+# in again shows it. The panel makes the change, so removals running at once
+# can't undo each other's.
 hide_in_panel() {
-  local providers
-  providers=$(omarchy-bar get omarchy.agents providers 2>/dev/null) || providers="{}"
-  providers=$(jq -c --arg id "$provider" '.[$id] = ((.[$id] // {}) + {enabled: false})' <<<"$providers") &&
-    omarchy-bar set omarchy.agents providers "$providers" --json >/dev/null 2>&1
+  omarchy-shell omarchy.agents showAgent "$provider" false >/dev/null 2>&1
 }
 
 hides=true
@@ -118,6 +118,9 @@ copilot)
   fi
   ;;
 fireworks) opencode_logout fireworks-ai || exit 1 ;;
+minimax) opencode_logout minimax minimax-cn minimax-coding-plan minimax-cn-coding-plan || exit 1 ;;
+opencode) opencode_logout opencode opencode-go || exit 1 ;;
+zai) opencode_logout zai zhipuai || exit 1 ;;
 *) opencode_logout "$provider" || exit 1 ;;
 esac
 

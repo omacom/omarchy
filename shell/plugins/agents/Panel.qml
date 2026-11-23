@@ -104,19 +104,19 @@ Panel {
                      "remove-account", Commons.I18n.t("agents.removeFailed").arg(lineName(target))].concat(args))
       return
     }
-    if (!bar || !bar.shell) return
-    var hidden = JSON.parse(JSON.stringify(settings || {}))
-    if (!hidden.providers) hidden.providers = {}
-    hidden.providers[target.providerId] = Object.assign({}, hidden.providers[target.providerId] || {}, { enabled: false })
-    bar.shell.updateEntryInline(moduleName, hidden)
+    setProviderShown(target.providerId, false)
   }
 
-  // Signing in to an agent that was hidden from the panel brings it back.
-  function showProvider(id) {
-    if (!bar || !bar.shell || !settings || !settings.providers || !settings.providers[id]
-        || settings.providers[id].enabled !== false) return
-    var next = JSON.parse(JSON.stringify(settings))
-    next.providers[id].enabled = true
+  // Hides an agent from the panel, or shows a hidden one again, as signing in
+  // to it does. The sign-in commands ask for this through showAgent, so the
+  // change is made here, one at a time, on the settings as they are now.
+  function setProviderShown(id, shown) {
+    if (!bar || !bar.shell || id === "") return
+    var current = settings && settings.providers && settings.providers[id]
+    if (shown && (!current || current.enabled !== false)) return
+    var next = JSON.parse(JSON.stringify(settings || {}))
+    if (!next.providers) next.providers = {}
+    next.providers[id] = Object.assign({}, next.providers[id] || {}, { enabled: shown })
     bar.shell.updateEntryInline(moduleName, next)
   }
 
@@ -831,7 +831,7 @@ Panel {
         // account shows once its limits arrive.
         addStage = tagged[1] === "done" ? "" : tagged[1]
         if (tagged[1] === "done") {
-          showProvider(addProvider)
+          setProviderShown(addProvider, true)
           usage.refreshLimits()
           root.focusKeys()
           // Nothing to show yet means the sign-in is what counts as set up.
@@ -1752,6 +1752,7 @@ Panel {
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
     function refresh(): string { root.refreshNow(); return "ok" }
+    function showAgent(id: string, shown: bool): string { root.setProviderShown(id, shown); return "ok" }
   }
 
   BarIconButton {

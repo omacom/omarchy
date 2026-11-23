@@ -105,10 +105,9 @@ SH
 
 # Removing a sign-in hides the agent through the running shell and signs out
 # through the CLIs and the keyring, none of which a test may reach.
-cat >"$mock_bin/omarchy-bar" <<'SH'
+cat >"$mock_bin/omarchy-shell" <<'SH'
 #!/bin/bash
-[[ $1 == "set" ]] && echo "$*" >>"$OMARCHY_TEST_BAR_LOG"
-exit 1
+echo "$*" >>"$OMARCHY_TEST_BAR_LOG"
 SH
 printf '#!/bin/bash\necho "$(basename "$0") $*" >>"$OMARCHY_TEST_LOGOUTS"\n' >"$mock_bin/cursor-agent"
 cp "$mock_bin/cursor-agent" "$mock_bin/muse"
@@ -130,6 +129,9 @@ chmod +x "$mock_bin"/*
 
 export HOME="$test_tmp/home"
 export XDG_STATE_HOME="$test_tmp/state"
+# No test reaches the running shell, whatever PATH it runs with.
+export XDG_RUNTIME_DIR="$test_tmp/runtime"
+mkdir -p "$XDG_RUNTIME_DIR"
 export PATH="$pkg_bin:$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_NOTIFICATIONS="$notifications"
@@ -588,7 +590,7 @@ mkdir -p "$remove_bin"
 cat >"$remove_bin/opencode" <<SH
 #!/bin/bash
 case "\$1 \$2" in
-"auth export") echo '[{"id":"omarchy-1","integrationID":"fireworks-ai","value":{"type":"key","key":"fw_secret"}},{"id":"or-1","integrationID":"openrouter","value":{"type":"key","key":"or_secret"}}]' ;;
+"auth export") echo '[{"id":"omarchy-1","integrationID":"fireworks-ai","value":{"type":"key","key":"fw_secret"}},{"id":"or-1","integrationID":"openrouter","value":{"type":"key","key":"or_secret"}},{"id":"mm-cn","integrationID":"minimax-cn","value":{"type":"key","key":"mm_secret"}}]' ;;
 "auth logout") echo "\$*" >>"$test_tmp/opencode-logout" ;;
 esac
 SH
@@ -597,8 +599,13 @@ PATH="$remove_bin:$PATH" omarchy-agent-account-remove fireworks </dev/null >"$te
   fail "removing Fireworks works" "$(cat "$test_tmp/fireworks-removed")"
 [[ $(cat "$test_tmp/opencode-logout") == "auth logout fireworks-ai omarchy-1" ]] && ! grep -q secret "$test_tmp/fireworks-removed" ||
   fail "removing Fireworks logs out its OpenCode key alone, printing no key" "$(cat "$test_tmp/opencode-logout" "$test_tmp/fireworks-removed")"
+# MiniMax's usage is read from its regional and coding-plan ids too.
+: >"$test_tmp/opencode-logout"
+PATH="$remove_bin:$PATH" omarchy-agent-account-remove minimax </dev/null >/dev/null
+[[ $(cat "$test_tmp/opencode-logout") == "auth logout minimax-cn mm-cn" ]] ||
+  fail "removing MiniMax logs out a key under any id its usage is read from" "$(cat "$test_tmp/opencode-logout")"
 
-grep -qx 'set omarchy.agents providers {"fireworks":{"enabled":false}} --json' "$OMARCHY_TEST_BAR_LOG" ||
+grep -qx 'omarchy.agents showAgent fireworks false' "$OMARCHY_TEST_BAR_LOG" ||
   fail "removing Fireworks hides it, so a key read elsewhere doesn't bring it back" "$(cat "$OMARCHY_TEST_BAR_LOG")"
 
 # Gemini has no logout, so its sign-in is cleared where agy keeps it, and a
@@ -607,7 +614,7 @@ mkdir -p "$HOME/.gemini/antigravity-cli"
 echo '{}' >"$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
 touch "$OMARCHY_TEST_KEYRING" "$OMARCHY_TEST_KEYRING.stuck"
 : >"$OMARCHY_TEST_BAR_LOG"
-if omarchy-agent-account-remove gemini </dev/null >/dev/null 2>&1 || [[ -s $OMARCHY_TEST_BAR_LOG ]]; then
+if omarchy-agent-account-remove gemini </dev/null >/dev/null 2>&1 || grep -q " false$" "$OMARCHY_TEST_BAR_LOG"; then
   fail "a keyring that keeps Gemini's sign-in fails the removal and hides nothing"
 fi
 rm "$OMARCHY_TEST_KEYRING.stuck"
@@ -874,6 +881,9 @@ pass "a first sign-in installs its subscription's desktop app"
   echo '{"claudeAiOauth":{"refreshToken":"main"}}' >"$HOME/.claude/.credentials.json"
   echo '{}' >"$HOME/.claude/settings.json"
   OMARCHY_TEST_LOGIN_UUID=u-side OMARCHY_TEST_LOGIN_EMAIL=side@example.com omarchy-agent-account-add claude Side </dev/null >/dev/null
+  # Signing in from a terminal shows an agent a removal hid, as the panel does.
+  grep -qx 'omarchy.agents showAgent claude true' "$OMARCHY_TEST_BAR_LOG" ||
+    fail "a sign-in from a terminal shows the agent in the panel again" "$(cat "$OMARCHY_TEST_BAR_LOG")"
 
   # Side is seated, so it takes over as primary where it is, and Main's
   # parked login goes.
@@ -882,7 +892,7 @@ pass "a first sign-in installs its subscription's desktop app"
     fail "removing the primary makes the account in ~/.claude the primary" "$(cat "$accounts/claude.json")"
   [[ $(jq -r .oauthAccount.accountUuid "$HOME/.claude.json") == u-side && ! -e $accounts/claude/.primary && ! -e $accounts/claude/side ]] ||
     fail "removing the primary deletes its login and leaves the new primary's in ~/.claude"
-  [[ ! -s $OMARCHY_TEST_BAR_LOG ]] || fail "removing one of several accounts keeps the agent on the panel"
+  ! grep -q " false$" "$OMARCHY_TEST_BAR_LOG" || fail "removing one of several accounts keeps the agent on the panel"
 
   # An account named like another agent is still the default agent's.
   OMARCHY_TEST_LOGIN_UUID=u-cursor OMARCHY_TEST_LOGIN_EMAIL=cursor@example.com omarchy-agent-account-add claude Cursor </dev/null >/dev/null
@@ -900,7 +910,7 @@ pass "a first sign-in installs its subscription's desktop app"
   omarchy-agent-account-remove claude side </dev/null >/dev/null
   [[ ! -e $HOME/.claude/.credentials.json && $(jq -c '{oauthAccount, theme}' "$HOME/.claude.json") == '{"oauthAccount":null,"theme":"dark"}' && -f $HOME/.claude/settings.json ]] ||
     fail "removing the only account signs ~/.claude out and keeps the rest" "$(cat "$HOME/.claude.json")"
-  grep -qx 'set omarchy.agents providers {"claude":{"enabled":false}} --json' "$OMARCHY_TEST_BAR_LOG" ||
+  grep -qx 'omarchy.agents showAgent claude false' "$OMARCHY_TEST_BAR_LOG" ||
     fail "removing the only account hides the agent" "$(cat "$OMARCHY_TEST_BAR_LOG")"
 
   # Codex keeps every login in its own home, so the new primary's moves in.
