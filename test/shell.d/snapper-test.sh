@@ -39,7 +39,7 @@ cat >"$fake_bin/btrfs" <<'STUB'
 printf 'btrfs %s\n' "$*" >>"$TEST_LOG"
 case "$1 $2" in
   "subvolume show") [[ $HOME_SUBVOLUME == "yes" ]] ;;
-  "subvolume create") install -d -m 0700 "$3" ;;
+  "subvolume create") [[ ${SUBVOLUME_FAILS:-} != "1" ]] && install -d -m 0700 "$3" ;;
 esac
 STUB
 chmod +x "$fake_bin/btrfs"
@@ -125,10 +125,12 @@ machine="$test_tmp/theirs-home"
 mkdir -p "$machine/etc/snapper/configs" "$machine/etc/conf.d"
 printf 'SUBVOLUME="%s"\nTIMELINE_LIMIT_HOURLY="10"\n' "$machine/home" >"$machine/etc/snapper/configs/home"
 cp "$machine/etc/snapper/configs/home" "$test_tmp/their-home"
-printf 'SNAPPER_CONFIGS="root home"\n' >"$machine/etc/conf.d/snapper"
+# Written without quotes, as snapper's own config allows.
+printf 'SNAPPER_CONFIGS=root\\ home\n' >"$machine/etc/conf.d/snapper"
 configure "$machine" yes
 cmp -s "$test_tmp/their-home" "$machine/etc/snapper/configs/home" || fail "snapshot configure leaves someone's own config called home as it was"
-grep -Fx 'SNAPPER_CONFIGS="root home"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure keeps someone's own config called home listed"
+grep -Fx 'SNAPPER_CONFIGS="root home"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure keeps someone's own config called home listed" "$(cat "$machine/etc/conf.d/snapper")"
+! grep -q 'snapper-timeline.timer' "$machine/calls.log" || fail "snapshot configure leaves their timeline timer as they set it"
 pass "snapshot configure tells someone's own config called home from Omarchy's"
 
 # A .snapshots left from an earlier config makes create-config refuse; that
@@ -139,3 +141,15 @@ CREATE_FAILS=1 configure "$machine" yes || true
 grep -Fx 'SNAPPER_CONFIGS="root"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure lists only root when /home's config can't be created"
 grep -qF 'Could not set up Snapper for /home' "$machine/stderr" || fail "snapshot configure says /home isn't snapshotted"
 pass "snapshot configure carries on, and says so, when /home's config can't be created"
+
+# A .snapshots that can't be made skips /home with a note, like a config that
+# can't be.
+machine="$test_tmp/no-subvolume"
+mkdir -p "$machine/etc/snapper/configs" "$machine/home"
+cp "$ROOT/default/snapper/home" "$machine/etc/snapper/configs/home"
+SUBVOLUME_FAILS=1 configure "$machine" yes || true
+grep -Fx 'SNAPPER_CONFIGS="root"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure lists only root when /home/.snapshots can't be made" "$(cat "$machine/stderr")"
+grep -qF 'Could not set up Snapper for /home' "$machine/stderr" || fail "snapshot configure says /home isn't snapshotted when .snapshots can't be made"
+! grep -q 'snapper-timeline.timer' "$machine/calls.log" || fail "snapshot configure leaves the timeline timer off without a /home it set up"
+pass "snapshot configure carries on, and says so, when /home/.snapshots can't be made"
+

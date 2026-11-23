@@ -17,7 +17,7 @@ create_config() {
 # The configs snapper runs now, other than root, that still exist.
 listed=()
 if [[ -f $SNAPPER_CONF_PATH ]]; then
-  for name in $(sed -n 's/^SNAPPER_CONFIGS="\(.*\)"$/\1/p' "$SNAPPER_CONF_PATH"); do
+  for name in $(. "$SNAPPER_CONF_PATH" >/dev/null 2>&1; echo "${SNAPPER_CONFIGS:-}"); do
     [[ $name != "root" && -f $SNAPPER_CONFIG_DIR/$name ]] && listed+=("$name")
   done
 fi
@@ -36,7 +36,7 @@ create_config root / || { echo "Could not create the Snapper config for /" >&2; 
 install -m 0644 "$template" "$SNAPPER_CONFIG_DIR/root"
 configs=(root)
 for name in "${listed[@]}"; do
-  [[ $name != "home" || -n $theirs ]] && configs+=("$name")
+  [[ $name != "home" || $theirs == "home" ]] && configs+=("$name")
 done
 
 ours=0

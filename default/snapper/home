@@ -1,5 +1,6 @@
 # Omarchy snapshots /home hourly to bring back deleted files, never to roll it back.
 # No quotas: below FREE_LIMIT, cleanup thins each range to its minimum.
+# The first line marks the config as Omarchy's, so the setup tells it from one of someone's own.
 SUBVOLUME="/home"
 FSTYPE="btrfs"
 
