@@ -69,6 +69,10 @@ QtObject {
     return v.length > 0 ? v : fallback
   }
 
+  // Touchpad deltas reach shell layers already scaled by Hyprland's touchpad
+  // scroll_factor, without the per-window boost terminals get; 3.0 feels like foot at 1.5.
+  readonly property real touchpadScrollFactor: 3.0
+
   readonly property string normalColorToken: styleString("normal-color", "foreground")
   readonly property string hoverColorToken: styleString("hover-cursor-color", "foreground")
   readonly property string selectedColorToken: styleString("selected-color", "foreground")
@@ -365,6 +369,10 @@ QtObject {
   function duration(ms) {
     return reduceMotion ? 0 : ms
   }
+
+  // A strong ease-out, for anything appearing or moving in answer to the
+  // pointer: it starts at once and settles without a bounce.
+  readonly property var easeOut: [0.23, 1.0, 0.32, 1.0, 1.0, 1.0]
 
   function refresh() {
     hyprctlProc.running = true

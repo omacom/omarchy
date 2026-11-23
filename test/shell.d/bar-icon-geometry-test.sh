@@ -330,7 +330,9 @@ ShellRoot {
   TextMetrics {
     id: sourceMetrics
     font.family: testBar.fontFamily
-    font.pixelSize: Style.bar.iconFont
+    // OpticalGlyph measures its ink a hundred times larger for subpixel
+    // bounds, so measure the reference glyph the same way to compare ratios.
+    font.pixelSize: Style.bar.iconFont * 100
     text: bluetooth.text
   }
   BarIconButton { id: menu; bar: testBar; text: "\ue900"; fontFamily: "omarchy" }
