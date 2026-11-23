@@ -60,8 +60,6 @@ Uno spazio di lavoro flottante mostra anche un dock, con le tue app fissate, tut
 
 I nuovi spazi di lavoro, e tutti quelli a cui non hai assegnato un layout proprio con `Super + L`, usano il layout predefinito. Cambiare il layout predefinito reimposta su di esso ogni spazio di lavoro senza finestre, mentre uno con finestre mantiene il layout che ha. Una finestra minimizzata nel dock conta ancora come una finestra sullo spazio di lavoro che ha lasciato. Sceglilo in _Appearance > Workspace Layout_: Tiling, Scrolling o Floating. `omarchy hyprland workspace layout default scrolling` lo imposta da un terminale.
 
-Apri _Aspetto > Layout workspace > Layout abilitati_ per scegliere una combinazione di Affiancamento, Scorrimento e Flottanti. Le scorciatoie passano tra i layout abilitati. Gli spazi di lavoro il cui layout è disabilitato usano il layout predefinito abilitato finché non lo riabiliti. Se disabiliti il predefinito, Omarchy usa il primo layout abilitato in quest’ordine. Da terminale, usa `omarchy hyprland workspace layout cycle scrolling floating` per abilitare Scorrimento e Flottanti.
-
 ### Raggruppare le finestre
 
 Le finestre possono essere raggruppate con `Super + G`. Una volta che sei in un gruppo, ogni finestra che avvii mentre è attivo apparterrà al gruppo. Puoi spostarti tra queste finestre raggruppate con `Super + Ctrl + Arrow Left/Right` o `Super + Alt + 1/2/3/4` per andare direttamente alle finestre raggruppate in ordine.

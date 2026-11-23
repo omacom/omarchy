@@ -249,9 +249,6 @@
     "label": "Layout workspace",
     "title": "Layout workspace predefinito"
   },
-  "appearance.workspace-layout.cycle": {
-    "label": "Layout abilitati"
-  },
   "appearance.workspace-layout.dwindle": {
     "label": "Affiancamento"
   },
