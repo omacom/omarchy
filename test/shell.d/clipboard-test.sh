@@ -169,6 +169,16 @@ assertDeepEqual(
   'clipboard removedImageEntries deletes only unreferenced direct children of clipboard-images'
 )
 
+assertDeepEqual(
+  clipboard.addEntry(
+    [{ type: 'image', path: `${imageDir}/same.png`, mime: 'image/png', inode: '200', gen: 2 }],
+    { type: 'image', path: `${imageDir}/same.png`, mime: 'image/png', inode: '100', gen: 1 },
+    10
+  ),
+  [{ type: 'image', path: `${imageDir}/same.png`, mime: 'image/png', inode: '200', gen: 2 }],
+  'clipboard addEntry keeps newer on-disk inode when duplicate image captures arrive out of order'
+)
+
 const fs = require('fs')
 const { execFileSync } = require('child_process')
 const os = require('os')

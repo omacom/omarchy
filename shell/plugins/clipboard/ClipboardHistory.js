@@ -22,6 +22,8 @@ function normalizeEntry(value) {
       entry.capturedAt = String(value.capturedAt)
     if (value.inode !== undefined && value.inode !== null && /^\d+$/.test(String(value.inode)))
       entry.inode = String(value.inode)
+    if (value.gen !== undefined && value.gen !== null && /^\d+$/.test(String(value.gen)))
+      entry.gen = Number(value.gen)
     return entry
   }
 
@@ -64,7 +66,14 @@ function addEntry(history, entry, limit) {
 
   for (var i = 0; i < values.length && next.length < max; i++) {
     var existing = normalizeEntry(values[i])
-    if (!existing || entryKey(existing) === key) continue
+    if (!existing) continue
+    if (entryKey(existing) === key) {
+      if (normalized.type === "image" && existing.gen && (!normalized.gen || existing.gen > normalized.gen)) {
+        normalized.gen = existing.gen
+        if (existing.inode) normalized.inode = existing.inode
+      }
+      continue
+    }
     next.push(existing)
   }
 

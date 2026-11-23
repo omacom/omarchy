@@ -325,8 +325,8 @@ Item {
     path: root.historyReady ? root.historyPath : ""
     atomicWrites: true
     printErrors: false
-    onLoaded: root.loadHistory(text())
-    onLoadFailed: root.loadHistory("[]")
+    onLoaded: if (root.historyReady) root.loadHistory(text())
+    onLoadFailed: if (root.historyReady) root.loadHistory("[]")
   }
 
   // Prepare the private history file at 0600, reap watchers left behind by a
