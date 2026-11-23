@@ -130,18 +130,21 @@ default_if_unset() {
 # password in, so polkit asks for it there. Not getting the app leaves the
 # sign-in as it is.
 install_desktop_app() {
-  local package
+  local package app
   case $provider in
-  claude) package=claude-desktop ;;
-  codex) package=openai-codex-desktop ;;
-  grok) package=grok-bot ;;
-  agy) package=antigravity ;;
+  claude) package=claude-desktop app="Claude Desktop" ;;
+  codex) package=openai-codex-desktop app="ChatGPT Desktop" ;;
+  grok) package=grok-bot app="Grok Bot" ;;
+  agy) package=antigravity app="Antigravity" ;;
   *) return 0 ;;
   esac
   omarchy-region-global || return 0
   omarchy-pkg-present "$package" && return 0
   say "$(omarchy-i18n agents.installingDesktop "$name")"
   if [[ $events == "true" ]]; then
+    # The password dialog says which app it installs, where pkexec alone would
+    # name only pacman.
+    omarchy-shell -q omarchy.polkit expect /usr/bin/pacman "$(omarchy-i18n polkit.authorizeInstalling "$app")" >/dev/null 2>&1 || true
     # Cancel while polkit asks stops pkexec, which takes its dialog with it.
     interruptible pkexec /usr/bin/pacman -S --noconfirm --needed -- "$package" >/dev/null 2>&1 || true
   else
@@ -151,6 +154,8 @@ install_desktop_app() {
 
 # A first sign-in announces the agent as ready, and an added account that it's
 # ready for more; clicking either starts one. Any other says which account it was.
+# Each stays up until it's clicked or closed: the sign-in finishes in the
+# browser, where a toast that leaves on its own goes unseen.
 finish() {
   # An agent hidden from the panel, as removing its sign-in does, shows again
   # however it was signed in to.
@@ -160,15 +165,15 @@ finish() {
   if [[ $events == "true" ]]; then
     printf '@@omarchy done %s\n' "$1"
     if [[ ${2:-} == "ready" ]]; then
-      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
+      omarchy-notification-send --sticky -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
         "$(omarchy-i18n agents.readyToCode "$ready_name")" "$(omarchy-i18n agents.readyToCodeBody)" \
         --exec omarchy-agent --agent "$harness" --app-id="org.omarchy.$harness"
     elif [[ ${2:-} == "more" ]]; then
-      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
+      omarchy-notification-send --sticky -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
         "$(omarchy-i18n agents.readyForMore "$ready_name")" "$(omarchy-i18n agents.readyForMoreBody "$3")" \
         --exec omarchy-agent --agent "$harness" --app-id="org.omarchy.$harness"
     else
-      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" "$1"
+      omarchy-notification-send --sticky -g 󰚩 --image "$(omarchy-agent-logo "$provider")" "$1"
     fi
   else
     echo
