@@ -2383,7 +2383,10 @@ Panel {
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         onVisibleChanged: if (visible) { text = ""; forceActiveFocus() }
-        onAccepted: root.startAdd(text.trim())
+        // Enter stops here: a field passes it on after accepting, and the
+        // panel would act on it too, cancelling the sign-in just started.
+        Keys.onReturnPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
+        Keys.onEnterPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
         Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
       }
     }
@@ -2520,7 +2523,12 @@ Panel {
             foreground: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
-            onAccepted: { root.submitPaste(text); text = "" }
+            // Enter stops here: a field passes it on after accepting, and
+            // the panel would act on it too, cancelling the sign-in the code
+            // was for.
+            function submit() { root.submitPaste(text); text = "" }
+            Keys.onReturnPressed: function(event) { submit(); event.accepted = true }
+            Keys.onEnterPressed: function(event) { submit(); event.accepted = true }
             onVisibleChanged: if (visible) forceActiveFocus()
             Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
           }
@@ -2728,7 +2736,9 @@ Panel {
         font.pixelSize: Style.font.body
         horizontalPadding: Style.space(4)
         verticalPadding: Style.space(1)
-        onAccepted: section.finishRename(true)
+        // Enter stops here, rather than going on to the panel's cursor.
+        Keys.onReturnPressed: function(event) { section.finishRename(true); event.accepted = true }
+        Keys.onEnterPressed: function(event) { section.finishRename(true); event.accepted = true }
         onActiveFocusChanged: if (!activeFocus) section.finishRename(false)
         Keys.onEscapePressed: function(event) {
           section.finishRename(false)
