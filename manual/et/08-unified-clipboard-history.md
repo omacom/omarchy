@@ -1,24 +1,27 @@
 # Ühtne lõikelaud ja ajalugu
 
-Tavaliselt on Linuxil vaja `Ctrl + Shift + C/V`, et terminalis kopeerida ja kleepida, ja `Ctrl + C/V`, et teha seda kõikjal mujal. Sellega on raske harjuda igaühel, kes pole Linuxil sündinud ja kasvanud! Nii on ka üleminek superilt ctrl-ile, kui tuled Macilt.
+Tavaliselt tuleb Linuxis terminalis kopeerimiseks ja kleepimiseks kasutada `Ctrl + Shift + C/V` ja kõikjal mujal `Ctrl + C/V`. Sellega on raske harjuda igaühel, kes pole Linuxi peal sündinud ja üles kasvanud! Sama kehtib ka Superilt Ctrlile ülemineku kohta, kui tuled Macilt.
 
-Omarchy lahendab mõlemad probleemid ühtsete lõikelaua kiirklahvidega, mis toimivad (peaaegu) kõikjal. Need on:
+Omarchy lahendab mõlemad probleemid ühtsete lõikelaua kiirklahvidega, mis töötavad (peaaegu) kõikjal. Need on:
 
-| Kiirklahv | Käsk |
+| Hotkey | Command |
 | ------- | ----------- |
+| Super + A | Vali kõik |
 | Super + C | Kopeeri |
 | Super + X | Lõika |
 | Super + V | Kleebi |
 | Super + Ctrl + V | Lõikelaua ajalugu |
 
-_Pane tähele, et enamik agentide raamistikku kasutab `Ctrl + V` piltide kleepimiseks, kuid `Super + V` teksti kleepimiseks._
+_Pane tähele, et enamik agendiraamistikke kasutab piltide kleepimiseks `Ctrl + V`, aga teksti kleepimiseks `Super + V`._
+
+Kasuta `Super + A` ja seejärel `Super + C`, et kopeerida kõik fokuseeritud tekstiväljal või muus rakenduses, mis toetab `Ctrl + A`. Terminalis viib `Ctrl + A` teksti valimise asemel käsurea algusesse.
 
 ### Lõikelaua ajalugu
 
-Lõikelaua ajalugu pakub Omarchy kest ja see toimib nii teksti kui ka piltide puhul. Käivitad selle `Super + Ctrl + V` abil, valid kirje sisestusklahviga ja see pannakse lõikelauale, valmis `Super + V` abil kleepimiseks.
+Lõikelaua ajaloo tagab Omarchy kest ja see töötab nii teksti kui ka piltidega. Käivitad selle `Super + Ctrl + V` abil ja valid kirje Returniga, mis kleebib selle otse rakendusse, milles olid. Kasuta `Shift + Return`, et see ainult lõikelauale kopeerida, `Alt + Return`, et see avada, `Delete`, et see ajaloost eemaldada, ja `Shift + Delete`, et kogu ajalugu tühjendada.
 
  ![clipboard-history](images/clipboard-history.webp)
 
-Saad ka ajalugu otsida lihtsalt trükkima hakates:
+Ajalugu saad otsida ka lihtsalt kirjutama hakates:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)

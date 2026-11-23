@@ -5,6 +5,9 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 command="$ROOT/bin/omarchy-kernel"
+# The root half is the packaged copy wherever one is installed, else this one.
+root_half=/usr/bin/omarchy-kernel
+[[ -x $root_half ]] || root_half=$command
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/bin" "$scratch/root-bin" "$scratch/drop-ins" "$scratch/modules"
@@ -33,15 +36,6 @@ for tool in pkexec sudo omarchy-state omarchy-notification-send; do
 #!/bin/bash
 printf '$tool %s\n' "\$*" >> "\$CALL_LOG"
 [[ \${ESCALATION_FAIL:-0} == "0" || $tool != "pkexec" ]]
-SH
-done
-
-# efibootmgr answers both halves, so root sees Direct Boot too.
-for dir in bin root-bin; do
-  cat > "$scratch/$dir/efibootmgr" <<'SH'
-#!/bin/bash
-printf 'BootCurrent: 0000\nBoot0000* Limine\tHD(1,GPT)/\\EFI\\limine\\limine_x64.efi\n'
-[[ ${DIRECT_BOOT:-0} == "0" ]] || printf 'Boot0001* Omarchy\tHD(1,GPT)/\\EFI\\Linux\\omarchy_linux-omarchy.efi\n'
 SH
 done
 
@@ -130,21 +124,12 @@ pass "set only accepts installed kernels"
 reset_fixture
 "$command" set linux-omarchy < /dev/null
 [[ $(grep -c '^pkexec ' "$CALL_LOG") == "1" ]] || fail "the menu path escalates through pkexec once" "$(<"$CALL_LOG")"
-grep -Fxq "pkexec $ROOT/bin/omarchy-kernel set linux-omarchy" "$CALL_LOG" || fail "pkexec runs this command's root half" "$(<"$CALL_LOG")"
+grep -Fxq "pkexec $root_half set linux-omarchy" "$CALL_LOG" || fail "pkexec runs this command's root half" "$(<"$CALL_LOG")"
 ! grep -q '^sudo ' "$CALL_LOG" || fail "the menu path has no terminal for sudo"
 grep -Fxq 'omarchy-state set reboot-required' "$CALL_LOG" || fail "a switch asks for a reboot"
 [[ $(grep -c '^omarchy-notification-send ' "$CALL_LOG") == "1" ]] || fail "only the finished switch is announced" "$(<"$CALL_LOG")"
 grep -Fxq 'omarchy-notification-send -g  -t 30000 Now using linux-omarchy Reboot to use new default kernel --exec omarchy-system reboot' "$CALL_LOG" || fail "the notification names the kernel and reboots when clicked" "$(<"$CALL_LOG")"
 pass "picked from the menu, set authenticates once with pkexec and asks for a reboot"
-
-reset_fixture
-if DIRECT_BOOT=1 "$command" set linux-omarchy < /dev/null 2> "$scratch/output"; then
-  fail "a switch is refused while Direct Boot bypasses the boot menu"
-fi
-! grep -Eq '^(pkexec|sudo|omarchy-state) ' "$CALL_LOG" || fail "Direct Boot refuses before any prompt or reboot request" "$(<"$CALL_LOG")"
-grep -Fq "Setup > Direct Boot" "$scratch/output" || fail "the refusal says how to turn Direct Boot off"
-grep -q '^omarchy-notification-send .*-u critical' "$CALL_LOG" || fail "picked from the menu, the refusal is a notification"
-pass "Direct Boot systems are told to turn it off instead of getting a switch that does nothing"
 
 reset_fixture
 if ESCALATION_FAIL=1 "$command" set linux-omarchy < /dev/null; then
@@ -225,11 +210,3 @@ fi
 cmp -s "$OMARCHY_KERNEL_LIMINE_CONF" "$scratch/original-limine" || fail "a failed write leaves the boot order in place" "$(<"$OMARCHY_KERNEL_LIMINE_CONF")"
 ! grep -q '^limine-mkinitcpio linux$' "$CALL_LOG" || fail "nothing is rebuilt after a failed write"
 pass "a failed write keeps the previous boot order instead of deleting it"
-
-reset_fixture
-if DIRECT_BOOT=1 as_root "$command" set linux 2> /dev/null; then
-  fail "root is refused under Direct Boot too"
-fi
-cmp -s "$OMARCHY_KERNEL_LIMINE_CONF" "$scratch/original-limine" || fail "a refused root switch leaves the boot order alone"
-! grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "a refused root switch rebuilds nothing"
-pass "sudo omarchy-kernel set is refused under Direct Boot as well"

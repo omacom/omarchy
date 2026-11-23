@@ -1,12 +1,12 @@
 # السمات
 
-يأتي Omarchy مع اثنتين وعشرين سمة جميلة. يمكنك التحديد بينها عبر _النمط > السمة_ في قائمة Omarchy (`Super + Space`) أو القفز مباشرة إلى محدّد السمات باستخدام `Super + Ctrl + Shift + Space`.
+يأتي Omarchy مع ثلاث وعشرين سمة جميلة. يمكنك الاختيار بينها عبر _المظهر > السمة_ في قائمة Omarchy (`Super + Space`) أو الانتقال مباشرة إلى منتقي السمات باستخدام `Super + Ctrl + T`.
 
-تُنمّط كل سمة سطح المكتب والطرفية وneovim وشاشة النشاط (btop) وChromium وسطح Omarchy بأكمله: الشريط العلوي والقائمة والإشعارات وOSD وشاشة القفل. (بالنسبة لـ Obsidian، يجب تحديد سمة Omarchy يدويًا عبر _المظهر > السمات_ داخل التطبيق).
+تُنسّق كل سمة سطح المكتب والطرفية وneovim وشاشة النشاط (btop) ومتصفحك (Chrome أو Chromium أو Edge أو Brave) وصدفة Omarchy بأكملها: الشريط العلوي والقائمة والإشعارات وOSD وشاشة القفل. (بالنسبة إلى Obsidian، يجب عليك اختيار سمة Omarchy يدويًا عبر _المظهر > السمات_ داخل التطبيق).
 
-للسمات مجموعة من صور الخلفية التي يمكنك الاختيار بينها باستخدام `Super + Ctrl + Space`.
+تحتوي السمات على مجموعة من صور الخلفية يمكنك الاختيار بينها باستخدام `Super + Ctrl + W`.
 
-يمكنك العثور على سمات أكثر على [صفحة السمات الإضافية](https://omarchy.org/themes/) أو حتى [صناعة سمتك الخاصة](43-making-your-own-theme.md).
+يمكنك العثور على المزيد من السمات في [صفحة السمات الإضافية](https://omarchy.org/themes/) أو حتى [إنشاء سمتك الخاصة](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,33 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### فتحات القفل
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-يمكن أن يكون للسمات أيضًا تصميم فتح مخصّص، يُستخدم لعملية فك تشفير الإقلاع. يمكنك تحديد واحدة من هذه تحت _النمط > فتح القفل_. تبدو على هذا النحو:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
+### أيقونات التطبيقات
+
+تُرسم الأيقونات في مشغّل التطبيقات والرصيف بألوان سمتك، لذلك تتغير معها. وهي تأتي من مجموعة أيقونات تختارها بشكل منفصل عن السمة ضمن _المظهر > الأيقونات_، من معاينات لكل مجموعة، بالطريقة نفسها التي تختار بها سمة:
+
+- _Papercraft_ هي الافتراضية: كل ما يأتي مثبّتًا، مرسوم بأسلوب واحد. التطبيقات المعروفة بشعارها، مثل Chrome أو HEY أو YouTube، تحتفظ بشكلها وتكتسب ألوان السمة.
+- _Arcade_ ترسم التطبيقات نفسها كفن بكسل 8-bit، كما كانت ستفعل وحدة تحكّم ألعاب قديمة.
+- _Original_ تُظهر كل تطبيق بالأيقونة التي أعطاه إياها صانعه.
+
+يمكنك تثبيت مجموعة أيقونات صنعها شخص آخر عبر _تثبيت > النمط > الأيقونات_ (أو `omarchy icons install <git url>`)، وإزالتها مرة أخرى ضمن _إزالة > الأيقونات_. يجلب _تحديث > الأيقونات الإضافية_ أحدث إصدار من المجموعات التي ثبّتها.
+
+لصنع مجموعتك الخاصة، ضع أيقوناتك في `~/.config/omarchy/icons/<name>/`، ملف واحد لكل تطبيق، مسمّى على اسم سطر `Icon=` في ملف `.desktop` الخاص بالتطبيق. يُعرض الملف الذي ينتهي بـ `.svg` كما هو. أما الملف الذي ينتهي بـ `.svg.tpl` فيُرسم بألوان السمة: اكتب `{{ icon_main }}` أو `{{ icon_mark }}` أو `{{ icon_paper }}` أو `{{ icon_body }}` أو `{{ icon_edge }}` أو `{{ icon_ink }}` أو `{{ icon_shadow }}` حيث يوضع اللون. المجموعة الافتراضية في `/usr/share/omarchy/icons/papercraft/` مكان جيد للبدء منه. أضف `preview.png` لعرض مجموعتك في المنتقي؛ وبدونه، يرسم Omarchy معاينة من أيقوناتك. لتغيير أيقونة واحدة من المجموعة الافتراضية، ضع نسختك في `~/.config/omarchy/icons/papercraft/`.
+
+### تصاميم إلغاء القفل
+
+يمكن أن تحتوي السمات أيضًا على تصميم مخصّص لإلغاء القفل، يُستخدم لعملية فك تشفير الإقلاع. يمكنك اختيار أحدها ضمن _المظهر > إلغاء القفل_. تبدو هكذا:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,11 +114,20 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -105,9 +138,6 @@ _Miasma_
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
 
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
-
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
 
@@ -116,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_

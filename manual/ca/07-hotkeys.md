@@ -1,223 +1,278 @@
 # Dreceres de teclat
 
-Podeu veure totes les assignacions principals de teclat amb `Super + K` (les de Tmux amb `Super + Alt + K` i les de Herdr amb `Super + Ctrl + K`).
+Pots veure totes les assignacions principals de teclat amb `Super + K` (les assignacions de Tmux amb `Super + Alt + K` i les de Herdr amb `Super + Ctrl + K`).
+
+## Com estan organitzades les dreceres
+
+Cada drecera es troba en un pla, determinat pels seus modificadors, i cada pla té una única funció. Això és el que evita que les dreceres es confonguin entre si, i vol dir que normalment pots endevinar on es troba cada cosa.
+
+| Pla | Què hi ha | Exemples |
+| --- | --- | --- |
+| `Super + key` | El sistema: finestres, espais de treball, disposicions i menús principals | `Super + Space` menú d'Omarchy, `Super + W` tanca la finestra, `Super + F` pantalla completa |
+| `Super + Shift + key` | Aplicacions | `Super + Shift + B` navegador, `Super + Shift + E` correu electrònic, `Super + Shift + N` editor |
+| `Super + Ctrl + key` | Panells i menús del sistema | `Super + Ctrl + A` àudio, `Super + Ctrl + N` xarxa, `Super + Ctrl + C` menú de captura |
+| `Super + Ctrl + Alt + key` | Accions ràpides i avisos | `Super + Ctrl + Alt + T` mostra l'hora, `Super + Ctrl + Alt + B` bateria, `Super + Ctrl + Alt + C` captura de pantalla |
+
+Afegir `Alt` a una drecera et dona una variant de la mateixa cosa, mai una cosa sense relació:
+
+- `Super + Shift + B` obre el navegador; `Super + Shift + Alt + B` obre una finestra privada
+- `Super + Shift + E` obre el correu electrònic; `Super + Shift + Alt + E` en comença un de nou
+- `Super + F` passa a pantalla completa; `Super + Alt + F` passa a amplada completa
+- `Super + Ctrl + C` obre el menú de captura; `Super + Ctrl + Alt + C` se salta el menú i fa una captura de pantalla
+
+Quan afegeixis una drecera:
+
+1. Tria el pla segons què fa, i després tria la tecla.
+2. No moguis una drecera existent per fer-li lloc. Troba una tecla lliure al pla adequat.
+3. Fes servir `Alt` només per a una variant de la drecera sense `Alt`.
+
+Unes quantes dreceres trenquen aquestes regles perquè són pràctiques. `Shift` amb una fletxa o `Tab` mou o inverteix en lloc d'obrir una aplicació, i `Print`, les tecles multimèdia, `Alt + Tab` i `Ctrl + Alt + Del` funcionen com funcionen a tot arreu. Són excepcions, no patrons per copiar.
+
+Si una opció per defecte no et va bé (posem que vols `Super + Shift + S` per a les captures de pantalla com a Windows), reassigna-la a `~/.config/hypr/bindings.lua`.
 
 ## Navegació
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
-| `Super + Space`           | Menú d'Omarchy (aplicacions i tota la resta)    |
+| `Super + Space` | Menú d'Omarchy (aplicacions i tota la resta) |
 | `Super + Alt + Space` | Graella d'aplicacions |
-| `Super + Escape` | Menú del sistema (suspèn, reinicia, etc.)  |
+| `Super + Escape` | Menú del sistema (suspendre, reiniciar, etc.) |
 | `Super + Ctrl + L` | Bloqueja l'ordinador |
-| `Super + W` o `Super + Q` | Tanca la finestra             |
+| `Super + W` o `Super + Q` | Tanca la finestra |
 | `Ctrl + Alt + Del` | Tanca totes les finestres |
-| `Super + T`               | Commuta la finestra entre mosaic/flotant             |
+| `Super + K` | Mostra totes les dreceres |
+| `Super + Alt + K` | Mostra les dreceres de tmux |
+| `Super + Ctrl + K` | Mostra les dreceres de herdr |
+| `Super + M` | Minimitza la finestra al dock |
+| `Super + T` | Commuta la finestra entre mosaic i flotant |
 | `Super + J` | Commuta la posició de la finestra (horitzontal/vertical) |
-| `Super + O`               | Commuta extreure la finestra a fixa i flotant |
-| `Super + L`               | Recorre les disposicions dwindle, de desplaçament i flotant |
-| `Super + Alt + L`         | Recorre les disposicions a l'inrevés |
-| `Super + P`               | Commuta l'estil pseudo de la finestra (natural enfront d'estirat) |
-| `Super + F`                 | Vés a pantalla completa              |
-| `Super + Alt + F`                 | Vés a amplada completa              |
-| `Super + Ctrl + F`                 | Vés a pantalla completa dins de la finestra              |
-| `Super + 1/2/3/4`         | Salta a un espai de treball concret     |
-| `Super + Tab` | Salta a l'espai de treball següent |
-| `Super + Shift + Tab` | Salta a l'espai de treball anterior |
-| `Super + Ctrl + Tab` | Salta a l'espai de treball previ |
-| `Super + Shift + 1/2/3/4` | Mou la finestra a un espai de treball |
-| `Super + Shift + Alt + 1/2/3/4` | Mou la finestra a un espai de treball sense seguir-la |
-| `Super + S` / `Super + Grave` | Commuta l'esborrany |
-| `Super + Alt + S` / `Super + Shift + Grave` | Mou la finestra a l'esborrany |
-| `Super + Shift + Alt + Arrows` | Mou els espais de treball al monitor en la direcció |
-| `Super + Arrow`  | Mou el focus a la finestra en la direcció de la fletxa              |
-| `Super + Shift + Arrow`  | Intercanvia la finestra amb una altra en la direcció de la fletxa     |
-| `Super + Minus` | Eixampla la finestra a l'esquerra |
-| `Super + Equal` | Encongeix la finestra a l'esquerra |
+| `Super + O` | Commuta la finestra emergent a fixa i flotant |
+| `Super + L` | Recorre cíclicament les disposicions dwindle, scrolling i flotant |
+| `Super + Alt + L` | Recorre cíclicament les disposicions en sentit invers |
+| `Super + P` | Commuta l'estil pseudo de la finestra (natural vs. estirat) |
+| `Super + F` | Passa a pantalla completa |
+| `Super + Alt + F` | Passa a amplada completa |
+| `Super + Ctrl + F` | Passa a pantalla completa dins de la finestra |
+| `Super + 1…9/0` | Salta a l'espai de treball concret (0 és 10) al monitor enfocat |
+| `Super + Tab` | Salta a l'espai de treball següent al monitor enfocat |
+| `Super + Shift + Tab` | Salta a l'espai de treball anterior al monitor enfocat |
+| `Super + Ctrl + Tab` | Salta a l'espai de treball d'abans al monitor enfocat |
+| `Super + Shift + 1…9/0` | Mou la finestra a l'espai de treball al monitor enfocat |
+| `Super + Shift + Alt + 1…9/0` | Mou la finestra a l'espai de treball al monitor enfocat sense seguir-la |
+| `Super + S` | Commuta el scratchpad complet |
+| `Super + Alt + S` | Mou la finestra al scratchpad complet |
+| `Super + the key above Tab` (grave on US layouts) | Commuta la consola Quake |
+| `Super + Shift + the key above Tab` (grave on US layouts) | Mou la finestra a la consola Quake |
+| `Super + Shift + Ctrl + Arrows` | Mou la finestra al monitor en aquella direcció |
+| `Super + Shift + Alt + Arrows` | Mou l'espai de treball al monitor en aquella direcció |
+| `Super + Arrow` | Mou el focus a la finestra en la direcció de la fletxa, i creua al monitor d'aquell costat a la vora de la pantalla |
+| `Super + Shift + Arrow` | Intercanvia la finestra amb una altra en la direcció de la fletxa, inclosa una al monitor d'aquell costat |
+| `Super + Minus` | Eixampla la finestra cap a l'esquerra |
+| `Super + Equal` | Encongeix la finestra cap a l'esquerra |
 | `Super + Shift + Minus` | Encongeix la finestra cap amunt |
 | `Super + Shift + Equal` | Eixampla la finestra cap avall |
 | `Super + Alt + Minus/Equal` | El mateix redimensionament en passos més petits |
 | `Super + Ctrl + Minus/Equal` | El mateix redimensionament en passos més grans |
 | `Super + Alt + Home` | Desa l'amplada de la finestra |
-| `Super + Home` | Restaura l'amplada de finestra desada |
+| `Super + Home` | Restaura l'amplada de la finestra desada |
 | `Super + Left Mouse` | Arrossega la finestra |
 | `Super + Right Mouse` | Redimensiona la finestra |
-| `Super + Scroll Wheel` | Desplaça't pels espais de treball |
-| `Super + G`               | Commuta l'agrupament de finestres      |
-| `Super + Alt + G`               | Treu la finestra de l'agrupament      |
-| `Super + Alt + Tab`               | Recorre les finestres de l'agrupament      |
-| `Super + Alt + Shift + Tab`               | Recorre enrere les finestres de l'agrupament      |
-| `Super + Alt + 1/2/3/4/5`               | Salta a una finestra concreta de l'agrupament      |
-| `Super + Alt + Arrow`  | Mou la finestra cap a l'agrupament en la direcció de la fletxa  |
-| `Super + Ctrl + Left/Right`  | Mou-te entre les finestres dins d'un grup en mosaic |
+| `Super + Scroll Wheel` | Recorre els espais de treball al monitor enfocat |
+| `Super + G` | Commuta l'agrupació de finestres |
+| `Super + Alt + G` | Mou la finestra fora de l'agrupació |
+| `Super + Alt + Tab` | Recorre cíclicament les finestres de l'agrupació |
+| `Super + Alt + Shift + Tab` | Recorre cíclicament enrere les finestres de l'agrupació |
+| `Super + Alt + Scroll Wheel` | Recorre cíclicament les finestres de l'agrupació |
+| `Super + Alt + 1/2/3/4/5` | Salta a una finestra concreta de l'agrupació |
+| `Super + Alt + Arrow` | Mou la finestra dins de l'agrupació en la direcció de la fletxa, inclosa una al monitor d'aquell costat |
+| `Super + Ctrl + Left/Right` | Mou-te entre finestres dins d'un grup en mosaic |
 | `Super + Ctrl + Z` | Amplia la pantalla (repeteix per ampliar més) |
-| `Super + Ctrl + Alt + Z` | Allunya completament la pantalla |
-| `Super + /` | Avança per les opcions d'escala del monitor |
-| `Super + Alt + /` | Retrocedeix per les opcions d'escala del monitor |
-| `Alt + Tab` | Recorre cap endavant les finestres de l'espai de treball actiu |
-| `Alt + Shift + Tab` | Recorre cap enrere les finestres de l'espai de treball actiu |
-| `Ctrl + Alt + Tab`| Recorre el focus cap endavant pels monitors |
-| `Ctrl + Alt + Shift + Tab`| Recorre el focus cap enrere pels monitors |
+| `Super + Ctrl + Alt + Z` | Redueix completament l'ampliació de la pantalla |
+| `Super + /` | Avança per les opcions d'escalat del monitor |
+| `Super + Alt + /` | Retrocedeix per les opcions d'escalat del monitor |
+| `Alt + Tab` | Recorre cíclicament endavant les finestres a l'espai de treball actiu |
+| `Alt + Shift + Tab` | Recorre cíclicament enrere les finestres a l'espai de treball actiu |
+| `Ctrl + Alt + Tab` | Recorre cíclicament endavant el focus pels monitors |
+| `Ctrl + Alt + Shift + Tab` | Recorre cíclicament enrere el focus pels monitors |
+| `Super + I` | Canvia l'idioma d'entrada (amb més d'una disposició o mètode d'entrada) |
+| `Super + Shift + I` | Torna a l'idioma d'entrada anterior |
+
+En un panell tàctil, els lliscaments amb tres i quatre dits canvien d'espai de treball, mouen finestres i obren el menú i la consola Quake; vegeu [teclat, ratolí i panell tàctil](34-keyboard-mouse-trackpad.md) per als gestos.
+
+Les dreceres de redimensionament fan servir les tecles físiques `code:20` i `code:21` (XKB `<AE11>` i `<AE12>`), independentment dels caràcters impresos al teclat. Als teclats dels EUA aquestes tecles són `-` i `=`; als teclats japonesos (JIS) són `-` i `^`; als teclats espanyols són `'` i `¡`. En JIS, `Super + ^` és `Super + Equal`, mentre que `Super + Shift + -` (que escriu `=`) és `Super + Shift + Minus`.
 
 ## Controls del sistema
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + A`           | Panell d'àudio    |
-| `Super + Ctrl + B`           | Panell de Bluetooth    |
-| `Super + Ctrl + W`           | Panell de wifi/xarxa    |
-| `Super + Ctrl + D`           | Panell de pantalla    |
-| `Super + Ctrl + P`           | Panell d'energia    |
-| `Super + Ctrl + Alt + D`           | Panell del calendari    |
-| `Super + Ctrl + Alt + E`           | Panell del rellotge mundial    |
-| `Super + Ctrl + 1-9`           | Commuta el panell de la barra per posició    |
-| `Super + Ctrl + S` | Menú Comparteix (mitjançant LocalSend) |
-| `Super + Ctrl + T`           | Activitat (btop)    |
-| `Super + Ctrl + C` | Controls de captura (captura de pantalla/gravació/selector) |
-| `Super + Ctrl + O` | Menú Commuta |
+| `Super + Ctrl + A` | Panell d'àudio |
+| `Super + Ctrl + B` | Panell de Bluetooth |
+| `Super + Ctrl + N` | Panell de Wi-Fi/xarxa |
+| `Super + Ctrl + D` | Panell de pantalla |
+| `Super + Ctrl + P` | Panell d'energia |
+| `Super + Ctrl + X` | Panell d'agents |
+| `Super + Ctrl + Alt + X` | Panell de models locals |
+| `Super + Ctrl + Alt + D` | Panell del calendari |
+| `Super + Ctrl + Alt + E` | Panell del rellotge mundial |
+| `Super + Ctrl + 1-9` | Commuta el panell de la barra segons la posició |
+| `Super + Ctrl + S` | Menú per compartir (via LocalSend) |
+| `Super + Ctrl + C` | Controls de captura (captura de pantalla/enregistrament/selector) |
+| `Super + Ctrl + O` | Commuta el menú |
 | `Super + Ctrl + H` | Menú de maquinari |
-| `Super + Ctrl + Q` | Calculadora |
 | `Super + Ctrl + E` | Selector d'emojis |
-| `Super + Ctrl + .` | Transcodifica mitjans |
-| `Super + Shift + Ctrl + A` | Tria un agent d'IA |
+| `Super + Ctrl + .` | Transcodifica contingut multimèdia |
+| `Super + Shift + Ctrl + A` | Inicia el teu agent per defecte |
+| `Power` tecla | Menú del sistema |
+| `Super + Shift + Copilot` tecla | Menú d'Omarchy |
 
 ## Ajustos
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
-| `Shift + Brightness Up` | Brillantor màxima de la pantalla |
-| `Shift + Brightness Down` | Brillantor mínima de la pantalla |
-| `Alt + Brightness Up/Down` | Canvis precisos de brillantor de l'1% |
+| `Shift + Brightness Up` | Luminositat màxima de la pantalla |
+| `Shift + Brightness Down` | Luminositat mínima de la pantalla |
+| `Alt + Brightness Up/Down` | Canvis precisos de luminositat de l'1% |
 | `Alt + Volume Up/Down` | Canvis precisos de volum de l'1% |
 | `Keyboard Brightness Up/Down` | Retroil·luminació del teclat més brillant/més tènue |
-| `Keyboard Backlight` | Recorre els nivells de retroil·luminació del teclat |
-| `Alt + Play` | Cançó següent |
-| `Alt + Shift + Play` | Cançó anterior |
+| `Keyboard Backlight` | Recorre cíclicament els nivells de retroil·luminació del teclat |
+| `Ctrl + Brightness Up/Down` | Retroil·luminació del teclat més brillant/més tènue, en teclats sense tecles pròpies |
+| `Mic Mute` | Silencia el micròfon |
+| `Shift + Mute` | Canvia la sortida d'àudio |
+| `Touchpad Toggle` | Activa o desactiva el panell tàctil |
+| `Display` tecla | Recorre cíclicament la disposició de l'espai de treball |
+| `Alt + Play` | Pista següent |
+| `Alt + Shift + Play` | Pista anterior |
 
-## Llançar aplicacions
+## Obrir aplicacions
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
-| `Super + Return`           | Terminal    |
-| `Super + Alt + Return` | Terminal Tmux |
+| `Super + Return` | Terminal |
+| `Super + Alt + Return` | Terminal de Tmux |
 | `Super + Ctrl + Return` | Herdr (gestor d'agents) |
-| `Super + Shift + Return`           | Navegador    |
-| `Super + Shift + Alt + B`           | Navegador (privat/d'incògnit)    |
-| `Super + Shift + F`           | Gestor de fitxers    |
-| `Super + Shift + Alt + F`           | Gestor de fitxers al directori de treball del terminal    |
-| `Super + Shift + M`           | Música (Spotify)    |
-| `Super + Shift + Alt + M`           | Música (cliamp)    |
-| `Super + Shift + /`           | Gestor de contrasensí (1password)    |
-| `Super + Shift + N`           | Editor (Neovim)  |
-| `Super + Shift + C`           | Calendari ([HEY](https://hey.com/))  |
-| `Super + Shift + E`           | Correu ([HEY](https://hey.com/))  |
-| `Super + Shift + Alt + E`           | Correu nou ([HEY](https://hey.com/))  |
-| `Super + Shift + A`           | IA (ChatGPT)  |
-| `Super + Shift + Alt + A`           | IA (Grok)  |
-| `Super + Shift + G`           | Missatgeria (Signal)  |
-| `Super + Shift + P`           | Google Photos  |
-| `Super + Shift + S`           | Google Maps  |
-| `Super + Shift + Alt + G`           | Missatgeria (WhatsApp)  |
-| `Super + Shift + Ctrl + G`           | Missatgeria (Google)  |
-| `Super + Shift + O`           | Obsidian  |
-| `Super + Shift + W`           | Escriptura (Omawrite)  |
-| `Super + Shift + X`           | X |
-| `Super + Shift + Alt + X`           | X Redacta |
-| `Super + Shift + Y`           | YouTube |
+| `Super + Shift + Return` o `Super + Shift + B` | Navegador |
+| `Super + Shift + Alt + B` | Navegador (privat/d'incògnit) |
+| `Super + Shift + F` | Gestor de fitxers |
+| `Super + Shift + Alt + F` | Gestor de fitxers al cwd del terminal |
+| `Super + Shift + M` | Música (Spotify) |
+| `Super + Shift + Alt + M` | Música (cliamp) |
+| `Super + Shift + /` | Gestor de contrasenyes (1password) |
+| `Super + Shift + Q` o `Calculator` tecla | Calculadora (Omacalc) |
+| `Super + Shift + D` | Docker (lazydocker, un cop instal·lat) |
+| `Super + Shift + T` | Activitat (btop) |
+| `Super + Shift + N` | Editor (Plain, o el teu per defecte escollit) |
+| `Super + Shift + C` | Calendari ([HEY](https://hey.com/)) |
+| `Super + Shift + E` | Correu electrònic ([HEY](https://hey.com/)) |
+| `Super + Shift + Alt + E` | Correu electrònic nou ([HEY](https://hey.com/)) |
+| `Super + Shift + A` | El teu agent per defecte, o ChatGPT fins que en triïs un |
+| `Super + Shift + Alt + A` | IA (Grok) |
+| `Super + Shift + G` | Missatgeria (Signal) |
+| `Super + Shift + P` | Google Photos |
+| `Super + Shift + S` | Google Maps |
+| `Super + Shift + Alt + G` | Missatgeria (WhatsApp) |
+| `Super + Shift + Ctrl + G` | Missatgeria (Google) |
+| `Super + Shift + O` | Obsidian |
+| `Super + Shift + W` | Escriptura (Omawrite) |
+| `Super + Shift + X` | X |
+| `Super + Shift + Alt + X` | X (publicació nova) |
+| `Super + Shift + Y` | YouTube |
 
-Canvieu/afegiu assignacions a `~/.config/hypr/bindings.lua`.
+Canvia/afegeix assignacions a `~/.config/hypr/bindings.lua`.
 
 ## Porta-retalls universal
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
-| `Super + C`           | Copia    |
-| `Super + X`           | Retalla (no al terminal)    |
-| `Super + V`           | Enganxa    |
-| `Super + Ctrl + V`           | Gestor del porta-retalls    |
+| `Super + A` | Selecciona-ho tot a les aplicacions que admeten `Ctrl + A` |
+| `Super + C` | Copia |
+| `Super + X` | Retalla (no al terminal) |
+| `Super + V` | Enganxa |
+| `Super + Ctrl + V` | Gestor del porta-retalls |
 
-Normalment a Linux necessiteu `Ctrl + Shift + C/V` per copiar i enganxar al terminal i `Ctrl + C/V` per fer-ho a tot arreu. Aquestes dreceres unificades de porta-retalls d'Omarchy funcionen a tot arreu.
+Normalment a Linux, necessites `Ctrl + Shift + C/V` per copiar i enganxar al terminal i `Ctrl + C/V` per fer-ho a tot arreu. Aquestes dreceres unificades del porta-retalls d'Omarchy funcionen a tot arreu.
 
 ## Captura
 
-| Drecera              | Funció                       |
+| Drecera | Funció |
 | ------------------- | ------------------------------ |
-| `Super + Ctrl + C` | Menú de captura (per a teclats sense botó PrintScr) |
-| `Print Screen`            | Captura de pantalla                      |
-| `Alt + Print Screen`            | Gravació de pantalla                     |
+| `Print Screen` | Captura de pantalla |
+| `Super + Ctrl + Alt + C` | Captura de pantalla (la mateixa captura, per a teclats sense tecla Print Screen) |
+| `Super + Ctrl + C` | Menú de captura |
+| `Alt + Print Screen` | Enregistrament de pantalla |
+| `Super + Shift + Ctrl + Alt + C` | Enregistrament de pantalla sense àudio, saltant-se el menú (torna-la a prémer per aturar-lo) |
 | `Super + Print Screen` | Selector de color |
 | `Super + Ctrl + Print Screen` | Extracció de text al porta-retalls |
-| `Super + Alt + [` | Fes més petita la superposició de la webcam mentre graves |
-| `Super + Alt + ]` | Fes més gran la superposició de la webcam mentre graves |
-| `Alt + Shift + L` | Copia l'URL actual de l'aplicació web o de Chromium |
+| `Super + Alt + [` | Fes més petita la superposició de la càmera web mentre enregistres |
+| `Super + Alt + ]` | Fes més gran la superposició de la càmera web mentre enregistres |
+| `Alt + Shift + L` | Copia l'URL actual de l'aplicació web o del navegador |
 | `Alt + Shift + D` | Baixa el vídeo de la pàgina actual a `~/Videos` |
-| `Super + Ctrl + X` | Inicia/atura el dictat (requereix _Configuració > Per defecte > Dictat_) |
-| `Right Alt` / `F9` | Dictat prémer per parlar (requereix Voxtype o Superwhisper) |
+| `Alt + Space` | Inicia/atura el dictat (requereix _Setup > Defaults > Dictation_) |
+| `Right Alt` | Mantén premuda per dictar (requereix _Setup > Defaults > Dictation_) |
 
-Amb les gravacions de pantalla, la drecera primer pregunta quin àudio voleu i després comença a gravar. Torneu-la a prémer per aturar-ho. Vegeu [captures de pantalla i gravació](12-screenshots-recording.md) per als detalls.
+Amb els enregistraments de pantalla, la drecera primer pregunta quin àudio vols i després comença a enregistrar. Torna-la a prémer per aturar-la. Vegeu [captures de pantalla i enregistrament](12-screenshots-recording.md) per als detalls.
 
-Totes les opcions de captura també són accessibles a _Activa > Captura_ al menú d'Omarchy (`Super + Space`).
+Totes les opcions de captura també són accessibles a _Trigger > Capture_ al menú d'Omarchy (`Super + Space`).
 
 ## Notificacions
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
-| `Super + ,` | Descarta la darrera notificació  |
+| `Super + ,` | Actua sobre la notificació més recent: obre-la o prem el seu únic botó, tria entre les seves opcions o descarta-la quan no en tingui cap |
 | `Super + Shift + ,` | Descarta totes les notificacions |
-| `Super + Ctrl + ,` | Commuta silenciar les notificacions  |
-| `Super + Alt + ,` | Invoca la notificació més recent  |
-| `Super + Shift + Alt + ,` | Obre l'historial de notificacions  |
+| `Super + Ctrl + ,` | Controla les notificacions amb el teclat |
+| `Super + Alt + ,` | Descarta la notificació més recent |
+| `Super + Shift + Alt + ,` | Obre l'historial de notificacions |
+| `Super + Ctrl + Alt + ,` | Commuta el silenciament de les notificacions |
 
 ## Estil
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Shift + Space` | Tria un tema nou  |
-| `Super + Ctrl + Space` | Tria el fons del tema |
-| `Super + Backspace` | Commuta la transparència d'una finestra |
-| `Super + Ctrl + Backspace` | Commuta l'aspecte quadrat d'una sola finestra |
+| `Super + Ctrl + T` | Tria un tema nou (també `Super + Ctrl + Shift + Space`) |
+| `Super + Ctrl + W` | Tria el fons del tema (també `Super + Ctrl + Space`) |
+| `Super + Backspace` | Commuta la transparència en una finestra |
+| `Super + Ctrl + Backspace` | Commuta la relació d'aspecte quadrada d'una sola finestra |
 
-Les imatges de fons addicionals viuen a `~/.config/omarchy/backgrounds/<theme name>`. També disponible mitjançant _Instal·la > Estil > Fons_ al menú d'Omarchy.
+Les imatges de fons addicionals es troben a `~/.config/omarchy/backgrounds/<theme name>`. També disponibles a través d'_Install > Style > Background_ al menú d'Omarchy.
 
-Totes les opcions d'estil també són accessibles a _Estil_ al menú d'Omarchy (`Super + Space`).
+Totes les opcions d'estil també són accessibles a _Appearance_ al menú d'Omarchy (`Super + Space`).
 
 ## Commutadors
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + I` | Commuta el bloqueig en repòs |
-| `Super + Ctrl + N` | Commuta la temperatura de pantalla de la llum nocturna |
-| `Super + Ctrl + Delete` | Commuta la pantalla del portàtil activada/desactivada |
+| `Super + Ctrl + I` | Commuta el bloqueig en inactivitat |
+| `Super + Ctrl + Delete` | Activa/desactiva la pantalla del portàtil |
 | `Super + Ctrl + Alt + Delete` | Commuta la duplicació de la pantalla del portàtil |
-| `Super + Shift + Space` | Commuta la barra superior  |
+| `Super + Shift + Space` | Commuta la barra superior |
 | `Shift + Mute` | Canvia a la sortida d'àudio següent |
-| `Shift + Play` | Canvia a la font de mitjans següent |
-| `Super + Shift + Backspace` | Commuta la separació de finestres |
-| `Super + Ctrl + Alt + F` | Commuta l'escriptori a pantalla completa (barra superior + separació de finestres) |
+| `Shift + Play` | Canvia a la font multimèdia següent |
+| `Super + Shift + Backspace` | Commuta els buits entre finestres |
+| `Super + Ctrl + Alt + F` | Commuta l'escriptori a pantalla completa (barra superior + buits entre finestres) |
 
 ## Recordatoris
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + R` | Crea un recordatori  |
-| `Super + Ctrl + Alt + R` | Vegeu tots els recordatoris  |
-| `Super + Ctrl + Shift + R` | Esborra tots els recordatoris  |
+| `Super + Ctrl + R` | Estableix un recordatori |
+| `Super + Ctrl + Alt + R` | Mostra tots els recordatoris |
+| `Super + Ctrl + Shift + R` | Esborra tots els recordatoris |
 
 ## Avisos
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Alt + T` | Mostra l'hora com a notificació  |
-| `Super + Ctrl + Alt + B` | Mostra la bateria com a notificació  |
-| `Super + Ctrl + Alt + W` | Commuta el temps com a notificació  |
+| `Super + Ctrl + Alt + T` | Mostra l'hora com a notificació |
+| `Super + Ctrl + Alt + B` | Mostra la bateria com a notificació |
+| `Super + Ctrl + Alt + W` | Commuta el temps meteorològic com a notificació |
 
 ## Tmux
 
-La tecla de prefix és `Ctrl + Space` (`Ctrl + B` també funciona). Podeu canviar aquestes assignacions a `~/.config/tmux/tmux.conf`.
+La tecla de prefix és `Ctrl + Space` (`Ctrl + B` també funciona). Pots canviar aquestes assignacions a `~/.config/tmux/tmux.conf`.
 
 ### Panells
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
 | `Prefix + v` | Divideix el panell al costat (vertical) |
 | `Prefix + h` | Divideix el panell a sota (horitzontal) |
@@ -231,31 +286,31 @@ La tecla de prefix és `Ctrl + Space` (`Ctrl + B` també funciona). Podeu canvia
 
 ### Finestres
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Finestra nova |
 | `Prefix + k` | Mata la finestra |
-| `Prefix + r` | Canvia el nom de la finestra |
+| `Prefix + r` | Reanomena la finestra |
 | `Alt + 1-9` | Vés a una finestra concreta |
 | `Alt + Arrow Left/Right` | Mou-te entre finestres |
-| `Alt + Shift + Arrow Left/Right` | Mou la finestra a l'esquerra/a la dreta |
+| `Alt + Shift + Arrow Left/Right` | Mou la finestra a l'esquerra/dreta |
 
 ### Sessions
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Sessió nova |
 | `Prefix + K` | Mata la sessió |
-| `Prefix + R` | Canvia el nom de la sessió |
+| `Prefix + R` | Reanomena la sessió |
 | `Prefix + N` | Sessió següent |
 | `Prefix + P` | Sessió anterior |
 | `Alt + Arrow Up/Down` | Mou-te entre sessions |
-| `Prefix + s` | Enumera les sessions |
-| `Prefix + d` | Desvincula't de la sessió |
+| `Prefix + s` | Llista les sessions |
+| `Prefix + d` | Desconnecta't de la sessió |
 
 ### Mode de còpia (estil vi)
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
 | `Prefix + [` | Entra al mode de còpia |
 | `v` | Comença la selecció (en mode de còpia) |
@@ -263,10 +318,10 @@ La tecla de prefix és `Ctrl + Space` (`Ctrl + B` també funciona). Podeu canvia
 
 ### General
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
-| `Prefix + q` | Torna a carregar la configuració |
-| `Prefix + ?` | Mostra les dreceres de Tmux |
+| `Prefix + q` | Recarrega la configuració |
+| `Prefix + ?` | Mostra les assignacions de tecles de Tmux |
 | `Prefix + :` | Indicador d'ordres |
 
 ### Funcions de disposició de Tmux
@@ -277,99 +332,99 @@ Aquestes funcions s'han d'executar dins d'una sessió de Tmux.
 | ------- | -------- |
 | `tdl <ai> [<second_ai>]` | Crea una disposició de desenvolupament amb editor, IA i terminal |
 | `tdlm <ai> [<second_ai>]` | Crea una disposició de desenvolupament per subdirectori |
-| `tsl <count> <command>` | Crea una disposició eixam de diversos panells |
+| `tsl <count> <command>` | Crea una disposició d'eixam amb diversos panells |
 
 ## Terminal Ghostty
 
-El terminal Ghostty s'instal·la mitjançant _Instal·la > Terminal_ al menú d'Omarchy.
+El terminal Ghostty s'instal·la amb _Install > Terminal_ a través del menú d'Omarchy.
 
-| Drecera                  | Funció              |
+| Drecera | Funció |
 | ----------------------- | --------------------- |
 | `Ctrl + Shift + E` | Nova divisió a sota |
 | `Ctrl + Shift + O` | Nova divisió al costat |
 | `Ctrl + Alt + Arrows` | Mou-te entre divisions |
 | `Super + Ctrl + Shift + Arrows` | Redimensiona la divisió en 10 línies |
 | `Super + Ctrl + Shift + Alt + Arrows` | Redimensiona la divisió en 100 línies |
-| `Ctrl + Shift + T` | Pestanya nova  |
-| `Ctrl + Shift + Arrows` | Mou-te entre pestansí |
+| `Ctrl + Shift + T` | Pestanya nova |
+| `Ctrl + Shift + Arrows` | Mou-te entre pestanyes |
 | `Alt + Numbers` | Vés a una pestanya concreta |
-| `Shift + Pg Up/Down` | Desplaça l'historial |
+| `Shift + Pg Up/Down` | Desplaça't per l'historial |
 | `Ctrl + Left mouse` | Obre l'enllaç al navegador |
 
 ## Gestor de fitxers
 
-| Drecera              | Funció                       |
+| Drecera | Funció |
 | ------------------- | ------------------------------ |
-| `Ctrl + L`            | Vés a la ruta                     |
-| `Space`               | Previsualitza el fitxer (les fletxes naveguen) |
-| `Backspace`      | Torna una carpeta enrere             |
+| `Ctrl + L` | Vés a la ruta |
+| `Space` | Previsualitza el fitxer (les fletxes naveguen) |
+| `Alt + Up` | Puja a la carpeta pare |
 
 ## Neovim (amb lazyvim)
 
 ### Navegació
 
-| Drecera                   | Funció                        |
+| Drecera | Funció |
 | ------------------------ | ------------------------------- |
-| `Space`                    | Mostra les opcions d'ordres            |
-| `Space Space`              | Obre un fitxer amb cerca difusa      |
-| `Space E`                  | Commuta la barra lateral                  |
-| `Space G G`                | Mostra els controls de git               |
-| `Space S G`                | Cerca en el contingut dels fitxers             |
-| `Ctrl + W W`               | Salta entre la barra lateral i l'editor |
-| `Ctrl + Left/right arrow`  | Canvia la mida de la barra lateral          |
-| `Shift + H`                      | Vés a la pestanya de fitxer de l'esquerra             |
-| `Shift + L`                      | Vés a la pestanya de fitxer de la dreta            |
-| `Space B D`                | Tanca la pestanya de fitxer                  |
+| `Space` | Mostra les opcions d'ordres |
+| `Space Space` | Obre un fitxer amb cerca difusa |
+| `Space E` | Commuta la barra lateral |
+| `Space G G` | Mostra els controls de git |
+| `Space S G` | Cerca el contingut del fitxer |
+| `Ctrl + W W` | Salta entre la barra lateral i l'editor |
+| `Ctrl + Left/right arrow` | Canvia la mida de la barra lateral |
+| `Shift + H` | Vés a la pestanya de fitxer de l'esquerra |
+| `Shift + L` | Vés a la pestanya de fitxer de la dreta |
+| `Space B D` | Tanca la pestanya de fitxer |
 
-### A la barra lateral
+### Mentre ets a la barra lateral
 
-| Drecera                   | Funció                        |
+| Drecera | Funció |
 | ------------------------ | ------------------------------- |
-| `A`                        | Afegeix un fitxer nou al directori pare      |
-| `Shift + A`                | Afegeix un subdirectori nou al directori pare    |
-| `D`                        | Suprimeix el fitxer/directori ressaltat     |
-| `M`                        | Mou el fitxer/directori ressaltat       |
-| `R`                        | Canvia el nom del fitxer/directori ressaltat     |
-| `?`                        | Mostra l'ajuda per a totes les ordres      |
+| `A` | Afegeix un fitxer nou al directori pare |
+| `Shift + A` | Afegeix un subdirectori nou al directori pare |
+| `D` | Suprimeix el fitxer/directori ressaltat |
+| `M` | Mou el fitxer/directori ressaltat |
+| `R` | Reanomena el fitxer/directori ressaltat |
+| `?` | Mostra l'ajuda de totes les ordres |
 
-[Vegeu totes les dreceres de Neovim configurades per LazyVim](https://www.lazyvim.org/keymaps).
+[Consulta totes les dreceres de Neovim configurades per LazyVim](https://www.lazyvim.org/keymaps).
 
 ## Emojis ràpids
 
-Podeu fer servir `Super + Ctrl + E` per mostrar un selector d'emojis complet que posarà la selecció al porta-retalls, o podeu fer servir aquestes opcions d'accés ràpid.
+Pots fer servir `Super + Ctrl + E` per mostrar un selector d'emojis complet que posarà la selecció al porta-retalls, o pots fer servir aquestes opcions d'accés ràpid.
 
-| Drecera       | EM | Pista       |
+| Drecera | EM | Pista |
 | ------------ | -- | ---------- |
-| `Shift + CapsLock M S` | 😄 | somriure      |
-| `Shift + CapsLock M C` | 😂 | plorar        |
-| `Shift + CapsLock M L` | 😍 | amor       |
-| `Shift + CapsLock M V` | ✌️ | victòria    |
-| `Shift + CapsLock M H` | ❤️ | cor      |
-| `Shift + CapsLock M Y` | 👍 | sí        |
-| `Shift + CapsLock M N` | 👎 | no         |
-| `Shift + CapsLock M F` | 🖕 | fuck       |
-| `Shift + CapsLock M W` | 🤞 | desig       |
-| `Shift + CapsLock M R` | 🤘 | rock       |
-| `Shift + CapsLock M K` | 😘 | petó       |
-| `Shift + CapsLock M E` | 🙄 | ulls en blanc    |
-| `Shift + CapsLock M I` | 😉 | ullet       |
-| `Shift + CapsLock M P` | 🙏 | pregar |
-| `Shift + CapsLock M D` | 🤤 | bavejar      |
-| `Shift + CapsLock M M` | 💰 | diners      |
+| `Shift + CapsLock M S` | 😄 | somriure |
+| `Shift + CapsLock M C` | 😂 | plor |
+| `Shift + CapsLock M L` | 😍 | amor |
+| `Shift + CapsLock M V` | ✌️ | victòria |
+| `Shift + CapsLock M H` | ❤️ | cor |
+| `Shift + CapsLock M Y` | 👍 | sí |
+| `Shift + CapsLock M N` | 👎 | no |
+| `Shift + CapsLock M F` | 🖕 | fotre |
+| `Shift + CapsLock M W` | 🤞 | desig |
+| `Shift + CapsLock M R` | 🤘 | rock |
+| `Shift + CapsLock M K` | 😘 | petó |
+| `Shift + CapsLock M E` | 🙄 | ulls en blanc |
+| `Shift + CapsLock M I` | 😉 | picada d'ullet |
+| `Shift + CapsLock M P` | 🙏 | resar |
+| `Shift + CapsLock M D` | 🤤 | bavejar |
+| `Shift + CapsLock M M` | 💰 | diners |
 | `Shift + CapsLock M X` | 🎉 | xellebrate |
-| `Shift + CapsLock M 1` | 💯 | 100%       |
-| `Shift + CapsLock M T` | 🥂 | brindis      |
+| `Shift + CapsLock M 1` | 💯 | 100% |
+| `Shift + CapsLock M T` | 🥂 | brindis |
 | `Shift + CapsLock M O` |👌 | ok |
 | `Shift + CapsLock M G` |👋 | salutació |
 | `Shift + CapsLock M A` |💪 | braç |
-| `Shift + CapsLock M B` |🤯 | explotar |
+| `Shift + CapsLock M B` |🤯 | explotant |
 
-## Completaments ràpids
+## Complecions ràpides
 
-| Drecera       | Completament       |
-| ------------ |  ---------- |
-| `Shift + CapsLock Space Space` | — (guió llarg)   |
-| `Shift + CapsLock Space N` | El vostre nom (tal com s'ha introduït a la configuració)  |
-| `Shift + CapsLock Space E` | El vostre correu (tal com s'ha introduït a la configuració)  |
+| Drecera | Compleció |
+| ------------ | ---------- |
+| `Shift + CapsLock Space Space` | — (guió llarg) |
+| `Shift + CapsLock Space N` | El teu nom (tal com el vas introduir a la configuració) |
+| `Shift + CapsLock Space E` | El teu correu electrònic (tal com el vas introduir a la configuració) |
 
-En podeu afegir més de propis editant `~/.XCompose` i executant després `omarchy-restart-xcompose` al terminal perquè els canvis es recullin.
+Pots afegir-ne més de teus editant `~/.XCompose` i després executant `omarchy restart xcompose` al terminal perquè els canvis s'apliquin.

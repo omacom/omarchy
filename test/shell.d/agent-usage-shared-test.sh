@@ -460,7 +460,7 @@ except collectors.HttpError as error:
 check("a body short of its Content-Length over a socket is cut short", short is not None and (short.transport, short.invalid, short.cut_short) == (False, True, True), repr(short and vars(short)))
 
 
-def drip_server():
+def drip_server(status=b"200 OK"):
   listener = socket.socket()
   listener.bind(("127.0.0.1", 0))
   listener.listen(1)
@@ -469,7 +469,7 @@ def drip_server():
     conn, _ = listener.accept()
     with conn:
       conn.recv(65536)
-      conn.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n')
+      conn.sendall(b'HTTP/1.1 ' + status + b'\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n')
       with contextlib.suppress(OSError):
         for _ in range(100):
           conn.sendall(b" ")
@@ -489,6 +489,17 @@ except collectors.HttpError as error:
 check(
   "a reply dripping a byte at a time runs out of time as one cut short instead of holding the collector",
   dripped is not None and dripped.cut_short and not dripped.transport and time.monotonic() - began < 5,
+  repr(dripped and vars(dripped)),
+)
+began = time.monotonic()
+try:
+  collectors.open_json(urllib.request.Request(drip_server(b"500 Internal Server Error")), timeout=0.3)
+  dripped = None
+except collectors.HttpError as error:
+  dripped = error
+check(
+  "an error reply dripping its body still answers with its status by the deadline",
+  dripped is not None and dripped.status == 500 and time.monotonic() - began < 5,
   repr(dripped and vars(dripped)),
 )
 bad_key = urllib.request.Request("https://example.invalid", headers={"Authorization": "Bearer sk-secret\nX: y"})
@@ -813,7 +824,21 @@ before = (db.parent / "opencode-v2.db").read_bytes()
 collectors.scan_opencode(["demo"], accept_demo)
 check("the database is opened read-only", (db.parent / "opencode-v2.db").read_bytes() == before)
 
+# opencode 2 keeps a key it's given in its credential table: the active one
+# of an integration is the key, an inactive one or another integration's isn't.
+with contextlib.closing(sqlite3.connect(db.parent / "opencode-v2.db")) as conn:
+  conn.execute("CREATE TABLE credential (id text PRIMARY KEY, integration_id text, label text NOT NULL, value text NOT NULL, connector_id text, method_id text, active integer, time_created integer NOT NULL, time_updated integer NOT NULL)")
+  conn.executemany("INSERT INTO credential VALUES (?, ?, 'k', ?, NULL, NULL, ?, 1, ?)", [
+    ("old", "fireworks-ai", json.dumps({"type": "key", "key": "fw_old"}), 0, 1),
+    ("new", "fireworks-ai", json.dumps({"type": "key", "key": "fw_new"}), 1, 2),
+    ("or", "openrouter", json.dumps({"type": "oauth", "key": "not-a-key"}), 1, 3),
+  ])
+  conn.commit()
+check("opencode's active credential is the key", collectors.opencode_credential_key("fireworks-ai") == "fw_new")
+check("a credential that isn't a key isn't one", collectors.opencode_credential_key("openrouter") == "")
+
 (db.parent / "opencode-v2.db").write_bytes(b"not a database at all, just bytes" * 200)
+check("an unreadable database has no key", collectors.opencode_credential_key("fireworks-ai") == "")
 rows, complete = collectors.scan_opencode(["demo"], accept_demo)
 check("a database error marks the scan incomplete", not complete and rows == [])
 
@@ -1316,17 +1341,17 @@ registry.parent.mkdir(parents=True)
 registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}], "active": "main"}))
 check("a registry with one account adds nothing to the record", collectors.registered_accounts("demo") == [])
 check("no registry at all adds nothing either", collectors.registered_accounts("nothing") == [])
-registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}, {"id": "work", "label": "Work"}, {"label": "no id"}, "junk"], "active": "gone", "switch": "auto", "threshold": 80}))
+registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}, {"id": "work", "label": "Work"}, {"label": "no id"}, "junk"], "active": "gone", "threshold": 80}))
 accounts = collectors.registered_accounts("demo")
 check(
-  "registered accounts carry which is active (the first when the registry names none it has) and the switch settings",
-  [(a["id"], a["active"], a["switch"]) for a in accounts] == [("main", True, {"mode": "auto", "threshold": 80}), ("work", False, {"mode": "auto", "threshold": 80})],
+  "registered accounts carry which is active (the first when the registry names none it has) and the alert threshold",
+  [(a["id"], a["active"], a["switch"]) for a in accounts] == [("main", True, {"threshold": 80}), ("work", False, {"threshold": 80})],
   json.dumps(accounts),
 )
 for raw, held in ((20, 50), (180, 100), ("x", 95), (None, 95), (85.7, 85)):
   registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}, {"id": "work"}], "threshold": raw}))
   check(f"a registry threshold of {raw!r} reads as {held}, as account state holds it", collectors.registered_accounts("demo")[0]["switch"]["threshold"] == held)
-registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}, {"id": "work", "label": "Work"}], "active": "gone", "switch": "auto", "threshold": 80}))
+registry.write_text(json.dumps({"accounts": [{"id": "main", "primary": True}, {"id": "work", "label": "Work"}], "active": "gone", "threshold": 80}))
 limits = {"limits": [{"label": "Weekly", "percent": 0.5, "resetsAt": ""}], "live": False, "fetchedAtMs": 5, "usageStatusText": "", "authHelpText": "help"}
 entry = collectors.account_entry(accounts[1], limits, "", resetCredits=None)
 check(

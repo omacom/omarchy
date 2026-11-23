@@ -1,44 +1,48 @@
-# Instalace s duálním spouštěním
+# Instalace v režimu dual boot
 
-Omarchy můžete nainstalovat do jednoho oddílu vedle systému Windows nebo jiných instalací.
+Omarchy můžete nainstalovat na jeden oddíl vedle Windows nebo jiných instalací.
 
-Tento způsob instalace je ve výchozím nastavení stále vybaven šifrováním oddílu LUKS, takže se fakticky neliší od instalace na celý disk a jednoduše vyžaduje, aby bylo na disku volné místo.
+Tato metoda instalace i tak ve výchozím nastavení používá pro daný oddíl šifrování LUKS, takže se ve skutečnosti nijak neliší od instalace na celý disk a pouze vyžaduje, aby bylo na disku k dispozici volné místo.
 
-## Vytvoření místa v systému Windows
+## Uvolnění místa ve Windows
 
-Chcete-li instalovat vedle systému Windows, zadejte do nabídky Start text `disk management` a vyberte volbu **Create and format hard disk partitions**.
+Pokud chcete instalaci provést vedle Windows, zadejte v nabídce Start `disk management` a vyberte možnost **Vytvořit a formátovat oddíly na pevném disku**.
 
  ![dual-boot-1](images/dual-boot-1.webp)
 
-Najděte příslušný oddíl, klikněte pravým tlačítkem a zvolte **Shrink Volume**.
+Najděte příslušný oddíl, klikněte na něj pravým tlačítkem a zvolte **Zmenšit svazek**.
 
 ![dual-boot-2](images/dual-boot-2.webp)
 
- Zadejte množství, o které chcete svazek zmenšit. Všimněte si, že právě to bude velikost vaší budoucí instalace Omarchy včetně spouštěcího oddílu.
+ Zadejte velikost, o kterou chcete svazek zmenšit. Mějte na paměti, že to bude velikost vaší budoucí instalace Omarchy včetně spouštěcího oddílu.
 
  ![dual-boot-3](images/dual-boot-3.webp)
 
-Po dokončení byste měli vidět něco jako toto, kde daných 50 GB představuje v tomto příkladu prostor, kam Omarchy nainstalujeme.
+Až budete hotovi, měli byste vidět něco podobného, kde je 50GB část v tomto příkladu místem, kam nainstalujeme Omarchy.
 
  ![dual-boot-4](images/dual-boot-4.webp)
 
-## Instalace systému Omarchy
+## Instalace Omarchy
 
-Postup instalace Omarchy je v podstatě stejný jako obvykle. Po výběru disku dostanete možnost **Free space install**. Vyberte tuto možnost, abyste zabránili vymazání celého disku.
+Proces instalace Omarchy je ve skutečnosti stejný jako obvykle. Po výběru disku dostanete možnost **Free space install**. Výběrem této možnosti zabráníte vymazání celého disku.
 
  ![dual-boot-5](images/dual-boot-5.webp)
 
-Potvrďte, že vše vypadá dobře, a počkejte na dokončení instalace jako obvykle. Zde byste se také mohli rozhodnout pro nešifrovanou instalaci (nedoporučuje se), stejně jako při instalaci na celý disk.
+Zkontrolujte, že vše vypadá dobře, a počkejte na dokončení instalace jako obvykle. Stejně jako u instalace na celý disk se zde také můžete rozhodnout pro instalaci bez šifrování (nedoporučuje se).
  ![dual-boot-6](images/dual-boot-6.webp)
 
-## Přidání jiných instalací do zavaděče
+## Přidání dalších instalací do zavaděče
 
-Po dokončení instalace Omarchy si všimnete, že nyní je výchozím zavaděčem Limine. S jeho pomocí můžete do Limine přidat také možnosti pro jiné instalace, například Windows.
+Po dokončení instalace Omarchy si všimnete, že je nyní výchozím zavaděčem Limine. Pomocí něj můžete do Limine přidat také možnosti pro další instalace, například Windows.
 
-K tomu spusťte příkaz `limine-scan` a podle pokynů přidejte do konfigurace Limine libovolné položky. Při spouštění pak uvidíte běžné možnosti pro Omarchy i Windows Boot Manager či jiné systémy.
+Chcete-li přidat další operační systémy, spusťte `limine-scan` a podle pokynů přidejte požadované položky do konfigurace Limine. Nabídka spouštění zůstává ve výchozím nastavení skrytá a Omarchy se spustí po jedné sekundě. Chcete-li vybrat Windows nebo jinou položku, stiskněte libovolnou klávesu ihned po spuštění Limine; jakmile se nabídka objeví, vyberte položku pomocí šipek a stiskněte Enter. Pokud se Omarchy spustí dříve, než stihnete klávesu stisknout, restartujte počítač a zkuste to znovu.
 
 ## Bitlocker
 
-Je důležité poznamenat, že tento způsob instalace není kompatibilní s nástrojem Bitlocker, protože ten šifruje celou jednotku, nikoli pouze oddíl. Pokud se zobrazí chyba oznamující, že je Bitlocker zapnutý, spusťte systém Windows, přejděte do části **Settings -> Privacy & Security -> Device encryption** a Bitlocker vypněte. Dešifrování jednotky může chvíli trvat.
+Je důležité upozornit, že tato metoda instalace není kompatibilní s nástrojem Bitlocker, protože ten šifruje celý disk, nejen oddíl. Pokud narazíte na chybu oznamující, že je Bitlocker povolený, spusťte Windows, přejděte do **Nastavení -> Soukromí a zabezpečení -> Šifrování zařízení** a Bitlocker vypněte. Dešifrování disku může nějakou dobu trvat.
 
  ![dual-boot-7](images/dual-boot-7.webp)
+
+## Přeinstalace Windows
+
+Pokud byl tento počítač dodán s Windows, je jeho produktový klíč uložen ve firmwaru. Spuštěním `omarchy windows key` jej zobrazíte, abyste mohli Windows znovu aktivovat, pokud je na tomto počítači někdy přeinstalujete.

@@ -1,85 +1,85 @@
 # Igranje iger
 
-Omarchy ni samo za _pRoDuKtIvNoSt_, namenjen je tudi zabavi, in kaj je bolj zabavnega od igranja iger? Omarchy dobavlja celoten nabor možnosti za igranje — Steam in RetroArch za izvorno in retro igranje, Battle.net, Lutris in Heroic za trgovine zunaj Steama, Moonlight za pretočno predvajanje na PC, Xbox Cloud Gaming + NVIDIA GeForce NOW za oblak ter vedno zeleni Minecraft.
+Omarchy ni samo za _pRoDUkTiVnOsT_, tudi za zabavo je, in kaj je bolj zabavno od igranja iger? Omarchy prinaša cel nabor možnosti za igranje iger — Steam in RetroArch za izvorno in retro igranje, Battle.net, Lutris in Heroic za trgovine, ki niso Steam, Moonlight za pretakanje z PC-ja, Xbox Cloud Gaming + NVIDIA GeForce NOW za oblak, poleg tega pa še vedno zeleni Minecraft.
 
-Zahvaljujoč neverjetnemu delu podjetja Valve na [združljivostni plasti proton](https://en.wikipedia.org/wiki/Proton_(software)) je zdaj v Linuxu na deset tisoče sodobnih iger, ki jih je mogoče igrati. Oh, ali ste vedeli, da [Steam Deck](https://store.steampowered.com/steamdeck/) dejansko poganja Arch!
+Zahvaljujoč neverjetnemu delu podjetja Valve na [združljivostni plasti Proton](https://en.wikipedia.org/wiki/Proton_(software)) je zdaj na Linuxu mogoče igrati več deset tisoč sodobnih iger. Aha, in ali ste vedeli, da [Steam Deck](https://store.steampowered.com/steamdeck/) v resnici poganja Arch!
 
-Vsi namestitveni programi za igre živijo pod _Namesti > Igranje_ v meniju Omarchy (`Super + Space`). Če boste kdaj želeli kaj razveljaviti, uporabite _Odstrani > Igranje_.
+Vsi namestitveni programi za igre so pod _Namesti > Igranje iger_ v meniju Omarchy (`Super + Space`). Če želite katerega od njih kdaj razveljaviti, uporabite _Odstrani > Igranje iger_. Minecraft, NVIDIA GeForce NOW, Battle.net, Lutris in Heroic so na voljo samo na računalnikih x86.
 
 ## Steam
 
-Namestite [Steam](https://store.steampowered.com/), tako da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje > Steam_.
+Namestite [Steam](https://store.steampowered.com/) tako, da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje iger > Steam_.
 
 Ko ga namestite, boste Steam lahko zagnali s `Super + Space`.
 
-Upoštevajte, da zagon Steama lahko traja 10-20 sekund in ne bo podal nobene vizualne povratne informacije, da se nalaga.
+Upoštevajte, da lahko zagon Steama traja 10-20 sekund in da ne bo nobenega vizualnega odziva, da se nalaga.
 
  ![gaming-steam](images/gaming-steam.webp)
 
 ## RetroArch
 
-Namestite [RetroArch](https://www.retroarch.com/), tako da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje > RetroArch_. Prinaša celoten nabor jeder libretro, tako da so pokriti vsi klasični sistemi.
+Namestite [RetroArch](https://www.retroarch.com/) tako, da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje iger > RetroArch_. Priložen je celoten nabor jeder libretro, tako da so pokriti vsi klasični sistemi.
 
-RetroArch je v celoti vnaprej konfiguriran z lepim senčilom CRT Royale za popoln retro videz.
+RetroArch je v celoti vnaprej konfiguriran s čudovitim senčilnikom CRT Royale za popoln retro videz.
 
 Za začetek:
 
 1. Datoteke BIOS odložite v `~/Games/bios`, ROM-e pa v `~/Games/roms`.
-2. Zaženite RetroArch s `Super + Space` in vpisom `retro`.
-3. Preglejte mapo `~/Games/roms` in pripravljeni ste na igranje.
+2. Zaženite RetroArch s `Super + Space` in vtipkajte `retro`.
+3. Preglejte imenik `~/Games/roms` in pripravljeni ste na igranje.
 
-Priljubljeni igri lahko date tudi lasten vnos v zaganjalniku aplikacij z _Namesti > Igranje > RetroArch Game Launcher_, ki omogoča izbiro jedra in ROM-a ter skok naravnost v igro iz `Super + Space`.
+Najljubši igri lahko daste tudi lasten vnos v zaganjalniku aplikacij z _Namesti > Igranje iger > Zaganjalnik iger RetroArch_, ki vam omogoča, da izberete jedro in ROM ter skočite naravnost v igro iz `Super + Space`.
 
  ![gaming-retroarch](images/gaming-retroarch.webp)
 
 ## Xbox Cloud Gaming
 
-Namestite spletno aplikacijo Xbox Cloud Gaming, tako da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje > Xbox Cloud Gaming_. Gre »samo« za spletno aplikacijo za storitev, vendar se hitro zažene in odlično teče pri 1080p.
+Spletno aplikacijo Xbox Cloud Gaming namestite tako, da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje iger > Xbox Cloud Gaming_. Je »samo« spletna aplikacija za to storitev, vendar se hitro zažene in odlično deluje pri 1080p.
 
-Če že imate Xbox Game Pass, je to soliden način za igranje Fortnite in drugih naslovov, ki jih v Linuxu ne morete izvajati izvorno.
+Če že imate Xbox Game Pass, je to zanesljiv način za igranje Fortnitea in drugih naslovov, ki jih na Linuxu ne morete poganjati izvorno.
 
  ![gaming-xbox-cloud](images/gaming-xbox-cloud.webp)
 
 ## NVIDIA GeForce Now
 
-Namestite storitev za igranje v oblaku [NVIDIA GeForce NOW](https://www.nvidia.com/en-us/geforce-now/), tako da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje > NVIDIA GeForce NOW_. Še en odličen način za igranje naslovov, ki v Linuxu niso izvorno na voljo.
+Storitev za igranje iger v oblaku [NVIDIA GeForce NOW](https://www.nvidia.com/en-us/geforce-now/) namestite tako, da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje iger > NVIDIA GeForce NOW_. Še en odličen način za igranje naslovov, ki na Linuxu niso na voljo izvorno.
 
  ![gaming-geforce-now](images/gaming-geforce-now.webp)
 
 ## Minecraft
 
-Namestite Minecraft, tako da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje > Minecraft_.
+Minecraft namestite tako, da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje iger > Minecraft_.
 
-Tako kot pri Steamu upoštevajte, da lahko po prijavi ali zagonu mine nekaj časa, preden se prikaže naslednji zaslon, med čakanjem pa ne boste prejeli povratnih informacij.
+Tako kot pri Steamu upoštevajte, da lahko po prijavi ali zagonu traja nekaj časa, preden se prikaže naslednji zaslon, in da med čakanjem ne boste dobili nobenega odziva.
 
  ![gaming-minecraft](images/gaming-minecraft.webp)
 
 ## Krmilniki Xbox
 
-Namestite podporo za krmilnike Xbox prek Bluetootha, tako da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje > Xbox Controllers_. Krmilnike združite prek Bluetootha (`Super + Ctrl + B`) in delovali bodo v vseh vaših igrah. Tega ne potrebujete, če krmilnik preprosto povežete s kablom USB-C.
+Podporo za krmilnike Xbox Bluetooth namestite tako, da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje iger > Krmilniki Xbox_. Krmilnike seznanite prek Bluetootha (`Super + Ctrl + B`) in delovali bodo v vseh vaših igrah. Tega ne potrebujete, če krmilnik preprosto povežete s kablom USB-C.
 
-## Moonlight (pretočno predvajanje iger iz PC-ja)
+## Moonlight (pretakanje iger z PC-ja)
 
-[Odjemalec Moonlight](https://github.com/moonlight-stream/moonlight-qt) je prednameščen z Omarchyjem, tako da lahko takoj pretočno predvajate igre iz PC-ja Windows, ki poganja [Sunshine](https://app.lizardbyte.dev/Sunshine/). Moonlight zaženete prek `Super + Space`.
+[Odjemalca Moonlight](https://github.com/moonlight-stream/moonlight-qt) namestite tako, da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje iger > Moonlight_, in lahko pretakate igre z računalnika Windows, na katerem teče [Sunshine](https://app.lizardbyte.dev/Sunshine/).
 
-Če sta vaš računalnik Omarchy in oddaljeni igralni PC povezana s kablom, je izkušnja neločljiva od lokalnega igranja. Ločljivost dvignite na izvorno, osveževanje nastavite na 120 Hz in bitno hitrost potisnite na maksimum — to je najboljši način za igranje tekmovalnih streljank, kot je Fortnite, v Linuxu.
+Če sta tako vaš računalnik z Omarchy kot oddaljeni igralni PC povezana z žico, se izkušnja ne razlikuje od lokalnega igranja. Ločljivost dvignite na izvorno, osveževanje nastavite na 120Hz in bitno hitrost na največ — to je najboljši način za igranje tekmovalnih streljačin, kot je Fortnite, na Linuxu.
 
-Računalnik Omarchy lahko spremenite tudi v gostitelja, če zaženete `omarchy install service sunshine`, kar namesti Sunshine in odpre vrata za pretočno predvajanje Moonlight za vaše LAN in Tailscale.
+Računalnik z Omarchy lahko spremenite tudi v gostitelja, tako da zaženete `omarchy install service sunshine`, kar namesti Sunshine in odpre vrata za pretakanje Moonlight za vaš LAN in Tailscale.
 
 ## Battle.net
 
-Namestite [Battle.net](https://eu.shop.battle.net/en-us), tako da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje > Battle.net_. To vam prinese naslove, kot so Diablo, Starcraft in World of Warcraft, kot samostojno namestitev, ki teče pod GE-Proton — brez Steama, Lutrisa ali Heroica.
+[Battle.net](https://eu.shop.battle.net/en-us) namestite tako, da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje iger > Battle.net_. To vam prinaša naslove, kot so Diablo, Starcraft in World of Warcraft, kot samostojno namestitev, ki teče pod GE-Proton — brez potrebe po Steamu, Lutrisu ali Heroicu.
 
  ![gaming-starcraft](images/gaming-starcraft.webp)
 
-## Lutris (igre Windows)
+## Lutris (igre za Windows)
 
-Namestite [Lutris](https://lutris.net/), tako da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje > Lutris_. Lutris je način za igranje iger Windows iz trgovin, kot sta EA in Ubisoft Connect, ki nimata lastnega namestitvenega programa zgoraj.
+[Lutris](https://lutris.net/) namestite tako, da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje iger > Lutris_. Lutris je način za igranje iger za Windows iz trgovin, kot sta EA in Ubisoft Connect, ki nimata lastnega namestitvenega programa zgoraj.
 
-Namestitev je nekoliko okorna in včasih izgleda, kot da se nič ne dogaja — samo bodite potrpežljivi, v ozadju dela.
+Namestitev je nekoliko nerodna in včasih je videti, kot da se nič ne dogaja — le potrpežljivo počakajte, deluje v ozadju.
 
 ## Heroic Launcher (Epic Games)
 
-Namestite [Heroic Launcher](https://heroicgameslauncher.com/), tako da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje > Heroic (Epic Games)_. Heroic omogoča izvajanje naslovov Epic Games, kot je OddSparks, ki ne slonijo na zaščiti pred goljufanjem — ter iger iz GOG in Amazon Prime Gaming. Žal to pomeni brez Fortnite in brez Rocket League — dokler Tim Sweeney ne pride v Linux, je to najbližje, kar gre.
+[Heroic Launcher](https://heroicgameslauncher.com/) namestite tako, da v meniju Omarchy (`Super + Space`) izberete _Namesti > Igranje iger > Heroic (Epic Games)_. Heroic vam omogoča poganjanje naslovov Epic Games, kot je OddSparks, ki se ne zanašajo na anticheat — poleg iger iz GOG in Amazon Prime Gaming. Žal to pomeni brez Fortnitea in brez Rocket League — dokler Tim Sweeney ne pride na Linux, se temu ne da priti bližje.
 
-Tako kot pri Lutrisu se lahko med nameščanjem iger zdi počasen in okoren. Dajte mu čas.
+Tako kot Lutris se lahko tudi ta med nameščanjem iger zdi počasen in neroden. Dajte mu čas.
