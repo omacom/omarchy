@@ -62,7 +62,21 @@ parse_keycodes() {
         if (line ~ /xkb_keycodes/) { section = "codes"; continue }
         if (line ~ /xkb_symbols/)  { section = "syms";  continue }
         if (section == "codes" && match(line, /<([A-Za-z0-9_]+)>\s*=\s*([0-9]+)\s*;/, m)) code_by_name[m[1]] = m[2]
-        if (section == "syms" && match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{\s*\[\s*([^, \]]+)/, m)) sym_by_name[m[1]] = m[2]
+
+        # A key whose type xkbcli spells out puts its symbols on a line of
+        # their own, so remember the key the block opened on and read them off
+        # when they arrive: the German ß right of 0 is written that way.
+        if (section == "syms") {
+          if (match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{\s*\[\s*([^, \]]+)/, m)) {
+            sym_by_name[m[1]] = m[2]
+            open_key = ""
+          } else if (match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{/, m)) {
+            open_key = m[1]
+          } else if (open_key != "" && match(line, /symbols\[[^\]]*\]\s*=\s*\[\s*([^, \]]+)/, m)) {
+            sym_by_name[open_key] = m[1]
+            open_key = ""
+          }
+        }
       }
       close(keymap_cmd)
 
@@ -76,7 +90,7 @@ parse_keycodes() {
       # as the symbol printed on it whichever key the active layout puts it on.
       # Plain punctuation words like MINUS stay; keysym names nobody would
       # recognize on their keyboard, like TWOSUPERIOR, read as the symbol.
-      split("GRAVE=~ DEAD_GRAVE=~ ASCIICIRCUM=^ DEAD_CIRCUMFLEX=^ ONEHALF=½ SECTION=§ TWOSUPERIOR=² MASCULINE=º BAR=|", printed_symbols, " ")
+      split("GRAVE=~ DEAD_GRAVE=~ ASCIICIRCUM=^ DEAD_CIRCUMFLEX=^ ONEHALF=½ SECTION=§ TWOSUPERIOR=² MASCULINE=º BAR=| PLUS=+ ASTERISK=* PARENRIGHT=) DEAD_ACUTE=´ EXCLAMDOWN=¡ GUILLEMOTLEFT=« SSHARP=ß IGRAVE=Ì UDIAERESIS=Ü OACUTE=Ó EXCLAM=!", printed_symbols, " ")
       for (i in printed_symbols) {
         separator = index(printed_symbols[i], "=")
         printed[substr(printed_symbols[i], 1, separator - 1)] = substr(printed_symbols[i], separator + 1)
@@ -689,7 +703,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v21\n'
+    printf 'v22\n'
     leading_keyboard
     omarchy-language 2>/dev/null
     cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null

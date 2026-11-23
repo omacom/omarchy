@@ -99,7 +99,7 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 
 On a touchpad, three- and four-finger swipes switch workspaces, move windows, and open the menu and the Quake console; see [keyboard, mouse, and trackpad](34-keyboard-mouse-trackpad.md) for the gestures.
 
-Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<AE12>`), regardless of the characters printed on the keyboard. On US keyboards these keys are `-` and `=`; on Japanese (JIS) keyboards they are `-` and `^`; on Spanish keyboards they are `'` and `¡`. On JIS, `Super + ^` is `Super + Equal`, while `Super + Shift + -` (which types `=`) is `Super + Shift + Minus`.
+Resizing uses the two keys right of 0, whatever your keyboard prints on them: `-` and `=` on US keyboards, `+` and `´` on Danish and Swedish, `+` and `\` on Norwegian, `ß` and `´` on German, `'` and `¡` on Spanish, and `-` and `^` on Japanese (JIS). `Super + K` lists them as your keyboard prints them. On JIS, `Super + ^` is `Super + Equal`, while `Super + Shift + -` (which types `=`) is `Super + Shift + Minus`. Monitor scaling and the password manager use `/`; on layouts that type `/` only with Shift, as most European ones do, they use the key left of right Shift instead (`-` on Danish and German).
 
 ## System controls
 
