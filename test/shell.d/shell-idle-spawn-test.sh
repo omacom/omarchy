@@ -208,7 +208,7 @@ while (( SECONDS - settle_start < 40 )); do
   if (( now != last )); then
     last=$now
     quiet_since=$SECONDS
-  elif (( SECONDS - quiet_since >= 4 && SECONDS - settle_start >= 20 )); then
+  elif (( SECONDS - quiet_since >= 4 && SECONDS - settle_start >= 15 )); then
     break
   fi
 done
