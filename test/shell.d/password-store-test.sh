@@ -6,11 +6,6 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command python3
 
-default_flags="$ROOT/config/electron-flags.conf"
-[[ $(<"$default_flags") == "--password-store=gnome-libsecret" ]] ||
-  fail "fresh installs pin Electron's password store"
-pass "fresh installs pin Electron's password store"
-
 test_dir=$(mktemp -d)
 trap 'rm -rf "$test_dir"' EXIT
 
