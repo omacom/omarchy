@@ -14,6 +14,8 @@
 state=${OMARCHY_YOGA_HIBERNATE_STATE:-/run/yoga-slim7x-hibernate}
 pm_async=${OMARCHY_YOGA_PM_ASYNC:-/sys/power/pm_async}
 platform=${OMARCHY_YOGA_PLATFORM_ROOT:-/sys/bus/platform}
+modules=${OMARCHY_YOGA_MODULE_ROOT:-/sys/module}
+watchdog=${OMARCHY_YOGA_WATCHDOG:-/dev/watchdog0}
 
 log() {
   echo "yoga-slim7x-hibernate: $*"
@@ -30,10 +32,10 @@ card_up() {
 # Keep the hardware watchdog fed while the drivers come back, so a hang there
 # resets the laptop instead of leaving it frozen.
 watchdog_on() {
-  [[ -c /dev/watchdog0 ]] || return 0
+  [[ -c $watchdog ]] || return 0
   : >"$state.wd"
   (
-    exec 3>/dev/watchdog0 || exit 0
+    exec 3>"$watchdog" || exit 0
     while [[ -e $state.wd ]]; do
       printf '.' >&3
       sleep 2
@@ -103,31 +105,50 @@ restore_dsps() {
   fi
 }
 
+# Bring back what "pre" took away: after the resume, after a hibernation that
+# failed, or when "pre" itself could not unload a driver.
+restore() {
+  [[ -s $state/pm_async ]] && cat "$state/pm_async" >"$pm_async"
+  watchdog_on
+  if [[ -e $state/dsps && ! -d $modules/qcom_q6v5_pas ]]; then
+    restore_dsps
+  fi
+  if [[ -e $state/wifi && ! -d $modules/ath12k_wifi7 ]]; then
+    log "loading ath12k_wifi7"
+    timeout 30 modprobe ath12k_wifi7 || log "loading ath12k_wifi7 failed"
+  fi
+  watchdog_off
+  rm -rf -- "$state"
+}
+
+# A driver still loaded across the power cycle loses the session, so a failed
+# unload stops the hibernation: the unit fails, and with it the sleep service
+# that requires it.
+unload_failed() {
+  log "unloading $1 failed, not hibernating"
+  restore
+  exit 1
+}
+
 case ${1:-} in
   pre)
     rm -rf -- "$state"
     mkdir -p -- "$state"
     cat "$pm_async" >"$state/pm_async"
     echo 0 >"$pm_async"
-    if [[ -d /sys/module/ath12k_wifi7 ]] && timeout 30 modprobe -r ath12k_wifi7 ath12k; then
+    if [[ -d $modules/ath12k_wifi7 ]]; then
       : >"$state/wifi"
+      timeout 30 modprobe -r ath12k_wifi7 ath12k || unload_failed ath12k_wifi7
     fi
-    if [[ -d /sys/module/qcom_q6v5_pas ]] && timeout 60 modprobe -r qcom_q6v5_pas; then
+    if [[ -d $modules/qcom_q6v5_pas ]]; then
       : >"$state/dsps"
+      timeout 60 modprobe -r qcom_q6v5_pas || unload_failed qcom_q6v5_pas
     fi
     log "ready to hibernate"
     ;;
   post)
     if [[ -d $state ]]; then
-      [[ -s $state/pm_async ]] && cat "$state/pm_async" >"$pm_async"
-      watchdog_on
-      [[ -e $state/dsps ]] && restore_dsps
-      if [[ -e $state/wifi ]]; then
-        log "loading ath12k_wifi7"
-        timeout 30 modprobe ath12k_wifi7 || log "loading ath12k_wifi7 failed"
-      fi
-      watchdog_off
-      rm -rf -- "$state"
+      restore
       log "drivers restored"
     fi
     ;;
