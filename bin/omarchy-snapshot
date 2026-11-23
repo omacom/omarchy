@@ -22,9 +22,15 @@ create)
   # The description is just a label, so never let it abort the snapshot.
   DESC="$(omarchy-version 2>/dev/null || echo unknown)"
 
-  # Every config but /home's, which snapshots itself hourly; a pre-update
-  # snapshot of it would be the /home rollback Omarchy deliberately left out.
-  mapfile -t CONFIGS < <(sudo snapper --csvout list-configs | awk -F, 'NR>1 && $1 != "home" {print $1}')
+  mapfile -t CONFIGS < <(sudo snapper --csvout list-configs | awk -F, 'NR>1 {print $1}')
+
+  # Omarchy's /home config snapshots itself hourly; a pre-update snapshot of it
+  # would be the /home rollback Omarchy deliberately left out. Someone's own
+  # config called home, without the template's first line, is snapshotted.
+  omarchy_home=$(head -n 1 "$OMARCHY_PATH/default/snapper/home")
+  if sudo grep -qxF "$omarchy_home" "${OMARCHY_SNAPPER_CONFIG_DIR:-/etc/snapper/configs}/home" 2>/dev/null; then
+    mapfile -t CONFIGS < <(printf '%s\n' "${CONFIGS[@]}" | grep -vx home)
+  fi
 
   # Snapper installed but unconfigured snapshots nothing. Staying quiet here
   # reads as a successful snapshot, so the next update looks recoverable when

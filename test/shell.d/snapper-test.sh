@@ -101,20 +101,35 @@ machine="$test_tmp/flat"
 configure "$machine" no
 [[ ! -e $machine/etc/snapper/configs/home ]] || fail "snapshot configure leaves /home alone when it is not a subvolume"
 grep -Fx 'SNAPPER_CONFIGS="root"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure lists only root when /home is part of /"
-grep -Fx 'systemctl disable --now snapper-timeline.timer' "$machine/calls.log" >/dev/null || fail "snapshot configure leaves timeline snapshots off without /home"
+! grep -q 'snapper-timeline.timer' "$machine/calls.log" || fail "snapshot configure leaves the timeline timer alone without /home"
 pass "snapshot configure snapshots /home only when it is a subvolume of its own"
 
-# Someone who already snapshots /home their own way keeps it.
+# Someone who already snapshots /home their own way keeps it, and other configs
+# they run stay listed; a stray copy of a config that isn't listed is ignored.
 machine="$test_tmp/theirs"
-mkdir -p "$machine/etc/snapper/configs"
+mkdir -p "$machine/etc/snapper/configs" "$machine/etc/conf.d"
 printf 'SUBVOLUME="%s"\nTIMELINE_CREATE="yes"\n' "$machine/home" >"$machine/etc/snapper/configs/data"
+printf 'SUBVOLUME="/srv"\n' >"$machine/etc/snapper/configs/srv"
+cp "$machine/etc/snapper/configs/data" "$machine/etc/snapper/configs/data.bak"
+printf 'SNAPPER_CONFIGS="root data srv"\n' >"$machine/etc/conf.d/snapper"
 cp "$machine/etc/snapper/configs/data" "$test_tmp/data"
 configure "$machine" yes
 [[ ! -e $machine/etc/snapper/configs/home ]] || fail "snapshot configure adds no second config for /home"
 cmp -s "$test_tmp/data" "$machine/etc/snapper/configs/data" || fail "snapshot configure leaves someone's own /home config as it was"
-grep -Fx 'SNAPPER_CONFIGS="root data"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure keeps someone's own /home config listed"
+grep -Fx 'SNAPPER_CONFIGS="root data srv"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure keeps the configs someone runs listed" "$(cat "$machine/etc/conf.d/snapper")"
 ! grep -q 'snapper-timeline.timer' "$machine/calls.log" || fail "snapshot configure leaves their timeline timer as they set it"
 pass "snapshot configure leaves an existing /home config of someone's own alone"
+
+# Theirs may be called home too, as the Arch wiki has it: it isn't Omarchy's.
+machine="$test_tmp/theirs-home"
+mkdir -p "$machine/etc/snapper/configs" "$machine/etc/conf.d"
+printf 'SUBVOLUME="%s"\nTIMELINE_LIMIT_HOURLY="10"\n' "$machine/home" >"$machine/etc/snapper/configs/home"
+cp "$machine/etc/snapper/configs/home" "$test_tmp/their-home"
+printf 'SNAPPER_CONFIGS="root home"\n' >"$machine/etc/conf.d/snapper"
+configure "$machine" yes
+cmp -s "$test_tmp/their-home" "$machine/etc/snapper/configs/home" || fail "snapshot configure leaves someone's own config called home as it was"
+grep -Fx 'SNAPPER_CONFIGS="root home"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure keeps someone's own config called home listed"
+pass "snapshot configure tells someone's own config called home from Omarchy's"
 
 # A .snapshots left from an earlier config makes create-config refuse; that
 # must not stop the setup, or every later migration waits behind it.
@@ -122,5 +137,5 @@ machine="$test_tmp/leftover"
 CREATE_FAILS=1 configure "$machine" yes || true
 [[ -e $machine/etc/conf.d/snapper ]] || fail "snapshot configure finishes when /home's config can't be created" "$(cat "$machine/stderr")"
 grep -Fx 'SNAPPER_CONFIGS="root"' "$machine/etc/conf.d/snapper" >/dev/null || fail "snapshot configure lists only root when /home's config can't be created"
-grep -qF 'Could not create a Snapper config for /home' "$machine/stderr" || fail "snapshot configure says /home isn't snapshotted"
+grep -qF 'Could not set up Snapper for /home' "$machine/stderr" || fail "snapshot configure says /home isn't snapshotted"
 pass "snapshot configure carries on, and says so, when /home's config can't be created"

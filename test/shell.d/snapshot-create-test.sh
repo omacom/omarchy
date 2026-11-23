@@ -80,11 +80,27 @@ for config in root data; do
 done
 pass "snapshot create snapshots every configured Snapper config"
 
-# /home snapshots itself hourly to bring back files; an update snapshotting it
-# too would bring back the /home rollback Omarchy dropped.
+# Omarchy's /home config snapshots itself hourly to bring back files; an update
+# snapshotting it too would bring back the /home rollback Omarchy dropped.
+configs="$test_tmp/configs"
+mkdir -p "$configs"
+cp "$ROOT/default/snapper/home" "$configs/home"
+: >"$test_tmp/calls.log"
+OMARCHY_SNAPPER_CONFIG_DIR="$configs" TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
+  bash "$snapshot" create >/dev/null
 ! grep -q '^snapper -c home ' "$test_tmp/calls.log" ||
-  fail "snapshot create leaves /home's hourly snapshots alone" "$(cat "$test_tmp/calls.log")"
-pass "snapshot create takes no pre-update snapshot of /home"
+  fail "snapshot create leaves Omarchy's hourly /home snapshots alone" "$(cat "$test_tmp/calls.log")"
+grep -qFx 'snapper -c root create -c number -d 4.0.0' "$test_tmp/calls.log" || fail "snapshot create still snapshots root beside Omarchy's /home"
+pass "snapshot create takes no pre-update snapshot of Omarchy's /home"
+
+# Someone's own config called home gets its pre-update snapshots as before.
+printf 'SUBVOLUME="/home"\n' >"$configs/home"
+: >"$test_tmp/calls.log"
+OMARCHY_SNAPPER_CONFIG_DIR="$configs" TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
+  bash "$snapshot" create >/dev/null
+grep -qFx 'snapper -c home create -c number -d 4.0.0' "$test_tmp/calls.log" ||
+  fail "snapshot create snapshots someone's own config called home" "$(cat "$test_tmp/calls.log")"
+pass "snapshot create snapshots someone's own config called home"
 
 # Snapper being deliberately absent is the one skip that stays quiet, and the
 # update has to keep treating it as such.
