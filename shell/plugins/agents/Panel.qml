@@ -2598,7 +2598,9 @@ Panel {
     readonly property bool makesOpen: root.makesOpenIndex === providerIndex
     onEngagedChanged: {
       if (!engaged && makesOpen) root.makesOpenIndex = -1
-      if (engaged) root.pointerOnLine(providerIndex)
+      // Once the change settles: moving the cursor while keyTarget is being
+      // worked out is a binding loop, which can leave Delete with no line.
+      if (engaged) Qt.callLater(root.pointerOnLine, providerIndex)
     }
     HoverHandler { id: sectionHover }
     z: dragged ? 2 : 0
