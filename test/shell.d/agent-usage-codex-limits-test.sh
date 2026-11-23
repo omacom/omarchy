@@ -346,6 +346,9 @@ reads("a spend cap follows the windows once, however many views carry it", {
 reads("a spend cap only the backward-compatible view carries still counts", {
   "rateLimits": dict(legacy, individualLimit=cap), "rateLimitsByLimitId": {"codex": legacy}
 }, [entry(12), spend_entry(0.25)])
+reads("a zero credit allocation leaves ordinary usage windows without a spend meter", {
+  "rateLimits": dict(legacy, individualLimit={"limit": "0", "used": "0", "remainingPercent": 0})
+}, [entry(12)])
 reads("a spend cap without usable amounts reads its reported percentage", {
   "rateLimits": dict(legacy, individualLimit={"limit": True, "used": "NaN", "remainingPercent": 75, "resetsAt": -5})
 }, [entry(12), spend_entry(0.25, "")])
