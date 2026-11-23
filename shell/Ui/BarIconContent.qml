@@ -6,8 +6,9 @@ Item {
 
   property Component sourceComponent: null
   property real sourceSize: Style.bar.iconCanvas
+  property bool normalize: true
   readonly property rect sourceBounds: bounds.mappedBounds
-  readonly property real contentScale: sourceBounds.width > 0 && sourceBounds.height > 0
+  readonly property real contentScale: normalize && sourceBounds.width > 0 && sourceBounds.height > 0
     ? Style.bar.iconSize / Math.max(sourceBounds.width, sourceBounds.height) : 1
   readonly property real paintedWidth: sourceBounds.width * contentScale
   readonly property real paintedHeight: sourceBounds.height * contentScale

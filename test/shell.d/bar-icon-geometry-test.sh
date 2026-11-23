@@ -159,6 +159,23 @@ ShellRoot {
       return false
     }
     if (!checkPaintedBounds(labelledPower, "battery percentage")) return false
+    var naturalComponents = [compositeRow, compositeColumn]
+    for (var n = 0; n < naturalComponents.length; n++) {
+      var native = naturalComponents[n]
+      if (Math.abs(native.componentPaintedWidth - native.componentSourceBounds.width) > 0.05
+          || Math.abs(native.componentPaintedHeight - native.componentSourceBounds.height) > 0.05
+          || Math.abs(native.opticalCenterErrorX) > 0.05 || Math.abs(native.opticalCenterErrorY) > 0.05) {
+        fail("a composite widget is scaled or off center")
+        return false
+      }
+      var extent = native.vertical ? native.implicitHeight : native.implicitWidth
+      var paintedExtent = native.vertical ? native.componentPaintedHeight : native.componentPaintedWidth
+      var padding = native.vertical ? native.scaledVerticalPadding : native.scaledHorizontalMargin
+      if (extent < paintedExtent + padding * 2) {
+        fail("a composite widget extends outside its button's clickable area")
+        return false
+      }
+    }
     if (Math.abs(labelledPower.glyphPaintedWidth - power.glyphPaintedWidth) > 0.05
         || Math.abs(labelledPower.glyphPaintedHeight - power.glyphPaintedHeight) > 0.05) {
       fail("the battery percentage changes the icon's size")
@@ -304,6 +321,30 @@ ShellRoot {
   BarIconButton { id: smallCanvas; bar: testBar; text: "󰍹"; opticalSize: 8 }
   WidgetButton { id: legacyIcon; bar: testBar; text: "󰍹"; fontSize: 15 }
   WidgetButton { id: textLabel; bar: testBar; text: "GPU"; fontSize: 15 }
+  BarIconButton {
+    id: compositeRow
+    bar: testBar
+    normalizeIconComponent: false
+    iconComponent: Component {
+      Row {
+        spacing: 6
+        Rectangle { width: root.customWidth; height: 19; color: "white" }
+        Text { text: "53°C"; font.pixelSize: 14; color: "white" }
+      }
+    }
+  }
+  BarIconButton {
+    id: compositeColumn
+    bar: verticalBar
+    normalizeIconComponent: false
+    iconComponent: Component {
+      Column {
+        spacing: 6
+        Rectangle { width: 19; height: root.customWidth; color: "white" }
+        Rectangle { width: 12; height: 35; color: "white" }
+      }
+    }
+  }
   BarIconButton {
     id: customBox
     bar: testBar
