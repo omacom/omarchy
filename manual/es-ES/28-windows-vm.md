@@ -1,6 +1,6 @@
 # Máquina virtual de Windows
 
-Omarchy ofrece una forma fácil de ejecutar Windows mediante una máquina virtual de Docker. Puedes instalarla desde _Instalar > Windows_, en el menú de Omarchy (`Super + Space`).
+Omarchy ofrece una forma fácil de ejecutar Windows mediante una VM de Docker en máquinas x86_64. Puedes instalarla usando _Instalar > Windows_ desde el menú de Omarchy (`Super + Space`).
 
 Tu ordenador necesita virtualización KVM para esto, algo que la mayoría de los equipos tiene, pero que a veces está desactivado en la BIOS, y el instalador te dirá si ese es el caso. También necesitarás espacio en disco: lo que le des a Windows, más unos 10GB para la imagen misma.
 
@@ -44,6 +44,6 @@ La versión instalada es Windows 11 Pro, sin activar. Necesitarás tu propia cla
 
 Si este ordenador vino con Windows, la clave OEM sigue en el firmware incluso después de instalar Omarchy. Imprímela con `omarchy windows key`. Esa clave está vinculada a este ordenador: activará Windows reinstalado en este hardware, pero por lo general no activará la máquina virtual.
 
-Puedes cambiar la asignación de recursos después volviendo a ejecutar `omarchy-windows-vm install`, lo cual reescribe la configuración de la máquina virtual a partir de tus respuestas. El propio archivo compose se encuentra ahora en `/var/lib/omarchy/windows/docker-compose.yml` y pertenece a root: eso es deliberado, para que un proceso que se ejecute como tú no pueda reescribirlo y hacer que el arranque privilegiado monte todo tu disco en el contenedor. Si necesitas editarlo a mano (por ejemplo para montar un dispositivo USB), edítalo con `sudo` y consulta todas las opciones en [el proyecto Dockur Windows](https://github.com/dockur/windows).
+Puedes cambiar la asignación de recursos después ejecutando `omarchy windows vm install` en un terminal, lo que reescribe la configuración de la VM a partir de tus respuestas. El archivo compose en sí ahora vive en `/var/lib/omarchy/windows/docker-compose.yml` y es propiedad de root — eso es deliberado, para que un proceso ejecutándose como tú no pueda reescribirlo y hacer que el arranque privilegiado monte todo tu disco dentro del contenedor. Si necesitas editarlo a mano (por ejemplo para montar un dispositivo USB), edítalo con `sudo` y consulta todas las opciones en [el proyecto Dockur Windows](https://github.com/dockur/windows).
 
-Para deshacerte de todo, usa _Quitar > Windows_ desde el menú de Omarchy. Eso borra el disco de la máquina virtual y todos sus datos, así que asegúrate de que todo lo que te importe haya salido de `~/Windows` primero.
+Para deshacerte de todo, usa _Quitar > Windows_ desde el menú de Omarchy. Eso elimina el disco de la VM en `~/.windows` y todo lo instalado dentro de Windows, así que primero copia fuera de la VM cualquier cosa que necesites. Tu carpeta compartida `~/Windows` se queda intacta.

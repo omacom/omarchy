@@ -36,7 +36,7 @@ El diseño predeterminado de Omarchy se llama dwindle. Mantiene todas las ventan
 
 Pero también puedes elegir convertir un espacio de trabajo al diseño scrolling, donde las ventanas se alinean lado a lado, más allá del borde visible de la pantalla. Conviertes un solo espacio de trabajo a este diseño mediante `Super + L`.
 
-Pulsar `Super + L` de nuevo convierte el espacio de trabajo en flotante, donde las ventanas se superponen libremente y tú las colocas, y una tercera pulsación lo devuelve a dwindle. `Super + Alt + L` los recorre en la otra dirección. Una ventana que de todos modos flota — una que sacaste con `Super + T`, o una aplicación que siempre se abre flotante — sigue flotando cuando el espacio de trabajo vuelve al mosaico. La barra superior marca el espacio de trabajo en el que estás con su diseño: un cuadrado para dwindle, un círculo para scrolling y un triángulo para flotante. Hacer clic en esa marca también recorre los diseños cíclicamente.
+Pulsar `Super + L` otra vez convierte el espacio de trabajo en flotante, donde las ventanas se superponen libremente y tú las colocas, y una tercera vez lo devuelve al mosaico. `Super + Alt + L` los recorre en el otro sentido. Una ventana que de por sí flota —una que sacaste con `Super + T` o una app que siempre se abre flotante— sigue flotando cuando el espacio de trabajo vuelve al mosaico. La barra superior marca el espacio de trabajo en el que estás con su diseño: un cuadrado para el mosaico, un círculo para el desplazamiento y un triángulo para la disposición flotante. Hacer clic en esa marca también recorre los diseños, y lo mismo hace la tecla de pantalla en los portátiles que la tienen.
 
  ![navigation-scrolling-layout](images/navigation-scrolling-layout.webp)
 
@@ -58,7 +58,7 @@ Un espacio de trabajo flotante funciona como un escritorio tradicional: las vent
 
 Un espacio de trabajo flotante también muestra un dock, con tus aplicaciones fijadas, todo lo que se está ejecutando y una rejilla de todas las aplicaciones detrás del botón de aplicaciones, que `Super + Alt + Space` y _Apps_ en el menú de Omarchy también abren. Haz clic derecho en una aplicación de la rejilla, o pulsa `Delete`, para desinstalarla. Haz clic en una aplicación para abrirla, o para traer su ventana al frente; haz clic de nuevo para recorrer sus ventanas cíclicamente. Files solo trae de vuelta una ventana del espacio de trabajo en el que estás y en caso contrario abre una nueva, y Terminal y Agent siempre inician otra, aunque una ventana minimizada vuelve primero. El clic central abre una ventana nueva. Arrastra un icono a lo largo del dock para moverlo; arrastrar una aplicación en ejecución entre las demás la mantiene ahí. Haz clic derecho para mantener una aplicación en el dock, sacarla de ahí o cerrarla. El dock se aparta ante una ventana en pantalla completa. Haz clic derecho en el botón de aplicaciones para mover el dock a otro borde o hacer que se oculte hasta que el puntero llegue a su borde. La posición también está en _Apariencia > Dock > Posición del dock_, y `omarchy dock position left` y `omarchy dock autohide on` configuran ambas cosas desde una terminal. Las aplicaciones que mantienes en el dock se ven atenuadas mientras no se están ejecutando.
 
-Los espacios de trabajo nuevos, y cualquiera al que no le hayas dado un diseño propio con `Super + L`, usan el diseño predeterminado. Cambiar el predeterminado restablece a ese diseño todo espacio de trabajo sin ventanas, mientras que uno con ventanas conserva el diseño que tiene. Una ventana minimizada al dock todavía cuenta como una ventana en el espacio de trabajo que dejó. Elígelo en _Apariencia > Distribución de espacios_: Mosaico, Desplazamiento o Flotante. `omarchy-hyprland-workspace-layout-default scrolling` lo establece desde una terminal.
+Los espacios de trabajo nuevos, y cualquiera al que no le hayas dado un diseño propio con `Super + L`, usan el diseño predeterminado. Cambiar el predeterminado restablece a ese diseño todos los espacios de trabajo sin ventanas, mientras que uno con ventanas conserva el diseño que tiene. Una ventana minimizada en el dock sigue contando como una ventana en el espacio de trabajo que dejó. Elígelo en _Apariencia > Distribución de espacios_: Mosaico, Desplazamiento o Flotante. `omarchy hyprland workspace layout default scrolling` lo configura desde un terminal.
 
 ### Agrupar ventanas
 
@@ -80,9 +80,9 @@ Funciona bien para controles o una terminal con la que quieres interactuar rápi
 
 ### Consola Quake
 
-Finalmente, hay una consola Quake de media altura que se despliega sobre cualquier espacio de trabajo en el que estés actualmente. Actívala o desactívala con `Super + Grave`, y coloca una ventana ahí usando `Super + Shift + Grave`.
+Por último, hay una consola Quake de media altura que se despliega sobre el espacio de trabajo en el que estás actualmente. Actívala y desactívala con `Super + the key above Tab` (acento grave en las distribuciones de EE. UU.) y coloca una ventana ahí con `Super + Shift + the key above Tab`.
 
-Se abre con tu agent predeterminado listo para usar. Mientras la consola tiene una sola ventana, se despliega como un panel centrado en lugar de abarcar toda la pantalla. Pon una segunda aplicación ahí y vuelve a todo el ancho, para que las dos tengan espacio para estar lado a lado.
+La primera vez que se abre, inicia tu agente predeterminado o te pide que elijas uno si todavía no has elegido ninguno. Mientras la consola contiene una sola ventana, se despliega como un panel centrado en lugar de abarcar toda la pantalla. Ponle una segunda app y vuelve a todo el ancho, para que las dos tengan espacio para estar lado a lado.
 
 Para sacar una ventana del scratchpad o de la consola, envíala directamente a otro espacio de trabajo con algo como `Super + Shift + 1`.
 

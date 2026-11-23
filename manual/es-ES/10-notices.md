@@ -8,7 +8,7 @@ Las notificaciones de la misma app o sitio se apilan, para que un canal de Slack
 
 Las tarjetas ofrecen lo que trae cada notificación: _Copiar código_ para los códigos de verificación (que se mantienen fuera del [historial del portapapeles](08-unified-clipboard-history.md) y se borran después de un minuto), además de los botones que proporcione la app. Los enlaces en el texto de una notificación se abren al hacer clic en ellos.
 
-Para usarlas sin el ratón, pulsa `Super + Ctrl + ,`. La notificación más reciente queda seleccionada y sus botones se numeran: pulsa un número para usar uno, `Enter` para hacer clic en la notificación, `↑` y `↓` para moverte entre notificaciones, `Delete` para descartar una y `Esc` para devolver el control al teclado. También se libera por sí sola después de unos segundos sin actividad.
+`Super + ,` descarta la notificación más reciente, o abre aquello a lo que apunta cuando ofrece esa opción, `Super + Alt + ,` descarta solo la última, `Super + Shift + ,` las descarta todas, y `Super + Shift + Alt + ,` abre el historial. Para usarlas sin el ratón, pulsa `Super + Ctrl + ,`. La notificación más reciente queda seleccionada y sus botones numerados: pulsa un número para usar uno, `Enter` para hacer clic en la notificación, `↑` y `↓` para moverte entre notificaciones, `Delete` para descartar una, y `Esc` para devolver el teclado. También se suelta por sí sola tras unos segundos sin actividad.
 
 Silenciar las notificaciones las retiene, excepto las confirmaciones propias de Omarchy, las alertas de emergencia y los códigos de verificación, que pediste hace un momento. Vuelve a poner las últimas en pantalla, retenidas o no, con `Super + Shift + Alt + ,`. El historial se conserva durante un día.
 

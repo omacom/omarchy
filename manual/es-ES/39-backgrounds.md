@@ -8,7 +8,9 @@ Los fondos pueden ser vídeos además de imágenes fijas. Suelta un archivo `mp4
 
 Los temas pueden incluir una intro corta para un fondo fijo. Para `backgrounds/road.webp`, el vídeo correspondiente está en `backgrounds/intros/road.mp4`. Se reproduce automáticamente al arrancar, al cambiar a un tema con ese fondo seleccionado y al elegir ese fondo, y luego vuelve a la imagen fija. Los vídeos de intro no aparecen en el selector de fondos y nunca se reproducen en bucle.
 
-Desactivar _Apariencia > Desactivar animaciones_ también desactiva las intros de fondo. Omarchy hace esto por defecto en una máquina virtual. El comando `omarchy theme bg intro toggle` puede activar o desactivar las intros por separado. Actualizar un tema no reproduce una intro.
+Elegir _Apariencia > Desactivar animaciones_ también desactiva las introducciones de fondo. Omarchy hace esto por defecto en una máquina virtual. El comando `omarchy theme bg intro toggle` puede activar o desactivar las introducciones por separado. Actualizar un tema no reproduce una introducción.
+
+Una imagen fija también puede tener un bucle, una versión tranquila de la misma imagen que se mantiene en movimiento, en `backgrounds/loops/road.mp4`. Se reproduce en lugar de la imagen fija, después de su introducción si tiene una, y se detiene cuando se desactivan las animaciones. Con batería, se muestra la imagen fija, y el bucle vuelve en cuanto conectas el equipo. Los bucles no aparecen en el selector de fondos.
 
 Puedes encontrar una colección enorme de fondos geniales curados en [dharmx/walls](https://github.com/dharmx/walls).
 

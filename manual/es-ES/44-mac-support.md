@@ -1,8 +1,68 @@
 # Soporte para Mac
 
-Omarchy incluye soporte integrado para **Macs con Intel**. Por el momento hay un par de limitaciones conocidas, pero siempre que las conozcas y te parezcan aceptables, puedes darle nueva vida a tus Macs viejas instalando Omarchy.
+## Omarchy para Apple Silicon
 
-Ten en cuenta que por ahora no hay soporte directo para instalar en una Mac con chip de la serie M. Puedes informarte mejor sobre cómo va el tema en #omarchy-on-other en nuestro [Discord](https://discord.gg/tXFUdasqhY).
+Omarchy para Apple Silicon es una solución oficial de Omacom, lanzada por primera vez con Omarchy 4.5. Se instala junto a macOS, y eliges entre los dos cuando tu Mac arranca.
+
+¿Has recibido un aviso sobre Omarchy Mac? Ve a [Si vienes de Omarchy Mac](#coming-from-omarchy-mac).
+
+Funciona en estos Mac:
+
+| Mac | Chips |
+| --- | --- |
+| MacBook Air | M1, M2, M3 |
+| MacBook Pro | M1, M1 Pro, M1 Max, M2, M2 Pro, M2 Max, M3, M3 Pro, M3 Max |
+| MacBook Neo | A18 Pro |
+| Mac mini | M1, M2, M2 Pro |
+| Mac Studio | M1 Max, M1 Ultra, M2 Max, M2 Ultra |
+| iMac | M1, M3 |
+| Mac Pro | M2 Ultra |
+
+Los Mac con M4 y posteriores aún no son compatibles. La compatibilidad con M4 está en pruebas en el canal edge y llegará más adelante. El instalador revisa tu Mac antes de cambiar algo.
+
+En cualquier Mac con Apple Silicon, incluidos los M4 y posteriores, puedes ejecutar Omarchy en una máquina virtual con [Try Omarchy](https://github.com/omacom/try-omarchy).
+
+### Qué necesitas
+
+- macOS 15 Sequoia o posterior, y una cuenta de administrador
+- Espacio libre en disco para Omarchy. El instalador sugiere un tamaño y te permite cambiarlo.
+- Una copia de seguridad de tu Mac, energía y una conexión a internet. La instalación descarga varios gigabytes.
+
+### Instalación
+
+La instalación se hace desde macOS. Instala el Instalador de Omarchy con [Homebrew](https://brew.sh):
+
+```sh
+brew install omacom/mac/omarchy
+```
+
+O descarga el Instalador de Omarchy más reciente desde su [página de lanzamientos](https://github.com/omacom/omarchy-mac-installer/releases) y ábrelo.
+
+El instalador revisa tu Mac, te muestra el plan y hace espacio para Omarchy reduciendo la partición de macOS. macOS permanece en el disco y no se necesita ninguna unidad USB. Cuando termina la primera etapa, te guía para terminar la configuración en macOS Recovery: apaga, mantén pulsado el botón de encendido hasta que aparezca "Loading startup options", elige Omarchy y sigue los pasos.
+
+En el primer arranque, Omarchy te pide una contraseña que cifra su disco. No hay clave de recuperación: si olvidas la contraseña, tus archivos de Omarchy no se podrán recuperar.
+
+Para cambiar entre Omarchy y macOS después, apaga, luego mantén pulsado el botón de encendido hasta que aparezcan las opciones de arranque y elige uno.
+
+### Si vienes de Omarchy Mac
+
+Omarchy Mac ahora forma parte de Omarchy para Apple Silicon, y todos los Mac que lo ejecutaron son compatibles. Tu instalación actual sigue funcionando y sus paquetes del sistema se siguen actualizando, pero ya no recibe actualizaciones de Omarchy. Puedes hacerlo cuando quieras. El proceso requiere una instalación nueva: haces una copia de seguridad, quitas la instalación anterior, instalas desde cero y restauras. Los pasos 2 a 5 se hacen en macOS, así que abre esta página en tu móvil antes de reiniciar.
+
+1. **Haz una copia de seguridad desde Omarchy, fuera del Mac.** Quitar la instalación anterior la borra, y macOS no puede leer el disco de Omarchy. Copia tu carpeta personal a una unidad externa u otro ordenador, incluidas las claves SSH y GPG, los perfiles del navegador y el trabajo sin subir. Guarda tu lista de paquetes con `pacman -Qqe > ~/packages.txt`. Haz también una copia de seguridad de macOS, ya que tanto quitar como instalar redimensionan su disco.
+2. **Arranca tu Mac en macOS.** Apaga, mantén pulsado el botón de encendido hasta que aparezcan las opciones de arranque y elige macOS.
+3. **Instala el Instalador de Omarchy** como se muestra en [Instalación](#installing).
+4. **Quita la instalación anterior.** Abre el Instalador de Omarchy y elige Installation > Remove Omarchy. Te muestra qué eliminará y devuelve el espacio a macOS. Si no reconoce tu instalación, se detiene sin cambiar el disco. Pide ayuda en [Discord](https://discord.gg/tXFUdasqhY) en lugar de eliminar particiones a mano, lo que puede borrar macOS.
+5. **Instala Omarchy para Apple Silicon** con el instalador.
+6. **Restaura tus archivos.** Recupera tus ajustes poco a poco en lugar de copiar todo `~/.config` sobre los valores predeterminados nuevos, ya que los ajustes viejos pueden sobrescribirlos.
+
+### Lo que debes saber
+
+- En los MacBook con M1 y M2, despierta del reposo abriendo la tapa o pulsando el botón de encendido.
+- ¿Preguntas o problemas? Pregunta en nuestro [Discord](https://discord.gg/tXFUdasqhY).
+
+El [README del instalador](https://github.com/omacom/omarchy-mac-installer#readme) cubre los canales de lanzamiento, la actualización del instalador y cómo quitar Omarchy.
+
+## Mac con Intel
 
 En una prueba sencilla, logramos un aumento de rendimiento del 36% solo por instalar Omarchy en una MacBook Pro de 2019.
 
@@ -35,11 +95,17 @@ Es necesario desactivar Secure Boot de Apple para poder arrancar desde el USB de
 3. Selecciona el dispositivo EFI Boot naranja
 4. Continúa con la [instalación como de costumbre](02-getting-started.md)
 
-El instalador detecta el hardware de Mac y aplica automáticamente las correcciones necesarias: los controladores y el firmware de Wi-Fi Broadcom, el controlador de teclado SPI en los modelos de MacBook que lo necesitan y una corrección de suspensión NVMe para esos mismos modelos.
+El instalador detecta el hardware de Mac y aplica automáticamente las correcciones necesarias: controladores y firmware de Broadcom Wi-Fi, el controlador de la cámara FaceTime HD en equipos con un Broadcom 1570 (su firmware se descarga de Apple una vez que el Mac tiene conexión, ya que el instalador funciona sin conexión), el controlador de teclado SPI en los modelos de MacBook que lo necesitan y una corrección de suspensión NVMe para esos mismos modelos.
 
 ### Limitaciones conocidas
 
 La comunidad trabaja constantemente en soluciones para estos problemas, así que si alguno te afecta, únete a #omarchy-on-other en nuestro [Discord](https://discord.gg/tXFUdasqhY) y revisa si hay algún método actualizado para resolverlo.
+
+#### Cámara FaceTime HD
+
+El controlador de la cámara cuelga el equipo si está cargado cuando la Mac hiberna, por lo que se descarga antes. No se puede descargar mientras una app tiene la cámara abierta, así que la hibernación se cancela con una notificación que nombra la app: ciérrala e hiberna de nuevo. Esto incluye la hibernación automática por batería crítica y suspender y luego hibernar, que se rechaza antes de suspenderse. La suspensión normal la rechaza el propio controlador mientras la cámara está abierta, sin notificación.
+
+El firmware de la cámara se descarga de Apple, por lo que la cámara solo funciona una vez que el Mac se ha conectado a internet. La descarga comienza en el arranque y se reintenta cada 15 minutos mientras el problema sea la red; si el archivo de Apple cambió, se detiene y espera una actualización de Omarchy. Si la cámara no aparece, `journalctl -u facetimehd-firmware-fetcher` dice por qué, `sudo systemctl restart facetimehd-firmware-fetcher` lo intenta de nuevo, y un reinicio carga el controlador si la descarga terminó pero la cámara sigue sin aparecer.
 
 #### Dispositivos con chip T1
 

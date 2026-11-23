@@ -17,10 +17,12 @@ Desde la terminal, los mismos interruptores son `omarchy toggle <thing>`. Ejecut
 | Protector de pantalla | — | `omarchy toggle screensaver` |
 | Sincronización de tema de [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Barra de menú | `Super + Shift + Space` | `omarchy toggle bar` |
-| Panel táctil | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Pantalla táctil | — | `omarchy toggle touchscreen` |
+| Escritorio a pantalla completa (sin barra, sin espacios) | `Super + Ctrl + Alt + F` | `omarchy toggle fullscreen desktop` |
+| Animaciones, desenfoque y sombras | — | `omarchy toggle animations` |
+| Trackpad | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Pantalla táctil | — | `omarchy device touchscreen` |
 | Suspender | — | `omarchy toggle suspend` |
-| GPU híbrida | — | `omarchy toggle hybrid gpu` |
+| GPU híbrida | — | `omarchy device gpu hybrid` |
 
 Los interruptores del panel táctil, la pantalla táctil y la GPU híbrida están en _Activar > Hardware_ (`Super + Ctrl + H`) y no en Conmutador, ya que solo aparecen cuando realmente tienes ese hardware. Los del panel táctil y la pantalla táctil sobreviven a una recarga de Hyprland: el nombre del dispositivo desactivado se guarda en un pequeño archivo de estado que Hyprland lee al iniciar para volver a desactivarlo.
 
@@ -38,7 +40,7 @@ Los indicadores se nombran según el estado desactivado — `screensaver-off`, `
 
 ### Indicadores en la barra
 
-Cuando un modo está activo, aparece un pequeño glifo en el centro de la barra superior, junto al reloj. Ese es el componente de indicadores, y muestra dictado, grabación de pantalla, recordatorios pendientes, luz nocturna, no molestar y mantener despierto.
+Cuando un modo está activo, obtienes un pequeño glifo en el centro de la barra superior, junto al reloj. Ese es el componente de indicadores, y reúne grabación de pantalla, recordatorios pendientes, luz nocturna, no molestar y mantener despierto, además de advertencias mientras sudo sin contraseña está activo o alguien está conectado a una sesión remota.
 
 Los indicadores inactivos están ocultos. Pasa el cursor sobre cualquier parte de la barra y aparecerán atenuados, para que puedas hacer clic en uno y activarlo sin saber su atajo de teclado. Al hacer clic en uno activo, se vuelve a desactivar. Si prefieres verlos todos todo el tiempo, establece `alwaysShow` en `true` en la entrada `omarchy.indicators` de `~/.config/omarchy/shell.json`: consulta [la barra superior](05-the-top-bar.md) para saber cómo se configuran los componentes de la barra.
 
@@ -63,7 +65,7 @@ Luego haz que hyprsunset arranque al iniciar sesión añadiendo `o.launch_on_sta
 
 Sin embargo, no se pierde nada. Las notificaciones silenciadas se quedan retenidas: vuelve a poner las últimas en pantalla con `Super + Shift + Alt + ,`. Consulta [avisos](10-notices.md) para ver el resto.
 
-Dos tipos de mensajes sí logran pasar: las notificaciones emergentes de confirmación propias de Omarchy por algo que acabas de hacer ("Tema cambiado", "Captura de pantalla guardada"), y las alertas críticas enviadas desde la línea de comandos. Las aplicaciones de chat que marcan todo como crítico para colarse no cuentan.
+Tres tipos de mensajes sí logran pasar: las notificaciones emergentes de confirmación propias de Omarchy por algo que acabas de hacer ("Theme changed", "Screenshot saved"), las alertas críticas enviadas desde la línea de comandos y los códigos de verificación. Las aplicaciones de chat que marcan todo como crítico para obligarte a verlas no califican.
 
 ### Inactividad
 

@@ -6,9 +6,9 @@ También es la única pieza del escritorio que siempre está en pantalla, así q
 
 ## Qué trae por defecto
 
-La barra tiene tres secciones. A la izquierda está el logotipo de Omarchy (el lanzador del menú) y los indicadores de espacios de trabajo. En el centro tienes los indicadores de estado, el reloj, Elsewhen (un reloj mundial), el tiempo y una insignia de actualización de Omarchy. A la derecha: la bandeja del sistema, la distribución del teclado (cuando hay más de una configurada), los agentes, bluetooth, red, audio, pantalla y energía.
+La barra tiene tres secciones. A la izquierda está el logotipo de Omarchy (el lanzador del menú) y los indicadores de espacios de trabajo. En el centro aparecen los indicadores de estado, el reloj, Elsewhen (un reloj mundial), el tiempo y una insignia de actualización de Omarchy. A la derecha: la bandeja del sistema, la distribución del teclado (cuando hay más de una distribución o método de entrada configurado), agentes, bluetooth, red, audio, pantalla y energía.
 
-Algunos de esos solo aparecen cuando tienen algo que decir. La distribución del teclado aparece solo si configuraste más de una distribución. La insignia de actualización aparece solo cuando hay una actualización de Omarchy esperando. Y el icono de agentes aparece la primera vez que Omarchy detecta actividad de codificación con IA en la máquina (consulta [IA](17-ai.md)).
+Algunos de esos solo aparecen cuando tienen algo que decir. La distribución del teclado aparece solo si has configurado más de una distribución o método de entrada. La insignia de actualización aparece solo cuando hay una actualización de Omarchy en espera.
 
 ## Hacer clic por todas partes
 
@@ -19,6 +19,7 @@ Casi todos los componentes hacen algo con el clic izquierdo, derecho y central, 
 | Menú | Menú de Omarchy | Terminal nueva | — |
 | Espacios de trabajo | Enfocar ese espacio de trabajo en este monitor | — | Desplazamiento: espacio de trabajo siguiente/anterior |
 | Reloj | Ventana emergente del calendario | Alternar el formato de la etiqueta | Central: selector de zona horaria |
+| Reloj mundial | Panel del reloj mundial | Actualizar | Central: actualizar |
 | Tiempo | Ventana emergente del pronóstico | Tiempo completo como notificación | Central: actualizar |
 | Audio | Panel de audio | Silenciar | Central: panel · desplazamiento: volumen |
 | Micrófono | Silenciar el micrófono | — | Central: panel de audio · desplazamiento: volumen de entrada |
@@ -27,7 +28,7 @@ Casi todos los componentes hacen algo con el clic izquierdo, derecho y central, 
 | Pantalla | Panel de pantalla | — | Desplazamiento: brillo |
 | Energía | Panel de energía | Activar/desactivar el porcentaje de batería | — |
 | Multimedia | Reproducir/pausar | Ventana emergente de la portada | Central: siguiente · desplazamiento: anterior/siguiente |
-| Agentes | Panel de agentes | Lanzar tu agente | Central: siguiente suscripción |
+| Agentes | Panel de agentes | Iniciar tu agente | Central: actualizar el uso |
 | Bandeja | Pasa el ratón para mostrar el cajón | Clic derecho en los chevrones para administrar | — |
 | Actualización de Omarchy | Ejecutar la actualización | — | — |
 
@@ -46,6 +47,7 @@ Al hacer clic en un icono de la barra se abre un panel, que es una ventana emerg
 | `Super + Ctrl + P` | Energía |
 | `Super + Ctrl + Alt + D` | Calendario |
 | `Super + Ctrl + Alt + E` | Reloj mundial |
+| `Super + Ctrl + X` | Agentes |
 | `Super + Ctrl + 1-9` | Activar/desactivar el enésimo panel en la sección derecha |
 
 Los paneles no son meros indicadores. Son donde de verdad se actúa:
@@ -74,7 +76,7 @@ Si quitas cualquiera de los dos servicios, su componente desaparece de la barra.
 
 ## Indicadores
 
-El pequeño grupo en el centro es el componente de indicadores. Estos son glifos de estado para los modos que activaste: no molestar, luz nocturna, un [recordatorio](09-reminders.md) en cola, una grabación de pantalla activa, mantenerse despierto y el [dictado](11-text-extraction-dictation.md). Se encienden cuando el modo está activo y, si no, permanecen ocultos: pasa el ratón justo al lado, donde estarían los inactivos, para echarles un vistazo. Al hacer clic en un indicador se activa o desactiva ese modo. Uno más es solo de estado: una sesión remota se enciende en rojo mientras alguien está conectado a esta máquina a través de gliff.
+El pequeño grupo en el centro es el componente de indicadores. Estos son glifos de estado para los modos que has activado: no molestar, luz nocturna, un [recordatorio](09-reminders.md) en cola, una grabación de pantalla activa y mantenerse despierto, además de advertencias mientras sudo sin contraseña está activado o alguien está conectado a una sesión remota. Se iluminan cuando el modo está activo y en caso contrario no estorban: pasa el cursor justo al lado de ellos, donde estarían los inactivos, para echarles un vistazo. Al hacer clic en un indicador se activa o desactiva ese modo. Uno más es solo de estado: una sesión remota se ilumina en rojo mientras alguien está conectado a esta máquina a través de gliff.
 
 Si prefieres que siempre estén visibles, establece `alwaysShow` en `true` en el componente. Y si solo te importan algunos de ellos, enumera los que quieres en `items`: `["Dnd", "Reminder", "NightLight"]`. Puedes tener más de un componente de indicadores, así que secciones diferentes pueden mostrar subconjuntos diferentes.
 

@@ -32,7 +32,7 @@ Eso inicia el comando como parte de la sesión, así que se limpia correctamente
 
 ### Ejecutar scripts en eventos del sistema
 
-Omarchy ejecuta hooks en determinados momentos, y puedes engancharles tus propios scripts. Viven en `~/.config/omarchy/hooks/<event>.d/`, un directorio por evento, y cada archivo ejecutable que haya ahí se ejecuta cuando ocurre el evento:
+Omarchy dispara hooks en unos cuantos momentos, y puedes colgar tus propios scripts de ellos. Viven en `~/.config/omarchy/hooks/<event>.d/`, un directorio por evento, y cada archivo ahí que no termine en `.sample` se ejecuta con bash cuando ocurre el evento:
 
 | Evento | Cuándo se ejecuta |
 | ----- | ------------ |
@@ -43,7 +43,7 @@ Omarchy ejecuta hooks en determinados momentos, y puedes engancharles tus propio
 | `font-set` | Después de un cambio de fuente (nombre de la fuente en `$1`) |
 | `battery-low` | Cuando la batería se está agotando (porcentaje en `$1`) |
 
-El hook `pre-refresh-pacman` es el sitio para los repositorios personalizados o las líneas `IgnorePkg`, ya que se ejecuta antes de la transacción de paquetes. Ambos hooks relacionados con las actualizaciones se ejecutan como tu usuario después de que Omarchy borra su autorización de sudo en caché, así que un hook que use `sudo` necesita su propia autorización y puede pedirte tu contraseña.
+El hook `pre-refresh-pacman` es donde deben ir los repositorios personalizados o las líneas `IgnorePkg`, ya que se ejecuta antes de la transacción de paquetes. Ambos se ejecutan como tu usuario. `post-update` se ejecuta mientras la autorización de sudo de `omarchy update` todavía está vigente, así que un hook que use `sudo` no volverá a pedirte tu contraseña; `pre-refresh-pacman` se ejecuta justo después de que `omarchy refresh pacman` ha usado sudo por sí mismo.
 
 Cada uno de esos directorios ya contiene un archivo `.sample` que muestra cómo es un hook: quita el `.sample` del nombre para ponerlo a trabajar. Para instalar un script que escribiste en otro lugar, usa `omarchy hook install post-boot ~/my-hook`, que lo copia ahí y lo hace ejecutable.
 

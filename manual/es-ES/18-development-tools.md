@@ -2,7 +2,7 @@
 
 ## Editores alternativos
 
-Omarchy viene con [Neovim](https://neovim.io/) por defecto, pero si quieres algo un poco más convencional y familiar, puedes abrir el Menú de Omarchy (`Super + Space`) y ver las opciones en _Instalar > Editor_. Ahí tenemos VSCode, Cursor, Zed, Sublime Text, Helix, Vim y Emacs. Si no encuentras lo que buscas, échale un vistazo a _Instalar > Paquete_ y para ver si está en algún paquete de Arch (y si no, prueba _Instalar > AUR_ para buscar en AUR).
+Omarchy incluye Plain como el editor predeterminado en las instalaciones nuevas y [Neovim](https://neovim.io/) preinstalado, pero si quieres algo un poco más convencional y familiar, puedes abrir el menú de Omarchy (`Super + Space`) y ver las opciones en _Instalar > Editor_. Allí tenemos VSCode, Cursor, Zed, Sublime Text, Helix, Vim y Emacs. Si no encuentras lo que buscas, revisa _Instalar > Paquete_ y mira si no está en un paquete de Arch (y si no, prueba _Instalar > AUR_ para consultar el AUR).
 
 El editor original `vi` también viene incluido de serie. Ejecuta `vi filename` para editar un archivo en la terminal.
 
@@ -20,7 +20,7 @@ Para instalar, por ejemplo, Ruby, ejecuta `mise use -g ruby`, que instalará Rub
 
 ## Herramientas CLI preinstaladas
 
-Omarchy pone a tu disposición herramientas como `gh`, `uv` y la mayoría de los [agentes de codificación](17-ai.md) mediante la [instalación diferida de mise](https://mise.jdx.dev/dev-tools/shims.html#lazy-tools). La primera vez que ejecutas una, mise la instala. En ejecuciones posteriores se reutiliza la versión instalada; no comprueba si hay actualizaciones cada vez que la lanzas.
+Omarchy pone herramientas como `gh`, `uv` y la mayoría de los [agentes de programación](17-ai.md) a tu disposición a través de la [instalación diferida de mise](https://mise.jdx.dev/dev-tools/shims.html#lazy-tools). La primera vez que ejecutas una, mise la instala. Después, los agentes de programación buscan una actualización antes de ejecutarse, como máximo una vez cada cuatro horas; otras herramientas, como `gh` y `uv`, reutilizan la versión instalada hasta que las actualices.
 
 También puedes revisar los valores predeterminados o instalarlas por adelantado:
 
@@ -47,7 +47,7 @@ Si ya tienes una tabla `[settings]`, añade la entrada ahí; amplía una lista `
 
 ### Eliminar y restaurar los valores predeterminados
 
-_Eliminar preinstalados_ hace que mise omita las declaraciones de herramientas de Omarchy para tu usuario, al añadirlas a `ignored_config_paths` en `~/.config/mise/miserc.toml`. _Restaurar preinstalados_ elimina esa línea de nuevo. Las herramientas que declares por tu cuenta, en tu propia configuración o en el `mise.toml` de un proyecto, seguirán funcionando en cualquier caso. Si eliges un agente predeterminado o configuras Python después de eliminar los preinstalados, esa herramienta se añadirá a tu propia configuración. Ambas opciones aplican solo a tu usuario; los demás usuarios del ordenador conservan su propia elección.
+_Quitar > Preinstalados_ elimina las aplicaciones web, las TUI y las aplicaciones preinstaladas de Omarchy, y hace que mise omita las declaraciones de herramientas de Omarchy para tu usuario añadiéndolas a `ignored_config_paths` en `~/.config/mise/miserc.toml`. _Instalar > Preinstalados_ las trae de vuelta y elimina esa línea de nuevo. Las herramientas que declares tú mismo, en tu propia configuración o en el `mise.toml` de un proyecto, seguirán funcionando en cualquier caso. Si eliges un agente predeterminado o configuras Python después de eliminar las preinstalaciones, esa herramienta se añade a tu propia configuración. El ajuste de mise se aplica solo a tu usuario, y los demás usuarios mantienen su propia elección; sin embargo, las aplicaciones son paquetes, así que eliminarlas o restaurarlas las cambia para todos en la máquina.
 
 ## Docker
 

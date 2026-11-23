@@ -18,7 +18,7 @@ Usa `Super + A` y luego `Super + C` para copiar todo lo que haya en un campo de 
 
 ### Historial del portapapeles
 
-El historial del portapapeles lo proporciona el shell de Omarchy y funciona tanto para texto como para imágenes. Lo activas con `Super + Ctrl + V`, eliges la entrada con Intro y quedará en el portapapeles, lista para pegar con `Super + V`.
+El historial del portapapeles lo proporciona el shell de Omarchy y funciona tanto para texto como para imágenes. Lo activas con `Super + Ctrl + V` y seleccionas la entrada con Return, lo que la pega directamente en la app en la que estabas. Usa `Shift + Return` para solo copiarla al portapapeles, `Alt + Return` para abrirla, `Delete` para quitarla del historial y `Shift + Delete` para borrar todo el historial.
 
  ![clipboard-history](images/clipboard-history.webp)
 

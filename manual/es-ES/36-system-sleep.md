@@ -1,6 +1,6 @@
 # Suspensión del sistema
 
-Omarchy activa la suspensión y la hibernación de forma predeterminada, pero si tienes problemas con cualquiera de las dos en tu máquina, puedes desactivarlas.
+Omarchy activa la suspensión por defecto, y la hibernación una vez que está configurada, pero si tienes problemas con cualquiera de las dos en tu máquina, puedes desactivarlas.
 
 En las máquinas NVIDIA GB10, como la DGX Spark y la ASUS Ascent GX10, la suspensión y la hibernación están desactivadas, igual que en el DGX OS de NVIDIA, porque todavía no se ha demostrado que el reposo funcione en ese hardware. Lo mismo ocurre con el ASUS Zenbook A16 (UX3607OA), donde la suspensión todavía no duerme del todo el chip y el equipo puede quedarse colgado toda la noche. El interruptor de suspensión y la configuración de hibernación no están disponibles ahí. Para volver a activar el reposo, elimina `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` con `sudo rm`; tras eso, la suspensión vuelve al menú y la hibernación se puede configurar como en otras máquinas. Ejecutar `sudo omarchy apply hardware --install-user "$USER"` vuelve a colocar el archivo.
 
@@ -16,6 +16,6 @@ Para alternar la suspensión, ejecuta `omarchy toggle suspend` desde la terminal
 
 ### Alternar la hibernación
 
-Para configurar la hibernación, ejecuta `omarchy hibernation setup` desde la terminal. La hibernación crea un subvolumen /swap en tu unidad de arranque del tamaño de tu asignación de RAM física, así que asegúrate de tener espacio de sobra. En una máquina de 32GB, siempre necesitarás más de 32GB libres para este volumen. La hibernación también requiere el gestor de arranque predeterminado Limine.
+Configuras la hibernación ejecutando `omarchy hibernation setup` desde el terminal (no está disponible en Mac con Apple Silicon). La hibernación crea un subvolumen /swap en tu unidad de arranque del tamaño de tu asignación de RAM física, así que asegúrate de tener bastante espacio libre de sobra. En una máquina de 32GB, siempre necesitarás más de 32GB libres para este volumen. La hibernación también requiere el gestor de arranque predeterminado Limine.
 
 Una vez configurada, verás la opción de hibernar en _Sistema_ (o `Super + Esc`), y así puedes ver si funciona de manera consistente en tu sistema. Si no, puedes eliminarla de nuevo ejecutando `omarchy hibernation remove`.

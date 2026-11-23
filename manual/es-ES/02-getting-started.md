@@ -2,6 +2,8 @@
 
 Omarchy se instala usando una ISO. Puedes elegir entre una instalación en todo el disco, que ocupa toda la unidad, o una instalación en espacio libre, que pone Omarchy en el espacio sin asignar de una unidad — así haces arranque dual junto a Windows u otro sistema operativo (consulta [instalación en arranque dual](50-dual-boot-install.md) — ten en cuenta que primero tendrás que desactivar BitLocker en Windows). De cualquier forma, la instalación usa cifrado completo de forma predeterminada, y la opción de todo el disco borrará la unidad seleccionada, ¡así que asegúrate de hacer una copia de seguridad antes de usar una unidad que ya tenga datos!
 
+En un Mac con Apple Silicon, en cambio, instalas desde macOS, sin ISO ni unidad USB. Consulta [Omarchy para Apple Silicon](44-mac-support.md#omarchy-for-apple-silicon).
+
 Primero [descarga la ISO de Omarchy](https://omarchy.org/), ponla en una memoria USB (usa [Rufus](https://rufus.ie/) en Windows, [balenaEtcher](https://etcher.balena.io/) en Mac, o [caligula](https://github.com/ifd3f/caligula) en Linux), y arranca desde la memoria.
 
 _Debes desactivar Secure Boot y/o TPM en la BIOS. Tienes que desactivarlos para poder instalar Omarchy. Son esquemas de seguridad de Microsoft pensados para Windows y distribuciones de Linux afiliadas a Microsoft._
@@ -36,7 +38,9 @@ Pero en circunstancias especiales, como instalaciones remotas de Omarchy en orde
 
 ### Idioma
 
-Omarchy habla 51 idiomas y el inglés es el predeterminado. Para cambiarlo, abre el menú de Omarchy y ve a _Configurar > Idioma_, o ejecuta `omarchy language <code>` en una terminal (`omarchy language list` muestra los códigos). El menú, el escritorio y las notificaciones propias de Omarchy cambian de idioma de inmediato, y cada aplicación que abras después también. Las apps que ya estaban abiertas cambian cuando las reinicias.
+Omarchy habla 51 idiomas y el inglés es el predeterminado. Para cambiarlo, abre el menú de Omarchy y ve a _Configurar > Región > Idioma_, o ejecuta `omarchy language <code>` en un terminal (`omarchy language list` muestra los códigos). El menú, el escritorio y las notificaciones propias de Omarchy cambian de idioma de inmediato, y también lo hace cada aplicación que abras después. Las aplicaciones que ya estaban abiertas cambian una vez que las reinicias.
+
+Para mantener el idioma pero escribir las fechas, las horas, los números, el dinero, las unidades y los tamaños de papel como lo hace otra región (inglés con fechas europeas y un reloj de 24 horas, por ejemplo), elige una región en _Configurar > Región > Formatos_, donde cada opción muestra un ejemplo, o ejecuta `omarchy region formats <code>` (`omarchy region formats list` muestra los códigos). _Igual que el idioma_ vuelve a los formatos propios del idioma. Al igual que un cambio de idioma, llega a las aplicaciones que abras después.
 
 ### Ayuda si te quedas atascado
 

@@ -2,11 +2,11 @@
 
 ## Files
 
-Files (Nautilus) es el administrador de archivos gráfico. `Super + Shift + F` lo abre, y `Super + Shift + Alt + F` lo abre en el directorio en el que está tu terminal, lo que te ahorra un montón de clics. `Ctrl + L` te permite escribir una ruta, y pulsar `Space` sobre cualquier archivo te da una vista previa rápida sin abrir nada.
+Files (Folio) es el administrador de archivos gráfico. `Super + Shift + F` lo abre, y `Super + Shift + Alt + F` lo abre en el directorio en el que está tu terminal, lo que te ahorra un montón de clics. `Ctrl + L` te permite escribir una ruta, y pulsar `Space` sobre cualquier archivo lo previsualiza a tamaño completo sin abrirlo.
 
 Conecta una memoria USB o una tarjeta SD y se monta automáticamente, así que simplemente aparece en la barra lateral. Para algo más avanzado — formatear una unidad, revisar el estado SMART, crear particiones — abre _Disks_ desde el lanzador de aplicaciones (`Super + Space`).
 
-Al hacer doble clic se siguen opciones predeterminadas sensatas: las fotos, los vídeos y la música se abren en Omaview, los PDF en Document Viewer y el texto plano en Neovim.
+Al hacer doble clic se siguen los valores predeterminados sensatos: las imágenes, los vídeos y la música se abren en Omaview, los PDF en Document Viewer, Markdown en Omawrite, y el texto sin formato en tu editor, Plain a menos que elijas otro en _Configurar > Predeterminados > Editor_.
 
 ## Disktree
 
@@ -53,7 +53,7 @@ Puedes abrir el menú Share con `Super + Ctrl + S` o en _Activar > Compartir_ en
 
 Lo mismo funciona desde la terminal con `omarchy share clipboard`, `omarchy share file [path]` y `omarchy share folder [path]`. Omite la ruta y obtendrás el selector.
 
-También puedes enviar directamente desde el administrador de archivos: haz clic derecho en cualquier selección en Nautilus y elige _Send via LocalSend_.
+También puedes enviar directamente desde el administrador de archivos: haz clic derecho en cualquier selección en Files y compártela con LocalSend.
 
 El firewall de Omarchy está cerrado de forma predeterminada, excepto por el puerto de LocalSend, así que esto funciona de inmediato en una instalación nueva. Consulta [seguridad](48-security.md).
 
@@ -74,6 +74,12 @@ Inicias Hype desde el lanzador de aplicaciones (`Super + Space`). Pulsa `?` dent
 [Signed](https://github.com/omacom/signed) es la forma simplísima y propia de Omarchy de firmar PDF y llenarlos. Coloca tu firma guardada, texto y la fecha de hoy en cualquier lugar de una página, y luego guarda una copia firmada junto al original. Consulta [Llenar PDFs](27-filling-out-pdfs.md) para saber cómo hacerlo.
 
 Inicias Signed desde el lanzador de aplicaciones (`Super + Space`), o abres un PDF con él desde el administrador de archivos.
+
+## Game Vibes
+
+Game Vibes, en el lanzador de aplicaciones (`Super + Space`), es donde viven los jueguitos de Omarchy: Checkmate, un juego de ajedrez en 3D contra un amigo o el oponente integrado; Cards, solitario Klondike; Death Wish, un juego de plataformas de precisión al píxel con diez cuartos llenos de púas y sierras; y Neon Swarm, un shooter arcade. Cada uno es una sola página web que sigue tu tema. Elige uno con las flechas y `Enter`, y vuelve a la lista con `Esc` desde la pantalla de título de un juego o con `Q` mientras está en pausa. Se abre en pantalla completa: `Super + F` lo convierte en una ventana, y `Super + W` lo cierra.
+
+Los juegos que creas con un agente también aparecen aquí: elige _Make something cool → Game_ en el panel de agentes y describe uno, o nombra un juego que ya esté en Game Vibes para seguir trabajando en él. El agente lo copia en `~/Games/vibes`, donde es tuyo para que lo cambies, y lo abre cuando termina. Puedes hacer esa copia tú mismo con `omarchy games vibes copy <game>`. Un juego que alguien más comparte se instala como un tema: elige _Instalar > Juegos > Game Vibes_ y pega su dirección git, o ejecuta `omarchy games vibes install <git-repo-url>`. _Quitar > Juegos_ vuelve a quitar uno, y _Actualizar > Juegos de Game Vibes_ descarga las versiones nuevas. Los juegos cargan three.js desde la web, así que necesitan una conexión para iniciar.
 
 ## Omacalc
 

@@ -26,11 +26,11 @@
   "update": {
     "label": "Actualizar"
   },
-  "about": {
-    "label": "Acerca de"
-  },
   "system": {
     "label": "Sistema"
+  },
+  "system.about": {
+    "label": "Acerca de"
   },
   "system.screensaver": {
     "label": "Protector de pantalla"
@@ -49,6 +49,10 @@
   },
   "system.reboot": {
     "label": "Reiniciar"
+  },
+  "system.firmware": {
+    "label": "Reiniciar en el BIOS",
+    "description": "Reiniciar en la configuración de firmware UEFI"
   },
   "system.shutdown": {
     "label": "Apagar"
@@ -89,6 +93,9 @@
   "appearance.font": {
     "label": "Fuente"
   },
+  "appearance.icons": {
+    "label": "Iconos"
+  },
   "appearance.top-bar": {
     "label": "Barra de menú"
   },
@@ -115,6 +122,12 @@
   },
   "appearance.top-bar.indicators": {
     "label": "Indicadores de barra"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Mostrar % de batería"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Ocultar % de batería"
   },
   "appearance.top-bar.indicators.clock": {
     "label": "Reloj"
@@ -173,6 +186,15 @@
   "appearance.top-bar.position.right": {
     "label": "Barra derecha"
   },
+  "appearance.windows": {
+    "label": "Ventanas"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Activar espacios entre ventanas"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Desactivar espacios entre ventanas"
+  },
   "appearance.windows.corners": {
     "label": "Esquinas de ventana"
   },
@@ -196,6 +218,15 @@
   },
   "appearance.windows.transparency.glassy": {
     "label": "Ventanas cristalinas"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Activar proporción de 1 ventana"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Desactivar proporción de 1 ventana"
+  },
+  "appearance.branding": {
+    "label": "Marca"
   },
   "appearance.branding.screensaver": {
     "label": "Protector de pantalla"
@@ -258,11 +289,47 @@
   "appearance.workspace-layout.floating": {
     "label": "Flotante"
   },
+  "appearance.animations-on": {
+    "label": "Activar animaciones"
+  },
+  "appearance.animations-off": {
+    "label": "Desactivar animaciones"
+  },
   "appearance.unlock": {
     "label": "Desbloquear"
   },
   "trigger.toggle": {
     "label": "Alternar"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Mantener despierto"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Permitir suspensión"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Activar notificaciones"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Silenciar notificaciones"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Activar luz nocturna"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Desactivar luz nocturna"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Activar protector de pantalla"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Desactivar protector de pantalla"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Activar captura de fallos"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Captura de fallos desactivada"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -318,6 +385,30 @@
   "trigger.tests": {
     "label": "Prueba de velocidad"
   },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Pantalla del portátil activada"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Pantalla del portátil desactivada"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Duplicación de pantalla activada"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Duplicación de pantalla desactivada"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Cambiar a GPU híbrida"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Cambiar a GPU integrada"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Activar panel táctil"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Desactivar panel táctil"
+  },
   "trigger.hardware.touchpad-haptics": {
     "label": "Respuesta háptica"
   },
@@ -329,6 +420,12 @@
   },
   "trigger.hardware.touchpad-haptics.high": {
     "label": "alta"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Activar pantalla táctil"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Desactivar pantalla táctil"
   },
   "trigger.reminder.set": {
     "label": "Crear uno"
@@ -357,11 +454,33 @@
   "trigger.tests.disk-speedtest": {
     "label": "Prueba de velocidad de disco"
   },
+  "setup.keyboard": {
+    "label": "Teclado"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Atajos de teclado"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Entradas de teclado"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Métodos de entrada"
+  },
   "setup.input": {
     "label": "Entrada"
   },
-  "setup.language": {
+  "setup.region": {
+    "label": "Región"
+  },
+  "setup.region.language": {
     "label": "Idioma"
+  },
+  "setup.region.formats": {
+    "label": "Formatos",
+    "description": "Cómo se escriben fechas, horas, números y unidades"
+  },
+  "setup.region.timezone": {
+    "label": "Zona horaria"
   },
   "setup.network": {
     "label": "Red"
@@ -378,62 +497,20 @@
   "setup.network.dns.google": {
     "label": "Google"
   },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
   "setup.network.dns.custom": {
     "label": "Personalizado"
+  },
+  "setup.network.hostname": {
+    "label": "Nombre del host"
   },
   "setup.network.qr": {
     "label": "Código QR"
   },
   "setup.default": {
     "label": "Predeterminados"
-  },
-  "agent": {
-    "label": "Agente"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Navegador",
@@ -464,6 +541,9 @@
     "label": "Dictado",
     "title": "Dictado predeterminado"
   },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
   "setup.default.dictation.superwhisper": {
     "label": "Superwhisper"
   },
@@ -489,6 +569,9 @@
   "setup.default.editor": {
     "label": "Editor",
     "title": "Editor predeterminado"
+  },
+  "setup.default.editor.plain": {
+    "label": "Plain"
   },
   "setup.default.editor.neovim": {
     "label": "Neovim"
@@ -556,6 +639,9 @@
   "setup.security.passwordless-sudo": {
     "label": "Sudo sin contraseña"
   },
+  "setup.git": {
+    "label": "Git"
+  },
   "setup.config.hyprland": {
     "label": "Hyprland"
   },
@@ -565,11 +651,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Arranque directo"
-  },
-  "setup.reset": {
-    "label": "Restablecer ordenador"
+  "remove.factory-reset": {
+    "label": "Restablecer de fábrica"
   },
   "install.package": {
     "label": "Paquete"
@@ -594,6 +677,9 @@
   },
   "install.style.background": {
     "label": "Fondo"
+  },
+  "install.style.icons": {
+    "label": "Iconos"
   },
   "install.style.font": {
     "label": "Fuente"
@@ -640,6 +726,9 @@
   "install.preinstalls": {
     "label": "Preinstalados"
   },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
   "install.browser.chrome": {
     "label": "Chrome"
   },
@@ -664,6 +753,9 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
+  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -673,8 +765,14 @@
   "install.service.tailscale": {
     "label": "Tailscale"
   },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
   "install.service.nordvpn": {
     "label": "NordVPN"
+  },
+  "install.service.notion": {
+    "label": "Notion"
   },
   "install.service.once": {
     "label": "ONCE"
@@ -718,6 +816,12 @@
   "install.terminal.kitty": {
     "label": "Kitty"
   },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
   "install.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
@@ -726,6 +830,9 @@
   },
   "install.ai.grok-bot": {
     "label": "Grok Bot"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
   },
   "install.ai.hermes": {
     "label": "Hermes Desktop"
@@ -754,6 +861,9 @@
   "install.gaming.minecraft": {
     "label": "Minecraft"
   },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
   "install.gaming.geforce-now": {
     "label": "NVIDIA GeForce NOW"
   },
@@ -762,6 +872,9 @@
   },
   "install.gaming.xbox-controllers": {
     "label": "Mandos Xbox"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
   },
   "install.gaming.battlenet": {
     "label": "Battle.net"
@@ -862,6 +975,9 @@
   "remove.theme": {
     "label": "Tema"
   },
+  "remove.icons": {
+    "label": "Iconos"
+  },
   "remove.gaming": {
     "label": "Juegos",
     "title": "Quitar"
@@ -901,6 +1017,9 @@
   "remove.ai.hermes": {
     "label": "Hermes Desktop"
   },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
   "remove.browser.chrome": {
     "label": "Chrome"
   },
@@ -919,6 +1038,9 @@
   "remove.browser.zen": {
     "label": "Zen"
   },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
   "remove.service.dropbox": {
     "label": "Dropbox"
   },
@@ -931,11 +1053,20 @@
   "remove.service.ssh-agent": {
     "label": "Agente SSH"
   },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
   "remove.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
   "remove.ai.claude": {
     "label": "Claude Desktop"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   },
   "remove.dictation.superwhisper": {
     "label": "Superwhisper"
@@ -979,6 +1110,9 @@
   "remove.gaming.xbox-controllers": {
     "label": "Mandos Xbox (󰂯)"
   },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
   "remove.gaming.battlenet": {
     "label": "Battle.net"
   },
@@ -987,6 +1121,9 @@
   },
   "remove.gaming.heroic": {
     "label": "Heroic (Epic Games)"
+  },
+  "remove.gaming.vibes": {
+    "label": "Juego de Game Vibes"
   },
   "remove.development.rails": {
     "label": "Ruby on Rails"
@@ -1060,12 +1197,21 @@
   "update.channel": {
     "label": "Canal"
   },
+  "update.kernel": {
+    "label": "Kernel"
+  },
   "update.config": {
     "label": "Configuración",
     "title": "Restablecer predeterminado"
   },
   "update.themes": {
     "label": "Temas extra"
+  },
+  "update.icons": {
+    "label": "Iconos extra"
+  },
+  "update.games": {
+    "label": "Juegos de Game Vibes"
   },
   "update.process": {
     "label": "Proceso",
@@ -1080,9 +1226,6 @@
   },
   "update.password": {
     "label": "Contraseña"
-  },
-  "update.timezone": {
-    "label": "Zona horaria"
   },
   "update.time": {
     "label": "Hora"
@@ -1131,217 +1274,5 @@
   },
   "update.hardware.trackpad": {
     "label": "Trackpad"
-  },
-  "update.password.drive": {
-    "label": "Cifrado de unidad"
-  },
-  "update.password.user": {
-    "label": "Usuario"
-  },
-  "trigger.toggle.crash-capture-off": {
-    "label": "Captura de fallos desactivada"
-  },
-  "trigger.hardware.laptop-display-on": {
-    "label": "Pantalla del portátil activada"
-  },
-  "trigger.hardware.laptop-display-off": {
-    "label": "Pantalla del portátil desactivada"
-  },
-  "trigger.hardware.mirror-display-on": {
-    "label": "Duplicación de pantalla activada"
-  },
-  "trigger.hardware.mirror-display-off": {
-    "label": "Duplicación de pantalla desactivada"
-  },
-  "trigger.hardware.hybrid-gpu-on": {
-    "label": "Cambiar a GPU híbrida"
-  },
-  "trigger.hardware.hybrid-gpu-off": {
-    "label": "Cambiar a GPU integrada"
-  },
-  "trigger.hardware.touchpad-on": {
-    "label": "Activar panel táctil"
-  },
-  "trigger.hardware.touchpad-off": {
-    "label": "Desactivar panel táctil"
-  },
-  "trigger.hardware.touchscreen-on": {
-    "label": "Activar pantalla táctil"
-  },
-  "trigger.hardware.touchscreen-off": {
-    "label": "Desactivar pantalla táctil"
-  },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
-  "appearance.top-bar.indicators.battery-percentage-on": {
-    "label": "Mostrar % de batería"
-  },
-  "appearance.top-bar.indicators.battery-percentage-off": {
-    "label": "Ocultar % de batería"
-  },
-  "appearance.windows": {
-    "label": "Ventanas"
-  },
-  "appearance.windows.gaps-on": {
-    "label": "Activar espacios entre ventanas"
-  },
-  "appearance.windows.gaps-off": {
-    "label": "Desactivar espacios entre ventanas"
-  },
-  "appearance.windows.one-window-ratio-on": {
-    "label": "Activar proporción de 1 ventana"
-  },
-  "appearance.windows.one-window-ratio-off": {
-    "label": "Desactivar proporción de 1 ventana"
-  },
-  "appearance.branding": {
-    "label": "Marca"
-  },
-  "appearance.animations-on": {
-    "label": "Activar animaciones"
-  },
-  "appearance.animations-off": {
-    "label": "Desactivar animaciones"
-  },
-  "trigger.toggle.idle-lock-on": {
-    "label": "Mantener despierto"
-  },
-  "trigger.toggle.idle-lock-off": {
-    "label": "Permitir suspensión"
-  },
-  "trigger.toggle.notifications-on": {
-    "label": "Activar notificaciones"
-  },
-  "trigger.toggle.notifications-off": {
-    "label": "Silenciar notificaciones"
-  },
-  "trigger.toggle.nightlight-on": {
-    "label": "Activar luz nocturna"
-  },
-  "trigger.toggle.nightlight-off": {
-    "label": "Desactivar luz nocturna"
-  },
-  "trigger.toggle.screensaver-on": {
-    "label": "Activar protector de pantalla"
-  },
-  "trigger.toggle.screensaver-off": {
-    "label": "Desactivar protector de pantalla"
-  },
-  "trigger.toggle.crash-capture-on": {
-    "label": "Activar captura de fallos"
-  },
-  "setup.config.git": {
-    "label": "Git"
-  },
-  "remove.service.1password": {
-    "label": "1Password"
-  },
-  "update.kernel": {
-    "label": "Kernel"
-  },
-  "setup.default.dictation.hex": {
-    "label": "Hex"
-  },
-  "remove.dictation.hex": {
-    "label": "Hex"
-  },
-  "setup.keyboard": {
-    "label": "Teclado"
-  },
-  "setup.keyboard.keybindings": {
-    "label": "Atajos de teclado"
-  },
-  "setup.keyboard.inputs": {
-    "label": "Entradas de teclado"
-  },
-  "setup.keyboard.input-methods": {
-    "label": "Métodos de entrada"
-  },
-  "install.ai.herdr": {
-    "label": "Herdr Desktop"
-  },
-  "install.ai.amp": {
-    "label": "Amp Desktop"
-  },
-  "remove.ai.amp": {
-    "label": "Amp Desktop"
-  },
-  "install.service.notion": {
-    "label": "Notion"
-  },
-  "install.gaming.moonlight": {
-    "label": "Moonlight"
-  },
-  "remove.gaming.moonlight": {
-    "label": "Moonlight"
-  },
-  "setup.default.editor.plain": {
-    "label": "Plain"
-  },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "Harness predeterminado"
-  },
-  "agent.instructions": {
-    "label": "Instrucciones"
-  },
-  "agent.make": {
-    "label": "Crear algo"
-  },
-  "agent.make.theme": {
-    "label": "Crear un tema"
-  },
-  "agent.make.plugin": {
-    "label": "Crear un plugin"
-  },
-  "agent.make.app": {
-    "label": "Crear una app"
-  },
-  "install.browser.chromium": {
-    "label": "Chromium"
-  },
-  "remove.browser.chromium": {
-    "label": "Chromium"
-  },
-  "appearance.icons": {
-    "label": "Iconos"
-  },
-  "install.style.icons": {
-    "label": "Iconos"
-  },
-  "remove.icons": {
-    "label": "Iconos"
-  },
-  "update.icons": {
-    "label": "Iconos extra"
-  },
-  "system.firmware": {
-    "label": "Reiniciar en el BIOS",
-    "description": "Reiniciar en la configuración de firmware UEFI"
   }
 }

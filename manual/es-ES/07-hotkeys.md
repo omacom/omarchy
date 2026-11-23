@@ -40,6 +40,10 @@ Si un atajo predeterminado no te conviene (digamos que quieres `Super + Shift + 
 | `Super + Ctrl + L` | Bloquear ordenador |
 | `Super + W` o `Super + Q` | Cerrar ventana |
 | `Ctrl + Alt + Del` | Cerrar todas las ventanas |
+| `Super + K` | Mostrar todos los atajos |
+| `Super + Alt + K` | Mostrar atajos de tmux |
+| `Super + Ctrl + K` | Mostrar atajos de herdr |
+| `Super + M` | Minimizar la ventana al dock |
 | `Super + T` | Alternar ventana entre mosaico/flotante |
 | `Super + J` | Alternar posición de la ventana (horizontal/vertical) |
 | `Super + O` | Alternar ventana emergente a fija y flotante |
@@ -49,16 +53,16 @@ Si un atajo predeterminado no te conviene (digamos que quieres `Super + Shift + 
 | `Super + F` | Pasar a pantalla completa |
 | `Super + Alt + F` | Pasar a ancho completo |
 | `Super + Ctrl + F` | Pasar a pantalla completa dentro de la ventana |
-| `Super + 1/2/3/4` | Ir a un espacio de trabajo específico en el monitor enfocado |
+| `Super + 1…9/0`         | Ir a un espacio de trabajo específico (0 es 10) en el monitor enfocado |
 | `Super + Tab` | Ir al siguiente espacio de trabajo en el monitor enfocado |
 | `Super + Shift + Tab` | Ir al espacio de trabajo anterior en el monitor enfocado |
 | `Super + Ctrl + Tab` | Ir al espacio de trabajo previo en el monitor enfocado |
-| `Super + Shift + 1/2/3/4` | Mover ventana al espacio de trabajo en el monitor enfocado |
-| `Super + Shift + Alt + 1/2/3/4` | Mover ventana al espacio de trabajo en el monitor enfocado sin seguirla |
+| `Super + Shift + 1…9/0` | Mover la ventana al espacio de trabajo en el monitor enfocado |
+| `Super + Shift + Alt + 1…9/0` | Mover la ventana al espacio de trabajo en el monitor enfocado sin seguirla |
 | `Super + S` | Alternar scratchpad completo |
 | `Super + Alt + S` | Mover ventana al scratchpad completo |
-| `Super + Grave` | Alternar consola Quake |
-| `Super + Shift + Grave` | Mover ventana a la consola Quake |
+| `Super + the key above Tab` (acento grave en las distribuciones de EE. UU.) | Alternar la consola Quake |
+| `Super + Shift + the key above Tab` (acento grave en las distribuciones de EE. UU.) | Mover la ventana a la consola Quake |
 | `Super + Shift + Ctrl + Arrows` | Mover ventana al monitor en esa dirección |
 | `Super + Shift + Alt + Arrows` | Mover espacio de trabajo al monitor en esa dirección |
 | `Super + Arrow` | Mover el foco a la ventana en la dirección de la flecha, cruzando al monitor de ese lado al llegar al borde de la pantalla |
@@ -90,8 +94,12 @@ Si un atajo predeterminado no te conviene (digamos que quieres `Super + Shift + 
 | `Alt + Shift + Tab` | Recorrer hacia atrás las ventanas del espacio de trabajo activo |
 | `Ctrl + Alt + Tab` | Recorrer el foco hacia adelante por los monitores |
 | `Ctrl + Alt + Shift + Tab` | Recorrer el foco hacia atrás por los monitores |
+| `Super + I` | Cambiar el idioma de entrada (con más de una distribución o método de entrada) |
+| `Super + Shift + I` | Volver al idioma de entrada anterior |
 
-Los atajos de redimensionamiento usan las teclas físicas `code:20` y `code:21` (XKB `<AE11>` y `<AE12>`), sin importar los caracteres impresos en el teclado. En teclados de EE. UU. estas teclas son `-` y `=`; en teclados japoneses (JIS) son `-` y `^`; en teclados en español son `'` y `¡`. En JIS, `Super + ^` es `Super + Equal`, mientras que `Super + Shift + -` (que escribe `=`) es `Super + Shift + Minus`.
+En un trackpad, los gestos con tres y cuatro dedos cambian de espacio de trabajo, mueven ventanas y abren el menú y la consola Quake; consulta [teclado, ratón y trackpad](34-keyboard-mouse-trackpad.md) para ver los gestos.
+
+El ajuste de tamaño usa las dos teclas a la derecha del 0, impriman lo que impriman en tu teclado: `-` y `=` en los teclados de EE. UU., `+` y `´` en danés y sueco, `+` y `\` en noruego, `ß` y `´` en alemán, `'` y `¡` en español, y `-` y `^` en japonés (JIS). `Super + K` las muestra tal como las imprime tu teclado. En JIS, `Super + ^` es `Super + Equal`, mientras que `Super + Shift + -` (que escribe `=`) es `Super + Shift + Minus`. El escalado del monitor y el gestor de contraseñas usan `/`; en las distribuciones que solo escriben `/` con Shift, como la mayoría de las europeas, usan en su lugar la tecla a la izquierda de Shift derecho (`-` en danés y alemán).
 
 ## Controles del sistema
 
@@ -112,7 +120,9 @@ Los atajos de redimensionamiento usan las teclas físicas `code:20` y `code:21` 
 | `Super + Ctrl + H` | Menú de hardware |
 | `Super + Ctrl + E` | Selector de emojis |
 | `Super + Ctrl + .` | Transcodificar multimedia |
-| `Super + Shift + Ctrl + A` | Elegir un agente de IA |
+| `Super + Shift + Ctrl + A` | Iniciar tu agente predeterminado |
+| `Power` | Menú del sistema |
+| `Super + Shift + Copilot` | Menú Omarchy |
 
 ## Ajustes
 
@@ -124,6 +134,11 @@ Los atajos de redimensionamiento usan las teclas físicas `code:20` y `code:21` 
 | `Alt + Volume Up/Down` | Cambios precisos de volumen del 1% |
 | `Keyboard Brightness Up/Down` | Retroiluminación del teclado más brillante/más tenue |
 | `Keyboard Backlight` | Recorrer los niveles de retroiluminación del teclado |
+| `Ctrl + Brightness Up/Down` | Retroiluminación del teclado más brillante/más tenue, en teclados sin sus propias teclas |
+| `Mic Mute` | Silenciar el micrófono |
+| `Shift + Mute` | Cambiar la salida de audio |
+| `Touchpad Toggle` | Activar o desactivar el trackpad |
+| `Display` | Recorrer el diseño del espacio de trabajo |
 | `Alt + Play` | Pista siguiente |
 | `Alt + Shift + Play` | Pista anterior |
 
@@ -134,16 +149,17 @@ Los atajos de redimensionamiento usan las teclas físicas `code:20` y `code:21` 
 | `Super + Return` | Terminal |
 | `Super + Alt + Return` | Terminal de Tmux |
 | `Super + Ctrl + Return` | Herdr (administrador de agentes) |
-| `Super + Shift + Return` | Navegador |
+| `Super + Shift + Return` o `Super + Shift + B`  | Navegador    |
 | `Super + Shift + Alt + B` | Navegador (privado/incógnito) |
 | `Super + Shift + F` | Administrador de archivos |
 | `Super + Shift + Alt + F` | Administrador de archivos en el cwd de la terminal |
 | `Super + Shift + M` | Música (Spotify) |
 | `Super + Shift + Alt + M` | Música (cliamp) |
 | `Super + Shift + /` | Administrador de contraseñas (1Password) |
-| `Super + Shift + Q` | Calculadora (Omacalc) |
+| `Super + Shift + Q` o `Calculator` key  | Calculadora (Omacalc)    |
+| `Super + Shift + D`           | Docker (lazydocker, una vez instalado)    |
 | `Super + Shift + T` | Actividad (btop) |
-| `Super + Shift + N` | Editor (Neovim) |
+| `Super + Shift + N`           | Editor (Plain, o el predeterminado que hayas elegido)  |
 | `Super + Shift + C` | Calendario ([HEY](https://hey.com/)) |
 | `Super + Shift + E` | Correo electrónico ([HEY](https://hey.com/)) |
 | `Super + Shift + Alt + E` | Correo electrónico nuevo ([HEY](https://hey.com/)) |
@@ -157,7 +173,7 @@ Los atajos de redimensionamiento usan las teclas físicas `code:20` y `code:21` 
 | `Super + Shift + O` | Obsidian |
 | `Super + Shift + W` | Escritura (Omawrite) |
 | `Super + Shift + X` | X |
-| `Super + Shift + Alt + X` | X Compose |
+| `Super + Shift + Alt + X`           | X (nueva publicación) |
 | `Super + Shift + Y` | YouTube |
 
 Cambia/añade combinaciones en `~/.config/hypr/bindings.lua`.
@@ -182,6 +198,7 @@ En Linux, normalmente necesitas `Ctrl + Shift + C/V` para copiar y pegar en la t
 | `Super + Ctrl + Alt + C` | Captura de pantalla (la misma captura, para teclados sin tecla Print Screen) |
 | `Super + Ctrl + C` | Menú de captura |
 | `Alt + Print Screen` | Grabación de pantalla |
+| `Super + Shift + Ctrl + Alt + C` | Grabación de pantalla sin audio, saltando el menú (pulsa de nuevo para detenerla) |
 | `Super + Print Screen` | Selector de color |
 | `Super + Ctrl + Print Screen` | Extracción de texto al portapapeles |
 | `Super + Alt + [` | Hacer más pequeña la superposición de la cámara web mientras grabas |
@@ -217,7 +234,7 @@ Todas las opciones de captura también están disponibles en _Activar > Captura_
 
 Las imágenes de fondo adicionales están en `~/.config/omarchy/backgrounds/<theme name>`. También están disponibles en _Instalar > Estilo > Fondo_ en el menú de Omarchy.
 
-Todas las opciones de estilo también están disponibles en _Estilo_ en el menú de Omarchy (`Super + Space`).
+Todas las opciones de estilo también están disponibles en _Apariencia_ en el menú Omarchy (`Super + Space`).
 
 ## Activar/desactivar
 
@@ -409,4 +426,4 @@ Puedes usar `Super + Ctrl + E` para mostrar un selector completo de emojis que p
 | `Shift + CapsLock Space N` | Tu nombre (tal como lo introdujiste en la configuración) |
 | `Shift + CapsLock Space E` | Tu correo electrónico (tal como lo introdujiste en la configuración) |
 
-Puedes añadir más por tu cuenta editando `~/.XCompose` y luego ejecutando `omarchy-restart-xcompose` en la terminal para que se apliquen los cambios.
+Puedes añadir más por tu cuenta editando `~/.XCompose` y luego ejecutando `omarchy restart xcompose` en el terminal para que se apliquen los cambios.

@@ -8,9 +8,9 @@ Toda la memoria muscular que construiste alrededor de Cmd o de la tecla de Windo
 
 Tu reflejo de Spotlight, Raycast o el menú Inicio se convierte en `Super + Space`. Eso abre el menú de Omarchy, que lanza aplicaciones, cambia ajustes, instala software, captura la pantalla: prácticamente todo. Empieza a escribir para filtrar. `Super + Alt + Space` muestra todas las aplicaciones en una sola rejilla, como lo hace Launchpad. Consulta [navegación](04-navigation.md).
 
-### No hay dock ni iconos en el escritorio
+### El escritorio no tiene iconos y el dock solo aparece en espacios flotantes
 
-Nada en lo que hacer clic para iniciar cosas, ni iconos que colocar en el escritorio. Las aplicaciones se lanzan con un atajo de teclado (`Super + Return` para la terminal, `Super + Shift + Return` para el navegador y `Super + K` para una lista de todo lo que está asignado) o desde el menú. La única pieza persistente de la interfaz es [la barra superior](05-the-top-bar.md), que cubre lo que antes hacían por ti la barra de menús, la bandeja del sistema y el Centro de notificaciones, y casi todos sus componentes responden al clic izquierdo, al derecho y al central.
+No hay iconos que ordenar en el escritorio, y no hay dock en un espacio de trabajo en mosaico — el dock solo aparece en un espacio de trabajo flotante (consulta [navegación](04-navigation.md)). Las aplicaciones se inician con un atajo de teclado (`Super + Return` para el terminal, `Super + Shift + Return` para el navegador y `Super + K` para una lista de todo lo que está asignado) o desde el menú. La única pieza persistente de la interfaz es [la barra superior](05-the-top-bar.md), que cubre lo que antes hacían por ti la barra de menús, la bandeja del sistema y el centro de notificaciones — y casi todos los componentes que tiene hacen algo con clic izquierdo, derecho y central.
 
 ### Las ventanas se colocan solas
 
@@ -37,6 +37,10 @@ Para quienes vienen de Windows: el historial del portapapeles de Win + V está e
 | Time Machine (para el sistema) | [Instantáneas automáticas del sistema](47-system-snapshots.md) en cada actualización |
 | App Store / descargar un instalador | _Instalar_ en el menú, o `omarchy pkg add` — consulta [otros paquetes](29-other-packages.md) |
 | Configuración del sistema / Panel de control | _Configurar_ en el menú, que edita archivos de configuración en texto plano — consulta [dotfiles](31-dotfiles.md) |
+| Finder / File Explorer | Files, en `Super + Shift + F` — consulta [GUIs](22-guis.md) |
+| Safari / Edge | Google Chrome en `Super + Shift + Return`; elige otro en _Configurar > Predeterminados > Navegador_ — consulta [navegadores](23-browsers.md) |
+| Preview / Photos | Omaview para imágenes, vídeo y música, Document Viewer para PDFs — consulta [GUIs](22-guis.md) |
+| TextEdit / Notepad | Plain, en `Super + Shift + N`; elige otro en _Configurar > Predeterminados > Editor_ |
 
 ### Algunas cosas sí son diferentes de verdad
 
@@ -50,7 +54,7 @@ Y cuando cierras una ventana, la aplicación sí se cierra. No hay limbo como el
 
 ### En hardware Mac
 
-Omarchy funciona bien en Macs con Intel: consulta [compatibilidad con Mac](44-mac-support.md). Y el teclado se porta bien contigo: Omarchy no reasigna nada, y Linux trata la tecla Command como Super, así que Super queda justo donde siempre estuvo Cmd. Tu pulgar no va a notar el cambio.
+Omarchy funciona bien en Mac con Intel, y en Mac con M1, M2 y M3 con Omarchy para Apple Silicon. Consulta [compatibilidad con Mac](44-mac-support.md). Y el teclado te trata bien: Omarchy no remapea nada, y Linux interpreta la tecla Command como Super, así que Super queda justo donde siempre estuvo Cmd. Tu pulgar ni siquiera notará el cambio.
 
 ### Dale dos semanas
 

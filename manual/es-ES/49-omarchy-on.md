@@ -1,12 +1,12 @@
 # Omarchy en...
 
-### Chips Apple M1/M2
+### Mac con Apple Silicon
 
-[Asahi Alarm](https://asahi-alarm.org/) es una versión de Arch para ordenadores Apple M1/M2 construida sobre [Asahi Linux](https://asahilinux.org/). Con algo de esfuerzo, puedes hacer que Omarchy funcione sobre esa base. Consulta [la guía de la comunidad](https://github.com/omarchy-mac/omarchy-mac).
+Omarchy para Apple Silicon funciona en Mac con M1, M2 y M3 y se instala junto a macOS. Consulta [Omarchy para Apple Silicon](44-mac-support.md#omarchy-for-apple-silicon) en el capítulo de soporte para Mac.
 
-### Máquina virtual de Apple
+### Prueba Omarchy en un Mac
 
-También puedes instalar Omarchy dentro de una máquina virtual de Parallels. Es un proceso bastante engorroso, pero también hay [una guía de la comunidad](https://github.com/omacom/omarchy/discussions/452) para eso.
+[Prueba Omarchy](https://github.com/omacom/try-omarchy) ejecuta Omarchy en una máquina virtual en cualquier Mac con Apple Silicon con macOS 15 o posterior, sin tener que particionar nada ni instalarlo junto a macOS.
 
 ### VirtualBox
 

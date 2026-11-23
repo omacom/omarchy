@@ -18,11 +18,11 @@ Antes de cada nueva versión mayor, haremos la validación final usando el canal
 
 Por último, está el canal dev, que vincula Omarchy directamente a una copia del código fuente obtenida con git en `~/omarchy`, combinada con los paquetes edge. Solo deberías usar este canal si eres un usuario experimentado de Linux, trabajas directamente en Omarchy y estás dispuesto a tolerar que las cosas se rompan.
 
-Puedes cambiar de canal usando _Actualizar > Canal_ en el menú de Omarchy (o `omarchy-channel-set` en la terminal).
+Puedes cambiar de canal usando _Actualizar > Canal_ desde el menú de Omarchy (o `omarchy channel set <stable|rc|edge|dev>` en el terminal, con `omarchy channel current` para ver en cuál estás).
 
 ### Cambiar de kernel
 
-Omarchy arranca con su propio kernel `linux-omarchy`, pero puedes mantener otros instalados junto a él, como el kernel `linux` estándar de Arch o una compilación experimental que estés probando. Cuando hay más de uno, _Actualizar > Kernel_ en el menú de Omarchy los enumera con una marca junto al que arranca por defecto. Elige otro, introduce tu contraseña una vez y arrancará después del siguiente reinicio. Los demás kernels se quedan en el menú de arranque, así que todavía puedes elegir uno manualmente si el nuevo predeterminado te da problemas. En la terminal, usa `omarchy-kernel` para ver el predeterminado actual, `omarchy-kernel list` para ver qué hay instalado y `omarchy-kernel set <kernel>` para cambiar.
+Omarchy arranca con su propio kernel `linux-omarchy`, pero puedes mantener otros instalados junto a él, como el kernel `linux` estándar de Arch o una compilación experimental que estés probando. Cuando haya más de uno, _Actualizar > Kernel_ en el menú de Omarchy los enumera con una marca junto al que arranca por defecto. Elige otro e introduce tu contraseña. El equipo arrancará con el kernel elegido la próxima vez que reinicies. Los demás kernels permanecen en el menú de arranque, así que todavía puedes elegir uno manualmente si el nuevo predeterminado te da problemas. En el terminal, usa `omarchy kernel` para ver el predeterminado actual, `omarchy kernel list` para ver qué está instalado y `omarchy kernel set <kernel>` para cambiar.
 
 ### Actualizaciones de firmware
 
@@ -40,4 +40,4 @@ Si alguna vez tienes un problema después de actualizar, puedes revertir tu sist
 
 ![bootloader](images/bootloader.webp)
 
-Si por alguna razón tus archivos de configuración se corrompieron, también puedes reinstalar Omarchy usando `omarchy reinstall` en la terminal. Esto reinstalará todos los paquetes predeterminados de Omarchy, te pondrá en stable, bajará de versión cualquier paquete que sea demasiado nuevo y restablecerá todos los archivos de configuración. ¡Ten en cuenta que al hacer esto se sobrescribirán todos los cambios que hayas hecho a la configuración predeterminada de Omarchy!
+Si de algún modo tus archivos de configuración se dañaron, también puedes realizar una reinstalación de Omarchy usando `omarchy reinstall` en la terminal. Esto reinstalará todos los paquetes predeterminados de Omarchy, te pondrá en stable (edge en Apple Silicon) y degradará cualquier paquete que sea demasiado nuevo, y restablecerá todos los archivos de configuración. ¡Ten en cuenta que al hacer esto se sobrescribirán todos los cambios que hayas hecho en tu configuración respecto a los valores predeterminados de Omarchy!

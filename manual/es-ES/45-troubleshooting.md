@@ -30,7 +30,7 @@ En algunos portátiles, Omarchy aplica automáticamente un ajuste que corrige la
 
 ### ¿Por qué no puedo iniciar sesión ni usar sudo con mi contraseña?
 
-Probablemente la escribiste mal demasiadas veces y se te bloqueó la cuenta. Si esto pasa en la pantalla de bloqueo, puedes pulsar `CTRL + ALT + F2` para abrir una TTY nueva donde iniciar sesión como root, y luego ejecutar `faillock --reset --user [your-username]`. Con eso se restablece el bloqueo y ya está.
+Probablemente la escribiste mal diez veces y te bloquearon el acceso. El bloqueo se quita solo después de dos minutos. Si no puedes esperar, y esto está pasando en la pantalla de bloqueo, puedes pulsar `CTRL + ALT + F2` para iniciar una nueva TTY donde puedes iniciar sesión como root, y luego ejecutar `faillock --reset --user [your-username]`. Eso restablecerá el bloqueo y listo.
 
 ### Mi contraseña es aceptada, pero regreso a la pantalla de inicio de sesión
 

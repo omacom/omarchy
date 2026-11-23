@@ -1,8 +1,8 @@
 # Ajustes comunes
 
-Esta es una colección de adaptaciones comunes a la configuración de Omarchy. Ten en cuenta que ocasionalmente las actualizaciones del sistema pueden restaurar ciertas configuraciones a su estado original. Si esto sucede, tus cambios no se perderán, sino que quedarán en un archivo `.bak` en el mismo directorio.
+Esta es una colección de ajustes comunes para la configuración de Omarchy. Ten en cuenta que ocasionalmente puede ser necesario que las actualizaciones del sistema restauren ciertas configuraciones a su estado original. Si esto sucede, tus cambios no se perderán, sino que se guardarán en un archivo `.bak.<timestamp>` junto al original.
 
-Si arruinas algo, puedes restaurar cada configuración a su estado original desde _Actualizar > Configuración_ en el menú de Omarchy. Si arruinas _todo_ de verdad, puedes restablecer todas las configuraciones con `omarchy-reinstall`.
+Si echas algo a perder, puedes restaurar configuraciones individuales a su configuración original mediante _Actualizar > Configuración_ en el menú de Omarchy. Si _de verdad_ echas todo a perder, puedes restablecer todas las configuraciones con `omarchy reinstall configs`, o reinstalar cada paquete y configuración predeterminados con `omarchy reinstall`.
 
 ### Mostrar siempre todos los iconos de la bandeja
 
@@ -10,7 +10,7 @@ Por defecto, los iconos de la bandeja, como Dropbox, 1Password o Steam, están o
 
 ### Esquinas redondeadas en las ventanas
 
-El diseño predeterminado de Omarchy es de esquinas rectas, pero si quieres suavizarlo un poco, puedes editar `~/.config/hypr/looknfeel.lua` para descomentar el redondeo:
+El diseño predeterminado de Omarchy es de esquinas cuadradas, pero si quieres suavizarlo un poco, elige _Apariencia > Ventanas > Esquinas de ventana > Esquinas redondas_ en el menú de Omarchy, o ejecuta `omarchy hyprland corners rounded`. _Esquinas del tema_ vuelve a lo que usa el tema. Para elegir tu propio radio, mantente en _Esquinas del tema_ (`omarchy hyprland corners theme`), ya que las esquinas redondas y rectas se cargan después de tu configuración y la sobrescriben, y descomenta rounding en `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({

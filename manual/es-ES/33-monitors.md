@@ -31,7 +31,7 @@ Acepta un tamaño en píxeles entre 9 y 20, y mueve juntos el shell de Omarchy, 
 
 ### Extender y duplicar la pantalla del portátil
 
-Cuando conectas una pantalla externa a tu portátil, la pantalla se extiende automáticamente. Pero puedes cambiar eso a duplicación usando _Activar > Hardware_ en el menú de Omarchy o `Super + Ctrl + Alt + Delete`. Esto es especialmente útil si esa pantalla externa es un proyector y quieres mostrar algo mientras trabajas.
+Cuando conectas una pantalla externa a tu portátil, la pantalla se extiende automáticamente. Pero puedes cambiar eso a duplicación con _Extender_ | _Duplicar_ en el panel del monitor en la barra superior, _Activar > Hardware_ en el menú de Omarchy, o `Super + Ctrl + Alt + Delete`. Esto es especialmente útil si esa pantalla externa es un proyector y quieres mostrar algo mientras trabajas.
 
 Cuando estás extendiendo, cerrar la tapa del portátil apagará automáticamente la pantalla interna. Abrir la tapa la volverá a encender. También puedes controlar esto manualmente usando _Activar > Hardware_ en el menú de Omarchy o `Super + Ctrl + Delete`.
 

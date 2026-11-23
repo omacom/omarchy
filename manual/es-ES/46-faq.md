@@ -28,7 +28,7 @@ Esto mostrará domingo 10:55 AM.
 
 ### ¿Cómo cambio mi zona horaria?
 
-Ejecuta _Actualizar > Zona horaria_ en el menú de Omarchy y elige de la lista. Si la zona horaria es correcta pero el reloj mismo se desfasó, _Actualizar > Hora_ te reinicia la sincronización de la hora.
+Ejecuta _Configurar > Región > Zona horaria_ en el menú de Omarchy y elige de la lista. Si la zona horaria es correcta pero el reloj en sí se desvió, _Actualizar > Hora_ reinicia la sincronización de la hora por ti.
 
 ### ¿Cómo cambio mi DNS, comparto mi Wi-Fi o compruebo la velocidad de mi conexión?
 
@@ -38,13 +38,9 @@ Todo eso está en [redes](35-networking.md).
 
 _Activar > Prueba de velocidad > Prueba de velocidad de disco_ mide la velocidad de lectura y escritura en vivo de tu unidad, o `omarchy disk speedtest` desde la terminal.
 
-### ¿Por qué no puedo iniciar sesión en mi cuenta de Google en Chromium?
-
-La versión de código abierto de Chromium no trae las credenciales OAuth que Google requiere para iniciar sesión en una cuenta. Ejecuta _Instalar > Servicio > Cuenta de Chromium_ en el menú de Omarchy para añadirlas, reinicia el navegador y podrás iniciar sesión.
-
 ### ¿Cómo añado una impresora?
 
-La impresión ya viene configurada y funcionando de fábrica, y añades cada impresora tú mismo desde _Print Settings_ en el lanzador de aplicaciones (`Super + Space`).
+La impresión ya está configurada y funcionando desde el inicio, y añades cada impresora tú mismo desde _Print Settings_ en el lanzador de aplicaciones (`Super + Alt + Space`).
 
 Elige _Add_ y dale un momento para buscar: una impresora conectada por USB, y la mayoría de las impresoras de red, se detectan solas. Si la tuya no está en la lista, elige _Network Printer > Internet Printing Protocol (ipp)_ e introduce su dirección: la propia pantalla de la impresora o su página web te dirá cuál es, normalmente algo como `192.168.1.50` con una cola de `ipp/print`. _Forward_ luego ofrece un controlador, donde una impresora moderna funciona mejor con el perfil sin controlador _IPP Everywhere_ y una más antigua necesita el controlador propio del modelo.
 

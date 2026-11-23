@@ -2,7 +2,7 @@
 
 Puedes añadir tus propios temas a `~/.config/omarchy/themes`. Solo copia uno de los existentes como base (busca en `/usr/share/omarchy/themes`) y luego ajústalo a tu gusto. Mientras tu tema esté dentro de esa carpeta, se incluirá en el menú de selección de temas.
 
-El archivo principal que tienes que ajustar es `colors.toml`. Ahí se define el conjunto de colores con el que luego se generan las configuraciones de la terminal (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian y todo el shell de Omarchy (barra superior, menú, notificaciones, OSD y pantalla de bloqueo).
+El archivo principal que tienes que ajustar es `colors.toml`. Ese define el conjunto de colores que luego se usa para generar la configuración del terminal (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian, las aplicaciones Qt, la retroiluminación del teclado, el método de entrada, el selector para compartir pantalla, los iconos de las aplicaciones, varias herramientas de IA (Claude, Pi, Hermes, T3 Code, Herdr) y todo el shell de Omarchy (barra superior, menú, notificaciones, OSD y pantalla de bloqueo).
 
 También puedes crear un tema nuevo con Aether, la aplicación incluida, que ofrece una interfaz gráfica agradable para jugar con los colores y buscar fondos. Solo iníciala desde la rejilla de apps con `Super + Alt + Space`.
 
@@ -19,10 +19,6 @@ Omarchy distingue los dos casos por si el tema tiene dentro su propio repo de gi
 ### Modo claro
 
 Si estás creando un tema en modo claro, establece `mode = "light"` al inicio de tu `colors.toml`. Entonces se combinará automáticamente con el modo claro en todas las aplicaciones. (La forma antigua de dejar un archivo vacío llamado `light.mode` en la raíz de tu tema también sigue funcionando.)
-
-### Colores de iconos
-
-Si quieres que los iconos del gestor de archivos combinen en color con tu tema, añade un archivo llamado `icons.theme` con el nombre del conjunto de iconos que quieres usar. Por defecto, las opciones son: `Yaru Yaru-blue Yaru-dark Yaru-magenta Yaru-olive Yaru-prussiangreen Yaru-purple Yaru-red Yaru-sage Yaru-wartybrown Yaru-yellow`.
 
 ### Imagen de desbloqueo
 

@@ -42,7 +42,7 @@ Puedes iniciar Grok usando `Super + Shift + Alt + A`.
 
 [WhatsApp](https://www.whatsapp.com/) es uno de los servicios de mensajería más populares del mundo, y la versión web es una gran opción para Linux.
 
-Puedes iniciar WhatsApp usando `Super + Shift + Alt + G`.
+Puedes iniciar WhatsApp usando `Super + Shift + Alt + G`. Se abre con la extensión WhatsApp Slim de Omarchy, que hace que siga tu tema y contrae la lista de chats cuando la ventana es estrecha.
 
 ## Aplicaciones de Google
 
@@ -62,6 +62,12 @@ Puedes iniciar X usando `Super + Shift + X` e ir directo a escribir una publicac
 
 Puedes iniciar YouTube usando `Super + Shift + Y`.
 
+## Netflix
+
+[Netflix](https://www.netflix.com/) está incluido como aplicación web en las instalaciones nuevas.
+
+Inicias Netflix usando el lanzador de aplicaciones (`Super + Space`).
+
 ## Zoom
 
 [Zoom](https://zoom.us/) es el sistema de videollamadas más popular en EE. UU. Buenas conexiones en todo el mundo. Además, puedes hacer reuniones de 40 minutos sin una cuenta de pago. Omarchy integra el cliente web de Zoom, y los enlaces de reuniones de Zoom se abrirán directamente en él.
@@ -78,7 +84,7 @@ Inicias Discord usando el lanzador de aplicaciones (`Super + Space`).
 
 Selecciona _Instalar > Servicio > Microsoft_ para añadir Outlook, Word, Excel, PowerPoint, Teams y OneDrive como aplicaciones web. Cada aplicación tiene su propio lanzador y se abre directamente con las URL comerciales de Microsoft 365 y tu perfil de navegador de siempre. Se abren en las mismas ventanas de aplicación de navegador que las demás aplicaciones web de Omarchy; no instalan el cliente separado de Teams para Linux.
 
-Quita el paquete con _Quitar > Servicio > Microsoft_, o quita aplicaciones individuales con _Quitar > App web_. También puedes instalar solo las aplicaciones que quieras mediante _Instalar > App web_.
+Elimina el paquete con _Quitar > Servicio > Microsoft_, o elimina aplicaciones individuales con _Quitar > App web_. También puedes instalar solo las aplicaciones que quieras a través de _Instalar > App web_.
 
 Para una nube gubernamental o soberana, edita la URL en la línea `Exec=` del lanzador correspondiente en `~/.local/share/applications/`, como `Microsoft Teams.desktop`, usando la URL que te dé tu organización. Escribe cualquier `%` literal en esa línea como `%%`. Los cambios se aplican la próxima vez que la abras. Ejecutar de nuevo el instalador del paquete reemplaza sus lanzadores con las URL predeterminadas.
 

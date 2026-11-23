@@ -35,10 +35,14 @@ Confirma que todo se ve bien y espera a que la instalación termine como de cost
 
 Cuando termines de instalar Omarchy, notarás que ahora el gestor de arranque predeterminado es Limine. Con esto, también puedes añadir a Limine opciones para tus otras instalaciones, como Windows.
 
-Para añadir otros sistemas operativos, ejecuta `limine-scan` y sigue las indicaciones para añadir las entradas que quieras a tu configuración de Limine. El menú de arranque permanece oculto de forma predeterminada e inicia Omarchy después de un segundo. Para elegir Windows u otra entrada, pulsa cualquier tecla en cuanto inicie Limine; cuando aparezca el menú, usa las teclas de flecha para seleccionar una entrada y pulsa Enter. Si Omarchy inicia antes de que pulses una tecla, reinicia e inténtalo de nuevo. Si activaste _Configurar > Arranque directo_, el firmware omite Limine por completo, así que elige Limine desde el menú de arranque de tu BIOS o ejecuta _Configurar > Arranque directo_ de nuevo para eliminar la entrada.
+Para añadir otros sistemas operativos, ejecuta `limine-scan` y sigue las indicaciones para añadir las entradas que quieras a tu configuración de Limine. El menú de arranque permanece oculto de forma predeterminada e inicia Omarchy después de un segundo. Para elegir Windows u otra entrada, pulsa cualquier tecla en cuanto inicie Limine; cuando aparezca el menú, usa las teclas de dirección para seleccionar una entrada y pulsa Enter. Si Omarchy inicia antes de que pulses una tecla, reinicia e inténtalo de nuevo.
 
 ## Bitlocker
 
 Este método de instalación no es compatible con BitLocker, porque este cifra todo el disco y no solo la partición. Si te aparece un error que indica que Bitlocker está activado, arranca en Windows, ve a **Configuración -> Privacidad y seguridad -> Cifrado del dispositivo** y desactiva BitLocker. Puede tardar un tiempo en descifrar el disco.
 
  ![dual-boot-7](images/dual-boot-7.webp)
+
+## Reinstalar Windows
+
+Si este ordenador venía con Windows, su clave de producto está almacenada en el firmware. Ejecuta `omarchy windows key` para mostrarla y poder activar Windows de nuevo si alguna vez lo reinstalas en esta máquina.
