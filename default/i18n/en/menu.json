@@ -301,6 +301,27 @@
   "trigger.toggle": {
     "label": "Toggle"
   },
+  "stay-awake-picker.15-minutes": {
+    "label": "15 minutes"
+  },
+  "stay-awake-picker.30-minutes": {
+    "label": "30 minutes"
+  },
+  "stay-awake-picker.1-hour": {
+    "label": "1 hour"
+  },
+  "stay-awake-picker.2-hours": {
+    "label": "2 hours"
+  },
+  "stay-awake-picker.4-hours": {
+    "label": "4 hours"
+  },
+  "stay-awake-picker.until-turned-off": {
+    "label": "Until turned off"
+  },
+  "stay-awake-picker.allow-sleep": {
+    "label": "Allow Sleep Now"
+  },
   "trigger.toggle.idle-lock-on": {
     "label": "Stay Awake"
   },
