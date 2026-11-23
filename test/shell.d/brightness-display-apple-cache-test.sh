@@ -41,9 +41,33 @@ chmod +x "$stub_dir/sudo"
 cat >"$stub_dir/asdcontrol" <<STUB
 #!/bin/bash
 printf '%s\n' "\$*" >>"$asd_log"
-# --detect reports nothing, so detection never yields a device.
+# --detect reports nothing by default, so cache-reject cases never yield a
+# device. Recovery cases can feed a hiddev path via DETECT_DEVICE or a
+# one-path-per-line DETECT_QUEUE file.
 if [[ \$1 == "--detect" ]]; then
+  if [[ -n \${DETECT_QUEUE:-} && -f \$DETECT_QUEUE ]]; then
+    device=\$(head -n1 "\$DETECT_QUEUE" || true)
+    if [[ -n \$device ]]; then
+      sed -i '1d' "\$DETECT_QUEUE"
+      printf '%s\\n' "\$device"
+    fi
+  elif [[ -n \${DETECT_DEVICE:-} ]]; then
+    printf '%s\\n' "\$DETECT_DEVICE"
+  fi
   exit 0
+fi
+if [[ \$2 == "--" ]]; then
+  if [[ -n \${SET_FAIL_FILE:-} && -f \$SET_FAIL_FILE ]]; then
+    remaining=\$(<"\$SET_FAIL_FILE")
+    if (( remaining > 0 )); then
+      printf '%s\\n' \$((remaining - 1)) >"\$SET_FAIL_FILE"
+      exit 1
+    fi
+  fi
+  exit 0
+fi
+if [[ \${READ_FAIL:-0} == 1 ]]; then
+  exit 3
 fi
 # A brightness read (a lone device arg) returns a plausible value; a set
 # (<device> -- <step>) just succeeds.
@@ -150,3 +174,59 @@ if mkfifo "$tmp_cache" 2>/dev/null; then
 else
   skip "$tmp_cache already present or not safely creatable; skipping the /tmp-fallback case"
 fi
+
+# --- Recovery cases use a temp hiddev fixture, not host /dev or sudo ----------
+# detect_apple_display_device otherwise returns before calling asdcontrol when
+# the host has no hiddev node. Point it at a throwaway directory so --detect
+# always runs; the stub decides which hiddev path it reports.
+hiddev_fixture="$TMPDIR/hiddev-fixture"
+mkdir -p "$hiddev_fixture"
+: >"$hiddev_fixture/hiddev0"
+detect_queue="$TMPDIR/detect.queue"
+set_fail_file="$TMPDIR/set-fail"
+
+count_sets() {
+  local device="$1"
+  grep -cF -- "$device -- +5%" "$asd_log" || true
+}
+
+run_recovery() {
+  : >"$asd_log"
+  rm -f "$cache_file"
+  XDG_RUNTIME_DIR="$xdg_dir" PATH="$stub_dir:$ROOT/bin:$PATH" \
+    OMARCHY_APPLE_HIDDEV_PATH="$hiddev_fixture" \
+    DETECT_DEVICE="${DETECT_DEVICE:-}" \
+    DETECT_QUEUE="${DETECT_QUEUE:-}" \
+    SET_FAIL_FILE="${SET_FAIL_FILE:-}" \
+    READ_FAIL="${READ_FAIL:-0}" \
+    omarchy-brightness-display-apple --no-osd "$@"
+}
+
+# Same node after a successful write + failed read: do not replay +5%.
+DETECT_DEVICE=/dev/hiddev3 DETECT_QUEUE="" READ_FAIL=1 SET_FAIL_FILE="" \
+  run_recovery +5%
+(( $(count_sets /dev/hiddev3) == 1 )) || \
+  fail "same-node read-back failure does not replay the relative step" "$(cat "$asd_log")"
+grep -q '^--detect ' "$asd_log" || \
+  fail "same-node read-back failure re-detects" "$(cat "$asd_log")"
+pass "same-node read-back failure does not replay the relative step"
+
+# Stale node: first detect is the backfilled interface, second is the display.
+printf '%s\n' /dev/hiddev3 /dev/hiddev4 >"$detect_queue"
+DETECT_DEVICE="" DETECT_QUEUE="$detect_queue" READ_FAIL=1 SET_FAIL_FILE="" \
+  run_recovery +5%
+(( $(count_sets /dev/hiddev3) == 1 )) || \
+  fail "stale cache applies the step once on the cached node" "$(cat "$asd_log")"
+(( $(count_sets /dev/hiddev4) == 1 )) || \
+  fail "stale cache replays the step on the newly detected node" "$(cat "$asd_log")"
+[[ $(<"$cache_file") == /dev/hiddev4 ]] || \
+  fail "stale cache is repaired to the newly detected node" "cache: $(<"$cache_file")"
+pass "stale cache replays the step only on the newly detected node"
+
+# Failed write on the same node must still retry (the first write never landed).
+printf '%s\n' 1 >"$set_fail_file"
+DETECT_DEVICE=/dev/hiddev3 DETECT_QUEUE="" READ_FAIL=0 SET_FAIL_FILE="$set_fail_file" \
+  run_recovery +5%
+(( $(count_sets /dev/hiddev3) == 2 )) || \
+  fail "failed write retries on the same hiddev node" "$(cat "$asd_log")"
+pass "failed write retries on the same hiddev node"
