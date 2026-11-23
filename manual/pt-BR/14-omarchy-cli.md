@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy geralmente é controlado pelas teclas de atalho e pelo menu do Omarchy (`Super + Space`). Mas você também pode controlá-lo pela CLI `omarchy`. Isso é particularmente útil quando você tem um agente de IA trabalhando com você em personalização ou configuração.
+O Omarchy geralmente é controlado pelas teclas de atalho e pelo menu do Omarchy (`Super + Space`). Mas você também pode controlá-lo pela CLI `omarchy`. Isso é especialmente útil quando você tem um agente de IA trabalhando com você em personalização ou configuração.
 
-A CLI tem acesso a todas as ferramentas internas que são usadas tanto pelo menu quanto de outras formas. Você pode ver tudo o que está disponível executando `omarchy` no terminal.
+A CLI tem acesso a todas as ferramentas internas usadas tanto pelo menu quanto de outras formas. Você pode ver tudo o que está disponível executando `omarchy` no terminal.
 
-Ela se parece com algo assim:
+É mais ou menos assim:
 
 ```
 ~ ❯ omarchy
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -41,7 +42,7 @@ Groups:
   ...
 ```
 
-Para diagnóstico, execute `omarchy-debug --no-sudo --print` diretamente. Ele imprime diagnósticos e grava `/tmp/omarchy-debug.log` sem solicitar sudo, inclusive em instalações de pacotes onde `omarchy debug` pode falhar com "Unknown Omarchy command".
+Para diagnóstico, execute `omarchy-debug --no-sudo --print` diretamente. Ele imprime o diagnóstico e grava `/tmp/omarchy-debug.log` sem pedir sudo, inclusive em instalações de pacotes em que `omarchy debug` pode falhar com "Unknown Omarchy command".
 
 E você pode se aprofundar em cada grupo:
 
@@ -49,7 +50,7 @@ E você pode se aprofundar em cada grupo:
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
@@ -60,4 +61,4 @@ Todo comando também aceita `--help`, seja consultando um grupo inteiro (`omarch
 
 ### Abrindo o menu pelo terminal
 
-O menu do Omarchy também pode ser controlado por script, o que é útil para seus próprios atalhos de teclado. `omarchy menu` o abre na raiz, e você pode pular direto para qualquer ponto da árvore nomeando-o: `omarchy menu summon appearance.theme` vai direto para o seletor de temas, `omarchy menu toggle system` abre o menu do sistema e o fecha novamente se ele já estiver aberto, e `omarchy menu close` o fecha.
+O menu do Omarchy também pode ser usado em scripts, o que é útil para seus próprios atalhos de teclado. `omarchy menu` abre o menu na raiz, e você pode ir direto a qualquer ponto da árvore nomeando-o: `omarchy menu summon appearance.theme` vai direto ao seletor de temas, `omarchy menu toggle system` abre o menu do sistema e o fecha novamente se ele já estiver aberto, e `omarchy menu close` o fecha.
