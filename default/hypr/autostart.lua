@@ -1,7 +1,11 @@
 hl.on("hyprland.start", function()
   -- Slow app launch fix -- set systemd and D-Bus activation vars before
-  -- starting session services.
-  hl.exec_cmd("dbus-update-activation-environment --systemd --all")
+  -- starting session services. Then replace xdg-desktop-portal. D-Bus can
+  -- activate it during early login, before this import, and that process
+  -- stays up without WAYLAND_DISPLAY or QT_QPA_PLATFORM. OpenURI launches
+  -- apps with that empty environment, and Qt aborts. One command, so the
+  -- replacement cannot start before the import finishes.
+  hl.exec_cmd("dbus-update-activation-environment --systemd --all && systemctl --user restart xdg-desktop-portal.service")
 
   hl.exec_cmd("omarchy-launch-shell")
   hl.exec_cmd("omarchy-provision-first-run")
