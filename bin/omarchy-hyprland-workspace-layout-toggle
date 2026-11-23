@@ -43,14 +43,14 @@ else
 fi
 
 for i in "${!CYCLE[@]}"; do
-  if [[ ${CYCLE[i]} == "$CURRENT_MODE" ]]; then
+  if [[ $CURRENT_MODE == ${CYCLE[i]} ]]; then
     INDEX=$(((i + STEP + COUNT) % COUNT))
     break
   fi
 done
 
 NEW_MODE=${CYCLE[INDEX]}
-[[ $NEW_MODE != "$CURRENT_MODE" ]] || exit 0
+[[ $CURRENT_MODE != $NEW_MODE ]] || exit 0
 
 APPLY="o.workspace_mode({ workspace = \"$ACTIVE_WORKSPACE\", mode = \"$NEW_MODE\" })"
 

@@ -18,12 +18,19 @@ read_cycle() {
   fi
   for layout in "${layouts[@]}"; do
     for entry in "${saved[@]}"; do
-      if [[ $entry == "$layout" ]]; then
+      if [[ $entry == $layout ]]; then
         printf '%s\n' "$layout"
         break
       fi
     done
   done
+}
+
+contains_mode() {
+  case $'\n'$1$'\n' in
+    *$'\n'"$2"$'\n'*) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 cycle=$(read_cycle)
@@ -35,11 +42,11 @@ case ${1-} in
     exit 0
     ;;
   --allows)
-    [[ $'\n'$enabled$'\n' == *$'\n'"${2-}"$'\n'* ]]
+    contains_mode "$enabled" "${2-}"
     exit
     ;;
   --resolve)
-    if [[ -z $cycle || $'\n'$cycle$'\n' == *$'\n'"${2-}"$'\n'* ]]; then
+    if [[ -z $cycle ]] || contains_mode "$cycle" "${2-}"; then
       printf '%s\n' "${2-}"
     else
       printf '%s\n' "${cycle%%$'\n'*}"
@@ -52,7 +59,7 @@ if [[ $1 == "choose" && $# == 1 ]]; then
   labels=("$(omarchy-i18n layout.tiling)" "$(omarchy-i18n layout.scrolling)" "$(omarchy-i18n layout.floating)")
   selected=()
   for i in "${!layouts[@]}"; do
-    if [[ $'\n'$enabled$'\n' == *$'\n'"${layouts[i]}"$'\n'* ]]; then
+    if contains_mode "$enabled" "${layouts[i]}"; then
       selected+=(--selected "${labels[i]}")
     fi
   done

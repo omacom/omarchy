@@ -25,9 +25,10 @@ if [[ $WORKSPACE_ID =~ ^[0-9]+$ ]] && (( WORKSPACE_ID >= 1 )); then
   MODE=${MODE:-$TILED_LAYOUT}
   if [[ -n $MODE ]]; then
     RESOLVED=$(omarchy-hyprland-workspace-layout-cycle --resolve "$MODE")
-    if [[ $RESOLVED != "$MODE" ]]; then
-      MODE=$(omarchy-hyprland-workspace-layout-default)
-    fi
+    case $MODE in
+      "$RESOLVED") ;;
+      *) MODE=$(omarchy-hyprland-workspace-layout-default) ;;
+    esac
   fi
 fi
 
