@@ -344,7 +344,6 @@
   "reset.willErase": "Ceci effacera définitivement :",
   "screensaver.disabled": "Écran de veille désactivé",
   "screensaver.enabled": "Écran de veille activé",
-  "setupForm.accountIntro": "Configurons votre compte utilisateur...",
   "setupForm.confirmPlaceholder": "Doit correspondre au mot de passe saisi",
   "setupForm.confirmPrompt": "Confirmer> ",
   "setupForm.hostnameInvalid": "Le nom d'hôte doit faire 1 à 63 lettres, chiffres ou tirets, sans tiret au début ni à la fin",

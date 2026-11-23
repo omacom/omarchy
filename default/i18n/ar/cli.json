@@ -362,7 +362,6 @@
   "reset.willErase": "سيؤدي هذا إلى مسح ما يلي نهائيًا:",
   "screensaver.disabled": "عُطّلت شاشة التوقف",
   "screensaver.enabled": "فُعّلت شاشة التوقف",
-  "setupForm.accountIntro": "لنُعدّ حساب المستخدم الخاص بك...",
   "setupForm.confirmPlaceholder": "يجب أن تطابق كلمة المرور التي كتبتها للتو",
   "setupForm.confirmPrompt": "تأكيد> ",
   "setupForm.hostnameInvalid": "يجب أن يتكون اسم المضيف من 1-63 حرفًا أو رقمًا أو شرطة، ولا يمكن أن يبدأ أو ينتهي بشرطة",

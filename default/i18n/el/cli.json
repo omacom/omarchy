@@ -338,7 +338,6 @@
   "reset.willErase": "Αυτό θα διαγράψει οριστικά:",
   "screensaver.disabled": "Η προφύλαξη οθόνης απενεργοποιήθηκε",
   "screensaver.enabled": "Η προφύλαξη οθόνης ενεργοποιήθηκε",
-  "setupForm.accountIntro": "Ας ρυθμίσουμε τον λογαριασμό χρήστη σου...",
   "setupForm.confirmPlaceholder": "Πρέπει να ταιριάζει με τον κωδικό που μόλις έγραψες",
   "setupForm.confirmPrompt": "Επιβεβαίωση> ",
   "setupForm.hostnameInvalid": "1-63 γράμματα, αριθμοί ή παύλες, χωρίς παύλα στην αρχή ή στο τέλος",

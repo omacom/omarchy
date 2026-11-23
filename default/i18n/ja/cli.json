@@ -332,7 +332,6 @@
   "reset.willErase": "以下が完全に消去されます：",
   "screensaver.disabled": "スクリーンセーバーを無効にしました",
   "screensaver.enabled": "スクリーンセーバーを有効にしました",
-  "setupForm.accountIntro": "ユーザーアカウントを設定しましょう...",
   "setupForm.confirmPlaceholder": "入力したパスワードと一致する必要があります",
   "setupForm.confirmPrompt": "確認> ",
   "setupForm.hostnameInvalid": "ホスト名は1～63文字の英字・数字・ダッシュで、先頭と末尾にダッシュは使えません",

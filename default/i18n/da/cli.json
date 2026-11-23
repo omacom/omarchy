@@ -338,7 +338,6 @@
   "reset.willErase": "Dette sletter permanent:",
   "screensaver.disabled": "Pauseskærm deaktiveret",
   "screensaver.enabled": "Pauseskærm aktiveret",
-  "setupForm.accountIntro": "Lad os sætte din brugerkonto op...",
   "setupForm.confirmPlaceholder": "Skal matche den adgangskode, du lige har skrevet",
   "setupForm.confirmPrompt": "Bekræft> ",
   "setupForm.hostnameInvalid": "Værtsnavn: 1-63 bogstaver, tal eller bindestreger, ikke bindestreg først eller sidst",
