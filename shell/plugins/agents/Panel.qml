@@ -585,7 +585,8 @@ Panel {
 
   function memoryShortText(shortfall) {
     if (shortfall.needs < 0 || shortfall.free < 0 || shortfall.needs <= shortfall.free) return Commons.I18n.t("localModels.notEnoughMemory")
-    return Commons.I18n.t("agents.memoryShort").arg(Commons.I18n.formatNumber(shortfall.free, shortfall.free < 10 ? 1 : 0))
+    return Commons.I18n.t("agents.memoryShort").arg(Commons.I18n.formatNumber(shortfall.needs, 0))
+      .arg(Commons.I18n.formatNumber(shortfall.free, shortfall.free < 10 ? 1 : 0))
   }
 
   // The network block's share of the offers, which come first.
@@ -2485,27 +2486,15 @@ Panel {
             }
 
             // A paired machine's model says whose it is before its facts; a
-            // cabled Spark, what setting it up does.
+            // cabled Spark, what setting it up does; one too big for the
+            // memory free now, in red, why it can't start.
             Text {
               width: parent.width
-              text: ownModel.modelData.link ? Commons.I18n.t("localModels.linkSetUp")
+              text: ownModel.shortfall ? root.memoryShortText(ownModel.shortfall)
+                : ownModel.modelData.link ? Commons.I18n.t("localModels.linkSetUp")
                 : [ownModel.modelData.host, root.ownModelFacts(ownModel.modelData.facts)].filter(function(part) { return part !== "" }).join(" · ")
               textFormat: Text.PlainText
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-              elide: Text.ElideRight
-            }
-
-            // Too big for the memory free now: the facts above say what it
-            // needs, this how much is free.
-            Text {
-              visible: !!ownModel.shortfall
-              width: parent.width
-              topPadding: Style.space(2)
-              text: ownModel.shortfall ? root.memoryShortText(ownModel.shortfall) : ""
-              textFormat: Text.PlainText
-              color: root.urgent
+              color: ownModel.shortfall ? root.urgent : root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
               elide: Text.ElideRight

@@ -85,7 +85,7 @@
   "agents.removeFailed": "Couldn't remove %1",
   "agents.removeDefaultLocalModelConfirm": "Delete %1 from this machine? It stops, its download is deleted, + can set it up again, and the agent at the top becomes the default.",
   "agents.removeLocalModelConfirm": "Delete %1 from this machine? It stops, its download is deleted, and + can set it up again.",
-  "agents.memoryShort": "Not enough memory · %1 GiB free",
+  "agents.memoryShort": "Needs %1 GiB memory · %2 GiB free",
   "agents.unlink": "Unlink",
   "agents.unlinkModelConfirm": "Unlink %1?",
   "agents.hideProviderConfirm": "Hide %1 from the panel? Credentials and sign-in will be kept.",
