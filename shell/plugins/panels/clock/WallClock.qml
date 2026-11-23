@@ -18,6 +18,12 @@ Timer {
     restart()
   }
 
+  // Re-reads the wall clock and re-arms from now, for when it was stepped.
+  function resync() {
+    date = new Date()
+    arm()
+  }
+
   onStepChanged: arm()
   onTriggered: {
     date = new Date()
