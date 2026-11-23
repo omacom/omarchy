@@ -3,6 +3,15 @@ echo "Let VPN connections use their own DNS while a DNS provider is selected"
 # Older omarchy-dns pinned the provider with a NetworkManager [global-dns]
 # drop-in, which overrides the DNS a VPN pushes. Retire it and install the
 # dispatcher hook that pins the provider on new profiles instead.
+#
+# The hook and omarchy-dns --pin-connection come from the omarchy package. A dev
+# checkout can run this first; linking a missing hook and removing the drop-in
+# then would leave new networks on DHCP DNS, so stay pending until it lands.
+if [[ ! -x /usr/bin/omarchy-dns-dispatch ]]; then
+  echo "Waiting for the omarchy package that ships omarchy-dns-dispatch" >&2
+  exit 75
+fi
+
 conf=/etc/NetworkManager/conf.d/20-omarchy-dns.conf
 hook=/etc/NetworkManager/dispatcher.d/90-omarchy-dns
 
