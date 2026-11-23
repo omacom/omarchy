@@ -441,4 +441,3 @@ pass "battery status suppresses an unknown cycle count"
 [[ $(cat "$runtime_cache" 2>/dev/null) == "BAT0 discharging 1 4600000 12000000" ]] ||
   fail "battery status tests leave the runtime charge cache alone"
 pass "battery status tests leave the runtime charge cache alone"
-

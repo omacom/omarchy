@@ -57,7 +57,9 @@ from collectors import (  # noqa: E402
 )
 
 AGENT_ID = "agy"
-AGENT_NAME = "Antigravity"
+# The panel names the subscription, as it does Claude and Grok; Antigravity is
+# the harness that codes on it.
+AGENT_NAME = "Gemini"
 AUTH_HELP = "Run `agy` to sign in, or sign in to Antigravity in omp, pi, or opencode."
 # How each source of a sign-in is named when it needs attention.
 SOURCE_NAMES = {"agy": "`agy`", "omp": "omp", "pi": "pi", "opencode": "opencode"}
@@ -129,7 +131,7 @@ def login():
     "expiresAt": expires.timestamp() if expires else 0,
     "refresh": str(token.get("refresh_token") or data.get("refresh_token") or ""),
     "authMethod": str(data.get("auth_method") or "consumer"),
-    "email": email_of(data.get("id_token")),
+    "email": str(data.get("id_token_email") or "") or email_of(data.get("id_token")),
   }
 
 
@@ -291,7 +293,9 @@ def listed(data, key):
 # The Gemini group's 5-hour and weekly buckets are the plan's own limits; the
 # other groups (Claude and GPT models) are scoped allowances, shown once
 # they have been touched. An answer that lists its buckets without groups
-# lists the Gemini ones. An answer of another shape (not an object, an error,
+# lists the Gemini ones. One without a Gemini group (Ultra's lists only
+# Claude and GPT) puts no limit on Gemini: the plan has no windows of its
+# own, and those groups never stand in for them. An answer of another shape (not an object, an error,
 # groups or the Gemini buckets that aren't a list) is None, a failed check
 # rather than a plan without quotas; another group's buckets of the wrong
 # shape skip that group.
@@ -303,13 +307,13 @@ def extract_limits(data):
     groups = [{"displayName": "Gemini", "buckets": data["buckets"]}]
   if not groups:
     return []
-  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), groups[0])
-  if not listed(gemini, "buckets"):
+  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), None)
+  if gemini and not listed(gemini, "buckets"):
     return None
 
   limits = []
   session = weekly = None
-  for bucket in gemini.get("buckets") or []:
+  for bucket in (gemini or {}).get("buckets") or []:
     if not isinstance(bucket, dict) or used(bucket) is None:
       continue
     window = str(bucket.get("window") or "").lower()
@@ -372,7 +376,7 @@ def refused_help(entry):
 # one answers. Each account keeps its own last good answer, which stands in,
 # marked stale, when its check fails.
 def collect_limits(entries, force):
-  result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False}
+  result = {"limits": [], "tierLabel": "", "accountName": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False}
   now = time.time()
   # Each harness refreshes its own token while it runs, so the one lapsing
   # last was refreshed most recently. A token of unknown expiry comes after
@@ -389,16 +393,17 @@ def collect_limits(entries, force):
     # untouched, not unknown, so it reads zero until Google names the next
     # reset.
     cache = limits_cache(entry) if entry else None
+    account_name = str((entry or {}).get("email") or "")
     if cache:
-      result.update(limits=cache.limits, tierLabel=str(cache.data.get("tierLabel") or ""), fetchedAtMs=cache.fetched_at)
+      result.update(limits=cache.limits, tierLabel=str(cache.data.get("tierLabel") or ""), accountName=account_name, fetchedAtMs=cache.fetched_at)
     else:
-      result.update(limits=[], tierLabel="", fetchedAtMs=0)
+      result.update(limits=[], tierLabel="", accountName=account_name, fetchedAtMs=0)
 
   def answered(entry, tier, limits):
     # A plan with no quota windows to report is healthy, with no meters.
     cache = limits_cache(entry)
     fetched = cache.save(limits, tierLabel=tier) if cache else now_ms()
-    result.update(limits=limits, tierLabel=tier, live=True, fetchedAtMs=fetched)
+    result.update(limits=limits, tierLabel=tier, accountName=str((entry or {}).get("email") or ""), live=True, fetchedAtMs=fetched)
     return result
 
   keep(lead)
@@ -445,7 +450,7 @@ def collect_limits(entries, force):
     keep(entry)
     result.update(authHelpText=help_text, retryAdvised=transport)
     if not result["limits"]:
-      result["usageStatusText"] = "Antigravity limits unavailable"
+      result["usageStatusText"] = "Gemini limits unavailable"
     return result
 
   # No token in hand answered, but omp renews its own sign-in when asked
@@ -745,7 +750,7 @@ def main():
   entries = logins()
   ready = bool(entries) or bool(stats.get("hasLocalStats"))
   limits = collect_limits(entries, args.force) if ready else {
-    "limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False,
+    "limits": [], "tierLabel": "", "accountName": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False,
   }
   tier = limits["tierLabel"]
   agy = next((e for e in entries if e["source"] == "agy"), None)
@@ -767,6 +772,8 @@ def main():
     limitsFetchedAt=limits["fetchedAtMs"],
     retryAdvised=limits["retryAdvised"],
   )
+  if limits["accountName"]:
+    record["accountName"] = limits["accountName"]
   record.update(stats)
   emit(record)
 
