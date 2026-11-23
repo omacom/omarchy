@@ -26,11 +26,11 @@
   "update": {
     "label": "আপডেট"
   },
-  "about": {
-    "label": "সম্পর্কে"
-  },
   "system": {
     "label": "সিস্টেম"
+  },
+  "system.about": {
+    "label": "সম্পর্কে"
   },
   "system.screensaver": {
     "label": "স্ক্রিনসেভার"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "ইনপুট"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "ভাষা"
+  },
+  "setup.region.timezone": {
+    "label": "সময় অঞ্চল"
   },
   "setup.network": {
     "label": "নেটওয়ার্ক"
@@ -386,55 +389,6 @@
   },
   "setup.default": {
     "label": "ডিফল্টসমূহ"
-  },
-  "setup.default.agent": {
-    "label": "এজেন্ট",
-    "title": "ডিফল্ট এজেন্ট"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "ব্রাউজার",
@@ -566,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "সরাসরি বুট"
-  },
-  "setup.reset": {
-    "label": "কম্পিউটার রিসেট"
+  "remove.factory-reset": {
+    "label": "ফ্যাক্টরি রিসেট"
   },
   "install.package": {
     "label": "প্যাকেজ"
@@ -665,9 +616,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -688,9 +636,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium অ্যাকাউন্ট"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1088,9 +1033,6 @@
   "update.password": {
     "label": "পাসওয়ার্ড"
   },
-  "update.timezone": {
-    "label": "সময় অঞ্চল"
-  },
   "update.time": {
     "label": "সময়"
   },
@@ -1138,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "ট্র্যাকপ্যাড"
-  },
-  "update.password.drive": {
-    "label": "ড্রাইভ এনক্রিপশন"
-  },
-  "update.password.user": {
-    "label": "ব্যবহারকারী"
   },
   "appearance.windows.gaps-on": {
     "label": "উইন্ডো ফাঁক চালু"
@@ -1235,34 +1171,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "টাচস্ক্রিন বন্ধ করুন"
   },
-  "setup.default.agent.amp": {
-    "label": "Amp"
-  },
-  "setup.default.agent.commandcode": {
-    "label": "Command Code"
-  },
-  "setup.default.agent.devin": {
-    "label": "Devin CLI"
-  },
-  "setup.default.agent.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "setup.default.agent.freebuff": {
-    "label": "Freebuff"
-  },
-  "setup.default.agent.kilo": {
-    "label": "Kilo"
-  },
-  "setup.default.agent.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "setup.default.agent.mcode": {
-    "label": "MiniMax Code"
-  },
-  "setup.default.agent.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1300,5 +1209,70 @@
   },
   "install.service.notion": {
     "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "সাধারণ"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "আইকন"
+  },
+  "install.style.icons": {
+    "label": "আইকন"
+  },
+  "remove.icons": {
+    "label": "আইকন"
+  },
+  "update.icons": {
+    "label": "অতিরিক্ত আইকন"
+  },
+  "system.firmware": {
+    "label": "BIOS-এ রিবুট",
+    "description": "UEFI ফার্মওয়্যার সেটআপে রিস্টার্ট করুন"
+  },
+  "setup.region": {
+    "label": "অঞ্চল"
+  },
+  "setup.region.formats": {
+    "label": "বিন্যাস",
+    "description": "তারিখ, সময়, সংখ্যা ও একক কীভাবে লেখা হয়"
+  },
+  "install.gaming.vibes": {
+    "label": "গেমের আমেজ"
+  },
+  "remove.gaming.vibes": {
+    "label": "গেমের আমেজ গেম"
+  },
+  "update.games": {
+    "label": "গেমের আমেজ গেমগুলো"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "হোস্টনেম"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
