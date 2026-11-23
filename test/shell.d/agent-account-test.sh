@@ -60,8 +60,10 @@ cat >"$mock_bin/codex" <<'SH'
 #!/bin/bash
 # A session started as the primary, naming no home.
 if [[ ${1:-} == "--hold" ]]; then
-  sleep 30
-  exit
+  sleep 30 &
+  trap 'kill $! 2>/dev/null || true' TERM EXIT
+  wait $!
+  exit 0
 fi
 if [[ ${1:-} == "login" ]]; then
   "${BROWSER:-omarchy-test-default-browser}" "https://auth.openai.com/oauth/authorize"
@@ -404,7 +406,7 @@ omarchy-agent-account-use claude main >/dev/null
 [[ $(claude_account) == u-main && ! -e $HOME/.claude/.oauth_refresh.lock ]] || fail "a stale refresh lock is taken over and released"
 mkdir "$HOME/.claude/.oauth_refresh.lock"
 (
-  sleep 1
+  sleep 0.5
   claude_account >"$test_tmp/during-refresh"
   rmdir "$HOME/.claude/.oauth_refresh.lock"
 ) &
@@ -835,7 +837,10 @@ pass "--reauth signs an existing account in again where it lives"
 # away, and leaves no half-made account behind.
 OMARCHY_TEST_LOGIN_HANGS="$test_tmp/login.pid" omarchy-agent-account-add --events claude Slow </dev/null >/dev/null 2>&1 &
 adding=$!
-sleep 1
+for _ in {1..40}; do
+  [[ -s $test_tmp/login.pid ]] && break
+  sleep 0.05
+done
 started=$(date +%s)
 kill -TERM "$adding"
 wait "$adding" || true
@@ -953,7 +958,7 @@ pass "signing in does not install desktop apps"
   CODEX_HOME="$HOME/.codex" OMARCHY_TEST_LOGIN_UUID=c-main OMARCHY_TEST_LOGIN_EMAIL=me@example.com codex login >/dev/null
   OMARCHY_TEST_LOGIN_UUID=c-side OMARCHY_TEST_LOGIN_EMAIL=side@example.com omarchy-agent-account-add codex Side </dev/null >/dev/null
   # A session started as the primary keeps its login until it quits.
-  codex --hold &
+  codex --hold >/dev/null 2>&1 &
   session=$!
   if omarchy-agent-account-remove codex main </dev/null >/dev/null 2>&1 || [[ $(jq -r .tokens.account_id "$HOME/.codex/auth.json") != c-main ]]; then
     fail "a session running as the Codex primary blocks replacing its login"
