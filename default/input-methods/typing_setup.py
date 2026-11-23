@@ -180,6 +180,7 @@ def save_keyboard(selected):
   original = setup.read(path) if path.exists() else None
   group, old_layout, before = setup.live_group()
   group_changed = False
+  restart_attempted = False
   previous = keyboard_selection()
   previous_errors = setup.run(["hyprctl", "configerrors"])
   try:
@@ -213,6 +214,7 @@ def save_keyboard(selected):
       # typing keyboard changes, not when its layouts do. Fcitx would keep
       # typing the old layouts through its virtual keyboard until it grabs
       # afresh, and its group gives no sign of that.
+      restart_attempted = True
       setup.run(["omarchy-restart-xcompose"])
       setup.wait_ready(keyboard)
   except BaseException:
@@ -225,6 +227,12 @@ def save_keyboard(selected):
     finally:
       if group_changed:
         setup.live_set(group, old_layout, before)
+        if restart_attempted:
+          try:
+            setup.run(["omarchy-restart-xcompose"])
+            setup.wait_ready(primary)
+          except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
+            print(f"Fcitx recovery failed: {error}", file=sys.stderr)
     raise
 
 
