@@ -22,14 +22,8 @@ class TranscodeAction(GObject.GObject, Nautilus.MenuProvider):
         if not wrapper or not binary:
             return
 
-        if len(paths) == 1:
-            cmd = shlex.join([binary, paths[0]])
-        else:
-            cmd = "; ".join(
-                f"echo {shlex.quote(f'Transcoding {path}')} && "
-                f"{shlex.join([binary, path])} || true"
-                for path in paths
-            )
+        args = [binary, "--batch", "--", *paths] if len(paths) > 1 else [binary, "--", *paths]
+        cmd = shlex.join(args)
 
         Gio.Subprocess.new([wrapper, cmd], Gio.SubprocessFlags.NONE)
 
