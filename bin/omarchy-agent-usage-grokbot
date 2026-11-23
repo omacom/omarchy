@@ -8,7 +8,8 @@ Grok Bot runs on a Cursor account, but its weekly allowance is metered apart
 from Cursor's own plan: the dashboard's GetSandUsageStatus RPC (Sand is Grok
 Bot's internal name) says how much of this week's included usage is gone and
 when it resets. It is asked as the same account the Cursor collector reads,
-found the same way, so the two never describe different people. Grok Bot
+found the same way, so the two never describe different people; with no
+Cursor sign-in, it is asked as the one the Grok Bot app keeps. Grok Bot
 keeps nothing countable on disk, so the record carries the limit alone, and
 an account without a Grok Bot allowance gives an unused record, which the
 panel skips. The agents panel only ever reads the JSON this prints.
@@ -17,6 +18,7 @@ panel skips. The agents panel only ever reads the JSON this prints.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import urllib.request
@@ -31,16 +33,18 @@ from collectors import (  # noqa: E402
   LimitsCache,
   account_key,
   base_record,
+  config_home,
   cursor_token,
   emit,
   finite,
   open_json,
+  read_json,
   token_lapsed,
 )
 
 AGENT_ID = "grokbot"
 AGENT_NAME = "Grok Bot"
-AUTH_HELP = "Sign in to the Cursor editor, or run `cursor-agent login`, with your Grok Bot account."
+AUTH_HELP = "Sign in to the Grok Bot app or the Cursor editor, or run `cursor-agent login`, with your Grok Bot account."
 USAGE_URL = "https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus"
 
 
@@ -50,6 +54,33 @@ def parse_time(value: Any) -> datetime | None:
   except ValueError:
     return None
   return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+# ---------------------------------------------------------------- sign-in
+
+
+# The Grok Bot app keeps its own Cursor sign-in, a JSON string of accounts
+# and which one is active, for people who never signed in to Cursor itself.
+def app_token() -> str:
+  try:
+    store = json.loads(read_json(config_home() / "Grok Bot" / "sand-secrets.json").get("cursor-accounts") or "{}")
+    account = store["accounts"][store["active"]]
+    return str(account.get("cursor-access-token") or "").strip()
+  except (ValueError, TypeError, KeyError, AttributeError):
+    return ""
+
+
+# Cursor's own sign-in first, so the Cursor and Grok Bot rows describe the
+# same person. A lapsed one gives way to the app's when that hasn't lapsed,
+# as cursor_token() does between the CLI and the editor.
+def signin() -> str:
+  cursor = cursor_token()
+  if cursor and not token_lapsed(cursor):
+    return cursor
+  app = app_token()
+  if app and not token_lapsed(app):
+    return app
+  return cursor or app
 
 
 # ------------------------------------------------------------------ limit
@@ -92,7 +123,7 @@ def collect(force: bool = False) -> dict[str, Any]:
   # Without a sign-in there is no telling whether this account has Grok Bot
   # at all, so the machine reads as not using it; the Cursor collector is the
   # one that asks for a sign-in.
-  token = cursor_token()
+  token = signin()
   if not token:
     return record
 
@@ -114,7 +145,7 @@ def collect(force: bool = False) -> dict[str, Any]:
   retry = False
   if token_lapsed(token):
     status = "Limits paused"
-    detail = "Cursor's access token has lapsed. Open the Cursor editor, or run `cursor-agent`, to renew it; signing in again is not needed."
+    detail = "Cursor's access token has lapsed. Open the Grok Bot app or the Cursor editor, or run `cursor-agent`, to renew it; signing in again is not needed."
   else:
     try:
       answer = fetch_status(token)
