@@ -173,6 +173,15 @@ no_bindings_output=$(run_omarchy_bindings "$no_bindings_home" 'omarchy_default_b
 [[ -z $no_bindings_output ]] || fail "default binding variable disables all Omarchy bindings" "$no_bindings_output"
 pass "default binding variable disables all Omarchy bindings"
 
+OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "universal paste helper remains defined when default bindings are disabled"
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+hl = setmetatable({}, { __index = function() return function() return {} end end })
+_G.omarchy_default_bindings = false
+require("default.hypr.omarchy")
+assert(type(o.universal_paste) == "function", "universal paste helper is defined")
+LUA
+pass "universal paste helper remains defined when default bindings are disabled"
+
 dictation_home="$tmpdir/dictation-home"
 missing_bin="$tmpdir/missing-bin"
 mkdir -p "$dictation_home" "$missing_bin"

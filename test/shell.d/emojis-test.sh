@@ -67,6 +67,11 @@ cat >"$TMPDIR/bin/wtype" <<'SH'
 printf '%s\n' "$*" >"$WTYPE_OUT"
 SH
 
+cat >"$TMPDIR/bin/hyprctl" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >"$HYPRCTL_OUT"
+SH
+
 cat >"$TMPDIR/bin/sleep" <<'SH'
 #!/bin/bash
 for (( i = 0; i < 500; i++ )); do
@@ -75,9 +80,9 @@ for (( i = 0; i < 500; i++ )); do
 done
 SH
 
-chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wtype" "$TMPDIR/bin/sleep"
+chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wtype" "$TMPDIR/bin/hyprctl" "$TMPDIR/bin/sleep"
 
-WL_COPY_OUT="$TMPDIR/emoji" WTYPE_OUT="$TMPDIR/wtype" PATH="$TMPDIR/bin:$PATH" \
+WL_COPY_OUT="$TMPDIR/emoji" WTYPE_OUT="$TMPDIR/wtype" HYPRCTL_OUT="$TMPDIR/hyprctl" PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-menu-emoji-insert" "😀"
 
 [[ $(<"$TMPDIR/emoji") == "😀" ]] || fail "emoji insert helper copies emoji transiently"
@@ -93,5 +98,8 @@ pass "emoji insert helper keeps the emoji out of clipboard history"
 [[ $copy_args == *" --foreground "* ]] || fail "emoji insert helper serves the clipboard from a process it can stop"
 pass "emoji insert helper serves the clipboard from a process it can stop"
 
-[[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "emoji insert helper pastes with shift insert"
-pass "emoji insert helper pastes with shift insert"
+[[ $(<"$TMPDIR/hyprctl") == "dispatch o.universal_paste" ]] || fail "emoji insert helper pastes through Hyprland's universal paste"
+pass "emoji insert helper pastes through Hyprland's universal paste"
+
+[[ ! -e "$TMPDIR/wtype" ]] || fail "emoji insert helper leaves wtype's Shift+Insert for Chromium to misread"
+pass "emoji insert helper leaves wtype's Shift+Insert for Chromium to misread"
