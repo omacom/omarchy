@@ -443,3 +443,18 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
+
+require_quickshell "menu label fitting"
+qml_fixture_scratch
+stage="$QML_FIXTURE_TMP/menu-label-fit"
+mkdir -p "$stage"
+for module in Commons Ui services plugins; do
+  ln -s "$ROOT/shell/$module" "$stage/$module"
+done
+cp "$SHELL_TEST_DIR/fixtures/menu-label-fit/shell.qml" "$stage/shell.qml"
+cat >"$stage/menu.json" <<'JSON'
+{"items":{"root":{"label":"Go"},"fit":{"label":"Fit"},"fit.long":{"label":"MMMMMMMMMMMMMMMMMMMMMMMM","action":"true"}}}
+JSON
+output=$(MENU_LABEL_FIT_FILE="$stage/menu.json" OMARCHY_PATH="$ROOT" HOME="$QML_FIXTURE_TMP/home" timeout 15 quickshell -p "$stage" --no-color 2>&1) || fail "menu label fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* && $output != *"RESULT fail"* ]] || fail "menu fits iconless rows and remeasures an open menu after changing fonts" "$output"
+pass "menu fits iconless rows and remeasures an open menu after changing fonts"

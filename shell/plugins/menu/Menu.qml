@@ -137,42 +137,37 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  // Advance of the widest row on screen. A closed menu grows to fit that
-  // label. Search results and provider lists stay narrow: those names are
-  // open-ended, and ellipsis is the overflow they are built for.
-  property int fittedLabelWidth: 0
-  readonly property int labelFitRevision: layoutSerial + Style.font.heading
-  onLabelFitRevisionChanged: remeasureLabels()
+  // Search and provider labels are open-ended; only authored menus grow.
+  readonly property int fittedLabelWidth: {
+    root.layoutSerial
+    rowLabelMetrics.font
+    return root.measureLabels()
+  }
 
-  TextMetrics {
+  FontMetrics {
     id: rowLabelMetrics
     font.family: root.fontFamily
     font.pixelSize: Style.font.heading
     font.weight: Font.Medium
   }
 
-  // What the row delegate spends before the label: border, padding, the icon
-  // column, and the trail. A label that fits this slot is the label that paints.
-  function labelSlotChrome() {
+  function labelSlotChrome(row) {
+    var hasIcon = String(row.icon || "").length > 0 || row.kind === "app"
+    var leading = hasIcon ? Style.space(8) + Style.space(36) + Style.space(6) : Style.space(18)
     return Border.left(root.borderSpec) + Border.right(root.borderSpec)
       + root.contentMargin * 2
       + root.rowReservedBorderLeft + root.rowReservedBorderRight
-      + Style.space(8) + Style.space(36) + Style.space(6) + Style.space(6)
-      + Style.space(14) + Style.space(8)
+      + leading + Style.space(6) + Style.space(14) + Style.space(8)
   }
 
-  function remeasureLabels() {
-    // Search, providers, dmenu, and the fixed wide cards never read this,
-    // and search would otherwise measure every matching row per keystroke.
-    if (!root.cardUsesLabelWidth()) return
+  function measureLabels() {
+    if (!root.cardUsesLabelWidth()) return 0
     var widest = 0
-    var count = displayModel.count
-    for (var i = 0; i < count; i++) {
-      rowLabelMetrics.text = String(displayModel.get(i).label || "")
-      if (rowLabelMetrics.advanceWidth > widest) widest = rowLabelMetrics.advanceWidth
+    for (var i = 0; i < displayModel.count; i++) {
+      var row = displayModel.get(i)
+      widest = Math.max(widest, rowLabelMetrics.advanceWidth(String(row.label || "")) + root.labelSlotChrome(row))
     }
-    var next = Math.ceil(widest)
-    if (fittedLabelWidth !== next) fittedLabelWidth = next
+    return Math.ceil(widest)
   }
 
   function menuUsesWideCard() {
@@ -188,10 +183,7 @@ Item {
     return !String(root.filterText || "").trim() && !(entry && entry.provider)
   }
 
-  // Static submenus grow from the 300 floor to the 520 cap the wide menus
-  // already use, so "RetroArch Game Launcher" stays whole. Two pixels past the
-  // advance keep ElideRight from spending the last word on the ellipsis
-  // when the ink lands on the slot boundary.
+  // Leave two pixels beyond the advance so boundary rounding does not elide.
   property int cardWidth: {
     var screenCap = Math.max(1, panel.width - Style.gapsOut * 2)
     if (root.dmenuActive)
@@ -200,7 +192,7 @@ Item {
     var cap = Style.space(520)
     if (!root.cardUsesLabelWidth())
       return Math.min(root.menuUsesWideCard() ? cap : floor, screenCap)
-    var wanted = Math.max(floor, root.fittedLabelWidth + root.labelSlotChrome() + 2)
+    var wanted = Math.max(floor, root.fittedLabelWidth + 2)
     return Math.min(wanted, cap, screenCap)
   }
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
