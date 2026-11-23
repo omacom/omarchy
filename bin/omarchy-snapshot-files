@@ -1,0 +1,308 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Bring back files deleted from your home folder, from its hourly snapshots
+# omarchy:subcommand=deleted [--json] [--budget <seconds>] [folder] — List deleted files a snapshot still holds, latest first
+# omarchy:subcommand=restore [--json] <path> — Put a deleted file or folder back where it was
+# omarchy:examples=omarchy snapshot files deleted ~/Documents | omarchy snapshot files restore ~/Documents/taxes.pdf
+
+# Python rather than bash: telling a deleted file from a moved one is set logic
+# over the inode numbers of every name in two trees.
+
+import argparse
+import calendar
+import json
+import os
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import time
+
+SNAPSHOTS = os.environ.get("OMARCHY_SNAPSHOTS_DIR", "/home/.snapshots")
+SUBVOLUME = os.environ.get("OMARCHY_SNAPSHOTS_SUBVOLUME", "/home")
+CACHE_VERSION = 1
+
+# Churn rather than anything a person deleted: dependencies, bytecode and
+# editor backups come back on their own, and hidden folders are mostly caches.
+SKIPPED_NAMES = {"node_modules", "__pycache__"}
+
+
+class Failure(Exception):
+  pass
+
+
+def skipped(name):
+  return name.startswith(".") or name.endswith("~") or name in SKIPPED_NAMES
+
+
+def home():
+  return os.path.realpath(os.path.expanduser("~"))
+
+
+def home_in_snapshots():
+  relative = os.path.relpath(home(), os.path.realpath(SUBVOLUME))
+  if relative == ".." or relative.startswith("../"):
+    raise Failure(f"{home()} is not on {SUBVOLUME}, which is what gets snapshotted")
+  return relative
+
+
+class Snapshot:
+  def __init__(self, number, root, taken):
+    self.number = number
+    self.root = root
+    self.taken = taken
+
+
+def snapshots():
+  relative = home_in_snapshots()
+  found = []
+  try:
+    entries = list(os.scandir(SNAPSHOTS))
+  except OSError:
+    return found
+
+  for entry in entries:
+    if not entry.name.isdigit() or entry.name == "0":
+      continue
+    try:
+      with open(os.path.join(entry.path, "info.xml")) as info:
+        date = re.search(r"<date>([^<]+)</date>", info.read())
+      taken = calendar.timegm(time.strptime(date.group(1), "%Y-%m-%d %H:%M:%S"))
+    except (OSError, AttributeError, ValueError):
+      continue
+    root = os.path.join(entry.path, "snapshot", relative)
+    # A snapshot from before this home existed holds nothing of it.
+    if os.path.isdir(root):
+      found.append(Snapshot(int(entry.name), root, taken))
+
+  return sorted(found, key=lambda snapshot: snapshot.number)
+
+
+def removed(older, newer):
+  """What older holds that newer doesn't, a folder as one entry, leaving out
+  anything whose inode newer still has under another name: that was moved."""
+  gone = []
+  gained = set()
+  pending = [""]
+
+  while pending:
+    relative = pending.pop()
+    a = os.path.join(older, relative)
+    b = os.path.join(newer, relative)
+    try:
+      a_stat = os.lstat(a)
+      b_stat = os.lstat(b)
+      a_entries = {entry.name: entry for entry in os.scandir(a)}
+    except OSError:
+      continue
+
+    if "CACHEDIR.TAG" in a_entries:
+      continue
+
+    # A folder's mtime moves whenever a name is added or removed, and btrfs keeps
+    # inode numbers across snapshots, so an unchanged pair lists the same names.
+    unchanged = a_stat.st_ino == b_stat.st_ino and a_stat.st_mtime_ns == b_stat.st_mtime_ns
+    if not unchanged:
+      try:
+        b_entries = {entry.name: entry for entry in os.scandir(b)}
+      except OSError:
+        continue
+      gained.update(entry.inode() for entry in b_entries.values())
+
+    for name, a_entry in a_entries.items():
+      if skipped(name):
+        continue
+      path = os.path.join(relative, name)
+      is_dir = a_entry.is_dir(follow_symlinks=False)
+      if unchanged:
+        if is_dir:
+          pending.append(path)
+        continue
+      b_entry = b_entries.get(name)
+      if b_entry is None or b_entry.is_dir(follow_symlinks=False) != is_dir:
+        if not (is_dir and os.path.lexists(os.path.join(a_entry.path, "CACHEDIR.TAG"))):
+          gone.append((path, is_dir, a_entry.inode()))
+      elif is_dir:
+        pending.append(path)
+
+  return [(path, is_dir) for path, is_dir, inode in gone if inode not in gained]
+
+
+def cache_dir():
+  base = os.environ.get("XDG_CACHE_HOME") or os.path.join(home(), ".cache")
+  return os.path.join(base, "omarchy", "snapshot-files")
+
+
+def cached_removed(older, newer):
+  path = os.path.join(cache_dir(), f"{older.number}-{newer.number}.json")
+  relative = home_in_snapshots()
+  try:
+    with open(path) as cached:
+      data = json.load(cached)
+    if data.get("version") == CACHE_VERSION and data.get("home") == relative:
+      return [tuple(entry) for entry in data["removed"]]
+  except (OSError, ValueError, KeyError, TypeError):
+    pass
+  return None
+
+
+def store_removed(older, newer, entries):
+  directory = cache_dir()
+  os.makedirs(directory, exist_ok=True)
+  path = os.path.join(directory, f"{older.number}-{newer.number}.json")
+  partial = f"{path}.{os.getpid()}"
+  with open(partial, "w") as cached:
+    json.dump({"version": CACHE_VERSION, "home": home_in_snapshots(), "removed": entries}, cached)
+  os.replace(partial, path)
+
+
+def prune_cache(pairs):
+  keep = {f"{older.number}-{newer.number}.json" for older, newer in pairs}
+  try:
+    for entry in os.scandir(cache_dir()):
+      if entry.name.endswith(".json") and entry.name not in keep:
+        os.unlink(entry.path)
+  except OSError:
+    pass
+
+
+def inside(folder, relative):
+  return folder == "." or relative == folder or relative.startswith(folder + "/")
+
+
+# Each snapshot is compared with the next, and the newest with the live home, so
+# whatever is gone now turns up in one comparison; only the live one isn't cached.
+def deleted(folder, budget):
+  started = time.monotonic()
+  found = snapshots()
+  pairs = list(zip(found, found[1:]))
+  lost = {}
+  complete = True
+
+  def note(entries, older, newer_taken):
+    for relative, is_dir in entries:
+      # Newest comparison first, so the latest copy is the one kept.
+      if relative not in lost and inside(folder, relative):
+        lost[relative] = (is_dir, older, newer_taken)
+
+  if found:
+    note(removed(found[-1].root, home()), found[-1], None)
+
+  for older, newer in reversed(pairs):
+    entries = cached_removed(older, newer)
+    if entries is None:
+      if budget is not None and time.monotonic() - started > budget:
+        complete = False
+        continue
+      entries = removed(older.root, newer.root)
+      store_removed(older, newer, entries)
+    note(entries, older, newer.taken)
+
+  prune_cache(pairs)
+
+  files = []
+  for relative, (is_dir, older, until) in lost.items():
+    path = os.path.join(home(), relative)
+    if not os.path.lexists(path):
+      files.append({"path": path, "folder": is_dir, "snapshot": older.number, "seen": older.taken, "until": until})
+
+  files.sort(key=lambda file: (-file["seen"], file["path"]))
+  return {"snapshots": len(found), "complete": complete, "files": files}
+
+
+def shown(path):
+  base = home()
+  return "~" + path[len(base):] if path == base or path.startswith(base + "/") else path
+
+
+def print_deleted(result, as_json):
+  # Times are Unix seconds: seen is the last snapshot that held it, until the
+  # first that didn't (null when it went after the newest).
+  if as_json:
+    json.dump(result, sys.stdout)
+    print()
+    return
+
+  if result["snapshots"] == 0:
+    print(f"No snapshots of your home folder in {SNAPSHOTS} yet.")
+    return
+  if not result["files"]:
+    print("Nothing deleted that a snapshot still holds.")
+  for file in result["files"]:
+    seen = time.strftime("%Y-%m-%d %H:%M", time.localtime(file["seen"]))
+    print(f"{seen}  {shown(file['path'])}{'/' if file['folder'] else ''}")
+  if not result["complete"]:
+    print("Older snapshots weren't compared yet; run it again for the rest.", file=sys.stderr)
+
+
+def restore(path, as_json):
+  target = os.path.normpath(os.path.abspath(os.path.expanduser(path)))
+  base = home()
+  if not target.startswith(base + "/"):
+    raise Failure(f"{shown(target)} is not in your home folder")
+  if os.path.lexists(target):
+    raise Failure(f"{shown(target)} is already there")
+
+  relative = os.path.relpath(target, base)
+  source = next((snapshot for snapshot in reversed(snapshots()) if os.path.lexists(os.path.join(snapshot.root, relative))), None)
+  if source is None:
+    raise Failure(f"No snapshot holds {shown(target)}")
+
+  parent = os.path.dirname(target)
+  os.makedirs(parent, exist_ok=True)
+
+  # Copied beside it under a hidden name and renamed into place, so a half
+  # copied folder never looks restored. Reflinks make it instant, and free.
+  partial = os.path.join(parent, f".{os.path.basename(target)}.restoring-{os.getpid()}")
+  copy = subprocess.run(["cp", "-a", "--reflink=auto", "--", os.path.join(source.root, relative), partial], stderr=subprocess.PIPE, text=True)
+  if copy.returncode != 0 or os.path.lexists(target):
+    if os.path.isdir(partial) and not os.path.islink(partial):
+      shutil.rmtree(partial, ignore_errors=True)
+    elif os.path.lexists(partial):
+      os.unlink(partial)
+    if copy.returncode != 0:
+      raise Failure(copy.stderr.strip() or f"Couldn't copy {shown(target)} out of its snapshot")
+    raise Failure(f"{shown(target)} is already there")
+  os.rename(partial, target)
+
+  if as_json:
+    json.dump({"path": target, "snapshot": source.number, "seen": source.taken}, sys.stdout)
+    print()
+  else:
+    seen = time.strftime("%Y-%m-%d %H:%M", time.localtime(source.taken))
+    print(f"Restored {shown(target)} from the snapshot of {seen}.")
+
+
+def main():
+  parser = argparse.ArgumentParser(prog="omarchy-snapshot-files")
+  commands = parser.add_subparsers(dest="command", required=True)
+
+  listing = commands.add_parser("deleted", help="list deleted files a snapshot still holds, latest first")
+  listing.add_argument("folder", nargs="?", default="~")
+  listing.add_argument("--json", action="store_true")
+  listing.add_argument("--budget", type=float, help="stop comparing uncached snapshots after this many seconds")
+
+  bring_back = commands.add_parser("restore", help="put a deleted file or folder back where it was")
+  bring_back.add_argument("path")
+  bring_back.add_argument("--json", action="store_true")
+
+  args = parser.parse_args()
+  try:
+    if args.command == "deleted":
+      folder = os.path.normpath(os.path.abspath(os.path.expanduser(args.folder)))
+      if folder != home() and not folder.startswith(home() + "/"):
+        raise Failure(f"{shown(folder)} is not in your home folder")
+      print_deleted(deleted(os.path.relpath(folder, home()), args.budget), args.json)
+    else:
+      restore(args.path, args.json)
+  except Failure as failure:
+    print(f"omarchy-snapshot-files: {failure}", file=sys.stderr)
+    sys.exit(1)
+  except OSError as error:
+    print(f"omarchy-snapshot-files: {error.strerror}: {shown(error.filename or '')}", file=sys.stderr)
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+  main()

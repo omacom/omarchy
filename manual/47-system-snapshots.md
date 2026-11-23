@@ -12,10 +12,22 @@ When you arrive inside, a notification will popup notifying you that you're in a
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-This will restore your root filesystem, but not your `/home`. So it works for reverting a broken system update, but not for recovering lost personal files.
+This will restore your root filesystem, but not your `/home`. So it works for reverting a broken system update, but not for recovering lost personal files. Those come back from a different kind of snapshot, covered under [Bringing back deleted files](#bringing-back-deleted-files) below.
 
 This also means that your `~/.config` directory is kept as-is. So if you're rolling back to an earlier version of a library or application that stores configuration files in a new format, you'll have to sort that out manually.
 
 The same goes for Omarchy's own record of which migrations have already run: it lives in your home directory, so it survives the restore. Migrations that ran after the snapshot was taken stay marked as done, even though the changes they made to the root filesystem have been rolled back, and the next `omarchy update` won't run them again. So if you update again after a restore and something an earlier update had set up is still missing, that's the likely reason.
 
 _Note: This feature is only available on installations using the Limine boot loader, which has been the default since Omarchy 2.0. It's not available if you're on GRUB or systemd-boot._
+
+## Bringing back deleted files
+
+Your home folder gets a snapshot of its own every hour. They never roll anything back; they're there so a file you deleted or overwrote by mistake can be brought back. Omarchy keeps the last day of hourly snapshots, a week of daily ones, and four weekly ones, and thins them out when free space drops below a fifth of the disk, since a snapshot holds on to what you deleted until it goes.
+
+In Files, the Snapshots section of the sidebar opens Deleted Files: everything a snapshot still holds that's gone from your home folder now, the most recent first. Pick one and press Enter to put it back where it was. A folder comes back whole.
+
+From the terminal, `omarchy snapshot files deleted` lists the same, for your whole home folder or one folder in it, and `omarchy snapshot files restore ~/Documents/taxes.pdf` puts one back. It never overwrites a file that's there, and a file you moved or renamed doesn't count as deleted.
+
+Hidden folders, like `~/.cache` and `~/.config`, are left out of the list, and so are dependencies and build output (`node_modules`, and folders marked with a `CACHEDIR.TAG`), which come back on their own. They're still in the snapshots, under `/home/.snapshots/<number>/snapshot/`, readable only by you, so you can copy a lost config file out by hand.
+
+Nothing running as you can delete these snapshots, so they survive a mistake, or a program that deletes your files. They're not a backup, though: they live on the same disk, so a dead or stolen machine takes them with it.
