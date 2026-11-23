@@ -166,8 +166,9 @@ PATH="$add_bin:$ROOT/bin:$PATH" TEST_TMP="$test_tmp" \
 [[ ! -s $queue_file && ! -s $service_queue ]] || fail "both queues are cleared when packages were already installed"
 pass "flush-packages.sh enables queued services when packages are already installed"
 
-# hardware/all.sh skips strictly ARM-only leaves on x86_64 at execution time,
-# runs all leaves on aarch64, and enumerates every leaf during image builds.
+# run_logged skips strictly ARM-only leaves on x86_64 at execution time while
+# running all leaves on aarch64 and keeping hardware/all.sh pure run_logged lines
+# so image builds enumerate the full ordered list.
 hw_x86_bin="$test_tmp/uname-x86"
 hw_arm_bin="$test_tmp/uname-arm"
 mkdir -p "$hw_x86_bin" "$hw_arm_bin"
@@ -175,17 +176,30 @@ printf '#!/bin/bash\n[[ ${1:-} == -m ]] && { echo x86_64; exit 0; }\nexec /usr/b
 printf '#!/bin/bash\n[[ ${1:-} == -m ]] && { echo aarch64; exit 0; }\nexec /usr/bin/uname "$@"\n' >"$hw_arm_bin/uname"
 chmod +x "$hw_x86_bin/uname" "$hw_arm_bin/uname"
 
-list_hw() {
-  local bin_dir=$1 enum_flag=${2:-0}
-  PATH="$bin_dir:$ROOT/bin:$PATH" OMARCHY_INSTALL="$ROOT/install" OMARCHY_IMAGE_ENUMERATING="$enum_flag" \
+list_hw_executed() {
+  local bin_dir=$1
+  PATH="$bin_dir:$ROOT/bin:$PATH" OMARCHY_INSTALL="$ROOT/install" \
+    bash -c '
+      source "$OMARCHY_INSTALL/helpers/logging.sh"
+      run_logged() {
+        omarchy_skip_leaf "$1" && return 0
+        printf "%s\n" "${1#"$OMARCHY_INSTALL"/}"
+      }
+      source "$OMARCHY_INSTALL/hardware/all.sh"
+    '
+}
+
+list_hw_enumerated() {
+  local bin_dir=$1
+  PATH="$bin_dir:$ROOT/bin:$PATH" OMARCHY_INSTALL="$ROOT/install" \
     bash -c 'run_logged() { printf "%s\n" "${1#"$OMARCHY_INSTALL"/}"; }; source "$OMARCHY_INSTALL/hardware/all.sh"'
 }
 
-hw_x86=$(list_hw "$hw_x86_bin" 0)
-hw_arm=$(list_hw "$hw_arm_bin" 0)
-hw_enum=$(list_hw "$hw_x86_bin" 1)
+hw_x86=$(list_hw_executed "$hw_x86_bin")
+hw_arm=$(list_hw_executed "$hw_arm_bin")
+hw_enum=$(list_hw_enumerated "$hw_x86_bin")
 
-[[ $hw_arm == "$hw_enum" ]] || fail "image enumeration must match the full ordered hardware leaf list"
+[[ $hw_arm == "$hw_enum" ]] || fail "aarch64 execution and image enumeration must match the full ordered hardware leaf list"
 ! grep -qx 'hardware/qualcomm/firmware.sh' <<<"$hw_x86" || fail "x86 execution must skip Qualcomm leaves"
 ! grep -qx 'hardware/gb10/sleep.sh' <<<"$hw_x86" || fail "x86 execution must skip GB10 leaves"
 ! grep -qx 'hardware/n1x.sh' <<<"$hw_x86" || fail "x86 execution must skip N1x leaf"
@@ -193,15 +207,19 @@ grep -qx 'hardware/nvidia.sh' <<<"$hw_x86" || fail "x86 execution must keep mixe
 grep -qx 'hardware/fix-fkeys.sh' <<<"$hw_x86" || fail "x86 execution must keep fix-fkeys.sh"
 grep -qx 'hardware/apple/fix-brcmfmac-supplicant.sh' <<<"$hw_x86" || fail "x86 execution must keep mixed Apple Broadcom leaf"
 grep -qx 'hardware/qualcomm/firmware.sh' <<<"$hw_enum" || fail "image enumeration on x86 must include ARM leaves"
-pass "hardware/all.sh skips strictly ARM-only leaves on x86 while preserving full image enumeration"
+pass "run_logged skips strictly ARM-only leaves on x86 while preserving full image enumeration"
 
 # install/hardware/network.sh batches systemctl disable and falls back per-unit on error.
+# Copy the script with /etc/systemd/network pointed at test_tmp so host files are never touched.
 net_bin="$test_tmp/net-bin"
-mkdir -p "$net_bin"
+net_dir="$test_tmp/etc/systemd/network"
+net_script="$test_tmp/network-test-copy.sh"
+mkdir -p "$net_bin" "$net_dir"
+sed "s|/etc/systemd/network|$net_dir|g" "$ROOT/install/hardware/network.sh" >"$net_script"
 cat >"$net_bin/systemctl" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >>"$TEST_TMP/net-systemctl"
-if [[ $1 == "disable" && $# -gt 2 && ${TEST_BATCH_FAIL:-0} == "1" ]]; then
+if [[ $1 == "disable" && ${TEST_BATCH_FAIL:-0} == "1" ]] && (( $# > 2 )); then
   exit 1
 fi
 exit 0
@@ -209,14 +227,14 @@ EOF
 chmod +x "$net_bin/systemctl"
 
 rm -f "$test_tmp/net-systemctl"
-PATH="$net_bin:$PATH" TEST_TMP="$test_tmp" bash -eE "$ROOT/install/hardware/network.sh"
+PATH="$net_bin:$PATH" TEST_TMP="$test_tmp" bash -eE "$net_script"
 grep -qx 'disable iwd.service systemd-networkd.service systemd-networkd.socket systemd-networkd-varlink.socket systemd-networkd-varlink-metrics.socket systemd-networkd-resolve-hook.socket systemd-networkd-wait-online.service' "$test_tmp/net-systemctl" ||
   fail "network.sh batches all 7 systemctl disable units into one call" "$(cat "$test_tmp/net-systemctl")"
 grep -qx 'mask systemd-networkd-wait-online.service' "$test_tmp/net-systemctl" ||
   fail "network.sh keeps wait-online mask separate"
 
 rm -f "$test_tmp/net-systemctl"
-PATH="$net_bin:$PATH" TEST_TMP="$test_tmp" TEST_BATCH_FAIL=1 bash -eE "$ROOT/install/hardware/network.sh"
+PATH="$net_bin:$PATH" TEST_TMP="$test_tmp" TEST_BATCH_FAIL=1 bash -eE "$net_script"
 (( $(grep -c '^disable ' "$test_tmp/net-systemctl") == 8 )) ||
   fail "network.sh falls back to per-unit disable when batch disable fails" "$(cat "$test_tmp/net-systemctl")"
 pass "network.sh batches systemctl disable with per-unit fallback"

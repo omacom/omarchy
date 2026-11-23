@@ -1,22 +1,12 @@
-# Skip strictly ARM-only hardware leaves on non-ARM CPUs to avoid ~39 empty
-# bash forks per x86 install, while keeping full ordered enumeration during
-# image builds (OMARCHY_IMAGE_ENUMERATING=1).
-_omarchy_run_aarch64_hw=0
-if [[ ${OMARCHY_IMAGE_ENUMERATING:-0} == "1" ]] || omarchy-hw-aarch64; then
-  _omarchy_run_aarch64_hw=1
-fi
-
 run_logged "$OMARCHY_INSTALL/hardware/asus-rog.sh"
 run_logged "$OMARCHY_INSTALL/hardware/framework16.sh"
 run_logged "$OMARCHY_INSTALL/hardware/dell-xps-touchpad-haptics.sh"
 run_logged "$OMARCHY_INSTALL/hardware/surface.sh"
-if (( _omarchy_run_aarch64_hw )); then
-  run_logged "$OMARCHY_INSTALL/hardware/gb10/sleep.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/gb10/cpuidle.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/gb10/memory-watermark.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/gb10/nvidia-memory-pools.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/nvidia/dgx-spark-boot.sh"
-fi
+run_logged "$OMARCHY_INSTALL/hardware/gb10/sleep.sh"
+run_logged "$OMARCHY_INSTALL/hardware/gb10/cpuidle.sh"
+run_logged "$OMARCHY_INSTALL/hardware/gb10/memory-watermark.sh"
+run_logged "$OMARCHY_INSTALL/hardware/gb10/nvidia-memory-pools.sh"
+run_logged "$OMARCHY_INSTALL/hardware/nvidia/dgx-spark-boot.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/network.sh"
 run_logged "$OMARCHY_INSTALL/hardware/set-wireless-regdom.sh"
@@ -24,9 +14,7 @@ run_logged "$OMARCHY_INSTALL/hardware/fix-ath12k-board-data.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-fkeys.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-synaptic-touchpad.sh"
 run_logged "$OMARCHY_INSTALL/hardware/bluetooth.sh"
-if (( _omarchy_run_aarch64_hw )); then
-  run_logged "$OMARCHY_INSTALL/hardware/n1x.sh"
-fi
+run_logged "$OMARCHY_INSTALL/hardware/n1x.sh"
 run_logged "$OMARCHY_INSTALL/hardware/nvidia.sh"
 run_logged "$OMARCHY_INSTALL/hardware/vulkan.sh"
 
@@ -49,26 +37,22 @@ run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-b9406-display.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-b9406-touchpad.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-z13-touchpad.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-proart-p14-speakers.sh"
-if (( _omarchy_run_aarch64_hw )); then
-  run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-zenbook-a16-speakers.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-proart-pz13-speakers.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/acer/fix-acer-aspire-16-ai-speakers.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/acer/fix-acer-aspire-16-ai-boot.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/hp/fix-hp-omnibook-3-speakers.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-zenbook-a16-boot.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-zenbook-a14-boot.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-vivobook-s15-boot.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-vivobook-s16-boot.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/hp/fix-hp-omnibook-x14-boot.sh"
-fi
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-zenbook-a16-speakers.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-proart-pz13-speakers.sh"
+run_logged "$OMARCHY_INSTALL/hardware/acer/fix-acer-aspire-16-ai-speakers.sh"
+run_logged "$OMARCHY_INSTALL/hardware/acer/fix-acer-aspire-16-ai-boot.sh"
+run_logged "$OMARCHY_INSTALL/hardware/hp/fix-hp-omnibook-3-speakers.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-zenbook-a16-boot.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-zenbook-a14-boot.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-vivobook-s15-boot.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-vivobook-s16-boot.sh"
+run_logged "$OMARCHY_INSTALL/hardware/hp/fix-hp-omnibook-x14-boot.sh"
 run_logged "$OMARCHY_INSTALL/hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh"
 run_logged "$OMARCHY_INSTALL/hardware/hp/fix-hp-zbook-ultra-g3a-display.sh"
-if (( _omarchy_run_aarch64_hw )); then
-  run_logged "$OMARCHY_INSTALL/hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/fix-n1x-gpu-memory.sh"
-fi
+run_logged "$OMARCHY_INSTALL/hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh"
+run_logged "$OMARCHY_INSTALL/hardware/fix-n1x-gpu-memory.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/framework/qmk-hid.sh"
 
@@ -82,31 +66,27 @@ run_logged "$OMARCHY_INSTALL/hardware/apple/fix-facetimehd.sh"
 # final limine-update builds the UKIs, and an image's first boot rebuilds once
 # after its last step.
 run_logged "$OMARCHY_INSTALL/hardware/gpu-memory.sh"
-if (( _omarchy_run_aarch64_hw )); then
-  run_logged "$OMARCHY_INSTALL/hardware/raspberrypi/raspberry-pi-4.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/qualcomm/dtb-uki.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/qualcomm/kernel-params.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/qualcomm/initramfs.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/qualcomm/glymur-display.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/qualcomm/hamoa-display.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-zenbook-a16-firmware.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/qualcomm/oem-firmware.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/qualcomm/firmware.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/qualcomm/camera.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/qualcomm/reboot-watchdog.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/qualcomm/powerprofiles-floor.sh"
-fi
+run_logged "$OMARCHY_INSTALL/hardware/raspberrypi/raspberry-pi-4.sh"
+run_logged "$OMARCHY_INSTALL/hardware/qualcomm/dtb-uki.sh"
+run_logged "$OMARCHY_INSTALL/hardware/qualcomm/kernel-params.sh"
+run_logged "$OMARCHY_INSTALL/hardware/qualcomm/initramfs.sh"
+run_logged "$OMARCHY_INSTALL/hardware/qualcomm/glymur-display.sh"
+run_logged "$OMARCHY_INSTALL/hardware/qualcomm/hamoa-display.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-zenbook-a16-firmware.sh"
+run_logged "$OMARCHY_INSTALL/hardware/qualcomm/oem-firmware.sh"
+run_logged "$OMARCHY_INSTALL/hardware/qualcomm/firmware.sh"
+run_logged "$OMARCHY_INSTALL/hardware/qualcomm/camera.sh"
+run_logged "$OMARCHY_INSTALL/hardware/qualcomm/reboot-watchdog.sh"
+run_logged "$OMARCHY_INSTALL/hardware/qualcomm/powerprofiles-floor.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/fix-yoga-pro7-bass-speakers.sh"
-if (( _omarchy_run_aarch64_hw )); then
-  run_logged "$OMARCHY_INSTALL/hardware/lenovo/yoga-slim7x.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/lenovo/thinkpad-t14s-camera.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/lenovo/ideapad-slim-5x.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/microsoft/surface-pro-11.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/microsoft/surface-laptop-7.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/microsoft/surface-laptop8.sh"
-  run_logged "$OMARCHY_INSTALL/hardware/samsung/galaxy-book4-edge-14.sh"
-fi
+run_logged "$OMARCHY_INSTALL/hardware/lenovo/yoga-slim7x.sh"
+run_logged "$OMARCHY_INSTALL/hardware/lenovo/thinkpad-t14s-camera.sh"
+run_logged "$OMARCHY_INSTALL/hardware/lenovo/ideapad-slim-5x.sh"
+run_logged "$OMARCHY_INSTALL/hardware/microsoft/surface-pro-11.sh"
+run_logged "$OMARCHY_INSTALL/hardware/microsoft/surface-laptop-7.sh"
+run_logged "$OMARCHY_INSTALL/hardware/microsoft/surface-laptop8.sh"
+run_logged "$OMARCHY_INSTALL/hardware/samsung/galaxy-book4-edge-14.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/fix-bcm43xx.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-surface-keyboard.sh"

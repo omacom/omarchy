@@ -10,9 +10,7 @@ run_logged "$OMARCHY_INSTALL/user/hardware/asus/fix-audio-mixer.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/asus/fix-mic.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/framework/fix-f13-amd-audio-input.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/dell/xps13-text-scaling.sh"
-if omarchy-hw-aarch64; then
-  run_logged "$OMARCHY_INSTALL/user/hardware/qualcomm/video-decode.sh"
-fi
+run_logged "$OMARCHY_INSTALL/user/hardware/qualcomm/video-decode.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/qualcomm/camera.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/fix-nouveau-cursor.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/vm-no-animations.sh"
