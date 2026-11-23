@@ -1086,8 +1086,10 @@ Panel {
     var count = Number(credits.available)
     var expires = new Date(String(credits.nextExpiresAt || "")).getTime()
     if (isFinite(expires) && expires > nowMs) {
-      return Commons.I18n.tn("agents.freeResetsExpires", count)
-        .arg(Commons.I18n.formatNumber(count)).arg(formatDuration(expires - nowMs))
+      // format(), not arg(): a plural form may say the count as a word and
+      // keep only %2, and arg() would write the count into that hole.
+      return Commons.I18n.format(Commons.I18n.tn("agents.freeResetsExpires", count),
+        Commons.I18n.formatNumber(count), formatDuration(expires - nowMs))
     }
     return freeResetsText(count)
   }
