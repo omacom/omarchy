@@ -1,6 +1,6 @@
 # This installs hardware video acceleration for Intel GPUs
 
-if INTEL_GPU=$(lspci | grep -iE 'vga|3d|display' | grep -i 'intel'); then
+if omarchy-hw-pci --class 03 8086:* && INTEL_GPU=$(lspci | grep -iE 'vga|3d|display' | grep -i 'intel'); then
   # HD Graphics / Iris / Xe / Arc use intel-media-driver + VPL, as do the newer
   # GPUs that lspci names only "[Intel Graphics]" (non-Arc Panther Lake, Wildcat Lake)
   if [[ ${INTEL_GPU,,} =~ (hd\ graphics|uhd\ graphics|xe|iris|arc|panther\ lake|\[intel\ graphics) ]]; then
