@@ -830,18 +830,8 @@ def register(label, org):
 
 
 first = register("Org A", "org-a")
-second = register("Org B", "org-b")
-assert first["accountId"] == second["accountId"] == "u-shared"
-assert (first["orgId"], second["orgId"]) == ("org-a", "org-b")
-shared = [a for a in state.load("claude")["accounts"] if a.get("accountId") == "u-shared"]
-assert len(shared) == 2, shared
-assert {a.get("orgId") for a in shared} == {"org-a", "org-b"}, shared
-# A registry written before org ids existed still matches on the user alone.
-assert state.same_account({"accountId": "u-shared"}, {"accountId": "u-shared", "orgId": "org-a"})
-assert not state.same_account({"accountId": "u-shared", "orgId": "org-a"}, {"accountId": "u-shared", "orgId": "org-b"})
 
-# Relogin cannot replace a subscription with another organization of its user,
-# including when only an old profile records the organization.
+
 def refused_relogin(org):
   pending = state.begin("claude")
   state.claude_account_file(pending).write_text(json.dumps({"oauthAccount": {"accountUuid": "u-shared", "organizationUuid": org}}))
@@ -854,6 +844,23 @@ def refused_relogin(org):
   else:
     raise AssertionError("another or unknown organization must not replace the login")
   assert (Path(first["home"]) / ".credentials.json").read_text() == before
+
+
+
+# With no second organization registered, only the missing-organization guard can refuse this login.
+refused_relogin("")
+second = register("Org B", "org-b")
+assert first["accountId"] == second["accountId"] == "u-shared"
+assert (first["orgId"], second["orgId"]) == ("org-a", "org-b")
+shared = [a for a in state.load("claude")["accounts"] if a.get("accountId") == "u-shared"]
+assert len(shared) == 2, shared
+assert {a.get("orgId") for a in shared} == {"org-a", "org-b"}, shared
+# A registry written before org ids existed still matches on the user alone.
+assert state.same_account({"accountId": "u-shared"}, {"accountId": "u-shared", "orgId": "org-a"})
+assert not state.same_account({"accountId": "u-shared", "orgId": "org-a"}, {"accountId": "u-shared", "orgId": "org-b"})
+
+# Relogin cannot replace a subscription with another organization of its user,
+# including when only an old profile records the organization.
 
 
 registry = state.load("claude")
