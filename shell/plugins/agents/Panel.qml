@@ -1752,7 +1752,9 @@ Panel {
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
     function refresh(): string { root.refreshNow(); return "ok" }
-    function showAgent(id: string, shown: bool): string { root.setProviderShown(id, shown); return "ok" }
+    // Shown as "true" or "false": omarchy-shell hands every argument over as
+    // text, and a bool parameter takes the text "false" as true.
+    function showAgent(id: string, shown: string): string { root.setProviderShown(id, shown === "true"); return "ok" }
   }
 
   BarIconButton {
