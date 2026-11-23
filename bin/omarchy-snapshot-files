@@ -10,6 +10,9 @@
 
 import argparse
 import calendar
+import ctypes
+import errno
+import fnmatch
 import json
 import os
 import re
@@ -17,23 +20,28 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 
 SNAPSHOTS = os.environ.get("OMARCHY_SNAPSHOTS_DIR", "/home/.snapshots")
 SUBVOLUME = os.environ.get("OMARCHY_SNAPSHOTS_SUBVOLUME", "/home")
-CACHE_VERSION = 1
+CACHE_VERSION = 2
 
-# Churn rather than anything a person deleted: dependencies, bytecode and
-# editor backups come back on their own, and hidden folders are mostly caches.
-SKIPPED_NAMES = {"node_modules", "__pycache__"}
+# Churn rather than anything a person deleted: dependencies and bytecode come
+# back on their own, hidden folders are mostly caches, and editors and office
+# suites delete their backups, swap and lock files all day.
+SKIPPED_FOLDERS = {"node_modules", "__pycache__"}
+SKIPPED_FILES = ["*~", ".*.sw?", ".#*", ".~lock.*#", ".goutputstream-*", "*.restoring-*"]
 
 
 class Failure(Exception):
   pass
 
 
-def skipped(name):
-  return name.startswith(".") or name.endswith("~") or name in SKIPPED_NAMES
+def skipped(name, is_dir):
+  if is_dir:
+    return name.startswith(".") or name in SKIPPED_FOLDERS
+  return any(fnmatch.fnmatchcase(name, pattern) for pattern in SKIPPED_FILES)
 
 
 def home():
@@ -52,6 +60,11 @@ class Snapshot:
     self.number = number
     self.root = root
     self.taken = taken
+
+  # Snapper gives a deleted newest snapshot's number to the next one, so the
+  # number alone doesn't name a snapshot.
+  def key(self):
+    return f"{self.number}.{self.taken}"
 
 
 def snapshots():
@@ -73,60 +86,147 @@ def snapshots():
       continue
     root = os.path.join(entry.path, "snapshot", relative)
     # A snapshot from before this home existed holds nothing of it.
-    if os.path.isdir(root):
+    if os.path.isdir(root) and not os.path.islink(root):
       found.append(Snapshot(int(entry.name), root, taken))
 
   return sorted(found, key=lambda snapshot: snapshot.number)
 
 
-def removed(older, newer):
-  """What older holds that newer doesn't, a folder as one entry, leaving out
-  anything whose inode newer still has under another name: that was moved."""
-  gone = []
-  gained = set()
-  pending = [""]
+def listing(path):
+  return {entry.name: entry for entry in os.scandir(path)}
 
-  while pending:
-    relative = pending.pop()
-    a = os.path.join(older, relative)
-    b = os.path.join(newer, relative)
+
+def walk(path):
+  """os.walk, leaving out what the comparison leaves out."""
+  for root, folders, files in os.walk(path):
+    if "CACHEDIR.TAG" in files:
+      folders[:] = []
+      continue
+    folders[:] = [name for name in folders if not skipped(name, True)]
+    yield root, folders, files
+
+
+def file_identity(entry):
+  info = entry.stat(follow_symlinks=False)
+  return (info.st_size, info.st_mtime_ns)
+
+
+class Comparison:
+  """What older holds that newer doesn't, a folder as one entry. Folders are
+  paired by inode, so a renamed one is compared under its new name, and a name
+  whose inode, size and mtime newer still has elsewhere was moved, not deleted."""
+
+  def __init__(self, older, newer):
+    self.older = older
+    self.newer = newer
+    self.complete = True
+    self.gone = []
+    self.gone_folders = {}
+    self.new_folders = {}
+    self.gained = {}
+
+  def run(self):
+    pending = [("", "")]
+    while pending:
+      while pending:
+        self.compare(*pending.pop(), pending)
+      # A folder gone under one name and new under another was renamed.
+      for inode in self.gone_folders.keys() & self.new_folders.keys():
+        pending.append((self.gone_folders.pop(inode), self.new_folders.pop(inode)))
+
+    for path in self.new_folders.values():
+      self.gather(os.path.join(self.newer, path))
+
+    entries = [(path, is_dir) for path, is_dir, inode, identity in self.gone if self.gained.get(inode) != identity]
+    for path in self.gone_folders.values():
+      full = os.path.join(self.older, path)
+      if not os.path.lexists(os.path.join(full, "CACHEDIR.TAG")) and not self.emptied(full):
+        entries.append((path, True))
+    return sorted(entries)
+
+  def compare(self, a_path, b_path, pending):
+    a = os.path.join(self.older, a_path)
+    b = os.path.join(self.newer, b_path)
     try:
       a_stat = os.lstat(a)
-      b_stat = os.lstat(b)
-      a_entries = {entry.name: entry for entry in os.scandir(a)}
+      a_entries = listing(a)
     except OSError:
-      continue
+      self.complete = False
+      return
+    try:
+      b_stat = os.lstat(b)
+    except OSError:
+      return
 
     if "CACHEDIR.TAG" in a_entries:
-      continue
+      return
 
-    # A folder's mtime moves whenever a name is added or removed, and btrfs keeps
-    # inode numbers across snapshots, so an unchanged pair lists the same names.
-    unchanged = a_stat.st_ino == b_stat.st_ino and a_stat.st_mtime_ns == b_stat.st_mtime_ns
+    # A folder's mtime and ctime move whenever a name is added or removed, and
+    # btrfs keeps inode numbers across snapshots, so a pair alike in all three
+    # lists the same names. ctime, unlike mtime, can't be set back.
+    unchanged = (a_stat.st_ino, a_stat.st_mtime_ns, a_stat.st_ctime_ns) == (b_stat.st_ino, b_stat.st_mtime_ns, b_stat.st_ctime_ns)
+    b_entries = {}
     if not unchanged:
       try:
-        b_entries = {entry.name: entry for entry in os.scandir(b)}
+        b_entries = listing(b)
       except OSError:
-        continue
-      gained.update(entry.inode() for entry in b_entries.values())
+        return
+      for name, entry in b_entries.items():
+        is_dir = entry.is_dir(follow_symlinks=False)
+        if name in a_entries and a_entries[name].is_dir(follow_symlinks=False) == is_dir:
+          continue
+        if is_dir and not skipped(name, True):
+          self.new_folders[entry.inode()] = os.path.join(b_path, name)
+        elif not is_dir:
+          self.gain(entry)
 
     for name, a_entry in a_entries.items():
-      if skipped(name):
-        continue
-      path = os.path.join(relative, name)
       is_dir = a_entry.is_dir(follow_symlinks=False)
+      if skipped(name, is_dir):
+        continue
       if unchanged:
         if is_dir:
-          pending.append(path)
+          pending.append((os.path.join(a_path, name), os.path.join(b_path, name)))
         continue
       b_entry = b_entries.get(name)
-      if b_entry is None or b_entry.is_dir(follow_symlinks=False) != is_dir:
-        if not (is_dir and os.path.lexists(os.path.join(a_entry.path, "CACHEDIR.TAG"))):
-          gone.append((path, is_dir, a_entry.inode()))
+      if b_entry is not None and b_entry.is_dir(follow_symlinks=False) == is_dir:
+        if is_dir:
+          pending.append((os.path.join(a_path, name), os.path.join(b_path, name)))
       elif is_dir:
-        pending.append(path)
+        self.gone_folders[a_entry.inode()] = os.path.join(a_path, name)
+      else:
+        try:
+          self.gone.append((os.path.join(a_path, name), False, a_entry.inode(), file_identity(a_entry)))
+        except OSError:
+          self.complete = False
 
-  return [(path, is_dir) for path, is_dir, inode in gone if inode not in gained]
+  def gain(self, entry):
+    try:
+      self.gained[entry.inode()] = file_identity(entry)
+    except OSError:
+      pass
+
+  def gather(self, path):
+    """Everything in a folder that is new on the newer side, whose files came
+    from somewhere."""
+    for root, folders, files in walk(path):
+      for entry in os.scandir(root):
+        if not entry.is_dir(follow_symlinks=False):
+          self.gain(entry)
+
+  def emptied(self, path):
+    """Whether everything in a gone folder turns up on the newer side: its
+    files were moved out before it went."""
+    for root, folders, files in walk(path):
+      for entry in os.scandir(root):
+        if entry.is_dir(follow_symlinks=False) or skipped(entry.name, False):
+          continue
+        try:
+          if self.gained.get(entry.inode()) != file_identity(entry):
+            return False
+        except OSError:
+          return False
+    return True
 
 
 def cache_dir():
@@ -134,13 +234,15 @@ def cache_dir():
   return os.path.join(base, "omarchy", "snapshot-files")
 
 
+def cache_name(older, newer):
+  return f"{older.key()}-{newer.key()}.json"
+
+
 def cached_removed(older, newer):
-  path = os.path.join(cache_dir(), f"{older.number}-{newer.number}.json")
-  relative = home_in_snapshots()
   try:
-    with open(path) as cached:
+    with open(os.path.join(cache_dir(), cache_name(older, newer))) as cached:
       data = json.load(cached)
-    if data.get("version") == CACHE_VERSION and data.get("home") == relative:
+    if data.get("version") == CACHE_VERSION and data.get("home") == home_in_snapshots():
       return [tuple(entry) for entry in data["removed"]]
   except (OSError, ValueError, KeyError, TypeError):
     pass
@@ -150,7 +252,7 @@ def cached_removed(older, newer):
 def store_removed(older, newer, entries):
   directory = cache_dir()
   os.makedirs(directory, exist_ok=True)
-  path = os.path.join(directory, f"{older.number}-{newer.number}.json")
+  path = os.path.join(directory, cache_name(older, newer))
   partial = f"{path}.{os.getpid()}"
   with open(partial, "w") as cached:
     json.dump({"version": CACHE_VERSION, "home": home_in_snapshots(), "removed": entries}, cached)
@@ -158,7 +260,7 @@ def store_removed(older, newer, entries):
 
 
 def prune_cache(pairs):
-  keep = {f"{older.number}-{newer.number}.json" for older, newer in pairs}
+  keep = {cache_name(older, newer) for older, newer in pairs}
   try:
     for entry in os.scandir(cache_dir()):
       if entry.name.endswith(".json") and entry.name not in keep:
@@ -187,7 +289,7 @@ def deleted(folder, budget):
         lost[relative] = (is_dir, older, newer_taken)
 
   if found:
-    note(removed(found[-1].root, home()), found[-1], None)
+    note(Comparison(found[-1].root, home()).run(), found[-1], None)
 
   for older, newer in reversed(pairs):
     entries = cached_removed(older, newer)
@@ -195,17 +297,24 @@ def deleted(folder, budget):
       if budget is not None and time.monotonic() - started > budget:
         complete = False
         continue
-      entries = removed(older.root, newer.root)
-      store_removed(older, newer, entries)
+      comparison = Comparison(older.root, newer.root)
+      entries = comparison.run()
+      # A snapshot cleaned up mid-walk, say, leaves a comparison to redo.
+      if comparison.complete:
+        store_removed(older, newer, entries)
     note(entries, older, newer.taken)
 
   prune_cache(pairs)
 
   files = []
-  for relative, (is_dir, older, until) in lost.items():
+  for relative, (is_dir, older, until) in sorted(lost.items()):
     path = os.path.join(home(), relative)
     if not os.path.lexists(path):
       files.append({"path": path, "folder": is_dir, "snapshot": older.number, "seen": older.taken, "until": until})
+    elif is_dir and os.path.isdir(path) and not os.path.islink(path):
+      # Back, but maybe not whole: one file restored out of it, say.
+      for inner, inner_is_dir in Comparison(os.path.join(older.root, relative), path).run():
+        files.append({"path": os.path.join(path, inner), "folder": inner_is_dir, "snapshot": older.number, "seen": older.taken, "until": until})
 
   files.sort(key=lambda file: (-file["seen"], file["path"]))
   return {"snapshots": len(found), "complete": complete, "files": files}
@@ -236,6 +345,32 @@ def print_deleted(result, as_json):
     print("Older snapshots weren't compared yet; run it again for the rest.", file=sys.stderr)
 
 
+def through_link(root, relative):
+  """Whether a folder on the way to relative under root is a symbolic link,
+  which would take a restore somewhere else than it says."""
+  path = root
+  for part in os.path.dirname(relative).split("/") if os.path.dirname(relative) else []:
+    path = os.path.join(path, part)
+    if os.path.islink(path):
+      return True
+  return False
+
+
+def rename_noreplace(source, target):
+  libc = ctypes.CDLL(None, use_errno=True)
+  renameat2 = getattr(libc, "renameat2", None)
+  if renameat2 is not None:
+    at_fdcwd, rename_noreplace = -100, 1
+    if renameat2(at_fdcwd, os.fsencode(source), at_fdcwd, os.fsencode(target), rename_noreplace) == 0:
+      return
+    error = ctypes.get_errno()
+    if error not in (errno.ENOSYS, errno.EINVAL):
+      raise OSError(error, os.strerror(error), target)
+  if os.path.lexists(target):
+    raise OSError(errno.EEXIST, os.strerror(errno.EEXIST), target)
+  os.rename(source, target)
+
+
 def restore(path, as_json):
   target = os.path.normpath(os.path.abspath(os.path.expanduser(path)))
   base = home()
@@ -245,26 +380,39 @@ def restore(path, as_json):
     raise Failure(f"{shown(target)} is already there")
 
   relative = os.path.relpath(target, base)
-  source = next((snapshot for snapshot in reversed(snapshots()) if os.path.lexists(os.path.join(snapshot.root, relative))), None)
+  if through_link(base, relative):
+    raise Failure(f"{shown(target)} is through a symbolic link, so it isn't restored")
+
+  source = next((snapshot for snapshot in reversed(snapshots())
+                 if os.path.lexists(os.path.join(snapshot.root, relative)) and not through_link(snapshot.root, relative)), None)
   if source is None:
     raise Failure(f"No snapshot holds {shown(target)}")
 
+  # Folders it was in that are gone too come back as they were.
   parent = os.path.dirname(target)
-  os.makedirs(parent, exist_ok=True)
+  missing = []
+  while not os.path.lexists(parent):
+    missing.append(parent)
+    parent = os.path.dirname(parent)
+  for folder in reversed(missing):
+    os.mkdir(folder)
+    os.chmod(folder, stat.S_IMODE(os.stat(os.path.join(source.root, os.path.relpath(folder, base))).st_mode))
+  parent = os.path.dirname(target)
 
-  # Copied beside it under a hidden name and renamed into place, so a half
+  # Copied into a folder of its own beside it and renamed into place, so a half
   # copied folder never looks restored. Reflinks make it instant, and free.
-  partial = os.path.join(parent, f".{os.path.basename(target)}.restoring-{os.getpid()}")
-  copy = subprocess.run(["cp", "-a", "--reflink=auto", "--", os.path.join(source.root, relative), partial], stderr=subprocess.PIPE, text=True)
-  if copy.returncode != 0 or os.path.lexists(target):
-    if os.path.isdir(partial) and not os.path.islink(partial):
-      shutil.rmtree(partial, ignore_errors=True)
-    elif os.path.lexists(partial):
-      os.unlink(partial)
+  scratch = tempfile.mkdtemp(prefix=f".{os.path.basename(target)}.restoring-", dir=parent)
+  try:
+    copied = os.path.join(scratch, os.path.basename(target))
+    copy = subprocess.run(["cp", "-a", "--reflink=auto", "--", os.path.join(source.root, relative), copied], stderr=subprocess.PIPE, text=True)
     if copy.returncode != 0:
       raise Failure(copy.stderr.strip() or f"Couldn't copy {shown(target)} out of its snapshot")
-    raise Failure(f"{shown(target)} is already there")
-  os.rename(partial, target)
+    try:
+      rename_noreplace(copied, target)
+    except FileExistsError:
+      raise Failure(f"{shown(target)} is already there")
+  finally:
+    shutil.rmtree(scratch, ignore_errors=True)
 
   if as_json:
     json.dump({"path": target, "snapshot": source.number, "seen": source.taken}, sys.stdout)
@@ -278,10 +426,10 @@ def main():
   parser = argparse.ArgumentParser(prog="omarchy-snapshot-files")
   commands = parser.add_subparsers(dest="command", required=True)
 
-  listing = commands.add_parser("deleted", help="list deleted files a snapshot still holds, latest first")
-  listing.add_argument("folder", nargs="?", default="~")
-  listing.add_argument("--json", action="store_true")
-  listing.add_argument("--budget", type=float, help="stop comparing uncached snapshots after this many seconds")
+  listing_command = commands.add_parser("deleted", help="list deleted files a snapshot still holds, latest first")
+  listing_command.add_argument("folder", nargs="?", default="~")
+  listing_command.add_argument("--json", action="store_true")
+  listing_command.add_argument("--budget", type=float, help="stop comparing uncached snapshots after this many seconds")
 
   bring_back = commands.add_parser("restore", help="put a deleted file or folder back where it was")
   bring_back.add_argument("path")

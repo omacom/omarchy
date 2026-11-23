@@ -72,7 +72,7 @@ pass "deleted leaves out moved files, hidden folders, dependencies, build output
   fail "deleted narrows to a folder" "$(deleted ~/Documents)"
 pass "deleted narrows to a folder"
 
-[[ -f "$HOME/.cache/omarchy/snapshot-files/1-2.json" && -f "$HOME/.cache/omarchy/snapshot-files/2-3.json" ]] ||
+compgen -G "$HOME/.cache/omarchy/snapshot-files/1.*-2.*.json" >/dev/null && compgen -G "$HOME/.cache/omarchy/snapshot-files/2.*-3.*.json" >/dev/null ||
   fail "deleted caches comparisons between snapshots, which never change"
 [[ $(deleted) == "$expected" ]] || fail "deleted answers the same from its cache"
 pass "deleted caches comparisons between snapshots"
@@ -124,3 +124,81 @@ rm -rf "$OMARCHY_SNAPSHOTS_DIR"
 [[ $("$files" deleted --json | jq -c '[.snapshots, .files]') == '[0,[]]' ]] || fail "deleted reports no snapshots instead of failing"
 "$files" deleted | grep -qF "No snapshots of your home folder" || fail "deleted says plainly that there are no snapshots yet"
 pass "deleted reports a machine without snapshots of /home"
+
+# A fresh home and snapshots, for each case below.
+reset() {
+  rm -rf "$OMARCHY_SNAPSHOTS_DIR" "$HOME"
+  mkdir -p "$OMARCHY_SNAPSHOTS_DIR" "$HOME"
+}
+
+# Filing things away in a new folder, or emptying a folder into another and
+# removing it, deletes nothing.
+reset
+mkdir -p ~/Docs ~/Old
+echo a >~/Docs/a.pdf
+echo b >~/Old/b.pdf
+snapshot 1 2
+mkdir ~/Docs/2025 ~/Archive
+mv ~/Docs/a.pdf ~/Docs/2025/
+mv ~/Old/b.pdf ~/Archive/
+rmdir ~/Old
+[[ -z $(deleted) ]] || fail "moving files into a new folder, or out of a removed one, deletes nothing" "$(deleted)"
+pass "moving files into a new folder, or out of a removed one, deletes nothing"
+
+# Hidden files can matter (.env); hidden folders, swap and lock files, and
+# folders marked as caches are churn.
+reset
+mkdir -p ~/app/.git ~/build
+echo secret >~/app/.env
+echo swap >~/app/.notes.md.swp
+echo lock >"$HOME/app/.~lock.budget.ods#"
+echo object >~/app/.git/object
+echo 'Signature: 8a477f597d28d172789f06886806bc55' >~/build/CACHEDIR.TAG
+echo out >~/build/out.o
+snapshot 1 1
+rm -r ~/app/.env ~/app/.notes.md.swp "$HOME/app/.~lock.budget.ods#" ~/app/.git/object ~/build
+[[ $(deleted) == "app/.env" ]] || fail "deleted lists hidden files but not hidden folders, swap, lock or cache folders" "$(deleted)"
+pass "deleted lists hidden files but not hidden folders, swap, lock or cache folders"
+
+# One file restored out of a deleted folder leaves the rest of it listed.
+reset
+mkdir -p ~/Pictures/trip
+chmod 0750 ~/Pictures
+echo a >~/Pictures/trip/a.jpg
+echo b >~/Pictures/trip/b.jpg
+snapshot 1 1
+rm -r ~/Pictures
+"$files" restore ~/Pictures/trip/a.jpg >/dev/null
+[[ $(stat -c %a ~/Pictures) == "750" ]] || fail "restore makes the folders a file was in as they were" "$(stat -c %a ~/Pictures)"
+[[ $(deleted) == "Pictures/trip/b.jpg" ]] || fail "deleted lists what's still missing from a folder that's back" "$(deleted)"
+pass "a folder partly restored still lists what's missing from it"
+
+# A symbolic link on the way would take the restore, or what it copies,
+# somewhere else than it says.
+reset
+mkdir -p ~/Work "$test_tmp/elsewhere"
+echo x >~/Work/x.txt
+snapshot 1 1
+rm -r ~/Work
+ln -s "$test_tmp/elsewhere" ~/Work
+expect_refusal "restore refuses a path through a symbolic link" "through a symbolic link" restore ~/Work/x.txt
+[[ ! -e $test_tmp/elsewhere/x.txt ]] || fail "restore writes nothing through a symbolic link"
+
+# Snapper gives a deleted newest snapshot's number to the next one, which must
+# not be answered from the first one's cache.
+reset
+echo one >~/one.txt
+echo two >~/two.txt
+snapshot 1 3
+snapshot 2 2
+rm ~/one.txt
+snapshot 3 1
+rm ~/two.txt
+[[ $(deleted) == $'two.txt\none.txt' ]] || fail "deleted lists both before the snapshot is replaced" "$(deleted)"
+rm -rf "$OMARCHY_SNAPSHOTS_DIR/2" "$OMARCHY_SNAPSHOTS_DIR/3"
+echo one >~/one.txt
+snapshot 2 0
+rm ~/one.txt
+[[ $(deleted) == $'one.txt\ntwo.txt' ]] || fail "a reused snapshot number isn't answered from the old cache" "$(deleted)"
+pass "a reused snapshot number isn't answered from the old cache"
+

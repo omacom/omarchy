@@ -22,12 +22,14 @@ _Note: This feature is only available on installations using the Limine boot loa
 
 ## Bringing back deleted files
 
-Your home folder gets a snapshot of its own every hour. They never roll anything back; they're there so a file you deleted or overwrote by mistake can be brought back. Omarchy keeps the last day of hourly snapshots, a week of daily ones, and four weekly ones, and thins them out when free space drops below a fifth of the disk, since a snapshot holds on to what you deleted until it goes.
+Your home folder gets a snapshot of its own every hour. They never roll anything back; they're there so a file you deleted by mistake can be brought back. Omarchy keeps the last day of hourly snapshots, a week of daily ones, and four weekly ones, and thins them to the last six hours and two days when free space drops below a fifth of the disk, since a snapshot holds on to what you deleted until it goes.
 
-In Files, the Snapshots section of the sidebar opens Deleted Files: everything a snapshot still holds that's gone from your home folder now, the most recent first. Pick one and press Enter to put it back where it was. A folder comes back whole.
+In Files, the Snapshots section of the sidebar opens Deleted Files: everything a snapshot still holds that's gone from your home folder now, the most recent first. Pick one and press Enter to put it back where it was. A folder comes back whole, and if you bring back just one file out of a deleted folder, the rest of it stays in the list.
 
-From the terminal, `omarchy snapshot files deleted` lists the same, for your whole home folder or one folder in it, and `omarchy snapshot files restore ~/Documents/taxes.pdf` puts one back. It never overwrites a file that's there, and a file you moved or renamed doesn't count as deleted.
+From the terminal, `omarchy snapshot files deleted` lists the same, for your whole home folder or one folder in it, and `omarchy snapshot files restore ~/Documents/taxes.pdf` puts one back. It never overwrites a file that's there, and a file you moved or renamed doesn't count as deleted. A file from a folder you've since renamed comes back under the folder's old name.
 
-Hidden folders, like `~/.cache` and `~/.config`, are left out of the list, and so are dependencies and build output (`node_modules`, and folders marked with a `CACHEDIR.TAG`), which come back on their own. They're still in the snapshots, under `/home/.snapshots/<number>/snapshot/`, readable only by you, so you can copy a lost config file out by hand.
+Hidden files like `.env` are listed, but hidden folders like `~/.cache` and `~/.config` are not, nor are editors' swap and lock files, and dependencies and build output (`node_modules`, and folders marked with a `CACHEDIR.TAG`), which come back on their own. All of it is still in the snapshots, under `/home/.snapshots/<number>/snapshot/`, so you can copy a lost config file, or an earlier version of a file you overwrote, out by hand.
 
-Nothing running as you can delete these snapshots, so they survive a mistake, or a program that deletes your files. They're not a backup, though: they live on the same disk, so a dead or stolen machine takes them with it.
+Each snapshot keeps your files with the permissions they had when it was taken. Your home folder is yours alone, so other people on the machine can't read your snapshots, but if you shared a folder with them and later stopped, they can still read it in the snapshots from before, until those are gone. Likewise, a file you deleted, a key or a password, say, stays readable to you, and to programs running as you, until the last snapshot holding it is thinned out.
+
+Nothing running as you can delete these snapshots, so they survive a mistake, or a program that deletes your files, though one that also fills your disk gets them thinned to the last two days. They're not a backup: they live on the same disk, so a dead or stolen machine takes them with it.
