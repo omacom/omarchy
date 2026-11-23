@@ -45,6 +45,7 @@ Item {
   property bool backgroundMode: false
   property bool backgroundOpenPending: false
   property string currentBackgroundPath: ""
+  property string initialBackgroundSelection: ""
   property var extraThemeNames: []
   property var stockThemeNames: []
   property bool stockThemesKnown: false
@@ -417,6 +418,7 @@ Item {
   function openBackgroundRows() {
     openSelector("", backgroundRows, currentBackgroundPath, "", "", false, false)
     backgroundMode = true
+    initialBackgroundSelection = currentPath()
   }
 
   function refreshBackgroundRows() {
@@ -440,10 +442,16 @@ Item {
       } else {
         Util.execDetached("omarchy-notification-send \"$(omarchy-i18n theme.noBackground)\" -t 2000")
       }
-    } else if (changed && rows && backgroundMode && opened) {
-      selectedImage = currentPath() || currentBackgroundPath
-      imageRows = rows
-      loadRows(rows, false)
+    } else if (changed && backgroundMode && opened) {
+      if (rows) {
+        selectedImage = currentPath() || currentBackgroundPath
+        imageRows = rows
+        loadRows(rows, false)
+      } else {
+        backgroundMode = false
+        root.opened = false
+        Util.execDetached("omarchy-notification-send \"$(omarchy-i18n theme.noBackground)\" -t 2000")
+      }
     }
   }
 
@@ -550,7 +558,16 @@ Item {
       waitForEnd: true
       onStreamFinished: {
         var resolved = String(text || "").trim()
-        if (resolved) root.currentBackgroundPath = resolved
+        if (!resolved) return
+        root.currentBackgroundPath = resolved
+        // If an external command (e.g. omarchy-theme-bg-next) changed the
+        // wallpaper before this open, move the highlight to the current one as
+        // long as the user hasn't navigated away from the initial selection.
+        if (root.opened && root.backgroundMode && resolved !== root.selectedImage && root.currentPath() === root.initialBackgroundSelection) {
+          root.selectedImage = resolved
+          root.select(root.selectedImageIndex(), true)
+          root.initialBackgroundSelection = root.currentPath()
+        }
       }
     }
     onExited: {

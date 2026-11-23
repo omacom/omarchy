@@ -14,23 +14,23 @@ fi
 theme_name=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
 current_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
 
-if [[ $print_rows == true ]]; then
+if [[ $print_rows == "true" ]]; then
   exec omarchy-menu-images \
     --lazy-thumbnails \
     --print-rows \
     --selected "$current_background" \
     "$HOME/.local/state/omarchy/current/theme/backgrounds" \
     "$HOME/.config/omarchy/backgrounds/$theme_name"
+else
+  omarchy-menu-images \
+    --selected "$current_background" \
+    "$HOME/.local/state/omarchy/current/theme/backgrounds" \
+    "$HOME/.config/omarchy/backgrounds/$theme_name"
+  status=$?
+
+  if (( status == 3 )); then
+    omarchy-notification-send "$(omarchy-i18n theme.noBackground)" -t 2000
+  fi
+
+  exit "$status"
 fi
-
-omarchy-menu-images \
-  --selected "$current_background" \
-  "$HOME/.local/state/omarchy/current/theme/backgrounds" \
-  "$HOME/.config/omarchy/backgrounds/$theme_name"
-status=$?
-
-if (( status == 3 )); then
-  omarchy-notification-send "$(omarchy-i18n theme.noBackground)" -t 2000
-fi
-
-exit "$status"
