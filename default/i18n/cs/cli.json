@@ -15,7 +15,7 @@
   "agents.added": "Přidáno %1.",
   "agents.addedNotSelected": "Přidáno %1, ale nové relace se na něj nepodařilo přepnout.",
   "agents.allOver": "Všechny účty %1 jsou nad %2%",
-  "agents.apiKeyHint": "Ověří se u %1 a pak se uloží pro pi a opencode.",
+  "agents.apiKeyHint": "Ověří se pomocí %1 a poté se uloží v OpenCode.",
   "agents.atLimit": "%1 je na %2% limitu %3",
   "agents.chooseForPrompt": "Vyberte agenta pro tento úkol",
   "agents.durationDaysHours": "%1d %2h",

@@ -14,7 +14,7 @@
   "agents.added": "%1 شامل ہو گیا۔",
   "agents.addedNotSelected": "%1 شامل ہو گیا، لیکن نئے سیشنز اس پر منتقل نہیں ہو سکے۔",
   "agents.allOver": "تمام %1 اکاؤنٹس %2% سے اوپر ہیں",
-  "agents.apiKeyHint": "اسے %1 سے جانچا جاتا ہے، پھر pi اور opencode کے لیے محفوظ کر لیا جاتا ہے۔",
+  "agents.apiKeyHint": "یہ %1 سے جانچی جاتی ہے، پھر OpenCode میں محفوظ ہو جاتی ہے۔",
   "agents.atLimit": "%1 %3 حد کے %2% پر ہے",
   "agents.chooseForPrompt": "اس کام کے لیے ایجنٹ منتخب کریں",
   "agents.durationDaysHours": "%1 دن %2 گھنٹے",

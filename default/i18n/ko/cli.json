@@ -13,7 +13,7 @@
   "agents.added": "%1을(를) 추가했습니다.",
   "agents.addedNotSelected": "%1을(를) 추가했지만, 새 세션을 해당 계정으로 전환할 수 없습니다.",
   "agents.allOver": "모든 %1 계정이 %2%를 초과했습니다",
-  "agents.apiKeyHint": "%1로 확인한 뒤 pi와 opencode용으로 저장됩니다.",
+  "agents.apiKeyHint": "%1로 확인한 뒤 OpenCode에 저장됩니다.",
   "agents.atLimit": "%1은(는) %3 한도의 %2%에 도달했습니다",
   "agents.chooseForPrompt": "이 작업에 사용할 에이전트 선택",
   "agents.durationDaysHours": "%1일 %2시간",

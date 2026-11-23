@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Predplatné, za použitie alebo lokálne",
-  "agents.addProviderAccount": "Pridať účet %1",
   "agents.addTitle": "Pridať agenta",
   "agents.app": "Aplikácia",
   "agents.backToLimits": "Späť na limity",
@@ -73,6 +72,7 @@
   "agents.outOfCredits": "Bez kreditov",
   "agents.pasteCode": "Ak stránka namiesto dokončenia zobrazí kód, vložte ho sem.",
   "agents.pasteCodeLink": "Zobrazuje sa namiesto toho kód?",
+  "agents.placeholderApiKey": "Kľúč API",
   "agents.placeholderCode": "Kód",
   "agents.placeholderWork": "Práca",
   "agents.plugin": "Plugin",

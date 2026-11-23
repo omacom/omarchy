@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Előfizetéses, használatalapú vagy helyi",
-  "agents.addProviderAccount": "%1-fiók hozzáadása",
   "agents.addTitle": "Ügynök hozzáadása",
   "agents.app": "Alkalmazás",
   "agents.backToLimits": "Vissza a korlátokhoz",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "Elfogyott a kredit",
   "agents.pasteCode": "Ha az oldal befejezés helyett kódot mutat, illeszd be ide.",
   "agents.pasteCodeLink": "Kódot mutat helyette az oldal?",
+  "agents.placeholderApiKey": "API-kulcs",
   "agents.placeholderCode": "Kód",
   "agents.placeholderWork": "Munka",
   "agents.plugin": "Bővítmény",

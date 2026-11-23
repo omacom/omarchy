@@ -14,7 +14,7 @@
   "agents.added": "Naidagdag ang %1.",
   "agents.addedNotSelected": "Naidagdag ang %1, pero hindi mailipat dito ang mga bagong session.",
   "agents.allOver": "Lahat ng %1 account ay lampas sa %2%",
-  "agents.apiKeyHint": "Sisuriin ito gamit ang %1, pagkatapos ay ise-save para sa pi at opencode.",
+  "agents.apiKeyHint": "Sisuriin ito gamit ang %1, saka ise-save sa OpenCode.",
   "agents.atLimit": "Nasa %2% ang %1 ng %3 na limitasyon",
   "agents.chooseForPrompt": "Pumili ng agent para sa gawaing ito",
   "agents.durationDaysHours": "%1a %2o",

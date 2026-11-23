@@ -15,7 +15,7 @@
   "agents.added": "Pievienots %1.",
   "agents.addedNotSelected": "Pievienots %1, bet neizdevās pārslēgt jaunās sesijas uz to.",
   "agents.allOver": "Visi %1 konti pārsniedz %2%",
-  "agents.apiKeyHint": "To pārbauda ar %1, pēc tam saglabā pi un opencode.",
+  "agents.apiKeyHint": "Tā tiek pārbaudīta ar %1 un saglabāta OpenCode.",
   "agents.atLimit": "%1 ir sasniedzis %2% no %3 limita",
   "agents.chooseForPrompt": "Izvēlieties aģentu šim uzdevumam",
   "agents.durationDaysHours": "%1d %2st",

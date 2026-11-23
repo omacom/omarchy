@@ -15,7 +15,7 @@
   "agents.added": "Pridėta %1.",
   "agents.addedNotSelected": "Pridėta %1, bet nepavyko perjungti naujų seansų į ją.",
   "agents.allOver": "Visos %1 paskyros viršijo %2%",
-  "agents.apiKeyHint": "Jis patikrinamas su %1, tada išsaugomas pi ir opencode.",
+  "agents.apiKeyHint": "Jis patikrinamas naudojant %1, tada išsaugomas OpenCode.",
   "agents.atLimit": "%1 pasiekė %2% %3 limito",
   "agents.chooseForPrompt": "Pasirinkite agentą šiai užduočiai",
   "agents.durationDaysHours": "%1 d. %2 val.",

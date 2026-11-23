@@ -14,7 +14,7 @@
   "agents.added": "%1 اضافه شد.",
   "agents.addedNotSelected": "%1 اضافه شد، اما نشست‌های جدید به آن منتقل نشدند.",
   "agents.allOver": "همهٔ حساب‌های %1 بیش از %2% هستند",
-  "agents.apiKeyHint": "با %1 بررسی می‌شود، سپس برای pi و opencode ذخیره می‌شود.",
+  "agents.apiKeyHint": "با %1 بررسی می‌شود، سپس در OpenCode ذخیره می‌شود.",
   "agents.atLimit": "%1 در %2% از محدودیت %3 است",
   "agents.chooseForPrompt": "برای این کار عاملی انتخاب کنید",
   "agents.durationDaysHours": "%1 روز %2 ساعت",

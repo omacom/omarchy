@@ -13,7 +13,7 @@
   "agents.added": "เพิ่ม %1 แล้ว",
   "agents.addedNotSelected": "เพิ่ม %1 แล้ว แต่สลับเซสชันใหม่มาใช้ไม่สำเร็จ",
   "agents.allOver": "บัญชี %1 ทั้งหมดใช้ไปเกิน %2%",
-  "agents.apiKeyHint": "จะตรวจสอบกับ %1 แล้วบันทึกไว้สำหรับ pi และ opencode",
+  "agents.apiKeyHint": "ตรวจสอบด้วย %1 แล้วบันทึกไว้ใน OpenCode",
   "agents.atLimit": "%1 ใช้ไป %2% ของขีดจำกัด %3",
   "agents.chooseForPrompt": "เลือกเอเจนต์สำหรับงานนี้",
   "agents.durationDaysHours": "%1ว. %2ชม.",

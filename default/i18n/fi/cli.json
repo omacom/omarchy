@@ -14,7 +14,7 @@
   "agents.added": "%1 lisätty.",
   "agents.addedNotSelected": "%1 lisätty, mutta uusien istuntojen vaihtaminen siihen ei onnistunut.",
   "agents.allOver": "Kaikkien %1-tilien käyttö on yli %2 %",
-  "agents.apiKeyHint": "Se tarkistetaan palvelussa %1 ja tallennetaan sitten pi:tä ja opencodea varten.",
+  "agents.apiKeyHint": "Se tarkistetaan %1:llä ja tallennetaan sitten OpenCodeen.",
   "agents.atLimit": "%1 on %2 %:n kohdalla %3-käyttörajasta",
   "agents.chooseForPrompt": "Valitse agentti tähän tehtävään",
   "agents.durationDaysHours": "%1 pv %2 t",

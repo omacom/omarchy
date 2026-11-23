@@ -13,7 +13,7 @@
   "agents.added": "Đã thêm %1.",
   "agents.addedNotSelected": "Đã thêm %1, nhưng không thể dùng tài khoản này cho phiên mới.",
   "agents.allOver": "Tất cả tài khoản %1 đều trên %2%",
-  "agents.apiKeyHint": "Khóa được kiểm tra qua %1, rồi được lưu cho pi và opencode.",
+  "agents.apiKeyHint": "Được kiểm tra bằng %1, rồi lưu vào OpenCode.",
   "agents.atLimit": "%1 đang ở mức %2% của giới hạn %3",
   "agents.chooseForPrompt": "Chọn agent cho tác vụ này",
   "agents.durationDaysHours": "%1ng %2g",

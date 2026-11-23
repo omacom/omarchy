@@ -15,7 +15,7 @@
   "agents.added": "Додато: %1.",
   "agents.addedNotSelected": "Додато: %1, али није могуће пребацити нове сесије на њега.",
   "agents.allOver": "Сви %1 налози су преко %2%",
-  "agents.apiKeyHint": "Проверава се преко %1, затим се чува за pi и opencode.",
+  "agents.apiKeyHint": "Проверава се помоћу %1, а затим се чува у OpenCode-у.",
   "agents.atLimit": "%1 је на %2% од %3 ограничења",
   "agents.chooseForPrompt": "Изаберите агента за овај задатак",
   "agents.durationDaysHours": "%1д %2ч",

@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Tilaus, käytön mukaan tai paikallinen",
-  "agents.addProviderAccount": "Lisää %1-tili",
   "agents.addTitle": "Lisää agentti",
   "agents.app": "Sovellus",
   "agents.backToLimits": "Takaisin käyttörajoihin",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "Krediitit loppu",
   "agents.pasteCode": "Jos sivu näyttää koodin valmistumisen sijaan, liitä se tähän.",
   "agents.pasteCodeLink": "Näkyykö sivulla sen sijaan koodi?",
+  "agents.placeholderApiKey": "API-avain",
   "agents.placeholderCode": "Koodi",
   "agents.placeholderWork": "Työ",
   "agents.plugin": "Lisäosa",

@@ -14,7 +14,7 @@
   "agents.added": "Добавен е %1.",
   "agents.addedNotSelected": "Добавен е %1, но новите сесии не можаха да се превключат към него.",
   "agents.allOver": "Всички профили в %1 са над %2%",
-  "agents.apiKeyHint": "Проверява се чрез %1, след което се запазва за pi и opencode.",
+  "agents.apiKeyHint": "Проверява се с %1, след което се запазва в OpenCode.",
   "agents.atLimit": "%1 е на %2% от лимит %3",
   "agents.chooseForPrompt": "Изберете агент за тази задача",
   "agents.durationDaysHours": "%1д %2ч",

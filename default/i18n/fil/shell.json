@@ -1,6 +1,5 @@
 {
   "agents.addKinds": "Subscription, kada gamit, o lokal",
-  "agents.addProviderAccount": "Magdagdag ng %1 account",
   "agents.addTitle": "Magdagdag ng agent",
   "agents.app": "App",
   "agents.backToLimits": "Bumalik sa mga limitasyon",
@@ -70,6 +69,7 @@
   "agents.outOfCredits": "Wala nang credits",
   "agents.pasteCode": "Kung may ipapakitang code ang page sa halip na matapos, i-paste ito rito.",
   "agents.pasteCodeLink": "May ipinapakitang code ang page?",
+  "agents.placeholderApiKey": "API key",
   "agents.placeholderCode": "Code",
   "agents.placeholderWork": "Trabaho",
   "agents.plugin": "Plugin",
