@@ -29,16 +29,33 @@ trust_device() {
   bluetoothctl trust "$address" >/dev/null 2>&1 || true
 }
 
+# Trust without a bond leaves BlueZ auto-connecting a device that can never
+# finish pairing (Xbox / BLE HID Security Request loops). Trust follows a bond.
+bonded() {
+  [[ $(timeout 5s bluetoothctl info "$address" 2>/dev/null) == *"Bonded: yes"* ]]
+}
+
+# Some peripherals ignore a host-initiated pair and only bond through their own
+# security request once connected; `pair` then times out and the bond forms
+# during `connect`. Wait on the bond itself before trusting.
+wait_for_bond() {
+  local deadline=$((SECONDS + ${OMARCHY_BLUETOOTH_BOND_WAIT_SECONDS:-15}))
+  until bonded; do
+    ((SECONDS < deadline)) || return 1
+    sleep 1
+  done
+}
+
 case "$action" in
   pair)
     power_on
     timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
-    trust_device
     timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    if wait_for_bond; then trust_device; fi
     ;;
   connect)
     power_on
-    trust_device
+    if bonded; then trust_device; fi
     timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
     ;;
   disconnect)
