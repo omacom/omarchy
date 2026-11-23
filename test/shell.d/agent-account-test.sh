@@ -678,98 +678,88 @@ grep -qx "@@omarchy done Added Stuck (stuck@example.com), but couldn't switch ne
 ! grep -q "ready for more" "$notifications" || fail "an added account that can't be selected isn't announced as ready" "$(cat "$notifications")"
 pass "an added account that can't be selected says so"
 
-# A lazy mise tool's command is on PATH before its CLI is: mise's account
-# wrapper and its shim. The download happens before the login, with its
-# progress reported, rather than silently inside it. Only the mocks the add
-# needs are on this PATH, not the mock Codex itself.
+# Before its package is, an agent's command is on PATH only as mise's account
+# wrapper. The package installs before the login, through polkit since the
+# panel has no terminal, rather than silently inside it. Only the mocks the
+# add needs are on this PATH, not the mock Codex itself.
 lazy_data="$test_tmp/lazy-mise"
 lazy_bin="$test_tmp/lazy-bin"
-lazy_path="$pkg_bin:$lazy_data/command-wrappers/bin:$lazy_bin:$ROOT/bin:/usr/bin"
-mkdir -p "$lazy_data/command-wrappers/bin" "$lazy_data/shims" "$lazy_bin"
+lazy_pkexec="$test_tmp/lazy-pkexec"
+lazy_path="$lazy_pkexec:$pkg_bin:$lazy_data/command-wrappers/bin:$lazy_bin:$ROOT/bin:/usr/bin"
+mkdir -p "$lazy_data/command-wrappers/bin" "$lazy_bin" "$lazy_pkexec"
 for helper in omarchy-notification-send omarchy-agent-usage-update omarchy-default-agent omarchy-launch-browser; do
   ln -s "$mock_bin/$helper" "$lazy_bin/$helper"
 done
+ln -s /usr/bin/true "$lazy_bin/herdr"
 cat >"$lazy_bin/mise" <<SH
 #!/bin/bash
-if [[ \$(basename "\$0") == "codex" ]]; then
-  echo "run codex \$1" >>"$test_tmp/lazy-log"
-  exec "$mock_bin/codex" "\$@"
-fi
-case "\$1" in
-where) [[ -e $test_tmp/lazy-installed ]] ;;
-install)
-  echo "install \$2" >>"$test_tmp/lazy-log"
-  printf '  codex@1.0.0  downloading  3.0s  512.0 kB/194.4 MB · 3.1 MB/s\r' >&2
-  if [[ -n \${OMARCHY_TEST_MISE_INSTALL_HANGS:-} ]]; then
-    echo \$\$ >"\$OMARCHY_TEST_MISE_INSTALL_HANGS"
-    exec sleep 30
-  fi
-  printf '  codex@1.0.0  downloading  6.0s  157.1/194.4 MB · 52.4 MB/s\n' >&2
-  [[ -z \${OMARCHY_TEST_MISE_INSTALL_FAILS:-} ]] || exit 1
-  touch "$test_tmp/lazy-installed"
-  ;;
-*) exit 2 ;;
-esac
+echo "run codex \$1" >>"$test_tmp/lazy-log"
+exec "$mock_bin/codex" "\$@"
 SH
-chmod +x "$lazy_bin/mise"
+cat >"$lazy_pkexec/pkexec" <<SH
+#!/bin/bash
+echo "pkexec \$*" >>"$test_tmp/lazy-log"
+if [[ -n \${OMARCHY_TEST_INSTALL_HANGS:-} ]]; then
+  echo \$\$ >"\$OMARCHY_TEST_INSTALL_HANGS"
+  exec sleep 30
+fi
+[[ -z \${OMARCHY_TEST_INSTALL_FAILS:-} ]] || exit 1
+ln -s "$lazy_bin/mise" "$lazy_bin/codex"
+SH
+chmod +x "$lazy_bin/mise" "$lazy_pkexec/pkexec"
 ln -s "$lazy_bin/mise" "$lazy_data/command-wrappers/bin/codex"
-ln -s "$lazy_bin/mise" "$lazy_data/shims/codex"
-printf '[tools]\ncodex = { version = "latest", lazy = true }\n' >"$test_tmp/omarchy-tools.toml"
-export OMARCHY_MISE_CONFIG_PATH="$test_tmp/omarchy-tools.toml"
 
 add_lazy() {
-  PATH="$lazy_path:$lazy_data/shims" MISE_DATA_DIR="$lazy_data" omarchy-agent-account-add --events codex "$@" </dev/null
+  PATH="$lazy_path" MISE_DATA_DIR="$lazy_data" omarchy-agent-account-add --events codex "$@" </dev/null
 }
 
-if OMARCHY_TEST_MISE_INSTALL_FAILS=1 add_lazy Lazy >"$test_tmp/lazy-failed" 2>&1; then
-  fail "a CLI download that fails stops the add"
+if OMARCHY_TEST_INSTALL_FAILS=1 add_lazy Lazy >"$test_tmp/lazy-failed" 2>&1; then
+  fail "a CLI install that fails stops the add"
 fi
 grep -qx "@@omarchy error Installing the Codex CLI didn't finish." "$test_tmp/lazy-failed" ||
-  fail "a failed CLI download is reported as a tagged error" "$(cat "$test_tmp/lazy-failed")"
-grep -q "^run codex" "$test_tmp/lazy-log" && fail "a failed CLI download never starts the login" "$(cat "$test_tmp/lazy-log")"
+  fail "a failed CLI install is reported as a tagged error" "$(cat "$test_tmp/lazy-failed")"
+grep -q "^run codex" "$test_tmp/lazy-log" && fail "a failed CLI install never starts the login" "$(cat "$test_tmp/lazy-log")"
 
-OMARCHY_TEST_MISE_INSTALL_HANGS="$test_tmp/install.pid" PATH="$lazy_path:$lazy_data/shims" MISE_DATA_DIR="$lazy_data" \
+OMARCHY_TEST_INSTALL_HANGS="$test_tmp/install.pid" PATH="$lazy_path" MISE_DATA_DIR="$lazy_data" \
   omarchy-agent-account-add --events codex Slow </dev/null >/dev/null 2>&1 &
 adding=$!
 for _ in {1..30}; do
   [[ -s $test_tmp/install.pid ]] && break
   sleep 0.1
 done
+# Cancel ends the add at once. The install itself runs as root once polkit
+# lets it, and pacman is left to finish rather than cut off mid-transaction.
 kill -TERM "$adding"
-wait "$adding" || true
-install_pid=$(cat "$test_tmp/install.pid")
 for _ in {1..20}; do
-  kill -0 "$install_pid" 2>/dev/null || break
+  kill -0 "$adding" 2>/dev/null || break
   sleep 0.1
 done
-if kill -0 "$install_pid" 2>/dev/null; then
-  # Left running, the add would outlive the test and reach the real notifier.
-  kill "$install_pid" "$adding" 2>/dev/null
-  fail "cancelling stops a CLI download"
-fi
+cancelled=true
+kill -0 "$adding" 2>/dev/null && cancelled=false
+# Left running, the add would outlive the test and reach the real notifier.
+kill "$(cat "$test_tmp/install.pid")" "$adding" 2>/dev/null
+wait "$adding" 2>/dev/null || true
+[[ $cancelled == "true" ]] || fail "cancelling ends the add during a CLI install"
+grep -q "^run codex" "$test_tmp/lazy-log" && fail "a cancelled install never starts the login" "$(cat "$test_tmp/lazy-log")"
 
 : >"$test_tmp/lazy-log"
 OMARCHY_TEST_LOGIN_UUID=u-lazy OMARCHY_TEST_LOGIN_EMAIL=lazy@example.com add_lazy Lazy >"$test_tmp/lazy-output" 2>&1 ||
-  fail "adding an account installs a lazy CLI first" "$(cat "$test_tmp/lazy-output")"
-[[ $(grep '^@@omarchy \(status\|progress\)' "$test_tmp/lazy-output" | head -5) == $'@@omarchy status Installing the Codex CLI…\n@@omarchy progress 0 0 0\n@@omarchy progress 512000 194400000 3100000\n@@omarchy progress 157100000 194400000 52400000\n@@omarchy status Sign in as the account you\'re adding in the private window that opens.' ]] ||
-  fail "a lazy CLI's download is reported as progress and speed in bytes, before the sign-in" "$(cat "$test_tmp/lazy-output")"
-[[ $(cat "$test_tmp/lazy-log") == $'install codex\nrun codex login' ]] ||
-  fail "a lazy CLI is installed before its login runs" "$(cat "$test_tmp/lazy-log")"
+  fail "adding an account installs its CLI first" "$(cat "$test_tmp/lazy-output")"
+[[ $(grep '^@@omarchy \(status\|progress\)' "$test_tmp/lazy-output" | head -3) == $'@@omarchy status Installing the Codex CLI…\n@@omarchy progress 0 0 0\n@@omarchy status Sign in as the account you\'re adding in the private window that opens.' ]] ||
+  fail "a CLI install is reported before the sign-in" "$(cat "$test_tmp/lazy-output")"
+[[ $(cat "$test_tmp/lazy-log") == $'pkexec /usr/bin/pacman -S --noconfirm --needed -- openai-codex\nrun codex login' ]] ||
+  fail "the CLI's package is installed before its login runs" "$(cat "$test_tmp/lazy-log")"
 grep -qx "@@omarchy done Added Lazy (lazy@example.com)." "$test_tmp/lazy-output" ||
-  fail "a sign-in after a lazy install finishes as usual" "$(cat "$test_tmp/lazy-output")"
+  fail "a sign-in after an install finishes as usual" "$(cat "$test_tmp/lazy-output")"
 
-# Installed by mise, or some other way: either way it signs in directly.
+# Installed, by Omarchy or some other way: it signs in directly.
 : >"$test_tmp/lazy-log"
 OMARCHY_TEST_LOGIN_UUID=u-lazy-2 OMARCHY_TEST_LOGIN_EMAIL=lazy2@example.com add_lazy Lazier >"$test_tmp/lazy-again" 2>&1 ||
   fail "an installed CLI signs in directly" "$(cat "$test_tmp/lazy-again")"
-rm "$test_tmp/lazy-installed"
-ln -s "$mock_bin/codex" "$lazy_bin/codex"
-OMARCHY_TEST_LOGIN_UUID=u-lazy-3 OMARCHY_TEST_LOGIN_EMAIL=lazy3@example.com add_lazy Own >>"$test_tmp/lazy-again" 2>&1 ||
-  fail "a CLI installed outside mise signs in directly" "$(cat "$test_tmp/lazy-again")"
 rm "$lazy_bin/codex"
-grep -q "^@@omarchy progress" "$test_tmp/lazy-again" && fail "an installed CLI isn't downloaded again" "$(cat "$test_tmp/lazy-again")"
-grep -q "^install" "$test_tmp/lazy-log" && fail "an installed CLI isn't installed again" "$(cat "$test_tmp/lazy-log")"
-pass "a lazy CLI is downloaded, with progress and a way to cancel, before its sign-in"
+grep -q "^@@omarchy progress" "$test_tmp/lazy-again" && fail "an installed CLI isn't installed again" "$(cat "$test_tmp/lazy-again")"
+grep -q "^pkexec" "$test_tmp/lazy-log" && fail "an installed CLI isn't installed again" "$(cat "$test_tmp/lazy-log")"
+pass "a missing CLI is installed, with a way to cancel, before its sign-in"
 
 # ------------------------------------------------------------------- reauth
 

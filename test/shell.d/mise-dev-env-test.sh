@@ -26,11 +26,9 @@ mise_config="$test_tmp/etc/mise/config.toml"
 miserc="$test_home/.config/mise/miserc.toml"
 export OMARCHY_MISE_CONFIG_PATH="$mise_config"
 
-# Each dev env and the default tool it relies on. Python also installs Python
-# itself, through the user's config.
+# Each dev env and the default tool it relies on.
 envs=(
   "node node"
-  "python uv"
 )
 
 # When Omarchy declares the tool system-wide, setup installs that version and
@@ -70,10 +68,6 @@ for scenario in declared opted-out undeclared; do
       fail "$env setup runs '$expected' when $tool is $scenario" "$(<"$mise_log")"
     if grep -Fx "$unexpected" "$mise_log" >/dev/null; then
       fail "$env setup skips '$unexpected' when $tool is $scenario" "$(<"$mise_log")"
-    fi
-    if [[ $env == "python" ]]; then
-      grep -Fx 'use --global python@latest' "$mise_log" >/dev/null ||
-        fail "python setup installs Python through mise when $tool is $scenario" "$(<"$mise_log")"
     fi
     if [[ $scenario == "opted-out" ]]; then
       cmp -s "$miserc" "$test_tmp/expected-miserc" || fail "$env setup keeps the preinstall opt-out"

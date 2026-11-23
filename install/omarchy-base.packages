@@ -6,6 +6,7 @@ alsa-utils
 asdcontrol
 avahi
 base-devel
+basecamp-cli
 bash-completion
 bat
 bluez
@@ -50,7 +51,9 @@ fontconfig
 foot
 fzf
 ghostscript
+ghui
 git
+github-cli
 gliff
 gnome-keyring
 gnome-themes-extra
@@ -62,6 +65,8 @@ gvfs-mtp
 gvfs-nfs
 gvfs-smb
 herdr
+hey-cli
+hunk
 hype
 hyprland
 hyprland-guiutils
@@ -160,6 +165,7 @@ ufw
 ufw-docker
 unzip
 usage
+uv
 uwsm
 vi
 whois

@@ -18,6 +18,8 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
   # Mirrors the list in omarchy-remove-preinstalls; both track omarchy-base.packages
   if ! omarchy-pkg-add \
     aether \
+    basecamp-cli \
+    hey-cli \
     cliamp \
     libreoffice-fresh \
     pinta \

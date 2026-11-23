@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# omarchy:summary=Install the package behind a coding agent's CLI
+# omarchy:args=[--check] <agent>
+# omarchy:hidden=true
+
+# Every coding agent ships as a package in Omarchy's repository, on the fast
+# ring, so `omarchy update` keeps it current. Only Pi comes with the base
+# install; the others are installed the first time one is picked.
+
+check=false
+if [[ ${1:-} == "--check" ]]; then
+  check=true
+  shift
+fi
+
+agent=${1:-}
+case "$agent" in
+claude) package=claude-code ;;
+codex) package=openai-codex ;;
+grok) package=grok-cli ;;
+opencode) package=opencode ;;
+copilot) package=github-copilot-cli ;;
+crush) package=crush-bin ;;
+cursor-agent) package=cursor-cli ;;
+agy) package=antigravity-cli ;;
+muse) package=muse-code ;;
+omp) package=oh-my-pi ;;
+ori) package=ori ;;
+kimi) package=kimi-code ;;
+qwen) package=qwen-code ;;
+dsh) package=deepseek-dsh ;;
+mcode) package=minimax-code ;;
+kiro-cli) package=kiro-cli ;;
+freebuff) package=freebuff ;;
+kilo) package=kilocode-cli ;;
+devin) package=devin-cli ;;
+amp) package=amp-cli ;;
+*)
+  echo "Usage: omarchy-install-agent-cli [--check] <agent>" >&2
+  exit 1
+  ;;
+esac
+
+# Installed is the command on PATH: Omarchy's package, or an install of the
+# user's own, such as the link Cursor's installer leaves in ~/.local/bin. mise's
+# account wrappers stand in for claude, codex and grok whether or not anything
+# is behind them, so they don't count.
+installed() {
+  local mise_data=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
+  local dir path=""
+  local IFS=:
+  for dir in $PATH; do
+    if [[ $dir != "$mise_data/command-wrappers/bin" && $dir != "$mise_data/shims" ]]; then
+      path+="${path:+:}$dir"
+    fi
+  done
+  PATH=$path type -P "$agent" >/dev/null
+}
+
+if installed; then
+  exit 0
+elif [[ $check == "true" ]]; then
+  exit 1
+fi
+
+# The agents panel installs with no terminal to ask for a password in, so
+# polkit asks instead. pkexec's 126 is the dialog dismissed, passed on as is.
+if [[ -t 0 ]]; then
+  omarchy-pkg-add "$package" || exit 1
+else
+  pkexec /usr/bin/pacman -S --noconfirm --needed -- "$package"
+  status=$?
+  if (( status != 0 )); then
+    exit "$status"
+  fi
+  installed || exit 1
+fi
+
+omarchy-agent-integrate-herdr "$agent"

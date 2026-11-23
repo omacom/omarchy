@@ -104,14 +104,14 @@ printf 'ignored_config_paths = ["~/old"]\n' >"$miserc"
 [[ $(<"$miserc") == 'ignored_config_paths = ["~/old"]' ]] || fail "opting out leaves the user's list alone"
 printf 'ignored_config_paths = ["~/old", "%s"]\n' "$mise_config" >"$miserc"
 "$ROOT/bin/omarchy-mise-default-tools" disable >/dev/null || fail "opting out accepts the file in the user's own list"
-"$ROOT/bin/omarchy-mise-default-tools" declares codex && fail "a user's own list keeps Omarchy's tools undeclared"
+"$ROOT/bin/omarchy-mise-default-tools" declares node && fail "a user's own list keeps Omarchy's tools undeclared"
 "$ROOT/bin/omarchy-mise-default-tools" enable >/dev/null 2>&1 && status=0 || status=$?
 ((status == 1)) || fail "opting back in reports a list it cannot edit" "exit status was $status"
 rm "$miserc"
 pass "an existing ignored_config_paths is left to the user"
 
 printf '# %s\n' "$ignore_line" >"$miserc"
-"$ROOT/bin/omarchy-mise-default-tools" declares codex || fail "a commented-out opt-out keeps Omarchy's tools declared"
+"$ROOT/bin/omarchy-mise-default-tools" declares node || fail "a commented-out opt-out keeps Omarchy's tools declared"
 "$ROOT/bin/omarchy-mise-default-tools" disable >/dev/null
 grep -qxF "$ignore_line" "$miserc" || fail "opting out is not skipped by a commented-out opt-out"
 "$ROOT/bin/omarchy-mise-default-tools" enable >/dev/null || fail "opting back in succeeds past a commented-out opt-out"
