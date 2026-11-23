@@ -16,3 +16,5 @@ systemctl enable sddm.service
 # whole session down. [Install] pulls in systemd-oomd.socket via Also=, which
 # is what the user manager reports app.slice candidacy over.
 systemctl enable systemd-oomd.service
+# Build /run/initramfs in the background after boot so shutdown skips mkinitcpio.
+systemctl enable omarchy-shutdown-ramfs.timer

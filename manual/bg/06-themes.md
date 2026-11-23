@@ -1,12 +1,12 @@
 # Теми
 
-Omarchy идва с двадесет и две красиви теми. Можеш да избираш между тях чрез _Стил > Тема_ в менюто на Omarchy (`Super + Space`) или да скочиш директно на селектора за теми със `Super + Ctrl + Shift + Space`.
+Omarchy се предлага с двадесет и три красиви теми. Можете да избирате между тях чрез _Външен вид > Тема_ в менюто на Omarchy (`Super + Space`) или да преминете директно към избора на тема с `Super + Ctrl + T`.
 
-Всяка тема стилизира десктопа, терминала, neovim, екрана за активност (btop), Chromium и цялата обвивка на Omarchy: горна лента, меню, известия, OSD и екран за заключване. (За Obsidian трябва ръчно да избереш темата Omarchy чрез _Външен вид > Теми_ вътре в приложението).
+Всяка тема стилизира работния плот, терминала, neovim, екрана за активност (btop), вашия браузър (Chrome, Chromium, Edge или Brave) и цялата обвивка на Omarchy: горната лента, менюто, известията, OSD и екрана за заключване. (За Obsidian трябва ръчно да изберете темата на Omarchy чрез _Външен вид > Теми_ вътре в приложението).
 
-Темите имат набор от фонови изображения, между които можеш да избираш със `Super + Ctrl + Space`.
+Темите имат набор от фонови изображения, между които можете да избирате с `Super + Ctrl + W`.
 
-Можеш да намериш още теми на [страницата с допълнителни теми](https://omarchy.org/themes/) или дори [да си направиш собствена тема](43-making-your-own-theme.md).
+Можете да намерите още повече теми на [страницата с допълнителни теми](https://omarchy.org/themes/) или дори да [направите своя собствена тема](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,33 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Отключвания
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
 
-Темите могат също да имат персонализиран дизайн за отключване, който се използва за процеса на дешифриране при стартиране. Можеш да избереш един от тях под _Стил > Отключи_. Изглеждат така:
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
+### Икони на приложения
+
+Иконите в стартовия панел за приложения и в дока са нарисувани в цветовете на вашата тема, така че се променят заедно с нея. Те идват от набор от икони, който избирате отделно от темата под _Външен вид > Икони_, от визуализации на всеки набор, по същия начин, по който избирате тема:
+
+- _Papercraft_ е по подразбиране: всичко, което е инсталирано, нарисувано в един стил. Приложенията, познати по логото си, като Chrome, HEY или YouTube, запазват формата си и приемат цветовете на темата.
+- _Arcade_ рисува същите приложения като 8-битов пиксел арт, както би направила стара игрова конзола.
+- _Original_ показва всяко приложение с иконата, която неговият създател му е дал.
+
+Можете да инсталирате набор от икони, направен от някой друг, с _Инсталиране > Стил > Икони_ (или `omarchy icons install <git url>`), и да го премахнете отново под _Премахване > Икони_. _Актуализиране > Допълнителни икони_ извлича най-новата версия на наборите, които сте инсталирали.
+
+За да направите свой собствен, поставете иконите си в `~/.config/omarchy/icons/<name>/`, по един файл за приложение, именуван според реда `Icon=` във файла `.desktop` на приложението. Файл, завършващ на `.svg`, се показва такъв, какъвто е. Файл, завършващ на `.svg.tpl`, се рисува в цветовете на темата: напишете `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` или `{{ icon_shadow }}` там, където трябва да има цвят. Наборът по подразбиране в `/usr/share/omarchy/icons/papercraft/` е добро място, от което да започнете. Добавете `preview.png`, за да покажете набора си в инструмента за избор; без такъв Omarchy рисува визуализация от вашите икони. За да промените една-единствена икона от набора по подразбиране, поставете вашата версия в `~/.config/omarchy/icons/papercraft/`.
+
+### Отключване
+
+Темите могат да имат и персонализиран дизайн за отключване, който се използва за процеса на дешифриране при зареждане. Можете да изберете един от тях под _Външен вид > Отключване_. Те изглеждат така:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,11 +114,20 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
+ ![last-horizon](../themes/last-horizon/preview-unlock.png)
+_Last Horizon_
+
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![lupine](../themes/lupine/preview-unlock.png)
+_Lupine_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
@@ -105,9 +138,6 @@ _Miasma_
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
 
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
-
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
 
@@ -116,6 +146,9 @@ _Ristretto_
 
 ![rose-pine](../themes/rose-pine/preview-unlock.png)
 _Rose Pine_
+
+ ![solitude](../themes/solitude/preview-unlock.png)
+_Solitude_
 
  ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
 _Tokyo Night_
