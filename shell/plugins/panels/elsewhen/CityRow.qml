@@ -134,13 +134,16 @@ Rectangle {
     }
 
     onReleased: {
-      if (armed) row.panel.releaseRowDrag()
-      else row.panel.focusOn(row.index)
+      // With animations off, releasing the drag rebuilds this delegate
+      // synchronously, so finish while its QML context is still alive.
+      var wasArmed = armed
       finish()
+      if (wasArmed) row.panel.releaseRowDrag()
+      else row.panel.focusOn(row.index)
     }
     onCanceled: {
-      row.panel.cancelRowDrag()
       finish()
+      row.panel.cancelRowDrag()
     }
   }
 
