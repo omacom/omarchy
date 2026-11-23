@@ -22,7 +22,7 @@
   "agents.editInstructions": "Edit AGENTS.md, instruksi yang diikuti setiap agen",
   "agents.enterApiKey": "Tempel kunci API Anda",
   "agents.firstBecomesDefault": "Yang pertama menjadi default Anda",
-  "agents.forgetAccountConfirm": "Hapus %1? Sesi masuknya akan dihapus dari perangkat ini, jadi untuk menambahkannya kembali Anda harus masuk lagi.",
+  "agents.forgetAccountConfirm": "Hapus %1?",
   "agents.freeResets": {
     "other": "%1 reset gratis"
   },

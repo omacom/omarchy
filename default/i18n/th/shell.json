@@ -22,7 +22,7 @@
   "agents.editInstructions": "แก้ไข AGENTS.md คำสั่งที่เอเจนต์ทุกตัวทำตาม",
   "agents.enterApiKey": "วางคีย์ API ของคุณ",
   "agents.firstBecomesDefault": "อันแรกจะเป็นค่าเริ่มต้นของคุณ",
-  "agents.forgetAccountConfirm": "ลบ %1 หรือไม่? ข้อมูลเข้าสู่ระบบจะถูกลบจากเครื่องนี้ การเพิ่มกลับมาต้องเข้าสู่ระบบอีกครั้ง",
+  "agents.forgetAccountConfirm": "ลบ %1 หรือไม่?",
   "agents.freeResets": {
     "other": "รีเซ็ตฟรี %1 ครั้ง"
   },

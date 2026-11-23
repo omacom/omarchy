@@ -22,7 +22,7 @@
   "agents.editInstructions": "Edita AGENTS.md, les instruccions que segueixen tots els agents",
   "agents.enterApiKey": "Enganxa la clau API",
   "agents.firstBecomesDefault": "El primer és el teu predeterminat",
-  "agents.forgetAccountConfirm": "Elimina %1? El seu inici de sessió s'esborrarà d'aquest equip, així que per tornar-lo a afegir hauràs de tornar a iniciar sessió.",
+  "agents.forgetAccountConfirm": "Elimina %1?",
   "agents.freeResets": {
     "many": "%1 restabliments gratuïts",
     "one": "%1 restabliment gratuït",

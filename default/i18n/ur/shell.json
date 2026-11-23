@@ -22,7 +22,7 @@
   "agents.editInstructions": "AGENTS.md میں ترمیم کریں، وہ ہدایات جن پر ہر ایجنٹ عمل کرتا ہے",
   "agents.enterApiKey": "اپنی API کلید پیسٹ کریں",
   "agents.firstBecomesDefault": "پہلا آپ کا ڈیفالٹ بنے گا",
-  "agents.forgetAccountConfirm": "%1 ہٹائیں؟ اس کا سائن ان اس مشین سے حذف ہو جائے گا، لہٰذا دوبارہ شامل کرنے کے لیے پھر سائن ان کرنا ہوگا۔",
+  "agents.forgetAccountConfirm": "%1 ہٹائیں؟",
   "agents.freeResets": {
     "one": "%1 مفت ری سیٹ",
     "other": "%1 مفت ری سیٹ"

@@ -22,7 +22,7 @@
   "agents.editInstructions": "Изменить AGENTS.md — инструкции для всех агентов",
   "agents.enterApiKey": "Вставьте API-ключ",
   "agents.firstBecomesDefault": "Первый станет вашим агентом по умолчанию",
-  "agents.forgetAccountConfirm": "Удалить %1? Вход будет удалён с этого компьютера, и при повторном добавлении придётся войти снова.",
+  "agents.forgetAccountConfirm": "Удалить %1?",
   "agents.freeResets": {
     "few": "%1 бесплатных сброса",
     "many": "%1 бесплатных сбросов",

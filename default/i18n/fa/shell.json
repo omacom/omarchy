@@ -22,7 +22,7 @@
   "agents.editInstructions": "ویرایش AGENTS.md، دستورالعمل‌هایی که همهٔ عامل‌ها دنبال می‌کنند",
   "agents.enterApiKey": "کلید API خود را بچسبانید",
   "agents.firstBecomesDefault": "اولی پیش‌فرض شماست",
-  "agents.forgetAccountConfirm": "%1 حذف شود؟ ورود آن از این دستگاه حذف می‌شود، پس افزودن دوبارهٔ آن یعنی ورود دوباره.",
+  "agents.forgetAccountConfirm": "%1 حذف شود؟",
   "agents.freeResets": {
     "one": "%1 بازنشانی رایگان",
     "other": "%1 بازنشانی رایگان"

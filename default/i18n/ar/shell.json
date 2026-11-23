@@ -22,7 +22,7 @@
   "agents.editInstructions": "عدّل AGENTS.md، التعليمات التي يتبعها كل وكيل",
   "agents.enterApiKey": "الصق مفتاح API",
   "agents.firstBecomesDefault": "الأول هو وكيلك الافتراضي",
-  "agents.forgetAccountConfirm": "إزالة %1؟ سيُحذف تسجيل دخوله من هذا الجهاز، فتتطلب إعادته تسجيل الدخول مجددًا.",
+  "agents.forgetAccountConfirm": "إزالة %1؟",
   "agents.freeResets": {
     "few": "%1 عمليات إعادة تعيين مجانية",
     "many": "%1 إعادة تعيين مجانية",

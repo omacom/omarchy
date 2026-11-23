@@ -22,7 +22,7 @@
   "agents.editInstructions": "Edit AGENTS.md, arahan yang diikuti oleh setiap ejen",
   "agents.enterApiKey": "Tampal kunci API anda",
   "agents.firstBecomesDefault": "Yang pertama menjadi lalai anda",
-  "agents.forgetAccountConfirm": "Buang %1? Log masuknya akan dipadamkan daripada mesin ini, jadi untuk menambahnya semula anda perlu log masuk semula.",
+  "agents.forgetAccountConfirm": "Buang %1?",
   "agents.freeResets": {
     "other": "%1 tetapan semula percuma"
   },
