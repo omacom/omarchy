@@ -148,6 +148,9 @@ install_desktop_app() {
 # A first sign-in announces the agent as ready, and an added account that it's
 # ready for more; clicking either starts one. Any other says which account it was.
 finish() {
+  # An agent hidden from the panel, as removing its sign-in does, shows again
+  # however it was signed in to.
+  omarchy-shell omarchy.agents showAgent "$provider" true >/dev/null 2>&1
   install_launcher
   [[ ${2:-} == "ready" ]] && install_desktop_app
   if [[ $events == "true" ]]; then

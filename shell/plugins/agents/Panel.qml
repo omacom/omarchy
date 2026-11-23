@@ -38,11 +38,19 @@ Panel {
     if (i >= 0 && removable(providers[i])) deleteTarget = providers[i]
   }
 
-  // An added account is forgotten, its sign-in deleted here. Any other line
-  // is hidden, its sign-in kept: the login a machine started with holds what
-  // its added accounts link to, so it, and the account in use, stay.
+  // What omarchy agent account remove takes to sign a line out: the
+  // provider, and for an agent with accounts, the line's own or, where it has
+  // only the one, the login this machine started with. Empty for a line with
+  // no sign-in of its own.
+  readonly property var signOutProviders: ["agy", "claude", "codex", "copilot", "cursor", "deepseek", "fireworks", "grok", "minimax", "muse", "opencode", "openrouter", "synthetic", "zai"]
+  function signOutArgs(line) {
+    if (!line || line.localModel || signOutProviders.indexOf(line.providerId) < 0) return []
+    if (line.account) return [line.providerId, String(line.account.id)]
+    return ["claude", "codex", "grok"].indexOf(line.providerId) >= 0 ? [line.providerId, "primary"] : [line.providerId]
+  }
+
   function forgets(line) {
-    return !!line && !!line.account && line.account.primary !== true
+    return signOutArgs(line).length > 0
   }
 
   // A local model's line goes back to the add screen; the default's hands
@@ -51,7 +59,7 @@ Panel {
   function removable(line) {
     if (!line) return false
     if (line.localModel) return !opensByDefault(line) || !!defaultSuccessor(line)
-    return !line.account || (forgets(line) && line.account.active !== true)
+    return true
   }
 
   function opensByDefault(line) {
@@ -65,9 +73,10 @@ Panel {
     }) || null
   }
 
-  // Forgets an added account, or hides the agent from the panel; a hidden
-  // one comes back from settings, or by signing in again. A local model
-  // keeps running, and the add screen offers it again.
+  // Signs the line out through omarchy agent account remove, which hides
+  // the agent once its last sign-in is gone; a line with no sign-in of its
+  // own is only hidden. A local model keeps running, and the add screen
+  // offers it again.
   function confirmDelete() {
     var target = deleteTarget
     deleteTarget = null
@@ -83,25 +92,31 @@ Panel {
       usage.removeLocalModels([target.localModel.target])
       return
     }
-    if (forgets(target)) {
-      Util.execArgv(["bash", "-c", 'out=$(omarchy-agent-account-remove "$1" "$2" </dev/null 2>&1) || omarchy-notification-send -u critical "$3" "$out"',
-                     "remove-account", target.providerId, String(target.account.id), Commons.I18n.t("agents.removeFailed").arg(lineName(target))])
+    var args = signOutArgs(target)
+    // Copilot signs out only inside a session of its own, in a terminal.
+    if (target.providerId === "copilot") {
+      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-account-remove --yes --agent copilot"])
+      root.close()
       return
     }
-    if (bar && bar.shell) {
-      var next = JSON.parse(JSON.stringify(settings || {}))
-      if (!next.providers) next.providers = {}
-      next.providers[target.providerId] = Object.assign({}, next.providers[target.providerId] || {}, { enabled: false })
-      bar.shell.updateEntryInline(moduleName, next)
+    if (args.length > 0) {
+      Util.execArgv(["bash", "-c", 'out=$(omarchy-agent-account-remove --yes --agent "${@:2}" </dev/null 2>&1) || omarchy-notification-send -u critical "$1" "$out"',
+                     "remove-account", Commons.I18n.t("agents.removeFailed").arg(lineName(target))].concat(args))
+      return
     }
+    setProviderShown(target.providerId, false)
   }
 
-  // Signing in to an agent that was hidden from the panel brings it back.
-  function showProvider(id) {
-    if (!bar || !bar.shell || !settings || !settings.providers || !settings.providers[id]
-        || settings.providers[id].enabled !== false) return
-    var next = JSON.parse(JSON.stringify(settings))
-    next.providers[id].enabled = true
+  // Hides an agent from the panel, or shows a hidden one again, as signing in
+  // to it does. The sign-in commands ask for this through showAgent, so the
+  // change is made here, one at a time, on the settings as they are now.
+  function setProviderShown(id, shown) {
+    if (!bar || !bar.shell || id === "") return
+    var current = settings && settings.providers && settings.providers[id]
+    if (shown && (!current || current.enabled !== false)) return
+    var next = JSON.parse(JSON.stringify(settings || {}))
+    if (!next.providers) next.providers = {}
+    next.providers[id] = Object.assign({}, next.providers[id] || {}, { enabled: shown })
     bar.shell.updateEntryInline(moduleName, next)
   }
 
@@ -816,7 +831,7 @@ Panel {
         // account shows once its limits arrive.
         addStage = tagged[1] === "done" ? "" : tagged[1]
         if (tagged[1] === "done") {
-          showProvider(addProvider)
+          setProviderShown(addProvider, true)
           usage.refreshLimits()
           root.focusKeys()
           // Nothing to show yet means the sign-in is what counts as set up.
@@ -1618,6 +1633,12 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
+  // The code field while it shows, set by the field itself since it lives
+  // in the panel's content. A sign-in waiting on a code or key gives it the
+  // keyboard whenever the panel opens, so opening it and pasting is all it
+  // needs.
+  property Item pasteFieldItem: null
+  readonly property Item openFocusItem: addStage === "running" && addNeedsPaste && pasteFieldItem ? pasteFieldItem : panel.loadedContent
   onOpenedChanged: if (!opened) {
     resetProviderDrag()
     makesOpenIndex = -1
@@ -1631,7 +1652,7 @@ Panel {
     usage.refreshLimits()
     usage.reloadDefaults()
     if (localModelsService) localModelsService.refreshNetwork()
-    Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
+    Qt.callLater(function() { if (root.openFocusItem) root.openFocusItem.forceActiveFocus() })
   }
 
   // The tailnet has no change signal, so while the panel is open the paired
@@ -1731,6 +1752,7 @@ Panel {
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
     function refresh(): string { root.refreshNow(); return "ok" }
+    function showAgent(id: string, shown: bool): string { root.setProviderShown(id, shown); return "ok" }
   }
 
   BarIconButton {
@@ -1752,7 +1774,7 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    focusTarget: panel.loadedContent
+    focusTarget: root.openFocusItem
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(860))
 
@@ -2368,7 +2390,9 @@ Panel {
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         onVisibleChanged: if (visible) { text = ""; forceActiveFocus() }
-        onAccepted: root.startAdd(text.trim())
+        // Enter stops here, or the panel would press its cursor too.
+        Keys.onReturnPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
+        Keys.onEnterPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
         Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
       }
     }
@@ -2505,8 +2529,15 @@ Panel {
             foreground: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
-            onAccepted: { root.submitPaste(text); text = "" }
-            onVisibleChanged: if (visible) forceActiveFocus()
+            // Enter stops here, or the panel would press its cursor too.
+            function submit() { root.submitPaste(text); text = "" }
+            Keys.onReturnPressed: function(event) { submit(); event.accepted = true }
+            Keys.onEnterPressed: function(event) { submit(); event.accepted = true }
+            onVisibleChanged: {
+              root.pasteFieldItem = visible ? pasteField : null
+              if (visible) forceActiveFocus()
+            }
+            Component.onDestruction: if (root.pasteFieldItem === pasteField) root.pasteFieldItem = null
             Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
           }
         }
@@ -2589,7 +2620,9 @@ Panel {
     readonly property bool makesOpen: root.makesOpenIndex === providerIndex
     onEngagedChanged: {
       if (!engaged && makesOpen) root.makesOpenIndex = -1
-      if (engaged) root.pointerOnLine(providerIndex)
+      // Once the change settles: moving the cursor while keyTarget is being
+      // worked out is a binding loop, which can leave Delete with no line.
+      if (engaged) Qt.callLater(root.pointerOnLine, providerIndex)
     }
     HoverHandler { id: sectionHover }
     z: dragged ? 2 : 0
@@ -2711,7 +2744,9 @@ Panel {
         font.pixelSize: Style.font.body
         horizontalPadding: Style.space(4)
         verticalPadding: Style.space(1)
-        onAccepted: section.finishRename(true)
+        // Enter stops here, or the panel would press its cursor too.
+        Keys.onReturnPressed: function(event) { section.finishRename(true); event.accepted = true }
+        Keys.onEnterPressed: function(event) { section.finishRename(true); event.accepted = true }
         onActiveFocusChanged: if (!activeFocus) section.finishRename(false)
         Keys.onEscapePressed: function(event) {
           section.finishRename(false)

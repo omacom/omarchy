@@ -129,6 +129,7 @@ per local coding model that is running and ready.
   provider, then saved in OpenCode, which is installed first if it's missing. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
   carries on and its result arrives as a notification. Signing in to an
   agent that was hidden from the panel shows it again.
+- **Deleting** — Delete (or X) on a line forgets its sign-in through `omarchy agent account remove`, then hides the agent, so a key it still reads from the environment, pi, or omp doesn't bring it back. One of several Claude, Codex, or Grok accounts is only forgotten, its sessions moving to another account first when it's the one in use. Gemini's sign-in is cleared from the keyring and agy's token file, Cursor and Muse run their own logout, a key is logged out of OpenCode, and Copilot opens a terminal on its own `/logout`. An agent with no sign-in of its own is only hidden.
 
 The icon is always in the bar. On a machine with no agent yet, the panel is
 the blank slate for setting one up: it opens on the same choice of agents,
