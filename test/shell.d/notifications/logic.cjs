@@ -299,6 +299,10 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.ok(Delivery.matchesDropPrefix({ summary: 'Ghostty', body: '<b>Lane message from</b> w86: ready' }, ['Lane message from']))
   assert.ok(Delivery.matchesDropPrefix({ summary: '<i>Automated</i> alert' }, ['Automated alert']))
   assert.ok(Delivery.matchesDropPrefix({ body: '&lt;b&gt;Lane message&lt;/b&gt;' }, ['Lane message']))
+  // oneLine() collapses runs of spaces, so the prefix must be normalised the
+  // same way: "Build  finished" still opens with a user's "Build  ".
+  assert.ok(Delivery.matchesDropPrefix({ summary: 'Build  finished' }, ['Build  ']))
+  assert.ok(!Delivery.matchesDropPrefix({ summary: 'Rebuild finished' }, ['Build  ']))
   assert.equal(Delivery.quietReason({ app: 'Ghostty', body: '<b>Lane message from</b> w86: ready' }, false, ['Lane message from']), 'filtered')
   // The number keys count buttons in the order the card draws them: codes, --action, the sender's.
   const deeds = Delivery.deeds({ codes: '482913 771204', execActions: JSON.stringify([{ label: 'Edit', argv: ['omasnap'] }]) },

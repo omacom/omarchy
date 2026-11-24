@@ -50,8 +50,11 @@ function matchesDropPrefix(row, dropPrefixes) {
   var summary = Markup.oneLine((row && row.summary) || "")
   var body = Markup.oneLine((row && row.body) || "")
   for (var i = 0; i < dropPrefixes.length; i++) {
-    var prefix = dropPrefixes[i]
-    if (typeof prefix === "string" && prefix.length > 0 &&
+    if (typeof dropPrefixes[i] !== "string") continue
+    // The text is oneLine()'s, whose space runs are collapsed, so the prefix
+    // is read the same way or "Build  " would never match "Build finished".
+    var prefix = Markup.oneLine(dropPrefixes[i])
+    if (prefix.length > 0 &&
         (summary.indexOf(prefix) === 0 || body.indexOf(prefix) === 0)) return true
   }
   return false
