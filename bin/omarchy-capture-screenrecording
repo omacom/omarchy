@@ -18,6 +18,26 @@
 # picker target it was launched with) to $XDG_RUNTIME_DIR/omarchy-screenrecord.log
 # so users can attach a log when reporting capture failures.
 #
+# Env: OMARCHY_SCREENRECORD_ENCODER=auto|gpu|cpu chooses the video encoder for the
+# gpu-screen-recorder backend. auto keeps gpu-screen-recorder's own default
+# (hardware encoding, with NVIDIA NVENC / AMD-Intel-VAAPI chosen by it), and the
+# automatic CPU fallback for AMD Polaris, whose VCE ring is known to hang
+# mid-recording; gpu forces the GPU encoder (NVENC on NVIDIA) and cpu the
+# software encoder. Default: auto.
+#
+# Env: OMARCHY_SCREENRECORD_CODEC=auto|h264|hevc|av1|vp8|vp9 selects the codec for
+# the gpu-screen-recorder backend. auto lets gpu-screen-recorder pick.
+# Default: auto.
+#
+# Env: OMARCHY_SCREENRECORD_FALLBACK_CPU=yes|no controls whether a recording whose
+# GPU encoder is unavailable (for example because the installed ffmpeg and the
+# NVIDIA driver expose mismatched NVENC API versions) silently drops to software
+# encoding (yes) or fails instead (no). Default: yes.
+#
+# wf-recorder, the CPU fallback backend used when gpu-screen-recorder is not
+# installed, always encodes on the CPU; these three toggles only affect the
+# gpu-screen-recorder backend.
+#
 # Backend: gpu-screen-recorder. Where it is not installed, or it exits before
 # the recording starts (it knows only NVIDIA, AMD, Intel and Broadcom GPUs, and
 # aborts on others such as Apple Silicon's), wf-recorder records instead when
@@ -361,6 +381,36 @@ end_launched_recorder() {
   wait "$pid" 2>/dev/null
 }
 
+# Exits on an out-of-range encoder, codec, or CPU-fallback setting. Called only
+# where a new recording is about to start: a bad value must fail the start, but
+# never the controls that end a running recording, so --status, --stop-recording
+# and the bare toggle's stop arm stay reachable.
+validate_screenrecord_settings() {
+  case ${OMARCHY_SCREENRECORD_ENCODER:-auto} in
+  auto | gpu | cpu) ;;
+  *)
+    echo "Invalid encoder: $OMARCHY_SCREENRECORD_ENCODER (expected auto, gpu, or cpu)" >&2
+    exit 1
+    ;;
+  esac
+
+  case ${OMARCHY_SCREENRECORD_CODEC:-auto} in
+  auto | h264 | hevc | av1 | vp8 | vp9) ;;
+  *)
+    echo "Invalid codec: $OMARCHY_SCREENRECORD_CODEC (expected auto, h264, hevc, av1, vp8, or vp9)" >&2
+    exit 1
+    ;;
+  esac
+
+  case ${OMARCHY_SCREENRECORD_FALLBACK_CPU:-yes} in
+  yes | no) ;;
+  *)
+    echo "Invalid fallback: $OMARCHY_SCREENRECORD_FALLBACK_CPU (expected yes or no)" >&2
+    exit 1
+    ;;
+  esac
+}
+
 start_screenrecording() {
   # A pid left by a recording that ended without a stop would otherwise hide
   # this one from the toggle until it has started and saved its own.
@@ -412,10 +462,21 @@ start_screenrecording() {
       local audio_devices=""
       local audio_args=()
       local encoder_args=()
+      local codec_arg=(-k auto)
+      local fallback_arg=(-fallback-cpu-encoding yes)
 
-      if screenrecording_needs_cpu_encoder; then
-        encoder_args=(-encoder cpu)
-      fi
+      case ${OMARCHY_SCREENRECORD_ENCODER:-auto} in
+      gpu) encoder_args=(-encoder gpu) ;;
+      cpu) encoder_args=(-encoder cpu) ;;
+      auto) screenrecording_needs_cpu_encoder && encoder_args=(-encoder cpu) ;;
+      esac
+
+      case ${OMARCHY_SCREENRECORD_CODEC:-auto} in
+      auto) codec_arg=(-k auto) ;;
+      *) codec_arg=(-k "${OMARCHY_SCREENRECORD_CODEC}") ;;
+      esac
+
+      [[ ${OMARCHY_SCREENRECORD_FALLBACK_CPU:-yes} == "no" ]] && fallback_arg=(-fallback-cpu-encoding no)
 
       [[ $DESKTOP_AUDIO == "true" ]] && audio_devices+="default_output"
 
@@ -427,7 +488,7 @@ start_screenrecording() {
 
       [[ -n $audio_devices ]] && audio_args+=(-a "$audio_devices" -ac aac)
 
-      gpu-screen-recorder "${capture_args[@]}" "${encoder_args[@]}" -k auto -f 60 -fm cfr -fallback-cpu-encoding yes -o "$filename" "${audio_args[@]}" 9>&- 2>>"$LOG_FILE" &
+      gpu-screen-recorder "${capture_args[@]}" "${encoder_args[@]}" "${codec_arg[@]}" -f 60 -fm cfr "${fallback_arg[@]}" -o "$filename" "${audio_args[@]}" 9>&- 2>>"$LOG_FILE" &
       pid=$!
     fi
 
@@ -666,6 +727,7 @@ fi
     elif [[ $STOP_RECORDING == "true" ]]; then
       exit 1
     else
+      validate_screenrecord_settings
       rm -f "$CANCEL_FILE"
       echo $$ >"$STARTING_FILE"
       if start_screenrecording; then

@@ -30,6 +30,23 @@ Optional flags: `--with-desktop-audio`, `--with-microphone-audio`,
 Recordings land in the configured Videos directory (override with
 `OMARCHY_SCREENRECORD_DIR`). Resize a live webcam overlay with
 `omarchy capture webcam resize <smaller|larger|reset|small|medium|large>`.
+Recording uses gpu-screen-recorder's hardware encoder (NVENC on NVIDIA, VAAPI
+on AMD/Intel) by default, with a silent CPU fallback. To control the encoder or
+codec, set an environment variable; the defaults keep gpu-screen-recorder's own
+behaviour, so nothing needs setting on a working GPU.
+
+- `OMARCHY_SCREENRECORD_ENCODER=auto|gpu|cpu` — `auto` (default) keeps the
+  automatic CPU fallback for AMD Polaris; `gpu` forces the GPU encoder (NVENC);
+  `cpu` forces software encoding.
+- `OMARCHY_SCREENRECORD_CODEC=auto|h264|hevc|av1|vp8|vp9` — `auto` (default)
+  lets gpu-screen-recorder pick the codec.
+- `OMARCHY_SCREENRECORD_FALLBACK_CPU=yes|no` — `yes` (default) silently drops
+  to software encoding when the GPU encoder is unavailable; `no` fails instead.
+  A GPU encoder can be unavailable when the installed ffmpeg and the NVIDIA
+  driver expose mismatched NVENC API versions, in which case a gpu-screen-recorder
+  flatpak or AppImage (bundled ffmpeg) restores hardware encoding.
+
+Set these in `~/.config/environment.d/*.conf` to make them persist.
 
 If recording fails to start, rerun with `OMARCHY_SCREENRECORD_DEBUG=true` to
 collect a log at `$XDG_RUNTIME_DIR/omarchy-screenrecord.log` (or `${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/omarchy-screenrecord.log` without a session runtime directory) worth attaching to a bug
