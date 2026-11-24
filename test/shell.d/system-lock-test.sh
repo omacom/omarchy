@@ -55,8 +55,13 @@ fifo_runtime="$tmpdir/fifo-runtime"
 mkdir -m 700 "$fifo_runtime"
 mkfifo "$fifo_runtime/omarchy-1password-lock.lock"
 : >"$call_log"
-timeout 5 env XDG_RUNTIME_DIR="$fifo_runtime" PATH="$mock_bin:$PATH" CALL_LOG="$call_log" \
-  "$ROOT/bin/omarchy-system-lock" || fail "system lock ignores a FIFO 1Password lock without hanging"
+# Pipe stdout/stderr through cat inside timeout so any background subshell left
+# blocked opening the FIFO holds the pipe open and fails the test (and timeout
+# reaps the whole process group).
+timeout --kill-after=1s 2s bash -c '
+  XDG_RUNTIME_DIR="$1" PATH="$2" CALL_LOG="$3" "$4" 2>&1 | cat >/dev/null
+' _ "$fifo_runtime" "$mock_bin:$PATH" "$call_log" "$ROOT/bin/omarchy-system-lock" ||
+  fail "system lock leaves no child blocked on a FIFO 1Password lock"
 rg -q '^pkill -f ' "$call_log" || fail "FIFO 1Password lock still stops the screensaver"
 rg -q 'invisible = false' "$call_log" || fail "FIFO 1Password lock still restores the cursor"
 pass "system lock refuses a FIFO 1Password lock without hanging or skipping cleanup"
