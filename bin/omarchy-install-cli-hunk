@@ -5,4 +5,4 @@
 
 set -euo pipefail
 
-omarchy-pkg-add hunk
+omarchy-pkg-add-curated hunk

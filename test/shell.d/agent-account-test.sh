@@ -737,7 +737,12 @@ fi
 [[ -z \${OMARCHY_TEST_INSTALL_FAILS:-} ]] || exit 1
 ln -s "$lazy_bin/mise" "$lazy_bin/codex"
 SH
-chmod +x "$lazy_bin/mise" "$lazy_pkexec/pkexec"
+# The package is there once the mock install has put Codex on PATH.
+cat >"$lazy_pkexec/omarchy-pkg-present" <<SH
+#!/bin/bash
+[[ -e $lazy_bin/codex ]]
+SH
+chmod +x "$lazy_bin/mise" "$lazy_pkexec/pkexec" "$lazy_pkexec/omarchy-pkg-present"
 
 add_lazy() {
   PATH="$lazy_path" MISE_DATA_DIR="$lazy_data" omarchy-agent-account-add --events codex "$@" </dev/null
@@ -778,7 +783,7 @@ OMARCHY_TEST_LOGIN_UUID=u-lazy OMARCHY_TEST_LOGIN_EMAIL=lazy@example.com add_laz
 [[ $(grep '^@@omarchy \(status\|progress\)' "$test_tmp/lazy-output" | head -3) == $'@@omarchy status Installing the Codex CLI…\n@@omarchy progress 0 0 0\n@@omarchy status Sign in as the account you\'re adding in the private window that opens.' ]] ||
   fail "a CLI install is reported before the sign-in" "$(cat "$test_tmp/lazy-output")"
 # Through the packaged helper when it's installed, pacman itself until then.
-[[ $(cat "$test_tmp/lazy-log") == @($'pkexec /usr/bin/omarchy-install-ai-package codex\nrun codex login'|$'pkexec /usr/bin/pacman -S --noconfirm --needed -- openai-codex\nrun codex login') ]] ||
+[[ $(cat "$test_tmp/lazy-log") == @($'pkexec /usr/bin/omarchy-pkg-add-curated openai-codex\nrun codex login'|$'pkexec /usr/bin/pacman -S --noconfirm --needed -- openai-codex\nrun codex login') ]] ||
   fail "the CLI's package is installed before its login runs" "$(cat "$test_tmp/lazy-log")"
 grep -qx "@@omarchy done Added Lazy (lazy@example.com)." "$test_tmp/lazy-output" ||
   fail "a sign-in after an install finishes as usual" "$(cat "$test_tmp/lazy-output")"

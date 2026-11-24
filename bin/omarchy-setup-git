@@ -91,7 +91,7 @@ if (( interactive )); then
   if omarchy-cmd-present gh && gh auth status --hostname github.com >/dev/null 2>&1; then
     omarchy-i18n gitSetup.ghSignedIn
   elif gum confirm --no-show-help --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n gitSetup.ghSignIn)"; then
-    omarchy-pkg-add github-cli
+    omarchy-pkg-add-curated github-cli
     gh auth login
   fi
 fi

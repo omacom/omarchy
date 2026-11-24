@@ -5,4 +5,4 @@
 
 set -euo pipefail
 
-omarchy-pkg-add ghui
+omarchy-pkg-add-curated ghui

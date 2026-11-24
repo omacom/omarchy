@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# omarchy:summary=Install packages, without a password for the apps Omarchy curates
+# omarchy:args=<packages...>
+# omarchy:hidden=true
+
+# The coding agents, the Install > CLI tools, gh, and the AI desktop apps are
+# packages from Omarchy's own signed repository, picked from a menu by name, so
+# installing one asks for no password at the machine. Each has a polkit action
+# of its own (default/polkit/org.omarchy.pkg-add-curated.policy) that allows
+# the active local session without a password and names the app when it does
+# ask, as it does over SSH: "Authorize to install Claude Code". Run as root
+# through pkexec, this installs only a package on the list below, so a caller
+# can name one, never choose one. Packages not on it go through omarchy-pkg-add
+# and its sudo, as anything else does.
+
+curated() {
+  case "$1" in
+  claude-code | openai-codex | grok-cli | opencode | github-copilot-cli | crush-bin | cursor-cli | \
+    antigravity-cli | muse-code | oh-my-pi | openrouter-ori | kimi-code | qwen-code | deepseek-dsh | \
+    minimax-code | freebuff | kilocode-cli | devin-cli | amp-cli | \
+    basecamp-cli | cloudflare-cli | ghui | hey-cli | hunk | github-cli | \
+    claude-desktop | openai-codex-desktop | opencode-desktop | amp-desktop-bin | antigravity | grok-bot | \
+    perplexity | lmstudio-bin)
+    return 0
+    ;;
+  esac
+  return 1
+}
+
+if (( EUID == 0 )); then
+  # The privileged half, reached through pkexec with one package.
+  (( $# == 1 )) && curated "$1" || {
+    echo "omarchy-pkg-add-curated: '${1:-}' is not one of Omarchy's curated apps" >&2
+    exit 1
+  }
+  exec /usr/bin/pacman -S --noconfirm --needed -- "$1"
+fi
+
+if (( $# == 0 )); then
+  echo "Usage: omarchy-pkg-add-curated <packages...>" >&2
+  exit 1
+fi
+
+others=()
+for package in "$@"; do
+  if omarchy-pkg-present "$package"; then
+    continue
+  # A checkout linked before the package that ships this has landed has no
+  # policy to match yet, so it installs the way anything else does.
+  elif curated "$package" && [[ -x /usr/bin/omarchy-pkg-add-curated ]]; then
+    pkexec /usr/bin/omarchy-pkg-add-curated "$package" || exit
+    omarchy-pkg-present "$package" || exit 1
+  else
+    others+=("$package")
+  fi
+done
+
+if (( ${#others[@]} )); then
+  # With no terminal to ask in, polkit asks instead.
+  if [[ -t 0 ]]; then
+    omarchy-pkg-add "${others[@]}"
+  else
+    pkexec /usr/bin/pacman -S --noconfirm --needed -- "${others[@]}" && omarchy-pkg-present "${others[@]}"
+  fi
+fi

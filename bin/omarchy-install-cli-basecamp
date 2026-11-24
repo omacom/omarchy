@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-omarchy-pkg-add basecamp-cli
+omarchy-pkg-add-curated basecamp-cli
 
 # Signs in and connects the coding agents it finds.
 basecamp setup

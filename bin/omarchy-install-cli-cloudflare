@@ -5,4 +5,4 @@
 
 set -euo pipefail
 
-omarchy-pkg-add cloudflare-cli
+omarchy-pkg-add-curated cloudflare-cli
