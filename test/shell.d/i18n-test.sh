@@ -26,7 +26,7 @@ assert(badRegistry.length === 0, 'every registry entry is complete with a UTF-8 
 const enMenu = readJson('en/menu.json')
 const menuItems = MenuModel.parseMenuJsonc(fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8'))
 assertEqual(enMenu.root.label, 'Go', 'English menu catalog carries the injected root label')
-assert(menuItems.some((item) => item.id === 'setup.language' && item.provider === 'languages'), 'Setup > Language row uses the languages provider')
+assert(menuItems.some((item) => item.id === 'setup.region.language' && item.provider === 'languages'), 'Setup > Region > Language row uses the languages provider')
 const staleMenu = menuItems.filter((item) => !enMenu[item.id] || enMenu[item.id].label !== item.label || (item.title && enMenu[item.id].title !== item.title) || (item.description && enMenu[item.id].description !== item.description))
 assert(staleMenu.length === 0, 'English menu catalog mirrors the menu definition', JSON.stringify(staleMenu.map((i) => i.id)))
 const orphanMenu = Object.keys(enMenu).filter((id) => id !== 'root' && !menuItems.some((item) => item.id === id))
@@ -122,7 +122,9 @@ const cliKeys = collectKeys(path.join(root, 'bin'), [''], cliKeyPattern)
 for (const key of collectKeys(path.join(root, 'install'), ['.sh', '.hook'], cliKeyPattern)) cliKeys.add(key)
 for (const key of collectKeys(path.join(root, 'default'), ['.py'], cliKeyPattern)) cliKeys.add(key)
 for (const key of collectKeys(path.join(root, 'etc'), ['.jsonc'], cliKeyPattern)) cliKeys.add(key)
-for (const key of collectKeys(path.join(root, 'install/provisioning'), ['setup-form.sh'], /omarchy_form_text ([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g)) cliKeys.add(key)
+const formKeyPattern = /omarchy_form_text ([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g
+for (const key of collectKeys(path.join(root, 'install/provisioning'), ['setup-form.sh', 'oem.sh'], formKeyPattern)) cliKeys.add(key)
+for (const key of collectKeys(path.join(root, 'bin'), ['omarchy-provision-owner'], formKeyPattern)) cliKeys.add(key)
 const unreferencedCli = Object.keys(enCli).filter((key) => !cliKeys.has(key))
 assert(unreferencedCli.length === 0, 'every cli catalog key is referenced', JSON.stringify(unreferencedCli))
 const unknownCli = [...cliKeys].filter((key) => !Object.hasOwn(enCli, key))
@@ -286,6 +288,7 @@ export PATH="$ROOT/bin:$PATH"
 export OMARCHY_LANGUAGE_FILE=$work/language
 export OMARCHY_LOCALE_GEN=$work/locale.gen
 export OMARCHY_LOCALE_REGISTRY=$ROOT/default/i18n/locales.json
+export OMARCHY_REGION_REGISTRY=$ROOT/default/i18n/regions.json
 export XDG_CONFIG_HOME=$work/config
 session_env=$XDG_CONFIG_HOME/uwsm/env.d/50-omarchy-language
 printf '#da_DK.UTF-8 UTF-8\n' >"$OMARCHY_LOCALE_GEN"
@@ -469,6 +472,29 @@ TEST_SUDO_GRANT=1 omarchy-language ko </dev/null 2>/dev/null
 grep -q 'Noto Sans CJK JP' "$cjk_font" && pass "a second CJK language keeps the glyph forms already chosen" || fail "a second CJK language keeps the glyph forms already chosen"
 rm -f "$work/stubs/busctl" "$work/stubs/fcitx5-remote" "$cjk_font"
 
+# Formats set the categories that say how things are written, never the
+# language, from a region the passwordless helper generates; following the
+# language again takes them out of the session.
+region_env=$XDG_CONFIG_HOME/uwsm/env.d/51-omarchy-region
+formats="LC_TIME LC_NUMERIC LC_MONETARY LC_MEASUREMENT LC_PAPER"
+: >"$LOCALE_GEN_LOG"; : >"$ELEVATE_LOG"; : >"$SESSION_ENV_LOG"
+TEST_SUDO_GRANT=1 omarchy-region-formats en-DK </dev/null
+assert_bash_equal "$(cat "$ELEVATE_LOG") $(cat "$LOCALE_GEN_LOG")" "sudo -n omarchy-locale-generate en-DK en_DK.UTF-8" "a region generates its locale through the passwordless helper"
+assert_bash_equal "$(grep '^export' "$region_env" | tr '\n' ' ')" "$(printf 'export %s=en_DK.UTF-8 ' $formats)" "a region sets only the format categories for the next login"
+assert_bash_equal "$(grep -c 'hl.env("LC_[A-Z]*", "en_DK.UTF-8", true)' "$SESSION_ENV_LOG") $(tail -n 1 "$SESSION_ENV_LOG")" "5 restart" "a region hands the format categories to the running session"
+assert_bash_equal "$(omarchy-region-formats)" "en-DK" "omarchy-region-formats reads the region back"
+: >"$SESSION_ENV_LOG"
+omarchy-region-formats default </dev/null
+[[ ! -e $region_env ]] && pass "following the language removes the formats" || fail "following the language removes the formats"
+assert_bash_equal "$(grep -c 'hl.env("LC_[A-Z]*", "", true)' "$SESSION_ENV_LOG")" "5" "following the language clears the formats in the running session"
+assert_bash_equal "$(omarchy-region-formats)" "default" "omarchy-region-formats reports formats that follow the language"
+if omarchy-region-formats en-ZZ </dev/null 2>/dev/null; then
+  fail "omarchy-region-formats rejects unknown codes"
+else
+  pass "omarchy-region-formats rejects unknown codes"
+fi
+[[ ! -e $region_env ]] && pass "an unknown region writes nothing" || fail "an unknown region writes nothing"
+
 # A cancelled polkit prompt must not persist the choice, or the interface
 # would switch with LANG left behind.
 cat >"$work/stubs/pkexec" <<'STUB'
@@ -628,6 +654,68 @@ else
   fail "collect accepts the completion record of a pruned unit"
 fi
 assert_bash_equal "$(jq -r '.da | has("shell:a.two")' "$fix/default/i18n/translation-manifest.json")" "false" "a pruned unit leaves the manifest"
+
+# Collect must reject patches that introduce symlinks, executable modes, or
+# renames from outside the locale's paths, leaving the tree clean.
+rm -f "$work/artifacts/da.done.json"
+cat >"$work/artifacts/da.patch" <<'PATCH'
+diff --git a/default/i18n/da/escape b/default/i18n/da/escape
+new file mode 120000
+--- /dev/null
++++ b/default/i18n/da/escape
+@@ -0,0 +1 @@
++../../../outside
+\ No newline at end of file
+PATCH
+if python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" collect "$work/artifacts" --expected da >/dev/null 2>&1; then
+  fail "collect rejects a patch that creates a symlink"
+else
+  pass "collect rejects a patch that creates a symlink"
+fi
+[[ ! -L $fix/default/i18n/da/escape ]] || fail "rejected symlink patch leaves no symlink in tree"
+
+cat >"$work/artifacts/da.patch" <<'PATCH'
+diff --git a/default/i18n/da/run.sh b/default/i18n/da/run.sh
+new file mode 100755
+--- /dev/null
++++ b/default/i18n/da/run.sh
+@@ -0,0 +1 @@
++#!/bin/sh
+PATCH
+if python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" collect "$work/artifacts" --expected da >/dev/null 2>&1; then
+  fail "collect rejects a patch that creates an executable file"
+else
+  pass "collect rejects a patch that creates an executable file"
+fi
+[[ ! -e $fix/default/i18n/da/run.sh ]] || fail "rejected executable patch leaves no file in tree"
+
+cat >"$work/artifacts/da.patch" <<'PATCH'
+diff --git a/default/i18n/en/shell.json b/default/i18n/da/moved.json
+similarity index 100%
+rename from default/i18n/en/shell.json
+rename to default/i18n/da/moved.json
+PATCH
+if python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" collect "$work/artifacts" --expected da >/dev/null 2>&1; then
+  fail "collect rejects a rename patch from outside the locale"
+else
+  pass "collect rejects a rename patch from outside the locale"
+fi
+[[ -f $fix/default/i18n/en/shell.json && ! -e $fix/default/i18n/da/moved.json ]] || fail "rejected rename patch leaves tree unchanged"
+
+# A valid non-empty patch combining regular-file edit, creation, and deletion
+# passes validate_patch and applies cleanly.
+printf '{\n  "a.one": "En opdateret"\n}\n' >"$fix/default/i18n/da/shell.json"
+printf '# Ny\n' >"$fix/manual/da/02-new.md"
+rm "$fix/manual/da/01-hello.md"
+python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" pack da "$work/artifacts" >/dev/null
+git -C "$fix" reset --hard -q HEAD
+if python3 "$ROOT/scripts/i18n-sync.py" --root "$fix" collect "$work/artifacts" --expected da >/dev/null 2>&1; then
+  pass "collect accepts a valid patch with regular-file edit, creation, and deletion"
+else
+  fail "collect accepts a valid patch with regular-file edit, creation, and deletion"
+fi
+assert_bash_equal "$(jq -r '."a.one"' "$fix/default/i18n/da/shell.json")" "En opdateret" "valid edit patch updates existing translation"
+[[ -f $fix/manual/da/02-new.md && ! -e $fix/manual/da/01-hello.md ]] || fail "valid create and delete hunks apply cleanly"
 
 # Every registry locale must be one glibc can actually generate.
 if [[ -f /usr/share/i18n/SUPPORTED ]]; then

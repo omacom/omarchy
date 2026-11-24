@@ -262,3 +262,24 @@ for platform in x86 aarch64 aarch64-apple; do
   fi
 done
 pass "omarchy-hw-x86 and omarchy-hw-aarch64 split every platform by its CPU"
+
+# omarchy-hw-pci matches sysfs PCI IDs and class prefixes without invoking lspci.
+pci_root="$test_tmp/pci"
+mkdir -p "$pci_root/0000:00:02.0" "$pci_root/0000:00:1f.3" "$pci_root/0000:01:00.0"
+printf '0x8086\n' >"$pci_root/0000:00:02.0/vendor"
+printf '0x7d55\n' >"$pci_root/0000:00:02.0/device"
+printf '0x030000\n' >"$pci_root/0000:00:02.0/class"
+printf '0x8086\n' >"$pci_root/0000:00:1f.3/vendor"
+printf '0x7e28\n' >"$pci_root/0000:00:1f.3/device"
+printf '0x040380\n' >"$pci_root/0000:00:1f.3/class"
+printf '0x14e4\n' >"$pci_root/0000:01:00.0/vendor"
+printf '0x1570\n' >"$pci_root/0000:01:00.0/device"
+printf '0x048000\n' >"$pci_root/0000:01:00.0/class"
+
+OMARCHY_PCI_DEVICES_PATH="$pci_root" "$ROOT/bin/omarchy-hw-pci" 14e4:1570 || fail "omarchy-hw-pci matches an exact vendor:device"
+! OMARCHY_PCI_DEVICES_PATH="$pci_root" "$ROOT/bin/omarchy-hw-pci" 14e4:43a0 || fail "omarchy-hw-pci rejects a missing device"
+OMARCHY_PCI_DEVICES_PATH="$pci_root" "$ROOT/bin/omarchy-hw-pci" --class 03 8086:* || fail "omarchy-hw-pci matches a vendor wildcard with class prefix"
+! OMARCHY_PCI_DEVICES_PATH="$pci_root" "$ROOT/bin/omarchy-hw-pci" --class 03 1002:* || fail "omarchy-hw-pci rejects an absent GPU vendor"
+OMARCHY_PCI_DEVICES_PATH="$pci_root" "$ROOT/bin/omarchy-hw-pci" --class 0401,0403 8086:* || fail "omarchy-hw-pci matches comma-separated class prefixes"
+! OMARCHY_PCI_DEVICES_PATH="$pci_root" "$ROOT/bin/omarchy-hw-pci" --class 0401,0403 14e4:* || fail "omarchy-hw-pci enforces class prefix"
+pass "omarchy-hw-pci matches PCI vendor/device IDs and classes from sysfs"
