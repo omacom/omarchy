@@ -26,11 +26,11 @@
   "update": {
     "label": "อัปเดต"
   },
-  "about": {
-    "label": "เกี่ยวกับ"
-  },
   "system": {
     "label": "ระบบ"
+  },
+  "system.about": {
+    "label": "เกี่ยวกับ"
   },
   "system.screensaver": {
     "label": "พักหน้าจอ"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "อินพุต"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "ภาษา"
+  },
+  "setup.region.timezone": {
+    "label": "เขตเวลา"
   },
   "setup.network": {
     "label": "เครือข่าย"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "ค่าเริ่มต้น"
-  },
-  "agent": {
-    "label": "เอเจนต์"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "เบราว์เซอร์",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "บูตตรง"
-  },
-  "setup.reset": {
-    "label": "รีเซ็ตเครื่อง"
+  "remove.factory-reset": {
+    "label": "รีเซ็ตค่าโรงงาน"
   },
   "install.package": {
     "label": "แพ็กเกจ"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "รหัสผ่าน"
   },
-  "update.timezone": {
-    "label": "เขตเวลา"
-  },
   "update.time": {
     "label": "เวลา"
   },
@@ -1131,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "แทร็คแพด"
-  },
-  "update.password.drive": {
-    "label": "เข้ารหัสไดรฟ์"
-  },
-  "update.password.user": {
-    "label": "ผู้ใช้"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "แสดง % แบตเตอรี่"
@@ -1228,34 +1171,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "ปิดจอสัมผัส"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "ธรรมดา"
   },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "Harness เริ่มต้น"
-  },
-  "agent.instructions": {
-    "label": "คำแนะนำ"
-  },
-  "agent.make": {
-    "label": "สร้างอะไรสักอย่าง"
-  },
-  "agent.make.theme": {
-    "label": "สร้างธีม"
-  },
-  "agent.make.plugin": {
-    "label": "สร้างปลั๊กอิน"
-  },
-  "agent.make.app": {
-    "label": "สร้างแอป"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "ไอคอน"
+  },
+  "install.style.icons": {
+    "label": "ไอคอน"
+  },
+  "remove.icons": {
+    "label": "ไอคอน"
+  },
+  "update.icons": {
+    "label": "ไอคอนเพิ่มเติม"
+  },
+  "system.firmware": {
+    "label": "รีบูตเข้า BIOS",
+    "description": "รีสตาร์ทเข้าการตั้งค่าเฟิร์มแวร์ UEFI"
+  },
+  "setup.region": {
+    "label": "ภูมิภาค"
+  },
+  "setup.region.formats": {
+    "label": "รูปแบบ",
+    "description": "วิธีแสดงวันที่ เวลา ตัวเลข และหน่วย"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "เกม Game Vibes"
+  },
+  "update.games": {
+    "label": "เกม Game Vibes"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "ชื่อโฮสต์"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
