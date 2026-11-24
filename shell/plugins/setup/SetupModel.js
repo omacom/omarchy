@@ -12,11 +12,11 @@ function translator(tr) {
 // reads what omarchy-setup-essentials takes for `flag` out of a row's action,
 // so the tour runs what the menu row would, only in sequence. A row whose
 // action it does not match is offered on the pages and left out of the tour.
+// The agent and the local model are in no menu: each has one card of its own.
 var ESSENTIALS = [
   { id: "layout", menu: "appearance.workspace-layout", flag: "--layout",
     value: /^omarchy-hyprland-workspace-layout-default (dwindle|scrolling|floating)$/ },
-  { id: "agent", menu: "agent.harness", flag: "--agent",
-    value: /^omarchy-default-agent ([a-z0-9][a-z0-9-]*)$/ },
+  { id: "agent", flag: "--agent" },
   { id: "dictation", menu: "setup.default.dictation", flag: "--dictation",
     value: /^omarchy-default-dictation ([a-z0-9][a-z0-9-]*)$/ },
   { id: "local-ai", flag: "--local-ai" },
@@ -53,7 +53,7 @@ function essentialTitle(id, t) {
 function pageDescription(id, entry, t) {
   switch (id) {
   case "layout": return t("setup.layoutDescription", "How windows are laid out on new workspaces. Super + L changes the one you're on.")
-  case "agent": return t("setup.agentDescription", "The coding agent that Super + Shift + Ctrl + A opens, installed if needed.")
+  case "agent": return t("setup.agentDescription", "The coding agent that Super + Shift + Ctrl + A opens, once you add one.")
   case "dictation": return t("setup.dictationDescription", "Speak instead of typing. Hold Right Alt to dictate, or toggle with Alt + Space.")
   case "local-ai": return t("setup.localAiDescription", "Run an open model on this machine, for your agents to use instead of a cloud one.")
   case "tailscale": return t("setup.tailscaleDescription", "A private network across your own machines, wherever they are, with files sent straight between them.")
@@ -273,6 +273,32 @@ function groupsFor(items, order, guards, menuId, covered, t, skip) {
   return groups
 }
 
+// ------------------------------------------------------------- the agent
+
+// Agents are set up in the agents panel: a subscription signed in to, pay as
+// you go with a key, or a local model. So the page has the panel to offer and
+// nothing of its own. `chosen` is the default agent, as `omarchy default
+// agent` keeps it. With one chosen the tour has nothing to invite to, as first
+// run's own invitation has not, and the pages still open the panel, where
+// another is added.
+function agentOption(chosen, t) {
+  return {
+    id: "agent.add",
+    label: t("setup.agentAdd", "Add an agent"),
+    icon: "\u{f06a9}",
+    iconFont: "",
+    detail: t("setup.agentAddDetail", "Opens the agents panel, to sign in to a subscription, pay as you go or run a local model."),
+    action: "omarchy-shell omarchy.agents open",
+    route: "",
+    handoff: "",
+    file: "",
+    place: "",
+    current: false,
+    installed: false,
+    args: chosen ? null : ["--agent"]
+  }
+}
+
 // ------------------------------------------------------------- local AI
 
 // The recipe omarchy-local-ai recommends for this machine, from its own
@@ -327,7 +353,7 @@ function isSetupLauncher(entry) {
   return /^omarchy-launch-setup\b/.test(String(entry && entry.action || ""))
 }
 
-function essentialPage(step, items, order, guards, offer, t, skip) {
+function essentialPage(step, items, order, guards, offer, agents, t, skip) {
   var options = []
   var entry = null
 
@@ -338,6 +364,9 @@ function essentialPage(step, items, order, guards, offer, t, skip) {
   } else if (step.row) {
     entry = entryOf(items, step.row)
     if (entry && reachable(items, guards, entry.parent)) options = optionsFor(items, order, guards, [entry], step, t, skip)
+  } else if (step.id === "agent") {
+    // A card that opened nothing would be a dead end, so no panel, no page.
+    if (agents && agents.panel) options = [agentOption(agents.chosen, t)]
   } else if (offer) {
     options = [localOption(offer, t)]
   }
@@ -348,8 +377,9 @@ function essentialPage(step, items, order, guards, offer, t, skip) {
     section: "essentials",
     title: essentialTitle(step.id, t),
     description: pageDescription(step.id, null, t),
-    icon: entry ? entry.icon : "\u{f035b}",
-    iconFont: entry ? entry.iconFont : "",
+    // A step in no menu has its one card's mark.
+    icon: entry ? entry.icon : options[0].icon,
+    iconFont: entry ? entry.iconFont : options[0].iconFont,
     scene: step.id,
     groups: [{ id: step.id, title: "", options: options }]
   }
@@ -380,16 +410,19 @@ function routed(list, opens) {
 }
 
 // Every page: the essentials that have something to offer on this machine,
-// then one page per row of the Setup menu. `resolve` is the menu's own
-// MenuModel.resolveRoute, which decides what a route would open.
-function pages(items, order, guards, offer, tr, resolve) {
+// then one page per row of the Setup menu. `offer` is the local model on
+// offer, where there is one. `agents` says how agents stand here: `panel`,
+// whether the agents panel is there to open, and `chosen`, the default agent,
+// where one is. `resolve` is the menu's own MenuModel.resolveRoute, which
+// decides what a route would open.
+function pages(items, order, guards, offer, agents, tr, resolve) {
   var t = translator(tr)
   var skip = altStandIns(items, order)
   var out = []
   var covered = {}
 
   for (var i = 0; i < ESSENTIALS.length; i++) {
-    var page = essentialPage(ESSENTIALS[i], items, order, guards, offer, t, skip)
+    var page = essentialPage(ESSENTIALS[i], items, order, guards, offer, agents, t, skip)
     if (page) out.push(page)
     if (ESSENTIALS[i].menu) covered[ESSENTIALS[i].menu] = true
   }

@@ -7,9 +7,10 @@ import "../menu/MenuModel.js" as MenuModel
 import "SetupModel.js" as SetupModel
 
 // What Setup reads from the system: the menu definition its pages are a lens
-// over, the answers to that menu's guards, and the local model on offer. Each
-// is asked for once, when Setup opens, and only asked: opening Setup must not
-// change the machine it is about to describe. Nothing here polls.
+// over, the answers to that menu's guards, the default agent and the local
+// model on offer. Each is asked for once, when Setup opens, and only asked:
+// opening Setup must not change the machine it is about to describe. Nothing
+// here polls.
 Item {
   id: root
 
@@ -23,6 +24,12 @@ Item {
   property var order: []
   property var guards: ({ when: ({}), checked: ({}), disabled: ({}) })
   property string localList: ""
+  // The default agent, as `omarchy default agent` keeps it: empty until one is
+  // chosen, which is when the tour has the agents panel to offer.
+  property string defaultAgent: ""
+  // Whether the agents panel is there to open, which Setup says whenever
+  // the card is about to list its pages or the tour's steps.
+  property bool agentsPanel: false
 
   // Each source has answered once, found or not.
   property bool defaultSettled: false
@@ -31,13 +38,14 @@ Item {
   property bool guardsSettled: false
   property bool guardsPending: false
   property bool localSettled: false
+  property bool agentSettled: false
 
   // Until all of them have, a row could show and then vanish, gain its check
   // late, or move as a page arrives above it, so nothing may be picked. The
   // translations count too: a page can be asked for by the name they give it.
-  readonly property bool ready: defaultSettled && userSettled && catalogSettled && guardsSettled && localSettled
+  readonly property bool ready: defaultSettled && userSettled && catalogSettled && guardsSettled && localSettled && agentSettled
   readonly property var offer: SetupModel.localOffer(localList)
-  readonly property var pages: SetupModel.pages(items, order, guards, offer, Commons.I18n.t, MenuModel.resolveRoute)
+  readonly property var pages: SetupModel.pages(items, order, guards, offer, { panel: agentsPanel, chosen: defaultAgent }, Commons.I18n.t, MenuModel.resolveRoute)
   readonly property var steps: SetupModel.tourSteps(pages, Commons.I18n.t)
 
   // Translations go on the shipped rows before the user's extension merges, as
@@ -134,6 +142,18 @@ Item {
       root.rebuild(true)
       root.catalogSettled = true
     }
+  }
+
+  // Where `omarchy default agent` keeps its choice, as it writes it: the
+  // agent's name on a line. A machine that has chosen none has no such file.
+  FileView {
+    path: root.home + "/.config/omarchy/defaults/agent"
+    printErrors: false
+    onLoaded: {
+      root.defaultAgent = text().split("\n")[0].trim()
+      root.agentSettled = true
+    }
+    onLoadFailed: root.agentSettled = true
   }
 
   // omarchy-local-ai's own listing of what fits this machine. Its `refresh`

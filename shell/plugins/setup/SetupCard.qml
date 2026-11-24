@@ -56,6 +56,10 @@ BorderSurface {
   onPointingChanged: if (pointing) optionScroll.due = false
 
   signal dismissed()
+  // The pages are about to be listed, or the tour's steps as it leaves its
+  // first screen. Whoever supplies them hears now, while nothing of them is
+  // on show, and not again until they are listed afresh.
+  signal aboutToList()
   // A row to run as the menu would: its action, or its route into the menu.
   signal activated(var option)
   // The tour is done, with the command its choices add up to, or none, and
@@ -115,6 +119,7 @@ BorderSurface {
     onTourLink = false
     splash.cursor = 0
     summaryCursor = 1
+    if (!touring) aboutToList()
     seekPage()
     settleCursor()
     entered()
@@ -207,6 +212,7 @@ BorderSurface {
   // The splash is where the tour starts, and is not somewhere to go back to.
   function goToStep(index) {
     if (!ready) return
+    if (onSplash) aboutToList()
     stepIndex = Math.max(0, Math.min(steps.length, index))
     summaryCursor = 1
   }

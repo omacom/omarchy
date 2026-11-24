@@ -1,18 +1,19 @@
 #!/bin/bash
 
-# omarchy:summary=Set up what the welcome tour picked: workspace layout, dictation, Tailscale, a local model and the default agent
-# omarchy:args=[--install] [--layout <dwindle|scrolling|floating>] [--dictation <backend>] [--tailscale] [--local-ai <recipe>] [--agent <harness>]
+# omarchy:summary=Set up what the welcome tour picked: workspace layout, dictation, Tailscale, a local model and an agent
+# omarchy:args=[--install] [--layout <dwindle|scrolling|floating>] [--dictation <backend>] [--tailscale] [--local-ai <recipe>] [--agent]
 # omarchy:hidden=true
 
 usage() {
   cat <<USAGE
 Usage: omarchy-setup-essentials [--install] [--layout <dwindle|scrolling|floating>]
                                 [--dictation <backend>] [--tailscale]
-                                [--local-ai <recipe>] [--agent <harness>]
+                                [--local-ai <recipe>] [--agent]
 
 Sets up each thing named, one after another. The layout changes at once. The
 rest install, so they are handed to a floating terminal, where they wait for
-a connection first. The agent goes last, since installing it opens it.
+a connection first. --agent opens the agents panel, where an agent is added,
+once everything else is done.
 
   --install  Run the installs here instead: this is that terminal.
 USAGE
@@ -26,8 +27,8 @@ needs_value() {
   fi
 }
 
-layout="" dictation="" local_ai="" agent=""
-tailscale=0 here=0
+layout="" dictation="" local_ai=""
+tailscale=0 agent=0 here=0
 
 while (($#)); do
   case "$1" in
@@ -50,9 +51,7 @@ while (($#)); do
       shift
       ;;
     --agent)
-      needs_value "$@"
-      agent=$2
-      shift
+      agent=1
       ;;
     --tailscale)
       tailscale=1
@@ -75,13 +74,11 @@ if [[ -n $layout && ! $layout =~ ^(dwindle|scrolling|floating)$ ]]; then
   exit 1
 fi
 
-# These name commands, and go on to a terminal's command line.
-for name in "$dictation" "$agent"; do
-  if [[ -n $name && ! $name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
-    echo "Invalid name: $name" >&2
-    exit 1
-  fi
-done
+# This names a command, and goes on to a terminal's command line.
+if [[ -n $dictation && ! $dictation =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "Invalid name: $dictation" >&2
+  exit 1
+fi
 
 # A recipe as omarchy-local-ai names them, which goes the same way.
 if [[ -n $local_ai && ! $local_ai =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
@@ -93,9 +90,8 @@ installs=()
 [[ -z $dictation ]] || installs+=(--dictation "$dictation")
 (( ! tailscale )) || installs+=(--tailscale)
 [[ -z $local_ai ]] || installs+=(--local-ai "$local_ai")
-[[ -z $agent ]] || installs+=(--agent "$agent")
 
-if [[ -z $layout ]] && (( ${#installs[@]} == 0 )); then
+if [[ -z $layout ]] && (( ${#installs[@]} == 0 && ! agent )); then
   usage >&2
   exit 1
 fi
@@ -163,49 +159,43 @@ install_all() {
     # then on the panel has it to add, with its download on show.
     omarchy-models use --detach "$local_ai" || failed+=("the local model")
   fi
-
-  if [[ -n $agent ]]; then
-    # Installing an agent clears the terminal and opens the agent in it. So it
-    # goes last, and anything that failed before it is read first.
-    if (( ${#failed[@]} > 0 )); then
-      report
-      printf 'Press any key to carry on with %s' "$agent"
-      read -rsn 1 _ 2>/dev/null </dev/tty
-      echo
-    fi
-
-    heading "Setting up $agent"
-    omarchy-default-agent --install "$agent"
-    # That returns however the agent's own session ended, which says nothing
-    # about the install, so the harness is asked whether it is there.
-    omarchy-default-agent --installed "$agent" >/dev/null 2>&1 || failed+=("$agent")
-  fi
 }
 
 if [[ -n $layout ]]; then
   omarchy-hyprland-workspace-layout-default "$layout" || failed+=("the workspace layout")
 fi
 
-if [[ -n $agent ]]; then
-  # The tour was the invitation to pick an agent, so first run's own has
-  # nothing left to offer, and one already on screen is taken down. First run
-  # records the pick itself before it gets as far as sending that toast, which
-  # this would be too late for. All of it holds when the install then fails,
-  # too: the pick was the answer, and the Agent menu is where it is tried again.
-  omarchy-done mark agent-setup-invitation
-  omarchy-notification-dismiss "$(omarchy-i18n firstRun.agentTitle)" >/dev/null 2>&1 || true
-fi
-
 # The installs ask for a password and show their progress, which takes a
-# terminal. The layout is set by then, so only they are passed on to one. A
-# layout that could not be set goes with them, to be tried where the reason shows.
+# terminal. The layout is set by then, so only they are passed on to one, and
+# the agents panel with them, to open once they are through. A layout that
+# could not be set goes too, to be tried where the reason shows.
 if (( ${#installs[@]} > 0 && ! here )); then
   if (( ${#failed[@]} > 0 )); then
     installs=(--layout "$layout" "${installs[@]}")
   fi
+  if (( agent )); then
+    installs+=(--agent)
+  fi
   exec omarchy-launch-floating-terminal-with-presentation "omarchy-setup-essentials --install ${installs[*]@Q}"
 else
   (( ${#installs[@]} == 0 )) || install_all
+
+  # An agent is added in the agents panel, which first run's own invitation
+  # and the agent hotkey open the same way. It comes last, so a terminal
+  # opening after it does not take the screen from it. Once open it has
+  # answered that invitation: none is sent later, and one already on screen is
+  # taken down where it can be found, which is by its title in the language
+  # in use now. A panel that would not open leaves the invitation as it was.
+  # On first run the tour's reply has answered it by then, before that toast
+  # could be sent, which this would be too late for.
+  if (( agent )); then
+    if omarchy-shell omarchy.agents open; then
+      omarchy-done mark agent-setup-invitation
+      omarchy-notification-dismiss "$(omarchy-i18n firstRun.agentTitle)" >/dev/null 2>&1 || true
+    else
+      failed+=("the agents panel")
+    fi
+  fi
 
   report
   if (( ${#failed[@]} > 0 )); then

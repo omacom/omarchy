@@ -15,14 +15,15 @@ const Setup = requireFromRoot('shell/plugins/setup/SetupModel.js')
 const shippedRows = MenuModel.parseMenuJsonc(fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8'))
 const withRows = (rows) => MenuModel.mergeMenuSources(shippedRows, MenuModel.parseMenuJsonc(JSON.stringify(rows)), '')
 const shipped = withRows({})
-const pagesFor = (guards, offer, menu = shipped) => Setup.pages(menu.items, menu.itemOrder, guards, offer, null, MenuModel.resolveRoute)
+const pagesFor = (guards, offer, menu = shipped, chosen = '', panel = true) =>
+  Setup.pages(menu.items, menu.itemOrder, guards, offer, { panel, chosen }, null, MenuModel.resolveRoute)
 const options = (pages, id) => Setup.flatOptions(pages.find((page) => page.id === id))
 const nothing = { when: {}, checked: {}, disabled: {} }
 
 // A row added to one of these menus with a command the tour cannot sequence
 // would be offered on the pages and silently missing from the tour.
 const fresh = pagesFor(nothing, null)
-for (const id of ['layout', 'agent', 'dictation', 'tailscale']) {
+for (const id of ['layout', 'dictation', 'tailscale']) {
   const stranded = options(fresh, id).filter((option) => !option.args).map((option) => option.id)
   assert(options(fresh, id).length > 0 && stranded.length === 0, `the tour can set up every shipped ${id} row`, JSON.stringify(stranded))
 }
@@ -66,7 +67,7 @@ const fenced = withRows({ 'setup': { label: 'Setup', when: 'false' }, 'install.s
 assertDeepEqual(pagesFor({ when: { 'setup': false, 'install.service': false }, checked: {}, disabled: {} }, null, fenced).map((page) => page.id), ['layout', 'agent'],
   'a row is not offered past a submenu the menu hides')
 const asked = Setup.guardEntries(shipped.items, shipped.itemOrder)
-assert(['setup', 'install', 'install.service', 'agent', 'appearance'].every((id) => id in asked), 'the guard batch asks about the submenus above each row')
+assert(['setup', 'install', 'install.service', 'appearance'].every((id) => id in asked), 'the guard batch asks about the submenus above each row')
 const nested = withRows({ 'setup': { label: 'Setup', parent: 'appearance.workspace-layout' } })
 assert('appearance.workspace-layout.dwindle' in Setup.guardEntries(nested.items, nested.itemOrder),
   'a submenu noted for being above one row still has its own rows asked about')
@@ -110,6 +111,12 @@ assertDeepEqual(steps.map((step) => step.id), ['layout', 'agent', 'dictation'],
 assertEqual(Setup.flatOptions(steps[1])[0].id, '', 'a step with nothing chosen yet opens on Not now')
 assert(Setup.flatOptions(steps[0]).every((option) => option.id !== ''), 'a step with a current choice offers no Not now')
 
+// The agent is added in the agents panel, which is all its step has to offer.
+const chosen = pagesFor(settled, null, shipped, 'claude')
+assert(!Setup.tourSteps(chosen).some((step) => step.id === 'agent'), 'the tour does not invite to add an agent once one is the default')
+assertEqual(options(chosen, 'agent')[0].action, 'omarchy-shell omarchy.agents open', 'while the pages still open the agents panel, for another')
+assert(!pagesFor(settled, null, shipped, '', false).some((page) => page.id === 'agent'), 'with no agents panel to open, adding an agent is not offered at all')
+
 const recipes = [
   { id: 'small', kind: 'text', name: 'Small', best: false, available: true, installed: false },
   { id: 'big-27b', kind: 'text', name: 'Big', best: true, available: true, installed: false, memory_gib: 24, context: 131072, decode_tok_s: 41.6 }
@@ -138,10 +145,10 @@ const tour = Setup.tourSteps(pagesFor(current, offered({})))
 assertDeepEqual(Setup.tourPlan(tour, {}).argv, [], 'a tour that picks nothing runs nothing')
 assertDeepEqual(Setup.tourPlan(tour, { layout: 'appearance.workspace-layout.dwindle', agent: '', dictation: 'setup.default.dictation.superwhisper' }).argv, [],
   'picking what the machine already has runs nothing')
-const plan = Setup.tourPlan(tour, { layout: 'appearance.workspace-layout.scrolling', agent: 'agent.harness.claude',
+const plan = Setup.tourPlan(tour, { layout: 'appearance.workspace-layout.scrolling', agent: 'agent.add',
   dictation: 'setup.default.dictation.voxtype', 'local-ai': 'local-ai.big-27b', tailscale: 'install.service.tailscale' })
 assertEqual(plan.argv[0], 'omarchy-setup-essentials', 'Finish runs one command')
-assertDeepEqual(flags(plan.argv), [['--agent', 'claude'], ['--dictation', 'voxtype'], ['--layout', 'scrolling'], ['--local-ai', 'big-27b'], ['--tailscale']],
+assertDeepEqual(flags(plan.argv), [['--agent'], ['--dictation', 'voxtype'], ['--layout', 'scrolling'], ['--local-ai', 'big-27b'], ['--tailscale']],
   'the command names each change, and the model by the recipe that was shown')
 assertDeepEqual(plan.changes.map((change) => change.page).sort(), ['agent', 'dictation', 'layout', 'local-ai', 'tailscale'],
   'and the plan says which steps those were')
@@ -154,9 +161,9 @@ assertEqual(Setup.pick(tour[0], stale).id, 'appearance.workspace-layout.dwindle'
 assertDeepEqual(Setup.tourPlan(tour, stale).argv, [], 'and the plan falls back with it')
 
 // A row from a menu extension with a command of its own.
-const extended = withRows({ 'agent.harness.mine': { label: 'Mine', action: 'my-agent --start; echo done' } })
-assert(options(pagesFor(nothing, null, extended), 'agent').some((option) => option.id === 'agent.harness.mine'), 'an extension row is offered on the pages')
-assert(!Setup.flatOptions(Setup.tourSteps(pagesFor(nothing, null, extended))[1]).some((option) => option.id === 'agent.harness.mine'),
+const extended = withRows({ 'setup.default.dictation.mine': { label: 'Mine', action: 'my-dictation --start; echo done' } })
+assert(options(pagesFor(nothing, null, extended), 'dictation').some((option) => option.id === 'setup.default.dictation.mine'), 'an extension row is offered on the pages')
+assert(!Setup.flatOptions(Setup.tourSteps(pagesFor(nothing, null, extended)).find((step) => step.id === 'dictation')).some((option) => option.id === 'setup.default.dictation.mine'),
   'the tour leaves out a row whose command it cannot sequence')
 
 // The keyboard cursor on a page of two groups, three columns wide.
@@ -208,6 +215,7 @@ for name in omarchy-done omarchy-notification-dismiss nm-online omarchy-install-
 done
 stub omarchy-hyprland-workspace-layout-default OMARCHY_TEST_LAYOUT_STATUS
 stub omarchy-install-service-tailscale OMARCHY_TEST_TAILSCALE_STATUS
+stub omarchy-shell OMARCHY_TEST_PANEL_STATUS
 printf '#!/bin/bash\necho "$1"\n' >"$stubs/omarchy-i18n"
 printf '#!/bin/bash\necho "${OMARCHY_TEST_DICTATION:-voxtype}"\n' >"$stubs/omarchy-default-dictation"
 
@@ -218,65 +226,60 @@ echo "terminal: $*" >>"$OMARCHY_TEST_CALLS"
 bash -c "$*"
 SH
 
-# Installing an agent ends however the agent's own session did.
-cat >"$stubs/omarchy-default-agent" <<'SH'
-#!/bin/bash
-echo "omarchy-default-agent $*" >>"$OMARCHY_TEST_CALLS"
-case "$1" in
-  --install) exit "${OMARCHY_TEST_AGENT_SESSION:-0}" ;;
-  --installed) exit "${OMARCHY_TEST_AGENT_MISSING:-0}" ;;
-esac
-SH
 chmod +x "$stubs"/*
 
-# In a session of its own: essentials waits for a key on the terminal before
-# an agent takes it over, and must find none here rather than the one the suite
-# was started from.
 essentials() {
   : >"$calls"
-  HOME="$work/home" PATH="$stubs:$ROOT/bin:$PATH" OMARCHY_TEST_CALLS="$calls" setsid -w "$@" >"$work/output" 2>&1
+  HOME="$work/home" PATH="$stubs:$ROOT/bin:$PATH" OMARCHY_TEST_CALLS="$calls" "$@" >"$work/output" 2>&1
 }
 
 installs() {
-  grep -E '^(omarchy-install-dictation-voxtype|omarchy-install-service-tailscale|omarchy-models|omarchy-default-agent --install)( |$)' "$calls" | tr '\n' '|'
+  grep -E '^(omarchy-install-dictation-voxtype|omarchy-install-service-tailscale|omarchy-models|omarchy-shell)( |$)' "$calls" | tr '\n' '|'
 }
 
-essentials omarchy-setup-essentials --layout scrolling --dictation voxtype --tailscale --local-ai big-27b --agent claude ||
+# First run's invitation to add an agent, answered: marked, and its toast taken down.
+answered() {
+  grep -Fxq 'omarchy-done mark agent-setup-invitation' "$calls" && grep -Fxq 'omarchy-notification-dismiss firstRun.agentTitle' "$calls"
+}
+
+essentials omarchy-setup-essentials --layout scrolling --dictation voxtype --tailscale --local-ai big-27b --agent ||
   fail "what the tour picked is set up" "$(<"$work/output")"
 [[ $(grep -c '^omarchy-hyprland-workspace-layout-default scrolling$' "$calls") == "1" ]] || fail "the layout is set once" "$(<"$calls")"
 [[ $(sed -n '1p' "$calls") == "omarchy-hyprland-workspace-layout-default scrolling" ]] || fail "the layout is set before any terminal opens" "$(<"$calls")"
 [[ $(grep -c '^terminal: ' "$calls") == "1" ]] || fail "the installs share one terminal" "$(<"$calls")"
-[[ $(installs) == "omarchy-install-dictation-voxtype |omarchy-install-service-tailscale |omarchy-models use --detach big-27b|omarchy-default-agent --install claude|" ]] ||
-  fail "the installs run one after another, the agent last, and the model by its recipe" "$(installs)"
-grep -Fxq 'omarchy-done mark agent-setup-invitation' "$calls" || fail "a tour that picked an agent answers first run's invitation to" "$(<"$calls")"
-pass "the layout is set at once, and the installs run in one terminal with the agent last"
+[[ $(installs) == "omarchy-install-dictation-voxtype |omarchy-install-service-tailscale |omarchy-models use --detach big-27b|omarchy-shell omarchy.agents open|" ]] ||
+  fail "the installs run one after another, the model by its recipe, and the agents panel opens once they are through" "$(installs)"
+answered || fail "the agents panel opened from the terminal answers first run's invitation" "$(<"$calls")"
+pass "the layout is set at once, the installs run in one terminal, and the agents panel opens last"
 
 essentials omarchy-setup-essentials --layout floating || fail "a layout alone is set" "$(<"$work/output")"
-if grep -q '^terminal: ' "$calls"; then
-  fail "a layout alone opens no terminal" "$(<"$calls")"
-fi
-pass "a layout alone opens no terminal"
+[[ $(<"$calls") == "omarchy-hyprland-workspace-layout-default floating" ]] || fail "a layout alone is set, and opens no terminal" "$(<"$calls")"
+pass "a layout alone is set with no terminal"
 
-if OMARCHY_TEST_TAILSCALE_STATUS=1 essentials omarchy-setup-essentials --tailscale --agent claude; then
+essentials omarchy-setup-essentials --agent || fail "adding an agent alone is something to do" "$(<"$work/output")"
+[[ $(grep -v '^omarchy-done \|^omarchy-notification-dismiss ' "$calls") == "omarchy-shell omarchy.agents open" ]] ||
+  fail "adding an agent alone opens the agents panel, and no terminal" "$(<"$calls")"
+answered || fail "an agents panel that opened answers first run's invitation" "$(<"$calls")"
+if OMARCHY_TEST_PANEL_STATUS=1 essentials omarchy-setup-essentials --agent; then
+  fail "an agents panel that would not open fails the run" "$(<"$work/output")"
+fi
+grep -Fq 'Could not set up: the agents panel' "$work/output" || fail "and is named" "$(<"$work/output")"
+if grep -q '^omarchy-done \|^omarchy-notification-dismiss ' "$calls"; then
+  fail "an agents panel that would not open leaves first run's invitation as it was" "$(<"$calls")"
+fi
+pass "adding an agent opens the agents panel with no terminal, and answers first run's invitation only once it has opened"
+
+if OMARCHY_TEST_TAILSCALE_STATUS=1 essentials omarchy-setup-essentials --tailscale --agent; then
   fail "a failed install fails the run" "$(<"$work/output")"
 fi
-grep -Fxq 'omarchy-default-agent --install claude' "$calls" || fail "one failed install does not stop the ones after it" "$(<"$calls")"
-[[ $(grep -c 'Could not set up: Tailscale$' "$work/output") == "2" ]] ||
-  fail "a failed install is named before the agent takes the terminal, and again at the end" "$(<"$work/output")"
-pass "one failed install is named and does not stop the others"
+grep -Fxq 'omarchy-shell omarchy.agents open' "$calls" || fail "a failed install does not keep the agents panel from opening" "$(<"$calls")"
+grep -Fq 'Could not set up: Tailscale' "$work/output" || fail "a failed install is named" "$(<"$work/output")"
+pass "one failed install is named and does not stop what comes after it"
 
 OMARCHY_TEST_DICTATION=superwhisper essentials omarchy-setup-essentials --dictation voxtype ||
   fail "an install that was turned down is not a failure" "$(<"$work/output")"
 grep -Fq 'Left as it was: dictation' "$work/output" || fail "but it is not passed off as set up" "$(<"$work/output")"
 pass "a dictation install that was turned down is reported as left alone"
-
-OMARCHY_TEST_AGENT_SESSION=130 essentials omarchy-setup-essentials --agent claude ||
-  fail "an agent left with Ctrl+C was still set up" "$(<"$work/output")"
-if OMARCHY_TEST_AGENT_MISSING=1 essentials omarchy-setup-essentials --agent claude; then
-  fail "an agent that is not there afterwards was not set up" "$(<"$work/output")"
-fi
-grep -Fq 'Could not set up: claude' "$work/output" || fail "an agent that did not install is named" "$(<"$work/output")"
-pass "an agent's install is judged by the agent being there, not by how its session ended"
 
 if OMARCHY_TEST_LAYOUT_STATUS=1 essentials omarchy-setup-essentials --layout scrolling --tailscale; then
   fail "a layout that could not be set fails the run" "$(<"$work/output")"
@@ -293,7 +296,7 @@ refused() {
   [[ ! -s $calls ]] || fail "a refused value runs nothing: $*" "$(<"$calls")"
 }
 
-refused --agent 'claude; touch owned'
+refused --dictation 'voxtype; touch owned'
 refused --local-ai 'big; touch owned'
 refused --layout sideways
 pass "a name, a recipe or a layout that is not one is refused before anything runs"

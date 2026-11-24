@@ -68,6 +68,15 @@ Item {
     release()
   }
 
+  // Whether `omarchy-shell omarchy.agents open` has anyone to answer it: the
+  // agents panel's own handler, taking no arguments, there while its widget
+  // is live in a bar. The saved layout does not say, since a bar can keep a
+  // widget it never builds.
+  function agentsPanelThere() {
+    var handler = IpcRegistry.handlerFor("omarchy.agents")
+    return !!handler && IpcRegistry.declaredFunctions(handler).indexOf("open") !== -1 && handler.open.length === 0
+  }
+
   // Answers whoever is waiting on this request, if it was seen: a file for
   // each step picked, then `closed`. The shell unloads this plugin as soon as
   // it closes, so the files are written by a process of its own, and one that
@@ -182,6 +191,11 @@ Item {
         }
 
         onDismissed: root.dismiss()
+        // The bar builds its widgets once the shell is up, so a first login
+        // can open the tour before the agents panel's handler has registered.
+        // It is asked for as late as it can be, when the steps are about to
+        // show, and then stands, so none comes or goes part way through.
+        onAboutToList: data.agentsPanel = root.agentsPanelThere()
         onActivated: function(option) { root.run(option) }
         onFinished: function(argv, steps) { root.finish(argv, steps) }
       }

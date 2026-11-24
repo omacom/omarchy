@@ -13,9 +13,9 @@ set -e
 if ! omarchy-done check welcome-tour && picked=$(omarchy-launch-setup welcome --wait); then
   omarchy-done mark welcome-tour
 
-  # The tour is also the invitation to pick an agent, so one picked there
+  # The tour is also the invitation to add an agent, so one taken up there
   # answers first run's own. It is recorded here, before first run goes on to
-  # send that toast: the install the tour started would get to it too late.
+  # send that toast: the command the tour ran would get to it too late.
   if grep -qx "agent" <<<"$picked"; then
     omarchy-done mark agent-setup-invitation
   fi

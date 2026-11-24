@@ -26,6 +26,11 @@ ShellRoot {
   property point at
   // Where a list was scrolled to, for the step that looks at it again.
   property real was: 0
+  // How often the card has said its pages or steps are about to be listed.
+  property int listed: 0
+  // Whether the agents panel is there, which is answered as Setup answers it:
+  // when the card says so, and so the pages change under that very call.
+  property bool panel: false
   // Each step, and how long to wait after it: a step of the tour takes a
   // moment to lay its cards out.
   property var steps: []
@@ -91,7 +96,7 @@ ShellRoot {
     Setup.SetupCard {
       id: card
       anchors.centerIn: parent
-      pages: SetupModel.pages(root.menu.items, root.menu.itemOrder, root.guards, null, null, MenuModel.resolveRoute)
+      pages: SetupModel.pages(root.menu.items, root.menu.itemOrder, root.guards, null, { panel: root.panel, chosen: "" }, null, MenuModel.resolveRoute)
       steps: SetupModel.tourSteps(pages, null)
       ready: root.menu.itemOrder.length > 0
       onFinished: function(argv) { root.finished = argv.join(" ") }
@@ -104,6 +109,14 @@ ShellRoot {
     when: false
   }
 
+  Connections {
+    target: card
+    function onAboutToList() {
+      root.listed++
+      root.panel = true
+    }
+  }
+
   FileView {
     id: result
     path: Quickshell.env("OMARCHY_QML_TEST_RESULT")
@@ -113,9 +126,9 @@ ShellRoot {
   FileView {
     path: Quickshell.env("OMARCHY_PATH") + "/default/omarchy/omarchy-menu.jsonc"
     onLoaded: {
-      // Harnesses enough for the agent's list to scroll, whatever ships.
+      // Backends enough for dictation's list to scroll, whatever ships.
       var more = {}
-      for (var i = 10; i < 50; i++) more["agent.harness.more" + i] = { label: "More " + i, action: "omarchy-default-agent more" + i }
+      for (var i = 10; i < 50; i++) more["setup.default.dictation.more" + i] = { label: "More " + i, action: "omarchy-default-dictation more" + i }
       root.menu = MenuModel.mergeMenuSources(MenuModel.parseMenuJsonc(text()), MenuModel.parseMenuJsonc(JSON.stringify(more)), "")
       stepper.start()
     }
@@ -130,7 +143,9 @@ ShellRoot {
     steps = [
       [function() {
         card.start("tour", "")
+        root.check(root.listed === 0, "the tour's first screen lists nothing yet: " + root.listed)
         root.key(Qt.Key_Return)
+        root.check(root.listed === 1, "its steps are about to be listed as it leaves that screen, once: " + root.listed)
       }, root.settle],
 
       // The tour again, as Setup opens it: a little small, to grow in. The
@@ -160,6 +175,7 @@ ShellRoot {
         pointer.mouseMove(card.parent, root.at.x, root.at.y)
         root.lit([root.floating], "the pointer moving again")
 
+        root.listed = 0
         root.key(Qt.Key_Space)
         root.check(card.stepIndex === 0, "Space stays on the step")
         root.key(Qt.Key_Return)
@@ -167,6 +183,7 @@ ShellRoot {
         root.agree("", "scrolling", "a step with nothing to keep opens on Not now")
         root.key(Qt.Key_Backspace)
         root.agree(root.scrolling, "scrolling", "a step gone back to has its pick as it was left")
+        root.check(root.listed === 0, "going from step to step lists nothing afresh: " + root.listed)
       }, root.settle],
 
       [function() {
@@ -177,10 +194,10 @@ ShellRoot {
         root.key(Qt.Key_Return)
         root.check(root.finished === "omarchy-setup-essentials --layout floating", "Finish runs '" + root.finished + "'")
 
-        // On to a step with a long list.
+        // On to the step with a long list, wherever it comes.
         card.start("tour", "")
-        root.key(Qt.Key_Return)
-        root.key(Qt.Key_Return)
+        card.goToStep(card.steps.map(function(step) { return step.id }).indexOf("dictation"))
+        root.check(card.page && card.page.id === "dictation", "dictation is one of the tour's steps")
       }, root.settle],
 
       // A click on the lowest card that shows, under the fade at the foot of
@@ -192,7 +209,7 @@ ShellRoot {
           return y > 0 && y < options.height
         }).pop()
         var spot = root.middle(under)
-        root.check(options.contentHeight > options.height, "the agent's list is long enough to scroll")
+        root.check(options.contentHeight > options.height, "dictation's list is long enough to scroll")
         root.was = options.contentY
         pointer.mousePress(card.parent, spot.x, spot.y)
         root.key(Qt.Key_Down)
@@ -203,8 +220,13 @@ ShellRoot {
       [function() {
         root.check(root.list().contentY === root.was, "a card just clicked stays under the pointer: the list went from " + root.was + " to " + root.list().contentY)
 
-        // The same list as a page.
-        card.start("app", "agent")
+        // The same list as a page, asked for by name. The agent's page comes
+        // in ahead of it as the card says its pages are about to be listed.
+        root.listed = 0
+        root.panel = false
+        card.start("app", "dictation")
+        root.check(root.listed === 1, "the pages are about to be listed as they open, once: " + root.listed)
+        root.check(card.page && card.page.id === "dictation", "a page asked for by name is looked up among the pages as they then stand: " + (card.page ? card.page.id : null))
       }, root.settle],
 
       // The cursor is put on the last row and, before the list has followed,
