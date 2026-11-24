@@ -40,6 +40,8 @@ cat >"$tmp_dir/bin/pacman" <<'SCRIPT'
 #!/bin/bash
 if [[ $1 == "-Qqo" && $2 == */native.desktop ]]; then
   printf 'native-pkg\n'
+elif [[ $1 == "-Qqo" && $2 == */1password.desktop ]]; then
+  printf '1password\n'
 fi
 SCRIPT
 chmod +x "$tmp_dir/bin/pacman"
@@ -54,6 +56,12 @@ cat >"$tmp_dir/data/applications/Docker.desktop" <<'DESKTOP'
 [Desktop Entry]
 Name=Docker
 Exec=xdg-terminal-exec --app-id=TUI.tile -e lazydocker
+DESKTOP
+
+cat >"$tmp_dir/system/applications/1password.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=1Password
+Exec=1password
 DESKTOP
 
 cat >"$tmp_dir/system/applications/native.desktop" <<'DESKTOP'
@@ -107,3 +115,25 @@ pass "launcher remove deletes user-owned desktop files"
 
 (( ${#lines[@]} == 3 )) || fail "launcher remove does not notify for user-owned desktop files" "$(printf '%s\n' "${lines[@]}")"
 pass "launcher remove does not notify for user-owned desktop files"
+
+onepassword_output="$("$ROOT/bin/omarchy-remove-launcher-entry" 1password.desktop 1Password)"
+for _ in {1..50}; do
+  (( $(grep -c '^terminal:' "$TEST_LOG") == 2 )) && break
+  sleep 0.1
+done
+
+[[ $(tail -n 1 "$TEST_LOG") == "terminal::omarchy-remove-service-1password" ]] || fail "launcher remove routes 1Password through its dedicated remover" "$(tail -n 1 "$TEST_LOG")"
+[[ $onepassword_output == "terminal" ]] || fail "launcher remove routes 1Password through its dedicated remover" "$onepassword_output"
+pass "launcher remove routes 1Password through its dedicated remover"
+
+cat >"$tmp_dir/data/applications/1password.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=1Password
+Exec=1password --silent
+DESKTOP
+
+user_onepassword_output="$("$ROOT/bin/omarchy-remove-launcher-entry" 1password.desktop 1Password)"
+
+[[ ! -e $tmp_dir/data/applications/1password.desktop ]] || fail "launcher remove deletes a user-owned 1Password entry without uninstalling 1Password"
+[[ -z $user_onepassword_output ]] || fail "launcher remove deletes a user-owned 1Password entry without uninstalling 1Password" "$user_onepassword_output"
+pass "launcher remove deletes a user-owned 1Password entry without uninstalling 1Password"
