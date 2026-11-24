@@ -336,6 +336,8 @@ Item {
             cellWidth: root.cellWidth
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
+            // Qt's own wheel handling barely moves the grid for a touchpad swipe.
+            WheelScroll { view: grid; lineHeight: root.cellHeight / Qt.styleHints.wheelScrollLines }
 
             // Mouse wheels keep the grid's own scrolling.
             WheelHandler {

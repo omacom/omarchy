@@ -32,6 +32,10 @@ QtObject {
 
   property int cornerRadius: 0
   property int gapsOut: 5
+  // Hyprland's `input:touchpad:scroll_factor`. Hyprland scales touchpad
+  // scrolling by it before any client sees it; Ui/WheelScroll divides it
+  // back out so shell lists follow the fingers whatever it is set to.
+  property real touchpadScrollFactor: 1
 
   // ---------------------------------------------------------- state tokens
   //
@@ -378,6 +382,7 @@ QtObject {
     hyprctlProc.running = true
     gapsOutProc.running = true
     animationsProc.running = true
+    touchpadScrollProc.running = true
   }
 
   function scheduleRefresh() {
@@ -499,6 +504,22 @@ QtObject {
     target: Hyprland
     function onRawEvent(event) {
       if (event && String(event.name) === "configreloaded") root.refresh()
+    }
+  }
+
+  property Process touchpadScrollProc: Process {
+    id: touchpadScrollProc
+    command: ["hyprctl", "-j", "getoption", "input:touchpad:scroll_factor"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        try {
+          var n = Number(JSON.parse(text || "{}").float)
+          if (isFinite(n) && n > 0) root.touchpadScrollFactor = n
+        } catch (e) {
+          // hyprctl missing / Hyprland not running — leave the previous value.
+        }
+      }
     }
   }
 
