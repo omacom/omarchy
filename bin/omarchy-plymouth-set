@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set the Plymouth boot theme colors and logo
-# omarchy:args=<background-hex> <text-hex> <path-to-logo.png>
+# omarchy:args=<background-hex> <text-hex> <path-to-logo.png> [<bar-hex> <track-hex>]
 # omarchy:examples=omarchy plymouth set '#1d2021' '#ebdbb2' ~/.local/state/omarchy/current/theme/plymouth/logo.png
 # omarchy:requires-sudo=true
 
@@ -12,11 +12,11 @@ set -euo pipefail
 # so the privileged process never resolves a user-controlled input path.
 
 usage() {
-  echo "Usage: omarchy-plymouth-set <background-hex> <text-hex> <path-to-logo.png>" >&2
+  echo "Usage: omarchy-plymouth-set <background-hex> <text-hex> <path-to-logo.png> [<bar-hex> <track-hex>]" >&2
   exit 1
 }
 
-if (( $# == 3 )); then
+if (( $# == 3 || $# == 5 )); then
   mode=set
 elif (( $# == 1 )); then
   case "$1" in
@@ -43,10 +43,18 @@ logo_fd=
 if [[ $mode != "set" ]]; then
   bg_hex=
   text_hex=
+  bar_hex=
+  track_hex=
 else
   bg_hex="${1#\#}"
   text_hex="${2#\#}"
   logo_path="$3"
+  bar_hex="${4:-$text_hex}"
+  bar_hex="${bar_hex#\#}"
+  track_hex="${5:-}"
+  if [[ -n $track_hex ]]; then
+    track_hex="${track_hex#\#}"
+  fi
 
   if ! [[ $bg_hex =~ ^[0-9a-fA-F]{6}$ ]]; then
     echo "Invalid background color: $1 (expected #RRGGBB)" >&2
@@ -55,6 +63,16 @@ else
 
   if ! [[ $text_hex =~ ^[0-9a-fA-F]{6}$ ]]; then
     echo "Invalid text color: $2 (expected #RRGGBB)" >&2
+    exit 1
+  fi
+
+  if ! [[ $bar_hex =~ ^[0-9a-fA-F]{6}$ ]]; then
+    echo "Invalid progress bar color: ${4:-} (expected #RRGGBB)" >&2
+    exit 1
+  fi
+
+  if [[ -n $track_hex ]] && ! [[ $track_hex =~ ^[0-9a-fA-F]{6}$ ]]; then
+    echo "Invalid progress track color: ${5:-} (expected #RRGGBB)" >&2
     exit 1
   fi
 
@@ -106,6 +124,8 @@ run_root_transaction() {
     bg_hex=$3
     text_hex=$4
     max_asset_size=$5
+    bar_hex=${6:-$text_hex}
+    track_hex=${7:-}
 
     failure_context="the arguments of the privileged transaction"
     [[ $mode == "set" || $mode == "refresh-plymouth" || $mode == "refresh-sddm" ]]
@@ -189,6 +209,10 @@ run_root_transaction() {
     if [[ $mode == "set" ]]; then
       [[ $bg_hex =~ ^[0-9a-fA-F]{6}$ ]]
       [[ $text_hex =~ ^[0-9a-fA-F]{6}$ ]]
+      [[ $bar_hex =~ ^[0-9a-fA-F]{6}$ ]]
+      if [[ -n $track_hex ]]; then
+        [[ $track_hex =~ ^[0-9a-fA-F]{6}$ ]]
+      fi
     fi
 
     theme_dir=/usr/share/plymouth/themes/omarchy
@@ -287,9 +311,15 @@ run_root_transaction() {
         -e "s/^Window.SetBackgroundBottomColor.*/Window.SetBackgroundBottomColor($bg_r, $bg_g, $bg_b);/" \
         "$plymouth_stage/omarchy.script"
 
-      for asset in bullet.png entry.png lock.png progress_bar.png; do
+      for asset in bullet.png entry.png lock.png; do
         magick "$plymouth_stage/$asset" -channel RGB +level-colors "#$text_hex","#$text_hex" "$plymouth_stage/$asset"
       done
+
+      magick "$plymouth_stage/progress_bar.png" -channel RGB +level-colors "#$bar_hex","#$bar_hex" "$plymouth_stage/progress_bar.png"
+
+      if [[ -n $track_hex ]]; then
+        magick "$plymouth_stage/progress_box.png" -channel RGB +level-colors "#$track_hex","#$track_hex" "$plymouth_stage/progress_box.png"
+      fi
 
       copy_trusted_file "$source_root/default/sddm/omarchy/Main.qml" "$sddm_stage/Main.qml"
       sed -i \
@@ -361,7 +391,7 @@ run_root_transaction() {
       validate_trusted_directory "$sddm_dir"
       rm -f -- "$sddm_dir/logo.svg"
     fi
-  ' bash "$mode" "$OMARCHY_PATH" "$bg_hex" "$text_hex" "$((64 * 1024 * 1024))"
+  ' bash "$mode" "$OMARCHY_PATH" "$bg_hex" "$text_hex" "$((64 * 1024 * 1024))" "$bar_hex" "$track_hex"
 }
 
 if [[ $mode == "set" ]]; then
