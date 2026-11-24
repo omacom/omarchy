@@ -327,6 +327,14 @@ set_icons
 [[ $(<"$state/icons/gliff.svg") == "drawn" ]] || fail "an icon that needs no colors stays under a theme that can't draw the rest"
 pass "a theme that can't draw app icons brings the packaged ones back"
 
+if timeout 2s "$ROOT/bin/omarchy-theme-color" --file >/dev/null 2>&1; then
+  fail "omarchy-theme-color rejects --file without a value"
+else
+  status=$?
+  (( status != 124 )) || fail "omarchy-theme-color hangs when --file has no value"
+fi
+pass "omarchy-theme-color fails cleanly when --file lacks a value"
+
 # A sparse palette with only background and foreground renders without subscript
 # errors, does not export empty accent/blue aliases, and falls back to a concrete
 # hex color when a gradient helper provides one.

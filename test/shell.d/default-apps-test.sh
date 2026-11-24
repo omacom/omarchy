@@ -152,8 +152,9 @@ printf '#!/bin/bash\nexit 0\n' >"$mock_bin/omarchy-lifecycle-dispatch"
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
-# The user's own XDG dirs would win over HOME; keep every write in the test home.
-export XDG_CONFIG_HOME="$test_home/.config" XDG_DATA_HOME="$test_home/.local/share"
+# The user's and system's XDG dirs would win over HOME; keep every read and write in the test sandbox.
+export XDG_CONFIG_HOME="$test_home/.config" XDG_CONFIG_DIRS="$test_tmp/etc"
+export XDG_DATA_HOME="$test_home/.local/share" XDG_DATA_DIRS="$test_tmp/system"
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_INSTALLED_DIR="$installed_dir"
@@ -484,3 +485,27 @@ if OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-editor --install vim >"$test_t
 fi
 [[ $(omarchy-default-editor) == "$previous_editor" ]] || fail "failed installation preserves the default"
 pass "failed installation preserves the current default"
+
+# Fast-path default terminal query answers directly from xdg-terminals.list
+# without invoking xdg-terminal-exec, and falls back when a desktop-specific
+# list is present.
+cat >"$mock_bin/xdg-terminal-exec" <<SH
+#!/bin/bash
+printf 'called\n' >>"$test_tmp/xdg-term-calls"
+printf 'Alacritty.desktop\n'
+SH
+printf '#!/bin/bash\nexit 0\n' >"$mock_bin/kitty"
+chmod +x "$mock_bin/xdg-terminal-exec" "$mock_bin/kitty"
+printf '# comment\nkitty.desktop\n' >"$test_home/.config/xdg-terminals.list"
+: >"$test_tmp/xdg-term-calls"
+[[ $(XDG_CURRENT_DESKTOP=Hyprland omarchy-default-terminal) == "kitty" ]] ||
+  fail "default terminal fast path reads kitty from xdg-terminals.list"
+[[ ! -s $test_tmp/xdg-term-calls ]] ||
+  fail "default terminal fast path avoids spawning xdg-terminal-exec"
+printf 'custom.desktop\n' >"$test_home/.config/hyprland-xdg-terminals.list"
+[[ $(XDG_CURRENT_DESKTOP=Hyprland omarchy-default-terminal) == "alacritty" ]] ||
+  fail "default terminal falls back to xdg-terminal-exec for desktop-specific lists"
+[[ -s $test_tmp/xdg-term-calls ]] ||
+  fail "default terminal invokes xdg-terminal-exec when a desktop-specific list exists"
+rm -f "$test_home/.config/hyprland-xdg-terminals.list"
+pass "default terminal fast path answers standard configs and falls back cleanly"

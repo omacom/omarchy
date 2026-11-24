@@ -1,29 +1,29 @@
 # Omarchy a...
 
-### Xips Apple M1/M2
+### Macs amb Apple Silicon
 
-[Asahi Alarm](https://asahi-alarm.org/) és una versió d'Arch per a ordinadors Apple M1/M2 construïda damunt d'[Asahi Linux](https://asahilinux.org/). Pots fer funcionar Omarchy damunt d'això amb una mica d'esforç. Consulta [la guia impulsada per usuaris](https://github.com/omarchy-mac/omarchy-mac).
+Omarchy per a Apple Silicon funciona amb Macs M1, M2 i M3 i s'instal·la al costat de macOS. Consulteu [Omarchy per a Apple Silicon](44-mac-support.md#omarchy-for-apple-silicon) al capítol de suport per a Mac.
 
-### Màquina virtual Apple
+### Proveu Omarchy en un Mac
 
-També pots instal·lar Omarchy dins d'una màquina virtual de Parallels. És un procés força farragós, però també hi ha [una guia impulsada per usuaris](https://github.com/omacom/omarchy/discussions/452) per a això.
+[Proveu Omarchy](https://github.com/omacom/try-omarchy) executa Omarchy en una màquina virtual en qualsevol Mac amb Apple Silicon amb macOS 15 o posterior, sense haver de particionar res ni d'instal·lar res al costat de macOS.
 
 ### VirtualBox
 
-VirtualBox és un executor de màquines virtuals popular. [També pots executar Omarchy a dins d'això](https://github.com/omacom/omarchy/discussions/176). Però probablement el rendiment no serà gaire bo.
+VirtualBox és un popular executor de VM. [També podeu executar Omarchy dins d'aquest](https://github.com/omacom/omarchy/discussions/176). Però probablement el rendiment no serà gaire bo.
 
 ### VMware Workstation a Windows 11
 
-Un altre executor de màquines virtuals popular per a Windows. [Omarchy també hi ha estat configurat a dins](https://github.com/omacom/omarchy/discussions/572).
+Un altre executor de VM popular per a Windows. [Omarchy també s'ha configurat dins d'aquest](https://github.com/omacom/omarchy/discussions/572).
 
 ### Steam Deck
 
-La Steam Deck funciona amb Arch, de manera que pots executar Omarchy a la teva Steam Deck. Altynbek Orumbayev té [un script de configuració complet i l'explicació de com fer-ho](https://github.com/aorumbayev/deckarchy). Que guai, oi!
+La Steam Deck funciona amb Arch, cosa que vol dir que podeu executar Omarchy a la vostra Steam Deck. Altynbek Orumbayev té [un script d'instal·lació complet i una explicació de com fer-ho](https://github.com/aorumbayev/deckarchy). Que bé, oi!
 
 ### NixOS
 
-Omarchy és en realitat Arch + Hyprland, però Henry Sipp ha [traspassat l'essència de la configuració a NixOS](https://github.com/henrysipp/omarchy-nix). De manera que, si t'has «nix-pillulat», aquí tens un bon punt de partida. Pot ser que es mantingui al dia amb els darrers canvis d'Omarchy o no, però és bastant guai de totes maneres!
+En realitat, Omarchy és Arch + Hyprland, però Henry Sipp ha [portat l'essència de la configuració a NixOS](https://github.com/henrysipp/omarchy-nix). Així que, si ja us heu deixat seduir per Nix, aquí teniu un bon punt de partida. Pot ser que es mantingui actualitzat amb els canvis més recents d'Omarchy o pot ser que no, però tot i això és força genial!
 
 ### Una altra cosa!
 
-Si estàs provant de fer funcionar Omarchy en una configuració que no és la per defecte, t'hauries d'unir al canal #omarchy-on-other al [Discord de la nostra comunitat](https://discord.gg/tXFUdasqhY).
+Si esteu intentant que Omarchy funcioni en una configuració que no és la predeterminada, hauríeu d'unir-vos al canal #omarchy-on-other del [Discord de la nostra comunitat](https://discord.gg/tXFUdasqhY).

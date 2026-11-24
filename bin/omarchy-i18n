@@ -64,35 +64,79 @@ english_catalog=$i18n/en/cli.json
 registry=$i18n/locales.json
 [[ -f $registry ]] || registry=/dev/null
 
-# One jq run picks the string and localizes the arguments; the results come
-# back NUL-separated so a string may itself span lines. The -- after --args
-# keeps an argument that starts with a dash (a label like "-work") from being
-# read as a jq option.
-parts=()
-mapfile -d '' parts < <(jq -j -n -L "$i18n" \
-  --arg key "$key" --arg language "$language" --argjson count "$count" \
-  --slurpfile lang "$language_catalog" --slurpfile en "$english_catalog" --slurpfile registry "$registry" '
-  include "plural";
-  def present: . != null and . != "";
-  ($lang[0] // {}) as $l | ($en[0] // {}) as $e | ($registry[0][$language] // {}) as $r
-  | (if ($l[$key] | present) then [$l[$key], $language]
-     elif ($e[$key] | present) then [$e[$key], "en"]
-     else [$key, "en"] end) as [$entry, $from]
-  | (if $count == null then (if ($entry | type) == "object" then $entry.other else $entry end)
-     else ($entry | plural_pick($from; $count)) end) as $string
-  | [$string // $key] + ($ARGS.positional | map(localize_number($r.decimal // "."; $r.zeroDigit // "0")))
-  | map(tostring + "\u0000") | add
-' --args -- "$@" 2>/dev/null) || true
+# Fast path for plain, non-plural catalog entries without numeric arguments or
+# JSON escapes: avoids spawning jq and parsing three JSON files on every lookup.
+# Any key carrying escapes, an empty string, a plural object, or numeric args
+# falls through to the jq path below.
+fast_lookup() {
+  local catalog="$1" needle="\"$key\":" line
+  [[ -f $catalog ]] || return 1
+  while IFS= read -r line; do
+    [[ $line == *$needle* ]] || continue
+    if [[ $line =~ ^[[:space:]]*\"([^\"]+)\"[[:space:]]*:[[:space:]]*\"([^\"\\]+)\"[[:space:]]*,?[[:space:]]*$ ]] && [[ ${BASH_REMATCH[1]} == $key ]]; then
+      string=${BASH_REMATCH[2]}
+      return 0
+    fi
+    return 2
+  done <"$catalog"
+  return 1
+}
 
-if (( ${#parts[@]} == 0 )); then
-  parts=("$key" "$@")
+fast_hit=0
+if [[ $count == "null" && $key =~ ^[A-Za-z0-9._-]+$ ]] && (( number_only == 0 )); then
+  has_number=0
+  for arg in "$@"; do
+    if [[ $arg =~ ^-?[0-9]+([.][0-9]+)?$ ]]; then
+      has_number=1
+      break
+    fi
+  done
+  if (( has_number == 0 )); then
+    lookup_status=0
+    fast_lookup "$language_catalog" || lookup_status=$?
+    if (( lookup_status == 0 )); then
+      args=("$@")
+      fast_hit=1
+    elif (( lookup_status == 1 )) && [[ $language != "en" ]]; then
+      if fast_lookup "$english_catalog"; then
+        args=("$@")
+        fast_hit=1
+      fi
+    fi
+  fi
 fi
-if (( number_only )); then
-  printf '%s' "${parts[1]}"
-  exit 0
+
+if (( !fast_hit )); then
+  # One jq run picks the string and localizes the arguments; the results come
+  # back NUL-separated so a string may itself span lines. The -- after --args
+  # keeps an argument that starts with a dash (a label like "-work") from being
+  # read as a jq option.
+  parts=()
+  mapfile -d '' parts < <(jq -j -n -L "$i18n" \
+    --arg key "$key" --arg language "$language" --argjson count "$count" \
+    --slurpfile lang "$language_catalog" --slurpfile en "$english_catalog" --slurpfile registry "$registry" '
+    include "plural";
+    def present: . != null and . != "";
+    ($lang[0] // {}) as $l | ($en[0] // {}) as $e | ($registry[0][$language] // {}) as $r
+    | (if ($l[$key] | present) then [$l[$key], $language]
+       elif ($e[$key] | present) then [$e[$key], "en"]
+       else [$key, "en"] end) as [$entry, $from]
+    | (if $count == null then (if ($entry | type) == "object" then $entry.other else $entry end)
+       else ($entry | plural_pick($from; $count)) end) as $string
+    | [$string // $key] + ($ARGS.positional | map(localize_number($r.decimal // "."; $r.zeroDigit // "0")))
+    | map(tostring + "\u0000") | add
+  ' --args -- "$@" 2>/dev/null) || true
+
+  if (( ${#parts[@]} == 0 )); then
+    parts=("$key" "$@")
+  fi
+  if (( number_only )); then
+    printf '%s' "${parts[1]}"
+    exit 0
+  fi
+  string=${parts[0]}
+  args=("${parts[@]:1}")
 fi
-string=${parts[0]}
-args=("${parts[@]:1}")
 
 # Substitute through sentinels so an argument that itself contains a %N
 # sequence is never substituted twice.
