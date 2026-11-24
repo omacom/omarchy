@@ -63,7 +63,7 @@ set_base_size() {
 
   local tmp
   tmp="$(mktemp)"
-  awk -v val="$size" '
+  if awk -v val="$size" '
     function emit_base() { print "base-size = " val; done = 1 }
     /^[[:space:]]*\[/ {
       if (in_font && !done) emit_base()
@@ -84,8 +84,10 @@ set_base_size() {
         emit_base()
       }
     }
-  ' "$shell_config" >"$tmp"
-  mv "$tmp" "$shell_config"
+  ' "$shell_config" >"$tmp"; then
+    cat "$tmp" >"$shell_config"
+  fi
+  rm -f "$tmp"
 }
 
 # Drop the base-size line, returning the shell to the theme/default size.
@@ -93,12 +95,14 @@ reset_base_size() {
   [[ -f $shell_config ]] || return 0
   local tmp
   tmp="$(mktemp)"
-  awk '
+  if awk '
     /^[[:space:]]*\[/ { in_font = ($0 ~ /^[[:space:]]*\[font\]([[:space:]]|$)/) }
     in_font && /^[[:space:]]*base-size[[:space:]]*=/ { next }
     { print }
-  ' "$shell_config" >"$tmp"
-  mv "$tmp" "$shell_config"
+  ' "$shell_config" >"$tmp"; then
+    cat "$tmp" >"$shell_config"
+  fi
+  rm -f "$tmp"
 }
 
 # ---- GTK text-scaling-factor ----
