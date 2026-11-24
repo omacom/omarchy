@@ -164,6 +164,14 @@ function previewText(entry, tr, trn, fmt) {
   return String(entry.text || "").replace(/\s+/g, " ")
 }
 
+// One line for the copy toast, capped at maxLength characters.
+function toastText(entry, maxLength, tr, trn, fmt) {
+  if (!entry) return ""
+  var max = Number(maxLength) > 0 ? Number(maxLength) : 48
+  var text = previewText(entry, tr, trn, fmt).trim()
+  return text.length > max ? text.slice(0, max - 1) + "…" : text
+}
+
 function fullText(entry) {
   if (!entry) return ""
   var paths = filePaths(entry)
@@ -234,6 +242,7 @@ if (typeof module !== "undefined") {
     filePaths: filePaths,
     fileEntryText: fileEntryText,
     fullText: fullText,
+    toastText: toastText,
     displayRows: displayRows
   }
 }
