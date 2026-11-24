@@ -55,6 +55,10 @@ ln -s "$test_tmp/package/default/agents/skills/retired" "$test_tmp/relink/.claud
 ln -s /opt/elsewhere/skill "$test_tmp/relink/.claude/skills/theirs"
 ln -s /opt/elsewhere/game "$test_tmp/relink/.claude/skills/omarchy-make-game"
 mkdir -p "$test_tmp/relink/.claude/skills/omarchy-make-app"
+# Skills linked on request for an optional tool: one the checkout has, one it doesn't.
+ln -s "$test_tmp/package/default/agents/optional-skills/cua-omarchy" "$test_tmp/relink/.claude/skills/cua-omarchy"
+ln -s "$test_tmp/package/default/agents/optional-skills/retired-tool" "$test_tmp/relink/.claude/skills/retired-tool"
+ln -s "$test_tmp/package/default/agents/optional-skills/cua-omarchy" "$test_tmp/relink/.claude/skills/their-name-for-it"
 HOME="$test_tmp/relink" "$ROOT/bin/omarchy-agent-skills-link" "$ROOT" || fail "omarchy-agent-skills-link links a checkout"
 [[ $(readlink "$test_tmp/relink/.claude/skills/omarchy") == "$ROOT/default/agents/skills/omarchy" ]] ||
   fail "a skill linked from the package now links to the checkout" "$(readlink "$test_tmp/relink/.claude/skills/omarchy")"
@@ -67,6 +71,15 @@ HOME="$test_tmp/relink" "$ROOT/bin/omarchy-agent-skills-link" "$ROOT" || fail "o
 [[ $(readlink "$test_tmp/relink/.agents/skills/omarchy-make-game") == "$ROOT/default/agents/skills/omarchy-make-game" ]] ||
   fail "every skill in the checkout is linked, including ones the package lacks"
 pass "omarchy-agent-skills-link moves Omarchy's skill links to the tree in use and keeps the user's"
+
+[[ $(readlink "$test_tmp/relink/.claude/skills/cua-omarchy") == "$ROOT/default/agents/optional-skills/cua-omarchy" ]] ||
+  fail "an optional skill linked from the package now links to the checkout" "$(readlink "$test_tmp/relink/.claude/skills/cua-omarchy")"
+[[ ! -L $test_tmp/relink/.claude/skills/retired-tool ]] || fail "a link to an optional skill the checkout doesn't have is removed"
+[[ $(readlink "$test_tmp/relink/.claude/skills/their-name-for-it") == "$ROOT/default/agents/optional-skills/cua-omarchy" ]] ||
+  fail "an optional skill linked under another name follows the tree by the skill it points at" "$(readlink "$test_tmp/relink/.claude/skills/their-name-for-it" 2>&1)"
+[[ ! -e $test_tmp/relink/.agents/skills/cua-omarchy && ! -L $test_tmp/relink/.agents/skills/cua-omarchy ]] ||
+  fail "an optional skill is not linked where its install flow had not linked it"
+pass "omarchy-agent-skills-link moves the optional skill links that exist and adds none"
 
 # Pi's extension package follows the same rules as the skills.
 [[ $(readlink "$test_tmp/home/.pi/agent/extensions/omarchy") == "$ROOT/default/agents/pi" ]] ||
