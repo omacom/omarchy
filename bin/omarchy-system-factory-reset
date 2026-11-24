@@ -520,9 +520,8 @@ rebuild_next_boot() {
       -e $next/etc/limine-entry-tool.d/rtc-alarm.conf ||
       -e $next/var/lib/omarchy/hibernation-resume-rebuild ]]; then
     log "Removing legacy hibernation configuration from the factory system"
-    if grep -Eq '^[[:space:]]*/swap/swapfile([[:space:]]|$)' "$next/etc/fstab" 2>/dev/null; then
+    [[ ! -f $next/etc/fstab ]] ||
       sed -i -E '/^[[:space:]]*\/swap\/swapfile([[:space:]]|$)/d; /^# Btrfs swapfile for system hibernation$/d' "$next/etc/fstab"
-    fi
     rm -f "$next/etc/mkinitcpio.conf.d/omarchy_resume.conf" \
       "$next/etc/limine-entry-tool.d/resume.conf" \
       "$next/etc/limine-entry-tool.d/rtc-alarm.conf" \

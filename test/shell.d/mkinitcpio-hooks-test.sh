@@ -218,11 +218,11 @@ assert_composed "NVIDIA-only without early nvidia_drm keeps kms" x86 \
 
 new_etc
 drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
-drop_in omarchy_resume.conf <<<"HOOKS+=(resume)"
+drop_in custom_hook.conf <<<"HOOKS+=(custom)"
 drop_in 99-omarchy-provisioning-key.conf <<<"FILES+=(/etc/omarchy/provisioning.key)"
 pci_devices 0x10de:0x030000
-assert_composed "NVIDIA-only with hibernation and a provisioning key is unchanged" x86 \
-  "$omarchy_hooks_without_kms resume" "$nvidia_modules thunderbolt" "/etc/omarchy/provisioning.key"
+assert_composed "NVIDIA-only with a custom hook drop-in and a provisioning key is unchanged" x86 \
+  "$omarchy_hooks_without_kms custom" "$nvidia_modules thunderbolt" "/etc/omarchy/provisioning.key"
 
 new_etc
 drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci? usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
@@ -246,10 +246,10 @@ assert_composed "a Surface is unchanged" x86 \
 # systemd line their mkinitcpio.conf starts from.
 for platform in aarch64; do
   new_etc
-  drop_in omarchy_resume.conf <<<"HOOKS+=(resume)"
+  drop_in custom_hook.conf <<<"HOOKS+=(custom)"
   drop_in 99-omarchy-provisioning-key.conf <<<"FILES+=(/etc/omarchy/provisioning.key)"
-  assert_composed "$platform with hibernation and a provisioning key is unchanged" "$platform" \
-    "$omarchy_hooks resume" "thunderbolt" "/etc/omarchy/provisioning.key"
+  assert_composed "$platform with a custom hook drop-in and a provisioning key is unchanged" "$platform" \
+    "$omarchy_hooks custom" "thunderbolt" "/etc/omarchy/provisioning.key"
 done
 
 # A Snapdragon laptop's internal keyboard on I2C needs the I2C HID transport

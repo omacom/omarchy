@@ -23,31 +23,42 @@ has_fstab_swapfile() {
   grep -Eq '^[[:space:]]*/swap/swapfile([[:space:]]|$)' /etc/fstab 2>/dev/null
 }
 
-artifacts=(
-  "$swap_file"
-  "$mkinitcpio_conf"
-  "$resume_drop_in"
-  "$rtc_alarm_drop_in"
-  "$resume_rebuild_pending"
-  "$keyboard_backlight_hook"
-  "$yoga_service"
-  "$yoga_recover_hook"
-  "${facetimehd_drop_ins[@]}"
-)
+# Match files installed by Omarchy's retired hibernation helpers so custom
+# administrator-authored files at those paths are left alone.
+is_omarchy_file() {
+  local path="$1" marker="$2"
+  [[ -f $path && ! -L $path ]] && grep -Fq "$marker" "$path" 2>/dev/null
+}
 
-needs_cleanup=false
-if has_swapfile_active || has_fstab_swapfile; then
-  needs_cleanup=true
-else
-  for path in "${artifacts[@]}"; do
-    if [[ -e $path || -L $path ]]; then
-      needs_cleanup=true
-      break
-    fi
-  done
+omarchy_files_to_remove=()
+if is_omarchy_file "$keyboard_backlight_hook" "Turn off keyboard backlight before hibernate"; then
+  omarchy_files_to_remove+=("$keyboard_backlight_hook")
+fi
+if is_omarchy_file "$yoga_service" "/usr/share/omarchy/install/hardware/lenovo/yoga-slim7x-hibernate.sh"; then
+  omarchy_files_to_remove+=("$yoga_service")
+fi
+if is_omarchy_file "$yoga_recover_hook" "yoga-slim7x-hibernate.service"; then
+  omarchy_files_to_remove+=("$yoga_recover_hook")
+fi
+for drop_in in "${facetimehd_drop_ins[@]}"; do
+  if is_omarchy_file "$drop_in" "omarchy-system-sleep-facetimehd"; then
+    omarchy_files_to_remove+=("$drop_in")
+  fi
+done
+
+rebuild_needed=false
+if [[ -e $mkinitcpio_conf || -L $mkinitcpio_conf ||
+  -e $resume_drop_in || -L $resume_drop_in ||
+  -e $rtc_alarm_drop_in || -L $rtc_alarm_drop_in ||
+  -e $resume_rebuild_pending || -L $resume_rebuild_pending ]]; then
+  rebuild_needed=true
 fi
 
-$needs_cleanup || exit 0
+if ! has_swapfile_active && ! has_fstab_swapfile &&
+  [[ ! -e $swap_file && ! -L $swap_file ]] &&
+  ! $rebuild_needed && (( ${#omarchy_files_to_remove[@]} == 0 )); then
+  exit 0
+fi
 
 # Disable the swapfile before touching fstab or boot config so an out-of-memory
 # swapoff fails early without leaving a half-migrated system.
@@ -59,58 +70,35 @@ if has_swapfile_active; then
   fi
 fi
 
-if [[ -e $swap_file || -L $swap_file ]]; then
-  echo "Removing $swap_file"
-  sudo rm -f "$swap_file"
-fi
-
-if [[ -d $swap_subvolume ]] && sudo btrfs subvolume show "$swap_subvolume" &>/dev/null; then
-  if [[ -z $(sudo find "$swap_subvolume" -mindepth 1 -maxdepth 1 -print -quit) ]]; then
-    echo "Removing Btrfs subvolume $swap_subvolume"
-    sudo btrfs subvolume delete "$swap_subvolume" >/dev/null
-  fi
-fi
-
+# Remove the fstab entry before deleting the swapfile so an interruption in
+# between cannot leave a failing swap unit on the next boot.
 if has_fstab_swapfile; then
   echo "Removing $swap_file from /etc/fstab"
   sudo cp -a /etc/fstab "/etc/fstab.$(date +%Y%m%d%H%M%S).back"
   sudo sed -i -E '/^[[:space:]]*\/swap\/swapfile([[:space:]]|$)/d; /^# Btrfs swapfile for system hibernation$/d' /etc/fstab
 fi
 
-systemd_changed=false
-
-if [[ -e $keyboard_backlight_hook || -L $keyboard_backlight_hook ]]; then
-  sudo rm -f "$keyboard_backlight_hook"
+if [[ -e $swap_file || -L $swap_file ]]; then
+  echo "Removing $swap_file"
+  sudo rm -f "$swap_file"
 fi
 
-if [[ -e $yoga_service || -L $yoga_service ]]; then
-  sudo systemctl disable yoga-slim7x-hibernate.service 2>/dev/null || true
-  sudo rm -f "$yoga_service"
-  systemd_changed=true
-fi
-
-if [[ -e $yoga_recover_hook || -L $yoga_recover_hook ]]; then
-  sudo rm -f "$yoga_recover_hook"
-fi
-
-for drop_in in "${facetimehd_drop_ins[@]}"; do
-  if [[ -e $drop_in || -L $drop_in ]]; then
-    sudo rm -f "$drop_in"
-    sudo rmdir "${drop_in%/*}" 2>/dev/null || true
-    systemd_changed=true
+if [[ -d $swap_subvolume ]] && ! mountpoint -q "$swap_subvolume" && sudo btrfs subvolume show "$swap_subvolume" &>/dev/null; then
+  if [[ -z $(sudo find "$swap_subvolume" -mindepth 1 -maxdepth 1 -print -quit) ]]; then
+    echo "Removing Btrfs subvolume $swap_subvolume"
+    sudo btrfs subvolume delete "$swap_subvolume" >/dev/null
   fi
-done
-
-if $systemd_changed; then
-  sudo systemctl daemon-reload
 fi
 
-rebuild_needed=false
-if [[ -e $mkinitcpio_conf || -L $mkinitcpio_conf ||
-  -e $resume_drop_in || -L $resume_drop_in ||
-  -e $rtc_alarm_drop_in || -L $rtc_alarm_drop_in ||
-  -e $resume_rebuild_pending || -L $resume_rebuild_pending ]]; then
-  rebuild_needed=true
+if (( ${#omarchy_files_to_remove[@]} > 0 )); then
+  if is_omarchy_file "$yoga_service" "/usr/share/omarchy/install/hardware/lenovo/yoga-slim7x-hibernate.sh"; then
+    sudo systemctl disable yoga-slim7x-hibernate.service 2>/dev/null || true
+  fi
+  sudo rm -f "${omarchy_files_to_remove[@]}"
+  for drop_in in "${facetimehd_drop_ins[@]}"; do
+    sudo rmdir "${drop_in%/*}" 2>/dev/null || true
+  done
+  sudo systemctl daemon-reload
 fi
 
 if $rebuild_needed; then
@@ -134,9 +122,6 @@ if $rebuild_needed; then
     fi
     rm -f "$rebuild_log"
     trap - EXIT
-  elif omarchy-cmd-present mkinitcpio; then
-    echo "Rebuilding initramfs without hibernation resume..."
-    sudo mkinitcpio -P
   fi
 
   sudo rm -f "$resume_rebuild_pending"

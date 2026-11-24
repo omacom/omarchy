@@ -596,7 +596,7 @@ preserve_kernel_cmdline_root() {
         have_unlock=1
         boot_params+=("$param")
         ;;
-      rootflags | rootfstype | rootwait | rootdelay | resume | resume_offset | rd.lvm.lv | rd.lvm.vg | rd.md.uuid | rd.dm.uuid)
+      rootflags | rootfstype | rootwait | rootdelay | rd.lvm.lv | rd.lvm.vg | rd.md.uuid | rd.dm.uuid)
         boot_params+=("$param")
         ;;
     esac
