@@ -26,11 +26,11 @@
   "update": {
     "label": "Kemas Kini"
   },
-  "about": {
-    "label": "Perihal"
-  },
   "system": {
     "label": "Sistem"
+  },
+  "system.about": {
+    "label": "Perihal"
   },
   "system.screensaver": {
     "label": "Tabir Skrin"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Input"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Bahasa"
+  },
+  "setup.region.timezone": {
+    "label": "Zon Masa"
   },
   "setup.network": {
     "label": "Rangkaian"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "Lalai"
-  },
-  "agent": {
-    "label": "Ejen"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Pelayar",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "But Terus"
-  },
-  "setup.reset": {
-    "label": "Set Semula Komputer"
+  "remove.factory-reset": {
+    "label": "Tetapan Semula Kilang"
   },
   "install.package": {
     "label": "Pakej"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "Kata Laluan"
   },
-  "update.timezone": {
-    "label": "Zon Masa"
-  },
   "update.time": {
     "label": "Masa"
   },
@@ -1131,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "Pad Jejak"
-  },
-  "update.password.drive": {
-    "label": "Penyulitan Pemacu"
-  },
-  "update.password.user": {
-    "label": "Pengguna"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Papar % Bateri"
@@ -1228,34 +1171,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Nyahdayakan Skrin Sentuh"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "Biasa"
   },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "Harness Lalai"
-  },
-  "agent.instructions": {
-    "label": "Arahan"
-  },
-  "agent.make": {
-    "label": "Buat sesuatu"
-  },
-  "agent.make.theme": {
-    "label": "Buat tema"
-  },
-  "agent.make.plugin": {
-    "label": "Buat pemalam"
-  },
-  "agent.make.app": {
-    "label": "Buat apl"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikon"
+  },
+  "install.style.icons": {
+    "label": "Ikon"
+  },
+  "remove.icons": {
+    "label": "Ikon"
+  },
+  "update.icons": {
+    "label": "Ikon Tambahan"
+  },
+  "system.firmware": {
+    "label": "Mulakan semula ke BIOS",
+    "description": "Mulakan semula ke tetapan firmware UEFI"
+  },
+  "setup.region": {
+    "label": "Wilayah"
+  },
+  "setup.region.formats": {
+    "label": "Format",
+    "description": "Cara tarikh, masa, nombor dan unit ditulis"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Nama Hos"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
