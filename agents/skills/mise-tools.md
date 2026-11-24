@@ -6,7 +6,7 @@ Read this before adding or changing a mise-managed tool. Default tools belong in
 
 mise keeps language runtimes and the tools that run on them: Node.js, and npm tools such as Playwright and Cloudflare's `cf`. Everything else is a package in omacom/omarchy-pkgs, updated by `omarchy update` like the rest of the system. That includes every coding agent and standalone CLI (`gh`, `uv`, `hunk`, `ghui`, `basecamp`, `hey`).
 
-- A coding agent is a package on the fast ring, which publishes each upstream release to every channel within the hour. It's installed the first time it's picked, through `omarchy-install-agent-cli`, which maps the agent's command to its package. Add a new agent there, in `omarchy-default-agent`, and in `omarchy-agent`.
+- A coding agent is a package on the fast ring, which publishes each upstream release to every channel within the hour. It is installed explicitly, from _Install > AI > CLI_ or by picking it in the agents panel, through `omarchy-install-ai-cli`, which maps the agent's command to its package. Add a new agent there, under `install.ai.cli` and `remove.ai.cli` in the menu, in `omarchy-default-agent`, and in `omarchy-agent`.
 - A CLI everyone gets goes in `install/omarchy-base.packages`.
 - A package turns off the tool's own updater, since pacman owns updates.
 

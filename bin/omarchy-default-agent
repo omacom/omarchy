@@ -75,7 +75,7 @@ esac
 # Hermes and OpenClaw are self-updating runtimes in the user's home, Hermes the
 # desktop app's and OpenClaw the one its Control UI updates; see
 # omarchy-install-hermes-cli and omarchy-install-openclaw-cli. Every other agent
-# is a package that omarchy-install-agent-cli installs.
+# is a package that omarchy-install-ai-cli installs.
 if [[ -n ${agent_installer:-} ]]; then
   # Not omarchy-cmd-present: a command on PATH says nothing about whether the
   # install behind it finished or runs the sessions omarchy-agent starts.
@@ -89,8 +89,8 @@ elif [[ $agent == "pi" || $agent == "local" ]]; then
   agent_present() { true; }
   agent_install() { true; }
 else
-  agent_present() { omarchy-install-agent-cli --check "$agent"; }
-  agent_install() { omarchy-install-agent-cli "$agent"; }
+  agent_present() { omarchy-install-ai-cli --check "$agent"; }
+  agent_install() { omarchy-install-ai-cli "$agent"; }
 fi
 
 if [[ $checking == "true" ]]; then

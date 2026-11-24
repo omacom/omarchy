@@ -33,16 +33,11 @@ fi
 
 # Resolve before restoring dispatch on PATH: mise removes the wrapper paths to
 # avoid recursion, but the agent's subprocesses need them for other providers.
-# The wrapper is there before the agent's package is, so the first run of the
-# command in a terminal installs it. A script running it gets no password
-# prompt out of nowhere.
+# The wrapper is there whether or not the agent is installed, so a missing one
+# says how to install it rather than that the command doesn't exist.
 if ! agent_binary=$(type -P "$provider"); then
-  if [[ ! -t 0 ]]; then
-    echo "$provider is not installed. Install it with: omarchy default agent $provider" >&2
-    exit 127
-  fi
-  omarchy-install-agent-cli "$provider" || exit 1
-  agent_binary=$(type -P "$provider") || exit 1
+  echo "$provider is not installed. Install it from Install > AI > CLI, or with: omarchy install ai cli $provider" >&2
+  exit 127
 fi
 # mise also drops its shims, leaving only the tools installed at launch. A
 # long-lived agent needs them back to find tools installed after it started.

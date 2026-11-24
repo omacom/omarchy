@@ -25,7 +25,7 @@ done
 # keeps working. One never run stays uninstalled until it's picked.
 while read -r tool agent; do
   if from_omarchy "$tool"; then
-    omarchy-install-agent-cli "$agent" || exit 1
+    omarchy-install-ai-cli "$agent" || exit 1
     mise uninstall --all "$tool"
   fi
 done <<'EOF'

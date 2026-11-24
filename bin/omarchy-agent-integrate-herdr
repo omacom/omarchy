@@ -4,7 +4,7 @@
 # omarchy:args=<agent...>
 # omarchy:hidden=true
 
-# omarchy-install-agent-cli runs this once it has installed an agent's package.
+# omarchy-install-ai-cli runs this once it has installed an agent's package.
 # herdr only installs into a config directory the agent already made, and the
 # agent makes it on its first run, after this, so it is created here. A failure
 # only warns: the agent should still start.

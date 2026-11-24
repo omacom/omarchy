@@ -84,7 +84,7 @@ fi
 
 SH
 
-cat >"$mock_bin/omarchy-install-agent-cli" <<'SH'
+cat >"$mock_bin/omarchy-install-ai-cli" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_INSTALL_HISTORY"
 if [[ $1 == "--check" ]]; then
@@ -102,7 +102,7 @@ SH
 
 cat >"$mock_bin/omarchy-pkg-add" <<'SH'
 #!/bin/bash
-echo "Agents install through omarchy-install-agent-cli" >&2
+echo "Agents install through omarchy-install-ai-cli" >&2
 exit 1
 SH
 ln -s omarchy-pkg-add "$mock_bin/omarchy-pkg-aur-add"
@@ -1102,3 +1102,17 @@ else
   skip "the warm-up puts on a show in a terminal (no script command)"
 fi
 rm "$mock_bin/omarchy-models" "$mock_bin/update-desktop-database"
+
+# Removing an agent's CLI leaves its sign-ins, but a default that's gone would
+# leave the AI hotkey with nothing to open, so it asks for a new one.
+applications="$HOME/.local/share/applications"
+mkdir -p "$applications"
+touch "$applications/omarchy-agent-codex.desktop"
+printf '%s\n' codex >"$agent_file"
+omarchy-remove-ai-cli codex
+[[ ! -e $agent_file ]] || fail "removing the default agent's CLI clears the default"
+[[ ! -e $applications/omarchy-agent-codex.desktop ]] || fail "removing an agent's CLI removes its launcher"
+printf '%s\n' claude >"$agent_file"
+omarchy-remove-ai-cli codex
+[[ $(<"$agent_file") == "claude" ]] || fail "removing another agent's CLI keeps the default"
+pass "removing an agent's CLI clears its launcher and a default it held"

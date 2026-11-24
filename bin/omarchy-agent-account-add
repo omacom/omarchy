@@ -223,9 +223,9 @@ install_cli() {
   wait $!
 }
 
-if ! omarchy-install-agent-cli --check "$harness"; then
+if ! omarchy-install-ai-cli --check "$harness"; then
   say "$(omarchy-i18n agents.installingCli "$name")"
-  install_cli omarchy-install-agent-cli "$harness" || fail "$(omarchy-i18n agents.installCliFailed "$name")"
+  install_cli omarchy-install-ai-cli "$harness" || fail "$(omarchy-i18n agents.installCliFailed "$name")"
 fi
 
 # Your main browser is almost certainly signed in to the account you already
