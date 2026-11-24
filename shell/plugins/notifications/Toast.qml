@@ -274,10 +274,11 @@ Item {
           if (!value) return ""
           var themed = Quickshell.iconPath(value, true)
           if (themed) return themed
-          // Qt can retain a miss after installation; the app library's index
+          // Qt can keep missing an installed icon; the app library's index
           // refreshes on app changes and keeps these icons available live.
           var library = card.scene && card.scene.shell ? card.scene.shell.appLibrary : null
-          return library && library.iconIndex[value] ? library.iconSource(value) : ""
+          if (!library || !library.iconIndex || !Object.prototype.hasOwnProperty.call(library.iconIndex, value)) return ""
+          return library.iconSource(value)
         }
 
         // Only what the sender handed over and what is installed for its source:

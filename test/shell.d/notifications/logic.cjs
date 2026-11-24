@@ -332,19 +332,23 @@ function runIn(scope, ...names) {
 
 { // A cached themed miss must not hide an installed icon, or invent a generic one.
   const toast = fs.readFileSync(load.dir + '/Toast.qml', 'utf8')
-  const library = { iconIndex: {}, iconSource: name => 'file://' + library.iconIndex[name] }
-  const scope = { card: { scene: { shell: { appLibrary: library } } },
-    Quickshell: { iconPath: name => name === 'existing' ? 'image://icon/existing' : '' },
+  const library = { iconIndex: {}, themeRevision: 0, userIconsPath: '/user/icons/' }
+  const scope = { card: { scene: { shell: { appLibrary: library } } }, root: library,
+    Quickshell: { iconPath: name => ['existing', 'application-x-executable'].includes(name) ? 'image://icon/' + name : '' },
     Util: { fileUrl: name => 'file://' + name } }
   vm.createContext(scope)
-  vm.runInContext(fn('entryIcon', toast), scope)
+  vm.runInContext(fn('entryIcon', toast) + '\n' + fn('iconSource', fs.readFileSync(load.dir + '/../../services/AppLibrary.qml', 'utf8')), scope)
+  library.iconSource = scope.iconSource
   assert.equal(scope.entryIcon('late'), '')
   library.iconIndex = { late: '/icons/late.png', existing: '/icons/other.png' }
   assert.equal(scope.entryIcon('late'), 'file:///icons/late.png')
   assert.equal(scope.entryIcon('existing'), 'image://icon/existing', 'the active theme still wins')
   assert.equal(scope.entryIcon('missing'), '', 'missing icons retain the letter/glyph fallback')
+  for (const name of ['constructor', 'toString', '__proto__']) assert.equal(scope.entryIcon(name), '', name)
   assert.equal(scope.entryIcon('/icons/absolute.png'), 'file:///icons/absolute.png')
   assert.equal(scope.entryIcon(''), '')
+  scope.card.scene.shell.appLibrary = {}
+  assert.equal(scope.entryIcon('late'), '')
   scope.card.scene = null
   assert.equal(scope.entryIcon('late'), '')
 }
