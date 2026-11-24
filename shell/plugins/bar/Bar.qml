@@ -1683,7 +1683,7 @@ Item {
     readonly property bool autohide: root.barConfig.autohide === true
     property bool revealed: false
     readonly property bool barPopupOpen: autohide && root.moduleSlots.some(slot =>
-      slot && slot.activeItem && slot.activeItem.opened === true &&
+      slot && slot.activeItem && (slot.activeItem.opened === true || slot.activeItem.popupOpen === true) &&
       root.sameWindow(root.slotWindow(slot), barWindow))
     readonly property bool tucked: autohide && !revealed && !dragActive && !barPopupOpen
     readonly property bool parked: root.barHidden || tucked
