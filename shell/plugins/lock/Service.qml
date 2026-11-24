@@ -375,12 +375,16 @@ Item {
     passwordPam.respond(pendingPassword)
   }
 
+  // onError and onCompleted can both fire; settle each password attempt once
+  // and always clear pendingPassword even if the lock was already dismissed.
   function handlePasswordFailure() {
-    if (!lockRequested) return
+    if (!authenticatingPassword) return
 
     authenticatingPassword = false
-    enteredPassword = ""
     pendingPassword = ""
+    if (!lockRequested) return
+
+    enteredPassword = ""
     failedAttempts += 1
     failureMessage = I18n.t("lock.authenticationFailed").arg(I18n.formatNumber(failedAttempts))
     runWake()
@@ -573,12 +577,19 @@ Item {
     onPamMessage: root.respondToPasswordPrompt()
 
     onCompleted: function(result) {
-      root.authenticatingPassword = false
-      root.pendingPassword = ""
-
-      if (!root.lockRequested) return
-      if (result === PamResult.Success) root.finishUnlock()
-      else root.handlePasswordFailure()
+      if (!root.authenticatingPassword) return
+      if (!root.lockRequested) {
+        root.authenticatingPassword = false
+        root.pendingPassword = ""
+        return
+      }
+      if (result === PamResult.Success) {
+        root.authenticatingPassword = false
+        root.pendingPassword = ""
+        root.finishUnlock()
+      } else {
+        root.handlePasswordFailure()
+      }
     }
 
     onError: function(error) {
