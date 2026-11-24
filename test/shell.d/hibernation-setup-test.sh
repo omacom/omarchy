@@ -237,6 +237,16 @@ fi
 [[ ! -s $rtmp/rebuilds ]] ||
   fail "hibernation remove does not rebuild when resume.conf deletion fails" "$(<"$rtmp/rebuilds")"
 pass "hibernation remove stops before rebuilding if resume.conf deletion fails"
+
+# If only the pending rebuild marker remains after a partial failure, retry still rebuilds.
+machine
+mkdir -p "$rtmp/var-lib"
+: >"$rtmp/var-lib/hibernation-resume-rebuild"
+env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  bash "$rtmp/remove" >"$rtmp/out" 2>&1 || fail "hibernation remove retries when only rebuild marker remains" "$(<"$rtmp/out")"
+[[ ! -e $rtmp/var-lib/hibernation-resume-rebuild && $(<"$rtmp/rebuilds") == "built-without-drop-in" ]] ||
+  fail "hibernation remove clears a leftover rebuild marker and rebuilds" "$(<"$rtmp/rebuilds")"
+pass "hibernation remove finishes cleanup when only the rebuild marker remains"
 rm -rf "$rtmp"
 
 if [[ ! -f /sys/power/image_size ]]; then

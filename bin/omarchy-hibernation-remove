@@ -13,7 +13,7 @@ if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; 
   hook_present=true
 fi
 
-if ! $hook_present && [[ ! -f $RESUME_DROP_IN ]]; then
+if ! $hook_present && [[ ! -f $RESUME_DROP_IN && ! -f $RESUME_REBUILD_PENDING ]]; then
   echo "Hibernation is not set up"
   exit 0
 fi
