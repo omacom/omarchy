@@ -146,7 +146,8 @@ from pathlib import Path
 
 zoneinfo = Path("/usr/share/zoneinfo")
 owners = {}
-for profile in sorted((Path(os.environ["ROOT"]) / "default/regions").iterdir()):
+# global holds the world lists, not a country, so it maps no timezones.
+for profile in sorted(p for p in (Path(os.environ["ROOT"]) / "default/regions").iterdir() if p.name != "global"):
     lines = (profile / "timezones").read_text().splitlines()
     zones = [line.strip() for line in lines if line.strip() and not line.startswith("#")]
     assert zones, f"{profile.name} maps no timezones"
@@ -181,7 +182,7 @@ import os
 from pathlib import Path
 
 listed = set()
-for profile in (Path(os.environ["ROOT"]) / "default/regions").iterdir():
+for profile in (p for p in (Path(os.environ["ROOT"]) / "default/regions").iterdir() if p.name != "global"):
     listed |= {line.strip() for line in (profile / "timezones").read_text().splitlines() if line.strip() and not line.startswith("#")}
 never = {"Asia/Hong_Kong", "Hongkong", "Asia/Macau", "Asia/Macao", "Asia/Taipei", "ROC"}
 tzdata = Path("/usr/share/zoneinfo/tzdata.zi")

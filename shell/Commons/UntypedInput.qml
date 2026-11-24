@@ -149,4 +149,9 @@ Singleton {
       root.refresh()
     }
   }
+
+  Component.onDestruction: {
+    resubscribe.stop()
+    events.running = false
+  }
 }

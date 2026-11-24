@@ -1,29 +1,29 @@
-# Omarchy on...
+# Omarchy の動作環境…
 
-### Apple M1/M2チップ
+### Apple Silicon Mac
 
-[Asahi Alarm](https://asahi-alarm.org/)は、[Asahi Linux](https://asahilinux.org/)を土台に構築されたApple M1/M2コンピューター向けArchです。努力すれば、その上でOmarchyを動作させることができます。[ユーザー主導のガイド](https://github.com/omarchy-mac/omarchy-mac)をご覧ください。
+Apple Silicon 向け Omarchy は M1、M2、M3 Mac で動作し、macOS の隣にインストールできる。Mac サポートの章の [Apple Silicon 向け Omarchy](44-mac-support.md#omarchy-for-apple-silicon) を参照してほしい。
 
-### Apple仮想マシン
+### Mac で Omarchy を試す
 
-OmarchyをParallels VMの中にインストールすることもできます。かなり面倒なプロセスですが、そのための[ユーザー主導のガイド](https://github.com/omacom/omarchy/discussions/452)もあります。
+[Omarchy を試す](https://github.com/omacom/try-omarchy) は、macOS 15 以降を搭載したすべての Apple Silicon Mac 上の仮想マシンで Omarchy を実行する。パーティションを作る必要も、macOS の隣にインストールする必要もない。
 
 ### VirtualBox
 
-VirtualBoxは人気のVMランナーです。[Omarchyをその中でも実行できます](https://github.com/omacom/omarchy/discussions/176)。しかし、パフォーマンスはおそらく優れたものにはならないでしょう。
+VirtualBox は人気の VM ランナーだ。[その中でも Omarchy を実行できる](https://github.com/omacom/omarchy/discussions/176)。ただし、パフォーマンスはおそらくあまり良くないだろう。
 
-### Windows 11上のVMware Workstation
+### Windows 11 上の VMware Workstation
 
-Windows向けの別の人気VMランナーです。[Omarchyはその中でもセットアップされています](https://github.com/omacom/omarchy/discussions/572)。
+Windows 向けのもう一つの人気 VM ランナーだ。[その中でも Omarchy のセットアップが行われている](https://github.com/omacom/omarchy/discussions/572)。
 
 ### Steam Deck
 
-Steam DeckはArchで動作しているため、Steam DeckでOmarchyを実行できます。Altynbek Orumbayevによる[完全なセットアップスクリプトとやり方の解説](https://github.com/aorumbayev/deckarchy)があります。なんとクールなんでしょう！
+Steam Deck は Arch 上で動作する。つまり、Steam Deck で Omarchy を実行できるということだ。Altynbek Orumbayev が[完全なセットアップスクリプトとその方法の解説](https://github.com/aorumbayev/deckarchy)を公開している。最高じゃないか！
 
 ### NixOS
 
-Omarchyは本質的にはArch + Hyprlandですが、Henry Sippが[セットアップの本質をNixOSに移植しています](https://github.com/henrysipp/omarchy-nix)。そのため、nixの世界に取り込まれている人にとっては、良い出発点となります。Omarchyの最新変更に追従し続けるかどうかはわかりませんが、それでもかなりクールです！
+Omarchy は本質的には Arch + Hyprland だが、Henry Sipp が[そのセットアップのエッセンスを NixOS に移植した](https://github.com/henrysipp/omarchy-nix)。だから、Nix にハマっているなら、ここが良い出発点になる。最新の Omarchy の変更に追いついているかどうかは分からないが、それでもかなりクールだ！
 
-### 別の何か！
+### その他の環境！
 
-デフォルトとは違う構成でOmarchyを動作させようとしている場合は、[コミュニティDiscord](https://discord.gg/tXFUdasqhY)の#omarchy-on-otherチャンネルに参加してください。
+デフォルトではない構成で Omarchy を動かそうとしているなら、[コミュニティ Discord](https://discord.gg/tXFUdasqhY) の #omarchy-on-other チャンネルに参加するといい。

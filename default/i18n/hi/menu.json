@@ -26,11 +26,11 @@
   "update": {
     "label": "अपडेट करें"
   },
-  "about": {
-    "label": "बारे में"
-  },
   "system": {
     "label": "सिस्टम"
+  },
+  "system.about": {
+    "label": "बारे में"
   },
   "system.screensaver": {
     "label": "स्क्रीनसेवर"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "इनपुट"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "भाषा"
+  },
+  "setup.region.timezone": {
+    "label": "समय क्षेत्र"
   },
   "setup.network": {
     "label": "नेटवर्क"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "डिफ़ॉल्ट"
-  },
-  "agent": {
-    "label": "एजेंट"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "ब्राउज़र",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "सीधा बूट"
-  },
-  "setup.reset": {
-    "label": "कंप्यूटर रीसेट करें"
+  "remove.factory-reset": {
+    "label": "फ़ैक्टरी रीसेट"
   },
   "install.package": {
     "label": "पैकेज"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "पासवर्ड"
   },
-  "update.timezone": {
-    "label": "समय क्षेत्र"
-  },
   "update.time": {
     "label": "समय"
   },
@@ -1131,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "ट्रैकपैड"
-  },
-  "update.password.drive": {
-    "label": "ड्राइव एन्क्रिप्शन"
-  },
-  "update.password.user": {
-    "label": "उपयोगकर्ता"
   },
   "appearance.windows.gaps-on": {
     "label": "विंडो गैप चालू"
@@ -1228,34 +1171,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "टचस्क्रीन बंद करें"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "सादा"
   },
-  "agent.harness": {
-    "label": "हार्नेस",
-    "title": "डिफ़ॉल्ट हार्नेस"
-  },
-  "agent.instructions": {
-    "label": "निर्देश"
-  },
-  "agent.make": {
-    "label": "कुछ बनाएँ"
-  },
-  "agent.make.theme": {
-    "label": "थीम बनाएँ"
-  },
-  "agent.make.plugin": {
-    "label": "प्लगइन बनाएँ"
-  },
-  "agent.make.app": {
-    "label": "ऐप बनाएँ"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "आइकन"
+  },
+  "install.style.icons": {
+    "label": "आइकन"
+  },
+  "remove.icons": {
+    "label": "आइकन"
+  },
+  "update.icons": {
+    "label": "अतिरिक्त आइकन"
+  },
+  "system.firmware": {
+    "label": "BIOS में रीबूट",
+    "description": "UEFI फ़र्मवेयर सेटअप में रीस्टार्ट करें"
+  },
+  "setup.region": {
+    "label": "क्षेत्र"
+  },
+  "setup.region.formats": {
+    "label": "प्रारूप",
+    "description": "तारीख, समय, संख्याएँ और इकाइयाँ कैसे लिखी जाती हैं"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes गेम"
+  },
+  "update.games": {
+    "label": "Game Vibes गेम्स"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "होस्टनेम"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

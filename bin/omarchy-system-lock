@@ -13,10 +13,19 @@ hyprctl switchxkblayout all 0 > /dev/null 2>&1
 # Ensure 1password is locked. Use timeout because `1password --lock` can
 # otherwise leave a full Electron helper tree running after each lock.
 if pgrep -x "1password" >/dev/null && omarchy-cmd-present 1password; then
-  (
-    flock -n 9 || exit 0
-    timeout --kill-after=1s 3s 1password --lock >/dev/null 2>&1 || true
-  ) 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-1password-lock.lock" &
+  lock_dir="${XDG_RUNTIME_DIR:-/tmp/omarchy-$EUID}"
+  if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+    mkdir -m 700 -- "$lock_dir" 2>/dev/null || true
+    [[ -d $lock_dir && ! -L $lock_dir && -O $lock_dir ]] && chmod 700 -- "$lock_dir" 2>/dev/null || lock_dir=""
+  fi
+  if [[ -n $lock_dir && ! -L $lock_dir/omarchy-1password-lock.lock ]]; then
+    (
+      umask 077
+      exec 9>"$lock_dir/omarchy-1password-lock.lock" || exit 0
+      flock -n 9 || exit 0
+      timeout --kill-after=1s 3s 1password --lock >/dev/null 2>&1 || true
+    ) &
+  fi
 fi
 
 # Avoid running screensaver when locked

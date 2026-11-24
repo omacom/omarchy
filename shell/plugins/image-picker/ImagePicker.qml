@@ -36,11 +36,17 @@ Item {
   property string doneFile: ""
   property string filterText: ""
   property var doneFilesToRelease: []
-  // Themes open from rows the shell already holds, so the picker shows without
-  // waiting on omarchy-theme-switcher; each open refreshes them behind it.
+  // Themes and backgrounds open from rows the shell already holds, so the
+  // picker shows without waiting on a directory scan; each open refreshes them
+  // behind it.
   property string themeRows: ""
   property bool themeMode: false
   property bool themeOpenPending: false
+  property string backgroundRows: ""
+  property bool backgroundMode: false
+  property bool backgroundOpenPending: false
+  property string currentBackgroundPath: ""
+  property string initialBackgroundSelection: ""
   property var favouriteThemes: []
   property bool favouritesOnly: false
   property bool favouritesLoaded: false
@@ -246,6 +252,16 @@ Item {
       return
     }
 
+    if (backgroundMode) {
+      backgroundMode = false
+      root.opened = false
+      if (path) {
+        root.currentBackgroundPath = path
+        Util.execArgv(["omarchy-theme-bg-set", path])
+      }
+      return
+    }
+
     if (!path || !selectionFile) {
       cancel()
       return
@@ -264,6 +280,7 @@ Item {
 
   function cancel() {
     themeOpenPending = false
+    backgroundOpenPending = false
 
     if (requestActive)
       finishDoneFile(doneFile)
@@ -277,6 +294,7 @@ Item {
   function closeSelector(nextDoneFile) {
     requestSerial += 1
     themeOpenPending = false
+    backgroundOpenPending = false
 
     if (requestActive)
       finishDoneFile(doneFile)
@@ -320,6 +338,8 @@ Item {
     requestSerial += 1
     themeMode = false
     themeOpenPending = false
+    backgroundMode = false
+    backgroundOpenPending = false
 
     imageDirs = nextImageDirs
     imageRows = nextImageRows
@@ -428,6 +448,56 @@ Item {
     themeMode = true
   }
 
+  function openBackgrounds() {
+    if (backgroundRows) {
+      openBackgroundRows()
+    } else {
+      backgroundOpenPending = true
+    }
+    refreshCurrentBackground()
+    refreshBackgroundRows()
+  }
+
+  function openBackgroundRows() {
+    openSelector("", backgroundRows, currentBackgroundPath, "", "", false, false)
+    backgroundMode = true
+    initialBackgroundSelection = currentPath()
+  }
+
+  function refreshBackgroundRows() {
+    if (backgroundRowsProc.running) { backgroundRowsProc.queued = true; return }
+    backgroundRowsProc.running = true
+  }
+
+  function refreshCurrentBackground() {
+    if (currentBackgroundProc.running) { currentBackgroundProc.queued = true; return }
+    currentBackgroundProc.running = true
+  }
+
+  function updateBackgroundRows(rows) {
+    var changed = rows !== backgroundRows
+    backgroundRows = rows
+
+    if (backgroundOpenPending) {
+      backgroundOpenPending = false
+      if (rows) {
+        openBackgroundRows()
+      } else {
+        Util.execDetached("omarchy-notification-send \"$(omarchy-i18n theme.noBackground)\" -t 2000")
+      }
+    } else if (changed && backgroundMode && opened) {
+      if (rows) {
+        selectedImage = currentPath() || currentBackgroundPath
+        imageRows = rows
+        loadRows(rows, false)
+      } else {
+        backgroundMode = false
+        root.opened = false
+        Util.execDetached("omarchy-notification-send \"$(omarchy-i18n theme.noBackground)\" -t 2000")
+      }
+    }
+  }
+
   // A refresh asked mid-refresh (a deletion finishing behind the open-time
   // one) queues a second pass instead of leaving the list stale.
   function refreshThemeRows() {
@@ -512,7 +582,55 @@ Item {
     id: themeNameFile
     path: root.stateHome + "/omarchy/current/theme.name"
     watchChanges: true
-    onFileChanged: reload()
+    onFileChanged: {
+      reload()
+      root.backgroundRows = ""
+      root.refreshBackgroundRows()
+      root.refreshCurrentBackground()
+    }
+  }
+
+  Process {
+    id: backgroundRowsProc
+    property bool queued: false
+    command: [root.omarchyPath + "/bin/omarchy-theme-bg-switcher", "--print-rows"]
+    stdout: StdioCollector {
+      onStreamFinished: root.updateBackgroundRows(String(text || "").trim())
+    }
+    onExited: {
+      if (queued) {
+        queued = false
+        running = true
+      }
+    }
+  }
+
+  Process {
+    id: currentBackgroundProc
+    property bool queued: false
+    command: ["readlink", "-f", root.stateHome + "/omarchy/current/background"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var resolved = String(text || "").trim()
+        if (!resolved) return
+        root.currentBackgroundPath = resolved
+        // If an external command (e.g. omarchy-theme-bg-next) changed the
+        // wallpaper before this open, move the highlight to the current one as
+        // long as the user hasn't navigated away from the initial selection.
+        if (root.opened && root.backgroundMode && resolved !== root.selectedImage && root.currentPath() === root.initialBackgroundSelection) {
+          root.selectedImage = resolved
+          root.select(root.selectedImageIndex(), true)
+          root.initialBackgroundSelection = root.currentPath()
+        }
+      }
+    }
+    onExited: {
+      if (queued) {
+        queued = false
+        running = true
+      }
+    }
   }
 
   Process {
@@ -570,6 +688,8 @@ Item {
 
   Component.onCompleted: {
     refreshThemeRows()
+    refreshBackgroundRows()
+    refreshCurrentBackground()
     refreshExtraThemes()
     refreshStockThemes()
   }
@@ -630,6 +750,10 @@ Item {
     }
     if (args.source === "themes") {
       openThemes()
+      return
+    }
+    if (args.source === "backgrounds") {
+      openBackgrounds()
       return
     }
     var dirs = String(args.imageDirs || imageDirs)

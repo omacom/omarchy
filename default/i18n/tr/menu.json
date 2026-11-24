@@ -26,11 +26,11 @@
   "update": {
     "label": "Güncelle"
   },
-  "about": {
-    "label": "Hakkında"
-  },
   "system": {
     "label": "Sistem"
+  },
+  "system.about": {
+    "label": "Hakkında"
   },
   "system.screensaver": {
     "label": "Ekran Koruyucu"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Girdi"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Dil"
+  },
+  "setup.region.timezone": {
+    "label": "Saat Dilimi"
   },
   "setup.network": {
     "label": "Ağ"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "Varsayılanlar"
-  },
-  "agent": {
-    "label": "Ajan"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Tarayıcı",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Doğrudan Başlatma"
-  },
-  "setup.reset": {
-    "label": "Bilgisayarı Sıfırla"
+  "remove.factory-reset": {
+    "label": "Fabrika Sıfırlaması"
   },
   "install.package": {
     "label": "Paket"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "Parola"
   },
-  "update.timezone": {
-    "label": "Saat Dilimi"
-  },
   "update.time": {
     "label": "Zaman"
   },
@@ -1131,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "Dokunmatik Yüzey"
-  },
-  "update.password.drive": {
-    "label": "Sürücü Şifreleme"
-  },
-  "update.password.user": {
-    "label": "Kullanıcı"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Pil Yüzdesini Göster"
@@ -1228,34 +1171,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Dokunmatik Ekranı Devre Dışı Bırak"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "Sade"
   },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "Varsayılan Harness"
-  },
-  "agent.instructions": {
-    "label": "Talimatlar"
-  },
-  "agent.make": {
-    "label": "Bir şey oluştur"
-  },
-  "agent.make.theme": {
-    "label": "Tema oluştur"
-  },
-  "agent.make.plugin": {
-    "label": "Eklenti oluştur"
-  },
-  "agent.make.app": {
-    "label": "Uygulama oluştur"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Simgeler"
+  },
+  "install.style.icons": {
+    "label": "Simgeler"
+  },
+  "remove.icons": {
+    "label": "Simgeler"
+  },
+  "update.icons": {
+    "label": "Ek Simgeler"
+  },
+  "system.firmware": {
+    "label": "BIOS'a Yeniden Başlat",
+    "description": "UEFI aygıt yazılımı ayarlarına yeniden başlat"
+  },
+  "setup.region": {
+    "label": "Bölge"
+  },
+  "setup.region.formats": {
+    "label": "Biçimler",
+    "description": "Tarih, saat, sayı ve birimlerin yazılış biçimi"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Oyunu"
+  },
+  "update.games": {
+    "label": "Game Vibes Oyunları"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Ana Bilgisayar Adı"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
