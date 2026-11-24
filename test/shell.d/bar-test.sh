@@ -653,3 +653,62 @@ put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" \
   fail "put places a widget through a ready shell" "$put_output"
 [[ $put_output == "omarchy.keyboard-layout is on the bar" ]] || fail "put reports the placed widget" "$put_output"
 pass "put places a widget through a ready shell"
+
+# A bar click that runs a system tool should not pay for a login shell first.
+# Util.execProgram hands the argv straight to Quickshell; run and execArgv keep
+# their `bash -lc` because the targets they launch need the session env.
+run_node_test <<'JS'
+const fs = require('fs')
+const facadeSource = fs.readFileSync(root + '/shell/Ui/PluginBarApi.qml', 'utf8')
+const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
+const utilSource = fs.readFileSync(root + '/shell/Commons/Util.qml', 'utf8')
+const facade = facadeSource.match(/function runProgram\(argv\) \{([\s\S]*?)\n  \}/)
+const callback = barSource.match(/_runProgram: function\(argv\) \{([^}]+)\}/)
+const barRun = barSource.match(/function runProgram\(argv\) \{([\s\S]*?)\n  \}/)
+const utilRun = utilSource.match(/function execProgram\(argv\) \{([\s\S]*?)\n  \}/)
+assert(facade && callback && barRun && utilRun, 'cloned bars expose and bind the direct program path')
+const calls = []
+const runUtil = new Function('Quickshell', 'argv', utilRun[1])
+const Util = { execProgram: argv => runUtil({ execDetached: args => calls.push(args) }, argv) }
+const host = { runProgram: argv => new Function('Util', 'argv', barRun[1])(Util, argv) }
+const forward = argv => new Function('root', 'argv', callback[1])(host, argv)
+const invoke = new Function('_runProgram', 'argv', facade[1])
+const argv = ['hyprctl', 'switchxkblayout', 'keyboard; $(touch /tmp/never)', '1']
+invoke(forward, argv)
+assertDeepEqual(calls[0], argv, 'a cloned keyboard reaches Quickshell with literal argv and no login shell')
+assert(calls[0] !== argv, 'cloned widgets cannot mutate the host argv after forwarding')
+invoke(forward, ['hyprctl', {}])
+invoke(forward, [])
+invoke(forward, 'hyprctl reload')
+assertEqual(calls.length, 1, 'the cloned direct path ignores malformed argv')
+JS
+
+run_node_test <<'JS'
+const source = require('fs').readFileSync(root + '/shell/plugins/bar/widgets/Workspaces.qml', 'utf8')
+const body = name => source.match(new RegExp(`\\n  function ${name}\\(id\\) \\{([\\s\\S]*?)\\n  \\}`))[1]
+const calls = []
+const widget = { block: 1, slots: 10, monitorName: 'DP-2', bar: { run: command => calls.push(command) } }
+for (const name of ['blockOf', 'slotOf']) widget[name] = id => new Function('root', 'id', body(name))(widget, id)
+const focus = id => new Function('root', 'Hyprland', 'id', body('focusWorkspace'))(widget, { dispatch: request => calls.push(request) }, id)
+focus(13)
+focus(4)
+assertDeepEqual(calls, ['o.workspaces.focus(3, "DP-2")', 'hl.dsp.focus({ workspace = "4" })'], 'a workspace click goes over the Hyprland socket, not through the bar')
+JS
+
+run_node_test <<'JS'
+const source = require('fs').readFileSync(root + '/shell/plugins/bar/widgets/Workspaces.qml', 'utf8')
+const cycle = source.match(/function cycleLayout\(\) \{([\s\S]*?)\n  \}/)
+const focusedChanged = source.match(/function onFocusedChanged\(\) \{([\s\S]*?)\n    \}/)
+assert(cycle && focusedChanged, 'the layout click and its focus handler can be extracted')
+const calls = []
+const timer = { running: false, restart() { this.running = true }, stop() { this.running = false } }
+const widget = { monitorName: 'DP-2', monitor: { focused: false }, bar: { run: command => calls.push(command) } }
+const hyprland = { dispatch: request => calls.push(request) }
+const run = body => new Function('root', 'Hyprland', 'toggleAfterFocus', body)(widget, hyprland, timer)
+run(cycle[1])
+calls.push('focused')
+widget.monitor.focused = true
+run(focusedChanged[1])
+run(focusedChanged[1])
+assertDeepEqual(calls, ['hl.dsp.focus({ monitor = "DP-2" })', 'focused', 'omarchy-hyprland-workspace-layout-toggle'], 'another monitor\'s layout toggles once, after Hyprland reports it focused')
+JS
