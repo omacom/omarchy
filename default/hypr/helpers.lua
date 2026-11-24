@@ -24,7 +24,7 @@ o.firefox_browsers = "([fF]irefox(-esr)?|org\\.mozilla\\.firefox|zen|app\\.zen_b
 -- maximize requests stay suppressed: Hyprland reports every app as maximized and
 -- takes any maximize request as a toggle, so Chrome's request to return to
 -- "maximized" after leaving fullscreen would maximize a normal window.
-o.self_framed_apps = "(" .. o.chromium_browsers .. "|" .. o.firefox_browsers .. "|org\\.gnome\\.(DiskUtility|Papers))"
+o.self_framed_apps = "(" .. o.chromium_browsers .. "|org\\.gnome\\.(DiskUtility|Papers))"
 
 local function file_exists(path)
   local file = io.open(path, "r")

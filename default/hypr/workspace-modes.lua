@@ -496,6 +496,7 @@ local function titlebars()
 
   -- A titlebar over an app's own frame would be a second header.
   hl.window_rule({ match = { class = o.self_framed_apps }, ["hyprbars:no_bar"] = true })
+  hl.window_rule({ match = { class = o.firefox_browsers }, ["hyprbars:no_bar"] = true })
 
   for _, button in ipairs({
     { icon = "×", action = "hyprctl dispatch 'hl.dsp.window.close({ " .. window .. " })'" },
