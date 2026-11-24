@@ -82,6 +82,21 @@ Panel {
     var device = UPower.displayDevice
     return Model.chargeThresholdActive(device, UPower.onBattery, upowerStates(), root.chargeRateFresh)
   }
+  // Keep a settled, rate-based hold across brief changes in battery direction.
+  property real heldChargeFraction: -1
+  readonly property bool atHeldCharge: heldChargeFraction >= 0
+    && Math.abs(batteryFraction - heldChargeFraction) < 0.01
+
+  function updateHeldCharge() {
+    if (!atHeldCharge) heldChargeFraction = -1
+    var device = UPower.displayDevice
+    if (!(device && device.isPresent && !UPower.onBattery && device.state === UPowerDeviceState.Charging && chargeRateFresh)) return
+    if (!chargeThresholdActive) heldChargeFraction = -1
+    else if (heldChargeFraction < 0) heldChargeFraction = batteryFraction
+  }
+
+  onChargeThresholdActiveChanged: Qt.callLater(root.updateHeldCharge)
+  onBatteryFractionChanged: Qt.callLater(root.updateHeldCharge)
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
 
@@ -217,7 +232,12 @@ Panel {
     }
   }
 
-  onBatteryPresentChanged: if (!batteryPresent) close()
+  onBatteryPresentChanged: {
+    if (!batteryPresent) {
+      heldChargeFraction = -1
+      close()
+    }
+  }
 
   visible: batteryPresent
   implicitWidth: batteryPresent ? button.implicitWidth : 0
@@ -251,6 +271,7 @@ Panel {
   Connections {
     target: UPower
     function onOnBatteryChanged() {
+      root.heldChargeFraction = -1
       if (UPower.onBattery) chargeRateSettle.stop()
       else chargeRateSettle.restart()
     }
@@ -260,9 +281,10 @@ Panel {
     target: UPower.displayDevice
     function onStateChanged() {
       // A stuck online USB-C port can hide a real plug event from onBattery.
-      // Starting an already running timer leaves its original deadline intact.
-      if (!UPower.onBattery && target.state === UPowerDeviceState.Charging)
-        chargeRateSettle.start()
+      if (!UPower.onBattery && target.state === UPowerDeviceState.Charging) {
+        if (!root.atHeldCharge) chargeRateSettle.restart()
+        Qt.callLater(root.updateHeldCharge)
+      }
     }
   }
 
