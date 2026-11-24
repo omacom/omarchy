@@ -10,14 +10,14 @@ lock_dir="${XDG_RUNTIME_DIR:-/tmp/omarchy-$EUID}"
 lock_path="$lock_dir/omarchy-update.lock"
 
 ensure_lock_dir() {
-  if [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
-    mkdir -p "$lock_dir" 2>/dev/null || true
-    return 0
+  if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+    mkdir -m 700 -- "$lock_dir" 2>/dev/null || true
+    if [[ -d $lock_dir && ! -L $lock_dir && -O $lock_dir ]]; then
+      chmod 700 -- "$lock_dir" 2>/dev/null || true
+    fi
   fi
 
-  mkdir -m 700 -- "$lock_dir" 2>/dev/null || true
-  if [[ -d $lock_dir && ! -L $lock_dir && -O $lock_dir ]]; then
-    chmod 700 -- "$lock_dir"
+  if [[ -d $lock_dir && ! -L $lock_dir && -O $lock_dir && $(stat -c %a -- "$lock_dir" 2>/dev/null || true) == "700" ]]; then
     return 0
   fi
 
@@ -47,8 +47,8 @@ case "${1:-}" in
     fi
 
     ensure_lock_dir
-    if [[ -L $lock_path ]]; then
-      echo "Refusing to follow symlinked update lock: $lock_path" >&2
+    if [[ -L $lock_path || ( -e $lock_path && ! -f $lock_path ) ]]; then
+      echo "Refusing to use non-regular update lock: $lock_path" >&2
       exit 1
     fi
     # Opening a contender must not erase the holder's diagnostic PID.
