@@ -24,7 +24,7 @@ Ecco alcuni comandi di base che uso in continuazione:
 - `Shift + L` - Spostati a destra tra le schede aperte.
 - `Space B D` - Chiudi una scheda.
 - `Space B O` - Chiudi tutte le altre schede tranne quella corrente.
-- `Space G G` - Avvia LazyGit in un pannello fluttuante dalla cartella corrente.
+- `Space G G` - Avvia LazyGit in un pannello fluttuante dalla directory corrente.
 - `Space U W` - Attiva/disattiva il soft wrap.
 
 Mentre sei nell'albero dei file (`Space E` per mostrarlo, `Ctrl + W W` per spostarti lì), puoi aggiungere un nuovo file con `a` o una nuova directory con `A`. Premi `?` mentre sei nell'albero per vedere tutti i comandi.
@@ -35,7 +35,7 @@ Puoi vedere tutti i comandi possibili sulla [pagina Keymaps di LazyVim](https://
 
 ## Avviare Neovim
 
-`Super + Shift + N` avvia il tuo editor predefinito, che nelle nuove installazioni è Plain; scegli Neovim in _Impostazioni > Predefiniti > Editor_ per far avviare Neovim al suo posto. Ma di solito è più comodo avviarlo dal terminale: vai nella cartella in cui vuoi lavorare e digita `n`. `n` è l'alias di `nvim` e, per impostazione predefinita, apre la cartella in cui ti trovi. Puoi aprire un singolo file con `n myfile.txt`.
+`Super + Shift + N` avvia il tuo editor predefinito, che nelle nuove installazioni è Plain; scegli Neovim in _Impostazioni > Predefiniti > Editor_ per far avviare Neovim al suo posto. Ma di solito è più comodo avviarlo dal terminale: vai nella directory in cui vuoi lavorare e digita `n`. `n` è l'alias di `nvim` e, per impostazione predefinita, apre la directory in cui ti trovi. Puoi aprire un singolo file con `n myfile.txt`.
 
 ## Usare Neovim per le modifiche con sudo
 
