@@ -1,0 +1,8 @@
+<!--
+Phux fox head, redrawn as one solid silhouette from the geometric wire mark
+at https://github.com/no-phux/phux/blob/main/docs/assets/fox-mark.svg, whose
+lattice strokes turn to mud at the menu's 18px icon size.
+
+The eyes are reverse-wound subpaths so they read as holes in the filled head.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="54 36 404 428"><path d="M82 36 L54 226 L70 302 L118 358 L184 410 L256 464 L328 410 L394 358 L442 302 L458 226 L430 36 L256 176 Z M128 258 Q170 235 212 258 Q170 281 128 258 Z M300 258 Q342 235 384 258 Q342 281 300 258 Z"/></svg>

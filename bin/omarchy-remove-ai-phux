@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# omarchy:summary=Remove phux and its Omarchy integration
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+if omarchy-cmd-present phux; then
+  # Undoes the theme hook, distro layer, and marked Hyprland blocks; restores the previous selection.
+  # Stop if this fails. Dropping the package would leave those binds and the
+  # autostart entry calling a command that is no longer installed.
+  if phux omarchy remove; then
+    phux service uninstall >/dev/null 2>&1 || true
+    phux kill --server >/dev/null 2>&1 || true
+  else
+    echo "Could not remove phux's Omarchy integration; phux was not removed." >&2
+    exit 1
+  fi
+fi
+
+# Not ~/.config/phux or ~/.local/share/phux: sessions and the user's own config stay
+# so a reinstall picks up where it left off.
+omarchy-pkg-drop phux-bin
+
+echo ""
+echo "phux has been removed."

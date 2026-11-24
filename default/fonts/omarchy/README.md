@@ -34,6 +34,7 @@ The private-use glyphs in `omarchy.ttf` are:
 - `U+E91D` — Kimi, from <https://simpleicons.org/icons/kimi.svg>
 - `U+E91E` — Crush, the heartbit from <https://github.com/charmbracelet/crush/blob/main/internal/oauth/callback/heartbit.svg>, its eyes and mouth cut out
 - `U+E91F` — Muse Code, from <https://simpleicons.org/icons/meta.svg>: Meta publishes no separate Muse mark and dev.meta.ai uses this one
+- `U+E920` — Phux, redrawn as a solid fox head from the wire mark at <https://github.com/no-phux/phux/blob/main/docs/assets/fox-mark.svg>, whose lattice strokes vanish at the menu's icon size. The redrawn mark is kept in [phux.svg](phux.svg).
 
 The agent marks are monochrome so the menu can render them using the active
 theme's foreground and selection colors.
