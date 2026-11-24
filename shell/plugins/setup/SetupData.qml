@@ -143,7 +143,7 @@ Item {
   // engine offers nothing. The stream closing is the answer, whatever came of
   // the run.
   Process {
-    command: ["bash", "-c", "exec omarchy-agent-local list --json 2>/dev/null"]
+    command: ["bash", "-c", "exec omarchy-models list --json 2>/dev/null"]
     running: true
     stdout: StdioCollector {
       waitForEnd: true

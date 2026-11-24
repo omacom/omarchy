@@ -285,6 +285,10 @@ function localOffer(listRaw) {
   for (var i = 0; i < recipes.length; i++) {
     var recipe = recipes[i]
     if (!recipe || !recipe.best || !recipe.available || recipe.installed) continue
+    // The engine recommends a model of each kind, and only the coding one is
+    // an agent's to use. The agents panel asks the same of what it lists, so
+    // a model offered here is one it will have to add.
+    if (recipe.kind !== "text") continue
     if (!RECIPE_ID.test(String(recipe.id || ""))) continue
     return {
       id: String(recipe.id),
@@ -305,7 +309,7 @@ function localOption(offer, t) {
     label: offer.name,
     icon: "\u{f035b}",
     iconFont: "",
-    detail: t("setup.localAiDetail", "Its download runs in the background, with progress in the agents panel."),
+    detail: t("setup.localAiDetail", "Its download runs in the background. Add it from the agents panel to code with it."),
     action: "omarchy-setup-essentials --local-ai " + offer.id,
     route: "",
     handoff: "terminal",

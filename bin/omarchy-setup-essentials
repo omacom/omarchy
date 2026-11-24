@@ -157,9 +157,11 @@ install_all() {
 
   if [[ -n $local_ai ]]; then
     heading "Setting up a local model"
-    # Handed to the background, where the agents panel shows the download.
-    # What it needs installed first is asked for by polkit, as from that panel.
-    omarchy-agent-local use --detach "$local_ai" || failed+=("the local model")
+    # Handed to the background, as the agents panel hands it over, and what
+    # it needs installed first is asked for by polkit, as from that panel.
+    # Whatever goes wrong before the engine lists the model is said here. From
+    # then on the panel has it to add, with its download on show.
+    omarchy-models use --detach "$local_ai" || failed+=("the local model")
   fi
 
   if [[ -n $agent ]]; then

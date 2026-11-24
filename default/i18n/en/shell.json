@@ -571,7 +571,7 @@
   "setup.layoutTilingDetail": "Windows split the screen between them. Nothing overlaps and nothing hides.",
   "setup.layoutTitle": "Workspace Layout",
   "setup.localAiDescription": "Run an open model on this machine, for your agents to use instead of a cloud one.",
-  "setup.localAiDetail": "Its download runs in the background, with progress in the agents panel.",
+  "setup.localAiDetail": "Its download runs in the background. Add it from the agents panel to code with it.",
   "setup.localAiTitle": "Local AI",
   "setup.localContextFact": "%1K context",
   "setup.localMemoryFact": "%1 GiB of memory",

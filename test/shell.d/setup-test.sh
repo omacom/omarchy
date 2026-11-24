@@ -111,13 +111,15 @@ assertEqual(Setup.flatOptions(steps[1])[0].id, '', 'a step with nothing chosen y
 assert(Setup.flatOptions(steps[0]).every((option) => option.id !== ''), 'a step with a current choice offers no Not now')
 
 const recipes = [
-  { id: 'small', name: 'Small', best: false, available: true, installed: false },
-  { id: 'big-27b', name: 'Big', best: true, available: true, installed: false, memory_gib: 24, context: 131072, decode_tok_s: 41.6 }
+  { id: 'small', kind: 'text', name: 'Small', best: false, available: true, installed: false },
+  { id: 'big-27b', kind: 'text', name: 'Big', best: true, available: true, installed: false, memory_gib: 24, context: 131072, decode_tok_s: 41.6 }
 ]
 const offered = (change) => Setup.localOffer(JSON.stringify(recipes.map((recipe) => recipe.best ? { ...recipe, ...change } : recipe)))
 assertEqual(offered({}).id, 'big-27b', 'the local model on offer is the one the engine recommends')
 assertEqual(offered({ installed: true }), null, 'a recommended model already set up is not offered again')
 assertEqual(offered({ id: 'big; touch owned' }), null, 'a recipe whose id could not go on a command line is not offered')
+assertEqual(offered({ kind: 'image' }), null, 'a recommended model that is not for coding is not offered')
+assertEqual(offered({ kind: undefined }), null, 'nor one of no kind, which the agents panel would never list')
 assertEqual(Setup.localOffer('not json'), null, 'an unreadable listing offers nothing')
 
 // Each flag with its value, whatever order the steps come in. A flag given
@@ -201,7 +203,7 @@ stub() {
   chmod +x "$stubs/$1"
 }
 
-for name in omarchy-done omarchy-notification-dismiss nm-online omarchy-install-dictation-voxtype omarchy-agent-local; do
+for name in omarchy-done omarchy-notification-dismiss nm-online omarchy-install-dictation-voxtype omarchy-models; do
   stub "$name"
 done
 stub omarchy-hyprland-workspace-layout-default OMARCHY_TEST_LAYOUT_STATUS
@@ -236,7 +238,7 @@ essentials() {
 }
 
 installs() {
-  grep -E '^(omarchy-install-dictation-voxtype|omarchy-install-service-tailscale|omarchy-agent-local|omarchy-default-agent --install)( |$)' "$calls" | tr '\n' '|'
+  grep -E '^(omarchy-install-dictation-voxtype|omarchy-install-service-tailscale|omarchy-models|omarchy-default-agent --install)( |$)' "$calls" | tr '\n' '|'
 }
 
 essentials omarchy-setup-essentials --layout scrolling --dictation voxtype --tailscale --local-ai big-27b --agent claude ||
@@ -244,7 +246,7 @@ essentials omarchy-setup-essentials --layout scrolling --dictation voxtype --tai
 [[ $(grep -c '^omarchy-hyprland-workspace-layout-default scrolling$' "$calls") == "1" ]] || fail "the layout is set once" "$(<"$calls")"
 [[ $(sed -n '1p' "$calls") == "omarchy-hyprland-workspace-layout-default scrolling" ]] || fail "the layout is set before any terminal opens" "$(<"$calls")"
 [[ $(grep -c '^terminal: ' "$calls") == "1" ]] || fail "the installs share one terminal" "$(<"$calls")"
-[[ $(installs) == "omarchy-install-dictation-voxtype |omarchy-install-service-tailscale |omarchy-agent-local use --detach big-27b|omarchy-default-agent --install claude|" ]] ||
+[[ $(installs) == "omarchy-install-dictation-voxtype |omarchy-install-service-tailscale |omarchy-models use --detach big-27b|omarchy-default-agent --install claude|" ]] ||
   fail "the installs run one after another, the agent last, and the model by its recipe" "$(installs)"
 grep -Fxq 'omarchy-done mark agent-setup-invitation' "$calls" || fail "a tour that picked an agent answers first run's invitation to" "$(<"$calls")"
 pass "the layout is set at once, and the installs run in one terminal with the agent last"
@@ -404,7 +406,7 @@ require_quickshell "Setup opening in a running shell"
 rm -rf "$work"
 setup_scratch_shell
 # Nothing the tour could run may reach the real session.
-for name in omarchy-setup-essentials omarchy-launch-floating-terminal-with-presentation omarchy-agent-local; do
+for name in omarchy-setup-essentials omarchy-launch-floating-terminal-with-presentation omarchy-models; do
   printf '#!/bin/bash\nexit 0\n' >"$SCRATCH_BIN/$name"
   chmod +x "$SCRATCH_BIN/$name"
 done
