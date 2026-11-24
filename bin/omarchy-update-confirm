@@ -13,6 +13,6 @@ gum style --border normal --padding "1 2" \
 echo
 
 if ! gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n update.continue)"; then
-  echo "Update cancelled"
+  echo "$(omarchy-i18n update.cancelled)"
   exit 1
 fi

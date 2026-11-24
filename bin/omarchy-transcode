@@ -124,7 +124,7 @@ copy_to_clipboard() {
   local output="$1"
   local uri err_file
 
-  uri="file://$(realpath -- "$output")"
+  uri="file://$(jq -rn --arg path "$(realpath -- "$output")" '$path | split("/") | map(@uri) | join("/")')"
   err_file=$(mktemp)
 
   # Redirect stdout/stderr away from any caller pipe so wl-copy's background
