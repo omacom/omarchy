@@ -96,6 +96,7 @@ pass "--yes enables a timed grant without prompting"
 grant_args=(--yes)
 status=$(run_grant_flow_status TEST_STATUS=3)
 [[ $status == 1 ]] || fail "--yes without a duration must be a usage error (got $status)"
+grep -q -- '--yes' "$test_tmp/public.log" || fail "the usage message must mention --yes"
 grep -q '^sudo' "$test_tmp/commands" && fail "--yes without a duration must not call sudo"
 pass "--yes refuses to invent a duration"
 
