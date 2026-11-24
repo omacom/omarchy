@@ -37,7 +37,6 @@ Item {
   property int wsDragTargetIndex: -1
   property int wsDragTargetId: -1
   property point wsDragPoint: Qt.point(0, 0)
-  property var frozenWorkspaceEntries: null
   property int optimisticActiveWorkspaceId: -1
   property double optimisticActiveAt: 0
   property double ignoreWorkspaceEventsUntil: 0
@@ -75,10 +74,18 @@ Item {
         activeHyprlandWorkspaceId,
         pendingMoves)
     : []
+  onWorkspaceEntriesChanged: syncDisplayWorkspaceEntries()
 
-  readonly property var displayWorkspaceEntries: wsDragActive && frozenWorkspaceEntries
-    ? frozenWorkspaceEntries
-    : workspaceEntries
+  // Keep the repeater's array instance stable during a workspace drag so the
+  // pressed card delegate stays alive until release completes the reorder.
+  property var displayWorkspaceEntries: []
+
+  function syncDisplayWorkspaceEntries() {
+    if (wsDragActive) return
+    if (displayWorkspaceEntries !== workspaceEntries) displayWorkspaceEntries = workspaceEntries
+  }
+
+  Component.onCompleted: syncDisplayWorkspaceEntries()
 
   // A window can change workspace without changing the global toplevel list.
   // Keep the filter bound to each window's workspace while the overview is requested.
@@ -115,8 +122,8 @@ Item {
     wsDragFromIndex = -1
     wsDragTargetIndex = -1
     wsDragTargetId = -1
-    frozenWorkspaceEntries = null
     pendingRefresh = false
+    syncDisplayWorkspaceEntries()
   }
 
   function open(payloadJson) {
@@ -152,6 +159,7 @@ Item {
       pendingRefresh = true
       return
     }
+    syncDisplayWorkspaceEntries()
     var next = matchingWindows
     selectedIndex = OverviewModel.selectionAfterChange(windows, selectedIndex, next)
     windows = next
@@ -242,7 +250,6 @@ Item {
 
   function beginWorkspaceDrag(entry, index, pointInCatcher) {
     if (!entry || entry.guest || entry.isNewSlot || dragActive) return
-    frozenWorkspaceEntries = workspaceEntries.slice()
     draggedWorkspaceEntry = entry
     draggedWorkspaceId = entry.id
     wsDragFromIndex = index
@@ -281,7 +288,7 @@ Item {
     wsDragFromIndex = -1
     wsDragTargetIndex = -1
     wsDragTargetId = -1
-    frozenWorkspaceEntries = null
+    syncDisplayWorkspaceEntries()
     if (pendingRefresh && opened) {
       pendingRefresh = false
       refresh()

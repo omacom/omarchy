@@ -509,8 +509,8 @@ import re, sys
 
 root, tmp = map(Path, sys.argv[1:])
 source = (root / "shell/plugins/window-overview/Overview.qml").read_text()
-ws_entries = re.search(r"  readonly property var workspaceEntries:[\s\S]*?\n    : \[\]", source)[0]
-display_entries = re.search(r"  readonly property var displayWorkspaceEntries:[\s\S]*?\n    : workspaceEntries", source)[0]
+ws_entries = re.search(r"  readonly property var workspaceEntries:[\s\S]*?\n  onWorkspaceEntriesChanged:[^\n]+", source)[0]
+display_entries = re.search(r"  property var displayWorkspaceEntries:[\s\S]*?\n  Component\.onCompleted:[^\n]+", source)[0]
 active_prop = re.search(r"  readonly property int hyprlandActiveWorkspaceId:[\s\S]*?\n  \}", source)[0]
 active_effective = re.search(r"  readonly property int activeHyprlandWorkspaceId:[\s\S]*?\n    : hyprlandActiveWorkspaceId", source)[0]
 binding = re.search(r"  readonly property var matchingWindows:[\s\S]*?\n  onMatchingWindowsChanged:[^\n]+", source)[0]
@@ -518,10 +518,15 @@ ws_lookup = re.search(r"  function workspaceEntryById\(id\) \{[\s\S]*?\n  \}", s
 refresh = re.search(r"  function refresh\(\) \{[\s\S]*?\n  \}", source)[0]
 select_ws = re.search(r"  function selectWorkspace\(targetId\) \{[\s\S]*?\n  \}", source)[0]
 switch_ws = re.search(r"  function switchToWorkspace\(targetId\) \{[\s\S]*?\n  \}", source)[0]
+begin_ws_drag = re.search(r"  function beginWorkspaceDrag\([^)]*\) \{[\s\S]*?\n  \}", source)[0]
+update_ws_drag = re.search(r"  function updateWorkspaceDrag\([^)]*\) \{[\s\S]*?\n  \}", source)[0]
+cancel_ws_drag = re.search(r"  function cancelWorkspaceDrag\(\) \{[\s\S]*?\n  \}", source)[0]
+finish_ws_drag = re.search(r"  function finishWorkspaceDrag\(\) \{[\s\S]*?\n  \}", source)[0]
 move_win = re.search(r"  function moveWindowToWorkspace\(window, targetWorkspaceId\) \{[\s\S]*?\n  \}", source)[0]
 reorder_ws = re.search(r"  function reorderWorkspace\(sourceWorkspaceId, targetWorkspaceId\) \{[\s\S]*?\n  \}", source)[0]
 update_ws_drop = re.search(r"  function updateWorkspaceDropTarget\(pointInCatcher\) \{[\s\S]*?\n  \}", source)[0]
 ws_translate_x = re.search(r"transform: Translate \{\n\s*x: ([^\n]+)", source)[1]
+ws_mouse = re.search(r"              MouseArea \{\n                id: wsMouse[\s\S]*?\n              \}", source)[0]
 reconcile = re.search(r"  function reconcilePendingMoves\(\) \{[\s\S]*?\n  \}", source)[0]
 events = re.search(r"    function onFocusedMonitorChanged\(\) \{[\s\S]*?\n    function onRawEvent\(event\) \{[\s\S]*?\n    \}", source)[0]
 
@@ -531,6 +536,8 @@ import "OverviewModel.js" as OverviewModel
 
 Item {
   id: root
+  width: 800
+  height: 120
   property var windows: []
   property int selectedIndex: -1
   property bool opened: true
@@ -542,16 +549,20 @@ Item {
   property var pendingMoves: ({})
   property bool dragActive: false
   property bool wsDragActive: false
+  property var draggedWorkspaceEntry: null
+  property int draggedWorkspaceId: -1
   property int wsDragFromIndex: -1
   property int wsDragTargetIndex: -1
   property int wsDragTargetId: -1
+  property point wsDragPoint: Qt.point(0, 0)
   property bool rtl: false
-  property var frozenWorkspaceEntries: null
   property int optimisticActiveWorkspaceId: -1
   property double optimisticActiveAt: 0
   property double ignoreWorkspaceEventsUntil: 0
   property bool pendingRefresh: false
   property var dispatches: []
+  property int displayModelChanges: 0
+  onDisplayWorkspaceEntriesChanged: displayModelChanges++
 
   QtObject { id: styleStub; function space(n) { return n } }
 
@@ -599,6 +610,10 @@ WS_LOOKUP
 REFRESH
 SELECT_WS
 SWITCH_WS
+BEGIN_WS_DRAG
+UPDATE_WS_DRAG
+CANCEL_WS_DRAG
+FINISH_WS_DRAG
 MOVE_WIN
 REORDER_WS
 UPDATE_WS_DROP
@@ -622,15 +637,20 @@ RECONCILE
           id: wsCard
           required property var modelData
           required property int index
+          readonly property int workspaceId: modelData.id
+          readonly property bool isReorderSource: root.wsDragActive && workspaceId === root.draggedWorkspaceId
           readonly property int reorderShiftSlots: root.wsDragActive && !modelData.guest && !modelData.isNewSlot
             ? OverviewModel.reorderShiftSlots(index, root.wsDragFromIndex, root.wsDragTargetIndex >= 0 ? root.wsDragTargetIndex : root.wsDragFromIndex)
             : 0
+          property point wsPressPoint
+          property bool wsDragMoved: false
           width: workspaceRow.cardWidth
           height: workspaceRow.cardHeight
           transform: Translate {
             id: cardTranslate
             x: WS_TRANSLATE_X
           }
+WS_MOUSE
         }
       }
     }
@@ -641,8 +661,10 @@ EVENTS
   }
   TestCase {
     name: "OverviewRefresh"
+    when: windowShown
     function init() {
       fixtures.focusedMonitor = {name: "one"}
+      wsModel.values = [{id: 1}, {id: 2}, {id: 3}]
       monitorModel.values = [{name: "one", activeWorkspace: workspace2}]
       first.workspace = workspace2
       second.workspace = workspace2
@@ -653,21 +675,24 @@ EVENTS
       root.pendingMoves = ({})
       root.dragActive = false
       root.wsDragActive = false
+      root.draggedWorkspaceEntry = null
+      root.draggedWorkspaceId = -1
       root.wsDragFromIndex = -1
       root.wsDragTargetIndex = -1
       root.wsDragTargetId = -1
       root.rtl = false
-      root.frozenWorkspaceEntries = null
       root.optimisticActiveWorkspaceId = -1
       root.optimisticActiveAt = 0
       root.ignoreWorkspaceEventsUntil = 0
       root.pendingRefresh = false
       root.dispatches = []
+      root.displayModelChanges = 0
       windowRefresh.count = 0
       moveSettleTimer.count = 0
       root.requested = true
       root.opened = true
       root.refresh()
+      workspaceRow.forceLayout()
     }
     function test_move_and_close() {
       compare(root.windows.length, 2)
@@ -784,6 +809,58 @@ EVENTS
       compare(root.wsDragTargetIndex, -1)
       compare(root.wsDragTargetId, -1)
     }
+    function test_workspace_drag_keeps_card_and_completes_reorder() {
+      model.values = [first, second, third]
+      root.refresh()
+      workspaceRow.forceLayout()
+      var card0 = workspaceRepeater.itemAt(0)
+      var card1 = workspaceRepeater.itemAt(1)
+      verify(card1.x > card0.x, "LTR Row positions workspace 2 to the right of workspace 1")
+      var start = card1.mapToItem(keyCatcher, card1.width / 2, card1.height / 2)
+      var target = card0.mapToItem(keyCatcher, card0.width / 2, card0.height / 2)
+      var entriesBefore = root.displayWorkspaceEntries
+      root.displayModelChanges = 0
+
+      mousePress(keyCatcher, start.x, start.y, Qt.LeftButton)
+      mouseMove(keyCatcher, start.x - 16, start.y)
+      verify(root.wsDragActive, "dragging past threshold starts workspace reorder")
+      compare(root.displayModelChanges, 0, "starting workspace drag does not replace displayWorkspaceEntries")
+      verify(root.displayWorkspaceEntries === entriesBefore, "starting workspace drag keeps the same model array")
+      compare(workspaceRepeater.itemAt(1), card1, "starting workspace drag preserves the pressed card delegate")
+
+      // A background workspace update during the drag must not rebuild the cards either.
+      wsModel.values = [{id: 1}, {id: 2}, {id: 3}, {id: 4}]
+      wait(0)
+      compare(root.displayModelChanges, 0, "background workspace changes do not replace displayWorkspaceEntries mid-drag")
+      compare(workspaceRepeater.itemAt(1), card1, "background workspace changes do not replace cards mid-drag")
+
+      mouseMove(keyCatcher, target.x, target.y)
+      compare(root.wsDragTargetIndex, 0)
+      compare(root.wsDragTargetId, 1)
+
+      mouseRelease(keyCatcher, target.x, target.y, Qt.LeftButton)
+      verify(!root.wsDragActive, "releasing the dragged card finishes workspace drag")
+      compare(root.workspaceId, 1)
+      compare(root.dispatches.length, 1)
+      verify(root.dispatches[0].indexOf('o.workspaces.reorder') > 0)
+
+      // Canceling a drag reconciles any background workspace entry changes that arrived mid-drag.
+      init()
+      var cancelCard = workspaceRepeater.itemAt(1)
+      var cancelStart = cancelCard.mapToItem(keyCatcher, cancelCard.width / 2, cancelCard.height / 2)
+      mousePress(keyCatcher, cancelStart.x, cancelStart.y, Qt.LeftButton)
+      mouseMove(keyCatcher, cancelStart.x - 16, cancelStart.y)
+      verify(root.wsDragActive)
+      var countBefore = root.displayWorkspaceEntries.length
+      wsModel.values = [{id: 1}, {id: 2}, {id: 3}, {id: 11, monitor: {name: "one"}}]
+      wait(0)
+      compare(root.displayWorkspaceEntries.length, countBefore)
+      root.cancelWorkspaceDrag()
+      mouseRelease(keyCatcher, cancelStart.x - 16, cancelStart.y, Qt.LeftButton)
+      verify(!root.wsDragActive)
+      compare(root.displayWorkspaceEntries.length, countBefore + 1)
+      compare(root.dispatches.length, 0)
+    }
   }
 }
 """
@@ -797,10 +874,15 @@ for token, snippet in [
     ("REFRESH", refresh),
     ("SELECT_WS", select_ws),
     ("SWITCH_WS", switch_ws),
+    ("BEGIN_WS_DRAG", begin_ws_drag),
+    ("UPDATE_WS_DRAG", update_ws_drag),
+    ("CANCEL_WS_DRAG", cancel_ws_drag),
+    ("FINISH_WS_DRAG", finish_ws_drag),
     ("MOVE_WIN", move_win),
     ("REORDER_WS", reorder_ws),
     ("UPDATE_WS_DROP", re.sub(r"\bStyle\b", "styleStub", update_ws_drop)),
     ("WS_TRANSLATE_X", ws_translate_x),
+    ("WS_MOUSE", re.sub(r"\bStyle\b", "styleStub", ws_mouse)),
     ("RECONCILE", reconcile),
     ("EVENTS", events),
 ]:
