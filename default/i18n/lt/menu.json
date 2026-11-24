@@ -26,11 +26,11 @@
   "update": {
     "label": "Atnaujinti"
   },
-  "about": {
-    "label": "Apie"
-  },
   "system": {
     "label": "Sistema"
+  },
+  "system.about": {
+    "label": "Apie"
   },
   "system.screensaver": {
     "label": "Ekrano užsklanda"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Įvestis"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Kalba"
+  },
+  "setup.region.timezone": {
+    "label": "Laiko juosta"
   },
   "setup.network": {
     "label": "Tinklas"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "Numatytosios"
-  },
-  "agent": {
-    "label": "Agentas"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Naršyklė",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Tiesioginė įkrova"
-  },
-  "setup.reset": {
-    "label": "Atstatyti kompiuterį"
+  "remove.factory-reset": {
+    "label": "Gamyklinis atstatymas"
   },
   "install.package": {
     "label": "Paketas"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "Slaptažodis"
   },
-  "update.timezone": {
-    "label": "Laiko juosta"
-  },
   "update.time": {
     "label": "Laikas"
   },
@@ -1131,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "Jutiklinis kilimėlis"
-  },
-  "update.password.drive": {
-    "label": "Disko šifravimas"
-  },
-  "update.password.user": {
-    "label": "Vartotojas"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Rodyti baterijos %"
@@ -1195,7 +1138,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Strigčių fiksavimas įjungtas"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1237,33 +1180,6 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Išjungti jutiklinį ekraną"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
   "setup.default.dictation.hex": {
     "label": "Hex"
   },
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "Paprastas"
   },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "Numatytasis Harness"
-  },
-  "agent.instructions": {
-    "label": "Instrukcijos"
-  },
-  "agent.make": {
-    "label": "Kurti kažką"
-  },
-  "agent.make.theme": {
-    "label": "Kurti temą"
-  },
-  "agent.make.plugin": {
-    "label": "Kurti įskiepį"
-  },
-  "agent.make.app": {
-    "label": "Kurti programėlę"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Piktogramos"
+  },
+  "install.style.icons": {
+    "label": "Piktogramos"
+  },
+  "remove.icons": {
+    "label": "Piktogramos"
+  },
+  "update.icons": {
+    "label": "Papildomos piktogramos"
+  },
+  "system.firmware": {
+    "label": "Perkrauti į BIOS",
+    "description": "Paleisti iš naujo į UEFI programinės įrangos nustatymus"
+  },
+  "setup.region": {
+    "label": "Regionas"
+  },
+  "setup.region.formats": {
+    "label": "Formatai",
+    "description": "Kaip rašomos datos, laikas, skaičiai ir vienetai"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Game"
+  },
+  "update.games": {
+    "label": "Game Vibes Games"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Kompiuterio vardas"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
