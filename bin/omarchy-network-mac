@@ -3,7 +3,7 @@
 # omarchy:summary=Show or set which MAC address NetworkManager presents (hardware, stable per network, or random)
 # omarchy:group=network
 # omarchy:args=[permanent|stable|random|--current] [--now] [--dry-run]
-# omarchy:examples=omarchy network mac | omarchy network mac stable | omarchy network mac random --now | omarchy network mac permanent --dry-run
+# omarchy:examples=omarchy network mac stable | omarchy network mac random --now
 
 set -euo pipefail
 
