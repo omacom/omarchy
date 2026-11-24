@@ -31,4 +31,4 @@ fi
 # config when it starts, so that is not a failure for the caller. The reload
 # is time-boxed so a wedged compositor cannot wedge the caller, and its
 # output is left visible so a failed reload reports its error.
-timeout 10 hyprctl "${instance[@]}" reload || true
+timeout 10 hyprctl "${instance[@]}" reload >&2 || true

@@ -26,6 +26,10 @@ reload env HYPRLAND_INSTANCE_SIGNATURE=abc_1_1
 [[ $(<"$log") == "reload" ]] || fail "reloads the session's own instance" "$(<"$log")"
 pass "reloads the session's own instance"
 
+# The background switch reads this command's stdout as its lock handshake.
+[[ -z $(reload env HYPRLAND_INSTANCE_SIGNATURE=abc_1_1 2>/dev/null) ]] || fail "keeps hyprctl's answer off stdout"
+pass "keeps hyprctl's answer off stdout"
+
 reload env -u HYPRLAND_INSTANCE_SIGNATURE
 [[ $(<"$log") == "--instance 0 reload" ]] || fail "reaches Hyprland outside the session" "$(<"$log")"
 pass "reaches the running Hyprland outside the session"
