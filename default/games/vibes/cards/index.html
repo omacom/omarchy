@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cards</title>
+<meta name="description" content="Klondike solitaire, draw three">
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: var(--background); color: var(--foreground); font-family: ui-monospace, "JetBrainsMono Nerd Font", monospace; }
   canvas { display: block; }
@@ -48,13 +49,10 @@
   .screen table { margin: 12px auto; border-spacing: 20px 5px; font-size: 15px; text-align: left; }
   .screen td.key { font-family: ui-monospace, monospace; }
 </style>
-<!-- One pinned three.js version. Addons, if any, come from the same version. -->
-<script type="importmap">
-{ "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.min.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
-} }
-</script>
+<!-- three.js 0.180 and its bloom passes, as one global THREE. Game Vibes keeps
+     three.min.js beside the games, since a page opened from a file can load a
+     script next to it but not a module. -->
+<script src="../three.min.js"></script>
 </head>
 <body>
 <div id="hud">
@@ -118,7 +116,6 @@
 </div></div>
 
 <script type="module">
-import * as THREE from 'three';
 
 // =============================================================================
 // SETTINGS — change these.
@@ -143,7 +140,7 @@ const KEY_REPEAT = true;                  // true: a held move key repeats, for 
 // score, best, state, shake, $. Names starting with _ are the frame's alone.
 // =============================================================================
 
-// omarchy-games-launch opens the game as index.html#palette=<the current theme as JSON>, and
+// omarchy-games-vibes-launch opens the game as index.html#palette=<the current theme as JSON>, and
 // `omarchy agent look page --theme` does the same for another theme. #seed=1 replays the same round.
 function launchParam(name) {
   return new URLSearchParams(location.hash.slice(1)).get(name);

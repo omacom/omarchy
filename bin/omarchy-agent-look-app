@@ -4,7 +4,7 @@
 # omarchy:args=[--keys "Down Return"] [--theme <name|dir>] [--language <code>] [--after seconds] [--size WxH] [--out file.png] -- <command> [args...]
 # omarchy:examples=omarchy agent look app -- ./build/tally | omarchy agent look app --keys "N" -- ./build/tally | omarchy agent look app --theme catppuccin-latte --language ar -- ./build/tally
 
-# An Omarchy app started from the omarchy-app scaffold draws itself offscreen
+# An Omarchy app started from the omarchy-make-app scaffold draws itself offscreen
 # when OMARCHY_LOOK_SCREENSHOT names a file: it presses the keys in
 # OMARCHY_LOOK_KEYS through its window's Shortcuts, saves the window, and
 # quits. That needs no display, takes no focus, and shows nothing on the
@@ -116,15 +116,15 @@ fi
 
 # Not a scaffolded app, or one without the hook: capture its window on screen.
 if [[ -n $theme || -n $language ]]; then
-  echo "This program can't be shown in another theme or language: --theme and --language need the OMARCHY_LOOK_SCREENSHOT handling in the omarchy-app template's main.cpp, and the built binary itself as the command, not a script that starts it." >&2
+  echo "This program can't be shown in another theme or language: --theme and --language need the OMARCHY_LOOK_SCREENSHOT handling in the omarchy-make-app template's main.cpp, and the built binary itself as the command, not a script that starts it." >&2
   rm -f "$log"
   exit 2
 fi
 if [[ -n $keys ]]; then
-  echo "This program can't press keys for a screenshot: --keys needs the OMARCHY_LOOK_KEYS handling in the omarchy-app template's main.cpp, and the built binary itself as the command, not a script that starts it." >&2
+  echo "This program can't press keys for a screenshot: --keys needs the OMARCHY_LOOK_KEYS handling in the omarchy-make-app template's main.cpp, and the built binary itself as the command, not a script that starts it." >&2
 fi
 if ! hyprctl monitors -j | jq -e 'any(.[]; .dpmsStatus)' >/dev/null; then
-  echo "The display is off, so the window can't be captured on screen, and this program didn't draw itself offscreen (the omarchy-app template's main.cpp does, on OMARCHY_LOOK_SCREENSHOT). It printed:" >&2
+  echo "The display is off, so the window can't be captured on screen, and this program didn't draw itself offscreen (the omarchy-make-app template's main.cpp does, on OMARCHY_LOOK_SCREENSHOT). It printed:" >&2
   head -40 "$log" >&2
   rm -f "$log"
   exit 1

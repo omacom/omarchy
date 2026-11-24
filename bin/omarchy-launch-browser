@@ -9,10 +9,20 @@ default_browser=$(omarchy-cmd-default-browser)
 # the same order, so the command always comes from the entry that was checked.
 IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 browser_exec=""
+browser_class=""
 for data_dir in "${data_dirs[@]}"; do
   entry="$data_dir/applications/$default_browser"
   [[ -f $entry ]] || continue
-  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
+  while IFS= read -r line || [[ -n $line ]]; do
+    line=${line%$'\r'}
+    if [[ -z $browser_exec && $line == Exec=* ]]; then
+      browser_exec=${line#Exec=}
+      browser_exec=${browser_exec%% *}
+    elif [[ -z $browser_class && $line == StartupWMClass=* ]]; then
+      browser_class=${line#StartupWMClass=}
+    fi
+    [[ -n $browser_exec && -n $browser_class ]] && break
+  done <"$entry"
   break
 done
 
@@ -53,5 +63,13 @@ for argument in "$@"; do
 done
 
 if [[ -n $url && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-  omarchy-hyprland-focus-app "^$(basename "$browser_exec" -stable).*$" || true
+  # The binary name is only a guess at the window class (Zen runs zen-bin as
+  # class zen), so prefer the class the desktop entry declares, then the guess.
+  guessed_pattern="^$(basename "$browser_exec" -stable).*$"
+  if [[ -n $browser_class ]]; then
+    omarchy-hyprland-focus-app "^$browser_class$" ||
+      omarchy-hyprland-focus-app "$guessed_pattern" || true
+  else
+    omarchy-hyprland-focus-app "$guessed_pattern" || true
+  fi
 fi

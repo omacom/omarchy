@@ -100,13 +100,6 @@ first_menu_kernel() {
   done
 }
 
-# Direct Boot has the firmware load one UKI and skip Limine, so reordering the
-# boot menu would change nothing that boots. Read as omarchy-boot-direct does,
-# from efibootmgr directly, since root runs on a PATH without omarchy-*.
-direct_boot_active() {
-  efibootmgr 2>/dev/null | cut -f1 | grep -Eq '^Boot[0-9A-Fa-f]+\*[[:space:]]+Omarchy[[:space:]]*$'
-}
-
 # Rebuilding one kernel rewrites limine.conf in BOOT_ORDER order, which
 # reorders the menu without rebuilding every image. If the write, the rebuild,
 # or the check that the kernel now leads the menu fails, the old config comes
@@ -145,12 +138,6 @@ set_kernel() {
     exit 1
   elif ! installed_kernels | grep -Fxq -- "$kernel"; then
     echo "Error: $kernel is not an installed kernel. Installed: $(installed_kernels | paste -sd ' ')" >&2
-    exit 1
-  elif direct_boot_active; then
-    echo "Error: Direct Boot skips the boot menu. Turn it off in Setup > Direct Boot to switch kernels." >&2
-    if (( EUID != 0 )) && [[ ! -t 0 ]]; then
-      omarchy-notification-send -g  -u critical "$(omarchy-i18n kernel.directBoot)"
-    fi
     exit 1
   fi
 
