@@ -37,6 +37,18 @@ assertDeepEqual(
 
 assertDeepEqual(clipboard.parseHistory(JSON.stringify([' ', '\n', { type: 'text', text: '\t' }])), [], 'clipboard history parser drops whitespace-only text')
 
+assertDeepEqual(
+  clipboard.normalizeEntry({ type: 'text', text: 'Slack message', html: '<a href="https://example.com/">Slack message</a>' }),
+  { type: 'text', text: 'Slack message', html: '<a href="https://example.com/">Slack message</a>' },
+  'clipboard keeps the rich text of text entries'
+)
+
+assertDeepEqual(
+  clipboard.normalizeEntry({ type: 'text', text: 'plain', html: ' ' }),
+  { type: 'text', text: 'plain' },
+  'clipboard drops empty rich text from text entries'
+)
+
 const history = [
   { type: 'text', text: 'old' },
   { type: 'text', text: 'new' },
@@ -304,6 +316,12 @@ elif [[ $1 == "--type" && $2 == "text" ]]; then
     sleep 10
   fi
   printf '%s' "${WL_PASTE_TEXT:-terminal copy}"
+elif [[ $1 == "--type" && $2 == "text/html" ]]; then
+  if [[ -n ${WL_PASTE_HTML_FILE:-} ]]; then
+    cat "$WL_PASTE_HTML_FILE"
+  else
+    printf '%s' "${WL_PASTE_HTML:-<a href=\"https://example.com/\">terminal copy</a>}"
+  fi
 fi
 SH
 
@@ -328,7 +346,12 @@ cat >"$TMPDIR/bin/omasnap" <<'SH'
 printf '%s\n' "$*" >"$OMASNAP_OUT"
 SH
 
-chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wl-paste" "$TMPDIR/bin/wtype" "$TMPDIR/bin/omarchy-launch-browser" "$TMPDIR/bin/omarchy-launch-editor" "$TMPDIR/bin/omasnap"
+cat >"$TMPDIR/bin/omarchy-clipboard-copy-rich" <<'SH'
+#!/bin/bash
+cat >"$COPY_RICH_OUT"
+SH
+
+chmod +x "$TMPDIR/bin/omarchy-clipboard-copy-rich" "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wl-paste" "$TMPDIR/bin/wtype" "$TMPDIR/bin/omarchy-launch-browser" "$TMPDIR/bin/omarchy-launch-editor" "$TMPDIR/bin/omasnap"
 
 capture_output=$(XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh")
 [[ $capture_output == '{"type":"text","text":"terminal copy"}' ]] || fail "clipboard capture records normal text events"
@@ -503,6 +526,49 @@ pass "clipboard capture ignores sensitive clipboard events"
 capture_output=$(WL_PASTE_TYPES="text/plain\nx-kde-passwordManagerHint\n" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh")
 [[ -z $capture_output ]] || fail "clipboard capture ignores password manager hint"
 pass "clipboard capture ignores password manager hint"
+
+capture_output=$(WL_PASTE_TYPES="text/html\ntext/plain\n" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh")
+[[ $capture_output == '{"type":"text","text":"terminal copy","html":"<a href=\"https://example.com/\">terminal copy</a>"}' ]] || fail "clipboard capture keeps the rich text of a copy" "actual: $capture_output"
+pass "clipboard capture keeps the rich text of a copy"
+
+capture_output=$(printf 'watched rich copy' | WL_PASTE_TYPES="text/html\ntext/plain\n" WL_PASTE_TEXT="watched rich copy" WL_PASTE_HTML="<b>watched rich copy</b>" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" text)
+[[ $capture_output == '{"type":"text","text":"watched rich copy","html":"<b>watched rich copy</b>"}' ]] || fail "clipboard capture keeps the rich text of a watched copy" "actual: $capture_output"
+pass "clipboard capture keeps the rich text of a watched copy"
+
+capture_output=$(printf 'first copy' | WL_PASTE_TYPES="text/html\ntext/plain\n" WL_PASTE_TEXT="second copy" WL_PASTE_HTML="<b>second copy</b>" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" text)
+[[ $capture_output == '{"type":"text","text":"first copy"}' ]] || fail "clipboard capture drops rich text that belongs to a newer copy" "actual: $capture_output"
+pass "clipboard capture drops rich text that belongs to a newer copy"
+
+head -c 262145 /dev/zero | tr '\0' 'x' >"$TMPDIR/oversized.html"
+capture_output=$(WL_PASTE_TYPES="text/html\ntext/plain\n" WL_PASTE_HTML_FILE="$TMPDIR/oversized.html" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh")
+[[ $capture_output == '{"type":"text","text":"terminal copy"}' ]] || fail "clipboard capture keeps plain text only when the rich text is too large" "actual: ${capture_output:0:200}"
+pass "clipboard capture keeps plain text only when the rich text is too large"
+
+leftover=$(find "$TMPDIR/state/omarchy" -maxdepth 1 \( -name 'clipboard-html.*' -o -name 'clipboard-check.*' \) -print)
+[[ -z $leftover ]] || fail "clipboard capture removes the rich text files it read" "left: $leftover"
+pass "clipboard capture removes the rich text files it read"
+
+jq -n '[{type:"text", text:"plain"}, {type:"text", text:"Slack message", html:"<a href=\"https://example.com/\">Slack message</a>"}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+
+rm -f "$TMPDIR/copied" "$TMPDIR/copied-rich" "$TMPDIR/wtype"
+COPY_RICH_OUT="$TMPDIR/copied-rich" WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 1
+
+[[ $(jq -c . <"$TMPDIR/copied-rich") == '{"text":"Slack message","html":"<a href=\"https://example.com/\">Slack message</a>"}' ]] || fail "clipboard paste helper copies rich text entries with their html"
+pass "clipboard paste helper copies rich text entries with their html"
+
+[[ ! -e "$TMPDIR/copied" ]] || fail "clipboard paste helper skips wl-copy for rich text entries"
+pass "clipboard paste helper skips wl-copy for rich text entries"
+
+[[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "clipboard paste helper pastes rich text entries with shift insert"
+pass "clipboard paste helper pastes rich text entries with shift insert"
+
+rm -f "$TMPDIR/copied" "$TMPDIR/copied-rich" "$TMPDIR/wtype"
+COPY_RICH_OUT="$TMPDIR/copied-rich" WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only --history-index 0
+
+[[ $(<"$TMPDIR/copied") == "plain" && ! -e "$TMPDIR/copied-rich" ]] || fail "clipboard paste helper keeps wl-copy for plain text entries"
+pass "clipboard paste helper keeps wl-copy for plain text entries"
 
 jq -n --arg text "$(printf 'large block line 1\nlarge block line 2\n')" '[{type:"text", text:"ignored"}, {type:"text", text:$text}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
 
