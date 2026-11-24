@@ -10,6 +10,10 @@ trap 'rm -rf "$tmpdir"' EXIT
 home="$tmpdir/home"
 mkdir -p "$home/.local/share/applications"
 
+# The commands in bin/ read $OMARCHY_PATH, the way the ones that already
+# source a helper under install/ do.
+export OMARCHY_PATH="$ROOT"
+
 install_webapp() {
   HOME="$home" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-webapp-install" "$@"
 }
