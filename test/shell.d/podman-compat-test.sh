@@ -70,3 +70,46 @@ TEST_DB_FAIL=1
 ! "$ROOT/bin/omarchy-reinstall-pkgs" >"$test_dir/output" 2>&1 || fail "repair accepts a failed package query"
 ! grep -q '^omarchy-update-pacman -Syu ' "$TEST_LOG" || fail "repair installs packages after a failed provider query"
 pass "package repair preserves existing engines and refuses unreadable package state"
+
+(
+  stub_dir="$test_dir/firewall"
+  mkdir -p "$stub_dir"
+
+  cat >"$stub_dir/ufw" <<'STUB'
+#!/bin/bash
+printf 'ufw %s\n' "$*" >>"$TEST_LOG"
+
+STUB
+
+  cat >"$stub_dir/sed" <<'STUB'
+#!/bin/bash
+printf 'sed %s\n' "$*" >>"$TEST_LOG"
+
+STUB
+
+  cat >"$stub_dir/systemctl" <<'STUB'
+#!/bin/bash
+printf 'systemctl %s\n' "$*" >>"$TEST_LOG"
+STUB
+
+  chmod +x "$stub_dir"/*
+
+  export TEST_LOG="$stub_dir/firewall.log" OMARCHY_FIREWALL_STAMP="$stub_dir/stamp"
+  apply_firewall() {
+    PATH="$stub_dir:$PATH" bash -eE -c 'source "$1"' bash "$ROOT/install/config/firewall.sh"
+  }
+  printf '1\n' >"$OMARCHY_FIREWALL_STAMP"
+  OMARCHY_FIREWALL_RULES_ONLY=1 apply_firewall
+
+  grep -q '^ufw allow in on podman+ to any port 53 proto udp' "$TEST_LOG" || fail "Podman DNS is allowed"
+  grep -q '^ufw allow in on podman+ to any port 53 proto tcp' "$TEST_LOG" || fail "Podman TCP DNS is allowed"
+  grep -q '^ufw route allow in on podman+' "$TEST_LOG" || fail "Podman egress is allowed"
+  ! grep -Eq '^ufw (enable|reload)|^ufw-docker ' "$TEST_LOG" || fail "installation changes the live firewall"
+  ! grep -Eq '^(sed|systemctl) ' "$TEST_LOG" || fail "prebaking changes activation"
+  : >"$TEST_LOG"
+  apply_firewall
+  ! grep -q '^ufw ' "$TEST_LOG" || fail "the current stamp avoids reapplying firewall rules"
+  grep -q '^systemctl enable ufw$' "$TEST_LOG" || fail "ufw is enabled for next boot"
+
+  pass "firewall config permits Podman DNS and egress without activating live UFW"
+)

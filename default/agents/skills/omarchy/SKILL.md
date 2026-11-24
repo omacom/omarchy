@@ -1,18 +1,15 @@
 ---
 name: omarchy
 description: >
-  REQUIRED for end-user customization of Linux desktop, window manager, or system config.
-  Use when editing ANY file in ~/.config/, ~/.config/hypr/, ~/.config/omarchy/,
-  ~/.config/alacritty/, ~/.config/foot/, ~/.config/kitty/, or ~/.config/ghostty/.
-  Triggers: Hyprland, window rules, window behavior, animations, keybindings, monitors, gaps, borders,
-  blur, opacity, omarchy-shell, bar, widgets, terminal config, themes, fonts, background,
-  night light, idle, lock screen, screenshots, screen recording, reminders, layer rules, workspace
-  settings, display config, appearance changes, default apps (browser, terminal, editor), web apps,
-  installing software, environment variables, keyboard layouts, language, power profiles, dock,
-  and user-facing omarchy commands. Excludes Omarchy
-  source development through `omarchy dev link` workflows. Making a new theme, shell plugin, app,
-  or game follows the omarchy-make-theme, omarchy-make-plugin, omarchy-make-app, or
-  omarchy-make-game skill instead, and reporting a bug or contributing upstream follows omarchy-contribute.
+  REQUIRED for end-user customization of an Omarchy desktop, and when editing ANY file in ~/.config/
+  (hypr, omarchy, alacritty, foot, kitty, ghostty). Triggers: Hyprland, keybindings, monitors, window
+  rules, gaps, borders, blur, opacity, animations, workspaces, the bar, dock and widgets, themes, fonts,
+  backgrounds, terminal config, default apps (browser, terminal, editor), web apps, installing software,
+  environment variables, keyboard layouts, language, power profiles, night light, idle, lock screen,
+  screenshots, screen recording, reminders, and user-facing omarchy commands. Not for Omarchy source
+  development (`omarchy dev link`). Making a new theme, shell plugin, app, or game follows
+  omarchy-make-theme, omarchy-make-plugin, omarchy-make-app, or omarchy-make-game instead, and
+  reporting a bug or contributing upstream follows omarchy-contribute.
 ---
 
 # Omarchy Skill

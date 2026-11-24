@@ -18,40 +18,62 @@ if (( ${#tests[@]} == 0 )); then
   exit 1
 fi
 
-# Files that need the live compositor or desktop to themselves run one at
-# a time after the parallel batch; everything else runs through a job
-# pool sized to the machine. Timing-sensitive files stay out of the pool
-# too: the budget guards calibrate against the machine's speed, which a
-# busy pool distorts, and sleep-lock asserts tight unscaled timings.
-# A file can also opt out of the pool with an `# omarchy:exclusive`
-# marker near its top.
+uses_compositor() {
+  grep -qE '^[[:space:]]*(require_compositor|require_quickshell)\b' "$1"
+}
+
+# Timing-sensitive files and tests that mutate shared compositor/shell state
+# run one at a time after the parallel batches; everything else runs through
+# a job pool sized to the machine. A file can also opt out of the pool with
+# an `# omarchy:exclusive` marker near its top.
 is_exclusive() {
   local name
   name=$(basename "$1")
-  [[ $name == *budget* || $name == "sleep-lock-test.sh" || $name == "sleep-monitor-test.sh" || $name == "hyprland-window-close-all-test.sh" ]] && return 0
-  grep -q 'require_compositor\|# omarchy:exclusive' "$1"
+  [[ $name == *budget* || $name == "sleep-lock-test.sh" || $name == "sleep-monitor-test.sh" || $name == "hyprland-window-close-all-test.sh" || $name == "remote-session-service-test.sh" ]] && return 0
+  grep -q '# omarchy:exclusive' "$1"
 }
 
 # The idle-spawn guard spends most of its time passively watching its own
-# shell's process tree through an exec logger, so pool load cannot distort
-# what it counts. It starts alongside the pool instead of blocking the
-# serial compositor chain with its idle window.
+# shell's process tree through an exec logger, so non-compositor pool load
+# cannot distort what it counts. It starts alongside the non-compositor pool
+# while no other compositor test is running.
 is_overlap() {
   [[ $(basename "$1") == "shell-idle-spawn-test.sh" ]]
 }
 
-parallel_tests=()
+parallel_noncomp_tests=()
+parallel_comp_tests=()
 exclusive_tests=()
 overlap_tests=()
+need_compositor=0
 for test in "${tests[@]}"; do
+  if uses_compositor "$test"; then
+    need_compositor=1
+  fi
   if is_overlap "$test"; then
     overlap_tests+=("$test")
   elif is_exclusive "$test"; then
     exclusive_tests+=("$test")
+  elif uses_compositor "$test"; then
+    parallel_comp_tests+=("$test")
   else
-    parallel_tests+=("$test")
+    parallel_noncomp_tests+=("$test")
   fi
 done
+
+# Share the headless nested Hyprland lifecycle with test/headless so
+# compositor/Quickshell tests never appear on or steal focus from the user's
+# active screen. Fails closed if a live Wayland socket is present and the
+# private compositor cannot be established; set OMARCHY_TEST_USE_LIVE_COMPOSITOR=1
+# to use the live session directly (e.g. inside a disposable CI VM).
+source "$ROOT/test/headless"
+trap headless_cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+if (( need_compositor )); then
+  headless_start "test/shell"
+fi
 
 # Every file's output is kept after the run, so a failure can be read from
 # its log rather than found by running the suite again.
@@ -62,36 +84,71 @@ printf 'Logging every file to %s\n' "$workdir"
 
 run_one() {
   local test="$1"
+  local use_comp="${2:-0}"
   local name
   name=$(basename "$test")
   local status=0
-  bash "$test" >"$workdir/$name.out" 2>&1 || status=$?
+  if [[ $use_comp == "1" && -n $HEADLESS_RT ]]; then
+    XDG_RUNTIME_DIR="$HEADLESS_RT" \
+    WAYLAND_DISPLAY="$HEADLESS_WL" \
+    HYPRLAND_INSTANCE_SIGNATURE="$HEADLESS_SIG" \
+    DBUS_SESSION_BUS_ADDRESS="$HEADLESS_DBUS" \
+    OMARCHY_TEST_HEADLESS_ACTIVE=1 \
+      bash "$test" >"$workdir/$name.out" 2>&1 || status=$?
+  else
+    OMARCHY_TEST_HEADLESS_ACTIVE="${OMARCHY_TEST_HEADLESS_ACTIVE:-${HEADLESS_RT:+1}}" \
+      bash "$test" >"$workdir/$name.out" 2>&1 || status=$?
+  fi
   echo "$status" >"$workdir/$name.code"
 }
 export -f run_one
-export workdir
+export workdir HEADLESS_RT HEADLESS_WL HEADLESS_SIG HEADLESS_DBUS
+
+# Schedule largest test files first (longest-processing-time heuristic) so slow
+# files start at t=0 instead of forming a straggler tail at the end of the pool.
+sort_largest_first() {
+  (( $# > 0 )) || return 0
+  stat -c '%s %n' "$@" | sort -rn | cut -d' ' -f2-
+}
 
 # Keep going after a failing file. A test file exits at its first failed
 # assertion, so aborting the run there too would hide every file after it --
 # one packaging failure was masking 114 of 134 files.
 overlap_pids=()
 for test in "${overlap_tests[@]}"; do
-  run_one "$test" &
+  comp=0
+  uses_compositor "$test" && comp=1
+  run_one "$test" "$comp" &
   overlap_pids+=("$!")
 done
-if (( ${#parallel_tests[@]} > 0 )); then
-  printf '%s\0' "${parallel_tests[@]}" |
-    xargs -0 -P "$(nproc)" -n 1 bash -c 'run_one "$1"' _
+if (( ${#parallel_noncomp_tests[@]} > 0 )); then
+  sort_largest_first "${parallel_noncomp_tests[@]}" |
+    tr '\n' '\0' |
+    xargs -0 -P "$(nproc)" -n 1 bash -c 'run_one "$1" 0' _
 fi
-# The overlap jobs must be done before the exclusive chain starts: those
-# files launch full shells on the live compositor, and a shell starting
-# beside the idle guard (the clipboard plugin's watcher pkill, say) can
-# make the guard's own shell spawn processes it would then count.
+# The overlap jobs must be done before other compositor tests start: those
+# files launch shells/fixtures on the same compositor, which would trigger
+# events or spawns the idle guard could observe.
 if (( ${#overlap_pids[@]} > 0 )); then
   wait "${overlap_pids[@]}"
 fi
+if (( ${#parallel_comp_tests[@]} > 0 )); then
+  if [[ -n $HEADLESS_RT ]]; then
+    sort_largest_first "${parallel_comp_tests[@]}" |
+      tr '\n' '\0' |
+      xargs -0 -P "$(nproc)" -n 1 bash -c 'run_one "$1" 1' _
+  else
+    # Live compositor runs (e.g. CI VMs on software llvmpipe) keep compositor
+    # fixtures serial so concurrent Qt rendering does not starve the compositor.
+    for test in "${parallel_comp_tests[@]}"; do
+      run_one "$test" 1
+    done
+  fi
+fi
 for test in "${exclusive_tests[@]}"; do
-  run_one "$test"
+  comp=0
+  uses_compositor "$test" && comp=1
+  run_one "$test" "$comp"
 done
 
 failed=()

@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether this machine was installed for mainland China (docs/regions.md).
+# omarchy:hidden=true
+
+[[ $(omarchy-region) == "cn" ]]
