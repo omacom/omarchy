@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "預設值"
   },
-  "agent": {
-    "label": "代理程式"
-  },
   "setup.default.browser": {
     "label": "瀏覽器",
     "title": "預設瀏覽器"

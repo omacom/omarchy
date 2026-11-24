@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "ברירות מחדל"
   },
-  "agent": {
-    "label": "סוכן"
-  },
   "setup.default.browser": {
     "label": "דפדפן",
     "title": "דפדפן ברירת מחדל"

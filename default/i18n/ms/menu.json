@@ -390,9 +390,6 @@
   "setup.default": {
     "label": "Lalai"
   },
-  "agent": {
-    "label": "Ejen"
-  },
   "setup.default.browser": {
     "label": "Pelayar",
     "title": "Pelayar Lalai"

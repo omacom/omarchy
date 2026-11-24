@@ -26,16 +26,10 @@ if [[ $mode != "--services-only" ]]; then
   kernel_updated=true
 
   # Every kernel package owns modules.builtin; Arch Linux ARM's ships no vmlinuz here (#12440).
-  for kernel in "$kernel_modules_path"/*/modules.builtin; do
-    if [[ -f $kernel ]] && pacman -Qo "$kernel" &>/dev/null; then
-      installed_kernel=$(basename "$(dirname "$kernel")")
-
-      if [[ $installed_kernel == $running_kernel ]]; then
-        kernel_updated=false
-        break
-      fi
-    fi
-  done
+  if [[ -f $kernel_modules_path/$running_kernel/modules.builtin ]] &&
+    pacman -Qo -- "$kernel_modules_path/$running_kernel/modules.builtin" &>/dev/null; then
+    kernel_updated=false
+  fi
 
   if [[ $kernel_updated == "true" ]]; then
     confirm_reboot "$(omarchy-i18n update.kernelReboot)"
@@ -43,8 +37,15 @@ if [[ $mode != "--services-only" ]]; then
     confirm_reboot "$(omarchy-i18n update.rebootRequired)"
   fi
 
-  running_hyprland=$(readlink /proc/$(pgrep -x Hyprland)/exe 2>/dev/null)
-  if [[ $running_hyprland == *"(deleted)"* ]]; then
+  hyprland_updated=false
+  while IFS= read -r hyprland_pid; do
+    [[ -n $hyprland_pid ]] || continue
+    if [[ $(readlink "/proc/$hyprland_pid/exe" 2>/dev/null) == *"(deleted)"* ]]; then
+      hyprland_updated=true
+      break
+    fi
+  done < <(pgrep -x Hyprland 2>/dev/null)
+  if [[ $hyprland_updated == "true" ]]; then
     confirm_reboot "$(omarchy-i18n update.hyprlandReboot)"
   fi
 fi

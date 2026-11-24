@@ -3775,7 +3775,7 @@ def cursor_state_db() -> Path:
   return config_home() / "Cursor" / "User" / "globalStorage" / "state.vscdb"
 
 
-def _cursor_ide_token(state_db: Path) -> str:
+def _cursor_ide_value(state_db: Path, key: str) -> str:
   # The sign-in the Cursor editor keeps, for people who never ran the CLI.
   # Read-only: the editor may be writing its database right now. No
   # immutable=1, so a live database with an active WAL still reads.
@@ -3787,7 +3787,7 @@ def _cursor_ide_token(state_db: Path) -> str:
     return ""
   try:
     conn.execute("PRAGMA query_only = ON")
-    row = conn.execute("SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken' LIMIT 1").fetchone()
+    row = conn.execute("SELECT value FROM ItemTable WHERE key = ? LIMIT 1", (key,)).fetchone()
   except sqlite3.Error:
     return ""
   finally:
@@ -3796,6 +3796,23 @@ def _cursor_ide_token(state_db: Path) -> str:
   if isinstance(value, bytes):
     value = value.decode("utf-8", errors="replace")
   return str(value or "").strip()
+
+
+def _cursor_ide_token(state_db: Path) -> str:
+  return _cursor_ide_value(state_db, "cursorAuth/accessToken")
+
+
+def cursor_account_name(token: str, state_db: Path | None = None) -> str:
+  """The email behind a Cursor token, when the token or editor store names it."""
+  email = str(jwt_claims(token).get("email") or "").strip()
+  if email:
+    return email
+  if os.environ.get("CURSOR_AUTH_TOKEN", "").strip() or os.environ.get("CURSOR_API_KEY", "").strip():
+    return ""
+  db = state_db or cursor_state_db()
+  if token and token == _cursor_ide_token(db):
+    return _cursor_ide_value(db, "cursorAuth/cachedEmail")
+  return ""
 
 
 def cursor_token(auth_path: Path | None = None, state_db: Path | None = None) -> str:

@@ -5,8 +5,9 @@
 # omarchy:hidden=true
 
 LOG_TYPE="${1:-install}"
-TEMP_LOG="/tmp/upload-log.txt"
-SYSTEM_INFO="/tmp/system-info.txt"
+TEMP_LOG=$(mktemp --tmpdir omarchy-upload-log.XXXXXX.txt)
+SYSTEM_INFO=$(mktemp --tmpdir omarchy-system-info.XXXXXX.txt)
+trap 'rm -f "$TEMP_LOG" "$SYSTEM_INFO"' EXIT
 
 # Get system information if fastfetch is available
 if omarchy-cmd-present fastfetch; then
