@@ -67,7 +67,7 @@ Item {
       var entry = root.entryForAppId(toplevel.appId)
       var workspace = toplevels[i].workspace
       windows.push({
-        key: entry ? entry.id : toplevel.appId,
+        key: entry ? DockModel.standInKey(entry.id, entry.categories, pinned) : toplevel.appId,
         hasEntry: !!entry && !entry.noDisplay,
         workspaceId: workspace ? workspace.id : -1,
         minimized: !!workspace && DockModel.isMinimizedWorkspace(workspace.name),
@@ -172,27 +172,28 @@ Item {
 
   function activate(item) {
     if (!item) return
-    if (item.windows.length === 0) {
+    var monitor = Hyprland.focusedMonitor
+    var workspaceId = monitor && monitor.activeWorkspace ? monitor.activeWorkspace.id : -1
+    var mode = root.appLibrary ? root.appLibrary.dockClickMode(item.key) : ""
+    var index = DockModel.pickClickWindow(mode, item.windows.map(function(window) {
+      return { workspaceId: window.workspaceId, minimized: window.minimized, activated: window.toplevel.activated }
+    }), workspaceId)
+    if (index < 0) {
       root.launch(item)
       return
     }
-    var monitor = Hyprland.focusedMonitor
-    var workspaceId = monitor && monitor.activeWorkspace ? monitor.activeWorkspace.id : -1
-    var index = DockModel.pickWindow(item.windows.map(function(window) {
-      return { workspaceId: window.workspaceId, minimized: window.minimized, activated: window.toplevel.activated }
-    }), workspaceId)
     root.bringForward(item.windows[index])
   }
 
   // A window the dock brings forward lands on top of the others, focused; a
   // minimized one first comes back to the workspace in front of the user.
   function bringForward(window) {
-    var address = String(window.address || "")
-    if (!address) {
+    var address = String(window.address || "").trim()
+    if (address && address.indexOf("0x") !== 0) address = "0x" + address
+    if (!/^0x[0-9a-f]+$/i.test(address)) {
       window.toplevel.activate()
       return
     }
-    if (address.indexOf("0x") !== 0) address = "0x" + address
     var target = "window = \"address:" + address + "\""
     var steps = []
     var after = []
@@ -271,7 +272,11 @@ Item {
 
   // Each workspace's layout is read once and cached. It only changes through
   // the layout commands, which ask the dock to refresh, or a config reload.
+  // A refresh reads every layout again but keeps the old ones until the new
+  // ones arrive: a theme switch reloads the config, and clearing them would
+  // hide the dock in the middle of the switch.
   property var modes: ({})
+  property var readModes: ({})
   property var pendingModes: []
   property int modeGeneration: 0
   property int modeProcWorkspace: -1
@@ -282,8 +287,9 @@ Item {
   }
 
   function readMode(workspaceId) {
-    if (!(workspaceId >= 1) || root.modes[workspaceId] !== undefined) return
-    if (root.pendingModes.indexOf(workspaceId) === -1) root.pendingModes.push(workspaceId)
+    if (!(workspaceId >= 1) || root.readModes[workspaceId]) return
+    root.readModes[workspaceId] = true
+    root.pendingModes.push(workspaceId)
     root.readNextMode()
   }
 
@@ -296,7 +302,7 @@ Item {
   }
 
   function refresh() {
-    root.modes = ({})
+    root.readModes = ({})
     root.pendingModes = []
     root.modeGeneration++
     var monitors = Hyprland.monitors.values
@@ -320,7 +326,12 @@ Item {
       onStreamFinished: {
         var mode = text.trim()
         // A read that started before a refresh may predate the change.
-        if (!mode || root.modeProcGeneration !== root.modeGeneration) return
+        if (root.modeProcGeneration !== root.modeGeneration) return
+        // A failed read is tried again the next time it is asked for.
+        if (!mode) {
+          delete root.readModes[root.modeProcWorkspace]
+          return
+        }
         var next = Object.assign({}, root.modes)
         next[root.modeProcWorkspace] = mode
         root.modes = next

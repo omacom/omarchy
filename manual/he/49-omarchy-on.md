@@ -1,29 +1,29 @@
 # Omarchy על...
 
-### שבבי Apple M1/M2
+### מחשבי Mac עם Apple Silicon
 
-[Asahi Alarm](https://asahi-alarm.org/) היא גרסה של Arch עבור מחשבי Apple M1/M2 הבנויה על [Asahi Linux](https://asahilinux.org/). תוכלו להפעיל את Omarchy על גבי זה עם קצת מאמץ. ראו [המדריך מונחה המשתמש](https://github.com/omarchy-mac/omarchy-mac).
+Omarchy ל-Apple Silicon רץ על מחשבי Mac עם M1, M2 ו-M3 ומותקן לצד macOS. ראו [Omarchy ל-Apple Silicon](44-mac-support.md#omarchy-for-apple-silicon) בפרק התמיכה ב-Mac.
 
-### מכונה וירטואלית של Apple
+### לנסות את Omarchy על Mac
 
-תוכלו גם להתקין את Omarchy בתוך VM של Parallels. תהליך די מסורבל, אך יש [מדריך מונחה משתמש](https://github.com/omacom/omarchy/discussions/452) גם לזה.
+[נסו את Omarchy](https://github.com/omacom/try-omarchy) מריץ את Omarchy במכונה וירטואלית על כל Mac עם Apple Silicon עם macOS 15 או חדש יותר, בלי שום צורך ליצור מחיצות או להתקין לצד macOS.
 
 ### VirtualBox
 
-VirtualBox הוא מפעיל VM פופולרי. [תוכלו להפעיל את Omarchy גם בתוכו](https://github.com/omacom/omarchy/discussions/176). אך הביצועים כנראה לא יהיו נהדרים.
+VirtualBox הוא מריץ VM פופולרי. [אפשר להריץ את Omarchy גם בתוכו](https://github.com/omacom/omarchy/discussions/176). אבל הביצועים כנראה לא יהיו מעולים.
 
 ### VMware Workstation על Windows 11
 
-מפעיל VM פופולרי נוסף עבור Windows. [Omarchy הוגדר גם בתוכו](https://github.com/omacom/omarchy/discussions/572).
+עוד מריץ VM פופולרי ל-Windows. [גם Omarchy כבר הוגדר בתוכו](https://github.com/omacom/omarchy/discussions/572).
 
 ### Steam Deck
 
-ה-Steam Deck פועל על Arch, מה שאומר שתוכלו להפעיל את Omarchy על ה-Steam Deck שלכם. ל-Altynbek Orumbayev יש [תסריט הגדרה מלא והסבר איך לעשות זאת](https://github.com/aorumbayev/deckarchy). כמה מגניב זה!
+ה-Steam Deck רץ על Arch, מה שאומר שאפשר להריץ את Omarchy על ה-Steam Deck שלכם. ל-Altynbek Orumbayev יש [סקריפט התקנה מלא והסבר איך לעשות את זה](https://github.com/aorumbayev/deckarchy). כמה מגניב זה!
 
 ### NixOS
 
-Omarchy הוא באמת Arch + Hyprland, אך Henry Sipp [העביר את מהות ההגדרה ל-NixOS](https://github.com/henrysipp/omarchy-nix). כך שאם נדלקתם על nix, זו נקודת התחלה טובה. ייתכן שהוא יישאר או לא יישאר מעודכן עם שינויי Omarchy האחרונים, אך זה די מגניב בכל זאת!
+Omarchy הוא בעצם Arch + Hyprland, אבל Henry Sipp [העביר את תמצית ההתקנה ל-NixOS](https://github.com/henrysipp/omarchy-nix). אז אם כבר לקחתם את הגלולה של nix, הנה נקודת התחלה טובה. יכול להיות שהוא יישאר מעודכן עם השינויים האחרונים ב-Omarchy ויכול להיות שלא, אבל הוא די מגניב בכל מקרה!
 
 ### משהו אחר!
 
-אם אתם מנסים להפעיל את Omarchy על תצורה שאינה ברירת המחדל, כדאי להצטרף לערוץ #omarchy-on-other ב[Discord הקהילתי שלנו](https://discord.gg/tXFUdasqhY).
+אם אתם מנסים להריץ את Omarchy על תצורה שאינה ברירת המחדל, כדאי שתצטרפו לערוץ #omarchy-on-other ב-[Discord של הקהילה שלנו](https://discord.gg/tXFUdasqhY).

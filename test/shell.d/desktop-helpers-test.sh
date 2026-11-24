@@ -1,0 +1,88 @@
+#!/bin/bash
+
+set -euo pipefail
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+mkdir -p "$tmp/bin" "$tmp/home/.config/alacritty" "$tmp/home/.config/ghostty" \
+  "$tmp/home/.config/foot" "$tmp/home/.config/kitty" "$tmp/dots"
+
+# Stub external commands for omarchy-font-set.
+cat >"$tmp/bin/fc-list" <<'SH'
+#!/bin/bash
+printf '%s\n' 'B&H <Mono> "Pro" / 1'\''s'
+SH
+for cmd in pkill omarchy-restart-shell pgrep omarchy-hook omarchy-notification-send; do
+  printf '#!/bin/bash\nexit 0\n' >"$tmp/bin/$cmd"
+done
+chmod +x "$tmp/bin/"*
+
+printf 'family = "Old"\n' >"$tmp/dots/alacritty.toml"
+printf 'font-family = "Old"\n' >"$tmp/dots/ghostty.conf"
+printf 'font=Old:size=11\n' >"$tmp/dots/foot.ini"
+ln -s "$tmp/dots/alacritty.toml" "$tmp/home/.config/alacritty/alacritty.toml"
+ln -s "$tmp/dots/ghostty.conf" "$tmp/home/.config/ghostty/config"
+ln -s "$tmp/dots/foot.ini" "$tmp/home/.config/foot/foot.ini"
+
+font_name='B&H <Mono> "Pro" / 1'\''s'
+HOME="$tmp/home" PATH="$tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-font-set" "$font_name"
+
+[[ -L "$tmp/home/.config/alacritty/alacritty.toml" && -L "$tmp/home/.config/ghostty/config" && -L "$tmp/home/.config/foot/foot.ini" ]] ||
+  fail "omarchy-font-set preserves symlinked terminal configs"
+grep -Fxq 'family = "B&H <Mono> \"Pro\" / 1'\''s"' "$tmp/dots/alacritty.toml" ||
+  fail "omarchy-font-set escapes sed and quote chars in alacritty.toml" "$(<"$tmp/dots/alacritty.toml")"
+grep -Fxq 'font-family = "B&H <Mono> \"Pro\" / 1'\''s"' "$tmp/dots/ghostty.conf" ||
+  fail "omarchy-font-set escapes sed and quote chars in ghostty config" "$(<"$tmp/dots/ghostty.conf")"
+grep -Fxq 'font=B&H <Mono> "Pro" / 1'\''s:size=11' "$tmp/dots/foot.ini" ||
+  fail "omarchy-font-set escapes sed chars in foot.ini" "$(<"$tmp/dots/foot.ini")"
+grep -Fq '<string>B&amp;H &lt;Mono&gt; &quot;Pro&quot; / 1&apos;s</string>' "$tmp/home/.config/fontconfig/fonts.conf" ||
+  fail "omarchy-font-set XML-escapes fontconfig family names" "$(<"$tmp/home/.config/fontconfig/fonts.conf")"
+pass "omarchy-font-set escapes special characters and preserves symlinked configs"
+
+# Clipboard helpers fail cleanly on missing --history-index value instead of looping.
+for helper in omarchy-clipboard-open omarchy-clipboard-paste-text; do
+  if timeout 2s "$ROOT/bin/$helper" --history-index >/dev/null 2>&1; then
+    fail "$helper rejects --history-index without a value"
+  else
+    status=$?
+    (( status != 124 )) || fail "$helper hangs when --history-index has no value"
+  fi
+done
+pass "clipboard helpers fail cleanly when --history-index lacks a value"
+
+cat >"$tmp/bin/wl-copy" <<SH
+#!/bin/bash
+cat >"$tmp/wl-copy-out"
+SH
+cat >"$tmp/bin/wtype" <<SH
+#!/bin/bash
+printf '%s\n' "\$*" >"$tmp/wtype-out"
+SH
+chmod +x "$tmp/bin/wl-copy" "$tmp/bin/wtype"
+
+HOME="$tmp/home" PATH="$tmp/bin:$PATH" "$ROOT/bin/omarchy-clipboard-paste-text" "-leading-dash"
+[[ $(<"$tmp/wtype-out") == "-- -leading-dash" ]] ||
+  fail "omarchy-clipboard-paste-text separates leading-dash text from wtype options" "$(<"$tmp/wtype-out")"
+pass "omarchy-clipboard-paste-text passes -- before typed text"
+
+# omarchy-transcode percent-encodes file:// clipboard URIs for paths with spaces and special chars.
+cat >"$tmp/bin/file" <<'SH'
+#!/bin/bash
+echo "image/png"
+SH
+cat >"$tmp/bin/magick" <<'SH'
+#!/bin/bash
+printf 'out' >"${@: -1}"
+SH
+chmod +x "$tmp/bin/file" "$tmp/bin/magick"
+
+mkdir -p "$tmp/pics"
+printf 'in' >"$tmp/pics/My Photo 100% #1.png"
+HOME="$tmp/home" PATH="$tmp/bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-transcode" "$tmp/pics/My Photo 100% #1.png" jpg low >/dev/null
+[[ $(<"$tmp/wl-copy-out") == "file://$tmp/pics/My%20Photo%20100%25%20%231-low.jpg" ]] ||
+  fail "omarchy-transcode percent-encodes special characters in clipboard file URIs" "$(<"$tmp/wl-copy-out")"
+pass "omarchy-transcode percent-encodes clipboard file URIs"
