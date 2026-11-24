@@ -511,7 +511,7 @@ Item {
     if (themeOpenPending) {
       themeOpenPending = false
       if (rows) openThemeRows()
-    } else if (changed && rows && themeMode && opened) {
+    } else if ((changed || awaitingDeleteRefresh) && themeMode && opened) {
       // A theme was added or removed since the rows were last read. Keep the
       // user's place in the carousel rather than jumping back to the current;
       // a just-deleted selection lands on the theme before it.
@@ -616,8 +616,8 @@ Item {
     stdout: StdioCollector {
       onStreamFinished: root.stockThemeNames = ImagePickerModel.parseThemeNames(String(text || ""))
     }
-    // Until this lands, stockThemeNames is empty and an override would look
-    // deletable: deletion stays disabled unless the listing succeeded.
+    // Wait for the stock list so confirmation can distinguish hiding a
+    // bundled theme from deleting a user-installed theme.
     onExited: function(exitCode) { if (exitCode === 0) root.stockThemesKnown = true }
   }
 
@@ -1018,7 +1018,7 @@ Item {
       anchors.fill: parent
       opened: root.deleteConfirmOpen
       z: 10
-      message: Commons.I18n.t("imagePicker.deleteTheme").arg(root.pendingDeleteTheme ? root.labelForPath(root.pendingDeleteTheme) : "")
+      message: (root.stockThemeNames.includes(root.pendingDeleteTheme) ? Commons.I18n.t("imagePicker.hideTheme") : Commons.I18n.t("imagePicker.deleteTheme")).arg(root.pendingDeleteTheme ? root.labelForPath(root.pendingDeleteTheme) : "")
       confirmText: Commons.I18n.t("common.delete")
       background: root.dimColor
       foreground: root.foreground

@@ -93,6 +93,9 @@
   "appearance.theme": {
     "label": "Theme"
   },
+  "appearance.restore-theme": {
+    "label": "Restore Bundled Theme"
+  },
   "appearance.background": {
     "label": "Background"
   },

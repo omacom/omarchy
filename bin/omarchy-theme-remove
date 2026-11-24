@@ -1,24 +1,47 @@
 #!/bin/bash
 
-# omarchy:summary=Remove a user-installed theme
-# omarchy:args=[theme-name]
+# omarchy:summary=Remove an installed theme or hide a bundled theme
+# omarchy:args=[--restore] [theme-name]
 # omarchy:examples=omarchy theme remove "My Theme"
 
-if [[ -z $1 ]]; then
-  mapfile -t extra_themes < <(find ~/.config/omarchy/themes -mindepth 1 -maxdepth 1 -type d ! -xtype l -printf '%f\n')
+THEMES_DIR="$HOME/.config/omarchy/themes"
+STOCK_DIR="$OMARCHY_PATH/themes"
+HIDDEN_DIR="$HOME/.config/omarchy/hidden-themes"
+RESTORE=false
 
-  if (( ${#extra_themes[@]} > 0 )); then
-    mapfile -t extra_themes < <(printf '%s\n' "${extra_themes[@]}" | sort)
-    THEME_NAME=$(omarchy-menu-select "$(omarchy-i18n theme.removeExtraTitle)" "${extra_themes[@]}" -- --width 520 --maxheight 520)
+if [[ $1 == "--restore" ]]; then
+  RESTORE=true
+  shift
+fi
+
+if (( $# > 1 )); then
+  echo "Usage: omarchy-theme-remove [--restore] [theme-name]" >&2
+  exit 1
+fi
+
+if [[ -z $1 ]]; then
+  if [[ $RESTORE == "true" ]]; then
+    TITLE=$(omarchy-i18n theme.restoreBundledTitle)
+    mapfile -t THEMES < <(find "$HIDDEN_DIR" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' 2>/dev/null | sort)
   else
-    echo "No extra themes installed."
+    TITLE=$(omarchy-i18n theme.removeTitle)
+    mapfile -t THEMES < <(
+      {
+        find "$THEMES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null
+        find "$STOCK_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n'
+      } | sort -u | while IFS= read -r name; do
+        [[ -f $HIDDEN_DIR/$name ]] || printf '%s\n' "$name"
+      done
+    )
+  fi
+  if (( ${#THEMES[@]} == 0 )); then
+    echo "No matching themes."
     exit 1
   fi
+  THEME_NAME=$(omarchy-menu-select "$TITLE" "${THEMES[@]}" -- --width 520 --maxheight 520) || exit $?
 else
   THEME_NAME="$1"
 fi
-
-THEMES_DIR="$HOME/.config/omarchy/themes"
 
 # The name omarchy-theme-list shows (My Theme) finds its folder (my-theme) when no folder has that exact name.
 if [[ ! -d $THEMES_DIR/$THEME_NAME && ! -d $OMARCHY_PATH/themes/$THEME_NAME ]]; then
@@ -32,17 +55,22 @@ if [[ -z $THEME_NAME || $THEME_NAME == .* || $THEME_NAME == */* ]]; then
   exit 1
 fi
 
-# Check if theme exists before attempting removal
-if [[ ! -d $THEME_PATH ]]; then
-  if [[ -d $OMARCHY_PATH/themes/$THEME_NAME ]]; then
-    echo "Error: Theme '$THEME_NAME' comes with Omarchy and cannot be removed."
-  else
-    echo "Error: Theme '$THEME_NAME' not found."
+if [[ $RESTORE == "true" ]]; then
+  if [[ ! -f $HIDDEN_DIR/$THEME_NAME ]]; then
+    echo "Error: Theme '$THEME_NAME' is not hidden." >&2
+    exit 1
   fi
+  rm -- "$HIDDEN_DIR/$THEME_NAME" || exit 1
+  echo "Restored $THEME_NAME"
+elif [[ -d $STOCK_DIR/$THEME_NAME ]]; then
+  mkdir -p "$HIDDEN_DIR" && touch -- "$HIDDEN_DIR/$THEME_NAME" || exit 1
+  omarchy-notification-send "$(omarchy-i18n theme.hidden)" "$THEME_NAME" || true
+  echo "Hidden $THEME_NAME"
+elif [[ -d $THEME_PATH ]]; then
+  rm -rf -- "$THEME_PATH" || exit 1
+  omarchy-notification-send "$(omarchy-i18n theme.removed)" "$THEME_NAME" || true
+  echo "Removed $THEME_NAME"
+else
+  echo "Error: Theme '$THEME_NAME' not found." >&2
   exit 1
 fi
-
-# Now remove the theme directory for THEME_NAME
-rm -rf "$THEME_PATH"
-omarchy-notification-send "$(omarchy-i18n theme.removed)" "$THEME_NAME" || true
-echo "Removed $THEME_NAME"
