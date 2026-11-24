@@ -79,6 +79,9 @@ printf '%s\n' "$*" >>"$OMARCHY_TEST_MISE_HISTORY"
 if [[ -n ${MISE_PRERELEASES:-} ]]; then
   printf 'prereleases=%s %s\n' "$MISE_PRERELEASES" "$*" >>"$OMARCHY_TEST_MISE_HISTORY"
 fi
+if [[ -n ${MISE_OFFLINE:-} ]]; then
+  printf 'offline=%s %s\n' "$MISE_OFFLINE" "$*" >>"$OMARCHY_TEST_MISE_HISTORY"
+fi
 
 if [[ $1 == "tool" && $3 == "--backend" ]]; then
   case "$2" in
@@ -652,6 +655,7 @@ pass "default agent rejects unsupported providers without changing the selection
 : >"$agent_open_log"
 : >"$terminal_log"
 OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent --installed kilo || fail "--installed reports an installed harness"
+grep -Fx "offline=1 where npm:@kilocode/cli" "$mise_history" >/dev/null || fail "--installed queries mise offline"
 if OMARCHY_TEST_AGENT_INSTALLED=false omarchy-default-agent --installed kilo; then
   fail "--installed reports a missing harness"
 fi

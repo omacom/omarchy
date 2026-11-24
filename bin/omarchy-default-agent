@@ -126,7 +126,7 @@ else
   user_install() {
     [[ -x $HOME/.local/bin/$agent ]] && ! mise_wrapper "$HOME/.local/bin/$agent"
   }
-  agent_present() { user_install || mise where "$agent_tool" &>/dev/null; }
+  agent_present() { user_install || MISE_OFFLINE=1 mise where "$agent_tool" &>/dev/null; }
   # Omarchy declares the default agents as mise tools, so installing one is
   # enough and leaves the user's config alone. A user who removed the
   # preinstalls, like one without Omarchy's declarations, selects it instead.
@@ -144,7 +144,7 @@ else
         mise install "$agent_tool"
       fi
     else
-      if npm_backed "$agent_package" && ! mise where node &>/dev/null; then
+      if npm_backed "$agent_package" && ! MISE_OFFLINE=1 mise where node &>/dev/null; then
         mise install node || return 1
       fi
       if [[ ${agent_prereleases:-} == "true" ]]; then

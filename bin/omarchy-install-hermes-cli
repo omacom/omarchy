@@ -95,7 +95,7 @@ legacy_owned() {
 mise_retired() {
   local requested
   requested=$(mise ls -g --json 2>/dev/null) || return 1
-  ! mise where "$legacy_tool" >/dev/null 2>&1 && ! grep -qE '"pipx:hermes-agent(\[|")' <<<"$requested"
+  ! MISE_OFFLINE=1 mise where "$legacy_tool" >/dev/null 2>&1 && ! grep -qE '"pipx:hermes-agent(\[|")' <<<"$requested"
 }
 
 # Removes the environment the retired wrapper built, judged by what is left
