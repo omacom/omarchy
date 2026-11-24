@@ -34,6 +34,27 @@ cat >"$mock_bin/setsid" <<'SH'
 printf 'launch:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
 SH
 
+cat >"$mock_bin/getent" <<'SH'
+#!/bin/bash
+[[ $1 == "passwd" && $2 == "$EUID" && -n $OMARCHY_TEST_PASSWD_SHELL ]] || exit 2
+printf 'account:x:1000:1000::/home/account:%s\n' "$OMARCHY_TEST_PASSWD_SHELL"
+SH
+
+# A UWSM service unit starts with the user manager's stale environment.
+cat >"$mock_bin/uwsm-app" <<'SH'
+#!/bin/bash
+[[ $1 == "--" ]] || exit 1
+shift
+SHELL=/bin/bash exec "$@"
+SH
+
+cat >"$mock_bin/gtk-launch" <<'SH'
+#!/bin/bash
+printf 'gtk-launch SHELL=%s' "$SHELL" >>"$OMARCHY_TEST_LOG"
+printf ' [%s]' "$@" >>"$OMARCHY_TEST_LOG"
+printf '\n' >>"$OMARCHY_TEST_LOG"
+SH
+
 cat >"$mock_bin/omarchy-launch-floating-terminal-with-presentation" <<'SH'
 #!/bin/bash
 printf '%s\n' "$1" >"$OMARCHY_TEST_PRESENTATION"
@@ -68,6 +89,20 @@ assert_detached_installer_launch() {
     fail "$script launches its desktop entry through setsid and gtk-launch in a UWSM scope"
   pass "$script detaches its scoped desktop-entry launch"
 }
+
+: >"$OMARCHY_TEST_LOG"
+OMARCHY_TEST_PASSWD_SHELL=/bin/sh bash "$ROOT/bin/omarchy-launch-desktop" "Example App.desktop" "file:///a b"
+grep -Fxq 'gtk-launch SHELL=/bin/sh [Example App.desktop] [file:///a b]' "$OMARCHY_TEST_LOG" ||
+  fail "launch-desktop passes the login shell through a UWSM service launch" "$(<"$OMARCHY_TEST_LOG")"
+pass "launch-desktop replaces a stale SHELL with the account's login shell"
+
+for unavailable in "" /nonexistent/shell; do
+  : >"$OMARCHY_TEST_LOG"
+  OMARCHY_TEST_PASSWD_SHELL=$unavailable bash "$ROOT/bin/omarchy-launch-desktop" example.desktop
+  grep -Fxq 'gtk-launch SHELL=/bin/bash [example.desktop]' "$OMARCHY_TEST_LOG" ||
+    fail "launch-desktop still launches when the login shell is unavailable" "$(<"$OMARCHY_TEST_LOG")"
+done
+pass "launch-desktop still launches when the login shell is unavailable"
 
 assert_detached_installer_launch omarchy-install-editor-emacs emacsclient
 assert_detached_installer_launch omarchy-install-editor-vscode code
