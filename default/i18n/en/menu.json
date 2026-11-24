@@ -921,6 +921,9 @@
   "install.ai.desktop.openclaw": {
     "label": "OpenClaw"
   },
+  "install.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
   "install.ai.desktop.perplexity": {
     "label": "Perplexity"
   },
@@ -1238,6 +1241,9 @@
   },
   "remove.ai.desktop.openclaw": {
     "label": "OpenClaw"
+  },
+  "remove.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
   },
   "remove.ai.desktop.perplexity": {
     "label": "Perplexity"
