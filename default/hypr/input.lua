@@ -98,7 +98,7 @@ local function terminal_scroll(class, title, factor)
   o.window({ class = "(org\\.omarchy\\..*|TUI\\..*)", initial_title = title }, { scroll_touchpad = factor })
 end
 
-terminal_scroll("(Alacritty|kitty)", "(Alacritty|kitty)", 1.5)
+terminal_scroll("(Alacritty|kitty|rio)", "(Alacritty|kitty|rio)", 1.5)
 -- foot only applies its scrollback multiplier to wheel clicks, not precise touchpad scrolling.
 terminal_scroll("foot", "foot", 1.5)
 terminal_scroll("com.mitchellh.ghostty", "Ghostty", 0.2)

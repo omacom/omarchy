@@ -190,6 +190,7 @@ terminal_cases=(
   'foot foot.desktop'
   'ghostty com.mitchellh.ghostty.desktop'
   'kitty kitty.desktop'
+  'rio rio.desktop'
 )
 
 editor_cases=(

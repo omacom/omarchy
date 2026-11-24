@@ -6,7 +6,7 @@ Read this before changing which app opens something, adding a web app or TUI lau
 
 | Role | Default | Change it with |
 |------|---------|----------------|
-| Terminal | foot | `omarchy default terminal <alacritty\|foot\|ghostty\|kitty>` |
+| Terminal | foot | `omarchy default terminal <alacritty\|foot\|ghostty\|kitty\|rio>` |
 | Browser | Google Chrome | `omarchy default browser <chromium\|chrome\|brave\|brave-origin\|edge\|firefox\|zen>` |
 | Editor (GUI and `$EDITOR`) | Plain | `omarchy default editor <plain\|code\|cursor\|zed\|sublime_text\|helix\|vim\|emacs\|nvim>` |
 | Dictation | Superwhisper | `omarchy default dictation <superwhisper\|voxtype\|hex>` |

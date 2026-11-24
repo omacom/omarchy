@@ -1,0 +1,18 @@
+theme = "omarchy"
+confirm-before-quit = false
+# With Rio's own 2px around a pane, the 14px the other terminals pad by.
+margin = [12]
+
+[navigation]
+mode = "Plain"
+
+[fonts]
+family = "JetBrainsMono Nerd Font"
+# Rio uses logical pixels: 12px matches the other terminals' 9pt default.
+size = 12
+
+[bindings]
+keys = [
+  { key = "return", with = "shift", esc = "\u001b[13;2u" },
+  { key = "return", with = "alt|shift", esc = "\u001b[13;4u" },
+]

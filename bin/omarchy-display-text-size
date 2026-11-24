@@ -159,6 +159,12 @@ set_terminal_size() {
     pkill -SIGUSR2 ghostty 2>/dev/null || true
   fi
 
+  if [[ -f ~/.config/rio/config.toml ]]; then
+    local rio_px
+    rio_px=$(awk -v pt="$pt" 'BEGIN { printf "%g", pt * 4 / 3 }')
+    sed --follow-symlinks -i -E "/^[[:space:]]*\[fonts\]/,/^[[:space:]]*\[/ s/^([[:space:]]*)size[[:space:]]*=.*/\1size = $rio_px/" ~/.config/rio/config.toml
+  fi
+
   if [[ -f ~/.config/foot/foot.ini ]]; then
     sed --follow-symlinks -i -E "s/(:size=)[0-9.]+/\1$pt/" ~/.config/foot/foot.ini
     # Foot has no config-reload signal, so a running instance keeps its startup
@@ -192,6 +198,8 @@ term_current_pt() {
     echo "${pt:-$TERM_DEFAULT_PT}"
   elif [[ -f ~/.config/foot/foot.ini ]]; then
     grep -oP ':size=\K[0-9.]+' ~/.config/foot/foot.ini | head -1
+  elif [[ -f ~/.config/rio/config.toml ]]; then
+    awk '/^[[:space:]]*\[fonts\]/ { in_fonts=1; next } /^[[:space:]]*\[/ { in_fonts=0 } in_fonts && /^[[:space:]]*size[[:space:]]*=/ { print $3 * 3 / 4; exit }' ~/.config/rio/config.toml
   elif omarchy-cmd-present kitty; then
     echo "$TERM_DEFAULT_PT"
   fi

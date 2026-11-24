@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # omarchy:summary=Install one of the approved terminals and set it as the default for Omarchy (Super + Return etc).
-# omarchy:args=<alacritty|foot|ghostty|kitty>
+# omarchy:args=<alacritty|foot|ghostty|kitty|rio>
 # omarchy:requires-sudo=true
 
 if (($# == 0)); then
-  echo "Usage: omarchy-install-terminal [alacritty|foot|ghostty|kitty]"
+  echo "Usage: omarchy-install-terminal [alacritty|foot|ghostty|kitty|rio]"
   exit 1
 fi
 
@@ -17,6 +17,7 @@ alacritty) desktop_id="Alacritty.desktop" ;;
 foot) desktop_id="foot.desktop" ;;
 ghostty) desktop_id="com.mitchellh.ghostty.desktop" ;;
 kitty) desktop_id="kitty.desktop" ;;
+rio) desktop_id="rio.desktop" ;;
 *)
   echo "Unknown terminal: $package"
   exit 1
@@ -25,8 +26,15 @@ esac
 
 echo "Installing $package..."
 
+# Rio depends on vulkan-driver, and omarchy-pkg-add runs pacman with --noconfirm,
+# which would answer that with an NVIDIA driver on a machine that has none.
+packages=("$package")
+if [[ $package == "rio" ]] && ! pacman -T vulkan-driver >/dev/null; then
+  packages=(vulkan-swrast rio)
+fi
+
 # Install package
-if omarchy-pkg-add $package; then
+if omarchy-pkg-add "${packages[@]}"; then
   # Copy custom desktop entries with X-TerminalArg* keys
   if [[ $package == "alacritty" ]]; then
     mkdir -p ~/.local/share/applications
@@ -39,6 +47,10 @@ if omarchy-pkg-add $package; then
   # Copy default config for optional terminals when missing
   if [[ ! -e ~/.config/$package ]]; then
     cp -Rpf "$OMARCHY_PATH/config/$package" ~/.config/
+  fi
+
+  if [[ $package == "rio" ]]; then
+    omarchy-refresh-rio || exit 1
   fi
 
   # Update xdg-terminals.list to prioritize the proper terminal

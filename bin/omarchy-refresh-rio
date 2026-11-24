@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Set up Rio's Omarchy config and theme link, keeping an existing config
+
+mkdir -p ~/.config/rio/themes || exit 1
+if [[ ! -e ~/.config/rio/config.toml ]]; then
+  cp "$OMARCHY_PATH/config/rio/config.toml" ~/.config/rio/config.toml || exit 1
+fi
+if [[ ! -e ~/.config/rio/themes/omarchy.toml && ! -L ~/.config/rio/themes/omarchy.toml ]]; then
+  ln -s "$HOME/.local/state/omarchy/current/theme/rio.toml" ~/.config/rio/themes/omarchy.toml
+fi
+
+# Rio drops its whole config when the theme it names is missing, as it is when
+# the current theme was generated before Rio had a template.
+if [[ ! -e ~/.local/state/omarchy/current/theme/rio.toml ]]; then
+  omarchy-theme-refresh
+fi

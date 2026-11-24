@@ -13,3 +13,7 @@ fi
 if pgrep -x ghostty >/dev/null; then
   killall -SIGUSR2 ghostty
 fi
+
+if [[ -f ~/.config/rio/config.toml ]]; then
+  touch ~/.config/rio/config.toml
+fi

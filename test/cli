@@ -326,6 +326,56 @@ pass "font set preserves alacritty size"
 grep -qx 'font-size = 12' "$FONT_TMPDIR/.config/ghostty/config" || fail "font set preserves ghostty size"
 pass "font set preserves ghostty size"
 
+# Rio sizes its font in logical pixels where the other terminals use points.
+rio_config="$FONT_TMPDIR/.config/rio/config.toml"
+printf '#!/bin/bash\nexit 0\n' >"$FONT_TMPDIR/fake-bin/gsettings"
+printf '#!/bin/bash\nexit 1\n' >"$FONT_TMPDIR/fake-bin/pgrep"
+chmod +x "$FONT_TMPDIR/fake-bin/gsettings" "$FONT_TMPDIR/fake-bin/pgrep"
+rio_command() {
+  PATH="$FONT_TMPDIR/fake-bin:$ROOT/bin:$PATH" HOME="$FONT_TMPDIR" OMARCHY_PATH="$ROOT" "$ROOT/bin/$@" >/dev/null
+}
+printf '#!/bin/bash\necho refresh >>"$HOME/theme-refresh"\n' >"$FONT_TMPDIR/fake-bin/omarchy-theme-refresh"
+chmod +x "$FONT_TMPDIR/fake-bin/omarchy-theme-refresh"
+rio_command omarchy-refresh-rio
+[[ -s $FONT_TMPDIR/theme-refresh ]] || fail "rio setup generates the theme file it needs"
+mkdir -p "$FONT_TMPDIR/.local/state/omarchy/current/theme"
+touch "$FONT_TMPDIR/.local/state/omarchy/current/theme/rio.toml"
+: >"$FONT_TMPDIR/theme-refresh"
+cmp -s "$ROOT/config/rio/config.toml" "$rio_config" || fail "rio setup supplies the default config"
+[[ $(readlink "$FONT_TMPDIR/.config/rio/themes/omarchy.toml") == "$FONT_TMPDIR/.local/state/omarchy/current/theme/rio.toml" ]] || fail "rio setup links the current theme"
+printf '\n[window]\nsize = 99\n# personal preference\n' >>"$rio_config"
+rio_command omarchy-refresh-rio
+[[ ! -s $FONT_TMPDIR/theme-refresh ]] || fail "rio setup leaves a current theme alone"
+grep -qx '# personal preference' "$rio_config" || fail "rio setup keeps an existing config"
+pass "rio setup supplies a config and theme link and keeps an existing config"
+
+rio_command omarchy-font-set "Test Font"
+grep -qx 'family = "Test Font"' "$rio_config" || fail "font set updates rio's family"
+grep -qx 'size = 12' "$rio_config" || fail "font set preserves rio's size"
+rio_command omarchy-display-text-size 16
+grep -qx 'size = 16' "$rio_config" || fail "text size converts points to rio's pixels" "$(cat "$rio_config")"
+grep -qx 'size = 99' "$rio_config" || fail "text size leaves sizes outside rio's font section alone"
+rio_command omarchy-display-text-size reset
+grep -qx 'size = 12' "$rio_config" || fail "text size reset restores rio's default"
+printf '  [fonts]\n  family = "Old"\n  size = 10\n  [window]\n  size = 99\n' >"$rio_config"
+rio_command omarchy-font-set "Test Font"
+rio_command omarchy-display-text-size 16
+[[ $(<"$rio_config") == $'  [fonts]\n  family = "Test Font"\n  size = 16\n  [window]\n  size = 99' ]] || fail "font commands reach an indented rio config" "$(cat "$rio_config")"
+pass "font and text size commands update rio's font section only"
+
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >"$HOME/pkg-add"\n' >"$FONT_TMPDIR/fake-bin/omarchy-pkg-add"
+printf '#!/bin/bash\n[[ $* == "-T vulkan-driver" && -e $HOME/vulkan ]]\n' >"$FONT_TMPDIR/fake-bin/pacman"
+chmod +x "$FONT_TMPDIR/fake-bin/omarchy-pkg-add" "$FONT_TMPDIR/fake-bin/pacman"
+rio_command omarchy-install-terminal rio
+[[ $(<"$FONT_TMPDIR/pkg-add") == "vulkan-swrast rio" ]] || fail "rio brings a software Vulkan driver where there is none"
+touch "$FONT_TMPDIR/vulkan"
+rio_command omarchy-install-terminal rio
+[[ $(<"$FONT_TMPDIR/pkg-add") == "rio" ]] || fail "rio keeps the Vulkan driver already installed"
+rio_command omarchy-install-terminal foot
+[[ $(<"$FONT_TMPDIR/pkg-add") == "foot" ]] || fail "other terminals install no Vulkan driver"
+grep -qx 'rio.desktop' <(rio_command omarchy-install-terminal rio; cat "$FONT_TMPDIR/.config/xdg-terminals.list") || fail "installing rio makes it the default"
+pass "installing rio never leaves its Vulkan driver to pacman's first provider"
+
 make_tmpdir PI_TMPDIR
 NEXT_THEME="$PI_TMPDIR/.local/state/omarchy/current/next-theme"
 CURRENT_THEME="$PI_TMPDIR/.local/state/omarchy/current/theme"

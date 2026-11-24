@@ -68,6 +68,11 @@ if [[ -f ~/.config/ghostty/config ]]; then
   pkill -SIGUSR2 ghostty
 fi
 
+if [[ -f ~/.config/rio/config.toml ]]; then
+  rio_font_name=$(printf '%s' "$font_name" | sed 's/[\\&/]/\\&/g')
+  sed --follow-symlinks -i -E "/^[[:space:]]*\[fonts\]/,/^[[:space:]]*\[/ s/^([[:space:]]*)family[[:space:]]*=.*/\1family = \"$rio_font_name\"/" ~/.config/rio/config.toml
+fi
+
 if [[ -f ~/.config/foot/foot.ini ]]; then
   # Preserve the primary font's size, not a fallback's; Omarchy ships 9 when none is present.
   foot_size="$(sed -n 's/^font=[^,]*:size=\([0-9.]\+\).*/\1/p' ~/.config/foot/foot.ini | head -1)"
