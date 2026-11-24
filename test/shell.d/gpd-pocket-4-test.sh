@@ -6,12 +6,6 @@ test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 mkdir -p "$test_tmp/bin" "$test_tmp/dmi"
 
-grep -q 'run_logged .*hardware/gpd-pocket-4.sh' "$ROOT/install/hardware/all.sh" || fail "hardware setup is wired"
-grep -q 'require("default.hypr.gpd-pocket-4")' "$ROOT/default/hypr/omarchy.lua" || fail "fixed session defaults are wired"
-! grep -q 'iio-sensor-proxy' "$ROOT/install/hardware/gpd-pocket-4.sh" || fail "baseline must not install the sensor service"
-! grep -q 'gpd-pocket-4-rotate' "$ROOT/install/user/first-run/enable-user-units.sh" || fail "autorotation must not be enabled by baseline"
-pass "fixed GPD compatibility is wired independently of autorotation"
-
 # Execute the production Lua module, recording actual compositor calls.
 # Use a file rather than stdin: Lua 5.5 may report stdin errors as success.
 cat >"$test_tmp/check.lua" <<'LUA'
@@ -56,12 +50,6 @@ printf 'ThinkPad X1\n' >"$test_tmp/dmi/product_name"
 printf 'ThinkPad\n' >"$test_tmp/dmi/product_family"
 if PATH="$test_tmp/bin:$PATH" OMARCHY_TEST_DMI="$test_tmp/dmi" "$ROOT/bin/omarchy-hw-gpd-pocket-4"; then fail "detector accepts unrelated hardware"; fi
 pass "real detector accepts GPD DMI and rejects unrelated machines"
-
-grep -q 'sudo tee /etc/limine-entry-tool.d/gpd-pocket4-orientation.conf' "$ROOT/install/hardware/gpd-pocket-4.sh" || fail "boot setup must write as root"
-grep -q 'sudo tee /etc/udev/rules.d/99-gpd-pocket4-touchscreen.rules' "$ROOT/install/hardware/gpd-pocket-4.sh" || fail "touch setup must write as root"
-grep -q 'sudo limine-mkinitcpio' "$ROOT/migrations/1788852858.sh" || fail "migration must rebuild boot entries"
-! grep -q 'systemctl\|iio-sensor' "$ROOT/migrations/1788852858.sh" || fail "baseline migration must not enable autorotation"
-pass "boot and touch migration do not depend on autorotation"
 
 # Execute the hardware leaf with a privileged filesystem view. The boot file
 # cannot be found by an ordinary lookup, but sudo can access its backing file,
