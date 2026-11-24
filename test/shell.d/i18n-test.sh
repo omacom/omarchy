@@ -655,6 +655,31 @@ else
 fi
 assert_bash_equal "$(jq -r '.da | has("shell:a.two")' "$fix/default/i18n/translation-manifest.json")" "false" "a pruned unit leaves the manifest"
 
+# A chapter whose English changed is retranslated with its current
+# translation as data, so reviewed wording can survive; a chapter with no
+# translation yet gets the plain prompt. Muse is stubbed to record prompts.
+printf '# Hello\n\nWorld, again.\n' >"$fix/manual/01-hello.md"
+manual_prompts=$(python3 - "$ROOT/scripts/i18n-sync.py" "$fix" <<'PY'
+import argparse, contextlib, importlib.util, io, json, re, sys
+spec = importlib.util.spec_from_file_location("sync", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+prompts = {}
+def stub(prompt, model):
+    source = json.loads(re.search(r"<chapter>\n(.*?)\n</chapter>", prompt, re.S).group(1))["markdown"]
+    prompts[source.splitlines()[0]] = prompt
+    return {"markdown": source}
+m.muse_json = stub
+m.translate_batch = lambda batch, *rest: dict(batch)
+args = argparse.Namespace(root=sys.argv[2], locale="da", concurrency=1, model="stub", done_file=None)
+with contextlib.redirect_stdout(io.StringIO()):
+    m.cmd_translate(args)
+print(json.dumps({head: {"current": "<current_translation>" in p, "keeps": "Verden." in p} for head, p in prompts.items()}, sort_keys=True))
+PY
+)
+assert_bash_equal "$(jq -c '.["# Hello"]' <<<"$manual_prompts")" '{"current":true,"keeps":true}' "a changed chapter is retranslated with its current translation"
+assert_bash_equal "$(jq -c '.["# New"]' <<<"$manual_prompts")" '{"current":false,"keeps":false}' "a new chapter is translated from the English alone"
+
 # Every registry locale must be one glibc can actually generate.
 if [[ -f /usr/share/i18n/SUPPORTED ]]; then
   unsupported=""
