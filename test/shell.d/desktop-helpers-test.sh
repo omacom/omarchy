@@ -15,13 +15,14 @@ cat >"$tmp/bin/fc-list" <<'SH'
 #!/bin/bash
 printf '%s\n' 'B&H <Mono> "Pro" / 1'\''s'
 SH
-for cmd in pkill omarchy-restart-shell pgrep omarchy-hook omarchy-notification-send; do
+for cmd in pkill omarchy-restart-shell omarchy-hook omarchy-notification-send gsettings; do
   printf '#!/bin/bash\nexit 0\n' >"$tmp/bin/$cmd"
 done
+printf '#!/bin/bash\nexit 1\n' >"$tmp/bin/pgrep"
 chmod +x "$tmp/bin/"*
 
-printf 'family = "Old"\n' >"$tmp/dots/alacritty.toml"
-printf 'font-family = "Old"\n' >"$tmp/dots/ghostty.conf"
+printf 'family = "Old"\nsize = 9\n' >"$tmp/dots/alacritty.toml"
+printf 'font-family = "Old"\nfont-size = 9\n' >"$tmp/dots/ghostty.conf"
 printf 'font=Old:size=11\n' >"$tmp/dots/foot.ini"
 ln -s "$tmp/dots/alacritty.toml" "$tmp/home/.config/alacritty/alacritty.toml"
 ln -s "$tmp/dots/ghostty.conf" "$tmp/home/.config/ghostty/config"
@@ -41,6 +42,17 @@ grep -Fxq 'font=B&H <Mono> "Pro" / 1'\''s:size=11' "$tmp/dots/foot.ini" ||
 grep -Fq '<string>B&amp;H &lt;Mono&gt; &quot;Pro&quot; / 1&apos;s</string>' "$tmp/home/.config/fontconfig/fonts.conf" ||
   fail "omarchy-font-set XML-escapes fontconfig family names" "$(<"$tmp/home/.config/fontconfig/fonts.conf")"
 pass "omarchy-font-set escapes special characters and preserves symlinked configs"
+
+HOME="$tmp/home" XDG_RUNTIME_DIR="$tmp" PATH="$tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-display-text-size" 16 >/dev/null
+[[ -L "$tmp/home/.config/alacritty/alacritty.toml" && -L "$tmp/home/.config/ghostty/config" && -L "$tmp/home/.config/foot/foot.ini" ]] ||
+  fail "omarchy-display-text-size preserves symlinked terminal configs"
+grep -Fxq 'size = 12' "$tmp/dots/alacritty.toml" ||
+  fail "omarchy-display-text-size writes through symlinked alacritty.toml" "$(<"$tmp/dots/alacritty.toml")"
+grep -Fxq 'font-size = 12' "$tmp/dots/ghostty.conf" ||
+  fail "omarchy-display-text-size writes through symlinked ghostty config" "$(<"$tmp/dots/ghostty.conf")"
+grep -Fxq 'font=B&H <Mono> "Pro" / 1'\''s:size=12' "$tmp/dots/foot.ini" ||
+  fail "omarchy-display-text-size writes through symlinked foot.ini" "$(<"$tmp/dots/foot.ini")"
+pass "omarchy-display-text-size preserves symlinked terminal configs"
 
 # Clipboard helpers fail cleanly on missing --history-index value instead of looping.
 for helper in omarchy-clipboard-open omarchy-clipboard-paste-text; do
