@@ -36,6 +36,16 @@ def run(argv, **kwargs):
   return subprocess.run(argv, check=True, **kwargs)
 
 
+def lua_str(value):
+  return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def dispatch(lua, *legacy):
+  if subprocess.run(["hyprctl", "dispatch", lua], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+    return
+  run(["hyprctl", "dispatch", *legacy], stdout=subprocess.DEVNULL)
+
+
 config = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")) / "omarchy/projects"
 parser = argparse.ArgumentParser(prog="omarchy project", description="Save a project setup and reopen it on a named Hyprland workspace")
 commands = parser.add_subparsers(dest="command")
@@ -124,14 +134,14 @@ try:
         else:
           available = shutil.which(argv[0], path=os.environ.get("PATH")) is not None
         if not available: fail("Command is not installed: " + argv[0])
-    run(["hyprctl", "dispatch", "workspace", "name:" + workspace], stdout=subprocess.DEVNULL)
+    dispatch("hl.dsp.focus({ workspace = " + lua_str("name:" + workspace) + " })", "workspace", "name:" + workspace)
     if launch:
       for argv in terminals:
         terminal = ["uwsm-app", "--", "xdg-terminal-exec", "--dir=" + directory]
         if argv:
           terminal += ["-e", *argv]
         command = "[workspace name:" + workspace + " silent] " + shlex.join(terminal)
-        run(["hyprctl", "dispatch", "exec", command], stdout=subprocess.DEVNULL)
+        dispatch("hl.dsp.exec_cmd(" + lua_str(command) + ")", "exec", command)
       for url in urls:
         run(["omarchy-launch-browser", url])
     else:

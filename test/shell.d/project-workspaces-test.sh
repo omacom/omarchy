@@ -27,6 +27,9 @@ with open(os.environ["TEST_CALLS"], "a") as log:
   log.write(json.dumps(sys.argv[1:]) + "\\n")
 if sys.argv[1] == "clients":
   print(pathlib.Path(os.environ["TEST_CLIENTS"]).read_text())
+if len(sys.argv) == 3 and sys.argv[1] == "dispatch" and sys.argv[2].startswith("hl.dsp."):
+  if os.environ.get("TEST_LEGACY_DISPATCH") or (os.environ.get("TEST_FAIL_EXEC") and sys.argv[2].startswith("hl.dsp.exec_cmd(")):
+    sys.exit(1)
 if sys.argv[1:3] == ["dispatch", "exec"] and os.environ.get("TEST_FAIL_EXEC"):
   sys.exit(1)
 ''')
@@ -51,17 +54,18 @@ with open(os.environ["TEST_CALLS"], "a") as log:
   call("init", "../escape", str(directory), success=False)
   assert call("list").stdout == "demo\n"
   recipe = json.loads(original)
-  recipe["terminals"] = [[], ["python3", "-c", "print('literal $HOME; $(touch INJECTED)')"]]
+  recipe["terminals"] = [[], ["python3", "-c", "print('literal $HOME; $(touch INJECTED) ]]')"]]
   recipe["urls"] = ["https://example.com/?q=$(touch%20INJECTED)"]
   recipe_path.write_text(json.dumps(recipe))
   assert json.loads(call("show", "demo").stdout) == recipe
   call("open", "demo")
   calls = [json.loads(line) for line in log.read_text().splitlines()]
-  launches = [argv for argv in calls if argv[:2] == ["dispatch", "exec"]]
-  assert len(launches) == 2
-  assert ["dispatch", "workspace", "name:project-demo"] in calls
-  for launch, argv in zip(launches, recipe["terminals"]):
-    command = launch[2]
+  lua_launches = [argv for argv in calls if len(argv) == 2 and argv[0] == "dispatch" and argv[1].startswith("hl.dsp.exec_cmd(")]
+  assert len(lua_launches) == 2
+  assert ["dispatch", 'hl.dsp.focus({ workspace = "name:project-demo" })'] in calls
+  for launch, argv in zip(lua_launches, recipe["terminals"]):
+    lua_arg = launch[1][len("hl.dsp.exec_cmd("):-1]
+    command = json.loads(lua_arg)
     prefix = "[workspace name:project-demo silent] "
     assert command.startswith(prefix)
     expected = ["uwsm-app", "--", "xdg-terminal-exec", "--dir=" + str(directory.resolve())] + (["-e", *argv] if argv else [])
@@ -70,13 +74,18 @@ with open(os.environ["TEST_CALLS"], "a") as log:
     assert parsed.stdout.decode().split("\0")[:-1] == expected, (parsed.stdout, expected, command)
   assert not (base / "INJECTED").exists()
   assert ["browser", recipe["urls"][0]] in calls
+  log.write_text("")
+  call("open", "demo", override={"TEST_LEGACY_DISPATCH": "1"})
+  legacy_calls = [json.loads(line) for line in log.read_text().splitlines()]
+  assert ["dispatch", "workspace", "name:project-demo"] in legacy_calls
+  assert sum(argv[:2] == ["dispatch", "exec"] for argv in legacy_calls) == 2
   clients.write_text('[{"workspace":{"name":"project-demo"}}]')
   log.write_text("")
   call("open", "demo")
-  assert not any(json.loads(line)[:2] == ["dispatch", "exec"] for line in log.read_text().splitlines())
+  assert not any(json.loads(line)[0] == "dispatch" and ("exec" in json.loads(line)[1]) for line in log.read_text().splitlines())
   log.write_text("")
   call("open", "demo", "--launch")
-  assert sum(json.loads(line)[:2] == ["dispatch", "exec"] for line in log.read_text().splitlines()) == 2
+  assert sum(len(json.loads(line)) == 2 and json.loads(line)[0] == "dispatch" and json.loads(line)[1].startswith("hl.dsp.exec_cmd(") for line in log.read_text().splitlines()) == 2
   log.write_text("")
   call() # Picker chooses and focuses the saved project.
   assert 'name:project-demo' in log.read_text()
