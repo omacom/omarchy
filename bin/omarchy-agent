@@ -73,10 +73,6 @@ agent_missing() {
 # button on each subscription opens the harness made for it, Codex for OpenAI.
 if [[ -n $agent_override ]]; then
   agent=$agent_override
-  if agent_missing "$agent"; then
-    omarchy-notification-send "$(omarchy-i18n agents.harnessMissing "$agent")" "$(omarchy-i18n agents.harnessMissingBody "$agent")"
-    exit 1
-  fi
 else
   agent=$(omarchy-default-agent)
 fi
@@ -126,8 +122,20 @@ fi
 # OpenClaw's launcher sets OpenClaw up when the package became the seed before
 # this user's OpenClaw moved, so with the package a missing command is its to fix.
 if agent_missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
-  echo "$agent is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
-  exit 1
+  # An agent you still have a sign-in for can be missing its CLI: removed, or
+  # signed in to on another machine and copied over. Launching it installs the
+  # CLI first and then opens as asked, in this terminal or a floating one.
+  if omarchy-install-ai-cli --package "$agent" &>/dev/null; then
+    if [[ -t 0 ]]; then
+      omarchy-install-ai-cli "$agent" || exit 1
+    else
+      printf -v relaunch '%q ' omarchy-agent "${launch_args[@]}"
+      exec omarchy-launch-floating-terminal-with-presentation "omarchy-install-ai-cli $agent && ${relaunch% }"
+    fi
+  else
+    echo "$agent is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
+    exit 1
+  fi
 fi
 
 # Agents launched from the keybinding or menu run unattended, so each one starts

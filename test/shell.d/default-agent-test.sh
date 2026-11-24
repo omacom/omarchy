@@ -86,6 +86,8 @@ SH
 
 cat >"$mock_bin/omarchy-install-ai-cli" <<'SH'
 #!/bin/bash
+# Which agents are packages is the real installer's to say.
+[[ $1 == "--package" ]] && exec "$OMARCHY_PATH/bin/omarchy-install-ai-cli" "$@"
 printf '%s\n' "$*" >>"$OMARCHY_TEST_INSTALL_HISTORY"
 if [[ $1 == "--check" ]]; then
   [[ ${OMARCHY_TEST_AGENT_INSTALLED:-false} == "true" ]]
@@ -349,11 +351,16 @@ pass "default agent stores its selection in Omarchy user config"
 : >"$agent_open_log"
 OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent --select codex
 [[ $(omarchy-default-agent) == "codex" && ! -s $agent_open_log ]] || fail "--select makes an agent the default without opening it"
-if OMARCHY_TEST_AGENT_INSTALLED=false omarchy-default-agent --select claude 2>/dev/null; then
-  fail "--select refuses an agent that isn't installed"
-fi
-[[ $(omarchy-default-agent) == "codex" && ! -s $terminal_log ]] || fail "a refused --select changes nothing and installs nothing"
 pass "--select makes an installed agent the default without opening it"
+
+# Starring a subscription whose CLI isn't installed here installs it in a
+# terminal first; the default changes only once it's there.
+: >"$terminal_log"
+OMARCHY_TEST_AGENT_INSTALLED=false omarchy-default-agent --select claude
+[[ $(tr '\0' ' ' <"$terminal_log") == "omarchy-install-ai-cli claude && omarchy-default-agent --select claude " ]] ||
+  fail "--select installs a missing CLI in a terminal" "$(tr '\0' ' ' <"$terminal_log")"
+[[ $(omarchy-default-agent) == "codex" ]] || fail "--select leaves the default until the CLI is installed"
+pass "--select installs a missing CLI before making it the default"
 
 OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent pi
 : >"$agent_open_log"
@@ -1067,15 +1074,17 @@ omarchy-remove-ai-cli codex
 [[ $(<"$agent_file") == "claude" ]] || fail "removing another agent's CLI keeps the default"
 pass "removing an agent's CLI clears its launcher and a default it held"
 
-# mise's account wrapper keeps claude on PATH whether or not it's installed, so
-# the launcher asks the installer rather than opening a window that fails.
+# A claude on PATH can be an account dispatcher left after its CLI went, so the
+# launcher asks the installer. A sign-in whose CLI isn't installed here installs
+# it in a terminal and then opens, rather than opening a window that fails.
 : >"$launch_log"
+: >"$terminal_log"
 printf '#!/bin/bash\nexit 127\n' >"$mock_bin/claude"
 chmod +x "$mock_bin/claude"
 printf '%s\n' claude >"$agent_file"
-if OMARCHY_TEST_AGENT_INSTALLED=false omarchy-agent >/dev/null 2>&1; then
-  fail "the agent launcher refuses a claude that isn't installed"
-fi
-[[ ! -s $launch_log ]] || fail "a claude that isn't installed opens no window"
+OMARCHY_TEST_AGENT_INSTALLED=false omarchy-agent </dev/null >/dev/null 2>&1
+[[ $(tr '\0' ' ' <"$terminal_log") == "omarchy-install-ai-cli claude && omarchy-agent " ]] ||
+  fail "launching a claude that isn't installed installs it first" "$(tr '\0' ' ' <"$terminal_log")"
+[[ ! -s $launch_log ]] || fail "a claude that isn't installed opens no window before it is"
 rm "$mock_bin/claude"
-pass "the agent launcher sees past the account wrapper to whether claude is installed"
+pass "launching an agent whose CLI isn't installed installs it, then opens it"

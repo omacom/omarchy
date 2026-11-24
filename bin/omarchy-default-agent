@@ -98,6 +98,11 @@ if [[ $checking == "true" ]]; then
 fi
 
 if [[ $selecting == "true" ]] && ! agent_present; then
+  # The agents panel's star on a subscription whose CLI isn't installed here
+  # installs it in a terminal, then makes it the default.
+  if [[ -z ${agent_installer:-} && $agent != "local" && $agent != "pi" ]]; then
+    exec omarchy-launch-floating-terminal-with-presentation "omarchy-install-ai-cli $agent && omarchy-default-agent --select $agent"
+  fi
   echo "$name is not installed" >&2
   exit 1
 elif [[ $installing == "false" ]] && ! agent_present; then
