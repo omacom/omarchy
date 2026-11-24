@@ -34,7 +34,6 @@ kimi) package=kimi-code ;;
 qwen) package=qwen-code ;;
 dsh) package=deepseek-dsh ;;
 mcode) package=minimax-code ;;
-kiro-cli) package=kiro-cli ;;
 freebuff) package=freebuff ;;
 kilo) package=kilocode-cli ;;
 devin) package=devin-cli ;;

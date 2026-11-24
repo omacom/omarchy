@@ -341,8 +341,6 @@ declare -A expected_agents=(
   [mcode]="mcode"
   [minimax-code]="mcode"
   [minimax]="mcode"
-  [kiro-cli]="kiro-cli"
-  [kiro]="kiro-cli"
   [freebuff]="freebuff"
   [kilo]="kilo"
   [kilocode]="kilo"
@@ -629,7 +627,6 @@ assert_launched dsh "opens its browser UI for a prompt" env DSH_PERMISSION_MODE=
 mapfile -d '' -t notification_args <"$notification_history"
 [[ ${notification_args[*]} == *"DeepSeek Harness takes no starting prompt"* ]] || fail "DSH launcher says where the prompt went"
 assert_launch mcode mcode -- "Review this project"
-assert_launch kiro-cli kiro-cli chat --trust-all-tools -- "Review this project"
 : >"$notification_history"
 assert_launch freebuff freebuff
 assert_launch kilo kilo --auto "--prompt=Review this project"
@@ -670,7 +667,6 @@ assert_bypass kimi kimi --yolo
 assert_bypass qwen qwen --yolo
 assert_bypass dsh env DSH_PERMISSION_MODE=danger-full-access dsh web
 assert_bypass mcode mcode
-assert_bypass kiro-cli kiro-cli chat --trust-all-tools
 : >"$clipboard_log"
 : >"$notification_history"
 assert_bypass freebuff freebuff

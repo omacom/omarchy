@@ -38,7 +38,6 @@ crush crush
 cursor-agent cursor-agent
 grok grok
 http:devin devin
-http:kiro-cli kiro-cli
 muse muse
 npm:@deepseek-ai/dsh dsh
 npm:@kilocode/cli kilo
@@ -67,15 +66,21 @@ cursor-agent cursor-agent
 muse http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]
 EOF
 
-# Command Code's terms don't allow Omarchy to ship it, so it is no longer one
-# of Omarchy's agents. A copy in use moves to the user's own mise config.
-if from_omarchy npm:command-code; then
-  mise use -g --quiet npm:command-code@latest
-  echo "Command Code is no longer one of Omarchy's agents; it stays installed through your own mise config"
-fi
-rm -f "$HOME/.local/share/applications/omarchy-agent-commandcode.desktop"
-if [[ -f $HOME/.config/omarchy/defaults/agent ]] && grep -qx commandcode "$HOME/.config/omarchy/defaults/agent"; then
-  rm -f "$HOME/.config/omarchy/defaults/agent"
-fi
+# Command Code's and Kiro CLI's terms don't allow Omarchy to ship them, so they
+# are no longer Omarchy's agents. A copy in use moves to the user's own mise
+# config, and a launcher or default pointing at one goes.
+while read -r tool agent spec name; do
+  if from_omarchy "$tool"; then
+    mise use -g --quiet "$spec"
+    echo "$name is no longer one of Omarchy's agents; it stays installed through your own mise config"
+  fi
+  rm -f "$HOME/.local/share/applications/omarchy-agent-$agent.desktop"
+  if [[ -f $HOME/.config/omarchy/defaults/agent ]] && grep -qx "$agent" "$HOME/.config/omarchy/defaults/agent"; then
+    rm -f "$HOME/.config/omarchy/defaults/agent"
+  fi
+done <<'EOF'
+npm:command-code commandcode npm:command-code@latest Command Code
+http:kiro-cli kiro-cli http:kiro-cli[platforms_linux_x64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-x86_64-linux.tar.gz,platforms_linux_arm64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-aarch64-linux.tar.gz,version_list_url=https://prod.download.cli.kiro.dev/stable/latest/manifest.json,version_json_path=.version]@latest Kiro CLI
+EOF
 
 mise reshim

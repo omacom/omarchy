@@ -234,12 +234,6 @@ mcode)
   command=(mcode)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
-kiro-cli)
-  # A positional input seeds the interactive chat; -- keeps a prompt starting
-  # with a dash literal.
-  command=(kiro-cli chat --trust-all-tools)
-  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
-  ;;
 freebuff)
   # Freebuff takes no starting prompt and asks no tool permissions, so a
   # prompt goes to the clipboard below instead.

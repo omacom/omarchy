@@ -894,6 +894,9 @@
   "install.ai.cli.minimax": {
     "label": "MiniMax Code"
   },
+  "install.ai.cli.muse": {
+    "label": "Muse Code"
+  },
   "install.ai.cli.oh-my-pi": {
     "label": "Oh My Pi"
   },
@@ -1195,6 +1198,9 @@
   },
   "remove.ai.cli.minimax": {
     "label": "MiniMax Code"
+  },
+  "remove.ai.cli.muse": {
+    "label": "Muse Code"
   },
   "remove.ai.cli.oh-my-pi": {
     "label": "Oh My Pi"
