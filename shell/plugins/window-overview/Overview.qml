@@ -101,6 +101,12 @@ Item {
     return null
   }
 
+  function workspaceLabel(entry, fallbackId) {
+    if (entry && entry.slot > 0) return Commons.I18n.formatNumber(entry.slot)
+    if (fallbackId > 0) return Commons.I18n.formatNumber(fallbackId)
+    return ""
+  }
+
   function appIconFor(window) {
     var appId = window && window.wayland ? String(window.wayland.appId || "") : ""
     if (!appId) return ""
@@ -659,7 +665,7 @@ Item {
               Text {
                 anchors.centerIn: parent
                 visible: !wsCard.isReorderSource && wsCard.wsWindows.length === 0
-                text: (wsCard.modelData.isNewSlot || wsCard.isDropTarget) ? "+" : wsCard.modelData.label
+                text: (wsCard.modelData.isNewSlot || wsCard.isDropTarget) ? "+" : root.workspaceLabel(wsCard.modelData)
                 textFormat: Text.PlainText
                 color: wsCard.isDropTarget ? Commons.Color.accent : Commons.Color.muted
                 opacity: wsCard.isDropTarget ? 1.0 : 0.65
@@ -691,7 +697,7 @@ Item {
                   }
                   Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: (wsCard.modelData.isNewSlot ? "+ " : "") + wsCard.modelData.label
+                    text: (wsCard.modelData.isNewSlot ? "+ " : "") + root.workspaceLabel(wsCard.modelData)
                     textFormat: Text.PlainText
                     color: wsCard.isDropTarget
                       ? Commons.Color.background
@@ -762,17 +768,18 @@ Item {
           readonly property bool showReorderTarget: showReorderLabel && !!targetWsEntry && root.wsDragTargetIndex !== root.wsDragFromIndex
           text: {
             if (showDropLabel) {
+              var hoveredLabel = root.workspaceLabel(hoveredEntry)
               return hoveredEntry.isNewSlot
-                ? Commons.I18n.t("overview.newWorkspace").arg(hoveredEntry.label)
-                : Commons.I18n.t("overview.moveToWorkspace").arg(hoveredEntry.label)
+                ? Commons.I18n.t("overview.newWorkspace").arg(hoveredLabel)
+                : Commons.I18n.t("overview.moveToWorkspace").arg(hoveredLabel)
             }
             if (showReorderTarget) {
-              return Commons.I18n.t("overview.reorderWorkspace").arg(root.draggedWorkspaceEntry.label).arg(targetWsEntry.label)
+              return Commons.I18n.t("overview.reorderWorkspace").arg(root.workspaceLabel(root.draggedWorkspaceEntry)).arg(root.workspaceLabel(targetWsEntry))
             }
             if (showReorderLabel) {
-              return Commons.I18n.t("overview.reorderingWorkspace").arg(root.draggedWorkspaceEntry.label)
+              return Commons.I18n.t("overview.reorderingWorkspace").arg(root.workspaceLabel(root.draggedWorkspaceEntry))
             }
-            return Commons.I18n.t("overview.workspace").arg(viewedEntry ? viewedEntry.label : String(Math.max(1, root.viewedWorkspaceId)))
+            return Commons.I18n.t("overview.workspace").arg(root.workspaceLabel(viewedEntry, Math.max(1, root.viewedWorkspaceId)))
           }
           textFormat: Text.PlainText
           color: (showDropLabel || showReorderTarget) ? Commons.Color.accent : Commons.Color.muted
@@ -900,7 +907,7 @@ Item {
         Text {
           anchors.centerIn: parent
           visible: wsDragProxy.draggedWindows.length === 0 && !!root.draggedWorkspaceEntry
-          text: root.draggedWorkspaceEntry ? root.draggedWorkspaceEntry.label : ""
+          text: root.workspaceLabel(root.draggedWorkspaceEntry)
           textFormat: Text.PlainText
           color: Commons.Color.muted
           font.family: Style.font.family
@@ -926,7 +933,7 @@ Item {
             }
             Text {
               anchors.verticalCenter: parent.verticalCenter
-              text: root.draggedWorkspaceEntry ? root.draggedWorkspaceEntry.label : ""
+              text: root.workspaceLabel(root.draggedWorkspaceEntry)
               textFormat: Text.PlainText
               color: Commons.Color.background
               font.family: Style.font.family
@@ -946,7 +953,7 @@ Item {
           Text {
             id: wsTargetBadgeText
             anchors.centerIn: parent
-            text: wsDragProxy.targetEntry ? (Commons.I18n.rightToLeft ? "← " : "→ ") + wsDragProxy.targetEntry.label : ""
+            text: wsDragProxy.targetEntry ? (Commons.I18n.rightToLeft ? "← " : "→ ") + root.workspaceLabel(wsDragProxy.targetEntry) : ""
             textFormat: Text.PlainText
             color: Commons.Color.background
             font.family: Style.font.family
@@ -996,7 +1003,7 @@ Item {
           Text {
             id: targetBadgeText
             anchors.centerIn: parent
-            text: dragProxy.targetEntry ? (Commons.I18n.rightToLeft ? "← " : "→ ") + dragProxy.targetEntry.label : ""
+            text: dragProxy.targetEntry ? (Commons.I18n.rightToLeft ? "← " : "→ ") + root.workspaceLabel(dragProxy.targetEntry) : ""
             textFormat: Text.PlainText
             color: Commons.Color.background
             font.family: Style.font.family
