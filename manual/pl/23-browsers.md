@@ -1,39 +1,41 @@
 # Przeglądarki
 
-Omarchy dostarcza [Chromium](https://www.chromium.org/) jako domyślną przeglądarkę. Jest to zwykła kompilacja open source, z motywem dopasowanym do reszty systemu, i to ona otwiera się za pomocą `Super + Shift + Return` oraz to w niej działa każda [aplikacja webowa](25-web-apps.md).
+Omarchy jest dostarczane z [Google Chrome](https://www.google.com/chrome/) jako domyślną przeglądarką. Ma motyw dopasowany do reszty Twojego systemu i to właśnie ją otwiera `Super + Shift + Return` (lub `Super + Shift + B`), przy czym `Super + Shift + Alt + B` służy do okna prywatnego, a w niej działa też każda [aplikacja webowa](25-web-apps.md). Otwiera się bezpośrednio w oknie przeglądarki: nie ma ekranu powitalnego ani monitu o zalogowanie, statystyki użytkowania i raporty o awariach nie są wysyłane do Google, a monity dotyczące prywatności reklam są wyłączone. Nadal możesz w każdej chwili zalogować się na swoje konto Google za pomocą przycisku profilu, jeśli chcesz korzystać z synchronizacji.
 
-Jeśli Chromium nie jest w twoim guście, nie jesteś na nie skazany. W menu Omarchy w _Instaluj > Browser_ znajdziesz Chrome, Edge, Brave, Brave Origin, Firefox i [Zen](https://zen-browser.app/). Wybierz jedną, a Omarchy zainstaluje ją, skonfiguruje jej katalog polityk i zastosuje do niej twój bieżący motyw.
+Jeśli Chrome nie jest w Twoim guście, nie jesteś na niego skazany. W menu Omarchy, w sekcji _Zainstaluj > Przeglądarka_, znajdziesz [Chromium](https://www.chromium.org/) (zwykłą, open-source'ową wersję, na której bazuje Chrome), Edge, Brave, Brave Origin, Firefox i [Zen](https://zen-browser.app/) (Edge tylko na maszynach x86). Wybierz jedną, a Omarchy ją zainstaluje, skonfiguruje jej katalog zasad i zastosuje do niej Twój bieżący motyw.
 
-## Ustawianie jednej jako domyślnej
+## Ustawianie jednej z nich jako domyślnej
 
-Zainstalowanie przeglądarki nie awansuje jej. Gdy już jest na komputerze, przejdź do _Ustawienia > Defaults > Browser_ i wybierz ją — menu wymienia tylko przeglądarki, które rzeczywiście masz zainstalowane, i oznacza bieżącą domyślną znacznikiem wyboru.
+Zainstalowanie przeglądarki nie czyni jej domyślną. Aby ją zmienić, przejdź do _Konfiguracja > Domyślne > Przeglądarka_ i wybierz jedną. Bieżąca domyślna jest oznaczona znacznikiem wyboru, a wybranie przeglądarki, której jeszcze nie masz, najpierw ją zainstaluje.
 
-Z terminala jest to:
+Z terminala wygląda to tak:
 
 ```bash
 omarchy default browser firefox
 ```
 
-Uruchom to bez argumentu, a powie ci bieżącą domyślną. Ustawia to handler XDG, więc nie tylko skróty Omarchy podążają za tym — wszystko, co otwiera link, od aplikacji czatu po polecenie terminala, trafia do wybranej przez ciebie przeglądarki.
+Uruchom to polecenie bez argumentu, a powie Ci, która przeglądarka jest bieżącą domyślną. Ustawia to handler XDG, więc nie tylko skróty klawiszowe Omarchy się do tego dostosowują — wszystko, co otwiera link, od aplikacji do czatu po polecenie w terminalu, trafia do wybranej przez Ciebie przeglądarki.
 
-## Copy URL i Download Video
+## Kopiowanie adresu URL i pobieranie wideo
 
-Przeglądarki z rodziny Chromium (sam Chromium, Chrome, Edge i Brave) zawierają dwa rozszerzenia Omarchy, które wychodzą poza przeglądarkę do reszty systemu.
+Przeglądarki z rodziny Chromium (sam Chromium, Chrome, Edge, Brave i Brave Origin) otrzymują trzy rozszerzenia Omarchy: dwa, które wychodzą poza przeglądarkę i sięgają do reszty Twojego systemu, oraz jedno, które porządkuje WhatsApp.
 
-**Copy URL** umieszcza adres bieżącej karty w schowku za pomocą `Alt + Shift + L`. To szybciej niż klikanie w pasek adresu i kopiowanie, a ponieważ przechodzi przez schowek systemowy, a nie przeglądarki, otrzymujesz powiadomienie Omarchy potwierdzające to, a URL jest natychmiast dostępny w [historii schowka](08-unified-clipboard-history.md) i każdej innej aplikacji. Jest również przycisk na pasku narzędzi, jeśli wolisz klikać.
+**Copy URL** umieszcza adres bieżącej karty w Twoim schowku za pomocą `Alt + Shift + L`. To szybsze niż klikanie w pasek adresu i kopiowanie, a ponieważ odbywa się to przez schowek systemowy, a nie schowek przeglądarki, dostajesz powiadomienie Omarchy potwierdzające wykonanie operacji, a adres URL jest od razu dostępny w [historii schowka](08-unified-clipboard-history.md) i w każdej innej aplikacji. Jest też przycisk na pasku narzędzi, jeśli wolisz klikać.
 
-**Download Video** pobiera wideo odtwarzane na stronie, na którą patrzysz, za pomocą `Alt + Shift + D`. Przekazuje URL do [yt-dlp](https://github.com/yt-dlp/yt-dlp), więc działa na znacznie więcej niż YouTube, a pobieranie ląduje w `~/Videos`. Postęp pojawia się w tym samym ekranowym wyświetlaczu, którego używają głośność i jasność, aktualizując się w miejscu, a nie gromadząc powiadomienia. Ustaw `OMARCHY_YTDLP_DIR`, jeśli wolisz, aby pliki trafiały gdzie indziej — zobacz [FAQ](46-faq.md), aby dowiedzieć się, gdzie umieszczać zmienne środowiskowe.
+**Download Video** pobiera wideo odtwarzane na stronie, którą oglądasz, za pomocą `Alt + Shift + D`. Przekazuje adres URL do [yt-dlp](https://github.com/yt-dlp/yt-dlp), więc działa na znacznie większej liczbie serwisów niż tylko YouTube, a pobrany plik trafia do `~/Videos`. Postęp pokazuje się w tym samym wyświetlaczu ekranowym, z którego korzystają regulacja głośności i jasności, aktualizując się w miejscu, zamiast piętrzyć powiadomienia. Ustaw `OMARCHY_YTDLP_DIR`, jeśli wolisz, aby pliki trafiały gdzie indziej — zobacz [FAQ](46-faq.md), aby dowiedzieć się, gdzie umieszczać zmienne środowiskowe.
 
-Oba rozszerzenia komunikują się z Omarchy poprzez małego natywnego hosta wiadomości, który jest instalowany dla ciebie wraz z przeglądarką. To element, który pozwala wideo ze strony internetowej trafić do twojego katalogu domowego, a URL-owi trafić do menedżera schowka, czego normalne rozszerzenie nie potrafi samo.
+Oba rozszerzenia komunikują się z Omarchy za pośrednictwem małego natywnego hosta wiadomości, który jest instalowany razem z przeglądarką. To właśnie ten element pozwala, aby wideo ze strony internetowej trafiło do Twojego katalogu domowego, a adres URL do Twojego menedżera schowka, czego zwykłe rozszerzenie samo w sobie nie potrafi zrobić.
 
-Są one tylko dla rodziny Chromium. Firefox i Zen ich nie otrzymują.
+**WhatsApp Slim** sprawia, że WhatsApp Web stosuje Twój motyw systemowy i zwija listę czatów, gdy okno jest wąskie.
+
+Są one dostępne tylko dla rodziny Chromium. Firefox i Zen ich nie otrzymują.
 
 ## Firefox i Zen
 
-Firefox i Zen należą do innej rodziny, więc otrzymują inne traktowanie: Omarchy instaluje dla nich plik polityk z rozsądnymi ustawieniami domyślnymi i przełącza je w natywny tryb Wayland, którego chcesz do skalowania ułamkowego i płynnego przewijania gładzikiem.
+Firefox i Zen to inna rodzina, więc są traktowane inaczej: Omarchy instaluje plik zasad z rozsądnymi ustawieniami domyślnymi i przełącza je w natywny tryb Wayland, którego potrzebujesz do skalowania ułamkowego i płynnego przewijania za pomocą gładzika.
 
-Nie otrzymują powyższych rozszerzeń Chromium i nie są tematyzowane przez Omarchy, więc te części doświadczenia należą do ciebie do skonfigurowania.
+Nie otrzymują powyższych rozszerzeń Chromium, a Omarchy nie stosuje do nich motywów, więc te części doświadczenia musisz skonfigurować samodzielnie.
 
-## Ponowne usuwanie jednej
+## Ponowne usuwanie przeglądarki
 
-Wszystko, co tu zainstalowałeś, można ponownie usunąć w _Usuń > Browser_. Chromium nie ma na tej liście — jest częścią systemu podstawowego.
+Każdą z tych przeglądarek, łącznie z Chrome, można ponownie usunąć w sekcji _Usuń > Przeglądarka_. Linki będą wówczas trafiać do Chrome lub Chromium, jeśli druga z tych przeglądarek jest nadal zainstalowana.

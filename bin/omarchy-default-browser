@@ -34,7 +34,7 @@ brave-origin) browser="brave-origin"; command="brave-origin"; desktop_id="brave-
 edge) browser="edge"; command="microsoft-edge-stable"; desktop_id="microsoft-edge.desktop"; name="Edge"; glyph=󰇩 ;;
 firefox) browser="firefox"; command="firefox"; desktop_id="firefox.desktop"; name="Firefox"; glyph=󰈹 ;;
 zen) browser="zen"; command="zen-browser"; desktop_id="zen.desktop"; name="Zen"; glyph=󰖟 ;;
-helium) browser="helium"; command="helium"; desktop_id="helium.desktop"; name="Helium"; glyph=󰖟 ;;
+helium) browser="helium"; command="helium-browser"; desktop_id="helium.desktop"; name="Helium"; glyph=󰖟 ;;
 *)
   echo "Usage: omarchy-default-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen|helium>"
   exit 1
@@ -46,6 +46,15 @@ if omarchy-cmd-missing "$command"; then
     exec omarchy-launch-floating-terminal-with-presentation omarchy-default-browser --install "$browser"
   else
     omarchy-install-browser "$browser" || exit 1
+  fi
+elif [[ $browser != "firefox" && $browser != "zen" && $browser != "helium" ]] && ! omarchy-install-browser-extensions --check "$browser"; then
+  # The bundled extensions reach each browser through copies taken at setup,
+  # which go stale when an extension or its id changes. Chrome's copy is a
+  # root-owned policy, so repair it where a sudo prompt can be answered.
+  if [[ $installing == "false" && $browser == "chrome" ]]; then
+    exec omarchy-launch-floating-terminal-with-presentation omarchy-default-browser --install "$browser"
+  else
+    omarchy-install-browser-extensions "$browser" || exit 1
   fi
 fi
 

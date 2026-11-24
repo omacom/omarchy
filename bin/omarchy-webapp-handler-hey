@@ -3,13 +3,18 @@
 # omarchy:summary=Open HEY webmail and translate mailto links
 # omarchy:args=[url]
 
-url="$1"
+url="${1:-}"
 web_url="https://app.hey.com"
 
 # Handle mailto: URLs
-if [[ $url =~ ^mailto: ]]; then
-  email=$(echo "$url" | sed 's/mailto://')
-  web_url="https://app.hey.com/messages/new?to=$email"
+if [[ $url != *[[:cntrl:]]* && ${url,,} == mailto:* ]]; then
+  # Strip scheme case-insensitively and keep only the recipient address before any query/fragment.
+  email="${url:7}"
+  email="${email%%[?#]*}"
+  if [[ -n $email ]]; then
+    email=$(jq -rn --arg v "$email" '[$v | scan("%[0-9A-Fa-f]{2}|[^%]+|%") | if test("^%[0-9A-Fa-f]{2}$") then . else @uri end] | join("")')
+    web_url="https://app.hey.com/messages/new?to=$email"
+  fi
 fi
 
 exec omarchy-launch-webapp "$web_url"
