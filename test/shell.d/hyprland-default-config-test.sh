@@ -33,7 +33,7 @@ run_application_bindings() {
   local home="$1"
   local prelude="${2:-}"
 
-  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
+  OMARCHY_REGION_FILE="${OMARCHY_REGION_FILE:-$tmpdir/no-region}" HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
 package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local prelude = os.getenv("OMARCHY_BINDING_PRELUDE") or ""
@@ -64,7 +64,7 @@ run_omarchy_bindings() {
   local home="$1"
   local prelude="${2:-}"
 
-  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
+  OMARCHY_REGION_FILE="${OMARCHY_REGION_FILE:-$tmpdir/no-region}" HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
 package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local function proxy()
@@ -157,6 +157,15 @@ if grep -Fq $'	Calculator' <<<"$variable_output"; then
 fi
 pass "preinstalled binding variable skips optional application bindings"
 
+echo cn >"$tmpdir/region-cn"
+region_output=$(OMARCHY_REGION_FILE="$tmpdir/region-cn" run_application_bindings "$fresh_home")
+grep -Fq $'SUPER + SHIFT + Q	Calculator' <<<"$region_output" || fail "a region keeps the hotkeys that aren't web apps"
+grep -Fq $'SUPER + SHIFT + Y	Bilibili' <<<"$region_output" || fail "China binds its own web apps"
+for binding in $'SUPER + SHIFT + A	ChatGPT' $'SUPER + SHIFT + E	Email' $'SUPER + SHIFT + Y	YouTube' $'SUPER + SHIFT + M	Music' $'SUPER + SHIFT + G	Signal'; do
+  if grep -Fq "$binding" <<<"$region_output"; then fail "China binds none of the global web app hotkeys" "$binding"; fi
+done
+pass "the region picks its web app hotkeys file"
+
 no_bindings_home="$tmpdir/no-bindings-home"
 mkdir -p "$no_bindings_home"
 no_bindings_output=$(run_omarchy_bindings "$no_bindings_home" 'omarchy_default_bindings = false') ||
@@ -215,13 +224,27 @@ mkdir -p "$scratchpad_home"
 scratchpad_output=$(run_omarchy_bindings "$scratchpad_home")
 grep -Fqx $'SUPER + S	Toggle scratchpad' <<<"$scratchpad_output" ||
   fail "scratchpad keeps its existing toggle binding"
-grep -Fqx $'SUPER + grave	Toggle Quake console' <<<"$scratchpad_output" ||
+grep -Fqx $'SUPER + code:49	Toggle Quake console' <<<"$scratchpad_output" ||
   fail "Quake console has its own toggle binding"
 grep -Fqx $'SUPER + ALT + S	Move window to scratchpad' <<<"$scratchpad_output" ||
   fail "scratchpad keeps its existing move binding"
-grep -Fqx $'SUPER + SHIFT + grave	Move window to Quake console' <<<"$scratchpad_output" ||
+grep -Fqx $'SUPER + SHIFT + code:49	Move window to Quake console' <<<"$scratchpad_output" ||
   fail "Quake console has its own move binding"
 pass "scratchpad and Quake console have separate bindings"
+
+# Hyprland matches a keysym bind against what a key types without Shift, so a
+# bind on / moves to the key US types / on where / needs Shift, unless that key
+# types a letter there instead: F on bépo, where it would take Super + F.
+passwords_key() {
+  local home="$tmpdir/layout-$1-$2"
+  mkdir -p "$home/.config/omarchy"
+  printf 'XKBLAYOUT=%s\nXKBVARIANT=%s\n' "$1" "$2" >"$home/.config/omarchy/keyboard-layouts"
+  run_omarchy_bindings "$home" | awk -F '\t' '$2 == "Passwords" { print $1 }'
+}
+[[ $(passwords_key us "") == "SUPER + SHIFT + SLASH" ]] || fail "/ binds stay on / where it types without Shift" "$(passwords_key us "")"
+[[ $(passwords_key dk "") == "SUPER + SHIFT + code:61" ]] || fail "/ binds move to the key left of right Shift where / needs Shift" "$(passwords_key dk "")"
+[[ $(passwords_key fr bepo) == "SUPER + SHIFT + SLASH" ]] || fail "/ binds never move onto a letter" "$(passwords_key fr bepo)"
+pass "/ binds follow the leading keyboard layout"
 
 # The panel hotkeys claim a row of keys that workspace switching already uses
 # under other modifiers, so the count matters as much as the bindings: a tenth

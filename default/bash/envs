@@ -12,9 +12,11 @@ export BAT_THEME=ansi
 export MANROFFOPT="-c"
 export MANPAGER="sh -c 'col -bx | bat -l man -p'"
 
-# Idempotent — already sourced by /etc/skel/.bashrc; re-source here so SSH and
-# other non-interactive non-login bash sessions still get OMARCHY_PATH.
-[ -r /usr/share/omarchy/default/bash/env-bootstrap ] && . /usr/share/omarchy/default/bash/env-bootstrap
+# Idempotent — already sourced by /etc/skel/.bashrc; re-source here only when
+# this shell hasn't run it yet (e.g. SSH or non-interactive non-login bash).
+if [ -z "${_OMARCHY_ENV_BOOTSTRAPPED:-}" ] && [ -r /usr/share/omarchy/default/bash/env-bootstrap ]; then
+  . /usr/share/omarchy/default/bash/env-bootstrap
+fi
 
 # /etc/profile.d/locale.sh is what puts /etc/locale.conf into the environment,
 # and it only runs for login shells. Bash started by SSH or herdr's remote
