@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC
 import QtQuick.Window
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 
 // Searchable multi-select dropdown. Trigger shape matches Dropdown /
 // SearchableDropdown; the popup shows a search field, an optional refresh
@@ -27,17 +28,17 @@ Item {
   property var options: []
   property var optionsCommand: []
   property string optionsCommandCwd: ""
-  property string placeholderText: "Search..."
-  property string emptyText: "No options"
-  property string noSelectionText: "None selected"
+  property string placeholderText: Commons.I18n.t("common.search")
+  property string emptyText: Commons.I18n.t("common.noOptions")
+  property string noSelectionText: Commons.I18n.t("common.noneSelected")
   property string triggerLabel: ""
   property bool showLabel: true
 
-  property color foreground: Color.popups.text
-  property color background: Color.popups.background
-  property color popupBorder: Color.popups.border
-  property color accent: Color.accent
-  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Color.popups.border, Style.normalBorderWidth)
+  property color foreground: Commons.Color.popups.text
+  property color background: Commons.Color.popups.background
+  property color popupBorder: Commons.Color.popups.border
+  property color accent: Commons.Color.accent
+  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Commons.Color.popups.border, Style.normalBorderWidth)
   property string fontFamily: Style.font.family
   property int rowHeight: Style.spacing.controlHeight
   property int popupRowHeight: Style.spacing.popupRowHeight
@@ -128,7 +129,7 @@ Item {
     for (var j = 0; j < arr.length; j++)
       labels.push(byValue[String(arr[j])] || String(arr[j]))
     if (labels.length <= 3) return labels.join(", ")
-    return arr.length + " selected"
+    return Commons.I18n.tn("multiSelect.selectedCount", arr.length).arg(Commons.I18n.formatNumber(arr.length))
   }
 
   property var filtered: resolvedOptions
@@ -163,7 +164,7 @@ Item {
         var parsed = JSON.parse(raw)
         return { options: parsed, error: "" }
       } catch (e) {
-        return { options: [], error: "Options command emitted invalid JSON" }
+        return { options: [], error: Commons.I18n.t("multiSelect.invalidJson") }
       }
     }
     var out = []
@@ -179,21 +180,39 @@ Item {
   // refresh can't clobber the resolvedOptions of a newer refresh, and
   // a runaway command can be detected after a timeout.
   property int refreshSeq: 0
+  property bool _completed: false
+  property var activeProcess: null
   readonly property int refreshTimeoutMs: 6000
+
+  function stopActiveProcess() {
+    if (!activeProcess) return
+    var proc = activeProcess
+    activeProcess = null
+    proc.running = false
+    proc.destroy()
+  }
 
   function refresh() {
     var cmd = arrayFrom(optionsCommand)
     if (cmd.length === 0) {
+      refreshSeq++
+      refreshTimeoutTimer.stop()
+      stopActiveProcess()
+      loadingOptions = false
+      optionsError = ""
       rebuildFromStatic()
       return
     }
-    refreshSeq++
+    var seq = ++refreshSeq
     loadingOptions = true
     optionsError = ""
-    optionsProcess.command = cmd
-    optionsProcess.workingDirectory = optionsCommandCwd
-    optionsProcess.running = false
-    optionsProcess.running = true
+    stopActiveProcess()
+    activeProcess = optionsProcessComponent.createObject(root, {
+      seq: seq,
+      command: cmd,
+      workingDirectory: optionsCommandCwd,
+      running: true
+    })
     refreshTimeoutTimer.restart()
   }
 
@@ -203,50 +222,74 @@ Item {
     repeat: false
     onTriggered: {
       if (!root.loadingOptions) return
-      optionsProcess.running = false
+      root.refreshSeq++
+      root.stopActiveProcess()
       root.loadingOptions = false
-      root.optionsError = "Options command timed out"
+      root.optionsError = Commons.I18n.t("multiSelect.timedOut")
     }
   }
 
   onOptionsChanged: if (arrayFrom(optionsCommand).length === 0) rebuildFromStatic()
-  onOptionsCommandChanged: refresh()
-  Component.onCompleted: refresh()
+  onOptionsCommandChanged: if (_completed) refresh()
+  Component.onCompleted: {
+    _completed = true
+    refresh()
+  }
+  Component.onDestruction: {
+    refreshTimeoutTimer.stop()
+    stopActiveProcess()
+  }
 
-  Process {
-    id: optionsProcess
-    running: false
-    command: []
+  // One Process per refresh with an immutable seq so buffered stdout/exit
+  // signals from a canceled run can never finish a newer refresh.
+  Component {
+    id: optionsProcessComponent
 
-    property int seq: 0
+    Process {
+      id: proc
+      required property int seq
+      property bool streamDone: false
+      property bool processExited: false
+      property string collectedStdout: ""
+      property int lastExitCode: 0
 
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        if (optionsProcess.seq !== root.refreshSeq) return
-        var result = root.parseCommandOutput(text)
-        if (result.error) {
-          root.optionsError = result.error
-          root.resolvedOptions = root.normalizeAll(root.options)
-        } else {
-          var combined = root.arrayFrom(root.options)
-          for (var j = 0; j < result.options.length; j++) combined.push(result.options[j])
-          root.resolvedOptions = root.normalizeAll(combined)
+      function maybeFinish() {
+        if (!streamDone || !processExited) return
+        if (root.activeProcess === proc) root.activeProcess = null
+        if (seq === root.refreshSeq) {
+          refreshTimeoutTimer.stop()
+          root.loadingOptions = false
+          if (lastExitCode !== 0) {
+            root.optionsError = Commons.I18n.t("multiSelect.exited").arg(Commons.I18n.formatNumber(lastExitCode))
+          } else {
+            var result = root.parseCommandOutput(collectedStdout)
+            if (result.error) {
+              root.optionsError = result.error
+              root.resolvedOptions = root.normalizeAll(root.options)
+            } else {
+              var combined = root.arrayFrom(root.options)
+              for (var j = 0; j < result.options.length; j++) combined.push(result.options[j])
+              root.resolvedOptions = root.normalizeAll(combined)
+            }
+            root.recomputeFiltered()
+          }
         }
-        root.recomputeFiltered()
-        root.loadingOptions = false
-        refreshTimeoutTimer.stop()
+        proc.destroy()
       }
-    }
 
-    onRunningChanged: if (running) seq = root.refreshSeq
+      stdout: StdioCollector {
+        waitForEnd: true
+        onStreamFinished: {
+          proc.collectedStdout = text
+          proc.streamDone = true
+          proc.maybeFinish()
+        }
+      }
 
-    onExited: function(exitCode, exitStatus) {
-      if (seq !== root.refreshSeq) return
-      refreshTimeoutTimer.stop()
-      if (exitCode !== 0) {
-        root.loadingOptions = false
-        root.optionsError = "Options command exited " + exitCode
+      onExited: function(exitCode, exitStatus) {
+        proc.lastExitCode = exitCode
+        proc.processExited = true
+        proc.maybeFinish()
       }
     }
   }
@@ -290,7 +333,7 @@ Item {
 
       Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter
-            || event.key === Qt.Key_Space || event.key === Qt.Key_Down) {
+            || event.key === Qt.Key_Space || event.key === Qt.Key_Down || event.text === "j") {
           popup.opened ? popup.close() : popup.open()
           event.accepted = true
         } else if (event.key === Qt.Key_Escape && popup.opened) {
@@ -326,6 +369,9 @@ Item {
       MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
+        // CloseOnPressOutsideParent treats a press on the trigger as inside,
+        // so the popup is still open here and a second click collapses it
+        // instead of reopening.
         onClicked: {
           trigger.forceActiveFocus()
           popup.opened ? popup.close() : popup.open()
@@ -334,16 +380,20 @@ Item {
 
       QQC.Popup {
         id: popup
-        // Reparent to the window's content item so the popup is free of any
-        // clipping ancestor. Position
+        closePolicy: QQC.Popup.CloseOnPressOutsideParent | QQC.Popup.CloseOnEscape
+        // Keep the trigger as the logical parent so CloseOnPressOutsideParent
+        // treats a press on the trigger as inside, leaving the toggle to the
+        // trigger's onClicked. The popup item is still rendered in the window
+        // overlay, so it is not clipped by the trigger's ancestors. Position
         // and available height are recomputed on open and any time the
         // trigger's geometry changes, since a binding on mapToItem alone
         // won't reliably re-evaluate when ancestors scroll or resize.
-        parent: trigger.Window.window ? trigger.Window.window.contentItem : trigger
+        parent: trigger
         property real _anchorX: 0
         property real _anchorY: 0
         property real _availableBelow: 0
-        readonly property real _windowHeight: parent ? parent.height : 0
+        readonly property var _windowItem: trigger.Window.window ? trigger.Window.window.contentItem : null
+        readonly property real _windowHeight: _windowItem ? _windowItem.height : 0
         readonly property real _idealContent: resultList.contentHeight + Style.space(50)
         readonly property real _maxRowsHeight: root.popupRowHeight * 6 + 5 * Style.spacing.labelGap + Style.space(50)
 
@@ -352,7 +402,10 @@ Item {
           var p = trigger.mapToItem(parent, 0, trigger.height + Style.spacing.xxs)
           _anchorX = p.x
           _anchorY = p.y
-          _availableBelow = Math.max(0, _windowHeight - _anchorY - Style.space(12))
+          // _anchorY is relative to the trigger; the clamp below needs the
+          // anchor in window coordinates.
+          var win = _windowItem ? trigger.mapToItem(_windowItem, 0, trigger.height + Style.spacing.xxs) : p
+          _availableBelow = Math.max(0, _windowHeight - win.y - Style.space(12))
         }
 
         x: _anchorX
@@ -463,7 +516,7 @@ Item {
                   RotationAnimator on rotation {
                     running: root.loadingOptions && !Style.reduceMotion
                     from: 0; to: 360
-                    duration: 800
+                    duration: Style.duration(800)
                     loops: Animation.Infinite
                   }
                 }
@@ -492,7 +545,7 @@ Item {
               textFormat: Text.PlainText
               anchors.centerIn: parent
               visible: resultList.count === 0
-              text: root.loadingOptions ? "Loading…" : (root.optionsError !== "" ? root.optionsError : root.emptyText)
+              text: root.loadingOptions ? Commons.I18n.t("common.loading") : (root.optionsError !== "" ? root.optionsError : root.emptyText)
               color: Qt.darker(root.foreground, 1.6)
               font.family: root.fontFamily
               font.pixelSize: Style.font.body

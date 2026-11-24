@@ -42,11 +42,16 @@ submenu. The fields:
 | `aliases` | Alternate `omarchy menu summon <name>` routes; also searchable |
 | `description` | Subtitle shown while searching, and extra search text matched by whole word |
 | `when` / `checked` / `disabled` | Shell conditions (see Guards) |
+| `alt` | Id of another action entry that stands in for this row while Alt is held |
 
 Do not add `aliases` to new entries. They are reserved for established
 alternate names users already type (`power-menu`, `settings`), kept for
 compatibility — see `AGENTS.md`. Search does not need them: labels, the last
 id segment, and descriptions are all searchable.
+
+## Alt variants
+
+An action row can name another entry with `alt:` to stand in for it while Alt is held: System > Reboot carries `"alt":"system.firmware"`, so holding Alt turns it into Reboot to BIOS, and Enter or an Alt-click runs that instead. The stand-in is an ordinary entry with its own label, icon, guards, and translation, so it stays searchable and routable (`omarchy menu summon system.firmware`); it is only left out of its submenu's list, where it would duplicate the row it replaces. When its `when:` fails or its `disabled:` succeeds, the row stays as it is, and an `alt:` that names a submenu or a missing id is ignored rather than hiding anything. `altVariant` and `altVariantIds` in `MenuModel.js` hold the logic; `Menu.qml` tracks Alt from the key events it already receives, so an Alt held down before the menu opened only counts once another key or a click reports it.
 
 ## Load and merge
 
@@ -71,13 +76,23 @@ describes — which is why the batch works hard to be fast:
 
 - Package and command presence (`omarchy-pkg-present` and friends) are
   answered in-process from one `pacman -Q` snapshot instead of a fork per
-  row. The snapshot resolves provides too, so gvim answers for vim.
+  row. The snapshot resolves provides too, so gvim answers for vim. It is
+  stored in `$XDG_RUNTIME_DIR/omarchy-menu-packages`, stamped with the
+  pacman local database directory (under `pacman-conf DBPath`), and rebuilt by the first batch after any
+  install, removal, or upgrade moves that stamp; a build that overlapped a
+  transaction (`db.lck`) or whose queries failed is used once and never
+  stored.
 - Commands that several rows read a value from — every Defaults > Browser row
   compares against `$(omarchy-default-browser)` — run once, with the captured
   answer substituted into each expression. The reader list is
   `GUARD_READERS` in `MenuModel.js`; a new `$(omarchy-...)` reader used by
   more than one row must be added there, and `menu-guards-test.sh` fails the
-  build if it is not.
+  build if it is not. The readers all start at once, before the package
+  snapshot is built.
+- The guards themselves are dealt into eight background subshells that run
+  side by side, so the batch takes about as long as its slowest probe rather
+  than the sum of them. Result lines therefore arrive in any order, and a
+  guard must not depend on anything another guard set.
 
 The three guards differ in what failure means:
 
@@ -109,9 +124,11 @@ providers):
   the launcher. App rows are searchable by their desktop Keywords but never
   routable, so an installed app cannot capture a menu route (htop ships
   `Keywords=system;...`, and SUPER+ESCAPE must still open the system menu).
-- `fonts` and `power-profiles` are bash one-liners in the `providers` map in
+- `fonts`, `power-profiles`, `kernels`, and `languages` are bash one-liners in the `providers` map in
   `Menu.qml`. The contract is one tab-delimited line per row:
-  `label\tvalue\tcurrent\tdescription`, with the description optional. The row whose value equals `current` gets the ✓
+  `label\tvalue\tcurrent`, with an optional fourth field that becomes a search-only
+  term for the row (the languages provider passes each language's English name, so
+  searching "danish" finds the row labeled "Dansk", without making "danish" a routable command) and an optional fifth field that becomes the row's description. The row whose value equals `current` gets the ✓
   icon, and selection runs the spec's `actionFor(value)`. Row ids are
   `<menuId>.<slugify(value)>`, with a `-` appended on collision so two values
   that slugify alike cannot silently drop a row.
@@ -135,7 +152,7 @@ An extension declares its own provider as an object instead of a name. It holds 
 "notes": {"icon": "󰎞", "label": "Notes", "provider": {"command": "ls ~/notes", "action": "omarchy-launch-editor ~/notes/{value}", "volatile": true}}
 ```
 
-`command` prints rows in the same `label\tvalue\tcurrent\tdescription` contract, and `action` runs with every `{value}` replaced by the chosen row's value, already shell-quoted. Use `{value}` bare, never inside single or double quotes: `"focus-tab {value}"` is right, `"focus-tab '{value}'"` turns the quoting inside out, so a value such as a tab title containing spaces or `$(...)` is split or expanded by the shell. `icon` and `volatile` are optional. `normalizeProvider` in `MenuModel.js` drops an object without a `command`, or whose `action` never uses `{value}`, so a malformed entry leaves an empty submenu rather than rows that all run the same thing. This opens no new trust boundary: the same file already runs shell through `action`, `when` and `checked`.
+`command` prints rows in the same `label\tvalue\tcurrent\tsearch\tdescription` contract, the last three optional, and `action` runs with every `{value}` replaced by the chosen row's value, already shell-quoted. Use `{value}` bare, never inside single or double quotes: `"focus-tab {value}"` is right, `"focus-tab '{value}'"` turns the quoting inside out, so a value such as a tab title containing spaces or `$(...)` is split or expanded by the shell. `icon` and `volatile` are optional. `normalizeProvider` in `MenuModel.js` drops an object without a `command`, or whose `action` never uses `{value}`, so a malformed entry leaves an empty submenu rather than rows that all run the same thing. This opens no new trust boundary: the same file already runs shell through `action`, `when` and `checked`.
 
 Rows from a provider are searchable from the root, so an application that lists its own items here — a browser's open tabs, a notes folder — makes them reachable by typing their names into the menu.
 
@@ -157,7 +174,7 @@ it with `provider:`.
 ```bash
 omarchy menu                    # toggle the root menu
 omarchy menu toggle system      # open at a route, or close if already open
-omarchy menu summon style.theme # always open (no close-if-visible)
+omarchy menu summon appearance.theme # always open (no close-if-visible)
 omarchy menu close
 omarchy menu refresh            # re-parse the JSONC files
 omarchy menu ping
@@ -185,3 +202,10 @@ renders under the label, filters with it, and comes back as
 `label\tsubtext` so callers with same-named rows get a stable key. This is
 how the pickers behind menu actions (`omarchy-menu-plugin`,
 `omarchy-menu-timezone`, ...) present lists without owning any UI.
+
+
+Pass `-- --multiple` to `omarchy-menu-select` for a multi-select request. Repeat `--selected <value>` to preselect returned values (labels plus any subtext, without icons). Clicking or pressing Enter toggles an option without closing the menu; Apply returns a JSON array in option order, including `[]` when all choices are deselected. Cancellation still exits 1. Selections survive filtering.
+
+With `--on-change <JSON command array>`, each toggle runs that command with the proposed selection JSON appended as its final argument, and no Apply row is shown. The checkbox changes only after the command succeeds; a failed command retains the previous selection. Changes persist when the menu closes. The typing selectors use this mode.
+
+For immediate multi-select requests, `--change-key <key>` identifies the setting being changed across picker openings. The menu keeps queued selections for that key when reopened, so a new toggle cannot discard a change still being saved. Without a key, the command array identifies the setting.
