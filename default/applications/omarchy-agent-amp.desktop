@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Amp
+Comment=Start Amp in a terminal
+Exec=omarchy-agent --agent amp --app-id=org.omarchy.amp
+Icon=omarchy-agent-amp
+StartupWMClass=org.omarchy.amp
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new

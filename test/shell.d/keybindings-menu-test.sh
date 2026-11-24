@@ -63,6 +63,7 @@ $(lua_bind 64 "SUPER + F" "Full screen")
 $(lua_bind 64 "SUPER + I" "Switch input language")
 $(lua_bind 64 "SUPER + S" "Toggle scratchpad")
 $(lua_bind 64 "SUPER + grave" "Toggle Quake console")
+$(exec_bind 64 "SUPER + comma" "Dismiss, invoke, or focus" "omarchy-notification-act")
 $(exec_bind 73 "SUPER SHIFT ALT + 0" "Move window silently to workspace 10" "true")
 BINDS
 
@@ -105,6 +106,12 @@ grep -q 'SUPER + ~  *→ Toggle Quake console' <<<"$rendered" ||
 ! grep -q 'grave' <<<"$rendered" ||
   fail "no entry still says grave" "$rendered"
 pass "the grave key reads as the symbol printed on it"
+
+# A comma in a description is part of the text, not a field break that cuts the
+# description short and shifts the dispatcher and arg after it.
+grep -q 'SUPER + COMMA  *→ Dismiss, invoke, or focus$' <<<"$rendered" ||
+  fail "a description keeps its commas" "$rendered"
+pass "a description keeps its commas"
 
 # Monospace menu: every arrow sits in one column, and nothing is allowed past
 # it. A row that overruns pushes its own arrow out of line.
@@ -167,6 +174,34 @@ grep -q 'SUPER + MINUS  *→ Expand window left' <<<"$rendered" &&
   grep -q 'SUPER + ^  *→ Shrink window left' <<<"$rendered" ||
   fail "a keycode is named by what the leading layout prints on it" "$rendered"
 pass "a keycode is named by what the leading layout prints on it"
+
+# The Quake console is bound to the key left of 1, which most ISO layouts
+# print something other than ~ on: ½, ^, ², º, | or §, never the keysym name.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + code:49" "Toggle Quake console")
+BINDS
+for layout in dk:½ de:^ fr:² es:º no:"|" se:§ us:~; do
+  echo "{\"str\": \"${layout%%:*}\"}" >"$stub_bin/option-kb_layout"
+  rendered=$(keybindings "" "$tmpdir/cache-${layout%%:*}")
+  grep -qF "SUPER + ${layout#*:} " <<<"$rendered" ||
+    fail "the key left of 1 reads ${layout#*:} on ${layout%%:*}" "$rendered"
+done
+rm "$stub_bin/option-kb_layout"
+pass "the key left of 1 reads as the symbol printed on it on ISO layouts"
+
+# Resize sits on the two keys right of 0. German writes the first over several
+# lines, with its ß on a line of its own, and the US fallback would call it MINUS.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + code:20" "Expand window left")
+$(lua_bind 64 "SUPER + code:21" "Shrink window left")
+BINDS
+echo '{"str": "de"}' >"$stub_bin/option-kb_layout"
+rendered=$(keybindings "" "$tmpdir/cache-de-resize")
+rm "$stub_bin/option-kb_layout"
+grep -q 'SUPER + ß  *→ Expand window left' <<<"$rendered" &&
+  grep -q 'SUPER + ´  *→ Shrink window left' <<<"$rendered" ||
+  fail "the resize keys read as what German prints on them" "$rendered"
+pass "the resize keys read as what German prints on them"
 
 # A chord refused for width opens a row of its own, and the next chord tries
 # that row rather than reaching back past it and printing out of order.
@@ -255,6 +290,47 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+records_out=$(env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+  bash "$menu" --records)
+grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' <<<"$records_out" ||
+  fail "--records prints tab-separated display, dispatcher, and arg" "$records_out"
+pass "--records prints tab-separated display, dispatcher, and arg"
+
+# Hyprland 0.57 names a Lua bind by what it was bound to, HL.Dispatcher(<name>)
+# or function: 0x..., with a display-only number as its arg, so picking a row
+# has to run what the Lua source says, never that name and number.
+reported_bind() {
+  printf 'bind\n\tmodmask: %s\n\tsubmap: \n\tkey: %s\n\tkeycode: 0\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: %s\n\targ: %s\n' "$@"
+}
+
+stub_hyprctl <<BINDS
+$(reported_bind 64 "SPACE" "Omarchy menu" "HL.Dispatcher(global)" 371)
+$(reported_bind 64 "W" "Close window" "HL.Dispatcher(close)" 101)
+$(reported_bind 64 "Q" "Close window" "HL.Dispatcher(close)" 102)
+$(reported_bind 64 "RETURN" "Terminal" "function: 0x55c70da57d20" 18)
+$(reported_bind 68 "Z" "Zoom in" "function: 0x55c70a0f8e10" 175)
+$(reported_bind 0 "switch:on:Lid Switch" "" "HL.Dispatcher(exec_cmd)" 77)
+$(reported_bind 0 "" "Only Hyprland knows" "HL.Dispatcher(close)" 103)
+BINDS
+
+rm -rf "$tmpdir/cache"
+rendered=$(keybindings)
+records=$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)
+grep -qP '→ Omarchy menu\tlua\thl\.dsp\.global\("omarchy:menu\.root"\)$' <<<"$records" ||
+  fail "picking an hl.dsp bind Hyprland names HL.Dispatcher runs it" "$records"
+grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' <<<"$records" ||
+  fail "picking a Lua function Hyprland names by address runs its command" "$records"
+grep -qP '→ Zoom in\t\t$' <<<"$records" && grep -qP '→ Only Hyprland knows\t\t$' <<<"$records" ||
+  fail "a Lua bind the config does not explain runs nothing" "$records"
+! grep -qE 'HL\.Dispatcher|function: 0x' <<<"$records" ||
+  fail "no row runs the name and number Hyprland reports for a Lua bind" "$records"
+! grep -q 'Lid Switch' <<<"$rendered" ||
+  fail "a Lua bind without a description stays hidden" "$rendered"
+grep -q '^SUPER + W / SUPER + Q  *→ Close window$' <<<"$rendered" ||
+  fail "the two Close window chords still share a row" "$rendered"
+pass "picking a row runs its bind when Hyprland names Lua binds HL.Dispatcher or by address"
 
 # A plugin that walks the window list while it loads must not wedge the scan,
 # and the binds after it must still be recovered from the Lua source.
