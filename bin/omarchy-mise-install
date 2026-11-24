@@ -7,14 +7,16 @@
 # This once wrote a ~/.local/bin wrapper that installed a tool through mise the
 # first time it ran. Omarchy installs nothing that way anymore, but migrations
 # from then still call this to create or rewrite such wrappers. So it removes
-# the wrapper an earlier release left at that path, and writes nothing.
+# the wrapper it would have written, and writes nothing.
 
 if [[ -z $1 ]]; then
   echo "Usage: omarchy-mise-install <package> [command-name [bin-name]]"
   exit 1
 fi
 
+package=$1
 command=${2:-$1}
+bin=${3:-$command}
 
 # The command name is a file name under ~/.local/bin, so a slash, a leading dot
 # or a leading dash would reach somewhere else.
@@ -25,10 +27,11 @@ case "$command" in
     ;;
 esac
 
-# Only a small regular file that runs `mise use -g` is one of those wrappers;
-# anything else at the path is the user's own.
+# Only an exact copy of the wrapper goes. Anything else at the path, including
+# one the user changed, is theirs.
 wrapper="$HOME/.local/bin/$command"
-if [[ -f $wrapper && ! -L $wrapper ]] && (( $(stat -c%s "$wrapper") <= 1024 )) &&
-  grep -Eq '^(MISE_MINIMUM_RELEASE_AGE=0 )?mise use -g ' "$wrapper"; then
+if [[ -f $wrapper && ! -L $wrapper ]] && cmp -s "$wrapper" <(
+  printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "%s" || exit 1\nexec mise x "%s" -- "%s" "$@"\n' "$package" "$package" "$bin"
+); then
   rm -f "$wrapper"
 fi
