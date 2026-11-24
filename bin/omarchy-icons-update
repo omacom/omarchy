@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Update user-installed git icon sets
+
+mapfile -t sets < <(omarchy-icons-extras)
+
+for set in "${sets[@]}"; do
+  echo "Updating: $(basename "$set")"
+  git -C "$set" pull
+done
+
+# The set in use may be one of those pulled, so it is drawn again.
+omarchy-theme-set-icons

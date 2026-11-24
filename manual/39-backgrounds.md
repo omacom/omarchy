@@ -8,7 +8,9 @@ Backgrounds can be videos as well as stills. Drop an `mp4`, `m4v`, `mov`, `webm`
 
 Themes can include a short intro for a still background. For `backgrounds/road.webp`, the matching video lives at `backgrounds/intros/road.mp4`. It plays automatically at boot, when switching to a theme with that background selected, and when choosing that background, then returns to the still. Intro videos stay out of the background picker and never loop.
 
-Turning off _Appearance > Animations_ also turns off background intros. Omarchy does this by default in a virtual machine. The `omarchy theme bg intro toggle` command can toggle intros separately. Refreshing a theme does not play an intro.
+Choosing _Appearance > Animations Off_ also turns off background intros. Omarchy does this by default in a virtual machine. The `omarchy theme bg intro toggle` command can toggle intros separately. Refreshing a theme does not play an intro.
+
+A still can also have a loop, a quiet version of the same picture that keeps moving, at `backgrounds/loops/road.mp4`. It plays in the still's place, after its intro if it has one, and stops when animations are turned off. On battery, the still shows instead, and the loop comes back once you plug in. Loops stay out of the background picker.
 
 You can find a huge collection of cool curated backgrounds in [dharmx/walls](https://github.com/dharmx/walls).
 

@@ -26,11 +26,11 @@
   "update": {
     "label": "به‌روزرسانی"
   },
-  "about": {
-    "label": "درباره"
-  },
   "system": {
     "label": "سیستم"
+  },
+  "system.about": {
+    "label": "درباره"
   },
   "system.screensaver": {
     "label": "محافظ صفحه"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "ورودی"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "زبان"
+  },
+  "setup.region.timezone": {
+    "label": "منطقه زمانی"
   },
   "setup.network": {
     "label": "شبکه"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "پیش‌فرض‌ها"
-  },
-  "agent": {
-    "label": "عامل"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "مرورگر",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "بوت مستقیم"
-  },
-  "setup.reset": {
-    "label": "بازنشانی رایانه"
+  "remove.factory-reset": {
+    "label": "بازنشانی کارخانه"
   },
   "install.package": {
     "label": "بسته"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "گذرواژه"
   },
-  "update.timezone": {
-    "label": "منطقه زمانی"
-  },
   "update.time": {
     "label": "زمان"
   },
@@ -1131,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "ترک‌پد"
-  },
-  "update.password.drive": {
-    "label": "رمزگذاری درایو"
-  },
-  "update.password.user": {
-    "label": "کاربر"
   },
   "appearance.windows.gaps-on": {
     "label": "فاصله پنجره‌ها روشن"
@@ -1228,34 +1171,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "غیرفعال‌سازی صفحه لمسی"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "ساده"
   },
-  "agent.harness": {
-    "label": "هارنس",
-    "title": "هارنس پیش‌فرض"
-  },
-  "agent.instructions": {
-    "label": "دستورالعمل‌ها"
-  },
-  "agent.make": {
-    "label": "چیزی بساز"
-  },
-  "agent.make.theme": {
-    "label": "تم بساز"
-  },
-  "agent.make.plugin": {
-    "label": "افزونه بساز"
-  },
-  "agent.make.app": {
-    "label": "برنامه بساز"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "آیکون‌ها"
+  },
+  "install.style.icons": {
+    "label": "آیکون‌ها"
+  },
+  "remove.icons": {
+    "label": "آیکون‌ها"
+  },
+  "update.icons": {
+    "label": "آیکون‌های اضافی"
+  },
+  "system.firmware": {
+    "label": "راه‌اندازی مجدد به BIOS",
+    "description": "راه‌اندازی مجدد به تنظیمات میان‌افزار UEFI"
+  },
+  "setup.region": {
+    "label": "منطقه"
+  },
+  "setup.region.formats": {
+    "label": "قالب‌ها",
+    "description": "نحوهٔ نوشتن تاریخ‌ها، ساعت‌ها، اعداد و واحدها"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "بازی Game Vibes"
+  },
+  "update.games": {
+    "label": "بازی‌های Game Vibes"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "نام میزبان"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

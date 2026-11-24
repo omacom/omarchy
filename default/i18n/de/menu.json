@@ -26,11 +26,11 @@
   "update": {
     "label": "Aktualisieren"
   },
-  "about": {
-    "label": "Über"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "Über"
   },
   "system.screensaver": {
     "label": "Bildschirmschoner"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Eingabe"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Sprache"
+  },
+  "setup.region.timezone": {
+    "label": "Zeitzone"
   },
   "setup.network": {
     "label": "Netzwerk"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "Standards"
-  },
-  "agent": {
-    "label": "Agent"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Browser",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Direktstart"
-  },
-  "setup.reset": {
-    "label": "Computer zurücksetzen"
+  "remove.factory-reset": {
+    "label": "Werkseinstellungen"
   },
   "install.package": {
     "label": "Paket"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "Passwort"
   },
-  "update.timezone": {
-    "label": "Zeitzone"
-  },
   "update.time": {
     "label": "Zeit"
   },
@@ -1132,12 +1081,6 @@
   "update.hardware.trackpad": {
     "label": "Trackpad"
   },
-  "update.password.drive": {
-    "label": "Laufwerksverschlüsselung"
-  },
-  "update.password.user": {
-    "label": "Benutzer"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Absturzerfassung aus"
   },
@@ -1171,34 +1114,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Touchscreen deaktivieren"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "Einfach"
   },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "Standard-Harness"
-  },
-  "agent.instructions": {
-    "label": "Anweisungen"
-  },
-  "agent.make": {
-    "label": "Etwas erstellen"
-  },
-  "agent.make.theme": {
-    "label": "Theme erstellen"
-  },
-  "agent.make.plugin": {
-    "label": "Plugin erstellen"
-  },
-  "agent.make.app": {
-    "label": "App erstellen"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Icons"
+  },
+  "install.style.icons": {
+    "label": "Icons"
+  },
+  "remove.icons": {
+    "label": "Icons"
+  },
+  "update.icons": {
+    "label": "Extra-Icons"
+  },
+  "system.firmware": {
+    "label": "Neustart ins BIOS",
+    "description": "Ins UEFI-Firmware-Setup neu starten"
+  },
+  "setup.region": {
+    "label": "Region"
+  },
+  "setup.region.formats": {
+    "label": "Formate",
+    "description": "Formatierung von Datum, Uhrzeit, Zahlen und Einheiten"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes Spiel"
+  },
+  "update.games": {
+    "label": "Game Vibes Spiele"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Hostname"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

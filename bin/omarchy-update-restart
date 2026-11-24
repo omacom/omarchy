@@ -14,7 +14,7 @@ esac
 echo
 confirm_reboot() {
   if [[ ${OMARCHY_UPDATE_UNATTENDED:-0} == "1" ]]; then
-    echo "$1 Run omarchy-system reboot when ready."
+    echo "$(omarchy-i18n update.rebootLater "$1" "omarchy-system reboot")"
   elif gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$1"; then
     omarchy-system reboot
     exit 0
@@ -26,16 +26,10 @@ if [[ $mode != "--services-only" ]]; then
   kernel_updated=true
 
   # Every kernel package owns modules.builtin; Arch Linux ARM's ships no vmlinuz here (#12440).
-  for kernel in "$kernel_modules_path"/*/modules.builtin; do
-    if [[ -f $kernel ]] && pacman -Qo "$kernel" &>/dev/null; then
-      installed_kernel=$(basename "$(dirname "$kernel")")
-
-      if [[ $installed_kernel == $running_kernel ]]; then
-        kernel_updated=false
-        break
-      fi
-    fi
-  done
+  if [[ -f $kernel_modules_path/$running_kernel/modules.builtin ]] &&
+    pacman -Qo -- "$kernel_modules_path/$running_kernel/modules.builtin" &>/dev/null; then
+    kernel_updated=false
+  fi
 
   if [[ $kernel_updated == "true" ]]; then
     confirm_reboot "$(omarchy-i18n update.kernelReboot)"
@@ -43,8 +37,15 @@ if [[ $mode != "--services-only" ]]; then
     confirm_reboot "$(omarchy-i18n update.rebootRequired)"
   fi
 
-  running_hyprland=$(readlink /proc/$(pgrep -x Hyprland)/exe 2>/dev/null)
-  if [[ $running_hyprland == *"(deleted)"* ]]; then
+  hyprland_updated=false
+  while IFS= read -r hyprland_pid; do
+    [[ -n $hyprland_pid ]] || continue
+    if [[ $(readlink "/proc/$hyprland_pid/exe" 2>/dev/null) == *"(deleted)"* ]]; then
+      hyprland_updated=true
+      break
+    fi
+  done < <(pgrep -x Hyprland 2>/dev/null)
+  if [[ $hyprland_updated == "true" ]]; then
     confirm_reboot "$(omarchy-i18n update.hyprlandReboot)"
   fi
 fi
@@ -54,7 +55,7 @@ if [[ $mode != "--reboot-only" ]]; then
     if [[ -f $file ]]; then
       filename=$(basename "$file")
       service=$(echo "$filename" | sed 's/restart-\(.*\)-required/\1/')
-      echo "Restarting $service"
+      echo "$(omarchy-i18n update.restartingService "$service")"
       omarchy-state clear "$filename"
       omarchy-restart-"$service"
     fi
@@ -63,7 +64,7 @@ if [[ $mode != "--reboot-only" ]]; then
   # Updates routinely replace the shell's QML, and a stale process can lazy-load
   # new files into old code. A restart failure (locked session, ssh, TTY) only
   # prints its reason: the next update or login gets a fresh shell anyway.
-  echo -e "\e[32m\nRestarting shell\e[0m"
-  echo "All plugins have been reloaded"
+  echo -e "\e[32m\n$(omarchy-i18n update.restartingShell)\e[0m"
+  echo "$(omarchy-i18n update.pluginsReloaded)"
   omarchy-restart-shell || true
 fi

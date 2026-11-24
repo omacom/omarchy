@@ -26,11 +26,11 @@
   "update": {
     "label": "Frissítés"
   },
-  "about": {
-    "label": "Névjegy"
-  },
   "system": {
     "label": "Rendszer"
+  },
+  "system.about": {
+    "label": "Névjegy"
   },
   "system.screensaver": {
     "label": "Képernyővédő"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Bevitel"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Nyelv"
+  },
+  "setup.region.timezone": {
+    "label": "Időzóna"
   },
   "setup.network": {
     "label": "Hálózat"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "Alapértelmezések"
-  },
-  "agent": {
-    "label": "Ügynök"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Böngésző",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Közvetlen indítás"
-  },
-  "setup.reset": {
-    "label": "Gép visszaállítása"
+  "remove.factory-reset": {
+    "label": "Gyári visszaállítás"
   },
   "install.package": {
     "label": "Csomag"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "Jelszó"
   },
-  "update.timezone": {
-    "label": "Időzóna"
-  },
   "update.time": {
     "label": "Idő"
   },
@@ -1132,12 +1081,6 @@
   "update.hardware.trackpad": {
     "label": "Érintőpad"
   },
-  "update.password.drive": {
-    "label": "Meghajtótitkosítás"
-  },
-  "update.password.user": {
-    "label": "Felhasználó"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Összeomlásrögzítés ki"
   },
@@ -1170,33 +1113,6 @@
   },
   "trigger.hardware.touchscreen-off": {
     "label": "Érintőképernyő kikapcsolása"
-  },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Akkuszázalék megjelenítése"
@@ -1255,7 +1171,7 @@
   "trigger.toggle.crash-capture-on": {
     "label": "Összeomlásrögzítés be"
   },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "Egyszerű"
   },
-  "agent.harness": {
-    "label": "Keretrendszer",
-    "title": "Alapértelmezett keretrendszer"
-  },
-  "agent.instructions": {
-    "label": "Utasítások"
-  },
-  "agent.make": {
-    "label": "Készíts valamit"
-  },
-  "agent.make.theme": {
-    "label": "Készíts témát"
-  },
-  "agent.make.plugin": {
-    "label": "Készíts bővítményt"
-  },
-  "agent.make.app": {
-    "label": "Készíts alkalmazást"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikonok"
+  },
+  "install.style.icons": {
+    "label": "Ikonok"
+  },
+  "remove.icons": {
+    "label": "Ikonok"
+  },
+  "update.icons": {
+    "label": "Extra ikonok"
+  },
+  "system.firmware": {
+    "label": "Újraindítás BIOS-ba",
+    "description": "Újraindítás az UEFI firmware-beállításba"
+  },
+  "setup.region": {
+    "label": "Régió"
+  },
+  "setup.region.formats": {
+    "label": "Formátumok",
+    "description": "Dátumok, időpontok, számok és mértékegységek megjelenítése"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes játék"
+  },
+  "update.games": {
+    "label": "Game Vibes játékok"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Gépnév"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

@@ -26,11 +26,11 @@
   "update": {
     "label": "புதுப்பி"
   },
-  "about": {
-    "label": "பற்றி"
-  },
   "system": {
     "label": "கணினி"
+  },
+  "system.about": {
+    "label": "பற்றி"
   },
   "system.screensaver": {
     "label": "திரைசேமிப்பு"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "உள்ளீடு"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "மொழி"
+  },
+  "setup.region.timezone": {
+    "label": "நேர மண்டலம்"
   },
   "setup.network": {
     "label": "வலையமைப்பு"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "இயல்புநிலைகள்"
-  },
-  "agent": {
-    "label": "ஏஜென்ட்"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "உலாவி",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "நேரடி தொடக்கம்"
-  },
-  "setup.reset": {
-    "label": "கணினியை மீட்டமை"
+  "remove.factory-reset": {
+    "label": "தொழிற்சாலை மீட்டமைப்பு"
   },
   "install.package": {
     "label": "தொகுப்பு"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "கடவுச்சொல்"
   },
-  "update.timezone": {
-    "label": "நேர மண்டலம்"
-  },
   "update.time": {
     "label": "நேரம்"
   },
@@ -1131,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "தொடுதளம்"
-  },
-  "update.password.drive": {
-    "label": "இயக்கக குறியாக்கம்"
-  },
-  "update.password.user": {
-    "label": "பயனர்"
   },
   "appearance.windows.gaps-on": {
     "label": "சாளர இடைவெளி இயக்கு"
@@ -1219,34 +1162,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "தொடுதிரையை முடக்கு"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "எளிய உரை"
   },
-  "agent.harness": {
-    "label": "ஹார்னெஸ்",
-    "title": "இயல்புநிலை ஹார்னெஸ்"
-  },
-  "agent.instructions": {
-    "label": "வழிமுறைகள்"
-  },
-  "agent.make": {
-    "label": "ஏதாவது உருவாக்கு"
-  },
-  "agent.make.theme": {
-    "label": "தீம் உருவாக்கு"
-  },
-  "agent.make.plugin": {
-    "label": "பிளகின் உருவாக்கு"
-  },
-  "agent.make.app": {
-    "label": "செயலி உருவாக்கு"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "ஐகான்கள்"
+  },
+  "install.style.icons": {
+    "label": "ஐகான்கள்"
+  },
+  "remove.icons": {
+    "label": "ஐகான்கள்"
+  },
+  "update.icons": {
+    "label": "கூடுதல் ஐகான்கள்"
+  },
+  "system.firmware": {
+    "label": "BIOS-க்கு மறுதொடக்கம்",
+    "description": "UEFI ஃபார்ம்வேர் அமைப்பில் மறுதொடக்கம் செய்யவும்"
+  },
+  "setup.region": {
+    "label": "பிராந்தியம்"
+  },
+  "setup.region.formats": {
+    "label": "வடிவங்கள்",
+    "description": "தேதிகள், நேரங்கள், எண்கள், அலகுகள் எழுதப்படும் முறை"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes விளையாட்டு"
+  },
+  "update.games": {
+    "label": "Game Vibes விளையாட்டுகள்"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "ஹோஸ்ட்பெயர்"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

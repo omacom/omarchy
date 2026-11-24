@@ -26,11 +26,11 @@
   "update": {
     "label": "更新"
   },
-  "about": {
-    "label": "關於"
-  },
   "system": {
     "label": "系統"
+  },
+  "system.about": {
+    "label": "關於"
   },
   "system.screensaver": {
     "label": "螢幕保護程式"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "輸入"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "語言"
+  },
+  "setup.region.timezone": {
+    "label": "時區"
   },
   "setup.network": {
     "label": "網路"
@@ -386,54 +389,6 @@
   },
   "setup.default": {
     "label": "預設值"
-  },
-  "agent": {
-    "label": "代理程式"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "瀏覽器",
@@ -565,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "直接開機"
-  },
-  "setup.reset": {
-    "label": "重設電腦"
+  "remove.factory-reset": {
+    "label": "恢復原廠設定"
   },
   "install.package": {
     "label": "套件"
@@ -1081,9 +1033,6 @@
   "update.password": {
     "label": "密碼"
   },
-  "update.timezone": {
-    "label": "時區"
-  },
   "update.time": {
     "label": "時間"
   },
@@ -1131,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "觸控板"
-  },
-  "update.password.drive": {
-    "label": "磁碟加密"
-  },
-  "update.password.user": {
-    "label": "使用者"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "顯示電池 %"
@@ -1228,34 +1171,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "停用觸控螢幕"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1303,29 +1219,60 @@
   "setup.default.editor.plain": {
     "label": "純文字"
   },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "預設 Harness"
-  },
-  "agent.instructions": {
-    "label": "指令"
-  },
-  "agent.make": {
-    "label": "製作"
-  },
-  "agent.make.theme": {
-    "label": "製作主題"
-  },
-  "agent.make.plugin": {
-    "label": "製作外掛程式"
-  },
-  "agent.make.app": {
-    "label": "製作應用程式"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "圖示"
+  },
+  "install.style.icons": {
+    "label": "圖示"
+  },
+  "remove.icons": {
+    "label": "圖示"
+  },
+  "update.icons": {
+    "label": "額外圖示"
+  },
+  "system.firmware": {
+    "label": "重新啟動至 BIOS",
+    "description": "重新啟動並進入 UEFI 韌體設定"
+  },
+  "setup.region": {
+    "label": "地區"
+  },
+  "setup.region.formats": {
+    "label": "格式",
+    "description": "日期、時間、數字與單位的寫法"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes 遊戲"
+  },
+  "update.games": {
+    "label": "Game Vibes 遊戲"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "主機名稱"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
