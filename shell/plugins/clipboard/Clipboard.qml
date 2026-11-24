@@ -24,6 +24,7 @@ Item {
   property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
   readonly property string imageDir: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/omarchy/clipboard-images"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
+  property string sweepScript: root.omarchyPath + "/shell/plugins/clipboard/sweep.sh"
   // Shares the [menu] surface tokens — themes that style the menu also
   // style the clipboard. Selected-row colors composed in the
   // singleton so consumers drop them straight into Rectangle bindings.
@@ -337,12 +338,14 @@ Item {
     id: initProc
     command: ["bash", "-c",
       "umask 077\n" +
-      "file=$1\n" +
+      "file=$1; dir=$2; sweep=$3\n" +
       "mkdir -p -- \"$(dirname -- \"$file\")\" || true\n" +
       "if [[ -L $file ]]; then rm -f -- \"$file\"; fi\n" +
-      "if [[ -f $file ]]; then chmod 600 -- \"$file\"; elif [[ ! -e $file ]]; then printf '[]\\n' >\"$file\"; fi\n" +
-      "pkill -f 'wl-paste .*--watch .*/shell/plugins/clipboard/capture\\.sh' || true\n",
-      "omarchy-clipboard-init", root.historyPath]
+      "had_history=0\n" +
+      "if [[ -f $file ]]; then chmod 600 -- \"$file\"; had_history=1; elif [[ ! -e $file ]]; then printf '[]\\n' >\"$file\"; fi\n" +
+      "pkill -f 'wl-paste .*--watch .*/shell/plugins/clipboard/capture\\.sh' || true\n" +
+      "if (( had_history )) && [[ -d $dir ]]; then \"$sweep\" \"$file\" \"$dir\" || true; fi\n",
+      "omarchy-clipboard-init", root.historyPath, root.imageDir, root.sweepScript]
     onExited: {
       root.historyReady = true
       currentProc.running = true
