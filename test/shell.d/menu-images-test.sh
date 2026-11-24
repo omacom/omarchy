@@ -234,8 +234,8 @@ grep -q "$bg_home/.local/state/omarchy/current/theme/backgrounds/wall.png" <<<"$
 pass "background switcher --print-rows prints the current theme's backgrounds"
 
 # Filenames may contain glob characters; the fallback check must compare them as strings.
-rm -rf "$cache_home"
-mkdir -p "$cache_home"
+glob_cache_home="$tmp/glob-cache"
+mkdir -p "$glob_cache_home"
 
 glob_images="$tmp/glob-images"
 mkdir -p "$glob_images"
@@ -244,7 +244,7 @@ printf 'image-bracket' >"$glob_images/photo[1].png"
 glob_cache_key=$(printf '%s' "$glob_images" | md5sum | cut -d ' ' -f 1)
 
 # Its detached pool must finish before the gated stub below replaces this one.
-setsid env PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
+setsid env PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$glob_cache_home" \
   "$ROOT/bin/omarchy-menu-images" --lazy-thumbnails --print-rows "$glob_images" >/dev/null &
 glob_group=$!
 lazy_groups+=("$glob_group")
@@ -255,8 +255,8 @@ for attempt in {1..500}; do
 done
 ! kill -0 -- "-$glob_group" 2>/dev/null || fail "lazy image menu finishes the globbing filename's thumbnail"
 
-cache_dir="$cache_home/omarchy/image-selector"
-[[ ! -e $cache_dir/$glob_cache_key.rows ]] ||
+glob_cache_dir="$glob_cache_home/omarchy/image-selector"
+[[ ! -e $glob_cache_dir/$glob_cache_key.rows ]] ||
   fail "image menu does not cache placeholder rows for a globbing filename"
 pass "image menu leaves lazy placeholder rows uncached for globbing filenames"
 
