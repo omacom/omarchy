@@ -1759,11 +1759,28 @@ ShellRoot {
     return loader && loader.item ? loader.item : null
   }
 
+  // Image rows arrive as a file: qs ipc hangs on an argument much past 100 KB,
+  // which a backgrounds folder of a few hundred images reaches. The read
+  // blocks so the caller can remove the file once the call returns.
+  FileView {
+    id: imageRowsReader
+    blockAllReads: true
+    printErrors: false
+  }
+
+  function readImageRows(path) {
+    if (!path) return ""
+    imageRowsReader.path = path
+    var rows = imageRowsReader.text()
+    imageRowsReader.path = ""
+    return rows
+  }
+
   ShellIpc {
     target: "image-selector"
 
     function open(imageDirs: string,
-                  imageRowsB64: string,
+                  imageRowsFile: string,
                   selectedImage: string,
                   selectionFile: string,
                   doneFile: string,
@@ -1771,7 +1788,7 @@ ShellRoot {
                   filterable: string): string {
       var payload = JSON.stringify({
         imageDirs: imageDirs,
-        imageRows: Util.decodeBase64(imageRowsB64),
+        imageRows: shell.readImageRows(imageRowsFile),
         selectedImage: selectedImage,
         selectionFile: selectionFile,
         doneFile: doneFile,
@@ -1781,13 +1798,13 @@ ShellRoot {
       return shell.summon("omarchy.image-picker", payload) ? "ok" : "unknown"
     }
 
-    function preload(imageRowsB64: string,
+    function preload(imageRowsFile: string,
                      selectedImage: string,
                      showLabels: string,
                      filterable: string): string {
       var picker = shell.imagePickerItem()
       if (picker && typeof picker.preloadRows === "function") {
-        picker.preloadRows(Util.decodeBase64(imageRowsB64), selectedImage,
+        picker.preloadRows(shell.readImageRows(imageRowsFile), selectedImage,
                            showLabels, filterable)
       }
       return "ok"
