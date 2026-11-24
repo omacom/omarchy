@@ -34,6 +34,9 @@ for item in "$OMARCHY_PATH"/shell/*; do
   [[ $(basename "$item") == "shell.qml" ]] || ln -s "$item" "$work/config/$(basename "$item")"
 done
 
+component_url=$(jq -Rn --arg path "$plugin/$entry" '"file://" + ($path | split("/") | map(@uri) | join("/"))')
+shot_path=$(jq -Rn --arg path "$work/shot.png" '$path')
+
 cat > "$work/config/shell.qml" <<EOF
 import QtQuick
 import Quickshell
@@ -67,7 +70,7 @@ ShellRoot {
     running: true
     onTriggered: {
       if (root.step === 0) {
-        var component = Qt.createComponent("file://$plugin/$entry")
+        var component = Qt.createComponent($component_url)
         if (component.status !== Component.Ready) {
           console.log("PREVIEW_ERROR " + component.errorString())
           Qt.quit()
@@ -83,7 +86,7 @@ ShellRoot {
         root.widget.anchors.right = host.right
       } else if (root.step === 2) {
         frame.grabToImage(function(result) {
-          result.saveToFile("$work/shot.png")
+          result.saveToFile($shot_path)
           console.log("PREVIEW_SAVED " + Math.round(root.widget.width) + "x" + Math.round(root.widget.height))
           Qt.quit()
         })
@@ -121,6 +124,7 @@ if [[ ! -s $work/shot.png ]]; then
   echo "The widget didn't render." >&2
   if [[ $offscreen == "true" ]] && grep -q "No PanelWindow backend" "$work/log"; then
     echo "The display is off, and a widget with a popup panel can only be drawn on screen; the errors below other than the panel's are real." >&2
+    echo "Don't turn the display on or start a shell of your own to get around this: the user is away or the screen is locked. Fix the other errors, and tell the user the panel is still to be looked at." >&2
   fi
   [[ -n $problems ]] && echo "$problems" >&2
   exit 1

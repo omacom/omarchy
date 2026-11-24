@@ -15,10 +15,16 @@ log="$test_dir/tmux.log"
 tmux() {
   if [[ $1 == "new-window" ]]; then
     echo "new-pane"
+  elif [[ $1 == "split-window" && " $* " == *" -P "* ]]; then
+    echo "split-pane"
   elif [[ $1 == "send-keys" ]]; then
     printf '%s\n' "$4" >>"$log"
+  elif [[ $1 == "select-pane" ]]; then
+    printf '%s\n' "$3" >>"$select_log"
   fi
 }
+
+select_log="$test_dir/select.log"
 
 # Run a queued line the way the pane's shell would, with a tdl that prints where it ran and what it got
 run_queued() {
@@ -48,3 +54,8 @@ mapfile -t commands <"$log"
 
 [[ $(run_queued "${commands[1]}") == "$(printf '%s\n' "$test_dir" 1 "codex --quiet")" ]] || fail "tdlm passes no second agent when none is given" "${commands[1]}"
 pass "tdlm passes no second agent when none is given"
+
+: >"$select_log"
+EDITOR="nvim" tdl "codex"
+[[ $(<"$select_log") == "current-pane" ]] || fail "tdl focuses the editor pane" "$(cat "$select_log")"
+pass "tdl focuses the editor pane"
