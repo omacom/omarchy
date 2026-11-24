@@ -39,6 +39,15 @@ function destroy(id) {
   delete services[key]
 }
 
+// A yes/no rather than a getter, so the store still hands out no service. A
+// lock clone made before sessionLockOwned existed can only answer with locked.
+function ownsSessionLock(id) {
+  var service = services[String(id || "")]
+  if (!service) return false
+  if ("sessionLockOwned" in service) return service.sessionLockOwned === true
+  return service.locked === true
+}
+
 function destroyAll() {
   var keys = ids()
   for (var i = 0; i < keys.length; i++) destroy(keys[i])

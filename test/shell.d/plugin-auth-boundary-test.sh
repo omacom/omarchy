@@ -139,6 +139,181 @@ qml_matches "$shell_qml" 'allowOwnService *&& *shell\.pluginOwnsTarget\( *key, *
   fail "cloned widgets cannot use a source id to reach their own service"
 pass "service facades resolve enabled clones without widening replacement-bar access"
 
+run_node_test <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+const shellQml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
+const storeSource = fs.readFileSync(path.join(root, 'shell/services/AuthServiceStore.js'), 'utf8')
+
+function bodyOf(src, name, label) {
+  const start = src.indexOf(`function ${name}(`)
+  if (start === -1) fail(`${label}: source defines ${name}()`)
+  const open = src.indexOf('{', start)
+  let depth = 0
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '{') depth += 1
+    else if (src[i] === '}') {
+      depth -= 1
+      if (depth === 0) return src.slice(open + 1, i)
+    }
+  }
+  fail(`${label}: ${name}() has balanced braces`)
+}
+
+// Run the host's real lifecycle functions with observable service objects.
+function lifecycle(legacy = false) {
+  const store = vm.createContext({})
+  vm.runInContext(storeSource, store)
+  const host = vm.createContext({
+    _services: {}, _serviceFamilies: {}, _familyMountDeferred: false,
+    pluginReloading: false, AuthServiceStore: store,
+    pluginRegistry: {
+      installedPlugins: {}, disabled: new Set(),
+      isEnabled(id) { return !this.disabled.has(id) },
+      entryPointUrl(manifest) { return manifest.id },
+    },
+    Util: { isPlainObject: value => !!value, canonicalWidgetId: value => value },
+    Component: { Ready: 1, Loading: 2, PreferSynchronous: 0 },
+    created: {}, pending: [],
+    publicPluginManifest: manifest => manifest,
+  })
+  host.shell = host
+  host.Qt = {
+    callLater(fn) { host.pending.push(fn) },
+    createComponent(url) {
+      return { status: 1, createObject() {
+        const callbacks = []
+        const inst = {
+          destroyed: false,
+          unlock() {
+            if (legacy) this.locked = false
+            else this.sessionLockOwned = false
+            callbacks.forEach(fn => fn())
+          },
+          destroy() { this.destroyed = true },
+        }
+        if (legacy) {
+          inst.locked = false
+          inst.lockedChanged = { connect(fn) { callbacks.push(fn) } }
+        } else {
+          inst.sessionLockOwned = false
+          inst.unlockSettled = { connect(fn) { callbacks.push(fn) } }
+        }
+        host.created[url] = inst
+        return inst
+      } }
+    },
+  }
+  for (const name of ['isAuthenticationService', 'sessionLockHeldByFamily', 'ensureService',
+      '_syncServices', 'serviceKeepLoaded', 'unloadPluginServices', 'syncServicesAfterUnlock']) {
+    const declaration = shellQml.match(new RegExp(`function ${name}\\(([^)]*)\\)`))
+    if (!declaration) fail(`the service host defines ${name}`)
+    const args = declaration[1]
+    vm.runInContext(`function ${name}(${args}) {${bodyOf(shellQml, name, name)}}`, host)
+  }
+  host.install = (id, authentication, family) => {
+    host.pluginRegistry.installedPlugins[id] = {
+      id, kinds: ['service'], entryPoints: { service: 'Service.qml' },
+      __hostCapabilities: authentication ? ['authentication'] : [],
+      omarchy: family ? { clonedFrom: family } : {},
+    }
+  }
+  host.drain = () => { while (host.pending.length) host.pending.shift()() }
+  return host
+}
+
+for (const [authentication, legacy] of [[false, false], [true, false], [true, true]]) {
+  for (const change of ['disable', 'remove', 'drop-service']) {
+    const host = lifecycle(legacy)
+    const id = 'user.lock-copy'
+    host.install(id, authentication)
+    host._syncServices()
+    const lock = host.created[id]
+    if (legacy) lock.locked = true
+    else lock.sessionLockOwned = true
+    if (change === 'disable') host.pluginRegistry.disabled.add(id)
+    if (change === 'remove') delete host.pluginRegistry.installedPlugins[id]
+    if (change === 'drop-service') host.pluginRegistry.installedPlugins[id].kinds = ['panel']
+    host._syncServices()
+    host.unloadPluginServices()
+    host.unloadPluginServices()
+    assert(!lock.destroyed, `${legacy ? 'legacy' : authentication ? 'private' : 'published'} owner survives ${change} and repeated reloads`)
+    lock.unlock()
+    host.drain()
+    assert(lock.destroyed, `${legacy ? 'legacy' : authentication ? 'private' : 'published'} owner is collected after ${change} and unlock`)
+  }
+  const host = lifecycle()
+  host.install('user.unlocked', authentication)
+  host._syncServices()
+  const unlocked = host.created['user.unlocked']
+  delete host.pluginRegistry.installedPlugins['user.unlocked']
+  host._syncServices()
+  assert(unlocked.destroyed, 'an unlocked removed service is collected without waiting')
+  host.install('user.keep', authentication)
+  host.pluginRegistry.installedPlugins['user.keep'].keepLoaded = true
+  host._syncServices()
+  host.unloadPluginServices()
+  assert(!host.created['user.keep'].destroyed, 'reload still retains a keepLoaded service without lock ownership')
+}
+
+const moving = lifecycle()
+moving.install('user.moving', false)
+moving._syncServices()
+const published = moving.created['user.moving']
+published.sessionLockOwned = true
+moving.pluginRegistry.installedPlugins['user.moving'].__hostCapabilities = ['authentication']
+moving._syncServices()
+assert(!published.destroyed && !moving.AuthServiceStore.has('user.moving'), 'gaining authentication defers migration while locked')
+published.unlock()
+moving.drain()
+assert(published.destroyed && moving.AuthServiceStore.has('user.moving') && !moving._services['user.moving'], 'unlock moves the service into private storage')
+
+for (const authentication of [false, true]) {
+  const host = lifecycle()
+  host.install('user.holder', authentication, 'omarchy.lock')
+  host._syncServices()
+  const holder = host.created['user.holder']
+  holder.sessionLockOwned = true
+  host.install('user.waiting', authentication, 'omarchy.lock')
+  host._syncServices()
+  assert(!host.created['user.waiting'] && host._familyMountDeferred, 'a sibling is not created while its family owns the lock')
+  holder.unlock()
+  host.drain()
+  assert(!!host.created['user.waiting'] && !host._familyMountDeferred, 'unlock retries the refused sibling even when the holder stays enabled')
+  host.unloadPluginServices()
+  assert(host.created['user.waiting'].destroyed, 'reload collects an unlocked service without keepLoaded')
+}
+
+const store = lifecycle().AuthServiceStore
+store.put('legacy.locked', { locked: true })
+store.put('legacy.unlocked', { locked: false })
+store.put('current.released', { sessionLockOwned: false, locked: true })
+assert(store.ownsSessionLock('legacy.locked'), 'a legacy clone can report ownership through locked')
+assert(!store.ownsSessionLock('legacy.unlocked'), 'an unlocked legacy clone reports no ownership')
+assert(!store.ownsSessionLock('current.released'), 'explicit ownership outranks legacy locked state')
+assert(!store.ownsSessionLock('missing'), 'an absent service owns no lock')
+
+const ordinary = lifecycle()
+ordinary.install('user.lock', true)
+ordinary._syncServices()
+ordinary.created['user.lock'].unlock()
+assertEqual(ordinary.pending.length, 0, 'an ordinary unlock does not schedule a full service sync')
+ordinary.pluginReloading = true
+ordinary.pluginRegistry.disabled.add('user.lock')
+ordinary.created['user.lock'].unlock()
+assertEqual(ordinary.pending.length, 0, 'an unlock during reload leaves collection to that reload')
+
+const removed = lifecycle()
+removed.install('user.clone', true, 'omarchy.lock')
+removed._syncServices()
+removed.created['user.clone'].sessionLockOwned = true
+delete removed.pluginRegistry.installedPlugins['user.clone']
+removed._syncServices()
+assert(removed.sessionLockHeldByFamily('omarchy.lock', 'omarchy.lock'), 'a removed clone still blocks its family while it holds the lock')
+assert(!removed.sessionLockHeldByFamily('user.clone', 'omarchy.lock'), 'a service does not block itself')
+assert(!removed.sessionLockHeldByFamily('user.other', 'other.family'), 'a lock does not block an unrelated family')
+JS
+
 require_quickshell "plugin authentication boundary runtime test"
 
 run_qml_fixture plugin-auth-boundary "plugin authentication boundary runtime behavior" services
