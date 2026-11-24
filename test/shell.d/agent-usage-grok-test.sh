@@ -225,7 +225,7 @@ signed_in(side, token="token-side", user="u-side", tier="SuperGrok")
 registry("grok", [
   {"id": "main", "label": "Main", "home": "", "primary": True},
   {"id": "side", "label": "Side", "home": str(side), "primary": False},
-], active="side", switch="auto", threshold=90)
+], active="side", threshold=90)
 record = grok()
 expect("every Grok account reports its own plan and credits", {
   "tierLabel": record["tierLabel"],
@@ -236,7 +236,7 @@ expect("every Grok account reports its own plan and credits", {
   "tierLabel": "SuperGrok",
   "first": 0.07,
   "accounts": [{"id": "main", "active": False, "plan": "X Premium+", "percent": 0.42}, {"id": "side", "active": True, "plan": "SuperGrok", "percent": 0.07}],
-  "switch": {"mode": "auto", "threshold": 90},
+  "switch": {"threshold": 90},
 }, record)
 
 # ------------------------------------------------------------ odd shapes
