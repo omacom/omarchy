@@ -77,12 +77,15 @@ if (( ${#image_dirs[@]} == 0 )); then
   exit 1
 fi
 
-selection_file=$(mktemp)
-done_file=$(mktemp)
-pending_file=$(mktemp)
-pending_video_file=$(mktemp)
-rm -f "$done_file"
-trap 'rm -f "$selection_file" "$done_file" "$pending_file" "$pending_video_file"' EXIT
+work_dir=$(mktemp -d)
+selection_file="$work_dir/selection"
+done_file="$work_dir/done"
+pending_file="$work_dir/pending"
+pending_video_file="$work_dir/pending-video"
+: >"$selection_file"
+: >"$pending_file"
+: >"$pending_video_file"
+trap 'rm -rf "$work_dir"' EXIT
 
 image_dirs_env=""
 for dir in "${image_dirs[@]}"; do
@@ -388,6 +391,10 @@ rows_b64=$(printf '%s' "$rows" | base64 -w 0)
 if [[ $preload == true ]]; then
   omarchy-shell image-selector preload "$rows_b64" "$selected_list_image" "$show_labels" "$filterable" >/dev/null || true
   exit 0
+elif [[ -z $rows ]]; then
+  # An empty picker never appears, since it waits for a preview, yet holds the
+  # keyboard. Exit 3 tells the caller there was nothing to offer.
+  exit 3
 fi
 
 if ! open_result=$(omarchy-shell image-selector open \

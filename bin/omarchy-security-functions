@@ -27,14 +27,17 @@ omarchy_security_require_privileged_bash_startup() {
 omarchy_security_sanitize_bash_environment() {
   local script=$1
   shift
-  local entry name environment_fd environment_pid
-  local -a unsets=()
+  local entry name lastpipe_was_set=false
+  local -a unsets=() statuses
 
   # Read the raw environment: privileged Bash ignores exported functions, but
   # leaves their records for ordinary child interpreters to import later.
-  exec {environment_fd}< <(/usr/bin/env -0)
-  environment_pid=$!
-  while IFS= read -r -d '' entry <&"$environment_fd"; do
+  # lastpipe keeps the loop in this shell (job control is off in a script), so
+  # env's status is PIPESTATUS: Bash can reap a process substitution before wait.
+  [[ $- != *m* ]] || return 1
+  shopt -q lastpipe && lastpipe_was_set=true
+  shopt -s lastpipe
+  /usr/bin/env -0 | while IFS= read -r -d '' entry; do
     name=${entry%%=*}
     case "$name" in
       BASH_ENV|ENV|SHELLOPTS|BASHOPTS|PS4|CDPATH|GLOBIGNORE|BASH_FUNC_*%%)
@@ -42,8 +45,9 @@ omarchy_security_sanitize_bash_environment() {
         ;;
     esac
   done
-  exec {environment_fd}<&-
-  wait "$environment_pid" || return 1
+  statuses=("${PIPESTATUS[@]}")
+  $lastpipe_was_set || shopt -u lastpipe
+  (( statuses[0] == 0 )) || return 1
   if (( ${#unsets[@]} > 0 )); then
     exec /usr/bin/env "${unsets[@]}" /usr/bin/bash -p -- "$script" "$@"
   fi

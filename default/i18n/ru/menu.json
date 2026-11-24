@@ -26,11 +26,11 @@
   "update": {
     "label": "Обновление"
   },
-  "about": {
-    "label": "О программе"
-  },
   "system": {
     "label": "Система"
+  },
+  "system.about": {
+    "label": "О программе"
   },
   "system.screensaver": {
     "label": "Заставка"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "Ввод"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "Язык"
+  },
+  "setup.region.timezone": {
+    "label": "Часовой пояс"
   },
   "setup.network": {
     "label": "Сеть"
@@ -386,55 +389,6 @@
   },
   "setup.default": {
     "label": "По умолчанию"
-  },
-  "setup.default.agent": {
-    "label": "Агент",
-    "title": "Агент по умолчанию"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "Браузер",
@@ -566,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "Прямая загрузка"
-  },
-  "setup.reset": {
-    "label": "Сбросить компьютер"
+  "remove.factory-reset": {
+    "label": "Сброс к заводским"
   },
   "install.package": {
     "label": "Пакет"
@@ -665,9 +616,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -688,9 +636,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Аккаунт Chromium"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1088,9 +1033,6 @@
   "update.password": {
     "label": "Пароль"
   },
-  "update.timezone": {
-    "label": "Часовой пояс"
-  },
   "update.time": {
     "label": "Время"
   },
@@ -1138,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "Трекпад"
-  },
-  "update.password.drive": {
-    "label": "Шифрование диска"
-  },
-  "update.password.user": {
-    "label": "Пользователь"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Показать % батареи"
@@ -1235,34 +1171,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Выключить сенсорный экран"
   },
-  "setup.default.agent.amp": {
-    "label": "Amp"
-  },
-  "setup.default.agent.commandcode": {
-    "label": "Command Code"
-  },
-  "setup.default.agent.devin": {
-    "label": "Devin CLI"
-  },
-  "setup.default.agent.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "setup.default.agent.freebuff": {
-    "label": "Freebuff"
-  },
-  "setup.default.agent.kilo": {
-    "label": "Kilo"
-  },
-  "setup.default.agent.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "setup.default.agent.mcode": {
-    "label": "MiniMax Code"
-  },
-  "setup.default.agent.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1300,5 +1209,70 @@
   },
   "install.service.notion": {
     "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Обычный"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Значки"
+  },
+  "install.style.icons": {
+    "label": "Значки"
+  },
+  "remove.icons": {
+    "label": "Значки"
+  },
+  "update.icons": {
+    "label": "Дополнительные значки"
+  },
+  "system.firmware": {
+    "label": "Перезагрузка в BIOS",
+    "description": "Перезагрузка в настройки прошивки UEFI"
+  },
+  "setup.region": {
+    "label": "Регион"
+  },
+  "setup.region.formats": {
+    "label": "Форматы",
+    "description": "Как отображаются даты, время, числа и единицы измерения"
+  },
+  "install.gaming.vibes": {
+    "label": "Игровой вайб"
+  },
+  "remove.gaming.vibes": {
+    "label": "Игра «Игровой вайб»"
+  },
+  "update.games": {
+    "label": "Игры «Игровой вайб»"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "Имя хоста"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

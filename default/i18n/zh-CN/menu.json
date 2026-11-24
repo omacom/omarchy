@@ -26,11 +26,11 @@
   "update": {
     "label": "更新"
   },
-  "about": {
-    "label": "关于"
-  },
   "system": {
     "label": "系统"
+  },
+  "system.about": {
+    "label": "关于"
   },
   "system.screensaver": {
     "label": "屏保"
@@ -360,8 +360,11 @@
   "setup.input": {
     "label": "输入"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "语言"
+  },
+  "setup.region.timezone": {
+    "label": "时区"
   },
   "setup.network": {
     "label": "网络"
@@ -386,55 +389,6 @@
   },
   "setup.default": {
     "label": "默认项"
-  },
-  "setup.default.agent": {
-    "label": "智能体",
-    "title": "默认智能体"
-  },
-  "setup.default.agent.agy": {
-    "label": "Antigravity"
-  },
-  "setup.default.agent.claude": {
-    "label": "Claude"
-  },
-  "setup.default.agent.codex": {
-    "label": "Codex"
-  },
-  "setup.default.agent.copilot": {
-    "label": "Copilot"
-  },
-  "setup.default.agent.crush": {
-    "label": "Crush"
-  },
-  "setup.default.agent.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "setup.default.agent.grok": {
-    "label": "Grok"
-  },
-  "setup.default.agent.hermes": {
-    "label": "Hermes"
-  },
-  "setup.default.agent.kimi": {
-    "label": "Kimi"
-  },
-  "setup.default.agent.muse": {
-    "label": "Muse Code"
-  },
-  "setup.default.agent.omp": {
-    "label": "omp"
-  },
-  "setup.default.agent.openclaw": {
-    "label": "OpenClaw"
-  },
-  "setup.default.agent.opencode": {
-    "label": "OpenCode"
-  },
-  "setup.default.agent.ori": {
-    "label": "Ori"
-  },
-  "setup.default.agent.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "浏览器",
@@ -566,11 +520,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "直接启动"
-  },
-  "setup.reset": {
-    "label": "重置电脑"
+  "remove.factory-reset": {
+    "label": "恢复出厂设置"
   },
   "install.package": {
     "label": "软件包"
@@ -665,9 +616,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -688,9 +636,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium 账户"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1088,9 +1033,6 @@
   "update.password": {
     "label": "密码"
   },
-  "update.timezone": {
-    "label": "时区"
-  },
   "update.time": {
     "label": "时间"
   },
@@ -1138,12 +1080,6 @@
   },
   "update.hardware.trackpad": {
     "label": "触控板"
-  },
-  "update.password.drive": {
-    "label": "磁盘加密"
-  },
-  "update.password.user": {
-    "label": "用户"
   },
   "appearance.windows.gaps-on": {
     "label": "窗口间距开"
@@ -1235,34 +1171,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "禁用触摸屏"
   },
-  "setup.default.agent.amp": {
-    "label": "Amp"
-  },
-  "setup.default.agent.commandcode": {
-    "label": "Command Code"
-  },
-  "setup.default.agent.devin": {
-    "label": "Devin CLI"
-  },
-  "setup.default.agent.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "setup.default.agent.freebuff": {
-    "label": "Freebuff"
-  },
-  "setup.default.agent.kilo": {
-    "label": "Kilo"
-  },
-  "setup.default.agent.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "setup.default.agent.mcode": {
-    "label": "MiniMax Code"
-  },
-  "setup.default.agent.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1300,5 +1209,70 @@
   },
   "install.service.notion": {
     "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "纯文本"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "图标"
+  },
+  "install.style.icons": {
+    "label": "图标"
+  },
+  "remove.icons": {
+    "label": "图标"
+  },
+  "update.icons": {
+    "label": "额外图标"
+  },
+  "system.firmware": {
+    "label": "重启到 BIOS",
+    "description": "重启进入 UEFI 固件设置"
+  },
+  "setup.region": {
+    "label": "区域"
+  },
+  "setup.region.formats": {
+    "label": "格式",
+    "description": "日期、时间、数字和单位的显示方式"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes 游戏"
+  },
+  "update.games": {
+    "label": "Game Vibes 游戏"
+  },
+  "install.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "setup.network.hostname": {
+    "label": "主机名"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }
