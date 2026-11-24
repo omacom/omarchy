@@ -2,7 +2,7 @@
 var maximumThemes = 512
 
 function validName(name) {
-  return typeof name === "string" && name.length <= 160 && /^[a-z0-9_][a-z0-9._+-]*$/.test(name)
+  return typeof name === "string" && name.length <= 160 && /^[a-z0-9_][a-z0-9 ._+-]*$/i.test(name)
 }
 
 function normalize(names) {

@@ -372,6 +372,16 @@ updateCtx.updateThemeRows('after-delete-rows')
 assertEqual(updateCtx.awaitingDeleteRefresh, false, 'the post-delete refresh loading rows releases the apply guard')
 
 const favourites = requireFromRoot('shell/plugins/image-picker/ThemeFavourites.js')
+const handmadeNames = ['Gruvbox', 'Tokyo Night']
+let handmadeSaved = []
+for (const name of handmadeNames) handmadeSaved = favourites.toggle(handmadeSaved, name)
+const handmadeState = favourites.parseState(favourites.serializeState(handmadeSaved, true))
+assertDeepEqual(handmadeState, { themes: handmadeNames, favouritesOnly: true }, 'handmade theme names retain capitals and spaces across save and load')
+assertDeepEqual(favourites.filterIndices(picker.loadRows('/p/Gruvbox.png\n/p/Tokyo Night.png'), [0, 1], handmadeState.themes, true),
+  [0, 1], 'handmade theme previews remain visible in favourites-only mode')
+for (const name of ['', '.', '..', '../escape', 'a/b', 'a\\b', 'a\nb', '<img src=x>']) {
+  assert(!favourites.validName(name), `unsafe theme identifier is rejected: ${JSON.stringify(name)}`)
+}
 assertDeepEqual(favourites.parseState('{bad json'), { themes: [], favouritesOnly: false }, 'malformed favourites state falls back safely')
 assertDeepEqual(favourites.parseState(JSON.stringify({ version: 1, themes: ['nord', 'nord', '../escape', '<img src=x>', 'gruvbox'], favouritesOnly: true })),
   { themes: ['nord', 'gruvbox'], favouritesOnly: true }, 'favourites state validates and deduplicates theme identifiers')
