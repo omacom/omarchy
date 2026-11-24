@@ -76,7 +76,7 @@ if mode == "check":
 if mode == "verify":
     if any(ghost_id(c) for c in commands.values()):
         sys.exit(1)
-    path.with_name(path.name + ".omarchy-copy-url-repair.bak").unlink(missing_ok=True)
+    path.with_name(path.name + ".omarchy-copy-url-repair.pending.bak").unlink(missing_ok=True)
     sys.exit(0)
 
 # Chromium keeps one shortcut per command, so a ghost may only be rebound
@@ -104,7 +104,7 @@ for accelerator in list(commands):
     changed = True
 
 if changed:
-    shutil.copy2(path, path.with_name(path.name + ".omarchy-copy-url-repair.bak"))
+    shutil.copy2(path, path.with_name(path.name + ".omarchy-copy-url-repair.pending.bak"))
     text = json.dumps(preferences, separators=(",", ":"))
     fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
     try:
@@ -131,6 +131,9 @@ profile_roots=(
   "$HOME/.config/BraveSoftware/Brave-Browser"
   "$HOME/.config/BraveSoftware/Brave-Browser-Beta"
   "$HOME/.config/BraveSoftware/Brave-Browser-Nightly"
+  "$HOME/.config/BraveSoftware/Brave-Origin"
+  "$HOME/.config/BraveSoftware/Brave-Origin-Beta"
+  "$HOME/.config/BraveSoftware/Brave-Origin-Nightly"
   "$HOME/.config/microsoft-edge"
   "$HOME/.config/microsoft-edge-beta"
   "$HOME/.config/microsoft-edge-dev"
@@ -152,17 +155,15 @@ find_pending() {
   done
 }
 
-# The backup a repair leaves next to Preferences marks it as attempted but not
-# yet verified: a browser that was open during the repair still holds the
-# stale registration in memory and restores it when it exits, possibly after
-# the disk was already seen clean.
+# Pending backups mark repairs this command has not verified. Ordinary .bak
+# files came from shipped migrations and do not mean a repair is still pending.
 unverified_repairs_exist() {
   local profile_root backup
 
   for profile_root in "${profile_roots[@]}"; do
-    for backup in "$profile_root"/*/Preferences.omarchy-copy-url-repair.bak; do
+    for backup in "$profile_root"/*/Preferences.omarchy-copy-url-repair.pending.bak; do
       [[ -f $backup ]] || continue
-      python3 -c "$repair_py" "${backup%.omarchy-copy-url-repair.bak}" "$pinned_id" readable && return 0
+      python3 -c "$repair_py" "${backup%.omarchy-copy-url-repair.pending.bak}" "$pinned_id" readable && return 0
     done
   done
 
@@ -225,9 +226,9 @@ affected_profile_open() {
   fi
 
   for profile_root in "${profile_roots[@]}"; do
-    for backup in "$profile_root"/*/Preferences.omarchy-copy-url-repair.bak; do
+    for backup in "$profile_root"/*/Preferences.omarchy-copy-url-repair.pending.bak; do
       [[ -f $backup ]] || continue
-      python3 -c "$repair_py" "${backup%.omarchy-copy-url-repair.bak}" "$pinned_id" readable || continue
+      python3 -c "$repair_py" "${backup%.omarchy-copy-url-repair.pending.bak}" "$pinned_id" readable || continue
       profile_open "$(dirname "$(dirname "$backup")")" && return 0
     done
   done
@@ -294,9 +295,9 @@ fi
 # left by an interrupted earlier run. Once the file is clean, the backup is no
 # longer a pending marker: keeping it would prompt on every later browser run.
 for profile_root in "${profile_roots[@]}"; do
-  for backup in "$profile_root"/*/Preferences.omarchy-copy-url-repair.bak; do
+  for backup in "$profile_root"/*/Preferences.omarchy-copy-url-repair.pending.bak; do
     [[ -f $backup ]] || continue
-    preferences=${backup%.omarchy-copy-url-repair.bak}
+    preferences=${backup%.omarchy-copy-url-repair.pending.bak}
     # Missing/corrupt profiles are outside this repair. Preserve their recovery
     # backup without blocking unrelated migrations; a restored profile is
     # checked again on the next login or explicit repair.
