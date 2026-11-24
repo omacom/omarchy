@@ -8,6 +8,14 @@ Omarchy takes security extremely seriously. This is meant to be an operating sys
 4. *Omarchy maintains its own packages and mirror*: Omarchy only relies on packages from Arch's own core/extra/multilib repositories (Arch Linux ARM's on ARM machines, plus Asahi ALARM on Apple Silicon) and its own Omarchy Package Repository by default. You can install software directly from AUR, but the base install doesn't — only a few optional installs, like the third-party browsers, pull from the AUR.
 5. *Cloudflare protects us from DDoS*: Omarchy distribution infrastructure — the ISOs, the Omarchy packages, the Arch mirror — is protected behind Cloudflare's formidable DDoS shield and hosted on their CDN. This provides superb availability.
 
+## Docker isolation
+
+Development containers run in a rootless Docker daemon owned by your account. The normal Docker CLI, Compose, Buildx, the Docker database helpers, and Lazydocker all connect to that daemon without `sudo`; your account is not placed in the root-equivalent `docker` group.
+
+The Windows VM needs host devices and elevated networking, so it uses a separate rootful Docker daemon. Its API socket is owned by root with mode `0600`, its Compose definition and secrets are root-only, and every VM operation requires `sudo` or the graphical system authorization prompt.
+
+During an upgrade, Omarchy preflights the complete rootful development-container inventory before stopping anything. It automatically transfers only containers whose behavior can be reproduced safely in rootless Docker, verifies their images, settings, private named-volume contents and metadata, and then leaves the rootful copies stopped for recovery. A privileged container, host bind mount, device, shared volume, custom runtime, custom network, or unknown nondefault setting stops the migration and leaves the original workloads unchanged.
+
 ## Changing your passwords
 
 You have two passwords on an encrypted install: the one that unlocks the drive at boot, and the one you log in and `sudo` with. Setup makes them the same. _Update > Password_ in the Omarchy menu changes both at once, so they stay the same: it asks for the current drive password, then the new one, changes the drive's and then sets your login password to match. Without drive encryption it changes just your login password. If a change is interrupted, run _Update > Password_ again: it asks for the password that unlocks the drive now, finishes the change, and sets your login password to it. To change the password of another encrypted drive, run `omarchy-drive-password` in a terminal.

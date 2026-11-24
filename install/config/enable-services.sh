@@ -4,6 +4,8 @@
 # thrashing take the whole session down; [Install] pulls in systemd-oomd.socket
 # via Also=. omarchy-shutdown-ramfs.timer builds /run/initramfs in the
 # background after boot so shutdown skips mkinitcpio.
+# The root-owned Docker socket is reserved for authenticated Windows VM
+# operations. Development Docker is initialized separately for each user.
 systemctl enable \
   cups.service \
   avahi-daemon.service \

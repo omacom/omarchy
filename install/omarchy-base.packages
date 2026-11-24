@@ -25,6 +25,7 @@ disktree-bin
 docker
 docker-buildx
 docker-compose
+docker-rootless-extras
 dosfstools
 dotnet-runtime
 exfatprogs
@@ -49,6 +50,7 @@ folio
 fontconfig
 foot
 fzf
+fuse-overlayfs
 ghostscript
 git
 gliff
@@ -137,10 +139,12 @@ qrencode
 qt6-imageformats
 quickshell
 ripgrep
+rootlesskit
 rtkit
 ruby
 sddm
 signed
+slirp4netns
 slurp
 socat
 starship
