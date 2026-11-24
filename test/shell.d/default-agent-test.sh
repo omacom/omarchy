@@ -522,6 +522,9 @@ pass "installed Muse selects and opens directly"
 rm "$mock_bin/omarchy-agent"
 hash -r
 
+# The launches below run agents that are installed.
+export OMARCHY_TEST_AGENT_INSTALLED=true
+
 assert_launched() {
   local agent=$1
   local description=$2
@@ -1074,3 +1077,16 @@ printf '%s\n' claude >"$agent_file"
 omarchy-remove-ai-cli codex
 [[ $(<"$agent_file") == "claude" ]] || fail "removing another agent's CLI keeps the default"
 pass "removing an agent's CLI clears its launcher and a default it held"
+
+# mise's account wrapper keeps claude on PATH whether or not it's installed, so
+# the launcher asks the installer rather than opening a window that fails.
+: >"$launch_log"
+printf '#!/bin/bash\nexit 127\n' >"$mock_bin/claude"
+chmod +x "$mock_bin/claude"
+printf '%s\n' claude >"$agent_file"
+if OMARCHY_TEST_AGENT_INSTALLED=false omarchy-agent >/dev/null 2>&1; then
+  fail "the agent launcher refuses a claude that isn't installed"
+fi
+[[ ! -s $launch_log ]] || fail "a claude that isn't installed opens no window"
+rm "$mock_bin/claude"
+pass "the agent launcher sees past the account wrapper to whether claude is installed"

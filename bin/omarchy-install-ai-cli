@@ -52,20 +52,27 @@ fi
 # Installed is the command on PATH: Omarchy's package, or an install of the
 # user's own, such as the link Cursor's installer leaves in ~/.local/bin. mise's
 # account wrappers stand in for claude, codex and grok whether or not anything
-# is behind them, so they don't count.
+# is behind them, so they don't count, and neither does anything mise puts on
+# PATH: its shims everywhere, its install directories only in a shell that
+# activated it, so the panel and a terminal would disagree.
+mise_data=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
+agent_path=""
+IFS=: read -r -a dirs <<<"$PATH"
+for dir in "${dirs[@]}"; do
+  if [[ $dir != "$mise_data/command-wrappers/bin" && $dir != "$mise_data/shims" && $dir != "$mise_data/installs/"* ]]; then
+    agent_path+="${agent_path:+:}$dir"
+  fi
+done
 installed() {
-  local mise_data=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
-  local dir path=""
-  local IFS=:
-  for dir in $PATH; do
-    if [[ $dir != "$mise_data/command-wrappers/bin" && $dir != "$mise_data/shims" ]]; then
-      path+="${path:+:}$dir"
-    fi
-  done
-  PATH=$path type -P "$agent" >/dev/null
+  PATH=$agent_path type -P "$agent"
 }
 
-if installed; then
+if location=$(installed); then
+  # The menu offers the package whenever it's missing, so a copy of the user's
+  # own explains why nothing happens.
+  if [[ $mode == "install" ]] && ! omarchy-pkg-present "$package"; then
+    echo "$agent is already installed at $location, so the $package package isn't needed"
+  fi
   exit 0
 elif [[ $mode == "check" ]]; then
   exit 1
@@ -81,7 +88,7 @@ else
   if (( status != 0 )); then
     exit "$status"
   fi
-  installed || exit 1
+  installed >/dev/null || exit 1
 fi
 
 # An installed agent gets herdr's hooks, a launcher of its own beside Agent,

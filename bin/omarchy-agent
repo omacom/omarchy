@@ -67,11 +67,20 @@ done
 # menu start in the work directory instead of re-asking on every session.
 [[ $PWD == "$HOME" && -d $HOME/Work ]] && cd "$HOME/Work"
 
+# mise's account wrappers keep claude, codex and grok on PATH whether or not
+# they're installed, so those ask their installer.
+agent_missing() {
+  case $1 in
+  claude | codex | grok) ! omarchy-install-ai-cli --check "$1" ;;
+  *) omarchy-cmd-missing "$1" ;;
+  esac
+}
+
 # --agent launches a given agent instead of the default: the panel's terminal
 # button on each subscription opens the harness made for it, Codex for OpenAI.
 if [[ -n $agent_override ]]; then
   agent=$agent_override
-  if omarchy-cmd-missing "$agent"; then
+  if agent_missing "$agent"; then
     omarchy-notification-send "$(omarchy-i18n agents.harnessMissing "$agent")" "$(omarchy-i18n agents.harnessMissingBody "$agent")"
     exit 1
   fi
@@ -125,7 +134,7 @@ fi
 
 # OpenClaw's launcher sets OpenClaw up when the package became the seed before
 # this user's OpenClaw moved, so with the package a missing command is its to fix.
-if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
+if agent_missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
   echo "$agent is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
   exit 1
 fi

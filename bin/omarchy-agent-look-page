@@ -64,7 +64,10 @@ fi
 
 # An image from before Chrome was the default browser has Chromium, which
 # takes the same DevTools protocol.
-chrome=$(type -P google-chrome-stable || type -P chromium)
+if ! chrome=$(type -P google-chrome-stable || type -P chromium); then
+  echo "Neither Chrome nor Chromium is installed" >&2
+  exit 1
+fi
 
 log=$(mktemp)
 # Prints "error: <text>" for each console error, uncaught exception and
@@ -84,13 +87,25 @@ const profile = fs.mkdtempSync(path.join(os.tmpdir(), "look-chrome-"));
 let child;
 
 // Chrome writes its profile until it has exited, so it's removed only after.
-async function cleanup() {
+async function stopChrome() {
   if (child && child.exitCode === null && child.signalCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));
     child.kill("SIGKILL");
     await exited;
   }
+}
+async function cleanup() {
+  await stopChrome();
   fs.rmSync(profile, { recursive: true, force: true });
+}
+
+// The timeout around this script stops it with SIGTERM, which would otherwise
+// leave Chrome and its profile behind.
+for (const signal of ["SIGTERM", "SIGINT"]) {
+  process.on(signal, async () => {
+    await cleanup();
+    process.exit(3);
+  });
 }
 
 // Chrome keeps its own sandbox wherever it can start with one, and says
@@ -109,7 +124,8 @@ async function launch(sandbox) {
     }
     await sleep(100);
   }
-  if (child.exitCode === null) child.kill("SIGKILL");
+  // The next try reuses the profile, so this Chrome has to be gone first.
+  await stopChrome();
   return null;
 }
 
@@ -130,7 +146,15 @@ function connect(socketUrl) {
         (listeners.get(message.method) || []).forEach((listener) => listener(message.params));
       }
     };
-    socket.onerror = () => reject(new Error("couldn't reach Chrome's DevTools"));
+    // A Chrome that goes away fails whatever was waiting on it, at once.
+    const lost = () => {
+      const error = new Error("lost Chrome's DevTools connection");
+      reject(error);
+      pending.forEach(({ fail }) => fail(error));
+      pending.clear();
+    };
+    socket.onerror = lost;
+    socket.onclose = lost;
     socket.onopen = () => resolve({
       send: (method, params = {}) => new Promise((done, fail) => {
         pending.set(++id, { done, fail });
@@ -168,7 +192,9 @@ function keyEvent(name) {
     process.exit(3);
   }
   const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-  const page = await connect(targets.find((target) => target.type === "page").webSocketDebuggerUrl);
+  const target = targets.find((candidate) => candidate.type === "page");
+  if (!target) throw new Error("Chrome opened no page");
+  const page = await connect(target.webSocketDebuggerUrl);
 
   const report = (text) => {
     if (!/chrome-extension:\/\/|lastError/.test(text)) console.log("error: " + String(text).replace(/\s+/g, " ").slice(0, 300));
@@ -190,12 +216,13 @@ function keyEvent(name) {
   page.on("Log.entryAdded", ({ entry }) => {
     if (entry.level === "error" && entry.source === "network") report(entry.url ? `${entry.text} (${entry.url})` : entry.text);
   });
-  let loaded;
-  const load = new Promise((resolve) => (loaded = resolve));
+  let loaded = () => {};
   page.on("Page.loadEventFired", () => loaded());
 
   await Promise.all(["Page", "Runtime", "Network", "Log"].map((domain) => page.send(`${domain}.enable`)));
   await page.send("Emulation.setDeviceMetricsOverride", { width: Number(width), height: Number(height), deviceScaleFactor: 1, mobile: false });
+  // Only a load after the navigation counts, not the blank page Chrome opened on.
+  const load = new Promise((resolve) => (loaded = resolve));
   const navigation = await page.send("Page.navigate", { url });
   if (navigation.errorText) report("page didn't load: " + navigation.errorText);
   const timedOut = await Promise.race([load.then(() => false), sleep(30000).then(() => true)]);
