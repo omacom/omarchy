@@ -32,18 +32,21 @@ installed_version() {
   mise ls "$1" --json | jq -r 'map(.version) | last'
 }
 
-# Everyone gets these. Basecamp, HEY and Cloudflare are installed from
-# Install > CLI now, and each coding agent from Install > AI > CLI, so one of
-# them becomes its package only if it was in use. The lists are read first and
-# installed in one go, with the terminal still on stdin for sudo.
-packages=(ghui github-cli hunk nodejs uv)
-retired=(gh ghui hunk playwright uv)
+# Everyone gets these. gh comes with Setup > Git, ghui, Hunk, Basecamp, HEY and
+# Cloudflare from Install > CLI, and each coding agent from Install > AI > CLI,
+# so one of them becomes its package only if it was in use. The lists are read
+# first and installed in one go, with the terminal still on stdin for sudo.
+packages=(nodejs playwright-cli uv)
+retired=(playwright uv)
 while read -r tool package; do
   if from_omarchy "$tool"; then
     packages+=("$package")
     retired+=("$tool")
   fi
 done <<'EOF'
+gh github-cli
+ghui ghui
+hunk hunk
 basecamp basecamp-cli
 hey-cli hey-cli
 npm:cf cloudflare-cli

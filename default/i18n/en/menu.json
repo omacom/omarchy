@@ -858,8 +858,14 @@
   "install.cli.cloudflare": {
     "label": "Cloudflare"
   },
+  "install.cli.ghui": {
+    "label": "ghui"
+  },
   "install.cli.hey": {
     "label": "HEY"
+  },
+  "install.cli.hunk": {
+    "label": "Hunk"
   },
   "install.ai.cli.claude": {
     "label": "Claude Code"
@@ -1179,8 +1185,14 @@
   "remove.cli.cloudflare": {
     "label": "Cloudflare"
   },
+  "remove.cli.ghui": {
+    "label": "ghui"
+  },
   "remove.cli.hey": {
     "label": "HEY"
+  },
+  "remove.cli.hunk": {
+    "label": "Hunk"
   },
   "remove.ai.cli.claude": {
     "label": "Claude Code"

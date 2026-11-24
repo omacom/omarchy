@@ -166,7 +166,6 @@
   "games.vibesRemoved": "Game removed",
   "games.vibesRepoPlaceholder": "Git repo URL of a game (https or git@host:org/repo.git)",
   "gitSetup.emailPrompt": "Email address> ",
-  "gitSetup.ghMissing": "The GitHub CLI (gh) is not installed, so skipping GitHub sign-in.",
   "gitSetup.ghSignIn": "Sign in to GitHub?",
   "gitSetup.ghSignedIn": "Already signed in to GitHub.",
   "gitSetup.intro": "Set the name and email used for your git commits.",

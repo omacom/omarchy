@@ -50,9 +50,7 @@ fontconfig
 foot
 fzf
 ghostscript
-ghui
 git
-github-cli
 gliff
 gnome-keyring
 gnome-themes-extra
@@ -64,7 +62,6 @@ gvfs-mtp
 gvfs-nfs
 gvfs-smb
 herdr
-hunk
 hype
 hyprland
 hyprland-guiutils
@@ -123,6 +120,7 @@ papers
 pi-coding-agent
 pinta
 plain
+playwright-cli
 plocate
 plymouth
 podman

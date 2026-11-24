@@ -8,9 +8,9 @@ mise manages the language runtimes a user sets up from _Install > Development_ (
 
 Every other tool is a package in omacom/omarchy-pkgs, updated by `omarchy update` like the rest of the system:
 
-- A tool everyone gets goes in `install/omarchy-base.packages` (`gh`, `uv`, `hunk`, `ghui`, `nodejs`).
+- A tool everyone gets goes in `install/omarchy-base.packages` (`uv`, `nodejs`, `playwright-cli`).
 - A coding agent is a package on the fast ring, which publishes each upstream release to every channel within the hour. It is installed explicitly, from _Install > AI > CLI_ or by picking it in the agents panel, through `omarchy-install-ai-cli`, which maps the agent's command to its package. Add a new agent there, under `install.ai.cli` and `remove.ai.cli` in the menu, in `omarchy-default-agent`, and in `omarchy-agent`.
-- Any other optional CLI goes under _Install > CLI_ and _Remove > CLI_ (Basecamp, Cloudflare, HEY).
+- Any other optional CLI goes under _Install > CLI_ and _Remove > CLI_ (ghui, Hunk, Basecamp, Cloudflare, HEY); gh comes with _Setup > Git_.
 - A package turns off the tool's own updater, since pacman owns updates.
 
 Don't split a kind of tool between mise and packages, and don't add a mise declaration to get a tool installed.
