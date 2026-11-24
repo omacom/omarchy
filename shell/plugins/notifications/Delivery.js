@@ -51,11 +51,13 @@ function matchesDropPrefix(row, dropPrefixes) {
   var body = Markup.oneLine((row && row.body) || "")
   for (var i = 0; i < dropPrefixes.length; i++) {
     if (typeof dropPrefixes[i] !== "string") continue
-    // The text is oneLine()'s, whose space runs are collapsed, so the prefix
-    // is read the same way or "Build  " would never match "Build finished".
+    // The text is oneLine()'s: space runs collapsed, ends trimmed. The prefix is
+    // read the same way, but a trailing space ends a word, so it stays as one
+    // space or "Build " would also match "Building failed".
     var prefix = Markup.oneLine(dropPrefixes[i])
-    if (prefix.length > 0 &&
-        (summary.indexOf(prefix) === 0 || body.indexOf(prefix) === 0)) return true
+    if (prefix.length === 0) continue
+    if (/\s$/.test(dropPrefixes[i])) prefix += " "
+    if (summary.indexOf(prefix) === 0 || body.indexOf(prefix) === 0) return true
   }
   return false
 }

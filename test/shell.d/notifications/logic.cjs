@@ -303,6 +303,11 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   // same way: "Build  finished" still opens with a user's "Build  ".
   assert.ok(Delivery.matchesDropPrefix({ summary: 'Build  finished' }, ['Build  ']))
   assert.ok(!Delivery.matchesDropPrefix({ summary: 'Rebuild finished' }, ['Build  ']))
+  // A trailing space ends a word: "Build " opens "Build finished" but not "Building failed".
+  assert.ok(Delivery.matchesDropPrefix({ summary: 'Build finished' }, ['Build ']))
+  assert.ok(!Delivery.matchesDropPrefix({ summary: 'Building failed' }, ['Build ']))
+  assert.ok(!Delivery.matchesDropPrefix({ summary: 'Building failed' }, ['Build  ']))
+  assert.ok(!Delivery.matchesDropPrefix({ summary: 'Build' }, ['   ']))
   assert.equal(Delivery.quietReason({ app: 'Ghostty', body: '<b>Lane message from</b> w86: ready' }, false, ['Lane message from']), 'filtered')
   // The number keys count buttons in the order the card draws them: codes, --action, the sender's.
   const deeds = Delivery.deeds({ codes: '482913 771204', execActions: JSON.stringify([{ label: 'Edit', argv: ['omasnap'] }]) },
