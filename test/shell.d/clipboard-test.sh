@@ -149,6 +149,124 @@ assert(
   hugeFileRow.entryType === 'file' && hugeFileRow.fullText.split('\n').every(path => path.endsWith('.mp4')),
   'clipboard display rows cap a huge file list without truncating a path'
 )
+
+const imageDir = '/state/omarchy/clipboard-images'
+assertDeepEqual(
+  clipboard.removedImageEntries(
+    [
+      { type: 'image', path: `${imageDir}/kept.png`, mime: 'image/png', inode: '10' },
+      { type: 'image', path: `${imageDir}/removed.png`, mime: 'image/png', inode: '20' },
+      { type: 'image', path: `${imageDir}/legacy.png`, mime: 'image/png' },
+      { type: 'image', path: `${imageDir}/nested/ignored.png`, mime: 'image/png', inode: '30' },
+      { type: 'image', path: `${imageDir}/../escape.png`, mime: 'image/png', inode: '40' },
+      { type: 'image', path: '/home/user/Pictures/photo.png', mime: 'image/png', inode: '50' },
+      { type: 'text', text: `file://${imageDir}/text-ref.png` }
+    ],
+    [{ type: 'image', path: `${imageDir}/kept.png`, mime: 'image/png', inode: '10' }],
+    imageDir
+  ),
+  [{ path: `${imageDir}/removed.png`, inode: '20' }],
+  'clipboard removedImageEntries deletes only unreferenced direct children of clipboard-images'
+)
+
+assertDeepEqual(
+  clipboard.addEntry(
+    [{ type: 'image', path: `${imageDir}/same.png`, mime: 'image/png', inode: '200', gen: 2 }],
+    { type: 'image', path: `${imageDir}/same.png`, mime: 'image/png', inode: '100', gen: 1 },
+    10
+  ),
+  [{ type: 'image', path: `${imageDir}/same.png`, mime: 'image/png', inode: '200', gen: 2 }],
+  'clipboard addEntry keeps newer on-disk inode when duplicate image captures arrive out of order'
+)
+
+const fs = require('fs')
+const { execFileSync } = require('child_process')
+const os = require('os')
+const clipboardQml = fs.readFileSync(path.join(root, 'shell/plugins/clipboard/Clipboard.qml'), 'utf8')
+const qmlFns = [
+  clipboardQml.match(/function pruneRemovedImages\(previousHistory, nextHistory\) \{[\s\S]*?\n  \}/)[0],
+  clipboardQml.match(/function loadHistory\(raw\) \{[\s\S]*?\n  \}/)[0],
+  clipboardQml.match(/function saveHistory\(\) \{[\s\S]*?\n  \}/)[0],
+  clipboardQml.match(/function addClipboardEntry\(entry\) \{[\s\S]*?\n  \}/)[0],
+  clipboardQml.match(/function confirmClearHistory\(\) \{[\s\S]*?\n  \}/)[0]
+].join('\n')
+
+const savedWrites = []
+const removedCalls = []
+const ctx = {
+  history: [],
+  historyLoaded: false,
+  pendingEntries: [],
+  historyLimit: 2,
+  opened: false,
+  selectedIndex: 0,
+  cursorActive: true,
+  clearConfirmOpen: true,
+  imageDir,
+  ClipboardHistory: clipboard,
+  historyFile: { setText(v) { savedWrites.push(JSON.parse(v)) } },
+  Quickshell: { execDetached(argv) { removedCalls.push(argv) } },
+  Qt: { callLater() {} },
+  keyCatcher: { forceActiveFocus() {} },
+  disarmPointer() {},
+  rebuildDisplay() {}
+}
+ctx.root = ctx
+require('vm').runInNewContext(qmlFns, ctx)
+
+// Captures arriving before historyFile finishes loading must queue instead of
+// writing [] + [new] and wiping existing history on disk.
+ctx.addClipboardEntry({ type: 'text', text: 'early-copy' })
+assertEqual(savedWrites.length, 0, 'clipboard does not overwrite history before disk history loads')
+ctx.loadHistory(JSON.stringify([
+  { type: 'text', text: 'persisted' },
+  { type: 'image', path: `${imageDir}/evicted.png`, mime: 'image/png', inode: '101' }
+]))
+assertDeepEqual(
+  ctx.history.map(e => e.text || e.path),
+  ['early-copy', 'persisted'],
+  'clipboard merges pre-load captures onto loaded history without data loss'
+)
+assertEqual(savedWrites.length, 1, 'clipboard persists merged pre-load captures once history loads')
+assertDeepEqual(
+  removedCalls[0].slice(-2),
+  [`${imageDir}/evicted.png`, '101'],
+  'clipboard schedules removal of cached image files evicted by historyLimit'
+)
+
+// Run the real prune command against a real directory to prove inode matching
+// preserves a re-captured image while deleting an unchanged removed image.
+const pruneDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clipboard-prune-'))
+try {
+  const realImageDir = path.join(pruneDir, 'clipboard-images')
+  fs.mkdirSync(realImageDir, { recursive: true })
+  const shotPath = path.join(realImageDir, 'shot.png')
+  fs.writeFileSync(shotPath, 'first')
+  const firstInode = String(fs.statSync(shotPath).ino)
+
+  ctx.imageDir = realImageDir
+  ctx.addClipboardEntry({ type: 'image', path: shotPath, mime: 'image/png', inode: firstInode })
+  ctx.confirmClearHistory()
+  const stalePruneCmd = removedCalls[removedCalls.length - 1]
+
+  // Simulate a concurrent re-capture replacing the file atomically with a new inode.
+  const tmpPath = path.join(realImageDir, 'clipboard.new')
+  fs.writeFileSync(tmpPath, 'second')
+  fs.renameSync(tmpPath, shotPath)
+  const secondInode = String(fs.statSync(shotPath).ino)
+  assert(secondInode !== firstInode, 'atomic recapture allocates a new inode')
+
+  execFileSync(stalePruneCmd[0], stalePruneCmd.slice(1))
+  assert(fs.existsSync(shotPath), 'stale prune preserves a freshly re-captured image with a new inode')
+
+  ctx.addClipboardEntry({ type: 'image', path: shotPath, mime: 'image/png', inode: secondInode })
+  ctx.confirmClearHistory()
+  const currentPruneCmd = removedCalls[removedCalls.length - 1]
+  execFileSync(currentPruneCmd[0], currentPruneCmd.slice(1))
+  assert(!fs.existsSync(shotPath), 'prune deletes the cached image when its inode still matches')
+} finally {
+  fs.rmSync(pruneDir, { recursive: true, force: true })
+}
 JS
 
 TMPDIR=$(mktemp -d)
@@ -365,6 +483,14 @@ capture_output=$(printf 'jpg-data' | XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$
 image_path=$(jq -r '.path' <<<"$capture_output")
 jq -e '.mime == "image/jpeg"' <<<"$capture_output" >/dev/null && [[ $image_path == *.jpg ]] || fail "clipboard capture stores watched jpeg images with jpg extension"
 pass "clipboard capture stores watched jpeg images with jpg extension"
+
+image_dir_mode=$(stat -c '%a' "$TMPDIR/state/omarchy/clipboard-images")
+[[ $image_dir_mode == "700" ]] || fail "clipboard image directory is owner-only" "actual: $image_dir_mode"
+pass "clipboard image directory is owner-only"
+
+capture_output=$(printf 'escape-data' | XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" 'image/../../escape')
+[[ -z $capture_output && ! -e "$TMPDIR/state/omarchy/escape" ]] || fail "clipboard capture rejects path traversal in image mime subtype" "actual: $capture_output"
+pass "clipboard capture rejects path traversal in image mime subtype"
 
 capture_output=$(printf 'secret' | CLIPBOARD_STATE=sensitive XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" text)
 [[ -z $capture_output ]] || fail "clipboard capture ignores sensitive watched text"
