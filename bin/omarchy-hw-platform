@@ -196,30 +196,25 @@ for source in "${sources[@]}"; do
   vendor_source=$source
 done
 
-# An NVIDIA N1x: ACPI NVDA0200, or PCI 10de:2e06.
+# An NVIDIA N1x (ACPI NVDA0200 or PCI 10de:2e06) or GB10 desktop (PCI 10de:2e12).
 n1x_source=""
+gb10_source=""
 if [[ -n $sys ]]; then
   for device in "$sys"/bus/acpi/devices/NVDA0200:*; do
     [[ -d $device ]] && { n1x_source=$device; break; }
   done
-  if [[ -z $n1x_source ]]; then
-    for device in "$sys"/bus/pci/devices/*; do
-      [[ -r $device/vendor && -r $device/device ]] || continue
-      read -r pci_vendor <"$device/vendor" || continue
-      read -r pci_device <"$device/device" || continue
-      [[ $pci_vendor == "0x10de" && $pci_device == "0x2e06" ]] && { n1x_source=$device; break; }
-    done
-  fi
-fi
-
-# An NVIDIA GB10 desktop: PCI 10de:2e12.
-gb10_source=""
-if [[ -n $sys ]]; then
   for device in "$sys"/bus/pci/devices/*; do
-    [[ -r $device/vendor && -r $device/device ]] || continue
+    [[ -r $device/vendor ]] || continue
     read -r pci_vendor <"$device/vendor" || continue
+    [[ $pci_vendor == "0x10de" ]] || continue
+    [[ -r $device/device ]] || continue
     read -r pci_device <"$device/device" || continue
-    [[ $pci_vendor == "0x10de" && $pci_device == "0x2e12" ]] && { gb10_source=$device; break; }
+    if [[ -z $n1x_source && $pci_device == "0x2e06" ]]; then
+      n1x_source=$device
+    elif [[ -z $gb10_source && $pci_device == "0x2e12" ]]; then
+      gb10_source=$device
+    fi
+    [[ -n $n1x_source && -n $gb10_source ]] && break
   done
 fi
 

@@ -692,3 +692,28 @@ recorder --status || status=$?
 (( status == 1 )) || fail "status reports inactive before the recorder starts"
 [[ ! -s $audio_calls && -e $audio_modules ]] || fail "status preserves the audio mix created before the recorder starts"
 pass "status leaves the starting recorder's audio mix alone"
+
+# omarchy-capture-screenrecording-process inspects OMARCHY_PROC_ROOT directly
+# without pgrep, both for explicit --pid lookups and full scans.
+fake_proc="$tmp_dir/fake-proc"
+mkdir -p "$fake_proc/101" "$fake_proc/102" "$fake_proc/103"
+printf 'gpu-screen-reco\n' >"$fake_proc/101/comm"
+ln -s /usr/bin/gpu-screen-recorder "$fake_proc/101/exe"
+printf 'wf-recorder\n' >"$fake_proc/102/comm"
+ln -s '/usr/bin/wf-recorder (deleted)' "$fake_proc/102/exe"
+printf 'gpu-screen-reco\n' >"$fake_proc/103/comm"
+ln -s /usr/bin/impostor "$fake_proc/103/exe"
+
+OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" ||
+  fail "process helper finds recorders in OMARCHY_PROC_ROOT"
+OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 101 ||
+  fail "process helper matches gpu-screen-recorder by --pid"
+OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 102 ||
+  fail "process helper matches unlinked wf-recorder by --pid"
+if OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 103; then
+  fail "process helper rejects impostor process whose exe is not a recorder"
+fi
+if OMARCHY_PROC_ROOT="$fake_proc" "$ROOT/bin/omarchy-capture-screenrecording-process" --pid 999999; then
+  fail "process helper rejects missing --pid"
+fi
+pass "process helper verifies recorders directly via OMARCHY_PROC_ROOT"
