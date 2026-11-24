@@ -54,3 +54,20 @@ assertEqual(power.batteryIcon(discharging, false, states), power.batteryIcon(dis
 assertEqual(power.batteryIcon(charging, true, states), power.batteryIcon(charging, false, states), 'power uses the charging icon before the on-battery flag catches up')
 assert(power.batteryIcon(discharging, false, states) !== power.batteryIcon(charging, true, states), 'power shows different icons for charging and discharging at the same level')
 JS
+
+qml_test_runner=""
+for candidate in /usr/lib/qt6/bin/qmltestrunner /usr/lib/qt6/qmltestrunner; do
+  if [[ -x $candidate ]]; then
+    qml_test_runner=$candidate
+    break
+  fi
+done
+
+if [[ -z $qml_test_runner ]]; then
+  skip "qt6 qmltestrunner not found; skipping power transition tests"
+  exit 0
+fi
+
+output=$(QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software "$qml_test_runner" -input "$SHELL_TEST_DIR/power/qml" -o -,txt 2>&1) ||
+  fail "power charge-rate handling across UPower transitions" "$output"
+pass "power charge-rate handling across UPower transitions"

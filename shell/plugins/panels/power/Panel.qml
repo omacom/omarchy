@@ -50,12 +50,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, UPower.onBattery, upowerStates(), root.chargeRateFresh)
+    return Model.batteryIcon(device, UPower.onBattery, upowerStates(), chargeRate.rateFresh, chargeRate.atHeldCharge)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, UPower.onBattery, upowerStates(), Commons.I18n.t, root.chargeRateFresh)
+    return Model.modeLabel(device, UPower.onBattery, upowerStates(), Commons.I18n.t, chargeRate.rateFresh, chargeRate.atHeldCharge)
   }
 
   function profileIcon(name) {
@@ -70,33 +70,14 @@ Panel {
     var device = UPower.displayDevice
     return Model.drawingFromBattery(device, UPower.onBattery, upowerStates())
   }
-  // False from the moment external power arrives until the battery has had
-  // time to report a charge rate measured with it. Some batteries refresh
-  // the rate only every half minute, and until then it reads 0 W.
-  readonly property bool chargeRateFresh: !chargeRateSettle.running
-  Timer {
-    id: chargeRateSettle
-    interval: 90000
-  }
-  readonly property bool chargeThresholdActive: {
-    var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, UPower.onBattery, upowerStates(), root.chargeRateFresh)
-  }
-  // Keep a settled, rate-based hold across brief changes in battery direction.
-  property real heldChargeFraction: -1
-  readonly property bool atHeldCharge: heldChargeFraction >= 0
-    && Math.abs(batteryFraction - heldChargeFraction) < 0.01
-
-  function updateHeldCharge() {
-    if (!atHeldCharge) heldChargeFraction = -1
-    var device = UPower.displayDevice
-    if (!(device && device.isPresent && !UPower.onBattery && device.state === UPowerDeviceState.Charging && chargeRateFresh)) return
-    if (!chargeThresholdActive) heldChargeFraction = -1
-    else if (heldChargeFraction < 0) heldChargeFraction = batteryFraction
+  ChargeRate {
+    id: chargeRate
+    device: UPower.displayDevice
+    onBattery: UPower.onBattery
+    states: root.upowerStates()
   }
 
-  onChargeThresholdActiveChanged: Qt.callLater(root.updateHeldCharge)
-  onBatteryFractionChanged: Qt.callLater(root.updateHeldCharge)
+  readonly property bool chargeThresholdActive: chargeRate.holding
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
 
@@ -232,12 +213,7 @@ Panel {
     }
   }
 
-  onBatteryPresentChanged: {
-    if (!batteryPresent) {
-      heldChargeFraction = -1
-      close()
-    }
-  }
+  onBatteryPresentChanged: if (!batteryPresent) close()
 
   visible: batteryPresent
   implicitWidth: batteryPresent ? button.implicitWidth : 0
@@ -267,26 +243,6 @@ Panel {
   }
 
   Timer { interval: 5000; running: root.opened; repeat: true; onTriggered: root.refresh() }
-
-  Connections {
-    target: UPower
-    function onOnBatteryChanged() {
-      root.heldChargeFraction = -1
-      if (UPower.onBattery) chargeRateSettle.stop()
-      else chargeRateSettle.restart()
-    }
-  }
-
-  Connections {
-    target: UPower.displayDevice
-    function onStateChanged() {
-      // A stuck online USB-C port can hide a real plug event from onBattery.
-      if (!UPower.onBattery && target.state === UPowerDeviceState.Charging) {
-        if (!root.atHeldCharge) chargeRateSettle.restart()
-        Qt.callLater(root.updateHeldCharge)
-      }
-    }
-  }
 
   // Rotate the status phrase while the panel is open and we're in a
   // rotating state (charging or on battery). The text swap is wrapped in a
