@@ -8,7 +8,9 @@ for entry in "$OMARCHY_PATH"/default/applications/omarchy-agent-*.desktop; do
   agent=${name#omarchy-agent-}
   agent=${agent%.desktop}
   [[ -f $HOME/.local/share/applications/$name ]] && continue
-  if omarchy-default-agent --installed "$agent" 2>/dev/null; then
+  # Offline, since what's installed is on disk: online, each mise lookup can
+  # wait on the network for the tools Omarchy declares, stalling the update.
+  if MISE_OFFLINE=true omarchy-default-agent --installed "$agent" 2>/dev/null; then
     omarchy-agent-launcher "$agent"
   fi
 done
