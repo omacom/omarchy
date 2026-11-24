@@ -764,6 +764,13 @@ grep -qx "@@omarchy done Added Lazy (lazy@example.com)." "$test_tmp/lazy-output"
 OMARCHY_TEST_LOGIN_UUID=u-lazy-2 OMARCHY_TEST_LOGIN_EMAIL=lazy2@example.com add_lazy Lazier >"$test_tmp/lazy-again" 2>&1 ||
   fail "an installed CLI signs in directly" "$(cat "$test_tmp/lazy-again")"
 rm "$lazy_bin/codex"
+# One the user's own mise config asks for counts too.
+mkdir -p "$lazy_data/shims"
+ln -s "$lazy_bin/mise" "$lazy_data/shims/codex"
+OMARCHY_TEST_LOGIN_UUID=u-lazy-3 OMARCHY_TEST_LOGIN_EMAIL=lazy3@example.com \
+  PATH="$lazy_path:$lazy_data/shims" MISE_DATA_DIR="$lazy_data" omarchy-agent-account-add --events codex Mised </dev/null >>"$test_tmp/lazy-again" 2>&1 ||
+  fail "a CLI from the user's own mise signs in directly" "$(cat "$test_tmp/lazy-again")"
+rm "$lazy_data/shims/codex"
 grep -q "^@@omarchy progress" "$test_tmp/lazy-again" && fail "an installed CLI isn't installed again" "$(cat "$test_tmp/lazy-again")"
 grep -q "^pkexec" "$test_tmp/lazy-log" && fail "an installed CLI isn't installed again" "$(cat "$test_tmp/lazy-log")"
 pass "a missing CLI is installed, with a way to cancel, before its sign-in"
