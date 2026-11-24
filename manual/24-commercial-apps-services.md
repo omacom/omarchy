@@ -24,6 +24,10 @@ You start 1Password with `Super + Shift + /`. If it isn't installed yet, that ho
 
 [Notion](https://www.notion.com/) is a workspace for notes, docs, and projects. Install its desktop app with _Install > Service > Notion_ from the Omarchy menu.
 
+## WeChat
+
+[WeChat](https://www.wechat.com/) is the messaging app most of China runs on, for chatting, calls, and staying in touch with anyone who lives there. Install Tencent's official Linux client with _Install > Service > WeChat_ from the Omarchy menu, and it'll open as soon as it's ready. It's only available on x86 computers.
+
 ## Dropbox
 
 [Dropbox](https://www.dropbox.com/) is a great way to sync files between machines while keeping a backup in the cloud. To set it up, select _Install > Service > Dropbox_ from the Omarchy menu. It adds a Dropbox icon to the bar: click it to log in, then use the same panel to check your storage and open recently synced files.

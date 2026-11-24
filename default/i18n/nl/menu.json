@@ -390,54 +390,6 @@
   "setup.default": {
     "label": "Standaardwaarden"
   },
-  "agent": {
-    "label": "Agent"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
-  },
   "setup.default.browser": {
     "label": "Browser",
     "title": "Standaardbrowser"
@@ -1129,12 +1081,6 @@
   "update.hardware.trackpad": {
     "label": "Trackpad"
   },
-  "update.password.drive": {
-    "label": "Schijfversleuteling"
-  },
-  "update.password.user": {
-    "label": "Gebruiker"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Accupercentage tonen"
   },
@@ -1225,33 +1171,6 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Touchscreen uitschakelen"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
   "setup.git": {
     "label": "Git"
   },
@@ -1300,25 +1219,6 @@
   "setup.default.editor.plain": {
     "label": "Eenvoudig"
   },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "Standaardharness"
-  },
-  "agent.instructions": {
-    "label": "Instructies"
-  },
-  "agent.make": {
-    "label": "Maak iets"
-  },
-  "agent.make.theme": {
-    "label": "Maak een thema"
-  },
-  "agent.make.plugin": {
-    "label": "Maak een plugin"
-  },
-  "agent.make.app": {
-    "label": "Maak een app"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
@@ -1357,9 +1257,6 @@
   "update.games": {
     "label": "Game Vibes Games"
   },
-  "agent.make.game": {
-    "label": "Maak een spel"
-  },
   "install.ai.antigravity": {
     "label": "Antigravity Desktop"
   },
@@ -1368,5 +1265,14 @@
   },
   "setup.network.hostname": {
     "label": "Hostnaam"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

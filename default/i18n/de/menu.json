@@ -390,54 +390,6 @@
   "setup.default": {
     "label": "Standards"
   },
-  "agent": {
-    "label": "Agent"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
-  },
   "setup.default.browser": {
     "label": "Browser",
     "title": "Standard-Browser"
@@ -1129,12 +1081,6 @@
   "update.hardware.trackpad": {
     "label": "Trackpad"
   },
-  "update.password.drive": {
-    "label": "Laufwerksverschlüsselung"
-  },
-  "update.password.user": {
-    "label": "Benutzer"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Absturzerfassung aus"
   },
@@ -1167,33 +1113,6 @@
   },
   "trigger.hardware.touchscreen-off": {
     "label": "Touchscreen deaktivieren"
-  },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
   },
   "setup.git": {
     "label": "Git"
@@ -1300,25 +1219,6 @@
   "setup.default.editor.plain": {
     "label": "Einfach"
   },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "Standard-Harness"
-  },
-  "agent.instructions": {
-    "label": "Anweisungen"
-  },
-  "agent.make": {
-    "label": "Etwas erstellen"
-  },
-  "agent.make.theme": {
-    "label": "Theme erstellen"
-  },
-  "agent.make.plugin": {
-    "label": "Plugin erstellen"
-  },
-  "agent.make.app": {
-    "label": "App erstellen"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
@@ -1357,9 +1257,6 @@
   "update.games": {
     "label": "Game Vibes Spiele"
   },
-  "agent.make.game": {
-    "label": "Spiel erstellen"
-  },
   "install.ai.antigravity": {
     "label": "Antigravity Desktop"
   },
@@ -1368,5 +1265,14 @@
   },
   "setup.network.hostname": {
     "label": "Hostname"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

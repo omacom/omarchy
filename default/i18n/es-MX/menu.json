@@ -390,54 +390,6 @@
   "setup.default": {
     "label": "Predeterminados"
   },
-  "agent": {
-    "label": "Agente"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
-  },
   "setup.default.browser": {
     "label": "Navegador",
     "title": "Navegador predeterminado"
@@ -1129,12 +1081,6 @@
   "update.hardware.trackpad": {
     "label": "Panel táctil"
   },
-  "update.password.drive": {
-    "label": "Cifrado de unidad"
-  },
-  "update.password.user": {
-    "label": "Usuario"
-  },
   "trigger.toggle.crash-capture-off": {
     "label": "Captura de fallos desactivada"
   },
@@ -1167,33 +1113,6 @@
   },
   "trigger.hardware.touchscreen-off": {
     "label": "Desactivar pantalla táctil"
-  },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Mostrar % de batería"
@@ -1300,25 +1219,6 @@
   "setup.default.editor.plain": {
     "label": "Simple"
   },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "Harness predeterminado"
-  },
-  "agent.instructions": {
-    "label": "Instrucciones"
-  },
-  "agent.make": {
-    "label": "Crear algo"
-  },
-  "agent.make.theme": {
-    "label": "Crear un tema"
-  },
-  "agent.make.plugin": {
-    "label": "Crear un plugin"
-  },
-  "agent.make.app": {
-    "label": "Crear una app"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
@@ -1357,9 +1257,6 @@
   "update.games": {
     "label": "Game Vibes Games"
   },
-  "agent.make.game": {
-    "label": "Crear un juego"
-  },
   "install.ai.antigravity": {
     "label": "Antigravity Desktop"
   },
@@ -1368,5 +1265,14 @@
   },
   "setup.network.hostname": {
     "label": "Nombre del host"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

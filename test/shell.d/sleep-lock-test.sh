@@ -121,7 +121,7 @@ SH
 chmod +x "$mock_bin/omarchy-shell"
 mock_clamshell
 
-run_sleep_lock 1500
+run_sleep_lock 600
 
 (( exit_status != 0 )) ||
   fail "sleep lock reports failure when the session never secures"
@@ -133,7 +133,7 @@ pass "sleep lock reports failure when the session never secures"
 # mid-lock. Bounding by that reserve rather than by the interval leaves room for
 # process startup on a loaded machine, and still catches a wait that ignores
 # its deadline.
-(( elapsed_us <= 2500000 )) ||
+(( elapsed_us <= 1600000 )) ||
   fail "sleep lock gives up within its budget" "elapsed: ${elapsed_us}us"
 pass "sleep lock gives up within its budget"
 
@@ -285,27 +285,27 @@ SH
 # The drop-in only counts once logind has reloaded it, and a machine can carry
 # its own override, so the budget follows whatever logind actually enforces.
 # These derivation scenarios run a scratch copy with the cap, the assumed
-# fallback window, and the reserve floor all at a quarter of their real
-# values (and mock windows to match), so the budgets come out at a quarter
+# fallback window, and the reserve floor all at a tenth of their real
+# values (and mock windows to match), so the budgets come out at a tenth
 # length. The journal names the budget each one derived.
 sleep_lock_shipped="$sleep_lock"
 sleep_lock="$tmpdir/sleep-lock-fast"
-sed -e 's/^budget_cap_ms=12000$/budget_cap_ms=3000/' \
-  -e 's/window=5000000/window=1250000/' \
-  -e 's/window \/ 5 > 1000 ? window \/ 5 : 1000/window \/ 5 > 250 ? window \/ 5 : 250/' \
+sed -e 's/^budget_cap_ms=12000$/budget_cap_ms=1200/' \
+  -e 's/window=5000000/window=500000/' \
+  -e 's/window \/ 5 > 1000 ? window \/ 5 : 1000/window \/ 5 > 100 ? window \/ 5 : 100/' \
   "$sleep_lock_shipped" >"$sleep_lock"
-for scaled in '^budget_cap_ms=3000$' 'window=1250000' 'window / 5 > 250 ? window / 5 : 250'; do
+for scaled in '^budget_cap_ms=1200$' 'window=500000' 'window / 5 > 100 ? window / 5 : 100'; do
   grep -q -- "$scaled" "$sleep_lock" ||
     fail "the scratch sleep lock scales its budgets down" "no match for: $scaled"
 done
 chmod +x "$sleep_lock"
 setup_scenario derived_short_window
-mock_logind_window 500000
+mock_logind_window 200000
 never_secures
 
 run_sleep_lock
 
-grep -qF "within 250ms" "$journal_log" ||
+grep -qF "within 100ms" "$journal_log" ||
   fail "sleep lock derives its budget from logind's window" "journal: $(<"$journal_log")"
 pass "sleep lock derives its budget from logind's window"
 
@@ -321,12 +321,12 @@ never_secures
 
 run_sleep_lock
 
-grep -qF "within 1000ms" "$journal_log" ||
+grep -qF "within 400ms" "$journal_log" ||
   fail "sleep lock falls back to a conservative budget" "journal: $(<"$journal_log")"
 pass "sleep lock falls back to a conservative budget when logind cannot be read"
 
 # A hand-raised window must not strand a closed laptop awake in a bag. This
-# scenario runs for the whole capped budget by design (a quarter of it here).
+# scenario runs for the whole capped budget by design (a tenth of it here).
 setup_scenario capped_window
 mock_logind_window 150000000
 never_secures
@@ -335,7 +335,7 @@ run_sleep_lock
 
 (( exit_status != 0 )) ||
   fail "sleep lock caps the budget a huge logind window would allow"
-grep -qF "within 3000ms" "$journal_log" ||
+grep -qF "within 1200ms" "$journal_log" ||
   fail "sleep lock caps the budget a huge logind window would allow" \
     "journal: $(<"$journal_log")"
 pass "sleep lock caps the budget a huge logind window would allow"

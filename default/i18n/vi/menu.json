@@ -390,54 +390,6 @@
   "setup.default": {
     "label": "Mặc định"
   },
-  "agent": {
-    "label": "Agent"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
-  },
   "setup.default.browser": {
     "label": "Trình duyệt",
     "title": "Trình duyệt mặc định"
@@ -1129,12 +1081,6 @@
   "update.hardware.trackpad": {
     "label": "Bàn di chuột"
   },
-  "update.password.drive": {
-    "label": "Mã hóa ổ đĩa"
-  },
-  "update.password.user": {
-    "label": "Người dùng"
-  },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "Hiện % pin"
   },
@@ -1225,33 +1171,6 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Tắt màn hình cảm ứng"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
   "setup.git": {
     "label": "Git"
   },
@@ -1300,25 +1219,6 @@
   "setup.default.editor.plain": {
     "label": "Đơn giản"
   },
-  "agent.harness": {
-    "label": "Harness",
-    "title": "Harness mặc định"
-  },
-  "agent.instructions": {
-    "label": "Hướng dẫn"
-  },
-  "agent.make": {
-    "label": "Tạo thứ gì đó"
-  },
-  "agent.make.theme": {
-    "label": "Tạo chủ đề"
-  },
-  "agent.make.plugin": {
-    "label": "Tạo plugin"
-  },
-  "agent.make.app": {
-    "label": "Tạo ứng dụng"
-  },
   "install.browser.chromium": {
     "label": "Chromium"
   },
@@ -1357,9 +1257,6 @@
   "update.games": {
     "label": "Game Vibes Games"
   },
-  "agent.make.game": {
-    "label": "Tạo trò chơi"
-  },
   "install.ai.antigravity": {
     "label": "Antigravity Desktop"
   },
@@ -1368,5 +1265,14 @@
   },
   "setup.network.hostname": {
     "label": "Tên máy chủ"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
   }
 }

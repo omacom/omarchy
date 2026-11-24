@@ -281,3 +281,23 @@ assertEqual(network.vpnStateText(vpns[1], 'split'), 'OpenVPN · Switching to Spl
 assert(!network.vpnSwitchSettled(vpns, 'u2', 'split') && network.vpnSwitchSettled(vpns, 'u1', 'full') && network.vpnSwitchSettled(vpns, 'gone', 'full'),
   'network holds a VPN switch until the VPN is up in the mode asked for')
 JS
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+mkdir -p "$tmpdir/bin"
+printf '#!/bin/bash\nexit 0\n' >"$tmpdir/bin/nmcli"
+cat >"$tmpdir/bin/rfkill" <<'SH'
+#!/bin/bash
+if [[ $* == *"--output HARD"* ]]; then
+  [[ $LC_ALL == "C" ]] || exit 2
+  printf '%s\n' "$HARD_BLOCKS"
+fi
+SH
+chmod +x "$tmpdir/bin/"*
+PATH="$tmpdir/bin:$PATH" HARD_BLOCKS=unblocked "$ROOT/bin/omarchy-restart-wifi" >"$tmpdir/output" 2>&1 ||
+  fail "Wi-Fi restart accepts radios without a hard block" "$(cat "$tmpdir/output")"
+status=0
+PATH="$tmpdir/bin:$PATH" HARD_BLOCKS=$'unblocked\nblocked' "$ROOT/bin/omarchy-restart-wifi" >"$tmpdir/output" 2>&1 || status=$?
+(( status == 1 )) && grep -q "still hardware-blocked" "$tmpdir/output" ||
+  fail "Wi-Fi restart reports a remaining hardware block" "status=$status: $(cat "$tmpdir/output")"
+pass "Wi-Fi restart distinguishes unblocked and hardware-blocked radios"
