@@ -1,16 +1,3 @@
-# Managed by Omarchy through the omarchy-settings package. Override individual tools in ~/.config/mise/config.toml.
-# mise keeps language runtimes and the tools that run on them. Coding agents and other CLIs are packages.
-
-[settings]
-locked_scopes = ["project", "global"]
-system_installs_dir = "~/.local/share/mise/installs"
-system_shims_dir = "~/.local/share/mise/shims"
-# mise installs these registry tools straight from npm on their first command, before Node, and fails; left to the lazy install, Node comes with them.
-auto_install_disable_tools = ["playwright"]
-
-# Backend options go inside a tool's table, never in a "tool[...]" key: mise drops bracket options from a
-# key whose value is a table, so a tool declared that way installs without them.
-[tools]
-node = { version = "latest", lazy = true, minimum_release_age = "0s" }
-"npm:cf" = { version = "latest", lazy = true, lazy_bins = ["cf"], minimum_release_age = "0s" }
-playwright = { version = "latest", lazy = true, minimum_release_age = "0s" }
+# Managed by Omarchy through the omarchy-settings package.
+# Omarchy declares no mise tools: runtimes are set up from Install > Development, and every other tool is a package.
+# The file stays because migrations from when it declared tools wait for it to exist.
