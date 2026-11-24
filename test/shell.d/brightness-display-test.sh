@@ -220,3 +220,99 @@ for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
 done
 rm -f "$platform_root/displays.conf"
 pass "every external monitor is probed without the directive"
+
+# Brightness memory serializes source changes and writes for the internal panel.
+memory_bin="$test_tmp/memory-bin"
+mkdir -p "$memory_bin" "$test_tmp/state" "$test_tmp/memory-runtime"
+cat >"$memory_bin/omarchy-hw-display" <<'SH'
+#!/bin/bash
+[[ ${NO_DISPLAY:-0} == 1 ]] && exit 1
+printf 'panel\n'
+SH
+cat >"$memory_bin/busctl" <<'SH'
+#!/bin/bash
+[[ ${BUSCTL_FAIL:-0} == 1 ]] && exit 1
+printf 'b %s\n' "$(<"$POWER_SOURCE")"
+SH
+cat >"$memory_bin/brightnessctl" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$MEMORY_CALLS"
+if [[ $* == *" -m"* ]]; then printf 'panel,backlight,%s,%s%%\n' "${MEMORY_CURRENT:-40}" "${MEMORY_CURRENT:-40}"; fi
+SH
+printf '#!/bin/bash\nprintf "[]\\n"\n' >"$memory_bin/hyprctl"
+chmod +x "$memory_bin"/*
+source_file="$test_tmp/power-source"
+printf false >"$source_file"
+memory="$ROOT/bin/omarchy-brightness-memory"
+run_memory() {
+  POWER_SOURCE="$source_file" MEMORY_CALLS="$test_tmp/memory-calls" XDG_STATE_HOME="$test_tmp/state" XDG_RUNTIME_DIR="$test_tmp/memory-runtime" PATH="$memory_bin:$ROOT/bin:$PATH" "$memory" "$@"
+}
+state="$test_tmp/state/omarchy/brightness"
+mkdir -p "$state"
+printf '40\n' >"$state/ac"
+printf '63\n' >"$state/ac"
+printf 'ac\n' >"$state/active"
+: >"$test_tmp/memory-calls"
+run_memory sync
+[[ ! -s $test_tmp/memory-calls ]] || fail "sync after restart does not overwrite the current level"
+printf true >"$source_file"
+printf '30\n' >"$state/battery"
+run_memory sync
+[[ $(<"$test_tmp/memory-calls") == "-q -d panel set 30%" && $(<"$state/active") == battery ]] || fail "sync applies the level for the newly selected source"
+pass "brightness memory restart and source switch"
+
+: >"$test_tmp/memory-calls"
+rm -f "$state/active" "$state/ac"
+run_memory sync
+[[ ! -s $test_tmp/memory-calls && $(<"$state/active") == battery ]] || fail "missing active records source without writing brightness"
+printf 'battery\n' >"$state/active"
+printf false >"$source_file"
+run_memory sync
+[[ ! -s $test_tmp/memory-calls && $(<"$state/active") == ac ]] || fail "missing saved level updates active without writing"
+run_memory set 70%
+[[ $(<"$state/ac") == 70 ]] || fail "set saves its target instead of reading back brightness"
+pass "brightness memory initializes missing state and saves target"
+
+printf true >"$source_file"
+printf 'ac\n' >"$state/active"
+printf '45\n' >"$state/ac"
+: >"$test_tmp/memory-calls"
+run_memory set 70%
+printf false >"$source_file"
+run_memory sync
+[[ $(<"$state/battery") == 70 && $(<"$state/active") == ac && $(<"$test_tmp/memory-calls") == $'-q -d panel set 70%\n-q -d panel set 45%' ]] || fail "set-before-switch-sync preserves both source levels"
+printf true >"$source_file"
+run_memory sync
+run_memory set 70%
+: >"$test_tmp/memory-calls"
+run_memory sync
+[[ $(<"$state/battery") == 70 && $(<"$state/active") == battery && ! -s $test_tmp/memory-calls ]] || fail "switch-sync-before-set does not replay stale brightness"
+pass "brightness memory serializes either set and sync order"
+
+lock="$test_tmp/memory-runtime/omarchy-brightness-memory.lock"
+flock "$lock" sleep 2 & lock_pid=$!
+sleep 0.1
+if timeout 1 env POWER_SOURCE="$source_file" MEMORY_CALLS="$test_tmp/memory-calls" XDG_STATE_HOME="$test_tmp/state" XDG_RUNTIME_DIR="$test_tmp/memory-runtime" PATH="$memory_bin:$ROOT/bin:$PATH" "$memory" set 50%; then fail "memory lock blocks competing writes"; else status=$?; (( status == 124 )) || fail "memory lock timeout status" "actual: $status"; fi
+wait "$lock_pid"
+before_ac=$(<"$state/ac")
+before_battery=$(<"$state/battery")
+before_active=$(<"$state/active")
+: >"$test_tmp/memory-calls"
+BUSCTL_FAIL=1 run_memory set 50%
+[[ $(<"$test_tmp/memory-calls") == "-q -d panel set 50%" ]] || fail "UPower failure still changes brightness"
+[[ $(<"$state/ac") == "$before_ac" && $(<"$state/battery") == "$before_battery" && $(<"$state/active") == "$before_active" ]] || fail "UPower failure does not persist a guessed source"
+: >"$test_tmp/memory-calls"
+BUSCTL_FAIL=1 run_memory sync
+[[ ! -s $test_tmp/memory-calls && $(<"$state/active") == "$before_active" ]] || fail "sync without UPower leaves brightness state untouched"
+MEMORY_CURRENT=1 run_memory set '5%-'
+grep -F -- '-q -d panel set 1%' "$test_tmp/memory-calls" >/dev/null || fail "decrement at zero clamps to one percent"
+[[ $(<"$state/battery") == 1 ]] || fail "clamped decrement target is persisted"
+NO_DISPLAY=1 run_memory set 51%
+pass "brightness memory blocks on lock and handles desktop or no display"
+
+# Exercise the public CLI, not only its helper: relative arguments must finish
+# while the helper owns the shared lock and be translated to an absolute target.
+for argument in +5% 10%- +10% 10%- +1; do
+  timeout 3 env POWER_SOURCE="$source_file" MEMORY_CALLS="$test_tmp/memory-calls" XDG_STATE_HOME="$test_tmp/state" XDG_RUNTIME_DIR="$test_tmp/memory-runtime" PATH="$memory_bin:$ROOT/bin:$PATH" "$brightness_display" --no-osd --monitor eDP-1 "$argument" || fail "CLI relative brightness argument completes: $argument"
+done
+pass "brightness CLI relative arguments complete under timeout"
